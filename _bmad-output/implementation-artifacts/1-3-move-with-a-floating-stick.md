@@ -4,7 +4,7 @@ baseline_commit: 65ef0b70de773083d970bc829182c13b947b17a4
 
 # Story 1.3: Move with a floating stick
 
-Status: review
+Status: done
 
 ## Story
 
@@ -179,10 +179,24 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `apps/client/src/render/camera.test.ts` (new)
 - `apps/client/src/scenes/HudScene.ts` (new)
 - `apps/client/src/scenes/GameScene.ts` (modified)
-- `apps/client/src/main.ts` (modified: registers HudScene)
+- `apps/client/src/main.ts` (modified: registers HudScene, `input.activePointers: 3`)
 - `_bmad-output/implementation-artifacts/1-3-move-with-a-floating-stick.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context, with its own Playwright multi-touch run at DPR 2) · **Outcome:** Approved with 2 low findings, both addressed
+- Confirmed: AC 1–5 in the browser. Specifically:
+  - the stick origin uses DPR-correct canvas space;
+  - top speed measured ≈ 4.5 m/s;
+  - the survivor stops at the corner (0.4, 0.4);
+  - the view measures 24 × 11.09 m on a 20:9 phone, 18 × 13.5 m on 4:3 and 13.5 × 13.5 m on 1:1;
+  - a right-half touch never affects the move stick;
+  - touchcancel and blur reset the stick, and listener counts stay flat across restarts.
+- [x] [Low] `HudScene` called `addPointer(2)` on every restart, so touch pointers grew 3 → 5 → 7 … (up to Phaser's cap of 10). Fixed: the game config now sets `input.activePointers: 3` once in `main.ts`, and the per-restart call is gone.
+- [x] [Low] Test gap: added tests for `TouchSticks.reset()` (later events from the old pointer are ignored) and for move/up events with no active stick. A Playwright smoke test of the Phaser wiring needs a debug hook to reach the game; it is deferred to Story 1.11, which adds the debug overlay and hooks.
+
 ## Change Log
 
+- 2026-11-21: Addressed code review findings - 2 low items resolved. 90 tests passing.
 - 2026-11-21: Story 1.3 implemented: player movement and map edges (shared), floating move stick, camera 24 × 13.5 m, HUD scene, placeholder street. 88 tests passing.

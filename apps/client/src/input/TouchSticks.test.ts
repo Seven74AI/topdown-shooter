@@ -39,4 +39,24 @@ describe("TouchSticks", () => {
     s.pointerUp(3);
     expect(s.move?.pointerId).toBe(1);
   });
+
+  it("reset releases the stick and ignores later events from the old pointer", () => {
+    const s = new TouchSticks(100, 0.1);
+    s.pointerDown(1, 100, 300, W);
+    s.reset();
+    expect(s.move).toBeNull();
+    s.pointerMove(1, 200, 300);
+    s.pointerUp(1);
+    expect(s.move).toBeNull();
+    expect(s.moveVector().magnitude).toBe(0);
+  });
+
+  it("ignores move and up events with no active stick", () => {
+    const s = new TouchSticks(100, 0.1);
+    expect(() => {
+      s.pointerMove(9, 10, 10);
+      s.pointerUp(9);
+    }).not.toThrow();
+    expect(s.move).toBeNull();
+  });
 });

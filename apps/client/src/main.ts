@@ -14,6 +14,9 @@ const deviceSize = (): [number, number] => [
   Math.round(window.innerHeight * dpr()),
 ];
 
+/** Touch pointers Phaser tracks: move stick + aim stick + one HUD button. */
+const ACTIVE_TOUCH_POINTERS = 3;
+
 const [width, height] = deviceSize();
 
 const game = new Phaser.Game({
@@ -23,6 +26,7 @@ const game = new Phaser.Game({
   width,
   height,
   scale: { mode: Phaser.Scale.NONE, zoom: 1 / dpr() },
+  input: { activePointers: ACTIVE_TOUCH_POINTERS },
   scene: [BootScene, GameScene, HudScene],
 });
 

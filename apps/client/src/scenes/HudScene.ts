@@ -10,7 +10,6 @@ const STICK_FILL = 0xffffff;
 const STICK_FILL_ALPHA = 0.12;
 const STICK_RING_ALPHA = 0.35;
 const KNOB_ALPHA = 0.45;
-const EXTRA_TOUCH_POINTERS = 2; // Phaser starts with 1 touch pointer; twin-stick + a button need 3
 
 /**
  * Unzoomed overlay above the GameScene: touch sticks now; health bar, wave text and buttons later.
@@ -30,7 +29,6 @@ export class HudScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.input.addPointer(EXTRA_TOUCH_POINTERS);
     const r = STICK_RADIUS_CSS_PX * dpr();
     this.sticks.setRadius(r);
     this.moveBase = this.add
