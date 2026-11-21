@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1]
+stepsCompleted: [1, 2]
 inputDocuments:
   - _bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/gdd.md
   - _bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/epics.md
@@ -216,8 +216,137 @@ No UX design document exists yet. Menu, HUD and touch-control needs are covered 
 
 ### FR Coverage Map
 
-{{requirements_coverage_map}}
+FR1: Epic 1 - Landscape only, rotate overlay
+FR2: Epic 1 - Floating move stick
+FR3: Epic 1 - Floating aim stick with auto-fire
+FR4: Epic 1 - 8° aim assist on touch
+FR5: Epic 1 - Weapon swap 0.3 s
+FR6: Epic 1 - Auto reload, unlimited reserve
+FR7: Epic 1 - Desktop keyboard and mouse fallback
+FR8: Epic 5 - Consumable button
+FR9: Epic 1 - Player HP, speed, contact damage (build-phase heal in Epic 3)
+FR10: Epic 2 - Downed, revive, out
+FR11: Epic 2 - Team wipe loss (Epic 1: solo death ends the game)
+FR12: Epic 1 - Two slots, Pistol start (100 currency start in Epic 3)
+FR13: Epic 1 (Pistol, SMG, Machete, Hunting Rifle) · Epic 5 (other 6 weapons)
+FR14: Epic 1 - Visible projectiles, instant melee arcs (lobbed grenades in Epic 5)
+FR15: Epic 1 - Fixed spread, no recoil, no crits
+FR16: Epic 1 (Hunting Rifle pierce) · Epic 5 (other weapon specials)
+FR17: Epic 5 - Upgrades I–IV
+FR18: Epic 5 - Friendly fire for explosions and fire
+FR19: Epic 1 - Hit flash, pushback, screen shake
+FR20: Epic 1 - Walker
+FR21: Epic 3 - Runner
+FR22: Epic 3 - Crawler
+FR23: Epic 5 - Spitter
+FR24: Epic 5 - Bloater
+FR25: Epic 5 - Brute
+FR26: Epic 1 (chase, separation) · Epic 3 (attack buildings, flow fields) · Epic 4 (route around cover)
+FR27: Epic 1 - Fixed zombie stats
+FR28: Epic 1 (simple growing waves) · Epic 3 (5-wave curve) · Epic 6 (full 10-wave curve)
+FR29: Epic 3 (W1–W3 order) · Epic 6 (full introduction order)
+FR30: Epic 1 - Last 5 marked and rushing
+FR31: Epic 3 - Player-count scaling (boss HP scaling in Epic 6)
+FR32: Epic 4 - Spawn points at district edges, opened by decay
+FR33: Epic 6 - Behemoth body and arrival
+FR34: Epic 6 - Behemoth slam, charge, throw
+FR35: Epic 6 - Behemoth enrage
+FR36: Epic 6 - Behemoth death calls evacuation
+FR37: Epic 6 - Event scheduling
+FR38: Epic 6 - Car alarm
+FR39: Epic 6 - Gas leak
+FR40: Epic 6 - Supply drop
+FR41: Epic 6 - Stampede
+FR42: Epic 6 - Power failure
+FR43: Epic 6 - Survivor escort
+FR44: Epic 3 - 30 s build phase with Ready
+FR45: Epic 3 - Personal wallets and rewards
+FR46: Epic 3 - Always-available shop items (fixed list)
+FR47: Epic 5 - 6-card roguelike shop with reroll and floor
+FR48: Epic 5 - Gear
+FR49: Epic 5 - Consumables
+FR50: Epic 3 - Grid placement and rotation
+FR51: Epic 3 - Persistence, repairs, 6-building cap
+FR52: Epic 3 (Wood barricade, Auto-turret) · Epic 5 (other 5 buildings)
+FR53: Epic 3 (blocking, zombie attacks) · Epic 4 (fire damage) · Epic 6 (rubble, Behemoth charge)
+FR54: Epic 4 - Downtown layout
+FR55: Epic 1 (camera follow) · Epic 2 (player rings, teammate edge arrows)
+FR56: Epic 4 - Cover and bullet rules
+FR57: Epic 4 (fire zones) · Epic 5 (acid, Bloater gas) · Epic 6 (gas leak)
+FR58: Epic 4 - Decay stage engine and build-phase timing
+FR59: Epic 4 - Stage 1 Evening
+FR60: Epic 4 - Stage 2 Panic
+FR61: Epic 4 - Stage 3 Breakdown
+FR62: Epic 6 - Stage 4 Ruins
+FR63: Epic 6 - Stage 5 Collapse
+FR64: Epic 6 - Blackout lighting
+FR65: Epic 4 - Run seed (seeded RNG core from Epic 1)
+FR66: Epic 6 - Evacuation vote
+FR67: Epic 6 - Extract or stay
+FR68: Epic 6 - Endless mode
+FR69: Epic 2 - Lobby, share link, 4-letter code
+FR70: Epic 2 - Guest play with a name
+FR71: Epic 2 - Shared horde, server hits, instant own feel
+FR72: Epic 8 - Join mid-run at build phases
+FR73: Epic 8 - 2-minute reconnect
+FR74: Epic 8 - Host migration
+FR75: Epic 8 - Save and quit, 7-day resume with host
+FR76: Epic 8 - Pings
+FR77: Epic 7 - Guest-to-account upgrade
+FR78: Epic 7 - Supplies earning
+FR79: Epic 7 - Starter pool, unlocks, unlock screen
+FR80: Epic 7 - Training boosts
+FR81: Epic 7 - District 2 unlock rule
+FR82: Epic 4 (placeholder Dead City art) · Epic 9 (final art)
+FR83: Epic 9 - Gore and dismemberment with toggle
+FR84: Epic 5–6 (visual telegraphs, placeholder sounds) · Epic 9 (final signature sounds)
+FR85: Epic 9 - Ambience and adaptive music
+FR86: Epic 9 - Weapon sounds (placeholder sounds from Epic 1)
+FR87: Epic 10 - Quality settings
+FR88: Epic 10 - Run stats
+
+**NFRs:** NFR1 measured from Epic 1, met in Epic 10 · NFR2 Epic 10 · NFR3–NFR5 Epic 2 · NFR6–NFR8 Epic 10 · NFR9 Epics 2, 6, 10 · NFR10 from Epic 1 · NFR11 Epics 2 and 5 · NFR12 Epic 2 (transport, input validation), Epic 7 (passwords) · NFR13 Epics 7 and 8 · NFR14 from Epic 1.
 
 ## Epic List
 
-{{epics_list}}
+Ten epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 10. Epic 8 can start after Epic 3 and Epic 9 after Epic 4; both run alongside. No epic needs a later epic to work.
+
+### Epic 1: Core combat on one phone
+One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones.
+**FRs covered:** FR1–FR7, FR9, FR12, FR13 (4 weapons), FR14, FR15, FR16 (pierce), FR19, FR20, FR26 (chase, separation), FR27, FR28 (simple), FR30, FR55 (camera follow)
+
+### Epic 2: Online co-op foundation
+2–4 friends open a share link and fight the same horde together on 4G, with downed/revive and team wipe. Includes the Colyseus server, horde stream, prediction and interpolation, server-confirmed hits, an anonymous guest device ID (so the host is known), and the first deploy to the VPS (Docker Compose + Caddy, HTTPS/WSS) for the 4G latency test.
+**FRs covered:** FR10, FR11, FR55 (rings, edge arrows), FR69, FR70, FR71
+
+### Epic 3: Build phase and economy
+A team plays 5 waves with build phases: earning into personal wallets, buying from a fixed-list shop, and placing Auto-turrets and Wood barricades on a grid. Runners and Crawlers join the horde; zombie count scales with player count.
+**FRs covered:** FR9 (build heal), FR12 (start currency), FR21, FR22, FR26 (attack buildings, flow fields), FR28 (5-wave curve), FR29 (W1–W3), FR31, FR44, FR45, FR46, FR50, FR51, FR52 (2 buildings), FR53 (blocking)
+
+### Epic 4: Downtown and city decay (Milestone 1)
+2–4 players online in Downtown play 5 waves through Evening → Panic → Breakdown: cars move into the road, barriers block paths, fires burn. Placeholder Dead City art, cover rules, spawn points and the run seed.
+**FRs covered:** FR26 (route around cover), FR32, FR53 (fire damage), FR54, FR56, FR57 (fire), FR58, FR59, FR60, FR61, FR65, FR82 (placeholder)
+
+### Epic 5: Full arsenal and bestiary
+Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop; every zombie type demands its own answer.
+**FRs covered:** FR8, FR13 (6 weapons), FR14 (lobbed), FR16, FR17, FR18, FR23, FR24, FR25, FR47, FR48, FR49, FR52 (5 buildings), FR53, FR57 (acid, gas), FR84 (telegraphs)
+
+### Epic 6: The full run: decay, boss, events, endless
+A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets the special events, votes to extract or stay, and can go endless.
+**FRs covered:** FR28 (full curve), FR29, FR31 (boss HP), FR33–FR43, FR53 (rubble, charge), FR57 (gas leak), FR62, FR63, FR64, FR66, FR67, FR68, FR84 (boss telegraphs)
+
+### Epic 7: Accounts and meta-progression
+Players keep progress between runs: a guest upgrades to an account, earns Supplies, unlocks items that then appear in their shop, and buys capped Training boosts.
+**FRs covered:** FR77, FR78, FR79, FR80, FR81
+
+### Epic 8: Real-life resilience
+Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, host migration, Save and quit with 7-day resume, and quick pings.
+**FRs covered:** FR72, FR73, FR74, FR75, FR76
+
+### Epic 9: Dead City art and audio
+The game looks and sounds like Dead City: final district art in 5 decay states, animations, gore and dismemberment, effects, UI art, ambience per stage, adaptive music, weapon and zombie sounds. Non-code checklist item: hire the artist and sound designer.
+**FRs covered:** FR82, FR83, FR84 (final sounds), FR85, FR86
+
+### Epic 10: Performance and polish
+Every technical target is met on the reference phones; quality settings, home-screen install and safe areas, run stats, a balance pass and friend-group playtests deliver v1.
+**FRs covered:** FR87, FR88 · NFR1, NFR2, NFR6, NFR7, NFR8
