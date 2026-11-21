@@ -4,7 +4,7 @@ import { dpr } from "./display";
 import { BootScene } from "./scenes/BootScene";
 import { GameScene } from "./scenes/GameScene";
 import { HudScene } from "./scenes/HudScene";
-import { RotateOverlay } from "./ui/RotateOverlay";
+import { App } from "./ui/App";
 import "./ui/overlay.css";
 
 // Phaser 4 has no `resolution` option: size the canvas in device pixels
@@ -36,4 +36,4 @@ window.addEventListener("resize", () => {
 });
 
 const ui = document.getElementById("ui");
-if (ui) render(h(RotateOverlay, {}), ui);
+if (ui) render(h(App, {}), ui);

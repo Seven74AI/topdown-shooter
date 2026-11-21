@@ -25,3 +25,46 @@
     font-size: 48px;
   }
 }
+
+/* Game over: the only overlay that takes touches while shown (#ui is pointer-events: none). */
+.game-over {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font: 500 18px/1.3 system-ui, sans-serif;
+  text-align: center;
+}
+
+.game-over h1 {
+  margin: 0;
+  font-size: 36px;
+  color: #e05252;
+}
+
+.game-over p {
+  margin: 0;
+}
+
+.btn {
+  min-width: 160px;
+  min-height: 48px; /* ≥ 44 px touch target */
+  padding: 10px 24px;
+  border: 0;
+  border-radius: 8px;
+  background: #e8e8e8;
+  color: #111;
+  font: 600 18px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.btn:active {
+  background: #bbb;
+}

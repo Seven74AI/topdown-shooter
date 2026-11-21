@@ -13,3 +13,12 @@ export const TICK_DT_S = 1 / TICK_RATE_HZ;
  */
 export const VIEW_WIDTH_M = 24;
 export const VIEW_HEIGHT_M = 13.5;
+
+/** Zombie pool slots: ≥ maxAlive (150) plus slots held after death (architecture › Horde Stream). */
+export const ZOMBIE_POOL_CAPACITY = 256;
+
+/** Ticks a freed zombie slot waits before reuse (1 s), so clients never interpolate a new zombie from a dead one. */
+export const ZOMBIE_SLOT_HOLD_TICKS = 20;
+
+/** Spatial hash grid cell size in meters (architecture › Decision Summary). */
+export const GRID_CELL_M = 2;

@@ -1,4 +1,13 @@
-export { GAME_TITLE, TICK_DT_S, TICK_RATE_HZ, VIEW_HEIGHT_M, VIEW_WIDTH_M } from "./config/constants";
+export {
+  GAME_TITLE,
+  GRID_CELL_M,
+  TICK_DT_S,
+  TICK_RATE_HZ,
+  VIEW_HEIGHT_M,
+  VIEW_WIDTH_M,
+  ZOMBIE_POOL_CAPACITY,
+  ZOMBIE_SLOT_HOLD_TICKS,
+} from "./config/constants";
 export { err, ok, type Result } from "./core/result";
 export { createRng, createRngFromState, type Rng, type RngState } from "./core/rng";
 export { EventBus, type EventHandler } from "./core/eventBus";
@@ -13,3 +22,7 @@ export { NEUTRAL_INPUT, playerInputSchema, type PlayerInput } from "./net/input"
 export { PLACEHOLDER_MAP, type DistrictBounds } from "./map/placeholderMap";
 export { addPlayer, type PlayerState, type PlayerStatus } from "./player/player";
 export { updatePlayers } from "./player/movement";
+export { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "./zombies/zombieTypes";
+export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
+export { spawnRing } from "./zombies/spawnRing";
+export { queryRadius, type SpatialGrid } from "./core/spatialGrid";

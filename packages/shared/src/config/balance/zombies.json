@@ -8,5 +8,10 @@
       "radiusM": 0.35,
       "reward": 2
     }
+  },
+  "crowd": {
+    "separationRadiusM": 0.8,
+    "separationStrength": 3.0,
+    "maxSpeedFactor": 1.5
   }
 }

@@ -3,6 +3,9 @@ import { TICK_DT_S } from "../config/constants";
 import type { PlayerInput } from "../net/input";
 import { PLACEHOLDER_MAP, type DistrictBounds } from "../map/placeholderMap";
 import type { PlayerState } from "../player/player";
+import { GRID_CELL_M, ZOMBIE_POOL_CAPACITY } from "../config/constants";
+import { createZombiePool, type ZombiePool } from "../zombies/zombiePool";
+import { createSpatialGrid, type SpatialGrid } from "./spatialGrid";
 import { EventBus } from "./eventBus";
 import { createRng, type Rng } from "./rng";
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
@@ -26,6 +29,10 @@ export interface World {
   readonly map: DistrictBounds;
   /** Players by id (Epic 1: one player, "local"). */
   readonly players: Map<string, PlayerState>;
+  /** Zombie storage (struct-of-arrays pool). */
+  readonly zombies: ZombiePool;
+  /** Spatial hash grid over zombies, rebuilt each tick by the zombie system. */
+  readonly zombieGrid: SpatialGrid;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -45,6 +52,7 @@ const DT_TOLERANCE = 1e-9;
 
 export function createWorld(opts: CreateWorldOptions): World {
   const seed = opts.seed >>> 0;
+  const map = opts.map ?? PLACEHOLDER_MAP;
   const world: World = {
     tick: 0,
     balance: opts.balance,
@@ -54,8 +62,10 @@ export function createWorld(opts: CreateWorldOptions): World {
     pendingInputs: new Map(),
     inputs: new Map(),
     lastAppliedSeq: new Map(),
-    map: opts.map ?? PLACEHOLDER_MAP,
+    map,
     players: new Map(),
+    zombies: createZombiePool(ZOMBIE_POOL_CAPACITY),
+    zombieGrid: createSpatialGrid(map, GRID_CELL_M, ZOMBIE_POOL_CAPACITY),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

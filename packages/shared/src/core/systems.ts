@@ -1,5 +1,6 @@
 import type { World } from "./world";
 import { updatePlayers } from "../player/movement";
+import { updateZombies } from "../zombies/zombieAi";
 
 /** Fixed system order per tick (architecture › Communication Patterns). Never reorder. */
 export const SYSTEM_ORDER = [
@@ -49,7 +50,7 @@ export const DEFAULT_SYSTEMS: Systems = {
   player: updatePlayers,
   buildings: noop,
   combat: noop,
-  zombies: noop,
+  zombies: updateZombies,
   boss: noop,
   waves: noop,
   specialEvents: noop,

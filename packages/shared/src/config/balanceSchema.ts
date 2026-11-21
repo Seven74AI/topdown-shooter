@@ -47,7 +47,20 @@ export const zombieTypeSchema = z
   })
   .strict();
 
-export const zombiesSchema = z.object({ types: z.record(balanceId, zombieTypeSchema) }).strict();
+/** Crowd movement: zombies push each other apart within `separationRadiusM`. */
+export const crowdSchema = z
+  .object({
+    separationRadiusM: z.number().positive(),
+    /** Push speed (m/s) at full overlap. */
+    separationStrength: z.number().min(0),
+    /** Desired speed + push is capped at speedMps × this factor. */
+    maxSpeedFactor: z.number().min(1),
+  })
+  .strict();
+
+export const zombiesSchema = z
+  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema })
+  .strict();
 
 export const wavesSchema = z
   .object({
