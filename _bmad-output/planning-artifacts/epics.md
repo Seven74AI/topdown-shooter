@@ -1170,3 +1170,216 @@ So that the run feels right with 2, 3 or 4 players.
 **Given** a full 5-wave run with 4 bots
 **When** the economy is logged
 **Then** each player's total earnings are written to the test output so the economy can be compared with the GDD target (≈ 2,500–3,000 over 10 waves)
+
+## Epic 4: Downtown and city decay (Milestone 1)
+
+2–4 players online in Downtown play 5 waves through Evening → Panic → Breakdown: cars move into the road, police barriers block paths, cars burn. Placeholder Dead City art, cover rules, spawn points and named seed streams. The epic ends with the Milestone 1 playtest.
+
+### Story 4.1: Downtown map
+
+As a player,
+I want to fight in a hand-made Downtown with an open intersection, narrow alleys and landmarks,
+So that the map gives us places to hold and choices to make.
+
+**Acceptance Criteria:**
+
+**Given** `tools/maps/downtown.tmx` authored in Tiled and exported to `apps/client/public/assets/maps/downtown.tmj`
+**When** I open it
+**Then** it is ~48 × 32 m with a central intersection, 3 alleys, a gas station corner, a crashed city bus mid-map and a small parking lot (FR54)
+**And** it has the layers `collision`, `cover`, `spawns`, `hazards` and visual layer groups `stage1_evening` … `stage5_collapse` (stages 4–5 may stay empty until Epic 6)
+
+**Given** `packages/shared/src/map`
+**When** a run starts in Downtown
+**Then** the district is loaded from the Tiled JSON into the World's collision grid, replacing the placeholder street
+**And** the server and the client load the same map data, so prediction collides like the server
+
+**Given** the map loader
+**When** Vitest runs
+**Then** tests load `downtown.tmj` and check map size, collision cells and named objects
+
+### Story 4.2: Cover and bullet rules
+
+As a player,
+I want cars and the bus to stop bullets while barriers and sandbags only stop bodies,
+So that cover works the way it looks.
+
+**Acceptance Criteria:**
+
+**Given** cover objects with a `kind` property in the `cover` layer (`car`, `bus`, `barrier`, `sandbags`)
+**When** players or zombies move
+**Then** all four kinds block movement and are part of the flow-field obstacles (FR56)
+
+**Given** a projectile
+**When** it reaches a `car` or `bus`
+**Then** it stops
+**And** it passes over `barrier` and `sandbags` (like over player barricades)
+
+**Given** melee
+**When** a zombie is behind a car
+**Then** melee arcs still hit within reach (melee ignores cover in v1)
+
+**Given** cover rules
+**When** Vitest runs
+**Then** tests cover each kind for movement and projectiles
+
+### Story 4.3: Spawn points
+
+As a player,
+I want zombies to pour in from alleys, manholes and broken shop windows,
+So that the horde feels like it comes out of the city.
+
+**Acceptance Criteria:**
+
+**Given** spawn objects in the `spawns` layer with a `minStage` property
+**When** a wave spawns
+**Then** zombies come only from spawn points active at the current decay stage (FR32)
+
+**Given** a spawn point within 6 m of any player
+**When** spawning
+**Then** it is skipped for that spawn so zombies don't appear on top of players
+
+**Given** several active spawn points
+**When** the wave director picks one
+**Then** the choice uses the run's seeded RNG and spreads spawns across the map edges
+
+**Given** the collision and grid view (dev)
+**When** turned on
+**Then** spawn points are drawn with their stage and active state
+
+### Story 4.4: Named seed streams
+
+As the designer,
+I want each run's random choices to come from one run seed with separate streams,
+So that we can replay a run exactly to test or fix it.
+
+**Acceptance Criteria:**
+
+**Given** a run seed
+**When** the run starts
+**Then** named sub-streams are derived for `decay`, `events`, `spawns` and `shop:<playerSlot>:<buildPhaseIndex>` (FR65)
+**And** drawing from one stream never changes another's sequence
+
+**Given** the Results screen and the performance overlay
+**When** shown
+**Then** they display the run seed
+
+**Given** the dev cheat "set run seed"
+**When** I start two runs with the same seed and a recorded input log
+**Then** the headless replay reaches the same state (decay choices, spawns, kills)
+
+### Story 4.5: Decay stage engine
+
+As a player,
+I want the city to change between waves as the run goes on,
+So that wave 5 doesn't play like wave 1.
+
+**Acceptance Criteria:**
+
+**Given** `decay.json` (waves 1–2 → stage 1, 3–4 → stage 2, 5–6 → stage 3, 7–8 → stage 4, 9–10 → stage 5)
+**When** a build phase starts and the stage for the next wave differs from the current one
+**Then** `DecaySystem` applies that stage's mutation set from the map (`add | remove | ignite | block`), rebuilds collision and flow fields, and emits `decay.stage_changed` (FR58)
+**And** decay never changes mid-wave
+
+**Given** random variations (e.g. which cars move or burn)
+**When** a run starts
+**Then** `DecayTimeline` picks them once from the `decay` seed stream
+
+**Given** a building on a cell that becomes blocked
+**When** the stage is applied
+**Then** the building is destroyed and its owner is refunded 50% of its price
+
+**Given** `decay.stage_changed` on the client
+**When** it arrives
+**Then** `DecayView` swaps the visible `stageN_*` layer group and shows a banner with the stage name ("Panic")
+**And** client prediction applies the same mutations to its own map
+
+**Given** the decay engine
+**When** Vitest runs
+**Then** tests cover stage timing, each mutation action, building destruction with refund, and same-seed variation choices
+
+### Story 4.6: Evening
+
+As a player,
+I want the run to start on a normal evening with parked cars and lit shops,
+So that I know the city before it falls.
+
+**Acceptance Criteria:**
+
+**Given** stage 1 (waves 1–2)
+**When** the run starts
+**Then** the map is open with full lighting, parked cars along the curbs act as cover (`car`), and lit shop fronts mark good spots to build (FR59)
+**And** a placeholder ambience loop (traffic, distant music) plays
+
+### Story 4.7: Panic
+
+As a player,
+I want cars to end up in the road and police barriers to block streets,
+So that the map gives new cover and new choke points.
+
+**Acceptance Criteria:**
+
+**Given** the build phase before wave 3
+**When** stage 2 is applied
+**Then** 4 cars (picked by the `decay` stream from candidates in the map) move from the curb into the road, and police barriers (`barrier`) close some paths (FR60)
+**And** the sirens/car-alarm placeholder ambience replaces the evening loop
+
+**Given** the new layout
+**When** zombies path
+**Then** the flow fields route around the new cars and barriers
+
+### Story 4.8: Breakdown and car fires
+
+As a player,
+I want burning cars, sandbags and rain as things break down,
+So that fire becomes a danger and a tool.
+
+**Acceptance Criteria:**
+
+**Given** the build phase before wave 5
+**When** stage 3 is applied
+**Then** 2 cars (picked by the `decay` stream) ignite into fire zones of 2 m radius that last 2 waves, free sandbag cover appears, and placeholder rain starts (FR61)
+
+**Given** a fire zone
+**When** a player, zombie or building is inside it
+**Then** it takes 10 damage per second (FR57, FR53)
+
+**Given** fire zones
+**When** zombies path
+**Then** the flow field treats fire cells as very costly, so zombies avoid them unless there's no other way
+
+**Given** fire zones
+**When** Vitest runs
+**Then** tests cover damage to each target type and expiry after 2 waves
+
+### Story 4.9: Placeholder Dead City look
+
+As the designer,
+I want Downtown to already look like a rainy city at night, even with placeholder art,
+So that we judge the milestone on the right mood.
+
+**Acceptance Criteria:**
+
+**Given** placeholder art (AI-assisted or reused from `style-lab-r3.html`)
+**When** Downtown is shown
+**Then** it uses a muted night palette with streetlight and shop glow, top-down humanoid survivors and zombies, and distinct silhouettes per zombie type (FR82)
+
+**Given** placeholder atlases
+**When** they are loaded
+**Then** they follow the final atlas layout and `category_name_variant` naming, are ≤ 2048 × 2048, and the first-load download stays under 15 MB
+
+### Story 4.10: Milestone 1 playtest
+
+As the designer,
+I want my friends and me to play the Milestone 1 build online,
+So that we know big-horde co-op works on our phones before building more.
+
+**Acceptance Criteria:**
+
+**Given** the deployed build
+**When** 2–4 friends play full 5-wave runs in Downtown on their own phones over 4G
+**Then** FPS, bandwidth and reversed hits are recorded for each phone in `docs/perf/milestone-1.md` against NFR1, NFR3–NFR5
+
+**Given** the playtest
+**When** it ends
+**Then** feedback on fun, difficulty, economy, building and decay is written to `docs/playtests/milestone-1.md`
+**And** the designer records a go / fix-first decision for starting Epic 5, with any fixes turned into stories
