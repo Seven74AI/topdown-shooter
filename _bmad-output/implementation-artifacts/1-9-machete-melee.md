@@ -3,7 +3,7 @@ baseline_commit: 571d788ec757ba992d7f044930280dee002214ef
 ---
 # Story 1.9: Machete melee
 
-Status: review
+Status: done
 
 ## Story
 
@@ -105,6 +105,22 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `_bmad-output/implementation-artifacts/1-9-machete-melee.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context). It compared the sector test against an independent exact check on 1.8 M random cases (arcs 1°–360°) and found 0 mismatches. · **Outcome:** Approved, no high findings.
+- [x] [Med] The Machete had never been seen in the running game, because the 1.8 picker wasn't in the tree yet. Resolved at integration: after merging with Story 1.8, a browser check picked Machete + Pistol in the dev picker. Aiming swings a 110° wedge in front of the survivor at the swing rate, and the HUD reads "MACHETE —".
+- [x] [Low] The boundary tests were loose. Added:
+  - bodies crossing an arc edge, decided to ±0.01 m on both sides;
+  - the corner just past the arc endpoint at full reach;
+  - arcs wider than 180° (270°);
+  - a 360° arc.
+- [x] [Low] Untested paths now have tests: a zombie exactly on the player's center (pushed along the aim, no NaN), and a zombie killed by another player's swing earlier in the same tick (only one hit).
+- [x] [Low, accepted] A zombie pushed into another grid cell is found only via its old cell until the next rebuild, for at most 1 tick. This is documented in `updateCombat`; guns already behave this way.
+- [x] [Nit] Removed the redundant `beginPath()` in `FxView`.
+- Feel notes for the 1.12 playtest: the swing starts at the player's center, so the effective reach past the body is about 1.4 m to a zombie's edge. Every Machete hit kills a Walker (12 dmg against 10 HP), so pushback is invisible on Walkers.
+
 ## Change Log
+
+- 2026-11-21: Integrated with Story 1.8 and browser-checked. Addressed code review findings - 5 items resolved. 220 tests passing.
 
 - 2026-11-21: Story 1.9 implemented: Machete melee (instant 110° / 1.8 m arc hit via exact sector–circle test, 2.5 swings/s with the shared cooldown rule, damage/flash/pushback through `applyZombieDamage`), `melee.swung` event, swing wedge effect and whoosh placeholder. 204 tests passing.

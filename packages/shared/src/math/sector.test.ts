@@ -67,4 +67,38 @@ describe("circleOverlapsSector", () => {
     expect(at(90, 1.2, R, 90)).toBe(true);
     expect(at(0, 1.2, R, 180)).toBe(false);
   });
+
+  it("decides bodies crossing an arc edge to ±0.01 m", () => {
+    const deg = (perp: number) => 55 + Math.asin(perp / 1) / DEG_TO_RAD; // center 1 m out, `perp` from the 55° edge
+    expect(at(deg(R - 0.01), 1)).toBe(true);
+    expect(at(deg(R + 0.01), 1)).toBe(false);
+    expect(at(-deg(R - 0.01), 1)).toBe(true);
+    expect(at(-deg(R + 0.01), 1)).toBe(false);
+  });
+
+  it("decides bodies just past the arc's corner (edge end at full reach)", () => {
+    const ex = Math.cos(HALF) * REACH;
+    const ey = Math.sin(HALF) * REACH;
+    const out = (d: number) =>
+      circleOverlapsSector(ex + Math.cos(HALF) * d, ey + Math.sin(HALF) * d, R, 0, 0, 1, 0, REACH, COS, SIN);
+    expect(out(R - 0.01)).toBe(true);
+    expect(out(R + 0.01)).toBe(false);
+  });
+
+  const wide = (arcDeg: number, deg: number, dist: number) => {
+    const h = (arcDeg / 2) * DEG_TO_RAD;
+    return circleOverlapsSector(Math.cos(deg * DEG_TO_RAD) * dist, Math.sin(deg * DEG_TO_RAD) * dist, R, 0, 0, 1, 0, REACH, Math.cos(h), Math.sin(h));
+  };
+
+  it("handles arcs wider than 180°", () => {
+    expect(wide(270, 130, 1)).toBe(true); // inside ±135°
+    expect(wide(270, 150, 1)).toBe(true); // body crosses the 135° edge (0.26 m < 0.35 m)
+    expect(wide(270, 180, 1)).toBe(false); // 0.71 m from both edges
+  });
+
+  it("hits everything within reach for a 360° arc", () => {
+    for (const deg of [0, 90, 179.9, 180, -120]) expect(wide(360, deg, 1.5)).toBe(true);
+    expect(wide(360, 180, REACH + R + 0.01)).toBe(false);
+  });
 });
+

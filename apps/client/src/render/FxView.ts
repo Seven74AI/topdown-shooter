@@ -105,7 +105,6 @@ export class FxView {
     const half = (arcDeg / 2) * DEG_TO_RAD;
     graphics.clear();
     graphics.fillStyle(SWING_COLOR, SWING_ALPHA);
-    graphics.beginPath();
     graphics.slice(0, 0, rangeM, facing - half, facing + half, false);
     graphics.fillPath();
     graphics.setPosition(x, y).setAlpha(1).setVisible(true);

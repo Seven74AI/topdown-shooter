@@ -224,6 +224,8 @@ function updateProjectiles(world: World, dtS: number): void {
 export const updateCombat: SystemFn = (world, dtS) => {
   const z = world.zombies;
   // Zombies moved since the grid was built last tick: rebuild so hit queries are exact.
+  // Known, accepted: a zombie pushed into another cell by a hit this tick is found only via its old cell
+  // until the next rebuild (queries use generous radii, so this almost never matters; ≤ 1 tick).
   rebuildGrid(world.zombieGrid, z.aliveIds, z.aliveCount, z.x, z.y);
   world.players.forEach((p) => updatePlayerWeapon(world, p, dtS));
   updateProjectiles(world, dtS);

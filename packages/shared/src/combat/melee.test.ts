@@ -188,4 +188,28 @@ describe("Machete melee (FR14, FR19)", () => {
     expect(count(events, "weapon.fired")).toBe(0);
     expect(p.loadout.slots[0]?.ammo).toBe(12);
   });
+
+  it("pushes a zombie standing exactly on the player's center along the aim (no NaN)", () => {
+    const { world } = setup();
+    const id = spawnZombie(world, "walker", PX, PY);
+    world.zombies.hp[id] = 1000;
+    setInput(world, "local", aimRight());
+    step(world, TICK_DT_S);
+    expect(Number.isFinite(world.zombies.x[id] as number)).toBe(true);
+    expect(world.zombies.hp[id]).toBe(1000 - 12);
+  });
+
+  it("does not hit a zombie another player killed earlier the same tick", () => {
+    const { world, events } = setup();
+    const p2 = addPlayer(world, "p2", PX, PY + 0.2);
+    p2.hp = 1e9;
+    setLoadout(balance, p2.loadout, ["machete", null]);
+    const id = walkerAt(world, 0, 1);
+    setInput(world, "local", aimRight());
+    setInput(world, "p2", aimRight());
+    step(world, TICK_DT_S);
+    expect(hitIds(events).filter((z) => z === id)).toHaveLength(1);
+    expect(count(events, "zombie.killed")).toBe(1);
+  });
 });
+
