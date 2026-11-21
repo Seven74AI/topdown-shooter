@@ -2,5 +2,6 @@
   "maxHp": 100,
   "speedMps": 4.5,
   "radiusM": 0.4,
-  "swapS": 0.3
+  "swapS": 0.3,
+  "spawnOffsetM": 1.5
 }

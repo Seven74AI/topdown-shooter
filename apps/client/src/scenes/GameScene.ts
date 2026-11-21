@@ -14,6 +14,7 @@ import {
   ZOMBIE_STATE,
   type Balance,
   type PlayerInput,
+  type PlayerState,
   type World,
 } from "@topdown/shared";
 import { dpr } from "../display";
@@ -29,7 +30,10 @@ import { ProjectileView } from "../render/ProjectileView";
 import { uiStore } from "../ui/uiState";
 import { getSettings } from "../settings/settings";
 import { MAX_RUSH_MARKERS, createHudModel } from "./hudModel";
-import { LOCAL_PLAYER_ID, LocalSimHost } from "../sim/LocalSimHost";
+import { LocalSimHost, type SimStepStats } from "../sim/LocalSimHost";
+import { NetSimHost } from "../sim/NetSimHost";
+import type { SimHost } from "../sim/SimHost";
+import type { NetSession } from "../net/session";
 import type { HudSceneData } from "./HudScene";
 import { urlOptions } from "../debug/urlOptions";
 import { getTuning, tunedBalance } from "../debug/tuning";
@@ -38,12 +42,18 @@ import { recordSimFrame } from "../debug/perfProbe";
 import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
-export interface GameSceneData {
-  /** Only "solo" (a LocalSimHost) until Story 2.4 adds the online fight. Absent means solo. */
-  mode?: "solo";
-  /** Run seed (uint32); a random one when absent (dev cheat "set run seed", Story 1.11). */
-  seed?: number;
-}
+export type GameSceneData =
+  | {
+      /** Offline (a LocalSimHost): Practice solo, tests, dev and the `?solo` links. Absent means solo. */
+      mode?: "solo";
+      /** Run seed (uint32); a random one when absent (dev cheat "set run seed", Story 1.11). */
+      seed?: number;
+    }
+  /** The server runs the fight (Story 2.4): a NetSimHost on this run's session. */
+  | { mode: "online"; session: NetSession };
+
+/** A host with the step timing the perf overlay reads (both hosts have it). */
+type SceneHost = SimHost & { readonly stats: SimStepStats };
 
 /** A random uint32 run seed. Client code, so crypto is allowed here (never in packages/shared). */
 export function newRunSeed(): number {
@@ -60,14 +70,29 @@ const CHEVRON_M = 0.28;
 const CHEVRON_LIFT_M = 0.7;
 
 export class GameScene extends Phaser.Scene {
-  private host: LocalSimHost | null = null;
-  /** How this run is simulated (Story 2.4 adds "online"). */
-  mode: NonNullable<GameSceneData["mode"]> = "solo";
+  private host: SceneHost | null = null;
+  /** How this run is simulated: the local World, or the server's (Story 2.4). */
+  mode: "solo" | "online" = "solo";
   private sticks: TouchSticks | null = null;
   /** Touch sticks or keyboard + mouse, whichever was used last (Story 1.10). */
   private router: InputRouter | null = null;
   private readonly cursorWorld = new Phaser.Math.Vector2();
-  private playerView: PlayerView | null = null;
+  /** One view per player in `world.players`, added and removed as players come and go (Story 2.4). */
+  private readonly playerViews = new Map<string, PlayerView>();
+  private playerRadiusM = 0;
+  private readonly syncPlayerView = (p: PlayerState, id: string): void => {
+    let view = this.playerViews.get(id);
+    if (!view) {
+      view = new PlayerView(this, this.playerRadiusM); // Story 2.9 adds rings, colours and names
+      this.playerViews.set(id, view);
+    }
+    view.update(p, this.host?.alpha ?? 0);
+  };
+  private readonly dropPlayerView = (view: PlayerView, id: string): void => {
+    if (this.host?.world.players.has(id)) return;
+    view.destroy();
+    this.playerViews.delete(id);
+  };
   private zombieView: ZombieView | null = null;
   private projectileView: ProjectileView | null = null;
   private fxView: FxView | null = null;
@@ -86,19 +111,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(data?: GameSceneData): void {
-    this.mode = data?.mode ?? "solo";
+    const session = data?.mode === "online" ? data.session : null;
+    this.mode = session ? "online" : "solo";
     const opts = urlOptions();
-    // ?tune=1: the live tuning values from the panel (validated like any balance change).
-    const balance: Balance = opts.tune ? tunedBalance() : loadBalance();
+    // ?tune=1: the live tuning values from the panel (validated like any balance change). Online
+    // always plays the bundled balance: the server checked that version at join.
+    const balance: Balance = opts.tune && !session ? tunedBalance() : loadBalance();
     const stickRadiusCss = opts.tune ? getTuning().stickRadiusCssPx : STICK_RADIUS_CSS_PX;
-    const seed = data?.seed !== undefined ? data.seed >>> 0 : newRunSeed();
-    const host = new LocalSimHost({ balance, seed });
-    const stress = opts.stress;
+    const soloSeed = data?.mode !== "online" && data?.seed !== undefined ? data.seed >>> 0 : undefined;
+    const host: SceneHost = session
+      ? new NetSimHost({ balance, session })
+      : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed() });
+    const stress = session ? null : opts.stress;
     this.host = host;
     const world = host.world;
+    const localId = host.localPlayerId;
     const cx = world.map.widthM / 2;
     const cy = world.map.heightM / 2;
-    addPlayer(world, LOCAL_PLAYER_ID, cx, cy);
+    if (!session) addPlayer(world, localId, cx, cy); // online, players come from the server
     this.gameOver = false;
     // Phaser reuses this scene object on restart: reset what the HUD reads (no stale banner).
     Object.assign(this.hudModel, createHudModel());
@@ -107,18 +137,23 @@ export class GameScene extends Phaser.Scene {
     if (balance.waves.lastRushCount > MAX_RUSH_MARKERS) {
       throw new Error(`waves.lastRushCount ${balance.waves.lastRushCount} exceeds MAX_RUSH_MARKERS ${MAX_RUSH_MARKERS}`);
     }
-    uiStore.handle("restart", () => this.scene.restart({} satisfies GameSceneData)); // {}: a new random seed
-    // ?loadout=a,b (release-safe): start with those weapons; unknown ids are ignored.
-    const urlLoadout = opts.loadout ? validLoadout(opts.loadout, weaponIds(balance)) : null;
+    if (session) {
+      // Online game over → Back to start, or the connection dropped: leave the run (Story 2.4).
+      uiStore.handle("leaveRun", (error) => this.scene.start("Boot", error ? { error } : {}));
+    } else {
+      uiStore.handle("restart", () => this.scene.restart({} satisfies GameSceneData)); // {}: a new random seed
+    }
+    // ?loadout=a,b (release-safe): start with those weapons; unknown ids are ignored. Solo only.
+    const urlLoadout = opts.loadout && !session ? validLoadout(opts.loadout, weaponIds(balance)) : null;
     if (urlLoadout && stress === null) {
-      const p = world.players.get(LOCAL_PLAYER_ID);
+      const p = world.players.get(localId);
       if (p) setLoadout(balance, p.loadout, urlLoadout);
     }
-    if (import.meta.env.DEV && stress === null && !urlLoadout) {
+    if (import.meta.env.DEV && !session && stress === null && !urlLoadout) {
       // Dev builds pick a loadout first (temporary until the shop, Story 3.3); release starts with the Pistol.
       this.running = false;
       uiStore.handle("startRun", (loadout) => {
-        const p = world.players.get(LOCAL_PLAYER_ID);
+        const p = world.players.get(localId);
         if (p) setLoadout(balance, p.loadout, loadout);
         this.running = true;
         uiStore.set({ kind: "playing" });
@@ -132,8 +167,9 @@ export class GameScene extends Phaser.Scene {
     drawStreet(this, world.map);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
-    this.fxView = new FxView(this, this.zombieView, LOCAL_PLAYER_ID);
-    this.playerView = new PlayerView(this, balance.player.radiusM);
+    this.fxView = new FxView(this, this.zombieView, localId);
+    this.playerRadiusM = balance.player.radiusM;
+    this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.chevrons.length = 0;
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
       const c = CHEVRON_M;
@@ -167,13 +203,15 @@ export class GameScene extends Phaser.Scene {
       stressRun.cancel();
       uiStore.handle("restart", undefined);
       uiStore.handle("startRun", undefined);
+      uiStore.handle("leaveRun", undefined);
       for (const c of this.chevrons) c.destroy();
       this.chevrons.length = 0;
       this.fxView?.destroy();
       this.projectileView?.destroy();
       this.zombieView?.destroy();
-      this.playerView?.destroy();
-      this.host?.dispose();
+      for (const v of this.playerViews.values()) v.destroy();
+      this.playerViews.clear();
+      this.host?.dispose(); // online: also leaves the room
       this.host = null;
     });
   }
@@ -195,6 +233,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Dev tools: restart the run, with a given seed or a random one. */
   restartRun(seed?: number): void {
+    if (this.mode === "online") return; // the server owns the run
     this.scene.restart((seed === undefined ? {} : { seed }) satisfies GameSceneData);
   }
 
@@ -240,6 +279,18 @@ export class GameScene extends Phaser.Scene {
     m.remaining = host.world.waves.remaining;
   }
 
+  /** Game over with the wave reached; online it offers Back to start (Story 2.8 brings downed/revive). */
+  private showGameOver(host: SimHost): void {
+    this.gameOver = true;
+    uiStore.set({ kind: "gameOver", waveReached: Math.max(1, host.world.waves.number), online: host.online });
+  }
+
+  /** Adds, updates and removes player views to match `world.players` (no allocation per frame). */
+  private syncPlayerViews(world: Readonly<World>): void {
+    this.playerViews.forEach(this.dropPlayerView); // deleting inside forEach is safe for a Map
+    world.players.forEach(this.syncPlayerView);
+  }
+
   private applyZoom(): void {
     this.cameras.main.setZoom(pixelsPerMeter(this.scale.width, this.scale.height));
   }
@@ -250,7 +301,8 @@ export class GameScene extends Phaser.Scene {
     if (!host || !router) return;
 
     // Mouse aim: survivor (last drawn position) → cursor, through the camera that drew that frame.
-    const pv = this.playerView;
+    const localId = host.localPlayerId;
+    const pv = this.playerViews.get(localId);
     const cw = this.cursorWorld.set(Number.NaN, Number.NaN);
     if (router.isMouse && pv && !Number.isNaN(router.cursorX)) this.cameras.main.getWorldPoint(router.cursorX, router.cursorY, cw);
     router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y);
@@ -264,10 +316,9 @@ export class GameScene extends Phaser.Scene {
       const e = events[i];
       if (!e) continue;
       this.fxView?.handle(e);
-      if (e.type === "player.died" && e.playerId === LOCAL_PLAYER_ID && !this.gameOver) {
-        this.gameOver = true;
-        uiStore.set({ kind: "gameOver", waveReached: Math.max(1, host.world.waves.number) });
-      } else if (e.type === "weapon.fired" && e.playerId === LOCAL_PLAYER_ID) {
+      if (e.type === "player.died" && e.playerId === localId && !this.gameOver) {
+        this.showGameOver(host);
+      } else if (e.type === "weapon.fired" && e.playerId === localId) {
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "wave.started") {
@@ -279,11 +330,14 @@ export class GameScene extends Phaser.Scene {
 
     this.zombieView?.update(host.world, host.alpha);
     this.projectileView?.update(host.world.projectiles, host.alpha);
-    const player = host.world.players.get(LOCAL_PLAYER_ID);
-    if (player && this.playerView) {
-      this.playerView.update(player, host.alpha);
-      this.cameras.main.centerOn(this.playerView.x, this.playerView.y);
-      this.updateRushMarkers(host.alpha, this.playerView.x, this.playerView.y);
+    this.syncPlayerViews(host.world);
+    const player = host.world.players.get(localId);
+    // Online, the death event may have played before this scene listened: the state decides too.
+    if (player && host.online && player.status === "dead" && !this.gameOver) this.showGameOver(host);
+    const playerView = this.playerViews.get(localId);
+    if (player && playerView) {
+      this.cameras.main.centerOn(playerView.x, playerView.y);
+      this.updateRushMarkers(host.alpha, playerView.x, playerView.y);
       const m = this.hudModel;
       recordSimFrame(host.stats, host.world.zombies, m.camX, m.camY, this.scale.width / m.camZoom, this.scale.height / m.camZoom);
       this.hudModel.hp = player.hp;

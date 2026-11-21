@@ -4,6 +4,12 @@ import { dpr } from "../display";
 import { uiStore } from "../ui/uiState";
 import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
 import type { GameSceneData } from "./GameScene";
+import type { NetSession } from "../net/session";
+
+/** `scene.start("Boot", data)`: back from an online run, maybe with an error for the start screen. */
+export interface BootSceneData {
+  error?: string;
+}
 
 const TITLE_SHOW_MS = 500; // how long the title shows before the start screen (or a ?solo run)
 const TITLE_FONT_PX = 32; // CSS pixels; scaled by dpr() so it reads the same on every phone
@@ -13,7 +19,8 @@ export class BootScene extends Phaser.Scene {
     super("Boot");
   }
 
-  create(): void {
+  create(data?: BootSceneData): void {
+    const error = data?.error;
     const title = this.add
       .text(0, 0, GAME_TITLE, {
         fontFamily: "system-ui, sans-serif",
@@ -37,18 +44,16 @@ export class BootScene extends Phaser.Scene {
       // ?solo, ?stress, ?loadout and ?tune start a solo run at once (Epic 1 playtest links).
       if (skipsStartScreen(urlOptions())) return this.startSolo();
       uiStore.handle("startSolo", () => this.startSolo());
-      uiStore.handle("startOnline", () => this.startOnline());
-      uiStore.set({ kind: "start" });
+      uiStore.handle("startOnline", (session) => this.startOnline(session));
+      uiStore.set(error ? { kind: "start", error } : { kind: "start" });
     });
   }
 
-  /**
-   * The host started the online run (Story 2.3). Until Story 2.4 adds the networked host this
-   * shows a "Starting…" placeholder; 2.4 replaces it with
-   * `this.scene.start("Game", { mode: "online", session })`.
-   */
-  private startOnline(): void {
-    uiStore.set({ kind: "starting" });
+  /** The host started the online run: the server runs the fight (Story 2.4). */
+  private startOnline(session: NetSession): void {
+    uiStore.handle("startSolo", undefined);
+    uiStore.handle("startOnline", undefined);
+    this.scene.start("Game", { mode: "online", session } satisfies GameSceneData);
   }
 
   /** Offline play, exactly as in Epic 1. */

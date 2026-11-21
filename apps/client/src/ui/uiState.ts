@@ -1,3 +1,5 @@
+import type { NetSession } from "../net/session";
+
 /**
  * Tiny typed store between Phaser scenes and Preact screens (no globals on window).
  * Phaser writes the state; Preact renders it and sends requests back through `on`.
@@ -7,10 +9,9 @@ export type UiScreen =
   | { kind: "start"; error?: string }
   /** Online lobby; players come from `net/lobbyStore`. */
   | { kind: "lobby"; code: string }
-  /** The host started (Story 2.3 placeholder); Story 2.4 starts the Game scene online instead. */
-  | { kind: "starting" }
   | { kind: "playing" }
-  | { kind: "gameOver"; waveReached: number }
+  /** `online`: Back to start (leaves the room) instead of Restart (Story 2.4). */
+  | { kind: "gameOver"; waveReached: number; online?: boolean }
   /** Dev builds: choose two weapons before the run (temporary until the shop, Story 3.3). */
   | { kind: "loadoutPicker"; weapons: readonly string[] };
 
@@ -23,8 +24,10 @@ export interface UiRequests {
   createGame: (name: string) => void;
   /** Start screen: join the run with this (well-formed) code and (validated) name (Story 2.3). */
   joinGame: (code: string, name: string) => void;
-  /** Lobby: the run started (phase `wave`). Story 2.4 starts `Game` with `{ mode: "online" }`. */
-  startOnline: () => void;
+  /** Lobby: the run started (phase `wave`): start `Game` online on this session (Story 2.4). */
+  startOnline: (session: NetSession) => void;
+  /** Online run: leave it and go back to the start screen, with an error text if the connection dropped. */
+  leaveRun: (error?: string) => void;
   /** Start screen: play offline, exactly as Epic 1. */
   startSolo: () => void;
   /** Lobby: leave the room and return to the start screen. */

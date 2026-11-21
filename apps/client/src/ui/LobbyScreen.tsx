@@ -11,8 +11,8 @@ const ALLOW_SOLO_START = import.meta.env.DEV;
 
 /**
  * Online lobby (Stories 2.1/2.3): the room code, the invite link, Copy and Share, the 4 slots with
- * color, name, Ready, Host and You, then Ready, Start (host only) and Leave. After the host starts,
- * a "Starting…" placeholder until Story 2.4 starts the Game scene online.
+ * color, name, Ready, Host and You, then Ready, Start (host only) and Leave. When the host starts,
+ * the Game scene starts online (Story 2.4) and this screen hides.
  */
 export function LobbyScreen() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
@@ -25,7 +25,6 @@ export function LobbyScreen() {
     const id = setTimeout(() => setNotice(""), NOTICE_MS);
     return () => clearTimeout(id);
   }, [notice]);
-  if (screen.kind === "starting") return <StartingScreen />;
   if (screen.kind !== "lobby") return null;
 
   const code = screen.code;
@@ -100,18 +99,6 @@ export function LobbyScreen() {
           Leave
         </button>
       </section>
-    </div>
-  );
-}
-
-/** Placeholder after the host started (Story 2.3); Story 2.4 starts the Game scene instead. */
-function StartingScreen() {
-  return (
-    <div class="menu menu--center" role="dialog" aria-labelledby="starting-title">
-      <h2 id="starting-title">Starting…</h2>
-      <button type="button" class="btn btn--secondary" onClick={() => uiStore.request("leaveLobby")}>
-        Leave
-      </button>
     </div>
   );
 }

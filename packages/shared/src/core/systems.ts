@@ -59,3 +59,20 @@ export const DEFAULT_SYSTEMS: Systems = {
   economy: noop,
   decayTimers: noop,
 };
+
+/**
+ * Every system a no-op (Story 2.4): the networked client's mirror world is written from server
+ * state and never simulated. Story 2.6 builds its prediction systems on top of it.
+ */
+export const NO_SYSTEMS: Systems = {
+  input: noop,
+  player: noop,
+  buildings: noop,
+  combat: noop,
+  zombies: noop,
+  boss: noop,
+  waves: noop,
+  specialEvents: noop,
+  economy: noop,
+  decayTimers: noop,
+};

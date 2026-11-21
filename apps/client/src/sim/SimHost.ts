@@ -24,5 +24,10 @@ export interface SimHost {
    * The returned array is reused: it is valid only until the next `drainEvents()` call.
    */
   drainEvents(): readonly SimEvent[];
+  /** Id of the player this device controls ("local" solo, "p0"–"p3" online). */
+  readonly localPlayerId: string;
+  /** True for the networked host: renderers may use it to pick data sources (e.g. Story 2.5 heading). */
+  readonly online: boolean;
+  /** Ends the run on this host (the networked host also leaves the room). */
   dispose(): void;
 }

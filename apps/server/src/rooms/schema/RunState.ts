@@ -1,5 +1,5 @@
 import { schema, t, type SchemaType } from "@colyseus/schema";
-import type { PlayerStateView, RunPhase, RunStateView } from "@topdown/shared";
+import type { PlayerStateView, PlayerStatus, RunPhase, RunStateView } from "@topdown/shared";
 
 /**
  * Room state synced to clients (Story 2.1). Stories 2.3, 2.4 and 2.8 extend it; the field names
@@ -11,6 +11,27 @@ export const PlayerState = schema(
     name: t.string(),
     /** Lobby Ready (Story 2.3); Story 2.8 resets it when the room returns to the lobby. */
     ready: t.boolean().default(false),
+    // The fight (Story 2.4), written by `syncState` once per tick. Story 2.8 adds the status fields.
+    /** Metres (float32 ≈ 2 µm at 48 m). */
+    x: t.float32().default(0),
+    y: t.float32().default(0),
+    /** Facing, `quantizeHeading`. */
+    heading: t.uint8().default(0),
+    /** `Math.ceil` of the World's HP. */
+    hp: t.uint16().default(0),
+    maxHp: t.uint16().default(0),
+    status: t.string<PlayerStatus>().default("alive"),
+    /** Seq of the last input applied (Story 2.6 reconciles from it). */
+    ackSeq: t.uint32().default(0),
+    active: t.uint8().default(0),
+    /** Weapon id per slot; "" = empty slot. */
+    weapon0: t.string().default(""),
+    weapon1: t.string().default(""),
+    ammo0: t.uint16().default(0),
+    ammo1: t.uint16().default(0),
+    reloadTicks0: t.uint16().default(0),
+    reloadTicks1: t.uint16().default(0),
+    swapTicks: t.uint8().default(0),
   },
   "PlayerState",
 );
@@ -21,6 +42,11 @@ export const RunState = schema(
     phase: t.string<RunPhase>().default("lobby"),
     hostSlot: t.uint8().default(0),
     players: t.map(PlayerState),
+    /** World tick of the values in this patch (Story 2.4). */
+    tick: t.uint32().default(0),
+    wave: t.uint16().default(0),
+    remaining: t.uint16().default(0),
+    aliveCount: t.uint16().default(0),
   },
   "RunState",
 );

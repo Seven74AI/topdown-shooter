@@ -11,6 +11,7 @@ import { uiStore } from "./ui/uiState";
 import { lobbyStore } from "./net/lobbyStore";
 import { JOIN_ERROR_TEXT } from "./net/joinErrors";
 import { parseJoinPath } from "./net/route";
+import { NetSession } from "./net/session";
 import type { RunConnection } from "./net/connection";
 import type { Result } from "@topdown/shared";
 import "./ui/overlay.css";
@@ -67,9 +68,16 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
     const room = r.result.value;
     lobbyStore.attach(room, {
       watch: r.watch,
-      onLost: () => uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable }),
+      onLost: () => {
+        uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
+        uiStore.request("leaveRun", JOIN_ERROR_TEXT.unreachable); // mid-run: stop the Game scene too
+      },
       onPhase: (phase) => {
-        if (phase === "wave") uiStore.request("startOnline");
+        // The host started: the Game scene runs the fight online (Story 2.4). `run.joined` came long before.
+        const joined = lobbyStore.joinedInfo();
+        if (phase === "wave" && joined && lobbyStore.current() === room) {
+          uiStore.request("startOnline", new NetSession(room, joined, leaveRoom));
+        }
       },
     });
     uiStore.set({ kind: "lobby", code: room.roomId });
@@ -78,10 +86,14 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
 
 uiStore.handle("createGame", (name) => enterLobby((c) => c.createGame(name)));
 uiStore.handle("joinGame", (code, name) => enterLobby((c) => c.joinGame(code, name)));
-uiStore.handle("leaveLobby", () => {
+/** Leaves the current room for good. A share link is done with once you leave (BASE_URL: "/" on the VPS). */
+function leaveRoom(): void {
   lobbyStore.leave();
-  // A share link is done with once you leave. BASE_URL is "/" on the VPS (GitHub Pages: a subpath).
   history.replaceState(null, "", import.meta.env.BASE_URL);
+}
+
+uiStore.handle("leaveLobby", () => {
+  leaveRoom();
   uiStore.set({ kind: "start" });
 });
 

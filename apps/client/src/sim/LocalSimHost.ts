@@ -30,6 +30,8 @@ export interface SimStepStats {
 /** Runs the shared World in the browser at a fixed 20 Hz step. */
 export class LocalSimHost implements SimHost {
   readonly world: World;
+  readonly localPlayerId = LOCAL_PLAYER_ID;
+  readonly online = false;
   private accumulatorS = 0;
   private input: PlayerInput = NEUTRAL_INPUT;
   /** Edge flags latched until a step consumes them (a tap between two steps is never lost). */

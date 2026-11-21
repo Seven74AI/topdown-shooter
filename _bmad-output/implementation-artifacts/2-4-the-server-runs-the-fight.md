@@ -1,6 +1,10 @@
+---
+baseline_commit: 0a7adfd7ae06067d9222736253f0a54f6928a552
+---
+
 # Story 2.4: The server runs the fight
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -18,22 +22,22 @@ so that we all play the same game.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Shared helpers** (AC 1, 3)
-  - [ ] `player/player.ts`: add `removePlayer(world, id)`. It deletes the player from `players`, `pendingInputs`, `inputs` and `lastAppliedSeq`.
-  - [ ] `config/balance/player.json` + schema: add `spawnOffsetM: 1.5`.
-  - [ ] `player/spawn.ts`: `teamSpawnPoint(world, slot, out)` gives the map centre plus `(±1, ±1) × spawnOffsetM` by slot (0: −−, 1: +−, 2: −+, 3: ++).
-  - [ ] `net/heading.ts`: `quantizeHeading(x, y): number` (0–255, 0 = +x, increasing toward +y) and `headingToRad(h)`. Story 2.5 uses them in the horde format.
-  - [ ] Tests for all three.
-- [ ] **Task 2: Net events codec (shared)** (AC 3): `packages/shared/src/net/netEvents.ts` (see Dev Notes › Events on the wire). Round-trip tests for every kind, plus the size of a typical `weapon.fired` (≤ 16 bytes as msgpack tuple fields, estimated by counting).
-- [ ] **Task 3: RunController (server, no Colyseus imports)** (AC 1, 2): `apps/server/src/run/RunController.ts`, see Dev Notes › RunController. Unit tests in `RunController.test.ts`.
-- [ ] **Task 4: Schema for the fight** (AC 3)
-  - [ ] Extend `rooms/schema/RunState.ts` and `shared/net/stateView.ts` (see Dev Notes › Schema).
-  - [ ] Add `rooms/schema/syncState.ts`: `syncState(state, controller)` copies World → schema once per tick, and only assigns a field when its value changed.
-- [ ] **Task 5: RunRoom tick loop** (AC 1, 2, 5)
-  - [ ] On an accepted `run.start` (2.3): `this.controller = new RunController({ balance, seed: randomUint32(), players, pauseWaves: process.env.DEV_NO_WAVES === "1" })`, where `randomUint32` uses `node:crypto`.
-  - [ ] Then `this.setFixedTimestep(() => this.onTick(), TICK_RATE_HZ)`. The 0.18 fixed timestep catches up at most 5 steps, then drops the backlog.
-  - [ ] Log `run_started` with `{ roomId, runSeed, players }`.
-  - [ ] `onTick`:
+- [x] **Task 1: Shared helpers** (AC 1, 3)
+  - [x] `player/player.ts`: add `removePlayer(world, id)`. It deletes the player from `players`, `pendingInputs`, `inputs` and `lastAppliedSeq`.
+  - [x] `config/balance/player.json` + schema: add `spawnOffsetM: 1.5`.
+  - [x] `player/spawn.ts`: `teamSpawnPoint(world, slot, out)` gives the map centre plus `(±1, ±1) × spawnOffsetM` by slot (0: −−, 1: +−, 2: −+, 3: ++).
+  - [x] `net/heading.ts`: `quantizeHeading(x, y): number` (0–255, 0 = +x, increasing toward +y) and `headingToRad(h)`. Story 2.5 uses them in the horde format.
+  - [x] Tests for all three.
+- [x] **Task 2: Net events codec (shared)** (AC 3): `packages/shared/src/net/netEvents.ts` (see Dev Notes › Events on the wire). Round-trip tests for every kind, plus the size of a typical `weapon.fired` (≤ 16 bytes as msgpack tuple fields, estimated by counting).
+- [x] **Task 3: RunController (server, no Colyseus imports)** (AC 1, 2): `apps/server/src/run/RunController.ts`, see Dev Notes › RunController. Unit tests in `RunController.test.ts`.
+- [x] **Task 4: Schema for the fight** (AC 3)
+  - [x] Extend `rooms/schema/RunState.ts` and `shared/net/stateView.ts` (see Dev Notes › Schema).
+  - [x] Add `rooms/schema/syncState.ts`: `syncState(state, controller)` copies World → schema once per tick, and only assigns a field when its value changed.
+- [x] **Task 5: RunRoom tick loop** (AC 1, 2, 5)
+  - [x] On an accepted `run.start` (2.3): `this.controller = new RunController({ balance, seed: randomUint32(), players, pauseWaves: process.env.DEV_NO_WAVES === "1" })`, where `randomUint32` uses `node:crypto`.
+  - [x] Then `this.setFixedTimestep(() => this.onTick(), TICK_RATE_HZ)`. The 0.18 fixed timestep catches up at most 5 steps, then drops the backlog.
+  - [x] Log `run_started` with `{ roomId, runSeed, players }`.
+  - [x] `onTick`:
 
     ```ts
     const t0 = performance.now();
@@ -43,28 +47,28 @@ so that we all play the same game.
     // Story 2.5: send horde frames here
     slowTick.observe(performance.now() - t0);
     ```
-- [ ] **Task 6: Inputs and RTT (server)** (AC 2)
-  - [ ] `C2S.INPUT_SEND` (guarded by `playerInputSchema` and the 25/s bucket from 2.1) calls `controller.queueInput(playerId, input)`.
-  - [ ] Every 1 s per client: `client.send(S2C.NET_PINGED, { id, rttMs })` and remember `sentAt`. On `C2S.NET_PONG` with the latest id: `rtt = now − sentAt`, `member.rttMs = ewma(0.25)`, then `controller.setRtt(playerId, rttMs)`. Story 2.7 uses it.
-  - [ ] Add `netPongSchema` to `messages.ts`.
-- [ ] **Task 7: Leaving mid-run** (AC 1): `onLeave` during `wave` calls `controller.removePlayer(playerId)` and removes the schema entry. Zombies pick the next-nearest player on the next tick. Reconnect is Epic 8 and "<name> left" is 2.11; here only removal is safe.
-- [ ] **Task 8: Slow-tick logging** (AC 5): `apps/server/src/run/slowTick.ts`.
-  - [ ] Above `SLOW_TICK_MS = 40`, log `log.warn({ roomId, tick, tickMs }, "slow_tick")`, at most one line per second; extra slow ticks in that second go into a `count` field.
-  - [ ] Unit-test it with injected times.
-- [ ] **Task 9: Room error handler** (AC 1)
-  - [ ] `RunRoom.onUncaughtException(err, method)` logs `error` with `roomId`, `method` and `tick`. The simulation keeps going (architecture › Error Handling).
-  - [ ] After 20 tick exceptions in a row, broadcast `S2C.SERVER_SHUTDOWN_STARTED` `{ message: "The game hit an error, sorry" }` and `disconnect()`. Saving a snapshot is Epic 8.
-- [ ] **Task 10: SimHost contract** (AC 4). See Dev Notes › SimHost changes.
-  - [ ] Extend `apps/client/src/sim/SimHost.ts` with `localPlayerId` and `online`.
-  - [ ] `LocalSimHost` sets `localPlayerId = LOCAL_PLAYER_ID` and `online = false`.
-- [ ] **Task 11: NetSimHost** (AC 2, 3, 4): `apps/client/src/sim/NetSimHost.ts`, plus `apps/client/src/net/{serverClock.ts, snapshots.ts, eventQueue.ts}`. See Dev Notes › NetSimHost.
-- [ ] **Task 12: GameScene uses any host** (AC 3, 4)
-  - [ ] `GameScene.create(data)` takes `{ mode: "solo" } | { mode: "online", session: NetSession }`. It builds the matching host. Only solo calls `addPlayer`.
-  - [ ] Every `LOCAL_PLAYER_ID` use becomes `host.localPlayerId`.
-  - [ ] Player rendering becomes a `Map<playerId, PlayerView>` that adds and removes views as `world.players` changes. Rings, colors and names are Story 2.9; here remote players use the same placeholder.
-  - [ ] Online game over: if the local player dies, show the existing Game over with **Back to start**, which leaves the room. Story 2.8 replaces death with downed and revive.
-  - [ ] The 2.3 "Starting…" placeholder now starts `Game` in online mode.
-- [ ] **Task 13: Tests**: see Dev Notes › Testing.
+- [x] **Task 6: Inputs and RTT (server)** (AC 2)
+  - [x] `C2S.INPUT_SEND` (guarded by `playerInputSchema` and the 25/s bucket from 2.1) calls `controller.queueInput(playerId, input)`.
+  - [x] Every 1 s per client: `client.send(S2C.NET_PINGED, { id, rttMs })` and remember `sentAt`. On `C2S.NET_PONG` with the latest id: `rtt = now − sentAt`, `member.rttMs = ewma(0.25)`, then `controller.setRtt(playerId, rttMs)`. Story 2.7 uses it.
+  - [x] Add `netPongSchema` to `messages.ts`.
+- [x] **Task 7: Leaving mid-run** (AC 1): `onLeave` during `wave` calls `controller.removePlayer(playerId)` and removes the schema entry. Zombies pick the next-nearest player on the next tick. Reconnect is Epic 8 and "<name> left" is 2.11; here only removal is safe.
+- [x] **Task 8: Slow-tick logging** (AC 5): `apps/server/src/run/slowTick.ts`.
+  - [x] Above `SLOW_TICK_MS = 40`, log `log.warn({ roomId, tick, tickMs }, "slow_tick")`, at most one line per second; extra slow ticks in that second go into a `count` field.
+  - [x] Unit-test it with injected times.
+- [x] **Task 9: Room error handler** (AC 1)
+  - [x] `RunRoom.onUncaughtException(err, method)` logs `error` with `roomId`, `method` and `tick`. The simulation keeps going (architecture › Error Handling).
+  - [x] After 20 tick exceptions in a row, broadcast `S2C.SERVER_SHUTDOWN_STARTED` `{ message: "The game hit an error, sorry" }` and `disconnect()`. Saving a snapshot is Epic 8.
+- [x] **Task 10: SimHost contract** (AC 4). See Dev Notes › SimHost changes.
+  - [x] Extend `apps/client/src/sim/SimHost.ts` with `localPlayerId` and `online`.
+  - [x] `LocalSimHost` sets `localPlayerId = LOCAL_PLAYER_ID` and `online = false`.
+- [x] **Task 11: NetSimHost** (AC 2, 3, 4): `apps/client/src/sim/NetSimHost.ts`, plus `apps/client/src/net/{serverClock.ts, snapshots.ts, eventQueue.ts}`. See Dev Notes › NetSimHost.
+- [x] **Task 12: GameScene uses any host** (AC 3, 4)
+  - [x] `GameScene.create(data)` takes `{ mode: "solo" } | { mode: "online", session: NetSession }`. It builds the matching host. Only solo calls `addPlayer`.
+  - [x] Every `LOCAL_PLAYER_ID` use becomes `host.localPlayerId`.
+  - [x] Player rendering becomes a `Map<playerId, PlayerView>` that adds and removes views as `world.players` changes. Rings, colors and names are Story 2.9; here remote players use the same placeholder.
+  - [x] Online game over: if the local player dies, show the existing Game over with **Back to start**, which leaves the room. Story 2.8 replaces death with downed and revive.
+  - [x] The 2.3 "Starting…" placeholder now starts `Game` in online mode.
+- [x] **Task 13: Tests**: see Dev Notes › Testing.
 
 ## Dev Notes
 
@@ -232,10 +236,96 @@ Scenes keep reading `host.world` the same way. Networking lives only in `NetSimH
 
 ### Agent Model Used
 
+claude-opus-5-5 via gds-dev-story
+
 ### Debug Log References
+
+- Checked in `@colyseus/core` 0.18.29 (`Room.mjs`): `setFixedTimestep(step, tickRate)` runs at most 5 catch-up steps per real frame and then sets the accumulator to 0 (drops the backlog). When `onUncaughtException` is defined, the step callback, `clock.setInterval`/`setTimeout`, `onMessage` handlers and the lifecycle hooks are wrapped in try/catch; `onJoin`/`onCreate`/`onLeave` are wrapped with rethrow, so a `ServerError` refusal still reaches the matchmaker. It is also reported to the handler, which ignores a `ServerError` cause (join refusals are already logged as `join_refused`).
+- Patches go out on their own `patchRate` interval, never inside the synchronous `onTick`, so every patch carries `tick` together with `x`, `y`, `ackSeq` from that same tick.
+- The SDK's `room.send` encodes with msgpackr synchronously, so NetSimHost reuses one input object for every send (the fake room `structuredClone`s to keep the same guarantee in tests).
+- `Room<unknown, RunStateView>` from the SDK is assignable to `NetRoomLike` once `onMessage` is generic (`onMessage<T>(type, cb: (m: T) => void)`).
+- In the existing 2.3 test "gives 4 players slots 0-3", `toEqual({ slot, name, ready })` failed because `PlayerState` now has the fight fields: changed to `toMatchObject`. Also the `run_started` log assertion now includes `runSeed`.
+- Playwright: Chromium's "GPU stall due to ReadPixels" WebGL console warnings come from `page.screenshot` (headless GL), not from the game.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- **AC 1 (authority):** `RunRoom.onStart` sets `phase = "wave"` and calls `startRun()`: `new RunController({ balance: serverBalance, seed: randomUint32() (node:crypto), players: members in join order, pauseWaves: DEV_NO_WAVES === "1" })`, one `syncState` so the spawn positions arrive in the same patch as `phase`, then `setFixedTimestep(() => this.onTick(), TICK_RATE_HZ)` and a 1 s ping interval. `run_started` logs `{ roomId, runSeed, players }`. `onTick` = `controller.tick()` → `syncState` → `forwardEvents` → (2.5 horde frames here) → `slowTicks.observe`. The room is the only writer; clients only send inputs and pongs.
+- **AC 2 (inputs):** `C2S.INPUT_SEND` (guarded, 25/s bucket) → `controller.queueInput(playerId, input)`. `RunController` implements the Dev Notes input queue exactly: a preallocated ring of `INPUT_QUEUE_MAX = 6` per player; `seq ≤ last queued` ignored (counted as `stale`); overflow drops the oldest (counted as `overflow`); each tick one queued input is applied (`ackSeq = seq`), or, when starved, the held input `{ ...last, moveX: 0, moveY: 0, swap: false, consumable: false }` with the same seq (aim and fire kept). One mutable input object per player is handed to `setInput`; no allocation per tick (players iterated from an array, not a Map iterator).
+- **AC 3 (shared state):** `PlayerState` and `RunState` have the final fields from Dev Notes › Schema (`x`/`y` float32, `heading` uint8, `hp`/`maxHp` uint16, `status`, `ackSeq` uint32, loadout fields; `tick`, `wave`, `remaining`, `aliveCount`). `syncState` assigns a field only when it changed (x/y compared after `Math.fround`, hp with `Math.ceil`), using a module-level `forEach` callback (no closure per tick). `stateView.ts` mirrors all of it, and the compile-time drift check still passes. Events: `shared/net/netEvents.ts` tuples (players as slot, zombies as net id `slot | generation << 8`, weapons as `weaponIds` index, cm, `quantizeHeading`, tenths, reload in ms; melee arc/range come back from the weapon's balance); one `sim.events_flushed { tick, events }` broadcast per tick with events. A typical `weapon.fired` is 6 fields = 12 bytes as msgpack (test counts the bytes).
+- **AC 4 (networked host):** `SimHost` gained `localPlayerId` and `online` (`LocalSimHost`: `"local"`, false). `NetSimHost` (no SDK import; depends on `NetRoomLike`) keeps a mirror World built with the new shared `NO_SYSTEMS` and never stepped; each frame it adds/removes players from the schema map, writes interpolated `x`/`y`/facing (`prevX = x`, `alpha = 0`), and HP/status/loadout/waves from the latest state. Inputs: 50 ms accumulator, latched edges, seq + 1 per step, one `input.send` per step, a 64-entry history ring, at most 5 steps per frame then the backlog is dropped. `net/snapshots.ts` (16-snapshot ring, copies only), `net/serverClock.ts` (min offset over 2 s), render tick = estimate − 2 ticks, `net/eventQueue.ts` (drain when tick ≤ render tick, capped at 2048), `net.pinged` answered at once with `net.pong`. `GameScene.create` takes `{ mode: "solo", seed? } | { mode: "online", session }`, builds the matching host, only solo calls `addPlayer`; every `LOCAL_PLAYER_ID` use is `host.localPlayerId`; players render through `Map<playerId, PlayerView>` added/removed as `world.players` changes. Online game over (local `player.died`, or status `dead` in the mirror) shows Game over with **Back to start**, which leaves the room. Practice solo, `?solo`, `?loadout`, `?tune`, `?stress`, `?debug` take the unchanged solo path (online ignores `?tune`/`?loadout`/`?stress` and the dev loadout picker).
+- **AC 5 (slow ticks):** `run/slowTick.ts` `SlowTickWatch`: a tick over `SLOW_TICK_MS = 40` logs `warn { roomId, tick, tickMs, count }` at most once per second; `count` = slow ticks since the last line, this one included. Also keeps `ticks`, `totalMs`, `maxMs` (used by the measurement test).
+- **Task 6 (RTT):** every 1 s each client gets `net.pinged { id, rttMs }` (one id per round, its own EWMA); a `net.pong` with the latest id (once per client) gives `rtt = now − sentAt`, `member.rttMs` = EWMA 0.25 (first sample taken as is), then `controller.setRtt(playerId, rttMs)`. `netPongSchema` is in `messages.ts`, guarded through `this.net.guard` (shared 10/s bucket). Pings start with the run, so the lobby never gets an unhandled message type.
+- **Task 7 (leaving mid-run):** `onLeave` also calls `controller.removePlayer(playerId)` (shared `removePlayer` deletes `players`, `pendingInputs`, `inputs`, `lastAppliedSeq`); the schema entry was already removed by 2.3. Zombies retarget on the next tick (unit test).
+- **Task 9 (error handler):** `RunRoom.onUncaughtException(err, method)` logs `error { roomId, err, method, tick }` as `room_exception` and the room keeps running; after `MAX_TICK_ERRORS_IN_A_ROW = 20` failed ticks (a good tick resets the count) it logs `room_closed_after_tick_errors`, broadcasts `server.shutdown_started { message: "The game hit an error, sorry" }` and `disconnect()`s.
+- **Measured server tick (4 players, 150 Walkers):**
+  - Headless (`apps/server/src/run/tickCost.test.ts`: `RunController.tick` + `syncState` + event encoding + one schema patch encode per tick; 4 players circling and firing, god mode, horde topped up to 150 before every tick; 100 warm-up + 600 measured ticks): **mean 0.12–0.13 ms, p99 0.30–0.43 ms, max 0.52–0.72 ms** over 3 runs; patch ≈ 87 B per tick for 4 moving players (≈ 1.7 KB/s, inside the 6 KB/s budget). The test asserts mean < 5 ms and p99 < 40 ms.
+  - Live room (`RunRoom.fight.test.ts`: 4 SDK clients joined and started, 150 Walkers spawned into the room's World, 40 inputs each at 20/s, firing): **mean 0.36 ms, max 1.8 ms** per `onTick` (including `broadcast`).
+  - No `slow_tick` line appeared in the dev server log during the browser checks.
+- **Browser check (Playwright, chromium, two contexts at 844×390, `npm run dev`, waves on):** host "Ana" creates (`/j/KQSP`), friend "Bo" opens the link, enters a name, both Ready, host Start → both pages run `Game` in `online` mode with `localPlayerId` p0 / p1 and 2 player views; both survivors are drawn (screenshot) at the team spawn (22.5, 14.5) and (25.5, 14.5). Host holds D for 1 s → the friend sees p0 go from x 22.5 to 27.45 (same value on the host); friend holds S for 0.8 s → the host sees p1 go from y 14.5 to 18.1. Both fire while sweeping the mouse for 20 s: both clients received identical event streams (83 `weapon.fired`, 12 `zombie.hit`, 2 `zombie.killed`, 20 `player.damaged`, 1 `wave.started`, 6 reloads, 2 `player.died`), HUD "Wave 1 · Zombies 40", RTT 5 ms; both died to the wave and saw "Game over / Wave reached: 1 / Back to start". Walkers are simulated on the server but **not drawn** (horde stream is Story 2.5, as the story scopes); their hits, kills (blood splats) and damage do show. Second run: A clicks Back to start → start screen at `/`, server logs `player_left` (4000 consented), B's mirror drops p0 and keeps running; A then plays Practice solo (picker, Pistol+SMG, D for 1 s moves 4.5 m, `mode: "solo"`, `localPlayerId: "local"`); `/?solo&loadout=pistol,smg` goes straight to a solo `Game` with that loadout. No page errors. Servers stopped afterwards.
+- **Tests:** 438 passing (435 in `npm test` + the 3 release-cheat checks with `REQUIRE_DIST=1` after `npm run build`), 69 files. 56 new: shared `spawn`/`removePlayer` 2, `heading` 3, `netEvents` 6; server `RunController` 10, `slowTick` 3, `syncState` 3, `tickCost` 1, `RunRoom.fight` 8 (two clients see p0 move 4.5 m ± 0.3 with `ackSeq` 20, `wave`/`aliveCount`/loadout in state; events forwarded as tuples; ping → pong → RTT in member and controller; leave mid-run; 20 tick exceptions → shutdown message and disconnect; a good tick resets the count; live tick measurement; every tick observed); client `serverClock` 3, `snapshots` + `eventQueue` 6, `NetSimHost` 11 (one input per 50 ms with increasing seq; a swap tap in exactly one input; no burst after a hidden tab; 64-entry history; midpoint halfway between ticks 10 and 11; latest-state HP/loadout/waves; players added/removed; tick-12 events not drained at render tick 11; pong; dispose). The server room files ran 3 times in a row without a flake. `npm run typecheck`, `npm run lint`, `npm run build` (main chunk 1,564 kB, `connection` chunk 181 kB; still no SDK in the main chunk) pass.
+- **Deviations / decisions:**
+  - The integration tests live in a new `RunRoom.fight.test.ts` (not appended to `RunRoom.test.ts`) to keep clear of the concurrent Story 2.3 review edits; it boots its own test server per worker like the other file.
+  - `RunController` takes an optional `systems` override (tests) and exposes `rttMs`, `queued`, `drops` getters for tests and the 2.10 overlay.
+  - `NetSession` takes a `leave` callback: `main.ts` builds it on `phase === "wave"` from `lobbyStore.current()` + `lobbyStore.joinedInfo()` with `leaveRoom` (= `lobbyStore.leave()` + reset the URL), and passes it in the `startOnline` request (`UiRequests.startOnline(session)`). `NetSimHost.dispose()` (Game scene shutdown) unsubscribes and calls `session.leave()`, so leaving the scene always leaves the room. New `UiRequests.leaveRun(error?)` is handled by the online Game scene (`scene.start("Boot", { error })`); `main.ts`'s `onLost` calls it so a dropped connection mid-run returns to the start screen with "Can't reach the server". `BootScene.create` takes `{ error? }` for that.
+  - The `"starting"` `UiScreen` and the "Starting…" placeholder were removed, as 2.3 suggested.
+  - `NetSimHost.update` is also the place where the mirror is written each frame; its `stats` (same `SimStepStats` shape as `LocalSimHost`) count input steps and time spent applying state, so the perf overlay keeps working online.
+  - Added shared `lerpHeading` (short-way heading interpolation) next to `quantizeHeading`/`headingToRad`; `headingToRad` accepts fractional headings. `createLoadout` is now exported from shared.
+  - `apps/client/src/net/fakeRoom.ts` is a test helper (fake `NetRoomLike` and plain room state); `lobbyStore.test.ts` uses its `fakePlayer` because `PlayerStateView` grew.
+  - `Member.rttMs` (mutable) added to `run/lobby.ts`; it is never in schema or logs.
+- **Notes for later stories:**
+  - **2.5:** `RunRoom.onTick` has the "send horde frames here" line after `forwardEvents`; zombies are in `controller.world.zombies`. `netEvents` already sends zombie ids as net ids (`slot | generation << 8`) and decodes `zombieId` to the pool slot; the full net id stays in tuple index 1 of `ZOMBIE_KILLED`/`ZOMBIE_HIT` (`PLAYER_DAMAGED` index 3 is the source zombie's net id, −1 for none). NetSimHost: register `BYTES.HORDE_FRAME` in the constructor next to the other handlers (and remove it in `dispose`); sample at `host.renderTick`; write into `world.zombies` (empty now) after `applyState`. `quantizeHeading`/`headingToRad`/`lerpHeading` are in shared. The live-room tick measurement test (`RunRoom.fight.test.ts`) can grow a horde-frame encode.
+  - **2.6:** the input queue is as specified (one input per tick, starved = hold still with the same seq), and `ackSeq` is in schema. `NetSimHost.history` is the 64-entry ring (`historyHead`/`historyCount` are private: expose an iterator for the predictor), `sentSeq` is the last seq, `RENDER_DELAY_TICKS = 2` is the constant to replace with the adaptive delay, and `SnapshotRing.sample`/`ServerClock.estimateTick` are fractional. The local player is currently drawn from the interpolated snapshot like everyone else. `NO_SYSTEMS` is exported for `PREDICTION_SYSTEMS`. `RunController` has no Colyseus/SDK import (usable from `tools/`).
+  - **2.7:** `RunController.setRtt`/`rttMs` store the EWMA; `NetSimHost.drainEvents` = event queue drained at the render tick (put local cosmetic events in front). `FxView` already takes the local id from the host.
+  - **2.8:** remove `player.died`/`"dead"` from `netEvents` (`PLAYER_DIED` kind), `syncState` (status), `NetSimHost` and the `GameScene` online game-over path (`showGameOver`, `GameOver.tsx` "Back to start", `UiRequests.leaveRun`). `onPhase` in `main.ts` only starts the scene on `"wave"`; a return to lobby will need the Game scene stopped without `NetSimHost.dispose()` leaving the room (today dispose always leaves).
+  - **2.10:** `NetSimHost.rttMs`, `EventQueue.dropped`, `RunController.drops()`/`queued()`, `SlowTickWatch.meanMs/maxMs` are ready for the overlay; `tickCost.test.ts` reports patch bytes per tick.
 
 ### File List
+
+- `packages/shared/src/player/player.ts` (modified: `removePlayer`)
+- `packages/shared/src/player/spawn.ts` (new)
+- `packages/shared/src/player/spawn.test.ts` (new)
+- `packages/shared/src/net/heading.ts` (new)
+- `packages/shared/src/net/heading.test.ts` (new)
+- `packages/shared/src/net/netEvents.ts` (new)
+- `packages/shared/src/net/netEvents.test.ts` (new)
+- `packages/shared/src/net/messages.ts` (modified: `netPongSchema`, `NetPinged`)
+- `packages/shared/src/net/stateView.ts` (modified)
+- `packages/shared/src/core/systems.ts` (modified: `NO_SYSTEMS`)
+- `packages/shared/src/config/balance/player.json` (modified: `spawnOffsetM`)
+- `packages/shared/src/config/balanceSchema.ts` (modified)
+- `packages/shared/src/index.ts` (modified)
+- `apps/server/src/run/RunController.ts` (new)
+- `apps/server/src/run/RunController.test.ts` (new)
+- `apps/server/src/run/slowTick.ts` (new)
+- `apps/server/src/run/slowTick.test.ts` (new)
+- `apps/server/src/run/tickCost.test.ts` (new)
+- `apps/server/src/run/lobby.ts` (modified: `Member.rttMs`)
+- `apps/server/src/rooms/RunRoom.ts` (modified)
+- `apps/server/src/rooms/RunRoom.test.ts` (modified: two assertions for the new fields/log)
+- `apps/server/src/rooms/RunRoom.fight.test.ts` (new)
+- `apps/server/src/rooms/schema/RunState.ts` (modified)
+- `apps/server/src/rooms/schema/syncState.ts` (new)
+- `apps/server/src/rooms/schema/syncState.test.ts` (new)
+- `apps/client/src/sim/SimHost.ts` (modified)
+- `apps/client/src/sim/LocalSimHost.ts` (modified)
+- `apps/client/src/sim/NetSimHost.ts` (new)
+- `apps/client/src/sim/NetSimHost.test.ts` (new)
+- `apps/client/src/net/session.ts` (new)
+- `apps/client/src/net/serverClock.ts` (new)
+- `apps/client/src/net/serverClock.test.ts` (new)
+- `apps/client/src/net/snapshots.ts` (new)
+- `apps/client/src/net/snapshots.test.ts` (new: also covers `eventQueue`)
+- `apps/client/src/net/eventQueue.ts` (new)
+- `apps/client/src/net/fakeRoom.ts` (new, test helper)
+- `apps/client/src/net/lobbyStore.test.ts` (modified: fixtures for the grown view)
+- `apps/client/src/scenes/GameScene.ts` (modified)
+- `apps/client/src/scenes/BootScene.ts` (modified)
+- `apps/client/src/main.ts` (modified)
+- `apps/client/src/ui/uiState.ts` (modified)
+- `apps/client/src/ui/GameOver.tsx` (modified)
+- `apps/client/src/ui/LobbyScreen.tsx` (modified: "Starting…" placeholder removed)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
+
+## Change Log
+
+- 2026-11-21: Story 2.4 implemented: the room runs the shared World at 20 Hz (`RunController`, no Colyseus inside) with the per-player input queue (one input per tick, starved = hold still with the same seq), syncs players/HP/loadouts/phase/wave/aliveCount to schema only on change, forwards sim events as compact tuples, measures RTT with `net.pinged`/`net.pong`, removes leavers from the World, logs slow ticks (> 40 ms) and room exceptions, and closes after 20 failed ticks in a row. The client plays online through `NetSimHost` (mirror World, snapshot interpolation 100 ms behind, server clock, event queue at the render tick) behind the unchanged `SimHost` interface; `GameScene` draws every player and offers Back to start on an online game over. Server tick with 4 players and 150 Walkers: 0.12 ms mean, 0.4 ms p99. 438 tests passing.
