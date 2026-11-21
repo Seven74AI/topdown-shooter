@@ -46,6 +46,9 @@ class Sfc32 implements Rng {
   }
 
   int(minIncl: number, maxIncl: number): number {
+    if (!Number.isInteger(minIncl) || !Number.isInteger(maxIncl) || maxIncl < minIncl) {
+      throw new Error(`Rng.int: invalid bounds [${minIncl}, ${maxIncl}]`);
+    }
     return minIncl + Math.floor(this.next() * (maxIncl - minIncl + 1));
   }
 

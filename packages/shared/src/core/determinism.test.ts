@@ -6,6 +6,7 @@ import { createRng } from "./rng";
 import type { SimEvent } from "./simEvents";
 import type { SystemFn } from "./systems";
 import { createWorld, setInput, step, type World } from "./world";
+import { snapshotWorld } from "./worldSnapshot";
 
 const balance = loadBalance();
 const TICKS = 1000;
@@ -53,7 +54,7 @@ function run(seed: number, log: Map<number, PlayerInput>) {
     if (input) setInput(world, "local", input);
     step(world, TICK_DT_S);
   }
-  return { tick: world.tick, rngState: world.rng.getState(), ...probe };
+  return { world: snapshotWorld(world), ...probe };
 }
 
 describe("determinism (NFR10)", () => {
@@ -61,7 +62,8 @@ describe("determinism (NFR10)", () => {
     const log = makeInputLog();
     const a = run(42, log);
     const b = run(42, log);
-    expect(a.tick).toBe(TICKS);
+    expect(a.world.tick).toBe(TICKS);
+    expect(a.world.inputs.length).toBe(1);
     expect(a.events.length).toBeGreaterThan(0);
     expect(b).toEqual(a);
   });

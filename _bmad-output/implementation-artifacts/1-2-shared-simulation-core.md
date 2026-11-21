@@ -4,7 +4,7 @@ baseline_commit: 94cb2ee97cab8bd569c6580d47a78746b783121a
 
 # Story 1.2: Shared simulation core
 
-Status: review
+Status: done
 
 ## Story
 
@@ -309,6 +309,7 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `packages/shared/src/config/constants.test.ts` (modified)
 - `packages/shared/src/net/input.ts` (new)
 - `packages/shared/src/index.ts` (modified)
+- `packages/shared/src/core/worldSnapshot.ts` (new, review fix)
 - `apps/client/src/sim/SimHost.ts` (new)
 - `apps/client/src/sim/LocalSimHost.ts` (new)
 - `apps/client/src/sim/LocalSimHost.test.ts` (new)
@@ -318,6 +319,17 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `_bmad-output/implementation-artifacts/1-2-shared-simulation-core.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context) · **Outcome:** Changes requested → all fixed
+- [x] [Med] EventBus: a throwing handler left the batch uncleared, so an event was delivered twice and out of order. Fix: every event still reaches every handler, the batch is cleared, then the first error is rethrown. Test added.
+- [x] [Med] EventBus: unsubscribing during a flush skipped the next handler. Fix: copy-on-write handler list, snapshot per flush. Test added.
+- [x] [Med] Edge-triggered `swap`/`consumable` could be lost (tap between two steps) or repeated (catch-up steps, or a repeated server input). Fix: `LocalSimHost` latches edge flags until one step consumes them and stamps one `seq` per step; the shared input system applies edge flags only once per `seq` (`world.lastAppliedSeq`). Tests added on both sides.
+- [x] [Low] `drainEvents()` reuses its array: documented "valid until the next call" on `SimHost`.
+- [x] [Low] Determinism test compared only a probe: added `snapshotWorld()` (plain data, Maps as sorted arrays) and the test now compares it. Later stories add their state to `snapshotWorld`.
+- [x] [Low] `Rng.int` accepted reversed or fractional bounds: now throws (programmer error). Test added.
+
 ## Change Log
 
+- 2026-11-21: Addressed code review findings - 6 items resolved. 66 tests passing.
 - 2026-11-21: Story 1.2 implemented: shared World with fixed 20 Hz step and system order, seeded RNG, event bus, validated balance data, input message, client LocalSimHost and GameScene. 60 tests passing.

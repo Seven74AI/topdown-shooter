@@ -44,6 +44,13 @@ describe("rng", () => {
     expect(sawMin && sawMax).toBe(true);
   });
 
+  it("refuses invalid int() bounds (programmer error)", () => {
+    const rng = createRng(5);
+    expect(() => rng.int(5, 3)).toThrow();
+    expect(() => rng.int(0.5, 3)).toThrow();
+    expect(rng.int(4, 4)).toBe(4);
+  });
+
   it("keeps range() in [min, max)", () => {
     const rng = createRng(6);
     for (let i = 0; i < 1000; i++) {

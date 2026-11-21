@@ -55,10 +55,44 @@ describe("LocalSimHost", () => {
     expect(host.drainEvents()).toEqual([]);
   });
 
+  it("delivers a swap tapped between two steps to exactly one step", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    let swapTicks = 0;
+    const neutral = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false };
+    host.setLocalInput({ ...neutral, swap: true }); // tap on one frame…
+    host.update(FRAME_60HZ);
+    host.setLocalInput(neutral); // …released on the next, before any step ran
+    let lastTick = host.world.tick;
+    if (host.world.inputs.get("local")?.swap) swapTicks++;
+    for (let i = 0; i < 12; i++) {
+      host.update(FRAME_60HZ);
+      if (host.world.tick !== lastTick) {
+        lastTick = host.world.tick;
+        if (host.world.inputs.get("local")?.swap) swapTicks++;
+      }
+    }
+    expect(host.world.tick).toBeGreaterThanOrEqual(3);
+    expect(swapTicks).toBe(1);
+  });
+
+  it("does not repeat a swap across catch-up steps after a long frame", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    let swaps = 0;
+    host.world.events.subscribe(() => {});
+    host.setLocalInput({ seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: true, consumable: false, isMouse: false });
+    // Count swaps seen per step by stepping one frame at a time after the long frame.
+    host.update(0.05);
+    if (host.world.inputs.get("local")?.swap) swaps++;
+    host.update(0.25); // 5 catch-up steps with the same held input
+    if (host.world.inputs.get("local")?.swap) swaps++;
+    expect(swaps).toBe(1);
+  });
+
   it("passes the local input to the world each step", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     host.setLocalInput({ seq: 7, moveX: 1, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false });
     host.update(0.05);
-    expect(host.world.inputs.get("local")?.seq).toBe(7);
+    expect(host.world.inputs.get("local")?.moveX).toBe(1);
+    expect(host.world.inputs.get("local")?.seq).toBe(1); // the host stamps one seq per step
   });
 });

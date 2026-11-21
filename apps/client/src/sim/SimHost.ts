@@ -14,9 +14,15 @@ export interface SimHost {
   readonly alpha: number;
   /** The authoritative (local) or predicted (networked) world. Renderers only read it. */
   readonly world: Readonly<World>;
-  /** The local player's input for upcoming steps. */
+  /**
+   * The local player's input for upcoming steps. Continuous fields (move, aim, fire) use the latest
+   * value; edge flags (swap, consumable) set by any call reach exactly one step.
+   */
   setLocalInput(input: PlayerInput): void;
-  /** Events produced since the last call, in order; each event is returned exactly once. */
+  /**
+   * Events produced since the last call, in order; each event is returned exactly once.
+   * The returned array is reused: it is valid only until the next `drainEvents()` call.
+   */
   drainEvents(): readonly SimEvent[];
   dispose(): void;
 }

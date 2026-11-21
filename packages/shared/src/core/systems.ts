@@ -20,10 +20,23 @@ export type Systems = Record<SystemName, SystemFn>;
 
 const noop: SystemFn = () => {};
 
-/** Copies the latest input of every player into `world.inputs` for this tick. */
+/**
+ * Copies the latest input of every player into `world.inputs` for this tick.
+ * A player who sent nothing new keeps their last input (dropped packets), but edge-triggered
+ * flags (`swap`, `consumable`) only count on the first tick a given `seq` is applied,
+ * so a repeated sample never swaps twice.
+ */
 export const applyInputs: SystemFn = (world) => {
   world.inputs.clear();
-  for (const [id, input] of world.pendingInputs) world.inputs.set(id, input);
+  for (const [id, input] of world.pendingInputs) {
+    const repeated = world.lastAppliedSeq.get(id) === input.seq;
+    world.lastAppliedSeq.set(id, input.seq);
+    if (repeated && (input.swap || input.consumable)) {
+      world.inputs.set(id, { ...input, swap: false, consumable: false });
+    } else {
+      world.inputs.set(id, input);
+    }
+  }
 };
 
 /**

@@ -60,6 +60,45 @@ describe("EventBus", () => {
     expect(seen).toEqual([1, 10]);
   });
 
+  it("still delivers every event exactly once, in order, when a handler throws", () => {
+    const bus = new EventBus();
+    const seen: number[] = [];
+    let throwOnce = true;
+    bus.subscribe((e) => {
+      if (e.type !== "test.ping") return;
+      seen.push(e.n);
+      if (throwOnce) {
+        throwOnce = false;
+        throw new Error("boom");
+      }
+    });
+    const other: number[] = [];
+    bus.subscribe((e) => e.type === "test.ping" && other.push(e.n));
+    bus.emit(ping(1));
+    expect(() => bus.flush()).toThrow("boom");
+    bus.emit(ping(2));
+    bus.flush();
+    bus.emit(ping(3));
+    bus.flush();
+    expect(seen).toEqual([1, 2, 3]);
+    expect(other).toEqual([1, 2, 3]);
+  });
+
+  it("does not skip the next subscriber when one unsubscribes during a flush", () => {
+    const bus = new EventBus();
+    const log: string[] = [];
+    const offA = bus.subscribe(() => {
+      log.push("A");
+      offA();
+    });
+    bus.subscribe(() => log.push("B"));
+    bus.emit(ping(1));
+    bus.flush();
+    bus.emit(ping(2));
+    bus.flush();
+    expect(log).toEqual(["A", "B", "B"]);
+  });
+
   it("types payloads by the SimEvent union", () => {
     const bus = new EventBus();
     bus.emit({ type: "zombie.killed", zombieId: 3, killerId: "local", x: 1, y: 2, weapon: "pistol" });

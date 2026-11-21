@@ -22,6 +22,11 @@ export class LocalSimHost implements SimHost {
   readonly world: World;
   private accumulatorS = 0;
   private input: PlayerInput = NEUTRAL_INPUT;
+  /** Edge flags latched until a step consumes them (a tap between two steps is never lost). */
+  private latchedSwap = false;
+  private latchedConsumable = false;
+  /** Input sequence number, one per step (the shared input system fires edges once per seq). */
+  private seq = 0;
   private events: SimEvent[] = [];
   private drained: SimEvent[] = [];
   private readonly unsubscribe: () => void;
@@ -40,7 +45,14 @@ export class LocalSimHost implements SimHost {
     this.accumulatorS += frameDtS;
     let steps = 0;
     while (this.accumulatorS >= TICK_DT_S && steps < MAX_CATCHUP_STEPS) {
-      setInput(this.world, LOCAL_PLAYER_ID, this.input);
+      setInput(this.world, LOCAL_PLAYER_ID, {
+        ...this.input,
+        seq: ++this.seq,
+        swap: this.latchedSwap,
+        consumable: this.latchedConsumable,
+      });
+      this.latchedSwap = false; // consumed by exactly one step
+      this.latchedConsumable = false;
       step(this.world, TICK_DT_S);
       this.accumulatorS -= TICK_DT_S;
       steps++;
@@ -53,6 +65,8 @@ export class LocalSimHost implements SimHost {
 
   setLocalInput(input: PlayerInput): void {
     this.input = input;
+    if (input.swap) this.latchedSwap = true;
+    if (input.consumable) this.latchedConsumable = true;
   }
 
   drainEvents(): readonly SimEvent[] {

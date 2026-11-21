@@ -18,6 +18,8 @@ export interface World {
   readonly pendingInputs: Map<string, PlayerInput>;
   /** Inputs applied this tick (copied by the input system). */
   readonly inputs: Map<string, PlayerInput>;
+  /** `seq` of the input last applied per player (edge flags fire once per seq). */
+  readonly lastAppliedSeq: Map<string, number>;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -43,6 +45,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     events: new EventBus(),
     pendingInputs: new Map(),
     inputs: new Map(),
+    lastAppliedSeq: new Map(),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

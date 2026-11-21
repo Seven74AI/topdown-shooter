@@ -8,4 +8,5 @@ export { BalanceError, loadBalance, type Balance, type RawBalanceFiles } from ".
 export type { GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World } from "./core/world";
+export { snapshotWorld, type WorldSnapshot } from "./core/worldSnapshot";
 export { NEUTRAL_INPUT, playerInputSchema, type PlayerInput } from "./net/input";

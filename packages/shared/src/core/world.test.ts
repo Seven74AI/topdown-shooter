@@ -69,6 +69,21 @@ describe("World", () => {
     expect(world.inputs.get("local")?.seq).toBe(2);
   });
 
+  it("applies edge flags (swap, consumable) only once per input seq", () => {
+    const world = createWorld({ balance, seed: 1 });
+    setInput(world, "local", { ...NEUTRAL_INPUT, seq: 5, swap: true, consumable: true, moveX: 1 });
+    step(world, TICK_DT_S);
+    expect(world.inputs.get("local")?.swap).toBe(true);
+    expect(world.inputs.get("local")?.consumable).toBe(true);
+    step(world, TICK_DT_S); // same sample repeated (dropped packet): no second swap
+    expect(world.inputs.get("local")?.swap).toBe(false);
+    expect(world.inputs.get("local")?.consumable).toBe(false);
+    expect(world.inputs.get("local")?.moveX).toBe(1); // continuous fields are kept
+    setInput(world, "local", { ...NEUTRAL_INPUT, seq: 6, swap: true });
+    step(world, TICK_DT_S);
+    expect(world.inputs.get("local")?.swap).toBe(true);
+  });
+
   it("stores the seed as uint32", () => {
     expect(createWorld({ balance, seed: -1 }).seed).toBe(4294967295);
   });
