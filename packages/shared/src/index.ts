@@ -44,3 +44,19 @@ export { assistAim } from "./combat/aimAssist";
 export { swingMelee } from "./combat/melee";
 export { circleOverlapsSector } from "./math/sector";
 export { endWave, skipWave, updateWaves, waveSize, type WavePhase, type WaveState } from "./waves/waveDirector";
+export {
+  BYTES,
+  C2S,
+  RUN_ROOM_NAME,
+  S2C,
+  joinOptionsSchema,
+  playerNameSchema,
+  type C2SType,
+  type JoinOptions,
+  type JoinRefusal,
+  type ParsedJoinOptions,
+  type RunPhase,
+  type S2CType,
+} from "./net/messages";
+export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
+export type { PlayerStateView, ReadonlyMapView, RunStateView } from "./net/stateView";

@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json"
   },
   "dependencies": {
+    "@colyseus/sdk": "0.18.10",
     "@topdown/shared": "*",
     "phaser": "4.2.1",
     "preact": "11.2.0"

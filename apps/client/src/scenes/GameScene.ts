@@ -39,6 +39,8 @@ import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
 export interface GameSceneData {
+  /** Only "solo" (a LocalSimHost) until Story 2.4 adds the online fight. Absent means solo. */
+  mode?: "solo";
   /** Run seed (uint32); a random one when absent (dev cheat "set run seed", Story 1.11). */
   seed?: number;
 }
@@ -59,6 +61,8 @@ const CHEVRON_LIFT_M = 0.7;
 
 export class GameScene extends Phaser.Scene {
   private host: LocalSimHost | null = null;
+  /** How this run is simulated (Story 2.4 adds "online"). */
+  mode: NonNullable<GameSceneData["mode"]> = "solo";
   private sticks: TouchSticks | null = null;
   /** Touch sticks or keyboard + mouse, whichever was used last (Story 1.10). */
   private router: InputRouter | null = null;
@@ -82,6 +86,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(data?: GameSceneData): void {
+    this.mode = data?.mode ?? "solo";
     const opts = urlOptions();
     // ?tune=1: the live tuning values from the panel (validated like any balance change).
     const balance: Balance = opts.tune ? tunedBalance() : loadBalance();

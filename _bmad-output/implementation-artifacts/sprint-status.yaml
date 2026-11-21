@@ -66,8 +66,8 @@ development_status:
   epic-1-retrospective: optional
 
   # Epic 2: Online co-op foundation
-  epic-2: backlog
-  2-1-game-server-and-a-room-code: ready-for-dev
+  epic-2: in-progress
+  2-1-game-server-and-a-room-code: review
   2-2-deploy-to-the-vps: ready-for-dev
   2-3-join-by-link-get-ready-start: ready-for-dev
   2-4-the-server-runs-the-fight: ready-for-dev
