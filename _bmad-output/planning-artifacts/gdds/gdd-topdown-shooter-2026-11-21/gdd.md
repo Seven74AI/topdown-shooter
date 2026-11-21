@@ -16,25 +16,29 @@ A 2D top-down co-op horde shooter for 2–4 friends, played in a phone browser f
 
 **Core fantasy:** *You and your friends hold out together while your city falls around you, one wave at a time.*
 
+**What players walk away with:** the panic of a screen full of zombies, the pride of a defense that held, and the story of *that* run ("the bloater took out our whole barricade on wave 9").
+
 ### Target Audience
-_From brief — to refine._ The designer's friend group: 2–4 players, each on their own phone with an account; sessions of 15–25 minutes per run.
+The designer's friend group: 2–4 players, each on their own phone (guest or account); sessions of about 20 minutes per run, longer in endless. Comfortable with twin-stick games; not looking for a competitive esport.
 
 ### Unique Selling Points (USPs)
-_From brief — to refine._ Online co-op on phones from a link with no install; building between waves; a city that decays over the run and changes how it plays.
+1. **Online co-op on phones from a link, no install:** a game night starts in seconds.
+2. **Build your stand:** building and buying between waves under real scarcity.
+3. **A city that falls:** the district decays over the run and changes how it plays, ending in blackout waves and a boss.
 
 ## Goals and Context
 ### Project Goals
 1. A game the designer's friend group wants to play every week.
 2. A complete v1: one district, the full 10-wave run with boss, endless mode, meta-progression.
-3. Proof that a big-horde co-op shooter runs smoothly in a phone browser (Milestone 1).
+3. Proof that a big-horde co-op shooter meets the performance targets (see Technical Specifications) in a phone browser (Milestone 1).
 ### Background and Rationale
-A passion project for the designer and their friends. Phones are what everyone always has, and a browser link removes installs and app stores, so starting a game night takes seconds. The co-op horde genre is proven (see the brief's references), but no game combines online phone co-op from a link, building between waves, and a city that decays over the run.
+A passion project for the designer and their friends. Phones are what everyone always has, and a browser link removes installs and app stores, so starting a game night takes seconds. The co-op horde genre is proven (see the brief's references), but we found no game that combines online phone co-op from a link, building between waves, and a city that decays over the run.
 
 ## Core Gameplay
 ### Game Pillars
 Each pillar is a decision rule. When a feature or tuning choice is unclear, these settle it.
 
-1. **Horde chaos.** Difficulty comes from **more zombies, not tougher ones**. A single zombie is never a threat; the crowd is. Target: about 150 zombies on screen at once by wave 10. Zombie health does not scale with waves.
+1. **Horde chaos.** Difficulty comes from **more zombies, not tougher ones**. A single zombie is never a threat; the crowd is. Target: up to 150 zombies alive at once by wave 10. Zombie health does not scale with waves.
 2. **Build your stand.** Currency never covers everything, so every build phase is a real choice. Defenses buy time; they never win a wave on their own.
 3. **A city that falls.** Every decay stage changes **how the map plays** (cover, paths, light, hazards), not only how it looks.
 4. **Better together.** No single build handles every zombie type. A player who wanders off alone feels it. Helping teammates (reviving, covering, combining roles) is core play.
@@ -47,11 +51,11 @@ Each pillar is a decision rule. When a feature or tuning choice is unclear, thes
 4. **Decay.** About every 2 waves the district moves one decay stage further, changing cover, paths, light and hazards. *(A city that falls)*
 5. Back to 1, with a bigger wave.
 
-**Run timing:** wave 1 ≈ 40 zombies (~1 min); wave 10 ≈ 400 zombies (~3 min), up to 150 on screen at once. Ten waves plus build phases ≈ **20 minutes**.
+**Run timing:** wave 1 ≈ 40 zombies (~1 min); wave 10 ≈ 400 zombies (~3 min), up to 150 alive at once. Ten waves plus build phases ≈ **20–25 minutes**.
 
 **Why the hundredth loop still pulls:** each build phase is a different choice (pillar 2), every run's decay changes the map under the team (pillar 3), and unlocks change which items can appear.
 ### Win/Loss Conditions
-- **Loss:** every player is down at the same time. The run ends.
+- **Loss:** no player is standing (everyone is downed or out). The run ends.
 - **Downed state:** a player at 0 HP goes down. A teammate standing next to them for **3 s** revives them. If no one does within **20 s**, they are out until the next build phase, when they return automatically.
 - **Win:** survive wave 10. An evacuation helicopter arrives and the team votes:
   - **Extract:** the run is won; all rewards are kept.
@@ -78,6 +82,7 @@ Numbers for each are in the sections below.
 - **Aim assist:** projectiles bend up to **8°** toward the nearest zombie inside the aim cone. Off on desktop mouse aim.
 - **Swap weapon:** button near the right thumb (swap time 0.3 s).
 - **Reload:** automatic when the magazine is empty.
+- **Open risk:** melee under twin-stick worked in browser probes but needs a playtest on real phones (Epic 1).
 - **Desktop (bonus):** WASD to move, mouse to aim, hold left click to fire, Q to swap.
 - **Build phase:** tap a shop item, then tap the ground to place a building (grid snap 1 m); drag to rotate. Details in *Buildings and Defenses*.
 
@@ -87,7 +92,7 @@ Numbers for each are in the sections below.
 
 **Loadout:** 2 weapon slots, any combination (two melee, a shotgun and a rifle…). A player's role comes only from what they carry.
 **Ammo:** unlimited reserve; every gun has a magazine and a reload time. Reloading at the wrong moment is the risk.
-**Upgrades:** each weapon has levels **I to IV** bought in the shop; each level adds **+25% damage** (level IV = 175%). Upgrade price = 60% of the weapon's base price per level.
+**Upgrades:** each weapon has levels **I to IV** bought in the shop; each level adds **+25% damage** (level IV = 175%). Upgrade price = 60% of the weapon's base price per level (Pistol: 60 per level). Because zombie HP is fixed, upgrades matter most where they cross a breakpoint (e.g. SMG level III kills a Runner in 1 hit); tune base damage with breakpoints in mind.
 
 | Weapon | Role | Damage | Rate | Range / area | Special | Mag / reload | Price |
 |---|---|---|---|---|---|---|---|
@@ -103,7 +108,7 @@ Numbers for each are in the sections below.
 | Grenade Launcher | Long | 40 | 0.8 /s | 12 m lob, 2 m blast | Area damage; also hurts the shooter at 50% | 4 / 3.0 s | 800 |
 
 **Feel:** every hit flashes the zombie and pushes it back; heavy weapons (axe, hunting rifle, grenade launcher) add a short screen shake; each weapon has its own firing sound. *(Screen shake is optional in settings.)*
-**Balance intent:** melee has the best damage per second but puts you in the crowd; long range is safe but weak against swarms; area weapons are expensive and can hurt teammates and yourself.
+**Balance intent:** melee has the best damage against a crowd (its arc hits many zombies) but puts you in the crowd; long range is safe and the Hunting Rifle punches lines of zombies, but it fires slowly and struggles against Runners and swarms coming from several sides; area weapons are expensive and can hurt teammates and yourself. The Hunting Rifle's 17 m range reaches beyond the screen edge (12 m) on purpose: it hits zombies before you see them.
 ### Aiming and Combat Mechanics
 - **Aiming:** twin-stick (see Controls), with 8° aim assist on touch.
 - **Shots are visible projectiles** that travel (bullets ~60 m/s, grenades lobbed). Melee hits everything inside its arc instantly.
@@ -118,8 +123,8 @@ Numbers for each are in the sections below.
 |---|---|---|---|---|---|
 | Walker | 10 | 1.2 | 10 / hit | Walks straight at the nearest player | 2 |
 | Runner | 6 | 4.0 | 8 / hit | Nearly player speed; paths around the front line to flank | 3 |
-| Crawler | 8 | 0.7 | 12 / hit | Low silhouette; a bite slows the player 30% for 1 s | 3 |
-| Spitter | 12 | 1.5 | 15 / spit | Stops at 6 m, spits every 3 s; leaves an acid puddle (3 s, 5 dmg/s) | 5 |
+| Crawler | 8 | 0.7 | 12 / hit | Low silhouette, easy to miss in the chaos; a bite slows the player 30% for 1 s; leaves a blood trail | 3 |
+| Spitter | 12 | 1.5 | 15 / spit | Stops at 6 m, spits every 3 s; leaves an acid puddle (3 s, 5 dmg/s); punishes players who camp behind turrets | 5 |
 | Bloater | 25 | 0.9 | 30 blast | Explodes on death **or** after a 1 s swell when touching a player; 2.5 m blast; also deals 40 to zombies; gas cloud slows for 4 s | 6 |
 | Brute | 120 | 1.0 | 35 / hit + 1.5 m knockback | Deals 3× damage to buildings; barely affected by knockback | 25 |
 
@@ -149,20 +154,20 @@ Numbers for each are in the sections below.
 - **Disconnects:** a disconnected player's character is removed safely; they can rejoin within **2 minutes** with wallet and gear intact. Host leaving → host migrates to another player.
 - **Pause and resume:** during a build phase the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any group that includes the host (the host is required).
 - **Communication:** a ping button with 4 quick messages (Help! · Over here · Brute! · Ready), each showing an icon on teammates' screens and edge arrows. No voice or text chat in v1.
-- **Fairness:** all players see the same horde; hits are confirmed by the server so a laggy player cannot see a different fight.
+- **Fairness and feel:** all players see the same horde; the server decides hits. Your own movement, aiming and muzzle flash respond instantly on your device; at 150 ms latency, fewer than 1 shot in 20 that looks like a hit on your screen is reversed.
 - **Not in v1:** matchmaking with strangers, voice chat, PvP (parked for a later mode).
 
 ## Run Structure and Building (roguelike + tower-defense elements)
 ### Run Structure
 - **Pick a district → lobby (2–4 players) → build phase → 10 waves → evacuation vote → extract or endless.**
-- A run is ≈ 20 minutes to wave 10.
+- A run is ≈ 20–25 minutes to wave 10.
 - **Permadeath is per run:** when the team is wiped, the run ends; meta-progression (see Player Progression) persists.
-- **Pause and resume:** the host can pause the run during a build phase; the run state is kept on the server and resumed later by the same group [details in Multiplayer Considerations].
+- **Pause and resume:** the host can pause the run during a build phase; the run state is kept on the server and resumed later by any group that includes the host [details in Multiplayer Considerations].
 - **Seeds:** every run has a seed that drives its random choices (events, decay variations, shop cards) for reproducible testing.
 ### Item and Upgrade System
 **Roguelike shop.** Each build phase shows:
-- **Always available:** all buildings, consumables, repairs, and upgrades for weapons you own.
-- **6 random cards** of weapons and gear drawn from the player's **unlocked pool** (each player sees their own cards). **Reroll: 20** currency.
+- **Always available:** all *unlocked* buildings and consumables, repairs, and upgrades for weapons you own.
+- **6 random cards** of weapons and gear drawn from the player's **unlocked pool** (each player sees their own cards). **Reroll: 20** currency. Every offer contains **at least 1 weapon and 1 gear card**.
 
 **Gear (permanent for the run):**
 | Item | Effect | Price |
@@ -192,7 +197,7 @@ Placed during build phases on a 1 m grid; they persist until destroyed and can b
 **Player-count scaling:** zombie count and boss HP × **0.6** (2 players), **0.8** (3), **1.0** (4). A mid-run join rescales from the next wave. Solo (1 player) is not a target mode [NOTE FOR DESIGNER: solo testing could use × 0.4].
 
 **Wave 10 boss: The Behemoth.** Arrives mid-wave with the horde still active.
-- Size 5× a walker (radius 2 m); speed 1.3 m/s; immune to knockback. HP 2,000 at 4 players (scaled).
+- Size 5× a walker (radius 2 m); speed 1.3 m/s; immune to knockback. HP **6,000** at 4 players (≈ 40 s of focused team fire; scaled by player count).
 - **Ground slam:** 1.2 s telegraph (arms raised), 4 m radius, 40 damage.
 - **Charge:** 1.0 s telegraph (head lowered), 10 m straight line, 30 damage, destroys buildings in its path.
 - **Throw:** picks up a wreck or rubble from the decayed map and throws it at a player (1 s telegraph, 3 m impact, 35 damage).
@@ -206,10 +211,12 @@ Placed during build phases on a 1 m grid; they persist until destroyed and can b
 | Gas leak | A gas tank hisses for 10 s, then explodes: 6 m radius, kills zombies, 60 damage to players | Lure zombies in, stay out |
 | Supply drop | A crate lands at a random spot; the first player to reach it gets a rare weapon | Risk the crowd for loot |
 | Stampede | A mass of Runners crosses the map in one direction for 10 s | Dodge or hold a line |
-| Power failure | Lights die one wave early: a surprise blackout wave | Floodlights and flashlights matter |
+| Power failure | The current wave becomes a surprise blackout wave | Floodlights and flashlights matter |
 | Survivor | An NPC appears and must be escorted to a safe point | Big reward vs. splitting the team |
 
 District-specific events are planned per district later (e.g. hospital quarantine breach).
+
+**Wave modifiers (post-v1):** blackout is the first modifier; candidates for endless and later runs: fog waves, fast-zombie waves, boss waves, double-special waves.
 
 ## Progression and Balance
 ### Player Progression
@@ -227,10 +234,11 @@ District-specific events are planned per district later (e.g. hospital quarantin
 **Unlocks (Supplies):**
 - Weapons: Fire Axe 150 · Assault Rifle 200 · Chainsaw 300 · Flamethrower 400 · Grenade Launcher 500
 - Buildings: Spike trap 100 · Mine 100 · Floodlight 120 · Metal barricade 150 · Med station 300
-- Gear: Revive kit 100 · Tactical flashlight 100 · Molotovs 150 · Body armor II 250
+- Gear: Revive kit 100 · Tactical flashlight 100 · Body armor II 250
+- Consumables: Molotovs 150
 
 Unlocks add cards to the player's shop deck: more options, not more power.
-**Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency 100 → 150 · reload speed up to +5%. Caps keep a new friend viable next to a veteran (pillar 4).
+**Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency 100 → 150 · reload speed up to +5%. Each level costs **50 × level** Supplies (50, 100, 150, 200, 250). Caps keep a new friend viable next to a veteran (pillar 4).
 **Pacing:** everything unlocked after ≈ 15–20 runs (≈ 6 hours). **District 2 unlocks** after the first extraction from Downtown.
 ### Difficulty Curve
 | Waves | Feel | Why |
@@ -245,26 +253,26 @@ Unlocks add cards to the player's shop deck: more options, not more power.
 Build phases are the breathers between waves. Difficulty grows through zombie count, mix, map changes and darkness, never through zombie stats (pillar 1).
 ### Economy and Resources
 - **Personal wallets.** Each player earns and spends their own currency.
-- **Anti-snowball rules:** an assist (damaging a zombie a teammate kills) pays 50% of the kill reward; a revive pays +25; kills by your buildings go to your wallet; a player joining mid-run starts with the team's average currency.
+- **Anti-snowball rules:** an assist (damaging a zombie a teammate kills) pays 50% of the kill reward; a revive pays +25; kills by your buildings pay **50%** of the kill reward to your wallet; a player joining mid-run starts with the team's average currency.
 - **Start of run:** pistol + 100 currency.
-- **Earning:** kill rewards per zombie type (see Enemy table) + a **wave-clear bonus of 20 × wave number** to every living or downed player.
-- **Target:** ≈ **2,500 currency per player** over a full 10-wave run at 4 players: enough for one premium weapon, a few upgrades and some buildings, never everything (pillar 2).
+- **Earning:** kill rewards per zombie type (see Enemy table) + a **wave-clear bonus of 10 × wave number** to every player in the run, including downed and out players.
+- **Target:** ≈ **2,500–3,000 currency per player** over a full 10-wave run at any player count (4 players: ≈ 1,500 kills + ≈ 750 assists + 550 wave bonus + 100 start): enough for one premium weapon, a few upgrades and some buildings, never everything (pillar 2).
 - **Spending:** weapons 150–800, upgrades 60% of base price per level, gear 120–350, buildings 40–400, consumables 60–100, reroll 20.
 
 ## Level Design Framework
 ### Level Types
-**Districts** are hand-made maps. Players pick one at the start of a run; it decays around them over the run. v1 ships **Downtown**. Later candidates [NOTE FOR DESIGNER: pick order later]: Hospital, Suburbs, Port, Subway station, Shopping mall, Military checkpoint. Each future district brings its own landmarks and 1–2 district events.
+**Districts** are hand-made maps. Players pick one at the start of a run; it decays around them over the run. v1 ships **Downtown**. Later candidates [NOTE FOR DESIGNER: pick order later]: Hospital, Suburbs, Port, Subway station, Shopping mall, Military checkpoint. Each future district brings its own landmarks and 1–2 district events. Unused art probes can return as special content: a **CCTV-footage intro** and a **Blood Moon cemetery** special district.
 ### Level Progression
 Decay advances one stage every 2 waves and changes play, not only looks (pillar 3):
 
 | Waves | Stage | Gameplay change |
 |---|---|---|
-| 1–2 | Evening | Open map, full lighting; parked cars along curbs are obstacles |
+| 1–2 | Evening | Open map, full lighting; parked cars along curbs are obstacles; lit shops mark good spots to build |
 | 3–4 | Panic | 4 cars move into the road (new cover and choke points); police barriers block some paths |
 | 5–6 | Breakdown | 2 car fires (fire zones, 2 m radius, last 2 waves); free sandbag cover appears; rain begins (visual) |
-| 7–8 | Ruins | Rubble closes one alley and blocks paths; streetlights flicker; collapsed walls open new spawn points |
+| 7–8 | Ruins | Rubble closes one alley and blocks paths; streetlights flicker as a warning of the coming blackout; collapsed walls open new spawn points |
 | 9–10 | Collapse | Power out. **Wave 9 is a blackout wave**; fog limits vision to 10 m; wave 10 (boss) lit only by fires and floodlights |
-| 11+ | Collapse (endless) | Blackout every other wave |
+| 11+ | Collapse (endless) | Blackout every other wave; +40 zombies per wave (still max 150 alive); +1 Brute per wave; a Behemoth every 5th wave, before each evacuation |
 
 **Run-to-run variety:** which cars burn, which alley collapses, the special events and the shop cards are random per run. Each run has a **seed** so a run can be reproduced for testing.
 
@@ -275,7 +283,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 - **Readability rules:** each player has a colored ground ring (blue, orange, green, purple); every zombie type has a distinct silhouette (Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter with a glowing mouth).
 - **Decay is the art's story:** the same district has 5 visual states (Evening → Collapse): lights, cars, debris, fires, weather and vegetation change stage by stage.
 - **Lighting:** streetlights, shop glow, fires, muzzle flashes, flashlights and floodlights are the main light sources; blackout waves leave only those.
-- **Tone and gore:** tense and grim. **Blood and dismemberment:** zombies lose limbs from heavy hits (axe, chainsaw, shotgun, explosions) and burst apart on explosive kills; blood stays on the ground for the wave. [NOTE FOR DESIGNER: a gore toggle in settings is recommended for friends who prefer less.]
+- **Tone and gore:** tense and grim. **Blood and dismemberment:** zombies lose limbs from heavy hits (axe, chainsaw, shotgun, explosions) and burst apart on explosive kills; blood stays on the ground for the wave. A gore toggle (blood only) is in the quality settings.
 ### Audio and Music
 - **Ambience follows decay:** Evening = traffic, distant music and voices · Panic = sirens, car alarms, shouting · Breakdown = rain, crackling fires · Ruins = wind, falling debris · Collapse = near silence, only growls and rain.
 - **Music:** tension music whose intensity follows the number of zombies alive; a calmer track in build phases; a dedicated boss track for the Behemoth.
@@ -284,11 +292,12 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 
 ## Technical Specifications
 ### Performance Requirements
-- **Frame rate:** 60 FPS target, never below 30 FPS sustained, on a 2021 mid-range phone (e.g. iPhone 12, Pixel 5, Galaxy A52), measured over a full wave 9 (blackout) with 150 zombies on screen.
-- **Network:** fully playable on 4G at up to 150 ms latency; no visible disagreement between players about what happened.
+- **Frame rate:** 60 FPS target, never below 30 FPS sustained, on a 2021 mid-range phone (e.g. iPhone 12, Pixel 5, Galaxy A52), measured over a full wave 9 (blackout) in the worst case: all 150 alive zombies inside one player's view.
+- **Memory:** under 300 MB per browser tab on iPhone 12 (Safari closes heavy tabs).
+- **Network:** fully playable on 4G at up to 150 ms latency; no visible disagreement between players about what happened. Each phone receives at most **~30 KB/s** with 150 zombies alive (≈ 40 MB per 20-minute run); proving this is Milestone 1's first goal.
 - **Load time:** first load under 10 s on 4G; later loads under 3 s.
 - **Battery:** a 20-minute run uses under 15% battery on the reference phones.
-- **Quality settings:** rain, screen shake and lighting effects can be lowered or turned off.
+- **Quality settings:** rain, fog, screen shake, film grain and light glow can be lowered or turned off. **Blackout darkness is gameplay and cannot be turned off.** A gore toggle (blood only) is available.
 ### Platform-Specific Details
 - **Mobile browsers (primary):** Safari on iOS 16+, Chrome on Android 10+. Landscape only; respects notches and safe areas; can be added to the home screen.
 - **Desktop browsers (bonus):** current Chrome, Firefox, Safari, Edge with keyboard and mouse.
@@ -300,7 +309,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 - **Effects:** muzzle flashes, blood, fire, acid, gas, explosions, rain, fog, flashlight and floodlight light.
 - **UI:** HUD, shop cards, lobby, evacuation vote, pings, unlock screen.
 - **Audio:** ~30 weapon sounds, ~20 zombie sounds, 5 ambience loops (one per decay stage), 3 music tracks (wave, build, boss).
-- **Budget:** total download for first play under 15 MB.
+- **Budget:** total download for first play under 15 MB; music streams after the game starts.
 **Production:** placeholder or AI-assisted art and free sound libraries during prototyping (Epics 1–8); a hired artist and sound designer produce the final Dead City look and sound (Epic 9).
 
 ## Development Epics
@@ -312,7 +321,7 @@ Detailed breakdown in [epics.md](epics.md). Every epic ends in something playabl
 | 1 | Core combat on one phone | Solo twin-stick horde fight on a phone |
 | 2 | Online co-op foundation | 2–4 friends share a wave from a link |
 | 3 | Build phase and economy | 5 waves with shop, turrets and barricades |
-| 4 | Downtown and city decay (first slice) | **Milestone 1:** online, Downtown, 3 decay stages |
+| 4 | Downtown and city decay (first slice) | **Milestone 1:** online, Downtown, 3 decay stages, one weapon per range |
 | 5 | Full arsenal and bestiary | All weapons, zombies, buildings, gear |
 | 6 | The full run | Evening to the Behemoth, extract or endless |
 | 7 | Accounts and meta-progression | Unlocks carry between runs |
@@ -320,7 +329,7 @@ Detailed breakdown in [epics.md](epics.md). Every epic ends in something playabl
 | 9 | Dead City art and audio | Final look and sound |
 | 10 | Performance and polish | v1 for weekly game nights |
 
-**Sequence:** 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 10. Epic 8 can start after 2 and run alongside 5–7; Epic 9 runs alongside from Epic 4.
+**Sequence:** 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 10. Epic 8 can start after 3 and run alongside 5–7; Epic 9 runs alongside from Epic 4.
 
 ## Success Metrics
 This is a game for a group of friends, so success is simple and honest.
@@ -334,7 +343,7 @@ This is a game for a group of friends, so success is simple and honest.
 - Players talk about decay moments ("the alley collapsed on us"). *(Pillar 3)*
 
 ## Out of Scope
-**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers / difficulty settings · cosmetics · matchmaking with strangers · voice and text chat · solo mode as a supported target · native apps.
+**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · cosmetics · matchmaking with strangers · voice and text chat · solo mode as a supported target · native apps.
 **Not planned:** monetization (it is a game for friends) · story campaign · controller support.
 
 ## Assumptions and Dependencies
@@ -342,3 +351,9 @@ This is a game for a group of friends, so success is simple and honest.
 - Mobile browsers on the reference phones can run 150 animated zombies with lighting at the target frame rate; the first milestone must prove it.
 - A hired artist and sound designer are available for Epic 9; until then, placeholder or AI-assisted assets are good enough to test the game.
 - Development is done by the designer with AI assistance through BMAD.
+
+## Open Items Index
+- [ASSUMPTION] Server hosting cost is acceptable given the budget (Assumptions and Dependencies).
+- [NOTE FOR DESIGNER] Solo testing could use × 0.4 zombie scaling (Enemy Wave Design).
+- [NOTE FOR DESIGNER] Pick order of future districts (Level Types).
+- Working title.
