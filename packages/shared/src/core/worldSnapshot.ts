@@ -1,4 +1,5 @@
 import type { World } from "./world";
+import { MAX_PIERCE } from "../combat/projectilePool";
 
 const sortedEntries = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -29,6 +30,22 @@ function snapshotZombies(world: World) {
   };
 }
 
+function snapshotProjectiles(world: World) {
+  const p = world.projectiles;
+  return Array.from(p.aliveIds.subarray(0, p.aliveCount)).map((id) => ({
+    id,
+    x: p.x[id],
+    y: p.y[id],
+    dirX: p.dirX[id],
+    dirY: p.dirY[id],
+    rangeLeftM: p.rangeLeftM[id],
+    pierceLeft: p.pierceLeft[id],
+    weapon: p.weapon[id],
+    owner: p.owner[id],
+    hits: Array.from(p.hitIds.subarray(id * MAX_PIERCE, id * MAX_PIERCE + (p.hitCount[id] ?? 0))),
+  }));
+}
+
 export function snapshotWorld(world: World) {
   return {
     tick: world.tick,
@@ -39,7 +56,21 @@ export function snapshotWorld(world: World) {
     inputs: sortedEntries(world.inputs),
     lastAppliedSeq: sortedEntries(world.lastAppliedSeq),
     map: { ...world.map },
-    players: sortedEntries(world.players).map(([id, p]) => [id, { ...p }] as const),
+    players: sortedEntries(world.players).map(
+      ([id, p]) =>
+        [
+          id,
+          {
+            ...p,
+            loadout: {
+              active: p.loadout.active,
+              swapTicks: p.loadout.swapTicks,
+              slots: p.loadout.slots.map((s) => (s ? { ...s } : null)),
+            },
+          },
+        ] as const,
+    ),
+    projectiles: snapshotProjectiles(world),
     zombies: snapshotZombies(world),
   };
 }

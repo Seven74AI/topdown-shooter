@@ -3,7 +3,8 @@ import { TICK_DT_S } from "../config/constants";
 import type { PlayerInput } from "../net/input";
 import { PLACEHOLDER_MAP, type DistrictBounds } from "../map/placeholderMap";
 import type { PlayerState } from "../player/player";
-import { GRID_CELL_M, ZOMBIE_POOL_CAPACITY } from "../config/constants";
+import { GRID_CELL_M, PROJECTILE_POOL_CAPACITY, ZOMBIE_POOL_CAPACITY } from "../config/constants";
+import { createProjectilePool, type ProjectilePool } from "../combat/projectilePool";
 import { createZombiePool, type ZombiePool } from "../zombies/zombiePool";
 import { createSpatialGrid, type SpatialGrid } from "./spatialGrid";
 import { EventBus } from "./eventBus";
@@ -33,6 +34,8 @@ export interface World {
   readonly zombies: ZombiePool;
   /** Spatial hash grid over zombies, rebuilt each tick by the zombie system. */
   readonly zombieGrid: SpatialGrid;
+  /** Projectiles in flight (struct-of-arrays pool). */
+  readonly projectiles: ProjectilePool;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -66,6 +69,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     players: new Map(),
     zombies: createZombiePool(ZOMBIE_POOL_CAPACITY),
     zombieGrid: createSpatialGrid(map, GRID_CELL_M, ZOMBIE_POOL_CAPACITY),
+    projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

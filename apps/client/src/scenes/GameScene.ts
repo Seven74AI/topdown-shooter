@@ -1,8 +1,13 @@
 import * as Phaser from "phaser";
 import {
   NEUTRAL_INPUT,
+  PROJECTILE_POOL_CAPACITY,
   ZOMBIE_POOL_CAPACITY,
+  activeSlot,
   addPlayer,
+  isGun,
+  ticksFor,
+  weaponStats,
   loadBalance,
   spawnRing,
   type Balance,
@@ -14,6 +19,8 @@ import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
 import { drawStreet } from "../render/StreetView";
 import { ZombieView } from "../render/ZombieView";
+import { FxView } from "../render/FxView";
+import { ProjectileView } from "../render/ProjectileView";
 import { uiStore } from "../ui/uiState";
 import { createHudModel } from "./hudModel";
 import { LOCAL_PLAYER_ID, LocalSimHost } from "../sim/LocalSimHost";
@@ -34,8 +41,11 @@ export class GameScene extends Phaser.Scene {
   private sticks: TouchSticks | null = null;
   private playerView: PlayerView | null = null;
   private zombieView: ZombieView | null = null;
+  private projectileView: ProjectileView | null = null;
+  private fxView: FxView | null = null;
   private readonly hudModel = createHudModel();
   private gameOver = false;
+  private hudWeaponId = "";
   /** Reused every frame (no per-frame allocation); the host copies it at each step. */
   private readonly input_: { -readonly [K in keyof PlayerInput]: PlayerInput[K] } = { ...NEUTRAL_INPUT };
 
@@ -58,6 +68,8 @@ export class GameScene extends Phaser.Scene {
 
     drawStreet(this, world.map);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY);
+    this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
+    this.fxView = new FxView(this, this.zombieView, LOCAL_PLAYER_ID);
     this.playerView = new PlayerView(this, balance.player.radiusM);
 
     const cam = this.cameras.main;
@@ -66,7 +78,7 @@ export class GameScene extends Phaser.Scene {
     this.applyZoom();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
 
-    this.sticks = new TouchSticks(STICK_RADIUS_CSS_PX * dpr(), balance.controls.moveDeadZone);
+    this.sticks = new TouchSticks(STICK_RADIUS_CSS_PX * dpr(), balance.controls.moveDeadZone, balance.controls.aimDeadZone);
     const hudData: HudSceneData = { sticks: this.sticks, model: this.hudModel };
     this.scene.launch("Hud", hudData);
 
@@ -74,6 +86,8 @@ export class GameScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
       this.scene.stop("Hud");
       uiStore.handle("restart", undefined);
+      this.fxView?.destroy();
+      this.projectileView?.destroy();
       this.zombieView?.destroy();
       this.playerView?.destroy();
       this.host?.dispose();
@@ -92,13 +106,19 @@ export class GameScene extends Phaser.Scene {
     const mv = this.sticks.moveVector();
     this.input_.moveX = mv.x;
     this.input_.moveY = mv.y;
+    const aim = this.sticks.aimVector();
+    this.input_.aimX = aim.x;
+    this.input_.aimY = aim.y;
+    this.input_.fire = aim.fire;
     host.setLocalInput(this.input_);
 
     host.update(deltaMs / 1000); // LocalSimHost caps catch-up after long frames
     const events = host.drainEvents();
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
-      if (e?.type === "player.died" && e.playerId === LOCAL_PLAYER_ID && !this.gameOver) {
+      if (!e) continue;
+      this.fxView?.handle(e);
+      if (e.type === "player.died" && e.playerId === LOCAL_PLAYER_ID && !this.gameOver) {
         this.gameOver = true;
         // The wave director arrives in Story 1.7; until then every run is wave 1.
         uiStore.set({ kind: "gameOver", waveReached: 1 });
@@ -106,12 +126,29 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.zombieView?.update(host.world, host.alpha);
+    this.projectileView?.update(host.world.projectiles, host.alpha);
     const player = host.world.players.get(LOCAL_PLAYER_ID);
     if (player && this.playerView) {
       this.playerView.update(player, host.alpha);
       this.cameras.main.centerOn(this.playerView.x, this.playerView.y);
       this.hudModel.hp = player.hp;
       this.hudModel.maxHp = player.maxHp;
+      const slot = activeSlot(player.loadout);
+      const stats = weaponStats(host.world.balance, slot.weapon);
+      if (slot.weapon !== this.hudWeaponId) {
+        this.hudWeaponId = slot.weapon; // rebuild the label only when the weapon changes
+        this.hudModel.weaponName = slot.weapon.replace(/_/g, " ").toUpperCase();
+      }
+      if (isGun(stats)) {
+        this.hudModel.ammo = slot.ammo;
+        this.hudModel.magazine = stats.magazine;
+        const totalTicks = ticksFor(stats.reloadS);
+        this.hudModel.reloadFrac = slot.reloadTicks > 0 ? 1 - slot.reloadTicks / totalTicks : -1;
+      } else {
+        this.hudModel.ammo = -1;
+        this.hudModel.magazine = 0;
+        this.hudModel.reloadFrac = -1;
+      }
     }
   }
 }

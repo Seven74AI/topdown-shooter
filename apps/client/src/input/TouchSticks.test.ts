@@ -21,13 +21,45 @@ describe("TouchSticks", () => {
     expect(s.move).toBeNull();
   });
 
+  it("aims with a right-half touch and fires only past the 30% dead zone (FR3)", () => {
+    const s = new TouchSticks(100, 0.1, 0.3);
+    s.pointerDown(2, 600, 200, W);
+    s.pointerMove(2, 620, 200); // 20%: aims, does not fire
+    expect(s.aimVector()).toEqual({ x: 1, y: 0, fire: false });
+    s.pointerMove(2, 600, 240); // 40%: fires
+    expect(s.aimVector()).toEqual({ x: 0, y: 1, fire: true });
+    s.pointerUp(2);
+    expect(s.aimVector()).toEqual({ x: 0, y: 0, fire: false });
+  });
+
+  it("gives no aim direction while the aim thumb rests at its origin", () => {
+    const s = new TouchSticks(100, 0.1, 0.3);
+    s.pointerDown(2, 600, 200, W);
+    s.pointerMove(2, 602, 200);
+    expect(s.aimVector()).toEqual({ x: 0, y: 0, fire: false });
+  });
+
+  it("tracks move and aim thumbs independently", () => {
+    const s = new TouchSticks(100, 0.1, 0.3);
+    s.pointerDown(1, 100, 300, W);
+    s.pointerDown(2, 600, 300, W);
+    s.pointerMove(1, 200, 300);
+    s.pointerMove(2, 600, 200);
+    expect(s.moveVector().x).toBeCloseTo(1, 9);
+    expect(s.aimVector()).toEqual({ x: 0, y: -1, fire: true });
+    s.pointerUp(1);
+    expect(s.move).toBeNull();
+    expect(s.aim).not.toBeNull();
+  });
+
   it("keeps the move stick owned by its pointer when it slides into the right half", () => {
     const s = new TouchSticks(100, 0.1);
     s.pointerDown(1, 300, 300, W);
     s.pointerMove(1, 700, 300);
-    s.pointerDown(2, 600, 100, W); // a second thumb on the right does not steal it
+    s.pointerDown(2, 600, 100, W); // a second thumb on the right becomes the aim stick
     s.pointerMove(2, 650, 100);
     expect(s.move?.pointerId).toBe(1);
+    expect(s.aim?.pointerId).toBe(2);
     expect(s.moveVector().x).toBeCloseTo(1, 9);
   });
 

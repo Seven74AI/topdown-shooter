@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
 import { dpr } from "../display";
+import { unlockAudio } from "../audio/placeholderSfx";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
 import { mixColor } from "../render/color";
@@ -17,6 +18,11 @@ const HP_TEXT_PX = 14;
 const HP_BG = 0x000000;
 const HP_HIGH = 0x4caf50;
 const HP_LOW = 0xe53935;
+/** Weapon panel (bottom-right), CSS px × dpr. */
+const AMMO_TEXT_PX = 18;
+const AMMO_MARGIN = 24;
+const RELOAD_BAR_W = 120;
+const RELOAD_BAR_H = 6;
 
 
 const STICK_FILL = 0xffffff;
@@ -37,6 +43,11 @@ export class HudScene extends Phaser.Scene {
   private shownMaxHp = -1;
   private moveBase!: Phaser.GameObjects.Arc;
   private moveKnob!: Phaser.GameObjects.Arc;
+  private aimBase!: Phaser.GameObjects.Arc;
+  private aimKnob!: Phaser.GameObjects.Arc;
+  private ammoText!: Phaser.GameObjects.Text;
+  private reloadBar!: Phaser.GameObjects.Graphics;
+  private shownAmmoKey = "";
 
   constructor() {
     super("Hud");
@@ -47,6 +58,7 @@ export class HudScene extends Phaser.Scene {
     this.model = data.model;
     this.shownHp = -1;
     this.shownMaxHp = -1;
+    this.shownAmmoKey = "";
   }
 
   create(): void {
@@ -57,6 +69,15 @@ export class HudScene extends Phaser.Scene {
       .setStrokeStyle(2 * dpr(), STICK_FILL, STICK_RING_ALPHA)
       .setVisible(false);
     this.moveKnob = this.add.circle(0, 0, KNOB_RADIUS_CSS_PX * dpr(), STICK_FILL, KNOB_ALPHA).setVisible(false);
+    this.aimBase = this.add
+      .circle(0, 0, r, STICK_FILL, STICK_FILL_ALPHA)
+      .setStrokeStyle(2 * dpr(), STICK_FILL, STICK_RING_ALPHA)
+      .setVisible(false);
+    this.aimKnob = this.add.circle(0, 0, KNOB_RADIUS_CSS_PX * dpr(), STICK_FILL, KNOB_ALPHA).setVisible(false);
+    this.ammoText = this.add
+      .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(AMMO_TEXT_PX * dpr())}px`, color: "#ffffff" })
+      .setOrigin(1, 1);
+    this.reloadBar = this.add.graphics();
     this.hpBar = this.add.graphics();
     this.hpText = this.add.text(0, 0, "", {
       fontFamily: "system-ui, sans-serif",
@@ -64,7 +85,10 @@ export class HudScene extends Phaser.Scene {
       color: "#ffffff",
     });
 
-    const down = (p: Phaser.Input.Pointer) => this.sticks.pointerDown(p.id, p.x, p.y, this.scale.width);
+    const down = (p: Phaser.Input.Pointer) => {
+      unlockAudio(); // iOS: audio starts only after a user gesture
+      this.sticks.pointerDown(p.id, p.x, p.y, this.scale.width);
+    };
     const move = (p: Phaser.Input.Pointer) => this.sticks.pointerMove(p.id, p.x, p.y);
     const up = (p: Phaser.Input.Pointer) => this.sticks.pointerUp(p.id);
     const reset = () => this.sticks.reset();
@@ -90,6 +114,10 @@ export class HudScene extends Phaser.Scene {
     this.sticks.setRadius(r);
     this.moveBase.setRadius(r);
     this.moveKnob.setRadius(KNOB_RADIUS_CSS_PX * dpr());
+    this.aimBase.setRadius(r);
+    this.aimKnob.setRadius(KNOB_RADIUS_CSS_PX * dpr());
+    this.ammoText.setFontSize(Math.round(AMMO_TEXT_PX * dpr()));
+    this.shownAmmoKey = "";
     this.hpText.setFontSize(Math.round(HP_TEXT_PX * dpr()));
     this.shownHp = -1; // force a redraw at the new scale
   }
@@ -114,7 +142,31 @@ export class HudScene extends Phaser.Scene {
 
   override update(): void {
     this.drawStick(this.sticks.move, this.moveBase, this.moveKnob);
+    this.drawStick(this.sticks.aim, this.aimBase, this.aimKnob);
     this.drawHealth();
+    this.drawWeapon();
+  }
+
+  /** Magazine count bottom-right and a reload bar under it (redrawn only on change). */
+  private drawWeapon(): void {
+    const m = this.model;
+    const reloading = m.reloadFrac >= 0;
+    const key = `${m.weaponName}|${m.ammo}|${m.magazine}|${reloading ? Math.round(m.reloadFrac * 50) : -1}|${this.scale.width}x${this.scale.height}`;
+    if (key === this.shownAmmoKey) return;
+    this.shownAmmoKey = key;
+    const k = dpr();
+    const x = this.scale.width - AMMO_MARGIN * k;
+    const y = this.scale.height - AMMO_MARGIN * k - RELOAD_BAR_H * k - 6 * k;
+    const count = m.ammo < 0 ? "—" : `${m.ammo} / ${m.magazine}`;
+    this.ammoText.setText(reloading ? `${m.weaponName}  Reloading` : `${m.weaponName}  ${count}`).setPosition(x, y);
+    this.reloadBar.clear();
+    if (reloading) {
+      const w = RELOAD_BAR_W * k;
+      const h = RELOAD_BAR_H * k;
+      const by = y + 6 * k;
+      this.reloadBar.fillStyle(0x000000, 0.6).fillRect(x - w, by, w, h);
+      this.reloadBar.fillStyle(0xffffff, 0.9).fillRect(x - w, by, w * m.reloadFrac, h);
+    }
   }
 
   private drawStick(touch: StickTouch | null, base: Phaser.GameObjects.Arc, knob: Phaser.GameObjects.Arc): void {

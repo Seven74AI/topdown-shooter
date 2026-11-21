@@ -4,6 +4,10 @@
  */
 export type SimEvent =
   | { type: "zombie.killed"; zombieId: number; killerId: string | null; x: number; y: number; weapon: string }
+  | { type: "zombie.hit"; zombieId: number; x: number; y: number; dirX: number; dirY: number; damage: number; weapon: string }
+  | { type: "weapon.fired"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number }
+  | { type: "weapon.reload_started"; playerId: string; weapon: string; reloadS: number }
+  | { type: "weapon.reloaded"; playerId: string; weapon: string }
   | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number }
   | { type: "player.died"; playerId: string }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them

@@ -1,6 +1,7 @@
 export {
   GAME_TITLE,
   GRID_CELL_M,
+  PROJECTILE_POOL_CAPACITY,
   TICK_DT_S,
   TICK_RATE_HZ,
   VIEW_HEIGHT_M,
@@ -26,3 +27,8 @@ export { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "./zombies/zombieT
 export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
 export { spawnRing } from "./zombies/spawnRing";
 export { queryRadius, type SpatialGrid } from "./core/spatialGrid";
+export { activeSlot, createSlot, type Loadout, type WeaponSlot } from "./combat/loadout";
+export { isGun, isMelee, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
+export type { ProjectilePool } from "./combat/projectilePool";
+export { applyZombieDamage } from "./combat/damage";
+export { ticksFor } from "./core/time";

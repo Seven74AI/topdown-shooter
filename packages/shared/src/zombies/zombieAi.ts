@@ -1,4 +1,4 @@
-import { TICK_DT_S } from "../config/constants";
+import { ticksFor } from "../core/time";
 import { queryRadius, rebuildGrid } from "../core/spatialGrid";
 import type { SystemFn } from "../core/systems";
 import type { World } from "../core/world";
@@ -18,9 +18,6 @@ const OVERLAP_QUERY_MARGIN_M = 0.25;
 const OVERLAP_ITERATIONS = 2;
 /** Alive players this tick, rebuilt at the top of the system (no iterator allocation per zombie). */
 const alivePlayers: PlayerState[] = [];
-
-/** Whole ticks for an interval in seconds (timers count ticks: no float drift). */
-export const ticksFor = (seconds: number): number => Math.max(1, Math.round(seconds / TICK_DT_S));
 
 function collectAlivePlayers(world: World): void {
   alivePlayers.length = 0;

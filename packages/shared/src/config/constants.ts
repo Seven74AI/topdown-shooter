@@ -22,3 +22,6 @@ export const ZOMBIE_SLOT_HOLD_TICKS = 20;
 
 /** Spatial hash grid cell size in meters (architecture › Decision Summary). */
 export const GRID_CELL_M = 2;
+
+/** Projectile pool slots (SMG at 12/s × 4 players × ~1 s flight fits easily). */
+export const PROJECTILE_POOL_CAPACITY = 512;
