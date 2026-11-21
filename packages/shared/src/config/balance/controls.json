@@ -1,0 +1,5 @@
+{
+  "moveDeadZone": 0.1,
+  "aimDeadZone": 0.3,
+  "aimAssistDeg": 8
+}

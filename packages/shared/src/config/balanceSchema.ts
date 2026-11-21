@@ -58,11 +58,31 @@ export const wavesSchema = z
   })
   .strict();
 
+export const playerSchema = z
+  .object({
+    maxHp: z.number().positive(),
+    speedMps: z.number().positive(),
+    radiusM: z.number().positive(),
+    swapS: z.number().min(0),
+  })
+  .strict();
+
+/** Touch control tuning (Story 1.12 playtest tunes these). Dead zones are fractions of the stick radius. */
+export const controlsSchema = z
+  .object({
+    moveDeadZone: z.number().min(0).max(0.9),
+    aimDeadZone: z.number().min(0).max(0.9),
+    aimAssistDeg: z.number().min(0).max(45),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
   zombies: zombiesSchema,
   waves: wavesSchema,
+  player: playerSchema,
+  controls: controlsSchema,
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;

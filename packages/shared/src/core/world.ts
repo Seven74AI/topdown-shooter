@@ -1,6 +1,8 @@
 import type { Balance } from "../config/balance";
 import { TICK_DT_S } from "../config/constants";
 import type { PlayerInput } from "../net/input";
+import { PLACEHOLDER_MAP, type DistrictBounds } from "../map/placeholderMap";
+import type { PlayerState } from "../player/player";
 import { EventBus } from "./eventBus";
 import { createRng, type Rng } from "./rng";
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
@@ -20,12 +22,18 @@ export interface World {
   readonly inputs: Map<string, PlayerInput>;
   /** `seq` of the input last applied per player (edge flags fire once per seq). */
   readonly lastAppliedSeq: Map<string, number>;
+  /** District bounds (placeholder street until Story 4.1). */
+  readonly map: DistrictBounds;
+  /** Players by id (Epic 1: one player, "local"). */
+  readonly players: Map<string, PlayerState>;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
 export interface CreateWorldOptions {
   balance: Balance;
   seed: number;
+  /** District bounds; defaults to the placeholder street. */
+  map?: DistrictBounds;
   /** Tests only: replace systems by name. */
   systems?: Partial<Systems>;
 }
@@ -46,6 +54,8 @@ export function createWorld(opts: CreateWorldOptions): World {
     pendingInputs: new Map(),
     inputs: new Map(),
     lastAppliedSeq: new Map(),
+    map: opts.map ?? PLACEHOLDER_MAP,
+    players: new Map(),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

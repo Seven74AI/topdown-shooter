@@ -1,6 +1,10 @@
+---
+baseline_commit: 65ef0b70de773083d970bc829182c13b947b17a4
+---
+
 # Story 1.3: Move with a floating stick
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -18,30 +22,30 @@ so that controls feel natural on any phone size.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Player balance** (AC 2, 3)
-  - [ ] `config/balance/player.json`: `{ "maxHp": 100, "speedMps": 4.5, "radiusM": 0.4, "swapS": 0.3 }` (`swapS` is used by Story 1.8; add it now so the schema is complete)
-  - [ ] `config/balance/controls.json`: `{ "moveDeadZone": 0.1, "aimDeadZone": 0.3, "aimAssistDeg": 8 }` (Stories 1.5 and 1.6 read the last two; Story 1.12 tunes all three)
-  - [ ] Extend `balanceSchema.ts`, `loadBalance()` (and the version hash input) with `player` and `controls`; tests for a bad value in each
-- [ ] **Task 2: Placeholder map** (AC 3)
-  - [ ] `packages/shared/src/map/placeholderMap.ts`: `export const PLACEHOLDER_MAP: DistrictBounds = { widthM: 48, heightM: 32 }` and `type DistrictBounds`. The World gets `world.map: DistrictBounds` from `createWorld({ ..., map? })` (default `PLACEHOLDER_MAP`). Story 4.1 replaces it with the Tiled Downtown map
-- [ ] **Task 3: Player state and movement (shared)** (AC 2, 3)
-  - [ ] `player/player.ts`: `PlayerState` and `addPlayer(world, id, x, y)` (see Dev Notes › Player state). `world.players: Map<string, PlayerState>`
-  - [ ] `player/movement.ts`: `updatePlayers(world, dtS)`, registered as the `player` system in `core/systems.ts` (see Dev Notes › Movement)
-  - [ ] `player/movement.test.ts`: full stick → 4.5 m/s; half stick (0.5) → speed per the linear formula; 0.05 → no movement; diagonal vector longer than 1 is clamped; edges stop the survivor at `radius` from the edge on all 4 sides; `prevX/prevY` equal the position before the tick
-- [ ] **Task 4: Stick math (client, pure)** (AC 1, 2, 5)
-  - [ ] `apps/client/src/input/stick.ts`: `stickVector(originX, originY, x, y, radiusPx, deadZone)` → `{ x, y, magnitude }` (see Dev Notes › Stick math); pure functions, no Phaser
-  - [ ] `apps/client/src/input/stick.test.ts`: dead zone → 0; edge → 1; beyond radius → clamped 1; linear rescale between; direction preserved
-- [ ] **Task 5: Touch controls (client)** (AC 1, 5)
-  - [ ] `apps/client/src/input/TouchSticks.ts`: tracks pointers by `pointer.id`; a pointer that goes **down** on the left half owns the move stick until it goes **up**, even if it slides into the right half; the right half is reserved for the aim stick (Story 1.5) and is ignored for now. Call `this.input.addPointer(2)` so 3 touches work (Phaser 4 starts with 1 touch pointer + mouse)
-  - [ ] Draws the stick base (radius `STICK_RADIUS_CSS_PX` = 60 × dpr, 25% white, 2 px ring) and knob (radius 24 × dpr) in the HUD scene; hidden when not touching
-  - [ ] Produces the move part of `PlayerInput` (`moveX`, `moveY`) each frame; `GameScene` passes the full input to `host.setLocalInput()`
-- [ ] **Task 6: World view and camera (client)** (AC 3, 4)
-  - [ ] `GameScene` creates the World with one player `"local"` at the map center; replaces the `tick N` text from Story 1.2
-  - [ ] Draw the placeholder street: dark asphalt rectangle 48 × 32 m, a 1 m grid of faint lines every 4 m (helps judge speed), lighter 0.5 m border
-  - [ ] `apps/client/src/render/PlayerView.ts`: survivor = circle radius 0.4 m (light grey) + a short facing tick; position = `lerp(prev, cur, host.alpha)`
-  - [ ] Camera: world units are meters; `camera.setZoom(pixelsPerMeter)` with `pixelsPerMeter = max(canvasWidth / 24, canvasHeight / 13.5)` (see Dev Notes › Camera); `camera.setBounds(0, 0, 48, 32)`; center on the interpolated survivor each frame (`centerOn`, not `startFollow`, so it uses the interpolated position); recompute zoom on resize
-  - [ ] `apps/client/src/scenes/HudScene.ts`: launched by `GameScene` (`this.scene.launch("Hud")`), no camera zoom, holds the stick drawings. Later stories add the health bar, wave text, buttons
-- [ ] **Task 7: Verify** — all scripts pass; headless browser (touch emulation, landscape 844×390) shows the street and survivor; a scripted touch-drag on the left half moves the survivor and the stick appears where the touch started. Real-phone feel is checked in Story 1.12
+- [x] **Task 1: Player balance** (AC 2, 3)
+  - [x] `config/balance/player.json`: `{ "maxHp": 100, "speedMps": 4.5, "radiusM": 0.4, "swapS": 0.3 }` (`swapS` is used by Story 1.8; add it now so the schema is complete)
+  - [x] `config/balance/controls.json`: `{ "moveDeadZone": 0.1, "aimDeadZone": 0.3, "aimAssistDeg": 8 }` (Stories 1.5 and 1.6 read the last two; Story 1.12 tunes all three)
+  - [x] Extend `balanceSchema.ts`, `loadBalance()` (and the version hash input) with `player` and `controls`; tests for a bad value in each
+- [x] **Task 2: Placeholder map** (AC 3)
+  - [x] `packages/shared/src/map/placeholderMap.ts`: `export const PLACEHOLDER_MAP: DistrictBounds = { widthM: 48, heightM: 32 }` and `type DistrictBounds`. The World gets `world.map: DistrictBounds` from `createWorld({ ..., map? })` (default `PLACEHOLDER_MAP`). Story 4.1 replaces it with the Tiled Downtown map
+- [x] **Task 3: Player state and movement (shared)** (AC 2, 3)
+  - [x] `player/player.ts`: `PlayerState` and `addPlayer(world, id, x, y)` (see Dev Notes › Player state). `world.players: Map<string, PlayerState>`
+  - [x] `player/movement.ts`: `updatePlayers(world, dtS)`, registered as the `player` system in `core/systems.ts` (see Dev Notes › Movement)
+  - [x] `player/movement.test.ts`: full stick → 4.5 m/s; half stick (0.5) → speed per the linear formula; 0.05 → no movement; diagonal vector longer than 1 is clamped; edges stop the survivor at `radius` from the edge on all 4 sides; `prevX/prevY` equal the position before the tick
+- [x] **Task 4: Stick math (client, pure)** (AC 1, 2, 5)
+  - [x] `apps/client/src/input/stick.ts`: `stickVector(originX, originY, x, y, radiusPx, deadZone)` → `{ x, y, magnitude }` (see Dev Notes › Stick math); pure functions, no Phaser
+  - [x] `apps/client/src/input/stick.test.ts`: dead zone → 0; edge → 1; beyond radius → clamped 1; linear rescale between; direction preserved
+- [x] **Task 5: Touch controls (client)** (AC 1, 5)
+  - [x] `apps/client/src/input/TouchSticks.ts`: tracks pointers by `pointer.id`; a pointer that goes **down** on the left half owns the move stick until it goes **up**, even if it slides into the right half; the right half is reserved for the aim stick (Story 1.5) and is ignored for now. Call `this.input.addPointer(2)` so 3 touches work (Phaser 4 starts with 1 touch pointer + mouse)
+  - [x] Draws the stick base (radius `STICK_RADIUS_CSS_PX` = 60 × dpr, 25% white, 2 px ring) and knob (radius 24 × dpr) in the HUD scene; hidden when not touching
+  - [x] Produces the move part of `PlayerInput` (`moveX`, `moveY`) each frame; `GameScene` passes the full input to `host.setLocalInput()`
+- [x] **Task 6: World view and camera (client)** (AC 3, 4)
+  - [x] `GameScene` creates the World with one player `"local"` at the map center; replaces the `tick N` text from Story 1.2
+  - [x] Draw the placeholder street: dark asphalt rectangle 48 × 32 m, a 1 m grid of faint lines every 4 m (helps judge speed), lighter 0.5 m border
+  - [x] `apps/client/src/render/PlayerView.ts`: survivor = circle radius 0.4 m (light grey) + a short facing tick; position = `lerp(prev, cur, host.alpha)`
+  - [x] Camera: world units are meters; `camera.setZoom(pixelsPerMeter)` with `pixelsPerMeter = max(canvasWidth / 24, canvasHeight / 13.5)` (see Dev Notes › Camera); `camera.setBounds(0, 0, 48, 32)`; center on the interpolated survivor each frame (`centerOn`, not `startFollow`, so it uses the interpolated position); recompute zoom on resize
+  - [x] `apps/client/src/scenes/HudScene.ts`: launched by `GameScene` (`this.scene.launch("Hud")`), no camera zoom, holds the stick drawings. Later stories add the health bar, wave text, buttons
+- [x] **Task 7: Verify** — all scripts pass; headless browser (touch emulation, landscape 844×390) shows the street and survivor; a scripted touch-drag on the left half moves the survivor and the stick appears where the touch started. Real-phone feel is checked in Story 1.12
 
 ## Dev Notes
 
@@ -129,10 +133,56 @@ Modified: `balanceSchema.ts`, `balance.ts` (+ test), `core/systems.ts` (`player`
 
 ### Agent Model Used
 
+claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
+
 ### Debug Log References
+
+- Browser check (Playwright, `vite preview`, 844×390, `hasTouch`, CDP touch events): a drag starting at (150, 250) shows the stick base there with the knob following; the survivor moves and the camera follows; lifting hides the stick. Holding up-left for 9 s brings the survivor to the top-left corner: it stops at the edge and the camera clamps to the map bounds. No console errors.
+- The first border drawing (0.5 m band inside the map) made the survivor look like it stood on the wall in the corner; changed to a 0.1 m line at the edge.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created
+- **Implemented:**
+  - **Shared:** `player.json` (maxHp, speedMps, radiusM, swapS) and `controls.json` (move/aim dead zones, aim-assist angle) with schemas; `PLACEHOLDER_MAP` 48 × 32 m and `world.map`; `PlayerState` + `addPlayer`; `updatePlayers` as the `player` system (prediction-safe math only: no sin/cos/atan2); `VIEW_WIDTH_M`/`VIEW_HEIGHT_M` constants; players and map added to `snapshotWorld`.
+  - **Client:** pure `stickVector` (dead zone with linear rescale); `TouchSticks` state (the left-half pointer owns the move stick until it lifts); `HudScene` (unzoomed, adds 2 extra touch pointers, draws base and knob, resets on blur); `GameScene` (street, `PlayerView` interpolated by alpha, camera zoom `max(w/24, h/13.5)` px/m, bounds, `centerOn` the interpolated survivor, a reused input object with no per-frame allocation).
+- **Tests:** 88 passing (+22): movement 9, balance +1, stick math 6, TouchSticks 4, camera 2.
+- **Verification:** typecheck 0 errors, lint 0 problems, `npm test` 88/88, build ok.
+- **Notes:**
+  - Mouse clicks on the canvas currently drive the sticks like touches. That helps desktop testing until Story 1.10 separates mouse from touch.
+  - `stickDeflection()` is a helper for Story 1.5 (aim without firing).
+  - Real-phone feel is checked in Story 1.12.
 
 ### File List
+
+- `packages/shared/src/config/balance/player.json` (new)
+- `packages/shared/src/config/balance/controls.json` (new)
+- `packages/shared/src/config/balanceSchema.ts` (modified)
+- `packages/shared/src/config/balance.ts` (modified)
+- `packages/shared/src/config/balance.test.ts` (modified)
+- `packages/shared/src/config/constants.ts` (modified: view size)
+- `packages/shared/src/map/placeholderMap.ts` (new)
+- `packages/shared/src/player/player.ts` (new)
+- `packages/shared/src/player/movement.ts` (new)
+- `packages/shared/src/player/movement.test.ts` (new)
+- `packages/shared/src/core/world.ts` (modified: map, players)
+- `packages/shared/src/core/systems.ts` (modified: player system)
+- `packages/shared/src/core/worldSnapshot.ts` (modified)
+- `packages/shared/src/index.ts` (modified)
+- `apps/client/src/input/stick.ts` (new)
+- `apps/client/src/input/stick.test.ts` (new)
+- `apps/client/src/input/TouchSticks.ts` (new)
+- `apps/client/src/input/TouchSticks.test.ts` (new)
+- `apps/client/src/render/PlayerView.ts` (new)
+- `apps/client/src/render/StreetView.ts` (new)
+- `apps/client/src/render/camera.ts` (new)
+- `apps/client/src/render/camera.test.ts` (new)
+- `apps/client/src/scenes/HudScene.ts` (new)
+- `apps/client/src/scenes/GameScene.ts` (modified)
+- `apps/client/src/main.ts` (modified: registers HudScene)
+- `_bmad-output/implementation-artifacts/1-3-move-with-a-floating-stick.md` (modified)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
+
+## Change Log
+
+- 2026-11-21: Story 1.3 implemented: player movement and map edges (shared), floating move stick, camera 24 × 13.5 m, HUD scene, placeholder street. 88 tests passing.

@@ -1,4 +1,5 @@
 import type { World } from "./world";
+import { updatePlayers } from "../player/movement";
 
 /** Fixed system order per tick (architecture › Communication Patterns). Never reorder. */
 export const SYSTEM_ORDER = [
@@ -45,7 +46,7 @@ export const applyInputs: SystemFn = (world) => {
  */
 export const DEFAULT_SYSTEMS: Systems = {
   input: applyInputs,
-  player: noop,
+  player: updatePlayers,
   buildings: noop,
   combat: noop,
   zombies: noop,

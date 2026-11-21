@@ -3,6 +3,7 @@ import { h, render } from "preact";
 import { dpr } from "./display";
 import { BootScene } from "./scenes/BootScene";
 import { GameScene } from "./scenes/GameScene";
+import { HudScene } from "./scenes/HudScene";
 import { RotateOverlay } from "./ui/RotateOverlay";
 import "./ui/overlay.css";
 
@@ -22,7 +23,7 @@ const game = new Phaser.Game({
   width,
   height,
   scale: { mode: Phaser.Scale.NONE, zoom: 1 / dpr() },
-  scene: [BootScene, GameScene],
+  scene: [BootScene, GameScene, HudScene],
 });
 
 window.addEventListener("resize", () => {

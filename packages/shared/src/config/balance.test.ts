@@ -3,8 +3,10 @@ import { BalanceError, loadBalance, type RawBalanceFiles } from "./balance";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
+import player from "./balance/player.json" with { type: "json" };
+import controls from "./balance/controls.json" with { type: "json" };
 
-const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves })) as RawBalanceFiles;
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls })) as RawBalanceFiles;
 
 describe("loadBalance", () => {
   it("loads the bundled files into a typed object", () => {
@@ -25,6 +27,18 @@ describe("loadBalance", () => {
     (files.weapons as { pistol: { damage: number } }).pistol.damage = -5;
     expect(() => loadBalance(files)).toThrow(BalanceError);
     expect(() => loadBalance(files)).toThrow(/weapons\.json: pistol\.damage: /);
+  });
+
+  it("validates player and controls", () => {
+    const b = loadBalance();
+    expect(b.player.speedMps).toBe(4.5);
+    expect(b.controls.moveDeadZone).toBe(0.1);
+    const p = raw();
+    (p.player as { radiusM: number }).radiusM = 0;
+    expect(() => loadBalance(p)).toThrow(/player\.json: radiusM: /);
+    const c = raw();
+    (c.controls as { aimDeadZone: number }).aimDeadZone = 1.5;
+    expect(() => loadBalance(c)).toThrow(/controls\.json: aimDeadZone: /);
   });
 
   it("rejects unknown keys (typos fail loudly)", () => {

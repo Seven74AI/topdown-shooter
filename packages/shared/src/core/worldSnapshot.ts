@@ -16,6 +16,8 @@ export function snapshotWorld(world: World) {
     pendingInputs: sortedEntries(world.pendingInputs),
     inputs: sortedEntries(world.inputs),
     lastAppliedSeq: sortedEntries(world.lastAppliedSeq),
+    map: { ...world.map },
+    players: sortedEntries(world.players).map(([id, p]) => [id, { ...p }] as const),
   };
 }
 
