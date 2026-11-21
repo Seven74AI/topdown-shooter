@@ -147,7 +147,7 @@ Numbers for each are in the sections below.
 - **Accounts:** play immediately as a **guest** (name only); upgrade to an account later to keep progress.
 - **Join mid-run:** allowed during build phases only; the newcomer starts with the team's average currency; the next wave rescales.
 - **Disconnects:** a disconnected player's character is removed safely; they can rejoin within **2 minutes** with wallet and gear intact. Host leaving → host migrates to another player.
-- **Pause and resume:** during a build phase the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any group that includes the host [ASSUMPTION: host required to resume].
+- **Pause and resume:** during a build phase the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any group that includes the host (the host is required).
 - **Communication:** a ping button with 4 quick messages (Help! · Over here · Brute! · Ready), each showing an icon on teammates' screens and edge arrows. No voice or text chat in v1.
 - **Fairness:** all players see the same horde; hits are confirmed by the server so a laggy player cannot see a different fight.
 - **Not in v1:** matchmaking with strangers, voice chat, PvP (parked for a later mode).
@@ -275,7 +275,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 - **Readability rules:** each player has a colored ground ring (blue, orange, green, purple); every zombie type has a distinct silhouette (Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter with a glowing mouth).
 - **Decay is the art's story:** the same district has 5 visual states (Evening → Collapse): lights, cars, debris, fires, weather and vegetation change stage by stage.
 - **Lighting:** streetlights, shop glow, fires, muzzle flashes, flashlights and floodlights are the main light sources; blackout waves leave only those.
-- **Tone:** tense and grim; blood stays on the ground for the wave. [NOTE FOR DESIGNER: gore level still open — blood only, or dismemberment?]
+- **Tone and gore:** tense and grim. **Blood and dismemberment:** zombies lose limbs from heavy hits (axe, chainsaw, shotgun, explosions) and burst apart on explosive kills; blood stays on the ground for the wave. [NOTE FOR DESIGNER: a gore toggle in settings is recommended for friends who prefer less.]
 ### Audio and Music
 - **Ambience follows decay:** Evening = traffic, distant music and voices · Panic = sirens, car alarms, shouting · Breakdown = rain, crackling fires · Ruins = wind, falling debris · Collapse = near silence, only growls and rain.
 - **Music:** tension music whose intensity follows the number of zombies alive; a calmer track in build phases; a dedicated boss track for the Behemoth.
@@ -295,13 +295,13 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 - **No native app** and no app store in v1.
 ### Asset Requirements (v1)
 - **District:** Downtown in 5 decay states, plus decay props (cars in 3 conditions, barriers, sandbags, rubble, fires, vegetation).
-- **Characters:** survivor body with 4 color variants, holding poses per weapon type; 6 zombie types + the Behemoth, each with walk, attack and death animations.
+- **Characters:** survivor body with 4 color variants, holding poses per weapon type; 6 zombie types + the Behemoth, each with walk, attack and death animations, plus dismemberment pieces (arms, heads, torso halves).
 - **Weapons & buildings:** 10 weapons, 7 buildings (with damaged states), consumables.
 - **Effects:** muzzle flashes, blood, fire, acid, gas, explosions, rain, fog, flashlight and floodlight light.
 - **UI:** HUD, shop cards, lobby, evacuation vote, pings, unlock screen.
 - **Audio:** ~30 weapon sounds, ~20 zombie sounds, 5 ambience loops (one per decay stage), 3 music tracks (wave, build, boss).
 - **Budget:** total download for first play under 15 MB.
-[NOTE FOR DESIGNER: how the art and audio will be produced — commissioned artist, asset packs, AI-assisted, or a mix — is open.]
+**Production:** placeholder or AI-assisted art and free sound libraries during prototyping (Epics 1–8); a hired artist and sound designer produce the final Dead City look and sound (Epic 9).
 
 ## Development Epics
 ### Epic Structure
@@ -340,5 +340,5 @@ This is a game for a group of friends, so success is simple and honest.
 ## Assumptions and Dependencies
 - **A game server is required** (real-time co-op, saved runs, accounts); hosting has an ongoing cost [ASSUMPTION: acceptable given the budget].
 - Mobile browsers on the reference phones can run 150 animated zombies with lighting at the target frame rate; the first milestone must prove it.
-- Art and audio production method is open (see Asset Requirements).
+- A hired artist and sound designer are available for Epic 9; until then, placeholder or AI-assisted assets are good enough to test the game.
 - Development is done by the designer with AI assistance through BMAD.
