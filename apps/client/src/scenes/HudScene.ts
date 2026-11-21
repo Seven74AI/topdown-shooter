@@ -5,6 +5,7 @@ import { MIN_TEXT_CSS_PX } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
+import type { InputRouter } from "../input/InputRouter";
 import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
 import { MAX_RUSH_MARKERS } from "./hudModel";
@@ -12,6 +13,8 @@ import { MAX_RUSH_MARKERS } from "./hudModel";
 export interface HudSceneData {
   sticks: TouchSticks;
   model: HudModel;
+  /** Pointer events go through the router: touches drive the sticks, the mouse aims and fires. */
+  router: InputRouter;
 }
 
 /** Health bar size and placement in CSS px (× dpr). */
@@ -55,6 +58,7 @@ const KNOB_ALPHA = 0.45;
 export class HudScene extends Phaser.Scene {
   private sticks!: TouchSticks;
   private model!: HudModel;
+  private router!: InputRouter;
   private hpBar!: Phaser.GameObjects.Graphics;
   private hpText!: Phaser.GameObjects.Text;
   private shownHp = -1;
@@ -95,6 +99,7 @@ export class HudScene extends Phaser.Scene {
   init(data: HudSceneData): void {
     this.sticks = data.sticks;
     this.model = data.model;
+    this.router = data.router;
     this.shownHp = -1;
     this.shownMaxHp = -1;
     this.shownWeapon = "";
@@ -160,15 +165,15 @@ export class HudScene extends Phaser.Scene {
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
       const route = this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width);
-      if (route.kind !== "button") this.sticks.pointerDown(p.id, p.x, p.y, this.scale.width);
+      this.router.pointerDown(p.id, p.x, p.y, p.wasTouch, p.button, route.kind === "button", this.scale.width);
     };
     const move = (p: Phaser.Input.Pointer) => {
-      if (!this.buttons.owns(p.id)) this.sticks.pointerMove(p.id, p.x, p.y);
+      this.router.pointerMove(p.id, p.x, p.y, p.wasTouch, this.buttons.owns(p.id));
     };
     const up = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // touchend is the activation event on iOS/Chrome; touchstart alone may not unlock
       this.buttons.pointerUp(p.id);
-      this.sticks.pointerUp(p.id);
+      this.router.pointerUp(p.id, p.wasTouch, p.leftButtonDown());
     };
     const reset = () => {
       this.sticks.reset();
@@ -246,8 +251,9 @@ export class HudScene extends Phaser.Scene {
   }
 
   override update(): void {
-    this.drawStick(this.sticks.move, this.moveBase, this.moveKnob);
-    this.drawStick(this.sticks.aim, this.aimBase, this.aimKnob);
+    const touch = !this.router.isMouse; // mouse mode hides the sticks
+    this.drawStick(touch ? this.sticks.move : null, this.moveBase, this.moveKnob);
+    this.drawStick(touch ? this.sticks.aim : null, this.aimBase, this.aimKnob);
     this.drawHealth();
     this.drawWeapon();
     this.drawWave();
