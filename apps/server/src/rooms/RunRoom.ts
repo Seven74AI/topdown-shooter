@@ -51,6 +51,8 @@ const PATCH_RATE_MS = 50;
 const reservedCodes = new Set<string>();
 
 const refuse = (reason: JoinRefusal): ServerError => new ServerError(JOIN_REFUSED_CODE, reason);
+/** onAuth runs before a room is picked: its lines carry `roomId: "auth"`. */
+const authLog = roomLog("auth");
 
 /**
  * One run: lobby now (Story 2.1), the fight from Story 2.4. The room id is the 4-letter code.
@@ -69,6 +71,16 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
 
   /** Validates join options before a seat is reserved (runs for create and join). */
   static override async onAuth(_token: string, options: unknown, ctx: AuthContext): Promise<RunAuth> {
+    try {
+      return RunRoom.checkAuth(options, ctx);
+    } catch (e) {
+      // Logged here because Colyseus's own line has no context (no IP, no token: just the reason).
+      if (e instanceof ServerError) authLog.info({ reason: e.message }, "join_refused");
+      throw e;
+    }
+  }
+
+  private static checkAuth(options: unknown, ctx: AuthContext): RunAuth {
     let size: number;
     try {
       size = JSON.stringify(options ?? null).length;
@@ -98,10 +110,19 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.INPUT_SEND, this.net.guard(playerInputSchema, (c, input) => this.onInput(c, input), "input"));
     this.onMessage(C2S.LOBBY_SET_READY, this.net.guard(lobbySetReadySchema, (c, m) => this.onSetReady(c, m.ready)));
     this.onMessage(C2S.RUN_START, this.net.guard(runStartSchema, (c) => this.onStart(c)));
-    this.onMessage("*", (client) => this.net.drop(client, "unknown_type"));
+    this.onMessage("*", (client) => this.net.unknown(client));
   }
 
   override onJoin(client: RunClient): void {
+    try {
+      this.join(client);
+    } catch (e) {
+      if (e instanceof ServerError) this.log.info({ reason: e.message }, "join_refused");
+      throw e;
+    }
+  }
+
+  private join(client: RunClient): void {
     // Joins only in the lobby; Story 8.2 opens Build-phase joins.
     if (this.state.phase !== "lobby") throw refuse("run_started");
     const auth = client.auth;

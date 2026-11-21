@@ -446,3 +446,10 @@
   background: #34c759;
   color: #06210f;
 }
+
+/* Inline hint under a form field (e.g. a refused name). */
+.menu__hint {
+  margin: 4px 0 0;
+  color: #f5c542;
+  font: 500 14px/1.3 system-ui, sans-serif;
+}

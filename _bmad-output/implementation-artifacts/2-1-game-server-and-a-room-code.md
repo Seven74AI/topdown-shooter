@@ -3,7 +3,7 @@ baseline_commit: 7ae67566d08ca941f3621afcb11d11b6f79aa06e
 ---
 # Story 2.1: Game server and a room code
 
-Status: review
+Status: done
 
 ## Story
 
@@ -272,6 +272,20 @@ claude-opus-5-5 via gds-dev-story
 - `package-lock.json` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context; findings reproduced against a live server with SDK/ws probes) · **Outcome:** Approved, no high findings. 1 medium and 6 low findings, addressed.
+- [x] [Med] Colyseus buffered and parsed matchmaking bodies without a limit before `onAuth` measured them: a 50 MB POST was parsed (~330 ms) before the refusal. Fix: `net/httpGuard.ts`. The server builds its own HTTP server, whose `request` events pass a guard first: bodies over 2 KB get 413, and chunked bodies with no length get 411, before any handler reads them. Tests: unit, plus an integration test (4 KB name → 413).
+- [x] [Low] A malformed (non-msgpack) frame disconnects the client and is logged by Colyseus. Accepted as a known limit: only a hostile client sends this, and the honest client never does. Colyseus logs are now error-level only (below).
+- [x] [Low] Colyseus's own lines had no `roomId`. Fix: its logger is a child logger at `error` level, tagged `src: "colyseus"`. Join refusals are logged by the room itself (`join_refused` with the reason; `roomId: "auth"` for refusals before a room is picked; no IP or token).
+- [x] [Low] A second `joinById` got "Check your name". Resolved by Story 2.3: slot assignment, "This game is full" (Colyseus `locked`), and `already_joined` for the same token. Integration tests in 2.3.
+- [x] [Low] Names: emoji ZWJ sequences were refused and invisible fillers accepted. Fix: ZWJ and VS16 are allowed, names made only of invisible characters are refused, and a zero-width space stays refused. The start screen shows a hint when the name is refused.
+- [x] [Low] "Create game" on the GitHub Pages build said "Something went wrong". 404 and 405 now map to "Can't reach the server".
+- [x] [Low] Unknown message types skipped the shared rate bucket. Fix: the `"*"` handler now spends a token from the shared bucket (`MessageGuard.unknown`). Test added.
+- Remaining test gaps: code release on dispose and bucket refill over real room time are covered only by the reviewer's probes. The fixed `2600 + VITEST_POOL_ID` ports would collide if two `npm test` runs share one machine; accepted for CI.
+
 ## Change Log
+
+- 2026-11-21: Addressed code review findings - 7 items resolved (HTTP body guard, quiet Colyseus logs with our own refusal logs, name rules, static-host error text, unknown-type rate limit). 379 tests passing.
 
 - 2026-11-21: Story 2.1 implemented: Colyseus 0.18 game server (`@colyseus/core` + `ws-transport` + `schema`, pino JSON logs, `GET /health`), `RunRoom` with a 4-letter room code, balance-version check and message hygiene (zod guard, token buckets, `"*"` fallback, 1 KB `maxPayload`, throttled drop logs), shared net contract (`messages.ts`, `roomCode.ts`, `stateView.ts`), Vite `/api` proxy, start screen and lobby with Copy/Share. Practice solo and `?solo` keep Epic 1 play. 334 tests passing.

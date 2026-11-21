@@ -85,7 +85,18 @@ export class MessageGuard<C extends GuardClient> {
     };
   }
 
-  /** Records a drop for a client (e.g. `unknown_type` from the `"*"` handler, `too_large` from ws). */
+  /**
+   * An unknown message type (the `"*"` handler): costs a token from the client's shared bucket like
+   * any other message, then is dropped and counted.
+   */
+  unknown(client: C): void {
+    const g = this.clients.get(client.sessionId);
+    if (!g) return;
+    const now = this.now();
+    this.count(g, g.other.take(now) ? "unknown_type" : "rate", now);
+  }
+
+  /** Records a drop for a client (e.g. `too_large` from ws). */
   drop(client: C, reason: DropReason): void {
     const g = this.clients.get(client.sessionId);
     if (g) this.count(g, reason, this.now());

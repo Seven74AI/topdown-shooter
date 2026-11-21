@@ -43,6 +43,14 @@ describe("MessageGuard", () => {
     expect(others).toBe(MAX_OTHER_MESSAGES_PER_S);
   });
 
+  it("charges unknown message types against the shared bucket (rate once it is empty)", () => {
+    const { guard, client } = setup();
+    for (let i = 0; i < 100; i++) guard.unknown(client);
+    const p = guard.pending(client);
+    expect((p?.unknown_type ?? 0) + (p?.rate ?? 0)).toBeGreaterThan(0);
+    expect(p?.rate ?? 0).toBeGreaterThan(0); // burst exhausted: the rest count as rate drops
+  });
+
   it("logs at most one warn per reason per window, with the count", () => {
     const { guard, client, warns, setNow } = setup();
     for (let i = 0; i < 5; i++) guard.drop(client, "unknown_type");

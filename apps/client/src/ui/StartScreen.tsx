@@ -114,6 +114,11 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
           onFocus={reveal}
           onInput={(e) => setName((e.currentTarget as HTMLInputElement).value)}
         />
+        {name.trim() !== "" && !parsed.success && (
+          <p class="menu__hint" role="status">
+            Use 1–16 visible letters, numbers or emoji
+          </p>
+        )}
         <button type="button" class="btn" disabled={!parsed.success || busy !== ""} onClick={create}>
           {busy === "create" ? "Creating…" : "Create game"}
         </button>
