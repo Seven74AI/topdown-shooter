@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3]
+stepsCompleted: [1, 2, 3, 4]
 inputDocuments:
   - _bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/gdd.md
   - _bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/epics.md
@@ -309,7 +309,7 @@ FR88: Epic 10 - Run stats
 
 ## Epic List
 
-Ten epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 10. Epic 8 can start after Epic 3 and Epic 9 after Epic 4; both run alongside. No epic needs a later epic to work.
+Ten epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 10. Epics 8 and 9 can start after Epic 4 (Milestone 1); both run alongside. No epic needs a later epic to work.
 
 ### Epic 1: Core combat on one phone
 One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones.
@@ -397,7 +397,7 @@ So that the same rules can later run on the server and the phone, and every run 
 
 **Given** two Worlds created with the same seed and fed the same input log
 **When** both run 1,000 ticks
-**Then** their states are identical (Vitest test)
+**Then** their states are identical (Vitest test) (NFR10)
 **And** the package contains no `Math.random()` or `Date.now()` calls (lint rule or test)
 
 **Given** balance JSON files in `config/balance/` (starting with `weapons.json`, `zombies.json`, `waves.json`)
@@ -555,7 +555,7 @@ So that I can pick a role and react to the situation.
 
 **Given** the start of a run in Epic 1
 **When** the dev loadout picker is shown (temporary until the shop exists)
-**Then** I can choose any 2 of Pistol, SMG, Machete (once 1.9 is done), Hunting Rifle for my two slots (FR12)
+**Then** I can choose any 2 of the weapons that exist so far (Pistol, SMG, Hunting Rifle; later stories add theirs to the picker) for my two slots (FR12)
 
 **Given** two weapons equipped
 **When** I tap the swap button near my right thumb
@@ -582,7 +582,7 @@ So that I can fight up close in the crowd.
 
 **Acceptance Criteria:**
 
-**Given** the Machete is active (12 damage, 2.5 swings/s, 1.8 m reach, 110° arc)
+**Given** the Machete is added to the dev loadout picker and active (12 damage, 2.5 swings/s, 1.8 m reach, 110° arc)
 **When** I aim past the dead zone
 **Then** it swings automatically and instantly damages every zombie whose body overlaps the arc in the aim direction (FR14)
 **And** a placeholder swing effect and sound play; there is no magazine or reload
@@ -886,7 +886,7 @@ So that we can stick together.
 
 **Given** each player
 **When** rendered
-**Then** they have a colored ground ring by slot (blue, orange, green, purple) and their name above them
+**Then** they have a colored ground ring by slot (blue, orange, green, purple) and their name above them (NFR11)
 
 **Given** a teammate outside my camera view
 **When** I play
@@ -1265,7 +1265,7 @@ So that we can replay a run exactly to test or fix it.
 
 **Given** the dev cheat "set run seed"
 **When** I start two runs with the same seed and a recorded input log
-**Then** the headless replay reaches the same state (decay choices, spawns, kills)
+**Then** the headless replay reaches the same state (decay choices, spawns, kills) (NFR10)
 
 ### Story 4.5: Decay stage engine
 
@@ -2062,7 +2062,7 @@ So that I have a goal beyond one map.
 
 ## Epic 8: Real-life resilience
 
-Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, host migration, autosave, Save and quit with 7-day resume, and quick pings. Depends on Epic 3; can be built before or after Epics 5–7.
+Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, host migration, autosave, Save and quit with 7-day resume, and quick pings. Depends on Epic 4 (it uses the named seed streams and decay engine); can be built before or after Epics 5–7. Rule for every later epic: any new run state (gear, events, boss, endless) must be added to the snapshot, and the round-trip test in Story 8.4 enforces it.
 
 ### Story 8.1: Reconnect within 2 minutes
 
@@ -2275,7 +2275,7 @@ So that I can spot the dangerous ones in the crowd and the dark.
 **Given** the zombie atlas
 **When** it is loaded
 **Then** Walker, Runner, Crawler, Spitter, Bloater, Brute and the Behemoth each have walk, attack and death animations, plus telegraph poses (Spitter rear-back with glowing mouth, Bloater swell, Behemoth arms raised, head lowered and pick-up) (FR82, FR84)
-**And** silhouettes follow the readability rules: Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter glowing mouth
+**And** silhouettes follow the readability rules: Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter glowing mouth (NFR11)
 
 **Given** 150 animated zombies in view
 **When** the stress test from Story 1.11 runs
