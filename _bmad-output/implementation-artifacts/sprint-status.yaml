@@ -1,0 +1,191 @@
+# generated: 2026-11-21T18:20:05
+# last_updated: 2026-11-21T18:23:56
+# project: topdown-shooter
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+#
+# PROJECT NOTES:
+# ==============
+# - Recommended epic order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 8 → 10; Epic 9 alongside from Epic 4.
+#   Epic 8 needs Story 7.1 (accounts).
+# - Stories marked "human" are playtests or specs run by the designer; mark them done by hand.
+# - Story 9.2-9.10 depend on the hired artist and sound designer.
+
+generated: 2026-11-21T18:20:05
+last_updated: 2026-11-21T18:23:56
+project: topdown-shooter
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: Core combat on one phone
+  epic-1: backlog
+  1-1-project-scaffold-with-a-playable-link: backlog
+  1-2-shared-simulation-core: backlog
+  1-3-move-with-a-floating-stick: backlog
+  1-4-walkers-chase-and-hurt-the-player: backlog
+  1-5-aim-and-shoot-the-pistol: backlog
+  1-6-aim-assist-on-touch: backlog
+  1-7-growing-waves-of-walkers: backlog
+  1-8-two-weapon-slots-smg-and-hunting-rifle: backlog
+  1-9-machete-melee: backlog
+  1-10-keyboard-and-mouse-on-desktop: backlog
+  1-11-performance-overlay-and-150-walker-stress-test: backlog
+  1-12-melee-and-controls-playtest-on-real-phones: backlog  # human: playtest/spec, not a dev-agent story
+  epic-1-retrospective: optional
+
+  # Epic 2: Online co-op foundation
+  epic-2: backlog
+  2-1-game-server-and-a-room-code: backlog
+  2-2-deploy-to-the-vps: backlog
+  2-3-join-by-link-get-ready-start: backlog
+  2-4-the-server-runs-the-fight: backlog
+  2-5-horde-stream: backlog
+  2-6-instant-feel-for-my-own-survivor: backlog
+  2-7-server-confirmed-hits: backlog
+  2-8-downed-revive-and-team-wipe: backlog
+  2-9-player-rings-and-teammate-arrows: backlog
+  2-10-4-phone-4g-test: backlog
+  2-11-in-run-menu: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Build phase and economy
+  epic-3: backlog
+  3-1-build-phase-between-waves: backlog
+  3-2-personal-wallets-and-rewards: backlog
+  3-3-fixed-list-shop: backlog
+  3-4-place-a-wood-barricade: backlog
+  3-5-zombies-path-around-and-break-buildings: backlog
+  3-6-auto-turret: backlog
+  3-7-repair-buildings: backlog
+  3-8-runners-flank: backlog
+  3-9-crawlers-slow-you-down: backlog
+  3-10-five-wave-run-with-player-count-scaling: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Downtown and city decay (Milestone 1)
+  epic-4: backlog
+  4-1-downtown-map: backlog
+  4-2-cover-and-bullet-rules: backlog
+  4-3-spawn-points: backlog
+  4-4-named-seed-streams: backlog
+  4-5-decay-stage-engine: backlog
+  4-6-evening: backlog
+  4-7-panic: backlog
+  4-8-breakdown-and-car-fires: backlog
+  4-9-placeholder-dead-city-look: backlog
+  4-10-milestone-1-playtest: backlog  # human: playtest/spec, not a dev-agent story
+  epic-4-retrospective: optional
+
+  # Epic 5: Full arsenal and bestiary
+  epic-5: backlog
+  5-1-weapon-upgrades-i-iv: backlog
+  5-2-fire-axe-and-chainsaw: backlog
+  5-3-shotgun-and-assault-rifle: backlog
+  5-4-flamethrower-and-fire-friendly-fire: backlog
+  5-5-grenade-launcher: backlog
+  5-6-spitters: backlog
+  5-7-the-first-brute: backlog
+  5-8-bloaters: backlog
+  5-9-metal-barricade-spike-trap-and-mine: backlog
+  5-10-floodlight-and-med-station: backlog
+  5-11-gear: backlog
+  5-12-consumables: backlog
+  5-13-roguelike-card-shop: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: The full run: decay, boss, events, endless
+  epic-6: backlog
+  6-1-the-full-10-wave-curve: backlog
+  6-2-ruins: backlog
+  6-3-blackout-lighting: backlog
+  6-4-collapse: backlog
+  6-5-the-behemoth-arrives: backlog
+  6-6-behemoth-charge-and-throw: backlog
+  6-7-enrage-and-the-end-of-wave-10: backlog
+  6-8-special-events-car-alarm-and-stampede: backlog
+  6-9-gas-leak-and-supply-drop: backlog
+  6-10-power-failure-and-survivor: backlog
+  6-11-evacuation-vote: backlog
+  6-12-endless-mode: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Accounts and meta-progression
+  epic-7: backlog
+  7-1-progress-saved-on-the-server: backlog
+  7-2-earn-and-bank-supplies: backlog
+  7-3-unlock-screen: backlog
+  7-4-shop-deck-from-my-unlocks: backlog
+  7-5-training-boosts: backlog
+  7-6-upgrade-to-an-account: backlog
+  7-7-district-unlock-rule: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8: Real-life resilience
+  epic-8: backlog
+  8-1-reconnect-within-2-minutes: backlog
+  8-2-join-mid-run-at-a-build-phase: backlog
+  8-3-host-migration: backlog
+  8-4-autosave-at-every-build-phase: backlog
+  8-5-save-and-quit: backlog
+  8-6-resume-a-saved-run: backlog
+  8-7-pings: backlog
+  epic-8-retrospective: optional
+
+  # Epic 9: Dead City art and audio
+  epic-9: backlog
+  9-1-art-and-audio-asset-spec: backlog  # human: playtest/spec, not a dev-agent story
+  9-2-downtown-in-five-decay-states: backlog
+  9-3-survivor-animations: backlog
+  9-4-zombie-and-behemoth-animations: backlog
+  9-5-gore-and-dismemberment: backlog
+  9-6-effects: backlog
+  9-7-ui-art: backlog
+  9-8-ambience-and-audio-buses: backlog
+  9-9-adaptive-music: backlog
+  9-10-weapon-and-zombie-sounds: backlog
+  epic-9-retrospective: optional
+
+  # Epic 10: Performance and polish
+  epic-10: backlog
+  10-1-settings-screen: backlog
+  10-2-frame-rate-pass-on-reference-phones: backlog
+  10-3-memory-and-battery-pass: backlog
+  10-4-fast-loading: backlog
+  10-5-home-screen-install-and-every-supported-browser: backlog
+  10-6-report-a-problem: backlog
+  10-7-run-stats: backlog
+  10-8-balance-pass: backlog
+  10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story
+  epic-10-retrospective: optional

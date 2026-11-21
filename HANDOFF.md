@@ -13,9 +13,11 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | Game Brief | ✅ final v1.0 | `_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/brief.md` (+ `addendum.md`, `.decision-log.md`) |
 | GDD | ✅ final v1.0 | `_bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/gdd.md` (+ `epics.md`, `decision-log.md`) |
 | Game Architecture | ✅ complete (9/9 steps) | `_bmad-output/planning-artifacts/game-architecture.md` |
-| Epics & stories | ✅ complete (10 epics, 100 stories) | `_bmad-output/planning-artifacts/epics.md` |
-| **Implementation readiness → sprint planning** | ⏭️ **NEXT** | `gds-check-implementation-readiness`, `gds-sprint-planning` |
-| Code, story by story | later | `gds-dev-story` / `gds-create-story` |
+| Epics & stories | ✅ complete (10 epics, 101 stories) | `_bmad-output/planning-artifacts/epics.md` |
+| Implementation readiness | ✅ READY (0 critical, 5 major, 8 minor) | `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-21.md` |
+| Sprint planning | ✅ `sprint-status.yaml` generated (all backlog) | `_bmad-output/implementation-artifacts/sprint-status.yaml` |
+| Readiness fixes | ✅ applied (101 stories, new Story 2.11 in-run menu) | see "Resolutions" in the readiness report |
+| **Story 1.1** | ⏭️ **NEXT** | `gds-create-story` 1.1 → `gds-dev-story` |
 
 Decision logs record every decision and why. Read them before changing anything.
 
@@ -31,7 +33,8 @@ Decision logs record every decision and why. Read them before changing anything.
 
 - Working title (still "topdown-shooter").
 - Before Story 2.2: subdomain name and a deploy key for the VPS.
-- Story 1.1 publishes to GitHub Pages; needs Pages enabled (private repos need a paid plan).
+- Story 1.1 publishes to GitHub Pages (designer's choice): the repo must be made public (Settings → General → Change visibility) before the first publish.
+- VPS access for Story 2.2: Tailscale was suggested (Cloudflare skills live in Hermes on the VPS) but deferred; the cloud container has no Tailscale. Revisit at Story 2.2.
 - Order of future districts (candidates: Hospital, Suburbs, Port, Subway, Mall, Military checkpoint; CCTV intro and Blood Moon cemetery as special content).
 - Subdomain name on sevend.io.
 - Context7 MCP not installed yet: `claude mcp add context7 -- npx -y @upstash/context7-mcp`.
@@ -50,6 +53,10 @@ Local copies live next to the brief (`style-lab*.html`, `dead-city-decay.html`).
 - **BMAD install** (already done, `_bmad/` and `.claude/skills/` are in the repo): v6.12.4 with modules `bmm` and `gds` (Game Dev Studio v0.7.2). If reinstalling, the GitHub token in the cloud env breaks the tag lookup; run with `env -u GITHUB_TOKEN -u GH_TOKEN npx -y bmad-method@6.12.4 install --directory . --modules bmm,gds --tools claude-code --pin gds=v0.7.2 -y`.
 - **GitHub:** the repo needed the Claude GitHub app to be granted access before pushes worked; it is pushed now.
 - The `.claude/skills` BMAD skills load only when the repo is the working directory.
+
+## 6b. Story 1.1 prep (npm check 2026-11-21)
+
+`gds-create-story 1.1` was started but not written. Versions verified on npm: phaser 4.2.1 · preact 11.2.0 · vite 8.3.8 · typescript **6.0.3** (latest is 7.0.2; typescript-eslint 8.73.0 needs `<6.1.0`, so pin 6.0.3) · vitest 5.1.1 (needs Node ^22.12 / ^24 / ≥26) · eslint 10.15.0 · @eslint/js 10.0.1 · zod 4.6.7 · tsx 4.23.15 · @preact/preset-vite 2.10.6 · concurrently 10.0.7 · colyseus 0.18.12 · @colyseus/sdk 0.18.10 · @colyseus/schema 5.0.50. Node 26.13.1 is the current LTS (architecture target); add `.nvmrc` = 26 and `engines`.
 
 ## 7. How the designer likes to work
 
