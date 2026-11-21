@@ -14,8 +14,9 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | GDD | ✅ final v1.0 | `_bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/gdd.md` (+ `epics.md`, `decision-log.md`) |
 | Game Architecture | ✅ complete (9/9 steps) | `_bmad-output/planning-artifacts/game-architecture.md` |
 | Epics & stories | ✅ complete (10 epics, 100 stories) | `_bmad-output/planning-artifacts/epics.md` |
-| **Implementation readiness → sprint planning** | ⏭️ **NEXT** | `gds-check-implementation-readiness`, `gds-sprint-planning` |
-| Code, story by story | later | `gds-dev-story` / `gds-create-story` |
+| Implementation readiness | ✅ READY (0 critical, 5 major, 8 minor) | `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-21.md` |
+| Sprint planning | ✅ `sprint-status.yaml` generated (all backlog) | `_bmad-output/implementation-artifacts/sprint-status.yaml` |
+| **Readiness fixes to `epics.md`, then Story 1.1** | ⏭️ **NEXT** | proposed fixes in the report; then `gds-create-story` 1.1 → `gds-dev-story` |
 
 Decision logs record every decision and why. Read them before changing anything.
 
