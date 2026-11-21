@@ -1,5 +1,5 @@
 # generated: 2026-11-21T18:20:05
-# last_updated: 2026-11-21T18:23:56
+# last_updated: 2026-11-21T18:39:42
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -42,7 +42,7 @@
 # - Story 9.2-9.10 depend on the hired artist and sound designer.
 
 generated: 2026-11-21T18:20:05
-last_updated: 2026-11-21T18:23:56
+last_updated: 2026-11-21T18:39:42
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -50,8 +50,8 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1: Core combat on one phone
-  epic-1: backlog
-  1-1-project-scaffold-with-a-playable-link: backlog
+  epic-1: in-progress
+  1-1-project-scaffold-with-a-playable-link: ready-for-dev
   1-2-shared-simulation-core: backlog
   1-3-move-with-a-floating-stick: backlog
   1-4-walkers-chase-and-hurt-the-player: backlog
