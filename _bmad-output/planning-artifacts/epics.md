@@ -350,3 +350,306 @@ The game looks and sounds like Dead City: final district art in 5 decay states, 
 ### Epic 10: Performance and polish
 Every technical target is met on the reference phones; quality settings, home-screen install and safe areas, run stats, a balance pass and friend-group playtests deliver v1.
 **FRs covered:** FR87, FR88 · NFR1, NFR2, NFR6, NFR7, NFR8
+
+## Epic 1: Core combat on one phone
+
+One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. The game runs entirely in the browser (local `SimHost` mode); networking arrives in Epic 2. Placeholder art and sounds only.
+
+### Story 1.1: Project scaffold with a playable link
+
+As the designer,
+I want the project set up with its three parts (client, server, shared rules) and an automatic build I can open on my phone,
+So that every later story lands in a clean, checked codebase and I can try each change from a link.
+
+**Acceptance Criteria:**
+
+**Given** a fresh clone
+**When** I run `npm install` then `npm run dev`
+**Then** the client opens in a browser and shows a Phaser scene with the text "topdown-shooter"
+**And** the workspaces `apps/client`, `apps/server`, `packages/shared` exist as in the architecture directory structure, with `tsconfig.base.json` and the scripts `dev`, `test`, `lint`, `typecheck`, `build`
+
+**Given** the pinned stack
+**When** I check `package.json` files and the lockfile
+**Then** Phaser 4.2.x, Preact 11.x, Vite 8.x, TypeScript 6.0.x (not 7.x), Vitest 5.x, ESLint with typescript-eslint, zod 4.x are installed at exact versions
+**And** `packages/shared` has an ESLint rule that forbids imports from `phaser`, `colyseus`, `@colyseus/*`, DOM globals and Node built-ins
+
+**Given** a push to any branch
+**When** GitHub Actions runs
+**Then** typecheck, lint, tests and the client build all run and the job fails if any of them fails
+
+**Given** a push to `master`
+**When** the build succeeds
+**Then** the static client build is published to a public URL that opens on a phone (GitHub Pages or the VPS, per the designer's choice)
+**And** the page is landscape-ready: `viewport-fit=cover`, devicePixelRatio capped at 2, and a "rotate your phone" overlay in portrait (FR1)
+
+### Story 1.2: Shared simulation core
+
+As the designer,
+I want the game rules to run in one engine-free package with a fixed 20 Hz step, seeded randomness and data-driven numbers,
+So that the same rules can later run on the server and the phone, and every run can be reproduced.
+
+**Acceptance Criteria:**
+
+**Given** `packages/shared`
+**When** I create a World with `createWorld({ balance, seed })` and call `step(world, 0.05)`
+**Then** the systems run in the fixed order from the architecture and the tick counter advances by 1
+
+**Given** two Worlds created with the same seed and fed the same input log
+**When** both run 1,000 ticks
+**Then** their states are identical (Vitest test)
+**And** the package contains no `Math.random()` or `Date.now()` calls (lint rule or test)
+
+**Given** balance JSON files in `config/balance/` (starting with `weapons.json`, `zombies.json`, `waves.json`)
+**When** `loadBalance()` runs
+**Then** they are validated with zod into one typed `Balance` object
+**And** an invalid value (e.g. negative damage) makes loading throw with the file and key named
+
+**Given** a system emits `world.events.emit({ type: "zombie.killed", ... })` during a tick
+**When** the tick ends
+**Then** subscribers receive the events in emission order exactly once, and the payload is typed by the `SimEvent` union
+
+**Given** the client
+**When** a Game scene starts
+**Then** it runs the World through a `SimHost` interface (local implementation stepping at 20 Hz) and renders by interpolating between steps
+
+### Story 1.3: Move with a floating stick
+
+As a player,
+I want to move my survivor with a joystick that appears under my left thumb,
+So that controls feel natural on any phone size.
+
+**Acceptance Criteria:**
+
+**Given** the game in landscape on a touch device
+**When** I touch anywhere on the left half of the screen
+**Then** a move stick appears centered where my thumb landed and disappears when I lift it
+
+**Given** the move stick
+**When** I push it less than 10% of its radius
+**Then** the survivor does not move
+**And** between 10% and 100% speed scales linearly up to 4.5 m/s (from balance) in the stick's direction
+
+**Given** a placeholder street of 48 × 32 m with solid edges
+**When** I move toward an edge
+**Then** the survivor (radius 0.4 m) stops at it and cannot leave the map
+
+**Given** the survivor moves
+**When** I watch the screen
+**Then** the camera follows the survivor and shows about 24 × 13.5 m of the map, clamped to the map edges (FR55)
+**And** touches on the left half never trigger anything on the right half (multi-touch is tracked per pointer)
+
+### Story 1.4: Walkers chase and hurt the player
+
+As a player,
+I want Walkers to shamble toward me as a crowd and hurt me when they reach me,
+So that I feel the pressure of the horde.
+
+**Acceptance Criteria:**
+
+**Given** the World
+**When** a Walker is spawned
+**Then** it is stored in a pre-allocated struct-of-arrays pool (no per-spawn allocation) with stats from `zombies.json`: 10 HP, 1.2 m/s, 10 damage per hit, reward 2 (FR20, FR27)
+
+**Given** Walkers on the map
+**When** they move
+**Then** each walks straight toward the nearest player
+**And** separation forces using a 2 m spatial hash grid keep them from stacking on one spot (a crowd of 50 spreads into a visible mass)
+
+**Given** a Walker touching the player
+**When** it stays in contact
+**Then** it deals 10 damage once per second
+**And** the player has 100 HP, shown as a health bar in the HUD, with no regeneration (FR9)
+
+**Given** the player reaches 0 HP
+**When** the death happens
+**Then** a "Game over" screen shows the wave reached and a Restart button that starts a new run with a new seed
+
+**Given** the Walker AI
+**When** Vitest runs with a fixed seed
+**Then** tests cover chase direction, separation, contact damage timing and pool reuse
+
+### Story 1.5: Aim and shoot the Pistol
+
+As a player,
+I want to aim with my right thumb and have my Pistol fire automatically,
+So that I can fight the horde with two thumbs and no fire button.
+
+**Acceptance Criteria:**
+
+**Given** a touch on the right half of the screen
+**When** I push the aim stick past 30% of its radius
+**Then** the survivor faces that direction and the Pistol fires automatically at 3 shots/s while I hold it (FR3)
+**And** below 30% the survivor aims but does not fire
+
+**Given** the Pistol (5 damage, 9 m range, magazine 12, reload 1.0 s, from `weapons.json`)
+**When** it fires
+**Then** a visible projectile travels at 60 m/s with a fixed spread and no recoil climb, and disappears at 9 m (FR14, FR15)
+**And** hits are found with swept segment-vs-circle tests so a projectile cannot pass through a zombie between ticks
+
+**Given** the magazine is empty
+**When** I keep aiming
+**Then** the Pistol reloads automatically in 1.0 s with a visible reload indicator, then resumes firing; reserve ammo is unlimited (FR6)
+
+**Given** a projectile hits a Walker
+**When** damage is applied
+**Then** the Walker flashes and is pushed back slightly (FR19); at 0 HP it plays a placeholder death and blood splat and emits `zombie.killed`
+**And** a placeholder fire sound plays per shot and a reload sound plays on reload
+
+### Story 1.6: Aim assist on touch
+
+As a player on a phone,
+I want my shots to bend slightly toward the nearest zombie,
+So that aiming with a thumb feels reliable in a crowd.
+
+**Acceptance Criteria:**
+
+**Given** touch aiming
+**When** a shot is fired and a zombie within the weapon's range is within 8° of the aim direction
+**Then** the shot direction is turned toward the nearest such zombie (by distance), by at most 8° (FR4)
+
+**Given** no zombie within 8° of the aim direction
+**When** a shot is fired
+**Then** it flies exactly along the aim direction (plus the weapon's normal spread)
+
+**Given** mouse aiming (`isMouse` flag in the input)
+**When** a shot is fired
+**Then** no aim assist is applied
+
+**Given** aim assist
+**When** Vitest runs
+**Then** tests cover the 8° limit, nearest-target choice, range limit and the mouse exception
+
+### Story 1.7: Growing waves of Walkers
+
+As a player,
+I want waves of Walkers that grow each time, with a short breather between them and no hunt for the last stragglers,
+So that the fight builds up the way a run should.
+
+**Acceptance Criteria:**
+
+**Given** a new run
+**When** wave N starts
+**Then** the wave spawns N × 40 Walkers (from `waves.json`) from spawn points at the map edges, with at most 150 alive at once and the rest queued (FR28)
+
+**Given** a wave in progress
+**When** only 5 of its zombies remain (alive plus queued)
+**Then** those 5 are marked on screen (marker above each, edge arrows when off screen) and head straight for the nearest player from wherever they are, without any stat change (FR30, pillar 1)
+
+**Given** the last zombie of the wave dies
+**When** the wave ends
+**Then** a "Wave N cleared" banner shows and the next wave starts after a 5 s pause (the build phase replaces this pause in Epic 3)
+**And** the HUD shows the current wave number and zombies remaining
+
+**Given** the wave director
+**When** Vitest runs with a fixed seed
+**Then** tests cover wave sizes, the 150-alive cap, queueing, the last-5 rule and wave end
+
+### Story 1.8: Two weapon slots, SMG and Hunting Rifle
+
+As a player,
+I want to carry two weapons and swap between them, including an SMG and a Hunting Rifle,
+So that I can pick a role and react to the situation.
+
+**Acceptance Criteria:**
+
+**Given** the start of a run in Epic 1
+**When** the dev loadout picker is shown (temporary until the shop exists)
+**Then** I can choose any 2 of Pistol, SMG, Machete (once 1.9 is done), Hunting Rifle for my two slots (FR12)
+
+**Given** two weapons equipped
+**When** I tap the swap button near my right thumb
+**Then** the other weapon becomes active after 0.3 s, during which neither fires (FR5)
+
+**Given** the SMG (4 damage, 12 shots/s, 8.5 m, 8° spread, magazine 40, reload 1.6 s)
+**When** it fires
+**Then** it behaves per the weapon table
+
+**Given** the Hunting Rifle (35 damage, 1.2 shots/s, 17 m, magazine 5, reload 2.5 s)
+**When** a shot crosses a line of zombies
+**Then** it damages up to 5 zombies in order and then stops (FR16)
+**And** each shot gives a short screen shake (FR19)
+
+**Given** weapons in the HUD
+**When** I play
+**Then** the HUD shows both slots, the active weapon, and its magazine count
+
+### Story 1.9: Machete melee
+
+As a player,
+I want to swing a Machete that hits every zombie in front of me,
+So that I can fight up close in the crowd.
+
+**Acceptance Criteria:**
+
+**Given** the Machete is active (12 damage, 2.5 swings/s, 1.8 m reach, 110° arc)
+**When** I aim past the dead zone
+**Then** it swings automatically and instantly damages every zombie whose body overlaps the arc in the aim direction (FR14)
+**And** a placeholder swing effect and sound play; there is no magazine or reload
+
+**Given** a Machete hit
+**When** it lands
+**Then** each zombie hit flashes and is pushed back (FR19)
+
+**Given** melee hits
+**When** Vitest runs
+**Then** tests cover arc angle, reach (measured to the zombie's edge), multi-hit and rate
+
+### Story 1.10: Keyboard and mouse on desktop
+
+As a player on a computer,
+I want to play with WASD and the mouse,
+So that I can test or play without a phone.
+
+**Acceptance Criteria:**
+
+**Given** a desktop browser
+**When** I press W, A, S, D
+**Then** the survivor moves at full speed in the combined direction (diagonals normalized)
+
+**Given** the mouse
+**When** I move it
+**Then** the survivor aims at the cursor; holding left click fires; Q swaps weapons (FR7)
+**And** input is sent with `isMouse: true` so aim assist is off
+
+**Given** a device with both touch and mouse
+**When** I switch between them
+**Then** the last-used input method takes over without a reload
+
+### Story 1.11: Performance overlay and 150-Walker stress test
+
+As the designer,
+I want an on-screen readout of frame rate and load, and a way to spawn 150 Walkers in view,
+So that we know early whether phones can handle the horde.
+
+**Acceptance Criteria:**
+
+**Given** `?debug=1` in the URL or a three-finger tap
+**When** the overlay is on
+**Then** it shows FPS (current and 1-second minimum), zombies alive and in view, and simulation tick time
+
+**Given** a development build
+**When** I open the dev cheats
+**Then** I can spawn N zombies of a type around me, skip the wave, toggle god mode and set the run seed
+**And** these cheats are absent from the release build
+
+**Given** god mode and 150 Walkers spawned inside the camera view
+**When** the scene runs for 60 s on the reference phones (iPhone 12 class, Pixel 5 class)
+**Then** the average and minimum FPS are recorded in `docs/perf/epic-1-stress.md`, against the target of 60 FPS and never below 30 (NFR1)
+**And** if a phone misses the target, the note lists the measured bottleneck (rendering vs simulation) for follow-up
+
+### Story 1.12: Melee and controls playtest on real phones
+
+As the designer,
+I want my friends and me to try the controls on our own phones,
+So that we fix the feel (especially melee under twin-stick) before building on top of it.
+
+**Acceptance Criteria:**
+
+**Given** the published build
+**When** at least 3 people play 3 waves each with Pistol + Machete and with SMG + Hunting Rifle on their own phones
+**Then** their feedback on move stick, aim stick, auto-fire, aim assist, swap and melee is written to `docs/playtests/epic-1-controls.md`
+
+**Given** the feedback
+**When** it is reviewed with the designer
+**Then** each issue is either fixed by tuning balance or control values (dead zones, aim-assist angle, melee arc), or turned into a new story
+**And** the decision on melee under twin-stick (keep as is, tune, or change) is recorded
