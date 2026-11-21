@@ -1,72 +1,79 @@
 # Handoff: topdown-shooter
 
-Session handoff written 2026-11-21. **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom. No file to attach.
+Session handoff, updated 2026-11-21 (end of the second long session). **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom.
 
 ## 1. The project in one paragraph
 
-A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a phone browser from a shared link** (no install). A run is 10 waves (~20–25 min): the district the team picked decays from a normal evening to total collapse (5 decay stages that change gameplay: cars as cover, fires, rubble, blackout). Between waves there is a 30 s build phase with a personal-wallet roguelike shop (weapons, gear, turrets, barricades). Wave 10 has a boss (the Behemoth), then an extract-or-stay vote; staying starts endless mode. Unlocks carry over between runs. Art direction: **"Dead City"** (gritty, realistic, rainy city at night). It is a passion project for the designer and their friend group, built with AI agents using the **BMAD method**.
+A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a phone browser from a shared link** (no install). A run is 10 waves (~20–25 min): the district decays from a normal evening to total collapse (5 decay stages that change gameplay). Between waves there is a 30 s build phase with a personal-wallet roguelike shop. Wave 10 has a boss (the Behemoth), then an extract-or-stay vote; staying starts endless mode. Unlocks carry over between runs. Art direction: **"Dead City"** (gritty, realistic, rainy city at night). A passion project for the designer and their friend group, built with AI agents using the **BMAD method**.
 
-## 2. BMAD progress
+## 2. Where we are
 
-| Phase | Status | File |
+| Phase | Status | Where |
 | --- | --- | --- |
-| Game Brief | ✅ final v1.0 | `_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/brief.md` (+ `addendum.md`, `.decision-log.md`) |
-| GDD | ✅ final v1.0 | `_bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/gdd.md` (+ `epics.md`, `decision-log.md`) |
-| Game Architecture | ✅ complete (9/9 steps) | `_bmad-output/planning-artifacts/game-architecture.md` |
-| Epics & stories | ✅ complete (10 epics, 101 stories) | `_bmad-output/planning-artifacts/epics.md` |
-| Implementation readiness | ✅ READY (0 critical, 5 major, 8 minor) | `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-21.md` |
-| Sprint planning | ✅ `sprint-status.yaml` generated (all backlog) | `_bmad-output/implementation-artifacts/sprint-status.yaml` |
-| Readiness fixes | ✅ applied (101 stories, new Story 2.11 in-run menu) | see "Resolutions" in the readiness report |
-| **Story 1.1** | ✅ **done** — live at hordes.sevend.io + Pages | `_bmad-output/implementation-artifacts/1-1-project-scaffold-with-a-playable-link.md` |
+| Brief, GDD, Architecture, Epics (10 epics, 101 stories) | ✅ | `_bmad-output/planning-artifacts/` |
+| Implementation readiness + fixes | ✅ READY | `implementation-readiness-report-2026-11-21.md` |
+| **Epic 1, core combat on one phone** | ✅ code done and reviewed (1.1–1.11 done); two **human** steps open (see §5) | story files `_bmad-output/implementation-artifacts/1-*.md` |
+| **Epic 2, online co-op** | 🔨 in progress: 2.1 ✅, 2.3 ✅, 2.2 (deploy) code done → **waiting for VPS go-live**, 2.4 (server runs the fight) code done → review findings to apply; 2.5–2.11 ready-for-dev | `2-*.md`, `sprint-status.yaml` |
+| Epics 3–10 | backlog (stories written at the start of each epic, from the real code) | `epics.md` |
 
-Decision logs record every decision and why. Read them before changing anything.
+`_bmad-output/implementation-artifacts/sprint-status.yaml` is the source of truth for story status.
 
-## 3. Key decisions (details in the docs)
+**What the game does today** (play it: GitHub Pages link in §5, or `npm run dev`):
+- Solo (offline): twin-stick touch controls with aim assist, WASD + mouse on desktop; Pistol, SMG, Hunting Rifle, Machete (2 slots + swap button); Walkers in growing waves (N × 40, 150 alive cap, last 5 marked and rushing); health, Game over, Restart.
+- Debug: `?debug=1` overlay (FPS, tick ms), `?stress=150` phone benchmark, `?loadout=a,b`, `?tune=1` live control tuning, dev-only cheats (⚙ / backtick).
+- Online (needs the game server: `npm run dev` locally, or the VPS once live): Create game → 4-letter code + share link `/j/<code>` → friends join → Ready → Start → the server runs the fight at 20 Hz and every phone shows all players. **Zombies are not drawn online yet** (horde stream = Story 2.5); no prediction yet (2.6).
 
-- **Design:** 4 pillars as decision rules: Horde chaos (more zombies, never tougher ones), Build your stand (never enough money), A city that falls (decay changes play), Better together. Twin-stick on touch, landscape, auto-fire while aiming, 8° aim assist. 2 weapon slots, 10 weapons, upgrades I–IV. 6 zombie types (Walker, Runner, Crawler, Spitter, Bloater, Brute) + Behemoth boss. Revive model. Personal wallets with anti-snowball rules. 6-card roguelike shop. 6 special events. Supplies meta-currency, capped Training boosts. Gore: blood + dismemberment (toggle).
-- **Tech:** Phaser 4.2 client · Colyseus 0.18 server (`@colyseus/sdk` client) · TypeScript **6.0** (not 7.0: typescript-eslint unsupported yet) · Vite · Preact menus · npm-workspaces monorepo (`apps/client`, `apps/server`, `packages/shared`). Server-authoritative 20 Hz, local-player prediction, custom 8-byte-per-zombie binary horde stream (≤ 24 KB/s), flow-field pathfinding, Tiled maps with one layer group per decay stage, PostgreSQL 18 + Drizzle, Docker Compose + Caddy.
-- **Hosting:** the designer's existing Linux VPS in Europe (6 vCPU, 12 GB RAM, ~23 GB free — this Hermes host); the game lives on **https://hordes.sevend.io/** (chosen 2026-11-21). Static client already served there via Cloudflare Tunnel `sevend-io-stream` → localhost:8080 (systemd `topdown-shooter.service`, Caddy `deploy/Caddyfile`).
-- **Art production:** placeholder/AI art for Epics 1–8, hired artist + sound designer for Epic 9.
-- **Milestone 1 (Epics 1–4):** prove online co-op with big hordes on phones (2–4 players, Downtown, 4 weapons incl. one per range, 3 zombie types, turret + barricade, shop, 5 waves, 3 decay stages).
+## 3. How we work (keep doing this)
 
-## 4. Open items (non-blocking)
+- **BMAD loop per story:** `gds-create-story` (rich story file from the real code) → build → **independent review by a fresh agent** → fix every finding → mark done → push to `master`. Review findings and fixes are recorded in each story file ("Senior Developer Review (AI)").
+- **Parallel agents** (the designer asked for this; up to 10 at once): builders run in their own git worktrees (`isolation: "worktree"`) on branches `story-x-y`, push, and the main session merges into the work branch, resolves conflicts, runs `npm run typecheck && npm run lint && npm test && npm run build`, browser-checks with Playwright, dispatches a reviewer, fixes, then pushes to `master`. Pick parallel work by file overlap (stories touching different files run together; dependent stories wait).
+- **Pushing:** the designer allowed pushing to `master` ("you can push"). Work happens on the session's `claude/...` branch; reviewed work is fast-forwarded to `master`.
+- `.claude/worktrees/` is gitignored (agent worktrees live there).
+- Verify in a real browser (Playwright + preinstalled Chromium) for anything visual; say plainly what wasn't verified.
 
-- Working title (still "topdown-shooter").
-- Before Story 2.2: a deploy key / SSH access for the VPS (subdomain resolved: hordes.sevend.io; static client already live there).
-- GitHub Pages is live at https://seven74ai.github.io/topdown-shooter/ (Story 1.1 temporary link; superseded by hordes.sevend.io once Story 2.2 serves the full game).
-- VPS access for Story 2.2: the Hermes host IS the target VPS (Story 1.1 static client already deployed there). The CLOUD BMAD container still has no access; Story 2.2's server deploy runs from Hermes, not the cloud container. Tailscale still suggested for designer SSH.
-- Order of future districts (candidates: Hospital, Suburbs, Port, Subway, Mall, Military checkpoint; CCTV intro and Blood Moon cemetery as special content).
-- Context7 MCP not installed yet: `claude mcp add context7 -- npx -y @upstash/context7-mcp`.
+**Lessons the reviews keep finding (tell builders up front):** simulation timers count ticks (no float seconds); fire cooldown rule in `combat/firing.ts`; no per-frame / per-tick allocation; edge flags (swap/consumable) fire once per input seq and `LocalSimHost` latches them; Phaser 4 ≠ Phaser 3 (verify in `node_modules/phaser/types`; e.g. `setTint` + `setTintMode`); Phaser reuses scene objects on restart (reset state in `create`, pass restart data); tests of one mechanic pass `systems: { waves: () => {} }`; Colyseus: never pass zod to `onMessage` (use `this.net.guard`), join refusals are `ServerError(526, reason)`, use `bootTestServer()`; exact version pins (`.npmrc save-exact`); no gameplay numbers inline (balance JSON).
 
-## 5. Visual references (published artifacts)
+## 4. Key decisions (details in the docs and decision logs)
 
-- Style lab round 1: https://claude.ai/artifact/G8N42QpzGjSPifo8tKJoXe
-- Style lab round 2: https://claude.ai/artifact/8N79PkoxJdUUzQ79hkWzgZ
-- Style lab round 3 (Dead City + zombie bestiary): https://claude.ai/artifact/RtHRcukvd4yHyKv5pmTtoX
-- Dead City decay over 5 stages: https://claude.ai/artifact/BN9JyRUzE3ARtCd1UzV8Fj
+- **Design:** 4 pillars (Horde chaos, Build your stand, A city that falls, Better together). Twin-stick, landscape, auto-fire while aiming, 8° aim assist (only when the raw aim would miss).
+- **Tech:** Phaser 4.2 · Colyseus 0.18 (`@colyseus/core` + `ws-transport` + `schema` 5; client `@colyseus/sdk`) · TypeScript 6.0 · Vite 8 · Preact · npm workspaces (`apps/client`, `apps/server`, `packages/shared`). Server-authoritative 20 Hz, shared engine-free simulation.
+- **Hosting:** the designer's VPS (also runs the **Hermes** agent). Game at **https://hordes.sevend.io**. Docker Compose (Docker is installed). HTTPS/WSS by the existing **Cloudflare Tunnel** `sevend-io-stream` → 127.0.0.1:8080; Caddy plain HTTP behind it. The cloud session **cannot reach the VPS**: go-live steps run on the VPS (Hermes).
+- **Epic 2 designer decisions (2026-11-21):** downed countdown pauses while being revived; in-run menu pauses solo, online keeps running.
+- **GitHub Pages:** kept TEMPORARILY in CI (`pages` / `deploy-pages` jobs) because the Epic 1 playtest links point there; remove once the VPS is verified (docs/deploy.md step 7).
 
-Local copies live next to the brief (`style-lab*.html`, `dead-city-decay.html`). The round 3 file contains working canvas code for humanoid zombies, the six zombie types, and blackout lighting that can seed Epic 1 prototypes.
+## 5. Open items for the designer (human steps)
 
-## 6. Environment gotchas from the first session
+1. **VPS go-live (Story 2.2, Task 9):** give Hermes the message in §6. Then report the results; Story 2.2 is marked done after that.
+2. **Epic 1 controls playtest (Story 1.12):** designer + ≥ 2 friends, form in `docs/playtests/epic-1-controls.md`. Links: `https://seven74ai.github.io/topdown-shooter/?loadout=pistol,machete&tune=1` and `...?loadout=smg,hunting_rifle&tune=1`.
+3. **Speed test (Story 1.11):** done on iPhone 15 Pro (target met) and Honor 10 (58 FPS avg, rare hitches; 2018 phone). Still nice to have: a 2020–2021 mid-range Android (Pixel 5 / Galaxy A52). Results in `docs/perf/epic-1-stress.md`.
+4. Working title still "topdown-shooter". Order of future districts later.
 
-- **BMAD install** (already done, `_bmad/` and `.claude/skills/` are in the repo): v6.12.4 with modules `bmm` and `gds` (Game Dev Studio v0.7.2). If reinstalling, the GitHub token in the cloud env breaks the tag lookup; run with `env -u GITHUB_TOKEN -u GH_TOKEN npx -y bmad-method@6.12.4 install --directory . --modules bmm,gds --tools claude-code --pin gds=v0.7.2 -y`.
-- **GitHub:** the repo needed the Claude GitHub app to be granted access before pushes worked; it is pushed now.
-- The `.claude/skills` BMAD skills load only when the repo is the working directory.
+## 6. Message for Hermes (VPS go-live, after `master` has the Story 2.2 review fixes)
 
-## 6b. Story 1.1 prep (npm check 2026-11-21)
+> On the VPS, in `/root/topdown-shooter`: `git fetch && git checkout master && git pull --ff-only`, then follow `docs/deploy.md` from the top (it backs up the current setup first, replaces the old `topdown-shooter.service` static site with the Docker Compose stack via `deploy/deploy.sh`, and lists the checks: `https://hordes.sevend.io/api/health` 200, cache headers, `/j/ABCD` 200, a foreign-origin WebSocket refused with 403, two browsers creating and joining a game). If anything fails, use the rollback in the doc. Report every check's result back.
 
-`gds-create-story 1.1` was started but not written. Versions verified on npm: phaser 4.2.1 · preact 11.2.0 · vite 8.3.8 · typescript **6.0.3** (latest is 7.0.2; typescript-eslint 8.73.0 needs `<6.1.0`, so pin 6.0.3) · vitest 5.1.1 (needs Node ^22.12 / ^24 / ≥26) · eslint 10.15.0 · @eslint/js 10.0.1 · zod 4.6.7 · tsx 4.23.15 · @preact/preset-vite 2.10.6 · concurrently 10.0.7 · colyseus 0.18.12 · @colyseus/sdk 0.18.10 · @colyseus/schema 5.0.50. Node 26.13.1 is the current LTS (architecture target); add `.nvmrc` = 26 and `engines`.
+## 7. Next steps for the new session
 
-## 7. How the designer likes to work
+1. Read `sprint-status.yaml` and the open story files: **2.4** (apply the review findings recorded or reported for it, then mark done) and **2.2** (review fixes merged; waiting for the VPS).
+2. Continue Epic 2 with parallel agents: **2.5 horde stream** (zombies drawn online) next; 2.6 prediction, 2.7 server-confirmed hits, 2.8 downed/revive, 2.9 rings + teammate arrows, 2.11 in-run menu can partly run in parallel (check file overlap; each story file has integration notes). 2.10 is the designer's 4-phone 4G test.
+3. After the VPS is live: point the playtest links at hordes.sevend.io and remove the temporary Pages CI jobs.
+
+## 8. How the designer likes to work
 
 - Plain English, short messages. They often answer "ok", "C" or a letter. Treat a bare "ok" as acceptance of all proposals in the previous message, and say so.
-- **Facilitative mode:** propose concrete designs **with numbers** and a recommendation; they keep or change. Don't ask open-ended "what do you want" questions without a proposal.
-- They love **playable visual prototypes** (the style labs worked very well) over text descriptions.
+- **Facilitative mode:** propose concrete designs **with numbers** and a recommendation; they keep or change.
+- They love **playable visual prototypes** over text descriptions.
 - Not deeply technical: explain technical choices by their effect on the game.
-- They want progress, not ceremony; keep BMAD steps moving.
+- They want progress, not ceremony; keep BMAD steps moving; parallelize with agents.
+
+## 9. Environment gotchas
+
+- BMAD v6.12.4 (modules bmm + gds v0.7.2) is installed in the repo (`_bmad/`, `.claude/skills/`). The skills load only when the repo is the working directory.
+- The cloud container intercepts TLS: Docker image builds that run `npm ci` fail locally (environment limit; CI builds them fine).
+- Visual references (style labs, decay prototype) are linked in the brief folder; `style-lab-r3.html` has canvas code for the Dead City look.
 
 ---
 
 ## Prompt for the new session
 
-> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. We use the BMAD method; brief, GDD, architecture, and Story 1.1 (scaffold) are done — Story 1.1 is live at hordes.sevend.io. Next step: `gds-create-story 1.2` then `gds-dev-story`. Keep working in facilitative mode as described in the handoff, and commit + push after each step.
+> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. Epic 1 is done (two human steps open), Epic 2 is in progress. Next: finish Story 2.4's review fixes, then continue Epic 2 (2.5 horde stream next) with parallel agents in worktrees, reviewing every story with a fresh agent before pushing to master. Keep working in facilitative mode as described in the handoff.
