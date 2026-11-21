@@ -4,7 +4,7 @@ baseline_commit: fd93084adb3548a39ab523d472a570a5de60a9ae
 
 # Story 1.4: Walkers chase and hurt the player
 
-Status: review
+Status: done
 
 ## Story
 
@@ -126,7 +126,7 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
     - **Spawner and restart:** a temporary spawner places 40 Walkers along the map edges. Restart restarts `GameScene`, which gives a new seed.
 - **Tests:** 111 passing (+23): pool 6, spatial grid 3, Walker AI 6, contact damage 4, uiStore 1, color 1, plus existing suites.
 - **Verification:** typecheck 0 errors, lint 0 problems, `npm test` 111/111, build ok.
-- **Placeholders to tune later:** crowd `separationRadiusM` 0.8, `separationStrength` 3.0, `maxSpeedFactor` 1.5.
+- **Placeholders to tune later:** crowd `separationRadiusM` 0.9, `separationStrength` 10, `maxSpeedFactor` 2.0 (retuned after review).
 - **Notes:**
   - The Game over screen shows wave 1 until Story 1.7 adds waves.
   - Once the player dies, zombies stand still (no target).
@@ -165,6 +165,17 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `_bmad-output/implementation-artifacts/1-4-walkers-chase-and-hurt-the-player.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context; each finding reproduced with a script) · **Outcome:** Changes requested → all fixed
+- [x] [Med] The player push-out ran after the map clamp, so a Walker against a player at a wall ended up at x = −0.13. Fix: the zombie pass is reordered (move + clamp → overlap resolution → player push-out + attack → clamp again). Test added.
+- [x] [Med] The attack cooldown was a float in seconds, so 0.3 s gave 7 ticks and 1.5 s gave 31. Fix: the cooldown is now an integer tick count (`attackCooldownTicks: Uint16Array`, `ticksFor(seconds)`), matching the architecture rule that timers count ticks. Test covers 0.3 s, 1.5 s and 0.7 s.
+- [x] [Low] `for…of world.players.values()` allocated about 300 iterators per tick. Fix: alive players are collected once per tick into a reused array.
+- [x] [Low] 150 Walkers overlapped heavily (minimum distance 0.226 m against 0.7 m combined radii). Fix: added a hard overlap-resolution pass (2 iterations per tick, each pair pushed apart by half the overlap) and retuned the crowd after measuring (`separationRadiusM` 0.9, `separationStrength` 10, `maxSpeedFactor` 2). The same run now gives min 0.53 m and mean nearest-neighbour 0.70 m. Cost: 0.125 ms per tick with 150 Walkers. Test added with a player present.
+- [x] [Low] The 32-neighbour cap could make separation one-sided. Raised to 64.
+- [x] [Low] Tests added for: wall clamp; any attack interval; the cooldown counting down out of contact; several freed slots reused oldest-first; generation wrapping from 255 to 0. Not added: an automated test of the GameScene restart lifecycle, which needs the Story 1.11 debug hook. Restart was checked in the browser instead.
+
 ## Change Log
 
+- 2026-11-21: Addressed code review findings - 6 items resolved (overlap pass and tick-based attack timer). 117 tests passing.
 - 2026-11-21: Story 1.4 implemented: pooled Walkers, spatial grid, chase + separation AI, contact damage, health bar, Game over and Restart. 111 tests passing.

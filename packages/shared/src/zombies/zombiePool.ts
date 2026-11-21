@@ -14,7 +14,8 @@ export interface ZombiePool {
   readonly prevX: Float32Array;
   readonly prevY: Float32Array;
   readonly hp: Float32Array;
-  readonly attackCooldownS: Float32Array;
+  /** Ticks until this zombie can hit again (timers count ticks, architecture › Networking). */
+  readonly attackCooldownTicks: Uint16Array;
   /** Index into ZOMBIE_TYPES. */
   readonly type: Uint8Array;
   /** ZOMBIE_STATE value; FREE when the slot is not in use. */
@@ -46,7 +47,7 @@ export function createZombiePool(capacity: number): ZombiePool {
     prevX: new Float32Array(capacity),
     prevY: new Float32Array(capacity),
     hp: new Float32Array(capacity),
-    attackCooldownS: new Float32Array(capacity),
+    attackCooldownTicks: new Uint16Array(capacity),
     type: new Uint8Array(capacity),
     state: new Uint8Array(capacity),
     generation: new Uint8Array(capacity),
@@ -90,7 +91,7 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.prevX[id] = x;
   pool.prevY[id] = y;
   pool.hp[id] = stats.hp;
-  pool.attackCooldownS[id] = 0;
+  pool.attackCooldownTicks[id] = 0;
   pool.type[id] = zombieTypeIndex(type);
   pool.state[id] = ZOMBIE_STATE.CHASE;
   pool.vx[id] = 0;

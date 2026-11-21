@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance } from "../config/balance";
+import { loadBalance, type RawBalanceFiles } from "../config/balance";
+import weapons from "../config/balance/weapons.json" with { type: "json" };
+import zombiesJson from "../config/balance/zombies.json" with { type: "json" };
+import waves from "../config/balance/waves.json" with { type: "json" };
+import player from "../config/balance/player.json" with { type: "json" };
+import controls from "../config/balance/controls.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { createWorld, step, type World } from "../core/world";
@@ -78,6 +83,37 @@ describe("Walker AI", () => {
     }
   });
 
+  it("never leaves the map when pushed out of a player standing at a wall", () => {
+    const world = createWorld({ balance, seed: 1 });
+    addPlayer(world, "local", 0.4, 10).hp = 1e9;
+    const id = spawnZombie(world, "walker", 0.35, 10.05);
+    for (let i = 0; i < 40; i++) {
+      step(world, TICK_DT_S);
+      expect(world.zombies.x[id]).toBeGreaterThanOrEqual(0.35 - 1e-6);
+      expect(world.zombies.y[id]).toBeGreaterThanOrEqual(0.35 - 1e-6);
+    }
+  });
+
+  it("keeps a 150-Walker crowd around a player from stacking", () => {
+    const world = createWorld({ balance, seed: 3 });
+    const p = addPlayer(world, "local", 24, 16);
+    p.hp = 1e9;
+    spawnRing(world, "walker", 150, 24, 16, 20);
+    run(world, 400);
+    const z = world.zombies;
+    let minD = Infinity;
+    for (let a = 0; a < z.aliveCount; a++) {
+      const i = z.aliveIds[a] as number;
+      expect(z.x[i]).toBeGreaterThanOrEqual(0.35 - 1e-6);
+      expect(z.x[i]).toBeLessThanOrEqual(48 - 0.35 + 1e-6);
+      for (let b = a + 1; b < z.aliveCount; b++) {
+        const j = z.aliveIds[b] as number;
+        minD = Math.min(minD, Math.hypot((z.x[i] as number) - (z.x[j] as number), (z.y[i] as number) - (z.y[j] as number)));
+      }
+    }
+    expect(minD).toBeGreaterThan(0.5 * 0.7); // never closer than half their combined radii
+  });
+
   it("is deterministic for a fixed seed", () => {
     const make = () => {
       const world = createWorld({ balance, seed: 9 });
@@ -109,6 +145,37 @@ describe("contact damage (FR9)", () => {
     step(world, TICK_DT_S);
     expect(p.hp).toBe(80);
     expect(events.filter((e) => e.type === "player.damaged")).toHaveLength(2);
+  });
+
+  it("keeps exact timing for any attack interval (timers count ticks)", () => {
+    for (const [intervalS, expectedTicks] of [[0.3, 6], [1.5, 30], [0.7, 14]] as const) {
+      const z = JSON.parse(JSON.stringify(zombiesJson));
+      z.types.walker.attackIntervalS = intervalS;
+      const b = loadBalance({ weapons, zombies: z, waves, player, controls } as RawBalanceFiles);
+      const world = createWorld({ balance: b, seed: 1 });
+      const p = addPlayer(world, "local", 24, 16);
+      p.hp = 1e9;
+      spawnZombie(world, "walker", 24.74, 16);
+      const hitTicks: number[] = [];
+      world.events.subscribe((e) => e.type === "player.damaged" && hitTicks.push(world.tick));
+      run(world, expectedTicks * 3 + 1);
+      expect(hitTicks.slice(1, 3).map((t, k) => t - (hitTicks[k] as number))).toEqual([expectedTicks, expectedTicks]);
+    }
+  });
+
+  it("keeps counting the cooldown down out of contact, so a returning zombie can hit at once", () => {
+    const { world, p } = contactWorld(1);
+    step(world, TICK_DT_S); // hit at tick 1
+    expect(p.hp).toBe(90);
+    p.x = 40; // player escapes
+    run(world, 40); // the Walker (1.2 m/s) can't catch up in 2 s from ~15 m away
+    expect(p.hp).toBe(90);
+    p.x = 24; // the player walks back into it
+    const z = world.zombies;
+    p.x = (z.x[0] as number) + 0.74;
+    p.y = z.y[0] as number;
+    step(world, TICK_DT_S);
+    expect(p.hp).toBe(80);
   });
 
   it("two Walkers deal two hits per second", () => {

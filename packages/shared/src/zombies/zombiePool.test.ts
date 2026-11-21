@@ -47,6 +47,30 @@ describe("zombie pool", () => {
     expect(world.zombies.generation[id]).toBe(1);
   });
 
+  it("reuses several freed slots oldest-first, each after its own hold", () => {
+    const world = newWorld();
+    const a = spawnZombie(world, "walker", 1, 1);
+    const b = spawnZombie(world, "walker", 1, 1);
+    killZombie(world, a, null, "pistol"); // freed at tick 0
+    world.tick = 5;
+    killZombie(world, b, null, "pistol"); // freed at tick 5
+    world.tick = ZOMBIE_SLOT_HOLD_TICKS; // a is ready, b is not
+    expect(spawnZombie(world, "walker", 1, 1)).toBe(a);
+    expect(spawnZombie(world, "walker", 1, 1)).not.toBe(b);
+    world.tick = 5 + ZOMBIE_SLOT_HOLD_TICKS;
+    expect(spawnZombie(world, "walker", 1, 1)).toBe(b);
+  });
+
+  it("wraps the generation counter from 255 to 0", () => {
+    const world = newWorld();
+    const id = spawnZombie(world, "walker", 1, 1);
+    world.zombies.generation[id] = 255;
+    killZombie(world, id, null, "pistol");
+    world.tick += ZOMBIE_SLOT_HOLD_TICKS;
+    expect(spawnZombie(world, "walker", 1, 1)).toBe(id);
+    expect(world.zombies.generation[id]).toBe(0);
+  });
+
   it("returns -1 when every slot is alive or held", () => {
     const world = newWorld();
     for (let i = 0; i < ZOMBIE_POOL_CAPACITY; i++) expect(spawnZombie(world, "walker", 1, 1)).toBe(i);

@@ -10,8 +10,8 @@
     }
   },
   "crowd": {
-    "separationRadiusM": 0.8,
-    "separationStrength": 3.0,
-    "maxSpeedFactor": 1.5
+    "separationRadiusM": 0.9,
+    "separationStrength": 10.0,
+    "maxSpeedFactor": 2.0
   }
 }

@@ -19,7 +19,7 @@ function snapshotZombies(world: World) {
       type: z.type[id],
       state: z.state[id],
       generation: z.generation[id],
-      attackCooldownS: z.attackCooldownS[id],
+      attackCooldownTicks: z.attackCooldownTicks[id],
     })),
     nextUnused: z.nextUnused,
     freed: Array.from({ length: z.freedCount }, (_, k) => {

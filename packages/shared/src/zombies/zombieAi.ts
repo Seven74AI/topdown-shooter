@@ -1,23 +1,41 @@
+import { TICK_DT_S } from "../config/constants";
 import { queryRadius, rebuildGrid } from "../core/spatialGrid";
 import type { SystemFn } from "../core/systems";
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import { zombieTypeOf } from "./zombiePool";
 
-/** Neighbours considered per zombie for separation (scratch buffer, never allocated per tick). */
-const MAX_NEIGHBOURS = 32;
+/** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
+const MAX_NEIGHBOURS = 64;
 const neighbours = new Int32Array(MAX_NEIGHBOURS);
 /** Below this distance two zombies count as coincident and are pushed along a fixed axis. */
 const COINCIDENT_M = 1e-4;
 /** Contact tolerance: a zombie resting against a player still counts as touching. */
 const CONTACT_EPS_M = 0.02;
+/** Extra query distance for the overlap pass: zombies moved ≤ ~0.1 m since the grid was built. */
+const OVERLAP_QUERY_MARGIN_M = 0.25;
+/** Overlap-resolution passes per tick (more = firmer crowd, more cost). */
+const OVERLAP_ITERATIONS = 2;
+/** Alive players this tick, rebuilt at the top of the system (no iterator allocation per zombie). */
+const alivePlayers: PlayerState[] = [];
+
+/** Whole ticks for an interval in seconds (timers count ticks: no float drift). */
+export const ticksFor = (seconds: number): number => Math.max(1, Math.round(seconds / TICK_DT_S));
+
+function collectAlivePlayers(world: World): void {
+  alivePlayers.length = 0;
+  world.players.forEach((p) => {
+    if (p.status === "alive") alivePlayers.push(p);
+  });
+}
 
 /** Nearest alive player to (x, y), or null. Ties keep the first player in insertion order. */
-function nearestAlivePlayer(world: World, x: number, y: number): PlayerState | null {
+function nearestAlivePlayer(x: number, y: number): PlayerState | null {
   let best: PlayerState | null = null;
   let bestD2 = Infinity;
-  for (const p of world.players.values()) {
-    if (p.status !== "alive") continue;
+  for (let i = 0; i < alivePlayers.length; i++) {
+    const p = alivePlayers[i] as PlayerState;
+    if (p.status !== "alive") continue; // may die mid-tick
     const dx = p.x - x;
     const dy = p.y - y;
     const d2 = dx * dx + dy * dy;
@@ -58,6 +76,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
     pool.prevY[id] = pool.y[id] as number;
   }
   rebuildGrid(world.zombieGrid, ids, n, pool.x, pool.y);
+  collectAlivePlayers(world);
 
   // Pass 1: desired velocity + separation, from positions at the start of the tick.
   for (let i = 0; i < n; i++) {
@@ -69,7 +88,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
     let vx = 0;
     let vy = 0;
 
-    const target = nearestAlivePlayer(world, x, y);
+    const target = nearestAlivePlayer(x, y);
     if (target) {
       const dx = target.x - x;
       const dy = target.y - y;
@@ -114,25 +133,35 @@ export const updateZombies: SystemFn = (world, dtS) => {
     pool.vy[id] = vy;
   }
 
-  // Pass 2: move, keep out of players, attack.
+  // Pass 2: move and clamp to the map.
+  for (let i = 0; i < n; i++) {
+    const id = ids[i] as number;
+    const rz = world.balance.zombies.types[zombieTypeOf(pool, id)]?.radiusM ?? 0;
+    pool.x[id] = Math.min(widthM - rz, Math.max(rz, (pool.x[id] as number) + (pool.vx[id] as number) * dtS));
+    pool.y[id] = Math.min(heightM - rz, Math.max(rz, (pool.y[id] as number) + (pool.vy[id] as number) * dtS));
+  }
+
+  // Pass 3: zombies never stay overlapped (hard rule on top of the soft separation).
+  for (let it = 0; it < OVERLAP_ITERATIONS; it++) resolveOverlaps(world);
+
+  // Pass 4: keep out of players (last, so the crowd wraps around them) and attack.
   for (let i = 0; i < n; i++) {
     const id = ids[i] as number;
     const stats = world.balance.zombies.types[zombieTypeOf(pool, id)];
     if (!stats) continue;
     const rz = stats.radiusM;
-    let x = Math.min(widthM - rz, Math.max(rz, (pool.x[id] as number) + (pool.vx[id] as number) * dtS));
-    let y = Math.min(heightM - rz, Math.max(rz, (pool.y[id] as number) + (pool.vy[id] as number) * dtS));
+    let x = pool.x[id] as number;
+    let y = pool.y[id] as number;
 
-    pool.attackCooldownS[id] = Math.max(0, (pool.attackCooldownS[id] as number) - dtS);
+    if ((pool.attackCooldownTicks[id] as number) > 0) pool.attackCooldownTicks[id] = (pool.attackCooldownTicks[id] as number) - 1;
 
-    const target = nearestAlivePlayer(world, x, y);
+    const target = nearestAlivePlayer(x, y);
     if (target) {
       const contact = rz + target.radiusM;
       let dx = x - target.x;
       let dy = y - target.y;
       let d = Math.sqrt(dx * dx + dy * dy);
       if (d < contact) {
-        // Wrap around the player instead of overlapping them.
         if (d < COINCIDENT_M) {
           dx = 1;
           dy = 0;
@@ -142,12 +171,55 @@ export const updateZombies: SystemFn = (world, dtS) => {
         y = target.y + (dy / d) * contact;
         d = contact;
       }
-      if (d <= contact + CONTACT_EPS_M && (pool.attackCooldownS[id] as number) <= 0) {
-        pool.attackCooldownS[id] = stats.attackIntervalS;
+      if (d <= contact + CONTACT_EPS_M && pool.attackCooldownTicks[id] === 0) {
+        pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
         damagePlayer(world, target, stats.damage, id);
       }
     }
-    pool.x[id] = x;
-    pool.y[id] = y;
+    // The push-out can cross a wall: clamp again (a little overlap at walls beats leaving the map).
+    pool.x[id] = Math.min(widthM - rz, Math.max(rz, x));
+    pool.y[id] = Math.min(heightM - rz, Math.max(rz, y));
   }
 };
+
+/**
+ * Hard rule on top of the soft separation: two zombies never stay overlapped. Each overlapping pair
+ * (handled once, lower id first) is pushed apart by half the overlap each, then clamped to the map.
+ * The soft push alone loses against the pressure of a big crowd chasing one player.
+ */
+function resolveOverlaps(world: World): void {
+  const pool = world.zombies;
+  const ids = pool.aliveIds;
+  const n = pool.aliveCount;
+  const { widthM, heightM } = world.map;
+  for (let i = 0; i < n; i++) {
+    const id = ids[i] as number;
+    const ri = world.balance.zombies.types[zombieTypeOf(pool, id)]?.radiusM ?? 0;
+    const qr = ri * 2 + OVERLAP_QUERY_MARGIN_M;
+    const count = queryRadius(world.zombieGrid, pool.x, pool.y, pool.x[id] as number, pool.y[id] as number, qr, neighbours);
+    for (let k = 0; k < count; k++) {
+      const j = neighbours[k] as number;
+      if (j <= id) continue;
+      const rj = world.balance.zombies.types[zombieTypeOf(pool, j)]?.radiusM ?? 0;
+      const ox = (pool.x[id] as number) - (pool.x[j] as number);
+      const oy = (pool.y[id] as number) - (pool.y[j] as number);
+      const d = Math.sqrt(ox * ox + oy * oy);
+      const overlap = ri + rj - d;
+      if (overlap <= 0) continue;
+      let ux: number;
+      let uy: number;
+      if (d < COINCIDENT_M) {
+        ux = (id + j) % 2 === 0 ? 1 : 0;
+        uy = 1 - ux;
+      } else {
+        ux = ox / d;
+        uy = oy / d;
+      }
+      const h = overlap / 2;
+      pool.x[id] = Math.min(widthM - ri, Math.max(ri, (pool.x[id] as number) + ux * h));
+      pool.y[id] = Math.min(heightM - ri, Math.max(ri, (pool.y[id] as number) + uy * h));
+      pool.x[j] = Math.min(widthM - rj, Math.max(rj, (pool.x[j] as number) - ux * h));
+      pool.y[j] = Math.min(heightM - rj, Math.max(rj, (pool.y[j] as number) - uy * h));
+    }
+  }
+}
