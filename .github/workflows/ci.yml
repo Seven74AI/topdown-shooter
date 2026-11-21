@@ -22,23 +22,18 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-        env: { BASE_PATH: /topdown-shooter/ }
       # Story 1.11: the release bundle must not contain the dev cheats (fails if dist is missing).
       - run: npx vitest run tools/checks/noCheatsInRelease.test.ts
         env: { REQUIRE_DIST: "1" }
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: actions/upload-pages-artifact@v5
-        with: { path: apps/client/dist }
 
-  deploy:
-    # Publishes the client to GitHub Pages only after `check` passed on master.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+  docker:
+    # Story 2.2: the VPS images must build. Build only, nothing is pushed: deploys run on the VPS
+    # with deploy/deploy.sh (docs/deploy.md). GitHub Pages is gone: it cannot run the game server.
     needs: check
     runs-on: ubuntu-latest
-    permissions: { pages: write, id-token: write }
-    environment: { name: github-pages, url: "${{ steps.deployment.outputs.page_url }}" }
-    concurrency: { group: pages, cancel-in-progress: false }
     steps:
-      - uses: actions/configure-pages@v6
-      - id: deployment
-        uses: actions/deploy-pages@v5
+      - uses: actions/checkout@v7
+      - run: docker build -f deploy/server.Dockerfile --target server -t topdown-server:ci .
+      - run: docker build -f deploy/server.Dockerfile --target web -t topdown-web:ci .
+      - name: Caddyfile is valid
+        run: docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11-alpine caddy validate --config /etc/caddy/Caddyfile

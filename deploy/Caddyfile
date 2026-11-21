@@ -1,6 +1,45 @@
+# The web container of deploy/docker-compose.yml (Story 2.2): the client build and a same-origin
+# proxy to the game server. Plain HTTP on :8080; the compose file publishes it on 127.0.0.1:8080
+# only, where the Cloudflare Tunnel `sevend-io-stream` picks it up. Cloudflare terminates HTTPS and
+# WSS at the edge (automatic certificates), so there is no TLS and no ACME here.
+{
+	admin off
+	auto_https off
+}
+
 :8080 {
-	bind 127.0.0.1
-	root * /root/topdown-shooter/apps/client/dist
-	encode gzip
-	file_server
+	# Game server: the client talks to `${location.origin}/api` (Story 2.1). `/api` is stripped, so
+	# matchmaking is /matchmake/* and the WebSocket /<processId>/<roomId> on server:2567.
+	handle_path /api/* {
+		reverse_proxy server:2567 {
+			# Per-IP limits (room creation) need the player's address, not cloudflared's. Colyseus reads
+			# X-Real-IP first. Safe because only cloudflared can reach this port (127.0.0.1), and
+			# Cloudflare always sets Cf-Connecting-Ip itself.
+			header_up X-Real-IP {http.request.header.Cf-Connecting-Ip}
+		}
+	}
+
+	encode zstd gzip
+
+	# Vite's hashed build files: cache for a year. No try_files here: a missing asset must be a 404,
+	# never index.html with an immutable header (that would break the phone on the next deploy).
+	# Trap for later: files in apps/client/public/assets/ are copied here WITHOUT a hash and would get
+	# this immutable header too. Unhashed public files must live outside /assets/ (e.g. /static/), or
+	# be imported so Vite hashes them.
+	handle /assets/* {
+		root * /srv/client
+		@exists file
+		# Only on files that exist: the 404 itself must not be cached for a year.
+		header @exists Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# Everything else: index.html and unhashed files, always revalidated. Unknown paths such as the
+	# share link /j/<code> load the app.
+	handle {
+		root * /srv/client
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
 }

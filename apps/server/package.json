@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "start": "node --import tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

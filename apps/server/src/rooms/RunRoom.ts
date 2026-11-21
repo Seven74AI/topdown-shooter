@@ -1,16 +1,18 @@
-import { Room, ServerError, matchMaker, type AuthContext, type Client } from "@colyseus/core";
+import { CloseCode, Room, ServerError, matchMaker, type AuthContext, type Client } from "@colyseus/core";
 import {
   C2S,
   joinOptionsSchema,
   loadBalance,
   playerInputSchema,
+  S2C,
   type JoinRefusal,
   type PlayerInput,
 } from "@topdown/shared";
 import type { Logger } from "pino";
 import { MAX_CLIENT_MESSAGE_BYTES } from "../net/limits";
 import { MessageGuard } from "../net/messageGuard";
-import { roomLog } from "../ops/logger";
+import { roomCreateLimiter } from "../net/rateLimit";
+import { log, roomLog } from "../ops/logger";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
 
@@ -19,6 +21,9 @@ export const serverBalance = loadBalance();
 
 /** HTTP-ish status for every join refusal; the message is the `JoinRefusal` reason. */
 export const JOIN_REFUSED_CODE = 526;
+
+/** Sent as `S2C.SERVER_SHUTDOWN_STARTED` before a stop or redeploy closes the room (Story 2.2). */
+export const SERVER_RESTARTING_MESSAGE = "Server restarting";
 
 /** What `onAuth` hands to `onJoin` as `client.auth`. */
 export interface RunAuth {
@@ -63,6 +68,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const parsed = joinOptionsSchema.safeParse(options);
     if (!parsed.success) throw refuse("invalid_options");
     if (parsed.data.balanceVersion !== serverBalance.version) throw refuse("balance_mismatch");
+    // Story 2.2 AC 3: `ctx.ip` is X-Real-IP, which Caddy sets from Cloudflare's Cf-Connecting-Ip.
+    if (parsed.data.intent === "create" && !roomCreateLimiter.allow(ctx.ip ?? "unknown")) {
+      log.warn({ ip: ctx.ip ?? "unknown" }, "room_create_rate_limited");
+      throw refuse("rate_limited");
+    }
     return { name: parsed.data.name, ip: ctx.ip };
   }
 
@@ -106,6 +116,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.playerIds.delete(client.sessionId);
     this.state.players.delete(playerId);
     this.log.info({ playerId, code }, "player_left");
+  }
+
+  /** Stop or redeploy (Story 2.2 AC 5): tell everyone, then close with 4001. Autosave is Epic 8. */
+  override onBeforeShutdown(): void {
+    this.broadcast(S2C.SERVER_SHUTDOWN_STARTED, { message: SERVER_RESTARTING_MESSAGE });
+    this.log.info("room_shutdown");
+    this.disconnect(CloseCode.SERVER_SHUTDOWN).catch(() => {});
   }
 
   override onDispose(): void {

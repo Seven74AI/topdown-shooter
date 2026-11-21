@@ -1,5 +1,6 @@
-import type { RunStateView } from "@topdown/shared";
+import { S2C, type RunStateView } from "@topdown/shared";
 import type { RunConnection } from "./connection";
+import { lostReason, type LostReason } from "./serverNotice";
 
 export interface LobbyPlayer {
   readonly playerId: string;
@@ -41,20 +42,25 @@ class LobbyStore {
     return () => this.listeners.delete(listener);
   }
 
-  /** Follows a joined room. `onLost` runs when the connection ends without the player leaving. */
-  attach(room: RunConnection, onLost: () => void): void {
+  /**
+   * Follows a joined room. `onLost` runs when the connection ends without the player leaving,
+   * with `server_restarting` on a stop or redeploy (Story 2.2) and `connection_lost` otherwise.
+   */
+  attach(room: RunConnection, onLost: (reason: LostReason) => void): void {
     this.room = room;
+    let shuttingDown = false;
     const update = (state: RunStateView): void => {
       if (this.room === room) this.set(snapshotLobby(room.roomId, state));
     };
     room.onStateChange(update);
     // The SDK decodes state by reflection: until the first full state arrives, `state` is empty.
     if (room.state?.players) update(room.state);
-    room.onLeave(() => {
+    room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, () => (shuttingDown = true));
+    room.onLeave((code) => {
       if (this.room !== room) return; // we left on purpose
       this.room = null;
       this.set(EMPTY);
-      onLost();
+      onLost(lostReason(code, shuttingDown));
     });
   }
 

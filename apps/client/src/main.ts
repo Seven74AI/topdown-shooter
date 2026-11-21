@@ -10,6 +10,7 @@ import { urlOptions } from "./debug/urlOptions";
 import { uiStore } from "./ui/uiState";
 import { lobbyStore } from "./net/lobbyStore";
 import { JOIN_ERROR_TEXT } from "./net/joinErrors";
+import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
 import "./ui/overlay.css";
 
 // Phaser 4 has no `resolution` option: size the canvas in device pixels
@@ -56,7 +57,11 @@ async function createGameLazily(name: string) {
 uiStore.handle("createGame", (name) => {
   void createGameLazily(name).then((r) => {
     if (!r.ok) return uiStore.set({ kind: "start", error: r.error });
-    lobbyStore.attach(r.value, () => uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable }));
+    lobbyStore.attach(r.value, (reason) => {
+      if (reason === "connection_lost") return uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
+      uiStore.set({ kind: "start" }); // Story 2.2: stop or redeploy, the dialog goes over the start screen
+      serverNotice.show(SERVER_RESTARTING_TEXT);
+    });
     uiStore.set({ kind: "lobby", code: r.value.roomId });
   });
 });

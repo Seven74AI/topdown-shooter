@@ -1,0 +1,9 @@
+# Story 2.2: build context for deploy/server.Dockerfile (repo root).
+**/node_modules
+**/dist
+.git
+_bmad
+_bmad-output
+.claude
+docs
+deploy/deploy-history.log
