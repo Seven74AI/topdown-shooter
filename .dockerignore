@@ -1,9 +1,18 @@
-# Story 2.2: build context for deploy/server.Dockerfile (repo root).
+# Story 2.2: build context for deploy/server.Dockerfile (repo root). Keep secrets and anything the
+# images don't need out of it.
 **/node_modules
 **/dist
 .git
+.github
 _bmad
 _bmad-output
 .claude
 docs
 deploy/deploy-history.log
+# Secrets: never in an image layer.
+.env*
+**/.env*
+*.pem
+**/*.pem
+*.key
+**/*.key

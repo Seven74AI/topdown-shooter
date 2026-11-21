@@ -1,6 +1,12 @@
 # Story 2.2: the game on the VPS. Run through deploy/deploy.sh (it sets GIT_SHA); see docs/deploy.md.
 # Cloudflare Tunnel `sevend-io-stream` -> 127.0.0.1:8080 (web: Caddy) -> server:2567 (game server).
 # PostgreSQL joins in Epic 7 (Story 7.1).
+#
+# GIT_SHA is required (no `:dev` default), so a hand-typed `docker compose up -d` cannot silently
+# build and run an untagged image next to the real ones. Local check: GIT_SHA=local (docs/deploy.md).
+#
+# Resource limits are first guesses for a small VPS shared with Hermes; tune them here if the
+# server is OOM-killed (`docker inspect topdown-server-1 --format '{{.State.OOMKilled}}'`).
 name: topdown
 
 x-logging: &logging
@@ -15,7 +21,7 @@ services:
       context: ..
       dockerfile: deploy/server.Dockerfile
       target: server
-    image: topdown-server:${GIT_SHA:-dev}
+    image: topdown-server:${GIT_SHA:?GIT_SHA must be set (deploy/deploy.sh sets it)}
     restart: unless-stopped
     init: true # SIGTERM reaches Node, which closes rooms with "Server restarting"
     stop_grace_period: 20s
@@ -23,7 +29,7 @@ services:
       PORT: "2567"
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-https://hordes.sevend.io}
       LOG_LEVEL: info
-      GIT_SHA: ${GIT_SHA:-dev}
+      GIT_SHA: ${GIT_SHA:?GIT_SHA must be set (deploy/deploy.sh sets it)}
     expose: ["2567"] # never published to the host: only Caddy reaches it
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2567/health"]
@@ -31,6 +37,13 @@ services:
       timeout: 3s
       retries: 3
       start_period: 20s
+    # Hardening (Story 2.2 review). Tunable: mem_limit, pids_limit.
+    mem_limit: 768m
+    pids_limit: 256
+    read_only: true
+    tmpfs: ["/tmp:size=64m"] # tsx's compile cache
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     logging: *logging
 
   web:
@@ -38,10 +51,25 @@ services:
       context: ..
       dockerfile: deploy/server.Dockerfile
       target: web
-    image: topdown-web:${GIT_SHA:-dev}
+    image: topdown-web:${GIT_SHA:?GIT_SHA must be set (deploy/deploy.sh sets it)}
     restart: unless-stopped
-    ports: ["${WEB_BIND:-127.0.0.1:8080}:8080"] # where the tunnel already points
+    # Where the tunnel already points. 127.0.0.1 only: X-Real-IP trust depends on it (docs/deploy.md).
+    ports: ["${WEB_BIND:-127.0.0.1:8080}:8080"]
     depends_on:
       server:
         condition: service_healthy
+    # Hardening (Story 2.2 review). Tunable: mem_limit, pids_limit.
+    mem_limit: 128m
+    pids_limit: 128
+    read_only: true
+    # Caddy's state dirs (no ACME here, so they stay near-empty), owned by nobody.
+    tmpfs:
+      - /data:size=16m,uid=65534,gid=65534
+      - /config:size=16m,uid=65534,gid=65534
+      - /tmp:size=16m,mode=1777
+    # Port 8080 is unprivileged, so Caddy needs no capability at all, and it runs as nobody (the
+    # client files are world-readable).
+    user: "65534:65534"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     logging: *logging

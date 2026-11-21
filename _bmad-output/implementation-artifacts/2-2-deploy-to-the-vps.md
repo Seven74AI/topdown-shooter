@@ -330,6 +330,111 @@ claude-opus-5-5 via gds-dev-story
 - `apps/client/src/ui/ServerNotice.tsx` (new)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+**Date:** 2026-11-21. **Outcome:** changes requested, all fixed on `story-2-2-fixes`. Status stays `review`, waiting for the VPS go-live (Task 9). **For Task 9, follow `docs/deploy.md` › First-time setup, not the shorter list in the Tasks section:** the go-live order changed (back up and prove the fallback first, check Docker ≥ 28, then switch).
+
+### Medium
+
+- [x] **Fallback systemd override was invalid and in the wrong order.** Without an empty `ExecStart=` first, systemd refuses a drop-in that adds a second `ExecStart`. The old steps also re-enabled the unit before its Caddyfile was fixed.
+  - **Fix:** the drop-in in `docs/deploy.md` now has `ExecStart=` then the new `ExecStart=`.
+  - **Checked:** with `systemd-analyze verify`, the drop-in without the empty line gives "more than one ExecStart= setting … Refusing"; with it, the unit verifies.
+- [x] **No backup and no one-command revert before the switch.**
+  - **Fix:** First-time setup step 2 now runs while the old site still serves. It does the following:
+    - backs up the unit (`/root/topdown-shooter.service.bak`) and the cloudflared config;
+    - freezes a copy of today's static site in `/var/lib/topdown/static`;
+    - writes and validates `/etc/topdown/Caddyfile.static`, installs the drop-in, and proves it by restarting the old unit on it (200 on 127.0.0.1 and through the tunnel).
+  - Only then does step 5 disable the unit and deploy.
+  - **The one-command revert:** `GIT_SHA=none docker compose -f /root/topdown-shooter/deploy/docker-compose.yml down --timeout 20; systemctl enable --now topdown-shooter.service && sleep 1 && curl -sS -o /dev/null -w 'static site: %{http_code}\n' http://127.0.0.1:8080/`. It does not depend on the checkout, npm or images.
+  - **Checked:** `caddy validate` of the static Caddyfile (caddy:2.11.9-alpine) says "Valid configuration".
+- [x] **Rollback after a failed deploy could pick the failed version, and failures skipped the diagnostics.**
+  - **History:** `deploy.sh` now writes every attempt to `deploy/deploy-history.log` as `<time> <sha> ok|failed`. A deploy counts as `ok` only if all of these hold:
+    - `up -d` succeeded;
+    - `/api/health` answered within 30 s;
+    - the server container runs `topdown-server:<sha>`.
+  - **Failures:**
+    - `compose up -d` failing (with `set -e`, because the server never became healthy) is caught and treated as a failure.
+    - A build failure is recorded too, and the message says the running stack is unchanged.
+    - On any failure the script prints `ps -a`, the server container's state (status, exit code, restarts, OOM, health) and the last 100 log lines, then `!! deploy/rollback.sh <last-good-sha>`, and exits 1.
+  - **Decision: no automatic rollback.** The failure stays visible, and the printed command is exact. This is documented in `docs/deploy.md` › Deploy.
+  - **rollback.sh:** with no argument it picks the newest `ok` sha that differs from the newest history line. Old history lines without a status count as `ok`.
+  - **Pruning:** it never removes the current image or the previous known-good one.
+  - **Checked** in a throwaway repo with a local bare origin, real Docker and pre-tagged images on project `topdown-dt` (127.0.0.1:18081):
+    - A ok, then the default `origin/master` = B ok.
+    - C (server exits at once): `up -d` failed, diagnostics printed (`status=restarting exit=3 restarts=4 … health=unhealthy`), `failed` recorded, hint `rollback.sh B`. Then `rollback.sh` → B.
+    - D (server hangs, never healthy): failed, hint B. Then `rollback.sh A` (explicit) → A.
+    - E (web never listens; `up -d` succeeds): "did not answer within 30 s", failed. Then `rollback.sh` → A.
+    - F (no images, build fails): "running stack is unchanged", failed, and the stack was still A. Then `rollback.sh` → A.
+    - `KEEP_IMAGES=2`: pruned the old tags, kept the current A and the previous known-good B.
+    - `deploy/.env` always held the last `ok` sha.
+
+### Low
+
+- [x] **Caddyfile.**
+  - `/api/*` has `request_body { max_size 8KB }`.
+  - Security headers come from a snippet imported in the site and in `handle_errors`, because Caddy's own 404/413 responses skip the site routes and still carried `Server: Caddy`: `X-Content-Type-Options nosniff`, `Referrer-Policy strict-origin-when-cross-origin`, `X-Frame-Options DENY`, `-Server`, `-Via`. `reverse_proxy` adds `Via: 1.1 Caddy`.
+  - `/api` (no slash) gets a 404.
+- [x] **Compose hardening.**
+  - Both services:
+    - `mem_limit` (server 768m, web 128m) and `pids_limit` (256 and 128), commented as tunable;
+    - `read_only: true`;
+    - `cap_drop: [ALL]`;
+    - `no-new-privileges:true`.
+  - Server: tmpfs `/tmp`.
+  - Web:
+    - tmpfs `/data`, `/config` (owned by 65534) and `/tmp`;
+    - runs as `65534:65534` with **no** capabilities.
+    - Checked: the official image's caddy binary has `cap_net_bind_service=p` (permitted only, not effective), so it still runs with an empty bounding set, and :8080 needs none.
+  - `${GIT_SHA:?…}` on both image tags and the env: compose refuses to run without it (checked: "required variable GIT_SHA is missing a value").
+  - So that hand-typed `ps`/`logs`/`down` still work, `deploy.sh` writes `deploy/.env` (`GIT_SHA=<last good sha>`, gitignored and dockerignored) after each successful deploy.
+  - Base images are pinned to `node:26.13.1-alpine3.24` and `caddy:2.11.9-alpine`. Both tags were checked on the Docker Hub API (pushed 2026-11-11 and 2026-11-13) and pulled. CI's `caddy validate` uses the same tag.
+- [x] **Image pruning.**
+  - `LABEL org.topdown.app=topdown` is set on the `deps` (inherited by `build`), `web` and `server` stages.
+  - `deploy.sh` lists tags with `--filter label=org.topdown.app=topdown` and prunes dangling images only with that filter. There is no system-wide `docker image prune -f` any more.
+  - The docs warn against unfiltered prunes.
+- [x] **.dockerignore** now also excludes `.env*`, `**/.env*`, `*.pem`, `**/*.pem`, `*.key`, `**/*.key` and `.github`. `.git`, `.claude`, `_bmad`, `_bmad-output` and `docs` were already excluded; none of them is needed at build or run time.
+- [x] **Docs on X-Real-IP trust.** `docs/deploy.md` now states:
+  - the trust rests entirely on the 127.0.0.1 binding;
+  - Docker Engine ≥ 28 is required (older engines could expose 127.0.0.1-published ports to hosts on the same L2 segment), and step 3 checks `docker version`;
+  - local processes on the VPS (Hermes) can bypass the per-IP limit, which is accepted.
+- [x] **Rate-limit key for IPv6.**
+  - `net/rateLimit.ts` has a new `ipKey(ip)`:
+    - IPv6 → its /64 (`2001:db8:1:2::/64`), after expanding `::`;
+    - brackets and zone ids are stripped;
+    - IPv4-mapped (`::ffff:1.2.3.4`, also in hex and fully written) → the IPv4;
+    - IPv4 and non-IPs are kept as they are.
+  - `SlidingWindowLimiter` takes an optional `keyOf`, and `roomCreateLimiter` uses `ipKey`. `RunRoom.ts` is unchanged.
+  - Tests: 6 new (keyOf, `ipKey` cases, and the process limiter counting one /64 and mapped IPv4 together).
+  - **Checked through Caddy:** 11 creates with `Cf-Connecting-Ip` 2001:db8:1:2::1…11 (and a forged `X-Real-IP` each time): the 11th was `rate_limited`, and 2001:db8:1:3::1 was still allowed.
+- [x] **CI smoke test.** The `docker` job now sets `GIT_SHA=ci` and runs `compose up -d --no-build --wait --wait-timeout 120` (step timeout 5 min, job 20 min). It waits for `/api/health`, then checks:
+  - 200 for `/api/health`, `/` and `/j/ABCD`;
+  - 404 for `/api` and `/assets/nope.js`;
+  - 413 for a 9 KB POST;
+  - `no-cache`, `nosniff`, `DENY` and no `Server` header on `/`.
+  - On failure it prints `ps -a` and `logs`, and `down` always runs.
+  - The TEMPORARY `pages`/`deploy-pages` jobs are kept.
+  - **Checked:** the exact step script ran locally against the images: all checks passed.
+
+### Verified locally
+
+- `npm run typecheck`, `npm run lint`, `npm test` (422 passed, 3 skipped), `npm run build`, and `noCheatsInRelease` with `REQUIRE_DIST=1`: all pass.
+- Images were built from a scratch copy of the Dockerfile with the sandbox CA added (not committed).
+- On project `topdown-smoke` (127.0.0.1:18080):
+  - headers on 200, 404 and 413 responses;
+  - 413 for 9000 B with Content-Length and with chunked encoding;
+  - `/api` 404, `/api/` proxied, `/j/ABCD` 200 HTML, a missing asset 404, the immutable asset header, and 403 for a WebSocket from another origin;
+  - an SDK create and connect through Caddy;
+  - `docker inspect` showed the limits, read-only root, empty CapEff/CapBnd, NoNewPrivs=1, users `node` and `nobody`, and the label.
+
+### Not verified / accepted
+
+- The committed Dockerfile's `npm ci` inside `docker build`: the sandbox intercepts TLS. It is verified only with the scratch CA copy; CI and the VPS reach npm directly.
+- The CI job on GitHub itself.
+- The systemd fallback on the real VPS: only `systemd-analyze verify` and `caddy validate` ran here. Step 2 of the go-live proves it on the VPS before the switch.
+- The real binary path in the old unit's `ExecStart`: Hermes copies it from the backup.
+- Accepted: local VPS processes can bypass the per-IP limit.
+- Accepted: a failed deploy leaves the site down until the printed `rollback.sh` command runs. There is no auto-rollback, by choice.
+
 ## Change Log
 
 - 2026-11-21: Story 2.2 repo part implemented. Changes:
@@ -337,3 +442,12 @@ claude-opus-5-5 via gds-dev-story
   - Docker Compose stack (Caddy + Node 26) behind the Cloudflare Tunnel, `deploy.sh` / `rollback.sh`, `docs/deploy.md`.
   - CI: `docker` build job added, GitHub Pages deploy removed.
   - Status `review`, waiting for the VPS deploy (Task 9, human).
+- 2026-11-21: Senior Developer Review (AI) fixes. Changes:
+  - Safe rollback: history records `ok`/`failed`, rollback goes to the last known-good version, diagnostics run even when `compose up -d` fails, and the exact rollback command is printed.
+  - Static fallback prepared and proven before the switch, with a correct systemd drop-in and a one-command revert.
+  - Hardened compose: limits, read-only root, no capabilities, no-new-privileges, required `GIT_SHA`, pinned base images.
+  - Caddy: 8 KB body limit, security headers, `/api` 404.
+  - Only labelled images are pruned, and `.dockerignore` excludes secrets.
+  - Rate limit keyed by IPv6 /64.
+  - CI smoke test of the stack.
+  - Status stays `review` (VPS go-live pending).

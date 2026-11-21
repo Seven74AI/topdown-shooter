@@ -31,12 +31,48 @@ jobs:
     # with deploy/deploy.sh (docs/deploy.md).
     needs: check
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GIT_SHA: ci # the compose file refuses to run without it; matches the tags built below
     steps:
       - uses: actions/checkout@v7
       - run: docker build -f deploy/server.Dockerfile --target server -t topdown-server:ci .
       - run: docker build -f deploy/server.Dockerfile --target web -t topdown-web:ci .
       - name: Caddyfile is valid
-        run: docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11-alpine caddy validate --config /etc/caddy/Caddyfile
+        run: docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11.9-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Smoke-test the stack (hardened compose, as on the VPS)
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          docker compose -f deploy/docker-compose.yml up -d --no-build --wait --wait-timeout 120
+          base=http://127.0.0.1:8080
+          for _ in $(seq 1 30); do curl -fsS "$base/api/health" && break; sleep 1; done
+          echo
+          check() { # check <expected-status> <curl args...>
+            local want="$1"; shift
+            local got; got="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$@")"
+            echo "$got $*"; [ "$got" = "$want" ] || { echo "expected $want"; exit 1; }
+          }
+          check 200 "$base/api/health"
+          check 200 "$base/"
+          check 200 "$base/j/ABCD"
+          check 404 "$base/api"
+          check 404 "$base/assets/nope.js"
+          head -c 9000 /dev/zero | tr '\0' a > big.txt
+          check 413 -X POST --data-binary @big.txt "$base/api/matchmake/create/run"
+          curl -sS -D - -o /dev/null "$base/" | tee headers.txt
+          grep -qi '^cache-control: no-cache' headers.txt
+          grep -qi '^x-content-type-options: nosniff' headers.txt
+          grep -qi '^x-frame-options: DENY' headers.txt
+          ! grep -qi '^server:' headers.txt
+      - name: Stack status and logs
+        if: failure()
+        run: |
+          docker compose -f deploy/docker-compose.yml ps -a || true
+          docker compose -f deploy/docker-compose.yml logs --no-color --tail=200 || true
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f deploy/docker-compose.yml down --timeout 20 || true
 
   pages:
     # TEMPORARY (designer's Epic 1 playtest links point at GitHub Pages): keep publishing the client
