@@ -917,3 +917,256 @@ So that we prove online co-op with big hordes works (Milestone 1's first goal).
 **When** reversed hits are ≥ 1 in 20
 **Then** a follow-up story is created to enable hit testing against 300 ms of rewound zombie positions (architecture upgrade path)
 **And** headless bot clients in `tools/bots` can fill a room with up to 4 fake players for repeatable load tests
+
+## Epic 3: Build phase and economy
+
+A team plays 5 waves with build phases: earning into personal wallets, buying from a fixed-list shop, and placing Auto-turrets and Wood barricades on a grid. Runners and Crawlers join the horde, zombies path around and break buildings, and zombie count scales with player count. The 6-card roguelike shop replaces the fixed list in Epic 5.
+
+### Story 3.1: Build phase between waves
+
+As a player,
+I want a 30-second build phase before the first wave and after every wave, which ends early when we're all ready,
+So that we have a breather to prepare.
+
+**Acceptance Criteria:**
+
+**Given** the server
+**When** a run starts
+**Then** it follows an explicit run state machine (`run/runStateMachine.ts`): Lobby → Build → Wave → Build → … → Results, with transitions only through named functions (`startBuild`, `startWave`, `endWave`, `endRun`)
+
+**Given** a build phase
+**When** it starts (including before wave 1)
+**Then** a 30 s countdown (counted in ticks) and a Ready button show to every player, and no zombies spawn
+**And** the phase ends when the countdown reaches 0 or every connected player has tapped Ready (FR44)
+
+**Given** a build phase starts
+**When** players are standing, downed or out
+**Then** every player is healed by 50% of max HP (capped at max), and downed or out players return standing next to a teammate (replacing the Story 2.8 return rule) (FR9, FR10)
+
+**Given** the wave pause from Story 1.7
+**When** this story is done
+**Then** the 5 s pause is removed; the build phase replaces it
+
+### Story 3.2: Personal wallets and rewards
+
+As a player,
+I want to earn my own money from kills, assists, revives and cleared waves,
+So that what I buy reflects how I played and helps the team.
+
+**Acceptance Criteria:**
+
+**Given** a new run
+**When** it starts
+**Then** each player has a personal wallet of 100 currency (from `economy.json`), shown in the HUD and the shop (FR12)
+
+**Given** a zombie is killed by a player
+**When** `zombie.killed` is processed by the economy system
+**Then** the killer gets the type's reward (Walker 2, Runner 3, Crawler 3…), and every other player who damaged that zombie gets 50% of it as an assist, rounded down (FR45)
+
+**Given** a revive completes
+**When** `player.revived` is processed
+**Then** the reviver gets +25
+
+**Given** wave N ends
+**When** the wave-clear bonus is paid
+**Then** every player in the run, including downed and out players, gets 10 × N
+
+**Given** money is earned
+**When** it lands
+**Then** a small "+N" pops up near the player; the wallet lives in schema state and only the server changes it
+
+**Given** the reward rules
+**When** Vitest runs
+**Then** tests cover kill, assist split, revive and wave bonus amounts
+
+### Story 3.3: Fixed-list shop
+
+As a player,
+I want to buy weapons from a shop during the build phase,
+So that I can change my loadout as the run goes on.
+
+**Acceptance Criteria:**
+
+**Given** a build phase
+**When** I tap the Shop button
+**Then** a Preact shop screen opens listing Machete 150, SMG 200, Hunting Rifle 350 (the Pistol is free and owned), with prices from balance data
+**And** the shop overlay leaves the screen's touch zones usable when closed (`pointer-events: none`)
+
+**Given** I buy a weapon with enough money
+**When** both slots are full
+**Then** I choose which slot it replaces; the replaced weapon is lost (no selling)
+
+**Given** I tap an item I can't afford
+**When** the server validates the purchase
+**Then** it returns a `Result` error and the shop shows "Not enough money"; nothing changes
+
+**Given** a wave starts
+**When** the shop is open
+**Then** it closes automatically
+
+**Given** the dev loadout picker from Story 1.8
+**When** this story is done
+**Then** it moves to the dev cheats; normal runs start with Pistol only
+
+### Story 3.4: Place a wood barricade
+
+As a player,
+I want to place barricades on a grid during the build phase,
+So that I can close paths and shape the fight.
+
+**Acceptance Criteria:**
+
+**Given** a build phase and the Wood barricade (40 currency) in the shop
+**When** I tap it and then tap the ground
+**Then** a preview snaps to a 1 m grid near that point; dragging rotates it in 90° steps; the preview is green when valid and red when blocked (FR50)
+
+**Given** a valid preview
+**When** I confirm
+**Then** the server places a 2 m × 0.5 m barricade with 200 HP, charges me 40, and emits `building.placed`
+
+**Given** a blocked spot (map edge, another building, a player standing there)
+**When** I try to confirm
+**Then** the server refuses with "Can't build here"
+
+**Given** I already own 6 buildings
+**When** I try to buy another
+**Then** it is refused with "Building limit reached (6)" (FR51)
+
+**Given** a placed barricade
+**When** players and zombies move
+**Then** neither can pass it; projectiles pass over it (FR53)
+**And** it persists across waves until destroyed
+
+### Story 3.5: Zombies path around and break buildings
+
+As a player,
+I want zombies to find their way around obstacles and smash through barricades that block them,
+So that defenses buy time without making us invincible.
+
+**Acceptance Criteria:**
+
+**Given** the World
+**When** buildings are placed or destroyed
+**Then** a flow field on a 0.5 m grid toward the nearest player is rebuilt (amortized over several ticks, at most one rebuild per tick)
+**And** zombies follow the field instead of walking straight, with separation still applied (FR26)
+
+**Given** a zombie whose path to the player is blocked by a building
+**When** it reaches the building
+**Then** it attacks the building with its normal damage and attack rate
+
+**Given** a building at 0 HP
+**When** it is destroyed
+**Then** it is removed, `building.destroyed` is emitted, and the flow field is rebuilt
+
+**Given** a building
+**When** it is damaged
+**Then** a health bar and a damaged look show on it
+
+**Given** flow fields
+**When** Vitest runs with a fixed seed
+**Then** tests cover routing around a wall, a fully closed path leading to building attacks, and rebuild after destruction
+**And** a benchmark shows a full-map rebuild for 48 × 32 m fits in the tick budget when amortized
+
+### Story 3.6: Auto-turret
+
+As a player,
+I want to buy an auto-turret that shoots nearby zombies,
+So that I can hold a spot or cover a flank.
+
+**Acceptance Criteria:**
+
+**Given** a build phase
+**When** I buy and place an Auto-turret (250 currency) using the same placement rules as barricades (1 × 1 m footprint)
+**Then** it has 300 HP and counts toward my 6-building cap
+
+**Given** a wave
+**When** a zombie is within 8 m of the turret
+**Then** it turns to the nearest zombie and shoots 5 times/s for 3 damage per shot (visible placeholder projectiles)
+
+**Given** my turret kills a zombie
+**When** the reward is paid
+**Then** I get 50% of the kill reward, rounded down (FR45)
+
+**Given** zombies blocked by or next to a turret
+**When** it blocks their path
+**Then** they attack it like any building
+
+### Story 3.7: Repair buildings
+
+As a player,
+I want to repair my damaged buildings during the build phase,
+So that a defense that held can keep holding.
+
+**Acceptance Criteria:**
+
+**Given** a build phase and one of my damaged buildings
+**When** I tap it
+**Then** a Repair button shows the cost of a full repair: 50% of the building's price (FR51)
+
+**Given** I tap Repair with enough money
+**When** the server validates it
+**Then** the building returns to full HP and I'm charged
+
+**Given** a teammate's building
+**When** I tap it
+**Then** I can repair it too, paying from my wallet
+
+### Story 3.8: Runners flank
+
+As a player,
+I want fast Runners that go around our front line,
+So that we have to watch our sides.
+
+**Acceptance Criteria:**
+
+**Given** a Runner (6 HP, 4.0 m/s, 8 damage per hit, reward 3, from `zombies.json`)
+**When** it chases
+**Then** it follows a second flow field that penalizes cells in front of players (within ±45° of their aim direction), so it tends to arrive from the side or behind (FR21)
+
+**Given** a thin, leaning placeholder silhouette and a shriek sound
+**When** a Runner appears
+**Then** players can tell it apart from Walkers at a glance
+
+**Given** Runner behavior
+**When** Vitest runs with a fixed seed
+**Then** a test shows Runners reach a player's flank more often than Walkers in the same setup
+
+### Story 3.9: Crawlers slow you down
+
+As a player,
+I want low Crawlers that are easy to miss and slow me when they bite,
+So that the crowd has hidden dangers.
+
+**Acceptance Criteria:**
+
+**Given** a Crawler (8 HP, 0.7 m/s, 12 damage per hit, reward 3)
+**When** it bites a player
+**Then** the player is slowed by 30% for 1 s (refreshes, doesn't stack) (FR22)
+
+**Given** a Crawler moves
+**When** rendered
+**Then** it has a long, low silhouette drawn beneath other zombies and leaves a blood trail that fades after 5 s
+
+### Story 3.10: Five-wave run with player-count scaling
+
+As a team,
+I want a 5-wave run that grows the horde and adds Runners and Crawlers, sized to how many of us play,
+So that the run feels right with 2, 3 or 4 players.
+
+**Acceptance Criteria:**
+
+**Given** `waves.json`
+**When** waves 1–5 run with 4 players
+**Then** sizes are ≈ 40, 80, 120, 160, 200 zombies; W1 Walkers only, W2 adds Runners, W3 adds Crawlers, W4–W5 mix all three (Spitters and the first Brute come in Epic 5) (FR28, FR29)
+
+**Given** 2 or 3 players at the start of a wave
+**When** the wave size is computed
+**Then** it is multiplied by 0.6 (2 players) or 0.8 (3 players) (FR31)
+
+**Given** the team clears wave 5
+**When** the run ends
+**Then** a temporary "You held out!" Results screen shows wave reached, kills and money earned per player (the full 10-wave run arrives in Epic 6)
+
+**Given** a full 5-wave run with 4 bots
+**When** the economy is logged
+**Then** each player's total earnings are written to the test output so the economy can be compared with the GDD target (≈ 2,500–3,000 over 10 waves)
