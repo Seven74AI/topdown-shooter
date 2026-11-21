@@ -8,6 +8,8 @@ export type ZombieTypeId = (typeof ZOMBIE_TYPES)[number];
 export const ZOMBIE_STATE = {
   FREE: 0,
   CHASE: 1,
+  /** One of the last zombies of a wave: marked on screen, heads straight for the nearest player (FR30). */
+  RUSH: 2,
 } as const;
 
 export function zombieTypeIndex(type: ZombieTypeId): number {

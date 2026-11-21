@@ -13,6 +13,9 @@ import { addPlayer } from "../player/player";
 import { spawnZombie } from "../zombies/zombiePool";
 import { activeSlot } from "./loadout";
 
+/** These tests cover one mechanic: keep the wave director from spawning extra zombies. */
+const NO_WAVES = { waves: () => {} };
+
 /** Balance with no spread so shots are exact. */
 function exactBalance() {
   const w = JSON.parse(JSON.stringify(weapons));
@@ -23,7 +26,7 @@ function exactBalance() {
 const aimRight = (extra: Partial<PlayerInput> = {}): PlayerInput => ({ ...NEUTRAL_INPUT, aimX: 1, aimY: 0, fire: true, ...extra });
 
 function setup(balance = exactBalance()) {
-  const world = createWorld({ balance, seed: 1 });
+  const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
   const p = addPlayer(world, "local", 10, 16);
   p.hp = 1e9;
   const events: SimEvent[] = [];
@@ -155,7 +158,7 @@ describe("projectiles (FR14)", () => {
 
   it("applies spread from the seeded RNG, the same for the same seed", () => {
     const dirs = (seed: number) => {
-      const world = createWorld({ balance: loadBalance(), seed });
+      const world = createWorld({ balance: loadBalance(), seed , systems: NO_WAVES });
       addPlayer(world, "local", 10, 16);
       const out: number[] = [];
       world.events.subscribe((e) => e.type === "weapon.fired" && out.push(e.dirY));

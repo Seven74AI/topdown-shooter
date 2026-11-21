@@ -20,6 +20,8 @@ export interface ZombiePool {
   readonly type: Uint8Array;
   /** ZOMBIE_STATE value; FREE when the slot is not in use. */
   readonly state: Uint8Array;
+  /** 1 if the zombie belongs to the current wave's count (stampede/boss adds won't, later). */
+  readonly waveZombie: Uint8Array;
   /** Incremented each time the slot is reused (wraps at 256). */
   readonly generation: Uint8Array;
   /** Dense list of alive ids (iteration order); `aliveCount` entries are valid. */
@@ -51,6 +53,7 @@ export function createZombiePool(capacity: number): ZombiePool {
     type: new Uint8Array(capacity),
     state: new Uint8Array(capacity),
     generation: new Uint8Array(capacity),
+    waveZombie: new Uint8Array(capacity),
     aliveIds: new Int32Array(capacity),
     alivePos: new Int32Array(capacity).fill(-1),
     aliveCount: 0,
@@ -80,7 +83,7 @@ function takeSlot(pool: ZombiePool, tick: number): number {
 }
 
 /** Spawns a zombie at (x, y) with stats from balance. Returns its pool id, or -1 if the pool is full. */
-export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: number): number {
+export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: number, waveZombie = false): number {
   const pool = world.zombies;
   const id = takeSlot(pool, world.tick);
   if (id < 0) return -1;
@@ -94,6 +97,7 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.attackCooldownTicks[id] = 0;
   pool.type[id] = zombieTypeIndex(type);
   pool.state[id] = ZOMBIE_STATE.CHASE;
+  pool.waveZombie[id] = waveZombie ? 1 : 0;
   pool.vx[id] = 0;
   pool.vy[id] = 0;
   pool.alivePos[id] = pool.aliveCount;

@@ -4,7 +4,7 @@ baseline_commit: 716cecae4a7d58419ec326afa0e77a50e82fbe75
 
 # Story 1.6: Aim assist on touch
 
-Status: review
+Status: done
 
 ## Story
 
@@ -94,9 +94,19 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `packages/shared/src/combat/firing.ts` (modified: assist hook)
 - `packages/shared/src/combat/firing.test.ts` (modified: miss test uses mouse aim)
 - `packages/shared/src/index.ts` (modified)
+- `packages/shared/src/combat/scratch.ts` (new, review)
 - `_bmad-output/implementation-artifacts/1-6-aim-assist-on-touch.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context; findings reproduced with a script) · **Outcome:** Approved with 1 medium and 3 low findings, all addressed (committed together with Story 1.7)
+- [x] [Med] The center-based cone could pull a shot off a zombie the raw aim would hit. Example: a zombie at 1 m, 19° off, whose body covers the aim line, while assist turned toward one at 6 m. Fix: assist only helps a shot that would miss. If the raw ray (muzzle to range) already hits a zombie, the aim is kept. Test reproduces the reviewer's case.
+- [x] [Low] Range was measured from the player's center while the projectile starts at the muzzle. Fix: assist is called with the muzzle as its origin. A test through `step()` hits a zombie at 9.6 m that the shot can reach.
+- [x] [Low] Test gaps closed: a zombie at the exact 8° edge is included; the touch shot points exactly at the target as seen from the muzzle; range is tested with the muzzle origin.
+- [x] [Low] `aimAssist.ts` and `firing.ts` allocated duplicate pool-sized buffers. They now share `combat/scratch.ts`.
+
 ## Change Log
 
+- 2026-11-21: Addressed code review findings - 4 items resolved (no assist when the raw aim already hits; muzzle origin). 
 - 2026-11-21: Story 1.6 implemented: 8° touch aim assist toward the nearest zombie, off for mouse aim. 154 tests passing.

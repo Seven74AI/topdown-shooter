@@ -9,6 +9,38 @@ export interface HudModel {
   magazine: number;
   /** Reload progress 0..1 while reloading, otherwise -1. */
   reloadFrac: number;
+  /** Current wave number (0 before wave 1) and zombies remaining (alive + queued). */
+  wave: number;
+  remaining: number;
+  /** Centered banner text and the scene time (ms) it was shown; empty when none. */
+  bannerText: string;
+  bannerAtMs: number;
+  /** World positions of rushing zombies (x0, y0, x1, y1, …) and how many are valid. */
+  readonly rushers: Float32Array;
+  rusherCount: number;
+  /** Main camera's visible world rectangle and zoom, to turn world positions into screen positions. */
+  camX: number;
+  camY: number;
+  camZoom: number;
 }
 
-export const createHudModel = (): HudModel => ({ hp: 0, maxHp: 1, weaponName: "", ammo: 0, magazine: 0, reloadFrac: -1 });
+/** Most rush markers shown (the last-5 rule marks 5). */
+export const MAX_RUSH_MARKERS = 8;
+
+export const createHudModel = (): HudModel => ({
+  hp: 0,
+  maxHp: 1,
+  weaponName: "",
+  ammo: 0,
+  magazine: 0,
+  reloadFrac: -1,
+  wave: 0,
+  remaining: 0,
+  bannerText: "",
+  bannerAtMs: 0,
+  rushers: new Float32Array(MAX_RUSH_MARKERS * 2),
+  rusherCount: 0,
+  camX: 0,
+  camY: 0,
+  camZoom: 1,
+});

@@ -4,6 +4,8 @@ import { unlockAudio } from "../audio/placeholderSfx";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
 import { mixColor } from "../render/color";
+import { edgeArrow } from "../render/edgeArrow";
+import { MAX_RUSH_MARKERS } from "./hudModel";
 
 export interface HudSceneData {
   sticks: TouchSticks;
@@ -23,6 +25,15 @@ const AMMO_TEXT_PX = 18;
 const AMMO_MARGIN = 24;
 const RELOAD_BAR_W = 120;
 const RELOAD_BAR_H = 6;
+/** Wave panel (top-center) and banner. */
+const WAVE_TEXT_PX = 16;
+const BANNER_TEXT_PX = 34;
+const BANNER_SHOW_MS = 1500;
+const BANNER_FADE_MS = 400;
+/** Edge arrows for off-screen rushers. */
+const ARROW_PX = 14;
+const ARROW_MARGIN = 28;
+const RUSH_COLOR = 0xff3b30;
 
 
 const STICK_FILL = 0xffffff;
@@ -47,6 +58,13 @@ export class HudScene extends Phaser.Scene {
   private aimKnob!: Phaser.GameObjects.Arc;
   private ammoText!: Phaser.GameObjects.Text;
   private reloadBar!: Phaser.GameObjects.Graphics;
+  private waveText!: Phaser.GameObjects.Text;
+  private bannerText!: Phaser.GameObjects.Text;
+  private readonly arrows: Phaser.GameObjects.Triangle[] = [];
+  private readonly arrowOut = { x: 0, y: 0, angle: 0 };
+  private shownWave = -1;
+  private shownRemaining = -1;
+  private shownBanner = "";
   private shownWeapon = "";
   private shownAmmo = Number.NaN;
   private shownMag = Number.NaN;
@@ -64,6 +82,8 @@ export class HudScene extends Phaser.Scene {
     this.shownHp = -1;
     this.shownMaxHp = -1;
     this.shownWeapon = "";
+    this.shownWave = -1;
+    this.shownBanner = "";
   }
 
   create(): void {
@@ -83,6 +103,18 @@ export class HudScene extends Phaser.Scene {
       .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(AMMO_TEXT_PX * dpr())}px`, color: "#ffffff" })
       .setOrigin(1, 1);
     this.reloadBar = this.add.graphics();
+    this.waveText = this.add
+      .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(WAVE_TEXT_PX * dpr())}px`, color: "#ffffff", align: "center" })
+      .setOrigin(0.5, 0);
+    this.bannerText = this.add
+      .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(BANNER_TEXT_PX * dpr())}px`, color: "#ffffff", fontStyle: "bold" })
+      .setOrigin(0.5)
+      .setVisible(false);
+    for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
+      const a = ARROW_PX * dpr();
+      // Triangle pointing +x; rotated toward the target.
+      this.arrows.push(this.add.triangle(0, 0, a, 0, -a * 0.6, -a * 0.7, -a * 0.6, a * 0.7, RUSH_COLOR).setVisible(false));
+    }
     this.hpBar = this.add.graphics();
     this.hpText = this.add.text(0, 0, "", {
       fontFamily: "system-ui, sans-serif",
@@ -125,6 +157,9 @@ export class HudScene extends Phaser.Scene {
     this.aimBase.setRadius(r);
     this.aimKnob.setRadius(KNOB_RADIUS_CSS_PX * dpr());
     this.ammoText.setFontSize(Math.round(AMMO_TEXT_PX * dpr()));
+    this.waveText.setFontSize(Math.round(WAVE_TEXT_PX * dpr()));
+    this.bannerText.setFontSize(Math.round(BANNER_TEXT_PX * dpr()));
+    this.shownWave = -1;
     this.shownWeapon = "";
     this.hpText.setFontSize(Math.round(HP_TEXT_PX * dpr()));
     this.shownHp = -1; // force a redraw at the new scale
@@ -153,6 +188,53 @@ export class HudScene extends Phaser.Scene {
     this.drawStick(this.sticks.aim, this.aimBase, this.aimKnob);
     this.drawHealth();
     this.drawWeapon();
+    this.drawWave();
+    this.drawRushArrows();
+  }
+
+  /** "Wave 3 · Zombies 47" top-center, and the centered banner fading out. */
+  private drawWave(): void {
+    const m = this.model;
+    if (m.wave !== this.shownWave || m.remaining !== this.shownRemaining) {
+      this.shownWave = m.wave;
+      this.shownRemaining = m.remaining;
+      this.waveText
+        .setText(m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready")
+        .setPosition(this.scale.width / 2, 12 * dpr());
+    }
+    if (m.bannerText !== this.shownBanner) {
+      this.shownBanner = m.bannerText;
+      this.bannerText.setText(m.bannerText).setPosition(this.scale.width / 2, this.scale.height * 0.32);
+    }
+    const age = this.time.now - m.bannerAtMs;
+    if (!m.bannerText || age > BANNER_SHOW_MS) {
+      this.bannerText.setVisible(false);
+    } else {
+      const fadeStart = BANNER_SHOW_MS - BANNER_FADE_MS;
+      this.bannerText.setVisible(true).setAlpha(age < fadeStart ? 1 : 1 - (age - fadeStart) / BANNER_FADE_MS);
+    }
+  }
+
+  /** Red arrows on the screen edge pointing at rushing zombies that are off screen (FR30). */
+  private drawRushArrows(): void {
+    const m = this.model;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const margin = ARROW_MARGIN * dpr();
+    let used = 0;
+    for (let i = 0; i < m.rusherCount && used < this.arrows.length; i++) {
+      const sx = ((m.rushers[i * 2] as number) - m.camX) * m.camZoom;
+      const sy = ((m.rushers[i * 2 + 1] as number) - m.camY) * m.camZoom;
+      if (!edgeArrow(sx, sy, w, h, margin, this.arrowOut)) continue;
+      (this.arrows[used++] as Phaser.GameObjects.Triangle)
+        .setPosition(this.arrowOut.x, this.arrowOut.y)
+        .setRotation(this.arrowOut.angle)
+        .setVisible(true);
+    }
+    for (let i = used; i < this.arrows.length; i++) {
+      const a = this.arrows[i] as Phaser.GameObjects.Triangle;
+      if (a.visible) a.setVisible(false);
+    }
   }
 
   /** Magazine count bottom-right and a reload bar under it (redrawn only on change). */

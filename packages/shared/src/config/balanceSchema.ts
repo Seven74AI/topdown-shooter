@@ -68,6 +68,13 @@ export const wavesSchema = z
     maxAlive: z.number().int().positive(),
     lastRushCount: z.number().int().min(0),
     pauseBetweenWavesS: z.number().min(0),
+    /** Banner time before wave 1. */
+    firstWaveDelayS: z.number().min(0),
+    /** Spawn pressure: every spawnIntervalS, up to spawnPerInterval zombies leave the queue. */
+    spawnIntervalS: z.number().positive(),
+    spawnPerInterval: z.number().int().positive(),
+    /** Spawn points closer than this to a player are skipped. */
+    spawnMinPlayerDistanceM: z.number().min(0),
   })
   .strict();
 

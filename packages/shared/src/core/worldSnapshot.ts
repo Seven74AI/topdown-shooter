@@ -20,6 +20,7 @@ function snapshotZombies(world: World) {
       type: z.type[id],
       state: z.state[id],
       generation: z.generation[id],
+      waveZombie: z.waveZombie[id],
       attackCooldownTicks: z.attackCooldownTicks[id],
     })),
     nextUnused: z.nextUnused,
@@ -76,6 +77,7 @@ export function snapshotWorld(world: World) {
     ),
     projectiles: snapshotProjectiles(world),
     zombies: snapshotZombies(world),
+    waves: { ...world.waves },
   };
 }
 

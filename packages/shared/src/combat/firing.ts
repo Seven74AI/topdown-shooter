@@ -10,6 +10,7 @@ import { maxZombieRadius } from "../zombies/zombieTypes";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { applyZombieDamage } from "./damage";
 import { assistAim } from "./aimAssist";
+import { zombieCandidates as candidates } from "./scratch";
 import { activeSlot } from "./loadout";
 import {
   freeProjectile,
@@ -27,7 +28,6 @@ const MUZZLE_OFFSET_M = 0.1;
 const MIN_AIM = 1e-6;
 
 // Sized to the whole zombie pool, so a candidate query can never be truncated.
-const candidates = new Int32Array(ZOMBIE_POOL_CAPACITY);
 const hitT = new Float32Array(ZOMBIE_POOL_CAPACITY);
 const hitId = new Int32Array(ZOMBIE_POOL_CAPACITY);
 const dir = { x: 0, y: 0 };
@@ -72,13 +72,13 @@ function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
   dir.x = input.aimX / aimLen;
   dir.y = input.aimY / aimLen;
   // Aim assist on touch only (FR4), before spread; mouse aim is never assisted.
-  if (!input.isMouse) assistAim(world, p.x, p.y, dir.x, dir.y, stats.rangeM, dir);
+  const offset = p.radiusM + MUZZLE_OFFSET_M;
+  if (!input.isMouse) assistAim(world, p.x + dir.x * offset, p.y + dir.y * offset, dir.x, dir.y, stats.rangeM, dir);
   if (stats.spreadDeg > 0) {
     const half = (stats.spreadDeg / 2) * DEG_TO_RAD;
     rotate(dir.x, dir.y, world.rng.range(-half, half), dir);
   }
 
-  const offset = p.radiusM + MUZZLE_OFFSET_M;
   spawn.x = p.x + dir.x * offset;
   spawn.y = p.y + dir.y * offset;
   spawn.dirX = dir.x;

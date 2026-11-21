@@ -20,7 +20,7 @@ export { SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./co
 export { createWorld, setInput, step, type CreateWorldOptions, type World } from "./core/world";
 export { snapshotWorld, type WorldSnapshot } from "./core/worldSnapshot";
 export { NEUTRAL_INPUT, playerInputSchema, type PlayerInput } from "./net/input";
-export { PLACEHOLDER_MAP, type DistrictBounds } from "./map/placeholderMap";
+export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint } from "./map/placeholderMap";
 export { addPlayer, type PlayerState, type PlayerStatus } from "./player/player";
 export { updatePlayers } from "./player/movement";
 export { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "./zombies/zombieTypes";
@@ -33,3 +33,4 @@ export type { ProjectilePool } from "./combat/projectilePool";
 export { applyZombieDamage } from "./combat/damage";
 export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
+export { endWave, skipWave, updateWaves, waveSize, type WavePhase, type WaveState } from "./waves/waveDirector";

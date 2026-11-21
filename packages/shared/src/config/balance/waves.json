@@ -2,5 +2,9 @@
   "zombiesPerWave": 40,
   "maxAlive": 150,
   "lastRushCount": 5,
-  "pauseBetweenWavesS": 5
+  "pauseBetweenWavesS": 5,
+  "firstWaveDelayS": 3,
+  "spawnIntervalS": 0.25,
+  "spawnPerInterval": 2,
+  "spawnMinPlayerDistanceM": 6
 }

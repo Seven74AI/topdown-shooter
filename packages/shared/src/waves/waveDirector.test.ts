@@ -1,0 +1,148 @@
+import { describe, expect, it } from "vitest";
+import { loadBalance, type RawBalanceFiles } from "../config/balance";
+import weapons from "../config/balance/weapons.json" with { type: "json" };
+import zombies from "../config/balance/zombies.json" with { type: "json" };
+import wavesJson from "../config/balance/waves.json" with { type: "json" };
+import player from "../config/balance/player.json" with { type: "json" };
+import controls from "../config/balance/controls.json" with { type: "json" };
+import { TICK_DT_S } from "../config/constants";
+import type { SimEvent } from "../core/simEvents";
+import { createWorld, step, type World } from "../core/world";
+import { addPlayer } from "../player/player";
+import { killZombie } from "../zombies/zombiePool";
+import { ZOMBIE_STATE } from "../zombies/zombieTypes";
+import { skipWave, waveSize } from "./waveDirector";
+
+function balanceWith(waves: Partial<typeof wavesJson> = {}) {
+  return loadBalance({ weapons, zombies, waves: { ...wavesJson, ...waves }, player, controls } as RawBalanceFiles);
+}
+
+/** Zombies frozen in place (tests drive kills by hand), invulnerable player. */
+function setup(waves: Partial<typeof wavesJson> = {}) {
+  const world = createWorld({ balance: balanceWith(waves), seed: 7, systems: { zombies: () => {} } });
+  const p = addPlayer(world, "local", 24, 16);
+  p.hp = 1e9;
+  const events: SimEvent[] = [];
+  world.events.subscribe((e) => events.push(e));
+  return { world, p, events };
+}
+const run = (world: World, ticks: number) => {
+  for (let i = 0; i < ticks; i++) step(world, TICK_DT_S);
+};
+const killAll = (world: World) => {
+  const z = world.zombies;
+  for (let i = z.aliveCount - 1; i >= 0; i--) killZombie(world, z.aliveIds[i] as number, "local", "pistol");
+};
+/** Runs until the current wave's queue is empty (all spawned). */
+const spawnOut = (world: World) => {
+  for (let i = 0; i < 5000 && world.waves.queued > 0; i++) step(world, TICK_DT_S);
+};
+
+describe("wave director (FR28, FR30)", () => {
+  it("waits for the intro, then starts wave 1 with 40 Walkers", () => {
+    const { world, events } = setup();
+    run(world, 59);
+    expect(world.waves.number).toBe(0);
+    run(world, 1);
+    expect(world.waves.number).toBe(1);
+    expect(events.find((e) => e.type === "wave.started")).toEqual({ type: "wave.started", number: 1, size: 40 });
+    spawnOut(world);
+    expect(world.zombies.aliveCount).toBe(40);
+  });
+
+  it("sizes wave N as N × 40", () => {
+    const b = balanceWith();
+    expect([1, 3, 10].map((n) => waveSize(b, n, 1))).toEqual([40, 120, 400]);
+  });
+
+  it("never has more than 150 alive, queues the rest and drains the queue as zombies die", () => {
+    const { world } = setup({ zombiesPerWave: 400 });
+    run(world, 60);
+    let maxAlive = 0;
+    for (let i = 0; i < 6000 && (world.waves.queued > 0 || world.zombies.aliveCount > 0); i++) {
+      step(world, TICK_DT_S);
+      maxAlive = Math.max(maxAlive, world.zombies.aliveCount);
+      if (i % 4 === 0 && world.zombies.aliveCount > 0) killZombie(world, world.zombies.aliveIds[0] as number, "local", "pistol");
+    }
+    expect(maxAlive).toBe(150);
+    expect(world.waves.queued).toBe(0);
+  });
+
+  it("starts the rush exactly when 5 remain with an empty queue, and marks them", () => {
+    const { world, events } = setup();
+    run(world, 60);
+    spawnOut(world);
+    const z = world.zombies;
+    while (z.aliveCount > 6) killZombie(world, z.aliveIds[0] as number, "local", "pistol");
+    step(world, TICK_DT_S);
+    expect(world.waves.rushing).toBe(false);
+    killZombie(world, z.aliveIds[0] as number, "local", "pistol");
+    step(world, TICK_DT_S);
+    expect(world.waves.rushing).toBe(true);
+    expect(events.filter((e) => e.type === "wave.rush_started")).toEqual([{ type: "wave.rush_started", count: 5 }]);
+    for (let i = 0; i < z.aliveCount; i++) expect(z.state[z.aliveIds[i] as number]).toBe(ZOMBIE_STATE.RUSH);
+  });
+
+  it("does not rush while zombies are still queued", () => {
+    const { world } = setup();
+    run(world, 61); // first batch of 2 spawned, 38 queued
+    killAll(world);
+    step(world, TICK_DT_S);
+    expect(world.waves.queued).toBeGreaterThan(0);
+    expect(world.waves.rushing).toBe(false);
+  });
+
+  it("ends the wave on the last kill, then starts the next after a 5 s pause", () => {
+    const { world, events } = setup();
+    run(world, 60);
+    spawnOut(world);
+    killAll(world);
+    step(world, TICK_DT_S);
+    expect(events.filter((e) => e.type === "wave.ended")).toEqual([{ type: "wave.ended", number: 1 }]);
+    expect(world.waves.phase).toBe("pause");
+    run(world, 99);
+    expect(world.waves.number).toBe(1);
+    step(world, TICK_DT_S);
+    expect(world.waves.number).toBe(2);
+    expect(world.waves.size).toBe(80);
+  });
+
+  it("skips spawn points within 6 m of the player", () => {
+    const { world } = setup();
+    world.players.get("local")!.x = 6;
+    world.players.get("local")!.y = 2; // right next to the (6, 0.5) spawn point
+    run(world, 60);
+    spawnOut(world);
+    const z = world.zombies;
+    for (let i = 0; i < z.aliveCount; i++) {
+      const id = z.aliveIds[i] as number;
+      expect(Math.hypot((z.x[id] as number) - 6, (z.y[id] as number) - 2)).toBeGreaterThan(4.9); // 6 m minus ±1 m jitter
+    }
+  });
+
+  it("stops when no player is alive", () => {
+    const { world, p } = setup();
+    p.status = "dead";
+    run(world, 200);
+    expect(world.waves.number).toBe(0);
+  });
+
+  it("skipWave (dev cheat) kills the wave and ends it", () => {
+    const { world } = setup();
+    run(world, 60);
+    spawnOut(world);
+    skipWave(world);
+    expect(world.zombies.aliveCount).toBe(0);
+    expect(world.waves.phase).toBe("pause");
+  });
+
+  it("is deterministic for a seed", () => {
+    const positions = () => {
+      const { world } = setup();
+      run(world, 60);
+      spawnOut(world);
+      return Array.from(world.zombies.x.subarray(0, 40));
+    };
+    expect(positions()).toEqual(positions());
+  });
+});

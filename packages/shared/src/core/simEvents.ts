@@ -10,6 +10,9 @@ export type SimEvent =
   | { type: "weapon.reloaded"; playerId: string; weapon: string }
   | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number }
   | { type: "player.died"; playerId: string }
+  | { type: "wave.started"; number: number; size: number }
+  | { type: "wave.ended"; number: number }
+  | { type: "wave.rush_started"; count: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

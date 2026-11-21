@@ -5,6 +5,9 @@ import { createWorld, setInput, step } from "../core/world";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { addPlayer } from "./player";
 
+/** These tests cover one mechanic: keep the wave director from spawning extra zombies. */
+const NO_WAVES = { waves: () => {} };
+
 const balance = loadBalance();
 const move = (moveX: number, moveY: number, extra: Partial<PlayerInput> = {}): PlayerInput => ({
   ...NEUTRAL_INPUT,
@@ -14,7 +17,7 @@ const move = (moveX: number, moveY: number, extra: Partial<PlayerInput> = {}): P
 });
 
 function setup(x = 24, y = 16) {
-  const world = createWorld({ balance, seed: 1 });
+  const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
   const p = addPlayer(world, "local", x, y);
   return { world, p };
 }

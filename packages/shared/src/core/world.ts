@@ -1,7 +1,8 @@
 import type { Balance } from "../config/balance";
 import { TICK_DT_S } from "../config/constants";
 import type { PlayerInput } from "../net/input";
-import { PLACEHOLDER_MAP, type DistrictBounds } from "../map/placeholderMap";
+import { PLACEHOLDER_MAP, type DistrictMap } from "../map/placeholderMap";
+import { createWaveState, type WaveState } from "../waves/waveDirector";
 import type { PlayerState } from "../player/player";
 import { GRID_CELL_M, PROJECTILE_POOL_CAPACITY, ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { createProjectilePool, type ProjectilePool } from "../combat/projectilePool";
@@ -26,8 +27,8 @@ export interface World {
   readonly inputs: Map<string, PlayerInput>;
   /** `seq` of the input last applied per player (edge flags fire once per seq). */
   readonly lastAppliedSeq: Map<string, number>;
-  /** District bounds (placeholder street until Story 4.1). */
-  readonly map: DistrictBounds;
+  /** District bounds and spawn points (placeholder street until Story 4.1). */
+  readonly map: DistrictMap;
   /** Players by id (Epic 1: one player, "local"). */
   readonly players: Map<string, PlayerState>;
   /** Zombie storage (struct-of-arrays pool). */
@@ -36,14 +37,16 @@ export interface World {
   readonly zombieGrid: SpatialGrid;
   /** Projectiles in flight (struct-of-arrays pool). */
   readonly projectiles: ProjectilePool;
+  /** Wave director state. */
+  readonly waves: WaveState;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
 export interface CreateWorldOptions {
   balance: Balance;
   seed: number;
-  /** District bounds; defaults to the placeholder street. */
-  map?: DistrictBounds;
+  /** District; defaults to the placeholder street. */
+  map?: DistrictMap;
   /** Tests only: replace systems by name. */
   systems?: Partial<Systems>;
 }
@@ -70,6 +73,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     zombies: createZombiePool(ZOMBIE_POOL_CAPACITY),
     zombieGrid: createSpatialGrid(map, GRID_CELL_M, ZOMBIE_POOL_CAPACITY),
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
+    waves: createWaveState(opts.balance),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

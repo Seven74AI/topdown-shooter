@@ -6,8 +6,11 @@ import type { SimEvent } from "../core/simEvents";
 import { isZombieAlive, killZombie, spawnZombie } from "./zombiePool";
 import { ZOMBIE_STATE } from "./zombieTypes";
 
+/** These tests cover one mechanic: keep the wave director from spawning extra zombies. */
+const NO_WAVES = { waves: () => {} };
+
 const balance = loadBalance();
-const newWorld = () => createWorld({ balance, seed: 1 });
+const newWorld = () => createWorld({ balance, seed: 1 , systems: NO_WAVES });
 
 describe("zombie pool", () => {
   it("spawns a Walker with stats from balance (FR20)", () => {

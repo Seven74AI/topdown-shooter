@@ -13,6 +13,9 @@ import { addPlayer } from "../player/player";
 import { spawnRing } from "./spawnRing";
 import { spawnZombie } from "./zombiePool";
 
+/** These tests cover one mechanic: keep the wave director from spawning extra zombies. */
+const NO_WAVES = { waves: () => {} };
+
 const balance = loadBalance();
 const run = (world: World, ticks: number) => {
   for (let i = 0; i < ticks; i++) step(world, TICK_DT_S);
@@ -20,7 +23,7 @@ const run = (world: World, ticks: number) => {
 
 describe("Walker AI", () => {
   it("walks straight at the player at 1.2 m/s", () => {
-    const world = createWorld({ balance, seed: 1 });
+    const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
     addPlayer(world, "local", 30, 10);
     const id = spawnZombie(world, "walker", 10, 10);
     run(world, 20);
@@ -29,7 +32,7 @@ describe("Walker AI", () => {
   });
 
   it("targets the nearer of two players", () => {
-    const world = createWorld({ balance, seed: 1 });
+    const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
     addPlayer(world, "a", 5, 10);
     addPlayer(world, "b", 20, 10);
     const id = spawnZombie(world, "walker", 14, 10);
@@ -38,7 +41,7 @@ describe("Walker AI", () => {
   });
 
   it("ignores dead players", () => {
-    const world = createWorld({ balance, seed: 1 });
+    const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
     const a = addPlayer(world, "a", 13, 10);
     addPlayer(world, "b", 30, 10);
     a.status = "dead";
@@ -48,7 +51,7 @@ describe("Walker AI", () => {
   });
 
   it("spreads 50 Walkers spawned on one point into a crowd", () => {
-    const world = createWorld({ balance, seed: 1 });
+    const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
     for (let i = 0; i < 50; i++) spawnZombie(world, "walker", 24, 16);
     run(world, 60); // no player: only separation acts
     const z = world.zombies;
@@ -70,7 +73,7 @@ describe("Walker AI", () => {
   });
 
   it("wraps the crowd around the player instead of overlapping them", () => {
-    const world = createWorld({ balance, seed: 1 });
+    const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
     const p = addPlayer(world, "local", 24, 16);
     p.hp = 1e9; // survive the test
     spawnRing(world, "walker", 30, 24, 16, 6);
@@ -84,7 +87,7 @@ describe("Walker AI", () => {
   });
 
   it("never leaves the map when pushed out of a player standing at a wall", () => {
-    const world = createWorld({ balance, seed: 1 });
+    const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
     addPlayer(world, "local", 0.4, 10).hp = 1e9;
     const id = spawnZombie(world, "walker", 0.35, 10.05);
     for (let i = 0; i < 40; i++) {
@@ -95,7 +98,7 @@ describe("Walker AI", () => {
   });
 
   it("keeps a 150-Walker crowd around a player from stacking", () => {
-    const world = createWorld({ balance, seed: 3 });
+    const world = createWorld({ balance, seed: 3 , systems: NO_WAVES });
     const p = addPlayer(world, "local", 24, 16);
     p.hp = 1e9;
     spawnRing(world, "walker", 150, 24, 16, 20);
@@ -116,7 +119,7 @@ describe("Walker AI", () => {
 
   it("is deterministic for a fixed seed", () => {
     const make = () => {
-      const world = createWorld({ balance, seed: 9 });
+      const world = createWorld({ balance, seed: 9 , systems: NO_WAVES });
       addPlayer(world, "local", 24, 16).hp = 1e9;
       spawnRing(world, "walker", 40, 24, 16, 30);
       run(world, 300);
@@ -128,7 +131,7 @@ describe("Walker AI", () => {
 
 describe("contact damage (FR9)", () => {
   function contactWorld(walkers: number) {
-    const world = createWorld({ balance, seed: 1 });
+    const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
     const p = addPlayer(world, "local", 24, 16);
     const events: SimEvent[] = [];
     world.events.subscribe((e) => events.push(e));
@@ -152,7 +155,7 @@ describe("contact damage (FR9)", () => {
       const z = JSON.parse(JSON.stringify(zombiesJson));
       z.types.walker.attackIntervalS = intervalS;
       const b = loadBalance({ weapons, zombies: z, waves, player, controls } as RawBalanceFiles);
-      const world = createWorld({ balance: b, seed: 1 });
+      const world = createWorld({ balance: b, seed: 1 , systems: NO_WAVES });
       const p = addPlayer(world, "local", 24, 16);
       p.hp = 1e9;
       spawnZombie(world, "walker", 24.74, 16);
@@ -185,7 +188,7 @@ describe("contact damage (FR9)", () => {
   });
 
   it("has no regeneration", () => {
-    const world = createWorld({ balance, seed: 1 });
+    const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
     const p = addPlayer(world, "local", 24, 16);
     p.hp = 40;
     run(world, 1200);
