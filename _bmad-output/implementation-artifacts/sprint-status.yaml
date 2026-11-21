@@ -1,5 +1,5 @@
 # generated: 2026-11-21T18:20:05
-# last_updated: 2026-11-21T19:41:02
+# last_updated: 2026-11-21T19:14:59
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -42,7 +42,7 @@
 # - Story 9.2-9.10 depend on the hired artist and sound designer.
 
 generated: 2026-11-21T18:20:05
-last_updated: 2026-11-21T19:41:02
+last_updated: 2026-11-21T19:14:59
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -52,17 +52,17 @@ development_status:
   # Epic 1: Core combat on one phone
   epic-1: in-progress
   1-1-project-scaffold-with-a-playable-link: done
-  1-2-shared-simulation-core: backlog
-  1-3-move-with-a-floating-stick: backlog
-  1-4-walkers-chase-and-hurt-the-player: backlog
-  1-5-aim-and-shoot-the-pistol: backlog
-  1-6-aim-assist-on-touch: backlog
-  1-7-growing-waves-of-walkers: backlog
-  1-8-two-weapon-slots-smg-and-hunting-rifle: backlog
-  1-9-machete-melee: backlog
-  1-10-keyboard-and-mouse-on-desktop: backlog
-  1-11-performance-overlay-and-150-walker-stress-test: backlog
-  1-12-melee-and-controls-playtest-on-real-phones: backlog  # human: playtest/spec, not a dev-agent story
+  1-2-shared-simulation-core: ready-for-dev
+  1-3-move-with-a-floating-stick: ready-for-dev
+  1-4-walkers-chase-and-hurt-the-player: ready-for-dev
+  1-5-aim-and-shoot-the-pistol: ready-for-dev
+  1-6-aim-assist-on-touch: ready-for-dev
+  1-7-growing-waves-of-walkers: ready-for-dev
+  1-8-two-weapon-slots-smg-and-hunting-rifle: ready-for-dev
+  1-9-machete-melee: ready-for-dev
+  1-10-keyboard-and-mouse-on-desktop: ready-for-dev
+  1-11-performance-overlay-and-150-walker-stress-test: ready-for-dev
+  1-12-melee-and-controls-playtest-on-real-phones: ready-for-dev  # human: playtest/spec, not a dev-agent story
   epic-1-retrospective: optional
 
   # Epic 2: Online co-op foundation
