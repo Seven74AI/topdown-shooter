@@ -1,0 +1,54 @@
+{
+  "pistol": {
+    "kind": "gun",
+    "damage": 5,
+    "rateHz": 3,
+    "rangeM": 9,
+    "spreadDeg": 2,
+    "magazine": 12,
+    "reloadS": 1.0,
+    "pierce": 1,
+    "projectileSpeedMps": 60,
+    "hitPushbackM": 0.15,
+    "screenShake": false,
+    "price": 0
+  },
+  "smg": {
+    "kind": "gun",
+    "damage": 4,
+    "rateHz": 12,
+    "rangeM": 8.5,
+    "spreadDeg": 8,
+    "magazine": 40,
+    "reloadS": 1.6,
+    "pierce": 1,
+    "projectileSpeedMps": 60,
+    "hitPushbackM": 0.15,
+    "screenShake": false,
+    "price": 200
+  },
+  "hunting_rifle": {
+    "kind": "gun",
+    "damage": 35,
+    "rateHz": 1.2,
+    "rangeM": 17,
+    "spreadDeg": 0,
+    "magazine": 5,
+    "reloadS": 2.5,
+    "pierce": 5,
+    "projectileSpeedMps": 60,
+    "hitPushbackM": 0.15,
+    "screenShake": true,
+    "price": 350
+  },
+  "machete": {
+    "kind": "melee",
+    "damage": 12,
+    "rateHz": 2.5,
+    "rangeM": 1.8,
+    "arcDeg": 110,
+    "hitPushbackM": 0.25,
+    "screenShake": false,
+    "price": 150
+  }
+}

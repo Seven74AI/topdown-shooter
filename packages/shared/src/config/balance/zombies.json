@@ -1,0 +1,12 @@
+{
+  "types": {
+    "walker": {
+      "hp": 10,
+      "speedMps": 1.2,
+      "damage": 10,
+      "attackIntervalS": 1.0,
+      "radiusM": 0.35,
+      "reward": 2
+    }
+  }
+}

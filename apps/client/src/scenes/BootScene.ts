@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import { GAME_TITLE } from "@topdown/shared";
 import { dpr } from "../display";
 
+const TITLE_SHOW_MS = 500; // how long the title shows before the game starts
 const TITLE_FONT_PX = 32; // CSS pixels; scaled by dpr() so it reads the same on every phone
 
 export class BootScene extends Phaser.Scene {
@@ -28,5 +29,7 @@ export class BootScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, center);
     });
+
+    this.time.delayedCall(TITLE_SHOW_MS, () => this.scene.start("Game"));
   }
 }

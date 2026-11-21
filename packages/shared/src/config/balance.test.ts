@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import { BalanceError, loadBalance, type RawBalanceFiles } from "./balance";
+import weapons from "./balance/weapons.json" with { type: "json" };
+import zombies from "./balance/zombies.json" with { type: "json" };
+import waves from "./balance/waves.json" with { type: "json" };
+
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves })) as RawBalanceFiles;
+
+describe("loadBalance", () => {
+  it("loads the bundled files into a typed object", () => {
+    const b = loadBalance();
+    const pistol = b.weapons.pistol;
+    expect(pistol?.kind).toBe("gun");
+    expect(pistol?.damage).toBe(5);
+    expect(b.zombies.types.walker?.hp).toBe(10);
+    expect(b.waves.maxAlive).toBe(150);
+  });
+
+  it("applies schema defaults", () => {
+    expect(loadBalance().weapons.pistol?.knockbackM).toBe(0);
+  });
+
+  it("names the file and key when a value is invalid", () => {
+    const files = raw();
+    (files.weapons as { pistol: { damage: number } }).pistol.damage = -5;
+    expect(() => loadBalance(files)).toThrow(BalanceError);
+    expect(() => loadBalance(files)).toThrow(/weapons\.json: pistol\.damage: /);
+  });
+
+  it("rejects unknown keys (typos fail loudly)", () => {
+    const files = raw();
+    (files.waves as Record<string, unknown>).maxAlve = 150;
+    expect(() => loadBalance(files)).toThrow(/waves\.json/);
+  });
+
+  it("reports a missing file", () => {
+    const files = raw() as Partial<RawBalanceFiles>;
+    delete files.zombies;
+    expect(() => loadBalance(files as RawBalanceFiles)).toThrow(/zombies\.json: file missing/);
+  });
+
+  it("has a version that is stable for equal data and changes with any number", () => {
+    expect(loadBalance(raw()).version).toBe(loadBalance(raw()).version);
+    expect(loadBalance().version).toMatch(/^[0-9a-f]{8}$/);
+    const files = raw();
+    (files.waves as { maxAlive: number }).maxAlive = 151;
+    expect(loadBalance(files).version).not.toBe(loadBalance(raw()).version);
+  });
+
+  it("is deeply frozen", () => {
+    const b = loadBalance();
+    expect(Object.isFrozen(b)).toBe(true);
+    expect(Object.isFrozen(b.weapons)).toBe(true);
+    expect(Object.isFrozen(b.zombies.types.walker)).toBe(true);
+  });
+});

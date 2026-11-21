@@ -1,0 +1,6 @@
+{
+  "zombiesPerWave": 40,
+  "maxAlive": 150,
+  "lastRushCount": 5,
+  "pauseBetweenWavesS": 5
+}

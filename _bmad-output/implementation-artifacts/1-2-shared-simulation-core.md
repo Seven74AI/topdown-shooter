@@ -1,6 +1,10 @@
+---
+baseline_commit: 94cb2ee97cab8bd569c6580d47a78746b783121a
+---
+
 # Story 1.2: Shared simulation core
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -18,38 +22,38 @@ so that the same rules can later run on the server and the phone, and every run 
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Core types and Result** (AC 1)
-  - [ ] `packages/shared/src/core/result.ts`: `Result<T, E>` exactly as in the architecture (Cross-cutting › Error Handling), plus `ok(value)` / `err(error)` helpers
-  - [ ] `packages/shared/src/config/constants.ts`: add `TICK_DT_S = 1 / TICK_RATE_HZ` (0.05). Keep `GAME_TITLE`, `TICK_RATE_HZ`
-- [ ] **Task 2: Seeded RNG** (AC 2)
-  - [ ] `core/rng.ts`: `createRng(seed: number): Rng` using **sfc32**, with the 4 state words seeded by **splitmix32** from `seed >>> 0`. Discard the first 12 outputs (sfc32 warm-up)
-  - [ ] `Rng` API: `next(): number` in [0, 1); `int(minIncl, maxIncl): number`; `range(min, max): number`; `pick<T>(arr: readonly T[]): T` (throws on empty, programmer error); `getState(): RngState` (`readonly [number, number, number, number]`) and `createRngFromState(state)` (Story 8.4 snapshots every stream)
-  - [ ] `core/rng.test.ts`: same seed → same 1,000 outputs; different seeds differ; `getState`/`createRngFromState` round-trip continues the identical sequence; `int` stays in bounds over 10,000 draws and hits both ends; a frozen golden vector (first 5 `next()` values for seed `12345`) so an accidental algorithm change is caught
-  - [ ] Named sub-streams (`decay`, `events`, `shop:<slot>:<phase>`) are **Story 4.4**. Do not build them now; one `world.rng` is enough
-- [ ] **Task 3: Event bus** (AC 4)
-  - [ ] `core/simEvents.ts`: the `SimEvent` union (see Dev Notes › Events)
-  - [ ] `core/eventBus.ts`: `EventBus` with `emit(e)`, `subscribe(handler): () => void` (returns unsubscribe), `flush()`. `emit` appends to a pending array; `flush` delivers pending events in order to every subscriber, then clears. Events emitted *by a subscriber during flush* go into the next tick's queue (never delivered in the same flush, never lost)
-  - [ ] `core/eventBus.test.ts`: order, exactly-once, nothing delivered before `flush`, unsubscribe, emit-during-flush behaviour, payload typing (a `// @ts-expect-error` line for a wrong payload)
-- [ ] **Task 4: Balance data and loader** (AC 3)
-  - [ ] `config/balance/weapons.json`, `zombies.json`, `waves.json` with the Epic 1 values (see Dev Notes › Balance data)
-  - [ ] `config/balanceSchema.ts`: zod schemas per file (see Dev Notes › Balance schema)
-  - [ ] `config/balance.ts`: `loadBalance(raw?: RawBalanceFiles): Balance`. With no argument it uses the bundled JSON (static `import ... with { type: "json" }`, see Dev Notes › JSON imports). With an argument (tests) it validates what it's given. On failure it throws `BalanceError` whose message is `"<file>.json: <path.to.key>: <zod message>"`
-  - [ ] `Balance` also carries `version: string`: an FNV-1a 32-bit hash (hex) of the canonical JSON of all files (`core/hash.ts`, keys sorted). Story 2.1 compares it between client and server
-  - [ ] `config/balance.test.ts`: bundled files load; negative `damage` on `pistol` throws naming `weapons.json` and `pistol.damage`; a missing file key throws; the version is stable for the same input and changes when any number changes; `Balance` is deeply frozen (`Object.isFrozen` on a nested object)
-- [ ] **Task 5: World and step** (AC 1, 2)
-  - [ ] `core/world.ts`: `createWorld({ balance, seed, systems? })` and `step(world, dtS)` (see Dev Notes › World)
-  - [ ] `core/systems.ts`: `SYSTEM_ORDER` and the default no-op systems (see Dev Notes › System order)
-  - [ ] `net/input.ts`: `PlayerInput` type + zod `playerInputSchema` + `NEUTRAL_INPUT` (see Dev Notes › Input). `setInput(world, playerId, input)` in `core/world.ts` stores the latest input per player; the input system copies it into `world.inputs` for the tick
-  - [ ] `core/world.test.ts`: tick advances by 1 per step; systems are called in `SYSTEM_ORDER` (inject recording systems via `systems`); `step` with `dtS !== TICK_DT_S` throws; event flush happens last (a recording subscriber sees events emitted by any system in the same tick, after every system has run)
-  - [ ] `core/determinism.test.ts`: two Worlds, seed `42`, the same scripted input log (1,000 ticks, inputs changing every few ticks, generated from a *separate* seeded Rng), plus an injected test system that draws from `world.rng` and accumulates into world state and emits events. After 1,000 ticks `snapshotForTest(world)` (tick, rng state, accumulated values, event log) is deep-equal. A third World with seed `43` differs
-- [ ] **Task 6: Public API** — `packages/shared/src/index.ts` exports: constants, `Result`/`ok`/`err`, `createRng`/`createRngFromState`/`Rng`/`RngState`, `EventBus`, `SimEvent`, `loadBalance`/`Balance`/`BalanceError`, `createWorld`/`step`/`setInput`/`World`, `PlayerInput`/`playerInputSchema`/`NEUTRAL_INPUT`
-- [ ] **Task 7: Client SimHost** (AC 5)
-  - [ ] `apps/client/src/sim/SimHost.ts`: the interface (see Dev Notes › SimHost)
-  - [ ] `apps/client/src/sim/LocalSimHost.ts`: fixed-step accumulator over the shared World
-  - [ ] `apps/client/src/sim/LocalSimHost.test.ts` (node environment, no Phaser): 1 s of 16.7 ms frames → exactly 20 steps; a 2 s frame (tab was hidden) steps at most `MAX_CATCHUP_STEPS` then drops the rest; `alpha` stays in [0, 1); events from all steps of a frame are handed out once, in order
-  - [ ] `apps/client/src/scenes/GameScene.ts`: creates a `LocalSimHost` with `loadBalance()` and a seed from `crypto.getRandomValues`, calls `host.update(delta / 1000)` in `update()`, shows a small debug text `tick N` (top-left, 14 px × dpr). This text is temporary scaffolding; Story 1.3 replaces it with the street and survivor
-  - [ ] `BootScene` starts `GameScene` after showing the title for 0.5 s (`this.time.delayedCall`). Keep the rotate overlay as is
-- [ ] **Task 8: Verify** — `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` all pass; record results in the Dev Agent Record. Open the dev build in the headless browser (as Story 1.1 did) and confirm the `tick N` counter rises at ~20/s
+- [x] **Task 1: Core types and Result** (AC 1)
+  - [x] `packages/shared/src/core/result.ts`: `Result<T, E>` exactly as in the architecture (Cross-cutting › Error Handling), plus `ok(value)` / `err(error)` helpers
+  - [x] `packages/shared/src/config/constants.ts`: add `TICK_DT_S = 1 / TICK_RATE_HZ` (0.05). Keep `GAME_TITLE`, `TICK_RATE_HZ`
+- [x] **Task 2: Seeded RNG** (AC 2)
+  - [x] `core/rng.ts`: `createRng(seed: number): Rng` using **sfc32**, with the 4 state words seeded by **splitmix32** from `seed >>> 0`. Discard the first 12 outputs (sfc32 warm-up)
+  - [x] `Rng` API: `next(): number` in [0, 1); `int(minIncl, maxIncl): number`; `range(min, max): number`; `pick<T>(arr: readonly T[]): T` (throws on empty, programmer error); `getState(): RngState` (`readonly [number, number, number, number]`) and `createRngFromState(state)` (Story 8.4 snapshots every stream)
+  - [x] `core/rng.test.ts`: same seed → same 1,000 outputs; different seeds differ; `getState`/`createRngFromState` round-trip continues the identical sequence; `int` stays in bounds over 10,000 draws and hits both ends; a frozen golden vector (first 5 `next()` values for seed `12345`) so an accidental algorithm change is caught
+  - [x] Named sub-streams (`decay`, `events`, `shop:<slot>:<phase>`) are **Story 4.4**. Do not build them now; one `world.rng` is enough
+- [x] **Task 3: Event bus** (AC 4)
+  - [x] `core/simEvents.ts`: the `SimEvent` union (see Dev Notes › Events)
+  - [x] `core/eventBus.ts`: `EventBus` with `emit(e)`, `subscribe(handler): () => void` (returns unsubscribe), `flush()`. `emit` appends to a pending array; `flush` delivers pending events in order to every subscriber, then clears. Events emitted *by a subscriber during flush* go into the next tick's queue (never delivered in the same flush, never lost)
+  - [x] `core/eventBus.test.ts`: order, exactly-once, nothing delivered before `flush`, unsubscribe, emit-during-flush behaviour, payload typing (a `// @ts-expect-error` line for a wrong payload)
+- [x] **Task 4: Balance data and loader** (AC 3)
+  - [x] `config/balance/weapons.json`, `zombies.json`, `waves.json` with the Epic 1 values (see Dev Notes › Balance data)
+  - [x] `config/balanceSchema.ts`: zod schemas per file (see Dev Notes › Balance schema)
+  - [x] `config/balance.ts`: `loadBalance(raw?: RawBalanceFiles): Balance`. With no argument it uses the bundled JSON (static `import ... with { type: "json" }`, see Dev Notes › JSON imports). With an argument (tests) it validates what it's given. On failure it throws `BalanceError` whose message is `"<file>.json: <path.to.key>: <zod message>"`
+  - [x] `Balance` also carries `version: string`: an FNV-1a 32-bit hash (hex) of the canonical JSON of all files (`core/hash.ts`, keys sorted). Story 2.1 compares it between client and server
+  - [x] `config/balance.test.ts`: bundled files load; negative `damage` on `pistol` throws naming `weapons.json` and `pistol.damage`; a missing file key throws; the version is stable for the same input and changes when any number changes; `Balance` is deeply frozen (`Object.isFrozen` on a nested object)
+- [x] **Task 5: World and step** (AC 1, 2)
+  - [x] `core/world.ts`: `createWorld({ balance, seed, systems? })` and `step(world, dtS)` (see Dev Notes › World)
+  - [x] `core/systems.ts`: `SYSTEM_ORDER` and the default no-op systems (see Dev Notes › System order)
+  - [x] `net/input.ts`: `PlayerInput` type + zod `playerInputSchema` + `NEUTRAL_INPUT` (see Dev Notes › Input). `setInput(world, playerId, input)` in `core/world.ts` stores the latest input per player; the input system copies it into `world.inputs` for the tick
+  - [x] `core/world.test.ts`: tick advances by 1 per step; systems are called in `SYSTEM_ORDER` (inject recording systems via `systems`); `step` with `dtS !== TICK_DT_S` throws; event flush happens last (a recording subscriber sees events emitted by any system in the same tick, after every system has run)
+  - [x] `core/determinism.test.ts`: two Worlds, seed `42`, the same scripted input log (1,000 ticks, inputs changing every few ticks, generated from a *separate* seeded Rng), plus an injected test system that draws from `world.rng` and accumulates into world state and emits events. After 1,000 ticks `snapshotForTest(world)` (tick, rng state, accumulated values, event log) is deep-equal. A third World with seed `43` differs
+- [x] **Task 6: Public API** — `packages/shared/src/index.ts` exports: constants, `Result`/`ok`/`err`, `createRng`/`createRngFromState`/`Rng`/`RngState`, `EventBus`, `SimEvent`, `loadBalance`/`Balance`/`BalanceError`, `createWorld`/`step`/`setInput`/`World`, `PlayerInput`/`playerInputSchema`/`NEUTRAL_INPUT`
+- [x] **Task 7: Client SimHost** (AC 5)
+  - [x] `apps/client/src/sim/SimHost.ts`: the interface (see Dev Notes › SimHost)
+  - [x] `apps/client/src/sim/LocalSimHost.ts`: fixed-step accumulator over the shared World
+  - [x] `apps/client/src/sim/LocalSimHost.test.ts` (node environment, no Phaser): 1 s of 16.7 ms frames → exactly 20 steps; a 2 s frame (tab was hidden) steps at most `MAX_CATCHUP_STEPS` then drops the rest; `alpha` stays in [0, 1); events from all steps of a frame are handed out once, in order
+  - [x] `apps/client/src/scenes/GameScene.ts`: creates a `LocalSimHost` with `loadBalance()` and a seed from `crypto.getRandomValues`, calls `host.update(delta / 1000)` in `update()`, shows a small debug text `tick N` (top-left, 14 px × dpr). This text is temporary scaffolding; Story 1.3 replaces it with the street and survivor
+  - [x] `BootScene` starts `GameScene` after showing the title for 0.5 s (`this.time.delayedCall`). Keep the rotate overlay as is
+- [x] **Task 8: Verify** — `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` all pass; record results in the Dev Agent Record. Open the dev build in the headless browser (as Story 1.1 did) and confirm the `tick N` counter rises at ~20/s
 
 ## Dev Notes
 
@@ -263,10 +267,57 @@ Modified: `packages/shared/src/index.ts`, `packages/shared/src/config/constants.
 
 ### Agent Model Used
 
+claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
+
 ### Debug Log References
+
+- Red → green: the RNG golden-vector test failed with an empty vector, then was frozen from the implementation (seed 12345, first 5 values).
+- `npm run typecheck` first failed on `structuredClone` in `balance.test.ts` (no DOM/Node lib in shared, by design); replaced with a JSON copy.
+- JSON import attributes (`with { type: "json" }`) work in TypeScript 6.0.3, Vite 8 and Vitest 5 as is; no fallback needed.
+- Browser check (Playwright, `vite preview`, 844×390): title, then `tick 19` at ~1.5 s and `tick 60` ~2 s later (≈ 20 ticks/s), no console errors.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created
+- **Implemented:** `Result`/`ok`/`err`; seeded RNG (sfc32 seeded by splitmix32, 12 warm-up draws, state get/restore); typed synchronous `EventBus` with double buffering (events emitted during a flush go to the next flush); `fnv1a32` + `canonicalJson`; zod balance schemas with `.strict()` and the Epic 1 data (`weapons.json` with Pistol/SMG/Hunting Rifle/Machete, `zombies.json` with `types.walker`, `waves.json`); `loadBalance()` with file+key error messages, deep freeze and a content hash `version`; `PlayerInput` + zod schema + `NEUTRAL_INPUT`; `createWorld`/`setInput`/`step` with the fixed `SYSTEM_ORDER` (input system real, the rest no-ops), systems kept in a WeakMap outside the World; client `SimHost` interface, `LocalSimHost` (fixed-step accumulator, `MAX_CATCHUP_STEPS` = 5, buffer-swapped event draining), placeholder `GameScene` with a tick counter; `BootScene` hands over to `GameScene` after 0.5 s.
+- **Tests:** 60 passing across 9 files (35 new: RNG 8, event bus 5, balance 7, world 6, determinism 2, LocalSimHost 6, constants +1). Determinism: two Worlds with seed 42 and the same 1,000-tick input log match exactly (tick, RNG state, accumulated values, event log); seed 43 differs.
+- **Verification:** `npm run typecheck` 0 errors, `npm run lint` 0 problems, `npm test` 60/60, `npm run build` ok (JS 1,478 kB / 390 kB gzip; zod added ~28 kB gzip to the client).
+- **Placeholders to tune later (not in the GDD):** Pistol spread 2°, `hitPushbackM` 0.15 for guns and 0.25 for the Machete, Walker radius 0.35 m.
+- **Variance:** client host lives in `apps/client/src/sim/` (architecture lists `net/` for the networked host). `test.ping` stays in `SimEvent` for core tests until real events exist (Story 1.4/1.5 can remove it).
+- Deviation: `GameScene` relies on `LocalSimHost`'s catch-up cap instead of also clamping the frame time.
 
 ### File List
+
+- `packages/shared/src/core/result.ts` (new)
+- `packages/shared/src/core/rng.ts` (new)
+- `packages/shared/src/core/rng.test.ts` (new)
+- `packages/shared/src/core/simEvents.ts` (new)
+- `packages/shared/src/core/eventBus.ts` (new)
+- `packages/shared/src/core/eventBus.test.ts` (new)
+- `packages/shared/src/core/hash.ts` (new)
+- `packages/shared/src/core/systems.ts` (new)
+- `packages/shared/src/core/world.ts` (new)
+- `packages/shared/src/core/world.test.ts` (new)
+- `packages/shared/src/core/determinism.test.ts` (new)
+- `packages/shared/src/config/balance.ts` (new)
+- `packages/shared/src/config/balance.test.ts` (new)
+- `packages/shared/src/config/balanceSchema.ts` (new)
+- `packages/shared/src/config/balance/weapons.json` (new)
+- `packages/shared/src/config/balance/zombies.json` (new)
+- `packages/shared/src/config/balance/waves.json` (new)
+- `packages/shared/src/config/constants.ts` (modified: `TICK_DT_S`)
+- `packages/shared/src/config/constants.test.ts` (modified)
+- `packages/shared/src/net/input.ts` (new)
+- `packages/shared/src/index.ts` (modified)
+- `apps/client/src/sim/SimHost.ts` (new)
+- `apps/client/src/sim/LocalSimHost.ts` (new)
+- `apps/client/src/sim/LocalSimHost.test.ts` (new)
+- `apps/client/src/scenes/GameScene.ts` (new)
+- `apps/client/src/scenes/BootScene.ts` (modified: starts GameScene)
+- `apps/client/src/main.ts` (modified: registers GameScene)
+- `_bmad-output/implementation-artifacts/1-2-shared-simulation-core.md` (modified)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
+
+## Change Log
+
+- 2026-11-21: Story 1.2 implemented: shared World with fixed 20 Hz step and system order, seeded RNG, event bus, validated balance data, input message, client LocalSimHost and GameScene. 60 tests passing.
