@@ -4,7 +4,7 @@ project: 'topdown-shooter'
 date: '2026-11-21'
 author: 'Root'
 version: '1.0'
-stepsCompleted: [1, 2, 3, 4]
+stepsCompleted: [1, 2, 3, 4, 5]
 status: 'in-progress'
 
 # Source Documents
@@ -19,7 +19,7 @@ brief: '_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/
 
 This architecture document is being created through the GDS Architecture Workflow.
 
-**Steps Completed:** 4 of 9 (Decisions)
+**Steps Completed:** 5 of 9 (Cross-cutting)
 
 ---
 ## Project Context
@@ -197,3 +197,89 @@ Texture atlases per district and per character set; audio sprites for SFX; ambie
 - **ADR-03 Shared simulation package.** One implementation of movement, combat and collision used by the server (authority), the client (prediction) and tests. Rule: no Phaser or Colyseus imports inside it.
 - **ADR-04 Single PostgreSQL on the existing VPS.** Simplicity over scale; backups by nightly dump.
 - **ADR-05 Tiled maps with decay layers.** Decay is data, not code paths per district, so new districts need no new code.
+
+## Cross-cutting Concerns
+
+These patterns apply to ALL systems and must be followed by every implementation.
+
+### Error Handling
+
+**Strategy:** Result objects for expected failures; exceptions only for programmer errors; one global handler per process.
+
+- **Expected failures** (invalid purchase, placement blocked, join refused, save failed) return a typed `Result<T, E>`; never throw for them.
+- **Programmer errors** (broken invariants) throw; the room's global handler logs them at `error`, keeps the run alive if possible, and, if the simulation is corrupted, saves the last Build snapshot and closes the room with a player-facing message.
+- **Client input is untrusted:** every message from a client is validated (schema-checked with zod) before it touches the simulation; invalid messages are dropped and logged at `warn`.
+- **Player-facing errors** are short, plain and actionable: "Connection lost, reconnecting…", "Not enough money", "Can't build here". Never a stack trace.
+- **The simulation never pauses for an error.** A failed system logs and skips its work for that tick.
+
+```ts
+// packages/shared/src/core/result.ts
+export type Result<T, E extends string = string> =
+  | { ok: true; value: T }
+  | { ok: false; error: E };
+
+// usage in the shop system
+export function buyItem(wallet: Wallet, item: ShopItem): Result<Wallet, "insufficient_funds" | "not_unlocked"> {
+  if (!item.unlocked) return { ok: false, error: "not_unlocked" };
+  if (wallet.currency < item.price) return { ok: false, error: "insufficient_funds" };
+  return { ok: true, value: { ...wallet, currency: wallet.currency - item.price } };
+}
+```
+
+### Logging
+
+**Format:** structured JSON on the server (pino 10.x); console on the client in development.
+**Destination:** server logs to stdout (collected by Docker, rotated); client keeps a ring buffer of the last 200 log lines and attaches it when a player taps **Report a problem**, which posts it to the server.
+
+**Log levels:**
+- `error` — something broke (exception, failed save, corrupted state)
+- `warn` — unexpected but handled (invalid client message, reconnect timeout, slow tick > 40 ms)
+- `info` — milestones (room created, run started, wave started/ended, decay stage, evac result, save/resume)
+- `debug` — diagnostics, off in production
+- **Never log inside per-zombie or per-projectile loops.** Hot paths aggregate counters and report once per wave.
+
+Every server log line carries `roomId`, and when relevant `runSeed`, `wave`, `playerId`.
+
+```ts
+log.info({ roomId, runSeed, wave: 5, alive: 142 }, "wave_started");
+log.warn({ roomId, playerId, reason: "invalid_aim_vector" }, "client_message_rejected");
+```
+
+### Configuration
+
+| Type | Where | Example |
+| --- | --- | --- |
+| Game constants | `packages/shared/src/config/constants.ts` | tick rate 20 Hz, grid cell 2 m |
+| Balance values | `packages/shared/src/config/balance/*.json`, typed and validated at load | weapon table, zombie table, wave curve, prices, decay timings |
+| Player settings | client localStorage (try/catch), synced to the account when logged in | volumes, quality, gore toggle, aim assist |
+| Environment / deployment | environment variables read once at server start | database URL, public URL, log level |
+
+**Rules:** no gameplay number is written inline in code; systems read balance values through one typed `Balance` object. The server and client load the same balance files; the server sends the balance version on join and refuses mismatched clients ("Please refresh").
+
+### Event System
+
+**Pattern:** a typed, synchronous event bus inside the simulation (`World.events`), drained once per tick.
+
+- **Naming:** `domain.past_tense_verb` in snake case: `zombie.killed`, `player.downed`, `player.revived`, `building.destroyed`, `wave.started`, `decay.stage_changed`, `event.triggered`.
+- **Typed payloads:** one TypeScript union `SimEvent`; no string-keyed `any` events.
+- **Synchronous:** events emitted during a tick are processed at the end of that tick, in order; no async handlers in the simulation.
+- **Network:** the room forwards the subset of events clients need (effects, sounds, UI) as reliable messages; the client re-emits them on a client-side bus for scenes and UI.
+
+```ts
+export type SimEvent =
+  | { type: "zombie.killed"; zombieId: number; killerId: string | null; x: number; y: number; weapon: WeaponId }
+  | { type: "player.downed"; playerId: string }
+  | { type: "decay.stage_changed"; stage: DecayStage };
+
+world.events.emit({ type: "zombie.killed", zombieId, killerId, x, y, weapon });
+```
+
+### Debug Tools
+
+**Available tools:**
+- **Debug overlay:** FPS, ping, bandwidth in/out, zombies alive / in view, tick time. Also in release builds behind Settings → "Show performance", so friends can report lag with numbers.
+- **Dev cheats (development builds only, stripped from release):** spawn zombies by type, skip wave, give currency, set decay stage, trigger an event, force blackout, set run seed, god mode.
+- **Collision and grid view:** draws hitboxes, spatial grid and spawn points.
+- **Headless replay:** re-run a simulation from a seed and an input log in tests.
+
+**Activation:** development builds: `?debug=1` in the URL or a three-finger tap; release builds: overlay only via Settings.
