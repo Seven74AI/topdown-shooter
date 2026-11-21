@@ -67,17 +67,17 @@ development_status:
 
   # Epic 2: Online co-op foundation
   epic-2: backlog
-  2-1-game-server-and-a-room-code: backlog
-  2-2-deploy-to-the-vps: backlog
-  2-3-join-by-link-get-ready-start: backlog
-  2-4-the-server-runs-the-fight: backlog
-  2-5-horde-stream: backlog
-  2-6-instant-feel-for-my-own-survivor: backlog
-  2-7-server-confirmed-hits: backlog
-  2-8-downed-revive-and-team-wipe: backlog
-  2-9-player-rings-and-teammate-arrows: backlog
-  2-10-4-phone-4g-test: backlog
-  2-11-in-run-menu: backlog
+  2-1-game-server-and-a-room-code: ready-for-dev
+  2-2-deploy-to-the-vps: ready-for-dev
+  2-3-join-by-link-get-ready-start: ready-for-dev
+  2-4-the-server-runs-the-fight: ready-for-dev
+  2-5-horde-stream: ready-for-dev
+  2-6-instant-feel-for-my-own-survivor: ready-for-dev
+  2-7-server-confirmed-hits: ready-for-dev
+  2-8-downed-revive-and-team-wipe: ready-for-dev
+  2-9-player-rings-and-teammate-arrows: ready-for-dev
+  2-10-4-phone-4g-test: ready-for-dev  # human: playtest/spec, not a dev-agent story
+  2-11-in-run-menu: ready-for-dev
   epic-2-retrospective: optional
 
   # Epic 3: Build phase and economy
