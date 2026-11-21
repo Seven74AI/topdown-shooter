@@ -212,7 +212,7 @@ From the GDD epics outline (sequencing constraints):
 
 ### UX Design Requirements
 
-No UX design document exists yet. Menu, HUD and touch-control needs are covered by the functional requirements above (FR1–FR8, FR30, FR55, FR76, FR87) and the UI architecture notes. A `gds-ux` pass is recommended before Epic 9.
+No UX design document exists yet. Menu, HUD and touch-control needs are covered by the functional requirements above (FR1–FR8, FR30, FR55, FR76, FR87) and the UI architecture notes. Touch zones, placement input, the in-run menu and minimum sizes are defined in Stories 1.8, 3.4 and 2.11 (readiness review fixes). A `gds-ux` pass remains optional before Epic 9.
 
 ### FR Coverage Map
 
@@ -309,14 +309,14 @@ FR88: Epic 10 - Run stats
 
 ## Epic List
 
-Ten epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 10. Epics 8 and 9 can start after Epic 4 (Milestone 1); both run alongside. No epic needs a later epic to work.
+Ten epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 8 → 10. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
 
 ### Epic 1: Core combat on one phone
 One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones.
 **FRs covered:** FR1–FR7, FR9, FR12, FR13 (4 weapons), FR14, FR15, FR16 (pierce), FR19, FR20, FR26 (chase, separation), FR27, FR28 (simple), FR30, FR55 (camera follow)
 
 ### Epic 2: Online co-op foundation
-2–4 friends open a share link and fight the same horde together on 4G, with downed/revive and team wipe. Includes the Colyseus server, horde stream, prediction and interpolation, server-confirmed hits, an anonymous guest device ID (so the host is known), and the first deploy to the VPS (Docker Compose + Caddy, HTTPS/WSS) for the 4G latency test.
+2–4 friends open a share link and fight the same horde together on 4G, with downed/revive, team wipe and an in-run menu to leave. Includes the Colyseus server, horde stream, prediction and interpolation, server-confirmed hits, an anonymous guest device ID (so the host is known), and the first deploy to the VPS (Docker Compose + Caddy, HTTPS/WSS) for the 4G latency test.
 **FRs covered:** FR10, FR11, FR55 (rings, edge arrows), FR69, FR70, FR71
 
 ### Epic 3: Build phase and economy
@@ -573,6 +573,11 @@ So that I can pick a role and react to the situation.
 **Given** weapons in the HUD
 **When** I play
 **Then** the HUD shows both slots, the active weapon, and its magazine count
+
+**Given** the swap button (the first HUD button) and every later HUD button (consumable, ping, menu, Shop, Ready)
+**When** a touch starts on a button
+**Then** it presses the button and never spawns a move or aim stick; a touch that starts outside every button spawns a stick as usual
+**And** every button is at least 44 × 44 px and HUD text at least 14 px (at devicePixelRatio 1), placed inside the safe areas
 
 ### Story 1.9: Machete melee
 
@@ -859,6 +864,7 @@ So that we survive by helping each other.
 **Given** a player at 0 HP
 **When** they go down
 **Then** they cannot move or fire, a 20 s countdown shows above them, and `player.downed` is emitted (FR10)
+**And** zombies ignore downed players and target the nearest standing player
 
 **Given** a downed player
 **When** a standing teammate stays within 1.2 m of them for 3 s (progress ring shown; moving away resets it)
@@ -917,6 +923,27 @@ So that we prove online co-op with big hordes works (Milestone 1's first goal).
 **When** reversed hits are ≥ 1 in 20
 **Then** a follow-up story is created to enable hit testing against 300 ms of rewound zombie positions (architecture upgrade path)
 **And** headless bot clients in `tools/bots` can fill a room with up to 4 fake players for repeatable load tests
+
+**Given** a simple bot policy in `packages/shared` (move toward the team's centre, aim at the nearest zombie and fire, revive a downed teammate in reach, tap Ready, and in later epics buy from a fixed shopping list)
+**When** bots play in a headless World or a real room
+**Then** they clear waves well enough to measure economy and load (used by Stories 3.10, 6.1 and 10.8)
+
+### Story 2.11: In-run menu
+
+As a player,
+I want a menu during the run to leave the game,
+So that I can quit cleanly without closing the browser.
+
+**Acceptance Criteria:**
+
+**Given** a run in progress
+**When** I tap the ☰ button (top corner, inside the safe area; Esc on desktop)
+**Then** an in-run menu opens over the game while the run keeps going (online games don't pause), with Resume and Leave game
+**And** Epic 8 adds Save and quit (host only) and Epic 10 adds Settings to this menu
+
+**Given** I tap Leave game and confirm
+**When** I leave
+**Then** I return to the start screen and my teammates see "<name> left"; the run goes on without me (no reconnect window for a deliberate leave)
 
 ## Epic 3: Build phase and economy
 
@@ -1018,10 +1045,11 @@ So that I can close paths and shape the fight.
 
 **Given** a build phase and the Wood barricade (40 currency) in the shop
 **When** I tap it and then tap the ground
-**Then** a preview snaps to a 1 m grid near that point; dragging rotates it in 90° steps; the preview is green when valid and red when blocked (FR50)
+**Then** placement mode starts: both sticks are turned off, a preview snaps to a 1 m grid where I tap (tapping again moves it), a ⟳ button rotates it in 90° steps, and the preview is green when valid and red when blocked (FR50)
+**And** a ✓ button confirms and a ✕ button cancels; either ends placement mode and turns the sticks back on (placement mode also ends when the wave starts)
 
 **Given** a valid preview
-**When** I confirm
+**When** I tap ✓
 **Then** the server places a 2 m × 0.5 m barricade with 200 HP, charges me 40, and emits `building.placed`
 
 **Given** a blocked spot (map edge, another building, a player standing there)
@@ -1581,6 +1609,7 @@ So that we have a safe spot to fall back to.
 **Given** a floodlight (150 HP, 100)
 **When** placed
 **Then** it lights an 8 m circle and is recorded as a light source in the server's light state (used by blackout waves in Epic 6)
+**And** it stays out of the shop until Story 6.3 adds blackout (balance flag), so nobody pays for a light with no use
 
 **Given** a med station (300 HP, 400)
 **When** players stand within 2 m of it
@@ -1600,7 +1629,7 @@ So that my build is more than my weapons.
 
 **Given** each gear item
 **When** owned
-**Then** Body armor I gives +25 max HP (150), Body armor II +50 (350, replaces armor I), Running shoes +10% speed (150), Revive kit cuts my revive time from 3 s to 1.5 s (150), Tactical flashlight is recorded for the blackout light cone in Epic 6 (120)
+**Then** Body armor I gives +25 max HP (150), Body armor II +50 (350, replaces armor I), Running shoes +10% speed (150), Revive kit cuts my revive time from 3 s to 1.5 s (150), Tactical flashlight is recorded for the blackout light cone in Epic 6 (120; kept out of the shop by a balance flag until Story 6.3)
 **And** each item can be owned once
 
 ### Story 5.12: Consumables
@@ -1713,6 +1742,10 @@ So that light becomes something we fight for.
 **When** the game renders
 **Then** no darkness texture is drawn (no cost)
 
+**Given** this story is done
+**When** the shop is built
+**Then** the Floodlight and Tactical flashlight are switched into the shop (balance flag from Stories 5.10 and 5.11)
+
 **Given** quality settings
 **When** a player looks for a way to turn darkness off
 **Then** there is none: blackout darkness is gameplay (FR87)
@@ -1818,7 +1851,8 @@ So that no two runs play the same.
 
 **Given** the stampede
 **When** it triggers
-**Then** a mass of Runners (outside the wave count) enters from one map edge and crosses the map in one direction for 10 s, then leaves or keeps fighting (FR41)
+**Then** a mass of Runners (outside the wave count) enters from one map edge and crosses the map in one direction for 10 s, then leaves by the far edge (FR41)
+**And** stampede Runners still on the map after the 10 s join the wave: they count toward zombies remaining and the last-5 rule
 
 **Given** a framework for events
 **When** a new event is added
@@ -2062,7 +2096,7 @@ So that I have a goal beyond one map.
 
 ## Epic 8: Real-life resilience
 
-Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, host migration, autosave, Save and quit with 7-day resume, and quick pings. Depends on Epic 4 (it uses the named seed streams and decay engine); can be built before or after Epics 5–7. Rule for every later epic: any new run state (gear, events, boss, endless) must be added to the snapshot, and the round-trip test in Story 8.4 enforces it.
+Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, host migration, autosave, Save and quit with 7-day resume, and quick pings. Depends on Epic 4 (named seed streams and decay engine) and on Story 7.1 (accounts and database: saved runs belong to the host's account), so it comes after Epic 7. Rule for every later epic: any new run state (gear, events, boss, endless) must be added to the snapshot, and the round-trip test in Story 8.4 enforces it.
 
 ### Story 8.1: Reconnect within 2 minutes
 
@@ -2085,6 +2119,10 @@ So that a bad signal doesn't end my night.
 **Given** 120 s pass
 **When** the player hasn't returned
 **Then** their slot is freed and a later return counts as a new join
+
+**Given** a player who left or was dropped
+**When** the run goes on
+**Then** their buildings stay until destroyed, can still be repaired by teammates, and no longer pay kill rewards to anyone
 
 **Given** the tab is hidden (`visibilitychange`)
 **When** the player switches apps
@@ -2136,9 +2174,9 @@ So that a server crash or update doesn't lose our run.
 
 **Acceptance Criteria:**
 
-**Given** the database
-**When** this story runs and it isn't set up yet
-**Then** it sets up PostgreSQL and Drizzle as in Story 7.1; its own migration creates only the `saved_runs` table (id, host account id, district, seed, snapshot JSON, schema version, created, expires)
+**Given** the database from Story 7.1
+**When** this story's migration runs
+**Then** it creates only the `saved_runs` table (id, host account id, district, seed, snapshot JSON, schema version, created, expires)
 
 **Given** a build phase starts
 **When** the snapshot is taken
@@ -2161,7 +2199,7 @@ So that we can finish it another night.
 **Acceptance Criteria:**
 
 **Given** a build phase
-**When** the host taps Save and quit and confirms
+**When** the host taps Save and quit in the in-run menu (Story 2.11) and confirms
 **Then** the run is saved with `expires` = now + 7 days, every player sees "Run saved, the host can resume it for 7 days", and the room closes (FR75)
 
 **Given** a wave in progress
@@ -2203,7 +2241,7 @@ So that we can coordinate without voice chat.
 
 **Given** the ping button
 **When** I tap it
-**Then** a small wheel offers Help! · Over here · Brute! · Ready (FR76)
+**Then** a small wheel offers Help! · Over here · Brute! · Ready (FR76); on desktop the F key opens it
 
 **Given** I choose a ping
 **When** it is sent (`ping.send`, max 1 per second per player)
@@ -2329,7 +2367,7 @@ So that the game feels finished.
 **Given** the UI art
 **When** applied
 **Then** the HUD, shop cards, lobby, evacuation vote, ping icons, unlock and training screens use it
-**And** text stays readable on a 2021 phone screen in landscape (minimum 14 px at devicePixelRatio 1), and every button is at least 44 × 44 px
+**And** the size rules from Story 1.8 still hold: text at least 14 px at devicePixelRatio 1 and every button at least 44 × 44 px
 
 ### Story 9.8: Ambience and audio buses
 
@@ -2404,7 +2442,7 @@ So that the game runs and feels right on my phone.
 
 **Acceptance Criteria:**
 
-**Given** the Settings screen (start screen and pause menu)
+**Given** the Settings screen (start screen and the in-run menu from Story 2.11)
 **When** I open it
 **Then** I can turn down or off rain, fog visuals, screen shake, film grain and light glow; switch gore to "Blood only"; toggle aim assist (on by default); set the 3 volumes; and turn on "Show performance" (FR87)
 **And** blackout darkness and the 10 m fog vision limit have no setting

@@ -13,10 +13,11 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | Game Brief | ✅ final v1.0 | `_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/brief.md` (+ `addendum.md`, `.decision-log.md`) |
 | GDD | ✅ final v1.0 | `_bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/gdd.md` (+ `epics.md`, `decision-log.md`) |
 | Game Architecture | ✅ complete (9/9 steps) | `_bmad-output/planning-artifacts/game-architecture.md` |
-| Epics & stories | ✅ complete (10 epics, 100 stories) | `_bmad-output/planning-artifacts/epics.md` |
+| Epics & stories | ✅ complete (10 epics, 101 stories) | `_bmad-output/planning-artifacts/epics.md` |
 | Implementation readiness | ✅ READY (0 critical, 5 major, 8 minor) | `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-21.md` |
 | Sprint planning | ✅ `sprint-status.yaml` generated (all backlog) | `_bmad-output/implementation-artifacts/sprint-status.yaml` |
-| **Readiness fixes to `epics.md`, then Story 1.1** | ⏭️ **NEXT** | proposed fixes in the report; then `gds-create-story` 1.1 → `gds-dev-story` |
+| Readiness fixes | ✅ applied (101 stories, new Story 2.11 in-run menu) | see "Resolutions" in the readiness report |
+| **Story 1.1** | ⏭️ **NEXT** | `gds-create-story` 1.1 → `gds-dev-story` |
 
 Decision logs record every decision and why. Read them before changing anything.
 
@@ -32,7 +33,8 @@ Decision logs record every decision and why. Read them before changing anything.
 
 - Working title (still "topdown-shooter").
 - Before Story 2.2: subdomain name and a deploy key for the VPS.
-- Story 1.1 publishes to GitHub Pages; needs Pages enabled (private repos need a paid plan).
+- Story 1.1 publishes to GitHub Pages (designer's choice): the repo must be made public (Settings → General → Change visibility) before the first publish.
+- VPS access for Story 2.2: Tailscale was suggested (Cloudflare skills live in Hermes on the VPS) but deferred; the cloud container has no Tailscale. Revisit at Story 2.2.
 - Order of future districts (candidates: Hospital, Suburbs, Port, Subway, Mall, Military checkpoint; CCTV intro and Blood Moon cemetery as special content).
 - Subdomain name on sevend.io.
 - Context7 MCP not installed yet: `claude mcp add context7 -- npx -y @upstash/context7-mcp`.

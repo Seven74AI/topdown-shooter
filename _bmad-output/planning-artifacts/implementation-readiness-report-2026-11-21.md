@@ -380,3 +380,23 @@ None are critical. The highest-priority items:
 This assessment found **17 issues in 3 categories** (UX alignment 4, epic quality 13: 0 critical, 5 major, 8 minor; U1–U3 are counted under both UX and Q4). Requirement coverage is complete: 88/88 FRs and 14/14 NFRs. Address the major issues before the epics they affect; Epic 1 is not blocked.
 
 _Assessed 2026-11-21 by the implementation readiness workflow (Game Producer / Scrum Master role)._
+
+## Resolutions (applied 2026-11-21)
+
+The designer accepted the proposed fixes. They were applied to `epics.md` (now 101 stories) and `sprint-status.yaml`:
+
+| Issue | Resolution |
+| --- | --- |
+| U1, U4 touch zones and sizes | Story 1.8: a touch starting on a HUD button never spawns a stick; buttons ≥ 44 × 44 px, text ≥ 14 px, inside safe areas, from Epic 1 |
+| U2 placement input | Story 3.4: placement mode turns sticks off; tap to position, ⟳ rotate, ✓ confirm, ✕ cancel |
+| U3 in-run menu | New Story 2.11 (Resume, Leave game; Save and quit added in 8.5, Settings in 10.1) |
+| Q1 Epic 8 needs 7.1 | Order is now 1 → … → 7 → 8 → 10; Story 8.4 uses the Story 7.1 database |
+| Q2 bots | Story 2.10: a simple bot policy in `shared` that plays waves |
+| Q3 stampede | Story 6.8: Runners leave by the far edge; any left join the wave count |
+| Q5 GitHub Pages | Designer chose GitHub Pages for Story 1.1 (repo to be made public); VPS access deferred to Story 2.2 |
+| Q7 lights in shop | Floodlight and Tactical flashlight hidden by a balance flag until Story 6.3 |
+| Q8 downed players | Story 2.8: zombies ignore downed players |
+| Q9 leaver's buildings | Story 8.1: stay until destroyed, repairable, pay no rewards |
+| Q10 desktop ping | Story 8.7: F key |
+
+Still open: Q6 (GDD sequencing note), Q11 (confirm reference phones), subdomain + VPS access before Story 2.2.
