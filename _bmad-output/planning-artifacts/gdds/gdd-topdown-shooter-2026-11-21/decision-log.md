@@ -24,3 +24,4 @@
 - 2026-11-21 — Finalize steps 4–8: no phase-blocking open items (working title, district order, solo scaling and hosting cost are non-blocking, listed in Open Items Index). No narrative flag (shooter guide). No doc standards or external handoffs configured. GDD v1.0 status final. Next: gds-game-architecture.
 - 2026-11-21 — User said 'go' after reviewing the validator balance fixes (turret kills 50%, wave bonus 10×wave, Behemoth 6,000 HP, pistol upgrades 60): accepted.
 - 2026-11-21 — Architecture added two small design rules (accepted with step 7): decay changes apply only at Build phase start; buildings on newly blocked cells are destroyed with a 50% refund.
+- 2026-11-21 — Evacuation vote rules (from architecture validation, user accepted recommendations): 15 s, majority, tie/no vote = extract.

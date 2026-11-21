@@ -546,7 +546,7 @@ const world = createWorld({ balance, seed, district });
 - **Capacity and joins:** `maxClients = 4`; `onAuth` accepts new players only during Lobby and Build phases.
 - **Host:** `hostSlot` in schema; when the host leaves, it is reassigned to the longest-connected player. `saved_runs.host_account_id` is the host at save time and only that account can resume.
 - **Pings:** `ping.send` (rate-limited to 1 per second per player) → broadcast `ping.placed`.
-- **Evacuation vote:** [OPEN: vote duration and tie rule — proposed 15 s, majority, tie or no vote = extract].
+- **Evacuation vote:** 15 s; majority wins; a tie or no votes = extract.
 
 ### Client Platform Budgets
 
@@ -581,7 +581,7 @@ const world = createWorld({ balance, seed, district });
 | Check | Result | Notes |
 | --- | --- | --- |
 | Decision Compatibility | Pass (after fixes) | Timers moved into the World; prediction rate aligned to 20 Hz; client applies decay to its predicted map; RNG keyed on stable slots |
-| GDD Coverage | Pass (1 open design item) | Evacuation vote timing/tie rule pending |
+| GDD Coverage | Pass | Evacuation vote rule settled (15 s, majority, tie = extract) |
 | Pattern Completeness | Pass | Entity creation, communication, state, errors, data, events defined with examples |
 | Epic Mapping | Pass | All 10 epics map to locations; Epic 1 local SimHost added; Epics 8–10 items mapped in Run Room Rules, Budgets, Security and Operations |
 | Document Completeness | Pass | Executive summary, dev environment and security/ops added; versions re-checked on npm 2026-11-21 |
