@@ -95,6 +95,7 @@ describe("bottleneckOf", () => {
   it("labels an average step above 8 ms as the simulation", () => {
     expect(bottleneckOf(8.5)).toBe("simulation");
     expect(bottleneckOf(8)).toBe("rendering/GPU");
+    expect(bottleneckOf(12, true)).toBe("none"); // target met: nothing to blame
   });
 });
 
@@ -105,5 +106,20 @@ describe("countInView", () => {
     const alive = new Int32Array([1, 2, 3, 4, 0]);
     expect(countInView(xs, ys, alive, 4, 5, 0, 10, 10)).toBe(3); // ids 1, 2, 3 (x 5..15)
     expect(countInView(xs, ys, alive, 5, -1, -1, 2, 2)).toBe(1); // id 0
+  });
+});
+
+describe("PerfSummary target rule", () => {
+  it("counts a long visible freeze (e.g. a 1.2 s GC pause) against the target", () => {
+    const sum = new PerfSummary();
+    let t = 0;
+    for (let i = 0; i < 180; i++) sum.addFrame((t += 16.67), 16.67, 1, 1);
+    sum.addFrame((t += 1200), 1200, 1, 1);
+    for (let i = 0; i < 180; i++) sum.addFrame((t += 16.67), 16.67, 1, 1);
+    const r = sum.result();
+    expect(r.minFps).toBeLessThan(1);
+    expect(r.worstSecondFps).toBeLessThan(30);
+    expect(r.targetMet).toBe(false);
+    expect(r.bottleneck).not.toBe("none");
   });
 });

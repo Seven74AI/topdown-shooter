@@ -120,3 +120,20 @@ describe("formatStressReport", () => {
     expect(text).toContain("missed · bottleneck: simulation");
   });
 });
+
+describe("StressRun interruption", () => {
+  it("stops with a message instead of a report when the page goes to the background", async () => {
+    const { StressRun, INTERRUPTED_REPORT } = await import("./stressScenario");
+    const run = new StressRun(() => ({ userAgent: "test", viewport: "844x390", dpr: 2 }));
+    run.start(0, 150);
+    run.frame(2500); // past the warm-up: running
+    expect(run.state.phase).toBe("running");
+    run.interrupt();
+    expect(run.state.phase).toBe("interrupted");
+    expect(run.state.report).toBe(INTERRUPTED_REPORT);
+    expect(run.state.result).toBeNull();
+    run.interrupt(); // no-op once stopped
+    expect(run.state.phase).toBe("interrupted");
+  });
+});
+

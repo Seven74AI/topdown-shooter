@@ -29,12 +29,12 @@ async function copyText(text: string): Promise<boolean> {
  * button so the designer can paste phone numbers into docs/perf/epic-1-stress.md. Release builds too.
  */
 export function StressResults() {
-  const [report, setReport] = useState(stressRun.state.phase === "done" ? stressRun.state.report : "");
+  const [report, setReport] = useState(stressRun.state.phase === "done" || stressRun.state.phase === "interrupted" ? stressRun.state.report : "");
   const [copied, setCopied] = useState<"" | "ok" | "fail">("");
   useEffect(
     () =>
       stressRun.subscribe((s) => {
-        setReport(s.phase === "done" ? s.report : "");
+        setReport(s.phase === "done" || s.phase === "interrupted" ? s.report : "");
         setCopied("");
       }),
     [],

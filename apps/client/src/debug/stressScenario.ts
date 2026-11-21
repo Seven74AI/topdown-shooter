@@ -74,7 +74,7 @@ export function setupStressWorld(world: World, walkers: number, view: ViewRect, 
   return spawnInView(world, "walker", walkers, view, playerX, playerY);
 }
 
-export type StressPhase = "idle" | "warmup" | "running" | "done";
+export type StressPhase = "idle" | "warmup" | "running" | "done" | "interrupted";
 
 export interface StressState {
   phase: StressPhase;
@@ -141,6 +141,21 @@ export class StressRun {
     }
   }
 
+  /**
+   * The page went to the background (screen dimmed, notification, app switch): the run's numbers
+   * would be wrong, so it stops with a message instead of a report.
+   */
+  interrupt(): void {
+    if (this.state.phase === "warmup" || this.state.phase === "running") {
+      this.state.phase = "interrupted";
+      this.state.result = null;
+      this.state.report = INTERRUPTED_REPORT;
+      perf.summary = null;
+      this.summary = null;
+      this.publish();
+    }
+  }
+
   /** Stops a run without a report (scene shut down). */
   cancel(): void {
     if (this.state.phase === "warmup" || this.state.phase === "running") {
@@ -151,6 +166,9 @@ export class StressRun {
     }
   }
 }
+
+export const INTERRUPTED_REPORT =
+  "Run interrupted: the game went to the background (screen dimmed, a notification or an app switch). Keep the screen on and reload the page to measure again.";
 
 export interface StressEnv {
   userAgent: string;

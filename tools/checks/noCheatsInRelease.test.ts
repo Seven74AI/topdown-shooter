@@ -13,7 +13,9 @@ import { describe, expect, it } from "vitest";
 /** `CHEAT_SCAN_DIR` overrides the folder (used once to prove the check fails on a doctored bundle). */
 const DIST = process.env.CHEAT_SCAN_DIR ?? join(process.cwd(), "apps/client/dist");
 const REQUIRED = process.env.REQUIRE_DIST === "1";
-const hasDist = existsSync(DIST);
+// Only with REQUIRE_DIST=1 (CI, right after a fresh build): a local `npm test` would otherwise scan a
+// stale dist from an older build and pass or fail on old code.
+const hasDist = REQUIRED && existsSync(DIST);
 
 /** Strings unique to DevCheats.tsx / DevCheats.css, the dev loadout picker and the dev-only window hook. */
 export const CHEAT_STRINGS = [

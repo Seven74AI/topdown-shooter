@@ -44,7 +44,7 @@ export const createPerfSnapshot = (): PerfSnapshot => ({
   updateAvgMs: 0,
 });
 
-export type Bottleneck = "simulation" | "rendering/GPU";
+export type Bottleneck = "none" | "simulation" | "rendering/GPU";
 
 export interface PerfSummaryResult {
   durationS: number;
@@ -66,8 +66,12 @@ export interface PerfSummaryResult {
   targetMet: boolean;
 }
 
-/** Simulation is the bottleneck when the average step exceeds 8 ms; otherwise rendering is. */
-export function bottleneckOf(tickAvgMs: number): Bottleneck {
+/**
+ * "none" when the target is met; otherwise the simulation when the average step exceeds 8 ms,
+ * else rendering/GPU. Both numbers are in the report so the call can be checked.
+ */
+export function bottleneckOf(tickAvgMs: number, targetMet = false): Bottleneck {
+  if (targetMet) return "none";
   return tickAvgMs > SIM_BOTTLENECK_MS ? "simulation" : "rendering/GPU";
 }
 
@@ -125,20 +129,23 @@ export class PerfSummary {
     const avgFps = frameAvgMs > 0 ? 1000 / frameAvgMs : 0;
     const minFps = this.frameMsMax > 0 ? 1000 / this.frameMsMax : 0;
     const tickAvgMs = this.ticks > 0 ? this.tickMsSum / this.ticks : 0;
+    const worstSecondFps = Number.isFinite(this.worstSecondFps) ? this.worstSecondFps : avgFps;
+    // NFR1: ~60 FPS average and never below 30 — neither a single frame nor a whole second.
+    const targetMet = avgFps >= TARGET_AVG_FPS - AVG_FPS_TOLERANCE && minFps >= TARGET_MIN_FPS && worstSecondFps >= TARGET_MIN_FPS;
     return {
       durationS: this.elapsedMs() / 1000,
       frames: this.frames,
       avgFps,
       minFps,
-      worstSecondFps: Number.isFinite(this.worstSecondFps) ? this.worstSecondFps : avgFps,
+      worstSecondFps,
       pctUnder30: this.frames > 0 ? (this.under30 / this.frames) * 100 : 0,
       frameAvgMs,
       tickAvgMs,
       tickMaxMs: this.tickMsMax,
       renderAvgMs: this.frames > 0 ? this.renderMsSum / this.frames : 0,
       updateAvgMs: this.frames > 0 ? this.updateMsSum / this.frames : 0,
-      bottleneck: bottleneckOf(tickAvgMs),
-      targetMet: avgFps >= TARGET_AVG_FPS - AVG_FPS_TOLERANCE && minFps >= TARGET_MIN_FPS,
+      bottleneck: bottleneckOf(tickAvgMs, targetMet),
+      targetMet,
     };
   }
 }

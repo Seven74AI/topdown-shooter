@@ -184,6 +184,30 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `_bmad-output/implementation-artifacts/1-11-performance-overlay-and-150-walker-stress-test.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context). It built the release bundle and grepped it, ran Playwright in release and dev, and simulated hidden-tab gaps. · **Outcome:** Approved, no high findings. 1 medium and 5 low findings, addressed.
+- Confirmed:
+  - **Release bundle:** no cheat UI strings and no `window.__game` (`typeof window.__game` is `undefined` in release, `object` in dev).
+  - **CI:** the release check skips in the first test step and runs strictly after the build.
+  - **Restart:** game-over Restart gets a new random seed.
+  - **Shared:** the god-mode guard and `debug` in the snapshot are correct.
+  - **Overlay:** allocates only at its 4 Hz text refresh.
+- [x] [Med] Gaps of a second or more corrupted the stress result. A 5 s hidden tab gave `durationS` 25 and `targetMet: true`, and real visible freezes of 1 s or more were dropped. Fix:
+  - a `visibilitychange` listener resets the frame clock, so hidden time is never a frame;
+  - a hidden page interrupts the stress run, which then shows "Run interrupted … keep the screen on and reload" instead of a wrong report;
+  - every visible frame now counts, long freezes included;
+  - `targetMet` also requires the worst second ≥ 30 FPS.
+  - Tests: interruption, and a 1.2 s freeze fails the target.
+- [x] [Low] The bottleneck label blamed rendering even when the target was met. It is now `"none"` when the target is met. Test added.
+- [x] [Low] The release check could scan a stale local `dist`. It now runs only with `REQUIRE_DIST=1`, as in CI after a fresh build; locally `REQUIRE_DIST=1 npx vitest run tools/checks` after `npm run build`.
+- [x] [Low] The LocalSimHost stats test only checked ≥ 0. It now also requires finite values.
+- [Low, accepted] The fingers of a three-finger tap also reach the game for a moment. Documented in `perfProbe.ts`; `?debug=1` is the alternative.
+- [Low, accepted] `?stress` in release keeps god mode on and waves paused after the 60 s. That is the recorded fixed-scenario variance, with no progression to exploit.
+- Remaining **human step:** the reference-phone rows in `docs/perf/epic-1-stress.md` (designer runs `?stress=150`, presses Copy results and pastes them), or the designer defers them to the Story 1.12 playtest.
+
 ## Change Log
+
+- 2026-11-21: Integrated (merged with Stories 1.8–1.10) and review findings addressed (hidden-tab interruption, long frames counted, bottleneck "none", REQUIRE_DIST-only release scan). 289 tests passing. Waiting for the designer's phone numbers.
 
 - 2026-11-21: Story 1.11 implemented: performance overlay (`?debug=1` / three-finger tap, release too), sim step timing in `LocalSimHost.stats`, dev cheats (spawn, skip wave, leave last 5, god mode, seed restart; stripped from release with a CI check), fixed `?stress=150` scenario with a 60-s summary and Copy results, perf doc with headless desktop numbers. Rush markers and restart checked in the browser with god mode. 223 tests passing.

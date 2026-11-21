@@ -5,9 +5,6 @@ import { countInView, perf } from "./perfStats";
 import { stressRun } from "./stressScenario";
 import type { SimStepStats } from "../sim/LocalSimHost";
 
-/** A gap longer than this is a hidden tab or a debugger pause, not a frame: not recorded. */
-const MAX_FRAME_MS = 1000;
-
 /**
  * Hooks the Phaser game loop to time every frame (Story 1.11): frame interval (PRE_STEP to PRE_STEP),
  * update time (PRE_STEP → POST_STEP: input, scenes, simulation steps) and render time (POST_STEP →
@@ -34,10 +31,19 @@ export function installPerfProbe(game: Phaser.Game, overlayOnAtStart: boolean): 
   });
   game.events.on(Phaser.Core.Events.POST_RENDER, () => {
     const now = performance.now();
-    if (frameMs > 0 && frameMs < MAX_FRAME_MS) perf.recordFrame(now, frameMs, now - renderStart, updateMs);
+    // Every visible frame counts, long freezes included (they are real hitches); time spent hidden
+    // never reaches here because visibilitychange resets the frame clock.
+    if (frameMs > 0) perf.recordFrame(now, frameMs, now - renderStart, updateMs);
     stressRun.frame(now);
   });
 
+  document.addEventListener("visibilitychange", () => {
+    frameStart = Number.NaN; // the hidden gap is not a frame
+    if (document.hidden) stressRun.interrupt(); // a run with a hidden gap would report wrong numbers
+  });
+
+  // Note: the fingers of a three-finger tap also reach the game (the first two may grab the sticks for
+  // a moment). Accepted for a debug gesture; the overlay is also reachable with ?debug=1.
   const tap = new MultiTapDetector(3, 300);
   window.addEventListener(
     "touchstart",
