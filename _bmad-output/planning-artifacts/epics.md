@@ -2059,3 +2059,152 @@ So that I have a goal beyond one map.
 **Given** a player's first extraction from Downtown
 **When** progress is saved
 **Then** district 2 is recorded as unlocked for that player and its card shows "Unlocked: coming soon" (FR81)
+
+## Epic 8: Real-life resilience
+
+Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, host migration, autosave, Save and quit with 7-day resume, and quick pings. Depends on Epic 3; can be built before or after Epics 5–7.
+
+### Story 8.1: Reconnect within 2 minutes
+
+As a player,
+I want to get back into the run with my gear if my phone drops the connection,
+So that a bad signal doesn't end my night.
+
+**Acceptance Criteria:**
+
+**Given** a player's connection drops
+**When** the server notices
+**Then** their character is removed from the World safely (no longer targeted, not counted for a team wipe), and their slot, wallet, loadout, upgrades and gear are held for 120 s (Colyseus `allowReconnection`) (FR73)
+**And** teammates see "<name> reconnecting…"
+
+**Given** the player's phone reconnects within 120 s
+**When** it rejoins
+**Then** they return with everything held: mid-wave next to a standing teammate with the HP they had, or at their position in a build phase
+**And** the client shows "Connection lost, reconnecting…" while it retries
+
+**Given** 120 s pass
+**When** the player hasn't returned
+**Then** their slot is freed and a later return counts as a new join
+
+**Given** the tab is hidden (`visibilitychange`)
+**When** the player switches apps
+**Then** the client stops rendering and audio; the server keeps the player inside the reconnect window
+
+### Story 8.2: Join mid-run at a build phase
+
+As a friend arriving late,
+I want to join a run that's already going,
+So that I don't have to wait for the next one.
+
+**Acceptance Criteria:**
+
+**Given** a run in a build phase with fewer than 4 players
+**When** I open the link
+**Then** I join with a Pistol and currency equal to the team's average wallet (rounded down) (FR72)
+**And** my shop uses my own seed stream starting at the current build phase
+
+**Given** a run in a wave
+**When** I open the link
+**Then** I see "Wave in progress, you'll join at the next build phase" and wait in a spectator view
+
+**Given** a mid-run join
+**When** the next wave starts
+**Then** its size uses the new player count multiplier (FR31)
+
+### Story 8.3: Host migration
+
+As a team,
+I want someone else to become host if the host leaves,
+So that the run goes on without them.
+
+**Acceptance Criteria:**
+
+**Given** the host disconnects or leaves
+**When** their reconnect window ends or they leave on purpose
+**Then** `hostSlot` moves to the longest-connected remaining player, who sees "You are now the host" (FR74)
+**And** host-only actions (start, Save and quit) move with it
+
+**Given** the host reconnects within 120 s
+**When** they return
+**Then** they get host back only if it hasn't migrated yet
+
+### Story 8.4: Autosave at every build phase
+
+As a team,
+I want the run saved automatically at every build phase,
+So that a server crash or update doesn't lose our run.
+
+**Acceptance Criteria:**
+
+**Given** the database
+**When** this story runs and it isn't set up yet
+**Then** it sets up PostgreSQL and Drizzle as in Story 7.1; its own migration creates only the `saved_runs` table (id, host account id, district, seed, snapshot JSON, schema version, created, expires)
+
+**Given** a build phase starts
+**When** the snapshot is taken
+**Then** a versioned JSON snapshot of the run (players by slot with wallets, loadouts, upgrades, gear; buildings; wave; decay stage and plan; event schedule; every PRNG stream state) is saved for that room
+
+**Given** a server shutdown or a programmer error that corrupts the simulation
+**When** the room closes
+**Then** the last build snapshot is kept and becomes resumable like a Save and quit, and players see "Server restarting, your run is saved"
+
+**Given** snapshots
+**When** Vitest runs
+**Then** a test saves at a build phase, restores into a new World and checks the restored state equals the original
+
+### Story 8.5: Save and quit
+
+As a host,
+I want to save the run during a build phase and quit,
+So that we can finish it another night.
+
+**Acceptance Criteria:**
+
+**Given** a build phase
+**When** the host taps Save and quit and confirms
+**Then** the run is saved with `expires` = now + 7 days, every player sees "Run saved, the host can resume it for 7 days", and the room closes (FR75)
+
+**Given** a wave in progress
+**When** the host looks for Save and quit
+**Then** the button is disabled with "You can save during the build phase"
+
+### Story 8.6: Resume a saved run
+
+As a host,
+I want to pick up a saved run with whoever is around,
+So that we finish what we started.
+
+**Acceptance Criteria:**
+
+**Given** the host's account has saved runs that haven't expired
+**When** the host opens the start screen
+**Then** a "Saved games" list shows each with district, wave and save date
+
+**Given** the host taps Resume
+**When** the room is created
+**Then** a new lobby with a new code opens; any friends can join; only the host's account can start it (FR75)
+
+**Given** the resumed run starts
+**When** the World is rebuilt
+**Then** decay stages 1…N are re-applied to the map without side effects (no destruction, refunds or events), then buildings and players are restored from the snapshot, and the run continues at the saved build phase
+**And** returning players get their saved slot back by account; new players join with the team's average currency; wave size uses the new player count
+
+**Given** a snapshot whose schema version is older than the server's
+**When** it is resumed
+**Then** it is migrated if a migration exists, or the host sees "This save is from an older version and can't be resumed"
+
+### Story 8.7: Pings
+
+As a player,
+I want to send a quick message with a marker,
+So that we can coordinate without voice chat.
+
+**Acceptance Criteria:**
+
+**Given** the ping button
+**When** I tap it
+**Then** a small wheel offers Help! · Over here · Brute! · Ready (FR76)
+
+**Given** I choose a ping
+**When** it is sent (`ping.send`, max 1 per second per player)
+**Then** every teammate sees its icon and my color at my position for 4 s, with an edge arrow when off screen, and a short sound
