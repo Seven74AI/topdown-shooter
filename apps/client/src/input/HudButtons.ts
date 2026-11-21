@@ -18,8 +18,10 @@ export class HudButtons {
   }
 
   setVisible(id: string, visible: boolean): void {
-    const r = this.rects.find((b) => b.id === id);
-    if (r) r.visible = visible;
+    for (let i = 0; i < this.rects.length; i++) {
+      const r = this.rects[i] as ButtonRect;
+      if (r.id === id) r.visible = visible;
+    }
   }
 
   get(id: string): ButtonRect | undefined {

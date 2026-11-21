@@ -16,8 +16,8 @@ const safe: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 };
 
 /**
  * Safe-area insets (notch, rounded corners) in CSS px. Phaser can't read CSS env() values, so a
- * hidden probe element with `padding: env(safe-area-inset-*)` is measured. Re-read on every call
- * (cheap; called on create and resize only).
+ * hidden probe element with `padding: env(safe-area-inset-*)` is measured. Each call runs
+ * getComputedStyle (forces a style recalc): call it on create and resize only, and cache the result.
  */
 export function safeArea(): SafeArea {
   if (typeof document === "undefined") return safe;

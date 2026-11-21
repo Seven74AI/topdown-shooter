@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
+import { hudPointerDown, hudPointerMove, hudPointerReset, hudPointerUp } from "../input/hudPointer";
 import { MIN_TEXT_CSS_PX } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
@@ -72,6 +73,9 @@ export class HudScene extends Phaser.Scene {
   private swapBtn!: Phaser.GameObjects.Arc;
   private swapLabel!: Phaser.GameObjects.Text;
   private buttons = new HudButtons();
+  /** Safe-area insets (CSS px), measured on create and resize only (getComputedStyle is costly). */
+  private insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  private shownSwapVisible: boolean | null = null;
   private shownOther = "";
   private shownOtherAmmo = Number.NaN;
   private shownSwapStep = Number.NaN;
@@ -135,6 +139,8 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setVisible(false);
     this.buttons = new HudButtons();
+    this.insets = { ...safeArea() };
+    this.shownSwapVisible = null;
     this.buttons.set({ id: "swap", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.swapPressed = true;
     });
@@ -164,21 +170,14 @@ export class HudScene extends Phaser.Scene {
     // Buttons first (readiness fix U1): a touch that starts on a HUD button never spawns a stick.
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
-      const route = this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width);
-      this.router.pointerDown(p.id, p.x, p.y, p.wasTouch, p.button, route.kind === "button", this.scale.width);
+      hudPointerDown(this.buttons, this.router, p, this.scale.width);
     };
-    const move = (p: Phaser.Input.Pointer) => {
-      this.router.pointerMove(p.id, p.x, p.y, p.wasTouch, this.buttons.owns(p.id));
-    };
+    const move = (p: Phaser.Input.Pointer) => hudPointerMove(this.buttons, this.router, p);
     const up = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // touchend is the activation event on iOS/Chrome; touchstart alone may not unlock
-      this.buttons.pointerUp(p.id);
-      this.router.pointerUp(p.id, p.wasTouch, p.leftButtonDown());
+      hudPointerUp(this.buttons, this.router, p);
     };
-    const reset = () => {
-      this.sticks.reset();
-      this.buttons.reset();
-    };
+    const reset = () => hudPointerReset(this.buttons, this.router);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, down);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, move);
     this.input.on(Phaser.Input.Events.POINTER_UP, up);
@@ -200,7 +199,7 @@ export class HudScene extends Phaser.Scene {
   /** Places HUD buttons inside the safe area (canvas px) and registers their hit rects. */
   private layoutButtons(): void {
     const k = dpr();
-    const safe = safeArea();
+    const safe = this.insets;
     const size = SWAP_BTN_PX * k;
     const x = this.scale.width - (SWAP_BTN_RIGHT + safe.right) * k - size;
     const y = this.scale.height - (SWAP_BTN_BOTTOM + safe.bottom) * k - size;
@@ -211,6 +210,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   private onResize(): void {
+    this.insets = { ...safeArea() };
     const r = STICK_RADIUS_CSS_PX * dpr();
     this.sticks.setRadius(r);
     this.moveBase.setRadius(r);
@@ -238,7 +238,7 @@ export class HudScene extends Phaser.Scene {
     this.shownHp = hp;
     this.shownMaxHp = maxHp;
     const k = dpr();
-    const safe = safeArea();
+    const safe = this.insets;
     const x = (HP_MARGIN + safe.left) * k;
     const y = (HP_MARGIN + safe.top) * k;
     const w = HP_BAR_W * k;
@@ -268,7 +268,7 @@ export class HudScene extends Phaser.Scene {
       this.shownRemaining = m.remaining;
       this.waveText
         .setText(m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready")
-        .setPosition(this.scale.width / 2, (12 + safeArea().top) * dpr());
+        .setPosition(this.scale.width / 2, (12 + this.insets.top) * dpr());
     }
     if (m.bannerText !== this.shownBanner) {
       this.shownBanner = m.bannerText;
@@ -309,9 +309,12 @@ export class HudScene extends Phaser.Scene {
   private drawWeapon(): void {
     const m = this.model;
     const hasOther = m.otherWeaponName !== "";
-    this.buttons.setVisible("swap", hasOther);
-    this.swapBtn.setVisible(hasOther);
-    this.swapLabel.setVisible(hasOther);
+    if (hasOther !== this.shownSwapVisible) {
+      this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
+      this.buttons.setVisible("swap", hasOther);
+      this.swapBtn.setVisible(hasOther);
+      this.swapLabel.setVisible(hasOther);
+    }
     const reloading = m.reloadFrac >= 0;
     const swapping = m.swapFrac >= 0;
     const progress = swapping ? m.swapFrac : m.reloadFrac;
@@ -340,7 +343,7 @@ export class HudScene extends Phaser.Scene {
     this.shownW = this.scale.width;
     this.shownH = this.scale.height;
     const k = dpr();
-    const safe = safeArea();
+    const safe = this.insets;
     const x = this.scale.width - (AMMO_MARGIN + safe.right) * k;
     const y = this.scale.height - (AMMO_MARGIN + safe.bottom) * k - RELOAD_BAR_H * k - 6 * k;
     const count = m.ammo < 0 ? "—" : `${m.ammo} / ${m.magazine}`;
