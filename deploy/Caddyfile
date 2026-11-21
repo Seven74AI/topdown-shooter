@@ -7,16 +7,45 @@
 	auto_https off
 }
 
+# Security headers, and no Server/Via banner. Imported in the site and in handle_errors, because
+# Caddy's own error responses (404 for a missing asset, 413 for a big body) skip the site's routes.
+(security_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+		-Via
+	}
+}
+
 :8080 {
+	import security_headers
+
+	handle_errors {
+		import security_headers
+		respond "{err.status_code} {err.status_text}" {err.status_code}
+	}
+
 	# Game server: the client talks to `${location.origin}/api` (Story 2.1). `/api` is stripped, so
 	# matchmaking is /matchmake/* and the WebSocket /<processId>/<roomId> on server:2567.
 	handle_path /api/* {
+		# A real client sends a few hundred bytes (join options); the server refuses more anyway.
+		# Bigger bodies get 413 here, before they reach Node.
+		request_body {
+			max_size 8KB
+		}
 		reverse_proxy server:2567 {
 			# Per-IP limits (room creation) need the player's address, not cloudflared's. Colyseus reads
 			# X-Real-IP first. Safe because only cloudflared can reach this port (127.0.0.1), and
 			# Cloudflare always sets Cf-Connecting-Ip itself.
 			header_up X-Real-IP {http.request.header.Cf-Connecting-Ip}
 		}
+	}
+
+	# `/api` without the slash is not the app: a 404, never index.html.
+	handle /api {
+		respond "Not Found" 404
 	}
 
 	encode zstd gzip

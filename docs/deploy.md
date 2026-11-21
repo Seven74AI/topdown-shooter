@@ -15,86 +15,145 @@ phone ──HTTPS/WSS──▶ Cloudflare edge (certificate, automatic)
 
 - **HTTPS and WSS end at Cloudflare.** Caddy is plain HTTP on 127.0.0.1:8080 (`auto_https off`): no inbound ports and no ACME on the VPS. The tunnel already sends `hordes.sevend.io` to `http://localhost:8080`, so its config does not change.
   - This differs from the AC's "Caddy terminates HTTPS with automatic certificates". The player sees the same thing: HTTPS/WSS only, with automatic certificates.
-- **`/api` is the game server**, on the same origin (no CORS). Caddy strips `/api`. Matchmaking is `/api/matchmake/*`, the WebSocket is `wss://hordes.sevend.io/api/<processId>/<roomId>`, and the health check is `/api/health`.
-- **Real player IPs.** Caddy copies Cloudflare's `Cf-Connecting-Ip` into `X-Real-IP`, which the server uses for the room-creation limit (10 per IP per minute). That is safe only because port 8080 is bound to 127.0.0.1, where only cloudflared reaches it. **Never publish 8080 on a public interface.**
+- **`/api` is the game server**, on the same origin (no CORS). Caddy strips `/api`. Matchmaking is `/api/matchmake/*`, the WebSocket is `wss://hordes.sevend.io/api/<processId>/<roomId>`, and the health check is `/api/health`. `/api` without the slash is a 404. Request bodies on `/api` over 8 KB get 413 from Caddy.
+- **Real player IPs.** Caddy overwrites `X-Real-IP` with Cloudflare's `Cf-Connecting-Ip`, and the server uses it for the room-creation limit (10 per IP per minute; IPv6 counts per /64, an IPv4-mapped IPv6 as its IPv4).
+  - That trust rests **entirely on the 127.0.0.1 binding**: only cloudflared (and other processes on the VPS) can reach port 8080. **Never publish 8080 on a public interface.**
+  - It needs **Docker Engine 28 or newer**. Older Docker could let other machines on the same network segment reach a port published on 127.0.0.1, and they could then send any `Cf-Connecting-Ip`.
+  - Accepted: a local process on the VPS (Hermes, for example) can reach 127.0.0.1:8080 directly and set any `Cf-Connecting-Ip`, so it can bypass the per-IP limit. It is a trusted machine.
 - **Origin check.** The server refuses WebSocket upgrades whose `Origin` is not `PUBLIC_ORIGIN` (`https://hordes.sevend.io`, set in `deploy/docker-compose.yml`).
 - **Caching.** `index.html` and other unhashed files get `Cache-Control: no-cache`. The hashed files under `/assets/` get `public, max-age=31536000, immutable`. A missing asset is a 404, never `index.html`. Share links `/j/<code>` load the app.
+- **Headers.** Every response, errors included, has `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` and `X-Frame-Options: DENY`, and no `Server` or `Via` header.
 - **Shutdown.** `docker compose stop` or a redeploy sends SIGTERM. Each room tells its players "Server restarting" and closes with code 4001, and the client shows "Server restarting. Try again in a moment." with **Back to start**. Rooms are not saved yet (autosave is Epic 8), so a redeploy ends the runs in progress.
-- **Images** are tagged `topdown-server:<sha>` and `topdown-web:<sha>` (12-character git sha). `deploy.sh` keeps the newest 5 of each.
+- **Images** are tagged `topdown-server:<sha>` and `topdown-web:<sha>` (12-character git sha) and labelled `org.topdown.app=topdown`. `deploy.sh` keeps the newest 5 of each, never removes the current or the previous known-good one, and prunes **only** images with that label. Other images on the VPS (Hermes) are never touched.
+- **Containers are locked down**:
+  - both: read-only root filesystem (tmpfs for `/tmp`, and Caddy's `/data` and `/config`), `cap_drop: ALL`, `no-new-privileges`;
+  - server: runs as `node`, `mem_limit: 768m`, `pids_limit: 256`;
+  - web: runs as `nobody`, `mem_limit: 128m`, `pids_limit: 128`.
+  - The limits are first guesses for a small VPS shared with Hermes; they are tunable in `deploy/docker-compose.yml`. An OOM kill shows as `oom_killed=true` in a failed deploy's output, or in `docker inspect topdown-server-1 --format '{{.State.OOMKilled}}'`.
+- **`GIT_SHA` is required.** The compose file refuses to run without it, so a hand-typed `docker compose up -d` can never build and start an untagged image. `deploy.sh` sets it, and after each successful deploy writes `deploy/.env` (`GIT_SHA=<sha>`, not in git), so the plain `docker compose -f deploy/docker-compose.yml ps|logs|down` commands below work and refer to the deployed version.
 - **Logs** are JSON lines on stdout, rotated by Docker (`json-file`, 10 MB × 5 per container).
 
 Files: `deploy/docker-compose.yml`, `deploy/server.Dockerfile` (targets `server` and `web`), `deploy/Caddyfile`, `deploy/deploy.sh`, `deploy/rollback.sh`, `.dockerignore`.
 
 ## What ran before (Story 1.1)
 
-Before this story, the static client was served by Caddy from the systemd unit `topdown-shooter.service`. It used the old one-block `deploy/Caddyfile` (`:8080 { bind 127.0.0.1; root * /root/topdown-shooter/apps/client/dist; encode gzip; file_server }`) and the repo checkout at `/root/topdown-shooter`. It holds port 8080, so it must be stopped before the stack starts. It stays installed, disabled, as the fallback (see [If anything fails](#if-anything-fails)). Its unit file is not in the repo. Record it in step 1 below.
+Before this story, the static client was served by Caddy from the systemd unit `topdown-shooter.service`. It used the old one-block `deploy/Caddyfile` (`:8080 { bind 127.0.0.1; root * /root/topdown-shooter/apps/client/dist; encode gzip; file_server }`) and the repo checkout at `/root/topdown-shooter`. It holds port 8080, so it must be stopped before the stack starts.
+
+It stays installed, disabled, as the fallback. Step 2 below prepares it **before** anything changes, so that a failed go-live can be reverted with one command (see [If anything fails](#if-anything-fails)).
 
 The VPS also hosts the Hermes agent. Only touch our service, port 8080, and the `topdown` containers and images.
 
 ## First-time setup (once)
 
-Run as root on the VPS.
+Run as root on the VPS. Paste the output of steps 1, 2 and 6 into the story's Completion Notes.
 
-1. **Record the current setup** (paste the output into the story's Completion Notes):
+1. **Record and back up the current setup**:
 
    ```sh
    systemctl cat topdown-shooter.service
+   systemctl cat topdown-shooter.service > /root/topdown-shooter.service.bak
    systemctl status topdown-shooter.service --no-pager
    # cloudflared tunnel config for sevend-io-stream: the ingress for hordes.sevend.io
    systemctl cat cloudflared 2>/dev/null; ls /etc/cloudflared ~/.cloudflared 2>/dev/null
    cat /etc/cloudflared/config.yml 2>/dev/null || cat ~/.cloudflared/config.yml 2>/dev/null
+   [ -d /etc/cloudflared ] && cp -a /etc/cloudflared /root/cloudflared-etc.bak
+   [ -d ~/.cloudflared ] && cp -a ~/.cloudflared /root/cloudflared-home.bak
    ```
 
-   If the tunnel is managed in the Cloudflare dashboard (a token-based tunnel), there is no local `config.yml`. Note the public hostname `hordes.sevend.io` → `http://localhost:8080` from the dashboard (Zero Trust → Networks → Tunnels → `sevend-io-stream`).
+   If the tunnel is managed in the Cloudflare dashboard (a token-based tunnel), there is no local `config.yml`. Note the public hostname `hordes.sevend.io` → `http://localhost:8080` from the dashboard (Zero Trust → Networks → Tunnels → `sevend-io-stream`). Nothing in this story changes the tunnel; the backup is only a precaution.
 
-2. **Check Docker** (the designer confirmed it is installed):
+2. **Prepare the static fallback, while the old site still runs.** The repo's `deploy/Caddyfile` is now the container's config (it proxies to `server:2567` and serves `/srv/client`), so the old unit **cannot use it any more**. Give the unit its own frozen copy of today's static site and its own Caddyfile:
 
    ```sh
-   docker compose version      # needs Compose v2 (the `docker compose` plugin)
-   df -h /                     # ~23 GB free; the first build uses ~1.5 GB
+   # A frozen copy of the site the old unit serves now, independent of the checkout.
+   mkdir -p /var/lib/topdown && cp -a /root/topdown-shooter/apps/client/dist /var/lib/topdown/static
+   mkdir -p /etc/topdown && cat > /etc/topdown/Caddyfile.static <<'EOF'
+   :8080 {
+   	bind 127.0.0.1
+   	root * /var/lib/topdown/static
+   	encode gzip
+   	try_files {path} /index.html
+   	file_server
+   }
+   EOF
+   caddy validate --config /etc/topdown/Caddyfile.static --adapter caddyfile   # "Valid configuration"
    ```
 
-3. **Update the checkout**:
+   Then point the unit at it with a drop-in. The empty `ExecStart=` line is required: it clears the original command, and systemd refuses a second `ExecStart` for a normal service. Copy the binary path and the flags from the backup's `ExecStart=` line (step 1); only the `--config` path changes. If the old line is `/usr/bin/caddy run --config /root/topdown-shooter/deploy/Caddyfile --adapter caddyfile`, the drop-in is:
+
+   ```sh
+   grep '^ExecStart=' /root/topdown-shooter.service.bak          # the old line
+   mkdir -p /etc/systemd/system/topdown-shooter.service.d
+   cat > /etc/systemd/system/topdown-shooter.service.d/static-fallback.conf <<'EOF'
+   [Service]
+   ExecStart=
+   ExecStart=/usr/bin/caddy run --config /etc/topdown/Caddyfile.static --adapter caddyfile
+   EOF
+   systemctl daemon-reload
+   systemctl cat topdown-shooter.service | tail -4                 # shows the drop-in
+   ```
+
+   Prove the fallback works by restarting the old unit on it. The site is the same, served from the frozen copy:
+
+   ```sh
+   systemctl restart topdown-shooter.service
+   systemctl is-active topdown-shooter.service                   # active
+   curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/         # 200
+   curl -sS -o /dev/null -w '%{http_code}\n' https://hordes.sevend.io/      # 200
+   ```
+
+   If this step fails, stop here: remove the drop-in (`rm /etc/systemd/system/topdown-shooter.service.d/static-fallback.conf && systemctl daemon-reload && systemctl restart topdown-shooter.service`) and report.
+
+3. **Check Docker**:
+
+   ```sh
+   docker version --format '{{.Server.Version}}'   # must be 28.0 or newer (127.0.0.1 port binding, see above)
+   docker compose version                          # Compose v2 (the `docker compose` plugin)
+   df -h /                                         # ~23 GB free; the first build uses ~1.5 GB
+   ```
+
+   If Docker is older than 28, stop and ask the designer to upgrade it first.
+
+4. **Update the checkout**:
 
    ```sh
    cd /root/topdown-shooter && git fetch && git checkout master && git pull --ff-only
    ```
 
-4. **Stop and disable the old static service**, which holds port 8080:
+5. **Switch over**: stop and disable the old static service, which holds port 8080, then deploy.
 
    ```sh
    systemctl disable --now topdown-shooter.service
    ss -ltnp | grep ':8080' || echo "8080 is free"
-   ```
-
-5. **Deploy**:
-
-   ```sh
    deploy/deploy.sh
    ```
 
-   The first build takes a few minutes: it pulls `node:26-alpine` and `caddy:2.11-alpine`, runs `npm ci` and builds the client. It ends with `==> deployed <sha>`.
+   The first build takes a few minutes: it pulls `node:26.13.1-alpine3.24` and `caddy:2.11.9-alpine`, runs `npm ci` and builds the client. It ends with `==> deployed <sha>`. If it ends with `!!` lines instead, run the one-command revert in [If anything fails](#if-anything-fails).
 
-6. **Verify** (paste the results into the story's Completion Notes):
+6. **Verify**:
 
    ```sh
    curl -sS https://hordes.sevend.io/api/health                    # 200 {"ok":true,"rooms":0,...}
-   curl -sSI https://hordes.sevend.io/ | grep -i cache-control      # Cache-Control: no-cache
+   curl -sS -D - -o /dev/null https://hordes.sevend.io/ | grep -iE 'cache-control|x-frame|x-content|referrer|^server'
+   #   Cache-Control: no-cache, X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Referrer-Policy: ...
+   #   (a Server: cloudflare header is Cloudflare's own, not ours)
    A=$(curl -s https://hordes.sevend.io/ | grep -o '/assets/index-[^"]*\.js' | head -1)
-   curl -sSI "https://hordes.sevend.io$A" | grep -i cache-control  # public, max-age=31536000, immutable
-   curl -sSI https://hordes.sevend.io/j/ABCD | head -1             # HTTP/2 200 (the app)
-   curl -sS -o /dev/null -w '%{http_code}\n' https://hordes.sevend.io/assets/nope.js   # 404
+   curl -sS -D - -o /dev/null "https://hordes.sevend.io$A" | grep -i cache-control  # public, max-age=31536000, immutable
+   curl -sS -o /dev/null -w '%{http_code}\n' https://hordes.sevend.io/j/ABCD          # 200 (the app)
+   curl -sS -o /dev/null -w '%{http_code}\n' https://hordes.sevend.io/assets/nope.js  # 404
+   curl -sS -o /dev/null -w '%{http_code}\n' https://hordes.sevend.io/api             # 404
    # Origin check: a WebSocket upgrade from another origin is refused with 403
    curl -sS -o /dev/null -w '%{http_code}\n' -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
      -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
      -H 'Origin: https://evil.example' https://hordes.sevend.io/api/x   # 403
+   docker compose -f deploy/docker-compose.yml ps                      # server (healthy) and web, both Up
    ```
 
-   Then, in two browsers (one of them a phone on 4G): open https://hordes.sevend.io/, **Create game** in one, and check that the lobby shows a code. Joining by code or link arrives with Story 2.3. Until then, check that both browsers can create a room. Cloudflare may answer the curl `HEAD` requests with its own headers. If `cache-control` is missing there, use `curl -sS -D - -o /dev/null <url>` (a GET).
+   Then, in two browsers (one of them a phone on 4G): open https://hordes.sevend.io/, **Create game** in one, and join it from the other by code or link. If `cache-control` is missing from a Cloudflare response, compare with the same request on the VPS at `http://127.0.0.1:8080/...`.
 
 7. **Retire GitHub Pages** once the steps above pass. Until the VPS is verified, CI keeps publishing to Pages (the `pages` and `deploy-pages` jobs in `.github/workflows/ci.yml`), because the Epic 1 playtest links point there. After go-live, the developer deletes those two jobs and points the playtest links at hordes.sevend.io; then the designer disables Pages in GitHub → `Seven74AI/topdown-shooter` → Settings → Pages (Source: "None").
 
-If cloudflared reaches `localhost:8080` over IPv6 (`::1`) and the site answers 502 through the tunnel while `curl http://127.0.0.1:8080/api/health` works on the VPS, change the tunnel's service URL to `http://127.0.0.1:8080`. Docker publishes the port on 127.0.0.1 only.
+If cloudflared reaches `localhost:8080` over IPv6 (`::1`) and the site answers 502 through the tunnel while `curl http://127.0.0.1:8080/api/health` works on the VPS, change the tunnel's service URL to `http://127.0.0.1:8080`. Docker publishes the port on 127.0.0.1 only. (Back up the tunnel config first, as in step 1.)
 
 ## Deploy (every release)
 
@@ -108,24 +167,35 @@ cd /root/topdown-shooter && deploy/deploy.sh
 
 1. Runs `git fetch origin`.
 2. Checks out the ref as a **detached HEAD**. The checkout no longer sits on `master`; that is expected.
-3. Builds the two images for that sha. If both images already exist, it skips the build.
+3. Builds the two images for that sha. If both images already exist, it skips the build. If the build fails, the running stack is untouched.
 4. Runs `docker compose up -d`. This restarts the server, and its rooms get "Server restarting".
-5. Waits up to 30 s for `http://127.0.0.1:8080/api/health`.
-6. Appends the sha to `deploy/deploy-history.log` (not in git).
-7. Prunes images older than the newest 5.
+5. Waits up to 30 s for `http://127.0.0.1:8080/api/health`, and checks that the server container runs this sha's image.
+6. Appends `<time> <sha> ok` (or `failed`) to `deploy/deploy-history.log` (not in git). Only `ok` deploys count as known good.
+7. On success: writes `deploy/.env`, and prunes our images older than the newest 5.
 
 It prints `==> deployed <sha>`. A deploy ends every run in progress, so pick a moment when nobody is playing.
 
 Deploy a branch or sha instead: `deploy/deploy.sh origin/some-branch` or `deploy/deploy.sh 1a2b3c4d5e6f`.
 
+**When a deploy fails**, `deploy.sh` does **not** roll back by itself, so the broken state can be looked at. It prints `docker compose ps`, the server container's state (exit code, restarts, OOM, health) and the last 100 log lines of both containers, then the exact command to go back, and exits 1:
+
+```
+!! last known-good deploy: 1a2b3c4d5e6f. To go back to it, run:
+!!   deploy/rollback.sh 1a2b3c4d5e6f
+```
+
+Run that command right away: after a failed `up`, the site is usually down (Caddy waits for a healthy server). On the very first deploy there is no known-good version yet; then the message points to the static-site revert below.
+
 ## Rollback
 
 ```sh
-deploy/rollback.sh            # back to the deploy before the current one (from deploy/deploy-history.log)
-deploy/rollback.sh <sha>      # a specific sha, e.g. from `git log --oneline origin/master` or the history log
+deploy/rollback.sh            # the newest known-good deploy that is not the current one
+deploy/rollback.sh <sha>      # a specific sha, e.g. from the history log or `git log --oneline origin/master`
 ```
 
-It runs `deploy.sh <sha>`. If that sha's images are among the 5 kept, nothing is rebuilt and the switch takes seconds. `deploy/deploy.sh <previous-sha>` does the same thing.
+Known good means an `ok` line in `deploy/deploy-history.log`. Current means the newest line, `ok` or `failed`. So with history `A ok`, `B ok`, `C failed`, a rollback goes to B. With `A ok`, `B ok`, it goes to A. Failed shas are never chosen.
+
+It runs `deploy.sh <sha>`. If that sha's images are still on disk (the newest 5 and the previous known-good are kept), nothing is rebuilt and the switch takes seconds.
 
 ## Logs, status and health
 
@@ -136,41 +206,31 @@ docker compose -f deploy/docker-compose.yml logs -f server        # game server 
 docker compose -f deploy/docker-compose.yml logs -f web           # Caddy
 curl -sS http://127.0.0.1:8080/api/health                         # on the VPS
 curl -sS https://hordes.sevend.io/api/health                      # through the tunnel
-cat deploy/deploy-history.log                                     # what was deployed when
+cat deploy/deploy-history.log                                     # what was deployed when, ok or failed
+docker stats --no-stream topdown-server-1 topdown-web-1            # memory against the limits
 ```
+
+These need `deploy/.env`, which the first successful deploy writes. Before that, prefix them with `GIT_SHA=none`.
 
 Useful log messages: `server_started` (with `gitSha` and `allowedOrigins`), `room_create_rate_limited` (with `ip`), `ws_origin_refused` (with `origin` and `ip`), `room_shutdown`, `client_message_rejected`.
 
 Stop the stack: `docker compose -f deploy/docker-compose.yml down`. Rooms get "Server restarting" first. Images stay on disk.
 
-Disk: `docker system df`. `deploy.sh` keeps 5 image tags of each. The build cache can be cleared with `docker builder prune -f` if space runs low.
+Disk: `docker system df`. `deploy.sh` keeps 5 image tags of each. If space runs low, `docker builder prune -f` clears the build cache. That cache is shared with anything else that builds images on the VPS, so check with the designer first. Never run `docker image prune` or `docker system prune` without `--filter label=org.topdown.app=topdown`.
 
 ## If anything fails
 
-Bring back the old static site (single-player only, as in Story 1.1):
+**Back to the previous version of the stack**: `deploy/rollback.sh` (see [Rollback](#rollback)).
+
+**Back to the old static site** (single-player only, as in Story 1.1), when the stack cannot come up at all. This needs step 2 of the first-time setup, which prepared the unit. One command:
 
 ```sh
-cd /root/topdown-shooter
-docker compose -f deploy/docker-compose.yml down
-git checkout master && npm ci && npm run build   # the old service serves apps/client/dist
-systemctl enable --now topdown-shooter.service
+GIT_SHA=none docker compose -f /root/topdown-shooter/deploy/docker-compose.yml down --timeout 20; systemctl enable --now topdown-shooter.service && sleep 1 && curl -sS -o /dev/null -w 'static site: %{http_code}\n' http://127.0.0.1:8080/
 ```
 
-The old unit runs `caddy` with `deploy/Caddyfile`. That file is now the container's Caddyfile: it proxies to `server:2567` and serves `/srv/client`, so the old unit **cannot use it as-is**. Point the unit at a copy of the old one-block Caddyfile:
+It stops our containers (freeing port 8080) and starts the old unit on `/etc/topdown/Caddyfile.static` with the frozen copy in `/var/lib/topdown/static`. It prints `static site: 200`. It does not depend on the checkout, `npm` or Docker images. Then report what failed, with `GIT_SHA=none docker compose -f deploy/docker-compose.yml logs --tail=200 server web` (if the containers still exist) and `tail deploy/deploy-history.log`.
 
-```sh
-mkdir -p /etc/topdown && cat > /etc/topdown/Caddyfile.static <<'EOF'
-:8080 {
-	bind 127.0.0.1
-	root * /root/topdown-shooter/apps/client/dist
-	encode gzip
-	file_server
-}
-EOF
-systemctl edit topdown-shooter.service   # override ExecStart to use /etc/topdown/Caddyfile.static
-```
-
-The override only needs the `ExecStart` line with the new path; copy the rest of the line from `systemctl cat topdown-shooter.service` (step 1). Then report what failed, with `docker compose -f deploy/docker-compose.yml logs --tail=200 server web`.
+To try the stack again later: `systemctl disable --now topdown-shooter.service`, then `deploy/deploy.sh`.
 
 ## Local check of the stack (any machine with Docker)
 
@@ -182,4 +242,4 @@ curl -sS http://127.0.0.1:18080/api/health
 GIT_SHA=local docker compose -p topdown-local -f deploy/docker-compose.yml down
 ```
 
-`PUBLIC_ORIGIN` stays `https://hordes.sevend.io`, so a browser on `http://127.0.0.1:18080` cannot open the room WebSocket. Set `PUBLIC_ORIGIN=http://127.0.0.1:18080` for that, or use `npm run dev`. The CI job `docker` builds both targets and validates the Caddyfile on every push.
+`PUBLIC_ORIGIN` stays `https://hordes.sevend.io`, so a browser on `http://127.0.0.1:18080` cannot open the room WebSocket. Set `PUBLIC_ORIGIN=http://127.0.0.1:18080` for that, or use `npm run dev`. The CI job `docker` builds both targets, validates the Caddyfile and runs this stack on every push, checking `/api/health`, `/` and `/j/ABCD`.

@@ -10,3 +10,4 @@ coverage/
 
 # Story 2.2: written by deploy/deploy.sh on the VPS
 deploy/deploy-history.log
+deploy/.env
