@@ -130,10 +130,10 @@ describe("projectiles (FR14)", () => {
     expect(events.some((e) => e.type === "zombie.hit" && e.zombieId === id)).toBe(true);
   });
 
-  it("misses a Walker standing just outside the line of fire", () => {
+  it("misses a Walker standing just outside the line of fire (mouse aim: no assist)", () => {
     const { world, events } = setup();
     spawnZombie(world, "walker", 14, 16 + 0.36);
-    setInput(world, "local", aimRight());
+    setInput(world, "local", aimRight({ isMouse: true }));
     step(world, TICK_DT_S);
     setInput(world, "local", NEUTRAL_INPUT);
     run(world, 4);

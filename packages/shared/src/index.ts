@@ -32,3 +32,4 @@ export { isGun, isMelee, weaponIds, weaponStats, type WeaponId } from "./combat/
 export type { ProjectilePool } from "./combat/projectilePool";
 export { applyZombieDamage } from "./combat/damage";
 export { ticksFor } from "./core/time";
+export { assistAim } from "./combat/aimAssist";

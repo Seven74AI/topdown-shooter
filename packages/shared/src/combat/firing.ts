@@ -9,6 +9,7 @@ import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { applyZombieDamage } from "./damage";
+import { assistAim } from "./aimAssist";
 import { activeSlot } from "./loadout";
 import {
   freeProjectile,
@@ -70,7 +71,8 @@ function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
 
   dir.x = input.aimX / aimLen;
   dir.y = input.aimY / aimLen;
-  // Story 1.6 applies aim assist here (before spread).
+  // Aim assist on touch only (FR4), before spread; mouse aim is never assisted.
+  if (!input.isMouse) assistAim(world, p.x, p.y, dir.x, dir.y, stats.rangeM, dir);
   if (stats.spreadDeg > 0) {
     const half = (stats.spreadDeg / 2) * DEG_TO_RAD;
     rotate(dir.x, dir.y, world.rng.range(-half, half), dir);

@@ -1,6 +1,10 @@
+---
+baseline_commit: 716cecae4a7d58419ec326afa0e77a50e82fbe75
+---
+
 # Story 1.6: Aim assist on touch
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -17,10 +21,10 @@ so that aiming with a thumb feels reliable in a crowd.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: `combat/aimAssist.ts`** (AC 1, 2) — `assistAim(world, ox, oy, dirX, dirY, rangeM, out: { x: number; y: number }): number` writes the assisted unit direction into `out` and returns the target zombie id or `-1` (see Dev Notes › Algorithm)
-- [ ] **Task 2: Hook into firing** (AC 1–3) — in `combat/firing.ts` from Story 1.5, at the "1.6 inserts aim assist here" point: if `!input.isMouse` → `assistAim(...)`; spread is applied **after** assist. Melee (1.9) does not use aim assist
-- [ ] **Task 3: Tests** (AC 4) — `combat/aimAssist.test.ts`: zombie at 7.9° → shot points exactly at it; at 8.1° → unchanged; two zombies inside the cone → the nearer by distance wins even if it is at a wider angle; a zombie inside the cone but beyond `rangeM` (+ its radius) → ignored; `isMouse: true` through the full `step()` path → direction unchanged (use `spreadDeg: 0` test balance); dead zombies ignored; zero candidates → returns `-1` and leaves the direction
-- [ ] **Task 4: Debug view (optional, dev only)** — when the collision view exists (Story 1.11), draw the 8° cone. Not required now
+- [x] **Task 1: `combat/aimAssist.ts`** (AC 1, 2) — `assistAim(world, ox, oy, dirX, dirY, rangeM, out: { x: number; y: number }): number` writes the assisted unit direction into `out` and returns the target zombie id or `-1` (see Dev Notes › Algorithm)
+- [x] **Task 2: Hook into firing** (AC 1–3) — in `combat/firing.ts` from Story 1.5, at the "1.6 inserts aim assist here" point: if `!input.isMouse` → `assistAim(...)`; spread is applied **after** assist. Melee (1.9) does not use aim assist
+- [x] **Task 3: Tests** (AC 4) — `combat/aimAssist.test.ts`: zombie at 7.9° → shot points exactly at it; at 8.1° → unchanged; two zombies inside the cone → the nearer by distance wins even if it is at a wider angle; a zombie inside the cone but beyond `rangeM` (+ its radius) → ignored; `isMouse: true` through the full `step()` path → direction unchanged (use `spreadDeg: 0` test balance); dead zombies ignored; zero candidates → returns `-1` and leaves the direction
+- [x] **Task 4: Debug view (optional, dev only)** — when the collision view exists (Story 1.11), draw the 8° cone. Not required now
 
 ## Dev Notes
 
@@ -62,10 +66,37 @@ New: `packages/shared/src/combat/{aimAssist.ts, aimAssist.test.ts}`. Modified: `
 
 ### Agent Model Used
 
+claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
+
 ### Debug Log References
+
+- Adding assist made the existing test "misses a Walker standing just outside the line of fire" fail: assist now bends that shot onto the zombie, which is correct behaviour. The test now uses mouse aim (no assist), so it still proves a raw miss.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created
+- **Implemented:**
+  - `combat/aimAssist.ts` `assistAim()`:
+    - candidates come from the zombie grid within range + the max zombie radius;
+    - alive zombies only;
+    - "in range" is measured to the zombie's edge;
+    - the cone test uses dot products against `cos(aimAssistDeg)`;
+    - the nearest target by distance wins, and the shot turns straight at it.
+  - Hooked into firing before spread, and only when `!input.isMouse`.
+- **Task 4 (optional debug cone view):** not built now. Story 1.11 adds the collision/debug view.
+- **Tests:** 154 passing (+6): 7.9° hit, 8.1° miss, nearest-by-distance, range to the edge, dead zombies ignored, touch vs mouse through the full `step()`.
+- **Verification:** typecheck 0 errors, lint 0 problems.
 
 ### File List
+
+- `packages/shared/src/combat/aimAssist.ts` (new)
+- `packages/shared/src/combat/aimAssist.test.ts` (new)
+- `packages/shared/src/combat/firing.ts` (modified: assist hook)
+- `packages/shared/src/combat/firing.test.ts` (modified: miss test uses mouse aim)
+- `packages/shared/src/index.ts` (modified)
+- `_bmad-output/implementation-artifacts/1-6-aim-assist-on-touch.md` (modified)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
+
+## Change Log
+
+- 2026-11-21: Story 1.6 implemented: 8° touch aim assist toward the nearest zombie, off for mouse aim. 154 tests passing.
