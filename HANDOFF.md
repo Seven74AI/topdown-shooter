@@ -54,6 +54,10 @@ Local copies live next to the brief (`style-lab*.html`, `dead-city-decay.html`).
 - **GitHub:** the repo needed the Claude GitHub app to be granted access before pushes worked; it is pushed now.
 - The `.claude/skills` BMAD skills load only when the repo is the working directory.
 
+## 6b. Story 1.1 prep (npm check 2026-11-21)
+
+`gds-create-story 1.1` was started but not written. Versions verified on npm: phaser 4.2.1 · preact 11.2.0 · vite 8.3.8 · typescript **6.0.3** (latest is 7.0.2; typescript-eslint 8.73.0 needs `<6.1.0`, so pin 6.0.3) · vitest 5.1.1 (needs Node ^22.12 / ^24 / ≥26) · eslint 10.15.0 · @eslint/js 10.0.1 · zod 4.6.7 · tsx 4.23.15 · @preact/preset-vite 2.10.6 · concurrently 10.0.7 · colyseus 0.18.12 · @colyseus/sdk 0.18.10 · @colyseus/schema 5.0.50. Node 26.13.1 is the current LTS (architecture target); add `.nvmrc` = 26 and `engines`.
+
 ## 7. How the designer likes to work
 
 - Plain English, short messages. They often answer "ok", "C" or a letter. Treat a bare "ok" as acceptance of all proposals in the previous message, and say so.
