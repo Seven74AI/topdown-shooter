@@ -3,7 +3,7 @@ title: topdown-shooter — Development Epics
 source: gdd.md
 created: 2026-11-21
 updated: 2026-11-21
-status: draft
+status: final
 ---
 
 # Development Epics
@@ -50,7 +50,6 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Out:** boss, events, Ruins/Collapse, meta-progression.
 - **High-level stories:** remaining weapons · upgrade levels · Spitter (ranged + telegraph + acid) · Bloater (contact and death explosions, gas) · Brute (building damage, knockback resistance) · remaining buildings · gear effects · consumable slot · friendly fire for fire/explosions · 6-card roguelike shop with reroll and card floor.
 
-
 ## Epic 6 — The full run: decay, boss, events, endless
 - **Goal:** a complete 10-wave run and the endless mode.
 - **In:** Ruins and Collapse stages, blackout waves (lighting, flashlights, floodlights), fog, the Behemoth, 6 special events, evacuation vote, endless mode with evac every 5 waves, boss HP scaling by player count.
@@ -58,7 +57,6 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Playable result:** a team plays from Evening to the Behemoth and chooses to extract or stay.
 - **Out:** accounts and unlocks, other districts.
 - **High-level stories:** Ruins stage · Collapse stage · blackout lighting with flashlights and floodlights · fog · Behemoth attacks and enrage · event system + 6 events · evacuation vote · endless scaling and evac every 5 waves · boss HP scaling.
-
 
 ## Epic 7 — Accounts and meta-progression
 - **Goal:** progress carries between runs.
@@ -68,7 +66,6 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Out:** cosmetics, district 2 content.
 - **High-level stories:** guest-to-account upgrade · Supplies earning and banking · unlock screen · shop deck from unlocked pool · Training boosts and costs · district unlock rule.
 
-
 ## Epic 8 — Real-life resilience
 - **Goal:** real life doesn't break a run.
 - **In:** join mid-run at build phases with catch-up currency, 2-minute reconnect, host migration, Save and quit with 7-day resume, quick pings.
@@ -77,7 +74,6 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Out:** matchmaking, voice chat.
 - **High-level stories:** join at build phase with catch-up currency · reconnect window · host migration · Save and quit · resume with host · ping button and markers.
 
-
 ## Epic 9 — Dead City art and audio
 - **Goal:** the final look and sound.
 - **In:** final district art in 5 decay states, character and zombie animations, dismemberment, effects, UI art, ambience per decay stage, adaptive music, weapon and zombie sounds.
@@ -85,7 +81,6 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **Playable result:** the game looks and sounds like Dead City.
 - **Out:** new districts' art.
 - **High-level stories:** hire artist and sound designer · district art × 5 decay states · survivor and zombie animation sets · dismemberment · effects · UI art · ambience per stage · adaptive music · weapon and zombie sounds.
-
 
 ## Epic 10 — Performance and polish
 - **Goal:** meet every technical target on the reference phones.

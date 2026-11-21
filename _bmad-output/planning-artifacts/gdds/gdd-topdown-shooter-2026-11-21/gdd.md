@@ -2,7 +2,7 @@
 title: topdown-shooter (working title) — Game Design Document
 game_type: shooter (with roguelike run structure and tower-defense building)
 platforms: [mobile web browser, desktop web browser]
-status: draft
+status: final
 created: 2026-11-21
 updated: 2026-11-21
 source_brief: ../../briefs/brief-topdown-shooter-2026-11-21/brief.md
