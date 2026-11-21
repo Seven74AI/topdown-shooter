@@ -8,6 +8,7 @@ import type { HudModel } from "./hudModel";
 import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
 import { MAX_RUSH_MARKERS } from "./hudModel";
+import { PerfOverlay } from "../debug/PerfOverlay";
 
 export interface HudSceneData {
   sticks: TouchSticks;
@@ -87,6 +88,7 @@ export class HudScene extends Phaser.Scene {
   private shownReloadStep = Number.NaN;
   private shownW = 0;
   private shownH = 0;
+  private perfOverlay: PerfOverlay | null = null;
 
   constructor() {
     super("Hud");
@@ -150,6 +152,7 @@ export class HudScene extends Phaser.Scene {
       this.arrows.push(this.add.triangle(0, 0, a, 0, -a * 0.6, -a * 0.7, -a * 0.6, a * 0.7, RUSH_COLOR).setVisible(false));
     }
     this.hpBar = this.add.graphics();
+    this.perfOverlay = new PerfOverlay(this); // Story 1.11 (top-right, toggled by ?debug=1 / three-finger tap)
     this.hpText = this.add.text(0, 0, "", {
       fontFamily: "system-ui, sans-serif",
       fontSize: `${Math.round(HP_TEXT_PX * dpr())}px`,
@@ -252,6 +255,7 @@ export class HudScene extends Phaser.Scene {
     this.drawWeapon();
     this.drawWave();
     this.drawRushArrows();
+    this.perfOverlay?.update();
   }
 
   /** "Wave 3 · Zombies 47" top-center, and the centered banner fading out. */

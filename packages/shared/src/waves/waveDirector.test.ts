@@ -180,6 +180,17 @@ describe("wave director (FR28, FR30)", () => {
     expect(world.waves.phase).toBe("pause");
   });
 
+  it("a paused director (stress scenario, Story 1.11) starts no wave and spawns nothing", () => {
+    const { world } = setup();
+    world.waves.paused = true;
+    run(world, 400);
+    expect(world.waves.number).toBe(0);
+    expect(world.zombies.aliveCount).toBe(0);
+    world.waves.paused = false;
+    run(world, 61);
+    expect(world.waves.number).toBe(1);
+  });
+
   it("is deterministic for a seed", () => {
     const positions = () => {
       const { world } = setup();

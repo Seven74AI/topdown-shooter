@@ -39,7 +39,14 @@ export interface World {
   readonly projectiles: ProjectilePool;
   /** Wave director state. */
   readonly waves: WaveState;
+  /** Debug switches (Story 1.11). Set only by dev cheats and the fixed `?stress` scenario. */
+  readonly debug: WorldDebug;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
+}
+
+export interface WorldDebug {
+  /** The player takes no damage (contact damage is skipped). */
+  godMode: boolean;
 }
 
 export interface CreateWorldOptions {
@@ -74,6 +81,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     zombieGrid: createSpatialGrid(map, GRID_CELL_M, ZOMBIE_POOL_CAPACITY),
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(opts.balance),
+    debug: { godMode: false },
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

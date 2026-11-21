@@ -17,6 +17,16 @@ export const MAX_CATCHUP_STEPS = 5;
 /** Id of the only player in local (Epic 1) mode. */
 export const LOCAL_PLAYER_ID = "local";
 
+/** Step timing of the last `update()` (Story 1.11 overlay). Client code, so `performance.now()` is allowed. */
+export interface SimStepStats {
+  /** Steps run by the last `update()` call (0..MAX_CATCHUP_STEPS). */
+  lastUpdateSteps: number;
+  /** Duration of each of those steps, ms (only the first `lastUpdateSteps` entries are valid). */
+  readonly stepMs: Float64Array;
+  /** Steps run since the host was created. */
+  totalSteps: number;
+}
+
 /** Runs the shared World in the browser at a fixed 20 Hz step. */
 export class LocalSimHost implements SimHost {
   readonly world: World;
@@ -30,6 +40,7 @@ export class LocalSimHost implements SimHost {
   private events: SimEvent[] = [];
   private drained: SimEvent[] = [];
   private readonly unsubscribe: () => void;
+  readonly stats: SimStepStats = { lastUpdateSteps: 0, stepMs: new Float64Array(MAX_CATCHUP_STEPS), totalSteps: 0 };
 
   constructor(opts: { balance: Balance; seed: number }) {
     this.world = createWorld({ balance: opts.balance, seed: opts.seed });
@@ -41,6 +52,7 @@ export class LocalSimHost implements SimHost {
   }
 
   update(frameDtS: number): void {
+    this.stats.lastUpdateSteps = 0;
     if (!(frameDtS > 0)) return;
     this.accumulatorS += frameDtS;
     let steps = 0;
@@ -53,10 +65,14 @@ export class LocalSimHost implements SimHost {
       });
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
+      const t0 = performance.now();
       step(this.world, TICK_DT_S);
+      this.stats.stepMs[steps] = performance.now() - t0;
       this.accumulatorS -= TICK_DT_S;
       steps++;
     }
+    this.stats.lastUpdateSteps = steps;
+    this.stats.totalSteps += steps;
     if (this.accumulatorS >= TICK_DT_S) {
       // Hit the catch-up cap: drop whole steps, keep the fraction so alpha stays in [0, 1).
       this.accumulatorS %= TICK_DT_S;

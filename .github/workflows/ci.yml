@@ -23,6 +23,9 @@ jobs:
       - run: npm test
       - run: npm run build
         env: { BASE_PATH: /topdown-shooter/ }
+      # Story 1.11: the release bundle must not contain the dev cheats (fails if dist is missing).
+      - run: npx vitest run tools/checks/noCheatsInRelease.test.ts
+        env: { REQUIRE_DIST: "1" }
       - if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v5
         with: { path: apps/client/dist }

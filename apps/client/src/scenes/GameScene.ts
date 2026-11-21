@@ -14,6 +14,7 @@ import {
   ZOMBIE_STATE,
   type Balance,
   type PlayerInput,
+  type World,
 } from "@topdown/shared";
 import { dpr } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
@@ -28,6 +29,15 @@ import { getSettings } from "../settings/settings";
 import { MAX_RUSH_MARKERS, createHudModel } from "./hudModel";
 import { LOCAL_PLAYER_ID, LocalSimHost } from "../sim/LocalSimHost";
 import type { HudSceneData } from "./HudScene";
+import { urlOptions } from "../debug/urlOptions";
+import { recordSimFrame } from "../debug/perfProbe";
+import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+
+/** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
+export interface GameSceneData {
+  /** Run seed (uint32); a random one when absent (dev cheat "set run seed", Story 1.11). */
+  seed?: number;
+}
 
 /** A random uint32 run seed. Client code, so crypto is allowed here (never in packages/shared). */
 export function newRunSeed(): number {
@@ -64,9 +74,11 @@ export class GameScene extends Phaser.Scene {
     super("Game");
   }
 
-  create(): void {
+  create(data?: GameSceneData): void {
     const balance: Balance = loadBalance();
-    const host = new LocalSimHost({ balance, seed: newRunSeed() });
+    const seed = data?.seed !== undefined ? data.seed >>> 0 : newRunSeed();
+    const host = new LocalSimHost({ balance, seed });
+    const stress = urlOptions().stress;
     this.host = host;
     const world = host.world;
     const cx = world.map.widthM / 2;
@@ -80,8 +92,8 @@ export class GameScene extends Phaser.Scene {
     if (balance.waves.lastRushCount > MAX_RUSH_MARKERS) {
       throw new Error(`waves.lastRushCount ${balance.waves.lastRushCount} exceeds MAX_RUSH_MARKERS ${MAX_RUSH_MARKERS}`);
     }
-    uiStore.handle("restart", () => this.scene.restart());
-    if (import.meta.env.DEV) {
+    uiStore.handle("restart", () => this.scene.restart({} satisfies GameSceneData)); // {}: a new random seed
+    if (import.meta.env.DEV && stress === null) {
       // Dev builds pick a loadout first (temporary until the shop, Story 3.3); release starts with the Pistol.
       this.running = false;
       uiStore.handle("startRun", (loadout) => {
@@ -112,6 +124,12 @@ export class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, world.map.widthM, world.map.heightM);
     this.applyZoom();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
+    if (stress !== null) {
+      // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
+      const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
+      setupStressWorld(world, stress, view, cx, cy);
+      stressRun.start(performance.now(), stress);
+    }
 
     this.sticks = new TouchSticks(STICK_RADIUS_CSS_PX * dpr(), balance.controls.moveDeadZone, balance.controls.aimDeadZone);
     const hudData: HudSceneData = { sticks: this.sticks, model: this.hudModel };
@@ -120,6 +138,7 @@ export class GameScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
       this.scene.stop("Hud");
+      stressRun.cancel();
       uiStore.handle("restart", undefined);
       uiStore.handle("startRun", undefined);
       for (const c of this.chevrons) c.destroy();
@@ -131,6 +150,26 @@ export class GameScene extends Phaser.Scene {
       this.host?.dispose();
       this.host = null;
     });
+  }
+
+  /** Dev tools and automated browser checks only (Story 1.11): the running World, or null. */
+  get debugWorld(): World | null {
+    return this.host?.world ?? null;
+  }
+
+  /** Dev tools: the camera's visible world rectangle this frame (meters). */
+  debugView(out: ViewRect): ViewRect {
+    const m = this.hudModel;
+    out.x = m.camX;
+    out.y = m.camY;
+    out.w = this.scale.width / m.camZoom;
+    out.h = this.scale.height / m.camZoom;
+    return out;
+  }
+
+  /** Dev tools: restart the run, with a given seed or a random one. */
+  restartRun(seed?: number): void {
+    this.scene.restart((seed === undefined ? {} : { seed }) satisfies GameSceneData);
   }
 
   private showBanner(text: string): void {
@@ -220,6 +259,8 @@ export class GameScene extends Phaser.Scene {
       this.playerView.update(player, host.alpha);
       this.cameras.main.centerOn(this.playerView.x, this.playerView.y);
       this.updateRushMarkers(host.alpha, this.playerView.x, this.playerView.y);
+      const m = this.hudModel;
+      recordSimFrame(host.stats, host.world.zombies, m.camX, m.camY, this.scale.width / m.camZoom, this.scale.height / m.camZoom);
       this.hudModel.hp = player.hp;
       this.hudModel.maxHp = player.maxHp;
       const slot = activeSlot(player.loadout);

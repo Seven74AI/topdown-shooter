@@ -24,6 +24,19 @@ describe("LocalSimHost", () => {
     expect(host.world.tick).toBeLessThanOrEqual(MAX_CATCHUP_STEPS + 1);
   });
 
+  it("times each step of the last update (stats for the perf overlay)", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    host.update(0.12); // 2 steps, 0.02 s left over
+    expect(host.stats.lastUpdateSteps).toBe(2);
+    expect(host.stats.stepMs[0]).toBeGreaterThanOrEqual(0);
+    expect(host.stats.stepMs[1]).toBeGreaterThanOrEqual(0);
+    host.update(0.01);
+    expect(host.stats.lastUpdateSteps).toBe(0);
+    host.update(0);
+    expect(host.stats.lastUpdateSteps).toBe(0);
+    expect(host.stats.totalSteps).toBe(2);
+  });
+
   it("keeps alpha in [0, 1) across uneven frames", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     for (const dt of [0.001, 0.033, 0.017, 0.049, 0.051, 0.1, 0.0167]) {
