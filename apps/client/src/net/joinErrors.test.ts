@@ -20,6 +20,8 @@ describe("joinErrorText", () => {
   it("treats network failures and gateway errors as unreachable", () => {
     expect(joinErrorText(new TypeError("Failed to fetch"))).toBe("Can't reach the server");
     expect(joinErrorText(mm("Bad Gateway", 502))).toBe("Can't reach the server");
+    expect(joinErrorText(mm("Not Found", 404))).toBe("Can't reach the server"); // static host, no game server
+    expect(joinErrorText(mm("Method Not Allowed", 405))).toBe("Can't reach the server");
     expect(joinErrorText(mm("server is shutting down", 503))).toBe("Can't reach the server");
     expect(joinErrorText(undefined)).toBe("Can't reach the server");
     expect(joinErrorText("boom")).toBe("Can't reach the server");

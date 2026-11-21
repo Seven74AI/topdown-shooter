@@ -78,11 +78,16 @@ describe("RunRoom", () => {
   });
 
   it("refuses bad options with invalid_options", async () => {
-    for (const over of [{ name: "" }, { name: "x".repeat(17) }, { name: "a\u0007b" }, { extra: 1 }, { name: "x".repeat(2000) }]) {
+    for (const over of [{ name: "" }, { name: "x".repeat(17) }, { name: "a\u0007b" }, { extra: 1 }]) {
       const e = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions(over)));
       expect(e.code).toBe(JOIN_REFUSED_CODE);
       expect(e.message).toBe("invalid_options");
     }
+  });
+
+  it("refuses an oversized matchmaking body at the HTTP layer, before it is buffered", async () => {
+    const e = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ name: "x".repeat(4000) })));
+    expect(e.code).toBe(413);
   });
 
   it("only creates rooms for the create intent", async () => {

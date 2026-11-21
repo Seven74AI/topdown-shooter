@@ -15,6 +15,10 @@ describe("net contract", () => {
 
   it("trims names and accepts 1-16 characters", () => {
     expect(playerNameSchema.parse("  Ana  ")).toBe("Ana");
+    expect(playerNameSchema.safeParse("Zoé 🏃\u200D\u2640\uFE0F").success).toBe(true); // emoji ZWJ sequence
+    expect(playerNameSchema.safeParse("\u3164").success).toBe(false); // Hangul filler: invisible
+    expect(playerNameSchema.safeParse("\u2800 \u3164").success).toBe(false);
+    expect(playerNameSchema.safeParse("a\u200Bb").success).toBe(false); // zero-width space stays refused
     expect(playerNameSchema.safeParse("a".repeat(16)).success).toBe(true);
     expect(playerNameSchema.safeParse("a".repeat(17)).success).toBe(false);
     expect(playerNameSchema.safeParse(` ${"a".repeat(16)} `).success).toBe(true);

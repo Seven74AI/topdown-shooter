@@ -46,13 +46,24 @@ export type RunPhase = "lobby" | "wave" | "results";
 /** Why the server refused a join (sent as the `ServerError` message). */
 export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited";
 
-/** A display name: trimmed, 1–16 characters, no control/format characters (Unicode category C). */
+/**
+ * Characters that render as nothing (Hangul fillers, Braille blank, halfwidth filler): a name made
+ * only of these and spaces would be invisible.
+ */
+const INVISIBLE = /[\s\u115F\u1160\u2800\u3164\uFFA0]/gu;
+
+/**
+ * A display name: trimmed, 1–16 characters, no control/format characters (Unicode category C)
+ * except the zero-width joiner and variation selector-16 that emoji sequences need (🏃‍♀️), and
+ * at least one visible character.
+ */
 export const playerNameSchema = z
   .string()
   .trim()
   .min(1)
   .max(16)
-  .regex(/^[^\p{C}]+$/u);
+  .regex(/^(?:[^\p{C}]|\u200D|\uFE0F)+$/u)
+  .refine((name) => name.replace(INVISIBLE, "").replace(/\u200D|\uFE0F/gu, "").length > 0, "name is invisible");
 
 /** Options sent with `client.create` / `client.joinById`; checked in `RunRoom.onAuth`. */
 export const joinOptionsSchema = z

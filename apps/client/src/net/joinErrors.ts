@@ -17,7 +17,8 @@ export const JOIN_ERROR_TEXT = {
 /** Colyseus "invalid room id" (not found, or locked when full). */
 const INVALID_ROOM_ID = 522;
 /** Gateway/proxy errors (Vite proxy or Caddy with the game server down) and shutdown. */
-const UNREACHABLE_STATUS = new Set([502, 503, 504]);
+/** 404/405: a static host with no game server (e.g. the GitHub Pages build). */
+const UNREACHABLE_STATUS = new Set([404, 405, 502, 503, 504]);
 
 export function joinErrorText(err: unknown): string {
   if (typeof err !== "object" || err === null) return JOIN_ERROR_TEXT.unreachable;
