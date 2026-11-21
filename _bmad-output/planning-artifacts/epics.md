@@ -699,7 +699,7 @@ So that my friends and I can test online co-op on real phones over 4G.
 
 **Given** `deploy/docker-compose.yml`, `deploy/Caddyfile`, `deploy/server.Dockerfile`
 **When** the stack starts on the VPS
-**Then** Caddy serves the client build and terminates HTTPS and WSS for the chosen subdomain of `sevend.io` with automatic certificates
+**Then** Caddy serves the client build behind the existing Cloudflare Tunnel, which terminates HTTPS and WSS for `hordes.sevend.io` (designer decision 2026-11-21: Cloudflare edge certificates, no open ports)
 **And** `index.html` is served with no-cache and hashed assets with a long cache
 
 **Given** a WebSocket connection

@@ -10,6 +10,9 @@ As the designer,
 I want the game running on my server under my subdomain with HTTPS,
 so that my friends and I can test online co-op on real phones over 4G.
 
+
+> **Designer decisions (2026-11-21):** Docker is installed on the VPS (use Docker Compose; the systemd fallback is not needed). HTTPS/WSS stays on the Cloudflare Tunnel's edge certificates; Caddy is plain HTTP on 127.0.0.1:8080 behind it. The downed countdown pauses during a revive (Story 2.8). The in-run menu pauses solo practice; online it keeps running (Story 2.11).
+
 ## Acceptance Criteria
 
 1. **Stack.** `deploy/docker-compose.yml`, `deploy/Caddyfile` and `deploy/server.Dockerfile` start a stack on the VPS. It serves the client build and the game server at **https://hordes.sevend.io**, with HTTPS and WSS. `index.html` is served with no-cache, and hashed assets with a long cache.
@@ -59,7 +62,7 @@ so that my friends and I can test online co-op on real phones over 4G.
 - [ ] **Task 8 (dev): `docs/deploy.md`** (AC 4): the current setup (see Dev Notes › What already runs on the VPS), first-time setup, deploy, rollback, logs (`docker compose logs -f server`), health URL, and the human checklist from Task 9.
 - [ ] **Task 9 (human, on the VPS: Hermes or the designer): Go live** (AC 1, 4). The cloud container has no access to the VPS, so this task is done there. Follow `docs/deploy.md`:
   - [ ] Record the current setup: `systemctl cat topdown-shooter.service`, and the cloudflared tunnel config for `sevend-io-stream`.
-  - [ ] Check Docker: `docker compose version`. If Docker is missing, **ask the designer** before installing it (see Dev Notes › Fallback).
+  - [ ] Check Docker: `docker compose version` (the designer confirmed Docker is installed on the VPS).
   - [ ] `cd /root/topdown-shooter && git fetch && git checkout master && git pull --ff-only`.
   - [ ] Stop and disable the old static service: `systemctl disable --now topdown-shooter.service`. It holds port 8080.
   - [ ] Run `deploy/deploy.sh`.

@@ -8,6 +8,9 @@ As a player,
 I want to go down instead of dying, and be revived by a teammate,
 so that we survive by helping each other.
 
+
+> **Designer decisions (2026-11-21):** Docker is installed on the VPS (use Docker Compose; the systemd fallback is not needed). HTTPS/WSS stays on the Cloudflare Tunnel's edge certificates; Caddy is plain HTTP on 127.0.0.1:8080 behind it. The downed countdown pauses during a revive (Story 2.8). The in-run menu pauses solo practice; online it keeps running (Story 2.11).
+
 ## Acceptance Criteria
 
 1. **Downed (FR10).** A player at 0 HP goes down. They cannot move or fire, a 20 s countdown shows above them, and `player.downed` is emitted. Zombies ignore downed players and target the nearest standing player.
@@ -78,7 +81,7 @@ For each player, in id order:
   - If there is none: `reviveTicks = 0` and `reviverId = null` (AC 2: moving away resets).
   - At `reviveTicks ≥ ticksFor(reviveS)` (60): set `status = "alive"`, `hp = Math.ceil(maxHp × reviveHpFrac)` (30), and emit `player.revived`.
   - Otherwise, **the countdown pauses while a revive is in progress** and runs when none is. At `downedTicksLeft === 0`: `status = "out"`, `outSinceWave = world.waves.number`, emit `player.out`.
-  - The paused countdown is a design choice made here (the GDD says "after 20 s without revive"). Note it in the Completion Notes so the designer can confirm it at the Story 2.10 playtest.
+  - The paused countdown was confirmed by the designer (2026-11-21); the GDD only says "after 20 s without revive".
 - **Out → return** (`returnOutPlayers`):
   - Runs when `world.waves.phase === "active"` and `world.waves.number > outSinceWave`, which is the first tick of the next wave.
   - Place the player next to the lowest-slot alive teammate: their position plus `spawnOffsetM` along +x, or −x if that would leave the map, clamped. Set `prevX/prevY` to the same point.

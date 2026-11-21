@@ -8,6 +8,9 @@ As a player,
 I want a menu during the run to leave the game,
 so that I can quit cleanly without closing the browser.
 
+
+> **Designer decisions (2026-11-21):** Docker is installed on the VPS (use Docker Compose; the systemd fallback is not needed). HTTPS/WSS stays on the Cloudflare Tunnel's edge certificates; Caddy is plain HTTP on 127.0.0.1:8080 behind it. The downed countdown pauses during a revive (Story 2.8). The in-run menu pauses solo practice; online it keeps running (Story 2.11).
+
 ## Acceptance Criteria
 
 1. **Menu.** During a run, when I tap the ☰ button (top corner, inside the safe area; Esc on desktop), an in-run menu opens over the game with **Resume** and **Leave game**. The run keeps going: online games don't pause. Epic 8 adds **Save and quit** (host only) and Epic 10 adds **Settings** to this menu.

@@ -25,3 +25,9 @@
 - 2026-11-21 — User said 'go' after reviewing the validator balance fixes (turret kills 50%, wave bonus 10×wave, Behemoth 6,000 HP, pistol upgrades 60): accepted.
 - 2026-11-21 — Architecture added two small design rules (accepted with step 7): decay changes apply only at Build phase start; buildings on newly blocked cells are destroyed with a 50% refund.
 - 2026-11-21 — Evacuation vote rules (from architecture validation, user accepted recommendations): 15 s, majority, tie/no vote = extract.
+
+## 2026-11-21 — Epic 2 story decisions (designer)
+
+- Deploy: Docker Compose on the existing VPS (Docker is installed). HTTPS/WSS via the existing Cloudflare Tunnel (edge certificates, no open ports); Caddy serves plain HTTP on 127.0.0.1:8080 behind it.
+- Downed: the 20 s countdown pauses while a teammate is reviving (GDD said "20 s without revive").
+- In-run menu: pauses the game in solo practice; online the run keeps going and your survivor stands still.
