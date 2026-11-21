@@ -19,7 +19,8 @@ import {
   spawnProjectile,
   type ProjectileSpawn,
 } from "./projectilePool";
-import { isGun, weaponIds, weaponStats } from "./weapons";
+import { swingMelee } from "./melee";
+import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
 
 /** Cooldowns within this of zero count as ready (float rounding of `+= 1/rateHz`). */
 const COOLDOWN_EPS_S = 1e-6;
@@ -83,7 +84,7 @@ function updateSwap(world: World, p: PlayerState): boolean {
   return true;
 }
 
-/** Handles reload and firing for this tick. Returns true if a shot was fired. */
+/** Handles reload and firing (or a melee swing) for this tick. Returns true if the weapon attacked. */
 function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
   const slot = activeSlot(p.loadout);
   const stats = weaponStats(world.balance, slot.weapon);
@@ -102,11 +103,16 @@ function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
   if (!input || !input.fire) return false;
   const aimLen = len(input.aimX, input.aimY);
   if (aimLen < MIN_AIM || cooldownS > COOLDOWN_EPS_S) return false;
-  if (!isGun(stats)) return false; // melee arrives in Story 1.9
-  if (slot.ammo <= 0) return false;
-
   dir.x = input.aimX / aimLen;
   dir.y = input.aimY / aimLen;
+  if (isMelee(stats)) {
+    // Melee (Story 1.9): instant arc hit along the raw aim, no ammo, no reload, no aim assist.
+    swingMelee(world, p, slot.weapon, stats, dir.x, dir.y);
+    slot.cooldownS += 1 / stats.rateHz;
+    return true;
+  }
+  if (slot.ammo <= 0) return false;
+
   // Aim assist on touch only (FR4), before spread; mouse aim is never assisted.
   const offset = p.radiusM + MUZZLE_OFFSET_M;
   if (!input.isMouse) assistAim(world, p.x + dir.x * offset, p.y + dir.y * offset, dir.x, dir.y, stats.rangeM, dir);
