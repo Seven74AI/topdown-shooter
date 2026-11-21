@@ -150,6 +150,19 @@ describe("contact damage (FR9)", () => {
     expect(events.filter((e) => e.type === "player.damaged")).toHaveLength(2);
   });
 
+  it("god mode (debug flag, Story 1.11) blocks contact damage; turning it off restores it", () => {
+    const { world, p, events } = contactWorld(3);
+    world.debug.godMode = true;
+    run(world, 100);
+    expect(p.hp).toBe(100);
+    expect(p.status).toBe("alive");
+    expect(events.some((e) => e.type === "player.damaged")).toBe(false);
+    expect(snapshotWorld(world).debug).toEqual({ godMode: true });
+    world.debug.godMode = false;
+    run(world, 21);
+    expect(p.hp).toBeLessThan(100);
+  });
+
   it("keeps exact timing for any attack interval (timers count ticks)", () => {
     for (const [intervalS, expectedTicks] of [[0.3, 6], [1.5, 30], [0.7, 14]] as const) {
       const z = JSON.parse(JSON.stringify(zombiesJson));

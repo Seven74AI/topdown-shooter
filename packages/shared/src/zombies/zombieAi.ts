@@ -45,7 +45,7 @@ function nearestAlivePlayer(x: number, y: number): PlayerState | null {
 }
 
 function damagePlayer(world: World, p: PlayerState, amount: number, sourceZombieId: number): void {
-  if (p.status !== "alive") return;
+  if (p.status !== "alive" || world.debug.godMode) return; // god mode: dev cheat / ?stress (Story 1.11)
   p.hp = Math.max(0, p.hp - amount);
   world.events.emit({ type: "player.damaged", playerId: p.id, amount, sourceZombieId });
   if (p.hp <= 0) {

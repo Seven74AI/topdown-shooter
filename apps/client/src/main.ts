@@ -5,6 +5,8 @@ import { BootScene } from "./scenes/BootScene";
 import { GameScene } from "./scenes/GameScene";
 import { HudScene } from "./scenes/HudScene";
 import { App } from "./ui/App";
+import { installPerfProbe } from "./debug/perfProbe";
+import { urlOptions } from "./debug/urlOptions";
 import "./ui/overlay.css";
 
 // Phaser 4 has no `resolution` option: size the canvas in device pixels
@@ -35,5 +37,15 @@ window.addEventListener("resize", () => {
   game.scale.setZoom(1 / dpr());
 });
 
+// Performance overlay and ?stress timing (Story 1.11): release builds too.
+installPerfProbe(game, urlOptions().debug);
+
 const ui = document.getElementById("ui");
 if (ui) render(h(App, {}), ui);
+
+if (import.meta.env.DEV) {
+  // Dev builds only: Vite replaces import.meta.env.DEV with false in production and drops this
+  // block, the dynamic import and the cheat chunk (checked by tools/checks/noCheatsInRelease.test.ts).
+  Object.assign(window, { __game: game }); // for automated browser checks (docs/perf/epic-1-stress.md)
+  void import("./debug/DevCheats").then(({ mountDevCheats }) => mountDevCheats(game));
+}
