@@ -34,7 +34,13 @@ export function attachDesktopInput(router: InputRouter, win: EventTarget, doc: E
     if (router.keyDown(e.code, e.repeat)) e.preventDefault();
   };
   const keyUp = (ev: Event) => {
-    if (router.keyUp((ev as KeyLike).code)) ev.preventDefault();
+    const code = (ev as KeyLike).code;
+    // macOS sends no keyup for keys released while Cmd is held: drop everything when Cmd lifts.
+    if (code === "MetaLeft" || code === "MetaRight") {
+      router.releaseAll();
+      return;
+    }
+    if (router.keyUp(code)) ev.preventDefault();
   };
   const release = () => router.releaseAll();
   const visibility = () => {

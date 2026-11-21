@@ -22,10 +22,12 @@ export class KeyboardMouse {
   keyDown(code: string, repeat = false): boolean {
     const action = keyAction(code);
     if (!action) return false;
-    if (repeat || this.heldCodes.has(code)) return true; // auto-repeat: never a new edge
+    if (this.heldCodes.has(code)) return true; // auto-repeat of a held key: nothing new
+    // A repeat for a key we don't hold means it was already down when focus came back (after a
+    // blur released everything): hold it again, but never as a new swap edge.
     this.heldCodes.add(code);
     this.heldCount[action]++;
-    if (action === "swap") this.swapLatched = true;
+    if (action === "swap" && !repeat) this.swapLatched = true;
     return true;
   }
 

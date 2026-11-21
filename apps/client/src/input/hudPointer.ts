@@ -22,7 +22,7 @@ export function hudPointerDown(buttons: HudButtons, router: InputRouter, p: Poin
 }
 
 export function hudPointerMove(buttons: HudButtons, router: InputRouter, p: PointerLike): void {
-  router.pointerMove(p.id, p.x, p.y, p.wasTouch, buttons.owns(p.id));
+  router.pointerMove(p.id, p.x, p.y, p.wasTouch, buttons.owns(p.id), p.leftButtonDown());
 }
 
 export function hudPointerUp(buttons: HudButtons, router: InputRouter, p: PointerLike): void {

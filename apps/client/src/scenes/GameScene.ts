@@ -200,6 +200,7 @@ export class GameScene extends Phaser.Scene {
     if (router.isMouse && pv && !Number.isNaN(router.cursorX)) this.cameras.main.getWorldPoint(router.cursorX, router.cursorY, cw);
     router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y);
     this.hudModel.swapPressed = false;
+    if (!this.running) this.input_.swap = false; // a Q / swap tap in the picker must not swap at run start
     host.setLocalInput(this.input_);
 
     if (this.running) host.update(deltaMs / 1000); // LocalSimHost caps catch-up after long frames

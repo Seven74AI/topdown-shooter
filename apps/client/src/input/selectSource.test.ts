@@ -125,6 +125,7 @@ describe("attachDesktopInput", () => {
     win.dispatchEvent(other);
     expect(other.defaultPrevented).toBe(false);
     win.dispatchEvent(key("keydown", "KeyA", { ctrlKey: true })); // browser shortcut: ignored
+    expect(r.build(input(), false, 0, 0, 1, 0).moveX).toBe(0); // Ctrl+A did not press A
     win.dispatchEvent(new Event("blur"));
     expect(r.build(input(), false, 0, 0, 1, 0).moveX).toBe(0);
     expect(r.build(input(), false, 0, 0, 1, 0).moveY).toBe(0);
@@ -138,4 +139,63 @@ describe("attachDesktopInput", () => {
     expect(r.isMouse).toBe(false);
     expect(r.onSourceChange).toBeNull();
   });
+
+  const setupDom = () => {
+    const r = new InputRouter(new TouchSticks(100, 0.1, 0.3));
+    const win = new EventTarget();
+    const doc = Object.assign(new EventTarget(), { hidden: false });
+    const detach = attachDesktopInput(r, win, doc, null);
+    return { r, win, doc, detach };
+  };
+
+  it("releases keys when the tab is hidden", () => {
+    const { r, win, doc, detach } = setupDom();
+    win.dispatchEvent(key("keydown", "KeyD"));
+    expect(r.build(input(), false, 0, 0, 1, 0).moveX).toBe(1);
+    doc.hidden = true;
+    doc.dispatchEvent(new Event("visibilitychange"));
+    expect(r.build(input(), false, 0, 0, 1, 0).moveX).toBe(0);
+    detach();
+  });
+
+  it("ignores keys typed into a text field", () => {
+    const { r, win, detach } = setupDom();
+    const ev = key("keydown", "KeyW");
+    Object.defineProperty(ev, "target", { value: { tagName: "INPUT" } });
+    win.dispatchEvent(ev);
+    expect(r.build(input(), false, 0, 0, 1, 0).moveY).toBe(0);
+    detach();
+  });
+
+  it("releases movement when Cmd lifts (macOS sends no keyup for keys released under Cmd)", () => {
+    const { r, win, detach } = setupDom();
+    win.dispatchEvent(key("keydown", "KeyD"));
+    win.dispatchEvent(key("keyup", "MetaLeft"));
+    expect(r.build(input(), false, 0, 0, 1, 0).moveX).toBe(0);
+    detach();
+  });
+
+  it("holds a key that was already down when focus came back (repeat-only keydowns)", () => {
+    const { r, win, detach } = setupDom();
+    win.dispatchEvent(key("keydown", "KeyW"));
+    win.dispatchEvent(new Event("blur"));
+    win.dispatchEvent(key("keydown", "KeyW", { repeat: true }));
+    expect(r.build(input(), false, 0, 0, 1, 0).moveY).toBe(-1);
+    win.dispatchEvent(key("keydown", "KeyQ", { repeat: true })); // never a swap edge
+    expect(r.build(input(), false, 0, 0, 1, 0).swap).toBe(false);
+    detach();
+  });
 });
+
+describe("InputRouter mouse button across a touch", () => {
+  it("keeps firing when the mouse comes back with the left button still held", () => {
+    const r = new InputRouter(new TouchSticks(100, 0.1, 0.3));
+    r.pointerDown(0, 400, 200, false, 0, false, W); // mouse: left down → mouse mode, firing
+    r.pointerDown(1, 100, 300, true, 0, false, W); // a touch takes over (clears the cached button)
+    r.pointerUp(1, true, false);
+    r.pointerMove(0, 420, 200, false, false, true); // mouse moves > 4 px, button still held
+    expect(r.isMouse).toBe(true);
+    expect(r.build(input(), false, 0, 0, 1, 0).fire).toBe(true);
+  });
+});
+

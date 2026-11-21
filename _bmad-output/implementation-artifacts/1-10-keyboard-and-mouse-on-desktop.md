@@ -4,7 +4,7 @@ baseline_commit: 4bf25f670c972bf9928565a6d007f3850e0c56d1
 
 # Story 1.10: Keyboard and mouse on desktop
 
-Status: review
+Status: done
 
 ## Story
 
@@ -105,6 +105,24 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `_bmad-output/implementation-artifacts/1-10-keyboard-and-mouse-on-desktop.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context; checked against the code and the Phaser 4.2.1 source) · **Outcome:** Approved, no high findings. 2 medium and 3 low findings, all fixed.
+- [x] [Med] A key held when the window got focus back was ignored, because only repeat keydowns arrive then. Fixed: a repeat for a key that isn't held holds it again, but never latches a swap edge. Test added.
+- [x] [Med] On macOS a movement key could stick after a Cmd shortcut, because there's no keyup for keys released under Cmd. Fixed: releasing Cmd (`MetaLeft`/`MetaRight`) releases everything. Test added.
+- [x] [Low] The Ctrl-filter test asserted after a blur, so it proved nothing. It now asserts straight after Ctrl+A. Added tests for the hidden tab and for keys typed into a text field.
+- [x] [Low] Q pressed in the dev loadout picker swapped weapons at run start. Fixed: the swap edge is dropped while the run isn't running. This lives in GameScene and is verified by reading the code (no Phaser unit test).
+- [x] [Low] The left button was lost when the mouse came back after a touch with the button still held. Fixed: the move that switches back to mouse takes the real button state (`pointer.leftButtonDown()`). Test added.
+- Confirmed by the reviewer:
+  - aim math has no jitter or lag (the cursor and the survivor come from the same rendered frame);
+  - no mode flapping from compatibility mouse events on phones;
+  - fire is left button only, and a mouse never creates a stick;
+  - one Q edge per press;
+  - no listener leaks on restart;
+  - no per-frame allocation.
+
 ## Change Log
+
+- 2026-11-21: Addressed code review findings - 5 items resolved (refocus with a held key, macOS Cmd stuck key). 251 tests passing.
 
 - 2026-11-21: Story 1.10 implemented: WASD/arrows by key position, mouse aim and fire with `isMouse: true`, Q swap, input router (the last-used device takes over), crosshair cursor, release on blur, no context menu, mouse never drives the touch sticks. 211 tests passing.

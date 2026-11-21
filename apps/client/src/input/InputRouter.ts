@@ -60,7 +60,7 @@ export class InputRouter {
   }
 
   /** `ownedByButton`: the pointer is holding a HUD button (touch moves then never reach the sticks). */
-  pointerMove(pointerId: number, x: number, y: number, wasTouch: boolean, ownedByButton: boolean): void {
+  pointerMove(pointerId: number, x: number, y: number, wasTouch: boolean, ownedByButton: boolean, leftDown = false): void {
     if (wasTouch) {
       if (!ownedByButton) this.sticks.pointerMove(pointerId, x, y);
       return;
@@ -76,6 +76,8 @@ export class InputRouter {
     const dx = x - this.anchorX;
     const dy = y - this.anchorY;
     this.apply("mouseMove", Math.sqrt(dx * dx + dy * dy));
+    // Back in mouse mode with the button physically held: keep firing (the cached flag was cleared).
+    if (this.isMouse) this.kbm.leftButton = leftDown;
   }
 
   /** `leftStillDown`: for a mouse, whether the left button is still held after this release. */
