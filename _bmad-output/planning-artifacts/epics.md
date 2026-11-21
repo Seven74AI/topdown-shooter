@@ -1653,3 +1653,250 @@ So that every build phase is a different choice.
 **When** Vitest runs
 **Then** tests cover the card floor, owned-item exclusion, reroll and same-seed reproducibility
 **And** the fixed-list shop from Story 3.3 is removed
+
+## Epic 6: The full run: decay, boss, events, endless
+
+A team plays the full 10 waves from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets the special events, votes to extract or stay, and can go endless.
+
+### Story 6.1: The full 10-wave curve
+
+As a team,
+I want the run to last 10 waves with the full zombie mix,
+So that a run builds to a real climax.
+
+**Acceptance Criteria:**
+
+**Given** `waves.json`
+**When** a run is played with 4 players
+**Then** wave sizes grow by ≈ 40 per wave from ≈ 40 (W1) to ≈ 400 (W10), still at most 150 alive, and the mix follows the introduction order: W7–9 full mix, W10 finale with the largest horde (FR28, FR29)
+**And** the 0.6 / 0.8 player-count multipliers still apply
+
+**Given** the temporary 6-wave ending from Epic 5
+**When** this story is done
+**Then** it is removed; until Story 6.11 exists, clearing wave 10 shows the Results screen
+
+**Given** a full 10-wave run with 4 bots
+**When** the economy is logged
+**Then** each player's earnings are compared with the 2,500–3,000 target and the result is written to the test output
+
+### Story 6.2: Ruins
+
+As a player,
+I want rubble to close an alley and new holes to open in the walls,
+So that the map squeezes us as the city breaks.
+
+**Acceptance Criteria:**
+
+**Given** the build phase before wave 7
+**When** stage 4 is applied
+**Then** rubble closes one alley (picked by the `decay` stream) and blocks other paths, collapsed walls activate new spawn points (`minStage: 4`), and streetlights start flickering (FR62)
+**And** cells covered by rubble refuse building placement ("Can't build here") (FR53)
+
+**Given** stage 4
+**When** it plays
+**Then** the wind and falling-debris placeholder ambience plays
+
+### Story 6.3: Blackout lighting
+
+As a player,
+I want blackout waves where only flashlights, floodlights, fires and muzzle flashes light the dark,
+So that light becomes something we fight for.
+
+**Acceptance Criteria:**
+
+**Given** the server's light state
+**When** the blackout flag is on
+**Then** the client draws a darkness render texture at half resolution over the map, cutting out each player's flashlight cone along their aim (60°, 8 m; Tactical flashlight 80°, 12 m), floodlight circles (8 m), fire zones and muzzle flashes (FR64)
+**And** zombie eyes are drawn above the darkness
+
+**Given** the blackout flag is off
+**When** the game renders
+**Then** no darkness texture is drawn (no cost)
+
+**Given** quality settings
+**When** a player looks for a way to turn darkness off
+**Then** there is none: blackout darkness is gameplay (FR87)
+
+**Given** the dev cheat "force blackout"
+**When** used with 150 zombies in view on the reference phones
+**Then** FPS is recorded in `docs/perf/epic-6-blackout.md`
+
+### Story 6.4: Collapse
+
+As a player,
+I want the power to die, fog to roll in, and wave 9 to be fought in the dark,
+So that the run hits its tension peak.
+
+**Acceptance Criteria:**
+
+**Given** the build phase before wave 9
+**When** stage 5 is applied
+**Then** the power is out (streetlights and shop glow removed from the light state), wave 9 is a blackout wave, and fog limits vision to 10 m (FR63)
+
+**Given** fog
+**When** a zombie is more than 10 m from the local player
+**Then** it is hidden by the fog on that player's screen; fog vision cannot be turned off (only its visual quality can)
+
+**Given** wave 10
+**When** it plays
+**Then** it is also dark, lit only by fires, floodlights, flashlights and muzzle flashes
+**And** the near-silence placeholder ambience plays (growls and rain)
+
+### Story 6.5: The Behemoth arrives
+
+As a team,
+I want a huge boss to crash into wave 10 while the horde is still coming,
+So that the run ends with a fight we'll talk about.
+
+**Acceptance Criteria:**
+
+**Given** wave 10
+**When** half of the wave's zombies have spawned
+**Then** the Behemoth enters from a spawn point: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP × the player-count multiplier (0.6 / 0.8 / 1.0) (FR33, FR31)
+**And** a boss health bar appears at the top of the screen and placeholder boss music starts
+
+**Given** the Behemoth near players
+**When** it uses ground slam
+**Then** it raises its arms for 1.2 s, then hits everything within 4 m for 40 damage (FR34)
+
+**Given** the Behemoth
+**When** Vitest runs
+**Then** tests cover HP scaling, slam telegraph timing and damage
+
+### Story 6.6: Behemoth charge and throw
+
+As a team,
+I want the Behemoth to charge through our defenses and throw wrecks at us,
+So that we have to keep moving.
+
+**Acceptance Criteria:**
+
+**Given** a player 5–10 m away in a straight line
+**When** the Behemoth charges
+**Then** it lowers its head for 1.0 s, then rushes 10 m in a straight line, dealing 30 damage to players it hits and destroying every building in its path (FR34, FR53)
+
+**Given** a player more than 8 m away
+**When** the Behemoth throws
+**Then** it picks up the nearest wreck or rubble piece (or tears up a chunk of road if none is near), telegraphs for 1 s, and throws it at the player's position: 35 damage within 3 m of the impact
+
+**Given** its attacks
+**When** they cool down
+**Then** the Behemoth chooses between slam, charge and throw by distance, with cooldowns from `boss.json`
+
+### Story 6.7: Enrage and the end of wave 10
+
+As a team,
+I want the Behemoth to get angrier when it's hurt, and its death to call the helicopter,
+So that the last half of the fight is the hardest.
+
+**Acceptance Criteria:**
+
+**Given** the Behemoth at 50% HP or less
+**When** it enrages
+**Then** it moves 30% faster, its attack cooldowns are 30% shorter, and a Crawler drops off its back every 4 s (FR35)
+
+**Given** the Behemoth dies
+**When** `boss.killed` is emitted
+**Then** an "Evac inbound" banner shows, and the remaining wave 10 zombies must still be cleared (the last-5 rule applies) before the helicopter lands (FR36)
+
+### Story 6.8: Special events, car alarm and stampede
+
+As a team,
+I want surprises in the middle of the run,
+So that no two runs play the same.
+
+**Acceptance Criteria:**
+
+**Given** a new run
+**When** events are scheduled from the `events` seed stream
+**Then** 1 or 2 events are placed in waves 3–9, never in wave 5 (the first Brute's wave), at most one per wave (FR37)
+**And** each event starts at a random moment between 20% and 60% of its wave's spawns, with a banner and sound
+
+**Given** the car alarm
+**When** it triggers
+**Then** a parked car's alarm sounds and all zombies within 15 m head toward that car for 15 s (FR38)
+
+**Given** the stampede
+**When** it triggers
+**Then** a mass of Runners (outside the wave count) enters from one map edge and crosses the map in one direction for 10 s, then leaves or keeps fighting (FR41)
+
+**Given** a framework for events
+**When** a new event is added
+**Then** it is one module in `shared/events` with its data in `events.json`
+
+### Story 6.9: Gas leak and supply drop
+
+As a team,
+I want a gas tank that explodes and a supply crate worth fighting for,
+So that we have to choose between risk and reward.
+
+**Acceptance Criteria:**
+
+**Given** the gas leak
+**When** it triggers
+**Then** the gas station tank hisses with a visible warning radius for 10 s, then explodes: zombies within 6 m die and players within 6 m take 60 damage (FR39)
+
+**Given** the supply drop
+**When** it triggers
+**Then** a crate lands at a random reachable spot (from the `events` stream) with a marker for all players (FR40)
+**And** the first player to touch it gets a rare weapon (Flamethrower, Grenade Launcher, Chainsaw or Assault Rifle at level II) in their active slot
+
+### Story 6.10: Power failure and survivor
+
+As a team,
+I want the lights to fail without warning and a survivor to need our help,
+So that the run keeps asking for teamwork.
+
+**Acceptance Criteria:**
+
+**Given** the power failure
+**When** it triggers
+**Then** the current wave becomes a blackout wave until it ends (FR42)
+
+**Given** the survivor
+**When** it triggers
+**Then** an NPC with 50 HP appears with a marker and a safe-point marker elsewhere on the map; it follows the nearest player within 3 m and zombies target it like a player (FR43)
+
+**Given** the survivor reaches the safe point alive
+**When** escorted
+**Then** every player gets +100 currency; if it dies, nobody gets the bonus
+
+### Story 6.11: Evacuation vote
+
+As a team,
+I want to vote to get out or stay after beating the Behemoth,
+So that we choose together how much to risk.
+
+**Acceptance Criteria:**
+
+**Given** wave 10 cleared after the Behemoth's death
+**When** the helicopter lands
+**Then** every player sees Extract and Stay buttons and a 15 s countdown (FR66)
+
+**Given** the votes
+**When** the countdown ends or everyone has voted
+**Then** the majority wins; a tie or no votes means Extract
+
+**Given** Extract
+**When** chosen
+**Then** the run is won and the Results screen shows "Extracted" with wave reached, kills and money per player (FR67)
+
+### Story 6.12: Endless mode
+
+As a team,
+I want to keep fighting in the collapsed city after wave 10,
+So that we can push our luck for more rewards.
+
+**Acceptance Criteria:**
+
+**Given** Stay
+**When** wave 11 and later run
+**Then** each wave has 40 more zombies than the last (still max 150 alive) and 1 more Brute, blackout happens on every other wave (11, 13, 15…), and the map stays at stage 5 (FR68)
+
+**Given** every 5th wave (15, 20, 25…)
+**When** it runs
+**Then** a Behemoth appears in it, and after it is cleared a new evacuation vote opens
+
+**Given** a team wipe in endless before extracting
+**When** the run ends
+**Then** the Results screen shows "Lost in the city" and the run records that rewards earned after wave 10 are lost (Supplies use this in Epic 7)
