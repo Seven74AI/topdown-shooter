@@ -1900,3 +1900,162 @@ So that we can push our luck for more rewards.
 **Given** a team wipe in endless before extracting
 **When** the run ends
 **Then** the Results screen shows "Lost in the city" and the run records that rewards earned after wave 10 are lost (Supplies use this in Epic 7)
+
+## Epic 7: Accounts and meta-progression
+
+Players keep progress between runs: Supplies earned every run, unlocks that add cards to their own shop, capped Training boosts, and an optional account so progress follows them to another device. The database arrives here, with only the tables each story needs.
+
+### Story 7.1: Progress saved on the server
+
+As a player,
+I want the game to remember me on my phone without signing up,
+So that my progress is kept from my very first run.
+
+**Acceptance Criteria:**
+
+**Given** the deploy stack and local development
+**When** they start
+**Then** a PostgreSQL 18 service runs (Docker Compose), the server connects with Drizzle ORM, and `npm run db:migrate` applies versioned Drizzle Kit migrations
+
+**Given** this story's migration
+**When** it runs
+**Then** it creates only the `accounts` table (id, username nullable, password hash nullable, guest token hash, display name, created) and the `progress` table (account id, supplies, unlocks, training levels, districts)
+
+**Given** a guest token sent on join (Story 2.3)
+**When** no account matches its hash
+**Then** a guest account and an empty progress row are created; otherwise the existing account is loaded and its display name prefilled
+**And** the database is reached only through repositories in `apps/server/src/db`
+
+**Given** the VPS
+**When** a night passes
+**Then** a `pg_dump` backup runs, 14 days are kept, and copies go off the VPS (target documented in `docs/deploy.md`); a restore is tested once and the result noted (NFR13)
+
+### Story 7.2: Earn and bank Supplies
+
+As a player,
+I want to earn Supplies at the end of every run, even when we lose,
+So that every run moves me forward.
+
+**Acceptance Criteria:**
+
+**Given** a run ends (extract, wipe or quit)
+**When** Supplies are computed for each player
+**Then** they get +10 per wave survived while in the run, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78)
+**And** after a wipe in endless, only waves 1–10 and the boss count
+
+**Given** the Results screen
+**When** it shows
+**Then** each player sees "+N Supplies" with the breakdown and their new total
+
+**Given** the server
+**When** Supplies are banked
+**Then** they are written to `progress` in one transaction per run; a failed write is logged at `error` and retried once
+
+**Given** the Supplies rules
+**When** Vitest runs
+**Then** tests cover loss, extract, endless extract and endless wipe
+
+### Story 7.3: Unlock screen
+
+As a player,
+I want to spend Supplies to unlock new weapons, buildings, gear and consumables,
+So that my options grow over time.
+
+**Acceptance Criteria:**
+
+**Given** a new account
+**When** its progress is created
+**Then** its pool contains the starter items: Pistol, Machete, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Wood barricade, Auto-turret, Medkit, Grenades (FR79)
+
+**Given** the Unlocks screen (from the start screen)
+**When** I open it
+**Then** I see every locked item with its Supplies price: Fire Axe 150, Assault Rifle 200, Chainsaw 300, Flamethrower 400, Grenade Launcher 500; Spike trap 100, Mine 100, Floodlight 120, Metal barricade 150, Med station 300; Revive kit 100, Tactical flashlight 100, Body armor II 250; Molotovs 150
+
+**Given** I tap Unlock with enough Supplies
+**When** the server validates it
+**Then** the item joins my pool and the Supplies are spent; otherwise "Not enough Supplies"
+
+### Story 7.4: Shop deck from my unlocks
+
+As a player,
+I want my shop to offer only what I've unlocked,
+So that unlocks change which choices I get.
+
+**Acceptance Criteria:**
+
+**Given** a run
+**When** my 6 cards are drawn
+**Then** they come only from my unlocked weapons and gear (FR47, FR79)
+**And** the always-available section shows only my unlocked buildings and consumables
+
+**Given** teammates with different unlocks
+**When** we play together
+**Then** each of us sees our own pool; a teammate's unlocks never appear in my shop
+
+**Given** the supply drop event
+**When** I grab the crate
+**Then** its rare weapon is given even if I haven't unlocked it
+
+**Given** a player whose pool can't fill the card floor (no gear unlocked beyond what they own)
+**When** cards are drawn
+**Then** the floor is filled as far as possible and the rest are weapon cards
+
+### Story 7.5: Training boosts
+
+As a player,
+I want small, capped boosts I can train between runs,
+So that I get a bit stronger without leaving new friends behind.
+
+**Acceptance Criteria:**
+
+**Given** the Training screen
+**When** I open it
+**Then** I see 4 boosts with 5 levels each: max HP +2% per level (max +10%), damage +1% per level (max +5%), starting currency +10 per level (100 → 150), reload speed +1% per level (max +5%) (FR80)
+
+**Given** I buy the next level
+**When** I have enough Supplies
+**Then** it costs 50 × level (50, 100, 150, 200, 250) and is saved to `progress`
+
+**Given** a run starts
+**When** my survivor is created
+**Then** my Training levels are applied and visible on the Results screen
+
+### Story 7.6: Upgrade to an account
+
+As a player,
+I want to turn my guest profile into an account with a username and password,
+So that I keep my progress on a new phone.
+
+**Acceptance Criteria:**
+
+**Given** a guest
+**When** I choose "Save my progress" and enter a username (3–20 characters, unique) and a password (at least 8 characters)
+**Then** my guest account becomes a full account, with the password hashed with Argon2id and all progress kept (FR77)
+
+**Given** another device
+**When** I log in with my username and password
+**Then** that device's guest token is linked to my account and my progress loads
+
+**Given** login attempts
+**When** one IP makes more than 5 per minute
+**Then** further attempts are refused with "Too many attempts, try again in a minute" (NFR12)
+
+**Given** wrong credentials
+**When** I log in
+**Then** I see "Wrong username or password" with no hint which one is wrong
+
+### Story 7.7: District unlock rule
+
+As a player,
+I want to see that extracting from Downtown unlocks the next district,
+So that I have a goal beyond one map.
+
+**Acceptance Criteria:**
+
+**Given** the host's district picker in the lobby
+**When** it shows
+**Then** Downtown is selectable and district 2 shows as locked with "Extract from Downtown to unlock"
+
+**Given** a player's first extraction from Downtown
+**When** progress is saved
+**Then** district 2 is recorded as unlocked for that player and its card shows "Unlocked: coming soon" (FR81)
