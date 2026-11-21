@@ -4,7 +4,7 @@ project: 'topdown-shooter'
 date: '2026-11-21'
 author: 'Root'
 version: '1.0'
-stepsCompleted: [1, 2, 3, 4, 5]
+stepsCompleted: [1, 2, 3, 4, 5, 6]
 status: 'in-progress'
 
 # Source Documents
@@ -19,7 +19,7 @@ brief: '_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/
 
 This architecture document is being created through the GDS Architecture Workflow.
 
-**Steps Completed:** 5 of 9 (Cross-cutting)
+**Steps Completed:** 6 of 9 (Structure)
 
 ---
 ## Project Context
@@ -283,3 +283,140 @@ world.events.emit({ type: "zombie.killed", zombieId, killerId, x, y, weapon });
 - **Headless replay:** re-run a simulation from a seed and an input log in tests.
 
 **Activation:** development builds: `?debug=1` in the URL or a three-finger tap; release builds: overlay only via Settings.
+
+## Project Structure
+
+### Organization Pattern
+
+**Pattern:** monorepo with three workspaces (client, server, shared), organized **by game domain** inside each.
+
+**Rationale:** the shared simulation is the heart of the game and must stay engine-free; domain folders (combat, zombies, waves, decay, economy…) map one-to-one to GDD sections and epics, so an agent implementing a story knows exactly which folder it touches.
+
+### Directory Structure
+
+```
+topdown-shooter/
+├── apps/
+│   ├── client/                         # Phaser 4 + Preact, built by Vite
+│   │   ├── index.html
+│   │   ├── vite.config.ts
+│   │   ├── public/assets/              # served as-is (see Game Assets)
+│   │   │   ├── atlases/                # characters.png/.json, downtown.png/.json, fx.png/.json
+│   │   │   ├── maps/                   # downtown.tmj (Tiled export)
+│   │   │   ├── audio/{sfx,ambience,music}/
+│   │   │   └── ui/
+│   │   └── src/
+│   │       ├── main.ts                 # boots Phaser + Preact overlay
+│   │       ├── scenes/                 # BootScene, PreloadScene, GameScene, HudScene
+│   │       ├── net/                    # Colyseus client, horde stream decoder, interpolation, prediction
+│   │       ├── input/                  # touch twin-stick, keyboard/mouse, input sampler
+│   │       ├── render/                 # zombie/player/building views, lighting & blackout, decay visuals, fx
+│   │       ├── audio/                  # buses, ambience per decay stage, adaptive music
+│   │       ├── ui/                     # Preact screens: Lobby, Shop, EvacVote, Results, Unlocks, Settings
+│   │       ├── settings/               # player settings (localStorage + account sync)
+│   │       └── debug/                  # perf overlay, dev cheats (dev builds only), report-a-problem
+│   └── server/                         # Colyseus 0.18 on Node.js
+│       └── src/
+│           ├── index.ts                # HTTP + Colyseus server bootstrap
+│           ├── rooms/RunRoom.ts        # one room = one run; owns Run + World
+│           ├── rooms/schema/           # Colyseus schema classes (players, buildings, phase, votes)
+│           ├── net/                    # horde stream encoder, interest management, input validation (zod)
+│           ├── run/                    # run state machine, save/resume, reconnect, join mid-run
+│           ├── auth/                   # guest tokens, username/password, sessions
+│           ├── db/                     # Drizzle schema, migrations, repositories
+│           ├── meta/                   # Supplies, unlocks, training (account progression)
+│           └── ops/                    # logging (pino), health check, problem reports
+├── packages/
+│   └── shared/                         # engine-free game simulation (no Phaser, no Colyseus)
+│       └── src/
+│           ├── core/                   # World, fixed-step loop, Result, events bus, seeded RNG, spatial grid
+│           ├── math/                   # vectors, swept collision, quantization helpers
+│           ├── config/
+│           │   ├── constants.ts
+│           │   └── balance/            # weapons.json, zombies.json, buildings.json, items.json,
+│           │                           # waves.json, economy.json, decay.json, events.json, boss.json
+│           ├── player/                 # movement, health, downed/revive, loadout
+│           ├── combat/                 # weapons, projectiles, melee arcs, damage, friendly fire
+│           ├── zombies/                # zombie storage (SoA), AI behaviors per type, telegraphs
+│           ├── boss/                   # Behemoth
+│           ├── waves/                  # wave director, spawn points, player-count scaling, endless
+│           ├── events/                 # special events (car alarm, gas leak…)
+│           ├── buildings/              # placement grid, building behaviors, repairs
+│           ├── economy/                # wallets, rewards, shop deck & card draw
+│           ├── decay/                  # decay stages, map mutations, hazards, lighting state
+│           ├── map/                    # district loading from Tiled data, collision, cover
+│           ├── net/                    # message types and horde record format (shared by encoder/decoder)
+│           └── index.ts
+├── tools/
+│   ├── bots/                           # headless bot clients for load tests
+│   └── maps/                           # Tiled project files (.tiled-project, .tmx sources)
+├── deploy/
+│   ├── docker-compose.yml              # caddy, server, postgres
+│   ├── Caddyfile
+│   └── server.Dockerfile
+├── _bmad/ , _bmad-output/ , docs/      # BMAD method, planning artifacts, project knowledge
+├── package.json                        # npm workspaces
+├── tsconfig.base.json
+└── .github/workflows/                  # CI: typecheck, lint, tests
+```
+
+Tests live next to the code they test: `foo.ts` → `foo.test.ts`.
+
+### System Location Mapping
+
+| System | Location | Responsibility |
+| --- | --- | --- |
+| Simulation loop, World, events, RNG | `packages/shared/src/core` | Fixed 20 Hz step, entity storage, event bus |
+| Player movement, health, revive | `packages/shared/src/player` | Used by server (authority) and client (prediction) |
+| Weapons, projectiles, melee, damage | `packages/shared/src/combat` | Reads `balance/weapons.json` |
+| Zombie AI and crowd separation | `packages/shared/src/zombies` | SoA storage, spatial grid queries |
+| Behemoth | `packages/shared/src/boss` | Attacks, telegraphs, enrage |
+| Wave director, spawns, scaling | `packages/shared/src/waves` | Wave curve, endless rules |
+| Special events | `packages/shared/src/events` | One module per event |
+| Buildings | `packages/shared/src/buildings` | Grid placement, turret logic, damage |
+| Economy and shop deck | `packages/shared/src/economy` | Wallets, rewards, card draw with floor |
+| Decay | `packages/shared/src/decay` | Stage changes, map mutations, hazards, light state |
+| District maps | `packages/shared/src/map` + `apps/client/public/assets/maps` | Collision/cover from Tiled data |
+| Run state machine, save/resume | `apps/server/src/run` | Phases, snapshots, reconnect, mid-run join |
+| Horde stream | `packages/shared/src/net` (format) · `apps/server/src/net` (encode) · `apps/client/src/net` (decode) | Compact per-client zombie updates |
+| Prediction and interpolation | `apps/client/src/net` | Local player prediction, remote buffers |
+| Rendering, lighting, blackout | `apps/client/src/render` | Views of simulation state only |
+| Touch controls | `apps/client/src/input` | Floating twin-sticks, aim assist input |
+| Menus | `apps/client/src/ui` | Preact overlays |
+| Accounts and meta-progression | `apps/server/src/auth`, `apps/server/src/meta`, `apps/server/src/db` | PostgreSQL via Drizzle |
+| Logging, reports, health | `apps/server/src/ops`, `apps/client/src/debug` | pino, report-a-problem |
+| Deployment | `deploy/` | Docker Compose on the VPS |
+
+### Naming Conventions
+
+#### Files
+- TypeScript modules: `camelCase.ts` (`waveDirector.ts`, `hordeStream.ts`); files exporting one class or Preact component: `PascalCase.ts(x)` (`RunRoom.ts`, `ShopScreen.tsx`, `GameScene.ts`).
+- Tests: `<name>.test.ts` next to the source.
+- Balance data files: `lowercase.json` with camelCase keys (`weapons.json` → `{ "pistol": { "damage": 5, "rateHz": 3 } }`).
+
+#### Code Elements
+| Element | Convention | Example |
+| --- | --- | --- |
+| Classes, types, interfaces | PascalCase | `RunRoom`, `ZombieType`, `SimEvent` |
+| Functions, methods, variables | camelCase | `spawnWave()`, `aliveCount` |
+| Constants | UPPER_SNAKE_CASE | `TICK_RATE_HZ`, `GRID_CELL_M` |
+| Enum-like string unions | lowercase strings | `"walker" \| "runner" \| "brute"` |
+| IDs in balance data | lowercase snake | `fire_axe`, `auto_turret`, `gas_leak` |
+| Events | `domain.past_tense` | `zombie.killed`, `decay.stage_changed` |
+| Network messages | `domain.verb` imperative from client, past tense from server | `input.send`, `shop.buy` / `wave.started` |
+| Units | SI suffix where ambiguous | `speedMps`, `rangeM`, `cooldownS`, `durationMs` |
+
+#### Game Assets
+- `category_name_variant` in snake case: `zombie_brute_walk`, `weapon_shotgun_fire`, `fx_blood_splat_02`, `amb_breakdown_rain`, `ui_btn_ready`.
+- Atlas frames use the same names; animations are `<entity>_<action>` (`walker_attack`).
+- Tiled layers: `stage1_evening`, `stage2_panic`, … `stage5_collapse`, plus `collision`, `cover`, `spawns`, `hazards`.
+
+### Architectural Boundaries
+
+1. **`packages/shared` imports nothing from Phaser, Colyseus, the DOM or Node APIs.** It is pure TypeScript and runs in browsers, Node and tests.
+2. **The server is the only writer of game state.** The client may only predict its own player and must reconcile with the server.
+3. **Rendering code never changes simulation state**; it reads state and plays effects from events.
+4. **All gameplay numbers come from `config/balance`**; none inline.
+5. **The database is only touched from `apps/server/src/db` repositories**, never from rooms or simulation code directly.
+6. **Client ↔ server message shapes are defined once** in `packages/shared/src/net` and validated on the server.
+7. **Dev cheats live only in `apps/client/src/debug` and a dev-only server handler**, compiled out of release builds.
