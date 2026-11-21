@@ -2208,3 +2208,186 @@ So that we can coordinate without voice chat.
 **Given** I choose a ping
 **When** it is sent (`ping.send`, max 1 per second per player)
 **Then** every teammate sees its icon and my color at my position for 4 s, with an edge arrow when off screen, and a short sound
+
+## Epic 9: Dead City art and audio
+
+The game looks and sounds like Dead City. Can start after Epic 4 and runs alongside later epics. Final assets replace placeholders in the same atlas layout and names, so swaps need no gameplay code changes.
+
+**Prerequisite checklist (designer, not a code story):** hire an artist and a sound designer; agree scope, budget and delivery format using the asset spec from Story 9.1.
+
+### Story 9.1: Art and audio asset spec
+
+As the designer,
+I want a complete list of every image and sound the game needs, with sizes and names,
+So that I can brief and pay the artist and sound designer for exactly the right work.
+
+**Acceptance Criteria:**
+
+**Given** the current placeholder atlases, maps and sound files
+**When** the spec is written to `docs/art/asset-spec.md` and `docs/audio/asset-spec.md`
+**Then** it lists every atlas and frame (`category_name_variant`), frame sizes, animation names and frame counts, Tiled tile sets and decay layer groups, the Dead City palette and mood references (style labs), and every sound with its trigger, length and loop flag
+
+**Given** the platform budgets
+**When** the spec is reviewed
+**Then** it states the limits: atlases ≤ 2048 × 2048, first-load download < 15 MB (music streamed), SFX in audio sprites
+
+### Story 9.2: Downtown in five decay states
+
+As a player,
+I want Downtown to look like a real city that falls apart stage by stage,
+So that the decay tells the story of the run.
+
+**Acceptance Criteria:**
+
+**Given** the final district art
+**When** it replaces the placeholders
+**Then** Downtown has 5 visual states (Evening, Panic, Breakdown, Ruins, Collapse) in the `stageN_*` layer groups, with decay props: cars in 3 conditions, barriers, sandbags, rubble, fires and vegetation (FR82)
+**And** collision, cover and spawn layers are unchanged, and all map tests still pass
+
+**Given** a full run
+**When** played on the reference phones
+**Then** FPS stays within NFR1 and the first-load size stays under 15 MB
+
+### Story 9.3: Survivor animations
+
+As a player,
+I want my survivor to look like a person seen from above holding the weapon I carry,
+So that I can read my teammates' roles at a glance.
+
+**Acceptance Criteria:**
+
+**Given** the survivor atlas
+**When** it is loaded
+**Then** it has 4 color variants (blue, orange, green, purple) and, per weapon type (pistol, two-handed gun, melee, chainsaw, flamethrower, launcher), walk, fire or swing, reload and downed animations (FR82)
+
+**Given** a player swaps or buys a weapon
+**When** the active weapon changes
+**Then** the survivor's holding pose changes to match
+
+### Story 9.4: Zombie and Behemoth animations
+
+As a player,
+I want every zombie type to look and move differently,
+So that I can spot the dangerous ones in the crowd and the dark.
+
+**Acceptance Criteria:**
+
+**Given** the zombie atlas
+**When** it is loaded
+**Then** Walker, Runner, Crawler, Spitter, Bloater, Brute and the Behemoth each have walk, attack and death animations, plus telegraph poses (Spitter rear-back with glowing mouth, Bloater swell, Behemoth arms raised, head lowered and pick-up) (FR82, FR84)
+**And** silhouettes follow the readability rules: Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter glowing mouth
+
+**Given** 150 animated zombies in view
+**When** the stress test from Story 1.11 runs
+**Then** FPS still meets NFR1
+
+### Story 9.5: Gore and dismemberment
+
+As a player,
+I want heavy hits to tear zombies apart,
+So that the fight feels as brutal as Dead City should.
+
+**Acceptance Criteria:**
+
+**Given** a `zombie.killed` event with its weapon and damage type
+**When** the killing hit was heavy (Fire Axe, Chainsaw, Shotgun) or an explosion
+**Then** the client spawns dismemberment pieces (arms, heads, torso halves) for heavy hits, or bursts the zombie apart for explosive kills (FR83)
+**And** gore is client-only and never affects the simulation
+
+**Given** blood
+**When** zombies are hit or die
+**Then** blood decals stay on the ground until the wave ends, pooled and capped at 300 so memory stays flat
+
+**Given** the gore toggle set to "Blood only"
+**When** zombies die
+**Then** no dismemberment pieces spawn; blood still shows
+
+### Story 9.6: Effects
+
+As a player,
+I want muzzle flashes, fire, acid, gas, explosions, rain and fog that look the part,
+So that the screen reads clearly even in chaos.
+
+**Acceptance Criteria:**
+
+**Given** the effects atlas
+**When** effects play
+**Then** muzzle flashes, blood, fire, acid, gas, explosions, rain, fog, flashlight and floodlight light textures use final art
+
+**Given** effects
+**When** they play
+**Then** they come from Phaser object pools with no per-frame allocation, and rain, fog visuals, film grain and light glow read their quality settings
+
+### Story 9.7: UI art
+
+As a player,
+I want menus and the HUD to look like they belong to Dead City,
+So that the game feels finished.
+
+**Acceptance Criteria:**
+
+**Given** the UI art
+**When** applied
+**Then** the HUD, shop cards, lobby, evacuation vote, ping icons, unlock and training screens use it
+**And** text stays readable on a 2021 phone screen in landscape (minimum 14 px at devicePixelRatio 1), and every button is at least 44 × 44 px
+
+### Story 9.8: Ambience and audio buses
+
+As a player,
+I want the city's sound to change as it decays,
+So that I can hear the run getting worse.
+
+**Acceptance Criteria:**
+
+**Given** three audio buses (music, SFX, ambience)
+**When** the Settings screen is open
+**Then** each has its own volume slider, saved in player settings
+
+**Given** each decay stage
+**When** it becomes active
+**Then** its ambience loop crossfades in over 3 s: Evening (traffic, distant music, voices), Panic (sirens, car alarms, shouting), Breakdown (rain, crackling fire), Ruins (wind, falling debris), Collapse (near silence, growls, rain) (FR85)
+
+### Story 9.9: Adaptive music
+
+As a player,
+I want the music to rise with the horde and calm down between waves,
+So that I feel the tension build.
+
+**Acceptance Criteria:**
+
+**Given** the wave music
+**When** zombies are alive
+**Then** its intensity (layers or volume) follows the number of zombies alive, from calm at 0 to full at 150 (FR85)
+
+**Given** a build phase
+**When** it starts
+**Then** the calmer build track plays
+
+**Given** the Behemoth
+**When** it appears
+**Then** the boss track takes over until it dies
+
+**Given** music files
+**When** the game loads
+**Then** music is streamed after the game starts and is not part of the first-load budget
+
+### Story 9.10: Weapon and zombie sounds
+
+As a player,
+I want every weapon and zombie to sound different, with warnings I can hear,
+So that I can fight by ear in the dark.
+
+**Acceptance Criteria:**
+
+**Given** about 30 weapon sounds
+**When** weapons fire or reload
+**Then** each weapon has a distinct fire and reload sound, and reloads are clearly audible over the music (FR86)
+
+**Given** about 20 zombie sounds
+**When** special zombies act
+**Then** each has a signature cue that also warns: Spitter gurgle (windup), Bloater swelling, Brute roar, Runner shriek (FR84)
+**And** zombie sounds use positional volume and stereo pan relative to the listening player
+
+**Given** many zombies at once
+**When** sounds would overlap
+**Then** a voice limit per sound type prevents clipping and keeps CPU use flat
