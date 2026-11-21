@@ -19,17 +19,17 @@ describe("assignSlot", () => {
 describe("nextHost", () => {
   it("picks the longest-connected member", () => {
     const members = [
-      { slot: 2, joinedAtMs: 300 },
-      { slot: 1, joinedAtMs: 100 },
-      { slot: 3, joinedAtMs: 200 },
+      { slot: 2, joinOrder: 300 },
+      { slot: 1, joinOrder: 100 },
+      { slot: 3, joinOrder: 200 },
     ];
     expect(nextHost(members)?.slot).toBe(1);
   });
 
   it("breaks ties by join (iteration) order and handles an empty room", () => {
     const m = new Map([
-      ["b", { slot: 3, joinedAtMs: 100 }],
-      ["a", { slot: 1, joinedAtMs: 100 }],
+      ["b", { slot: 3, joinOrder: 100 }],
+      ["a", { slot: 1, joinOrder: 100 }],
     ]);
     expect(nextHost(m.values())?.slot).toBe(3);
     expect(nextHost([])).toBeUndefined();

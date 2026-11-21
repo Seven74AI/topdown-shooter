@@ -39,7 +39,8 @@ export function StartScreen({ joinCode = null }: StartScreenProps) {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
   const [name, setName] = useState(loadName);
   // A share link's code is kept as given (sliced), so a bad one still reads "Game not found".
-  const [code, setCode] = useState(() => (joinCode ?? "").slice(0, ROOM_CODE_LENGTH));
+  // A link with a malformed code (main.ts already shows "Game not found") prefills nothing.
+  const [code, setCode] = useState(() => (joinCode && joinCode.length === ROOM_CODE_LENGTH ? joinCode : ""));
   const [busy, setBusy] = useState<"" | "create" | "join">("");
   const nameRef = useRef<HTMLInputElement>(null);
   const focused = useRef(false);

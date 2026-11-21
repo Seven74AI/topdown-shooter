@@ -17,4 +17,14 @@ describe("parseJoinPath", () => {
   it("keeps a malformed code for the start screen to refuse", () => {
     expect(parseJoinPath("/j/abio")).toBe("ABIO");
   });
+
+  it("reads links under the build's base path (GitHub Pages subpath)", () => {
+    expect(parseJoinPath("/topdown-shooter/j/abcd", "/topdown-shooter/")).toBe("ABCD");
+    expect(parseJoinPath("/j/abcd", "/topdown-shooter/")).toBeNull();
+  });
+
+  it("returns a too-long code unshortened (the caller shows Game not found)", () => {
+    expect(parseJoinPath("/j/ABCDE")).toBe("ABCDE");
+  });
 });
+

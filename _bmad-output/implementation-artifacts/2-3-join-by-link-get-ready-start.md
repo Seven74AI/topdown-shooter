@@ -4,7 +4,7 @@ baseline_commit: a6d6b123cbc23e07c8c28dac13d992d6f6ab333a
 
 # Story 2.3: Join by link, get ready, start
 
-Status: review
+Status: done
 
 ## Story
 
@@ -239,6 +239,28 @@ claude-opus-5-5 via gds-dev-story
 - `apps/client/src/scenes/BootScene.ts` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context; live dev server, Playwright with two browser contexts, raw SDK race scripts) · **Outcome:** Approved, no high or medium findings. 3 low findings plus test gaps, all addressed.
+- Confirmed:
+  - `/j/<lowercase>` prefills the code, and Leave resets the URL.
+  - A second tab gets `already_joined`.
+  - A player who leaves and rejoins gets the same slot.
+  - Host handover works.
+  - A refused join doesn't hold a seat.
+  - One leave plus 3 simultaneous joins gave unique slots (`onJoin` is synchronous).
+  - Server-side start rules hold, and `allowSoloStart` can't come from the client.
+  - The 128-bit `crypto.getRandomValues` token is hashed (SHA-256) and kept out of state and logs.
+  - Lobby subscriptions are cleaned up.
+- [x] [Low] Solo start defaulted to allowed unless `NODE_ENV=production`. It is now opt-in: `ALLOW_SOLO_START=1`, set only by the server's `dev` script.
+- [x] [Low] A mistyped link `/j/ABCDE` was shortened to a valid `ABCD`, which could join a stranger's room. Fix: the parser never shortens the code; a code that can't exist shows "Game not found" and prefills nothing. Test added.
+- [x] [Low] The share link and the parser ignored the build's base path (GitHub Pages subpath). Both now use `import.meta.env.BASE_URL`. Tests added.
+- [x] Host order used `Date.now()`, so a backwards clock jump could reorder it. It is now a per-room join counter (`joinOrder`).
+- [x] Tests added: refused joins hold no seat (the 4th player still gets in after 5 refusals); start is refused after a leave drops the room below 2.
+- Not issues: Ready flags aren't reset on join or leave (a new joiner starts Not ready, which blocks Start), and joins after start are refused in `onJoin`, as the spec says.
+
 ## Change Log
+
+- 2026-11-21: Integrated with Story 2.2 and addressed code review findings - 5 items resolved. 416 tests passing.
 
 - 2026-11-21: Story 2.3 implemented: join by share link `/j/<code>` or typed code, guest token (localStorage, SHA-256 on the server, never in state or logs), slots p0–p3 with blue/orange/green/purple, host hand-over to the longest-connected player, `lobby.set_ready` and host-only `run.start` with the shared `canStart` rule (dev may start alone), "This game is full" / "Game not found" / "already started" refusals, lobby rows with color, Host, You and Ready, and a "Starting…" placeholder until Story 2.4. 378 tests passing.

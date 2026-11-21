@@ -12,7 +12,7 @@ import { lobbyStore } from "./net/lobbyStore";
 import { JOIN_ERROR_TEXT } from "./net/joinErrors";
 import { parseJoinPath } from "./net/route";
 import type { RunConnection } from "./net/connection";
-import type { Result } from "@topdown/shared";
+import { isRoomCode, type Result } from "@topdown/shared";
 import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
 import "./ui/overlay.css";
 
@@ -92,7 +92,10 @@ uiStore.handle("leaveLobby", () => {
 
 const ui = document.getElementById("ui");
 // A share link `/j/<code>` opens the start screen with the code filled in and the name focused.
-if (ui) render(h(App, { joinCode: parseJoinPath(location.pathname) }), ui);
+const joinCode = parseJoinPath(location.pathname, import.meta.env.BASE_URL);
+// A share link whose code can't exist (e.g. a typo, /j/ABCDE) says so instead of guessing a code.
+if (joinCode !== null && !isRoomCode(joinCode)) uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.notFound });
+if (ui) render(h(App, { joinCode: joinCode !== null && isRoomCode(joinCode) ? joinCode : null }), ui);
 
 if (import.meta.env.DEV) {
   // Dev builds only: Vite replaces import.meta.env.DEV with false in production and drops this

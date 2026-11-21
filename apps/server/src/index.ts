@@ -7,8 +7,8 @@ import { serverBalance } from "./rooms/RunRoom";
 const port = Number(process.env.PORT ?? 2567);
 const host = process.env.HOST ?? "0.0.0.0";
 log.level = process.env.LOG_LEVEL ?? "info";
-// Dev builds let the host start alone (Story 2.3); the Docker image sets NODE_ENV=production (2.2).
-const allowSoloStart = process.env.NODE_ENV !== "production";
+// Opt-in only (Story 2.3 review): the dev script sets ALLOW_SOLO_START=1; production never does.
+const allowSoloStart = process.env.ALLOW_SOLO_START === "1";
 /** `PUBLIC_ORIGIN`: comma-separated origins allowed to open a WebSocket; unset in dev (allow all). */
 const allowedOrigins = parseAllowedOrigins(process.env.PUBLIC_ORIGIN);
 

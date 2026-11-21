@@ -17,7 +17,8 @@ export interface Member {
   /** Hex SHA-256 of the guest token (Story 8.1 matches a reconnecting player with it). */
   readonly guestTokenHash: string;
   /** When they joined; the longest-connected member becomes host. */
-  readonly joinedAtMs: number;
+  /** Join sequence number within the room (lower = joined earlier). */
+  readonly joinOrder: number;
 }
 
 /** The lowest free slot 0 to MAX_PLAYERS − 1, or -1 when all are taken. */
@@ -28,12 +29,12 @@ export function assignSlot(taken: Iterable<number>): number {
 }
 
 /**
- * The member who becomes host: the longest-connected one (lowest `joinedAtMs`; on a tie, the
+ * The member who becomes host: the longest-connected one (lowest `joinOrder`; on a tie, the
  * first in iteration order, which is join order for a Map). `undefined` when there is no one.
  */
-export function nextHost<M extends Pick<Member, "joinedAtMs">>(members: Iterable<M>): M | undefined {
+export function nextHost<M extends Pick<Member, "joinOrder">>(members: Iterable<M>): M | undefined {
   let best: M | undefined;
-  for (const m of members) if (best === undefined || m.joinedAtMs < best.joinedAtMs) best = m;
+  for (const m of members) if (best === undefined || m.joinOrder < best.joinOrder) best = m;
   return best;
 }
 

@@ -70,6 +70,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   );
   /** sessionId → server-only member record, in join order (Story 2.3). */
   readonly members = new Map<string, Member>();
+  /** Increments on every join; the lowest `joinOrder` is the longest-connected member. */
+  private joinCounter = 0;
   /** See `RunRoomOptions`; tests may flip it on a live room. */
   allowSoloStart = false;
 
@@ -146,7 +148,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       sessionId: client.sessionId,
       name: auth.name,
       guestTokenHash: auth.guestTokenHash,
-      joinedAtMs: Date.now(),
+      joinOrder: ++this.joinCounter, // a counter, not the clock: a clock jump can't reorder hosts
     };
     // The creator is host (slot 0); later joiners never take it over.
     if (this.members.size === 0) this.state.hostSlot = slot;

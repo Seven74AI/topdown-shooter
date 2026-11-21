@@ -69,7 +69,7 @@ development_status:
   epic-2: in-progress
   2-1-game-server-and-a-room-code: done
   2-2-deploy-to-the-vps: review
-  2-3-join-by-link-get-ready-start: review
+  2-3-join-by-link-get-ready-start: done
   2-4-the-server-runs-the-fight: ready-for-dev
   2-5-horde-stream: ready-for-dev
   2-6-instant-feel-for-my-own-survivor: ready-for-dev

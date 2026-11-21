@@ -1,6 +1,9 @@
-/** The invite link for a room code, on the page's own origin (Caddy serves `/j/<code>`, Story 2.2). */
-export function shareLink(code: string, origin: string = location.origin): string {
-  return `${origin}/j/${code}`;
+/**
+ * The invite link for a room code, on the page's own origin and base path (Caddy serves
+ * `/j/<code>`, Story 2.2; the build's BASE_URL is "/" there, a subpath on GitHub Pages).
+ */
+export function shareLink(code: string, origin: string = location.origin, base: string = import.meta.env.BASE_URL ?? "/"): string {
+  return `${origin}${base.endsWith("/") ? base : `${base}/`}j/${code}`;
 }
 
 /** The browser APIs `share()` uses (injected in tests). */

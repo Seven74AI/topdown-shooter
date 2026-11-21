@@ -3,7 +3,8 @@ import { share, shareLink } from "./share";
 
 describe("shareLink", () => {
   it("builds the /j/<code> link on the page origin", () => {
-    expect(shareLink("ABCD", "https://play.example")).toBe("https://play.example/j/ABCD");
+    expect(shareLink("ABCD", "https://play.example", "/")).toBe("https://play.example/j/ABCD");
+    expect(shareLink("ABCD", "https://x.github.io", "/topdown-shooter/")).toBe("https://x.github.io/topdown-shooter/j/ABCD");
   });
 });
 

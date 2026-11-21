@@ -351,6 +351,29 @@ describe("RunRoom lobby (Story 2.3)", () => {
     expect(room.state.players.size).toBe(1);
   });
 
+  it("does not hold a seat for refused joins: the 4th player still gets in", async () => {
+    const guestToken = newToken();
+    const host = await createRun({ guestToken });
+    for (let i = 0; i < 5; i++) await refusal(colyseus.sdk.joinById(host.client.roomId, joinOptions({ guestToken })));
+    await joinRun(host.client.roomId);
+    await joinRun(host.client.roomId);
+    const fourth = await joinRun(host.client.roomId);
+    expect((await fourth.joined).slot).toBe(3);
+  });
+
+  it("refuses a start after a leave drops the room below 2 players", async () => {
+    const host = await createRun();
+    host.room.allowSoloStart = false;
+    const guest = await joinRun(host.client.roomId);
+    await guest.joined;
+    await guest.client.leave(true);
+    await vi.waitFor(() => expect(host.room.state.players.size).toBe(1));
+    const info = vi.spyOn(host.room.log, "info");
+    await readyAndStart(host.room, host.client);
+    expect(host.room.state.phase).toBe("lobby");
+    expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "too_few" }, "run_start_refused");
+  });
+
   it("keeps the guest token and its hash out of room state and logs", async () => {
     const guestToken = newToken();
     const host = await createRun();
