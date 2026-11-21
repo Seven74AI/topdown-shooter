@@ -563,7 +563,7 @@ const world = createWorld({ balance, seed, district });
 
 - **Transport:** HTTPS and WSS only, terminated by Caddy; WebSocket origin check against the game's subdomain.
 - **Accounts:** Argon2id password hashes; guest tokens stored hashed; rate limits on login (5/min per IP) and room creation (10/min per IP).
-- **Input hardening:** message size limit (1 KB except binary none inbound), server-side input rate cap (25/s per client), zod validation.
+- **Input hardening:** inbound message size limit of 1 KB (clients never send binary), server-side input rate cap (25/s per client), zod validation.
 - **Backups:** nightly `pg_dump` container, 14 days kept, copied off the VPS; restore tested once per milestone.
 - **Deploys:** graceful shutdown autosaves every running room's last Build snapshot; Caddy serves `index.html` with no-cache and hashed assets with long cache; CI typechecks, lints, tests and builds the Docker images.
 - **Run stats:** `run_results` table (district, wave reached, extracted, loadouts per player) for the success metrics.
