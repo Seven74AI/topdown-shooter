@@ -1,6 +1,10 @@
+---
+baseline_commit: bbac715aafd478c587d050386ab99630dfafee13
+---
+
 # Story 1.1: Project scaffold with a playable link
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -24,41 +28,41 @@ so that every later story lands in a clean, checked codebase and I can try each 
 ## Tasks / Subtasks
 
 - [ ] **Task 1: Root monorepo** (AC: 2, 3)
-  - [ ] Root `package.json`: `"name": "topdown-shooter"`, `"private": true`, `"type": "module"`, `"workspaces": ["apps/*", "packages/*"]`, `"engines": { "node": ">=22.12" }`
-  - [ ] `.nvmrc` containing `26` (architecture target: Node 26 LTS; CI reads it)
+  - [x] Root `package.json`: `"name": "topdown-shooter"`, `"private": true`, `"type": "module"`, `"workspaces": ["apps/*", "packages/*"]`, `"engines": { "node": ">=22.12" }`
+  - [x] `.nvmrc` containing `26` (architecture target: Node 26 LTS; CI reads it)
   - [ ] `.npmrc` with `save-exact=true` so every `npm i` pins exactly
-  - [ ] `.gitignore`: `node_modules/`, `dist/`, `*.tsbuildinfo`, `.vite/`, `coverage/`, `.DS_Store`
-  - [ ] `tsconfig.base.json` and `tsconfig.tools.json` (see Dev Notes › TypeScript)
-  - [ ] Root scripts (see Dev Notes › Scripts)
-- [ ] **Task 2: `packages/shared`** (AC: 2, 4)
-  - [ ] `package.json`: `"name": "@topdown/shared"`, `"private": true`, `"type": "module"`, `"exports": { ".": "./src/index.ts" }` (consumed as TS source, no build step), deps `zod` 4.6.7
-  - [ ] `tsconfig.json` extends base, `"lib": ["ES2023"]` (**no DOM**), `"types": []` (**no Node types**) — makes DOM/Node usage a type error as well as a lint error
-  - [ ] `src/config/constants.ts`: `export const GAME_TITLE = "topdown-shooter";` and `export const TICK_RATE_HZ = 20;` (game constants per architecture; no balance numbers yet)
-  - [ ] `src/index.ts` re-exports constants
-  - [ ] `src/config/constants.test.ts`: one smoke test (so `npm test` runs real tests, not "no test files")
-  - [ ] Empty domain folders are NOT needed — later stories create `core/`, `math/`, etc. Do not add placeholder files.
-- [ ] **Task 3: `apps/client`** (AC: 1, 3, 8)
-  - [ ] `package.json`: `"name": "@topdown/client"`, deps `phaser` 4.2.1, `preact` 11.2.0, `@topdown/shared` (`"*"`); devDeps `vite` 8.3.8
-  - [ ] `index.html` (see Dev Notes › Landscape page)
-  - [ ] `vite.config.ts` with `base` from env (see Dev Notes › Vite)
-  - [ ] `src/main.ts`: caps DPR, boots Phaser, mounts Preact overlay
-  - [ ] `src/scenes/BootScene.ts`: centered text `GAME_TITLE` imported from `@topdown/shared` (proves the cross-workspace import)
-  - [ ] `src/ui/RotateOverlay.tsx` + `src/ui/overlay.css`
-  - [ ] `tsconfig.json` (browser, JSX via Preact) and `tsconfig.node.json` (for `vite.config.ts` only)
-- [ ] **Task 4: `apps/server` stub** (AC: 2)
-  - [ ] `package.json`: `"name": "@topdown/server"`, deps `@topdown/shared`; devDeps `tsx` 4.23.15, `@types/node` (pin current 22-or-newer major)
-  - [ ] `src/index.ts`: prints `server stub: Colyseus arrives in Story 2.1` with `GAME_TITLE`, then keeps running under `tsx watch`
-  - [ ] **Do not install Colyseus yet** (see Dev Notes › Scope)
-- [ ] **Task 5: Lint** (AC: 4)
-  - [ ] Root `eslint.config.js` (flat config) with the shared-boundary block (see Dev Notes › ESLint)
-  - [ ] `tools/lint/sharedBoundary.test.ts`: runs ESLint programmatically on fixture code at a `packages/shared/src/...` path and asserts errors for `import "phaser"`, `import "colyseus"`, `import "@colyseus/schema"`, `import "fs"`, `import "node:fs"`, `window.x`, `document.body`, and no error for a clean file
-- [ ] **Task 6: Tests** (AC: 2, 5)
-  - [ ] Root `vitest.config.ts` including `packages/*/src/**/*.test.ts`, `apps/*/src/**/*.test.ts`, `tools/**/*.test.ts`
+  - [x] `.gitignore`: `node_modules/`, `dist/`, `*.tsbuildinfo`, `.vite/`, `coverage/`, `.DS_Store`
+  - [x] `tsconfig.base.json` and `tsconfig.tools.json` (see Dev Notes › TypeScript)
+  - [x] Root scripts (see Dev Notes › Scripts)
+- [x] **Task 2: `packages/shared`** (AC: 2, 4)
+  - [x] `package.json`: `"name": "@topdown/shared"`, `"private": true`, `"type": "module"`, `"exports": { ".": "./src/index.ts" }` (consumed as TS source, no build step), deps `zod` 4.6.7
+  - [x] `tsconfig.json` extends base, `"lib": ["ES2023"]` (**no DOM**), `"types": []` (**no Node types**) — makes DOM/Node usage a type error as well as a lint error
+  - [x] `src/config/constants.ts`: `export const GAME_TITLE = "topdown-shooter";` and `export const TICK_RATE_HZ = 20;` (game constants per architecture; no balance numbers yet)
+  - [x] `src/index.ts` re-exports constants
+  - [x] `src/config/constants.test.ts`: one smoke test (so `npm test` runs real tests, not "no test files")
+  - [x] Empty domain folders are NOT needed — later stories create `core/`, `math/`, etc. Do not add placeholder files.
+- [x] **Task 3: `apps/client`** (AC: 1, 3, 8)
+  - [x] `package.json`: `"name": "@topdown/client"`, deps `phaser` 4.2.1, `preact` 11.2.0, `@topdown/shared` (`"*"`); devDeps `vite` 8.3.8
+  - [x] `index.html` (see Dev Notes › Landscape page)
+  - [x] `vite.config.ts` with `base` from env (see Dev Notes › Vite)
+  - [x] `src/main.ts`: caps DPR, boots Phaser, mounts Preact overlay
+  - [x] `src/scenes/BootScene.ts`: centered text `GAME_TITLE` imported from `@topdown/shared` (proves the cross-workspace import)
+  - [x] `src/ui/RotateOverlay.tsx` + `src/ui/overlay.css`
+  - [x] `tsconfig.json` (browser, JSX via Preact) and `tsconfig.node.json` (for `vite.config.ts` only)
+- [x] **Task 4: `apps/server` stub** (AC: 2)
+  - [x] `package.json`: `"name": "@topdown/server"`, deps `@topdown/shared`; devDeps `tsx` 4.23.15, `@types/node` (pin current 22-or-newer major)
+  - [x] `src/index.ts`: prints `server stub: Colyseus arrives in Story 2.1` with `GAME_TITLE`, then keeps running under `tsx watch`
+  - [x] **Do not install Colyseus yet** (see Dev Notes › Scope)
+- [x] **Task 5: Lint** (AC: 4)
+  - [x] Root `eslint.config.js` (flat config) with the shared-boundary block (see Dev Notes › ESLint)
+  - [x] `tools/lint/sharedBoundary.test.ts`: runs ESLint programmatically on fixture code at a `packages/shared/src/...` path and asserts errors for `import "phaser"`, `import "colyseus"`, `import "@colyseus/schema"`, `import "fs"`, `import "node:fs"`, `window.x`, `document.body`, and no error for a clean file
+- [x] **Task 6: Tests** (AC: 2, 5)
+  - [x] Root `vitest.config.ts` including `packages/*/src/**/*.test.ts`, `apps/*/src/**/*.test.ts`, `tools/**/*.test.ts`
 - [ ] **Task 7: CI + Pages workflow** (AC: 5, 6, 7)
-  - [ ] `.github/workflows/ci.yml` (see Dev Notes › GitHub Actions)
+  - [x] `.github/workflows/ci.yml` (see Dev Notes › GitHub Actions)
   - [ ] GitHub Pages source must be "GitHub Actions" (see Dev Notes › GitHub Pages) — **ask the designer before changing repo settings**
-- [ ] **Task 8: README.md** at root: prerequisites (Node ≥ 22.12, 26 recommended), the 5 commands, the Pages URL, and "Colyseus server arrives in Story 2.1"
-- [ ] **Task 9: Verify locally** (AC: 1–5, 8) — run every command in Dev Notes › Verification and record results in the Dev Agent Record
+- [x] **Task 8: README.md** at root: prerequisites (Node ≥ 22.12, 26 recommended), the 5 commands, the Pages URL, and "Colyseus server arrives in Story 2.1"
+- [x] **Task 9: Verify locally** (AC: 1–5, 8) — run every command in Dev Notes › Verification and record results in the Dev Agent Record
 
 ## Dev Notes
 
@@ -428,12 +432,75 @@ No `project-context.md` exists yet. Rules from the architecture that apply now:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 
 ### Debug Log References
+
+- Red → green: `constants.test.ts` failed (module missing) before `constants.ts`; `sharedBoundary.test.ts` failed 16/16 before `eslint.config.js`, then passed.
+- Writing `.npmrc` with the Write tool was **denied by the harness permission check** ("sensitive file"). I did not try to get around it. Every install used `npm i -E` instead, so all pins are still exact.
+- `gh api repos/Seven74AI/topdown-shooter` (2026-11-21): `visibility: public`, `has_pages: false`; `GET …/pages` → 404. Pages is available but not enabled.
+- Action majors re-checked via GitHub API: checkout v7.0.1, setup-node v7.1.0, configure-pages v6.0.0, upload-pages-artifact v5.0.0, deploy-pages v5.0.1. These match the Dev Notes.
+- `npm view` (2026-11-21): every pinned version is unchanged from the Dev Notes table. `@types/node` is pinned at 26.6.6.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created
+- **Implemented:** npm-workspaces monorepo (`apps/client`, `apps/server`, `packages/shared`), strict TS 6.0.3 configs (shared has no DOM/Node libs; client splits browser vs `vite.config.ts`; `tsconfig.tools.json` covers `tools/` + `vitest.config.ts`), Phaser 4.2.1 BootScene with the centered `GAME_TITLE` from `@topdown/shared`, DPR cap via device-pixel canvas + `1/dpr` zoom, Preact rotate overlay (CSS media query), server stub under `tsx watch`, flat ESLint config with the ADR-03/NFR10 shared boundary, root Vitest config, CI + Pages workflow, README.
+- **Deviations from Dev Notes (small, deliberate):**
+  - `MAX_DPR`/`dpr()` live in `apps/client/src/display.ts`, not in `main.ts`. `BootScene` also needs `dpr()`, and importing it from `main.ts` would create a circular import. This also made the cap unit-testable (`display.test.ts`).
+  - `@types/node` is a **root** devDep (per the Pinned versions table: "used by server, vite config, tools"), not a server devDep as Task 4's text says. The server resolves it through hoisting, and typecheck passes.
+  - The boundary test covers more than the minimum: `phaser/*`, `preact`, `process`, `setTimeout`, `Date.now`. It also asserts that vitest is allowed in shared tests and that the boundary does not apply to client code.
+  - `main.ts` guards `#ui` with `if (ui)` instead of a non-null `!`, to avoid the lint warning.
+- **Verification (Task 9), from a clean `rm -rf node_modules … && npm install`:**
+  1. `npm run typecheck` → exit 0, 0 TS errors (client both tsconfigs, server, shared, tools).
+  2. `npm run lint` → exit 0, 0 problems.
+  3. `npm test` → 3 files, 25 tests passed (constants 2, display/DPR 7, shared boundary 16).
+  4. `npm run build` → ok (JS 1,379.88 kB / 362.43 kB gzip, under the 1600 kB warning limit); `BASE_PATH=/topdown-shooter/ npm run build` → `dist/index.html` has `src="/topdown-shooter/assets/index-….js"` and `href="/topdown-shooter/assets/index-….css"`.
+  5. `npm run dev` → `[client] VITE v8.3.8 ready … Local: http://localhost:5173/` (+ Network URLs) and `[server] [topdown-shooter] server stub: Colyseus arrives in Story 2.1`; `curl -s localhost:5173 | grep viewport-fit=cover` matched.
+  6. Negative check: appending `import "phaser";` to `packages/shared/src/index.ts` → `npm run lint` exit 1 (`no-restricted-imports … engine-free (ADR-03)`). After reverting: exit 0, file identical.
+  7. `grep -RnE '"[~^]' package.json apps/*/package.json packages/*/package.json` → no hits; `npm ls typescript --all` → only `typescript@6.0.3`. Installed: phaser 4.2.1, preact 11.2.0, vite 8.3.8, vitest 5.1.1, eslint 10.15.0, @eslint/js 10.0.1, typescript-eslint 8.73.0, globals 17.14.0, zod 4.6.7, tsx 4.23.15, concurrently 10.0.7, @types/node 26.6.6. Colyseus is not installed.
+  8. Visual check with Playwright's cached `chrome-headless-shell` against `vite preview`, `--force-device-scale-factor=3`. Landscape 844×390 shows the centered white "topdown-shooter" title, and the canvas is `width=1688 height=780`, CSS `844×390`. That means 2× rendering on a 3× device, so the DPR cap works. Portrait 390×844 shows the full-screen "📱↻ Rotate your phone" overlay. **This was not checked on a real phone**: the designer should open the dev URL or the Pages URL in portrait and landscape.
+- **Open: needs the designer (the two unchecked subtasks):**
+  - **`.npmrc` (Task 1):** the harness blocked creating it. Designer: create `.npmrc` at the repo root containing `save-exact=true`, or allow the write. Until then, use `npm i -E`; the README says so.
+  - **Pages source (Task 7):** I did not change repo settings. Pages is available (public repo), so the AC 7 stop condition does **not** apply. Designer: either set Settings → Pages → Source = "GitHub Actions", or approve `gh api -X POST repos/Seven74AI/topdown-shooter/pages -f build_type=workflow`.
+  - **AC 5/6 not observed in this story.** Nothing was committed or pushed (orchestrator instruction), so no CI run or Pages deploy has happened yet. The workflow YAML parses and runs the same commands verified locally. Expected URL after the first green push to `master` with Pages enabled: https://seven74ai.github.io/topdown-shooter/
 
 ### File List
+
+- `.github/workflows/ci.yml` (new)
+- `.gitignore` (new)
+- `.nvmrc` (new)
+- `README.md` (new)
+- `package.json` (new)
+- `package-lock.json` (new)
+- `tsconfig.base.json` (new)
+- `tsconfig.tools.json` (new)
+- `eslint.config.js` (new)
+- `vitest.config.ts` (new)
+- `apps/client/package.json` (new)
+- `apps/client/index.html` (new)
+- `apps/client/vite.config.ts` (new)
+- `apps/client/tsconfig.json` (new)
+- `apps/client/tsconfig.node.json` (new)
+- `apps/client/src/main.ts` (new)
+- `apps/client/src/display.ts` (new)
+- `apps/client/src/display.test.ts` (new)
+- `apps/client/src/scenes/BootScene.ts` (new)
+- `apps/client/src/ui/RotateOverlay.tsx` (new)
+- `apps/client/src/ui/overlay.css` (new)
+- `apps/server/package.json` (new)
+- `apps/server/tsconfig.json` (new)
+- `apps/server/src/index.ts` (new)
+- `packages/shared/package.json` (new)
+- `packages/shared/tsconfig.json` (new)
+- `packages/shared/src/index.ts` (new)
+- `packages/shared/src/config/constants.ts` (new)
+- `packages/shared/src/config/constants.test.ts` (new)
+- `tools/lint/sharedBoundary.test.ts` (new)
+- `_bmad-output/implementation-artifacts/1-1-project-scaffold-with-a-playable-link.md` (modified: frontmatter, tasks, Dev Agent Record, status)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified: story status)
+- Not created: `.npmrc` (write blocked; see Completion Notes)
+
+## Change Log
+
+- 2026-11-21: Story 1.1 implemented: monorepo scaffold, Phaser BootScene, DPR cap, rotate overlay, server stub, shared lint boundary, Vitest, CI + Pages workflow, README. 25 tests passing. Still open: `.npmrc` (write blocked) and enabling Pages (needs designer approval).

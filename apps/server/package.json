@@ -1,0 +1,15 @@
+{
+  "name": "@topdown/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@topdown/shared": "*"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15"
+  }
+}
