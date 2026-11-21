@@ -4,8 +4,8 @@ project: 'topdown-shooter'
 date: '2026-11-21'
 author: 'Root'
 version: '1.0'
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7]
-status: 'in-progress'
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
+status: 'complete'
 
 # Source Documents
 gdd: '_bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/gdd.md'
@@ -15,11 +15,9 @@ brief: '_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/
 
 # Game Architecture
 
-## Document Status
+## Executive Summary
 
-This architecture document is being created through the GDS Architecture Workflow.
-
-**Steps Completed:** 7 of 9 (Patterns)
+A server-authoritative online co-op horde shooter for phone browsers. A Phaser 4 client and a Colyseus 0.18 Node.js server share one engine-free TypeScript simulation package (the game rules), running at 20 Hz on the server with local-player prediction on phones. A custom binary horde stream keeps 150 zombies within ~24 KB/s per phone. PostgreSQL stores accounts, progression and saved runs; everything runs in Docker Compose on the designer's existing European VPS behind Caddy (HTTPS/WSS).
 
 ---
 ## Project Context
@@ -85,7 +83,7 @@ This architecture document is being created through the GDS Architecture Workflo
 | Client game framework | **Phaser** (WebGL renderer, Canvas fallback) | 4.2.1 |
 | Multiplayer server framework | **Colyseus** (Node.js) | 0.18.12 |
 | State serialization | **@colyseus/schema** (delta-encoded binary state) | 5.0.x |
-| Language | **TypeScript** (client, server, shared code) | 7.0.x |
+| Language | **TypeScript** (client, server, shared code) | 6.0.x (7.0 native compiler released 2026-11; typescript-eslint supports < 6.1, so 6.0 is pinned until tooling catches up) |
 | Client build / dev server | **Vite** | 8.3.x |
 
 Exact versions are pinned in the lockfile at project initialization; the table records the versions current when this decision was made.
@@ -104,7 +102,7 @@ The project is a TypeScript monorepo with npm workspaces, scaffolded by hand rat
 ```bash
 mkdir -p apps/client apps/server packages/shared
 npm init -y && npm pkg set workspaces[0]="apps/*" workspaces[1]="packages/*"
-npm i -w apps/client phaser colyseus.js && npm i -D -w apps/client vite typescript
+npm i -w apps/client phaser @colyseus/sdk preact && npm i -D -w apps/client vite typescript
 npm i -w apps/server colyseus @colyseus/schema && npm i -D -w apps/server typescript tsx
 ```
 
@@ -151,10 +149,10 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | Network model | Server-authoritative simulation at **20 Hz**; local player predicted on the client; remote entities interpolated ~100 ms behind | Colyseus 0.18 | One source of truth for a 150-zombie horde; instant feel for your own character (user choice) |
 | Horde sync | **Custom compact binary horde stream** from day one, interest-managed per client; Colyseus schema for everything else | @colyseus/schema 5.0 | The horde is the bandwidth risk; optimize it first (user choice) |
 | Hit validation | Server simulates all projectiles and melee; shots spawn at the shooter's position advanced by half their round-trip time (capped at 150 ms); no full rewind in v1 | — | Zombies are slow (≤ 4 m/s); simple compensation meets "< 1 in 20 hits reversed" |
-| Simulation structure | Shared, engine-free TypeScript simulation package; data-oriented entity storage (struct-of-arrays for zombies and projectiles); uniform spatial hash grid (2 m cells) | TypeScript 7.0 | Same rules on server and client prediction; fast enough for 150+ zombies on one core |
+| Simulation structure | Shared, engine-free TypeScript simulation package; data-oriented entity storage (struct-of-arrays for zombies and projectiles); uniform spatial hash grid (2 m cells) | TypeScript 6.0 | Same rules on server and client prediction; fast enough for 150+ zombies on one core |
 | Run state machine | Explicit server-side state machine: Lobby → Build → Wave → EvacVote → (Endless loop ↔ EvacVote) → Results; Paused (saved) as a side state | — | Clear phase ownership; save points only in Build |
 | Persistence | **Single PostgreSQL** for accounts, meta-progression and saved runs | PostgreSQL 18 · pg 8.23 · Drizzle ORM 0.45 | One reliable store; user choice. 18 chosen over the brand-new 19.0 for maturity |
-| Saved runs | Run snapshot (JSON, versioned) written at each Build phase; kept 7 days; resumable only with the host | — | Matches GDD; snapshots only at calm points |
+| Saved runs | **Autosave** snapshot (JSON, versioned, includes every PRNG state) at each Build phase for crash recovery; an explicit **Save and quit** makes it resumable for 7 days, only with the host | — | Matches GDD; snapshots only at calm points |
 | Reconnect | Colyseus `allowReconnection` 120 s; player slot, wallet and gear held in room state | Colyseus 0.18 | GDD 2-minute rule |
 | Accounts | Guest = random device token in localStorage → server session; upgrade to username + password (Argon2id hashed) | @node-rs/argon2 2.2 | No signup before first play (GDD); no email service needed |
 | Hosting | User's existing **Linux VPS in Europe** (6 vCPU, 12 GB RAM, ~30 GB free); Docker Compose: Caddy (HTTPS + static client) · game server · PostgreSQL; subdomain on the user's domain | Caddy 2.11 · Node.js 26 LTS | Already owned, close to all players, ample capacity (user choice) |
@@ -165,7 +163,10 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | UI | In-combat HUD drawn by Phaser; menus (lobby, shop, unlocks, evac vote) as HTML overlays built with **Preact** | Preact 11.2 | Readable, responsive menus on phones; small runtime |
 | Asset loading | Boot (tiny) → Preload (district atlas, sprites, SFX) → Game; music streamed after start; texture atlases | Phaser Loader | 15 MB / 10 s first-load target |
 | Audio | Three buses: music, SFX, ambience; positional volume/pan for zombie cues | Phaser Web Audio | GDD audio direction, settings |
-| Testing | Vitest for shared simulation (headless, deterministic with seeds); bot clients for load tests | Vitest 5.1 | Simulation is testable without a browser |
+| Testing | Vitest for shared simulation (headless, deterministic with seeds); bot clients for load tests | Vitest 5.1 |
+| Pathfinding | **Flow fields** on a 0.5 m grid toward players, rebuilt when buildings or decay change; Runners use a flanking field | — | Zombies must route around cars, bus, rubble and barricades on a changing map |
+| Client SDK | @colyseus/sdk (replaces the old `colyseus.js` package) | 0.18.10 |
+| Validation / logging / lint | zod · pino · ESLint + typescript-eslint | 4.6 · 10.4 · 10.15 + 8.73 | Simulation is testable without a browser |
 
 ### State Management
 
@@ -176,8 +177,13 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 ### Networking
 
 - **Tick:** server simulation fixed step 50 ms (20 Hz); projectile collision uses swept segment-vs-circle tests so 60 m/s bullets cannot tunnel.
-- **Client input:** sent every client frame, throttled to 30 msgs/s: move vector, aim vector, fire held, swap, consumable, ping; each tagged with a sequence number for reconciliation.
-- **Horde stream:** per tick, per client, a binary message containing zombies inside that client's view plus a 4 m margin. Record: id (u16), x and y (u16, 1 cm precision), heading (u8), type+state (u8) ≈ 7 bytes; zombies outside the view are omitted. Worst case 150 in view × 7 B × 20 Hz ≈ 21 KB/s, inside the 30 KB/s target.
+- **Client input:** sampled and sent once per 50 ms simulation step (20/s): move vector, aim vector, fire held, swap, consumable, `isMouse` flag; each tagged with a sequence number for reconciliation. Prediction runs the same fixed step; rendering interpolates between predicted steps.
+- **Time and determinism:** build, vote, downed and event timers count ticks inside the World; the Colyseus clock only drives `step()`. Joins, disconnects and reconnects enter the simulation as input events.
+- **Lag compensation upgrade path:** the server keeps 300 ms of zombie position history; if Epic 2 measures more than 1 in 20 apparent hits reversed (Runners move 4 m/s), hits are tested against rewound positions.
+- **Horde stream:** per tick, per client, a binary message containing zombies inside that client's view plus a 4 m margin. Record: id (u16, pool slot with a generation bit), x and y (u16, 1 cm precision, map origin at 0,0, clamped), heading (u8), type+state (u8) = **8 bytes**; zombies outside the view are omitted. Worst case 150 in view × 8 B × 20 Hz ≈ **24 KB/s** + 6 B header per message. Total budget per client: horde ≤ 24 KB/s + schema patches and events ≤ 6 KB/s = 30 KB/s.
+- **Backpressure:** if a client's socket `bufferedAmount` exceeds 64 KB, horde frames for that client are skipped (never queued) until it drains.
+- **Interpolation delay:** adaptive 100–150 ms based on measured jitter.
+- **Other entities:** projectiles are not synced as entities; they are cosmetic on clients, spawned from `weapon.fired` events. The Behemoth, hazard zones, mines, the Survivor NPC, the supply crate and `aliveCount` live in Colyseus schema.
 - **Events:** deaths, explosions, hits, telegraphs and decay transitions as reliable discrete messages so effects play exactly once.
 
 ### Data Persistence
@@ -435,11 +441,11 @@ These patterns ensure consistent implementation across all AI agents.
 - `DecayTimeline` (`shared/decay`): reads `decay.json` (stage per wave, e.g. waves 1–2 → stage 1) and the run seed; decides the random variations once per run (which cars burn, which alley collapses).
 - `DistrictMap` (`shared/map`): loaded from the Tiled export; holds per-stage **mutation sets**: objects with a `stage` property and an action `add | remove | ignite | block`.
 - `DecaySystem` (`shared/decay`): at the start of each Build phase, if the stage changes, applies the stage's mutations to the World (collision grid, cover, spawn points, hazard zones, light sources) and emits `decay.stage_changed`.
-- Client `DecayView` (`client/render`): on `decay.stage_changed`, swaps Tiled visual layer groups (`stageN_*`), weather and ambience; never touches collision.
+- Client `DecayView` (`client/render`): on `decay.stage_changed`, swaps Tiled visual layer groups (`stageN_*`), weather and ambience. The client prediction also runs `applyDecayStage` on its own predicted map so local movement collides correctly.
 
 **Data flow:** wave ends → Build phase starts → `DecaySystem.apply(stage)` mutates World → event → server forwards → client swaps visuals and audio.
 
-**Rules:** decay changes happen only at Build phase start (never mid-wave), so players see the new map before fighting in it. Buildings overlapping a newly blocked cell are destroyed and refunded 50%. Mutations are idempotent, so a resumed run re-applies stages 1…N from the snapshot's seed.
+**Rules:** decay changes happen only at Build phase start (never mid-wave), so players see the new map before fighting in it. Buildings overlapping a newly blocked cell are destroyed and refunded 50%. On resume, stages 1…N are re-applied to the map **without side effects** (no building destruction, no refunds, no events), then the snapshot's buildings are restored.
 
 ```ts
 // packages/shared/src/decay/decaySystem.ts
@@ -457,11 +463,11 @@ export function applyDecayStage(world: World, stage: DecayStage, plan: DecayPlan
 
 **Components:** `hordeFormat` (`shared/net`: record layout, quantization), `HordeEncoder` (`server/net`: per-client view culling + encoding each tick), `HordeDecoder` + `InterpolationBuffer` (`client/net`).
 
-**Data flow:** every tick the server, per client, selects zombies within that client's camera rectangle + 4 m (using the spatial grid), writes `[tick u32][count u16]` + records `[id u16][x u16][y u16][heading u8][typeState u8]`, and sends one binary message. The client keeps the last 3 snapshots and renders ~100 ms behind; a zombie absent from 3 consecutive snapshots is removed from view; deaths arrive separately as reliable `zombie.killed` events so the death animation plays exactly once.
+**Data flow:** every tick the server, per client, selects zombies within that client's camera rectangle + 4 m (using the spatial grid), writes `[tick u32][count u16]` + records `[id u16][x u16][y u16][heading u8][typeState u8]` (8 bytes), and sends one binary message. Pool ids carry a generation bit and freed slots are held 1 s before reuse, so a new zombie never interpolates from a dead one's position. The client keeps the last 3 snapshots and renders ~100 ms behind; a zombie absent from 3 consecutive snapshots is removed from view; deaths arrive separately as reliable `zombie.killed` events so the death animation plays exactly once.
 
 ```ts
 // packages/shared/src/net/hordeFormat.ts
-export const HORDE_RECORD_BYTES = 7;
+export const HORDE_RECORD_BYTES = 8;
 export const POS_SCALE = 100; // 1 cm precision, map up to 655 m
 export function quantizePos(m: number): number { return Math.round(m * POS_SCALE); }
 ```
@@ -470,7 +476,7 @@ export function quantizePos(m: number): number { return Math.round(m * POS_SCALE
 
 **Purpose:** each player draws their own 6 cards from their own unlocked pool while sharing one run and one seed.
 
-**Rule:** the shop draw uses a per-player RNG sub-stream derived from `runSeed + playerId + buildPhaseIndex`; offers live in that player's private schema field (only sent to that client). Purchases are validated on the server against the stored offer; rerolls advance the player's sub-stream. A mid-run joiner gets their own stream starting at the current Build phase.
+**Rule:** the shop draw uses a per-player RNG sub-stream derived from `runSeed + playerSlot + buildPhaseIndex` (the stable slot, not the connection id, so reconnects and resumes keep the same stream); offers are sent only to that client (schema `@view()` with a per-client `StateView`, or a direct message if the view API does not fit). Purchases are validated on the server against the stored offer; rerolls advance the player's sub-stream. A mid-run joiner gets their own stream starting at the current Build phase.
 
 #### 4. Blackout Lighting
 
@@ -482,7 +488,7 @@ export function quantizePos(m: number): number { return Math.round(m * POS_SCALE
 
 **Pattern:** systems inside the simulation communicate through the typed event bus (see Cross-cutting → Event System) and through explicit function calls in a fixed system order; no system holds references to another system's internals.
 
-**System order per tick:** input → player → buildings → combat (projectiles, melee) → zombies AI/movement → boss → waves/spawns → events (special) → economy (rewards from events) → decay timers → event dispatch.
+**System order per tick:** input → player → buildings → combat (projectiles, melee, aim assist applied here from server positions) → zombies AI/movement → boss → waves/spawns → events (special) → economy (rewards from events) → decay timers → event dispatch.
 
 ```ts
 // packages/shared/src/core/world.ts
@@ -490,7 +496,7 @@ export function step(world: World, dt: number): void {
   applyInputs(world); updatePlayers(world, dt); updateBuildings(world, dt);
   updateCombat(world, dt); updateZombies(world, dt); updateBoss(world, dt);
   updateWaves(world, dt); updateSpecialEvents(world, dt); updateEconomy(world);
-  world.events.flush();
+  updateDecayTimers(world); world.events.flush();
 }
 ```
 
@@ -528,3 +534,72 @@ const world = createWorld({ balance, seed, district });
 | No gameplay number inline | `balance.zombies.walker.hp`, not `10` |
 | Each new GDD mechanic gets a unit test in `shared` with a fixed seed | `bloater.test.ts` |
 | Client never decides outcomes | client plays `zombie.killed`, never deletes a zombie on its own |
+
+
+### Zombie Pathfinding
+
+`shared/zombies/flowField.ts`: a flow field on a 0.5 m grid pointing toward the nearest player, rebuilt when buildings are placed or destroyed and when the decay stage changes (at most once per tick, amortized over several ticks for the full map). Runners follow a second field that penalizes cells near other players' facing directions (flanking). A zombie whose next cell is blocked by a building attacks the building. Separation forces still apply on top of the field.
+
+### Run Room Rules
+
+- **Room code:** `onCreate` sets `this.roomId` to a random 4-letter code (no ambiguous letters); the share link is `https://<subdomain>/j/<code>`.
+- **Capacity and joins:** `maxClients = 4`; `onAuth` accepts new players only during Lobby and Build phases.
+- **Host:** `hostSlot` in schema; when the host leaves, it is reassigned to the longest-connected player. `saved_runs.host_account_id` is the host at save time and only that account can resume.
+- **Pings:** `ping.send` (rate-limited to 1 per second per player) → broadcast `ping.placed`.
+- **Evacuation vote:** [OPEN: vote duration and tie rule — proposed 15 s, majority, tie or no vote = extract].
+
+### Client Platform Budgets
+
+- devicePixelRatio capped at 2; texture atlases ≤ 2048 × 2048; darkness texture at half resolution.
+- Music via streamed audio; SFX in audio sprites.
+- No per-frame allocation in render loops; Phaser object pools for views.
+- On `visibilitychange` (tab hidden) the client stops rendering and audio; the server keeps the player for the reconnect window.
+- Web app manifest (fullscreen, landscape), `viewport-fit=cover` with safe-area insets, a rotate-your-phone overlay in portrait.
+- Gore and dismemberment are client-only effects driven by `zombie.killed` (weapon and damage type); the gore toggle replaces them with blood only.
+- The Preact overlay uses `pointer-events: none` except on active screens so touch reaches the joysticks.
+- Fog's 10 m vision limit is gameplay, not a quality setting.
+
+### Security and Operations
+
+- **Transport:** HTTPS and WSS only, terminated by Caddy; WebSocket origin check against the game's subdomain.
+- **Accounts:** Argon2id password hashes; guest tokens stored hashed; rate limits on login (5/min per IP) and room creation (10/min per IP).
+- **Input hardening:** message size limit (1 KB except binary none inbound), server-side input rate cap (25/s per client), zod validation.
+- **Backups:** nightly `pg_dump` container, 14 days kept, copied off the VPS; restore tested once per milestone.
+- **Deploys:** graceful shutdown autosaves every running room's last Build snapshot; Caddy serves `index.html` with no-cache and hashed assets with long cache; CI typechecks, lints, tests and builds the Docker images.
+- **Run stats:** `run_results` table (district, wave reached, extracted, loadouts per player) for the success metrics.
+
+### Development Environment
+
+- Node.js 26 LTS, npm workspaces; scripts: `npm run dev` (client + server with hot reload), `npm test` (Vitest), `npm run lint`, `npm run typecheck`, `npm run build`.
+- **Epic 1 local mode:** before networking exists, the client runs the shared World in the browser behind a `SimHost` interface; Epic 2 swaps in the networked host without changing scenes.
+- Context7 MCP for current Phaser/Colyseus/Vite documentation.
+
+## Architecture Validation
+
+### Validation Summary
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| Decision Compatibility | Pass (after fixes) | Timers moved into the World; prediction rate aligned to 20 Hz; client applies decay to its predicted map; RNG keyed on stable slots |
+| GDD Coverage | Pass (1 open design item) | Evacuation vote timing/tie rule pending |
+| Pattern Completeness | Pass | Entity creation, communication, state, errors, data, events defined with examples |
+| Epic Mapping | Pass | All 10 epics map to locations; Epic 1 local SimHost added; Epics 8–10 items mapped in Run Room Rules, Budgets, Security and Operations |
+| Document Completeness | Pass | Executive summary, dev environment and security/ops added; versions re-checked on npm 2026-11-21 |
+
+### Coverage Report
+
+**Systems covered:** 15/15 from Project Context. **Novel patterns:** 4. **Decisions recorded:** 22 in the summary table plus 5 ADRs.
+
+### Issues Resolved
+
+- Horde record size corrected to 8 bytes (24 KB/s worst case) and a full per-client bandwidth budget added.
+- Flow-field pathfinding added (was missing).
+- TypeScript pinned to 6.0 (typescript-eslint does not yet support 7.0); client SDK renamed to `@colyseus/sdk`.
+- Deterministic tick-based timers; input sampled at the simulation rate; adaptive interpolation; backpressure; id generation bits.
+- Private shop offers via schema views; resume applies decay without side effects; autosave vs explicit save separated.
+- Host migration, room codes, join rules, pings, aim assist location, cosmetic projectiles and schema entities defined.
+- Platform budgets (memory, battery, install, safe areas), security, backups, deploys and run stats added.
+
+### Validation Date
+
+2026-11-21
