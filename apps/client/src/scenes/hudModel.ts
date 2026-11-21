@@ -9,6 +9,14 @@ export interface HudModel {
   magazine: number;
   /** Reload progress 0..1 while reloading, otherwise -1. */
   reloadFrac: number;
+  /** The other (inactive) slot: name ("" when empty), ammo (-1 for melee) and magazine. */
+  otherWeaponName: string;
+  otherAmmo: number;
+  otherMag: number;
+  /** Swap progress 0..1 while swapping, otherwise -1. */
+  swapFrac: number;
+  /** Set by the HUD when the swap button is pressed; the GameScene consumes it. */
+  swapPressed: boolean;
   /** Current wave number (0 before wave 1) and zombies remaining (alive + queued). */
   wave: number;
   remaining: number;
@@ -34,6 +42,11 @@ export const createHudModel = (): HudModel => ({
   ammo: 0,
   magazine: 0,
   reloadFrac: -1,
+  otherWeaponName: "",
+  otherAmmo: 0,
+  otherMag: 0,
+  swapFrac: -1,
+  swapPressed: false,
   wave: 0,
   remaining: 0,
   bannerText: "",

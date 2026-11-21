@@ -1,5 +1,7 @@
 import * as Phaser from "phaser";
-import { dpr } from "../display";
+import { dpr, safeArea } from "../display";
+import { HudButtons } from "../input/HudButtons";
+import { MIN_TEXT_CSS_PX } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
@@ -22,7 +24,12 @@ const HP_HIGH = 0x4caf50;
 const HP_LOW = 0xe53935;
 /** Weapon panel (bottom-right), CSS px × dpr. */
 const AMMO_TEXT_PX = 18;
+const OTHER_TEXT_PX = MIN_TEXT_CSS_PX;
 const AMMO_MARGIN = 24;
+/** Swap button (FR5): 64 × 64 CSS px, bottom-right, above where the right thumb rests. */
+const SWAP_BTN_PX = 64;
+const SWAP_BTN_RIGHT = 24;
+const SWAP_BTN_BOTTOM = 120;
 const RELOAD_BAR_W = 120;
 const RELOAD_BAR_H = 6;
 /** Wave panel (top-center) and banner. */
@@ -57,6 +64,13 @@ export class HudScene extends Phaser.Scene {
   private aimBase!: Phaser.GameObjects.Arc;
   private aimKnob!: Phaser.GameObjects.Arc;
   private ammoText!: Phaser.GameObjects.Text;
+  private otherText!: Phaser.GameObjects.Text;
+  private swapBtn!: Phaser.GameObjects.Arc;
+  private swapLabel!: Phaser.GameObjects.Text;
+  private buttons = new HudButtons();
+  private shownOther = "";
+  private shownOtherAmmo = Number.NaN;
+  private shownSwapStep = Number.NaN;
   private reloadBar!: Phaser.GameObjects.Graphics;
   private waveText!: Phaser.GameObjects.Text;
   private bannerText!: Phaser.GameObjects.Text;
@@ -104,6 +118,22 @@ export class HudScene extends Phaser.Scene {
     this.ammoText = this.add
       .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(AMMO_TEXT_PX * dpr())}px`, color: "#ffffff" })
       .setOrigin(1, 1);
+    this.otherText = this.add
+      .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(OTHER_TEXT_PX * dpr())}px`, color: "#9aa0a6" })
+      .setOrigin(1, 1);
+    this.swapBtn = this.add
+      .circle(0, 0, (SWAP_BTN_PX / 2) * dpr(), 0xffffff, 0.14)
+      .setStrokeStyle(2 * dpr(), 0xffffff, 0.5)
+      .setVisible(false);
+    this.swapLabel = this.add
+      .text(0, 0, "⇄", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(28 * dpr())}px`, color: "#ffffff" })
+      .setOrigin(0.5)
+      .setVisible(false);
+    this.buttons = new HudButtons();
+    this.buttons.set({ id: "swap", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.swapPressed = true;
+    });
+    this.layoutButtons();
     this.reloadBar = this.add.graphics();
     this.waveText = this.add
       .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(WAVE_TEXT_PX * dpr())}px`, color: "#ffffff", align: "center" })
@@ -126,16 +156,24 @@ export class HudScene extends Phaser.Scene {
       color: "#ffffff",
     });
 
+    // Buttons first (readiness fix U1): a touch that starts on a HUD button never spawns a stick.
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
-      this.sticks.pointerDown(p.id, p.x, p.y, this.scale.width);
+      const route = this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width);
+      if (route.kind !== "button") this.sticks.pointerDown(p.id, p.x, p.y, this.scale.width);
     };
-    const move = (p: Phaser.Input.Pointer) => this.sticks.pointerMove(p.id, p.x, p.y);
+    const move = (p: Phaser.Input.Pointer) => {
+      if (!this.buttons.owns(p.id)) this.sticks.pointerMove(p.id, p.x, p.y);
+    };
     const up = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // touchend is the activation event on iOS/Chrome; touchstart alone may not unlock
+      this.buttons.pointerUp(p.id);
       this.sticks.pointerUp(p.id);
     };
-    const reset = () => this.sticks.reset();
+    const reset = () => {
+      this.sticks.reset();
+      this.buttons.reset();
+    };
     this.input.on(Phaser.Input.Events.POINTER_DOWN, down);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, move);
     this.input.on(Phaser.Input.Events.POINTER_UP, up);
@@ -150,7 +188,21 @@ export class HudScene extends Phaser.Scene {
       this.game.events.off(Phaser.Core.Events.BLUR, reset);
       this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
       this.sticks.reset();
+      this.buttons.reset();
     });
+  }
+
+  /** Places HUD buttons inside the safe area (canvas px) and registers their hit rects. */
+  private layoutButtons(): void {
+    const k = dpr();
+    const safe = safeArea();
+    const size = SWAP_BTN_PX * k;
+    const x = this.scale.width - (SWAP_BTN_RIGHT + safe.right) * k - size;
+    const y = this.scale.height - (SWAP_BTN_BOTTOM + safe.bottom) * k - size;
+    const rect = this.buttons.get("swap");
+    if (rect) Object.assign(rect, { x, y, w: size, h: size });
+    this.swapBtn.setRadius(size / 2).setPosition(x + size / 2, y + size / 2);
+    this.swapLabel.setFontSize(Math.round(28 * k)).setPosition(x + size / 2, y + size / 2);
   }
 
   private onResize(): void {
@@ -161,6 +213,9 @@ export class HudScene extends Phaser.Scene {
     this.aimBase.setRadius(r);
     this.aimKnob.setRadius(KNOB_RADIUS_CSS_PX * dpr());
     this.ammoText.setFontSize(Math.round(AMMO_TEXT_PX * dpr()));
+    this.otherText.setFontSize(Math.round(OTHER_TEXT_PX * dpr()));
+    this.layoutButtons();
+    this.shownOther = "";
     this.waveText.setFontSize(Math.round(WAVE_TEXT_PX * dpr()));
     this.bannerText.setFontSize(Math.round(BANNER_TEXT_PX * dpr()));
     this.shownWave = -1;
@@ -178,8 +233,9 @@ export class HudScene extends Phaser.Scene {
     this.shownHp = hp;
     this.shownMaxHp = maxHp;
     const k = dpr();
-    const x = HP_MARGIN * k;
-    const y = HP_MARGIN * k;
+    const safe = safeArea();
+    const x = (HP_MARGIN + safe.left) * k;
+    const y = (HP_MARGIN + safe.top) * k;
     const w = HP_BAR_W * k;
     const h = HP_BAR_H * k;
     const frac = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
@@ -206,7 +262,7 @@ export class HudScene extends Phaser.Scene {
       this.shownRemaining = m.remaining;
       this.waveText
         .setText(m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready")
-        .setPosition(this.scale.width / 2, 12 * dpr());
+        .setPosition(this.scale.width / 2, (12 + safeArea().top) * dpr());
     }
     if (m.bannerText !== this.shownBanner) {
       this.shownBanner = m.bannerText;
@@ -246,9 +302,19 @@ export class HudScene extends Phaser.Scene {
   /** Magazine count bottom-right and a reload bar under it (redrawn only on change). */
   private drawWeapon(): void {
     const m = this.model;
+    const hasOther = m.otherWeaponName !== "";
+    this.buttons.setVisible("swap", hasOther);
+    this.swapBtn.setVisible(hasOther);
+    this.swapLabel.setVisible(hasOther);
     const reloading = m.reloadFrac >= 0;
-    const reloadStep = reloading ? Math.round(m.reloadFrac * 50) : -1;
+    const swapping = m.swapFrac >= 0;
+    const progress = swapping ? m.swapFrac : m.reloadFrac;
+    const reloadStep = reloading || swapping ? Math.round(progress * 50) : -1;
+    const swapStep = swapping ? 1 : 0;
     if (
+      m.otherWeaponName === this.shownOther &&
+      m.otherAmmo === this.shownOtherAmmo &&
+      swapStep === this.shownSwapStep &&
       m.weaponName === this.shownWeapon &&
       m.ammo === this.shownAmmo &&
       m.magazine === this.shownMag &&
@@ -259,23 +325,32 @@ export class HudScene extends Phaser.Scene {
       return; // nothing changed: no string building, no redraw
     }
     this.shownWeapon = m.weaponName;
+    this.shownOther = m.otherWeaponName;
+    this.shownOtherAmmo = m.otherAmmo;
+    this.shownSwapStep = swapStep;
     this.shownAmmo = m.ammo;
     this.shownMag = m.magazine;
     this.shownReloadStep = reloadStep;
     this.shownW = this.scale.width;
     this.shownH = this.scale.height;
     const k = dpr();
-    const x = this.scale.width - AMMO_MARGIN * k;
-    const y = this.scale.height - AMMO_MARGIN * k - RELOAD_BAR_H * k - 6 * k;
+    const safe = safeArea();
+    const x = this.scale.width - (AMMO_MARGIN + safe.right) * k;
+    const y = this.scale.height - (AMMO_MARGIN + safe.bottom) * k - RELOAD_BAR_H * k - 6 * k;
     const count = m.ammo < 0 ? "—" : `${m.ammo} / ${m.magazine}`;
-    this.ammoText.setText(reloading ? `${m.weaponName}  Reloading` : `${m.weaponName}  ${count}`).setPosition(x, y);
+    const status = swapping ? "Swapping" : reloading ? "Reloading" : count;
+    this.ammoText.setText(`▶ ${m.weaponName}  ${status}`).setPosition(x, y);
+    const otherCount = m.otherAmmo < 0 ? "—" : `${m.otherAmmo} / ${m.otherMag}`;
+    this.otherText
+      .setText(hasOther ? `${m.otherWeaponName}  ${otherCount}` : "")
+      .setPosition(x, y - this.ammoText.height - 2 * k);
     this.reloadBar.clear();
-    if (reloading) {
+    if (reloading || swapping) {
       const w = RELOAD_BAR_W * k;
       const h = RELOAD_BAR_H * k;
       const by = y + 6 * k;
       this.reloadBar.fillStyle(0x000000, 0.6).fillRect(x - w, by, w, h);
-      this.reloadBar.fillStyle(0xffffff, 0.9).fillRect(x - w, by, w * m.reloadFrac, h);
+      this.reloadBar.fillStyle(swapping ? 0xf5c542 : 0xffffff, 0.9).fillRect(x - w, by, w * progress, h);
     }
   }
 

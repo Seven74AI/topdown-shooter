@@ -4,7 +4,7 @@ baseline_commit: fe6b6bbd5dee8f6627756610342f73ee4d0d5a4c
 
 # Story 1.8: Two weapon slots, SMG and Hunting Rifle
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -23,13 +23,13 @@ so that I can pick a role and react to the situation.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Two slots and swapping (shared)** (AC 1, 2) — extend `combat/loadout.ts` (Story 1.5): `setLoadout(world, playerId, [a, b | null])` (used by the picker; fills magazines); on `input.swap` with a second slot and `swapLeftS == 0`: `swapLeftS = balance.player.swapS` (0.3), emit `weapon.swap_started`; while `swapLeftS > 0` no firing; when it reaches 0 → `active = 1 - active`, emit `weapon.swapped { playerId, active, weapon }`. Swapping away **cancels** a reload in progress; coming back to an empty magazine restarts the full reload. Ammo is kept per slot. Swap is ignored with an empty second slot or during a swap. Tests for each rule, timing in ticks (0.3 s = 6 ticks)
-- [ ] **Task 2: SMG and Hunting Rifle data** (AC 3, 4) — already in `weapons.json` from Story 1.2; check the values against the AC; tests: SMG fires 12 shots in 1 s (with `cooldownS +=` the 12/s rate is exact over 20 ticks), Hunting Rifle pierces exactly 5 zombies standing in a line and the 6th is untouched, each pierced zombie takes 35 (one shot kills 5 Walkers)
-- [ ] **Task 3: Screen shake (client)** (AC 4) — on `weapon.fired` for a weapon with `screenShake: true` and the local player: `camera.shake(80 ms, small intensity)`. Respect a `settings.screenShake` flag (default on) in `apps/client/src/settings/settings.ts` (localStorage, try/catch, defaults if storage fails); Story 10.1 builds the Settings screen on top
-- [ ] **Task 4: Dev loadout picker (client)** (AC 1) — `apps/client/src/debug/LoadoutPicker.tsx`: shown before the run starts (and on Restart), lists `Object.keys(balance.weapons)` as tappable chips (so Machete appears automatically in 1.9), two choices required, **Start** button. Shown only in development builds (`import.meta.env.DEV`); a release build starts with Pistol + nothing. Story 3.3 moves it to the dev cheats
-- [ ] **Task 5: Swap button and button-first touch routing (client)** (AC 2, 6) — see Dev Notes › Buttons and touch routing
-- [ ] **Task 6: HUD weapons panel** (AC 5) — bottom-right above the swap button: two slot cards (weapon name, magazine `23 / 40` or `—`), the active one highlighted; a thin progress bar while swapping or reloading
-- [ ] **Task 7: Verify** — scripts pass; headless touch test: a tap on the swap button swaps after ~0.3 s and no aim stick appears; a drag that starts next to the button spawns the aim stick
+- [x] **Task 1: Two slots and swapping (shared)** (AC 1, 2) — extend `combat/loadout.ts` (Story 1.5): `setLoadout(world, playerId, [a, b | null])` (used by the picker; fills magazines); on `input.swap` with a second slot and `swapLeftS == 0`: `swapLeftS = balance.player.swapS` (0.3), emit `weapon.swap_started`; while `swapLeftS > 0` no firing; when it reaches 0 → `active = 1 - active`, emit `weapon.swapped { playerId, active, weapon }`. Swapping away **cancels** a reload in progress; coming back to an empty magazine restarts the full reload. Ammo is kept per slot. Swap is ignored with an empty second slot or during a swap. Tests for each rule, timing in ticks (0.3 s = 6 ticks)
+- [x] **Task 2: SMG and Hunting Rifle data** (AC 3, 4) — already in `weapons.json` from Story 1.2; check the values against the AC; tests: SMG fires 12 shots in 1 s (with `cooldownS +=` the 12/s rate is exact over 20 ticks), Hunting Rifle pierces exactly 5 zombies standing in a line and the 6th is untouched, each pierced zombie takes 35 (one shot kills 5 Walkers)
+- [x] **Task 3: Screen shake (client)** (AC 4) — on `weapon.fired` for a weapon with `screenShake: true` and the local player: `camera.shake(80 ms, small intensity)`. Respect a `settings.screenShake` flag (default on) in `apps/client/src/settings/settings.ts` (localStorage, try/catch, defaults if storage fails); Story 10.1 builds the Settings screen on top
+- [x] **Task 4: Dev loadout picker (client)** (AC 1) — `apps/client/src/debug/LoadoutPicker.tsx`: shown before the run starts (and on Restart), lists `Object.keys(balance.weapons)` as tappable chips (so Machete appears automatically in 1.9), two choices required, **Start** button. Shown only in development builds (`import.meta.env.DEV`); a release build starts with Pistol + nothing. Story 3.3 moves it to the dev cheats
+- [x] **Task 5: Swap button and button-first touch routing (client)** (AC 2, 6) — see Dev Notes › Buttons and touch routing
+- [x] **Task 6: HUD weapons panel** (AC 5) — bottom-right above the swap button: two slot cards (weapon name, magazine `23 / 40` or `—`), the active one highlighted; a thin progress bar while swapping or reloading
+- [x] **Task 7: Verify** — scripts pass; headless touch test: a tap on the swap button swaps after ~0.3 s and no aim stick appears; a drag that starts next to the button spawns the aim stick
 
 ## Dev Notes
 
@@ -68,10 +68,64 @@ Modified: `combat/loadout.ts`, `combat/firing.ts` (+ tests), `core/simEvents.ts`
 
 ### Agent Model Used
 
+claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
+
 ### Debug Log References
+
+- Swap tests first assumed 6 ticks from the tap; a swap is the tap tick plus 6 ticks (0.3 s). After returning to an empty magazine, the full 20-tick reload starts on the swap's last tick and that tick counts (reads 19).
+- Browser check (Vite dev server, 844×390, touch via CDP):
+  - The dev picker lists PISTOL / SMG / HUNTING RIFLE / MACHETE, and the world doesn't step until Start is pressed.
+  - With SMG + Hunting Rifle picked, a touch on the ⇄ button shows "▶ SMG Swapping" with a yellow bar, and **no aim stick appears**.
+  - 0.3 s later the HUD reads "▶ HUNTING RIFLE 5 / 5" with "SMG 40 / 40" above it.
+  - No console errors.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created
+- **Implemented:**
+  - **Shared:**
+    - `setLoadout()`.
+    - The swap in `combat/firing.ts` (`updateSwap`). A swap tap with a second weapon starts a `balance.player.swapS` swap, and neither weapon fires during it. Swapping away cancels a reload. When the swap ends on an empty magazine, a full reload starts. Taps during a swap, or with one weapon, are ignored.
+    - Ammo is kept per slot.
+    - Events `weapon.swap_started` and `weapon.swapped`.
+  - **Client:**
+    - **Touch routing:** pure `routePointer()` decides button / move / aim, with 4 px tolerance. `HudButtons` is a registry plus pointer ownership: a pointer that starts on a button never reaches the sticks.
+    - **Swap button:** 64 px ⇄, inside the safe area, visible only with a second weapon. Swap is edge-triggered through `hudModel.swapPressed`, which `LocalSimHost` latches.
+    - **Layout:** `safeArea()` reads the insets through a CSS `env()` probe. HUD health, wave text, weapon panel and swap button all respect the insets. The weapon panel shows the active slot and the other slot, with a reload or swap progress bar.
+    - **Screen shake:** heavy weapons shake the camera (`screenShake` in balance). It honours `settings.screenShake`, stored in localStorage with try/catch and defaults.
+    - **Dev picker:** `LoadoutPicker` (Preact, dev builds only) picks two weapons from balance, and the run waits until Start.
+    - **Sizes:** `ui/sizes.ts` holds the 44 px / 14 px minimums.
+- **Notes:**
+  - Release builds skip the picker and start with the Pistol (Story 3.3 moves the picker into the dev cheats).
+  - The Machete already appears in the picker; Story 1.9 (in progress in parallel) makes it swing.
+- **Tests:** 191 passing (+21): swap and slots 7, routePointer 4, HudButtons 2, settings 2, plus existing suites.
+- **Verification:** typecheck 0 errors, lint 0 problems, `npm test` 191/191, build ok.
 
 ### File List
+
+- `packages/shared/src/combat/loadout.ts` (modified: `setLoadout`)
+- `packages/shared/src/combat/firing.ts` (modified: swap)
+- `packages/shared/src/combat/swap.test.ts` (new)
+- `packages/shared/src/core/simEvents.ts` (modified)
+- `packages/shared/src/index.ts` (modified)
+- `apps/client/src/input/routePointer.ts` (new)
+- `apps/client/src/input/routePointer.test.ts` (new)
+- `apps/client/src/input/HudButtons.ts` (new)
+- `apps/client/src/input/HudButtons.test.ts` (new)
+- `apps/client/src/settings/settings.ts` (new)
+- `apps/client/src/settings/settings.test.ts` (new)
+- `apps/client/src/ui/sizes.ts` (new)
+- `apps/client/src/ui/uiState.ts` (modified: picker screen, `startRun` request with args)
+- `apps/client/src/ui/App.tsx` (modified)
+- `apps/client/src/ui/overlay.css` (modified)
+- `apps/client/src/debug/LoadoutPicker.tsx` (new)
+- `apps/client/src/display.ts` (modified: `safeArea()`)
+- `apps/client/src/scenes/hudModel.ts` (modified)
+- `apps/client/src/scenes/HudScene.ts` (modified: buttons first, swap button, safe areas, two-slot panel)
+- `apps/client/src/scenes/GameScene.ts` (modified: picker flow, swap edge, screen shake, other-slot HUD)
+- `_bmad-output/implementation-artifacts/1-8-two-weapon-slots-smg-and-hunting-rifle.md` (modified)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
+
+## Change Log
+
+- 2026-11-21: Story 1.8 implemented: two slots with a 0.3 s swap, SMG and Hunting Rifle, dev loadout picker, swap button with button-first touch routing, safe areas, two-slot weapon panel, screen shake. 191 tests passing.

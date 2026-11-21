@@ -2,10 +2,17 @@
  * Tiny typed store between Phaser scenes and Preact screens (no globals on window).
  * Phaser writes the state; Preact renders it and sends requests back through `on`.
  */
-export type UiScreen = { kind: "playing" } | { kind: "gameOver"; waveReached: number };
+export type UiScreen =
+  | { kind: "playing" }
+  | { kind: "gameOver"; waveReached: number }
+  /** Dev builds: choose two weapons before the run (temporary until the shop, Story 3.3). */
+  | { kind: "loadoutPicker"; weapons: readonly string[] };
+
+export type LoadoutChoice = readonly [string, string | null];
 
 export interface UiRequests {
   restart: () => void;
+  startRun: (loadout: LoadoutChoice) => void;
 }
 
 type Listener = (screen: UiScreen) => void;
@@ -35,8 +42,9 @@ class UiStore {
     else delete this.requests[name];
   }
 
-  request<K extends keyof UiRequests>(name: K): void {
-    this.requests[name]?.();
+  request<K extends keyof UiRequests>(name: K, ...args: Parameters<UiRequests[K]>): void {
+    const fn = this.requests[name] as ((...a: Parameters<UiRequests[K]>) => void) | undefined;
+    fn?.(...args);
   }
 }
 

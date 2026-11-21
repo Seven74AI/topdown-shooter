@@ -6,7 +6,9 @@ import {
   activeSlot,
   addPlayer,
   isGun,
+  setLoadout,
   ticksFor,
+  weaponIds,
   weaponStats,
   loadBalance,
   ZOMBIE_STATE,
@@ -22,6 +24,7 @@ import { ZombieView } from "../render/ZombieView";
 import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { uiStore } from "../ui/uiState";
+import { getSettings } from "../settings/settings";
 import { MAX_RUSH_MARKERS, createHudModel } from "./hudModel";
 import { LOCAL_PLAYER_ID, LocalSimHost } from "../sim/LocalSimHost";
 import type { HudSceneData } from "./HudScene";
@@ -33,6 +36,9 @@ export function newRunSeed(): number {
 
 /** The fight: runs the World through a SimHost, draws it, and feeds it the local input. */
 const RUSH_COLOR = 0xff3b30;
+/** Short screen shake for heavy weapons (FR19); intensity is a fraction of the view size. */
+const SHAKE_MS = 80;
+const SHAKE_INTENSITY = 0.004;
 /** Rush chevron, in meters, drawn above each of the wave's last zombies. */
 const CHEVRON_M = 0.28;
 const CHEVRON_LIFT_M = 0.7;
@@ -46,7 +52,10 @@ export class GameScene extends Phaser.Scene {
   private fxView: FxView | null = null;
   private readonly hudModel = createHudModel();
   private gameOver = false;
+  /** False while the dev loadout picker is open: the world doesn't step yet. */
+  private running = false;
   private hudWeaponId = "";
+  private hudOtherId = "";
   private readonly chevrons: Phaser.GameObjects.Triangle[] = [];
   /** Reused every frame (no per-frame allocation); the host copies it at each step. */
   private readonly input_: { -readonly [K in keyof PlayerInput]: PlayerInput[K] } = { ...NEUTRAL_INPUT };
@@ -66,11 +75,26 @@ export class GameScene extends Phaser.Scene {
     this.gameOver = false;
     // Phaser reuses this scene object on restart: reset what the HUD reads (no stale banner).
     Object.assign(this.hudModel, createHudModel());
+    this.hudWeaponId = "";
+    this.hudOtherId = "";
     if (balance.waves.lastRushCount > MAX_RUSH_MARKERS) {
       throw new Error(`waves.lastRushCount ${balance.waves.lastRushCount} exceeds MAX_RUSH_MARKERS ${MAX_RUSH_MARKERS}`);
     }
-    uiStore.set({ kind: "playing" });
     uiStore.handle("restart", () => this.scene.restart());
+    if (import.meta.env.DEV) {
+      // Dev builds pick a loadout first (temporary until the shop, Story 3.3); release starts with the Pistol.
+      this.running = false;
+      uiStore.handle("startRun", (loadout) => {
+        const p = world.players.get(LOCAL_PLAYER_ID);
+        if (p) setLoadout(balance, p.loadout, loadout);
+        this.running = true;
+        uiStore.set({ kind: "playing" });
+      });
+      uiStore.set({ kind: "loadoutPicker", weapons: weaponIds(balance) });
+    } else {
+      this.running = true;
+      uiStore.set({ kind: "playing" });
+    }
 
     drawStreet(this, world.map);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY);
@@ -97,6 +121,7 @@ export class GameScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
       this.scene.stop("Hud");
       uiStore.handle("restart", undefined);
+      uiStore.handle("startRun", undefined);
       for (const c of this.chevrons) c.destroy();
       this.chevrons.length = 0;
       this.fxView?.destroy();
@@ -165,9 +190,11 @@ export class GameScene extends Phaser.Scene {
     this.input_.aimX = aim.x;
     this.input_.aimY = aim.y;
     this.input_.fire = aim.fire;
+    this.input_.swap = this.hudModel.swapPressed; // edge flag: LocalSimHost latches it for one step
+    this.hudModel.swapPressed = false;
     host.setLocalInput(this.input_);
 
-    host.update(deltaMs / 1000); // LocalSimHost caps catch-up after long frames
+    if (this.running) host.update(deltaMs / 1000); // LocalSimHost caps catch-up after long frames
     const events = host.drainEvents();
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
@@ -176,6 +203,9 @@ export class GameScene extends Phaser.Scene {
       if (e.type === "player.died" && e.playerId === LOCAL_PLAYER_ID && !this.gameOver) {
         this.gameOver = true;
         uiStore.set({ kind: "gameOver", waveReached: Math.max(1, host.world.waves.number) });
+      } else if (e.type === "weapon.fired" && e.playerId === LOCAL_PLAYER_ID) {
+        const stats = host.world.balance.weapons[e.weapon];
+        if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "wave.started") {
         this.showBanner(`Wave ${e.number}`);
       } else if (e.type === "wave.ended") {
@@ -208,6 +238,21 @@ export class GameScene extends Phaser.Scene {
         this.hudModel.magazine = 0;
         this.hudModel.reloadFrac = -1;
       }
+      const other = player.loadout.slots[player.loadout.active === 0 ? 1 : 0];
+      if (other) {
+        if (other.weapon !== this.hudOtherId) {
+          this.hudOtherId = other.weapon;
+          this.hudModel.otherWeaponName = other.weapon.replace(/_/g, " ").toUpperCase();
+        }
+        const otherStats = weaponStats(host.world.balance, other.weapon);
+        this.hudModel.otherAmmo = isGun(otherStats) ? other.ammo : -1;
+        this.hudModel.otherMag = isGun(otherStats) ? otherStats.magazine : 0;
+      } else {
+        this.hudOtherId = "";
+        this.hudModel.otherWeaponName = "";
+      }
+      const swapTicks = ticksFor(host.world.balance.player.swapS);
+      this.hudModel.swapFrac = player.loadout.swapTicks > 0 ? 1 - player.loadout.swapTicks / swapTicks : -1;
     }
   }
 }
