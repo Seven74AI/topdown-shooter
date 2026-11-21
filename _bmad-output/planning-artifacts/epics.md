@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2]
+stepsCompleted: [1, 2, 3]
 inputDocuments:
   - _bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/gdd.md
   - _bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/epics.md
@@ -2391,3 +2391,164 @@ So that I can fight by ear in the dark.
 **Given** many zombies at once
 **When** sounds would overlap
 **Then** a voice limit per sound type prevents clipping and keeps CPU use flat
+
+## Epic 10: Performance and polish
+
+Every technical target is met on the reference phones; quality settings, home-screen install, problem reports, run stats, a balance pass and friend-group playtests deliver v1 for weekly game nights.
+
+### Story 10.1: Settings screen
+
+As a player,
+I want to adjust quality, sound and controls,
+So that the game runs and feels right on my phone.
+
+**Acceptance Criteria:**
+
+**Given** the Settings screen (start screen and pause menu)
+**When** I open it
+**Then** I can turn down or off rain, fog visuals, screen shake, film grain and light glow; switch gore to "Blood only"; toggle aim assist (on by default); set the 3 volumes; and turn on "Show performance" (FR87)
+**And** blackout darkness and the 10 m fog vision limit have no setting
+
+**Given** I change a setting
+**When** it is saved
+**Then** it applies immediately, is stored in localStorage (wrapped in try/catch, with defaults if storage fails), and is synced to my account when I'm logged in
+
+### Story 10.2: Frame-rate pass on reference phones
+
+As a player,
+I want the game smooth on my mid-range phone even in the worst wave,
+So that nothing stutters when it matters.
+
+**Acceptance Criteria:**
+
+**Given** an iPhone 12, a Pixel 5 and a Galaxy A52 (or equivalents)
+**When** a full wave 9 blackout is played with all 150 alive zombies in one player's view at default settings
+**Then** FPS averages 60 and never stays below 30 (NFR1)
+**And** the measurements and every optimization made are recorded in `docs/perf/epic-10-fps.md`
+
+**Given** a phone that misses the target
+**When** quality settings are lowered
+**Then** the target is met, and the default settings for that device class are adjusted if needed
+
+### Story 10.3: Memory and battery pass
+
+As a player,
+I want the game not to crash my browser or drain my phone,
+So that we can play a whole evening.
+
+**Acceptance Criteria:**
+
+**Given** an iPhone 12 in Safari
+**When** a full 10-wave run is played
+**Then** the tab stays under 300 MB throughout, with no growth from wave to wave (NFR2)
+
+**Given** the reference phones at 100% charge
+**When** a 20-minute run is played at default settings
+**Then** battery use is under 15% (NFR7)
+**And** results are recorded in `docs/perf/epic-10-memory-battery.md`
+
+### Story 10.4: Fast loading
+
+As a player,
+I want the game to open in seconds from a link,
+So that a game night starts right away.
+
+**Acceptance Criteria:**
+
+**Given** a phone on 4G with an empty cache
+**When** it opens the link
+**Then** the game is playable in under 10 s and downloads under 15 MB, with a progress bar during loading (NFR6)
+
+**Given** a return visit
+**When** the phone opens the link again
+**Then** the game is playable in under 3 s (hashed assets cached long-term)
+
+**Given** music
+**When** the game loads
+**Then** it streams after the game starts
+
+### Story 10.5: Home-screen install and every supported browser
+
+As a player,
+I want to add the game to my home screen and have it fit my phone's screen,
+So that it feels like an app.
+
+**Acceptance Criteria:**
+
+**Given** the web app manifest (fullscreen, landscape, icons)
+**When** I choose "Add to Home Screen" on iOS or "Install" on Android
+**Then** the game opens fullscreen in landscape from the icon
+
+**Given** a phone with a notch or rounded corners
+**When** the game runs
+**Then** HUD and controls stay inside the safe areas
+
+**Given** Safari on iOS 16+, Chrome on Android 10+, and current desktop Chrome, Firefox, Safari and Edge
+**When** a smoke test (lobby, one wave, shop, build) runs on each
+**Then** it passes, and the results are recorded in `docs/qa/browsers.md` (NFR8)
+
+### Story 10.6: Report a problem
+
+As a player,
+I want to send a bug report from inside the game,
+So that the designer can fix what went wrong.
+
+**Acceptance Criteria:**
+
+**Given** the client
+**When** it runs
+**Then** it keeps the last 200 log lines in a ring buffer
+
+**Given** I tap "Report a problem" (Settings or Results screen) and write an optional note
+**When** I send it
+**Then** the server stores the note, the log lines, the room id, run seed, wave, device and browser info, and logs `problem_reported`
+**And** the endpoint is rate-limited and size-limited
+
+### Story 10.7: Run stats
+
+As the designer,
+I want simple stats about our runs,
+So that I can check the success metrics.
+
+**Acceptance Criteria:**
+
+**Given** a migration creating only the `run_results` table (district, seed, player count, wave reached, extracted, loadout per player, started, ended)
+**When** a run ends
+**Then** a row is written (FR88)
+
+**Given** a stats script (`npm run stats`)
+**When** I run it
+**Then** it prints: runs per week, wave reached in each group's first 3 runs, runs to first extraction, and the share of runs per loadout (flagging any loadout used in more than half of runs)
+
+### Story 10.8: Balance pass
+
+As the designer,
+I want the economy and difficulty tuned from real runs,
+So that the run feels like the GDD's curve.
+
+**Acceptance Criteria:**
+
+**Given** run stats, bot runs and playtest notes
+**When** the balance is reviewed
+**Then** earnings per player over a full run are 2,500–3,000 at 2, 3 and 4 players, and the difficulty curve matches the GDD table (relaxed W1–2 … climax W10)
+
+**Given** balance changes
+**When** they are made
+**Then** they change only `config/balance/*.json` (NFR14), bump the balance version, and are listed with reasons in `docs/balance/changelog.md`
+
+### Story 10.9: Friend-group playtests and v1
+
+As the designer,
+I want my friends to play v1 over real game nights,
+So that we know it's ready for every week.
+
+**Acceptance Criteria:**
+
+**Given** the release build
+**When** the friend group plays at least 3 game nights
+**Then** at least one full 4-player run reaches wave 10 with no disconnect caused by the game and no disagreement between screens (NFR9, NFR3)
+**And** feedback is written to `docs/playtests/v1.md`, with blocking issues fixed before release
+
+**Given** every NFR
+**When** the v1 checklist in `docs/qa/v1-checklist.md` is filled in
+**Then** each one is marked met with its evidence (a doc or test), and the release is tagged `v1.0`
