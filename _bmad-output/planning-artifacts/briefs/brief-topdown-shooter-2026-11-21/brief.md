@@ -1,84 +1,86 @@
 ---
 title: Game Brief — topdown-shooter (working title)
-status: draft
-version: 0.2
+status: final
+version: 1.0
 created: 2026-11-21
 updated: 2026-11-21
 ---
 
 # Game Brief — topdown-shooter (working title)
 
-> Draft v0.1. Items tagged **[ASSUMPTION]** are Claude's proposals and still need the user's yes / no.
+Detail that belongs in later documents (zombie roster, decay stages, art probe history, technical notes) is in [addendum.md](addendum.md). Every decision and its reason is in `.decision-log.md`.
 
 ## Vision
 
-**Core fantasy [ASSUMPTION]:** *You and your friends hold out together while your city falls around you, one wave at a time.*
+**Core fantasy:** *You and your friends hold out together while your city falls around you, one wave at a time.*
 
-**Elevator pitch:** A 2D top-down co-op horde shooter for 2–4 friends, played in a phone browser from a shared link. Over 10 waves, the zombies grow from a handful to a flood while the district you picked slides from a normal evening into total collapse; survivors can push on into endless waves. Between waves you spend what you earned on weapons, gear and defenses. When everyone is down the run ends, but your unlocks carry over to the next one.
+**Elevator pitch:** A 2D top-down co-op horde shooter for 2–4 friends, played in a phone browser from a shared link. Over 10 waves, the zombies grow from a handful to a flood while the district you picked slides from a normal evening into total collapse. Between waves you spend what you earned on weapons, gear and defenses. Survive wave 10 and the run is won, or push on into endless waves. Your unlocks carry over to the next run.
 
-**What players should walk away feeling [ASSUMPTION]:** the panic of a screen full of zombies, the pride of a defense that held, and the story of *that* run ("the bloater took out the whole barricade on wave 14").
+**What players should walk away with:** the panic of a screen full of zombies, the pride of a defense that held, and the story of *that* run ("the bloater took out our whole barricade on wave 9").
 
 ## Stakes & audience
-- Passion project for the user and their friends. Not a commercial launch.
-- **Players:** the user's friend group, 2–4 at a time, each on their own phone, each with an account.
-- **Sessions:** a complete run is 10 waves, roughly **15–25 minutes** [ASSUMPTION on duration], short enough for a phone session. Endless mode is there for groups who want to push further.
+- A passion project for the user and their friends, not a commercial launch.
+- **Players:** the user's friend group, 2–4 at a time, each on their own phone with their own account.
+- **Sessions:** a complete run is 10 waves, about 15–25 minutes, short enough for a phone session. Endless mode is for groups who want to push further.
+- **Real life gets in the way:** a run can be **paused and resumed**, and a friend can **join mid-run**.
 
 ## Core loop
-1. **Pick** a district and create or join a game (lobby, share link).
-2. **Fight** a wave: twin-stick combat, pure action, no menus.
+1. **Pick** a district, then create or join a game (lobby, share link).
+2. **Fight** a wave: twin-stick action, no menus.
 3. **Build phase** between waves: spend currency on weapons, equipment and buildings (turrets, barricades…).
-4. The city **decays** a step every ~2 waves, the next wave is bigger and nastier.
-5. Wave 10 completes the run → extract, or keep going in **endless** until everyone is down → **meta-progression**: unlocks widen the item pool, plus small capped boosts → next run.
+4. The city **decays** one step about every 2 waves; the next wave is bigger and nastier.
+5. **Wave 10** completes the run. Extract, or keep going in **endless** until everyone is down.
+6. **Meta-progression:** unlocks widen the item pool, plus small capped boosts. Then the next run.
 
-## Gameplay pillars [ASSUMPTION — 4 proposed, confirm or cut]
-1. **Horde chaos** — large crowds are the spectacle; fighting 150+ zombies must feel powerful, not cluttered.
-2. **Build your stand** — what you buy and build between waves decides whether the next wave breaks you.
-3. **A city that falls** — the district visibly and mechanically degrades over the run; late waves play differently, not just harder.
-4. **Better together** — roles emerge from gear (melee / mid / long range), and zombie types demand different answers, so a team beats four solo players.
+## Gameplay pillars
+1. **Horde chaos:** large crowds are the spectacle. Fighting 150+ zombies must feel powerful, not cluttered.
+2. **Build your stand:** what you buy and build between waves decides whether the next wave breaks you.
+3. **A city that falls:** the district degrades over the run, in looks and in play. Late waves play differently, not only harder.
+4. **Better together:** roles come from gear (melee, mid, long range), and zombie types demand different answers, so a team beats four solo players.
 
-## Key mechanics (decided)
-- **Controls:** twin-stick on touch (left thumb move, right thumb aim and fire).
-- **No classes:** your role (melee, mid, long range) comes only from the gear you buy and find.
-- **Waves + build phase:** building and upgrading only between waves.
-- **Run structure:** **10 waves to complete a run**: the city goes from Evening to Collapse over those 10 waves (about 2 waves per decay stage). After wave 10 the run continues as an **endless mode** in the collapsed city, until everyone is down.
-- **Wave 10 choice [ASSUMPTION]:** an evacuation arrives. Extract now and keep everything you earned, or stay for endless waves: more rewards, but you risk losing part of them if the whole team goes down.
-- **City decay (5 stages: Evening → Panic → Breakdown → Ruins → Collapse)** changes gameplay: abandoned cars as cover, fires, rubble narrowing paths, flickering then dead streetlights.
-- **Blackout waves:** the "Lamplight" idea. In the darkness you only see what flashlights, turrets and muzzle flashes light up. They are part of the late game once the power grid dies.
-- **Districts:** players pick a district at the start of a run; it decays around them. More districts over time.
-- **Meta-progression:** mostly unlocks that add to the item pool, plus small capped permanent boosts (newcomers stay viable).
-- **Zombie roster (first pass):** Walker, Runner, Crawler, Brute, Bloater, Spitter. Each one tests a different team skill.
+## Key mechanics
+- **Controls:** twin-stick on touch (left thumb moves, right thumb aims and fires).
+- **No classes:** a player's role comes only from the gear they buy and find.
+- **Waves, then a build phase:** building and upgrading happen only between waves.
+- **Run structure:** 10 waves take the city from Evening to Collapse (about 2 waves per decay stage). After that, endless waves in the collapsed city until everyone is down.
+- **Wave 10 choice (proposed, to confirm in the GDD):** an evacuation arrives. Extract and keep everything, or stay for endless with bigger rewards and the risk of losing part of them.
+- **City decay changes gameplay:** five stages (Evening, Panic, Breakdown, Ruins, Collapse) bring abandoned cars as cover, fires, rubble narrowing paths, and streetlights that flicker, then die.
+- **Blackout waves:** in the dark you only see what flashlights, turrets and muzzle flashes light up. They belong to the late game, once the power grid fails.
+- **Districts:** players pick a district at the start of a run and it decays around them. One district at first, more over time.
+- **Meta-progression:** mostly unlocks that add to the item pool, plus small capped permanent boosts, so newcomers stay viable.
+- **Zombies:** a first roster of six types (Walker, Runner, Crawler, Brute, Bloater, Spitter), each testing a different team skill.
 
 ## Art & audio direction
-- **Art: Dead City.** Gritty, realistic, muted colors, rainy urban streets at night. Chosen after 3 rounds of playable style probes (see the files in this folder).
-- **Readability rule:** muted palettes make friends and foes look alike, so players get a colored ground ring (or equivalent) and zombie types are told apart by silhouette.
-- **Tone [ASSUMPTION]:** tense and grim rather than comedic. Blood is part of the look. Level of gore still open.
-- **Audio [ASSUMPTION]:** to define in the GDD. Rain, distant sirens early, silence and growls late.
+- **Art: Dead City.** Gritty and realistic, with muted colors and rainy urban streets at night. Chosen after three rounds of playable style probes.
+- **Readability rule:** muted colors make friends and foes look alike, so each player gets a colored ground ring (or equivalent), and zombie types are told apart by silhouette.
+- **Tone:** tense and grim, not comedic. Blood is part of the look; the exact gore level is still open.
+- **Audio:** to define in the GDD. A starting idea: rain and distant sirens early, silence and growls late.
 
-## References & differentiation [ASSUMPTION — for the user to check out]
+## References & differentiation
 | Game | Take | Leave |
 |---|---|---|
-| Brotato | Shop between waves, build defined by items | Single-player, abstract look |
+| Brotato | Shop between waves, a build defined by items | Single-player, abstract look |
 | Boxhead (browser) | Top-down zombie waves, barricades, plays in a browser | Dated feel, no meta-progression |
 | CoD Zombies "Dead Ops Arcade" | Top-down twin-stick zombie co-op | Arcade tone |
-| Risk of Rain 2 | Co-op, unlocks widen the item pool | 3D, not a horde game |
+| Risk of Rain 2 | Co-op where unlocks widen the item pool | 3D, not a horde game |
 
-**What makes this one different:** online co-op for 2–4 on phones **from a link, no install**, plus building between waves, plus **a city that decays over the run and changes how it plays**. None of the references combine those.
+**What makes this game different:** online co-op for 2–4 players on phones, **from a link with no install**, plus building between waves, plus **a city that decays over the run and changes how it plays**. None of the references combine these.
 
-## Scope & MVP [ASSUMPTION — to be challenged]
-- **Team:** the user, building with AI assistance (BMAD). Plenty of time and budget.
-- **Platform:** mobile web browsers first (portrait or landscape to decide), desktop browser as a bonus.
+## Scope & MVP
+- **Team:** the user, building with AI assistance through BMAD. Time and budget are not the main limits.
+- **Platform:** mobile web browsers first, desktop browsers as a bonus.
 - **Biggest technical risks:**
-  1. **Real-time multiplayer with big hordes** on phone connections (needs a server; must stay in sync).
-  2. **Performance:** 150+ zombies with effects at a smooth frame rate in a mobile browser.
-  3. **Touch controls:** twin-stick plus building UI on a small screen.
-- **Proposed first milestone (prototype, prove the risks):** 2–4 players online in one small district, twin-stick, 3 weapons (one per range), 3 zombie types, 1 turret + 1 barricade, shop between waves, 5 waves through 2–3 decay stages. No accounts yet (just a name), no meta-progression yet.
-- **MVP after that:** accounts, meta-progression, all 6 zombie types, the full 10-wave decay, endless mode, blackout waves, one complete district.
-- **Later:** more districts, more weapons and buildings, wave modifiers, **PvP mode** (parked, not dropped).
+  1. **Real-time multiplayer with big hordes** on phone connections. This needs a server, and every player must see the same horde.
+  2. **Pause, resume and join mid-run.** The server must keep the run's state, and a late joiner must be able to catch up.
+  3. **Performance:** 150+ zombies with effects at a smooth frame rate in a mobile browser.
+  4. **Touch controls:** twin-stick plus a building interface on a small screen.
+- **First milestone (a prototype that proves the risks):** 2–4 players online in one small district, twin-stick controls, 3 weapons (one per range), 3 zombie types, 1 turret and 1 barricade, a shop between waves, and 5 waves through 2–3 decay stages. Players type a name; no accounts or meta-progression yet.
+- **MVP after that:** accounts, meta-progression, all 6 zombie types, the full 10-wave decay, endless mode, blackout waves, pause/resume/join mid-run, and one complete district.
+- **Later:** more districts, more weapons and buildings, wave modifiers, and a **PvP mode** (set aside for later, not dropped).
 
-## Open questions
+## Open questions (for the GDD)
 - Working title.
-- Extract-or-stay choice at wave 10: confirm, and how much of the reward is at risk in endless.
-- Do blackout waves start in the 10-wave run (waves 9–10) or only in endless?
-- Can a run be paused or resumed, and can a friend join mid-run?
+- The extract-or-stay choice at wave 10: confirm it, and decide how much reward is at risk in endless.
+- Whether blackout waves start inside the 10-wave run (waves 9–10) or only in endless.
 - Portrait or landscape on the phone.
 - Gore level.
