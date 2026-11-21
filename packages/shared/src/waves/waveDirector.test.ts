@@ -50,6 +50,50 @@ describe("wave director (FR28, FR30)", () => {
     expect(world.zombies.aliveCount).toBe(40);
   });
 
+  it("spawns exactly 120 in wave 3", () => {
+    const { world } = setup();
+    for (let wave = 1; wave <= 3; wave++) {
+      while (world.waves.number < wave) step(world, TICK_DT_S);
+      spawnOut(world);
+      if (wave < 3) {
+        killAll(world);
+        step(world, TICK_DT_S);
+      }
+    }
+    expect(world.zombies.aliveCount).toBe(120);
+  });
+
+  it("rushes even when remaining jumps from 7 to 3 in one tick", () => {
+    const { world, events } = setup();
+    run(world, 60);
+    spawnOut(world);
+    const z = world.zombies;
+    while (z.aliveCount > 7) killZombie(world, z.aliveIds[0] as number, "local", "pistol");
+    step(world, TICK_DT_S);
+    for (let i = 0; i < 4; i++) killZombie(world, z.aliveIds[0] as number, "local", "pistol");
+    step(world, TICK_DT_S);
+    expect(events.filter((e) => e.type === "wave.rush_started")).toEqual([{ type: "wave.rush_started", count: 3 }]);
+  });
+
+  it("rushes a wave smaller than 5 as soon as its queue is empty", () => {
+    const { world } = setup({ zombiesPerWave: 3 });
+    run(world, 61);
+    expect(world.waves.queued).toBe(1);
+    run(world, 5);
+    expect(world.waves.queued).toBe(0);
+    expect(world.waves.rushing).toBe(true);
+  });
+
+  it("keeps the queue when the pool is full and retries later", () => {
+    const { world } = setup({ zombiesPerWave: 400, maxAlive: 400 });
+    run(world, 60);
+    spawnOut(world); // stops early: the pool (256) fills
+    for (let i = 0; i < 400; i++) step(world, TICK_DT_S);
+    expect(world.zombies.aliveCount).toBe(256);
+    expect(world.waves.queued).toBe(400 - 256);
+    expect(world.waves.remaining).toBe(400);
+  });
+
   it("sizes wave N as N × 40", () => {
     const b = balanceWith();
     expect([1, 3, 10].map((n) => waveSize(b, n, 1))).toEqual([40, 120, 400]);
@@ -116,7 +160,7 @@ describe("wave director (FR28, FR30)", () => {
     const z = world.zombies;
     for (let i = 0; i < z.aliveCount; i++) {
       const id = z.aliveIds[i] as number;
-      expect(Math.hypot((z.x[id] as number) - 6, (z.y[id] as number) - 2)).toBeGreaterThan(4.9); // 6 m minus ±1 m jitter
+      expect(Math.hypot((z.x[id] as number) - 6, (z.y[id] as number) - 2)).toBeGreaterThanOrEqual(6); // even after jitter
     }
   });
 

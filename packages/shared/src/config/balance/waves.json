@@ -6,5 +6,6 @@
   "firstWaveDelayS": 3,
   "spawnIntervalS": 0.25,
   "spawnPerInterval": 2,
-  "spawnMinPlayerDistanceM": 6
+  "spawnMinPlayerDistanceM": 6,
+  "spawnJitterM": 1
 }

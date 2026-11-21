@@ -19,4 +19,14 @@ describe("edgeArrow", () => {
     expect(out.y).toBeCloseTo(20, 6);
     expect(out.x).toBeGreaterThan(20);
   });
+
+  it("treats targets exactly on the screen border as on screen", () => {
+    expect(edgeArrow(800, 400, 800, 400, 20, out)).toBe(false);
+    expect(edgeArrow(0, 0, 800, 400, 20, out)).toBe(false);
+  });
+  it("collapses to the center line when the margin exceeds half the screen", () => {
+    expect(edgeArrow(1600, 200, 800, 400, 500, out)).toBe(true);
+    expect(out.x).toBeCloseTo(400, 6); // never flips to the opposite side
+    expect(out.y).toBeCloseTo(200, 6);
+  });
 });

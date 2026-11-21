@@ -17,8 +17,8 @@ export function edgeArrow(
   const cy = h / 2;
   const dx = sx - cx;
   const dy = sy - cy;
-  const hw = cx - margin;
-  const hh = cy - margin;
+  const hw = Math.max(0, cx - margin); // a margin wider than half the screen collapses to the center
+  const hh = Math.max(0, cy - margin);
   const scale = Math.min(dx !== 0 ? hw / Math.abs(dx) : Infinity, dy !== 0 ? hh / Math.abs(dy) : Infinity);
   out.x = cx + dx * scale;
   out.y = cy + dy * scale;

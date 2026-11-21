@@ -75,6 +75,8 @@ export const wavesSchema = z
     spawnPerInterval: z.number().int().positive(),
     /** Spawn points closer than this to a player are skipped. */
     spawnMinPlayerDistanceM: z.number().min(0),
+    /** Spawns are jittered ±this along their edge so a batch doesn't stack. */
+    spawnJitterM: z.number().min(0),
   })
   .strict();
 

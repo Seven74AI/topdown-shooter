@@ -4,7 +4,7 @@ baseline_commit: 41d4d221359af5a74d26869a5e467a163711eab0
 
 # Story 1.7: Growing waves of Walkers
 
-Status: review
+Status: done
 
 ## Story
 
@@ -130,6 +130,27 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `_bmad-output/implementation-artifacts/1-7-growing-waves-of-walkers.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context). It also ran waves 1–5 with the real zombie AI, plus a team death and revive. · **Outcome:** Approved, no high or medium findings. All 9 low findings addressed.
+- [x] Spawn path allocation (a forEach closure per tick, 24 iterator calls per spawn, `Math.hypot`). Fixed: alive players are collected once per tick into a reused array, squared distances are cached in a reused `Float64Array`, and `Math.hypot` is gone.
+- [x] Inline numbers. The edge jitter is now `waves.spawnJitterM`, and a missing Walker balance entry throws instead of defaulting to 0.35.
+- [x] A jittered spawn could land 5 m from the player. Spawn points must now be at least min distance + jitter away. The test asserts ≥ 6 m.
+- [x] The banner stayed off-center after a resize. Fixed: `onResize` resets it.
+- [x] Edge arrows kept their size after a DPR change. Fixed: they are rescaled on resize.
+- [x] An old banner could show after Restart, because Phaser reuses the scene object. Fixed: the HUD model is reset in `create`.
+- [x] `MAX_RUSH_MARKERS` was separate from `lastRushCount`. A balance value above the cap now throws at run start.
+- [x] Edge arrows used last frame's camera. Fixed: the view is computed after `centerOn`, from the target clamped to the map.
+- [x] Tests added:
+  - wave 3 spawns exactly 120;
+  - the rush triggers when remaining jumps from 7 to 3;
+  - a wave smaller than 5 rushes;
+  - a full pool keeps the queue and retries;
+  - edge arrows at the exact border;
+  - a margin wider than half the screen no longer flips the arrow (clamped).
+- Still unverified on screen: the rush chevrons and edge arrows. Deferred to the Story 1.11 god-mode cheat.
+
 ## Change Log
 
+- 2026-11-21: Addressed code review findings - 9 low items resolved. 176 tests passing.
 - 2026-11-21: Story 1.7 implemented: wave director (N × 40, 150 alive cap, queue, last-5 rush, 5 s pause), spawn points, wave HUD, banners, rush markers and edge arrows. 170 tests passing.

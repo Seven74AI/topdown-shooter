@@ -47,12 +47,13 @@ export function waveSize(balance: Balance, number: number, playerCount: number):
   return number * balance.waves.zombiesPerWave;
 }
 
-function countAlivePlayers(world: World): number {
-  let n = 0;
-  world.players.forEach((p) => {
-    if (p.status === "alive") n++;
-  });
-  return n;
+/** Alive players this tick (reused array: no allocation per spawn). */
+const alivePlayers: { x: number; y: number }[] = [];
+
+function collectAlivePlayers(world: World): number {
+  alivePlayers.length = 0;
+  for (const p of world.players.values()) if (p.status === "alive") alivePlayers.push(p);
+  return alivePlayers.length;
 }
 
 function waveZombiesAlive(world: World): number {
@@ -62,50 +63,55 @@ function waveZombiesAlive(world: World): number {
   return n;
 }
 
-/** Distance from (x, y) to the nearest alive player (Infinity if none). */
-function nearestPlayerDistance(world: World, x: number, y: number): number {
-  let nearest = Infinity;
-  for (const p of world.players.values()) {
-    if (p.status === "alive") nearest = Math.min(nearest, Math.hypot(p.x - x, p.y - y));
-  }
-  return nearest;
-}
+/** Squared distance from each spawn point to its nearest alive player (reused per spawn). */
+let spawnD2 = new Float64Array(16);
 
-/** Index of a spawn point at least spawnMinPlayerDistanceM from every alive player (seeded pick), or the farthest. */
+/**
+ * Index of a spawn point far enough from every alive player (seeded pick), or the farthest point.
+ * "Far enough" includes the edge jitter, so a jittered spawn is never closer than the minimum.
+ */
 function pickSpawnPoint(world: World): number {
   const points = world.map.spawnPoints;
-  const minD = world.balance.waves.spawnMinPlayerDistanceM;
+  if (spawnD2.length < points.length) spawnD2 = new Float64Array(points.length);
+  const minD = world.balance.waves.spawnMinPlayerDistanceM + world.balance.waves.spawnJitterM;
+  const minD2 = minD * minD;
   let okCount = 0;
   let farthest = 0;
-  let farthestD = -1;
+  let farthestD2 = -1;
   for (let i = 0; i < points.length; i++) {
     const sp = points[i] as (typeof points)[number];
-    const d = nearestPlayerDistance(world, sp.x, sp.y);
-    if (d >= minD) okCount++;
-    if (d > farthestD) {
-      farthestD = d;
+    let nearest = Infinity;
+    for (let k = 0; k < alivePlayers.length; k++) {
+      const p = alivePlayers[k] as { x: number; y: number };
+      const dx = p.x - sp.x;
+      const dy = p.y - sp.y;
+      nearest = Math.min(nearest, dx * dx + dy * dy);
+    }
+    spawnD2[i] = nearest;
+    if (nearest >= minD2) okCount++;
+    if (nearest > farthestD2) {
+      farthestD2 = nearest;
       farthest = i;
     }
   }
   if (okCount === 0) return farthest;
   let pick = world.rng.int(0, okCount - 1);
   for (let i = 0; i < points.length; i++) {
-    const sp = points[i] as (typeof points)[number];
-    if (nearestPlayerDistance(world, sp.x, sp.y) >= minD && pick-- === 0) return i;
+    if ((spawnD2[i] as number) >= minD2 && pick-- === 0) return i;
   }
   return farthest;
 }
-
-/** Jitter a spawn ±1 m along the edge it sits on, so a batch doesn't stack. */
-const EDGE_JITTER_M = 1;
 
 function spawnWaveZombie(world: World): boolean {
   const sp = world.map.spawnPoints[pickSpawnPoint(world)];
   if (!sp) return false;
   const { widthM, heightM } = world.map;
   const onHorizontalEdge = sp.y < 1 || sp.y > heightM - 1;
-  const j = world.rng.range(-EDGE_JITTER_M, EDGE_JITTER_M);
-  const r = world.balance.zombies.types.walker?.radiusM ?? 0.35;
+  const jitter = world.balance.waves.spawnJitterM;
+  const j = world.rng.range(-jitter, jitter);
+  const stats = world.balance.zombies.types.walker;
+  if (!stats) throw new Error("waves: no balance for walker");
+  const r = stats.radiusM;
   const x = Math.min(widthM - r, Math.max(r, onHorizontalEdge ? sp.x + j : sp.x));
   const y = Math.min(heightM - r, Math.max(r, onHorizontalEdge ? sp.y : sp.y + j));
   return spawnZombie(world, "walker", x, y, true) >= 0;
@@ -114,7 +120,7 @@ function spawnWaveZombie(world: World): boolean {
 function startWave(world: World): void {
   const w = world.waves;
   w.number += 1;
-  w.size = waveSize(world.balance, w.number, Math.max(1, countAlivePlayers(world)));
+  w.size = waveSize(world.balance, w.number, Math.max(1, alivePlayers.length));
   w.queued = w.size;
   w.remaining = w.size;
   w.rushing = false;
@@ -142,7 +148,7 @@ export function endWave(world: World): void {
 export const updateWaves: SystemFn = (world) => {
   const w = world.waves;
   const b = world.balance.waves;
-  if (w.paused || countAlivePlayers(world) === 0) return; // a dead team stops the director
+  if (w.paused || collectAlivePlayers(world) === 0) return; // a dead team stops the director
 
   if (w.phase !== "active") {
     w.timerTicks--;

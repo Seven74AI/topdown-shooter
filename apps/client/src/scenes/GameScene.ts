@@ -64,6 +64,11 @@ export class GameScene extends Phaser.Scene {
     const cy = world.map.heightM / 2;
     addPlayer(world, LOCAL_PLAYER_ID, cx, cy);
     this.gameOver = false;
+    // Phaser reuses this scene object on restart: reset what the HUD reads (no stale banner).
+    Object.assign(this.hudModel, createHudModel());
+    if (balance.waves.lastRushCount > MAX_RUSH_MARKERS) {
+      throw new Error(`waves.lastRushCount ${balance.waves.lastRushCount} exceeds MAX_RUSH_MARKERS ${MAX_RUSH_MARKERS}`);
+    }
     uiStore.set({ kind: "playing" });
     uiStore.handle("restart", () => this.scene.restart());
 
@@ -109,7 +114,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Red chevrons above rushing zombies, and their positions for the HUD's edge arrows (FR30). */
-  private updateRushMarkers(alpha: number): void {
+  private updateRushMarkers(alpha: number, centerX: number, centerY: number): void {
     const host = this.host;
     if (!host) return;
     const z = host.world.zombies;
@@ -130,10 +135,17 @@ export class GameScene extends Phaser.Scene {
       const c = this.chevrons[i] as Phaser.GameObjects.Triangle;
       if (c.visible) c.setVisible(false);
     }
-    const view = this.cameras.main.worldView;
-    m.camX = view.x;
-    m.camY = view.y;
-    m.camZoom = this.cameras.main.zoom;
+    // The camera's worldView only updates when it renders: compute this frame's view from the
+    // centerOn target, clamped to the map like the camera bounds.
+    const cam = this.cameras.main;
+    const halfW = this.scale.width / cam.zoom / 2;
+    const halfH = this.scale.height / cam.zoom / 2;
+    const map = host.world.map;
+    const cx = map.widthM > 2 * halfW ? Math.min(map.widthM - halfW, Math.max(halfW, centerX)) : map.widthM / 2;
+    const cy = map.heightM > 2 * halfH ? Math.min(map.heightM - halfH, Math.max(halfH, centerY)) : map.heightM / 2;
+    m.camX = cx - halfW;
+    m.camY = cy - halfH;
+    m.camZoom = cam.zoom;
     m.wave = host.world.waves.number;
     m.remaining = host.world.waves.remaining;
   }
@@ -173,11 +185,11 @@ export class GameScene extends Phaser.Scene {
 
     this.zombieView?.update(host.world, host.alpha);
     this.projectileView?.update(host.world.projectiles, host.alpha);
-    this.updateRushMarkers(host.alpha);
     const player = host.world.players.get(LOCAL_PLAYER_ID);
     if (player && this.playerView) {
       this.playerView.update(player, host.alpha);
       this.cameras.main.centerOn(this.playerView.x, this.playerView.y);
+      this.updateRushMarkers(host.alpha, this.playerView.x, this.playerView.y);
       this.hudModel.hp = player.hp;
       this.hudModel.maxHp = player.maxHp;
       const slot = activeSlot(player.loadout);

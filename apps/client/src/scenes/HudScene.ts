@@ -62,6 +62,8 @@ export class HudScene extends Phaser.Scene {
   private bannerText!: Phaser.GameObjects.Text;
   private readonly arrows: Phaser.GameObjects.Triangle[] = [];
   private readonly arrowOut = { x: 0, y: 0, angle: 0 };
+  /** dpr() when the arrows were built; they are rescaled on resize. */
+  private arrowDpr = 1;
   private shownWave = -1;
   private shownRemaining = -1;
   private shownBanner = "";
@@ -110,8 +112,10 @@ export class HudScene extends Phaser.Scene {
       .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(BANNER_TEXT_PX * dpr())}px`, color: "#ffffff", fontStyle: "bold" })
       .setOrigin(0.5)
       .setVisible(false);
+    this.arrows.length = 0;
+    this.arrowDpr = dpr();
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
-      const a = ARROW_PX * dpr();
+      const a = ARROW_PX * this.arrowDpr;
       // Triangle pointing +x; rotated toward the target.
       this.arrows.push(this.add.triangle(0, 0, a, 0, -a * 0.6, -a * 0.7, -a * 0.6, a * 0.7, RUSH_COLOR).setVisible(false));
     }
@@ -160,6 +164,8 @@ export class HudScene extends Phaser.Scene {
     this.waveText.setFontSize(Math.round(WAVE_TEXT_PX * dpr()));
     this.bannerText.setFontSize(Math.round(BANNER_TEXT_PX * dpr()));
     this.shownWave = -1;
+    this.shownBanner = ""; // re-center the banner
+    for (const a of this.arrows) a.setScale(dpr() / this.arrowDpr);
     this.shownWeapon = "";
     this.hpText.setFontSize(Math.round(HP_TEXT_PX * dpr()));
     this.shownHp = -1; // force a redraw at the new scale
