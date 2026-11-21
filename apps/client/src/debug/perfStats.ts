@@ -226,6 +226,24 @@ export class PerfStats {
     out.tickMaxMs = tmax;
     return out;
   }
+
+  /** Returns this instance to its just-constructed state (used to isolate tests that share `perf`). */
+  reset(): void {
+    this.frameAt.fill(0);
+    this.frameMs.fill(0);
+    this.renderMs.fill(0);
+    this.updateMs.fill(0);
+    this.frameHead = 0;
+    this.frameCount = 0;
+    this.tickAt.fill(0);
+    this.tickMs.fill(0);
+    this.tickHead = 0;
+    this.tickCount = 0;
+    this.alive = 0;
+    this.inView = 0;
+    this.overlayOn = false;
+    this.summary = null;
+  }
 }
 
 /** Counts alive zombies whose position is inside the view rectangle (world meters). */

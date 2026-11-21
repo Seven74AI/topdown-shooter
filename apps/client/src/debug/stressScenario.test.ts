@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, step } from "@topdown/shared";
 import { perf } from "./perfStats";
 import {
@@ -14,6 +14,10 @@ import {
 
 const balance = loadBalance();
 const env = () => ({ userAgent: "TestUA", viewport: "844×390", dpr: 2 });
+
+// The global `perf` singleton is shared by every test in this file; reset it so a test can never
+// observe the overlay/summary/ring-buffer state left behind by an earlier one.
+beforeEach(() => perf.reset());
 
 describe("viewAround", () => {
   it("centers the view on the target and clamps it inside the map", () => {
