@@ -33,7 +33,7 @@ Story 1.11. This note records whether 2021 mid-range phones can run the Epic 1 h
 | tick avg / max | duration of one 20 Hz simulation step (`step()` in `LocalSimHost`, timed with `performance.now()`) |
 | render | Phaser's render pass, CPU side (POST_STEP → POST_RENDER). With WebGL, the GPU works after this, so GPU cost shows up as frame time that isn't update + render. |
 | update | input, scene updates and the simulation steps of the frame (PRE_STEP → POST_STEP) |
-| bottleneck | `simulation` if tick avg > 8 ms, otherwise `rendering/GPU`. Both numbers are printed so the call can be checked. |
+| bottleneck | `none` when the target is met; otherwise `simulation` if tick avg > 8 ms, else `rendering/GPU`. Both numbers are printed so the call can be checked. |
 
 The frame interval runs from one Phaser `PRE_STEP` to the next. Gaps over 1 s (a hidden tab) are not counted.
 
@@ -51,6 +51,7 @@ The frame interval runs from one Phaser `PRE_STEP` to the next. Gaps over 1 s (a
 | device | browser | avg FPS | min FPS | worst second | % < 30 | tick avg / max ms | render ms | bottleneck | target |
 |---|---|---|---|---|---|---|---|---|---|
 | **Headless desktop, not a reference phone.** Linux container, Xeon, 4 vCPU, SwiftShader software GL, 844×390 @ DPR 2 | HeadlessChrome 157 (Playwright), release build (`vite preview`) | 27.1 | 16.9 | 23 | 92.74 | 0.19 / 1.80 | 0.23 | rendering/GPU | missed |
+| **iPhone 15 Pro** (designer, 2026-11-21; above the iPhone 12 reference class), 958×401 @ DPR 2, iOS 18.7 | Brave (WebKit, Safari engine) | 60.0 | 38.5 | 59 | 0.00 | 0.56 / 2.00 | 0.79 | none | **met** |
 | *iPhone 12 class* (designer) | Safari | | | | | | | | |
 | *Pixel 5 class* (designer) | Chrome | | | | | | | | |
 
