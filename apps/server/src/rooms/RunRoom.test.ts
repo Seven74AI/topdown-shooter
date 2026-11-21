@@ -218,7 +218,7 @@ describe("RunRoom lobby (Story 2.3)", () => {
       expect(await guest.joined).toEqual({ playerId: `p${slot}`, slot, tickRateHz: TICK_RATE_HZ });
     }
     expect(Object.keys(players(host.room)).sort()).toEqual(["p0", "p1", "p2", "p3"]);
-    expect(players(host.room).p2).toEqual({ slot: 2, name: "G2", ready: false });
+    expect(players(host.room).p2).toMatchObject({ slot: 2, name: "G2", ready: false });
     // Every client sees every player.
     await vi.waitFor(() => expect(host.client.state.players.size).toBe(4));
     expect(host.client.state.players.get("p3")?.name).toBe("G3");
@@ -293,7 +293,7 @@ describe("RunRoom lobby (Story 2.3)", () => {
     expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "not_ready" }, "run_start_refused");
     await readyAndStart(host.room, host.client, guest.client);
     expect(host.room.state.phase).toBe("wave");
-    expect(info).toHaveBeenCalledWith({ players: 2 }, "run_started");
+    expect(info).toHaveBeenCalledWith({ runSeed: expect.any(Number), players: 2 }, "run_started");
     await vi.waitFor(() => expect(guest.client.state.phase).toBe("wave"));
   });
 

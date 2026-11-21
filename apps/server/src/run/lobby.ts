@@ -19,6 +19,8 @@ export interface Member {
   /** When they joined; the longest-connected member becomes host. */
   /** Join sequence number within the room (lower = joined earlier). */
   readonly joinOrder: number;
+  /** Round-trip time, EWMA of `net.pong` samples (Story 2.4); 0 until the first one. */
+  rttMs: number;
 }
 
 /** The lowest free slot 0 to MAX_PLAYERS − 1, or -1 when all are taken. */

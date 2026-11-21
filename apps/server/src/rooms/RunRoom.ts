@@ -1,18 +1,35 @@
-import { CloseCode, Room, ServerError, matchMaker, type AuthContext, type Client } from "@colyseus/core";
+import { randomBytes } from "node:crypto";
+import {
+  CloseCode,
+  Room,
+  ServerError,
+  matchMaker,
+  type AuthContext,
+  type Client,
+  type RoomException,
+  type RoomMethodName,
+} from "@colyseus/core";
 import {
   C2S,
   MAX_PLAYERS,
   S2C,
   TICK_RATE_HZ,
+  encodeNetEvent,
   joinOptionsSchema,
   loadBalance,
   lobbySetReadySchema,
+  netPongSchema,
   playerInputSchema,
   runStartSchema,
   startBlocker,
   type JoinRefusal,
+  type NetEvent,
+  type NetEventContext,
+  type NetPinged,
   type PlayerInput,
   type RunJoined,
+  type SimEvent,
+  type SimEventsFlushed,
 } from "@topdown/shared";
 import type { Logger } from "pino";
 import { MAX_CLIENT_MESSAGE_BYTES } from "../net/limits";
@@ -20,6 +37,9 @@ import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
 import { assignSlot, hashGuestToken, nextHost, type Member } from "../run/lobby";
+import { RunController } from "../run/RunController";
+import { SlowTickWatch } from "../run/slowTick";
+import { syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
 
@@ -51,6 +71,19 @@ export interface RunRoomOptions {
 /** State patches every 50 ms (20 Hz, the simulation rate). */
 const PATCH_RATE_MS = 50;
 
+/** RTT probe period (Story 2.4): one `net.pinged` per client per second during a run. */
+export const PING_INTERVAL_MS = 1000;
+/** Weight of a new RTT sample in the EWMA. */
+const RTT_EWMA = 0.25;
+/** Tick exceptions in a row before the room gives up and disconnects everyone. */
+export const MAX_TICK_ERRORS_IN_A_ROW = 20;
+export const TICK_ERROR_MESSAGE = "The game hit an error, sorry";
+
+/** A random uint32 run seed (`node:crypto`; never Math.random). */
+export function randomUint32(): number {
+  return randomBytes(4).readUInt32BE(0);
+}
+
 /** Codes picked by rooms still being created (not yet visible to `getLocalRoomById`). */
 const reservedCodes = new Set<string>();
 
@@ -74,6 +107,17 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private joinCounter = 0;
   /** See `RunRoomOptions`; tests may flip it on a live room. */
   allowSoloStart = false;
+  /** The fight (Story 2.4): set when the run starts; the room is its only writer. */
+  controller: RunController | null = null;
+  /** Tick durations; logs `slow_tick` (AC 5). */
+  slowTicks: SlowTickWatch | null = null;
+  private eventCtx: NetEventContext | null = null;
+  private tickErrors = 0;
+  private shuttingDown = false;
+  /** Latest `net.pinged` id, when it was sent, and who has answered it. */
+  private pingId = 0;
+  private pingSentAtMs = 0;
+  private readonly ponged = new Set<string>();
 
   /** Validates join options before a seat is reserved (runs for create and join). */
   static override async onAuth(_token: string, options: unknown, ctx: AuthContext): Promise<RunAuth> {
@@ -121,6 +165,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.INPUT_SEND, this.net.guard(playerInputSchema, (c, input) => this.onInput(c, input), "input"));
     this.onMessage(C2S.LOBBY_SET_READY, this.net.guard(lobbySetReadySchema, (c, m) => this.onSetReady(c, m.ready)));
     this.onMessage(C2S.RUN_START, this.net.guard(runStartSchema, (c) => this.onStart(c)));
+    this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -149,6 +194,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       name: auth.name,
       guestTokenHash: auth.guestTokenHash,
       joinOrder: ++this.joinCounter, // a counter, not the clock: a clock jump can't reorder hosts
+      rttMs: 0,
     };
     // The creator is host (slot 0); later joiners never take it over.
     if (this.members.size === 0) this.state.hostSlot = slot;
@@ -170,8 +216,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const { playerId, slot } = member;
     this.members.delete(client.sessionId); // frees the slot
     this.state.players.delete(playerId);
+    // Mid-run: out of the World too; zombies retarget next tick. Reconnect is Epic 8, "left" is 2.11.
+    this.controller?.removePlayer(playerId);
+    this.ponged.delete(client.sessionId);
     this.log.info({ playerId, code }, "player_left");
-    // Story 2.4 also removes the player from the World here; Epic 8 handles a host leaving mid-run.
+    // Epic 8 handles a host leaving mid-run.
     const host = slot === this.state.hostSlot ? nextHost(this.members.values()) : undefined;
     if (host) {
       this.state.hostSlot = host.slot;
@@ -204,9 +253,96 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.log.info({ playerId: member.playerId, reason }, "run_start_refused");
       return;
     }
-    // Story 2.4 hooks the RunController into this exact transition; until then nothing simulates.
     this.state.phase = "wave";
-    this.log.info({ players: this.members.size }, "run_started");
+    this.startRun();
+  }
+
+  /** Builds the World from the members (join order, `teamSpawnPoint` by slot) and starts the 20 Hz loop. */
+  private startRun(): void {
+    const players = Array.from(this.members.values(), (m) => ({ playerId: m.playerId, slot: m.slot }));
+    const runSeed = randomUint32();
+    const controller = new RunController({
+      balance: serverBalance,
+      seed: runSeed,
+      players,
+      pauseWaves: process.env.DEV_NO_WAVES === "1",
+    });
+    this.controller = controller;
+    const zombies = controller.world.zombies;
+    this.eventCtx = { balance: serverBalance, zombieNetId: (id) => id | ((zombies.generation[id] ?? 0) << 8) };
+    this.slowTicks = new SlowTickWatch(this.roomId, this.log, () => performance.now());
+    syncState(this.state, controller); // spawn positions in the same patch as phase "wave"
+    // 0.18 fixed timestep: at most 5 catch-up steps, then the backlog is dropped.
+    this.setFixedTimestep(() => this.onTick(), TICK_RATE_HZ);
+    this.clock.setInterval(() => this.ping(), PING_INTERVAL_MS);
+    this.log.info({ runSeed, players: players.length }, "run_started");
+  }
+
+  /** One server tick: step, copy to schema, forward events. The patch goes out between ticks. */
+  onTick(): void {
+    const controller = this.controller;
+    if (!controller || this.shuttingDown) return;
+    const t0 = performance.now();
+    const events = controller.tick();
+    syncState(this.state, controller);
+    this.forwardEvents(controller.world.tick, events);
+    // Story 2.5: send horde frames here.
+    this.slowTicks?.observe(performance.now() - t0, controller.world.tick);
+    this.tickErrors = 0;
+  }
+
+  /** One reliable `sim.events_flushed` per tick that has events, in emit order. */
+  private forwardEvents(tick: number, events: readonly SimEvent[]): void {
+    const ctx = this.eventCtx;
+    if (events.length === 0 || !ctx) return;
+    const out: NetEvent[] = [];
+    for (let i = 0; i < events.length; i++) {
+      const t = encodeNetEvent(events[i] as SimEvent, ctx);
+      if (t) out.push(t);
+    }
+    if (out.length > 0) this.broadcast(S2C.SIM_EVENTS_FLUSHED, { tick, events: out } satisfies SimEventsFlushed);
+  }
+
+  /** Every second: each client gets the same ping id and its own RTT so far. */
+  private ping(): void {
+    this.pingId++;
+    this.pingSentAtMs = performance.now();
+    this.ponged.clear();
+    for (const client of this.clients) {
+      const member = this.members.get(client.sessionId);
+      if (!member) continue;
+      client.send(S2C.NET_PINGED, { id: this.pingId, rttMs: Math.round(member.rttMs) } satisfies NetPinged);
+    }
+  }
+
+  /** `net.pong` for the latest ping (older or repeated ones are ignored): EWMA, then the controller. */
+  onPong(client: RunClient, id: number): void {
+    const member = this.members.get(client.sessionId);
+    if (!member || id !== this.pingId || this.ponged.has(client.sessionId)) return;
+    this.ponged.add(client.sessionId);
+    const sample = performance.now() - this.pingSentAtMs;
+    member.rttMs = member.rttMs === 0 ? sample : member.rttMs + RTT_EWMA * (sample - member.rttMs);
+    this.controller?.setRtt(member.playerId, member.rttMs);
+  }
+
+  /**
+   * The room's one error handler (architecture › Error Handling): logs with roomId, method and
+   * tick, and the simulation keeps going. After MAX_TICK_ERRORS_IN_A_ROW failed ticks the room
+   * tells everyone and closes (saving a snapshot is Epic 8). Join refusals (`ServerError`) are
+   * expected and already logged as `join_refused`.
+   */
+  override onUncaughtException(error: RoomException, method: RoomMethodName): void {
+    const cause = (error as Error).cause;
+    if (cause instanceof ServerError) return;
+    const tick = this.controller?.world.tick ?? null;
+    this.log.error({ err: cause ?? error, method, tick }, "room_exception");
+    if (method !== "setFixedTimestep") return;
+    this.tickErrors++;
+    if (this.tickErrors < MAX_TICK_ERRORS_IN_A_ROW || this.shuttingDown) return;
+    this.shuttingDown = true;
+    this.log.error({ tick, errors: this.tickErrors }, "room_closed_after_tick_errors");
+    this.broadcast(S2C.SERVER_SHUTDOWN_STARTED, { message: TICK_ERROR_MESSAGE });
+    void this.disconnect();
   }
 
   /** Stop or redeploy (Story 2.2 AC 5): tell everyone, then close with 4001. Autosave is Epic 8. */
@@ -218,12 +354,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
 
   override onDispose(): void {
     reservedCodes.delete(this.roomId);
+    this.controller = null;
     this.log.info("room_disposed");
   }
 
-  /** `input.send` (already validated and rate-limited). Story 2.4 queues it for the World. */
+  /** `input.send` (already validated and rate-limited): queued for the World (lobby: ignored). */
   onInput(client: RunClient, input: PlayerInput): void {
-    void client; // Story 2.4: controller.queueInput(playerId, input)
-    void input;
+    const member = this.members.get(client.sessionId);
+    if (member) this.controller?.queueInput(member.playerId, input);
   }
 }

@@ -1,4 +1,5 @@
 import type { RunPhase } from "./messages";
+import type { PlayerStatus } from "../player/player";
 
 /**
  * Plain read-only views of the room state schema (apps/server/src/rooms/schema/RunState.ts).
@@ -10,6 +11,28 @@ export interface PlayerStateView {
   readonly name: string;
   /** Lobby Ready flag (Story 2.3); reset when the room returns to the lobby (Story 2.8). */
   readonly ready: boolean;
+  /** Fight fields (Story 2.4), written by `syncState` every tick of a run. Metres, float32. */
+  readonly x: number;
+  readonly y: number;
+  /** Facing as `quantizeHeading` (0 = +x, increasing toward +y). */
+  readonly heading: number;
+  /** Rounded up, so a player at 0.4 HP shows 1. */
+  readonly hp: number;
+  readonly maxHp: number;
+  /** "alive" | "dead" (Story 2.8: "downed" | "out"). */
+  readonly status: PlayerStatus;
+  /** `seq` of the last input the server applied for this player (Story 2.6 replays newer ones). */
+  readonly ackSeq: number;
+  /** Active weapon slot, 0 or 1. */
+  readonly active: number;
+  /** Weapon id per slot; "" = empty slot. */
+  readonly weapon0: string;
+  readonly weapon1: string;
+  readonly ammo0: number;
+  readonly ammo1: number;
+  readonly reloadTicks0: number;
+  readonly reloadTicks1: number;
+  readonly swapTicks: number;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -24,4 +47,11 @@ export interface RunStateView {
   readonly phase: RunPhase;
   readonly hostSlot: number;
   readonly players: ReadonlyMapView<PlayerStateView>;
+  /** Server tick of the World these values come from (Story 2.4). */
+  readonly tick: number;
+  /** `world.waves.number` / `remaining`. */
+  readonly wave: number;
+  readonly remaining: number;
+  /** Players whose status is "alive". */
+  readonly aliveCount: number;
 }

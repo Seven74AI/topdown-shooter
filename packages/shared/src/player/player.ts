@@ -44,3 +44,14 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
   world.players.set(id, player);
   return player;
 }
+
+/**
+ * Removes a player and every input record of theirs (Story 2.4: leaving mid-run). Zombies pick the
+ * next-nearest player on the next tick. A no-op for an unknown id.
+ */
+export function removePlayer(world: World, id: string): void {
+  world.players.delete(id);
+  world.pendingInputs.delete(id);
+  world.inputs.delete(id);
+  world.lastAppliedSeq.delete(id);
+}

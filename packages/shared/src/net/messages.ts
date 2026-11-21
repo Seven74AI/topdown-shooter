@@ -97,6 +97,16 @@ export type LobbySetReady = z.infer<typeof lobbySetReadySchema>;
 /** `run.start` (Story 2.3): host only, when `canStart` (net/lobbyRules.ts) holds. */
 export const runStartSchema = z.object({}).strict();
 
+/** `net.pinged` (Story 2.4): sent to each client every second during a run. `rttMs` is the server's EWMA so far. */
+export interface NetPinged {
+  id: number;
+  rttMs: number;
+}
+
+/** `net.pong` (Story 2.4): the client echoes the id of the ping it just got. */
+export const netPongSchema = z.object({ id: z.number().int().nonnegative() }).strict();
+export type NetPong = z.infer<typeof netPongSchema>;
+
 /** `run.joined` payload (Story 2.3), sent to the joining client only. */
 export interface RunJoined {
   /** `"p" + slot`. */

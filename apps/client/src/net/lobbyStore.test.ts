@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { C2S, S2C, type PlayerStateView, type RunPhase, type RunStateView } from "@topdown/shared";
 import { START_HINT, lobbyStore, lobbyView, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
 import type { RunConnection } from "./connection";
+import { fakePlayer } from "./fakeRoom";
 
-const player = (slot: number, name: string, ready = false): PlayerStateView => ({ slot, name, ready });
+const player = (slot: number, name: string, ready = false): PlayerStateView => fakePlayer(slot, { name, ready });
 
 function snap(over: Partial<LobbySnapshot> = {}): LobbySnapshot {
   return {
@@ -25,7 +26,7 @@ describe("snapshotLobby", () => {
       ["p2", player(2, "Cid", true)],
       ["p0", player(0, "Ana")],
     ]);
-    const state: RunStateView = { phase: "lobby", hostSlot: 0, players };
+    const state: RunStateView = { phase: "lobby", hostSlot: 0, players, tick: 0, wave: 0, remaining: 0, aliveCount: 0 };
     const s = snapshotLobby("ABCD", state, "p2");
     expect(s).toEqual({
       code: "ABCD",

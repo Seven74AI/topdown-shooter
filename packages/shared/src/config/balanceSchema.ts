@@ -86,6 +86,8 @@ export const playerSchema = z
     speedMps: z.number().positive(),
     radiusM: z.number().positive(),
     swapS: z.number().min(0),
+    /** Run start (Story 2.4): survivors stand at the map centre ± this on each axis, by slot. */
+    spawnOffsetM: z.number().min(0),
   })
   .strict();
 
