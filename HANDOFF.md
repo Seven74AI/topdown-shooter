@@ -17,7 +17,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | Implementation readiness | ✅ READY (0 critical, 5 major, 8 minor) | `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-21.md` |
 | Sprint planning | ✅ `sprint-status.yaml` generated (all backlog) | `_bmad-output/implementation-artifacts/sprint-status.yaml` |
 | Readiness fixes | ✅ applied (101 stories, new Story 2.11 in-run menu) | see "Resolutions" in the readiness report |
-| **Story 1.1** | ⏭️ **NEXT** | `gds-create-story` 1.1 → `gds-dev-story` |
+| **Story 1.1** | ✅ **done** — live at hordes.sevend.io + Pages | `_bmad-output/implementation-artifacts/1-1-project-scaffold-with-a-playable-link.md` |
 
 Decision logs record every decision and why. Read them before changing anything.
 
@@ -25,18 +25,17 @@ Decision logs record every decision and why. Read them before changing anything.
 
 - **Design:** 4 pillars as decision rules: Horde chaos (more zombies, never tougher ones), Build your stand (never enough money), A city that falls (decay changes play), Better together. Twin-stick on touch, landscape, auto-fire while aiming, 8° aim assist. 2 weapon slots, 10 weapons, upgrades I–IV. 6 zombie types (Walker, Runner, Crawler, Spitter, Bloater, Brute) + Behemoth boss. Revive model. Personal wallets with anti-snowball rules. 6-card roguelike shop. 6 special events. Supplies meta-currency, capped Training boosts. Gore: blood + dismemberment (toggle).
 - **Tech:** Phaser 4.2 client · Colyseus 0.18 server (`@colyseus/sdk` client) · TypeScript **6.0** (not 7.0: typescript-eslint unsupported yet) · Vite · Preact menus · npm-workspaces monorepo (`apps/client`, `apps/server`, `packages/shared`). Server-authoritative 20 Hz, local-player prediction, custom 8-byte-per-zombie binary horde stream (≤ 24 KB/s), flow-field pathfinding, Tiled maps with one layer group per decay stage, PostgreSQL 18 + Drizzle, Docker Compose + Caddy.
-- **Hosting:** the designer's existing Linux VPS in Europe (6 vCPU, 12 GB RAM, ~30 GB free); the game goes on a subdomain of `sevend.io` (name to choose).
+- **Hosting:** the designer's existing Linux VPS in Europe (6 vCPU, 12 GB RAM, ~23 GB free — this Hermes host); the game lives on **https://hordes.sevend.io/** (chosen 2026-11-21). Static client already served there via Cloudflare Tunnel `sevend-io-stream` → localhost:8080 (systemd `topdown-shooter.service`, Caddy `deploy/Caddyfile`).
 - **Art production:** placeholder/AI art for Epics 1–8, hired artist + sound designer for Epic 9.
 - **Milestone 1 (Epics 1–4):** prove online co-op with big hordes on phones (2–4 players, Downtown, 4 weapons incl. one per range, 3 zombie types, turret + barricade, shop, 5 waves, 3 decay stages).
 
 ## 4. Open items (non-blocking)
 
 - Working title (still "topdown-shooter").
-- Before Story 2.2: subdomain name and a deploy key for the VPS.
-- Story 1.1 publishes to GitHub Pages (designer's choice): the repo must be made public (Settings → General → Change visibility) before the first publish.
-- VPS access for Story 2.2: Tailscale was suggested (Cloudflare skills live in Hermes on the VPS) but deferred; the cloud container has no Tailscale. Revisit at Story 2.2.
+- Before Story 2.2: a deploy key / SSH access for the VPS (subdomain resolved: hordes.sevend.io; static client already live there).
+- GitHub Pages is live at https://seven74ai.github.io/topdown-shooter/ (Story 1.1 temporary link; superseded by hordes.sevend.io once Story 2.2 serves the full game).
+- VPS access for Story 2.2: the Hermes host IS the target VPS (Story 1.1 static client already deployed there). The CLOUD BMAD container still has no access; Story 2.2's server deploy runs from Hermes, not the cloud container. Tailscale still suggested for designer SSH.
 - Order of future districts (candidates: Hospital, Suburbs, Port, Subway, Mall, Military checkpoint; CCTV intro and Blood Moon cemetery as special content).
-- Subdomain name on sevend.io.
 - Context7 MCP not installed yet: `claude mcp add context7 -- npx -y @upstash/context7-mcp`.
 
 ## 5. Visual references (published artifacts)
@@ -70,4 +69,4 @@ Local copies live next to the brief (`style-lab*.html`, `dead-city-decay.html`).
 
 ## Prompt for the new session
 
-> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. We use the BMAD method; brief, GDD and architecture are done. Next step: run `/gds-check-implementation-readiness`, then `/gds-sprint-planning`. Keep working in facilitative mode as described in the handoff, and commit + push after each step.
+> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. We use the BMAD method; brief, GDD, architecture, and Story 1.1 (scaffold) are done — Story 1.1 is live at hordes.sevend.io. Next step: `gds-create-story 1.2` then `gds-dev-story`. Keep working in facilitative mode as described in the handoff, and commit + push after each step.
