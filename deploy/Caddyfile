@@ -1,0 +1,6 @@
+:8080 {
+	bind 127.0.0.1
+	root * /root/topdown-shooter/apps/client/dist
+	encode gzip
+	file_server
+}

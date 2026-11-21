@@ -51,7 +51,7 @@ story_location: _bmad-output/implementation-artifacts
 development_status:
   # Epic 1: Core combat on one phone
   epic-1: in-progress
-  1-1-project-scaffold-with-a-playable-link: in-progress
+  1-1-project-scaffold-with-a-playable-link: done
   1-2-shared-simulation-core: backlog
   1-3-move-with-a-floating-stick: backlog
   1-4-walkers-chase-and-hurt-the-player: backlog
