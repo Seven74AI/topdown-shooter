@@ -46,4 +46,5 @@ _TBD_
 _TBD_
 
 ## Content, art & audio direction
-_TBD_
+- Art style: exploring (round 1 probe: Pixel Grit, Neon Vector, Toybox, Lamplight — none chosen as main look).
+- **Kept:** Lamplight darkness as a special level / wave modifier ("blackout waves"), not the default look.
