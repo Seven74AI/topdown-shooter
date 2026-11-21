@@ -4,7 +4,9 @@ project: 'topdown-shooter'
 date: '2026-11-21'
 author: 'Root'
 version: '1.0'
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+engine: 'Phaser 4.2 + Colyseus 0.18'
+platform: 'Mobile web (iOS Safari 16+, Android Chrome 10+), desktop web'
 status: 'complete'
 
 # Source Documents
@@ -18,6 +20,12 @@ brief: '_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/
 ## Executive Summary
 
 A server-authoritative online co-op horde shooter for phone browsers. A Phaser 4 client and a Colyseus 0.18 Node.js server share one engine-free TypeScript simulation package (the game rules), running at 20 Hz on the server with local-player prediction on phones. A custom binary horde stream keeps 150 zombies within ~24 KB/s per phone. PostgreSQL stores accounts, progression and saved runs; everything runs in Docker Compose on the designer's existing European VPS behind Caddy (HTTPS/WSS).
+
+**Key decisions:** server authority + client prediction (ADR-01) · custom horde stream (ADR-02) · shared simulation package (ADR-03) · single PostgreSQL on the VPS (ADR-04) · Tiled maps with decay layers (ADR-05) · flow-field pathfinding.
+
+**Structure:** domain-organized monorepo (client, server, shared) covering 15 core systems; 4 novel patterns and the standard patterns below keep AI agents consistent.
+
+**Ready for:** epic and story creation, then implementation of Epic 1.
 
 ---
 ## Project Context
@@ -573,6 +581,24 @@ const world = createWorld({ balance, seed, district });
 - Node.js 26 LTS, npm workspaces; scripts: `npm run dev` (client + server with hot reload), `npm test` (Vitest), `npm run lint`, `npm run typecheck`, `npm run build`.
 - **Epic 1 local mode:** before networking exists, the client runs the shared World in the browser behind a `SimHost` interface; Epic 2 swaps in the networked host without changing scenes.
 - Context7 MCP for current Phaser/Colyseus/Vite documentation.
+
+**Prerequisites:** Node.js 26 LTS, npm, Docker + Docker Compose (for local PostgreSQL and the deploy stack), Tiled 1.11+ for map editing, Git.
+
+**Setup commands:**
+
+```bash
+npm install
+docker compose -f deploy/docker-compose.yml up -d postgres
+npm run db:migrate
+npm run dev
+claude mcp add context7 -- npx -y @upstash/context7-mcp
+```
+
+**First steps:**
+1. Scaffold the monorepo (structure above) with lint, typecheck and Vitest wired in CI.
+2. Implement the shared World loop, seeded RNG, spatial grid and balance loading with tests.
+3. Configure the Context7 MCP.
+4. Start Epic 1 in local `SimHost` mode: touch twin-stick, Walkers, three weapons, frame-rate overlay on a real phone.
 
 ## Architecture Validation
 
