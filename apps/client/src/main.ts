@@ -7,6 +7,9 @@ import { HudScene } from "./scenes/HudScene";
 import { App } from "./ui/App";
 import { installPerfProbe } from "./debug/perfProbe";
 import { urlOptions } from "./debug/urlOptions";
+import { uiStore } from "./ui/uiState";
+import { lobbyStore } from "./net/lobbyStore";
+import { JOIN_ERROR_TEXT } from "./net/joinErrors";
 import "./ui/overlay.css";
 
 // Phaser 4 has no `resolution` option: size the canvas in device pixels
@@ -39,6 +42,28 @@ window.addEventListener("resize", () => {
 
 // Performance overlay and ?stress timing (Story 1.11): release builds too.
 installPerfProbe(game, urlOptions().debug);
+
+// Online lobby (Story 2.1): networking stays in net/, the scenes don't know about it. The SDK is
+// loaded on the first Create game, so solo play doesn't download it.
+async function createGameLazily(name: string) {
+  try {
+    const { createGame } = await import("./net/connection");
+    return await createGame(name);
+  } catch {
+    return { ok: false, error: JOIN_ERROR_TEXT.unreachable } as const; // chunk failed to load (offline)
+  }
+}
+uiStore.handle("createGame", (name) => {
+  void createGameLazily(name).then((r) => {
+    if (!r.ok) return uiStore.set({ kind: "start", error: r.error });
+    lobbyStore.attach(r.value, () => uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable }));
+    uiStore.set({ kind: "lobby", code: r.value.roomId });
+  });
+});
+uiStore.handle("leaveLobby", () => {
+  lobbyStore.leave();
+  uiStore.set({ kind: "start" });
+});
 
 const ui = document.getElementById("ui");
 if (ui) render(h(App, {}), ui);

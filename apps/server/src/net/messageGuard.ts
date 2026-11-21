@@ -1,0 +1,109 @@
+import { DROP_LOG_INTERVAL_MS, MAX_INPUTS_PER_S, MAX_OTHER_MESSAGES_PER_S } from "./limits";
+import { TokenBucket } from "./tokenBucket";
+
+/**
+ * Client message hygiene (Story 2.1, AC 5). Every handler goes through `guard(schema, handler)`:
+ * a rate check, then `safeParse`. A message that fails either is dropped (the client stays
+ * connected) and counted. Never pass a schema to `room.onMessage(type, schema, cb)`: in Colyseus
+ * 0.18 a failed validation there disconnects the client.
+ */
+export type DropReason = "invalid" | "unknown_type" | "rate" | "too_large";
+const DROP_REASONS: readonly DropReason[] = ["invalid", "unknown_type", "rate", "too_large"];
+
+/** `input.send` has its own bucket; every other type shares one. */
+export type MessageBucket = "input" | "other";
+
+/** The part of a zod schema the guard uses (zod's `safeParse` result fits it). */
+export interface SafeParser<T> {
+  safeParse(value: unknown): { success: true; data: T } | { success: false };
+}
+
+export interface GuardLogger {
+  warn(obj: object, msg: string): void;
+}
+
+interface GuardClient {
+  readonly sessionId: string;
+}
+
+/** Per-client state: two buckets and drop counters, logged at most once per reason per window. */
+class ClientGuard {
+  readonly input: TokenBucket;
+  readonly other: TokenBucket;
+  readonly dropped: Record<DropReason, number> = { invalid: 0, unknown_type: 0, rate: 0, too_large: 0 };
+  readonly lastLogMs: Record<DropReason, number> = {
+    invalid: -Infinity,
+    unknown_type: -Infinity,
+    rate: -Infinity,
+    too_large: -Infinity,
+  };
+
+  constructor(
+    readonly playerId: string,
+    nowMs: number,
+  ) {
+    this.input = new TokenBucket(MAX_INPUTS_PER_S, MAX_INPUTS_PER_S, nowMs);
+    this.other = new TokenBucket(MAX_OTHER_MESSAGES_PER_S, MAX_OTHER_MESSAGES_PER_S, nowMs);
+  }
+}
+
+export class MessageGuard<C extends GuardClient> {
+  private readonly clients = new Map<string, ClientGuard>();
+
+  constructor(
+    private readonly now: () => number,
+    private readonly log: GuardLogger,
+  ) {}
+
+  /** Starts tracking a client (call in `onJoin`). */
+  add(client: C, playerId: string): void {
+    this.clients.set(client.sessionId, new ClientGuard(playerId, this.now()));
+  }
+
+  /** Stops tracking a client and logs drops not reported yet (call in `onLeave`). */
+  remove(client: C): void {
+    const g = this.clients.get(client.sessionId);
+    if (!g) return;
+    for (const reason of DROP_REASONS) if (g.dropped[reason] > 0) this.report(g, reason, this.now());
+    this.clients.delete(client.sessionId);
+  }
+
+  /** Wraps a handler: rate check, then validation; the handler only sees valid messages. */
+  guard<T>(
+    schema: SafeParser<T>,
+    handler: (client: C, message: T) => void,
+    bucket: MessageBucket = "other",
+  ): (client: C, message: unknown) => void {
+    return (client, message) => {
+      const g = this.clients.get(client.sessionId);
+      if (!g) return; // not joined (or already left): nothing to deliver to
+      const now = this.now();
+      if (!(bucket === "input" ? g.input : g.other).take(now)) return this.count(g, "rate", now);
+      const parsed = schema.safeParse(message);
+      if (!parsed.success) return this.count(g, "invalid", now);
+      handler(client, parsed.data);
+    };
+  }
+
+  /** Records a drop for a client (e.g. `unknown_type` from the `"*"` handler, `too_large` from ws). */
+  drop(client: C, reason: DropReason): void {
+    const g = this.clients.get(client.sessionId);
+    if (g) this.count(g, reason, this.now());
+  }
+
+  /** Drops counted and not yet logged, per reason (for tests). */
+  pending(client: C): Readonly<Record<DropReason, number>> | undefined {
+    return this.clients.get(client.sessionId)?.dropped;
+  }
+
+  private count(g: ClientGuard, reason: DropReason, now: number): void {
+    g.dropped[reason]++;
+    if (now - g.lastLogMs[reason] >= DROP_LOG_INTERVAL_MS) this.report(g, reason, now);
+  }
+
+  private report(g: ClientGuard, reason: DropReason, now: number): void {
+    this.log.warn({ playerId: g.playerId, reason, dropped: g.dropped[reason] }, "client_message_rejected");
+    g.dropped[reason] = 0;
+    g.lastLogMs[reason] = now;
+  }
+}

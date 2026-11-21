@@ -14,6 +14,8 @@ export interface UrlOptions {
   loadout: readonly [string, string | null] | null;
   /** `?tune=1` (Story 1.12, release-safe): the live tuning panel for the controls playtest. */
   tune: boolean;
+  /** `?solo` (Story 2.1): skip the start screen and play offline at once. */
+  solo: boolean;
 }
 
 /** Walkers when `?stress` has no number. */
@@ -28,12 +30,19 @@ export function parseUrlOptions(search: string): UrlOptions {
   const debugRaw = q.get("debug");
   const debug = debugRaw !== null && TRUE_VALUES.has(debugRaw.trim().toLowerCase());
   const tuneRaw = q.get("tune");
+  const soloRaw = q.get("solo");
   return {
     debug,
     stress: parseStress(q.get("stress")),
     loadout: parseLoadout(q.get("loadout")),
     tune: tuneRaw !== null && TRUE_VALUES.has(tuneRaw.trim().toLowerCase()),
+    solo: soloRaw !== null && TRUE_VALUES.has(soloRaw.trim().toLowerCase()),
   };
+}
+
+/** Options that start a solo run directly, skipping the start screen (Epic 1 playtest links keep working). */
+export function skipsStartScreen(o: UrlOptions): boolean {
+  return o.solo || o.stress !== null || o.loadout !== null || o.tune;
 }
 
 const WEAPON_ID = /^[a-z][a-z0-9_]*$/;

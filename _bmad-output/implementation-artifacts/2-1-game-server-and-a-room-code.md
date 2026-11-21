@@ -1,6 +1,9 @@
+---
+baseline_commit: 7ae67566d08ca941f3621afcb11d11b6f79aa06e
+---
 # Story 2.1: Game server and a room code
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -18,29 +21,29 @@ so that I can invite my friends.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Dependencies** (AC 1). Pin exact versions (`.npmrc` has `save-exact=true`). Re-check each with `npm view <pkg> version` first:
+- [x] **Task 1: Dependencies** (AC 1). Pin exact versions (`.npmrc` has `save-exact=true`). Re-check each with `npm view <pkg> version` first:
   - `apps/server` dependencies: `@colyseus/core` 0.18.29, `@colyseus/ws-transport` 0.18.5, `@colyseus/schema` 5.0.50, `pino` 10.4.0, `tsx` 4.23.15 (moved from devDependencies; Story 2.2 runs the server with `node --import tsx`).
   - `apps/server` devDependencies: `@colyseus/sdk` 0.18.10, `@colyseus/testing` 0.18.6, `@colyseus/tools` 0.18.11 (testing imports it), `ws` 8.23.0 (raw-socket tests).
   - `apps/client` dependencies: `@colyseus/sdk` 0.18.10.
   - See Dev Notes › Packages for why this is not the `colyseus` umbrella package.
-- [ ] **Task 2: Net contract in shared** (AC 2, 4, 5). Add `packages/shared/src/net/messages.ts` (see Dev Notes › Net contract) and `net/roomCode.ts` (`ROOM_CODE_ALPHABET`, `ROOM_CODE_LENGTH`, `isRoomCode(s)`, `normalizeRoomCode(s)` that uppercases and trims). Export both from `index.ts`. Add tests for `isRoomCode` and for the zod schemas (name trimming, 1–16 characters, control characters refused, unknown keys refused because of `.strict()`).
-- [ ] **Task 3: Server bootstrap** (AC 1).
+- [x] **Task 2: Net contract in shared** (AC 2, 4, 5). Add `packages/shared/src/net/messages.ts` (see Dev Notes › Net contract) and `net/roomCode.ts` (`ROOM_CODE_ALPHABET`, `ROOM_CODE_LENGTH`, `isRoomCode(s)`, `normalizeRoomCode(s)` that uppercases and trims). Export both from `index.ts`. Add tests for `isRoomCode` and for the zod schemas (name trimming, 1–16 characters, control characters refused, unknown keys refused because of `.strict()`).
+- [x] **Task 3: Server bootstrap** (AC 1).
   - `apps/server/src/app.ts`: `createGameServer(opts)` returns `defineServer({ rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom) }, routes: createRouter({ health }), transport: new WebSocketTransport({ maxPayload: MAX_CLIENT_MESSAGE_BYTES }), greet: false })`.
   - `apps/server/src/index.ts`: replace the stub. Read env once (`PORT` default 2567, `HOST` default `0.0.0.0`, `LOG_LEVEL` default `info`), listen, then log `log.info({ port, balanceVersion }, "server_started")`. Keep the SIGINT/SIGTERM handling: Colyseus registers graceful shutdown itself, so remove the manual `process.exit` that the stub had.
   - `apps/server/src/ops/logger.ts`: the root pino logger plus `roomLog(roomId)`, a child logger with `roomId`.
   - `apps/server/src/ops/health.ts`: `createEndpoint("/health", { method: "GET" }, …)` returns `200 {"ok":true,"rooms":n,"uptimeS":n}`.
-- [ ] **Task 4: RunRoom skeleton** (AC 2, 4, 5). Add `apps/server/src/rooms/RunRoom.ts`, `rooms/roomCode.ts` (server-side generation) and `rooms/schema/RunState.ts`. See Dev Notes › RunRoom.
-- [ ] **Task 5: Message guard** (AC 5). Add `apps/server/src/net/messageGuard.ts` with `guard(schema, handler)`, a token bucket (`net/tokenBucket.ts`), drop logging and the `"*"` fallback. See Dev Notes › Message hygiene.
-- [ ] **Task 6: Dev wiring** (AC 1). In `apps/client/vite.config.ts`, add `server.proxy["/api"] = { target: "http://localhost:2567", ws: true, rewrite: (p) => p.replace(/^\/api/, "") }`, so the client always talks to `${location.origin}/api` (phones on the same Wi-Fi work too). Production uses the same path through Caddy (Story 2.2). The root `dev` script already runs both workspaces; keep it.
-- [ ] **Task 7: Client connection** (AC 2, 4). Add `apps/client/src/net/connection.ts`:
+- [x] **Task 4: RunRoom skeleton** (AC 2, 4, 5). Add `apps/server/src/rooms/RunRoom.ts`, `rooms/roomCode.ts` (server-side generation) and `rooms/schema/RunState.ts`. See Dev Notes › RunRoom.
+- [x] **Task 5: Message guard** (AC 5). Add `apps/server/src/net/messageGuard.ts` with `guard(schema, handler)`, a token bucket (`net/tokenBucket.ts`), drop logging and the `"*"` fallback. See Dev Notes › Message hygiene.
+- [x] **Task 6: Dev wiring** (AC 1). In `apps/client/vite.config.ts`, add `server.proxy["/api"] = { target: "http://localhost:2567", ws: true, rewrite: (p) => p.replace(/^\/api/, "") }`, so the client always talks to `${location.origin}/api` (phones on the same Wi-Fi work too). Production uses the same path through Caddy (Story 2.2). The root `dev` script already runs both workspaces; keep it.
+- [x] **Task 7: Client connection** (AC 2, 4). Add `apps/client/src/net/connection.ts`:
   - `serverUrl()` returns `import.meta.env.VITE_SERVER_URL ?? \`${location.origin}/api\``.
   - `createGame(name)` returns `Promise<Result<Room<RunStateView>, string>>`. It calls `client.create(RUN_ROOM_NAME, { intent: "create", name, balanceVersion })` and maps errors to player text with `joinErrorText(err)` (in `net/joinErrors.ts`, unit-tested).
-- [ ] **Task 8: Start screen and lobby UI** (AC 2, 3). See Dev Notes › Client flow.
+- [x] **Task 8: Start screen and lobby UI** (AC 2, 3). See Dev Notes › Client flow.
   - Add `ui/StartScreen.tsx` (name input remembered in localStorage under `topdown.name` with try/catch, **Create game**, **Practice solo**).
   - Add `ui/LobbyScreen.tsx` (big code, link, Copy, Share, player list).
   - Add `ui/share.ts`: `shareLink(code)` returns `${location.origin}/j/${code}`; `share()` uses `navigator.share` if present, else copies with `navigator.clipboard.writeText` and shows "Link copied".
   - Extend `uiState.ts` with the new screens.
-- [ ] **Task 9: Tests** (AC 1–5). See Dev Notes › Testing.
+- [x] **Task 9: Tests** (AC 1–5). See Dev Notes › Testing.
 
 ## Dev Notes
 
@@ -193,10 +196,82 @@ export const joinOptionsSchema = z.object({
 
 ### Agent Model Used
 
+claude-opus-5-5 via gds-dev-story
+
 ### Debug Log References
+
+- `npm view` (2026-11-21): every pinned version in Task 1 is still current (`@colyseus/core` 0.18.29, `ws-transport` 0.18.5, `schema` 5.0.50, `pino` 10.4.0, `tsx` 4.23.15, `@colyseus/sdk` 0.18.10, `testing` 0.18.6, `tools` 0.18.11, `ws` 8.23.0). No version moved.
+- First browser run: the lobby crashed with `Cannot read properties of undefined (reading 'forEach')`. The SDK decodes state by reflection, so `room.state` is an empty object until the first full state arrives. `lobbyStore.attach` now waits for `state.players` (first snapshot comes from `onStateChange`).
+- `npm run build` went over the 1600 kB chunk warning once the SDK was imported statically (1,720 kB). `main.ts` now loads `net/connection.ts` with a dynamic `import()` on the first **Create game**: main chunk 1,548 kB (as before), `connection` chunk 173 kB / 55 kB gzip, downloaded only for online play.
+- Verified while building: a private room is not matched by `client.join("run")` (521 "no rooms found with provided criteria"); the Vite proxy answers 502 when the game server is down (mapped to "Can't reach the server"); a 2 KB frame closes the SDK socket with 1009 and the room logs `too_large`.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- **AC 1:** `npm run dev` starts Vite and `tsx watch src/index.ts`. The server logs `{"msg":"server_started","port":2567,"balanceVersion":"06c496cc",...}` as pino JSON; `GET /health` returns `200 {"ok":true,"rooms":n,"uptimeS":n}` (integration test plus curl). `index.ts` reads `PORT`/`HOST`/`LOG_LEVEL` once; the manual `process.exit` is gone (Colyseus registers SIGINT/SIGTERM graceful shutdown). The Colyseus logger is the same pino logger (`logger: log`).
+- **AC 2:** `RunRoom.onCreate` refuses anything but `intent: "create"`, sets `roomId` from `uniqueRoomCode()` (4 letters from `ROOM_CODE_ALPHABET`, `crypto.randomInt`, max 20 tries), `maxClients = 4`, `patchRate = 50`, `phase = "lobby"`. A module-level reservation set closes the window where two rooms being created at once could draw the same code before either is visible to `matchMaker.getLocalRoomById`.
+- **AC 3:** Start screen (name remembered under `topdown.name`, **Create game**, **Practice solo**) and lobby (code at 56 px with letter spacing, `https://<host>/j/<code>` link, Copy, Share via Web Share API with clipboard fallback and "Link copied", player list, Leave → `room.leave(true)`). Buttons are 160 × 48 CSS px.
+- **AC 4:** `static onAuth` refuses a different `balanceVersion` with `ServerError(526, "balance_mismatch")`; the client shows "Please refresh" with a Refresh button (`needsRefresh`).
+- **AC 5:** every client message goes through `MessageGuard.guard(schema, handler, bucket)`: token bucket first (`input.send` 25 cap / 25 per s; all other types share 10 / 10 per s, on `this.clock.currentTime`), then `safeParse`. Unknown types are caught by `onMessage("*")`. Drops are logged as `client_message_rejected` with `{ roomId, playerId, reason, dropped }`, at most once per client and reason every 10 s; unreported counts are flushed when the client leaves. **Too large:** `WebSocketTransport({ maxPayload: 1024 })` makes `ws` refuse the frame and close that socket (client 1009); room code never sees the frame, and the `client.ref` `error` listener (`WS_ERR_UNSUPPORTED_MESSAGE_LENGTH`) logs it as `too_large`. This socket close is the mechanism for "dropped" for oversize messages. Join options travel by HTTP and are size-checked (> 1 KB JSON → `invalid_options`) and schema-checked in `onAuth`.
+- **Local play:** after the title the start screen appears; **Practice solo** starts `Game` with `{ mode: "solo" }` and plays exactly as Epic 1 (dev builds still show the dev loadout picker first). `?solo`, `?stress`, `?loadout` and `?tune` skip the start screen (`skipsStartScreen`). Game over → Restart is unchanged.
+- **Browser check (Playwright, chromium, 844×390, against `npm run dev`):** Create game as "Ana" → lobby with a 4-letter code, link `http://localhost:5173/j/<code>`, "Ana (host)"; Copy puts the link on the clipboard and shows "Link copied"; `/health` reports 1 room; Leave returns to the start screen with the name remembered; Practice solo → loadout picker → `Game` active in solo mode with the world ticking; `/?solo&loadout=pistol,smg` goes straight to `Game`. No page errors. Server log shows `player_joined` / `player_left` / `room_disposed` with `roomId`. Servers stopped afterwards.
+- **Tests:** 334 passing, 51 files (`npm test` with a built `dist`; without it the release-cheat check skips 3 as before). New: 44 tests: shared `roomCode` 3 and `messages` 4; server `tokenBucket` 5, `roomCode` 4, `messageGuard` 4, `RunRoom` integration 12 (create/code/host, unique codes, `balance_mismatch`, `invalid_options` incl. 2 KB options, create-intent only, not matchable without the code, invalid input dropped and still connected, unknown type dropped and still connected, 40 inputs → 25 handled, 2 KB message closes only that client, leave removes the player, `GET /health`); client `joinErrors` 5, `share` 4, `lobbyStore` 1, `urlOptions` +2. The `RunRoom` file ran 5 times in a row without a flake (~1 s). `npm run typecheck`, `npm run lint`, `npm run build` (also with `BASE_PATH=/topdown-shooter/`) and the release-cheat check pass.
+- **Deviations / decisions:**
+  - `ws` was **not** added as a devDependency: the 2 KB test uses the real SDK client, which shows the close code (1009) directly, so no raw-socket test was needed. Add it when a story needs raw frames.
+  - The room calls `setPrivate(true)` in `onCreate`, so a "join any run" matchmaking call (`client.join("run")`) cannot drop a stranger into a lobby; `joinById(code)` still works (Story 2.3).
+  - Until Story 2.3, `onJoin` refuses a second client with `invalid_options` (otherwise a second `joinById` would overwrite `p0`). Story 2.3 replaces this with slot assignment.
+  - `main.ts` (not in the file list) registers the `createGame` / `leaveLobby` UI requests, so the scenes stay free of networking; it loads `net/connection.ts` lazily (see Debug Log). If the connection drops while in the lobby, the player returns to the start screen with "Can't reach the server".
+  - `debug/urlOptions.ts` gained `solo` and `skipsStartScreen()` (the story's "URL options that start a solo run directly").
+  - `joinErrorText` also maps `invalid_options` → "Check your name and try again", 502/503/504 → "Can't reach the server" (Vite proxy / Caddy with the server down, server shutting down) and other coded errors → "Something went wrong, try again".
+  - Added `ui/share.test.ts`, `net/lobbyStore.test.ts` and `net/messageGuard.test.ts` (not in the file list) to unit-test the share fallback, the plain snapshot and the drop-log throttle.
+  - `RunStateView.players` is a small `ReadonlyMapView` interface (`get`/`has`/`forEach`/`size`) so both `MapSchema` and a plain `Map` satisfy it; `phase` uses `t.string<RunPhase>()` so the schema stays assignable to the view.
+- **For later stories:** `RunRoom.onInput(client, input)` is the hook for Story 2.4 (`controller.queueInput`). `RunRoom.net` (`MessageGuard`) is per room; register new handlers as `this.onMessage(C2S.X, this.net.guard(schema, handler))`. `JOIN_REFUSED_CODE = 526` and `serverBalance` are exported from `RunRoom.ts`. `bootTestServer()` returns `{ colyseus, port }`.
 
 ### File List
+
+- `packages/shared/src/net/messages.ts` (new)
+- `packages/shared/src/net/messages.test.ts` (new)
+- `packages/shared/src/net/roomCode.ts` (new)
+- `packages/shared/src/net/roomCode.test.ts` (new)
+- `packages/shared/src/net/stateView.ts` (new)
+- `packages/shared/src/index.ts` (modified)
+- `apps/server/package.json` (modified)
+- `apps/server/src/index.ts` (modified)
+- `apps/server/src/app.ts` (new)
+- `apps/server/src/ops/logger.ts` (new)
+- `apps/server/src/ops/health.ts` (new)
+- `apps/server/src/rooms/RunRoom.ts` (new)
+- `apps/server/src/rooms/RunRoom.test.ts` (new)
+- `apps/server/src/rooms/roomCode.ts` (new)
+- `apps/server/src/rooms/roomCode.test.ts` (new)
+- `apps/server/src/rooms/schema/RunState.ts` (new)
+- `apps/server/src/net/messageGuard.ts` (new)
+- `apps/server/src/net/messageGuard.test.ts` (new)
+- `apps/server/src/net/tokenBucket.ts` (new)
+- `apps/server/src/net/tokenBucket.test.ts` (new)
+- `apps/server/src/net/limits.ts` (new)
+- `apps/server/src/test/bootTestServer.ts` (new)
+- `apps/client/package.json` (modified)
+- `apps/client/vite.config.ts` (modified)
+- `apps/client/src/main.ts` (modified)
+- `apps/client/src/net/connection.ts` (new)
+- `apps/client/src/net/joinErrors.ts` (new)
+- `apps/client/src/net/joinErrors.test.ts` (new)
+- `apps/client/src/net/lobbyStore.ts` (new)
+- `apps/client/src/net/lobbyStore.test.ts` (new)
+- `apps/client/src/ui/StartScreen.tsx` (new)
+- `apps/client/src/ui/LobbyScreen.tsx` (new)
+- `apps/client/src/ui/share.ts` (new)
+- `apps/client/src/ui/share.test.ts` (new)
+- `apps/client/src/ui/uiState.ts` (modified)
+- `apps/client/src/ui/App.tsx` (modified)
+- `apps/client/src/ui/overlay.css` (modified)
+- `apps/client/src/scenes/BootScene.ts` (modified)
+- `apps/client/src/scenes/GameScene.ts` (modified: `GameSceneData.mode` only)
+- `apps/client/src/debug/urlOptions.ts` (modified)
+- `apps/client/src/debug/urlOptions.test.ts` (modified)
+- `package-lock.json` (modified)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
+
+## Change Log
+
+- 2026-11-21: Story 2.1 implemented: Colyseus 0.18 game server (`@colyseus/core` + `ws-transport` + `schema`, pino JSON logs, `GET /health`), `RunRoom` with a 4-letter room code, balance-version check and message hygiene (zod guard, token buckets, `"*"` fallback, 1 KB `maxPayload`, throttled drop logs), shared net contract (`messages.ts`, `roomCode.ts`, `stateView.ts`), Vite `/api` proxy, start screen and lobby with Copy/Share. Practice solo and `?solo` keep Epic 1 play. 334 tests passing.

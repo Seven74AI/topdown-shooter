@@ -1,8 +1,11 @@
 import * as Phaser from "phaser";
 import { GAME_TITLE } from "@topdown/shared";
 import { dpr } from "../display";
+import { uiStore } from "../ui/uiState";
+import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
+import type { GameSceneData } from "./GameScene";
 
-const TITLE_SHOW_MS = 500; // how long the title shows before the game starts
+const TITLE_SHOW_MS = 500; // how long the title shows before the start screen (or a ?solo run)
 const TITLE_FONT_PX = 32; // CSS pixels; scaled by dpr() so it reads the same on every phone
 
 export class BootScene extends Phaser.Scene {
@@ -30,6 +33,17 @@ export class BootScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, center);
     });
 
-    this.time.delayedCall(TITLE_SHOW_MS, () => this.scene.start("Game"));
+    this.time.delayedCall(TITLE_SHOW_MS, () => {
+      // ?solo, ?stress, ?loadout and ?tune start a solo run at once (Epic 1 playtest links).
+      if (skipsStartScreen(urlOptions())) return this.startSolo();
+      uiStore.handle("startSolo", () => this.startSolo());
+      uiStore.set({ kind: "start" });
+    });
+  }
+
+  /** Offline play, exactly as in Epic 1. */
+  private startSolo(): void {
+    uiStore.handle("startSolo", undefined);
+    this.scene.start("Game", { mode: "solo" } satisfies GameSceneData);
   }
 }

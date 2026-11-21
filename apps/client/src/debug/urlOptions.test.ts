@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_STRESS_WALKERS, MAX_STRESS_WALKERS, parseUrlOptions } from "./urlOptions";
+import { DEFAULT_STRESS_WALKERS, MAX_STRESS_WALKERS, parseUrlOptions, skipsStartScreen } from "./urlOptions";
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false });
   });
 
   it("reads ?debug=1 and its spellings", () => {
@@ -38,5 +38,17 @@ describe("parseUrlOptions: Story 1.12 options", () => {
     expect(parseUrlOptions("?tune").tune).toBe(true);
     expect(parseUrlOptions("?tune=0").tune).toBe(false);
     expect(parseUrlOptions("").tune).toBe(false);
+  });
+});
+
+describe("parseUrlOptions: Story 2.1 start screen", () => {
+  it("reads ?solo", () => {
+    for (const q of ["?solo", "?solo=1", "?solo=true"]) expect(parseUrlOptions(q).solo).toBe(true);
+    for (const q of ["", "?solo=0", "?soloist=1"]) expect(parseUrlOptions(q).solo).toBe(false);
+  });
+
+  it("skips the start screen for ?solo, ?stress, ?loadout and ?tune only", () => {
+    for (const q of ["?solo", "?stress=20", "?loadout=smg", "?tune=1"]) expect(skipsStartScreen(parseUrlOptions(q))).toBe(true);
+    for (const q of ["", "?debug=1", "?stress=abc"]) expect(skipsStartScreen(parseUrlOptions(q))).toBe(false);
   });
 });
