@@ -36,3 +36,13 @@ export function createLoadout(balance: Balance): Loadout {
 export function activeSlot(loadout: Loadout): WeaponSlot {
   return (loadout.slots[loadout.active] ?? loadout.slots[0]) as WeaponSlot;
 }
+
+/**
+ * Sets a player's two weapons (dev loadout picker in Epic 1; the shop from Story 3.3). Both magazines
+ * start full, slot 0 is active, any swap or reload in progress is cancelled.
+ */
+export function setLoadout(balance: Balance, loadout: Loadout, weapons: readonly [WeaponId, WeaponId | null]): void {
+  loadout.slots = [createSlot(balance, weapons[0]), weapons[1] ? createSlot(balance, weapons[1]) : null];
+  loadout.active = 0;
+  loadout.swapTicks = 0;
+}

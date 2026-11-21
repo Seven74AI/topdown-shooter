@@ -1,3 +1,7 @@
+---
+baseline_commit: fe6b6bbd5dee8f6627756610342f73ee4d0d5a4c
+---
+
 # Story 1.8: Two weapon slots, SMG and Hunting Rifle
 
 Status: ready-for-dev

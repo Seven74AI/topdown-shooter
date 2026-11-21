@@ -8,6 +8,8 @@ export type SimEvent =
   | { type: "weapon.fired"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number }
   | { type: "weapon.reload_started"; playerId: string; weapon: string; reloadS: number }
   | { type: "weapon.reloaded"; playerId: string; weapon: string }
+  | { type: "weapon.swap_started"; playerId: string }
+  | { type: "weapon.swapped"; playerId: string; active: 0 | 1; weapon: string }
   | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number }
   | { type: "player.died"; playerId: string }
   | { type: "wave.started"; number: number; size: number }

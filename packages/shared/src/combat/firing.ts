@@ -40,11 +40,47 @@ const spawn: ProjectileSpawn = { x: 0, y: 0, dirX: 0, dirY: 0, speedMps: 0, rang
  * goes below −dt (at most one shot per tick).
  */
 function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
+  if (updateSwap(world, p)) {
+    activeSlot(p.loadout).cooldownS = Math.max(0, activeSlot(p.loadout).cooldownS - dtS);
+    return; // neither weapon fires during a swap (FR5)
+  }
   const slot = activeSlot(p.loadout);
   // Only a cooldown that was still running can go below zero (the part of this tick since it ended);
   // a weapon that was already ready carries no credit.
   if (slot.cooldownS > 0) slot.cooldownS = Math.max(-dtS, slot.cooldownS - dtS);
   if (!tryFire(world, p, slot.cooldownS)) slot.cooldownS = Math.max(0, slot.cooldownS);
+}
+
+/**
+ * Weapon swap (FR5): a swap tap with a second weapon starts a `balance.player.swapS` swap (0.3 s);
+ * swapping away cancels a reload in progress; when the swap ends the other slot becomes active and,
+ * if its magazine is empty, a full reload starts. Taps during a swap or with one weapon are ignored.
+ * Returns true while swapping (no firing this tick).
+ */
+function updateSwap(world: World, p: PlayerState): boolean {
+  const lo = p.loadout;
+  if (lo.swapTicks > 0) {
+    lo.swapTicks--;
+    if (lo.swapTicks === 0) {
+      lo.active = lo.active === 0 ? 1 : 0;
+      const slot = activeSlot(lo);
+      world.events.emit({ type: "weapon.swapped", playerId: p.id, active: lo.active, weapon: slot.weapon });
+      const stats = weaponStats(world.balance, slot.weapon);
+      if (isGun(stats) && slot.ammo === 0 && slot.reloadTicks === 0) {
+        slot.reloadTicks = ticksFor(stats.reloadS);
+        world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+      }
+      return false; // the new weapon may fire from this tick
+    }
+    return true;
+  }
+  const input = world.inputs.get(p.id);
+  if (!input?.swap || !lo.slots[1] || p.status !== "alive") return false;
+  const current = activeSlot(lo);
+  current.reloadTicks = 0; // swapping away cancels the reload
+  lo.swapTicks = ticksFor(world.balance.player.swapS);
+  world.events.emit({ type: "weapon.swap_started", playerId: p.id });
+  return true;
 }
 
 /** Handles reload and firing for this tick. Returns true if a shot was fired. */

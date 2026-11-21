@@ -27,7 +27,7 @@ export { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "./zombies/zombieT
 export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
 export { spawnRing } from "./zombies/spawnRing";
 export { queryRadius, type SpatialGrid } from "./core/spatialGrid";
-export { activeSlot, createSlot, type Loadout, type WeaponSlot } from "./combat/loadout";
+export { activeSlot, createSlot, setLoadout, type Loadout, type WeaponSlot } from "./combat/loadout";
 export { isGun, isMelee, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
 export type { ProjectilePool } from "./combat/projectilePool";
 export { applyZombieDamage } from "./combat/damage";
