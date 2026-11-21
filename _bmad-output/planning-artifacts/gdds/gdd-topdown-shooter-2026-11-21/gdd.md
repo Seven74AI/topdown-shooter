@@ -24,9 +24,11 @@ _From brief — to refine._ Online co-op on phones from a link with no install; 
 
 ## Goals and Context
 ### Project Goals
-_TBD_
+1. A game the designer's friend group wants to play every week.
+2. A complete v1: one district, the full 10-wave run with boss, endless mode, meta-progression.
+3. Proof that a big-horde co-op shooter runs smoothly in a phone browser (Milestone 1).
 ### Background and Rationale
-_TBD_
+A passion project for the designer and their friends. Phones are what everyone always has, and a browser link removes installs and app stores, so starting a game night takes seconds. The co-op horde genre is proven (see the brief's references), but no game combines online phone co-op from a link, building between waves, and a city that decays over the run.
 
 ## Core Gameplay
 ### Game Pillars
@@ -57,7 +59,18 @@ Each pillar is a decision rule. When a feature or tuning choice is unclear, thes
 
 ## Game Mechanics
 ### Primary Mechanics
-_TBD_
+| Mechanic | What the player does | Serves |
+|---|---|---|
+| Twin-stick combat | Move and aim with two thumbs; weapons fire while aiming | Horde chaos |
+| Two-slot loadout | Carry any 2 weapons; role comes from gear | Better together |
+| Revive | Stand 3 s next to a downed teammate | Better together |
+| Build phase | Spend personal currency on weapons, gear, buildings in 30 s | Build your stand |
+| Building placement | Place barricades, turrets, traps, lights on a 1 m grid | Build your stand |
+| Consumables | One quick-use slot (medkit, grenades, molotovs) | Horde chaos |
+| Pings | 4 quick messages with map markers | Better together |
+| Decay | The district changes every 2 waves (cover, paths, fire, darkness) | A city that falls |
+| Evacuation vote | Extract or stay for endless after wave 10 | Build your stand (risk) |
+Numbers for each are in the sections below.
 ### Controls and Input
 - **Orientation:** landscape only.
 - **Move:** floating joystick on the left half of the screen (appears where the thumb lands; dead zone 10%, full speed at 100%).
