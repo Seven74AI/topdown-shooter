@@ -41,6 +41,9 @@ const spawn: ProjectileSpawn = { x: 0, y: 0, dirX: 0, dirY: 0, speedMps: 0, rang
  * goes below −dt (at most one shot per tick).
  */
 function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
+  // The weapon not in hand keeps cooling down (a swap never stretches its next shot).
+  const other = p.loadout.slots[p.loadout.active === 0 ? 1 : 0];
+  if (other) other.cooldownS = Math.max(0, other.cooldownS - dtS);
   if (updateSwap(world, p)) {
     activeSlot(p.loadout).cooldownS = Math.max(0, activeSlot(p.loadout).cooldownS - dtS);
     return; // neither weapon fires during a swap (FR5)
@@ -60,6 +63,10 @@ function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
  */
 function updateSwap(world: World, p: PlayerState): boolean {
   const lo = p.loadout;
+  if (lo.swapTicks > 0 && p.status !== "alive") {
+    lo.swapTicks = 0; // a downed or dead player's swap is cancelled
+    return false;
+  }
   if (lo.swapTicks > 0) {
     lo.swapTicks--;
     if (lo.swapTicks === 0) {
@@ -70,6 +77,7 @@ function updateSwap(world: World, p: PlayerState): boolean {
       if (isGun(stats) && slot.ammo === 0 && slot.reloadTicks === 0) {
         slot.reloadTicks = ticksFor(stats.reloadS);
         world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+        return true; // the reload starts counting next tick, like a reload after the last shot
       }
       return false; // the new weapon may fire from this tick
     }

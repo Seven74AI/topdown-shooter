@@ -252,7 +252,7 @@ export class GameScene extends Phaser.Scene {
         this.hudModel.otherWeaponName = "";
       }
       const swapTicks = ticksFor(host.world.balance.player.swapS);
-      this.hudModel.swapFrac = player.loadout.swapTicks > 0 ? 1 - player.loadout.swapTicks / swapTicks : -1;
+      this.hudModel.swapFrac = player.loadout.swapTicks > 0 ? (swapTicks - player.loadout.swapTicks + 1) / swapTicks : -1;
     }
   }
 }

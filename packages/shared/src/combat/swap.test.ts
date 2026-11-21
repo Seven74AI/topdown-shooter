@@ -88,8 +88,8 @@ describe("two weapon slots and swap (FR5, FR12)", () => {
     setInput(world, "local", input({ swap: true }));
     run(world, 7); // back on the empty pistol: a full reload starts on the swap's last tick
     expect(p.loadout.active).toBe(0);
-    // The full 20-tick reload starts on the swap's last tick and that tick already counts.
-    expect(p.loadout.slots[0]?.reloadTicks).toBe(19);
+    // The full 20-tick reload starts on the swap's last tick and counts from the next tick.
+    expect(p.loadout.slots[0]?.reloadTicks).toBe(20);
     expect(count(events, "weapon.reload_started")).toBe(2);
   });
 
@@ -107,6 +107,26 @@ describe("two weapon slots and swap (FR5, FR12)", () => {
     run(two.world, 10);
     expect(two.p.loadout.active).toBe(1);
     expect(count(two.events, "weapon.swap_started")).toBe(1);
+  });
+
+  it("cancels a swap when the player dies", () => {
+    const { world, p, events } = setup();
+    setInput(world, "local", input({ swap: true }));
+    step(world, TICK_DT_S);
+    p.status = "dead";
+    run(world, 10);
+    expect(p.loadout.active).toBe(0);
+    expect(p.loadout.swapTicks).toBe(0);
+    expect(count(events, "weapon.swapped")).toBe(0);
+  });
+
+  it("keeps cooling down the weapon not in hand", () => {
+    const { world, p } = setup(["hunting_rifle", "smg"]);
+    setInput(world, "local", input({ aimX: 1, fire: true }));
+    step(world, TICK_DT_S); // rifle shot: cooldown 1/1.2 s
+    setInput(world, "local", input({ swap: true }));
+    run(world, 20); // swap to the SMG and wait 1 s
+    expect(p.loadout.slots[0]?.cooldownS).toBe(0);
   });
 
   it("fires the SMG at 12 shots/s, magazine 40", () => {

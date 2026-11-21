@@ -126,6 +126,26 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `_bmad-output/implementation-artifacts/1-8-two-weapon-slots-smg-and-hunting-rifle.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context; tests, build and sim experiments in a throwaway worktree) · **Outcome:** Approved, no high findings. 1 medium test gap and 6 low findings.
+- Confirmed:
+  - **Swap:** timing is right, no firing during a swap, and the edge flag fires once per seq.
+  - **Cooldown:** swapping can't be used to fire faster.
+  - **Touch routing:** a pointer held by a button never reaches the sticks.
+  - **Safe areas:** the CSS px → canvas px conversion is right.
+  - **Picker:** stripped from release (no "Dev loadout" in `dist`); the world doesn't step before Start.
+  - **Screen shake:** local player only and only for heavy weapons; the setting is honoured.
+  - **Restart:** no stale HUD state.
+- [x] [Low] A swap finished after the player died. Fixed: the swap is cancelled when the player isn't alive. Test added.
+- [x] [Low] The reload after swapping to an empty magazine was 1 tick short. Fixed: it now counts from the next tick, like any reload. Test updated (20).
+- [x] [Low] The weapon not in hand had a frozen cooldown. Fixed: it keeps cooling down. Test added.
+- [x] [Low] The swap progress bar never filled. Fixed: `(total − left + 1) / total`.
+- [ ] [Med] The HudScene pointer handlers have no tests. Planned fix: extract them into a pure touch-routing helper with tests. Deferred until Story 1.10 (keyboard/mouse, being built in parallel and editing the same handlers) is merged.
+- [ ] [Low] Per-frame `find` closure in `HudButtons.setVisible`, and `safeArea()` (`getComputedStyle`) on every HUD redraw. Planned fix: cache the insets on create/resize and use an indexed loop. Deferred with the item above (same files).
+- [Low, accepted] The weapon panel is a highlighted text line plus a grey line rather than "cards", which is fine for dev art (Story 9.7 does the UI art). The Machete was listed in the picker before it could swing; Story 1.9 is now merged.
+
 ## Change Log
 
+- 2026-11-21: Addressed code review findings - 4 low items resolved; HUD test helper and safe-area caching deferred until Story 1.10 is merged. 214 tests passing.
 - 2026-11-21: Story 1.8 implemented: two slots with a 0.3 s swap, SMG and Hunting Rifle, dev loadout picker, swap button with button-first touch routing, safe areas, two-slot weapon panel, screen shake. 191 tests passing.
