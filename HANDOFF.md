@@ -1,6 +1,6 @@
 # Handoff: topdown-shooter
 
-Session handoff written 2026-11-21. Paste the **"Prompt for the new session"** block at the bottom into a new Claude Code session that has the `Seven74AI/topdown-shooter` GitHub repository selected, and attach `topdown-shooter-backup.bundle` (preferred, keeps git history) or `topdown-shooter-backup.zip`.
+Session handoff written 2026-11-21. **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom. No file to attach.
 
 ## 1. The project in one paragraph
 
@@ -46,7 +46,7 @@ Local copies live next to the brief (`style-lab*.html`, `dead-city-decay.html`).
 ## 6. Environment gotchas from the first session
 
 - **BMAD install** (already done, `_bmad/` and `.claude/skills/` are in the repo): v6.12.4 with modules `bmm` and `gds` (Game Dev Studio v0.7.2). If reinstalling, the GitHub token in the cloud env breaks the tag lookup; run with `env -u GITHUB_TOKEN -u GH_TOKEN npx -y bmad-method@6.12.4 install --directory . --modules bmm,gds --tools claude-code --pin gds=v0.7.2 -y`.
-- **GitHub:** the first session could not see the new repo, so nothing was pushed. All work is in the attached bundle/zip (all commits on `master`).
+- **GitHub:** the repo needed the Claude GitHub app to be granted access before pushes worked; it is pushed now.
 - The `.claude/skills` BMAD skills load only when the repo is the working directory.
 
 ## 7. How the designer likes to work
@@ -57,18 +57,8 @@ Local copies live next to the brief (`style-lab*.html`, `dead-city-decay.html`).
 - Not deeply technical: explain technical choices by their effect on the game.
 - They want progress, not ceremony; keep BMAD steps moving.
 
-## 8. Restore steps for the new session
-
-```bash
-# in the new session, inside the cloned (empty) repo:
-git pull /path/to/topdown-shooter-backup.bundle master
-git push -u origin master
-```
-
-If only the zip is available: unzip it into the repo root, `git add -A`, commit, push.
-
 ---
 
 ## Prompt for the new session
 
-> I'm continuing a game project from a previous session. I've attached `topdown-shooter-backup.bundle` (or the zip). Restore it into this repository (`git pull <bundle> master`, then push to `origin master`), then read `HANDOFF.md` at the repo root and follow it. We use the BMAD method; brief, GDD and architecture are done. The next step is **epics and stories** (`gds-create-epics-and-stories`). Keep working in facilitative mode as described in the handoff.
+> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. We use the BMAD method; brief, GDD and architecture are done. Next step: run `/gds-create-epics-and-stories`. Keep working in facilitative mode as described in the handoff, and commit + push after each step.
