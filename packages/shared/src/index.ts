@@ -33,4 +33,6 @@ export type { ProjectilePool } from "./combat/projectilePool";
 export { applyZombieDamage } from "./combat/damage";
 export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
+export { swingMelee } from "./combat/melee";
+export { circleOverlapsSector } from "./math/sector";
 export { endWave, skipWave, updateWaves, waveSize, type WavePhase, type WaveState } from "./waves/waveDirector";

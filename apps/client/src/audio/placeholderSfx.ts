@@ -3,7 +3,7 @@
  * (`weapon_pistol_fire` …) so Story 9.10 swaps in real recordings. iOS keeps audio locked until a
  * user gesture: call `unlockAudio()` from the first touch.
  */
-export type SfxName = "weapon_pistol_fire" | "weapon_reload_start" | "weapon_reloaded" | "zombie_hit";
+export type SfxName = "weapon_pistol_fire" | "weapon_machete_swing" | "weapon_reload_start" | "weapon_reloaded" | "zombie_hit";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -51,6 +51,25 @@ function burst(c: AudioContext, at: number, durS: number, gain: number, filterHz
   src.stop(at + durS);
 }
 
+/** Noise through a band-pass whose center sweeps from `fromHz` to `toHz` (a whoosh). */
+function sweep(c: AudioContext, at: number, durS: number, gain: number, fromHz: number, toHz: number): void {
+  if (!noise || !master) return;
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  const f = c.createBiquadFilter();
+  f.type = "bandpass";
+  f.Q.value = 1.5;
+  f.frequency.setValueAtTime(fromHz, at);
+  f.frequency.exponentialRampToValueAtTime(toHz, at + durS);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.001, at);
+  g.gain.exponentialRampToValueAtTime(gain, at + durS * 0.3);
+  g.gain.exponentialRampToValueAtTime(0.001, at + durS);
+  src.connect(f).connect(g).connect(master);
+  src.start(at);
+  src.stop(at + durS);
+}
+
 function click(c: AudioContext, at: number, hz: number, gain: number): void {
   if (!master) return;
   const o = c.createOscillator();
@@ -71,6 +90,9 @@ export function playSfx(name: SfxName): void {
     case "weapon_pistol_fire":
       burst(c, t, 0.06, 0.9, 3500);
       click(c, t, 200, 0.5);
+      break;
+    case "weapon_machete_swing":
+      sweep(c, t, 0.12, 0.5, 900, 3200); // whoosh: noise through a rising band-pass
       break;
     case "weapon_reload_start":
       click(c, t, 900, 0.3);

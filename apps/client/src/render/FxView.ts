@@ -8,17 +8,22 @@ const SPLAT_FADE_MS = 10_000;
 const SPLAT_RADIUS_M = 0.35;
 const PUFF_MS = 200;
 const MUZZLE_MS = 50;
+const SWING_MS = 120;
+const SWING_COLOR = 0xe8eef2;
+const SWING_ALPHA = 0.35;
+const DEG_TO_RAD = Math.PI / 180;
 const BLOOD = 0x5a0f0f;
 
 /**
  * The client-side event dispatcher for effects: hit flashes, blood splats, death puffs, muzzle
- * flashes and placeholder sounds. GameScene drains events once per frame and passes each one here.
+ * flashes, melee swing arcs and placeholder sounds. GameScene drains events once per frame and passes each one here.
  */
 export class FxView {
   private readonly splats: Phaser.GameObjects.Arc[] = [];
   private nextSplat = 0;
   private readonly puffs: Phaser.GameObjects.Arc[] = [];
   private readonly flashes: Phaser.GameObjects.Arc[] = [];
+  private readonly swings: Phaser.GameObjects.Graphics[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -39,6 +44,10 @@ export class FxView {
       case "weapon.fired":
         this.muzzle(e.x, e.y);
         if (e.playerId === this.localPlayerId) playSfx("weapon_pistol_fire");
+        break;
+      case "melee.swung":
+        this.swing(e.x, e.y, e.dirX, e.dirY, e.arcDeg, e.rangeM);
+        if (e.playerId === this.localPlayerId) playSfx("weapon_machete_swing");
         break;
       case "weapon.reload_started":
         if (e.playerId === this.localPlayerId) playSfx("weapon_reload_start");
@@ -84,10 +93,30 @@ export class FxView {
     this.scene.tweens.add({ targets: m, alpha: 0, duration: MUZZLE_MS, onComplete: () => m.setVisible(false) });
   }
 
+  /** Translucent arc wedge for a melee swing: a pooled Graphics, redrawn only on the swing, then hidden. */
+  private swing(x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number): void {
+    let g = this.swings.find((o) => !o.visible);
+    if (!g) {
+      g = this.scene.add.graphics().setDepth(7).setVisible(false);
+      this.swings.push(g);
+    }
+    const graphics = g;
+    const facing = Math.atan2(dirY, dirX);
+    const half = (arcDeg / 2) * DEG_TO_RAD;
+    graphics.clear();
+    graphics.fillStyle(SWING_COLOR, SWING_ALPHA);
+    graphics.beginPath();
+    graphics.slice(0, 0, rangeM, facing - half, facing + half, false);
+    graphics.fillPath();
+    graphics.setPosition(x, y).setAlpha(1).setVisible(true);
+    this.scene.tweens.add({ targets: graphics, alpha: 0, duration: SWING_MS, onComplete: () => graphics.setVisible(false) });
+  }
+
   destroy(): void {
-    for (const o of [...this.splats, ...this.puffs, ...this.flashes]) o.destroy();
+    for (const o of [...this.splats, ...this.puffs, ...this.flashes, ...this.swings]) o.destroy();
     this.splats.length = 0;
     this.puffs.length = 0;
     this.flashes.length = 0;
+    this.swings.length = 0;
   }
 }
