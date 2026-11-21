@@ -69,7 +69,7 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
     const room = r.result.value;
     lobbyStore.attach(room, {
       watch: r.watch,
-      onLost: (reason) => {
+      onLost: (reason, serverText) => {
         if (reason === "connection_lost") {
           uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
           uiStore.request("leaveRun", JOIN_ERROR_TEXT.unreachable); // mid-run: stop the Game scene too
@@ -77,7 +77,7 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
         }
         uiStore.set({ kind: "start" }); // Story 2.2: stop or redeploy, the dialog goes over the start screen
         uiStore.request("leaveRun"); // mid-run: stop the Game scene too
-        serverNotice.show(SERVER_RESTARTING_TEXT);
+        serverNotice.show(serverText ?? SERVER_RESTARTING_TEXT); // e.g. "The game hit an error, sorry"
       },
       onPhase: (phase) => {
         // The host started: the Game scene runs the fight online (Story 2.4). `run.joined` came long before.

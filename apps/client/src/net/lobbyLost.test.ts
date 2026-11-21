@@ -33,7 +33,16 @@ describe("lobbyStore.attach: why the room was lost (Story 2.2)", () => {
     lobbyStore.attach(f.room, { watch: () => () => {}, onLost, onPhase: () => {} });
     f.message(S2C.SERVER_SHUTDOWN_STARTED, { message: "Server restarting" });
     f.close(1006);
-    expect(onLost).toHaveBeenCalledWith("server_restarting");
+    expect(onLost).toHaveBeenCalledWith("server_restarting", "Server restarting");
+  });
+
+  it("passes the server's own text for a room error shutdown", () => {
+    const f = fakeRoom();
+    const onLost = vi.fn();
+    lobbyStore.attach(f.room, { watch: () => () => {}, onLost, onPhase: () => {} });
+    f.message(S2C.SERVER_SHUTDOWN_STARTED, { message: "The game hit an error, sorry" });
+    f.close(4001);
+    expect(onLost).toHaveBeenCalledWith("server_restarting", "The game hit an error, sorry");
   });
 
   it("reports server_restarting on a leave with code 4001", () => {
@@ -41,7 +50,7 @@ describe("lobbyStore.attach: why the room was lost (Story 2.2)", () => {
     const onLost = vi.fn();
     lobbyStore.attach(f.room, { watch: () => () => {}, onLost, onPhase: () => {} });
     f.close(4001);
-    expect(onLost).toHaveBeenCalledWith("server_restarting");
+    expect(onLost).toHaveBeenCalledWith("server_restarting", undefined);
   });
 
   it("reports connection_lost on any other drop", () => {
@@ -49,7 +58,7 @@ describe("lobbyStore.attach: why the room was lost (Story 2.2)", () => {
     const onLost = vi.fn();
     lobbyStore.attach(f.room, { watch: () => () => {}, onLost, onPhase: () => {} });
     f.close(1006);
-    expect(onLost).toHaveBeenCalledWith("connection_lost");
+    expect(onLost).toHaveBeenCalledWith("connection_lost", undefined);
   });
 
   it("reports nothing after the player left on purpose", () => {

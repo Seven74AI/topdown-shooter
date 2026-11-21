@@ -103,7 +103,7 @@ describe("RunRoom fight (Story 2.4)", () => {
     expect(guest.state.players.get("p1")?.ackSeq).toBe(0); // p1 sent nothing: held still
     expect(guest.state.aliveCount).toBe(2);
     expect(guest.state.wave).toBe(0);
-    expect(guest.state.tick).toBeGreaterThan(20);
+    expect(guest.state.tick).toBeGreaterThanOrEqual(20); // ackSeq can reach 20 at exactly tick 20
     expect(guest.state.players.get("p0")).toMatchObject({ hp: 100, maxHp: 100, status: "alive", weapon0: "pistol", weapon1: "" });
   });
 

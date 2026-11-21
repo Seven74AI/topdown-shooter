@@ -326,6 +326,34 @@ claude-opus-5-5 via gds-dev-story
 - `apps/client/src/ui/LobbyScreen.tsx` (modified: "Starting…" placeholder removed)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context; full suite on the merged tip, the fight and NetSimHost tests run ~30 times, probe tests on RunController) · **Outcome:** no high findings. 2 medium and 4 low findings. **Story stays in `review` until the open items are fixed** (next session).
+- [ ] **[Med] OPEN: the input backlog never drains after a stall** (`run/RunController.ts`).
+  - The server takes exactly one input per tick and the client sends one per tick, so a 300 ms stall leaves 6 queued inputs (300 ms of extra lag) for the rest of the run.
+  - From then on, any jitter overflows the queue and drops the oldest input. That loses movement (breaking Story 2.6's prediction invariant) and can lose swap/consumable edges.
+  - **Fix:**
+    - While the queue stays above a small target (≈ 2) for N ticks, apply two inputs in one tick, or skip the oldest and carry its edge flags forward. Report it so 2.6 can reconcile.
+    - On overflow, OR the dropped input's `swap`/`consumable` into the next one.
+    - Add a regression test: stall 6 ticks → backlog back to ≤ 2 within a few seconds.
+- [x] [Med] A tick-error shutdown showed "Server restarting" instead of the error. Fix: `lobbyStore` keeps the `server.shutdown_started` text, and `main.ts` shows it (for example "The game hit an error, sorry"), falling back to "Server restarting". Test added.
+- [x] [Low] Flaky fight test (`tick > 20`; ackSeq can reach 20 at exactly tick 20) now asserts `≥ 20`.
+- [ ] [Low] OPEN: RTT is never measured above ~1 s, because only a pong for the latest ping id counts. Fix: keep the send times of the last few ping ids. Needed by Story 2.7.
+- [ ] [Low] OPEN: events that arrive before `GameScene.create` builds the NetSimHost are lost; a guest whose tab is in the background at Start loses `wave.started` and others. Fix: register the event and ping handlers in lobbyStore/NetSession when the run starts, buffer them, and hand them over.
+- [ ] [Low] OPEN: the slow-tick timing leaves out patch encoding, which runs on its own interval. Revisit with Story 2.5 (horde growth).
+- Also seen: one `bootTestServer` timeout. Test servers use fixed ports (2600 + pool id) and collide when two test runs share the machine, as happens with parallel agents. Fix: random free ports in `bootTestServer`.
+- Confirmed fine:
+  - `setFixedTimestep` catch-up (at most 5 steps) with no double-counted time;
+  - dispose clears every interval;
+  - the input guard: bucket 25/s, at most 6 queued per player, stale/duplicate/out-of-order seqs dropped;
+  - `syncState` writes only changed fields with no per-tick allocation, and event tuples round-trip;
+  - `drainEvents` reuses its array, the mirror World is never stepped, and dispose always leaves;
+  - the session lifecycle (back to start, connection lost, restart);
+  - offline play is unchanged;
+  - the merge with the 2.2/2.3 changes.
+
 ## Change Log
+
+- 2026-11-21: Merged with Stories 2.2/2.3 fixes; review findings recorded, 2 fixed (shutdown text, flaky test), 4 open for the next session. 479 tests passing.
 
 - 2026-11-21: Story 2.4 implemented: the room runs the shared World at 20 Hz (`RunController`, no Colyseus inside) with the per-player input queue (one input per tick, starved = hold still with the same seq), syncs players/HP/loadouts/phase/wave/aliveCount to schema only on change, forwards sim events as compact tuples, measures RTT with `net.pinged`/`net.pong`, removes leavers from the World, logs slow ticks (> 40 ms) and room exceptions, and closes after 20 failed ticks in a row. The client plays online through `NetSimHost` (mirror World, snapshot interpolation 100 ms behind, server clock, event queue at the render tick) behind the unchanged `SimHost` interface; `GameScene` draws every player and offers Back to start on an online game over. Server tick with 4 players and 150 Walkers: 0.12 ms mean, 0.4 ms p99. 438 tests passing.

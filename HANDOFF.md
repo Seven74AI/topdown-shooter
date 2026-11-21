@@ -13,7 +13,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | Brief, GDD, Architecture, Epics (10 epics, 101 stories) | ✅ | `_bmad-output/planning-artifacts/` |
 | Implementation readiness + fixes | ✅ READY | `implementation-readiness-report-2026-11-21.md` |
 | **Epic 1, core combat on one phone** | ✅ code done and reviewed (1.1–1.11 done); two **human** steps open (see §5) | story files `_bmad-output/implementation-artifacts/1-*.md` |
-| **Epic 2, online co-op** | 🔨 in progress: 2.1 ✅, 2.3 ✅, 2.2 (deploy) code done → **waiting for VPS go-live**, 2.4 (server runs the fight) code done → review findings to apply; 2.5–2.11 ready-for-dev | `2-*.md`, `sprint-status.yaml` |
+| **Epic 2, online co-op** | 🔨 in progress. 2.1 ✅ and 2.3 ✅. 2.2 (deploy): code and review fixes done, **waiting for the VPS go-live**. 2.4 (server runs the fight): code done and reviewed, **4 open review items**. 2.5–2.11 ready-for-dev | `2-*.md`, `sprint-status.yaml` |
 | Epics 3–10 | backlog (stories written at the start of each epic, from the real code) | `epics.md` |
 
 `_bmad-output/implementation-artifacts/sprint-status.yaml` is the source of truth for story status.
@@ -54,9 +54,10 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## 7. Next steps for the new session
 
-1. Read `sprint-status.yaml` and the open story files: **2.4** (apply the review findings recorded or reported for it, then mark done) and **2.2** (review fixes merged; waiting for the VPS).
-2. Continue Epic 2 with parallel agents: **2.5 horde stream** (zombies drawn online) next; 2.6 prediction, 2.7 server-confirmed hits, 2.8 downed/revive, 2.9 rings + teammate arrows, 2.11 in-run menu can partly run in parallel (check file overlap; each story file has integration notes). 2.10 is the designer's 4-phone 4G test.
-3. After the VPS is live: point the playtest links at hordes.sevend.io and remove the temporary Pages CI jobs.
+1. Read `sprint-status.yaml` and the open story files: **2.4**, whose "Senior Developer Review (AI)" section has 4 unticked items. The input-backlog drain matters most, before 2.6. Fix them, then mark 2.4 done. **2.2** has its review fixes merged and waits for the VPS.
+2. First small fix: `apps/server/src/test/bootTestServer.ts` uses fixed ports (2600 + pool id), which collide when parallel agents run tests at the same time. Use random free ports.
+3. Continue Epic 2 with parallel agents: **2.5 horde stream** (zombies drawn online) next; 2.6 prediction, 2.7 server-confirmed hits, 2.8 downed/revive, 2.9 rings + teammate arrows, 2.11 in-run menu can partly run in parallel (check file overlap; each story file has integration notes). 2.10 is the designer's 4-phone 4G test.
+4. After the VPS is live: point the playtest links at hordes.sevend.io and remove the temporary Pages CI jobs.
 
 ## 8. How the designer likes to work
 

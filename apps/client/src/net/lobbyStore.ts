@@ -73,7 +73,7 @@ export interface AttachOptions {
   watch: LobbyWatcher;
   /** The connection ended without the player leaving. */
   /** The connection ended without the player leaving: `server_restarting` (Story 2.2) or `connection_lost`. */
-  onLost: (reason: LostReason) => void;
+  onLost: (reason: LostReason, serverText?: string) => void;
   /** `phase` changed (e.g. `"wave"` when the host started). */
   onPhase: (phase: RunPhase) => void;
 }
@@ -137,14 +137,19 @@ class LobbyStore {
     });
     // Story 2.2: a stop or redeploy announces itself before the room closes.
     let shuttingDown = false;
-    room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, () => (shuttingDown = true));
+    let shutdownText: string | undefined;
+    room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, (m: { message?: unknown }) => {
+      shuttingDown = true;
+      // The server says why ("Server restarting", or a room error): show its words.
+      if (typeof m?.message === "string" && m.message.length > 0 && m.message.length <= 200) shutdownText = m.message;
+    });
     this.unwatch = watch(room, schedule);
     schedule();
     room.onLeave((code) => {
       if (this.room !== room) return; // we left on purpose
       this.detach();
       this.set(EMPTY);
-      onLost(lostReason(code, shuttingDown));
+      onLost(lostReason(code, shuttingDown), shutdownText);
     });
   }
 
