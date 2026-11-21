@@ -13,8 +13,8 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | Game Brief | ✅ final v1.0 | `_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/brief.md` (+ `addendum.md`, `.decision-log.md`) |
 | GDD | ✅ final v1.0 | `_bmad-output/planning-artifacts/gdds/gdd-topdown-shooter-2026-11-21/gdd.md` (+ `epics.md`, `decision-log.md`) |
 | Game Architecture | ✅ complete (9/9 steps) | `_bmad-output/planning-artifacts/game-architecture.md` |
-| **Epics & stories** | ⏭️ **NEXT** — run skill `gds-create-epics-and-stories` | inputs: GDD + `epics.md` + architecture |
-| Implementation readiness → sprint planning | later | `gds-check-implementation-readiness`, `gds-sprint-planning` |
+| Epics & stories | ✅ complete (10 epics, 100 stories) | `_bmad-output/planning-artifacts/epics.md` |
+| **Implementation readiness → sprint planning** | ⏭️ **NEXT** | `gds-check-implementation-readiness`, `gds-sprint-planning` |
 | Code, story by story | later | `gds-dev-story` / `gds-create-story` |
 
 Decision logs record every decision and why. Read them before changing anything.
@@ -30,6 +30,8 @@ Decision logs record every decision and why. Read them before changing anything.
 ## 4. Open items (non-blocking)
 
 - Working title (still "topdown-shooter").
+- Before Story 2.2: subdomain name and a deploy key for the VPS.
+- Story 1.1 publishes to GitHub Pages; needs Pages enabled (private repos need a paid plan).
 - Order of future districts (candidates: Hospital, Suburbs, Port, Subway, Mall, Military checkpoint; CCTV intro and Blood Moon cemetery as special content).
 - Subdomain name on sevend.io.
 - Context7 MCP not installed yet: `claude mcp add context7 -- npx -y @upstash/context7-mcp`.
@@ -61,4 +63,4 @@ Local copies live next to the brief (`style-lab*.html`, `dead-city-decay.html`).
 
 ## Prompt for the new session
 
-> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. We use the BMAD method; brief, GDD and architecture are done. Next step: run `/gds-create-epics-and-stories`. Keep working in facilitative mode as described in the handoff, and commit + push after each step.
+> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. We use the BMAD method; brief, GDD and architecture are done. Next step: run `/gds-check-implementation-readiness`, then `/gds-sprint-planning`. Keep working in facilitative mode as described in the handoff, and commit + push after each step.
