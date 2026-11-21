@@ -1383,3 +1383,273 @@ So that we know big-horde co-op works on our phones before building more.
 **When** it ends
 **Then** feedback on fun, difficulty, economy, building and decay is written to `docs/playtests/milestone-1.md`
 **And** the designer records a go / fix-first decision for starting Epic 5, with any fixes turned into stories
+
+## Epic 5: Full arsenal and bestiary
+
+Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop. Every zombie type demands its own answer. Until Epic 6 the temporary run grows to 6 waves so Spitters (W4), the first Brute (W5) and Bloaters (W6) all appear. Until Epic 7 every player's pool contains every item.
+
+### Story 5.1: Weapon upgrades I–IV
+
+As a player,
+I want to upgrade the weapons I own,
+So that my favourite gun keeps up as the horde grows.
+
+**Acceptance Criteria:**
+
+**Given** the shop in a build phase
+**When** I own a weapon below level IV
+**Then** an Upgrade item for it is always available at 60% of the weapon's base price per level (Pistol 60 per level) (FR17, FR46)
+
+**Given** I buy an upgrade
+**When** the server validates it
+**Then** the weapon's level rises by 1 and its damage becomes base × (1 + 0.25 × (level − 1)) (level IV = 175%)
+**And** the HUD slot shows the level (I–IV)
+
+**Given** I replace an upgraded weapon with another
+**When** the old one is dropped
+**Then** its upgrades are lost with it
+
+**Given** upgrades
+**When** Vitest runs
+**Then** tests cover damage per level and prices, including the SMG level III one-hit Runner breakpoint
+
+### Story 5.2: Fire Axe and Chainsaw
+
+As a player,
+I want heavy melee options,
+So that I can carve through the crowd up close.
+
+**Acceptance Criteria:**
+
+**Given** the Fire Axe (30 damage, 1.1 swings/s, 2.2 m, 140° arc, 300)
+**When** it hits
+**Then** every zombie in the arc takes damage and is knocked back 1.5 m, and a short screen shake plays (FR13, FR16, FR19)
+
+**Given** the Chainsaw (6 damage per tick, 10 ticks/s, 1.5 m, 60° arc, 600)
+**When** I aim past the dead zone
+**Then** it damages continuously every zombie in the arc and I move 20% slower while it is active (FR16)
+
+**Given** both weapons
+**When** Vitest runs
+**Then** tests cover arcs, knockback distance, tick rate and the speed penalty
+
+### Story 5.3: Shotgun and Assault Rifle
+
+As a player,
+I want a short-range Shotgun and a mid-long Assault Rifle,
+So that I have more ways to fill my role.
+
+**Acceptance Criteria:**
+
+**Given** the Shotgun (8 pellets × 4 damage, 1.2 shots/s, 5 m, 30° spread, knockback 0.5 m, magazine 6, reload 2.5 s, 250)
+**When** it fires
+**Then** 8 pellets fly in a 30° spread, each a projectile; a zombie hit by pellets is knocked back 0.5 m once per shot
+
+**Given** the Assault Rifle (7 damage, 8 shots/s, 11 m, 4° spread, magazine 30, reload 2.0 s, 450)
+**When** it fires
+**Then** it behaves per the weapon table
+
+### Story 5.4: Flamethrower and fire friendly fire
+
+As a player,
+I want a Flamethrower that sets the crowd alight,
+So that I can hold a choke point, while being careful of my friends.
+
+**Acceptance Criteria:**
+
+**Given** the Flamethrower (20 damage/s, 4 m, 35° cone, 6 s of fuel, 3.0 s reload, 700)
+**When** I aim past the dead zone
+**Then** it damages everything in the cone continuously and ignites zombies for +3 damage/s for 3 s (re-ignition refreshes the timer) (FR16)
+
+**Given** a damage source tagged `fire` or `explosion`
+**When** it hits a teammate or the shooter
+**Then** they take 50% of its damage; bullets and melee never hurt players (FR18)
+**And** this rule lives in the combat damage system and applies to every later fire and explosion source
+
+**Given** the friendly-fire rule
+**When** Vitest runs
+**Then** tests cover bullets (0%), melee (0%), fire (50%) and explosions (50%)
+
+### Story 5.5: Grenade Launcher
+
+As a player,
+I want a Grenade Launcher that lobs explosive rounds,
+So that I can blow apart packed crowds at a distance.
+
+**Acceptance Criteria:**
+
+**Given** the Grenade Launcher (40 damage, 0.8 shots/s, 12 m lob, 2 m blast, magazine 4, reload 3.0 s, 800)
+**When** it fires
+**Then** a visible lobbed round lands at the aim point (capped at 12 m) and explodes, damaging every zombie within 2 m, with a screen shake (FR14)
+
+**Given** the shooter or a teammate within the blast
+**When** it explodes
+**Then** they take 50% damage (Story 5.4 rule)
+
+### Story 5.6: Spitters
+
+As a player,
+I want Spitters that hang back and spit acid,
+So that camping behind turrets has a price.
+
+**Acceptance Criteria:**
+
+**Given** a Spitter (12 HP, 1.5 m/s, 15 damage per spit, reward 5)
+**When** a player is within 6 m with line of sight
+**Then** it stops, rears back with a glowing mouth for 0.6 s, then spits a visible projectile at the player, every 3 s (FR23, FR84)
+
+**Given** a spit lands
+**When** it hits the ground or a player
+**Then** it leaves an acid puddle for 3 s that deals 5 damage/s to players inside it
+
+**Given** `waves.json`
+**When** wave 4 runs
+**Then** Spitters join the mix (FR29)
+**And** a placeholder gurgle sound plays during the windup
+
+### Story 5.7: The first Brute
+
+As a team,
+I want a Brute to show up in wave 5 as a mini-boss,
+So that we learn to focus fire and protect our buildings.
+
+**Acceptance Criteria:**
+
+**Given** a Brute (120 HP, 1.0 m/s, 35 damage per hit + 1.5 m knockback on the player, reward 25)
+**When** it hits a building
+**Then** it deals 3× damage (FR25)
+**And** knockback from player weapons moves it only 20% of the normal distance
+
+**Given** wave 5
+**When** the first Brute spawns
+**Then** a roar plays and a short "Brute!" banner shows (mini-boss moment)
+**And** later waves may contain more Brutes per `waves.json`
+
+### Story 5.8: Bloaters
+
+As a player,
+I want swollen Bloaters that explode,
+So that tight crowds and careless melee become dangerous.
+
+**Acceptance Criteria:**
+
+**Given** a Bloater (25 HP, 0.9 m/s, reward 6)
+**When** it touches a player
+**Then** it swells for 1 s (visible and audible telegraph) and then explodes, even if the player moved away (FR24, FR84)
+
+**Given** a Bloater dies or explodes
+**When** the blast happens
+**Then** players within 2.5 m take 30 damage, zombies within 2.5 m take 40, and a gas cloud of 2.5 m radius stays for 4 s, slowing players inside it by 30%
+
+**Given** `waves.json`
+**When** the temporary run is played
+**Then** it now lasts 6 waves and Bloaters join in wave 6 (FR29)
+
+**Given** Bloater rules
+**When** Vitest runs
+**Then** tests cover both explosion triggers, damage values per target and the gas slow
+
+### Story 5.9: Metal barricade, spike trap and mine
+
+As a player,
+I want stronger walls and traps,
+So that my defenses can grow with the waves.
+
+**Acceptance Criteria:**
+
+**Given** one of my wood barricades in a build phase
+**When** I tap it and choose Upgrade (+120)
+**Then** it becomes a metal barricade with 600 HP (FR52)
+
+**Given** a spike trap (2 × 2 m floor, 300 HP, 80)
+**When** zombies walk on it
+**Then** they take 4 damage/s and move 40% slower; players can walk on it unharmed; it doesn't block paths
+
+**Given** a mine (60, single use)
+**When** a zombie comes within 1 m
+**Then** it explodes for 80 damage within 2.5 m (players in range take 50%) and is removed
+**And** mines count toward the 6-building cap until they explode
+
+### Story 5.10: Floodlight and med station
+
+As a player,
+I want lights and healing I can build,
+So that we have a safe spot to fall back to.
+
+**Acceptance Criteria:**
+
+**Given** a floodlight (150 HP, 100)
+**When** placed
+**Then** it lights an 8 m circle and is recorded as a light source in the server's light state (used by blackout waves in Epic 6)
+
+**Given** a med station (300 HP, 400)
+**When** players stand within 2 m of it
+**Then** they heal 5 HP/s up to their max HP (downed players are not healed)
+
+### Story 5.11: Gear
+
+As a player,
+I want gear that changes how I play for the rest of the run,
+So that my build is more than my weapons.
+
+**Acceptance Criteria:**
+
+**Given** gear bought in the shop
+**When** I own it
+**Then** it lasts the whole run and shows as an icon in the HUD (FR48)
+
+**Given** each gear item
+**When** owned
+**Then** Body armor I gives +25 max HP (150), Body armor II +50 (350, replaces armor I), Running shoes +10% speed (150), Revive kit cuts my revive time from 3 s to 1.5 s (150), Tactical flashlight is recorded for the blackout light cone in Epic 6 (120)
+**And** each item can be owned once
+
+### Story 5.12: Consumables
+
+As a player,
+I want a quick-use slot for medkits, grenades and molotovs,
+So that I have an emergency answer.
+
+**Acceptance Criteria:**
+
+**Given** a consumable button near my right thumb (and E on desktop)
+**When** I tap it
+**Then** the item in my single slot is used (FR8, FR49)
+
+**Given** the consumables
+**When** used
+**Then** Medkit (60) heals 50 instantly; Grenades ×3 (80) throw one grenade up to 8 m in the aim direction for 40 damage in 2.5 m; Molotovs ×2 (100) throw one that makes a 3 m fire zone for 4 s at 8 damage/s
+**And** grenades and molotovs follow the 50% friendly-fire rule
+
+**Given** I buy a consumable
+**When** my slot holds the same type
+**Then** it refills to the pack size; a different type replaces it
+
+### Story 5.13: Roguelike card shop
+
+As a player,
+I want each build phase to offer me 6 random weapon and gear cards,
+So that every build phase is a different choice.
+
+**Acceptance Criteria:**
+
+**Given** a build phase
+**When** I open the shop
+**Then** I see an always-available section (buildings, consumables, repairs, upgrades for weapons I own) and 6 cards of weapons and gear drawn from my pool (FR46, FR47)
+**And** the offer always contains at least 1 weapon and 1 gear card; weapons and gear I already own are not drawn
+
+**Given** the draw
+**When** it is made
+**Then** it uses my `shop:<playerSlot>:<buildPhaseIndex>` seed stream, and only I receive my offer (schema `@view()` or a direct message)
+
+**Given** I tap Reroll (20)
+**When** I can afford it
+**Then** I get 6 new cards from the next draws of my stream
+
+**Given** I buy a card
+**When** the server validates it
+**Then** it checks the item is in my stored offer, then removes it from the offer
+
+**Given** the card draw
+**When** Vitest runs
+**Then** tests cover the card floor, owned-item exclusion, reroll and same-seed reproducibility
+**And** the fixed-list shop from Story 3.3 is removed
