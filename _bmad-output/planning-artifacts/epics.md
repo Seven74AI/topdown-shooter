@@ -379,7 +379,8 @@ So that every later story lands in a clean, checked codebase and I can try each 
 
 **Given** a push to `master`
 **When** the build succeeds
-**Then** the static client build is published to a public URL that opens on a phone (GitHub Pages or the VPS, per the designer's choice)
+**Then** the static client build is published to GitHub Pages by a GitHub Actions workflow, at a URL that opens on a phone
+**And** if Pages is unavailable for the repository (private repo on a free plan), the story stops and reports it so the designer can decide (make the repo public, upgrade, or move the link to the VPS)
 **And** the page is landscape-ready: `viewport-fit=cover`, devicePixelRatio capped at 2, and a "rotate your phone" overlay in portrait (FR1)
 
 ### Story 1.2: Shared simulation core
@@ -653,3 +654,266 @@ So that we fix the feel (especially melee under twin-stick) before building on t
 **When** it is reviewed with the designer
 **Then** each issue is either fixed by tuning balance or control values (dead zones, aim-assist angle, melee arc), or turned into a new story
 **And** the decision on melee under twin-stick (keep as is, tune, or change) is recorded
+
+## Epic 2: Online co-op foundation
+
+2–4 friends open a share link and fight the same horde together on 4G, with downed/revive and team wipe. The server runs the shared rules (authority); each phone predicts its own player and receives the horde through the compact horde stream. From Story 2.2 the game is served from the designer's VPS, which replaces the GitHub Pages link.
+
+### Story 2.1: Game server and a room code
+
+As a host,
+I want to tap "Create game" and get a 4-letter code and a share link,
+So that I can invite my friends.
+
+**Acceptance Criteria:**
+
+**Given** `apps/server`
+**When** I run `npm run dev`
+**Then** a Colyseus 0.18 server starts alongside the client, logs `server_started` as pino JSON, and answers `GET /health` with 200
+
+**Given** the client's start screen (Preact overlay)
+**When** I enter a name (1–16 characters) and tap "Create game"
+**Then** a `RunRoom` is created whose id is a random 4-letter code without ambiguous letters (no I, O, 0, 1)
+**And** the lobby shows the code and the link `https://<host>/j/<code>` with a Copy / Share button (Web Share API where available)
+
+**Given** a client joins
+**When** its balance version differs from the server's
+**Then** it is refused with "Please refresh"
+
+**Given** any client message
+**When** it reaches the server
+**Then** it is validated with its zod schema from `packages/shared/src/net`; messages over 1 KB, invalid messages and more than 25 inputs/s per client are dropped and logged at `warn`
+
+### Story 2.2: Deploy to the VPS
+
+As the designer,
+I want the game running on my server under my subdomain with HTTPS,
+So that my friends and I can test online co-op on real phones over 4G.
+
+**Acceptance Criteria:**
+
+**Given** `deploy/docker-compose.yml`, `deploy/Caddyfile`, `deploy/server.Dockerfile`
+**When** the stack starts on the VPS
+**Then** Caddy serves the client build and terminates HTTPS and WSS for the chosen subdomain of `sevend.io` with automatic certificates
+**And** `index.html` is served with no-cache and hashed assets with a long cache
+
+**Given** a WebSocket connection
+**When** its origin is not the game's subdomain
+**Then** it is refused
+
+**Given** room creation
+**When** one IP creates more than 10 rooms per minute
+**Then** further creations are refused with a short message
+
+**Given** a merge to `master`
+**When** CI passes
+**Then** a documented deploy command (or workflow) rebuilds and restarts the stack, and `docs/deploy.md` explains setup, deploy and rollback
+**And** the server shuts down gracefully (rooms are closed with a "Server restarting" message)
+
+### Story 2.3: Join by link, get ready, start
+
+As a friend,
+I want to open the link (or type the code), pick a name and tap Ready,
+So that I join my friends' game in seconds.
+
+**Acceptance Criteria:**
+
+**Given** a share link `/j/<code>` or a code typed on the start screen
+**When** I open it and enter a name
+**Then** I join that room's lobby and see every player's name, color and Ready state
+
+**Given** a device opening the game for the first time
+**When** it connects
+**Then** it creates a random guest token stored in localStorage (try/catch) and sends it on join; the server keeps it hashed in memory as the player's identity for the session
+
+**Given** a lobby with 4 players
+**When** a 5th tries to join
+**Then** they see "This game is full"
+**And** a wrong or expired code shows "Game not found"
+
+**Given** the lobby
+**When** every joined player is Ready and there are at least 2 players
+**Then** the host's Start button is enabled; tapping it starts the run for everyone
+**And** in development builds the host can start alone (for testing)
+
+**Given** players in the lobby
+**When** each joins
+**Then** they get a stable slot 0–3 with a ring color (blue, orange, green, purple)
+
+### Story 2.4: The server runs the fight
+
+As a player,
+I want the server to run one shared fight that all our phones show,
+So that we all play the same game.
+
+**Acceptance Criteria:**
+
+**Given** a started run
+**When** the room runs
+**Then** it steps the shared World at 20 Hz and is the only writer of game state (architecture boundary 2)
+
+**Given** each client
+**When** it plays
+**Then** it sends one input message per 50 ms step (move vector, aim vector, fire held, swap, `isMouse`, sequence number)
+**And** the server applies the latest input per player each tick
+
+**Given** players in the run
+**When** they move
+**Then** every phone shows all players moving, from Colyseus schema state (players, HP, loadouts, phase, wave, aliveCount)
+
+**Given** the client
+**When** online
+**Then** the Game scene uses a networked `SimHost` implementation with no changes to scenes (the local one remains for tests and dev)
+
+**Given** a tick slower than 40 ms on the server
+**When** it happens
+**Then** it is logged at `warn` with `roomId` and tick time
+
+### Story 2.5: Horde stream
+
+As a player,
+I want to see the whole horde move smoothly on my phone over 4G,
+So that big hordes work online.
+
+**Acceptance Criteria:**
+
+**Given** the server each tick
+**When** it sends horde data to a client
+**Then** it sends one binary message with header `[tick u32][count u16]` and 8-byte records `[id u16][x u16][y u16][heading u8][typeState u8]` for zombies inside that client's view plus a 4 m margin (found with the spatial grid)
+
+**Given** zombie ids
+**When** a zombie dies
+**Then** its pool slot is held 1 s before reuse and carries a generation bit, so a new zombie never interpolates from a dead one
+
+**Given** the client
+**When** horde messages arrive
+**Then** it keeps the last 3 snapshots and renders zombies ~100 ms behind with interpolation
+**And** a zombie missing from 3 consecutive snapshots is removed from view; deaths come as reliable `zombie.killed` events so the death plays exactly once
+
+**Given** a client whose socket `bufferedAmount` exceeds 64 KB
+**When** a new horde frame is due
+**Then** it is skipped for that client (never queued) until the buffer drains
+
+**Given** the encoder and decoder
+**When** Vitest runs
+**Then** round-trip tests cover quantization (1 cm), clamping, generation bits and empty frames
+**And** a test with 150 zombies in view measures ≤ 24 KB/s per client at 20 Hz
+
+### Story 2.6: Instant feel for my own survivor
+
+As a player,
+I want my own movement and aim to respond instantly even with 150 ms of lag,
+So that the game feels good on 4G.
+
+**Acceptance Criteria:**
+
+**Given** the local player
+**When** I move or aim
+**Then** the client applies my input immediately to a predicted copy of my survivor using the shared movement code
+
+**Given** a server snapshot for my player
+**When** it arrives
+**Then** the client replays my unacknowledged inputs (by sequence number) from the server state; small errors are smoothed, large ones snap
+
+**Given** remote players and zombies
+**When** they are rendered
+**Then** they use an interpolation delay that adapts between 100 and 150 ms from measured jitter
+
+**Given** a simulated 150 ms latency with 20 ms jitter (dev network throttle)
+**When** I move in a circle for 30 s
+**Then** my survivor shows no visible rubber-banding
+
+### Story 2.7: Server-confirmed hits
+
+As a player,
+I want shots to look instant on my screen while the server decides what they hit,
+So that all of us agree on what happened.
+
+**Acceptance Criteria:**
+
+**Given** a player fires
+**When** the server processes the shot
+**Then** it simulates the projectile or melee arc itself, spawning it at the shooter's position advanced by half the round-trip time (capped at 150 ms)
+**And** aim assist is applied on the server using server zombie positions
+
+**Given** a shot
+**When** the server emits `weapon.fired`
+**Then** other clients draw a cosmetic projectile; the shooter's own muzzle flash, sound and projectile appear instantly from local input
+
+**Given** hits and kills
+**When** the server confirms them
+**Then** clients play hit flashes, pushback and deaths only from server events; the client never removes a zombie on its own
+
+**Given** development builds
+**When** a local shot looks like a hit but the server reports a miss
+**Then** a "reversed hit" counter increments and is shown in the performance overlay (used by Story 2.10)
+
+### Story 2.8: Downed, revive and team wipe
+
+As a player,
+I want to go down instead of dying, and be revived by a teammate,
+So that we survive by helping each other.
+
+**Acceptance Criteria:**
+
+**Given** a player at 0 HP
+**When** they go down
+**Then** they cannot move or fire, a 20 s countdown shows above them, and `player.downed` is emitted (FR10)
+
+**Given** a downed player
+**When** a standing teammate stays within 1.2 m of them for 3 s (progress ring shown; moving away resets it)
+**Then** the player is revived with 30% of max HP and `player.revived` is emitted
+
+**Given** the 20 s run out
+**When** no one has revived the player
+**Then** they are out: they spectate a teammate until the next wave starts, then return at full position next to a standing teammate with 50% HP (the build phase takes over this return in Epic 3)
+
+**Given** no player is standing (everyone downed or out)
+**When** that happens
+**Then** the run ends for everyone with a Results screen (wave reached, kills per player) and a "Back to lobby" button (FR11)
+
+**Given** downed, revive and wipe rules
+**When** Vitest runs
+**Then** tests cover timers in ticks, revive reset, out/return and wipe detection
+
+### Story 2.9: Player rings and teammate arrows
+
+As a player,
+I want to see who is who and where my teammates are when they're off screen,
+So that we can stick together.
+
+**Acceptance Criteria:**
+
+**Given** each player
+**When** rendered
+**Then** they have a colored ground ring by slot (blue, orange, green, purple) and their name above them
+
+**Given** a teammate outside my camera view
+**When** I play
+**Then** an arrow in their color at the screen edge points toward them, showing a downed icon if they are down
+
+**Given** a downed teammate
+**When** they are on or off screen
+**Then** their marker pulses so the revive opportunity is obvious
+
+### Story 2.10: 4-phone 4G test
+
+As the designer,
+I want to play a full wave with 4 phones on 4G and measure it,
+So that we prove online co-op with big hordes works (Milestone 1's first goal).
+
+**Acceptance Criteria:**
+
+**Given** the performance overlay
+**When** online
+**Then** it also shows ping and bandwidth in and out (KB/s)
+
+**Given** 4 phones on 4G (or a 150 ms throttle) playing a wave with 150 Walkers alive
+**When** the wave ends
+**Then** each phone's average download is ≤ 30 KB/s (NFR4), reversed hits are < 1 in 20 (NFR5), FPS is recorded, and the players report no visible disagreement (NFR3)
+**And** results are written to `docs/perf/epic-2-network.md`
+
+**Given** the results
+**When** reversed hits are ≥ 1 in 20
+**Then** a follow-up story is created to enable hit testing against 300 ms of rewound zombie positions (architecture upgrade path)
+**And** headless bot clients in `tools/bots` can fill a room with up to 4 fake players for repeatable load tests
