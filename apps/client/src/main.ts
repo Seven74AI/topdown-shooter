@@ -10,6 +10,9 @@ import { urlOptions } from "./debug/urlOptions";
 import { uiStore } from "./ui/uiState";
 import { lobbyStore } from "./net/lobbyStore";
 import { JOIN_ERROR_TEXT } from "./net/joinErrors";
+import { parseJoinPath } from "./net/route";
+import type { RunConnection } from "./net/connection";
+import type { Result } from "@topdown/shared";
 import "./ui/overlay.css";
 
 // Phaser 4 has no `resolution` option: size the canvas in device pixels
@@ -43,30 +46,48 @@ window.addEventListener("resize", () => {
 // Performance overlay and ?stress timing (Story 1.11): release builds too.
 installPerfProbe(game, urlOptions().debug);
 
-// Online lobby (Story 2.1): networking stays in net/, the scenes don't know about it. The SDK is
-// loaded on the first Create game, so solo play doesn't download it.
-async function createGameLazily(name: string) {
+// Online lobby (Stories 2.1/2.3): networking stays in net/, the scenes don't know about it. The SDK
+// is loaded on the first Create game or Join, so solo play doesn't download it.
+type Connection = typeof import("./net/connection");
+
+async function connectLazily(go: (c: Connection) => Promise<Result<RunConnection, string>>) {
+  let c: Connection;
   try {
-    const { createGame } = await import("./net/connection");
-    return await createGame(name);
+    c = await import("./net/connection");
   } catch {
-    return { ok: false, error: JOIN_ERROR_TEXT.unreachable } as const; // chunk failed to load (offline)
+    return; // chunk failed to load (offline)
   }
+  return { result: await go(c), watch: c.watchLobby };
 }
-uiStore.handle("createGame", (name) => {
-  void createGameLazily(name).then((r) => {
-    if (!r.ok) return uiStore.set({ kind: "start", error: r.error });
-    lobbyStore.attach(r.value, () => uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable }));
-    uiStore.set({ kind: "lobby", code: r.value.roomId });
+
+function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>>): void {
+  void connectLazily(go).then((r) => {
+    if (!r) return uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
+    if (!r.result.ok) return uiStore.set({ kind: "start", error: r.result.error });
+    const room = r.result.value;
+    lobbyStore.attach(room, {
+      watch: r.watch,
+      onLost: () => uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable }),
+      onPhase: (phase) => {
+        if (phase === "wave") uiStore.request("startOnline");
+      },
+    });
+    uiStore.set({ kind: "lobby", code: room.roomId });
   });
-});
+}
+
+uiStore.handle("createGame", (name) => enterLobby((c) => c.createGame(name)));
+uiStore.handle("joinGame", (code, name) => enterLobby((c) => c.joinGame(code, name)));
 uiStore.handle("leaveLobby", () => {
   lobbyStore.leave();
+  // A share link is done with once you leave. BASE_URL is "/" on the VPS (GitHub Pages: a subpath).
+  history.replaceState(null, "", import.meta.env.BASE_URL);
   uiStore.set({ kind: "start" });
 });
 
 const ui = document.getElementById("ui");
-if (ui) render(h(App, {}), ui);
+// A share link `/j/<code>` opens the start screen with the code filled in and the name focused.
+if (ui) render(h(App, { joinCode: parseJoinPath(location.pathname) }), ui);
 
 if (import.meta.env.DEV) {
   // Dev builds only: Vite replaces import.meta.env.DEV with false in production and drops this

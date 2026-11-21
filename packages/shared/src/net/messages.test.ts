@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { BYTES, C2S, RUN_ROOM_NAME, S2C, joinOptionsSchema, playerNameSchema } from "./messages";
+import {
+  BYTES,
+  C2S,
+  MAX_PLAYERS,
+  MIN_PLAYERS_TO_START,
+  RUN_ROOM_NAME,
+  S2C,
+  joinOptionsSchema,
+  lobbySetReadySchema,
+  playerNameSchema,
+  runStartSchema,
+} from "./messages";
 
-const valid = { intent: "create", name: "Ana", balanceVersion: "1a2b3c4d" } as const;
+const TOKEN = "0123456789abcdef0123456789abcdef";
+const valid = { intent: "create", name: "Ana", balanceVersion: "1a2b3c4d", guestToken: TOKEN } as const;
 
 describe("net contract", () => {
   it("names the room and the message types", () => {
@@ -43,5 +55,27 @@ describe("net contract", () => {
     expect(joinOptionsSchema.safeParse({ ...valid, balanceVersion: "x".repeat(17) }).success).toBe(false);
     expect(joinOptionsSchema.safeParse({ intent: "create", name: "Ana" }).success).toBe(false);
     expect(joinOptionsSchema.safeParse(null).success).toBe(false);
+  });
+
+  it("requires a 32-hex-digit guest token", () => {
+    expect(joinOptionsSchema.safeParse({ ...valid, guestToken: undefined }).success).toBe(false);
+    for (const guestToken of ["", TOKEN.toUpperCase(), TOKEN.slice(1), TOKEN + "0", "g".repeat(32), 42]) {
+      expect(joinOptionsSchema.safeParse({ ...valid, guestToken }).success).toBe(false);
+    }
+  });
+
+  it("validates lobby.set_ready and run.start strictly", () => {
+    expect(lobbySetReadySchema.parse({ ready: true })).toEqual({ ready: true });
+    expect(lobbySetReadySchema.safeParse({ ready: "yes" }).success).toBe(false);
+    expect(lobbySetReadySchema.safeParse({}).success).toBe(false);
+    expect(lobbySetReadySchema.safeParse({ ready: false, slot: 1 }).success).toBe(false);
+    expect(runStartSchema.safeParse({}).success).toBe(true);
+    expect(runStartSchema.safeParse({ force: true }).success).toBe(false);
+    expect(runStartSchema.safeParse(null).success).toBe(false);
+  });
+
+  it("has 4 players at most and needs 2 to start", () => {
+    expect(MAX_PLAYERS).toBe(4);
+    expect(MIN_PLAYERS_TO_START).toBe(2);
   });
 });

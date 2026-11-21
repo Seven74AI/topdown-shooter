@@ -10,6 +10,7 @@ describe("joinErrorText", () => {
     expect(joinErrorText(mm("run_started"))).toBe("This game has already started");
     expect(joinErrorText(mm("rate_limited"))).toBe("Too many games created, try again in a minute");
     expect(joinErrorText(mm("invalid_options"))).toBe(JOIN_ERROR_TEXT.invalid);
+    expect(joinErrorText(mm("already_joined"))).toBe("You're already in this game");
   });
 
   it("maps Colyseus 522 errors by their message", () => {

@@ -7,11 +7,16 @@ import { TuningPanel } from "../debug/TuningPanel";
 import { urlOptions } from "../debug/urlOptions";
 import { StressResults } from "../debug/StressResults";
 
+export interface AppProps {
+  /** Code from a share link `/j/<code>` (Story 2.3), prefilled on the start screen. */
+  joinCode?: string | null;
+}
+
 /** Root of the Preact overlay (#ui). Screens decide their own visibility. */
-export function App() {
+export function App({ joinCode = null }: AppProps) {
   return (
     <>
-      <StartScreen />
+      <StartScreen joinCode={joinCode} />
       <LobbyScreen />
       <GameOver />
       {urlOptions().tune && <TuningPanel />}

@@ -47,16 +47,24 @@ export { endWave, skipWave, updateWaves, waveSize, type WavePhase, type WaveStat
 export {
   BYTES,
   C2S,
+  MAX_PLAYERS,
+  MIN_PLAYERS_TO_START,
   RUN_ROOM_NAME,
   S2C,
+  guestTokenSchema,
   joinOptionsSchema,
+  lobbySetReadySchema,
   playerNameSchema,
+  runStartSchema,
   type C2SType,
   type JoinOptions,
   type JoinRefusal,
+  type LobbySetReady,
   type ParsedJoinOptions,
+  type RunJoined,
   type RunPhase,
   type S2CType,
 } from "./net/messages";
+export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
 export type { PlayerStateView, ReadonlyMapView, RunStateView } from "./net/stateView";

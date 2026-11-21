@@ -37,13 +37,24 @@ export class BootScene extends Phaser.Scene {
       // ?solo, ?stress, ?loadout and ?tune start a solo run at once (Epic 1 playtest links).
       if (skipsStartScreen(urlOptions())) return this.startSolo();
       uiStore.handle("startSolo", () => this.startSolo());
+      uiStore.handle("startOnline", () => this.startOnline());
       uiStore.set({ kind: "start" });
     });
+  }
+
+  /**
+   * The host started the online run (Story 2.3). Until Story 2.4 adds the networked host this
+   * shows a "Starting…" placeholder; 2.4 replaces it with
+   * `this.scene.start("Game", { mode: "online", session })`.
+   */
+  private startOnline(): void {
+    uiStore.set({ kind: "starting" });
   }
 
   /** Offline play, exactly as in Epic 1. */
   private startSolo(): void {
     uiStore.handle("startSolo", undefined);
+    uiStore.handle("startOnline", undefined);
     this.scene.start("Game", { mode: "solo" } satisfies GameSceneData);
   }
 }

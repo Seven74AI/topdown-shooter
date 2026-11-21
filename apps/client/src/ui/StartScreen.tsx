@@ -1,7 +1,8 @@
-import { useEffect, useState } from "preact/hooks";
-import { GAME_TITLE, playerNameSchema } from "@topdown/shared";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { GAME_TITLE, ROOM_CODE_LENGTH, isRoomCode, playerNameSchema } from "@topdown/shared";
 import { uiStore, type UiScreen } from "./uiState";
-import { needsRefresh } from "../net/joinErrors";
+import { filterCodeInput } from "./codeInput";
+import { JOIN_ERROR_TEXT, needsRefresh } from "../net/joinErrors";
 
 const NAME_KEY = "topdown.name";
 const NAME_MAX = 16;
@@ -22,52 +23,123 @@ function saveName(name: string): void {
   }
 }
 
-/** Start screen (Story 2.1): enter a name, then Create game (online) or Practice solo (Epic 1 play). */
-export function StartScreen() {
+/** On phones the keyboard covers half the landscape screen: keep the focused field visible. */
+const reveal = (e: Event) => (e.currentTarget as HTMLElement).scrollIntoView?.({ block: "nearest" });
+
+export interface StartScreenProps {
+  /** Code from a share link `/j/<code>` (Story 2.3): prefilled, and the name field gets focus. */
+  joinCode?: string | null;
+}
+
+/**
+ * Start screen (Stories 2.1/2.3): a name, then Create game, or a code and Join, or Practice solo
+ * (Epic 1 play, offline).
+ */
+export function StartScreen({ joinCode = null }: StartScreenProps) {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
   const [name, setName] = useState(loadName);
-  const [busy, setBusy] = useState(false);
+  // A share link's code is kept as given (sliced), so a bad one still reads "Game not found".
+  const [code, setCode] = useState(() => (joinCode ?? "").slice(0, ROOM_CODE_LENGTH));
+  const [busy, setBusy] = useState<"" | "create" | "join">("");
+  const nameRef = useRef<HTMLInputElement>(null);
+  const focused = useRef(false);
   useEffect(
     () =>
       uiStore.subscribe((s) => {
         setScreen(s);
-        setBusy(false);
+        setBusy("");
       }),
     [],
   );
+  useEffect(() => {
+    // Share link: focus the name once, when the start screen first shows.
+    if (screen.kind !== "start" || !joinCode || focused.current) return;
+    focused.current = true;
+    nameRef.current?.focus();
+  }, [screen.kind, joinCode]);
   if (screen.kind !== "start") return null;
 
   const parsed = playerNameSchema.safeParse(name);
-  const create = (e: Event) => {
-    e.preventDefault();
+  const create = () => {
     if (!parsed.success || busy) return;
     saveName(parsed.data);
-    setBusy(true);
+    setBusy("create");
     uiStore.request("createGame", parsed.data);
+  };
+  const join = () => {
+    if (!parsed.success || busy || code.length === 0) return;
+    // A code that can't exist is "Game not found" without asking the server.
+    if (!isRoomCode(code)) return uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.notFound });
+    saveName(parsed.data);
+    setBusy("join");
+    uiStore.request("joinGame", code, parsed.data);
+  };
+  // Enter in the name field joins when a code is there (share link), else creates.
+  const onNameSubmit = (e: Event) => {
+    e.preventDefault();
+    if (code.length > 0) join();
+    else create();
+  };
+  const onCodeSubmit = (e: Event) => {
+    e.preventDefault();
+    join();
+  };
+  const onCodeInput = (e: Event) => {
+    const input = e.currentTarget as HTMLInputElement;
+    const next = filterCodeInput(input.value);
+    input.value = next; // controlled: drop rejected characters even when the state is unchanged
+    setCode(next);
   };
 
   return (
     <div class="menu" role="dialog" aria-labelledby="start-title">
       <h1 id="start-title">{GAME_TITLE}</h1>
-      <form class="menu__form" onSubmit={create}>
+      <form class="menu__form" onSubmit={onNameSubmit}>
         <label class="menu__label" for="start-name">
           Your name
         </label>
         <input
           id="start-name"
+          ref={nameRef}
           class="menu__input"
           type="text"
           value={name}
           maxLength={NAME_MAX}
           autocomplete="off"
           autocapitalize="words"
+          inputMode="text"
           enterkeyhint="go"
           spellcheck={false}
           placeholder="Name"
+          onFocus={reveal}
           onInput={(e) => setName((e.currentTarget as HTMLInputElement).value)}
         />
-        <button type="submit" class="btn" disabled={!parsed.success || busy}>
-          {busy ? "Creating…" : "Create game"}
+        <button type="button" class="btn" disabled={!parsed.success || busy !== ""} onClick={create}>
+          {busy === "create" ? "Creating…" : "Create game"}
+        </button>
+      </form>
+      <form class="menu__form" onSubmit={onCodeSubmit}>
+        <label class="menu__label" for="start-code">
+          Or join with a code
+        </label>
+        <input
+          id="start-code"
+          class="menu__input menu__input--code"
+          type="text"
+          value={code}
+          maxLength={ROOM_CODE_LENGTH}
+          autocomplete="off"
+          autocapitalize="characters"
+          inputMode="text"
+          enterkeyhint="go"
+          spellcheck={false}
+          placeholder="CODE"
+          aria-label="Game code"
+          onFocus={reveal}
+          onInput={onCodeInput}
+        />
+        <button type="submit" class="btn" disabled={!parsed.success || code.length === 0 || busy !== ""}>
+          {busy === "join" ? "Joining…" : "Join"}
         </button>
       </form>
       {screen.error && (
@@ -80,7 +152,12 @@ export function StartScreen() {
           )}
         </p>
       )}
-      <button type="button" class="btn btn--secondary" disabled={busy} onClick={() => uiStore.request("startSolo")}>
+      <button
+        type="button"
+        class="btn btn--secondary"
+        disabled={busy !== ""}
+        onClick={() => uiStore.request("startSolo")}
+      >
         Practice solo
       </button>
     </div>

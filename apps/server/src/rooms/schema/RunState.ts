@@ -5,7 +5,15 @@ import type { PlayerStateView, RunPhase, RunStateView } from "@topdown/shared";
  * Room state synced to clients (Story 2.1). Stories 2.3, 2.4 and 2.8 extend it; the field names
  * are final. Uses the schema 5 builder API (no decorators). Map keys are player ids `p0`–`p3`.
  */
-export const PlayerState = schema({ slot: t.uint8(), name: t.string() }, "PlayerState");
+export const PlayerState = schema(
+  {
+    slot: t.uint8(),
+    name: t.string(),
+    /** Lobby Ready (Story 2.3); Story 2.8 resets it when the room returns to the lobby. */
+    ready: t.boolean().default(false),
+  },
+  "PlayerState",
+);
 export type PlayerState = SchemaType<typeof PlayerState>;
 
 export const RunState = schema(

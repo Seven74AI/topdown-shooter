@@ -5,15 +5,16 @@ import { createGuardedHttpServer } from "./net/httpGuard";
 import { MAX_CLIENT_MESSAGE_BYTES } from "./net/limits";
 import { health } from "./ops/health";
 import { log } from "./ops/logger";
-import { RunRoom } from "./rooms/RunRoom";
+import { RunRoom, type RunRoomOptions } from "./rooms/RunRoom";
 
 /**
  * The game server: the `run` room, `GET /health`, and a WebSocket transport that refuses frames
  * over 1 KB (AC 5). Not listening yet: `index.ts` (or a test) calls `listen(port)`.
+ * Room options are `defineRoom` defaults, which override anything a client sends to `create`.
  */
-export function createGameServer() {
+export function createGameServer(roomOptions: RunRoomOptions = { allowSoloStart: false }) {
   return defineServer({
-    rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom) },
+    rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, roomOptions) },
     routes: createRouter({ health }),
     // Our own HTTP server, so oversized request bodies are refused before Colyseus buffers them.
     transport: new WebSocketTransport({ server: createGuardedHttpServer(), maxPayload: MAX_CLIENT_MESSAGE_BYTES }),

@@ -1,16 +1,24 @@
 import { Room, ServerError, matchMaker, type AuthContext, type Client } from "@colyseus/core";
 import {
   C2S,
+  MAX_PLAYERS,
+  S2C,
+  TICK_RATE_HZ,
   joinOptionsSchema,
   loadBalance,
+  lobbySetReadySchema,
   playerInputSchema,
+  runStartSchema,
+  startBlocker,
   type JoinRefusal,
   type PlayerInput,
+  type RunJoined,
 } from "@topdown/shared";
 import type { Logger } from "pino";
 import { MAX_CLIENT_MESSAGE_BYTES } from "../net/limits";
 import { MessageGuard } from "../net/messageGuard";
 import { roomLog } from "../ops/logger";
+import { assignSlot, hashGuestToken, nextHost, type Member } from "../run/lobby";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
 
@@ -24,12 +32,18 @@ export const JOIN_REFUSED_CODE = 526;
 export interface RunAuth {
   name: string;
   ip: string | undefined;
+  /** SHA-256 of the guest token (Story 2.3); the raw token never leaves `onAuth`. */
+  guestTokenHash: string;
 }
 
 export type RunClient = Client<{ auth: RunAuth }>;
 
-/** Players per run (architecture › Run Room Rules). */
-const MAX_PLAYERS = 4;
+/** Options the server adds to every `onCreate` (`defineRoom` defaults win over client options). */
+export interface RunRoomOptions {
+  /** The host may start alone (dev and tests; never in the production image, Story 2.2). */
+  allowSoloStart: boolean;
+}
+
 /** State patches every 50 ms (20 Hz, the simulation rate). */
 const PATCH_RATE_MS = 50;
 
@@ -48,8 +62,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     () => this.clock.currentTime,
     { warn: (obj, msg) => this.log.warn(obj, msg) },
   );
-  /** sessionId → player id. */
-  private readonly playerIds = new Map<string, string>();
+  /** sessionId → server-only member record, in join order (Story 2.3). */
+  readonly members = new Map<string, Member>();
+  /** See `RunRoomOptions`; tests may flip it on a live room. */
+  allowSoloStart = false;
 
   /** Validates join options before a seat is reserved (runs for create and join). */
   static override async onAuth(_token: string, options: unknown, ctx: AuthContext): Promise<RunAuth> {
@@ -63,11 +79,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const parsed = joinOptionsSchema.safeParse(options);
     if (!parsed.success) throw refuse("invalid_options");
     if (parsed.data.balanceVersion !== serverBalance.version) throw refuse("balance_mismatch");
-    return { name: parsed.data.name, ip: ctx.ip };
+    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash: hashGuestToken(parsed.data.guestToken) };
   }
 
-  override async onCreate(options: { intent?: unknown }): Promise<void> {
+  override async onCreate(options: { intent?: unknown } & Partial<RunRoomOptions>): Promise<void> {
     if (options.intent !== "create") throw refuse("invalid_options");
+    this.allowSoloStart = options.allowSoloStart === true;
     const code = uniqueRoomCode((c) => reservedCodes.has(c) || matchMaker.getLocalRoomById(c) !== undefined);
     reservedCodes.add(code);
     this.roomId = code;
@@ -79,19 +96,34 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.setState(new RunState({ phase: "lobby", hostSlot: 0 }));
 
     this.onMessage(C2S.INPUT_SEND, this.net.guard(playerInputSchema, (c, input) => this.onInput(c, input), "input"));
+    this.onMessage(C2S.LOBBY_SET_READY, this.net.guard(lobbySetReadySchema, (c, m) => this.onSetReady(c, m.ready)));
+    this.onMessage(C2S.RUN_START, this.net.guard(runStartSchema, (c) => this.onStart(c)));
     this.onMessage("*", (client) => this.net.drop(client, "unknown_type"));
   }
 
   override onJoin(client: RunClient): void {
-    // Story 2.3 adds joining by code, slots and the host hand-over; until then the creator is alone.
-    if (this.playerIds.size > 0) throw refuse("invalid_options");
-    const slot = 0;
+    // Joins only in the lobby; Story 8.2 opens Build-phase joins.
+    if (this.state.phase !== "lobby") throw refuse("run_started");
+    const auth = client.auth;
+    if (!auth) throw refuse("invalid_options");
+    for (const m of this.members.values()) if (m.guestTokenHash === auth.guestTokenHash) throw refuse("already_joined");
+    const slot = assignSlot(Array.from(this.members.values(), (m) => m.slot));
+    if (slot < 0) throw refuse("invalid_options"); // unreachable: maxClients locks the room at 4
     const playerId = `p${slot}`;
-    const name = client.auth?.name ?? "";
-    this.playerIds.set(client.sessionId, playerId);
-    this.state.players.set(playerId, new PlayerState({ slot, name }));
-    this.state.hostSlot = slot;
+    const member: Member = {
+      playerId,
+      slot,
+      sessionId: client.sessionId,
+      name: auth.name,
+      guestTokenHash: auth.guestTokenHash,
+      joinedAtMs: Date.now(),
+    };
+    // The creator is host (slot 0); later joiners never take it over.
+    if (this.members.size === 0) this.state.hostSlot = slot;
+    this.members.set(client.sessionId, member);
+    this.state.players.set(playerId, new PlayerState({ slot, name: auth.name, ready: false }));
     this.net.add(client, playerId);
+    client.send(S2C.RUN_JOINED, { playerId, slot, tickRateHz: TICK_RATE_HZ } satisfies RunJoined);
     // A frame over maxPayload is refused by ws, which closes this socket (AC 5 "too large").
     client.ref.on("error", (e: { code?: string }) => {
       if (e.code === "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH") this.net.drop(client, "too_large");
@@ -100,12 +132,49 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   }
 
   override onLeave(client: RunClient, code?: number): void {
-    const playerId = this.playerIds.get(client.sessionId);
+    const member = this.members.get(client.sessionId);
     this.net.remove(client);
-    if (playerId === undefined) return;
-    this.playerIds.delete(client.sessionId);
+    if (member === undefined) return;
+    const { playerId, slot } = member;
+    this.members.delete(client.sessionId); // frees the slot
     this.state.players.delete(playerId);
     this.log.info({ playerId, code }, "player_left");
+    // Story 2.4 also removes the player from the World here; Epic 8 handles a host leaving mid-run.
+    const host = slot === this.state.hostSlot ? nextHost(this.members.values()) : undefined;
+    if (host) {
+      this.state.hostSlot = host.slot;
+      this.log.info({ playerId: host.playerId, slot: host.slot }, "host_changed");
+    }
+  }
+
+  /** `lobby.set_ready`: the sender's own flag, lobby only. */
+  onSetReady(client: RunClient, ready: boolean): void {
+    if (this.state.phase !== "lobby") return;
+    const member = this.members.get(client.sessionId);
+    const player = member && this.state.players.get(member.playerId);
+    if (player) player.ready = ready;
+  }
+
+  /**
+   * `run.start`: accepted only in the lobby, from the host, with everyone Ready and enough players
+   * (`startBlocker`, shared with the client's Start button). A refusal is only logged: the
+   * client's button is disabled anyway.
+   */
+  onStart(client: RunClient): void {
+    const member = this.members.get(client.sessionId);
+    if (!member) return;
+    const players = Array.from(this.members.values(), (m) => ({ ready: this.state.players.get(m.playerId)?.ready === true }));
+    const reason =
+      this.state.phase !== "lobby"
+        ? "not_lobby"
+        : startBlocker(players, member.slot === this.state.hostSlot, this.allowSoloStart);
+    if (reason !== null) {
+      this.log.info({ playerId: member.playerId, reason }, "run_start_refused");
+      return;
+    }
+    // Story 2.4 hooks the RunController into this exact transition; until then nothing simulates.
+    this.state.phase = "wave";
+    this.log.info({ players: this.members.size }, "run_started");
   }
 
   override onDispose(): void {

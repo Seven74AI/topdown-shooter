@@ -11,6 +11,8 @@ export const JOIN_ERROR_TEXT = {
   rateLimited: "Too many games created, try again in a minute",
   unreachable: "Can't reach the server",
   invalid: "Check your name and try again",
+  /** Same guest token already in the room: this device joined in another tab (Story 2.3). */
+  alreadyJoined: "You're already in this game",
   unknown: "Something went wrong, try again",
 } as const;
 
@@ -34,6 +36,8 @@ export function joinErrorText(err: unknown): string {
       return JOIN_ERROR_TEXT.rateLimited;
     case "invalid_options":
       return JOIN_ERROR_TEXT.invalid;
+    case "already_joined":
+      return JOIN_ERROR_TEXT.alreadyJoined;
   }
   if (code === INVALID_ROOM_ID && /not found/i.test(message)) return JOIN_ERROR_TEXT.notFound;
   if (code === INVALID_ROOM_ID && /locked/i.test(message)) return JOIN_ERROR_TEXT.full;

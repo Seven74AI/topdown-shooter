@@ -44,7 +44,15 @@ export const BYTES = { HORDE_FRAME: 1 } as const; // Story 2.5
 export type RunPhase = "lobby" | "wave" | "results";
 
 /** Why the server refused a join (sent as the `ServerError` message). */
-export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited";
+export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined";
+
+/** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
+export const MAX_PLAYERS = 4;
+/** Players needed before the host can start (dev builds may start alone, Story 2.3). */
+export const MIN_PLAYERS_TO_START = 2;
+
+/** A guest token: 16 random bytes as lowercase hex (Story 2.3). Not a secret in Epic 2. */
+export const guestTokenSchema = z.string().regex(/^[0-9a-f]{32}$/);
 
 /**
  * Characters that render as nothing (Hangul fillers, Braille blank, halfwidth filler): a name made
@@ -72,7 +80,8 @@ export const joinOptionsSchema = z
     name: playerNameSchema,
     /** `balance.version` of the client; must equal the server's (AC 4). */
     balanceVersion: z.string().min(1).max(16),
-    // guestToken: added by Story 2.3
+    /** Tells this device's player apart (Story 2.3); the server keeps only its SHA-256. */
+    guestToken: guestTokenSchema,
   })
   .strict();
 
@@ -80,3 +89,18 @@ export const joinOptionsSchema = z
 export type JoinOptions = z.input<typeof joinOptionsSchema>;
 /** What the server works with (after trimming). */
 export type ParsedJoinOptions = z.output<typeof joinOptionsSchema>;
+
+/** `lobby.set_ready` (Story 2.3): lobby only. */
+export const lobbySetReadySchema = z.object({ ready: z.boolean() }).strict();
+export type LobbySetReady = z.infer<typeof lobbySetReadySchema>;
+
+/** `run.start` (Story 2.3): host only, when `canStart` (net/lobbyRules.ts) holds. */
+export const runStartSchema = z.object({}).strict();
+
+/** `run.joined` payload (Story 2.3), sent to the joining client only. */
+export interface RunJoined {
+  /** `"p" + slot`. */
+  playerId: string;
+  slot: number;
+  tickRateHz: number;
+}
