@@ -46,7 +46,9 @@ _TBD_
 _TBD_
 
 ## Content, art & audio direction
-- Art style: exploring (round 1 probe: Pixel Grit, Neon Vector, Toybox, Lamplight — none chosen as main look).
+- **Art style: Dead City** — gritty, realistic, muted colors, rainy urban streets at night (chosen after 3 rounds of playable style probes).
+- **Setting:** cities.
+- **Decay over a run:** the city starts clean and gets worse as the players advance (clean → panic → breakdown → ruins → collapse).
 - **Kept:** Lamplight darkness as a special level / wave modifier ("blackout waves"), not the default look.
 - **Tone:** gritty and scary (round 2 feedback). Round 1–2 styles (pixel, neon, toy, ink, comic, diorama, duotone) not chosen.
 - Idea (open): blackout as the first of several *wave modifiers* (fog, fast zombies, boss wave).
