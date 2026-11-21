@@ -33,7 +33,8 @@ export class ProjectileView {
       }
       const dx = pool.dirX[id] as number;
       const dy = pool.dirY[id] as number;
-      if (this.shownFrame[id] !== f - 1) s.setRotation(Math.atan2(dy, dx)).setVisible(true);
+      // Rotation every frame: a slot freed and refilled within one frame must not keep the old direction.
+      s.setRotation(Math.atan2(dy, dx)).setVisible(true);
       s.setPosition(lerp(pool.prevX[id] as number, pool.x[id] as number, alpha), lerp(pool.prevY[id] as number, pool.y[id] as number, alpha));
       this.shownFrame[id] = f;
     }

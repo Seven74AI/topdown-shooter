@@ -5,7 +5,9 @@ import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import { DEG_TO_RAD, len, rotate } from "../math/vec";
 import { segmentCircleT } from "../math/sweep";
-import { zombieTypeOf } from "../zombies/zombiePool";
+import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
+import { maxZombieRadius } from "../zombies/zombieTypes";
+import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { applyZombieDamage } from "./damage";
 import { activeSlot } from "./loadout";
 import {
@@ -21,20 +23,33 @@ import { isGun, weaponIds, weaponStats } from "./weapons";
 const COOLDOWN_EPS_S = 1e-6;
 /** Projectiles spawn just outside the shooter's body. */
 const MUZZLE_OFFSET_M = 0.1;
-/** Largest zombie radius considered when gathering hit candidates around a projectile step. */
-const MAX_ZOMBIE_RADIUS_M = 2.5;
 const MIN_AIM = 1e-6;
 
-const candidates = new Int32Array(128);
-const hitT = new Float32Array(128);
-const hitId = new Int32Array(128);
+// Sized to the whole zombie pool, so a candidate query can never be truncated.
+const candidates = new Int32Array(ZOMBIE_POOL_CAPACITY);
+const hitT = new Float32Array(ZOMBIE_POOL_CAPACITY);
+const hitId = new Int32Array(ZOMBIE_POOL_CAPACITY);
 const dir = { x: 0, y: 0 };
 const spawn: ProjectileSpawn = { x: 0, y: 0, dirX: 0, dirY: 0, speedMps: 0, rangeM: 0, damage: 0, pierce: 1, weaponIndex: 0, owner: null };
 
+/**
+ * Fire cooldown: counts down every tick and may end slightly negative while the trigger is held, so
+ * `cooldownS += 1 / rateHz` keeps the exact average rate (3/s fires every 6.67 ticks on average).
+ * Any tick without a shot clamps it back to ≥ 0, so an idle player can't save up a burst; it never
+ * goes below −dt (at most one shot per tick).
+ */
 function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
   const slot = activeSlot(p.loadout);
+  // Only a cooldown that was still running can go below zero (the part of this tick since it ended);
+  // a weapon that was already ready carries no credit.
+  if (slot.cooldownS > 0) slot.cooldownS = Math.max(-dtS, slot.cooldownS - dtS);
+  if (!tryFire(world, p, slot.cooldownS)) slot.cooldownS = Math.max(0, slot.cooldownS);
+}
+
+/** Handles reload and firing for this tick. Returns true if a shot was fired. */
+function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
+  const slot = activeSlot(p.loadout);
   const stats = weaponStats(world.balance, slot.weapon);
-  slot.cooldownS = Math.max(0, slot.cooldownS - dtS);
 
   if (slot.reloadTicks > 0) {
     slot.reloadTicks--;
@@ -42,16 +57,16 @@ function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
       slot.ammo = stats.magazine;
       world.events.emit({ type: "weapon.reloaded", playerId: p.id, weapon: slot.weapon });
     }
-    return; // no firing while reloading (including the tick the reload ends)
+    return false; // no firing while reloading (including the tick the reload ends)
   }
-  if (p.status !== "alive") return;
+  if (p.status !== "alive") return false;
 
   const input = world.inputs.get(p.id);
-  if (!input || !input.fire) return;
+  if (!input || !input.fire) return false;
   const aimLen = len(input.aimX, input.aimY);
-  if (aimLen < MIN_AIM || slot.cooldownS > COOLDOWN_EPS_S) return;
-  if (!isGun(stats)) return; // melee arrives in Story 1.9
-  if (slot.ammo <= 0) return;
+  if (aimLen < MIN_AIM || cooldownS > COOLDOWN_EPS_S) return false;
+  if (!isGun(stats)) return false; // melee arrives in Story 1.9
+  if (slot.ammo <= 0) return false;
 
   dir.x = input.aimX / aimLen;
   dir.y = input.aimY / aimLen;
@@ -81,6 +96,7 @@ function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
     slot.reloadTicks = ticksFor(stats.reloadS);
     world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
   }
+  return true;
 }
 
 function updateProjectiles(world: World, dtS: number): void {
@@ -102,12 +118,13 @@ function updateProjectiles(world: World, dtS: number): void {
     const y1 = y0 + dy * step;
 
     // Gather hits along the segment, nearest first.
-    const qr = step / 2 + MAX_ZOMBIE_RADIUS_M;
+    const qr = step / 2 + maxZombieRadius(world.balance);
     const count = queryRadius(world.zombieGrid, z.x, z.y, (x0 + x1) / 2, (y0 + y1) / 2, qr, candidates);
     let hits = 0;
     for (let k = 0; k < count; k++) {
       const zid = candidates[k] as number;
-      if (projectileHasHit(pool, id, zid)) continue;
+      // The grid was built at the start of combat: skip zombies killed earlier this tick.
+      if (!isZombieAlive(z, zid) || projectileHasHit(pool, id, zid)) continue;
       const r = world.balance.zombies.types[zombieTypeOf(z, zid)]?.radiusM ?? 0;
       const t = segmentCircleT(x0, y0, x1, y1, z.x[zid] as number, z.y[zid] as number, r);
       if (t < 0) continue;

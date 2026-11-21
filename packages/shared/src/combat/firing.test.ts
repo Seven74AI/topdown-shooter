@@ -51,6 +51,23 @@ describe("Pistol firing (FR3, FR6, FR15)", () => {
     expect(count(events, "weapon.fired")).toBe(9); // exact average rate over 3 s
   });
 
+  it("keeps the exact 3/s rate over a long window (30 shots in 10 s)", () => {
+    const { world, p, events } = setup();
+    activeSlot(p.loadout).ammo = 1000; // no reload in this window
+    setInput(world, "local", aimRight());
+    run(world, 200);
+    expect(count(events, "weapon.fired")).toBe(30);
+  });
+
+  it("does not let an idle player save up a burst", () => {
+    const { world, events } = setup();
+    setInput(world, "local", aimRight({ fire: false }));
+    run(world, 100);
+    setInput(world, "local", aimRight());
+    run(world, 7); // ticks 0..6: shots at 0 and at ~6.67 → only 2 by tick 7 at most
+    expect(count(events, "weapon.fired")).toBeLessThanOrEqual(2);
+  });
+
   it("does not fire without the fire flag (aiming below the dead zone)", () => {
     const { world, events } = setup();
     setInput(world, "local", aimRight({ fire: false }));
@@ -150,6 +167,44 @@ describe("projectiles (FR14)", () => {
     expect(a).toEqual(dirs(5));
     expect(a.some((y) => y !== 0)).toBe(true);
     for (const y of a) expect(Math.abs(Math.asin(y))).toBeLessThanOrEqual((1 * Math.PI) / 180 + 1e-6); // ±1° for 2° spread
+  });
+});
+
+describe("projectile edge cases", () => {
+  it("does not stop on a zombie that died earlier in the same tick", () => {
+    const { world, events } = setup();
+    const p2 = addPlayer(world, "p2", 10, 16.2);
+    p2.hp = 1e9;
+    const front = spawnZombie(world, "walker", 13, 16.1);
+    world.zombies.hp[front] = 5; // dies to the first bullet
+    const back = spawnZombie(world, "walker", 14.5, 16.1);
+    setInput(world, "local", aimRight());
+    setInput(world, "p2", aimRight());
+    step(world, TICK_DT_S);
+    setInput(world, "local", NEUTRAL_INPUT);
+    setInput(world, "p2", NEUTRAL_INPUT);
+    run(world, 3);
+    const hitIds = events.filter((e) => e.type === "zombie.hit").map((e) => (e.type === "zombie.hit" ? e.zombieId : -1));
+    expect(hitIds).toContain(front);
+    expect(hitIds).toContain(back);
+  });
+
+  it("frees projectiles that leave the map", () => {
+    const { world, p } = setup();
+    p.x = 47;
+    setInput(world, "local", aimRight());
+    step(world, TICK_DT_S);
+    setInput(world, "local", NEUTRAL_INPUT);
+    run(world, 2);
+    expect(world.projectiles.aliveCount).toBe(0);
+  });
+
+  it("hits a zombie the projectile spawns inside", () => {
+    const { world, events } = setup();
+    const id = spawnZombie(world, "walker", 10.6, 16);
+    setInput(world, "local", aimRight());
+    step(world, TICK_DT_S);
+    expect(events.some((e) => e.type === "zombie.hit" && e.zombieId === id)).toBe(true);
   });
 });
 

@@ -47,7 +47,12 @@ export class HudScene extends Phaser.Scene {
   private aimKnob!: Phaser.GameObjects.Arc;
   private ammoText!: Phaser.GameObjects.Text;
   private reloadBar!: Phaser.GameObjects.Graphics;
-  private shownAmmoKey = "";
+  private shownWeapon = "";
+  private shownAmmo = Number.NaN;
+  private shownMag = Number.NaN;
+  private shownReloadStep = Number.NaN;
+  private shownW = 0;
+  private shownH = 0;
 
   constructor() {
     super("Hud");
@@ -58,7 +63,7 @@ export class HudScene extends Phaser.Scene {
     this.model = data.model;
     this.shownHp = -1;
     this.shownMaxHp = -1;
-    this.shownAmmoKey = "";
+    this.shownWeapon = "";
   }
 
   create(): void {
@@ -90,7 +95,10 @@ export class HudScene extends Phaser.Scene {
       this.sticks.pointerDown(p.id, p.x, p.y, this.scale.width);
     };
     const move = (p: Phaser.Input.Pointer) => this.sticks.pointerMove(p.id, p.x, p.y);
-    const up = (p: Phaser.Input.Pointer) => this.sticks.pointerUp(p.id);
+    const up = (p: Phaser.Input.Pointer) => {
+      unlockAudio(); // touchend is the activation event on iOS/Chrome; touchstart alone may not unlock
+      this.sticks.pointerUp(p.id);
+    };
     const reset = () => this.sticks.reset();
     this.input.on(Phaser.Input.Events.POINTER_DOWN, down);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, move);
@@ -117,7 +125,7 @@ export class HudScene extends Phaser.Scene {
     this.aimBase.setRadius(r);
     this.aimKnob.setRadius(KNOB_RADIUS_CSS_PX * dpr());
     this.ammoText.setFontSize(Math.round(AMMO_TEXT_PX * dpr()));
-    this.shownAmmoKey = "";
+    this.shownWeapon = "";
     this.hpText.setFontSize(Math.round(HP_TEXT_PX * dpr()));
     this.shownHp = -1; // force a redraw at the new scale
   }
@@ -151,9 +159,23 @@ export class HudScene extends Phaser.Scene {
   private drawWeapon(): void {
     const m = this.model;
     const reloading = m.reloadFrac >= 0;
-    const key = `${m.weaponName}|${m.ammo}|${m.magazine}|${reloading ? Math.round(m.reloadFrac * 50) : -1}|${this.scale.width}x${this.scale.height}`;
-    if (key === this.shownAmmoKey) return;
-    this.shownAmmoKey = key;
+    const reloadStep = reloading ? Math.round(m.reloadFrac * 50) : -1;
+    if (
+      m.weaponName === this.shownWeapon &&
+      m.ammo === this.shownAmmo &&
+      m.magazine === this.shownMag &&
+      reloadStep === this.shownReloadStep &&
+      this.scale.width === this.shownW &&
+      this.scale.height === this.shownH
+    ) {
+      return; // nothing changed: no string building, no redraw
+    }
+    this.shownWeapon = m.weaponName;
+    this.shownAmmo = m.ammo;
+    this.shownMag = m.magazine;
+    this.shownReloadStep = reloadStep;
+    this.shownW = this.scale.width;
+    this.shownH = this.scale.height;
     const k = dpr();
     const x = this.scale.width - AMMO_MARGIN * k;
     const y = this.scale.height - AMMO_MARGIN * k - RELOAD_BAR_H * k - 6 * k;

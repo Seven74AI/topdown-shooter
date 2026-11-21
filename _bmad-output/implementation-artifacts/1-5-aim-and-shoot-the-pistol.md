@@ -4,7 +4,7 @@ baseline_commit: 71921fbce2e6505ce326589c96eab8fc354d7ad6
 
 # Story 1.5: Aim and shoot the Pistol
 
-Status: review
+Status: done
 
 ## Story
 
@@ -137,6 +137,10 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `packages/shared/src/combat/damage.ts` (new)
 - `packages/shared/src/combat/firing.ts` (new)
 - `packages/shared/src/combat/firing.test.ts` (new)
+- `packages/shared/src/combat/projectilePool.test.ts` (new, review)
+- `packages/shared/src/combat/damage.test.ts` (new, review)
+- `packages/shared/src/zombies/zombieTypes.ts` (modified: `maxZombieRadius`)
+- `apps/client/src/render/ProjectileView.ts` (modified, review)
 - `packages/shared/src/player/player.ts` (modified: loadout)
 - `packages/shared/src/zombies/zombieAi.ts` (modified: uses core/time)
 - `packages/shared/src/core/simEvents.ts` (modified)
@@ -157,6 +161,22 @@ claude-opus-5-5 (Claude Opus 5.5), via gds-dev-story
 - `_bmad-output/implementation-artifacts/1-5-aim-and-shoot-the-pistol.md` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context; high findings reproduced with a script) · **Outcome:** Changes requested → all fixed
+- [x] [High] The Pistol fired at 2.857/s, not 3/s: clamping the cooldown at 0 every tick threw away the leftover time, so every interval was 7 ticks. Fix:
+  - a cooldown that is still running may end the tick slightly negative (by at most −dt), so `+= 1/rateHz` keeps the exact average;
+  - a weapon that was already ready carries no credit;
+  - any tick without a shot clamps the cooldown back to ≥ 0, so an idle player can't save up a burst.
+  - Measured over 100 s: Pistol 3.000/s, SMG 12.000/s, Hunting Rifle 1.200/s. Tests added: 30 shots in 10 s, and no burst after idling.
+- [x] [High] A zombie killed earlier in the same tick still caught later bullets (it stayed in the grid), so the second bullet died on the corpse. Fix: dead zombies are skipped among the hit candidates. A two-shooter test covers it.
+- [x] [Med] The audio unlock ran only on pointerdown (touchstart), which isn't an activation event on iOS/Chrome. It now also runs on pointerup. Not yet verified on a real phone; Story 1.12 covers that.
+- [x] [Low] The candidate radius used a fixed 2.5 m. Now `maxZombieRadius(balance)`, cached per balance. The candidate buffer is now the size of the whole zombie pool, so it can never truncate.
+- [x] [Low] `ProjectileView` could keep a stale rotation when a slot was reused within one frame. Rotation is now set every frame.
+- [x] [Low] `HudScene.drawWeapon` built a string key every frame. It now compares the fields directly.
+- [x] Missing tests added: `projectilePool.test.ts` (consecutive slots, full pool, swap-remove free, slot reuse resets hits, double free, pierce clamp), `damage.test.ts` (hit/kill events, kill once, pushback clamp), projectiles leaving the map, a projectile spawning inside a zombie, and same-tick corpses. The projectile snapshot now includes `prevX/prevY`, `speedMps` and `damage`.
+
 ## Change Log
 
+- 2026-11-21: Addressed code review findings - 7 items resolved (exact fire rate, same-tick corpses, audio unlock). 148 tests passing.
 - 2026-11-21: Story 1.5 implemented: aim stick with auto-fire, Pistol projectiles with swept hits, auto reload, damage/pushback/kills, hit flash, blood, muzzle flash, placeholder sounds, ammo HUD. 138 tests passing.
