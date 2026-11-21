@@ -4,3 +4,6 @@ dist/
 .vite/
 coverage/
 .DS_Store
+
+# Agent worktrees (local only)
+.claude/worktrees/
