@@ -4,7 +4,7 @@ project: 'topdown-shooter'
 date: '2026-11-21'
 author: 'Root'
 version: '1.0'
-stepsCompleted: [1, 2, 3, 4, 5, 6]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7]
 status: 'in-progress'
 
 # Source Documents
@@ -19,7 +19,7 @@ brief: '_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/
 
 This architecture document is being created through the GDS Architecture Workflow.
 
-**Steps Completed:** 6 of 9 (Structure)
+**Steps Completed:** 7 of 9 (Patterns)
 
 ---
 ## Project Context
@@ -420,3 +420,111 @@ Tests live next to the code they test: `foo.ts` → `foo.test.ts`.
 5. **The database is only touched from `apps/server/src/db` repositories**, never from rooms or simulation code directly.
 6. **Client ↔ server message shapes are defined once** in `packages/shared/src/net` and validated on the server.
 7. **Dev cheats live only in `apps/client/src/debug` and a dev-only server handler**, compiled out of release builds.
+
+## Implementation Patterns
+
+These patterns ensure consistent implementation across all AI agents.
+
+### Novel Patterns
+
+#### 1. Decay Stage Engine
+
+**Purpose:** change a district's gameplay (collision, cover, hazards, spawn points, lighting) and visuals stage by stage during a run, with no district-specific code.
+
+**Components:**
+- `DecayTimeline` (`shared/decay`): reads `decay.json` (stage per wave, e.g. waves 1–2 → stage 1) and the run seed; decides the random variations once per run (which cars burn, which alley collapses).
+- `DistrictMap` (`shared/map`): loaded from the Tiled export; holds per-stage **mutation sets**: objects with a `stage` property and an action `add | remove | ignite | block`.
+- `DecaySystem` (`shared/decay`): at the start of each Build phase, if the stage changes, applies the stage's mutations to the World (collision grid, cover, spawn points, hazard zones, light sources) and emits `decay.stage_changed`.
+- Client `DecayView` (`client/render`): on `decay.stage_changed`, swaps Tiled visual layer groups (`stageN_*`), weather and ambience; never touches collision.
+
+**Data flow:** wave ends → Build phase starts → `DecaySystem.apply(stage)` mutates World → event → server forwards → client swaps visuals and audio.
+
+**Rules:** decay changes happen only at Build phase start (never mid-wave), so players see the new map before fighting in it. Buildings overlapping a newly blocked cell are destroyed and refunded 50%. Mutations are idempotent, so a resumed run re-applies stages 1…N from the snapshot's seed.
+
+```ts
+// packages/shared/src/decay/decaySystem.ts
+export function applyDecayStage(world: World, stage: DecayStage, plan: DecayPlan): void {
+  if (world.decay.stage === stage) return;
+  for (const m of plan.mutationsFor(stage)) applyMutation(world, m); // add/remove/ignite/block
+  world.decay.stage = stage;
+  world.events.emit({ type: "decay.stage_changed", stage });
+}
+```
+
+#### 2. Horde Stream (interest-managed binary sync)
+
+**Purpose:** send up to 150 zombies per client within ~30 KB/s.
+
+**Components:** `hordeFormat` (`shared/net`: record layout, quantization), `HordeEncoder` (`server/net`: per-client view culling + encoding each tick), `HordeDecoder` + `InterpolationBuffer` (`client/net`).
+
+**Data flow:** every tick the server, per client, selects zombies within that client's camera rectangle + 4 m (using the spatial grid), writes `[tick u32][count u16]` + records `[id u16][x u16][y u16][heading u8][typeState u8]`, and sends one binary message. The client keeps the last 3 snapshots and renders ~100 ms behind; a zombie absent from 3 consecutive snapshots is removed from view; deaths arrive separately as reliable `zombie.killed` events so the death animation plays exactly once.
+
+```ts
+// packages/shared/src/net/hordeFormat.ts
+export const HORDE_RECORD_BYTES = 7;
+export const POS_SCALE = 100; // 1 cm precision, map up to 655 m
+export function quantizePos(m: number): number { return Math.round(m * POS_SCALE); }
+```
+
+#### 3. Personal Shop in a Shared Run
+
+**Purpose:** each player draws their own 6 cards from their own unlocked pool while sharing one run and one seed.
+
+**Rule:** the shop draw uses a per-player RNG sub-stream derived from `runSeed + playerId + buildPhaseIndex`; offers live in that player's private schema field (only sent to that client). Purchases are validated on the server against the stored offer; rerolls advance the player's sub-stream. A mid-run joiner gets their own stream starting at the current Build phase.
+
+#### 4. Blackout Lighting
+
+**Purpose:** darkness as gameplay without per-frame cost when lights are on.
+
+**Rule:** the server owns the light *state* (stage, blackout flag, which light sources exist); the client renders a darkness render texture only when the flag is on, cutting out cones for flashlights (aim direction), circles for floodlights, fires and muzzle flashes; zombie eyes are drawn above the darkness. Gameplay effects of darkness (e.g. turrets only target lit zombies, if adopted later) read the server light state, never the client render.
+
+### Communication Patterns
+
+**Pattern:** systems inside the simulation communicate through the typed event bus (see Cross-cutting → Event System) and through explicit function calls in a fixed system order; no system holds references to another system's internals.
+
+**System order per tick:** input → player → buildings → combat (projectiles, melee) → zombies AI/movement → boss → waves/spawns → events (special) → economy (rewards from events) → decay timers → event dispatch.
+
+```ts
+// packages/shared/src/core/world.ts
+export function step(world: World, dt: number): void {
+  applyInputs(world); updatePlayers(world, dt); updateBuildings(world, dt);
+  updateCombat(world, dt); updateZombies(world, dt); updateBoss(world, dt);
+  updateWaves(world, dt); updateSpecialEvents(world, dt); updateEconomy(world);
+  world.events.flush();
+}
+```
+
+### Entity Patterns
+
+**Creation:** factories + pools. Zombies and projectiles live in pre-allocated struct-of-arrays pools in the World (no per-spawn object allocation); players and buildings are plain objects created by factory functions reading balance data. Client views use Phaser object pools keyed by entity id.
+
+```ts
+const id = world.zombies.spawn("brute", x, y); // returns pool index; reads stats from balance
+world.zombies.kill(id, killerId);              // frees the slot, emits zombie.killed
+```
+
+### State Patterns
+
+- **Run phases:** explicit state machine on the server (`run/runStateMachine.ts`); transitions only through named functions (`startWave`, `endWave`, `openEvacVote`…).
+- **Zombie behavior:** small per-type state machines stored as a `u8` state in the pool (`chase`, `flank`, `keepDistance`, `windup`, `attack`, `swell`); no behavior trees in v1.
+- **Player state:** `alive | downed | out` with timers (`reviveProgressS`, `downedTimeLeftS`).
+
+### Data Patterns
+
+**Access:** one typed `Balance` object loaded and validated (zod) at startup in both server and client, passed into the World; systems read `world.balance.weapons.shotgun.pellets`, never raw JSON.
+
+```ts
+const balance = loadBalance(rawJsonFiles); // throws at startup if any value is invalid
+const world = createWorld({ balance, seed, district });
+```
+
+### Consistency Rules
+
+| Rule | Example |
+| --- | --- |
+| Simulation code is deterministic for a given seed and inputs | no `Math.random()`, no `Date.now()` in `packages/shared` |
+| Time inside the simulation is in seconds (`dt`), distances in meters | `speedMps * dt` |
+| Every client message type has a zod schema in `shared/net` | `inputMessageSchema.parse(msg)` |
+| No gameplay number inline | `balance.zombies.walker.hp`, not `10` |
+| Each new GDD mechanic gets a unit test in `shared` with a fixed seed | `bloater.test.ts` |
+| Client never decides outcomes | client plays `zombie.killed`, never deletes a zombie on its own |
