@@ -53,6 +53,7 @@ The frame interval runs from one Phaser `PRE_STEP` to the next. Gaps over 1 s (a
 | **Headless desktop, not a reference phone.** Linux container, Xeon, 4 vCPU, SwiftShader software GL, 844×390 @ DPR 2 | HeadlessChrome 157 (Playwright), release build (`vite preview`) | 27.1 | 16.9 | 23 | 92.74 | 0.19 / 1.80 | 0.23 | rendering/GPU | missed |
 | **iPhone 15 Pro** (designer, 2026-11-21; above the iPhone 12 reference class), 958×401 @ DPR 2, iOS 18.7 | Brave (WebKit, Safari engine) | 60.0 | 38.5 | 59 | 0.00 | 0.56 / 2.00 | 0.79 | none | **met** |
 | *iPhone 12 class* (designer) | Safari | | | | | | | | |
+| **Honor 10** (designer, 2026-11-21; 2018 Kirin 970, older than the Pixel 5 reference class), 808×332 @ DPR 2, Android 10 | Chrome 156 | 58.3 | 6.3 | 39 | 0.49 | 0.91 / 2.50 | 1.67 | rendering/GPU | missed (single-frame hitches) |
 | *Pixel 5 class* (designer) | Chrome | | | | | | | | |
 
 ### Headless desktop, for reference (2026-11-21)
@@ -73,6 +74,19 @@ These runs show where the cost is. They say nothing about phones: the GPU is a s
   - render-scale or DPR cap below 2;
   - fewer overdraw layers (street grid, blood decals);
   - texture atlas.
+
+### Reading of the phone results (2026-11-21)
+
+- **iPhone 15 Pro: target met** (60 FPS average, slowest frame 38.5 FPS).
+- **Honor 10: smooth on average but hitches.** The average is 58.3 FPS and the worst whole second is still 39 FPS, above 30. About 0.5 % of frames (≈ 17 in 60 s) took longer than 33 ms, and the single worst frame was ~160 ms.
+  - Cause: rendering-side hitches, not the simulation (0.9 ms per tick). Garbage collection or a GPU stall are the likely causes; we haven't confirmed which.
+  - It is a 2018 phone, below the 2021 reference class.
+- **Follow-up:** Story 10.2 (frame-rate pass) profiles these hitches on Android. Suspects:
+  - per-frame allocation on the render path (HUD text updates, tween objects);
+  - the first frames after a texture first appears;
+  - Chrome's GC on a 4 GB device.
+  - A cheap check before then: rerun with the performance overlay hidden (it re-renders text 4×/s).
+- Still wanted: a 2020–2021 mid-range Android (Pixel 5 / Galaxy A52 class).
 
 ## Human step (designer)
 
