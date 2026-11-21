@@ -1,7 +1,17 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import { MatchMakeError, type Room as SdkRoom } from "@colyseus/sdk";
-import { C2S, NEUTRAL_INPUT, RUN_ROOM_NAME, isRoomCode, type RunStateView } from "@topdown/shared";
+import { randomBytes } from "node:crypto";
+import {
+  C2S,
+  NEUTRAL_INPUT,
+  RUN_ROOM_NAME,
+  S2C,
+  TICK_RATE_HZ,
+  isRoomCode,
+  type RunJoined,
+  type RunStateView,
+} from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
 import { MAX_INPUTS_PER_S } from "../net/limits";
 import { JOIN_REFUSED_CODE, RunRoom, serverBalance } from "./RunRoom";
@@ -20,18 +30,49 @@ afterAll(async () => {
   await colyseus.shutdown();
 });
 
+const newToken = (): string => randomBytes(16).toString("hex");
+
 const createOptions = (over: Record<string, unknown> = {}) => ({
   intent: "create",
   name: "Ana",
   balanceVersion: serverBalance.version,
+  guestToken: newToken(),
   ...over,
 });
 
+const joinOptions = (over: Record<string, unknown> = {}) => createOptions({ intent: "join", name: "Bo", ...over });
+
+type RunSdkRoom = SdkRoom<unknown, RunStateView>;
+
+/** Resolves with the first `run.joined`; register right after the join resolves. */
+const nextJoined = (client: RunSdkRoom): Promise<RunJoined> =>
+  new Promise((resolve) => client.onMessage(S2C.RUN_JOINED, (m: RunJoined) => resolve(m)));
+
 async function createRun(over: Record<string, unknown> = {}) {
   const client = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, createOptions(over));
+  const joined = nextJoined(client);
   await client.waitForInitialState();
   const room = colyseus.getRoomById<RunRoom>(client.roomId) as unknown as RunRoom;
-  return { client, room };
+  return { client, room, joined };
+}
+
+async function joinRun(code: string, over: Record<string, unknown> = {}) {
+  const client = await colyseus.sdk.joinById<RunStateView>(code, joinOptions(over));
+  const joined = nextJoined(client);
+  await client.waitForInitialState();
+  return { client, joined };
+}
+
+/** Room state as plain JSON, keyed by player id. */
+const players = (room: RunRoom) =>
+  room.state.toJSON().players as Record<string, { slot: number; name: string; ready: boolean }>;
+
+/** Sets everyone listed Ready, then the host asks to start. */
+async function readyAndStart(room: RunRoom, host: RunSdkRoom, ...others: RunSdkRoom[]): Promise<void> {
+  for (const c of [host, ...others]) c.send(C2S.LOBBY_SET_READY, { ready: true });
+  await settle(room);
+  host.send(C2S.RUN_START, {});
+  await settle(room);
 }
 
 async function refusal(promise: Promise<unknown>): Promise<MatchMakeError> {
@@ -49,7 +90,7 @@ async function settle(room: RunRoom): Promise<void> {
   await room.waitForNextPatch();
 }
 
-const isOpen = (client: SdkRoom<unknown, RunStateView>): boolean => client.connection.isOpen;
+const isOpen = (client: RunSdkRoom): boolean => client.connection.isOpen;
 
 describe("RunRoom", () => {
   it("create gives a 4-letter code and the state shows the host", async () => {
@@ -160,6 +201,177 @@ describe("RunRoom", () => {
     const { client, room } = await createRun();
     await client.leave(true);
     await vi.waitFor(() => expect(room.state.players.size).toBe(0));
+  });
+});
+
+describe("RunRoom lobby (Story 2.3)", () => {
+  it("gives 4 players slots 0-3 and sends each run.joined", async () => {
+    const host = await createRun();
+    expect(await host.joined).toEqual({ playerId: "p0", slot: 0, tickRateHz: TICK_RATE_HZ });
+    for (const slot of [1, 2, 3]) {
+      const guest = await joinRun(host.client.roomId, { name: `G${slot}` });
+      expect(await guest.joined).toEqual({ playerId: `p${slot}`, slot, tickRateHz: TICK_RATE_HZ });
+    }
+    expect(Object.keys(players(host.room)).sort()).toEqual(["p0", "p1", "p2", "p3"]);
+    expect(players(host.room).p2).toEqual({ slot: 2, name: "G2", ready: false });
+    // Every client sees every player.
+    await vi.waitFor(() => expect(host.client.state.players.size).toBe(4));
+    expect(host.client.state.players.get("p3")?.name).toBe("G3");
+  });
+
+  it("refuses a 5th player with 522 locked (This game is full)", async () => {
+    const host = await createRun();
+    for (let i = 0; i < 3; i++) await joinRun(host.client.roomId);
+    const e = await refusal(colyseus.sdk.joinById(host.client.roomId, joinOptions()));
+    expect(e.code).toBe(522);
+    expect(e.message).toMatch(/locked/);
+  });
+
+  it("refuses an unknown code with 522 not found (Game not found)", async () => {
+    const e = await refusal(colyseus.sdk.joinById("ZZZZ", joinOptions()));
+    expect(e.code).toBe(522);
+    expect(e.message).toMatch(/not found/);
+  });
+
+  it("reuses a freed slot for the next joiner", async () => {
+    const host = await createRun();
+    const one = await joinRun(host.client.roomId);
+    await joinRun(host.client.roomId);
+    expect((await one.joined).slot).toBe(1);
+    await one.client.leave(true);
+    await vi.waitFor(() => expect(host.room.state.players.has("p1")).toBe(false));
+    const next = await joinRun(host.client.roomId, { name: "Cy" });
+    expect(await next.joined).toMatchObject({ playerId: "p1", slot: 1 });
+    expect(players(host.room).p1?.name).toBe("Cy");
+  });
+
+  it("hands the host to the longest-connected player when the host leaves", async () => {
+    const host = await createRun();
+    const first = await joinRun(host.client.roomId);
+    const second = await joinRun(host.client.roomId);
+    expect((await second.joined).slot).toBe(2);
+    // Make slot order differ from join order: free slot 1, and a later joiner takes it.
+    await first.client.leave(true);
+    await vi.waitFor(() => expect(host.room.state.players.size).toBe(2));
+    const late = await joinRun(host.client.roomId);
+    expect((await late.joined).slot).toBe(1);
+    await host.client.leave(true);
+    await vi.waitFor(() => expect(host.room.state.players.has("p0")).toBe(false));
+    expect(host.room.state.hostSlot).toBe(2); // joined before the new slot-1 player
+    await vi.waitFor(() => expect(second.client.state.hostSlot).toBe(2));
+  });
+
+  it("sets Ready only for the sender", async () => {
+    const host = await createRun();
+    const guest = await joinRun(host.client.roomId);
+    await guest.joined;
+    guest.client.send(C2S.LOBBY_SET_READY, { ready: true });
+    await settle(host.room);
+    expect(players(host.room).p1?.ready).toBe(true);
+    expect(players(host.room).p0?.ready).toBe(false);
+    guest.client.send(C2S.LOBBY_SET_READY, { ready: "yes" }); // invalid: dropped
+    await settle(host.room);
+    expect(players(host.room).p1?.ready).toBe(true);
+    guest.client.send(C2S.LOBBY_SET_READY, { ready: false });
+    await settle(host.room);
+    expect(players(host.room).p1?.ready).toBe(false);
+    await vi.waitFor(() => expect(host.client.state.players.get("p1")?.ready).toBe(false));
+  });
+
+  it("refuses a start while someone isn't Ready, and starts when everyone is", async () => {
+    const host = await createRun();
+    const guest = await joinRun(host.client.roomId);
+    await guest.joined;
+    const info = vi.spyOn(host.room.log, "info");
+    await readyAndStart(host.room, host.client);
+    expect(host.room.state.phase).toBe("lobby");
+    expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "not_ready" }, "run_start_refused");
+    await readyAndStart(host.room, host.client, guest.client);
+    expect(host.room.state.phase).toBe("wave");
+    expect(info).toHaveBeenCalledWith({ players: 2 }, "run_started");
+    await vi.waitFor(() => expect(guest.client.state.phase).toBe("wave"));
+  });
+
+  it("refuses a start from a non-host", async () => {
+    const host = await createRun();
+    const guest = await joinRun(host.client.roomId);
+    await guest.joined;
+    const info = vi.spyOn(host.room.log, "info");
+    await readyAndStart(host.room, guest.client, host.client);
+    expect(host.room.state.phase).toBe("lobby");
+    expect(info).toHaveBeenCalledWith({ playerId: "p1", reason: "not_host" }, "run_start_refused");
+  });
+
+  it("refuses a solo start unless allowSoloStart, then accepts it", async () => {
+    const { client, room } = await createRun();
+    const info = vi.spyOn(room.log, "info");
+    room.allowSoloStart = false;
+    await readyAndStart(room, client);
+    expect(room.state.phase).toBe("lobby");
+    expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "too_few" }, "run_start_refused");
+    room.allowSoloStart = true;
+    await readyAndStart(room, client);
+    expect(room.state.phase).toBe("wave");
+  });
+
+  it("ignores Ready and a second start once the run started", async () => {
+    const { client, room } = await createRun();
+    room.allowSoloStart = true;
+    await readyAndStart(room, client);
+    expect(room.state.phase).toBe("wave");
+    const info = vi.spyOn(room.log, "info");
+    client.send(C2S.LOBBY_SET_READY, { ready: false });
+    client.send(C2S.RUN_START, {});
+    await settle(room);
+    expect(players(room).p0?.ready).toBe(true);
+    expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "not_lobby" }, "run_start_refused");
+  });
+
+  it("refuses a join after the start with run_started", async () => {
+    const { client, room } = await createRun();
+    room.allowSoloStart = true;
+    await readyAndStart(room, client);
+    const e = await refusal(colyseus.sdk.joinById(client.roomId, joinOptions()));
+    expect(e.code).toBe(JOIN_REFUSED_CODE);
+    expect(e.message).toBe("run_started");
+    expect(room.state.players.size).toBe(1);
+  });
+
+  it("refuses the same guest token twice with already_joined", async () => {
+    const guestToken = newToken();
+    const { client, room } = await createRun({ guestToken });
+    const e = await refusal(colyseus.sdk.joinById(client.roomId, joinOptions({ guestToken })));
+    expect(e.code).toBe(JOIN_REFUSED_CODE);
+    expect(e.message).toBe("already_joined");
+    expect(room.state.players.size).toBe(1);
+  });
+
+  it("keeps the guest token and its hash out of room state and logs", async () => {
+    const guestToken = newToken();
+    const host = await createRun();
+    const info = vi.spyOn(host.room.log, "info");
+    await (await joinRun(host.client.roomId, { guestToken })).joined;
+    const json = JSON.stringify(host.room.state.toJSON());
+    expect(json).not.toContain(guestToken);
+    expect(json.toLowerCase()).not.toContain("token");
+    expect(json).not.toMatch(/[0-9a-f]{32}/);
+    const logged = JSON.stringify(info.mock.calls);
+    expect(logged).not.toMatch(/[0-9a-f]{32}/);
+    expect(info).toHaveBeenCalledWith({ playerId: "p1", slot: 1 }, "player_joined");
+  });
+
+  it("takes allowSoloStart from the server, never from the client", async () => {
+    const { room } = await createRun();
+    expect(room.allowSoloStart).toBe(true); // bootTestServer default
+    const e = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ allowSoloStart: false })));
+    expect(e.message).toBe("invalid_options");
+  });
+
+  it("refuses a missing or malformed guest token with invalid_options", async () => {
+    for (const guestToken of [undefined, "abc", "Z".repeat(32)]) {
+      const e = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ guestToken })));
+      expect(e.message).toBe("invalid_options");
+    }
   });
 });
 

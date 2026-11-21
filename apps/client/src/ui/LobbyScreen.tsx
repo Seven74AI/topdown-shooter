@@ -1,12 +1,19 @@
 import { useEffect, useState } from "preact/hooks";
 import { uiStore, type UiScreen } from "./uiState";
 import { copyLink, share, shareLink } from "./share";
-import { lobbyStore, type LobbySnapshot } from "../net/lobbyStore";
+import { lobbyStore, lobbyView, type LobbySnapshot } from "../net/lobbyStore";
+import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
 
 /** How long "Link copied" stays visible. */
 const NOTICE_MS = 2000;
+/** Dev builds let the host start alone (the dev server allows it too, Story 2.3). */
+const ALLOW_SOLO_START = import.meta.env.DEV;
 
-/** Online lobby (Story 2.1): the room code, the invite link, Copy and Share, and who is in. */
+/**
+ * Online lobby (Stories 2.1/2.3): the room code, the invite link, Copy and Share, the 4 slots with
+ * color, name, Ready, Host and You, then Ready, Start (host only) and Leave. After the host starts,
+ * a "Starting…" placeholder until Story 2.4 starts the Game scene online.
+ */
 export function LobbyScreen() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
   const [lobby, setLobby] = useState<LobbySnapshot>(lobbyStore.get());
@@ -18,6 +25,7 @@ export function LobbyScreen() {
     const id = setTimeout(() => setNotice(""), NOTICE_MS);
     return () => clearTimeout(id);
   }, [notice]);
+  if (screen.kind === "starting") return <StartingScreen />;
   if (screen.kind !== "lobby") return null;
 
   const code = screen.code;
@@ -27,35 +35,80 @@ export function LobbyScreen() {
     if (r === "copied") setNotice("Link copied");
     else if (r === "failed") setNotice("Couldn't share the link");
   };
+  const view = lobbyView(lobby, ALLOW_SOLO_START);
+  const ready = view.me?.ready === true;
 
   return (
     <div class="menu lobby" role="dialog" aria-labelledby="lobby-title">
-      <h2 id="lobby-title" class="lobby__label">
-        Game code
-      </h2>
-      <p class="lobby__code" aria-label={`Game code ${code.split("").join(" ")}`}>
-        {code}
-      </p>
-      <p class="lobby__link">{shareLink(code)}</p>
-      <div class="lobby__row">
-        <button type="button" class="btn" onClick={onCopy}>
-          Copy
+      <section class="lobby__invite">
+        <h2 id="lobby-title" class="lobby__label">
+          Game code
+        </h2>
+        <p class="lobby__code" aria-label={`Game code ${code.split("").join(" ")}`}>
+          {code}
+        </p>
+        <p class="lobby__link">{shareLink(code)}</p>
+        <div class="lobby__row">
+          <button type="button" class="btn" onClick={onCopy}>
+            Copy
+          </button>
+          <button type="button" class="btn" onClick={onShare}>
+            Share
+          </button>
+        </div>
+        <p class="lobby__notice" aria-live="polite">
+          {notice}
+        </p>
+      </section>
+      <section class="lobby__team">
+        <ul class="lobby__players" aria-label="Players">
+          {view.rows.map((p, slot) => (
+            <li key={slot} class={`lobby__player${p ? "" : " lobby__player--open"}`}>
+              <span
+                class="lobby__dot"
+                style={{ background: SLOT_COLOR_CSS[slot] }}
+                role="img"
+                aria-label={SLOT_COLOR_NAMES[slot]}
+              />
+              <span class="lobby__name">{p ? p.name : "Open"}</span>
+              {p && p.slot === lobby.hostSlot && <span class="lobby__tag">Host</span>}
+              {p && p.playerId === lobby.localPlayerId && <span class="lobby__tag lobby__tag--you">You</span>}
+              {p && (
+                <span class={`lobby__ready${p.ready ? " lobby__ready--on" : ""}`}>{p.ready ? "Ready" : "Not ready"}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+        <div class="lobby__row">
+          <button
+            type="button"
+            class={`btn${ready ? " btn--secondary" : ""}`}
+            disabled={view.me === null}
+            onClick={() => lobbyStore.setReady(!ready)}
+          >
+            {ready ? "Not ready" : "Ready"}
+          </button>
+          {view.isHost && (
+            <button type="button" class="btn btn--start" disabled={!view.canStart} onClick={() => lobbyStore.start()}>
+              Start
+            </button>
+          )}
+        </div>
+        {view.startHint && <p class="lobby__hint">{view.startHint}</p>}
+        {!view.isHost && view.me && <p class="lobby__hint">The host starts the game</p>}
+        <button type="button" class="btn btn--secondary" onClick={() => uiStore.request("leaveLobby")}>
+          Leave
         </button>
-        <button type="button" class="btn" onClick={onShare}>
-          Share
-        </button>
-      </div>
-      <p class="lobby__notice" aria-live="polite">
-        {notice}
-      </p>
-      <ul class="lobby__players">
-        {lobby.players.map((p) => (
-          <li key={p.playerId}>
-            {p.name}
-            {p.slot === lobby.hostSlot ? " (host)" : ""}
-          </li>
-        ))}
-      </ul>
+      </section>
+    </div>
+  );
+}
+
+/** Placeholder after the host started (Story 2.3); Story 2.4 starts the Game scene instead. */
+function StartingScreen() {
+  return (
+    <div class="menu menu--center" role="dialog" aria-labelledby="starting-title">
+      <h2 id="starting-title">Starting…</h2>
       <button type="button" class="btn btn--secondary" onClick={() => uiStore.request("leaveLobby")}>
         Leave
       </button>

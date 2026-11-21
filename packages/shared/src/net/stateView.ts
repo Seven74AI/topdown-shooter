@@ -8,6 +8,8 @@ import type { RunPhase } from "./messages";
 export interface PlayerStateView {
   readonly slot: number;
   readonly name: string;
+  /** Lobby Ready flag (Story 2.3); reset when the room returns to the lobby (Story 2.8). */
+  readonly ready: boolean;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */

@@ -3,10 +3,12 @@
  * Phaser writes the state; Preact renders it and sends requests back through `on`.
  */
 export type UiScreen =
-  /** Start screen (Story 2.1): name, Create game, Practice solo. `error` is player text. */
+  /** Start screen (Stories 2.1/2.3): name, Create game, code + Join, Practice solo. `error` is player text. */
   | { kind: "start"; error?: string }
   /** Online lobby; players come from `net/lobbyStore`. */
   | { kind: "lobby"; code: string }
+  /** The host started (Story 2.3 placeholder); Story 2.4 starts the Game scene online instead. */
+  | { kind: "starting" }
   | { kind: "playing" }
   | { kind: "gameOver"; waveReached: number }
   /** Dev builds: choose two weapons before the run (temporary until the shop, Story 3.3). */
@@ -19,6 +21,10 @@ export interface UiRequests {
   startRun: (loadout: LoadoutChoice) => void;
   /** Start screen: create an online run with this (already validated) name. */
   createGame: (name: string) => void;
+  /** Start screen: join the run with this (well-formed) code and (validated) name (Story 2.3). */
+  joinGame: (code: string, name: string) => void;
+  /** Lobby: the run started (phase `wave`). Story 2.4 starts `Game` with `{ mode: "online" }`. */
+  startOnline: () => void;
   /** Start screen: play offline, exactly as Epic 1. */
   startSolo: () => void;
   /** Lobby: leave the room and return to the start screen. */
