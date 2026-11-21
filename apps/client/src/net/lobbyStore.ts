@@ -8,6 +8,7 @@ import {
   type RunStateView,
 } from "@topdown/shared";
 import type { RunConnection } from "./connection";
+import { lostReason, type LostReason } from "./serverNotice";
 
 export interface LobbyPlayer {
   readonly playerId: string;
@@ -71,7 +72,8 @@ export type LobbyWatcher = (room: RunConnection, onChange: () => void) => () => 
 export interface AttachOptions {
   watch: LobbyWatcher;
   /** The connection ended without the player leaving. */
-  onLost: () => void;
+  /** The connection ended without the player leaving: `server_restarting` (Story 2.2) or `connection_lost`. */
+  onLost: (reason: LostReason) => void;
   /** `phase` changed (e.g. `"wave"` when the host started). */
   onPhase: (phase: RunPhase) => void;
 }
@@ -133,13 +135,16 @@ class LobbyStore {
       this.joined = m;
       schedule();
     });
+    // Story 2.2: a stop or redeploy announces itself before the room closes.
+    let shuttingDown = false;
+    room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, () => (shuttingDown = true));
     this.unwatch = watch(room, schedule);
     schedule();
-    room.onLeave(() => {
+    room.onLeave((code) => {
       if (this.room !== room) return; // we left on purpose
       this.detach();
       this.set(EMPTY);
-      onLost();
+      onLost(lostReason(code, shuttingDown));
     });
   }
 

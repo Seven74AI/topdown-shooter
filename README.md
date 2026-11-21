@@ -28,11 +28,9 @@ npm run build      # static client build → apps/client/dist
 
 ## Playable link
 
-Every push to `master` that passes CI publishes the client to GitHub Pages:
+**https://hordes.sevend.io/**: the client and the game server, on the designer's VPS behind a Cloudflare Tunnel (Story 2.2). After a merge to `master` with CI green, it is deployed on the VPS with `deploy/deploy.sh`; see [`docs/deploy.md`](docs/deploy.md) for setup, deploy and rollback. GitHub Pages is no longer published (it cannot run the game server).
 
-**https://seven74ai.github.io/topdown-shooter/**
-
-Pages serves the game under `/topdown-shooter/` (the build sets `BASE_PATH=/topdown-shooter/`); the VPS (Story 2.2) serves it at `/`. When loading files from `apps/client/public/`, build URLs with `import.meta.env.BASE_URL` (e.g. `` `${import.meta.env.BASE_URL}assets/hero.png` ``) so they work under both.
+The game is served at `/`. `BASE_PATH` still sets Vite's `base` if a sub-path is ever needed; when loading files from `apps/client/public/`, build URLs with `import.meta.env.BASE_URL` (e.g. `` `${import.meta.env.BASE_URL}static/hero.png` ``). Unhashed public files must not live under `/assets/`: Caddy caches that folder for a year (see `deploy/Caddyfile`).
 
 ## Dependencies
 

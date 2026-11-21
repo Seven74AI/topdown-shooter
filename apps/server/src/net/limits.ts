@@ -14,3 +14,7 @@ export const MAX_OTHER_MESSAGES_PER_S = 10;
 
 /** At most one `client_message_rejected` warn per client and reason in this window. */
 export const DROP_LOG_INTERVAL_MS = 10_000;
+
+/** Rooms one IP may create per `ROOM_CREATE_WINDOW_MS` (Story 2.2 AC 3); more are `rate_limited`. */
+export const MAX_ROOM_CREATES_PER_MIN = 10;
+export const ROOM_CREATE_WINDOW_MS = 60_000;

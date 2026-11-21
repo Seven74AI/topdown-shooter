@@ -13,6 +13,7 @@ import { JOIN_ERROR_TEXT } from "./net/joinErrors";
 import { parseJoinPath } from "./net/route";
 import type { RunConnection } from "./net/connection";
 import type { Result } from "@topdown/shared";
+import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
 import "./ui/overlay.css";
 
 // Phaser 4 has no `resolution` option: size the canvas in device pixels
@@ -67,7 +68,11 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
     const room = r.result.value;
     lobbyStore.attach(room, {
       watch: r.watch,
-      onLost: () => uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable }),
+      onLost: (reason) => {
+        if (reason === "connection_lost") return uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
+        uiStore.set({ kind: "start" }); // Story 2.2: stop or redeploy, the dialog goes over the start screen
+        serverNotice.show(SERVER_RESTARTING_TEXT);
+      },
       onPhase: (phase) => {
         if (phase === "wave") uiStore.request("startOnline");
       },
