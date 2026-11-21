@@ -4,7 +4,7 @@ project: 'topdown-shooter'
 date: '2026-11-21'
 author: 'Root'
 version: '1.0'
-stepsCompleted: [1, 2, 3]
+stepsCompleted: [1, 2, 3, 4]
 status: 'in-progress'
 
 # Source Documents
@@ -19,7 +19,7 @@ brief: '_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/
 
 This architecture document is being created through the GDS Architecture Workflow.
 
-**Steps Completed:** 3 of 9 (Engine)
+**Steps Completed:** 4 of 9 (Decisions)
 
 ---
 ## Project Context
@@ -141,3 +141,59 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 
 - **Context7 MCP** (upstash/context7, `@upstash/context7-mcp` 4.7.x): lets AI agents fetch current Phaser 4, Colyseus 0.18 and Vite documentation instead of relying on training data. Install for Claude Code: `claude mcp add context7 -- npx -y @upstash/context7-mcp`.
 - No Phaser-specific MCP is listed in the knowledge base; none adopted.
+
+## Architectural Decisions
+
+### Decision Summary
+
+| Category | Decision | Version (verified 2026-11-21) | Rationale |
+| --- | --- | --- | --- |
+| Network model | Server-authoritative simulation at **20 Hz**; local player predicted on the client; remote entities interpolated ~100 ms behind | Colyseus 0.18 | One source of truth for a 150-zombie horde; instant feel for your own character (user choice) |
+| Horde sync | **Custom compact binary horde stream** from day one, interest-managed per client; Colyseus schema for everything else | @colyseus/schema 5.0 | The horde is the bandwidth risk; optimize it first (user choice) |
+| Hit validation | Server simulates all projectiles and melee; shots spawn at the shooter's position advanced by half their round-trip time (capped at 150 ms); no full rewind in v1 | — | Zombies are slow (≤ 4 m/s); simple compensation meets "< 1 in 20 hits reversed" |
+| Simulation structure | Shared, engine-free TypeScript simulation package; data-oriented entity storage (struct-of-arrays for zombies and projectiles); uniform spatial hash grid (2 m cells) | TypeScript 7.0 | Same rules on server and client prediction; fast enough for 150+ zombies on one core |
+| Run state machine | Explicit server-side state machine: Lobby → Build → Wave → EvacVote → (Endless loop ↔ EvacVote) → Results; Paused (saved) as a side state | — | Clear phase ownership; save points only in Build |
+| Persistence | **Single PostgreSQL** for accounts, meta-progression and saved runs | PostgreSQL 18 · pg 8.23 · Drizzle ORM 0.45 | One reliable store; user choice. 18 chosen over the brand-new 19.0 for maturity |
+| Saved runs | Run snapshot (JSON, versioned) written at each Build phase; kept 7 days; resumable only with the host | — | Matches GDD; snapshots only at calm points |
+| Reconnect | Colyseus `allowReconnection` 120 s; player slot, wallet and gear held in room state | Colyseus 0.18 | GDD 2-minute rule |
+| Accounts | Guest = random device token in localStorage → server session; upgrade to username + password (Argon2id hashed) | @node-rs/argon2 2.2 | No signup before first play (GDD); no email service needed |
+| Hosting | User's existing **Linux VPS in Europe** (6 vCPU, 12 GB RAM, ~30 GB free); Docker Compose: Caddy (HTTPS + static client) · game server · PostgreSQL; subdomain on the user's domain | Caddy 2.11 · Node.js 26 LTS | Already owned, close to all players, ample capacity (user choice) |
+| Maps | Districts authored in **Tiled** (JSON export); one layer group per decay stage, toggled by the decay system; collision and cover as object layers | Tiled map format | Hand-made maps with data-driven decay |
+| Lighting | Darkness render texture with lights cut out (flashlights, floodlights, fires, muzzle flashes); lit only when needed | Phaser 4 | Proven in the Lamplight probe; cheap when off |
+| Balance data | All tunable numbers (weapons, zombies, buildings, waves, economy, decay timings) in typed JSON config in the shared package | — | Rebalance without code changes; server and client read the same values |
+| Randomness | Seeded PRNG per run (run seed + named sub-streams: events, decay, shop per player) | — | Reproducible runs for testing |
+| UI | In-combat HUD drawn by Phaser; menus (lobby, shop, unlocks, evac vote) as HTML overlays built with **Preact** | Preact 11.2 | Readable, responsive menus on phones; small runtime |
+| Asset loading | Boot (tiny) → Preload (district atlas, sprites, SFX) → Game; music streamed after start; texture atlases | Phaser Loader | 15 MB / 10 s first-load target |
+| Audio | Three buses: music, SFX, ambience; positional volume/pan for zombie cues | Phaser Web Audio | GDD audio direction, settings |
+| Testing | Vitest for shared simulation (headless, deterministic with seeds); bot clients for load tests | Vitest 5.1 | Simulation is testable without a browser |
+
+### State Management
+
+**Server:** each game is a Colyseus room owning one `Run`: the run state machine plus the shared simulation `World`. The room is the only writer. Colyseus schema holds low-frequency, structured state (players, wallets, loadouts, buildings, phase, timers, decay stage, votes). High-frequency horde data is *not* in schema.
+
+**Client:** Phaser scenes read state only. Local input is applied immediately to a predicted copy of the local player using the shared movement code, then reconciled with server snapshots. Remote players and zombies are rendered from an interpolation buffer ~100 ms behind.
+
+### Networking
+
+- **Tick:** server simulation fixed step 50 ms (20 Hz); projectile collision uses swept segment-vs-circle tests so 60 m/s bullets cannot tunnel.
+- **Client input:** sent every client frame, throttled to 30 msgs/s: move vector, aim vector, fire held, swap, consumable, ping; each tagged with a sequence number for reconciliation.
+- **Horde stream:** per tick, per client, a binary message containing zombies inside that client's view plus a 4 m margin. Record: id (u16), x and y (u16, 1 cm precision), heading (u8), type+state (u8) ≈ 7 bytes; zombies outside the view are omitted. Worst case 150 in view × 7 B × 20 Hz ≈ 21 KB/s, inside the 30 KB/s target.
+- **Events:** deaths, explosions, hits, telegraphs and decay transitions as reliable discrete messages so effects play exactly once.
+
+### Data Persistence
+
+- **PostgreSQL tables (initial):** `accounts` (id, username, password hash, guest token, created), `progress` (account id, supplies, unlocks, training levels, districts), `saved_runs` (id, host account id, district, seed, snapshot JSON, schema version, created, expires).
+- **Migrations:** Drizzle Kit, versioned in the repo.
+- **What is not persisted:** live wave state; a run can only be saved and resumed from a Build phase.
+
+### Asset Management
+
+Texture atlases per district and per character set; audio sprites for SFX; ambience loops and music streamed. Placeholder/AI art in the same atlas layout as final art so Epic 9 swaps files without code changes.
+
+### Architecture Decision Records
+
+- **ADR-01 Server authority + client prediction.** Chosen over lockstep (fragile with mobile networks, hard mid-run joins) and client authority (screens drift). Cost: prediction/reconciliation code for the local player.
+- **ADR-02 Custom horde stream.** Chosen over pure schema sync to control the biggest bandwidth risk from day one. Cost: a hand-written encoder/decoder with tests.
+- **ADR-03 Shared simulation package.** One implementation of movement, combat and collision used by the server (authority), the client (prediction) and tests. Rule: no Phaser or Colyseus imports inside it.
+- **ADR-04 Single PostgreSQL on the existing VPS.** Simplicity over scale; backups by nightly dump.
+- **ADR-05 Tiled maps with decay layers.** Decay is data, not code paths per district, so new districts need no new code.
