@@ -14,8 +14,24 @@ updated: 2026-11-21
 - Played on a phone, in a mobile web browser (no app install)
 - Includes a co-op mode: zombie / wave survival
 
+## Stakes & focus
+- Passion project for the user and their friends.
+- **First mode: co-op wave survival.** PvP is parked for a later phase.
+- Time and budget are not the main constraints.
+
 ## Vision
-_TBD_
+_TBD — emerging: co-op horde survival with build-up strategy and roguelite meta-progression._
+
+## Co-op wave mode — what we know
+- **Feel:** horde chaos (big crowds, power fantasy) mixed with build-up and strategy.
+- **Upgrades:** weapons, equipment, buildings/defenses.
+- **Players:** 2–4 per game, each with their own account; create/join games.
+- **Combat styles:** not only guns — melee/short, mid and long range are all valid ways to play.
+- **Run:** endless waves, play until you lose.
+- **Between runs:** mostly unlocks that add items to the pool, plus small capped permanent boosts.
+- **Build phase:** upgrades/building happen between waves; waves are pure combat.
+- **Controls:** twin-stick (move + aim/fire).
+- **Roles:** no classes — melee / mid / ranged emerges from the gear you collect.
 
 ## Target players
 _TBD_
