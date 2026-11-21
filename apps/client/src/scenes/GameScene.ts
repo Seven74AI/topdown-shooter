@@ -17,6 +17,8 @@ import {
 } from "@topdown/shared";
 import { dpr } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
+import { InputRouter } from "../input/InputRouter";
+import { attachDesktopInput } from "../input/desktopInput";
 import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
 import { drawStreet } from "../render/StreetView";
@@ -46,6 +48,9 @@ const CHEVRON_LIFT_M = 0.7;
 export class GameScene extends Phaser.Scene {
   private host: LocalSimHost | null = null;
   private sticks: TouchSticks | null = null;
+  /** Touch sticks or keyboard + mouse, whichever was used last (Story 1.10). */
+  private router: InputRouter | null = null;
+  private readonly cursorWorld = new Phaser.Math.Vector2();
   private playerView: PlayerView | null = null;
   private zombieView: ZombieView | null = null;
   private projectileView: ProjectileView | null = null;
@@ -114,12 +119,17 @@ export class GameScene extends Phaser.Scene {
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
 
     this.sticks = new TouchSticks(STICK_RADIUS_CSS_PX * dpr(), balance.controls.moveDeadZone, balance.controls.aimDeadZone);
-    const hudData: HudSceneData = { sticks: this.sticks, model: this.hudModel };
+    const router = new InputRouter(this.sticks);
+    this.router = router;
+    const detachDesktop = attachDesktopInput(router, window, document, document.getElementById("game"));
+    const hudData: HudSceneData = { sticks: this.sticks, model: this.hudModel, router };
     this.scene.launch("Hud", hudData);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
       this.scene.stop("Hud");
+      detachDesktop();
+      this.router = null;
       uiStore.handle("restart", undefined);
       uiStore.handle("startRun", undefined);
       for (const c of this.chevrons) c.destroy();
@@ -181,16 +191,14 @@ export class GameScene extends Phaser.Scene {
 
   override update(_time: number, deltaMs: number): void {
     const host = this.host;
-    if (!host || !this.sticks) return;
+    const router = this.router;
+    if (!host || !router) return;
 
-    const mv = this.sticks.moveVector();
-    this.input_.moveX = mv.x;
-    this.input_.moveY = mv.y;
-    const aim = this.sticks.aimVector();
-    this.input_.aimX = aim.x;
-    this.input_.aimY = aim.y;
-    this.input_.fire = aim.fire;
-    this.input_.swap = this.hudModel.swapPressed; // edge flag: LocalSimHost latches it for one step
+    // Mouse aim: survivor (last drawn position) → cursor, through the camera that drew that frame.
+    const pv = this.playerView;
+    const cw = this.cursorWorld.set(Number.NaN, Number.NaN);
+    if (router.isMouse && pv && !Number.isNaN(router.cursorX)) this.cameras.main.getWorldPoint(router.cursorX, router.cursorY, cw);
+    router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y);
     this.hudModel.swapPressed = false;
     host.setLocalInput(this.input_);
 
