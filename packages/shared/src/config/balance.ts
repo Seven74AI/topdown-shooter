@@ -64,3 +64,28 @@ export function loadBalance(raw: RawBalanceFiles = BUNDLED): Balance {
   const version = fnv1a32(canonicalJson(parsed)).toString(16).padStart(8, "0");
   return deepFreeze({ version, ...parsed }) as Balance;
 }
+
+/** A deep copy of the balance files bundled with the package (to apply overrides to). */
+export function bundledBalanceFiles(): RawBalanceFiles {
+  return JSON.parse(JSON.stringify(BUNDLED)) as RawBalanceFiles;
+}
+
+/** One override: a value at a dotted path inside one balance file, e.g. `["weapons", "machete.arcDeg", 120]`. */
+export type BalanceOverride = readonly [file: BalanceFileName, path: string, value: number];
+
+/**
+ * Returns a copy of `raw` with each override applied (Story 1.12 live tuning). Overrides of keys
+ * that don't exist are ignored. The result still goes through `loadBalance()`, so an invalid value
+ * fails validation like any balance edit.
+ */
+export function withOverrides(raw: RawBalanceFiles, overrides: readonly BalanceOverride[]): RawBalanceFiles {
+  const out = JSON.parse(JSON.stringify(raw)) as Record<string, unknown>;
+  for (const [file, path, value] of overrides) {
+    const keys = path.split(".");
+    let node = out[file] as Record<string, unknown> | undefined;
+    for (let i = 0; node && i < keys.length - 1; i++) node = node[keys[i] as string] as Record<string, unknown> | undefined;
+    const last = keys[keys.length - 1] as string;
+    if (node && typeof node === "object" && last in node) node[last] = value;
+  }
+  return out as RawBalanceFiles;
+}

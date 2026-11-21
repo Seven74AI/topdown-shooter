@@ -32,6 +32,8 @@ import { MAX_RUSH_MARKERS, createHudModel } from "./hudModel";
 import { LOCAL_PLAYER_ID, LocalSimHost } from "../sim/LocalSimHost";
 import type { HudSceneData } from "./HudScene";
 import { urlOptions } from "../debug/urlOptions";
+import { getTuning, tunedBalance } from "../debug/tuning";
+import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 
@@ -80,10 +82,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(data?: GameSceneData): void {
-    const balance: Balance = loadBalance();
+    const opts = urlOptions();
+    // ?tune=1: the live tuning values from the panel (validated like any balance change).
+    const balance: Balance = opts.tune ? tunedBalance() : loadBalance();
+    const stickRadiusCss = opts.tune ? getTuning().stickRadiusCssPx : STICK_RADIUS_CSS_PX;
     const seed = data?.seed !== undefined ? data.seed >>> 0 : newRunSeed();
     const host = new LocalSimHost({ balance, seed });
-    const stress = urlOptions().stress;
+    const stress = opts.stress;
     this.host = host;
     const world = host.world;
     const cx = world.map.widthM / 2;
@@ -98,7 +103,13 @@ export class GameScene extends Phaser.Scene {
       throw new Error(`waves.lastRushCount ${balance.waves.lastRushCount} exceeds MAX_RUSH_MARKERS ${MAX_RUSH_MARKERS}`);
     }
     uiStore.handle("restart", () => this.scene.restart({} satisfies GameSceneData)); // {}: a new random seed
-    if (import.meta.env.DEV && stress === null) {
+    // ?loadout=a,b (release-safe): start with those weapons; unknown ids are ignored.
+    const urlLoadout = opts.loadout ? validLoadout(opts.loadout, weaponIds(balance)) : null;
+    if (urlLoadout && stress === null) {
+      const p = world.players.get(LOCAL_PLAYER_ID);
+      if (p) setLoadout(balance, p.loadout, urlLoadout);
+    }
+    if (import.meta.env.DEV && stress === null && !urlLoadout) {
       // Dev builds pick a loadout first (temporary until the shop, Story 3.3); release starts with the Pistol.
       this.running = false;
       uiStore.handle("startRun", (loadout) => {
@@ -136,11 +147,11 @@ export class GameScene extends Phaser.Scene {
       stressRun.start(performance.now(), stress);
     }
 
-    this.sticks = new TouchSticks(STICK_RADIUS_CSS_PX * dpr(), balance.controls.moveDeadZone, balance.controls.aimDeadZone);
+    this.sticks = new TouchSticks(stickRadiusCss * dpr(), balance.controls.moveDeadZone, balance.controls.aimDeadZone);
     const router = new InputRouter(this.sticks);
     this.router = router;
     const detachDesktop = attachDesktopInput(router, window, document, document.getElementById("game"));
-    const hudData: HudSceneData = { sticks: this.sticks, model: this.hudModel, router };
+    const hudData: HudSceneData = { sticks: this.sticks, model: this.hudModel, router, stickRadiusCss };
     this.scene.launch("Hud", hudData);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

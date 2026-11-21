@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BalanceError, loadBalance, type RawBalanceFiles } from "./balance";
+import { BalanceError, bundledBalanceFiles, loadBalance, withOverrides, type RawBalanceFiles } from "./balance";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
@@ -67,4 +67,14 @@ describe("loadBalance", () => {
     expect(Object.isFrozen(b.weapons)).toBe(true);
     expect(Object.isFrozen(b.zombies.types.walker)).toBe(true);
   });
+
+  it("applies overrides to a copy, ignores unknown keys, and still validates", () => {
+    const base = bundledBalanceFiles();
+    const tuned = loadBalance(withOverrides(base, [["controls", "aimDeadZone", 0.25], ["weapons", "machete.arcDeg", 130], ["weapons", "machete.nope", 1]]));
+    expect(tuned.controls.aimDeadZone).toBe(0.25);
+    expect(tuned.weapons.machete && "arcDeg" in tuned.weapons.machete ? tuned.weapons.machete.arcDeg : 0).toBe(130);
+    expect((base.controls as { aimDeadZone: number }).aimDeadZone).toBe(0.3); // the input is untouched
+    expect(() => loadBalance(withOverrides(base, [["controls", "aimDeadZone", 5]]))).toThrow(/controls\.json: aimDeadZone/);
+  });
 });
+

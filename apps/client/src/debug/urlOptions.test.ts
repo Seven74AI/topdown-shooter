@@ -3,7 +3,7 @@ import { DEFAULT_STRESS_WALKERS, MAX_STRESS_WALKERS, parseUrlOptions } from "./u
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false });
   });
 
   it("reads ?debug=1 and its spellings", () => {
@@ -13,12 +13,30 @@ describe("parseUrlOptions", () => {
 
   it("reads ?stress=N, defaulting a bare ?stress to 150 and capping at 200", () => {
     expect(parseUrlOptions("?stress=150").stress).toBe(150);
-    expect(parseUrlOptions("?stress=20&debug=1")).toEqual({ debug: true, stress: 20 });
+    expect(parseUrlOptions("?stress=20&debug=1")).toMatchObject({ debug: true, stress: 20 });
     expect(parseUrlOptions("?stress").stress).toBe(DEFAULT_STRESS_WALKERS);
     expect(parseUrlOptions("?stress=5000").stress).toBe(MAX_STRESS_WALKERS);
   });
 
   it("ignores invalid stress values", () => {
     for (const q of ["?stress=0", "?stress=-3", "?stress=abc", "?stress=1.5"]) expect(parseUrlOptions(q).stress).toBeNull();
+  });
+});
+
+describe("parseUrlOptions: Story 1.12 options", () => {
+  it("parses ?loadout into two weapon ids (lowercased, trimmed, deduplicated)", () => {
+    expect(parseUrlOptions("?loadout=pistol,machete").loadout).toEqual(["pistol", "machete"]);
+    expect(parseUrlOptions("?loadout=SMG, Hunting_Rifle").loadout).toEqual(["smg", "hunting_rifle"]);
+    expect(parseUrlOptions("?loadout=smg").loadout).toEqual(["smg", null]);
+    expect(parseUrlOptions("?loadout=smg,smg").loadout).toEqual(["smg", null]);
+    expect(parseUrlOptions("?loadout=<script>").loadout).toBeNull();
+    expect(parseUrlOptions("").loadout).toBeNull();
+  });
+
+  it("parses ?tune", () => {
+    expect(parseUrlOptions("?tune=1").tune).toBe(true);
+    expect(parseUrlOptions("?tune").tune).toBe(true);
+    expect(parseUrlOptions("?tune=0").tune).toBe(false);
+    expect(parseUrlOptions("").tune).toBe(false);
   });
 });

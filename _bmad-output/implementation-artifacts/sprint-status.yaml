@@ -62,7 +62,7 @@ development_status:
   1-9-machete-melee: done
   1-10-keyboard-and-mouse-on-desktop: done
   1-11-performance-overlay-and-150-walker-stress-test: review
-  1-12-melee-and-controls-playtest-on-real-phones: ready-for-dev  # human: playtest/spec, not a dev-agent story
+  1-12-melee-and-controls-playtest-on-real-phones: review  # human: playtest/spec, not a dev-agent story
   epic-1-retrospective: optional
 
   # Epic 2: Online co-op foundation

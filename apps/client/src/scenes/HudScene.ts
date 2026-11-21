@@ -17,6 +17,8 @@ export interface HudSceneData {
   model: HudModel;
   /** Pointer events go through the router: touches drive the sticks, the mouse aims and fires. */
   router: InputRouter;
+  /** Stick radius in CSS px (STICK_RADIUS_CSS_PX, or the ?tune=1 value). */
+  stickRadiusCss: number;
 }
 
 /** Health bar size and placement in CSS px (× dpr). */
@@ -61,6 +63,7 @@ export class HudScene extends Phaser.Scene {
   private sticks!: TouchSticks;
   private model!: HudModel;
   private router!: InputRouter;
+  private stickRadiusCss = STICK_RADIUS_CSS_PX;
   private hpBar!: Phaser.GameObjects.Graphics;
   private hpText!: Phaser.GameObjects.Text;
   private shownHp = -1;
@@ -106,6 +109,7 @@ export class HudScene extends Phaser.Scene {
     this.sticks = data.sticks;
     this.model = data.model;
     this.router = data.router;
+    this.stickRadiusCss = data.stickRadiusCss;
     this.shownHp = -1;
     this.shownMaxHp = -1;
     this.shownWeapon = "";
@@ -114,7 +118,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   create(): void {
-    const r = STICK_RADIUS_CSS_PX * dpr();
+    const r = this.stickRadiusCss * dpr();
     this.sticks.setRadius(r);
     this.moveBase = this.add
       .circle(0, 0, r, STICK_FILL, STICK_FILL_ALPHA)
@@ -214,7 +218,7 @@ export class HudScene extends Phaser.Scene {
 
   private onResize(): void {
     this.insets = { ...safeArea() };
-    const r = STICK_RADIUS_CSS_PX * dpr();
+    const r = this.stickRadiusCss * dpr();
     this.sticks.setRadius(r);
     this.moveBase.setRadius(r);
     this.moveKnob.setRadius(KNOB_RADIUS_CSS_PX * dpr());

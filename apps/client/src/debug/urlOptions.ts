@@ -7,6 +7,13 @@ export interface UrlOptions {
   debug: boolean;
   /** `?stress=150`: number of Walkers for the fixed stress scenario, or null when absent/invalid. */
   stress: number | null;
+  /**
+   * `?loadout=pistol,machete` (Story 1.12, release-safe): the starting two weapons, or null. Ids are
+   * only shape-checked here; the game keeps those that exist in balance.
+   */
+  loadout: readonly [string, string | null] | null;
+  /** `?tune=1` (Story 1.12, release-safe): the live tuning panel for the controls playtest. */
+  tune: boolean;
 }
 
 /** Walkers when `?stress` has no number. */
@@ -20,7 +27,26 @@ export function parseUrlOptions(search: string): UrlOptions {
   const q = new URLSearchParams(search);
   const debugRaw = q.get("debug");
   const debug = debugRaw !== null && TRUE_VALUES.has(debugRaw.trim().toLowerCase());
-  return { debug, stress: parseStress(q.get("stress")) };
+  const tuneRaw = q.get("tune");
+  return {
+    debug,
+    stress: parseStress(q.get("stress")),
+    loadout: parseLoadout(q.get("loadout")),
+    tune: tuneRaw !== null && TRUE_VALUES.has(tuneRaw.trim().toLowerCase()),
+  };
+}
+
+const WEAPON_ID = /^[a-z][a-z0-9_]*$/;
+
+function parseLoadout(raw: string | null): readonly [string, string | null] | null {
+  if (raw === null) return null;
+  const ids = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => WEAPON_ID.test(s))
+    .slice(0, 2);
+  if (ids.length === 0) return null;
+  return [ids[0] as string, ids[1] && ids[1] !== ids[0] ? ids[1] : null];
 }
 
 function parseStress(raw: string | null): number | null {
