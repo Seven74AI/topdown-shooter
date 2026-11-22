@@ -18,6 +18,7 @@ import {
   TICK_RATE_HZ,
   buildSetReadySchema,
   buildingPlaceSchema,
+  buildingRepairSchema,
   encodeNetEvent,
   isTestScenario,
   joinOptionsSchema,
@@ -36,6 +37,7 @@ import {
   zombieNetId,
   type BuildingPlace,
   type BuildingRefused,
+  type BuildingRepairRefused,
   type JoinRefusal,
   type NetEvent,
   type NetEventContext,
@@ -58,7 +60,7 @@ import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
 import { assignSlot, hashGuestToken, nextHost, type Member } from "../run/lobby";
-import { RunController } from "../run/RunController";
+import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
@@ -239,6 +241,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
     this.onMessage(C2S.BUILDING_PLACE, this.net.guard(buildingPlaceSchema, (c, m) => this.onPlaceBuilding(c, m)));
     this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.weapon, m.slot ?? null)));
+    this.onMessage(C2S.BUILDING_REPAIR, this.net.guard(buildingRepairSchema, (c, m) => this.onRepairBuilding(c, m.id)));
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -377,6 +380,26 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   }
 
   /**
+   * `building.repair` (Story 3.7, shape-checked and rate-limited by the shared "other" bucket): the
+   * shared `repairBuilding` validates phase, building, damage and the sender's wallet on the server's
+   * World and charges the sender. A refusal goes back to the sender only, as
+   * `building.repair_refused { id, reason }`; HP and wallet reach every client through the next patch.
+   */
+  onRepairBuilding(client: RunClient, id: number): void {
+    const member = this.members.get(client.sessionId);
+    if (!member) return;
+    const controller = this.controller;
+    const r = controller ? controller.repairBuilding(member.playerId, id) : null;
+    if (r?.ok) {
+      this.log.info({ playerId: member.playerId, id, owner: r.value.building.ownerId, cost: r.value.cost }, "building_repaired");
+      return;
+    }
+    const reason = r ? r.error : "not_build_phase";
+    this.log.debug({ playerId: member.playerId, id, reason }, "building_repair_refused"); // debug: a flood must not flood the log
+    client.send(S2C.BUILDING_REPAIR_REFUSED, { id, reason } satisfies BuildingRepairRefused);
+  }
+
+  /**
    * `shop.buy` (Story 3.3): the shared `buyWeapon` rules decide (build phase, for sale, not owned,
    * slot, wallet via `spendMoney`); the sender alone gets `shop.bought` or `shop.refused` with the
    * `Result` error. Wallet and weapons reach every client through the next patch. Rate: the shared
@@ -432,6 +455,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Story 3.9 dev hook (until 3.10): e.g. DEV_WAVE_MIX=walker,crawler mixes Crawlers into waves.
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
       scenario: this.scenario,
+      // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
+      devPlacedHpFraction: devAllowed ? parseDevHpFraction(process.env.DEV_PLACED_BUILDING_HP) : null,
     });
     this.controller = controller;
     const zombies = controller.world.zombies;

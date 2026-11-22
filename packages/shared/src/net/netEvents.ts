@@ -39,6 +39,8 @@ export const NET_EVENT_KIND = {
   BUILD_STARTED: 20, // Story 3.1
   BUILDING_PLACED: 21, // Story 3.4
   BUILDING_DESTROYED: 22, // Story 3.5
+  // 23 is left for Story 3.6.
+  BUILDING_REPAIRED: 24, // Story 3.7
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -152,6 +154,9 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       const t = buildingTypeIds(b).indexOf(e.buildingType);
       return [K.BUILDING_DESTROYED, e.buildingId, t < 0 ? NET_NONE : t, playerSlotOf(e.ownerId), e.gx, e.gy, e.rot];
     }
+    case "building.repaired":
+      // Story 3.7: FX only (HP and wallet come from schema).
+      return [K.BUILDING_REPAIRED, e.buildingId, playerSlotOf(e.playerId), e.cost, cm(e.x), cm(e.y)];
     case "test.ping":
       return null;
   }
@@ -266,6 +271,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       if (buildingType === undefined) return null;
       return { type: "building.destroyed", buildingId: n(t, 1), buildingType, ownerId: pid(t, 3), gx: n(t, 4), gy: n(t, 5), rot: n(t, 6) };
     }
+    case K.BUILDING_REPAIRED:
+      return { type: "building.repaired", buildingId: n(t, 1), playerId: pid(t, 2), cost: n(t, 3), x: n(t, 4) / 100, y: n(t, 5) / 100 };
     default:
       return null;
   }

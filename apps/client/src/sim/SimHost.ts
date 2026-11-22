@@ -1,4 +1,4 @@
-import type { PlaceError, PlaceRequest, PlayerInput, ShopError, SimEvent, World } from "@topdown/shared";
+import type { PlaceError, PlaceRequest, PlayerInput, RepairError, ShopError, SimEvent, World } from "@topdown/shared";
 
 /** Story 3.3: how a purchase ended (solo at once, online the server's `shop.bought` / `shop.refused`). */
 export type ShopAnswer =
@@ -44,6 +44,13 @@ export interface SimHost {
   placeBuilding(req: PlaceRequest): void;
   /** The oldest placement refusal not taken yet, or null. */
   takePlaceRefusal(): PlaceError | null;
+  /**
+   * Story 3.7: ask to repair building `id` (anyone's) to full HP, paid from my wallet (the server
+   * validates; solo runs the same rules now). A refusal comes back through `takeRepairRefusal`.
+   */
+  repairBuilding(id: number): void;
+  /** The latest repair refusal not taken yet, or null. */
+  takeRepairRefusal(): RepairError | null;
   /**
    * Story 3.3: buy a weapon of the fixed shop (`slot`: which one it replaces when both are full).
    * Solo the shared `buyWeapon` runs at once; online it is sent as `shop.buy` and the server decides.

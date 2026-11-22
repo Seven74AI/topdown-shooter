@@ -36,6 +36,7 @@ const EVENTS: SimEvent[] = [
   { type: "money.earned", playerId: "p0", amount: 1, reason: "assist" },
   { type: "building.placed", buildingId: 3, buildingType: "wood_barricade", ownerId: "p1", gx: 47, gy: 31, rot: 3 },
   { type: "building.destroyed", buildingId: 4, buildingType: "wood_barricade", ownerId: "p2", gx: 12, gy: 30, rot: 1 },
+  { type: "building.repaired", buildingId: 3, playerId: "p2", cost: 20, x: 47.25, y: 31.5 },
 ];
 
 /** Bytes msgpack uses for an integer (fixint, int8/16/32, uint8/16/32). */
@@ -74,6 +75,12 @@ describe("netEvents", () => {
     expect(t).toEqual([NET_EVENT_KIND.BUILDING_PLACED, 9, 0, 0, 1, 2, 1]);
     expect(msgpackTupleBytes(t as NetEvent)).toBeLessThanOrEqual(8);
     expect(decodeNetEvent([NET_EVENT_KIND.BUILDING_PLACED, 9, 200, 0, 1, 2, 1], dec)).toBeNull();
+  });
+
+  it("Story 3.7: building.repaired carries the centre in cm (≤ 12 bytes)", () => {
+    const t = encodeNetEvent({ type: "building.repaired", buildingId: 9, playerId: "p1", cost: 125, x: 47.25, y: 31.5 }, enc);
+    expect(t).toEqual([NET_EVENT_KIND.BUILDING_REPAIRED, 9, 1, 125, 4725, 3150]);
+    expect(msgpackTupleBytes(t as NetEvent)).toBeLessThanOrEqual(12);
   });
 
   it("sends the hit's source as a player slot, 255 for none (Story 2.7)", () => {

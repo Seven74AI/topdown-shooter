@@ -6,6 +6,7 @@ import {
   MIN_PLAYERS_TO_START,
   RUN_ROOM_NAME,
   S2C,
+  buildingRepairSchema,
   joinOptionsSchema,
   lobbySetReadySchema,
   playerNameSchema,
@@ -77,5 +78,17 @@ describe("net contract", () => {
   it("has 4 players at most and needs 2 to start", () => {
     expect(MAX_PLAYERS).toBe(4);
     expect(MIN_PLAYERS_TO_START).toBe(2);
+  });
+});
+
+describe("building.repair (Story 3.7)", () => {
+  it("accepts only { id } with an integer id 1–65535", () => {
+    expect(buildingRepairSchema.safeParse({ id: 1 }).success).toBe(true);
+    expect(buildingRepairSchema.safeParse({ id: 65535 }).success).toBe(true);
+    for (const bad of [{}, { id: 0 }, { id: 1.5 }, { id: 65536 }, { id: "1" }, { id: 1, cost: 0 }, null]) {
+      expect(buildingRepairSchema.safeParse(bad).success).toBe(false);
+    }
+    expect(C2S.BUILDING_REPAIR).toBe("building.repair");
+    expect(S2C.BUILDING_REPAIR_REFUSED).toBe("building.repair_refused");
   });
 });

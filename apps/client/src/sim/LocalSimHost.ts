@@ -4,6 +4,7 @@ import {
   buyWeapon,
   createWorld,
   placeBuilding,
+  repairBuilding,
   setBuildReady,
   setInput,
   startBuild,
@@ -11,6 +12,7 @@ import {
   type Balance,
   type PlaceError,
   type PlaceRequest,
+  type RepairError,
   type PlayerInput,
   type SimEvent,
   type World,
@@ -83,6 +85,21 @@ export class LocalSimHost implements SimHost {
   takePlaceRefusal(): PlaceError | null {
     const r = this.refusal;
     this.refusal = null;
+    return r;
+  }
+
+  /** Story 3.7: the last repair refusal, until the scene takes it. */
+  private repairRefusal: RepairError | null = null;
+
+  /** Story 3.7: solo applies the repair at once (between steps, like the server's message handler). */
+  repairBuilding(id: number): void {
+    const r = repairBuilding(this.world, LOCAL_PLAYER_ID, id);
+    if (!r.ok) this.repairRefusal = r.error;
+  }
+
+  takeRepairRefusal(): RepairError | null {
+    const r = this.repairRefusal;
+    this.repairRefusal = null;
     return r;
   }
 

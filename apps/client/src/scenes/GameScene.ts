@@ -20,6 +20,7 @@ import {
   ZOMBIE_STATE,
   type Balance,
   type PlaceError,
+  type RepairError,
   type PlayerInput,
   type PlayerState,
   type World,
@@ -38,6 +39,8 @@ import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
 import { Placement, placeRefusalText } from "./placement";
+import { RepairPanel, repairRefusalText } from "./repairPanel";
+import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { neutralizeInput } from "../input/menuInput";
@@ -168,6 +171,11 @@ export class GameScene extends Phaser.Scene {
   /** "Wood barricade · $40" for the type being placed, and the refusal texts (built once each). */
   private placingLabel = "";
   private readonly refusalTexts = new Map<PlaceError, string>();
+  /** Story 3.7: the repair panel on this device, the selected building's outline. */
+  private readonly repairPanel = new RepairPanel();
+  private selectView: BuildingSelectView | null = null;
+  /** A teammate's display name for the panel (called only when its texts change). */
+  private readonly ownerName = (ownerId: string): string => this.host?.playerInfo(ownerId).name ?? ownerId;
   /** Solo Results (Story 2.8): zombies the local player killed this run (online: from room state). */
   private kills = 0;
   /**
@@ -255,6 +263,7 @@ export class GameScene extends Phaser.Scene {
     this.kills = 0;
     this.placement.cancel(); // Phaser reuses this scene object: no placement from the last run
     this.refusalTexts.clear();
+    this.repairPanel.close(); // Story 3.7: no selection from the last run
     this.ready.reset(); // Phaser reuses this scene object (restart): no Ready from the last run
     this.myReady = false;
     this.statusSecs = -1;
@@ -302,6 +311,7 @@ export class GameScene extends Phaser.Scene {
     this.fxView.balance = balance; // Story 3.5: building footprints for the debris
     this.downedView = new DownedView(this, world);
     this.buildingView = new BuildingView(this);
+    this.selectView = new BuildingSelectView(this);
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.chevrons.length = 0;
@@ -346,6 +356,9 @@ export class GameScene extends Phaser.Scene {
       this.placement.cancel();
       this.buildingView?.destroy();
       this.buildingView = null;
+      this.repairPanel.close();
+      this.selectView?.destroy();
+      this.selectView = null;
       offLeft?.();
       this.toasts.clear();
       for (const c of this.chevrons) c.destroy();
@@ -607,6 +620,45 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Story 3.7: the repair panel, once per frame after placement. Taps select a building only when
+   * placement is possible (a build phase, a run on screen, my survivor standing) and no placement,
+   * shop or menu is open; the panel closes as soon as that no longer holds or the building is gone.
+   * Repair sends the request (solo: applied at once) and closes the panel; the server judges it.
+   */
+  private updateRepair(host: SceneHost, menuOpen: boolean, shopOpen: boolean): void {
+    const m = this.hudModel;
+    const p = this.repairPanel;
+    const allowed = this.canPlace(host, menuOpen || shopOpen) && !this.placement.active;
+    m.tapsEnabled = allowed;
+    const tap = m.worldTap;
+    const press = m.repairPressed;
+    const close = m.repairClosePressed;
+    m.worldTap = m.repairPressed = m.repairClosePressed = false;
+    if (allowed && tap) {
+      const w = this.cameras.main.getWorldPoint(m.worldTapX, m.worldTapY, this.cursorWorld);
+      p.tap(host.world, w.x, w.y);
+    }
+    if (close) p.close();
+    if (press && allowed && p.open) host.repairBuilding(p.press());
+    m.repairOpen = p.update(host.world, host.localPlayerId, allowed, this.ownerName);
+    if (m.repairOpen) {
+      m.repairInfo = p.info;
+      m.repairReason = p.reason;
+      m.repairLabel = p.label;
+    }
+  }
+
+  private readonly repairTexts = new Map<RepairError, string>();
+  private repairText(e: RepairError): string {
+    let t = this.repairTexts.get(e);
+    if (t === undefined) {
+      t = repairRefusalText(e);
+      this.repairTexts.set(e, t);
+    }
+    return t;
+  }
+
+  /**
    * Story 3.3: the shop. The Shop button shows when Ready does (a build phase, a run on screen, menu
    * closed); the shop closes by itself as soon as that no longer holds (the wave started, Results,
    * the menu opened, leaving). While open it gets my wallet and weapons when they change, the
@@ -735,6 +787,7 @@ export class GameScene extends Phaser.Scene {
     const shopOpen = this.updateShop(host, menuOpen);
     if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
     this.updatePlacement(host, menuOpen || shopOpen); // Story 3.4: placement mode turns the sticks off (neutral input)
+    this.updateRepair(host, menuOpen, shopOpen); // Story 3.7: tap a building → Repair
     this.updateReady(host, menuOpen || shopOpen);
     if (this.localHost) {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
@@ -747,6 +800,8 @@ export class GameScene extends Phaser.Scene {
     if (perf.net) netSummary.frame(performance.now(), perf.net); // Story 2.10: ping samples for the wave summary
     const refused = host.takePlaceRefusal(); // Story 3.4: the server (or solo) said no
     if (refused) this.toasts.push(this.refusalText(refused));
+    const repairRefused = host.takeRepairRefusal(); // Story 3.7
+    if (repairRefused) this.toasts.push(this.repairText(repairRefused));
     const events = host.drainEvents();
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
@@ -779,6 +834,7 @@ export class GameScene extends Phaser.Scene {
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world);
     this.buildingView?.update(host.world, this.placement);
+    this.selectView?.update(host.world, this.repairPanel.id);
     const player = host.world.players.get(localId);
     const playerView = this.playerViews.get(localId);
     this.hudModel.teammateCount = 0; // never stale while my player is missing (2.9 review)

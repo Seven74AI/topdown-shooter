@@ -202,6 +202,8 @@ export const buildingsSchema = z
     maxPerPlayer: z.number().int().min(1).max(64),
     /** Review L5: no building within this many metres of a wave spawn point (spawns can't be boxed in). */
     spawnClearM: z.number().min(0),
+    /** Story 3.7: a full repair costs this share of the building's price, rounded up (GDD: 50 %). */
+    repairShare: z.number().min(0).max(1),
     types: z.record(balanceId, buildingTypeSchema),
   })
   .strict();

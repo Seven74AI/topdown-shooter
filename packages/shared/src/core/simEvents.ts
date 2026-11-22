@@ -46,6 +46,8 @@ export type SimEvent =
   | { type: "building.placed"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number }
   /** Story 3.5: zombies broke a building (it is already removed; position for the debris FX). */
   | { type: "building.destroyed"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number }
+  /** Story 3.7: `playerId` repaired building `buildingId` to full HP for `cost`; (x, y) = its footprint's centre in metres. */
+  | { type: "building.repaired"; buildingId: number; playerId: string; cost: number; x: number; y: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

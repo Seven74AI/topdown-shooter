@@ -14,3 +14,7 @@ export const PLACE_BUTTON_GAP_CSS_PX = 20;
 /** Story 3.3: the Shop button, right of Ready with this gap; the pair is centred at the bottom (CSS px). */
 export const SHOP_BUTTON_W_CSS_PX = 120;
 export const SHOP_BUTTON_GAP_CSS_PX = 12;
+/** Story 3.7: the repair panel's row (Repair + ✕), one row above Ready / Shop (CSS px). */
+export const REPAIR_BUTTON_W_CSS_PX = 168;
+export const REPAIR_CLOSE_CSS_PX = 52;
+export const REPAIR_ROW_GAP_CSS_PX = 12;

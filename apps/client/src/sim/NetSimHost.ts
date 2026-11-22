@@ -23,6 +23,7 @@ import {
   type NetEventContext,
   type PlaceError,
   type PlaceRequest,
+  type RepairError,
   type PlayerInput,
   type PlayerState,
   type PlayerStateView,
@@ -204,6 +205,8 @@ export class NetSimHost implements SimHost {
   private latest: RunStateView | null = null;
   /** Story 3.4: the latest `building.refused`, until the scene takes it. */
   private refusal: PlaceError | null = null;
+  /** Story 3.7: the latest `building.repair_refused`, until the scene takes it. */
+  private repairRefusal: RepairError | null = null;
   private readonly dropMissing = (_p: PlayerState, id: string): void => {
     if (!this.latest?.players.has(id)) removePlayer(this.world, id);
   };
@@ -244,6 +247,11 @@ export class NetSimHost implements SimHost {
       }),
     );
     this.offs.push(opts.session.onShopAnswer((a) => this.shopAnswers.push(a)));
+    this.offs.push(
+      opts.session.onRepairRefused((reason) => {
+        this.repairRefusal = reason;
+      }),
+    );
     room.onStateChange(this.onState);
     // The start patch (phase "wave", spawn positions) may already have arrived.
     if (room.state?.players && room.state.phase !== "lobby") this.takeSnapshot(room.state);
@@ -329,6 +337,17 @@ export class NetSimHost implements SimHost {
   takePlaceRefusal(): PlaceError | null {
     const r = this.refusal;
     this.refusal = null;
+    return r;
+  }
+
+  /** Story 3.7: `building.repair`; HP and wallet come back in the state, a refusal as `building.repair_refused`. */
+  repairBuilding(id: number): void {
+    if (!this.disposed) this.session.room.send(C2S.BUILDING_REPAIR, { id });
+  }
+
+  takeRepairRefusal(): RepairError | null {
+    const r = this.repairRefusal;
+    this.repairRefusal = null;
     return r;
   }
 
