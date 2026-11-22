@@ -33,7 +33,10 @@ export interface World {
   readonly inputs: Map<string, PlayerInput>;
   /** `seq` of the input last applied per player (edge flags fire once per seq). */
   readonly lastAppliedSeq: Map<string, number>;
-  /** District bounds and spawn points (placeholder street until Story 4.1). */
+  /**
+   * The district (Story 4.1): bounds, spawn points, static collision boxes, cover, hazards. Frozen
+   * shared data; the game's hosts pass `DOWNTOWN_MAP`, tests default to the open `PLACEHOLDER_MAP`.
+   */
   readonly map: DistrictMap;
   /** Players by id (Epic 1: one player, "local"). */
   readonly players: Map<string, PlayerState>;
@@ -87,7 +90,7 @@ export interface WorldDebug {
 export interface CreateWorldOptions {
   balance: Balance;
   seed: number;
-  /** District; defaults to the placeholder street. */
+  /** District; defaults to the open test street (`PLACEHOLDER_MAP`). The game passes `DOWNTOWN_MAP`. */
   map?: DistrictMap;
   /** Tests only: replace systems by name. */
   systems?: Partial<Systems>;

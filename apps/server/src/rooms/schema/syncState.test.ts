@@ -125,12 +125,12 @@ describe("syncState", () => {
     encoder.discardChanges();
     const w = controller.world;
     w.run.phase = "build"; // RunController started in a build phase; setup's state says "wave"
-    const r = controller.placeBuilding("p0", { type: "wood_barricade", gx: 30, gy: 8, rot: 1 });
+    const r = controller.placeBuilding("p0", { type: "wood_barricade", gx: 16, gy: 28, rot: 1 });
     expect(r.ok).toBe(true);
     controller.tick(); // the wallet change and the building go out with this tick
     syncState(state, controller);
     expect([...state.buildings.keys()]).toEqual(["1"]);
-    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "wood_barricade", owner: "p0", gx: 30, gy: 8, rot: 1, hp: 200 });
+    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "wood_barricade", owner: "p0", gx: 16, gy: 28, rot: 1, hp: 200 });
     const placedBytes = encoder.encode().length;
     encoder.discardChanges();
     controller.tick();
@@ -151,7 +151,7 @@ describe("syncState", () => {
     removeBuilding(w, 1);
     syncState(state, controller);
     expect(state.buildings.size).toBe(0);
-    controller.placeBuilding("p1", { type: "wood_barricade", gx: 10, gy: 8, rot: 0 });
+    controller.placeBuilding("p1", { type: "wood_barricade", gx: 8, gy: 36, rot: 0 });
     syncState(state, controller);
     resetRunFields(state);
     expect(state.buildings.size).toBe(0);

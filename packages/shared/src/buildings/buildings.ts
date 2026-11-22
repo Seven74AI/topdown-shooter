@@ -150,7 +150,7 @@ const scratch: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
 /**
  * The box is off the map, within `buildings.spawnClearM` of a spawn point (review L5: spawns can't
- * be boxed in), overlaps another building (touching edges are fine: barricades form walls and
+ * be boxed in), overlaps a map collision box (Story 4.1) or another building (touching edges are fine: barricades form walls and
  * corners), a placed player (out players are off the map) or an alive zombie.
  */
 export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>): boolean {
@@ -160,6 +160,11 @@ export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>): bo
   for (let i = 0; i < spawnPoints.length; i++) {
     const sp = spawnPoints[i] as { x: number; y: number };
     if (circleOverlapsBox(sp.x, sp.y, clear, box.minX, box.minY, box.maxX, box.maxY)) return true;
+  }
+  const solids = world.map.solids; // Story 4.1: the map's collision boxes (touching is fine, like buildings)
+  for (let i = 0; i < solids.length; i++) {
+    const b = solids[i] as Box;
+    if (box.minX < b.maxX && box.maxX > b.minX && box.minY < b.maxY && box.maxY > b.minY) return true;
   }
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) {

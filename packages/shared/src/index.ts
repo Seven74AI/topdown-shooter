@@ -43,6 +43,19 @@ export { createWorld, setInput, step, type CreateWorldOptions, type World, type 
 export { snapshotWorld, type WorldSnapshot } from "./core/worldSnapshot";
 export { NEUTRAL_INPUT, VIEW_TICK_SCALE, playerInputSchema, viewTickOfInput, type PlayerInput } from "./net/input";
 export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint } from "./map/placeholderMap";
+export {
+  COVER_KINDS,
+  MAP_STAGE_COUNT,
+  type CoverKind,
+  type CoverObject,
+  type HazardZone,
+  type MapBox,
+  type MapSpawn,
+  type VisualProp,
+} from "./map/districtMap";
+export { MAP_LAYERS, MAP_STAGE_GROUPS, MapError, loadTiledMap } from "./map/loadTiledMap";
+export { mapCollisionCells } from "./map/collisionCells";
+export { DOWNTOWN_MAP } from "./map/downtown";
 export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./player/player";
 export { teamSpawnPoint } from "./player/spawn";
 export { checkTeamWipe, downPlayer, findReviver, returnOutPlayers, updateDowned } from "./player/downed";

@@ -3,6 +3,7 @@ import {
   TICK_DT_S,
   buyWeapon,
   createWorld,
+  DOWNTOWN_MAP,
   placeBuilding,
   repairBuilding,
   setBuildReady,
@@ -10,6 +11,7 @@ import {
   startBuild,
   step,
   type Balance,
+  type DistrictMap,
   type PlaceError,
   type PlaceRequest,
   type RepairError,
@@ -63,8 +65,9 @@ export class LocalSimHost implements SimHost {
   private readonly unsubscribe: () => void;
   readonly stats: SimStepStats = { lastUpdateSteps: 0, stepMs: new Float64Array(MAX_CATCHUP_STEPS), totalSteps: 0 };
 
-  constructor(opts: { balance: Balance; seed: number }) {
-    this.world = createWorld({ balance: opts.balance, seed: opts.seed });
+  /** Story 4.1: `map` defaults to `DOWNTOWN_MAP` (tests may pass the open `PLACEHOLDER_MAP`). */
+  constructor(opts: { balance: Balance; seed: number; map?: DistrictMap }) {
+    this.world = createWorld({ balance: opts.balance, seed: opts.seed, map: opts.map ?? DOWNTOWN_MAP });
     this.unsubscribe = this.world.events.subscribe((e) => this.events.push(e));
     // Story 3.1: solo runs the same state machine as the server: Lobby → the first build phase. The
     // scene adds the player right after (the build heal of nobody is a no-op); `build.started` is

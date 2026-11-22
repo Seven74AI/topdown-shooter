@@ -6,6 +6,7 @@ import {
   addPlayer,
   killZombie,
   createWorld,
+  DOWNTOWN_MAP,
   loadBalance,
   setInput,
   setLoadout,
@@ -49,7 +50,7 @@ describe("RunController", () => {
 
   it("moves two players exactly like a World fed the same inputs on the same ticks", () => {
     const c = newController();
-    const ref = createWorld({ balance, seed: SEED });
+    const ref = createWorld({ balance, seed: SEED, map: DOWNTOWN_MAP }); // Story 4.1: the controller's map
     ref.waves.paused = true;
     setZombieHistoryEnabled(ref, true); // Story 2.12: the controller's lag compensation, set up the same way
     const at = { x: 0, y: 0 };
@@ -587,10 +588,10 @@ describe("Story 3.7 dev switch DEV_PLACED_BUILDING_HP", () => {
       null,
     ]);
     const c = new RunController({ balance, seed: SEED, players: TWO, devPlacedHpFraction: 0.5 });
-    const r = c.placeBuilding("p0", { type: "wood_barricade", gx: 3, gy: 3, rot: 0 });
+    const r = c.placeBuilding("p0", { type: "wood_barricade", gx: 12, gy: 30, rot: 0 });
     expect(r.ok && r.value.hp).toBe(100);
     const full = new RunController({ balance, seed: SEED, players: TWO });
-    const f = full.placeBuilding("p0", { type: "wood_barricade", gx: 3, gy: 3, rot: 0 });
+    const f = full.placeBuilding("p0", { type: "wood_barricade", gx: 12, gy: 30, rot: 0 });
     expect(f.ok && f.value.hp).toBe(200);
   });
 });

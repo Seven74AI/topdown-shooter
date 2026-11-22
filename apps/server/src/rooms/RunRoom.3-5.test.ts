@@ -79,7 +79,7 @@ const WOOD = "wood_barricade";
 describe("RunRoom building damage (Story 3.5)", () => {
   it("damage goes out as HP on change; 0 HP removes it on both clients and forwards building.destroyed", async () => {
     const { host, guest, room, hostRec, guestRec } = await startTwo();
-    host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 24, gy: 6, rot: 0 });
+    host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 12, gy: 34, rot: 0 });
     for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.buildings.size).toBe(1));
     const b = world(room).buildings.list[0] as Building;
     // Between ticks, as a zombie hit would be inside one (the zombie rule itself: zombieAi.pathing.test.ts).
@@ -93,7 +93,7 @@ describe("RunRoom building damage (Story 3.5)", () => {
     for (const rec of [hostRec, guestRec]) {
       await vi.waitFor(() => expect(rec.events.flatMap((e) => e.events).some((t) => t[0] === NET_EVENT_KIND.BUILDING_DESTROYED)).toBe(true));
       const t = rec.events.flatMap((e) => e.events).find((e) => e[0] === NET_EVENT_KIND.BUILDING_DESTROYED);
-      expect(t).toEqual([NET_EVENT_KIND.BUILDING_DESTROYED, 1, 0, 0, 24, 6, 0]);
+      expect(t).toEqual([NET_EVENT_KIND.BUILDING_DESTROYED, 1, 0, 0, 12, 34, 0]);
     }
     // The field follows: the nav grid no longer holds it.
     await vi.waitFor(() => expect(world(room).pathing.nav.version).toBe(world(room).buildings.version));

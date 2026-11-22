@@ -1,5 +1,6 @@
 import { Client, type Room } from "@colyseus/sdk";
 import {
+  DOWNTOWN_MAP,
   BYTES,
   ByteRate,
   C2S,
@@ -224,6 +225,7 @@ export class BotClient {
       intent: opts.roomId ? "join" : "create",
       name: opts.name,
       balanceVersion: balance.version,
+      mapVersion: DOWNTOWN_MAP.version,
       guestToken: guestToken(),
     };
     if (!opts.roomId && opts.scenario) options.scenario = opts.scenario;

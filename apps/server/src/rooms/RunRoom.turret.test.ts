@@ -88,7 +88,7 @@ describe("RunRoom auto-turret (Story 3.6)", () => {
     if (!hostP) throw new Error("no host player");
     hostP.wallet = 300; // between ticks (the starting wallet is 100)
     const wallet0 = hostP.wallet;
-    host.send(C2S.BUILDING_PLACE, { type: "auto_turret", gx: 30, gy: 10, rot: 0 });
+    host.send(C2S.BUILDING_PLACE, { type: "auto_turret", gx: 36, gy: 36, rot: 0 });
     for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.buildings.size).toBe(1));
     expect(hostRec.refused).toEqual([]);
     const b = w.buildings.list[0] as Building;
@@ -97,7 +97,8 @@ describe("RunRoom auto-turret (Story 3.6)", () => {
     expect(host.state.buildings.get(String(b.id))?.hp).toBe(300);
 
     // Build phase: a zombie in range is not shot.
-    const z = spawnZombie(w, "walker", buildingCentreX(b) + 4, buildingCentreY(b));
+    // Story 4.1: west of the turret (the Downtown street), so its shots fly away from the guest's view.
+    const z = spawnZombie(w, "walker", buildingCentreX(b) - 4, buildingCentreY(b));
     await new Promise((r) => setTimeout(r, 300));
     expect(kinds(hostRec, NET_EVENT_KIND.TURRET_FIRED)).toHaveLength(0);
 
@@ -105,8 +106,8 @@ describe("RunRoom auto-turret (Story 3.6)", () => {
     const guestId = [...room.members.values()].find((m) => m.slot === 1)?.playerId ?? "p1";
     const g = w.players.get(guestId);
     if (!g) throw new Error("no guest player");
-    g.x = 44;
-    g.y = 29;
+    g.x = 46; // Story 4.1: the east sidewalk (the old corner is inside a Downtown building)
+    g.y = 21;
     startWave(w); // between ticks, as the build countdown would
     const before = w.players.get(hostId)?.wallet ?? 0;
     await vi.waitFor(() => expect(w.zombies.alivePos[z]).toBe(-1), { timeout: 4000 });

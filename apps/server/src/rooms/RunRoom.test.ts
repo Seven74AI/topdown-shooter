@@ -3,6 +3,7 @@ import type { ColyseusTestServer } from "@colyseus/testing";
 import { MatchMakeError, type Room as SdkRoom } from "@colyseus/sdk";
 import { randomBytes } from "node:crypto";
 import {
+  DOWNTOWN_MAP,
   C2S,
   NEUTRAL_INPUT,
   RUN_ROOM_NAME,
@@ -116,6 +117,15 @@ describe("RunRoom", () => {
     const e = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ balanceVersion: "00000000" })));
     expect(e.code).toBe(JOIN_REFUSED_CODE);
     expect(e.message).toBe("balance_mismatch");
+  });
+
+  it("Story 4.1: refuses a client built with another map (mapVersion) with balance_mismatch; the right one joins", async () => {
+    const e = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ mapVersion: "00000000" })));
+    expect(e.code).toBe(JOIN_REFUSED_CODE);
+    expect(e.message).toBe("balance_mismatch");
+    const ok = await colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ mapVersion: DOWNTOWN_MAP.version }));
+    expect(ok.roomId).toBeTruthy();
+    await ok.leave();
   });
 
   it("refuses bad options with invalid_options", async () => {

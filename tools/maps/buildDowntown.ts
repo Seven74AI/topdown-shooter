@@ -1,0 +1,302 @@
+/**
+ * Story 4.1: writes the Downtown map (Tiled is not installed where it was authored).
+ *
+ *   npx tsx tools/maps/buildDowntown.ts          → tools/maps/downtown.tmx (Tiled source),
+ *                                                  apps/client/public/assets/maps/downtown.tmj (export),
+ *                                                  packages/shared/src/map/data/downtown.tmj.json (the sim's copy)
+ *   npx tsx tools/maps/buildDowntown.ts --sync   → only copies the .tmj export into the shared copy
+ *
+ * Once the designer edits the map in Tiled (open downtown.tmx, File › Export As… downtown.tmj),
+ * stop running the generator and run `npm run maps:sync` after each export. The layout below is the
+ * first draft: 1 tile = 1 m = 32 px, every collision/cover edge on the 0.5 m grid.
+ *
+ *   x: 0        8  11   18 20      28  32.5     41     48
+ *   y0 +--------+--+-----+--+  N   +---------------+------+
+ *      | corner |a1| apts|  |      |  [pump] fuel  | kiosk|
+ *      | shop   |  |     |  |      |  [pump] canopy+------+
+ *   10 +--------+--+-----+  |      |   gas station        |
+ *   12 ------------------- intersection ------------------
+ *    W   car                 (24,16)  [==== BUS ====]   car  E
+ *   20 --------------------------------------------------
+ *   22 +------+--+-wall     |      | +------+--+------+
+ *      | diner|a2|  lot:    |      | |office|a3|wareh.|
+ *      |      |  |  cars    |      | |      |  |      |
+ *   32 +------+--+----------+  S   +-+------+--+------+
+ */
+import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+export const TMX_PATH = resolve(ROOT, "tools/maps/downtown.tmx");
+export const TMJ_PATH = resolve(ROOT, "apps/client/public/assets/maps/downtown.tmj");
+export const SHARED_COPY_PATH = resolve(ROOT, "packages/shared/src/map/data/downtown.tmj.json");
+
+const WIDTH_TILES = 48;
+const HEIGHT_TILES = 32;
+const PX = 32; // pixels per tile
+const METERS_PER_TILE = 1;
+const CELL_M = 0.5;
+
+type Props = Record<string, string | number>;
+interface Rect {
+  name: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  props?: Props;
+}
+interface Point {
+  name: string;
+  x: number;
+  y: number;
+  props?: Props;
+}
+interface Layer {
+  name: string;
+  rects?: Rect[];
+  points?: Point[];
+}
+interface Group {
+  name: string;
+  layers: Layer[];
+}
+
+const collision: Rect[] = [
+  { name: "nw_corner_shop", x: 0, y: 0, w: 8, h: 10 },
+  { name: "nw_apartments", x: 11, y: 0, w: 7, h: 10 },
+  { name: "gas_kiosk", x: 41, y: 0, w: 7, h: 6 },
+  { name: "gas_pump_a", x: 32.5, y: 3.5, w: 2, h: 1 },
+  { name: "gas_pump_b", x: 32.5, y: 7, w: 2, h: 1 },
+  { name: "city_bus", x: 30, y: 14.5, w: 10, h: 2.5 },
+  { name: "sw_diner", x: 0, y: 22, w: 7, h: 10 },
+  { name: "parking_wall", x: 10, y: 24, w: 0.5, h: 8 },
+  { name: "se_offices", x: 30, y: 22, w: 8, h: 10 },
+  { name: "se_warehouse", x: 41, y: 22, w: 7, h: 10 },
+];
+
+const cover: Rect[] = [
+  { name: "bus_hull", x: 30, y: 14.5, w: 10, h: 2.5, props: { kind: "bus" } },
+  { name: "parked_car_1", x: 11.5, y: 26, w: 2, h: 4.5, props: { kind: "car" } },
+  { name: "parked_car_2", x: 14.5, y: 26, w: 2, h: 4.5, props: { kind: "car" } },
+  { name: "parked_car_3", x: 17.5, y: 26, w: 2, h: 4.5, props: { kind: "car" } },
+  { name: "street_car_west", x: 4, y: 13, w: 4.5, h: 2, props: { kind: "car" } },
+  { name: "street_car_east", x: 42, y: 17.5, w: 4.5, h: 2, props: { kind: "car" } },
+  { name: "police_barrier_north", x: 21, y: 6, w: 6, h: 0.5, props: { kind: "barrier", minStage: 2 } },
+  { name: "sandbags_south", x: 22.5, y: 22.5, w: 3, h: 1, props: { kind: "sandbags", minStage: 3 } },
+];
+
+const spawns: Point[] = [
+  { name: "street_west", x: 0.5, y: 16 },
+  { name: "street_east", x: 47.5, y: 16 },
+  { name: "street_north", x: 24, y: 0.5 },
+  { name: "street_south", x: 24, y: 31.5 },
+  { name: "alley_1_mouth", x: 9.5, y: 0.5 },
+  { name: "alley_2_mouth", x: 8.5, y: 31.5 },
+  { name: "alley_3_mouth", x: 39.5, y: 31.5 },
+  { name: "gas_station_north", x: 37.5, y: 0.5 },
+  { name: "parking_lot_south", x: 15, y: 31.5 },
+].map((p) => ({ ...p, props: { minStage: 1 } }));
+
+const hazards: Rect[] = [
+  { name: "gas_leak_zone", x: 31, y: 2, w: 6, h: 7.5, props: { kind: "gas_leak", minStage: 2 } },
+  { name: "fire_parked_car_2", x: 13.5, y: 25, w: 4, h: 6.5, props: { kind: "fire", minStage: 3 } },
+  { name: "fire_street_car_west", x: 3, y: 12, w: 6.5, h: 4, props: { kind: "fire", minStage: 3 } },
+];
+
+const groups: Group[] = [
+  {
+    name: "stage1_evening",
+    layers: [
+      {
+        name: "stage1_ground",
+        rects: [
+          { name: "sidewalk_nw", x: 0, y: 10, w: 20, h: 2, props: { kind: "sidewalk" } },
+          { name: "sidewalk_nw_east", x: 18, y: 0, w: 2, h: 10, props: { kind: "sidewalk" } },
+          { name: "sidewalk_sw", x: 0, y: 20, w: 20, h: 2, props: { kind: "sidewalk" } },
+          { name: "sidewalk_se", x: 28, y: 20, w: 20, h: 2, props: { kind: "sidewalk" } },
+          { name: "sidewalk_se_west", x: 28, y: 22, w: 2, h: 10, props: { kind: "sidewalk" } },
+          { name: "gas_forecourt", x: 28, y: 0, w: 20, h: 12, props: { kind: "forecourt" } },
+          { name: "parking_lot", x: 10.5, y: 22, w: 9.5, h: 10, props: { kind: "lot" } },
+          { name: "crosswalk_north", x: 20, y: 10.5, w: 8, h: 1.5, props: { kind: "crosswalk" } },
+          { name: "crosswalk_south", x: 20, y: 20, w: 8, h: 1.5, props: { kind: "crosswalk" } },
+          { name: "crosswalk_west", x: 18.5, y: 12, w: 1.5, h: 8, props: { kind: "crosswalk" } },
+          { name: "crosswalk_east", x: 28, y: 12, w: 1.5, h: 8, props: { kind: "crosswalk" } },
+          { name: "lane_west", x: 1, y: 15.9, w: 17, h: 0.2, props: { kind: "lane" } },
+          { name: "lane_east", x: 41, y: 15.9, w: 6.5, h: 0.2, props: { kind: "lane" } },
+          { name: "lane_north", x: 23.9, y: 0.5, w: 0.2, h: 9.5, props: { kind: "lane" } },
+          { name: "lane_south", x: 23.9, y: 22, w: 0.2, h: 9.5, props: { kind: "lane" } },
+          { name: "gas_canopy", x: 31, y: 2, w: 6, h: 7.5, props: { kind: "canopy" } },
+        ],
+      },
+    ],
+  },
+  {
+    name: "stage2_panic",
+    layers: [
+      {
+        name: "stage2_props",
+        rects: [
+          { name: "debris_west", x: 5, y: 18, w: 1, h: 0.8, props: { kind: "debris" } },
+          { name: "debris_east", x: 44, y: 13, w: 1.2, h: 0.8, props: { kind: "debris" } },
+        ],
+      },
+    ],
+  },
+  {
+    name: "stage3_breakdown",
+    layers: [
+      {
+        name: "stage3_props",
+        rects: [
+          { name: "debris_mid", x: 15, y: 14, w: 1.5, h: 1, props: { kind: "debris" } },
+          { name: "debris_south", x: 26, y: 27, w: 1, h: 1, props: { kind: "debris" } },
+        ],
+      },
+    ],
+  },
+  { name: "stage4_ruins", layers: [{ name: "stage4_props" }] },
+  { name: "stage5_collapse", layers: [{ name: "stage5_props" }] },
+];
+
+const topLayers: Layer[] = [
+  { name: "collision", rects: collision },
+  { name: "cover", rects: cover },
+  { name: "spawns", points: spawns },
+  { name: "hazards", rects: hazards },
+];
+
+// ---- writers ---------------------------------------------------------------------------------
+
+type JsonProp = { name: string; type: "int" | "float" | "string"; value: string | number };
+const jsonProps = (p: Props | undefined): JsonProp[] | undefined =>
+  p
+    ? Object.entries(p).map(([name, value]) => ({
+        name,
+        type: typeof value === "string" ? "string" : Number.isInteger(value) && name !== "metersPerTile" && name !== "cellM" ? "int" : "float",
+        value,
+      }))
+    : undefined;
+
+const px = (m: number): number => Math.round(m * (PX / METERS_PER_TILE) * 1000) / 1000;
+
+export function buildDowntownTmj(): Record<string, unknown> {
+  let nextLayerId = 1;
+  let nextObjectId = 1;
+  const objectLayer = (l: Layer): Record<string, unknown> => ({
+    draworder: "topdown",
+    id: nextLayerId++,
+    name: l.name,
+    objects: [
+      ...(l.rects ?? []).map((r) => ({
+        height: px(r.h),
+        id: nextObjectId++,
+        name: r.name,
+        ...(r.props ? { properties: jsonProps(r.props) } : {}),
+        rotation: 0,
+        type: "",
+        visible: true,
+        width: px(r.w),
+        x: px(r.x),
+        y: px(r.y),
+      })),
+      ...(l.points ?? []).map((p) => ({
+        height: 0,
+        id: nextObjectId++,
+        name: p.name,
+        point: true,
+        ...(p.props ? { properties: jsonProps(p.props) } : {}),
+        rotation: 0,
+        type: "",
+        visible: true,
+        width: 0,
+        x: px(p.x),
+        y: px(p.y),
+      })),
+    ],
+    opacity: 1,
+    type: "objectgroup",
+    visible: true,
+    x: 0,
+    y: 0,
+  });
+  const layers: Record<string, unknown>[] = [];
+  for (const l of topLayers) layers.push(objectLayer(l));
+  for (const g of groups) {
+    const id = nextLayerId++;
+    layers.push({ id, layers: g.layers.map(objectLayer), name: g.name, opacity: 1, type: "group", visible: true, x: 0, y: 0 });
+  }
+  return {
+    compressionlevel: -1,
+    height: HEIGHT_TILES,
+    infinite: false,
+    layers,
+    nextlayerid: nextLayerId,
+    nextobjectid: nextObjectId,
+    orientation: "orthogonal",
+    properties: jsonProps({ name: "Downtown", metersPerTile: METERS_PER_TILE, cellM: CELL_M }),
+    renderorder: "right-down",
+    tiledversion: "1.11.2",
+    tileheight: PX,
+    tilesets: [],
+    tilewidth: PX,
+    type: "map",
+    version: "1.10",
+    width: WIDTH_TILES,
+  };
+}
+
+const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+function xmlProps(list: JsonProp[] | undefined, indent: string): string {
+  if (!list || list.length === 0) return "";
+  const rows = list.map((p) => `${indent} <property name="${esc(p.name)}"${p.type === "string" ? "" : ` type="${p.type}"`} value="${esc(String(p.value))}"/>`);
+  return `${indent}<properties>\n${rows.join("\n")}\n${indent}</properties>\n`;
+}
+
+/** The same map as Tiled XML (the designer's source file). */
+export function tmxFromTmj(tmj: Record<string, unknown>): string {
+  type O = Record<string, unknown>;
+  const layer = (l: O, ind: string): string => {
+    if (l.type === "group") {
+      const inner = (l.layers as O[]).map((c) => layer(c, `${ind} `)).join("");
+      return `${ind}<group id="${l.id}" name="${esc(String(l.name))}">\n${inner}${ind}</group>\n`;
+    }
+    const objs = (l.objects as O[])
+      .map((o) => {
+        const attrs = `id="${o.id}" name="${esc(String(o.name))}" x="${o.x}" y="${o.y}"${o.point ? "" : ` width="${o.width}" height="${o.height}"`}`;
+        const props = xmlProps(o.properties as JsonProp[] | undefined, `${ind}  `);
+        if (!o.point && !props) return `${ind} <object ${attrs}/>\n`;
+        return `${ind} <object ${attrs}>\n${props}${o.point ? `${ind}  <point/>\n` : ""}${ind} </object>\n`;
+      })
+      .join("");
+    return objs ? `${ind}<objectgroup id="${l.id}" name="${esc(String(l.name))}">\n${objs}${ind}</objectgroup>\n` : `${ind}<objectgroup id="${l.id}" name="${esc(String(l.name))}"/>\n`;
+  };
+  const m = tmj;
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<map version="${m.version}" tiledversion="${m.tiledversion}" orientation="orthogonal" renderorder="right-down" width="${m.width}" height="${m.height}" tilewidth="${m.tilewidth}" tileheight="${m.tileheight}" infinite="0" nextlayerid="${m.nextlayerid}" nextobjectid="${m.nextobjectid}">\n` +
+    xmlProps(m.properties as JsonProp[], " ") +
+    (m.layers as O[]).map((l) => layer(l, " ")).join("") +
+    `</map>\n`
+  );
+}
+
+function main(): void {
+  mkdirSync(dirname(SHARED_COPY_PATH), { recursive: true });
+  if (process.argv.includes("--sync")) {
+    copyFileSync(TMJ_PATH, SHARED_COPY_PATH);
+    console.log(`copied ${TMJ_PATH} → ${SHARED_COPY_PATH}`);
+    return;
+  }
+  const tmj = buildDowntownTmj();
+  const text = `${JSON.stringify(tmj, null, 1)}\n`;
+  mkdirSync(dirname(TMJ_PATH), { recursive: true });
+  writeFileSync(TMJ_PATH, text);
+  writeFileSync(SHARED_COPY_PATH, text);
+  writeFileSync(TMX_PATH, tmxFromTmj(tmj));
+  console.log(`wrote ${TMX_PATH}\nwrote ${TMJ_PATH}\nwrote ${SHARED_COPY_PATH}`);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

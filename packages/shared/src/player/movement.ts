@@ -1,7 +1,7 @@
 import type { SystemFn } from "../core/systems";
 import { updateDowned } from "./downed";
 import { playerSpeed, tickSlow } from "./slow";
-import { pushOutOfBuildings, pushed } from "../buildings/collision";
+import { hasObstacles, pushOutOfBuildings, pushed } from "../buildings/collision";
 
 const MIN_VEC_LEN = 1e-6;
 
@@ -13,7 +13,8 @@ const MIN_VEC_LEN = 1e-6;
  * Story 3.9: a slowed player moves at `playerSpeed`, and the slow counts down here (after the
  * move, for every status), so the predictor counts the same ticks as the server.
  * Story 3.4: a moved survivor is pushed out of buildings (same rules in the predictor, whose World
- * mirrors the buildings from schema).
+ * mirrors the buildings from schema). Story 4.1: and out of the map's collision boxes (the
+ * predictor's World is created with the same `DOWNTOWN_MAP`).
  */
 export const movePlayers: SystemFn = (world, dtS) => {
   const baseSpeed = world.balance.player.speedMps;
@@ -40,8 +41,8 @@ export const movePlayers: SystemFn = (world, dtS) => {
     const r = p.radiusM;
     const nx = p.x + mx * speed * dtS;
     const ny = p.y + my * speed * dtS;
-    if (world.buildings.list.length > 0) {
-      // Story 3.4: buildings and the map edge together (slide along faces; a slot narrower than the
+    if (hasObstacles(world)) {
+      // Story 3.4 (+ 4.1's map solids): obstacles and the map edge together (slide along faces; a slot narrower than the
       // body is impassable: the survivor stays where it was, review H1).
       pushOutOfBuildings(world, nx, ny, r, p.x, p.y);
       p.x = pushed.x;

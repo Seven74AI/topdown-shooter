@@ -78,7 +78,8 @@ export function snapshotWorld(world: World) {
     pendingInputs: sortedEntries(world.pendingInputs),
     inputs: sortedEntries(world.inputs),
     lastAppliedSeq: sortedEntries(world.lastAppliedSeq),
-    map: { ...world.map },
+    // Story 4.1: the map is static frozen data; its name and content hash identify it.
+    map: { name: world.map.name, version: world.map.version },
     players: sortedEntries(world.players).map(
       ([id, p]) =>
         [

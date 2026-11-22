@@ -15,6 +15,7 @@ import {
   weaponIds,
   createSlot,
   createWorld,
+  DOWNTOWN_MAP,
   decodeNetEvent,
   findReviver,
   headingToRad,
@@ -23,6 +24,7 @@ import {
   rotateBySeqSpread,
   ticksFor,
   type Balance,
+  type DistrictMap,
   type NetEventContext,
   type PlaceError,
   type PlaceRequest,
@@ -107,6 +109,8 @@ export interface NetSimHostOptions {
    * release build). Default: always.
    */
   measureHits?: () => boolean;
+  /** Story 4.1: the district (default `DOWNTOWN_MAP`, the server's; tests may pass `PLACEHOLDER_MAP`). */
+  map?: DistrictMap;
 }
 
 /**
@@ -229,7 +233,8 @@ export class NetSimHost implements SimHost {
     this.session = opts.session;
     this.localPlayerId = opts.session.playerId;
     this.now = opts.now ?? (() => performance.now());
-    this.world = createWorld({ balance: opts.balance, seed: 0, systems: NO_SYSTEMS });
+    // Story 4.1: the mirror and the Predictor use the server's map (same bundled data; the join sends `mapVersion`).
+    this.world = createWorld({ balance: opts.balance, seed: 0, map: opts.map ?? DOWNTOWN_MAP, systems: NO_SYSTEMS });
     this.ctx = { balance: opts.balance };
     this.predictor = new Predictor(opts.balance, this.world.map, this.localPlayerId);
     this.measureHits = opts.measureHits ?? (() => true);

@@ -17,6 +17,7 @@ import {
   S2C,
   TICK_RATE_HZ,
   buildSetReadySchema,
+  DOWNTOWN_MAP,
   buildingPlaceSchema,
   buildingRepairSchema,
   isTestScenario,
@@ -213,6 +214,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const parsed = joinOptionsSchema.safeParse(options);
     if (!parsed.success) throw refuse("invalid_options");
     if (parsed.data.balanceVersion !== serverBalance.version) throw refuse("balance_mismatch");
+    // Story 4.1: a client built with another map would predict against other walls.
+    if (parsed.data.mapVersion !== undefined && parsed.data.mapVersion !== DOWNTOWN_MAP.version) throw refuse("balance_mismatch");
     // Story 2.2 AC 3: `ctx.ip` is X-Real-IP, which Caddy sets from Cloudflare's Cf-Connecting-Ip.
     if (parsed.data.intent === "create" && !roomCreateLimiter.allow(ctx.ip ?? "unknown")) {
       log.warn({ ip: ctx.ip ?? "unknown" }, "room_create_rate_limited");

@@ -128,7 +128,7 @@ interface Down {
 export function simulate(o: Options): Result {
   const balance = o.balance ?? DEFAULT_BALANCE;
   const rng = createRng(o.seed);
-  const ctrl = new RunController({ balance, seed: o.seed, players: [{ playerId: ID, slot: 0 }], systems: { waves: () => {} }, lagCompensation: o.rewind !== false });
+  const ctrl = new RunController({ balance, seed: o.seed, players: [{ playerId: ID, slot: 0 }], systems: { waves: () => {} }, map: PLACEHOLDER_MAP, lagCompensation: o.rewind !== false }); // the open street: kiting circles
   const sp = ctrl.world.players.get(ID);
   if (!sp) throw new Error("no player");
   setLoadout(balance, sp.loadout, [o.weapon, null]);
@@ -157,7 +157,7 @@ export function simulate(o: Options): Result {
   const down = new Link<Down>(o.oneWayMs, o.jitterHalfMs, rng);
 
   // Client.
-  const mirror = createWorld({ balance, seed: 0, systems: NO_SYSTEMS });
+  const mirror = createWorld({ balance, seed: 0, map: PLACEHOLDER_MAP, systems: NO_SYSTEMS });
   const predictor = new Predictor(balance, PLACEHOLDER_MAP, ID);
   const clock = new LocalFireClock(balance);
   const hits = new ReversedHits();

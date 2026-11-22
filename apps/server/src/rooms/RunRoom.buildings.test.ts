@@ -80,14 +80,14 @@ const WOOD = "wood_barricade";
 describe("RunRoom buildings (Story 3.4)", () => {
   it("places a barricade: both clients see it, the builder pays 40, building.placed is forwarded", async () => {
     const { host, guest, room, guestRec } = await startTwo();
-    host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 24, gy: 10, rot: 1 });
+    host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 12, gy: 30, rot: 1 });
     for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.buildings.size).toBe(1));
-    expect(guest.state.buildings.get("1")).toMatchObject({ type: WOOD, owner: "p0", gx: 24, gy: 10, rot: 1, hp: 200 });
+    expect(guest.state.buildings.get("1")).toMatchObject({ type: WOOD, owner: "p0", gx: 12, gy: 30, rot: 1, hp: 200 });
     await vi.waitFor(() => expect(guest.state.players.get("p0")?.wallet).toBe(serverBalance.economy.startingWallet - 40));
     expect(guest.state.players.get("p1")?.wallet).toBe(serverBalance.economy.startingWallet);
     await vi.waitFor(() => expect(guestRec.events.flatMap((b) => b.events).some((t) => t[0] === NET_EVENT_KIND.BUILDING_PLACED)).toBe(true));
     const t = guestRec.events.flatMap((b) => b.events).find((e) => e[0] === NET_EVENT_KIND.BUILDING_PLACED);
-    expect(t).toEqual([NET_EVENT_KIND.BUILDING_PLACED, 1, 0, 0, 24, 10, 1]);
+    expect(t).toEqual([NET_EVENT_KIND.BUILDING_PLACED, 1, 0, 0, 12, 30, 1]);
     expect(world(room).buildings.list).toHaveLength(1);
   });
 
@@ -125,7 +125,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 300, gy: 3, rot: 0 });
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 3, gy: 3, rot: 4 });
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 3, gy: 3, rot: 0, owner: "p1" });
-    host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 3, gy: 4, rot: 0 }); // valid, after the junk
+    host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 12, gy: 30, rot: 0 }); // valid, after the junk
     await vi.waitFor(() => expect(world(room).buildings.list).toHaveLength(1));
     expect(hostRec.refused).toEqual([]);
     expect(world(room).buildings.list[0]?.ownerId).toBe("p0");

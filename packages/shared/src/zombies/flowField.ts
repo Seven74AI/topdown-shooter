@@ -1,7 +1,8 @@
 import { FLOW_CELL_M } from "../config/constants";
 import type { World } from "../core/world";
 import type { Building } from "../buildings/buildings";
-import type { DistrictBounds } from "../map/placeholderMap";
+import type { DistrictBounds, MapBox } from "../map/districtMap";
+import { mapCollisionCells } from "../map/collisionCells";
 import type { PlayerState } from "../player/player";
 import { ZOMBIE_STATE, ZOMBIE_TYPES } from "./zombieTypes";
 
@@ -39,6 +40,13 @@ import { ZOMBIE_STATE, ZOMBIE_TYPES } from "./zombieTypes";
  * (cost, cell) so equal costs pop in a fixed order: deterministic). Runs only where zombies run
  * (server, solo): the client's prediction never does.
  *
+ * **Walls (Story 4.1).** The map's collision boxes (`world.map.solids`) are written once into
+ * `wallAt` when the grid is created (static). Unlike building cells they are never entered (no cost
+ * makes them passable: nothing to break), a vertex touching one is not free, an edge narrower than a
+ * body whose ends touch only walls and the map edge is closed (`closedE/S`), and a pinch between a
+ * wall and a building carries the building's id (zombies break the building). Free cells next to a
+ * wall cost `nearWallCostM` extra, like next to a building.
+ *
  * Story 3.8: a second FlowField on the same NavGrid, `flank`, whose `fillPenalty` marks the cells in
  * front of every alive player (within ±`flank.coneHalfAngleDeg` of the aim, up to `coneRadiusM`;
  * the union of all cones); `penalty` is added to the entry cost of each cell. Runners (`flanks`
@@ -68,6 +76,11 @@ export interface NavGrid {
   readonly cells: number;
   /** Building id per cell (0 = no building). */
   readonly buildingAt: Int32Array;
+  /** Story 4.1: 1 = a map collision box covers the cell (static; never entered). */
+  readonly wallAt: Uint8Array;
+  /** Story 4.1: 1 = the edge east / south of the cell is narrower than a body between walls only (closed). */
+  readonly closedE: Uint8Array;
+  readonly closedS: Uint8Array;
   /** Cost units added when stepping into the cell. */
   readonly enterCost: Int32Array;
   /** Per vertex ((cols + 1) × (rows + 1)): 1 = a body centred there clears every building and the map edge. */
@@ -142,7 +155,7 @@ export interface PathingState {
   flankActive: boolean;
 }
 
-export function createNavGrid(map: DistrictBounds): NavGrid {
+export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly MapBox[] }): NavGrid {
   const cols = Math.max(1, Math.ceil(map.widthM / FLOW_CELL_M));
   const rows = Math.max(1, Math.ceil(map.heightM / FLOW_CELL_M));
   const cells = cols * rows;
@@ -152,6 +165,9 @@ export function createNavGrid(map: DistrictBounds): NavGrid {
     rows,
     cells,
     buildingAt: new Int32Array(cells),
+    wallAt: mapCollisionCells(map, FLOW_CELL_M),
+    closedE: new Uint8Array(cells),
+    closedS: new Uint8Array(cells),
     enterCost: new Int32Array(cells),
     vertexFree: new Uint8Array((cols + 1) * (rows + 1)),
     pinchE: new Int32Array(cells),
@@ -200,7 +216,7 @@ const NO_PATHING_MAP: DistrictBounds = { widthM: FLOW_CELL_M, heightM: FLOW_CELL
  * prediction Worlds, which never run the buildings or zombie systems) gives a one-cell placeholder
  * instead of ~150 KB of grids (3.5 review L5).
  */
-export function createPathingState(map: DistrictBounds, zombieCapacity: number, enabled = true): PathingState {
+export function createPathingState(map: DistrictBounds & { readonly solids?: readonly MapBox[] }, zombieCapacity: number, enabled = true): PathingState {
   const nav = createNavGrid(enabled ? map : NO_PATHING_MAP);
   return {
     nav,
@@ -246,7 +262,7 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
   const pathing = world.balance.zombies.pathing;
   const buildingCost = Math.max(1, Math.round(pathing.buildingCostM * FLOW_UNITS_PER_M));
   const nearWall = Math.round(pathing.nearWallCostM * FLOW_UNITS_PER_M);
-  const { cols, rows, cellM, buildingAt, enterCost } = nav;
+  const { cols, rows, cellM, buildingAt, enterCost, wallAt } = nav;
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
@@ -262,6 +278,18 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
     }
   }
   if (nearWall > 0) {
+    // Story 4.1: next to a map wall (static cells; the walls themselves are never entered).
+    for (let cy = 0; cy < rows; cy++) {
+      for (let cx = 0; cx < cols; cx++) {
+        if (wallAt[cy * cols + cx] === 0) continue;
+        for (let ny = Math.max(0, cy - 1); ny <= Math.min(rows - 1, cy + 1); ny++) {
+          for (let nx = Math.max(0, cx - 1); nx <= Math.min(cols - 1, cx + 1); nx++) {
+            const c = ny * cols + nx;
+            if (wallAt[c] === 0 && buildingAt[c] === 0 && (enterCost[c] as number) < nearWall) enterCost[c] = nearWall;
+          }
+        }
+      }
+    }
     for (let i = 0; i < list.length; i++) {
       const b = list[i] as Building;
       const x0 = Math.max(0, Math.floor(b.minX / cellM) - 1);
@@ -285,27 +313,33 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
       if (free === 1) {
         const c = (vy - 1) * cols + (vx - 1);
         if (buildingAt[c] !== 0 || buildingAt[c + 1] !== 0 || buildingAt[c + cols] !== 0 || buildingAt[c + cols + 1] !== 0) free = 0;
+        else if (wallAt[c] !== 0 || wallAt[c + 1] !== 0 || wallAt[c + cols] !== 0 || wallAt[c + cols + 1] !== 0) free = 0; // Story 4.1
       }
       vf[vy * vcols + vx] = free;
     }
   }
   nav.pinchE.fill(0);
   nav.pinchS.fill(0);
+  nav.closedE.fill(0);
+  nav.closedS.fill(0);
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
       const c = cy * cols + cx;
-      if (buildingAt[c] !== 0) continue;
+      if (buildingAt[c] !== 0 || wallAt[c] !== 0) continue;
       // East edge: x = cx + 1, from vertex (cx + 1, cy) to (cx + 1, cy + 1).
-      if (cx + 1 < cols && buildingAt[c + 1] === 0 && vf[cy * vcols + cx + 1] === 0 && vf[(cy + 1) * vcols + cx + 1] === 0) {
+      if (cx + 1 < cols && buildingAt[c + 1] === 0 && wallAt[c + 1] === 0 && vf[cy * vcols + cx + 1] === 0 && vf[(cy + 1) * vcols + cx + 1] === 0) {
         nav.pinchE[c] = Math.min(vertexBuilding(nav, cx + 1, cy), vertexBuilding(nav, cx + 1, cy + 1));
+        // Story 4.1: no building at either end but a wall → too narrow, and nothing to break: closed.
+        if (nav.pinchE[c] === NO_BUILDING && (vertexWall(nav, cx + 1, cy) || vertexWall(nav, cx + 1, cy + 1))) nav.closedE[c] = 1;
       }
       // South edge: y = cy + 1, from vertex (cx, cy + 1) to (cx + 1, cy + 1).
-      if (cy + 1 < rows && buildingAt[c + cols] === 0 && vf[(cy + 1) * vcols + cx] === 0 && vf[(cy + 1) * vcols + cx + 1] === 0) {
+      if (cy + 1 < rows && buildingAt[c + cols] === 0 && wallAt[c + cols] === 0 && vf[(cy + 1) * vcols + cx] === 0 && vf[(cy + 1) * vcols + cx + 1] === 0) {
         nav.pinchS[c] = Math.min(vertexBuilding(nav, cx, cy + 1), vertexBuilding(nav, cx + 1, cy + 1));
+        if (nav.pinchS[c] === NO_BUILDING && (vertexWall(nav, cx, cy + 1) || vertexWall(nav, cx + 1, cy + 1))) nav.closedS[c] = 1;
       }
     }
   }
-  // A pinch made by the map edge alone (no building at either end) stays open: nothing to break.
+  // A pinch made by the map edge alone (no building or wall at either end) stays open: nothing to break.
   for (let c = 0; c < nav.cells; c++) {
     if (nav.pinchE[c] === NO_BUILDING) nav.pinchE[c] = 0;
     if (nav.pinchS[c] === NO_BUILDING) nav.pinchS[c] = 0;
@@ -330,6 +364,28 @@ function vertexBuilding(nav: NavGrid, vx: number, vy: number): number {
     }
   }
   return best;
+}
+
+/** Story 4.1: a map wall covers one of the (up to four) cells around vertex (vx, vy). */
+function vertexWall(nav: NavGrid, vx: number, vy: number): boolean {
+  for (let dy = -1; dy <= 0; dy++) {
+    for (let dx = -1; dx <= 0; dx++) {
+      const cx = vx + dx;
+      const cy = vy + dy;
+      if (cx < 0 || cy < 0 || cx >= nav.cols || cy >= nav.rows) continue;
+      if (nav.wallAt[cy * nav.cols + cx] !== 0) return true;
+    }
+  }
+  return false;
+}
+
+/** Story 4.1: the edge between orthogonal neighbours a and b is closed (too narrow between walls). */
+export function flowEdgeClosed(nav: NavGrid, a: number, b: number): boolean {
+  if (b === a + 1) return nav.closedE[a] === 1;
+  if (b === a - 1) return nav.closedE[b] === 1;
+  if (b === a + nav.cols) return nav.closedS[a] === 1;
+  if (b === a - nav.cols) return nav.closedS[b] === 1;
+  return false;
 }
 
 /** The pinch building id on the edge between orthogonal neighbours a and b (0: open or not a pinch). */
@@ -442,7 +498,7 @@ function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void 
 /** Settles one cell and relaxes its neighbours. */
 function settleOne(f: FlowField, nav: NavGrid): void {
   const c = pop(f);
-  const { cols, rows, buildingAt, enterCost, vertexFree } = nav;
+  const { cols, rows, buildingAt, enterCost, vertexFree, wallAt } = nav;
   const back = f.back;
   const pen = f.penalty;
   // A zombie in a neighbour n walks n → c and pays the step plus entering c.
@@ -456,12 +512,14 @@ function settleOne(f: FlowField, nav: NavGrid): void {
     const ny = cy + dy;
     if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
     const n = ny * cols + nx;
-    if (f.heapPos[n] === SETTLED) continue;
+    if (f.heapPos[n] === SETTLED || wallAt[n] !== 0) continue; // Story 4.1: walls are never entered
     let step = STEP_ORTHO;
     if (dx !== 0 && dy !== 0) {
       // No corner cutting: the vertex between c and n must be free (its four cells free, clearance ≥ 0.5 m).
       if (vertexFree[(cy + (dy > 0 ? 1 : 0)) * (cols + 1) + cx + (dx > 0 ? 1 : 0)] === 0) continue;
       step = STEP_DIAG;
+    } else if (flowEdgeClosed(nav, c, n)) {
+      continue; // Story 4.1: narrower than a body between walls
     } else if (buildingAt[n] === 0 && buildingAt[c] === 0 && flowEdgePinch(nav, c, n) !== 0) {
       step += nav.buildingCost; // a gap narrower than a body: as costly as breaking a building
     }
@@ -657,6 +715,8 @@ export function flowNextCell(f: FlowField, nav: NavGrid, cell: number): number {
     if (dx !== 0 && dy !== 0) {
       if (vertexFree[(cy + (dy > 0 ? 1 : 0)) * (cols + 1) + cx + (dx > 0 ? 1 : 0)] === 0) continue;
       step = STEP_DIAG;
+    } else if (flowEdgeClosed(nav, cell, n)) {
+      continue; // Story 4.1
     } else if (buildingAt[n] === 0 && buildingAt[cell] === 0 && flowEdgePinch(nav, cell, n) !== 0) {
       step += nav.buildingCost;
     }
@@ -717,7 +777,7 @@ export function snapshotPathing(p: PathingState) {
   const pr = p.progress;
   return {
     navVersion: p.nav.version,
-    navHash: hashInts(p.nav.buildingAt) ^ hashInts(p.nav.enterCost) ^ hashInts(p.nav.pinchE) ^ hashInts(p.nav.pinchS),
+    navHash: hashInts(p.nav.buildingAt) ^ hashInts(p.nav.enterCost) ^ hashInts(p.nav.pinchE) ^ hashInts(p.nav.pinchS) ^ hashBytes(p.nav.closedE) ^ hashBytes(p.nav.closedS),
     progressHash: hashInts(new Int32Array(pr.anchorX.buffer)) ^ hashInts(new Int32Array(pr.anchorY.buffer)) ^ hashBytes(pr.ticks) ^ hashBytes(pr.stuck) ^ hashBytes(pr.gen),
     // 3.8 review H1: the flank timers
     flankHash: hashInts(new Int32Array(pr.flankLastD.buffer)) ^ hashInts(Int32Array.from(pr.flankTicks)) ^ hashInts(Int32Array.from(pr.flankGen)),

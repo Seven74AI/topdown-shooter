@@ -122,6 +122,11 @@ export class Predictor {
     mirrorBuildings(buildings, this.world);
   }
 
+  /** Story 4.1: the map the prediction collides with (tests: the same object as the server's). */
+  get map(): DistrictMap {
+    return this.world.map;
+  }
+
   /** Buildings the prediction collides with (tests). */
   get buildingCount(): number {
     return this.world.buildings.list.length;

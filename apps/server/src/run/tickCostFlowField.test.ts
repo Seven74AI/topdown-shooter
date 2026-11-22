@@ -13,6 +13,7 @@ import {
   flowSharedMaxAgeTicks,
   zombieTypeIndex,
   loadBalance,
+  PLACEHOLDER_MAP,
   rebuildFlowFieldNow,
   spawnZombie,
   TICK_DT_S,
@@ -77,6 +78,7 @@ function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
     seed: 99,
     players,
     pauseWaves: true,
+    map: PLACEHOLDER_MAP, // Story 4.1: the 3.5 layout was drawn for the open street (Downtown's cost: tickCostDowntown.test.ts)
     ...(withBuildings ? {} : { systems: { buildings: () => {} } }),
   });
   const world = c.world;

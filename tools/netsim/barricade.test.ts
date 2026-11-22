@@ -6,7 +6,18 @@
  * them into the predictor before reconciling, as `NetSimHost.takeSnapshot` does.
  */
 import { describe, expect, it } from "vitest";
-import { NEUTRAL_INPUT, TICK_DT_S, createRng, damageBuilding, loadBalance, PLACEHOLDER_MAP, type BuildingStateView, type PlayerInput } from "@topdown/shared";
+import {
+  DOWNTOWN_MAP,
+  NEUTRAL_INPUT,
+  TICK_DT_S,
+  createRng,
+  damageBuilding,
+  loadBalance,
+  PLACEHOLDER_MAP,
+  type BuildingStateView,
+  type DistrictMap,
+  type PlayerInput,
+} from "@topdown/shared";
 import { RunController } from "../../apps/server/src/run/RunController";
 import { Predictor } from "../../apps/client/src/net/prediction";
 import { PREDICTION_IGNORE_M } from "../../apps/client/src/net/netConfig";
@@ -64,6 +75,8 @@ interface Options {
   ignoreBuildings?: boolean;
   /** Story 3.5: at these times the server breaks the building at (gx, gy) (as a zombie's last hit would). */
   breaks?: { atMs: number; gx: number; gy: number }[];
+  /** Story 4.1: the predictor's map (default the server's, `DOWNTOWN_MAP`; the control run passes the open street). */
+  predictorMap?: DistrictMap;
 }
 
 function buildingsView(ctrl: RunController): Map<string, BuildingStateView> {
@@ -79,7 +92,7 @@ function simulate(o: Options) {
   if (me) me.wallet = 1000;
   const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng);
   const down = new Link<Snap>(o.oneWayMs, o.jitterHalfMs, rng);
-  const predictor = new Predictor(balance, PLACEHOLDER_MAP, ID);
+  const predictor = new Predictor(balance, o.predictorMap ?? DOWNTOWN_MAP, ID);
   const inputs: PlayerInput[] = [];
   const snaps: Snap[] = [];
   const errors: number[] = [];
@@ -111,7 +124,7 @@ function simulate(o: Options) {
       const p = ctrl.world.players.get(ID);
       if (p) {
         down.send(t, { x: Math.fround(p.x), y: Math.fround(p.y), ackSeq: ctrl.ackSeq(ID), buildings: buildingsView(ctrl) });
-        for (const b of ctrl.world.buildings.list) {
+        for (const b of [...ctrl.world.buildings.list, ...ctrl.world.map.solids]) {
           const cx = Math.min(b.maxX, Math.max(b.minX, p.x));
           const cy = Math.min(b.maxY, Math.max(b.minY, p.y));
           minWallGapM = Math.min(minWallGapM, Math.hypot(p.x - cx, p.y - cy) - p.radiusM);
@@ -183,6 +196,14 @@ const SLOT: Place[] = [
 ];
 const slotPath = (t: number) => (t < 4000 ? norm(Math.sin(t / 150) * 0.3, -1) : { x: 0, y: 0 });
 
+/**
+ * Story 4.1: from the spawn (22.5, 14.5) east into the crashed bus (x ∈ [30, 40], y ∈ [14.5, 17]),
+ * down its west face and round its corner, then up-left across the intersection and into the
+ * bottom-right corner of the NW apartments ([11, 18] × [0, 10]).
+ */
+const downtownPath = (t: number) =>
+  t < 2000 ? { x: 1, y: 0 } : t < 3000 ? norm(1, 0.6) : t < 5000 ? norm(-1, -1) : t < 7000 ? norm(-1, -0.3) : { x: 0, y: 0 };
+
 const report = (name: string, r: ReturnType<typeof simulate>): void => {
   console.info(
     `[netsim] ${name}: snaps=${r.snaps} corrections=${r.corrections} visible=${r.visibleErrors} maxErrorM=${r.maxErrorM.toExponential(2)} minWallGapM=${r.minWallGapM.toFixed(4)}`,
@@ -221,6 +242,21 @@ describe("netsim: walking into barricades (Story 3.4, brief line 4)", () => {
         expect(r.finalErrorM).toBeLessThan(PREDICTION_IGNORE_M);
       }
     }
+  });
+
+  it("Story 4.1: into the bus and a Downtown building: 0 snaps (the predictor has the server's map); control: the open street snaps", () => {
+    for (const seed of [41, 42]) {
+      const r = simulate({ seed, oneWayMs: 75, jitterHalfMs: 10, places: [], path: downtownPath, seconds: 8 });
+      report(`downtown 75±10 ms seed ${seed}`, r);
+      expect(r.minWallGapM).toBeGreaterThan(-1e-6); // never inside the bus or a building
+      expect(r.minWallGapM).toBeLessThan(1e-6); // ... and it really pressed on them
+      expect(r.snaps).toBe(0);
+      expect(r.visibleErrors).toBe(0);
+      expect(r.finalErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+    }
+    const control = simulate({ seed: 41, oneWayMs: 75, jitterHalfMs: 10, places: [], path: downtownPath, seconds: 8, predictorMap: PLACEHOLDER_MAP });
+    report("downtown control (predictor on the open street)", control);
+    expect(control.visibleErrors).toBeGreaterThan(0);
   });
 
   it("300 ms RTT, 40 ms jitter: still 0 snaps", () => {

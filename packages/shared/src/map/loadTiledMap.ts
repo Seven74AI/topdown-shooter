@@ -1,0 +1,253 @@
+import { FLOW_CELL_M } from "../config/constants";
+import { canonicalJson, fnv1a32 } from "../core/hash";
+import {
+  COVER_KINDS,
+  MAP_STAGE_COUNT,
+  type CoverKind,
+  type CoverObject,
+  type DistrictMap,
+  type HazardZone,
+  type MapBox,
+  type MapSpawn,
+  type VisualProp,
+} from "./districtMap";
+import { tiledMapSchema, type TiledLayer, type TiledObject, type TiledObjectGroup, type TiledProperty } from "./tiledSchema";
+
+/**
+ * Story 4.1: a Tiled JSON export (`.tmj`) → a frozen `DistrictMap`.
+ *
+ * Units: 1 tile = `metersPerTile` m (map property); object coordinates are pixels, so
+ * m = px / tilewidth × metersPerTile. The map property `cellM` must equal the sim's 0.5 m grid
+ * (`FLOW_CELL_M` = `BUILD_GRID_M`): collision and cover boxes must lie on it, so the collision grid
+ * and the nav grid cover them exactly (no half cells), like buildings (Story 3.4 review H2).
+ *
+ * Layers (architecture › Game Assets): object layers `collision`, `cover`, `spawns`, `hazards`
+ * and group layers `stage1_evening` … `stage5_collapse` at the top level. Anything else is ignored.
+ */
+
+export const MAP_LAYERS = { collision: "collision", cover: "cover", spawns: "spawns", hazards: "hazards" } as const;
+export const MAP_STAGE_GROUPS = ["stage1_evening", "stage2_panic", "stage3_breakdown", "stage4_ruins", "stage5_collapse"] as const;
+
+/** Thrown for a map the sim can't use; `issues` name the layer and object. */
+export class MapError extends Error {
+  constructor(readonly issues: readonly string[]) {
+    super(issues.join("\n"));
+    this.name = "MapError";
+  }
+}
+
+/** Float noise allowed when checking that a coordinate lies on the lattice. */
+const LATTICE_EPS = 1e-6;
+
+function propsOf(list: readonly TiledProperty[] | undefined): Map<string, TiledProperty["value"]> {
+  const m = new Map<string, TiledProperty["value"]>();
+  for (const p of list ?? []) m.set(p.name, p.value);
+  return m;
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const v of Object.values(value)) deepFreeze(v);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+export function loadTiledMap(raw: unknown, name: string): DistrictMap {
+  const parsed = tiledMapSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new MapError(parsed.error.issues.map((i) => `${name}: ${i.path.map(String).join(".") || "(root)"}: ${i.message}`));
+  }
+  const tm = parsed.data;
+  const issues: string[] = [];
+  const fail = (msg: string): void => {
+    issues.push(`${name}: ${msg}`);
+  };
+  if (tm.orientation !== "orthogonal") fail(`orientation must be orthogonal, got ${tm.orientation}`);
+  if (tm.infinite) fail("infinite maps are not supported");
+  if (tm.tilewidth !== tm.tileheight) fail(`tiles must be square (${tm.tilewidth} × ${tm.tileheight} px)`);
+  const mapProps = propsOf(tm.properties);
+  const mpt = mapProps.get("metersPerTile");
+  const cellM = mapProps.get("cellM");
+  if (typeof mpt !== "number" || !(mpt > 0)) fail("map property metersPerTile (float > 0) is missing");
+  if (cellM !== FLOW_CELL_M) fail(`map property cellM must be ${FLOW_CELL_M} (the sim's grid), got ${String(cellM)}`);
+  if (issues.length > 0) throw new MapError(issues);
+
+  const mPerPx = (mpt as number) / tm.tilewidth;
+  const widthM = tm.width * (mpt as number);
+  const heightM = tm.height * (mpt as number);
+  const onLattice = (m: number): boolean => Math.abs(m / FLOW_CELL_M - Math.round(m / FLOW_CELL_M)) < LATTICE_EPS;
+  const snap = (m: number): number => Math.round(m / FLOW_CELL_M) * FLOW_CELL_M;
+  if (!onLattice(widthM) || !onLattice(heightM)) fail(`map size ${widthM} × ${heightM} m is not a multiple of ${FLOW_CELL_M} m`);
+
+  const top = new Map<string, TiledLayer>();
+  for (const l of tm.layers) {
+    if (top.has(l.name)) fail(`layer ${l.name} appears twice`);
+    top.set(l.name, l);
+  }
+  const objectLayer = (layer: string): TiledObjectGroup | null => {
+    const l = top.get(layer);
+    if (!l) {
+      fail(`layer ${layer} is missing`);
+      return null;
+    }
+    if (l.type !== "objectgroup") {
+      fail(`layer ${layer} must be an object layer, got ${l.type}`);
+      return null;
+    }
+    return l;
+  };
+
+  const kindOf = (o: TiledObject): string => {
+    const k = propsOf(o.properties).get("kind");
+    return typeof k === "string" && k.length > 0 ? k : o.type;
+  };
+  const stageOf = (layer: string, o: TiledObject): number => {
+    const s = propsOf(o.properties).get("minStage") ?? 1;
+    if (typeof s !== "number" || !Number.isInteger(s) || s < 1 || s > MAP_STAGE_COUNT) {
+      fail(`${layer}: ${o.name || `#${o.id}`}: minStage must be an integer 1–${MAP_STAGE_COUNT}, got ${String(s)}`);
+      return 1;
+    }
+    return s;
+  };
+
+  /** A rectangle object in metres; `lattice` requires every edge on the 0.5 m grid. */
+  const boxOf = (layer: string, o: TiledObject, lattice: boolean): MapBox | null => {
+    const label = `${layer}: ${o.name || `#${o.id}`}`;
+    if (o.point || o.ellipse || o.polygon || o.polyline || o.gid !== undefined || o.text !== undefined) {
+      fail(`${label}: must be a rectangle`);
+      return null;
+    }
+    if (o.rotation !== 0) {
+      fail(`${label}: rotated objects are not supported (rotation ${o.rotation})`);
+      return null;
+    }
+    let minX = o.x * mPerPx;
+    let minY = o.y * mPerPx;
+    let maxX = (o.x + o.width) * mPerPx;
+    let maxY = (o.y + o.height) * mPerPx;
+    if (!(maxX > minX && maxY > minY)) {
+      fail(`${label}: width and height must be > 0`);
+      return null;
+    }
+    if (lattice) {
+      if (![minX, minY, maxX, maxY].every(onLattice)) {
+        fail(`${label}: edges must lie on the ${FLOW_CELL_M} m grid (${minX}, ${minY}) – (${maxX}, ${maxY})`);
+        return null;
+      }
+      minX = snap(minX);
+      minY = snap(minY);
+      maxX = snap(maxX);
+      maxY = snap(maxY);
+    }
+    if (minX < 0 || minY < 0 || maxX > widthM + LATTICE_EPS || maxY > heightM + LATTICE_EPS) {
+      fail(`${label}: outside the ${widthM} × ${heightM} m map`);
+      return null;
+    }
+    return { name: o.name, minX, minY, maxX, maxY };
+  };
+
+  const uniqueNames = (layer: string, objs: readonly TiledObject[]): void => {
+    const seen = new Set<string>();
+    for (const o of objs) {
+      if (o.name === "") fail(`${layer}: object #${o.id} needs a name`);
+      else if (seen.has(o.name)) fail(`${layer}: name ${o.name} is used twice`);
+      seen.add(o.name);
+    }
+  };
+
+  const solids: MapBox[] = [];
+  const collision = objectLayer(MAP_LAYERS.collision);
+  if (collision) {
+    uniqueNames(collision.name, collision.objects);
+    for (const o of collision.objects) {
+      const b = boxOf(collision.name, o, true);
+      if (b) solids.push(b);
+    }
+  }
+
+  const cover: CoverObject[] = [];
+  const coverLayer = objectLayer(MAP_LAYERS.cover);
+  if (coverLayer) {
+    uniqueNames(coverLayer.name, coverLayer.objects);
+    for (const o of coverLayer.objects) {
+      const b = boxOf(coverLayer.name, o, true);
+      const kind = kindOf(o);
+      if (!(COVER_KINDS as readonly string[]).includes(kind)) {
+        fail(`${coverLayer.name}: ${o.name || `#${o.id}`}: kind must be one of ${COVER_KINDS.join(", ")}, got ${kind || "(none)"}`);
+        continue;
+      }
+      if (b) cover.push({ ...b, kind: kind as CoverKind, minStage: stageOf(coverLayer.name, o) });
+    }
+  }
+
+  const hazards: HazardZone[] = [];
+  const hazardLayer = objectLayer(MAP_LAYERS.hazards);
+  if (hazardLayer) {
+    uniqueNames(hazardLayer.name, hazardLayer.objects);
+    for (const o of hazardLayer.objects) {
+      const b = boxOf(hazardLayer.name, o, false);
+      const kind = kindOf(o);
+      if (kind === "") fail(`${hazardLayer.name}: ${o.name || `#${o.id}`}: needs a kind`);
+      else if (b) hazards.push({ ...b, kind, minStage: stageOf(hazardLayer.name, o) });
+    }
+  }
+
+  const spawnPoints: MapSpawn[] = [];
+  const spawnLayer = objectLayer(MAP_LAYERS.spawns);
+  if (spawnLayer) {
+    uniqueNames(spawnLayer.name, spawnLayer.objects);
+    for (const o of spawnLayer.objects) {
+      const label = `${spawnLayer.name}: ${o.name || `#${o.id}`}`;
+      if (!o.point) {
+        fail(`${label}: must be a point`);
+        continue;
+      }
+      const x = o.x * mPerPx;
+      const y = o.y * mPerPx;
+      if (!(x > 0 && y > 0 && x < widthM && y < heightM)) {
+        fail(`${label}: outside the map`);
+        continue;
+      }
+      const inside = solids.find((s) => x >= s.minX && x <= s.maxX && y >= s.minY && y <= s.maxY);
+      if (inside) {
+        fail(`${label}: inside collision box ${inside.name}`);
+        continue;
+      }
+      spawnPoints.push({ name: o.name, x, y, minStage: stageOf(spawnLayer.name, o) });
+    }
+    if (spawnPoints.length === 0) fail(`${spawnLayer.name}: needs at least one spawn point`);
+  }
+
+  const stages: VisualProp[][] = [];
+  for (const groupName of MAP_STAGE_GROUPS) {
+    const g = top.get(groupName);
+    const props: VisualProp[] = [];
+    stages.push(props);
+    if (!g) {
+      fail(`layer group ${groupName} is missing`);
+      continue;
+    }
+    if (g.type !== "group") {
+      fail(`${groupName} must be a group layer, got ${g.type}`);
+      continue;
+    }
+    const walk = (layers: readonly TiledLayer[]): void => {
+      for (const l of layers) {
+        if (l.type === "group") walk(l.layers);
+        else if (l.type === "objectgroup") {
+          for (const o of l.objects) {
+            const b = boxOf(`${groupName}/${l.name}`, o, false);
+            if (b) props.push({ ...b, kind: kindOf(o), layer: l.name });
+          }
+        }
+      }
+    };
+    walk(g.layers);
+  }
+
+  if (issues.length > 0) throw new MapError(issues);
+  const body = { name, widthM, heightM, spawnPoints, solids, cover, hazards, stages };
+  const version = fnv1a32(canonicalJson(body)).toString(16).padStart(8, "0");
+  return deepFreeze({ ...body, version });
+}

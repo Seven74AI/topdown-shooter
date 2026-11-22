@@ -2,6 +2,8 @@ import type { Balance } from "../config/balance";
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { createWorld, setInput, step } from "../core/world";
+import type { DistrictMap } from "../map/districtMap";
+import { DOWNTOWN_MAP } from "../map/downtown";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
@@ -23,6 +25,8 @@ export interface HeadlessRunOptions {
   seed: number;
   players: number;
   list?: readonly string[];
+  /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map). */
+  map?: DistrictMap;
   /** Safety stop (default 20 min of game time); a run that hits it reports `timedOut`. */
   maxTicks?: number;
 }
@@ -69,7 +73,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
   const { balance, seed, players } = opts;
   const list = opts.list ?? balance.bots.shoppingList;
   const maxTicks = opts.maxTicks ?? 20 * 60 * 20;
-  const world = createWorld({ balance, seed });
+  const world = createWorld({ balance, seed, map: opts.map ?? DOWNTOWN_MAP });
   const at = { x: 0, y: 0 };
   const ids: string[] = [];
   for (let slot = 0; slot < players; slot++) {

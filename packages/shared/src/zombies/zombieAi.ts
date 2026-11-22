@@ -7,7 +7,7 @@ import { downPlayer } from "../player/downed";
 import { slowPlayer } from "../player/slow";
 import type { ZombieTypeStats } from "../config/balanceSchema";
 import { zombieTypeOf } from "./zombiePool";
-import { PUSH_STUCK, distanceToBox, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
+import { PUSH_STUCK, distanceToBox, hasObstacles, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
 import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, type FlowField } from "./flowField";
@@ -132,7 +132,8 @@ export const updateZombies: SystemFn = (world, dtS) => {
   }
   rebuildGrid(world.zombieGrid, ids, n, pool.x, pool.y);
   collectAlivePlayers(world);
-  const hasBuildings = world.buildings.list.length > 0;
+  // Story 4.1: map solids count like buildings for the line of sight and the push-out (never attacked).
+  const hasBuildings = hasObstacles(world);
   const flank = world.balance.zombies.flank;
   const flankMaxAge = flowSharedMaxAgeTicks(world);
   const maxFlankTicks = ticksFor(flank.maxFlankS);

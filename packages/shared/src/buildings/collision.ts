@@ -1,4 +1,5 @@
 import type { World } from "../core/world";
+import type { MapBox } from "../map/districtMap";
 import type { Building } from "./buildings";
 
 /**
@@ -6,7 +7,19 @@ import type { Building } from "./buildings";
  * `movePlayers` runs this on the server and in the client's prediction, so it uses only + − × ÷,
  * sqrt, min and max (the Story 2.6 rule: identical results in every JavaScript engine), visits the
  * buildings in id order, and allocates nothing.
+ *
+ * Story 4.1: the map's static collision boxes (`world.map.solids`, the Tiled `collision` layer) are
+ * obstacles exactly like buildings: every test here visits them first (in map order), then the
+ * buildings. They are never attacked (zombies hit buildings only) and never removed.
  */
+
+/** Any obstacle box (a building or a map solid). */
+type BoxView = Pick<MapBox, "minX" | "minY" | "maxX" | "maxY">;
+
+/** Story 4.1: the World has any obstacle (map solids or buildings): movement must run the push-out. */
+export function hasObstacles(world: Readonly<World>): boolean {
+  return world.map.solids.length > 0 || world.buildings.list.length > 0;
+}
 
 /** Below this centre-to-box distance the circle counts as inside the box (pushed out along the shortest axis). */
 const INSIDE_EPS_M = 1e-9;
@@ -20,8 +33,13 @@ export function circleOverlapsBox(x: number, y: number, r: number, minX: number,
   return dx * dx + dy * dy < r * r;
 }
 
-/** The circle overlaps any building (`spotBlocked`, free-spot search). */
+/** The circle overlaps any map solid (Story 4.1) or building (`spotBlocked`, free-spot search). */
 export function circleHitsBuilding(world: Readonly<World>, x: number, y: number, r: number): boolean {
+  const solids = world.map.solids;
+  for (let i = 0; i < solids.length; i++) {
+    const b = solids[i] as MapBox;
+    if (circleOverlapsBox(x, y, r, b.minX, b.minY, b.maxX, b.maxY)) return true;
+  }
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
@@ -46,7 +64,7 @@ const MAX_PASSES = 4;
 const STUCK_EPS_M = 1e-6;
 
 /** One box's push on (px, py) into `pushed`; returns whether it moved. `fromX/fromY` picks the face when the centre is inside. */
-function pushBox(b: Building, px: number, py: number, r: number, fromX: number, fromY: number): boolean {
+function pushBox(b: BoxView, px: number, py: number, r: number, fromX: number, fromY: number): boolean {
   const cx = Math.min(b.maxX, Math.max(b.minX, px));
   const cy = Math.min(b.maxY, Math.max(b.minY, py));
   const dx = px - cx;
@@ -134,12 +152,19 @@ export function pushOutOfBuildings(
 /** One push-out attempt for the target (x, y): passes until stable, or PUSH_STUCK (then `pushed` = from). */
 function settle(world: Readonly<World>, x: number, y: number, r: number, fromX: number, fromY: number): PushResult {
   const list = world.buildings.list;
+  const solids = world.map.solids;
   const { widthM, heightM } = world.map;
   let px = x;
   let py = y;
   let moved = false;
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     let any = false;
+    for (let i = 0; i < solids.length; i++) {
+      if (!pushBox(solids[i] as MapBox, px, py, r, fromX, fromY)) continue;
+      px = pushed.x;
+      py = pushed.y;
+      any = true;
+    }
     for (let i = 0; i < list.length; i++) {
       if (!pushBox(list[i] as Building, px, py, r, fromX, fromY)) continue;
       px = pushed.x;
@@ -162,6 +187,14 @@ function settle(world: Readonly<World>, x: number, y: number, r: number, fromX: 
   }
   // Did the last pass leave it clear (within float noise)?
   const rr = r - STUCK_EPS_M;
+  for (let i = 0; i < solids.length; i++) {
+    const b = solids[i] as MapBox;
+    if (circleOverlapsBox(px, py, rr, b.minX, b.minY, b.maxX, b.maxY)) {
+      pushed.x = fromX;
+      pushed.y = fromY;
+      return PUSH_STUCK;
+    }
+  }
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
     if (circleOverlapsBox(px, py, rr, b.minX, b.minY, b.maxX, b.maxY)) {
@@ -208,13 +241,18 @@ export function segmentHitsBox(x0: number, y0: number, dx: number, dy: number, m
 
 /**
  * Story 3.5: a circle of radius r moving in a straight line from (x0, y0) to (x1, y1) would hit a
- * building (each box grown by r on every side: conservative at the corners). Zombies walk straight
- * when this is false and follow the flow field otherwise.
+ * building or (Story 4.1) a map solid (each box grown by r on every side: conservative at the
+ * corners). Zombies walk straight when this is false and follow the flow field otherwise.
  */
 export function segmentHitsBuildings(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number, r: number): boolean {
   const list = world.buildings.list;
+  const solids = world.map.solids;
   const dx = x1 - x0;
   const dy = y1 - y0;
+  for (let i = 0; i < solids.length; i++) {
+    const b = solids[i] as MapBox;
+    if (segmentHitsBox(x0, y0, dx, dy, b.minX - r, b.minY - r, b.maxX + r, b.maxY + r)) return true;
+  }
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
     if (segmentHitsBox(x0, y0, dx, dy, b.minX - r, b.minY - r, b.maxX + r, b.maxY + r)) return true;

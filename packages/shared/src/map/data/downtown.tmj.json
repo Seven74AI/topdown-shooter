@@ -1,0 +1,1060 @@
+{
+ "compressionlevel": -1,
+ "height": 32,
+ "infinite": false,
+ "layers": [
+  {
+   "draworder": "topdown",
+   "id": 1,
+   "name": "collision",
+   "objects": [
+    {
+     "height": 320,
+     "id": 1,
+     "name": "nw_corner_shop",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 256,
+     "x": 0,
+     "y": 0
+    },
+    {
+     "height": 320,
+     "id": 2,
+     "name": "nw_apartments",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 224,
+     "x": 352,
+     "y": 0
+    },
+    {
+     "height": 192,
+     "id": 3,
+     "name": "gas_kiosk",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 224,
+     "x": 1312,
+     "y": 0
+    },
+    {
+     "height": 32,
+     "id": 4,
+     "name": "gas_pump_a",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 64,
+     "x": 1040,
+     "y": 112
+    },
+    {
+     "height": 32,
+     "id": 5,
+     "name": "gas_pump_b",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 64,
+     "x": 1040,
+     "y": 224
+    },
+    {
+     "height": 80,
+     "id": 6,
+     "name": "city_bus",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 320,
+     "x": 960,
+     "y": 464
+    },
+    {
+     "height": 320,
+     "id": 7,
+     "name": "sw_diner",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 224,
+     "x": 0,
+     "y": 704
+    },
+    {
+     "height": 256,
+     "id": 8,
+     "name": "parking_wall",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 16,
+     "x": 320,
+     "y": 768
+    },
+    {
+     "height": 320,
+     "id": 9,
+     "name": "se_offices",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 256,
+     "x": 960,
+     "y": 704
+    },
+    {
+     "height": 320,
+     "id": 10,
+     "name": "se_warehouse",
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 224,
+     "x": 1312,
+     "y": 704
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 2,
+   "name": "cover",
+   "objects": [
+    {
+     "height": 80,
+     "id": 11,
+     "name": "bus_hull",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "bus"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 320,
+     "x": 960,
+     "y": 464
+    },
+    {
+     "height": 144,
+     "id": 12,
+     "name": "parked_car_1",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 64,
+     "x": 368,
+     "y": 832
+    },
+    {
+     "height": 144,
+     "id": 13,
+     "name": "parked_car_2",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 64,
+     "x": 464,
+     "y": 832
+    },
+    {
+     "height": 144,
+     "id": 14,
+     "name": "parked_car_3",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 64,
+     "x": 560,
+     "y": 832
+    },
+    {
+     "height": 64,
+     "id": 15,
+     "name": "street_car_west",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 144,
+     "x": 128,
+     "y": 416
+    },
+    {
+     "height": 64,
+     "id": 16,
+     "name": "street_car_east",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 144,
+     "x": 1344,
+     "y": 560
+    },
+    {
+     "height": 16,
+     "id": 17,
+     "name": "police_barrier_north",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "barrier"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 2
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 192,
+     "x": 672,
+     "y": 192
+    },
+    {
+     "height": 32,
+     "id": 18,
+     "name": "sandbags_south",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "sandbags"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 3
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 96,
+     "x": 720,
+     "y": 720
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 3,
+   "name": "spawns",
+   "objects": [
+    {
+     "height": 0,
+     "id": 19,
+     "name": "street_west",
+     "point": true,
+     "properties": [
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 16,
+     "y": 512
+    },
+    {
+     "height": 0,
+     "id": 20,
+     "name": "street_east",
+     "point": true,
+     "properties": [
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 1520,
+     "y": 512
+    },
+    {
+     "height": 0,
+     "id": 21,
+     "name": "street_north",
+     "point": true,
+     "properties": [
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 16
+    },
+    {
+     "height": 0,
+     "id": 22,
+     "name": "street_south",
+     "point": true,
+     "properties": [
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 1008
+    },
+    {
+     "height": 0,
+     "id": 23,
+     "name": "alley_1_mouth",
+     "point": true,
+     "properties": [
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 304,
+     "y": 16
+    },
+    {
+     "height": 0,
+     "id": 24,
+     "name": "alley_2_mouth",
+     "point": true,
+     "properties": [
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 272,
+     "y": 1008
+    },
+    {
+     "height": 0,
+     "id": 25,
+     "name": "alley_3_mouth",
+     "point": true,
+     "properties": [
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 1264,
+     "y": 1008
+    },
+    {
+     "height": 0,
+     "id": 26,
+     "name": "gas_station_north",
+     "point": true,
+     "properties": [
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 1200,
+     "y": 16
+    },
+    {
+     "height": 0,
+     "id": 27,
+     "name": "parking_lot_south",
+     "point": true,
+     "properties": [
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 480,
+     "y": 1008
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 4,
+   "name": "hazards",
+   "objects": [
+    {
+     "height": 240,
+     "id": 28,
+     "name": "gas_leak_zone",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "gas_leak"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 2
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 192,
+     "x": 992,
+     "y": 64
+    },
+    {
+     "height": 208,
+     "id": 29,
+     "name": "fire_parked_car_2",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "fire"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 3
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 128,
+     "x": 432,
+     "y": 800
+    },
+    {
+     "height": 128,
+     "id": 30,
+     "name": "fire_street_car_west",
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "fire"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 3
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 208,
+     "x": 96,
+     "y": 384
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "id": 5,
+   "layers": [
+    {
+     "draworder": "topdown",
+     "id": 6,
+     "name": "stage1_ground",
+     "objects": [
+      {
+       "height": 64,
+       "id": 31,
+       "name": "sidewalk_nw",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "sidewalk"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 640,
+       "x": 0,
+       "y": 320
+      },
+      {
+       "height": 320,
+       "id": 32,
+       "name": "sidewalk_nw_east",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "sidewalk"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 64,
+       "x": 576,
+       "y": 0
+      },
+      {
+       "height": 64,
+       "id": 33,
+       "name": "sidewalk_sw",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "sidewalk"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 640,
+       "x": 0,
+       "y": 640
+      },
+      {
+       "height": 64,
+       "id": 34,
+       "name": "sidewalk_se",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "sidewalk"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 640,
+       "x": 896,
+       "y": 640
+      },
+      {
+       "height": 320,
+       "id": 35,
+       "name": "sidewalk_se_west",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "sidewalk"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 64,
+       "x": 896,
+       "y": 704
+      },
+      {
+       "height": 384,
+       "id": 36,
+       "name": "gas_forecourt",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "forecourt"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 640,
+       "x": 896,
+       "y": 0
+      },
+      {
+       "height": 320,
+       "id": 37,
+       "name": "parking_lot",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "lot"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 304,
+       "x": 336,
+       "y": 704
+      },
+      {
+       "height": 48,
+       "id": 38,
+       "name": "crosswalk_north",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "crosswalk"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 256,
+       "x": 640,
+       "y": 336
+      },
+      {
+       "height": 48,
+       "id": 39,
+       "name": "crosswalk_south",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "crosswalk"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 256,
+       "x": 640,
+       "y": 640
+      },
+      {
+       "height": 256,
+       "id": 40,
+       "name": "crosswalk_west",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "crosswalk"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 48,
+       "x": 592,
+       "y": 384
+      },
+      {
+       "height": 256,
+       "id": 41,
+       "name": "crosswalk_east",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "crosswalk"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 48,
+       "x": 896,
+       "y": 384
+      },
+      {
+       "height": 6.4,
+       "id": 42,
+       "name": "lane_west",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "lane"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 544,
+       "x": 32,
+       "y": 508.8
+      },
+      {
+       "height": 6.4,
+       "id": 43,
+       "name": "lane_east",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "lane"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 208,
+       "x": 1312,
+       "y": 508.8
+      },
+      {
+       "height": 304,
+       "id": 44,
+       "name": "lane_north",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "lane"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 6.4,
+       "x": 764.8,
+       "y": 16
+      },
+      {
+       "height": 304,
+       "id": 45,
+       "name": "lane_south",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "lane"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 6.4,
+       "x": 764.8,
+       "y": 704
+      },
+      {
+       "height": 240,
+       "id": 46,
+       "name": "gas_canopy",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "canopy"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 192,
+       "x": 992,
+       "y": 64
+      }
+     ],
+     "opacity": 1,
+     "type": "objectgroup",
+     "visible": true,
+     "x": 0,
+     "y": 0
+    }
+   ],
+   "name": "stage1_evening",
+   "opacity": 1,
+   "type": "group",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "id": 7,
+   "layers": [
+    {
+     "draworder": "topdown",
+     "id": 8,
+     "name": "stage2_props",
+     "objects": [
+      {
+       "height": 25.6,
+       "id": 47,
+       "name": "debris_west",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 32,
+       "x": 160,
+       "y": 576
+      },
+      {
+       "height": 25.6,
+       "id": 48,
+       "name": "debris_east",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 38.4,
+       "x": 1408,
+       "y": 416
+      }
+     ],
+     "opacity": 1,
+     "type": "objectgroup",
+     "visible": true,
+     "x": 0,
+     "y": 0
+    }
+   ],
+   "name": "stage2_panic",
+   "opacity": 1,
+   "type": "group",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "id": 9,
+   "layers": [
+    {
+     "draworder": "topdown",
+     "id": 10,
+     "name": "stage3_props",
+     "objects": [
+      {
+       "height": 32,
+       "id": 49,
+       "name": "debris_mid",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 48,
+       "x": 480,
+       "y": 448
+      },
+      {
+       "height": 32,
+       "id": 50,
+       "name": "debris_south",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 32,
+       "x": 832,
+       "y": 864
+      }
+     ],
+     "opacity": 1,
+     "type": "objectgroup",
+     "visible": true,
+     "x": 0,
+     "y": 0
+    }
+   ],
+   "name": "stage3_breakdown",
+   "opacity": 1,
+   "type": "group",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "id": 11,
+   "layers": [
+    {
+     "draworder": "topdown",
+     "id": 12,
+     "name": "stage4_props",
+     "objects": [],
+     "opacity": 1,
+     "type": "objectgroup",
+     "visible": true,
+     "x": 0,
+     "y": 0
+    }
+   ],
+   "name": "stage4_ruins",
+   "opacity": 1,
+   "type": "group",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "id": 13,
+   "layers": [
+    {
+     "draworder": "topdown",
+     "id": 14,
+     "name": "stage5_props",
+     "objects": [],
+     "opacity": 1,
+     "type": "objectgroup",
+     "visible": true,
+     "x": 0,
+     "y": 0
+    }
+   ],
+   "name": "stage5_collapse",
+   "opacity": 1,
+   "type": "group",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  }
+ ],
+ "nextlayerid": 15,
+ "nextobjectid": 51,
+ "orientation": "orthogonal",
+ "properties": [
+  {
+   "name": "name",
+   "type": "string",
+   "value": "Downtown"
+  },
+  {
+   "name": "metersPerTile",
+   "type": "float",
+   "value": 1
+  },
+  {
+   "name": "cellM",
+   "type": "float",
+   "value": 0.5
+  }
+ ],
+ "renderorder": "right-down",
+ "tiledversion": "1.11.2",
+ "tileheight": 32,
+ "tilesets": [],
+ "tilewidth": 32,
+ "type": "map",
+ "version": "1.10",
+ "width": 48
+}

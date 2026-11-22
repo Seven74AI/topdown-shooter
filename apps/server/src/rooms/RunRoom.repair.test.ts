@@ -81,7 +81,7 @@ const START = serverBalance.economy.startingWallet;
 
 /** The host (p0) places a barricade and both clients see it. Returns the server's building. */
 async function hostPlaces(host: RunSdkRoom, guest: RunSdkRoom, room: RunRoom) {
-  host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 24, gy: 10, rot: 0 });
+  host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 12, gy: 30, rot: 0 });
   for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.buildings.size).toBe(1));
   const b = world(room).buildings.list[0];
   if (!b) throw new Error("not placed");
