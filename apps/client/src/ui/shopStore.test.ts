@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance, shopWeapons, type ShopBuilding } from "@topdown/shared";
-import { CLOSED_SHOP, SHOP_PENDING_TIMEOUT_MS, shopErrorText, shopStep, type ShopInput, type ShopState } from "./shopStore";
+import { CLOSED_SHOP, SHOP_PENDING_TIMEOUT_MS, shopAllowed, shopErrorText, shopStep, type ShopInput, type ShopState } from "./shopStore";
 
 const weapons = shopWeapons(loadBalance());
 const buildings: ShopBuilding[] = [{ id: "wood_barricade", name: "Wood Barricade", price: 40 }];
@@ -40,6 +40,24 @@ describe("shopStep (Story 3.3)", () => {
     const after = run(s, { type: "answer", answer: { ok: true, weapon: "smg", slot: 1 } });
     expect(after.s).toMatchObject({ pending: null, refused: false });
     expect(after.s.message).toMatch(/Bought/);
+  });
+
+  it("a late answer for an earlier purchase doesn't unlock a newer pending one (3.3 review)", () => {
+    const { s } = run(opened(), { type: "buy", weapon: "machete" });
+    const timedOut = { ...s, pending: null, pendingAtMs: 0 }; // after the 3 s timeout
+    const second = run(timedOut, { type: "buy", weapon: "smg" }).s;
+    expect(second.pending).toBe("smg");
+    const late = run(second, { type: "answer", answer: { ok: true, weapon: "machete", slot: 1 } }).s;
+    expect(late.pending).toBe("smg"); // still waiting for the SMG's answer
+    expect(late.message).toMatch(/Bought/);
+  });
+
+  it("shopAllowed: only in a build, with a run on screen, no menu, no stress run, not leaving (3.3 review)", () => {
+    const ok = { phase: "build", running: true, gameOver: false, menuOpen: false, stressMode: false, leaving: false };
+    expect(shopAllowed(ok)).toBe(true);
+    for (const bad of [{ phase: "wave" }, { running: false }, { gameOver: true }, { menuOpen: true }, { stressMode: true }, { leaving: true }]) {
+      expect(shopAllowed({ ...ok, ...bad })).toBe(false);
+    }
   });
 
   it("a refusal shows Not enough money; nothing else changes", () => {

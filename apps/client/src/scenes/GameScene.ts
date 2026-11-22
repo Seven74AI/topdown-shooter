@@ -39,7 +39,7 @@ import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
 import { Placement, placeRefusalText } from "./placement";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
-import { CLOSED_SHOP, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
+import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { neutralizeInput } from "../input/menuInput";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
@@ -174,6 +174,8 @@ export class GameScene extends Phaser.Scene {
    * Story 3.1: the Ready this device asked for in the current build phase (shown at once, while the
    * server's copy is a round trip away online), and the phase it belongs to: cleared when it changes.
    */
+  /** Reused input of `shopAllowed` (no object per frame). */
+  private readonly shopCheck = { phase: "", running: false, gameOver: false, menuOpen: false, stressMode: false, leaving: false };
   /** Story 3.1 review: my Ready button (server truth + a pending tap). */
   private readonly ready = new ReadyRequest();
   private myReady = false;
@@ -611,7 +613,14 @@ export class GameScene extends Phaser.Scene {
    */
   private updateShop(host: SceneHost, menuOpen: boolean): boolean {
     const m = this.hudModel;
-    const can = host.world.run.phase === "build" && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.leaving;
+    const sc = this.shopCheck;
+    sc.phase = host.world.run.phase;
+    sc.running = this.running;
+    sc.gameOver = this.gameOver;
+    sc.menuOpen = menuOpen;
+    sc.stressMode = this.stressMode;
+    sc.leaving = this.leaving;
+    const can = shopAllowed(sc);
     if (shopStore.get().open && !can) this.shopInput(SHOP_CLOSE);
     const pressed = m.shopPressed;
     m.shopPressed = false;

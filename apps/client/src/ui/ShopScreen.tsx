@@ -43,7 +43,7 @@ export function ShopScreen() {
             </p>
             <div class="shop__items">
               {([0, 1] as const).map((slot) => (
-                <button type="button" class="btn" autofocus={slot === 0} onClick={() => send({ type: "slot", slot })}>
+                <button key={slot} type="button" class="btn" autofocus={slot === 0} onClick={() => send({ type: "slot", slot })}>
                   {slot + 1}. {nameOf(s.slots[slot] ?? "")}
                 </button>
               ))}

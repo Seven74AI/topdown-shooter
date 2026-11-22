@@ -1,6 +1,6 @@
 # Story 3.3: Fixed-list shop
 
-Status: review
+Status: done
 
 ## Story
 
@@ -164,7 +164,18 @@ Claude Opus 5.5 (claude-opus-5-5), story writer + builder in worktree `story-3-3
 - Modified (client): `scenes/GameScene.ts`, `scenes/HudScene.ts`, `scenes/hudModel.ts`, `sim/SimHost.ts`, `sim/LocalSimHost.ts`, `sim/LocalSimHost.test.ts`, `sim/NetSimHost.ts`, `net/session.ts`, `ui/App.tsx`, `ui/uiState.ts`, `ui/overlay.css`, `ui/sizes.ts`, `debug/DevCheats.tsx`, `debug/clientBalance.ts`, `debug/urlOptions.ts`, `debug/urlOptions.test.ts`
 - Docs: `_bmad-output/implementation-artifacts/3-3-fixed-list-shop.md`, `sprint-status.yaml`
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched suites 4×, mutations, browser: solo, two pages under `?lag=150&jitter=20`, a burst of 25 `shop.buy`, purchase vs wave start, late scene start and hidden tab, production guard on `DEV_STARTING_WALLET`). **Outcome:** no high or code-medium findings; decisions D1–D9 sound, D10 acceptable.
+- [x] [Med] The shop bot sim could stop running without failing (same trap as 3.2's sim): every run must now end at least one wave, and some bot must buy. Proven: removing `startBuild` fails it.
+- [x] [Low] A late answer for an earlier purchase cleared a newer pending one: it now shows its text but only clears a matching pending. Test.
+- [x] [Low] Auto-close and the "shop allowed" rule were untested: `shopAllowed()` pure helper (reused input object, no allocation) with a test.
+- [x] [Low] Missing `key` on the "Replace which?" buttons: added.
+- **Decisions (accepted):** a weapon bought into the active slot can start one round short under lag (queued fire inputs fire the new weapon on the server; counters stay in step; build phase only, cosmetic); `shopStep` allocates a small result per frame while a purchase is pending (≤ 3 s, shop open only); weapon display names are part of `balance.version` (client and server deploy together); `buyWeapon` reading prices from `balance.weapons` is fine while every weapon is in the shop (add a `not_for_sale` test when one isn't); the HUD weapon label still uses the id (Epic 9 art pass).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (sim can no longer pass without running, late answers, `shopAllowed`, keys). Story done.
 
 - 2026-11-22: Story 3.3 implemented: fixed-list shop (weapons from `shop.json`, prices from `weapons.json`), server-validated `shop.buy` with `Result` answers, slot replacement, auto-close at wave start, Shop button beside Ready, dev loadout moved to the dev cheats (normal runs: Pistol only), dev switch `startingWallet`, 3.4 building contract, A10 shop bot sim; fixed the 3.2 economy sim that had stopped running. 882 tests passing. Status → review.
 - 2026-11-22: Story created from the epics, GDD, architecture and the real code (3.1, 3.2, 3.9, 2.10 merged).

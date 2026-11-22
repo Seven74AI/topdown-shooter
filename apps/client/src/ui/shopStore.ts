@@ -139,6 +139,8 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
       const a = input.answer;
       if (!s.open) return same(s);
       const message = a.ok ? SHOP_TEXT.bought(nameOf(a.weapon)) : shopErrorText(a.error);
+      // A late answer for an earlier purchase shows its text but doesn't unlock a newer one (3.3 review).
+      if (s.pending !== null && a.weapon !== s.pending) return same({ ...s, message, refused: !a.ok });
       return same({ ...s, pending: null, pendingAtMs: 0, message, refused: !a.ok });
     }
     case "time":
@@ -172,3 +174,19 @@ class ShopStore {
 }
 
 export const shopStore = new ShopStore();
+
+/**
+ * Story 3.3 (review: make the rule testable): the shop may be open only in a build phase with a run
+ * on screen, no menu, no stress run and not while leaving. GameScene closes an open shop as soon as
+ * this turns false, and the survivor stands still while it is open.
+ */
+export function shopAllowed(c: {
+  phase: string;
+  running: boolean;
+  gameOver: boolean;
+  menuOpen: boolean;
+  stressMode: boolean;
+  leaving: boolean;
+}): boolean {
+  return c.phase === "build" && c.running && !c.gameOver && !c.menuOpen && !c.stressMode && !c.leaving;
+}

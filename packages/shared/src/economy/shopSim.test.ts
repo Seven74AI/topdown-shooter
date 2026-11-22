@@ -26,6 +26,9 @@ const MAX_TICKS = 20 * 60 * 15;
 const LIST = ["smg", "hunting_rifle"];
 
 interface RunLog {
+  wavesEnded: number;
+  /** Bots that bought at least one weapon. */
+  bought: number;
   reached: number;
   wiped: boolean;
   earned: number[];
@@ -94,6 +97,8 @@ function run(seed: number, players: number): RunLog {
     expect(owns(p.loadout, p.loadout.slots[p.loadout.active]?.weapon ?? "")).toBe(true);
   }
   return {
+    wavesEnded,
+    bought: Object.keys(firstBuy).length,
     reached: world.waves.number,
     wiped: world.teamWiped,
     earned: ids.map((id) => world.players.get(id)?.earned ?? 0),
@@ -104,14 +109,19 @@ function run(seed: number, players: number): RunLog {
 describe("shop bot sim (A10: 2/3/4 bots, Pistol starts, buying from the fixed list, seeded)", () => {
   it("logs survival by wave, earnings and the first purchase; money adds up", () => {
     const lines: string[] = [];
+    let anyBought = false;
     for (const n of TEAM_SIZES) {
       for (const seed of SEEDS) {
         const r = run(seed, n);
+        // The run really ran (3.3 review: a lobby-only run must not pass silently).
+        expect(r.wavesEnded).toBeGreaterThanOrEqual(1);
+        if (r.bought > 0) anyBought = true;
         lines.push(
           `${n} players seed ${seed}: reached wave ${r.reached}${r.wiped ? " (wiped)" : " (alive after W" + MAX_WAVE + ")"}; earned ${r.earned.join("/")}; first buy ${r.firstBuy.join(", ")}`,
         );
       }
     }
+    expect(anyBought).toBe(true);
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[shop sim]\n${lines.join("\n")}`);
   }, 120_000);
 });
