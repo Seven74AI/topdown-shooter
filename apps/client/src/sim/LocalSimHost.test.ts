@@ -106,6 +106,22 @@ describe("LocalSimHost", () => {
     expect(swapTicks).toBe(1);
   });
 
+  it("clearEdges drops a swap latched before any step (the menu opened in the same step; 2.11 review)", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    const neutral = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false };
+    host.setLocalInput({ ...neutral, swap: true, consumable: true });
+    host.setLocalInput(neutral);
+    host.clearEdges();
+    let edges = 0;
+    for (let i = 0; i < 12; i++) {
+      host.update(FRAME_60HZ);
+      const inp = host.world.inputs.get("local");
+      if (inp?.swap || inp?.consumable) edges++;
+    }
+    expect(host.world.tick).toBeGreaterThanOrEqual(3);
+    expect(edges).toBe(0);
+  });
+
   it("does not repeat a swap across catch-up steps after a long frame", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     let swaps = 0;

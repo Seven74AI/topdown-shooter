@@ -284,6 +284,11 @@ export class NetSimHost implements SimHost {
     this.stats.stepMs[0] = this.now() - t0;
   }
 
+  clearEdges(): void {
+    this.latchedSwap = false;
+    this.latchedConsumable = false;
+  }
+
   setLocalInput(input: PlayerInput): void {
     this.input = input;
     if (input.swap) this.latchedSwap = true;

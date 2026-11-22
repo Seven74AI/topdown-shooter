@@ -139,6 +139,9 @@ function leaveRoom(room?: RunConnection): void {
 uiStore.handle("lobbyReturn", () => lobbyStore.returnToLobby());
 uiStore.handle("leaveLobby", () => {
   leaveRoom();
+  // Safety net (2.11 review): if an online Game scene runs behind the lobby screen, stop it too
+  // (a request with no handler, the usual case, does nothing).
+  uiStore.request("leaveRun");
   uiStore.set({ kind: "start" });
 });
 

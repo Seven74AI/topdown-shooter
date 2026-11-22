@@ -1,6 +1,6 @@
 # Story 2.11: In-run menu
 
-Status: review
+Status: done
 
 ## Story
 
@@ -149,6 +149,17 @@ Claude Opus 5.5 (Claude Code), builder agent in worktree `story-2-11`.
 - New: `apps/client/src/ui/InRunMenu.tsx`, `apps/client/src/ui/menuItems.ts`, `apps/client/src/ui/menuItems.test.ts`, `apps/client/src/input/menuInput.ts`, `apps/client/src/input/menuInput.test.ts`, `apps/client/src/scenes/toastQueue.ts`, `apps/client/src/scenes/toastQueue.test.ts`, `apps/server/src/rooms/RunRoom.leave.test.ts`
 - Modified: `apps/client/src/{main.ts, ui/uiState.ts, ui/uiState.test.ts, ui/App.tsx, ui/overlay.css, ui/sizes.ts, scenes/GameScene.ts, scenes/HudScene.ts, scenes/hudModel.ts, scenes/BootScene.ts, input/keyMap.ts, input/KeyboardMouse.ts, input/InputRouter.ts, input/keyVector.test.ts, input/selectSource.test.ts, sim/LocalSimHost.ts, sim/LocalSimHost.test.ts, net/session.ts, net/session.test.ts, net/lobbyStore.ts, net/lobbyStore.test.ts, debug/PerfOverlay.ts, debug/DevCheats.css}`, `apps/server/src/rooms/RunRoom.ts`, `packages/shared/src/net/messages.ts`, `packages/shared/src/index.ts`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched tests 5×, browser: solo pause/resume, two pages with guest and host leaving, `?lag`, hidden-tab cases, 844×390 touch viewport). **Outcome:** solo pause, online neutral inputs (0 corrections, no phantom shots), the Leave flow, `player.left` and the hidden-tab guards confirmed. One medium finding, fixed.
+- [x] [Med] Under `?lag` the lobby screen stayed over the running game (the Game scene read the throttled state, still "lobby"): no menu, no shots, and the lobby's Leave left the room with the Game scene still running. Fix: the scene shows "playing" unless the phase is `results` (the phase handler only starts it on a real `wave`); `leaveLobby` also requests `leaveRun` as a safety net. Verified in the browser under `?lag=150&jitter=20`: shots fire, Esc opens the menu.
+- [x] [Low] The solo pause froze the sim but not what is drawn on wall time: tweens in both scenes are paused (blood fade, muzzle, puffs), the camera shake reset, and the wave banner's clock shifted by the paused time. ☰ is hidden under `?stress` (a pause would skew the benchmark).
+- [x] [Low] Dev ⚙ cheats sat above the menu: now under it (z-index 5).
+- [x] [Low] A swap/consumable latched in the same step as opening the menu still went out: `SimHost.clearEdges()` on open. Test.
+- Noted: the zombie hit flash still uses scene time during a pause (a 1-frame tint); ☰ under the backdrop can't close the menu (Resume and Esc do).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (lag screen, presentation pause, cheats under the menu, clearEdges). Story done.
 
 - 2026-11-22: Story 2.11 implemented: in-run menu (☰ + Esc, Resume / Leave game with a confirm step). Solo pauses with the accumulator frozen; online keeps running with neutral inputs. The server sends `player.left` (left / disconnected) and hands over the host; teammates get a toast. The leave is bound to the session's room. Status → review.

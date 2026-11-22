@@ -90,6 +90,10 @@ const SOLO_NAME = "You";
 
 export class GameScene extends Phaser.Scene {
   private host: SceneHost | null = null;
+  /** `?stress` benchmark run (no in-run menu). */
+  private stressMode = false;
+  /** When the solo pause started (scene time), to shift the HUD's banner clock on resume. */
+  private pausedAtMs = 0;
   /** The same host when solo (the in-run menu pauses it, Story 2.11); null online. */
   private localHost: LocalSimHost | null = null;
   /** Story 2.11: Leave game runs once (a double tap on Leave does nothing more). */
@@ -196,6 +200,8 @@ export class GameScene extends Phaser.Scene {
     this.toasts.clear();
     perf.hits = netHost ? netHost.netStats : null;
     const stress = session ? null : opts.stress;
+    this.stressMode = stress !== null;
+    this.pausedAtMs = 0;
     this.host = host;
     const world = host.world;
     const localId = host.localPlayerId;
@@ -244,7 +250,8 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.running = true;
       // Online, the run may already be over when this scene starts late (hidden tab): keep Results up.
-      if (!session || session.room.state?.phase === "wave") uiStore.set(playingScreen(session !== null));
+      // (`!== "results"`, not `=== "wave"`: under `?lag` the throttled state still says "lobby" here; 2.11 review.)
+      if (!session || session.room.state?.phase !== "results") uiStore.set(playingScreen(session !== null));
     }
 
     drawStreet(this, world.map);
@@ -330,6 +337,25 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Solo pause (2.11 review): the sim already stops; this also freezes what is drawn on wall time —
+   * FX tweens (blood fade, muzzle, puffs) in both scenes, the camera shake, and the wave banner's
+   * clock (shifted by the paused time on resume).
+   */
+  private setPresentationPaused(paused: boolean): void {
+    const hud = this.scene.get("Hud");
+    if (paused) {
+      this.pausedAtMs = this.time.now;
+      this.tweens.pauseAll();
+      hud?.tweens.pauseAll();
+      this.cameras.main.shakeEffect.reset();
+    } else {
+      this.tweens.resumeAll();
+      hud?.tweens.resumeAll();
+      this.hudModel.bannerAtMs += this.time.now - this.pausedAtMs;
+    }
+  }
+
+  /**
    * The in-run menu (Story 2.11): ☰, Esc and the menu's buttons all come here. Only while a run is
    * on screen (not in the dev loadout picker, not on Results). Opening it lets go of every held
    * key, button and stick, so nothing is still pressed when the player resumes.
@@ -340,7 +366,10 @@ export class GameScene extends Phaser.Scene {
     const next = menuStep(screen.menu, action);
     if (next === "left") return this.leaveGame();
     if (next === screen.menu) return;
-    if (screen.menu === "closed") this.router?.releaseAll();
+    if (screen.menu === "closed") {
+      this.router?.releaseAll();
+      this.host?.clearEdges(); // a Q pressed in the same step as Esc must not swap behind the menu
+    }
     uiStore.set({ kind: "playing", menu: next, online: screen.online });
   }
 
@@ -475,11 +504,15 @@ export class GameScene extends Phaser.Scene {
     const screen = uiStore.get();
     const menuOpen = screen.kind === "playing" && screen.menu !== "closed";
     this.hudModel.menuOpen = menuOpen;
-    this.hudModel.menuButton = screen.kind === "playing" && this.running && !this.gameOver;
+    // Not under ?stress: pausing would skew the benchmark's wall-clock duration (2.11 review).
+    this.hudModel.menuButton = screen.kind === "playing" && this.running && !this.gameOver && !this.stressMode;
     // Menu open: online the run goes on and my survivor stands still (a fresh seq every step);
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     if (menuOpen) neutralizeInput(this.input_);
-    if (this.localHost) this.localHost.paused = menuOpen;
+    if (this.localHost) {
+      if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
+      this.localHost.paused = menuOpen;
+    }
     host.setLocalInput(this.input_);
     this.hudModel.toastText = this.toasts.current(this.time.now);
 

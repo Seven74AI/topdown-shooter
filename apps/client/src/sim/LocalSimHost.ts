@@ -90,6 +90,11 @@ export class LocalSimHost implements SimHost {
     }
   }
 
+  clearEdges(): void {
+    this.latchedSwap = false;
+    this.latchedConsumable = false;
+  }
+
   setLocalInput(input: PlayerInput): void {
     this.input = input;
     if (input.swap) this.latchedSwap = true;

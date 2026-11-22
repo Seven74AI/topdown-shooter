@@ -27,6 +27,8 @@ export interface SimHost {
    * value; edge flags (swap, consumable) set by any call reach exactly one step.
    */
   setLocalInput(input: PlayerInput): void;
+  /** Drops a swap/consumable latched but not sent yet (the in-run menu opened in the same step; 2.11 review). */
+  clearEdges(): void;
   /**
    * Events produced since the last call, in order; each event is returned exactly once.
    * The returned array is reused: it is valid only until the next `drainEvents()` call.
