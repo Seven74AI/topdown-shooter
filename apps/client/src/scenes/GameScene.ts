@@ -548,7 +548,8 @@ export class GameScene extends Phaser.Scene {
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "wave.started") {
         this.showBanner(`Wave ${e.number}`);
-        if (perf.net) netSummary.start(performance.now(), e.number, perf.net, netMeter); // Story 2.10
+        // Story 2.10: measured only with the overlay on (the 1.11 rule: no measuring cost otherwise).
+        if (perf.net && perf.overlayOn) netSummary.start(performance.now(), e.number, perf.net, netMeter);
       } else if (e.type === "wave.ended") {
         this.showBanner(`Wave ${e.number} cleared`);
         if (perf.net) netSummary.end(performance.now(), e.number, perf.net, netMeter, perf.overlayOn);

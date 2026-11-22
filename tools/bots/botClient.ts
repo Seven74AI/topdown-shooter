@@ -6,6 +6,7 @@ import {
   HORDE_MAX_RECORDS,
   NEUTRAL_INPUT,
   NET_EVENT_KIND,
+  RUN_ROOM_NAME,
   S2C,
   TICK_DT_S,
   attachByteCounters,
@@ -105,11 +106,14 @@ export class BotClient {
   rttMs = 0;
   /** The last wave whose `wave.ended` this bot saw (0 = none yet). */
   lastEndedWave = 0;
+  /** Set when the room closed under the bot (server stop, room error, kicked): `code` and reason. */
+  closed: { code: number; reason: string } | null = null;
   private readonly cfg: BotConfig;
   private readonly view: BotView = createBotView();
   private readonly input: PlayerInput = { ...NEUTRAL_INPUT };
   private readonly horde = new HordeView();
   private seq = 0;
+  private leaving = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private waveNumber = 0;
   private waveStartMs = 0;
@@ -152,6 +156,13 @@ export class BotClient {
     room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m));
     room.onMessage(S2C.PLAYER_LEFT, () => {});
     room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, () => {});
+    room.onLeave((code: number, reason?: string) => {
+      if (this.timer) clearInterval(this.timer);
+      this.timer = null;
+      if (this.leaving) return;
+      this.closed = { code, reason: reason ?? "" };
+      this.log({ msg: "bot_room_closed", bot: name, code, reason: reason ?? "" });
+    });
   }
 
   /** Joins (or creates) and taps Ready. */
@@ -166,7 +177,7 @@ export class BotClient {
     if (!opts.roomId && opts.scenario) options.scenario = opts.scenario;
     const room = opts.roomId
       ? await client.joinById<RunStateView>(opts.roomId, options)
-      : await client.create<RunStateView>("run", options);
+      : await client.create<RunStateView>(RUN_ROOM_NAME, options);
     const bot = new BotClient(room, opts.name, opts.log ?? ((l) => console.log(JSON.stringify(l))), opts.holdFireS ?? 0);
     room.send(C2S.LOBBY_SET_READY, { ready: true });
     bot.timer = setInterval(() => bot.step(), INPUT_INTERVAL_MS);
@@ -186,6 +197,7 @@ export class BotClient {
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.leaving = true;
     await this.room.leave(true).catch(() => {});
   }
 

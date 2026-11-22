@@ -6,6 +6,8 @@ import { PerfSummary, perf, type NetOverlaySource } from "./perfStats";
  * sample a second, average and p95) and the hit and snap counters' growth over the wave. When the
  * wave ends with the overlay on, the report is published for the summary box and its Copy results
  * button. Pure apart from the default environment reader: tests pass times and sources in.
+ * Like 1.11's measurements it runs only while the overlay is on: GameScene starts it at
+ * `wave.started` only then (a wave started with the overlay off is not measured).
  */
 
 /** One ping sample a second; 30 minutes kept (preallocated). */
@@ -47,7 +49,10 @@ export interface NetSummaryEnv {
   dpr: number;
   /** `?lag=&jitter=` when the dev throttle is on, else "none". */
   throttle: string;
-  /** `navigator.connection.effectiveType` where the browser has it (Chrome on Android), else "?". */
+  /**
+   * `navigator.connection.effectiveType` where the browser has it (Chrome on Android), else "?". An
+   * estimate from measured throughput, not the radio type (desktop Chrome says "4g" on localhost).
+   */
   connection: string;
 }
 
@@ -197,7 +202,7 @@ export function formatNetReport(r: NetWaveResult, env: NetSummaryEnv): string {
     `ping avg ${i0(r.avgPingMs)} ms · p95 ${i0(r.p95PingMs)} ms`,
     `hits ${r.apparentHits} · reversed ${r.reversed} (${f1(r.reversedPct)}%) · confirmed ${r.confirmed}`,
     `snaps ${r.snaps} · corrections ${r.corrections}`,
-    `throttle ${env.throttle} · connection ${env.connection}`,
+    `throttle ${env.throttle} · effectiveType (estimate) ${env.connection}`,
     `viewport ${env.viewport} @ dpr ${env.dpr}`,
     `UA ${env.userAgent}`,
     "",

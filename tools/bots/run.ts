@@ -18,6 +18,7 @@
  *
  * Prints one JSON line per bot per wave (`bot_wave`) and, at the end, a `bots_summary` line.
  */
+import { readFileSync } from "node:fs";
 import { C2S, MAX_PLAYERS, isRoomCode, isTestScenario, normalizeRoomCode, type TestScenario } from "@topdown/shared";
 import { BotClient, type BotWaveStats } from "./botClient";
 
@@ -32,7 +33,26 @@ interface Args {
   holdFireS: number;
 }
 
+/** Flags that take a value. Anything else (but --help / -h) is refused. */
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire"] as const;
+
+/** The usage text: this file's header comment. */
+function usage(): string {
+  const src = readFileSync(new URL(import.meta.url), "utf8");
+  const header = src.slice(src.indexOf("/**") + 3, src.indexOf("*/"));
+  return header
+    .split("\n")
+    .map((l) => l.replace(/^ \* ?/, ""))
+    .join("\n")
+    .trim();
+}
+
 function parseArgs(argv: readonly string[]): Args {
+  for (let i = 0; i < argv.length; i += 2) {
+    const flag = argv[i] as string;
+    if (!flag.startsWith("--") || !(FLAGS as readonly string[]).includes(flag.slice(2))) throw new Error(`unknown option ${flag} (see --help)`);
+    if (argv[i + 1] === undefined || (argv[i + 1] as string).startsWith("--")) throw new Error(`${flag} needs a value`);
+  }
   const get = (name: string): string | undefined => {
     const i = argv.indexOf(`--${name}`);
     return i >= 0 ? argv[i + 1] : undefined;
@@ -62,7 +82,12 @@ const mean = (xs: readonly number[]): number => (xs.length === 0 ? 0 : xs.reduce
 const r1 = (n: number): number => Math.round(n * 10) / 10;
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  if (argv.includes("--help") || argv.includes("-h")) {
+    console.log(usage());
+    return;
+  }
+  const args = parseArgs(argv);
   const log = (line: Record<string, unknown>): void => console.log(JSON.stringify(line));
   const bots: BotClient[] = [];
   const base = { url: args.url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS };
@@ -110,6 +135,8 @@ async function main(): Promise<void> {
     const phase = bots[0]?.room.state?.phase;
     if (bots.every((b) => b.lastEndedWave >= args.untilWave)) return stop(`wave ${args.untilWave} ended`);
     if (phase === "results") return stop("run ended (team wiped)");
+    const closed = bots.find((b) => b.closed)?.closed;
+    if (closed) return stop(`room closed (code ${closed.code}${closed.reason ? `: ${closed.reason}` : ""})`);
     if (timeUp()) return stop(`--max-seconds ${args.maxSeconds} reached`);
   }
 }
@@ -134,7 +161,16 @@ function summary(bots: readonly BotClient[], reason: string, log: (line: Record<
   log({ msg: "bots_summary", reason, roomId: bots[0]?.roomId, waves });
 }
 
+/** Join refusals arrive as SDK errors with a code (e.g. 526 invalid_options); print what there is. */
+function errorText(e: unknown): string {
+  const o = e as { code?: unknown; message?: unknown } | null;
+  if (o && typeof o === "object" && (o.code !== undefined || o.message)) {
+    return [o.code !== undefined ? `code ${String(o.code)}` : "", typeof o.message === "string" ? o.message : ""].filter(Boolean).join(": ");
+  }
+  return String(e);
+}
+
 main().catch((e: unknown) => {
-  console.error(e instanceof Error ? e.message : e);
+  console.error(`bots: ${errorText(e)}`);
   process.exit(1);
 });
