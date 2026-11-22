@@ -139,7 +139,7 @@ function pickSpawnPoint(world: World): number {
     }
   }
   if (okCount === 0) return farthest;
-  let pick = world.rng.int(0, okCount - 1);
+  let pick = world.streams.spawns.int(0, okCount - 1);
   for (let i = 0; i < points.length; i++) {
     if ((spawnD2[i] as number) >= minD2 && pick-- === 0) return i;
   }
@@ -178,7 +178,7 @@ function spawnWaveZombie(world: World): boolean {
   const { widthM, heightM } = world.map;
   const onHorizontalEdge = sp.y < 1 || sp.y > heightM - 1;
   const jitter = world.balance.waves.spawnJitterM;
-  const j = world.rng.range(-jitter, jitter);
+  const j = world.streams.spawns.range(-jitter, jitter);
   const typeIndex = waveZombieType(world);
   const type = ZOMBIE_TYPES[typeIndex] as ZombieTypeId;
   const stats = world.balance.zombies.types[type];

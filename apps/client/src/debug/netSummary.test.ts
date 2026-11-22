@@ -10,6 +10,7 @@ function source() {
     hordeStats: { framesReceived: 0 },
     scenario: "net150",
     isHost: true,
+    runSeed: 7,
   } satisfies NetOverlaySource;
 }
 

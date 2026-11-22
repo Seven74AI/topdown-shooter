@@ -450,6 +450,14 @@
   color: #c8ccd0;
 }
 
+/* Story 4.4: the run seed, small and quiet (for replays and bug reports). */
+.results__seed {
+  margin: 0;
+  font-size: 12px;
+  color: #8a9096;
+  font-variant-numeric: tabular-nums;
+}
+
 /* In-run menu (Story 2.11): over the live game, a light backdrop so the danger stays visible. */
 .in-run-menu {
   position: fixed;

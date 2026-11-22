@@ -40,7 +40,19 @@ export {
 export type { BuildingTypeStats, TurretStats, GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
-export { snapshotWorld, type WorldSnapshot } from "./core/worldSnapshot";
+export { snapshotWorld, worldDigest, type WorldSnapshot } from "./core/worldSnapshot";
+export {
+  STREAM_NAMES,
+  buildPhaseIndex,
+  createSeedStreams,
+  parseRunSeed,
+  shopStream,
+  shopStreamKey,
+  streamSeed,
+  type SeedStreams,
+  type ShopStream,
+  type StreamName,
+} from "./core/seedStreams";
 export { NEUTRAL_INPUT, VIEW_TICK_SCALE, playerInputSchema, viewTickOfInput, type PlayerInput } from "./net/input";
 export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint } from "./map/placeholderMap";
 export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./player/player";
@@ -210,6 +222,17 @@ export {
   type BotShopSelf,
 } from "./bots/botShop";
 export { formatRunLine, runHeadless, type HeadlessRunLog, type HeadlessRunOptions, type HeadlessWaveLog } from "./bots/headlessRun";
+// Story 4.4: headless replay (seed + input log).
+export {
+  applyCommand,
+  createHeadlessWorld,
+  createInputLog,
+  replayRun,
+  type BuildCommand,
+  type InputLog,
+  type ReplayCommand,
+  type ReplayOptions,
+} from "./replay/inputLog";
 // Story 3.2: personal wallets and rewards.
 export {
   MAX_DAMAGERS,

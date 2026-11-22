@@ -1,11 +1,9 @@
 import type { Balance } from "../config/balance";
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
-import { createWorld, setInput, step } from "../core/world";
+import { setInput, step, type World } from "../core/world";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
-import { addPlayer } from "../player/player";
-import { teamSpawnPoint } from "../player/spawn";
-import { startBuild } from "../run/runStateMachine";
+import { createHeadlessWorld, type BuildCommand, type InputLog } from "../replay/inputLog";
 import { botConfigOf, botInput, botViewFromWorld, createBotView, type BotView } from "./botPolicy";
 import { botBuildPhase, createBotShopResult } from "./botShop";
 
@@ -25,6 +23,13 @@ export interface HeadlessRunOptions {
   list?: readonly string[];
   /** Safety stop (default 20 min of game time); a run that hits it reports `timedOut`. */
   maxTicks?: number;
+  /**
+   * Story 4.4: when given (from `createInputLog(seed, players)`), every input and build action is
+   * appended to it with its tick, and `endTick` is set, so `replayRun` can play the run again.
+   */
+  record?: InputLog;
+  /** Story 4.4: called with the World when the run stops (e.g. for `worldDigest`). */
+  onEnd?: (world: World) => void;
 }
 
 export interface HeadlessWaveLog {
@@ -69,15 +74,11 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
   const { balance, seed, players } = opts;
   const list = opts.list ?? balance.bots.shoppingList;
   const maxTicks = opts.maxTicks ?? 20 * 60 * 20;
-  const world = createWorld({ balance, seed });
-  const at = { x: 0, y: 0 };
-  const ids: string[] = [];
-  for (let slot = 0; slot < players; slot++) {
-    const id = `p${slot}`;
-    ids.push(id);
-    teamSpawnPoint(world, slot, at);
-    addPlayer(world, id, at.x, at.y);
-  }
+  const rec = opts.record;
+  if (rec && (rec.seed !== seed >>> 0 || rec.players !== players)) throw new Error("runHeadless: record log is for another seed or team");
+  // Lobby → the first build phase, like the server's run start (shared with `replayRun`).
+  const { world, ids } = createHeadlessWorld(balance, seed, players);
+  const recordBuild = rec ? (cmd: BuildCommand): void => void rec.commands.push({ ...cmd, tick: world.tick }) : undefined;
   const cfg = botConfigOf(balance);
   const views: BotView[] = ids.map(() => createBotView());
   const inputs: PlayerInput[] = ids.map(() => ({ ...NEUTRAL_INPUT }));
@@ -145,14 +146,13 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         break;
     }
   });
-  startBuild(world); // lobby → the first build phase, like the server's run start
   let lastPhase = "";
   let seq = 0;
   while (world.tick < maxTicks && world.run.phase !== "results") {
     if (world.run.phase === "build" && lastPhase !== "build") {
       const wave = world.waves.number + 1;
       ids.forEach((id, i) => {
-        botBuildPhase(world, id, list, shop);
+        botBuildPhase(world, id, list, shop, true, recordBuild);
         for (const w of shop.bought) (log.purchases[i] as string[]).push(`${w}@W${wave}`);
         log.buildingsPlaced[i] = (log.buildingsPlaced[i] as number) + shop.buildings;
         log.spent[i] = (log.spent[i] as number) + shop.spent;
@@ -172,9 +172,12 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         swapNext[i] = false;
       }
       setInput(world, id, input);
+      rec?.commands.push({ kind: "input", playerId: id, input: { ...input }, tick: world.tick });
     }
     step(world, TICK_DT_S);
   }
+  if (rec) rec.endTick = world.tick;
+  opts.onEnd?.(world);
   log.heldOut = world.run.heldOut;
   log.wiped = world.teamWiped;
   log.timedOut = world.run.phase !== "results";

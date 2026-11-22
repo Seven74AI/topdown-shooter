@@ -40,6 +40,9 @@ const options = (intent: JoinOptions["intent"], name: string): JoinOptions => {
   // Story 2.10: `?scenario=net150` on the host's create asks for the fixed test scenario.
   const scenario = urlOptions().scenario;
   if (intent === "create" && scenario) o.scenario = scenario;
+  // Story 4.4 (dev builds only): `?seed=` on the host's create asks for that run seed (DEV_ALLOW_RUN_SEED=1).
+  const runSeed = urlOptions().runSeed;
+  if (import.meta.env.DEV && intent === "create" && runSeed !== null) o.devRunSeed = runSeed;
   return o;
 };
 

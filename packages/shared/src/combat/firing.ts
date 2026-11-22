@@ -162,7 +162,7 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
     if (p.rewindMaxTicks > 0) rotateBySeqSpread(dir.x, dir.y, p.id, input.seq, stats.spreadDeg, dir);
     else {
       const half = (stats.spreadDeg / 2) * DEG_TO_RAD;
-      rotate(dir.x, dir.y, world.rng.range(-half, half), dir);
+      rotate(dir.x, dir.y, world.streams.combat.range(-half, half), dir); // Story 4.4: offline spread has its own stream
     }
   }
 

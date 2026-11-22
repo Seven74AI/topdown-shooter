@@ -21,7 +21,7 @@ const HORDE_RATE_WINDOW_MS = 1000;
 
 /**
  * Performance overlay (Story 1.11), drawn in the HUD scene, top-right under the ☰ button (2.11): FPS and 1-s minimum, zombies
- * alive and in view, simulation step time, render time. Shown with `?debug=1`, a three-finger tap or
+ * alive and in view, simulation step time, render time, the run seed (Story 4.4). Shown with `?debug=1`, a three-finger tap or
  * the stress scenario; available in release builds. Online (Story 2.10) it adds the network lines:
  * a TEST SCENARIO tag, ping / delay / jitter, down and up KB/s (payload, KB = 1024 B), horde frames
  * per second with corrections and snaps, and hits with reversed hits (2.7).
@@ -81,6 +81,9 @@ export class PerfOverlay {
       `tick ${s.tickAvgMs.toFixed(1)} ms (max ${s.tickMaxMs.toFixed(1)})`,
       `render ${s.renderAvgMs.toFixed(1)} ms · upd ${s.updateAvgMs.toFixed(1)}`,
     ];
+    // Story 4.4: the run seed (online the server's, from the room state).
+    const seed = perf.net ? perf.net.runSeed : perf.soloSeed;
+    if (seed !== null) lines.push(`seed ${seed}`);
     const net = perf.net;
     if (net) {
       const n = net.netStats;

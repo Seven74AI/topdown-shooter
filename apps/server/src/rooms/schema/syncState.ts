@@ -26,6 +26,7 @@ export function syncState(state: RunState, controller: RunController): void {
   if (state.wave !== world.waves.number) state.wave = world.waves.number;
   if (state.remaining !== world.waves.remaining) state.remaining = world.waves.remaining;
   if (state.aliveCount !== alive) state.aliveCount = alive;
+  if (state.runSeed !== world.seed) state.runSeed = world.seed; // Story 4.4: once per run
   syncBuildings(state, world);
 }
 
@@ -148,6 +149,7 @@ export function resetRunFields(state: RunState): void {
   state.resultWave = 0;
   state.resultHeldOut = false;
   state.buildTicksLeft = 0;
+  state.runSeed = 0; // Story 4.4: the next run writes its own
   state.buildings.clear(); // Story 3.4: the next run starts with none
   buildingSyncs.delete(state);
 }

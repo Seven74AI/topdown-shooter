@@ -201,4 +201,15 @@ describe("syncState", () => {
     expect(state.resultWave).toBe(0);
     expect(state.tick).toBe(0);
   });
+
+  it("Story 4.4: writes the run seed and resetRunFields clears it", () => {
+    const { controller, state } = setup();
+    syncState(state, controller);
+    expect(state.runSeed).toBe(7);
+    controller.tick();
+    syncState(state, controller);
+    expect(state.runSeed).toBe(7);
+    resetRunFields(state);
+    expect(state.runSeed).toBe(0);
+  });
 });

@@ -56,6 +56,8 @@ function DevCheats({ game }: { game: Phaser.Game }) {
   const p = w?.players.get(LOCAL_PLAYER_ID);
   const n = clampSpawnCount(Number(count));
   const seed = parseSeed(seedText);
+  // Story 4.4: online the server owns the run seed (host's ?seed= + DEV_ALLOW_RUN_SEED=1).
+  const online = scene()?.isOnline ?? false;
   const spawn = (where: "ring" | "view") => {
     const s = scene();
     if (!w || !p || !s) return;
@@ -73,7 +75,7 @@ function DevCheats({ game }: { game: Phaser.Game }) {
         <div class="dev-cheats" role="dialog" aria-label="Dev cheats">
           <h2>Dev cheats</h2>
           <p class="dev-cheats__info">
-            seed {w?.seed ?? "—"} · wave {w?.waves.number ?? 0} · alive {w?.zombies.aliveCount ?? 0}
+            seed {scene()?.runSeed ?? "—"} · wave {w?.waves.number ?? 0} · alive {w?.zombies.aliveCount ?? 0}
           </p>
           <fieldset>
             <legend>Spawn zombies</legend>
@@ -183,9 +185,9 @@ function DevCheats({ game }: { game: Phaser.Game }) {
               />
               <button
                 type="button"
-                disabled={seed === null}
+                disabled={seed === null || online}
                 onClick={() => {
-                  if (seed === null) return;
+                  if (seed === null || online) return;
                   setOpen(false);
                   scene()?.restartRun(seed);
                 }}
@@ -193,6 +195,9 @@ function DevCheats({ game }: { game: Phaser.Game }) {
                 Restart with seed
               </button>
             </div>
+            {online && (
+              <p class="dev-cheats__info">Online: the host opens the game with ?seed=N and the server runs with DEV_ALLOW_RUN_SEED=1.</p>
+            )}
           </fieldset>
         </div>
       )}

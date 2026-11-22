@@ -97,6 +97,8 @@ const runFields = {
   buildTicksLeft: t.uint16().default(0),
   /** Story 2.10: the test scenario this room runs ("" = a normal game); the overlay tags it. */
   scenario: t.string().default(""),
+  /** Story 4.4: the run's seed (uint32; written once per run by `syncState`). Results and the overlay show it. */
+  runSeed: t.uint32().default(0),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

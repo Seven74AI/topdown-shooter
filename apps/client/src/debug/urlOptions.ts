@@ -1,4 +1,4 @@
-import { parseDevScale, parseDevWallet } from "@topdown/shared";
+import { parseDevScale, parseDevWallet, parseRunSeed } from "@topdown/shared";
 import { isTestScenario, type TestScenario } from "@topdown/shared";
 
 /**
@@ -44,6 +44,11 @@ export interface UrlOptions {
    * of the `waves.json` mix): the raw list; `parseWaveMix` keeps the types that exist in balance.
    */
   waveMix: string | null;
+  /**
+   * `?seed=<uint32>` (Story 4.4, dev builds only, like `?wallet`): the host's Create asks the server
+   * for this run seed; honoured only by a dev server with `DEV_ALLOW_RUN_SEED=1`. null when absent.
+   */
+  runSeed: number | null;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -74,6 +79,7 @@ export function parseUrlOptions(search: string): UrlOptions {
     startingWallet: parseDevWallet(q.get("wallet")),
     scenario: parseScenario(q.get("scenario")),
     waveMix: q.get("wavemix"),
+    runSeed: parseRunSeed(q.get("seed")),
   };
 }
 

@@ -7,7 +7,7 @@ import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
  * player (sorted by slot). Online: Back to lobby (the whole room goes back; a player who taps later
  * is already there). Solo: Restart, as in Epic 1. Story 3.10 (temporary until Epic 6's full
  * Results): after the last wave the title is "You held out!" with the wave reached under it, and
- * every row shows the money earned this run.
+ * every row shows the money earned this run. Story 4.4: the run seed under the table.
  */
 export function ResultsScreen() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
@@ -45,6 +45,7 @@ export function ResultsScreen() {
           ))}
         </tbody>
       </table>
+      <p class="results__seed">Run seed {screen.seed}</p>
       {screen.online ? (
         <button
           type="button"

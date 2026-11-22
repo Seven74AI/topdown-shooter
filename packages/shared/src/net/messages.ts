@@ -107,6 +107,11 @@ export const joinOptionsSchema = z
      * applies it only with `ALLOW_TEST_SCENARIOS=1`; otherwise the run is a normal one.
      */
     scenario: z.enum(TEST_SCENARIOS).optional(),
+    /**
+     * Story 4.4 (dev only): the run seed the host asks for (`?seed=` on the host's create). The
+     * server applies it only with `DEV_ALLOW_RUN_SEED=1`, never in production.
+     */
+    devRunSeed: z.number().int().min(0).max(0xffffffff).optional(),
   })
   .strict();
 
