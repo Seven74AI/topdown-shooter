@@ -94,6 +94,7 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
         quantizeHeading(e.dirX, e.dirY),
         tenths(e.damage),
         weaponIndex(b, e.weapon),
+        playerSlotOf(e.sourceId), // Story 2.7 (appended: index 7)
       ];
     case "weapon.fired":
       return [K.WEAPON_FIRED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
@@ -155,6 +156,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
         dirY: Math.sin(a),
         damage: n(t, 5) / 10,
         weapon: weaponOf(b, n(t, 6)),
+        // Story 2.7; a tuple without it (older server) has no source.
+        sourceId: playerIdOfSlot(t[7] ?? NET_NONE),
       };
     }
     case K.WEAPON_FIRED: {

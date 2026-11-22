@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { createPerfSnapshot, perf } from "./perfStats";
 import { stressRun } from "./stressScenario";
+import { hitsLine } from "./reversedHits";
 
 /** Monospace text, CSS px × dpr (≥ 12 px rule). */
 const TEXT_CSS_PX = 13;
@@ -64,6 +65,8 @@ export class PerfOverlay {
       `tick ${s.tickAvgMs.toFixed(1)} ms (max ${s.tickMaxMs.toFixed(1)})`,
       `render ${s.renderAvgMs.toFixed(1)} ms · upd ${s.updateAvgMs.toFixed(1)}`,
     ];
+    const h = perf.hits;
+    if (h) lines.push(hitsLine(h));
     const st = stressRun.state;
     if (st.phase === "warmup") lines.push(`stress ${st.walkers}: warming up`);
     else if (st.phase === "running") lines.push(`stress ${st.walkers}: ${st.secondsLeft} s left`);

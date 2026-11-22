@@ -1,6 +1,6 @@
 # Story 2.7: Server-confirmed hits
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -17,33 +17,33 @@ so that all of us agree on what happened.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Shot advance (shared)** (AC 1)
-  - [ ] `PlayerState` gets `shotAdvanceS: number` (default 0; local mode stays 0).
-  - [ ] `ProjectileSpawn` and the projectile pool get `advanceM`, set to `projectileSpeedMps × shotAdvanceS` in `tryFire`.
-  - [ ] In `updateProjectiles`, a projectile's first step sweeps `min(speed × dt + advanceM, rangeLeftM)`, then `advanceM` is reset to 0. Hits along the whole swept segment count. The swept test already handles long segments (Story 1.5).
-  - [ ] Add it to `snapshotWorld`.
-  - [ ] Tests:
+- [x] **Task 1: Shot advance (shared)** (AC 1)
+  - [x] `PlayerState` gets `shotAdvanceS: number` (default 0; local mode stays 0).
+  - [x] `ProjectileSpawn` and the projectile pool get `advanceM`, set to `projectileSpeedMps × shotAdvanceS` in `tryFire`.
+  - [x] In `updateProjectiles`, a projectile's first step sweeps `min(speed × dt + advanceM, rangeLeftM)`, then `advanceM` is reset to 0. Hits along the whole swept segment count. The swept test already handles long segments (Story 1.5).
+  - [x] Add it to `snapshotWorld`.
+  - [x] Tests:
     - with 75 ms the first sweep is 3 + 4.5 m and hits a Walker at 6 m on tick 1;
     - the range limit still holds (the advance never extends past `rangeM`);
     - 0 changes nothing: every existing firing test still passes untouched.
-- [ ] **Task 2: RTT to advance (server)** (AC 1)
-  - [ ] `RunController.setRtt(id, rttMs)` (2.4 stores it) now sets `player.shotAdvanceS = min(rttMs / 2, SHOT_ADVANCE_CAP_MS) / 1000`, with `SHOT_ADVANCE_CAP_MS = 150` in `apps/server/src/net/limits.ts`.
-  - [ ] Melee (Story 1.9) is resolved instantly against server positions, with no advance: zombies move at most 4 m/s, and the arc reaches over 1 m.
-  - [ ] Test: an RTT of 400 is capped at 0.15 s.
-- [ ] **Task 3: Shooter on hits (shared)** (AC 3, 4)
-  - [ ] `zombie.hit` gets `sourceId: string | null`. `applyZombieDamage` already receives the killer id: pass it through.
-  - [ ] Update `netEvents.ts`: the source slot is sent, with 255 meaning none. Round-trip test.
-- [ ] **Task 4: Server aim assist** (AC 1)
-  - [ ] Already true: `tryFire` calls `assistAim(world, …)` inside the server World when `!input.isMouse` (Story 1.6). Its doc comment says "Story 2.7 runs it on the server with server positions".
-  - [ ] Add a `RunController` test: a touch input aimed 5° off a zombie, as the server sees it, produces a hit. The same input with `isMouse: true` misses.
-  - [ ] The client never bends the aim it sends.
-- [ ] **Task 5: Local fire clock (client)** (AC 2): `apps/client/src/net/localFire.ts`. See Dev Notes › Instant own shots.
-- [ ] **Task 6: Cosmetic projectiles (client)** (AC 2, 3): `apps/client/src/net/cosmeticProjectiles.ts`. It writes the mirror world's `projectiles` pool, which `ProjectileView` already draws. See Dev Notes › Cosmetic projectiles.
-- [ ] **Task 7: Event routing in NetSimHost** (AC 2, 3). See Dev Notes › Event routing.
-- [ ] **Task 8: Reversed-hit counter (client)** (AC 4): `apps/client/src/debug/reversedHits.ts`. See Dev Notes › Reversed hits.
-  - [ ] Expose `{ apparentHits, confirmed, reversed }` on `NetSimHost.netStats`.
-  - [ ] Add a line to the performance overlay from Story 1.11: `hits 212 · reversed 4 (1.9%)`.
-- [ ] **Task 9: Tests**: see Dev Notes › Testing.
+- [x] **Task 2: RTT to advance (server)** (AC 1)
+  - [x] `RunController.setRtt(id, rttMs)` (2.4 stores it) now sets `player.shotAdvanceS = min(rttMs / 2, SHOT_ADVANCE_CAP_MS) / 1000`, with `SHOT_ADVANCE_CAP_MS = 150` in `apps/server/src/net/limits.ts`.
+  - [x] Melee (Story 1.9) is resolved instantly against server positions, with no advance: zombies move at most 4 m/s, and the arc reaches over 1 m.
+  - [x] Test: an RTT of 400 is capped at 0.15 s.
+- [x] **Task 3: Shooter on hits (shared)** (AC 3, 4)
+  - [x] `zombie.hit` gets `sourceId: string | null`. `applyZombieDamage` already receives the killer id: pass it through.
+  - [x] Update `netEvents.ts`: the source slot is sent, with 255 meaning none. Round-trip test.
+- [x] **Task 4: Server aim assist** (AC 1)
+  - [x] Already true: `tryFire` calls `assistAim(world, …)` inside the server World when `!input.isMouse` (Story 1.6). Its doc comment says "Story 2.7 runs it on the server with server positions".
+  - [x] Add a `RunController` test: a touch input aimed 5° off a zombie, as the server sees it, produces a hit. The same input with `isMouse: true` misses.
+  - [x] The client never bends the aim it sends.
+- [x] **Task 5: Local fire clock (client)** (AC 2): `apps/client/src/net/localFire.ts`. See Dev Notes › Instant own shots.
+- [x] **Task 6: Cosmetic projectiles (client)** (AC 2, 3): `apps/client/src/net/cosmeticProjectiles.ts`. It writes the mirror world's `projectiles` pool, which `ProjectileView` already draws. See Dev Notes › Cosmetic projectiles.
+- [x] **Task 7: Event routing in NetSimHost** (AC 2, 3). See Dev Notes › Event routing.
+- [x] **Task 8: Reversed-hit counter (client)** (AC 4): `apps/client/src/debug/reversedHits.ts`. See Dev Notes › Reversed hits.
+  - [x] Expose `{ apparentHits, confirmed, reversed }` on `NetSimHost.netStats`.
+  - [x] Add a line to the performance overlay from Story 1.11: `hits 212 · reversed 4 (1.9%)`.
+- [x] **Task 9: Tests**: see Dev Notes › Testing.
 
 ## Dev Notes
 
@@ -152,10 +152,40 @@ Pushback needs no event: the zombie's streamed position already includes it.
 
 ### Agent Model Used
 
+Claude Opus 5.5 (claude-opus-5-5), builder agent in worktree `story-2-7`.
+
 ### Debug Log References
+
+- `npx vitest run tools/netsim/hits.test.ts --silent=false` prints one `[netsim hits]` line per case (numbers below).
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- **Shot advance (AC 1).** `PlayerState.shotAdvanceS` (0 offline), `ProjectileSpawn.advanceM` / pool `advanceM`, set to `projectileSpeedMps × shotAdvanceS` in `tryFire`; the first sweep is `min(speed × dt + advanceM, rangeLeftM)`, then `advanceM = 0`. In `snapshotWorld` (players get it through the spread). `RunController.setRtt` sets `min(rtt / 2, SHOT_ADVANCE_CAP_MS = 150) / 1000` (`apps/server/src/net/limits.ts`). Melee unchanged (instant on server positions, no advance). Tests: 75 ms → 3 + 4.5 m first sweep hits a Walker 6 m out on tick 1 (and not without advance); advance only on the first step; range still holds (also an advance larger than the range); RTT 400 → 0.15 s; every existing firing test untouched and green.
+- **Cooldown rule (shared).** `combat/cooldown.ts`: `cooldownTickStart` / `cooldownReady` / `cooldownTickEnd` / `cooldownIdle` (+ `COOLDOWN_EPS_S`). Small deviation from the suggested single `advanceCooldown(c, dt, fired)`: the ready check sits between the count-down and the `+= 1/rateHz`, so the rule is split into its start and end; `firing.ts` and the client's fire clock call the very same functions (bit-identical arithmetic; determinism tests unchanged). `tryFire` no longer adds the cooldown itself; `updatePlayerWeapon` does.
+- **Hit source.** `zombie.hit.sourceId` (= the killer id `applyZombieDamage` already gets). Wire: appended as tuple index 7 (player slot, 255 = none); a tuple without it decodes to `null`.
+- **Server aim assist (Task 4).** Already server-side; new `RunController` test: touch aim 5° off a Walker 8 m out hits (Hunting Rifle, no spread), the same aim with `isMouse` misses. The client sends the raw aim.
+- **Local fire clock (AC 2)** `net/localFire.ts`. Per sent input: shared cooldown rule per slot; gates alive / fire+aim / not swapping / not reloading / predicted ammo > 0. **Deviation (found by the harness):** gating on the stale snapshot's `reloadTicks` alone put every shot after a reload one RTT behind the server's (different seq → different aim → the rifle harness showed 30–65 % reversed). Swap and reload are therefore timed by seq: a snapshot with `ackSeq` A and `swapTicks`/`reloadTicks` k ends on seq A + k; before the snapshot knows, my own swap tap on seq S ends on S + N, and my magazine-emptying shot on S starts a reload ending on S + R; after a predicted reload end, ammo = magazine − my shots since. Test: the clock fires on exactly the server's steps over 200–300 steps for Pistol, SMG, Hunting Rifle, Machete, with the trigger pulsed and swaps, **also with a snapshot 6–8 steps (300–400 ms) old**.
+- **Instant own shots / swings.** `NetSimHost` calls the clock right after `predictor.applyLocal`. A local `weapon.fired` (muzzle = predicted position + aim × (radius + 0.1), the position the server fires from for that input) or `melee.swung` goes into the immediate list that `drainEvents` hands out first (8 preallocated objects of each, reused). Touch aim is bent with `assistAim` on the mirror's drawn zombies (grid rebuilt at most once per horde sample, shared with the cosmetic sweep); spread is rolled with a client-only rng (it never matches the server's roll). The horde is now sampled before the input steps in `update`, so my shot sees what is drawn this frame.
+- **Cosmetic projectiles (AC 2, 3)** `net/cosmeticProjectiles.ts` in the mirror's projectile pool: frame-time movement, `prevX = x`, freed at range / outside the map / after `pierce` mirror zombies; never touch HP or position (tested). Remote shots spawn from the server `weapon.fired` when it drains at the render tick.
+- **Event routing (Task 7).** 1 immediate local events; 2 my own `weapon.reload_started` / `weapon.reloaded` / `weapon.swap_started` / `weapon.swapped` on arrival; 3 everything else at the render tick. My own server `weapon.fired` **and `melee.swung`** are dropped. Hits, pushback, deaths only from server events (`zombie.killed` still calls `horde.killAt`).
+- **Reversed hits (AC 4)** `debug/reversedHits.ts`: rings of 64, full net id. Additions beyond the Dev Notes, both found in the harness: (a) a server hit that arrives *before* my bullet reaches the drawn zombie (100–150 ms behind) is kept for its own window and confirms the later apparent hit; (b) `zombie.killed` (any killer) marks the net id dead: a later apparent hit on the still-drawn body isn't tracked and pending ones are dropped, and confirmation uses `zombie.hit` only (a killing shot sends both; counting both would confirm twice). `NetSimHost.netStats` has `apparentHits`, `confirmed`, `reversed`; the perf overlay shows `hits 212 · reversed 4 (1.9%)` online (`perf.hits`).
+- **Builds (clarification):** the counter is compiled into every build; it runs when `import.meta.env.DEV || perf.overlayOn` (GameScene passes it as `measureHits`), i.e. in dev builds and in the release build while `?debug=1` / the overlay is on. It is a measurement, not a cheat, and Story 2.10 measures with the published build on real phones.
+- **Harness** `tools/netsim/hits.test.ts` + `hitsSim.ts` (real `RunController`, `Predictor`, `LocalFireClock`, `CosmeticProjectiles`, `assistAim` on a mirror, `ReversedHits`, `ServerClock`, `AdaptiveDelay`, `mirrorZombies`; 20 Walkers, touch aim at the nearest drawn zombie, 30 s):
+  - standing player, 150 ms RTT ± 10 ms one-way (20 ms jitter), Pistol seeds 1–3: **0 / 77, 0 / 76, 0 / 77 reversed (0.0 %)**; Hunting Rifle 0 / 40; SMG 0 / 217 (asserted < 5 %);
+  - kiting (walking a 10 m circle at full speed): 150 ms RTT **2 / 69 (2.9 %)**, 300 ms RTT ± 20 ms **5 / 63 (7.9 %)** (asserted < 15 %). Wider sweep while building (seeds 1–3): kiting Pistol 0–9 % at 150 ms and 4–14 % at 300 ms, SMG 4–9 % (independent spread rolls). So with Walkers the standing case is far under NFR5; a fast-moving shooter at high ping is around the 1-in-20 line, which is what Story 2.10 should measure on phones (the 300 ms rewind is the architecture's upgrade path).
+- **Browser check** (Playwright + Chromium, server :3067, Vite :5573 via a temporary config, now removed; two contexts 844×390, waves on; headless runs at ~14 fps): Ana creates, Bo joins by code, Ready, Start.
+  - No throttle: mousedown → own `weapon.fired` FX in **30–56 ms** (≤ one 50 ms input step + one frame), RTT 44 ms. With `?lag=150&jitter=20` on Ana (measured RTT 261 ms): **47–108 ms**, i.e. not waiting for the round trip.
+  - Kills: identical lists (count and positions) on both pages in both runs (4 and 5 kills); Bo's page drew Ana's shots from the server (10 of Ana's 12 local shots by the time both had died); overlay counts on Ana: 8 / 8 confirmed (no lag), 11 apparent, 10 confirmed, 1 reversed (lag). No page errors.
+  - **Not verified:** a long fight (both survivors died to wave 1 within ~30 s; I did not change balance for the check), the overlay text by eye, sound timing by ear, real phones / 60 fps, the reload sound arriving on time under lag (covered by a unit test).
+- Tests: 619 passed, 3 skipped (`npm test`) + 3 release-cheat checks with `REQUIRE_DIST=1`; typecheck, lint, build pass.
+- FxView needed no change: it already plays shot / swing / reload sounds only for `host.localPlayerId`, and the local events carry that id.
 
 ### File List
+
+- New: `packages/shared/src/combat/cooldown.ts`, `packages/shared/src/combat/cooldown.test.ts`, `packages/shared/src/combat/shotAdvance.test.ts`, `apps/client/src/net/localFire.ts`, `apps/client/src/net/localFire.test.ts`, `apps/client/src/net/cosmeticProjectiles.ts`, `apps/client/src/net/cosmeticProjectiles.test.ts`, `apps/client/src/debug/reversedHits.ts`, `apps/client/src/debug/reversedHits.test.ts`, `tools/netsim/hits.test.ts`, `tools/netsim/hitsSim.ts`
+- Modified: `packages/shared/src/{player/player.ts, combat/firing.ts, combat/projectilePool.ts, combat/projectilePool.test.ts, combat/damage.ts, core/simEvents.ts, core/worldSnapshot.ts, net/netEvents.ts, net/netEvents.test.ts, index.ts}`, `apps/server/src/{run/RunController.ts, run/RunController.test.ts, net/limits.ts}`, `apps/client/src/{sim/NetSimHost.ts, sim/NetSimHost.test.ts, debug/PerfOverlay.ts, debug/perfStats.ts, scenes/GameScene.ts}`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- Not changed: `apps/client/src/render/FxView.ts` (see notes)
+
+## Change Log
+
+- 2026-11-22: Story 2.7 implemented (shot advance, shared cooldown rule, hit source on the wire, local fire clock with seq-timed swap/reload, cosmetic projectiles, event routing, reversed-hit counter + overlay line, netsim hits harness). Status → review.

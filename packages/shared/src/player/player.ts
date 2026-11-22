@@ -21,6 +21,8 @@ export interface PlayerState {
   status: PlayerStatus;
   /** Two weapon slots (Story 1.8 adds the second) and the active one. */
   loadout: Loadout;
+  /** Story 2.7: half the RTT (capped) a new projectile's first sweep is advanced by; 0 offline. */
+  shotAdvanceS: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -40,6 +42,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     radiusM: stats.radiusM,
     status: "alive",
     loadout: createLoadout(world.balance),
+    shotAdvanceS: 0,
   };
   world.players.set(id, player);
   return player;

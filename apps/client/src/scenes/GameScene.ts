@@ -39,6 +39,7 @@ import { urlOptions } from "../debug/urlOptions";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
+import { perf } from "../debug/perfStats";
 import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
@@ -119,9 +120,10 @@ export class GameScene extends Phaser.Scene {
     const balance: Balance = opts.tune && !session ? tunedBalance() : loadBalance();
     const stickRadiusCss = opts.tune ? getTuning().stickRadiusCssPx : STICK_RADIUS_CSS_PX;
     const soloSeed = data?.mode !== "online" && data?.seed !== undefined ? data.seed >>> 0 : undefined;
-    const host: SceneHost = session
-      ? new NetSimHost({ balance, session })
-      : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed() });
+    // Story 2.7: the reversed-hit counter runs in dev builds, and in release while the overlay is on.
+    const netHost = session ? new NetSimHost({ balance, session, measureHits: () => import.meta.env.DEV || perf.overlayOn }) : null;
+    const host: SceneHost = netHost ?? new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed() });
+    perf.hits = netHost ? netHost.netStats : null;
     const stress = session ? null : opts.stress;
     this.host = host;
     const world = host.world;
@@ -211,6 +213,7 @@ export class GameScene extends Phaser.Scene {
       this.zombieView?.destroy();
       for (const v of this.playerViews.values()) v.destroy();
       this.playerViews.clear();
+      perf.hits = null;
       this.host?.dispose(); // online: also leaves the room
       this.host = null;
     });

@@ -343,4 +343,89 @@ describe("NetSimHost", () => {
       expect(host.world.players.size).toBe(0);
     });
   });
+
+  describe("server-confirmed hits (Story 2.7)", () => {
+    const fire = { ...NEUTRAL_INPUT, aimX: 1, aimY: 0, fire: true, isMouse: true };
+
+    it("my shot plays at once from local input: weapon.fired first, and a cosmetic projectile", () => {
+      const { host, arrive, setNow } = setup();
+      setNow(1000);
+      arrive(10);
+      host.update(0);
+      host.setLocalInput(fire);
+      host.update(0.05); // one step
+      const events = host.drainEvents();
+      expect(events[0]).toMatchObject({ type: "weapon.fired", playerId: "p1", weapon: "pistol", dirX: expect.closeTo(1, 1) });
+      const muzzle = 20 + balance.player.radiusM + 0.1;
+      expect(events[0]).toMatchObject({ x: expect.closeTo(muzzle, 5), y: expect.closeTo(10, 5) });
+      expect(host.world.projectiles.aliveCount).toBe(1);
+      expect(host.drainEvents()).toHaveLength(0); // handed out exactly once
+    });
+
+    it("drops my own server weapon.fired; others' shots wait for the render tick and fly cosmetically", () => {
+      const { host, room, arrive, setNow } = setup();
+      setNow(1000);
+      arrive(10);
+      room.deliver(S2C.SIM_EVENTS_FLUSHED, {
+        tick: 11,
+        events: [
+          [NET_EVENT_KIND.WEAPON_FIRED, 1, 0, 2050, 1000, 0], // mine
+          [NET_EVENT_KIND.WEAPON_FIRED, 0, 0, 1050, 1000, 0], // p0's
+          [NET_EVENT_KIND.MELEE_SWUNG, 1, 3, 2000, 1000, 0], // mine
+        ],
+      } satisfies SimEventsFlushed);
+      setNow(500 + (11 + RENDER_DELAY_TICKS) * 50);
+      host.update(0);
+      const events = host.drainEvents();
+      expect(events.map((e) => (e.type === "weapon.fired" ? e.playerId : e.type))).toEqual(["p0"]);
+      expect(host.world.projectiles.aliveCount).toBe(1);
+      expect(host.world.projectiles.owner[host.world.projectiles.aliveIds[0] as number]).toBe("p0");
+    });
+
+    it("delivers my own reload and swap events on arrival, others' at the render tick", () => {
+      const { host, room, arrive, setNow } = setup();
+      setNow(1000);
+      arrive(10);
+      room.deliver(S2C.SIM_EVENTS_FLUSHED, {
+        tick: 20,
+        events: [
+          [NET_EVENT_KIND.WEAPON_RELOAD_STARTED, 1, 0, 1000],
+          [NET_EVENT_KIND.WEAPON_SWAPPED, 1, 1, 1],
+          [NET_EVENT_KIND.WEAPON_RELOAD_STARTED, 0, 0, 1000],
+        ],
+      } satisfies SimEventsFlushed);
+      host.update(0); // render tick far below 20
+      const events = host.drainEvents();
+      expect(events.map((e) => e.type)).toEqual(["weapon.reload_started", "weapon.swapped"]);
+      expect(events.every((e) => "playerId" in e && e.playerId === "p1")).toBe(true);
+    });
+
+    it("never removes or damages a mirror zombie on its own, and counts confirmations on arrival", () => {
+      const { host, room, arrive, setNow } = setup();
+      setNow(1000);
+      arrive(10);
+      host.update(0);
+      // A server hit from me arrives first (low RTT); my bullet then reaches the drawn zombie.
+      room.deliver(S2C.SIM_EVENTS_FLUSHED, {
+        tick: 11,
+        events: [[NET_EVENT_KIND.ZOMBIE_HIT, zombieNetId(4, 2), 100, 100, 0, 50, 0, 1]],
+      } satisfies SimEventsFlushed);
+      host.hits.apparent(zombieNetId(4, 2), 1010, 500);
+      host.update(0);
+      expect(host.netStats).toMatchObject({ apparentHits: 1, confirmed: 1, reversed: 0 });
+    });
+
+    it("the reversed-hit counter is off when measureHits says so", () => {
+      const room = new FakeRoom(fakeState([fakePlayer(1, { x: 20, y: 10 })]));
+      const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+      const host = new NetSimHost({ balance, session, now: () => 0, measureHits: () => false });
+      room.deliver(S2C.SIM_EVENTS_FLUSHED, {
+        tick: 1,
+        events: [[NET_EVENT_KIND.ZOMBIE_HIT, 4, 100, 100, 0, 50, 0, 1]],
+      } satisfies SimEventsFlushed);
+      host.hits.apparent(4, 0, 500); // what a bullet would record if it were on
+      host.update(0);
+      expect(host.netStats.confirmed).toBe(0);
+    });
+  });
 });

@@ -1,3 +1,5 @@
+import type { HitCounts } from "./reversedHits";
+
 /**
  * Frame and simulation timing for the performance overlay and the stress test (Story 1.11).
  * Pure (no Phaser, no DOM): times are passed in, so it is unit-tested. Ring buffers are allocated
@@ -169,6 +171,8 @@ export class PerfStats {
   overlayOn = false;
   /** Whole-run accumulator while a stress test runs. */
   summary: PerfSummary | null = null;
+  /** Story 2.7: the online host's reversed-hit counts (`NetSimHost.netStats`); null offline. */
+  hits: HitCounts | null = null;
 
   recordFrame(nowMs: number, frameMs: number, renderMs: number, updateMs: number): void {
     const i = this.frameHead;
@@ -243,6 +247,7 @@ export class PerfStats {
     this.inView = 0;
     this.overlayOn = false;
     this.summary = null;
+    this.hits = null;
   }
 }
 

@@ -14,7 +14,8 @@ const dir = (deg: number) => ({ dirX: Math.cos((deg * Math.PI) / 180), dirY: Mat
 const EVENTS: SimEvent[] = [
   { type: "zombie.killed", zombieId: 7, killerId: "p2", x: 12.34, y: 5.67, weapon: "smg" },
   { type: "zombie.killed", zombieId: 3, killerId: null, x: 0, y: 31.5, weapon: "pistol" },
-  { type: "zombie.hit", zombieId: 7, x: 47.99, y: 0.01, ...dir(90), damage: 4.5, weapon: "hunting_rifle" },
+  { type: "zombie.hit", zombieId: 7, x: 47.99, y: 0.01, ...dir(90), damage: 4.5, weapon: "hunting_rifle", sourceId: "p1" },
+  { type: "zombie.hit", zombieId: 3, x: 1, y: 2, ...dir(0), damage: 1, weapon: "pistol", sourceId: null },
   { type: "weapon.fired", playerId: "p0", weapon: "pistol", x: 24.5, y: 16.25, ...dir(180) },
   { type: "weapon.reload_started", playerId: "p1", weapon: "smg", reloadS: 1.6 },
   { type: "weapon.reloaded", playerId: "p3", weapon: "pistol" },
@@ -59,12 +60,23 @@ describe("netEvents", () => {
     expect([...kinds].sort((a, b) => a - b)).toEqual(Object.values(NET_EVENT_KIND).sort((a, b) => a - b));
   });
 
+  it("sends the hit's source as a player slot, 255 for none (Story 2.7)", () => {
+    const hit = (sourceId: string | null) =>
+      encodeNetEvent({ type: "zombie.hit", zombieId: 7, x: 1, y: 1, dirX: 1, dirY: 0, damage: 5, weapon: "pistol", sourceId }, enc) as NetEvent;
+    expect(hit("p2")[7]).toBe(2);
+    expect(hit(null)[7]).toBe(NET_NONE);
+    expect(decodeNetEvent(hit("p3"), dec)).toMatchObject({ sourceId: "p3" });
+    expect(decodeNetEvent(hit(null), dec)).toMatchObject({ sourceId: null });
+    // A tuple without the field (a server older than 2.7) decodes with no source.
+    expect(decodeNetEvent(hit("p1").slice(0, 7), dec)).toMatchObject({ sourceId: null });
+  });
+
   it("does not forward test.ping", () => {
     expect(encodeNetEvent({ type: "test.ping", n: 1 }, enc)).toBeNull();
   });
 
   it("keeps the zombie generation in the net id; decode gives the pool slot", () => {
-    const t = encodeNetEvent({ type: "zombie.hit", zombieId: 7, x: 1, y: 1, dirX: 1, dirY: 0, damage: 5, weapon: "pistol" }, enc) as NetEvent;
+    const t = encodeNetEvent({ type: "zombie.hit", zombieId: 7, x: 1, y: 1, dirX: 1, dirY: 0, damage: 5, weapon: "pistol", sourceId: "p0" }, enc) as NetEvent;
     expect(t[1]).toBe(7 | (3 << 8));
     const e = decodeNetEvent(t, dec);
     expect(e?.type === "zombie.hit" && e.zombieId).toBe(7);
@@ -73,7 +85,7 @@ describe("netEvents", () => {
   });
 
   it("rounds positions to cm, damage to tenths and directions to a heading", () => {
-    const t = encodeNetEvent({ type: "zombie.hit", zombieId: 1, x: 1.23456, y: 2.0049, ...dir(45), damage: 3.333, weapon: "smg" }, enc) as NetEvent;
+    const t = encodeNetEvent({ type: "zombie.hit", zombieId: 1, x: 1.23456, y: 2.0049, ...dir(45), damage: 3.333, weapon: "smg", sourceId: null }, enc) as NetEvent;
     const e = decodeNetEvent(t, dec);
     expect(e).toMatchObject({ x: 1.23, y: 2, damage: 3.3 });
   });

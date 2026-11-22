@@ -78,6 +78,19 @@ export { inRect, viewRect, type Rect } from "./net/interest";
 export { activeSlot, createLoadout, createSlot, setLoadout, type Loadout, type WeaponSlot } from "./combat/loadout";
 export { isGun, isMelee, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
 export type { ProjectilePool } from "./combat/projectilePool";
+// Story 2.7: cosmetic projectiles in the client mirror, the shared cooldown rule, the swept test.
+export {
+  MAX_PIERCE,
+  freeProjectile,
+  projectileHasHit,
+  recordProjectileHit,
+  spawnProjectile,
+  type ProjectileSpawn,
+} from "./combat/projectilePool";
+export { COOLDOWN_EPS_S, cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./combat/cooldown";
+export { segmentCircleT } from "./math/sweep";
+export { rotate } from "./math/vec";
+export { maxZombieRadius } from "./zombies/zombieTypes";
 export { applyZombieDamage } from "./combat/damage";
 export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";

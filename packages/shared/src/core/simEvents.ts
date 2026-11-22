@@ -4,7 +4,18 @@
  */
 export type SimEvent =
   | { type: "zombie.killed"; zombieId: number; killerId: string | null; x: number; y: number; weapon: string }
-  | { type: "zombie.hit"; zombieId: number; x: number; y: number; dirX: number; dirY: number; damage: number; weapon: string }
+  | {
+      type: "zombie.hit";
+      zombieId: number;
+      x: number;
+      y: number;
+      dirX: number;
+      dirY: number;
+      damage: number;
+      weapon: string;
+      /** Story 2.7: the player whose shot or swing it was (null: none). */
+      sourceId: string | null;
+    }
   | { type: "weapon.fired"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number }
   | { type: "weapon.reload_started"; playerId: string; weapon: string; reloadS: number }
   | { type: "weapon.reloaded"; playerId: string; weapon: string }

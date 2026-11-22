@@ -287,4 +287,37 @@ describe("RunController", () => {
     expect(c.rttMs("p1")).toBe(120);
     expect(c.rttMs("p0")).toBe(0);
   });
+
+  it("turns the RTT into half as shot advance, capped at 150 ms (Story 2.7)", () => {
+    const c = newController();
+    c.setRtt("p0", 120);
+    expect(c.world.players.get("p0")?.shotAdvanceS).toBeCloseTo(0.06, 12);
+    c.setRtt("p0", 400);
+    expect(c.world.players.get("p0")?.shotAdvanceS).toBe(0.15);
+    expect(c.world.players.get("p1")?.shotAdvanceS).toBe(0);
+  });
+
+  it("runs aim assist on server positions: touch 5° off a zombie hits, the same mouse aim misses (Story 2.7)", () => {
+    const shoot = (isMouse: boolean): SimEvent[] => {
+      const c = new RunController({
+        balance,
+        seed: SEED,
+        players: [{ playerId: "p0", slot: 0 }],
+        systems: { waves: () => {}, zombies: () => {} },
+      });
+      const p = c.world.players.get("p0");
+      if (!p) throw new Error("no p0");
+      setLoadout(balance, p.loadout, ["hunting_rifle", null]); // no spread: the aim alone decides
+      const zid = spawnZombie(c.world, "walker", p.x + 8, p.y);
+      const a = (5 * Math.PI) / 180;
+      const events: SimEvent[] = [];
+      c.queueInput("p0", input(1, { aimX: Math.cos(a), aimY: Math.sin(a), fire: true, isMouse }));
+      for (let t = 0; t < 8; t++) events.push(...c.tick());
+      expect(events.some((e) => e.type === "weapon.fired")).toBe(true);
+      return events.filter((e) => e.type === "zombie.hit" && e.zombieId === zid);
+    };
+    expect(shoot(false)).toHaveLength(1);
+    expect(shoot(false)[0]).toMatchObject({ sourceId: "p0" });
+    expect(shoot(true)).toHaveLength(0);
+  });
 });
