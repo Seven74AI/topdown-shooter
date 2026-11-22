@@ -41,6 +41,19 @@ export interface HudModel {
   readyTotal: number;
   /** Set by the HUD when Ready is tapped; the GameScene consumes it. */
   readyPressed: boolean;
+  /** Story 3.4: placement mode is on: touches move the preview, ⟳ ✓ ✕ show, the sticks are off. */
+  placementActive: boolean;
+  /** The line above ⟳ ✓ ✕ ("Wood barricade · $40", or why it is red) and whether the preview is valid. */
+  placementHint: string;
+  placementValid: boolean;
+  /** A placement touch (down or drag) in canvas px this frame; the GameScene consumes it. */
+  placeTap: boolean;
+  placeTapX: number;
+  placeTapY: number;
+  /** ⟳ ✓ ✕ taps; the GameScene consumes them. */
+  rotatePressed: boolean;
+  confirmPressed: boolean;
+  cancelPressed: boolean;
   /** Story 3.3: the Shop button is shown (as Ready, while the shop is closed). */
   shopButton: boolean;
   /** Set by the HUD when Shop is tapped; the GameScene consumes it. */
@@ -115,6 +128,15 @@ export const createHudModel = (): HudModel => ({
   readyCount: 0,
   readyTotal: 0,
   readyPressed: false,
+  placementActive: false,
+  placementHint: "",
+  placementValid: true,
+  placeTap: false,
+  placeTapX: 0,
+  placeTapY: 0,
+  rotatePressed: false,
+  confirmPressed: false,
+  cancelPressed: false,
   shopButton: false,
   shopPressed: false,
   bannerText: "",

@@ -7,6 +7,7 @@ import player from "../config/balance/player.json" with { type: "json" };
 import controls from "../config/balance/controls.json" with { type: "json" };
 import economy from "../config/balance/economy.json" with { type: "json" };
 import bots from "../config/balance/bots.json" with { type: "json" };
+import buildings from "../config/balance/buildings.json" with { type: "json" };
 import shop from "../config/balance/shop.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
@@ -19,7 +20,7 @@ import { skipWave, startBuild } from "../run/runStateMachine";
 
 /** Story 3.1: a 3 s build phase (60 ticks) keeps these timings short; the build itself is tested in runStateMachine.test.ts. */
 function balanceWith(waves: Partial<typeof wavesJson> = {}) {
-  return loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 3, ...waves }, player, controls, economy, bots, shop } as RawBalanceFiles);
+  return loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 3, ...waves }, player, controls, economy, bots, buildings, shop } as RawBalanceFiles);
 }
 
 /** Zombies frozen in place (tests drive kills by hand), invulnerable player; the run is in its first build phase. */

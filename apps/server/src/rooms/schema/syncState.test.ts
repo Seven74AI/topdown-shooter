@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
-import { NEUTRAL_INPUT, applyZombieDamage, downPlayer, loadBalance, quantizeHeading, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
+import { NEUTRAL_INPUT, applyZombieDamage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
 import { RunController } from "../../run/RunController";
 import { PlayerState, RunState } from "./RunState";
 import { resetRunFields, syncState } from "./syncState";
@@ -115,6 +115,48 @@ describe("syncState", () => {
     encoder.discardChanges();
     syncState(state, controller);
     expect(encoder.hasChanges).toBe(false);
+  });
+
+  it("Story 3.4: a placed building is sent once (~40 B), idle buildings cost nothing, HP only on change, removal deletes it", () => {
+    const { controller, state, encoder } = setup();
+    controller.tick();
+    syncState(state, controller);
+    encoder.encode();
+    encoder.discardChanges();
+    const w = controller.world;
+    w.run.phase = "build"; // RunController started in a build phase; setup's state says "wave"
+    const r = controller.placeBuilding("p0", { type: "wood_barricade", gx: 30, gy: 8, rot: 1 });
+    expect(r.ok).toBe(true);
+    controller.tick(); // the wallet change and the building go out with this tick
+    syncState(state, controller);
+    expect([...state.buildings.keys()]).toEqual(["1"]);
+    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "wood_barricade", owner: "p0", gx: 30, gy: 8, rot: 1, hp: 200 });
+    const placedBytes = encoder.encode().length;
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const idleBytes = encoder.encode().length; // only `tick`, as without buildings
+    encoder.discardChanges();
+    console.info(`[bandwidth] building placed: ${placedBytes} B patch (incl. tick + wallet); idle tick with 1 building: ${idleBytes} B`);
+    expect(placedBytes).toBeLessThan(60);
+    expect(idleBytes).toBeLessThan(8);
+    const b = w.buildings.list[0];
+    if (b) b.hp = 150.2; // Story 3.5 damage
+    syncState(state, controller);
+    expect(state.buildings.get("1")?.hp).toBe(151);
+    encoder.encode();
+    encoder.discardChanges();
+    syncState(state, controller);
+    expect(encoder.hasChanges).toBe(false);
+    removeBuilding(w, 1);
+    syncState(state, controller);
+    expect(state.buildings.size).toBe(0);
+    controller.placeBuilding("p1", { type: "wood_barricade", gx: 10, gy: 8, rot: 0 });
+    syncState(state, controller);
+    resetRunFields(state);
+    expect(state.buildings.size).toBe(0);
+    syncState(state, controller); // a new sync after the reset adds it again (fresh bookkeeping)
+    expect([...state.buildings.keys()]).toEqual(["2"]);
   });
 
   it("copies the bite slow (Story 3.9), counted down by the World", () => {

@@ -1,5 +1,7 @@
 import { schema, t, type SchemaType } from "@colyseus/schema";
 import type {
+  BUILDING_STATE_FIELDS,
+  BuildingStateView,
   PLAYER_STATE_FIELDS,
   PlayerStateView,
   PlayerStatus,
@@ -61,10 +63,27 @@ const playerFields = {
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;
 
+/**
+ * Story 3.4: one placed building (map key: its id as a string). Every field but `hp` is written once
+ * when it is placed; `hp` only when it changes (Stories 3.5, 3.7): an idle building costs no bytes.
+ */
+const buildingFields = {
+  type: t.string().default(""),
+  owner: t.string().default(""),
+  gx: t.uint8().default(0),
+  gy: t.uint8().default(0),
+  rot: t.uint8().default(0),
+  hp: t.uint16().default(0),
+};
+export const BuildingState = schema(buildingFields, "BuildingState");
+export type BuildingState = SchemaType<typeof BuildingState>;
+
 const runFields = {
   phase: t.string<RunPhase>().default("lobby"),
   hostSlot: t.uint8().default(0),
   players: t.map(PlayerState),
+  /** Story 3.4: placed buildings by id. */
+  buildings: t.map(BuildingState),
   /** World tick of the values in this patch (Story 2.4). */
   tick: t.uint32().default(0),
   wave: t.uint16().default(0),
@@ -87,6 +106,7 @@ export type RunStateMatchesView = Assert<Assignable<RunState, RunStateView>>;
 export type PlayerStateMatchesView = Assert<
   Assignable<PlayerState, PlayerStateView>
 >;
+export type BuildingStateMatchesView = Assert<Assignable<BuildingState, BuildingStateView>>;
 // Retro A2: the schema's field names are exactly the shared key lists the client's full state copies
 // (the `?lag` dev throttle) iterate. A schema field missing from them is a compile error here.
 type SameKeys<A, B> = [keyof A] extends [keyof B]
@@ -98,5 +118,6 @@ export type PlayerFieldsMatchKeyList = Assert<
   SameKeys<typeof playerFields, typeof PLAYER_STATE_FIELDS>
 >;
 export type RunFieldsMatchKeyList = Assert<
-  SameKeys<Omit<typeof runFields, "players">, typeof RUN_STATE_FIELDS>
+  SameKeys<Omit<typeof runFields, "players" | "buildings">, typeof RUN_STATE_FIELDS>
 >;
+export type BuildingFieldsMatchKeyList = Assert<SameKeys<typeof buildingFields, typeof BUILDING_STATE_FIELDS>>;

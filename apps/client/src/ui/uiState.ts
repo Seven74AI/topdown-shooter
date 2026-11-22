@@ -65,7 +65,7 @@ export interface UiRequests {
   shop: (action: ShopAction) => void;
   /**
    * Story 3.4 contract: a building tapped in the shop starts placement mode for that building type
-   * (the shop has closed). Registered by Story 3.4; until then a no-op.
+   * (the shop has closed). The Game scene registers it and ignores it outside a build phase.
    */
   startPlacement: (buildingTypeId: string) => void;
   /** Start screen: create an online run with this (already validated) name. */

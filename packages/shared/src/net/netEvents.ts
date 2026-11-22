@@ -3,6 +3,7 @@ import { weaponIds, type WeaponId } from "../combat/weapons";
 import { MONEY_REASONS, type SimEvent } from "../core/simEvents";
 import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
+import { buildingTypeIds } from "../buildings/buildings";
 
 /**
  * Sim events on the wire (Story 2.4). Each forwarded event is a short tuple `[kind, …fields]`
@@ -36,6 +37,7 @@ export const NET_EVENT_KIND = {
   TEAM_WIPED: 18,
   MONEY_EARNED: 19,
   BUILD_STARTED: 20, // Story 3.1
+  BUILDING_PLACED: 21, // Story 3.4
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -139,6 +141,11 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.MONEY_EARNED, playerSlotOf(e.playerId), e.amount, MONEY_REASONS.indexOf(e.reason)];
     case "build.started":
       return [K.BUILD_STARTED, e.wave];
+    case "building.placed": {
+      // Story 3.4: the type as its `buildingTypeIds` index (the building itself comes from schema).
+      const t = buildingTypeIds(b).indexOf(e.buildingType);
+      return [K.BUILDING_PLACED, e.buildingId, t < 0 ? NET_NONE : t, playerSlotOf(e.ownerId), e.gx, e.gy, e.rot];
+    }
     case "test.ping":
       return null;
   }
@@ -243,6 +250,11 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.BUILD_STARTED:
       return { type: "build.started", wave: n(t, 1) };
+    case K.BUILDING_PLACED: {
+      const buildingType = buildingTypeIds(b)[n(t, 2)];
+      if (buildingType === undefined) return null;
+      return { type: "building.placed", buildingId: n(t, 1), buildingType, ownerId: pid(t, 3), gx: n(t, 4), gy: n(t, 5), rot: n(t, 6) };
+    }
     default:
       return null;
   }

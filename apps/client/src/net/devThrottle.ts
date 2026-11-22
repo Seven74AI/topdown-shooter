@@ -1,8 +1,10 @@
 import {
+  BUILDING_STATE_FIELDS,
   C2S,
   NEUTRAL_INPUT,
   PLAYER_STATE_FIELDS,
   RUN_STATE_FIELDS,
+  type BuildingStateView,
   type PlayerInput,
   type PlayerStateView,
   type RunStateView,
@@ -26,13 +28,16 @@ export interface DevThrottleOptions {
  */
 const PLAYER_KEYS = Object.keys(PLAYER_STATE_FIELDS);
 const STATE_KEYS = Object.keys(RUN_STATE_FIELDS);
+const BUILDING_KEYS = Object.keys(BUILDING_STATE_FIELDS);
 
 type Fields = Record<string, unknown>;
 
 /** A plain copy of the room state (all view fields), reused: player objects persist per id. */
 class StateCopy {
   readonly players = new Map<string, Fields>();
-  readonly view: Fields = { players: this.players };
+  /** Story 3.4: buildings by id, copied like players (objects persist per id). */
+  readonly buildings = new Map<string, Fields>();
+  readonly view: Fields = { players: this.players, buildings: this.buildings };
   private gen = 0;
   private readonly seen = new Map<string, number>();
   private readonly copyPlayer = (p: PlayerStateView, id: string): void => {
@@ -53,6 +58,25 @@ class StateCopy {
     this.players.delete(id);
     this.seen.delete(id);
   };
+  private readonly seenBuildings = new Map<string, number>();
+  private readonly copyBuilding = (b: BuildingStateView, id: string): void => {
+    let d = this.buildings.get(id);
+    if (!d) {
+      d = {}; // once per building id and copy slot
+      this.buildings.set(id, d);
+    }
+    const src = b as unknown as Fields;
+    for (let i = 0; i < BUILDING_KEYS.length; i++) {
+      const k = BUILDING_KEYS[i] as string;
+      d[k] = src[k];
+    }
+    this.seenBuildings.set(id, this.gen);
+  };
+  private readonly sweepBuildings = (_b: Fields, id: string): void => {
+    if (this.seenBuildings.get(id) === this.gen) return;
+    this.buildings.delete(id);
+    this.seenBuildings.delete(id);
+  };
 
   copyFrom(src: RunStateView): void {
     const s = src as unknown as Fields;
@@ -63,6 +87,8 @@ class StateCopy {
     this.gen++;
     src.players?.forEach(this.copyPlayer);
     this.players.forEach(this.sweep);
+    src.buildings?.forEach(this.copyBuilding);
+    this.buildings.forEach(this.sweepBuildings);
   }
 
   get asState(): RunStateView {

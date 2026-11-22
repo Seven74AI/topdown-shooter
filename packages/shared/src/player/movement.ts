@@ -1,6 +1,7 @@
 import type { SystemFn } from "../core/systems";
 import { updateDowned } from "./downed";
 import { playerSpeed, tickSlow } from "./slow";
+import { pushOutOfBuildings, pushed } from "../buildings/collision";
 
 const MIN_VEC_LEN = 1e-6;
 
@@ -11,6 +12,8 @@ const MIN_VEC_LEN = 1e-6;
  * drift. Prediction runs only this (`PREDICTION_SYSTEMS`): the downed rules are the server's.
  * Story 3.9: a slowed player moves at `playerSpeed`, and the slow counts down here (after the
  * move, for every status), so the predictor counts the same ticks as the server.
+ * Story 3.4: a moved survivor is pushed out of buildings (same rules in the predictor, whose World
+ * mirrors the buildings from schema).
  */
 export const movePlayers: SystemFn = (world, dtS) => {
   const baseSpeed = world.balance.player.speedMps;
@@ -35,8 +38,15 @@ export const movePlayers: SystemFn = (world, dtS) => {
       my /= moveLen;
     }
     const r = p.radiusM;
-    p.x = Math.min(widthM - r, Math.max(r, p.x + mx * speed * dtS));
-    p.y = Math.min(heightM - r, Math.max(r, p.y + my * speed * dtS));
+    let nx = p.x + mx * speed * dtS;
+    let ny = p.y + my * speed * dtS;
+    // Story 3.4: buildings block (slide along their faces), then the map edge wins.
+    if (world.buildings.list.length > 0 && pushOutOfBuildings(world, nx, ny, r)) {
+      nx = pushed.x;
+      ny = pushed.y;
+    }
+    p.x = Math.min(widthM - r, Math.max(r, nx));
+    p.y = Math.min(heightM - r, Math.max(r, ny));
 
     const aimLen = Math.sqrt(input.aimX * input.aimX + input.aimY * input.aimY);
     if (aimLen > MIN_VEC_LEN) {

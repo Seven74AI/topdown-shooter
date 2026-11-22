@@ -3,6 +3,7 @@ import {
   TICK_DT_S,
   addPlayer,
   applyTestScenario,
+  placeBuilding,
   buyWeapon,
   createWorld,
   removePlayer,
@@ -14,6 +15,9 @@ import {
   step,
   teamSpawnPoint,
   type Balance,
+  type Building,
+  type PlaceError,
+  type PlaceRequest,
   type Bought,
   type PlayerInput,
   type Result,
@@ -186,6 +190,14 @@ export class RunController {
   /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */
   setBuildReady(playerId: string, ready: boolean): void {
     setBuildReady(this.world, playerId, ready);
+  }
+
+  /**
+   * Story 3.4: `building.place`, between ticks (the building blocks from the next tick on, and its
+   * `building.placed` goes out with that tick's events). Every rule is the shared `placeBuilding`'s.
+   */
+  placeBuilding(playerId: string, req: PlaceRequest): Result<Building, PlaceError> {
+    return placeBuilding(this.world, playerId, req);
   }
 
   /**

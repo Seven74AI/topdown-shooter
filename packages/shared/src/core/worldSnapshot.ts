@@ -95,6 +95,12 @@ export function snapshotWorld(world: World) {
     debug: { ...world.debug },
     teamWiped: world.teamWiped,
     economy: snapshotEconomy(world),
+    // Story 3.4: buildings in id order (plain copies) and the counters.
+    buildings: {
+      list: world.buildings.list.map((b) => ({ ...b })),
+      nextId: world.buildings.nextId,
+      version: world.buildings.version,
+    },
   };
 }
 

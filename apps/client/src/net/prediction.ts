@@ -7,12 +7,15 @@ import {
   setInput,
   step,
   type Balance,
+  type BuildingStateView,
   type DistrictMap,
   type PlayerInput,
   type PlayerState,
   type PlayerStatus,
+  type ReadonlyMapView,
   type World,
 } from "@topdown/shared";
+import { mirrorBuildings } from "./mirrorBuildings";
 import {
   PREDICTION_ERROR_BUCKETS,
   PREDICTION_ERROR_BUCKET_STEPS,
@@ -109,6 +112,19 @@ export class Predictor {
   /** Highest ack seen so far (-1 before the first). */
   get ackSeq(): number {
     return this.lastAck;
+  }
+
+  /**
+   * Story 3.4 (brief line 4): the server's buildings, copied before every reconcile, so the replay
+   * and every later local step collide with them exactly as the server's `movePlayers` does.
+   */
+  syncBuildings(buildings: ReadonlyMapView<BuildingStateView> | undefined): void {
+    mirrorBuildings(buildings, this.world);
+  }
+
+  /** Buildings the prediction collides with (tests). */
+  get buildingCount(): number {
+    return this.world.buildings.list.length;
   }
 
   /** First snapshot: create the predicted player at the server position. */

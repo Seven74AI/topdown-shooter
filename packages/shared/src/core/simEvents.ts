@@ -42,6 +42,8 @@ export type SimEvent =
   | { type: "build.started"; wave: number }
   /** Story 3.2: the economy system paid `amount` into `playerId`'s wallet. */
   | { type: "money.earned"; playerId: string; amount: number; reason: MoneyReason }
+  /** Story 3.4: `ownerId` placed a building (centre on grid point gx, gy; rotation 0–3). */
+  | { type: "building.placed"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

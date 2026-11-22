@@ -1,4 +1,4 @@
-import type { PlayerInput, ShopError, SimEvent, World } from "@topdown/shared";
+import type { PlaceError, PlaceRequest, PlayerInput, ShopError, SimEvent, World } from "@topdown/shared";
 
 /** Story 3.3: how a purchase ended (solo at once, online the server's `shop.bought` / `shop.refused`). */
 export type ShopAnswer =
@@ -37,6 +37,13 @@ export interface SimHost {
    * applies before the next step; online it is sent as `build.set_ready` and comes back in the state.
    */
   setBuildReady(ready: boolean): void;
+  /**
+   * Story 3.4: ask to place a building (the server validates; solo runs the same check now). A
+   * refusal comes back through `takePlaceRefusal` (solo at once, online a round trip later).
+   */
+  placeBuilding(req: PlaceRequest): void;
+  /** The oldest placement refusal not taken yet, or null. */
+  takePlaceRefusal(): PlaceError | null;
   /**
    * Story 3.3: buy a weapon of the fixed shop (`slot`: which one it replaces when both are full).
    * Solo the shared `buyWeapon` runs at once; online it is sent as `shop.buy` and the server decides.

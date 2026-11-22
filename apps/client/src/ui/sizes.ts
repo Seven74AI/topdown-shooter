@@ -8,6 +8,9 @@ export const MENU_BUTTON_INSET_CSS_PX = 12;
 export const READY_BUTTON_W_CSS_PX = 168;
 export const READY_BUTTON_H_CSS_PX = 52;
 export const READY_BUTTON_BOTTOM_CSS_PX = 24;
+/** Story 3.4: placement mode's ⟳ ✓ ✕ buttons (square), bottom centre where Ready was (CSS px). */
+export const PLACE_BUTTON_CSS_PX = 64;
+export const PLACE_BUTTON_GAP_CSS_PX = 20;
 /** Story 3.3: the Shop button, right of Ready with this gap; the pair is centred at the bottom (CSS px). */
 export const SHOP_BUTTON_W_CSS_PX = 120;
 export const SHOP_BUTTON_GAP_CSS_PX = 12;

@@ -1,0 +1,12 @@
+{
+  "maxPerPlayer": 6,
+  "types": {
+    "wood_barricade": {
+      "name": "Wood barricade",
+      "price": 40,
+      "widthM": 2,
+      "depthM": 0.5,
+      "hp": 200
+    }
+  }
+}

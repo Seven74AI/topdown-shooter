@@ -12,6 +12,7 @@ import type { ZombieTypeId } from "../zombies/zombieTypes";
 import { createSpatialGrid, type SpatialGrid } from "./spatialGrid";
 import { EventBus } from "./eventBus";
 import { createEconomyState, type EconomyState } from "../economy/economy";
+import { createBuildingState, type BuildingState } from "../buildings/buildings";
 import { createRng, type Rng } from "./rng";
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
 
@@ -50,6 +51,11 @@ export interface World {
   teamWiped: boolean;
   /** Story 3.2: who damaged each zombie (assist credit). Wallets live on the players. */
   readonly economy: EconomyState;
+  /**
+   * Story 3.4: placed buildings (`buildings/buildings.ts`), sorted by id; they block players and
+   * zombies (`buildings/collision.ts`). The client's mirror and prediction Worlds copy them from schema.
+   */
+  readonly buildings: BuildingState;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -99,6 +105,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     debug: { godMode: false, waveMix: null },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
+    buildings: createBuildingState(),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

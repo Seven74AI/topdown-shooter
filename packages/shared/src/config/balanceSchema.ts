@@ -159,6 +159,33 @@ export const botsSchema = z
   .strict();
 
 /**
+ * Story 3.4: one building type (GDD › Buildings and Defenses). The footprint is `widthM` along x and
+ * `depthM` along y at rotation 0 (rotations 1 and 3 swap them); its centre sits on an integer point
+ * of the 1 m build grid. Story 3.6 adds turret fields (with defaults).
+ */
+export const buildingTypeSchema = z
+  .object({
+    /** Display name (shop, placement hint). */
+    name: z.string().min(1).max(32),
+    price: z.number().int().min(0),
+    /** Footprint in metres; at most 8 m so a footprint always fits the 1 m grid's uint8 indices. */
+    widthM: z.number().positive().max(8),
+    depthM: z.number().positive().max(8),
+    /** Full HP (synced as a uint16). */
+    hp: z.number().int().positive().max(65535),
+  })
+  .strict();
+
+/** Story 3.4: placeable buildings and the per-player cap (FR51). Story 3.3's shop lists `types`. */
+export const buildingsSchema = z
+  .object({
+    /** Buildings one player may own at once (GDD: 6). */
+    maxPerPlayer: z.number().int().min(1).max(64),
+    types: z.record(balanceId, buildingTypeSchema),
+  })
+  .strict();
+
+/**
  * Story 3.3: the fixed-list shop (replaced by the roguelike shop in Epic 5). Which weapons it offers,
  * in order; prices stay on the weapons (`weapons.json › price`). `loadBalance` checks every id is a weapon.
  */
@@ -180,6 +207,7 @@ export const balanceFileSchemas = {
   controls: controlsSchema,
   economy: economySchema,
   bots: botsSchema,
+  buildings: buildingsSchema,
   shop: shopSchema,
 } as const;
 
@@ -188,3 +216,4 @@ export type GunStats = z.output<typeof gunSchema>;
 export type MeleeStats = z.output<typeof meleeSchema>;
 export type WeaponStats = z.output<typeof weaponSchema>;
 export type ZombieTypeStats = z.output<typeof zombieTypeSchema>;
+export type BuildingTypeStats = z.output<typeof buildingTypeSchema>;

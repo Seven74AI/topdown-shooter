@@ -58,10 +58,29 @@ export interface ReadonlyMapView<V> {
   readonly size: number;
 }
 
+/**
+ * Story 3.4: one placed building (schema `BuildingState`; the map key is its id as a string). Sent
+ * once when placed; `hp` changes only when it is damaged or repaired (Stories 3.5, 3.7).
+ */
+export interface BuildingStateView {
+  /** `balance.buildings.types` key. */
+  readonly type: string;
+  /** Player id of the builder. */
+  readonly owner: string;
+  /** Centre on the 1 m grid, and the rotation (0–3, 90° steps). */
+  readonly gx: number;
+  readonly gy: number;
+  readonly rot: number;
+  /** `Math.ceil` of the World's HP. */
+  readonly hp: number;
+}
+
 export interface RunStateView {
   readonly phase: RunPhase;
   readonly hostSlot: number;
   readonly players: ReadonlyMapView<PlayerStateView>;
+  /** Story 3.4: placed buildings by id (as a string). */
+  readonly buildings: ReadonlyMapView<BuildingStateView>;
   /** Server tick of the World these values come from (Story 2.4). */
   readonly tick: number;
   /** `world.waves.number` / `remaining`. */
@@ -112,7 +131,17 @@ export const PLAYER_STATE_FIELDS = {
   slowPct: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 
-/** `RunStateView`'s fields except `players` (a map, copied per player). */
+/** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */
+export const BUILDING_STATE_FIELDS = {
+  type: true,
+  owner: true,
+  gx: true,
+  gy: true,
+  rot: true,
+  hp: true,
+} as const satisfies Record<keyof BuildingStateView, true>;
+
+/** `RunStateView`'s fields except the maps `players` and `buildings` (copied per entry). */
 export const RUN_STATE_FIELDS = {
   phase: true,
   hostSlot: true,
@@ -123,4 +152,4 @@ export const RUN_STATE_FIELDS = {
   resultWave: true,
   buildTicksLeft: true,
   scenario: true,
-} as const satisfies Record<Exclude<keyof RunStateView, "players">, true>;
+} as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings">, true>;

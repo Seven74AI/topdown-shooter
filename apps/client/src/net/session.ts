@@ -2,7 +2,9 @@ import {
   BYTES,
   C2S,
   S2C,
+  type BuildingRefused,
   type NetPinged,
+  type PlaceError,
   type PlayerLeft,
   type RunJoined,
   type RunStateView,
@@ -42,6 +44,14 @@ export function parsePlayerLeft(m: unknown): PlayerLeft | null {
   if (!o || typeof o.playerId !== "string" || typeof o.name !== "string") return null;
   if (o.reason !== "left" && o.reason !== "disconnected") return null;
   return { playerId: o.playerId, name: o.name, reason: o.reason };
+}
+
+const PLACE_ERRORS: readonly PlaceError[] = ["unknown_player", "not_build_phase", "unknown_type", "limit", "money", "blocked"];
+
+/** The reason of a well-formed `building.refused` (Story 3.4), or null. */
+export function parseBuildingRefused(m: unknown): PlaceError | null {
+  const reason = (m as Partial<BuildingRefused> | null)?.reason;
+  return typeof reason === "string" && (PLACE_ERRORS as readonly string[]).includes(reason) ? (reason as PlaceError) : null;
 }
 
 /** Event batches kept while no game scene listens yet: 200 ticks = 10 s of a hidden tab at Start. */
@@ -98,6 +108,7 @@ export class RunInbox {
   earlyHordeDropped = 0;
   private hordeSink: ((bytes: Uint8Array) => void) | null = null;
   private leftSink: ((m: PlayerLeft) => void) | null = null;
+  private refusedSink: ((reason: PlaceError) => void) | null = null;
   private shopSink: ((a: ShopAnswer) => void) | null = null;
 
   constructor(private readonly room: Pick<NetRoomLike, "send" | "onMessage">) {
@@ -105,8 +116,17 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.NET_PINGED, (m: NetPinged) => this.receivePing(m)));
     this.offs.push(room.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => this.receiveHorde(b)));
     this.offs.push(room.onMessage(S2C.PLAYER_LEFT, (m: unknown) => this.receiveLeft(m)));
+    this.offs.push(room.onMessage(S2C.BUILDING_REFUSED, (m: unknown) => this.receiveRefused(m)));
     this.offs.push(room.onMessage(S2C.SHOP_BOUGHT, (m: unknown) => this.receiveShop(parseShopBought(m))));
     this.offs.push(room.onMessage(S2C.SHOP_REFUSED, (m: unknown) => this.receiveShop(parseShopRefused(m))));
+  }
+
+  /** Story 3.4: each `building.refused` from now on (dropped while none listens). Returns the unsubscribe. */
+  onBuildingRefused(sink: (reason: PlaceError) => void): () => void {
+    this.refusedSink = sink;
+    return () => {
+      if (this.refusedSink === sink) this.refusedSink = null;
+    };
   }
 
   /** Each purchase answer from now on (Story 3.3). Returns the unsubscribe. */
@@ -169,7 +189,14 @@ export class RunInbox {
     this.sink = null;
     this.hordeSink = null;
     this.leftSink = null;
+    this.refusedSink = null;
     this.shopSink = null;
+  }
+
+  private receiveRefused(m: unknown): void {
+    if (this.closed || !this.refusedSink) return;
+    const reason = parseBuildingRefused(m);
+    if (reason) this.refusedSink(reason);
   }
 
   private receiveLeft(m: unknown): void {
@@ -242,6 +269,11 @@ export class NetSession {
   /** See `RunInbox.onHorde`. */
   onHorde(sink: (bytes: Uint8Array) => void): () => void {
     return this.inbox.onHorde(sink);
+  }
+
+  /** See `RunInbox.onBuildingRefused`. */
+  onBuildingRefused(sink: (reason: PlaceError) => void): () => void {
+    return this.inbox.onBuildingRefused(sink);
   }
 
   /** See `RunInbox.onPlayerLeft`. */

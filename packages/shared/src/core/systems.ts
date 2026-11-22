@@ -51,6 +51,8 @@ export const applyInputs: SystemFn = (world) => {
 export const DEFAULT_SYSTEMS: Systems = {
   input: applyInputs,
   player: updatePlayers,
+  // Story 3.4: placement happens between ticks (`placeBuilding`) and collision inside the player and
+  // zombie systems, so this slot stays empty; Story 3.5's flow field and building attacks go here.
   buildings: noop,
   combat: updateCombat,
   zombies: updateZombies,

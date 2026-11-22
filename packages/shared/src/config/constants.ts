@@ -28,3 +28,9 @@ export const PROJECTILE_POOL_CAPACITY = 512;
 
 /** Projectiles spawn this far outside the shooter's body (server `firing.ts` and the client's own shots, Story 2.7). */
 export const MUZZLE_OFFSET_M = 0.1;
+
+/**
+ * Story 3.4: the build grid (GDD: 1 m). A building's centre is an integer grid point, sent as
+ * uint8 indices; structural (the wire format depends on it), so it is not a balance number.
+ */
+export const BUILD_GRID_M = 1;
