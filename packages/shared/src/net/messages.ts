@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TEST_SCENARIOS } from "./testScenarios";
+import type { ShopError } from "../economy/shop";
 
 /**
  * The client/server net contract (Story 2.1). Later stories extend it, never rename it.
@@ -22,6 +23,8 @@ export const C2S = {
   LOBBY_RETURN: "lobby.return",
   /** `{ ready: boolean }` in a build phase (Story 3.1). */
   BUILD_SET_READY: "build.set_ready",
+  /** `{ weapon, slot? }` in a build phase (Story 3.3); answered with `shop.bought` or `shop.refused`. */
+  SHOP_BUY: "shop.buy",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -37,6 +40,10 @@ export const S2C = {
   SERVER_SHUTDOWN_STARTED: "server.shutdown_started",
   /** `{ playerId, name, reason }` (Story 2.11). */
   PLAYER_LEFT: "player.left",
+  /** `{ weapon, slot }` to the buyer only (Story 3.3); wallet and weapons follow in the state. */
+  SHOP_BOUGHT: "shop.bought",
+  /** `{ weapon, error: ShopError }` to the buyer only (Story 3.3); nothing changed. */
+  SHOP_REFUSED: "shop.refused",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -108,6 +115,30 @@ export const runStartSchema = z.object({}).strict();
 /** `build.set_ready` (Story 3.1): the sender's build-phase Ready (a toggle); ignored outside a build. */
 export const buildSetReadySchema = z.object({ ready: z.boolean() }).strict();
 export type BuildSetReady = z.infer<typeof buildSetReadySchema>;
+
+/**
+ * `shop.buy` (Story 3.3): buy a weapon of the fixed shop. `slot` (0 or 1) says which weapon it
+ * replaces when both slots are full; with an empty second slot it is ignored (the weapon goes there).
+ */
+export const shopBuySchema = z
+  .object({
+    weapon: z.string().regex(/^[a-z][a-z0-9_]*$/).max(32),
+    slot: z.union([z.literal(0), z.literal(1)]).optional(),
+  })
+  .strict();
+export type ShopBuy = z.infer<typeof shopBuySchema>;
+
+/** `shop.bought` payload (Story 3.3). */
+export interface ShopBought {
+  weapon: string;
+  slot: 0 | 1;
+}
+
+/** `shop.refused` payload (Story 3.3): the `Result` error of `buyWeapon`. */
+export interface ShopRefused {
+  weapon: string;
+  error: ShopError;
+}
 
 /** `lobby.return` (Story 2.8): `{}`, any member, phase "results" only. */
 export const lobbyReturnSchema = z.object({}).strict();

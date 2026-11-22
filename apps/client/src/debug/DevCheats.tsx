@@ -1,7 +1,7 @@
 import type * as Phaser from "phaser";
 import { h, render } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { ZOMBIE_TYPES, skipWave, spawnRing, type ZombieTypeId } from "@topdown/shared";
+import { ZOMBIE_TYPES, setLoadout, skipWave, spawnRing, weaponIds, type ZombieTypeId } from "@topdown/shared";
 import type { GameScene } from "../scenes/GameScene";
 import { LOCAL_PLAYER_ID } from "../sim/LocalSimHost";
 import { perf } from "./perfStats";
@@ -19,12 +19,19 @@ import "./DevCheats.css";
 const RING_RADIUS_M = 8;
 /** "Leave last 5": the wave's last-5 rush (FR30) starts on the next tick. */
 const LEAVE_COUNT = 5;
+/** Story 3.3: "+500 money" for shop checks (solo). */
+const CHEAT_MONEY = 500;
+/** Story 3.3: the dev loadout's "no second weapon" choice. */
+const NO_WEAPON = "";
 
 function DevCheats({ game }: { game: Phaser.Game }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<ZombieTypeId>(ZOMBIE_TYPES[0]);
   const [count, setCount] = useState("50");
   const [seedText, setSeedText] = useState("");
+  // Story 3.3: the dev loadout (moved here from the Story 1.8 start-of-run picker).
+  const [weapon0, setWeapon0] = useState("pistol");
+  const [weapon1, setWeapon1] = useState(NO_WEAPON);
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const scene = () => game.scene.getScene("Game") as GameScene | null;
@@ -100,6 +107,39 @@ function DevCheats({ game }: { game: Phaser.Game }) {
               Leave last 5
             </button>
           </div>
+          <fieldset>
+            <legend>Dev loadout</legend>
+            <div class="dev-cheats__row">
+              <select value={weapon0} aria-label="Slot 1" onChange={(e) => setWeapon0((e.target as HTMLSelectElement).value)}>
+                {(w ? weaponIds(w.balance) : []).map((id) => (
+                  <option value={id}>{id}</option>
+                ))}
+              </select>
+              <select value={weapon1} aria-label="Slot 2" onChange={(e) => setWeapon1((e.target as HTMLSelectElement).value)}>
+                <option value={NO_WEAPON}>(none)</option>
+                {(w ? weaponIds(w.balance) : []).filter((id) => id !== weapon0).map((id) => (
+                  <option value={id}>{id}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  if (w && p) setLoadout(w.balance, p.loadout, [weapon0, weapon1 === NO_WEAPON || weapon1 === weapon0 ? null : weapon1]);
+                  refresh();
+                }}
+              >
+                Set loadout
+              </button>
+            </div>
+            <div class="dev-cheats__row">
+              <button type="button" onClick={() => {
+                  if (p) p.wallet += CHEAT_MONEY; // a cheat: no "+N" event, not counted as earned
+                  refresh();
+                }}>
+                +{CHEAT_MONEY} money
+              </button>
+            </div>
+          </fieldset>
           <label class="dev-cheats__check">
             <input
               type="checkbox"
@@ -138,7 +178,7 @@ function DevCheats({ game }: { game: Phaser.Game }) {
                 disabled={seed === null}
                 onClick={() => {
                   if (seed === null) return;
-                  setOpen(false); // the dev loadout picker shows next; don't cover it
+                  setOpen(false);
                   scene()?.restartRun(seed);
                 }}
               >

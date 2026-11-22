@@ -3,6 +3,7 @@ import {
   TICK_DT_S,
   addPlayer,
   applyTestScenario,
+  buyWeapon,
   createWorld,
   removePlayer,
   setBuildReady,
@@ -13,7 +14,10 @@ import {
   step,
   teamSpawnPoint,
   type Balance,
+  type Bought,
   type PlayerInput,
+  type Result,
+  type ShopError,
   type SimEvent,
   type Systems,
   type TestScenario,
@@ -182,6 +186,15 @@ export class RunController {
   /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */
   setBuildReady(playerId: string, ready: boolean): void {
     setBuildReady(this.world, playerId, ready);
+  }
+
+  /**
+   * Story 3.3: buys a weapon of the fixed shop for a player (the shared rules: build phase, price,
+   * wallet, slot). Applied at once, between ticks, like Ready; the next `syncState` sends the
+   * wallet and weapons. On an error nothing changed.
+   */
+  buyWeapon(playerId: string, weapon: string, slot: 0 | 1 | null): Result<Bought, ShopError> {
+    return buyWeapon(this.world, playerId, weapon, slot);
   }
 
   /** Queues one input (already validated). Old or duplicate seqs are ignored; a full ring drops its oldest. */

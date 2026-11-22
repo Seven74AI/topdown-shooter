@@ -22,12 +22,14 @@ import {
   joinOptionsSchema,
   loadDevBalance,
   parseDevScale,
+  parseDevWallet,
   lobbyReturnSchema,
   lobbySetReadySchema,
   netPongSchema,
   parseWaveMix,
   playerInputSchema,
   runStartSchema,
+  shopBuySchema,
   spectateTarget,
   startBlocker,
   zombieNetId,
@@ -39,6 +41,8 @@ import {
   type PlayerLeft,
   type PlayerLeftReason,
   type RunJoined,
+  type ShopBought,
+  type ShopRefused,
   type SimEvent,
   type SimEventsFlushed,
   type TestScenario,
@@ -61,9 +65,18 @@ import { PlayerState, RunState } from "./schema/RunState";
  * The balance this server runs; clients must send the same `balance.version` (AC 4). Dev/test only
  * (Epic 2 retro A5): `DEV_ZOMBIE_DAMAGE_SCALE=0.1` scales zombie damage for browser checks; a dev
  * client opened with `?zdmg=0.1` builds the same balance (same version), so it can still join.
+ * Story 3.3: `DEV_STARTING_WALLET=2000` (client `?wallet=2000`) sets every starting wallet for shop checks.
  */
-export const serverBalance = loadDevBalance({ zombieDamageScale: parseDevScale(process.env.DEV_ZOMBIE_DAMAGE_SCALE) });
-if (process.env.DEV_ZOMBIE_DAMAGE_SCALE) log.warn({ scale: process.env.DEV_ZOMBIE_DAMAGE_SCALE, version: serverBalance.version }, "dev_balance_override");
+export const serverBalance = loadDevBalance({
+  zombieDamageScale: parseDevScale(process.env.DEV_ZOMBIE_DAMAGE_SCALE),
+  startingWallet: parseDevWallet(process.env.DEV_STARTING_WALLET),
+});
+if (process.env.DEV_ZOMBIE_DAMAGE_SCALE || process.env.DEV_STARTING_WALLET) {
+  log.warn(
+    { scale: process.env.DEV_ZOMBIE_DAMAGE_SCALE, wallet: process.env.DEV_STARTING_WALLET, version: serverBalance.version },
+    "dev_balance_override",
+  );
+}
 
 /** HTTP-ish status for every join refusal; the message is the `JoinRefusal` reason. */
 export const JOIN_REFUSED_CODE = 526;
@@ -221,6 +234,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
     this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
+    this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.weapon, m.slot ?? null)));
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -337,6 +351,26 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   onBuildReady(client: RunClient, ready: boolean): void {
     const member = this.members.get(client.sessionId);
     if (member) this.controller?.setBuildReady(member.playerId, ready);
+  }
+
+  /**
+   * `shop.buy` (Story 3.3): the shared `buyWeapon` rules decide (build phase, for sale, not owned,
+   * slot, wallet via `spendMoney`); the sender alone gets `shop.bought` or `shop.refused` with the
+   * `Result` error. Wallet and weapons reach every client through the next patch. Rate: the shared
+   * "other" bucket (10/s); repeats can't overspend or buy a weapon twice (the rules refuse them).
+   */
+  onShopBuy(client: RunClient, weapon: string, slot: 0 | 1 | null): void {
+    const member = this.members.get(client.sessionId);
+    if (!member) return;
+    const controller = this.controller;
+    const r = controller ? controller.buyWeapon(member.playerId, weapon, slot) : ({ ok: false, error: "not_build" } as const);
+    if (r.ok) {
+      client.send(S2C.SHOP_BOUGHT, { weapon, slot: r.value.slot } satisfies ShopBought);
+      this.log.info({ playerId: member.playerId, weapon, slot: r.value.slot, wallet: controller?.world.players.get(member.playerId)?.wallet }, "shop_bought");
+    } else {
+      client.send(S2C.SHOP_REFUSED, { weapon, error: r.error } satisfies ShopRefused);
+      this.log.info({ playerId: member.playerId, weapon, error: r.error }, "shop_refused");
+    }
   }
 
   /**

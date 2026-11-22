@@ -21,7 +21,7 @@ export interface HudModel {
   swapPressed: boolean;
   /** Story 2.11: set by the HUD when ☰ is pressed; the GameScene consumes it. */
   menuPressed: boolean;
-  /** ☰ is shown (a run is on screen: not in the loadout picker, not on Results). */
+  /** ☰ is shown (a run is on screen, not on Results). */
   menuButton: boolean;
   /** The in-run menu is open (the HUD drops held sticks and buttons when it opens). */
   menuOpen: boolean;
@@ -41,6 +41,10 @@ export interface HudModel {
   readyTotal: number;
   /** Set by the HUD when Ready is tapped; the GameScene consumes it. */
   readyPressed: boolean;
+  /** Story 3.3: the Shop button is shown (as Ready, while the shop is closed). */
+  shopButton: boolean;
+  /** Set by the HUD when Shop is tapped; the GameScene consumes it. */
+  shopPressed: boolean;
   /** Centered banner text and the scene time (ms) it was shown; empty when none. */
   bannerText: string;
   bannerAtMs: number;
@@ -111,6 +115,8 @@ export const createHudModel = (): HudModel => ({
   readyCount: 0,
   readyTotal: 0,
   readyPressed: false,
+  shopButton: false,
+  shopPressed: false,
   bannerText: "",
   bannerAtMs: 0,
   rushers: new Float32Array(MAX_RUSH_MARKERS * 2),

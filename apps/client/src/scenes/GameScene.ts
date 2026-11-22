@@ -8,7 +8,10 @@ import {
   addPlayer,
   isGun,
   setLoadout,
+  shopBuildings,
+  shopWeapons,
   spectateTarget,
+  weaponName,
   ticksFor,
   weaponIds,
   weaponStats,
@@ -32,6 +35,7 @@ import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
+import { CLOSED_SHOP, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { neutralizeInput } from "../input/menuInput";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
@@ -93,6 +97,9 @@ const BUILD_BANNER = "Build phase";
 const STATUS_REVIVING = "Reviving…";
 /** Solo Results: the one row's name. */
 const SOLO_NAME = "You";
+/** Story 3.3: shop inputs the scene sends often, allocated once. */
+const SHOP_CLOSE: ShopInput = Object.freeze({ type: "close" });
+const shopTime: { type: "time"; nowMs: number } = { type: "time", nowMs: 0 };
 
 export class GameScene extends Phaser.Scene {
   private host: SceneHost | null = null;
@@ -178,7 +185,7 @@ export class GameScene extends Phaser.Scene {
   };
   private readonly hudModel = createHudModel();
   private gameOver = false;
-  /** False while the dev loadout picker is open: the world doesn't step yet. */
+  /** False until the run is on screen (and on a dead scene): the world doesn't step. */
   private running = false;
   private hudWeaponId = "";
   private hudOtherId = "";
@@ -255,27 +262,19 @@ export class GameScene extends Phaser.Scene {
       if (m.playerId !== localId) this.toasts.push(playerLeftText(m.name, m.reason));
     });
     // ?loadout=a,b (release-safe): start with those weapons; unknown ids are ignored. Solo only.
+    // Story 3.3: every other run starts with the Pistol (the dev loadout is a dev cheat now).
     const urlLoadout = opts.loadout && !session ? validLoadout(opts.loadout, weaponIds(balance)) : null;
     if (urlLoadout && stress === null) {
       const p = world.players.get(localId);
       if (p) setLoadout(balance, p.loadout, urlLoadout);
     }
-    if (import.meta.env.DEV && !session && stress === null && !urlLoadout) {
-      // Dev builds pick a loadout first (temporary until the shop, Story 3.3); release starts with the Pistol.
-      this.running = false;
-      uiStore.handle("startRun", (loadout) => {
-        const p = world.players.get(localId);
-        if (p) setLoadout(balance, p.loadout, loadout);
-        this.running = true;
-        uiStore.set(playingScreen(false));
-      });
-      uiStore.set({ kind: "loadoutPicker", weapons: weaponIds(balance) });
-    } else {
-      this.running = true;
-      // Online, the run may already be over when this scene starts late (hidden tab): keep Results up.
-      // (`!== "results"`, not `=== "wave"`: under `?lag` the throttled state still says "lobby" here; 2.11 review.)
-      if (!session || session.room.state?.phase !== "results") uiStore.set(playingScreen(session !== null));
-    }
+    this.running = true;
+    // Online, the run may already be over when this scene starts late (hidden tab): keep Results up.
+    // (`!== "results"`, not `=== "wave"`: under `?lag` the throttled state still says "lobby" here; 2.11 review.)
+    if (!session || session.room.state?.phase !== "results") uiStore.set(playingScreen(session !== null));
+    // Story 3.3: Phaser reuses this scene object (restart, late start): never a shop from the last run.
+    shopStore.set(CLOSED_SHOP);
+    uiStore.handle("shop", (action) => this.shopInput(action));
 
     drawStreet(this, world.map);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
@@ -318,7 +317,8 @@ export class GameScene extends Phaser.Scene {
       stressRun.cancel();
       netSummary.cancel();
       uiStore.handle("restart", undefined);
-      uiStore.handle("startRun", undefined);
+      uiStore.handle("shop", undefined);
+      shopStore.set(CLOSED_SHOP);
       uiStore.handle("leaveRun", undefined);
       uiStore.handle("backToLobby", undefined);
       uiStore.handle("menu", undefined);
@@ -497,6 +497,56 @@ export class GameScene extends Phaser.Scene {
     m.readyTotal = host.world.players.size;
   }
 
+  /**
+   * Story 3.3: the shop. The Shop button shows when Ready does (a build phase, a run on screen, menu
+   * closed); the shop closes by itself as soon as that no longer holds (the wave started, Results,
+   * the menu opened, leaving). While open it gets my wallet and weapons when they change, the
+   * purchase answers, and the clock for the pending timeout. Returns whether it is open.
+   */
+  private updateShop(host: SceneHost, menuOpen: boolean): boolean {
+    const m = this.hudModel;
+    const can = host.world.run.phase === "build" && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.leaving;
+    if (shopStore.get().open && !can) this.shopInput(SHOP_CLOSE);
+    const pressed = m.shopPressed;
+    m.shopPressed = false;
+    if (pressed && can && !shopStore.get().open) {
+      const balance = host.world.balance;
+      this.router?.releaseAll(); // nothing stays held under the shop (as for the menu)
+      host.clearEdges();
+      this.shopInput({ type: "open", weapons: shopWeapons(balance), buildings: shopBuildings(balance) });
+    }
+    // Answers: shown while open, dropped while closed (the World already has the result).
+    for (let a = host.takeShopAnswer(); a !== null; a = host.takeShopAnswer()) this.shopInput({ type: "answer", answer: a });
+    const s = shopStore.get();
+    if (s.open) {
+      const me = host.world.players.get(host.localPlayerId);
+      if (me) {
+        const w0 = me.loadout.slots[0].weapon;
+        const w1 = me.loadout.slots[1]?.weapon ?? null;
+        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1]) this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1] });
+      }
+      if (s.pending !== null) {
+        shopTime.nowMs = this.time.now;
+        this.shopInput(shopTime);
+      }
+    }
+    m.shopButton = can && !shopStore.get().open;
+    return shopStore.get().open;
+  }
+
+  /** Story 3.3: a weapon's display name for the shop's "Bought …" text (module-level style: no closure per call). */
+  private readonly shopName = (id: string): string => (this.host ? weaponName(this.host.world.balance, id) : id);
+
+  /** Story 3.3: one step of the shop's state machine, and its effect (a purchase, or 3.4's placement). */
+  private shopInput(input: ShopInput): void {
+    const r = shopStep(shopStore.get(), input, this.shopName);
+    shopStore.set(r.state);
+    const e = r.effect;
+    if (e === null) return;
+    if (e.type === "buy") this.host?.buyWeapon(e.weapon, e.slot);
+    else uiStore.request("startPlacement", e.id); // Story 3.4 registers it; a no-op until then
+  }
+
   /** Countdowns of downed players for the HUD, and the local status line (Story 2.8). */
   private updateDownedHud(world: Readonly<World>, me: PlayerState): void {
     const m = this.hudModel;
@@ -547,14 +597,16 @@ export class GameScene extends Phaser.Scene {
     if (router.isMouse && pv && !Number.isNaN(router.cursorX)) this.cameras.main.getWorldPoint(router.cursorX, router.cursorY, cw);
     router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y);
     this.hudModel.swapPressed = false;
-    if (!this.running) this.input_.swap = false; // a Q / swap tap in the picker must not swap at run start
+    if (!this.running) this.input_.swap = false; // nothing swaps before the run is on screen
 
     // Story 2.11: ☰ and Esc toggle the in-run menu (Esc is never game input).
     const menuKey = router.kbm.takeMenu();
     const menuTap = this.hudModel.menuPressed;
     this.hudModel.menuPressed = false;
     if (menuKey || menuTap) {
-      this.onMenu("toggle");
+      // Story 3.3: Esc / ☰ close the shop first.
+      if (shopStore.get().open) this.shopInput(SHOP_CLOSE);
+      else this.onMenu("toggle");
       if (!this.host) return; // left
     }
     const screen = uiStore.get();
@@ -564,8 +616,9 @@ export class GameScene extends Phaser.Scene {
     this.hudModel.menuButton = screen.kind === "playing" && this.running && !this.gameOver && !this.stressMode;
     // Menu open: online the run goes on and my survivor stands still (a fresh seq every step);
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
-    if (menuOpen) neutralizeInput(this.input_);
-    this.updateReady(host, menuOpen);
+    const shopOpen = this.updateShop(host, menuOpen);
+    if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
+    this.updateReady(host, menuOpen || shopOpen);
     if (this.localHost) {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
       this.localHost.paused = menuOpen;
