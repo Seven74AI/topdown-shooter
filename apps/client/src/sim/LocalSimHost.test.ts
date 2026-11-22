@@ -24,6 +24,24 @@ describe("LocalSimHost", () => {
     expect(host.world.tick).toBeLessThanOrEqual(MAX_CATCHUP_STEPS + 1);
   });
 
+  it("doesn't step while paused, and resumes without a catch-up burst or an alpha jump (Story 2.11)", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    host.update(0.07); // 1 step, 0.02 s left over
+    expect(host.world.tick).toBe(1);
+    const alpha = host.alpha;
+    host.paused = true;
+    for (let i = 0; i < 600; i++) host.update(FRAME_60HZ); // 10 s in the menu
+    host.update(2); // and one long frame (a hidden tab while paused)
+    expect(host.world.tick).toBe(1);
+    expect(host.stats.lastUpdateSteps).toBe(0);
+    expect(host.alpha).toBe(alpha); // frozen: the drawn positions don't snap
+    host.paused = false;
+    host.update(FRAME_60HZ); // 0.02 + 0.0167 < 0.05: still no step
+    expect(host.world.tick).toBe(1);
+    host.update(FRAME_60HZ);
+    expect(host.world.tick).toBe(2); // exactly one step, never a burst
+  });
+
   it("times each step of the last update (stats for the perf overlay)", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     host.update(0.12); // 2 steps, 0.02 s left over

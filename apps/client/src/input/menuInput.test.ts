@@ -1,0 +1,32 @@
+import { describe, expect, it } from "vitest";
+import { C2S, NEUTRAL_INPUT, loadBalance, type PlayerInput } from "@topdown/shared";
+import { neutralizeInput } from "./menuInput";
+import type { MutablePlayerInput } from "./InputRouter";
+import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
+import { NetSession } from "../net/session";
+import { NetSimHost } from "../sim/NetSimHost";
+
+describe("neutralizeInput (Story 2.11: the menu is open)", () => {
+  it("stops moving, firing and pressing, keeps the aim", () => {
+    const input: MutablePlayerInput = { ...NEUTRAL_INPUT, seq: 9, moveX: 1, moveY: -1, aimX: 0, aimY: 1, fire: true, swap: true, consumable: true, isMouse: true };
+    expect(neutralizeInput(input)).toEqual({ ...NEUTRAL_INPUT, seq: 9, aimX: 0, aimY: 1, isMouse: true });
+  });
+
+  it("online, the neutral input still goes out once per step with a fresh seq", () => {
+    const room = new FakeRoom(fakeState([fakePlayer(0), fakePlayer(1)]));
+    const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+    const host = new NetSimHost({ balance: loadBalance(), session, now: () => 0 });
+    const input: MutablePlayerInput = { ...NEUTRAL_INPUT, moveX: 1, fire: true };
+    host.setLocalInput(input);
+    host.update(0.05);
+    for (let i = 0; i < 4; i++) {
+      host.setLocalInput(neutralizeInput(input)); // the menu opened
+      host.update(0.05);
+    }
+    const sent = room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
+    expect(sent.map((s) => s.seq)).toEqual([1, 2, 3, 4, 5]);
+    expect(sent[0]).toMatchObject({ moveX: 1, fire: true });
+    for (const s of sent.slice(1)) expect(s).toMatchObject({ moveX: 0, moveY: 0, fire: false, swap: false });
+    host.dispose();
+  });
+});

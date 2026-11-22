@@ -3,16 +3,20 @@ import { dpr, safeArea } from "../display";
 import { createPerfSnapshot, perf } from "./perfStats";
 import { stressRun } from "./stressScenario";
 import { hitsLine } from "./reversedHits";
+import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
 
 /** Monospace text, CSS px × dpr (≥ 12 px rule). */
 const TEXT_CSS_PX = 13;
 const MARGIN_CSS_PX = 12;
 const PAD_CSS_PX = 6;
+/** Story 2.11: the overlay starts below the ☰ button (same right edge), with this gap. */
+const BELOW_MENU_GAP_CSS_PX = 8;
+const TOP_CSS_PX = MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + BELOW_MENU_GAP_CSS_PX;
 /** The text is rebuilt 4 times a second, not every frame (string building allocates). */
 const REFRESH_MS = 250;
 
 /**
- * Performance overlay (Story 1.11), drawn in the HUD scene, top-right: FPS and 1-s minimum, zombies
+ * Performance overlay (Story 1.11), drawn in the HUD scene, top-right under the ☰ button (2.11): FPS and 1-s minimum, zombies
  * alive and in view, simulation step time, render time. Shown with `?debug=1`, a three-finger tap or
  * the stress scenario; available in release builds. Room is left for the network lines of Story 2.10.
  */
@@ -77,6 +81,6 @@ export class PerfOverlay {
     const safe = safeArea();
     this.text
       .setText(lines.join("\n"))
-      .setPosition(this.scene.scale.width - (MARGIN_CSS_PX + safe.right) * k, (MARGIN_CSS_PX + safe.top) * k);
+      .setPosition(this.scene.scale.width - (MARGIN_CSS_PX + safe.right) * k, (TOP_CSS_PX + safe.top) * k);
   }
 }

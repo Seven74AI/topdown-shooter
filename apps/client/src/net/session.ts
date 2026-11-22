@@ -1,4 +1,21 @@
-import { BYTES, C2S, S2C, type NetPinged, type RunJoined, type RunStateView, type SimEventsFlushed } from "@topdown/shared";
+import {
+  BYTES,
+  C2S,
+  S2C,
+  type NetPinged,
+  type PlayerLeft,
+  type RunJoined,
+  type RunStateView,
+  type SimEventsFlushed,
+} from "@topdown/shared";
+
+/** A well-formed `player.left` (Story 2.11), or null. */
+export function parsePlayerLeft(m: unknown): PlayerLeft | null {
+  const o = m as Partial<PlayerLeft> | null;
+  if (!o || typeof o.playerId !== "string" || typeof o.name !== "string") return null;
+  if (o.reason !== "left" && o.reason !== "disconnected") return null;
+  return { playerId: o.playerId, name: o.name, reason: o.reason };
+}
 
 /** Event batches kept while no game scene listens yet: 200 ticks = 10 s of a hidden tab at Start. */
 export const EARLY_EVENT_BATCHES_MAX = 200;
@@ -35,6 +52,9 @@ export interface NetRoomLike {
  * Horde frames (`BYTES.HORDE_FRAME`, Story 2.5) are listened to from the join too, so the SDK
  * never warns about an unhandled type; until `onHorde` is called they are dropped (unreliable
  * snapshots: the next frame replaces them) and counted in `earlyHordeDropped`.
+ *
+ * `player.left` (Story 2.11) is listened to from the join as well; it goes to the `onPlayerLeft`
+ * sink (the Game scene's toast) and is dropped while none listens (the lobby list follows the state).
  */
 export class RunInbox {
   /** Latest RTT the server measured for this client (2.10 overlay). */
@@ -48,11 +68,21 @@ export class RunInbox {
   /** Horde frames dropped because no game scene listened yet. */
   earlyHordeDropped = 0;
   private hordeSink: ((bytes: Uint8Array) => void) | null = null;
+  private leftSink: ((m: PlayerLeft) => void) | null = null;
 
   constructor(private readonly room: Pick<NetRoomLike, "send" | "onMessage">) {
     this.offs.push(room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m)));
     this.offs.push(room.onMessage(S2C.NET_PINGED, (m: NetPinged) => this.receivePing(m)));
     this.offs.push(room.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => this.receiveHorde(b)));
+    this.offs.push(room.onMessage(S2C.PLAYER_LEFT, (m: unknown) => this.receiveLeft(m)));
+  }
+
+  /** Each `player.left` from now on (Story 2.11). Returns the unsubscribe. */
+  onPlayerLeft(sink: (m: PlayerLeft) => void): () => void {
+    this.leftSink = sink;
+    return () => {
+      if (this.leftSink === sink) this.leftSink = null;
+    };
   }
 
   /** Each horde frame from now on (earlier ones were dropped). Returns the unsubscribe. */
@@ -93,6 +123,13 @@ export class RunInbox {
     this.early.length = 0;
     this.sink = null;
     this.hordeSink = null;
+    this.leftSink = null;
+  }
+
+  private receiveLeft(m: unknown): void {
+    if (this.closed || !this.leftSink) return;
+    const left = parsePlayerLeft(m);
+    if (left) this.leftSink(left);
   }
 
   private receiveHorde(bytes: Uint8Array): void {
@@ -161,6 +198,11 @@ export class NetSession {
     return this.inbox.onHorde(sink);
   }
 
+  /** See `RunInbox.onPlayerLeft`. */
+  onPlayerLeft(sink: (m: PlayerLeft) => void): () => void {
+    return this.inbox.onPlayerLeft(sink);
+  }
+
   /**
    * Story 2.8: this run ended but the room stays (Back to lobby). From now on `leave()` (e.g. the
    * Game scene's dispose) does nothing: the lobby store still owns the room and its inbox.
@@ -169,7 +211,10 @@ export class NetSession {
     this.left = true;
   }
 
-  /** Leaves the room for good (consented). Safe to call twice; a no-op after `release()`. */
+  /**
+   * Leaves the room for good (consented, `room.leave(true)` through the lobby store: Story 2.11's
+   * Leave game, and the Game scene's dispose). Safe to call twice; a no-op after `release()`.
+   */
   leave(): void {
     if (this.left) return;
     this.left = true;

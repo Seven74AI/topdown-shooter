@@ -14,6 +14,7 @@ import { parseJoinPath } from "./net/route";
 import { NetSession, type NetRoomLike } from "./net/session";
 import { DevThrottle } from "./net/devThrottle";
 import { createOnlinePhaseHandler } from "./net/onlineFlow";
+import { activeRun } from "./net/activeRun";
 import type { RunConnection } from "./net/connection";
 import { isRoomCode, type Result } from "@topdown/shared";
 import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
@@ -92,7 +93,8 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
           const inbox = lobbyStore.inbox();
           const fight = lobbyStore.fightRoom(); // the dev throttle around the room when `?lag` is on (2.6)
           if (!joined || !inbox || !fight || lobbyStore.current() !== room) return null;
-          return new NetSession(fight, joined, leaveRoom, inbox);
+          // Bound to this room (Story 2.4 review): a late leave of this session never leaves a newer room.
+          return new NetSession(fight, joined, () => leaveRoom(room), inbox);
         },
         inbox: () => lobbyStore.inbox(),
         ui: uiStore,
@@ -123,9 +125,14 @@ function throttled(room: RunConnection): NetRoomLike {
 
 uiStore.handle("createGame", (name) => enterLobby((c) => c.createGame(name)));
 uiStore.handle("joinGame", (code, name) => enterLobby((c) => c.joinGame(code, name)));
-/** Leaves the current room for good. A share link is done with once you leave (BASE_URL: "/" on the VPS). */
-function leaveRoom(): void {
-  lobbyStore.leave();
+/**
+ * Leaves the room for good: the current one, or with `room` only if that is still the current one.
+ * A share link is done with once you leave (BASE_URL: "/" on the VPS).
+ */
+function leaveRoom(room?: RunConnection): void {
+  if (room !== undefined && !lobbyStore.leave(room)) return; // a stale session: a newer room stays
+  if (room === undefined) lobbyStore.leave();
+  activeRun.set(null); // no run of that room is current any more
   history.replaceState(null, "", import.meta.env.BASE_URL);
 }
 

@@ -31,6 +31,8 @@ import {
   type NetEventContext,
   type NetPinged,
   type PlayerInput,
+  type PlayerLeft,
+  type PlayerLeftReason,
   type RunJoined,
   type SimEvent,
   type SimEventsFlushed,
@@ -227,19 +229,32 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.log.info({ playerId, slot }, "player_joined");
   }
 
+  /**
+   * A player left (Story 2.11): out of the members, the state and (mid-run) the World, then
+   * `player.left` to everyone still here, in the lobby too, so the lobby list and the toast agree.
+   * `reason` is "left" for a consented leave (`room.leave(true)`, close code 4000) and
+   * "disconnected" otherwise. Colyseus 0.18 calls `onDrop` before `onLeave` for a dropped socket
+   * when `onDrop` is defined; Epic 2 defines none, so every leave lands here. Note for Story 8.1:
+   * reconnect adds `onDrop` with `allowReconnection(client, 120)`; a consented leave never reaches
+   * `onDrop`, so a deliberate leave keeps getting no reconnect window.
+   * Mid-run, the World drops the player at once: zombies retarget next tick, and if the leaver was
+   * the last one standing the next tick's wipe check ends the run (Story 2.8). The room disposes
+   * itself when the last client leaves (Colyseus `autoDispose`).
+   */
   override onLeave(client: RunClient, code?: number): void {
     const member = this.members.get(client.sessionId);
     this.net.remove(client);
     if (member === undefined) return;
-    const { playerId, slot } = member;
+    const { playerId, slot, name } = member;
     this.members.delete(client.sessionId); // frees the slot
     this.state.players.delete(playerId);
-    // Mid-run: out of the World too; zombies retarget next tick. Reconnect is Epic 8, "left" is 2.11.
     this.controller?.removePlayer(playerId);
     this.hordeStats.delete(playerId); // no zero horde_stats lines for a player who left
     this.lastPongId.delete(client.sessionId);
-    this.log.info({ playerId, code }, "player_left");
-    // Epic 8 handles a host leaving mid-run.
+    const reason: PlayerLeftReason = code === CloseCode.CONSENTED ? "left" : "disconnected";
+    this.log.info({ playerId, reason, code, wave: this.controller?.world.waves.number ?? 0 }, "player_left");
+    this.broadcast(S2C.PLAYER_LEFT, { playerId, name, reason } satisfies PlayerLeft);
+    // The longest-connected member takes over as host (lobby and mid-run alike).
     const host = slot === this.state.hostSlot ? nextHost(this.members.values()) : undefined;
     if (host) {
       this.state.hostSlot = host.slot;

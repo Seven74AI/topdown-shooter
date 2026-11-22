@@ -1,4 +1,5 @@
 import { ResultsScreen } from "./ResultsScreen";
+import { InRunMenu } from "./InRunMenu";
 import { StartScreen } from "./StartScreen";
 import { LobbyScreen } from "./LobbyScreen";
 import { RotateOverlay } from "./RotateOverlay";
@@ -20,6 +21,7 @@ export function App({ joinCode = null }: AppProps) {
       <StartScreen joinCode={joinCode} />
       <LobbyScreen />
       <ResultsScreen />
+      <InRunMenu />
       {urlOptions().tune && <TuningPanel />}
       {import.meta.env.DEV && <LoadoutPicker />}
       <StressResults />

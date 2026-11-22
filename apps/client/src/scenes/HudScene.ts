@@ -2,7 +2,7 @@ import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
 import { hudPointerDown, hudPointerMove, hudPointerReset, hudPointerUp } from "../input/hudPointer";
-import { MIN_TEXT_CSS_PX } from "../ui/sizes";
+import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, MIN_TEXT_CSS_PX } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
@@ -73,7 +73,18 @@ const CROSS_PX = 6;
 const CROSS_THICK_PX = 2.5;
 const CROSS_INSET_PX = 20;
 const CROSS_COLOR = 0xffffff;
-
+/** Story 2.11: ☰ (three white bars on a dark square), and the toast line under the status line. */
+const MENU_BAR_W_FRAC = 0.5;
+const MENU_BAR_H_PX = 3;
+const MENU_BAR_GAP_PX = 6;
+const MENU_BG = 0x000000;
+const MENU_BG_ALPHA = 0.35;
+const MENU_RADIUS_PX = 8;
+const MENU_BAR_COLOR = 0xffffff;
+const TOAST_TEXT_PX = 18;
+/** Wave text → status line → toast line, CSS px from the top inset. */
+const WAVE_TOP_PX = 12;
+const LINE_GAP_PX = 12;
 
 const STICK_FILL = 0xffffff;
 const STICK_FILL_ALPHA = 0.12;
@@ -101,6 +112,11 @@ export class HudScene extends Phaser.Scene {
   private otherText!: Phaser.GameObjects.Text;
   private swapBtn!: Phaser.GameObjects.Arc;
   private swapLabel!: Phaser.GameObjects.Text;
+  private menuBtn!: Phaser.GameObjects.Graphics;
+  private shownMenuButton: boolean | null = null;
+  private shownMenuOpen = false;
+  private toastText!: Phaser.GameObjects.Text;
+  private shownToast = "";
   private buttons = new HudButtons();
   /** Safe-area insets (CSS px), measured on create and resize only (getComputedStyle is costly). */
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -155,6 +171,9 @@ export class HudScene extends Phaser.Scene {
     this.shownStatus = "";
     this.shownSecs.fill(-1);
     this.shownNames.fill("");
+    this.shownMenuButton = null;
+    this.shownMenuOpen = false;
+    this.shownToast = "";
   }
 
   create(): void {
@@ -190,6 +209,11 @@ export class HudScene extends Phaser.Scene {
     this.buttons.set({ id: "swap", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.swapPressed = true;
     });
+    // Story 2.11: ☰ top-right, away from both thumbs (the sticks live in the lower halves).
+    this.menuBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.buttons.set({ id: "menu", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.menuPressed = true;
+    });
     this.layoutButtons();
     this.reloadBar = this.add.graphics();
     this.waveText = this.add
@@ -218,6 +242,7 @@ export class HudScene extends Phaser.Scene {
       );
     }
     this.statusText = this.add.text(0, 0, "", this.outlinedStyle(STATUS_TEXT_PX)).setOrigin(0.5, 0).setVisible(false);
+    this.toastText = this.add.text(0, 0, "", this.outlinedStyle(TOAST_TEXT_PX)).setOrigin(0.5, 0).setVisible(false);
     this.names.length = 0;
     this.mateArrows.length = 0;
     this.crosses.length = 0;
@@ -317,6 +342,29 @@ export class HudScene extends Phaser.Scene {
     if (rect) Object.assign(rect, { x, y, w: size, h: size });
     this.swapBtn.setRadius(size / 2).setPosition(x + size / 2, y + size / 2);
     this.swapLabel.setFontSize(Math.round(28 * k)).setPosition(x + size / 2, y + size / 2);
+    this.layoutMenuButton();
+  }
+
+  /** ☰: 48 × 48 CSS px, 12 px inside the safe area at the top-right; redrawn on layout only. */
+  private layoutMenuButton(): void {
+    const k = dpr();
+    const safe = this.insets;
+    const size = MENU_BUTTON_CSS_PX * k;
+    const x = this.scale.width - (MENU_BUTTON_INSET_CSS_PX + safe.right) * k - size;
+    const y = (MENU_BUTTON_INSET_CSS_PX + safe.top) * k;
+    const rect = this.buttons.get("menu");
+    if (rect) Object.assign(rect, { x, y, w: size, h: size });
+    const g = this.menuBtn;
+    g.clear();
+    g.fillStyle(MENU_BG, MENU_BG_ALPHA).fillRoundedRect(0, 0, size, size, MENU_RADIUS_PX * k);
+    const barW = size * MENU_BAR_W_FRAC;
+    const barH = MENU_BAR_H_PX * k;
+    const gap = MENU_BAR_GAP_PX * k;
+    const bx = (size - barW) / 2;
+    const by = size / 2 - barH / 2;
+    g.fillStyle(MENU_BAR_COLOR, 1);
+    for (let i = -1; i <= 1; i++) g.fillRect(bx, by + i * (gap + barH), barW, barH);
+    g.setPosition(x, y);
   }
 
   private onResize(): void {
@@ -344,6 +392,8 @@ export class HudScene extends Phaser.Scene {
     for (const t of this.countdowns) t.setFontSize(Math.round(COUNTDOWN_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr()));
     this.statusText.setFontSize(Math.round(STATUS_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr()));
     this.shownStatus = "\u0000"; // re-place the status line
+    this.toastText.setFontSize(Math.round(TOAST_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr()));
+    this.shownToast = "\u0000";
   }
 
   /** Redraws the health bar only when HP changes (top-left, inside the safe area from Story 1.8 on). */
@@ -375,7 +425,30 @@ export class HudScene extends Phaser.Scene {
     this.drawRushArrows();
     this.drawDowned();
     this.drawTeammates();
+    this.drawMenu();
     this.perfOverlay?.update();
+  }
+
+  /**
+   * Story 2.11: ☰ while a run is on screen, and the toast line. When the menu opens, every held
+   * stick and button lets go (the finger that tapped ☰ lifts over the menu, not the canvas).
+   */
+  private drawMenu(): void {
+    const m = this.model;
+    if (m.menuButton !== this.shownMenuButton) {
+      this.shownMenuButton = m.menuButton;
+      this.buttons.setVisible("menu", m.menuButton);
+      this.menuBtn.setVisible(m.menuButton);
+    }
+    if (m.menuOpen !== this.shownMenuOpen) {
+      this.shownMenuOpen = m.menuOpen;
+      if (m.menuOpen) hudPointerReset(this.buttons, this.router);
+    }
+    if (m.toastText !== this.shownToast) {
+      this.shownToast = m.toastText;
+      const y = (WAVE_TOP_PX + this.insets.top + WAVE_TEXT_PX + LINE_GAP_PX + STATUS_TEXT_PX + LINE_GAP_PX) * dpr();
+      this.toastText.setText(m.toastText).setPosition(this.scale.width / 2, y).setVisible(m.toastText !== "");
+    }
   }
 
   /**
@@ -404,7 +477,7 @@ export class HudScene extends Phaser.Scene {
       this.shownStatus = m.statusText;
       this.statusText
         .setText(m.statusText)
-        .setPosition(this.scale.width / 2, (12 + this.insets.top + WAVE_TEXT_PX + 12) * dpr())
+        .setPosition(this.scale.width / 2, (WAVE_TOP_PX + this.insets.top + WAVE_TEXT_PX + LINE_GAP_PX) * dpr())
         .setVisible(m.statusText !== "");
     }
   }
@@ -487,7 +560,7 @@ export class HudScene extends Phaser.Scene {
       this.shownRemaining = m.remaining;
       this.waveText
         .setText(m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready")
-        .setPosition(this.scale.width / 2, (12 + this.insets.top) * dpr());
+        .setPosition(this.scale.width / 2, (WAVE_TOP_PX + this.insets.top) * dpr());
     }
     if (m.bannerText !== this.shownBanner) {
       this.shownBanner = m.bannerText;

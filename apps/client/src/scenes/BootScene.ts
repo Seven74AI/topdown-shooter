@@ -11,6 +11,8 @@ export interface BootSceneData {
   error?: string;
   /** Story 2.8: the room went back to the lobby; the lobby screen is already up (no title, no start screen). */
   lobby?: boolean;
+  /** Story 2.11: the player left a run from the in-run menu; the start screen is already up (no title). */
+  start?: boolean;
 }
 
 const TITLE_SHOW_MS = 500; // how long the title shows before the start screen (or a ?solo run)
@@ -23,8 +25,9 @@ export class BootScene extends Phaser.Scene {
 
   create(data?: BootSceneData): void {
     const error = data?.error;
-    if (data?.lobby) {
-      // Waiting for the next start in the same room: only the start handlers are needed.
+    if (data?.lobby || data?.start) {
+      // Waiting for the next start in the same room, or back on the start screen after Leave game:
+      // only the start handlers are needed.
       uiStore.handle("startSolo", () => this.startSolo());
       uiStore.handle("startOnline", (session) => this.startOnline(session));
       return;

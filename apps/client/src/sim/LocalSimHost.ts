@@ -36,6 +36,12 @@ export class LocalSimHost implements SimHost {
   readonly localPlayerId = LOCAL_PLAYER_ID;
   readonly online = false;
   private accumulatorS = 0;
+  /**
+   * Story 2.11: the in-run menu pauses solo practice. While paused `update` steps nothing and the
+   * accumulator is frozen (frame time is not added), so resuming never runs a catch-up burst and
+   * `alpha` keeps the drawn positions exactly where they were (no snap at pause or resume).
+   */
+  paused = false;
   private input: PlayerInput = NEUTRAL_INPUT;
   /** Edge flags latched until a step consumes them (a tap between two steps is never lost). */
   private latchedSwap = false;
@@ -58,7 +64,7 @@ export class LocalSimHost implements SimHost {
 
   update(frameDtS: number): void {
     this.stats.lastUpdateSteps = 0;
-    if (!(frameDtS > 0)) return;
+    if (!(frameDtS > 0) || this.paused) return;
     this.accumulatorS += frameDtS;
     let steps = 0;
     while (this.accumulatorS >= TICK_DT_S && steps < MAX_CATCHUP_STEPS) {

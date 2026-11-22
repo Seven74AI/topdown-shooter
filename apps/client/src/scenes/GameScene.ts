@@ -30,7 +30,9 @@ import { ZombieView } from "../render/ZombieView";
 import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
-import { uiStore } from "../ui/uiState";
+import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
+import { neutralizeInput } from "../input/menuInput";
+import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
 import {
   COUNTDOWN_LIFT_M,
@@ -88,6 +90,12 @@ const SOLO_NAME = "You";
 
 export class GameScene extends Phaser.Scene {
   private host: SceneHost | null = null;
+  /** The same host when solo (the in-run menu pauses it, Story 2.11); null online. */
+  private localHost: LocalSimHost | null = null;
+  /** Story 2.11: Leave game runs once (a double tap on Leave does nothing more). */
+  private leaving = false;
+  /** Story 2.11: "<name> left" lines for the HUD, one at a time. */
+  private readonly toasts = new ToastQueue();
   /** How this run is simulated: the local World, or the server's (Story 2.4). */
   mode: "solo" | "online" = "solo";
   private sticks: TouchSticks | null = null;
@@ -166,6 +174,7 @@ export class GameScene extends Phaser.Scene {
       // A start queued while this tab was hidden, for a run that is over (Story 2.8 review): go to
       // the room's current run, or back to the lobby, instead of a dead scene over the lobby screen.
       this.host = null; // Phaser reuses this object: never update a previous run's host
+      this.localHost = null;
       const now = activeRun.current();
       if (now) this.scene.start("Game", { mode: "online", session: now } satisfies GameSceneData);
       else this.scene.start("Boot", { lobby: true } satisfies BootSceneData);
@@ -180,7 +189,11 @@ export class GameScene extends Phaser.Scene {
     const soloSeed = data?.mode !== "online" && data?.seed !== undefined ? data.seed >>> 0 : undefined;
     // Story 2.7: the reversed-hit counter runs in dev builds, and in release while the overlay is on.
     const netHost = session ? new NetSimHost({ balance, session, measureHits: () => import.meta.env.DEV || perf.overlayOn }) : null;
-    const host: SceneHost = netHost ?? new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed() });
+    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed() });
+    const host: SceneHost = netHost ?? (localHost as LocalSimHost);
+    this.localHost = localHost;
+    this.leaving = false;
+    this.toasts.clear();
     perf.hits = netHost ? netHost.netStats : null;
     const stress = session ? null : opts.stress;
     this.host = host;
@@ -207,6 +220,11 @@ export class GameScene extends Phaser.Scene {
     } else {
       uiStore.handle("restart", () => this.scene.restart({} satisfies GameSceneData)); // {}: a new random seed
     }
+    uiStore.handle("menu", (action) => this.onMenu(action)); // Story 2.11: the in-run menu's buttons
+    // Story 2.11: teammates who leave get a toast; their ring, name and arrow go with their state entry.
+    const offLeft = session?.onPlayerLeft((m) => {
+      if (m.playerId !== localId) this.toasts.push(playerLeftText(m.name, m.reason));
+    });
     // ?loadout=a,b (release-safe): start with those weapons; unknown ids are ignored. Solo only.
     const urlLoadout = opts.loadout && !session ? validLoadout(opts.loadout, weaponIds(balance)) : null;
     if (urlLoadout && stress === null) {
@@ -220,13 +238,13 @@ export class GameScene extends Phaser.Scene {
         const p = world.players.get(localId);
         if (p) setLoadout(balance, p.loadout, loadout);
         this.running = true;
-        uiStore.set({ kind: "playing" });
+        uiStore.set(playingScreen(false));
       });
       uiStore.set({ kind: "loadoutPicker", weapons: weaponIds(balance) });
     } else {
       this.running = true;
       // Online, the run may already be over when this scene starts late (hidden tab): keep Results up.
-      if (!session || session.room.state?.phase === "wave") uiStore.set({ kind: "playing" });
+      if (!session || session.room.state?.phase === "wave") uiStore.set(playingScreen(session !== null));
     }
 
     drawStreet(this, world.map);
@@ -271,6 +289,9 @@ export class GameScene extends Phaser.Scene {
       uiStore.handle("startRun", undefined);
       uiStore.handle("leaveRun", undefined);
       uiStore.handle("backToLobby", undefined);
+      uiStore.handle("menu", undefined);
+      offLeft?.();
+      this.toasts.clear();
       for (const c of this.chevrons) c.destroy();
       this.chevrons.length = 0;
       this.fxView?.destroy();
@@ -283,6 +304,7 @@ export class GameScene extends Phaser.Scene {
       perf.hits = null;
       this.host?.dispose(); // online: also leaves the room
       this.host = null;
+      this.localHost = null;
     });
   }
 
@@ -305,6 +327,38 @@ export class GameScene extends Phaser.Scene {
   restartRun(seed?: number): void {
     if (this.mode === "online") return; // the server owns the run
     this.scene.restart((seed === undefined ? {} : { seed }) satisfies GameSceneData);
+  }
+
+  /**
+   * The in-run menu (Story 2.11): ☰, Esc and the menu's buttons all come here. Only while a run is
+   * on screen (not in the dev loadout picker, not on Results). Opening it lets go of every held
+   * key, button and stick, so nothing is still pressed when the player resumes.
+   */
+  private onMenu(action: MenuAction): void {
+    const screen = uiStore.get();
+    if (screen.kind !== "playing" || !this.running || this.gameOver || this.leaving || !this.host) return;
+    const next = menuStep(screen.menu, action);
+    if (next === "left") return this.leaveGame();
+    if (next === screen.menu) return;
+    if (screen.menu === "closed") this.router?.releaseAll();
+    uiStore.set({ kind: "playing", menu: next, online: screen.online });
+  }
+
+  /**
+   * Leave game (Story 2.11), once: online the host's dispose leaves the room for good
+   * (`NetSession.leave` → `room.leave(true)`, consented: no reconnect window; the lobby store also
+   * clears the share link), then the start screen without the title. Solo: the same without the room.
+   */
+  private leaveGame(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    const online = this.mode === "online";
+    this.host?.dispose();
+    this.host = null;
+    this.localHost = null;
+    if (!online) history.replaceState(null, "", import.meta.env.BASE_URL);
+    uiStore.set({ kind: "start" });
+    this.scene.start("Boot", { start: true } satisfies BootSceneData); // stops Game, which stops Hud
   }
 
   private showBanner(text: string): void {
@@ -409,7 +463,25 @@ export class GameScene extends Phaser.Scene {
     router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y);
     this.hudModel.swapPressed = false;
     if (!this.running) this.input_.swap = false; // a Q / swap tap in the picker must not swap at run start
+
+    // Story 2.11: ☰ and Esc toggle the in-run menu (Esc is never game input).
+    const menuKey = router.kbm.takeMenu();
+    const menuTap = this.hudModel.menuPressed;
+    this.hudModel.menuPressed = false;
+    if (menuKey || menuTap) {
+      this.onMenu("toggle");
+      if (!this.host) return; // left
+    }
+    const screen = uiStore.get();
+    const menuOpen = screen.kind === "playing" && screen.menu !== "closed";
+    this.hudModel.menuOpen = menuOpen;
+    this.hudModel.menuButton = screen.kind === "playing" && this.running && !this.gameOver;
+    // Menu open: online the run goes on and my survivor stands still (a fresh seq every step);
+    // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
+    if (menuOpen) neutralizeInput(this.input_);
+    if (this.localHost) this.localHost.paused = menuOpen;
     host.setLocalInput(this.input_);
+    this.hudModel.toastText = this.toasts.current(this.time.now);
 
     if (this.running) host.update(deltaMs / 1000); // LocalSimHost caps catch-up after long frames
     const events = host.drainEvents();

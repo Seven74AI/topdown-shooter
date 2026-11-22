@@ -1,8 +1,9 @@
 /* Dev cheats (Story 1.11): dev builds only, imported by DevCheats.tsx so release CSS never has it. */
 .dev-gear {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 120px);
-  right: calc(env(safe-area-inset-right) + 12px);
+  /* Story 2.11: left of the in-run menu ☰ (top-right, 48 px at 12 px), clear of the perf overlay under it. */
+  top: calc(env(safe-area-inset-top) + 14px);
+  right: calc(env(safe-area-inset-right) + 68px);
   z-index: 8;
   pointer-events: auto;
   width: 44px;
@@ -20,7 +21,7 @@
   position: fixed;
   /* Left of the ⚙ button, full height: a landscape phone is only ~390 px tall. */
   top: calc(env(safe-area-inset-top) + 12px);
-  right: calc(env(safe-area-inset-right) + 68px);
+  right: calc(env(safe-area-inset-right) + 120px);
   z-index: 8;
   pointer-events: auto;
   width: min(320px, 70vw);

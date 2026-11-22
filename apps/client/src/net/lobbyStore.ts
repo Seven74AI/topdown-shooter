@@ -190,12 +190,18 @@ class LobbyStore {
     this.room?.send(C2S.RUN_START, {});
   }
 
-  /** Leaves the room for good (consented: no reconnection). */
-  leave(): void {
+  /**
+   * Leaves the room for good (consented: no reconnection). With `only`, leaves only if that is
+   * still the current room (Story 2.4 review, fixed in 2.11): a stale session's late leave never
+   * leaves a room joined after it. Returns whether it left.
+   */
+  leave(only?: RunConnection): boolean {
+    if (only !== undefined && this.room !== only) return false;
     const room = this.room;
     this.detach();
     this.set(EMPTY);
     void room?.leave(true);
+    return room !== null;
   }
 
   private detach(): void {
