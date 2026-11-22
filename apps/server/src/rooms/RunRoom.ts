@@ -62,6 +62,7 @@ import { log, roomLog } from "../ops/logger";
 import { assignSlot, hashGuestToken, nextHost, type Member } from "../run/lobby";
 import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
+import { pickDevRunSeed } from "../run/devRunSeed";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
@@ -163,6 +164,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   allowSoloStart = false;
   /** Story 2.10: the test scenario this room's runs use (only with `allowTestScenarios`), or null. */
   scenario: TestScenario | null = null;
+  /** Story 4.4 (dev only): the seed every run of this room uses (host's `?seed=` + `DEV_ALLOW_RUN_SEED=1`), or null (random). */
+  devRunSeed: number | null = null;
   /** sessionId → byte counters (Story 2.10, `net_stats`). */
   readonly netMeters = new Map<string, NetMeters>();
   /** Story 2.10: when the current wave started (or the run, before the first wave), and its most zombies alive. */
@@ -232,6 +235,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.roomId = code;
     this.log = roomLog(code);
     this.takeScenario(options as { scenario?: unknown; allowTestScenarios?: unknown });
+    this.takeDevRunSeed((options as { devRunSeed?: unknown }).devRunSeed);
     this.maxClients = MAX_PLAYERS;
     this.patchRate = PATCH_RATE_MS;
     // Only reachable by its code (joinById), never by a "join any run" matchmaking call.
@@ -259,6 +263,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!isTestScenario(options.scenario)) return; // onAuth refused anything else already
     if (options.allowTestScenarios === true) this.scenario = options.scenario;
     else this.log.warn({ scenario: options.scenario }, "test_scenario_refused");
+  }
+
+  /** Story 4.4: the creator's `devRunSeed`, honoured only by a dev server with `DEV_ALLOW_RUN_SEED=1`. */
+  private takeDevRunSeed(requested: unknown): void {
+    const pick = pickDevRunSeed(requested, process.env);
+    this.devRunSeed = pick.seed;
+    if (pick.ignored) this.log.warn({ seed: requested, reason: pick.ignored }, "dev_run_seed_ignored");
   }
 
   override onJoin(client: RunClient): void {
@@ -453,8 +464,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    */
   private startRun(): void {
     const players = Array.from(this.members.values(), (m) => ({ playerId: m.playerId, slot: m.slot }));
-    const runSeed = randomUint32();
+    const runSeed = this.devRunSeed ?? randomUint32();
     this.runSeed = runSeed;
+    if (this.devRunSeed !== null) this.log.warn({ runSeed }, "dev_run_seed");
     const devPlacedHp = devAllowed ? parseDevHpFraction(process.env.DEV_PLACED_BUILDING_HP) : null;
     const controller = new RunController({
       balance: serverBalance,

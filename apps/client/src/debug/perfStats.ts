@@ -18,6 +18,8 @@ export interface NetOverlaySource {
   readonly scenario: string;
   /** This device is the room's host (only the host asked for a scenario, so only it sees a refusal). */
   readonly isHost: boolean;
+  /** Story 4.4: the server's run seed (room state; 0 before the first patch). */
+  readonly runSeed: number;
 }
 
 /**
@@ -195,6 +197,8 @@ export class PerfStats {
   hits: HitCounts | null = null;
   /** Story 2.10: the online host for the overlay's network lines; null offline. */
   net: NetOverlaySource | null = null;
+  /** Story 4.4: the solo run's seed for the overlay (online it comes from `net.runSeed`); null when no solo run. */
+  soloSeed: number | null = null;
 
   recordFrame(nowMs: number, frameMs: number, renderMs: number, updateMs: number): void {
     const i = this.frameHead;
@@ -271,6 +275,7 @@ export class PerfStats {
     this.summary = null;
     this.hits = null;
     this.net = null;
+    this.soloSeed = null;
   }
 }
 

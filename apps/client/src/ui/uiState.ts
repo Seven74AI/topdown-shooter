@@ -18,9 +18,10 @@ export type UiScreen =
   /**
    * Team wipe (Story 2.8): wave reached and kills per player, sorted by slot. `online`: Back to
    * lobby (the whole room) instead of Restart. Story 3.10: `heldOut` = the run's last wave was
-   * cleared ("You held out!"); each row also carries the money earned.
+   * cleared ("You held out!"); each row also carries the money earned. Story 4.4: `seed` = the run
+   * seed (online the server's).
    */
-  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean; heldOut: boolean };
+  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean; heldOut: boolean; seed: number };
 
 /** The in-run menu (Story 2.11): closed, open (Resume, Leave game), or asking to confirm the leave. */
 export type MenuState = "closed" | "open" | "confirmLeave";

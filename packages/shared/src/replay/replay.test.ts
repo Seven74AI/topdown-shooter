@@ -1,0 +1,108 @@
+import { describe, expect, it } from "vitest";
+import { runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
+import { loadBalance } from "../config/balance";
+import type { SimEvent } from "../core/simEvents";
+import { shopStream } from "../core/seedStreams";
+import type { World } from "../core/world";
+import { snapshotWorld, worldDigest } from "../core/worldSnapshot";
+import { createInputLog, replayRun, type InputLog } from "./inputLog";
+
+/**
+ * Story 4.4 (NFR10): a bot run recorded with its input log, replayed from the same seed, reaches the
+ * same World digest: spawns, kills, buildings, wave outcomes. Liveness (brief line 9): the run really
+ * cleared waves, killed zombies, bought and built.
+ */
+const balance = loadBalance();
+const SEED = 1;
+const PLAYERS = 2;
+
+function record(): { log: InputLog; run: HeadlessRunLog; digest: number; kills: number } {
+  const log = createInputLog(SEED, PLAYERS);
+  let digest = 0;
+  const run = runHeadless({
+    balance,
+    seed: SEED,
+    players: PLAYERS,
+    record: log,
+    onEnd: (w) => {
+      digest = worldDigest(w);
+    },
+  });
+  const kills = run.kills.reduce((a, b) => a + b, 0) + run.turretKills;
+  return { log, run, digest, kills };
+}
+
+/** Kills (per player, as `runHeadless` counts them, and by turrets) and wave ends seen while replaying. */
+function counting(world: World): { kills: number[]; turretKills: number; wavesEnded: number[] } {
+  const c = { kills: Array.from({ length: PLAYERS }, () => 0), turretKills: 0, wavesEnded: [] as number[] };
+  world.events.subscribe((e: SimEvent) => {
+    if (e.type === "zombie.killed") {
+      if (e.buildingId !== undefined) c.turretKills++;
+      else if (e.killerId !== null) {
+        const k = Number(e.killerId.slice(1));
+        c.kills[k] = (c.kills[k] as number) + 1;
+      }
+    } else if (e.type === "wave.ended") c.wavesEnded.push(e.number);
+  });
+  return c;
+}
+
+describe("headless replay (Story 4.4, NFR10)", () => {
+  const rec = record();
+
+  it("the recorded run really happened (waves ended, kills, buys, buildings)", () => {
+    expect(rec.run.wavesCleared).toBeGreaterThanOrEqual(3);
+    expect(rec.run.timedOut).toBe(false);
+    expect(rec.kills).toBeGreaterThan(100);
+    const kinds = new Set(rec.log.commands.map((c) => c.kind));
+    expect([...kinds].sort()).toEqual(["buy", "input", "place", "ready"]);
+    expect(rec.log.endTick).toBe(rec.run.ticks);
+  });
+
+  it("same seed + input log → the same snapshotWorld digest, kills and wave outcomes", () => {
+    let count: ReturnType<typeof counting> | null = null;
+    const w = replayRun(balance, rec.log, { afterStart: (world) => void (count = counting(world)) });
+    const c = count as unknown as ReturnType<typeof counting>;
+    expect(worldDigest(w)).toBe(rec.digest);
+    expect(c.wavesEnded).toEqual(Array.from({ length: rec.run.wavesCleared }, (_, i) => i + 1));
+    expect(c.kills).toEqual(rec.run.kills); // every kill again, by the same player
+    expect(c.turretKills).toBe(rec.run.turretKills);
+    expect(w.run.phase).toBe("results");
+    expect(w.run.heldOut).toBe(rec.run.heldOut);
+    expect(w.buildings.list.length).toBeGreaterThan(0);
+  });
+
+  it("draws from the decay and shop streams change nothing but those streams", () => {
+    let decayDraws = 0;
+    const w = replayRun(balance, rec.log, {
+      afterStart: (world) => {
+        for (let i = 0; i < 1000; i++) world.streams.decay.next();
+        decayDraws += 1000;
+      },
+      beforeTick: (world) => {
+        world.streams.decay.int(0, 9); // what Story 4.5's decay timeline will do (and more)
+        decayDraws++;
+        if (world.run.phase === "build") shopStream(world, 1).next(); // a card shop rolling every tick (build only: L1)
+      },
+    });
+    const base = replayRun(balance, rec.log);
+    const a = snapshotWorld(w);
+    const b = snapshotWorld(base);
+    expect(decayDraws).toBeGreaterThan(1000 + 1000);
+    expect(a.streams.decay).not.toEqual(b.streams.decay); // the draws really happened
+    expect(a.streams.shop[1]).not.toEqual(b.streams.shop[1]);
+    const strip = (s: typeof a) => ({ ...s, streams: { ...s.streams, decay: null, shop: null } });
+    expect(strip(a)).toEqual(strip(b)); // spawns, zombies, kills, players, buildings, waves: identical
+    expect(a.streams.spawns).toEqual(b.streams.spawns);
+  });
+
+  it("a different seed with the same input log gives a different run", () => {
+    const w = replayRun(balance, { ...rec.log, seed: SEED + 1 });
+    expect(worldDigest(w)).not.toBe(rec.digest);
+  });
+
+  it("the build commands matter: a log without them diverges", () => {
+    const w = replayRun(balance, { ...rec.log, commands: rec.log.commands.filter((c) => c.kind === "input" || c.kind === "ready") });
+    expect(worldDigest(w)).not.toBe(rec.digest);
+  });
+});

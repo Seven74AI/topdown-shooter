@@ -12,8 +12,8 @@ describe("uiStore", () => {
   it("notifies subscribers and routes requests", () => {
     const seen: string[] = [];
     const off = uiStore.subscribe((s) => seen.push(s.kind));
-    uiStore.set({ kind: "results", wave: 3, rows: [], online: false, heldOut: false });
-    expect(uiStore.get()).toEqual({ kind: "results", wave: 3, rows: [], online: false, heldOut: false });
+    uiStore.set({ kind: "results", wave: 3, rows: [], online: false, heldOut: false, seed: 5 });
+    expect(uiStore.get()).toEqual({ kind: "results", wave: 3, rows: [], online: false, heldOut: false, seed: 5 });
     let restarted = 0;
     uiStore.handle("restart", () => restarted++);
     uiStore.request("restart");

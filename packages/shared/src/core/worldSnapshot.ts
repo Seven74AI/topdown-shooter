@@ -3,6 +3,8 @@ import { MAX_PIERCE } from "../combat/projectilePool";
 import { MAX_DAMAGERS } from "../economy/economy";
 import { snapshotPathing } from "../zombies/flowField";
 import { snapshotZombieHistory } from "../combat/rewind";
+import { snapshotSeedStreams } from "./seedStreams";
+import { canonicalJson, fnv1a32 } from "./hash";
 
 const sortedEntries = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -74,7 +76,8 @@ export function snapshotWorld(world: World) {
     tick: world.tick,
     seed: world.seed,
     balanceVersion: world.balance.version,
-    rngState: world.rng.getState(),
+    // Story 4.4: every named stream's state (and each shop stream's build key).
+    streams: snapshotSeedStreams(world.streams),
     pendingInputs: sortedEntries(world.pendingInputs),
     inputs: sortedEntries(world.inputs),
     lastAppliedSeq: sortedEntries(world.lastAppliedSeq),
@@ -116,3 +119,11 @@ export function snapshotWorld(world: World) {
 }
 
 export type WorldSnapshot = ReturnType<typeof snapshotWorld>;
+
+/**
+ * Story 4.4: one number for the whole World state (FNV-1a of the snapshot's canonical JSON), for
+ * replay checks ("same seed + input log → same digest"). Allocates: tests and tools only.
+ */
+export function worldDigest(world: World): number {
+  return fnv1a32(canonicalJson(snapshotWorld(world)));
+}

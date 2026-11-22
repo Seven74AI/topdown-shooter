@@ -286,6 +286,14 @@ export class NetSimHost implements SimHost {
     return this.session.room.state?.scenario ?? "";
   }
 
+  /**
+   * Story 4.4: the server's run seed (room state `runSeed`, 0 before the first patch). The mirror
+   * World keeps seed 0: it never draws from a stream.
+   */
+  get runSeed(): number {
+    return this.session.room.state?.runSeed ?? 0;
+  }
+
   /** Story 2.10: this device holds the room's host slot. */
   get isHost(): boolean {
     const state = this.session.room.state;

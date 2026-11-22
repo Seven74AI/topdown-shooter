@@ -33,7 +33,7 @@ export function viewAround(map: DistrictMap, cx: number, cy: number, w: number, 
 }
 
 /**
- * Spawns `count` zombies at seeded random points inside `view` (World RNG, so a run is repeatable),
+ * Spawns `count` zombies at seeded random points inside `view` (the World's `spawns` stream, so a run is repeatable),
  * kept `clearM` away from (avoidX, avoidY) and inside the map. Returns how many spawned.
  */
 export function spawnInView(
@@ -55,8 +55,8 @@ export function spawnInView(
     let x = x0;
     let y = y0;
     for (let t = 0; t < SPAWN_TRIES; t++) {
-      x = world.rng.range(x0, x1);
-      y = world.rng.range(y0, y1);
+      x = world.streams.spawns.range(x0, x1);
+      y = world.streams.spawns.range(y0, y1);
       const dx = x - avoidX;
       const dy = y - avoidY;
       if (dx * dx + dy * dy >= clearM * clearM) break;

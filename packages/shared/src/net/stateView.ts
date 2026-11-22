@@ -96,6 +96,8 @@ export interface RunStateView {
   readonly buildTicksLeft: number;
   /** Story 2.10: the test scenario this room runs (`TestScenario`), "" for a normal game. */
   readonly scenario: string;
+  /** Story 4.4: the run's seed (uint32), 0 in the lobby. Results and the performance overlay show it. */
+  readonly runSeed: number;
 }
 
 /**
@@ -155,4 +157,5 @@ export const RUN_STATE_FIELDS = {
   resultHeldOut: true,
   buildTicksLeft: true,
   scenario: true,
+  runSeed: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings">, true>;

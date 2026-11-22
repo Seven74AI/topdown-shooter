@@ -9,10 +9,13 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null });
     expect(parseUrlOptions("?zdmg=0.1").zombieDamageScale).toBe(0.1); // retro A5
     expect(parseUrlOptions("?zdmg=x").zombieDamageScale).toBeNull();
     expect(parseUrlOptions("?wallet=2000").startingWallet).toBe(2000); // Story 3.3
+    expect(parseUrlOptions("?seed=4242").runSeed).toBe(4242); // Story 4.4
+    expect(parseUrlOptions("?seed=0x10").runSeed).toBe(16);
+    expect(parseUrlOptions("?seed=-3").runSeed).toBeNull();
     expect(parseUrlOptions("?wallet=-5").startingWallet).toBeNull();
   });
 

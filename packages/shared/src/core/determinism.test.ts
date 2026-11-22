@@ -35,15 +35,15 @@ interface Probe {
   events: string[];
 }
 
-/** Runs a World with a test system that mixes inputs and World RNG into state and events. */
+/** Runs a World with a test system that mixes inputs and a World stream (`events`, Story 4.4) into state and events. */
 function run(seed: number, log: Map<number, PlayerInput>) {
   const probe: Probe = { acc: 0, draws: [], events: [] };
   const testSystem: SystemFn = (w: World) => {
     const input = w.inputs.get("local");
-    const r = w.rng.next();
+    const r = w.streams.events.next();
     probe.acc += (input ? input.moveX * 3 + input.aimY : 0) + r;
     if (r < 0.1) {
-      probe.draws.push(w.rng.int(0, 1000));
+      probe.draws.push(w.streams.events.int(0, 1000));
       w.events.emit({ type: "test.ping", n: w.tick });
     }
   };
