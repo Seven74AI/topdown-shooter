@@ -1,6 +1,7 @@
 import type { World } from "./world";
 import { MAX_PIERCE } from "../combat/projectilePool";
 import { MAX_DAMAGERS } from "../economy/economy";
+import { snapshotPathing } from "../zombies/flowField";
 
 const sortedEntries = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -101,6 +102,8 @@ export function snapshotWorld(world: World) {
       nextId: world.buildings.nextId,
       version: world.buildings.version,
     },
+    // Story 3.5: the flow field's counters and hashes of its buffers (it is evolved state, not synced).
+    pathing: snapshotPathing(world.pathing),
   };
 }
 

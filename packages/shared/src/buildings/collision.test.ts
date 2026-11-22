@@ -118,9 +118,10 @@ describe("zombies vs barricades", () => {
     const rz = balance.zombies.types.walker?.radiusM ?? 0;
     for (let i = 0; i < 200; i++) {
       step(world, TICK_DT_S);
-      expect(world.zombies.y[id]).toBeGreaterThanOrEqual(19.25 + rz - 1e-6);
+      expect(circleOverlapsBox(world.zombies.x[id] as number, world.zombies.y[id] as number, rz - 1e-6, 17, 18.75, 23, 19.25)).toBe(false);
     }
-    expect(world.zombies.y[id]).toBeCloseTo(19.25 + rz, 6); // pressed against it
+    // Story 3.5: it no longer presses on the wall's middle, it walks round its end (flowField tests).
+    expect(world.zombies.y[id]).toBeLessThan(19.25);
   });
 
   it("a crowd pressing on a barricade stays out of it", () => {

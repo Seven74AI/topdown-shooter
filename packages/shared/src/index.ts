@@ -1,5 +1,6 @@
 export {
   BUILD_GRID_M,
+  FLOW_CELL_M,
   GAME_TITLE,
   GRID_CELL_M,
   MUZZLE_OFFSET_M,
@@ -208,6 +209,7 @@ export {
   placeBuilding,
   placementError,
   removeBuilding,
+  damageBuilding,
   type Box,
   type Building,
   type BuildingRotation,
@@ -216,7 +218,25 @@ export {
   type PlaceError,
   type PlaceRequest,
 } from "./buildings/buildings";
-export { circleHitsBuilding, circleOverlapsBox, pushOutOfBuildings, pushed } from "./buildings/collision";
+export { circleHitsBuilding, circleOverlapsBox, distanceToBox, pushOutOfBuildings, pushed, segmentHitsBox, segmentHitsBuildings } from "./buildings/collision";
+// Story 3.5: flow-field pathfinding.
+export {
+  FLOW_UNREACHED,
+  advanceFlowField,
+  createFlowField,
+  createNavGrid,
+  flowCellAt,
+  flowFieldMaxAgeTicks,
+  flowNextCell,
+  flowRefreshTicks,
+  rasterizeBuildings,
+  rebuildFlowFieldNow,
+  updatePathing,
+  type FlowField,
+  type NavGrid,
+  type PathingState,
+} from "./zombies/flowField";
+export { updateBuildings } from "./buildings/buildingSystem";
 export { findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,

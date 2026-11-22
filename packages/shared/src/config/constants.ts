@@ -34,3 +34,10 @@ export const MUZZLE_OFFSET_M = 0.1;
  * uint8 indices; structural (the wire format depends on it), so it is not a balance number.
  */
 export const BUILD_GRID_M = 1;
+
+/**
+ * Story 3.5: the flow-field grid (architecture › Zombie Pathfinding: 0.5 m). Structural (the field's
+ * cost units are quarter-metres of it), so it is not a balance number; the tuning lives in
+ * `zombies.json › pathing`.
+ */
+export const FLOW_CELL_M = 0.5;

@@ -299,6 +299,7 @@ export class GameScene extends Phaser.Scene {
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
     this.fxView = new FxView(this, this.zombieView, localId);
+    this.fxView.balance = balance; // Story 3.5: building footprints for the debris
     this.downedView = new DownedView(this, world);
     this.buildingView = new BuildingView(this);
     this.playerRadiusM = balance.player.radiusM;

@@ -10,6 +10,7 @@ import { endWave, startBuild, startWave } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import {
   addBuildingAt,
+  damageBuilding,
   buildingTypeIds,
   footprint,
   ownedCount,
@@ -200,5 +201,28 @@ describe("building list", () => {
       }
     }
     expect(snapshotWorld(a)).toEqual(snapshotWorld(b));
+  });
+});
+
+describe("damageBuilding (Story 3.5)", () => {
+  it("keeps HP whole (fractional hits round, never to 0), destroys at 0 with building.destroyed", () => {
+    const w = createWorld({ balance: loadBalance(), seed: 1, systems: { waves: () => {} } });
+    const events: string[] = [];
+    w.events.subscribe((e) => events.push(e.type));
+    const b = addBuildingAt(w, { id: 1, type: "wood_barricade", ownerId: "p0", gx: 10, gy: 10, rot: 0, hp: 200 });
+    if (!b) throw new Error("no building");
+    expect(damageBuilding(w, b, 3.6)).toBe(false);
+    expect(b.hp).toBe(196);
+    damageBuilding(w, b, 0.2);
+    expect(b.hp).toBe(195);
+    expect(damageBuilding(w, b, 0)).toBe(false);
+    expect(b.hp).toBe(195);
+    const v = w.buildings.version;
+    expect(damageBuilding(w, b, 1000)).toBe(true);
+    expect(b.hp).toBe(0);
+    expect(w.buildings.list).toHaveLength(0);
+    expect(w.buildings.version).toBe(v + 1);
+    w.events.flush();
+    expect(events).toEqual(["building.destroyed"]);
   });
 });

@@ -23,5 +23,11 @@
     "separationRadiusM": 0.9,
     "separationStrength": 10.0,
     "maxSpeedFactor": 2.0
+  },
+  "pathing": {
+    "rebuildCellsPerTick": 2048,
+    "buildingCostM": 12,
+    "nearWallCostM": 0.5,
+    "lookaheadCells": 2
   }
 }
