@@ -69,8 +69,9 @@ export interface WorldDebug {
   /** The player takes no damage (contact damage is skipped). */
   godMode: boolean;
   /**
-   * Story 3.9 dev hook (temporary until 3.10's wave composition): wave zombies cycle through these
-   * types (`?wavemix=` solo, `DEV_WAVE_MIX` on the server). null = Walkers only.
+   * Story 3.9 dev hook, kept by Story 3.10 as an override: wave zombies cycle through these types
+   * (`?wavemix=` solo, `DEV_WAVE_MIX` on the server) instead of the wave's `waves.json › mix`.
+   * null = the real composition.
    */
   waveMix: readonly ZombieTypeId[] | null;
 }

@@ -49,6 +49,7 @@ export interface FakeState {
   remaining: number;
   aliveCount: number;
   resultWave: number;
+  resultHeldOut: boolean;
   buildTicksLeft: number;
   scenario: string;
 }
@@ -64,6 +65,7 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     remaining: 0,
     aliveCount: players.length,
     resultWave: 0,
+    resultHeldOut: false,
     buildTicksLeft: 0,
     scenario: "",
   };

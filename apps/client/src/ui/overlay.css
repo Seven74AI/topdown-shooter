@@ -434,9 +434,20 @@
   gap: 8px;
 }
 
-.results__kills {
+.results__kills,
+.results__earned {
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+/* Story 3.10: "You held out!" (the run's last wave cleared). */
+.results--held h1 {
+  color: #f5c542;
+}
+
+.results__sub {
+  margin: 0;
+  color: #c8ccd0;
 }
 
 /* In-run menu (Story 2.11): over the live game, a light backdrop so the danger stays visible. */

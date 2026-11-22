@@ -129,6 +129,25 @@ export const wavesSchema = z
     spawnMinPlayerDistanceM: z.number().min(0),
     /** Spawns are jittered ±this along their edge so a batch doesn't stack. */
     spawnJitterM: z.number().min(0),
+    /** Story 3.10: clearing this wave ends the run ("You held out!"; Epic 6 sets 10 and adds the boss). */
+    runWaves: z.number().int().min(1).max(255),
+    /**
+     * Story 3.10 (FR31): wave size × this, by the number of players in the run when the wave starts
+     * (index 0 = solo … 3 = 4 players). GDD: × 0.6 (2), × 0.8 (3), × 1.0 (4); solo × 0.4 (designer note).
+     */
+    playerCountScale: z.array(z.number().gt(0).max(1)).length(4),
+    /**
+     * Story 3.10 (FR29): the zombie types of each wave as integer weights per type (index = wave − 1;
+     * later waves use the last entry). Counts per type are exact shares of the wave size, spread
+     * evenly through the wave. `loadBalance` checks every type exists in `zombies.json`.
+     */
+    mix: z
+      .array(
+        z
+          .record(balanceId, z.number().int().min(0).max(1000))
+          .refine((m) => Object.values(m).some((w) => w > 0), "a wave mix needs a positive weight"),
+      )
+      .min(1),
   })
   .strict();
 
@@ -196,8 +215,14 @@ export const botsSchema = z
     reviveSearchM: z.number().min(0),
     /** Stop this close to the downed teammate (inside `player.reviveRadiusM`, so the revive runs). */
     reviveStopM: z.number().min(0),
-    /** Epic 3 hook: shop item ids bought in this order between waves. Unused until then. */
-    shoppingList: z.array(balanceId).default([]),
+    /**
+     * Story 3.10: shop item ids (weapons and building types) bought in this order in every build
+     * phase (`bots/botShop.ts`): stop at the first one the wallet can't pay (save up); a building
+     * type listed k times means "own k".
+     */
+    shoppingList: z.array(balanceId).max(31).default([]),
+    /** Story 3.10: a bot tries to place a building at these distances (m) around itself, 8 directions each. */
+    buildRadiiM: z.array(z.number().positive().max(8)).min(1).max(4).default([2.5]),
   })
   .strict();
 

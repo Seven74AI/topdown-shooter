@@ -237,7 +237,10 @@ describe("wave-clear bonus", () => {
   });
 
   it("the real wave director clearing wave 1 pays +10 (and the kills)", () => {
-    const b = loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "zombiesPerWave", 3]]));
+    const b = loadBalance(withOverrides(bundledBalanceFiles(), [
+      ["waves", "zombiesPerWave", 3],
+      ["waves", "playerCountScale.1", 1], // Story 3.10: 2 players at × 1.0, so 3 zombies
+    ]));
     const { world, events } = setup(["p0", "p1"], { b, systems: null });
     startBuild(world); // Story 3.1: the first build phase, skipped with everyone Ready
     setBuildReady(world, "p0", true);

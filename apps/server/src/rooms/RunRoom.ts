@@ -453,7 +453,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       seed: runSeed,
       players,
       pauseWaves: process.env.DEV_NO_WAVES === "1",
-      // Story 3.9 dev hook (until 3.10): e.g. DEV_WAVE_MIX=walker,crawler mixes Crawlers into waves.
+      // Story 3.9 dev hook, kept by 3.10 as an override: DEV_WAVE_MIX=walker,crawler replaces the waves.json mix.
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
       scenario: this.scenario,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
@@ -504,26 +504,30 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       const e = events[i] as SimEvent;
       if (e.type === "wave.started") this.startWaveStats();
       else if (e.type === "wave.ended") this.logWaveStats(e.number);
-      else if (e.type === "team.wiped") this.endRun(controller, e.wave);
+      else if (e.type === "team.wiped") this.endRun(controller, e.wave, false);
+      else if (e.type === "run.held_out") this.endRun(controller, e.wave, true); // Story 3.10
     }
     this.tickErrors = 0;
   }
 
   /**
-   * Team wipe (Story 2.8 AC 4): the run ends for everyone. `team.wiped` was already forwarded this
-   * tick; the World's run state machine already went to "results" (Story 3.1 `endRun`), and the
-   * patch with phase "results" follows. The World stays as it was (no more ticks).
+   * Team wipe (Story 2.8 AC 4) or, Story 3.10, the last wave cleared (`heldOut`): the run ends for
+   * everyone. `team.wiped` / `run.held_out` was already forwarded this tick; the World's run state
+   * machine already went to "results" (Story 3.1 `endRun`), and the patch with phase "results"
+   * follows. The World stays as it was (no more ticks). `earned` includes the last wave's bonus
+   * (paid by the economy system in the same tick).
    */
-  private endRun(controller: RunController, wave: number): void {
+  private endRun(controller: RunController, wave: number, heldOut: boolean): void {
     this.state.phase = "results"; // syncState already copied it from the World; kept explicit
     this.state.resultWave = wave;
+    this.state.resultHeldOut = heldOut;
     const kills: Record<string, number> = {};
     const earned: Record<string, number> = {};
     for (const [playerId, p] of controller.world.players) {
       kills[playerId] = controller.kills(playerId);
       earned[playerId] = p.earned; // Story 3.2 (3.10 compares it with the GDD target)
     }
-    this.log.info({ runSeed: this.runSeed, wave, kills, earned }, "run_ended");
+    this.log.info({ runSeed: this.runSeed, wave, heldOut, kills, earned }, "run_ended");
   }
 
   /**

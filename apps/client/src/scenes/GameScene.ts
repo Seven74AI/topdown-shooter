@@ -260,7 +260,7 @@ export class GameScene extends Phaser.Scene {
     const cx = world.map.widthM / 2;
     const cy = world.map.heightM / 2;
     if (!session) addPlayer(world, localId, cx, cy); // online, players come from the server
-    // Story 3.9 (temporary until 3.10): ?wavemix=walker,crawler mixes Crawlers into solo waves.
+    // Story 3.9 dev hook, kept by 3.10 as an override: ?wavemix=walker,crawler replaces the waves.json mix (solo).
     if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
     this.gameOver = false;
     this.kills = 0;
@@ -504,12 +504,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Solo Results after the wipe (Story 2.8): wave reached, kills, Restart. Online, main.ts shows
-   * Results from the room state when `phase` becomes "results" (every player's kills).
+   * Solo Results after the wipe (Story 2.8) or, Story 3.10, after the last wave ("You held out!"):
+   * wave reached, kills, money earned, Restart. Online, main.ts shows Results from the room state
+   * when `phase` becomes "results" (every player's kills and earnings). `earned` is read from the
+   * World after the step, so it includes the last wave's bonus (paid later in the same tick).
    */
-  private showSoloResults(wave: number): void {
+  private showSoloResults(host: SceneHost, wave: number, heldOut: boolean): void {
     this.gameOver = true;
-    uiStore.set({ kind: "results", wave: Math.max(1, wave), rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills }], online: false });
+    const earned = host.world.players.get(host.localPlayerId)?.earned ?? 0;
+    uiStore.set({ kind: "results", wave: Math.max(1, wave), heldOut, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false });
   }
 
   /**
@@ -813,8 +816,8 @@ export class GameScene extends Phaser.Scene {
       const e = events[i];
       if (!e) continue;
       this.fxView?.handle(e);
-      if (e.type === "team.wiped" && !host.online && !this.gameOver) {
-        this.showSoloResults(e.wave);
+      if ((e.type === "team.wiped" || e.type === "run.held_out") && !host.online && !this.gameOver) {
+        this.showSoloResults(host, e.wave, e.type === "run.held_out");
       } else if (e.type === "zombie.killed" && e.killerId === localId && e.buildingId === undefined) {
         // Story 3.6: my turret's kills pay me (money.earned) but are not my kills.
         this.kills++;

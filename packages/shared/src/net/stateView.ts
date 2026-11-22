@@ -90,6 +90,8 @@ export interface RunStateView {
   readonly aliveCount: number;
   /** Story 2.8: the wave the team reached, set with phase "results" (0 otherwise). */
   readonly resultWave: number;
+  /** Story 3.10: set with phase "results" when the team cleared the run's last wave ("You held out!"); false for a wipe. */
+  readonly resultHeldOut: boolean;
   /** Story 3.1: ticks left in the build phase (0 outside a build). */
   readonly buildTicksLeft: number;
   /** Story 2.10: the test scenario this room runs (`TestScenario`), "" for a normal game. */
@@ -150,6 +152,7 @@ export const RUN_STATE_FIELDS = {
   remaining: true,
   aliveCount: true,
   resultWave: true,
+  resultHeldOut: true,
   buildTicksLeft: true,
   scenario: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings">, true>;

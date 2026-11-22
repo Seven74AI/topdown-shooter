@@ -146,6 +146,7 @@ export function resetRunFields(state: RunState): void {
   state.remaining = 0;
   state.aliveCount = 0;
   state.resultWave = 0;
+  state.resultHeldOut = false;
   state.buildTicksLeft = 0;
   state.buildings.clear(); // Story 3.4: the next run starts with none
   buildingSyncs.delete(state);

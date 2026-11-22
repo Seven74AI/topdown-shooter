@@ -160,7 +160,7 @@ describe("bite slow (Story 3.9)", () => {
   });
 });
 
-describe("dev wave mix (Story 3.9, until 3.10)", () => {
+describe("dev wave mix (Story 3.9; Story 3.10 keeps it as an override)", () => {
   it("parseWaveMix keeps known types only", () => {
     expect(parseWaveMix("walker, Crawler,ghost,", balance)).toEqual(["walker", "crawler"]);
     expect(parseWaveMix("ghost", balance)).toBeNull();
@@ -183,8 +183,8 @@ describe("dev wave mix (Story 3.9, until 3.10)", () => {
     };
     expect(count(null).crawler).toBe(0);
     const mixed = count(parseWaveMix("walker,crawler", balance));
-    expect(mixed.walker + mixed.crawler).toBe(40);
-    expect(mixed.crawler).toBe(20);
+    expect(mixed.walker + mixed.crawler).toBe(16); // Story 3.10: solo W1 = 40 × 0.4
+    expect(mixed.crawler).toBe(8);
   });
 
   it("is deterministic: the same seed with Crawlers gives identical snapshots (slow included)", () => {

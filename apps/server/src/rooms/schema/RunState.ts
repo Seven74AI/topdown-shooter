@@ -91,6 +91,8 @@ const runFields = {
   aliveCount: t.uint16().default(0),
   /** Story 2.8: the wave the team reached, set with phase "results". */
   resultWave: t.uint16().default(0),
+  /** Story 3.10: set with phase "results" when wave `runWaves` was cleared ("You held out!"). */
+  resultHeldOut: t.boolean().default(false),
   /** Story 3.1: ticks left in the build phase (0 outside a build). */
   buildTicksLeft: t.uint16().default(0),
   /** Story 2.10: the test scenario this room runs ("" = a normal game); the overlay tags it. */

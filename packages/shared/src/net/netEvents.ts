@@ -41,6 +41,7 @@ export const NET_EVENT_KIND = {
   BUILDING_DESTROYED: 22, // Story 3.5
   TURRET_FIRED: 23, // Story 3.6
   BUILDING_REPAIRED: 24, // Story 3.7
+  RUN_HELD_OUT: 25, // Story 3.10
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -136,6 +137,8 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.PLAYER_RETURNED, playerSlotOf(e.playerId), cm(e.x), cm(e.y)];
     case "team.wiped":
       return [K.TEAM_WIPED, e.wave];
+    case "run.held_out":
+      return [K.RUN_HELD_OUT, e.wave];
     case "wave.started":
       return [K.WAVE_STARTED, e.number, e.size];
     case "wave.ended":
@@ -258,6 +261,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "player.returned", playerId: pid(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
     case K.TEAM_WIPED:
       return { type: "team.wiped", wave: n(t, 1) };
+    case K.RUN_HELD_OUT:
+      return { type: "run.held_out", wave: n(t, 1) };
     case K.WAVE_STARTED:
       return { type: "wave.started", number: n(t, 1), size: n(t, 2) };
     case K.WAVE_ENDED:

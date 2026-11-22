@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { menuStep, playingScreen, uiStore, type MenuAction, type MenuState } from "./uiState";
+import { menuStep, playingScreen, resultsTitle, uiStore, type MenuAction, type MenuState } from "./uiState";
+
+describe("resultsTitle (Story 3.10)", () => {
+  it("is 'You held out!' after the last wave, else the wave reached", () => {
+    expect(resultsTitle({ wave: 5, heldOut: true })).toBe("You held out!");
+    expect(resultsTitle({ wave: 3, heldOut: false })).toBe("Wave reached 3");
+  });
+});
 
 describe("uiStore", () => {
   it("notifies subscribers and routes requests", () => {
     const seen: string[] = [];
     const off = uiStore.subscribe((s) => seen.push(s.kind));
-    uiStore.set({ kind: "results", wave: 3, rows: [], online: false });
-    expect(uiStore.get()).toEqual({ kind: "results", wave: 3, rows: [], online: false });
+    uiStore.set({ kind: "results", wave: 3, rows: [], online: false, heldOut: false });
+    expect(uiStore.get()).toEqual({ kind: "results", wave: 3, rows: [], online: false, heldOut: false });
     let restarted = 0;
     uiStore.handle("restart", () => restarted++);
     uiStore.request("restart");

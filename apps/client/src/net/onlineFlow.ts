@@ -22,12 +22,15 @@ export interface OnlineFlowDeps {
   };
 }
 
-/** Results from the room state: the wave reached (at least 1) and kills per player, by slot. */
-export function resultsFromState(state: RunStateView): { wave: number; rows: ResultRow[] } {
+/**
+ * Results from the room state: the wave reached (at least 1), whether the team held out (Story
+ * 3.10), and kills and money earned per player, by slot.
+ */
+export function resultsFromState(state: RunStateView): { wave: number; heldOut: boolean; rows: ResultRow[] } {
   const rows: ResultRow[] = [];
-  state.players.forEach((p) => rows.push({ slot: p.slot, name: p.name, kills: p.kills }));
+  state.players.forEach((p) => rows.push({ slot: p.slot, name: p.name, kills: p.kills, earned: p.earned }));
   rows.sort((a, b) => a.slot - b.slot);
-  return { wave: Math.max(1, state.resultWave), rows };
+  return { wave: Math.max(1, state.resultWave), heldOut: state.resultHeldOut === true, rows };
 }
 
 /**

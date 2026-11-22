@@ -11,6 +11,8 @@ import { killZombie } from "../zombies/zombiePool";
  *
  *   Lobby ─startBuild→ Build ─startWave→ Wave ─endWave→ Build ─startWave→ Wave … ─endRun→ Results
  *
+ * (Story 3.10: `endWave` of wave `waves.runWaves` goes to Results, "You held out!".)
+ *
  * Phases change only through the four named transitions below; a transition from a wrong phase is a
  * bug and throws. It lives in shared code so the server (`RunController`) and solo practice
  * (`LocalSimHost`) run the same one. The room owns what is around a run (the lobby, Results
@@ -26,10 +28,12 @@ export interface RunState {
   phase: RunPhase;
   /** Build phase: ticks until the wave starts (0 outside a build). */
   buildTicksLeft: number;
+  /** Story 3.10: the run ended because the team cleared wave `waves.runWaves` (false for a wipe). */
+  heldOut: boolean;
 }
 
 export function createRunState(): RunState {
-  return { phase: "lobby", buildTicksLeft: 0 };
+  return { phase: "lobby", buildTicksLeft: 0, heldOut: false };
 }
 
 function expectPhase(world: World, transition: string, ...from: RunPhase[]): void {
@@ -65,16 +69,27 @@ export function startWave(world: World): void {
   beginWave(world);
 }
 
-/** Wave → Build: the wave's counters cleared, `wave.ended`, then the next build phase starts (same tick). */
+/**
+ * Wave → Build: the wave's counters cleared, `wave.ended`, then the next build phase starts (same
+ * tick). Story 3.10: after wave `waves.runWaves` the run is won instead: `run.held_out { wave }`
+ * (after `wave.ended`, so the bonus is paid the same tick) and Wave → Results.
+ */
 export function endWave(world: World): void {
   expectPhase(world, "endWave", "wave");
   clearWave(world);
-  world.events.emit({ type: "wave.ended", number: world.waves.number });
+  const number = world.waves.number;
+  world.events.emit({ type: "wave.ended", number });
   // Story 3.2: the economy system pays the wave-clear bonus (10 × N, every player) from this event.
+  if (number >= world.balance.waves.runWaves) {
+    world.run.heldOut = true;
+    world.events.emit({ type: "run.held_out", wave: number });
+    endRun(world);
+    return;
+  }
   startBuild(world);
 }
 
-/** Build | Wave → Results: the run is over (team wipe); nothing changes phase after this. */
+/** Build | Wave → Results: the run is over (team wipe, or Story 3.10's last wave cleared); nothing changes phase after this. */
 export function endRun(world: World): void {
   expectPhase(world, "endRun", "build", "wave");
   world.run.phase = "results";

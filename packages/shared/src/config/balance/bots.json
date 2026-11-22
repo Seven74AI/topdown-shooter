@@ -3,5 +3,6 @@
   "regroupDistM": 4,
   "reviveSearchM": 6,
   "reviveStopM": 1,
-  "shoppingList": []
+  "shoppingList": ["smg", "wood_barricade", "wood_barricade", "auto_turret"],
+  "buildRadiiM": [2.5, 4]
 }

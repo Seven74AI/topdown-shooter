@@ -2,7 +2,7 @@ import type { Balance } from "../config/balance";
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import { spawnZombie } from "../zombies/zombiePool";
-import { ZOMBIE_STATE, type ZombieTypeId } from "../zombies/zombieTypes";
+import { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
 
 /**
  * Wave director state. Story 3.1: the run's phase (build / wave) lives in `world.run`
@@ -23,6 +23,12 @@ export interface WaveState {
   rushing: boolean;
   /** Dev cheat (Story 1.11, `DEV_NO_WAVES`, `?stress`): the run state machine stands still (no build countdown, no waves). */
   paused: boolean;
+  /**
+   * Story 3.10: this wave's zombies per type (index = `ZOMBIE_TYPES` index), from `waves.json › mix`,
+   * and how many of each have spawned. Preallocated; filled by `beginWave`.
+   */
+  readonly typeTarget: Uint16Array;
+  readonly typeSpawned: Uint16Array;
 }
 
 export function createWaveState(): WaveState {
@@ -34,13 +40,55 @@ export function createWaveState(): WaveState {
     spawnTimerTicks: 0,
     rushing: false,
     paused: false,
+    typeTarget: new Uint16Array(ZOMBIE_TYPES.length),
+    typeSpawned: new Uint16Array(ZOMBIE_TYPES.length),
   };
 }
 
-/** Zombies in wave `number` for `playerCount` players. Story 3.10 adds the ×0.6 / ×0.8 scaling here. */
+/**
+ * Zombies in wave `number` for `playerCount` players (FR28, FR31): `number × zombiesPerWave` at 4
+ * players, × `playerCountScale[players − 1]` (0.4 / 0.6 / 0.8 / 1.0), rounded, at least 1.
+ */
 export function waveSize(balance: Balance, number: number, playerCount: number): number {
-  void playerCount; // Epic 1 is solo: ×1.0
-  return number * balance.waves.zombiesPerWave;
+  const b = balance.waves;
+  const scales = b.playerCountScale;
+  const i = Math.min(scales.length, Math.max(1, playerCount)) - 1;
+  return Math.max(1, Math.round(number * b.zombiesPerWave * (scales[i] as number)));
+}
+
+/** The `waves.json › mix` entry of wave `number` (waves past the list use the last entry). */
+export function waveMixOf(balance: Balance, number: number): Readonly<Record<string, number>> {
+  const mix = balance.waves.mix;
+  return mix[Math.min(mix.length, Math.max(1, number)) - 1] as Readonly<Record<string, number>>;
+}
+
+/**
+ * Story 3.10 (FR29): exact zombies per type for a wave of `size` with `mix` weights, written into
+ * `out` (index = `ZOMBIE_TYPES` index): `floor(size × w / W)` each, then the leftover handed out one
+ * by one in `ZOMBIE_TYPES` order among the types with a positive weight.
+ */
+export function waveTypeCounts(mix: Readonly<Record<string, number>>, size: number, out: Uint16Array): void {
+  let total = 0;
+  for (let t = 0; t < ZOMBIE_TYPES.length; t++) total += mix[ZOMBIE_TYPES[t] as string] ?? 0;
+  let given = 0;
+  for (let t = 0; t < ZOMBIE_TYPES.length; t++) {
+    const w = mix[ZOMBIE_TYPES[t] as string] ?? 0;
+    const n = total > 0 ? Math.floor((size * w) / total) : 0;
+    out[t] = n;
+    given += n;
+  }
+  if (total === 0) {
+    out[0] = size; // unreachable with a valid balance (each mix has a positive weight): Walkers
+    return;
+  }
+  for (let left = size - given; left > 0; ) {
+    for (let t = 0; t < ZOMBIE_TYPES.length && left > 0; t++) {
+      if ((mix[ZOMBIE_TYPES[t] as string] ?? 0) > 0) {
+        out[t] = (out[t] as number) + 1;
+        left--;
+      }
+    }
+  }
 }
 
 /** Alive players this tick (reused array: no allocation per spawn). */
@@ -99,15 +147,29 @@ function pickSpawnPoint(world: World): number {
 }
 
 /**
- * Type of the next wave zombie: Walkers (Epic 1–2), or the dev wave mix (Story 3.9) cycled by the
- * spawn index in the wave (no RNG draw, no extra state). Story 3.10 replaces this with the wave's
- * composition from `waves.json`.
+ * Type index of the next wave zombie (Story 3.10): among the types with zombies left to spawn, the
+ * one furthest behind its share, i.e. the smallest `(spawned + 1) / target` (compared as integer
+ * cross products; ties go to the earlier type). So the types are spread evenly through the wave. No
+ * RNG draw. The dev wave mix (Story 3.9, `world.debug.waveMix`) overrides it: cycled by spawn index.
  */
-function waveZombieType(world: World): ZombieTypeId {
-  const mix = world.debug.waveMix;
-  if (!mix || mix.length === 0) return "walker";
-  const index = world.waves.size - world.waves.queued;
-  return mix[index % mix.length] as ZombieTypeId;
+function waveZombieType(world: World): number {
+  const w = world.waves;
+  const dev = world.debug.waveMix;
+  if (dev && dev.length > 0) return ZOMBIE_TYPES.indexOf(dev[(w.size - w.queued) % dev.length] as ZombieTypeId);
+  let best = -1;
+  for (let t = 0; t < ZOMBIE_TYPES.length; t++) {
+    const target = w.typeTarget[t] as number;
+    const done = w.typeSpawned[t] as number;
+    if (done >= target) continue;
+    if (best < 0) {
+      best = t;
+      continue;
+    }
+    const bt = w.typeTarget[best] as number;
+    const bd = w.typeSpawned[best] as number;
+    if ((done + 1) * bt < (bd + 1) * target) best = t;
+  }
+  return best < 0 ? 0 : best;
 }
 
 function spawnWaveZombie(world: World): boolean {
@@ -117,16 +179,23 @@ function spawnWaveZombie(world: World): boolean {
   const onHorizontalEdge = sp.y < 1 || sp.y > heightM - 1;
   const jitter = world.balance.waves.spawnJitterM;
   const j = world.rng.range(-jitter, jitter);
-  const type = waveZombieType(world);
+  const typeIndex = waveZombieType(world);
+  const type = ZOMBIE_TYPES[typeIndex] as ZombieTypeId;
   const stats = world.balance.zombies.types[type];
   if (!stats) throw new Error(`waves: no balance for ${type}`);
   const r = stats.radiusM;
   const x = Math.min(widthM - r, Math.max(r, onHorizontalEdge ? sp.x + j : sp.x));
   const y = Math.min(heightM - r, Math.max(r, onHorizontalEdge ? sp.y : sp.y + j));
-  return spawnZombie(world, type, x, y, true) >= 0;
+  if (spawnZombie(world, type, x, y, true) < 0) return false;
+  world.waves.typeSpawned[typeIndex] = (world.waves.typeSpawned[typeIndex] as number) + 1;
+  return true;
 }
 
-/** Players in the World (the wave size counts them; Story 3.10 scales by it). */
+/**
+ * Players in the World when the wave starts (Story 3.10 scales the size by it). A build phase always
+ * comes first and returns downed/out players standing, and players who left were removed, so this
+ * is "the players still in the run".
+ */
 let playerCount = 0;
 const countPlayer = (): void => {
   playerCount++;
@@ -142,6 +211,8 @@ export function beginWave(world: World): void {
   world.players.forEach(countPlayer);
   w.number += 1;
   w.size = waveSize(world.balance, w.number, Math.max(1, playerCount));
+  waveTypeCounts(waveMixOf(world.balance, w.number), w.size, w.typeTarget);
+  w.typeSpawned.fill(0);
   w.queued = w.size;
   w.remaining = w.size;
   w.rushing = false;
@@ -158,8 +229,8 @@ export function clearWave(world: World): void {
 }
 
 /**
- * Wave director (FR28, FR30), one tick of a wave in progress: wave N spawns N × 40 Walkers from
- * spawn points at the map edges, at most `maxAlive` alive at once, the rest queued. When 5 remain
+ * Wave director (FR28, FR30), one tick of a wave in progress: wave N spawns its `waveSize` zombies
+ * (types from `waves.json › mix`, Story 3.10) from spawn points at the map edges, at most `maxAlive` alive at once, the rest queued. When 5 remain
  * (alive + queued, queue empty) they rush the nearest player. Timers count ticks. Returns true when
  * the wave is cleared (the run state machine then calls `endWave`). With no one standing nothing
  * spawns (the wipe ends the run).

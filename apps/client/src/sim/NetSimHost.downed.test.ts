@@ -49,7 +49,7 @@ describe("NetSimHost build mirror (Story 3.1)", () => {
     const s1 = room.state.players.get("p1");
     if (s1) s1.buildReady = true;
     host.update(1 / 60);
-    expect(host.world.run).toEqual({ phase: "build", buildTicksLeft: 437 });
+    expect(host.world.run).toEqual({ phase: "build", buildTicksLeft: 437, heldOut: false });
     expect(host.world.players.get("p1")?.buildReady).toBe(true);
     expect(host.world.players.get("p0")?.buildReady).toBe(false);
     host.setBuildReady(true);
@@ -58,6 +58,6 @@ describe("NetSimHost build mirror (Story 3.1)", () => {
     room.state.phase = "wave";
     room.state.buildTicksLeft = 0;
     host.update(1 / 60);
-    expect(host.world.run).toEqual({ phase: "wave", buildTicksLeft: 0 });
+    expect(host.world.run).toEqual({ phase: "wave", buildTicksLeft: 0, heldOut: false });
   });
 });
