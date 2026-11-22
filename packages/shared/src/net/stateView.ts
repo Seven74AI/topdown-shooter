@@ -27,6 +27,10 @@ export interface PlayerStateView {
   readonly reviveProgress: number;
   /** Zombies this player killed this run (Results screen). */
   readonly kills: number;
+  /** Story 3.2: personal wallet (server truth; the client never predicts it). */
+  readonly wallet: number;
+  /** Story 3.2: total earned this run (never reduced by spending). */
+  readonly earned: number;
   /** `seq` of the last input the server applied for this player (Story 2.6 replays newer ones). */
   readonly ackSeq: number;
   /** Active weapon slot, 0 or 1. */

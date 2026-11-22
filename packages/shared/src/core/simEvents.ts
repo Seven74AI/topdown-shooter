@@ -1,4 +1,11 @@
 /**
+ * Why money was earned (Story 3.2). Append only: the index goes on the wire (`net/netEvents.ts`).
+ * Story 3.6 appends "building".
+ */
+export const MONEY_REASONS = ["kill", "assist", "revive", "wave"] as const;
+export type MoneyReason = (typeof MONEY_REASONS)[number];
+
+/**
  * Every event the simulation can emit (architecture › Event System).
  * Naming: domain.past_tense in snake case. Each story adds its own variants.
  */
@@ -31,6 +38,8 @@ export type SimEvent =
   | { type: "wave.started"; number: number; size: number }
   | { type: "wave.ended"; number: number }
   | { type: "wave.rush_started"; count: number }
+  /** Story 3.2: the economy system paid `amount` into `playerId`'s wallet. */
+  | { type: "money.earned"; playerId: string; amount: number; reason: MoneyReason }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

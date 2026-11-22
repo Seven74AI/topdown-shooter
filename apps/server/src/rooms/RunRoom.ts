@@ -347,8 +347,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.state.phase = "results";
     this.state.resultWave = wave;
     const kills: Record<string, number> = {};
-    for (const playerId of controller.world.players.keys()) kills[playerId] = controller.kills(playerId);
-    this.log.info({ runSeed: this.runSeed, wave, kills }, "run_ended");
+    const earned: Record<string, number> = {};
+    for (const [playerId, p] of controller.world.players) {
+      kills[playerId] = controller.kills(playerId);
+      earned[playerId] = p.earned; // Story 3.2 (3.10 compares it with the GDD target)
+    }
+    this.log.info({ runSeed: this.runSeed, wave, kills, earned }, "run_ended");
   }
 
   /**

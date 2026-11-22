@@ -1,6 +1,6 @@
 import type { Balance } from "../config/balance";
 import { weaponIds, type WeaponId } from "../combat/weapons";
-import type { SimEvent } from "../core/simEvents";
+import { MONEY_REASONS, type SimEvent } from "../core/simEvents";
 import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
 
@@ -34,6 +34,7 @@ export const NET_EVENT_KIND = {
   PLAYER_OUT: 16,
   PLAYER_RETURNED: 17,
   TEAM_WIPED: 18,
+  MONEY_EARNED: 19,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -132,6 +133,9 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.WAVE_ENDED, e.number];
     case "wave.rush_started":
       return [K.WAVE_RUSH_STARTED, e.count];
+    case "money.earned":
+      // Story 3.2: the HUD's "+N" (the wallet itself comes from schema).
+      return [K.MONEY_EARNED, playerSlotOf(e.playerId), e.amount, MONEY_REASONS.indexOf(e.reason)];
     case "test.ping":
       return null;
   }
@@ -230,6 +234,10 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "wave.ended", number: n(t, 1) };
     case K.WAVE_RUSH_STARTED:
       return { type: "wave.rush_started", count: n(t, 1) };
+    case K.MONEY_EARNED: {
+      const reason = MONEY_REASONS[n(t, 3)];
+      return reason ? { type: "money.earned", playerId: pid(t, 1), amount: n(t, 2), reason } : null;
+    }
     default:
       return null;
   }

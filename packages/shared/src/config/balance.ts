@@ -6,6 +6,7 @@ import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
 import player from "./balance/player.json" with { type: "json" };
 import controls from "./balance/controls.json" with { type: "json" };
+import economy from "./balance/economy.json" with { type: "json" };
 
 type Schemas = typeof balanceFileSchemas;
 
@@ -27,7 +28,7 @@ export class BalanceError extends Error {
   }
 }
 
-const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls };
+const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy };
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
