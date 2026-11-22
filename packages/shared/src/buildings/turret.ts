@@ -11,9 +11,10 @@ import { buildingStats, buildingTypeIds, type Building } from "./buildings";
 /**
  * Story 3.6: auto-turrets (GDD › Buildings and Defenses: nearest zombie within 8 m, 3 damage × 5/s).
  *
- * Runs inside the combat system (`updateCombat`), right after the zombie grid is rebuilt and the
- * players' weapons fired, before the projectiles fly, so a turret aims at this tick's positions and
- * its shot moves this tick, like a player's. Only during a wave (`run.phase === "wave"`); otherwise
+ * Runs in the `buildings` slot (`updateBuildings`, after Story 3.5's pathing), before combat, so its
+ * shots fly in this tick's combat like a player's. It reads the zombies' current positions; the
+ * spatial grid there is last tick's (rebuilt at the start of combat), so the query is widened by
+ * `GRID_STALE_MARGIN_M` and the range is checked exactly on the current positions. Only during a wave (`run.phase === "wave"`); otherwise
  * the cooldown idles. A building type shoots when it has a `turret` block in `buildings.json`.
  *
  * Each ready turret takes the nearest alive zombie whose centre is within `rangeM` of the turret's
@@ -25,6 +26,12 @@ import { buildingStats, buildingTypeIds, type Building } from "./buildings";
  */
 
 const MIN_AIM = 1e-6;
+/**
+ * The grid's cell lists are one tick old here: a zombie moves far less than this per tick (Walkers
+ * 1.2 m/s × crowd factor 2 = 0.12 m), so widening the query by 1 m finds every zombie whose
+ * current centre is in range.
+ */
+const GRID_STALE_MARGIN_M = 1;
 
 const spawn: ProjectileSpawn = {
   x: 0,
@@ -57,7 +64,8 @@ export const buildingCentreY = (b: Readonly<Building>): number => (b.minY + b.ma
 export function nearestZombieInRange(world: Readonly<World>, x: number, y: number, rangeM: number): number {
   const z = world.zombies;
   if (z.aliveCount === 0) return -1;
-  const n = queryRadius(world.zombieGrid, z.x, z.y, x, y, rangeM, candidates);
+  const n = queryRadius(world.zombieGrid, z.x, z.y, x, y, rangeM + GRID_STALE_MARGIN_M, candidates);
+  const r2 = rangeM * rangeM;
   let best = -1;
   let bestD2 = Infinity;
   for (let k = 0; k < n; k++) {
@@ -66,6 +74,7 @@ export function nearestZombieInRange(world: Readonly<World>, x: number, y: numbe
     const dx = (z.x[id] as number) - x;
     const dy = (z.y[id] as number) - y;
     const d2 = dx * dx + dy * dy;
+    if (d2 > r2) continue;
     if (d2 < bestD2 || (d2 === bestD2 && id < best)) {
       best = id;
       bestD2 = d2;

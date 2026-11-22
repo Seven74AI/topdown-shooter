@@ -280,3 +280,21 @@ export function placeBuilding(world: World, ownerId: string, req: PlaceRequest):
   world.events.emit({ type: "building.placed", buildingId: b.id, buildingType: b.type, ownerId, gx: b.gx, gy: b.gy, rot: b.rot });
   return ok(b);
 }
+
+/**
+ * Story 3.5: `amount` damage to a building (a zombie hit; Story 3.6's turrets are hit the same way).
+ * HP lives only in `building.hp`, always a whole number (Story 3.7 repairs it to `maxHp`; the
+ * schema sends it on change).
+ * At 0 HP the building is removed (`removeBuilding`: version++, so the flow field and every copy
+ * follow) and `building.destroyed` is emitted. Returns true when it was destroyed.
+ */
+export function damageBuilding(world: World, b: Building, amount: number): boolean {
+  if (amount <= 0 || b.hp <= 0) return false;
+  // Whole HP only (Story 3.7's repair check is `hp < maxHp` on the server and the client shows the
+  // integer): a fractional hit (a dev damage scale) rounds, and never to 0.
+  b.hp = Math.max(0, b.hp - Math.max(1, Math.round(amount)));
+  if (b.hp > 0) return false;
+  if (!removeBuilding(world, b.id)) return false;
+  world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot });
+  return true;
+}

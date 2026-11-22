@@ -10,6 +10,7 @@ import { endWave, startBuild, startWave } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import {
   addBuildingAt,
+  damageBuilding,
   buildingTypeIds,
   cornerForCentre,
   footprint,
@@ -41,7 +42,19 @@ describe("buildings.json (Story 3.4)", () => {
     expect(balance.buildings.maxPerPlayer).toBe(6);
     expect(balance.buildings.spawnClearM).toBe(2);
     expect(balance.buildings.types[WOOD]).toEqual({ name: "Wood barricade", price: 40, widthM: 2, depthM: 0.5, hp: 200 });
-    expect(buildingTypeIds(balance)).toEqual([WOOD]);
+    expect(buildingTypeIds(balance)).toEqual([WOOD, "auto_turret"]);
+  });
+
+  it("Story 3.6: has the Auto-turret: 250, 1 × 1 m, 300 HP, 8 m, 5/s, 3 damage; the barricade has no turret block", () => {
+    const t = balance.buildings.types["auto_turret"];
+    expect(t).toMatchObject({ name: "Auto-turret", price: 250, widthM: 1, depthM: 1, hp: 300 });
+    expect(t?.turret).toMatchObject({ rangeM: 8, rateHz: 5, damage: 3 });
+    expect(balance.buildings.types[WOOD]?.turret).toBeUndefined();
+  });
+
+  it("Story 3.6: rejects a bad turret value with the file and key", () => {
+    const raw = withOverrides(bundledBalanceFiles(), [["buildings", "types.auto_turret.turret.rateHz", 0]]);
+    expect(() => loadBalance(raw)).toThrow(/buildings\.json: types\.auto_turret\.turret\.rateHz/);
   });
 
   it("rejects a bad value with the file and key", () => {
@@ -225,5 +238,28 @@ describe("building list", () => {
       }
     }
     expect(snapshotWorld(a)).toEqual(snapshotWorld(b));
+  });
+});
+
+describe("damageBuilding (Story 3.5)", () => {
+  it("keeps HP whole (fractional hits round, never to 0), destroys at 0 with building.destroyed", () => {
+    const w = createWorld({ balance: loadBalance(), seed: 1, systems: { waves: () => {} } });
+    const events: string[] = [];
+    w.events.subscribe((e) => events.push(e.type));
+    const b = addBuildingAt(w, { id: 1, type: "wood_barricade", ownerId: "p0", gx: 10, gy: 10, rot: 0, hp: 200 });
+    if (!b) throw new Error("no building");
+    expect(damageBuilding(w, b, 3.6)).toBe(false);
+    expect(b.hp).toBe(196);
+    damageBuilding(w, b, 0.2);
+    expect(b.hp).toBe(195);
+    expect(damageBuilding(w, b, 0)).toBe(false);
+    expect(b.hp).toBe(195);
+    const v = w.buildings.version;
+    expect(damageBuilding(w, b, 1000)).toBe(true);
+    expect(b.hp).toBe(0);
+    expect(w.buildings.list).toHaveLength(0);
+    expect(w.buildings.version).toBe(v + 1);
+    w.events.flush();
+    expect(events).toEqual(["building.destroyed"]);
   });
 });

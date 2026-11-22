@@ -7,7 +7,10 @@ import { downPlayer } from "../player/downed";
 import { slowPlayer } from "../player/slow";
 import type { ZombieTypeStats } from "../config/balanceSchema";
 import { zombieTypeOf } from "./zombiePool";
-import { pushOutOfBuildings, pushed } from "../buildings/collision";
+import { distanceToBox, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
+import { buildingById, damageBuilding } from "../buildings/buildings";
+import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
+import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell } from "./flowField";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
 const MAX_NEIGHBOURS = 64;
@@ -20,6 +23,15 @@ const CONTACT_EPS_M = 0.02;
 const OVERLAP_QUERY_MARGIN_M = 0.25;
 /** Overlap-resolution passes per tick (more = firmer crowd, more cost). */
 const OVERLAP_ITERATIONS = 2;
+/**
+ * Story 3.5: the line-of-sight test grows buildings by the zombie's radius plus this, so a zombie
+ * resting against a wall (exactly one radius away after the push-out) counts as blocked by it.
+ */
+const LOS_MARGIN_M = 0.05;
+/** Story 3.5: per zombie slot, the building its next field cell belongs to (0: none); written in pass 1, read in pass 4. */
+const targetBuilding = new Int32Array(ZOMBIE_POOL_CAPACITY);
+/** `steerByField` result (synchronous, one record). */
+const steer = { x: 0, y: 0 };
 /** Alive players this tick, rebuilt at the top of the system (no iterator allocation per zombie). */
 const alivePlayers: PlayerState[] = [];
 
@@ -59,10 +71,47 @@ function damagePlayer(world: World, p: PlayerState, stats: Readonly<ZombieTypeSt
 }
 
 /**
- * Walkers walk straight at the nearest alive player (flow fields arrive in Story 3.5), push each
- * other apart (separation on a 2 m spatial grid), stop when touching a player and hit once per
- * attack interval. Velocities are computed for every zombie first, then applied, so the result
- * doesn't depend on iteration order.
+ * Story 3.5: where a zombie at (x, y) whose straight line is blocked steers: the centre of the cell
+ * `lookaheadCells` steps down the flow field, stopping before a building cell. When the very next
+ * cell belongs to a building, that building becomes the zombie's target (it attacks it on contact)
+ * and the zombie steers at the nearest point of its box (straight at the face: never along it into
+ * the gap between two buildings). False when there is no field there yet (then it walks straight).
+ */
+function steerByField(world: World, x: number, y: number, id: number): boolean {
+  const { nav, chase } = world.pathing;
+  if (chase.sourceTick < 0) return false;
+  const first = flowNextCell(chase, nav, flowCellAt(nav, x, y));
+  if (first < 0) return false;
+  const bid = nav.buildingAt[first] as number;
+  let last = first;
+  if (bid !== 0) {
+    const b = buildingById(world, bid);
+    if (b) {
+      targetBuilding[id] = bid;
+      steer.x = Math.min(b.maxX, Math.max(b.minX, x));
+      steer.y = Math.min(b.maxY, Math.max(b.minY, y));
+      return true;
+    }
+  } else {
+    const look = world.balance.zombies.pathing.lookaheadCells;
+    for (let k = 1; k < look; k++) {
+      const next = flowNextCell(chase, nav, last);
+      if (next < 0 || nav.buildingAt[next] !== 0) break;
+      last = next;
+    }
+  }
+  steer.x = flowCellCenterX(nav, last);
+  steer.y = flowCellCenterY(nav, last);
+  return true;
+}
+
+/**
+ * Zombies walk straight at the nearest alive player while no building is in the way, and follow
+ * the flow field (Story 3.5, `flowField.ts`) when one is; they push each other apart (separation on
+ * a 2 m spatial grid), stop when touching a player and hit once per attack interval. A zombie whose
+ * next field cell is a building and who touches it hits the building instead (same damage and
+ * interval). Velocities are computed for every zombie first, then applied, so the result doesn't
+ * depend on iteration order.
  */
 export const updateZombies: SystemFn = (world, dtS) => {
   const pool = world.zombies;
@@ -78,6 +127,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
   }
   rebuildGrid(world.zombieGrid, ids, n, pool.x, pool.y);
   collectAlivePlayers(world);
+  const hasBuildings = world.buildings.list.length > 0;
 
   // Pass 1: desired velocity + separation, from positions at the start of the tick.
   for (let i = 0; i < n; i++) {
@@ -89,14 +139,23 @@ export const updateZombies: SystemFn = (world, dtS) => {
     let vx = 0;
     let vy = 0;
 
+    targetBuilding[id] = 0;
     const target = nearestAlivePlayer(x, y);
     if (target) {
-      const dx = target.x - x;
-      const dy = target.y - y;
-      const d = Math.sqrt(dx * dx + dy * dy);
+      let dx = target.x - x;
+      let dy = target.y - y;
+      let d = Math.sqrt(dx * dx + dy * dy);
       if (d > stats.radiusM + target.radiusM && d > COINCIDENT_M) {
-        vx = (dx / d) * stats.speedMps;
-        vy = (dy / d) * stats.speedMps;
+        // Story 3.5: a building in the way → follow the flow field (straight again once the line is clear).
+        if (hasBuildings && segmentHitsBuildings(world, x, y, target.x, target.y, stats.radiusM + LOS_MARGIN_M) && steerByField(world, x, y, id)) {
+          dx = steer.x - x;
+          dy = steer.y - y;
+          d = Math.sqrt(dx * dx + dy * dy);
+        }
+        if (d > COINCIDENT_M) {
+          vx = (dx / d) * stats.speedMps;
+          vy = (dy / d) * stats.speedMps;
+        }
       }
     }
 
@@ -145,8 +204,8 @@ export const updateZombies: SystemFn = (world, dtS) => {
   // Pass 3: zombies never stay overlapped (hard rule on top of the soft separation).
   for (let it = 0; it < OVERLAP_ITERATIONS; it++) resolveOverlaps(world);
 
-  // Pass 4: keep out of players (last, so the crowd wraps around them) and attack; then out of buildings.
-  const hasBuildings = world.buildings.list.length > 0;
+  // Pass 4: keep out of players (last, so the crowd wraps around them) and attack; then out of
+  // buildings, and hit the target building when touching it (Story 3.5).
   for (let i = 0; i < n; i++) {
     const id = ids[i] as number;
     const stats = world.balance.zombies.types[zombieTypeOf(pool, id)];
@@ -183,13 +242,25 @@ export const updateZombies: SystemFn = (world, dtS) => {
       // slot narrower than their body, and a zombie shoved into a box by a player leaves on the side
       // it came from (its position at the start of the tick, outside every box; review H1, M1).
       pushOutOfBuildings(world, x, y, rz, pool.prevX[id] as number, pool.prevY[id] as number);
-      pool.x[id] = pushed.x;
-      pool.y[id] = pushed.y;
-      continue;
+      x = pushed.x;
+      y = pushed.y;
+    } else {
+      x = Math.min(widthM - rz, Math.max(rz, x));
+      y = Math.min(heightM - rz, Math.max(rz, y));
     }
-    // The push-out can cross a wall: clamp again (a little overlap at walls beats leaving the map).
-    pool.x[id] = Math.min(widthM - rz, Math.max(rz, x));
-    pool.y[id] = Math.min(heightM - rz, Math.max(rz, y));
+    pool.x[id] = x;
+    pool.y[id] = y;
+
+    // Story 3.5: blocked by a building and touching it → hit it (a player in contact went first:
+    // that hit set the cooldown). At 0 HP `damageBuilding` removes it and emits building.destroyed.
+    const bid = targetBuilding[id] as number;
+    if (bid !== 0 && pool.attackCooldownTicks[id] === 0) {
+      const b = buildingById(world, bid);
+      if (b && distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) <= rz + CONTACT_EPS_M) {
+        pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
+        damageBuilding(world, b, stats.damage);
+      }
+    }
   }
 };
 

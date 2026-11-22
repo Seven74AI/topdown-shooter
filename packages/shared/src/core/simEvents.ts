@@ -53,6 +53,8 @@ export type SimEvent =
   | { type: "money.earned"; playerId: string; amount: number; reason: MoneyReason }
   /** Story 3.4: `ownerId` placed a building (min corner on lattice point gx, gy in 0.5 m units; rotation 0–3). */
   | { type: "building.placed"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number }
+  /** Story 3.5: zombies broke a building (it is already removed; position for the debris FX). */
+  | { type: "building.destroyed"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number }
   /** Story 3.7: `playerId` repaired building `buildingId` to full HP for `cost`; (x, y) = its footprint's centre in metres. */
   | { type: "building.repaired"; buildingId: number; playerId: string; cost: number; x: number; y: number }
   /**

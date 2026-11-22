@@ -8,6 +8,10 @@ import {
   TICK_DT_S,
   addPlayer,
   assistAim,
+  buildingById,
+  buildingCentreX,
+  buildingCentreY,
+  turretStats,
   createRng,
   weaponIds,
   createSlot,
@@ -377,8 +381,26 @@ export class NetSimHost implements SimHost {
     for (let i = from; i < out.length; i++) {
       const e = out[i] as SimEvent;
       if (e.type === "weapon.fired") this.cosmetics.spawn(e.playerId, e.weapon, e.x, e.y, e.dirX, e.dirY);
+      else if (e.type === "turret.fired") this.turretShot(e);
     }
     return out;
+  }
+
+  /**
+   * Story 3.6: a turret's shot at the render tick. Only the id and heading came over the wire: the
+   * muzzle is put at the mirror building (centre + aim × `muzzleM`), the building's aim is turned
+   * (the view draws it; never synced per tick) and a cosmetic projectile flies. A building the
+   * mirror doesn't have (removed meanwhile) leaves x/y NaN and draws nothing.
+   */
+  private turretShot(e: Extract<SimEvent, { type: "turret.fired" }>): void {
+    const b = buildingById(this.world, e.buildingId);
+    const t = b ? turretStats(this.world.balance, b.type) : undefined;
+    if (!b || !t) return;
+    b.aimX = e.dirX;
+    b.aimY = e.dirY;
+    e.x = buildingCentreX(b) + e.dirX * t.muzzleM;
+    e.y = buildingCentreY(b) + e.dirY * t.muzzleM;
+    this.cosmetics.spawnShot(b.id, b.type, e.x, e.y, e.dirX, e.dirY, t.projectileSpeedMps, t.projectileRangeM);
   }
 
   /** Stops listening and leaves the room (the online run ends with the scene). */

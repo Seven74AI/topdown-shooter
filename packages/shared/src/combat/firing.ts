@@ -24,7 +24,6 @@ import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
 import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
 import { buildingTypeIds } from "../buildings/buildings";
-import { updateTurrets } from "../buildings/turret";
 
 const MIN_AIM = 1e-6;
 
@@ -256,8 +255,6 @@ export const updateCombat: SystemFn = (world, dtS) => {
     // fire clock, which only advances per sent input.
     if (!p.weaponsPaused) updatePlayerWeapon(world, p, dtS, world.inputs.get(p.id));
   });
-  // Story 3.6: turrets aim with this tick's grid and their shots fly this tick, like players'.
-  updateTurrets(world, dtS);
   updateProjectiles(world, dtS);
 };
 

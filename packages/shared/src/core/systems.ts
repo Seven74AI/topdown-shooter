@@ -4,6 +4,7 @@ import { updateZombies } from "../zombies/zombieAi";
 import { updateCombat } from "../combat/firing";
 import { updateRun } from "../run/runStateMachine";
 import { updateEconomy } from "../economy/economy";
+import { updateBuildings } from "../buildings/buildingSystem";
 
 /** Fixed system order per tick (architecture › Communication Patterns). Never reorder. */
 export const SYSTEM_ORDER = [
@@ -52,8 +53,9 @@ export const DEFAULT_SYSTEMS: Systems = {
   input: applyInputs,
   player: updatePlayers,
   // Story 3.4: placement happens between ticks (`placeBuilding`) and collision inside the player and
-  // zombie systems, so this slot stays empty; Story 3.5's flow field and building attacks go here.
-  buildings: noop,
+  // zombie systems. Story 3.5: the flow field advances here (zombies attack buildings in their own
+  // system, after the push-out); Story 3.6 adds turrets.
+  buildings: updateBuildings,
   combat: updateCombat,
   zombies: updateZombies,
   boss: noop,

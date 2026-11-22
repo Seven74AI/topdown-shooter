@@ -6,7 +6,7 @@
  * them into the predictor before reconciling, as `NetSimHost.takeSnapshot` does.
  */
 import { describe, expect, it } from "vitest";
-import { NEUTRAL_INPUT, TICK_DT_S, createRng, loadBalance, PLACEHOLDER_MAP, type BuildingStateView, type PlayerInput } from "@topdown/shared";
+import { NEUTRAL_INPUT, TICK_DT_S, createRng, damageBuilding, loadBalance, PLACEHOLDER_MAP, type BuildingStateView, type PlayerInput } from "@topdown/shared";
 import { RunController } from "../../apps/server/src/run/RunController";
 import { Predictor } from "../../apps/client/src/net/prediction";
 import { PREDICTION_IGNORE_M } from "../../apps/client/src/net/netConfig";
@@ -62,6 +62,8 @@ interface Options {
   seconds: number;
   /** Control run: the client never copies the buildings into the predictor. */
   ignoreBuildings?: boolean;
+  /** Story 3.5: at these times the server breaks the building at (gx, gy) (as a zombie's last hit would). */
+  breaks?: { atMs: number; gx: number; gy: number }[];
 }
 
 function buildingsView(ctrl: RunController): Map<string, BuildingStateView> {
@@ -88,11 +90,18 @@ function simulate(o: Options) {
   let accMs = 0;
   let seq = 0;
   let placed = 0;
+  let broken = 0;
+  const breaks = [...(o.breaks ?? [])];
   let minWallGapM = Infinity;
   for (let t = 0; t <= o.seconds * 1000; t++) {
     while (pending.length > 0 && (pending[0] as Place).atMs <= t) {
       const p = pending.shift() as Place;
       if (ctrl.placeBuilding(ID, { type: WOOD, gx: p.gx, gy: p.gy, rot: p.rot }).ok) placed++;
+    }
+    while (breaks.length > 0 && (breaks[0] as { atMs: number }).atMs <= t) {
+      const k = breaks.shift() as { gx: number; gy: number };
+      const b = ctrl.world.buildings.list.find((x) => x.gx === k.gx && x.gy === k.gy);
+      if (b && damageBuilding(ctrl.world, b, b.hp)) broken++;
     }
     if (t >= nextServerMs) {
       nextServerMs += TICK_MS;
@@ -139,6 +148,7 @@ function simulate(o: Options) {
     maxErrorM: errors.reduce((m, e) => Math.max(m, e), 0),
     visibleErrors: errors.filter((e) => e >= PREDICTION_IGNORE_M).length,
     placed,
+    broken,
     minWallGapM,
     finalErrorM: Math.hypot(predictor.x - (sp?.x ?? 0), predictor.y - (sp?.y ?? 0)),
     predictorBuildings: predictor.buildingCount,
@@ -227,6 +237,29 @@ describe("netsim: walking into barricades (Story 3.4, brief line 4)", () => {
     expect(r.minWallGapM).toBeLessThan(1e-6);
     expect(r.snaps).toBe(0);
     expect(r.maxErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+  });
+
+  it("Story 3.5: the barricade I press on breaks: it leaves my prediction with the same patch, I walk on through: 0 snaps, one smoothed correction", () => {
+    for (const seed of [36, 37]) {
+      const r = simulate({
+        seed,
+        oneWayMs: 75,
+        jitterHalfMs: 10,
+        places: WALL,
+        breaks: [{ atMs: 2500, gx: 42, gy: 21 }],
+        path: (t) => (t < 5000 ? { x: 0, y: -1 } : { x: 0, y: 0 }),
+        seconds: 6,
+      });
+      report(`broken under me 75±10 ms seed ${seed}`, r);
+      expect(r.broken).toBe(1);
+      expect(r.predictorBuildings).toBe(2);
+      expect(r.snaps).toBe(0);
+      // The break can't be predicted: the inputs I sent during the RTT moved me on at the server while
+      // my prediction still stood at the wall. One smoothed correction of at most speed × (RTT + jitter + a tick).
+      expect(r.corrections).toBeLessThanOrEqual(1);
+      expect(r.maxErrorM).toBeLessThan(balance.player.speedMps * (0.15 + 0.02 + TICK_DT_S));
+      expect(r.finalErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+    }
   });
 
   it("control: a predictor without the buildings walks into the wall and corrects on almost every snapshot", () => {

@@ -35,8 +35,14 @@ const EVENTS: SimEvent[] = [
   { type: "money.earned", playerId: "p2", amount: 30, reason: "wave" },
   { type: "money.earned", playerId: "p0", amount: 1, reason: "assist" },
   { type: "building.placed", buildingId: 3, buildingType: "wood_barricade", ownerId: "p1", gx: 47, gy: 31, rot: 3 },
+  { type: "building.destroyed", buildingId: 4, buildingType: "wood_barricade", ownerId: "p2", gx: 12, gy: 30, rot: 1 },
   { type: "building.repaired", buildingId: 3, playerId: "p2", cost: 20, x: 47.25, y: 31.5 },
+  // Story 3.6: a turret's kill (the building type is no weapon: decodes to "").
+  { type: "zombie.killed", zombieId: 7, killerId: "p1", x: 3, y: 4, weapon: "", buildingId: 12 },
 ];
+
+/** Story 3.6: a turret shot (its muzzle is not sent). */
+const TURRET_SHOT: SimEvent = { type: "turret.fired", buildingId: 12, x: 10.5, y: 4.5, ...dir(135) };
 
 /** Bytes msgpack uses for an integer (fixint, int8/16/32, uint8/16/32). */
 function msgpackIntBytes(v: number): number {
@@ -66,6 +72,7 @@ describe("netEvents", () => {
       kinds.add((t as NetEvent)[0] as number);
       expectSameEvent(decodeNetEvent(t as NetEvent, dec), e);
     }
+    kinds.add((encodeNetEvent(TURRET_SHOT, enc) as NetEvent)[0] as number); // own test below (muzzle not on the wire)
     expect([...kinds].sort((a, b) => a - b)).toEqual(Object.values(NET_EVENT_KIND).sort((a, b) => a - b));
   });
 
@@ -116,6 +123,29 @@ describe("netEvents", () => {
     const t = encodeNetEvent({ type: "weapon.fired", playerId: "p3", weapon: "hunting_rifle", x: 47.99, y: 31.99, ...dir(200) }, enc) as NetEvent;
     expect(t.length).toBe(6);
     expect(msgpackTupleBytes(t)).toBeLessThanOrEqual(16);
+  });
+
+  it("Story 3.6: turret.fired is [23, buildingId, heading] (≤ 5 B); the muzzle decodes as NaN for the client to fill", () => {
+    const t = encodeNetEvent(TURRET_SHOT, enc) as NetEvent;
+    expect(t).toEqual([NET_EVENT_KIND.TURRET_FIRED, 12, 96]);
+    expect(msgpackTupleBytes(t)).toBeLessThanOrEqual(5);
+    const e = decodeNetEvent(t, dec);
+    expect(e?.type).toBe("turret.fired");
+    if (e?.type !== "turret.fired") return;
+    expect(e.buildingId).toBe(12);
+    expect(e.dirX).toBeCloseTo(-Math.SQRT1_2, 2);
+    expect(e.dirY).toBeCloseTo(Math.SQRT1_2, 2);
+    expect(Number.isNaN(e.x) && Number.isNaN(e.y)).toBe(true);
+  });
+
+  it("Story 3.6: only a turret's zombie.killed carries index 6 (player kills stay 6 fields)", () => {
+    const player = encodeNetEvent({ type: "zombie.killed", zombieId: 1, killerId: "p0", x: 1, y: 1, weapon: "pistol" }, enc) as NetEvent;
+    expect(player.length).toBe(6);
+    expect(decodeNetEvent(player, dec)).not.toHaveProperty("buildingId");
+    const turret = encodeNetEvent({ type: "zombie.killed", zombieId: 1, killerId: "p0", x: 1, y: 1, weapon: "auto_turret", buildingId: 5 }, enc) as NetEvent;
+    expect(turret.length).toBe(7);
+    expect(turret[6]).toBe(5);
+    expect(decodeNetEvent(turret, dec)).toMatchObject({ killerId: "p0", buildingId: 5 });
   });
 
   it("maps player ids to slots and unknown kinds to null", () => {

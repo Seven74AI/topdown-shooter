@@ -38,6 +38,7 @@ import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
+import { TurretView } from "../render/TurretView";
 import { Placement, placeRefusalText } from "./placement";
 import { RepairPanel, repairRefusalText } from "./repairPanel";
 import { BuildingSelectView } from "../render/BuildingSelectView";
@@ -166,6 +167,8 @@ export class GameScene extends Phaser.Scene {
   private downedView: DownedView | null = null;
   /** Story 3.4: placed buildings and the placement preview. */
   private buildingView: BuildingView | null = null;
+  /** Story 3.6: turret plates and heads (aim from the World / `turret.fired`). */
+  private turretView: TurretView | null = null;
   /** Story 3.4: placement mode on this device (sticks off while active). */
   private readonly placement = new Placement();
   /** "Wood barricade · $40" for the type being placed, and the refusal texts (built once each). */
@@ -308,8 +311,10 @@ export class GameScene extends Phaser.Scene {
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
     this.fxView = new FxView(this, this.zombieView, localId);
+    this.fxView.balance = balance; // Story 3.5: building footprints for the debris
     this.downedView = new DownedView(this, world);
     this.buildingView = new BuildingView(this);
+    this.turretView = new TurretView(this);
     this.selectView = new BuildingSelectView(this);
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
@@ -355,6 +360,8 @@ export class GameScene extends Phaser.Scene {
       this.placement.cancel();
       this.buildingView?.destroy();
       this.buildingView = null;
+      this.turretView?.destroy();
+      this.turretView = null;
       this.repairPanel.close();
       this.selectView?.destroy();
       this.selectView = null;
@@ -834,6 +841,7 @@ export class GameScene extends Phaser.Scene {
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world);
     this.buildingView?.update(host.world, this.placement);
+    this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.selectView?.update(host.world, this.repairPanel.id);
     const player = host.world.players.get(localId);
     const playerView = this.playerViews.get(localId);
