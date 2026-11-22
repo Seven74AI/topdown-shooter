@@ -19,7 +19,7 @@ brief: '_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/
 
 ## Executive Summary
 
-A server-authoritative online co-op horde shooter for phone browsers. A Phaser 4 client and a Colyseus 0.18 Node.js server share one engine-free TypeScript simulation package (the game rules), running at 20 Hz on the server with local-player prediction on phones. A custom binary horde stream keeps 150 zombies within ~24 KB/s per phone. PostgreSQL stores accounts, progression and saved runs; everything runs in Docker Compose on the designer's existing European VPS behind Caddy (HTTPS/WSS).
+A server-authoritative online co-op horde shooter for phone browsers. A Phaser 4 client and a Colyseus 0.18 Node.js server share one engine-free TypeScript simulation package (the game rules), running at 20 Hz on the server with local-player prediction on phones. A custom binary horde stream keeps 150 zombies within ~24 KB/s per phone. PostgreSQL stores accounts, progression and saved runs; everything runs in Docker Compose on the designer's existing European VPS behind a Cloudflare Tunnel (HTTPS/WSS terminates at the edge; Caddy serves plain HTTP).
 
 **Key decisions:** server authority + client prediction (ADR-01) · custom horde stream (ADR-02) · shared simulation package (ADR-03) · single PostgreSQL on the VPS (ADR-04) · Tiled maps with decay layers (ADR-05) · flow-field pathfinding.
 
@@ -163,7 +163,7 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | Saved runs | **Autosave** snapshot (JSON, versioned, includes every PRNG state) at each Build phase for crash recovery; an explicit **Save and quit** makes it resumable for 7 days, only with the host | — | Matches GDD; snapshots only at calm points |
 | Reconnect | Colyseus `allowReconnection` 120 s; player slot, wallet and gear held in room state | Colyseus 0.18 | GDD 2-minute rule |
 | Accounts | Guest = random device token in localStorage → server session; upgrade to username + password (Argon2id hashed) | @node-rs/argon2 2.2 | No signup before first play (GDD); no email service needed |
-| Hosting | User's existing **Linux VPS in Europe** (6 vCPU, 12 GB RAM, ~30 GB free); Docker Compose: Caddy (HTTPS + static client) · game server · PostgreSQL; subdomain on the user's domain | Caddy 2.11 · Node.js 26 LTS | Already owned, close to all players, ample capacity (user choice) |
+| Hosting | User's existing **Linux VPS in Europe** (6 vCPU, 12 GB RAM, ~30 GB free); Docker Compose: Caddy (plain HTTP + static client) · game server · PostgreSQL; subdomain on the user's domain | Caddy 2.11 · Node.js 26 LTS | Already owned, close to all players, ample capacity (user choice) |
 | Maps | Districts authored in **Tiled** (JSON export); one layer group per decay stage, toggled by the decay system; collision and cover as object layers | Tiled map format | Hand-made maps with data-driven decay |
 | Lighting | Darkness render texture with lights cut out (flashlights, floodlights, fires, muzzle flashes); lit only when needed | Phaser 4 | Proven in the Lamplight probe; cheap when off |
 | Balance data | All tunable numbers (weapons, zombies, buildings, waves, economy, decay timings) in typed JSON config in the shared package | — | Rebalance without code changes; server and client read the same values |
@@ -569,7 +569,7 @@ const world = createWorld({ balance, seed, district });
 
 ### Security and Operations
 
-- **Transport:** HTTPS and WSS only, terminated by Caddy; WebSocket origin check against the game's subdomain.
+- **Transport:** HTTPS and WSS only, terminated at the Cloudflare edge (Caddy is plain HTTP on 127.0.0.1 behind the tunnel); WebSocket origin check against the game's subdomain.
 - **Accounts:** Argon2id password hashes; guest tokens stored hashed; rate limits on login (5/min per IP) and room creation (10/min per IP).
 - **Input hardening:** inbound message size limit of 1 KB (clients never send binary), server-side input rate cap (25/s per client), zod validation.
 - **Backups:** nightly `pg_dump` container, 14 days kept, copied off the VPS; restore tested once per milestone.
