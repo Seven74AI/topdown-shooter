@@ -1,6 +1,6 @@
 # Handoff: topdown-shooter
 
-Session handoff, updated 2026-11-22 (end of the fourth session: Epic 4 stories 4.1–4.9 built and reviewed; next: an art pass on stage objects, the Epic 4 retro, then the 4.10 Milestone 1 playtest). **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom.
+Session handoff, updated 2026-11-22 (end of the fourth session: Epic 4 stories 4.1–4.9 built, reviewed and deployed; next: the Epic 4 retro, then the 4.11 readability pass, then preparing the 4.10 Milestone 1 playtest). **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom.
 
 ## 1. The project in one paragraph
 
@@ -81,12 +81,39 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## 7. Next steps for the new session
 
-1. **Deploy** if not done: ask the designer to have Hermes run `deploy/deploy.sh` (master after 4.8), then collect the designer's feedback.
-2. **New story "4.11 Stage-object readability pass"** (designer feedback 2026-11-22): the dumpster reads as "a green box" and the sandbags look like grey eggs. Redraw every stage object so it is recognisable at a glance and shows whether it stops bullets: dumpster (lighter lid + hinge, rim light, a few spilled trash bags, clearer shadow), sandbags (burlap tan, woven texture, squat pillows with tied ends, offset brick stacking, a slumped bag, short shadow), police barriers, moved cars, the fire ring from 4.8. Same check as the bus: "can you tell what it is without asking?" Add it to epics.md and sprint-status, then build it with the usual loop.
-3. **Epic 4 retrospective** (`gds-retrospective`, fresh agent) once 4.11 is done; write the EPIC 5 BRIEF.
-4. **Prepare 4.10 (Milestone 1 playtest):** one combined session plan that merges the 1.12 controls form (`docs/playtests/epic-1-controls.md`), the 2.10 4-phone 4G test (`docs/perf/epic-2-network.md`), the mid-range Android speed test, Epic 3 touch checks, the earnings decision (4–19 % below target; fallback wave bonus 15 × N), and Epic 4 checks (readability, fire edge, decay feel, phone FPS with the new look). Links on https://hordes.sevend.io.
-5. Small known leftovers (noted in story files): stacked teammate arrows when close together (8.7), "Reviving…" line from the mirror can disagree near the zone edge, zombie hit flash isn't paused in solo pause, bot logs' per-wave kill count is one short, fire kills pay nobody (if 4.10 wants them paid, the fire step must run before economy), the city art keeps its first resolution after a desktop resize. A player returning from downed/out at a build start can land inside a fire ring next to the teammate (walk out; 4.8 story).
-6. Then Epic 5 (full arsenal and bestiary).
+Master (4.1–4.9) is **deployed** and the designer tested it: "better". Use the BMAD skills for each step (Skill tool; they load when the repo is the working directory). `bmad-help` says what comes next if in doubt.
+
+1. **Epic 4 retrospective first:** `gds-retrospective` on Epic 4 (4.1–4.9 so far). Run it **with the designer** (not headless): ask for their feedback from playing the deployed build, and fold it in. Known so far: the bus and map now read well; the dumpster reads as "a green box", the sandbags as grey eggs. Output: `epic-4-retro-<date>.md` with lessons, action items and an updated brief (§11 style) for 4.11 and Epic 5.
+2. **Story 4.11 "Stage-object readability pass"**, from the retro's findings. Add it to `epics.md` and `sprint-status.yaml`, then:
+   - `gds-create-story` for the story file;
+   - a builder agent in a worktree implements it, following `gds-dev-story`;
+   - review with a fresh agent using `gds-code-review`.
+
+   Scope: redraw every stage object so it is recognisable at a glance and shows whether it stops bullets.
+   - Dumpster: lighter lid and hinge, rim light, a few spilled trash bags, a clearer shadow.
+   - Sandbags: burlap tan, a woven texture, squat pillows with tied ends, offset brick stacking, a slumped bag, a short shadow.
+   - Police barriers, moved cars, the 4.8 fire ring.
+   - Plus anything the designer lists.
+
+   The check, as with the bus: "can you tell what it is without asking?"
+3. **Prepare 4.10 (Milestone 1 playtest)** with `gds-playtest-plan`: one combined session plan covering:
+   - the 1.12 controls form (`docs/playtests/epic-1-controls.md`);
+   - the 2.10 4-phone 4G test (`docs/perf/epic-2-network.md`);
+   - the mid-range Android speed test;
+   - Epic 3 touch checks;
+   - the earnings decision (4–19 % below target; fallback wave bonus 15 × N);
+   - Epic 4 checks: readability, fire edge, decay feel, phone FPS with the new look.
+
+   Links on https://hordes.sevend.io. Then ask the designer to have Hermes deploy 4.11 before the session.
+4. Small known leftovers (noted in story files):
+   - stacked teammate arrows when close together (8.7);
+   - the "Reviving…" line from the mirror can disagree near the zone edge;
+   - the zombie hit flash isn't paused in solo pause;
+   - the bot logs' per-wave kill count is one short;
+   - fire kills pay nobody: if 4.10 wants them paid, the fire step must run before economy;
+   - the city art keeps its first resolution after a desktop resize;
+   - a player returning from downed/out at a build start can land inside a fire ring next to the teammate (they can walk out; see the 4.8 story).
+5. After 4.10: close Epic 4, then Epic 5 (full arsenal and bestiary). Write its stories from the real code with `gds-create-story`, using the same worktree loop.
 
 ## 8. How the designer likes to work
 
@@ -106,4 +133,4 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## Prompt for the new session
 
-> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. Epics 1–3 are done, Epic 4 stories 4.1–4.9 are built and reviewed, and the game is live at hordes.sevend.io. Next: the stage-object readability pass (new story 4.11), the Epic 4 retrospective, then preparing the 4.10 Milestone 1 playtest, with parallel agents in worktrees and a fresh-agent review of every story before pushing to master. Keep working in facilitative mode as described in the handoff.
+> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it, using the BMAD skills it names. Epics 1–3 are done, Epic 4 stories 4.1–4.9 are built, reviewed and deployed at hordes.sevend.io. Start with the Epic 4 retrospective (`gds-retrospective`) together with me, including my playtest feedback. Then do the stage-object readability pass (new story 4.11) and prepare the 4.10 Milestone 1 playtest (`gds-playtest-plan`). Use parallel agents in worktrees and a fresh-agent review of every story before pushing to master. Keep working in facilitative mode as described in the handoff.
