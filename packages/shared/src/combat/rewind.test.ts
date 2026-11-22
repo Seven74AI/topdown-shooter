@@ -11,7 +11,7 @@ import { startBuild, startWave } from "../run/runStateMachine";
 import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { addBuildingAt } from "../buildings/buildings";
 import { setLoadout } from "./loadout";
-import { rewindTicksFor, setZombieHistoryEnabled } from "./rewind";
+import { rewindTicksFor, rewoundView, setZombieHistoryEnabled } from "./rewind";
 import type { WeaponId } from "./weapons";
 
 /** Story 2.12: rewound hit testing. One mechanic per test: no waves, zombies only move when a test moves them. */
@@ -41,7 +41,7 @@ function setup(weapon: WeaponId, opts: { lagComp?: boolean } = {}) {
   };
   /** One step firing along (aimX, aimY) with the given view tick (mouse aim: no assist unless `touch`). */
   const fire = (viewTick: number, aimX = 1, aimY = 0, touch = false): void => {
-    setInput(world, "p0", { ...NEUTRAL_INPUT, seq: ++seq, aimX, aimY, fire: true, isMouse: !touch, viewTick });
+    setInput(world, "p0", { ...NEUTRAL_INPUT, seq: ++seq, aimX, aimY, fire: true, isMouse: !touch, viewTick: wire(viewTick) });
     step(world, TICK_DT_S);
   };
   const muzzleX = p.x + p.radiusM + 0.1;
@@ -53,7 +53,9 @@ function setup(weapon: WeaponId, opts: { lagComp?: boolean } = {}) {
   return { world, p, events, idle, fire, muzzleX, hits, move };
 }
 
-const input = (viewTick: number): PlayerInput => ({ ...NEUTRAL_INPUT, viewTick });
+/** A view tick in ticks → the wire's hundredths (review L5). */
+const wire = (viewTick: number): number => (viewTick < 0 ? -1 : Math.round(viewTick * 100));
+const input = (viewTick: number): PlayerInput => ({ ...NEUTRAL_INPUT, viewTick: wire(viewTick) });
 
 describe("rewound hit testing (Story 2.12)", () => {
   it("a shot is tested where the zombie was at the shooter's view tick: hit with the rewind, miss without", () => {
@@ -218,6 +220,44 @@ describe("rewound hit testing (Story 2.12)", () => {
     expect(seen).toBeGreaterThan(0);
   });
 
+  it("two shooters at different view ticks in the same tick each hit what they saw (review L2: the memo is keyed by time)", () => {
+    const { world, idle, fire, muzzleX, hits, move } = setup("hunting_rifle");
+    const p1 = addPlayer(world, "p1", 5, Y + 8);
+    p1.hp = 1e9;
+    p1.rewindMaxTicks = REWIND_MAX_TICKS;
+    setLoadout(balance, p1.loadout, ["hunting_rifle", null]);
+    const a = spawnZombie(world, "walker", muzzleX + 2, Y); // on p0's line at rows 1–3
+    const b = spawnZombie(world, "walker", muzzleX + 2, Y + 8 + 3); // off p1's line until row 5
+    idle(3);
+    move(a, muzzleX + 2, Y + 3);
+    idle(1);
+    move(b, muzzleX + 2, Y + 8); // on p1's line from row 5 on
+    idle(1);
+    move(b, muzzleX + 2, Y + 8 + 3); // and off again from row 7 on
+    idle(2); // tick 7
+    setInput(world, "p1", { ...NEUTRAL_INPUT, seq: 1, aimX: 1, aimY: 0, fire: true, isMouse: true, viewTick: wire(4.5) }); // sweeps at 5.0
+    fire(2); // p0 sweeps at 2.5
+    expect(hits().map((h) => h.zombieId).sort()).toEqual([a, b].sort());
+  });
+
+  it("the rewound view lerps between rows, keys its memo by time, and reads live positions (this tick's pushback) above the newest row", () => {
+    const { world, idle } = setup("pistol");
+    const z = spawnZombie(world, "walker", 10, Y);
+    for (let t = 1; t <= 8; t++) {
+      world.zombies.x[z] = 10 + t; // row t: x = 10 + t
+      idle(1);
+    }
+    const at = (tick: number): number => rewoundView(world, tick)?.x[z] ?? Number.NaN;
+    expect(at(3)).toBeCloseTo(13, 5);
+    expect(at(5)).toBeCloseTo(15, 5); // same tick, other time: not the memo of 3
+    expect(at(3.25)).toBeCloseTo(13.25, 5); // interpolated
+    world.zombies.x[z] = 30; // pushed back earlier this tick
+    expect(at(7.5)).toBeCloseTo(17 + (30 - 17) * 0.5, 4); // row 7 (17) → live (30), not row 8 (18)
+    world.zombies.x[z] = 32; // another hit this tick: a view reading live positions is never memoised
+    expect(at(7.5)).toBeCloseTo(17 + (32 - 17) * 0.5, 4);
+    expect(rewoundView(world, 8)).toBeNull(); // now: the caller tests the live pool
+  });
+
   it("solo records nothing: the history stays empty and the snapshot equals a fresh World's", () => {
     const world = createWorld({ balance, seed: 3, systems: { waves: noop } });
     const fresh = createWorld({ balance, seed: 3, systems: { waves: noop } });
@@ -238,7 +278,7 @@ describe("rewound hit testing (Story 2.12)", () => {
       setLoadout(balance, p.loadout, ["smg", null]);
       for (let i = 0; i < 12; i++) spawnZombie(world, i % 2 ? "runner" : "walker", 15 + i, 8 + i);
       for (let t = 1; t <= 120; t++) {
-        setInput(world, "p0", { ...NEUTRAL_INPUT, seq: t, aimX: 1, aimY: Math.sin(t / 9) * 0.5, fire: true, isMouse: t % 2 === 0, viewTick: world.tick - 4.37 });
+        setInput(world, "p0", { ...NEUTRAL_INPUT, seq: t, aimX: 1, aimY: Math.sin(t / 9) * 0.5, fire: true, isMouse: t % 2 === 0, viewTick: wire(world.tick - 4.37) });
         step(world, TICK_DT_S);
       }
       return snapshotWorld(world);

@@ -9,6 +9,7 @@ import {
   setInput,
   setLoadout,
   setZombieHistoryEnabled,
+  seqSpreadRoll,
   snapshotWorld,
   spawnZombie,
   startBuild,
@@ -17,6 +18,7 @@ import {
   type PlayerInput,
   type SimEvent,
 } from "@topdown/shared";
+import { INPUT_SEQ_RESYNC_AFTER, MAX_INPUT_SEQ_JUMP } from "../net/limits";
 import { INPUT_DRAIN_AFTER_TICKS, INPUT_QUEUE_MAX, INPUT_QUEUE_TARGET, REWIND_CAP_TICKS, RunController, parseDevHpFraction } from "./RunController";
 
 const balance = loadBalance();
@@ -161,7 +163,7 @@ describe("RunController", () => {
     expect(settledAt).toBeGreaterThanOrEqual(INPUT_DRAIN_AFTER_TICKS - 1); // not before the window
     expect(settledAt).toBeLessThan(60);
     expect(c.queued("p0")).toBeLessThanOrEqual(INPUT_QUEUE_TARGET);
-    expect(c.drops("p0")).toEqual({ overflow: 1, stale: 0, drained: 4 });
+    expect(c.drops("p0")).toEqual({ overflow: 1, stale: 0, drained: 4, jumped: 0 });
     // The lag is gone: the newest input is at most TARGET ticks from being applied.
     expect(seq - c.ackSeq("p0")).toBeLessThanOrEqual(INPUT_QUEUE_TARGET);
   });
@@ -265,7 +267,7 @@ describe("RunController", () => {
       }
       c.tick();
     }
-    expect(c.drops("p0")).toEqual({ overflow: 0, stale: 0, drained: 0 });
+    expect(c.drops("p0")).toEqual({ overflow: 0, stale: 0, drained: 0, jumped: 0 });
   });
 
   it("a swap followed by starved ticks swaps once, and only finishes as new seqs arrive", () => {
@@ -457,12 +459,50 @@ describe("RunController", () => {
       }
       z.y[zid] = (z.y[zid] as number) + 2; // it moved away after the tick the client drew (2)
       let hits = 0;
-      c.queueInput("p0", input(seq + 1, { aimX: 1, aimY: 0, fire: true, isMouse: true, viewTick: 2 }));
+      c.queueInput("p0", input(seq + 1, { aimX: 1, aimY: 0, fire: true, isMouse: true, viewTick: 200 }));
       for (let t = 0; t < 4; t++) for (const e of c.tick()) if (e.type === "zombie.hit" && e.zombieId === zid) hits++;
       return hits;
     };
     expect(shoot(true)).toBe(1);
     expect(shoot(false)).toBe(0);
+  });
+
+  it("refuses an input more than 20 seqs ahead (seqs can't be picked), resyncing after a second of jumps (Story 2.12 review M1)", () => {
+    const c = newController();
+    for (let seq = 1; seq <= 5; seq++) c.queueInput("p0", input(seq));
+    c.queueInput("p0", input(5 + MAX_INPUT_SEQ_JUMP + 1)); // a picked seq
+    expect(c.drops("p0").jumped).toBe(1);
+    expect(c.queued("p0")).toBe(5);
+    c.queueInput("p0", input(5 + MAX_INPUT_SEQ_JUMP)); // within the window: fine
+    expect(c.queued("p0")).toBe(6);
+    // A client that really jumped (sends on from far ahead) is accepted after INPUT_SEQ_RESYNC_AFTER refusals.
+    const far = 1000;
+    for (let k = 0; k < INPUT_SEQ_RESYNC_AFTER; k++) c.queueInput("p0", input(far + k));
+    expect(c.drops("p0").jumped).toBe(1 + INPUT_SEQ_RESYNC_AFTER);
+    c.queueInput("p0", input(far + INPUT_SEQ_RESYNC_AFTER));
+    expect(c.drops("p0").jumped).toBe(1 + INPUT_SEQ_RESYNC_AFTER);
+  });
+
+  it("reports a spread-cancelling aim once per wave through onSpreadCancelSuspect; an honest jittery aim never (Story 2.12 review M1)", () => {
+    const run = (cheat: boolean): number => {
+      let reports = 0;
+      const c = new RunController({ balance, seed: SEED, players: [{ playerId: "p0", slot: 0 }], systems: { waves: () => {}, zombies: () => {} }, onSpreadCancelSuspect: () => reports++ });
+      const p = c.world.players.get("p0");
+      if (!p) throw new Error("no p0");
+      setLoadout(balance, p.loadout, ["smg", null]);
+      const smg = balance.weapons.smg;
+      const half = ((smg?.kind === "gun" ? smg.spreadDeg : 0) / 2) * (Math.PI / 180);
+      let jitter = 12345;
+      for (let seq = 1; seq <= 600; seq++) {
+        jitter = (jitter * 1103515245 + 12345) & 0x7fffffff;
+        const a = cheat ? 0.4 - seqSpreadRoll("p0", seq) * half : 0.4 + ((jitter / 0x7fffffff) * 6 - 3) * (Math.PI / 180);
+        c.queueInput("p0", input(seq, { aimX: Math.cos(a), aimY: Math.sin(a), fire: true, isMouse: true }));
+        c.tick();
+      }
+      return reports;
+    };
+    expect(run(true)).toBe(1);
+    expect(run(false)).toBe(0);
   });
 
   it("counts kills per killer from zombie.killed (Story 2.8)", () => {

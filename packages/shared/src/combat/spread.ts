@@ -1,3 +1,5 @@
+import { DEG_TO_RAD, rotate } from "../math/vec";
+
 /**
  * Story 2.12: the online spread roll of a shot, a pure function of the shooter's id and the input
  * seq that fired it, uniform in [-1, 1). The server (with lag compensation) and the shooter's
@@ -21,4 +23,20 @@ export function seqSpreadRoll(playerId: string, seq: number): number {
   h = Math.imul(h, 0xc2b2ae35);
   h ^= h >>> 16;
   return (h >>> 0) / 0x80000000 - 1;
+}
+
+/**
+ * Story 2.12 review M2: the one place that turns a unit aim into the seq's spread direction
+ * (`spreadDeg` wide), written into `out`. The server's online shot, the client's cosmetic shot
+ * (NetSimHost) and the netsim harness all call this, so they can't drift apart.
+ */
+export function rotateBySeqSpread(
+  dirX: number,
+  dirY: number,
+  playerId: string,
+  seq: number,
+  spreadDeg: number,
+  out: { x: number; y: number },
+): void {
+  rotate(dirX, dirY, seqSpreadRoll(playerId, seq) * ((spreadDeg / 2) * DEG_TO_RAD), out);
 }

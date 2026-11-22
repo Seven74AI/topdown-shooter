@@ -30,8 +30,8 @@ import {
   NO_SYSTEMS,
   PLACEHOLDER_MAP,
   packTypeState,
-  rotate,
-  seqSpreadRoll,
+  rotateBySeqSpread,
+  VIEW_TICK_SCALE,
   setLoadout,
   spawnZombie,
   zombieNetId,
@@ -89,7 +89,7 @@ export interface Result {
   /** Seqs on which the client's fire clock shot, and on which the server's weapon fired. */
   localShotSeqs: number[];
   serverShotSeqs: number[];
-  drops: { overflow: number; stale: number; drained: number };
+  drops: { overflow: number; stale: number; drained: number; jumped: number };
   apparentHits: number;
   confirmed: number;
   reversed: number;
@@ -236,7 +236,7 @@ export function simulate(o: Options): Result {
           serverShotSeqs.push(ctrl.ackSeq(ID));
           // Combat ran at world.tick − 1 (the tick is counted at the end of the step).
           const vt = viewTickBySeq.get(ctrl.ackSeq(ID)) ?? -1;
-          if (vt >= 0) viewOffsets.push(ctrl.world.tick - 1 - vt);
+          if (vt >= 0) viewOffsets.push(ctrl.world.tick - 1 - vt / VIEW_TICK_SCALE);
         }
         if (e.type === "zombie.killed") killCount++;
       }
@@ -354,10 +354,7 @@ export function simulate(o: Options): Result {
         const my = predictor.y + a.dirY * off;
         cosmetics.ensureGrid();
         assistAim(mirror, mx, my, a.dirX, a.dirY, stats.rangeM, dir);
-        if (stats.spreadDeg > 0) {
-          const half = (stats.spreadDeg / 2) * (Math.PI / 180);
-          rotate(dir.x, dir.y, seqSpreadRoll(ID, input.seq) * half, dir); // Story 2.12: as NetSimHost
-        }
+        if (stats.spreadDeg > 0) rotateBySeqSpread(dir.x, dir.y, ID, input.seq, stats.spreadDeg, dir); // 2.12: the shared helper, as NetSimHost
         cosmetics.spawn(ID, a.weapon, mx, my, dir.x, dir.y);
       }
       accMs -= TICK_MS;

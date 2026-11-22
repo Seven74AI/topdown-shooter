@@ -86,7 +86,7 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
 
 /** Sums several seeded runs (each one reported). */
 const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number[]): Result => {
-  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0 };
+  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0, jumped: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0 };
   for (const seed of seeds) {
     const r = simulate({ ...o, seed });
     report(`${name} seed ${seed}`, r);
@@ -109,13 +109,14 @@ const KITE_150 = { seconds: 30, oneWayMs: 75, jitterHalfMs: 10, kite: true } as 
 const KITE_300 = { seconds: 30, oneWayMs: 150, jitterHalfMs: 20, kite: true } as const;
 
 describe("netsim: rewound hit testing (Story 2.12, NFR5 < 1 in 20 reversed)", () => {
-  it("kiting 20 Runners at 150 ms RTT: the rewind brings reversed hits under 5 % (control: rewind off is far over)", () => {
+  it("kiting 20 Runners at 150 ms RTT: the rewind brings reversed hits under 5 % (control: rewind off is ≥ 5 pp worse)", () => {
     for (const weapon of ["pistol", "hunting_rifle", "smg"] as const) {
       const on = runSeeds(`2.12 rewind ON kiting ${weapon} 150 ms, 20 Runners`, { ...KITE_150, weapon, zombieType: "runner" }, SEEDS);
       const off = runSeeds(`2.12 rewind OFF (control) kiting ${weapon} 150 ms, 20 Runners`, { ...KITE_150, weapon, zombieType: "runner", rewind: false }, SEEDS);
       expect(on.apparentHits).toBeGreaterThan(150);
       expect(pct(on)).toBeLessThan(5);
-      expect(pct(off)).toBeGreaterThan(10); // the harness does see the problem the rewind fixes
+      // The harness does see the problem the rewind fixes (review M3: a margin, not an absolute control level).
+      expect(pct(off) - pct(on)).toBeGreaterThan(5);
       // The view offset at 150 ms RTT fits the 300 ms cap (one-way + queue wait + render delay).
       const offs = [...on.viewOffsets].sort((a, b) => a - b);
       expect(offs[Math.floor(offs.length * 0.95)]).toBeLessThan(6);
