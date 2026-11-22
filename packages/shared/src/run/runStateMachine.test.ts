@@ -41,7 +41,7 @@ const clearWave = (world: World) => {
 describe("run state machine: transitions (AC 1)", () => {
   it("a new World is in the lobby, with no build timer", () => {
     const { world } = setup();
-    expect(world.run).toEqual({ phase: "lobby", buildTicksLeft: 0 });
+    expect(world.run).toEqual({ phase: "lobby", buildTicksLeft: 0, heldOut: false });
     run(world, 100); // nothing moves the lobby on by itself
     expect(world.run.phase).toBe("lobby");
     expect(world.waves.number).toBe(0);
@@ -50,7 +50,7 @@ describe("run state machine: transitions (AC 1)", () => {
   it("Lobby → Build → Wave → Build → Wave → Results through the named transitions only", () => {
     const { world, events } = setup();
     startBuild(world);
-    expect(world.run).toEqual({ phase: "build", buildTicksLeft: BUILD_TICKS });
+    expect(world.run).toEqual({ phase: "build", buildTicksLeft: BUILD_TICKS, heldOut: false });
     startWave(world);
     expect(world.run.phase).toBe("wave");
     expect(world.waves.number).toBe(1);
@@ -94,7 +94,7 @@ describe("run state machine: transitions (AC 1)", () => {
     const { world } = setup();
     startBuild(world);
     endRun(world);
-    expect(world.run).toEqual({ phase: "results", buildTicksLeft: 0 });
+    expect(world.run).toEqual({ phase: "results", buildTicksLeft: 0, heldOut: false });
   });
 });
 
@@ -110,7 +110,7 @@ describe("build phase (AC 2)", () => {
     run(world, 1);
     expect(world.run.phase).toBe("wave");
     expect(world.run.buildTicksLeft).toBe(0);
-    expect(ofType(events, "wave.started")).toEqual([{ type: "wave.started", number: 1, size: 40 }]);
+    expect(ofType(events, "wave.started")).toEqual([{ type: "wave.started", number: 1, size: 24 }]); // 2 players: 40 × 0.6
     expect(world.zombies.aliveCount).toBeGreaterThan(0); // the first batch spawns on the start tick
   });
 
@@ -214,7 +214,7 @@ describe("build phase (AC 2)", () => {
     world.waves.paused = true;
     setBuildReady(world, "p0", true);
     run(world, BUILD_TICKS + 10);
-    expect(world.run).toEqual({ phase: "build", buildTicksLeft: BUILD_TICKS });
+    expect(world.run).toEqual({ phase: "build", buildTicksLeft: BUILD_TICKS, heldOut: false });
     world.waves.paused = false;
     run(world, 1);
     expect(world.run.phase).toBe("wave");
@@ -293,7 +293,7 @@ describe("determinism (NFR10)", () => {
       setBuildReady(world, "p1", true);
       run(world, 1);
       const mid = snapshotWorld(world);
-      expect(mid.run).toEqual({ phase: "build", buildTicksLeft: BUILD_TICKS - 21 });
+      expect(mid.run).toEqual({ phase: "build", buildTicksLeft: BUILD_TICKS - 21, heldOut: false });
       expect(mid.players.find(([id]) => id === "p1")?.[1].buildReady).toBe(true);
       run(world, BUILD_TICKS);
       clearWave(world);
@@ -306,5 +306,67 @@ describe("determinism (NFR10)", () => {
     expect(a.run.phase).toBe("wave");
     expect(a.waves.number).toBe(2);
     expect(go()).toEqual(a);
+  });
+});
+
+describe("the run ends after wave runWaves (Story 3.10)", () => {
+  /** Jumps the run to the build before wave `n` (waves skipped by the dev cheat). */
+  const toBuildBefore = (world: World, n: number) => {
+    startBuild(world);
+    while (world.waves.number < n - 1) {
+      startWave(world);
+      skipWave(world);
+    }
+  };
+
+  it("clearing wave 5: wave.ended, the bonus, run.held_out, Results; no build after it", () => {
+    const { world, events } = setup(["p0", "p1"]);
+    toBuildBefore(world, 5);
+    expect(world.run.phase).toBe("build");
+    startWave(world);
+    clearWave(world);
+    expect(world.waves.number).toBe(5);
+    expect(world.run).toEqual({ phase: "results", buildTicksLeft: 0, heldOut: true });
+    expect(ofType(events, "build.started").map((e) => (e as { wave: number }).wave)).toEqual([1, 2, 3, 4, 5]); // none for a wave 6
+    const tail = events.filter((e) => e.type === "wave.ended" || e.type === "run.held_out" || (e.type === "money.earned" && e.reason === "wave"));
+    expect(tail.slice(-4)).toEqual([
+      { type: "wave.ended", number: 5 },
+      { type: "run.held_out", wave: 5 },
+      { type: "money.earned", playerId: "p0", amount: 50, reason: "wave" },
+      { type: "money.earned", playerId: "p1", amount: 50, reason: "wave" },
+    ]);
+    run(world, BUILD_TICKS + 5);
+    expect(world.run.phase).toBe("results");
+    expect(world.waves.number).toBe(5);
+    expect(world.zombies.aliveCount).toBe(0);
+  });
+
+  it("clearing wave 4 still goes to the build phase of wave 5", () => {
+    const { world } = setup(["p0"]);
+    toBuildBefore(world, 4);
+    startWave(world);
+    clearWave(world);
+    expect(world.run).toEqual({ phase: "build", buildTicksLeft: BUILD_TICKS, heldOut: false });
+  });
+
+  it("the dev skip of wave 5 ends the run too (how the browser check reaches the Results)", () => {
+    const { world, events } = setup(["p0"]);
+    toBuildBefore(world, 5);
+    startWave(world);
+    skipWave(world);
+    expect(world.run.heldOut).toBe(true);
+    expect(world.run.phase).toBe("results");
+    run(world, 1); // events emitted between steps go out with the next one
+    expect(ofType(events, "run.held_out")).toEqual([{ type: "run.held_out", wave: 5 }]);
+  });
+
+  it("a wipe in wave 5 is not a hold-out", () => {
+    const { world, players, events } = setup(["p0"]);
+    toBuildBefore(world, 5);
+    startWave(world);
+    downPlayer(world, players[0] as PlayerState);
+    run(world, 2);
+    expect(world.run).toEqual({ phase: "results", buildTicksLeft: 0, heldOut: false });
+    expect(ofType(events, "run.held_out")).toEqual([]);
   });
 });

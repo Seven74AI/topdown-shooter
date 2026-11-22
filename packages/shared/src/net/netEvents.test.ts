@@ -28,6 +28,7 @@ const EVENTS: SimEvent[] = [
   { type: "player.out", playerId: "p2" },
   { type: "player.returned", playerId: "p2", x: 25.5, y: 14.5 },
   { type: "team.wiped", wave: 7 },
+  { type: "run.held_out", wave: 5 }, // Story 3.10
   { type: "wave.started", number: 3, size: 24 },
   { type: "wave.ended", number: 3 },
   { type: "wave.rush_started", count: 5 },

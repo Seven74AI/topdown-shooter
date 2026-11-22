@@ -9,7 +9,8 @@ export const TEST_SCENARIOS = ["net150"] as const;
 export type TestScenario = (typeof TEST_SCENARIOS)[number];
 
 /**
- * `net150`, the 4-phone 4G test: wave 4 (4 × 40 = 160 Walkers, so the 150-alive cap is reached),
+ * `net150`, the 4-phone 4G test: wave 4 (4 × 40 = 160 zombies with 4 players, Story 3.10's mix of
+ * Walkers, Runners and Crawlers, so the 150-alive cap is reached), then wave 5 (200, the run's last),
  * god mode so the team survives it. Everything else is normal: real spawns, AI and hits, Pistols.
  */
 export const NET150_START_WAVE = 4;

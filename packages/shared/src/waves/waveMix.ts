@@ -5,8 +5,9 @@ import { ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
 export const MAX_WAVE_MIX = 16;
 
 /**
- * Dev / test hook (Story 3.9, temporary until Story 3.10 puts the composition in `waves.json`):
- * parses `"walker,walker,crawler"` into the types wave zombies cycle through (`world.debug.waveMix`).
+ * Dev / test hook (Story 3.9; Story 3.10 keeps it as an override of the `waves.json › mix`
+ * composition): parses `"walker,walker,crawler"` into the types wave zombies cycle through
+ * (`world.debug.waveMix`).
  * Unknown ids and types without balance are dropped; null when nothing valid is left.
  */
 export function parseWaveMix(raw: string | null | undefined, balance: Balance): readonly ZombieTypeId[] | null {

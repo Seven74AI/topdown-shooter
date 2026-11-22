@@ -40,8 +40,8 @@ export interface UrlOptions {
    */
   scenario: TestScenario | null;
   /**
-   * `?wavemix=walker,crawler` (Story 3.9, release-safe, solo only, temporary until Story 3.10's wave
-   * composition): the raw list; `parseWaveMix` keeps the types that exist in balance.
+   * `?wavemix=walker,crawler` (Story 3.9, release-safe, solo only; Story 3.10 keeps it as an override
+   * of the `waves.json` mix): the raw list; `parseWaveMix` keeps the types that exist in balance.
    */
   waveMix: string | null;
 }

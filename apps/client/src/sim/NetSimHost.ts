@@ -486,6 +486,7 @@ export class NetSimHost implements SimHost {
     // Story 3.1: the run state machine's phase and build timer (the mirror never steps it).
     this.world.run.phase = state.phase;
     this.world.run.buildTicksLeft = state.buildTicksLeft;
+    this.world.run.heldOut = state.resultHeldOut === true; // Story 3.10 (the Results come from the room state)
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;

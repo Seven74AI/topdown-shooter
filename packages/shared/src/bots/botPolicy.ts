@@ -20,8 +20,8 @@ import { MAX_PLAYERS } from "../net/messages";
  *
  * Always: aim at the nearest zombie and fire while it is within the weapon's range. `isMouse` is
  * false, so the bot gets aim assist like a phone player. It never swaps. Ready is tapped by the
- * client (`lobby.set_ready`), not here. `shoppingList` is the Epic 3 hook (bought in order in the
- * Build phase); unused until then.
+ * client (`lobby.set_ready`), not here. Story 3.10: `shoppingList` is bought in each build phase
+ * by `bots/botShop.ts` (headless `botBuildPhase`, and `tools/bots` over the wire), not here.
  */
 
 export interface BotSelf {
@@ -61,7 +61,7 @@ export interface BotConfig {
   regroupDistM: number;
   reviveSearchM: number;
   reviveStopM: number;
-  /** Epic 3: shop item ids bought in this order. Unused until then. */
+  /** Story 3.10: shop item ids bought in this order in each build phase (`bots/botShop.ts`). */
   shoppingList?: readonly string[];
 }
 

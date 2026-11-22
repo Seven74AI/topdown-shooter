@@ -125,7 +125,7 @@ export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
 export { swingMelee } from "./combat/melee";
 export { circleOverlapsSector } from "./math/sector";
-export { updateWaves, waveSize, type WaveState } from "./waves/waveDirector";
+export { updateWaves, waveMixOf, waveSize, waveTypeCounts, type WaveState } from "./waves/waveDirector";
 export {
   endRun,
   endWave,
@@ -199,6 +199,17 @@ export {
   type BotView,
   type BotZombie,
 } from "./bots/botPolicy";
+export {
+  botBuildPhase,
+  botPlaceCandidate,
+  botPlaceTries,
+  botShopNext,
+  botWeaponSlot,
+  createBotShopResult,
+  type BotShopResult,
+  type BotShopSelf,
+} from "./bots/botShop";
+export { formatRunLine, runHeadless, type HeadlessRunLog, type HeadlessRunOptions, type HeadlessWaveLog } from "./bots/headlessRun";
 // Story 3.2: personal wallets and rewards.
 export {
   MAX_DAMAGERS,

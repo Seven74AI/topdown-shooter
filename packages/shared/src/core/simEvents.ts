@@ -46,6 +46,8 @@ export type SimEvent =
   | { type: "player.out"; playerId: string }
   | { type: "player.returned"; playerId: string; x: number; y: number }
   | { type: "team.wiped"; wave: number }
+  /** Story 3.10: the team cleared the run's last wave (`waves.runWaves`); the run is over ("You held out!"). */
+  | { type: "run.held_out"; wave: number }
   | { type: "wave.started"; number: number; size: number }
   | { type: "wave.ended"; number: number }
   | { type: "wave.rush_started"; count: number }

@@ -95,7 +95,7 @@ export function snapshotWorld(world: World) {
     ),
     projectiles: snapshotProjectiles(world),
     zombies: snapshotZombies(world),
-    waves: { ...world.waves },
+    waves: { ...world.waves, typeTarget: Array.from(world.waves.typeTarget), typeSpawned: Array.from(world.waves.typeSpawned) },
     run: { ...world.run },
     debug: { ...world.debug },
     teamWiped: world.teamWiped,

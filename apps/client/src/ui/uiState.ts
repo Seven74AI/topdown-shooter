@@ -17,9 +17,10 @@ export type UiScreen =
   | { kind: "playing"; menu: MenuState; online: boolean }
   /**
    * Team wipe (Story 2.8): wave reached and kills per player, sorted by slot. `online`: Back to
-   * lobby (the whole room) instead of Restart.
+   * lobby (the whole room) instead of Restart. Story 3.10: `heldOut` = the run's last wave was
+   * cleared ("You held out!"); each row also carries the money earned.
    */
-  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean };
+  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean; heldOut: boolean };
 
 /** The in-run menu (Story 2.11): closed, open (Resume, Leave game), or asking to confirm the leave. */
 export type MenuState = "closed" | "open" | "confirmLeave";
@@ -57,6 +58,13 @@ export interface ResultRow {
   readonly slot: number;
   readonly name: string;
   readonly kills: number;
+  /** Story 3.10: money earned this run (`PlayerState.earned`; the starting wallet not included). */
+  readonly earned: number;
+}
+
+/** Story 3.10: the Results title: "You held out!" after the last wave, else "Wave reached N". */
+export function resultsTitle(screen: { wave: number; heldOut: boolean }): string {
+  return screen.heldOut ? "You held out!" : `Wave reached ${screen.wave}`;
 }
 
 export interface UiRequests {

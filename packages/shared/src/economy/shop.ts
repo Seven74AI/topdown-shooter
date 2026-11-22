@@ -130,7 +130,7 @@ export function buyWeapon(world: World, playerId: string, weapon: WeaponId, slot
 }
 
 /**
- * Bot hook (Epic 2 retro A10; Story 3.10 wires and tunes it): the first weapon of `list` the shop
+ * Bot hook (Epic 2 retro A10; used by the 3.3 shop sim; Story 3.10 bots use `bots/botShop.ts`): the first weapon of `list` the shop
  * sells, that the loadout doesn't hold and that `wallet` affords, or null.
  */
 export function botShopPick(balance: Balance, wallet: number, loadout: Loadout, list: readonly string[]): WeaponId | null {

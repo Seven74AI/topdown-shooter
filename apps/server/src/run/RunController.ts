@@ -154,7 +154,7 @@ export interface RunControllerOptions {
   players: readonly { playerId: string; slot: number }[];
   /** Dev (`DEV_NO_WAVES=1`): waves don't advance (the Story 1.7 cheat flag). */
   pauseWaves?: boolean;
-  /** Dev (`DEV_WAVE_MIX=walker,crawler`, Story 3.9, until 3.10): wave zombies cycle through these types. */
+  /** Dev (`DEV_WAVE_MIX=walker,crawler`, Story 3.9; 3.10 keeps it as an override of `waves.json › mix`): wave zombies cycle through these types. */
   waveMix?: readonly ZombieTypeId[] | null;
   /** Tests only: replace systems by name (Epic 1 lesson: isolate mechanics). */
   systems?: Partial<Systems>;

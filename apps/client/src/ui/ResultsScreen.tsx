@@ -1,11 +1,13 @@
 import { useEffect, useState } from "preact/hooks";
-import { uiStore, type UiScreen } from "./uiState";
+import { resultsTitle, uiStore, type UiScreen } from "./uiState";
 import { SLOT_COLOR_CSS, SLOT_COLOR_NAMES } from "../render/playerColors";
 
 /**
  * Results after a team wipe (Story 2.8, FR11): the wave reached, then color dot, name and kills per
  * player (sorted by slot). Online: Back to lobby (the whole room goes back; a player who taps later
- * is already there). Solo: Restart, as in Epic 1.
+ * is already there). Solo: Restart, as in Epic 1. Story 3.10 (temporary until Epic 6's full
+ * Results): after the last wave the title is "You held out!" with the wave reached under it, and
+ * every row shows the money earned this run.
  */
 export function ResultsScreen() {
   const [screen, setScreen] = useState<UiScreen>(uiStore.get());
@@ -14,13 +16,15 @@ export function ResultsScreen() {
   useEffect(() => setSent(false), [screen]);
   if (screen.kind !== "results") return null;
   return (
-    <div class="game-over results" role="dialog" aria-labelledby="results-title">
-      <h1 id="results-title">Wave reached {screen.wave}</h1>
+    <div class={screen.heldOut ? "game-over results results--held" : "game-over results"} role="dialog" aria-labelledby="results-title">
+      <h1 id="results-title">{resultsTitle(screen)}</h1>
+      {screen.heldOut ? <p class="results__sub">Wave reached {screen.wave}</p> : null}
       <table class="results__table">
         <thead>
           <tr>
             <th scope="col">Player</th>
             <th scope="col">Kills</th>
+            <th scope="col">Earned</th>
           </tr>
         </thead>
         <tbody>
@@ -36,6 +40,7 @@ export function ResultsScreen() {
                 {r.name}
               </td>
               <td class="results__kills">{r.kills}</td>
+              <td class="results__earned">${r.earned}</td>
             </tr>
           ))}
         </tbody>

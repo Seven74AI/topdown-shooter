@@ -12,12 +12,19 @@ import {
   attachByteCounters,
   botConfigOf,
   botInput,
+  botPlaceCandidate,
+  botPlaceTries,
+  botShopNext,
+  botWeaponSlot,
   createBotView,
+  shopPrice,
   loadBalance,
   readHordeFrame,
   type BotConfig,
   type BotMate,
+  type BotShopSelf,
   type BotView,
+  type BuildingRefused,
   type HordeSink,
   type JoinOptions,
   type NetPinged,
@@ -25,6 +32,8 @@ import {
   type PlayerStateView,
   type RunJoined,
   type RunStateView,
+  type ShopBought,
+  type ShopRefused,
   type SimEventsFlushed,
   type TestScenario,
 } from "@topdown/shared";
@@ -35,6 +44,12 @@ import {
  * state (players) and the newest horde frame (zombies), asks the shared `botInput` policy, and
  * sends `input.send` with seq + 1. It taps Ready, answers `net.pinged`, and counts its own payload
  * bytes both ways with the same `ByteRate` the client overlay uses. One log line per wave.
+ *
+ * Story 3.10: in every build phase it first shops from `bots.json › shoppingList` with the shared
+ * rules (`bots/botShop.ts`) over the wire: one `shop.buy` or `building.place` at a time, waiting for
+ * the answer (`shop.bought` / `shop.refused`, the building in the state / `building.refused`); a
+ * refused placement tries the next candidate spot. Then it taps Ready, and swaps to a weapon it
+ * bought into the slot not in hands on the first wave step.
  */
 
 export interface BotClientOptions {
@@ -98,6 +113,19 @@ class HordeView implements HordeSink {
 
 /** A bot re-sends Ready after this many server ticks without the server showing it (1 s). */
 const READY_RETRY_TICKS = 20;
+/** A shop or placement message with no answer after this many server ticks counts as refused (2 s). */
+const SHOP_ANSWER_TICKS = 40;
+
+/** One shop action waiting for the server's answer. */
+interface PendingShop {
+  kind: "weapon" | "building";
+  /** Index in the shopping list. */
+  index: number;
+  id: string;
+  /** Buildings of that type owned when the placement was sent. */
+  owned: number;
+  sentAtTick: number;
+}
 
 export class BotClient {
   readonly down = new ByteRate();
@@ -127,6 +155,20 @@ export class BotClient {
   private revives = 0;
   private readonly log: (line: Record<string, unknown>) => void;
   private readonly holdFireMs: number;
+  /** Story 3.10: weapons bought ("smg@W3") and buildings placed this run. */
+  readonly purchases: string[] = [];
+  buildingsPlaced = 0;
+  spent = 0;
+  private shopDone = false;
+  private shopSkip = 0;
+  private shopPending: PendingShop | null = null;
+  private placeAttempt = 0;
+  /** The slot the bot will hold once it swapped to what it bought this build (Story 3.10). */
+  private hands = -1;
+  private swapPending = false;
+  private readonly shopSelf: BotShopSelf = { wallet: 0, weapon0: "", weapon1: "", active: 0 };
+  private readonly spot = { gx: 0, gy: 0, rot: 0 };
+  private readonly list: readonly string[];
   private readonly visitMate = (p: PlayerStateView, id: string): void => {
     const v = this.view;
     if (id === this.playerId || v.teammateCount >= v.teammates.length) return;
@@ -144,6 +186,7 @@ export class BotClient {
   ) {
     this.holdFireMs = holdFireS * 1000;
     this.cfg = botConfigOf(balance);
+    this.list = balance.bots.shoppingList;
     this.log = log;
     const now = (): number => performance.now();
     attachByteCounters(room as unknown as Parameters<typeof attachByteCounters>[0], this.down, this.up, now);
@@ -158,6 +201,10 @@ export class BotClient {
     room.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => void readHordeFrame(b, this.horde));
     room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m));
     room.onMessage(S2C.PLAYER_LEFT, () => {});
+    room.onMessage(S2C.SHOP_BOUGHT, (m: ShopBought) => this.shopBought(m));
+    room.onMessage(S2C.SHOP_REFUSED, (m: ShopRefused) => this.shopRefused(m));
+    room.onMessage(S2C.BUILDING_REFUSED, (m: BuildingRefused) => this.placeRefused(m));
+    room.onMessage(S2C.BUILDING_REPAIR_REFUSED, () => {});
     room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, () => {});
     room.onLeave((code: number, reason?: string) => {
       if (this.timer) clearInterval(this.timer);
@@ -214,13 +261,18 @@ export class BotClient {
     if (!state?.players || (state.phase !== "wave" && state.phase !== "build") || !this.playerId) return;
     const me = state.players.get(this.playerId);
     if (!me) return;
+    // Story 3.10: shop first (one action per step, waiting for each answer), then Ready.
+    if (state.phase === "build" && !this.shopDone) this.shopStep(state, me);
     // Once per build, retried after ~1 s if the server still hasn't got it (3.1 review: it shares
     // the 10/s "other" bucket with pongs).
-    if (state.phase === "build" && !me.buildReady && (this.readyAtTick < 0 || state.tick - this.readyAtTick >= READY_RETRY_TICKS)) {
+    if (state.phase === "build" && this.shopDone && !me.buildReady && (this.readyAtTick < 0 || state.tick - this.readyAtTick >= READY_RETRY_TICKS)) {
       this.readyAtTick = state.tick;
       this.room.send(C2S.BUILD_SET_READY, { ready: true });
     }
-    if (state.phase !== "build") this.readyAtTick = -1;
+    if (state.phase !== "build") {
+      this.readyAtTick = -1;
+      if (this.shopDone || this.shopPending) this.endShopping();
+    }
     const v = this.view;
     v.self.x = me.x;
     v.self.y = me.y;
@@ -250,8 +302,103 @@ export class BotClient {
       v.nearestZombie = null;
     }
     botInput(v, this.cfg, ++this.seq, this.input);
+    if (this.swapPending && state.phase === "wave") {
+      this.input.swap = true; // to the weapon bought into the slot not in hands
+      this.swapPending = false;
+    }
     if (this.waveNumber > 0 && performance.now() - this.waveStartMs < this.holdFireMs) this.input.fire = false;
     this.room.send(C2S.INPUT_SEND, this.input);
+  }
+
+  /** Buildings of `type` this bot owns (from the state). */
+  private owned(state: RunStateView, type: string): number {
+    let n = 0;
+    state.buildings?.forEach((b) => {
+      if (b.owner === this.playerId && b.type === type) n++;
+    });
+    return n;
+  }
+
+  /** One shopping action in a build phase (Story 3.10), or waiting for the last one's answer. */
+  private shopStep(state: RunStateView, me: PlayerStateView): void {
+    if (this.hands < 0) this.hands = me.active;
+    const pending = this.shopPending;
+    if (pending) {
+      if (pending.kind === "building" && this.owned(state, pending.id) > pending.owned) {
+        this.buildingsPlaced++;
+        this.spent += balance.buildings.types[pending.id]?.price ?? 0;
+        this.shopPending = null;
+        this.placeAttempt = 0;
+      } else if (state.tick - pending.sentAtTick > SHOP_ANSWER_TICKS) {
+        this.shopSkip |= 1 << pending.index; // no answer: give up on that entry this build
+        this.shopPending = null;
+        this.placeAttempt = 0;
+      }
+      return;
+    }
+    const self = this.shopSelf;
+    self.wallet = me.wallet;
+    self.weapon0 = me.weapon0;
+    self.weapon1 = me.weapon1;
+    self.active = this.hands;
+    const i = botShopNext(balance, self, (t) => this.owned(state, t), this.list, this.shopSkip);
+    if (i < 0) {
+      this.shopDone = true;
+      this.swapPending = this.hands !== me.active;
+      return;
+    }
+    const id = this.list[i] as string;
+    if (shopPrice(balance, id) !== null) {
+      const slot = botWeaponSlot(self);
+      this.room.send(C2S.SHOP_BUY, slot === null ? { weapon: id } : { weapon: id, slot });
+      this.shopPending = { kind: "weapon", index: i, id, owned: 0, sentAtTick: state.tick };
+      return;
+    }
+    if (this.placeAttempt >= botPlaceTries(balance) || !botPlaceCandidate(balance, id, me.x, me.y, this.placeAttempt, this.spot)) {
+      this.shopSkip |= 1 << i; // no free spot around me: next entry
+      this.placeAttempt = 0;
+      return;
+    }
+    this.placeAttempt++;
+    this.room.send(C2S.BUILDING_PLACE, { type: id, gx: this.spot.gx, gy: this.spot.gy, rot: this.spot.rot });
+    this.shopPending = { kind: "building", index: i, id, owned: this.owned(state, id), sentAtTick: state.tick };
+  }
+
+  private shopBought(m: ShopBought): void {
+    const p = this.shopPending;
+    if (!p || p.kind !== "weapon") return;
+    this.purchases.push(`${m.weapon}@W${this.waveNumber + 1}`);
+    this.spent += shopPrice(balance, m.weapon) ?? 0;
+    this.hands = m.slot;
+    this.shopPending = null;
+  }
+
+  private shopRefused(m: ShopRefused): void {
+    const p = this.shopPending;
+    if (!p || p.kind !== "weapon") return;
+    this.log({ msg: "bot_shop_refused", bot: this.name, weapon: m.weapon, error: m.error });
+    this.shopSkip |= 1 << p.index;
+    this.shopPending = null;
+  }
+
+  private placeRefused(m: BuildingRefused): void {
+    const p = this.shopPending;
+    if (!p || p.kind !== "building") return;
+    // A bad spot: the next candidate on the next step. Money or the cap: give up on that entry.
+    if (m.reason !== "blocked") {
+      this.shopSkip |= 1 << p.index;
+      this.placeAttempt = 0;
+    }
+    this.shopPending = null;
+  }
+
+  /** The build phase is over: reset the shopping for the next one. */
+  private endShopping(): void {
+    this.shopDone = false;
+    this.shopSkip = 0;
+    this.shopPending = null;
+    this.placeAttempt = 0;
+    this.hands = -1;
   }
 
   private receiveEvents(m: SimEventsFlushed): void {

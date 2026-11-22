@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import { canonicalJson, fnv1a32 } from "../core/hash";
 import { balanceFileSchemas, type BalanceFileName } from "./balanceSchema";
+import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
@@ -55,6 +56,14 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   const zombies = parsed.zombies as { types: Record<string, { radiusM: number }> };
   const waves = parsed.waves as { spawnJitterM: number };
   const buildings = parsed.buildings as { spawnClearM: number };
+  // Story 3.10: every wave mix names zombie types that exist (and that the wire can carry).
+  const mixes = (parsed.waves as { mix: readonly Record<string, number>[] }).mix;
+  mixes.forEach((m, i) => {
+    for (const id of Object.keys(m)) {
+      if (!(id in zombies.types)) issues.push(`waves.json: mix.${i}: unknown zombie type ${id}`);
+      else if (!(ZOMBIE_TYPES as readonly string[]).includes(id)) issues.push(`waves.json: mix.${i}: ${id} is not in ZOMBIE_TYPES`);
+    }
+  });
   const maxRz = Math.max(0, ...Object.values(zombies.types).map((t) => t.radiusM));
   // 3.5 re-review: the flow field's pinch rule assumes a body fits a free cell diagonal (0.354 m
   // clearance past two corners); a bigger zombie type needs the clearance rule extended first.
