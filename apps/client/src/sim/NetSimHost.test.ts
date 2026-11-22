@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  BYTES,
   C2S,
+  HORDE_MAX_FRAME_BYTES,
+  ZOMBIE_STATE,
+  hordeFrameBytes,
+  packTypeState,
+  writeHordeHeader,
+  writeHordeRecord,
+  zombieNetId,
   NEUTRAL_INPUT,
   NET_EVENT_KIND,
   S2C,
@@ -196,5 +204,81 @@ describe("NetSimHost", () => {
     expect([...room.handlers.values()].every((l) => l.length === 0)).toBe(true);
     host.update(1);
     expect(inputs(room)).toHaveLength(0);
+  });
+
+  describe("horde stream (Story 2.5)", () => {
+    const scratch = new Uint8Array(HORDE_MAX_FRAME_BYTES);
+    const view = new DataView(scratch.buffer);
+    const frame = (tick: number, zs: { netId: number; x: number; y: number; heading?: number }[]): Uint8Array => {
+      writeHordeHeader(view, tick, zs.length);
+      zs.forEach((z, i) => writeHordeRecord(view, i, z.netId, z.x, z.y, z.heading ?? 0, packTypeState(0, ZOMBIE_STATE.CHASE)));
+      // The SDK hands a subarray of a larger receive buffer.
+      const wire = new Uint8Array(hordeFrameBytes(zs.length) + 3);
+      wire.set(scratch.subarray(0, hordeFrameBytes(zs.length)), 3);
+      return wire.subarray(3);
+    };
+    const Z = zombieNetId(9, 2);
+
+    it("samples zombies at the players' render tick into the mirror pool", () => {
+      const { host, room, arrive, setNow } = setup();
+      for (let t = 10; t <= 12; t++) {
+        setNow(500 + t * 50);
+        room.deliver(BYTES.HORDE_FRAME, frame(t, [{ netId: Z, x: t, y: 5, heading: 64 }]));
+        arrive(t);
+      }
+      setNow(500 + (10.5 + RENDER_DELAY_TICKS) * 50);
+      host.update(0);
+      const z = host.world.zombies;
+      expect(z.aliveCount).toBe(1);
+      expect(z.aliveIds[0]).toBe(9);
+      expect(z.x[9]).toBeCloseTo(10.5, 5);
+      expect(z.prevX[9]).toBe(z.x[9]);
+      expect(z.generation[9]).toBe(2);
+      expect(z.heading[9]).toBe(64);
+      expect(host.hordeStats.framesReceived).toBe(3);
+      room.deliver(BYTES.HORDE_FRAME, new Uint8Array(7));
+      expect(host.hordeStats.decodeErrors).toBe(1);
+    });
+
+    it("a zombie.killed hides the zombie in the same frame its death event drains", () => {
+      const { host, room, arrive, setNow } = setup();
+      for (let t = 10; t <= 13; t++) {
+        setNow(500 + t * 50);
+        room.deliver(BYTES.HORDE_FRAME, frame(t, t < 12 ? [{ netId: Z, x: 3, y: 3 }] : []));
+        if (t === 12) {
+          room.deliver(S2C.SIM_EVENTS_FLUSHED, {
+            tick: 12,
+            events: [[NET_EVENT_KIND.ZOMBIE_KILLED, Z, 0, 300, 300, 0]],
+          } satisfies SimEventsFlushed);
+        }
+        arrive(t);
+      }
+      setNow(500 + (11.5 + RENDER_DELAY_TICKS) * 50);
+      host.update(0);
+      expect(host.drainEvents()).toHaveLength(0);
+      expect(host.world.zombies.aliveCount).toBe(1); // still drawn: the death is 0.5 tick ahead
+      setNow(500 + (12 + RENDER_DELAY_TICKS) * 50);
+      host.update(0);
+      const events = host.drainEvents();
+      expect(events.map((e) => e.type)).toEqual(["zombie.killed"]);
+      expect(host.world.zombies.aliveCount).toBe(0);
+      // A late frame still carrying that net id stays hidden.
+      setNow(500 + 14 * 50);
+      room.deliver(BYTES.HORDE_FRAME, frame(14, [{ netId: Z, x: 3, y: 3 }]));
+      arrive(14);
+      setNow(500 + (14 + RENDER_DELAY_TICKS) * 50);
+      host.update(0);
+      expect(host.world.zombies.aliveCount).toBe(0);
+    });
+
+    it("horde frames before the host exists are dropped quietly", () => {
+      const room = new FakeRoom(fakeState([fakePlayer(1)]));
+      const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+      room.deliver(BYTES.HORDE_FRAME, frame(1, [{ netId: Z, x: 1, y: 1 }]));
+      expect(session.inbox.earlyHordeDropped).toBe(1);
+      const host = new NetSimHost({ balance, session, now: () => 0 });
+      room.deliver(BYTES.HORDE_FRAME, frame(2, [{ netId: Z, x: 1, y: 1 }]));
+      expect(host.hordeStats.framesReceived).toBe(1);
+    });
   });
 });

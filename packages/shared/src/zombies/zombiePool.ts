@@ -24,6 +24,11 @@ export interface ZombiePool {
   readonly waveZombie: Uint8Array;
   /** Incremented each time the slot is reused (wraps at 256). */
   readonly generation: Uint8Array;
+  /**
+   * Facing (`quantizeHeading`, 0–255) streamed by the server (Story 2.5). Only the client mirror
+   * writes it; the simulation never reads or writes it, and `snapshotWorld` ignores it.
+   */
+  readonly heading: Uint8Array;
   /** Dense list of alive ids (iteration order); `aliveCount` entries are valid. */
   readonly aliveIds: Int32Array;
   /** Position of each alive id inside `aliveIds` (for O(1) swap-remove). */
@@ -53,6 +58,7 @@ export function createZombiePool(capacity: number): ZombiePool {
     type: new Uint8Array(capacity),
     state: new Uint8Array(capacity),
     generation: new Uint8Array(capacity),
+    heading: new Uint8Array(capacity),
     waveZombie: new Uint8Array(capacity),
     aliveIds: new Int32Array(capacity),
     alivePos: new Int32Array(capacity).fill(-1),

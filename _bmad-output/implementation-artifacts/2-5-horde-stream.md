@@ -1,6 +1,6 @@
 # Story 2.5: Horde stream
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -18,30 +18,30 @@ so that big hordes work online.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Format (shared)** (AC 1, 2, 5): `packages/shared/src/net/hordeFormat.ts`. See Dev Notes › Binary layout. It is pure: no Colyseus, no DOM.
-- [ ] **Task 2: Pool support (shared)** (AC 2)
-  - [ ] The slot hold (`ZOMBIE_SLOT_HOLD_TICKS = 20`) and the `generation: Uint8Array` that grows on reuse **already exist** (Story 1.4, `zombies/zombiePool.ts`). Don't re-implement them.
-  - [ ] Add `heading: Uint8Array(capacity)` to `ZombiePool`. The simulation never reads or writes it: only the client mirror writes it. Document that in the field comment, and that `snapshotWorld` ignores it.
-  - [ ] Add a test in `hordeFormat.test.ts` that `ZOMBIE_POOL_CAPACITY <= 256`, because the slot must fit 8 bits.
-- [ ] **Task 3: Rectangle query (shared)** (AC 1): `core/spatialGrid.ts` gets `queryRect(grid, x, y, minX, minY, maxX, maxY, out): number`. It reads the same cell lists as `queryRadius` and returns ids inside the rectangle (point test). Tests: inside, outside, on the edge, a rectangle partly outside the map, `out` full.
-- [ ] **Task 4: Interest rectangle (shared)** (AC 1): `net/interest.ts`, `viewRect(map, px, py, marginM, out)`. See Dev Notes › Interest. Tests: player in the middle, near each wall, and a map smaller than the view.
-- [ ] **Task 5: Encoder (server)** (AC 1, 4): `apps/server/src/net/hordeEncoder.ts`, called from `RunRoom.onTick` after `syncState`. See Dev Notes › Encoder.
-- [ ] **Task 6: Decoder and buffer (client)** (AC 3): `apps/client/src/net/hordeDecoder.ts` and `net/hordeBuffer.ts`. NetSimHost registers `room.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => …)`. See Dev Notes › Client side.
-- [ ] **Task 7: Mirror write and rendering (client)** (AC 3)
-  - [ ] Each frame, NetSimHost samples the buffer at the same render tick as players (2.4) and writes the visible zombies into the mirror world's `zombies` pool, with `apps/client/src/net/mirrorZombies.ts`.
-  - [ ] `ZombieView`:
+- [x] **Task 1: Format (shared)** (AC 1, 2, 5): `packages/shared/src/net/hordeFormat.ts`. See Dev Notes › Binary layout. It is pure: no Colyseus, no DOM.
+- [x] **Task 2: Pool support (shared)** (AC 2)
+  - [x] The slot hold (`ZOMBIE_SLOT_HOLD_TICKS = 20`) and the `generation: Uint8Array` that grows on reuse **already exist** (Story 1.4, `zombies/zombiePool.ts`). Don't re-implement them.
+  - [x] Add `heading: Uint8Array(capacity)` to `ZombiePool`. The simulation never reads or writes it: only the client mirror writes it. Document that in the field comment, and that `snapshotWorld` ignores it.
+  - [x] Add a test in `hordeFormat.test.ts` that `ZOMBIE_POOL_CAPACITY <= 256`, because the slot must fit 8 bits.
+- [x] **Task 3: Rectangle query (shared)** (AC 1): `core/spatialGrid.ts` gets `queryRect(grid, x, y, minX, minY, maxX, maxY, out): number`. It reads the same cell lists as `queryRadius` and returns ids inside the rectangle (point test). Tests: inside, outside, on the edge, a rectangle partly outside the map, `out` full.
+- [x] **Task 4: Interest rectangle (shared)** (AC 1): `net/interest.ts`, `viewRect(map, px, py, marginM, out)`. See Dev Notes › Interest. Tests: player in the middle, near each wall, and a map smaller than the view.
+- [x] **Task 5: Encoder (server)** (AC 1, 4): `apps/server/src/net/hordeEncoder.ts`, called from `RunRoom.onTick` after `syncState`. See Dev Notes › Encoder.
+- [x] **Task 6: Decoder and buffer (client)** (AC 3): `apps/client/src/net/hordeDecoder.ts` and `net/hordeBuffer.ts`. NetSimHost registers `room.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => …)`. See Dev Notes › Client side.
+- [x] **Task 7: Mirror write and rendering (client)** (AC 3)
+  - [x] Each frame, NetSimHost samples the buffer at the same render tick as players (2.4) and writes the visible zombies into the mirror world's `zombies` pool, with `apps/client/src/net/mirrorZombies.ts`.
+  - [x] `ZombieView`:
     - when `host.online`, use the streamed heading (`headingToRad(z.heading[id])`) instead of the angle from movement;
     - re-initialize a slot's image when its **generation** changes, not only when it reappears after a gap;
     - keep local mode unchanged.
-- [ ] **Task 8: Deaths exactly once** (AC 3)
-  - [ ] A decoded `zombie.killed` event (2.4 event queue, delivered at render tick) marks that net id dead in the buffer.
-  - [ ] The mirror drops it at once, FxView plays the death, and later frames that still carry that net id (sent before the server freed the slot) are ignored.
-  - [ ] The client never removes a zombie on its own except by the missing-3 rule, which only hides zombies that left the view.
-- [ ] **Task 9: Stats** (AC 4, 5)
-  - [ ] The encoder counts `framesSent`, `framesSkipped` and `bytesSent` per client.
-  - [ ] On `wave.ended`, log `info` `horde_stats` with `{ roomId, wave, playerId, framesSent, framesSkipped, avgBytes }`. No per-zombie or per-frame logging.
-  - [ ] NetSimHost counts frames received and decode errors, for the 2.10 overlay.
-- [ ] **Task 10: Tests**: see Dev Notes › Testing.
+- [x] **Task 8: Deaths exactly once** (AC 3)
+  - [x] A decoded `zombie.killed` event (2.4 event queue, delivered at render tick) marks that net id dead in the buffer.
+  - [x] The mirror drops it at once, FxView plays the death, and later frames that still carry that net id (sent before the server freed the slot) are ignored.
+  - [x] The client never removes a zombie on its own except by the missing-3 rule, which only hides zombies that left the view.
+- [x] **Task 9: Stats** (AC 4, 5)
+  - [x] The encoder counts `framesSent`, `framesSkipped` and `bytesSent` per client.
+  - [x] On `wave.ended`, log `info` `horde_stats` with `{ roomId, wave, playerId, framesSent, framesSkipped, avgBytes }`. No per-zombie or per-frame logging.
+  - [x] NetSimHost counts frames received and decode errors, for the 2.10 overlay.
+- [x] **Task 10: Tests**: see Dev Notes › Testing.
 
 ## Dev Notes
 
@@ -193,10 +193,41 @@ export function readHordeFrame(view: DataView, sink: HordeSink): boolean; // fal
 
 ### Agent Model Used
 
+Claude Opus 5.5 (claude-opus-5-5), builder agent in worktree `story-2-5`.
+
 ### Debug Log References
+
+- `npx vitest run apps/server/src/net/hordeEncoder.test.ts --silent=false`: `[horde bandwidth] 150 Walkers in view, 20 frames: 24160 B/s per client`; `[horde encode] 4 clients, 150 zombies: mean 0.106 ms, p99 0.701 ms`.
+- `RunRoom.fight.test.ts` live room: `[live tick] 4 clients, 150 Walkers, 40 ticks (incl. horde frames): mean 0.848 ms, max 4.207 ms; 40 patches: mean 0.258 ms, max 0.487 ms`.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- **Bandwidth (AC 5):** 150 Walkers in view at 20 Hz = (2 Colyseus header + 6 header + 150 × 8) × 20 = **24,160 B/s per client** (23.6 KB/s with KB = 1024), under the 24 × 1024 = 24,576 B budget. Asserted exactly in `hordeEncoder.test.ts`.
+- **Cost:** horde `prepare` + 4 client frames with 150 zombies: mean 0.11 ms, p99 0.7 ms (unit test). Live room with 4 SDK clients and 150 Walkers: whole tick incl. horde send mean 0.85 ms.
+- **Slow-tick item from the 2.4 review:** horde encoding/sending is inside the measured `onTick` (before `slowTicks.observe`). Patch encoding runs on Colyseus's own interval, so `RunRoom` now overrides `broadcastPatch()` and times `super.broadcastPatch()` with a second `SlowTickWatch` (`room.slowPatches`, logs `slow_patch` over 40 ms, same throttling). Measured live: 4 clients, 150 Walkers, patch encode + send mean 0.26 ms, max 0.49 ms. (`SlowTickWatch` got an optional log-message argument.)
+- **Format:** `packages/shared/src/net/hordeFormat.ts` exactly as the layout table; `zombieNetId(slot, gen)` now also feeds `sim.events_flushed` (`RunRoom.eventCtx`). `packTypeState` throws for values over 15.
+- **Encoder:** rebuilds `world.zombieGrid` once per tick as the story says. This does not change the simulation: `updateCombat` rebuilds the grid unconditionally before any sim grid query. Headings from movement > 1e-4 m, else held, reset on a generation change. Rushers (`state === RUSH`) are added outside the rectangle, never twice. Frames are views of one scratch buffer preallocated per record count, so a send creates no object on our side (Colyseus's `sendBytes` copies into its own Buffer). Backpressure reads `client.ref.bufferedAmount`. Only members whose player is in the World get frames; `viewTargetFor(playerId)` is the Story 2.8 hook. `horde_stats` is logged per player on `wave.ended`, counting since the previous wave end (counters reset after each line).
+- **Client:** `RunInbox` listens for `BYTES.HORDE_FRAME` from the join (the SDK never warns), and drops frames until the Game scene's `NetSimHost` calls `session.onHorde` (counted in `earlyHordeDropped`): horde frames are unreliable snapshots. `HordeDecoder` validates and drops stale/duplicate ticks (counters `framesReceived`, `decodeErrors`, `staleFrames` on `host.hordeStats` for 2.10). `HordeBuffer` is the ring of 8 snapshots with per-snapshot `slotIndex`, the missing-3 rule, the dead set, and a kill queue. `NetSimHost.applyHorde(renderTick)` samples at the same render tick as players and calls `mirrorZombies`. `ZombieView` takes a `streamedHeading` flag (`host.online`) and re-initializes a slot on a generation change.
+- **Deaths exactly once:** `NetSimHost.receiveEvents` passes the `ZOMBIE_KILLED` tuple's full net id (index 1) to `horde.killAt(tick, netId)`. `sample()` marks it dead when the render tick reaches the kill tick, the same tick at which `drainEvents` hands out the `zombie.killed` event, so the zombie disappears in the frame its death FX plays. Later frames that still carry that net id stay hidden. A new generation in the slot clears the dead mark.
+- **Deviations:**
+  - `readHordeFrame` takes a `Uint8Array` and reads bytes directly, not a `DataView`, so decoding allocates nothing per frame; the writers use the encoder's preallocated `DataView` as specified.
+  - The bytes handler lives in `RunInbox` (registered at join), not in NetSimHost's constructor, for the same reason as the 2.4 event inbox: no SDK warnings and no lost handler before the scene exists. NetSimHost subscribes via `session.onHorde`.
+  - The server clock is still fed only by state patches, not by horde frames. Horde frames go out right after the tick and patches on Colyseus's interval, so mixing their offsets would move the render tick ahead of the newest player snapshot. Story 2.6 can revisit this together with the adaptive delay.
+  - A zombie that is in snapshot A but missing from B is drawn at A's pose (and held after that while the missing-3 rule allows), so a zombie never vanishes for one frame while its kill is still ahead of the render tick.
+  - The end-to-end generation test is split in two because apps never import each other: the server test checks that the encoder sends the next generation and resets the heading after slot reuse; the client test (`hordeBuffer.test.ts`) runs frames written with the shared format writers through decoder → buffer and checks that the new zombie is never lerped from the old one.
+- **Browser check (Playwright + Chromium, two contexts at 844×390, server :2767 and Vite :5273 so we don't clash with the other worktree, waves on):** Ana creates, Bo joins by code, both Ready, Start. Both pages: online, `framesReceived` = server tick, 0 decode errors, 0 stale. Wave 1 arrives and zombies are drawn on both (screenshots); positions agree between pages to about 1–4 cm, and each page's count reflects its own view rectangle. A zombie tracked every animation frame moves monotonically (about 3.5 cm per frame, no steps). Both players fire for 12 s: 5 `zombie.killed` on each page with identical positions, and every killed slot was already gone from the mirror when its FX played. No page errors, no SDK `onMessage` warnings (only headless GL driver performance notices).
+- **Not verified:** DevTools "Fast 4G" throttling and real phones over 4G (Story 2.10). `horde_stats` on a real `wave.ended` in the browser run (the team died first); it is covered by the integration test, which calls `endWave` on a live room. Backpressure on a real slow socket (unit-tested with a fake `bufferedAmount`).
+- Tests: 531 passed, 3 skipped (`npm test`); typecheck, lint and build pass.
 
 ### File List
+
+- New: `packages/shared/src/net/hordeFormat.ts`, `packages/shared/src/net/hordeFormat.test.ts`, `packages/shared/src/net/interest.ts`, `packages/shared/src/net/interest.test.ts`
+- New: `apps/server/src/net/hordeEncoder.ts`, `apps/server/src/net/hordeEncoder.test.ts`
+- New: `apps/client/src/net/hordeDecoder.ts`, `apps/client/src/net/hordeBuffer.ts`, `apps/client/src/net/hordeBuffer.test.ts`, `apps/client/src/net/mirrorZombies.ts`
+- Modified: `packages/shared/src/zombies/zombiePool.ts` (heading), `packages/shared/src/core/spatialGrid.ts` (+ `queryRect`), `packages/shared/src/core/spatialGrid.test.ts`, `packages/shared/src/index.ts`
+- Modified: `apps/server/src/rooms/RunRoom.ts` (horde send in `onTick`, `viewTargetFor`, `horde_stats`, `broadcastPatch` timing, `zombieNetId`), `apps/server/src/run/slowTick.ts` (log message argument), `apps/server/src/rooms/RunRoom.fight.test.ts`
+- Modified: `apps/client/src/sim/NetSimHost.ts`, `apps/client/src/sim/NetSimHost.test.ts`, `apps/client/src/net/session.ts` (`RunInbox`/`NetSession.onHorde`, `NetRoomLike.onMessage` takes number types), `apps/client/src/net/fakeRoom.ts`, `apps/client/src/render/ZombieView.ts`, `apps/client/src/scenes/GameScene.ts`
+
+## Change Log
+
+- 2026-11-22: Story 2.5 built: binary horde frames per client with interest (view + 4 m, rushers always), backpressure, client ring buffer with interpolation, missing-3 rule, deaths exactly once, streamed headings; patch encoding now timed (`slow_patch`). 531 tests passing. Status → review.

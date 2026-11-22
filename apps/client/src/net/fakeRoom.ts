@@ -52,7 +52,7 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
 
 export class FakeRoom implements NetRoomLike {
   readonly sent: { type: string; message: unknown }[] = [];
-  readonly handlers = new Map<string, ((m: unknown) => void)[]>();
+  readonly handlers = new Map<string | number, ((m: unknown) => void)[]>();
   readonly stateListeners = new Set<(s: RunStateView) => void>();
   left = 0;
   readonly onStateChange: NetRoomLike["onStateChange"];
@@ -72,7 +72,7 @@ export class FakeRoom implements NetRoomLike {
     this.sent.push({ type, message: structuredClone(message) }); // the SDK encodes at once
   }
 
-  onMessage<T>(type: string, cb: (m: T) => void): () => void {
+  onMessage<T>(type: string | number, cb: (m: T) => void): () => void {
     const list = this.handlers.get(type) ?? [];
     list.push(cb as (m: unknown) => void);
     this.handlers.set(type, list);
@@ -83,8 +83,8 @@ export class FakeRoom implements NetRoomLike {
     this.left++;
   }
 
-  /** The server sent `type`. */
-  deliver(type: string, message: unknown): void {
+  /** The server sent `type` (a number: a binary message). */
+  deliver(type: string | number, message: unknown): void {
     for (const h of this.handlers.get(type) ?? []) h(message);
   }
 

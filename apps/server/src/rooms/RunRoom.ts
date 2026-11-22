@@ -22,6 +22,7 @@ import {
   playerInputSchema,
   runStartSchema,
   startBlocker,
+  zombieNetId,
   type JoinRefusal,
   type NetEvent,
   type NetEventContext,
@@ -30,15 +31,17 @@ import {
   type RunJoined,
   type SimEvent,
   type SimEventsFlushed,
+  type World,
 } from "@topdown/shared";
 import type { Logger } from "pino";
+import { HordeEncoder, newHordeStats, type HordeStats } from "../net/hordeEncoder";
 import { MAX_CLIENT_MESSAGE_BYTES } from "../net/limits";
 import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
 import { assignSlot, hashGuestToken, nextHost, type Member } from "../run/lobby";
 import { RunController } from "../run/RunController";
-import { SlowTickWatch } from "../run/slowTick";
+import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
@@ -113,6 +116,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   controller: RunController | null = null;
   /** Tick durations; logs `slow_tick` (AC 5). */
   slowTicks: SlowTickWatch | null = null;
+  /** Patch encode + send durations (Colyseus runs them on its own interval, outside the tick). */
+  slowPatches: SlowTickWatch | null = null;
+  /** Horde frames (Story 2.5): one encoder per room, counters per player id. */
+  private horde: HordeEncoder | null = null;
+  readonly hordeStats = new Map<string, HordeStats>();
   private eventCtx: NetEventContext | null = null;
   private tickErrors = 0;
   private shuttingDown = false;
@@ -272,8 +280,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     });
     this.controller = controller;
     const zombies = controller.world.zombies;
-    this.eventCtx = { balance: serverBalance, zombieNetId: (id) => id | ((zombies.generation[id] ?? 0) << 8) };
+    this.eventCtx = { balance: serverBalance, zombieNetId: (id) => zombieNetId(id, zombies.generation[id] ?? 0) };
+    this.horde = new HordeEncoder();
+    for (const p of players) this.hordeStats.set(p.playerId, newHordeStats());
     this.slowTicks = new SlowTickWatch(this.roomId, this.log, () => performance.now());
+    this.slowPatches = new SlowTickWatch(this.roomId, this.log, () => performance.now(), SLOW_PATCH_MESSAGE);
     syncState(this.state, controller); // spawn positions in the same patch as phase "wave"
     // 0.18 fixed timestep: at most 5 catch-up steps, then the backlog is dropped.
     this.setFixedTimestep(() => this.onTick(), TICK_RATE_HZ);
@@ -281,7 +292,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.log.info({ runSeed, players: players.length }, "run_started");
   }
 
-  /** One server tick: step, copy to schema, forward events. The patch goes out between ticks. */
+  /**
+   * One server tick: step, copy to schema, forward events, send horde frames (all inside the
+   * slow-tick timing). The patch goes out between ticks, timed by `broadcastPatch`.
+   */
   onTick(): void {
     const controller = this.controller;
     if (!controller || this.shuttingDown) return;
@@ -289,9 +303,58 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const events = controller.tick();
     syncState(this.state, controller);
     this.forwardEvents(controller.world.tick, events);
-    // Story 2.5: send horde frames here.
+    this.sendHorde(controller.world);
     this.slowTicks?.observe(performance.now() - t0, controller.world.tick);
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i] as SimEvent;
+      if (e.type === "wave.ended") this.logHordeStats(e.number);
+    }
     this.tickErrors = 0;
+  }
+
+  /** Colyseus's patch interval: encode + send the state patch, timed like a tick (`slow_patch`). */
+  override broadcastPatch(): boolean {
+    const watch = this.slowPatches;
+    if (!watch) return super.broadcastPatch();
+    const t0 = performance.now();
+    const sent = super.broadcastPatch();
+    watch.observe(performance.now() - t0, this.controller?.world.tick ?? 0);
+    return sent;
+  }
+
+  /**
+   * Where a player's horde view is centred: their own survivor. Story 2.8 hook: an "out" player's
+   * view follows the teammate they spectate.
+   */
+  viewTargetFor(playerId: string): { readonly x: number; readonly y: number } | undefined {
+    return this.controller?.world.players.get(playerId);
+  }
+
+  /** One horde frame per client whose player is in the run (AC 1, 4). */
+  private sendHorde(world: World): void {
+    const horde = this.horde;
+    if (!horde) return;
+    horde.prepare(world);
+    for (let i = 0; i < this.clients.length; i++) {
+      const client = this.clients[i] as RunClient;
+      const member = this.members.get(client.sessionId);
+      if (!member) continue;
+      const at = this.viewTargetFor(member.playerId);
+      const stats = this.hordeStats.get(member.playerId);
+      if (!at || !stats) continue;
+      horde.send(world, client, stats, at.x, at.y);
+    }
+  }
+
+  /** `horde_stats` per player for the wave that just ended; the counters restart for the next. */
+  private logHordeStats(wave: number): void {
+    for (const [playerId, s] of this.hordeStats) {
+      const avgBytes = s.framesSent === 0 ? 0 : Math.round(s.bytesSent / s.framesSent);
+      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, avgBytes }, "horde_stats");
+      s.framesSent = 0;
+      s.framesSkipped = 0;
+      s.bytesSent = 0;
+    }
   }
 
   /** One reliable `sim.events_flushed` per tick that has events, in emit order. */
