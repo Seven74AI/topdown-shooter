@@ -28,6 +28,8 @@ export const CHEAT_STRINGS = [
   "dev-gear",
   "Dev loadout",
   "__game",
+  "Collision / grid view",
+  "Spawn stage preview",
 ];
 
 function builtFiles(dir: string): string[] {

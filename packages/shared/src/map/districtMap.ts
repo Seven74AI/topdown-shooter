@@ -42,10 +42,27 @@ export interface HazardZone extends MapBox {
   readonly minStage: number;
 }
 
-/** A zombie spawn point of the `spawns` layer (Story 4.3 applies `minStage` and the 6 m rule). */
+/** Story 4.3: what a spawn point is in the city (GDD › District 1: alleys, manholes, broken shop windows). */
+export const SPAWN_KINDS = ["street", "alley", "manhole", "window"] as const;
+export type SpawnKind = (typeof SPAWN_KINDS)[number];
+
+/** Story 4.3: the axis a spawn's zombies are jittered along (`waves.spawnJitterM`). */
+export type SpawnJitterAxis = "x" | "y";
+
+/**
+ * A zombie spawn point of the `spawns` layer. Story 4.3: zombies come only from points with
+ * `minStage` ≤ the decay stage (`decay/decayStage.ts`), never within 6 m of a living player
+ * (`waves/spawnPick.ts`).
+ */
 export interface MapSpawn extends SpawnPoint {
   readonly name: string;
   readonly minStage: number;
+  readonly kind: SpawnKind;
+  /**
+   * Jitter axis (Tiled property `jitterAxis`; default: x on the top/bottom map edges, y otherwise,
+   * Story 4.1's rule). A window jitters along its building's face, a manhole along its street.
+   */
+  readonly jitterAxis: SpawnJitterAxis;
 }
 
 /** A visual prop of a `stageN_*` group (drawn by the client only; no gameplay). */

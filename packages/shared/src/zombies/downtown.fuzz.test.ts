@@ -13,6 +13,7 @@ import { spotBlocked } from "../player/freeSpot";
 import { teamSpawnPoint } from "../player/spawn";
 import { spawnZombie } from "./zombiePool";
 import { jitteredSpawn } from "../waves/waveDirector";
+import { SPAWN_STATE, spawnPointStates } from "../waves/spawnPick";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { setInput } from "../core/world";
 import { ZOMBIE_TYPES, maxZombieRadius, type ZombieTypeId } from "./zombieTypes";
@@ -31,6 +32,11 @@ import { ZOMBIE_TYPES, maxZombieRadius, type ZombieTypeId } from "./zombieTypes"
  * random point on a random map box's face (the bus included) and keeps pressing on it for a while,
  * then picks another, so they slide along walls, into corners and against barricades; after
  * `WALK_S` they hold still so the slowest zombies can arrive.
+ *
+ * Story 4.3: each layout is built at a random decay stage (1–3; placement clears only the spawns open
+ * then) and fought at the same or a later stage, so buildings can stand on spawns that open later.
+ * Zombies appear only at the spawns the wave director may use at the fight stage (not CLOSED, not
+ * BLOCKED by a building); the jitter area of each of those must be clear of every building.
  *
  * Every tick: no zombie or player overlaps a map box or a building. Every zombie must reach a
  * player (`REACH_M`, clear line) within the limit (no stall: none is left wandering or wedged). Liveness: the layouts
@@ -105,6 +111,9 @@ function layout(seed: number) {
     }
     addPlayer(world, `p${slot}`, at.x, at.y);
   }
+  const buildStage = rng.int(1, 3);
+  const fightStage = rng.int(buildStage, 3);
+  world.debug.decayStage = buildStage;
   const want = seed % 4 === 0 ? 0 : rng.int(6, 24);
   let nextId = 1;
   for (let tries = 0; tries < 2000 && world.buildings.list.length < want; tries++) {
@@ -128,9 +137,25 @@ function layout(seed: number) {
     jitteredSpawn(world, sp, j, balance.zombies.types[type]?.radiusM ?? 0, at2);
     spawned.push(spawnZombie(world, type, at2.x, at2.y));
   };
-  map.spawnPoints.forEach((sp, k) => spawnAt(sp, k + seed));
-  for (let i = 0; i < EXTRA_ZOMBIES; i++) spawnAt(map.spawnPoints[rng.int(0, map.spawnPoints.length - 1)] as { x: number; y: number }, i + seed + 1);
-  return { world, rng, spawned, players, buildings: world.buildings.list.length, destroyed: () => damaged };
+  world.debug.decayStage = fightStage;
+  const states = spawnPointStates(world, new Uint8Array(map.spawnPoints.length));
+  const usable = map.spawnPoints.filter((_, i) => states[i] !== SPAWN_STATE.CLOSED && states[i] !== SPAWN_STATE.BLOCKED);
+  const blocked = states.filter((s) => s === SPAWN_STATE.BLOCKED).length;
+  // Story 4.3: a usable spawn's whole jitter area (grown by the largest zombie radius) is clear of buildings.
+  let jitterHits = 0;
+  const lo = { x: 0, y: 0 };
+  const hi = { x: 0, y: 0 };
+  const rz = maxZombieRadius(balance);
+  for (const sp of usable) {
+    jitteredSpawn(world, sp, -jitter, rz, lo);
+    jitteredSpawn(world, sp, jitter, rz, hi);
+    for (const b of world.buildings.list) {
+      if (Math.min(lo.x, hi.x) - rz < b.maxX && Math.max(lo.x, hi.x) + rz > b.minX && Math.min(lo.y, hi.y) - rz < b.maxY && Math.max(lo.y, hi.y) + rz > b.minY) jitterHits++;
+    }
+  }
+  usable.forEach((sp, k) => spawnAt(sp, k + seed));
+  for (let i = 0; i < EXTRA_ZOMBIES; i++) spawnAt(usable[rng.int(0, usable.length - 1)] as { x: number; y: number }, i + seed + 1);
+  return { world, rng, spawned, players, buildings: world.buildings.list.length, destroyed: () => damaged, fightStage, blocked, jitterHits };
 }
 
 /** Review L3: each player's walk target (a point on a map box's face) and ticks left pressing on it. */
@@ -223,6 +248,9 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1, brief li
     let breaking = 0;
     let pressed = 0;
     let bare = 0;
+    let spawnedTotal = 0;
+    let blocked = 0;
+    const stages = new Set<number>();
     const failures: string[] = [];
     for (let seed = 1; seed <= LAYOUTS; seed++) {
       const r = run(4100 + seed);
@@ -231,19 +259,27 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1, brief li
       if (r.destroyed() > 0) breaking++;
       pressed += r.pressed;
       if (r.buildings === 0) bare++;
+      spawnedTotal += r.spawned.length;
+      blocked += r.blocked;
+      stages.add(r.fightStage);
+      if (r.jitterHits > 0) failures.push(`seed ${4100 + seed}: ${r.jitterHits} usable spawn jitter areas overlap a building`);
       if (r.violation) failures.push(r.violation);
       if (r.missing.length > 0) {
         const z = r.world.zombies;
         failures.push(`seed ${4100 + seed}: ${r.missing.length} zombies never reached a player in ${LIMIT_S} s: ${r.missing.map((id) => `${id}@(${(z.x[id] as number).toFixed(2)}, ${(z.y[id] as number).toFixed(2)})`).join(" ")}`);
       }
     }
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box`);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box, fight stages ${[...stages].sort().join("/")}, ${blocked} spawns closed by a building`);
     expect(failures).toEqual([]);
     // Liveness (brief line 9): the layouts were real and the zombies really came.
     expect(buildings).toBeGreaterThan(LAYOUTS * 3);
     expect(bare).toBe(LAYOUTS / 4);
     expect(pressed).toBeGreaterThan(LAYOUTS * 20); // the players really walked into walls
-    expect(reached).toBe(LAYOUTS * (map.spawnPoints.length + EXTRA_ZOMBIES));
+    expect(reached).toBe(spawnedTotal);
+    // Story 4.3 liveness: all three stages were fought, and some buildings really sat on later spawns.
+    expect(spawnedTotal).toBeGreaterThan(LAYOUTS * (9 + EXTRA_ZOMBIES) - 1);
+    expect([...stages].sort()).toEqual([1, 2, 3]);
+    expect(blocked).toBeGreaterThan(0);
     expect(breaking).toBeGreaterThan(0);
   }, 240_000);
 });

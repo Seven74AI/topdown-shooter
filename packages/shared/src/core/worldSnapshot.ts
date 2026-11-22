@@ -99,7 +99,12 @@ export function snapshotWorld(world: World) {
     ),
     projectiles: snapshotProjectiles(world),
     zombies: snapshotZombies(world),
-    waves: { ...world.waves, typeTarget: Array.from(world.waves.typeTarget), typeSpawned: Array.from(world.waves.typeSpawned) },
+    waves: {
+      ...world.waves,
+      typeTarget: Array.from(world.waves.typeTarget),
+      typeSpawned: Array.from(world.waves.typeSpawned),
+      recentSpawns: Array.from(world.waves.recentSpawns), // Story 4.3: the spawn pick's memory
+    },
     run: { ...world.run },
     debug: { ...world.debug },
     teamWiped: world.teamWiped,

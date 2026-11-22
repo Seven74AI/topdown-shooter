@@ -2,13 +2,14 @@ import type { Balance } from "../config/balance";
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import { spawnZombie } from "../zombies/zombiePool";
+import { createSpawnPickState, pickSpawnPoint, type SpawnPickState } from "./spawnPick";
 import { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
 
 /**
  * Wave director state. Story 3.1: the run's phase (build / wave) lives in `world.run`
  * (`run/runStateMachine.ts`); this is only the current wave's spawning.
  */
-export interface WaveState {
+export interface WaveState extends SpawnPickState {
   /** Current (or last finished) wave number; 0 before wave 1. */
   number: number;
   /** Size of the current wave. */
@@ -42,6 +43,7 @@ export function createWaveState(): WaveState {
     paused: false,
     typeTarget: new Uint16Array(ZOMBIE_TYPES.length),
     typeSpawned: new Uint16Array(ZOMBIE_TYPES.length),
+    ...createSpawnPickState(), // Story 4.3
   };
 }
 
@@ -91,13 +93,11 @@ export function waveTypeCounts(mix: Readonly<Record<string, number>>, size: numb
   }
 }
 
-/** Alive players this tick (reused array: no allocation per spawn). */
-const alivePlayers: { x: number; y: number }[] = [];
-
-function collectAlivePlayers(world: World): number {
-  alivePlayers.length = 0;
-  for (const p of world.players.values()) if (p.status === "alive") alivePlayers.push(p);
-  return alivePlayers.length;
+/** Standing players this tick (the director stops when none is). */
+function countAlivePlayers(world: World): number {
+  let n = 0;
+  for (const p of world.players.values()) if (p.status === "alive") n++;
+  return n;
 }
 
 function waveZombiesAlive(world: World): number {
@@ -105,45 +105,6 @@ function waveZombiesAlive(world: World): number {
   let n = 0;
   for (let i = 0; i < z.aliveCount; i++) if (z.waveZombie[z.aliveIds[i] as number] === 1) n++;
   return n;
-}
-
-/** Squared distance from each spawn point to its nearest alive player (reused per spawn). */
-let spawnD2 = new Float64Array(16);
-
-/**
- * Index of a spawn point far enough from every alive player (seeded pick), or the farthest point.
- * "Far enough" includes the edge jitter, so a jittered spawn is never closer than the minimum.
- */
-function pickSpawnPoint(world: World): number {
-  const points = world.map.spawnPoints;
-  if (spawnD2.length < points.length) spawnD2 = new Float64Array(points.length);
-  const minD = world.balance.waves.spawnMinPlayerDistanceM + world.balance.waves.spawnJitterM;
-  const minD2 = minD * minD;
-  let okCount = 0;
-  let farthest = 0;
-  let farthestD2 = -1;
-  for (let i = 0; i < points.length; i++) {
-    const sp = points[i] as (typeof points)[number];
-    let nearest = Infinity;
-    for (let k = 0; k < alivePlayers.length; k++) {
-      const p = alivePlayers[k] as { x: number; y: number };
-      const dx = p.x - sp.x;
-      const dy = p.y - sp.y;
-      nearest = Math.min(nearest, dx * dx + dy * dy);
-    }
-    spawnD2[i] = nearest;
-    if (nearest >= minD2) okCount++;
-    if (nearest > farthestD2) {
-      farthestD2 = nearest;
-      farthest = i;
-    }
-  }
-  if (okCount === 0) return farthest;
-  let pick = world.streams.spawns.int(0, okCount - 1);
-  for (let i = 0; i < points.length; i++) {
-    if ((spawnD2[i] as number) >= minD2 && pick-- === 0) return i;
-  }
-  return farthest;
 }
 
 /**
@@ -177,16 +138,24 @@ const spawnAt = { x: 0, y: 0 };
 
 /**
  * Where a wave zombie of radius r appears for spawn point sp and jitter j ∈ [−spawnJitterM,
- * spawnJitterM]: moved by j along the map edge the point sits on (x for the top/bottom edges, y
- * otherwise), clamped inside the map. Exported for Story 4.1's Downtown fuzz test (the same rule).
+ * spawnJitterM]: moved by j along the point's `jitterAxis` (Story 4.3: a window along its building's
+ * face, a manhole along its street; without one, Story 4.1's rule: x on the top/bottom map edges, y
+ * otherwise), clamped inside the map. Exported for the Downtown fuzz test (the same rule).
  */
-export function jitteredSpawn(world: Readonly<World>, sp: { x: number; y: number }, j: number, r: number, out: { x: number; y: number }): void {
+export function jitteredSpawn(
+  world: Readonly<World>,
+  sp: { x: number; y: number; jitterAxis?: "x" | "y" },
+  j: number,
+  r: number,
+  out: { x: number; y: number },
+): void {
   const { widthM, heightM } = world.map;
-  const onHorizontalEdge = sp.y < 1 || sp.y > heightM - 1;
-  out.x = Math.min(widthM - r, Math.max(r, onHorizontalEdge ? sp.x + j : sp.x));
-  out.y = Math.min(heightM - r, Math.max(r, onHorizontalEdge ? sp.y : sp.y + j));
+  const alongX = sp.jitterAxis !== undefined ? sp.jitterAxis === "x" : sp.y < 1 || sp.y > heightM - 1;
+  out.x = Math.min(widthM - r, Math.max(r, alongX ? sp.x + j : sp.x));
+  out.y = Math.min(heightM - r, Math.max(r, alongX ? sp.y : sp.y + j));
 }
 
+/** False when no zombie spawned (held by the spawn pick, Story 4.3, or the pool is full): the queue keeps it. */
 function spawnWaveZombie(world: World): boolean {
   const sp = world.map.spawnPoints[pickSpawnPoint(world)];
   if (!sp) return false;
@@ -228,6 +197,7 @@ export function beginWave(world: World): void {
   w.remaining = w.size;
   w.rushing = false;
   w.spawnTimerTicks = 0; // first batch this tick
+  w.spawnHeldSinceTick = -1; // Story 4.3: every wave gets the full wait before the farthest-spawn fallback
   world.events.emit({ type: "wave.started", number: w.number, size: w.size });
 }
 
@@ -241,7 +211,8 @@ export function clearWave(world: World): void {
 
 /**
  * Wave director (FR28, FR30), one tick of a wave in progress: wave N spawns its `waveSize` zombies
- * (types from `waves.json › mix`, Story 3.10) from spawn points at the map edges, at most `maxAlive` alive at once, the rest queued. When 5 remain
+ * (types from `waves.json › mix`, Story 3.10) from the spawn points open at the decay stage, away from
+ * the players and spread over the map sides (Story 4.3, `spawnPick.ts`), at most `maxAlive` alive at once, the rest queued. When 5 remain
  * (alive + queued, queue empty) they rush the nearest player. Timers count ticks. Returns true when
  * the wave is cleared (the run state machine then calls `endWave`). With no one standing nothing
  * spawns (the wipe ends the run).
@@ -249,7 +220,7 @@ export function clearWave(world: World): void {
 export function updateWaves(world: World): boolean {
   const w = world.waves;
   const b = world.balance.waves;
-  if (collectAlivePlayers(world) === 0) return false; // no one standing stops the director
+  if (countAlivePlayers(world) === 0) return false; // no one standing stops the director
 
   w.spawnTimerTicks--;
   if (w.spawnTimerTicks <= 0 && w.queued > 0) {

@@ -137,6 +137,23 @@ export const wavesSchema = z
     spawnMinPlayerDistanceM: z.number().min(0),
     /** Spawns are jittered ±this along their edge so a batch doesn't stack. */
     spawnJitterM: z.number().min(0),
+    /**
+     * Story 4.3 (`waves/spawnPick.ts`): the spawn pick chooses a map side, then a point on it, each
+     * weighted away from the last `recentPicks` picks: side weight = max(minWeight, baseWeight −
+     * sidePenalty × picks of that side), point weight = max(minWeight, baseWeight − pointPenalty ×
+     * picks of that point). When every active spawn is within the 6 m rule the batch waits up to
+     * `allNearMaxWaitS`, then uses the farthest active spawn (a wave never stalls).
+     */
+    spawnPick: z
+      .object({
+        recentPicks: z.number().int().min(0).max(16),
+        baseWeight: z.number().int().positive().max(1000),
+        sidePenalty: z.number().int().min(0).max(1000),
+        pointPenalty: z.number().int().min(0).max(1000),
+        minWeight: z.number().int().positive().max(1000),
+        allNearMaxWaitS: z.number().min(0),
+      })
+      .strict(),
     /** Story 3.10: clearing this wave ends the run ("You held out!"; Epic 6 sets 10 and adds the boss). */
     runWaves: z.number().int().min(1).max(255),
     /**

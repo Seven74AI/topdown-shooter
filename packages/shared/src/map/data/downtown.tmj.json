@@ -303,6 +303,11 @@
      "point": true,
      "properties": [
       {
+       "name": "kind",
+       "type": "string",
+       "value": "street"
+      },
+      {
        "name": "minStage",
        "type": "int",
        "value": 1
@@ -321,6 +326,11 @@
      "name": "street_east",
      "point": true,
      "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "street"
+      },
       {
        "name": "minStage",
        "type": "int",
@@ -341,6 +351,11 @@
      "point": true,
      "properties": [
       {
+       "name": "kind",
+       "type": "string",
+       "value": "street"
+      },
+      {
        "name": "minStage",
        "type": "int",
        "value": 1
@@ -359,6 +374,11 @@
      "name": "street_south",
      "point": true,
      "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "street"
+      },
       {
        "name": "minStage",
        "type": "int",
@@ -379,6 +399,11 @@
      "point": true,
      "properties": [
       {
+       "name": "kind",
+       "type": "string",
+       "value": "alley"
+      },
+      {
        "name": "minStage",
        "type": "int",
        "value": 1
@@ -397,6 +422,11 @@
      "name": "alley_2_mouth",
      "point": true,
      "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "alley"
+      },
       {
        "name": "minStage",
        "type": "int",
@@ -417,6 +447,11 @@
      "point": true,
      "properties": [
       {
+       "name": "kind",
+       "type": "string",
+       "value": "alley"
+      },
+      {
        "name": "minStage",
        "type": "int",
        "value": 1
@@ -435,6 +470,11 @@
      "name": "gas_station_north",
      "point": true,
      "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "street"
+      },
       {
        "name": "minStage",
        "type": "int",
@@ -455,6 +495,11 @@
      "point": true,
      "properties": [
       {
+       "name": "kind",
+       "type": "string",
+       "value": "street"
+      },
+      {
        "name": "minStage",
        "type": "int",
        "value": 1
@@ -466,6 +511,296 @@
      "width": 0,
      "x": 480,
      "y": 1008
+    },
+    {
+     "height": 0,
+     "id": 28,
+     "name": "manhole_west",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "manhole"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "x"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 384,
+     "y": 576
+    },
+    {
+     "height": 0,
+     "id": 29,
+     "name": "manhole_north",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "manhole"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "x"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 128
+    },
+    {
+     "height": 0,
+     "id": 30,
+     "name": "window_corner_shop",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "window"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "x"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 128,
+     "y": 339.2
+    },
+    {
+     "height": 0,
+     "id": 31,
+     "name": "window_diner",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "window"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "x"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 112,
+     "y": 684.8
+    },
+    {
+     "height": 0,
+     "id": 32,
+     "name": "window_offices",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "window"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "x"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 1088,
+     "y": 684.8
+    },
+    {
+     "height": 0,
+     "id": 33,
+     "name": "manhole_south",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "manhole"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "y"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 704,
+     "y": 864
+    },
+    {
+     "height": 0,
+     "id": 34,
+     "name": "manhole_east",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "manhole"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "x"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 1408,
+     "y": 432
+    },
+    {
+     "height": 0,
+     "id": 35,
+     "name": "window_apartments",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "window"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "y"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 595.2,
+     "y": 160
+    },
+    {
+     "height": 0,
+     "id": 36,
+     "name": "window_warehouse",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "window"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "x"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 1424,
+     "y": 684.8
+    },
+    {
+     "height": 0,
+     "id": 37,
+     "name": "window_gas_kiosk",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "window"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "x"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 1424,
+     "y": 211.2
     }
    ],
    "opacity": 1,
@@ -481,7 +816,7 @@
    "objects": [
     {
      "height": 240,
-     "id": 28,
+     "id": 38,
      "name": "gas_leak_zone",
      "properties": [
       {
@@ -504,7 +839,7 @@
     },
     {
      "height": 208,
-     "id": 29,
+     "id": 39,
      "name": "fire_parked_car_2",
      "properties": [
       {
@@ -527,7 +862,7 @@
     },
     {
      "height": 128,
-     "id": 30,
+     "id": 40,
      "name": "fire_street_car_west",
      "properties": [
       {
@@ -565,7 +900,7 @@
      "objects": [
       {
        "height": 64,
-       "id": 31,
+       "id": 41,
        "name": "sidewalk_nw",
        "properties": [
         {
@@ -583,7 +918,7 @@
       },
       {
        "height": 320,
-       "id": 32,
+       "id": 42,
        "name": "sidewalk_nw_east",
        "properties": [
         {
@@ -601,7 +936,7 @@
       },
       {
        "height": 64,
-       "id": 33,
+       "id": 43,
        "name": "sidewalk_sw",
        "properties": [
         {
@@ -619,7 +954,7 @@
       },
       {
        "height": 64,
-       "id": 34,
+       "id": 44,
        "name": "sidewalk_se",
        "properties": [
         {
@@ -637,7 +972,7 @@
       },
       {
        "height": 320,
-       "id": 35,
+       "id": 45,
        "name": "sidewalk_se_west",
        "properties": [
         {
@@ -655,7 +990,7 @@
       },
       {
        "height": 384,
-       "id": 36,
+       "id": 46,
        "name": "gas_forecourt",
        "properties": [
         {
@@ -673,7 +1008,7 @@
       },
       {
        "height": 320,
-       "id": 37,
+       "id": 47,
        "name": "parking_lot",
        "properties": [
         {
@@ -691,7 +1026,7 @@
       },
       {
        "height": 48,
-       "id": 38,
+       "id": 48,
        "name": "crosswalk_north",
        "properties": [
         {
@@ -709,7 +1044,7 @@
       },
       {
        "height": 48,
-       "id": 39,
+       "id": 49,
        "name": "crosswalk_south",
        "properties": [
         {
@@ -727,7 +1062,7 @@
       },
       {
        "height": 256,
-       "id": 40,
+       "id": 50,
        "name": "crosswalk_west",
        "properties": [
         {
@@ -745,7 +1080,7 @@
       },
       {
        "height": 256,
-       "id": 41,
+       "id": 51,
        "name": "crosswalk_east",
        "properties": [
         {
@@ -763,7 +1098,7 @@
       },
       {
        "height": 6.4,
-       "id": 42,
+       "id": 52,
        "name": "lane_west",
        "properties": [
         {
@@ -781,7 +1116,7 @@
       },
       {
        "height": 6.4,
-       "id": 43,
+       "id": 53,
        "name": "lane_east",
        "properties": [
         {
@@ -799,7 +1134,7 @@
       },
       {
        "height": 304,
-       "id": 44,
+       "id": 54,
        "name": "lane_north",
        "properties": [
         {
@@ -817,7 +1152,7 @@
       },
       {
        "height": 304,
-       "id": 45,
+       "id": 55,
        "name": "lane_south",
        "properties": [
         {
@@ -835,7 +1170,7 @@
       },
       {
        "height": 240,
-       "id": 46,
+       "id": 56,
        "name": "gas_canopy",
        "properties": [
         {
@@ -876,7 +1211,7 @@
      "objects": [
       {
        "height": 25.6,
-       "id": 47,
+       "id": 57,
        "name": "debris_west",
        "properties": [
         {
@@ -894,7 +1229,7 @@
       },
       {
        "height": 25.6,
-       "id": 48,
+       "id": 58,
        "name": "debris_east",
        "properties": [
         {
@@ -935,7 +1270,7 @@
      "objects": [
       {
        "height": 32,
-       "id": 49,
+       "id": 59,
        "name": "debris_mid",
        "properties": [
         {
@@ -953,7 +1288,7 @@
       },
       {
        "height": 32,
-       "id": 50,
+       "id": 60,
        "name": "debris_south",
        "properties": [
         {
@@ -1030,7 +1365,7 @@
   }
  ],
  "nextlayerid": 15,
- "nextobjectid": 51,
+ "nextobjectid": 61,
  "orientation": "orthogonal",
  "properties": [
   {

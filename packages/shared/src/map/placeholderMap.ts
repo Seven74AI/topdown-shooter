@@ -20,7 +20,9 @@ export const PLACEHOLDER_MAP: DistrictMap = Object.freeze({
       ...[6, 18, 30, 42].map((x) => ({ x, y: 32 - EDGE_INSET_M })),
       ...[32 / 3, 64 / 3].map((y) => ({ x: EDGE_INSET_M, y })),
       ...[32 / 3, 64 / 3].map((y) => ({ x: 48 - EDGE_INSET_M, y })),
-    ].map((p, i) => Object.freeze({ ...p, name: `edge_${i + 1}`, minStage: 1 })),
+    ].map((p, i) =>
+      Object.freeze({ ...p, name: `edge_${i + 1}`, minStage: 1, kind: "street" as const, jitterAxis: p.y < 1 || p.y > 31 ? ("x" as const) : ("y" as const) }),
+    ),
   ),
   solids: Object.freeze([]),
   cover: Object.freeze([]),

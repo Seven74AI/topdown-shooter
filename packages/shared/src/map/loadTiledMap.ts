@@ -3,12 +3,15 @@ import { canonicalJson, fnv1a32 } from "../core/hash";
 import {
   COVER_KINDS,
   MAP_STAGE_COUNT,
+  SPAWN_KINDS,
   type CoverKind,
   type CoverObject,
   type DistrictMap,
   type HazardZone,
   type MapBox,
   type MapSpawn,
+  type SpawnJitterAxis,
+  type SpawnKind,
   type VisualProp,
 } from "./districtMap";
 import { tiledMapSchema, type TiledLayer, type TiledObject, type TiledObjectGroup, type TiledProperty } from "./tiledSchema";
@@ -227,9 +230,23 @@ export function loadTiledMap(raw: unknown, name: string): DistrictMap {
         fail(`${label}: inside collision box ${inside.name}`);
         continue;
       }
-      spawnPoints.push({ name: o.name, x, y, minStage: stageOf(spawnLayer.name, o) });
+      // Story 4.3: what the spawn is (required) and the axis its zombies are jittered along.
+      const kind = kindOf(o);
+      if (!(SPAWN_KINDS as readonly string[]).includes(kind)) {
+        fail(`${label}: kind must be one of ${SPAWN_KINDS.join(", ")}, got ${kind || "(none)"}`);
+        continue;
+      }
+      const axisProp = propsOf(o.properties).get("jitterAxis");
+      if (axisProp !== undefined && axisProp !== "x" && axisProp !== "y") {
+        fail(`${label}: jitterAxis must be x or y, got ${String(axisProp)}`);
+        continue;
+      }
+      const jitterAxis: SpawnJitterAxis = axisProp ?? (y < 1 || y > heightM - 1 ? "x" : "y");
+      spawnPoints.push({ name: o.name, x, y, minStage: stageOf(spawnLayer.name, o), kind: kind as SpawnKind, jitterAxis });
     }
     if (spawnPoints.length === 0) fail(`${spawnLayer.name}: needs at least one spawn point`);
+    // Story 4.3: zombies come only from spawns open at the current stage; the run starts at stage 1.
+    else if (!spawnPoints.some((s) => s.minStage === 1)) fail(`${spawnLayer.name}: needs at least one spawn point with minStage 1`);
   }
 
   const stages: VisualProp[][] = [];

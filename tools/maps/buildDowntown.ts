@@ -87,17 +87,47 @@ const cover: Rect[] = [
   { name: "sandbags_south", x: 22.5, y: 22.5, w: 3, h: 1, props: { kind: "sandbags", minStage: 3 } },
 ];
 
+/**
+ * Story 4.3 spawn points (FR32; GDD: alleys, manholes, broken shop windows; decay opens more).
+ * Stage 1 (evening): the street and alley ends on the map edge — the horde comes from outside.
+ * Stage 2 (panic): manholes in the west and north streets, the corner shop's, diner's and offices'
+ * windows. Stage 3 (breakdown): manholes in the south and east streets, the apartments', warehouse's
+ * and gas kiosk's windows. A window sits 0.6 m off its building's face and jitters along it
+ * (`jitterAxis`); a manhole jitters along its street. Each jitter area (± spawnJitterM, grown by the
+ * largest zombie radius) is clear of collision and cover (test), and each new point is ≥ 9 m from
+ * the team start.
+ *
+ *   x: 0     4   8 9.5 11   18.6 24        37.5   44.5  48
+ *   y0 +-----S1--a1--+---- -  -S1N- ----------S1g---------+
+ *    4 |          |     | W3  M2N                         |
+ *    6 |          |     |                       W3 kiosk  |
+ *   10 +--W2 shop-+-----+                                 |
+ *   13 S1W     M2W(12,18)                         M3E     S1E
+ *   21    W2 diner                    W2 offices  W3 wareh.
+ *   27 |                    M3S(22,27)                    |
+ *   32 +---S1a2--S1lot-----S1S-------------S1a3-----------+
+ */
 const spawns: Point[] = [
-  { name: "street_west", x: 0.5, y: 16 },
-  { name: "street_east", x: 47.5, y: 16 },
-  { name: "street_north", x: 24, y: 0.5 },
-  { name: "street_south", x: 24, y: 31.5 },
-  { name: "alley_1_mouth", x: 9.5, y: 0.5 },
-  { name: "alley_2_mouth", x: 8.5, y: 31.5 },
-  { name: "alley_3_mouth", x: 39.5, y: 31.5 },
-  { name: "gas_station_north", x: 37.5, y: 0.5 },
-  { name: "parking_lot_south", x: 15, y: 31.5 },
-].map((p) => ({ ...p, props: { minStage: 1 } }));
+  { name: "street_west", x: 0.5, y: 16, props: { kind: "street", minStage: 1 } },
+  { name: "street_east", x: 47.5, y: 16, props: { kind: "street", minStage: 1 } },
+  { name: "street_north", x: 24, y: 0.5, props: { kind: "street", minStage: 1 } },
+  { name: "street_south", x: 24, y: 31.5, props: { kind: "street", minStage: 1 } },
+  { name: "alley_1_mouth", x: 9.5, y: 0.5, props: { kind: "alley", minStage: 1 } },
+  { name: "alley_2_mouth", x: 8.5, y: 31.5, props: { kind: "alley", minStage: 1 } },
+  { name: "alley_3_mouth", x: 39.5, y: 31.5, props: { kind: "alley", minStage: 1 } },
+  { name: "gas_station_north", x: 37.5, y: 0.5, props: { kind: "street", minStage: 1 } },
+  { name: "parking_lot_south", x: 15, y: 31.5, props: { kind: "street", minStage: 1 } },
+  { name: "manhole_west", x: 12, y: 18, props: { kind: "manhole", minStage: 2, jitterAxis: "x" } },
+  { name: "manhole_north", x: 24, y: 4, props: { kind: "manhole", minStage: 2, jitterAxis: "x" } },
+  { name: "window_corner_shop", x: 4, y: 10.6, props: { kind: "window", minStage: 2, jitterAxis: "x" } },
+  { name: "window_diner", x: 3.5, y: 21.4, props: { kind: "window", minStage: 2, jitterAxis: "x" } },
+  { name: "window_offices", x: 34, y: 21.4, props: { kind: "window", minStage: 2, jitterAxis: "x" } },
+  { name: "manhole_south", x: 22, y: 27, props: { kind: "manhole", minStage: 3, jitterAxis: "y" } },
+  { name: "manhole_east", x: 44, y: 13.5, props: { kind: "manhole", minStage: 3, jitterAxis: "x" } },
+  { name: "window_apartments", x: 18.6, y: 5, props: { kind: "window", minStage: 3, jitterAxis: "y" } },
+  { name: "window_warehouse", x: 44.5, y: 21.4, props: { kind: "window", minStage: 3, jitterAxis: "x" } },
+  { name: "window_gas_kiosk", x: 44.5, y: 6.6, props: { kind: "window", minStage: 3, jitterAxis: "x" } },
+];
 
 const hazards: Rect[] = [
   { name: "gas_leak_zone", x: 31, y: 2, w: 6, h: 7.5, props: { kind: "gas_leak", minStage: 2 } },

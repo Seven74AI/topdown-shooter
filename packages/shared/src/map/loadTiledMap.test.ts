@@ -4,7 +4,21 @@ import { MAP_STAGE_GROUPS, MapError, loadTiledMap } from "./loadTiledMap";
 /** Story 4.1: the Tiled JSON loader on small hand-written maps (the refusals name layer and object). */
 type Obj = Record<string, unknown>;
 const rect = (id: number, name: string, x: number, y: number, w: number, h: number, extra: Obj = {}): Obj => ({ id, name, x, y, width: w, height: h, rotation: 0, type: "", visible: true, ...extra });
-const point = (id: number, name: string, x: number, y: number): Obj => ({ id, name, x, y, width: 0, height: 0, point: true, rotation: 0, type: "", visible: true });
+/** Story 4.3: spawn points need a `kind` (default here: street); `props` replaces the property list. */
+const point = (id: number, name: string, x: number, y: number, props: Obj[] = [{ name: "kind", type: "string", value: "street" }]): Obj => ({
+  id,
+  name,
+  x,
+  y,
+  width: 0,
+  height: 0,
+  point: true,
+  rotation: 0,
+  type: "",
+  visible: true,
+  properties: props,
+});
+const sKind = (k: string): Obj => ({ name: "kind", type: "string", value: k });
 const kind = (k: string, minStage?: number): Obj => ({
   properties: [{ name: "kind", type: "string", value: k }, ...(minStage === undefined ? [] : [{ name: "minStage", type: "int", value: minStage }])],
 });
@@ -65,10 +79,28 @@ describe("loadTiledMap (Story 4.1)", () => {
     expect([m.widthM, m.heightM]).toEqual([8, 4]);
     expect(m.solids).toEqual([{ name: "box", minX: 2, minY: 1, maxX: 3, maxY: 2.5 }]);
     expect(m.cover).toEqual([{ name: "car", minX: 5, minY: 1, maxX: 7, maxY: 2, kind: "car", minStage: 1 }]);
-    expect(m.spawnPoints).toEqual([{ name: "edge", x: 0.5, y: 0.5, minStage: 1 }]);
+    expect(m.spawnPoints).toEqual([{ name: "edge", x: 0.5, y: 0.5, minStage: 1, kind: "street", jitterAxis: "x" }]);
     expect(m.hazards).toEqual([{ name: "fire", minX: 5, minY: 2, maxX: 6, maxY: 3, kind: "fire", minStage: 3 }]);
     expect(m.stages[0]).toEqual([{ name: "lane", minX: 0, minY: 1.875, maxX: 8, maxY: 2.0625, kind: "lane", layer: "ground" }]);
     expect(m.stages.slice(1)).toEqual([[], [], [], []]);
+  });
+
+  it("Story 4.3: reads spawn kind, stage and jitter axis (default: x on the top/bottom edges, y elsewhere)", () => {
+    const m = loadTiledMap(
+      tiny({
+        spawns: [
+          point(3, "edge", 16, 16),
+          point(6, "side", 16, 64, [sKind("alley")]),
+          point(7, "win", 128, 64, [sKind("window"), { name: "minStage", type: "int", value: 3 }, { name: "jitterAxis", type: "string", value: "x" }]),
+        ],
+      }),
+      "tiny",
+    );
+    expect(m.spawnPoints.map((s) => [s.name, s.kind, s.minStage, s.jitterAxis])).toEqual([
+      ["edge", "street", 1, "x"],
+      ["side", "alley", 1, "y"],
+      ["win", "window", 3, "x"],
+    ]);
   });
 
   it("the version changes when the data changes (the join check refuses another map)", () => {
@@ -96,6 +128,10 @@ describe("loadTiledMap (Story 4.1)", () => {
     ["spawn in a box", tiny({ spawns: [point(3, "edge", 80, 48)] }), "spawns: edge: inside collision box box"],
     ["spawn not a point", tiny({ spawns: [rect(3, "edge", 0, 0, 32, 32)] }), "spawns: edge: must be a point"],
     ["no spawns", tiny({ spawns: [] }), "spawns: needs at least one spawn point"],
+    ["Story 4.3: spawn without a kind", tiny({ spawns: [point(3, "edge", 16, 16, [])] }), "spawns: edge: kind must be one of street, alley, manhole, window, got (none)"],
+    ["Story 4.3: unknown spawn kind", tiny({ spawns: [point(3, "edge", 16, 16, [sKind("portal")])] }), "spawns: edge: kind must be one of street, alley, manhole, window, got portal"],
+    ["Story 4.3: bad jitter axis", tiny({ spawns: [point(3, "edge", 16, 16, [sKind("window"), { name: "jitterAxis", type: "string", value: "z" }])] }), "spawns: edge: jitterAxis must be x or y, got z"],
+    ["Story 4.3: no stage-1 spawn", tiny({ spawns: [point(3, "edge", 16, 16, [sKind("manhole"), { name: "minStage", type: "int", value: 2 }])] }), "spawns: needs at least one spawn point with minStage 1"],
     ["review L6: offset layer", withLayer("collision", { offsetx: 16 }), "layer collision has an offset (16, 0)"],
     ["review L6: parallax layer", withLayer("cover", { parallaxy: 0.5 }), "layer cover has a parallax factor (1, 0.5)"],
     ["review L6: hidden layer", withLayer("spawns", { visible: false }), "layer spawns is hidden"],

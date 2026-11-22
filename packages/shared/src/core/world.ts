@@ -89,6 +89,11 @@ export interface WorldDebug {
    * null = the real composition.
    */
   waveMix: readonly ZombieTypeId[] | null;
+  /**
+   * Story 4.3 dev/test override of the decay stage (`decay/decayStage.ts`): previews the spawn points
+   * of stages 2–3 before Story 4.5 drives the stage. null = the real stage. Solo cheat only.
+   */
+  decayStage: number | null;
 }
 
 export interface CreateWorldOptions {
@@ -124,7 +129,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(),
     run: createRunState(),
-    debug: { godMode: false, waveMix: null },
+    debug: { godMode: false, waveMix: null, decayStage: null },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),

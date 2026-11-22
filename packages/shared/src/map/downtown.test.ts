@@ -12,6 +12,8 @@ import { spawnZombie } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { FLOW_UNREACHED, flowCellAt, rebuildFlowFieldNow } from "../zombies/flowField";
 import { mapCollisionCells } from "./collisionCells";
+import { jitteredSpawn } from "../waves/waveDirector";
+import { spawnSide } from "../waves/spawnPick";
 import { DOWNTOWN_MAP } from "./downtown";
 
 /** Story 4.1 AC 6: the Downtown data as the sim loads it (`downtown.tmj` → `DOWNTOWN_MAP`). */
@@ -61,10 +63,10 @@ describe("Downtown map data (Story 4.1)", () => {
     expect(map.cover.find((c) => c.name === "bus_hull")).toMatchObject({ kind: "bus", minX: 30, minY: 14.5, maxX: 40, maxY: 17, minStage: 1 });
     expect(map.cover.filter((c) => c.kind === "car").map((c) => c.name)).toEqual(["parked_car_1", "parked_car_2", "parked_car_3", "street_car_west", "street_car_east"]);
     expect(map.cover.find((c) => c.kind === "barrier")?.minStage).toBe(2);
-    expect(names(map.spawnPoints)).toEqual(
+    // Story 4.3: the 9 edge spawns of 4.1 open at stage 1; manholes and windows at stages 2–3.
+    expect(names(map.spawnPoints.filter((s) => s.minStage === 1))).toEqual(
       ["alley_1_mouth", "alley_2_mouth", "alley_3_mouth", "gas_station_north", "parking_lot_south", "street_east", "street_north", "street_south", "street_west"].sort(),
     );
-    expect(map.spawnPoints.every((s) => s.minStage === 1)).toBe(true);
     expect(map.hazards.map((h) => [h.name, h.kind, h.minStage])).toEqual([
       ["gas_leak_zone", "gas_leak", 2],
       ["fire_parked_car_2", "fire", 3],
@@ -84,17 +86,23 @@ describe("Downtown map data (Story 4.1)", () => {
       teamSpawnPoint(world, slot, at);
       expect(circleHitsBuilding(world, at.x, at.y, balance.player.radiusM)).toBe(false);
     }
-    // Review L5: the whole area a spawned zombie can cover: the jitter segment along the edge (the
-    // wave director's axis), grown by the largest zombie radius on every side, overlaps no box.
+    // Review L5: the whole area a spawned zombie can cover: the jitter segment along the spawn's
+    // jitter axis (Story 4.3: the wave director's `jitteredSpawn` rule, checked through it), grown by
+    // the largest zombie radius on every side, overlaps no collision box and (Story 4.3) no cover
+    // object of any stage (Story 4.2 makes cover block bodies).
     const j = balance.waves.spawnJitterM;
     const rz = maxZombieRadius(balance);
+    const lo = { x: 0, y: 0 };
+    const hi = { x: 0, y: 0 };
     for (const sp of map.spawnPoints) {
-      const horizontal = sp.y < 1 || sp.y > map.heightM - 1;
-      const minX = sp.x - (horizontal ? j : 0) - rz;
-      const maxX = sp.x + (horizontal ? j : 0) + rz;
-      const minY = sp.y - (horizontal ? 0 : j) - rz;
-      const maxY = sp.y + (horizontal ? 0 : j) + rz;
-      const hit = map.solids.find((s) => minX < s.maxX && maxX > s.minX && minY < s.maxY && maxY > s.minY);
+      jitteredSpawn(world, sp, -j, rz, lo);
+      jitteredSpawn(world, sp, j, rz, hi);
+      expect(Math.hypot(hi.x - lo.x, hi.y - lo.y), sp.name).toBeCloseTo(2 * j, 9); // really jittered, not clamped
+      const minX = Math.min(lo.x, hi.x) - rz;
+      const maxX = Math.max(lo.x, hi.x) + rz;
+      const minY = Math.min(lo.y, hi.y) - rz;
+      const maxY = Math.max(lo.y, hi.y) + rz;
+      const hit = [...map.solids, ...map.cover].find((s) => minX < s.maxX && maxX > s.minX && minY < s.maxY && maxY > s.minY);
       expect(hit?.name, sp.name).toBeUndefined();
     }
   });
@@ -170,5 +178,28 @@ describe("Downtown map data (Story 4.1)", () => {
     expect(me.status).toBe("alive");
     expect(circleHitsBuilding(world, me.x, me.y, R), `returned at (${me.x}, ${me.y})`).toBe(false);
     expect(me.x >= R && me.x <= map.widthM - R && me.y >= R && me.y <= map.heightM - R).toBe(true);
+  });
+
+  it("Story 4.3: spawns tell the story — kinds, stages 1–3, several sides each stage, far from the team start", () => {
+    const kinds = (stage: number) => [...new Set(map.spawnPoints.filter((s) => s.minStage === stage).map((s) => s.kind))].sort();
+    expect(kinds(1)).toEqual(["alley", "street"]);
+    expect(kinds(2)).toEqual(["manhole", "window"]);
+    expect(kinds(3)).toEqual(["manhole", "window"]);
+    const open = (stage: number) => map.spawnPoints.filter((s) => s.minStage <= stage);
+    expect([1, 2, 3].map((st) => open(st).length)).toEqual([9, 14, 19]);
+    expect(map.spawnPoints.every((s) => s.minStage <= 3)).toBe(true); // stages 4–5: Stories 4.7 / Epic 6
+    // Stage 1 keeps its edge spawns: every one sits within 1 m of the map edge.
+    for (const s of open(1)) expect(Math.min(s.x, s.y, map.widthM - s.x, map.heightM - s.y), s.name).toBeLessThan(1);
+    // Every stage has spawns on all four sides of the map.
+    for (const st of [1, 2, 3]) expect(new Set(open(st).map((s) => spawnSide(map, s))).size, `stage ${st}`).toBe(4);
+    // A stage-2/3 spawn never opens on the team: ≥ 9 m from every team-start slot.
+    const world = createWorld({ balance, seed: 1, map });
+    const at = { x: 0, y: 0 };
+    for (const s of map.spawnPoints.filter((sp) => sp.minStage > 1)) {
+      for (let slot = 0; slot < 4; slot++) {
+        teamSpawnPoint(world, slot, at);
+        expect(Math.hypot(s.x - at.x, s.y - at.y), s.name).toBeGreaterThanOrEqual(9);
+      }
+    }
   });
 });

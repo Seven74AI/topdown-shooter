@@ -58,13 +58,18 @@ export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint
 export {
   COVER_KINDS,
   MAP_STAGE_COUNT,
+  SPAWN_KINDS,
   type CoverKind,
   type CoverObject,
   type HazardZone,
   type MapBox,
   type MapSpawn,
+  type SpawnJitterAxis,
+  type SpawnKind,
   type VisualProp,
 } from "./map/districtMap";
+export { decayStage } from "./decay/decayStage";
+export { SPAWN_SIDE, SPAWN_SIDE_NAMES, SPAWN_STATE, spawnPointStates, spawnSide, type SpawnState } from "./waves/spawnPick";
 export { MAP_LAYERS, MAP_STAGE_GROUPS, MapError, loadTiledMap } from "./map/loadTiledMap";
 export { mapCollisionCells } from "./map/collisionCells";
 export { DOWNTOWN_MAP } from "./map/downtown";
@@ -150,7 +155,7 @@ export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
 export { swingMelee } from "./combat/melee";
 export { circleOverlapsSector } from "./math/sector";
-export { updateWaves, waveMixOf, waveSize, waveTypeCounts, type WaveState } from "./waves/waveDirector";
+export { jitteredSpawn, updateWaves, waveMixOf, waveSize, waveTypeCounts, type WaveState } from "./waves/waveDirector";
 export {
   endRun,
   endWave,

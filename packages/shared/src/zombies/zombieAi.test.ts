@@ -161,7 +161,7 @@ describe("contact damage (FR9)", () => {
     expect(p.hp).toBe(100);
     expect(p.status).toBe("alive");
     expect(events.some((e) => e.type === "player.damaged")).toBe(false);
-    expect(snapshotWorld(world).debug).toEqual({ godMode: true, waveMix: null });
+    expect(snapshotWorld(world).debug).toEqual({ godMode: true, waveMix: null, decayStage: null });
     world.debug.godMode = false;
     run(world, 21);
     expect(p.hp).toBeLessThan(100);
