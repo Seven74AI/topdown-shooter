@@ -16,6 +16,8 @@ export interface NetOverlaySource {
   readonly hordeStats: { readonly framesReceived: number };
   /** The server's test scenario ("" = a normal game). */
   readonly scenario: string;
+  /** This device is the room's host (only the host asked for a scenario, so only it sees a refusal). */
+  readonly isHost: boolean;
 }
 
 /**

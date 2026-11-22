@@ -6,20 +6,32 @@ Story 2.10. This note records whether online co-op with a big horde works on pho
 
 You need 4 phones (mobile data, Wi-Fi off), about 15 minutes, and Hermes for two small deploy steps.
 
-**Before (Hermes):** in `deploy/docker-compose.yml`, uncomment `ALLOW_TEST_SCENARIOS: "1"` and redeploy. This lets the host start the fixed test. Without it the game runs a normal wave 1, and the overlay says `scenario net150 refused by the server`.
+**Before (Hermes):** deploy the same version with the test switch on (see [docs/deploy.md](../deploy.md) for `deploy.sh`; no file is edited on the VPS):
+
+```bash
+cd /root/topdown-shooter && ALLOW_TEST_SCENARIOS=1 deploy/deploy.sh <ref>
+docker compose -f deploy/docker-compose.yml logs server | grep server_started | tail -1   # must show "allowTestScenarios":true
+```
+
+This lets the host start the fixed test. Without it the game runs a normal wave 1, and the host's numbers box says `scenario net150 refused by the server`.
 
 **The test:**
 
 1. **Host:** open `https://hordes.sevend.io/?debug=1&scenario=net150`, type a name, tap **Create game**, and send the share link to the others.
-2. **Friends:** open the share link, then add `?debug=1` at the end, for example `https://hordes.sevend.io/j/ABCD?debug=1`. This shows the numbers box. Type a name and join.
+2. **Friends:** open the share link, then add `?debug=1` at the end, for example `https://hordes.sevend.io/j/ABCD?debug=1`. This shows the numbers box (a three-finger tap on the game also shows or hides it). Type a name and join.
    - A phone that can't use mobile data: stay on Wi-Fi and add `&lag=150&jitter=20` as well (`...?debug=1&lag=150&jitter=20`). It fakes a 4G delay. Write down which phones did this.
 3. Everyone taps **Ready**. The host taps **Start**.
 4. Check that the numbers box (top right, under ☰) starts with **TEST SCENARIO net150**. The wave banner says **Wave 4**: 160 Walkers, and nobody can die (god mode).
 5. Play the wave to the end. Shoot, move around, stay together or split up: play the way you normally would. Keep the phone screen on and the game in front.
-6. When "Wave 4 cleared" shows, a **Network results** box opens on each phone. Tap **Copy results** and paste the text into a chat with yourself (or straight into this file). If Copy fails, take a screenshot of the box.
+6. When "Wave 4 cleared" shows, a **Network results** box opens on each phone. Tap **Copy results** and paste the text into a chat with yourself (or straight into this file). If Copy fails, take a screenshot of the box. **Then leave: ☰ → Leave game.** Wave 5 starts 5 s later, and its report would replace an uncopied one.
 7. Ask each player, and write down the answer word for word: **"Did you ever see something that didn't match what your friends saw?"** (a zombie that died on one screen but not another, a friend in a different place, a hit that didn't count).
 
-**After (Hermes):** comment `ALLOW_TEST_SCENARIOS` out again and redeploy.
+**After (Hermes):** deploy again without the switch, and check it is off:
+
+```bash
+cd /root/topdown-shooter && deploy/deploy.sh <ref>
+docker compose -f deploy/docker-compose.yml logs server | grep server_started | tail -1   # must show "allowTestScenarios":false
+```
 
 **What to read off the numbers box during the wave** (optional; the Copy results text has everything):
 
@@ -50,6 +62,8 @@ You need 4 phones (mobile data, Wi-Fi off), about 15 minutes, and Hermes for two
 - **Ping** is the server's round-trip time for this phone (one `net.pinged` a second); the summary gives its average and 95th percentile over the wave.
 - **Reversed hits** (Story 2.7): my own bullet crossed a zombie on my screen, and the server did not confirm a hit on that zombie by me within RTT + render delay + 300 ms. Only my gun shots count.
 - **FPS** is the Story 1.11 measurement over the wave (average, and 1000 / the longest frame).
+- The wave summary is measured only while the numbers box is on when the wave starts (`?debug=1`, or the three-finger tap before the wave), like the Story 1.11 numbers.
+- `effectiveType (estimate)` in the report is the browser's own guess from measured speed (Chrome on Android; desktop Chrome says `4g` even on localhost). Write the real network in the table.
 
 ## Targets
 
@@ -71,7 +85,7 @@ You need 4 phones (mobile data, Wi-Fi off), about 15 minutes, and Hermes for two
 
 ## Server
 
-From the server log on the test day (`docker compose logs server | grep -E 'net_stats|tick_stats|horde_stats|slow_tick|slow_patch'`). Every line is per wave, written at `wave.ended`.
+From the server log on the test day (`cd /root/topdown-shooter && docker compose -f deploy/docker-compose.yml logs server | grep -E 'net_stats|tick_stats|horde_stats|slow_tick|slow_patch'`). Every line is per wave, written at `wave.ended`.
 
 | | wave 4 |
 |---|---|

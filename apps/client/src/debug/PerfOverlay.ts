@@ -85,7 +85,7 @@ export class PerfOverlay {
     if (net) {
       const n = net.netStats;
       if (net.scenario) lines.unshift(`TEST SCENARIO ${net.scenario}`);
-      else if (urlOptions().scenario) lines.unshift(`scenario ${urlOptions().scenario} refused by the server`);
+      else if (urlOptions().scenario && net.isHost) lines.unshift(`scenario ${urlOptions().scenario} refused by the server`);
       lines.push(`ping ${Math.round(n.rttMs)} ms · delay ${Math.round(n.delayMs)} ms · jitter ${Math.round(n.jitterMs)} ms`);
       lines.push(
         `down ${netMeter.downKBps(now).toFixed(1)} KB/s (avg ${netMeter.avgDownKBps(now).toFixed(1)}, peak ${netMeter.peakDownKBps(now).toFixed(1)}) · up ${netMeter.upKBps(now).toFixed(1)} KB/s`,

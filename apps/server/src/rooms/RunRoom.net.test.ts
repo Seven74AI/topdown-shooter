@@ -11,6 +11,8 @@ import {
   S2C,
   attachByteCounters,
   endWave,
+  killZombie,
+  spawnZombie,
   type RunStateView,
 } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
@@ -127,6 +129,47 @@ describe("byte counters (Story 2.10)", () => {
     expect(tick.tickAvgMs).toBeGreaterThanOrEqual(0);
     expect(tick.tickMaxMs).toBeGreaterThanOrEqual(tick.tickAvgMs as number);
     expect(tick).toHaveProperty("patchAvgMs");
+  });
+
+  it("restarts every per-wave counter at wave.started: bytes sent in the break are not in the next wave", async () => {
+    vi.stubEnv("DEV_NO_WAVES", "1");
+    const { client, room } = await create(colyseus);
+    client.send(C2S.LOBBY_SET_READY, { ready: true });
+    await vi.waitFor(() => expect(room.state.players.get("p0")?.ready).toBe(true));
+    client.send(C2S.RUN_START, {});
+    await vi.waitFor(() => expect(room.controller).not.toBeNull());
+    const world = room.controller?.world;
+    const me = world?.players.get("p0");
+    if (!world || !me) throw new Error("no world");
+    world.debug.godMode = true;
+    const info = vi.spyOn(room.log, "info");
+    const lines = (msg: string) => info.mock.calls.filter((c) => c[1] === msg).map((c) => c[0] as Record<string, number>);
+    // The break: 150 zombies around the player for 2.2 s, so every horde frame and second is heavy.
+    for (let i = 0; i < 150; i++) spawnZombie(world, "walker", me.x + 2 + (i % 15) * 0.3, me.y - 3 + Math.floor(i / 15) * 0.6);
+    await sleep(2200);
+    // Wave 2 starts with no zombies left and lasts ~1.5 s: only empty horde frames and small patches.
+    for (let i = world.zombies.aliveCount - 1; i >= 0; i--) killZombie(world, world.zombies.aliveIds[i] as number, null, "cheat");
+    world.events.emit({ type: "wave.started", number: 2, size: 0 });
+    await sleep(1600);
+    endWave(world);
+    await vi.waitFor(() => expect(lines("tick_stats")).toHaveLength(1));
+    const net = lines("net_stats")[0] as Record<string, number>;
+    const horde = lines("horde_stats")[0] as Record<string, number>;
+    const tick = lines("tick_stats")[0] as Record<string, number>;
+    // The break ran at ~20 KB/s of horde frames: none of it may show in wave 2.
+    expect(net.avgOutKBps).toBeLessThan(2);
+    expect(net.peakOutKBps).toBeLessThan(2);
+    expect(net.hordeKBps).toBeLessThan(1);
+    expect(horde.avgBytes).toBeLessThan(50); // empty frames (6 B + 2 B header), not 150-zombie ones
+    expect(horde.framesSent).toBeLessThan(45); // ~1.6 s of frames, not 3.8 s
+    expect(tick.ticks).toBeLessThan(45);
+    expect(tick.peakZombiesAlive).toBe(0);
+  });
+
+  it("refuses server-only room options sent as join options", async () => {
+    for (const extra of [{ allowTestScenarios: true }, { allowSoloStart: true }]) {
+      await expect(colyseus.sdk.create(RUN_ROOM_NAME, options("create", "Ana", extra))).rejects.toThrow("invalid_options");
+    }
   });
 });
 

@@ -257,6 +257,12 @@ export class NetSimHost implements SimHost {
     return this.session.room.state?.scenario ?? "";
   }
 
+  /** Story 2.10: this device holds the room's host slot. */
+  get isHost(): boolean {
+    const state = this.session.room.state;
+    return state !== undefined && state !== null && state.hostSlot === this.session.slot;
+  }
+
   /** The (fractional) tick others are drawn at: server estimate − adaptive delay. NaN before the first snapshot. */
   get renderTick(): number {
     return this.renderTickNow;

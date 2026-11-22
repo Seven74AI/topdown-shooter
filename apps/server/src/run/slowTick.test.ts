@@ -42,4 +42,17 @@ describe("SlowTickWatch", () => {
     expect(watch.maxMs).toBe(3);
     expect(watch.meanMs).toBe(2);
   });
+
+  it("takeWindow returns one window's numbers and starts the next one empty (Story 2.10 tick_stats)", () => {
+    const { watch } = setup();
+    watch.observe(2, 1);
+    watch.observe(6, 2);
+    watch.observe(45, 3);
+    expect(watch.takeWindow()).toEqual({ ticks: 3, avgMs: 17.67, maxMs: 45, slow: 1 });
+    watch.observe(1, 4);
+    expect(watch.takeWindow()).toEqual({ ticks: 1, avgMs: 1, maxMs: 1, slow: 0 });
+    expect(watch.takeWindow()).toEqual({ ticks: 0, avgMs: 0, maxMs: 0, slow: 0 });
+    expect(watch.ticks).toBe(4); // the run totals are not reset
+    expect(watch.maxMs).toBe(45);
+  });
 });

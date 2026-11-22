@@ -39,6 +39,10 @@ main() {
 	echo "==> checking out ${ref} (${sha}) as a detached HEAD"
 	git checkout --detach "$sha"
 	export GIT_SHA="$sha"
+	# Story 2.10: the 4-phone test day only (`ALLOW_TEST_SCENARIOS=1 deploy/deploy.sh <ref>`); the
+	# compose file reads it from this environment, default 0. Exported explicitly so it is never lost.
+	export ALLOW_TEST_SCENARIOS="${ALLOW_TEST_SCENARIOS:-0}"
+	echo "==> ALLOW_TEST_SCENARIOS=${ALLOW_TEST_SCENARIOS}"
 
 	if docker image inspect "topdown-server:${sha}" "topdown-web:${sha}" >/dev/null 2>&1; then
 		echo "==> images for ${sha} already exist, skipping the build"

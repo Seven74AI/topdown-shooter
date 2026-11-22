@@ -9,6 +9,7 @@ function source() {
     netStats: { rttMs: 0, delayMs: 100, jitterMs: 10, corrections: 0, snaps: 0, apparentHits: 0, confirmed: 0, reversed: 0 },
     hordeStats: { framesReceived: 0 },
     scenario: "net150",
+    isHost: true,
   } satisfies NetOverlaySource;
 }
 
