@@ -37,12 +37,29 @@ export interface HudModel {
   /** Downed players: (x, y, seconds left) in world metres, and how many are valid. */
   readonly downed: Float32Array;
   downedCount: number;
+  /**
+   * Story 2.9: the other players (never the local one), `teammateCount` valid entries: drawn world
+   * position (x0, y0, x1, y1, …), slot and flags (`TEAMMATE_DOWNED`, `TEAMMATE_OUT`).
+   */
+  readonly teammates: Float32Array;
+  readonly teammateSlot: Int8Array;
+  readonly teammateFlags: Uint8Array;
+  teammateCount: number;
+  /** Name per slot (index = slot), assigned only when it changes. */
+  readonly teammateNames: string[];
 }
 
 /** Most rush markers shown (the last-5 rule marks 5). */
 export const MAX_RUSH_MARKERS = 8;
 /** Most downed countdowns shown: one per player. */
 export const MAX_DOWNED_MARKERS = MAX_PLAYERS;
+/** Story 2.8: the downed countdown's bottom edge sits this far above the survivor's centre (m). */
+export const COUNTDOWN_LIFT_M = 0.75;
+/** Story 2.9: a teammate's name is centred this far above their centre (m). */
+export const NAME_LIFT_M = 0.9;
+/** `teammateFlags` bits. */
+export const TEAMMATE_DOWNED = 1;
+export const TEAMMATE_OUT = 2;
 
 export const createHudModel = (): HudModel => ({
   hp: 0,
@@ -68,4 +85,9 @@ export const createHudModel = (): HudModel => ({
   statusText: "",
   downed: new Float32Array(MAX_DOWNED_MARKERS * 3),
   downedCount: 0,
+  teammates: new Float32Array(MAX_PLAYERS * 2),
+  teammateSlot: new Int8Array(MAX_PLAYERS),
+  teammateFlags: new Uint8Array(MAX_PLAYERS),
+  teammateCount: 0,
+  teammateNames: new Array<string>(MAX_PLAYERS).fill(""),
 });

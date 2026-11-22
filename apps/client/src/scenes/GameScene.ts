@@ -32,7 +32,14 @@ import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
 import { uiStore } from "../ui/uiState";
 import { getSettings } from "../settings/settings";
-import { MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, createHudModel } from "./hudModel";
+import {
+  COUNTDOWN_LIFT_M,
+  MAX_DOWNED_MARKERS,
+  MAX_RUSH_MARKERS,
+  TEAMMATE_DOWNED,
+  TEAMMATE_OUT,
+  createHudModel,
+} from "./hudModel";
 import { LocalSimHost, type SimStepStats } from "../sim/LocalSimHost";
 import { NetSimHost } from "../sim/NetSimHost";
 import type { SimHost } from "../sim/SimHost";
@@ -73,8 +80,6 @@ const SHAKE_INTENSITY = 0.004;
 /** Rush chevron, in meters, drawn above each of the wave's last zombies. */
 const CHEVRON_M = 0.28;
 const CHEVRON_LIFT_M = 0.7;
-/** Story 2.8: the downed countdown sits this far above the survivor's centre. */
-const COUNTDOWN_LIFT_M = 0.75;
 const STATUS_OUT = "You're out: back next wave";
 const STATUS_REVIVING = "Reviving…";
 /** Solo Results: the one row's name. */
@@ -94,10 +99,25 @@ export class GameScene extends Phaser.Scene {
   private readonly syncPlayerView = (p: PlayerState, id: string): void => {
     let view = this.playerViews.get(id);
     if (!view) {
-      view = new PlayerView(this, this.playerRadiusM); // Story 2.9 adds rings, colours and names
+      view = new PlayerView(this, this.playerRadiusM);
+      view.setSlot(this.host?.playerInfo(id).slot ?? 0); // Story 2.9: ring colour by slot
       this.playerViews.set(id, view);
     }
-    view.update(p, this.host?.alpha ?? 0);
+    view.update(p, this.host?.alpha ?? 0, this.time.now);
+  };
+  /** Story 2.9: every other player for the HUD's names and edge arrows (drawn position, slot, flags). */
+  private readonly collectTeammate = (p: PlayerState, id: string): void => {
+    const host = this.host;
+    const m = this.hudModel;
+    if (!host || id === host.localPlayerId || m.teammateCount >= m.teammateSlot.length) return;
+    const info = host.playerInfo(id);
+    const i = m.teammateCount++;
+    const view = this.playerViews.get(id);
+    m.teammates[i * 2] = view ? view.x : p.x;
+    m.teammates[i * 2 + 1] = view ? view.y : p.y;
+    m.teammateSlot[i] = info.slot;
+    m.teammateFlags[i] = (p.status === "downed" ? TEAMMATE_DOWNED : 0) | (p.status === "out" ? TEAMMATE_OUT : 0);
+    if (m.teammateNames[info.slot] !== info.name) m.teammateNames[info.slot] = info.name;
   };
   private readonly dropPlayerView = (view: PlayerView, id: string): void => {
     if (this.host?.world.players.has(id)) return;
@@ -349,6 +369,12 @@ export class GameScene extends Phaser.Scene {
     m.statusText = me.status === "out" ? STATUS_OUT : this.revivingSomeone ? STATUS_REVIVING : "";
   }
 
+  /** Story 2.9: teammates for the HUD (none once the team is wiped: Results are up). */
+  private updateTeammates(world: Readonly<World>): void {
+    this.hudModel.teammateCount = 0;
+    if (!world.teamWiped) world.players.forEach(this.collectTeammate);
+  }
+
   /** Adds, updates and removes player views to match `world.players` (no allocation per frame). */
   private syncPlayerViews(world: Readonly<World>): void {
     this.playerViews.forEach(this.dropPlayerView); // deleting inside forEach is safe for a Map
@@ -407,6 +433,7 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.centerOn(viewOf.x, viewOf.y);
       this.updateRushMarkers(host.alpha, viewOf.x, viewOf.y);
       this.updateDownedHud(host.world, player);
+      this.updateTeammates(host.world);
       const m = this.hudModel;
       recordSimFrame(host.stats, host.world.zombies, m.camX, m.camY, this.scale.width / m.camZoom, this.scale.height / m.camZoom);
       this.hudModel.hp = player.hp;
