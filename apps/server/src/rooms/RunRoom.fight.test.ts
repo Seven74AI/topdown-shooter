@@ -3,6 +3,7 @@ import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import { randomBytes } from "node:crypto";
 import {
+  BYTES,
   C2S,
   NEUTRAL_INPUT,
   NET_EVENT_KIND,
@@ -13,6 +14,10 @@ import {
   type PlayerInput,
   type RunStateView,
   type SimEventsFlushed,
+  endWave,
+  hordeFrameTick,
+  readHordeFrame,
+  spawnZombie,
 } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
 import { MAX_TICK_ERRORS_IN_A_ROW, PING_HISTORY, RunRoom, TICK_ERROR_MESSAGE, serverBalance, type RunClient } from "./RunRoom";
@@ -42,8 +47,14 @@ const options = (intent: "create" | "join", name: string) => ({
 
 /** Every fight message a client gets, so tests can wait on them (and the SDK never warns). */
 function record(client: RunSdkRoom) {
-  const got = { events: [] as SimEventsFlushed[], pings: [] as NetPinged[], shutdown: [] as { message: string }[] };
+  const got = {
+    events: [] as SimEventsFlushed[],
+    pings: [] as NetPinged[],
+    shutdown: [] as { message: string }[],
+    horde: [] as Uint8Array[],
+  };
   client.onMessage(S2C.RUN_JOINED, () => {});
+  client.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => got.horde.push(b.slice()));
   client.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => got.events.push(m));
   client.onMessage(S2C.NET_PINGED, (m: NetPinged) => got.pings.push(m));
   client.onMessage(S2C.SERVER_SHUTDOWN_STARTED, (m: { message: string }) => got.shutdown.push(m));
@@ -213,12 +224,23 @@ describe("RunRoom fight (Story 2.4)", () => {
     const before = room.slowTicks?.ticks ?? 0;
     const totalBefore = room.slowTicks?.totalMs ?? 0;
     if (room.slowTicks) room.slowTicks.maxMs = 0;
+    const patchesBefore = room.slowPatches?.ticks ?? 0;
+    const patchTotalBefore = room.slowPatches?.totalMs ?? 0;
+    if (room.slowPatches) room.slowPatches.maxMs = 0;
     await Promise.all(clients.map((c, i) => sendInputs(c, 40, { moveX: i % 2 ? 0.5 : -0.5, moveY: i < 2 ? 0.5 : -0.5, aimX: i % 2 ? 1 : -1, fire: true })));
     const ticks = (room.slowTicks?.ticks ?? 0) - before;
     const mean = ((room.slowTicks?.totalMs ?? 0) - totalBefore) / ticks;
     expect(world.players.size).toBe(4);
-    console.log(`[live tick] 4 clients, ${world.zombies.aliveCount} Walkers alive at end, ${ticks} ticks: mean ${mean.toFixed(3)} ms, max ${room.slowTicks?.maxMs.toFixed(3)} ms`);
+    const patches = (room.slowPatches?.ticks ?? 0) - patchesBefore;
+    const patchMean = ((room.slowPatches?.totalMs ?? 0) - patchTotalBefore) / patches;
+    console.log(
+      `[live tick] 4 clients, ${world.zombies.aliveCount} Walkers alive at end, ${ticks} ticks (incl. horde frames): ` +
+        `mean ${mean.toFixed(3)} ms, max ${room.slowTicks?.maxMs.toFixed(3)} ms; ${patches} patches: mean ${patchMean.toFixed(3)} ms, ` +
+        `max ${room.slowPatches?.maxMs.toFixed(3)} ms`,
+    );
     expect(ticks).toBeGreaterThan(30);
+    expect(patches).toBeGreaterThan(30);
+    expect(patchMean).toBeLessThan(5);
     expect(mean).toBeLessThan(5);
   });
 
@@ -226,5 +248,46 @@ describe("RunRoom fight (Story 2.4)", () => {
     const { room } = await startTwo();
     await vi.waitFor(() => expect(room.slowTicks?.ticks).toBeGreaterThan(5));
     expect(room.slowTicks?.maxMs).toBeLessThan(40);
+  });
+
+  it("sends every client a horde frame per tick with the zombies in its view, and logs horde_stats on wave.ended", async () => {
+    const { room, hostGot, guestGot } = await startTwo();
+    const controller = room.controller;
+    if (!controller) throw new Error("no controller");
+    const world = controller.world;
+    world.debug.godMode = true;
+    const p0 = world.players.get("p0");
+    if (!p0) throw new Error("no p0");
+    const id = spawnZombie(world, "walker", p0.x + 3, p0.y);
+    const startTick = world.tick;
+    await vi.waitFor(() => {
+      for (const got of [hostGot, guestGot]) {
+        const last = got.horde[got.horde.length - 1];
+        expect(last && hordeFrameTick(last)).toBeGreaterThan(startTick + 3);
+      }
+    });
+    for (const got of [hostGot, guestGot]) {
+      const ticks = got.horde.map(hordeFrameTick);
+      for (let i = 1; i < ticks.length; i++) expect(ticks[i]).toBe((ticks[i - 1] as number) + 1); // one per tick
+      const last = got.horde[got.horde.length - 1] as Uint8Array;
+      const ids: number[] = [];
+      expect(readHordeFrame(last, { begin: () => {}, record: (_i, netId) => ids.push(netId & 0xff), end: () => {} })).toBe(true);
+      expect(ids).toContain(id);
+    }
+    expect(room.hordeStats.get("p0")?.framesSent).toBeGreaterThan(3);
+
+    const info = vi.spyOn(room.log, "info");
+    endWave(world); // emitted now, delivered by the next step's flush
+    await vi.waitFor(() => expect(info.mock.calls.some((c) => c[1] === "horde_stats")).toBe(true));
+    const line = info.mock.calls.find((c) => c[1] === "horde_stats")?.[0] as Record<string, unknown>;
+    expect(line).toMatchObject({ playerId: expect.stringMatching(/^p[01]$/), framesSkipped: 0 });
+    expect(line.framesSent).toBeGreaterThan(3);
+    expect(line.avgBytes).toBeGreaterThanOrEqual(8);
+  });
+
+  it("times Colyseus's patch interval for the slow_patch log", async () => {
+    const { room } = await startTwo();
+    await vi.waitFor(() => expect(room.slowPatches?.ticks).toBeGreaterThan(5));
+    expect(room.slowPatches?.maxMs).toBeLessThan(40);
   });
 });

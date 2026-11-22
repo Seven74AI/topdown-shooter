@@ -65,6 +65,45 @@ export function rebuildGrid(
 }
 
 /**
+ * Writes into `out` the ids whose position is inside the rectangle (point test, edges included;
+ * Story 2.5 interest). Reads the same cell lists as `queryRadius`; a rectangle partly outside the
+ * map is clipped to the grid. Returns how many were written (at most out.length).
+ */
+export function queryRect(
+  grid: SpatialGrid,
+  xs: Float32Array,
+  ys: Float32Array,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+  out: Int32Array,
+): number {
+  if (maxX < minX || maxY < minY) return 0;
+  const minCx = Math.max(0, Math.floor(minX / grid.cellM));
+  const maxCx = Math.min(grid.cols - 1, Math.floor(maxX / grid.cellM));
+  const minCy = Math.max(0, Math.floor(minY / grid.cellM));
+  const maxCy = Math.min(grid.rows - 1, Math.floor(maxY / grid.cellM));
+  let n = 0;
+  for (let cy = minCy; cy <= maxCy; cy++) {
+    for (let cx = minCx; cx <= maxCx; cx++) {
+      const c = cy * grid.cols + cx;
+      const end = grid.cellStart[c + 1] as number;
+      for (let k = grid.cellStart[c] as number; k < end; k++) {
+        const id = grid.items[k] as number;
+        const x = xs[id] as number;
+        const y = ys[id] as number;
+        if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+          if (n >= out.length) return n;
+          out[n++] = id;
+        }
+      }
+    }
+  }
+  return n;
+}
+
+/**
  * Writes into `out` the ids whose position is within `r` of (x, y) (center distance).
  * Returns how many were written (at most out.length).
  */

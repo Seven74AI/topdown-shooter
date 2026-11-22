@@ -3,6 +3,10 @@ export const SLOW_TICK_MS = 40;
 /** At most one `slow_tick` line per this window; the others are counted into the next line. */
 export const SLOW_TICK_LOG_INTERVAL_MS = 1000;
 
+/** Log line names: ticks, and Colyseus's patch interval (Story 2.5). */
+export const SLOW_TICK_MESSAGE = "slow_tick";
+export const SLOW_PATCH_MESSAGE = "slow_patch";
+
 export interface SlowTickLogger {
   warn(obj: object, msg: string): void;
 }
@@ -11,6 +15,8 @@ export interface SlowTickLogger {
  * Watches tick durations (Story 2.4, AC 5). A tick over SLOW_TICK_MS logs
  * `warn { roomId, tick, tickMs, count }`, at most once per second; `count` is how many slow ticks
  * happened since the last line, this one included. Also keeps the max and mean for tests and ops.
+ * The room keeps a second one for patch encoding (`slow_patch`, Story 2.5), which Colyseus runs
+ * on its own interval outside the tick.
  */
 export class SlowTickWatch {
   private lastLogMs = -Infinity;
@@ -24,6 +30,7 @@ export class SlowTickWatch {
     private readonly roomId: string,
     private readonly log: SlowTickLogger,
     private readonly now: () => number,
+    private readonly message = SLOW_TICK_MESSAGE,
   ) {}
 
   observe(tickMs: number, tick: number): void {
@@ -34,7 +41,7 @@ export class SlowTickWatch {
     this.pending++;
     const now = this.now();
     if (now - this.lastLogMs < SLOW_TICK_LOG_INTERVAL_MS) return;
-    this.log.warn({ roomId: this.roomId, tick, tickMs: Math.round(tickMs * 10) / 10, count: this.pending }, "slow_tick");
+    this.log.warn({ roomId: this.roomId, tick, tickMs: Math.round(tickMs * 10) / 10, count: this.pending }, this.message);
     this.lastLogMs = now;
     this.pending = 0;
   }

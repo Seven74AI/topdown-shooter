@@ -1,5 +1,6 @@
 import {
   C2S,
+  NET_EVENT_KIND,
   NEUTRAL_INPUT,
   NO_SYSTEMS,
   TICK_DT_S,
@@ -26,6 +27,9 @@ import type { NetSession } from "../net/session";
 import { ServerClock } from "../net/serverClock";
 import { SnapshotRing, type SampledPose } from "../net/snapshots";
 import { EventQueue } from "../net/eventQueue";
+import { HordeBuffer, HordeSample } from "../net/hordeBuffer";
+import { HordeDecoder } from "../net/hordeDecoder";
+import { mirrorZombies } from "../net/mirrorZombies";
 
 /** Everyone, you included, is drawn this many ticks (100 ms) behind the server. Story 2.6 makes it adaptive. */
 export const RENDER_DELAY_TICKS = 2;
@@ -60,7 +64,10 @@ export interface NetSimHostOptions {
  * - players added/removed as the schema's `players` map changes; position and facing from the
  *   interpolated snapshot at the render tick (`prevX = x`, so any `alpha` draws the same point);
  *   HP, status and loadout from the latest state (the HUD works unchanged);
- * - waves from the latest state. Zombies stay empty until Story 2.5, projectiles until 2.7.
+ * - waves from the latest state; projectiles stay empty until 2.7;
+ * - zombies (Story 2.5) from the horde stream: frames into a `HordeBuffer`, sampled at the same
+ *   render tick as players, written into `world.zombies` by `mirrorZombies`. A `zombie.killed`
+ *   hides its net id when the render tick reaches it (the death FX plays in the same frame).
  *
  * Inputs: one `input.send` per 50 ms step with seq + 1, edge flags latched until a step takes
  * them, at most 5 steps per frame (the backlog after a hidden tab is dropped, never burst).
@@ -87,6 +94,10 @@ export class NetSimHost implements SimHost {
   private readonly ctx: NetEventContext;
   private readonly offs: (() => void)[] = [];
   private readonly onState = (state: RunStateView): void => this.receiveState(state);
+  /** Horde stream (Story 2.5); `hordeStats` counts frames and decode errors for the 2.10 overlay. */
+  private readonly horde = new HordeBuffer();
+  readonly hordeStats = new HordeDecoder(this.horde);
+  private readonly hordeSample = new HordeSample();
 
   private accumulatorS = 0;
   private input: PlayerInput = NEUTRAL_INPUT;
@@ -118,6 +129,7 @@ export class NetSimHost implements SimHost {
     const room = opts.session.room;
     // Batches that came while the scene was not built yet (hidden tab at Start) arrive first.
     this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
+    this.offs.push(opts.session.onHorde((b) => this.hordeStats.receive(b)));
     room.onStateChange(this.onState);
     // The start patch (phase "wave", spawn positions) may already have arrived.
     if (room.state?.players) this.snapshots.push(room.state);
@@ -145,6 +157,7 @@ export class NetSimHost implements SimHost {
     if (frameDtS > 0) this.stepInputs(frameDtS);
     this.renderTickNow = this.clock.ready ? this.clock.estimateTick(t0) - RENDER_DELAY_TICKS : Number.NaN;
     this.applyState();
+    this.applyHorde(this.renderTickNow);
     this.stats.stepMs[0] = this.now() - t0;
   }
 
@@ -169,6 +182,7 @@ export class NetSimHost implements SimHost {
     this.offs.length = 0;
     this.session.room.onStateChange.remove(this.onState);
     this.queue.clear();
+    this.horde.clear();
     this.drained.length = 0;
     this.session.leave();
   }
@@ -211,6 +225,13 @@ export class NetSimHost implements SimHost {
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
+  }
+
+  /** Story 2.5: the horde at one render tick (Story 2.6's adaptive delay passes its own) into the mirror. */
+  private applyHorde(renderTick: number): void {
+    if (Number.isNaN(renderTick)) return;
+    this.horde.sample(renderTick, this.hordeSample);
+    mirrorZombies(this.hordeSample, this.world.zombies);
   }
 
   private applyPlayer(p: PlayerState): void {
@@ -260,7 +281,10 @@ export class NetSimHost implements SimHost {
     for (const t of m.events) {
       if (!Array.isArray(t)) continue;
       const e = decodeNetEvent(t, this.ctx);
-      if (e) this.queue.push(m.tick, e);
+      if (!e) continue;
+      this.queue.push(m.tick, e);
+      // Story 2.5: the full net id (tuple index 1) hides that zombie at the same render tick.
+      if (t[0] === NET_EVENT_KIND.ZOMBIE_KILLED && typeof t[1] === "number") this.horde.killAt(m.tick, t[1]);
     }
   }
 }

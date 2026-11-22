@@ -165,7 +165,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     drawStreet(this, world.map);
-    this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY);
+    this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
     this.fxView = new FxView(this, this.zombieView, localId);
     this.playerRadiusM = balance.player.radiusM;

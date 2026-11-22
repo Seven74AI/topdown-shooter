@@ -1,4 +1,4 @@
-import { C2S, S2C, type NetPinged, type RunJoined, type RunStateView, type SimEventsFlushed } from "@topdown/shared";
+import { BYTES, C2S, S2C, type NetPinged, type RunJoined, type RunStateView, type SimEventsFlushed } from "@topdown/shared";
 
 /** Event batches kept while no game scene listens yet: 200 ticks = 10 s of a hidden tab at Start. */
 export const EARLY_EVENT_BATCHES_MAX = 200;
@@ -11,8 +11,8 @@ export interface NetRoomLike {
   /** Decoded room state; empty until the first full state arrives. */
   readonly state: RunStateView;
   send(type: string, message: unknown): void;
-  /** Returns the unsubscribe. */
-  onMessage<T>(type: string, cb: (message: T) => void): () => void;
+  /** Returns the unsubscribe. A number type is a binary message (`BYTES`): `T` is a Uint8Array view. */
+  onMessage<T>(type: string | number, cb: (message: T) => void): () => void;
   /** Fires after each decoded patch. */
   readonly onStateChange: {
     (cb: (state: RunStateView) => void): unknown;
@@ -30,6 +30,10 @@ export interface NetRoomLike {
  * answered at once here, so the server's RTT never includes the scene's start-up.
  * Note for a restart in the same room (2.11 / Epic 8): batches that arrive after a host
  * unsubscribes are buffered again and would go to the next run's host; clear them at a new start.
+ *
+ * Horde frames (`BYTES.HORDE_FRAME`, Story 2.5) are listened to from the join too, so the SDK
+ * never warns about an unhandled type; until `onHorde` is called they are dropped (unreliable
+ * snapshots: the next frame replaces them) and counted in `earlyHordeDropped`.
  */
 export class RunInbox {
   /** Latest RTT the server measured for this client (2.10 overlay). */
@@ -40,10 +44,22 @@ export class RunInbox {
   private readonly offs: (() => void)[] = [];
   private readonly early: SimEventsFlushed[] = [];
   private sink: ((m: SimEventsFlushed) => void) | null = null;
+  /** Horde frames dropped because no game scene listened yet. */
+  earlyHordeDropped = 0;
+  private hordeSink: ((bytes: Uint8Array) => void) | null = null;
 
   constructor(private readonly room: Pick<NetRoomLike, "send" | "onMessage">) {
     this.offs.push(room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m)));
     this.offs.push(room.onMessage(S2C.NET_PINGED, (m: NetPinged) => this.receivePing(m)));
+    this.offs.push(room.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => this.receiveHorde(b)));
+  }
+
+  /** Each horde frame from now on (earlier ones were dropped). Returns the unsubscribe. */
+  onHorde(sink: (bytes: Uint8Array) => void): () => void {
+    this.hordeSink = sink;
+    return () => {
+      if (this.hordeSink === sink) this.hordeSink = null;
+    };
   }
 
   /** Buffered batches first (in arrival order), then each new one. Returns the unsubscribe. */
@@ -65,6 +81,13 @@ export class RunInbox {
     this.offs.length = 0;
     this.early.length = 0;
     this.sink = null;
+    this.hordeSink = null;
+  }
+
+  private receiveHorde(bytes: Uint8Array): void {
+    if (this.closed) return;
+    if (this.hordeSink) this.hordeSink(bytes);
+    else this.earlyHordeDropped++;
   }
 
   private receiveEvents(m: SimEventsFlushed): void {
@@ -120,6 +143,11 @@ export class NetSession {
   /** See `RunInbox.onEvents`. */
   onEvents(sink: (m: SimEventsFlushed) => void): () => void {
     return this.inbox.onEvents(sink);
+  }
+
+  /** See `RunInbox.onHorde`. */
+  onHorde(sink: (bytes: Uint8Array) => void): () => void {
+    return this.inbox.onHorde(sink);
   }
 
   /** Leaves the room for good (consented). Safe to call twice. */

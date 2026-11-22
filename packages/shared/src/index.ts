@@ -49,7 +49,32 @@ export { updatePlayers } from "./player/movement";
 export { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "./zombies/zombieTypes";
 export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
 export { spawnRing } from "./zombies/spawnRing";
-export { queryRadius, type SpatialGrid } from "./core/spatialGrid";
+export { createSpatialGrid, queryRadius, queryRect, rebuildGrid, type SpatialGrid } from "./core/spatialGrid";
+export {
+  HORDE_BACKPRESSURE_BYTES,
+  HORDE_HEADER_BYTES,
+  HORDE_MAX_FRAME_BYTES,
+  HORDE_MAX_RECORDS,
+  HORDE_MISSING_LIMIT,
+  HORDE_RECORD_BYTES,
+  HORDE_VIEW_MARGIN_M,
+  MAX_POS_CM,
+  POS_SCALE,
+  hordeFrameBytes,
+  hordeFrameTick,
+  isHordeFrameValid,
+  packTypeState,
+  quantizePos,
+  readHordeFrame,
+  stateOfTypeState,
+  typeOfTypeState,
+  writeHordeHeader,
+  writeHordeRecord,
+  zombieGenerationOfNetId,
+  zombieNetId,
+  type HordeSink,
+} from "./net/hordeFormat";
+export { inRect, viewRect, type Rect } from "./net/interest";
 export { activeSlot, createLoadout, createSlot, setLoadout, type Loadout, type WeaponSlot } from "./combat/loadout";
 export { isGun, isMelee, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
 export type { ProjectilePool } from "./combat/projectilePool";
