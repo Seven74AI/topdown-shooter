@@ -276,4 +276,18 @@ describe("free spots (spotBlocked) avoid buildings", () => {
     expect(findFreeSpotNear(world, mate.x, mate.y, me, out)).toBe(true);
     expect(out).toEqual({ x: 18.5, y: 16 }); // the next direction (−x)
   });
+
+  it("a diagonal press into the pocket between a box corner and the map edge reaches its resting spot (3.4 re-review)", () => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+    const p = addPlayer(world, "p0", 13.0, 0.9);
+    wall(world, 10, 0.5); // x 10–12, y 0.5–1: a pocket 0.5 m high under it, too low for a 0.8 m body
+    for (let seq = 1; seq <= 60; seq++) {
+      setInput(world, "p0", move(seq, -Math.SQRT1_2, -Math.SQRT1_2));
+      step(world, TICK_DT_S);
+    }
+    // Resting spot: on the edge (y = r), touching the box's corner (12, 0.5): x = 12 + sqrt(r² − (0.5 − r)²).
+    expect(p.y).toBeCloseTo(R, 6);
+    expect(p.x).toBeCloseTo(12 + Math.sqrt(R * R - (0.5 - R) ** 2), 1);
+    expect(clearOfAll(world, p.x, p.y, R)).toBe(true);
+  });
 });

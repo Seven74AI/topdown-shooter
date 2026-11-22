@@ -25,7 +25,8 @@ export function repairCost(balance: Balance, type: string): number {
 }
 
 /** The building is damaged (3.5 may leave fractional HP). */
-export const isDamaged = (b: Readonly<Building>): boolean => b.hp < b.maxHp;
+/** Damaged as the client shows it (`ceil(hp)`), so the panel and the server always agree (3.7 review). */
+export const isDamaged = (b: Readonly<Building>): boolean => Math.ceil(b.hp) < b.maxHp;
 
 /**
  * The whole repair check, in this order: unknown player → not a build phase → the building is gone

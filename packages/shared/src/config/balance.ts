@@ -48,6 +48,14 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   shop.weapons.forEach((id, i) => {
     if (!(id in weapons)) issues.push(`shop.json: weapons.${i}: unknown weapon ${id}`);
   });
+  // 3.4 re-review: a zombie spawned with the largest jitter must still be clear of any building.
+  const zombies = parsed.zombies as { types: Record<string, { radiusM: number }> };
+  const waves = parsed.waves as { spawnJitterM: number };
+  const buildings = parsed.buildings as { spawnClearM: number };
+  const maxRz = Math.max(0, ...Object.values(zombies.types).map((t) => t.radiusM));
+  if (buildings.spawnClearM <= waves.spawnJitterM + maxRz) {
+    issues.push(`buildings.json: spawnClearM ${buildings.spawnClearM} must exceed waves.spawnJitterM + the largest zombie radius (${waves.spawnJitterM + maxRz})`);
+  }
 }
 
 /**

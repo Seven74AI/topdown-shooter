@@ -43,6 +43,8 @@ export class RepairPanel {
   private shownMaxHp = -1;
   private shownCost = -1;
   private shownError: RepairError | null | undefined = undefined;
+  /** `world.waves.number` when the panel opened (a new wave closes it, even one a hidden tab slept through). */
+  private openedAtWave = -1;
 
   get open(): boolean {
     return this.id !== 0;
@@ -52,6 +54,7 @@ export class RepairPanel {
   tap(world: Readonly<World>, x: number, y: number): void {
     const b = Number.isFinite(x) && Number.isFinite(y) ? buildingAtPoint(world, x, y, BUILDING_TAP_TOLERANCE_M) : null;
     this.id = b ? b.id : 0;
+    this.openedAtWave = world.waves.number;
   }
 
   close(): void {
@@ -71,6 +74,11 @@ export class RepairPanel {
    */
   update(world: Readonly<World>, playerId: string, allowed: boolean, ownerName: (ownerId: string) => string): boolean {
     if (this.id === 0) return false;
+    // A hidden tab can sleep through a whole wave (3.7 review): the panel belongs to one build phase.
+    if (world.waves.number !== this.openedAtWave) {
+      this.id = 0;
+      return false;
+    }
     const b = allowed ? buildingById(world, this.id) : undefined;
     if (!b) {
       this.id = 0; // repairs over for now, or destroyed meanwhile (Story 3.5)
