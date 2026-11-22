@@ -10,7 +10,8 @@ import { zombieTypeOf } from "./zombiePool";
 import { PUSH_STUCK, distanceToBox, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
 import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
-import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell, flowStepBuilding } from "./flowField";
+import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, type FlowField } from "./flowField";
+import { ZOMBIE_STATE } from "./zombieTypes";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
 const MAX_NEIGHBOURS = 64;
@@ -79,11 +80,11 @@ function damagePlayer(world: World, p: PlayerState, stats: Readonly<ZombieTypeSt
  * and the zombie steers at the nearest point of its box (straight at the face: never along it into
  * the gap between two buildings). False when there is no field there yet (then it walks straight).
  */
-function steerByField(world: World, x: number, y: number, id: number): boolean {
-  const { nav, chase } = world.pathing;
-  if (chase.sourceTick < 0) return false;
+function steerByField(world: World, field: FlowField, x: number, y: number, id: number): boolean {
+  const nav = world.pathing.nav;
+  if (field.sourceTick < 0) return false;
   const here = flowCellAt(nav, x, y);
-  const first = flowNextCell(chase, nav, here);
+  const first = flowNextCell(field, nav, here);
   if (first < 0) return false;
   // The building on the next cell, or at a gap too narrow for a body between here and there (review H1).
   const bid = flowStepBuilding(nav, here, first);
@@ -99,7 +100,7 @@ function steerByField(world: World, x: number, y: number, id: number): boolean {
   } else {
     const look = world.balance.zombies.pathing.lookaheadCells;
     for (let k = 1; k < look; k++) {
-      const next = flowNextCell(chase, nav, last);
+      const next = flowNextCell(field, nav, last);
       if (next < 0 || flowStepBuilding(nav, last, next) !== 0) break;
       last = next;
     }
@@ -132,6 +133,8 @@ export const updateZombies: SystemFn = (world, dtS) => {
   rebuildGrid(world.zombieGrid, ids, n, pool.x, pool.y);
   collectAlivePlayers(world);
   const hasBuildings = world.buildings.list.length > 0;
+  const flank = world.balance.zombies.flank;
+  const flankMaxAge = flowSharedMaxAgeTicks(world);
 
   // Pass 1: desired velocity + separation, from positions at the start of the tick.
   for (let i = 0; i < n; i++) {
@@ -151,9 +154,19 @@ export const updateZombies: SystemFn = (world, dtS) => {
       let dy = target.y - y;
       let d = Math.sqrt(dx * dx + dy * dy);
       if (d > stats.radiusM + target.radiusM && d > COINCIDENT_M) {
+        const blocked = hasBuildings && segmentHitsBuildings(world, x, y, target.x, target.y, stats.radiusM + LOS_MARGIN_M);
+        let steered = false;
+        // Story 3.8: a Runner flanks: in front of its target (or blocked) it follows the flank field,
+        // which keeps off every player's front cone; close in, outside the cone with a clear line,
+        // rushing (FR30) or with no fresh flank field it goes as a Walker.
+        if (stats.flanks && pool.state[id] !== ZOMBIE_STATE.RUSH && d > flank.directWithinM && (blocked || inFlankCone(world, target, x, y))) {
+          const f = world.pathing.flank;
+          if (f.sourceTick >= 0 && world.tick - f.sourceTick <= flankMaxAge) steered = steerByField(world, f, x, y, id);
+        }
         // Story 3.5: a building in the way → follow the flow field (straight again once the line is clear).
-        if (hasBuildings && segmentHitsBuildings(world, x, y, target.x, target.y, stats.radiusM + LOS_MARGIN_M) && steerByField(world, x, y, id)) {
-          fieldMode[id] = 1;
+        if (!steered && blocked) steered = steerByField(world, world.pathing.chase, x, y, id);
+        if (steered) {
+          fieldMode[id] = 1; // review H1: either field (chase or flank) counts for the stuck safety net
           dx = steer.x - x;
           dy = steer.y - y;
           d = Math.sqrt(dx * dx + dy * dy);

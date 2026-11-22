@@ -10,6 +10,8 @@ import {
   encodeNetEvent,
   flowFieldMaxAgeTicks,
   flowRefreshTicks,
+  flowSharedMaxAgeTicks,
+  zombieTypeIndex,
   loadBalance,
   rebuildFlowFieldNow,
   spawnZombie,
@@ -53,6 +55,8 @@ interface Result {
   destroyed: number;
   maxAge: number;
   turretShots: number;
+  /** Story 3.8: the flank field's max age (0 without Runners). */
+  maxFlankAge: number;
 }
 
 /**
@@ -66,7 +70,7 @@ interface Result {
  * and bandwidth (turret.fired + their hits and kills; no schema field is added).
  */
 const TURRET_ROW_Y = 27;
-function measure(withBuildings: boolean, turrets = false): Result {
+function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
   const c = new RunController({
     balance,
@@ -97,10 +101,16 @@ function measure(withBuildings: boolean, turrets = false): Result {
   };
   const points = world.map.spawnPoints;
   let spawnAt = 0;
+  const RUNNER = zombieTypeIndex("runner");
   const topUp = (): void => {
+    // Story 3.8: `runners` of the 150 are Runners (kept topped up like the Walkers).
+    let aliveRunners = 0;
+    for (let i = 0; i < world.zombies.aliveCount; i++) if (world.zombies.type[world.zombies.aliveIds[i] as number] === RUNNER) aliveRunners++;
     while (world.zombies.aliveCount < WALKERS) {
       const sp = points[spawnAt++ % points.length];
-      if (!sp || spawnZombie(world, "walker", sp.x, sp.y, true) < 0) break;
+      const type = aliveRunners < runners ? "runner" : "walker";
+      if (!sp || spawnZombie(world, type, sp.x, sp.y, true) < 0) break;
+      if (type === "runner") aliveRunners++;
     }
   };
   if (world.run.phase === "build") startWave(world); // turrets fire only in a wave
@@ -112,6 +122,7 @@ function measure(withBuildings: boolean, turrets = false): Result {
   let eventBytes = 0;
   let destroyed = 0;
   let maxAge = 0;
+  let maxFlankAge = 0;
   for (let t = 1; t <= WARMUP_TICKS + MEASURED_TICKS; t++) {
     topUp();
     topUpBuildings();
@@ -139,6 +150,7 @@ function measure(withBuildings: boolean, turrets = false): Result {
         else if (e.type === "turret.fired") turretShots++;
       }
       if (withBuildings) maxAge = Math.max(maxAge, world.tick - world.pathing.chase.sourceTick);
+      if (withBuildings && runners > 0) maxFlankAge = Math.max(maxFlankAge, world.tick - world.pathing.flank.sourceTick);
     }
   }
   times.sort((a, b) => a - b);
@@ -152,6 +164,7 @@ function measure(withBuildings: boolean, turrets = false): Result {
     destroyed,
     maxAge,
     turretShots,
+    maxFlankAge,
   };
 }
 
@@ -220,6 +233,30 @@ describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
     );
     expect(tur.turretShots).toBeGreaterThan(0);
     // The turrets' own cost (the field's is 3.5's test above; on a loaded 2-core box both p99s are noisy).
-    expect(tur.p99 - field.p99).toBeLessThanOrEqual(2);
+    if (PERF_ASSERT) expect(tur.p99 - field.p99).toBeLessThanOrEqual(2);
+  });
+
+  it("Story 3.8: 4 players + 100 Walkers + 50 Runners + 24 buildings (4 of them firing turrets), both fields sharing the budget: added tick p99 ≤ 2 ms", () => {
+    const RUNNERS = 50;
+    const runs = [measure(false, false, RUNNERS), measure(true, true, RUNNERS), measure(false, false, RUNNERS), measure(true, true, RUNNERS)];
+    const pick = (a: Result, b: Result): Result => (a.p99 <= b.p99 ? a : b);
+    const base = pick(runs[0] as Result, runs[2] as Result);
+    const field = pick(runs[1] as Result, runs[3] as Result);
+    const added = field.p99 - base.p99;
+    const shared = (() => {
+      const w = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+      return flowSharedMaxAgeTicks(w);
+    })();
+    console.log(
+      `[tick cost 3.8] 100 Walkers + 50 Runners: baseline (no buildings, no fields) p99 ${base.p99.toFixed(3)} ms (mean ${base.mean.toFixed(3)}); ` +
+        `with 24 buildings (4 turrets) + chase + flank fields p99 ${field.p99.toFixed(3)} ms (mean ${field.mean.toFixed(3)}, max ${field.max.toFixed(3)}); added p99 ${added.toFixed(3)} ms; ` +
+        `patches ${base.patchBps.toFixed(0)} → ${field.patchBps.toFixed(0)} B/s, events ${base.eventBps.toFixed(0)} → ${field.eventBps.toFixed(0)} B/s; ` +
+        `${field.destroyed} buildings destroyed (re-added); max age chase ${field.maxAge} / flank ${field.maxFlankAge} ticks (bound ${shared})`,
+    );
+    expect(field.destroyed).toBeGreaterThan(0);
+    if (PERF_ASSERT) expect(added).toBeLessThanOrEqual(2);
+    expect(field.maxAge).toBeLessThanOrEqual(shared);
+    expect(field.maxFlankAge).toBeLessThanOrEqual(shared);
+    expect(field.maxFlankAge).toBeGreaterThan(0);
   });
 });

@@ -289,3 +289,33 @@ describe("Story 3.5 review L1: attack rule details", () => {
     expect(hp()).toBe(hpAtSwitch);
   });
 });
+
+describe("Story 3.5 review H1 with Story 3.8's flank field: Runners don't jam in 0.5 m gaps either", () => {
+  it("Runners in front of a closed box whose only opening is a 0.5 m slot break in", () => {
+    const { world, events, wall } = setup(21);
+    world.debug.godMode = true;
+    addPlayer(world, "p0", 24, 16.5);
+    for (const [x, y, r] of [[22, 14, 0], [24, 14, 0], [22, 14.5, 1], [22, 16.5, 1], [25.5, 14.5, 1], [25.5, 16.5, 1], [22, 18.5, 0], [24.5, 18.5, 0]] as const) wall(x, y, r);
+    for (let i = 0; i < 6; i++) spawnZombie(world, "runner", 20 + i * 1.5, 24);
+    let inAt = -1;
+    for (let t = 0; t < 1800 && inAt < 0; t++) {
+      step(world, TICK_DT_S);
+      if (anyZombieNear(world, 24, 16.5, 0.8)) inAt = t;
+    }
+    expect(events.some((e) => e.type === "building.destroyed")).toBe(true);
+    expect(inAt).toBeGreaterThan(0);
+  });
+
+  it("a Runner behind a long wall with a 0.5 m slot gets to the player (no freeze)", () => {
+    const { world, wall } = setup(22);
+    addPlayer(world, "p0", 24, 8);
+    for (const x of [18, 20, 22, 24.5, 26.5, 28.5]) wall(x, 10.5);
+    spawnZombie(world, "runner", 24.2, 14);
+    let reached = -1;
+    for (let t = 0; t < 1200 && reached < 0; t++) {
+      step(world, TICK_DT_S);
+      if (anyZombieNear(world, 24, 8, 0.8)) reached = t;
+    }
+    expect(reached).toBeGreaterThan(0);
+  });
+});

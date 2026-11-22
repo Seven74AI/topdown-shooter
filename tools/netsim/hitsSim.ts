@@ -37,6 +37,8 @@ import {
   type NetEvent,
   type PlayerInput,
   type WeaponId,
+  type ZombieTypeId,
+  zombieTypeIndex,
 } from "@topdown/shared";
 import { RunController } from "../../apps/server/src/run/RunController";
 import { Predictor } from "../../apps/client/src/net/prediction";
@@ -70,6 +72,8 @@ export interface Options {
   stall?: { fromMs: number; toMs: number };
   /** Story 2.10: Walkers kept coming (default 20; 150 = the net150 crowd). */
   walkers?: number;
+  /** Story 3.8: the type of the zombies kept coming (default Walker; "runner": 4 m/s, flanking). */
+  zombieType?: ZombieTypeId;
 }
 
 export interface Result {
@@ -133,9 +137,10 @@ export function simulate(o: Options): Result {
     const { widthM, heightM } = ctrl.world.map;
     const x = Math.min(widthM - SPAWN_MARGIN_M, Math.max(SPAWN_MARGIN_M, sp.x + Math.cos(a) * d));
     const y = Math.min(heightM - SPAWN_MARGIN_M, Math.max(SPAWN_MARGIN_M, sp.y + Math.sin(a) * d));
-    spawnZombie(ctrl.world, "walker", x, y);
+    spawnZombie(ctrl.world, o.zombieType ?? "walker", x, y);
   };
   const walkers = o.walkers ?? WALKERS;
+  const typeState = o.zombieType ? packTypeState(zombieTypeIndex(o.zombieType), ZOMBIE_STATE.CHASE) : WALKER_TYPE_STATE;
   for (let i = 0; i < walkers; i++) spawnRingWalker();
 
   const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng);
@@ -186,7 +191,7 @@ export function simulate(o: Options): Result {
       sample.netId[k] = zb.netId;
       sample.x[k] = za ? za.x + (zb.x - za.x) * f : zb.x;
       sample.y[k] = za ? za.y + (zb.y - za.y) * f : zb.y;
-      sample.typeState[k] = WALKER_TYPE_STATE;
+      sample.typeState[k] = typeState;
       sample.heading[k] = 0;
     }
     while (snaps.length > 2 && (snaps[1] as Down).tick <= rt) snaps.shift();
