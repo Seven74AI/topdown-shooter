@@ -3,7 +3,7 @@
  * (`weapon_pistol_fire` …) so Story 9.10 swaps in real recordings. iOS keeps audio locked until a
  * user gesture: call `unlockAudio()` from the first touch.
  */
-export type SfxName = "weapon_pistol_fire" | "weapon_machete_swing" | "weapon_reload_start" | "weapon_reloaded" | "zombie_hit" | "building_repaired";
+export type SfxName = "weapon_pistol_fire" | "weapon_machete_swing" | "weapon_reload_start" | "weapon_reloaded" | "zombie_hit" | "building_repaired" | "turret_fire";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -12,6 +12,9 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let noise: AudioBuffer | null = null;
 let lastHitAt = -1;
+let lastTurretAt = -1;
+/** Story 3.6: four turrets fire 20 shots/s together; one soft click per 80 ms at most. */
+const TURRET_MIN_INTERVAL_S = 0.08;
 
 function context(): AudioContext | null {
   if (ctx) return ctx;
@@ -104,6 +107,12 @@ export function playSfx(name: SfxName): void {
     case "building_repaired": // Story 3.7: two hammer knocks
       burst(c, t, 0.05, 0.6, 1200);
       burst(c, t + 0.11, 0.05, 0.6, 1500);
+      break;
+    case "turret_fire": // Story 3.6: a soft, high, short tick (quieter than a gun)
+      if (t - lastTurretAt < TURRET_MIN_INTERVAL_S) return;
+      lastTurretAt = t;
+      burst(c, t, 0.03, 0.35, 5000);
+      click(c, t, 1400, 0.15);
       break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;

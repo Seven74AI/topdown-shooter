@@ -39,7 +39,7 @@ export const NET_EVENT_KIND = {
   BUILD_STARTED: 20, // Story 3.1
   BUILDING_PLACED: 21, // Story 3.4
   BUILDING_DESTROYED: 22, // Story 3.5
-  // 23 is left for Story 3.6.
+  TURRET_FIRED: 23, // Story 3.6
   BUILDING_REPAIRED: 24, // Story 3.7
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
@@ -96,7 +96,10 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
   const K = NET_EVENT_KIND;
   switch (e.type) {
     case "zombie.killed":
-      return [K.ZOMBIE_KILLED, zid(ctx, e.zombieId), playerSlotOf(e.killerId), cm(e.x), cm(e.y), weaponIndex(b, e.weapon)];
+      // Story 3.6: a turret's kill appends its building id (index 6); its weapon (a building type) is NET_NONE.
+      return e.buildingId !== undefined
+        ? [K.ZOMBIE_KILLED, zid(ctx, e.zombieId), playerSlotOf(e.killerId), cm(e.x), cm(e.y), weaponIndex(b, e.weapon), e.buildingId]
+        : [K.ZOMBIE_KILLED, zid(ctx, e.zombieId), playerSlotOf(e.killerId), cm(e.x), cm(e.y), weaponIndex(b, e.weapon)];
     case "zombie.hit":
       return [
         K.ZOMBIE_HIT,
@@ -154,6 +157,9 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       const t = buildingTypeIds(b).indexOf(e.buildingType);
       return [K.BUILDING_DESTROYED, e.buildingId, t < 0 ? NET_NONE : t, playerSlotOf(e.ownerId), e.gx, e.gy, e.rot];
     }
+    case "turret.fired":
+      // Story 3.6: id + heading only; the client puts the muzzle at its building (`muzzleM` from the centre).
+      return [K.TURRET_FIRED, e.buildingId, quantizeHeading(e.dirX, e.dirY)];
     case "building.repaired":
       // Story 3.7: FX only (HP and wallet come from schema).
       return [K.BUILDING_REPAIRED, e.buildingId, playerSlotOf(e.playerId), e.cost, cm(e.x), cm(e.y)];
@@ -174,8 +180,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
   const b = ctx.balance;
   const K = NET_EVENT_KIND;
   switch (t[0]) {
-    case K.ZOMBIE_KILLED:
-      return {
+    case K.ZOMBIE_KILLED: {
+      const killed: Extract<SimEvent, { type: "zombie.killed" }> = {
         type: "zombie.killed",
         zombieId: zombieSlotOfNetId(n(t, 1)),
         killerId: playerIdOfSlot(n(t, 2)),
@@ -183,6 +189,9 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
         y: n(t, 4) / 100,
         weapon: weaponOf(b, n(t, 5)),
       };
+      if (t.length > 6) killed.buildingId = n(t, 6); // Story 3.6: a turret's kill
+      return killed;
+    }
     case K.ZOMBIE_HIT: {
       const a = headingToRad(n(t, 4));
       return {
@@ -270,6 +279,11 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       const buildingType = buildingTypeIds(b)[n(t, 2)];
       if (buildingType === undefined) return null;
       return { type: "building.destroyed", buildingId: n(t, 1), buildingType, ownerId: pid(t, 3), gx: n(t, 4), gy: n(t, 5), rot: n(t, 6) };
+    }
+    case K.TURRET_FIRED: {
+      // The muzzle (x, y) is not on the wire: NaN until the client puts it at its building.
+      const a = headingToRad(n(t, 2));
+      return { type: "turret.fired", buildingId: n(t, 1), x: Number.NaN, y: Number.NaN, dirX: Math.cos(a), dirY: Math.sin(a) };
     }
     case K.BUILDING_REPAIRED:
       return { type: "building.repaired", buildingId: n(t, 1), playerId: pid(t, 2), cost: n(t, 3), x: n(t, 4) / 100, y: n(t, 5) / 100 };

@@ -4,6 +4,9 @@ import type { ProjectilePool } from "@topdown/shared";
 const STREAK_M = 0.6;
 const STREAK_W_M = 0.07;
 const COLOR = 0xffd27a;
+/** Story 3.6: turret shots (a projectile with a building id) are cyan, shorter and thinner. */
+const TURRET_COLOR = 0x6fe3ff;
+const TURRET_STREAK_SCALE = 0.7;
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /**
@@ -13,6 +16,8 @@ const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 export class ProjectileView {
   private readonly streaks: (Phaser.GameObjects.Rectangle | undefined)[] = [];
   private readonly shownFrame: Int32Array;
+  /** Per slot: 1 = drawn as a turret shot, 0 = a gun's (the look changes only when a slot's kind does). */
+  private readonly turretLook: Uint8Array;
   private frame = 0;
 
   constructor(
@@ -20,6 +25,7 @@ export class ProjectileView {
     capacity: number,
   ) {
     this.shownFrame = new Int32Array(capacity).fill(-1);
+    this.turretLook = new Uint8Array(capacity);
   }
 
   update(pool: ProjectilePool, alpha: number): void {
@@ -30,6 +36,12 @@ export class ProjectileView {
       if (!s) {
         s = this.scene.add.rectangle(0, 0, STREAK_M, STREAK_W_M, COLOR).setOrigin(1, 0.5).setDepth(8);
         this.streaks[id] = s;
+        this.turretLook[id] = 0;
+      }
+      const turret = (pool.building[id] as number) > 0 ? 1 : 0;
+      if (this.turretLook[id] !== turret) {
+        this.turretLook[id] = turret;
+        s.setFillStyle(turret ? TURRET_COLOR : COLOR).setScale(turret ? TURRET_STREAK_SCALE : 1);
       }
       const dx = pool.dirX[id] as number;
       const dy = pool.dirY[id] as number;

@@ -42,7 +42,19 @@ describe("buildings.json (Story 3.4)", () => {
     expect(balance.buildings.maxPerPlayer).toBe(6);
     expect(balance.buildings.spawnClearM).toBe(2);
     expect(balance.buildings.types[WOOD]).toEqual({ name: "Wood barricade", price: 40, widthM: 2, depthM: 0.5, hp: 200 });
-    expect(buildingTypeIds(balance)).toEqual([WOOD]);
+    expect(buildingTypeIds(balance)).toEqual([WOOD, "auto_turret"]);
+  });
+
+  it("Story 3.6: has the Auto-turret: 250, 1 × 1 m, 300 HP, 8 m, 5/s, 3 damage; the barricade has no turret block", () => {
+    const t = balance.buildings.types["auto_turret"];
+    expect(t).toMatchObject({ name: "Auto-turret", price: 250, widthM: 1, depthM: 1, hp: 300 });
+    expect(t?.turret).toMatchObject({ rangeM: 8, rateHz: 5, damage: 3 });
+    expect(balance.buildings.types[WOOD]?.turret).toBeUndefined();
+  });
+
+  it("Story 3.6: rejects a bad turret value with the file and key", () => {
+    const raw = withOverrides(bundledBalanceFiles(), [["buildings", "types.auto_turret.turret.rateHz", 0]]);
+    expect(() => loadBalance(raw)).toThrow(/buildings\.json: types\.auto_turret\.turret\.rateHz/);
   });
 
   it("rejects a bad value with the file and key", () => {
