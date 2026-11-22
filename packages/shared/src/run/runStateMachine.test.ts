@@ -83,6 +83,13 @@ describe("run state machine: transitions (AC 1)", () => {
     for (const t of [startBuild, startWave, endWave, endRun]) expect(() => t(world)).toThrow();
   });
 
+  it("an empty World is never 'all Ready': the build runs its full countdown (3.1 review)", () => {
+    const { world } = setup([]);
+    startBuild(world);
+    run(world, BUILD_TICKS - 1);
+    expect(world.run.phase).toBe("build");
+  });
+
   it("a build can end the run too (endRun from build)", () => {
     const { world } = setup();
     startBuild(world);

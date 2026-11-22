@@ -96,6 +96,9 @@ class HordeView implements HordeSink {
   }
 }
 
+/** A bot re-sends Ready after this many server ticks without the server showing it (1 s). */
+const READY_RETRY_TICKS = 20;
+
 export class BotClient {
   readonly down = new ByteRate();
   readonly up = new ByteRate();
@@ -211,10 +214,13 @@ export class BotClient {
     if (!state?.players || (state.phase !== "wave" && state.phase !== "build") || !this.playerId) return;
     const me = state.players.get(this.playerId);
     if (!me) return;
-    if (state.phase === "build" && !me.buildReady && this.readyAtTick !== state.tick) {
-      this.readyAtTick = state.tick; // at most one Ready per patch
+    // Once per build, retried after ~1 s if the server still hasn't got it (3.1 review: it shares
+    // the 10/s "other" bucket with pongs).
+    if (state.phase === "build" && !me.buildReady && (this.readyAtTick < 0 || state.tick - this.readyAtTick >= READY_RETRY_TICKS)) {
+      this.readyAtTick = state.tick;
       this.room.send(C2S.BUILD_SET_READY, { ready: true });
     }
+    if (state.phase !== "build") this.readyAtTick = -1;
     const v = this.view;
     v.self.x = me.x;
     v.self.y = me.y;

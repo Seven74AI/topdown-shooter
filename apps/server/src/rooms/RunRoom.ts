@@ -62,8 +62,11 @@ import { PlayerState, RunState } from "./schema/RunState";
  * (Epic 2 retro A5): `DEV_ZOMBIE_DAMAGE_SCALE=0.1` scales zombie damage for browser checks; a dev
  * client opened with `?zdmg=0.1` builds the same balance (same version), so it can still join.
  */
-export const serverBalance = loadDevBalance({ zombieDamageScale: parseDevScale(process.env.DEV_ZOMBIE_DAMAGE_SCALE) });
-if (process.env.DEV_ZOMBIE_DAMAGE_SCALE) log.warn({ scale: process.env.DEV_ZOMBIE_DAMAGE_SCALE, version: serverBalance.version }, "dev_balance_override");
+// Never in production (3.1 review): a production server ignores the switch and says so.
+const devZombieDamageScale = process.env.NODE_ENV === "production" ? null : parseDevScale(process.env.DEV_ZOMBIE_DAMAGE_SCALE);
+export const serverBalance = loadDevBalance({ zombieDamageScale: devZombieDamageScale });
+if (devZombieDamageScale !== null) log.warn({ scale: devZombieDamageScale, version: serverBalance.version }, "dev_balance_override");
+else if (process.env.DEV_ZOMBIE_DAMAGE_SCALE) log.warn({ value: process.env.DEV_ZOMBIE_DAMAGE_SCALE }, "dev_balance_override_ignored");
 
 /** HTTP-ish status for every join refusal; the message is the `JoinRefusal` reason. */
 export const JOIN_REFUSED_CODE = 526;
