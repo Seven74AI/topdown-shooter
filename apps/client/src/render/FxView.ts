@@ -42,6 +42,8 @@ export class FxView {
     private readonly scene: Phaser.Scene,
     private readonly zombies: ZombieView,
     private readonly localPlayerId: string,
+    /** Story 3.6 review L2: the owner of a building id (the turret click plays only for mine or on screen). */
+    private readonly buildingOwner: (buildingId: number) => string | undefined = () => undefined,
   ) {}
 
   handle(e: SimEvent): void {
@@ -65,7 +67,8 @@ export class FxView {
       case "turret.fired": // Story 3.6 (online the host put the muzzle at its building; NaN = no building)
         if (Number.isFinite(e.x) && Number.isFinite(e.y)) {
           this.muzzle(e.x, e.y);
-          playSfx("turret_fire");
+          // Review L2: the click only for my turrets or one in the camera's view.
+          if (this.buildingOwner(e.buildingId) === this.localPlayerId || this.scene.cameras.main.worldView.contains(e.x, e.y)) playSfx("turret_fire");
         }
         break;
       case "melee.swung":
