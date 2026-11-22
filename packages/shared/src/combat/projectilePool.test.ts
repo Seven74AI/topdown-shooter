@@ -9,7 +9,7 @@ import {
   type ProjectileSpawn,
 } from "./projectilePool";
 
-const shot = (x = 0): ProjectileSpawn => ({ x, y: 0, dirX: 1, dirY: 0, speedMps: 60, rangeM: 9, damage: 5, pierce: 1, weaponIndex: 0, owner: "p" });
+const shot = (x = 0): ProjectileSpawn => ({ x, y: 0, dirX: 1, dirY: 0, speedMps: 60, rangeM: 9, damage: 5, pierce: 1, weaponIndex: 0, owner: "p", advanceM: 0 });
 
 describe("projectile pool", () => {
   it("spawns into consecutive slots and fails when full", () => {

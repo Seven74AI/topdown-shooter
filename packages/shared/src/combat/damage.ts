@@ -4,7 +4,8 @@ import type { WeaponId } from "./weapons";
 
 /**
  * Damages a zombie hit along direction (dirX, dirY): emits `zombie.hit`, pushes it back by
- * `pushbackM` (clamped to the map) and kills it at 0 HP (emits `zombie.killed`).
+ * `pushbackM` (clamped to the map) and kills it at 0 HP (emits `zombie.killed`). `killerId` is
+ * also the hit's `sourceId` (Story 2.7: the shooter's client confirms its own hits).
  * Returns true if the zombie died.
  */
 export function applyZombieDamage(
@@ -33,6 +34,7 @@ export function applyZombieDamage(
     dirY,
     damage: amount,
     weapon,
+    sourceId: killerId,
   });
   if ((z.hp[id] as number) <= 0) {
     killZombie(world, id, killerId, weapon);

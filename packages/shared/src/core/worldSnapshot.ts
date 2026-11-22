@@ -44,6 +44,7 @@ function snapshotProjectiles(world: World) {
     dirX: p.dirX[id],
     dirY: p.dirY[id],
     rangeLeftM: p.rangeLeftM[id],
+    advanceM: p.advanceM[id],
     pierceLeft: p.pierceLeft[id],
     weapon: p.weapon[id],
     owner: p.owner[id],

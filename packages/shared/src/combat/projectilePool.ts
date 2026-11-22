@@ -15,6 +15,8 @@ export interface ProjectilePool {
   readonly dirY: Float32Array;
   readonly speedMps: Float32Array;
   readonly rangeLeftM: Float32Array;
+  /** Extra distance swept on the first step only (Story 2.7 shot advance; 0 offline), then 0. */
+  readonly advanceM: Float32Array;
   readonly damage: Float32Array;
   readonly pierceLeft: Uint8Array;
   /** Index into weaponIds(balance). */
@@ -44,6 +46,7 @@ export function createProjectilePool(capacity: number): ProjectilePool {
     dirY: new Float32Array(capacity),
     speedMps: new Float32Array(capacity),
     rangeLeftM: new Float32Array(capacity),
+    advanceM: new Float32Array(capacity),
     damage: new Float32Array(capacity),
     pierceLeft: new Uint8Array(capacity),
     weapon: new Uint8Array(capacity),
@@ -69,6 +72,8 @@ export interface ProjectileSpawn {
   pierce: number;
   weaponIndex: number;
   owner: string | null;
+  /** Shot advance in metres (`projectileSpeedMps × shotAdvanceS`; 0 offline and for cosmetic shots). */
+  advanceM: number;
 }
 
 /** Returns the projectile id, or -1 if the pool is full. */
@@ -83,6 +88,7 @@ export function spawnProjectile(pool: ProjectilePool, s: ProjectileSpawn): numbe
   pool.dirY[id] = s.dirY;
   pool.speedMps[id] = s.speedMps;
   pool.rangeLeftM[id] = s.rangeM;
+  pool.advanceM[id] = s.advanceM;
   pool.damage[id] = s.damage;
   pool.pierceLeft[id] = Math.min(s.pierce, MAX_PIERCE);
   pool.weapon[id] = s.weaponIndex;

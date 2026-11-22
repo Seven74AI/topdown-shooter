@@ -20,10 +20,9 @@ import {
   type ProjectileSpawn,
 } from "./projectilePool";
 import { swingMelee } from "./melee";
+import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
 import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
 
-/** Cooldowns within this of zero count as ready (float rounding of `+= 1/rateHz`). */
-const COOLDOWN_EPS_S = 1e-6;
 /** Projectiles spawn just outside the shooter's body. */
 const MUZZLE_OFFSET_M = 0.1;
 const MIN_AIM = 1e-6;
@@ -32,27 +31,37 @@ const MIN_AIM = 1e-6;
 const hitT = new Float32Array(ZOMBIE_POOL_CAPACITY);
 const hitId = new Int32Array(ZOMBIE_POOL_CAPACITY);
 const dir = { x: 0, y: 0 };
-const spawn: ProjectileSpawn = { x: 0, y: 0, dirX: 0, dirY: 0, speedMps: 0, rangeM: 0, damage: 0, pierce: 1, weaponIndex: 0, owner: null };
+const spawn: ProjectileSpawn = {
+  x: 0,
+  y: 0,
+  dirX: 0,
+  dirY: 0,
+  speedMps: 0,
+  rangeM: 0,
+  damage: 0,
+  pierce: 1,
+  weaponIndex: 0,
+  owner: null,
+  advanceM: 0,
+};
 
 /**
- * Fire cooldown: counts down every tick and may end slightly negative while the trigger is held, so
- * `cooldownS += 1 / rateHz` keeps the exact average rate (3/s fires every 6.67 ticks on average).
- * Any tick without a shot clamps it back to ≥ 0, so an idle player can't save up a burst; it never
- * goes below −dt (at most one shot per tick).
+ * Fire cooldown: the shared rule in `cooldown.ts` (the client's local fire clock, Story 2.7, uses
+ * the same functions). It may end a tick slightly negative while the trigger is held, so the
+ * average rate is exact; a tick without a shot clamps it back to ≥ 0 (no saved-up burst).
  */
 function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
   // The weapon not in hand keeps cooling down (a swap never stretches its next shot).
   const other = p.loadout.slots[p.loadout.active === 0 ? 1 : 0];
-  if (other) other.cooldownS = Math.max(0, other.cooldownS - dtS);
+  if (other) other.cooldownS = cooldownIdle(other.cooldownS, dtS);
   if (updateSwap(world, p)) {
-    activeSlot(p.loadout).cooldownS = Math.max(0, activeSlot(p.loadout).cooldownS - dtS);
+    activeSlot(p.loadout).cooldownS = cooldownIdle(activeSlot(p.loadout).cooldownS, dtS);
     return; // neither weapon fires during a swap (FR5)
   }
   const slot = activeSlot(p.loadout);
-  // Only a cooldown that was still running can go below zero (the part of this tick since it ended);
-  // a weapon that was already ready carries no credit.
-  if (slot.cooldownS > 0) slot.cooldownS = Math.max(-dtS, slot.cooldownS - dtS);
-  if (!tryFire(world, p, slot.cooldownS)) slot.cooldownS = Math.max(0, slot.cooldownS);
+  slot.cooldownS = cooldownTickStart(slot.cooldownS, dtS);
+  const attacked = tryFire(world, p, slot.cooldownS);
+  slot.cooldownS = cooldownTickEnd(slot.cooldownS, attacked, weaponStats(world.balance, slot.weapon).rateHz);
 }
 
 /**
@@ -92,7 +101,10 @@ function updateSwap(world: World, p: PlayerState): boolean {
   return true;
 }
 
-/** Handles reload and firing (or a melee swing) for this tick. Returns true if the weapon attacked. */
+/**
+ * Handles reload and firing (or a melee swing) for this tick. Returns true if the weapon attacked
+ * (the caller adds the cooldown).
+ */
 function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
   const slot = activeSlot(p.loadout);
   const stats = weaponStats(world.balance, slot.weapon);
@@ -110,13 +122,12 @@ function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
   const input = world.inputs.get(p.id);
   if (!input || !input.fire) return false;
   const aimLen = len(input.aimX, input.aimY);
-  if (aimLen < MIN_AIM || cooldownS > COOLDOWN_EPS_S) return false;
+  if (aimLen < MIN_AIM || !cooldownReady(cooldownS)) return false;
   dir.x = input.aimX / aimLen;
   dir.y = input.aimY / aimLen;
   if (isMelee(stats)) {
     // Melee (Story 1.9): instant arc hit along the raw aim, no ammo, no reload, no aim assist.
     swingMelee(world, p, slot.weapon, stats, dir.x, dir.y);
-    slot.cooldownS += 1 / stats.rateHz;
     return true;
   }
   if (slot.ammo <= 0) return false;
@@ -139,10 +150,11 @@ function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
   spawn.pierce = stats.pierce;
   spawn.weaponIndex = weaponIds(world.balance).indexOf(slot.weapon);
   spawn.owner = p.id;
+  // Story 2.7: the server advances the first sweep by the shooter's half RTT (0 offline).
+  spawn.advanceM = stats.projectileSpeedMps * p.shotAdvanceS;
   spawnProjectile(world.projectiles, spawn);
 
   slot.ammo--;
-  slot.cooldownS += 1 / stats.rateHz;
   world.events.emit({ type: "weapon.fired", playerId: p.id, weapon: slot.weapon, x: spawn.x, y: spawn.y, dirX: dir.x, dirY: dir.y });
   if (slot.ammo === 0) {
     slot.reloadTicks = ticksFor(stats.reloadS);
@@ -163,7 +175,9 @@ function updateProjectiles(world: World, dtS: number): void {
     const y0 = pool.y[id] as number;
     pool.prevX[id] = x0;
     pool.prevY[id] = y0;
-    const step = Math.min((pool.speedMps[id] as number) * dtS, pool.rangeLeftM[id] as number);
+    // A fresh server projectile also sweeps its shot advance (Story 2.7), never past its range.
+    const step = Math.min((pool.speedMps[id] as number) * dtS + (pool.advanceM[id] as number), pool.rangeLeftM[id] as number);
+    pool.advanceM[id] = 0;
     const dx = pool.dirX[id] as number;
     const dy = pool.dirY[id] as number;
     const x1 = x0 + dx * step;

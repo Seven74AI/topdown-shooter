@@ -13,6 +13,7 @@ import {
   type Systems,
   type World,
 } from "@topdown/shared";
+import { SHOT_ADVANCE_CAP_MS } from "../net/limits";
 
 /** Inputs kept per player: 6 steps = 300 ms of jitter (Story 2.4 › Input queue). */
 export const INPUT_QUEUE_MAX = 6;
@@ -155,10 +156,15 @@ export class RunController {
     s.lastQueuedSeq = input.seq;
   }
 
-  /** Stores the player's round-trip time; Story 2.7 turns it into the shot advance. */
+  /**
+   * Stores the player's round-trip time and turns it into the shot advance (Story 2.7): half the
+   * RTT, capped at SHOT_ADVANCE_CAP_MS. Melee has no advance (resolved at once on server positions).
+   */
   setRtt(playerId: string, rttMs: number): void {
     const s = this.slots.get(playerId);
     if (s) s.rttMs = rttMs;
+    const p = this.world.players.get(playerId);
+    if (p) p.shotAdvanceS = Math.min(Math.max(0, rttMs) / 2, SHOT_ADVANCE_CAP_MS) / 1000;
   }
 
   rttMs(playerId: string): number {
