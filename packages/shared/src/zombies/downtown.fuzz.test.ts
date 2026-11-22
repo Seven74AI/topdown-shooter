@@ -5,7 +5,7 @@ import { addBuildingAt, buildingStats, footprint, footprintBlocked, type Box, ty
 import { circleOverlapsBox, distanceToBox, segmentHitsBuildings } from "../buildings/collision";
 import { applyDecayStage } from "../decay/applyDecayStage";
 import { changeDecayStage } from "../decay/decaySystem";
-import { circleInFire, firePulse } from "../decay/fire";
+import { buildingInFires, circleInFire, firePulse } from "../decay/fire";
 import { legalDecayMasks } from "../decay/decayState";
 import type { Balance } from "../config/balance";
 import { createRng, type Rng } from "../core/rng";
@@ -326,7 +326,7 @@ function run(seed: number) {
   let alive = spawned.length;
   let pushedOut = 0;
   // Story 4.8: fire liveness per layout (pulses that hit zombies / buildings, zombie-ticks in fire).
-  const fire = { lit: 0, zombieHits: 0, buildingHits: 0, kills: 0, zombieTicksInFire: 0, wentOut: false };
+  const fire = { lit: 0, zombieHits: 0, buildingHits: 0, kills: 0, zombieTicksInFire: 0, wentOut: false, ignitionDestroyed: 0 };
   const outTick = changeTick + ticksFor(FIRE_OUT_S);
   const pulse0 = { ...firePulse };
   // Story 4.8: stage-3 layouts also run until their fires have gone out.
@@ -346,6 +346,7 @@ function run(seed: number) {
         z0.y[id] = z0.prevY[id] = (f.minY + f.maxY) / 2;
       }
       const before = world.buildings.list.length;
+      const beforeList = [...world.buildings.list];
       l.decayLog.changing = true;
       if (!changeDecayStage(world, l.toStage)) violation = `seed ${seed}: the stage change did nothing`;
       l.decayLog.changing = false;
@@ -365,6 +366,14 @@ function run(seed: number) {
       if (JSON.stringify(names) !== JSON.stringify(want)) violation = `seed ${seed}: fires ${names.join(",")} ≠ map data ${want.join(",")}`;
       if (l.toStage === 3 && names.length !== 2) violation = `seed ${seed}: stage 3 burns ${names.length} cars`;
       fire.lit = names.length;
+      // Story 4.8 review M2: every building a new fire overlaps went at the ignition (refunded with the rest).
+      for (const b of beforeList) {
+        if (!buildingInFires(world.decay.fires, b)) continue;
+        if (world.buildings.list.includes(b)) violation = `seed ${seed}: building ${b.id} left in a fire lit at the build start`;
+        else fire.ignitionDestroyed++;
+      }
+      // Story 4.8 review M1: no standing player is left in a fire lit at the build start.
+      for (const p of world.players.values()) if (p.status === "alive" && circleInFire(world.decay.fires, p.x, p.y, p.radiusM)) violation = `seed ${seed}: player ${p.id} left in a fire at ignition`;
       if (l.toStage === 3) world.run.phase = "wave";
     }
     if (ticks === outTick && fire.lit > 0) {
@@ -462,7 +471,7 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
     let onFuture = 0;
     let movedOnto = 0;
     let pushedOut = 0;
-    const fires = { layouts: 0, zombieHits: 0, buildingHits: 0, kills: 0, zombieTicksInFire: 0, wentOut: 0 };
+    const fires = { layouts: 0, zombieHits: 0, buildingHits: 0, kills: 0, zombieTicksInFire: 0, wentOut: 0, ignitionDestroyed: 0 };
     const variantsSeen = new Set<number>();
     const stages = new Set<number>();
     const failures: string[] = [];
@@ -486,6 +495,7 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
       if (r.fire.lit > 0) fires.layouts++;
       fires.zombieHits += r.fire.zombieHits;
       fires.buildingHits += r.fire.buildingHits;
+      fires.ignitionDestroyed += r.fire.ignitionDestroyed;
       fires.kills += r.fire.kills;
       fires.zombieTicksInFire += r.fire.zombieTicksInFire;
       if (r.fire.wentOut) fires.wentOut++;
@@ -499,7 +509,7 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
         failures.push(`seed ${4100 + seed}: ${r.missing.length} zombies never reached a player after the stage change, in ${LIMIT_S} s: ${r.missing.map((id) => `${id}@(${(z.x[id] as number).toFixed(2)}, ${(z.y[id] as number).toFixed(2)})`).join(" ")}`);
       }
     }
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box, ${coverStops} shots ended on cover, stages ${[...stages].sort().join("/")}, ${spawnedTotal} zombies spawned, ${blocked} spawns closed by a building; Story 4.5: ${onFuture} barricades on coming mutation boxes (Story 4.7: ${movedOnto} on moved cars / police lines), ${decayDestroyed} destroyed + ${decayRefunded} refunds by the stage change, ${pushedOut} layouts with bodies pushed out, variant masks: ${variantsSeen.size}; Story 4.8: ${fires.layouts} layouts with 2 fires, ${fires.zombieHits} zombie pulses (${fires.kills} fire kills), ${fires.buildingHits} building pulses, ${fires.zombieTicksInFire} zombie-ticks in fire, ${fires.wentOut} expiries`);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box, ${coverStops} shots ended on cover, stages ${[...stages].sort().join("/")}, ${spawnedTotal} zombies spawned, ${blocked} spawns closed by a building; Story 4.5: ${onFuture} barricades on coming mutation boxes (Story 4.7: ${movedOnto} on moved cars / police lines), ${decayDestroyed} destroyed + ${decayRefunded} refunds by the stage change, ${pushedOut} layouts with bodies pushed out, variant masks: ${variantsSeen.size}; Story 4.8: ${fires.layouts} layouts with 2 fires, ${fires.zombieHits} zombie pulses (${fires.kills} fire kills), ${fires.buildingHits} building pulses, ${fires.ignitionDestroyed} buildings destroyed + refunded at ignition, ${fires.zombieTicksInFire} zombie-ticks in fire, ${fires.wentOut} expiries`);
     expect(failures).toEqual([]);
     // Liveness (brief line 9): the layouts were real and the zombies really came.
     expect(buildings).toBeGreaterThan(LAYOUTS * 3);
@@ -527,6 +537,6 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
     expect(fires.layouts).toBeGreaterThan(LAYOUTS / 4);
     expect(fires.wentOut).toBe(fires.layouts);
     expect(fires.zombieHits).toBeGreaterThan(0);
-    expect(fires.buildingHits).toBeGreaterThan(0);
+    expect(fires.ignitionDestroyed).toBeGreaterThan(0); // review M2: buildings under a new fire went (refunded), none burns on from the ignition
   }, 240_000);
 });

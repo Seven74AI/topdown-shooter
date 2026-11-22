@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import type { DistrictMap, World } from "@topdown/shared";
+import type { DistrictMap, FireRecord, World } from "@topdown/shared";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, dressingFor, type Dressing } from "./dressing";
 import { BARRIER_LAMPS, CULL_MARGIN_PX, baseKey, blinkerSpots, drawBase, drawGlow, drawLightmap, drawOverlay, type CityScene } from "./drawCity";
@@ -8,6 +8,7 @@ import { ATLAS_FX, FX_GLOW, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type
 import { hash } from "./spriteArt";
 import { addCanvasTexture, releaseCanvas } from "./canvasTexture";
 import { staticKey } from "./stageFilter";
+import { FIRE_EMBERS, FIRE_EMBER_FLICKER_HZ, FIRE_EMBER_M, FIRE_RING_ALPHA, FIRE_RING_COLOR, emberSpot, fireRingRadiusM, fireRingWidthM } from "./fireRing";
 
 /**
  * Story 4.9: the Dead City look of the district (look B). Static layers (ground, shadows, buildings,
@@ -27,6 +28,8 @@ import { staticKey } from "./stageFilter";
 /** Depths (D5): the lit street 0; animated lights above barricades/turrets, below every character. */
 const STATIC_DEPTH = 0;
 const DYN_LIGHT_DEPTH = 4.32;
+/** Story 4.8 review M3: the fire ring and its embers lie on the ground: above blood (1), below barricades (3). */
+const FIRE_RING_DEPTH = 1.5;
 const RAIN_DEPTH = 11.8;
 const VIGNETTE_DEPTH = 11.9;
 
@@ -66,7 +69,7 @@ const BLINK_BARRIER_M = 1.1;
 const BLINK_COLOR = 0xff9628;
 /** Burning cars: at most this many lit, the light's size and colour, its flicker rate. */
 const FIRE_LIGHTS = 4;
-const FIRE_LIGHT_M = 6;
+const FIRE_LIGHT_M = 4; // review M3: the flicker light's size = the zone's diameter (2 × 2 m), no glow past the ring
 const FIRE_COLOR = 0xff7a28;
 const FIRE_FLICKER_HZ = 9;
 /**
@@ -108,6 +111,12 @@ export class CityView {
   private readonly barrierBlink: Phaser.GameObjects.Image[] = [];
   /** Flickering light over each burning car (`world.decay.fires`). */
   private readonly fireLight: Phaser.GameObjects.Image[] = [];
+  /** Story 4.8 review M3: the ember ring at each zone's damage edge, and its ember dots. */
+  private readonly fireRing: Phaser.GameObjects.Graphics;
+  private readonly embers: Phaser.GameObjects.Image[] = [];
+  private fires: readonly FireRecord[] = [];
+  private ringZoom = -1;
+  private readonly ember = { x: 0, y: 0 };
   private readonly rain: Phaser.GameObjects.Image[] = [];
   private readonly splash: Phaser.GameObjects.Image[] = [];
   /** Top, bottom, left, right edge bands. */
@@ -161,6 +170,8 @@ export class CityView {
     for (let i = 0; i < 2; i++) this.busBlink.push(glowImg(BLINK_BUS_M, BLINK_COLOR));
     for (let i = 0; i < BARRIER_LAMPS; i++) this.barrierBlink.push(glowImg(BLINK_BARRIER_M, BLINK_COLOR));
     for (let i = 0; i < FIRE_LIGHTS; i++) this.fireLight.push(glowImg(FIRE_LIGHT_M, FIRE_COLOR));
+    this.fireRing = scene.add.graphics().setDepth(FIRE_RING_DEPTH);
+    for (let i = 0; i < FIRE_LIGHTS * FIRE_EMBERS; i++) this.embers.push(glowImg(FIRE_EMBER_M, FIRE_RING_COLOR).setDepth(FIRE_RING_DEPTH));
     for (let i = 0; i < RAIN_POOL; i++) {
       this.rain.push(scene.add.image(0, 0, ATLAS_FX, FX_RAIN).setDisplaySize(RAIN_W_M, RAIN_LEN_M).setRotation(-Math.atan(RAIN_SLANT)).setDepth(RAIN_DEPTH).setVisible(false));
       this.dropSpeed[i] = RAIN_SPEED_MPS + hash(i + 0.5) * RAIN_SPEED_VAR_MPS;
@@ -244,8 +255,40 @@ export class CityView {
     this.placeBlinkers(this.busBlink, spots.bus);
     this.placeBlinkers(this.barrierBlink, spots.barrier);
     this.placeBlinkers(this.fireLight, cs.fires.map((f) => [f.x * MAP_PX_PER_M, f.y * MAP_PX_PER_M] as [number, number]));
+    this.fires = cs.fires;
+    this.ringZoom = -1; // redraw the ring
     this.bakeMs = performance.now() - t0;
     this.bakeCount++;
+  }
+
+  /**
+   * Story 4.8 review M3: the ember ring at each burning zone's damage edge (`fireRingRadiusM`: a body
+   * touching it burns), ~2 px whatever the zoom (redrawn only when the zoom or the fires change), and
+   * the ember dots drifting and flickering on it (pooled, alpha and position only).
+   */
+  private updateFireRing(t: number): void {
+    const zoom = this.scene.cameras.main.zoom;
+    const fires = this.fires;
+    if (zoom !== this.ringZoom) {
+      this.ringZoom = zoom;
+      const g = this.fireRing;
+      g.clear();
+      g.lineStyle(fireRingWidthM(zoom), FIRE_RING_COLOR, FIRE_RING_ALPHA);
+      for (let i = 0; i < fires.length && i < FIRE_LIGHTS; i++) {
+        const f = fires[i] as FireRecord;
+        g.strokeCircle(f.x, f.y, fireRingRadiusM(f));
+      }
+    }
+    for (let i = 0; i < this.embers.length; i++) {
+      const img = this.embers[i] as Phaser.GameObjects.Image;
+      const f = fires[Math.floor(i / FIRE_EMBERS)];
+      if (!f) {
+        if (img.visible) img.setVisible(false);
+        continue;
+      }
+      emberSpot(f, i % FIRE_EMBERS, FIRE_EMBERS, t, this.ember);
+      img.setPosition(this.ember.x, this.ember.y).setVisible(true).setAlpha(0.25 + 0.6 * hash(Math.floor(t * FIRE_EMBER_FLICKER_HZ) + i * 13));
+    }
   }
 
   private placeBlinkers(imgs: Phaser.GameObjects.Image[], spots: [number, number][]): void {
@@ -286,6 +329,7 @@ export class CityView {
       const f = this.fireLight[i] as Phaser.GameObjects.Image;
       if (f.visible) f.setAlpha(0.28 + 0.22 * hash(Math.floor(t * FIRE_FLICKER_HZ) + i * 17));
     }
+    this.updateFireRing(t);
 
     const level = nightAt(this.stage).rain;
     const spanY = viewH + 2 * RAIN_MARGIN_M;
@@ -334,6 +378,7 @@ export class CityView {
     releaseCanvas(this.light);
     releaseCanvas(this.glow);
     this.tiles.length = 0;
-    for (const img of [this.flickerPool, this.flickerCore, ...this.busBlink, ...this.barrierBlink, ...this.fireLight, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
+    this.fireRing.destroy();
+    for (const img of [this.flickerPool, this.flickerCore, ...this.busBlink, ...this.barrierBlink, ...this.fireLight, ...this.embers, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
   }
 }

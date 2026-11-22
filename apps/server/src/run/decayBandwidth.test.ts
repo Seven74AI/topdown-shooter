@@ -71,6 +71,7 @@ describe("Story 4.5 decay bandwidth", () => {
     const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
     const c = new RunController({ balance, seed: 5, players, pauseWaves: true, decayStageByWave: [3, 3, 3, 3, 3] });
     const world = c.world;
+    world.waves.paused = false; // review L6: fire respects the dev pause; build phase, so no wave starts in these ticks
     expect(world.decay.fires).toHaveLength(2); // the first build start entered stage 3
     const state = new RunState({ phase: "build", hostSlot: 0 });
     for (const p of players) state.players.set(p.playerId, new PlayerState({ slot: p.slot, name: p.playerId, ready: true }));

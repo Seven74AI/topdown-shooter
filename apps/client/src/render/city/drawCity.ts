@@ -1,4 +1,5 @@
 import { shopfrontsOf, type CoverObject, type DistrictMap, type FireRecord, type MapBox } from "@topdown/shared";
+import { SCORCH_FULL_FRAC } from "./fireRing";
 import type { AtlasCanvas } from "./spriteAtlas";
 import { CAR_FRAMES, PROP_BARRIER, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
 import { HEIGHT_BY_KIND, MAP_PX_PER_M, carStyle, nameHash, type Dressing, type Front } from "./dressing";
@@ -755,14 +756,18 @@ function lampHeads(g: G, d: Dressing, mapW: number): void {
   });
 }
 
-/** Burnt ground around a burning car (its fire radius), under the car. */
+/**
+ * Burnt ground around a burning car, under the car. Story 4.8 review M3: near full strength out to
+ * `SCORCH_FULL_FRAC` of the radius, then a hard falloff to nothing at the damage edge (the view's
+ * ember ring), so the burnt patch reads as the zone.
+ */
 function scorch(g: G, f: FireRecord): void {
   const x = f.x * P;
   const y = f.y * P;
   const r = f.radiusM * P;
   const gr = g.createRadialGradient(x, y, 0, x, y, r);
-  gr.addColorStop(0, "rgba(8,6,5,0.75)");
-  gr.addColorStop(0.7, "rgba(20,14,10,0.35)");
+  gr.addColorStop(0, "rgba(8,6,5,0.8)");
+  gr.addColorStop(SCORCH_FULL_FRAC, "rgba(14,10,8,0.66)");
   gr.addColorStop(1, "rgba(20,14,10,0)");
   g.fillStyle = gr;
   g.fillRect(x - r, y - r, 2 * r, 2 * r);
@@ -969,7 +974,7 @@ export function drawLightmap(g: G, cs: CityScene): void {
       g.fill();
     }
   }
-  for (const f of cs.fires) radial(g, f.x * P, f.y * P, f.radiusM * P * 2.5, "255,120,40", 0.45);
+  for (const f of cs.fires) radial(g, f.x * P, f.y * P, f.radiusM * P, "255,120,40", 0.45); // review M3: the light stays inside the ring
   // roofs: one fixed light level, whatever lamps are near (streetlights hang below the roofs)
   g.globalCompositeOperation = "source-over";
   g.fillStyle = `rgb(${night.roofLight})`;
@@ -1003,7 +1008,7 @@ export function drawGlow(g: G, cs: CityScene): void {
     for (let q = 0; q <= n; q++) oval(g, x1 + ((x2 - x1) * q) / n + nx * 8, y1 + ((y2 - y1) * q) / n + ny * 8, 24, 24, col, a * SPILL_GLOW_K);
   }
   for (const [x, y, rx, ry, col, a] of d.neon) oval(g, x, y, rx, ry, col, a);
-  for (const f of cs.fires) oval(g, f.x * P, f.y * P, f.radiusM * P * 1.6, f.radiusM * P * 1.6, "255,130,50", 0.12);
+  for (const f of cs.fires) oval(g, f.x * P, f.y * P, f.radiusM * P, f.radiusM * P, "255,130,50", 0.12); // review M3: no glow past the ring
   const cp = k.ground.find((o) => o.name === d.canopy);
   if (cp) oval(g, cp.x + cp.w / 2, cp.y + cp.h / 2, 110, 120, "190,215,255", 0.12);
   const sc = k.cover.find((o) => o.name === d.runningCar);

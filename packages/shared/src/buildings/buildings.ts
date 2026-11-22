@@ -49,6 +49,8 @@ export interface Building {
    * every shot; the client mirror writes it from `turret.fired` (never synced per tick).
    */
   fireCooldownS: number;
+  /** Story 4.8 review L4: ticks spent inside a fire since its last fire hit (the burn clock). */
+  fireTicks: number;
   aimX: number;
   aimY: number;
 }
@@ -240,6 +242,7 @@ export function addBuildingAt(world: World, spec: BuildingSpec): Building | null
     maxX: box.maxX,
     maxY: box.maxY,
     fireCooldownS: 0,
+    fireTicks: 0,
     aimX: 1,
     aimY: 0,
   };

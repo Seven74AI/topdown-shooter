@@ -11,9 +11,9 @@ import type { FireRecord } from "./decayState";
  * Story 4.8: car fires (FR57, FR53, FR61). The burning zones are `world.decay.fires` (written only
  * by the shared `applyDecayStage`); this module is what they do:
  *
- * - `updateFires` (the `decayTimers` system, last in the tick; server and solo only): every
- *   `decay.json › fire.pulseS` (ticks of `decay.burnTicks`, which runs while a fire burns in a build
- *   or wave phase) each body inside a zone takes `damagePerS × pulseS`: standing players
+ * - `updateFires` (the `decayTimers` system, last in the tick; server and solo only): per body, every
+ *   `decay.json › fire.pulseS` spent inside a zone (its own burn clock, review L4) it takes
+ *   `damagePerS × pulseS`, in build and wave phases: standing players
  *   (`player.damaged`, source −1; they can go down), zombies (no hit event; a death credits nobody),
  *   buildings and turrets (`damageBuilding`). Downed and out players are spared (their own timer).
  *   Inside = the body circle (a building's footprint) overlaps the zone circle, strictly. A body in
@@ -74,45 +74,59 @@ export function firePulseDamage(world: Readonly<World>): number {
 }
 
 /** Scratch for the module-level player callback (no closure per tick). */
-const pass = { world: null as World | null, amount: 0 };
+const pass = { world: null as World | null, amount: 0, pulse: 0 };
 
 const burnPlayer = (p: PlayerState): void => {
   const world = pass.world as World;
   // D4: downed players keep their own countdown; out players are off the map; god mode (dev, ?stress).
   if (p.status !== "alive" || world.debug.godMode) return;
   if (!circleInFire(world.decay.fires, p.x, p.y, p.radiusM)) return;
+  if (++p.fireTicks < pass.pulse) return;
+  p.fireTicks = 0;
   p.hp = Math.max(0, p.hp - pass.amount);
+  firePulse.players++;
   world.events.emit({ type: "player.damaged", playerId: p.id, amount: pass.amount, sourceZombieId: -1 });
   if (p.hp <= 0) downPlayer(world, p);
 };
 
-/** Pulse results of the last pulse (tests and logs; not read by the sim). */
+/** Fire hits so far (tests and logs; not read by the sim). */
 export const firePulse = { players: 0, zombies: 0, zombiesKilled: 0, buildings: 0, pulses: 0 };
 
 /**
- * The `decayTimers` system (Story 4.8): the fire damage pulse. Server and solo only (the client's
- * Worlds run no systems: HP and deaths come from the server).
+ * The `decayTimers` system (Story 4.8): fire damage. Server and solo only (the client's Worlds run no
+ * systems: HP and deaths come from the server). Review L4: every body has its own burn clock
+ * (`fireTicks`), counted only while it is inside a zone and kept while it is outside; each time it
+ * reaches `pulseS` worth of ticks the body takes `damagePerS × pulseS`. So a body takes exactly one
+ * hit per `pulseS` spent in fire, however it steps in and out (no dodging on a shared pulse tick).
+ * Review L6: nothing burns while the dev `waves.paused` switch holds the run.
  */
 export function updateFires(world: World): void {
   const fires = world.decay.fires;
-  if (fires.length === 0 || world.teamWiped) return;
+  if (fires.length === 0 || world.teamWiped || world.waves.paused) return;
   const phase = world.run.phase;
   if (phase !== "build" && phase !== "wave") return;
   world.decay.burnTicks++;
-  if (world.decay.burnTicks % ticksFor(world.balance.decay.fire.pulseS) !== 0) return;
+  const pulse = ticksFor(world.balance.decay.fire.pulseS);
   const amount = firePulseDamage(world);
-  firePulse.pulses++;
   // Players first (id order is the Map's insertion order, like every player pass).
   pass.world = world;
   pass.amount = amount;
+  pass.pulse = pulse;
   world.players.forEach(burnPlayer);
   pass.world = null;
-  // Zombies (from the end: a kill swaps the last alive id into this slot).
+  // Zombies, from the end: a kill swaps the last alive id into this position, which was already done
+  // (review: forwards would skip the zombie moved into the freed slot).
   const z = world.zombies;
   for (let i = z.aliveCount - 1; i >= 0; i--) {
     const id = z.aliveIds[i] as number;
     const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
     if (!circleInFire(fires, z.x[id] as number, z.y[id] as number, r)) continue;
+    const t = (z.fireTicks[id] as number) + 1;
+    if (t < pulse) {
+      z.fireTicks[id] = t;
+      continue;
+    }
+    z.fireTicks[id] = 0;
     z.hp[id] = (z.hp[id] as number) - amount;
     firePulse.zombies++;
     if ((z.hp[id] as number) <= 0) {
@@ -125,9 +139,30 @@ export function updateFires(world: World): void {
   for (let i = list.length - 1; i >= 0; i--) {
     const b = list[i] as Building;
     if (!boxInFire(fires, b)) continue;
+    if (++b.fireTicks < pulse) continue;
+    b.fireTicks = 0;
     damageBuilding(world, b, amount);
     firePulse.buildings++;
   }
+}
+
+/** Story 4.8 review M1/M2: the fires lit at this build start (filled by `newlyLitFires`; build starts only). */
+export const newFires: FireRecord[] = [];
+
+/** The burning fires that have no end wave yet, i.e. lit by the apply just done (call before `lightNewFires`). */
+export function newlyLitFires(world: Readonly<World>): FireRecord[] {
+  newFires.length = 0;
+  const d = world.decay;
+  for (let i = 0; i < d.fires.length; i++) {
+    const f = d.fires[i] as FireRecord;
+    if (d.fireEndWave[f.index] === 0) newFires.push(f);
+  }
+  return newFires;
+}
+
+/** The building's footprint overlaps one of `fires` (strict). */
+export function buildingInFires(fires: readonly FireRecord[], b: Building): boolean {
+  return boxInFire(fires, b);
 }
 
 /**

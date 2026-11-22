@@ -65,7 +65,7 @@ const walk = (t: number, endMs: number) => (t >= endMs - 1500 ? 0 : Math.floor(t
 
 function simulate(seed: number, outAtMs: number, seconds: number, sleep?: { from: number; to: number }) {
   const rng = createRng(seed);
-  const ctrl = new RunController({ balance, seed, players: [{ playerId: ID, slot: 0 }], pauseWaves: true, systems: { waves: () => {} }, decayStageByWave: [3, 3, 3, 3, 3] });
+  const ctrl = new RunController({ balance, seed, players: [{ playerId: ID, slot: 0 }], systems: { waves: () => {} }, decayStageByWave: [3, 3, 3, 3, 3] });
   const world = ctrl.world;
   const me = world.players.get(ID);
   if (!me) throw new Error("no player");

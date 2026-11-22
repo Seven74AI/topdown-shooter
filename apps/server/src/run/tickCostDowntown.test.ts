@@ -32,15 +32,20 @@ const WARMUP_TICKS = 100;
 const MEASURED_TICKS = 600;
 const PERF_ASSERT = process.env.PERF_ASSERT === "1";
 
-function measure(map: DistrictMap, stage = 1, firesOut = 0) {
+function measure(map: DistrictMap, stage = 1, firesOut: number | null = null) {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
-  const c = new RunController({ balance, seed: 99, players, pauseWaves: true, map });
+  // Story 4.8 (review L6: fire respects `waves.paused`): the fire cases hold the waves with a no-op
+  // wave system instead of the dev pause, so the fires burn.
+  const c =
+    firesOut === null
+      ? new RunController({ balance, seed: 99, players, pauseWaves: true, map })
+      : new RunController({ balance, seed: 99, players, map, systems: { waves: () => {} } });
   const world = c.world;
   world.debug.godMode = true;
   if (stage !== 1) {
-    applyDecayStage(world, stage, world.decay.variants, firesOut); // Story 4.2: every cover object active (worst case)
+    applyDecayStage(world, stage, world.decay.variants, firesOut ?? 0); // Story 4.2: every cover object active (worst case)
   }
-  const pulses0 = firePulse.pulses;
+  const hits0 = firePulse.players + firePulse.zombies + firePulse.buildings;
   if (world.run.phase === "build") startWave(world);
   const points = world.map.spawnPoints;
   let spawnAt = 0;
@@ -71,7 +76,7 @@ function measure(map: DistrictMap, stage = 1, firesOut = 0) {
     fieldTicks,
     seconds: MEASURED_TICKS * TICK_DT_S,
     fires: world.decay.fires.length,
-    pulses: firePulse.pulses - pulses0,
+    pulses: firePulse.players + firePulse.zombies + firePulse.buildings - hits0,
   };
 }
 
@@ -133,17 +138,17 @@ describe("tick cost of cover (Story 4.2)", () => {
 
 describe("tick cost of car fires (Story 4.8)", () => {
   it("4 players + 150 Walkers at stage 3: two burning cars (damage pulse, fire line-of-sight) add ≤ 2 ms to the tick p99 over the same stage with the fires out", () => {
-    const runs = [measure(DOWNTOWN_MAP, 3, 0xffffffff), measure(DOWNTOWN_MAP, 3), measure(DOWNTOWN_MAP, 3, 0xffffffff), measure(DOWNTOWN_MAP, 3)];
+    const runs = [measure(DOWNTOWN_MAP, 3, 0xffffffff), measure(DOWNTOWN_MAP, 3, 0), measure(DOWNTOWN_MAP, 3, 0xffffffff), measure(DOWNTOWN_MAP, 3, 0)];
     const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
     const out = pick(runs[0] as ReturnType<typeof measure>, runs[2] as ReturnType<typeof measure>);
     const burning = pick(runs[1] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
     console.log(
       `[tick cost 4.8] stage 3 fires out p99 ${out.p99.toFixed(3)} ms (mean ${out.mean.toFixed(3)}); 2 fires burning p99 ${burning.p99.toFixed(3)} ms (mean ${burning.mean.toFixed(3)}); ` +
-        `added p99 ${(burning.p99 - out.p99).toFixed(3)} ms, mean ${(burning.mean - out.mean).toFixed(3)} ms; ${burning.pulses} pulses; kills ${out.kills} / ${burning.kills}`,
+        `added p99 ${(burning.p99 - out.p99).toFixed(3)} ms, mean ${(burning.mean - out.mean).toFixed(3)} ms; ${burning.pulses} fire hits; kills ${out.kills} / ${burning.kills}`,
     );
     expect(out.fires).toBe(0);
     expect(burning.fires).toBe(2); // liveness: the fires burned and pulsed
-    expect(burning.pulses).toBe(Math.floor((WARMUP_TICKS + MEASURED_TICKS) / 10));
+    expect(burning.pulses).toBeGreaterThan(0);
     expect(burning.kills).toBeGreaterThan(0);
     if (PERF_ASSERT) expect(burning.p99 - out.p99).toBeLessThanOrEqual(2);
   }, 120_000);

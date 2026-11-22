@@ -52,6 +52,11 @@ export interface PlayerState {
   slowTicksLeft: number;
   /** Speed reduction in integer percent while `slowTicksLeft > 0`; 0 otherwise. */
   slowPct: number;
+  /**
+   * Story 4.8 review L4: this body's burn clock — ticks spent inside a fire since its last fire hit
+   * (kept while outside, so stepping out on the pulse tick doesn't dodge it). Server / solo only.
+   */
+  fireTicks: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -81,6 +86,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     wallet: world.balance.economy.startingWallet,
     earned: 0,
     slowTicksLeft: 0,
+    fireTicks: 0,
     slowPct: 0,
   };
   world.players.set(id, player);

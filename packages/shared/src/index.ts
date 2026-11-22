@@ -85,7 +85,7 @@ export { createDecayState, fireRecordOf, legalDecayMasks, pickDecayVariants, sta
 export { applyDecayStage } from "./decay/applyDecayStage";
 // Story 4.8: car fires.
 export { circleInFire, fireExpiry, firePulse, firePulseDamage, lightNewFires, segmentHitsFire, updateFires } from "./decay/fire";
-export { changeDecayStage, decayFinish, decayMutate, destroyBlockedBuildings, relocateBodies, relocated, stageForComingWave } from "./decay/decaySystem";
+export { changeDecayStage, decayFinish, decayMutate, destroyBlockedBuildings, moveOutOfNewFires, relocateBodies, relocated, stageForComingWave } from "./decay/decaySystem";
 export { segmentBoxEntryT, shotBlockT, shotLineClear } from "./combat/cover";
 export { DOWNTOWN_MAP } from "./map/downtown";
 export { SHOPFRONT_KIND, shopfrontsOf, type Shopfront, type ShopfrontFace } from "./map/shopfronts";

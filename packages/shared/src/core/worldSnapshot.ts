@@ -27,6 +27,7 @@ function snapshotZombies(world: World) {
       generation: z.generation[id],
       waveZombie: z.waveZombie[id],
       attackCooldownTicks: z.attackCooldownTicks[id],
+      fireTicks: z.fireTicks[id], // Story 4.8 review L4
     })),
     nextUnused: z.nextUnused,
     freed: Array.from({ length: z.freedCount }, (_, k) => {

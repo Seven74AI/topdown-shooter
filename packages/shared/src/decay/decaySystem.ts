@@ -10,7 +10,8 @@ import { killZombie, zombieTypeOf } from "../zombies/zombiePool";
 import { rebuildFlowFieldNow } from "../zombies/flowField";
 import { applyDecayStage } from "./applyDecayStage";
 import { stageForWave } from "./decayState";
-import { fireExpiry, lightNewFires } from "./fire";
+import type { FireRecord } from "./decayState";
+import { buildingInFires, circleInFire, fireExpiry, lightNewFires, newlyLitFires } from "./fire";
 
 /**
  * Story 4.5 `DecaySystem` (FR58; architecture › Decay Stage Engine). Runs only at the start of a
@@ -22,7 +23,10 @@ import { fireExpiry, lightNewFires } from "./fire";
  *      `durationWaves` are over go out here too (`fireExpiry`), and newly lit ones get their end wave;
  *   2. every building that overlaps a solid is destroyed (`building.destroyed`) and its owner gets
  *      `floor(price × decay.buildingRefundShare)` back (`money.earned`, reason `refund`);
- *   3. every player or zombie that overlaps a solid is moved out (`relocateBodies`);
+ *      (Story 4.8 review M2: also every building a fire lit now overlaps, same refund);
+ *   3. every player or zombie that overlaps a solid is moved out (`relocateBodies`); Story 4.8
+ *      review M1: then every standing player inside a fire lit now is moved just outside it
+ *      (`moveOutOfNewFires`);
  *      (`startBuild` then returns downed / out players: `returnOutPlayers`, same free-spot code)
  *   4. `decayFinish`: the chase and flank flow fields are rebuilt at once (4.2 review L1: no wave
  *      starts on fields of the old map) and `decay.stage_changed` is emitted.
@@ -40,15 +44,19 @@ function overlapsSolid(solids: readonly MapBox[], b: Building): boolean {
   return false;
 }
 
-/** Step 2: buildings on newly blocked cells are destroyed and refunded (FR58). Returns how many. */
-export function destroyBlockedBuildings(world: World): number {
+/**
+ * Step 2: buildings on newly blocked cells are destroyed and refunded (FR58). Story 4.8 review M2:
+ * so are buildings a fire lit at this build start overlaps (`newFires`; a building placed into a
+ * fire later burns instead, D6). Returns how many.
+ */
+export function destroyBlockedBuildings(world: World, newFires: readonly FireRecord[] = []): number {
   const list = world.buildings.list;
   const solids = world.obstacles.solids;
   const share = world.balance.decay.buildingRefundShare;
   let n = 0;
   for (let i = list.length - 1; i >= 0; i--) {
     const b = list[i] as Building;
-    if (!overlapsSolid(solids, b)) continue;
+    if (!overlapsSolid(solids, b) && !buildingInFires(newFires, b)) continue;
     if (!removeBuilding(world, b.id)) continue;
     n++;
     world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot });
@@ -122,7 +130,62 @@ function relocateZombie(world: World, id: number): number {
 }
 
 /** Step 3 result (tests and logs). */
-export const relocated = { players: 0, zombies: 0, zombiesRemoved: 0, playersStuck: 0 };
+export const relocated = { players: 0, zombies: 0, zombiesRemoved: 0, playersStuck: 0, outOfFire: 0 };
+
+/** Directions tried round a fire when moving a player out of it (16: every 22.5°). */
+const FIRE_EXIT_DIRECTIONS = 16;
+/** Past the touching distance, so the body is strictly outside the zone. */
+const FIRE_EXIT_EPS_M = 1e-6;
+
+function spotFreeOfFire(world: World, p: PlayerState, x: number, y: number): boolean {
+  return !spotBlocked(world, x, y, p.radiusM, p) && !circleInFire(world.decay.fires, x, y, p.radiusM);
+}
+
+/**
+ * Story 4.8 review M1 (step 3, after `relocateBodies`): every standing player inside a fire lit at
+ * this build start is moved just outside it, to fire radius + body radius from its centre: first
+ * straight out along its own direction, then the other 15 directions round the zone (alternating
+ * sides), each clear of boxes, bodies and every burning zone; else the free-spot rings round it;
+ * else the team starts. Downed players stay (fire spares them, D4); out players are off the map.
+ * Returns how many moved.
+ */
+export function moveOutOfNewFires(world: World, lit: readonly FireRecord[]): number {
+  relocated.outOfFire = 0;
+  if (lit.length === 0) return 0;
+  for (const p of world.players.values()) {
+    if (p.status !== "alive" || !circleInFire(lit, p.x, p.y, p.radiusM)) continue;
+    let f = lit[0] as FireRecord;
+    for (const g of lit) if (circleInFire([g], p.x, p.y, p.radiusM)) f = g;
+    const d = f.radiusM + p.radiusM + FIRE_EXIT_EPS_M;
+    let a0 = Math.atan2(p.y - f.y, p.x - f.x);
+    if (p.x === f.x && p.y === f.y) a0 = 0;
+    let done = false;
+    for (let k = 0; k < FIRE_EXIT_DIRECTIONS && !done; k++) {
+      const step = Math.ceil(k / 2) * (k % 2 === 1 ? 1 : -1);
+      const a = a0 + (step * 2 * Math.PI) / FIRE_EXIT_DIRECTIONS;
+      const x = f.x + Math.cos(a) * d;
+      const y = f.y + Math.sin(a) * d;
+      if (spotFreeOfFire(world, p, x, y)) {
+        placePlayer(p, x, y);
+        done = true;
+      }
+    }
+    const rings = world.balance.decay.relocateSearchRings;
+    if (!done && findFreeSpotNear(world, f.x, f.y, p, spot, rings) && !circleInFire(world.decay.fires, spot.x, spot.y, p.radiusM)) {
+      placePlayer(p, spot.x, spot.y);
+      done = true;
+    }
+    for (let slot = 0; slot < 4 && !done; slot++) {
+      teamSpawnPoint(world, slot, spot);
+      if (spotFreeOfFire(world, p, spot.x, spot.y)) {
+        placePlayer(p, spot.x, spot.y);
+        done = true;
+      }
+    }
+    if (done) relocated.outOfFire++;
+  }
+  return relocated.outOfFire;
+}
 
 /** Step 3: every placed player (not out: off the map) and alive zombie overlapping a solid or building is moved out. */
 export function relocateBodies(world: World): void {
@@ -153,10 +216,12 @@ export function relocateBodies(world: World): void {
 export function decayMutate(world: World, stage: number): boolean {
   const coming = world.waves.number + 1;
   const changed = applyDecayStage(world, stage, world.decay.variants, fireExpiry(world, stage, coming));
+  const lit = newlyLitFires(world); // Story 4.8 review M1/M2: before they get their end wave
   lightNewFires(world, world.decay.stage, coming);
   if (!changed) return false;
-  destroyBlockedBuildings(world);
+  destroyBlockedBuildings(world, lit);
   relocateBodies(world);
+  moveOutOfNewFires(world, lit);
   return true;
 }
 

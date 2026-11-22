@@ -20,7 +20,7 @@ import { jitteredSpawn } from "../waves/waveDirector";
 import { runHeadless } from "../bots/headlessRun";
 import { createInputLog, replayRun } from "../replay/inputLog";
 import { applyDecayStage } from "./applyDecayStage";
-import { changeDecayStage } from "./decaySystem";
+import { changeDecayStage, relocated } from "./decaySystem";
 import { circleInFire, firePulseDamage } from "./fire";
 
 /**
@@ -478,3 +478,138 @@ function decayFields(w: World): void {
   rebuildFlowFieldNow(w.pathing.chase, w.pathing.nav, w);
   rebuildFlowFieldNow(w.pathing.flank, w.pathing.nav, w);
 }
+
+// ---- review fixes ---------------------------------------------------------------------------------
+
+describe("Story 4.8 review fixes", () => {
+  /** A one-player run whose first build start enters stage 3 with street_car_west and parked_car_1 burning. */
+  function stage3Start(place: (w: World) => void) {
+    const w = createWorld({ balance, seed: 5, map: DT });
+    w.debug.decayStageByWave = [3, 3, 3, 3, 3];
+    w.decay.variants = (w.decay.variants & ~maskOf(DT, "fire_parked_car_2")) | maskOf(DT, "fire_street_car_west", "fire_parked_car_1");
+    place(w);
+    const events: SimEvent[] = [];
+    w.events.subscribe((e) => events.push(e));
+    startBuild(w);
+    expect(fireNames(w)).toEqual(["parked_car_1", "street_car_west"]);
+    return { w, events };
+  }
+
+  it("M1: a player idle against street_car_west at the stage-3 build start is moved just outside the zone, never burns, and the solo run doesn't end in the build phase", () => {
+    const car = DT.cover.find((c) => c.name === "street_car_west") as MapBox;
+    const { w, events } = stage3Start((w) => void addPlayer(w, "solo", (car.minX + car.maxX) / 2, car.minY - balance.player.radiusM - 0.01));
+    const p = w.players.get("solo");
+    if (!p) throw new Error("solo");
+    const f = w.decay.fires.find((g) => g.target === "street_car_west") as { x: number; y: number; radiusM: number };
+    expect(relocated.outOfFire).toBe(1);
+    expect(circleInFire(w.decay.fires, p.x, p.y, p.radiusM)).toBe(false);
+    expect(Math.hypot(p.x - f.x, p.y - f.y)).toBeCloseTo(f.radiusM + p.radiusM, 4); // to radius + body radius
+    // Idle through the whole build phase: no fire damage, and the wave starts (no wipe).
+    const ticks = w.run.buildTicksLeft + 5;
+    for (let t = 0; t < ticks && w.run.phase === "build"; t++) step(w, TICK_DT_S);
+    expect(events.filter((e) => e.type === "player.damaged")).toEqual([]);
+    expect(p.hp).toBe(p.maxHp);
+    expect(w.run.phase).toBe("wave");
+    expect(w.teamWiped).toBe(false);
+  });
+
+  it("M1: a downed player in a newly lit zone stays where they are (fire spares them)", () => {
+    const car = DT.cover.find((c) => c.name === "street_car_west") as MapBox;
+    const at = { x: 0, y: 0 };
+    const { w } = stage3Start((w) => {
+      teamSpawnPoint(w, 0, at);
+      addPlayer(w, "up", at.x, at.y);
+      const d = addPlayer(w, "down", (car.minX + car.maxX) / 2, car.minY - 0.5);
+      downPlayer(w, d);
+    });
+    // returnOutPlayers brings downed players back at a build start: the downed one is now standing by "up".
+    const d = w.players.get("down");
+    expect(d?.status).toBe("alive");
+    expect(relocated.outOfFire).toBe(0); // the fire step ran before the return and left the downed body alone
+  });
+
+  it("M2: at ignition, a building overlapping a new zone is destroyed with a 50 % refund (same path as blocked cells); one placed into the fire later burns", () => {
+    const wood = buildingStats(balance, "wood_barricade");
+    if (!wood) throw new Error("wood");
+    let placed: Building | null = null;
+    const { w, events } = stage3Start((w) => {
+      addPlayer(w, "far", 24, 16); // the builder (placeInFire builds for "far")
+      placed = placeInFire(w, "wood_barricade", 1, { x: 6.25, y: 14, radiusM: FIRE.radiusM }, []);
+    });
+    expect(placed).not.toBeNull();
+    expect(w.buildings.list).toEqual([]);
+    step(w, TICK_DT_S); // deliver the build start's events
+    expect(events.filter((e) => e.type === "building.destroyed").map((e) => (e as { buildingId: number }).buildingId)).toEqual([1]);
+    const refunds = events.filter((e): e is Extract<SimEvent, { type: "money.earned" }> => e.type === "money.earned" && e.reason === "refund");
+    expect(refunds.map((e) => [e.playerId, e.amount])).toEqual([["far", Math.floor(wood.price * balance.decay.buildingRefundShare)]]);
+    // Placed into the fire afterwards: no refund, it burns (D6).
+    const later = placeInFire(w, "wood_barricade", 2, w.decay.fires.find((g) => g.target === "street_car_west") as FireRecordLike, []);
+    for (let t = 0; t < PULSE_TICKS; t++) step(w, TICK_DT_S);
+    expect(later.hp).toBe(wood.hp - 5);
+    expect(events.filter((e) => e.type === "money.earned" && e.reason === "refund")).toHaveLength(1);
+  });
+
+  it("L4: stepping out on every pulse tick doesn't dodge: 360 of 400 ticks in fire = 36 hits (the body's own burn clock)", () => {
+    const { w, events, fire } = burningWorld();
+    const p = addPlayer(w, "dodger", fire.x, fire.y + fire.radiusM + 0.2);
+    p.maxHp = p.hp = 1000;
+    const inY = p.y;
+    const outY = fire.y + fire.radiusM + p.radiusM + 0.5;
+    let inside = 0;
+    for (let t = 0; t < 400; t++) {
+      const out = t % 10 === 9; // out exactly on the 10th tick of every cycle (the old shared pulse tick)
+      p.y = p.prevY = out ? outY : inY;
+      if (!out) inside++;
+      step(w, TICK_DT_S);
+    }
+    expect(inside).toBe(360);
+    const hits = events.filter((e) => e.type === "player.damaged" && e.playerId === "dodger");
+    expect(hits).toHaveLength(36);
+    expect(p.hp).toBe(1000 - 36 * 5);
+  });
+
+  it("L4: a body's first hit comes one pulse after it enters, whatever the world clock says", () => {
+    const { w, events, fire } = burningWorld();
+    for (let t = 0; t < 3; t++) step(w, TICK_DT_S); // off the old shared phase
+    const p = addPlayer(w, "late", fire.x, fire.y + fire.radiusM + 0.2);
+    for (let t = 0; t < PULSE_TICKS - 1; t++) step(w, TICK_DT_S);
+    expect(p.hp).toBe(100);
+    step(w, TICK_DT_S);
+    expect(p.hp).toBe(95);
+    expect(events.filter((e) => e.type === "player.damaged")).toHaveLength(1);
+  });
+
+  it("mutation C: a zombie killed by fire while others burn — every burning zombie takes its hit that tick", () => {
+    const { w, events } = burningWorld();
+    const spots: [number, number][] = [
+      [7, 12.5],
+      [5.5, 12.5],
+      [6.25, 15.6],
+      [5.0, 15.6],
+    ];
+    const ids = spots.map(([x, y]) => spawnZombie(w, "walker", x, y));
+    for (const id of ids) {
+      expect(circleInFire(w.decay.fires, w.zombies.x[id] as number, w.zombies.y[id] as number, 0.35)).toBe(true);
+      w.zombies.hp[id] = 100;
+    }
+    w.zombies.hp[ids[0] as number] = 5; // dies on its first hit, mid-list
+    w.zombies.hp[ids[1] as number] = 5;
+    for (let t = 0; t < PULSE_TICKS; t++) step(w, TICK_DT_S);
+    expect(events.filter((e) => e.type === "zombie.killed").map((e) => (e as { zombieId: number }).zombieId).sort()).toEqual([ids[0], ids[1]].sort());
+    expect(w.zombies.hp[ids[2] as number]).toBe(95);
+    expect(w.zombies.hp[ids[3] as number]).toBe(95);
+  });
+
+  it("L6: nothing burns while the dev waves.paused switch holds the run", () => {
+    const { w, fire } = burningWorld();
+    const p = addPlayer(w, "in", fire.x, fire.y + fire.radiusM + 0.2);
+    w.waves.paused = true;
+    for (let t = 0; t < 3 * PULSE_TICKS; t++) step(w, TICK_DT_S);
+    expect(p.hp).toBe(100);
+    w.waves.paused = false;
+    for (let t = 0; t < PULSE_TICKS; t++) step(w, TICK_DT_S);
+    expect(p.hp).toBe(95);
+  });
+});
+
+type FireRecordLike = { x: number; y: number; radiusM: number };

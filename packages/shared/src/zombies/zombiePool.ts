@@ -41,6 +41,8 @@ export interface ZombiePool {
   readonly freedAtTick: Int32Array;
   freedHead: number;
   freedCount: number;
+  /** Story 4.8 review L4: ticks spent inside a fire since the last fire hit (the burn clock; 0 on spawn). */
+  readonly fireTicks: Uint16Array;
   /** Scratch velocities for the AI (computed for all zombies first, then applied). */
   readonly vx: Float32Array;
   readonly vy: Float32Array;
@@ -55,6 +57,7 @@ export function createZombiePool(capacity: number): ZombiePool {
     prevY: new Float32Array(capacity),
     hp: new Float32Array(capacity),
     attackCooldownTicks: new Uint16Array(capacity),
+    fireTicks: new Uint16Array(capacity),
     type: new Uint8Array(capacity),
     state: new Uint8Array(capacity),
     generation: new Uint8Array(capacity),
@@ -101,6 +104,7 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.prevY[id] = y;
   pool.hp[id] = stats.hp;
   pool.attackCooldownTicks[id] = 0;
+  pool.fireTicks[id] = 0; // Story 4.8: a reused slot starts with a cold burn clock
   pool.type[id] = zombieTypeIndex(type);
   pool.state[id] = ZOMBIE_STATE.CHASE;
   pool.waveZombie[id] = waveZombie ? 1 : 0;
