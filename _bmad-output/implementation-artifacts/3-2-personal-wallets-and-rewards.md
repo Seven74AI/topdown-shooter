@@ -1,6 +1,6 @@
 # Story 3.2: Personal wallets and rewards
 
-Status: review
+Status: done
 
 ## Story
 
@@ -332,7 +332,19 @@ claude-opus-5-5 (story writer + builder agent, worktree `story-3-2`)
 - `apps/client/src/sim/NetSimHost.economy.test.ts` (new); `sim/NetSimHost.ts`, `net/{devThrottle.ts, fakeRoom.ts}`, `scenes/{GameScene.ts, HudScene.ts, hudModel.ts}` (modified)
 - `_bmad-output/implementation-artifacts/3-2-personal-wallets-and-rewards.md` (new), `sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched tests 5×, 21 mutations of which 18 were caught, solo and two-page browser checks: wallets add up and both pages agree). **Outcome:** no high or medium findings.
+- [x] [Low] Reward-by-type untested for a non-Walker type (a mutation to always use the Walker survived): test with a Crawler (3, assist 1).
+- [x] [Low] The economy sim's "bonus paid to both players" assertion couldn't fail: it now checks every wave-bonus event (player × 10 × N) per wave end.
+- [x] [Low] "Only on change" in the syncState test can't fail (Colyseus ignores same-value writes): accepted, harmless.
+- [x] [Low] Online the `$N` changes ~150 ms before its "+N" pop (wallet from the latest state, pop at the render tick): **decision: accept** (cosmetic; revisit with the art pass in Epic 9).
+- [x] [Low] Bandwidth was estimated, not measured: **moved to 3.10** (measure with the tickCost approach).
+- [x] [Low] A damager list keeps a leaver's id: **moved to 8.1/8.2** (only matters with mid-run joins; clear the leaver's id then).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (Crawler reward test, sim bonus assertion); decisions recorded. Story done.
 
 - 2026-11-22: Story 3.2 implemented: wallets (100 from `economy.json`), kill/assist/revive/wave-bonus rewards in the shared economy system, wallet in schema, "+N" pops and `$N` in the HUD, `spendMoney`/`payKill` APIs for 3.3/3.6, seeded Pistol bot sim. 746 tests passing. Status → review.
 - 2026-11-22: Story created from the epics, GDD, architecture and the real code (Epic 2 complete).

@@ -89,6 +89,18 @@ describe("kill and assist (FR45)", () => {
     ]);
   });
 
+  it("the reward comes from the zombie's own type: a Crawler pays 3, assist 1 (review)", () => {
+    const { world } = setup();
+    const crawlerReward = balance.zombies.types.crawler?.reward ?? -1;
+    expect(crawlerReward).toBe(3);
+    const id = spawnZombie(world, "crawler", 40, 28);
+    hit(world, id, "p0");
+    hit(world, id, "p1", 100);
+    run(world, 1);
+    expect(wallet(world, "p1")).toBe(100 + crawlerReward);
+    expect(wallet(world, "p0")).toBe(100 + Math.floor(crawlerReward / 2));
+  });
+
   it("three damagers: the killer gets the reward, each other one the assist; repeated hits count once", () => {
     const { world } = setup(["p0", "p1", "p2", "p3"]);
     const id = walker(world);

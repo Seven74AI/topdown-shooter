@@ -92,7 +92,10 @@ function runSeed(seed: number) {
   const waves: WaveLog[] = [];
   const paid: Record<string, number> = { p0: 0, p1: 0 };
   const byReason: Record<string, number> = {};
+  /** "playerId:amount" of every wave bonus paid (review: prove each wave end paid both players). */
+  const bonuses: string[] = [];
   world.events.subscribe((e: SimEvent) => {
+    if (e.type === "money.earned" && e.reason === "wave") bonuses.push(`${e.playerId}:${e.amount}`);
     if (e.type === "money.earned") {
       paid[e.playerId] = (paid[e.playerId] ?? 0) + e.amount;
       byReason[e.reason] = (byReason[e.reason] ?? 0) + e.amount;
@@ -108,7 +111,7 @@ function runSeed(seed: number) {
     world.players.forEach((p, id) => setInput(world, id, botInput(world, p, seq)));
     step(world, TICK_DT_S);
   }
-  return { world, waves, paid, byReason, reached: world.waves.number, wiped: world.teamWiped };
+  return { world, waves, paid, byReason, bonuses, reached: world.waves.number, wiped: world.teamWiped };
 }
 
 describe("economy bot sim (2 players, Pistol, seeded)", () => {
@@ -120,10 +123,9 @@ describe("economy bot sim (2 players, Pistol, seeded)", () => {
         expect(p.wallet).toBe(balance.economy.startingWallet + p.earned); // nothing spends yet
         expect(p.earned).toBe(r.paid[id]);
       }
-      for (const w of r.waves) {
-        // Every wave end paid the bonus to both players.
-        expect(Object.keys(w.wallets)).toHaveLength(2);
-      }
+      // Every wave end paid the bonus (10 × N) to both players, downed or not.
+      const want = r.waves.flatMap((w) => ["p0", "p1"].map((id) => `${id}:${balance.economy.waveClearBonusPerWave * w.wave}`));
+      expect([...r.bonuses].sort()).toEqual(want.sort());
       const ends = r.waves.map((w) => `W${w.wave}@${(w.tick / 20).toFixed(0)}s ${w.wallets.p0}/${w.wallets.p1}`).join(" · ");
       const final = [...r.world.players.values()].map((p) => p.wallet).join("/");
       lines.push(
