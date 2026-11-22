@@ -1,6 +1,6 @@
 # Story 3.5: Zombies path around and break buildings
 
-Status: review
+Status: done
 
 ## Story
 
@@ -141,7 +141,30 @@ Claude Opus 5.5 (claude-opus-5-5)
 - Changed (tools): `tools/netsim/barricade.test.ts`.
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
+## Senior Developer Review (AI)
+
+Review by a fresh agent at 75eaf07; fixes on branch `story-3-5b` (from `claude/epic-2-continue` 7545c2a, with the 3.4/3.7 re-review push-out axis fallback).
+
+- [x] **H1 (High, exploit): a 0.5 m gap jammed zombies for good.** Two fixes, each proven alone:
+  - *Clearance-aware grid* (`flowField.ts`): a vertex (cell corner) is free when its four cells are free and it is off the map edge (a body of radius ≤ 0.5 m centred there clears everything). A move between two free orthogonal cells whose shared edge has no free end is a **pinch** (0.5 m slot between buildings or a building and the map edge, or two offset corners 0.5 m apart): it costs `buildingCostM` and carries the id of a building at the pinch (`nav.pinchE/pinchS`, `flowEdgePinch`, `flowStepBuilding`). Diagonals need their shared vertex free. A zombie whose next step is a pinch targets that building, so the field breaks through or detours.
+  - *Safety net* (`zombieAi.ts`): a zombie following the field whose push-out is `PUSH_STUCK`, or that moved less than `pathing.stuckMoveM` (0.25 m) over `pathing.stuckTicks` (30) ticks, hits the building it touches (`world.pathing.progress`, reset on leaving field mode or slot reuse; in `snapshotPathing`).
+  - Tests (`zombieAi.pathing.test.ts`): P1 closed box with a 0.5 m slot → breach and a zombie inside; P2 12 m wall with a mid slot and open ends → the zombie reaches the player; P4 pen with a 0.5 m opening at the map edge → breach; offset-corner pinch ring → breach; safety net with the pinches wiped → building damage; `flowField.test.ts` slot = pinch, 1 m gap open. Mutations: without pinches only the grid test fails (the safety net alone still saves P1/P2/P4/pinch); without the safety net only its test fails; without both, all six fail.
+  - Browser (`/tmp/s35b/`, `gapbox-log.txt`): solo box [23, 25] × [15, 17] whose only opening is a 0.5 m slot: first hit 12.6 s, breach 18.8 s, a zombie at me 19.6 s, no page errors (screenshots 01–04).
+- [x] **M1: the absolute p99 assert flaked on a loaded machine.** The benchmark logs p99/mean/max in every run; the timing asserts run only with `PERF_ASSERT=1` (`PERF_ASSERT=1 npx vitest run apps/server/src/run/tickCostFlowField.test.ts --silent=false`, on a quiet machine). Re-run here under load ≈ 3.5 from parallel agents: full rebuild 0.86–0.92 ms (0.29–0.31 ms/tick, P = 3), mean added ≈ 0.45 ms, but p99 swung 1.8–2.8 ms added; the unchanged base commit (7545c2a) measured back to back under the same load swung 0.33–3.65 ms, so the spread is the machine, and the mean cost of the fix is ≈ +0.05 ms/tick. Not re-measured on a quiet machine.
+- [x] **L1: three mutations survived.** New tests: hitting without the contact check (a zombie in the cell next to the wall but 8 cm off does not hit on its first tick); removing the per-tick `targetBuilding` reset (a zombie hitting a wall stops when nobody is standing); restarting the rebuild on every building change (a building added/removed every tick: age stays ≤ 2P and rebuilds keep completing). Each fails under its mutation.
+- [x] **L2: health bars over neighbours / inside the enclosure.** The bar is now drawn on the building itself along its long side (vertical walls get a vertical bar that fills from the bottom).
+- [x] **L3: HP-sum redraw key.** Replaced by an FNV checksum of (id, HP) in list order (`render/buildingLook.ts` `hpChecksum`, unit-tested with a −X/+X pair). Pure helpers moved out of `BuildingView` so they test without Phaser.
+- [x] **L4:** `snapshotPathing` hashes `heapPos` (and the pinch arrays and zombie progress).
+- [x] **L5:** a World whose `buildings` system is not the default (client mirror `NO_SYSTEMS`, Predictor `PREDICTION_SYSTEMS`) gets a one-cell placeholder pathing state (`createPathingState(map, capacity, enabled)`); solo and the server keep the full grid (test).
+- Netsim barricade tests re-run: all 0 snaps (the "broken under me" case still has its one smoothed correction).
+- **Merged with Stories 3.6 (turrets) and 3.8 (Runners, second `flank` field)** (`claude/epic-2-continue` 171149c): pinches live in the shared relaxation and `flowNextCell`, so both fields get them; `steerByField(world, field, …)` uses `flowStepBuilding` for either field and sets `fieldMode` for the safety net whichever field steered. New tests: Runners in front of the 0.5 m-slot box break in; a Runner behind the slotted wall reaches the player (both fail with the two H1 fixes off). `PathingState` = `{ nav, chase, flank, flankActive, progress }`; 3.6/3.8's timing asserts are behind `PERF_ASSERT=1` too.
+- Benchmark after that merge (load ≈ 3.5, two runs): full rebuild 0.80 ms (0.27 ms/tick, P = 3); 3.5 case added p99 0.39–0.75 ms; 3.6 case (4 firing turrets) added p99 0.44–1.06 ms; 3.8 case (100 Walkers + 50 Runners, 24 buildings incl. 4 turrets, both fields) added p99 0.50–0.68 ms, field ages chase 10 / flank 10 ticks (bound 12). Netsim barricade tests: 0 snaps.
+
+Shared API changes for 3.6 / 3.8: `createPathingState(map, zombieCapacity, enabled?)`; `PathingState.progress`; `NavGrid.vertexFree/pinchE/pinchS/buildingCost`; new exports `flowEdgePinch`, `flowStepBuilding` (use `flowStepBuilding(nav, from, to)` instead of `nav.buildingAt[to]` to find the building a step must break); balance `zombies.pathing.stuckTicks/stuckMoveM`. A second (flank) field gets pinch costs for free (they are in the shared relaxation).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (story-3-5b): clearance-aware grid (pinches) + stuck safety net (H1), PERF_ASSERT gate (M1), three mutation tests (L1), bars on the building (L2), checksum redraw key (L3), heapPos hash (L4), placeholder pathing for client Worlds (L5); status done.
 
 - 2026-11-22: Story written (gds-create-story), status ready-for-dev.
 - 2026-11-22: Merged `claude/epic-2-continue` twice (3.4 review fixes: corner lattice + iterated push-out; Story 3.7 repairs); tests moved to the corner lattice; browser checks re-run.

@@ -1,0 +1,59 @@
+import { describe, expect, it } from "vitest";
+import { BUILD_GRID_M, NET_EVENT_KIND, addBuildingAt, createWorld, loadBalance, type NetEventContext, type SimEvent } from "@topdown/shared";
+import { EventInterest } from "./eventInterest";
+
+/** Story 3.6 review M2: turret shots and their non-killing hits go only to clients that can see them. */
+const balance = loadBalance();
+const ctx: NetEventContext = { balance, zombieNetId: (id) => id };
+
+function setup() {
+  const world = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+  // Turret at min corner (2, 2): centre (2.5, 2.5), far top-left. Views: (12, 8) sees it, (36, 24) doesn't.
+  addBuildingAt(world, { id: 1, type: "auto_turret", ownerId: "p0", gx: 2 / BUILD_GRID_M, gy: 2 / BUILD_GRID_M, rot: 0, hp: 300 });
+  return { world, interest: new EventInterest() };
+}
+const kinds = (ev: readonly (readonly number[])[]) => ev.map((t) => t[0]);
+
+describe("EventInterest (Story 3.6 review M2)", () => {
+  it("turret.fired and a non-killing turret hit reach only views that contain them; everything else reaches all, in order", () => {
+    const { world, interest } = setup();
+    const events: SimEvent[] = [
+      { type: "wave.started", number: 1, size: 8 },
+      { type: "turret.fired", buildingId: 1, x: 3, y: 2.5, dirX: 1, dirY: 0 },
+      { type: "zombie.hit", zombieId: 4, x: 6, y: 2.5, dirX: 1, dirY: 0, damage: 3, weapon: "auto_turret", sourceId: null, buildingId: 1 },
+      { type: "weapon.fired", playerId: "p1", weapon: "pistol", x: 40, y: 25, dirX: 1, dirY: 0 },
+    ];
+    interest.prepare(world, events, ctx);
+    expect(interest.localCount).toBe(2);
+    expect(kinds(interest.eventsFor(world, 12, 8))).toEqual([NET_EVENT_KIND.WAVE_STARTED, NET_EVENT_KIND.TURRET_FIRED, NET_EVENT_KIND.ZOMBIE_HIT, NET_EVENT_KIND.WEAPON_FIRED]);
+    const far = interest.eventsFor(world, 36, 24);
+    expect(kinds(far)).toEqual([NET_EVENT_KIND.WAVE_STARTED, NET_EVENT_KIND.WEAPON_FIRED]);
+    expect(interest.eventsFor(world, 36, 25)).toBe(far); // one reused array, no allocation per client
+  });
+
+  it("a shot whose flight ends inside the view is sent even if the turret is outside it", () => {
+    const { world, interest } = setup();
+    // The far view (36, 24) covers x ≥ 20 (view clamped to the map, + 4 m margin). A turret centred at
+    // x 15.5 is outside it; a shot east ends at x 25 (inside), a shot west at x 6 (outside).
+    addBuildingAt(world, { id: 2, type: "auto_turret", ownerId: "p0", gx: 30, gy: 40, rot: 0, hp: 300 }); // centre (15.5, 20.5)
+    interest.prepare(world, [{ type: "turret.fired", buildingId: 2, x: 16, y: 20.5, dirX: 1, dirY: 0 }], ctx); // ends at x 25
+    expect(interest.eventsFor(world, 36, 24)).toHaveLength(1);
+    interest.prepare(world, [{ type: "turret.fired", buildingId: 2, x: 15, y: 20.5, dirX: -1, dirY: 0 }], ctx); // ends at x 6
+    expect(interest.eventsFor(world, 36, 24)).toHaveLength(0);
+  });
+
+  it("a killing turret hit stays global with its kill; a tick without local events is `all` itself", () => {
+    const { world, interest } = setup();
+    interest.prepare(
+      world,
+      [
+        { type: "zombie.hit", zombieId: 4, x: 6, y: 2.5, dirX: 1, dirY: 0, damage: 3, weapon: "auto_turret", sourceId: null, buildingId: 1 },
+        { type: "zombie.killed", zombieId: 4, killerId: "p0", x: 6, y: 2.5, weapon: "auto_turret", buildingId: 1 },
+      ],
+      ctx,
+    );
+    expect(interest.localCount).toBe(0);
+    expect(interest.eventsFor(world, 36, 24)).toBe(interest.all);
+    expect(kinds(interest.all)).toEqual([NET_EVENT_KIND.ZOMBIE_HIT, NET_EVENT_KIND.ZOMBIE_KILLED]);
+  });
+});

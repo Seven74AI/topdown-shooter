@@ -37,13 +37,17 @@
     "rebuildCellsPerTick": 2048,
     "buildingCostM": 12,
     "nearWallCostM": 0.5,
-    "lookaheadCells": 2
+    "lookaheadCells": 2,
+    "stuckTicks": 30,
+    "stuckMoveM": 0.25
   },
   "flank": {
     "coneHalfAngleDeg": 45,
     "coneRadiusM": 10,
     "coneApexBackM": 0.5,
     "penaltyM": 1.0,
-    "directWithinM": 1.0
+    "directWithinM": 1.0,
+    "maxFlankS": 2.5,
+    "closingSpeedFrac": 0.5
   }
 }

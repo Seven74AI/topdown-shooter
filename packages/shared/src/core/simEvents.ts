@@ -31,6 +31,8 @@ export type SimEvent =
       weapon: string;
       /** Story 2.7: the player whose shot or swing it was (null: none). */
       sourceId: string | null;
+      /** Story 3.6 review M2: the turret whose shot it was (server only, not on the wire: interest filtering). */
+      buildingId?: number;
     }
   | { type: "weapon.fired"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number }
   | { type: "weapon.reload_started"; playerId: string; weapon: string; reloadS: number }

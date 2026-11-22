@@ -86,6 +86,12 @@ export const pathingSchema = z
     nearWallCostM: z.number().min(0),
     /** A zombie steers at the centre of the cell this many steps down the field (stops before a building). */
     lookaheadCells: z.number().int().min(1).max(8),
+    /**
+     * 3.5 review H1 safety net: a zombie following the field that moved less than `stuckMoveM`
+     * over `stuckTicks` ticks (or whose push-out is stuck) hits a building it touches.
+     */
+    stuckTicks: z.number().int().min(1).max(600),
+    stuckMoveM: z.number().min(0),
   })
   .strict();
 
@@ -108,6 +114,14 @@ export const flankSchema = z
     penaltyM: z.number().min(0).max(16000),
     /** Within this distance of its target a flanker goes straight in (it must eventually bite). */
     directWithinM: z.number().min(0),
+    /**
+     * 3.8 review H1: flanking is a time-limited commitment. A flanker that spends this long not
+     * closing in (see `closingSpeedFrac`) goes straight in like a Walker until it bites or dies.
+     * At most 3,000 s (the tick count is a Uint16).
+     */
+    maxFlankS: z.number().positive().max(3000),
+    /** A tick counts as "not closing in" when the flanker got closer by less than this fraction of its speed. */
+    closingSpeedFrac: z.number().min(0).max(1),
   })
   .strict();
 
