@@ -33,8 +33,14 @@ export interface Dressing {
   readonly lamps: readonly (readonly [number, number])[];
   /** Index into `lamps` of the broken, flickering one (-1: none). */
   readonly flickerLamp: number;
-  /** Shop-window light on the street: x1, y1, x2, y2 (a facade segment), outward normal nx, ny, colour "r,g,b", strength 0–1. */
+  /**
+   * Window light on the street that is NOT a lit shop front (side facades): x1, y1, x2, y2 (a facade
+   * segment), outward normal nx, ny, colour "r,g,b", strength 0–1. Shop fronts come from the map
+   * (`shopfrontsOf`, Story 4.6) through `windowSpill`; only their colour/strength is dressing (`shopLight`).
+   */
   readonly spill: readonly (readonly [number, number, number, number, number, number, string, number])[];
+  /** Story 4.6: colour "r,g,b" and strength 0–1 of each lit shop front by its map name (default: warm, 0.5). */
+  readonly shopLight: Readonly<Record<string, readonly [string, number]>>;
   /** Neon signs (glow only): x, y, rx, ry, colour, strength. */
   readonly neon: readonly (readonly [number, number, number, number, string, number])[];
   readonly manholes: readonly (readonly [number, number])[];
@@ -111,15 +117,17 @@ export const DOWNTOWN_DRESSING: Dressing = {
   ],
   flickerLamp: 4,
   spill: [
-    [20, 320, 236, 320, 0, 1, "255,196,120", 0.75],
-    [370, 320, 560, 320, 0, 1, "255,190,120", 0.35],
     [576, 40, 576, 300, 1, 0, "255,190,120", 0.3],
-    [15, 704, 210, 704, 0, -1, "255,150,110", 0.75],
-    [980, 704, 1200, 704, 0, -1, "200,220,255", 0.35],
     [960, 724, 960, 1000, -1, 0, "200,220,255", 0.25],
-    [1330, 192, 1520, 192, 0, 1, "210,235,255", 0.7],
     [1312, 20, 1312, 180, -1, 0, "210,235,255", 0.5],
   ],
+  shopLight: {
+    shopfront_corner_shop: ["255,196,120", 0.75],
+    shopfront_apartments: ["255,190,120", 0.35],
+    shopfront_diner: ["255,150,110", 0.75],
+    shopfront_offices: ["200,220,255", 0.35],
+    shopfront_gas_kiosk: ["210,235,255", 0.7],
+  },
   neon: [
     [110, 712, 60, 20, "255,60,80", 0.35],
     [1420, 200, 70, 18, "90,220,255", 0.3],
@@ -160,6 +168,7 @@ export const EMPTY_DRESSING: Dressing = {
   lamps: [],
   flickerLamp: -1,
   spill: [],
+  shopLight: {},
   neon: [],
   manholes: [],
   drains: [],

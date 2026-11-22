@@ -14,9 +14,10 @@ describe("what the static city draws at a stage", () => {
     for (const h of DOWNTOWN_MAP.hazards) for (let s = 1; s <= 5; s++) expect(hazardsAt(DOWNTOWN_MAP, s).includes(h)).toBe(h.minStage <= s && h.kind !== "fire");
   });
   it("only the burning car chosen this run is on fire (4.5 variants)", () => {
-    expect(downtownScene(2, 0b1111).fires).toEqual([]);
-    expect(downtownScene(3, 0b0100).fires.map((f) => f.target)).toEqual(["parked_car_2"]);
-    expect(downtownScene(3, 0b1000).fires.map((f) => f.target)).toEqual(["street_car_west"]);
+    // Story 4.7: bits 0–5 are the moved cars, 6–7 the two fire candidates.
+    expect(downtownScene(2, 0b11001111).fires).toEqual([]);
+    expect(downtownScene(3, 0b01001111).fires.map((f) => f.target)).toEqual(["parked_car_2"]);
+    expect(downtownScene(3, 0b10001111).fires.map((f) => f.target)).toEqual(["street_car_west"]);
   });
   it("stage groups swap over the stage-1 base (architecture: DecayView swaps stageN_* groups)", () => {
     const at = (s: number): string[] => names(stageGroupAt(DOWNTOWN_MAP, s));
@@ -31,8 +32,12 @@ describe("what the static city draws at a stage", () => {
     expect(kinds(2)).toContain("barrier");
     expect(kinds(2)).not.toContain("sandbags");
     expect(kinds(3)).toContain("sandbags");
-    expect(names(downtownScene(2, 0b0001).cover)).toContain("abandoned_car_west");
-    expect(names(downtownScene(2, 0b0001).cover)).not.toContain("parked_car_3");
+    // Story 4.7: a moved car (bit 0) leaves the curb and appears in the road; police lines from stage 2.
+    const s2 = names(downtownScene(2, 0b01001111).cover);
+    expect(s2).toContain("curb_car_west_far_in_road");
+    expect(s2).not.toContain("curb_car_west_far");
+    expect(s2).toEqual(expect.arrayContaining(["police_line_lot", "police_line_gas"]));
+    expect(s2).not.toContain("parked_car_3");
   });
   it("walls come from obstacles.walls: the bus's twin is skipped, the dumpster (a block) appears at stage 2", () => {
     const s1 = downtownScene(1);

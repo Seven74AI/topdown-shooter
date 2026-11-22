@@ -3,6 +3,7 @@ import { GAME_TITLE } from "@topdown/shared";
 import { dpr } from "../display";
 import { uiStore } from "../ui/uiState";
 import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
+import { prewarmAmbience } from "../audio/ambience";
 import type { GameSceneData } from "./GameScene";
 import type { NetSession } from "../net/session";
 
@@ -24,6 +25,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(data?: BootSceneData): void {
+    prewarmAmbience(); // Stories 4.6/4.7 review M: synthesize the ambience loops in idle time on the start screen / lobby (once per page)
     const error = data?.error;
     if (data?.lobby || data?.start) {
       // Waiting for the next start in the same room, or back on the start screen after Leave game:

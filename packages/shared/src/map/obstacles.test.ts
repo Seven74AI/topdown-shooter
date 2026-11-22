@@ -12,6 +12,7 @@ import { DOWNTOWN_MAP } from "./downtown";
 import { MAP_STAGE_COUNT, type MapBox } from "./districtMap";
 import { createObstacles } from "./obstacles";
 import { applyDecayStage } from "../decay/applyDecayStage";
+import { legalDecayMasks } from "../decay/decayState";
 import { FIRST_DECAY_STAGE, currentDecayStage } from "./decayStage";
 
 /** Story 4.2: the World's active obstacle lists per decay stage, on the real Downtown data. */
@@ -20,25 +21,30 @@ const map = DOWNTOWN_MAP;
 const names = (l: readonly MapBox[]) => l.map((b) => b.name);
 const SOLID_NAMES = map.solids.map((s) => s.name);
 const CARS = ["parked_car_1", "parked_car_2", "parked_car_3", "street_car_west", "street_car_east"];
+/** Story 4.6: the cars parked along the curbs (stage 1). */
+const CURB_CARS = ["curb_car_west_far", "curb_car_west_n", "curb_car_west_s", "curb_car_north", "curb_car_south"];
+/** Story 4.7: the police lines stage 2 always adds (after the map cover, in map order). */
+const POLICE_LINES = ["police_line_lot", "police_line_gas"];
 
 describe("obstacle lists (Story 4.2)", () => {
-  it("stage 1: bodies hit the map boxes + the 5 cars (the bus once); shots stop at the same; barrier and sandbags inactive", () => {
+  it("stage 1: bodies hit the map boxes + the 10 cars (the bus once); shots stop at the same; barrier and sandbags inactive", () => {
     const o = createObstacles(map, 1);
-    expect(names(o.solids)).toEqual([...SOLID_NAMES, ...CARS]);
-    expect(names(o.shotBlockers)).toEqual([...SOLID_NAMES, ...CARS]);
-    expect(names(o.cover)).toEqual(["bus_hull", ...CARS]); // drawn / tested; the bus collides as city_bus
+    expect(names(o.solids)).toEqual([...SOLID_NAMES, ...CARS, ...CURB_CARS]);
+    expect(names(o.shotBlockers)).toEqual([...SOLID_NAMES, ...CARS, ...CURB_CARS]);
+    expect(names(o.cover)).toEqual(["bus_hull", ...CARS, ...CURB_CARS]); // drawn / tested; the bus collides as city_bus
   });
 
   it("stage 2 adds the police barrier and stage 3 the sandbags to the bodies' list only (bullets fly over them)", () => {
     // Story 4.5: with no variant chosen (mask 0) stage 2 also removes parked_car_3 and adds the
-    // dumpster wall (it stops shots); the chosen abandoned car is tested in decay/decay.test.ts.
-    const STAGE2_CARS = CARS.filter((c) => c !== "parked_car_3");
+    // dumpster wall (it stops shots) and Story 4.7's police lines (bodies only); the moved cars are
+    // variants (mask 0 moves none), tested in decay/panic.test.ts.
+    const STAGE2_CARS = [...CARS.filter((c) => c !== "parked_car_3"), ...CURB_CARS];
     const WALLS = [...SOLID_NAMES, "dumpster_alley_3"];
     const s2 = createObstacles(map, 2);
-    expect(names(s2.solids)).toEqual([...WALLS, ...STAGE2_CARS, "police_barrier_north"]);
+    expect(names(s2.solids)).toEqual([...WALLS, ...STAGE2_CARS, "police_barrier_north", ...POLICE_LINES]);
     expect(names(s2.shotBlockers)).toEqual([...WALLS, ...STAGE2_CARS]);
     const s3 = createObstacles(map, 3);
-    expect(names(s3.solids)).toEqual([...WALLS, ...STAGE2_CARS, "police_barrier_north", "sandbags_south"]);
+    expect(names(s3.solids)).toEqual([...WALLS, ...STAGE2_CARS, "police_barrier_north", "sandbags_south", ...POLICE_LINES]);
     expect(names(s3.shotBlockers)).toEqual([...WALLS, ...STAGE2_CARS]);
   });
 
@@ -67,7 +73,7 @@ describe("obstacle lists (Story 4.2)", () => {
   it("the nav grid walls off the active cars from the start (every World, incl. the client's mirror lists)", () => {
     const world = createWorld({ balance, seed: 1, map });
     const nav = world.pathing.nav;
-    for (const name of CARS) {
+    for (const name of [...CARS, ...CURB_CARS]) {
       const c = map.cover.find((k) => k.name === name) as MapBox;
       for (let y = c.minY + FLOW_CELL_M / 2; y < c.maxY; y += FLOW_CELL_M) {
         for (let x = c.minX + FLOW_CELL_M / 2; x < c.maxX; x += FLOW_CELL_M) expect(nav.wallAt[flowCellAt(nav, x, y)], name).toBe(1);
@@ -89,7 +95,7 @@ describe("obstacle lists (Story 4.2)", () => {
     const rz = maxZombieRadius(balance);
     // Story 4.5: every combination of the variation candidates (any run can pick any of them).
     for (let stage = 1; stage <= MAP_STAGE_COUNT; stage++)
-    for (let mask = 0; mask < 1 << map.decayVariants.length; mask++) {
+    for (const mask of legalDecayMasks(map)) {
       const world = createWorld({ balance, seed: 1, map });
       applyDecayStage(world, stage, mask);
       const at = { x: 0, y: 0 };

@@ -2,7 +2,7 @@ import * as Phaser from "phaser";
 import type { DistrictMap, World } from "@topdown/shared";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, dressingFor, type Dressing } from "./dressing";
-import { CULL_MARGIN_PX, baseKey, blinkerSpots, drawBase, drawGlow, drawLightmap, drawOverlay, type CityScene } from "./drawCity";
+import { BARRIER_LAMPS, CULL_MARGIN_PX, baseKey, blinkerSpots, drawBase, drawGlow, drawLightmap, drawOverlay, type CityScene } from "./drawCity";
 import { LAMP, LAMP_GLOW, nightAt } from "./palette";
 import { ATLAS_FX, FX_GLOW, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type AtlasCanvas } from "./spriteAtlas";
 import { hash } from "./spriteArt";
@@ -158,10 +158,8 @@ export class CityView {
       this.flickerPool.setPosition(fl[0] / MAP_PX_PER_M, fl[1] / MAP_PX_PER_M).setVisible(true);
       this.flickerCore.setPosition(fl[0] / MAP_PX_PER_M, fl[1] / MAP_PX_PER_M).setVisible(true);
     }
-    for (let i = 0; i < 2; i++) {
-      this.busBlink.push(glowImg(BLINK_BUS_M, BLINK_COLOR));
-      this.barrierBlink.push(glowImg(BLINK_BARRIER_M, BLINK_COLOR));
-    }
+    for (let i = 0; i < 2; i++) this.busBlink.push(glowImg(BLINK_BUS_M, BLINK_COLOR));
+    for (let i = 0; i < BARRIER_LAMPS; i++) this.barrierBlink.push(glowImg(BLINK_BARRIER_M, BLINK_COLOR));
     for (let i = 0; i < FIRE_LIGHTS; i++) this.fireLight.push(glowImg(FIRE_LIGHT_M, FIRE_COLOR));
     for (let i = 0; i < RAIN_POOL; i++) {
       this.rain.push(scene.add.image(0, 0, ATLAS_FX, FX_RAIN).setDisplaySize(RAIN_W_M, RAIN_LEN_M).setRotation(-Math.atan(RAIN_SLANT)).setDepth(RAIN_DEPTH).setVisible(false));
@@ -282,8 +280,8 @@ export class CityView {
     const bus = Math.sin(t * 2 * Math.PI * BLINK_BUS_HZ) > 0 ? 0.55 : 0;
     for (const b of this.busBlink) b.setAlpha(bus);
     const bar = Math.sin(t * 4 + 1) > 0 ? 0.45 : 0.1;
-    (this.barrierBlink[0] as Phaser.GameObjects.Image).setAlpha(bar);
-    (this.barrierBlink[1] as Phaser.GameObjects.Image).setAlpha(0.55 - bar);
+    // Each barrier's two lamps alternate (spots come in pairs per barrier).
+    for (let i = 0; i < this.barrierBlink.length; i++) (this.barrierBlink[i] as Phaser.GameObjects.Image).setAlpha(i % 2 === 0 ? bar : 0.55 - bar);
     for (let i = 0; i < this.fireLight.length; i++) {
       const f = this.fireLight[i] as Phaser.GameObjects.Image;
       if (f.visible) f.setAlpha(0.28 + 0.22 * hash(Math.floor(t * FIRE_FLICKER_HZ) + i * 17));

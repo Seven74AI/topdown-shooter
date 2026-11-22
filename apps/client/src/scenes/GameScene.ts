@@ -74,6 +74,7 @@ import { perf } from "../debug/perfStats";
 import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
+import { AmbiencePlayer } from "../audio/ambience";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
 export type GameSceneData =
@@ -176,6 +177,8 @@ export class GameScene extends Phaser.Scene {
    * entry point is `showStage`; it also redraws by itself when the obstacles change stage/version.
    */
   private cityView: CityView | null = null;
+  /** Stories 4.6/4.7: the stage's ambience loop (follows `world.decay.stage`; starts after a gesture). */
+  ambience: AmbiencePlayer | null = null;
   /** Story 3.6: turret plates and heads (aim from the World / `turret.fired`). */
   private turretView: TurretView | null = null;
   /** Story 3.4: placement mode on this device (sticks off while active). */
@@ -316,6 +319,8 @@ export class GameScene extends Phaser.Scene {
     shopStore.set(CLOSED_SHOP);
     uiStore.handle("shop", (action) => this.shopInput(action));
 
+    this.ambience?.dispose(); // Phaser reuses this scene object: never two players
+    this.ambience = new AmbiencePlayer();
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
@@ -373,6 +378,8 @@ export class GameScene extends Phaser.Scene {
       this.buildingView = null;
       this.cityView?.destroy();
       this.cityView = null;
+      this.ambience?.dispose();
+      this.ambience = null;
       this.turretView?.destroy();
       this.turretView = null;
       this.repairPanel.close();
@@ -881,6 +888,7 @@ export class GameScene extends Phaser.Scene {
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world, this.time.now);
+    this.ambience?.update(host.world.decay.stage);
     this.buildingView?.update(host.world, this.placement);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.selectView?.update(host.world, this.repairPanel.id);

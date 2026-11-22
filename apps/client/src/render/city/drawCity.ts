@@ -1,4 +1,4 @@
-import type { CoverObject, DistrictMap, FireRecord, MapBox } from "@topdown/shared";
+import { shopfrontsOf, type CoverObject, type DistrictMap, type FireRecord, type MapBox } from "@topdown/shared";
 import type { AtlasCanvas } from "./spriteAtlas";
 import { CAR_FRAMES, PROP_BARRIER, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
 import { HEIGHT_BY_KIND, MAP_PX_PER_M, carStyle, nameHash, type Dressing, type Front } from "./dressing";
@@ -850,6 +850,9 @@ export function drawStatic(g: G, s: number, cs: CityScene): void {
   drawOverlay(g, s, cs, bd);
 }
 
+/** Story 4.7 review: the view's pool of barrier lamps — two on every police barrier (Downtown stage 2: 3 barriers; room for 4). */
+export const BARRIER_LAMPS = 8;
+
 /** Bus hazard blinkers and barrier lamps (the view animates them): positions in map px. */
 export function blinkerSpots(cs: CityScene): { bus: [number, number][]; barrier: [number, number][] } {
   const bus: [number, number][] = [];
@@ -857,7 +860,11 @@ export function blinkerSpots(cs: CityScene): { bus: [number, number][]; barrier:
   for (const c of cs.cover) {
     const b = toBox(c, c.kind);
     if (c.kind === "bus") bus.push([b.x + 4, b.y + 12], [b.x + 4, b.y + b.h - 12]);
-    if (c.kind === "barrier") barrier.push([b.x + 5, b.y + b.h / 2], [b.x + b.w - 5, b.y + b.h / 2]);
+    if (c.kind === "barrier") {
+      // At both ends along the barrier's length (police_line_gas runs north–south).
+      if (b.w >= b.h) barrier.push([b.x + 5, b.y + b.h / 2], [b.x + b.w - 5, b.y + b.h / 2]);
+      else barrier.push([b.x + b.w / 2, b.y + 5], [b.x + b.w / 2, b.y + b.h - 5]);
+    }
   }
   return { bus, barrier };
 }
@@ -885,6 +892,39 @@ function oval(g: G, x: number, y: number, rx: number, ry: number, col: string, a
   g.restore();
 }
 
+type Spill = readonly [number, number, number, number, number, number, string, number];
+const SHOP_LIGHT_DEFAULT: readonly [string, number] = ["255,190,120", 0.5];
+const spillCache = new WeakMap<DistrictMap, WeakMap<Dressing, readonly Spill[]>>();
+
+/**
+ * Story 4.6 (FR59): the window light on the street — every lit shop front of the map
+ * (`shopfrontsOf`: the strip and the face touching its shop) as a facade segment on that face,
+ * shining outward across the strip, coloured by `dressing.shopLight`; then the dressing's other
+ * window light (side facades). So the glow is exactly where the map says a good build spot is.
+ * Cached per (map, dressing): bakes call it, never per frame.
+ */
+export function windowSpill(map: DistrictMap, d: Dressing): readonly Spill[] {
+  let byD = spillCache.get(map);
+  if (!byD) spillCache.set(map, (byD = new WeakMap()));
+  const hit = byD.get(d);
+  if (hit) return hit;
+  const out: Spill[] = [];
+  for (const f of shopfrontsOf(map)) {
+    const [col, a] = d.shopLight[f.name] ?? SHOP_LIGHT_DEFAULT;
+    const x0 = f.minX * P;
+    const x1 = f.maxX * P;
+    const y0 = f.minY * P;
+    const y1 = f.maxY * P;
+    if (f.face === "n") out.push([x0, y0, x1, y0, 0, 1, col, a]);
+    else if (f.face === "s") out.push([x0, y1, x1, y1, 0, -1, col, a]);
+    else if (f.face === "w") out.push([x0, y0, x0, y1, 1, 0, col, a]);
+    else out.push([x1, y0, x1, y1, -1, 0, col, a]);
+  }
+  for (const s of d.spill) out.push(s);
+  byD.set(d, out);
+  return out;
+}
+
 /** The lightmap (drawn with MULTIPLY): ambient, lit tops, lamp pools, window spill, canopy, headlights; roofs at a fixed level (D6). */
 export function drawLightmap(g: G, cs: CityScene): void {
   const d = cs.dressing;
@@ -899,7 +939,7 @@ export function drawLightmap(g: G, cs: CityScene): void {
   g.fillStyle = `rgba(${TOP_LIGHT},${night.topLightA})`;
   for (const o of k.pumps.concat(k.walls, k.cover)) g.fillRect(o.x, o.y, o.w, o.h);
   d.lamps.forEach(([x, y], i) => radial(g, x, y, LAMP_R_PX, LAMP, i === d.flickerLamp ? LAMP_FLICKER_A : night.lampA));
-  for (const [x1, y1, x2, y2, nx, ny, col, a0] of d.spill) {
+  for (const [x1, y1, x2, y2, nx, ny, col, a0] of windowSpill(cs.map, d)) {
     const a = Math.min(1, a0 * night.spillK);
     const dist = 70;
     const gr = g.createLinearGradient(x1, y1, x1 + nx * dist, y1 + ny * dist);
@@ -957,7 +997,7 @@ export function drawGlow(g: G, cs: CityScene): void {
     oval(g, x, y + (y < H / 2 ? 40 : -40), 18, 60, LAMP_TAIL, LAMP_TAIL_A);
     oval(g, x, y, LAMP_HALO_R_PX, LAMP_HALO_R_PX, LAMP_TAIL, LAMP_HALO_A);
   });
-  for (const [x1, y1, x2, y2, nx, ny, col, a0] of d.spill) {
+  for (const [x1, y1, x2, y2, nx, ny, col, a0] of windowSpill(cs.map, d)) {
     const a = Math.min(1, a0 * night.spillK);
     const n = Math.max(1, Math.round(Math.hypot(x2 - x1, y2 - y1) / 40));
     for (let q = 0; q <= n; q++) oval(g, x1 + ((x2 - x1) * q) / n + nx * 8, y1 + ((y2 - y1) * q) / n + ny * 8, 24, 24, col, a * SPILL_GLOW_K);

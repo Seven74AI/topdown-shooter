@@ -151,7 +151,7 @@ describe("syncState", () => {
     removeBuilding(w, 1);
     syncState(state, controller);
     expect(state.buildings.size).toBe(0);
-    controller.placeBuilding("p1", { type: "wood_barricade", gx: 8, gy: 36, rot: 0 });
+    controller.placeBuilding("p1", { type: "wood_barricade", gx: 8, gy: 34, rot: 0 }); // Story 4.6: above curb_car_west_far (y 18–20)
     syncState(state, controller);
     resetRunFields(state);
     expect(state.buildings.size).toBe(0);

@@ -22,7 +22,7 @@ import { jitteredSpawn } from "../waves/waveDirector";
 import { runHeadless } from "../bots/headlessRun";
 import { createInputLog, replayRun } from "../replay/inputLog";
 import { applyDecayStage } from "./applyDecayStage";
-import { pickDecayVariants, stageForWave } from "./decayState";
+import { legalDecayMasks, pickDecayVariants, stageForWave } from "./decayState";
 import { changeDecayStage, relocated } from "./decaySystem";
 
 /**
@@ -130,17 +130,24 @@ describe("Story 4.5 mutation set in the map (loader)", () => {
     expect(d.find((m) => m.name === "v2_barrier")?.variant).toBe(1);
   });
 
-  it("Downtown: stage 2 removes parked_car_3, blocks alley 3, adds one of two cars; stage 3 ignites two of three cars (Story 4.8); stages 4–5 empty", () => {
+  it("Downtown: stage 2 removes parked_car_3, blocks alley 3, adds 2 police lines and moves 4 of 6 curb cars; stage 3 ignites two of three cars (Story 4.8); stages 4–5 empty", () => {
     const d = DOWNTOWN_MAP.decay;
-    expect(d.filter((m) => m.stage === 2).map((m) => m.action).sort()).toEqual(["add", "add", "block", "remove"]);
+    const s2 = d.filter((m) => m.stage === 2);
+    // Story 4.7 (replaces 4.5's abandoned-car pair): 6 movers × (remove + add) + 2 barriers + 4.5's remove and block.
+    expect(s2.filter((m) => m.variant < 0).map((m) => `${m.action}:${m.name}`).sort()).toEqual([
+      "add:police_line_gas",
+      "add:police_line_lot",
+      "block:dumpster_alley_3",
+      "remove:parked_car_3_driven_off",
+    ]);
+    expect(s2.filter((m) => m.variant >= 0).map((m) => m.action).sort()).toEqual([...Array(6).fill("add"), ...Array(6).fill("remove")]);
     expect(d.filter((m) => m.stage === 3).map((m) => m.action)).toEqual(["ignite", "ignite", "ignite"]);
     expect(d.filter((m) => m.stage >= 4)).toEqual([]);
-    expect(DOWNTOWN_MAP.decayVariants.map((v) => `${v.group}/${v.name}`)).toEqual([
-      "panic_abandoned_car/abandoned_car_west",
-      "panic_abandoned_car/abandoned_car_south",
-      "breakdown_car_fire/fire_parked_car_2",
-      "breakdown_car_fire/fire_street_car_west",
-      "breakdown_car_fire/fire_parked_car_1",
+    expect(DOWNTOWN_MAP.decayVariants.map((v) => `${v.group}/${v.name}/${v.pick}`)).toEqual([
+      ...["curb_car_west_far", "curb_car_west_n", "curb_car_west_s", "curb_car_north", "curb_car_south", "street_car_east"].map((c) => `panic_cars_moved/panic_move_${c}/4`),
+      "breakdown_car_fire/fire_parked_car_2/2",
+      "breakdown_car_fire/fire_street_car_west/2",
+      "breakdown_car_fire/fire_parked_car_1/2",
     ]);
   });
 
@@ -430,8 +437,10 @@ describe("Story 4.5 review fixes", () => {
 
   it("note for 4.6–4.8: at every stage and every variant combination, every walkable cell is reachable from the team start (no enclosed area)", () => {
     let checked = 0;
+    const masks = legalDecayMasks(DT); // Story 4.7: the combinations a run can pick (C(6,4) × C(3,2); Story 4.8)
+    expect(masks).toHaveLength(45);
     for (let stage = 1; stage <= 5; stage++) {
-      for (let mask = 0; mask < 1 << DT.decayVariants.length; mask++) {
+      for (const mask of masks) {
         const w = createWorld({ balance, seed: 1, map: DT });
         applyDecayStage(w, stage, mask);
         addPlayer(w, "p0", DT.widthM / 2, DT.heightM / 2);
@@ -440,23 +449,28 @@ describe("Story 4.5 review fixes", () => {
         let unreached = 0;
         for (let c = 0; c < nav.cells; c++) if (nav.wallAt[c] === 0 && (chase.front[c] as number) >= FLOW_UNREACHED) unreached++;
         expect(unreached, `stage ${stage} mask ${mask}`).toBe(0);
+        // Story 4.7: and no slot narrower than a body (a closed nav edge would be a dead pocket).
+        expect(nav.closedE.some((c) => c !== 0) || nav.closedS.some((c) => c !== 0), `stage ${stage} mask ${mask} closed edge`).toBe(false);
         checked++;
       }
     }
-    expect(checked).toBe(5 * (1 << DT.decayVariants.length)); // Story 4.8: 5 variants (fires pick 2 of 3)
+    expect(checked).toBe(5 * 45); // Story 4.8: C(6,4) movers × C(3,2) fires
   });
 });
 
 describe("Story 4.5 DecayTimeline: variations from the decay stream", () => {
   it("same seed → same choices; exactly one per group; both candidates of each group occur; only the decay stream moves", () => {
     const seen = new Map<number, number>();
-    for (let seed = 1; seed <= 64; seed++) {
+    for (let seed = 1; seed <= 256; seed++) {
       const a = createWorld({ balance, seed, map: DT });
       const b = createWorld({ balance, seed, map: DT });
       expect(a.decay.variants).toBe(b.decay.variants);
       const m = a.decay.variants;
-      expect(((m & 1) ^ ((m >> 1) & 1)) === 1, `seed ${seed} car group`).toBe(true);
-      expect(((m >> 2) & 1) + ((m >> 3) & 1) + ((m >> 4) & 1), `seed ${seed} fire group (Story 4.8: 2 of 3)`).toBe(2);
+      // Story 4.7: 4 of the 6 movers (bits 0–5), Story 4.8: two of the three fires (bits 6–8).
+      let movers = 0;
+      for (let i = 0; i < 6; i++) movers += (m >> i) & 1;
+      expect(movers, `seed ${seed} car group`).toBe(4);
+      expect(((m >> 6) & 1) + ((m >> 7) & 1) + ((m >> 8) & 1), `seed ${seed} fire group`).toBe(2);
       seen.set(m, (seen.get(m) ?? 0) + 1);
       // The other streams are untouched (a World on a map without variants starts them the same).
       const plain = createWorld({ balance, seed, map: { ...DT, decay: [], decayVariants: [] } });
@@ -465,7 +479,7 @@ describe("Story 4.5 DecayTimeline: variations from the decay stream", () => {
       expect({ ...sa, decay: null }).toEqual({ ...sp, decay: null });
       expect(sa.decay).not.toEqual(sp.decay);
     }
-    expect([...seen.keys()].sort((x, y) => x - y)).toEqual([13, 14, 21, 22, 25, 26]); // every combination appears
+    expect([...seen.keys()].sort((x, y) => x - y)).toEqual(legalDecayMasks(DT)); // every combination appears (45 in 256 seeds)
   });
 
   it("pickDecayVariants draws `pick` per group (partial Fisher–Yates): pick 2 of 3", () => {

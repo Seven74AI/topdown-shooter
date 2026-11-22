@@ -6,6 +6,7 @@ import { circleOverlapsBox, distanceToBox, segmentHitsBuildings } from "../build
 import { applyDecayStage } from "../decay/applyDecayStage";
 import { changeDecayStage } from "../decay/decaySystem";
 import { circleInFire, firePulse } from "../decay/fire";
+import { legalDecayMasks } from "../decay/decayState";
 import type { Balance } from "../config/balance";
 import { createRng, type Rng } from "../core/rng";
 import { ticksFor } from "../core/time";
@@ -72,7 +73,9 @@ const balance: Balance = (() => {
 })();
 /** Story 4.2: a projectile deeper than this inside a shot blocker is a tunnelled shot (positions are Float32). */
 const SHOT_EPS_M = 1e-4;
-const LAYOUTS = 36;
+const LAYOUTS = 48; // Story 4.8: ≥ the 45 legal variant masks (C(6,4) movers × C(3,2) fires), a multiple of 4
+/** Story 4.7: every legal variant mask of Downtown (one per layout, round robin). */
+const MASKS = legalDecayMasks(DOWNTOWN_MAP);
 const LIMIT_S = 120;
 /** Players walk this long, then hold still (a 4.5 m/s survivor outruns a 0.7 m/s Crawler forever). */
 const WALK_S = 30;
@@ -170,6 +173,9 @@ function layout(seed: number) {
   // on to `toStage` (2 or 3) mid-run through the DecaySystem.
   const fromStage = 1 + (seed % 2);
   const toStage = fromStage + 1 + (fromStage === 1 && seed % 3 === 0 ? 1 : 0);
+  // Story 4.7: walk every variant combination a run can pick (C(6,4) movers × C(3,2) fires = 45 ≤ 48 (Story 4.8)
+  // layouts), not just the ones the seeds happen to draw (a fixed list, so the test stays deterministic).
+  world.decay.variants = MASKS[seed % MASKS.length] as number;
   applyDecayStage(world, fromStage, world.decay.variants);
   let damaged = 0;
   const decayLog = { changing: false, destroyed: 0, refunds: 0, refunded: 0 };
@@ -240,6 +246,7 @@ function layout(seed: number) {
   const wood = buildingStats(balance, "wood_barricade");
   if (!wood) throw new Error("wood_barricade");
   let onFuture = 0;
+  let onMoved = 0;
   for (const f of want === 0 ? [] : future) {
     let done = false;
     for (let gy = Math.floor(f.minY / BUILD_GRID_M) - 1; gy <= Math.ceil(f.maxY / BUILD_GRID_M) && !done; gy++) {
@@ -249,11 +256,12 @@ function layout(seed: number) {
         if (footprintBlocked(world, fp)) continue;
         addBuildingAt(world, { id: nextId++, type: "wood_barricade", ownerId: "p0", gx, gy, rot: 0, hp: wood.hp });
         onFuture++;
+        if (f.name.endsWith("_in_road") || f.name.startsWith("police_line")) onMoved++; // Story 4.7
         done = true;
       }
     }
   }
-  return { world, rng, spawned, players, buildings: world.buildings.list.length, destroyed: () => damaged, blocked, jitterHits, fromStage, toStage, future, onFuture, decayLog };
+  return { world, rng, spawned, players, buildings: world.buildings.list.length, destroyed: () => damaged, blocked, jitterHits, fromStage, toStage, future, onFuture, onMoved, decayLog };
 }
 
 /** Review L3: each player's walk target (a point on a map box's face) and ticks left pressing on it. */
@@ -452,6 +460,7 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
     let decayDestroyed = 0;
     let decayRefunded = 0;
     let onFuture = 0;
+    let movedOnto = 0;
     let pushedOut = 0;
     const fires = { layouts: 0, zombieHits: 0, buildingHits: 0, kills: 0, zombieTicksInFire: 0, wentOut: 0 };
     const variantsSeen = new Set<number>();
@@ -472,6 +481,7 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
       decayDestroyed += r.decayLog.destroyed;
       decayRefunded += r.decayLog.refunds;
       onFuture += r.onFuture;
+      movedOnto += r.onMoved;
       pushedOut += r.pushedOut;
       if (r.fire.lit > 0) fires.layouts++;
       fires.zombieHits += r.fire.zombieHits;
@@ -489,7 +499,7 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
         failures.push(`seed ${4100 + seed}: ${r.missing.length} zombies never reached a player after the stage change, in ${LIMIT_S} s: ${r.missing.map((id) => `${id}@(${(z.x[id] as number).toFixed(2)}, ${(z.y[id] as number).toFixed(2)})`).join(" ")}`);
       }
     }
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box, ${coverStops} shots ended on cover, stages ${[...stages].sort().join("/")}, ${spawnedTotal} zombies spawned, ${blocked} spawns closed by a building; Story 4.5: ${onFuture} barricades on coming mutation boxes, ${decayDestroyed} destroyed + ${decayRefunded} refunds by the stage change, ${pushedOut} layouts with bodies pushed out, variant masks ${[...variantsSeen].sort().join("/")}; Story 4.8: ${fires.layouts} layouts with 2 fires, ${fires.zombieHits} zombie pulses (${fires.kills} fire kills), ${fires.buildingHits} building pulses, ${fires.zombieTicksInFire} zombie-ticks in fire, ${fires.wentOut} expiries`);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box, ${coverStops} shots ended on cover, stages ${[...stages].sort().join("/")}, ${spawnedTotal} zombies spawned, ${blocked} spawns closed by a building; Story 4.5: ${onFuture} barricades on coming mutation boxes (Story 4.7: ${movedOnto} on moved cars / police lines), ${decayDestroyed} destroyed + ${decayRefunded} refunds by the stage change, ${pushedOut} layouts with bodies pushed out, variant masks: ${variantsSeen.size}; Story 4.8: ${fires.layouts} layouts with 2 fires, ${fires.zombieHits} zombie pulses (${fires.kills} fire kills), ${fires.buildingHits} building pulses, ${fires.zombieTicksInFire} zombie-ticks in fire, ${fires.wentOut} expiries`);
     expect(failures).toEqual([]);
     // Liveness (brief line 9): the layouts were real and the zombies really came.
     expect(buildings).toBeGreaterThan(LAYOUTS * 3);
@@ -509,6 +519,9 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
     expect(decayRefunded).toBe(decayDestroyed);
     expect(pushedOut).toBe(LAYOUTS);
     expect(variantsSeen.size).toBeGreaterThan(1);
+    // Story 4.7: every combination of moved cars ran (and so every moved car landed on a layout).
+    expect([...variantsSeen].sort((a, b) => a - b)).toEqual(MASKS);
+    expect(movedOnto).toBeGreaterThan(LAYOUTS / 4); // barricades placed where a moved car / police line lands
     // Story 4.8 liveness: stage-3 layouts really burned, hurt zombies and buildings, and went out —
     // and every zombie still reached a player (failures above).
     expect(fires.layouts).toBeGreaterThan(LAYOUTS / 4);

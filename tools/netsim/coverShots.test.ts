@@ -25,16 +25,20 @@ describe("netsim: local shots vs the server near cover (Story 4.2)", () => {
   it("150 ± 20 ms beside the bus: both stop shots at the bus, reversed hits stay rare; control without client cover: reversed", () => {
     let apparent = 0;
     let reversed = 0;
-    for (const seed of [421, 422, 423]) {
+    let pistolStops = 0;
+    // Story 4.6/4.7 review: no hunted seeds — whether one 20 s run sends a shot into the bus depends on
+    // the zombies' routes (any map edit moves them), so the liveness is the sum over five seeds.
+    for (const seed of [421, 422, 423, 424, 425]) {
       const r = simulate({ seconds: 20, oneWayMs: 75, jitterHalfMs: 10, seed, weapon: "pistol", kite: false, map: DOWNTOWN_MAP, start: START });
       line(`bus pistol seed ${seed}`, r);
       expect(r.shots).toBeGreaterThan(20); // liveness
       expect(r.serverHitsByMe).toBeGreaterThan(5);
-      expect(r.serverCoverStops).toBeGreaterThan(0);
       expect(r.clientCoverStops).toBe(r.serverCoverStops); // the same shots ended on the bus on both sides
+      pistolStops += r.serverCoverStops;
       apparent += r.apparentHits;
       reversed += r.reversed;
     }
+    expect(pistolStops).toBeGreaterThan(5); // liveness: the server and the client really stopped pistol shots at the bus
     // The Hunting Rifle (17 m, pierce 5) sees Walkers north of the bus: many more shots end on it.
     const rifle = simulate({ seconds: 20, oneWayMs: 75, jitterHalfMs: 10, seed: 424, weapon: "hunting_rifle", kite: false, map: DOWNTOWN_MAP, start: START });
     line("bus rifle seed 424", rifle);

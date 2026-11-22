@@ -61,7 +61,19 @@ describe("Downtown map data (Story 4.1)", () => {
     const bus = map.solids.find((s) => s.name === "city_bus");
     expect(bus).toMatchObject({ minX: 30, minY: 14.5, maxX: 40, maxY: 17 });
     expect(map.cover.find((c) => c.name === "bus_hull")).toMatchObject({ kind: "bus", minX: 30, minY: 14.5, maxX: 40, maxY: 17, minStage: 1 });
-    expect(map.cover.filter((c) => c.kind === "car").map((c) => c.name)).toEqual(["parked_car_1", "parked_car_2", "parked_car_3", "street_car_west", "street_car_east"]);
+    expect(map.cover.filter((c) => c.kind === "car").map((c) => c.name)).toEqual([
+      "parked_car_1",
+      "parked_car_2",
+      "parked_car_3",
+      "street_car_west",
+      "street_car_east",
+      // Story 4.6: parked along the curbs
+      "curb_car_west_far",
+      "curb_car_west_n",
+      "curb_car_west_s",
+      "curb_car_north",
+      "curb_car_south",
+    ]);
     expect(map.cover.find((c) => c.kind === "barrier")?.minStage).toBe(2);
     // Story 4.3: the 9 edge spawns of 4.1 open at stage 1; manholes and windows at stages 2–3.
     expect(names(map.spawnPoints.filter((s) => s.minStage === 1))).toEqual(
@@ -119,8 +131,8 @@ describe("Downtown map data (Story 4.1)", () => {
       free++;
       if ((chase.front[c] as number) >= FLOW_UNREACHED) unreached++;
     }
-    // Story 4.2: the 5 stage-1 cars are walls too (3 parked 2 × 4.5 m + 2 street 4.5 × 2 m = 5 × 36 cells).
-    expect(free).toBe(96 * 64 - 1780 - 5 * 36);
+    // Story 4.2: the stage-1 cars are walls too (2 × 4.5 m = 36 cells each); Story 4.6: 5 + 5 curb cars.
+    expect(free).toBe(96 * 64 - 1780 - 10 * 36);
     expect(unreached).toBe(0);
     for (const sp of map.spawnPoints) expect(chase.front[flowCellAt(nav, sp.x, sp.y)], sp.name).toBeLessThan(FLOW_UNREACHED);
   });
