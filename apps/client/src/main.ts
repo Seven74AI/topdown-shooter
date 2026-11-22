@@ -11,7 +11,8 @@ import { uiStore } from "./ui/uiState";
 import { lobbyStore } from "./net/lobbyStore";
 import { JOIN_ERROR_TEXT } from "./net/joinErrors";
 import { parseJoinPath } from "./net/route";
-import { NetSession } from "./net/session";
+import { NetSession, type NetRoomLike } from "./net/session";
+import { DevThrottle } from "./net/devThrottle";
 import type { RunConnection } from "./net/connection";
 import { isRoomCode, type Result } from "@topdown/shared";
 import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
@@ -69,6 +70,7 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
     const room = r.result.value;
     lobbyStore.attach(room, {
       watch: r.watch,
+      fight: throttled(room),
       onLost: (reason, serverText) => {
         if (reason === "connection_lost") {
           uiStore.set({ kind: "start", error: JOIN_ERROR_TEXT.unreachable });
@@ -83,13 +85,33 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
         // The host started: the Game scene runs the fight online (Story 2.4). `run.joined` came long before.
         const joined = lobbyStore.joinedInfo();
         const inbox = lobbyStore.inbox();
-        if (phase === "wave" && joined && inbox && lobbyStore.current() === room) {
-          uiStore.request("startOnline", new NetSession(room, joined, leaveRoom, inbox));
+        const fight = lobbyStore.fightRoom();
+        if (phase === "wave" && joined && inbox && fight && lobbyStore.current() === room) {
+          uiStore.request("startOnline", new NetSession(fight, joined, leaveRoom, inbox));
         }
       },
     });
     uiStore.set({ kind: "lobby", code: room.roomId });
   });
+}
+
+/**
+ * `?lag=<rttMs>&jitter=<ms>` (Story 2.6, release builds too): the fight reads this room through
+ * the dev throttle. It wraps the room at the join, before the RunInbox exists, so pings, event
+ * batches, patches and inputs are all delayed alike. Pumped from the game loop (no timers), in the
+ * lobby too, until the room is left.
+ */
+function throttled(room: RunConnection): NetRoomLike {
+  const o = urlOptions().throttle;
+  if (!o) return room;
+  const throttle = new DevThrottle(room, { lagMs: o.rttMs, jitterMs: o.jitterMs });
+  const pump = (): void => throttle.pump(performance.now());
+  game.events.on(Phaser.Core.Events.PRE_STEP, pump);
+  room.onLeave(() => {
+    game.events.off(Phaser.Core.Events.PRE_STEP, pump);
+    throttle.close();
+  });
+  return throttle;
 }
 
 uiStore.handle("createGame", (name) => enterLobby((c) => c.createGame(name)));

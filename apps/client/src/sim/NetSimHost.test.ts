@@ -19,7 +19,8 @@ import {
 } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
-import { INPUT_HISTORY_SIZE, NetSimHost, RENDER_DELAY_TICKS } from "./NetSimHost";
+import { NetSimHost, RENDER_DELAY_TICKS } from "./NetSimHost";
+import { PREDICTION_HISTORY_SIZE } from "../net/netConfig";
 import { MAX_CATCHUP_STEPS } from "./LocalSimHost";
 
 const balance = loadBalance();
@@ -64,7 +65,7 @@ describe("NetSimHost", () => {
     expect(sent).toHaveLength(20);
     expect(sent.map((s) => s.seq)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
     expect(sent[0]).toMatchObject({ moveX: 1, aimY: -1, fire: true, swap: false });
-    expect(host.history[19]).toMatchObject({ seq: 20, moveX: 1 });
+    expect(host.predictor.stats.unackedInputs).toBe(20); // kept for replay until acked
   });
 
   it("a swap tap reaches exactly one sent input", () => {
@@ -86,12 +87,11 @@ describe("NetSimHost", () => {
     expect(inputs(room).length).toBeLessThanOrEqual(MAX_CATCHUP_STEPS + 1);
   });
 
-  it("keeps the last 64 inputs", () => {
+  it("keeps the last 64 unacknowledged inputs", () => {
     const { host } = setup();
     for (let i = 0; i < 100; i++) host.update(0.05);
     expect(host.sentSeq).toBe(100);
-    const seqs = host.history.map((h) => h.seq).sort((a, b) => a - b);
-    expect(seqs).toEqual(Array.from({ length: INPUT_HISTORY_SIZE }, (_, i) => 100 - INPUT_HISTORY_SIZE + 1 + i));
+    expect(host.predictor.stats.unackedInputs).toBe(PREDICTION_HISTORY_SIZE);
   });
 
   it("draws a player at the midpoint halfway between ticks 10 and 11", () => {
@@ -279,6 +279,68 @@ describe("NetSimHost", () => {
       const host = new NetSimHost({ balance, session, now: () => 0 });
       room.deliver(BYTES.HORDE_FRAME, frame(2, [{ netId: Z, x: 1, y: 1 }]));
       expect(host.hordeStats.framesReceived).toBe(1);
+    });
+  });
+
+  describe("Story 2.6: prediction and adaptive delay", () => {
+    const STEP_M = balance.player.speedMps * 0.05;
+
+    it("my survivor moves at once; others stay on the interpolated path", () => {
+      const { host, arrive, setNow } = setup();
+      setNow(1000);
+      arrive(1); // p1 (me) at (20, 10), ack 0
+      host.setLocalInput({ ...NEUTRAL_INPUT, moveX: 1, aimX: 0, aimY: 1 });
+      host.update(0.05); // one step sent and predicted, alpha 0
+      host.update(0.025); // half way into the next step
+      const me = host.world.players.get("p1");
+      expect(me?.x).toBeCloseTo(20 + STEP_M * 0.5, 9); // prev → predicted, like LocalSimHost
+      expect(me?.prevX).toBe(me?.x);
+      expect(me?.facingY).toBeCloseTo(1, 9); // aim applies at once
+      expect(host.world.players.get("p0")?.x).toBe(10);
+    });
+
+    it("an exact server ack causes no correction; a skipped input is smoothed", () => {
+      const { host, arrive, setNow } = setup();
+      setNow(1000);
+      arrive(1);
+      host.setLocalInput({ ...NEUTRAL_INPUT, moveX: 1 });
+      for (let i = 0; i < 3; i++) host.update(0.05);
+      setNow(1050);
+      arrive(2, (s) => Object.assign(s.players.get("p1") ?? {}, { ackSeq: 1, x: Math.fround(20 + STEP_M) }));
+      expect(host.predictor.stats.corrections).toBe(0);
+      // The server skipped seq 2 (backlog drain): ack 2, still at seq 1's position.
+      setNow(1100);
+      arrive(3, (s) => Object.assign(s.players.get("p1") ?? {}, { ackSeq: 2, x: Math.fround(20 + STEP_M) }));
+      host.update(1e-6);
+      expect(host.netStats.corrections).toBe(1);
+      expect(host.netStats.snaps).toBe(0);
+      expect(host.netStats.unackedInputs).toBe(1);
+      expect(host.predictor.x).toBeCloseTo(20 + 2 * STEP_M, 5);
+    });
+
+    it("the render delay grows with measured jitter, within 100–150 ms", () => {
+      const { host, arrive, setNow } = setup();
+      expect(host.netStats.delayMs).toBe(0);
+      for (let t = 1; t <= 200; t++) {
+        setNow(1000 + t * 50 + (t % 2 === 0 ? 20 : -20));
+        arrive(t);
+        for (let f = 0; f < 3; f++) host.update(1 / 60);
+      }
+      expect(host.netStats.jitterMs).toBeGreaterThan(30);
+      expect(host.netStats.delayMs).toBeGreaterThan(140);
+      expect(host.netStats.delayMs).toBeLessThanOrEqual(150);
+      expect(host.renderTick).toBeLessThan(200 - RENDER_DELAY_TICKS);
+    });
+
+    it("lobby patches (late from a throttled room) are ignored", () => {
+      const room = new FakeRoom(fakeState([fakePlayer(1, { x: 0, y: 0 })]));
+      room.state.phase = "lobby";
+      const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+      const host = new NetSimHost({ balance, session, now: () => 0 });
+      room.patch();
+      host.update(0);
+      expect(host.predictor.ready).toBe(false);
+      expect(host.world.players.size).toBe(0);
     });
   });
 });

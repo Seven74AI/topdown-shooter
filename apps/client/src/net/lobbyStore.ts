@@ -9,7 +9,7 @@ import {
 } from "@topdown/shared";
 import type { RunConnection } from "./connection";
 import { lostReason, type LostReason } from "./serverNotice";
-import { RunInbox } from "./session";
+import { RunInbox, type NetRoomLike } from "./session";
 
 export interface LobbyPlayer {
   readonly playerId: string;
@@ -77,6 +77,12 @@ export interface AttachOptions {
   onLost: (reason: LostReason, serverText?: string) => void;
   /** `phase` changed (e.g. `"wave"` when the host started). */
   onPhase: (phase: RunPhase) => void;
+  /**
+   * The room the fight reads through (Story 2.6): the dev throttle around `room` when `?lag` is on.
+   * The RunInbox listens on it from the join, so pings and early event batches are delayed alike.
+   * Lobby fields are always read from `room` itself.
+   */
+  fight?: NetRoomLike;
 }
 
 type Listener = (s: LobbySnapshot) => void;
@@ -87,6 +93,7 @@ class LobbyStore {
   private joined: RunJoined | null = null;
   /** Fight messages of the current room, buffered from the join on (Story 2.4 review). */
   private runInbox: RunInbox | null = null;
+  private fight: NetRoomLike | null = null;
   private snapshot: LobbySnapshot = EMPTY;
   private unwatch: (() => void) | null = null;
   private readonly listeners = new Set<Listener>();
@@ -105,6 +112,11 @@ class LobbyStore {
     return this.runInbox;
   }
 
+  /** The room the fight reads through (the room, or the dev throttle around it); the `NetSession` takes it. */
+  fightRoom(): NetRoomLike | null {
+    return this.fight;
+  }
+
   /** The current room, if any. */
   current(): RunConnection | null {
     return this.room;
@@ -116,11 +128,12 @@ class LobbyStore {
   }
 
   /** Follows a joined room. Call right after the join resolves, before `run.joined` can arrive. */
-  attach(room: RunConnection, { watch, onLost, onPhase }: AttachOptions): void {
+  attach(room: RunConnection, { watch, onLost, onPhase, fight }: AttachOptions): void {
     this.detach();
     this.room = room;
     this.joined = null;
-    this.runInbox = new RunInbox(room);
+    this.fight = fight ?? room;
+    this.runInbox = new RunInbox(this.fight);
     let phase: RunPhase = "lobby";
     let queued = false;
     const update = (): void => {
@@ -187,6 +200,7 @@ class LobbyStore {
     this.joined = null;
     this.runInbox?.close();
     this.runInbox = null;
+    this.fight = null;
   }
 
   private set(s: LobbySnapshot): void {
