@@ -107,7 +107,7 @@ export { COOLDOWN_EPS_S, cooldownIdle, cooldownReady, cooldownTickEnd, cooldownT
 export { skippedInputWeaponTick } from "./combat/firing";
 export { segmentCircleT } from "./math/sweep";
 export { rotate } from "./math/vec";
-export { maxZombieRadius } from "./zombies/zombieTypes";
+export { maxZombieRadius, zombieTypeIndex } from "./zombies/zombieTypes";
 export { applyZombieDamage } from "./combat/damage";
 export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
@@ -245,6 +245,9 @@ export {
   createNavGrid,
   flowCellAt,
   flowFieldMaxAgeTicks,
+  flowSharedMaxAgeTicks,
+  fillFlankPenalty,
+  inFlankCone,
   flowNextCell,
   flowRefreshTicks,
   rasterizeBuildings,

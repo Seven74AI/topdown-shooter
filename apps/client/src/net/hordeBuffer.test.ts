@@ -3,7 +3,9 @@ import {
   HORDE_MAX_FRAME_BYTES,
   HORDE_MISSING_LIMIT,
   ZOMBIE_STATE,
+  TICK_DT_S,
   createWorld,
+  zombieTypeIndex,
   hordeFrameBytes,
   loadBalance,
   packTypeState,
@@ -21,6 +23,8 @@ interface Z {
   y: number;
   heading?: number;
   state?: number;
+  /** `ZOMBIE_TYPES` index (default 0, Walker). */
+  type?: number;
 }
 
 const scratch = new Uint8Array(HORDE_MAX_FRAME_BYTES);
@@ -29,7 +33,7 @@ const view = new DataView(scratch.buffer);
 /** A frame as the server writes it (shared format writers). */
 function frame(tick: number, zs: Z[]): Uint8Array {
   writeHordeHeader(view, tick, zs.length);
-  zs.forEach((z, i) => writeHordeRecord(view, i, z.netId, z.x, z.y, z.heading ?? 0, packTypeState(0, z.state ?? ZOMBIE_STATE.CHASE)));
+  zs.forEach((z, i) => writeHordeRecord(view, i, z.netId, z.x, z.y, z.heading ?? 0, packTypeState(z.type ?? 0, z.state ?? ZOMBIE_STATE.CHASE)));
   return scratch.slice(0, hordeFrameBytes(zs.length));
 }
 
@@ -51,6 +55,31 @@ const A = zombieNetId(3, 0);
 const B = zombieNetId(4, 0);
 
 describe("HordeBuffer", () => {
+  it("Story 3.8: a Runner at 4 m/s drawn at 60 Hz moves in even steps (no stutter) and keeps its type", () => {
+    const { push, sample, out } = setup();
+    const R = zombieNetId(7, 1);
+    const runner = zombieTypeIndex("runner");
+    const step = 4.0 * TICK_DT_S; // 0.2 m per server tick
+    let pushed = -1;
+    const arrive = (upTo: number) => {
+      // Frames arrive a little ahead of the render tick (the ring keeps the last HORDE_RING_SIZE).
+      while (pushed < upTo) {
+        pushed++;
+        push(100 + pushed, [{ netId: R, x: 5 + pushed * step, y: 10, type: runner }]);
+      }
+    };
+    arrive(3);
+    let prev = sample(100).get(R)?.x ?? 0;
+    const frames = 3 * 40; // 60 Hz render ticks across 40 server ticks (2 s)
+    for (let f = 1; f <= frames; f++) {
+      arrive(Math.ceil(f / 3) + 3);
+      const x = sample(100 + f / 3).get(R)?.x ?? 0;
+      expect(x - prev).toBeCloseTo(step / 3, 3); // 0.0667 m per frame, within 1 mm
+      prev = x;
+    }
+    expect((out.typeState[0] as number) & 0x0f).toBe(runner);
+  });
+
   it("lerps a zombie at t = 0.5; heading from A before the half, from B after", () => {
     const { push, sample } = setup();
     push(10, [{ netId: A, x: 1, y: 2, heading: 10 }]);

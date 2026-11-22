@@ -17,6 +17,15 @@
       "reward": 3,
       "biteSlowPct": 30,
       "biteSlowS": 1
+    },
+    "runner": {
+      "hp": 6,
+      "speedMps": 4.0,
+      "damage": 8,
+      "attackIntervalS": 1.0,
+      "radiusM": 0.35,
+      "reward": 3,
+      "flanks": true
     }
   },
   "crowd": {
@@ -29,5 +38,12 @@
     "buildingCostM": 12,
     "nearWallCostM": 0.5,
     "lookaheadCells": 2
+  },
+  "flank": {
+    "coneHalfAngleDeg": 45,
+    "coneRadiusM": 10,
+    "coneApexBackM": 0.5,
+    "penaltyM": 1.0,
+    "directWithinM": 1.0
   }
 }
