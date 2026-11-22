@@ -168,6 +168,13 @@ function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
   };
 }
 
+/**
+ * Timing asserts only with `PERF_ASSERT=1` (3.5 review M1: a loaded machine missed 2 ms once); the
+ * default run logs the numbers and checks only the structural results. Run the gate on a quiet
+ * machine: `PERF_ASSERT=1 npx vitest run apps/server/src/run/tickCostFlowField.test.ts --silent=false`.
+ */
+const PERF_ASSERT = process.env.PERF_ASSERT === "1";
+
 describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
   it("a full 48 × 32 m rebuild fits the tick budget when amortized over P ticks", () => {
     const world = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
@@ -184,8 +191,11 @@ describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
       `[flow field] full rebuild ${nav.cols}×${nav.rows} (${nav.cells} cells, 24 buildings): ${fullMs.toFixed(3)} ms; ` +
         `budget ${balance.zombies.pathing.rebuildCellsPerTick} cells/tick → P = ${P} ticks, ${(fullMs / P).toFixed(3)} ms/tick amortized; max age ${flowFieldMaxAgeTicks(world)} ticks`,
     );
-    expect(fullMs / P).toBeLessThan(2); // the added-cost budget
-    expect(fullMs).toBeLessThan(10);
+    if (PERF_ASSERT) {
+      expect(fullMs / P).toBeLessThan(2); // the added-cost budget
+      expect(fullMs).toBeLessThan(10);
+    }
+    expect(P).toBe(3);
   });
 
   it("4 players + 150 Walkers + 24 buildings: added tick p99 ≤ 2 ms; added bandwidth reported", () => {
@@ -203,7 +213,7 @@ describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
     );
     expect(LAYOUT).toHaveLength(24);
     expect(field.destroyed).toBeGreaterThan(0); // the pens were broken (and re-added)
-    expect(added).toBeLessThanOrEqual(2);
+    if (PERF_ASSERT) expect(added).toBeLessThanOrEqual(2);
     expect(field.maxAge).toBeLessThanOrEqual(2 * Math.ceil(6144 / balance.zombies.pathing.rebuildCellsPerTick));
   });
 
@@ -223,7 +233,7 @@ describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
     );
     expect(tur.turretShots).toBeGreaterThan(0);
     // The turrets' own cost (the field's is 3.5's test above; on a loaded 2-core box both p99s are noisy).
-    expect(tur.p99 - field.p99).toBeLessThanOrEqual(2);
+    if (PERF_ASSERT) expect(tur.p99 - field.p99).toBeLessThanOrEqual(2);
   });
 
   it("Story 3.8: 4 players + 100 Walkers + 50 Runners + 24 buildings (4 of them firing turrets), both fields sharing the budget: added tick p99 ≤ 2 ms", () => {
@@ -244,7 +254,7 @@ describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
         `${field.destroyed} buildings destroyed (re-added); max age chase ${field.maxAge} / flank ${field.maxFlankAge} ticks (bound ${shared})`,
     );
     expect(field.destroyed).toBeGreaterThan(0);
-    expect(added).toBeLessThanOrEqual(2);
+    if (PERF_ASSERT) expect(added).toBeLessThanOrEqual(2);
     expect(field.maxAge).toBeLessThanOrEqual(shared);
     expect(field.maxFlankAge).toBeLessThanOrEqual(shared);
     expect(field.maxFlankAge).toBeGreaterThan(0);

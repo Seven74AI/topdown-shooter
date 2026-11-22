@@ -244,18 +244,21 @@ export {
   createFlowField,
   createNavGrid,
   flowCellAt,
+  flowEdgePinch,
   flowFieldMaxAgeTicks,
   flowSharedMaxAgeTicks,
   fillFlankPenalty,
   inFlankCone,
   flowNextCell,
   flowRefreshTicks,
+  flowStepBuilding,
   rasterizeBuildings,
   rebuildFlowFieldNow,
   updatePathing,
   type FlowField,
   type NavGrid,
   type PathingState,
+  type ZombieProgress,
 } from "./zombies/flowField";
 export { updateBuildings } from "./buildings/buildingSystem";
 // Story 3.6: auto-turrets.

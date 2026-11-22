@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { BUILD_GRID_M, buildingStats, buildingTypeIds, footprint, type Box, type Building, type World } from "@topdown/shared";
 import type { Placement } from "../scenes/placement";
+import { damageStage, darken, hpChecksum } from "./buildingLook";
 
 /** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline. */
 const WOOD = 0x8b5a2b;
@@ -13,9 +14,9 @@ const PLANK_M = 0.5;
 const BUILDING_DEPTH = 3;
 /** Story 3.5: health bars above zombies (5) and players (10), below the preview. */
 const BAR_DEPTH = 12;
+/** The bar is drawn on the building, along its long side (review L2: never over a neighbour or inside an enclosure). */
 const BAR_H_M = 0.14;
-const BAR_GAP_M = 0.18;
-const BAR_MAX_W_M = 1.6;
+const BAR_INSET_M = 0.12;
 const BAR_BG = 0x1a1a1a;
 const BAR_HIGH = 0x7cc544;
 const BAR_MID = 0xe0b030;
@@ -65,8 +66,7 @@ export class BuildingView {
 
   private drawPlaced(world: Readonly<World>): void {
     const list = world.buildings.list;
-    let hpSum = 0;
-    for (let i = 0; i < list.length; i++) hpSum += (list[i] as Building).hp;
+    const hpSum = hpChecksum(list);
     if (world.buildings.version === this.shownVersion && hpSum === this.shownHpSum) return;
     this.shownVersion = world.buildings.version;
     this.shownHpSum = hpSum;
@@ -86,11 +86,20 @@ export class BuildingView {
       if (frac < 1) drawCracks(g, b, damageStage(frac) * CRACKS_PER_STAGE);
       g.lineStyle(OUTLINE_M, OUTLINE, 1).strokeRect(b.minX, b.minY, w, h);
       if (frac < 1) {
-        const bw = Math.min(BAR_MAX_W_M, w);
-        const bx = (b.minX + b.maxX - bw) / 2;
-        const by = b.minY - BAR_GAP_M - BAR_H_M;
-        bars.fillStyle(BAR_BG, 0.85).fillRect(bx - 0.02, by - 0.02, bw + 0.04, BAR_H_M + 0.04);
-        bars.fillStyle(frac > 0.6 ? BAR_HIGH : frac > 0.3 ? BAR_MID : BAR_LOW, 1).fillRect(bx, by, bw * frac, BAR_H_M);
+        const color = frac > 0.6 ? BAR_HIGH : frac > 0.3 ? BAR_MID : BAR_LOW;
+        if (w >= h) {
+          const bw = w - 2 * BAR_INSET_M;
+          const bx = b.minX + BAR_INSET_M;
+          const by = (b.minY + b.maxY - BAR_H_M) / 2;
+          bars.fillStyle(BAR_BG, 0.85).fillRect(bx - 0.02, by - 0.02, bw + 0.04, BAR_H_M + 0.04);
+          bars.fillStyle(color, 1).fillRect(bx, by, bw * frac, BAR_H_M);
+        } else {
+          const bh = h - 2 * BAR_INSET_M;
+          const by = b.minY + BAR_INSET_M;
+          const bx = (b.minX + b.maxX - BAR_H_M) / 2;
+          bars.fillStyle(BAR_BG, 0.85).fillRect(bx - 0.02, by - 0.02, BAR_H_M + 0.04, bh + 0.04);
+          bars.fillStyle(color, 1).fillRect(bx, by + bh * (1 - frac), BAR_H_M, bh * frac); // fills from the bottom
+        }
       }
     }
   }
@@ -127,20 +136,6 @@ export class BuildingView {
     this.bars.destroy();
     this.preview.destroy();
   }
-}
-
-/** Lost quarters of HP: 0 at full, 1 below 100 %, … 4 below 25 %. */
-export function damageStage(frac: number): number {
-  return frac >= 1 ? 0 : Math.min(4, 1 + Math.floor((1 - frac) * 4));
-}
-
-/** `color` (0xRRGGBB) darkened by `amount` (0–1). Plain math: no allocation. */
-export function darken(color: number, amount: number): number {
-  const k = 1 - Math.min(1, Math.max(0, amount));
-  const r = Math.round(((color >> 16) & 0xff) * k);
-  const gr = Math.round(((color >> 8) & 0xff) * k);
-  const bl = Math.round((color & 0xff) * k);
-  return (r << 16) | (gr << 8) | bl;
 }
 
 /** A small integer hash (per building id and crack index): the same cracks on every redraw and client. */

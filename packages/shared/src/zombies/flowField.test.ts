@@ -215,3 +215,41 @@ describe("flow field: cadence (Epic 2 retro R1, brief line 10)", () => {
     expect(flank.front[c]).toBeLessThan(100);
   });
 });
+
+describe("flow field: review fixes", () => {
+  it("L1: a building changing every tick never starves the rebuild (no restart: age ≤ 2P)", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    addPlayer(w, "a", 24, 16);
+    const P = flowRefreshTicks(w);
+    for (let t = 0; t < 120; t++) {
+      if (t % 2 === 0) wall(w, 2, 2);
+      else {
+        const b = w.buildings.list.find((x) => x.minX === 2 && x.minY === 2);
+        if (b) removeBuilding(w, b.id);
+      }
+      step(w, TICK_DT_S);
+      if (t >= 2 * P) expect(w.tick - w.pathing.chase.sourceTick).toBeLessThanOrEqual(2 * P);
+    }
+    expect(w.pathing.chase.rebuilds).toBeGreaterThan(30);
+  });
+
+  it("H1: a 0.5 m slot is a pinch (building cost, carries a building id); a 1 m gap is open", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    const a = wall(w, 10, 10); // [10, 12] × [10, 10.5]
+    wall(w, 12.5, 10); // slot x [12, 12.5]
+    wall(w, 15.5, 10); // 1 m gap x [14.5, 15.5]
+    rasterizeBuildings(w.pathing.nav, w);
+    const nav = w.pathing.nav;
+    const slot = flowCellAt(nav, 12.25, 10.25);
+    expect(nav.buildingAt[slot]).toBe(0);
+    expect(nav.pinchS[slot - nav.cols]).toBe(a?.id); // stepping down into the slot
+    const gapL = flowCellAt(nav, 14.75, 10.25);
+    expect(nav.pinchS[gapL - nav.cols]).toBe(0);
+    expect(nav.pinchE[gapL]).toBe(0);
+  });
+
+  it("L5: Worlds that never run the buildings system get a one-cell placeholder", () => {
+    const w = createWorld({ balance, seed: 1, systems: { buildings: () => {} } });
+    expect(w.pathing.nav.cells).toBe(1);
+  });
+});

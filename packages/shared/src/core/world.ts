@@ -112,7 +112,8 @@ export function createWorld(opts: CreateWorldOptions): World {
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),
-    pathing: createPathingState(map),
+    // 3.5 review L5: Worlds whose buildings system never runs (client mirror, prediction) get a placeholder.
+    pathing: createPathingState(map, ZOMBIE_POOL_CAPACITY, (opts.systems?.buildings ?? DEFAULT_SYSTEMS.buildings) === DEFAULT_SYSTEMS.buildings),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;
