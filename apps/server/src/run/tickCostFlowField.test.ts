@@ -253,6 +253,14 @@ describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
         `patches ${base.patchBps.toFixed(0)} → ${field.patchBps.toFixed(0)} B/s, events ${base.eventBps.toFixed(0)} → ${field.eventBps.toFixed(0)} B/s; ` +
         `${field.destroyed} buildings destroyed (re-added); max age chase ${field.maxAge} / flank ${field.maxFlankAge} ticks (bound ${shared})`,
     );
+    // 3.8 review: the bandwidth split. The same room (24 buildings, 4 firing turrets) with 150 Walkers:
+    // the difference is what Runners cost on the wire (no field of their own; kill events, since they die faster).
+    const walkersOnly = measure(true, true, 0);
+    console.log(
+      `[bandwidth 3.8] 24 buildings + 4 turrets: 150 Walkers patches ${walkersOnly.patchBps.toFixed(0)} B/s, events ${walkersOnly.eventBps.toFixed(0)} B/s ` +
+        `→ 100 Walkers + 50 Runners patches ${field.patchBps.toFixed(0)} B/s, events ${field.eventBps.toFixed(0)} B/s ` +
+        `(no buildings, 100 W + 50 R: patches ${base.patchBps.toFixed(0)}, events ${base.eventBps.toFixed(0)} B/s)`,
+    );
     expect(field.destroyed).toBeGreaterThan(0);
     if (PERF_ASSERT) expect(added).toBeLessThanOrEqual(2);
     expect(field.maxAge).toBeLessThanOrEqual(shared);

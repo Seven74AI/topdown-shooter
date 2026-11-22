@@ -3,7 +3,7 @@ import type { World } from "../core/world";
 import type { Building } from "../buildings/buildings";
 import type { DistrictBounds } from "../map/placeholderMap";
 import type { PlayerState } from "../player/player";
-import { ZOMBIE_TYPES } from "./zombieTypes";
+import { ZOMBIE_STATE, ZOMBIE_TYPES } from "./zombieTypes";
 
 /**
  * Story 3.5: flow-field pathfinding (architecture › Zombie Pathfinding; FR26, FR53).
@@ -122,6 +122,13 @@ export interface ZombieProgress {
   readonly stuck: Uint8Array;
   /** Pool generation the record belongs to (a reused slot starts over). */
   readonly gen: Uint8Array;
+  /**
+   * 3.8 review H1: per flanker, ticks spent not closing in (up to `flank.maxFlankS`, then it goes
+   * straight in until it bites), its distance to its target last tick, and the generation they belong to.
+   */
+  readonly flankTicks: Uint16Array;
+  readonly flankLastD: Float32Array;
+  readonly flankGen: Int16Array;
 }
 
 export interface PathingState {
@@ -179,6 +186,9 @@ function createProgress(capacity: number): ZombieProgress {
     ticks: new Uint16Array(capacity),
     stuck: new Uint8Array(capacity),
     gen: new Uint8Array(capacity),
+    flankTicks: new Uint16Array(capacity),
+    flankLastD: new Float32Array(capacity),
+    flankGen: new Int16Array(capacity).fill(-1),
   };
 }
 
@@ -588,7 +598,9 @@ function flankerAlive(world: Readonly<World>): boolean {
   if (mask === 0) return false;
   const pool = world.zombies;
   for (let i = 0; i < pool.aliveCount; i++) {
-    if ((mask >> (pool.type[pool.aliveIds[i] as number] as number)) & 1) return true;
+    const id = pool.aliveIds[i] as number;
+    // 3.8 review L4: a rushing flanker (FR30) goes straight in: it needs no flank field.
+    if ((mask >> (pool.type[id] as number)) & 1 && pool.state[id] !== ZOMBIE_STATE.RUSH) return true;
   }
   return false;
 }
@@ -707,6 +719,8 @@ export function snapshotPathing(p: PathingState) {
     navVersion: p.nav.version,
     navHash: hashInts(p.nav.buildingAt) ^ hashInts(p.nav.enterCost) ^ hashInts(p.nav.pinchE) ^ hashInts(p.nav.pinchS),
     progressHash: hashInts(new Int32Array(pr.anchorX.buffer)) ^ hashInts(new Int32Array(pr.anchorY.buffer)) ^ hashBytes(pr.ticks) ^ hashBytes(pr.stuck) ^ hashBytes(pr.gen),
+    // 3.8 review H1: the flank timers
+    flankHash: hashInts(new Int32Array(pr.flankLastD.buffer)) ^ hashInts(Int32Array.from(pr.flankTicks)) ^ hashInts(Int32Array.from(pr.flankGen)),
     chase: snapshotField(p.chase),
     // Story 3.8
     flankActive: p.flankActive,

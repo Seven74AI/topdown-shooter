@@ -46,6 +46,8 @@
     "coneRadiusM": 10,
     "coneApexBackM": 0.5,
     "penaltyM": 1.0,
-    "directWithinM": 1.0
+    "directWithinM": 1.0,
+    "maxFlankS": 2.5,
+    "closingSpeedFrac": 0.5
   }
 }
