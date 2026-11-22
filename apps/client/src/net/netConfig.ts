@@ -31,3 +31,10 @@ export const JITTER_SAMPLE_CAP_MS = 100;
 export const THROTTLE_QUEUE_SIZE = 128;
 /** Pooled byte buffer per in-flight binary message: one full horde frame (6 + 8 × 256 bytes, Story 2.5). */
 export const THROTTLE_BYTES_MAX = 2054;
+
+/**
+ * Story 3.6 review L1: when a backlog drains (after a hidden tab), turret shots and teammates' shots
+ * older than the render tick − this many ticks (0.5 s) are dropped: no cosmetic projectile, no FX
+ * (75 turret shots once spawned in one frame). Kills, hits and everything else still play.
+ */
+export const STALE_COSMETIC_TICKS = 10;

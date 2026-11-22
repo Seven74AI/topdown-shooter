@@ -49,7 +49,7 @@ import { mirrorZombies } from "../net/mirrorZombies";
 import { mirrorBuildings } from "../net/mirrorBuildings";
 import { Predictor } from "../net/prediction";
 import { AdaptiveDelay } from "../net/adaptiveDelay";
-import { RENDER_DELAY_MIN_MS } from "../net/netConfig";
+import { RENDER_DELAY_MIN_MS, STALE_COSMETIC_TICKS } from "../net/netConfig";
 import { LocalFireClock } from "../net/localFire";
 import { CosmeticProjectiles } from "../net/cosmeticProjectiles";
 import { EARLY_HIT_SLACK_MS, REVERSED_HIT_SLACK_MS, ReversedHits } from "../debug/reversedHits";
@@ -201,6 +201,8 @@ export class NetSimHost implements SimHost {
   private seq = 0;
   private readonly sendBuf: MutableInput = { ...NEUTRAL_INPUT };
   private drained: SimEvent[] = [];
+  /** Server tick of each event drained from the queue this frame (review L1; reused). */
+  private readonly drainedTicks: number[] = [];
   private renderTickNow = Number.NaN;
   private disposed = false;
   private readonly pose: SampledPose = { x: 0, y: 0, heading: 0 };
@@ -376,13 +378,29 @@ export class NetSimHost implements SimHost {
     for (let i = 0; i < this.arrival.length; i++) out.push(this.arrival[i] as SimEvent);
     this.arrival.length = 0;
     const from = out.length;
-    if (!Number.isNaN(this.renderTickNow)) this.queue.drain(this.renderTickNow, out);
-    // Others' shots fly from their server muzzle, in step with the interpolated shooter.
+    const ticks = this.drainedTicks;
+    ticks.length = 0;
+    if (!Number.isNaN(this.renderTickNow)) this.queue.drain(this.renderTickNow, out, ticks);
+    // Others' shots fly from their server muzzle, in step with the interpolated shooter. Review L1:
+    // shots older than the render tick − STALE_COSMETIC_TICKS (a drained backlog) are dropped.
+    const staleBefore = this.renderTickNow - STALE_COSMETIC_TICKS;
+    let w = from;
     for (let i = from; i < out.length; i++) {
       const e = out[i] as SimEvent;
-      if (e.type === "weapon.fired") this.cosmetics.spawn(e.playerId, e.weapon, e.x, e.y, e.dirX, e.dirY);
-      else if (e.type === "turret.fired") this.turretShot(e);
+      const stale = (ticks[i - from] as number) < staleBefore;
+      if (e.type === "weapon.fired") {
+        if (stale) continue;
+        this.cosmetics.spawn(e.playerId, e.weapon, e.x, e.y, e.dirX, e.dirY);
+      } else if (e.type === "turret.fired") {
+        if (stale) {
+          this.turretAim(e);
+          continue;
+        }
+        this.turretShot(e);
+      }
+      out[w++] = e;
     }
+    out.length = w;
     return out;
   }
 
@@ -392,6 +410,14 @@ export class NetSimHost implements SimHost {
    * (the view draws it; never synced per tick) and a cosmetic projectile flies. A building the
    * mirror doesn't have (removed meanwhile) leaves x/y NaN and draws nothing.
    */
+  /** Review L1: a stale turret shot only turns the mirror turret (no projectile, no FX). */
+  private turretAim(e: Extract<SimEvent, { type: "turret.fired" }>): void {
+    const b = buildingById(this.world, e.buildingId);
+    if (!b) return;
+    b.aimX = e.dirX;
+    b.aimY = e.dirY;
+  }
+
   private turretShot(e: Extract<SimEvent, { type: "turret.fired" }>): void {
     const b = buildingById(this.world, e.buildingId);
     const t = b ? turretStats(this.world.balance, b.type) : undefined;

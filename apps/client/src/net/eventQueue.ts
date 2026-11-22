@@ -39,16 +39,21 @@ export class EventQueue {
     this.count++;
   }
 
-  /** Appends every event with tick ≤ `renderTick` to `out`, oldest first. Returns how many. */
-  drain(renderTick: number, out: SimEvent[]): number {
+  /**
+   * Appends every event with tick ≤ `renderTick` to `out`, oldest first. Returns how many. With
+   * `ticksOut` (Story 3.6 review L1), each event's server tick is appended to it in step with `out`.
+   */
+  drain(renderTick: number, out: SimEvent[], ticksOut?: number[]): number {
     let n = 0;
     while (this.count > 0 && (this.ticks[this.head] as number) <= renderTick) {
       const e = this.events[this.head];
+      const tick = this.ticks[this.head] as number;
       this.events[this.head] = null;
       this.head = (this.head + 1) % this.capacity;
       this.count--;
       if (e) {
         out.push(e);
+        if (ticksOut) ticksOut.push(tick);
         n++;
       }
     }

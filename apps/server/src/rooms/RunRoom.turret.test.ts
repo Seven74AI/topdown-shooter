@@ -80,7 +80,7 @@ const world = (room: RunRoom) => {
 const kinds = (rec: { events: SimEventsFlushed[] }, kind: number) => rec.events.flatMap((m) => m.events.filter((t) => t[0] === kind));
 
 describe("RunRoom auto-turret (Story 3.6)", () => {
-  it("placed through the room: 250, 300 HP, counts toward the cap; shoots in the wave; both clients get turret.fired; the kill pays the owner 50 %", async () => {
+  it("placed through the room: 250, 300 HP, counts toward the cap; shoots in the wave; its shots reach only the client that sees them (M2); the kill pays the owner 50 % and is not their kill", async () => {
     const { host, guest, room, hostRec, guestRec } = await startTwo();
     const w = world(room);
     const hostId = [...room.members.values()].find((m) => m.slot === 0)?.playerId ?? "p0";
@@ -101,17 +101,30 @@ describe("RunRoom auto-turret (Story 3.6)", () => {
     await new Promise((r) => setTimeout(r, 300));
     expect(kinds(hostRec, NET_EVENT_KIND.TURRET_FIRED)).toHaveLength(0);
 
+    // Review M2: the guest stands in the far corner, its view far from the turret and its shots.
+    const guestId = [...room.members.values()].find((m) => m.slot === 1)?.playerId ?? "p1";
+    const g = w.players.get(guestId);
+    if (!g) throw new Error("no guest player");
+    g.x = 44;
+    g.y = 29;
     startWave(w); // between ticks, as the build countdown would
     const before = w.players.get(hostId)?.wallet ?? 0;
     await vi.waitFor(() => expect(w.zombies.alivePos[z]).toBe(-1), { timeout: 4000 });
+    await vi.waitFor(() => expect(kinds(hostRec, NET_EVENT_KIND.TURRET_FIRED).length).toBeGreaterThanOrEqual(4));
+    for (const t of kinds(hostRec, NET_EVENT_KIND.TURRET_FIRED)) expect(t.slice(0, 2)).toEqual([NET_EVENT_KIND.TURRET_FIRED, b.id]);
+    // The kill and the money are reliable to everyone; the shots only to the host, who can see them.
     for (const rec of [hostRec, guestRec]) {
-      await vi.waitFor(() => expect(kinds(rec, NET_EVENT_KIND.TURRET_FIRED).length).toBeGreaterThanOrEqual(4));
-      for (const t of kinds(rec, NET_EVENT_KIND.TURRET_FIRED)) expect(t.slice(0, 2)).toEqual([NET_EVENT_KIND.TURRET_FIRED, b.id]);
       await vi.waitFor(() => expect(kinds(rec, NET_EVENT_KIND.ZOMBIE_KILLED).some((t) => t[6] === b.id)).toBe(true));
     }
+    expect(kinds(guestRec, NET_EVENT_KIND.TURRET_FIRED)).toHaveLength(0);
+    // Of the turret's hits the far guest gets only the killing one (it travels with its kill).
+    expect(kinds(guestRec, NET_EVENT_KIND.ZOMBIE_HIT)).toHaveLength(1);
+    expect(kinds(hostRec, NET_EVENT_KIND.ZOMBIE_HIT).length).toBeGreaterThanOrEqual(4);
     const reward = serverBalance.zombies.types.walker?.reward ?? 0;
     const pay = Math.floor(reward * serverBalance.economy.buildingKillShare);
     expect(w.players.get(hostId)?.wallet).toBe(before + pay);
     await vi.waitFor(() => expect(host.state.players.get(hostId)?.wallet).toBe(before + pay));
+    // Review L5 + M1: the owner never hit it, so the turret's kill is not the owner's kill.
+    expect(room.controller?.kills(hostId)).toBe(0);
   });
 });

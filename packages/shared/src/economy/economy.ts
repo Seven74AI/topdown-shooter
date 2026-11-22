@@ -15,7 +15,8 @@ import { zombieTypeOf } from "../zombies/zombiePool";
  * - `zombie.hit` with a `sourceId` → that player is recorded as a damager of the zombie's slot;
  * - `zombie.killed` → the killer gets the type's reward, every other damager the assist share
  *   (rounded down); a kill with no killer (dev cheats) pays nothing; a turret's kill (Story 3.6,
- *   `buildingId` set) pays its owner `buildingKillShare` of the reward (rounded down);
+ *   `buildingId` set) pays its owner `buildingKillShare` of the reward (rounded down), unless the
+ *   owner damaged that zombie: then it is the owner's own kill (review M1, see `apply`);
  * - `player.revived` → the reviver gets `reviveReward`;
  * - `wave.ended { number }` → every player in the run (downed and out too) gets `number × waveClearBonusPerWave`.
  *
@@ -49,6 +50,16 @@ export function recordDamager(world: World, zombieId: number, playerId: string):
   if (n >= MAX_DAMAGERS) return;
   e.damagers[base + n] = playerId;
   e.damagerCount[zombieId] = n + 1;
+}
+
+/** Story 3.6 review M1: whether `playerId` is a recorded damager of the zombie in `zombieId`. */
+export function isDamager(world: Readonly<World>, zombieId: number, playerId: string): boolean {
+  const e = world.economy;
+  if (zombieId < 0 || zombieId >= e.damagerCount.length) return false;
+  const n = e.damagerCount[zombieId] as number;
+  const base = zombieId * MAX_DAMAGERS;
+  for (let k = 0; k < n; k++) if (e.damagers[base + k] === playerId) return true;
+  return false;
 }
 
 /** Forgets every damager of a zombie slot (after its kill is paid; `spawnZombie` also resets the count). */
@@ -124,8 +135,21 @@ function apply(world: World, e: SimEvent): void {
       if (e.sourceId !== null) recordDamager(world, e.zombieId, e.sourceId);
       break;
     case "zombie.killed":
-      // Story 3.6 (FR45): a building's kill pays its owner `buildingKillShare` of the reward.
-      payKill(world, e.zombieId, e.killerId, e.buildingId !== undefined ? world.balance.economy.buildingKillShare : 1);
+      if (e.buildingId !== undefined) {
+        // Story 3.6 review M1 (main session decision): a turret never steals its owner's kill. If
+        // the owner damaged this zombie, the kill becomes theirs (full reward, counted as their
+        // kill): the still-pending event loses its building id, so every reader after this system
+        // (the kill counters, the wire, the client) sees an ordinary kill by the owner.
+        if (e.killerId !== null && isDamager(world, e.zombieId, e.killerId)) {
+          delete (e as { buildingId?: number }).buildingId;
+          payKill(world, e.zombieId, e.killerId, 1);
+        } else {
+          // FR45: otherwise the owner gets `buildingKillShare` of the reward (not their kill).
+          payKill(world, e.zombieId, e.killerId, world.balance.economy.buildingKillShare);
+        }
+        break;
+      }
+      payKill(world, e.zombieId, e.killerId, 1);
       break;
     case "player.revived":
       earn(world, e.reviverId, world.balance.economy.reviveReward, "revive");

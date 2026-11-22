@@ -17,6 +17,7 @@ import {
   type NetEventContext,
 } from "@topdown/shared";
 import { RunController } from "./RunController";
+import { EventInterest } from "../net/eventInterest";
 import { PlayerState, RunState } from "../rooms/schema/RunState";
 import { syncState } from "../rooms/schema/syncState";
 
@@ -103,7 +104,117 @@ function measure(turrets: boolean): Bw {
   return { eventBps: eventBytes / SECONDS, patchBps: patchBytes / SECONDS, turretBps: turretBytes / SECONDS, shots, kills };
 }
 
+/** Story 3.6 review M2: the budget for patches + events per client (KB = 1024 B, as `net_stats`). */
+const BUDGET_BPS = 6 * 1024;
+
+interface Worst {
+  /** Per client: events + patches, everything to everyone (before M2) and with the interest filter. */
+  beforeBps: number[];
+  afterBps: number[];
+  patchBps: number;
+  shotsPerS: number;
+  killsPerS: number;
+}
+
+/**
+ * The cap's worst case: 24 Auto-turrets (6 per player) spread over the map on a 6 × 4 grid, each
+ * with a Walker 4 m away (a new one as soon as it dies), so all 24 fire 5/s; the 4 players stand
+ * in the four quarters. Per client: the bytes of `sim.events_flushed` with every event (before) and
+ * with `EventInterest` for that client's view (after), plus the shared patch.
+ */
+function worstCase(): Worst {
+  const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
+  const c = new RunController({ balance, seed: 7, players, pauseWaves: true, systems: { zombies: () => {}, player: () => {} } });
+  const world = c.world;
+  world.debug.godMode = true;
+  const views = [
+    [12, 8],
+    [36, 8],
+    [12, 24],
+    [36, 24],
+  ] as const;
+  views.forEach(([x, y], i) => {
+    const p = world.players.get(`p${i}`);
+    if (p) {
+      p.x = x;
+      p.y = y;
+    }
+  });
+  startWave(world);
+  const state = new RunState({ phase: "wave", hostSlot: 0 });
+  for (const p of players) state.players.set(p.playerId, new PlayerState({ slot: p.slot, name: p.playerId, ready: true }));
+  const encoder = new Encoder(state);
+  const targets: number[] = [];
+  const spots: [number, number][] = [];
+  let id = 1;
+  for (const y of [3, 11, 19, 27]) {
+    for (const x of [3, 11, 19, 27, 35, 43]) {
+      const b = addBuildingAt(world, { id, type: "auto_turret", ownerId: `p${id % 4}`, gx: x / BUILD_GRID_M, gy: y / BUILD_GRID_M, rot: 0, hp: 300 }) as Building;
+      spots.push([buildingCentreX(b) + (x > 24 ? -4 : 4), buildingCentreY(b)]);
+      targets.push(-1);
+      id++;
+    }
+  }
+  c.tick();
+  syncState(state, c);
+  encoder.encode();
+  encoder.discardChanges();
+  const ctx: NetEventContext = { balance, zombieNetId: (zid) => zid | ((world.zombies.generation[zid] ?? 0) << 8) };
+  const interest = new EventInterest();
+  const before = [0, 0, 0, 0];
+  const after = [0, 0, 0, 0];
+  let patch = 0;
+  let shots = 0;
+  let kills = 0;
+  for (let t = 0; t < TICKS; t++) {
+    for (let i = 0; i < targets.length; i++) {
+      const zid = targets[i] as number;
+      if (zid < 0 || (world.zombies.alivePos[zid] as number) < 0) {
+        const [zx, zy] = spots[i] as [number, number];
+        targets[i] = spawnZombie(world, "walker", zx, zy);
+      }
+    }
+    const events = c.tick();
+    syncState(state, c);
+    patch += encoder.encode().length;
+    encoder.discardChanges();
+    for (const e of events) {
+      if (e.type === "turret.fired") shots++;
+      else if (e.type === "zombie.killed") kills++;
+    }
+    interest.prepare(world, events, ctx);
+    if (interest.all.length === 0) continue;
+    const allBytes = pack({ tick: world.tick, events: interest.all }).length;
+    for (let i = 0; i < 4; i++) {
+      before[i] = (before[i] as number) + allBytes;
+      const [vx, vy] = views[i] as readonly [number, number];
+      const mine = interest.eventsFor(world, vx, vy);
+      if (mine.length > 0) after[i] = (after[i] as number) + pack({ tick: world.tick, events: mine }).length;
+    }
+  }
+  const patchBps = patch / SECONDS;
+  return {
+    beforeBps: before.map((b) => b / SECONDS + patchBps),
+    afterBps: after.map((a) => a / SECONDS + patchBps),
+    patchBps,
+    shotsPerS: shots / SECONDS,
+    killsPerS: kills / SECONDS,
+  };
+}
+
 describe("Auto-turret bandwidth (Story 3.6, brief line 11)", () => {
+  it("review M2: the cap's worst case (24 turrets firing) stays under 6 KB/s per client with the interest filter", () => {
+    const w = worstCase();
+    const kb = (v: number) => (v / 1024).toFixed(2);
+    console.log(
+      `[turret worst case] 24 turrets, ${w.shotsPerS.toFixed(0)} shots/s, ${w.killsPerS.toFixed(1)} kills/s; patches ${kb(w.patchBps)} KB/s; ` +
+        `events + patches per client before ${w.beforeBps.map(kb).join(" / ")} KB/s → after ${w.afterBps.map(kb).join(" / ")} KB/s`,
+    );
+    expect(w.shotsPerS).toBe(24 * 5);
+    for (const v of w.afterBps) expect(v).toBeLessThanOrEqual(BUDGET_BPS);
+    for (let i = 0; i < 4; i++) expect(w.afterBps[i] as number).toBeLessThan(w.beforeBps[i] as number);
+  });
+
   it("4 turrets firing: added events and patches per second; turret aim is never in the patch", () => {
     const none = measure(false);
     const four = measure(true);

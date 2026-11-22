@@ -45,6 +45,17 @@ const tough = (world: World, id: number): void => {
   world.zombies.hp[id] = 1e6;
 };
 
+/** `who` shoots the zombie once with the pistol (5 damage) from 2 m east of it, then stops. */
+function pistolHit(world: World, who: string, z: number): void {
+  const p = world.players.get(who);
+  if (!p) throw new Error("no " + who);
+  p.x = (world.zombies.x[z] as number) + 2;
+  p.y = world.zombies.y[z] as number;
+  setInput(world, who, { ...NEUTRAL_INPUT, seq: 1, aimX: -1, aimY: 0, fire: true, isMouse: true });
+  step(world, TICK_DT_S);
+  setInput(world, who, { ...NEUTRAL_INPUT, seq: 2 });
+}
+
 describe("auto-turret (Story 3.6)", () => {
   it("fires at a zombie 7.9 m from its centre, never at one 8.1 m away", () => {
     const near = setup();
@@ -77,17 +88,55 @@ describe("auto-turret (Story 3.6)", () => {
     expect([b.aimX, b.aimY]).toEqual([shot.dirX, shot.dirY]);
   });
 
-  it("an equal-distance tie goes to the lower pool slot", () => {
+  it("an equal-distance tie goes to the lower pool slot, even when the grid visits the other first", () => {
     const { world, events, place } = setup();
     const b = place(20, 16);
     const cx = buildingCentreX(b);
     const cy = buildingCentreY(b);
-    const first = spawnZombie(world, "walker", cx - 4, cy); // slot 0: west
+    // Review L3: the lower slot sits in a later grid cell (east, higher cx), so the grid hands out
+    // slot 1 (west) first; only the tie rule picks slot 0.
+    const first = spawnZombie(world, "walker", cx + 4, cy); // slot 0: east
     tough(world, first);
-    tough(world, spawnZombie(world, "walker", cx + 4, cy)); // slot 1: east
+    tough(world, spawnZombie(world, "walker", cx - 4, cy)); // slot 1: west
     run(world, 3);
     expect(first).toBe(0);
-    expect(fired(events)[0]?.dirX).toBeCloseTo(-1, 6);
+    expect(fired(events)[0]?.dirX).toBeCloseTo(1, 6);
+  });
+
+  it("finds a zombie whose last-tick grid cell is out of reach but whose current centre is in range (stale-grid margin)", () => {
+    // Review L4: turret centre x = 21.5; 8 m reaches x = 29.5. Grid cells are 2 m: the zombie's
+    // last-tick cell [30, 32) lies wholly past 29.5 and is only searched thanks to the 1 m margin.
+    const { world, place } = setup();
+    const b = place(21, 16);
+    expect(buildingCentreX(b)).toBe(21.5);
+    const z = spawnZombie(world, "walker", 30.5, buildingCentreY(b)); // 9 m: out of range
+    tough(world, z);
+    run(world, 2); // the grid now holds it in cell [30, 32)
+    expect(world.projectiles.aliveCount).toBe(0);
+    world.zombies.x[z] = 29.4; // 7.9 m, between ticks: the grid still says [30, 32)
+    world.zombies.prevX[z] = 29.4;
+    const shots: number[] = [];
+    world.events.subscribe((e) => {
+      if (e.type === "turret.fired") shots.push(world.tick);
+    });
+    const t = world.tick;
+    step(world, TICK_DT_S);
+    expect(shots).toEqual([t + 1]); // shot in that very tick
+  });
+
+  it("puts the muzzle 0.5 m out along a diagonal aim", () => {
+    // Review L5.
+    const { world, events, place } = setup();
+    const b = place(20, 16);
+    const cx = buildingCentreX(b);
+    const cy = buildingCentreY(b);
+    tough(world, spawnZombie(world, "walker", cx - 3, cy + 3));
+    run(world, 3);
+    const shot = fired(events)[0] as Fired;
+    expect(shot.dirX).toBeCloseTo(-Math.SQRT1_2, 6);
+    expect(shot.dirY).toBeCloseTo(Math.SQRT1_2, 6);
+    expect(shot.x).toBeCloseTo(cx - T.muzzleM * Math.SQRT1_2, 6);
+    expect(shot.y).toBeCloseTo(cy + T.muzzleM * Math.SQRT1_2, 6);
   });
 
   it("shoots exactly every 4 ticks (5/s at 20 Hz) through the shared cooldown rule", () => {
@@ -184,20 +233,46 @@ describe("auto-turret (Story 3.6)", () => {
     const { world, place } = setup();
     const b = place(20, 16);
     const z = spawnZombie(world, "walker", buildingCentreX(b) + 3, buildingCentreY(b));
-    // p1 shoots the zombie once (a real pistol shot from 4 m west of it).
-    const p1 = world.players.get("p1");
-    if (!p1) throw new Error("no p1");
-    p1.x = (world.zombies.x[z] as number) + 2;
-    p1.y = world.zombies.y[z] as number;
-    setInput(world, "p1", { ...NEUTRAL_INPUT, seq: 1, aimX: -1, aimY: 0, fire: true, isMouse: true });
-    step(world, TICK_DT_S);
-    setInput(world, "p1", { ...NEUTRAL_INPUT, seq: 2 });
+    pistolHit(world, "p1", z);
+    const p1 = world.players.get("p1") as { wallet: number };
     const p0Before = world.players.get("p0")?.wallet ?? 0;
     const p1Before = p1.wallet;
     run(world, 40);
     expect(world.zombies.aliveCount).toBe(0);
     expect(world.players.get("p0")?.wallet).toBe(p0Before + Math.floor(WALKER_REWARD * balance.economy.buildingKillShare));
     expect(p1.wallet).toBe(p1Before + Math.floor(WALKER_REWARD * balance.economy.assistShare));
+  });
+
+  it("review M1 probe: the owner pistol-hits a Walker, the own turret lands the last hit → +2 (full reward) and an ordinary kill", () => {
+    const { world, events, place } = setup();
+    const b = place(20, 16);
+    const z = spawnZombie(world, "walker", buildingCentreX(b) + 3, buildingCentreY(b));
+    pistolHit(world, "p0", z);
+    expect(world.zombies.hp[z]).toBe(5); // the pistol did not kill it
+    const before = world.players.get("p0")?.wallet ?? 0;
+    run(world, 40);
+    expect(world.zombies.aliveCount).toBe(0);
+    const killed = events.find((e) => e.type === "zombie.killed");
+    // The kill is the owner's: no building id, so every kill counter (RunController, HUD) counts it.
+    expect(killed).toMatchObject({ killerId: "p0", weapon: TURRET });
+    expect(killed).not.toHaveProperty("buildingId");
+    expect(world.players.get("p0")?.wallet).toBe(before + WALKER_REWARD);
+  });
+
+  it("review M1: owner and teammate hit it, the owner's turret kills → owner full reward, teammate the assist share", () => {
+    const { world, place } = setup();
+    const b = place(20, 16);
+    const z = spawnZombie(world, "walker", buildingCentreX(b) + 3, buildingCentreY(b));
+    world.zombies.hp[z] = 20;
+    pistolHit(world, "p0", z);
+    pistolHit(world, "p1", z);
+    expect(world.zombies.hp[z]).toBeGreaterThan(0); // the turret may have hit too meanwhile
+    const p0 = world.players.get("p0")?.wallet ?? 0;
+    const p1 = world.players.get("p1")?.wallet ?? 0;
+    run(world, 40);
+    expect(world.zombies.aliveCount).toBe(0);
+    expect(world.players.get("p0")?.wallet).toBe(p0 + WALKER_REWARD);
+    expect(world.players.get("p1")?.wallet).toBe(p1 + Math.floor(WALKER_REWARD * balance.economy.assistShare));
   });
 
   it("keeps shooting after its owner left (the kill pays nobody); a shot in flight still pays after the turret is gone", () => {
@@ -234,6 +309,16 @@ describe("auto-turret (Story 3.6)", () => {
     const a = once();
     const b = once();
     expect(a).toEqual(b);
+    // Review L6: the snapshot carries the turret and projectile fields.
+    const t = a.buildings.list[0] as Record<string, unknown>;
+    for (const k of ["fireCooldownS", "aimX", "aimY"]) expect(t).toHaveProperty(k);
+    const mid = setup();
+    const m = mid.place(20, 16);
+    tough(mid.world, spawnZombie(mid.world, "walker", buildingCentreX(m) + 6, buildingCentreY(m)));
+    run(mid.world, 2);
+    const flying = snapshotWorld(mid.world).projectiles;
+    expect(flying).toHaveLength(1);
+    expect(flying[0]).toMatchObject({ building: m.id, pushbackM: expect.closeTo(T.hitPushbackM, 6) });
     expect(a.buildings.list.some((x) => x.aimX !== 1 || x.aimY !== 0)).toBe(true);
     expect(a.zombies.alive.length).toBeLessThan(12);
   });
