@@ -108,6 +108,25 @@ export const controlsSchema = z
   })
   .strict();
 
+/**
+ * Story 2.10 bot policy (`bots/botPolicy.ts`): load-test and economy bots (Stories 3.10, 6.1,
+ * 10.8 tune these without code changes).
+ */
+export const botsSchema = z
+  .object({
+    /** A zombie closer than this (centre to centre): back away from it. */
+    keepDistanceM: z.number().min(0),
+    /** Farther than this from the centre of the alive team: move toward it. */
+    regroupDistM: z.number().min(0),
+    /** A downed teammate within this: go and revive them. */
+    reviveSearchM: z.number().min(0),
+    /** Stop this close to the downed teammate (inside `player.reviveRadiusM`, so the revive runs). */
+    reviveStopM: z.number().min(0),
+    /** Epic 3 hook: shop item ids bought in this order between waves. Unused until then. */
+    shoppingList: z.array(balanceId).default([]),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -115,6 +134,7 @@ export const balanceFileSchemas = {
   waves: wavesSchema,
   player: playerSchema,
   controls: controlsSchema,
+  bots: botsSchema,
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;

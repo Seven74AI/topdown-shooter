@@ -25,6 +25,8 @@ export class SlowTickWatch {
   ticks = 0;
   totalMs = 0;
   maxMs = 0;
+  /** Story 2.10: the same since the last `takeWindow()` (one wave), plus the slow ones in it. */
+  readonly window = { ticks: 0, totalMs: 0, maxMs: 0, slow: 0 };
 
   constructor(
     private readonly roomId: string,
@@ -37,7 +39,12 @@ export class SlowTickWatch {
     this.ticks++;
     this.totalMs += tickMs;
     if (tickMs > this.maxMs) this.maxMs = tickMs;
+    const w = this.window;
+    w.ticks++;
+    w.totalMs += tickMs;
+    if (tickMs > w.maxMs) w.maxMs = tickMs;
     if (!(tickMs > SLOW_TICK_MS)) return;
+    w.slow++;
     this.pending++;
     const now = this.now();
     if (now - this.lastLogMs < SLOW_TICK_LOG_INTERVAL_MS) return;
@@ -46,7 +53,20 @@ export class SlowTickWatch {
     this.pending = 0;
   }
 
+  /** Rounded window numbers for a log line (`tick_stats`, Story 2.10); the window restarts. */
+  takeWindow(): { ticks: number; avgMs: number; maxMs: number; slow: number } {
+    const w = this.window;
+    const out = { ticks: w.ticks, avgMs: w.ticks === 0 ? 0 : round2(w.totalMs / w.ticks), maxMs: round2(w.maxMs), slow: w.slow };
+    w.ticks = 0;
+    w.totalMs = 0;
+    w.maxMs = 0;
+    w.slow = 0;
+    return out;
+  }
+
   get meanMs(): number {
     return this.ticks === 0 ? 0 : this.totalMs / this.ticks;
   }
 }
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;

@@ -1,6 +1,24 @@
 import type { HitCounts } from "./reversedHits";
 
 /**
+ * What the overlay's network lines read from the online host (Story 2.10): `NetSimHost` fits it.
+ * A structural type, so this module stays free of the host and the SDK.
+ */
+export interface NetOverlaySource {
+  readonly netStats: HitCounts & {
+    readonly rttMs: number;
+    readonly delayMs: number;
+    readonly jitterMs: number;
+    readonly corrections: number;
+    readonly snaps: number;
+  };
+  /** Horde frames accepted so far (the overlay turns it into frames per second). */
+  readonly hordeStats: { readonly framesReceived: number };
+  /** The server's test scenario ("" = a normal game). */
+  readonly scenario: string;
+}
+
+/**
  * Frame and simulation timing for the performance overlay and the stress test (Story 1.11).
  * Pure (no Phaser, no DOM): times are passed in, so it is unit-tested. Ring buffers are allocated
  * once; recording a frame or a tick never allocates.
@@ -173,6 +191,8 @@ export class PerfStats {
   summary: PerfSummary | null = null;
   /** Story 2.7: the online host's reversed-hit counts (`NetSimHost.netStats`); null offline. */
   hits: HitCounts | null = null;
+  /** Story 2.10: the online host for the overlay's network lines; null offline. */
+  net: NetOverlaySource | null = null;
 
   recordFrame(nowMs: number, frameMs: number, renderMs: number, updateMs: number): void {
     const i = this.frameHead;
@@ -248,6 +268,7 @@ export class PerfStats {
     this.overlayOn = false;
     this.summary = null;
     this.hits = null;
+    this.net = null;
   }
 }
 

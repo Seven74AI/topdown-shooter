@@ -131,3 +131,16 @@ export {
 export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
 export type { PlayerStateView, ReadonlyMapView, RunStateView } from "./net/stateView";
+export { BYTE_RATE_RING_S, ByteRate, KB_BYTES, attachByteCounters, messageBytes, type CountedRoomLike, type MessageSocketLike } from "./net/byteRate";
+export { NET150_START_WAVE, TEST_SCENARIOS, applyTestScenario, isTestScenario, type TestScenario } from "./net/testScenarios";
+export {
+  botConfigOf,
+  botInput,
+  botViewFromWorld,
+  createBotView,
+  type BotConfig,
+  type BotMate,
+  type BotSelf,
+  type BotView,
+  type BotZombie,
+} from "./bots/botPolicy";

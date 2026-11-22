@@ -30,6 +30,9 @@ services:
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-https://hordes.sevend.io}
       LOG_LEVEL: info
       GIT_SHA: ${GIT_SHA:?GIT_SHA must be set (deploy/deploy.sh sets it)}
+      # Story 2.10, the 4-phone test day ONLY: lets a host's `?scenario=net150` start the fixed test
+      # (wave 4, god mode). Uncomment, redeploy, run the test, then comment it out and redeploy again.
+      # ALLOW_TEST_SCENARIOS: "1"
     expose: ["2567"] # never published to the host: only Caddy reaches it
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2567/health"]

@@ -44,6 +44,7 @@ const STATE_FIELDS = {
   remaining: true,
   aliveCount: true,
   resultWave: true,
+  scenario: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players">, true>;
 const PLAYER_KEYS = Object.keys(PLAYER_FIELDS);
 const STATE_KEYS = Object.keys(STATE_FIELDS);

@@ -49,7 +49,7 @@ import { EARLY_HIT_SLACK_MS, REVERSED_HIT_SLACK_MS, ReversedHits } from "../debu
 /** Starting interpolation delay in ticks (100 ms); `AdaptiveDelay` then moves it within 100–150 ms. */
 export const RENDER_DELAY_TICKS = RENDER_DELAY_MIN_MS / (TICK_DT_S * 1000);
 
-/** Netcode numbers for the 2.10 overlay (Story 2.6), updated every frame (one object, reused). */
+/** Netcode numbers for the perf overlay (Stories 2.6, 2.7, 2.10), updated every frame (one object, reused). */
 export interface NetStats {
   rttMs: number;
   /** Interpolation delay of others (ms) and the jitter it follows. */
@@ -172,7 +172,6 @@ export class NetSimHost implements SimHost {
   private readonly immediate: SimEvent[] = [];
   private readonly arrival: SimEvent[] = [];
   private readonly delay = new AdaptiveDelay();
-  private loggedWave = 0;
 
   private readonly session: NetSession;
   private readonly now: () => number;
@@ -251,6 +250,11 @@ export class NetSimHost implements SimHost {
   /** Latest RTT the server measured for this client (2.10 overlay); the session answers the pings. */
   get rttMs(): number {
     return this.session.rttMs;
+  }
+
+  /** Story 2.10: the test scenario the server runs for this room ("" = a normal game). */
+  get scenario(): string {
+    return this.session.room.state?.scenario ?? "";
   }
 
   /** The (fractional) tick others are drawn at: server estimate − adaptive delay. NaN before the first snapshot. */
@@ -367,10 +371,6 @@ export class NetSimHost implements SimHost {
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
-    if (import.meta.env.DEV && import.meta.env.MODE !== "test" && state.wave !== this.loggedWave) {
-      this.loggedWave = state.wave; // dev builds: once per wave, until the 2.10 overlay shows them
-      console.info("net_stats", { wave: state.wave, ...this.netStats });
-    }
   }
 
   /**

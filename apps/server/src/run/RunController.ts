@@ -2,6 +2,7 @@ import {
   NEUTRAL_INPUT,
   TICK_DT_S,
   addPlayer,
+  applyTestScenario,
   createWorld,
   removePlayer,
   setInput,
@@ -12,6 +13,7 @@ import {
   type PlayerInput,
   type SimEvent,
   type Systems,
+  type TestScenario,
   type World,
 } from "@topdown/shared";
 import { SHOT_ADVANCE_CAP_MS } from "../net/limits";
@@ -126,6 +128,8 @@ export interface RunControllerOptions {
   pauseWaves?: boolean;
   /** Tests only: replace systems by name (Epic 1 lesson: isolate mechanics). */
   systems?: Partial<Systems>;
+  /** Story 2.10: a fixed test scenario (the room passes it only with `ALLOW_TEST_SCENARIOS=1`). */
+  scenario?: TestScenario | null;
 }
 
 /**
@@ -154,6 +158,7 @@ export class RunController {
   constructor(opts: RunControllerOptions) {
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, ...(opts.systems ? { systems: opts.systems } : {}) });
     this.world.waves.paused = opts.pauseWaves === true;
+    if (opts.scenario) applyTestScenario(this.world, opts.scenario);
     const at = { x: 0, y: 0 };
     for (const { playerId, slot } of opts.players) {
       teamSpawnPoint(this.world, slot, at);

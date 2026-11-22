@@ -55,6 +55,8 @@ import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
 import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { netSummary } from "../debug/netSummary";
+import { netMeter } from "../net/netMeter";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
 export type GameSceneData =
@@ -199,6 +201,7 @@ export class GameScene extends Phaser.Scene {
     this.leaving = false;
     this.toasts.clear();
     perf.hits = netHost ? netHost.netStats : null;
+    perf.net = netHost; // Story 2.10: the overlay's network lines
     const stress = session ? null : opts.stress;
     this.stressMode = stress !== null;
     this.pausedAtMs = 0;
@@ -292,6 +295,7 @@ export class GameScene extends Phaser.Scene {
       detachDesktop();
       this.router = null;
       stressRun.cancel();
+      netSummary.cancel();
       uiStore.handle("restart", undefined);
       uiStore.handle("startRun", undefined);
       uiStore.handle("leaveRun", undefined);
@@ -309,6 +313,7 @@ export class GameScene extends Phaser.Scene {
       for (const v of this.playerViews.values()) v.destroy();
       this.playerViews.clear();
       perf.hits = null;
+      perf.net = null;
       this.host?.dispose(); // online: also leaves the room
       this.host = null;
       this.localHost = null;
@@ -517,6 +522,7 @@ export class GameScene extends Phaser.Scene {
     this.hudModel.toastText = this.toasts.current(this.time.now);
 
     if (this.running) host.update(deltaMs / 1000); // LocalSimHost caps catch-up after long frames
+    if (perf.net) netSummary.frame(performance.now(), perf.net); // Story 2.10: ping samples for the wave summary
     const events = host.drainEvents();
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
@@ -531,8 +537,10 @@ export class GameScene extends Phaser.Scene {
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "wave.started") {
         this.showBanner(`Wave ${e.number}`);
+        if (perf.net) netSummary.start(performance.now(), e.number, perf.net, netMeter); // Story 2.10
       } else if (e.type === "wave.ended") {
         this.showBanner(`Wave ${e.number} cleared`);
+        if (perf.net) netSummary.end(performance.now(), e.number, perf.net, netMeter, perf.overlayOn);
       }
     }
 

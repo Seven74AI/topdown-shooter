@@ -16,6 +16,8 @@ export interface GameServerOptions {
   allowedOrigins?: readonly string[];
   /** Dev builds let a host start alone (Story 2.3). Room defaults override anything a client sends. */
   allowSoloStart?: boolean;
+  /** Story 2.10: hosts may run a fixed test scenario (`ALLOW_TEST_SCENARIOS=1`, the test day only). */
+  allowTestScenarios?: boolean;
 }
 
 /**
@@ -24,10 +26,10 @@ export interface GameServerOptions {
  * that refuses oversized request bodies before Colyseus buffers them (Story 2.1 review).
  * Not listening yet: `index.ts` (or a test) calls `listen(port)`.
  */
-export function createGameServer({ allowedOrigins = [], allowSoloStart = false }: GameServerOptions = {}) {
+export function createGameServer({ allowedOrigins = [], allowSoloStart = false, allowTestScenarios = false }: GameServerOptions = {}) {
   if (allowedOrigins.length === 0) log.warn("origin_check_disabled");
   return defineServer({
-    rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart }) },
+    rooms: { [RUN_ROOM_NAME]: defineRoom(RunRoom, { allowSoloStart, allowTestScenarios }) },
     routes: createRouter({ health }),
     transport: new WebSocketTransport({
       server: createGuardedHttpServer(),

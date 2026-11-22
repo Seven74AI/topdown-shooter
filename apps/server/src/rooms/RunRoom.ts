@@ -11,11 +11,13 @@ import {
   type RoomMethodName,
 } from "@colyseus/core";
 import {
+  ByteRate,
   C2S,
   MAX_PLAYERS,
   S2C,
   TICK_RATE_HZ,
   encodeNetEvent,
+  isTestScenario,
   joinOptionsSchema,
   loadBalance,
   lobbyReturnSchema,
@@ -36,6 +38,7 @@ import {
   type RunJoined,
   type SimEvent,
   type SimEventsFlushed,
+  type TestScenario,
   type World,
 } from "@topdown/shared";
 import type { Logger } from "pino";
@@ -74,7 +77,22 @@ export type RunClient = Client<{ auth: RunAuth }>;
 export interface RunRoomOptions {
   /** The host may start alone (dev and tests; never in the production image, Story 2.2). */
   allowSoloStart: boolean;
+  /** Story 2.10: the host's `scenario` join option is honoured (`ALLOW_TEST_SCENARIOS=1`). */
+  allowTestScenarios: boolean;
 }
+
+/**
+ * Story 2.10: one client's traffic. `out` counts every frame Colyseus 0.18 writes to the socket
+ * (messages, `sendBytes` horde frames, state patches and the full state all go through
+ * `client.raw`); `in` counts every frame the socket receives. Payload bytes only (KB = 1024 B).
+ */
+export interface NetMeters {
+  readonly out: ByteRate;
+  readonly in: ByteRate;
+}
+
+/** `ms` rounded to one decimal, for log lines. */
+const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** State patches every 50 ms (20 Hz, the simulation rate). */
 const PATCH_RATE_MS = 50;
@@ -117,6 +135,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private joinCounter = 0;
   /** See `RunRoomOptions`; tests may flip it on a live room. */
   allowSoloStart = false;
+  /** Story 2.10: the test scenario this room's runs use (only with `allowTestScenarios`), or null. */
+  scenario: TestScenario | null = null;
+  /** sessionId → byte counters (Story 2.10, `net_stats`). */
+  readonly netMeters = new Map<string, NetMeters>();
+  /** Story 2.10: when the current wave started (or the run, before the first wave), and its most zombies alive. */
+  private waveStartMs = 0;
+  private peakZombiesAlive = 0;
   /** The fight (Story 2.4): set when the run starts; the room is its only writer. */
   controller: RunController | null = null;
   /** Tick durations; logs `slow_tick` (AC 5). */
@@ -175,6 +200,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     reservedCodes.add(code);
     this.roomId = code;
     this.log = roomLog(code);
+    this.takeScenario(options as { scenario?: unknown; allowTestScenarios?: unknown });
     this.maxClients = MAX_PLAYERS;
     this.patchRate = PATCH_RATE_MS;
     // Only reachable by its code (joinById), never by a "join any run" matchmaking call.
@@ -187,6 +213,14 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
     this.onMessage("*", (client) => this.net.unknown(client));
+  }
+
+  /** Story 2.10: the creator's `scenario`, honoured only when the server allows test scenarios. */
+  private takeScenario(options: { scenario?: unknown; allowTestScenarios?: unknown }): void {
+    if (options.scenario === undefined) return;
+    if (!isTestScenario(options.scenario)) return; // onAuth refused anything else already
+    if (options.allowTestScenarios === true) this.scenario = options.scenario;
+    else this.log.warn({ scenario: options.scenario }, "test_scenario_refused");
   }
 
   override onJoin(client: RunClient): void {
@@ -221,12 +255,31 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.members.set(client.sessionId, member);
     this.state.players.set(playerId, new PlayerState({ slot, name: auth.name, ready: false }));
     this.net.add(client, playerId);
+    this.countBytes(client);
     client.send(S2C.RUN_JOINED, { playerId, slot, tickRateHz: TICK_RATE_HZ } satisfies RunJoined);
     // A frame over maxPayload is refused by ws, which closes this socket (AC 5 "too large").
     client.ref.on("error", (e: { code?: string }) => {
       if (e.code === "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH") this.net.drop(client, "too_large");
     });
     this.log.info({ playerId, slot }, "player_joined");
+  }
+
+  /**
+   * Story 2.10: counts this client's bytes both ways. Wrapping `raw` (bound once per join) sees
+   * everything the server writes to this socket; the `ws` `message` listener sees every frame it
+   * receives, whole (so `in` is exact, not an estimate). Nothing is allocated per message.
+   */
+  private countBytes(client: RunClient): void {
+    const meters: NetMeters = { out: new ByteRate(), in: new ByteRate() };
+    this.netMeters.set(client.sessionId, meters);
+    const raw = client.raw.bind(client);
+    client.raw = (data, options, cb) => {
+      meters.out.add(performance.now(), data.byteLength);
+      raw(data, options, cb);
+    };
+    (client.ref as { on(event: "message", cb: (data: { byteLength: number }) => void): void }).on("message", (data) =>
+      meters.in.add(performance.now(), data.byteLength),
+    );
   }
 
   /**
@@ -251,6 +304,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.controller?.removePlayer(playerId);
     this.hordeStats.delete(playerId); // no zero horde_stats lines for a player who left
     this.lastPongId.delete(client.sessionId);
+    this.netMeters.delete(client.sessionId);
     const reason: PlayerLeftReason = code === CloseCode.CONSENTED ? "left" : "disconnected";
     this.log.info({ playerId, reason, code, wave: this.controller?.world.waves.number ?? 0 }, "player_left");
     this.broadcast(S2C.PLAYER_LEFT, { playerId, name, reason } satisfies PlayerLeft);
@@ -301,6 +355,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       seed: runSeed,
       players,
       pauseWaves: process.env.DEV_NO_WAVES === "1",
+      scenario: this.scenario,
     });
     this.controller = controller;
     const zombies = controller.world.zombies;
@@ -314,7 +369,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.setFixedTimestep(() => this.onTick(), TICK_RATE_HZ);
     this.pingTimer?.clear();
     this.pingTimer = this.clock.setInterval(() => this.ping(), PING_INTERVAL_MS);
+    this.waveStartMs = performance.now();
+    this.peakZombiesAlive = 0;
     this.log.info({ runSeed, players: players.length }, "run_started");
+    if (this.scenario) {
+      this.state.scenario = this.scenario;
+      this.log.info({ scenario: this.scenario, startWave: controller.world.waves.number + 1 }, "test_scenario_started");
+    }
   }
 
   /**
@@ -331,9 +392,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.forwardEvents(controller.world.tick, events);
     this.sendHorde(controller.world);
     this.slowTicks?.observe(performance.now() - t0, controller.world.tick);
+    const alive = controller.world.zombies.aliveCount;
+    if (alive > this.peakZombiesAlive) this.peakZombiesAlive = alive;
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
-      if (e.type === "wave.ended") this.logHordeStats(e.number);
+      if (e.type === "wave.started") this.startWaveStats();
+      else if (e.type === "wave.ended") this.logWaveStats(e.number);
       else if (e.type === "team.wiped") this.endRun(controller, e.wave);
     }
     this.tickErrors = 0;
@@ -406,6 +470,67 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       const stats = this.hordeStats.get(member.playerId);
       if (!at || !stats) continue;
       horde.send(world, client, stats, at.x, at.y);
+    }
+  }
+
+  /**
+   * Story 2.10, `wave.started`: every per-wave counter restarts (`net_stats` averages and peaks,
+   * `horde_stats`, `tick_stats`), so the lines on `wave.ended` cover exactly that wave.
+   */
+  private startWaveStats(): void {
+    const now = performance.now();
+    this.waveStartMs = now;
+    this.peakZombiesAlive = 0;
+    for (const m of this.netMeters.values()) {
+      m.out.mark(now);
+      m.in.mark(now);
+    }
+    for (const s of this.hordeStats.values()) {
+      s.framesSent = 0;
+      s.framesSkipped = 0;
+      s.bytesSent = 0;
+    }
+    this.slowTicks?.takeWindow();
+    this.slowPatches?.takeWindow();
+  }
+
+  /** On `wave.ended`: `net_stats` per player and `tick_stats` (2.10), `horde_stats` (2.5). */
+  private logWaveStats(wave: number): void {
+    this.logNetStats(wave);
+    this.logHordeStats(wave);
+    const tick = this.slowTicks?.takeWindow();
+    const patch = this.slowPatches?.takeWindow();
+    if (tick && patch) {
+      this.log.info(
+        { wave, peakZombiesAlive: this.peakZombiesAlive, ticks: tick.ticks, tickAvgMs: tick.avgMs, tickMaxMs: tick.maxMs, slowTicks: tick.slow, patchAvgMs: patch.avgMs, patchMaxMs: patch.maxMs, slowPatches: patch.slow },
+        "tick_stats",
+      );
+    }
+  }
+
+  /**
+   * `net_stats` per player (Story 2.10): payload KB/s (KB = 1024 B) sent to and received from that
+   * client since the wave started, the busiest second, the RTT, and how much of the download was
+   * the horde stream (`hordeKBps`; the rest is state patches and events).
+   */
+  private logNetStats(wave: number): void {
+    const now = performance.now();
+    const waveS = (now - this.waveStartMs) / 1000;
+    for (const [sessionId, m] of this.netMeters) {
+      const member = this.members.get(sessionId);
+      if (!member) continue;
+      this.log.info(
+        {
+          wave,
+          playerId: member.playerId,
+          avgOutKBps: round1(m.out.avgKBps(now)),
+          peakOutKBps: round1(m.out.peakKBps(now)),
+          avgInKBps: round1(m.in.avgKBps(now)),
+          hordeKBps: round1(waveS > 0 ? (this.hordeStats.get(member.playerId)?.bytesSent ?? 0) / 1024 / waveS : 0),
+          rttMs: Math.round(member.rttMs),
+        },
+        "net_stats",
+      );
     }
   }
 
