@@ -526,6 +526,8 @@ export class GameScene extends Phaser.Scene {
         this.showSoloResults(e.wave);
       } else if (e.type === "zombie.killed" && e.killerId === localId) {
         this.kills++;
+      } else if (e.type === "money.earned" && e.playerId === localId) {
+        this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame
       } else if (e.type === "weapon.fired" && e.playerId === localId) {
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
@@ -555,6 +557,9 @@ export class GameScene extends Phaser.Scene {
       recordSimFrame(host.stats, host.world.zombies, m.camX, m.camY, this.scale.width / m.camZoom, this.scale.height / m.camZoom);
       this.hudModel.hp = player.hp;
       this.hudModel.maxHp = player.maxHp;
+      this.hudModel.money = player.wallet;
+      this.hudModel.localX = viewOf.x;
+      this.hudModel.localY = viewOf.y;
       const slot = activeSlot(player.loadout);
       const stats = weaponStats(host.world.balance, slot.weapon);
       if (slot.weapon !== this.hudWeaponId) {

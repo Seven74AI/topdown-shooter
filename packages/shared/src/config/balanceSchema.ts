@@ -108,6 +108,22 @@ export const controlsSchema = z
   })
   .strict();
 
+/** Story 3.2: personal wallets and rewards (GDD › Economy and Resources). Kill rewards live on the zombie types. */
+export const economySchema = z
+  .object({
+    /** Every player's wallet at run start (FR12). */
+    startingWallet: z.number().int().min(0),
+    /** An assist (damaging a zombie a teammate kills) pays this share of the kill reward, rounded down (FR45). */
+    assistShare: z.number().min(0).max(1),
+    /** Paid to the reviver when a revive completes. */
+    reviveReward: z.number().int().min(0),
+    /** Wave N cleared pays N × this to every player in the run (downed and out included). */
+    waveClearBonusPerWave: z.number().int().min(0),
+    /** Story 3.6: a building's kill pays its owner this share of the kill reward, rounded down. */
+    buildingKillShare: z.number().min(0).max(1),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -115,6 +131,7 @@ export const balanceFileSchemas = {
   waves: wavesSchema,
   player: playerSchema,
   controls: controlsSchema,
+  economy: economySchema,
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;

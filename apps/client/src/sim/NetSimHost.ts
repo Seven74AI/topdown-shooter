@@ -480,6 +480,9 @@ export class NetSimHost implements SimHost {
     p.maxHp = s.maxHp;
     p.status = s.status;
     this.applyDowned(p, s);
+    // Story 3.2: money is server truth (schema), never predicted.
+    p.wallet = s.wallet;
+    p.earned = s.earned;
     const lo = p.loadout;
     lo.active = s.active === 1 ? 1 : 0;
     lo.swapTicks = s.swapTicks;

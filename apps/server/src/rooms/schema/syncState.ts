@@ -38,7 +38,14 @@ function visitPlayer(p: SimPlayer): void {
   if (s && pass.controller) {
     syncPlayer(s, p, pass.controller.ackSeq(p.id));
     syncDowned(s, p, pass.controller.kills(p.id));
+    syncWallet(s, p);
   }
+}
+
+/** Story 3.2: wallet and earned total (integers; assigned only when they change). */
+function syncWallet(s: PlayerState, p: SimPlayer): void {
+  if (s.wallet !== p.wallet) s.wallet = p.wallet;
+  if (s.earned !== p.earned) s.earned = p.earned;
 }
 
 /** Story 2.8: countdown, revive progress (0–255) and kills. */
@@ -109,4 +116,6 @@ function resetPlayer(s: PlayerState): void {
   s.downedTicksLeft = 0;
   s.reviveProgress = 0;
   s.kills = 0;
+  s.wallet = 0;
+  s.earned = 0;
 }

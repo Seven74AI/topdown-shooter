@@ -39,6 +39,11 @@ export const PlayerState = schema(
     reviveProgress: t.uint8().default(0),
     /** Zombies killed this run. */
     kills: t.uint16().default(0),
+    // Story 3.2: the personal wallet. Only the server's economy system changes it.
+    /** Spendable currency. */
+    wallet: t.uint32().default(0),
+    /** Everything earned this run (never reduced by spending). */
+    earned: t.uint32().default(0),
   },
   "PlayerState",
 );

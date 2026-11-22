@@ -9,6 +9,7 @@ import { createProjectilePool, type ProjectilePool } from "../combat/projectileP
 import { createZombiePool, type ZombiePool } from "../zombies/zombiePool";
 import { createSpatialGrid, type SpatialGrid } from "./spatialGrid";
 import { EventBus } from "./eventBus";
+import { createEconomyState, type EconomyState } from "../economy/economy";
 import { createRng, type Rng } from "./rng";
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
 
@@ -43,6 +44,8 @@ export interface World {
   readonly debug: WorldDebug;
   /** Story 2.8: no player was standing; `team.wiped` was emitted (once). The run is over. */
   teamWiped: boolean;
+  /** Story 3.2: who damaged each zombie (assist credit). Wallets live on the players. */
+  readonly economy: EconomyState;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -85,6 +88,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     waves: createWaveState(opts.balance),
     debug: { godMode: false },
     teamWiped: false,
+    economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

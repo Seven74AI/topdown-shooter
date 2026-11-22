@@ -13,7 +13,7 @@ export {
 export { err, ok, type Result } from "./core/result";
 export { createRng, createRngFromState, type Rng, type RngState } from "./core/rng";
 export { EventBus, type EventHandler } from "./core/eventBus";
-export type { SimEvent, SimEventType } from "./core/simEvents";
+export { MONEY_REASONS, type MoneyReason, type SimEvent, type SimEventType } from "./core/simEvents";
 export { canonicalJson, fnv1a32 } from "./core/hash";
 export {
   BalanceError,
@@ -131,3 +131,15 @@ export {
 export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
 export type { PlayerStateView, ReadonlyMapView, RunStateView } from "./net/stateView";
+// Story 3.2: personal wallets and rewards.
+export {
+  MAX_DAMAGERS,
+  clearDamagers,
+  earn,
+  payKill,
+  recordDamager,
+  spendMoney,
+  updateEconomy,
+  type EconomyState,
+  type SpendError,
+} from "./economy/economy";
