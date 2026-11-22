@@ -78,7 +78,7 @@ development_status:
   2-9-player-rings-and-teammate-arrows: done
   2-10-4-phone-4g-test: review  # human: playtest/spec, not a dev-agent story
   2-11-in-run-menu: done
-  2-12-rewound-hit-testing: backlog  # 2.10 AC 3 follow-up: netsim 5.3 % reversed when kiting (150 ms, 150 Walkers); build after Epic 3, cancel if the 4-phone test is < 5 %
+  2-12-rewound-hit-testing: backlog  # 2.10 AC 3 follow-up: netsim 5.3 % reversed kiting Walkers, 28.9 % kiting Runners (3.8) at 150 ms: build now (decision 2026-11-22)
   epic-2-retrospective: done
 
   # Epic 3: Build phase and economy
