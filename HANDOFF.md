@@ -1,6 +1,6 @@
 # Handoff: topdown-shooter
 
-Session handoff, updated 2026-11-21 (end of the second long session). **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom.
+Session handoff, updated 2026-11-22 (end of the third session: Epic 2 coding done). **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom.
 
 ## 1. The project in one paragraph
 
@@ -13,7 +13,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | Brief, GDD, Architecture, Epics (10 epics, 101 stories) | ✅ | `_bmad-output/planning-artifacts/` |
 | Implementation readiness + fixes | ✅ READY | `implementation-readiness-report-2026-11-21.md` |
 | **Epic 1, core combat on one phone** | ✅ code done and reviewed (1.1–1.11 done); two **human** steps open (see §5) | story files `_bmad-output/implementation-artifacts/1-*.md` |
-| **Epic 2, online co-op** | 🔨 in progress. 2.1 ✅ and 2.3 ✅. 2.2 (deploy): code and review fixes done, **waiting for the VPS go-live**. 2.4 (server runs the fight): code done and reviewed, **4 open review items**. 2.5–2.11 ready-for-dev | `2-*.md`, `sprint-status.yaml` |
+| **Epic 2, online co-op** | 🔨 coding done: 2.1, 2.3–2.9, 2.11 ✅ (each reviewed by a fresh agent, fixes in the story files). 2.2 (deploy) **waits for the VPS go-live**. 2.10: dev parts (overlay, counters, bots, results doc) built in this session's last step (check its status); **the 4-phone 4G test itself is the designer's** | `2-*.md`, `sprint-status.yaml` |
 | Epics 3–10 | backlog (stories written at the start of each epic, from the real code) | `epics.md` |
 
 `_bmad-output/implementation-artifacts/sprint-status.yaml` is the source of truth for story status.
@@ -21,7 +21,9 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 **What the game does today** (play it: GitHub Pages link in §5, or `npm run dev`):
 - Solo (offline): twin-stick touch controls with aim assist, WASD + mouse on desktop; Pistol, SMG, Hunting Rifle, Machete (2 slots + swap button); Walkers in growing waves (N × 40, 150 alive cap, last 5 marked and rushing); health, Game over, Restart.
 - Debug: `?debug=1` overlay (FPS, tick ms), `?stress=150` phone benchmark, `?loadout=a,b`, `?tune=1` live control tuning, dev-only cheats (⚙ / backtick).
-- Online (needs the game server: `npm run dev` locally, or the VPS once live): Create game → 4-letter code + share link `/j/<code>` → friends join → Ready → Start → the server runs the fight at 20 Hz and every phone shows all players. **Zombies are not drawn online yet** (horde stream = Story 2.5); no prediction yet (2.6).
+- Online (needs the game server: `npm run dev` locally, or the VPS once live): Create game → 4-letter code + share link `/j/<code>` → friends join → Ready → Start → the server runs the fight at 20 Hz.
+  - Zombies streamed in binary (2.5, ~24 KB/s per phone with 150 in view); own survivor predicted, others 100–150 ms behind (2.6); own shots instant, hits decided by the server (2.7); downed / revive / out / team wipe → Results → Back to lobby in the same room (2.8); slot-coloured rings, names, teammate edge arrows (2.9); ☰ / Esc in-run menu, Leave (2.11; pauses solo only).
+  - `?lag=<rttMs>&jitter=<ms>` simulates a bad connection (dev throttle, release builds too).
 
 ## 3. How we work (keep doing this)
 
@@ -30,6 +32,8 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 - **Pushing:** the designer allowed pushing to `master` ("you can push"). Work happens on the session's `claude/...` branch; reviewed work is fast-forwarded to `master`.
 - `.claude/worktrees/` is gitignored (agent worktrees live there).
 - Verify in a real browser (Playwright + preinstalled Chromium) for anything visual; say plainly what wasn't verified.
+
+**Session 3 notes:** the Agent tool's `isolation: "worktree"` is denied here, so create worktrees by hand (`git worktree add -b story-x-y .claude/worktrees/story-x-y claude/epic-2-continue`) and tell each builder its path; give each agent its own server/Vite ports (temporary Vite config merging `apps/client/vite.config.ts` with a `/api` proxy). Check `git status` before committing a merge (an unstaged fix slipped out once). Python Playwright + Chromium are preinstalled; `window.__game.loop.sleep()/wake()` simulates a hidden tab.
 
 **Lessons the reviews keep finding (tell builders up front):** simulation timers count ticks (no float seconds); fire cooldown rule in `combat/firing.ts`; no per-frame / per-tick allocation; edge flags (swap/consumable) fire once per input seq and `LocalSimHost` latches them; Phaser 4 ≠ Phaser 3 (verify in `node_modules/phaser/types`; e.g. `setTint` + `setTintMode`); Phaser reuses scene objects on restart (reset state in `create`, pass restart data); tests of one mechanic pass `systems: { waves: () => {} }`; Colyseus: never pass zod to `onMessage` (use `this.net.guard`), join refusals are `ServerError(526, reason)`, use `bootTestServer()`; exact version pins (`.npmrc save-exact`); no gameplay numbers inline (balance JSON).
 
@@ -40,6 +44,8 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 - **Hermes = deploy and report only.** On 2026-11-21 Hermes built its own version of Story 2.2 in parallel; the designer chose the reviewed version from this repo, and Hermes's commit was dropped from `master`. From now on, stories are built here and Hermes only deploys (`docs/deploy.md`) and reports results. Hermes already made Story 2.1 live: `topdown-server.service` on :2567, with Caddy routing `/api`.
 - **Hosting:** the designer's VPS (also runs the **Hermes** agent). Game at **https://hordes.sevend.io**. Docker Compose (Docker is installed). HTTPS/WSS by the existing **Cloudflare Tunnel** `sevend-io-stream` → 127.0.0.1:8080; Caddy plain HTTP behind it. The cloud session **cannot reach the VPS**: go-live steps run on the VPS (Hermes).
 - **Epic 2 designer decisions (2026-11-21):** downed countdown pauses while being revived; in-run menu pauses solo, online keeps running.
+- **2026-11-22:** revive stays 3 s at full zombie damage ("improve yourself"; seeded sims: with the Pistol a revive almost never succeeds, with the SMG ~46 %; all Pistol runs wipe in wave 2 → for the Epic 3 balance pass); a downed player's gun keeps reloading.
+- **Netcode (2.4–2.7):** the server applies one input per tick; a lasting backlog drains after 2 s (skip every 2nd tick back to 2 queued); starved ticks hold still and pause the player's weapon; dropped inputs get a dry weapon tick only against "weapon debt" from earlier starved ticks (no speed-up from input floods). Reversed hits (harness): 0 % standing, ~1–3 % kiting at 150 ms, ~8 % kiting at 300 ms → 2.10 decides on the rewind upgrade.
 - **GitHub Pages:** kept TEMPORARILY in CI (`pages` / `deploy-pages` jobs) because the Epic 1 playtest links point there; remove once the VPS is verified (docs/deploy.md step 7).
 
 ## 5. Open items for the designer (human steps)
@@ -55,10 +61,11 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## 7. Next steps for the new session
 
-1. Read `sprint-status.yaml` and the open story files: **2.4**, whose "Senior Developer Review (AI)" section has 4 unticked items. The input-backlog drain matters most, before 2.6. Fix them, then mark 2.4 done. **2.2** has its review fixes merged and waits for the VPS.
-2. First small fix: `apps/server/src/test/bootTestServer.ts` uses fixed ports (2600 + pool id), which collide when parallel agents run tests at the same time. Use random free ports.
-3. Continue Epic 2 with parallel agents: **2.5 horde stream** (zombies drawn online) next; 2.6 prediction, 2.7 server-confirmed hits, 2.8 downed/revive, 2.9 rings + teammate arrows, 2.11 in-run menu can partly run in parallel (check file overlap; each story file has integration notes). 2.10 is the designer's 4-phone 4G test.
-4. After the VPS is live: point the playtest links at hordes.sevend.io and remove the temporary Pages CI jobs.
+1. **Story 2.10:** if its dev parts are in `review`, have a fresh agent review them, fix, push. Then the designer runs the 4-phone test (how-to in `docs/perf/epic-2-network.md`) and reports numbers; record them; if reversed hits ≥ 1 in 20, create the rewind follow-up story (AC 3).
+2. **VPS go-live (2.2):** unchanged, see §5/§6. `master` now also carries all of Epic 2's online play, so the go-live is the first real-internet run.
+3. After both: Epic 2 retrospective (`gds-retrospective`), point playtest links at hordes.sevend.io, remove the temporary Pages CI jobs (docs/deploy.md step 7).
+4. Then Epic 3 (build phase, shop, economy): write its stories from the real code (`gds-create-story`), same parallel-worktree loop.
+5. Small known leftovers (noted in story files): stacked teammate arrows when close together (8.7), return spot has no free-spot search (needed with Epic 4 buildings), "Reviving…" line from the mirror can disagree near 1.2 m, zombie hit flash isn't paused in solo pause.
 
 ## 8. How the designer likes to work
 
@@ -78,4 +85,4 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## Prompt for the new session
 
-> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. Epic 1 is done (two human steps open), Epic 2 is in progress. Next: finish Story 2.4's review fixes, then continue Epic 2 (2.5 horde stream next) with parallel agents in worktrees, reviewing every story with a fresh agent before pushing to master. Keep working in facilitative mode as described in the handoff.
+> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it. Epic 1 is done (two human steps open); Epic 2's coding is done (2.2 waits for the VPS, 2.10 for the 4-phone test). Next: finish Story 2.10's dev review, help me run the 4-phone test and the VPS go-live, then the Epic 2 retrospective and Epic 3, with parallel agents in worktrees and a fresh-agent review of every story before pushing to master. Keep working in facilitative mode as described in the handoff.
