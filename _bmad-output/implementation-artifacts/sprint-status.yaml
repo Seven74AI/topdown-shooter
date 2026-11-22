@@ -77,7 +77,7 @@ development_status:
   2-8-downed-revive-and-team-wipe: done
   2-9-player-rings-and-teammate-arrows: done
   2-10-4-phone-4g-test: ready-for-dev  # human: playtest/spec, not a dev-agent story
-  2-11-in-run-menu: ready-for-dev
+  2-11-in-run-menu: review
   epic-2-retrospective: optional
 
   # Epic 3: Build phase and economy

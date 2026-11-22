@@ -117,3 +117,13 @@ export interface RunJoined {
   slot: number;
   tickRateHz: number;
 }
+
+/** Why a player left (Story 2.11): `left` = a consented leave (Leave game), else `disconnected`. */
+export type PlayerLeftReason = "left" | "disconnected";
+
+/** `player.left` payload (Story 2.11), broadcast to the room in the lobby and during a run. */
+export interface PlayerLeft {
+  playerId: string;
+  name: string;
+  reason: PlayerLeftReason;
+}

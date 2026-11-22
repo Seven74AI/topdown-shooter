@@ -11,8 +11,10 @@ const MIN_AIM_DIST_M = 1e-3;
  */
 export class KeyboardMouse {
   private readonly heldCodes = new Set<string>();
-  private readonly heldCount: Record<KeyAction, number> = { up: 0, down: 0, left: 0, right: 0, swap: 0 };
+  private readonly heldCount: Record<KeyAction, number> = { up: 0, down: 0, left: 0, right: 0, swap: 0, menu: 0 };
   private swapLatched = false;
+  /** Esc pressed since the last `takeMenu()` (Story 2.11). Kept through `releaseAll`: a press is an intent. */
+  private menuLatched = false;
   leftButton = false;
   private readonly move: Vec2 = { x: 0, y: 0 };
   /** Last aim direction (unit), kept while the cursor sits on the survivor. */
@@ -28,6 +30,7 @@ export class KeyboardMouse {
     this.heldCodes.add(code);
     this.heldCount[action]++;
     if (action === "swap" && !repeat) this.swapLatched = true;
+    if (action === "menu" && !repeat) this.menuLatched = true;
     return true;
   }
 
@@ -42,7 +45,7 @@ export class KeyboardMouse {
   releaseAll(): void {
     this.heldCodes.clear();
     const c = this.heldCount;
-    c.up = c.down = c.left = c.right = c.swap = 0;
+    c.up = c.down = c.left = c.right = c.swap = c.menu = 0;
     this.leftButton = false;
     this.swapLatched = false;
   }
@@ -52,6 +55,13 @@ export class KeyboardMouse {
     const s = this.swapLatched;
     this.swapLatched = false;
     return s;
+  }
+
+  /** True once per Esc press (Story 2.11: toggles the in-run menu); clears the latch. */
+  takeMenu(): boolean {
+    const m = this.menuLatched;
+    this.menuLatched = false;
+    return m;
   }
 
   /** Normalized WASD/arrow vector (+y down); the returned object is reused. */

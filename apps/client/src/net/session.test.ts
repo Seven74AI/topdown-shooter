@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { C2S, NET_EVENT_KIND, S2C, type SimEventsFlushed } from "@topdown/shared";
-import { EARLY_EVENT_BATCHES_MAX, NetSession, RunInbox } from "./session";
+import { EARLY_EVENT_BATCHES_MAX, NetSession, RunInbox, parsePlayerLeft } from "./session";
 import { FakeRoom } from "./fakeRoom";
 
 const joined = { playerId: "p1", slot: 1, tickRateHz: 20 };
@@ -60,5 +60,27 @@ describe("NetSession (Story 2.4 review: events before the Game scene exists)", (
     session.leave();
     expect(leaves).toBe(1);
     expect([...room.handlers.values()].every((l) => l.length === 0)).toBe(true);
+  });
+});
+
+describe("player.left (Story 2.11)", () => {
+  it("goes to the listener, well-formed only; dropped while no one listens", () => {
+    const room = new FakeRoom();
+    const session = new NetSession(room, joined, () => {});
+    room.deliver(S2C.PLAYER_LEFT, { playerId: "p2", name: "Cy", reason: "left" }); // lobby: no toast
+    const got: unknown[] = [];
+    const off = session.onPlayerLeft((m) => got.push(m));
+    room.deliver(S2C.PLAYER_LEFT, { playerId: "p2", name: "Cy", reason: "disconnected" });
+    room.deliver(S2C.PLAYER_LEFT, { playerId: "p3", name: 7, reason: "left" });
+    expect(got).toEqual([{ playerId: "p2", name: "Cy", reason: "disconnected" }]);
+    off();
+    room.deliver(S2C.PLAYER_LEFT, { playerId: "p0", name: "Ana", reason: "left" });
+    expect(got).toHaveLength(1);
+  });
+
+  it("parsePlayerLeft checks the reason", () => {
+    expect(parsePlayerLeft({ playerId: "p1", name: "Bo", reason: "left" })).toEqual({ playerId: "p1", name: "Bo", reason: "left" });
+    expect(parsePlayerLeft({ playerId: "p1", name: "Bo", reason: "kicked" })).toBeNull();
+    expect(parsePlayerLeft(null)).toBeNull();
   });
 });

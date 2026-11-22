@@ -19,6 +19,14 @@ export interface HudModel {
   swapFrac: number;
   /** Set by the HUD when the swap button is pressed; the GameScene consumes it. */
   swapPressed: boolean;
+  /** Story 2.11: set by the HUD when ☰ is pressed; the GameScene consumes it. */
+  menuPressed: boolean;
+  /** ☰ is shown (a run is on screen: not in the loadout picker, not on Results). */
+  menuButton: boolean;
+  /** The in-run menu is open (the HUD drops held sticks and buttons when it opens). */
+  menuOpen: boolean;
+  /** Story 2.11: the toast line under the wave text ("Bo left"), "" when none. */
+  toastText: string;
   /** Current wave number (0 before wave 1) and zombies remaining (alive + queued). */
   wave: number;
   remaining: number;
@@ -73,6 +81,10 @@ export const createHudModel = (): HudModel => ({
   otherMag: 0,
   swapFrac: -1,
   swapPressed: false,
+  menuPressed: false,
+  menuButton: false,
+  menuOpen: false,
+  toastText: "",
   wave: 0,
   remaining: 0,
   bannerText: "",

@@ -3,9 +3,9 @@
  * other layouts). One table so later shortcuts slot in:
  * - `KeyE` → "consumable" (Story 5.12)
  * - `KeyF` → "ping" (Story 8.7)
- * - `Escape` → "menu" (Story 2.11)
+ * - `Escape` → "menu" (Story 2.11: opens and closes the in-run menu; never game input)
  */
-export type KeyAction = "up" | "down" | "left" | "right" | "swap";
+export type KeyAction = "up" | "down" | "left" | "right" | "swap" | "menu";
 
 export const KEY_MAP: Readonly<Record<string, KeyAction>> = Object.freeze({
   KeyW: "up",
@@ -17,6 +17,7 @@ export const KEY_MAP: Readonly<Record<string, KeyAction>> = Object.freeze({
   ArrowLeft: "left",
   ArrowRight: "right",
   KeyQ: "swap",
+  Escape: "menu",
 });
 
 /** The action bound to a key code, or undefined if the game doesn't use the key. */

@@ -52,6 +52,13 @@ describe("InputRouter", () => {
     expect(r.build(input(), false, 5, 5, 8, 9).fire).toBe(false);
   });
 
+  it("Esc (the in-run menu, Story 2.11) keeps touch mode", () => {
+    const r = router();
+    expect(r.keyDown("Escape")).toBe(true);
+    expect(r.isMouse).toBe(false);
+    expect(r.kbm.takeMenu()).toBe(true);
+  });
+
   it("a mouse click on a HUD button switches to mouse but does not fire", () => {
     const r = router();
     r.pointerDown(0, 700, 300, false, 0, true, W);

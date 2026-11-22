@@ -122,6 +122,8 @@ export {
   type NetPinged,
   type NetPong,
   type ParsedJoinOptions,
+  type PlayerLeft,
+  type PlayerLeftReason,
   type RunJoined,
   type RunPhase,
   type S2CType,

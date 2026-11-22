@@ -73,6 +73,20 @@ describe("KeyboardMouse", () => {
     expect(k.takeSwap()).toBe(true);
   });
 
+  it("Esc gives one menu edge per press (Story 2.11), never a move, swap or source change", () => {
+    const k = new KeyboardMouse();
+    expect(k.keyDown("Escape")).toBe(true); // bound: the caller prevents the browser default
+    k.keyDown("Escape", true);
+    expect(k.takeMenu()).toBe(true);
+    expect(k.takeMenu()).toBe(false);
+    expect(k.takeSwap()).toBe(false);
+    expect(k.moveVector()).toEqual({ x: 0, y: 0 });
+    k.keyUp("Escape");
+    k.keyDown("Escape");
+    k.releaseAll(); // a blur right after the press keeps it
+    expect(k.takeMenu()).toBe(true);
+  });
+
   it("releaseAll drops held keys and the mouse button (window blur)", () => {
     const k = new KeyboardMouse();
     k.keyDown("KeyA");

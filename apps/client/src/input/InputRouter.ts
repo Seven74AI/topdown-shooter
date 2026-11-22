@@ -1,5 +1,6 @@
 import type { PlayerInput } from "@topdown/shared";
 import { KeyboardMouse } from "./KeyboardMouse";
+import { keyAction } from "./keyMap";
 import { selectSource, type InputSource, type SourceEvent } from "./selectSource";
 import type { TouchSticks } from "./TouchSticks";
 
@@ -92,7 +93,8 @@ export class InputRouter {
   /** Returns true if the key is bound (the caller prevents the browser default). */
   keyDown(code: string, repeat = false): boolean {
     const handled = this.kbm.keyDown(code, repeat);
-    if (handled && !repeat) this.apply("key");
+    // Esc (the in-run menu, Story 2.11) is not play: it never switches a touch player to the mouse.
+    if (handled && !repeat && keyAction(code) !== "menu") this.apply("key");
     return handled;
   }
 

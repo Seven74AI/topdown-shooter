@@ -191,4 +191,17 @@ describe("lobbyStore", () => {
     expect(lobbyStore.fightRoom()).toBe(f.room);
     lobbyStore.leave();
   });
+
+  it("leave(room) leaves only that room: a stale session's leave never leaves a newer room (Story 2.11)", () => {
+    const old = fakeRoom();
+    lobbyStore.attach(old.room, { watch: () => () => {}, onLost: vi.fn(), onPhase: vi.fn() });
+    expect(lobbyStore.leave(old.room)).toBe(true);
+    expect(old.raw.leave).toHaveBeenCalledWith(true);
+    const now = fakeRoom();
+    lobbyStore.attach(now.room, { watch: () => () => {}, onLost: vi.fn(), onPhase: vi.fn() });
+    expect(lobbyStore.leave(old.room)).toBe(false); // the first run's session, disposed late
+    expect(lobbyStore.current()).toBe(now.room);
+    expect(now.raw.leave).not.toHaveBeenCalled();
+    lobbyStore.leave();
+  });
 });
