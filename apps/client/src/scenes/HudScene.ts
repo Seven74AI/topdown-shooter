@@ -11,10 +11,14 @@ import {
   READY_BUTTON_W_CSS_PX,
   PLACE_BUTTON_CSS_PX,
   PLACE_BUTTON_GAP_CSS_PX,
+  REPAIR_BUTTON_W_CSS_PX,
+  REPAIR_CLOSE_CSS_PX,
+  REPAIR_ROW_GAP_CSS_PX,
   SHOP_BUTTON_GAP_CSS_PX,
   SHOP_BUTTON_W_CSS_PX,
 } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
+import { TAP_SLOP_CSS_PX, TapDetector } from "../input/tapDetector";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
 import type { InputRouter } from "../input/InputRouter";
@@ -111,6 +115,11 @@ const HINT_TEXT_PX = 18;
 const HINT_GAP_PX = 10;
 const HINT_VALID = "#ffffff";
 const HINT_BLOCKED = "#ff8a80";
+/** Story 3.7: the repair panel (Repair's border when it would be accepted, its look when not). */
+const REPAIR_OK = 0x4caf50;
+const REPAIR_DIM_ALPHA = 0.55;
+const REPAIR_INFO_PX = 16;
+const REPAIR_REASON = "#ff8a80";
 /** Story 3.3: the Shop button's border (the money colour). */
 const SHOP_BORDER = 0xf5c542;
 /** Wave text → status line → toast line, CSS px from the top inset. */
@@ -194,6 +203,20 @@ export class HudScene extends Phaser.Scene {
   private shownHintValid: boolean | null = null;
   /** The pointer moving the preview (touch or mouse), or -1. */
   private placePointer = -1;
+  /** Story 3.7: the repair panel (info line, reason line, Repair, ✕) and the tap detector. */
+  private repairBtn!: Phaser.GameObjects.Graphics;
+  private repairText!: Phaser.GameObjects.Text;
+  private repairCloseBtn!: Phaser.GameObjects.Graphics;
+  private repairCloseGlyph!: Phaser.GameObjects.Text;
+  private repairInfo!: Phaser.GameObjects.Text;
+  private repairReason!: Phaser.GameObjects.Text;
+  private shownRepairOpen: boolean | null = null;
+  private shownRepairInfo = "";
+  private shownRepairReason = "";
+  private shownRepairLabel = "";
+  /** -1 = not drawn yet, 0 = dimmed, 1 = valid. */
+  private shownRepairValid = -1;
+  private readonly taps = new TapDetector();
   /** Safe-area insets (CSS px), measured on create and resize only (getComputedStyle is costly). */
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
   private shownSwapVisible: boolean | null = null;
@@ -264,6 +287,12 @@ export class HudScene extends Phaser.Scene {
     this.shownHint = "";
     this.shownHintValid = null;
     this.placePointer = -1;
+    this.shownRepairOpen = null;
+    this.shownRepairInfo = "";
+    this.shownRepairReason = "";
+    this.shownRepairLabel = "";
+    this.shownRepairValid = -1;
+    this.taps.reset();
   }
 
   create(): void {
@@ -328,6 +357,23 @@ export class HudScene extends Phaser.Scene {
     this.shopLabel = this.add.text(0, 0, "Shop", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
     this.buttons.set({ id: "shop", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.shopPressed = true;
+    });
+    // Story 3.7: the repair panel (one row above Ready / Shop; a touch on its buttons never starts a stick).
+    this.repairBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.repairText = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.repairCloseBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.repairCloseGlyph = this.add.text(0, 0, "✕", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.repairInfo = this.add.text(0, 0, "", this.outlinedStyle(REPAIR_INFO_PX)).setOrigin(0, 0.5).setDepth(1002).setVisible(false);
+    this.repairReason = this.add
+      .text(0, 0, "", { ...this.outlinedStyle(REPAIR_INFO_PX), color: REPAIR_REASON })
+      .setOrigin(0, 1)
+      .setDepth(1002)
+      .setVisible(false);
+    this.buttons.set({ id: "repair", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.repairPressed = true;
+    });
+    this.buttons.set({ id: "repairClose", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.repairClosePressed = true;
     });
     this.layoutButtons();
     this.reloadBar = this.add.graphics();
@@ -402,17 +448,29 @@ export class HudScene extends Phaser.Scene {
         return;
       }
       hudPointerDown(this.buttons, this.router, p, this.scale.width);
+      // Story 3.7: the tap detector only watches (the stick or the mouse fire already started as usual).
+      this.taps.down(p.id, p.x, p.y, this.time.now, !this.buttons.owns(p.id));
     };
     const move = (p: Phaser.Input.Pointer) => {
       if (this.model.placementActive && p.id === this.placePointer) this.placeTap(p.x, p.y);
+      this.taps.move(p.id, p.x, p.y, TAP_SLOP_CSS_PX * dpr());
       hudPointerMove(this.buttons, this.router, p);
     };
     const up = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // touchend is the activation event on iOS/Chrome; touchstart alone may not unlock
       if (p.id === this.placePointer) this.placePointer = -1;
+      if (this.taps.up(p.id, p.x, p.y, this.time.now, TAP_SLOP_CSS_PX * dpr()) && this.model.tapsEnabled) {
+        const m = this.model;
+        m.worldTap = true;
+        m.worldTapX = this.taps.tapX;
+        m.worldTapY = this.taps.tapY;
+      }
       hudPointerUp(this.buttons, this.router, p);
     };
-    const reset = () => hudPointerReset(this.buttons, this.router);
+    const reset = () => {
+      hudPointerReset(this.buttons, this.router);
+      this.taps.reset();
+    };
     this.input.on(Phaser.Input.Events.POINTER_DOWN, down);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, move);
     this.input.on(Phaser.Input.Events.POINTER_UP, up);
@@ -494,6 +552,85 @@ export class HudScene extends Phaser.Scene {
     this.layoutMenuButton();
     this.layoutReadyButton();
     this.layoutPlacementButtons();
+    this.layoutRepairPanel();
+  }
+
+  /**
+   * Story 3.7: Repair and ✕ in a row centred one row above Ready / Shop; the info (two lines) right
+   * of ✕ and the reason above it, so the texts stay clear of the survivor at the screen centre.
+   */
+  private layoutRepairPanel(): void {
+    const k = dpr();
+    const h = READY_BUTTON_H_CSS_PX * k;
+    const w = REPAIR_BUTTON_W_CSS_PX * k;
+    const cw = REPAIR_CLOSE_CSS_PX * k;
+    const gap = REPAIR_ROW_GAP_CSS_PX * k;
+    const readyTop = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k - h;
+    const y = readyTop - gap - h;
+    const x = (this.scale.width - (w + gap + cw)) / 2;
+    const rect = this.buttons.get("repair");
+    if (rect) Object.assign(rect, { x, y, w, h });
+    this.repairBtn.setPosition(x, y);
+    this.repairText.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, y + h / 2);
+    const cx = x + w + gap;
+    const close = this.buttons.get("repairClose");
+    if (close) Object.assign(close, { x: cx, y, w: cw, h });
+    const g = this.repairCloseBtn;
+    g.clear();
+    g.fillStyle(PLACE_CANCEL, 0.85).fillRoundedRect(0, 0, cw, h, READY_RADIUS_PX * k);
+    g.lineStyle(READY_BORDER_PX * k, READY_BORDER, 0.9).strokeRoundedRect(0, 0, cw, h, READY_RADIUS_PX * k);
+    g.setPosition(cx, y);
+    this.repairCloseGlyph.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(cx + cw / 2, y + h / 2);
+    const tx = cx + cw + gap;
+    const lineH = REPAIR_INFO_PX * LINE_HEIGHT * k;
+    this.repairInfo.setFontSize(Math.round(REPAIR_INFO_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(tx, y + h / 2);
+    this.repairReason
+      .setFontSize(Math.round(REPAIR_INFO_PX * k))
+      .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
+      .setPosition(tx, y + h / 2 - lineH);
+    this.shownRepairValid = -1; // redraw at the new size
+  }
+
+  /** Story 3.7: shows, hides and updates the repair panel (only when what it shows changes). */
+  private drawRepair(): void {
+    const m = this.model;
+    const open = m.repairOpen;
+    if (open !== this.shownRepairOpen) {
+      this.shownRepairOpen = open;
+      this.buttons.setVisible("repair", open);
+      this.buttons.setVisible("repairClose", open);
+      this.repairBtn.setVisible(open);
+      this.repairText.setVisible(open);
+      this.repairCloseBtn.setVisible(open);
+      this.repairCloseGlyph.setVisible(open);
+      this.repairInfo.setVisible(open);
+      this.repairReason.setVisible(open);
+    }
+    if (!open) return;
+    if (m.repairInfo !== this.shownRepairInfo) {
+      this.shownRepairInfo = m.repairInfo;
+      this.repairInfo.setText(m.repairInfo);
+    }
+    if (m.repairReason !== this.shownRepairReason) {
+      this.shownRepairReason = m.repairReason;
+      this.repairReason.setText(m.repairReason);
+    }
+    if (m.repairLabel !== this.shownRepairLabel) {
+      this.shownRepairLabel = m.repairLabel;
+      this.repairText.setText(m.repairLabel);
+    }
+    const valid = m.repairReason === "" ? 1 : 0;
+    if (valid === this.shownRepairValid) return;
+    this.shownRepairValid = valid;
+    const k = dpr();
+    const w = REPAIR_BUTTON_W_CSS_PX * k;
+    const h = READY_BUTTON_H_CSS_PX * k;
+    const g = this.repairBtn;
+    g.clear();
+    g.fillStyle(valid ? PLACE_CONFIRM : READY_BG, valid ? 0.85 : READY_BG_ALPHA).fillRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
+    g.lineStyle(READY_BORDER_PX * k, valid ? REPAIR_OK : READY_BORDER, 0.9).strokeRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
+    g.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
+    this.repairText.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
   }
 
   /** Story 3.4: a placement touch at canvas (x, y) for the GameScene (it converts through the camera). */
@@ -756,6 +893,7 @@ export class HudScene extends Phaser.Scene {
     this.drawReady();
     this.drawPlacement();
     this.drawShop();
+    this.drawRepair();
     this.perfOverlay?.update();
   }
 
@@ -772,7 +910,10 @@ export class HudScene extends Phaser.Scene {
     }
     if (m.menuOpen !== this.shownMenuOpen) {
       this.shownMenuOpen = m.menuOpen;
-      if (m.menuOpen) hudPointerReset(this.buttons, this.router);
+      if (m.menuOpen) {
+        hudPointerReset(this.buttons, this.router);
+        this.taps.reset();
+      }
     }
     if (m.toastText !== this.shownToast) {
       this.shownToast = m.toastText;

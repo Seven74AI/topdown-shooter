@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { TICK_DT_S, ZOMBIE_STATE, addPlayer, createWorld, loadBalance, setBuildReady, startBuild, step, type World } from "@topdown/shared";
-import { clampSpawnCount, leaveLast, parseSeed } from "./devCheatActions";
+import { TICK_DT_S, ZOMBIE_STATE, addPlayer, createWorld, loadBalance, placeBuilding, setBuildReady, startBuild, step, type World } from "@topdown/shared";
+import { clampSpawnCount, damageNearestBuilding, leaveLast, parseSeed } from "./devCheatActions";
 
 const balance = loadBalance();
 
@@ -38,5 +38,23 @@ describe("dev cheat helpers", () => {
     expect(world.waves.rushing).toBe(true);
     const z = world.zombies;
     for (let i = 0; i < z.aliveCount; i++) expect(z.state[z.aliveIds[i] as number]).toBe(ZOMBIE_STATE.RUSH);
+  });
+});
+
+describe("damageNearestBuilding (Story 3.7)", () => {
+  it("takes half the max HP from the nearest building, never below 1; none → null", () => {
+    const world = createWorld({ balance: loadBalance(), seed: 1, systems: { waves: () => {} } });
+    addPlayer(world, "local", 10, 10);
+    startBuild(world);
+    expect(damageNearestBuilding(world, 10, 10, 0.5)).toBeNull();
+    const p = world.players.get("local");
+    if (p) p.wallet = 1000;
+    placeBuilding(world, "local", { type: "wood_barricade", gx: 20, gy: 20, rot: 0 });
+    placeBuilding(world, "local", { type: "wood_barricade", gx: 12, gy: 14, rot: 0 });
+    const b = damageNearestBuilding(world, 10, 10, 0.5);
+    expect([b?.gx, b?.hp]).toEqual([12, 100]);
+    damageNearestBuilding(world, 10, 10, 0.5);
+    expect(b?.hp).toBe(1);
+    expect(world.buildings.list.find((x) => x.gx === 20)?.hp).toBe(200);
   });
 });

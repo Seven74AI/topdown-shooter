@@ -3,7 +3,7 @@
  * (`weapon_pistol_fire` …) so Story 9.10 swaps in real recordings. iOS keeps audio locked until a
  * user gesture: call `unlockAudio()` from the first touch.
  */
-export type SfxName = "weapon_pistol_fire" | "weapon_machete_swing" | "weapon_reload_start" | "weapon_reloaded" | "zombie_hit";
+export type SfxName = "weapon_pistol_fire" | "weapon_machete_swing" | "weapon_reload_start" | "weapon_reloaded" | "zombie_hit" | "building_repaired";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -100,6 +100,10 @@ export function playSfx(name: SfxName): void {
       break;
     case "weapon_reloaded":
       click(c, t, 1200, 0.35);
+      break;
+    case "building_repaired": // Story 3.7: two hammer knocks
+      burst(c, t, 0.05, 0.6, 1200);
+      burst(c, t + 0.11, 0.05, 0.6, 1500);
       break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;

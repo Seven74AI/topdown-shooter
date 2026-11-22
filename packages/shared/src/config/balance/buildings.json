@@ -1,5 +1,6 @@
 {
   "maxPerPlayer": 6,
+  "repairShare": 0.5,
   "types": {
     "wood_barricade": {
       "name": "Wood barricade",

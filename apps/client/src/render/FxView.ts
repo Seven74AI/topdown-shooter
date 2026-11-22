@@ -13,6 +13,10 @@ const SWING_COLOR = 0xe8eef2;
 const SWING_ALPHA = 0.35;
 const DEG_TO_RAD = Math.PI / 180;
 const BLOOD = 0x5a0f0f;
+/** Story 3.7: a green ring that grows from the repaired building's centre. */
+const REPAIR_COLOR = 0x7cff8a;
+const REPAIR_RING_M = 0.6;
+const REPAIR_MS = 450;
 
 /**
  * The client-side event dispatcher for effects: hit flashes, blood splats, death puffs, muzzle
@@ -24,6 +28,7 @@ export class FxView {
   private readonly puffs: Phaser.GameObjects.Arc[] = [];
   private readonly flashes: Phaser.GameObjects.Arc[] = [];
   private readonly swings: Phaser.GameObjects.Graphics[] = [];
+  private readonly repairs: Phaser.GameObjects.Arc[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -54,6 +59,10 @@ export class FxView {
         break;
       case "weapon.reloaded":
         if (e.playerId === this.localPlayerId) playSfx("weapon_reloaded");
+        break;
+      case "building.repaired":
+        this.repaired(e.x, e.y);
+        if (e.playerId === this.localPlayerId) playSfx("building_repaired");
         break;
       default:
         break;
@@ -93,6 +102,18 @@ export class FxView {
     this.scene.tweens.add({ targets: m, alpha: 0, duration: MUZZLE_MS, onComplete: () => m.setVisible(false) });
   }
 
+  /** Story 3.7: a pooled green ring at a repaired building (stroke only, grows and fades). */
+  private repaired(x: number, y: number): void {
+    let r = this.repairs.find((o) => !o.visible);
+    if (!r) {
+      r = this.scene.add.circle(0, 0, REPAIR_RING_M).setStrokeStyle(0.1, REPAIR_COLOR, 1).setDepth(9).setVisible(false);
+      this.repairs.push(r);
+    }
+    const ring = r;
+    ring.setPosition(x, y).setScale(0.4).setAlpha(1).setVisible(true);
+    this.scene.tweens.add({ targets: ring, scale: 2, alpha: 0, duration: REPAIR_MS, onComplete: () => ring.setVisible(false) });
+  }
+
   /** Translucent arc wedge for a melee swing: a pooled Graphics, redrawn only on the swing, then hidden. */
   private swing(x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number): void {
     let g = this.swings.find((o) => !o.visible);
@@ -112,10 +133,11 @@ export class FxView {
   }
 
   destroy(): void {
-    for (const o of [...this.splats, ...this.puffs, ...this.flashes, ...this.swings]) o.destroy();
+    for (const o of [...this.splats, ...this.puffs, ...this.flashes, ...this.swings, ...this.repairs]) o.destroy();
     this.splats.length = 0;
     this.puffs.length = 0;
     this.flashes.length = 0;
     this.swings.length = 0;
+    this.repairs.length = 0;
   }
 }

@@ -181,6 +181,8 @@ export const buildingsSchema = z
   .object({
     /** Buildings one player may own at once (GDD: 6). */
     maxPerPlayer: z.number().int().min(1).max(64),
+    /** Story 3.7: a full repair costs this share of the building's price, rounded up (GDD: 50 %). */
+    repairShare: z.number().min(0).max(1),
     types: z.record(balanceId, buildingTypeSchema),
   })
   .strict();

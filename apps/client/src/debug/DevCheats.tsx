@@ -6,7 +6,7 @@ import type { GameScene } from "../scenes/GameScene";
 import { LOCAL_PLAYER_ID } from "../sim/LocalSimHost";
 import { perf } from "./perfStats";
 import { spawnInView, type ViewRect } from "./stressScenario";
-import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, leaveLast, parseSeed } from "./devCheatActions";
+import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, parseSeed } from "./devCheatActions";
 import "./DevCheats.css";
 
 /**
@@ -21,6 +21,8 @@ const RING_RADIUS_M = 8;
 const LEAVE_COUNT = 5;
 /** Story 3.3: "+500 money" for shop checks (solo). */
 const CHEAT_MONEY = 500;
+/** Story 3.7: "Damage nearest building 50 %" (until Story 3.5's zombies do it). */
+const CHEAT_BUILDING_DAMAGE = 0.5;
 /** Story 3.3: the dev loadout's "no second weapon" choice. */
 const NO_WEAPON = "";
 
@@ -137,6 +139,12 @@ function DevCheats({ game }: { game: Phaser.Game }) {
                   refresh();
                 }}>
                 +{CHEAT_MONEY} money
+              </button>
+              <button type="button" onClick={() => {
+                  if (w && p) damageNearestBuilding(w, p.x, p.y, CHEAT_BUILDING_DAMAGE); // Story 3.7: repair checks
+                  refresh();
+                }}>
+                Damage nearest building 50 %
               </button>
             </div>
           </fieldset>
