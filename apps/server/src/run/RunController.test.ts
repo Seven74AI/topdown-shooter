@@ -113,15 +113,21 @@ describe("RunController", () => {
     expect(c.ackSeq("p0")).toBe(3);
   });
 
-  it("an overflow keeps the dropped input's swap and consumable flags", () => {
+  it("an overflow keeps the dropped input's swap (at its own seq) and consumable flags", () => {
     const c = newController();
+    const p = c.world.players.get("p0");
+    if (!p) throw new Error("no p0");
+    setLoadout(balance, p.loadout, ["pistol", "smg"]);
     c.queueInput("p0", input(1, { swap: true }));
     c.queueInput("p0", input(2, { consumable: true }));
     for (let seq = 3; seq <= INPUT_QUEUE_MAX + 2; seq++) c.queueInput("p0", input(seq));
     expect(c.drops("p0").overflow).toBe(2);
-    c.tick();
+    const events = c.tick().map((e) => e.type);
     expect(c.ackSeq("p0")).toBe(3);
-    expect(c.world.inputs.get("p0")).toMatchObject({ seq: 3, swap: true, consumable: true });
+    // Story 2.7 review: seq 1's swap ran in its own weapon tick; seqs 1–3 are 3 swap ticks.
+    expect(events).toContain("weapon.swap_started");
+    expect(p.loadout.swapTicks).toBe(Math.round(balance.player.swapS / TICK_DT_S) - 2);
+    expect(c.world.inputs.get("p0")).toMatchObject({ seq: 3, swap: false, consumable: true });
   });
 
   it("drains a backlog after a 300 ms stall back to the target within 3 s", () => {
@@ -177,18 +183,29 @@ describe("RunController", () => {
     expect(p.loadout.active).toBe(1);
   });
 
-  it("two swaps on consecutive seqs stay two swaps when the first is dropped", () => {
-    const c = newController();
-    c.queueInput("p0", input(1, { swap: true }));
-    c.queueInput("p0", input(2, { swap: true }));
-    for (let seq = 3; seq <= INPUT_QUEUE_MAX + 1; seq++) c.queueInput("p0", input(seq)); // drops seq 1
-    const swaps: boolean[] = [];
-    for (let i = 0; i < INPUT_QUEUE_MAX; i++) {
-      c.tick();
-      swaps.push(c.world.inputs.get("p0")?.swap === true);
-    }
-    expect(swaps.filter(Boolean)).toHaveLength(2);
-    expect(c.ackSeq("p0")).toBe(INPUT_QUEUE_MAX + 1);
+  it("dropped inputs keep the weapon timing of their seqs: swaps, shots and reloads as if applied, minus their shots", () => {
+    // Reference: every seq applied. Test: seqs 1–2 dropped by overflow. Both fire nothing on
+    // seqs 1–2 (the test's inputs don't fire there), so the weapon events must be identical.
+    const run = (drop: boolean) => {
+      const c = newController();
+      const p = c.world.players.get("p0");
+      if (!p) throw new Error("no p0");
+      setLoadout(balance, p.loadout, ["pistol", "smg"]);
+      const types: string[] = [];
+      const inp = (seq: number) => input(seq, { swap: seq === 1 || seq === 9, fire: seq > 2, aimX: 1 });
+      if (drop) for (let seq = 1; seq <= INPUT_QUEUE_MAX + 2; seq++) c.queueInput("p0", inp(seq));
+      for (let seq = drop ? INPUT_QUEUE_MAX + 3 : 1; seq <= 60; seq++) {
+        c.queueInput("p0", inp(seq));
+        for (const e of c.tick()) if (e.type.startsWith("weapon.") && e.type !== "weapon.fired") types.push(e.type);
+      }
+      for (let i = 0; i < 8; i++) for (const e of c.tick()) if (e.type.startsWith("weapon.") && e.type !== "weapon.fired") types.push(e.type);
+      return { types, active: p.loadout.active, ack: c.ackSeq("p0") };
+    };
+    const ref = run(false);
+    const got = run(true);
+    expect(got.ack).toBe(60);
+    expect(got.types).toEqual(ref.types);
+    expect(got.active).toBe(ref.active);
   });
 
   it("4G-like jitter with a 150 ms spike every 3 s: no overflow, no extra starving, lag back to target (seeded)", () => {
@@ -238,16 +255,49 @@ describe("RunController", () => {
     expect(c.drops("p0")).toEqual({ overflow: 0, stale: 0, drained: 0 });
   });
 
-  it("a swap followed by 3 starved ticks swaps once", () => {
+  it("a swap followed by starved ticks swaps once, and only finishes as new seqs arrive", () => {
     const c = newController();
     const p = c.world.players.get("p0");
     if (!p) throw new Error("no p0");
     setLoadout(balance, p.loadout, ["pistol", "smg"]);
     const events: SimEvent["type"][] = [];
     c.queueInput("p0", input(1, { swap: true }));
-    for (let i = 0; i < 4 + 20; i++) for (const e of c.tick()) if (e.type.startsWith("weapon.swap")) events.push(e.type);
+    for (let i = 0; i < 24; i++) for (const e of c.tick()) if (e.type.startsWith("weapon.swap")) events.push(e.type);
+    expect(events).toEqual(["weapon.swap_started"]); // starved: the weapon waits (Story 2.7 review)
+    const n = Math.round(balance.player.swapS / TICK_DT_S);
+    for (let seq = 2; seq <= n + 1; seq++) {
+      c.queueInput("p0", input(seq));
+      for (const e of c.tick()) if (e.type.startsWith("weapon.swap")) events.push(e.type);
+    }
     expect(events).toEqual(["weapon.swap_started", "weapon.swapped"]);
     expect(p.loadout.active).toBe(1);
+  });
+
+  it("a dropped input that fires spends its round and cooldown but nothing flies (dry shot, review MED-2)", () => {
+    const c = newController();
+    const p = c.world.players.get("p0");
+    if (!p) throw new Error("no p0");
+    for (let seq = 1; seq <= INPUT_QUEUE_MAX + 1; seq++) c.queueInput("p0", input(seq, { fire: seq === 1, aimX: 1 })); // drops seq 1
+    const events = c.tick().map((e) => e.type);
+    expect(events).not.toContain("weapon.fired");
+    expect(c.world.projectiles.aliveCount).toBe(0);
+    expect(p.loadout.slots[0].ammo).toBe(11);
+    expect(p.loadout.slots[0].cooldownS).toBeGreaterThan(0);
+  });
+
+  it("a starved tick never fires: shots happen only on applied seqs (Story 2.7 review)", () => {
+    const c = newController();
+    const p = c.world.players.get("p0");
+    if (!p) throw new Error("no p0");
+    setLoadout(balance, p.loadout, ["smg", null]);
+    const firedAt: number[] = [];
+    for (let seq = 1; seq <= 20; seq++) {
+      c.queueInput("p0", input(seq, { fire: true, aimX: 1 }));
+      for (const e of c.tick()) if (e.type === "weapon.fired") firedAt.push(c.ackSeq("p0"));
+      if (seq === 10) for (let i = 0; i < 6; i++) for (const e of c.tick()) if (e.type === "weapon.fired") firedAt.push(-1);
+    }
+    expect(firedAt).not.toContain(-1);
+    expect(new Set(firedAt).size).toBe(firedAt.length); // at most one shot per seq
   });
 
   it("returns this tick's events in a reused array", () => {

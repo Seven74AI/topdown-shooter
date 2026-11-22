@@ -362,14 +362,20 @@ describe("NetSimHost", () => {
       expect(host.drainEvents()).toHaveLength(0); // handed out exactly once
     });
 
-    it("drops my own server weapon.fired; others' shots wait for the render tick and fly cosmetically", () => {
+    it("drops my own server weapon.fired once predicted; others' shots wait for the render tick and fly cosmetically", () => {
       const { host, room, arrive, setNow } = setup();
       setNow(1000);
       arrive(10);
+      host.update(0);
+      host.setLocalInput(fire);
+      host.update(0.05); // my local shot
+      host.setLocalInput({ ...NEUTRAL_INPUT });
+      host.drainEvents();
+      host.cosmetics.clear();
       room.deliver(S2C.SIM_EVENTS_FLUSHED, {
         tick: 11,
         events: [
-          [NET_EVENT_KIND.WEAPON_FIRED, 1, 0, 2050, 1000, 0], // mine
+          [NET_EVENT_KIND.WEAPON_FIRED, 1, 0, 2050, 1000, 0], // mine, predicted
           [NET_EVENT_KIND.WEAPON_FIRED, 0, 0, 1050, 1000, 0], // p0's
           [NET_EVENT_KIND.MELEE_SWUNG, 1, 3, 2000, 1000, 0], // mine
         ],
@@ -380,6 +386,17 @@ describe("NetSimHost", () => {
       expect(events.map((e) => (e.type === "weapon.fired" ? e.playerId : e.type))).toEqual(["p0"]);
       expect(host.world.projectiles.aliveCount).toBe(1);
       expect(host.world.projectiles.owner[host.world.projectiles.aliveIds[0] as number]).toBe("p0");
+    });
+
+    it("safety net: my own server shot the fire clock did not predict is drawn (review MED-2)", () => {
+      const { host, room, arrive, setNow } = setup();
+      setNow(1000);
+      arrive(10);
+      room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 11, events: [[NET_EVENT_KIND.WEAPON_FIRED, 1, 0, 2050, 1000, 0]] } satisfies SimEventsFlushed);
+      setNow(500 + (11 + RENDER_DELAY_TICKS) * 50);
+      host.update(0);
+      expect(host.drainEvents().map((e) => e.type)).toEqual(["weapon.fired"]);
+      expect(host.world.projectiles.aliveCount).toBe(1);
     });
 
     it("delivers my own reload and swap events on arrival, others' at the render tick", () => {
@@ -413,6 +430,34 @@ describe("NetSimHost", () => {
       host.hits.apparent(zombieNetId(4, 2), 1010, 500);
       host.update(0);
       expect(host.netStats).toMatchObject({ apparentHits: 1, confirmed: 1, reversed: 0 });
+    });
+
+    it("my HUD ammo drops at once with a local shot, before the server acks it (review LOW-3)", () => {
+      const { host, arrive, setNow } = setup();
+      setNow(1000);
+      arrive(10);
+      host.update(0);
+      expect(host.world.players.get("p1")?.loadout.slots[0].ammo).toBe(12);
+      host.setLocalInput(fire);
+      host.update(0.05);
+      expect(host.world.players.get("p1")?.loadout.slots[0].ammo).toBe(11);
+    });
+
+    it("turning the counter back on starts clean: nothing pending from before counts as reversed (review LOW-2)", () => {
+      let on = true;
+      const room = new FakeRoom(fakeState([fakePlayer(1, { x: 20, y: 10 })]));
+      const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+      let now = 0;
+      const host = new NetSimHost({ balance, session, now: () => now, measureHits: () => on });
+      host.update(0);
+      host.hits.apparent(4, 0, 500);
+      on = false;
+      now = 100;
+      host.update(0);
+      on = true;
+      now = 5000;
+      host.update(0);
+      expect(host.netStats).toMatchObject({ apparentHits: 0, reversed: 0 });
     });
 
     it("the reversed-hit counter is off when measureHits says so", () => {

@@ -26,6 +26,8 @@ export interface PlayerState {
   loadout: Loadout;
   /** Story 2.7: half the RTT (capped) a new projectile's first sweep is advanced by; 0 offline. */
   shotAdvanceS: number;
+  /** Story 2.7 review: the server had no new input for this tick: weapon timers pause (server only). */
+  weaponsPaused: boolean;
   /** Downed (Story 2.8): ticks until out; paused while a revive is in progress. 0 when not downed. */
   downedTicksLeft: number;
   /** Ticks a teammate has stood within reach in a row (reset when no one does). */
@@ -54,6 +56,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     status: "alive",
     loadout: createLoadout(world.balance),
     shotAdvanceS: 0,
+    weaponsPaused: false,
     downedTicksLeft: 0,
     reviveTicks: 0,
     reviverId: null,

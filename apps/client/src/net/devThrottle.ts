@@ -32,6 +32,9 @@ const PLAYER_FIELDS = {
   reloadTicks0: true,
   reloadTicks1: true,
   swapTicks: true,
+  downedTicksLeft: true,
+  reviveProgress: true,
+  kills: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 const STATE_FIELDS = {
   phase: true,
@@ -40,6 +43,7 @@ const STATE_FIELDS = {
   wave: true,
   remaining: true,
   aliveCount: true,
+  resultWave: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players">, true>;
 const PLAYER_KEYS = Object.keys(PLAYER_FIELDS);
 const STATE_KEYS = Object.keys(STATE_FIELDS);

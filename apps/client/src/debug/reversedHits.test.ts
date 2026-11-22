@@ -49,6 +49,15 @@ describe("ReversedHits (Story 2.7, AC 4)", () => {
     expect(r.counts).toEqual({ apparentHits: 1, confirmed: 1, reversed: 0 });
   });
 
+  it("an early hit from one shot doesn't confirm another shot's apparent hit later (review LOW-1)", () => {
+    const r = new ReversedHits();
+    const early = 200; // one-way + render delay + slack
+    r.serverHit(net(6, 0), 0, early); // shot A hit; A's bullet missed the drawn zombie
+    r.apparent(net(6, 0), 600, W); // shot B, 600 ms later, looks like a hit
+    r.update(2000);
+    expect(r.counts).toEqual({ apparentHits: 1, confirmed: 0, reversed: 1 });
+  });
+
   it("two bullets, one hit: one confirmed, one reversed (the oldest is confirmed)", () => {
     const r = new ReversedHits();
     r.apparent(net(1, 0), 0, W);

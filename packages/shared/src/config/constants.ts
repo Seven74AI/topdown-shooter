@@ -25,3 +25,6 @@ export const GRID_CELL_M = 2;
 
 /** Projectile pool slots (SMG at 12/s × 4 players × ~1 s flight fits easily). */
 export const PROJECTILE_POOL_CAPACITY = 512;
+
+/** Projectiles spawn this far outside the shooter's body (server `firing.ts` and the client's own shots, Story 2.7). */
+export const MUZZLE_OFFSET_M = 0.1;
