@@ -9,13 +9,16 @@ import {
   type SimEvent,
   type World,
 } from "@topdown/shared";
-import type { SimHost } from "./SimHost";
+import type { PlayerInfo, SimHost } from "./SimHost";
 
 /** Most steps run in one frame; leftover time is dropped (avoids a catch-up spiral after a hidden tab). */
 export const MAX_CATCHUP_STEPS = 5;
 
 /** Id of the only player in local (Epic 1) mode. */
 export const LOCAL_PLAYER_ID = "local";
+
+/** Solo: the one survivor is slot 0 (blue) and has no name tag (Story 2.9). */
+const LOCAL_PLAYER_INFO: PlayerInfo = Object.freeze({ slot: 0, name: "" });
 
 /** Step timing of the last `update()` (Story 1.11 overlay). Client code, so `performance.now()` is allowed. */
 export interface SimStepStats {
@@ -94,6 +97,10 @@ export class LocalSimHost implements SimHost {
     this.drained = out;
     this.events.length = 0;
     return out;
+  }
+
+  playerInfo(): PlayerInfo {
+    return LOCAL_PLAYER_INFO;
   }
 
   dispose(): void {

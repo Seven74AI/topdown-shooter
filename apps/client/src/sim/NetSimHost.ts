@@ -30,7 +30,7 @@ import {
   type WeaponSlot,
   type World,
 } from "@topdown/shared";
-import type { SimHost } from "./SimHost";
+import type { PlayerInfo, SimHost } from "./SimHost";
 import { MAX_CATCHUP_STEPS, type SimStepStats } from "./LocalSimHost";
 import type { NetSession } from "../net/session";
 import { ServerClock } from "../net/serverClock";
@@ -192,6 +192,8 @@ export class NetSimHost implements SimHost {
   private renderTickNow = Number.NaN;
   private disposed = false;
   private readonly pose: SampledPose = { x: 0, y: 0, heading: 0 };
+  /** Story 2.9: reused `playerInfo` answer. */
+  private readonly info: { slot: number; name: string } = { slot: 0, name: "" };
   private latest: RunStateView | null = null;
   private readonly dropMissing = (_p: PlayerState, id: string): void => {
     if (!this.latest?.players.has(id)) removePlayer(this.world, id);
@@ -230,6 +232,15 @@ export class NetSimHost implements SimHost {
     room.onStateChange(this.onState);
     // The start patch (phase "wave", spawn positions) may already have arrived.
     if (room.state?.players && room.state.phase !== "lobby") this.takeSnapshot(room.state);
+  }
+
+  /** Story 2.9: slot and name from the room's schema copy (the slot from the id until it arrives). */
+  playerInfo(id: string): PlayerInfo {
+    const s = this.session.room.state?.players?.get(id);
+    const slot = s?.slot ?? playerSlotOf(id);
+    this.info.slot = slot === NET_NONE ? 0 : slot;
+    this.info.name = s?.name ?? "";
+    return this.info;
   }
 
   /** Latest RTT the server measured for this client (2.10 overlay); the session answers the pings. */

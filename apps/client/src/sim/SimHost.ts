@@ -1,5 +1,13 @@
 import type { PlayerInput, SimEvent, World } from "@topdown/shared";
 
+/** Presentation data of a player (Story 2.9): kept out of the shared `PlayerState`. */
+export interface PlayerInfo {
+  /** Lobby slot 0–3 (ring and arrow colour, `SLOT_COLORS`). */
+  readonly slot: number;
+  /** Display name ("" solo). */
+  readonly name: string;
+}
+
 /**
  * How scenes talk to the simulation. Epic 1 uses LocalSimHost (the World runs in the browser);
  * Story 2.4 adds a networked host behind the same interface, so scenes don't change.
@@ -28,6 +36,11 @@ export interface SimHost {
   readonly localPlayerId: string;
   /** True for the networked host: renderers may use it to pick data sources (e.g. Story 2.5 heading). */
   readonly online: boolean;
+  /**
+   * Slot and name of a player (Story 2.9). The returned object may be reused: read it before the
+   * next call. Unknown ids get slot 0 (or the id's slot online) and "".
+   */
+  playerInfo(id: string): PlayerInfo;
   /** Ends the run on this host (the networked host also leaves the room). */
   dispose(): void;
 }

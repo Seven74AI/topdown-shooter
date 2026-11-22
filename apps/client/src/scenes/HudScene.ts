@@ -9,7 +9,11 @@ import type { HudModel } from "./hudModel";
 import type { InputRouter } from "../input/InputRouter";
 import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
-import { MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS } from "./hudModel";
+import { MAX_PLAYERS } from "@topdown/shared";
+import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M } from "./hudModel";
+import { SLOT_COLORS } from "../render/playerColors";
+import { createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
+import { pulseAlpha, pulseScale } from "../render/pulse";
 import { PerfOverlay } from "../debug/PerfOverlay";
 
 export interface HudSceneData {
@@ -53,6 +57,22 @@ const COUNTDOWN_TEXT_PX = 16;
 const STATUS_TEXT_PX = 18;
 const TEXT_STROKE = "#000000";
 const TEXT_STROKE_PX = 4;
+/** Story 2.9: teammate name tags (CSS px × dpr) and edge arrows. */
+const NAME_TEXT_PX = 14;
+const NAME_STROKE_PX = 3;
+const NAME_STROKE = "#0b0d10";
+/** Gap between a downed teammate's countdown and their name, CSS px. */
+const NAME_GAP_PX = 2;
+const MATE_ARROW_SCALE = 1.3;
+/** Wider than the rush arrows' margin, so the two kinds don't overlap at the same edge spot. */
+const MATE_ARROW_MARGIN = ARROW_MARGIN + 12;
+const MATE_ARROW_OUTLINE_PX = 2;
+const MATE_ARROW_OUTLINE = 0xffffff;
+/** The downed "+" icon: arm length and thickness (CSS px), and its distance inside the arrow tip. */
+const CROSS_PX = 6;
+const CROSS_THICK_PX = 2.5;
+const CROSS_INSET_PX = 20;
+const CROSS_COLOR = 0xffffff;
 
 
 const STICK_FILL = 0xffffff;
@@ -110,6 +130,13 @@ export class HudScene extends Phaser.Scene {
   private readonly shownSecs = new Int32Array(MAX_DOWNED_MARKERS).fill(-1);
   private statusText!: Phaser.GameObjects.Text;
   private shownStatus = "";
+  /** Story 2.9, all indexed by slot: name tags, edge arrows and downed crosses, created once. */
+  private readonly names: Phaser.GameObjects.Text[] = [];
+  private readonly shownNames: string[] = new Array<string>(MAX_PLAYERS).fill("");
+  private readonly mateArrows: Phaser.GameObjects.Triangle[] = [];
+  private readonly crosses: Phaser.GameObjects.Graphics[] = [];
+  /** Preallocated `teammateMarkers` output. */
+  private readonly markers = createTeammateMarkers();
 
   constructor() {
     super("Hud");
@@ -127,6 +154,7 @@ export class HudScene extends Phaser.Scene {
     this.shownBanner = "";
     this.shownStatus = "";
     this.shownSecs.fill(-1);
+    this.shownNames.fill("");
   }
 
   create(): void {
@@ -176,7 +204,9 @@ export class HudScene extends Phaser.Scene {
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
       const a = ARROW_PX * this.arrowDpr;
       // Triangle pointing +x; rotated toward the target.
-      this.arrows.push(this.add.triangle(0, 0, a, 0, -a * 0.6, -a * 0.7, -a * 0.6, a * 0.7, RUSH_COLOR).setVisible(false));
+      // Display origin (0, 0): the points are relative to the position, so the arrow is centred on
+      // it and rotates about it (the default origin is half the bounding box, which shifted it).
+      this.arrows.push(this.add.triangle(0, 0, a, 0, -a * 0.6, -a * 0.7, -a * 0.6, a * 0.7, RUSH_COLOR).setDisplayOrigin(0, 0).setVisible(false));
     }
     this.countdowns.length = 0;
     for (let i = 0; i < MAX_DOWNED_MARKERS; i++) {
@@ -188,6 +218,21 @@ export class HudScene extends Phaser.Scene {
       );
     }
     this.statusText = this.add.text(0, 0, "", this.outlinedStyle(STATUS_TEXT_PX)).setOrigin(0.5, 0).setVisible(false);
+    this.names.length = 0;
+    this.mateArrows.length = 0;
+    this.crosses.length = 0;
+    for (let slot = 0; slot < MAX_PLAYERS; slot++) {
+      this.names.push(this.add.text(0, 0, "", this.nameStyle()).setOrigin(0.5).setVisible(false));
+      const a = ARROW_PX * MATE_ARROW_SCALE * this.arrowDpr;
+      this.mateArrows.push(
+        this.add
+          .triangle(0, 0, a, 0, -a * 0.6, -a * 0.7, -a * 0.6, a * 0.7, SLOT_COLORS[slot] ?? SLOT_COLORS[0])
+          .setStrokeStyle(MATE_ARROW_OUTLINE_PX * this.arrowDpr, MATE_ARROW_OUTLINE, 1)
+          .setDisplayOrigin(0, 0)
+          .setVisible(false),
+      );
+      this.crosses.push(this.drawCross(this.add.graphics().setVisible(false)));
+    }
     this.hpBar = this.add.graphics();
     this.perfOverlay = new PerfOverlay(this); // Story 1.11 (top-right, toggled by ?debug=1 / three-finger tap)
     this.hpText = this.add.text(0, 0, "", {
@@ -238,6 +283,29 @@ export class HudScene extends Phaser.Scene {
     };
   }
 
+  /** Story 2.9: bold white name tag with a dark stroke. */
+  private nameStyle(): Phaser.Types.GameObjects.Text.TextStyle {
+    const k = dpr();
+    return {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: `${Math.round(NAME_TEXT_PX * k)}px`,
+      color: "#ffffff",
+      fontStyle: "bold",
+      stroke: NAME_STROKE,
+      strokeThickness: Math.round(NAME_STROKE_PX * k),
+    };
+  }
+
+  /** The downed "+" icon around the Graphics' own origin, at the arrows' build scale (moved, never redrawn per frame). */
+  private drawCross(g: Phaser.GameObjects.Graphics): Phaser.GameObjects.Graphics {
+    const k = this.arrowDpr;
+    const arm = CROSS_PX * k;
+    const t = CROSS_THICK_PX * k;
+    g.clear();
+    g.fillStyle(CROSS_COLOR, 1).fillRect(-arm, -t / 2, arm * 2, t).fillRect(-t / 2, -arm, t, arm * 2);
+    return g;
+  }
+
   /** Places HUD buttons inside the safe area (canvas px) and registers their hit rects. */
   private layoutButtons(): void {
     const k = dpr();
@@ -268,6 +336,8 @@ export class HudScene extends Phaser.Scene {
     this.shownWave = -1;
     this.shownBanner = ""; // re-center the banner
     for (const a of this.arrows) a.setScale(dpr() / this.arrowDpr);
+    // Teammate arrows and crosses: their scale is set every frame from dpr() / arrowDpr (× the pulse).
+    for (const t of this.names) t.setFontSize(Math.round(NAME_TEXT_PX * dpr())).setStroke(NAME_STROKE, Math.round(NAME_STROKE_PX * dpr()));
     this.shownWeapon = "";
     this.hpText.setFontSize(Math.round(HP_TEXT_PX * dpr()));
     this.shownHp = -1; // force a redraw at the new scale
@@ -304,6 +374,7 @@ export class HudScene extends Phaser.Scene {
     this.drawWave();
     this.drawRushArrows();
     this.drawDowned();
+    this.drawTeammates();
     this.perfOverlay?.update();
   }
 
@@ -336,6 +407,76 @@ export class HudScene extends Phaser.Scene {
         .setPosition(this.scale.width / 2, (12 + this.insets.top + WAVE_TEXT_PX + 12) * dpr())
         .setVisible(m.statusText !== "");
     }
+  }
+
+  /**
+   * Story 2.9: a name tag over each on-screen teammate, and an edge arrow in their slot colour for
+   * each off-screen one (with a "+" when downed). Downed markers pulse. Out teammates: nothing.
+   */
+  private drawTeammates(): void {
+    const m = this.model;
+    const k = dpr();
+    const base = k / this.arrowDpr;
+    const n = teammateMarkers(m, this.scale.width, this.scale.height, MATE_ARROW_MARGIN * k, this.markers);
+    const now = this.time.now;
+    let drawn = 0;
+    for (let i = 0; i < n; i++) {
+      const mk = this.markers[i];
+      if (!mk) continue;
+      const slot = mk.slot;
+      drawn |= 1 << slot;
+      const name = this.names[slot] as Phaser.GameObjects.Text;
+      const arrow = this.mateArrows[slot] as Phaser.GameObjects.Triangle;
+      const cross = this.crosses[slot] as Phaser.GameObjects.Graphics;
+      const label = m.teammateNames[slot] ?? "";
+      if (label !== this.shownNames[slot]) {
+        this.shownNames[slot] = label;
+        name.setText(label);
+      }
+      if (!mk.visible) {
+        if (arrow.visible) arrow.setVisible(false);
+        if (cross.visible) cross.setVisible(false);
+        let ny = mk.sy - NAME_LIFT_M * m.camZoom;
+        if (mk.downed) {
+          // Keep the name above the downed countdown (its bottom edge is COUNTDOWN_LIFT_M up).
+          const countdownTop = mk.sy - COUNTDOWN_LIFT_M * m.camZoom - this.countdownHeight();
+          ny = Math.min(ny, countdownTop - NAME_GAP_PX * k - name.height / 2);
+        }
+        name.setPosition(mk.sx, ny).setVisible(label !== "");
+        continue;
+      }
+      if (name.visible) name.setVisible(false);
+      const pulse = mk.downed ? pulseScale(now) : 1;
+      arrow
+        .setPosition(mk.x, mk.y)
+        .setRotation(mk.angle)
+        .setScale(base * pulse)
+        .setAlpha(mk.downed ? pulseAlpha(now) : 1)
+        .setVisible(true);
+      if (mk.downed) {
+        const inset = CROSS_INSET_PX * k;
+        cross
+          .setPosition(mk.x - Math.cos(mk.angle) * inset, mk.y - Math.sin(mk.angle) * inset)
+          .setScale(base * pulse)
+          .setVisible(true);
+      } else if (cross.visible) {
+        cross.setVisible(false);
+      }
+    }
+    for (let slot = 0; slot < MAX_PLAYERS; slot++) {
+      if (drawn & (1 << slot)) continue;
+      const name = this.names[slot] as Phaser.GameObjects.Text;
+      const arrow = this.mateArrows[slot] as Phaser.GameObjects.Triangle;
+      const cross = this.crosses[slot] as Phaser.GameObjects.Graphics;
+      if (name.visible) name.setVisible(false);
+      if (arrow.visible) arrow.setVisible(false);
+      if (cross.visible) cross.setVisible(false);
+    }
+  }
+
+  /** Height of the downed countdown text (all share one style). */
+  private countdownHeight(): number {
+    return this.countdowns[0]?.height ?? COUNTDOWN_TEXT_PX * dpr();
   }
 
   /** "Wave 3 · Zombies 47" top-center, and the centered banner fading out. */
