@@ -1,6 +1,6 @@
 # Story 4.2: Cover and bullet rules
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -22,13 +22,13 @@ so that cover works the way it looks.
 
 ## Tasks / Subtasks
 
-- [ ] T1 `map/decayStage.ts` (`currentDecayStage`, `FIRST_DECAY_STAGE`), `map/obstacles.ts` (`ObstacleState`, `createObstacles`, `applyCoverStage`), `COVER_STOPS_SHOTS` per kind; `World.obstacles`; `WorldDebug.decayStage` (AC 1, 2)
-- [ ] T2 Collision: `buildings/collision.ts`, `buildings/buildings.ts › footprintBlocked` read `world.obstacles.solids` instead of `world.map.solids`; nav grid walls from it (`createPathingState`), `setNavWalls` for a stage change (AC 1, 2)
-- [ ] T3 Shots: `combat/cover.ts` `shotBlockT` (swept slab entry, earliest box); `updateProjectiles` clips hits and stops; aim assist and turret target choice respect it (AC 3, 5)
-- [ ] T4 Client: `CosmeticProjectiles.update` stops at the same box; `CoverView` draws active cover; StreetView stops drawing cover outlines; dev cheat "Decay stage" (solo only; online disabled with a hint) (AC 5, 6)
-- [ ] T5 Snapshot digest: `obstacles` stage + version (AC 2)
-- [ ] T6 Tests + mutations; fuzz extension; netsim near-cover; prediction vs server into a car; perf with load (AC 7)
-- [ ] T7 Browser check (Playwright): bullets stop at a car, pass over sandbags (stage 3 via the cheat); gates; merge notes
+- [x] T1 `map/decayStage.ts` (`currentDecayStage`, `FIRST_DECAY_STAGE`), `map/obstacles.ts` (`ObstacleState`, `createObstacles`, `applyCoverStage`), `COVER_STOPS_SHOTS` per kind; `World.obstacles`; `WorldDebug.decayStage` (AC 1, 2)
+- [x] T2 Collision: `buildings/collision.ts`, `buildings/buildings.ts › footprintBlocked` read `world.obstacles.solids` instead of `world.map.solids`; nav grid walls from it (`createPathingState`), `setNavWalls` for a stage change (AC 1, 2)
+- [x] T3 Shots: `combat/cover.ts` `shotBlockT` (swept slab entry, earliest box); `updateProjectiles` clips hits and stops; aim assist and turret target choice respect it (AC 3, 5)
+- [x] T4 Client: `CosmeticProjectiles.update` stops at the same box; `CoverView` draws active cover; StreetView stops drawing cover outlines; dev cheat "Decay stage" (solo only; online disabled with a hint) (AC 5, 6)
+- [x] T5 Snapshot digest: `obstacles` stage + version (AC 2)
+- [x] T6 Tests + mutations; fuzz extension; netsim near-cover; prediction vs server into a car; perf with load (AC 7)
+- [x] T7 Browser check (Playwright): bullets stop at a car, pass over sandbags (stage 3 via the cheat); gates; merge notes
 
 ## Dev Notes
 
@@ -83,8 +83,70 @@ Claude Opus 5.5 (claude-opus-5-5)
 
 ### Debug Log References
 
+- Baseline before the change: 1,198 passed / 3 skipped (165 files).
+- Existing tests that changed, all because cover/walls now really block: `RunController.test.ts` aim-assist case (its zombie at +8 m east sat inside the bus → moved 8 m west); `syncState.test.ts` barricade at gx 16 overlapped `street_car_west` → gx 18; `downtown.test.ts` free-cell count −180 (= the 5 stage-1 cars, 5 × 36 cells); `zombieAi.test.ts` debug snapshot has `decayStage: null`; `turretBandwidth.test.ts` and `NetSimHost.turret.test.ts` pinned to `PLACEHOLDER_MAP` (their turret spots sit inside Downtown buildings, whose walls now stop shots; they measure bandwidth / event plumbing, not geometry).
+- Netsim harness: the server-side cover-stop counter first missed shots fired and stopped in the same tick (survivor 1.1 m from the bus) → detection by "slot moved and is free on a blocker face"; after that server and client stop counts are equal in every run (5/5, 7/7, 1/1, 12/12).
+- Browser: a survivor 1.1 m from a car stops every bullet inside its first 3 m sweep (none ever drawn) → screenshots taken from 6 m. Online the team start is y 14.5 = the bus's top edge: shots along that line graze the face (not a hit, by design) → stepped 1 m south.
+- The session server restarted after the build commit (263b1ba) and the merge (7242bab); the gates were re-run on the merged tip.
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Obstacles** (`map/obstacles.ts`, D1): `World.obstacles` = `{stage, version, solids, shotBlockers, cover}` built from the frozen map in `createWorld`; Downtown stage 1: 15 body boxes (10 map boxes + 5 cars; the bus once), 15 shot blockers; stage 3: 17 / 15. All body tests (`collision.ts`, `footprintBlocked`, free spots via `circleHitsBuilding`) and the nav grid walls read it. `applyCoverStage(world)` rebuilds lists + `setNavWalls` on a stage change only.
+- **Stage accessor** (D2): `currentDecayStage(world)` in `packages/shared/src/map/decayStage.ts` = `world.debug.decayStage ?? 1`. Solo dev cheat "Decay stage (cover)" (disabled online with a hint).
+- **Shots** (`combat/cover.ts`, D3–D6): swept `segmentBoxEntryT` / `shotBlockT`; `updateProjectiles` (player, turret and rewound shots: one loop) drops hits past the entry point and stops the shot there; map boxes stop shots too; aim assist and turret targets skip zombies behind a blocker; melee unchanged (ignores cover). Client `CosmeticProjectiles` uses the same function on the mirror World (`coverStops` counter).
+- **Client look** (D9): `render/CoverView.ts` (cars blue-grey, barrier striped grey/red, sandbags striped brown; redrawn on `obstacles.version`); StreetView no longer draws cover outlines.
+- **Tests added** (each proven to fail under one mutation; restored after):
+
+  | Mutation | Tests that failed |
+  |---|---|
+  | M1 `shotBlockT` always −1 | cover.test (12), coverRewind, Downtown fuzz (shot inside cover), tickCost 4.2 liveness |
+  | M2 `COVER_STOPS_SHOTS.barrier = true` | cover.test barrier + Downtown over-sandbags/barrier, coverRewind, obstacles stage lists |
+  | M3 hits past the entry point not dropped | cover.test car/bus (thin box, same sweep) + tunnelling, coverRewind |
+  | M4 end-point test instead of swept | cover.test tunnelling, turret, melee, aim assist, inactive-cover |
+  | M5 aim assist bends into cover | cover.test "never bends a shot toward a zombie behind a car" |
+  | M6 raw-aim "already hits" ignores cover | cover.test "raw aim already hits only a zombie before the car" |
+  | M7 turret target without line check | cover.test turret |
+  | M8 cosmetic projectile ignores cover | cosmeticProjectiles.test car/bus, netsim coverShots |
+  | M9 cover not in `obstacles.solids` | coverMovement (8), obstacles (4), Downtown fuzz, netsim street car |
+  | M10 nav grid built from the map without cover | coverMovement (7), obstacles nav walls, Downtown fuzz |
+  | M11 bus not deduplicated | obstacles lists (3) |
+  | M12 stage change without `setNavWalls` | obstacles accessor test, coverMovement stage-3 pathing |
+  | M13 accessor ignores the override | cover.test inactive-cover, obstacles accessor, Downtown fuzz (stages) |
+  | M14 Predictor without cover | netsim barricade "Story 4.2 street car" |
+  | M15 placement ignores cover | coverMovement placement |
+
+- **Fuzz** (`downtown.fuzz.test.ts`): cover counts as solid (an independent list from the map data, so a World that dropped its cover can't pass), random stage 1/2/3 per layout, buildings and walks hug cover faces, players hold fire with a zero-damage pistol: no live projectile inside a shot blocker. Result: 36 layouts, 387 buildings, 540/540 zombies reached a player, 104 shots ended on cover, stages 1/2/3.
+- **Netsim** (`coverShots.test.ts`, 150 ms RTT ± 20 ms, beside the bus, rewind on): pistol × 3 seeds + rifle: reversed hits 0 %, server and client cover stops equal in every run; control with a cover-less client mirror: 10.2 % reversed. `barricade.test.ts`: pressing on and round `street_car_west` 0 snaps / 0 corrections (control: a predictor without cover, 37 visible corrections).
+- **Browser** (Python Playwright + Chromium, server :2631, Vite :5231, temp config deleted after), screenshots in `/tmp/s42shots/`: solo, SMG west at 3 Walkers behind `street_car_west` from 6 m: 23 shots, 0 hits, no projectile ever sampled past x 10.5 (car face 8.5), no hit flash (`A-car-3.png`). Stage 3 through the cheat panel: SMG north over `sandbags_south`: 23–26 hits, bullets reached y 18.5 (sandbags 22.5–23.5) (`B-sandbags-1.png`); walking north into the sandbags stops at y 23.9 (`C-against-sandbags.png`). Online (1 player): firing east at the bus from 4.5 m: cosmetic bullets never past x 29.7 (face 30), 8 cosmetic cover stops, 0 snaps (`online-bus-2.png`). No page errors.
+- **Not verified:** real phones / touch; `?lag=150&jitter=20` in the browser (the netsim covers 75 ± 10 ms one-way); a second online client watching remote shots stop (unit-tested via `CosmeticProjectiles`); turret cosmetic shots in the browser (unit test only); headless Chromium runs ~14 fps, so the exact stop frame on the car face was not captured, only sampled positions; online stage changes (none exist until 4.5); hidden-tab / late-scene lifecycle (nothing in this story depends on time or waves).
+- **Perf** (`PERF_ASSERT=1`, `tickCostDowntown.test.ts` › Story 4.2: 4 players + 150 Walkers, Downtown without cover vs stage 3 with every cover object): load 0.89 → added p99 **+0.02 ms**, mean +0.012 ms; `shotBlockT` 106 ns per projectile sweep (15 blockers) → a full 512-shot pool 0.054 ms per tick, so no broadphase grid (D5). An earlier run at load 1.9 (right after the gates): +0.26 ms p99 / +0.03 ms mean, 135 ns per sweep. Both pass the asserts (≤ 2 ms; pool ≤ 0.5 ms).
+- **Gates** on the merged tip (7242bab + this record): typecheck, lint, test (170 files, 1,241 passed, 3 skipped), build: green.
+- **Bandwidth added:** 0 B/s (nothing on the wire: the stage is 1 on every host; the map is bundled).
+
+### Notes for the merge (brief line 19)
+
+- **Stage accessor:** ONE function, `currentDecayStage(world)` in `packages/shared/src/map/decayStage.ts` (+ `FIRST_DECAY_STAGE`); it reads `world.debug.decayStage ?? 1` (`WorldDebug.decayStage`, added in `core/world.ts`). If Story 4.3 adds its own accessor, keep this file and point 4.3's spawn filter at it (or the other way round: one body, one file). Story 4.5 replaces the body with the real stage and calls `applyCoverStage(world)` at the build start, after its mutations (brief line 5 order).
+- **`core/world.ts`:** new `obstacles` field (built before `pathing`; `createPathingState` now gets `{widthM, heightM, solids: obstacles.solids}`), `debug.decayStage: null`. 4.3 does not need to touch these.
+- **`buildings/collision.ts`, `buildings/buildings.ts › footprintBlocked`:** `world.map.solids` → `world.obstacles.solids` (map boxes then active cover). Spawn clearance (`spawnClearM`, brief line 7) in `footprintBlocked` is untouched: 4.3 owns it.
+- **`zombies/flowField.ts`:** new `setNavWalls(nav, boxes)`; wall cells come from the obstacle list. 4.5: call through `applyCoverStage`, never per tick.
+- **`map/collisionCells.ts`:** new `fillCollisionCells` (shared by `mapCollisionCells` and `setNavWalls`).
+- **`map/districtMap.ts`:** `COVER_STOPS_SHOTS`. `map/loadTiledMap.ts`, the `spawns` layer, `waves/waveDirector.ts`, `tools/maps/buildDowntown.ts` and the map files: **untouched** (4.3's area). A data test (`obstacles.test.ts`) checks every spawn's jitter area against active cover at stages 1–5; if 4.3 adds spawns, it may need updating.
+- **`combat/firing.ts`, `combat/aimAssist.ts`, `buildings/turret.ts`:** cover checks (`combat/cover.ts`). `nearestZombieInRange` now requires a clear shot line.
+- **`core/worldSnapshot.ts`:** `obstacles: {stage, version, solids, shotBlockers}` (counts) in the digest.
+- **`index.ts`:** exports `COVER_STOPS_SHOTS`, `fillCollisionCells`, `FIRST_DECAY_STAGE`, `currentDecayStage`, `applyCoverStage`, `createObstacles`, `ObstacleState`, `segmentBoxEntryT`, `shotBlockT`, `shotLineClear`, `setNavWalls`, `boxBlocked`.
+- **Client:** `net/cosmeticProjectiles.ts` (cover stop), `render/CoverView.ts` (new), `render/StreetView.ts` (cover outlines removed), `scenes/GameScene.ts` (CoverView create/update/destroy), `debug/DevCheats.tsx` + `devCheatActions.ts` (Decay stage cheat).
+- **Tools:** `netsim/hitsSim.ts` gains `map`, `clientMap`, `start` options and cover-stop counts (open-street runs draw exactly as before); `netsim/barricade.test.ts` gains `start`.
+- **Schema / syncState / stateView / devThrottle / mirror / Predictor code / balance JSON / `runStateMachine.startBuild`:** untouched (mirror and Predictor get the obstacles through `createWorld`).
 
 ### File List
+
+- New: `packages/shared/src/map/{decayStage,obstacles}.ts`, `packages/shared/src/combat/cover.ts`, `apps/client/src/render/CoverView.ts`; tests `packages/shared/src/map/obstacles.test.ts`, `packages/shared/src/combat/cover.test.ts`, `packages/shared/src/buildings/coverMovement.test.ts`, `apps/server/src/run/coverRewind.test.ts`, `tools/netsim/coverShots.test.ts`
+- Modified (shared): `core/world.ts`, `core/worldSnapshot.ts`, `buildings/{collision,buildings,turret}.ts`, `combat/{firing,aimAssist}.ts`, `map/{districtMap,collisionCells}.ts`, `zombies/flowField.ts`, `index.ts`; tests `map/downtown.test.ts`, `zombies/{downtown.fuzz,zombieAi}.test.ts`
+- Modified (client): `net/cosmeticProjectiles.ts`, `render/StreetView.ts`, `scenes/GameScene.ts`, `debug/{DevCheats.tsx,devCheatActions.ts}`; tests `net/cosmeticProjectiles.test.ts`, `sim/NetSimHost.turret.test.ts`
+- Modified (server tests): `run/{RunController,tickCostDowntown,turretBandwidth}.test.ts`, `rooms/schema/syncState.test.ts`
+- Modified (tools): `netsim/{hitsSim.ts,barricade.test.ts,hits.test.ts}`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+## Change Log
+
+- 2026-11-22: Story file written (gds-create-story); built (263b1ba); merged `claude/epic-2-continue` (7242bab, docs/CI only, no conflicts); Status review.
