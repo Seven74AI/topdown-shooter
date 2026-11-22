@@ -28,12 +28,6 @@ const OVERLAP_ITERATIONS = 2;
  * resting against a wall (exactly one radius away after the push-out) counts as blocked by it.
  */
 const LOS_MARGIN_M = 0.05;
-/**
- * Story 3.5: building push-out passes per zombie per tick. A stopgap for the 3.4 review's H1 (one
- * pass lets a pressing crowd squeeze through the gap between two buildings); once the shared
- * push-out iterates until stable (story-3-4b) the second call returns false and this loop is moot.
- */
-const BUILDING_PUSH_PASSES = 3;
 /** Story 3.5: per zombie slot, the building its next field cell belongs to (0: none); written in pass 1, read in pass 4. */
 const targetBuilding = new Int32Array(ZOMBIE_POOL_CAPACITY);
 /** `steerByField` result (synchronous, one record). */
@@ -243,16 +237,17 @@ export const updateZombies: SystemFn = (world, dtS) => {
         damagePlayer(world, target, stats, id);
       }
     }
-    // Story 3.4: buildings block zombies (the hard rule, last; Story 3.5's field routes them around).
-    // Up to BUILDING_PUSH_PASSES passes: in the pocket between two buildings one pass can leave the
-    // zombie in the first box again, and a pressing crowd would squeeze it through (Story 3.5).
-    for (let k = 0; k < BUILDING_PUSH_PASSES && world.buildings.list.length > 0 && pushOutOfBuildings(world, x, y, rz); k++) {
+    if (hasBuildings) {
+      // Story 3.4: buildings (and the map edge) have the last word: they slide along, never pass a
+      // slot narrower than their body, and a zombie shoved into a box by a player leaves on the side
+      // it came from (its position at the start of the tick, outside every box; review H1, M1).
+      pushOutOfBuildings(world, x, y, rz, pool.prevX[id] as number, pool.prevY[id] as number);
       x = pushed.x;
       y = pushed.y;
+    } else {
+      x = Math.min(widthM - rz, Math.max(rz, x));
+      y = Math.min(heightM - rz, Math.max(rz, y));
     }
-    // The push-out can cross a wall: clamp again (a little overlap at walls beats leaving the map).
-    x = Math.min(widthM - rz, Math.max(rz, x));
-    y = Math.min(heightM - rz, Math.max(rz, y));
     pool.x[id] = x;
     pool.y[id] = y;
 

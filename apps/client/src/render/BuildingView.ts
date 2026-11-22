@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { buildingStats, buildingTypeIds, footprint, type Box, type Building, type World } from "@topdown/shared";
+import { BUILD_GRID_M, buildingStats, buildingTypeIds, footprint, type Box, type Building, type World } from "@topdown/shared";
 import type { Placement } from "../scenes/placement";
 
 /** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline. */
@@ -31,8 +31,8 @@ const VALID = 0x4caf50;
 const BLOCKED = 0xe53935;
 const PREVIEW_FILL_ALPHA = 0.45;
 const PREVIEW_LINE_M = 0.08;
-/** A light 1 m grid around the preview, so the snap is visible (± this many cells). */
-const GRID_CELLS = 3;
+/** A light 0.5 m lattice around the preview, so the snap is visible (± this many cells beyond its box). */
+const GRID_CELLS = 4;
 const GRID_ALPHA = 0.18;
 const GRID_LINE_M = 0.03;
 
@@ -111,10 +111,13 @@ export class BuildingView {
     const g = this.preview;
     g.clear().setVisible(true);
     g.lineStyle(GRID_LINE_M, 0xffffff, GRID_ALPHA);
-    for (let k = -GRID_CELLS; k <= GRID_CELLS; k++) {
-      g.lineBetween(p.gx - GRID_CELLS, p.gy + k, p.gx + GRID_CELLS, p.gy + k);
-      g.lineBetween(p.gx + k, p.gy - GRID_CELLS, p.gx + k, p.gy + GRID_CELLS);
-    }
+    const m = GRID_CELLS * BUILD_GRID_M;
+    const x0 = b.minX - m;
+    const x1 = b.maxX + m;
+    const y0 = b.minY - m;
+    const y1 = b.maxY + m;
+    for (let y = y0; y <= y1 + 1e-6; y += BUILD_GRID_M) g.lineBetween(x0, y, x1, y);
+    for (let x = x0; x <= x1 + 1e-6; x += BUILD_GRID_M) g.lineBetween(x, y0, x, y1);
     g.fillStyle(color, PREVIEW_FILL_ALPHA).fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
     g.lineStyle(PREVIEW_LINE_M, color, 1).strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
   }

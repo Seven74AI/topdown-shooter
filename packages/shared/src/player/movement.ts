@@ -38,15 +38,18 @@ export const movePlayers: SystemFn = (world, dtS) => {
       my /= moveLen;
     }
     const r = p.radiusM;
-    let nx = p.x + mx * speed * dtS;
-    let ny = p.y + my * speed * dtS;
-    // Story 3.4: buildings block (slide along their faces), then the map edge wins.
-    if (world.buildings.list.length > 0 && pushOutOfBuildings(world, nx, ny, r)) {
-      nx = pushed.x;
-      ny = pushed.y;
+    const nx = p.x + mx * speed * dtS;
+    const ny = p.y + my * speed * dtS;
+    if (world.buildings.list.length > 0) {
+      // Story 3.4: buildings and the map edge together (slide along faces; a slot narrower than the
+      // body is impassable: the survivor stays where it was, review H1).
+      pushOutOfBuildings(world, nx, ny, r, p.x, p.y);
+      p.x = pushed.x;
+      p.y = pushed.y;
+    } else {
+      p.x = Math.min(widthM - r, Math.max(r, nx));
+      p.y = Math.min(heightM - r, Math.max(r, ny));
     }
-    p.x = Math.min(widthM - r, Math.max(r, nx));
-    p.y = Math.min(heightM - r, Math.max(r, ny));
 
     const aimLen = Math.sqrt(input.aimX * input.aimX + input.aimY * input.aimY);
     if (aimLen > MIN_VEC_LEN) {

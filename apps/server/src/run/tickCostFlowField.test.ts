@@ -4,6 +4,7 @@ import { pack } from "msgpackr";
 import {
   NEUTRAL_INPUT,
   addBuildingAt,
+  BUILD_GRID_M,
   addPlayer,
   createWorld,
   encodeNetEvent,
@@ -27,21 +28,20 @@ const MEASURED_TICKS = 600; // 30 s of game time
 const WOOD = "wood_barricade";
 
 /**
- * 24 barricades (4 players × the cap of 6): the two left-edge spawn points are each shut in a pen
- * (six stacked barricades with 0.5 m gaps, too narrow for a zombie, and a cap at each end), so the
- * zombies spawned there must break out; eight more make open walls the others route round.
+ * 24 barricades (4 players × the cap of 6), min corners in metres: the two left-edge spawn points
+ * are each shut in a pen (a rot 1 wall of three and a cap above and below, touching corners), so the
+ * zombies spawned there must break out; fourteen more make open walls the others route round.
  */
-const LAYOUT: { gx: number; gy: number; rot: BuildingRotation }[] = [];
-for (const [top, bottom] of [
-  [7, 14],
-  [18, 25],
-]) {
-  for (let gy = (top as number) + 1; gy < (bottom as number); gy++) LAYOUT.push({ gx: 2, gy, rot: 0 });
-  LAYOUT.push({ gx: 0, gy: top as number, rot: 0 }, { gx: 0, gy: bottom as number, rot: 0 });
+const LAYOUT_M: { x: number; y: number; rot: BuildingRotation }[] = [];
+for (const top of [8, 18]) {
+  for (let k = 0; k < 3; k++) LAYOUT_M.push({ x: 2, y: top + k * 2, rot: 1 }); // [2, 2.5] × [top, top + 6]
+  LAYOUT_M.push({ x: 0, y: top - 0.5, rot: 0 }, { x: 0, y: top + 6, rot: 0 }); // caps [0, 2] above and below
 }
-for (const gx of [8, 10, 12]) LAYOUT.push({ gx, gy: 5, rot: 0 });
-for (const gx of [36, 38, 40]) LAYOUT.push({ gx, gy: 27, rot: 0 });
-LAYOUT.push({ gx: 34, gy: 8, rot: 1 }, { gx: 14, gy: 24, rot: 1 });
+for (const x of [7, 9, 11, 13]) LAYOUT_M.push({ x, y: 4.5, rot: 0 });
+for (const x of [33, 35, 37, 39]) LAYOUT_M.push({ x, y: 27, rot: 0 });
+for (const y of [6, 8, 10]) LAYOUT_M.push({ x: 34, y, rot: 1 });
+for (const y of [20, 22, 24]) LAYOUT_M.push({ x: 14, y, rot: 1 });
+const LAYOUT = LAYOUT_M.map((l) => ({ gx: l.x / BUILD_GRID_M, gy: l.y / BUILD_GRID_M, rot: l.rot }));
 
 interface Result {
   p99: number;

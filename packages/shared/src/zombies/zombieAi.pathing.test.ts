@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
-import { TICK_DT_S } from "../config/constants";
+import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, type Building, type BuildingRotation } from "../buildings/buildings";
 import { circleOverlapsBox } from "../buildings/collision";
 import type { SimEvent } from "../core/simEvents";
@@ -23,14 +23,15 @@ function setup(seed: number) {
   const events: SimEvent[] = [];
   world.events.subscribe((e) => events.push(e));
   let nextId = 1;
-  const wall = (gx: number, gy: number, rot: BuildingRotation = 0) =>
-    addBuildingAt(world, { id: nextId++, type: WOOD, ownerId: "p0", gx, gy, rot, hp: HP }) as Building;
+  /** A barricade with its min corner at (x, y) metres. */
+  const wall = (x: number, y: number, rot: BuildingRotation = 0) =>
+    addBuildingAt(world, { id: nextId++, type: WOOD, ownerId: "p0", gx: x / BUILD_GRID_M, gy: y / BUILD_GRID_M, rot, hp: HP }) as Building;
   return { world, events, wall };
 }
 
-/** Four barricades closing a 2 × 1.5 m box around (24, 16): the corner gaps are 0.5 m (a zombie is 0.7 m). */
-function closedBox(wall: (gx: number, gy: number) => Building): Building[] {
-  return [wall(24, 15), wall(24, 17), wall(22, 16), wall(26, 16)];
+/** Four barricades closing a 2 × 2 m box [23, 25] × [15, 17] around (24, 16) (corners touch). */
+function closedBox(wall: (x: number, y: number, rot?: BuildingRotation) => Building): Building[] {
+  return [wall(23, 14.5), wall(23, 17), wall(22.5, 15, 1), wall(25, 15, 1)];
 }
 
 function zombieInAnyBuilding(world: World): boolean {
@@ -59,7 +60,7 @@ describe("zombies follow the flow field (Story 3.5)", () => {
   it("route around a wall to the player without touching its HP", () => {
     const { world, events, wall } = setup(1);
     addPlayer(world, "p0", 22, 8);
-    const walls = [wall(20, 11), wall(22, 11), wall(24, 11)]; // x [19, 25], y [10.75, 11.25]
+    const walls = [wall(19, 10.5), wall(21, 10.5), wall(23, 10.5)]; // [19, 25] × [10.5, 11]
     const id = spawnZombie(world, "walker", 22, 14);
     let reachedAt = -1;
     for (let t = 0; t < 600 && reachedAt < 0; t++) {
@@ -108,7 +109,7 @@ describe("zombies follow the flow field (Story 3.5)", () => {
     expect((box[1] as Building).hp).toBeLessThan(HP);
     const zx = world.zombies.x[id] as number;
     const zy = world.zombies.y[id] as number;
-    expect(zx > 23 && zx < 25 && zy > 15.25 && zy < 16.75).toBe(false);
+    expect(zx > 23 && zx < 25 && zy > 15 && zy < 17).toBe(false);
   });
 
   it("a closed box breaks: 0 HP removes the building, emits building.destroyed, the field opens and the zombies get in", () => {
@@ -155,7 +156,7 @@ describe("zombies follow the flow field (Story 3.5)", () => {
       addPlayer(world, "p0", 24, 16);
       addPlayer(world, "p1", 6, 6);
       closedBox(wall);
-      wall(10, 10, 1);
+      wall(10, 9, 1);
       for (let i = 0; i < 20; i++) spawnZombie(world, "walker", 2 + i * 2, i % 2 === 0 ? 30 : 2);
       for (let t = 0; t < 900; t++) step(world, TICK_DT_S);
       return snapshotWorld(world);

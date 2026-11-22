@@ -5,13 +5,17 @@ import { err, ok, type Result } from "../core/result";
 import { spendMoney } from "../economy/economy";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { circleOverlapsBox } from "./collision";
+import { BUILD_GRID_M } from "../config/constants";
 
 /**
  * Story 3.4: buildings (GDD › Buildings and Defenses; FR50, FR51, FR53).
  *
- * A building is an axis-aligned box whose centre is the integer grid point (gx, gy) of the 1 m build
- * grid (`BUILD_GRID_M`). `rot` (0–3, 90° steps) swaps the type's width and depth, so a rotation turns
- * it in place. The list is kept sorted by id (ids count up per World and are never reused), so the
+ * A building is an axis-aligned box anchored by its **min corner** on the 0.5 m build lattice
+ * (`BUILD_GRID_M`; review H2): (gx, gy) are lattice indices, so the corner is (gx × 0.5, gy × 0.5) m.
+ * Rotations 0 and 2 cover [x, x + W] × [y, y + D], rotations 1 and 3 cover [x, x + D] × [y, y + W]
+ * (W = `widthM`, D = `depthM`, multiples of 0.5). Every edge lies on the lattice, so perpendicular
+ * barricades join into L and T corners, any building can touch every map edge, and Story 3.5's 0.5 m
+ * flow-field cells are covered whole (no half cells). The list is kept sorted by id (ids count up per World and are never reused), so the
  * server, solo and the client's prediction World iterate them in the same order (collision results
  * depend on it). `version` counts every add and remove: Story 3.5 rebuilds its flow field when it
  * changes.
@@ -27,6 +31,7 @@ export interface Building {
   readonly type: string;
   /** Player id of the builder ("p0"–"p3" online, "local" solo); Story 3.6 credits kills to it. */
   readonly ownerId: string;
+  /** Min corner as 0.5 m lattice indices (x = gx × BUILD_GRID_M m). */
   readonly gx: number;
   readonly gy: number;
   readonly rot: BuildingRotation;
@@ -89,16 +94,33 @@ export function buildingStats(balance: Balance, type: string): Readonly<Building
 
 const isRotation = (rot: number): rot is BuildingRotation => rot === 0 || rot === 1 || rot === 2 || rot === 3;
 
-/** The footprint of `stats` centred on (gx, gy) at `rot`, written into `out`. */
+/** Footprint size along x at `rot` (metres). */
+export function footprintW(stats: Readonly<BuildingTypeStats>, rot: number): number {
+  return rot === 1 || rot === 3 ? stats.depthM : stats.widthM;
+}
+
+/** Footprint size along y at `rot` (metres). */
+export function footprintH(stats: Readonly<BuildingTypeStats>, rot: number): number {
+  return rot === 1 || rot === 3 ? stats.widthM : stats.depthM;
+}
+
+/** The footprint of `stats` with its min corner on lattice point (gx, gy) at `rot`, written into `out` (metres). */
 export function footprint(stats: Readonly<BuildingTypeStats>, gx: number, gy: number, rot: number, out: Box): Box {
-  const across = rot === 1 || rot === 3;
-  const hw = (across ? stats.depthM : stats.widthM) / 2;
-  const hh = (across ? stats.widthM : stats.depthM) / 2;
-  out.minX = gx - hw;
-  out.maxX = gx + hw;
-  out.minY = gy - hh;
-  out.maxY = gy + hh;
+  out.minX = gx * BUILD_GRID_M;
+  out.minY = gy * BUILD_GRID_M;
+  out.maxX = out.minX + footprintW(stats, rot);
+  out.maxY = out.minY + footprintH(stats, rot);
   return out;
+}
+
+/**
+ * The lattice corner that centres `stats` at `rot` on the point (x, y) metres, rounded to the
+ * nearest lattice point (the placement preview under a finger; rotating keeps the same point, so
+ * the box turns around it). Writes `out.gx/gy` (not clamped).
+ */
+export function cornerForCentre(stats: Readonly<BuildingTypeStats>, rot: number, x: number, y: number, out: { gx: number; gy: number }): void {
+  out.gx = Math.round((x - footprintW(stats, rot) / 2) / BUILD_GRID_M);
+  out.gy = Math.round((y - footprintH(stats, rot) / 2) / BUILD_GRID_M);
 }
 
 /** Buildings owned by `ownerId`. */
@@ -119,12 +141,18 @@ export function buildingById(world: Readonly<World>, id: number): Building | und
 const scratch: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
 /**
- * The box is off the map, overlaps another building (touching edges are fine: barricades can form a
- * wall), a placed player (out players are off the map) or an alive zombie.
+ * The box is off the map, within `buildings.spawnClearM` of a spawn point (review L5: spawns can't
+ * be boxed in), overlaps another building (touching edges are fine: barricades form walls and
+ * corners), a placed player (out players are off the map) or an alive zombie.
  */
 export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>): boolean {
-  const { widthM, heightM } = world.map;
+  const { widthM, heightM, spawnPoints } = world.map;
   if (box.minX < 0 || box.minY < 0 || box.maxX > widthM || box.maxY > heightM) return true;
+  const clear = world.balance.buildings.spawnClearM;
+  for (let i = 0; i < spawnPoints.length; i++) {
+    const sp = spawnPoints[i] as { x: number; y: number };
+    if (circleOverlapsBox(sp.x, sp.y, clear, box.minX, box.minY, box.maxX, box.maxY)) return true;
+  }
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;

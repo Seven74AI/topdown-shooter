@@ -67,7 +67,7 @@ export interface BuildingStateView {
   readonly type: string;
   /** Player id of the builder. */
   readonly owner: string;
-  /** Centre on the 1 m grid, and the rotation (0–3, 90° steps). */
+  /** Min corner as 0.5 m lattice indices (x = gx × 0.5 m), and the rotation (0–3, 90° steps). */
   readonly gx: number;
   readonly gy: number;
   readonly rot: number;

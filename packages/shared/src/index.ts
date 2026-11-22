@@ -203,8 +203,11 @@ export {
   buildingStats,
   buildingTypeIds,
   createBuildingState,
+  cornerForCentre,
   footprint,
   footprintBlocked,
+  footprintH,
+  footprintW,
   ownedCount,
   placeBuilding,
   placementError,
@@ -218,7 +221,19 @@ export {
   type PlaceError,
   type PlaceRequest,
 } from "./buildings/buildings";
-export { circleHitsBuilding, circleOverlapsBox, distanceToBox, pushOutOfBuildings, pushed, segmentHitsBox, segmentHitsBuildings } from "./buildings/collision";
+export {
+  PUSH_MOVED,
+  PUSH_NONE,
+  PUSH_STUCK,
+  circleHitsBuilding,
+  circleOverlapsBox,
+  pushOutOfBuildings,
+  pushed,
+  distanceToBox,
+  segmentHitsBox,
+  segmentHitsBuildings,
+  type PushResult,
+} from "./buildings/collision";
 // Story 3.5: flow-field pathfinding.
 export {
   FLOW_UNREACHED,

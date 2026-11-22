@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
-import { TICK_DT_S } from "../config/constants";
+import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, removeBuilding, type BuildingRotation } from "../buildings/buildings";
 import { createWorld, step, type World } from "../core/world";
 import { addPlayer } from "../player/player";
@@ -24,15 +24,16 @@ const WOOD = "wood_barricade";
 const BUILDING_UNITS = Math.round(balance.zombies.pathing.buildingCostM * FLOW_UNITS_PER_M);
 
 let nextId = 1;
-const wall = (world: World, gx: number, gy: number, rot: BuildingRotation = 0) =>
-  addBuildingAt(world, { id: nextId++, type: WOOD, ownerId: "p0", gx, gy, rot, hp: 200 });
+/** A barricade with its min corner at (x, y) metres (rot 0: 2 × 0.5 m, rot 1: 0.5 × 2 m). */
+const wall = (world: World, x: number, y: number, rot: BuildingRotation = 0) =>
+  addBuildingAt(world, { id: nextId++, type: WOOD, ownerId: "p0", gx: x / BUILD_GRID_M, gy: y / BUILD_GRID_M, rot, hp: 200 });
 
-/** Four barricades closing a 2 × 1.5 m box around (24, 16): the corner gaps are 0.5 m (a zombie is 0.7 m). */
+/** Four barricades closing a 2 × 2 m box [23, 25] × [15, 17] around (24, 16) (corners touch). */
 function closedBox(world: World): void {
-  wall(world, 24, 15); // top    x [23, 25], y [14.75, 15.25]
-  wall(world, 24, 17); // bottom x [23, 25], y [16.75, 17.25]
-  wall(world, 22, 16); // left   x [21, 23], y [15.75, 16.25]
-  wall(world, 26, 16); // right  x [25, 27], y [15.75, 16.25]
+  wall(world, 23, 14.5); // top    [23, 25] × [14.5, 15]
+  wall(world, 23, 17); // bottom   [23, 25] × [17, 17.5]
+  wall(world, 22.5, 15, 1); // left  [22.5, 23] × [15, 17]
+  wall(world, 25, 15, 1); // right   [25, 25.5] × [15, 17]
 }
 
 const cost = (world: World, x: number, y: number): number => world.pathing.chase.front[flowCellAt(world.pathing.nav, x, y)] as number;
@@ -45,9 +46,9 @@ describe("flow field: nav grid", () => {
     expect(w.pathing.nav.cells).toBe(6144);
   });
 
-  it("rasterizes a barricade conservatively (every overlapped cell) and marks the cells around it near-wall", () => {
+  it("rasterizes a box conservatively (every overlapped cell, even off the lattice) and marks the cells around it near-wall", () => {
     const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
-    const b = wall(w, 20, 11); // x [19, 21], y [10.75, 11.25]
+    const b = wall(w, 19, 10.75); // [19, 21] × [10.75, 11.25]: off the 0.5 m lattice on purpose (half cells)
     rasterizeBuildings(w.pathing.nav, w);
     const nav = w.pathing.nav;
     const at = (x: number, y: number) => nav.buildingAt[flowCellAt(nav, x, y)];
@@ -86,9 +87,9 @@ describe("flow field: costs", () => {
   it("a wall with open ends: the cost behind it is the walk round its end, far below breaking through", () => {
     const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
     addPlayer(w, "a", 22, 8);
-    wall(w, 20, 11);
-    wall(w, 22, 11);
-    wall(w, 24, 11); // x [19, 25]
+    wall(w, 19, 10.5);
+    wall(w, 21, 10.5);
+    wall(w, 23, 10.5); // [19, 25] × [10.5, 11]
     rebuildFlowFieldNow(w.pathing.chase, w.pathing.nav, w);
     const behind = cost(w, 22, 14);
     expect(behind).toBeLessThan(BUILDING_UNITS); // a detour, not a breach
@@ -175,7 +176,7 @@ describe("flow field: cadence (Epic 2 retro R1, brief line 10)", () => {
     };
     run(2 * P);
     expect(cost(w, 24, 19)).toBeGreaterThanOrEqual(BUILDING_UNITS);
-    const bottom = w.buildings.list.find((b) => b.gy === 17);
+    const bottom = w.buildings.list.find((b) => b.minY === 17);
     expect(bottom && removeBuilding(w, bottom.id)).toBe(true);
     run(2 * P);
     expect(cost(w, 24, 19)).toBeLessThan(BUILDING_UNITS); // the breach is open in the field
