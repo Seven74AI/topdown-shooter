@@ -4,12 +4,16 @@ import { DOWNTOWN_DRESSING, MAP_PX_PER_M } from "./dressing";
 import { GROUND, LAMP_GLOW_R_PX, NIGHT_BY_STAGE, ROOFS, ROOF_DEFAULT, ROOF_MARGIN, hexRgb, lit, luma, nightAt, shadowLenPx, type Rgb } from "./palette";
 import { ProbeContext } from "./probeCanvas";
 import { blockNames, drawnWalls } from "./stageFilter";
+import { DOWNTOWN_MAP, legalDecayMasks } from "@topdown/shared";
 import { downtownScene } from "./testScene";
 
 const P = MAP_PX_PER_M;
-/** Every decay variant on (both abandoned cars, both car fires): the most light near sidewalks. */
-const ALL_VARIANTS = 0xff; // every candidate on at once (Story 4.7: 6 moved cars, bits 0–5; both fires, bits 6–7): the strictest light case
-const sceneAt = (stage: number): CityScene => downtownScene(stage, ALL_VARIANTS);
+/**
+ * Story 4.7 review: the real combinations a run can pick (`legalDecayMasks`: 4 of the 6 moved cars ×
+ * one of the two car fires = 30), each one checked at every stage.
+ */
+const MASKS = legalDecayMasks(DOWNTOWN_MAP);
+const sceneAt = (stage: number, mask = MASKS[0] as number): CityScene => downtownScene(stage, mask);
 
 /** Roof sample points (inside the parapet) and sidewalk points (away from the lamp bulbs). */
 function probes(cs: CityScene): { roofs: { at: [number, number]; color: string }[]; walks: [number, number][] } {
@@ -58,9 +62,12 @@ function shown(cs: CityScene): { roof: number; walk: number } {
 describe("Dead City light: solid vs walkable never confuses (weakness #1), at every stage of the night", () => {
   for (let stage = 1; stage <= NIGHT_BY_STAGE.length; stage++) {
     it(`stage ${stage} (${nightAt(stage).name}): the darkest roof point beats the brightest lit sidewalk point by ${ROOF_MARGIN}`, () => {
-      const { roof, walk } = shown(sceneAt(stage));
-      expect(walk).toBeGreaterThan(20); // the probe really saw lamp light
-      expect(roof).toBeGreaterThanOrEqual(walk + ROOF_MARGIN);
+      expect(MASKS).toHaveLength(30);
+      for (const mask of MASKS) {
+        const { roof, walk } = shown(sceneAt(stage, mask));
+        expect(walk, `mask ${mask}`).toBeGreaterThan(20); // the probe really saw lamp light
+        expect(roof, `mask ${mask}`).toBeGreaterThanOrEqual(walk + ROOF_MARGIN);
+      }
     });
   }
   it("the night darkens stage by stage (dusk → deep night): unlit asphalt gets darker", () => {

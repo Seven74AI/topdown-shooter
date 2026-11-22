@@ -1,6 +1,6 @@
 # Story 4.7: Panic
 
-Status: review
+Status: done
 
 ## Story
 
@@ -106,12 +106,32 @@ Claude Opus 5.5 (claude-opus-5-5), builder, worktree `story-4-6-7` (Stories 4.6 
 
 - `render/StreetView.ts` (deleted by 4.9, modify/delete): deleted; its one-line shop-front tint is replaced by the real thing — CityView's shop-window light (`drawLightmap` / `drawGlow`) now comes from `windowSpill(map, dressing)` (`render/city/drawCity.ts`): one facade segment per `shopfrontsOf(map)` strip, on its glowing face, shining across the strip; colour/strength from the new `Dressing.shopLight` (by shop-front name, the values of 4.9's hand-placed front spills); `Dressing.spill` keeps only the three side-facade lights. Test `render/city/windowSpill.test.ts`; 4.9's contrast test (roofs brighter than lit sidewalks, every stage) still passes, now with every candidate on (`ALL_VARIANTS = 0xff`).
 - `scenes/GameScene.ts`: 4.9's CityView kept; the ambience player's create / update / dispose lines re-added next to it.
-- Moved cars and barriers: CityView already draws `world.obstacles.cover` by kind (car sprites with a stable colour by name for `*_in_road`, `PROP_BARRIER` striped police barriers with a short low shadow and blinker lamps) — checked in the browser at stage 2.
+- Moved cars and barriers: CityView already draws `world.obstacles.cover` by kind (car sprites with a stable colour by name for `*_in_road`, `PROP_BARRIER` striped police barriers with a short low shadow; after the review every barrier has its two blinker lamps) — checked in the browser at stage 2.
 - 4.9 tests updated for the 4.7 data: `stageFilter.test.ts` (fire bits are 6–7 now; the moved car replaces 4.5's abandoned car), `palette.test.ts` (the "night darkens" asphalt probe moved 2.5 m east, off the north street's moved car, whose lit top made stage 2 brighter there).
 - Map files regenerated from the merged generator: no change. Dev collision view fix kept.
 - Gates after the merge: typecheck, lint, test (185 files, 1,342 passed, 3 skipped; load 0.5–1.7), build green. Screenshots: `/home/claude/proto/s467/stage1-evening-deadcity.png`, `stage2-panic-deadcity.png` (+ `stage2-panic-collision.png`).
+
+## Senior Developer Review (AI)
+
+Fresh-agent review of c78e8ee (Stories 4.6 + 4.7 with the 4.9 merge): **approved with fixes**. All fixed on `story-4-6-7`:
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| M | Medium | `AmbiencePlayer.build()` synthesized both 8 s loops on the main thread at the first update after the context ran (54–78 ms in Node, likely ≥ 200 ms on a mid-range Android), on the first tap in combat and again every run (dispose dropped the buffers). | The Float32 loop data is synthesized once per page and cached at module level (`ambienceLoopData`). `synthAmbienceSteps` is a generator that yields every 8,192 samples; `prewarmAmbience()` (called by the Boot scene: start screen / lobby) runs it from idle callbacks (`requestIdleCallback`, `setTimeout` fallback) while the deadline has > 2 ms left. The player never synthesizes: until the data is ready it waits as if audio were locked (and asks for the prewarm). Every later player / run / restart only copies the cached data into a new `AudioBuffer`. Tests: the player waits while the data is missing; the prewarm takes > 10 idle slices on a busy page; a second player (new context, new run) synthesizes nothing (`ambienceSynthStats.loops` unchanged) and plays the cached data; the sliced loop equals the one-shot one. |
+| L | Low | `dispose()` left the sources running and the nodes connected; deleting `source.stop` passed all 5 ambience tests. | `dispose()` stops both sources and disconnects the sources, the voice gains and the bus. Test on the fake context: both sources stopped, each of the 5 nodes disconnected once. |
+| L | Low | `unlockAudio` resumed only a `suspended` context (iOS reports `interrupted` after a call or Siri). | Resumes whenever the state is neither `running` nor `closed`. Test `audio/placeholderSfx.test.ts` (suspended, interrupted → resume; running, closed → none; `audioContextIfRunning` follows). |
+| L | Low | `palette.test.ts` used `0xff` (every candidate at once, not a real run) with a stale comment. | The contrast test loops over `legalDecayMasks` (the 30 real combinations) at every stage; comment fixed. |
+| L | Low | The two new police lines had no blinker lamps (the pool held 2). | Every barrier gets two lamps: `BARRIER_LAMPS` = 8 (in `drawCity.ts`, used by CityView), each barrier's pair alternates; lamps sit at both ends of the barrier's long side (`police_line_gas` runs north–south). Test: every barrier at every stage × combination gets 2 lamps ≥ 80 % of its length apart, within the pool. |
+| L | Low | `coverShots.test.ts` depended on a hunted seed (423 → 425). | Seeds 421–425 all run; per seed the client and server stop the same shots, and the liveness is the sum over the five seeds (> 5; the rifle run keeps its own > 3). |
+| L | Low | "A path can still be closed" checked only line tests. | (`segmentHitsBuildings` does include the World's obstacles — map boxes and cover — then buildings.) The test now also checks a body's radius fits through the gap before, and the zombies' flow field: from a target inside the lot, the field cost at alley 2's head goes 35 → 87 once the barricade closes the gap (asserted > 1.5×). |
+| Flake | — | `RunRoom.buildings.test.ts` "refuses to the sender only" failed under load even with a 5 s wait. | **Cause: the per-client rate limiter, not slowness.** The host sent 14 "other" messages (2 in `startTwo` + 12 in the test) against a 10-token bucket refilled at 10/s by *arrival* time on the server; the last message needed ≥ 0.4 s of arrivals since the first. Instrumented: 0.85 tokens were left just before the final placement, which only succeeded because ~0.1 s had passed. Under load the socket delivers queued messages in a burst, arrivals bunch up, the final `building.place` is rate-dropped silently and no refusal ever arrives — no wait can fix that. Reproduced deterministically by freezing the guard's clock (old test fails at the cap step; new one passes). Fix: the 6 placements that only fill the cap go through `room.controller.placeBuilding` directly, so the host sends 8 messages, inside the bucket's capacity whatever the timing; the test asserts 0 rate drops for the host (a regression shows as that, not a timeout); the 5 s timeout is gone. |
+
+Gates after the fixes: typecheck, lint, test (186 files, 1,346 passed, 3 skipped; load 0.4–1.1), build green.
+
+**Mutations proven after the fixes** (each made its test fail, then restored): R1 `dispose` without `source.stop` → dispose test; R2 without the disconnects → dispose test; R3 `build()` synthesizes again → reuse test; R4 the idle work ignores the deadline → slices test; R5 the player synthesizes when the data is missing → 3 tests; R6 `unlockAudio` back to "suspended" only → unlock test; R7 two barrier lamps in all → lamps test; R8 a vertical barrier's lamps both at its middle → lamps test; R10 shop light ignoring the shop fronts → window-spill test; the lot-gap barricade left out → the flow-field check alone fails (35 vs > 52.5). The build's M1–M17 stand.
 
 ## Change Log
 
 - 2026-11-22: Story file written (gds-create-story) and built together with 4.6 on `story-4-6-7`. Status review.
 - 2026-11-22: Merged the work branch (deb09ce, Story 4.9); shop-front light from `shopfrontsOf` in CityView.
+- 2026-11-22: Review (approved with fixes): M ambience synthesis once per page in idle time; L dispose, iOS "interrupted" unlock, palette over the real combinations, lamps on every barrier, coverShots seeds, lot-gap flow check; the RunRoom.buildings flake (rate-limiter race) fixed. Status done.

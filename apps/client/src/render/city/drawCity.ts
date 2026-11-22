@@ -850,6 +850,9 @@ export function drawStatic(g: G, s: number, cs: CityScene): void {
   drawOverlay(g, s, cs, bd);
 }
 
+/** Story 4.7 review: the view's pool of barrier lamps — two on every police barrier (Downtown stage 2: 3 barriers; room for 4). */
+export const BARRIER_LAMPS = 8;
+
 /** Bus hazard blinkers and barrier lamps (the view animates them): positions in map px. */
 export function blinkerSpots(cs: CityScene): { bus: [number, number][]; barrier: [number, number][] } {
   const bus: [number, number][] = [];
@@ -857,7 +860,11 @@ export function blinkerSpots(cs: CityScene): { bus: [number, number][]; barrier:
   for (const c of cs.cover) {
     const b = toBox(c, c.kind);
     if (c.kind === "bus") bus.push([b.x + 4, b.y + 12], [b.x + 4, b.y + b.h - 12]);
-    if (c.kind === "barrier") barrier.push([b.x + 5, b.y + b.h / 2], [b.x + b.w - 5, b.y + b.h / 2]);
+    if (c.kind === "barrier") {
+      // At both ends along the barrier's length (police_line_gas runs north–south).
+      if (b.w >= b.h) barrier.push([b.x + 5, b.y + b.h / 2], [b.x + b.w - 5, b.y + b.h / 2]);
+      else barrier.push([b.x + b.w / 2, b.y + 5], [b.x + b.w / 2, b.y + b.h - 5]);
+    }
   }
   return { bus, barrier };
 }

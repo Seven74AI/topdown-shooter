@@ -102,8 +102,8 @@ development_status:
   4-3-spawn-points: done
   4-4-named-seed-streams: done
   4-5-decay-stage-engine: done
-  4-6-evening: review
-  4-7-panic: review
+  4-6-evening: done
+  4-7-panic: done
   4-8-breakdown-and-car-fires: backlog
   4-9-placeholder-dead-city-look: done
   4-10-milestone-1-playtest: backlog  # human: playtest/spec, not a dev-agent story

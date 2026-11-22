@@ -103,8 +103,15 @@ describe("RunRoom buildings (Story 3.4)", () => {
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 5, gy: 5, rot: 0 });
     await vi.waitFor(() => expect(hostRec.refused).toEqual(["blocked", "money"]));
     me.wallet = 1000;
-    for (let i = 0; i < 6; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 14 + i * 6, gy: 20, rot: 0 }); // Story 4.3: x ≥ 7 m, clear of window_corner_shop (4, 10.6)
-    await vi.waitFor(() => expect(world(room).buildings.list).toHaveLength(6));
+    // Stories 4.6/4.7 review (flake): the 6 placements that reach the cap go through the controller
+    // directly, not as messages. Sent as messages they made 14 "other" messages from the host in this
+    // test against a 10-token bucket refilled at 10/s by ARRIVAL time: the last message only got a
+    // token if ≥ 0.4 s of arrivals had passed (measured: 0.85 tokens left before it). Under load the
+    // socket delivers queued messages in a burst, the arrivals bunch up, the final placement is
+    // silently rate-dropped and no refusal ever comes (a longer wait could not help). Now the host
+    // sends 8 messages in all, inside the bucket's capacity whatever the timing.
+    for (let i = 0; i < 6; i++) expect(room.controller?.placeBuilding("p0", { type: WOOD, gx: 14 + i * 6, gy: 20, rot: 0 }).ok).toBe(true); // Story 4.3: x ≥ 7 m, clear of window_corner_shop (4, 10.6)
+    expect(world(room).buildings.list).toHaveLength(6);
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 5, gy: 28, rot: 0 });
     await vi.waitFor(() => expect(hostRec.refused).toEqual(["blocked", "money", "limit"]));
     expect(me.wallet).toBe(1000 - 6 * 40);
@@ -115,8 +122,11 @@ describe("RunRoom buildings (Story 3.4)", () => {
     room.controller?.setBuildReady("p1", true);
     await vi.waitFor(() => expect(host.state.phase).toBe("wave"));
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 40, gy: 28, rot: 0 });
-    await vi.waitFor(() => expect(hostRec.refused).toHaveLength(5), { timeout: 5000 }); // a loaded machine missed 1 s once
+    await vi.waitFor(() => expect(hostRec.refused).toHaveLength(5));
     expect(hostRec.refused[4]).toBe("not_build_phase");
+    // Not one message was rate-dropped (a regression here would otherwise look like a timeout).
+    const hostClient = [...room.clients].find((c) => c.sessionId === host.sessionId);
+    expect(room.net.pending(hostClient as never)?.rate).toBe(0);
     expect(guestRec.refused).toEqual([]);
     expect(world(room).buildings.list).toHaveLength(6);
   });

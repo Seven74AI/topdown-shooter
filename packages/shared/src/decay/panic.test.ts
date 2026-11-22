@@ -130,15 +130,31 @@ describe("Story 4.7 Panic: 4 cars into the road (decay stream)", () => {
     expect(changeDecayStage(w, 2)).toBe(true);
     const wood = buildingStats(balance, "wood_barricade");
     if (!wood) throw new Error("wood");
-    // Between the line (y ≤ 22.5) and the parking wall (x 10–10.5, y ≥ 24): open before the barricade.
-    expect(segmentHitsBuildings(w, 9, 23.25, 12, 23.25, 0)).toBe(false);
+    // Review L: judged against the obstacles (map boxes, cover incl. the police line) and buildings,
+    // for a body's radius, and by the zombies' own flow field (a detour, not a line test alone).
+    const r = balance.player.radiusM;
+    const p0 = w.players.get("p0");
+    if (!p0) throw new Error("p0");
+    p0.x = p0.prevX = 15; // the zombies' target inside the lot
+    p0.y = p0.prevY = 26;
+    const { nav, chase } = w.pathing;
+    const westOfGap = flowCellAt(nav, 8.5, 23.25); // alley 2's head, west of the gap
+    rebuildFlowFieldNow(chase, nav, w);
+    const before = chase.front[westOfGap] as number;
+    expect(before).toBeLessThan(FLOW_UNREACHED);
+    expect(segmentHitsBuildings(w, 9, 23.25, 12, 23.25, r)).toBe(false); // a body fits through the gap
     const req = { type: "wood_barricade", gx: 21, gy: 45, rot: 1 }; // x 10.5–11, y 22.5–24.5
     const box = footprint(wood, req.gx, req.gy, req.rot, { minX: 0, minY: 0, maxX: 0, maxY: 0 } as Box);
     expect([box.minX, box.maxX, box.minY, box.maxY]).toEqual([10.5, 11, 22.5, 24.5]);
     expect(placementError(w, "p0", req)).toBe(null);
     expect(placeBuilding(w, "p0", req).ok).toBe(true);
     for (let y = 22.6; y < 24; y += 0.2) expect(segmentHitsBuildings(w, 9, y, 12, y, 0), `y ${y.toFixed(1)}`).toBe(true);
+    rebuildFlowFieldNow(chase, nav, w);
+    const after = chase.front[westOfGap] as number;
+    // The way round (or through the barricade, which zombies must break: costly) is much longer.
+    expect(after).toBeGreaterThan(before * 1.5); // measured 35 → 87 (field cost units)
   });
+
 });
 
 describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", () => {

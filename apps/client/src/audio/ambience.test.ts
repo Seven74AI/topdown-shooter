@@ -4,7 +4,12 @@ import {
   AMBIENCE_GAIN,
   AMBIENCE_LOOP_S,
   AmbiencePlayer,
+  ambienceLoopData,
   ambienceLoopForStage,
+  ambienceLoopsReady,
+  ambienceSynthStats,
+  prewarmAmbience,
+  synthAmbienceLoop as synthWhole,
   ambienceStep,
   createAmbienceState,
   synthAmbienceLoop,
@@ -83,6 +88,8 @@ describe("placeholder loops (pure synthesis)", () => {
 function fakeContext() {
   const ramps: { node: number; value: number; at: number }[] = [];
   let nodes = 0;
+  const made: { id: number; stopped: number; started: number; disconnected: number; buffer: unknown }[] = [];
+  const buffers: Float32Array[] = [];
   const param = (node: number) => ({
     value: 0,
     cancelScheduledValues() {},
@@ -95,11 +102,14 @@ function fakeContext() {
   });
   const node = () => {
     const id = nodes++;
-    const n = { id, gain: param(id), connect: (to: unknown) => to, buffer: null as unknown, loop: false, started: 0, stopped: -1, start() {
+    const n = { id, gain: param(id), connect: (to: unknown) => to, buffer: null as unknown, loop: false, started: 0, stopped: -1, disconnected: 0, start() {
       this.started++;
-    }, stop(at: number) {
+    }, stop(at = 0) {
       this.stopped = at;
+    }, disconnect() {
+      this.disconnected++;
     } };
+    made.push(n);
     return n;
   };
   const ctx = {
@@ -107,12 +117,65 @@ function fakeContext() {
     destination: {},
     createGain: node,
     createBufferSource: node,
-    createBuffer: (_c: number, len: number) => ({ getChannelData: () => new Float32Array(len) }),
+    createBuffer: (_c: number, len: number) => {
+      const data = new Float32Array(len);
+      buffers.push(data);
+      return { getChannelData: () => data };
+    },
   };
-  return { ctx: ctx as unknown as AmbienceContext, ramps, count: () => nodes };
+  return { ctx: ctx as unknown as AmbienceContext, ramps, count: () => nodes, made, buffers };
 }
 
 describe("AmbiencePlayer (fake WebAudio)", () => {
+  it("review M: the loops are synthesized in idle slices once per page; the player waits for them (never synthesizes at the first tap)", () => {
+    const f = fakeContext();
+    const waiting = new AmbiencePlayer(() => f.ctx, () => false, null);
+    const queued: ((d: { timeRemaining(): number }) => void)[] = [];
+    prewarmAmbience((cb) => queued.push(cb)); // the Boot scene's call (start screen)
+    for (let i = 0; i < 5; i++) waiting.update(1);
+    expect(waiting.playing).toBe(null); // audio runs, but the data is not there yet: wait
+    expect(f.count()).toBe(0);
+    let slices = 0;
+    while (queued.length > 0) {
+      const cb = queued.shift() as (d: { timeRemaining(): number }) => void;
+      slices++;
+      cb({ timeRemaining: () => 0 }); // a busy page: one slice per idle callback
+    }
+    expect(ambienceLoopsReady()).toBe(true);
+    expect(slices).toBeGreaterThan(10); // spread over many idle callbacks
+    const synthesized = ambienceSynthStats.loops;
+    waiting.update(1);
+    expect(waiting.playing).toBe("evening");
+    waiting.dispose();
+    // A second run / restart (new player, even a new context) reuses the cached data: no synthesis.
+    const g = fakeContext();
+    const second = new AmbiencePlayer(() => g.ctx, () => false, null);
+    second.update(2);
+    expect(second.playing).toBe("panic");
+    expect(ambienceSynthStats.loops).toBe(synthesized); // nothing synthesized for the second run
+    expect(g.buffers.map((b) => b.length)).toEqual([AMBIENCE_LOOP_S * 22050, AMBIENCE_LOOP_S * 22050]);
+    expect(g.buffers[1]).toEqual(ambienceLoopData("panic"));
+    prewarmAmbience(() => {
+      throw new Error("no second prewarm");
+    });
+    second.dispose();
+    expect(ambienceLoopData("evening")).toEqual(synthWhole("evening")); // the sliced synthesis = the one-shot one
+  });
+
+  it("review L: dispose stops both sources and disconnects every node (bus, voice gains, sources)", () => {
+    const f = fakeContext();
+    const p = new AmbiencePlayer(() => f.ctx, () => false, null);
+    p.update(1);
+    expect(f.made).toHaveLength(5);
+    p.dispose();
+    const sources = f.made.filter((n) => n.started > 0);
+    expect(sources).toHaveLength(2);
+    for (const s of sources) expect(s.stopped).toBeGreaterThanOrEqual(0);
+    for (const n of f.made) expect(n.disconnected, `node ${n.id}`).toBe(1);
+    p.update(1); // after dispose a new start would build fresh nodes, never touch the old ones
+    expect(f.made.slice(0, 5).every((n) => n.disconnected === 1)).toBe(true);
+  });
+
   it("nothing before the gesture; then fades the evening loop in; crossfades to panic over 3 s on stage 2; no nodes per frame; mutes while hidden", () => {
     const f = fakeContext();
     let unlocked = false;

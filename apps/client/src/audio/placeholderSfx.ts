@@ -50,9 +50,13 @@ export function audioContextIfRunning(): AudioContext | null {
   return ctx !== null && ctx.state === "running" ? ctx : null;
 }
 
+/**
+ * Resumes the context after a user gesture whenever it is not running (review L: not only
+ * "suspended" — iOS reports "interrupted" after a call or Siri) and not closed.
+ */
 export function unlockAudio(): void {
   const c = context();
-  if (c && c.state === "suspended") void c.resume();
+  if (c && c.state !== "running" && c.state !== "closed") void c.resume();
 }
 
 function burst(c: AudioContext, at: number, durS: number, gain: number, filterHz: number): void {

@@ -92,7 +92,7 @@ const TAU = Math.PI * 2;
 const bump = (t: number, at: number, width: number): number => Math.exp(-(((t - at) / width) ** 2));
 
 /** Evening: traffic rumble with three cars passing, distant muffled music (chords + a soft kick). */
-function evening(out: Float32Array, rate: number): void {
+function* evening(out: Float32Array, rate: number): Generator<void, void, void> {
   const n = out.length;
   const noise = lcg(7);
   let brown = 0;
@@ -106,6 +106,7 @@ function evening(out: Float32Array, rate: number): void {
   const chordS = AMBIENCE_LOOP_S / chords.length;
   const beatS = 0.5; // 120 bpm
   for (let i = 0; i < n; i++) {
+    if (i % SYNTH_SLICE === SYNTH_SLICE - 1) yield;
     const t = i / rate;
     const w = noise();
     brown = brown * 0.995 + w * 0.05;
@@ -123,7 +124,7 @@ function evening(out: Float32Array, rate: number): void {
 }
 
 /** Panic: a wailing siren, a hi-lo siren further off, a car alarm beeping, low rumble. */
-function panic(out: Float32Array, rate: number): void {
+function* panic(out: Float32Array, rate: number): Generator<void, void, void> {
   const n = out.length;
   const noise = lcg(11);
   let brown = 0;
@@ -131,6 +132,7 @@ function panic(out: Float32Array, rate: number): void {
   let phB = 0;
   let phC = 0;
   for (let i = 0; i < n; i++) {
+    if (i % SYNTH_SLICE === SYNTH_SLICE - 1) yield;
     const t = i / rate;
     brown = brown * 0.996 + noise() * 0.04;
     // Wail: 600 → 1300 Hz and back every 4 s (two cycles per loop: periodic).
@@ -148,17 +150,24 @@ function panic(out: Float32Array, rate: number): void {
   }
 }
 
+/** Counts loops synthesized (tests: the game synthesizes each loop once per page, whatever the runs). */
+export const ambienceSynthStats = { loops: 0 };
+
+/** Samples synthesized between two yields (~0.4 s of audio: a few ms on a phone). */
+const SYNTH_SLICE = 8192;
+
 /**
- * The loop `id` as a seamless mono buffer of `AMBIENCE_LOOP_S` at `rate`: synthesized a little
- * longer, then the tail crossfaded into the head (no click at the loop point), normalized to a
- * 0.9 peak. Pure (tests); the player calls it once per loop at the first start.
+ * The loop `id` as a seamless mono buffer of `AMBIENCE_LOOP_S` at `rate`, step by step: the
+ * generator yields every `SYNTH_SLICE` samples (so idle time can spread the work over frames) and
+ * returns the buffer. Synthesized a little longer, then the tail crossfaded into the head (no click
+ * at the loop point), normalized to a 0.9 peak.
  */
-export function synthAmbienceLoop(id: AmbienceLoopId, rate = AMBIENCE_SYNTH_RATE): Float32Array {
+export function* synthAmbienceSteps(id: AmbienceLoopId, rate = AMBIENCE_SYNTH_RATE): Generator<void, Float32Array, void> {
   const n = Math.round(AMBIENCE_LOOP_S * rate);
   const fade = Math.round(0.25 * rate);
   const raw = new Float32Array(n + fade);
-  if (id === "evening") evening(raw, rate);
-  else panic(raw, rate);
+  if (id === "evening") yield* evening(raw, rate);
+  else yield* panic(raw, rate);
   const out = new Float32Array(n);
   let peak = 0;
   for (let i = 0; i < n; i++) {
@@ -172,7 +181,80 @@ export function synthAmbienceLoop(id: AmbienceLoopId, rate = AMBIENCE_SYNTH_RATE
   }
   const scale = peak > 0 ? 0.9 / peak : 0;
   for (let i = 0; i < n; i++) out[i] = (out[i] as number) * scale;
+  ambienceSynthStats.loops++;
   return out;
+}
+
+/** The whole loop at once (pure; tests). The game uses the cached, idle-time data (`prewarmAmbience`). */
+export function synthAmbienceLoop(id: AmbienceLoopId, rate = AMBIENCE_SYNTH_RATE): Float32Array {
+  const it = synthAmbienceSteps(id, rate);
+  for (;;) {
+    const r = it.next();
+    if (r.done) return r.value;
+  }
+}
+
+// ---- the loop data, synthesized once per page in idle time ----------------------------------------
+
+/** Review M: the synthesized loops, kept for the page's lifetime (every run, every restart reuses them). */
+const loopData = new Map<AmbienceLoopId, Float32Array>();
+let pending: { id: AmbienceLoopId; it: Generator<void, Float32Array, void> } | null = null;
+let prewarmScheduled = false;
+
+/** The cached data of `id`, or null while it is still being synthesized. */
+export function ambienceLoopData(id: AmbienceLoopId): Float32Array | null {
+  return loopData.get(id) ?? null;
+}
+
+export function ambienceLoopsReady(): boolean {
+  return loopData.size === AMBIENCE_LOOPS.length;
+}
+
+/**
+ * Runs synthesis slices until `hasTime()` says stop or every loop is done; returns whether all are
+ * ready. Pure of timers: `prewarmAmbience` drives it from idle callbacks; tests call it directly.
+ */
+export function ambienceSynthWork(hasTime: () => boolean): boolean {
+  while (!ambienceLoopsReady()) {
+    if (pending === null) {
+      const id = AMBIENCE_LOOPS.find((l) => !loopData.has(l)) as AmbienceLoopId;
+      pending = { id, it: synthAmbienceSteps(id) };
+    }
+    const r = pending.it.next();
+    if (r.done) {
+      loopData.set(pending.id, r.value);
+      pending = null;
+    }
+    if (!hasTime()) break;
+  }
+  return ambienceLoopsReady();
+}
+
+type IdleDeadline = { timeRemaining(): number };
+type IdleScheduler = (cb: (d: IdleDeadline) => void) => void;
+const IDLE_FALLBACK_MS = 8;
+const defaultIdle: IdleScheduler = (cb) => {
+  const ric = (globalThis as { requestIdleCallback?: (cb: (d: IdleDeadline) => void, o?: { timeout: number }) => number }).requestIdleCallback;
+  if (ric) ric(cb, { timeout: 1000 });
+  else setTimeout(() => {
+    const t0 = Date.now();
+    cb({ timeRemaining: () => IDLE_FALLBACK_MS - (Date.now() - t0) });
+  }, 0);
+};
+
+/**
+ * Review M: synthesizes the loops in idle time, a slice at a time (start screen / lobby; the Boot
+ * scene calls it), once per page. Idempotent. The player waits for the data instead of synthesizing
+ * on the main thread at the first tap.
+ */
+export function prewarmAmbience(idle: IdleScheduler = defaultIdle): void {
+  if (prewarmScheduled || ambienceLoopsReady()) return;
+  prewarmScheduled = true;
+  const tick = (d: IdleDeadline): void => {
+    if (ambienceSynthWork(() => d.timeRemaining() > 2)) return;
+    idle(tick);
+  };
+  idle(tick);
 }
 
 // ---- WebAudio player -----------------------------------------------------------------------------
@@ -224,7 +306,11 @@ export class AmbiencePlayer {
   update(stage: number): void {
     this.lastStage = stage;
     const c = this.ctx ?? this.getContext();
-    const action = ambienceStep(this.state, stage, c !== null, this.getHidden());
+    // Review M: the loops are synthesized in idle time (`prewarmAmbience`), never here; until they
+    // are ready the ambience simply waits (like before the first gesture).
+    const ready = ambienceLoopsReady();
+    if (!ready && c !== null) prewarmAmbience();
+    const action = ambienceStep(this.state, stage, c !== null && ready, this.getHidden());
     if (action === "none" || c === null) return;
     if (this.ctx === null) this.build(c);
     const now = c.currentTime;
@@ -250,7 +336,7 @@ export class AmbiencePlayer {
     this.bus = bus;
     this.nodesCreated++;
     for (const id of AMBIENCE_LOOPS) {
-      const data = synthAmbienceLoop(id);
+      const data = ambienceLoopData(id) as Float32Array; // cached once per page (review M)
       const buf = c.createBuffer(1, data.length, AMBIENCE_SYNTH_RATE);
       buf.getChannelData(0).set(data);
       const source = c.createBufferSource();
@@ -265,14 +351,15 @@ export class AmbiencePlayer {
     }
   }
 
+  /** Review L: stops the sources and disconnects every node (scene shutdown, restart). */
   dispose(): void {
     this.doc?.removeEventListener("visibilitychange", this.onVisibility);
-    const c = this.ctx;
-    if (c && this.bus) {
-      const now = c.currentTime;
-      rampTo(this.bus, 0, now, AMBIENCE_HIDE_FADE_S);
-      for (const v of this.voices.values()) v.source.stop(now + AMBIENCE_HIDE_FADE_S);
+    for (const v of this.voices.values()) {
+      v.source.stop();
+      v.source.disconnect();
+      v.gain.disconnect();
     }
+    this.bus?.disconnect();
     this.voices.clear();
     this.ctx = null;
     this.bus = null;
