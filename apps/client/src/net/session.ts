@@ -28,6 +28,8 @@ export interface NetRoomLike {
  * patch. Until `onEvents` is called, `sim.events_flushed` batches are buffered (at most
  * EARLY_EVENT_BATCHES_MAX, oldest dropped) and then handed over in order. `net.pinged` is always
  * answered at once here, so the server's RTT never includes the scene's start-up.
+ * Note for a restart in the same room (2.11 / Epic 8): batches that arrive after a host
+ * unsubscribes are buffered again and would go to the next run's host; clear them at a new start.
  */
 export class RunInbox {
   /** Latest RTT the server measured for this client (2.10 overlay). */

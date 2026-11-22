@@ -4,7 +4,7 @@ baseline_commit: 0a7adfd7ae06067d9222736253f0a54f6928a552
 
 # Story 2.4: The server runs the fight
 
-Status: review
+Status: done
 
 ## Story
 
@@ -329,7 +329,7 @@ claude-opus-5-5 via gds-dev-story
 ## Senior Developer Review (AI)
 
 - **Date:** 2026-11-21 · **Reviewer:** independent review agent (fresh context; full suite on the merged tip, the fight and NetSimHost tests run ~30 times, probe tests on RunController) · **Outcome:** no high findings. 2 medium and 4 low findings. **Story stays in `review` until the open items are fixed** (next session).
-- [x] **[Med] The input backlog never drained after a stall** (`run/RunController.ts`). **Fixed 2026-11-22:** when a queue starts a tick above `INPUT_QUEUE_TARGET` (2) for `INPUT_DRAIN_AFTER_TICKS` (10 = 0.5 s) ticks in a row, the oldest input is skipped every `INPUT_DRAIN_EVERY_TICKS` (2) ticks until it is back at 2 (a 300 ms stall is gone in ~0.9 s). Skipped and overflowed inputs OR their swap/consumable into the next one. `drops().drained` reports skips; `ackSeq` jumps past a skipped seq, which Story 2.6 reconciles from server state. Tests: stall → back to ≤ 2, edge flags kept on overflow and on drain, paired-arrival jitter never drains.
+- [x] **[Med] The input backlog never drained after a stall** (`run/RunController.ts`). **Fixed 2026-11-22:** when a queue starts a tick above `INPUT_QUEUE_TARGET` (2) for `INPUT_DRAIN_AFTER_TICKS` (40 = 2 s) ticks in a row, the oldest input is skipped every `INPUT_DRAIN_EVERY_TICKS` (2) ticks until it is back at 2 (a 300 ms stall is gone ~2.4 s later). Skipped and overflowed inputs move each swap/consumable flag to the first later input that doesn't have it. `drops().drained` reports skips; `ackSeq` jumps past a skipped seq, which Story 2.6 reconciles from server state. Tests: stall → back to ≤ 2, edge flags kept on overflow and on drain, paired-arrival jitter never drains.
   - The server takes exactly one input per tick and the client sends one per tick, so a 300 ms stall leaves 6 queued inputs (300 ms of extra lag) for the rest of the run.
   - From then on, any jitter overflows the queue and drops the oldest input. That loses movement (breaking Story 2.6's prediction invariant) and can lose swap/consumable edges.
   - **Fix:**
@@ -352,7 +352,18 @@ claude-opus-5-5 via gds-dev-story
   - offline play is unchanged;
   - the merge with the 2.2/2.3 changes.
 
+### Review of the fixes (2026-11-22, fresh agent)
+
+- No high findings; full suite and the touched files 5× green.
+- [x] [Med] A 0.5 s drain window turned 4G spikes into starve → drain → starve (review sim: +35 % starved ticks). Window raised to 2 s; seeded 4G-jitter test (spike every 3 s: no overflow, starving only from the spikes, lag back to target).
+- [x] [Low] OR-forward merged two presses on consecutive seqs into one. Each flag now moves to the first later input without it; test added.
+- [x] [Low] The RTT test didn't check which send time a late pong uses: fake clock, asserts a 5 s sample.
+- [x] [Low] Drain breaks "acked = applied": documented in RunController and told to Story 2.6 (a skip is a one-tick snap).
+- Noted, not fixed: an inbox re-buffers after its host unsubscribes (only matters for a same-room restart: comment in `RunInbox`, note in 2.11); `freePort` probe/bind race (unlikely); `leaveRoom` isn't tied to one room (pre-existing; note in 2.11).
+
 ## Change Log
+
+- 2026-11-22: Fix review findings applied (2 s drain window, per-press flag carry, RTT test clock). Story done.
 
 - 2026-11-22: Review items fixed: input backlog drain + edge-flag carry, RTT window of 5 pings, `RunInbox` buffers fight messages from the join, `bootTestServer` free ports; patch-encoding timing moved to 2.5. 490 tests passing.
 

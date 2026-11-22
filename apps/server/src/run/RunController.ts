@@ -18,9 +18,13 @@ import {
 export const INPUT_QUEUE_MAX = 6;
 /** Backlog the queue should settle at: 2 inputs = 100 ms of jitter cover (Story 2.4 review). */
 export const INPUT_QUEUE_TARGET = 2;
-/** Ticks in a row above the target before the server starts skipping (10 = 0.5 s; one burst isn't a backlog). */
-export const INPUT_DRAIN_AFTER_TICKS = 10;
-/** While draining, skip one input every this many ticks (2 → a 6-input backlog is gone in ~0.9 s). */
+/**
+ * Ticks in a row above the target before the server starts skipping (40 = 2 s). Long on purpose:
+ * after a 4G spike the burst refills the queue, and draining it too soon removes the cover for
+ * the next spike (starve → drain → starve; review sim: 0.5 s added ~35 % more starved ticks).
+ */
+export const INPUT_DRAIN_AFTER_TICKS = 40;
+/** While draining, skip one input every this many ticks (2 → a 6-input backlog is gone ~2.4 s after the stall). */
 export const INPUT_DRAIN_EVERY_TICKS = 2;
 
 type MutableInput = { -readonly [K in keyof PlayerInput]: PlayerInput[K] };
@@ -62,16 +66,27 @@ class PlayerSlot {
 
 /**
  * Drops the oldest queued input but keeps its one-shot flags: a swap or consumable press must
- * never be lost (Epic 1 lesson), so they are OR-ed into the input that is now oldest.
+ * never be lost (Epic 1 lesson). Each flag moves to the first later input that doesn't have it
+ * yet, so two presses on consecutive seqs stay two presses (a swap toggle ends on the same weapon
+ * as the client predicted). Callers keep at least one input queued after the drop.
  */
 const dropOldest = (s: PlayerSlot): void => {
   const dropped = s.ring[s.head] as MutableInput;
   s.head = (s.head + 1) % INPUT_QUEUE_MAX;
   s.count--;
-  if (s.count === 0) return;
-  const next = s.ring[s.head] as MutableInput;
-  next.swap = next.swap || dropped.swap;
-  next.consumable = next.consumable || dropped.consumable;
+  let swap = dropped.swap;
+  let consumable = dropped.consumable;
+  for (let i = 0; i < s.count && (swap || consumable); i++) {
+    const next = s.ring[(s.head + i) % INPUT_QUEUE_MAX] as MutableInput;
+    if (swap && !next.swap) {
+      next.swap = true;
+      swap = false;
+    }
+    if (consumable && !next.consumable) {
+      next.consumable = true;
+      consumable = false;
+    }
+  }
 };
 
 export interface RunControllerOptions {

@@ -137,14 +137,21 @@ describe("RunRoom fight (Story 2.4)", () => {
     if (!controller) throw new Error("no controller");
     const setRtt = vi.spyOn(controller, "setRtt");
     const internals = room as unknown as { ping(): void; pingId: number };
-    for (let i = 0; i < PING_HISTORY; i++) internals.ping();
+    // Pings 1 s apart on a fake clock, so a late pong must use its own id's send time.
+    let clock = 1_000_000;
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+    for (let i = 0; i < PING_HISTORY; i++) {
+      internals.ping();
+      clock += 1000;
+    }
     const latest = internals.pingId;
     const p0 = room.clients.find((c) => room.members.get(c.sessionId)?.playerId === "p0") as RunClient;
     room.onPong(p0, latest + 1); // never sent
     room.onPong(p0, latest - PING_HISTORY); // fell out of the window
     expect(setRtt).not.toHaveBeenCalled();
-    room.onPong(p0, latest - PING_HISTORY + 1); // the oldest kept: ~4 s late in real play
+    room.onPong(p0, latest - PING_HISTORY + 1); // the oldest kept: answered 5 s after it was sent
     expect(setRtt).toHaveBeenCalledTimes(1);
+    expect(setRtt.mock.calls[0]?.[1]).toBe(PING_HISTORY * 1000);
     room.onPong(p0, latest - PING_HISTORY + 1); // repeat
     room.onPong(p0, latest - PING_HISTORY); // older than the one answered
     expect(setRtt).toHaveBeenCalledTimes(1);

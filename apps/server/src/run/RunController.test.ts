@@ -123,7 +123,7 @@ describe("RunController", () => {
     expect(c.world.inputs.get("p0")).toMatchObject({ seq: 3, swap: true, consumable: true });
   });
 
-  it("drains a backlog after a 300 ms stall back to the target within 2 s", () => {
+  it("drains a backlog after a 300 ms stall back to the target within 3 s", () => {
     const c = newController();
     let seq = 0;
     const send = () => c.queueInput("p0", input(++seq, { moveX: 1 }));
@@ -136,13 +136,13 @@ describe("RunController", () => {
     for (let i = 0; i < 6; i++) c.tick();
     for (let i = 0; i < 6; i++) send();
     let settledAt = -1;
-    for (let t = 0; t < 40; t++) {
+    for (let t = 0; t < 60; t++) {
       send();
       c.tick();
       if (settledAt < 0 && c.queued("p0") <= INPUT_QUEUE_TARGET) settledAt = t;
     }
-    expect(settledAt).toBeGreaterThanOrEqual(0);
-    expect(settledAt).toBeLessThan(40);
+    expect(settledAt).toBeGreaterThanOrEqual(INPUT_DRAIN_AFTER_TICKS - 1); // not before the window
+    expect(settledAt).toBeLessThan(60);
     expect(c.queued("p0")).toBeLessThanOrEqual(INPUT_QUEUE_TARGET);
     expect(c.drops("p0")).toEqual({ overflow: 1, stale: 0, drained: 4 });
     // The lag is gone: the newest input is at most TARGET ticks from being applied.
@@ -174,6 +174,54 @@ describe("RunController", () => {
     expect(c.drops("p0").drained).toBeGreaterThan(0);
     expect(swaps).toEqual(["weapon.swap_started"]);
     expect(p.loadout.active).toBe(1);
+  });
+
+  it("two swaps on consecutive seqs stay two swaps when the first is dropped", () => {
+    const c = newController();
+    c.queueInput("p0", input(1, { swap: true }));
+    c.queueInput("p0", input(2, { swap: true }));
+    for (let seq = 3; seq <= INPUT_QUEUE_MAX + 1; seq++) c.queueInput("p0", input(seq)); // drops seq 1
+    const swaps: boolean[] = [];
+    for (let i = 0; i < INPUT_QUEUE_MAX; i++) {
+      c.tick();
+      swaps.push(c.world.inputs.get("p0")?.swap === true);
+    }
+    expect(swaps.filter(Boolean)).toHaveLength(2);
+    expect(c.ackSeq("p0")).toBe(INPUT_QUEUE_MAX + 1);
+  });
+
+  it("4G-like jitter with a 150 ms spike every 3 s: no overflow, no extra starving, lag back to target (seeded)", () => {
+    const c = newController();
+    let rng = 42;
+    const rand = () => (rng = (rng * 1103515245 + 12345) >>> 0) / 2 ** 32;
+    // Each input is due 0–1 ticks late, plus up to 3 ticks late during a spike; order is kept,
+    // so every spike lands as a burst that adds ~3 inputs of lasting lag the drain must remove.
+    const TICKS = 2000;
+    const SPIKE_EVERY = 60;
+    const due: number[] = [];
+    let lastDue = 0;
+    for (let t = 0; t < TICKS; t++) {
+      const spike = t % SPIKE_EVERY < 3 ? 3 - (t % SPIKE_EVERY) : 0;
+      lastDue = Math.max(lastDue, t + (rand() < 0.5 ? 0 : 1) + spike);
+      due.push(lastDue);
+    }
+    let seq = 0;
+    let next = 0;
+    let starved = 0;
+    for (let t = 0; t < TICKS; t++) {
+      while (next < due.length && (due[next] as number) <= t) {
+        c.queueInput("p0", input(++seq));
+        next++;
+      }
+      const before = c.ackSeq("p0");
+      c.tick();
+      if (seq > 0 && c.ackSeq("p0") === before) starved++;
+    }
+    const spikes = Math.ceil(TICKS / SPIKE_EVERY);
+    expect(c.drops("p0").overflow).toBe(0);
+    expect(starved).toBeLessThanOrEqual(spikes * 4); // the spike itself (≤ 3 ticks) + 1 of jitter
+    expect(c.drops("p0").drained).toBeLessThanOrEqual(spikes * 3); // only the lag each spike added
+    expect(c.queued("p0")).toBeLessThanOrEqual(INPUT_QUEUE_TARGET + 3);
   });
 
   it("normal jitter (inputs arriving in pairs) never triggers a drain", () => {

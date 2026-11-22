@@ -75,6 +75,11 @@ so that I can quit cleanly without closing the browser.
   - Save and quit (8.5), Settings (10.1) and reconnect (8.1);
   - "are you sure" when the host leaves the lobby (2.1 already has Leave there).
 
+### From the 2.4 review (2026-11-22)
+
+- `leaveRoom` in `main.ts` isn't tied to one room: a stale `NetSession.leave()` that runs after the player joined a new room would leave the new one. Bind it to the session's room when you touch leave.
+- `RunInbox` (`net/session.ts`) re-buffers fight batches after the NetSimHost unsubscribes; if a run can restart in the same room, clear it at the new start.
+
 ### Colyseus facts (verified on 0.18 with a probe)
 
 - `room.leave(true)` closes with code 4000 (`CloseCode.CONSENTED`). The server calls `onLeave(client, 4000)` and **not** `onDrop`.
