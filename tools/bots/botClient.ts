@@ -125,6 +125,8 @@ interface PendingShop {
   /** Buildings of that type owned when the placement was sent. */
   owned: number;
   sentAtTick: number;
+  /** Weapon: `shop.bought` arrived; the entry ends once the state shows the weapon. */
+  bought: boolean;
 }
 
 export class BotClient {
@@ -324,7 +326,11 @@ export class BotClient {
     if (this.hands < 0) this.hands = me.active;
     const pending = this.shopPending;
     if (pending) {
-      if (pending.kind === "building" && this.owned(state, pending.id) > pending.owned) {
+      // A bought weapon: wait until the state shows it in a slot (3.10 review: deciding the next
+      // purchase from the pre-purchase patch re-sent the same buy, refused as already_owned).
+      if (pending.kind === "weapon" && pending.bought && (me.weapon0 === pending.id || me.weapon1 === pending.id)) {
+        this.shopPending = null;
+      } else if (pending.kind === "building" && this.owned(state, pending.id) > pending.owned) {
         this.buildingsPlaced++;
         this.spent += balance.buildings.types[pending.id]?.price ?? 0;
         this.shopPending = null;
@@ -351,7 +357,7 @@ export class BotClient {
     if (shopPrice(balance, id) !== null) {
       const slot = botWeaponSlot(self);
       this.room.send(C2S.SHOP_BUY, slot === null ? { weapon: id } : { weapon: id, slot });
-      this.shopPending = { kind: "weapon", index: i, id, owned: 0, sentAtTick: state.tick };
+      this.shopPending = { kind: "weapon", index: i, id, owned: 0, sentAtTick: state.tick, bought: false };
       return;
     }
     if (this.placeAttempt >= botPlaceTries(balance) || !botPlaceCandidate(balance, id, me.x, me.y, this.placeAttempt, this.spot)) {
@@ -361,7 +367,7 @@ export class BotClient {
     }
     this.placeAttempt++;
     this.room.send(C2S.BUILDING_PLACE, { type: id, gx: this.spot.gx, gy: this.spot.gy, rot: this.spot.rot });
-    this.shopPending = { kind: "building", index: i, id, owned: this.owned(state, id), sentAtTick: state.tick };
+    this.shopPending = { kind: "building", index: i, id, owned: this.owned(state, id), sentAtTick: state.tick, bought: false };
   }
 
   private shopBought(m: ShopBought): void {
@@ -370,7 +376,7 @@ export class BotClient {
     this.purchases.push(`${m.weapon}@W${this.waveNumber + 1}`);
     this.spent += shopPrice(balance, m.weapon) ?? 0;
     this.hands = m.slot;
-    this.shopPending = null;
+    p.bought = true; // cleared once the state shows the weapon (shopStep)
   }
 
   private shopRefused(m: ShopRefused): void {

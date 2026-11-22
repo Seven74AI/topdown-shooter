@@ -64,6 +64,10 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
       else if (!(ZOMBIE_TYPES as readonly string[]).includes(id)) issues.push(`waves.json: mix.${i}: ${id} is not in ZOMBIE_TYPES`);
     }
   });
+  // 3.10 review: the biggest wave (last wave, full party) must fit the Uint16 per-type counts.
+  const wv = parsed.waves as { zombiesPerWave: number; runWaves: number; playerCountScale: readonly number[] };
+  const biggest = Math.round(wv.runWaves * wv.zombiesPerWave * Math.max(1, ...wv.playerCountScale));
+  if (biggest > 65535) issues.push(`waves.json: the last wave would hold ${biggest} zombies, more than the 65,535 a wave can count`);
   const maxRz = Math.max(0, ...Object.values(zombies.types).map((t) => t.radiusM));
   // 3.5 re-review: the flow field's pinch rule assumes a body fits a free cell diagonal (0.354 m
   // clearance past two corners); a bigger zombie type needs the clearance rule extended first.

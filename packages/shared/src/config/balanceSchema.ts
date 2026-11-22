@@ -125,7 +125,7 @@ export const zombiesSchema = z
 
 export const wavesSchema = z
   .object({
-    zombiesPerWave: z.number().int().positive(),
+    zombiesPerWave: z.number().int().positive().max(65535), // the biggest wave is checked against the Uint16 counts in balance.ts crossCheck (3.10 review)
     maxAlive: z.number().int().positive(),
     lastRushCount: z.number().int().min(0),
     /** Story 3.1: the build phase before wave 1 and after every wave (FR44); ends early when everyone is Ready. */

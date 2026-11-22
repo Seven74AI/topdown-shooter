@@ -45,6 +45,13 @@ describe("loadBalance", () => {
     expect(() => loadBalance(c)).toThrow(/controls\.json: aimDeadZone: /);
   });
 
+  it("rejects a run whose last wave overflows the per-type counts (3.10 review)", () => {
+    const files = raw();
+    (files.waves as { zombiesPerWave: number; runWaves: number }).zombiesPerWave = 300;
+    (files.waves as { zombiesPerWave: number; runWaves: number }).runWaves = 255;
+    expect(() => loadBalance(files)).toThrow(/waves\.json: the last wave would hold 76500 zombies/);
+  });
+
   it("rejects unknown keys (typos fail loudly)", () => {
     const files = raw();
     (files.waves as Record<string, unknown>).maxAlve = 150;

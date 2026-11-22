@@ -1,6 +1,6 @@
 # Story 3.10: Five-wave run with player-count scaling
 
-Status: review
+Status: done
 
 ## Story
 
@@ -158,7 +158,20 @@ Claude Opus 5.5 (claude-opus-5-5), story writer and builder in worktree `story-3
 - Modified (tools): `tools/bots/botClient.ts`, `tools/bots/run.ts`.
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
+## Senior Developer Review (AI)
+
+Fresh-agent review, 2026-11-22. Outcome: approved after fixes.
+
+- **M1 (fixed):** the rush test could not fail: removing `w.queued === 0` from the rush condition left it green. Added "the last-zombies rush waits until the whole wave has spawned", which uses a slow spawn so alive + queued reaches 5 while zombies are still queued. Verified that it fails with the guard removed.
+- **M2 (fixed):** bots cleared a pending weapon purchase on the server's answer and could retry before the state showed the weapon. The pending entry is now marked `bought` and cleared only once `weapon0`/`weapon1` shows the weapon.
+- **L1 (fixed):** nothing stopped a wave from overflowing the Uint16 per-type counts. A flat cap would block valid configs (tests use 400 per wave), so `crossCheck` rejects any run whose last wave at full party exceeds 65,535, and a balance test covers it.
+- **L2 (noted):** the per-wave `bot_wave` kill counts in bot logs are one short (the final kill lands after the wave-end log). Run totals come from state and are correct, so this is cosmetic.
+- **L3 (no change):** bots send `viewTick: -1` (no rewind). That is intended for headless bots.
+
+**Decision:** earnings run 4–19 % below the GDD target. They stay as they are until the playtest, with a wave bonus of 15 as the fallback.
+
 ## Change Log
 
 - 2026-11-22: Story created (gds-create-story, from the real code).
 - 2026-11-22: Built: 5-wave curve with per-wave mix and player-count scale, run end with "You held out!" Results (kills + earned), bots shop and build (headless and `tools/bots`), five-wave sim, economy bandwidth test, room test; balance pass (no economy lever changed, evidence in Completion Notes); real 4-bot runs; browser checks; merged `claude/epic-2-continue`. Status → review.
+- 2026-11-22: review fixes (rush test, bot purchase pending, biggest-wave check); status done.

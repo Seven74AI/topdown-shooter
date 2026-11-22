@@ -329,4 +329,23 @@ describe("five-wave curve and composition (Story 3.10)", () => {
     expect(world.run.phase).toBe("results"); // the last wave of the run
     expect(world.run.heldOut).toBe(true);
   });
+
+  it("the last-zombies rush waits until the whole wave has spawned (3.10 review)", () => {
+    // one zombie every 2 s: kill each as it appears so alive + queued drops to 5 while some are still queued
+    const { world } = setup({ spawnIntervalS: 2, spawnPerInterval: 1 });
+    while (world.waves.number < 1) step(world, TICK_DT_S);
+    let sawSmallWithQueue = false;
+    for (let i = 0; i < 20000 && world.waves.queued > 0; i++) {
+      step(world, TICK_DT_S);
+      if (world.waves.queued > 1) killAll(world);
+      if (world.waves.remaining <= 5 && world.waves.queued > 0) {
+        sawSmallWithQueue = true;
+        expect(world.waves.rushing).toBe(false);
+      }
+    }
+    expect(sawSmallWithQueue).toBe(true);
+    run(world, 1);
+    expect(world.waves.queued).toBe(0);
+    expect(world.waves.rushing).toBe(true);
+  });
 });
