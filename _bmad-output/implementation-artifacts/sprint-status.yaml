@@ -78,7 +78,7 @@ development_status:
   2-9-player-rings-and-teammate-arrows: done
   2-10-4-phone-4g-test: ready-for-dev  # human: playtest/spec, not a dev-agent story
   2-11-in-run-menu: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   # Epic 3: Build phase and economy
   epic-3: in-progress
