@@ -215,10 +215,14 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
     if (size > MAX_CLIENT_MESSAGE_BYTES) throw refuse("invalid_options");
     const parsed = joinOptionsSchema.safeParse(options);
-    if (!parsed.success) throw refuse("invalid_options");
+    if (!parsed.success) {
+      // Story 4.1 review M1: a client older than the map (no mapVersion) is an old build: "Please refresh".
+      if (parsed.error.issues.every((i) => i.path[0] === "mapVersion")) throw refuse("balance_mismatch");
+      throw refuse("invalid_options");
+    }
     if (parsed.data.balanceVersion !== serverBalance.version) throw refuse("balance_mismatch");
     // Story 4.1: a client built with another map would predict against other walls.
-    if (parsed.data.mapVersion !== undefined && parsed.data.mapVersion !== DOWNTOWN_MAP.version) throw refuse("balance_mismatch");
+    if (parsed.data.mapVersion !== DOWNTOWN_MAP.version) throw refuse("balance_mismatch");
     // Story 2.2 AC 3: `ctx.ip` is X-Real-IP, which Caddy sets from Cloudflare's Cf-Connecting-Ip.
     if (parsed.data.intent === "create" && !roomCreateLimiter.allow(ctx.ip ?? "unknown")) {
       log.warn({ ip: ctx.ip ?? "unknown" }, "room_create_rate_limited");

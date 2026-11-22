@@ -101,10 +101,11 @@ export const joinOptionsSchema = z
     /** `balance.version` of the client; must equal the server's (AC 4). */
     balanceVersion: z.string().min(1).max(16),
     /**
-     * Story 4.1: `DistrictMap.version` of the client's bundled map; when sent, it must equal the
-     * server's (else `balance_mismatch`: "Please refresh"), so prediction collides with the same map.
+     * Story 4.1: `DistrictMap.version` of the client's bundled map; must equal the server's, so
+     * prediction collides with the same map. Missing or different → `balance_mismatch` ("Please
+     * refresh"; review M1: a pre-4.1 tab would predict on the open street).
      */
-    mapVersion: z.string().min(1).max(16).optional(),
+    mapVersion: z.string().min(1).max(16),
     /** Tells this device's player apart (Story 2.3); the server keeps only its SHA-256. */
     guestToken: guestTokenSchema,
     /**

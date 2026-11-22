@@ -80,6 +80,19 @@ export function loadTiledMap(raw: unknown, name: string): DistrictMap {
   const snap = (m: number): number => Math.round(m / FLOW_CELL_M) * FLOW_CELL_M;
   if (!onLattice(widthM) || !onLattice(heightM)) fail(`map size ${widthM} × ${heightM} m is not a multiple of ${FLOW_CELL_M} m`);
 
+  // Review L6: the sim reads object coordinates as they are; a shifted, parallax or hidden layer
+  // would look different in Tiled than in the game (and hidden layers are easy to forget).
+  const checkPlacement = (layers: readonly TiledLayer[], path: string): void => {
+    for (const l of layers) {
+      const name = `${path}${l.name}`;
+      if (l.offsetx !== 0 || l.offsety !== 0) fail(`layer ${name} has an offset (${l.offsetx}, ${l.offsety}); set it to 0 and move the objects instead`);
+      if (l.parallaxx !== 1 || l.parallaxy !== 1) fail(`layer ${name} has a parallax factor (${l.parallaxx}, ${l.parallaxy}); it must be 1`);
+      if (!l.visible) fail(`layer ${name} is hidden; the game uses every layer, so make it visible in Tiled`);
+      if (l.type === "group") checkPlacement(l.layers, `${name}/`);
+    }
+  };
+  checkPlacement(tm.layers, "");
+
   const top = new Map<string, TiledLayer>();
   for (const l of tm.layers) {
     if (top.has(l.name)) fail(`layer ${l.name} appears twice`);

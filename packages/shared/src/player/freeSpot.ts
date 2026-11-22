@@ -26,6 +26,18 @@ const DIRS: readonly (readonly [number, number])[] = [
 export function spotBlocked(world: Readonly<World>, x: number, y: number, r: number, self: PlayerState | null): boolean {
   const { widthM, heightM } = world.map;
   if (x < r || x > widthM - r || y < r || y > heightM - r) return true;
+  return bodiesAt(world, x, y, r, self) || circleHitsBuilding(world, x, y, r);
+}
+
+/** Story 4.1 review L4: the circle overlaps the map edge, a map box or a building (bodies ignored). */
+export function boxBlocked(world: Readonly<World>, x: number, y: number, r: number): boolean {
+  const { widthM, heightM } = world.map;
+  if (x < r || x > widthM - r || y < r || y > heightM - r) return true;
+  return circleHitsBuilding(world, x, y, r);
+}
+
+/** Another placed player or an alive zombie overlaps the circle. */
+function bodiesAt(world: Readonly<World>, x: number, y: number, r: number, self: PlayerState | null): boolean {
   for (const p of world.players.values()) {
     if (p === self || p.status === "out") continue;
     const d = r + p.radiusM;
@@ -41,7 +53,7 @@ export function spotBlocked(world: Readonly<World>, x: number, y: number, r: num
     const dy = (z.y[id] as number) - y;
     if (dx * dx + dy * dy < zd * zd) return true;
   }
-  return circleHitsBuilding(world, x, y, r); // Story 3.4
+  return false;
 }
 
 /**
@@ -55,15 +67,18 @@ export function findFreeSpotNear(
   cy: number,
   self: PlayerState,
   out: { x: number; y: number },
+  rings = world.balance.player.returnSearchRings,
+  /** Story 4.1 review L4: true = only the map edge, map boxes and buildings count (players and zombies ignored). */
+  boxesOnly = false,
 ): boolean {
   const stats = world.balance.player;
-  for (let ring = 1; ring <= stats.returnSearchRings; ring++) {
+  for (let ring = 1; ring <= rings; ring++) {
     const dist = stats.spawnOffsetM * ring;
     for (let i = 0; i < DIRS.length; i++) {
       const [dx, dy] = DIRS[i] as readonly [number, number];
       const x = cx + dx * dist;
       const y = cy + dy * dist;
-      if (spotBlocked(world, x, y, self.radiusM, self)) continue;
+      if (boxesOnly ? boxBlocked(world, x, y, self.radiusM) : spotBlocked(world, x, y, self.radiusM, self)) continue;
       out.x = x;
       out.y = y;
       return true;

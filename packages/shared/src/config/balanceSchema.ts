@@ -181,6 +181,12 @@ export const playerSchema = z
     buildHealFrac: z.number().gt(0).max(1),
     /** Retro A12: a returning player is placed on the first free spot in this many rings of `spawnOffsetM` around the teammate. */
     returnSearchRings: z.number().int().min(1),
+    /**
+     * Story 4.1 review L4: when those rings are all taken, the search widens to this many rings
+     * (still free of players and zombies), then the team starts, then a spot clear of map boxes and
+     * buildings only: a returning player is never placed inside a box.
+     */
+    returnWideSearchRings: z.number().int().min(1),
   })
   .strict();
 

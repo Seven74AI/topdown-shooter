@@ -33,7 +33,7 @@ const stroke = (g: Phaser.GameObjects.Graphics, b: MapBox, w: number): void => {
 
 /**
  * The district, drawn once (static; no per-frame cost): asphalt with a faint 4 m grid (to judge
- * speed), the `stage1_evening` ground props, hazard zones (faint), the collision boxes as blocks
+ * speed), the `stage1_evening` ground props, stage-1 hazard zones (faint), the collision boxes as blocks
  * (the bus in its own colour) and the cover objects as outlines (data only until Story 4.2).
  */
 export function drawStreet(scene: Phaser.Scene, map: DistrictMap): Phaser.GameObjects.Graphics {
@@ -47,7 +47,7 @@ export function drawStreet(scene: Phaser.Scene, map: DistrictMap): Phaser.GameOb
   for (let x = GRID_STEP_M; x < map.widthM; x += GRID_STEP_M) g.lineBetween(x, 0, x, map.heightM);
   for (let y = GRID_STEP_M; y < map.heightM; y += GRID_STEP_M) g.lineBetween(0, y, map.widthM, y);
   g.fillStyle(HAZARD, 0.12);
-  for (const h of map.hazards) fill(g, h);
+  for (const h of map.hazards) if (h.minStage <= 1) fill(g, h); // later stages: Story 4.5 (review L8)
   const busNames = new Set(map.cover.filter((c) => c.kind === "bus").map((c) => `${c.minX},${c.minY},${c.maxX},${c.maxY}`));
   for (const s of map.solids) {
     const bus = busNames.has(`${s.minX},${s.minY},${s.maxX},${s.maxY}`);

@@ -9,5 +9,6 @@
   "reviveRadiusM": 1.2,
   "reviveHpFrac": 0.3,
   "buildHealFrac": 0.5,
-  "returnSearchRings": 3
+  "returnSearchRings": 3,
+  "returnWideSearchRings": 10
 }

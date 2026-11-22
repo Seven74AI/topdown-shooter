@@ -37,6 +37,7 @@ const createOptions = (over: Record<string, unknown> = {}) => ({
   intent: "create",
   name: "Ana",
   balanceVersion: serverBalance.version,
+  mapVersion: DOWNTOWN_MAP.version,
   guestToken: newToken(),
   ...over,
 });
@@ -119,10 +120,13 @@ describe("RunRoom", () => {
     expect(e.message).toBe("balance_mismatch");
   });
 
-  it("Story 4.1: refuses a client built with another map (mapVersion) with balance_mismatch; the right one joins", async () => {
+  it("Story 4.1: refuses a client built with another map (mapVersion) or without one (review M1) with balance_mismatch; the right one joins", async () => {
     const e = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ mapVersion: "00000000" })));
     expect(e.code).toBe(JOIN_REFUSED_CODE);
     expect(e.message).toBe("balance_mismatch");
+    const missing = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ mapVersion: undefined })));
+    expect(missing.code).toBe(JOIN_REFUSED_CODE);
+    expect(missing.message).toBe("balance_mismatch"); // an old tab: "Please refresh", not "invalid options"
     const ok = await colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ mapVersion: DOWNTOWN_MAP.version }));
     expect(ok.roomId).toBeTruthy();
     await ok.leave();

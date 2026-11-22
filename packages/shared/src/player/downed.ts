@@ -2,7 +2,8 @@ import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import type { PlayerState } from "./player";
 import { spectateTarget } from "./spectate";
-import { findFreeSpotNear } from "./freeSpot";
+import { findFreeSpotNear, spotBlocked } from "./freeSpot";
+import { teamSpawnPoint } from "./spawn";
 
 /**
  * Downed, revive, out and team wipe (Story 2.8, FR10/FR11). Every timer counts ticks.
@@ -100,34 +101,44 @@ const healStanding = (p: PlayerState): void => {
  * Story 3.1, at the start of every build phase (FR9, FR10): every standing player is healed by
  * `buildHealFrac` of max HP (capped at max); then each downed or out player, in id order, returns
  * standing next to the lowest-slot standing teammate on the first free spot (`findFreeSpotNear`,
- * retro A12: no map edge, player or zombie overlap; buildings from Story 3.4), or, if every spot is
- * taken, the 2.8 spot (+x by `spawnOffsetM`, −x near the right edge, clamped), with `buildHealFrac`
- * of max HP, and `player.returned` is emitted. With no one standing nobody returns (that is a wipe,
+ * retro A12: no map edge, player or zombie overlap; buildings from Story 3.4; map boxes from 4.1),
+ * or, if every spot is taken, `returnSpot`'s wider fallbacks (never inside a box: 4.1 review L4),
+ * with `buildHealFrac` of max HP, and `player.returned` is emitted. With no one standing nobody returns (that is a wipe,
  * and no build phase starts).
  */
+/**
+ * Story 4.1 review L4: where a returning player goes, into `spot`, in this order: the first free spot
+ * in `returnSearchRings` rings round the teammate; in `returnWideSearchRings` rings; the team starts
+ * (slots 0–3); the first spot in the wide rings clear of the map edge, map boxes and buildings
+ * (overlapping bodies, which the push-outs separate); and, as a last resort, the teammate's own
+ * spot (a standing body is outside every box). Never inside a map box or a building.
+ */
+function returnSpot(world: World, p: PlayerState, tx: number, ty: number): void {
+  const stats = world.balance.player;
+  if (findFreeSpotNear(world, tx, ty, p, spot)) return;
+  if (findFreeSpotNear(world, tx, ty, p, spot, stats.returnWideSearchRings)) return;
+  for (let slot = 0; slot < 4; slot++) {
+    teamSpawnPoint(world, slot, spot);
+    if (!spotBlocked(world, spot.x, spot.y, p.radiusM, p)) return;
+  }
+  if (findFreeSpotNear(world, tx, ty, p, spot, stats.returnWideSearchRings, true)) return;
+  spot.x = tx;
+  spot.y = ty;
+}
+
 export function returnOutPlayers(world: World): void {
   const stats = world.balance.player;
   healAmountFrac = stats.buildHealFrac;
   world.players.forEach(healStanding);
   collectInIdOrder(world);
-  const { widthM, heightM } = world.map;
   for (let i = 0; i < ordered.length; i++) {
     const p = ordered[i] as PlayerState;
     if (p.status !== "out" && p.status !== "downed") continue;
     const t = spectateTarget(world, p.id);
     if (!t) continue;
-    let x: number;
-    let y: number;
-    if (findFreeSpotNear(world, t.x, t.y, p, spot)) {
-      x = spot.x;
-      y = spot.y;
-    } else {
-      const r = p.radiusM;
-      x = t.x + stats.spawnOffsetM;
-      if (x > widthM - r) x = t.x - stats.spawnOffsetM;
-      x = Math.min(widthM - r, Math.max(r, x));
-      y = Math.min(heightM - r, Math.max(r, t.y));
-    }
+    returnSpot(world, p, t.x, t.y);
+    const x = spot.x;
+    const y = spot.y;
     p.x = x;
     p.y = y;
     p.prevX = x;

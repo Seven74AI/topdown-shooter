@@ -5,6 +5,10 @@ import { createWorld } from "../core/world";
 import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
 import { circleHitsBuilding } from "../buildings/collision";
+import { buildingStats, footprint, footprintBlocked, placementError, type Box } from "../buildings/buildings";
+import { startBuild } from "../run/runStateMachine";
+import { returnOutPlayers } from "../player/downed";
+import { spawnZombie } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { FLOW_UNREACHED, flowCellAt, rebuildFlowFieldNow } from "../zombies/flowField";
 import { mapCollisionCells } from "./collisionCells";
@@ -80,14 +84,18 @@ describe("Downtown map data (Story 4.1)", () => {
       teamSpawnPoint(world, slot, at);
       expect(circleHitsBuilding(world, at.x, at.y, balance.player.radiusM)).toBe(false);
     }
-    const reach = balance.waves.spawnJitterM + maxZombieRadius(balance);
+    // Review L5: the whole area a spawned zombie can cover: the jitter segment along the edge (the
+    // wave director's axis), grown by the largest zombie radius on every side, overlaps no box.
+    const j = balance.waves.spawnJitterM;
+    const rz = maxZombieRadius(balance);
     for (const sp of map.spawnPoints) {
-      const horizontal = sp.y < 1 || sp.y > map.heightM - 1; // the wave director's jitter axis
-      for (const j of [-reach, 0, reach]) {
-        const x = horizontal ? sp.x + j : sp.x;
-        const y = horizontal ? sp.y : sp.y + j;
-        expect(circleHitsBuilding(world, x, y, 0), sp.name).toBe(false);
-      }
+      const horizontal = sp.y < 1 || sp.y > map.heightM - 1;
+      const minX = sp.x - (horizontal ? j : 0) - rz;
+      const maxX = sp.x + (horizontal ? j : 0) + rz;
+      const minY = sp.y - (horizontal ? 0 : j) - rz;
+      const maxY = sp.y + (horizontal ? 0 : j) + rz;
+      const hit = map.solids.find((s) => minX < s.maxX && maxX > s.minX && minY < s.maxY && maxY > s.minY);
+      expect(hit?.name, sp.name).toBeUndefined();
     }
   });
 
@@ -107,5 +115,60 @@ describe("Downtown map data (Story 4.1)", () => {
     expect(free).toBe(96 * 64 - 1780);
     expect(unreached).toBe(0);
     for (const sp of map.spawnPoints) expect(chase.front[flowCellAt(nav, sp.x, sp.y)], sp.name).toBeLessThan(FLOW_UNREACHED);
+  });
+
+  it("review M2: placement refuses a building on a map box (any overlap) and accepts one flush against it", () => {
+    const world = createWorld({ balance, seed: 1, map });
+    const open = createWorld({ balance, seed: 1, map: { ...map, solids: [] } }); // same spawns, no boxes
+    const stats = buildingStats(balance, "wood_barricade");
+    if (!stats) throw new Error("no barricade");
+    const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    let refused = 0;
+    for (const s of map.solids) {
+      // Inside the box, and straddling each face by one lattice step.
+      for (const [gx, gy] of [
+        [s.minX * 2, s.minY * 2],
+        [s.maxX * 2 - 1, s.minY * 2],
+        [s.minX * 2 - 3, s.maxY * 2 - 1],
+      ] as const) {
+        footprint(stats, gx, gy, 0, box);
+        if (footprintBlocked(open, box)) continue; // off the map or at a spawn anyway: says nothing about boxes
+        expect(footprintBlocked(world, box), `${s.name} (${gx}, ${gy})`).toBe(true);
+        refused++;
+      }
+    }
+    expect(refused).toBeGreaterThan(map.solids.length); // the check really ran
+    // Flush against the bus's south face: allowed (touching is not overlapping), through the full rule too.
+    footprint(stats, 60, 34, 0, box); // [30, 32] × [17, 17.5]
+    expect(footprintBlocked(world, box)).toBe(false);
+    addPlayer(world, "p0", 24, 16).wallet = 1000;
+    startBuild(world);
+    expect(placementError(world, "p0", { type: "wood_barricade", gx: 60, gy: 34, rot: 0 })).toBeNull();
+    expect(placementError(world, "p0", { type: "wood_barricade", gx: 60, gy: 33, rot: 0 })).toBe("blocked"); // 0.5 m into the bus
+  });
+
+  it("review L4: a returning player whose 24 near spots are all taken is never put inside a map box", () => {
+    const world = createWorld({ balance, seed: 1, map, systems: { waves: () => {} } });
+    // The teammate stands just west of the bus (face x = 30): the old fallback (+1.5 m in x) is inside it.
+    const mate = addPlayer(world, "p0", 29, 15.5);
+    const me = addPlayer(world, "p1", 24, 16);
+    me.status = "out";
+    const R = balance.player.radiusM;
+    let blockers = 0;
+    for (let ring = 1; ring <= balance.player.returnSearchRings; ring++) {
+      const d = balance.player.spawnOffsetM * ring;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, Math.SQRT1_2], [Math.SQRT1_2, -Math.SQRT1_2], [-Math.SQRT1_2, -Math.SQRT1_2]] as const) {
+        const x = mate.x + dx * d;
+        const y = mate.y + dy * d;
+        if (circleHitsBuilding(world, x, y, R) || x < R || y < R) continue; // already blocked by the bus
+        spawnZombie(world, "walker", x, y);
+        blockers++;
+      }
+    }
+    expect(blockers).toBeGreaterThan(10);
+    returnOutPlayers(world);
+    expect(me.status).toBe("alive");
+    expect(circleHitsBuilding(world, me.x, me.y, R), `returned at (${me.x}, ${me.y})`).toBe(false);
+    expect(me.x >= R && me.x <= map.widthM - R && me.y >= R && me.y <= map.heightM - R).toBe(true);
   });
 });

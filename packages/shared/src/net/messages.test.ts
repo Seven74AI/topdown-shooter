@@ -14,7 +14,7 @@ import {
 } from "./messages";
 
 const TOKEN = "0123456789abcdef0123456789abcdef";
-const valid = { intent: "create", name: "Ana", balanceVersion: "1a2b3c4d", guestToken: TOKEN } as const;
+const valid = { intent: "create", name: "Ana", balanceVersion: "1a2b3c4d", mapVersion: "0badc0de", guestToken: TOKEN } as const;
 
 describe("net contract", () => {
   it("names the room and the message types", () => {
@@ -55,6 +55,9 @@ describe("net contract", () => {
     expect(joinOptionsSchema.safeParse({ ...valid, balanceVersion: "" }).success).toBe(false);
     expect(joinOptionsSchema.safeParse({ ...valid, balanceVersion: "x".repeat(17) }).success).toBe(false);
     expect(joinOptionsSchema.safeParse({ intent: "create", name: "Ana" }).success).toBe(false);
+    // Story 4.1 review M1: mapVersion is required (the room maps its absence to balance_mismatch).
+    expect(joinOptionsSchema.safeParse({ ...valid, mapVersion: undefined }).success).toBe(false);
+    expect(joinOptionsSchema.safeParse({ ...valid, mapVersion: "" }).success).toBe(false);
     expect(joinOptionsSchema.safeParse(null).success).toBe(false);
   });
 

@@ -293,7 +293,7 @@ describe("out and return", () => {
     expect(a.y).toBeCloseTo(b.y + balance.player.spawnOffsetM, 9);
   });
 
-  it("goes to the next ring when the whole first ring is taken, and falls back to the 2.8 spot when every ring is", () => {
+  it("goes to the next ring when the whole first ring is taken, and to the wider rings when every near ring is (Story 4.1 review L4)", () => {
     const { world, players } = setup(["p0", "p1"]);
     const [a, b] = players as [PlayerState, PlayerState];
     b.x = 24;
@@ -320,8 +320,11 @@ describe("out and return", () => {
       }
     }
     returnOutPlayers(w2.world);
-    expect(a2.x).toBeCloseTo(b2.x + off, 9); // fallback: the 2.8 rule
+    // Story 4.1 review L4 (was the 2.8 spot, +x by spawnOffsetM, which could be inside a map box):
+    // the search widens, +x first on the next ring.
+    expect(a2.x).toBeCloseTo(b2.x + off * (balance.player.returnSearchRings + 1), 9);
     expect(a2.y).toBe(b2.y);
+    expect(spotBlocked(w2.world, a2.x, a2.y, a2.radiusM, a2)).toBe(false);
   });
 
   it("with the real run state machine: out in wave 1, back when the build after it starts", () => {

@@ -18,6 +18,15 @@ export type TiledProperty = z.infer<typeof tiledPropertySchema>;
 
 const properties = z.array(tiledPropertySchema).optional();
 
+/** Story 4.1 review L6: layer placement fields the loader refuses when not neutral (Tiled omits defaults). */
+const placement = {
+  visible: z.boolean().default(true),
+  offsetx: finite.default(0),
+  offsety: finite.default(0),
+  parallaxx: finite.default(1),
+  parallaxy: finite.default(1),
+};
+
 export const tiledObjectSchema = z.object({
   id: z.number().int().nonnegative(),
   name: z.string().default(""),
@@ -44,7 +53,7 @@ export const tiledObjectGroupSchema = z.object({
   id: z.number().int().nonnegative(),
   name: z.string(),
   objects: z.array(tiledObjectSchema),
-  visible: z.boolean().default(true),
+  ...placement,
   properties,
 });
 export type TiledObjectGroup = z.infer<typeof tiledObjectGroupSchema>;
@@ -54,6 +63,7 @@ const tiledOtherLayerSchema = z.object({
   type: z.enum(["tilelayer", "imagelayer"]),
   id: z.number().int().nonnegative(),
   name: z.string(),
+  ...placement,
 });
 
 export interface TiledGroup {
@@ -62,6 +72,10 @@ export interface TiledGroup {
   name: string;
   layers: TiledLayer[];
   visible: boolean;
+  offsetx: number;
+  offsety: number;
+  parallaxx: number;
+  parallaxy: number;
 }
 export type TiledLayer = TiledObjectGroup | TiledGroup | z.infer<typeof tiledOtherLayerSchema>;
 
@@ -73,7 +87,7 @@ export const tiledLayerSchema: z.ZodType<TiledLayer> = z.lazy(() =>
       id: z.number().int().nonnegative(),
       name: z.string(),
       layers: z.array(tiledLayerSchema),
-      visible: z.boolean().default(true),
+      ...placement,
     }),
     tiledOtherLayerSchema,
   ]),

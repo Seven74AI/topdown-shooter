@@ -3,11 +3,15 @@
  * (the shared package can't read the client's public folder), so it must be a byte copy of the Tiled
  * export `apps/client/public/assets/maps/downtown.tmj`; the Tiled source `downtown.tmx` must hold the
  * same objects. After a Tiled export run `npm run maps:sync`.
+ *
+ * Review L7: while the generator is the source, the committed .tmj and .tmx must be exactly what it
+ * writes (size, properties, every object). Once the designer edits the map in Tiled, the .tmx is the
+ * source: delete `buildDowntown.ts`'s layout and the "generator" test below (keep the other two).
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { DOWNTOWN_MAP, loadTiledMap } from "@topdown/shared";
-import { SHARED_COPY_PATH, TMJ_PATH, TMX_PATH } from "./buildDowntown";
+import { SHARED_COPY_PATH, TMJ_PATH, TMX_PATH, buildDowntownTmj, tmxFromTmj } from "./buildDowntown";
 
 const tmj = readFileSync(TMJ_PATH, "utf8");
 
@@ -34,5 +38,13 @@ describe("Downtown map files (Story 4.1)", () => {
     );
     expect(fromTmx).toEqual(fromTmj);
     expect(fromTmj.length).toBeGreaterThan(50);
+  });
+
+  it("review L7 (retire once Tiled is the source): the committed .tmj and .tmx are exactly the generator's output", () => {
+    const gen = buildDowntownTmj();
+    expect(JSON.parse(tmj)).toEqual(gen);
+    expect(tmj).toBe(`${JSON.stringify(gen, null, 1)}\n`);
+    expect(readFileSync(TMX_PATH, "utf8")).toBe(tmxFromTmj(gen));
+    expect([gen.width, gen.height, gen.tilewidth]).toEqual([48, 32, 32]);
   });
 });

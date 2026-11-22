@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import { randomBytes } from "node:crypto";
-import { BYTES, C2S, RUN_ROOM_NAME, S2C, type RunStateView } from "@topdown/shared";
+import { DOWNTOWN_MAP, BYTES, C2S, RUN_ROOM_NAME, S2C, type RunStateView } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
 import { RunRoom, serverBalance } from "./RunRoom";
 
@@ -25,6 +25,7 @@ describe("test scenario refused (Story 2.10)", () => {
       intent: "create",
       name: "Ana",
       balanceVersion: serverBalance.version,
+      mapVersion: DOWNTOWN_MAP.version,
       guestToken: randomBytes(16).toString("hex"),
       scenario: "net150",
     });

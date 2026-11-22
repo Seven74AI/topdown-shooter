@@ -172,21 +172,32 @@ function waveZombieType(world: World): number {
   return best < 0 ? 0 : best;
 }
 
+/** `jitteredSpawn` result (reused). */
+const spawnAt = { x: 0, y: 0 };
+
+/**
+ * Where a wave zombie of radius r appears for spawn point sp and jitter j ∈ [−spawnJitterM,
+ * spawnJitterM]: moved by j along the map edge the point sits on (x for the top/bottom edges, y
+ * otherwise), clamped inside the map. Exported for Story 4.1's Downtown fuzz test (the same rule).
+ */
+export function jitteredSpawn(world: Readonly<World>, sp: { x: number; y: number }, j: number, r: number, out: { x: number; y: number }): void {
+  const { widthM, heightM } = world.map;
+  const onHorizontalEdge = sp.y < 1 || sp.y > heightM - 1;
+  out.x = Math.min(widthM - r, Math.max(r, onHorizontalEdge ? sp.x + j : sp.x));
+  out.y = Math.min(heightM - r, Math.max(r, onHorizontalEdge ? sp.y : sp.y + j));
+}
+
 function spawnWaveZombie(world: World): boolean {
   const sp = world.map.spawnPoints[pickSpawnPoint(world)];
   if (!sp) return false;
-  const { widthM, heightM } = world.map;
-  const onHorizontalEdge = sp.y < 1 || sp.y > heightM - 1;
   const jitter = world.balance.waves.spawnJitterM;
   const j = world.streams.spawns.range(-jitter, jitter);
   const typeIndex = waveZombieType(world);
   const type = ZOMBIE_TYPES[typeIndex] as ZombieTypeId;
   const stats = world.balance.zombies.types[type];
   if (!stats) throw new Error(`waves: no balance for ${type}`);
-  const r = stats.radiusM;
-  const x = Math.min(widthM - r, Math.max(r, onHorizontalEdge ? sp.x + j : sp.x));
-  const y = Math.min(heightM - r, Math.max(r, onHorizontalEdge ? sp.y : sp.y + j));
-  if (spawnZombie(world, type, x, y, true) < 0) return false;
+  jitteredSpawn(world, sp, j, stats.radiusM, spawnAt);
+  if (spawnZombie(world, type, spawnAt.x, spawnAt.y, true) < 0) return false;
   world.waves.typeSpawned[typeIndex] = (world.waves.typeSpawned[typeIndex] as number) + 1;
   return true;
 }

@@ -36,6 +36,19 @@ function tiny(over: { collision?: Obj[]; cover?: Obj[]; spawns?: Obj[]; hazards?
   };
 }
 
+/** `tiny()` with extra fields on the top-level layer `name`. */
+function withLayer(name: string, extra: Obj): Obj {
+  const m = tiny();
+  m.layers = (m.layers as Obj[]).map((l) => (l.name === name ? { ...l, ...extra } : l));
+  return m;
+}
+/** `tiny()` with extra fields on the object layer inside `stage1_evening`. */
+function withNested(extra: Obj): Obj {
+  const m = tiny();
+  m.layers = (m.layers as Obj[]).map((l) => (l.name === "stage1_evening" ? { ...l, layers: (l.layers as Obj[]).map((c) => ({ ...c, ...extra })) } : l));
+  return m;
+}
+
 const issuesOf = (raw: unknown): string => {
   try {
     loadTiledMap(raw, "tiny");
@@ -83,6 +96,11 @@ describe("loadTiledMap (Story 4.1)", () => {
     ["spawn in a box", tiny({ spawns: [point(3, "edge", 80, 48)] }), "spawns: edge: inside collision box box"],
     ["spawn not a point", tiny({ spawns: [rect(3, "edge", 0, 0, 32, 32)] }), "spawns: edge: must be a point"],
     ["no spawns", tiny({ spawns: [] }), "spawns: needs at least one spawn point"],
+    ["review L6: offset layer", withLayer("collision", { offsetx: 16 }), "layer collision has an offset (16, 0)"],
+    ["review L6: parallax layer", withLayer("cover", { parallaxy: 0.5 }), "layer cover has a parallax factor (1, 0.5)"],
+    ["review L6: hidden layer", withLayer("spawns", { visible: false }), "layer spawns is hidden"],
+    ["review L6: hidden stage group", withLayer("stage2_panic", { visible: false }), "layer stage2_panic is hidden"],
+    ["review L6: offset layer inside a group", withNested({ offsetx: 0, offsety: -8 }), "layer stage1_evening/ground has an offset (0, -8)"],
   ])("refuses %s", (_name, raw, message) => {
     expect(issuesOf(raw)).toContain(message);
   });

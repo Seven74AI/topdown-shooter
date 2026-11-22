@@ -1,6 +1,6 @@
 # Story 4.1: Downtown map
 
-Status: review
+Status: done
 
 ## Story
 
@@ -43,8 +43,9 @@ so that the map gives us places to hold and choices to make.
 - **D7 Spawns.** The `spawns` layer holds point objects with `minStage` (all 1 here) at street ends and alley mouths on the map edge, because the current wave director jitters along the edge (`onHorizontalEdge`). Rules (stage filter, 6 m skip, spawns stream) are 4.3; the wave director simply reads `world.map.spawnPoints` as before. A test checks each spawn ± (`spawnJitterM` + largest zombie radius) is clear of collision.
 - **D8 Team start** stays the map centre ± `spawnOffsetM` (the intersection); a test checks it's clear.
 - **D9 Map numbers** live in map properties (`metersPerTile`, `cellM`) and object properties (`kind`, `minStage`), never inline; the generator's layout table is data, not sim code.
-- **D10 `mapVersion`.** `DistrictMap.version` = FNV-1a of the canonical parsed map. The client sends it as optional `mapVersion` in the join options; the server refuses a different one with `balance_mismatch` ("Please refresh"). Optional so old test helpers keep working.
+- **D10 `mapVersion`.** `DistrictMap.version` = FNV-1a of the canonical parsed map. The client sends it as `mapVersion` in the join options; the server refuses a different or missing one with `balance_mismatch` ("Please refresh"). (Review M1 made it required.)
 - **D11 Visual stage groups** each hold object layers of rectangles with a `kind` (`sidewalk`, `crosswalk`, `lane`, `canopy`, `debris`, …). The client draws `stage1_evening` only; swapping groups is Story 4.5/4.9.
+- **D13 Generator vs Tiled (review L7).** While `tools/maps/buildDowntown.ts` is the source, a test pins the committed `.tmj` and `.tmx` to its output (full content). Once the designer edits the map in Tiled, the `.tmx` becomes the source: retire the generator's layout and that test (keep the export ↔ shared-copy and tmx ↔ tmj object tests), and run `npm run maps:sync` after each export.
 - **D12 Snapshot** (`snapshotWorld`) records the map's `name` and `version` (not the whole object; the map is static data).
 
 ### Current state (read before changing)
@@ -113,7 +114,10 @@ Claude Opus 5.5 (claude-opus-5-5)
 - **`zombies/zombieAi.ts` / `player/movement.ts`**: only the gate changed (`hasObstacles`).
 - **`buildings/buildings.ts › footprintBlocked`**: map solids refuse placement (touching allowed). Brief line 7 (spawn clearance per active stage) is 4.3's.
 - **Hosts**: `RunController`, `LocalSimHost`, `NetSimHost` (+ `Predictor` via its map), `runHeadless` take `map?: DistrictMap`, default `DOWNTOWN_MAP`. `createWorld` still defaults to `PLACEHOLDER_MAP` (tests).
-- **`net/messages.ts` join options**: optional `mapVersion`; `RunRoom.checkAuth` refuses a different one as `balance_mismatch`; `connection.ts` and `tools/bots/botClient.ts` send it.
+- **`net/messages.ts` join options**: required `mapVersion`; `RunRoom.checkAuth` refuses a different or missing one as `balance_mismatch`; `connection.ts`, `tools/bots/botClient.ts` and every server test helper send it (new join helpers must too).
+- **`player/downed.ts` / `player/freeSpot.ts`** (review L4): `returnSpot` fallback chain; `findFreeSpotNear(…, rings, boxesOnly)`; new `boxBlocked`; balance `player.returnWideSearchRings` (10).
+- **`waves/waveDirector.ts`**: the jitter rule moved into exported `jitteredSpawn` (same draws from `streams.spawns`, same order); Story 4.3 keeps using it.
+- **`replay/inputLog.ts › createHeadlessWorld`** takes the map (default `DOWNTOWN_MAP`): recorder and `replayRun` share it.
 - **`core/worldSnapshot.ts`**: `map` is now `{ name, version }` (4.4's digest: the map no longer contributes its whole object).
 - **Schema / syncState / stateView / devThrottle / mirror**: untouched (the map is static bundled data, identical on both sides; nothing goes on the wire). `runStateMachine.startBuild` and balance JSON: untouched.
 - **RNG / seed code**: untouched (4.4 runs in parallel). The fuzz test uses `createRng` only for its own layouts.
@@ -126,3 +130,35 @@ Claude Opus 5.5 (claude-opus-5-5)
 - Modified (server): `run/RunController.ts`, `rooms/RunRoom.ts`; tests `RunRoom{,.3-5,.buildings,.repair,.turret}.test.ts`, `schema/syncState.test.ts`, `run/RunController.test.ts`, `run/tickCostFlowField.test.ts`
 - Modified (client): `render/StreetView.ts`, `sim/LocalSimHost.ts`, `sim/NetSimHost.ts`, `net/prediction.ts`, `net/connection.ts`
 - Modified (tools): `bots/botClient.ts`, `netsim/barricade.test.ts`, `netsim/hitsSim.ts`; `package.json` (`maps:build`, `maps:sync`)
+
+## Senior Developer Review (AI)
+
+Fresh-agent review of 37ccca1: **approved with fixes** (coordinator's decisions). Merged `claude/epic-2-continue` (4f9acbf, with Story 4.4) first: one conflict, `bots/headlessRun.ts` (4.4 moved the run start into `createHeadlessWorld`); resolved by giving `createHeadlessWorld` a `map` parameter (default `DOWNTOWN_MAP`), so the recorder and `replayRun` use the same map. No map code draws randomness; spawn picks stay on `world.streams.spawns`.
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| M1 | Medium | `mapVersion` optional: a pre-4.1 tab predicts on the open street against a Downtown server. | Required in `joinOptionsSchema`; `RunRoom.checkAuth` maps a schema failure on `mapVersion` alone (missing) to `balance_mismatch`, and a different one too. Test helpers send it. Tests: room refuses a missing one; schema refuses missing/empty. |
+| M2 | Medium | No test covered "placement refuses map boxes". | `downtown.test.ts` › review M2: boxes inside / straddling every map box are blocked on Downtown and free on the same map without boxes; flush against the bus is allowed (full `placementError` too). |
+| L3 | Low | Fuzz players never moved; zombies spawned without jitter. | Players walk for 30 s toward random points on map-box faces (pressing into walls, corners, the bus), then hold; zombies use the wave director's rule (`jitteredSpawn`, now exported) with ±jitter extremes; every fourth layout has no buildings. Player tolerance = the push-out's own `STUCK_EPS_M` (1e-6). "Reached" also counts the crowd chain (a zombie pressed against a zombie that reached a player): a player cornered between a barricade and a building pushes the crowd past 3 m. Limit 120 s. |
+| L4 | Low | The return fallback (+1.5 m) skipped the map-box check. | `returnSpot`: near rings → `returnWideSearchRings` (balance, 10) → team starts → wide rings ignoring bodies but not boxes → the teammate's own spot. Test: teammate against the bus with all 24 near spots taken returns outside every box. The old 2.8-fallback test now expects the wider ring. |
+| L5 | Low | Spawn jitter checked at 3 points. | Area check: the jitter segment grown by the largest zombie radius overlaps no box. |
+| L6 | Low | Loader accepted offset / parallax / hidden layers. | Refused (any depth) with messages naming the layer; 5 tests. |
+| L7 | Low | Nothing pinned the committed files to the generator. | Test: `.tmj` and `.tmx` equal `buildDowntownTmj()` / `tmxFromTmj()` byte for byte. D13 records retiring it once Tiled is the source. |
+| L8 | Low | `StreetView` drew hazards of every stage. | Only `minStage` 1 drawn (later stages: Story 4.5). Not unit-tested (Phaser drawing); the browser was not re-run for this one-line filter. |
+
+Mutations proven after the fixes (each failed its test, then was reverted):
+- `footprintBlocked` ignores map solids → review M2 fails.
+- `movePlayers` push-out gated on buildings only → fuzz fails (players inside boxes on the bare layouts).
+- RunRoom's missing-`mapVersion` branch removed → room test fails (invalid_options); schema `mapVersion` optional → messages test fails (the room still refused it via the version compare).
+- `returnSpot` back to the +1.5 m spot after the near rings → review L4 fails.
+- `alley_1_mouth` moved to x 9.2 in the data → the jitter area test fails.
+- Offset check removed → 2 loader tests fail.
+- Generator layout changed without regenerating → the L7 test fails.
+The 12 mutations of the build stand.
+
+Gates after the fixes (merged with 4f9acbf): typecheck, lint, test (165 files, 1,198 passed, 3 skipped), build green (load 0.7–0.9).
+
+## Change Log
+
+- 2026-11-22: Story built (37ccca1).
+- 2026-11-22: Merged the work branch with Story 4.4 (b95329d; headlessRun conflict resolved). Review fixes M1, M2, L3–L8; Status done.

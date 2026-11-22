@@ -12,17 +12,25 @@ import { addPlayer } from "../player/player";
 import { spotBlocked } from "../player/freeSpot";
 import { teamSpawnPoint } from "../player/spawn";
 import { spawnZombie } from "./zombiePool";
-import { ZOMBIE_TYPES, type ZombieTypeId } from "./zombieTypes";
+import { jitteredSpawn } from "../waves/waveDirector";
+import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
+import { setInput } from "../core/world";
+import { ZOMBIE_TYPES, maxZombieRadius, type ZombieTypeId } from "./zombieTypes";
 
 /**
  * Story 4.1 (brief line 3): random legal layouts on the Downtown map × many ticks.
  *
  * Each layout: 1–4 god-mode players (the team start or random free spots), then up to 24 buildings
- * (the 4 × 6 cap; barricades in both rotations and turrets, which don't fire outside a wave),
+ * (the 4 × 6 cap; barricades in both rotations and turrets, which don't fire outside a wave; every
+ * fourth layout has none, so the map boxes alone must stop the players: review L3),
  * accepted only where the placement rule allows (`footprintBlocked`: map edge, map collision,
  * spawn clearance, players, zombies, other buildings). Half of the candidates hug a map box (gap 0,
  * 0.5 or 1 m) to make wall–barricade slots and pinches. Then a zombie of a random type at every
- * spawn point plus extra ones, and the World runs (no wave director).
+ * spawn point plus extra ones, placed with the wave director's jitter rule (`jitteredSpawn`, extremes
+ * included), and the World runs (no wave director). The players walk (review L3): each heads for a
+ * random point on a random map box's face (the bus included) and keeps pressing on it for a while,
+ * then picks another, so they slide along walls, into corners and against barricades; after
+ * `WALK_S` they hold still so the slowest zombies can arrive.
  *
  * Every tick: no zombie or player overlaps a map box or a building. Every zombie must reach a
  * player (`REACH_M`, clear line) within the limit (no stall: none is left wandering or wedged). Liveness: the layouts
@@ -30,16 +38,25 @@ import { ZOMBIE_TYPES, type ZombieTypeId } from "./zombieTypes";
  */
 const balance = loadBalance();
 const LAYOUTS = 36;
-const LIMIT_S = 75;
+const LIMIT_S = 120;
+/** Players walk this long, then hold still (a 4.5 m/s survivor outruns a 0.7 m/s Crawler forever). */
+const WALK_S = 30;
 const EXTRA_ZOMBIES = 6;
-/** Zombie positions are Float32 (a ulp near 48 m is ~4e-6 m); players are float64. */
-const ZOMBIE_EPS_M = 1e-5;
-const PLAYER_EPS_M = 1e-9;
 /**
- * "Reached a player": within this distance with a clear line (no map box or building between). 15
- * zombies crowd one player in rings ~0.75, 1.45 and 2.15 m out; only the inner ring touches.
+ * Overlap tolerances. Zombie positions are Float32 (a ulp near 48 m is ~4e-6 m). Players are float64,
+ * but the push-out itself accepts a leftover overlap below `STUCK_EPS_M` (1e-6 m, collision.ts) after
+ * its passes (seen: 8e-7 m pressing into a corner between two boxes); anything deeper is a body inside.
+ */
+const ZOMBIE_EPS_M = 1e-5;
+const PLAYER_EPS_M = 1e-6;
+/**
+ * "Reached a player": within this distance with a clear line (no map box or building between), or
+ * pressed against a zombie that has reached one (the crowd round a player: only the inner ring can
+ * touch, and a player in a corner pushes the crowd out past 3 m in one quadrant).
  */
 const REACH_M = 3;
+/** The soft separation holds crowd neighbours a little apart (seen: 0.81 m for two 0.35 m bodies). */
+const CROWD_GAP_M = 0.3;
 const TYPES = ["wood_barricade", "auto_turret"] as const;
 const map = DOWNTOWN_MAP;
 
@@ -88,7 +105,7 @@ function layout(seed: number) {
     }
     addPlayer(world, `p${slot}`, at.x, at.y);
   }
-  const want = rng.int(6, 24);
+  const want = seed % 4 === 0 ? 0 : rng.int(6, 24);
   let nextId = 1;
   for (let tries = 0; tries < 2000 && world.buildings.list.length < want; tries++) {
     const type = TYPES[rng.int(0, 9) === 0 ? 1 : 0] as string;
@@ -103,23 +120,62 @@ function layout(seed: number) {
   }
   const spawned: number[] = [];
   const zombieType = (): ZombieTypeId => ZOMBIE_TYPES[rng.int(0, ZOMBIE_TYPES.length - 1)] as ZombieTypeId;
-  for (const sp of map.spawnPoints) spawned.push(spawnZombie(world, zombieType(), sp.x, sp.y));
-  for (let i = 0; i < EXTRA_ZOMBIES; i++) {
-    const sp = map.spawnPoints[rng.int(0, map.spawnPoints.length - 1)] as { x: number; y: number };
-    spawned.push(spawnZombie(world, zombieType(), sp.x, sp.y));
+  const jitter = balance.waves.spawnJitterM;
+  const at2 = { x: 0, y: 0 };
+  const spawnAt = (sp: { x: number; y: number }, k: number): void => {
+    const type = zombieType();
+    const j = k % 3 === 0 ? -jitter : k % 3 === 1 ? jitter : rng.range(-jitter, jitter); // the extremes too
+    jitteredSpawn(world, sp, j, balance.zombies.types[type]?.radiusM ?? 0, at2);
+    spawned.push(spawnZombie(world, type, at2.x, at2.y));
+  };
+  map.spawnPoints.forEach((sp, k) => spawnAt(sp, k + seed));
+  for (let i = 0; i < EXTRA_ZOMBIES; i++) spawnAt(map.spawnPoints[rng.int(0, map.spawnPoints.length - 1)] as { x: number; y: number }, i + seed + 1);
+  return { world, rng, spawned, players, buildings: world.buildings.list.length, destroyed: () => damaged };
+}
+
+/** Review L3: each player's walk target (a point on a map box's face) and ticks left pressing on it. */
+interface Walk {
+  tx: number;
+  ty: number;
+  ticks: number;
+}
+const WALK_TICKS = [20, 80] as const;
+
+function steer(world: World, rng: Rng, walks: Walk[], seq: number): void {
+  let i = 0;
+  for (const p of world.players.values()) {
+    const w = (walks[i] ??= { tx: p.x, ty: p.y, ticks: 0 });
+    if (w.ticks-- <= 0) {
+      const s = map.solids[rng.int(0, map.solids.length - 1)] as MapBox;
+      const side = rng.int(0, 3);
+      const u = rng.range(0, 1);
+      w.tx = side < 2 ? s.minX + u * (s.maxX - s.minX) : side === 2 ? s.minX : s.maxX;
+      w.ty = side === 0 ? s.minY : side === 1 ? s.maxY : s.minY + u * (s.maxY - s.minY);
+      w.ticks = rng.int(WALK_TICKS[0], WALK_TICKS[1]);
+    }
+    const dx = w.tx - p.x;
+    const dy = w.ty - p.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const input: PlayerInput = { ...NEUTRAL_INPUT, seq, moveX: dx / d, moveY: dy / d, aimX: dx / d, aimY: dy / d };
+    setInput(world, p.id, input);
+    i++;
   }
-  return { world, spawned, players, buildings: world.buildings.list.length, destroyed: () => damaged };
 }
 
 /** Runs the layout; returns the first violation (or null), and the zombies that touched a player. */
 function run(seed: number) {
   const l = layout(seed);
-  const { world, spawned } = l;
+  const { world, spawned, rng } = l;
+  const walks: Walk[] = [];
+  let pressed = 0;
   const reached = new Set<number>();
   const limit = ticksFor(LIMIT_S);
+  const walkTicks = ticksFor(WALK_S);
   let ticks = 0;
   let violation: string | null = null;
   for (; ticks < limit && reached.size < spawned.length && violation === null; ticks++) {
+    if (ticks < walkTicks) steer(world, rng, walks, ticks + 1);
+    else if (ticks === walkTicks) for (const p of world.players.values()) setInput(world, p.id, { ...NEUTRAL_INPUT, seq: ticks + 1 });
     step(world, TICK_DT_S);
     const z = world.zombies;
     for (let i = 0; i < z.aliveCount; i++) {
@@ -130,17 +186,34 @@ function run(seed: number) {
       const inBox = overlapsAnyBox(world, x, y, r, ZOMBIE_EPS_M);
       if (inBox) violation = `seed ${seed} tick ${ticks}: zombie ${id} at (${x.toFixed(3)}, ${y.toFixed(3)}) inside ${inBox}`;
       for (const p of world.players.values()) {
-        // In the crowd round a player (only the inner ring can touch) with nothing between them.
         if (Math.hypot(p.x - x, p.y - y) <= REACH_M && !segmentHitsBuildings(world, x, y, p.x, p.y, 0)) reached.add(id);
+      }
+    }
+    // The crowd: a zombie pressed against a reached one has reached the player too (repeat until stable).
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (let i = 0; i < z.aliveCount; i++) {
+        const a = z.aliveIds[i] as number;
+        if (reached.has(a)) continue;
+        for (let k = 0; k < z.aliveCount; k++) {
+          const b = z.aliveIds[k] as number;
+          if (!reached.has(b)) continue;
+          if (Math.hypot((z.x[a] as number) - (z.x[b] as number), (z.y[a] as number) - (z.y[b] as number)) <= 2 * maxZombieRadius(balance) + CROWD_GAP_M) {
+            reached.add(a);
+            grew = true;
+            break;
+          }
+        }
       }
     }
     for (const p of world.players.values()) {
       const inBox = overlapsAnyBox(world, p.x, p.y, p.radiusM, PLAYER_EPS_M);
-      if (inBox) violation = `seed ${seed} tick ${ticks}: player ${p.id} inside ${inBox}`;
+      if (inBox) violation = `seed ${seed} tick ${ticks}: player ${p.id} at (${p.x}, ${p.y}) from (${p.prevX}, ${p.prevY}) inside ${inBox}`;
+      if (overlapsAnyBox(world, p.x, p.y, p.radiusM + 0.01, 0)) pressed++; // against a wall (liveness)
     }
   }
   const missing = spawned.filter((id) => !reached.has(id));
-  return { ...l, ticks, violation, missing, reached: reached.size };
+  return { ...l, ticks, violation, missing, reached: reached.size, pressed };
 }
 
 describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1, brief line 3)", () => {
@@ -148,22 +221,28 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1, brief li
     let buildings = 0;
     let reached = 0;
     let breaking = 0;
+    let pressed = 0;
+    let bare = 0;
     const failures: string[] = [];
     for (let seed = 1; seed <= LAYOUTS; seed++) {
       const r = run(4100 + seed);
       buildings += r.buildings;
       reached += r.reached;
       if (r.destroyed() > 0) breaking++;
+      pressed += r.pressed;
+      if (r.buildings === 0) bare++;
       if (r.violation) failures.push(r.violation);
       if (r.missing.length > 0) {
         const z = r.world.zombies;
         failures.push(`seed ${4100 + seed}: ${r.missing.length} zombies never reached a player in ${LIMIT_S} s: ${r.missing.map((id) => `${id}@(${(z.x[id] as number).toFixed(2)}, ${(z.y[id] as number).toFixed(2)})`).join(" ")}`);
       }
     }
-    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building`);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box`);
     expect(failures).toEqual([]);
     // Liveness (brief line 9): the layouts were real and the zombies really came.
-    expect(buildings).toBeGreaterThan(LAYOUTS * 6);
+    expect(buildings).toBeGreaterThan(LAYOUTS * 3);
+    expect(bare).toBe(LAYOUTS / 4);
+    expect(pressed).toBeGreaterThan(LAYOUTS * 20); // the players really walked into walls
     expect(reached).toBe(LAYOUTS * (map.spawnPoints.length + EXTRA_ZOMBIES));
     expect(breaking).toBeGreaterThan(0);
   }, 240_000);
