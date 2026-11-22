@@ -139,6 +139,7 @@ export {
   lobbyReturnSchema,
   buildSetReadySchema,
   buildingPlaceSchema,
+  buildingRepairSchema,
   shopBuySchema,
   type ShopBuy,
   type ShopBought,
@@ -146,6 +147,8 @@ export {
   type BuildSetReady,
   type BuildingPlace,
   type BuildingRefused,
+  type BuildingRepair,
+  type BuildingRepairRefused,
   type C2SType,
   type JoinOptions,
   type JoinRefusal,
@@ -229,6 +232,8 @@ export {
   pushed,
   type PushResult,
 } from "./buildings/collision";
+// Story 3.7: repairs.
+export { REPAIR_ERRORS, buildingAtPoint, isDamaged, repairBuilding, repairCost, repairError, type RepairError, type Repaired } from "./buildings/repair";
 export { findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,

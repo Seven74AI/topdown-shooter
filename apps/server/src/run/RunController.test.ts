@@ -16,7 +16,7 @@ import {
   type PlayerInput,
   type SimEvent,
 } from "@topdown/shared";
-import { INPUT_DRAIN_AFTER_TICKS, INPUT_QUEUE_MAX, INPUT_QUEUE_TARGET, RunController } from "./RunController";
+import { INPUT_DRAIN_AFTER_TICKS, INPUT_QUEUE_MAX, INPUT_QUEUE_TARGET, RunController, parseDevHpFraction } from "./RunController";
 
 const balance = loadBalance();
 const SEED = 1234;
@@ -450,5 +450,25 @@ describe("RunController", () => {
     killZombie(c.world, id, null, "cheat");
     c.tick();
     expect(c.kills("p0") + c.kills("p1")).toBe(0);
+  });
+});
+
+describe("Story 3.7 dev switch DEV_PLACED_BUILDING_HP", () => {
+  it("parses a share in (0, 1] only; placed buildings start at that share of their HP", () => {
+    expect([parseDevHpFraction("0.5"), parseDevHpFraction("1"), parseDevHpFraction(" 0.25 ")]).toEqual([0.5, 1, 0.25]);
+    expect([parseDevHpFraction(undefined), parseDevHpFraction(""), parseDevHpFraction("0"), parseDevHpFraction("1.5"), parseDevHpFraction("-1"), parseDevHpFraction("x")]).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+    const c = new RunController({ balance, seed: SEED, players: TWO, devPlacedHpFraction: 0.5 });
+    const r = c.placeBuilding("p0", { type: "wood_barricade", gx: 3, gy: 3, rot: 0 });
+    expect(r.ok && r.value.hp).toBe(100);
+    const full = new RunController({ balance, seed: SEED, players: TWO });
+    const f = full.placeBuilding("p0", { type: "wood_barricade", gx: 3, gy: 3, rot: 0 });
+    expect(f.ok && f.value.hp).toBe(200);
   });
 });

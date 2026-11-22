@@ -58,6 +58,20 @@ export interface HudModel {
   shopButton: boolean;
   /** Set by the HUD when Shop is tapped; the GameScene consumes it. */
   shopPressed: boolean;
+  /** Story 3.7: taps on the game view select buildings now (a build phase, no placement, shop or menu). */
+  tapsEnabled: boolean;
+  /** A short tap on the game view (canvas px) this frame; the GameScene consumes it. */
+  worldTap: boolean;
+  worldTapX: number;
+  worldTapY: number;
+  /** The repair panel is open: its info line, the reason it would be refused ("" = none), Repair's label. */
+  repairOpen: boolean;
+  repairInfo: string;
+  repairReason: string;
+  repairLabel: string;
+  /** Repair and ✕ taps; the GameScene consumes them. */
+  repairPressed: boolean;
+  repairClosePressed: boolean;
   /** Centered banner text and the scene time (ms) it was shown; empty when none. */
   bannerText: string;
   bannerAtMs: number;
@@ -139,6 +153,16 @@ export const createHudModel = (): HudModel => ({
   cancelPressed: false,
   shopButton: false,
   shopPressed: false,
+  tapsEnabled: false,
+  worldTap: false,
+  worldTapX: 0,
+  worldTapY: 0,
+  repairOpen: false,
+  repairInfo: "",
+  repairReason: "",
+  repairLabel: "",
+  repairPressed: false,
+  repairClosePressed: false,
   bannerText: "",
   bannerAtMs: 0,
   rushers: new Float32Array(MAX_RUSH_MARKERS * 2),

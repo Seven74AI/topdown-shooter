@@ -2,10 +2,13 @@ import {
   BYTES,
   C2S,
   S2C,
+  REPAIR_ERRORS,
   type BuildingRefused,
+  type BuildingRepairRefused,
   type NetPinged,
   type PlaceError,
   type PlayerLeft,
+  type RepairError,
   type RunJoined,
   type RunStateView,
   type ShopError,
@@ -52,6 +55,12 @@ const PLACE_ERRORS: readonly PlaceError[] = ["unknown_player", "not_build_phase"
 export function parseBuildingRefused(m: unknown): PlaceError | null {
   const reason = (m as Partial<BuildingRefused> | null)?.reason;
   return typeof reason === "string" && (PLACE_ERRORS as readonly string[]).includes(reason) ? (reason as PlaceError) : null;
+}
+
+/** The reason of a well-formed `building.repair_refused` (Story 3.7), or null. */
+export function parseRepairRefused(m: unknown): RepairError | null {
+  const reason = (m as Partial<BuildingRepairRefused> | null)?.reason;
+  return typeof reason === "string" && (REPAIR_ERRORS as readonly string[]).includes(reason) ? (reason as RepairError) : null;
 }
 
 /** Event batches kept while no game scene listens yet: 200 ticks = 10 s of a hidden tab at Start. */
@@ -110,6 +119,7 @@ export class RunInbox {
   private leftSink: ((m: PlayerLeft) => void) | null = null;
   private refusedSink: ((reason: PlaceError) => void) | null = null;
   private shopSink: ((a: ShopAnswer) => void) | null = null;
+  private repairSink: ((reason: RepairError) => void) | null = null;
 
   constructor(private readonly room: Pick<NetRoomLike, "send" | "onMessage">) {
     this.offs.push(room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m)));
@@ -119,6 +129,21 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.BUILDING_REFUSED, (m: unknown) => this.receiveRefused(m)));
     this.offs.push(room.onMessage(S2C.SHOP_BOUGHT, (m: unknown) => this.receiveShop(parseShopBought(m))));
     this.offs.push(room.onMessage(S2C.SHOP_REFUSED, (m: unknown) => this.receiveShop(parseShopRefused(m))));
+    this.offs.push(room.onMessage(S2C.BUILDING_REPAIR_REFUSED, (m: unknown) => this.receiveRepairRefused(m)));
+  }
+
+  /** Story 3.7: each `building.repair_refused` from now on (dropped while none listens). Returns the unsubscribe. */
+  onRepairRefused(sink: (reason: RepairError) => void): () => void {
+    this.repairSink = sink;
+    return () => {
+      if (this.repairSink === sink) this.repairSink = null;
+    };
+  }
+
+  private receiveRepairRefused(m: unknown): void {
+    if (this.closed || !this.repairSink) return;
+    const reason = parseRepairRefused(m);
+    if (reason) this.repairSink(reason);
   }
 
   /** Story 3.4: each `building.refused` from now on (dropped while none listens). Returns the unsubscribe. */
@@ -191,6 +216,7 @@ export class RunInbox {
     this.leftSink = null;
     this.refusedSink = null;
     this.shopSink = null;
+    this.repairSink = null;
   }
 
   private receiveRefused(m: unknown): void {
@@ -279,6 +305,11 @@ export class NetSession {
   /** See `RunInbox.onPlayerLeft`. */
   onPlayerLeft(sink: (m: PlayerLeft) => void): () => void {
     return this.inbox.onPlayerLeft(sink);
+  }
+
+  /** See `RunInbox.onRepairRefused`. */
+  onRepairRefused(sink: (reason: RepairError) => void): () => void {
+    return this.inbox.onRepairRefused(sink);
   }
 
   /** See `RunInbox.onShopAnswer`. */

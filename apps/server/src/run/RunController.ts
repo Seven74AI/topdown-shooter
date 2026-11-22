@@ -4,6 +4,7 @@ import {
   addPlayer,
   applyTestScenario,
   placeBuilding,
+  repairBuilding,
   buyWeapon,
   createWorld,
   removePlayer,
@@ -18,6 +19,8 @@ import {
   type Building,
   type PlaceError,
   type PlaceRequest,
+  type RepairError,
+  type Repaired,
   type Bought,
   type PlayerInput,
   type Result,
@@ -131,6 +134,13 @@ const dropOldest = (s: PlayerSlot): void => {
   }
 };
 
+/** Story 3.7: a dev HP share from text ("0.5"), in (0, 1], or null when absent or invalid (full HP). */
+export function parseDevHpFraction(raw: string | null | undefined): number | null {
+  if (raw === null || raw === undefined || !/^\d+(\.\d+)?$/.test(raw.trim())) return null;
+  const n = Number(raw.trim());
+  return n > 0 && n <= 1 ? n : null;
+}
+
 export interface RunControllerOptions {
   balance: Balance;
   seed: number;
@@ -144,6 +154,11 @@ export interface RunControllerOptions {
   systems?: Partial<Systems>;
   /** Story 2.10: a fixed test scenario (the room passes it only with `ALLOW_TEST_SCENARIOS=1`). */
   scenario?: TestScenario | null;
+  /**
+   * Dev (`DEV_PLACED_BUILDING_HP=0.5`, Story 3.7): every newly placed building starts at this share
+   * of its HP, so repairs can be checked before Story 3.5's zombies damage buildings. null = full HP.
+   */
+  devPlacedHpFraction?: number | null;
 }
 
 /**
@@ -169,8 +184,10 @@ export class RunController {
   /** The same slots in join order, for iteration without an iterator per tick. */
   private readonly order: PlayerSlot[] = [];
   private readonly events: SimEvent[] = [];
+  private readonly devPlacedHpFraction: number | null;
 
   constructor(opts: RunControllerOptions) {
+    this.devPlacedHpFraction = opts.devPlacedHpFraction ?? null;
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, ...(opts.systems ? { systems: opts.systems } : {}) });
     this.world.waves.paused = opts.pauseWaves === true;
     this.world.debug.waveMix = opts.waveMix ?? null;
@@ -197,7 +214,18 @@ export class RunController {
    * `building.placed` goes out with that tick's events). Every rule is the shared `placeBuilding`'s.
    */
   placeBuilding(playerId: string, req: PlaceRequest): Result<Building, PlaceError> {
-    return placeBuilding(this.world, playerId, req);
+    const r = placeBuilding(this.world, playerId, req);
+    const f = this.devPlacedHpFraction;
+    if (r.ok && f !== null) r.value.hp = Math.max(1, Math.floor(r.value.maxHp * f)); // Story 3.7 dev switch
+    return r;
+  }
+
+  /**
+   * Story 3.7: `building.repair`, between ticks (full HP from the next patch on; `building.repaired`
+   * goes out with the next tick's events). Every rule is the shared `repairBuilding`'s.
+   */
+  repairBuilding(playerId: string, buildingId: number): Result<Repaired, RepairError> {
+    return repairBuilding(this.world, playerId, buildingId);
   }
 
   /**

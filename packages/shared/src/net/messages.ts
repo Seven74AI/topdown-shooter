@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TEST_SCENARIOS } from "./testScenarios";
 import type { PlaceError } from "../buildings/buildings";
+import type { RepairError } from "../buildings/repair";
 import type { ShopError } from "../economy/shop";
 
 /**
@@ -28,6 +29,8 @@ export const C2S = {
   BUILDING_PLACE: "building.place",
   /** `{ weapon, slot? }` in a build phase (Story 3.3); answered with `shop.bought` or `shop.refused`. */
   SHOP_BUY: "shop.buy",
+  /** `{ id }` in a build phase (Story 3.7); a refusal comes back as `building.repair_refused`. */
+  BUILDING_REPAIR: "building.repair",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -49,6 +52,8 @@ export const S2C = {
   SHOP_BOUGHT: "shop.bought",
   /** `{ weapon, error: ShopError }` to the buyer only (Story 3.3); nothing changed. */
   SHOP_REFUSED: "shop.refused",
+  /** `{ id, reason: RepairError }` to the sender of a refused `building.repair` (Story 3.7). */
+  BUILDING_REPAIR_REFUSED: "building.repair_refused",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -138,6 +143,23 @@ export type BuildingPlace = z.infer<typeof buildingPlaceSchema>;
 /** `building.refused` payload (Story 3.4), to the sender only. */
 export interface BuildingRefused {
   reason: PlaceError;
+}
+
+/**
+ * `building.repair` (Story 3.7): the id of the building to repair (any player's). Only the shape is
+ * checked here; `repairBuilding` validates phase, building, damage and wallet on the server's World.
+ */
+export const buildingRepairSchema = z
+  .object({
+    id: z.number().int().min(1).max(65535),
+  })
+  .strict();
+export type BuildingRepair = z.infer<typeof buildingRepairSchema>;
+
+/** `building.repair_refused` payload (Story 3.7), to the sender only. */
+export interface BuildingRepairRefused {
+  id: number;
+  reason: RepairError;
 }
 
 /**
