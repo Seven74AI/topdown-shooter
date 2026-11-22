@@ -39,6 +39,11 @@ Files: `deploy/docker-compose.yml`, `deploy/server.Dockerfile` (targets `server`
 
 Before this story, the static client was served by Caddy from the systemd unit `topdown-shooter.service`. It used the old one-block `deploy/Caddyfile` (`:8080 { bind 127.0.0.1; root * /root/topdown-shooter/apps/client/dist; encode gzip; file_server }`) and the repo checkout at `/root/topdown-shooter`. It holds port 8080, so it must be stopped before the stack starts.
 
+**What runs there right now (checked by Hermes on the VPS, 2026-11-21):**
+- `/etc/systemd/system/topdown-shooter.service` runs `/usr/local/bin/caddy run --config /root/topdown-shooter/deploy/Caddyfile` with `Restart=on-failure`. It is the live Caddy on 127.0.0.1:8080.
+- Since Story 2.1, the game server also runs, as `topdown-server.service` on :2567. The live Caddy sends `/api/*` to it with `handle_path` (prefix stripped, WebSockets passed through) and serves `apps/client/dist` for everything else. That is commit `9e993a0`'s Caddyfile.
+- **Live-site risk:** the VPS checkout *is* `/root/topdown-shooter`, and the live Caddy reads `deploy/Caddyfile` from it at start. After a `git pull` of a master that has the container Caddyfile, a restart of that Caddy (crash, `systemctl restart`, reboot) would load the container config and serve nothing. So do step 2 (which gives the old unit its own frozen Caddyfile) **before** pulling, or right after, and finish the go-live soon after.
+
 It stays installed, disabled, as the fallback. Step 2 below prepares it **before** anything changes, so that a failed go-live can be reverted with one command (see [If anything fails](#if-anything-fails)).
 
 The VPS also hosts the Hermes agent. Only touch our service, port 8080, and the `topdown` containers and images.
@@ -120,11 +125,11 @@ Run as root on the VPS. Paste the output of steps 1, 2 and 6 into the story's Co
    cd /root/topdown-shooter && git fetch && git checkout master && git pull --ff-only
    ```
 
-5. **Switch over**: stop and disable the old static service, which holds port 8080, then deploy.
+5. **Switch over**: stop and disable the old static service, which holds port 8080, and the Story 2.1 game server unit, which holds :2567 (the stack runs its own server container), then deploy.
 
    ```sh
-   systemctl disable --now topdown-shooter.service
-   ss -ltnp | grep ':8080' || echo "8080 is free"
+   systemctl disable --now topdown-shooter.service topdown-server.service
+   ss -ltnp | grep -E ':(8080|2567) ' || echo "8080 and 2567 are free"
    deploy/deploy.sh
    ```
 
