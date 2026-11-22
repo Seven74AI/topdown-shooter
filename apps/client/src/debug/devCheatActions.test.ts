@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TICK_DT_S, ZOMBIE_STATE, addPlayer, createWorld, loadBalance, step, type World } from "@topdown/shared";
+import { TICK_DT_S, ZOMBIE_STATE, addPlayer, createWorld, loadBalance, setBuildReady, startBuild, step, type World } from "@topdown/shared";
 import { clampSpawnCount, leaveLast, parseSeed } from "./devCheatActions";
 
 const balance = loadBalance();
@@ -26,8 +26,10 @@ describe("dev cheat helpers", () => {
     // Frozen zombies: this test is about the wave bookkeeping, not the chase.
     const world: World = createWorld({ balance, seed: 9, systems: { zombies: () => {} } });
     addPlayer(world, "local", world.map.widthM / 2, world.map.heightM / 2);
-    for (let i = 0; i < 80; i++) step(world, TICK_DT_S); // intro (3 s) + first spawn batches
-    expect(world.waves.phase).toBe("active");
+    startBuild(world);
+    setBuildReady(world, "local", true); // Story 3.1: skip the build phase
+    for (let i = 0; i < 20; i++) step(world, TICK_DT_S); // the first spawn batches
+    expect(world.run.phase).toBe("wave");
     expect(world.waves.queued).toBeGreaterThan(0);
     leaveLast(world, 5);
     step(world, TICK_DT_S);

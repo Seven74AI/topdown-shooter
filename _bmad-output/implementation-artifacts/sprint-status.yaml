@@ -81,8 +81,8 @@ development_status:
   epic-2-retrospective: done
 
   # Epic 3: Build phase and economy
-  epic-3: backlog
-  3-1-build-phase-between-waves: backlog
+  epic-3: in-progress
+  3-1-build-phase-between-waves: ready-for-dev
   3-2-personal-wallets-and-rewards: backlog
   3-3-fixed-list-shop: backlog
   3-4-place-a-wood-barricade: backlog

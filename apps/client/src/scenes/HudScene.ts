@@ -2,7 +2,14 @@ import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
 import { hudPointerDown, hudPointerMove, hudPointerReset, hudPointerUp } from "../input/hudPointer";
-import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, MIN_TEXT_CSS_PX } from "../ui/sizes";
+import {
+  MENU_BUTTON_CSS_PX,
+  MENU_BUTTON_INSET_CSS_PX,
+  MIN_TEXT_CSS_PX,
+  READY_BUTTON_BOTTOM_CSS_PX,
+  READY_BUTTON_H_CSS_PX,
+  READY_BUTTON_W_CSS_PX,
+} from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
@@ -82,6 +89,14 @@ const MENU_BG_ALPHA = 0.35;
 const MENU_RADIUS_PX = 8;
 const MENU_BAR_COLOR = 0xffffff;
 const TOAST_TEXT_PX = 18;
+/** Story 3.1: the Ready button (dark when not Ready, green with ✓ when Ready). */
+const READY_TEXT_PX = 20;
+const READY_RADIUS_PX = 12;
+const READY_BG = 0x000000;
+const READY_BG_ALPHA = 0.5;
+const READY_ON = 0x2e7d32;
+const READY_BORDER = 0xffffff;
+const READY_BORDER_PX = 2;
 /** Wave text → status line → toast line, CSS px from the top inset. */
 const WAVE_TOP_PX = 12;
 const LINE_GAP_PX = 12;
@@ -117,6 +132,13 @@ export class HudScene extends Phaser.Scene {
   private shownMenuOpen = false;
   private toastText!: Phaser.GameObjects.Text;
   private shownToast = "";
+  /** Story 3.1: the Ready button (a Graphics redrawn on change only) and its label. */
+  private readyBtn!: Phaser.GameObjects.Graphics;
+  private readyLabel!: Phaser.GameObjects.Text;
+  private shownReadyVisible: boolean | null = null;
+  /** `readyOn`, count and total folded into one key (redraw only when it changes). */
+  private shownReadyKey = -1;
+  private shownBuildSecs = -2;
   private buttons = new HudButtons();
   /** Safe-area insets (CSS px), measured on create and resize only (getComputedStyle is costly). */
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -174,6 +196,9 @@ export class HudScene extends Phaser.Scene {
     this.shownMenuButton = null;
     this.shownMenuOpen = false;
     this.shownToast = "";
+    this.shownReadyVisible = null;
+    this.shownReadyKey = -1;
+    this.shownBuildSecs = -2;
   }
 
   create(): void {
@@ -213,6 +238,12 @@ export class HudScene extends Phaser.Scene {
     this.menuBtn = this.add.graphics().setDepth(1001).setVisible(false);
     this.buttons.set({ id: "menu", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.menuPressed = true;
+    });
+    // Story 3.1: Ready, bottom centre (a touch on it never starts a stick). Story 3.3 adds Shop beside it.
+    this.readyBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.readyLabel = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.buttons.set({ id: "ready", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.readyPressed = true;
     });
     this.layoutButtons();
     this.reloadBar = this.add.graphics();
@@ -343,6 +374,47 @@ export class HudScene extends Phaser.Scene {
     this.swapBtn.setRadius(size / 2).setPosition(x + size / 2, y + size / 2);
     this.swapLabel.setFontSize(Math.round(28 * k)).setPosition(x + size / 2, y + size / 2);
     this.layoutMenuButton();
+    this.layoutReadyButton();
+  }
+
+  /** Story 3.1: the Ready button's hit rect and position (bottom centre, inside the safe area). */
+  private layoutReadyButton(): void {
+    const k = dpr();
+    const w = READY_BUTTON_W_CSS_PX * k;
+    const h = READY_BUTTON_H_CSS_PX * k;
+    const x = (this.scale.width - w) / 2;
+    const y = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k - h;
+    const rect = this.buttons.get("ready");
+    if (rect) Object.assign(rect, { x, y, w, h });
+    this.readyBtn.setPosition(x, y);
+    this.readyLabel.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, y + h / 2);
+    this.shownReadyKey = -1; // redraw at the new size
+  }
+
+  /** Story 3.1: shows, hides and redraws the Ready button (only when what it shows changes). */
+  private drawReady(): void {
+    const m = this.model;
+    if (m.readyButton !== this.shownReadyVisible) {
+      this.shownReadyVisible = m.readyButton;
+      this.buttons.setVisible("ready", m.readyButton);
+      this.readyBtn.setVisible(m.readyButton);
+      this.readyLabel.setVisible(m.readyButton);
+    }
+    if (!m.readyButton) return;
+    const key = (m.readyOn ? 1 : 0) + m.readyCount * 2 + m.readyTotal * 64;
+    if (key === this.shownReadyKey) return;
+    this.shownReadyKey = key;
+    const k = dpr();
+    const w = READY_BUTTON_W_CSS_PX * k;
+    const h = READY_BUTTON_H_CSS_PX * k;
+    const g = this.readyBtn;
+    g.clear();
+    if (m.readyOn) g.fillStyle(READY_ON, 1);
+    else g.fillStyle(READY_BG, READY_BG_ALPHA);
+    g.fillRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
+    g.lineStyle(READY_BORDER_PX * k, READY_BORDER, 0.9).strokeRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
+    const count = m.readyTotal > 1 ? `  ${m.readyCount}/${m.readyTotal}` : "";
+    this.readyLabel.setText(`${m.readyOn ? "Ready ✓" : "Ready"}${count}`);
   }
 
   /** ☰: 48 × 48 CSS px, 12 px inside the safe area at the top-right; redrawn on layout only. */
@@ -426,6 +498,7 @@ export class HudScene extends Phaser.Scene {
     this.drawDowned();
     this.drawTeammates();
     this.drawMenu();
+    this.drawReady();
     this.perfOverlay?.update();
   }
 
@@ -555,11 +628,15 @@ export class HudScene extends Phaser.Scene {
   /** "Wave 3 · Zombies 47" top-center, and the centered banner fading out. */
   private drawWave(): void {
     const m = this.model;
-    if (m.wave !== this.shownWave || m.remaining !== this.shownRemaining) {
+    if (m.wave !== this.shownWave || m.remaining !== this.shownRemaining || m.buildSecs !== this.shownBuildSecs) {
       this.shownWave = m.wave;
       this.shownRemaining = m.remaining;
+      this.shownBuildSecs = m.buildSecs;
+      // Story 3.1: during a build the top line counts down to the next wave.
+      const text =
+        m.buildSecs >= 0 ? `Wave ${m.wave + 1} in ${m.buildSecs} s` : m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready";
       this.waveText
-        .setText(m.wave > 0 ? `Wave ${m.wave}   ·   Zombies ${m.remaining}` : "Get ready")
+        .setText(text)
         .setPosition(this.scale.width / 2, (WAVE_TOP_PX + this.insets.top) * dpr());
     }
     if (m.bannerText !== this.shownBanner) {

@@ -3,7 +3,6 @@ import {
   RUN_ROOM_NAME,
   err,
   isRoomCode,
-  loadBalance,
   normalizeRoomCode,
   ok,
   type JoinOptions,
@@ -12,6 +11,7 @@ import {
   type RunStateView,
 } from "@topdown/shared";
 import { JOIN_ERROR_TEXT, joinErrorText } from "./joinErrors";
+import { clientBalance } from "../debug/clientBalance";
 import { getGuestToken } from "./guestToken";
 
 /** A connected run room; `state` is read through the plain views from shared. */
@@ -30,8 +30,8 @@ let client: Client | null = null;
 let balanceVersion: string | null = null;
 
 const sdk = (): Client => (client ??= new Client(serverUrl()));
-/** The bundled balance version; the server refuses any other one (AC 4). */
-const clientBalanceVersion = (): string => (balanceVersion ??= loadBalance().version);
+/** The bundled balance version (or the dev `?zdmg` one, retro A5); the server refuses any other one (AC 4). */
+const clientBalanceVersion = (): string => (balanceVersion ??= clientBalance().version);
 
 const options = (intent: JoinOptions["intent"], name: string): JoinOptions => ({
   intent,

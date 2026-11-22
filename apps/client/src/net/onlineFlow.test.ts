@@ -40,6 +40,36 @@ function setup() {
   return { room, inbox, sessions, screens, requests, phase, roomLeaves: () => roomLeaves };
 }
 
+describe("build phase in the run cycle (Story 3.1)", () => {
+  it("lobby → build → wave → build → wave: one session for the whole run, started once", () => {
+    const t = setup();
+    t.phase("build");
+    expect(t.sessions).toHaveLength(1);
+    expect(t.requests).toEqual([{ name: "startOnline", arg: t.sessions[0] }]);
+    t.phase("wave");
+    t.phase("build");
+    t.phase("wave");
+    expect(t.sessions).toHaveLength(1);
+    expect(t.requests).toHaveLength(1);
+    expect(t.roomLeaves()).toBe(0);
+    t.phase("results");
+    t.phase("lobby");
+    t.phase("build"); // run 2 starts in its build phase too
+    expect(t.sessions).toHaveLength(2);
+    expect(t.requests.at(-1)).toEqual({ name: "startOnline", arg: t.sessions[1] });
+  });
+
+  it("a new run seen straight after Results (its lobby patch skipped under ?lag) still gets a fresh session", () => {
+    const t = setup();
+    t.phase("build");
+    t.phase("results");
+    t.phase("build");
+    expect(t.sessions).toHaveLength(2);
+    t.sessions[0]?.leave(); // released: the old scene's dispose never leaves the room
+    expect(t.roomLeaves()).toBe(0);
+  });
+});
+
 describe("online run cycle in one room (Story 2.8)", () => {
   it("the Game scene's NetSimHost.dispose after Back to lobby doesn't leave the room", () => {
     const t = setup();

@@ -292,9 +292,9 @@ describe("RunRoom lobby (Story 2.3)", () => {
     expect(host.room.state.phase).toBe("lobby");
     expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "not_ready" }, "run_start_refused");
     await readyAndStart(host.room, host.client, guest.client);
-    expect(host.room.state.phase).toBe("wave");
+    expect(host.room.state.phase).toBe("build");
     expect(info).toHaveBeenCalledWith({ runSeed: expect.any(Number), players: 2 }, "run_started");
-    await vi.waitFor(() => expect(guest.client.state.phase).toBe("wave"));
+    await vi.waitFor(() => expect(guest.client.state.phase).toBe("build"));
   });
 
   it("refuses a start from a non-host", async () => {
@@ -316,14 +316,14 @@ describe("RunRoom lobby (Story 2.3)", () => {
     expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "too_few" }, "run_start_refused");
     room.allowSoloStart = true;
     await readyAndStart(room, client);
-    expect(room.state.phase).toBe("wave");
+    expect(room.state.phase).toBe("build");
   });
 
   it("ignores Ready and a second start once the run started", async () => {
     const { client, room } = await createRun();
     room.allowSoloStart = true;
     await readyAndStart(room, client);
-    expect(room.state.phase).toBe("wave");
+    expect(room.state.phase).toBe("build");
     const info = vi.spyOn(room.log, "info");
     client.send(C2S.LOBBY_SET_READY, { ready: false });
     client.send(C2S.RUN_START, {});

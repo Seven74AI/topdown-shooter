@@ -6,9 +6,10 @@ import { ticksFor } from "../core/time";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { snapshotWorld } from "../core/worldSnapshot";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
-import { skipWave } from "../waves/waveDirector";
+import { skipWave, startBuild, startWave } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
-import { downPlayer } from "./downed";
+import { downPlayer, returnOutPlayers } from "./downed";
+import { spotBlocked } from "./freeSpot";
 import { addPlayer, removePlayer, type PlayerState } from "./player";
 import { spectateTarget } from "./spectate";
 
@@ -40,7 +41,7 @@ const placeNear = (p: PlayerState, of: PlayerState, distM: number) => {
 
 describe("balance (Story 2.8)", () => {
   it("has the downed numbers, converted to ticks: 400 down, 60 revive", () => {
-    expect(balance.player).toMatchObject({ downedS: 20, reviveS: 3, reviveRadiusM: 1.2, reviveHpFrac: 0.3, returnHpFrac: 0.5 });
+    expect(balance.player).toMatchObject({ downedS: 20, reviveS: 3, reviveRadiusM: 1.2, reviveHpFrac: 0.3, buildHealFrac: 0.5 });
     expect(DOWNED_TICKS).toBe(400);
     expect(REVIVE_TICKS).toBe(60);
   });
@@ -100,7 +101,6 @@ describe("downed countdown", () => {
     expect(ofType(events, "player.out")).toEqual([]);
     run(world, 1);
     expect(a.status).toBe("out");
-    expect(a.outSinceWave).toBe(2);
     expect(ofType(events, "player.out")).toEqual([{ type: "player.out", playerId: "p0" }]);
   });
 });
@@ -224,21 +224,23 @@ describe("out and return", () => {
     expect(p.status).toBe("out");
   }
 
-  it("out during wave 2: at the first active tick of wave 3 they return next to the lowest-slot standing teammate, with 50 HP", () => {
+  it("Story 3.1: out during a wave they stay out for the rest of it (no return at a later wave)", () => {
+    const { world, players } = setup(["p0", "p1"]);
+    const [a] = players as [PlayerState];
+    world.waves.number = 2;
+    goOut(world, a);
+    world.waves.number = 3; // even a later wave number: only a build start returns them
+    run(world, 50);
+    expect(a.status).toBe("out");
+  });
+
+  it("at the build start an out player returns next to the lowest-slot standing teammate, with 50 HP", () => {
     const { world, players, events } = setup(["p0", "p1", "p2"]);
     const [a, b, c] = players as [PlayerState, PlayerState, PlayerState];
     b.x = 30;
     b.y = 20;
-    world.waves.number = 2;
-    world.waves.phase = "active";
     goOut(world, a);
-    expect(a.outSinceWave).toBe(2);
-    world.waves.phase = "pause";
-    run(world, 50);
-    expect(a.status).toBe("out");
-    world.waves.number = 3;
-    world.waves.phase = "active";
-    run(world, 1);
+    returnOutPlayers(world);
     expect(a.status).toBe("alive");
     expect(a.hp).toBe(50);
     expect(a.x).toBeCloseTo(b.x + balance.player.spawnOffsetM, 9);
@@ -246,55 +248,97 @@ describe("out and return", () => {
     expect(a.prevX).toBe(a.x);
     expect(a.prevY).toBe(a.y);
     expect(a.downedTicksLeft).toBe(0);
+    world.events.flush(); // emitted outside a step
     expect(ofType(events, "player.returned")).toEqual([{ type: "player.returned", playerId: "p0", x: a.x, y: a.y }]);
     expect(c.status).toBe("alive");
   });
 
-  it("out during the pause after wave 2 (outSinceWave 2) returns at the first active tick of wave 3", () => {
-    const { world, players } = setup();
-    const [a] = players as [PlayerState];
-    world.waves.number = 2;
-    world.waves.phase = "pause";
-    goOut(world, a);
-    expect(a.outSinceWave).toBe(2);
-    world.waves.phase = "active"; // still wave 2 (can't happen, but the rule is "a later wave")
-    run(world, 1);
-    expect(a.status).toBe("out");
-    world.waves.number = 3;
-    run(world, 1);
-    expect(a.status).toBe("alive");
+  it("a downed player returns too (countdown and revive progress reset), and standing players are healed by 50, capped", () => {
+    const { world, players } = setup(["p0", "p1", "p2"]);
+    const [a, b, c] = players as [PlayerState, PlayerState, PlayerState];
+    downPlayer(world, a);
+    run(world, 10);
+    b.hp = 30;
+    c.hp = 80;
+    returnOutPlayers(world);
+    expect(a).toMatchObject({ status: "alive", hp: 50, downedTicksLeft: 0, reviveTicks: 0, reviverId: null });
+    expect(b.hp).toBe(80);
+    expect(c.hp).toBe(100);
   });
 
-  it("returns to −x when +x would leave the map, clamped inside it", () => {
+  it("near the map corner the return spot is a free one inside the map (retro A12)", () => {
     const { world, players } = setup();
     const [a, b] = players as [PlayerState, PlayerState];
     b.x = world.map.widthM - 0.5;
     b.y = world.map.heightM - 0.1;
-    world.waves.number = 1;
-    world.waves.phase = "active";
     goOut(world, a);
-    world.waves.number = 2;
-    run(world, 1);
-    expect(a.x).toBeCloseTo(b.x - balance.player.spawnOffsetM, 9);
-    expect(a.y).toBe(world.map.heightM - a.radiusM);
+    returnOutPlayers(world);
+    // +x is off the map, −x and +y overlap the bottom edge: the fourth candidate, −y.
+    expect(a.x).toBe(b.x);
+    expect(a.y).toBeCloseTo(b.y - balance.player.spawnOffsetM, 9);
+    expect(spotBlocked(world, a.x, a.y, a.radiusM, a)).toBe(false);
   });
 
-  it("with the real wave director: out in wave 1, back on the tick after wave 2 starts", () => {
+  it("skips a spot a zombie stands on, and a spot a teammate stands on (retro A12)", () => {
+    const { world, players } = setup(["p0", "p1", "p2"]);
+    const [a, b, c] = players as [PlayerState, PlayerState, PlayerState];
+    b.x = 20;
+    b.y = 16;
+    c.x = b.x + balance.player.spawnOffsetM; // on the +x spot
+    c.y = b.y;
+    goOut(world, a); // zombies come after: they'd chase during the countdown
+    spawnZombie(world, "walker", b.x - balance.player.spawnOffsetM, b.y); // on the −x spot
+    returnOutPlayers(world);
+    expect(a.x).toBeCloseTo(b.x, 9); // the third candidate: +y
+    expect(a.y).toBeCloseTo(b.y + balance.player.spawnOffsetM, 9);
+  });
+
+  it("goes to the next ring when the whole first ring is taken, and falls back to the 2.8 spot when every ring is", () => {
+    const { world, players } = setup(["p0", "p1"]);
+    const [a, b] = players as [PlayerState, PlayerState];
+    b.x = 24;
+    b.y = 16;
+    const off = balance.player.spawnOffsetM;
+    const ring = (k: number) => {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, Math.SQRT1_2], [Math.SQRT1_2, -Math.SQRT1_2], [-Math.SQRT1_2, -Math.SQRT1_2]] as const) {
+        spawnZombie(world, "walker", b.x + dx * off * k, b.y + dy * off * k);
+      }
+    };
+    goOut(world, a);
+    ring(1);
+    returnOutPlayers(world);
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo(off * 2, 9);
+    expect(spotBlocked(world, a.x, a.y, a.radiusM, a)).toBe(false);
+    const w2 = setup(["p0", "p1"]);
+    const [a2, b2] = w2.players as [PlayerState, PlayerState];
+    b2.x = 24;
+    b2.y = 16;
+    goOut(w2.world, a2);
+    for (let k = 1; k <= balance.player.returnSearchRings; k++) {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, Math.SQRT1_2], [Math.SQRT1_2, -Math.SQRT1_2], [-Math.SQRT1_2, -Math.SQRT1_2]] as const) {
+        spawnZombie(w2.world, "walker", b2.x + dx * off * k, b2.y + dy * off * k);
+      }
+    }
+    returnOutPlayers(w2.world);
+    expect(a2.x).toBeCloseTo(b2.x + off, 9); // fallback: the 2.8 rule
+    expect(a2.y).toBe(b2.y);
+  });
+
+  it("with the real run state machine: out in wave 1, back when the build after it starts", () => {
     const { world, players, events } = setup(["p0", "p1"], null);
     const [a] = players as [PlayerState];
     world.debug.godMode = true; // the standing player never goes down; downPlayer bypasses it
-    for (let i = 0; i < 1000 && world.waves.number < 1; i++) run(world, 1);
+    startBuild(world);
+    startWave(world);
+    run(world, 5);
     goOut(world, a);
-    skipWave(world);
-    for (let i = 0; i < 1000 && world.waves.number < 2; i++) {
-      run(world, 1);
-      expect(a.status).toBe("out");
-    }
-    const started = ofType(events, "wave.started");
-    expect(started.at(-1)).toMatchObject({ number: 2 });
-    run(world, 1);
+    expect(world.run.phase).toBe("wave");
+    skipWave(world); // wave 1 ends → the build phase starts at once
+    expect(world.run.phase).toBe("build");
     expect(a.status).toBe("alive");
     expect(a.hp).toBe(50);
+    world.events.flush(); // emitted outside a step
+    expect(ofType(events, "build.started").at(-1)).toMatchObject({ wave: 2 });
   });
 
   it("an out player is hidden from zombies, and spectates the lowest-slot standing teammate", () => {

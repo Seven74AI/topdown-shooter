@@ -19,6 +19,8 @@ export const C2S = {
   NET_PONG: "net.pong",
   /** `{}` after Results (Story 2.8). */
   LOBBY_RETURN: "lobby.return",
+  /** `{ ready: boolean }` in a build phase (Story 3.1). */
+  BUILD_SET_READY: "build.set_ready",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -40,8 +42,8 @@ export type S2CType = (typeof S2C)[keyof typeof S2C];
 /** Binary messages use numeric types (1 byte on the wire instead of a string). */
 export const BYTES = { HORDE_FRAME: 1 } as const; // Story 2.5
 
-/** `RunState.phase`. Epic 3 adds "build". */
-export type RunPhase = "lobby" | "wave" | "results";
+/** `RunState.phase` (Story 3.1: the run state machine's phases, `run/runStateMachine.ts`). */
+export type { RunPhase } from "../run/runStateMachine";
 
 /** Why the server refused a join (sent as the `ServerError` message). */
 export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started" | "rate_limited" | "already_joined";
@@ -96,6 +98,10 @@ export type LobbySetReady = z.infer<typeof lobbySetReadySchema>;
 
 /** `run.start` (Story 2.3): host only, when `canStart` (net/lobbyRules.ts) holds. */
 export const runStartSchema = z.object({}).strict();
+
+/** `build.set_ready` (Story 3.1): the sender's build-phase Ready (a toggle); ignored outside a build. */
+export const buildSetReadySchema = z.object({ ready: z.boolean() }).strict();
+export type BuildSetReady = z.infer<typeof buildSetReadySchema>;
 
 /** `lobby.return` (Story 2.8): `{}`, any member, phase "results" only. */
 export const lobbyReturnSchema = z.object({}).strict();

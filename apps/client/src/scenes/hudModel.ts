@@ -30,6 +30,17 @@ export interface HudModel {
   /** Current wave number (0 before wave 1) and zombies remaining (alive + queued). */
   wave: number;
   remaining: number;
+  /** Story 3.1: whole seconds left in the build phase, or -1 outside a build. */
+  buildSecs: number;
+  /** Story 3.1: the Ready button is shown (a build phase, a run on screen, menu closed). */
+  readyButton: boolean;
+  /** The local player is Ready (as this device last asked: shown at once, also online). */
+  readyOn: boolean;
+  /** Players Ready and players in the run (online shows `k/n`; solo has 1). */
+  readyCount: number;
+  readyTotal: number;
+  /** Set by the HUD when Ready is tapped; the GameScene consumes it. */
+  readyPressed: boolean;
   /** Centered banner text and the scene time (ms) it was shown; empty when none. */
   bannerText: string;
   bannerAtMs: number;
@@ -87,6 +98,12 @@ export const createHudModel = (): HudModel => ({
   toastText: "",
   wave: 0,
   remaining: 0,
+  buildSecs: -1,
+  readyButton: false,
+  readyOn: false,
+  readyCount: 0,
+  readyTotal: 0,
+  readyPressed: false,
   bannerText: "",
   bannerAtMs: 0,
   rushers: new Float32Array(MAX_RUSH_MARKERS * 2),

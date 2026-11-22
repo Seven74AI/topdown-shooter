@@ -80,7 +80,7 @@ async function start(clients: RunSdkRoom[], room: RunRoom): Promise<void> {
   for (const c of clients) c.send(C2S.LOBBY_SET_READY, { ready: true });
   await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
   (clients[0] as RunSdkRoom).send(C2S.RUN_START, {});
-  for (const c of clients) await vi.waitFor(() => expect(c.state.phase).toBe("wave"));
+  for (const c of clients) await vi.waitFor(() => expect(c.state.phase).toBe("build"));
 }
 
 const world = (room: RunRoom) => {
@@ -108,7 +108,7 @@ describe("RunRoom leave (Story 2.11)", () => {
     expect(world(room).players.has("p1")).toBe(false);
     const tick = host.state.tick;
     await vi.waitFor(() => expect(host.state.tick).toBeGreaterThan(tick + 3));
-    expect(room.state.phase).toBe("wave");
+    expect(room.state.phase).toBe("build");
   });
 
   it("a dropped socket mid-run gives reason 'disconnected'", async () => {
@@ -145,7 +145,7 @@ describe("RunRoom leave (Story 2.11)", () => {
     w.waves.number = 2;
     downPlayer(w, w.players.get("p0") as PlayerState);
     await vi.waitFor(() => expect(host.state.players.get("p0")?.status).toBe("downed"));
-    expect(room.state.phase).toBe("wave");
+    expect(room.state.phase).toBe("build");
     await guest.leave(true);
     await vi.waitFor(() => expect(host.state.phase).toBe("results"));
     expect(host.state.resultWave).toBe(2);
@@ -164,7 +164,7 @@ describe("RunRoom leave (Story 2.11)", () => {
     await vi.waitFor(() => expect(host.state.players.has("p1")).toBe(false));
     const tick = host.state.tick;
     await vi.waitFor(() => expect(host.state.tick).toBeGreaterThan(tick + 3));
-    expect(room.state.phase).toBe("wave");
+    expect(room.state.phase).toBe("build");
     expect(w.players.get("p0")?.status).toBe("alive");
   });
 

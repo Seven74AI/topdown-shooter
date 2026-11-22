@@ -2,7 +2,7 @@ import type { World } from "./world";
 import { movePlayers, updatePlayers } from "../player/movement";
 import { updateZombies } from "../zombies/zombieAi";
 import { updateCombat } from "../combat/firing";
-import { updateWaves } from "../waves/waveDirector";
+import { updateRun } from "../run/runStateMachine";
 
 /** Fixed system order per tick (architecture › Communication Patterns). Never reorder. */
 export const SYSTEM_ORDER = [
@@ -54,7 +54,7 @@ export const DEFAULT_SYSTEMS: Systems = {
   combat: updateCombat,
   zombies: updateZombies,
   boss: noop,
-  waves: updateWaves,
+  waves: updateRun, // Story 3.1: the run state machine (build countdown, then the wave director)
   specialEvents: noop,
   economy: noop,
   decayTimers: noop,

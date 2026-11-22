@@ -24,6 +24,13 @@ export {
   type BalanceOverride,
   type RawBalanceFiles,
 } from "./config/balance";
+export {
+  MAX_DEV_ZOMBIE_DAMAGE_SCALE,
+  devBalanceOverrides,
+  loadDevBalance,
+  parseDevScale,
+  type DevBalanceOptions,
+} from "./config/devBalance";
 export type { GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
@@ -100,7 +107,17 @@ export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
 export { swingMelee } from "./combat/melee";
 export { circleOverlapsSector } from "./math/sector";
-export { endWave, skipWave, updateWaves, waveSize, type WavePhase, type WaveState } from "./waves/waveDirector";
+export { updateWaves, waveSize, type WaveState } from "./waves/waveDirector";
+export {
+  endRun,
+  endWave,
+  setBuildReady,
+  skipWave,
+  startBuild,
+  startWave,
+  updateRun,
+  type RunState,
+} from "./run/runStateMachine";
 export {
   BYTES,
   C2S,
@@ -115,6 +132,8 @@ export {
   playerNameSchema,
   runStartSchema,
   lobbyReturnSchema,
+  buildSetReadySchema,
+  type BuildSetReady,
   type C2SType,
   type JoinOptions,
   type JoinRefusal,
@@ -130,4 +149,4 @@ export {
 } from "./net/messages";
 export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
-export type { PlayerStateView, ReadonlyMapView, RunStateView } from "./net/stateView";
+export { PLAYER_STATE_FIELDS, RUN_STATE_FIELDS, type PlayerStateView, type ReadonlyMapView, type RunStateView } from "./net/stateView";

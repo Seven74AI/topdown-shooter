@@ -4,8 +4,10 @@ import {
   addPlayer,
   createWorld,
   removePlayer,
+  setBuildReady,
   setInput,
   skippedInputWeaponTick,
+  startBuild,
   step,
   teamSpawnPoint,
   type Balance,
@@ -131,7 +133,8 @@ export interface RunControllerOptions {
 /**
  * One run on the server, without Colyseus (Story 2.4): owns the World, the per-player input
  * queues and this tick's events. The room is its only caller; Story 2.10 bots and headless replay
- * reuse it. Seed of the architecture's run state machine (Epic 3 adds Build and phases here).
+ * reuse it. The run's phases (Story 3.1) are the shared run state machine's (`world.run.phase`): a new
+ * controller starts in the first build phase (Lobby → Build).
  *
  * Input rule: each tick a player with queued input applies the oldest one (`ackSeq` = its seq);
  * a starved player holds still with the same seq, keeping aim and fire. So the server's movement
@@ -163,6 +166,12 @@ export class RunController {
       this.order.push(s);
     }
     this.world.events.subscribe((e) => this.events.push(e));
+    startBuild(this.world); // Story 3.1: Lobby → Build; `build.started` goes out with the first tick
+  }
+
+  /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */
+  setBuildReady(playerId: string, ready: boolean): void {
+    setBuildReady(this.world, playerId, ready);
   }
 
   /** Queues one input (already validated). Old or duplicate seqs are ignored; a full ring drops its oldest. */

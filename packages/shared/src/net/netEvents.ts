@@ -34,6 +34,7 @@ export const NET_EVENT_KIND = {
   PLAYER_OUT: 16,
   PLAYER_RETURNED: 17,
   TEAM_WIPED: 18,
+  BUILD_STARTED: 19, // Story 3.1
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -132,6 +133,8 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.WAVE_ENDED, e.number];
     case "wave.rush_started":
       return [K.WAVE_RUSH_STARTED, e.count];
+    case "build.started":
+      return [K.BUILD_STARTED, e.wave];
     case "test.ping":
       return null;
   }
@@ -230,6 +233,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "wave.ended", number: n(t, 1) };
     case K.WAVE_RUSH_STARTED:
       return { type: "wave.rush_started", count: n(t, 1) };
+    case K.BUILD_STARTED:
+      return { type: "build.started", wave: n(t, 1) };
     default:
       return null;
   }

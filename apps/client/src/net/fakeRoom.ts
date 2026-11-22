@@ -27,6 +27,7 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     downedTicksLeft: 0,
     reviveProgress: 0,
     kills: 0,
+    buildReady: false,
     ...over,
   };
 }
@@ -40,6 +41,7 @@ export interface FakeState {
   remaining: number;
   aliveCount: number;
   resultWave: number;
+  buildTicksLeft: number;
 }
 
 export function fakeState(players: FakePlayer[] = []): FakeState {
@@ -52,6 +54,7 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     remaining: 0,
     aliveCount: players.length,
     resultWave: 0,
+    buildTicksLeft: 0,
   };
 }
 

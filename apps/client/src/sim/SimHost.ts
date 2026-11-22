@@ -27,6 +27,11 @@ export interface SimHost {
    * value; edge flags (swap, consumable) set by any call reach exactly one step.
    */
   setLocalInput(input: PlayerInput): void;
+  /**
+   * Story 3.1: the local player's build-phase Ready (a toggle; ignored outside a build). Solo it
+   * applies before the next step; online it is sent as `build.set_ready` and comes back in the state.
+   */
+  setBuildReady(ready: boolean): void;
   /** Drops a swap/consumable latched but not sent yet (the in-run menu opened in the same step; 2.11 review). */
   clearEdges(): void;
   /**

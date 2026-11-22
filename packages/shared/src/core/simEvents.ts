@@ -31,6 +31,8 @@ export type SimEvent =
   | { type: "wave.started"; number: number; size: number }
   | { type: "wave.ended"; number: number }
   | { type: "wave.rush_started"; count: number }
+  /** Story 3.1: a build phase started; `wave` is the wave that comes after it. */
+  | { type: "build.started"; wave: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

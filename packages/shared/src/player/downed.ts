@@ -2,6 +2,7 @@ import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import type { PlayerState } from "./player";
 import { spectateTarget } from "./spectate";
+import { findFreeSpotNear } from "./freeSpot";
 
 /**
  * Downed, revive, out and team wipe (Story 2.8, FR10/FR11). Every timer counts ticks.
@@ -10,8 +11,8 @@ import { spectateTarget } from "./spectate";
  * - Downed: the nearest standing teammate within `reviveRadiusM` revives; `reviveTicks` counts up
  *   while one stays in reach and resets to 0 when no one is. **The countdown pauses while a revive
  *   is in progress** (designer decision 2026-11-21) and runs when none is; at 0 the player is out.
- * - Out → alive: `returnOutPlayers`, at the first tick of a later wave (Story 3.1 moves this to the
- *   Build start).
+ * - Downed / out → alive: `returnOutPlayers`, at the start of every build phase (Story 3.1, called by
+ *   the run state machine's `startBuild`), with the build heal for everyone.
  * - Team wipe: no one standing → `team.wiped` once (`world.teamWiped`); nothing changes after that.
  */
 
@@ -86,33 +87,52 @@ export function downPlayer(world: World, p: PlayerState): void {
   checkTeamWipe(world); // solo: going down ends the run on the same tick
 }
 
+/** The return spot (reused). */
+const spot = { x: 0, y: 0 };
+
+/** Heals a standing player by `amount`, capped at max HP (module-level: no closure per call). */
+let healAmountFrac = 0;
+const healStanding = (p: PlayerState): void => {
+  if (p.status === "alive") p.hp = Math.min(p.maxHp, p.hp + p.maxHp * healAmountFrac);
+};
+
 /**
- * Out players come back at the first tick of a later wave than the one they went out in, next to
- * the lowest-slot standing teammate (+x by `spawnOffsetM`, or −x near the right edge, clamped to the
- * map) with `returnHpFrac` of max HP. With no one standing nobody returns (that is a wipe).
- * Story 3.1 calls this from the Build start instead.
+ * Story 3.1, at the start of every build phase (FR9, FR10): every standing player is healed by
+ * `buildHealFrac` of max HP (capped at max); then each downed or out player, in id order, returns
+ * standing next to the lowest-slot standing teammate on the first free spot (`findFreeSpotNear`,
+ * retro A12: no map edge, player or zombie overlap; buildings from Story 3.4), or, if every spot is
+ * taken, the 2.8 spot (+x by `spawnOffsetM`, −x near the right edge, clamped), with `buildHealFrac`
+ * of max HP, and `player.returned` is emitted. With no one standing nobody returns (that is a wipe,
+ * and no build phase starts).
  */
 export function returnOutPlayers(world: World): void {
-  const w = world.waves;
-  if (w.phase !== "active") return;
-  collectInIdOrder(world);
   const stats = world.balance.player;
+  healAmountFrac = stats.buildHealFrac;
+  world.players.forEach(healStanding);
+  collectInIdOrder(world);
   const { widthM, heightM } = world.map;
   for (let i = 0; i < ordered.length; i++) {
     const p = ordered[i] as PlayerState;
-    if (p.status !== "out" || w.number <= p.outSinceWave) continue;
+    if (p.status !== "out" && p.status !== "downed") continue;
     const t = spectateTarget(world, p.id);
     if (!t) continue;
-    const r = p.radiusM;
-    let x = t.x + stats.spawnOffsetM;
-    if (x > widthM - r) x = t.x - stats.spawnOffsetM;
-    x = Math.min(widthM - r, Math.max(r, x));
-    const y = Math.min(heightM - r, Math.max(r, t.y));
+    let x: number;
+    let y: number;
+    if (findFreeSpotNear(world, t.x, t.y, p, spot)) {
+      x = spot.x;
+      y = spot.y;
+    } else {
+      const r = p.radiusM;
+      x = t.x + stats.spawnOffsetM;
+      if (x > widthM - r) x = t.x - stats.spawnOffsetM;
+      x = Math.min(widthM - r, Math.max(r, x));
+      y = Math.min(heightM - r, Math.max(r, t.y));
+    }
     p.x = x;
     p.y = y;
     p.prevX = x;
     p.prevY = y;
-    p.hp = Math.ceil(p.maxHp * stats.returnHpFrac);
+    p.hp = Math.min(p.maxHp, p.maxHp * stats.buildHealFrac);
     p.status = "alive";
     p.downedTicksLeft = 0;
     p.reviveTicks = 0;
@@ -138,7 +158,7 @@ export function checkTeamWipe(world: World): void {
 }
 
 /**
- * Downed countdowns and revives (players in id order), then returns, then the wipe check. Runs at
+ * Downed countdowns and revives (players in id order), then the wipe check. Runs at
  * the end of the player system every tick, so the order inside a tick stays fixed. Does nothing
  * after a wipe: the run is over.
  */
@@ -170,10 +190,8 @@ export function updateDowned(world: World): void {
     if (p.downedTicksLeft <= 0) {
       p.downedTicksLeft = 0;
       p.status = "out";
-      p.outSinceWave = world.waves.number;
       world.events.emit({ type: "player.out", playerId: p.id });
     }
   }
-  returnOutPlayers(world);
   checkTeamWipe(world);
 }

@@ -19,7 +19,7 @@ export function parseSeed(text: string): number | null {
 
 /** Dev cheat: clears the wave's queue and kills wave zombies until `keep` are left (they then rush). */
 export function leaveLast(world: World, keep: number): void {
-  if (world.waves.phase !== "active") return;
+  if (world.run.phase !== "wave") return;
   world.waves.queued = 0;
   const z = world.zombies;
   let waveAlive = 0;

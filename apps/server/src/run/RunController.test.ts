@@ -10,6 +10,7 @@ import {
   setLoadout,
   snapshotWorld,
   spawnZombie,
+  startBuild,
   step,
   teamSpawnPoint,
   type PlayerInput,
@@ -50,6 +51,7 @@ describe("RunController", () => {
       teamSpawnPoint(ref, slot, at);
       addPlayer(ref, playerId, at.x, at.y);
     }
+    startBuild(ref); // Story 3.1: a controller starts in its first build phase
     for (let seq = 1; seq <= 30; seq++) {
       const a = input(seq, { moveX: 1, aimX: 0.5, aimY: 0.5, fire: seq % 3 === 0 });
       const b = input(seq, { moveX: -0.6, moveY: 0.8, swap: seq === 5 });

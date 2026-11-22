@@ -56,7 +56,7 @@ async function readyAndStart(clients: RunSdkRoom[], room: RunRoom) {
   for (const c of clients) c.send(C2S.LOBBY_SET_READY, { ready: true });
   await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
   (clients[0] as RunSdkRoom).send(C2S.RUN_START, {});
-  for (const c of clients) await vi.waitFor(() => expect(c.state.phase).toBe("wave"));
+  for (const c of clients) await vi.waitFor(() => expect(c.state.phase).toBe("build"));
 }
 
 /** Two players, waves paused (DEV_NO_WAVES): only what the test does happens. */
@@ -97,7 +97,7 @@ describe("RunRoom downed and team wipe (Story 2.8)", () => {
     downPlayer(w, player(room, "p0"));
     await vi.waitFor(() => expect(guest.state.players.get("p0")?.status).toBe("downed"));
     expect(guest.state.players.get("p0")?.downedTicksLeft).toBeGreaterThan(0);
-    expect(room.state.phase).toBe("wave");
+    expect(room.state.phase).toBe("build");
     downPlayer(w, player(room, "p1"));
     for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.phase).toBe("results"));
     expect(guest.state.resultWave).toBe(3);
@@ -112,7 +112,7 @@ describe("RunRoom downed and team wipe (Story 2.8)", () => {
     const { host, guest, room } = await startTwo();
     guest.send(C2S.LOBBY_RETURN, {});
     await new Promise((r) => setTimeout(r, 150));
-    expect(room.state.phase).toBe("wave");
+    expect(room.state.phase).toBe("build");
     const w = world(room);
     w.players.forEach((p) => downPlayer(w, p));
     await vi.waitFor(() => expect(room.state.phase).toBe("results"));

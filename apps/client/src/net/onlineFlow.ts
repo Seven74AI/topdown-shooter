@@ -33,8 +33,10 @@ export function resultsFromState(state: RunStateView): { wave: number; rows: Res
 /**
  * The online run cycle of one room (Stories 2.4 and 2.8), driven by `phase`:
  *
- * - `wave`: a fresh `NetSession` → `startOnline` (the Game scene runs the fight). Every start in
- *   the same room gets its own session, so the second run never reuses the first one's host.
+ * - `build` or `wave` (Story 3.1: a run starts in its build phase, then alternates wave ↔ build)
+ *   with no session yet: a fresh `NetSession` → `startOnline` (the Game scene runs the fight). Later
+ *   build ↔ wave changes keep that session (the scene runs the whole run). Every start in the same
+ *   room gets its own session, so the second run never reuses the first one's host.
  * - `results`: the Results screen with Back to lobby (state-driven, so a late joiner of the
  *   screen sees the same table).
  * - `lobby` (after Results): the session is released (the Game scene's dispose then leaves nothing),
@@ -43,9 +45,13 @@ export function resultsFromState(state: RunStateView): { wave: number; rows: Res
  */
 export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase) => void {
   let session: NetSession | null = null;
+  let prev: RunPhase = "lobby";
   return (phase) => {
-    if (phase === "wave") {
-      session?.release();
+    const last = prev;
+    prev = phase;
+    if (phase === "build" || phase === "wave") {
+      if (session && (last === "build" || last === "wave")) return; // build ↔ wave inside the same run
+      session?.release(); // a new run seen without its lobby patch (e.g. under `?lag`): drop the old one
       session = deps.makeSession();
       activeRun.set(session);
       if (session) deps.ui.request("startOnline", session);

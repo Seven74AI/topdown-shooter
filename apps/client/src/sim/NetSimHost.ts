@@ -295,6 +295,11 @@ export class NetSimHost implements SimHost {
     if (input.consumable) this.latchedConsumable = true;
   }
 
+  /** Story 3.1: `build.set_ready` (the server ignores it outside a build); the flag comes back in the state. */
+  setBuildReady(ready: boolean): void {
+    if (!this.disposed) this.session.room.send(C2S.BUILD_SET_READY, { ready });
+  }
+
   drainEvents(): readonly SimEvent[] {
     const out = this.drained;
     out.length = 0;
@@ -364,6 +369,9 @@ export class NetSimHost implements SimHost {
     this.world.players.forEach(this.writeReviver);
     this.world.teamWiped = state.phase === "results";
     this.latest = null;
+    // Story 3.1: the run state machine's phase and build timer (the mirror never steps it).
+    this.world.run.phase = state.phase;
+    this.world.run.buildTicksLeft = state.buildTicksLeft;
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
@@ -479,6 +487,7 @@ export class NetSimHost implements SimHost {
     p.hp = s.hp;
     p.maxHp = s.maxHp;
     p.status = s.status;
+    p.buildReady = s.buildReady;
     this.applyDowned(p, s);
     const lo = p.loadout;
     lo.active = s.active === 1 ? 1 : 0;
