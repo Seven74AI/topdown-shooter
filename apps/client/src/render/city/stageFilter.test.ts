@@ -48,3 +48,16 @@ describe("car styles", () => {
     expect(["left", "right"]).toContain(carStyle(DOWNTOWN_DRESSING, "moved_car_9", 4.5, 2).front);
   });
 });
+
+describe("random streams per thing (review L: roofs never shift when stage debris appears)", () => {
+  it("a thing's stream depends only on its own key", async () => {
+    const { rng } = await import("./drawCity");
+    const a1 = rng("se_offices");
+    const first = [a1(), a1(), a1()];
+    const other = rng("debris_west");
+    for (let i = 0; i < 50; i++) other(); // another object drawing first
+    const a2 = rng("se_offices");
+    expect([a2(), a2(), a2()]).toEqual(first);
+    expect(rng("nw_apartments")()).not.toBe(first[0]);
+  });
+});

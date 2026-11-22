@@ -10,6 +10,11 @@ export function hazardsAt(map: DistrictMap, stage: number): HazardZone[] {
   return map.hazards.filter((h) => h.minStage <= stage);
 }
 
+/** Props of the later stage groups shown at `stage` (stage 1's ground props are the base layer). */
+export function laterPropsAt(map: DistrictMap, stage: number): VisualProp[] {
+  return propsAt(map, stage).filter((p) => !(map.stages[0] ?? []).includes(p));
+}
+
 /** Visual props shown at `stage`: every `stageN` group up to it (debris stays once it fell, D10). */
 export function propsAt(map: DistrictMap, stage: number): VisualProp[] {
   const out: VisualProp[] = [];

@@ -1,12 +1,10 @@
 import type { CoverObject, DistrictMap, MapBox } from "@topdown/shared";
 import type { AtlasCanvas } from "./spriteAtlas";
 import { CAR_FRAMES, PROP_BARRIER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
-import { HEIGHT_BY_KIND, MAP_PX_PER_M, carStyle, type Dressing, type Front } from "./dressing";
+import { HEIGHT_BY_KIND, MAP_PX_PER_M, carStyle, nameHash, type Dressing, type Front } from "./dressing";
 import {
-  AMBIENT,
   GROUND,
   LAMP,
-  LAMP_A,
   LAMP_FLICKER_A,
   LAMP_GLOW,
   LAMP_GLOW_A,
@@ -19,14 +17,13 @@ import {
   LIGHT_DIR,
   ROOFS,
   ROOF_DEFAULT,
-  ROOF_LIGHT,
   SPILL_GLOW_K,
   TOP_LIGHT,
-  TOP_LIGHT_A,
+  nightAt,
   shadowLenPx,
 } from "./palette";
 import { bevel, circle, ell, outline, rrect, shade } from "./spriteArt";
-import { hazardsAt, propsAt, staticSolids } from "./stageFilter";
+import { hazardsAt, laterPropsAt, staticSolids } from "./stageFilter";
 
 /**
  * Story 4.9: the static city (look B "Dead City"), ported from `downtown-look-study.html` to Canvas
@@ -69,6 +66,27 @@ export function mulberry(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/**
+ * Review L: one random stream per thing (keyed by its name or a fixed label), so adding or moving
+ * one object (stage debris, a mutated car) never changes how another looks (rooftop units stay put).
+ */
+export function rng(key: string): () => number {
+  return mulberry(nameHash(key));
+}
+
+/** A rectangle in map px (a bake tile, grown by `CULL_MARGIN_PX`). */
+export interface Bounds {
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+}
+/** Shadows (≤ 60 px), soft blur and the skid marks reach this far outside an object. */
+export const CULL_MARGIN_PX = 96;
+const meets = (b: Bounds, x: number, y: number, w: number, h: number): boolean => x < b.x1 && x + w > b.x0 && y < b.y1 && y + h > b.y0;
+const boxIn = (b: Bounds, o: Box): boolean => meets(b, o.x - CULL_MARGIN_PX, o.y - CULL_MARGIN_PX, o.w + 2 * CULL_MARGIN_PX, o.h + 2 * CULL_MARGIN_PX);
+const pointIn = (b: Bounds, x: number, y: number, r: number): boolean => meets(b, x - r, y - r, 2 * r, 2 * r);
 
 // ---------------------------------------------------------------------------
 // Shadows (soft: the shape is drawn far off-canvas and its blurred shadow offset back)
@@ -192,7 +210,10 @@ interface Classified {
   readonly pumps: Box[];
   readonly walls: Box[];
   readonly cover: Box[];
+  /** Ground props of stage 1 (sidewalks, lot, crosswalks, lanes, canopy): the base layer. */
   readonly ground: Box[];
+  /** Props of the later stages shown now (debris). */
+  readonly stageProps: Box[];
 }
 function classify(cs: CityScene): Classified {
   const d = cs.dressing;
@@ -205,29 +226,35 @@ function classify(cs: CityScene): Classified {
     else buildings.push(toBox(s, "building"));
   }
   const cover = cs.cover.map((c) => toBox(c, c.kind));
-  const ground = propsAt(cs.map, cs.stage).map((p) => toBox(p, p.kind));
-  return { buildings, pumps, walls, cover, ground };
+  const ground = (cs.map.stages[0] ?? []).map((p) => toBox(p, p.kind));
+  const stageProps = laterPropsAt(cs.map, cs.stage).map((p) => toBox(p, p.kind));
+  return { buildings, pumps, walls, cover, ground, stageProps };
 }
 
 // ---------------------------------------------------------------------------
 // Ground
 // ---------------------------------------------------------------------------
-function drawGround(g: G, cs: CityScene, k: Classified, pat: Patterns): void {
+function drawGround(g: G, cs: CityScene, k: Classified, pat: Patterns, bd: Bounds): void {
   const W = cs.map.widthM * P;
   const H = cs.map.heightM * P;
-  const R = mulberry(7);
-  const ofKind = (kind: string): Box[] => k.ground.filter((o) => o.kind === kind);
+  let R = rng("ground_patches");
+  const ofKind = (kind: string): Box[] => k.ground.filter((o) => o.kind === kind && boxIn(bd, o));
+  const bx = Math.max(0, bd.x0);
+  const by = Math.max(0, bd.y0);
+  const bw = Math.min(W, bd.x1) - bx;
+  const bh = Math.min(H, bd.y1) - by;
   g.fillStyle = GROUND.asphalt;
-  g.fillRect(0, 0, W, H);
+  g.fillRect(bx, by, bw, bh);
   g.fillStyle = GROUND.alley;
   for (const [x, y, w, h] of cs.dressing.alleys) g.fillRect(x, y, w, h);
   g.fillStyle = pat.grain;
-  g.fillRect(0, 0, W, H);
+  g.fillRect(bx, by, bw, bh);
   for (let i = 0; i < 22; i++) {
     g.fillStyle = R() > 0.5 ? "rgba(255,255,255,0.012)" : "rgba(0,0,0,0.06)";
     g.fillRect(R() * W, R() * H, 30 + R() * 90, 20 + R() * 50);
   }
   for (const f of ofKind("forecourt")) {
+    R = rng(f.name);
     g.fillStyle = GROUND.forecourt;
     g.fillRect(f.x, f.y, f.w, f.h);
     g.fillStyle = pat.fine;
@@ -265,8 +292,10 @@ function drawGround(g: G, cs: CityScene, k: Classified, pat: Patterns): void {
     for (let x = l.x + 16; x <= l.x + l.w; x += 96) g.fillRect(x - 1.5, top, 3, bottom - top);
     g.fillRect(l.x + 16, bottom - 2, l.w - 16, 3);
   }
-  const sw = ofKind("sidewalk");
+  const sw = k.ground.filter((o) => o.kind === "sidewalk");
   for (const s of sw) {
+    if (!boxIn(bd, s)) continue;
+    R = rng(s.name);
     g.fillStyle = GROUND.sidewalk;
     g.fillRect(s.x, s.y, s.w, s.h);
     g.fillStyle = pat.fine;
@@ -291,6 +320,7 @@ function drawGround(g: G, cs: CityScene, k: Classified, pat: Patterns): void {
   // curbs: sidewalk edges facing the road or the lot (not those against buildings, other sidewalks or the map edge)
   const blockers = sw.concat(k.buildings);
   for (const s of sw) {
+    if (!boxIn(bd, s)) continue;
     const edges = [
       { o: "h", c: s.y, a: s.x, b: s.x + s.w, side: -1 },
       { o: "h", c: s.y + s.h, a: s.x, b: s.x + s.w, side: 1 },
@@ -344,21 +374,26 @@ function drawGround(g: G, cs: CityScene, k: Classified, pat: Patterns): void {
       else g.fillRect(z.x + 4, z.y + p, z.w - 8, 12);
     }
     g.fillStyle = "rgba(28,29,32,0.55)";
+    R = rng(z.name);
     for (let i = 0; i < (z.w * z.h) / 90; i++) g.fillRect(z.x + R() * z.w, z.y + R() * z.h, 1.5, 1.5);
   }
   g.strokeStyle = "rgba(0,0,0,0.45)";
   g.lineWidth = 1;
+  R = rng("ground_cracks");
   for (let i = 0; i < 70; i++) {
     let x = R() * W;
     let y = R() * H;
-    g.beginPath();
-    g.moveTo(x, y);
+    const seen = pointIn(bd, x, y, 110);
+    if (seen) {
+      g.beginPath();
+      g.moveTo(x, y);
+    }
     for (let q = 0; q < 6; q++) {
       x += (R() - 0.5) * 34;
       y += (R() - 0.5) * 34;
-      g.lineTo(x, y);
+      if (seen) g.lineTo(x, y);
     }
-    g.stroke();
+    if (seen) g.stroke();
   }
   for (const [x, y] of cs.dressing.manholes) {
     g.fillStyle = "#18191b";
@@ -392,6 +427,7 @@ function drawGround(g: G, cs: CityScene, k: Classified, pat: Patterns): void {
       g.stroke();
     }
     const gl = cs.dressing.busGlass;
+    R = rng("bus_glass");
     if (gl) {
       for (let i = 0; i < 90; i++) {
         g.fillStyle = R() > 0.5 ? "rgba(170,190,205,0.35)" : "rgba(120,140,160,0.25)";
@@ -399,20 +435,23 @@ function drawGround(g: G, cs: CityScene, k: Classified, pat: Patterns): void {
       }
     }
   }
+  R = rng("ground_litter");
   for (let i = 0; i < 160; i++) {
     g.fillStyle = R() > 0.6 ? "rgba(0,0,0,0.35)" : "rgba(190,185,170,0.14)";
     g.fillRect(R() * W, R() * H, 3 + R() * 4, 2 + R() * 2);
   }
 }
 
-function wetGround(g: G, cs: CityScene, pat: Patterns): void {
+function wetGround(g: G, cs: CityScene, pat: Patterns, bd: Bounds): void {
   const W = cs.map.widthM * P;
   const H = cs.map.heightM * P;
-  const R = mulberry(11);
+  const R = rng("wet_puddles");
+  const bx = Math.max(0, bd.x0);
+  const by = Math.max(0, bd.y0);
   g.fillStyle = "rgba(40,60,90,0.10)";
-  g.fillRect(0, 0, W, H);
+  g.fillRect(bx, by, Math.min(W, bd.x1) - bx, Math.min(H, bd.y1) - by);
   g.fillStyle = pat.wet;
-  g.fillRect(0, 0, W, H);
+  g.fillRect(bx, by, Math.min(W, bd.x1) - bx, Math.min(H, bd.y1) - by);
   const n = Math.round((W * H) / 34000);
   for (let i = 0; i < n; i++) {
     const x = R() * W;
@@ -420,6 +459,7 @@ function wetGround(g: G, cs: CityScene, pat: Patterns): void {
     const rx = 18 + R() * 46;
     const ry = 7 + R() * 16;
     const a = R() * 0.6 - 0.3;
+    if (!pointIn(bd, x, y, rx)) continue;
     const gr = g.createRadialGradient(x, y, 0, x, y, rx);
     gr.addColorStop(0, "rgba(70,92,120,0.42)");
     gr.addColorStop(0.8, "rgba(60,80,105,0.28)");
@@ -466,7 +506,8 @@ function placeAll(R: () => number, ix: number, iy: number, iw: number, ih: numbe
   return out.slice(avoid.length);
 }
 
-function building(g: G, s: number, o: Box, d: Dressing, R: () => number): void {
+function building(g: G, s: number, o: Box, d: Dressing): void {
+  const R = rng(o.name);
   const { x, y, w, h } = o;
   const col = ROOFS[o.name] ?? ROOF_DEFAULT;
   const pad = Math.min(6, w / 6, h / 6);
@@ -668,7 +709,8 @@ function hazards(g: G, cs: CityScene): void {
 }
 
 /** Debris (walkable): flat rubble, no shadow, no bevel. */
-function debris(g: G, o: Box, R: () => number): void {
+function debris(g: G, o: Box): void {
+  const R = rng(o.name);
   const n = Math.max(4, Math.round((o.w * o.h) / 60));
   for (let i = 0; i < n; i++) {
     const cx = o.x + R() * o.w;
@@ -704,33 +746,62 @@ function lampHeads(g: G, d: Dressing, mapW: number): void {
   });
 }
 
+/** The map's whole area in map px (a bounds that culls nothing). */
+export function mapBounds(map: DistrictMap): Bounds {
+  return { x0: 0, y0: 0, x1: map.widthM * P, y1: map.heightM * P };
+}
+
 /**
- * The static layers at `cs.stage`, into `g` whose transform maps map px to the bake (`s` = bake px
- * per map px, for blur radii). Order: ground, wet, cast shadows, hazards, debris, objects, canopy,
- * lamp heads.
+ * Review perf: what never changes with the stage (ground, wet layer, the static solids' shadows,
+ * roofs, walls, pumps), into `g` (transform: map px → bake; `s` = bake px per map px, for blur
+ * radii), culled to `bd`. The view caches it per tile and redraws it only when the set of static
+ * solids changes.
  */
-export function drawStatic(g: G, s: number, cs: CityScene): void {
+export function drawBase(g: G, s: number, cs: CityScene, bd: Bounds): void {
   const k = classify(cs);
   const pat = patterns(g);
   const d = cs.dressing;
-  drawGround(g, cs, k, pat);
-  wetGround(g, cs, pat);
-  for (const o of k.buildings) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.55);
-  for (const o of k.pumps.concat(k.walls)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.6);
+  drawGround(g, cs, k, pat, bd);
+  wetGround(g, cs, pat, bd);
+  for (const o of k.buildings) if (boxIn(bd, o)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.55);
+  for (const o of k.pumps.concat(k.walls)) if (boxIn(bd, o)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.6);
+  for (const o of k.buildings) if (boxIn(bd, o)) building(g, s, o, d);
+  for (const o of k.walls) if (boxIn(bd, o)) wall(g, o);
+  for (const o of k.pumps) if (boxIn(bd, o)) drawFrame(g, cs.atlas, PROP_PUMP, o, o.w >= o.h ? "right" : "down");
+}
+
+/** Key of what `drawBase` shows: the static solids drawn (their names). */
+export function baseKey(cs: CityScene): string {
+  return staticSolids(cs.map, cs.cover)
+    .map((b) => b.name)
+    .join("|");
+}
+
+/**
+ * What changes with the stage, on top of the base: cover shadows, hazards, stage debris, cover,
+ * the canopy, lamp heads. Culled to `bd`.
+ */
+export function drawOverlay(g: G, s: number, cs: CityScene, bd: Bounds): void {
+  const k = classify(cs);
+  const d = cs.dressing;
   for (const o of k.cover) {
+    if (!boxIn(bd, o)) continue;
     if (o.kind === "car") carShadow(g, s, o, shadowLenPx(heightOf(d, o)));
     else if (o.kind === "bus") castBoxShadow(g, s, { ...o, x: o.x + 1, y: o.y + 1, w: o.w - 2, h: o.h - 2 }, shadowLenPx(heightOf(d, o)), 0.6);
     else castBoxShadow(g, s, { ...o, x: o.x + 3, y: o.y + 3, w: o.w - 6, h: o.h - 6 }, shadowLenPx(heightOf(d, o)), 0.45, false);
   }
   hazards(g, cs);
-  const R = mulberry(23);
-  for (const o of k.ground) if (o.kind === "debris") debris(g, o, R);
-  for (const o of k.buildings) building(g, s, o, d, R);
-  for (const o of k.walls) wall(g, o);
-  for (const o of k.pumps) drawFrame(g, cs.atlas, PROP_PUMP, o, o.w >= o.h ? "right" : "down");
-  for (const o of k.cover) coverPiece(g, cs, o);
-  for (const o of k.ground) if (o.kind === "canopy") canopy(g, o);
+  for (const o of k.stageProps) if (o.kind === "debris" && boxIn(bd, o)) debris(g, o);
+  for (const o of k.cover) if (boxIn(bd, o)) coverPiece(g, cs, o);
+  for (const o of k.ground) if (o.kind === "canopy" && boxIn(bd, o)) canopy(g, o);
   lampHeads(g, d, cs.map.widthM * P);
+}
+
+/** Base + overlay in one go (tests, one-off bakes). */
+export function drawStatic(g: G, s: number, cs: CityScene): void {
+  const bd = mapBounds(cs.map);
+  drawBase(g, s, cs, bd);
+  drawOverlay(g, s, cs, bd);
 }
 
 /** Bus hazard blinkers and barrier lamps (the view animates them): positions in map px. */
@@ -775,13 +846,15 @@ export function drawLightmap(g: G, cs: CityScene): void {
   const W = cs.map.widthM * P;
   const H = cs.map.heightM * P;
   g.globalCompositeOperation = "source-over";
-  g.fillStyle = `rgb(${AMBIENT})`;
+  const night = nightAt(cs.stage);
+  g.fillStyle = `rgb(${night.ambient})`;
   g.fillRect(0, 0, W, H);
   g.globalCompositeOperation = "lighter";
-  g.fillStyle = `rgba(${TOP_LIGHT},${TOP_LIGHT_A})`;
+  g.fillStyle = `rgba(${TOP_LIGHT},${night.topLightA})`;
   for (const o of k.pumps.concat(k.walls, k.cover)) g.fillRect(o.x, o.y, o.w, o.h);
-  d.lamps.forEach(([x, y], i) => radial(g, x, y, LAMP_R_PX, LAMP, i === d.flickerLamp ? LAMP_FLICKER_A : LAMP_A));
-  for (const [x1, y1, x2, y2, nx, ny, col, a] of d.spill) {
+  d.lamps.forEach(([x, y], i) => radial(g, x, y, LAMP_R_PX, LAMP, i === d.flickerLamp ? LAMP_FLICKER_A : night.lampA));
+  for (const [x1, y1, x2, y2, nx, ny, col, a0] of d.spill) {
+    const a = Math.min(1, a0 * night.spillK);
     const dist = 70;
     const gr = g.createLinearGradient(x1, y1, x1 + nx * dist, y1 + ny * dist);
     gr.addColorStop(0, `rgba(${col},${a})`);
@@ -812,7 +885,7 @@ export function drawLightmap(g: G, cs: CityScene): void {
   }
   // roofs: one fixed light level, whatever lamps are near (streetlights hang below the roofs)
   g.globalCompositeOperation = "source-over";
-  g.fillStyle = `rgb(${ROOF_LIGHT})`;
+  g.fillStyle = `rgb(${night.roofLight})`;
   for (const o of k.buildings) g.fillRect(o.x, o.y, o.w, o.h);
 }
 
@@ -826,13 +899,19 @@ export function drawGlow(g: G, cs: CityScene): void {
   g.fillStyle = "#000";
   g.fillRect(0, 0, W, H);
   g.globalCompositeOperation = "lighter";
+  const night = nightAt(cs.stage);
+  if (night.skyA > 0) {
+    g.fillStyle = `rgba(${night.sky},${night.skyA})`;
+    g.fillRect(0, 0, W, H);
+  }
   d.lamps.forEach(([x, y], i) => {
     if (i === d.flickerLamp) return;
     oval(g, x, y, LAMP_GLOW_R_PX, LAMP_GLOW_R_PX, LAMP_GLOW, LAMP_GLOW_A);
     oval(g, x, y + (y < H / 2 ? 40 : -40), 18, 60, LAMP_TAIL, LAMP_TAIL_A);
     oval(g, x, y, LAMP_HALO_R_PX, LAMP_HALO_R_PX, LAMP_TAIL, LAMP_HALO_A);
   });
-  for (const [x1, y1, x2, y2, nx, ny, col, a] of d.spill) {
+  for (const [x1, y1, x2, y2, nx, ny, col, a0] of d.spill) {
+    const a = Math.min(1, a0 * night.spillK);
     const n = Math.max(1, Math.round(Math.hypot(x2 - x1, y2 - y1) / 40));
     for (let q = 0; q <= n; q++) oval(g, x1 + ((x2 - x1) * q) / n + nx * 8, y1 + ((y2 - y1) * q) / n + ny * 8, 24, 24, col, a * SPILL_GLOW_K);
   }

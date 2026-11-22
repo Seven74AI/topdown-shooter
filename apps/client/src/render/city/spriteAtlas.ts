@@ -2,6 +2,7 @@ import type * as Phaser from "phaser";
 import { ZOMBIE_TYPES, type ZombieTypeId } from "@topdown/shared";
 import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { CAR_COLORS } from "./dressing";
+import { addCanvasTexture } from "./canvasTexture";
 import { CHAR_EXTENT_R, drawBarrier, drawBus, drawCar, drawPump, drawSandbags, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
@@ -169,7 +170,7 @@ let downtownAtlas: AtlasCanvas | null = null;
 function register(scene: Phaser.Scene, key: string, make: () => AtlasCanvas): AtlasCanvas | null {
   if (scene.textures.exists(key)) return null;
   const a = make();
-  const tex = scene.textures.addCanvas(key, a.canvas);
+  const tex = addCanvasTexture(scene, key, a.canvas);
   if (tex) for (const f of a.frames.values()) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
   return a;
 }

@@ -1,11 +1,12 @@
 import * as Phaser from "phaser";
 import type { CoverObject, DistrictMap, World } from "@topdown/shared";
-import { tileRects } from "./atlasLayout";
+import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, dressingFor, type Dressing } from "./dressing";
-import { blinkerSpots, drawGlow, drawLightmap, drawStatic, type CityScene } from "./drawCity";
-import { LAMP, LAMP_GLOW } from "./palette";
+import { CULL_MARGIN_PX, baseKey, blinkerSpots, drawBase, drawGlow, drawLightmap, drawOverlay, type CityScene } from "./drawCity";
+import { LAMP, LAMP_GLOW, nightAt } from "./palette";
 import { ATLAS_FX, FX_GLOW, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type AtlasCanvas } from "./spriteAtlas";
 import { hash } from "./spriteArt";
+import { addCanvasTexture, releaseCanvas } from "./canvasTexture";
 import { staticKey } from "./stageFilter";
 
 /**
@@ -27,16 +28,19 @@ const DYN_LIGHT_DEPTH = 4.32;
 const RAIN_DEPTH = 11.8;
 const VIGNETTE_DEPTH = 11.9;
 
-/** Bake density clamp (device px per metre, D2). */
+/**
+ * Bake density clamp (device px per metre, D2). Review perf: at most what fits the whole map in ONE
+ * ≤ 2048 px tile (Downtown 48 m → 42 px/m, 2016 × 1344): phones (zoom ≈ 70) looked the same as at
+ * 64 px/m in a DPR-2 side-by-side, at half the memory and bake time.
+ */
 const BAKE_MIN_PX_PER_M = 32;
 const BAKE_MAX_PX_PER_M = 64;
 /** Lightmap / glow density (px per metre). */
 const LIGHT_PX_PER_M = 8;
 
-/** Rain (D11): pool size, drops per m² of view at full rain, strength by stage (index = stage − 1). */
+/** Rain (D11): pool size, drops per m² of view at full rain (strength per stage: `NIGHT_BY_STAGE.rain`). */
 const RAIN_POOL = 128;
 const RAIN_PER_M2 = 0.4;
-const RAIN_BY_STAGE: readonly number[] = [0.5, 0.5, 1, 1, 1];
 const RAIN_ALPHA = 0.28;
 const RAIN_LEN_M = 0.45;
 const RAIN_W_M = 0.035;
@@ -63,7 +67,7 @@ const BLINK_COLOR = 0xff9628;
  * one full-screen quad: the centre stays untouched (fill rate on phones; headless Chromium showed a
  * full-screen alpha quad costing ~40 % of its frame rate).
  */
-const VIGNETTE_BAND = 0.2;
+const VIGNETTE_BAND = 0.12;
 
 const rgbNum = (s: string): number => {
   const p = s.split(",").map(Number);
@@ -73,6 +77,8 @@ const rgbNum = (s: string): number => {
 interface Layer {
   readonly key: string;
   readonly canvas: HTMLCanvasElement;
+  /** The stage-independent part of this tile (`drawBase`), cached between stage changes. */
+  readonly base: HTMLCanvasElement;
   readonly tex: Phaser.Textures.CanvasTexture;
   readonly img: Phaser.GameObjects.Image;
   readonly x: number;
@@ -102,6 +108,7 @@ export class CityView {
   private readonly dropPhaseY = new Float32Array(RAIN_POOL);
   private readonly dropPhaseX = new Float32Array(RAIN_POOL);
   private shownKey = -1;
+  private shownBaseKey: string | null = null;
   private stage = 1;
   private clockS = 0;
   /** Last bake time (ms), for the debug notes. */
@@ -115,7 +122,8 @@ export class CityView {
   ) {
     this.dressing = dressingFor(map.name);
     this.atlas = ensureAtlases(scene);
-    this.bakePxPerM = Math.round(Math.min(BAKE_MAX_PX_PER_M, Math.max(BAKE_MIN_PX_PER_M, zoomPxPerM)));
+    const oneTile = Math.floor(MAX_ATLAS_PX / Math.max(map.widthM, map.heightM));
+    this.bakePxPerM = Math.round(Math.min(BAKE_MAX_PX_PER_M, oneTile, Math.max(BAKE_MIN_PX_PER_M, zoomPxPerM)));
     const id = instance++;
     const wPx = Math.ceil(map.widthM * this.bakePxPerM);
     const hPx = Math.ceil(map.heightM * this.bakePxPerM);
@@ -163,10 +171,13 @@ export class CityView {
     const canvas = document.createElement("canvas");
     canvas.width = wPx;
     canvas.height = hPx;
-    const tex = this.scene.textures.addCanvas(key, canvas);
+    const tex = addCanvasTexture(this.scene, key, canvas);
     if (!tex) throw new Error(`texture ${key} exists`);
     const img = this.scene.add.image(xM, yM, key).setOrigin(0, 0).setDisplaySize(wM, hM).setDepth(depth);
-    return { key, canvas, tex, img, x: xM, y: yM };
+    const base = document.createElement("canvas");
+    base.width = wPx;
+    base.height = hPx;
+    return { key, canvas, base, tex, img, x: xM, y: yM };
   }
 
   /**
@@ -190,12 +201,27 @@ export class CityView {
     const s = this.bakePxPerM / MAP_PX_PER_M;
     const mapW = this.map.widthM * MAP_PX_PER_M;
     const mapH = this.map.heightM * MAP_PX_PER_M;
+    const bk = baseKey(cs);
+    const redrawBase = bk !== this.shownBaseKey;
+    this.shownBaseKey = bk;
     for (const t of this.tiles) {
+      // the tile's area in map px, grown so shadows and blur from outside still land on it
+      const x0 = t.x * MAP_PX_PER_M;
+      const y0 = t.y * MAP_PX_PER_M;
+      const bd = { x0: x0 - CULL_MARGIN_PX, y0: y0 - CULL_MARGIN_PX, x1: x0 + t.canvas.width / s + CULL_MARGIN_PX, y1: y0 + t.canvas.height / s + CULL_MARGIN_PX };
+      if (redrawBase) {
+        const b = t.base.getContext("2d") as CanvasRenderingContext2D;
+        b.setTransform(1, 0, 0, 1, 0, 0);
+        b.clearRect(0, 0, t.base.width, t.base.height);
+        b.setTransform(s, 0, 0, s, -t.x * this.bakePxPerM, -t.y * this.bakePxPerM);
+        drawBase(b, s, cs, bd);
+      }
       const g = t.canvas.getContext("2d") as CanvasRenderingContext2D;
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.clearRect(0, 0, t.canvas.width, t.canvas.height);
+      g.drawImage(t.base, 0, 0);
       g.setTransform(s, 0, 0, s, -t.x * this.bakePxPerM, -t.y * this.bakePxPerM);
-      drawStatic(g, s, cs);
+      drawOverlay(g, s, cs, bd);
       g.globalCompositeOperation = "multiply";
       g.drawImage(this.light, 0, 0, mapW, mapH);
       g.globalCompositeOperation = "lighter";
@@ -221,8 +247,12 @@ export class CityView {
   /**
    * Once per frame: redraws the static layers if the obstacles changed (one compare), then animates
    * the lights, rain and vignette for the camera view (metres). `dtS` = 0 while the run is paused.
+   * `synced` = false until an online World has its first server state (nothing is drawn before).
    */
-  update(world: Readonly<World>, viewX: number, viewY: number, viewW: number, viewH: number, dtS: number): void {
+  update(world: Readonly<World>, viewX: number, viewY: number, viewW: number, viewH: number, dtS: number, synced = true): void {
+    // Review L (late join): online, wait for the first server state (it carries the decay stage)
+    // instead of baking stage 1 and baking again a moment later.
+    if (!synced && this.shownKey < 0) return;
     const o = world.obstacles;
     const key = staticKey(o.stage, o.version);
     if (key !== this.shownKey) {
@@ -240,7 +270,7 @@ export class CityView {
     (this.barrierBlink[0] as Phaser.GameObjects.Image).setAlpha(bar);
     (this.barrierBlink[1] as Phaser.GameObjects.Image).setAlpha(0.55 - bar);
 
-    const level = RAIN_BY_STAGE[Math.min(RAIN_BY_STAGE.length, Math.max(1, this.stage)) - 1] ?? 1;
+    const level = nightAt(this.stage).rain;
     const spanY = viewH + 2 * RAIN_MARGIN_M;
     const spanX = viewW + 2 * RAIN_MARGIN_M;
     const n = Math.min(RAIN_POOL, Math.round(viewW * viewH * RAIN_PER_M2 * level));
@@ -281,7 +311,11 @@ export class CityView {
     for (const l of this.tiles) {
       l.img.destroy();
       this.scene.textures.remove(l.key);
+      releaseCanvas(l.canvas);
+      releaseCanvas(l.base);
     }
+    releaseCanvas(this.light);
+    releaseCanvas(this.glow);
     this.tiles.length = 0;
     for (const img of [this.flickerPool, this.flickerCore, ...this.busBlink, ...this.barrierBlink, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
   }

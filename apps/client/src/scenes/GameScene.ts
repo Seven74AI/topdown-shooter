@@ -918,6 +918,8 @@ export class GameScene extends Phaser.Scene {
     }
     // Story 4.9: after the camera target is known (hudModel.camX/camY are this frame's view).
     const zoom = this.cameras.main.zoom;
-    this.cityView?.update(host.world, this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000);
+    // Online: the first bake waits for the server's first state (runSeed arrives with it; review L).
+    const synced = !(host instanceof NetSimHost) || host.runSeed !== 0;
+    this.cityView?.update(host.world, this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000, synced);
   }
 }
