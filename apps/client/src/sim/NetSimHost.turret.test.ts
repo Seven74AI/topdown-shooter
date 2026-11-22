@@ -59,4 +59,36 @@ describe("NetSimHost turret shots (Story 3.6)", () => {
     expect(shot?.type === "turret.fired" && Number.isNaN(shot.x)).toBe(true);
     expect(host.world.projectiles.aliveCount).toBe(0);
   });
+
+  it("review L1: after a backlog, turret and teammates' shots older than the render tick − 10 are dropped (aim still turns), newer ones play", () => {
+    const { room, host, setNow } = setup();
+    room.deliver(S2C.SIM_EVENTS_FLUSHED, {
+      tick: 11,
+      events: [
+        [NET_EVENT_KIND.TURRET_FIRED, 4, quantizeHeading(0, 1)],
+        [NET_EVENT_KIND.WEAPON_FIRED, 0, 0, 1000, 500, 0], // p0's (a teammate's) shot
+        [NET_EVENT_KIND.WAVE_RUSH_STARTED, 5],
+      ],
+    } satisfies SimEventsFlushed);
+    room.deliver(S2C.SIM_EVENTS_FLUSHED, {
+      tick: 28,
+      events: [
+        [NET_EVENT_KIND.TURRET_FIRED, 4, quantizeHeading(-1, 0)],
+        [NET_EVENT_KIND.WEAPON_FIRED, 0, 0, 1000, 500, 0],
+      ],
+    } satisfies SimEventsFlushed);
+    for (let t = 11; t <= 30 + RENDER_DELAY_TICKS; t++) {
+      setNow(500 + (t - 10) * 50); // the server keeps ticking (a hidden tab: nothing drained)
+      room.state.tick = t;
+      room.patch();
+    }
+    setNow(500 + (30 + RENDER_DELAY_TICKS - 10) * 50); // render tick 30: tick 11 is stale, 28 is not
+    host.update(0);
+    expect(host.renderTick).toBeCloseTo(30, 0);
+    const types = host.drainEvents().map((e) => e.type);
+    expect(types).toEqual(["wave.rush_started", "turret.fired", "weapon.fired"]);
+    expect(host.world.projectiles.aliveCount).toBe(2); // one turret shot + one teammate shot, from tick 28
+    const b = host.world.buildings.list[0];
+    expect(b?.aimX).toBeCloseTo(-1, 6);
+  });
 });

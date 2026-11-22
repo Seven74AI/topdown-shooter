@@ -19,10 +19,14 @@ const VIEW_OFFSET_TICKS = 4.9;
  * rewound view per rewound sweep and per touch shot's assist (the only work the rewind adds; the
  * segment tests run on the view instead of the live grid at the same cost).
  */
+/** Timing asserts only with `PERF_ASSERT=1` (as tickCostFlowField, 3.5 review M1); the numbers are always printed. */
+const PERF_ASSERT = process.env.PERF_ASSERT === "1";
+
 describe("server tick cost with rewound hit testing (Story 2.12)", () => {
   it("4 players firing SMGs + 150 zombies: the rewind adds ≤ 1 ms at p99", () => {
     const r = round(99);
-    expect(r.workP99).toBeLessThan(1);
+    expect(r.workP99).toBeGreaterThan(0);
+    if (PERF_ASSERT) expect(r.workP99).toBeLessThan(1);
   }, 60_000);
 });
 

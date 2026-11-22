@@ -78,7 +78,7 @@ development_status:
   2-9-player-rings-and-teammate-arrows: done
   2-10-4-phone-4g-test: review  # human: playtest/spec, not a dev-agent story
   2-11-in-run-menu: done
-  2-12-rewound-hit-testing: ready-for-dev  # 2.10 AC 3 follow-up: netsim 5.3 % reversed kiting Walkers, 28.9 % kiting Runners (3.8) at 150 ms: build now (decision 2026-11-22)
+  2-12-rewound-hit-testing: review  # 2.10 AC 3 follow-up: netsim 5.3 % reversed kiting Walkers, 28.9 % kiting Runners (3.8) at 150 ms: build now (decision 2026-11-22)
   epic-2-retrospective: done
 
   # Epic 3: Build phase and economy
@@ -87,8 +87,8 @@ development_status:
   3-2-personal-wallets-and-rewards: done
   3-3-fixed-list-shop: done
   3-4-place-a-wood-barricade: done
-  3-5-zombies-path-around-and-break-buildings: review
-  3-6-auto-turret: review
+  3-5-zombies-path-around-and-break-buildings: done
+  3-6-auto-turret: done
   3-7-repair-buildings: done
   3-8-runners-flank: review
   3-9-crawlers-slow-you-down: done

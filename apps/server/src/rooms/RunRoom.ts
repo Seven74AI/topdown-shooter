@@ -19,7 +19,6 @@ import {
   buildSetReadySchema,
   buildingPlaceSchema,
   buildingRepairSchema,
-  encodeNetEvent,
   isTestScenario,
   joinOptionsSchema,
   loadDevBalance,
@@ -49,12 +48,12 @@ import {
   type ShopBought,
   type ShopRefused,
   type SimEvent,
-  type SimEventsFlushed,
   type TestScenario,
   type World,
 } from "@topdown/shared";
 import type { Logger } from "pino";
 import { HordeEncoder, newHordeStats, type HordeStats } from "../net/hordeEncoder";
+import { EventInterest } from "../net/eventInterest";
 import { MAX_CLIENT_MESSAGE_BYTES } from "../net/limits";
 import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
@@ -178,6 +177,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private horde: HordeEncoder | null = null;
   readonly hordeStats = new Map<string, HordeStats>();
   private eventCtx: NetEventContext | null = null;
+  /** Story 3.6 review M2: per-client interest for turret events (reused every tick). */
+  private readonly eventInterest = new EventInterest();
+  private readonly eventsMsg: { tick: number; events: readonly NetEvent[] } = { tick: 0, events: [] };
   private tickErrors = 0;
   private shuttingDown = false;
   /** The current run's seed (for `run_ended`) and its ping interval (cleared on the way back to the lobby). */
@@ -659,16 +661,32 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
   }
 
-  /** One reliable `sim.events_flushed` per tick that has events, in emit order. */
+  /**
+   * One reliable `sim.events_flushed` per tick that has events, in emit order. Story 3.6 review M2:
+   * turret shots and their non-killing hits go only to clients whose view contains them
+   * (`EventInterest`); with none in the tick, one broadcast as before.
+   */
   private forwardEvents(tick: number, events: readonly SimEvent[]): void {
     const ctx = this.eventCtx;
-    if (events.length === 0 || !ctx) return;
-    const out: NetEvent[] = [];
-    for (let i = 0; i < events.length; i++) {
-      const t = encodeNetEvent(events[i] as SimEvent, ctx);
-      if (t) out.push(t);
+    const world = this.controller?.world;
+    if (events.length === 0 || !ctx || !world) return;
+    const interest = this.eventInterest;
+    interest.prepare(world, events, ctx);
+    if (interest.all.length === 0) return;
+    const msg = this.eventsMsg;
+    msg.tick = tick;
+    if (interest.localCount === 0) {
+      msg.events = interest.all;
+      this.broadcast(S2C.SIM_EVENTS_FLUSHED, msg); // encoded synchronously: the arrays are reused
+      return;
     }
-    if (out.length > 0) this.broadcast(S2C.SIM_EVENTS_FLUSHED, { tick, events: out } satisfies SimEventsFlushed);
+    for (let i = 0; i < this.clients.length; i++) {
+      const client = this.clients[i] as RunClient;
+      const member = this.members.get(client.sessionId);
+      const at = member ? this.viewTargetFor(member.playerId) : undefined;
+      msg.events = at ? interest.eventsFor(world, at.x, at.y) : interest.all;
+      if (msg.events.length > 0) client.send(S2C.SIM_EVENTS_FLUSHED, msg); // encoded synchronously
+    }
   }
 
   /** Every second: each client gets the same ping id and its own RTT so far. */

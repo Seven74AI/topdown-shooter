@@ -1,6 +1,6 @@
 # Story 3.6: Auto-turret
 
-Status: review
+Status: done
 
 ## Story
 
@@ -22,6 +22,10 @@ so that I can hold a spot or cover a flank.
 > 7. **Kill pay (FR45):** the economy pays a `zombie.killed` that carries a `buildingId` with `payKill(world, zombieId, ownerId, economy.buildingKillShare)`: the owner gets floor(reward × 0.5) (Walker 2 → 1, Crawler 3 → 1); other players who damaged it get their usual assist. The owner's status does not matter (downed and out owners are paid, like the wave bonus); an owner who left the run is paid nothing (`earn` ignores unknown players), and the turret keeps shooting. A turret kill does **not** count as the owner's kill in the HUD/Results kill counters (those are "your kills").
 > 8. **Net event `turret.fired` = kind 23** (`[23, buildingId, heading]`, ~4 B msgpack; 22 is 3.5's `building.destroyed`, 24 is 3.7's). The muzzle position is not sent: every client knows the building and computes it (centre + direction × `muzzleM`). `zombie.killed` appends the building id at index 6 only for turret kills (player kills stay 6 fields). No schema field is added: turrets cost 0 B/s when idle and HP stays "only on change" (3.4/3.5).
 > 9. **Client.** `Building.aimX/aimY` (shared field): the server's World writes it on every shot (solo reads it directly); the online mirror writes it from each `turret.fired` at the render tick. A new `TurretView` draws a metal plate and a head with a barrel on every turret, turning smoothly toward the aim (frame-rate independent, no per-frame allocation). Online, a `turret.fired` spawns a cosmetic projectile (`CosmeticProjectiles.spawnShot`, like others' `weapon.fired`; never "mine", so it is not counted by the reversed-hit check); solo draws the World's real projectiles. Turret shots are drawn cyan (`ProjectileView`), with a small muzzle flash and a soft click (throttled to one per 80 ms).
+
+> **Review decisions (main session, 2026-11-22; supersede decisions 7 and 8 where they differ):**
+> - **M1, a turret never steals its owner's kill.** If the turret's owner is a recorded damager of the zombie (they hit it before), a kill by their turret is **the owner's own kill**: full type reward, counted in their kills (HUD and Results), other damagers get their usual assist. Otherwise (the owner never hit it) the owner gets floor(reward × `buildingKillShare`), not counted as a kill (as before). Done in the economy system: it sees every hit of the tick, so it decides there and strips the building id from the still-pending `zombie.killed`, so every later reader (kill counters, the wire, the client) sees an ordinary kill by the owner.
+> - **M2, turret events by interest.** `turret.fired` and a turret's non-killing `zombie.hit` go only to clients whose horde view rect (2.5 `viewRect` around `viewTargetFor` + `HORDE_VIEW_MARGIN_M`) contains the turret or the shot's end (or the hit zombie); kills, money and everything else stay reliable to everyone, in emit order. Budget: patches + events ≤ 6 KB/s per client with the cap's worst case (24 turrets firing).
 
 ## Acceptance Criteria
 
@@ -150,7 +154,27 @@ Claude Opus 5.5 (claude-opus-5-5), BMAD gds-create-story + build, 2026-11-22.
 - Changed (client): `sim/NetSimHost.ts`, `net/cosmeticProjectiles.ts`, `scenes/GameScene.ts`, `render/{ProjectileView,FxView}.ts`, `audio/placeholderSfx.ts`.
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file.
 
+## Senior Developer Review (AI)
+
+Reviewer: fresh review agent, at 501457e (2026-11-22). Fixes by the story builder on branch `story-3-6b` (from `claude/epic-2-continue` 171149c, Story 3.8 Runners merged).
+
+| # | Sev | Finding | Fix |
+|---|-----|---------|-----|
+| M1 | Med | A turret stole its owner's kill: an owner who pistol-hit a Walker and whose turret landed the last hit got 1 instead of 2 and no kill. | **Decision by the main session** (recorded at the top). `economy.ts`: a `zombie.killed` with a building id whose owner `isDamager` → `payKill(…, 1)` and the pending event loses its building id (an ordinary kill everywhere); otherwise the 50 % share. Tests: the probe (owner pistol hit + own turret's last hit → +2, event without building id), owner + teammate (owner 2, teammate assist 1), the 50 % case unchanged, `RunController.kills()` 0 for a turret-only kill in the room test. Proven to fail with the owner check removed (2 tests). |
+| M2 | Med | With the cap's worst case (24 turrets firing) every client got +3.49 KB/s of events, mostly off-screen shots. | **Decision by the main session.** New `apps/server/src/net/eventInterest.ts` (`EventInterest`: encodes the tick once, marks `turret.fired` (turret centre / end of flight) and a turret's non-killing hit (zombie / turret centre) as local, fills one reused array per client); `RunRoom.forwardEvents` broadcasts as before when nothing is local, else sends each client its filtered list (Colyseus encodes `send` synchronously, so the arrays are reused; no array per client per tick). `zombie.hit` carries the turret's id server-side only (not on the wire). Worst case (`turretBandwidth.test.ts`, 24 turrets on a 6 × 4 grid, 120 shots/s, 28 kills/s, 4 players in the four quarters): events + patches per client **3.46 → 2.10–2.16 KB/s** (asserted ≤ 6 KB/s and below before); what is left is mostly the global kills and money. Tests: `eventInterest.test.ts` (local vs global, a shot ending in view, a killing hit global, the reused array), room test (a guest far away gets no `turret.fired`, only the killing hit and the kill). Proven to fail with the filter off (3 tests). |
+| L1 | Low | After a hidden tab, 75 cosmetic turret shots spawned in one frame. | `EventQueue.drain` can return each event's tick; `NetSimHost.drainEvents` drops `turret.fired` and teammates' `weapon.fired` older than render tick − `STALE_COSMETIC_TICKS` (10, `net/netConfig.ts`): no projectile, no FX (a stale turret shot still turns the turret). Test with a backlog (tick 11 dropped, tick 28 played); proven to fail with the check off. |
+| L2 | Low | The turret click played for every turret on the map. | `FxView` plays it only for my turrets (owner lookup passed by GameScene) or a turret shot inside the camera's `worldView`. |
+| L3 | Low | Tie-break test vacuous (the grid visited slot 0 first). | Slot 0 now sits in a later grid cell (east); the test fails without the tie rule (proven). |
+| L4 | Low | No test of the stale-grid margin. | Test: the zombie's last-tick cell [30, 32) lies wholly past the 8 m reach (29.5), it is moved to 7.9 m between ticks → shot in that tick; fails with the margin at 0 (proven). |
+| L5 | Low | Muzzle only tested on an axis; no kill-counter assertion online. | Diagonal muzzle test; `RunController.kills()` asserted in `RunRoom.turret.test.ts`. |
+| L6 | Low | `snapshotWorld` turret/projectile fields not asserted. | The determinism test asserts `fireCooldownS`/`aimX`/`aimY` on the building copies and a flying turret shot's `building` and `pushbackM` in the snapshot. |
+
+**Re-verification (story-3-6b):** merged with `claude/epic-2-continue` d5d58d2 (Story 3.5 review fixes, its perf assert gated): typecheck, lint, test (145 files, 1065 passed, 3 skipped), build pass. (Before that merge, 3.5's tick-cost p99 case failed once at load ~6 on this shared 2-core box; its threshold was not touched here.) Browser (Playwright, headless Chromium; server :5567 with `ALLOW_SOLO_START=1 DEV_STARTING_WALLET=1000 DEV_ZOMBIE_DAMAGE_SCALE=0.05`, Vite :8073, temporary config deleted), screenshots and logs `/tmp/s36b/`, scripts `/tmp/s36scripts/credit.py`, `interest.py`:
+- solo, owner kill credit (01–02): pistol aimed (mouse) at zombies in the turret's range; 3 kills where my turret landed the last hit on a zombie I had hit were paid **+2** each and counted (HUD kills 9 = 3 + 6 pistol kills), the 11 turret-only kills **+1** each and not counted.
+- two pages, guest `?lag=150&jitter=20` (10–11): the host's turret at (8.5, 4.5) m, the guest in the far corner (47.6, 31.6): the host drew 40 `turret.fired`, the guest **0**; both got all 10 kills; 0 page errors.
+
 ## Change Log
 
 - 2026-11-22: Story written (gds-create-story), status ready-for-dev.
 - 2026-11-22: Built: shared turret rules, projectile building tag, kill share, net kind 23, client turret view and cosmetic shots; merged `claude/epic-2-continue` (Story 3.5; turret firing moved to the `buildings` slot); tests incl. room, bandwidth, tick cost; browser checks; status review.
+- 2026-11-22: Review fixes on `story-3-6b` (M1 owner keeps the kill, M2 turret events by interest, L1–L6); status done.

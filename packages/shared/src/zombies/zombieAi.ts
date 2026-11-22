@@ -7,10 +7,10 @@ import { downPlayer } from "../player/downed";
 import { slowPlayer } from "../player/slow";
 import type { ZombieTypeStats } from "../config/balanceSchema";
 import { zombieTypeOf } from "./zombiePool";
-import { distanceToBox, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
-import { buildingById, damageBuilding } from "../buildings/buildings";
+import { PUSH_STUCK, distanceToBox, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
+import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
-import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell, flowSharedMaxAgeTicks, inFlankCone, type FlowField } from "./flowField";
+import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, type FlowField } from "./flowField";
 import { ZOMBIE_STATE } from "./zombieTypes";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
@@ -31,6 +31,8 @@ const OVERLAP_ITERATIONS = 2;
 const LOS_MARGIN_M = 0.05;
 /** Story 3.5: per zombie slot, the building its next field cell belongs to (0: none); written in pass 1, read in pass 4. */
 const targetBuilding = new Int32Array(ZOMBIE_POOL_CAPACITY);
+/** Story 3.5 review H1: 1 when the zombie followed the field this tick (pass 1 → pass 4). */
+const fieldMode = new Uint8Array(ZOMBIE_POOL_CAPACITY);
 /** `steerByField` result (synchronous, one record). */
 const steer = { x: 0, y: 0 };
 /** Alive players this tick, rebuilt at the top of the system (no iterator allocation per zombie). */
@@ -81,9 +83,11 @@ function damagePlayer(world: World, p: PlayerState, stats: Readonly<ZombieTypeSt
 function steerByField(world: World, field: FlowField, x: number, y: number, id: number): boolean {
   const nav = world.pathing.nav;
   if (field.sourceTick < 0) return false;
-  const first = flowNextCell(field, nav, flowCellAt(nav, x, y));
+  const here = flowCellAt(nav, x, y);
+  const first = flowNextCell(field, nav, here);
   if (first < 0) return false;
-  const bid = nav.buildingAt[first] as number;
+  // The building on the next cell, or at a gap too narrow for a body between here and there (review H1).
+  const bid = flowStepBuilding(nav, here, first);
   let last = first;
   if (bid !== 0) {
     const b = buildingById(world, bid);
@@ -97,7 +101,7 @@ function steerByField(world: World, field: FlowField, x: number, y: number, id: 
     const look = world.balance.zombies.pathing.lookaheadCells;
     for (let k = 1; k < look; k++) {
       const next = flowNextCell(field, nav, last);
-      if (next < 0 || nav.buildingAt[next] !== 0) break;
+      if (next < 0 || flowStepBuilding(nav, last, next) !== 0) break;
       last = next;
     }
   }
@@ -143,6 +147,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
     let vy = 0;
 
     targetBuilding[id] = 0;
+    fieldMode[id] = 0;
     const target = nearestAlivePlayer(x, y);
     if (target) {
       let dx = target.x - x;
@@ -161,6 +166,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
         // Story 3.5: a building in the way → follow the flow field (straight again once the line is clear).
         if (!steered && blocked) steered = steerByField(world, world.pathing.chase, x, y, id);
         if (steered) {
+          fieldMode[id] = 1; // review H1: either field (chase or flank) counts for the stuck safety net
           dx = steer.x - x;
           dy = steer.y - y;
           d = Math.sqrt(dx * dx + dy * dy);
@@ -204,6 +210,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
     }
     pool.vx[id] = vx;
     pool.vy[id] = vy;
+    trackProgress(world, id, x, y);
   }
 
   // Pass 2: move and clamp to the map.
@@ -250,11 +257,12 @@ export const updateZombies: SystemFn = (world, dtS) => {
         damagePlayer(world, target, stats, id);
       }
     }
+    let pushStuck = false;
     if (hasBuildings) {
       // Story 3.4: buildings (and the map edge) have the last word: they slide along, never pass a
       // slot narrower than their body, and a zombie shoved into a box by a player leaves on the side
       // it came from (its position at the start of the tick, outside every box; review H1, M1).
-      pushOutOfBuildings(world, x, y, rz, pool.prevX[id] as number, pool.prevY[id] as number);
+      pushStuck = pushOutOfBuildings(world, x, y, rz, pool.prevX[id] as number, pool.prevY[id] as number) === PUSH_STUCK;
       x = pushed.x;
       y = pushed.y;
     } else {
@@ -266,7 +274,12 @@ export const updateZombies: SystemFn = (world, dtS) => {
 
     // Story 3.5: blocked by a building and touching it → hit it (a player in contact went first:
     // that hit set the cooldown). At 0 HP `damageBuilding` removes it and emits building.destroyed.
-    const bid = targetBuilding[id] as number;
+    let bid = targetBuilding[id] as number;
+    // Review H1 safety net: following the field but jammed (push-out stuck, or no progress for
+    // `stuckTicks`) → the building it touches is the target, whatever the field says.
+    if (bid === 0 && fieldMode[id] === 1 && hasBuildings && (pushStuck || world.pathing.progress.stuck[id] === 1)) {
+      bid = touchingBuilding(world, x, y, rz + CONTACT_EPS_M);
+    }
     if (bid !== 0 && pool.attackCooldownTicks[id] === 0) {
       const b = buildingById(world, bid);
       if (b && distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) <= rz + CONTACT_EPS_M) {
@@ -276,6 +289,53 @@ export const updateZombies: SystemFn = (world, dtS) => {
     }
   }
 };
+
+/** Id of the nearest building within `reach` of (x, y) (ties: the lower id), or 0. */
+function touchingBuilding(world: World, x: number, y: number, reach: number): number {
+  const list = world.buildings.list;
+  let best = 0;
+  let bestD = reach;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    const d = distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY);
+    if (d <= bestD && (best === 0 || d < bestD)) {
+      best = b.id;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * Review H1: progress of a zombie that follows the field (pass 1, positions at the start of the
+ * tick). Every `stuckTicks` ticks in field mode its position is compared with the last check;
+ * less than `stuckMoveM` sets `stuck`. Leaving field mode or a reused slot starts over.
+ */
+function trackProgress(world: World, id: number, x: number, y: number): void {
+  const pr = world.pathing.progress;
+  if (id >= pr.ticks.length) return; // a World without pathing (it never follows a field)
+  const gen = world.zombies.generation[id] as number;
+  if (fieldMode[id] === 0 || pr.gen[id] !== gen) {
+    pr.gen[id] = gen;
+    pr.ticks[id] = 0;
+    pr.stuck[id] = 0;
+    pr.anchorX[id] = x;
+    pr.anchorY[id] = y;
+    return;
+  }
+  const p = world.balance.zombies.pathing;
+  const t = (pr.ticks[id] as number) + 1;
+  if (t < p.stuckTicks) {
+    pr.ticks[id] = t;
+    return;
+  }
+  const dx = x - (pr.anchorX[id] as number);
+  const dy = y - (pr.anchorY[id] as number);
+  pr.stuck[id] = dx * dx + dy * dy < p.stuckMoveM * p.stuckMoveM ? 1 : 0;
+  pr.ticks[id] = 0;
+  pr.anchorX[id] = x;
+  pr.anchorY[id] = y;
+}
 
 /**
  * Hard rule on top of the soft separation: two zombies never stay overlapped. Each overlapping pair
