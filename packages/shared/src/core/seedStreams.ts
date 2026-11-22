@@ -80,11 +80,21 @@ export function buildPhaseIndex(world: { readonly waves: { readonly number: numb
  * The shop stream `shop:<playerSlot>:<buildPhaseIndex>` for this build phase. The slot's
  * preallocated stream is reseeded in place the first time it is used in a build phase, so rerolls
  * inside one build advance it and the next build starts its own sequence. Throws for a slot outside
- * 0 … MAX_PLAYERS − 1 (a bug).
+ * 0 … MAX_PLAYERS − 1 and outside a build phase (bugs): during wave n + 1, `waves.number` already
+ * equals the *next* build's index, so a mid-wave draw would silently advance that build's stream
+ * (4.4 review L1).
+ *
+ * Known for Epic 8 (4.4 review L2): a player who takes over a slot inside the same build phase
+ * continues the leaver's partly used stream. A mid-run join happens at a build start (FR), before
+ * any draw; if that changes, set `world.streams.shop[slot].buildPhaseIndex = -1` on slot assignment.
  */
-export function shopStream(world: { readonly seed: number; readonly streams: SeedStreams; readonly waves: { readonly number: number } }, playerSlot: number): Rng {
+export function shopStream(
+  world: { readonly seed: number; readonly streams: SeedStreams; readonly waves: { readonly number: number }; readonly run: { readonly phase: string } },
+  playerSlot: number,
+): Rng {
   const s = world.streams.shop[playerSlot];
   if (!s) throw new Error(`shopStream: no slot ${playerSlot}`);
+  if (world.run.phase !== "build") throw new Error(`shopStream: shop draws only in a build phase (phase "${world.run.phase}")`);
   const build = buildPhaseIndex(world);
   if (s.buildPhaseIndex !== build) {
     s.rng.reseed(streamSeed(world.seed, shopStreamKey(playerSlot, build)));

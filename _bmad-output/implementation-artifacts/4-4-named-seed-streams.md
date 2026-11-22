@@ -1,6 +1,6 @@
 # Story 4.4: Named seed streams
 
-Status: review
+Status: done
 
 ## Story
 
@@ -102,10 +102,36 @@ Claude Opus 5.5 (builder, worktree `story-4-4`).
 - `packages/shared/src/bots/headlessRun.ts`: run start moved into `createHeadlessWorld` (replay/inputLog.ts); `record` / `onEnd` options. `bots/botShop.ts`: optional `record` sink.
 - `apps/client/src/scenes/GameScene.ts`: `perf.soloSeed`, `runSeed` / `isOnline` getters, solo Results `seed`. `ui/uiState.ts` results screen gains `seed`.
 - Not touched: map loader, collision, nav grid, `runStateMachine.startBuild`, balance JSON.
+- After review: `shopStream` takes `world.run` too and throws outside a build phase (callers must be build-phase code: the card shop, Epic 6).
+
+### Known properties (review notes)
+
+- **Cross-run stream swap (review L4, harmless):** stream seeds are unique *within* a run, but two different run seeds can map one run's `decay` seed onto another run's `spawns` seed (`a ^ h(decay) = b ^ h(spawns)` for `b = a ^ h(decay) ^ h(spawns)`). Runs never share streams, so nothing depends on it.
+- **Slot reuse inside one build phase (review L2, for Epic 8):** a new player in a reused slot continues the leaver's partly used `shop:<slot>:<build>` stream. Joins happen at a build start before any draw; if Epic 8 allows a join after a draw, set `world.streams.shop[slot].buildPhaseIndex = -1` on slot assignment (allocation-free, reseeds on the next draw). Documented on `shopStream`.
+
+## Senior Developer Review (AI)
+
+Fresh-agent review of dbb850f: **approved with small fixes**.
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| M1 | Medium | No test caught `combat` and `spawns` sharing a stream: solo spread (`firing.ts`) drawing from `streams.spawns` passed all tests. | New `core/streamIndependence.test.ts`: two solo runs from one seed, one firing SMG bursts during wave 1; every wave-1 spawn position must be equal (liveness: > 20 shots, 16 spawns). Fails under that exact mutation. |
+| L1 | Low | `shopStream` keys on `waves.number`, which during wave n + 1 already equals the next build's index: a mid-wave draw would advance the next build's stream without reseeding. | `shopStream` throws outside a build phase (no new run state, `startBuild` untouched). Test "review L1". |
+| L2 | Low | A slot reused in the same build phase continues the leaver's stream. | Documented for Epic 8 (on `shopStream` and in Known properties): joins happen at a build start, before any draw; the allocation-free fix is named. |
+| L3 | Low (doc) | Two different run seeds can swap `decay`/`spawns` across runs. | Noted in Known properties (harmless). |
+
+Mutations proven after the fixes (each fails its test, then reverted): 21 `firing.ts` spread from `streams.spawns` → streamIndependence; 22 phase guard removed → "review L1". The 21 earlier mutations (0–20) stand.
+
+Gates after the fixes: typecheck, lint, test (1,158 passed, 3 skipped), build green (load ~1.6).
+
+## Change Log
+
+- 2026-11-22: Story built (dbb850f): named seed streams, run seed on Results and overlay, dev set-run-seed online, headless replay.
+- 2026-11-22: Review fixes: M1 test (shots don't move spawns), L1 shop draws only in a build phase, L2/L3 documented. Status done.
 
 ### File List
 
-New: `packages/shared/src/core/seedStreams.ts`, `packages/shared/src/core/seedStreams.test.ts`, `packages/shared/src/replay/inputLog.ts`, `packages/shared/src/replay/replay.test.ts`, `apps/server/src/run/devRunSeed.ts`, `apps/server/src/run/devRunSeed.test.ts`, `apps/server/src/rooms/RunRoom.seed.test.ts`, this story file.
+New: `packages/shared/src/core/seedStreams.ts`, `packages/shared/src/core/streamIndependence.test.ts` (review), `packages/shared/src/core/seedStreams.test.ts`, `packages/shared/src/replay/inputLog.ts`, `packages/shared/src/replay/replay.test.ts`, `apps/server/src/run/devRunSeed.ts`, `apps/server/src/run/devRunSeed.test.ts`, `apps/server/src/rooms/RunRoom.seed.test.ts`, this story file.
 
 Modified (shared): `core/rng.ts`, `core/world.ts`, `core/worldSnapshot.ts`, `core/determinism.test.ts`, `combat/firing.ts`, `combat/spread.ts` (comment), `waves/waveDirector.ts`, `zombies/spawnRing.ts`, `bots/headlessRun.ts`, `bots/botShop.ts`, `net/messages.ts`, `net/stateView.ts`, `index.ts`.
 Modified (server): `rooms/RunRoom.ts`, `rooms/schema/RunState.ts`, `rooms/schema/syncState.ts`, `rooms/schema/syncState.test.ts`.

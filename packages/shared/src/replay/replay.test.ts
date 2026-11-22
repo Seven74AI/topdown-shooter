@@ -82,7 +82,7 @@ describe("headless replay (Story 4.4, NFR10)", () => {
       beforeTick: (world) => {
         world.streams.decay.int(0, 9); // what Story 4.5's decay timeline will do (and more)
         decayDraws++;
-        if (world.run.phase === "build") shopStream(world, 1).next(); // a card shop rolling every tick
+        if (world.run.phase === "build") shopStream(world, 1).next(); // a card shop rolling every tick (build only: L1)
       },
     });
     const base = replayRun(balance, rec.log);
