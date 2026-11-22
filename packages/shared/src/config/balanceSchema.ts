@@ -86,6 +86,12 @@ export const pathingSchema = z
     nearWallCostM: z.number().min(0),
     /** A zombie steers at the centre of the cell this many steps down the field (stops before a building). */
     lookaheadCells: z.number().int().min(1).max(8),
+    /**
+     * 3.5 review H1 safety net: a zombie following the field that moved less than `stuckMoveM`
+     * over `stuckTicks` ticks (or whose push-out is stuck) hits a building it touches.
+     */
+    stuckTicks: z.number().int().min(1).max(600),
+    stuckMoveM: z.number().min(0),
   })
   .strict();
 

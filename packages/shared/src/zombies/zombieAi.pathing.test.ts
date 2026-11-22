@@ -166,3 +166,156 @@ describe("zombies follow the flow field (Story 3.5)", () => {
     expect(run()).toEqual(a);
   });
 });
+
+/** Some zombie is within `d` of (x, y). */
+function anyZombieNear(world: World, x: number, y: number, d: number): boolean {
+  const z = world.zombies;
+  for (let i = 0; i < z.aliveCount; i++) {
+    const id = z.aliveIds[i] as number;
+    if (Math.hypot((z.x[id] as number) - x, (z.y[id] as number) - y) < d) return true;
+  }
+  return false;
+}
+const damageOf = (world: World) => world.buildings.list.reduce((s, b) => s + (HP - b.hp), 0);
+
+describe("Story 3.5 review H1: gaps narrower than a body never jam zombies", () => {
+  it("P1: a closed box whose only opening is a 0.5 m slot: the zombies break in", () => {
+    const { world, events, wall } = setup(11);
+    world.debug.godMode = true;
+    addPlayer(world, "p0", 24, 16.5);
+    // [22, 26] × [14, 19] ring; the bottom wall has a 0.5 m slot at x [24, 24.5].
+    for (const [x, y, r] of [[22, 14, 0], [24, 14, 0], [22, 14.5, 1], [22, 16.5, 1], [25.5, 14.5, 1], [25.5, 16.5, 1], [22, 18.5, 0], [24.5, 18.5, 0]] as const) wall(x, y, r);
+    for (let i = 0; i < 6; i++) spawnZombie(world, "walker", 20 + i * 1.5, 24);
+    let inAt = -1;
+    for (let t = 0; t < 1800 && inAt < 0; t++) {
+      step(world, TICK_DT_S);
+      if (anyZombieNear(world, 24, 16.5, 0.8)) inAt = t;
+    }
+    expect(events.some((e) => e.type === "building.destroyed")).toBe(true);
+    expect(inAt).toBeGreaterThan(0);
+  });
+
+  it("P2: a long wall with a 0.5 m slot in the middle and open ends: the zombie gets to the player (no freeze)", () => {
+    const { world, wall } = setup(12);
+    addPlayer(world, "p0", 24, 8);
+    for (const x of [18, 20, 22, 24.5, 26.5, 28.5]) wall(x, 10.5); // slot [24, 24.5]
+    spawnZombie(world, "walker", 24.2, 14);
+    let reached = -1;
+    for (let t = 0; t < 1200 && reached < 0; t++) {
+      step(world, TICK_DT_S);
+      if (anyZombieNear(world, 24, 8, 0.8)) reached = t;
+    }
+    expect(reached).toBeGreaterThan(0);
+  });
+
+  it("P4: a pen whose only opening is 0.5 m against the map edge: the zombies break in", () => {
+    const { world, events, wall } = setup(13);
+    world.debug.godMode = true;
+    addPlayer(world, "p0", 1.5, 1.2);
+    wall(0.5, 3); // [0.5, 2.5] × [3, 3.5]: 0.5 m from the left edge
+    wall(2.5, 3);
+    wall(4.5, 0, 1);
+    wall(4.5, 2, 1); // [4.5, 5] × [0, 4]
+    for (let i = 0; i < 4; i++) spawnZombie(world, "walker", 1 + i, 8);
+    let inAt = -1;
+    for (let t = 0; t < 1800 && inAt < 0; t++) {
+      step(world, TICK_DT_S);
+      if (anyZombieNear(world, 1.5, 1.2, 0.8)) inAt = t;
+    }
+    expect(events.some((e) => e.type === "building.destroyed")).toBe(true);
+    expect(inAt).toBeGreaterThan(0);
+  });
+
+  it("pinch: a ring whose only opening is two offset corners 0.5 m apart: the zombies break in", () => {
+    const { world, events, wall } = setup(14);
+    world.debug.godMode = true;
+    addPlayer(world, "p0", 24, 16.5);
+    for (const [x, y, r] of [[22, 14, 0], [24, 14, 0], [22, 14.5, 1], [22, 16.5, 1], [25.5, 14.5, 1], [25.5, 16.5, 1]] as const) wall(x, y, r);
+    wall(22.5, 18.5); // [22.5, 24.5] × [18.5, 19]
+    wall(25, 19); // [25, 27] × [19, 19.5]: its corner (25, 19) is 0.5 m from (24.5, 19)
+    for (let i = 0; i < 6; i++) spawnZombie(world, "walker", 20 + i * 1.5, 25);
+    let inAt = -1;
+    for (let t = 0; t < 1800 && inAt < 0; t++) {
+      step(world, TICK_DT_S);
+      if (anyZombieNear(world, 24, 16.5, 0.8)) inAt = t;
+    }
+    expect(events.some((e) => e.type === "building.destroyed")).toBe(true);
+    expect(inAt).toBeGreaterThan(0);
+  });
+
+  it("safety net: a jam the grid does not see (pinches wiped) still ends in building attacks", () => {
+    const { world, events, wall } = setup(15);
+    world.debug.godMode = true;
+    addPlayer(world, "p0", 24, 16.5);
+    for (const [x, y, r] of [[22, 14, 0], [24, 14, 0], [22, 14.5, 1], [22, 16.5, 1], [25.5, 14.5, 1], [25.5, 16.5, 1], [22, 18.5, 0], [24.5, 18.5, 0]] as const) wall(x, y, r);
+    step(world, TICK_DT_S); // rasterize once, then hide the slot's pinch from the field (the version stays)
+    world.pathing.nav.pinchE.fill(0);
+    world.pathing.nav.pinchS.fill(0);
+    for (let i = 0; i < 4; i++) spawnZombie(world, "walker", 21 + i * 1.5, 24);
+    for (let t = 0; t < 900; t++) step(world, TICK_DT_S);
+    expect(damageOf(world) > 0 || events.some((e) => e.type === "building.destroyed")).toBe(true);
+  });
+});
+
+describe("Story 3.5 review L1: attack rule details", () => {
+  it("a zombie whose next cell is a building hits it only once it touches it", () => {
+    const { world, wall } = setup(16);
+    addPlayer(world, "p0", 24, 16);
+    const box = closedBox(wall); // bottom wall [23, 25] × [17, 17.5]
+    for (let t = 0; t < 8; t++) step(world, TICK_DT_S); // the field is ready
+    spawnZombie(world, "walker", 24, 17.5 + walker.radiusM + 0.14); // in the cell below the wall, not touching
+    step(world, TICK_DT_S);
+    expect((box[1] as Building).hp).toBe(HP); // 1.2 m/s × 50 ms = 6 cm: still 8 cm away
+    for (let t = 0; t < 40; t++) step(world, TICK_DT_S);
+    expect((box[1] as Building).hp).toBeLessThan(HP);
+  });
+
+  it("the target is cleared every tick: a zombie that stops following the field (nobody standing) stops hitting", () => {
+    const { world, wall } = setup(17);
+    const p = addPlayer(world, "p0", 24, 14);
+    for (let x = 14; x < 34; x += 2) wall(x, 16); // [14, 34] × [16, 16.5]: breaking (12 m) beats the 20 m walk round
+    spawnZombie(world, "walker", 24, 19);
+    const hp = () => world.buildings.list.reduce((s, b) => s + b.hp, 0);
+    const full = hp();
+    let hpAtSwitch = -1;
+    for (let t = 0; t < 300; t++) {
+      if (hpAtSwitch < 0 && hp() < full) {
+        p.status = "downed"; // zombies ignore downed players: no target, no field, so no building either
+        hpAtSwitch = hp();
+      }
+      step(world, TICK_DT_S);
+    }
+    expect(hpAtSwitch).toBeGreaterThan(0);
+    expect(hp()).toBe(hpAtSwitch);
+  });
+});
+
+describe("Story 3.5 review H1 with Story 3.8's flank field: Runners don't jam in 0.5 m gaps either", () => {
+  it("Runners in front of a closed box whose only opening is a 0.5 m slot break in", () => {
+    const { world, events, wall } = setup(21);
+    world.debug.godMode = true;
+    addPlayer(world, "p0", 24, 16.5);
+    for (const [x, y, r] of [[22, 14, 0], [24, 14, 0], [22, 14.5, 1], [22, 16.5, 1], [25.5, 14.5, 1], [25.5, 16.5, 1], [22, 18.5, 0], [24.5, 18.5, 0]] as const) wall(x, y, r);
+    for (let i = 0; i < 6; i++) spawnZombie(world, "runner", 20 + i * 1.5, 24);
+    let inAt = -1;
+    for (let t = 0; t < 1800 && inAt < 0; t++) {
+      step(world, TICK_DT_S);
+      if (anyZombieNear(world, 24, 16.5, 0.8)) inAt = t;
+    }
+    expect(events.some((e) => e.type === "building.destroyed")).toBe(true);
+    expect(inAt).toBeGreaterThan(0);
+  });
+
+  it("a Runner behind a long wall with a 0.5 m slot gets to the player (no freeze)", () => {
+    const { world, wall } = setup(22);
+    addPlayer(world, "p0", 24, 8);
+    for (const x of [18, 20, 22, 24.5, 26.5, 28.5]) wall(x, 10.5);
+    spawnZombie(world, "runner", 24.2, 14);
+    let reached = -1;
+    for (let t = 0; t < 1200 && reached < 0; t++) {
+      step(world, TICK_DT_S);
+      if (anyZombieNear(world, 24, 8, 0.8)) reached = t;
+    }
+    expect(reached).toBeGreaterThan(0);
+  });
+});
