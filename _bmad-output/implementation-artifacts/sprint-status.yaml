@@ -42,7 +42,7 @@
 # - Story 9.2-9.10 depend on the hired artist and sound designer.
 
 generated: 2026-11-21T18:20:05
-last_updated: 2026-11-22T12:00:00
+last_updated: 2026-11-22T15:30:00
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -82,7 +82,7 @@ development_status:
   epic-2-retrospective: done
 
   # Epic 3: Build phase and economy
-  epic-3: in-progress
+  epic-3: done
   3-1-build-phase-between-waves: done
   3-2-personal-wallets-and-rewards: done
   3-3-fixed-list-shop: done
@@ -93,7 +93,7 @@ development_status:
   3-8-runners-flank: done
   3-9-crawlers-slow-you-down: done
   3-10-five-wave-run-with-player-count-scaling: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   # Epic 4: Downtown and city decay (Milestone 1)
   epic-4: backlog
