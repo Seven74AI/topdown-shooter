@@ -34,7 +34,7 @@ import { Predictor } from "../net/prediction";
 import { AdaptiveDelay } from "../net/adaptiveDelay";
 import { RENDER_DELAY_MIN_MS } from "../net/netConfig";
 
-/** Others are drawn this many ticks (100 ms) behind the server at first; Story 2.6 adapts it to 100–150 ms. */
+/** Starting interpolation delay in ticks (100 ms); `AdaptiveDelay` then moves it within 100–150 ms. */
 export const RENDER_DELAY_TICKS = RENDER_DELAY_MIN_MS / (TICK_DT_S * 1000);
 
 /** Netcode numbers for the 2.10 overlay (Story 2.6), updated every frame (one object, reused). */

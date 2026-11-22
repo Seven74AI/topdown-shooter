@@ -18,6 +18,7 @@ import {
   type Rect,
   type World,
 } from "@topdown/shared";
+import { ClientState } from "@colyseus/core";
 
 /** Movement shorter than this keeps the last heading (a zombie standing still doesn't snap to +x). */
 export const HEADING_MIN_MOVE_M = 1e-4;
@@ -25,6 +26,12 @@ export const HEADING_MIN_MOVE_M = 1e-4;
 /** The slice of a Colyseus client the encoder uses (tests pass fakes). */
 export interface HordeClient {
   sendBytes(type: number, bytes: Uint8Array): void;
+  /**
+   * Colyseus `ClientState`. Only JOINED clients get frames: for any other state 0.18's
+   * `enqueueClientRaw` queues bytes and replays them on join, which would break "never queued"
+   * (Story 2.5 review; matters once Epic 8 adds reconnection).
+   */
+  readonly state: number;
   /** The `ws` socket; `bufferedAmount` is what it has not written yet. */
   readonly ref: unknown;
 }
@@ -134,7 +141,7 @@ export class HordeEncoder {
    * the frame is skipped, never queued (AC 4). Returns the bytes sent (0 when skipped).
    */
   send(world: World, client: HordeClient, stats: HordeStats, px: number, py: number): number {
-    if (bufferedAmount(client.ref) > HORDE_BACKPRESSURE_BYTES) {
+    if (client.state !== ClientState.JOINED || bufferedAmount(client.ref) > HORDE_BACKPRESSURE_BYTES) {
       stats.framesSkipped++;
       return 0;
     }

@@ -1,6 +1,6 @@
 # Story 2.6: Instant feel for my own survivor
 
-Status: review
+Status: done
 
 ## Story
 
@@ -182,6 +182,18 @@ Claude Opus 5.5 (claude-opus-5-5), builder agent in worktree `story-2-6`.
 - Modified: `packages/shared/src/core/systems.ts`, `packages/shared/src/index.ts`, `apps/client/src/sim/NetSimHost.ts`, `apps/client/src/sim/NetSimHost.test.ts`, `apps/client/src/net/lobbyStore.ts`, `apps/client/src/net/lobbyStore.test.ts`, `apps/client/src/main.ts`, `apps/client/src/debug/urlOptions.ts`, `apps/client/src/debug/urlOptions.test.ts`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
 - Not needed: `apps/client/src/net/session.ts` (the throttle wraps the room in `main.ts`/`lobbyStore` instead) and `tsconfig.tools.json` (typecheck already covers the harness imports).
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched tests 5×, harness probes at 0–20 ms). **Outcome:** one high finding, fixed; the deviations in the Dev Agent Record judged sound.
+- [x] [High] At low RTT (LAN, localhost) every snapshot was a correction and the drawn point stuttered (599/600, 1.54× speed·dt): when the ack covers the newest input, the rebase threw away the last step's prev → cur segment. Fix: with nothing left to replay, `prev = server − last step's displacement`. Harness cases at 0/1/5/10/20 ms one-way (0 snaps, error < 1 cm, ≤ 1.5×) and a unit test (ack = newest seq → drawn point unchanged, 0 corrections).
+- [x] [Low] Corrections could add up to an offset ≥ 1 m without snapping: now snaps on the total. Test.
+- [x] [Low] The edge-flag test couldn't fail: it now checks what the prediction World was fed (`swap`/`consumable` false).
+- [x] [Low] A first snapshot after a 64+ input history counted a fake snap/error: skipped when nothing was drawn yet.
+- [x] [Low] Stale `RENDER_DELAY_TICKS` comment.
+- Noted: the throttle's state copy is guarded against the view types, not the server schema (fine while client code reads only view fields); `?jitter` without `?lag` spreads ~jitter/4; pongs wait while a throttled tab is hidden (dev tool only).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (low-RTT rebase, total-offset snap, edge-flag test, first-snapshot stats). Story done.
 
 - 2026-11-22: Story 2.6 implemented (prediction + reconciliation, adaptive render delay, dev network throttle, netsim harness). Status → review.

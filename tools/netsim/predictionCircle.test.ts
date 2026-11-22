@@ -184,6 +184,22 @@ describe("netsim: predicted circle walk (Story 2.6 AC 4)", () => {
     }
   });
 
+  it("LAN / localhost (0–20 ms one-way): no corrections, no visible jump (review fix)", () => {
+    for (const [oneWayMs, jitterHalfMs, seed] of [
+      [0, 0, 11],
+      [1, 0, 12],
+      [5, 1, 13],
+      [10, 2, 14],
+      [20, 5, 15],
+    ] as const) {
+      const r = simulate({ seconds: 30, oneWayMs, jitterHalfMs, seed });
+      report(`${oneWayMs}±${jitterHalfMs} ms seed ${seed}`, r);
+      expect(r.snaps).toBe(0);
+      expect(r.maxErrorM).toBeLessThan(0.01);
+      expect(r.maxFrameMoveRatio).toBeLessThanOrEqual(1.5);
+    }
+  });
+
   it("300 ms RTT, 40 ms jitter: no snaps, corrections below 5 cm", () => {
     for (const seed of [4, 5, 6]) {
       const r = simulate({ seconds: 30, oneWayMs: 150, jitterHalfMs: 20, seed });

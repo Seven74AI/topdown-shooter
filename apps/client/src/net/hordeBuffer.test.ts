@@ -118,6 +118,15 @@ describe("HordeBuffer", () => {
     expect(sample(3).has(A)).toBe(false);
   });
 
+  it("a killed zombie stays drawn until its kill tick even when 3+ empty frames already arrived (review)", () => {
+    const { buffer, push, sample } = setup();
+    for (let t = 1; t <= 5; t++) push(t, [{ netId: A, x: 2, y: 2 }]);
+    buffer.killAt(6, A); // killed on tick 6: the server stops sending it from frame 6
+    for (let t = 6; t <= 9; t++) push(t, []);
+    const visible = [4, 4.5, 5, 5.5, 5.99, 6, 7, 10].map((rt) => sample(rt).has(A));
+    expect(visible).toEqual([true, true, true, true, true, false, false, false]);
+  });
+
   it("a reused slot (new generation) is never interpolated from the dead zombie", () => {
     const { buffer, push, sample } = setup();
     const old = zombieNetId(7, 4);

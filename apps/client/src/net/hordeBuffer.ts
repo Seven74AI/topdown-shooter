@@ -66,6 +66,12 @@ export class HordeBuffer implements HordeSink {
   private readonly missCount = new Uint8Array(SLOTS);
   /** Per slot: the net id marked dead (−1 none). */
   private readonly deadNetId = new Int32Array(SLOTS).fill(-1);
+  /**
+   * Per slot: a net id whose `zombie.killed` is queued but not rendered yet (−1 none). It stays
+   * drawn (A's or the held pose) even after the missing-3 rule dropped it, so it never vanishes
+   * before its death FX (Story 2.5 review: with 2.6's 3-tick delay, every kill did).
+   */
+  private readonly pendingKillNetId = new Int32Array(SLOTS).fill(-1);
   /** Per slot: the last sampled pose, held while the zombie is missing (−1 none). */
   private readonly heldNetId = new Int32Array(SLOTS).fill(-1);
   private readonly heldX = new Float32Array(SLOTS);
@@ -133,8 +139,9 @@ export class HordeBuffer implements HordeSink {
       const misses = (this.missCount[slot] as number) + 1;
       this.missCount[slot] = misses;
       if (misses >= HORDE_MISSING_LIMIT) {
+        const last = this.lastNetId[slot] as number;
         this.lastNetId[slot] = -1;
-        this.heldNetId[slot] = -1;
+        if (this.pendingKillNetId[slot] !== last) this.heldNetId[slot] = -1;
       }
     }
   }
@@ -143,7 +150,13 @@ export class HordeBuffer implements HordeSink {
   markDead(netId: number): void {
     const slot = zombieSlotOfNetId(netId);
     this.deadNetId[slot] = netId;
+    if (this.pendingKillNetId[slot] === netId) this.pendingKillNetId[slot] = -1;
     if (this.heldNetId[slot] === netId) this.heldNetId[slot] = -1;
+  }
+
+  /** Still drawn while missing: in view by the missing-3 rule, or its kill not rendered yet. */
+  private keepsShowing(slot: number, netId: number): boolean {
+    return this.lastNetId[slot] === netId || this.pendingKillNetId[slot] === netId;
   }
 
   /** A `zombie.killed` of server tick `tick`: `markDead` once the render tick reaches it. */
@@ -157,6 +170,7 @@ export class HordeBuffer implements HordeSink {
     this.killTicks[i] = tick;
     this.killIds[i] = netId;
     this.killCount++;
+    this.pendingKillNetId[zombieSlotOfNetId(netId)] = netId;
   }
 
   /** Writes the zombies to draw at `renderTick` (fractional server tick) into `out`. */
@@ -210,7 +224,7 @@ export class HordeBuffer implements HordeSink {
       for (let k = 0; k < a.count; k++) {
         const netId = a.netId[k] as number;
         const slot = zombieSlotOfNetId(netId);
-        if (this.sampledAt[slot] === id || this.deadNetId[slot] === netId || this.lastNetId[slot] !== netId) continue;
+        if (this.sampledAt[slot] === id || this.deadNetId[slot] === netId || !this.keepsShowing(slot, netId)) continue;
         this.sampledAt[slot] = id;
         this.heldNetId[slot] = netId;
         this.heldX[slot] = a.x[k] as number;
@@ -224,7 +238,7 @@ export class HordeBuffer implements HordeSink {
     for (let slot = 0; slot < SLOTS; slot++) {
       const held = this.heldNetId[slot] as number;
       if (held < 0 || this.sampledAt[slot] === id) continue;
-      if (this.lastNetId[slot] !== held || this.deadNetId[slot] === held) {
+      if (!this.keepsShowing(slot, held) || this.deadNetId[slot] === held) {
         this.heldNetId[slot] = -1;
         continue;
       }
@@ -243,6 +257,7 @@ export class HordeBuffer implements HordeSink {
     this.lastNetId.fill(-1);
     this.missCount.fill(0);
     this.deadNetId.fill(-1);
+    this.pendingKillNetId.fill(-1);
     this.heldNetId.fill(-1);
     this.killHead = 0;
     this.killCount = 0;

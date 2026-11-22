@@ -144,6 +144,9 @@ export class Predictor {
     const first = this.player === null;
     const drawnX = this.drawnX();
     const drawnY = this.drawnY();
+    // The last step's displacement: kept when nothing is left to replay (review fix, see below).
+    const lastDx = first ? 0 : (this.player as PlayerState).x - (this.player as PlayerState).prevX;
+    const lastDy = first ? 0 : (this.player as PlayerState).y - (this.player as PlayerState).prevY;
     this.dropAcked(ackSeq);
     if (first) this.init(x, y);
     const p = this.player as PlayerState;
@@ -154,9 +157,17 @@ export class Predictor {
       this.count = 0;
       this.evictedSeq = 0;
       this.stats.unackedInputs = 0;
+      if (first) return; // nothing was drawn yet: no error to count
       this.recordError(Math.hypot(drawnX - x, drawnY - y));
       this.snap();
       return;
+    }
+    if (this.count === 0) {
+      // The ack covers the newest input (low RTT: LAN, localhost). The server's x/y is the end of
+      // that step; keep the step's start so the drawn prev → cur segment (at the current alpha) is
+      // the same, instead of a fake (1 − alpha) × step error on every snapshot.
+      p.prevX = x - lastDx;
+      p.prevY = y - lastDy;
     }
     for (let i = 0; i < this.count; i++) {
       setInput(this.world, this.playerId, this.ring[(this.head + i) % PREDICTION_HISTORY_SIZE] as MutableInput);
@@ -179,6 +190,8 @@ export class Predictor {
     this.offsetX += ex;
     this.offsetY += ey;
     this.stats.corrections++;
+    // Corrections in a row can add up: a total offset ≥ 1 m snaps too (review fix).
+    if (this.offsetX * this.offsetX + this.offsetY * this.offsetY >= PREDICTION_SNAP_M * PREDICTION_SNAP_M) this.snap();
   }
 
   /** Smoothed position to draw this frame. */

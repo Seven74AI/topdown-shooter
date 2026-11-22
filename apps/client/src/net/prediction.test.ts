@@ -144,6 +144,32 @@ describe("Predictor", () => {
     p.reconcile(0, 10, 10, "alive");
     expect(p.x).toBeCloseTo(10 + STEP_M, 12);
     expect(input.swap).toBe(true); // the caller's object is never touched
+    // What the prediction World was actually fed has the flags cleared.
+    const fed = (p as unknown as { world: { inputs: Map<string, PlayerInput> } }).world.inputs.get("p0");
+    expect(fed).toMatchObject({ seq: 1, swap: false, consumable: false });
+  });
+
+  it("an ack of the newest input (low RTT) keeps the drawn point: no correction", () => {
+    const p = predictor();
+    for (let seq = 1; seq <= 20; seq++) {
+      p.applyLocal(move(seq, 1));
+      const before = p.renderX(0.3);
+      p.reconcile(seq, p.x, p.y, "alive"); // the server is exactly there, nothing left to replay
+      expect(p.renderX(0.3)).toBeCloseTo(before, 9);
+    }
+    expect(p.stats.corrections).toBe(0);
+    expect(p.stats.maxErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+  });
+
+  it("corrections that add up to ≥ 1 m of offset snap", () => {
+    const p = predictor();
+    p.applyLocal(move(1, 0));
+    p.reconcile(1, 10.9, 10, "alive"); // 0.9 m: smoothed
+    expect(p.stats.snaps).toBe(0);
+    p.applyLocal(move(2, 0));
+    p.reconcile(2, 11.8, 10, "alive"); // another 0.9 m: 1.8 m in total
+    expect(p.stats.snaps).toBe(1);
+    expect(p.offsetM).toBe(0);
   });
 
   it("maxErrorM forgets errors after 10 s of steps", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ClientState } from "@colyseus/core";
 import {
   BYTES,
   HORDE_VIEW_MARGIN_M,
@@ -7,12 +8,15 @@ import {
   VIEW_WIDTH_M,
   ZOMBIE_SLOT_HOLD_TICKS,
   ZOMBIE_STATE,
+  NEUTRAL_INPUT,
   addPlayer,
   createRng,
   createWorld,
   killZombie,
   loadBalance,
   readHordeFrame,
+  setInput,
+  snapshotWorld,
   spawnZombie,
   stateOfTypeState,
   step,
@@ -28,6 +32,7 @@ const NO_WAVES = { waves: () => {} };
 
 class FakeClient {
   readonly ref = { bufferedAmount: 0 };
+  state: number = ClientState.JOINED;
   readonly frames: Uint8Array[] = [];
   sendBytes(type: number, bytes: Uint8Array): void {
     expect(type).toBe(BYTES.HORDE_FRAME);
@@ -105,6 +110,36 @@ describe("HordeEncoder", () => {
     expect(enc.send(world, client, stats, 24, 16)).toBe(14);
     expect(client.frames).toHaveLength(1);
     expect(stats).toEqual({ framesSent: 1, framesSkipped: 2, bytesSent: 14 + COLYSEUS_BYTES_HEADER });
+  });
+
+  it("skips frames for a client that isn't JOINED (Colyseus would queue them)", () => {
+    const { world, enc, client } = setup();
+    const stats = newHordeStats();
+    client.state = ClientState.RECONNECTING;
+    enc.prepare(world);
+    expect(enc.send(world, client, stats, 24, 16)).toBe(0);
+    expect(client.frames).toHaveLength(0);
+    expect(stats.framesSkipped).toBe(1);
+  });
+
+  it("encoding every tick never changes the simulation (the encoder rebuilds the zombie grid)", () => {
+    const run = (withEncoder: boolean) => {
+      const world = createWorld({ balance, seed: 21 }); // waves on: zombies spawn and chase
+      addPlayer(world, "p0", 24, 16);
+      const enc = new HordeEncoder();
+      const client = new FakeClient();
+      const stats = newHordeStats();
+      for (let t = 0; t < 2000; t++) {
+        setInput(world, "p0", { ...NEUTRAL_INPUT, seq: t + 1, aimX: Math.cos(t / 30), aimY: Math.sin(t / 30), fire: true, moveX: Math.sin(t / 50) });
+        step(world, TICK_DT_S);
+        if (withEncoder) {
+          enc.prepare(world);
+          enc.send(world, client, stats, 24, 16);
+        }
+      }
+      return snapshotWorld(world);
+    };
+    expect(run(true)).toEqual(run(false));
   });
 
   it("sends empty frames (6 bytes) with the tick", () => {

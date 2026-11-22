@@ -229,6 +229,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.state.players.delete(playerId);
     // Mid-run: out of the World too; zombies retarget next tick. Reconnect is Epic 8, "left" is 2.11.
     this.controller?.removePlayer(playerId);
+    this.hordeStats.delete(playerId); // no zero horde_stats lines for a player who left
     this.lastPongId.delete(client.sessionId);
     this.log.info({ playerId, code }, "player_left");
     // Epic 8 handles a host leaving mid-run.

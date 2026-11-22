@@ -1,6 +1,6 @@
 # Story 2.5: Horde stream
 
-Status: review
+Status: done
 
 ## Story
 
@@ -228,6 +228,17 @@ Claude Opus 5.5 (claude-opus-5-5), builder agent in worktree `story-2-5`.
 - Modified: `apps/server/src/rooms/RunRoom.ts` (horde send in `onTick`, `viewTargetFor`, `horde_stats`, `broadcastPatch` timing, `zombieNetId`), `apps/server/src/run/slowTick.ts` (log message argument), `apps/server/src/rooms/RunRoom.fight.test.ts`
 - Modified: `apps/client/src/sim/NetSimHost.ts`, `apps/client/src/sim/NetSimHost.test.ts`, `apps/client/src/net/session.ts` (`RunInbox`/`NetSession.onHorde`, `NetRoomLike.onMessage` takes number types), `apps/client/src/net/fakeRoom.ts`, `apps/client/src/render/ZombieView.ts`, `apps/client/src/scenes/GameScene.ts`
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched tests 5×, probes, two-page browser check: zombies on both pages within ~3 cm, 0 decode errors). **Outcome:** every AC met, no high findings; all items below fixed.
+- [x] [Med] A killed zombie could vanish before its death FX: the missing-3 rule runs as frames arrive, so with 2.6's 3-tick delay every kill hid the zombie ~50 ms early. Fix: `pendingKillNetId` per slot (set in `killAt`, cleared in `markDead`) keeps it drawn until the kill renders. Test: kill at tick 6 with 4 empty frames already in → visible through 5.99, hidden from 6.
+- [x] [Low] `hordeStats` kept leavers → zero `horde_stats` lines. Deleted in `onLeave`.
+- [x] [Low] "Never queued" held only for JOINED clients (0.18 `enqueueClientRaw` queues otherwise). Encoder skips non-JOINED clients; test.
+- [x] [Low] The encoder's grid rebuild is deterministic only by system order: test that 2000 ticks with waves and firing give the same `snapshotWorld` with and without encoding.
+- Noted: kill queue overflow (> 256 on a hidden tab) applies the oldest at once; bandwidth margin ~1.4 % with WebSocket framing (safe at 150 alive); no `horde_stats` for a wave that ends in game over; zombie facing steps at t = 0.5 (per spec).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (kill-pending draw, leaver stats, JOINED-only frames, determinism test). Story done.
 
 - 2026-11-22: Story 2.5 built: binary horde frames per client with interest (view + 4 m, rushers always), backpressure, client ring buffer with interpolation, missing-3 rule, deaths exactly once, streamed headings; patch encoding now timed (`slow_patch`). 531 tests passing. Status → review.
