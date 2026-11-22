@@ -181,6 +181,18 @@ claude-opus-5-5 (builder agent, worktree `story-2-8`)
 - `apps/client/src/ui/GameOver.tsx` (deleted)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched tests 5×, seeded balance sims, two-page browser runs incl. two full runs in one room under `?lag=200&jitter=40`). **Outcome:** rules, timers, server flow and the same-room cycle confirmed; one high (merge) and one medium finding, fixed.
+- [x] [High] The 2.8 merge commit didn't typecheck: the dev throttle's key lists lacked the new fields (with `?lag` the countdown read `undefined`) and two 2.6/2.7 tests used `"dead"`. Fixed in e017eb9.
+- [x] [Med] A guest whose tab was hidden through a run ended in a dead Game scene over the lobby (a queued `scene.start` ran on wake for a released session; `backToLobby` had no handler yet), so the host could never start run 2. Fix: `net/activeRun.ts` holds the room's current run (set by the phase handler); a Game scene starting for any other session goes to the current run or back to the lobby, and an online scene that starts after the run ended doesn't cover Results with "playing". Test in `onlineFlow.test.ts`.
+- [x] [Low] The Predictor's World ran the downed rules (flipped to out, emitted `team.wiped`). `movePlayers` split from `updatePlayers`; `PREDICTION_SYSTEMS` runs movement only. Test: 500 local steps while downed stay downed, no wipe.
+- [x] [Low] Test gaps: reviver goes down / leaves mid-revive → progress resets. Tests added.
+- Noted: "Reviving…" uses the mirror (predicted me vs interpolated teammate) and can disagree near 1.2 m (stream a reviver slot if it matters); downed players keep reloading (pre-existing, designer call); the return spot has no free-spot search (needed with Epic 4 buildings); a run-1 batch delayed by a very high `?lag` could reach run 2 (practically unreachable); two inline layout literals.
+- **Balance (seeded sims, 2 players, waves 1–3):** with the Pistol, a revive at 10 damage/hit and 3 s succeeded 0/80 in natural play; 2 s: 6 %; 3 s with half damage on the reviver: 9 %; 2 s + half damage: 18 %. With the SMG: 46 % / 58 % / 68 % / 71 %. Every Pistol run wiped in wave 2. → Designer decision pending.
+
 ## Change Log
+
+- 2026-11-22: Review fixes (late scene start, movement-only prediction, tests). Waiting on the designer's revive balance call before done.
 
 - 2026-11-22: Story 2.8 implemented: downed (20 s, paused while being revived), revive (3 s within 1.2 m, 30 % HP), out until the next wave (spectating the lowest-slot standing teammate, back with 50 % HP), team wipe → Results (wave, kills per player) → Back to lobby, and a second run in the same room. 574 tests passing.
