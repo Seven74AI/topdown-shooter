@@ -6,7 +6,9 @@ import type { WeaponId } from "./weapons";
  * Damages a zombie hit along direction (dirX, dirY): emits `zombie.hit`, pushes it back by
  * `pushbackM` (clamped to the map) and kills it at 0 HP (emits `zombie.killed`). `killerId` is
  * also the hit's `sourceId` (Story 2.7: the shooter's client confirms its own hits).
- * Returns true if the zombie died.
+ * Story 3.6: `buildingId` > 0 = a turret's shot (`killerId` is its owner): the hit has no
+ * `sourceId` (no assist credit, no 2.7 confirmation) and the kill carries the building id
+ * (the economy pays the owner `economy.buildingKillShare`). Returns true if the zombie died.
  */
 export function applyZombieDamage(
   world: World,
@@ -17,6 +19,7 @@ export function applyZombieDamage(
   pushbackM: number,
   killerId: string | null,
   weapon: WeaponId,
+  buildingId = 0,
 ): boolean {
   const z = world.zombies;
   if (!isZombieAlive(z, id)) return false;
@@ -34,10 +37,10 @@ export function applyZombieDamage(
     dirY,
     damage: amount,
     weapon,
-    sourceId: killerId,
+    sourceId: buildingId > 0 ? null : killerId,
   });
   if ((z.hp[id] as number) <= 0) {
-    killZombie(world, id, killerId, weapon);
+    killZombie(world, id, killerId, weapon, buildingId);
     return true;
   }
   return false;

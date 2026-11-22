@@ -23,6 +23,7 @@ import {
 import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
 import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
+import { buildingTypeIds } from "../buildings/buildings";
 
 const MIN_AIM = 1e-6;
 
@@ -212,12 +213,14 @@ function updateProjectiles(world: World, dtS: number): void {
     }
 
     let stoppedAt = -1;
-    const weapon = ids[pool.weapon[id] as number] ?? "pistol";
-    const pushback = weaponStats(world.balance, weapon).hitPushbackM;
+    // Story 3.6: a turret's shot carries its building id, type and pushback; a player's its weapon.
+    const building = pool.building[id] as number;
+    const weapon = building > 0 ? (buildingTypeIds(world.balance)[pool.weapon[id] as number] ?? "") : (ids[pool.weapon[id] as number] ?? "pistol");
+    const pushback = building > 0 ? (pool.pushbackM[id] as number) : weaponStats(world.balance, weapon).hitPushbackM;
     for (let k = 0; k < hits; k++) {
       const zid = hitId[k] as number;
       recordProjectileHit(pool, id, zid);
-      applyZombieDamage(world, zid, pool.damage[id] as number, dx, dy, pushback, pool.owner[id] ?? null, weapon);
+      applyZombieDamage(world, zid, pool.damage[id] as number, dx, dy, pushback, pool.owner[id] ?? null, weapon, building);
       pool.pierceLeft[id] = (pool.pierceLeft[id] as number) - 1;
       if (pool.pierceLeft[id] === 0) {
         stoppedAt = hitT[k] as number;

@@ -21,7 +21,13 @@ export interface ProjectilePool {
   readonly pierceLeft: Uint8Array;
   /** Index into weaponIds(balance). */
   readonly weapon: Uint8Array;
-  /** Player id of the shooter (references, preallocated). */
+  /**
+   * Story 3.6: id of the building (turret) that fired it; 0 = a player's shot. A building shot's
+   * `weapon` is the index of its building type (`buildingTypeIds`) and its pushback is `pushbackM`.
+   */
+  readonly building: Int32Array;
+  readonly pushbackM: Float32Array;
+  /** Player id of the shooter, or of the turret's owner (references, preallocated). */
   readonly owner: (string | null)[];
   /** Zombie ids already hit by each projectile (MAX_PIERCE per projectile). */
   readonly hitIds: Int32Array;
@@ -50,6 +56,8 @@ export function createProjectilePool(capacity: number): ProjectilePool {
     damage: new Float32Array(capacity),
     pierceLeft: new Uint8Array(capacity),
     weapon: new Uint8Array(capacity),
+    building: new Int32Array(capacity),
+    pushbackM: new Float32Array(capacity),
     owner: new Array<string | null>(capacity).fill(null),
     hitIds: new Int32Array(capacity * MAX_PIERCE),
     hitCount: new Uint8Array(capacity),
@@ -72,6 +80,9 @@ export interface ProjectileSpawn {
   pierce: number;
   weaponIndex: number;
   owner: string | null;
+  /** Story 3.6: the firing building's id (absent / 0: a player's shot) and its hit pushback. */
+  building?: number;
+  pushbackM?: number;
   /** Shot advance in metres (`projectileSpeedMps × shotAdvanceS`; 0 offline and for cosmetic shots). */
   advanceM: number;
 }
@@ -92,6 +103,8 @@ export function spawnProjectile(pool: ProjectilePool, s: ProjectileSpawn): numbe
   pool.damage[id] = s.damage;
   pool.pierceLeft[id] = Math.min(s.pierce, MAX_PIERCE);
   pool.weapon[id] = s.weaponIndex;
+  pool.building[id] = s.building ?? 0;
+  pool.pushbackM[id] = s.pushbackM ?? 0;
   pool.owner[id] = s.owner;
   pool.hitCount[id] = 0;
   pool.alivePos[id] = pool.aliveCount;

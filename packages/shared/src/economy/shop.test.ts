@@ -50,8 +50,11 @@ describe("shop list (Story 3.3)", () => {
     expect(() => loadBalance(files)).toThrow(/shop\.json: weapons\.4: unknown weapon rocket/);
   });
 
-  it("buildings: the bundled buildings.json (Story 3.4) lists the Wood barricade", () => {
-    expect(shopBuildings(balance)).toEqual([{ id: "wood_barricade", name: "Wood barricade", price: 40 }]);
+  it("buildings: the bundled buildings.json lists the Wood barricade (3.4) and the Auto-turret (3.6)", () => {
+    expect(shopBuildings(balance)).toEqual([
+      { id: "wood_barricade", name: "Wood barricade", price: 40 },
+      { id: "auto_turret", name: "Auto-turret", price: 250 },
+    ]);
   });
 
   it("buildings: every type with a price, named by `name` or the Title-Cased id (3.4 contract)", () => {

@@ -184,6 +184,27 @@ export const botsSchema = z
   .strict();
 
 /**
+ * Story 3.6: a building that shoots (GDD › Buildings: Auto-turret). During a wave it shoots the
+ * nearest alive zombie whose centre is within `rangeM` of its centre (`buildings/turret.ts`).
+ */
+export const turretSchema = z
+  .object({
+    /** Target range from the turret's centre to the zombie's centre (GDD: 8 m). */
+    rangeM: z.number().positive().max(32),
+    /** Shots per second (GDD: 5), through the shared cooldown rule (`combat/cooldown.ts`). */
+    rateHz: z.number().positive().max(20),
+    /** Damage per shot (GDD: 3). */
+    damage: z.number().positive(),
+    projectileSpeedMps: z.number().positive(),
+    /** How far a shot flies before it vanishes (a little past `rangeM`, from the muzzle). */
+    projectileRangeM: z.number().positive(),
+    /** The muzzle sits this far from the turret's centre along the aim. */
+    muzzleM: z.number().min(0),
+    hitPushbackM: z.number().min(0),
+  })
+  .strict();
+
+/**
  * Story 3.4: one building type (GDD › Buildings and Defenses). The footprint is `widthM` along x and
  * `depthM` along y at rotation 0 (rotations 1 and 3 swap them), both multiples of the 0.5 m build
  * lattice; its min corner sits on a lattice point. Story 3.6 adds turret fields (with defaults).
@@ -198,6 +219,8 @@ export const buildingTypeSchema = z
     depthM: z.number().positive().max(8).multipleOf(0.5),
     /** Full HP (synced as a uint16). */
     hp: z.number().int().positive().max(65535),
+    /** Story 3.6: present on buildings that shoot (default: none, the building never fires). */
+    turret: turretSchema.optional(),
   })
   .strict();
 
@@ -246,3 +269,4 @@ export type MeleeStats = z.output<typeof meleeSchema>;
 export type WeaponStats = z.output<typeof weaponSchema>;
 export type ZombieTypeStats = z.output<typeof zombieTypeSchema>;
 export type BuildingTypeStats = z.output<typeof buildingTypeSchema>;
+export type TurretStats = z.output<typeof turretSchema>;

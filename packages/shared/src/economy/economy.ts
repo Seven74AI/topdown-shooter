@@ -14,7 +14,8 @@ import { zombieTypeOf } from "../zombies/zombiePool";
  *
  * - `zombie.hit` with a `sourceId` → that player is recorded as a damager of the zombie's slot;
  * - `zombie.killed` → the killer gets the type's reward, every other damager the assist share
- *   (rounded down); a kill with no killer (dev cheats) pays nothing;
+ *   (rounded down); a kill with no killer (dev cheats) pays nothing; a turret's kill (Story 3.6,
+ *   `buildingId` set) pays its owner `buildingKillShare` of the reward (rounded down);
  * - `player.revived` → the reviver gets `reviveReward`;
  * - `wave.ended { number }` → every player in the run (downed and out too) gets `number × waveClearBonusPerWave`.
  *
@@ -123,7 +124,8 @@ function apply(world: World, e: SimEvent): void {
       if (e.sourceId !== null) recordDamager(world, e.zombieId, e.sourceId);
       break;
     case "zombie.killed":
-      payKill(world, e.zombieId, e.killerId, 1);
+      // Story 3.6 (FR45): a building's kill pays its owner `buildingKillShare` of the reward.
+      payKill(world, e.zombieId, e.killerId, e.buildingId !== undefined ? world.balance.economy.buildingKillShare : 1);
       break;
     case "player.revived":
       earn(world, e.reviverId, world.balance.economy.reviveReward, "revive");

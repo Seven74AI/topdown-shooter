@@ -344,7 +344,8 @@ export class RunController {
     const events = this.events;
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
-      if (e.type !== "zombie.killed" || e.killerId === null) continue;
+      // Story 3.6: a turret's kill pays its owner but is not their kill.
+      if (e.type !== "zombie.killed" || e.killerId === null || e.buildingId !== undefined) continue;
       const killer = this.slots.get(e.killerId);
       if (killer) killer.kills++;
     }
