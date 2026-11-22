@@ -69,8 +69,7 @@ describe("Downtown map data (Story 4.1)", () => {
     );
     expect(map.hazards.map((h) => [h.name, h.kind, h.minStage])).toEqual([
       ["gas_leak_zone", "gas_leak", 2],
-      ["fire_parked_car_2", "fire", 3],
-      ["fire_street_car_west", "fire", 3],
+      // Story 4.8: the 4.1 fire rects are gone; the stage-3 ignites (decay layer) are the fires.
     ]);
     expect(map.stages).toHaveLength(5);
     expect(map.stages[0]?.some((p) => p.kind === "crosswalk")).toBe(true);

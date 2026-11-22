@@ -244,4 +244,36 @@ describe("syncState", () => {
     resetRunFields(state);
     expect([state.decayStage, state.decayVariants]).toEqual([0, 0]);
   });
+
+  it("Story 4.8: decayFiresOut is written only when a fire goes out (one field, once); reset clears it", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    expect(changeDecayStage(w, 3)).toBe(true);
+    controller.tick();
+    syncState(state, controller);
+    expect(w.decay.fires).toHaveLength(2);
+    expect(state.decayFiresOut).toBe(0);
+    encoder.encode();
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const idle = encoder.encode().length; // burning, nobody inside: only `tick`
+    encoder.discardChanges();
+    w.decay.firesOut = 0b101; // as the DecaySystem writes it at a build start
+    controller.tick();
+    syncState(state, controller);
+    expect(state.decayFiresOut).toBe(0b101);
+    const change = encoder.encode().length;
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const after = encoder.encode().length;
+    encoder.discardChanges();
+    expect(change - idle).toBeGreaterThan(0);
+    expect(change - idle).toBeLessThanOrEqual(6);
+    expect(after).toBe(idle);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[bandwidth] fires-out patch: +${change - idle} B once per expiry (idle patch ${idle} B)`);
+    resetRunFields(state);
+    expect(state.decayFiresOut).toBe(0);
+  });
 });

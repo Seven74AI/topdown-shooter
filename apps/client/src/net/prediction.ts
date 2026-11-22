@@ -127,13 +127,18 @@ export class Predictor {
    * Story 4.5: the server's decay stage and variants (room state), applied before every reconcile
    * like the buildings, with the shared `applyDecayStage`: the replay collides with the new map.
    */
-  syncDecay(stage: number | undefined, variants: number | undefined): void {
-    mirrorDecay(this.world, stage, variants);
+  syncDecay(stage: number | undefined, variants: number | undefined, firesOut?: number): void {
+    mirrorDecay(this.world, stage, variants, firesOut); // Story 4.8: the fires that burned out
   }
 
   /** Story 4.5: the decay stage the prediction collides with (tests). */
   get decayStage(): number {
     return this.world.decay.stage;
+  }
+
+  /** Story 4.8: the fires the prediction World knows (tests: the same names as the server's). */
+  get fireNames(): string[] {
+    return this.world.decay.fires.map((f) => f.name);
   }
 
   /** Story 4.5: the prediction World's obstacle solids (tests: the same names as the server's). */

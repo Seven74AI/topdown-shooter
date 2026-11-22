@@ -4,8 +4,9 @@ import type { DecayMutation, DistrictMap } from "../map/districtMap";
 import { FIRST_DECAY_STAGE } from "../map/decayStage";
 
 /**
- * Story 4.5: a fire record left by an `ignite` mutation (centre of its target, `radiusM`). Data only
- * in this story: Story 4.8 gives it damage (10/s), the flow-field cost and its 2-wave expiry.
+ * Story 4.5: a fire zone left by an `ignite` mutation (centre of its target). Story 4.8: it burns
+ * (`decay/fire.ts`: 10 damage per second to everything inside, a flow-field cost) until it goes out
+ * `decay.json › fire.durationWaves` waves after it was lit.
  */
 export interface FireRecord {
   /** The mutation's name. */
@@ -17,23 +18,39 @@ export interface FireRecord {
   readonly radiusM: number;
   /** The stage it started in. */
   readonly stage: number;
+  /** Story 4.8: its bit in `DecayState.firesOut` (the map's ignites in map order). */
+  readonly index: number;
 }
 
 /**
  * Story 4.5: the run's decay (architecture › Decay Stage Engine). `stage` is THE decay stage
  * (`map/decayStage.ts › currentDecayStage` reads it); `variants` the candidates `DecayTimeline` chose
- * at run start (bit i = `map.decayVariants[i]`); `fires` the active fire records. Changed only by
+ * at run start (bit i = `map.decayVariants[i]`); `fires` the burning fire zones. Changed only by
  * `applyDecayStage` (World creation, a build start, the solo dev cheat; the client mirror and
  * Predictor from the room state).
  */
 export interface DecayState {
   stage: number;
   variants: number;
+  /** The burning fires (a subset of `fireSlots`, map order). */
   readonly fires: FireRecord[];
+  /** Story 4.8: bit i = the map's i-th ignite has burned out (synced on change: `decayFiresOut`). */
+  firesOut: number;
+  /** Story 4.8: one record per ignite mutation of the map (built once per World; `fires` points into it). */
+  readonly fireSlots: readonly FireRecord[];
+  /**
+   * Story 4.8 (server / solo only, never synced): per ignite, the coming wave at whose build start it
+   * goes out; 0 = not lit.
+   */
+  readonly fireEndWave: Int32Array;
+  /** Story 4.8: ticks counted while a fire burns in a build or wave phase (the damage pulse clock). */
+  burnTicks: number;
 }
 
-export function createDecayState(variants: number): DecayState {
-  return { stage: FIRST_DECAY_STAGE, variants: variants >>> 0, fires: [] };
+export function createDecayState(variants: number, map?: DistrictMap, defaultFireRadiusM = 0): DecayState {
+  const fireSlots: FireRecord[] = [];
+  if (map) for (const m of map.decay) if (m.action === "ignite") fireSlots.push(fireRecordOf(m, fireSlots.length, defaultFireRadiusM));
+  return { stage: FIRST_DECAY_STAGE, variants: variants >>> 0, fires: [], firesOut: 0, fireSlots, fireEndWave: new Int32Array(fireSlots.length), burnTicks: 0 };
 }
 
 /**
@@ -74,13 +91,11 @@ export function pickDecayVariants(map: DistrictMap, rng: Rng): number {
   return mask >>> 0;
 }
 
-/** Story 4.5: the fire record of an `ignite` mutation (cached: the same object every rebuild). */
-const fireOf = new WeakMap<DecayMutation, FireRecord>();
-export function fireRecordOf(m: DecayMutation): FireRecord {
-  let f = fireOf.get(m);
-  if (!f) {
-    f = Object.freeze({ name: m.name, target: m.target, x: (m.minX + m.maxX) / 2, y: (m.minY + m.maxY) / 2, radiusM: m.radiusM, stage: m.stage });
-    fireOf.set(m, f);
-  }
-  return f;
+/**
+ * Story 4.5: the fire record of an `ignite` mutation (Story 4.8: `index` = its bit in `firesOut`;
+ * radius = the map's override or `defaultRadiusM`, the balance's `decay.fire.radiusM`). Allocates:
+ * World creation and tests only.
+ */
+export function fireRecordOf(m: DecayMutation, index: number, defaultRadiusM: number): FireRecord {
+  return Object.freeze({ name: m.name, target: m.target, x: (m.minX + m.maxX) / 2, y: (m.minY + m.maxY) / 2, radiusM: m.radiusM > 0 ? m.radiusM : defaultRadiusM, stage: m.stage, index });
 }

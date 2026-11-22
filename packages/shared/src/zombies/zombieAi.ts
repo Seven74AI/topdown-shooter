@@ -12,6 +12,7 @@ import { buildingById, damageBuilding, type Building } from "../buildings/buildi
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, type FlowField } from "./flowField";
 import { ZOMBIE_STATE } from "./zombieTypes";
+import { segmentHitsFire } from "../decay/fire";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
 const MAX_NEIGHBOURS = 64;
@@ -134,6 +135,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
   collectAlivePlayers(world);
   // Story 4.1: map solids count like buildings for the line of sight and the push-out (never attacked).
   const hasBuildings = hasObstacles(world);
+  const hasFires = world.decay.fires.length > 0; // Story 4.8
   const flank = world.balance.zombies.flank;
   const flankMaxAge = flowSharedMaxAgeTicks(world);
   const maxFlankTicks = ticksFor(flank.maxFlankS);
@@ -156,7 +158,10 @@ export const updateZombies: SystemFn = (world, dtS) => {
       let dy = target.y - y;
       let d = Math.sqrt(dx * dx + dy * dy);
       if (d > stats.radiusM + target.radiusM && d > COINCIDENT_M) {
-        const blocked = hasBuildings && segmentHitsBuildings(world, x, y, target.x, target.y, stats.radiusM + LOS_MARGIN_M);
+        // Story 4.8: a line through a fire zone counts as blocked too (fire is a flow cost: follow the field).
+        const blocked =
+          (hasBuildings && segmentHitsBuildings(world, x, y, target.x, target.y, stats.radiusM + LOS_MARGIN_M)) ||
+          (hasFires && segmentHitsFire(world, x, y, target.x, target.y, stats.radiusM));
         let steered = false;
         // Story 3.8: a Runner flanks: in front of its target (or blocked) it follows the flank field,
         // which keeps off every player's front cone; close in, outside the cone with a clear line,

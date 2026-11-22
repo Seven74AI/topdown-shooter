@@ -84,6 +84,11 @@ export interface NavGrid {
   readonly closedS: Uint8Array;
   /** Cost units added when stepping into the cell. */
   readonly enterCost: Int32Array;
+  /**
+   * Story 4.8: cost units of the burning fires per cell (`setNavFires`, at a decay change only),
+   * added into `enterCost` when rasterized: a cost, never a wall (brief line 4).
+   */
+  readonly fireCost: Int32Array;
   /** Per vertex ((cols + 1) × (rows + 1)): 1 = a body centred there clears every building and the map edge. */
   readonly vertexFree: Uint8Array;
   /** Building id of a pinch on the edge between cell c and c + 1 (east) / c + cols (south); 0 = open. */
@@ -170,6 +175,7 @@ export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly
     closedE: new Uint8Array(cells),
     closedS: new Uint8Array(cells),
     enterCost: new Int32Array(cells),
+    fireCost: new Int32Array(cells),
     vertexFree: new Uint8Array((cols + 1) * (rows + 1)),
     pinchE: new Int32Array(cells),
     pinchS: new Int32Array(cells),
@@ -185,6 +191,34 @@ export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly
  */
 export function setNavWalls(nav: NavGrid, boxes: readonly MapBox[]): void {
   fillCollisionCells(nav.wallAt, nav.cols, nav.rows, nav.cellM, boxes);
+  nav.version = -1;
+}
+
+/**
+ * Story 4.8: writes the fire cost (`costUnits` per cell) of every free cell whose centre lies within
+ * a fire's radius + `growM` (the largest pathing zombie: a body there would touch the fire) and
+ * forces the next pathing pass to re-rasterize. Called by `applyDecayStage` only (World creation, a
+ * build start, the dev cheat): the fields that use it are rebuilt at the build start. Allocates nothing.
+ */
+export function setNavFires(nav: NavGrid, fires: readonly { readonly x: number; readonly y: number; readonly radiusM: number }[], costUnits: number, growM: number): void {
+  const { cols, rows, cellM, fireCost } = nav;
+  fireCost.fill(0);
+  for (let i = 0; i < fires.length; i++) {
+    const f = fires[i] as { x: number; y: number; radiusM: number };
+    const r = f.radiusM + growM;
+    const r2 = r * r;
+    const x0 = Math.max(0, Math.floor((f.x - r) / cellM));
+    const x1 = Math.min(cols - 1, Math.floor((f.x + r) / cellM));
+    const y0 = Math.max(0, Math.floor((f.y - r) / cellM));
+    const y1 = Math.min(rows - 1, Math.floor((f.y + r) / cellM));
+    for (let cy = y0; cy <= y1; cy++) {
+      for (let cx = x0; cx <= x1; cx++) {
+        const dx = (cx + 0.5) * cellM - f.x;
+        const dy = (cy + 0.5) * cellM - f.y;
+        if (dx * dx + dy * dy < r2) fireCost[cy * cols + cx] = costUnits; // zones don't stack
+      }
+    }
+  }
   nav.version = -1;
 }
 
@@ -355,6 +389,9 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
     if (nav.pinchE[c] === NO_BUILDING) nav.pinchE[c] = 0;
     if (nav.pinchS[c] === NO_BUILDING) nav.pinchS[c] = 0;
   }
+  // Story 4.8: the fire cost on top (never on walls: they are never entered).
+  const fireCost = nav.fireCost;
+  for (let c = 0; c < nav.cells; c++) if (fireCost[c] !== 0 && wallAt[c] === 0) enterCost[c] = (enterCost[c] as number) + (fireCost[c] as number);
   nav.buildingCost = buildingCost;
   nav.version = world.buildings.version;
 }

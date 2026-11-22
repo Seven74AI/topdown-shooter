@@ -8,7 +8,7 @@ import { applyDecayStage, type World } from "@topdown/shared";
  * join, a tab that slept across a build start or a late Game scene start onto the server's map.
  * Returns whether the map changed.
  */
-export function mirrorDecay(world: World, stage: number | undefined, variants: number | undefined): boolean {
+export function mirrorDecay(world: World, stage: number | undefined, variants: number | undefined, firesOut: number | undefined = 0): boolean {
   if (stage === undefined || !(stage >= 1)) return false;
-  return applyDecayStage(world, stage, variants ?? 0);
+  return applyDecayStage(world, stage, variants ?? 0, firesOut ?? 0); // Story 4.8: + the burned-out fires
 }

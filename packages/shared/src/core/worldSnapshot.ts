@@ -92,8 +92,16 @@ export function snapshotWorld(world: World) {
       solids: world.obstacles.solids.map((b) => b.name),
       shotBlockers: world.obstacles.shotBlockers.map((b) => b.name),
     },
-    // Story 4.5: the decay stage, the run's variation choices and the fire records.
-    decay: { stage: world.decay.stage, variants: world.decay.variants, fires: world.decay.fires.map((f) => ({ ...f })) },
+    // Story 4.5: the decay stage, the run's variation choices and the fire records; Story 4.8: which
+    // fires burned out, when each goes out, and the damage pulse clock.
+    decay: {
+      stage: world.decay.stage,
+      variants: world.decay.variants,
+      fires: world.decay.fires.map((f) => ({ ...f })),
+      firesOut: world.decay.firesOut,
+      fireEndWave: Array.from(world.decay.fireEndWave),
+      burnTicks: world.decay.burnTicks,
+    },
     players: sortedEntries(world.players).map(
       ([id, p]) =>
         [

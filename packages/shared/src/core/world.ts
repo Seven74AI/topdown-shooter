@@ -130,7 +130,7 @@ export function createWorld(opts: CreateWorldOptions): World {
   const map = opts.map ?? PLACEHOLDER_MAP;
   // Story 4.5 DecayTimeline: the run's variation candidates, picked once from the `decay` stream.
   const streams = createSeedStreams(seed);
-  const decay = createDecayState(pickDecayVariants(map, streams.decay));
+  const decay = createDecayState(pickDecayVariants(map, streams.decay), map, opts.balance.decay.fire.radiusM);
   // Story 4.2: a new World is at the first decay stage.
   const obstacles = createObstacles(map, FIRST_DECAY_STAGE, decay.variants);
   const world: World = {

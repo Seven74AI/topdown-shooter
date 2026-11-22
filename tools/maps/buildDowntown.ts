@@ -131,8 +131,7 @@ const spawns: Point[] = [
 
 const hazards: Rect[] = [
   { name: "gas_leak_zone", x: 31, y: 2, w: 6, h: 7.5, props: { kind: "gas_leak", minStage: 2 } },
-  { name: "fire_parked_car_2", x: 13.5, y: 25, w: 4, h: 6.5, props: { kind: "fire", minStage: 3 } },
-  { name: "fire_street_car_west", x: 3, y: 12, w: 6.5, h: 4, props: { kind: "fire", minStage: 3 } },
+  // Story 4.8: the 4.1 `fire` hazard rects are gone: the stage-3 `ignite` objects (`decay` layer) are the fires.
 ];
 
 /**
@@ -140,8 +139,8 @@ const hazards: Rect[] = [
  * real stage content: cars moving, barriers, fires). Applied at the build start that enters `stage`.
  * Stage 2 (panic): `parked_car_3` is driven off (remove); a dumpster narrows alley 3 to 1.5 m
  * (block); one abandoned car (add) — west street or south street, picked per run from the `decay`
- * stream. Stage 3 (breakdown): one of two cars catches fire (ignite: a 2 m fire record, data only
- * until 4.8). Stages 4–5: none yet. Every box is clear of each spawn's jitter area (test).
+ * stream. Stage 3 (breakdown, Story 4.8): two of three cars catch fire (ignite: a 2 m fire zone
+ * that burns 2 waves). Stages 4–5: none yet. Every box is clear of each spawn's jitter area (test).
  */
 const decay: (Rect | Point)[] = [
   { name: "parked_car_3_driven_off", x: 18.5, y: 28, props: { stage: 2, action: "remove", target: "parked_car_3" } },
@@ -162,18 +161,28 @@ const decay: (Rect | Point)[] = [
     h: 4.5,
     props: { stage: 2, action: "add", kind: "car", group: "panic_abandoned_car", variant: "abandoned_car_south", pick: 1 },
   },
+  // ---- Story 4.8 (Breakdown, stage 3, FR61): 2 of 3 cars catch fire (group `breakdown_car_fire`,
+  // pick 2, from the `decay` stream). A fire zone round the car's centre, radius `decay.json ›
+  // fire.radiusM`; none of these cars is moved or removed by stages 2 (4.5 / 4.7), so two always burn.
   {
     name: "fire_parked_car_2_ignites",
     x: 15.5,
     y: 28,
-    props: { stage: 3, action: "ignite", target: "parked_car_2", radiusM: 2, group: "breakdown_car_fire", variant: "fire_parked_car_2", pick: 1 },
+    props: { stage: 3, action: "ignite", target: "parked_car_2", group: "breakdown_car_fire", variant: "fire_parked_car_2", pick: 2 },
   },
   {
     name: "fire_street_car_west_ignites",
     x: 6,
     y: 14,
-    props: { stage: 3, action: "ignite", target: "street_car_west", radiusM: 2, group: "breakdown_car_fire", variant: "fire_street_car_west", pick: 1 },
+    props: { stage: 3, action: "ignite", target: "street_car_west", group: "breakdown_car_fire", variant: "fire_street_car_west", pick: 2 },
   },
+  {
+    name: "fire_parked_car_1_ignites",
+    x: 12.5,
+    y: 28,
+    props: { stage: 3, action: "ignite", target: "parked_car_1", group: "breakdown_car_fire", variant: "fire_parked_car_1", pick: 2 },
+  },
+  // ---- end Story 4.8
 ];
 
 const groups: Group[] = [

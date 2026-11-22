@@ -10,6 +10,7 @@ import { killZombie, zombieTypeOf } from "../zombies/zombiePool";
 import { rebuildFlowFieldNow } from "../zombies/flowField";
 import { applyDecayStage } from "./applyDecayStage";
 import { stageForWave } from "./decayState";
+import { fireExpiry, lightNewFires } from "./fire";
 
 /**
  * Story 4.5 `DecaySystem` (FR58; architecture › Decay Stage Engine). Runs only at the start of a
@@ -17,7 +18,8 @@ import { stageForWave } from "./decayState";
  * on the server and in solo (the client mirror and Predictor only call `applyDecayStage`). The
  * order is brief line 5's:
  *
- *   1. the mutations (`applyDecayStage`: obstacle lists, nav walls, fires);
+ *   1. the mutations (`applyDecayStage`: obstacle lists, nav walls, fires); Story 4.8: fires whose
+ *      `durationWaves` are over go out here too (`fireExpiry`), and newly lit ones get their end wave;
  *   2. every building that overlaps a solid is destroyed (`building.destroyed`) and its owner gets
  *      `floor(price × decay.buildingRefundShare)` back (`money.earned`, reason `refund`);
  *   3. every player or zombie that overlaps a solid is moved out (`relocateBodies`);
@@ -144,24 +146,31 @@ export function relocateBodies(world: World): void {
 }
 
 /**
- * Steps 1–3 for `stage` (the variants stay the run's). Returns false when the stage is already in
- * force (then nothing happens at all).
+ * Steps 1–3 for `stage` (the variants stay the run's) at the build start before wave
+ * `waves.number + 1`. Story 4.8: also when only fires go out (the stage unchanged). Returns false
+ * when nothing changes (then nothing happens at all).
  */
 export function decayMutate(world: World, stage: number): boolean {
-  if (!applyDecayStage(world, stage, world.decay.variants)) return false;
+  const coming = world.waves.number + 1;
+  const changed = applyDecayStage(world, stage, world.decay.variants, fireExpiry(world, stage, coming));
+  lightNewFires(world, world.decay.stage, coming);
+  if (!changed) return false;
   destroyBlockedBuildings(world);
   relocateBodies(world);
   return true;
 }
 
-/** Step 4: fields rebuilt now (server / solo only: the client's Worlds have no nav grid) and the event. */
+/**
+ * Step 4: fields rebuilt now (server / solo only: the client's Worlds have no nav grid) and, if the
+ * stage changed, the event (Story 4.8: fires going out alone rebuild the fields, no banner).
+ */
 export function decayFinish(world: World, from: number): void {
   const { nav, chase, flank } = world.pathing;
   if (nav.cells > 1) {
     rebuildFlowFieldNow(chase, nav, world);
     rebuildFlowFieldNow(flank, nav, world);
   }
-  world.events.emit({ type: "decay.stage_changed", stage: world.decay.stage, from });
+  if (world.decay.stage !== from) world.events.emit({ type: "decay.stage_changed", stage: world.decay.stage, from });
 }
 
 /** The decay stage of the coming wave (`decay.json`, or the server's `DEV_DECAY_STAGES` table). */

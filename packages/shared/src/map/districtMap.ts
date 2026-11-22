@@ -87,6 +87,9 @@ export type DecayAction = (typeof DECAY_ACTIONS)[number];
 /** Story 4.5: most variation candidates a map may hold (the chosen set travels as a uint32 bitmask). */
 export const MAX_DECAY_VARIANTS = 32;
 
+/** Story 4.8: most `ignite` mutations a map may hold (the burned-out set travels as a uint32 bitmask). */
+export const MAX_DECAY_FIRES = 32;
+
 /**
  * Story 4.5: one object of the `decay` layer (architecture › Decay Stage Engine). Applied when the
  * run reaches `stage` (2–5), by `decay/applyDecayStage.ts`, in map order:
@@ -95,7 +98,8 @@ export const MAX_DECAY_VARIANTS = 32;
  * - `block`: a new wall with this box (stops bodies and shots, nav wall: rubble, a dumpster);
  * - `remove`: the collision box, cover object or earlier add/block named `target` disappears
  *   (a cover object that duplicates a collision box, the bus, takes the box with it);
- * - `ignite`: a fire record of `radiusM` at the centre of `target` (data only until Story 4.8).
+ * - `ignite`: a fire zone at the centre of `target` (Story 4.8: damage, flow cost, expiry after
+ *   `decay.json › fire.durationWaves`; the radius is `fire.radiusM` unless the object overrides it).
  *
  * For `remove` / `ignite` the box is the target's (resolved by the loader). `variant` ≥ 0 makes it
  * part of a variation candidate (`DistrictMap.decayVariants`): it applies only when chosen.
@@ -107,7 +111,7 @@ export interface DecayMutation extends MapBox {
   readonly kind: CoverKind | "";
   /** `remove` / `ignite`: the target's name; "" otherwise. */
   readonly target: string;
-  /** `ignite`: the fire radius in metres; 0 otherwise. */
+  /** `ignite`: the map's radius override in metres (0 = `decay.json › fire.radiusM`); 0 otherwise. */
   readonly radiusM: number;
   /** Index into `DistrictMap.decayVariants`, or -1 (always applied). */
   readonly variant: number;

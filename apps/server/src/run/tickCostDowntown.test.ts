@@ -5,6 +5,7 @@ import {
   PLACEHOLDER_MAP,
   TICK_DT_S,
   applyDecayStage,
+  firePulse,
   createRng,
   createWorld,
   loadBalance,
@@ -31,14 +32,15 @@ const WARMUP_TICKS = 100;
 const MEASURED_TICKS = 600;
 const PERF_ASSERT = process.env.PERF_ASSERT === "1";
 
-function measure(map: DistrictMap, stage = 1) {
+function measure(map: DistrictMap, stage = 1, firesOut = 0) {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
   const c = new RunController({ balance, seed: 99, players, pauseWaves: true, map });
   const world = c.world;
   world.debug.godMode = true;
   if (stage !== 1) {
-    applyDecayStage(world, stage, world.decay.variants); // Story 4.2: every cover object active (worst case)
+    applyDecayStage(world, stage, world.decay.variants, firesOut); // Story 4.2: every cover object active (worst case)
   }
+  const pulses0 = firePulse.pulses;
   if (world.run.phase === "build") startWave(world);
   const points = world.map.spawnPoints;
   let spawnAt = 0;
@@ -68,6 +70,8 @@ function measure(map: DistrictMap, stage = 1) {
     kills: c.kills("p0") + c.kills("p1") + c.kills("p2") + c.kills("p3"),
     fieldTicks,
     seconds: MEASURED_TICKS * TICK_DT_S,
+    fires: world.decay.fires.length,
+    pulses: firePulse.pulses - pulses0,
   };
 }
 
@@ -124,6 +128,24 @@ describe("tick cost of cover (Story 4.2)", () => {
       expect(withCover.p99 - without.p99).toBeLessThanOrEqual(2);
       expect((nsPerSweep * 512) / 1e6).toBeLessThan(0.5); // a full projectile pool's cover tests per tick
     }
+  }, 120_000);
+});
+
+describe("tick cost of car fires (Story 4.8)", () => {
+  it("4 players + 150 Walkers at stage 3: two burning cars (damage pulse, fire line-of-sight) add ≤ 2 ms to the tick p99 over the same stage with the fires out", () => {
+    const runs = [measure(DOWNTOWN_MAP, 3, 0xffffffff), measure(DOWNTOWN_MAP, 3), measure(DOWNTOWN_MAP, 3, 0xffffffff), measure(DOWNTOWN_MAP, 3)];
+    const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
+    const out = pick(runs[0] as ReturnType<typeof measure>, runs[2] as ReturnType<typeof measure>);
+    const burning = pick(runs[1] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
+    console.log(
+      `[tick cost 4.8] stage 3 fires out p99 ${out.p99.toFixed(3)} ms (mean ${out.mean.toFixed(3)}); 2 fires burning p99 ${burning.p99.toFixed(3)} ms (mean ${burning.mean.toFixed(3)}); ` +
+        `added p99 ${(burning.p99 - out.p99).toFixed(3)} ms, mean ${(burning.mean - out.mean).toFixed(3)} ms; ${burning.pulses} pulses; kills ${out.kills} / ${burning.kills}`,
+    );
+    expect(out.fires).toBe(0);
+    expect(burning.fires).toBe(2); // liveness: the fires burned and pulsed
+    expect(burning.pulses).toBe(Math.floor((WARMUP_TICKS + MEASURED_TICKS) / 10));
+    expect(burning.kills).toBeGreaterThan(0);
+    if (PERF_ASSERT) expect(burning.p99 - out.p99).toBeLessThanOrEqual(2);
   }, 120_000);
 });
 

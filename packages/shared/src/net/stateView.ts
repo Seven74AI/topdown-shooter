@@ -106,6 +106,11 @@ export interface RunStateView {
    */
   readonly decayStage: number;
   readonly decayVariants: number;
+  /**
+   * Story 4.8: the burned-out car fires (bit i = the map's i-th `ignite`), written on change only;
+   * the mirror and the Predictor pass it to `applyDecayStage` with the stage.
+   */
+  readonly decayFiresOut: number;
 }
 
 /**
@@ -168,4 +173,5 @@ export const RUN_STATE_FIELDS = {
   runSeed: true,
   decayStage: true,
   decayVariants: true,
+  decayFiresOut: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings">, true>;

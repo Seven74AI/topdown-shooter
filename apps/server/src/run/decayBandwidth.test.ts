@@ -66,4 +66,71 @@ describe("Story 4.5 decay bandwidth", () => {
       `[bandwidth] decay change tick: ${decayEventBytes} B of decay events (stage event ${pack([NET_EVENT_KIND.DECAY_STAGE_CHANGED, 2, 1]).length} B, ${destroyed}/${placed} barricades destroyed + refunds), whole patch ${patch} B (stage field +2 B; rest = phase/wave/wallets/removed buildings), next idle patch ${idle} B; 2 changes per 5-wave run ≈ 0 B/s`,
     );
   });
+
+  it("Story 4.8: fires cost nothing while nobody burns; a player standing in fire costs its damage events + HP field (2 per second); the expiry costs one field once", () => {
+    const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
+    const c = new RunController({ balance, seed: 5, players, pauseWaves: true, decayStageByWave: [3, 3, 3, 3, 3] });
+    const world = c.world;
+    expect(world.decay.fires).toHaveLength(2); // the first build start entered stage 3
+    const state = new RunState({ phase: "build", hostSlot: 0 });
+    for (const p of players) state.players.set(p.playerId, new PlayerState({ slot: p.slot, name: p.playerId, ready: true }));
+    const encoder = new Encoder(state);
+    const ctx: NetEventContext = { balance, zombieNetId: (id) => id };
+    const measure = (ticks: number) => {
+      let patch = 0;
+      let events = 0;
+      let fireEvents = 0;
+      for (let t = 0; t < ticks; t++) {
+        const evs = c.tick();
+        syncState(state, c);
+        patch += encoder.encode().length;
+        encoder.discardChanges();
+        for (const e of evs) {
+          const tuple = encodeNetEvent(e, ctx);
+          if (!tuple) continue;
+          events += pack(tuple).length;
+          if (e.type === "player.damaged" && e.sourceZombieId < 0) fireEvents++;
+        }
+      }
+      return { patch, events, fireEvents };
+    };
+    c.tick();
+    syncState(state, c);
+    encoder.encode();
+    encoder.discardChanges();
+    const idle = measure(20); // 1 s, fires burning, nobody inside
+    const f = world.decay.fires[0];
+    const p0 = world.players.get("p0");
+    if (!f || !p0) throw new Error("setup");
+    // Inside the zone, beside the car (the first of 16 directions clear of every box).
+    const d = f.radiusM + p0.radiusM - 0.2;
+    let spot: [number, number] | null = null;
+    for (let k = 0; k < 16 && !spot; k++) {
+      const x = f.x + Math.cos((k * Math.PI) / 8) * d;
+      const y = f.y + Math.sin((k * Math.PI) / 8) * d;
+      const clear = world.obstacles.solids.every((b) => Math.hypot(Math.max(b.minX - x, 0, x - b.maxX), Math.max(b.minY - y, 0, y - b.maxY)) > p0.radiusM + 0.05);
+      if (clear) spot = [x, y];
+    }
+    if (!spot) throw new Error("no spot beside the car");
+    p0.x = p0.prevX = spot[0];
+    p0.y = p0.prevY = spot[1];
+    measure(1); // the move itself
+    const burning = measure(20); // 1 s standing in fire
+    // Expiry: waves 1 and 2 → the build start before wave 3.
+    for (let w = 0; w < 2; w++) {
+      startWave(world);
+      skipWave(world);
+    }
+    const before = state.decayFiresOut;
+    const expiry = measure(1);
+    expect(before).toBe(0);
+    expect(state.decayFiresOut).not.toBe(0);
+    expect(idle.fireEvents).toBe(0);
+    expect(burning.fireEvents).toBe(2); // liveness: two pulses hit p0
+    const perS = burning.patch + burning.events - (idle.patch + idle.events);
+    expect(perS).toBeLessThan(60);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
+      `[bandwidth] fire: burning with nobody inside ${idle.patch + idle.events} B/s (= idle), one player standing in fire +${perS} B/s (${burning.fireEvents} damage events ${pack([NET_EVENT_KIND.PLAYER_DAMAGED, 0, 50, -1]).length} B each + HP field), expiry tick patch ${expiry.patch} B (decayFiresOut once per fire set)`,
+    );
+  });
 });

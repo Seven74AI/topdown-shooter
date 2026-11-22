@@ -5,6 +5,7 @@ import { updateCombat } from "../combat/firing";
 import { updateRun } from "../run/runStateMachine";
 import { updateEconomy } from "../economy/economy";
 import { updateBuildings } from "../buildings/buildingSystem";
+import { updateFires } from "../decay/fire";
 
 /** Fixed system order per tick (architecture › Communication Patterns). Never reorder. */
 export const SYSTEM_ORDER = [
@@ -62,7 +63,7 @@ export const DEFAULT_SYSTEMS: Systems = {
   waves: updateRun, // Story 3.1: the run state machine (build countdown, then the wave director)
   specialEvents: noop,
   economy: updateEconomy,
-  decayTimers: noop,
+  decayTimers: updateFires, // Story 4.8: the car fires' damage pulse
 };
 
 /**

@@ -130,16 +130,17 @@ describe("Story 4.5 mutation set in the map (loader)", () => {
     expect(d.find((m) => m.name === "v2_barrier")?.variant).toBe(1);
   });
 
-  it("Downtown: stage 2 removes parked_car_3, blocks alley 3, adds one of two cars; stage 3 ignites one of two cars; stages 4–5 empty", () => {
+  it("Downtown: stage 2 removes parked_car_3, blocks alley 3, adds one of two cars; stage 3 ignites two of three cars (Story 4.8); stages 4–5 empty", () => {
     const d = DOWNTOWN_MAP.decay;
     expect(d.filter((m) => m.stage === 2).map((m) => m.action).sort()).toEqual(["add", "add", "block", "remove"]);
-    expect(d.filter((m) => m.stage === 3).map((m) => m.action)).toEqual(["ignite", "ignite"]);
+    expect(d.filter((m) => m.stage === 3).map((m) => m.action)).toEqual(["ignite", "ignite", "ignite"]);
     expect(d.filter((m) => m.stage >= 4)).toEqual([]);
     expect(DOWNTOWN_MAP.decayVariants.map((v) => `${v.group}/${v.name}`)).toEqual([
       "panic_abandoned_car/abandoned_car_west",
       "panic_abandoned_car/abandoned_car_south",
       "breakdown_car_fire/fire_parked_car_2",
       "breakdown_car_fire/fire_street_car_west",
+      "breakdown_car_fire/fire_parked_car_1",
     ]);
   });
 
@@ -151,12 +152,12 @@ describe("Story 4.5 mutation set in the map (loader)", () => {
       expect((e as MapError).message).toMatch(text);
     }
   };
-  it("refuses stage 1, an unknown action, an add without a cover kind, an unknown target, an ignite without radius, off-lattice boxes", () => {
+  it("refuses stage 1, an unknown action, an add without a cover kind, an unknown target, an ignite with a bad radius (Story 4.8: optional), off-lattice boxes", () => {
     refuse([rect(30, "x", 4, 1, 1, 1, [prop("stage", 1), prop("action", "block")])], /x: stage must be an integer 2–5/);
     refuse([rect(30, "x", 4, 1, 1, 1, [prop("stage", 2), prop("action", "explode")])], /x: action must be one of add, remove, ignite, block/);
     refuse([rect(30, "x", 4, 1, 1, 1, [prop("stage", 2), prop("action", "add")])], /x: an add needs a cover kind/);
     refuse([point(30, "x", 4, 1, [prop("stage", 2), prop("action", "remove"), prop("target", "nope")])], /x: target must name/);
-    refuse([point(30, "x", 4, 1, [prop("stage", 2), prop("action", "ignite"), prop("target", "car_b")])], /x: an ignite needs radiusM > 0/);
+    refuse([point(30, "x", 4, 1, [prop("stage", 2), prop("action", "ignite"), prop("target", "car_b"), prop("radiusM", 0)])], /x: an ignite's radiusM, if given, must be > 0/);
     refuse([rect(30, "x", 4.25, 1, 1, 1, [prop("stage", 2), prop("action", "block")])], /edges must lie on the 0.5 m grid/);
   });
 
@@ -191,7 +192,7 @@ describe("Story 4.5 applyDecayStage: each action (the shared, side-effect-free a
   it("ignite makes a fire record at the target's centre (data only: the car stays solid); removing the bus takes its collision box too (4.2 L2)", () => {
     const w = world();
     applyDecayStage(w, 3, V1);
-    expect(w.decay.fires).toEqual([{ name: "car_b_fire", target: "car_b", x: 8, y: 5.5, radiusM: 2, stage: 3 }]);
+    expect(w.decay.fires).toEqual([{ name: "car_b_fire", target: "car_b", x: 8, y: 5.5, radiusM: 2, stage: 3, index: 0 }]);
     expect(names(w.obstacles.solids)).toContain("car_b");
     expect(names(w.obstacles.walls)).toEqual(["wall_a", "rubble"]);
     expect(names(w.obstacles.solids)).not.toContain("city_bus");
@@ -392,7 +393,7 @@ describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
     expect(changeDecayStage(w, 3)).toBe(true);
     step(w, TICK_DT_S);
     expect(w.decay.stage).toBe(3);
-    expect(w.decay.fires).toHaveLength(1);
+    expect(w.decay.fires).toHaveLength(2); // Story 4.8: two cars burn
     expect(seen.filter((t) => t === "building.destroyed" || t === "decay.stage_changed")).toEqual(["building.destroyed", "decay.stage_changed"]);
     expect(changeDecayStage(w, 3)).toBe(false);
     expect(changeDecayStage(w, 1)).toBe(true); // back (dev): stage 1's lists
@@ -442,7 +443,7 @@ describe("Story 4.5 review fixes", () => {
         checked++;
       }
     }
-    expect(checked).toBe(5 * 16);
+    expect(checked).toBe(5 * (1 << DT.decayVariants.length)); // Story 4.8: 5 variants (fires pick 2 of 3)
   });
 });
 
@@ -455,7 +456,7 @@ describe("Story 4.5 DecayTimeline: variations from the decay stream", () => {
       expect(a.decay.variants).toBe(b.decay.variants);
       const m = a.decay.variants;
       expect(((m & 1) ^ ((m >> 1) & 1)) === 1, `seed ${seed} car group`).toBe(true);
-      expect((((m >> 2) & 1) ^ ((m >> 3) & 1)) === 1, `seed ${seed} fire group`).toBe(true);
+      expect(((m >> 2) & 1) + ((m >> 3) & 1) + ((m >> 4) & 1), `seed ${seed} fire group (Story 4.8: 2 of 3)`).toBe(2);
       seen.set(m, (seen.get(m) ?? 0) + 1);
       // The other streams are untouched (a World on a map without variants starts them the same).
       const plain = createWorld({ balance, seed, map: { ...DT, decay: [], decayVariants: [] } });
@@ -464,7 +465,7 @@ describe("Story 4.5 DecayTimeline: variations from the decay stream", () => {
       expect({ ...sa, decay: null }).toEqual({ ...sp, decay: null });
       expect(sa.decay).not.toEqual(sp.decay);
     }
-    expect([...seen.keys()].sort((x, y) => x - y)).toEqual([5, 6, 9, 10]); // every combination appears
+    expect([...seen.keys()].sort((x, y) => x - y)).toEqual([13, 14, 21, 22, 25, 26]); // every combination appears
   });
 
   it("pickDecayVariants draws `pick` per group (partial Fisher–Yates): pick 2 of 3", () => {

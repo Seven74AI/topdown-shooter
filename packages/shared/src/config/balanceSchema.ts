@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TICK_RATE_HZ } from "./constants";
 
 /** Balance ids are lowercase snake case (architecture › Naming Conventions). */
 const balanceId = z.string().regex(/^[a-z][a-z0-9_]*$/, "balance ids are lowercase snake_case");
@@ -342,6 +343,23 @@ export const decaySchema = z
     buildingRefundShare: z.number().min(0).max(1),
     /** Rings (spawnOffsetM apart) searched for a free spot when a stage puts a solid on a body. */
     relocateSearchRings: z.number().int().min(1).max(64),
+    /**
+     * Story 4.8: car fires (FR57, FR61). A zone of `radiusM` round the burning car's centre; every
+     * `pulseS` each body inside takes `damagePerS × pulseS` (whole: building HP is whole); a fire lit
+     * at the build start before wave w goes out at the build start before wave w + `durationWaves`;
+     * each fire cell costs zombies `navCostM` of path (a cost, not a wall).
+     */
+    fire: z
+      .object({
+        radiusM: z.number().positive().max(8),
+        damagePerS: z.number().positive(),
+        pulseS: z.number().positive().max(5),
+        durationWaves: z.number().int().min(1).max(10),
+        navCostM: z.number().positive().max(200),
+      })
+      .strict()
+      .refine((f) => Math.abs(f.damagePerS * f.pulseS - Math.round(f.damagePerS * f.pulseS)) < 1e-9 && Math.round(f.damagePerS * f.pulseS) >= 1, "damagePerS × pulseS must be a whole number ≥ 1 (building HP is whole)")
+      .refine((f) => Math.abs(f.pulseS * TICK_RATE_HZ - Math.round(f.pulseS * TICK_RATE_HZ)) < 1e-9, "pulseS must be a whole number of ticks"),
   })
   .strict();
 

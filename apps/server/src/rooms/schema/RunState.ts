@@ -103,6 +103,8 @@ const runFields = {
   decayStage: t.uint8().default(0),
   /** Story 4.5: the run's chosen variation candidates (bitmask; once per run). */
   decayVariants: t.uint32().default(0),
+  /** Story 4.8: bit i = the map's i-th ignite has burned out (on change only: a build start). */
+  decayFiresOut: t.uint32().default(0),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

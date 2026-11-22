@@ -5,6 +5,7 @@ import {
   DECAY_ACTIONS,
   MAP_STAGE_COUNT,
   MAX_DECAY_VARIANTS,
+  MAX_DECAY_FIRES,
   type DecayAction,
   type DecayMutation,
   type DecayVariant,
@@ -320,6 +321,7 @@ function loadDecayLayer(
     known.set(c.name, c);
   }
   const seen = new Set<string>();
+  let ignites = 0; // Story 4.8
   const groups = new Map<string, { pick: number; stage: number; variants: Set<string> }>();
   const variantIndex = new Map<string, number>();
   for (const o of layer.objects) {
@@ -367,12 +369,17 @@ function loadDecayLayer(
       target = t;
       box = { name: o.name, minX: tb.minX, minY: tb.minY, maxX: tb.maxX, maxY: tb.maxY };
       if (action === "ignite") {
+        // Story 4.8: the radius is `decay.json › fire.radiusM`; a map may override it per object.
         const r = props.get("radiusM");
-        if (typeof r !== "number" || !(r > 0)) {
-          fail(`${label}: an ignite needs radiusM > 0, got ${String(r ?? "(none)")}`);
+        if (r !== undefined && (typeof r !== "number" || !(r > 0))) {
+          fail(`${label}: an ignite's radiusM, if given, must be > 0, got ${String(r)}`);
           continue;
         }
-        radiusM = r;
+        if (++ignites > MAX_DECAY_FIRES) {
+          fail(`${label}: more than ${MAX_DECAY_FIRES} ignites (the burned-out set travels as a uint32 bitmask)`);
+          continue;
+        }
+        radiusM = typeof r === "number" ? r : 0;
       }
     }
     let variant = -1;

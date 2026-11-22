@@ -30,6 +30,7 @@ export function syncState(state: RunState, controller: RunController): void {
   // Story 4.5: the decay stage and the run's variants (on change only: a build start, once per run).
   if (state.decayVariants !== world.decay.variants) state.decayVariants = world.decay.variants;
   if (state.decayStage !== world.decay.stage) state.decayStage = world.decay.stage;
+  if (state.decayFiresOut !== world.decay.firesOut) state.decayFiresOut = world.decay.firesOut; // Story 4.8
   syncBuildings(state, world);
 }
 
@@ -155,6 +156,7 @@ export function resetRunFields(state: RunState): void {
   state.runSeed = 0; // Story 4.4: the next run writes its own
   state.decayStage = 0; // Story 4.5
   state.decayVariants = 0;
+  state.decayFiresOut = 0; // Story 4.8
   state.buildings.clear(); // Story 3.4: the next run starts with none
   buildingSyncs.delete(state);
 }

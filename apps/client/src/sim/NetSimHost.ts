@@ -513,7 +513,7 @@ export class NetSimHost implements SimHost {
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
     mirrorBuildings(state.buildings, this.world); // Story 3.4: drawn, and the placement preview's check
-    mirrorDecay(this.world, state.decayStage, state.decayVariants); // Story 4.5: drawn, the preview's check, cosmetic shots
+    mirrorDecay(this.world, state.decayStage, state.decayVariants, state.decayFiresOut); // Story 4.5: drawn, the preview's check, cosmetic shots
   }
 
   /**
@@ -703,7 +703,7 @@ export class NetSimHost implements SimHost {
     this.snapshots.push(state);
     // Story 3.4: the buildings of this very patch, before the replay (the server moved me with them).
     this.predictor.syncBuildings(state.buildings);
-    this.predictor.syncDecay(state.decayStage, state.decayVariants); // Story 4.5: the same patch's map
+    this.predictor.syncDecay(state.decayStage, state.decayVariants, state.decayFiresOut); // Story 4.5: the same patch's map
     const me = state.players.get(this.localPlayerId);
     if (!me) return;
     this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct);

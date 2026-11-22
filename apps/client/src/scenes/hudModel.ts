@@ -4,6 +4,8 @@ import { MAX_PLAYERS } from "@topdown/shared";
 export interface HudModel {
   hp: number;
   maxHp: number;
+  /** Story 4.8: the server reports my survivor burning (the HP text adds "Burning"). */
+  burning: boolean;
   /** Active weapon's display name. */
   weaponName: string;
   /** Rounds in the magazine; -1 for melee (no magazine). */
@@ -121,6 +123,7 @@ export const TEAMMATE_OUT = 2;
 export const createHudModel = (): HudModel => ({
   hp: 0,
   maxHp: 1,
+  burning: false,
   weaponName: "",
   ammo: 0,
   magazine: 0,

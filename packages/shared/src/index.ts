@@ -61,6 +61,7 @@ export {
   DECAY_ACTIONS,
   MAP_STAGE_COUNT,
   MAX_DECAY_VARIANTS,
+  MAX_DECAY_FIRES,
   SPAWN_KINDS,
   type CoverKind,
   type CoverObject,
@@ -82,6 +83,8 @@ export { createObstacles, fillObstacles, mutationApplies, type ObstacleState } f
 // Story 4.5: the decay stage engine.
 export { createDecayState, fireRecordOf, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
 export { applyDecayStage } from "./decay/applyDecayStage";
+// Story 4.8: car fires.
+export { circleInFire, fireExpiry, firePulse, firePulseDamage, lightNewFires, segmentHitsFire, updateFires } from "./decay/fire";
 export { changeDecayStage, decayFinish, decayMutate, destroyBlockedBuildings, relocateBodies, relocated, stageForComingWave } from "./decay/decaySystem";
 export { segmentBoxEntryT, shotBlockT, shotLineClear } from "./combat/cover";
 export { DOWNTOWN_MAP } from "./map/downtown";
@@ -321,6 +324,7 @@ export {
   createFlowField,
   createNavGrid,
   setNavWalls,
+  setNavFires,
   flowCellAt,
   flowEdgePinch,
   flowFieldMaxAgeTicks,

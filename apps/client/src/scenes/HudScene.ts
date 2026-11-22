@@ -48,6 +48,8 @@ const HP_TEXT_PX = 14;
 const HP_BG = 0x000000;
 const HP_HIGH = 0x4caf50;
 const HP_LOW = 0xe53935;
+/** Story 4.8: the HP line's colour while burning. */
+const BURNING_TEXT = "#ffa060";
 /** Weapon panel (bottom-right), CSS px × dpr. */
 const AMMO_TEXT_PX = 18;
 const OTHER_TEXT_PX = MIN_TEXT_CSS_PX;
@@ -169,6 +171,7 @@ export class HudScene extends Phaser.Scene {
   private hpText!: Phaser.GameObjects.Text;
   private shownHp = -1;
   private shownMaxHp = -1;
+  private shownBurning = false;
   private moveBase!: Phaser.GameObjects.Arc;
   private moveKnob!: Phaser.GameObjects.Arc;
   private aimBase!: Phaser.GameObjects.Arc;
@@ -268,6 +271,7 @@ export class HudScene extends Phaser.Scene {
     this.stickRadiusCss = data.stickRadiusCss;
     this.shownHp = -1;
     this.shownMaxHp = -1;
+    this.shownBurning = false;
     this.shownWeapon = "";
     this.shownWave = -1;
     this.shownBanner = "";
@@ -819,10 +823,11 @@ export class HudScene extends Phaser.Scene {
 
   /** Redraws the health bar only when HP changes (top-left, inside the safe area from Story 1.8 on). */
   private drawHealth(): void {
-    const { hp, maxHp } = this.model;
-    if (hp === this.shownHp && maxHp === this.shownMaxHp) return;
+    const { hp, maxHp, burning } = this.model;
+    if (hp === this.shownHp && maxHp === this.shownMaxHp && burning === this.shownBurning) return;
     this.shownHp = hp;
     this.shownMaxHp = maxHp;
+    this.shownBurning = burning;
     const k = dpr();
     const safe = this.insets;
     const x = (HP_MARGIN + safe.left) * k;
@@ -833,7 +838,11 @@ export class HudScene extends Phaser.Scene {
     this.hpBar.clear();
     this.hpBar.fillStyle(HP_BG, 0.6).fillRect(x - 2 * k, y - 2 * k, w + 4 * k, h + 4 * k);
     this.hpBar.fillStyle(mixColor(HP_LOW, HP_HIGH, frac), 1).fillRect(x, y, w * frac, h);
-    this.hpText.setText(`HP ${Math.ceil(hp)} / ${maxHp}`).setPosition(x, y + h + 4 * k);
+    // Story 4.8: "Burning" while the server's fire damage keeps arriving (HP stays the server's, ceil).
+    this.hpText
+      .setText(burning ? `HP ${Math.ceil(hp)} / ${maxHp}   Burning` : `HP ${Math.ceil(hp)} / ${maxHp}`)
+      .setColor(burning ? BURNING_TEXT : "#ffffff")
+      .setPosition(x, y + h + 4 * k);
   }
 
   /**

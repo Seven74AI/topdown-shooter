@@ -2,5 +2,6 @@
   "stageByWave": [1, 1, 2, 2, 3, 3, 4, 4, 5, 5],
   "stageNames": ["Evening", "Panic", "Breakdown", "Ruins", "Collapse"],
   "buildingRefundShare": 0.5,
-  "relocateSearchRings": 12
+  "relocateSearchRings": 12,
+  "fire": { "radiusM": 2, "damagePerS": 10, "pulseS": 0.5, "durationWaves": 2, "navCostM": 10 }
 }
