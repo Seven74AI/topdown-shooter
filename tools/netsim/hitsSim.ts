@@ -68,6 +68,8 @@ export interface Options {
   kite: boolean;
   /** Client → server inputs sent during [fromMs, toMs) are held and arrive in one burst at toMs + one-way. */
   stall?: { fromMs: number; toMs: number };
+  /** Story 2.10: Walkers kept coming (default 20; 150 = the net150 crowd). */
+  walkers?: number;
 }
 
 export interface Result {
@@ -133,7 +135,8 @@ export function simulate(o: Options): Result {
     const y = Math.min(heightM - SPAWN_MARGIN_M, Math.max(SPAWN_MARGIN_M, sp.y + Math.sin(a) * d));
     spawnZombie(ctrl.world, "walker", x, y);
   };
-  for (let i = 0; i < WALKERS; i++) spawnRingWalker();
+  const walkers = o.walkers ?? WALKERS;
+  for (let i = 0; i < walkers; i++) spawnRingWalker();
 
   const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng);
   const down = new Link<Down>(o.oneWayMs, o.jitterHalfMs, rng);
@@ -215,7 +218,7 @@ export function simulate(o: Options): Result {
         if (e.type === "weapon.fired" && e.playerId === ID) serverShotSeqs.push(ctrl.ackSeq(ID));
         if (e.type === "zombie.killed") killCount++;
       }
-      while (z.aliveCount < WALKERS) spawnRingWalker();
+      while (z.aliveCount < walkers) spawnRingWalker();
       const [s0] = sp.loadout.slots;
       const zombies: Down["zombies"] = [];
       for (let i = 0; i < z.aliveCount; i++) {

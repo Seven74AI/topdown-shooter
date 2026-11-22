@@ -13,6 +13,8 @@ import {
 } from "@topdown/shared";
 import { JOIN_ERROR_TEXT, joinErrorText } from "./joinErrors";
 import { getGuestToken } from "./guestToken";
+import { netMeter } from "./netMeter";
+import { urlOptions } from "../debug/urlOptions";
 
 /** A connected run room; `state` is read through the plain views from shared. */
 export type RunConnection = Room<unknown, RunStateView>;
@@ -33,18 +35,25 @@ const sdk = (): Client => (client ??= new Client(serverUrl()));
 /** The bundled balance version; the server refuses any other one (AC 4). */
 const clientBalanceVersion = (): string => (balanceVersion ??= loadBalance().version);
 
-const options = (intent: JoinOptions["intent"], name: string): JoinOptions => ({
-  intent,
-  name,
-  balanceVersion: clientBalanceVersion(),
-  guestToken: getGuestToken(),
-});
+const options = (intent: JoinOptions["intent"], name: string): JoinOptions => {
+  const o: JoinOptions = { intent, name, balanceVersion: clientBalanceVersion(), guestToken: getGuestToken() };
+  // Story 2.10: `?scenario=net150` on the host's create asks for the fixed test scenario.
+  const scenario = urlOptions().scenario;
+  if (intent === "create" && scenario) o.scenario = scenario;
+  return o;
+};
+
+/** Story 2.10: the overlay's byte counters follow the room just joined. */
+const counted = (room: RunConnection): RunConnection => {
+  netMeter.attach(room as unknown as Parameters<typeof netMeter.attach>[0]);
+  return room;
+};
 
 /** Creates a run (Story 2.1). The error is player text from `joinErrorText`. */
 export async function createGame(name: string): Promise<Result<RunConnection, string>> {
   try {
     const room = await sdk().create<RunStateView>(RUN_ROOM_NAME, options("create", name));
-    return ok(room as RunConnection);
+    return ok(counted(room as RunConnection));
   } catch (e) {
     return err(joinErrorText(e));
   }
@@ -59,7 +68,7 @@ export async function joinGame(code: string, name: string): Promise<Result<RunCo
   if (!isRoomCode(roomId)) return err(JOIN_ERROR_TEXT.notFound);
   try {
     const room = await sdk().joinById<RunStateView>(roomId, options("join", name));
-    return ok(room as RunConnection);
+    return ok(counted(room as RunConnection));
   } catch (e) {
     return err(joinErrorText(e));
   }

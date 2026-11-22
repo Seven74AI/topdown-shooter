@@ -69,4 +69,6 @@ export interface RunStateView {
   readonly aliveCount: number;
   /** Story 2.8: the wave the team reached, set with phase "results" (0 otherwise). */
   readonly resultWave: number;
+  /** Story 2.10: the test scenario this room runs (`TestScenario`), "" for a normal game. */
+  readonly scenario: string;
 }

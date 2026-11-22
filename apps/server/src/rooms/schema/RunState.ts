@@ -66,6 +66,8 @@ export const RunState = schema(
     aliveCount: t.uint16().default(0),
     /** Story 2.8: the wave the team reached, set with phase "results". */
     resultWave: t.uint16().default(0),
+    /** Story 2.10: the test scenario this room runs ("" = a normal game); the overlay tags it. */
+    scenario: t.string().default(""),
   },
   "RunState",
 );

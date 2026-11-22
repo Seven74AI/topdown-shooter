@@ -1,3 +1,5 @@
+import { isTestScenario, type TestScenario } from "@topdown/shared";
+
 /**
  * Every URL switch the client reads, parsed in one place (Story 1.11; Story 1.12 adds `?loadout`
  * and `?tune` here). Pure: takes the query string, so it is unit-tested without a browser.
@@ -21,6 +23,11 @@ export interface UrlOptions {
    * or null when off. `rttMs` is the simulated round trip, `jitterMs` the spread of each one-way delay.
    */
   throttle: { readonly rttMs: number; readonly jitterMs: number } | null;
+  /**
+   * `?scenario=net150` (Story 2.10, release-safe): the host's Create game asks the server for that
+   * fixed test scenario (honoured only with `ALLOW_TEST_SCENARIOS=1`), or null.
+   */
+  scenario: TestScenario | null;
   /**
    * `?wavemix=walker,crawler` (Story 3.9, release-safe, solo only, temporary until Story 3.10's wave
    * composition): the raw list; `parseWaveMix` keeps the types that exist in balance.
@@ -52,8 +59,14 @@ export function parseUrlOptions(search: string): UrlOptions {
     tune: tuneRaw !== null && TRUE_VALUES.has(tuneRaw.trim().toLowerCase()),
     solo: soloRaw !== null && TRUE_VALUES.has(soloRaw.trim().toLowerCase()),
     throttle: parseThrottle(q.get("lag"), q.get("jitter")),
+    scenario: parseScenario(q.get("scenario")),
     waveMix: q.get("wavemix"),
   };
+}
+
+function parseScenario(raw: string | null): TestScenario | null {
+  const v = raw?.trim().toLowerCase();
+  return isTestScenario(v) ? v : null;
 }
 
 function parseMs(raw: string | null, max: number): number | null {

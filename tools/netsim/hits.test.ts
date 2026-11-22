@@ -42,6 +42,15 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
     }
   });
 
+  it("Story 2.10: a 150-Walker crowd at 150 ms RTT (pierce-1 bullets may hit a different crowd member on each side): reported", () => {
+    for (const kite of [false, true]) {
+      const r = simulate({ seconds: 30, oneWayMs: 75, jitterHalfMs: 10, seed: 1, weapon: "pistol", kite, walkers: 150 });
+      report(`${kite ? "kiting" : "standing"} pistol 75±10 ms, 150 Walkers`, r);
+      expect(r.apparentHits).toBeGreaterThan(30);
+      expect(r.confirmed + r.reversed).toBeLessThanOrEqual(r.apparentHits);
+    }
+  });
+
   it("stall → burst → drain (review MED-2): the server fires only on seqs the client's clock shot on", () => {
     for (const weapon of ["smg", "pistol"] as const) {
       const stall = { fromMs: 5000, toMs: 5400 };

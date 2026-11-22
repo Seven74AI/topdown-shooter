@@ -8,6 +8,7 @@ import { LoadoutPicker } from "../debug/LoadoutPicker";
 import { TuningPanel } from "../debug/TuningPanel";
 import { urlOptions } from "../debug/urlOptions";
 import { StressResults } from "../debug/StressResults";
+import { NetResults } from "../debug/NetResults";
 
 export interface AppProps {
   /** Code from a share link `/j/<code>` (Story 2.3), prefilled on the start screen. */
@@ -25,6 +26,7 @@ export function App({ joinCode = null }: AppProps) {
       {urlOptions().tune && <TuningPanel />}
       {import.meta.env.DEV && <LoadoutPicker />}
       <StressResults />
+      <NetResults />
       <ServerNotice />
       <RotateOverlay />
     </>
