@@ -3,6 +3,7 @@ import type { World } from "../core/world";
 import type { Building } from "../buildings/buildings";
 import type { DistrictBounds } from "../map/placeholderMap";
 import type { PlayerState } from "../player/player";
+import { ZOMBIE_TYPES } from "./zombieTypes";
 
 /**
  * Story 3.5: flow-field pathfinding (architecture › Zombie Pathfinding; FR26, FR53).
@@ -29,8 +30,12 @@ import type { PlayerState } from "../player/player";
  * (cost, cell) so equal costs pop in a fixed order: deterministic). Runs only where zombies run
  * (server, solo): the client's prediction never does.
  *
- * Story 3.8 adds a second FlowField on the same NavGrid whose `fillPenalty` marks cells in front of
- * players (flanking); `penalty` is added to the entry cost of each cell.
+ * Story 3.8: a second FlowField on the same NavGrid, `flank`, whose `fillPenalty` marks the cells in
+ * front of every alive player (within ±`flank.coneHalfAngleDeg` of the aim, up to `coneRadiusM`;
+ * the union of all cones); `penalty` is added to the entry cost of each cell. Runners (`flanks`
+ * types) follow it. The two fields share the budget: while a flanker is alive, even ticks advance
+ * the chase field and odd ticks the flank field (each ≤ 4P ticks old); otherwise the chase field
+ * gets every tick (≤ 2P) and the flank field pauses (restarted fresh when flankers come back).
  */
 
 /** "No player reachable" (also: no alive player when the field was seeded). */
@@ -65,8 +70,13 @@ export interface FlowField {
   front: Int32Array;
   /** The field being built. Swapped with `front` when a rebuild completes. */
   back: Int32Array;
-  /** Extra entry cost per cell for this field (Story 3.8's flank field); zeros for the chase field. */
-  readonly penalty: Uint16Array;
+  /**
+   * Extra entry cost per cell for the rebuild in progress (Story 3.8's flank field; zeros for the
+   * chase field). Swapped with `frontPenalty` together with `front`/`back`.
+   */
+  penalty: Uint16Array;
+  /** The penalty `front` was built with (the next-cell choice reads it). */
+  frontPenalty: Uint16Array;
   /** Fills `penalty` when a rebuild starts (null: none). Must not allocate. */
   readonly fillPenalty: ((field: FlowField, world: Readonly<World>) => void) | null;
   /** Indexed binary min-heap of cells, keyed by (back[cell], cell). */
@@ -86,8 +96,12 @@ export interface FlowField {
 
 export interface PathingState {
   readonly nav: NavGrid;
-  /** The field every zombie type follows (Story 3.8 adds `flank`). */
+  /** The field every zombie type follows (except flankers in the open, Story 3.8). */
   readonly chase: FlowField;
+  /** Story 3.8: the chase field plus a penalty on the cells in front of players (Runners). */
+  readonly flank: FlowField;
+  /** Story 3.8: a flanking zombie was alive this tick, so the two fields alternate ticks. */
+  flankActive: boolean;
 }
 
 export function createNavGrid(map: DistrictBounds): NavGrid {
@@ -103,6 +117,7 @@ export function createFlowField(nav: NavGrid, fillPenalty: FlowField["fillPenalt
     front: new Int32Array(n).fill(FLOW_UNREACHED),
     back: new Int32Array(n).fill(FLOW_UNREACHED),
     penalty: new Uint16Array(n),
+    frontPenalty: new Uint16Array(n),
     fillPenalty,
     heap: new Int32Array(n),
     heapPos: new Int32Array(n).fill(NOT_QUEUED),
@@ -116,7 +131,7 @@ export function createFlowField(nav: NavGrid, fillPenalty: FlowField["fillPenalt
 
 export function createPathingState(map: DistrictBounds): PathingState {
   const nav = createNavGrid(map);
-  return { nav, chase: createFlowField(nav) };
+  return { nav, chase: createFlowField(nav), flank: createFlowField(nav, fillFlankPenalty), flankActive: false };
 }
 
 /** The cell index of a point (clamped to the grid). */
@@ -134,9 +149,17 @@ export function flowRefreshTicks(world: Readonly<World>): number {
   return Math.ceil(world.pathing.nav.cells / world.balance.zombies.pathing.rebuildCellsPerTick);
 }
 
-/** The oldest the front field may be (in ticks, measured between steps): 2P. */
+/** The oldest the chase field may be while it has every tick (no flanker alive), in ticks: 2P. */
 export function flowFieldMaxAgeTicks(world: Readonly<World>): number {
   return 2 * flowRefreshTicks(world);
+}
+
+/**
+ * Story 3.8: the oldest either field may be while the two share the ticks (a flanker is alive): 4P.
+ * Flankers never follow a flank field older than this.
+ */
+export function flowSharedMaxAgeTicks(world: Readonly<World>): number {
+  return 4 * flowRefreshTicks(world);
 }
 
 /** Writes the buildings into the grid (only when `buildings.version` changed). */
@@ -316,6 +339,9 @@ export function advanceFlowField(f: FlowField, nav: NavGrid, world: Readonly<Wor
     const t = f.front;
     f.front = f.back;
     f.back = t;
+    const tp = f.frontPenalty;
+    f.frontPenalty = f.penalty;
+    f.penalty = tp;
     f.sourceTick = f.buildSourceTick;
     f.building = false;
     f.rebuilds++;
@@ -329,11 +355,126 @@ export function rebuildFlowFieldNow(f: FlowField, nav: NavGrid, world: Readonly<
   advanceFlowField(f, nav, world, nav.cells + 1);
 }
 
-/** The `buildings` system slot's pathing part: keeps the grid current and advances the chase field. */
+// ---- Story 3.8: the flank field --------------------------------------------------------------
+
+/** `fillFlankPenalty` pass in progress (module-level callback: no closure per rebuild). */
+const cone = { field: null as FlowField | null, nav: null as NavGrid | null, cos2: 0, r2: 0, rCells: 0, units: 0, back: 0 };
+const markCone = (p: PlayerState): void => {
+  if (p.status !== "alive") return; // downed / out players don't aim
+  const f = cone.field as FlowField;
+  const { cols, rows, cellM } = cone.nav as NavGrid;
+  const pen = f.penalty;
+  const pcx = Math.floor(p.x / cellM);
+  const pcy = Math.floor(p.y / cellM);
+  const x0 = Math.max(0, pcx - cone.rCells);
+  const x1 = Math.min(cols - 1, pcx + cone.rCells);
+  const y0 = Math.max(0, pcy - cone.rCells);
+  const y1 = Math.min(rows - 1, pcy + cone.rCells);
+  const fx = p.facingX;
+  const fy = p.facingY;
+  const ax = p.x - fx * cone.back; // the apex, a little behind the player
+  const ay = p.y - fy * cone.back;
+  const units = cone.units;
+  for (let cy = y0; cy <= y1; cy++) {
+    const ccy = (cy + 0.5) * cellM;
+    for (let cx = x0; cx <= x1; cx++) {
+      if (cx === pcx && cy === pcy) continue; // the player's own cell (the field's source)
+      const ccx = (cx + 0.5) * cellM;
+      const px = ccx - p.x;
+      const py = ccy - p.y;
+      if (px * px + py * py > cone.r2) continue; // beyond the radius (measured from the player)
+      if (!inCone(ccx - ax, ccy - ay, fx, fy, cone.cos2)) continue;
+      const c = cy * cols + cx;
+      if ((pen[c] as number) < units) pen[c] = units; // union of the cones: max, not sum
+    }
+  }
+};
+
+/** (dx, dy) from the apex lies within the half-angle whose squared cosine is cos2 of the unit (fx, fy). */
+function inCone(dx: number, dy: number, fx: number, fy: number, cos2: number): boolean {
+  const dot = dx * fx + dy * fy;
+  return dot > 0 && dot * dot >= cos2 * (dx * dx + dy * dy);
+}
+
+/**
+ * Story 3.8: is (x, y) inside player p's front cone (any distance)? The same shape as the penalty
+ * (apex `coneApexBackM` behind p), with p's aim of this tick: the steering rule's fresh check.
+ */
+export function inFlankCone(world: Readonly<World>, p: PlayerState, x: number, y: number): boolean {
+  const fl = world.balance.zombies.flank;
+  const c = Math.cos((fl.coneHalfAngleDeg * Math.PI) / 180);
+  return inCone(x - (p.x - p.facingX * fl.coneApexBackM), y - (p.y - p.facingY * fl.coneApexBackM), p.facingX, p.facingY, c * c);
+}
+
+/**
+ * The flank field's `fillPenalty`: zero the layer, then mark the front cone of every alive player
+ * with that player's aim at this tick (the rebuild's sources are the same tick). Allocation-free.
+ */
+export function fillFlankPenalty(field: FlowField, world: Readonly<World>): void {
+  field.penalty.fill(0);
+  const fl = world.balance.zombies.flank;
+  const nav = world.pathing.nav;
+  const units = Math.min(0xffff, Math.round(fl.penaltyM * FLOW_UNITS_PER_M));
+  if (units <= 0) return;
+  const c = Math.cos((fl.coneHalfAngleDeg * Math.PI) / 180);
+  cone.field = field;
+  cone.nav = nav;
+  cone.cos2 = c * c;
+  cone.r2 = fl.coneRadiusM * fl.coneRadiusM;
+  cone.rCells = Math.ceil(fl.coneRadiusM / nav.cellM);
+  cone.units = units;
+  cone.back = fl.coneApexBackM;
+  world.players.forEach(markCone); // Map insertion order: the same on every run
+  cone.field = null;
+  cone.nav = null;
+}
+
+/** Per Balance: which `ZOMBIE_TYPES` indices flank (bit mask). */
+const flankMaskCache = new WeakMap<object, number>();
+function flankTypeMask(world: Readonly<World>): number {
+  const types = world.balance.zombies.types;
+  let m = flankMaskCache.get(types);
+  if (m === undefined) {
+    m = 0;
+    for (let i = 0; i < ZOMBIE_TYPES.length; i++) if (types[ZOMBIE_TYPES[i] as string]?.flanks) m |= 1 << i;
+    flankMaskCache.set(types, m);
+  }
+  return m;
+}
+
+/** Story 3.8: is a zombie of a flanking type alive? */
+function flankerAlive(world: Readonly<World>): boolean {
+  const mask = flankTypeMask(world);
+  if (mask === 0) return false;
+  const pool = world.zombies;
+  for (let i = 0; i < pool.aliveCount; i++) {
+    if ((mask >> (pool.type[pool.aliveIds[i] as number] as number)) & 1) return true;
+  }
+  return false;
+}
+
+/**
+ * The `buildings` system slot's pathing part: keeps the grid current and advances the fields. With
+ * no flanker alive the chase field gets the whole budget every tick (Story 3.5); with one, even
+ * ticks advance the chase field and odd ticks the flank field (same cost per tick, each field ≤ 4P
+ * ticks old). The flank rebuild restarts with fresh aims when flankers come back.
+ */
 export function updatePathing(world: World): void {
-  const { nav, chase } = world.pathing;
+  const pathing = world.pathing;
+  const { nav, chase, flank } = pathing;
   if (nav.version !== world.buildings.version) rasterizeBuildings(nav, world);
-  advanceFlowField(chase, nav, world, world.balance.zombies.pathing.rebuildCellsPerTick);
+  const budget = world.balance.zombies.pathing.rebuildCellsPerTick;
+  if (!flankerAlive(world)) {
+    pathing.flankActive = false;
+    advanceFlowField(chase, nav, world, budget);
+    return;
+  }
+  if (!pathing.flankActive) {
+    pathing.flankActive = true;
+    flank.building = false; // drop a rebuild seeded before the pause: the next one starts now
+  }
+  if ((world.tick & 1) === 0) advanceFlowField(chase, nav, world, budget);
+  else advanceFlowField(flank, nav, world, budget);
 }
 
 /**
@@ -346,7 +487,7 @@ export function flowNextCell(f: FlowField, nav: NavGrid, cell: number): number {
   const here = front[cell] as number;
   if (here >= FLOW_UNREACHED) return -1;
   const { cols, rows, buildingAt, enterCost } = nav;
-  const pen = f.penalty;
+  const pen = f.frontPenalty;
   const cx = cell % cols;
   const cy = (cell - cx) / cols;
   let best = -1;
@@ -385,19 +526,36 @@ function hashInts(a: Int32Array): number {
 }
 
 /** Plain-data digest of the pathing state for `snapshotWorld` (determinism tests, Story 8.4). */
+function snapshotField(f: FlowField) {
+  return {
+    building: f.building,
+    buildSourceTick: f.buildSourceTick,
+    sourceTick: f.sourceTick,
+    rebuilds: f.rebuilds,
+    heapSize: f.heapSize,
+    frontHash: hashInts(f.front),
+    backHash: hashInts(f.back),
+  };
+}
+
+/** FNV-1a over a Uint16Array (the penalty layer). */
+function hashU16(a: Uint16Array): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < a.length; i++) {
+    h ^= a[i] as number;
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/** Plain-data digest of the pathing state for `snapshotWorld` (determinism tests, Story 8.4). */
 export function snapshotPathing(p: PathingState) {
-  const f = p.chase;
   return {
     navVersion: p.nav.version,
     navHash: hashInts(p.nav.buildingAt) ^ hashInts(p.nav.enterCost),
-    chase: {
-      building: f.building,
-      buildSourceTick: f.buildSourceTick,
-      sourceTick: f.sourceTick,
-      rebuilds: f.rebuilds,
-      heapSize: f.heapSize,
-      frontHash: hashInts(f.front),
-      backHash: hashInts(f.back),
-    },
+    chase: snapshotField(p.chase),
+    // Story 3.8
+    flankActive: p.flankActive,
+    flank: { ...snapshotField(p.flank), penaltyHash: hashU16(p.flank.penalty), frontPenaltyHash: hashU16(p.flank.frontPenalty) },
   };
 }

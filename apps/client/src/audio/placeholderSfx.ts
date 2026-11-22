@@ -3,7 +3,14 @@
  * (`weapon_pistol_fire` …) so Story 9.10 swaps in real recordings. iOS keeps audio locked until a
  * user gesture: call `unlockAudio()` from the first touch.
  */
-export type SfxName = "weapon_pistol_fire" | "weapon_machete_swing" | "weapon_reload_start" | "weapon_reloaded" | "zombie_hit" | "building_repaired";
+export type SfxName =
+  | "weapon_pistol_fire"
+  | "weapon_machete_swing"
+  | "weapon_reload_start"
+  | "weapon_reloaded"
+  | "zombie_hit"
+  | "building_repaired"
+  | "zombie_runner_shriek";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -82,7 +89,66 @@ function click(c: AudioContext, at: number, hz: number, gain: number): void {
   o.stop(at + 0.05);
 }
 
-export function playSfx(name: SfxName): void {
+/** Story 3.8: the output for one sound, panned -1 (left) … +1 (right) when the browser can. */
+function outputFor(c: AudioContext, pan: number): AudioNode | null {
+  if (!master) return null;
+  if (pan === 0 || typeof c.createStereoPanner !== "function") return master;
+  const p = c.createStereoPanner();
+  p.pan.value = Math.max(-1, Math.min(1, pan));
+  p.connect(master);
+  return p;
+}
+
+/**
+ * Story 3.8: the Runner's shriek (FR84): two detuned saw voices screeching up and falling away,
+ * with a vibrato and a band of hiss on top. ~0.4 s.
+ */
+function shriek(c: AudioContext, at: number, pan: number): void {
+  const out = outputFor(c, pan);
+  if (!out || !noise) return;
+  const dur = 0.42;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.001, at);
+  g.gain.exponentialRampToValueAtTime(0.32, at + 0.04);
+  g.gain.exponentialRampToValueAtTime(0.12, at + 0.25);
+  g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 2.5;
+  bp.frequency.setValueAtTime(1800, at);
+  bp.frequency.exponentialRampToValueAtTime(2600, at + 0.08);
+  bp.frequency.exponentialRampToValueAtTime(1100, at + dur);
+  bp.connect(g).connect(out);
+  const vib = c.createOscillator();
+  vib.frequency.value = 23;
+  const vibGain = c.createGain();
+  vibGain.gain.value = 60;
+  vib.connect(vibGain);
+  for (const detune of [0, 37]) {
+    const o = c.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(900 + detune, at);
+    o.frequency.exponentialRampToValueAtTime(1500 + detune, at + 0.07);
+    o.frequency.exponentialRampToValueAtTime(620 + detune, at + dur);
+    vibGain.connect(o.frequency);
+    o.connect(bp);
+    o.start(at);
+    o.stop(at + dur);
+  }
+  vib.start(at);
+  vib.stop(at + dur);
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  src.loop = true;
+  const hiss = c.createGain();
+  hiss.gain.value = 0.35;
+  src.connect(hiss).connect(bp);
+  src.start(at);
+  src.stop(at + dur);
+}
+
+/** `pan` (-1 left … +1 right) is used by positional cues (the Runner's shriek); the others ignore it. */
+export function playSfx(name: SfxName, pan = 0): void {
   const c = context();
   if (!c || c.state !== "running") return;
   const t = c.currentTime;
@@ -104,6 +170,9 @@ export function playSfx(name: SfxName): void {
     case "building_repaired": // Story 3.7: two hammer knocks
       burst(c, t, 0.05, 0.6, 1200);
       burst(c, t + 0.11, 0.05, 0.6, 1500);
+      break;
+    case "zombie_runner_shriek":
+      shriek(c, t, pan);
       break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;

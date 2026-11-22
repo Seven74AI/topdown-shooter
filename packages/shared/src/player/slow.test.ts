@@ -177,7 +177,7 @@ describe("dev wave mix (Story 3.9, until 3.10)", () => {
       setBuildReady(world, "p0", true);
       run(world, 400);
       const z = world.zombies;
-      const types = { walker: 0, crawler: 0 };
+      const types = { walker: 0, crawler: 0, runner: 0 };
       for (let i = 0; i < z.aliveCount; i++) types[zombieTypeOf(z, z.aliveIds[i] as number)]++;
       return types;
     };

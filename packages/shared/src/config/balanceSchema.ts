@@ -54,6 +54,8 @@ export const zombieTypeSchema = z
     biteSlowPct: z.number().int().min(0).max(90).default(0),
     /** At most 10 s: the remaining ticks go on the wire as a uint8. */
     biteSlowS: z.number().min(0).max(10).default(0),
+    /** Story 3.8: follows the flank field (Runners) instead of the chase field. */
+    flanks: z.boolean().default(false),
   })
   .strict();
 
@@ -87,8 +89,30 @@ export const pathingSchema = z
   })
   .strict();
 
+/**
+ * Story 3.8: the flank field (`zombies/flowField.ts`). Entering a cell within `coneRadiusM` of an
+ * alive player and within ±`coneHalfAngleDeg` of their aim costs `penaltyM` extra, so flanking
+ * zombies (types with `flanks`) come from the side or behind.
+ */
+export const flankSchema = z
+  .object({
+    coneHalfAngleDeg: z.number().min(0).max(90),
+    coneRadiusM: z.number().positive().max(48),
+    /**
+     * The cone's apex sits this far behind the player's centre (along the aim), so the cone is
+     * already body-wide where it starts: from the exact centre, flankers would walk in along its
+     * 45° edge and still hit from the front diagonal.
+     */
+    coneApexBackM: z.number().min(0).max(2),
+    /** Extra cost (metres of street) per penalized cell; at most 16,000 m (the penalty layer is a Uint16Array of cost units). */
+    penaltyM: z.number().min(0).max(16000),
+    /** Within this distance of its target a flanker goes straight in (it must eventually bite). */
+    directWithinM: z.number().min(0),
+  })
+  .strict();
+
 export const zombiesSchema = z
-  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema, pathing: pathingSchema })
+  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema, pathing: pathingSchema, flank: flankSchema })
   .strict();
 
 export const wavesSchema = z

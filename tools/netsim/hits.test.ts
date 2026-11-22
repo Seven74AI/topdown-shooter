@@ -51,6 +51,15 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
     }
   });
 
+  it("Story 3.8: 20 Runners (4 m/s, flanking) at 150 ms RTT, standing and kiting: reported (architecture: rewind if > 1 in 20 reversed)", () => {
+    for (const kite of [false, true]) {
+      const r = simulate({ seconds: 30, oneWayMs: 75, jitterHalfMs: 10, seed: 1, weapon: "pistol", kite, zombieType: "runner" });
+      report(`${kite ? "kiting" : "standing"} pistol 75±10 ms, 20 Runners`, r);
+      expect(r.apparentHits).toBeGreaterThan(30);
+      expect(r.confirmed + r.reversed).toBeLessThanOrEqual(r.apparentHits);
+    }
+  });
+
   it("stall → burst → drain (review MED-2): the server fires only on seqs the client's clock shot on", () => {
     for (const weapon of ["smg", "pistol"] as const) {
       const stall = { fromMs: 5000, toMs: 5400 };

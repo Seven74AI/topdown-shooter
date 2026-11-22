@@ -1,5 +1,7 @@
 import * as Phaser from "phaser";
 import { ZOMBIE_TYPES, headingToRad, type Balance, type World, type ZombieTypeId } from "@topdown/shared";
+import { playSfx, type SfxName } from "../audio/placeholderSfx";
+import { ShriekCues } from "./shriekCue";
 
 const TEX_PX = 64; // texture size; images are scaled to meters
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -18,6 +20,8 @@ interface ZombieLook {
   readonly widthR: number;
   /** Render depth: lower types are drawn beneath the others (Story 3.9). */
   readonly depth: number;
+  /** Story 3.8: signature sound played when one first enters my view (null: none). */
+  readonly cue: SfxName | null;
   draw(g: Phaser.GameObjects.Graphics, w: number, h: number): void;
 }
 
@@ -33,6 +37,7 @@ const LOOKS = {
     lengthR: 2.5,
     widthR: 2.5,
     depth: 5,
+    cue: null,
     draw(g, w, h) {
       g.fillStyle(0x3d4a3a, 1).fillEllipse(w / 2, h / 2, w * 0.45, h * 0.9); // shoulders
       g.fillStyle(0x56604f, 1).fillCircle(w / 2 + 4, h / 2, w * 0.2); // head
@@ -50,11 +55,32 @@ const LOOKS = {
     lengthR: 2.8,
     widthR: 1.4,
     depth: 4.5,
+    cue: null,
     draw(g, w, h) {
       g.fillStyle(0x23291f, 1).fillRect(w * 0.02, h * 0.36, w * 0.3, h * 0.1).fillRect(w * 0.04, h * 0.56, w * 0.28, h * 0.1); // legs dragging
       g.fillStyle(0x2e3729, 1).fillEllipse(w * 0.5, h / 2, w * 0.62, h * 0.62); // low body
       g.fillStyle(0x3b4434, 1).fillCircle(w * 0.83, h / 2, h * 0.2); // head
       g.fillStyle(0x1f251b, 1).fillEllipse(w * 0.84, h * 0.12, w * 0.24, h * 0.14).fillEllipse(w * 0.84, h * 0.88, w * 0.24, h * 0.14); // arms clawing forward
+    },
+  },
+  /**
+   * Story 3.8: thin and leaning (GDD readability rule), sprinting: narrow shoulders, the head pushed
+   * out past them, arms swept back, one leg stretched behind. Pale skin and a dark-red shirt so it
+   * pops among the green-grey Walkers; drawn above them (readable in a crowd). Shrieks on sight.
+   */
+  runner: {
+    texW: TEX_PX,
+    texH: Math.round(TEX_PX * 0.57),
+    lengthR: 2.8,
+    widthR: 1.6,
+    depth: 5.5,
+    cue: "zombie_runner_shriek",
+    draw(g, w, h) {
+      g.fillStyle(0x2b2320, 1).fillEllipse(w * 0.16, h * 0.62, w * 0.3, h * 0.16); // back leg stretched behind
+      g.fillStyle(0x8c8270, 1).fillEllipse(w * 0.3, h * 0.15, w * 0.3, h * 0.13).fillEllipse(w * 0.3, h * 0.85, w * 0.3, h * 0.13); // arms swept back
+      g.fillStyle(0x6e2a24, 1).fillEllipse(w * 0.47, h / 2, w * 0.34, h * 0.68); // narrow torso, leaning forward
+      g.fillStyle(0xb3a68c, 1).fillEllipse(w * 0.79, h / 2, w * 0.26, h * 0.42); // head far out front
+      g.fillStyle(0x1a1412, 1).fillCircle(w * 0.88, h / 2, h * 0.06); // open mouth
     },
   },
 } as const satisfies Record<ZombieTypeId, ZombieLook>;
@@ -90,6 +116,8 @@ export class ZombieView {
   private frame = 0;
   /** Time (scene ms) until which each slot shows the white hit flash. */
   private readonly flashUntil: Float64Array;
+  /** Story 3.8: signature sounds when a Runner first enters my view. */
+  private readonly cues: ShriekCues;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -103,6 +131,7 @@ export class ZombieView {
     this.shownGeneration = new Int16Array(capacity).fill(-1);
     this.lastAngle = new Float32Array(capacity);
     this.flashUntil = new Float64Array(capacity);
+    this.cues = new ShriekCues(capacity);
   }
 
   /** White hit flash for a zombie (FR19). */
@@ -140,7 +169,14 @@ export class ZombieView {
       const my = cy - py;
       if (this.streamedHeading) this.lastAngle[id] = headingToRad(z.heading[id] as number);
       else if (mx * mx + my * my > MIN_TURN_MOVE_M * MIN_TURN_MOVE_M) this.lastAngle[id] = Math.atan2(my, mx);
-      img.setPosition(lerp(px, cx, alpha), lerp(py, cy, alpha)).setRotation(this.lastAngle[id] as number);
+      const drawX = lerp(px, cx, alpha);
+      const drawY = lerp(py, cy, alpha);
+      img.setPosition(drawX, drawY).setRotation(this.lastAngle[id] as number);
+      const cue = lookOf(type).cue;
+      if (cue) {
+        const pan = this.cues.check(id, gen, drawX, drawY, this.scene.cameras.main.worldView, this.scene.time.now / 1000);
+        if (!Number.isNaN(pan)) playSfx(cue, pan);
+      }
       const until = this.flashUntil[id] as number;
       if (until > 0 && this.scene.time.now >= until) {
         this.flashUntil[id] = 0;
