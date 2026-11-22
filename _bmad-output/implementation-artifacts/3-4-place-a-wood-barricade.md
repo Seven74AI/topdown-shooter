@@ -1,6 +1,6 @@
 # Story 3.4: Place a wood barricade
 
-Status: review
+Status: done
 
 ## Story
 
@@ -11,7 +11,7 @@ so that I can close paths and shape the fight.
 > **Epic 2 retro (2026-11-22): the "EPIC 3 BRIEF" is this story's checklist.** Line 4 is central: buildings block movement in the **shared** collision (`movePlayers`), so the client's `Predictor` World holds the same buildings, and the netsim harness proves walking into a barricade at 150 ms RTT gives 0 snaps.
 
 > **Decisions made while writing this story (2026-11-22, no designer questions asked; change any of them freely):**
-> 1. **Building model (shared, `packages/shared/src/buildings/`).** A building is a plain object `{ id, type, ownerId, gx, gy, rot, hp, maxHp, minX, minY, maxX, maxY }` in `world.buildings.list`, kept sorted by `id` (ids count up per World, never reused). Its centre is the **integer grid point (gx, gy)** (1 m grid, `BUILD_GRID_M`), and `rot` (0–3, 90° steps) swaps width and depth, so every footprint is an axis-aligned box and rotation turns it in place. A 2 × 0.5 m barricade at rot 0 covers x ∈ [gx − 1, gx + 1], y ∈ [gy − 0.25, gy + 0.25]; Story 3.6's 1 × 1 m turret covers [gx ± 0.5] × [gy ± 0.5]. `world.buildings.version` counts every add/remove (Story 3.5 rebuilds its flow field when it changes).
+> 1. **Building model (shared, `packages/shared/src/buildings/`).** *(Geometry superseded by review decision H2 below: min corner on a 0.5 m lattice.)* A building is a plain object `{ id, type, ownerId, gx, gy, rot, hp, maxHp, minX, minY, maxX, maxY }` in `world.buildings.list`, kept sorted by `id` (ids count up per World, never reused). Its centre is the **integer grid point (gx, gy)** (1 m grid, `BUILD_GRID_M`), and `rot` (0–3, 90° steps) swaps width and depth, so every footprint is an axis-aligned box and rotation turns it in place. A 2 × 0.5 m barricade at rot 0 covers x ∈ [gx − 1, gx + 1], y ∈ [gy − 0.25, gy + 0.25]; Story 3.6's 1 × 1 m turret covers [gx ± 0.5] × [gy ± 0.5]. `world.buildings.version` counts every add/remove (Story 3.5 rebuilds its flow field when it changes).
 > 2. **Collision = circle vs box push-out**, the same function for players (in `movePlayers`, so server and prediction agree) and zombies (last step of the zombie system, after the player push-out and before the map clamp). Only `+ − × ÷ sqrt min max` (the 2.6 determinism rule). Projectiles and melee ignore buildings (FR53: bullets pass over).
 > 3. **Placement is applied between ticks** (like `setBuildReady`): the server's message handler calls the shared `placeBuilding`, which validates, charges (`spendMoney`), adds the building and emits `building.placed` (delivered with the next tick's events). Solo calls the same function from `LocalSimHost`.
 > 4. **Validation order (server and client):** unknown player → not build phase → unknown type → cap (6 per owner, `buildings.maxPerPlayer`) → money → spot (map edge, another building, a non-out player, an alive zombie). Touching edges are allowed (barricades can form a wall); overlap is strict.
@@ -21,6 +21,8 @@ so that I can close paths and shape the fight.
 > 8. **Schema:** `RunState.buildings: MapSchema<BuildingState>` keyed by the building id as a string, fields `type, owner, gx, gy, rot, hp` (uint8/uint16). A placement costs ~40 bytes once; HP is assigned only when it changes (3.5 damages it); an idle building costs 0 B/s. Buildings go to every client (no interest filter: at most 24, static).
 > 9. **Refusals:** C2S `building.place { type, gx, gy, rot }` → S2C `building.refused { reason }` to the sender only. `reason` is a `PlaceError` code; the client maps it to text.
 > 10. No keyboard shortcuts (R / Enter) yet: the buttons are clickable with the mouse; add keys to `keyMap.ts` later.
+
+> **Review decision H2 (main session, 2026-11-22): placement lattice 0.5 m, footprint anchored by its min corner.** `BUILD_GRID_M = 0.5`; `gx`/`gy` (message, schema, event, `Building`) are lattice indices of the **min corner** (x = gx × 0.5 m, integers on the wire, 0–96 × 0–64 on Downtown). Rot 0/2 cover [x, x + W] × [y, y + D], rot 1/3 [x, x + D] × [y, y + W] (barricade W = 2, D = 0.5; Story 3.6's turret 1 × 1). Every building edge lies on the lattice, so perpendicular barricades join into L and T corners, a rot-1 barricade touches the side edges, rings close, and 3.5's 0.5 m flow-field cells are covered whole. The preview is **centred on the finger and its corner rounded to the nearest lattice point** (`cornerForCentre`); ⟳ turns it around that same finger point. Footprints must be multiples of 0.5 m (schema `multipleOf`).
 
 ## Acceptance Criteria
 
@@ -50,7 +52,7 @@ so that I can close paths and shape the fight.
 - [x] **Task 4: Server** (AC 2, 3, 6, 7)
   - [x] Schema `BuildingState` + `buildings: t.map(BuildingState)`; compile-time key checks.
   - [x] `syncState`: buildings added/removed when `version` changes, HP only on change (no per-tick allocation); `resetRunFields` clears them.
-  - [x] `RunController.placeBuilding`; `RunRoom.onPlaceBuilding` (guard; refusal → `building.refused` to the sender; `building_refused` log at info).
+  - [x] `RunController.placeBuilding`; `RunRoom.onPlaceBuilding` (guard; refusal → `building.refused` to the sender; `building_placed` logged at info, `building_refused` at **debug** so a flood can't flood the log; review L1).
 - [x] **Task 5: Client sim hosts** (AC 1, 3, 4, 7)
   - [x] `SimHost.placeBuilding(type, gx, gy, rot)` and `takePlaceRefusal()`. `LocalSimHost` runs the shared function; `NetSimHost` sends `building.place` and takes refusals from `RunInbox.onBuildRefused`.
   - [x] `net/mirrorBuildings.ts`: schema map → a World's buildings (add/remove by id, HP). `NetSimHost` mirrors into its World each frame and into the `Predictor`'s World before every reconcile.
@@ -76,7 +78,7 @@ so that I can close paths and shape the fight.
 
 ### Fit with Stories 3.5–3.7
 
-- 3.5 (flow field 0.5 m, building attacks, `building.destroyed`): rebuild when `world.buildings.version` changes; destroy with `removeBuilding(world, id)`; damage writes `hp` (schema syncs it on change). Its system goes in the `buildings` slot of `SYSTEM_ORDER` (still a no-op here). A barricade at rot 0 covers half cells at y = gy ± 0.25: rasterize the box conservatively (any overlapped 0.5 m cell is blocked) or by cell centre; the zombie push-out keeps them out either way.
+- 3.5 (flow field 0.5 m, building attacks, `building.destroyed`): rebuild when `world.buildings.version` changes; destroy with `removeBuilding(world, id)`; damage writes `hp` (schema syncs it on change). Its system goes in the `buildings` slot of `SYSTEM_ORDER` (still a no-op here). Since review H2 every box edge is on the 0.5 m lattice: a building covers cells `gx … gx + W/0.5 − 1` × `gy … gy + D/0.5 − 1` exactly (no half cells). The zombie push-out (`pushOutOfBuildings`, last in `updateZombies`) stays the hard rule under the field.
 - 3.6 (turret 1 × 1 m, 300 HP, 250): add a type to `buildings.json` (extra fields with defaults); same placement, cap and collision. Kills pay `economy.buildingKillShare` to `ownerId`.
 - 3.7 (repair 50 %): `hp`/`maxHp` live on the building; a new guarded message like this one.
 
@@ -166,7 +168,24 @@ Claude Opus 5.5 (claude-opus-5-5), BMAD gds-create-story + build, 2026-11-22.
 - Changed (client): `sim/{SimHost,LocalSimHost,NetSimHost}.ts`, `net/{prediction,session,devThrottle,fakeRoom}.ts`, `net/lobbyStore.test.ts`, `scenes/{GameScene,HudScene,hudModel}.ts`, `ui/{uiState,sizes}.ts`.
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file.
 
+## Senior Developer Review (AI)
+
+Reviewer: fresh review agent, at 0afe16d (2026-11-22). Fixes by the story builder on branch `story-3-4b` (from `claude/epic-2-continue` 9824807).
+
+| # | Sev | Finding | Fix |
+|---|-----|---------|-----|
+| H1 | High | `pushOutOfBuildings` made one pass in id order: between two parallel boxes the second push put the circle back into the first, so a 0.8 m player walked through a 0.5 m slot (overlap 0.30 m every tick); same against the map edge (the clamp beat the push); zombies too. | Iterates buildings **and** the map clamp until a pass moves nothing (≤ 4 passes, allocation-free). If it doesn't settle, `PUSH_STUCK`: the circle stays at its pre-move position (players: last tick's position; zombies: `prevX/prevY`). Used by `movePlayers` and `updateZombies`. Tests: slot (players with wiggle, zombies), slot against the map edge, unit STUCK case; proven to fail with 1 pass / no fallback. |
+| H2 | High (design) | Centres on integer points + 2 × 0.5 m boxes: perpendicular barricades never join (0.75 m L gap), rot 1 can't touch side edges, parallel boxes leave 0.5 m gaps: paths can't be closed. | **Decision by the main session** (recorded at the top): 0.5 m lattice, min-corner anchor, edges on the lattice. `footprint`, `cornerForCentre`, `footprintW/H`, schema `multipleOf(0.5)`, client preview centred on the finger, lattice drawn around the preview. Tests: L corner and T joint close (zombie never reaches the pocket), ring is a closed region (player inside, every direction), rot 1 touches both side edges, edges in both orientations; netsim L-corner walk. |
+| M1 | Med | Pass 4: pushing a zombie out of a player could move its centre > 0.25 m + rz into a box, and the building push then took the far face (players shoved zombies through barricades). | A centre inside a box now leaves across the face on the side of `from` (the zombie's position at the start of the tick, outside every box), and the building push stays the last word of the tick. Regression test (player walks a zombie into a barricade; it never crosses); proven to fail with the old nearest-face rule. |
+| L1 | Low | Spec said `building_refused` at info, code logs debug. | Spec now says debug (a refusal flood must not flood the log); placements stay at info. |
+| L3 | Low | Placement mode ended only on a phase change. | `Placement.wave` remembers `world.waves.number` at start; a different number (a new wave or build, even across a hidden tab) ends it, like 3.1's Ready request. |
+| L4 | Low | Teammate placement inside my prediction lead undocumented. | Documented: if a teammate places a barricade where my unacknowledged inputs already walked, the next reconcile replays them against it and I get **one smoothed correction** (< 1 m, no snap); placement is refused where a player stands, so it can only happen within the ~RTT lead. |
+| L5 | Low | Spawn points could be boxed in. | Balance key `buildings.spawnClearM: 2`: no footprint within 2 m of a wave spawn point (`footprintBlocked`, "Can't build here"). Test. |
+
+**Re-verification (story-3-4b):** typecheck, lint, test (128 files, 946 passed, 3 skipped), build pass. Netsim barricade: wall 150 ms RTT seeds 31–33 **0 snaps / 0 corrections**; L corner and slot at 150 ms (2 seeds each) **0 snaps / 0 corrections**; 300 ms 0 snaps; placed ahead 0 snaps; control 101 corrections. Browser (`/tmp/s34b/`): solo and one online page with `?lag=150&jitter=20` (host started alone, `?wallet=1000` + `DEV_STARTING_WALLET=1000`): through the Shop, an L corner (walking W+D ends exactly in the pocket corner, x = corner − 0.4, y = corner + 0.4) and a closed ring of 4 around the survivor (64 samples walking in 8 directions: 0 outside the inner 1.5 × 1.5 m area); online 0 snaps and 2 small smoothed corrections over the whole run (placing 6 buildings and walking); the online run reached wave 1 with zombies around the ring and none inside.
+
 ## Change Log
 
 - 2026-11-22: Story written (gds-create-story), status ready-for-dev.
 - 2026-11-22: Built: shared buildings + collision, server-validated placement, schema/mirror/predictor/throttle copies, placement mode UI; tests incl. netsim; merged `claude/epic-2-continue` twice (3.1 Ready request model; Story 3.3 shop, temporary Build button removed); status review.
+- 2026-11-22: Review fixes on `story-3-4b` (H1 iterative push-out + STUCK fallback, H2 0.5 m min-corner lattice, M1 inside-box exit side, L1, L3, L4, L5); status done.

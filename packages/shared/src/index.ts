@@ -202,8 +202,11 @@ export {
   buildingStats,
   buildingTypeIds,
   createBuildingState,
+  cornerForCentre,
   footprint,
   footprintBlocked,
+  footprintH,
+  footprintW,
   ownedCount,
   placeBuilding,
   placementError,
@@ -216,7 +219,16 @@ export {
   type PlaceError,
   type PlaceRequest,
 } from "./buildings/buildings";
-export { circleHitsBuilding, circleOverlapsBox, pushOutOfBuildings, pushed } from "./buildings/collision";
+export {
+  PUSH_MOVED,
+  PUSH_NONE,
+  PUSH_STUCK,
+  circleHitsBuilding,
+  circleOverlapsBox,
+  pushOutOfBuildings,
+  pushed,
+  type PushResult,
+} from "./buildings/collision";
 export { findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,

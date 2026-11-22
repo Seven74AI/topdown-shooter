@@ -152,12 +152,26 @@ const norm = (x: number, y: number) => {
 /** Up into the wall, slide right round its end, back left across its top, press down on it, stop. */
 const zigzag = (t: number) =>
   t < 2000 ? { x: 0, y: -1 } : t < 4000 ? norm(0.6, -1) : t < 6000 ? norm(-1, 0.4) : t < 8000 ? { x: 0, y: 1 } : { x: 0, y: 0 };
-/** Spawn (22.5, 14.5): a wall of three touching barricades, x ∈ [19, 25], y ∈ [10.75, 11.25]. */
+/** Spawn (22.5, 14.5): a wall of three touching barricades, x ∈ [19, 25], y ∈ [10.5, 11] (corners in 0.5 m lattice units). */
 const WALL: Place[] = [
-  { atMs: 0, gx: 20, gy: 11, rot: 0 },
-  { atMs: 0, gx: 22, gy: 11, rot: 0 },
-  { atMs: 0, gx: 24, gy: 11, rot: 0 },
+  { atMs: 0, gx: 38, gy: 21, rot: 0 },
+  { atMs: 0, gx: 42, gy: 21, rot: 0 },
+  { atMs: 0, gx: 46, gy: 21, rot: 0 },
 ];
+/** Review H2: an L corner right above-right of the spawn ([21, 23] × [12.5, 13] + [23, 23.5] × [12.5, 14.5]). */
+const CORNER: Place[] = [
+  { atMs: 0, gx: 42, gy: 25, rot: 0 },
+  { atMs: 0, gx: 46, gy: 25, rot: 1 },
+];
+/** Into the corner, along the top wall, back into the corner, down the side wall and out past its end. */
+const cornerPath = (t: number) =>
+  t < 1500 ? norm(1, -1) : t < 2500 ? norm(-1, -0.3) : t < 4000 ? norm(1, -0.6) : t < 6000 ? norm(1, 0.5) : { x: 0, y: 0 };
+/** Review H1: a 0.5 m slot ([22.5, 23] between two rot-1 barricades, y ∈ [10, 12]) right above the spawn. */
+const SLOT: Place[] = [
+  { atMs: 0, gx: 44, gy: 20, rot: 1 },
+  { atMs: 0, gx: 46, gy: 20, rot: 1 },
+];
+const slotPath = (t: number) => (t < 4000 ? norm(Math.sin(t / 150) * 0.3, -1) : { x: 0, y: 0 });
 
 const report = (name: string, r: ReturnType<typeof simulate>): void => {
   console.info(
@@ -181,6 +195,24 @@ describe("netsim: walking into barricades (Story 3.4, brief line 4)", () => {
     }
   });
 
+  it("H2/H1: pressing into an L corner and into a slot narrower than the body: 0 snaps, no visible error", () => {
+    for (const [name, places, path] of [
+      ["L corner", CORNER, cornerPath],
+      ["slot", SLOT, slotPath],
+    ] as const) {
+      for (const seed of [36, 37]) {
+        const r = simulate({ seed, oneWayMs: 75, jitterHalfMs: 10, places, path, seconds: 8 });
+        report(`${name} 75±10 ms seed ${seed}`, r);
+        expect(r.placed).toBe(places.length);
+        expect(r.minWallGapM).toBeGreaterThan(-1e-6);
+        expect(r.minWallGapM).toBeLessThan(0.05);
+        expect(r.snaps).toBe(0);
+        expect(r.visibleErrors).toBe(0);
+        expect(r.finalErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+      }
+    }
+  });
+
   it("300 ms RTT, 40 ms jitter: still 0 snaps", () => {
     const r = simulate({ seed: 34, oneWayMs: 150, jitterHalfMs: 20, places: WALL, path: zigzag, seconds: 10 });
     report("wall 150±20 ms", r);
@@ -189,7 +221,7 @@ describe("netsim: walking into barricades (Story 3.4, brief line 4)", () => {
   });
 
   it("a barricade placed ahead of a walking survivor: the client learns it before reaching it, 0 snaps", () => {
-    const r = simulate({ seed: 35, oneWayMs: 75, jitterHalfMs: 10, places: [{ atMs: 1000, gx: 22, gy: 7, rot: 0 }], path: (t) => (t < 3000 ? norm(0.1, -1) : { x: 0, y: 0 }), seconds: 4 });
+    const r = simulate({ seed: 35, oneWayMs: 75, jitterHalfMs: 10, places: [{ atMs: 1000, gx: 42, gy: 13, rot: 0 }], path: (t) => (t < 3000 ? norm(0.1, -1) : { x: 0, y: 0 }), seconds: 4 });
     report("placed ahead 75±10 ms", r);
     expect(r.placed).toBe(1);
     expect(r.minWallGapM).toBeLessThan(1e-6);

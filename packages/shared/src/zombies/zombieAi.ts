@@ -178,10 +178,14 @@ export const updateZombies: SystemFn = (world, dtS) => {
         damagePlayer(world, target, stats, id);
       }
     }
-    // Story 3.4: buildings block zombies (they slide along; Story 3.5 paths around and attacks them).
-    if (hasBuildings && pushOutOfBuildings(world, x, y, rz)) {
-      x = pushed.x;
-      y = pushed.y;
+    if (hasBuildings) {
+      // Story 3.4: buildings (and the map edge) have the last word: they slide along, never pass a
+      // slot narrower than their body, and a zombie shoved into a box by a player leaves on the side
+      // it came from (its position at the start of the tick, outside every box; review H1, M1).
+      pushOutOfBuildings(world, x, y, rz, pool.prevX[id] as number, pool.prevY[id] as number);
+      pool.x[id] = pushed.x;
+      pool.y[id] = pushed.y;
+      continue;
     }
     // The push-out can cross a wall: clamp again (a little overlap at walls beats leaving the map).
     pool.x[id] = Math.min(widthM - rz, Math.max(rz, x));

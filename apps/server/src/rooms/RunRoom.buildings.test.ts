@@ -95,13 +95,13 @@ describe("RunRoom buildings (Story 3.4)", () => {
     const { host, room, hostRec, guestRec } = await startTwo();
     const me = world(room).players.get("p0");
     if (!me) throw new Error("no p0");
-    host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: Math.round(me.x), gy: Math.round(me.y), rot: 0 });
+    host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: Math.round((me.x - 1) * 2), gy: Math.round((me.y - 0.25) * 2), rot: 0 });
     await vi.waitFor(() => expect(hostRec.refused).toEqual(["blocked"]));
     me.wallet = 39;
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 5, gy: 5, rot: 0 });
     await vi.waitFor(() => expect(hostRec.refused).toEqual(["blocked", "money"]));
     me.wallet = 1000;
-    for (let i = 0; i < 6; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 5 + i * 3, gy: 3, rot: 0 });
+    for (let i = 0; i < 6; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 10 + i * 6, gy: 20, rot: 0 });
     await vi.waitFor(() => expect(world(room).buildings.list).toHaveLength(6));
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 5, gy: 28, rot: 0 });
     await vi.waitFor(() => expect(hostRec.refused).toEqual(["blocked", "money", "limit"]));
@@ -136,7 +136,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     const me = world(room).players.get("p0");
     if (!me) throw new Error("no p0");
     me.wallet = 10_000;
-    for (let i = 0; i < 40; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 3 + (i % 14) * 3, gy: 2 + Math.floor(i / 14) * 2, rot: 0 });
+    for (let i = 0; i < 40; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 10 + (i % 8) * 6, gy: 20 + Math.floor(i / 8) * 4, rot: 0 });
     await vi.waitFor(() => expect(world(room).buildings.list).toHaveLength(6));
     const tick = world(room).tick;
     await vi.waitFor(() => expect(world(room).tick).toBeGreaterThan(tick + 4));
@@ -151,11 +151,11 @@ describe("RunRoom buildings (Story 3.4)", () => {
     const { host, guest, room } = await startTwo();
     const me = world(room).players.get("p0");
     if (!me) throw new Error("no p0");
-    const gx = Math.round(me.x);
-    const gy = Math.round(me.y) - 3; // just ahead of me
+    const gx = Math.round((me.x - 1) * 2); // centred on my x, min corner on the 0.5 m lattice
+    const gy = Math.round((me.y - 3) * 2); // 3 m ahead of me
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx, gy, rot: 0 });
     await vi.waitFor(() => expect(world(room).buildings.list).toHaveLength(1));
-    const face = gy + 0.25 + serverBalance.player.radiusM;
+    const face = gy * 0.5 + 0.5 + serverBalance.player.radiusM;
     let seq = 0;
     for (let k = 0; k < 5; k++) {
       // 4 inputs at a time (the input ring holds 6): 20 × 0.225 m = 4.5 m of walking up

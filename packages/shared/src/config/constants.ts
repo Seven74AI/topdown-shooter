@@ -30,7 +30,9 @@ export const PROJECTILE_POOL_CAPACITY = 512;
 export const MUZZLE_OFFSET_M = 0.1;
 
 /**
- * Story 3.4: the build grid (GDD: 1 m). A building's centre is an integer grid point, sent as
- * uint8 indices; structural (the wire format depends on it), so it is not a balance number.
+ * Story 3.4 (review H2): the build lattice. A building's min corner sits on a lattice point, sent as
+ * uint8 indices in these units (48 × 32 m → 0–96 × 0–64); footprints are multiples of it, so every
+ * building edge is on the lattice (and on Story 3.5's 0.5 m flow-field cells). Structural (the wire
+ * format depends on it), so not a balance number.
  */
-export const BUILD_GRID_M = 1;
+export const BUILD_GRID_M = 0.5;
