@@ -26,6 +26,11 @@ const TWO = [
 
 const input = (seq: number, over: Partial<PlayerInput> = {}): PlayerInput => ({ ...NEUTRAL_INPUT, seq, ...over });
 
+/** Weapon ticks owed to p0 as if it had just been starved `n` ticks (review MED-A: drops are dry ticks only against this). */
+const owe = (c: RunController, n: number, playerId = "p0") => {
+  ((c as unknown as { slots: Map<string, { weaponDebt: number }> }).slots.get(playerId) as { weaponDebt: number }).weaponDebt = n;
+};
+
 const newController = (players = TWO) => new RunController({ balance, seed: SEED, players, pauseWaves: true });
 
 describe("RunController", () => {
@@ -118,6 +123,7 @@ describe("RunController", () => {
     const p = c.world.players.get("p0");
     if (!p) throw new Error("no p0");
     setLoadout(balance, p.loadout, ["pistol", "smg"]);
+    owe(c, 2); // the burst follows a stall (as in play)
     c.queueInput("p0", input(1, { swap: true }));
     c.queueInput("p0", input(2, { consumable: true }));
     for (let seq = 3; seq <= INPUT_QUEUE_MAX + 2; seq++) c.queueInput("p0", input(seq));
@@ -193,7 +199,10 @@ describe("RunController", () => {
       setLoadout(balance, p.loadout, ["pistol", "smg"]);
       const types: string[] = [];
       const inp = (seq: number) => input(seq, { swap: seq === 1 || seq === 9, fire: seq > 2, aimX: 1 });
-      if (drop) for (let seq = 1; seq <= INPUT_QUEUE_MAX + 2; seq++) c.queueInput("p0", inp(seq));
+      if (drop) {
+        owe(c, 2); // the burst follows a stall (as in play)
+        for (let seq = 1; seq <= INPUT_QUEUE_MAX + 2; seq++) c.queueInput("p0", inp(seq));
+      }
       for (let seq = drop ? INPUT_QUEUE_MAX + 3 : 1; seq <= 60; seq++) {
         c.queueInput("p0", inp(seq));
         for (const e of c.tick()) if (e.type.startsWith("weapon.") && e.type !== "weapon.fired") types.push(e.type);
@@ -277,12 +286,58 @@ describe("RunController", () => {
     const c = newController();
     const p = c.world.players.get("p0");
     if (!p) throw new Error("no p0");
+    owe(c, 1);
     for (let seq = 1; seq <= INPUT_QUEUE_MAX + 1; seq++) c.queueInput("p0", input(seq, { fire: seq === 1, aimX: 1 })); // drops seq 1
     const events = c.tick().map((e) => e.type);
     expect(events).not.toContain("weapon.fired");
     expect(c.world.projectiles.aliveCount).toBe(0);
     expect(p.loadout.slots[0].ammo).toBe(11);
     expect(p.loadout.slots[0].cooldownS).toBeGreaterThan(0);
+  });
+
+  it("a burst with no stall before it never shortens a reload (re-review MED-A)", () => {
+    const c = newController();
+    const p = c.world.players.get("p0");
+    if (!p) throw new Error("no p0");
+    const slot = p.loadout.slots[0];
+    if (!slot) throw new Error("no pistol");
+    slot.ammo = 1;
+    c.queueInput("p0", input(1, { fire: true, aimX: 1 }));
+    c.tick(); // last round: the reload starts
+    const reload = slot.reloadTicks;
+    expect(reload).toBeGreaterThan(5);
+    for (let seq = 2; seq <= 26; seq++) c.queueInput("p0", input(seq)); // 25 inputs at once
+    c.tick();
+    expect(slot.reloadTicks).toBe(reload - 1); // one real tick, no dry ticks for the flood
+    expect(c.drops("p0").overflow).toBeGreaterThan(0);
+  });
+
+  it("25 inputs/s fire no more shots than 20/s over 10 s (re-review MED-A)", () => {
+    const shots = (perTick: (t: number) => number) => {
+      const c = newController();
+      const p = c.world.players.get("p0");
+      if (!p) throw new Error("no p0");
+      setLoadout(balance, p.loadout, ["smg", null]);
+      let seq = 0;
+      let fired = 0;
+      for (let t = 0; t < 200; t++) {
+        for (let k = 0; k < perTick(t); k++) c.queueInput("p0", input(++seq, { fire: true, aimX: 1 }));
+        for (const e of c.tick()) if (e.type === "weapon.fired") fired++;
+      }
+      return fired;
+    };
+    const honest = shots(() => 1);
+    const flood = shots((t) => (t % 4 === 3 ? 2 : 1)); // 25 per 20 ticks
+    expect(flood).toBeLessThanOrEqual(honest);
+  });
+
+  it("starved ticks owe weapon ticks, one per tick after the first input", () => {
+    const c = newController();
+    c.queueInput("p0", input(1));
+    c.tick();
+    for (let i = 0; i < 6; i++) c.tick(); // starved: 6 weapon ticks owed
+    const debt = (c as unknown as { slots: Map<string, { weaponDebt: number }> }).slots.get("p0")?.weaponDebt;
+    expect(debt).toBe(6);
   });
 
   it("a starved tick never fires: shots happen only on applied seqs (Story 2.7 review)", () => {

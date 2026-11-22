@@ -1,6 +1,6 @@
 # Story 2.9: Player rings and teammate arrows
 
-Status: review
+Status: done
 
 ## Story
 
@@ -83,7 +83,7 @@ so that we can stick together.
 ### Edge cases
 
 - A teammate exactly on the screen edge: `edgeArrow` returns false (on screen), so the name shows instead. This is covered by a 1.7 test; keep it.
-- A teammate far beyond the map edge can't happen (players are clamped). A downed teammate behind the HUD buttons (bottom corners): the arrow still draws above the buttons; that is accepted.
+- A teammate far beyond the map edge can't happen (players are clamped). A downed teammate behind the HUD buttons (bottom corners): the arrow draws under the buttons (it is created before them); that is accepted.
 - When I am out and spectating, my camera follows the spectate target (2.8). Arrows then point to the other teammates, and the target's name shows normally.
 
 ### Project Structure Notes
@@ -135,6 +135,17 @@ claude-opus-5-5 (builder agent, worktree `story-2-9`)
 - `apps/client/src/render/PlayerView.ts`, `scenes/GameScene.ts`, `scenes/HudScene.ts`, `scenes/hudModel.ts`, `sim/SimHost.ts`, `sim/LocalSimHost.ts`, `sim/NetSimHost.ts` (modified)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched tests 5×, three-page browser check incl. walk-off, resize, a teammate closing their tab, two solo restarts). **Outcome:** every AC met, no high or medium findings. The display-origin fix for Phaser 4 Triangles confirmed against the 4.2.1 renderer source.
+- [x] [Low] Rush chevrons above rushing zombies drawn ~0.28 m left / 0.17 m up (same Triangle origin, pre-existing): `.setDisplayOrigin(0, 0)`.
+- [x] [Low] The downed "+" touched the arrow at the pulse peak: its inset now scales with the pulse.
+- [x] [Low] `teammateCount` could stay stale while the local player is missing: reset before the check.
+- [x] [Low] Dev Notes said arrows draw above the HUD buttons; they draw under them. Note corrected.
+- Noted: teammates standing close together stack their arrows (8.7 reuses these arrows; spread them then); `getBounds()` of origin-(0,0) Triangles disagrees with what is drawn (harmless: not interactive).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (chevron origin, cross inset, teammate count reset, note). Story done.
 
 - 2026-11-22: Story 2.9 implemented: slot-coloured ground rings, teammate name tags in screen space, edge arrows for off-screen teammates with a downed "+", pulsing downed ring/arrow, `SimHost.playerInfo`. Rush arrows centred on their edge point (display origin fix). 676 tests passing.

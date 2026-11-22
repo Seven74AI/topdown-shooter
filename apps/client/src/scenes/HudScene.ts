@@ -454,7 +454,7 @@ export class HudScene extends Phaser.Scene {
         .setAlpha(mk.downed ? pulseAlpha(now) : 1)
         .setVisible(true);
       if (mk.downed) {
-        const inset = CROSS_INSET_PX * k;
+        const inset = CROSS_INSET_PX * k * pulse; // scales with the arrow, so the "+" never touches it
         cross
           .setPosition(mk.x - Math.cos(mk.angle) * inset, mk.y - Math.sin(mk.angle) * inset)
           .setScale(base * pulse)

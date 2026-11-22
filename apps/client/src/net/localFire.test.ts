@@ -179,3 +179,24 @@ describe("LocalFireClock (Story 2.7)", () => {
     expect(clock.attack).toMatchObject({ weapon: "pistol", melee: false, dirX: 0.6, dirY: 0.8 });
   });
 });
+
+describe("LocalFireClock.ack (2.7 re-review LOW-A)", () => {
+  it("counts my shots on newly acked seqs once, and ignores old or repeated acks", () => {
+    const world = createWorld({ balance, seed: 7, systems: { waves: () => {}, zombies: () => {} } });
+    const p = addPlayer(world, "p0", 5, 16);
+    const clock = new LocalFireClock(balance);
+    const me = viewOf(p, 0);
+    let fired = 0;
+    for (let seq = 1; seq <= 20; seq++) if (clock.step(fireInput(seq), me)) fired++;
+    expect(fired).toBeGreaterThan(1);
+    expect(clock.shotsFired).toBe(fired);
+    clock.ack(10);
+    const at10 = clock.shotsAcked;
+    expect(at10).toBeGreaterThan(0);
+    clock.ack(10);
+    clock.ack(5);
+    expect(clock.shotsAcked).toBe(at10);
+    clock.ack(20);
+    expect(clock.shotsAcked).toBe(fired);
+  });
+});

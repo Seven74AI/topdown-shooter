@@ -1,6 +1,6 @@
 # Story 2.7: Server-confirmed hits
 
-Status: review
+Status: done
 
 ## Story
 
@@ -206,7 +206,15 @@ Claude Opus 5.5 (claude-opus-5-5), builder agent in worktree `story-2-7`.
 - Harness after the fixes (seed 1 unless noted): standing 150 ms RTT Pistol seeds 1–3 0 %, Hunting Rifle 0/45, SMG 1/218 (0.5 %); kiting 150 ms 1/71 (1.4 %), 300 ms 5/63 (7.9 %); stall case SMG 5/136, Pistol 0/51.
 - Checks: typecheck, lint, build pass; `npm test` 675 passed, 3 skipped (two earlier full runs each had one different timing test fail while the machine's load average was ~8 from parallel worktrees; both passed alone and the next full run was green).
 
+### Re-review of the fixes (2026-11-22, fresh agent)
+
+- Full suite, targeted suites 5× (221/221), and the swap-tap, early-hit and HUD-ammo fixes confirmed.
+- [x] [Med] The dry weapon tick let a client speed its weapon up: the input bucket allows 25/s against 20 ticks, and every dropped input got a weapon tick (a 25-input burst cut a 20-tick reload to 3; sustained 25/s = 1.25× fire rate). Fix: `weaponDebt` per player, +1 per starved (paused) tick after the first input, at most 16; a dropped input gets its dry tick only against that debt, otherwise its swap moves on to the next input as before. Honest clients are unaffected (a stall of N ticks drops ≤ N − 1). Tests: a burst with no stall doesn't shorten a reload; 25 inputs/s fire no more than 20/s over 10 s; the stall harness unchanged.
+- [x] [Low] The safety net for unpredicted own shots went blind after a dry or refused shot. Fix: `LocalFireClock.ack(ackSeq)` counts my shots on acked seqs; at each snapshot, predicted shots the server never fired are forgiven, so later unpredicted server shots are drawn again. Test.
+
 ## Change Log
+
+- 2026-11-22: Re-review fixes (weapon debt, safety-net forgiveness). Story done.
 
 - 2026-11-22: Review findings fixed (MED-1 swap taps replayed, MED-2 starved ticks pause the weapon + dry weapon tick for skipped inputs + unpredicted-shot safety net, LOW-1 early-hit window, LOW-2 reset on re-enable, LOW-3 predicted HUD ammo, shared MUZZLE_OFFSET_M). Merged claude/epic-2-continue (Story 2.8).
 

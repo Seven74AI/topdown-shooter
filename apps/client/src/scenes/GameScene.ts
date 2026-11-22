@@ -239,7 +239,7 @@ export class GameScene extends Phaser.Scene {
     this.chevrons.length = 0;
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
       const c = CHEVRON_M;
-      this.chevrons.push(this.add.triangle(0, 0, -c, -c * 0.6, c, -c * 0.6, 0, c * 0.6, RUSH_COLOR).setDepth(12).setVisible(false));
+      this.chevrons.push(this.add.triangle(0, 0, -c, -c * 0.6, c, -c * 0.6, 0, c * 0.6, RUSH_COLOR).setDisplayOrigin(0, 0).setDepth(12).setVisible(false)); // Phaser 4: points are drawn from the display origin (2.9 review)
     }
 
     const cam = this.cameras.main;
@@ -437,6 +437,7 @@ export class GameScene extends Phaser.Scene {
     this.downedView?.update(host.world);
     const player = host.world.players.get(localId);
     const playerView = this.playerViews.get(localId);
+    this.hudModel.teammateCount = 0; // never stale while my player is missing (2.9 review)
     if (player && playerView) {
       // Out (Story 2.8): the camera spectates the lowest-slot standing teammate (the server streams that view).
       const target = player.status === "out" ? spectateTarget(host.world, localId) : null;

@@ -72,6 +72,13 @@ class PlayerSlot {
    */
   readonly skipped: MutableInput[] = Array.from({ length: SKIPPED_MAX }, () => ({ ...NEUTRAL_INPUT }));
   skippedCount = 0;
+  /**
+   * Weapon ticks owed (re-review MED-A): +1 per starved (paused) tick, at most SKIPPED_MAX. A
+   * dropped input gets its dry weapon tick only against this debt, so it only gives back weapon time
+   * a stall took. Sending inputs faster than 20/s (the bucket allows 25) gains nothing: without
+   * debt a dropped input has no weapon tick and its swap moves to the next input, as before 2.7.
+   */
+  weaponDebt = 0;
 }
 
 /** Dropped inputs remembered for their weapon-only tick (more in one tick is a client flood: dropped). */
@@ -89,13 +96,23 @@ const dropOldest = (s: PlayerSlot): void => {
   const dropped = s.ring[s.head] as MutableInput;
   s.head = (s.head + 1) % INPUT_QUEUE_MAX;
   s.count--;
-  if (s.skippedCount < SKIPPED_MAX) copyInput(s.skipped[s.skippedCount++] as MutableInput, dropped);
+  let swap = false;
+  if (s.weaponDebt > 0 && s.skippedCount < SKIPPED_MAX) {
+    s.weaponDebt--;
+    copyInput(s.skipped[s.skippedCount++] as MutableInput, dropped);
+  } else {
+    swap = dropped.swap; // no weapon tick for it: the swap moves on, like the consumable
+  }
   let consumable = dropped.consumable;
-  for (let i = 0; i < s.count && consumable; i++) {
+  for (let i = 0; i < s.count && (consumable || swap); i++) {
     const next = s.ring[(s.head + i) % INPUT_QUEUE_MAX] as MutableInput;
-    if (!next.consumable) {
+    if (consumable && !next.consumable) {
       next.consumable = true;
       consumable = false;
+    }
+    if (swap && !next.swap) {
+      next.swap = true;
+      swap = false;
     }
   }
 };
@@ -231,6 +248,7 @@ export class RunController {
       s.skippedCount = 0;
       const p = this.world.players.get(s.playerId);
       if (p) p.weaponsPaused = s.count === 0; // starved: the weapon waits for the next seq too
+      if (s.count === 0 && s.ackSeq > 0 && s.weaponDebt < SKIPPED_MAX) s.weaponDebt++;
       if (s.count > 0) {
         copyInput(cur, s.ring[s.head] as MutableInput);
         s.head = (s.head + 1) % INPUT_QUEUE_MAX;

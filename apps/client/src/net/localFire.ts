@@ -66,6 +66,9 @@ export class LocalFireClock {
   private lastSeq = 0;
   /** Gun shots this clock has fired so far (NetSimHost's safety net compares the server's). */
   shotsFired = 0;
+  /** My gun shots at seqs ≤ the highest ack seen (`ack`): by then the server's shots for them have arrived. */
+  shotsAcked = 0;
+  private ackedSeq = 0;
   /** My swap taps the snapshot hasn't acknowledged yet, oldest first (Story 2.7 review). */
   private readonly taps = new Float64Array(SWAP_TAPS_MAX);
   private tapCount = 0;
@@ -89,6 +92,17 @@ export class LocalFireClock {
     if (attacked && !this.attack.melee) this.shotsFired++;
     this.lastSeq = input.seq;
     return attacked;
+  }
+
+  /** The server acknowledged every seq ≤ `ackSeq`: count my shots on the newly acked seqs. */
+  ack(ackSeq: number): void {
+    if (ackSeq <= this.ackedSeq) return;
+    const from = Math.max(this.ackedSeq + 1, ackSeq - LOCAL_SHOT_HISTORY + 1);
+    for (let seq = from; seq <= ackSeq; seq++) {
+      const i = seq % LOCAL_SHOT_HISTORY;
+      if (this.shotSeq[i] === seq) this.shotsAcked += this.shotCount[i] as number;
+    }
+    this.ackedSeq = ackSeq;
   }
 
   /**

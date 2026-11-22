@@ -1,6 +1,6 @@
 # Story 2.8: Downed, revive and team wipe
 
-Status: review
+Status: done
 
 ## Story
 
@@ -189,10 +189,10 @@ claude-opus-5-5 (builder agent, worktree `story-2-8`)
 - [x] [Low] The Predictor's World ran the downed rules (flipped to out, emitted `team.wiped`). `movePlayers` split from `updatePlayers`; `PREDICTION_SYSTEMS` runs movement only. Test: 500 local steps while downed stay downed, no wipe.
 - [x] [Low] Test gaps: reviver goes down / leaves mid-revive → progress resets. Tests added.
 - Noted: "Reviving…" uses the mirror (predicted me vs interpolated teammate) and can disagree near 1.2 m (stream a reviver slot if it matters); downed players keep reloading (pre-existing, designer call); the return spot has no free-spot search (needed with Epic 4 buildings); a run-1 batch delayed by a very high `?lag` could reach run 2 (practically unreachable); two inline layout literals.
-- **Balance (seeded sims, 2 players, waves 1–3):** with the Pistol, a revive at 10 damage/hit and 3 s succeeded 0/80 in natural play; 2 s: 6 %; 3 s with half damage on the reviver: 9 %; 2 s + half damage: 18 %. With the SMG: 46 % / 58 % / 68 % / 71 %. Every Pistol run wiped in wave 2. → Designer decision pending.
+- **Balance (seeded sims, 2 players, waves 1–3):** with the Pistol, a revive at 10 damage/hit and 3 s succeeded 0/80 in natural play; 2 s: 6 %; 3 s with half damage on the reviver: 9 %; 2 s + half damage: 18 %. With the SMG: 46 % / 58 % / 68 % / 71 %. Every Pistol run wiped in wave 2. → **Designer decision (2026-11-22): keep as is** (3 s, full damage: "improve yourself"); downed players keep reloading.
 
 ## Change Log
 
-- 2026-11-22: Review fixes (late scene start, movement-only prediction, tests). Waiting on the designer's revive balance call before done.
+- 2026-11-22: Review fixes (late scene start, movement-only prediction, tests). Designer kept the revive numbers. Fix verified in the browser by a re-review (hidden tab woken in the lobby, during Results, and across a whole second start). Story done.
 
 - 2026-11-22: Story 2.8 implemented: downed (20 s, paused while being revived), revive (3 s within 1.2 m, 30 % HP), out until the next wave (spectating the lowest-slot standing teammate, back with 50 % HP), team wipe → Results (wave, kills per player) → Back to lobby, and a second run in the same room. 574 tests passing.

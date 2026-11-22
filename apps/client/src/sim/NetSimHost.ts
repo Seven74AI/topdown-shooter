@@ -157,6 +157,11 @@ export class NetSimHost implements SimHost {
   /** My own server `weapon.fired` seen, and how many of them were drawn as unpredicted. */
   private serverOwnShots = 0;
   private unpredictedShots = 0;
+  /**
+   * Predicted shots the server never fired (dry shots on skipped seqs, shots refused while downed),
+   * counted once their seqs are acked, so they don't blind the safety net for good (re-review LOW-A).
+   */
+  private forgivenShots = 0;
   private readonly localSlot: number;
   /** Client-side spread for my cosmetic shots (the server rolls its own: never the same). */
   private readonly spreadRng = createRng(0x2e7);
@@ -545,7 +550,13 @@ export class NetSimHost implements SimHost {
   private takeSnapshot(state: RunStateView): void {
     this.snapshots.push(state);
     const me = state.players.get(this.localPlayerId);
-    if (me) this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status);
+    if (!me) return;
+    this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status);
+    // Events go out at the tick, patches later on one socket: every server shot for seqs ≤ ack is
+    // already counted. Local shots there beyond them were never fired by the server.
+    this.fireClock.ack(me.ackSeq);
+    const missing = this.fireClock.shotsAcked + this.unpredictedShots - this.serverOwnShots - this.forgivenShots;
+    if (missing > 0) this.forgivenShots += missing;
   }
 
   private receiveEvents(m: SimEventsFlushed): void {
@@ -566,7 +577,7 @@ export class NetSimHost implements SimHost {
       if (kind === NET_EVENT_KIND.MELEE_SWUNG && this.isMine(t[1])) continue;
       if (kind === NET_EVENT_KIND.WEAPON_FIRED && this.isMine(t[1])) {
         this.serverOwnShots++;
-        if (this.serverOwnShots <= this.fireClock.shotsFired + this.unpredictedShots) continue;
+        if (this.serverOwnShots + this.forgivenShots <= this.fireClock.shotsFired + this.unpredictedShots) continue;
         this.unpredictedShots++;
       }
       const e = decodeNetEvent(t, this.ctx);
