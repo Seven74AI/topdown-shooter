@@ -12,7 +12,6 @@ import {
   buildingCentreX,
   buildingCentreY,
   turretStats,
-  createRng,
   weaponIds,
   createSlot,
   createWorld,
@@ -22,6 +21,7 @@ import {
   playerSlotOf,
   removePlayer,
   rotate,
+  seqSpreadRoll,
   ticksFor,
   type Balance,
   type NetEventContext,
@@ -37,6 +37,7 @@ import {
   type WeaponSlot,
   type World,
 } from "@topdown/shared";
+import { viewTickOf } from "../net/viewTick";
 import type { PlayerInfo, ShopAnswer, SimHost } from "./SimHost";
 import { MAX_CATCHUP_STEPS, type SimStepStats } from "./LocalSimHost";
 import type { NetSession } from "../net/session";
@@ -94,6 +95,7 @@ const copyInput = (to: MutableInput, from: PlayerInput): void => {
   to.swap = from.swap;
   to.consumable = from.consumable;
   to.isMouse = from.isMouse;
+  to.viewTick = from.viewTick;
 };
 
 export interface NetSimHostOptions {
@@ -171,8 +173,6 @@ export class NetSimHost implements SimHost {
    */
   private forgivenShots = 0;
   private readonly localSlot: number;
-  /** Client-side spread for my cosmetic shots (the server rolls its own: never the same). */
-  private readonly spreadRng = createRng(0x2e7);
   private readonly aimDir = { x: 1, y: 0 };
   private readonly localFired: FiredEvent[] = [];
   private readonly localSwung: SwungEvent[] = [];
@@ -456,12 +456,14 @@ export class NetSimHost implements SimHost {
       buf.seq = ++this.seq;
       buf.swap = this.latchedSwap;
       buf.consumable = this.latchedConsumable;
+      // Story 2.12: the tick the horde is drawn at this frame; the server tests this input's shots there.
+      buf.viewTick = viewTickOf(this.renderTickNow);
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
       room.send(C2S.INPUT_SEND, buf); // encoded synchronously: the buffer can be reused
       this.predictor.applyLocal(buf); // Story 2.6: my survivor moves now, not a round trip later
       // Story 2.7: my weapon fires now too (cosmetic; the server fires its own shot from this input).
-      if (this.fireClock.step(buf, room.state?.players?.get(this.localPlayerId))) this.localAttack(buf.isMouse);
+      if (this.fireClock.step(buf, room.state?.players?.get(this.localPlayerId))) this.localAttack(buf.isMouse, buf.seq);
       this.accumulatorS -= TICK_DT_S;
       steps++;
     }
@@ -494,9 +496,9 @@ export class NetSimHost implements SimHost {
    * My local attack on this step (Story 2.7): from the predicted position (where the server will
    * fire from for this input), an immediate event for the muzzle flash or swing and sound, and for
    * guns a cosmetic projectile. Touch aim bends with `assistAim` on the mirror's drawn zombies;
-   * spread is rolled locally.
+   * spread is the seq's roll (`seqSpreadRoll`, Story 2.12), the server's too.
    */
-  private localAttack(isMouse: boolean): void {
+  private localAttack(isMouse: boolean, seq: number): void {
     if (this.immediate.length >= LOCAL_EVENT_RING) return; // not drained for a while: skip the cosmetics
     const a = this.fireClock.attack;
     const balance = this.world.balance;
@@ -530,7 +532,8 @@ export class NetSimHost implements SimHost {
     }
     if (stats.spreadDeg > 0) {
       const half = (stats.spreadDeg / 2) * (Math.PI / 180);
-      rotate(dir.x, dir.y, this.spreadRng.range(-half, half), dir);
+      // Story 2.12: the seq's roll, the one the server (with lag compensation) gives its shot too.
+      rotate(dir.x, dir.y, seqSpreadRoll(this.localPlayerId, seq) * half, dir);
     }
     const e = this.localFired[k] as FiredEvent;
     e.weapon = a.weapon;

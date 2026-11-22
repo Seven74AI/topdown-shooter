@@ -8,6 +8,7 @@ import {
   loadBalance,
   setInput,
   setLoadout,
+  setZombieHistoryEnabled,
   snapshotWorld,
   spawnZombie,
   startBuild,
@@ -16,7 +17,7 @@ import {
   type PlayerInput,
   type SimEvent,
 } from "@topdown/shared";
-import { INPUT_DRAIN_AFTER_TICKS, INPUT_QUEUE_MAX, INPUT_QUEUE_TARGET, RunController, parseDevHpFraction } from "./RunController";
+import { INPUT_DRAIN_AFTER_TICKS, INPUT_QUEUE_MAX, INPUT_QUEUE_TARGET, REWIND_CAP_TICKS, RunController, parseDevHpFraction } from "./RunController";
 
 const balance = loadBalance();
 const SEED = 1234;
@@ -46,10 +47,11 @@ describe("RunController", () => {
     const c = newController();
     const ref = createWorld({ balance, seed: SEED });
     ref.waves.paused = true;
+    setZombieHistoryEnabled(ref, true); // Story 2.12: the controller's lag compensation, set up the same way
     const at = { x: 0, y: 0 };
     for (const { playerId, slot } of TWO) {
       teamSpawnPoint(ref, slot, at);
-      addPlayer(ref, playerId, at.x, at.y);
+      addPlayer(ref, playerId, at.x, at.y).rewindMaxTicks = REWIND_CAP_TICKS;
     }
     startBuild(ref); // Story 3.1: a controller starts in its first build phase
     for (let seq = 1; seq <= 30; seq++) {
@@ -427,6 +429,40 @@ describe("RunController", () => {
     expect(shoot(false)).toHaveLength(1);
     expect(shoot(false)[0]).toMatchObject({ sourceId: "p0" });
     expect(shoot(true)).toHaveLength(0);
+  });
+
+  it("lag compensation is on by default: history recorded, rewind capped at 300 ms; off: neither (Story 2.12)", () => {
+    const on = newController();
+    expect(REWIND_CAP_TICKS).toBe(6);
+    expect(on.world.zombieHistory.enabled).toBe(true);
+    for (const p of on.world.players.values()) expect(p.rewindMaxTicks).toBe(REWIND_CAP_TICKS);
+    const off = new RunController({ balance, seed: SEED, players: TWO, pauseWaves: true, lagCompensation: false });
+    expect(off.world.zombieHistory.enabled).toBe(false);
+    for (const p of off.world.players.values()) expect(p.rewindMaxTicks).toBe(0);
+  });
+
+  it("a queued input's shot is tested at its view tick: hits where the zombie was, not where it is (Story 2.12)", () => {
+    const shoot = (lagCompensation: boolean): number => {
+      const c = new RunController({ balance, seed: SEED, players: [{ playerId: "p0", slot: 0 }], systems: { waves: () => {}, zombies: () => {} }, lagCompensation });
+      const p = c.world.players.get("p0");
+      if (!p) throw new Error("no p0");
+      setLoadout(balance, p.loadout, ["hunting_rifle", null]);
+      c.setRtt("p0", 150);
+      const z = c.world.zombies;
+      const zid = spawnZombie(c.world, "walker", p.x + 3, p.y);
+      let seq = 0;
+      for (let t = 0; t < 4; t++) {
+        c.queueInput("p0", input(++seq));
+        c.tick();
+      }
+      z.y[zid] = (z.y[zid] as number) + 2; // it moved away after the tick the client drew (2)
+      let hits = 0;
+      c.queueInput("p0", input(seq + 1, { aimX: 1, aimY: 0, fire: true, isMouse: true, viewTick: 2 }));
+      for (let t = 0; t < 4; t++) for (const e of c.tick()) if (e.type === "zombie.hit" && e.zombieId === zid) hits++;
+      return hits;
+    };
+    expect(shoot(true)).toBe(1);
+    expect(shoot(false)).toBe(0);
   });
 
   it("counts kills per killer from zombie.killed (Story 2.8)", () => {

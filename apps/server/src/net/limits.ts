@@ -25,3 +25,10 @@ export const ROOM_CREATE_WINDOW_MS = 60_000;
  * reaching further back in time, so others aren't hit by what they no longer see.
  */
 export const SHOT_ADVANCE_CAP_MS = 150;
+
+/**
+ * Story 2.12 (architecture › lag compensation): a player's shot is tested against zombie positions
+ * at most this old (ms): what the shooter drew (`PlayerInput.viewTick`), clamped. A client that
+ * claims an older view gets no more than this (the rewind an honest 300 ms-ping player gets).
+ */
+export const REWIND_CAP_MS = 300;

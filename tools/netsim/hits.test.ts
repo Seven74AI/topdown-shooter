@@ -1,6 +1,6 @@
-/** Story 2.7 harness tests; the simulation is in `hitsSim.ts`. */
+/** Story 2.7 harness tests; the simulation is in `hitsSim.ts`. Story 2.12: the server rewinds by default. */
 import { describe, expect, it } from "vitest";
-import { simulate, type Result } from "./hitsSim";
+import { simulate, type Options, type Result } from "./hitsSim";
 
 const pct = (r: Result) => (r.apparentHits > 0 ? (100 * r.reversed) / r.apparentHits : 0);
 const report = (name: string, r: Result): void => {
@@ -82,4 +82,62 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
       expect(localOnly.filter((s) => s > lastSkipSeq)).toEqual([]);
     }
   });
+});
+
+/** Sums several seeded runs (each one reported). */
+const runSeeds = (name: string, o: Omit<Options, "seed">, seeds: readonly number[]): Result => {
+  const sum: Result = { localShotSeqs: [], serverShotSeqs: [], viewOffsets: [], drops: { overflow: 0, stale: 0, drained: 0 }, apparentHits: 0, confirmed: 0, reversed: 0, serverHitsByMe: 0, kills: 0, shots: 0 };
+  for (const seed of seeds) {
+    const r = simulate({ ...o, seed });
+    report(`${name} seed ${seed}`, r);
+    sum.apparentHits += r.apparentHits;
+    sum.confirmed += r.confirmed;
+    sum.reversed += r.reversed;
+    sum.serverHitsByMe += r.serverHitsByMe;
+    sum.kills += r.kills;
+    sum.shots += r.shots;
+    sum.viewOffsets.push(...r.viewOffsets);
+  }
+  const offs = [...sum.viewOffsets].sort((a, b) => a - b);
+  const q = (p: number) => (offs[Math.floor(offs.length * p)] ?? 0).toFixed(2);
+  report(`${name} ALL (view offset p5/p50/p95 ${q(0.05)}/${q(0.5)}/${q(0.95)} ticks)`, sum);
+  return sum;
+};
+
+const SEEDS = [1, 2, 3, 4, 5] as const;
+const KITE_150 = { seconds: 30, oneWayMs: 75, jitterHalfMs: 10, kite: true } as const;
+const KITE_300 = { seconds: 30, oneWayMs: 150, jitterHalfMs: 20, kite: true } as const;
+
+describe("netsim: rewound hit testing (Story 2.12, NFR5 < 1 in 20 reversed)", () => {
+  it("kiting 20 Runners at 150 ms RTT: the rewind brings reversed hits under 5 % (control: rewind off is far over)", () => {
+    for (const weapon of ["pistol", "hunting_rifle", "smg"] as const) {
+      const on = runSeeds(`2.12 rewind ON kiting ${weapon} 150 ms, 20 Runners`, { ...KITE_150, weapon, zombieType: "runner" }, SEEDS);
+      const off = runSeeds(`2.12 rewind OFF (control) kiting ${weapon} 150 ms, 20 Runners`, { ...KITE_150, weapon, zombieType: "runner", rewind: false }, SEEDS);
+      expect(on.apparentHits).toBeGreaterThan(150);
+      expect(pct(on)).toBeLessThan(5);
+      expect(pct(off)).toBeGreaterThan(10); // the harness does see the problem the rewind fixes
+      // The view offset at 150 ms RTT fits the 300 ms cap (one-way + queue wait + render delay).
+      const offs = [...on.viewOffsets].sort((a, b) => a - b);
+      expect(offs[Math.floor(offs.length * 0.95)]).toBeLessThan(6);
+    }
+  }, 120_000);
+
+  it("kiting Walkers (20 and the 150 crowd) at 150 ms RTT with the rewind: under 5 %", () => {
+    for (const walkers of [20, 150]) {
+      const on = runSeeds(`2.12 rewind ON kiting pistol 150 ms, ${walkers} Walkers`, { ...KITE_150, weapon: "pistol", walkers }, SEEDS);
+      runSeeds(`2.12 rewind OFF (control) kiting pistol 150 ms, ${walkers} Walkers`, { ...KITE_150, weapon: "pistol", walkers, rewind: false }, SEEDS);
+      expect(on.apparentHits).toBeGreaterThan(150);
+      expect(pct(on)).toBeLessThan(5);
+    }
+  }, 120_000);
+
+  it("300 ms RTT (view offset past the 300 ms cap: the rest is the 2.7 advance): reported, better than without the rewind", () => {
+    for (const zombieType of ["runner", "walker"] as const) {
+      const on = runSeeds(`2.12 rewind ON kiting pistol 300 ms, 20 ${zombieType}s`, { ...KITE_300, weapon: "pistol", zombieType }, SEEDS);
+      const off = runSeeds(`2.12 rewind OFF (control) kiting pistol 300 ms, 20 ${zombieType}s`, { ...KITE_300, weapon: "pistol", zombieType, rewind: false }, SEEDS);
+      expect(on.apparentHits).toBeGreaterThan(150);
+      expect(pct(on)).toBeLessThanOrEqual(pct(off));
+      expect(pct(on)).toBeLessThan(25);
+    }
+  }, 120_000);
 });

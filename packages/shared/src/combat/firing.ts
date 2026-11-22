@@ -24,8 +24,16 @@ import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
 import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
 import { buildingTypeIds } from "../buildings/buildings";
+import { rewindTicksFor, rewoundView } from "./rewind";
+import { seqSpreadRoll } from "./spread";
 
 const MIN_AIM = 1e-6;
+/**
+ * Story 2.12: a rewound sweep covers one tick of flight; it is tested at that tick's middle (the
+ * cosmetic bullet meets drawn zombies continuously). The netsim harness with the Hunting Rifle (no
+ * spread) against kiting Runners: 3.8 % reversed at the start of the tick, 1.2–2.2 % at 0.33–0.67.
+ */
+const REWIND_SWEEP_MID_TICKS = 0.5;
 
 // Sized to the whole zombie pool, so a candidate query can never be truncated.
 const hitT = new Float32Array(ZOMBIE_POOL_CAPACITY);
@@ -43,6 +51,7 @@ const spawn: ProjectileSpawn = {
   weaponIndex: 0,
   owner: null,
   advanceM: 0,
+  rewindTicks: 0,
 };
 
 /**
@@ -123,9 +132,11 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
   if (aimLen < MIN_AIM || !cooldownReady(cooldownS)) return false;
   dir.x = input.aimX / aimLen;
   dir.y = input.aimY / aimLen;
+  // Story 2.12: online, test against the zombies as the shooter drew them (0 offline / no view tick).
+  const rewind = dryFire ? 0 : rewindTicksFor(world, p, input);
   if (isMelee(stats)) {
     // Melee (Story 1.9): instant arc hit along the raw aim, no ammo, no reload, no aim assist.
-    if (!dryFire) swingMelee(world, p, slot.weapon, stats, dir.x, dir.y);
+    if (!dryFire) swingMelee(world, p, slot.weapon, stats, dir.x, dir.y, rewind > 0 ? rewoundView(world, world.tick - rewind) : null);
     return true;
   }
   if (slot.ammo <= 0) return false;
@@ -141,10 +152,15 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
 
   // Aim assist on touch only (FR4), before spread; mouse aim is never assisted.
   const offset = p.radiusM + MUZZLE_OFFSET_M;
-  if (!input.isMouse) assistAim(world, p.x + dir.x * offset, p.y + dir.y * offset, dir.x, dir.y, stats.rangeM, dir);
+  if (!input.isMouse) {
+    const view = rewind > 0 ? rewoundView(world, world.tick - rewind) : null;
+    assistAim(world, p.x + dir.x * offset, p.y + dir.y * offset, dir.x, dir.y, stats.rangeM, dir, view);
+  }
   if (stats.spreadDeg > 0) {
     const half = (stats.spreadDeg / 2) * DEG_TO_RAD;
-    rotate(dir.x, dir.y, world.rng.range(-half, half), dir);
+    // Story 2.12: online (lag compensation on), the roll is the seq's, the one the shooter's client drew.
+    const angle = p.rewindMaxTicks > 0 ? seqSpreadRoll(p.id, input.seq) * half : world.rng.range(-half, half);
+    rotate(dir.x, dir.y, angle, dir);
   }
 
   spawn.x = p.x + dir.x * offset;
@@ -157,8 +173,13 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
   spawn.pierce = stats.pierce;
   spawn.weaponIndex = weaponIds(world.balance).indexOf(slot.weapon);
   spawn.owner = p.id;
-  // Story 2.7: the server advances the first sweep by the shooter's half RTT (0 offline).
-  spawn.advanceM = stats.projectileSpeedMps * p.shotAdvanceS;
+  // Story 2.7: the server advances the first sweep by the shooter's half RTT (0 offline). Story 2.12:
+  // a rewound shot needs no advance (its sweeps meet zombies as old as the ones the shooter saw),
+  // except for the part of the view offset past the rewind cap, which the 2.7 advance (≤ its own
+  // cap) makes up: the bullet starts that much further along, as the cosmetic one is by then.
+  const advanceS = rewind > 0 ? Math.min(p.shotAdvanceS, Math.max(0, world.tick - input.viewTick - rewind) * TICK_DT_S) : p.shotAdvanceS;
+  spawn.advanceM = stats.projectileSpeedMps * advanceS;
+  spawn.rewindTicks = rewind;
   spawnProjectile(world.projectiles, spawn);
 
   slot.ammo--;
@@ -190,16 +211,21 @@ function updateProjectiles(world: World, dtS: number): void {
     const x1 = x0 + dx * step;
     const y1 = y0 + dy * step;
 
-    // Gather hits along the segment, nearest first.
+    // Gather hits along the segment, nearest first. Story 2.12: a player's rewound shot tests the
+    // zombies as they were its rewind ago (a turret's shot never has one); effects go to the present zombie.
+    const rewind = pool.rewindTicks[id] as number;
+    const view = rewind > 0 ? rewoundView(world, world.tick - rewind + REWIND_SWEEP_MID_TICKS) : null;
+    const xs = view ? view.x : z.x;
+    const ys = view ? view.y : z.y;
     const qr = step / 2 + maxZombieRadius(world.balance);
-    const count = queryRadius(world.zombieGrid, z.x, z.y, (x0 + x1) / 2, (y0 + y1) / 2, qr, candidates);
+    const count = queryRadius(view ? view.grid : world.zombieGrid, xs, ys, (x0 + x1) / 2, (y0 + y1) / 2, qr, candidates);
     let hits = 0;
     for (let k = 0; k < count; k++) {
       const zid = candidates[k] as number;
       // The grid was built at the start of combat: skip zombies killed earlier this tick.
       if (!isZombieAlive(z, zid) || projectileHasHit(pool, id, zid)) continue;
       const r = world.balance.zombies.types[zombieTypeOf(z, zid)]?.radiusM ?? 0;
-      const t = segmentCircleT(x0, y0, x1, y1, z.x[zid] as number, z.y[zid] as number, r);
+      const t = segmentCircleT(x0, y0, x1, y1, xs[zid] as number, ys[zid] as number, r);
       if (t < 0) continue;
       // insertion sort by t (small)
       let j = hits++;

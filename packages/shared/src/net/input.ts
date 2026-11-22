@@ -19,6 +19,12 @@ export const playerInputSchema = z
     consumable: z.boolean(),
     /** Mouse aiming disables aim assist (FR4). */
     isMouse: z.boolean(),
+    /**
+     * Story 2.12: the (fractional) server tick the client drew the horde at when it sampled this
+     * input (its render tick), or -1 for none (solo, before the first snapshot). The server tests
+     * this input's shots against zombie positions of that tick (clamped to 300 ms back).
+     */
+    viewTick: z.number().min(-1).max(2 ** 31),
   })
   .strict();
 
@@ -34,4 +40,5 @@ export const NEUTRAL_INPUT: PlayerInput = Object.freeze({
   swap: false,
   consumable: false,
   isMouse: false,
+  viewTick: -1,
 });

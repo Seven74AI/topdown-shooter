@@ -5,6 +5,7 @@ import { segmentCircleT } from "../math/sweep";
 import { zombieCandidates as candidates } from "./scratch";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
+import type { ZombieView } from "./rewind";
 
 const MIN_DIST_SQ = 1e-6;
 
@@ -18,6 +19,7 @@ const MIN_DIST_SQ = 1e-6;
  * Writes the unit direction into `out` and returns the target zombie id, or -1 (direction unchanged).
  * Pure over the World: Story 2.7 runs it on the server with server positions.
  * Requires the zombie grid to be current (the combat system rebuilds it first).
+ * Story 2.12: `view` (rewound positions and their grid) replaces the live positions when given.
  */
 export function assistAim(
   world: World,
@@ -27,6 +29,7 @@ export function assistAim(
   dirY: number,
   rangeM: number,
   out: { x: number; y: number },
+  view: ZombieView | null = null,
 ): number {
   out.x = dirX;
   out.y = dirY;
@@ -34,7 +37,9 @@ export function assistAim(
   if (deg <= 0) return -1;
   const cosLimit = Math.cos(deg * DEG_TO_RAD);
   const z = world.zombies;
-  const count = queryRadius(world.zombieGrid, z.x, z.y, ox, oy, rangeM + maxZombieRadius(world.balance), candidates);
+  const xs = view ? view.x : z.x;
+  const ys = view ? view.y : z.y;
+  const count = queryRadius(view ? view.grid : world.zombieGrid, xs, ys, ox, oy, rangeM + maxZombieRadius(world.balance), candidates);
   const ex = ox + dirX * rangeM;
   const ey = oy + dirY * rangeM;
   let best = -1;
@@ -45,11 +50,13 @@ export function assistAim(
     const id = candidates[k] as number;
     if (!isZombieAlive(z, id)) continue;
     const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
-    if (segmentCircleT(ox, oy, ex, ey, z.x[id] as number, z.y[id] as number, r) >= 0) {
+    const zx = xs[id] as number;
+    const zy = ys[id] as number;
+    if (segmentCircleT(ox, oy, ex, ey, zx, zy, r) >= 0) {
       return -1; // the raw aim already hits a zombie: keep it
     }
-    const vx = (z.x[id] as number) - ox;
-    const vy = (z.y[id] as number) - oy;
+    const vx = zx - ox;
+    const vy = zy - oy;
     const d2 = vx * vx + vy * vy;
     const reach = rangeM + r;
     if (d2 > reach * reach || d2 < MIN_DIST_SQ) continue;

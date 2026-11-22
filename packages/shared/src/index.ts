@@ -5,12 +5,14 @@ export {
   GRID_CELL_M,
   MUZZLE_OFFSET_M,
   PROJECTILE_POOL_CAPACITY,
+  REWIND_MAX_TICKS,
   TICK_DT_S,
   TICK_RATE_HZ,
   VIEW_HEIGHT_M,
   VIEW_WIDTH_M,
   ZOMBIE_POOL_CAPACITY,
   ZOMBIE_SLOT_HOLD_TICKS,
+  ZOMBIE_HISTORY_TICKS,
 } from "./config/constants";
 export { err, ok, type Result } from "./core/result";
 export { createRng, createRngFromState, type Rng, type RngState } from "./core/rng";
@@ -105,6 +107,16 @@ export {
 } from "./combat/projectilePool";
 export { COOLDOWN_EPS_S, cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./combat/cooldown";
 export { skippedInputWeaponTick } from "./combat/firing";
+// Story 2.12: rewound hit testing (lag compensation).
+export {
+  recordZombieHistory,
+  rewindTicksFor,
+  rewoundView,
+  setZombieHistoryEnabled,
+  type ZombieHistory,
+  type ZombieView,
+} from "./combat/rewind";
+export { seqSpreadRoll } from "./combat/spread";
 export { segmentCircleT } from "./math/sweep";
 export { rotate } from "./math/vec";
 export { maxZombieRadius, zombieTypeIndex } from "./zombies/zombieTypes";
