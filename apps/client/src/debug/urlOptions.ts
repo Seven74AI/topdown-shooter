@@ -16,7 +16,16 @@ export interface UrlOptions {
   tune: boolean;
   /** `?solo` (Story 2.1): skip the start screen and play offline at once. */
   solo: boolean;
+  /**
+   * `?lag=<rttMs>&jitter=<ms>` (Story 2.6, release-safe): the dev network throttle on this device,
+   * or null when off. `rttMs` is the simulated round trip, `jitterMs` the spread of each one-way delay.
+   */
+  throttle: { readonly rttMs: number; readonly jitterMs: number } | null;
 }
+
+/** Largest `?lag` / `?jitter` accepted (ms). */
+export const MAX_THROTTLE_LAG_MS = 2000;
+export const MAX_THROTTLE_JITTER_MS = 1000;
 
 /** Walkers when `?stress` has no number. */
 export const DEFAULT_STRESS_WALKERS = 150;
@@ -37,7 +46,19 @@ export function parseUrlOptions(search: string): UrlOptions {
     loadout: parseLoadout(q.get("loadout")),
     tune: tuneRaw !== null && TRUE_VALUES.has(tuneRaw.trim().toLowerCase()),
     solo: soloRaw !== null && TRUE_VALUES.has(soloRaw.trim().toLowerCase()),
+    throttle: parseThrottle(q.get("lag"), q.get("jitter")),
   };
+}
+
+function parseMs(raw: string | null, max: number): number | null {
+  if (raw === null || !/^\d+$/.test(raw.trim())) return null;
+  return Math.min(max, Number(raw.trim()));
+}
+
+function parseThrottle(lagRaw: string | null, jitterRaw: string | null): UrlOptions["throttle"] {
+  const rttMs = parseMs(lagRaw, MAX_THROTTLE_LAG_MS) ?? 0;
+  const jitterMs = parseMs(jitterRaw, MAX_THROTTLE_JITTER_MS) ?? 0;
+  return rttMs > 0 || jitterMs > 0 ? { rttMs, jitterMs } : null;
 }
 
 /** Options that start a solo run directly, skipping the start screen (Epic 1 playtest links keep working). */

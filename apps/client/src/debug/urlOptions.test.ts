@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_STRESS_WALKERS, MAX_STRESS_WALKERS, parseUrlOptions, skipsStartScreen } from "./urlOptions";
+import {
+  DEFAULT_STRESS_WALKERS,
+  MAX_STRESS_WALKERS,
+  MAX_THROTTLE_LAG_MS,
+  parseUrlOptions,
+  skipsStartScreen,
+} from "./urlOptions";
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null });
   });
 
   it("reads ?debug=1 and its spellings", () => {
@@ -50,5 +56,19 @@ describe("parseUrlOptions: Story 2.1 start screen", () => {
   it("skips the start screen for ?solo, ?stress, ?loadout and ?tune only", () => {
     for (const q of ["?solo", "?stress=20", "?loadout=smg", "?tune=1"]) expect(skipsStartScreen(parseUrlOptions(q))).toBe(true);
     for (const q of ["", "?debug=1", "?stress=abc"]) expect(skipsStartScreen(parseUrlOptions(q))).toBe(false);
+  });
+});
+
+describe("parseUrlOptions: Story 2.6 network throttle", () => {
+  it("reads ?lag=<rttMs>&jitter=<ms>", () => {
+    expect(parseUrlOptions("?lag=150&jitter=20").throttle).toEqual({ rttMs: 150, jitterMs: 20 });
+    expect(parseUrlOptions("?lag=150").throttle).toEqual({ rttMs: 150, jitterMs: 0 });
+    expect(parseUrlOptions("?jitter=30").throttle).toEqual({ rttMs: 0, jitterMs: 30 });
+    expect(parseUrlOptions("?lag=99999").throttle?.rttMs).toBe(MAX_THROTTLE_LAG_MS);
+  });
+
+  it("is off without a usable value, and never skips the start screen", () => {
+    for (const q of ["", "?lag=0", "?lag=abc", "?lag=-5&jitter=x", "?lag=1.5"]) expect(parseUrlOptions(q).throttle).toBeNull();
+    expect(skipsStartScreen(parseUrlOptions("?lag=150&jitter=20"))).toBe(false);
   });
 });

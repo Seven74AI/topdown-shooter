@@ -26,11 +26,25 @@ import type { NetSession } from "../net/session";
 import { ServerClock } from "../net/serverClock";
 import { SnapshotRing, type SampledPose } from "../net/snapshots";
 import { EventQueue } from "../net/eventQueue";
+import { Predictor } from "../net/prediction";
+import { AdaptiveDelay } from "../net/adaptiveDelay";
+import { RENDER_DELAY_MIN_MS } from "../net/netConfig";
 
-/** Everyone, you included, is drawn this many ticks (100 ms) behind the server. Story 2.6 makes it adaptive. */
-export const RENDER_DELAY_TICKS = 2;
-/** Sent inputs kept for Story 2.6's replay. */
-export const INPUT_HISTORY_SIZE = 64;
+/** Others are drawn this many ticks (100 ms) behind the server at first; Story 2.6 adapts it to 100–150 ms. */
+export const RENDER_DELAY_TICKS = RENDER_DELAY_MIN_MS / (TICK_DT_S * 1000);
+
+/** Netcode numbers for the 2.10 overlay (Story 2.6), updated every frame (one object, reused). */
+export interface NetStats {
+  rttMs: number;
+  /** Interpolation delay of others (ms) and the jitter it follows. */
+  delayMs: number;
+  jitterMs: number;
+  /** `Predictor.stats` of the local survivor. */
+  corrections: number;
+  snaps: number;
+  maxErrorM: number;
+  unackedInputs: number;
+}
 
 type MutableInput = { -readonly [K in keyof PlayerInput]: PlayerInput[K] };
 
@@ -60,6 +74,9 @@ export interface NetSimHostOptions {
  * - players added/removed as the schema's `players` map changes; position and facing from the
  *   interpolated snapshot at the render tick (`prevX = x`, so any `alpha` draws the same point);
  *   HP, status and loadout from the latest state (the HUD works unchanged);
+ * - except the local survivor (Story 2.6): drawn from the `Predictor`, which applies each sent
+ *   input at once and reconciles on every snapshot's `ackSeq`;
+ * - the render tick is `estimate − AdaptiveDelay` (100–150 ms from jitter), one value per frame;
  * - waves from the latest state. Zombies stay empty until Story 2.5, projectiles until 2.7.
  *
  * Inputs: one `input.send` per 50 ms step with seq + 1, edge flags latched until a step takes
@@ -73,11 +90,11 @@ export class NetSimHost implements SimHost {
   /** Positions are written already interpolated: alpha never matters. */
   readonly alpha = 0;
   readonly stats: SimStepStats = { lastUpdateSteps: 0, stepMs: new Float64Array(MAX_CATCHUP_STEPS), totalSteps: 0 };
-  /** Sent inputs, oldest first from `historyHead` (Story 2.6 replays `seq > ackSeq`). */
-  readonly history: readonly PlayerInput[];
-  private readonly historyRing: MutableInput[];
-  private historyHead = 0;
-  private historyCount = 0;
+  /** The local survivor's prediction (Story 2.6); it keeps the sent inputs for replay. */
+  readonly predictor: Predictor;
+  readonly netStats: NetStats = { rttMs: 0, delayMs: 0, jitterMs: 0, corrections: 0, snaps: 0, maxErrorM: 0, unackedInputs: 0 };
+  private readonly delay = new AdaptiveDelay();
+  private loggedWave = 0;
 
   private readonly session: NetSession;
   private readonly now: () => number;
@@ -113,14 +130,13 @@ export class NetSimHost implements SimHost {
     this.now = opts.now ?? (() => performance.now());
     this.world = createWorld({ balance: opts.balance, seed: 0, systems: NO_SYSTEMS });
     this.ctx = { balance: opts.balance };
-    this.historyRing = Array.from({ length: INPUT_HISTORY_SIZE }, () => ({ ...NEUTRAL_INPUT }));
-    this.history = this.historyRing;
+    this.predictor = new Predictor(opts.balance, this.world.map, this.localPlayerId);
     const room = opts.session.room;
     // Batches that came while the scene was not built yet (hidden tab at Start) arrive first.
     this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
     room.onStateChange(this.onState);
     // The start patch (phase "wave", spawn positions) may already have arrived.
-    if (room.state?.players) this.snapshots.push(room.state);
+    if (room.state?.players && room.state.phase !== "lobby") this.takeSnapshot(room.state);
   }
 
   /** Latest RTT the server measured for this client (2.10 overlay); the session answers the pings. */
@@ -128,7 +144,7 @@ export class NetSimHost implements SimHost {
     return this.session.rttMs;
   }
 
-  /** The (fractional) tick being drawn: server estimate − 100 ms. NaN before the first snapshot. */
+  /** The (fractional) tick others are drawn at: server estimate − adaptive delay. NaN before the first snapshot. */
   get renderTick(): number {
     return this.renderTickNow;
   }
@@ -143,8 +159,12 @@ export class NetSimHost implements SimHost {
     this.stats.lastUpdateSteps = 0;
     if (this.disposed) return;
     if (frameDtS > 0) this.stepInputs(frameDtS);
-    this.renderTickNow = this.clock.ready ? this.clock.estimateTick(t0) - RENDER_DELAY_TICKS : Number.NaN;
+    // Story 2.6: ONE render tick per frame, read by players, events and the horde (2.5) alike.
+    this.delay.frame(frameDtS);
+    this.renderTickNow = this.clock.ready ? this.delay.renderTick(this.clock.estimateTick(t0)) : Number.NaN;
+    this.predictor.frame(frameDtS);
     this.applyState();
+    this.updateNetStats();
     this.stats.stepMs[0] = this.now() - t0;
   }
 
@@ -187,10 +207,7 @@ export class NetSimHost implements SimHost {
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
       room.send(C2S.INPUT_SEND, buf); // encoded synchronously: the buffer can be reused
-      const slot = (this.historyHead + this.historyCount) % INPUT_HISTORY_SIZE;
-      copyInput(this.historyRing[slot] as MutableInput, buf);
-      if (this.historyCount < INPUT_HISTORY_SIZE) this.historyCount++;
-      else this.historyHead = (this.historyHead + 1) % INPUT_HISTORY_SIZE;
+      this.predictor.applyLocal(buf); // Story 2.6: my survivor moves now, not a round trip later
       this.accumulatorS -= TICK_DT_S;
       steps++;
     }
@@ -202,7 +219,7 @@ export class NetSimHost implements SimHost {
   /** Writes the latest room state (and the interpolated poses) into the mirror World. */
   private applyState(): void {
     const state = this.session.room.state;
-    if (!state?.players) return;
+    if (!state?.players || state.phase === "lobby") return; // a throttled room may still show the lobby
     this.latest = state;
     this.world.players.forEach(this.dropMissing);
     state.players.forEach(this.addMissing);
@@ -211,11 +228,50 @@ export class NetSimHost implements SimHost {
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
+    if (import.meta.env.DEV && import.meta.env.MODE !== "test" && state.wave !== this.loggedWave) {
+      this.loggedWave = state.wave; // dev builds: once per wave, until the 2.10 overlay shows them
+      console.info("net_stats", { wave: state.wave, ...this.netStats });
+    }
+  }
+
+  private updateNetStats(): void {
+    const n = this.netStats;
+    const s = this.predictor.stats;
+    n.rttMs = this.session.rttMs;
+    n.delayMs = this.delay.delayMs;
+    n.jitterMs = this.delay.jitterMs;
+    n.corrections = s.corrections;
+    n.snaps = s.snaps;
+    n.maxErrorM = s.maxErrorM;
+    n.unackedInputs = s.unackedInputs;
   }
 
   private applyPlayer(p: PlayerState): void {
     const s = this.session.room.state.players.get(p.id);
     if (!s) return;
+    if (p.id === this.localPlayerId && this.predictor.ready) this.writePredicted(p);
+    else this.writeInterpolated(p, s);
+    p.hp = s.hp;
+    p.maxHp = s.maxHp;
+    p.status = s.status;
+    const lo = p.loadout;
+    lo.active = s.active === 1 ? 1 : 0;
+    lo.swapTicks = s.swapTicks;
+    lo.slots[0] = this.syncSlot(lo.slots[0], s.weapon0, s.ammo0, s.reloadTicks0) ?? lo.slots[0];
+    lo.slots[1] = this.syncSlot(lo.slots[1], s.weapon1, s.ammo1, s.reloadTicks1);
+  }
+
+  /** Story 2.6: the local survivor at its predicted, smoothed position (alpha = step fraction). */
+  private writePredicted(p: PlayerState): void {
+    const alpha = this.accumulatorS / TICK_DT_S;
+    p.x = p.prevX = this.predictor.renderX(alpha);
+    p.y = p.prevY = this.predictor.renderY(alpha);
+    p.facingX = this.predictor.facingX;
+    p.facingY = this.predictor.facingY;
+  }
+
+  /** Others: the interpolated snapshot at the render tick (the latest state before the first). */
+  private writeInterpolated(p: PlayerState, s: PlayerStateView): void {
     const pose = this.pose;
     if (Number.isNaN(this.renderTickNow) || !this.snapshots.sample(s.slot, this.renderTickNow, pose)) {
       pose.x = s.x;
@@ -229,14 +285,6 @@ export class NetSimHost implements SimHost {
     const a = headingToRad(pose.heading);
     p.facingX = Math.cos(a);
     p.facingY = Math.sin(a);
-    p.hp = s.hp;
-    p.maxHp = s.maxHp;
-    p.status = s.status;
-    const lo = p.loadout;
-    lo.active = s.active === 1 ? 1 : 0;
-    lo.swapTicks = s.swapTicks;
-    lo.slots[0] = this.syncSlot(lo.slots[0], s.weapon0, s.ammo0, s.reloadTicks0) ?? lo.slots[0];
-    lo.slots[1] = this.syncSlot(lo.slots[1], s.weapon1, s.ammo1, s.reloadTicks1);
   }
 
   /** Reuses the slot object unless the weapon changed ("" = empty). */
@@ -250,9 +298,19 @@ export class NetSimHost implements SimHost {
 
   private receiveState(state: RunStateView): void {
     if (this.disposed || !state?.players) return;
+    if (state.phase === "lobby") return; // a throttled room delivers the lobby's last patches late
     if (this.snapshots.size > 0 && state.tick <= this.snapshots.latestTick) return; // nothing new this patch
+    const now = this.now();
+    this.takeSnapshot(state);
+    this.clock.sample(now, state.tick);
+    this.delay.snapshot(now, state.tick); // arrival after the dev throttle, if on
+  }
+
+  /** Others go into the interpolation ring; my own player reconciles the prediction (Story 2.6). */
+  private takeSnapshot(state: RunStateView): void {
     this.snapshots.push(state);
-    this.clock.sample(this.now(), state.tick);
+    const me = state.players.get(this.localPlayerId);
+    if (me) this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status);
   }
 
   private receiveEvents(m: SimEventsFlushed): void {

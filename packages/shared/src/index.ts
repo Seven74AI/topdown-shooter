@@ -24,7 +24,7 @@ export {
   type RawBalanceFiles,
 } from "./config/balance";
 export type { GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
-export { NO_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
+export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, type WorldSnapshot } from "./core/worldSnapshot";
 export { NEUTRAL_INPUT, playerInputSchema, type PlayerInput } from "./net/input";

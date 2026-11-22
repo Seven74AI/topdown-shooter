@@ -76,3 +76,10 @@ export const NO_SYSTEMS: Systems = {
   economy: noop,
   decayTimers: noop,
 };
+
+/**
+ * Client prediction (Story 2.6, ADR-01): only input and movement run, the very functions the
+ * server runs, so a predicted player ends exactly where the server puts it. Combat, zombies and
+ * waves are never predicted.
+ */
+export const PREDICTION_SYSTEMS: Systems = { ...NO_SYSTEMS, input: applyInputs, player: updatePlayers };

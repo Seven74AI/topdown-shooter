@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { C2S, S2C, type PlayerStateView, type RunPhase, type RunStateView } from "@topdown/shared";
 import { START_HINT, lobbyStore, lobbyView, snapshotLobby, type LobbySnapshot } from "./lobbyStore";
 import type { RunConnection } from "./connection";
-import { fakePlayer } from "./fakeRoom";
+import { FakeRoom, fakePlayer } from "./fakeRoom";
 
 const player = (slot: number, name: string, ready = false): PlayerStateView => fakePlayer(slot, { name, ready });
 
@@ -171,5 +171,24 @@ describe("lobbyStore", () => {
     f.drop();
     expect(onLost).toHaveBeenCalledOnce();
     expect(lobbyStore.current()).toBeNull();
+  });
+
+  it("the inbox listens on the fight room (the dev throttle) when one is given (Story 2.6)", () => {
+    const f = fakeRoom();
+    const fight = new FakeRoom();
+    lobbyStore.attach(f.room, { watch: () => () => {}, onLost: vi.fn(), onPhase: vi.fn(), fight });
+    expect(lobbyStore.fightRoom()).toBe(fight);
+    fight.deliver(S2C.NET_PINGED, { id: 4, rttMs: 10 });
+    expect(fight.sentOf(C2S.NET_PONG)).toEqual([{ id: 4 }]);
+    expect(f.raw.send).not.toHaveBeenCalledWith(C2S.NET_PONG, expect.anything());
+    lobbyStore.leave();
+    expect(lobbyStore.fightRoom()).toBeNull();
+  });
+
+  it("without a fight room, the fight reads the room itself", () => {
+    const f = fakeRoom();
+    lobbyStore.attach(f.room, { watch: () => () => {}, onLost: vi.fn(), onPhase: vi.fn() });
+    expect(lobbyStore.fightRoom()).toBe(f.room);
+    lobbyStore.leave();
   });
 });
