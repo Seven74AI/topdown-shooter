@@ -68,6 +68,21 @@ describe("NetSimHost", () => {
     expect(host.predictor.stats.unackedInputs).toBe(20); // kept for replay until acked
   });
 
+  it("each input carries the tick the horde is drawn at (Story 2.12 view tick), -1 before the first snapshot", () => {
+    const { host, room, arrive, setNow } = setup();
+    setNow(0);
+    host.update(0.05);
+    expect(inputs(room).at(-1)?.viewTick).toBe(-1);
+    setNow(1000);
+    arrive(10);
+    setNow(1050);
+    arrive(11);
+    setNow(500 + (10.5 + RENDER_DELAY_TICKS) * 50 + 3.3);
+    host.update(0.05);
+    expect(host.renderTick).toBeGreaterThan(10);
+    expect(inputs(room).at(-1)?.viewTick).toBe(Math.round(host.renderTick * 100) / 100);
+  });
+
   it("a swap tap reaches exactly one sent input", () => {
     const { host, room } = setup();
     host.setLocalInput({ ...NEUTRAL_INPUT, swap: true });

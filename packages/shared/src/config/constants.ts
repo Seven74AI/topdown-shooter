@@ -43,3 +43,16 @@ export const BUILD_GRID_M = 0.5;
  * `zombies.json › pathing`.
  */
 export const FLOW_CELL_M = 0.5;
+
+/**
+ * Story 2.12 (architecture › lag compensation): a player's shot is tested against zombie positions
+ * at most this many ticks old (6 = 300 ms). Netcode, not balance. The server's `REWIND_CAP_MS`
+ * (apps/server/src/net/limits.ts) can only lower it.
+ */
+export const REWIND_MAX_TICKS = 6;
+
+/**
+ * Story 2.12: rows of the zombie position history (`combat/rewind.ts`): REWIND_MAX_TICKS back, one
+ * more to interpolate a fractional tick, one spare.
+ */
+export const ZOMBIE_HISTORY_TICKS = REWIND_MAX_TICKS + 2;

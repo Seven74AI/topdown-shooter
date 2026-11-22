@@ -15,6 +15,7 @@ import { createEconomyState, type EconomyState } from "../economy/economy";
 import { createBuildingState, type BuildingState } from "../buildings/buildings";
 import { createPathingState, type PathingState } from "../zombies/flowField";
 import { createRng, type Rng } from "./rng";
+import { createRewoundView, createZombieHistory, recordZombieHistory, type RewoundView, type ZombieHistory } from "../combat/rewind";
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
 
 /** The whole simulation state. A plain object so it can be snapshotted (Story 8.4). */
@@ -62,6 +63,13 @@ export interface World {
    * the `buildings` system on server and solo. Derived from players and buildings; never synced.
    */
   readonly pathing: PathingState;
+  /**
+   * Story 2.12: zombie positions of the last ticks for rewound hit tests (`combat/rewind.ts`),
+   * recorded at the end of `step()` only when enabled (the server with lag compensation; never solo).
+   */
+  readonly zombieHistory: ZombieHistory;
+  /** Story 2.12: scratch for the rewound zombie view (not simulation state; never snapshotted). */
+  readonly rewoundView: RewoundView;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -113,6 +121,8 @@ export function createWorld(opts: CreateWorldOptions): World {
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),
     pathing: createPathingState(map),
+    zombieHistory: createZombieHistory(),
+    rewoundView: createRewoundView(map),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;
@@ -132,5 +142,6 @@ export function step(world: World, dtS: number): void {
   if (!systems) throw new Error("step: world was not created by createWorld()");
   for (const name of SYSTEM_ORDER) systems[name](world, dtS);
   world.tick += 1;
+  recordZombieHistory(world); // Story 2.12: row `world.tick` = what this tick's horde frame shows
   world.events.flush(); // always last: events of this tick are delivered once, in order
 }

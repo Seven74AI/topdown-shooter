@@ -26,6 +26,11 @@ export interface PlayerState {
   loadout: Loadout;
   /** Story 2.7: half the RTT (capped) a new projectile's first sweep is advanced by; 0 offline. */
   shotAdvanceS: number;
+  /**
+   * Story 2.12: the most ticks this player's shots may be rewound (lag compensation); 0 = off
+   * (offline). The server sets it; the rewind of a shot comes from its input's `viewTick`.
+   */
+  rewindMaxTicks: number;
   /** Story 2.7 review: the server had no new input for this tick: weapon timers pause (server only). */
   weaponsPaused: boolean;
   /** Downed (Story 2.8): ticks until out; paused while a revive is in progress. 0 when not downed. */
@@ -67,6 +72,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     status: "alive",
     loadout: createLoadout(world.balance),
     shotAdvanceS: 0,
+    rewindMaxTicks: 0,
     weaponsPaused: false,
     downedTicksLeft: 0,
     reviveTicks: 0,

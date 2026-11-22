@@ -458,7 +458,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       scenario: this.scenario,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
       devPlacedHpFraction: devPlacedHp,
+      // Story 2.12: rewound hit testing; DEV_NO_REWIND=1 (dev only) turns it off for A/B checks of the overlay's reversed hits.
+      lagCompensation: !(devAllowed && process.env.DEV_NO_REWIND === "1"),
     });
+    if (!controller.world.zombieHistory.enabled) this.log.warn("dev_no_rewind");
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;

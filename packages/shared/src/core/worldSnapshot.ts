@@ -2,6 +2,7 @@ import type { World } from "./world";
 import { MAX_PIERCE } from "../combat/projectilePool";
 import { MAX_DAMAGERS } from "../economy/economy";
 import { snapshotPathing } from "../zombies/flowField";
+import { snapshotZombieHistory } from "../combat/rewind";
 
 const sortedEntries = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -47,6 +48,7 @@ function snapshotProjectiles(world: World) {
     dirY: p.dirY[id],
     rangeLeftM: p.rangeLeftM[id],
     advanceM: p.advanceM[id],
+    rewindTicks: p.rewindTicks[id], // Story 2.12
     pierceLeft: p.pierceLeft[id],
     weapon: p.weapon[id],
     building: p.building[id], // Story 3.6
@@ -107,6 +109,8 @@ export function snapshotWorld(world: World) {
     },
     // Story 3.5: the flow field's counters and hashes of its buffers (it is evolved state, not synced).
     pathing: snapshotPathing(world.pathing),
+    // Story 2.12: the zombie position history (evolved state: switch, row labels, hash of the rows).
+    zombieHistory: snapshotZombieHistory(world.zombieHistory),
   };
 }
 

@@ -31,9 +31,11 @@ import {
   PLACEHOLDER_MAP,
   packTypeState,
   rotate,
+  seqSpreadRoll,
   setLoadout,
   spawnZombie,
   zombieNetId,
+  type Balance,
   type NetEvent,
   type PlayerInput,
   type WeaponId,
@@ -49,8 +51,9 @@ import { ServerClock } from "../../apps/client/src/net/serverClock";
 import { AdaptiveDelay } from "../../apps/client/src/net/adaptiveDelay";
 import { HordeSample } from "../../apps/client/src/net/hordeBuffer";
 import { mirrorZombies } from "../../apps/client/src/net/mirrorZombies";
+import { viewTickOf } from "../../apps/client/src/net/viewTick";
 
-const balance = loadBalance();
+const DEFAULT_BALANCE = loadBalance();
 const TICK_MS = TICK_DT_S * 1000;
 const FRAME_MS = 1000 / 60;
 const MAX_STEPS_PER_FRAME = 5;
@@ -74,9 +77,15 @@ export interface Options {
   walkers?: number;
   /** Story 3.8: the type of the zombies kept coming (default Walker; "runner": 4 m/s, flanking). */
   zombieType?: ZombieTypeId;
+  /** Story 2.12: the server's lag compensation (default on); false = Story 2.7's shot advance only (control). */
+  rewind?: boolean;
+  /** Story 2.12: another balance (e.g. a weapon without spread, to separate spread from timing). */
+  balance?: Balance;
 }
 
 export interface Result {
+  /** Story 2.12: per server shot, the view offset its input asked for (server tick − viewTick, ticks; unclamped). */
+  viewOffsets: number[];
   /** Seqs on which the client's fire clock shot, and on which the server's weapon fired. */
   localShotSeqs: number[];
   serverShotSeqs: number[];
@@ -117,8 +126,9 @@ interface Down {
 }
 
 export function simulate(o: Options): Result {
+  const balance = o.balance ?? DEFAULT_BALANCE;
   const rng = createRng(o.seed);
-  const ctrl = new RunController({ balance, seed: o.seed, players: [{ playerId: ID, slot: 0 }], systems: { waves: () => {} } });
+  const ctrl = new RunController({ balance, seed: o.seed, players: [{ playerId: ID, slot: 0 }], systems: { waves: () => {} }, lagCompensation: o.rewind !== false });
   const sp = ctrl.world.players.get(ID);
   if (!sp) throw new Error("no player");
   setLoadout(balance, sp.loadout, [o.weapon, null]);
@@ -158,10 +168,12 @@ export function simulate(o: Options): Result {
   const kills: { tick: number; netId: number }[] = [];
   const hidden = new Set<number>();
   let latest: Down | null = null;
+  let viewTick = -1;
+  const viewOffsets: number[] = [];
+  const viewTickBySeq = new Map<number, number>();
   let nowMs = 0;
   const windowMs = () => 2 * o.oneWayMs + delay.delayMs + REVERSED_HIT_SLACK_MS;
   const cosmetics = new CosmeticProjectiles(mirror, ID, (netId) => hits.apparent(netId, nowMs, windowMs()));
-  const spread = createRng(99);
   const dir = { x: 1, y: 0 };
   let serverHitsByMe = 0;
   let killCount = 0;
@@ -220,7 +232,12 @@ export function simulate(o: Options): Result {
         const enc = encodeNetEvent(e, ctx);
         if (enc) events.push(enc);
         if (e.type === "zombie.hit" && e.sourceId === ID) serverHitsByMe++;
-        if (e.type === "weapon.fired" && e.playerId === ID) serverShotSeqs.push(ctrl.ackSeq(ID));
+        if (e.type === "weapon.fired" && e.playerId === ID) {
+          serverShotSeqs.push(ctrl.ackSeq(ID));
+          // Combat ran at world.tick − 1 (the tick is counted at the end of the step).
+          const vt = viewTickBySeq.get(ctrl.ackSeq(ID)) ?? -1;
+          if (vt >= 0) viewOffsets.push(ctrl.world.tick - 1 - vt);
+        }
         if (e.type === "zombie.killed") killCount++;
       }
       while (z.aliveCount < walkers) spawnRingWalker();
@@ -273,7 +290,9 @@ export function simulate(o: Options): Result {
     // The frame, in NetSimHost.update order.
     delay.frame(dtMs / 1000);
     if (serverClock.ready) {
-      sampleHorde(delay.renderTick(serverClock.estimateTick(t)));
+      const rt = delay.renderTick(serverClock.estimateTick(t));
+      viewTick = viewTickOf(rt);
+      sampleHorde(rt);
       mirrorZombies(sample, mirror.zombies);
       cosmetics.zombiesMoved();
     }
@@ -320,7 +339,9 @@ export function simulate(o: Options): Result {
         aimY: best >= 0 ? (mz.y[best] as number) - py : 0,
         fire: best >= 0 && bestD < range + 0.5,
         isMouse: false,
+        viewTick,
       };
+      viewTickBySeq.set(input.seq, viewTick);
       const stalled = o.stall !== undefined && t >= o.stall.fromMs && t < o.stall.toMs;
       up.send(t, input, stalled && o.stall ? o.stall.toMs + o.oneWayMs : -Infinity);
       predictor.applyLocal(input);
@@ -335,7 +356,7 @@ export function simulate(o: Options): Result {
         assistAim(mirror, mx, my, a.dirX, a.dirY, stats.rangeM, dir);
         if (stats.spreadDeg > 0) {
           const half = (stats.spreadDeg / 2) * (Math.PI / 180);
-          rotate(dir.x, dir.y, spread.range(-half, half), dir);
+          rotate(dir.x, dir.y, seqSpreadRoll(ID, input.seq) * half, dir); // Story 2.12: as NetSimHost
         }
         cosmetics.spawn(ID, a.weapon, mx, my, dir.x, dir.y);
       }
@@ -345,6 +366,6 @@ export function simulate(o: Options): Result {
     predictor.frame(dtMs / 1000);
     hits.update(t);
   }
-  return { ...hits.counts, serverHitsByMe, kills: killCount, shots, localShotSeqs, serverShotSeqs, drops: ctrl.drops(ID) };
+  return { ...hits.counts, serverHitsByMe, kills: killCount, shots, localShotSeqs, serverShotSeqs, viewOffsets, drops: ctrl.drops(ID) };
 }
 

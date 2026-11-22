@@ -114,7 +114,7 @@ describe("LocalSimHost", () => {
   it("delivers a swap tapped between two steps to exactly one step", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     let swapTicks = 0;
-    const neutral = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false };
+    const neutral = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false, viewTick: -1 };
     host.setLocalInput({ ...neutral, swap: true }); // tap on one frame…
     host.update(FRAME_60HZ);
     host.setLocalInput(neutral); // …released on the next, before any step ran
@@ -133,7 +133,7 @@ describe("LocalSimHost", () => {
 
   it("clearEdges drops a swap latched before any step (the menu opened in the same step; 2.11 review)", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
-    const neutral = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false };
+    const neutral = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false, viewTick: -1 };
     host.setLocalInput({ ...neutral, swap: true, consumable: true });
     host.setLocalInput(neutral);
     host.clearEdges();
@@ -151,7 +151,7 @@ describe("LocalSimHost", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     let swaps = 0;
     host.world.events.subscribe(() => {});
-    host.setLocalInput({ seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: true, consumable: false, isMouse: false });
+    host.setLocalInput({ seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: true, consumable: false, isMouse: false, viewTick: -1 });
     // Count swaps seen per step by stepping one frame at a time after the long frame.
     host.update(0.05);
     if (host.world.inputs.get("local")?.swap) swaps++;
@@ -162,7 +162,7 @@ describe("LocalSimHost", () => {
 
   it("passes the local input to the world each step", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
-    host.setLocalInput({ seq: 7, moveX: 1, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false });
+    host.setLocalInput({ seq: 7, moveX: 1, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false, viewTick: -1 });
     host.update(0.05);
     expect(host.world.inputs.get("local")?.moveX).toBe(1);
     expect(host.world.inputs.get("local")?.seq).toBe(1); // the host stamps one seq per step

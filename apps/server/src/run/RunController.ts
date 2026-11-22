@@ -1,5 +1,6 @@
 import {
   NEUTRAL_INPUT,
+  REWIND_MAX_TICKS,
   TICK_DT_S,
   addPlayer,
   applyTestScenario,
@@ -9,6 +10,7 @@ import {
   createWorld,
   removePlayer,
   setBuildReady,
+  setZombieHistoryEnabled,
   setInput,
   skippedInputWeaponTick,
   startBuild,
@@ -31,7 +33,10 @@ import {
   type World,
   type ZombieTypeId,
 } from "@topdown/shared";
-import { SHOT_ADVANCE_CAP_MS } from "../net/limits";
+import { REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS } from "../net/limits";
+
+/** Story 2.12: the rewind cap in ticks (REWIND_CAP_MS, never more than the shared history holds). */
+export const REWIND_CAP_TICKS = Math.min(REWIND_MAX_TICKS, Math.floor(REWIND_CAP_MS / (TICK_DT_S * 1000)));
 
 /** Inputs kept per player: 6 steps = 300 ms of jitter (Story 2.4 › Input queue). */
 export const INPUT_QUEUE_MAX = 6;
@@ -58,6 +63,7 @@ const copyInput = (to: MutableInput, from: PlayerInput): void => {
   to.swap = from.swap;
   to.consumable = from.consumable;
   to.isMouse = from.isMouse;
+  to.viewTick = from.viewTick; // Story 2.12
 };
 
 /** Per-player input ring and ack. Preallocated: queueing and ticking never allocate. */
@@ -159,6 +165,12 @@ export interface RunControllerOptions {
    * of its HP, so repairs can be checked before Story 3.5's zombies damage buildings. null = full HP.
    */
   devPlacedHpFraction?: number | null;
+  /**
+   * Story 2.12: lag compensation (default on): the World records zombie history and each player's
+   * shots are tested at their input's view tick, at most REWIND_CAP_TICKS back. Off (`DEV_NO_REWIND=1`,
+   * harness control): Story 2.7's shot advance only.
+   */
+  lagCompensation?: boolean;
 }
 
 /**
@@ -192,10 +204,12 @@ export class RunController {
     this.world.waves.paused = opts.pauseWaves === true;
     this.world.debug.waveMix = opts.waveMix ?? null;
     if (opts.scenario) applyTestScenario(this.world, opts.scenario);
+    const lagComp = opts.lagCompensation !== false;
+    setZombieHistoryEnabled(this.world, lagComp);
     const at = { x: 0, y: 0 };
     for (const { playerId, slot } of opts.players) {
       teamSpawnPoint(this.world, slot, at);
-      addPlayer(this.world, playerId, at.x, at.y);
+      addPlayer(this.world, playerId, at.x, at.y).rewindMaxTicks = lagComp ? REWIND_CAP_TICKS : 0;
       const s = new PlayerSlot(playerId);
       this.slots.set(playerId, s);
       this.order.push(s);

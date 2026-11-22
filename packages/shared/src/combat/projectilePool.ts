@@ -17,6 +17,11 @@ export interface ProjectilePool {
   readonly rangeLeftM: Float32Array;
   /** Extra distance swept on the first step only (Story 2.7 shot advance; 0 offline), then 0. */
   readonly advanceM: Float32Array;
+  /**
+   * Story 2.12: every sweep of this shot is tested against zombie positions this many ticks old
+   * (the shooter's view offset; 0 = live positions: offline, turret shots, inputs without a view tick).
+   */
+  readonly rewindTicks: Float32Array;
   readonly damage: Float32Array;
   readonly pierceLeft: Uint8Array;
   /** Index into weaponIds(balance). */
@@ -53,6 +58,7 @@ export function createProjectilePool(capacity: number): ProjectilePool {
     speedMps: new Float32Array(capacity),
     rangeLeftM: new Float32Array(capacity),
     advanceM: new Float32Array(capacity),
+    rewindTicks: new Float32Array(capacity),
     damage: new Float32Array(capacity),
     pierceLeft: new Uint8Array(capacity),
     weapon: new Uint8Array(capacity),
@@ -85,6 +91,8 @@ export interface ProjectileSpawn {
   pushbackM?: number;
   /** Shot advance in metres (`projectileSpeedMps × shotAdvanceS`; 0 offline and for cosmetic shots). */
   advanceM: number;
+  /** Story 2.12: the shooter's rewind in ticks (absent / 0: live positions). */
+  rewindTicks?: number;
 }
 
 /** Returns the projectile id, or -1 if the pool is full. */
@@ -100,6 +108,7 @@ export function spawnProjectile(pool: ProjectilePool, s: ProjectileSpawn): numbe
   pool.speedMps[id] = s.speedMps;
   pool.rangeLeftM[id] = s.rangeM;
   pool.advanceM[id] = s.advanceM;
+  pool.rewindTicks[id] = s.rewindTicks ?? 0;
   pool.damage[id] = s.damage;
   pool.pierceLeft[id] = Math.min(s.pierce, MAX_PIERCE);
   pool.weapon[id] = s.weaponIndex;
