@@ -146,3 +146,57 @@ export function pushOutOfBuildings(
   pushed.y = py;
   return PUSH_MOVED;
 }
+
+/** The segment p0 + t·(dx, dy), t ∈ [0, 1], passes through the box's interior (slab test; touching is not a hit). */
+export function segmentHitsBox(x0: number, y0: number, dx: number, dy: number, minX: number, minY: number, maxX: number, maxY: number): boolean {
+  let t0 = 0;
+  let t1 = 1;
+  if (dx === 0) {
+    if (x0 <= minX || x0 >= maxX) return false;
+  } else {
+    let a = (minX - x0) / dx;
+    let b = (maxX - x0) / dx;
+    if (a > b) {
+      const s = a;
+      a = b;
+      b = s;
+    }
+    t0 = Math.max(t0, a);
+    t1 = Math.min(t1, b);
+    if (t0 >= t1) return false;
+  }
+  if (dy === 0) return y0 > minY && y0 < maxY;
+  let a = (minY - y0) / dy;
+  let b = (maxY - y0) / dy;
+  if (a > b) {
+    const s = a;
+    a = b;
+    b = s;
+  }
+  t0 = Math.max(t0, a);
+  t1 = Math.min(t1, b);
+  return t0 < t1;
+}
+
+/**
+ * Story 3.5: a circle of radius r moving in a straight line from (x0, y0) to (x1, y1) would hit a
+ * building (each box grown by r on every side: conservative at the corners). Zombies walk straight
+ * when this is false and follow the flow field otherwise.
+ */
+export function segmentHitsBuildings(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number, r: number): boolean {
+  const list = world.buildings.list;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    if (segmentHitsBox(x0, y0, dx, dy, b.minX - r, b.minY - r, b.maxX + r, b.maxY + r)) return true;
+  }
+  return false;
+}
+
+/** Distance from (x, y) to the box (0 inside). */
+export function distanceToBox(x: number, y: number, minX: number, minY: number, maxX: number, maxY: number): number {
+  const dx = x - Math.min(maxX, Math.max(minX, x));
+  const dy = y - Math.min(maxY, Math.max(minY, y));
+  return Math.sqrt(dx * dx + dy * dy);
+}

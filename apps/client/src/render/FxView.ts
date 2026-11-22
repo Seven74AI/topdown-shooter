@@ -1,5 +1,5 @@
 import type * as Phaser from "phaser";
-import type { SimEvent } from "@topdown/shared";
+import { buildingStats, footprint, type Balance, type Box, type SimEvent } from "@topdown/shared";
 import { playSfx } from "../audio/placeholderSfx";
 import type { ZombieView } from "./ZombieView";
 
@@ -13,6 +13,10 @@ const SWING_COLOR = 0xe8eef2;
 const SWING_ALPHA = 0.35;
 const DEG_TO_RAD = Math.PI / 180;
 const BLOOD = 0x5a0f0f;
+/** Story 3.5: building debris. */
+const DEBRIS = 0x8b5a2b;
+const DEBRIS_PUFFS = 6;
+const DEBRIS_MS = 450;
 /** Story 3.7: a green ring that grows from the repaired building's centre. */
 const REPAIR_COLOR = 0x7cff8a;
 const REPAIR_RING_M = 0.6;
@@ -28,6 +32,10 @@ export class FxView {
   private readonly puffs: Phaser.GameObjects.Arc[] = [];
   private readonly flashes: Phaser.GameObjects.Arc[] = [];
   private readonly swings: Phaser.GameObjects.Graphics[] = [];
+  private readonly debrisPuffs: Phaser.GameObjects.Arc[] = [];
+  private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  /** Story 3.5: for building footprints (set by GameScene with the host's World balance). */
+  balance: Balance | null = null;
   private readonly repairs: Phaser.GameObjects.Arc[] = [];
 
   constructor(
@@ -45,6 +53,10 @@ export class FxView {
       case "zombie.killed":
         this.splat(e.x, e.y);
         this.puff(e.x, e.y);
+        break;
+      case "building.destroyed":
+        this.debris(e.buildingId, e.buildingType, e.gx, e.gy, e.rot);
+        playSfx("zombie_hit"); // placeholder thud until Story 9's sounds
         break;
       case "weapon.fired":
         this.muzzle(e.x, e.y);
@@ -96,6 +108,21 @@ export class FxView {
     this.scene.tweens.add({ targets: p, scale: 1.4, alpha: 0, duration: PUFF_MS, onComplete: () => p.setVisible(false) });
   }
 
+  /** Story 3.5: a building broke: a few wood-coloured puffs around its centre (pooled). */
+  private debris(id: number, type: string, gx: number, gy: number, rot: number): void {
+    const stats = this.balance ? buildingStats(this.balance, type) : undefined;
+    if (!stats) return;
+    const b = footprint(stats, gx, gy, rot, this.box); // grid → metres: the one shared helper
+    const x = (b.minX + b.maxX) / 2;
+    const y = (b.minY + b.maxY) / 2;
+    for (let k = 0; k < DEBRIS_PUFFS; k++) {
+      const p = this.take(this.debrisPuffs, 0.22, DEBRIS, 6);
+      const a = (k / DEBRIS_PUFFS) * Math.PI * 2 + id;
+      p.setPosition(x + Math.cos(a) * 0.5, y + Math.sin(a) * 0.3).setScale(0.6).setAlpha(0.9).setVisible(true);
+      this.scene.tweens.add({ targets: p, x: x + Math.cos(a) * 1.3, y: y + Math.sin(a) * 0.9, scale: 1.3, alpha: 0, duration: DEBRIS_MS, onComplete: () => p.setVisible(false) });
+    }
+  }
+
   private muzzle(x: number, y: number): void {
     const m = this.take(this.flashes, 0.18, 0xffe9a8, 9);
     m.setPosition(x, y).setAlpha(1).setVisible(true);
@@ -133,7 +160,8 @@ export class FxView {
   }
 
   destroy(): void {
-    for (const o of [...this.splats, ...this.puffs, ...this.flashes, ...this.swings, ...this.repairs]) o.destroy();
+    for (const o of [...this.splats, ...this.puffs, ...this.flashes, ...this.swings, ...this.debrisPuffs, ...this.repairs]) o.destroy();
+    this.debrisPuffs.length = 0;
     this.splats.length = 0;
     this.puffs.length = 0;
     this.flashes.length = 0;

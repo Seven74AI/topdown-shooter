@@ -1,5 +1,6 @@
 export {
   BUILD_GRID_M,
+  FLOW_CELL_M,
   GAME_TITLE,
   GRID_CELL_M,
   MUZZLE_OFFSET_M,
@@ -214,6 +215,7 @@ export {
   placeBuilding,
   placementError,
   removeBuilding,
+  damageBuilding,
   type Box,
   type Building,
   type BuildingRotation,
@@ -230,8 +232,29 @@ export {
   circleOverlapsBox,
   pushOutOfBuildings,
   pushed,
+  distanceToBox,
+  segmentHitsBox,
+  segmentHitsBuildings,
   type PushResult,
 } from "./buildings/collision";
+// Story 3.5: flow-field pathfinding.
+export {
+  FLOW_UNREACHED,
+  advanceFlowField,
+  createFlowField,
+  createNavGrid,
+  flowCellAt,
+  flowFieldMaxAgeTicks,
+  flowNextCell,
+  flowRefreshTicks,
+  rasterizeBuildings,
+  rebuildFlowFieldNow,
+  updatePathing,
+  type FlowField,
+  type NavGrid,
+  type PathingState,
+} from "./zombies/flowField";
+export { updateBuildings } from "./buildings/buildingSystem";
 // Story 3.7: repairs.
 export { REPAIR_ERRORS, buildingAtPoint, isDamaged, repairBuilding, repairCost, repairError, type RepairError, type Repaired } from "./buildings/repair";
 export { findFreeSpotNear, spotBlocked } from "./player/freeSpot";

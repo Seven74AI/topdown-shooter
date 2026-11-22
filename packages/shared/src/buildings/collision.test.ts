@@ -170,9 +170,10 @@ describe("zombies vs barricades", () => {
     const id = spawnZombie(world, "walker", 20, 23);
     for (let i = 0; i < 200; i++) {
       step(world, TICK_DT_S);
-      expect(world.zombies.y[id]).toBeGreaterThanOrEqual(19 + RZ - 1e-6);
+      expect(clearOfAll(world, world.zombies.x[id] as number, world.zombies.y[id] as number, RZ - 1e-6)).toBe(true);
     }
-    expect(world.zombies.y[id]).toBeCloseTo(19 + RZ, 6);
+    // Story 3.5: it no longer presses on the wall's middle, it walks round its end (flowField tests).
+    expect(world.zombies.y[id]).toBeLessThan(18.5);
   });
 
   it("H1: zombies don't pass a slot narrower than their body", () => {
@@ -201,6 +202,8 @@ describe("zombies vs barricades", () => {
     wall(world, 24, 12, 1); // [24, 24.5] × [12, 14]: L corner at the wall's right end
     // Zombies above the wall and left of the stem.
     const ids = [spawnZombie(world, "walker", 22.5, 10), spawnZombie(world, "walker", 24.4, 10.5), spawnZombie(world, "walker", 20.8, 13.5)];
+    const was = new Map<number, { x: number; y: number }>();
+    for (const id of ids) was.set(id, { x: world.zombies.x[id] as number, y: world.zombies.y[id] as number });
     for (let i = 0; i < 400; i++) {
       step(world, TICK_DT_S);
       for (const id of ids) {
@@ -208,7 +211,11 @@ describe("zombies vs barricades", () => {
         const y = world.zombies.y[id] as number;
         expect(clearOfAll(world, x, y, RZ)).toBe(true);
         const inPocket = x > 22 && x < 24 && y > 12.5 && y < 14;
-        expect(inPocket).toBe(false); // the only ways in are under the stem or the L (y ≥ 14): they press on straight lines instead
+        const prev = was.get(id) as { x: number; y: number };
+        const wasIn = prev.x > 22 && prev.x < 24 && prev.y > 12.5 && prev.y < 14;
+        // Story 3.5: zombies now path round into the pocket, but only through its open bottom (y ≥ 13.5), never a corner.
+        if (inPocket && !wasIn) expect(prev.y).toBeGreaterThan(13.5);
+        was.set(id, { x, y });
       }
     }
   });

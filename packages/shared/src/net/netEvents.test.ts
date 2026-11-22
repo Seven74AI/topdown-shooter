@@ -35,6 +35,7 @@ const EVENTS: SimEvent[] = [
   { type: "money.earned", playerId: "p2", amount: 30, reason: "wave" },
   { type: "money.earned", playerId: "p0", amount: 1, reason: "assist" },
   { type: "building.placed", buildingId: 3, buildingType: "wood_barricade", ownerId: "p1", gx: 47, gy: 31, rot: 3 },
+  { type: "building.destroyed", buildingId: 4, buildingType: "wood_barricade", ownerId: "p2", gx: 12, gy: 30, rot: 1 },
   { type: "building.repaired", buildingId: 3, playerId: "p2", cost: 20, x: 47.25, y: 31.5 },
 ];
 

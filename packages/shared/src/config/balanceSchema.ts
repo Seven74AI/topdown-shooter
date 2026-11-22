@@ -68,8 +68,27 @@ export const crowdSchema = z
   })
   .strict();
 
+/**
+ * Story 3.5: the flow field (`zombies/flowField.ts`). The field is rebuilt continuously: each tick
+ * settles at most `rebuildCellsPerTick` cells, so a full refresh of the map takes
+ * ceil(cells / rebuildCellsPerTick) ticks (the cadence) and the field zombies read is at most twice
+ * that old.
+ */
+export const pathingSchema = z
+  .object({
+    /** Rebuild budget: cells settled per tick (the 48 × 32 m map has 6,144). */
+    rebuildCellsPerTick: z.number().int().positive(),
+    /** Walking a building cell costs as much as this many metres of open street (so zombies detour unless breaking is cheaper). */
+    buildingCostM: z.number().positive(),
+    /** Extra cost of a cell next to a building (paths keep off walls and round corners cleanly). */
+    nearWallCostM: z.number().min(0),
+    /** A zombie steers at the centre of the cell this many steps down the field (stops before a building). */
+    lookaheadCells: z.number().int().min(1).max(8),
+  })
+  .strict();
+
 export const zombiesSchema = z
-  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema })
+  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema, pathing: pathingSchema })
   .strict();
 
 export const wavesSchema = z

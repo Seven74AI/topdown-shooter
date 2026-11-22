@@ -13,6 +13,7 @@ import { createSpatialGrid, type SpatialGrid } from "./spatialGrid";
 import { EventBus } from "./eventBus";
 import { createEconomyState, type EconomyState } from "../economy/economy";
 import { createBuildingState, type BuildingState } from "../buildings/buildings";
+import { createPathingState, type PathingState } from "../zombies/flowField";
 import { createRng, type Rng } from "./rng";
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
 
@@ -56,6 +57,11 @@ export interface World {
    * zombies (`buildings/collision.ts`). The client's mirror and prediction Worlds copy them from schema.
    */
   readonly buildings: BuildingState;
+  /**
+   * Story 3.5: the 0.5 m nav grid and the zombies' flow field (`zombies/flowField.ts`), advanced by
+   * the `buildings` system on server and solo. Derived from players and buildings; never synced.
+   */
+  readonly pathing: PathingState;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -106,6 +112,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),
+    pathing: createPathingState(map),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;
