@@ -83,6 +83,12 @@ const cover: Rect[] = [
   { name: "parked_car_3", x: 17.5, y: 26, w: 2, h: 4.5, props: { kind: "car" } },
   { name: "street_car_west", x: 4, y: 13, w: 4.5, h: 2, props: { kind: "car" } },
   { name: "street_car_east", x: 42, y: 17.5, w: 4.5, h: 2, props: { kind: "car" } },
+  // Story 4.6 (Evening, FR59): cars parked along the curbs (cover from wave 1; Story 4.7 moves 4 of them).
+  { name: "curb_car_west_far", x: 3, y: 18, w: 4.5, h: 2, props: { kind: "car" } },
+  { name: "curb_car_west_n", x: 12, y: 12, w: 4.5, h: 2, props: { kind: "car" } },
+  { name: "curb_car_west_s", x: 13.5, y: 18, w: 4.5, h: 2, props: { kind: "car" } },
+  { name: "curb_car_north", x: 20, y: 0, w: 2, h: 4.5, props: { kind: "car" } },
+  { name: "curb_car_south", x: 26, y: 24, w: 2, h: 4.5, props: { kind: "car" } },
   { name: "police_barrier_north", x: 21, y: 6, w: 6, h: 0.5, props: { kind: "barrier", minStage: 2 } },
   { name: "sandbags_south", x: 22.5, y: 22.5, w: 3, h: 1, props: { kind: "sandbags", minStage: 3 } },
 ];
@@ -136,32 +142,51 @@ const hazards: Rect[] = [
 ];
 
 /**
- * Story 4.5 decay mutations (`decay` layer; the engine's minimal real set — Stories 4.6–4.8 add the
- * real stage content: cars moving, barriers, fires). Applied at the build start that enters `stage`.
- * Stage 2 (panic): `parked_car_3` is driven off (remove); a dumpster narrows alley 3 to 1.5 m
- * (block); one abandoned car (add) — west street or south street, picked per run from the `decay`
- * stream. Stage 3 (breakdown): one of two cars catches fire (ignite: a 2 m fire record, data only
- * until 4.8). Stages 4–5: none yet. Every box is clear of each spawn's jitter area (test).
+ * Story 4.5 decay mutations (`decay` layer). Applied at the build start that enters `stage`.
+ *
+ * Story 4.7 (Panic, stage 2, FR60): 4 of 6 curb cars, picked per run from the `decay` stream (group
+ * `panic_cars_moved`, pick 4), end up slewed into the road: each candidate removes the car at the
+ * curb and adds it in the road. Police barriers (`barrier`: bodies only, shots pass) close the
+ * parking lot's north side (a 1.5 m gap stays at its NW corner, the lot stays open to the south
+ * street) and the gas forecourt's west side (it stays open along the east street), plus 4.2's
+ * `police_barrier_north`. From 4.5: `parked_car_3` is driven off, a dumpster narrows alley 3.
+ * Rules (tests): no area is ever enclosed (every stage × every variant combination), every spawn's
+ * jitter area stays clear, and nothing that appears lands within `buildings.spawnClearM` of a spawn
+ * point or on the team start.
+ *
+ *   x: 0    4    8   12   16   20   24   28   32   36   40   44   48
+ *   y0  ####### a1 #######  N^  |     #   gas forecourt   kiosk
+ *    5                     n→     #barrier(gas)
+ *    6                    ==police_north==
+ *    8                    [n moved]
+ *   12      [wc]   [wn]                             (bus)       [ec]
+ *   16  W   |w1|   [wn moved]          T          ##BUS##
+ *   20          [ws moved][ws]                      [ec moved]
+ *   22  ######  ==========lot line=======   [s moved]  ######
+ *
+ * Stage 3 (breakdown): one of two cars catches fire (ignite: a 2 m fire record, data only until
+ * 4.8). Stages 4–5: none yet.
  */
+const panicCar = (curb: string, x: number, y: number, w: number, h: number): (Rect | Point)[] => {
+  const variant = `panic_move_${curb}`;
+  const v = { group: "panic_cars_moved", variant, pick: 4 };
+  return [
+    { name: `${curb}_leaves_curb`, x: x + w / 2, y: y + h / 2, props: { stage: 2, action: "remove", target: curb, ...v } },
+    { name: `${curb}_in_road`, x, y, w, h, props: { stage: 2, action: "add", kind: "car", ...v } },
+  ];
+};
+
 const decay: (Rect | Point)[] = [
   { name: "parked_car_3_driven_off", x: 18.5, y: 28, props: { stage: 2, action: "remove", target: "parked_car_3" } },
   { name: "dumpster_alley_3", x: 38, y: 26, w: 1.5, h: 1.5, props: { stage: 2, action: "block" } },
-  {
-    name: "abandoned_car_west",
-    x: 14,
-    y: 13,
-    w: 4.5,
-    h: 2,
-    props: { stage: 2, action: "add", kind: "car", group: "panic_abandoned_car", variant: "abandoned_car_west", pick: 1 },
-  },
-  {
-    name: "abandoned_car_south",
-    x: 26,
-    y: 24.5,
-    w: 2,
-    h: 4.5,
-    props: { stage: 2, action: "add", kind: "car", group: "panic_abandoned_car", variant: "abandoned_car_south", pick: 1 },
-  },
+  { name: "police_line_lot", x: 10.5, y: 22, w: 9.5, h: 0.5, props: { stage: 2, action: "add", kind: "barrier" } },
+  { name: "police_line_gas", x: 28, y: 0, w: 0.5, h: 10, props: { stage: 2, action: "add", kind: "barrier" } },
+  ...panicCar("curb_car_west_far", 2.5, 16, 4.5, 2),
+  ...panicCar("curb_car_west_n", 14, 14.5, 4.5, 2),
+  ...panicCar("curb_car_west_s", 15.5, 16.5, 2, 4.5),
+  ...panicCar("curb_car_north", 20.5, 8, 4.5, 2),
+  ...panicCar("curb_car_south", 24.5, 25.5, 4.5, 2),
+  ...panicCar("street_car_east", 36.5, 18, 4.5, 2),
   {
     name: "fire_parked_car_2_ignites",
     x: 15.5,
@@ -199,6 +224,19 @@ const groups: Group[] = [
           { name: "lane_north", x: 23.9, y: 0.5, w: 0.2, h: 9.5, props: { kind: "lane" } },
           { name: "lane_south", x: 23.9, y: 22, w: 0.2, h: 9.5, props: { kind: "lane" } },
           { name: "gas_canopy", x: 31, y: 2, w: 6, h: 7.5, props: { kind: "canopy" } },
+        ],
+      },
+      {
+        // Story 4.6 (FR59): lit shop fronts — the sidewalk strip in front of a shop that is still open
+        // in the evening: a good spot to build (tests: a barricade fits, no decay ever lands on it).
+        // The face that glows is the side touching the shop (`map/shopfronts.ts`); Story 4.9 draws it.
+        name: "stage1_shopfronts",
+        rects: [
+          { name: "shopfront_corner_shop", x: 0.5, y: 10, w: 7, h: 2, props: { kind: "shopfront" } },
+          { name: "shopfront_apartments", x: 11.5, y: 10, w: 6, h: 2, props: { kind: "shopfront" } },
+          { name: "shopfront_diner", x: 0.5, y: 20, w: 6, h: 2, props: { kind: "shopfront" } },
+          { name: "shopfront_offices", x: 30.5, y: 20, w: 7, h: 2, props: { kind: "shopfront" } },
+          { name: "shopfront_gas_kiosk", x: 41.5, y: 6, w: 6, h: 2, props: { kind: "shopfront" } },
         ],
       },
     ],

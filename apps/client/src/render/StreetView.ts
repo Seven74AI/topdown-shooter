@@ -15,6 +15,7 @@ const PROP_FILL: Readonly<Record<string, readonly [number, number]>> = {
   crosswalk: [0x6b6f74, 0.55],
   lane: [0x8a7a3a, 0.8],
   canopy: [0x4a5560, 0.35],
+  shopfront: [0xc8963c, 0.22], // Story 4.6: lit shop front (placeholder tint; Story 4.9 draws the glow)
 };
 
 /**

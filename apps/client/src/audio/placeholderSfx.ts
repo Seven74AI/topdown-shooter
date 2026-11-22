@@ -42,6 +42,14 @@ function context(): AudioContext | null {
   return ctx;
 }
 
+/**
+ * Story 4.6: the shared AudioContext once a user gesture has unlocked it (`running`), else null.
+ * Never creates one (the ambience waits for `unlockAudio`). One context, one gesture, for every bus.
+ */
+export function audioContextIfRunning(): AudioContext | null {
+  return ctx !== null && ctx.state === "running" ? ctx : null;
+}
+
 export function unlockAudio(): void {
   const c = context();
   if (c && c.state === "suspended") void c.resume();

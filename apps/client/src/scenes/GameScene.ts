@@ -75,6 +75,7 @@ import { perf } from "../debug/perfStats";
 import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
+import { AmbiencePlayer } from "../audio/ambience";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
 export type GameSceneData =
@@ -174,6 +175,8 @@ export class GameScene extends Phaser.Scene {
   private coverView: CoverView | null = null;
   /** Story 4.5: walls, hazards, fires and the visible stage group (redrawn on a stage change). */
   private decayView: DecayView | null = null;
+  /** Stories 4.6/4.7: the stage's ambience loop (follows `world.decay.stage`; starts after a gesture). */
+  ambience: AmbiencePlayer | null = null;
   /** Story 3.6: turret plates and heads (aim from the World / `turret.fired`). */
   private turretView: TurretView | null = null;
   /** Story 3.4: placement mode on this device (sticks off while active). */
@@ -316,6 +319,8 @@ export class GameScene extends Phaser.Scene {
 
     drawStreet(this, world.map);
     this.decayView = new DecayView(this);
+    this.ambience?.dispose(); // Phaser reuses this scene object: never two players
+    this.ambience = new AmbiencePlayer();
     this.coverView = new CoverView(this);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
@@ -374,6 +379,8 @@ export class GameScene extends Phaser.Scene {
       this.coverView = null;
       this.decayView?.destroy();
       this.decayView = null;
+      this.ambience?.dispose();
+      this.ambience = null;
       this.turretView?.destroy();
       this.turretView = null;
       this.repairPanel.close();
@@ -882,6 +889,7 @@ export class GameScene extends Phaser.Scene {
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world);
     this.decayView?.update(host.world);
+    this.ambience?.update(host.world.decay.stage);
     this.coverView?.update(host.world);
     this.buildingView?.update(host.world, this.placement);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);

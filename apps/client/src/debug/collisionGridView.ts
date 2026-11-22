@@ -63,12 +63,14 @@ export class CollisionGridView {
     for (let x = GRID_CELL_M; x < map.widthM; x += GRID_CELL_M) g.lineBetween(x, 0, x, map.heightM);
     for (let y = GRID_CELL_M; y < map.heightM; y += GRID_CELL_M) g.lineBetween(0, y, map.widthM, y);
     const stage = currentDecayStage(world);
+    // Story 4.7: the World's lists (decay mutations applied: removed cars gone, moved cars and police
+    // lines in), not the frozen map; map cover of a later stage stays faint.
     g.lineStyle(LINE_M, SOLID, 0.9);
-    for (const b of map.solids) g.strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
-    for (const c of map.cover) {
-      g.lineStyle(LINE_M, COVER, c.minStage <= stage ? 0.9 : 0.35);
-      g.strokeRect(c.minX, c.minY, c.maxX - c.minX, c.maxY - c.minY);
-    }
+    for (const b of world.obstacles.walls) g.strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+    g.lineStyle(LINE_M, COVER, 0.9);
+    for (const c of world.obstacles.cover) g.strokeRect(c.minX, c.minY, c.maxX - c.minX, c.maxY - c.minY);
+    g.lineStyle(LINE_M, COVER, 0.35);
+    for (const c of map.cover) if (c.minStage > stage) g.strokeRect(c.minX, c.minY, c.maxX - c.minX, c.maxY - c.minY);
     g.lineStyle(LINE_M, BUILDING, 0.9);
     for (const b of world.buildings.list) g.strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
     g.lineStyle(LINE_M, PLAYER, 1);

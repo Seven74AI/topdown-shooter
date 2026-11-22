@@ -84,3 +84,35 @@ export function fireRecordOf(m: DecayMutation): FireRecord {
   }
   return f;
 }
+
+/**
+ * Story 4.7: every variant mask `pickDecayVariants` can return for `map` (each group: every `pick`-
+ * subset of its candidates; the product over groups), ascending. Tests and the fuzz walk them all
+ * (Downtown: C(6,4) × 2 = 30). Not for the sim (allocates).
+ */
+export function legalDecayMasks(map: DistrictMap): number[] {
+  const groups = new Map<string, { pick: number; bits: number[] }>();
+  map.decayVariants.forEach((v, i) => {
+    const g = groups.get(v.group) ?? { pick: v.pick, bits: [] };
+    g.bits.push(i);
+    groups.set(v.group, g);
+  });
+  let masks = [0];
+  for (const g of groups.values()) {
+    const subsets: number[] = [];
+    const n = g.bits.length;
+    for (let s = 0; s < 1 << n; s++) {
+      let c = 0;
+      let m = 0;
+      for (let i = 0; i < n; i++) if ((s >> i) & 1) {
+        c++;
+        m |= 1 << (g.bits[i] as number);
+      }
+      if (c === g.pick) subsets.push(m);
+    }
+    const next: number[] = [];
+    for (const a of masks) for (const b of subsets) next.push((a | b) >>> 0);
+    masks = next;
+  }
+  return masks.sort((a, b) => a - b);
+}

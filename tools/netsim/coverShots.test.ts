@@ -25,7 +25,7 @@ describe("netsim: local shots vs the server near cover (Story 4.2)", () => {
   it("150 ± 20 ms beside the bus: both stop shots at the bus, reversed hits stay rare; control without client cover: reversed", () => {
     let apparent = 0;
     let reversed = 0;
-    for (const seed of [421, 422, 423]) {
+    for (const seed of [421, 422, 425]) { // Story 4.6: 423 drew no shot into the bus once the curb cars changed the zombies’ routes
       const r = simulate({ seconds: 20, oneWayMs: 75, jitterHalfMs: 10, seed, weapon: "pistol", kite: false, map: DOWNTOWN_MAP, start: START });
       line(`bus pistol seed ${seed}`, r);
       expect(r.shots).toBeGreaterThan(20); // liveness
