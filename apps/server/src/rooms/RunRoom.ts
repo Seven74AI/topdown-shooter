@@ -16,10 +16,12 @@ import {
   MAX_PLAYERS,
   S2C,
   TICK_RATE_HZ,
+  buildSetReadySchema,
   encodeNetEvent,
   isTestScenario,
   joinOptionsSchema,
-  loadBalance,
+  loadDevBalance,
+  parseDevScale,
   lobbyReturnSchema,
   lobbySetReadySchema,
   netPongSchema,
@@ -55,8 +57,13 @@ import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
 
-/** The balance this server runs; clients must send the same `balance.version` (AC 4). */
-export const serverBalance = loadBalance();
+/**
+ * The balance this server runs; clients must send the same `balance.version` (AC 4). Dev/test only
+ * (Epic 2 retro A5): `DEV_ZOMBIE_DAMAGE_SCALE=0.1` scales zombie damage for browser checks; a dev
+ * client opened with `?zdmg=0.1` builds the same balance (same version), so it can still join.
+ */
+export const serverBalance = loadDevBalance({ zombieDamageScale: parseDevScale(process.env.DEV_ZOMBIE_DAMAGE_SCALE) });
+if (process.env.DEV_ZOMBIE_DAMAGE_SCALE) log.warn({ scale: process.env.DEV_ZOMBIE_DAMAGE_SCALE, version: serverBalance.version }, "dev_balance_override");
 
 /** HTTP-ish status for every join refusal; the message is the `JoinRefusal` reason. */
 export const JOIN_REFUSED_CODE = 526;
@@ -213,6 +220,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.RUN_START, this.net.guard(runStartSchema, (c) => this.onStart(c)));
     this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
+    this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -325,6 +333,12 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (player) player.ready = ready;
   }
 
+  /** `build.set_ready` (Story 3.1): the sender's build-phase Ready; the World ignores it outside a build. */
+  onBuildReady(client: RunClient, ready: boolean): void {
+    const member = this.members.get(client.sessionId);
+    if (member) this.controller?.setBuildReady(member.playerId, ready);
+  }
+
   /**
    * `run.start`: accepted only in the lobby, from the host, with everyone Ready and enough players
    * (`startBlocker`, shared with the client's Start button). A refusal is only logged: the
@@ -342,11 +356,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       this.log.info({ playerId: member.playerId, reason }, "run_start_refused");
       return;
     }
-    this.state.phase = "wave";
     this.startRun();
   }
 
-  /** Builds the World from the members (join order, `teamSpawnPoint` by slot) and starts the 20 Hz loop. */
+  /**
+   * Builds the World from the members (join order, `teamSpawnPoint` by slot) and starts the 20 Hz loop.
+   * Story 3.1: the run starts in its first build phase; `syncState` writes phase "build".
+   */
   private startRun(): void {
     const players = Array.from(this.members.values(), (m) => ({ playerId: m.playerId, slot: m.slot }));
     const runSeed = randomUint32();
@@ -367,7 +383,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     for (const p of players) this.hordeStats.set(p.playerId, newHordeStats());
     this.slowTicks = new SlowTickWatch(this.roomId, this.log, () => performance.now());
     this.slowPatches = new SlowTickWatch(this.roomId, this.log, () => performance.now(), SLOW_PATCH_MESSAGE);
-    syncState(this.state, controller); // spawn positions in the same patch as phase "wave"
+    syncState(this.state, controller); // spawn positions in the same patch as phase "build"
     // 0.18 fixed timestep: at most 5 catch-up steps, then the backlog is dropped.
     this.setFixedTimestep(() => this.onTick(), TICK_RATE_HZ);
     this.pingTimer?.clear();
@@ -383,12 +399,14 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
 
   /**
    * One server tick: step, copy to schema, forward events, send horde frames (all inside the
-   * slow-tick timing). The patch goes out between ticks, timed by `broadcastPatch`. Only phase
-   * "wave" steps the World: after a team wipe (Results) nothing moves any more (Story 2.8).
+   * slow-tick timing). The patch goes out between ticks, timed by `broadcastPatch`. Only phases
+   * "build" and "wave" step the World (Story 3.1): after a team wipe (Results) nothing moves any more
+   * (Story 2.8).
    */
   onTick(): void {
     const controller = this.controller;
-    if (!controller || this.shuttingDown || this.state.phase !== "wave") return;
+    const phase = this.state.phase;
+    if (!controller || this.shuttingDown || (phase !== "build" && phase !== "wave")) return;
     const t0 = performance.now();
     const events = controller.tick();
     syncState(this.state, controller);
@@ -408,10 +426,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
 
   /**
    * Team wipe (Story 2.8 AC 4): the run ends for everyone. `team.wiped` was already forwarded this
-   * tick; the patch with phase "results" follows. The World stays as it was (no more ticks).
+   * tick; the World's run state machine already went to "results" (Story 3.1 `endRun`), and the
+   * patch with phase "results" follows. The World stays as it was (no more ticks).
    */
   private endRun(controller: RunController, wave: number): void {
-    this.state.phase = "results";
+    this.state.phase = "results"; // syncState already copied it from the World; kept explicit
     this.state.resultWave = wave;
     const kills: Record<string, number> = {};
     const earned: Record<string, number> = {};

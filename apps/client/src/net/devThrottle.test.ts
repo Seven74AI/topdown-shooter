@@ -54,6 +54,18 @@ describe("DevThrottle", () => {
     expect(throttle.state.players.get("p0")?.hp).toBe(100);
   });
 
+  it("copies the build phase fields (Story 3.1): phase, build timer, Ready", () => {
+    const { room, throttle } = setup(100);
+    room.state.phase = "build";
+    room.state.buildTicksLeft = 321;
+    (room.state.players.get("p0") as { buildReady: boolean }).buildReady = true;
+    room.patch();
+    throttle.pump(50);
+    expect(throttle.state.phase).toBe("build");
+    expect(throttle.state.buildTicksLeft).toBe(321);
+    expect(throttle.state.players.get("p0")?.buildReady).toBe(true);
+  });
+
   it("copies removed and added players", () => {
     const { room, throttle } = setup(0);
     room.patch();

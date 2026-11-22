@@ -13,17 +13,20 @@ import { createWorld, step, type World } from "../core/world";
 import { addPlayer } from "../player/player";
 import { killZombie } from "../zombies/zombiePool";
 import { ZOMBIE_STATE } from "../zombies/zombieTypes";
-import { skipWave, waveSize } from "./waveDirector";
+import { waveSize } from "./waveDirector";
+import { skipWave, startBuild } from "../run/runStateMachine";
 
+/** Story 3.1: a 3 s build phase (60 ticks) keeps these timings short; the build itself is tested in runStateMachine.test.ts. */
 function balanceWith(waves: Partial<typeof wavesJson> = {}) {
-  return loadBalance({ weapons, zombies, waves: { ...wavesJson, ...waves }, player, controls, economy, bots } as RawBalanceFiles);
+  return loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 3, ...waves }, player, controls, economy, bots } as RawBalanceFiles);
 }
 
-/** Zombies frozen in place (tests drive kills by hand), invulnerable player. */
+/** Zombies frozen in place (tests drive kills by hand), invulnerable player; the run is in its first build phase. */
 function setup(waves: Partial<typeof wavesJson> = {}) {
   const world = createWorld({ balance: balanceWith(waves), seed: 7, systems: { zombies: () => {} } });
   const p = addPlayer(world, "local", 24, 16);
   p.hp = 1e9;
+  startBuild(world);
   const events: SimEvent[] = [];
   world.events.subscribe((e) => events.push(e));
   return { world, p, events };
@@ -41,7 +44,7 @@ const spawnOut = (world: World) => {
 };
 
 describe("wave director (FR28, FR30)", () => {
-  it("waits for the intro, then starts wave 1 with 40 Walkers", () => {
+  it("waits for the first build phase, then starts wave 1 with 40 Walkers", () => {
     const { world, events } = setup();
     run(world, 59);
     expect(world.waves.number).toBe(0);
@@ -138,15 +141,15 @@ describe("wave director (FR28, FR30)", () => {
     expect(world.waves.rushing).toBe(false);
   });
 
-  it("ends the wave on the last kill, then starts the next after a 5 s pause", () => {
+  it("ends the wave on the last kill, then a build phase (no 5 s pause), then the next wave", () => {
     const { world, events } = setup();
     run(world, 60);
     spawnOut(world);
     killAll(world);
     step(world, TICK_DT_S);
     expect(events.filter((e) => e.type === "wave.ended")).toEqual([{ type: "wave.ended", number: 1 }]);
-    expect(world.waves.phase).toBe("pause");
-    run(world, 99);
+    expect(world.run.phase).toBe("build");
+    run(world, 59);
     expect(world.waves.number).toBe(1);
     step(world, TICK_DT_S);
     expect(world.waves.number).toBe(2);
@@ -179,7 +182,7 @@ describe("wave director (FR28, FR30)", () => {
     spawnOut(world);
     skipWave(world);
     expect(world.zombies.aliveCount).toBe(0);
-    expect(world.waves.phase).toBe("pause");
+    expect(world.run.phase).toBe("build");
   });
 
   it("a paused director (stress scenario, Story 1.11) starts no wave and spawns nothing", () => {

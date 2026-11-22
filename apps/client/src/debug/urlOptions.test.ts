@@ -9,7 +9,9 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null, scenario: null, waveMix: null });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, scenario: null, waveMix: null });
+    expect(parseUrlOptions("?zdmg=0.1").zombieDamageScale).toBe(0.1); // retro A5
+    expect(parseUrlOptions("?zdmg=x").zombieDamageScale).toBeNull();
   });
 
   it("reads ?debug=1 and its spellings", () => {

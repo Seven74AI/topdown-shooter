@@ -13,6 +13,7 @@ import {
   endWave,
   killZombie,
   spawnZombie,
+  startWave,
   type RunStateView,
 } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
@@ -116,10 +117,12 @@ describe("byte counters (Story 2.10)", () => {
     const info = vi.spyOn(room.log, "info");
     const world = room.controller?.world;
     if (!world) throw new Error("no world");
+    startWave(world); // Story 3.1: the run starts in a build phase (waves paused): a wave by hand
+    await sleep(300); // a few ticks of that wave
     endWave(world);
     await vi.waitFor(() => expect(info.mock.calls.some((c) => c[1] === "net_stats")).toBe(true));
     const net = info.mock.calls.find((c) => c[1] === "net_stats")?.[0] as Record<string, unknown>;
-    expect(net).toMatchObject({ playerId: "p0", wave: 0 });
+    expect(net).toMatchObject({ playerId: "p0", wave: 1 });
     expect(net.avgOutKBps).toBeGreaterThan(0);
     expect(net.peakOutKBps).toBeGreaterThanOrEqual(0);
     expect(typeof net.avgInKBps).toBe("number");
@@ -147,9 +150,9 @@ describe("byte counters (Story 2.10)", () => {
     // The break: 150 zombies around the player for 2.2 s, so every horde frame and second is heavy.
     for (let i = 0; i < 150; i++) spawnZombie(world, "walker", me.x + 2 + (i % 15) * 0.3, me.y - 3 + Math.floor(i / 15) * 0.6);
     await sleep(2200);
-    // Wave 2 starts with no zombies left and lasts ~1.5 s: only empty horde frames and small patches.
+    // The wave starts with no zombies left and lasts ~1.5 s: only empty horde frames and small patches.
     for (let i = world.zombies.aliveCount - 1; i >= 0; i--) killZombie(world, world.zombies.aliveIds[i] as number, null, "cheat");
-    world.events.emit({ type: "wave.started", number: 2, size: 0 });
+    startWave(world); // Story 3.1: the break is the build phase the run starts in (waves paused: no spawns)
     await sleep(1600);
     endWave(world);
     await vi.waitFor(() => expect(lines("tick_stats")).toHaveLength(1));

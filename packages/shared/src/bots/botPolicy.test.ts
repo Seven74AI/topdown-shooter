@@ -7,6 +7,7 @@ import { addPlayer } from "../player/player";
 import { downPlayer } from "../player/downed";
 import { teamSpawnPoint } from "../player/spawn";
 import { spawnZombie } from "../zombies/zombiePool";
+import { setBuildReady, startBuild } from "../run/runStateMachine";
 import { botConfigOf, botInput, botViewFromWorld, createBotView, type BotView } from "./botPolicy";
 
 const balance = loadBalance();
@@ -33,8 +34,11 @@ function botTeam(seed: number, systems?: Parameters<typeof createWorld>[0]["syst
       botInput(views[i] as BotView, cfg, seq, inputs[i] as PlayerInput);
       setInput(world, id, inputs[i] as PlayerInput);
     }
+    // Story 3.1: the bots tap Ready in every build phase.
+    if (world.run.phase === "build") for (const id of IDS) setBuildReady(world, id, true);
     step(world, TICK_DT_S);
   };
+  startBuild(world);
   return { world, tick };
 }
 
@@ -58,7 +62,7 @@ describe("bot policy (Story 2.10)", () => {
     world.events.subscribe((e) => {
       if (e.type === "player.downed") downs++;
     });
-    while (world.tick < limit && !world.teamWiped && !(world.waves.number >= 3 && world.waves.phase === "active")) tick();
+    while (world.tick < limit && !world.teamWiped && !(world.waves.number >= 3 && world.run.phase === "wave")) tick();
     expect(world.teamWiped).toBe(false);
     expect(world.waves.number).toBe(3);
     // With the bots.json defaults (no tuning needed) seed 0x2010 reaches wave 3 at tick 1109 with 0 downs.
@@ -69,7 +73,7 @@ describe("bot policy (Story 2.10)", () => {
     const { world, tick } = botTeam(0x2010);
     world.debug.waveMix = ["walker", "crawler"];
     const limit = ticksOf(6 * 60);
-    while (world.tick < limit && !world.teamWiped && !(world.waves.number >= 3 && world.waves.phase === "active")) tick();
+    while (world.tick < limit && !world.teamWiped && !(world.waves.number >= 3 && world.run.phase === "wave")) tick();
     expect(world.teamWiped).toBe(false);
     expect(world.waves.number).toBe(3);
   });

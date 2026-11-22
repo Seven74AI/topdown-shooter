@@ -10,7 +10,7 @@ import { applyZombieDamage } from "../combat/damage";
 import { NEUTRAL_INPUT } from "../net/input";
 import { downPlayer } from "../player/downed";
 import { addPlayer, removePlayer } from "../player/player";
-import { endWave, skipWave } from "../waves/waveDirector";
+import { endWave, setBuildReady, skipWave, startBuild } from "../run/runStateMachine";
 import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { MAX_DAMAGERS, earn, payKill, recordDamager, spendMoney } from "./economy";
 
@@ -225,7 +225,7 @@ describe("wave-clear bonus", () => {
     p1.status = "downed";
     p2.status = "out";
     world.waves.number = 3;
-    world.waves.phase = "active";
+    world.run.phase = "wave"; // Story 3.1: the run state machine owns the phase
     endWave(world);
     run(world, 1);
     for (const id of ["p0", "p1", "p2"]) expect(wallet(world, id)).toBe(130);
@@ -239,13 +239,16 @@ describe("wave-clear bonus", () => {
   it("the real wave director clearing wave 1 pays +10 (and the kills)", () => {
     const b = loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "zombiesPerWave", 3]]));
     const { world, events } = setup(["p0", "p1"], { b, systems: null });
+    startBuild(world); // Story 3.1: the first build phase, skipped with everyone Ready
+    setBuildReady(world, "p0", true);
+    setBuildReady(world, "p1", true);
     for (let i = 0; i < 400 && world.waves.number === 0; i++) run(world, 1);
     expect(world.waves.number).toBe(1);
-    for (let i = 0; i < 200 && world.waves.phase === "active"; i++) {
+    for (let i = 0; i < 200 && world.run.phase === "wave"; i++) {
       for (let k = world.zombies.aliveCount - 1; k >= 0; k--) hit(world, world.zombies.aliveIds[k] as number, "p0", 100);
       run(world, 1);
     }
-    expect(world.waves.phase).toBe("pause");
+    expect(world.run.phase).toBe("build");
     expect(wallet(world, "p0")).toBe(100 + 3 * 2 + 10);
     expect(wallet(world, "p1")).toBe(110);
     expect(money(events).filter((m) => m[2] === "wave")).toEqual([
@@ -257,7 +260,7 @@ describe("wave-clear bonus", () => {
   it("a wave ended between steps (skipWave cheat) is paid at the next step, once", () => {
     const { world, events } = setup(["p0"]);
     world.waves.number = 2;
-    world.waves.phase = "active";
+    world.run.phase = "wave"; // Story 3.1: the run state machine owns the phase
     walker(world);
     skipWave(world);
     expect(wallet(world, "p0")).toBe(100);
@@ -323,7 +326,7 @@ describe("determinism and authority", () => {
       hit(world, id, "p0");
       hit(world, id, "p1", 100);
       world.waves.number = 1;
-      world.waves.phase = "active";
+      world.run.phase = "wave"; // Story 3.1: the run state machine owns the phase
       endWave(world);
       run(world, 2);
       expect(wallet(world, "p0")).toBe(100);

@@ -3,6 +3,7 @@ import { TICK_DT_S } from "../config/constants";
 import type { PlayerInput } from "../net/input";
 import { PLACEHOLDER_MAP, type DistrictMap } from "../map/placeholderMap";
 import { createWaveState, type WaveState } from "../waves/waveDirector";
+import { createRunState, type RunState } from "../run/runStateMachine";
 import type { PlayerState } from "../player/player";
 import { GRID_CELL_M, PROJECTILE_POOL_CAPACITY, ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { createProjectilePool, type ProjectilePool } from "../combat/projectilePool";
@@ -41,6 +42,8 @@ export interface World {
   readonly projectiles: ProjectilePool;
   /** Wave director state. */
   readonly waves: WaveState;
+  /** Story 3.1: the run's phase and build timer (`run/runStateMachine.ts`); starts in "lobby". */
+  readonly run: RunState;
   /** Debug switches (Story 1.11). Set only by dev cheats and the fixed `?stress` scenario. */
   readonly debug: WorldDebug;
   /** Story 2.8: no player was standing; `team.wiped` was emitted (once). The run is over. */
@@ -91,7 +94,8 @@ export function createWorld(opts: CreateWorldOptions): World {
     zombies: createZombiePool(ZOMBIE_POOL_CAPACITY),
     zombieGrid: createSpatialGrid(map, GRID_CELL_M, ZOMBIE_POOL_CAPACITY),
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
-    waves: createWaveState(opts.balance),
+    waves: createWaveState(),
+    run: createRunState(),
     debug: { godMode: false, waveMix: null },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),

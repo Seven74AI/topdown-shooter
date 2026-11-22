@@ -19,7 +19,7 @@ export const isTestScenario = (v: unknown): v is TestScenario =>
 
 /**
  * Sets a just-created World up for the scenario: god mode on, and the wave director's counter one
- * below the start wave, so its usual intro (`waves.firstWaveDelayS`) leads into that wave.
+ * below the start wave, so the first build phase (Story 3.1; skipped when everyone is Ready) leads into that wave.
  */
 export function applyTestScenario(world: World, scenario: TestScenario): void {
   switch (scenario) {

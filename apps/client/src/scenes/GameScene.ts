@@ -12,7 +12,6 @@ import {
   ticksFor,
   weaponIds,
   weaponStats,
-  loadBalance,
   parseWaveMix,
   ZOMBIE_STATE,
   type Balance,
@@ -52,6 +51,7 @@ import type { NetSession } from "../net/session";
 import type { HudSceneData } from "./HudScene";
 import type { BootSceneData } from "./BootScene";
 import { urlOptions } from "../debug/urlOptions";
+import { clientBalance } from "../debug/clientBalance";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
@@ -87,7 +87,9 @@ const SHAKE_INTENSITY = 0.004;
 /** Rush chevron, in meters, drawn above each of the wave's last zombies. */
 const CHEVRON_M = 0.28;
 const CHEVRON_LIFT_M = 0.7;
-const STATUS_OUT = "You're out: back next wave";
+const STATUS_OUT = "You're out: back after this wave";
+/** Story 3.1: the banner at the run's first build phase. */
+const BUILD_BANNER = "Build phase";
 const STATUS_REVIVING = "Reviving…";
 /** Solo Results: the one row's name. */
 const SOLO_NAME = "You";
@@ -149,6 +151,16 @@ export class GameScene extends Phaser.Scene {
   private downedView: DownedView | null = null;
   /** Solo Results (Story 2.8): zombies the local player killed this run (online: from room state). */
   private kills = 0;
+  /**
+   * Story 3.1: the Ready this device asked for in the current build phase (shown at once, while the
+   * server's copy is a round trip away online), and the phase it belongs to: cleared when it changes.
+   */
+  private localReady = false;
+  private readyPhase = "";
+  private readyCount = 0;
+  private readonly countReady = (p: PlayerState, id: string): void => {
+    if (id === this.host?.localPlayerId ? this.localReady : p.buildReady) this.readyCount++;
+  };
   /** Seconds in the "Downed: …" line now (the string is rebuilt only when it changes). */
   private statusSecs = -1;
   /** Set by `collectDowned` while it walks the players this frame. */
@@ -194,7 +206,7 @@ export class GameScene extends Phaser.Scene {
     const opts = urlOptions();
     // ?tune=1: the live tuning values from the panel (validated like any balance change). Online
     // always plays the bundled balance: the server checked that version at join.
-    const balance: Balance = opts.tune && !session ? tunedBalance() : loadBalance();
+    const balance: Balance = opts.tune && !session ? tunedBalance() : clientBalance();
     const stickRadiusCss = opts.tune ? getTuning().stickRadiusCssPx : STICK_RADIUS_CSS_PX;
     const soloSeed = data?.mode !== "online" && data?.seed !== undefined ? data.seed >>> 0 : undefined;
     // Story 2.7: the reversed-hit counter runs in dev builds, and in release while the overlay is on.
@@ -219,6 +231,8 @@ export class GameScene extends Phaser.Scene {
     if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
     this.gameOver = false;
     this.kills = 0;
+    this.localReady = false; // Phaser reuses this scene object (restart): no Ready from the last run
+    this.readyPhase = "";
     this.statusSecs = -1;
     // Phaser reuses this scene object on restart: reset what the HUD reads (no stale banner).
     Object.assign(this.hudModel, createHudModel());
@@ -455,6 +469,34 @@ export class GameScene extends Phaser.Scene {
     uiStore.set({ kind: "results", wave: Math.max(1, wave), rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills }], online: false });
   }
 
+  /**
+   * Story 3.1: the build phase's countdown and Ready button. A tap toggles this device's Ready
+   * (`SimHost.setBuildReady`: solo at once, online as `build.set_ready`); the button shows the asked
+   * state at once. Hidden outside a build, before the loadout is picked, on Results and under the menu.
+   */
+  private updateReady(host: SceneHost, menuOpen: boolean): void {
+    const m = this.hudModel;
+    const run = host.world.run;
+    if (run.phase !== this.readyPhase) {
+      this.readyPhase = run.phase; // a new phase: the server cleared every Ready too
+      this.localReady = false;
+    }
+    const build = run.phase === "build";
+    m.buildSecs = build ? Math.ceil(run.buildTicksLeft / TICK_RATE_HZ) : -1;
+    m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode;
+    const pressed = m.readyPressed;
+    m.readyPressed = false;
+    if (pressed && m.readyButton) {
+      this.localReady = !this.localReady;
+      host.setBuildReady(this.localReady);
+    }
+    m.readyOn = this.localReady;
+    this.readyCount = 0;
+    if (build) host.world.players.forEach(this.countReady);
+    m.readyCount = this.readyCount;
+    m.readyTotal = host.world.players.size;
+  }
+
   /** Countdowns of downed players for the HUD, and the local status line (Story 2.8). */
   private updateDownedHud(world: Readonly<World>, me: PlayerState): void {
     const m = this.hudModel;
@@ -523,6 +565,7 @@ export class GameScene extends Phaser.Scene {
     // Menu open: online the run goes on and my survivor stands still (a fresh seq every step);
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     if (menuOpen) neutralizeInput(this.input_);
+    this.updateReady(host, menuOpen);
     if (this.localHost) {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
       this.localHost.paused = menuOpen;
@@ -546,6 +589,8 @@ export class GameScene extends Phaser.Scene {
       } else if (e.type === "weapon.fired" && e.playerId === localId) {
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
+      } else if (e.type === "build.started") {
+        if (e.wave === 1) this.showBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
       } else if (e.type === "wave.started") {
         this.showBanner(`Wave ${e.number}`);
         // Story 2.10: measured only with the overlay on (the 1.11 rule: no measuring cost otherwise).

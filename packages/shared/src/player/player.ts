@@ -3,7 +3,7 @@ import { createLoadout, type Loadout } from "../combat/loadout";
 
 /**
  * Story 2.8: at 0 HP a player is "downed" (can't move or fire; a teammate can revive them), and
- * "out" when the downed countdown runs out (spectating until the next wave). See player/downed.ts.
+ * "out" when the downed countdown runs out (spectating until the next build phase). See player/downed.ts.
  */
 export type PlayerStatus = "alive" | "downed" | "out";
 
@@ -34,8 +34,8 @@ export interface PlayerState {
   reviveTicks: number;
   /** The teammate reviving this tick, or null. */
   reviverId: string | null;
-  /** `world.waves.number` when the player went out; they return when a later wave is active. */
-  outSinceWave: number;
+  /** Story 3.1: this player tapped Ready in the current build phase (cleared at every build and wave start). */
+  buildReady: boolean;
   /**
    * Story 3.2: personal wallet (spendable currency). Only the economy system and server-validated
    * spending (`economy/economy.ts`) change it; the online client mirrors it from schema.
@@ -71,7 +71,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     downedTicksLeft: 0,
     reviveTicks: 0,
     reviverId: null,
-    outSinceWave: 0,
+    buildReady: false,
     wallet: world.balance.economy.startingWallet,
     earned: 0,
     slowTicksLeft: 0,

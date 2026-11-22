@@ -10,6 +10,7 @@ import { spawnZombie, zombieTypeOf } from "../zombies/zombiePool";
 import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
 import { addPlayer, type PlayerState } from "./player";
 import { playerSpeed, slowPlayer, tickSlow } from "./slow";
+import { setBuildReady, startBuild } from "../run/runStateMachine";
 
 /** These tests cover one mechanic: keep the wave director from spawning extra zombies. */
 const NO_WAVES = { waves: () => {} };
@@ -172,6 +173,8 @@ describe("dev wave mix (Story 3.9, until 3.10)", () => {
       const world = createWorld({ balance, seed: 9, systems: { zombies: () => {} } });
       world.debug.waveMix = mix;
       addPlayer(world, "p0", 24, 16).hp = 1e9;
+      startBuild(world); // Story 3.1: skip the first build phase
+      setBuildReady(world, "p0", true);
       run(world, 400);
       const z = world.zombies;
       const types = { walker: 0, crawler: 0 };

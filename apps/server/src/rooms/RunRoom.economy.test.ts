@@ -55,7 +55,7 @@ async function readyAndStart(clients: RunSdkRoom[], room: RunRoom) {
   for (const c of clients) c.send(C2S.LOBBY_SET_READY, { ready: true });
   await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
   (clients[0] as RunSdkRoom).send(C2S.RUN_START, {});
-  for (const c of clients) await vi.waitFor(() => expect(c.state.phase).toBe("wave"));
+  for (const c of clients) await vi.waitFor(() => expect(c.state.phase).toBe("build")); // Story 3.1
 }
 
 /** Two players, waves paused (DEV_NO_WAVES): only what the test does happens. */
@@ -95,7 +95,7 @@ describe("RunRoom wallets (Story 3.2)", () => {
     expect(guest.state.players.get("p0")).toMatchObject({ wallet: 101, earned: 1 });
     await vi.waitFor(() => expect(moneyEvents(guestEvents)).toEqual([[1, 2, 0], [0, 1, 1]])); // [slot, amount, reason]
     w.waves.number = 2;
-    w.waves.phase = "active";
+    w.run.phase = "wave"; // Story 3.1: the run state machine owns the phase
     downPlayer(w, player(room, "p0")); // downed players get the wave bonus too
     endWave(w);
     await vi.waitFor(() => expect(host.state.players.get("p0")?.wallet).toBe(121));

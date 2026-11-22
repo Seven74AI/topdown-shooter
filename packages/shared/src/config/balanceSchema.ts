@@ -75,9 +75,8 @@ export const wavesSchema = z
     zombiesPerWave: z.number().int().positive(),
     maxAlive: z.number().int().positive(),
     lastRushCount: z.number().int().min(0),
-    pauseBetweenWavesS: z.number().min(0),
-    /** Banner time before wave 1. */
-    firstWaveDelayS: z.number().min(0),
+    /** Story 3.1: the build phase before wave 1 and after every wave (FR44); ends early when everyone is Ready. */
+    buildPhaseS: z.number().positive(),
     /** Spawn pressure: every spawnIntervalS, up to spawnPerInterval zombies leave the queue. */
     spawnIntervalS: z.number().positive(),
     spawnPerInterval: z.number().int().positive(),
@@ -101,9 +100,15 @@ export const playerSchema = z
     /** A standing teammate this close (centre to centre) for `reviveS` revives a downed player. */
     reviveS: z.number().positive(),
     reviveRadiusM: z.number().positive(),
-    /** HP after a revive, and after an out player returns next wave, as a fraction of max HP. */
+    /** HP after a revive, as a fraction of max HP. */
     reviveHpFrac: z.number().gt(0).max(1),
-    returnHpFrac: z.number().gt(0).max(1),
+    /**
+     * Story 3.1: each build phase heals every player by this fraction of max HP (capped at max);
+     * downed and out players return standing with this much (FR9).
+     */
+    buildHealFrac: z.number().gt(0).max(1),
+    /** Retro A12: a returning player is placed on the first free spot in this many rings of `spawnOffsetM` around the teammate. */
+    returnSearchRings: z.number().int().min(1),
   })
   .strict();
 

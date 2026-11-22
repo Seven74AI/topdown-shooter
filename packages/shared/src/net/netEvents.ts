@@ -35,6 +35,7 @@ export const NET_EVENT_KIND = {
   PLAYER_RETURNED: 17,
   TEAM_WIPED: 18,
   MONEY_EARNED: 19,
+  BUILD_STARTED: 20, // Story 3.1
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -136,6 +137,8 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "money.earned":
       // Story 3.2: the HUD's "+N" (the wallet itself comes from schema).
       return [K.MONEY_EARNED, playerSlotOf(e.playerId), e.amount, MONEY_REASONS.indexOf(e.reason)];
+    case "build.started":
+      return [K.BUILD_STARTED, e.wave];
     case "test.ping":
       return null;
   }
@@ -238,6 +241,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       const reason = MONEY_REASONS[n(t, 3)];
       return reason ? { type: "money.earned", playerId: pid(t, 1), amount: n(t, 2), reason } : null;
     }
+    case K.BUILD_STARTED:
+      return { type: "build.started", wave: n(t, 1) };
     default:
       return null;
   }

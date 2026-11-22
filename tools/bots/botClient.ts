@@ -201,12 +201,20 @@ export class BotClient {
     await this.room.leave(true).catch(() => {});
   }
 
+  /** Server tick of the last build-phase Ready sent (Story 3.1). */
+  private readyAtTick = -1;
+
   /** One input: the policy on the newest data, every 50 ms while the room fights. */
   private step(): void {
     const state = this.room.state;
-    if (!state?.players || state.phase !== "wave" || !this.playerId) return;
+    // Story 3.1: the fight runs in build and wave phases; a bot taps Ready in every build phase.
+    if (!state?.players || (state.phase !== "wave" && state.phase !== "build") || !this.playerId) return;
     const me = state.players.get(this.playerId);
     if (!me) return;
+    if (state.phase === "build" && !me.buildReady && this.readyAtTick !== state.tick) {
+      this.readyAtTick = state.tick; // at most one Ready per patch
+      this.room.send(C2S.BUILD_SET_READY, { ready: true });
+    }
     const v = this.view;
     v.self.x = me.x;
     v.self.y = me.y;

@@ -2,7 +2,9 @@ import {
   NEUTRAL_INPUT,
   TICK_DT_S,
   createWorld,
+  setBuildReady,
   setInput,
+  startBuild,
   step,
   type Balance,
   type PlayerInput,
@@ -56,6 +58,14 @@ export class LocalSimHost implements SimHost {
   constructor(opts: { balance: Balance; seed: number }) {
     this.world = createWorld({ balance: opts.balance, seed: opts.seed });
     this.unsubscribe = this.world.events.subscribe((e) => this.events.push(e));
+    // Story 3.1: solo runs the same state machine as the server: Lobby → the first build phase. The
+    // scene adds the player right after (the build heal of nobody is a no-op); `build.started` is
+    // delivered with the first step.
+    startBuild(this.world);
+  }
+
+  setBuildReady(ready: boolean): void {
+    setBuildReady(this.world, LOCAL_PLAYER_ID, ready);
   }
 
   get alpha(): number {

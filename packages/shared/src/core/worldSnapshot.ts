@@ -91,6 +91,7 @@ export function snapshotWorld(world: World) {
     projectiles: snapshotProjectiles(world),
     zombies: snapshotZombies(world),
     waves: { ...world.waves },
+    run: { ...world.run },
     debug: { ...world.debug },
     teamWiped: world.teamWiped,
     economy: snapshotEconomy(world),

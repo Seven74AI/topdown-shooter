@@ -27,6 +27,8 @@ export interface PlayerStateView {
   readonly reviveProgress: number;
   /** Zombies this player killed this run (Results screen). */
   readonly kills: number;
+  /** Story 3.1: Ready in the current build phase. */
+  readonly buildReady: boolean;
   /** Story 3.2: personal wallet (server truth; the client never predicts it). */
   readonly wallet: number;
   /** Story 3.2: total earned this run (never reduced by spending). */
@@ -69,6 +71,56 @@ export interface RunStateView {
   readonly aliveCount: number;
   /** Story 2.8: the wave the team reached, set with phase "results" (0 otherwise). */
   readonly resultWave: number;
+  /** Story 3.1: ticks left in the build phase (0 outside a build). */
+  readonly buildTicksLeft: number;
   /** Story 2.10: the test scenario this room runs (`TestScenario`), "" for a normal game. */
   readonly scenario: string;
 }
+
+/**
+ * Every field of the views as a key list (Epic 2 retro A2). The server's schema (RunState.ts) checks
+ * at compile time that its field names are exactly these, and every full client copy of the state
+ * (the `?lag` dev throttle) iterates them, so a new schema field that a copy would miss is a type
+ * error, not a silent `undefined` under `?lag`. `satisfies` also rejects a key the view lacks.
+ */
+export const PLAYER_STATE_FIELDS = {
+  slot: true,
+  name: true,
+  ready: true,
+  x: true,
+  y: true,
+  heading: true,
+  hp: true,
+  maxHp: true,
+  status: true,
+  ackSeq: true,
+  active: true,
+  weapon0: true,
+  weapon1: true,
+  ammo0: true,
+  ammo1: true,
+  reloadTicks0: true,
+  reloadTicks1: true,
+  swapTicks: true,
+  downedTicksLeft: true,
+  reviveProgress: true,
+  kills: true,
+  buildReady: true,
+  wallet: true,
+  earned: true,
+  slowTicks: true,
+  slowPct: true,
+} as const satisfies Record<keyof PlayerStateView, true>;
+
+/** `RunStateView`'s fields except `players` (a map, copied per player). */
+export const RUN_STATE_FIELDS = {
+  phase: true,
+  hostSlot: true,
+  tick: true,
+  wave: true,
+  remaining: true,
+  aliveCount: true,
+  resultWave: true,
+  buildTicksLeft: true,
+  scenario: true,
+} as const satisfies Record<Exclude<keyof RunStateView, "players">, true>;

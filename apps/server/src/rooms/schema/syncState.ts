@@ -18,6 +18,10 @@ export function syncState(state: RunState, controller: RunController): void {
   const alive = pass.alive;
   pass.state = null;
   pass.controller = null;
+  // Story 3.1: the run state machine's phase (build / wave / results); the room writes "lobby" itself.
+  const phase = world.run.phase;
+  if (phase !== "lobby" && state.phase !== phase) state.phase = phase;
+  if (state.buildTicksLeft !== world.run.buildTicksLeft) state.buildTicksLeft = world.run.buildTicksLeft;
   if (state.tick !== world.tick) state.tick = world.tick;
   if (state.wave !== world.waves.number) state.wave = world.waves.number;
   if (state.remaining !== world.waves.remaining) state.remaining = world.waves.remaining;
@@ -42,6 +46,7 @@ function visitPlayer(p: SimPlayer): void {
   }
 }
 
+/** Story 2.8: countdown, revive progress (0–255) and kills; Story 3.1: build-phase Ready. */
 /** Story 3.2: wallet and earned total (integers; assigned only when they change). */
 function syncWallet(s: PlayerState, p: SimPlayer): void {
   if (s.wallet !== p.wallet) s.wallet = p.wallet;
@@ -54,6 +59,7 @@ function syncDowned(s: PlayerState, p: SimPlayer, kills: number): void {
   const progress = Math.min(255, Math.round((p.reviveTicks / pass.reviveTicks) * 255));
   if (s.reviveProgress !== progress) s.reviveProgress = progress;
   if (s.kills !== kills) s.kills = kills;
+  if (s.buildReady !== p.buildReady) s.buildReady = p.buildReady;
 }
 
 function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
@@ -96,6 +102,7 @@ export function resetRunFields(state: RunState): void {
   state.remaining = 0;
   state.aliveCount = 0;
   state.resultWave = 0;
+  state.buildTicksLeft = 0;
 }
 
 function resetPlayer(s: PlayerState): void {
@@ -118,6 +125,7 @@ function resetPlayer(s: PlayerState): void {
   s.downedTicksLeft = 0;
   s.reviveProgress = 0;
   s.kills = 0;
+  s.buildReady = false;
   s.wallet = 0;
   s.earned = 0;
   s.slowTicks = 0;

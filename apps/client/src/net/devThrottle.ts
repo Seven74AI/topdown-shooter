@@ -1,4 +1,12 @@
-import { C2S, NEUTRAL_INPUT, type PlayerInput, type PlayerStateView, type RunStateView } from "@topdown/shared";
+import {
+  C2S,
+  NEUTRAL_INPUT,
+  PLAYER_STATE_FIELDS,
+  RUN_STATE_FIELDS,
+  type PlayerInput,
+  type PlayerStateView,
+  type RunStateView,
+} from "@topdown/shared";
 import type { NetRoomLike } from "./session";
 import { THROTTLE_BYTES_MAX, THROTTLE_QUEUE_SIZE } from "./netConfig";
 
@@ -12,46 +20,12 @@ export interface DevThrottleOptions {
   now?: () => number;
 }
 
-/** Every field of the views, checked at compile time: a new schema field must be copied too. */
-const PLAYER_FIELDS = {
-  slot: true,
-  name: true,
-  ready: true,
-  x: true,
-  y: true,
-  heading: true,
-  hp: true,
-  maxHp: true,
-  status: true,
-  ackSeq: true,
-  active: true,
-  weapon0: true,
-  weapon1: true,
-  ammo0: true,
-  ammo1: true,
-  reloadTicks0: true,
-  reloadTicks1: true,
-  swapTicks: true,
-  downedTicksLeft: true,
-  reviveProgress: true,
-  kills: true,
-  wallet: true,
-  earned: true,
-  slowTicks: true,
-  slowPct: true,
-} as const satisfies Record<keyof PlayerStateView, true>;
-const STATE_FIELDS = {
-  phase: true,
-  hostSlot: true,
-  tick: true,
-  wave: true,
-  remaining: true,
-  aliveCount: true,
-  resultWave: true,
-  scenario: true,
-} as const satisfies Record<Exclude<keyof RunStateView, "players">, true>;
-const PLAYER_KEYS = Object.keys(PLAYER_FIELDS);
-const STATE_KEYS = Object.keys(STATE_FIELDS);
+/**
+ * Every field of the state (shared key lists, retro A2): checked at compile time against the views
+ * AND the server schema (RunState.ts), so a new schema field can't be left out of this copy.
+ */
+const PLAYER_KEYS = Object.keys(PLAYER_STATE_FIELDS);
+const STATE_KEYS = Object.keys(RUN_STATE_FIELDS);
 
 type Fields = Record<string, unknown>;
 
@@ -155,7 +129,8 @@ export class DevThrottle implements NetRoomLike {
   private readonly handlers = new Map<string | number, MessageHandler[]>();
   private readonly innerOffs: (() => void)[] = [];
   private closed = false;
-  private readonly onInnerState = (state: RunStateView): void => this.receiveState(state);
+  private readonly onInnerState = (state: RunStateView): void =>
+    this.receiveState(state);
 
   constructor(
     private readonly inner: NetRoomLike,
@@ -174,7 +149,12 @@ export class DevThrottle implements NetRoomLike {
       bytes: null,
       length: 0,
     }));
-    this.outgoing = Array.from({ length: THROTTLE_QUEUE_SIZE }, () => ({ due: 0, type: "", message: null, input: { ...NEUTRAL_INPUT } }));
+    this.outgoing = Array.from({ length: THROTTLE_QUEUE_SIZE }, () => ({
+      due: 0,
+      type: "",
+      message: null,
+      input: { ...NEUTRAL_INPUT },
+    }));
     const listeners = this.listeners;
     const on = (cb: StateListener): void => {
       if (!listeners.includes(cb)) listeners.push(cb);
@@ -200,9 +180,14 @@ export class DevThrottle implements NetRoomLike {
   send(type: string, message: unknown): void {
     if (this.closed) return;
     if (this.outCount === THROTTLE_QUEUE_SIZE) this.deliverOutgoing();
-    const e = this.outgoing[(this.outHead + this.outCount) % THROTTLE_QUEUE_SIZE] as Outgoing;
+    const e = this.outgoing[
+      (this.outHead + this.outCount) % THROTTLE_QUEUE_SIZE
+    ] as Outgoing;
     this.outCount++;
-    e.due = this.outLastDue = Math.max(this.outLastDue, this.dueFrom(this.now()));
+    e.due = this.outLastDue = Math.max(
+      this.outLastDue,
+      this.dueFrom(this.now()),
+    );
     e.type = type;
     if (type === C2S.INPUT_SEND) {
       Object.assign(e.input, message); // NetSimHost reuses its send buffer: copy now (no allocation)
@@ -218,8 +203,15 @@ export class DevThrottle implements NetRoomLike {
       list = [];
       this.handlers.set(type, list);
       // The SDK keys handlers by type; Story 2.5's horde frame type is numeric.
-      const subscribe = this.inner.onMessage as (t: string | number, h: (m: unknown) => void) => () => void;
-      this.innerOffs.push(subscribe.call(this.inner, type, (m: unknown) => this.receiveMessage(type, m)));
+      const subscribe = this.inner.onMessage as (
+        t: string | number,
+        h: (m: unknown) => void,
+      ) => () => void;
+      this.innerOffs.push(
+        subscribe.call(this.inner, type, (m: unknown) =>
+          this.receiveMessage(type, m),
+        ),
+      );
     }
     const handlers = list;
     const h = cb as MessageHandler;
@@ -237,8 +229,16 @@ export class DevThrottle implements NetRoomLike {
 
   /** Delivers everything due by `nowMs`, both directions. Call once per frame. */
   pump(nowMs: number): void {
-    while (this.outCount > 0 && (this.outgoing[this.outHead] as Outgoing).due <= nowMs) this.deliverOutgoing();
-    while (this.inCount > 0 && (this.incoming[this.inHead] as Incoming).due <= nowMs) this.deliverIncoming();
+    while (
+      this.outCount > 0 &&
+      (this.outgoing[this.outHead] as Outgoing).due <= nowMs
+    )
+      this.deliverOutgoing();
+    while (
+      this.inCount > 0 &&
+      (this.incoming[this.inHead] as Incoming).due <= nowMs
+    )
+      this.deliverIncoming();
   }
 
   /** Stops listening to the room and drops what is in flight. Safe to call twice. */
@@ -260,7 +260,9 @@ export class DevThrottle implements NetRoomLike {
 
   private nextIncoming(): Incoming {
     if (this.inCount === THROTTLE_QUEUE_SIZE) this.deliverIncoming();
-    const e = this.incoming[(this.inHead + this.inCount) % THROTTLE_QUEUE_SIZE] as Incoming;
+    const e = this.incoming[
+      (this.inHead + this.inCount) % THROTTLE_QUEUE_SIZE
+    ] as Incoming;
     this.inCount++;
     e.due = this.inLastDue = Math.max(this.inLastDue, this.dueFrom(this.now()));
     return e;
@@ -306,11 +308,15 @@ export class DevThrottle implements NetRoomLike {
       this.delivered.copyFrom((e.state as StateCopy).asState);
       this.hasDelivered = true;
       const state = this.delivered.asState;
-      for (let i = 0; i < this.listeners.length; i++) (this.listeners[i] as StateListener)(state);
+      for (let i = 0; i < this.listeners.length; i++)
+        (this.listeners[i] as StateListener)(state);
       return;
     }
     const list = this.handlers.get(e.type);
-    const m = e.kind === KIND_BYTES ? (e.bytes as Uint8Array).subarray(0, e.length) : e.message;
+    const m =
+      e.kind === KIND_BYTES
+        ? (e.bytes as Uint8Array).subarray(0, e.length)
+        : e.message;
     e.message = null;
     if (!list) return;
     for (let i = 0; i < list.length; i++) (list[i] as MessageHandler)(m);

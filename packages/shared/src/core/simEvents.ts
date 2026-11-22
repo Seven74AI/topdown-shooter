@@ -38,6 +38,8 @@ export type SimEvent =
   | { type: "wave.started"; number: number; size: number }
   | { type: "wave.ended"; number: number }
   | { type: "wave.rush_started"; count: number }
+  /** Story 3.1: a build phase started; `wave` is the wave that comes after it. */
+  | { type: "build.started"; wave: number }
   /** Story 3.2: the economy system paid `amount` into `playerId`'s wallet. */
   | { type: "money.earned"; playerId: string; amount: number; reason: MoneyReason }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them

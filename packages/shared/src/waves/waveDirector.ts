@@ -1,40 +1,36 @@
 import type { Balance } from "../config/balance";
-import type { SystemFn } from "../core/systems";
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
-import { killZombie, spawnZombie } from "../zombies/zombiePool";
+import { spawnZombie } from "../zombies/zombiePool";
 import { ZOMBIE_STATE, type ZombieTypeId } from "../zombies/zombieTypes";
 
-export type WavePhase = "intro" | "active" | "pause";
-
+/**
+ * Wave director state. Story 3.1: the run's phase (build / wave) lives in `world.run`
+ * (`run/runStateMachine.ts`); this is only the current wave's spawning.
+ */
 export interface WaveState {
   /** Current (or last finished) wave number; 0 before wave 1. */
   number: number;
-  phase: WavePhase;
   /** Size of the current wave. */
   size: number;
   /** Zombies of this wave still waiting to spawn. */
   queued: number;
   /** Zombies of this wave left (alive + queued); 0 between waves. */
   remaining: number;
-  /** Ticks until the next phase change (intro / pause). */
-  timerTicks: number;
-  /** Ticks until the next spawn batch (active). */
+  /** Ticks until the next spawn batch (during a wave). */
   spawnTimerTicks: number;
   /** The last-5 rush has started for this wave. */
   rushing: boolean;
-  /** Dev cheat (Story 1.11): no waves advance. */
+  /** Dev cheat (Story 1.11, `DEV_NO_WAVES`, `?stress`): the run state machine stands still (no build countdown, no waves). */
   paused: boolean;
 }
 
-export function createWaveState(balance: Balance): WaveState {
+export function createWaveState(): WaveState {
   return {
     number: 0,
-    phase: "intro",
     size: 0,
     queued: 0,
     remaining: 0,
-    timerTicks: ticksFor(balance.waves.firstWaveDelayS),
     spawnTimerTicks: 0,
     rushing: false,
     paused: false,
@@ -130,44 +126,48 @@ function spawnWaveZombie(world: World): boolean {
   return spawnZombie(world, type, x, y, true) >= 0;
 }
 
-function startWave(world: World): void {
+/** Players in the World (the wave size counts them; Story 3.10 scales by it). */
+let playerCount = 0;
+const countPlayer = (): void => {
+  playerCount++;
+};
+
+/**
+ * The next wave's numbers (Story 3.1: called only by the run state machine's `startWave`): number + 1,
+ * size, queue, no rush, first spawn batch on this tick; emits `wave.started`.
+ */
+export function beginWave(world: World): void {
   const w = world.waves;
+  playerCount = 0;
+  world.players.forEach(countPlayer);
   w.number += 1;
-  w.size = waveSize(world.balance, w.number, Math.max(1, alivePlayers.length));
+  w.size = waveSize(world.balance, w.number, Math.max(1, playerCount));
   w.queued = w.size;
   w.remaining = w.size;
   w.rushing = false;
-  w.phase = "active";
   w.spawnTimerTicks = 0; // first batch this tick
   world.events.emit({ type: "wave.started", number: w.number, size: w.size });
 }
 
-/** Ends the current wave at once (used by the wave director and by the skip-wave dev cheat). */
-export function endWave(world: World): void {
+/** Clears the finished wave's counters (the run state machine's `endWave` calls it before `wave.ended`). */
+export function clearWave(world: World): void {
   const w = world.waves;
-  w.phase = "pause";
   w.queued = 0;
   w.remaining = 0;
   w.rushing = false;
-  w.timerTicks = ticksFor(world.balance.waves.pauseBetweenWavesS);
-  world.events.emit({ type: "wave.ended", number: w.number });
 }
 
 /**
- * Wave director (FR28, FR30): intro → wave 1 → pause (5 s) → wave 2 … Wave N spawns N × 40 Walkers from
+ * Wave director (FR28, FR30), one tick of a wave in progress: wave N spawns N × 40 Walkers from
  * spawn points at the map edges, at most `maxAlive` alive at once, the rest queued. When 5 remain
- * (alive + queued, queue empty) they rush the nearest player. Timers count ticks.
+ * (alive + queued, queue empty) they rush the nearest player. Timers count ticks. Returns true when
+ * the wave is cleared (the run state machine then calls `endWave`). With no one standing nothing
+ * spawns (the wipe ends the run).
  */
-export const updateWaves: SystemFn = (world) => {
+export function updateWaves(world: World): boolean {
   const w = world.waves;
   const b = world.balance.waves;
-  if (w.paused || collectAlivePlayers(world) === 0) return; // no one standing stops the director
-
-  if (w.phase !== "active") {
-    w.timerTicks--;
-    if (w.timerTicks > 0) return;
-    startWave(world);
-  }
+  if (collectAlivePlayers(world) === 0) return false; // no one standing stops the director
 
   w.spawnTimerTicks--;
   if (w.spawnTimerTicks <= 0 && w.queued > 0) {
@@ -190,16 +190,5 @@ export const updateWaves: SystemFn = (world) => {
     }
     world.events.emit({ type: "wave.rush_started", count: w.remaining });
   }
-  if (w.remaining === 0 && w.queued === 0) endWave(world);
-};
-
-/** Dev cheat (Story 1.11): kill every wave zombie and end the wave. */
-export function skipWave(world: World): void {
-  if (world.waves.phase !== "active") return;
-  const z = world.zombies;
-  for (let i = z.aliveCount - 1; i >= 0; i--) {
-    const id = z.aliveIds[i] as number;
-    if (z.waveZombie[id] === 1) killZombie(world, id, null, "cheat");
-  }
-  endWave(world);
+  return w.remaining === 0 && w.queued === 0;
 }

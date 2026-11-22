@@ -1,9 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance } from "@topdown/shared";
-import { LocalSimHost, MAX_CATCHUP_STEPS } from "./LocalSimHost";
+import { addPlayer, loadBalance, ticksFor } from "@topdown/shared";
+import { LOCAL_PLAYER_ID, LocalSimHost, MAX_CATCHUP_STEPS } from "./LocalSimHost";
 
 const balance = loadBalance();
 const FRAME_60HZ = 1 / 60;
+
+describe("LocalSimHost build phase (Story 3.1)", () => {
+  it("starts in the first build phase, delivers build.started with the first step, and Ready skips the rest", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16); // the scene adds the player right after
+    expect(host.world.run.phase).toBe("build");
+    host.update(0.05);
+    expect(host.drainEvents().map((e) => e.type)).toContain("build.started");
+    expect(host.world.run.buildTicksLeft).toBe(ticksFor(balance.waves.buildPhaseS) - 1);
+    host.setBuildReady(true);
+    host.update(0.05);
+    expect(host.world.run.phase).toBe("wave");
+    expect(host.world.waves.number).toBe(1);
+  });
+
+  it("the in-run menu's pause freezes the build countdown", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
+    host.update(0.05);
+    const left = host.world.run.buildTicksLeft;
+    host.paused = true;
+    for (let i = 0; i < 100; i++) host.update(0.05);
+    expect(host.world.run.buildTicksLeft).toBe(left);
+  });
+});
 
 describe("LocalSimHost", () => {
   it("steps exactly 20 times in 1 s of 60 Hz frames", () => {
@@ -81,7 +106,7 @@ describe("LocalSimHost", () => {
     host.update(0.05);
     emitNext();
     host.update(0.05);
-    const first = host.drainEvents().map((e) => (e.type === "test.ping" ? e.n : -1));
+    const first = host.drainEvents().filter((e) => e.type === "test.ping").map((e) => (e.type === "test.ping" ? e.n : -1)); // build.started (3.1) comes too
     expect(first).toEqual([0, 1]);
     expect(host.drainEvents()).toEqual([]);
   });
