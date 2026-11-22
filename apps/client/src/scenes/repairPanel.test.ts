@@ -67,6 +67,16 @@ describe("RepairPanel (Story 3.7)", () => {
     expect(p.reason).toBe("Only during the build phase");
   });
 
+  it("closes when the wave number changed, even if the phase is build again (hidden tab slept through a wave; 3.7 review)", () => {
+    const { world, b } = setup();
+    b.hp = 100;
+    const p = new RepairPanel();
+    p.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+    expect(p.update(world, "p0", true, names)).toBe(true);
+    world.waves.number += 1; // a whole wave passed between two frames
+    expect(p.update(world, "p0", true, names)).toBe(false);
+  });
+
   it("has a text for every refusal", () => {
     expect(repairRefusalText("money")).toBe("Not enough money");
     expect(repairRefusalText("full_hp")).toBe("Nothing to repair");

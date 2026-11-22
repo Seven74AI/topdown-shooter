@@ -62,6 +62,12 @@ export class FxView {
         this.muzzle(e.x, e.y);
         if (e.playerId === this.localPlayerId) playSfx("weapon_pistol_fire");
         break;
+      case "turret.fired": // Story 3.6 (online the host put the muzzle at its building; NaN = no building)
+        if (Number.isFinite(e.x) && Number.isFinite(e.y)) {
+          this.muzzle(e.x, e.y);
+          playSfx("turret_fire");
+        }
+        break;
       case "melee.swung":
         this.swing(e.x, e.y, e.dirX, e.dirY, e.arcDeg, e.rangeM);
         if (e.playerId === this.localPlayerId) playSfx("weapon_machete_swing");

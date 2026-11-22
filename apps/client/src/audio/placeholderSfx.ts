@@ -10,6 +10,7 @@ export type SfxName =
   | "weapon_reloaded"
   | "zombie_hit"
   | "building_repaired"
+  | "turret_fire"
   | "zombie_runner_shriek";
 
 const MASTER_GAIN = 0.25;
@@ -19,6 +20,9 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let noise: AudioBuffer | null = null;
 let lastHitAt = -1;
+let lastTurretAt = -1;
+/** Story 3.6: four turrets fire 20 shots/s together; one soft click per 80 ms at most. */
+const TURRET_MIN_INTERVAL_S = 0.08;
 
 function context(): AudioContext | null {
   if (ctx) return ctx;
@@ -173,6 +177,12 @@ export function playSfx(name: SfxName, pan = 0): void {
       break;
     case "zombie_runner_shriek":
       shriek(c, t, pan);
+      break;
+    case "turret_fire": // Story 3.6: a soft, high, short tick (quieter than a gun)
+      if (t - lastTurretAt < TURRET_MIN_INTERVAL_S) return;
+      lastTurretAt = t;
+      burst(c, t, 0.03, 0.35, 5000);
+      click(c, t, 1400, 0.15);
       break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;

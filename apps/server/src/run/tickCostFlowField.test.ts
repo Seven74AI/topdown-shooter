@@ -18,6 +18,7 @@ import {
   TICK_DT_S,
   type NetEventContext,
   type BuildingRotation,
+  startWave,
 } from "@topdown/shared";
 import { RunController } from "./RunController";
 import { PlayerState, RunState } from "../rooms/schema/RunState";
@@ -53,6 +54,7 @@ interface Result {
   eventBps: number;
   destroyed: number;
   maxAge: number;
+  turretShots: number;
   /** Story 3.8: the flank field's max age (0 without Runners). */
   maxFlankAge: number;
 }
@@ -62,7 +64,13 @@ interface Result {
  * encode), as `tickCost.test.ts`, with or without 24 buildings and the flow field. Destroyed
  * barricades are put back the next tick, so there are always 24 (and the field keeps rebuilding).
  */
-function measure(withBuildings: boolean, runners = 0): Result {
+/**
+ * Story 3.6: `turrets` swaps the four barricades of the y = 27 wall for four Auto-turrets at their
+ * min corners (still 24 buildings), all firing in the wave, to measure the turrets' added tick cost
+ * and bandwidth (turret.fired + their hits and kills; no schema field is added).
+ */
+const TURRET_ROW_Y = 27;
+function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
   const c = new RunController({
     balance,
@@ -87,7 +95,8 @@ function measure(withBuildings: boolean, runners = 0): Result {
     for (const b of world.buildings.list) standing.set(`${b.gx},${b.gy}`, true);
     for (const l of LAYOUT) {
       if (standing.get(`${l.gx},${l.gy}`)) continue;
-      addBuildingAt(world, { id: nextId++, type: WOOD, ownerId: "p0", gx: l.gx, gy: l.gy, rot: l.rot, hp: 200 });
+      const turret = turrets && l.gy === TURRET_ROW_Y / BUILD_GRID_M;
+      addBuildingAt(world, { id: nextId++, type: turret ? "auto_turret" : WOOD, ownerId: `p${nextId % 4}`, gx: l.gx, gy: l.gy, rot: turret ? 0 : l.rot, hp: turret ? 300 : 200 });
     }
   };
   const points = world.map.spawnPoints;
@@ -104,8 +113,10 @@ function measure(withBuildings: boolean, runners = 0): Result {
       if (type === "runner") aliveRunners++;
     }
   };
+  if (world.run.phase === "build") startWave(world); // turrets fire only in a wave
   topUpBuildings();
   topUp();
+  let turretShots = 0;
   const times: number[] = [];
   let patchBytes = 0;
   let eventBytes = 0;
@@ -134,7 +145,10 @@ function measure(withBuildings: boolean, runners = 0): Result {
       times.push(ms);
       patchBytes += patch.length;
       eventBytes += tuples.length > 0 ? pack({ tick: world.tick, events: tuples }).length : 0;
-      for (const e of events) if (e.type === "building.destroyed") destroyed++;
+      for (const e of events) {
+        if (e.type === "building.destroyed") destroyed++;
+        else if (e.type === "turret.fired") turretShots++;
+      }
       if (withBuildings) maxAge = Math.max(maxAge, world.tick - world.pathing.chase.sourceTick);
       if (withBuildings && runners > 0) maxFlankAge = Math.max(maxFlankAge, world.tick - world.pathing.flank.sourceTick);
     }
@@ -149,6 +163,7 @@ function measure(withBuildings: boolean, runners = 0): Result {
     eventBps: eventBytes / seconds,
     destroyed,
     maxAge,
+    turretShots,
     maxFlankAge,
   };
 }
@@ -192,9 +207,28 @@ describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
     expect(field.maxAge).toBeLessThanOrEqual(2 * Math.ceil(6144 / balance.zombies.pathing.rebuildCellsPerTick));
   });
 
-  it("Story 3.8: 4 players + 100 Walkers + 50 Runners + 24 buildings, both fields sharing the budget: added tick p99 ≤ 2 ms", () => {
+  it("Story 3.6: 4 of the 24 buildings Auto-turrets (firing): the turrets add ≤ 2 ms to the tick p99 over 24 barricades", () => {
+    const runs = [measure(false), measure(true, true), measure(false), measure(true, true), measure(true), measure(true)];
+    const pick = (a: Result, b: Result): Result => (a.p99 <= b.p99 ? a : b);
+    const base = pick(runs[0] as Result, runs[2] as Result);
+    const tur = pick(runs[1] as Result, runs[3] as Result);
+    const field = pick(runs[4] as Result, runs[5] as Result);
+    const added = tur.p99 - base.p99;
+    console.log(
+      `[tick cost 3.6] baseline p99 ${base.p99.toFixed(3)} ms; 24 buildings (4 turrets) + field p99 ${tur.p99.toFixed(3)} ms (mean ${tur.mean.toFixed(3)}); ` +
+        `added p99 ${added.toFixed(3)} ms (barricades only: ${(field.p99 - base.p99).toFixed(3)} ms); ` +
+        `turret shots ${(tur.turretShots / (MEASURED_TICKS * TICK_DT_S)).toFixed(1)}/s; ` +
+        `patches ${field.patchBps.toFixed(0)} → ${tur.patchBps.toFixed(0)} B/s, events ${field.eventBps.toFixed(0)} → ${tur.eventBps.toFixed(0)} B/s ` +
+        `(barricades only → with 4 turrets)`,
+    );
+    expect(tur.turretShots).toBeGreaterThan(0);
+    // The turrets' own cost (the field's is 3.5's test above; on a loaded 2-core box both p99s are noisy).
+    expect(tur.p99 - field.p99).toBeLessThanOrEqual(2);
+  });
+
+  it("Story 3.8: 4 players + 100 Walkers + 50 Runners + 24 buildings (4 of them firing turrets), both fields sharing the budget: added tick p99 ≤ 2 ms", () => {
     const RUNNERS = 50;
-    const runs = [measure(false, RUNNERS), measure(true, RUNNERS), measure(false, RUNNERS), measure(true, RUNNERS)];
+    const runs = [measure(false, false, RUNNERS), measure(true, true, RUNNERS), measure(false, false, RUNNERS), measure(true, true, RUNNERS)];
     const pick = (a: Result, b: Result): Result => (a.p99 <= b.p99 ? a : b);
     const base = pick(runs[0] as Result, runs[2] as Result);
     const field = pick(runs[1] as Result, runs[3] as Result);
@@ -205,7 +239,7 @@ describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
     })();
     console.log(
       `[tick cost 3.8] 100 Walkers + 50 Runners: baseline (no buildings, no fields) p99 ${base.p99.toFixed(3)} ms (mean ${base.mean.toFixed(3)}); ` +
-        `with 24 buildings + chase + flank fields p99 ${field.p99.toFixed(3)} ms (mean ${field.mean.toFixed(3)}, max ${field.max.toFixed(3)}); added p99 ${added.toFixed(3)} ms; ` +
+        `with 24 buildings (4 turrets) + chase + flank fields p99 ${field.p99.toFixed(3)} ms (mean ${field.mean.toFixed(3)}, max ${field.max.toFixed(3)}); added p99 ${added.toFixed(3)} ms; ` +
         `patches ${base.patchBps.toFixed(0)} → ${field.patchBps.toFixed(0)} B/s, events ${base.eventBps.toFixed(0)} → ${field.eventBps.toFixed(0)} B/s; ` +
         `${field.destroyed} buildings destroyed (re-added); max age chase ${field.maxAge} / flank ${field.maxFlankAge} ticks (bound ${shared})`,
     );

@@ -105,6 +105,34 @@ export function pushOutOfBuildings(
   fromX: number,
   fromY: number,
 ): PushResult {
+  const full = settle(world, x, y, r, fromX, fromY);
+  if (full !== PUSH_STUCK) return full;
+  // Not settled (3.4 re-review: a diagonal press into a pocket stopped ~13 cm short): try the move
+  // along one axis at a time and keep the one that gets further from the start; only if neither
+  // settles does the body stay where it was.
+  let bestX = fromX;
+  let bestY = fromY;
+  let bestD = -1;
+  if (settle(world, x, fromY, r, fromX, fromY) !== PUSH_STUCK) {
+    bestX = pushed.x;
+    bestY = pushed.y;
+    bestD = (bestX - fromX) * (bestX - fromX) + (bestY - fromY) * (bestY - fromY);
+  }
+  if (settle(world, fromX, y, r, fromX, fromY) !== PUSH_STUCK) {
+    const d = (pushed.x - fromX) * (pushed.x - fromX) + (pushed.y - fromY) * (pushed.y - fromY);
+    if (d > bestD) {
+      bestX = pushed.x;
+      bestY = pushed.y;
+      bestD = d;
+    }
+  }
+  pushed.x = bestX;
+  pushed.y = bestY;
+  return bestD > 0 ? PUSH_MOVED : PUSH_STUCK;
+}
+
+/** One push-out attempt for the target (x, y): passes until stable, or PUSH_STUCK (then `pushed` = from). */
+function settle(world: Readonly<World>, x: number, y: number, r: number, fromX: number, fromY: number): PushResult {
   const list = world.buildings.list;
   const { widthM, heightM } = world.map;
   let px = x;

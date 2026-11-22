@@ -1,5 +1,6 @@
 import {
   ZOMBIE_POOL_CAPACITY,
+  buildingTypeIds,
   freeProjectile,
   isZombieAlive,
   maxZombieRadius,
@@ -46,6 +47,8 @@ export class CosmeticProjectiles {
     weaponIndex: 0,
     owner: null,
     advanceM: 0,
+    building: 0,
+    pushbackM: 0,
   };
   private gridFresh = false;
 
@@ -83,6 +86,27 @@ export class CosmeticProjectiles {
     s.weaponIndex = Math.max(0, weaponIds(this.world.balance).indexOf(weapon));
     s.owner = ownerId;
     return spawnProjectile(this.world.projectiles, s);
+  }
+
+  /**
+   * Story 3.6: a turret's cosmetic shot (from `turret.fired`): tagged with its building (drawn in the
+   * turret colour), no owner (never "mine": the reversed-hit check ignores it), pierce 1.
+   */
+  spawnShot(buildingId: number, buildingType: string, x: number, y: number, dirX: number, dirY: number, speedMps: number, rangeM: number): number {
+    const s = this.spawnBuf;
+    s.x = x;
+    s.y = y;
+    s.dirX = dirX;
+    s.dirY = dirY;
+    s.speedMps = speedMps;
+    s.rangeM = rangeM;
+    s.pierce = 1;
+    s.weaponIndex = Math.max(0, buildingTypeIds(this.world.balance).indexOf(buildingType));
+    s.owner = null;
+    s.building = buildingId;
+    const id = spawnProjectile(this.world.projectiles, s);
+    s.building = 0;
+    return id;
   }
 
   /** Moves every cosmetic projectile by one frame. */

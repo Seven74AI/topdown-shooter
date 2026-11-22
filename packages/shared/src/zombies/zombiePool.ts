@@ -116,8 +116,11 @@ export function isZombieAlive(pool: ZombiePool, id: number): boolean {
   return id >= 0 && id < pool.capacity && (pool.alivePos[id] as number) >= 0;
 }
 
-/** Kills a zombie, frees its slot (held before reuse) and emits `zombie.killed`. */
-export function killZombie(world: World, id: number, killerId: string | null, weapon: string): void {
+/**
+ * Kills a zombie, frees its slot (held before reuse) and emits `zombie.killed`. Story 3.6:
+ * `buildingId` > 0 = killed by that building (a turret; `killerId` is its owner).
+ */
+export function killZombie(world: World, id: number, killerId: string | null, weapon: string, buildingId = 0): void {
   const pool = world.zombies;
   if (!isZombieAlive(pool, id)) return;
   const pos = pool.alivePos[id] as number;
@@ -131,7 +134,10 @@ export function killZombie(world: World, id: number, killerId: string | null, we
   pool.freedIds[tail] = id;
   pool.freedAtTick[tail] = world.tick;
   pool.freedCount++;
-  world.events.emit({ type: "zombie.killed", zombieId: id, killerId, x: pool.x[id] as number, y: pool.y[id] as number, weapon });
+  const x = pool.x[id] as number;
+  const y = pool.y[id] as number;
+  if (buildingId > 0) world.events.emit({ type: "zombie.killed", zombieId: id, killerId, x, y, weapon, buildingId });
+  else world.events.emit({ type: "zombie.killed", zombieId: id, killerId, x, y, weapon });
 }
 
 /** Balance id of a zombie's type. */

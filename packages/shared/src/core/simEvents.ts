@@ -10,7 +10,16 @@ export type MoneyReason = (typeof MONEY_REASONS)[number];
  * Naming: domain.past_tense in snake case. Each story adds its own variants.
  */
 export type SimEvent =
-  | { type: "zombie.killed"; zombieId: number; killerId: string | null; x: number; y: number; weapon: string }
+  | {
+      type: "zombie.killed";
+      zombieId: number;
+      killerId: string | null;
+      x: number;
+      y: number;
+      weapon: string;
+      /** Story 3.6: set when a building (turret) killed it; `killerId` is then its owner. */
+      buildingId?: number;
+    }
   | {
       type: "zombie.hit";
       zombieId: number;
@@ -48,6 +57,11 @@ export type SimEvent =
   | { type: "building.destroyed"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number }
   /** Story 3.7: `playerId` repaired building `buildingId` to full HP for `cost`; (x, y) = its footprint's centre in metres. */
   | { type: "building.repaired"; buildingId: number; playerId: string; cost: number; x: number; y: number }
+  /**
+   * Story 3.6: turret `buildingId` fired a shot from its muzzle (x, y) along the unit (dirX, dirY).
+   * On the wire only the id and heading travel; the client computes the muzzle from its building.
+   */
+  | { type: "turret.fired"; buildingId: number; x: number; y: number; dirX: number; dirY: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

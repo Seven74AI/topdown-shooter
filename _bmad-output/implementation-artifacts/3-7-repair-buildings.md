@@ -1,6 +1,6 @@
 # Story 3.7: Repair buildings
 
-Status: review
+Status: done
 
 ## Story
 
@@ -152,7 +152,17 @@ Claude Opus 5.5 (claude-opus-5-5), BMAD gds-create-story + build, 2026-11-22.
 - Changed (client): `sim/{SimHost,LocalSimHost,NetSimHost}.ts`, `net/session.ts`, `scenes/{GameScene,HudScene,hudModel}.ts`, `render/FxView.ts`, `audio/placeholderSfx.ts`, `ui/sizes.ts`, `debug/{DevCheats.tsx,devCheatActions.ts,devCheatActions.test.ts}`.
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file.
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched suites 4×, 11 mutations caught, browser: solo and two pages under `?lag=150&jitter=20`, synthetic multi-touch). **Outcome:** no high findings.
+- [x] [Med] Fractional HP: the server repaired at `hp < maxHp` while the client shows `ceil(hp)` (charge $20 for 0.5 HP while the panel said "Nothing to repair"). `isDamaged` now uses `ceil(hp) < maxHp` (and 3.5 keeps HP whole). Test.
+- [x] [Low] The panel survived a hidden tab that slept through a whole wave: it remembers the wave number it opened in and closes when it changes. Test.
+- [x] [Low] `DEV_PLACED_BUILDING_HP` logged nothing: it now warns when applied and logs `dev_placed_building_hp_ignored` when ignored (production).
+- Noted: a quick move-stick nudge (≤ 300 ms, ≤ 12 px) with the panel open closes it, and a tap is lost if a second finger lands on the stick during it (the detector follows the latest touch-down) — accepted for now, revisit with the phone playtest; refusals use an S2C message like 3.4's placement (not `ServerError(526)`, which is for joins).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (ceil HP rule, panel per wave, dev switch logs). Story done.
 
 - 2026-11-22: Story written (gds-create-story), status ready-for-dev.
 - 2026-11-22: Built: shared repair rules, guarded `building.repair` with refusals, tap-to-select panel, FX, dev switches; repair code made geometry-agnostic (footprint boxes) per the coordinator's 3.4b note; merged `claude/epic-2-continue`; status review.
