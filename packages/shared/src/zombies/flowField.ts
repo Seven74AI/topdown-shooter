@@ -111,9 +111,9 @@ export interface FlowField {
 }
 
 /**
- * Per zombie slot (3.5 review H1 safety net): while a zombie follows the field, every
- * `pathing.stuckTicks` ticks its position is compared with the last check; less than
- * `pathing.stuckMoveM` sets `stuck` (it then hits a building it touches).
+ * Per zombie slot. `anchorX/anchorY/ticks/stuck/gen` held the 3.5 review's "no progress" record,
+ * whose trigger was dropped in the re-review (crowds looked stuck and broke walkable walls); they
+ * stay zero. The flank fields are 3.8's time limit.
  */
 export interface ZombieProgress {
   readonly anchorX: Float32Array;

@@ -176,7 +176,6 @@ function anyZombieNear(world: World, x: number, y: number, d: number): boolean {
   }
   return false;
 }
-const damageOf = (world: World) => world.buildings.list.reduce((s, b) => s + (HP - b.hp), 0);
 
 describe("Story 3.5 review H1: gaps narrower than a body never jam zombies", () => {
   it("P1: a closed box whose only opening is a 0.5 m slot: the zombies break in", () => {
@@ -243,17 +242,16 @@ describe("Story 3.5 review H1: gaps narrower than a body never jam zombies", () 
     expect(inAt).toBeGreaterThan(0);
   });
 
-  it("safety net: a jam the grid does not see (pinches wiped) still ends in building attacks", () => {
-    const { world, events, wall } = setup(15);
+  it("a crowd held back by other zombies never breaks a wall it can walk around (3.5 re-review)", () => {
+    const { world, wall } = setup(15);
     world.debug.godMode = true;
-    addPlayer(world, "p0", 24, 16.5);
-    for (const [x, y, r] of [[22, 14, 0], [24, 14, 0], [22, 14.5, 1], [22, 16.5, 1], [25.5, 14.5, 1], [25.5, 16.5, 1], [22, 18.5, 0], [24.5, 18.5, 0]] as const) wall(x, y, r);
-    step(world, TICK_DT_S); // rasterize once, then hide the slot's pinch from the field (the version stays)
-    world.pathing.nav.pinchE.fill(0);
-    world.pathing.nav.pinchS.fill(0);
-    for (let i = 0; i < 4; i++) spawnZombie(world, "walker", 21 + i * 1.5, 24);
-    for (let t = 0; t < 900; t++) step(world, TICK_DT_S);
-    expect(damageOf(world) > 0 || events.some((e) => e.type === "building.destroyed")).toBe(true);
+    addPlayer(world, "p0", 24, 16);
+    const a = wall(22, 14); // a 4 m wall 1.5 m in front of the player, open at both ends
+    const b = wall(24, 14);
+    for (let i = 0; i < 60; i++) spawnZombie(world, "walker", 14 + (i % 20) * 1, 4 + Math.floor(i / 20) * 1.2);
+    for (let t = 0; t < 1200; t++) step(world, TICK_DT_S); // 60 s
+    expect(a.hp).toBe(HP);
+    expect(b.hp).toBe(HP);
   });
 });
 

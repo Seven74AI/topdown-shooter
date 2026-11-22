@@ -218,7 +218,6 @@ export const updateZombies: SystemFn = (world, dtS) => {
     }
     pool.vx[id] = vx;
     pool.vy[id] = vy;
-    trackProgress(world, id, x, y);
   }
 
   // Pass 2: move and clamp to the map.
@@ -284,9 +283,12 @@ export const updateZombies: SystemFn = (world, dtS) => {
     // Story 3.5: blocked by a building and touching it → hit it (a player in contact went first:
     // that hit set the cooldown). At 0 HP `damageBuilding` removes it and emits building.destroyed.
     let bid = targetBuilding[id] as number;
-    // Review H1 safety net: following the field but jammed (push-out stuck, or no progress for
-    // `stuckTicks`) → the building it touches is the target, whatever the field says.
-    if (bid === 0 && fieldMode[id] === 1 && hasBuildings && (pushStuck || world.pathing.progress.stuck[id] === 1)) {
+    // Review H1 safety net: following the field but the push-out can't place it (wedged against
+    // buildings) → the building it touches is the target, whatever the field says. Re-review: the
+    // "no progress for stuckTicks" trigger was dropped — in a crowd, zombies held back by other
+    // zombies looked stuck and smashed walls and turrets they could walk around (60 Walkers
+    // destroyed a 4 m wall in the open). Pinch-aware fields alone resolved 324/324 fuzz layouts.
+    if (bid === 0 && fieldMode[id] === 1 && hasBuildings && pushStuck) {
       bid = touchingBuilding(world, x, y, rz + CONTACT_EPS_M);
     }
     if (bid !== 0 && pool.attackCooldownTicks[id] === 0) {
@@ -350,36 +352,6 @@ function resetFlankTime(world: World, id: number): void {
   pr.flankLastD[id] = 0;
 }
 
-/**
- * Review H1: progress of a zombie that follows the field (pass 1, positions at the start of the
- * tick). Every `stuckTicks` ticks in field mode its position is compared with the last check;
- * less than `stuckMoveM` sets `stuck`. Leaving field mode or a reused slot starts over.
- */
-function trackProgress(world: World, id: number, x: number, y: number): void {
-  const pr = world.pathing.progress;
-  if (id >= pr.ticks.length) return; // a World without pathing (it never follows a field)
-  const gen = world.zombies.generation[id] as number;
-  if (fieldMode[id] === 0 || pr.gen[id] !== gen) {
-    pr.gen[id] = gen;
-    pr.ticks[id] = 0;
-    pr.stuck[id] = 0;
-    pr.anchorX[id] = x;
-    pr.anchorY[id] = y;
-    return;
-  }
-  const p = world.balance.zombies.pathing;
-  const t = (pr.ticks[id] as number) + 1;
-  if (t < p.stuckTicks) {
-    pr.ticks[id] = t;
-    return;
-  }
-  const dx = x - (pr.anchorX[id] as number);
-  const dy = y - (pr.anchorY[id] as number);
-  pr.stuck[id] = dx * dx + dy * dy < p.stuckMoveM * p.stuckMoveM ? 1 : 0;
-  pr.ticks[id] = 0;
-  pr.anchorX[id] = x;
-  pr.anchorY[id] = y;
-}
 
 /**
  * Hard rule on top of the soft separation: two zombies never stay overlapped. Each overlapping pair

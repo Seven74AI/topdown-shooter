@@ -373,7 +373,7 @@ describe("Runners flank (Story 3.8, epics AC 3, fixed seed)", () => {
     expect(r.flanked).toBeGreaterThan(wk.flanked);
     expect(r.flanked).toBeGreaterThanOrEqual(10);
     expect(wk.flanked).toBeLessThanOrEqual(2);
-  });
+  }, 20_000); // ~3 s alone; slower on a loaded machine (3.5 re-review)
 
   it("one player, 12 at once (a crowd): still more Runners on the flank", () => {
     const r = flankShare("runner", ONE, 38, 12, true);

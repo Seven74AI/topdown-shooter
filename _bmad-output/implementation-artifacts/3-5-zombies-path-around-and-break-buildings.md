@@ -162,7 +162,18 @@ Review by a fresh agent at 75eaf07; fixes on branch `story-3-5b` (from `claude/e
 
 Shared API changes for 3.6 / 3.8: `createPathingState(map, zombieCapacity, enabled?)`; `PathingState.progress`; `NavGrid.vertexFree/pinchE/pinchS/buildingCost`; new exports `flowEdgePinch`, `flowStepBuilding` (use `flowStepBuilding(nav, from, to)` instead of `nav.buildingAt[to]` to find the building a step must break); balance `zombies.pathing.stuckTicks/stuckMoveM`. A second (flank) field gets pinch costs for free (they are in the shared relaxation).
 
+
+### Re-review of the fixes (2026-11-22, fresh agent)
+
+- Fuzz: 324 random legal enclosures (0.5 / 1 m / offset-corner gaps, map edges, turrets, three zombie mixes, 90 s each): 0 stalls, zombies reached a player in all; with both H1 fixes disabled 24/86 stalled. Online slotted-box breach identical on both pages.
+- [x] [High, regression] The "no progress for `stuckTicks`" half of the safety net made crowds break walls and turrets they could walk around (zombies held back by other zombies looked stuck: 60 Walkers destroyed a 4 m wall in the open; a picket of turrets lost 2). Fix: that trigger and its balance keys are removed; the safety net keeps only the push-out-STUCK trigger; pinch-aware fields alone resolved all 324 fuzz layouts. Test: a 4 m open wall + 60 Walkers for 60 s → no HP lost (replaces the synthetic "pinches wiped" test).
+- [x] [Low] The clearance rule is right only for zombie radii ≤ 0.35 m: balance cross-check `MAX_PATHING_ZOMBIE_RADIUS_M`.
+- [x] [Low] A slow Runner test could hit the default 5 s timeout under load: 20 s.
+- Noted: the L5 placeholder pathing state is chosen by the buildings system's identity (an explicit option would be clearer if a wrapped system ever appears); perf p99 under load still noisy — the hard assert stays behind `PERF_ASSERT=1` (quiet runs passed).
+
 ## Change Log
+
+- 2026-11-22: Re-review fix (crowd regression: no-progress trigger removed), radius cross-check, test timeout.
 
 - 2026-11-22: Review fixes (story-3-5b): clearance-aware grid (pinches) + stuck safety net (H1), PERF_ASSERT gate (M1), three mutation tests (L1), bars on the building (L2), checksum redraw key (L3), heapPos hash (L4), placeholder pathing for client Worlds (L5); status done.
 

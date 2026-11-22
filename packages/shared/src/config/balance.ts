@@ -42,6 +42,9 @@ function deepFreeze<T>(value: T): T {
 }
 
 /** Checks between files (each file is valid on its own). Story 3.3: the shop sells only known weapons. */
+/** Largest zombie radius the flow field's pinch/vertex clearance rule supports (half a 0.5 m cell's diagonal, rounded down). */
+export const MAX_PATHING_ZOMBIE_RADIUS_M = 0.35;
+
 function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   const weapons = parsed.weapons as Record<string, unknown>;
   const shop = parsed.shop as { weapons: readonly string[] };
@@ -53,6 +56,11 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   const waves = parsed.waves as { spawnJitterM: number };
   const buildings = parsed.buildings as { spawnClearM: number };
   const maxRz = Math.max(0, ...Object.values(zombies.types).map((t) => t.radiusM));
+  // 3.5 re-review: the flow field's pinch rule assumes a body fits a free cell diagonal (0.354 m
+  // clearance past two corners); a bigger zombie type needs the clearance rule extended first.
+  if (maxRz > MAX_PATHING_ZOMBIE_RADIUS_M) {
+    issues.push(`zombies.json: a zombie radius of ${maxRz} m exceeds ${MAX_PATHING_ZOMBIE_RADIUS_M} m, the largest the flow field's clearance rule supports`);
+  }
   if (buildings.spawnClearM <= waves.spawnJitterM + maxRz) {
     issues.push(`buildings.json: spawnClearM ${buildings.spawnClearM} must exceed waves.spawnJitterM + the largest zombie radius (${waves.spawnJitterM + maxRz})`);
   }
