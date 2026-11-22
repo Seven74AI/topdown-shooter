@@ -20,8 +20,7 @@ import {
   headingToRad,
   playerSlotOf,
   removePlayer,
-  rotate,
-  seqSpreadRoll,
+  rotateBySeqSpread,
   ticksFor,
   type Balance,
   type NetEventContext,
@@ -531,11 +530,8 @@ export class NetSimHost implements SimHost {
       this.cosmetics.ensureGrid();
       assistAim(this.world, mx, my, a.dirX, a.dirY, stats.rangeM, dir);
     }
-    if (stats.spreadDeg > 0) {
-      const half = (stats.spreadDeg / 2) * (Math.PI / 180);
-      // Story 2.12: the seq's roll, the one the server (with lag compensation) gives its shot too.
-      rotate(dir.x, dir.y, seqSpreadRoll(this.localPlayerId, seq) * half, dir);
-    }
+    // Story 2.12: the seq's roll, the one the server (with lag compensation) gives its shot too.
+    if (stats.spreadDeg > 0) rotateBySeqSpread(dir.x, dir.y, this.localPlayerId, seq, stats.spreadDeg, dir);
     const e = this.localFired[k] as FiredEvent;
     e.weapon = a.weapon;
     e.x = mx;

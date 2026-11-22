@@ -8,7 +8,7 @@ import { segmentCircleT } from "../math/sweep";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { MUZZLE_OFFSET_M, TICK_DT_S, ZOMBIE_POOL_CAPACITY } from "../config/constants";
-import type { PlayerInput } from "../net/input";
+import { viewTickOfInput, type PlayerInput } from "../net/input";
 import { applyZombieDamage } from "./damage";
 import { assistAim } from "./aimAssist";
 import { zombieCandidates as candidates } from "./scratch";
@@ -25,13 +25,14 @@ import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from 
 import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
-import { seqSpreadRoll } from "./spread";
+import { rotateBySeqSpread } from "./spread";
 
 const MIN_AIM = 1e-6;
 /**
  * Story 2.12: a rewound sweep covers one tick of flight; it is tested at that tick's middle (the
- * cosmetic bullet meets drawn zombies continuously). The netsim harness with the Hunting Rifle (no
- * spread) against kiting Runners: 3.8 % reversed at the start of the tick, 1.2–2.2 % at 0.33–0.67.
+ * cosmetic bullet meets drawn zombies continuously). Netsim, kiting Runners at 150 ms, 20 seeds
+ * (after the 3.5 crowd fix, 2.12 review M3): Hunting Rifle +0 / +0.33 / +0.5 / +0.67 / +1 →
+ * 2.2 / 1.1 / 0.9 / 0.7 / 3.4 % reversed; Pistol 0.9 / 0.9 / 0.7 / 0.5 / 1.7 %.
  */
 const REWIND_SWEEP_MID_TICKS = 0.5;
 
@@ -157,10 +158,12 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
     assistAim(world, p.x + dir.x * offset, p.y + dir.y * offset, dir.x, dir.y, stats.rangeM, dir, view);
   }
   if (stats.spreadDeg > 0) {
-    const half = (stats.spreadDeg / 2) * DEG_TO_RAD;
     // Story 2.12: online (lag compensation on), the roll is the seq's, the one the shooter's client drew.
-    const angle = p.rewindMaxTicks > 0 ? seqSpreadRoll(p.id, input.seq) * half : world.rng.range(-half, half);
-    rotate(dir.x, dir.y, angle, dir);
+    if (p.rewindMaxTicks > 0) rotateBySeqSpread(dir.x, dir.y, p.id, input.seq, stats.spreadDeg, dir);
+    else {
+      const half = (stats.spreadDeg / 2) * DEG_TO_RAD;
+      rotate(dir.x, dir.y, world.rng.range(-half, half), dir);
+    }
   }
 
   spawn.x = p.x + dir.x * offset;
@@ -177,7 +180,7 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
   // a rewound shot needs no advance (its sweeps meet zombies as old as the ones the shooter saw),
   // except for the part of the view offset past the rewind cap, which the 2.7 advance (≤ its own
   // cap) makes up: the bullet starts that much further along, as the cosmetic one is by then.
-  const advanceS = rewind > 0 ? Math.min(p.shotAdvanceS, Math.max(0, world.tick - input.viewTick - rewind) * TICK_DT_S) : p.shotAdvanceS;
+  const advanceS = rewind > 0 ? Math.min(p.shotAdvanceS, Math.max(0, world.tick - viewTickOfInput(input) - rewind) * TICK_DT_S) : p.shotAdvanceS;
   spawn.advanceM = stats.projectileSpeedMps * advanceS;
   spawn.rewindTicks = rewind;
   spawnProjectile(world.projectiles, spawn);

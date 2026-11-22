@@ -14,6 +14,7 @@ import {
   S2C,
   loadBalance,
   quantizeHeading,
+  seqSpreadRoll,
   type PlayerInput,
   type SimEventsFlushed,
 } from "@topdown/shared";
@@ -80,7 +81,7 @@ describe("NetSimHost", () => {
     setNow(500 + (10.5 + RENDER_DELAY_TICKS) * 50 + 3.3);
     host.update(0.05);
     expect(host.renderTick).toBeGreaterThan(10);
-    expect(inputs(room).at(-1)?.viewTick).toBe(Math.round(host.renderTick * 100) / 100);
+    expect(inputs(room).at(-1)?.viewTick).toBe(Math.round(host.renderTick * 100));
   });
 
   it("a swap tap reaches exactly one sent input", () => {
@@ -384,6 +385,27 @@ describe("NetSimHost", () => {
       expect(events[0]).toMatchObject({ x: expect.closeTo(muzzle, 5), y: expect.closeTo(10, 5) });
       expect(host.world.projectiles.aliveCount).toBe(1);
       expect(host.drainEvents()).toHaveLength(0); // handed out exactly once
+    });
+
+    it("my cosmetic SMG shot flies in the seq's spread direction, the one the server gives that seq (Story 2.12 review M2)", () => {
+      const { host, arrive, setNow } = setup([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20, y: 10, weapon0: "smg", ammo0: 30 })]);
+      setNow(1000);
+      arrive(10);
+      host.update(0);
+      const smg = balance.weapons.smg;
+      const half = ((smg?.kind === "gun" ? smg.spreadDeg : 0) / 2) * (Math.PI / 180);
+      expect(half).toBeGreaterThan(0);
+      host.setLocalInput(fire);
+      let shots = 0;
+      for (let i = 0; i < 12; i++) {
+        host.update(0.05); // one step
+        const fired = host.drainEvents().filter((e) => e.type === "weapon.fired");
+        if (fired.length === 0) continue;
+        const roll = seqSpreadRoll("p1", host.sentSeq); // independent of the shared helper
+        expect(fired[0]).toMatchObject({ dirX: expect.closeTo(Math.cos(roll * half), 9), dirY: expect.closeTo(Math.sin(roll * half), 9) });
+        shots++;
+      }
+      expect(shots).toBeGreaterThan(3);
     });
 
     it("drops my own server weapon.fired once predicted; others' shots wait for the render tick and fly cosmetically", () => {

@@ -2,7 +2,7 @@ import { GRID_CELL_M, ZOMBIE_HISTORY_TICKS, ZOMBIE_POOL_CAPACITY } from "../conf
 import { createSpatialGrid, rebuildGrid, type SpatialGrid } from "../core/spatialGrid";
 import type { World } from "../core/world";
 import type { DistrictBounds } from "../map/placeholderMap";
-import type { PlayerInput } from "../net/input";
+import { viewTickOfInput, type PlayerInput } from "../net/input";
 import type { PlayerState } from "../player/player";
 
 /**
@@ -109,8 +109,9 @@ function rowOf(h: ZombieHistory, tick: number): number {
  * view tick in the future, or when the history does not reach that far back (a fresh run).
  */
 export function rewindTicksFor(world: World, p: PlayerState, input: PlayerInput): number {
-  if (p.rewindMaxTicks <= 0 || !world.zombieHistory.enabled || !(input.viewTick >= 0)) return 0;
-  const r = world.tick - input.viewTick;
+  const viewTick = viewTickOfInput(input);
+  if (p.rewindMaxTicks <= 0 || !world.zombieHistory.enabled || !(viewTick >= 0)) return 0;
+  const r = world.tick - viewTick;
   if (!(r > 0)) return 0;
   const rr = Math.min(r, p.rewindMaxTicks);
   return rowOf(world.zombieHistory, Math.floor(world.tick - rr)) >= 0 ? rr : 0;

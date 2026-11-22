@@ -462,6 +462,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       devPlacedHpFraction: devPlacedHp,
       // Story 2.12: rewound hit testing; DEV_NO_REWIND=1 (dev only) turns it off for A/B checks of the overlay's reversed hits.
       lagCompensation: !(devAllowed && process.env.DEV_NO_REWIND === "1"),
+      // Story 2.12 review M1: telemetry only (at most once per wave per player), never a kick.
+      onSpreadCancelSuspect: (s) =>
+        this.log.info({ playerId: s.playerId, wave: s.wave, matchRatio: +s.matchRatio.toFixed(2), k: +s.k.toFixed(2), t: +s.t.toFixed(1), samples: s.samples }, "spread_cancel_suspect"),
     });
     if (!controller.world.zombieHistory.enabled) this.log.warn("dev_no_rewind");
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");

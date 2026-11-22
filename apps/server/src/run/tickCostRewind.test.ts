@@ -68,7 +68,7 @@ function round(seed: number): { addedP99: number; addedMean: number; workP99: nu
         aimY: Math.cos(a),
         fire: true,
         isMouse: false,
-        viewTick: c.world.tick - VIEW_OFFSET_TICKS,
+        viewTick: Math.round((c.world.tick - VIEW_OFFSET_TICKS) * 100),
       });
     }
     // Rewound sweeps this tick: the rewound shots in flight now, plus this tick's new shots (sweep + assist).

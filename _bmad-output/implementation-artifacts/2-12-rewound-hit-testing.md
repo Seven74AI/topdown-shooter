@@ -1,6 +1,6 @@
 # Story 2.12: Rewound hit testing
 
-Status: review
+Status: done
 
 <!-- Follow-up of Story 2.10 AC 3. Created with gds-create-story (non-interactive; the designer delegated every decision to this session, 2026-11-22). -->
 
@@ -144,7 +144,49 @@ Claude Opus 5.5 (claude-opus-5-5), story writer and builder in worktree `story-2
 - New: `packages/shared/src/combat/rewind.ts`, `packages/shared/src/combat/rewind.test.ts`, `packages/shared/src/combat/spread.ts`, `packages/shared/src/combat/spread.test.ts`, `packages/shared/src/net/input.test.ts`, `apps/client/src/net/viewTick.ts`, `apps/client/src/net/viewTick.test.ts`, `apps/server/src/run/tickCostRewind.test.ts`
 - Modified: `packages/shared/src/{net/input.ts, core/world.ts, core/worldSnapshot.ts, config/constants.ts, combat/firing.ts, combat/projectilePool.ts, combat/aimAssist.ts, combat/melee.ts, player/player.ts, index.ts}`, `apps/server/src/{run/RunController.ts, run/RunController.test.ts, net/limits.ts, rooms/RunRoom.ts}`, `apps/client/src/sim/{NetSimHost.ts, NetSimHost.test.ts, LocalSimHost.test.ts}`, `tools/netsim/{hitsSim.ts, hits.test.ts}`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context), at d382508 · **Outcome:** the rewind works and is safe, solo is bit-identical; 3 medium, 3 low findings. All fixed on `story-2-12b` (from `claude/epic-2-continue` 58150af, with Story 3.10 and the 3.5 crowd fix).
+- [x] **[Med] M1 Predictable spread** (`seqSpreadRoll`): a modified client can pre-rotate its aim by −roll × half and remove the spread (SMG up to ~1.7× long-range DPS; Pistol/Rifle ~nothing). **Decided by the main session:** (a) accept it for co-op PvE; (b) cheap telemetry; (c) seqs can't be picked. **Fix:**
+  - `apps/server/src/net/spreadCancel.ts` (`SpreadCancelWatch`, one per player in `RunController`, fed each newly applied input online). For consecutive firing inputs with a spread gun it compares the aim change with a steady-aim cheat's `−(roll(seq) − roll(prev)) × half`. Over windows of 40 samples it uses two signals: the share of exact matches (ε 0.05°), and a least-squares fit `delta ≈ c + k × expected` with its t-statistic, so a cheat that also tracks a target is caught too. It flags when the match share is ≥ 0.5, or when k is in [0.7, 1.3] with t ≥ 6. `RunController` option `onSpreadCancelSuspect`; `RunRoom` logs `spread_cancel_suspect` (info, with `matchRatio`, `k`, `t`, `samples`) at most once per wave per player, and never kicks.
+  - Seq jumps: `queueInput` refuses an input more than `MAX_INPUT_SEQ_JUMP` = 20 seqs past the last one queued (`drops().jumped`). After `INPUT_SEQ_RESYNC_AFTER` = 20 refusals in a row (1 s) it resyncs, so a client that really restarted further on isn't locked out, and a picker gets at most one jump a second.
+  - Tests:
+    - `spreadCancel.test.ts`: honest steady, ±3° jittery and tracking aims, SMG and Pistol, 3 seeds × 20 000 inputs, never flag; a steady-aim pre-rotating cheat is flagged by the match share; a tracking cheat (≈ 0.6°/tick) is flagged by the fit for the SMG and the Pistol; once per wave; inputs without fire, without spread, or with a seq gap are ignored.
+    - `RunController.test.ts`: jump refused / within the window accepted / resync; a cheat through the controller reports once, an honest jittery aim never.
+    - Mutations proven: removing the jump check fails the jump test; dropping the callback fails the controller test.
+- [x] **[Med] M2 Client half of the matching spread untested.** **Fix:** one shared helper `rotateBySeqSpread(dirX, dirY, playerId, seq, spreadDeg, out)` (`combat/spread.ts`), used by the server's online shot, `NetSimHost.localAttack` and the netsim harness (no own copy any more). New NetSimHost test: every local SMG `weapon.fired` direction equals `rotate((1, 0), seqSpreadRoll("p1", sentSeq) × half)`, computed independently of the helper. Mutation proven: NetSimHost on `seq + 1` fails it.
+- [x] **[Med] M3 Control numbers moved after the 3.5 merge.** **Fix:** the control assert is now `pct(off) − pct(on) > 5` pp, for each weapon. Current numbers below. The sweep offset was re-measured (Hunting Rifle and Pistol, kiting Runners at 150 ms, 20 seeds):
+
+  | Sweep offset | +0 | +0.33 | +0.5 | +0.67 | +1 |
+  | --- | --- | --- | --- | --- | --- |
+  | Hunting Rifle | 2.2 % | 1.1 % | 0.9 % | 0.7 % | 3.4 % |
+  | Pistol | 0.9 % | 0.9 % | 0.7 % | 0.5 % | 1.7 % |
+
+  +0.5 is kept (the middle of the flat optimum; the comment in `firing.ts` has the current evidence).
+- [x] **[Low] L2 Two shooters / interpolation / live upper row unpinned.** **Fix:** `rewind.test.ts` has two new tests:
+  - two shooters at view ticks 2 and 4.5 in the same tick each hit the zombie they saw;
+  - `rewoundView` directly: rows 3 and 5 in the same tick (memo keyed by time), 3.25 is lerped, 7.5 reads row 7 and the **live** position (this tick's pushback, not row 8) and is re-read after a second pushback (never memoised), and the present gives `null`.
+  - Mutations proven: memo without `at` (2 tests fail), `f = 0` (1), `upperLive` off by one (1).
+- [x] **[Low] L3 (optional) memo slots / rounding: measured, not changed.** Rebuilding the view per rewound projectile costs, with 4 SMG shooters + 150 zombies (5.4 views per tick on average), mean 0.021 ms and p99 0.06 ms per tick (`PERF_ASSERT=1`, after this review). Rounding `rewindTicks` would trade up to 0.05 tick of precision for a saving that small, so it was left as is.
+- [x] **[Low] L5 `viewTick` as an integer in hundredths.** **Fix:** `PlayerInput.viewTick` is `z.number().int()` in hundredths of a tick (`VIEW_TICK_SCALE` = 100, read with `viewTickOfInput`); the client's `viewTickOf` returns `Math.round(renderTick × 100)`. msgpack input 115 B instead of 119 B (base 101): **+14 B, +280 B/s upload per client**. A fractional value is refused (test).
+- Netsim after the fixes (150 ms RTT ± 10 ms one-way, kiting, 5 seeds, rewind off → on):
+
+  | Case | Off | On |
+  | --- | --- | --- |
+  | 20 Runners, Pistol | 11.4 % | 0.3 % |
+  | 20 Runners, Hunting Rifle | 16.3 % | 0.7 % |
+  | 20 Runners, SMG | 19.6 % | 1.8 % |
+  | 20 Walkers, Pistol | 1.2 % | 1.2 % |
+  | 150 Walkers, Pistol | 3.7 % | 0.3 % |
+  | 300 ms RTT, 20 Runners | 34.6 % | 8.5 % |
+  | 300 ms RTT, 20 Walkers | 8.5 % | 0.0 % |
+
+  These replace the Completion Notes' figures (25.9/3.0, 29.9/2.0, 20.3/2.2, 45.0/17.1 %), which were measured before the 3.5 merge.
+- Checks: typecheck, lint, test (1131 passed, 3 skipped), build pass.
+
 ## Change Log
+
+- 2026-11-22: Review fixes (M1 spread-cancel telemetry + seq-jump refusal, M2 shared spread helper + client test, M3 control margin + current numbers, L2 memo/lerp/live-row tests, L3 measured, L5 integer view tick). Status → done.
 
 - 2026-11-22: Implemented (zombie history + rewound view, view tick on the input, rewound shots/melee/assist, excess-over-cap advance, mid-tick sweeps, online seq spread, DEV_NO_REWIND, netsim cases, benchmark). Merged claude/epic-2-continue (c1bdd10). Status → review.
 - 2026-11-22: Story created (gds-create-story, non-interactive; decisions in Dev Notes).

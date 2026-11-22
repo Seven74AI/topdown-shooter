@@ -1,6 +1,9 @@
 import {
   NEUTRAL_INPUT,
   REWIND_MAX_TICKS,
+  activeSlot,
+  isGun,
+  weaponStats,
   TICK_DT_S,
   addPlayer,
   applyTestScenario,
@@ -21,6 +24,7 @@ import {
   type Building,
   type PlaceError,
   type PlaceRequest,
+  type PlayerState,
   type RepairError,
   type Repaired,
   type Bought,
@@ -33,7 +37,8 @@ import {
   type World,
   type ZombieTypeId,
 } from "@topdown/shared";
-import { REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS } from "../net/limits";
+import { INPUT_SEQ_RESYNC_AFTER, MAX_INPUT_SEQ_JUMP, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS } from "../net/limits";
+import { SpreadCancelWatch, type SpreadCancelSuspect } from "../net/spreadCancel";
 
 /** Story 2.12: the rewind cap in ticks (REWIND_CAP_MS, never more than the shared history holds). */
 export const REWIND_CAP_TICKS = Math.min(REWIND_MAX_TICKS, Math.floor(REWIND_CAP_MS / (TICK_DT_S * 1000)));
@@ -68,7 +73,9 @@ const copyInput = (to: MutableInput, from: PlayerInput): void => {
 
 /** Per-player input ring and ack. Preallocated: queueing and ticking never allocate. */
 class PlayerSlot {
-  constructor(readonly playerId: string) {}
+  constructor(readonly playerId: string) {
+    this.spreadWatch = new SpreadCancelWatch(playerId);
+  }
   readonly ring: MutableInput[] = Array.from({ length: INPUT_QUEUE_MAX }, () => ({ ...NEUTRAL_INPUT }));
   head = 0;
   count = 0;
@@ -83,6 +90,12 @@ class PlayerSlot {
   overflowDrops = 0;
   /** Inputs ignored because their seq was not newer. */
   staleDrops = 0;
+  /** Story 2.12 review M1: inputs refused for jumping more than MAX_INPUT_SEQ_JUMP seqs ahead. */
+  jumpDrops = 0;
+  /** Refused jumps in a row (a resync after INPUT_SEQ_RESYNC_AFTER). */
+  jumpStreak = 0;
+  /** Story 2.12 review M1: spread-cancel telemetry. */
+  readonly spreadWatch: SpreadCancelWatch;
   /** Inputs skipped to drain a lasting backlog (their edge flags carried forward). */
   drainSkips = 0;
   /** Ticks in a row that started with more than INPUT_QUEUE_TARGET inputs queued. */
@@ -171,6 +184,11 @@ export interface RunControllerOptions {
    * harness control): Story 2.7's shot advance only.
    */
   lagCompensation?: boolean;
+  /**
+   * Story 2.12 review M1: called (rarely: at most once per wave per player) when a player's aim looks
+   * like it cancels the predictable spread. Telemetry only (the room logs `spread_cancel_suspect`).
+   */
+  onSpreadCancelSuspect?: (s: SpreadCancelSuspect) => void;
 }
 
 /**
@@ -197,9 +215,11 @@ export class RunController {
   private readonly order: PlayerSlot[] = [];
   private readonly events: SimEvent[] = [];
   private readonly devPlacedHpFraction: number | null;
+  private readonly onSpreadCancelSuspect: ((s: SpreadCancelSuspect) => void) | null;
 
   constructor(opts: RunControllerOptions) {
     this.devPlacedHpFraction = opts.devPlacedHpFraction ?? null;
+    this.onSpreadCancelSuspect = opts.onSpreadCancelSuspect ?? null;
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, ...(opts.systems ? { systems: opts.systems } : {}) });
     this.world.waves.paused = opts.pauseWaves === true;
     this.world.debug.waveMix = opts.waveMix ?? null;
@@ -259,6 +279,14 @@ export class RunController {
       s.staleDrops++;
       return;
     }
+    // Story 2.12 review M1: seqs can't be picked (the spread roll is the seq's). A long run of jumps
+    // (a client that really restarted its seqs further on) resyncs after a second.
+    if (s.lastQueuedSeq > 0 && input.seq > s.lastQueuedSeq + MAX_INPUT_SEQ_JUMP && s.jumpStreak < INPUT_SEQ_RESYNC_AFTER) {
+      s.jumpDrops++;
+      s.jumpStreak++;
+      return;
+    }
+    s.jumpStreak = 0;
     const full = s.count === INPUT_QUEUE_MAX;
     if (full) {
       dropOldest(s);
@@ -295,9 +323,9 @@ export class RunController {
   }
 
   /** Dropped inputs so far: `overflow` (ring full), `stale` (seq not newer), `drained` (backlog skips). */
-  drops(playerId: string): { overflow: number; stale: number; drained: number } {
+  drops(playerId: string): { overflow: number; stale: number; drained: number; jumped: number } {
     const s = this.slots.get(playerId);
-    return { overflow: s?.overflowDrops ?? 0, stale: s?.staleDrops ?? 0, drained: s?.drainSkips ?? 0 };
+    return { overflow: s?.overflowDrops ?? 0, stale: s?.staleDrops ?? 0, drained: s?.drainSkips ?? 0, jumped: s?.jumpDrops ?? 0 };
   }
 
   /** Zombies this player killed this run (Story 2.8): counted from `zombie.killed` by `killerId`. */
@@ -311,6 +339,15 @@ export class RunController {
     if (s) this.order.splice(this.order.indexOf(s), 1);
     this.slots.delete(playerId);
     removePlayer(this.world, playerId);
+  }
+
+  /** Story 2.12 review M1: feeds the newly applied input to the player's spread-cancel watch. */
+  private watchSpread(s: PlayerSlot, p: PlayerState): void {
+    const cur = s.current;
+    const stats = weaponStats(this.world.balance, activeSlot(p.loadout).weapon);
+    const spread = isGun(stats) ? stats.spreadDeg : 0;
+    const flagged = s.spreadWatch.observe(cur.seq, cur.aimX, cur.aimY, cur.fire, spread, this.world.waves.number);
+    if (flagged) this.onSpreadCancelSuspect?.(flagged);
   }
 
   /** One fixed step. Returns this tick's events (a reused array, valid until the next tick). */
@@ -344,6 +381,7 @@ export class RunController {
         s.head = (s.head + 1) % INPUT_QUEUE_MAX;
         s.count--;
         s.ackSeq = cur.seq;
+        if (p && p.rewindMaxTicks > 0) this.watchSpread(s, p);
       } else {
         // Starved: hold still, keep aim and fire, same seq (edge flags already spent on it). The
         // weapon is paused above: it never fires a shot the client's fire clock didn't predict.

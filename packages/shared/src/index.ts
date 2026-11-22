@@ -41,7 +41,7 @@ export type { BuildingTypeStats, TurretStats, GunStats, MeleeStats, WeaponStats,
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, type WorldSnapshot } from "./core/worldSnapshot";
-export { NEUTRAL_INPUT, playerInputSchema, type PlayerInput } from "./net/input";
+export { NEUTRAL_INPUT, VIEW_TICK_SCALE, playerInputSchema, viewTickOfInput, type PlayerInput } from "./net/input";
 export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint } from "./map/placeholderMap";
 export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./player/player";
 export { teamSpawnPoint } from "./player/spawn";
@@ -116,7 +116,7 @@ export {
   type ZombieHistory,
   type ZombieView,
 } from "./combat/rewind";
-export { seqSpreadRoll } from "./combat/spread";
+export { rotateBySeqSpread, seqSpreadRoll } from "./combat/spread";
 export { segmentCircleT } from "./math/sweep";
 export { rotate } from "./math/vec";
 export { maxZombieRadius, zombieTypeIndex } from "./zombies/zombieTypes";
