@@ -129,9 +129,9 @@ describe("Predictor", () => {
     expect(p.x).toBeCloseTo(12 + STEP_M, 12);
   });
 
-  it("an out player is not moved", () => {
+  it("a downed player is not moved", () => {
     const p = predictor();
-    p.reconcile(0, 10, 10, "out");
+    p.reconcile(0, 10, 10, "downed");
     p.applyLocal(move(1, 1));
     expect(p.x).toBe(10);
   });
