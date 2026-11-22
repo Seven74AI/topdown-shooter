@@ -27,6 +27,8 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     downedTicksLeft: 0,
     reviveProgress: 0,
     kills: 0,
+    slowTicks: 0,
+    slowPct: 0,
     ...over,
   };
 }

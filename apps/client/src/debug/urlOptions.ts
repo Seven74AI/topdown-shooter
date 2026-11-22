@@ -21,6 +21,11 @@ export interface UrlOptions {
    * or null when off. `rttMs` is the simulated round trip, `jitterMs` the spread of each one-way delay.
    */
   throttle: { readonly rttMs: number; readonly jitterMs: number } | null;
+  /**
+   * `?wavemix=walker,crawler` (Story 3.9, release-safe, solo only, temporary until Story 3.10's wave
+   * composition): the raw list; `parseWaveMix` keeps the types that exist in balance.
+   */
+  waveMix: string | null;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -47,6 +52,7 @@ export function parseUrlOptions(search: string): UrlOptions {
     tune: tuneRaw !== null && TRUE_VALUES.has(tuneRaw.trim().toLowerCase()),
     solo: soloRaw !== null && TRUE_VALUES.has(soloRaw.trim().toLowerCase()),
     throttle: parseThrottle(q.get("lag"), q.get("jitter")),
+    waveMix: q.get("wavemix"),
   };
 }
 

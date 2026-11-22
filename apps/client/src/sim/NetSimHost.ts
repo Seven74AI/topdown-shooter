@@ -479,6 +479,8 @@ export class NetSimHost implements SimHost {
     p.hp = s.hp;
     p.maxHp = s.maxHp;
     p.status = s.status;
+    p.slowTicksLeft = s.slowTicks; // Story 3.9: the slowed look (the predictor has its own copy)
+    p.slowPct = s.slowPct;
     this.applyDowned(p, s);
     const lo = p.loadout;
     lo.active = s.active === 1 ? 1 : 0;
@@ -556,7 +558,7 @@ export class NetSimHost implements SimHost {
     this.snapshots.push(state);
     const me = state.players.get(this.localPlayerId);
     if (!me) return;
-    this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status);
+    this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct);
     // Events go out at the tick, patches later on one socket: every server shot for seqs ≤ ack is
     // already counted. Local shots there beyond them were never fired by the server.
     this.fireClock.ack(me.ackSeq);

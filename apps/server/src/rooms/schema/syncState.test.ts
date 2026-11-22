@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
-import { NEUTRAL_INPUT, downPlayer, loadBalance, quantizeHeading, setLoadout } from "@topdown/shared";
+import { NEUTRAL_INPUT, downPlayer, loadBalance, quantizeHeading, setLoadout, slowPlayer } from "@topdown/shared";
 import { RunController } from "../../run/RunController";
 import { PlayerState, RunState } from "./RunState";
 import { resetRunFields, syncState } from "./syncState";
@@ -98,6 +98,21 @@ describe("syncState", () => {
     expect(state.aliveCount).toBe(1);
   });
 
+  it("copies the bite slow (Story 3.9), counted down by the World", () => {
+    const { controller, state } = setup();
+    const p0 = controller.world.players.get("p0");
+    if (!p0) throw new Error("no p0");
+    slowPlayer(p0, 30, 20);
+    controller.tick(); // one movement tick slowed
+    syncState(state, controller);
+    expect(state.players.get("p0")?.slowTicks).toBe(19);
+    expect(state.players.get("p0")?.slowPct).toBe(30);
+    for (let i = 0; i < 19; i++) controller.tick();
+    syncState(state, controller);
+    expect(state.players.get("p0")?.slowTicks).toBe(0);
+    expect(state.players.get("p0")?.slowPct).toBe(0);
+  });
+
   it("resetRunFields puts every fight field and Ready back, keeping slot and name", () => {
     const { controller, state } = setup();
     controller.tick();
@@ -106,6 +121,8 @@ describe("syncState", () => {
     if (!s0) throw new Error("no p0");
     s0.kills = 5;
     s0.status = "out";
+    s0.slowTicks = 12;
+    s0.slowPct = 30;
     state.resultWave = 3;
     resetRunFields(state);
     expect(s0.toJSON()).toEqual(new PlayerState({ slot: 0, name: "Ana", ready: false }).toJSON());

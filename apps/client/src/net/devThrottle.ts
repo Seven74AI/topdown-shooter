@@ -35,6 +35,8 @@ const PLAYER_FIELDS = {
   downedTicksLeft: true,
   reviveProgress: true,
   kills: true,
+  slowTicks: true,
+  slowPct: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 const STATE_FIELDS = {
   phase: true,

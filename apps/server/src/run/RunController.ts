@@ -13,6 +13,7 @@ import {
   type SimEvent,
   type Systems,
   type World,
+  type ZombieTypeId,
 } from "@topdown/shared";
 import { SHOT_ADVANCE_CAP_MS } from "../net/limits";
 
@@ -124,6 +125,8 @@ export interface RunControllerOptions {
   players: readonly { playerId: string; slot: number }[];
   /** Dev (`DEV_NO_WAVES=1`): waves don't advance (the Story 1.7 cheat flag). */
   pauseWaves?: boolean;
+  /** Dev (`DEV_WAVE_MIX=walker,crawler`, Story 3.9, until 3.10): wave zombies cycle through these types. */
+  waveMix?: readonly ZombieTypeId[] | null;
   /** Tests only: replace systems by name (Epic 1 lesson: isolate mechanics). */
   systems?: Partial<Systems>;
 }
@@ -154,6 +157,7 @@ export class RunController {
   constructor(opts: RunControllerOptions) {
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, ...(opts.systems ? { systems: opts.systems } : {}) });
     this.world.waves.paused = opts.pauseWaves === true;
+    this.world.debug.waveMix = opts.waveMix ?? null;
     const at = { x: 0, y: 0 };
     for (const { playerId, slot } of opts.players) {
       teamSpawnPoint(this.world, slot, at);

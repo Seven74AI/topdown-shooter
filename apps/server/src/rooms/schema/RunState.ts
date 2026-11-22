@@ -39,6 +39,11 @@ export const PlayerState = schema(
     reviveProgress: t.uint8().default(0),
     /** Zombies killed this run. */
     kills: t.uint16().default(0),
+    // Story 3.9: the bite slow, for the client's prediction (`movePlayers` on both sides).
+    /** Movement ticks left at reduced speed (≤ 200: `biteSlowS` ≤ 10). */
+    slowTicks: t.uint8().default(0),
+    /** Speed reduction in integer percent while slowed (≤ 90). */
+    slowPct: t.uint8().default(0),
   },
   "PlayerState",
 );

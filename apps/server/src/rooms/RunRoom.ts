@@ -21,6 +21,7 @@ import {
   lobbyReturnSchema,
   lobbySetReadySchema,
   netPongSchema,
+  parseWaveMix,
   playerInputSchema,
   runStartSchema,
   spectateTarget,
@@ -301,6 +302,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       seed: runSeed,
       players,
       pauseWaves: process.env.DEV_NO_WAVES === "1",
+      // Story 3.9 dev hook (until 3.10): e.g. DEV_WAVE_MIX=walker,crawler mixes Crawlers into waves.
+      waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
     });
     this.controller = controller;
     const zombies = controller.world.zombies;

@@ -44,6 +44,14 @@ export const zombieTypeSchema = z
     attackIntervalS: z.number().positive(),
     radiusM: z.number().positive(),
     reward: z.number().int().min(0),
+    /**
+     * Story 3.9: a hit slows the player by this many percent (integer, so the server and the
+     * client's prediction compute the same speed from the same integers) for `biteSlowS`.
+     * Refreshes, never stacks. 0 = no slow.
+     */
+    biteSlowPct: z.number().int().min(0).max(90).default(0),
+    /** At most 10 s: the remaining ticks go on the wire as a uint8. */
+    biteSlowS: z.number().min(0).max(10).default(0),
   })
   .strict();
 

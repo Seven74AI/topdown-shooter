@@ -13,6 +13,7 @@ import {
   weaponIds,
   weaponStats,
   loadBalance,
+  parseWaveMix,
   ZOMBIE_STATE,
   type Balance,
   type PlayerInput,
@@ -27,6 +28,7 @@ import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
 import { drawStreet } from "../render/StreetView";
 import { ZombieView } from "../render/ZombieView";
+import { BloodTrailView } from "../render/BloodTrailView";
 import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
@@ -138,6 +140,8 @@ export class GameScene extends Phaser.Scene {
     this.playerViews.delete(id);
   };
   private zombieView: ZombieView | null = null;
+  /** Story 3.9: blood trails behind Crawlers. */
+  private trailView: BloodTrailView | null = null;
   private projectileView: ProjectileView | null = null;
   private fxView: FxView | null = null;
   private downedView: DownedView | null = null;
@@ -208,6 +212,8 @@ export class GameScene extends Phaser.Scene {
     const cx = world.map.widthM / 2;
     const cy = world.map.heightM / 2;
     if (!session) addPlayer(world, localId, cx, cy); // online, players come from the server
+    // Story 3.9 (temporary until 3.10): ?wavemix=walker,crawler mixes Crawlers into solo waves.
+    if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
     this.gameOver = false;
     this.kills = 0;
     this.statusSecs = -1;
@@ -256,6 +262,7 @@ export class GameScene extends Phaser.Scene {
 
     drawStreet(this, world.map);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
+    this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
     this.fxView = new FxView(this, this.zombieView, localId);
     this.downedView = new DownedView(this, world);
@@ -306,6 +313,8 @@ export class GameScene extends Phaser.Scene {
       this.downedView = null;
       this.projectileView?.destroy();
       this.zombieView?.destroy();
+      this.trailView?.destroy();
+      this.trailView = null;
       for (const v of this.playerViews.values()) v.destroy();
       this.playerViews.clear();
       perf.hits = null;
@@ -537,6 +546,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.zombieView?.update(host.world, host.alpha);
+    this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world);
