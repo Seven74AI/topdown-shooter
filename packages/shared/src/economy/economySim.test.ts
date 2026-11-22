@@ -130,6 +130,7 @@ describe("economy bot sim (2 players, Pistol, seeded)", () => {
         `seed ${seed}: reached wave ${r.reached}${r.wiped ? " (wiped)" : ""}; wave ends ${ends || "none"}; final ${final}; by reason ${JSON.stringify(r.byReason)}`,
       );
     }
-    console.info(`[economy sim] wallets p0/p1 at each wave end\n${lines.join("\n")}`);
+    // packages/shared has no DOM/Node types (engine-free): reach the test runner's console untyped.
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[economy sim] wallets p0/p1 at each wave end\n${lines.join("\n")}`);
   }, 60_000);
 });
