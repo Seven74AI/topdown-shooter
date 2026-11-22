@@ -27,6 +27,9 @@ export function syncState(state: RunState, controller: RunController): void {
   if (state.remaining !== world.waves.remaining) state.remaining = world.waves.remaining;
   if (state.aliveCount !== alive) state.aliveCount = alive;
   if (state.runSeed !== world.seed) state.runSeed = world.seed; // Story 4.4: once per run
+  // Story 4.5: the decay stage and the run's variants (on change only: a build start, once per run).
+  if (state.decayVariants !== world.decay.variants) state.decayVariants = world.decay.variants;
+  if (state.decayStage !== world.decay.stage) state.decayStage = world.decay.stage;
   syncBuildings(state, world);
 }
 
@@ -150,6 +153,8 @@ export function resetRunFields(state: RunState): void {
   state.resultHeldOut = false;
   state.buildTicksLeft = 0;
   state.runSeed = 0; // Story 4.4: the next run writes its own
+  state.decayStage = 0; // Story 4.5
+  state.decayVariants = 0;
   state.buildings.clear(); // Story 3.4: the next run starts with none
   buildingSyncs.delete(state);
 }

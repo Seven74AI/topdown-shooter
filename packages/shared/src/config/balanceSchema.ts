@@ -324,6 +324,27 @@ export const shopSchema = z
   })
   .strict();
 
+/**
+ * Story 4.5: the decay timeline (GDD › Level Progression; FR58). `stageByWave[n - 1]` is the decay
+ * stage of wave n (waves past the table keep its last stage); it is applied at the start of the
+ * build phase before that wave, never mid-wave.
+ */
+export const decaySchema = z
+  .object({
+    /** Stage (1–5) per wave, wave 1 first; never decreasing. */
+    stageByWave: z
+      .array(z.number().int().min(1).max(5))
+      .min(1)
+      .refine((s) => s.every((v, i) => i === 0 || v >= (s[i - 1] as number)), "stages never go back"),
+    /** Banner name per stage, stage 1 first (exactly 5). */
+    stageNames: z.array(z.string().min(1).max(24)).length(5),
+    /** A building destroyed by a stage change refunds this share of its price to its owner, rounded down (FR58: 50 %). */
+    buildingRefundShare: z.number().min(0).max(1),
+    /** Rings (spawnOffsetM apart) searched for a free spot when a stage puts a solid on a body. */
+    relocateSearchRings: z.number().int().min(1).max(64),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -335,6 +356,7 @@ export const balanceFileSchemas = {
   bots: botsSchema,
   buildings: buildingsSchema,
   shop: shopSchema,
+  decay: decaySchema,
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;

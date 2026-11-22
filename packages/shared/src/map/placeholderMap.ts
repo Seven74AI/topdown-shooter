@@ -28,4 +28,6 @@ export const PLACEHOLDER_MAP: DistrictMap = Object.freeze({
   cover: Object.freeze([]),
   hazards: Object.freeze([]),
   stages: Object.freeze([]),
+  decay: Object.freeze([]),
+  decayVariants: Object.freeze([]),
 });

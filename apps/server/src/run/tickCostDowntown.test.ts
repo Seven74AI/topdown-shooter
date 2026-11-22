@@ -4,11 +4,13 @@ import {
   NEUTRAL_INPUT,
   PLACEHOLDER_MAP,
   TICK_DT_S,
-  applyCoverStage,
+  applyDecayStage,
   createRng,
   createWorld,
   loadBalance,
+  rebuildFlowFieldNow,
   shotBlockT,
+  skipWave,
   spawnZombie,
   startWave,
   type DistrictMap,
@@ -35,8 +37,7 @@ function measure(map: DistrictMap, stage = 1) {
   const world = c.world;
   world.debug.godMode = true;
   if (stage !== 1) {
-    world.debug.decayStage = stage; // Story 4.2: every cover object active (worst case)
-    applyCoverStage(world);
+    applyDecayStage(world, stage, world.decay.variants); // Story 4.2: every cover object active (worst case)
   }
   if (world.run.phase === "build") startWave(world);
   const points = world.map.spawnPoints;
@@ -122,6 +123,62 @@ describe("tick cost of cover (Story 4.2)", () => {
     if (PERF_ASSERT) {
       expect(withCover.p99 - without.p99).toBeLessThanOrEqual(2);
       expect((nsPerSweep * 512) / 1e6).toBeLessThan(0.5); // a full projectile pool's cover tests per tick
+    }
+  }, 120_000);
+});
+
+describe("build-start spike of a decay stage change (Story 4.5)", () => {
+  it("4 players + 150 Walkers + 24 buildings: mutations + building refunds + push-outs + both flow fields rebuilt stay well inside one 50 ms tick", () => {
+    const REPEATS = 12;
+    const spikes: number[] = [];
+    const parts = { apply: 0, fields: 0 };
+    let destroyed = 0;
+    for (let r = 0; r < REPEATS; r++) {
+      const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
+      const c = new RunController({ balance, seed: 40 + r, players, pauseWaves: true, map: DOWNTOWN_MAP, decayStageByWave: [1, 1 + (r % 2) + 1] });
+      const world = c.world;
+      world.debug.godMode = true;
+      for (const p of world.players.values()) p.wallet = 10_000;
+      // 24 barricades (6 each), some on the cells stage 2 blocks (the dumpster), the rest on a street grid.
+      const spots: [number, number, number][] = [[76, 52, 0], [76, 53, 0], [76, 54, 0]];
+      for (let gx = 20; spots.length < 24 && gx < 80; gx += 5) spots.push([gx, 34, 0], [gx, 30, 0]);
+      spots.slice(0, 24).forEach(([gx, gy, rot], i) => c.placeBuilding(`p${i % 4}`, { type: "wood_barricade", gx, gy, rot }));
+      const rng = createRng(r + 1);
+      const points = world.map.spawnPoints.filter((s) => s.minStage === 1);
+      for (let i = 0; i < WALKERS; i++) {
+        const sp = points[i % points.length] as { x: number; y: number };
+        spawnZombie(world, "walker", sp.x + rng.range(-0.4, 0.4), sp.y + rng.range(-0.4, 0.4));
+      }
+      for (let t = 0; t < 60; t++) c.tick(); // fields built on the stage-1 map, zombies spread
+      const before = world.buildings.list.length;
+      startWave(world);
+      const t0 = performance.now();
+      skipWave(world); // the build start: DecaySystem steps 1–4 (skipWave's own kills are cheap and included)
+      spikes.push(performance.now() - t0);
+      destroyed += before - world.buildings.list.length;
+      const lastStage = world.decay.stage;
+      // The parts, on the same World (back to stage 1 and forward again: apply only, then fields only).
+      const t1 = performance.now();
+      applyDecayStage(world, 1, world.decay.variants);
+      applyDecayStage(world, lastStage, world.decay.variants);
+      parts.apply += (performance.now() - t1) / 2;
+      const t2 = performance.now();
+      rebuildFlowFieldNow(world.pathing.chase, world.pathing.nav, world);
+      rebuildFlowFieldNow(world.pathing.flank, world.pathing.nav, world);
+      parts.fields += performance.now() - t2;
+      expect(world.decay.stage).toBeGreaterThanOrEqual(2);
+    }
+    spikes.sort((a, b) => a - b);
+    const median = spikes[Math.floor(spikes.length / 2)] as number;
+    const max = spikes[spikes.length - 1] as number;
+    console.log(
+      `[spike 4.5] decay stage change at the build start: median ${median.toFixed(2)} ms, max ${max.toFixed(2)} ms over ${REPEATS} runs ` +
+        `(apply ${(parts.apply / REPEATS).toFixed(3)} ms, both fields ${(parts.fields / REPEATS).toFixed(2)} ms); ${destroyed} buildings destroyed + refunded; tick budget 50 ms`,
+    );
+    expect(destroyed).toBeGreaterThan(0); // liveness: buildings really went
+    if (PERF_ASSERT) {
+      expect(median).toBeLessThan(10);
+      expect(max).toBeLessThan(25);
     }
   }, 120_000);
 });

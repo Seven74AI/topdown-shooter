@@ -1,8 +1,8 @@
 /**
  * Why money was earned (Story 3.2). Append only: the index goes on the wire (`net/netEvents.ts`).
- * Story 3.6 appends "building".
+ * Story 4.5 appends "refund" (a building a decay stage destroyed: 50 % of its price back).
  */
-export const MONEY_REASONS = ["kill", "assist", "revive", "wave"] as const;
+export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund"] as const;
 export type MoneyReason = (typeof MONEY_REASONS)[number];
 
 /**
@@ -66,6 +66,12 @@ export type SimEvent =
    * On the wire only the id and heading travel; the client computes the muzzle from its building.
    */
   | { type: "turret.fired"; buildingId: number; x: number; y: number; dirX: number; dirY: number }
+  /**
+   * Story 4.5: the build start moved the district to decay stage `stage` (from `from`); the map's
+   * mutations, building refunds and push-outs are done and the flow fields rebuilt. The client
+   * shows the stage's name as a banner (the map itself follows the room state).
+   */
+  | { type: "decay.stage_changed"; stage: number; from: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

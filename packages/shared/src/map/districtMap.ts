@@ -80,6 +80,47 @@ export interface MapSpawn extends SpawnPoint {
   readonly jitterAxis: SpawnJitterAxis;
 }
 
+/** Story 4.5: what a decay mutation does at the build start that enters its stage. */
+export const DECAY_ACTIONS = ["add", "remove", "ignite", "block"] as const;
+export type DecayAction = (typeof DECAY_ACTIONS)[number];
+
+/** Story 4.5: most variation candidates a map may hold (the chosen set travels as a uint32 bitmask). */
+export const MAX_DECAY_VARIANTS = 32;
+
+/**
+ * Story 4.5: one object of the `decay` layer (architecture › Decay Stage Engine). Applied when the
+ * run reaches `stage` (2–5), by `decay/applyDecayStage.ts`, in map order:
+ *
+ * - `add`: a new cover object of `kind` with this box (4.2's rules: car/bus stop shots);
+ * - `block`: a new wall with this box (stops bodies and shots, nav wall: rubble, a dumpster);
+ * - `remove`: the collision box, cover object or earlier add/block named `target` disappears
+ *   (a cover object that duplicates a collision box, the bus, takes the box with it);
+ * - `ignite`: a fire record of `radiusM` at the centre of `target` (data only until Story 4.8).
+ *
+ * For `remove` / `ignite` the box is the target's (resolved by the loader). `variant` ≥ 0 makes it
+ * part of a variation candidate (`DistrictMap.decayVariants`): it applies only when chosen.
+ */
+export interface DecayMutation extends MapBox {
+  readonly stage: number;
+  readonly action: DecayAction;
+  /** `add`: the cover kind; "" otherwise. */
+  readonly kind: CoverKind | "";
+  /** `remove` / `ignite`: the target's name; "" otherwise. */
+  readonly target: string;
+  /** `ignite`: the fire radius in metres; 0 otherwise. */
+  readonly radiusM: number;
+  /** Index into `DistrictMap.decayVariants`, or -1 (always applied). */
+  readonly variant: number;
+}
+
+/** Story 4.5: one variation candidate; `pick` candidates of each `group` are chosen per run (`streams.decay`). */
+export interface DecayVariant {
+  readonly name: string;
+  readonly group: string;
+  readonly pick: number;
+  readonly stage: number;
+}
+
 /** A visual prop of a `stageN_*` group (drawn by the client only; no gameplay). */
 export interface VisualProp extends MapBox {
   readonly kind: string;
@@ -107,4 +148,8 @@ export interface DistrictMap extends DistrictBounds {
   readonly hazards: readonly HazardZone[];
   /** Visual props per decay stage: index 0 = `stage1_evening` … 4 = `stage5_collapse`. */
   readonly stages: readonly (readonly VisualProp[])[];
+  /** Story 4.5: the `decay` layer's mutations in map order (empty when the map has none). */
+  readonly decay: readonly DecayMutation[];
+  /** Story 4.5: the variation candidates, in first-appearance order (bit i of a variant mask = candidate i). */
+  readonly decayVariants: readonly DecayVariant[];
 }

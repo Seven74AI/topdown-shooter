@@ -16,6 +16,7 @@ import { createBuildingState, type BuildingState } from "../buildings/buildings"
 import { createPathingState, type PathingState } from "../zombies/flowField";
 import { createObstacles, type ObstacleState } from "../map/obstacles";
 import { FIRST_DECAY_STAGE } from "../map/decayStage";
+import { createDecayState, pickDecayVariants, type DecayState } from "../decay/decayState";
 import { createSeedStreams, type SeedStreams } from "./seedStreams";
 import { createRewoundView, createZombieHistory, recordZombieHistory, type RewoundView, type ZombieHistory } from "../combat/rewind";
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
@@ -50,6 +51,11 @@ export interface World {
    * collision and shot test reads these lists, never `map.solids` / `map.cover` directly.
    */
   readonly obstacles: ObstacleState;
+  /**
+   * Story 4.5: the decay stage, the run's variation choices (picked once at creation from
+   * `streams.decay`) and the fire records (`decay/decayState.ts`). Changed only by `applyDecayStage`.
+   */
+  readonly decay: DecayState;
   /** Players by id (Epic 1: one player, "local"). */
   readonly players: Map<string, PlayerState>;
   /** Zombie storage (struct-of-arrays pool). */
@@ -98,10 +104,11 @@ export interface WorldDebug {
    */
   waveMix: readonly ZombieTypeId[] | null;
   /**
-   * Story 4.2 dev override of the decay stage (Story 4.3: spawn points too) (solo cheat only; null = the real stage, which is 1
-   * until Story 4.5). Read only through `currentDecayStage`; apply with `applyCoverStage`.
+   * Story 4.5 dev override (server `DEV_DECAY_STAGES=2,3`, dev only): the stage per wave instead of
+   * `decay.json › stageByWave`. null = the real table. (Story 4.2's `decayStage` override is gone:
+   * the solo cheat now changes the real stage through the DecaySystem.)
    */
-  decayStage: number | null;
+  decayStageByWave: readonly number[] | null;
 }
 
 export interface CreateWorldOptions {
@@ -121,26 +128,30 @@ const DT_TOLERANCE = 1e-9;
 export function createWorld(opts: CreateWorldOptions): World {
   const seed = opts.seed >>> 0;
   const map = opts.map ?? PLACEHOLDER_MAP;
-  // Story 4.2: a new World is at the first decay stage (`currentDecayStage` with no override).
-  const obstacles = createObstacles(map, FIRST_DECAY_STAGE);
+  // Story 4.5 DecayTimeline: the run's variation candidates, picked once from the `decay` stream.
+  const streams = createSeedStreams(seed);
+  const decay = createDecayState(pickDecayVariants(map, streams.decay));
+  // Story 4.2: a new World is at the first decay stage.
+  const obstacles = createObstacles(map, FIRST_DECAY_STAGE, decay.variants);
   const world: World = {
     tick: 0,
     balance: opts.balance,
     seed,
-    streams: createSeedStreams(seed),
+    streams,
     events: new EventBus(),
     pendingInputs: new Map(),
     inputs: new Map(),
     lastAppliedSeq: new Map(),
     map,
     obstacles,
+    decay,
     players: new Map(),
     zombies: createZombiePool(ZOMBIE_POOL_CAPACITY),
     zombieGrid: createSpatialGrid(map, GRID_CELL_M, ZOMBIE_POOL_CAPACITY),
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(),
     run: createRunState(),
-    debug: { godMode: false, waveMix: null, decayStage: null },
+    debug: { godMode: false, waveMix: null, decayStageByWave: null },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),

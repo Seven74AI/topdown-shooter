@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
-import { NEUTRAL_INPUT, applyZombieDamage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
+import { NEUTRAL_INPUT, applyZombieDamage, changeDecayStage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
 import { RunController } from "../../run/RunController";
 import { PlayerState, RunState } from "./RunState";
 import { resetRunFields, syncState } from "./syncState";
@@ -211,5 +211,37 @@ describe("syncState", () => {
     expect(state.runSeed).toBe(7);
     resetRunFields(state);
     expect(state.runSeed).toBe(0);
+  });
+
+  it("Story 4.5: the decay stage and variants are written only when they change (bytes on change, none per tick); reset clears them", () => {
+    const { controller, state, encoder } = setup();
+    syncState(state, controller);
+    expect(state.decayStage).toBe(1);
+    expect(state.decayVariants).toBe(controller.world.decay.variants);
+    expect(state.decayVariants).not.toBe(0); // Downtown always picks one car and one fire
+    encoder.encode();
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const idle = encoder.encode().length; // only `tick`
+    encoder.discardChanges();
+    expect(changeDecayStage(controller.world, 2)).toBe(true);
+    controller.tick();
+    syncState(state, controller);
+    expect(state.decayStage).toBe(2);
+    const change = encoder.encode().length;
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const after = encoder.encode().length;
+    encoder.discardChanges();
+    // Bandwidth (brief line 14): the stage costs its field once, on the change tick; nothing after.
+    const decayBytes = change - idle;
+    expect(decayBytes).toBeGreaterThan(0);
+    expect(decayBytes).toBeLessThanOrEqual(4);
+    expect(after).toBe(idle);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[bandwidth] decay stage patch: +${decayBytes} B on the change tick (idle patch ${idle} B); variants once per run`);
+    resetRunFields(state);
+    expect([state.decayStage, state.decayVariants]).toEqual([0, 0]);
   });
 });

@@ -10,7 +10,8 @@ import { maxZombieRadius } from "../zombies/zombieTypes";
 import { flowCellAt } from "../zombies/flowField";
 import { DOWNTOWN_MAP } from "./downtown";
 import { MAP_STAGE_COUNT, type MapBox } from "./districtMap";
-import { applyCoverStage, createObstacles } from "./obstacles";
+import { createObstacles } from "./obstacles";
+import { applyDecayStage } from "../decay/applyDecayStage";
 import { FIRST_DECAY_STAGE, currentDecayStage } from "./decayStage";
 
 /** Story 4.2: the World's active obstacle lists per decay stage, on the real Downtown data. */
@@ -29,31 +30,37 @@ describe("obstacle lists (Story 4.2)", () => {
   });
 
   it("stage 2 adds the police barrier and stage 3 the sandbags to the bodies' list only (bullets fly over them)", () => {
+    // Story 4.5: with no variant chosen (mask 0) stage 2 also removes parked_car_3 and adds the
+    // dumpster wall (it stops shots); the chosen abandoned car is tested in decay/decay.test.ts.
+    const STAGE2_CARS = CARS.filter((c) => c !== "parked_car_3");
+    const WALLS = [...SOLID_NAMES, "dumpster_alley_3"];
     const s2 = createObstacles(map, 2);
-    expect(names(s2.solids)).toEqual([...SOLID_NAMES, ...CARS, "police_barrier_north"]);
-    expect(names(s2.shotBlockers)).toEqual([...SOLID_NAMES, ...CARS]);
+    expect(names(s2.solids)).toEqual([...WALLS, ...STAGE2_CARS, "police_barrier_north"]);
+    expect(names(s2.shotBlockers)).toEqual([...WALLS, ...STAGE2_CARS]);
     const s3 = createObstacles(map, 3);
-    expect(names(s3.solids)).toEqual([...SOLID_NAMES, ...CARS, "police_barrier_north", "sandbags_south"]);
-    expect(names(s3.shotBlockers)).toEqual([...SOLID_NAMES, ...CARS]);
+    expect(names(s3.solids)).toEqual([...WALLS, ...STAGE2_CARS, "police_barrier_north", "sandbags_south"]);
+    expect(names(s3.shotBlockers)).toEqual([...WALLS, ...STAGE2_CARS]);
   });
 
-  it("the stage accessor: 1 by default, the dev override otherwise; applyCoverStage follows it once (no-op when unchanged)", () => {
+  it("the stage accessor: 1 at the start; applyDecayStage moves it once (no-op when unchanged), and back", () => {
     const world = createWorld({ balance, seed: 1, map });
     expect(currentDecayStage(world)).toBe(FIRST_DECAY_STAGE);
     expect(world.obstacles.stage).toBe(1);
-    expect(applyCoverStage(world)).toBe(false);
+    expect(applyDecayStage(world, 1, world.decay.variants)).toBe(false);
     const nav = world.pathing.nav;
     const sand = map.cover.find((c) => c.name === "sandbags_south") as MapBox;
     const cell = flowCellAt(nav, (sand.minX + sand.maxX) / 2, (sand.minY + sand.maxY) / 2);
     expect(nav.wallAt[cell]).toBe(0);
-    world.debug.decayStage = 3;
-    expect(applyCoverStage(world)).toBe(true);
+    expect(applyDecayStage(world, 3, world.decay.variants)).toBe(true);
     expect(world.obstacles).toMatchObject({ stage: 3, version: 1 });
     expect(nav.wallAt[cell]).toBe(1); // the nav grid walls follow the stage
     expect(nav.version).toBe(-1); // re-rasterized on the next pathing tick
-    expect(snapshotWorld(world).obstacles).toEqual({ stage: 3, version: 1, solids: SOLID_NAMES.length + 7, shotBlockers: SOLID_NAMES.length + 5 });
-    world.debug.decayStage = null;
-    expect(applyCoverStage(world)).toBe(true);
+    expect(currentDecayStage(world)).toBe(3);
+    const snap = snapshotWorld(world).obstacles;
+    expect(snap).toMatchObject({ stage: 3, version: 1 });
+    expect(snap.solids).toEqual(names(world.obstacles.solids));
+    expect(snap.solids).toContain("dumpster_alley_3");
+    expect(applyDecayStage(world, 1, world.decay.variants)).toBe(true);
     expect(nav.wallAt[cell]).toBe(0);
   });
 
@@ -80,10 +87,11 @@ describe("obstacle lists (Story 4.2)", () => {
   it("at every stage the team start and every spawn (± jitter, grown by the largest zombie) are clear of active cover", () => {
     const jitter = balance.waves.spawnJitterM;
     const rz = maxZombieRadius(balance);
-    for (let stage = 1; stage <= MAP_STAGE_COUNT; stage++) {
+    // Story 4.5: every combination of the variation candidates (any run can pick any of them).
+    for (let stage = 1; stage <= MAP_STAGE_COUNT; stage++)
+    for (let mask = 0; mask < 1 << map.decayVariants.length; mask++) {
       const world = createWorld({ balance, seed: 1, map });
-      world.debug.decayStage = stage;
-      applyCoverStage(world);
+      applyDecayStage(world, stage, mask);
       const at = { x: 0, y: 0 };
       for (let slot = 0; slot < 4; slot++) {
         teamSpawnPoint(world, slot, at);
@@ -101,7 +109,7 @@ describe("obstacle lists (Story 4.2)", () => {
         const minY = Math.min(lo.y, hi.y) - rz;
         const maxY = Math.max(lo.y, hi.y) + rz;
         for (const c of world.obstacles.solids) {
-          expect(minX < c.maxX && maxX > c.minX && minY < c.maxY && maxY > c.minY, `stage ${stage}: ${sp.name} vs ${c.name}`).toBe(false);
+          expect(minX < c.maxX && maxX > c.minX && minY < c.maxY && maxY > c.minY, `stage ${stage} mask ${mask}: ${sp.name} vs ${c.name}`).toBe(false);
         }
       }
     }

@@ -58,10 +58,15 @@ export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint
 export {
   COVER_KINDS,
   COVER_STOPS_SHOTS,
+  DECAY_ACTIONS,
   MAP_STAGE_COUNT,
+  MAX_DECAY_VARIANTS,
   SPAWN_KINDS,
   type CoverKind,
   type CoverObject,
+  type DecayAction,
+  type DecayMutation,
+  type DecayVariant,
   type HazardZone,
   type MapBox,
   type MapSpawn,
@@ -73,7 +78,11 @@ export { SPAWN_SIDE, SPAWN_SIDE_NAMES, SPAWN_STATE, spawnPointStates, spawnSide,
 export { MAP_LAYERS, MAP_STAGE_GROUPS, MapError, loadTiledMap } from "./map/loadTiledMap";
 export { fillCollisionCells, mapCollisionCells } from "./map/collisionCells";
 export { FIRST_DECAY_STAGE, currentDecayStage } from "./map/decayStage";
-export { applyCoverStage, createObstacles, type ObstacleState } from "./map/obstacles";
+export { createObstacles, fillObstacles, mutationApplies, type ObstacleState } from "./map/obstacles";
+// Story 4.5: the decay stage engine.
+export { createDecayState, fireRecordOf, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
+export { applyDecayStage } from "./decay/applyDecayStage";
+export { changeDecayStage, decayFinish, decayMutate, destroyBlockedBuildings, relocateBodies, relocated, stageForComingWave } from "./decay/decaySystem";
 export { segmentBoxEntryT, shotBlockT, shotLineClear } from "./combat/cover";
 export { DOWNTOWN_MAP } from "./map/downtown";
 export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./player/player";
@@ -260,6 +269,7 @@ export {
   clearDamagers,
   earn,
   payKill,
+  refundMoney,
   recordDamager,
   spendMoney,
   updateEconomy,
@@ -333,7 +343,7 @@ export { updateBuildings } from "./buildings/buildingSystem";
 export { buildingCentreX, buildingCentreY, nearestZombieInRange, turretStats, updateTurrets } from "./buildings/turret";
 // Story 3.7: repairs.
 export { REPAIR_ERRORS, buildingAtPoint, isDamaged, repairBuilding, repairCost, repairError, type RepairError, type Repaired } from "./buildings/repair";
-export { boxBlocked, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
+export { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,
   buyWeapon,
