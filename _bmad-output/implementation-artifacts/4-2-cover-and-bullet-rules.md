@@ -1,6 +1,6 @@
 # Story 4.2: Cover and bullet rules
 
-Status: review
+Status: done
 
 ## Story
 
@@ -150,3 +150,13 @@ Claude Opus 5.5 (claude-opus-5-5)
 ## Change Log
 
 - 2026-11-22: Story file written (gds-create-story); built (263b1ba); merged `claude/epic-2-continue` (7242bab, docs/CI only, no conflicts); Status review.
+
+## Senior Developer Review (AI)
+
+Fresh-agent review, 2026-11-22 (830d57e). **Outcome: approved**, with no High or Medium defects. Gates and the release cheat scan pass.
+
+- **Merge item (with 4.3):** 4.3 adds its own `decay/decayStage.ts` accessor and a "Spawn stage preview" control that writes `debug.decayStage` without `applyCoverStage`, so spawns and cover would disagree. The merge keeps one accessor, routes the preview through `setDecayStageCheat`, points 4.3's spawn filter at the same accessor, and re-runs `obstacles.test`'s spawn-versus-cover check against the new spawns.
+- **L1 (for 4.5):** after a stage change, the old chase and flank fields stay in use until the budgeted rebuild finishes. 4.5 must call `rebuildFlowFieldNow` when it changes the stage at the build start.
+- **L2 (for 4.5/4.8):** `CoverView` always skips the bus, and `fillObstacles` dedupes it by exact rectangle. If a stage moves or removes the bus, `city_bus` stays in `map.solids`.
+- **L3 (fixed in the merge):** "Decay stage (cover)" added to `CHEAT_STRINGS`.
+- **L4 (accepted, D6):** bots still aim at the nearest zombie, even one behind cover.

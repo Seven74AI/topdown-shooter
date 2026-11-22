@@ -98,7 +98,7 @@ development_status:
   # Epic 4: Downtown and city decay (Milestone 1)
   epic-4: in-progress
   4-1-downtown-map: done
-  4-2-cover-and-bullet-rules: review
+  4-2-cover-and-bullet-rules: done
   4-3-spawn-points: backlog
   4-4-named-seed-streams: done
   4-5-decay-stage-engine: backlog

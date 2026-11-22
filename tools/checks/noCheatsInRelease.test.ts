@@ -28,6 +28,7 @@ export const CHEAT_STRINGS = [
   "dev-gear",
   "Dev loadout",
   "__game",
+  "Decay stage (cover)", // Story 4.2 solo stage cheat
 ];
 
 function builtFiles(dir: string): string[] {
