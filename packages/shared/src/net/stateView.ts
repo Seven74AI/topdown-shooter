@@ -19,8 +19,14 @@ export interface PlayerStateView {
   /** Rounded up, so a player at 0.4 HP shows 1. */
   readonly hp: number;
   readonly maxHp: number;
-  /** "alive" | "dead" (Story 2.8: "downed" | "out"). */
+  /** "alive" | "downed" | "out" (Story 2.8). */
   readonly status: PlayerStatus;
+  /** Story 2.8: ticks until a downed player is out (0 when not downed). */
+  readonly downedTicksLeft: number;
+  /** Revive progress of a downed player, 0–255 = 0–100 %. */
+  readonly reviveProgress: number;
+  /** Zombies this player killed this run (Results screen). */
+  readonly kills: number;
   /** `seq` of the last input the server applied for this player (Story 2.6 replays newer ones). */
   readonly ackSeq: number;
   /** Active weapon slot, 0 or 1. */
@@ -54,4 +60,6 @@ export interface RunStateView {
   readonly remaining: number;
   /** Players whose status is "alive". */
   readonly aliveCount: number;
+  /** Story 2.8: the wave the team reached, set with phase "results" (0 otherwise). */
+  readonly resultWave: number;
 }

@@ -74,7 +74,7 @@ development_status:
   2-5-horde-stream: review
   2-6-instant-feel-for-my-own-survivor: ready-for-dev
   2-7-server-confirmed-hits: ready-for-dev
-  2-8-downed-revive-and-team-wipe: ready-for-dev
+  2-8-downed-revive-and-team-wipe: review
   2-9-player-rings-and-teammate-arrows: ready-for-dev
   2-10-4-phone-4g-test: ready-for-dev  # human: playtest/spec, not a dev-agent story
   2-11-in-run-menu: ready-for-dev

@@ -12,6 +12,7 @@ import { lobbyStore } from "./net/lobbyStore";
 import { JOIN_ERROR_TEXT } from "./net/joinErrors";
 import { parseJoinPath } from "./net/route";
 import { NetSession } from "./net/session";
+import { createOnlinePhaseHandler } from "./net/onlineFlow";
 import type { RunConnection } from "./net/connection";
 import { isRoomCode, type Result } from "@topdown/shared";
 import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
@@ -79,14 +80,20 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
         uiStore.request("leaveRun"); // mid-run: stop the Game scene too
         serverNotice.show(serverText ?? SERVER_RESTARTING_TEXT); // e.g. "The game hit an error, sorry"
       },
-      onPhase: (phase) => {
-        // The host started: the Game scene runs the fight online (Story 2.4). `run.joined` came long before.
-        const joined = lobbyStore.joinedInfo();
-        const inbox = lobbyStore.inbox();
-        if (phase === "wave" && joined && inbox && lobbyStore.current() === room) {
-          uiStore.request("startOnline", new NetSession(room, joined, leaveRoom, inbox));
-        }
-      },
+      // Lobby → wave → results → lobby → wave … in the same room (Stories 2.4, 2.8).
+      onPhase: createOnlinePhaseHandler({
+        code: room.roomId,
+        state: () => room.state,
+        // The host started: a fresh session per run. `run.joined` came long before.
+        makeSession: () => {
+          const joined = lobbyStore.joinedInfo();
+          const inbox = lobbyStore.inbox();
+          if (!joined || !inbox || lobbyStore.current() !== room) return null;
+          return new NetSession(room, joined, leaveRoom, inbox);
+        },
+        inbox: () => lobbyStore.inbox(),
+        ui: uiStore,
+      }),
     });
     uiStore.set({ kind: "lobby", code: room.roomId });
   });
@@ -100,6 +107,7 @@ function leaveRoom(): void {
   history.replaceState(null, "", import.meta.env.BASE_URL);
 }
 
+uiStore.handle("lobbyReturn", () => lobbyStore.returnToLobby());
 uiStore.handle("leaveLobby", () => {
   leaveRoom();
   uiStore.set({ kind: "start" });

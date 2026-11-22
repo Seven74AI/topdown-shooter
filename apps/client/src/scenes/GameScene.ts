@@ -2,11 +2,13 @@ import * as Phaser from "phaser";
 import {
   NEUTRAL_INPUT,
   PROJECTILE_POOL_CAPACITY,
+  TICK_RATE_HZ,
   ZOMBIE_POOL_CAPACITY,
   activeSlot,
   addPlayer,
   isGun,
   setLoadout,
+  spectateTarget,
   ticksFor,
   weaponIds,
   weaponStats,
@@ -27,14 +29,16 @@ import { drawStreet } from "../render/StreetView";
 import { ZombieView } from "../render/ZombieView";
 import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
+import { DownedView } from "../render/DownedView";
 import { uiStore } from "../ui/uiState";
 import { getSettings } from "../settings/settings";
-import { MAX_RUSH_MARKERS, createHudModel } from "./hudModel";
+import { MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, createHudModel } from "./hudModel";
 import { LocalSimHost, type SimStepStats } from "../sim/LocalSimHost";
 import { NetSimHost } from "../sim/NetSimHost";
 import type { SimHost } from "../sim/SimHost";
 import type { NetSession } from "../net/session";
 import type { HudSceneData } from "./HudScene";
+import type { BootSceneData } from "./BootScene";
 import { urlOptions } from "../debug/urlOptions";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
@@ -68,6 +72,12 @@ const SHAKE_INTENSITY = 0.004;
 /** Rush chevron, in meters, drawn above each of the wave's last zombies. */
 const CHEVRON_M = 0.28;
 const CHEVRON_LIFT_M = 0.7;
+/** Story 2.8: the downed countdown sits this far above the survivor's centre. */
+const COUNTDOWN_LIFT_M = 0.75;
+const STATUS_OUT = "You're out: back next wave";
+const STATUS_REVIVING = "Reviving…";
+/** Solo Results: the one row's name. */
+const SOLO_NAME = "You";
 
 export class GameScene extends Phaser.Scene {
   private host: SceneHost | null = null;
@@ -96,6 +106,24 @@ export class GameScene extends Phaser.Scene {
   private zombieView: ZombieView | null = null;
   private projectileView: ProjectileView | null = null;
   private fxView: FxView | null = null;
+  private downedView: DownedView | null = null;
+  /** Solo Results (Story 2.8): zombies the local player killed this run (online: from room state). */
+  private kills = 0;
+  /** Seconds in the "Downed: …" line now (the string is rebuilt only when it changes). */
+  private statusSecs = -1;
+  /** Set by `collectDowned` while it walks the players this frame. */
+  private revivingSomeone = false;
+  private readonly collectDowned = (p: PlayerState): void => {
+    const m = this.hudModel;
+    if (p.status !== "downed") return;
+    if (p.reviverId !== null && p.reviverId === this.host?.localPlayerId) this.revivingSomeone = true;
+    if (m.downedCount >= MAX_DOWNED_MARKERS) return;
+    const i = m.downedCount * 3;
+    m.downed[i] = p.x;
+    m.downed[i + 1] = p.y - COUNTDOWN_LIFT_M;
+    m.downed[i + 2] = Math.ceil(p.downedTicksLeft / TICK_RATE_HZ);
+    m.downedCount++;
+  };
   private readonly hudModel = createHudModel();
   private gameOver = false;
   /** False while the dev loadout picker is open: the world doesn't step yet. */
@@ -130,6 +158,8 @@ export class GameScene extends Phaser.Scene {
     const cy = world.map.heightM / 2;
     if (!session) addPlayer(world, localId, cx, cy); // online, players come from the server
     this.gameOver = false;
+    this.kills = 0;
+    this.statusSecs = -1;
     // Phaser reuses this scene object on restart: reset what the HUD reads (no stale banner).
     Object.assign(this.hudModel, createHudModel());
     this.hudWeaponId = "";
@@ -139,7 +169,9 @@ export class GameScene extends Phaser.Scene {
     }
     if (session) {
       // Online game over → Back to start, or the connection dropped: leave the run (Story 2.4).
-      uiStore.handle("leaveRun", (error) => this.scene.start("Boot", error ? { error } : {}));
+      uiStore.handle("leaveRun", (error) => this.scene.start("Boot", (error ? { error } : {}) satisfies BootSceneData));
+      // Story 2.8: the room went back to the lobby; this device stays in it (the session was released).
+      uiStore.handle("backToLobby", () => this.scene.start("Boot", { lobby: true } satisfies BootSceneData));
     } else {
       uiStore.handle("restart", () => this.scene.restart({} satisfies GameSceneData)); // {}: a new random seed
     }
@@ -168,6 +200,7 @@ export class GameScene extends Phaser.Scene {
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
     this.fxView = new FxView(this, this.zombieView, localId);
+    this.downedView = new DownedView(this, world);
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.chevrons.length = 0;
@@ -204,9 +237,12 @@ export class GameScene extends Phaser.Scene {
       uiStore.handle("restart", undefined);
       uiStore.handle("startRun", undefined);
       uiStore.handle("leaveRun", undefined);
+      uiStore.handle("backToLobby", undefined);
       for (const c of this.chevrons) c.destroy();
       this.chevrons.length = 0;
       this.fxView?.destroy();
+      this.downedView?.destroy();
+      this.downedView = null;
       this.projectileView?.destroy();
       this.zombieView?.destroy();
       for (const v of this.playerViews.values()) v.destroy();
@@ -279,10 +315,35 @@ export class GameScene extends Phaser.Scene {
     m.remaining = host.world.waves.remaining;
   }
 
-  /** Game over with the wave reached; online it offers Back to start (Story 2.8 brings downed/revive). */
-  private showGameOver(host: SimHost): void {
+  /**
+   * Solo Results after the wipe (Story 2.8): wave reached, kills, Restart. Online, main.ts shows
+   * Results from the room state when `phase` becomes "results" (every player's kills).
+   */
+  private showSoloResults(wave: number): void {
     this.gameOver = true;
-    uiStore.set({ kind: "gameOver", waveReached: Math.max(1, host.world.waves.number), online: host.online });
+    uiStore.set({ kind: "results", wave: Math.max(1, wave), rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills }], online: false });
+  }
+
+  /** Countdowns of downed players for the HUD, and the local status line (Story 2.8). */
+  private updateDownedHud(world: Readonly<World>, me: PlayerState): void {
+    const m = this.hudModel;
+    m.downedCount = 0;
+    this.revivingSomeone = false;
+    if (world.teamWiped) {
+      m.statusText = ""; // Results are up: no countdowns (solo goes straight there when downed)
+      return;
+    }
+    world.players.forEach(this.collectDowned);
+    if (me.status === "downed") {
+      const secs = Math.ceil(me.downedTicksLeft / TICK_RATE_HZ);
+      if (secs !== this.statusSecs) {
+        this.statusSecs = secs;
+        m.statusText = `Downed: a teammate can revive you (${secs} s)`;
+      }
+      return;
+    }
+    this.statusSecs = -1;
+    m.statusText = me.status === "out" ? STATUS_OUT : this.revivingSomeone ? STATUS_REVIVING : "";
   }
 
   /** Adds, updates and removes player views to match `world.players` (no allocation per frame). */
@@ -316,8 +377,10 @@ export class GameScene extends Phaser.Scene {
       const e = events[i];
       if (!e) continue;
       this.fxView?.handle(e);
-      if (e.type === "player.died" && e.playerId === localId && !this.gameOver) {
-        this.showGameOver(host);
+      if (e.type === "team.wiped" && !host.online && !this.gameOver) {
+        this.showSoloResults(e.wave);
+      } else if (e.type === "zombie.killed" && e.killerId === localId) {
+        this.kills++;
       } else if (e.type === "weapon.fired" && e.playerId === localId) {
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
@@ -331,13 +394,16 @@ export class GameScene extends Phaser.Scene {
     this.zombieView?.update(host.world, host.alpha);
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world);
+    this.downedView?.update(host.world);
     const player = host.world.players.get(localId);
-    // Online, the death event may have played before this scene listened: the state decides too.
-    if (player && host.online && player.status === "dead" && !this.gameOver) this.showGameOver(host);
     const playerView = this.playerViews.get(localId);
     if (player && playerView) {
-      this.cameras.main.centerOn(playerView.x, playerView.y);
-      this.updateRushMarkers(host.alpha, playerView.x, playerView.y);
+      // Out (Story 2.8): the camera spectates the lowest-slot standing teammate (the server streams that view).
+      const target = player.status === "out" ? spectateTarget(host.world, localId) : null;
+      const viewOf = (target && this.playerViews.get(target.id)) ?? playerView;
+      this.cameras.main.centerOn(viewOf.x, viewOf.y);
+      this.updateRushMarkers(host.alpha, viewOf.x, viewOf.y);
+      this.updateDownedHud(host.world, player);
       const m = this.hudModel;
       recordSimFrame(host.stats, host.world.zombies, m.camX, m.camY, this.scale.width / m.camZoom, this.scale.height / m.camZoom);
       this.hudModel.hp = player.hp;

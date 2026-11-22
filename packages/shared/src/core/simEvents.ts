@@ -12,7 +12,11 @@ export type SimEvent =
   | { type: "weapon.swapped"; playerId: string; active: 0 | 1; weapon: string }
   | { type: "melee.swung"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number; arcDeg: number; rangeM: number }
   | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number }
-  | { type: "player.died"; playerId: string }
+  | { type: "player.downed"; playerId: string }
+  | { type: "player.revived"; playerId: string; reviverId: string }
+  | { type: "player.out"; playerId: string }
+  | { type: "player.returned"; playerId: string; x: number; y: number }
+  | { type: "team.wiped"; wave: number }
   | { type: "wave.started"; number: number; size: number }
   | { type: "wave.ended"; number: number }
   | { type: "wave.rush_started"; count: number }

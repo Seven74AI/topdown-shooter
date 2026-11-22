@@ -28,8 +28,9 @@ export interface NetRoomLike {
  * patch. Until `onEvents` is called, `sim.events_flushed` batches are buffered (at most
  * EARLY_EVENT_BATCHES_MAX, oldest dropped) and then handed over in order. `net.pinged` is always
  * answered at once here, so the server's RTT never includes the scene's start-up.
- * Note for a restart in the same room (2.11 / Epic 8): batches that arrive after a host
- * unsubscribes are buffered again and would go to the next run's host; clear them at a new start.
+ * A run in the same room again (Story 2.8, Back to lobby): batches that arrive after a host
+ * unsubscribes are buffered again; `reset()` (called when the room returns to the lobby) drops
+ * them, so the next run's scene never gets the previous run's events.
  *
  * Horde frames (`BYTES.HORDE_FRAME`, Story 2.5) are listened to from the join too, so the SDK
  * never warns about an unhandled type; until `onHorde` is called they are dropped (unreliable
@@ -71,6 +72,16 @@ export class RunInbox {
     return () => {
       if (this.sink === sink) this.sink = null;
     };
+  }
+
+  /**
+   * Story 2.8: the room went back to the lobby. Drops buffered batches of the run that ended (the
+   * server sends nothing in the lobby, so anything here is from that run) and the early counters.
+   */
+  reset(): void {
+    this.early.length = 0;
+    this.earlyDropped = 0;
+    this.earlyHordeDropped = 0;
   }
 
   /** Stops listening for good. Safe to call twice. */
@@ -150,7 +161,15 @@ export class NetSession {
     return this.inbox.onHorde(sink);
   }
 
-  /** Leaves the room for good (consented). Safe to call twice. */
+  /**
+   * Story 2.8: this run ended but the room stays (Back to lobby). From now on `leave()` (e.g. the
+   * Game scene's dispose) does nothing: the lobby store still owns the room and its inbox.
+   */
+  release(): void {
+    this.left = true;
+  }
+
+  /** Leaves the room for good (consented). Safe to call twice; a no-op after `release()`. */
   leave(): void {
     if (this.left) return;
     this.left = true;

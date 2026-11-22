@@ -1,4 +1,4 @@
-import { quantizeHeading, type PlayerState as SimPlayer } from "@topdown/shared";
+import { quantizeHeading, ticksFor, type PlayerState as SimPlayer } from "@topdown/shared";
 import type { RunController } from "../../run/RunController";
 import type { PlayerState, RunState } from "./RunState";
 
@@ -13,6 +13,7 @@ export function syncState(state: RunState, controller: RunController): void {
   pass.state = state;
   pass.controller = controller;
   pass.alive = 0;
+  pass.reviveTicks = ticksFor(world.balance.player.reviveS);
   world.players.forEach(visitPlayer); // a module-level callback: no closure per tick
   const alive = pass.alive;
   pass.state = null;
@@ -24,12 +25,28 @@ export function syncState(state: RunState, controller: RunController): void {
 }
 
 /** The sync pass in progress (synchronous, so one shared record is enough). */
-const pass: { state: RunState | null; controller: RunController | null; alive: number } = { state: null, controller: null, alive: 0 };
+const pass: { state: RunState | null; controller: RunController | null; alive: number; reviveTicks: number } = {
+  state: null,
+  controller: null,
+  alive: 0,
+  reviveTicks: 1,
+};
 
 function visitPlayer(p: SimPlayer): void {
   if (p.status === "alive") pass.alive++;
   const s = pass.state?.players.get(p.id);
-  if (s && pass.controller) syncPlayer(s, p, pass.controller.ackSeq(p.id));
+  if (s && pass.controller) {
+    syncPlayer(s, p, pass.controller.ackSeq(p.id));
+    syncDowned(s, p, pass.controller.kills(p.id));
+  }
+}
+
+/** Story 2.8: countdown, revive progress (0–255) and kills. */
+function syncDowned(s: PlayerState, p: SimPlayer, kills: number): void {
+  if (s.downedTicksLeft !== p.downedTicksLeft) s.downedTicksLeft = p.downedTicksLeft;
+  const progress = Math.min(255, Math.round((p.reviveTicks / pass.reviveTicks) * 255));
+  if (s.reviveProgress !== progress) s.reviveProgress = progress;
+  if (s.kills !== kills) s.kills = kills;
 }
 
 function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
@@ -60,4 +77,36 @@ function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
   if (s.weapon1 !== weapon1) s.weapon1 = weapon1;
   if (s.ammo1 !== ammo1) s.ammo1 = ammo1;
   if (s.reloadTicks1 !== reload1) s.reloadTicks1 = reload1;
+}
+
+/** Story 2.8 › `lobby.return`: every fight field and Ready flag back to its default; slot and name stay. */
+export function resetRunFields(state: RunState): void {
+  state.players.forEach(resetPlayer);
+  state.tick = 0;
+  state.wave = 0;
+  state.remaining = 0;
+  state.aliveCount = 0;
+  state.resultWave = 0;
+}
+
+function resetPlayer(s: PlayerState): void {
+  s.ready = false;
+  s.x = 0;
+  s.y = 0;
+  s.heading = 0;
+  s.hp = 0;
+  s.maxHp = 0;
+  s.status = "alive";
+  s.ackSeq = 0;
+  s.active = 0;
+  s.weapon0 = "";
+  s.weapon1 = "";
+  s.ammo0 = 0;
+  s.ammo1 = 0;
+  s.reloadTicks0 = 0;
+  s.reloadTicks1 = 0;
+  s.swapTicks = 0;
+  s.downedTicksLeft = 0;
+  s.reviveProgress = 0;
+  s.kills = 0;
 }

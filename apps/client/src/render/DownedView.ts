@@ -1,0 +1,56 @@
+import * as Phaser from "phaser";
+import { ticksFor, type PlayerState, type World } from "@topdown/shared";
+
+/** Ring around a downed survivor, in metres (world space, so it zooms with the camera). */
+const RING_GAP_M = 0.25;
+const RING_WIDTH_M = 0.1;
+const TRACK_COLOR = 0x000000;
+const TRACK_ALPHA = 0.55;
+const FILL_COLOR = 0x6ee7a8;
+const START_RAD = -Math.PI / 2; // 12 o'clock, filling clockwise
+
+/**
+ * Story 2.8: a revive progress ring around each downed player: a dark track, and an arc that fills
+ * clockwise from 12 o'clock with `reviveTicks / ticksFor(reviveS)`. Moving away resets it (the
+ * World does; this only draws). One Graphics object, redrawn only while someone is downed.
+ * The countdown text is drawn by the HUD in screen space (crisp at any zoom).
+ */
+export class DownedView {
+  private readonly g: Phaser.GameObjects.Graphics;
+  private readonly reviveTicks: number;
+  private drawn = false;
+  private any = false;
+  private readonly drawOne = (p: PlayerState): void => {
+    if (p.status !== "downed") return;
+    this.any = true;
+    const r = p.radiusM + RING_GAP_M;
+    const g = this.g;
+    g.lineStyle(RING_WIDTH_M, TRACK_COLOR, TRACK_ALPHA).strokeCircle(p.x, p.y, r);
+    const frac = Math.min(1, p.reviveTicks / this.reviveTicks);
+    if (frac <= 0) return;
+    g.lineStyle(RING_WIDTH_M, FILL_COLOR, 1)
+      .beginPath()
+      .arc(p.x, p.y, r, START_RAD, START_RAD + frac * Math.PI * 2, false)
+      .strokePath();
+  };
+
+  constructor(scene: Phaser.Scene, world: Readonly<World>) {
+    this.g = scene.add.graphics().setDepth(9);
+    this.reviveTicks = ticksFor(world.balance.player.reviveS);
+  }
+
+  /**
+   * Downed players don't move, so their drawn position is `x`/`y` (the mirror writes `prevX = x`;
+   * locally a downed survivor's prev equals its position after one tick).
+   */
+  update(world: Readonly<World>): void {
+    if (this.drawn) this.g.clear();
+    this.any = false;
+    if (!world.teamWiped) world.players.forEach(this.drawOne); // Results are up: no rings
+    this.drawn = this.any;
+  }
+
+  destroy(): void {
+    this.g.destroy();
+  }
+}

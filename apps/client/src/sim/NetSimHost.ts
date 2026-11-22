@@ -8,8 +8,10 @@ import {
   createSlot,
   createWorld,
   decodeNetEvent,
+  findReviver,
   headingToRad,
   removePlayer,
+  ticksFor,
   type Balance,
   type NetEventContext,
   type PlayerInput,
@@ -117,6 +119,11 @@ export class NetSimHost implements SimHost {
     if (!this.world.players.has(id)) addPlayer(this.world, id, p.x, p.y);
   };
   private readonly writePlayer = (p: PlayerState): void => this.applyPlayer(p);
+  // Story 2.8: downed fields from state; the reviver is found from the mirrored positions.
+  private readonly reviveTicksTotal: number;
+  private readonly writeReviver = (p: PlayerState): void => {
+    p.reviverId = p.status === "downed" && p.reviveTicks > 0 ? (findReviver(this.world, p)?.id ?? null) : null;
+  };
 
   constructor(opts: NetSimHostOptions) {
     this.session = opts.session;
@@ -124,6 +131,7 @@ export class NetSimHost implements SimHost {
     this.now = opts.now ?? (() => performance.now());
     this.world = createWorld({ balance: opts.balance, seed: 0, systems: NO_SYSTEMS });
     this.ctx = { balance: opts.balance };
+    this.reviveTicksTotal = ticksFor(opts.balance.player.reviveS);
     this.historyRing = Array.from({ length: INPUT_HISTORY_SIZE }, () => ({ ...NEUTRAL_INPUT }));
     this.history = this.historyRing;
     const room = opts.session.room;
@@ -221,6 +229,8 @@ export class NetSimHost implements SimHost {
     this.world.players.forEach(this.dropMissing);
     state.players.forEach(this.addMissing);
     this.world.players.forEach(this.writePlayer);
+    this.world.players.forEach(this.writeReviver);
+    this.world.teamWiped = state.phase === "results";
     this.latest = null;
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
@@ -253,11 +263,18 @@ export class NetSimHost implements SimHost {
     p.hp = s.hp;
     p.maxHp = s.maxHp;
     p.status = s.status;
+    this.applyDowned(p, s);
     const lo = p.loadout;
     lo.active = s.active === 1 ? 1 : 0;
     lo.swapTicks = s.swapTicks;
     lo.slots[0] = this.syncSlot(lo.slots[0], s.weapon0, s.ammo0, s.reloadTicks0) ?? lo.slots[0];
     lo.slots[1] = this.syncSlot(lo.slots[1], s.weapon1, s.ammo1, s.reloadTicks1);
+  }
+
+  /** Story 2.8: countdown and revive progress (0–255 → ticks) from the latest state. */
+  private applyDowned(p: PlayerState, s: PlayerStateView): void {
+    p.downedTicksLeft = s.downedTicksLeft;
+    p.reviveTicks = Math.round((s.reviveProgress / 255) * this.reviveTicksTotal);
   }
 
   /** Reuses the slot object unless the weapon changed ("" = empty). */

@@ -3,6 +3,7 @@ import { queryRadius, rebuildGrid } from "../core/spatialGrid";
 import type { SystemFn } from "../core/systems";
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
+import { downPlayer } from "../player/downed";
 import { zombieTypeOf } from "./zombiePool";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
@@ -32,7 +33,7 @@ function nearestAlivePlayer(x: number, y: number): PlayerState | null {
   let bestD2 = Infinity;
   for (let i = 0; i < alivePlayers.length; i++) {
     const p = alivePlayers[i] as PlayerState;
-    if (p.status !== "alive") continue; // may die mid-tick
+    if (p.status !== "alive") continue; // may go down mid-tick
     const dx = p.x - x;
     const dy = p.y - y;
     const d2 = dx * dx + dy * dy;
@@ -48,10 +49,7 @@ function damagePlayer(world: World, p: PlayerState, amount: number, sourceZombie
   if (p.status !== "alive" || world.debug.godMode) return; // god mode: dev cheat / ?stress (Story 1.11)
   p.hp = Math.max(0, p.hp - amount);
   world.events.emit({ type: "player.damaged", playerId: p.id, amount, sourceZombieId });
-  if (p.hp <= 0) {
-    p.status = "dead";
-    world.events.emit({ type: "player.died", playerId: p.id });
-  }
+  if (p.hp <= 0) downPlayer(world, p); // Story 2.8: down, not dead; zombies then ignore them
 }
 
 /**

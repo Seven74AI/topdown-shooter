@@ -167,6 +167,11 @@ class LobbyStore {
     this.room?.send(C2S.LOBBY_SET_READY, { ready });
   }
 
+  /** Results (Story 2.8): Back to lobby, for the whole room (the server takes it from any member). */
+  returnToLobby(): void {
+    this.room?.send(C2S.LOBBY_RETURN, {});
+  }
+
   /** Host: asks the server to start the run (it checks the same rule as `lobbyView().canStart`). */
   start(): void {
     this.room?.send(C2S.RUN_START, {});

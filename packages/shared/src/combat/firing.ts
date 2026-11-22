@@ -64,7 +64,7 @@ function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
 function updateSwap(world: World, p: PlayerState): boolean {
   const lo = p.loadout;
   if (lo.swapTicks > 0 && p.status !== "alive") {
-    lo.swapTicks = 0; // a downed or dead player's swap is cancelled
+    lo.swapTicks = 0; // a downed or out player's swap is cancelled
     return false;
   }
   if (lo.swapTicks > 0) {

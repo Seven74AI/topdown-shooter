@@ -31,6 +31,8 @@ export { NEUTRAL_INPUT, playerInputSchema, type PlayerInput } from "./net/input"
 export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint } from "./map/placeholderMap";
 export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./player/player";
 export { teamSpawnPoint } from "./player/spawn";
+export { checkTeamWipe, downPlayer, findReviver, returnOutPlayers, updateDowned } from "./player/downed";
+export { spectateTarget } from "./player/spectate";
 export { headingToRad, lerpHeading, quantizeHeading } from "./net/heading";
 export {
   NET_EVENT_KIND,
@@ -97,6 +99,7 @@ export {
   netPongSchema,
   playerNameSchema,
   runStartSchema,
+  lobbyReturnSchema,
   type C2SType,
   type JoinOptions,
   type JoinRefusal,

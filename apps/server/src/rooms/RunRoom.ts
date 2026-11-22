@@ -6,6 +6,7 @@ import {
   matchMaker,
   type AuthContext,
   type Client,
+  type Delayed,
   type RoomException,
   type RoomMethodName,
 } from "@colyseus/core";
@@ -17,10 +18,12 @@ import {
   encodeNetEvent,
   joinOptionsSchema,
   loadBalance,
+  lobbyReturnSchema,
   lobbySetReadySchema,
   netPongSchema,
   playerInputSchema,
   runStartSchema,
+  spectateTarget,
   startBlocker,
   zombieNetId,
   type JoinRefusal,
@@ -42,7 +45,7 @@ import { log, roomLog } from "../ops/logger";
 import { assignSlot, hashGuestToken, nextHost, type Member } from "../run/lobby";
 import { RunController } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
-import { syncState } from "./schema/syncState";
+import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
 
@@ -124,6 +127,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private eventCtx: NetEventContext | null = null;
   private tickErrors = 0;
   private shuttingDown = false;
+  /** The current run's seed (for `run_ended`) and its ping interval (cleared on the way back to the lobby). */
+  private runSeed = 0;
+  private pingTimer: Delayed | null = null;
   /** Latest `net.pinged` id; send times of the last PING_HISTORY ids (slot `id % PING_HISTORY`). */
   private pingId = 0;
   private readonly pingSentAtMs = new Float64Array(PING_HISTORY);
@@ -177,6 +183,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.LOBBY_SET_READY, this.net.guard(lobbySetReadySchema, (c, m) => this.onSetReady(c, m.ready)));
     this.onMessage(C2S.RUN_START, this.net.guard(runStartSchema, (c) => this.onStart(c)));
     this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
+    this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -272,6 +279,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private startRun(): void {
     const players = Array.from(this.members.values(), (m) => ({ playerId: m.playerId, slot: m.slot }));
     const runSeed = randomUint32();
+    this.runSeed = runSeed;
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
@@ -288,17 +296,19 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     syncState(this.state, controller); // spawn positions in the same patch as phase "wave"
     // 0.18 fixed timestep: at most 5 catch-up steps, then the backlog is dropped.
     this.setFixedTimestep(() => this.onTick(), TICK_RATE_HZ);
-    this.clock.setInterval(() => this.ping(), PING_INTERVAL_MS);
+    this.pingTimer?.clear();
+    this.pingTimer = this.clock.setInterval(() => this.ping(), PING_INTERVAL_MS);
     this.log.info({ runSeed, players: players.length }, "run_started");
   }
 
   /**
    * One server tick: step, copy to schema, forward events, send horde frames (all inside the
-   * slow-tick timing). The patch goes out between ticks, timed by `broadcastPatch`.
+   * slow-tick timing). The patch goes out between ticks, timed by `broadcastPatch`. Only phase
+   * "wave" steps the World: after a team wipe (Results) nothing moves any more (Story 2.8).
    */
   onTick(): void {
     const controller = this.controller;
-    if (!controller || this.shuttingDown) return;
+    if (!controller || this.shuttingDown || this.state.phase !== "wave") return;
     const t0 = performance.now();
     const events = controller.tick();
     syncState(this.state, controller);
@@ -308,8 +318,42 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
       if (e.type === "wave.ended") this.logHordeStats(e.number);
+      else if (e.type === "team.wiped") this.endRun(controller, e.wave);
     }
     this.tickErrors = 0;
+  }
+
+  /**
+   * Team wipe (Story 2.8 AC 4): the run ends for everyone. `team.wiped` was already forwarded this
+   * tick; the patch with phase "results" follows. The World stays as it was (no more ticks).
+   */
+  private endRun(controller: RunController, wave: number): void {
+    this.state.phase = "results";
+    this.state.resultWave = wave;
+    const kills: Record<string, number> = {};
+    for (const playerId of controller.world.players.keys()) kills[playerId] = controller.kills(playerId);
+    this.log.info({ runSeed: this.runSeed, wave, kills }, "run_ended");
+  }
+
+  /**
+   * `lobby.return` (Story 2.8), from any member, in phase "results": the whole room goes back to the
+   * lobby. The run is dropped; members, slots and the host stay; every Ready flag and fight field is
+   * reset. The next `run.start` builds a new run.
+   */
+  onLobbyReturn(client: RunClient): void {
+    const member = this.members.get(client.sessionId);
+    if (!member || this.state.phase !== "results") return;
+    this.controller = null;
+    this.horde = null;
+    this.eventCtx = null;
+    this.hordeStats.clear();
+    this.slowTicks = null;
+    this.slowPatches = null;
+    this.pingTimer?.clear();
+    this.pingTimer = null;
+    resetRunFields(this.state);
+    this.state.phase = "lobby";
+    this.log.info({ playerId: member.playerId }, "lobby_returned");
   }
 
   /** Colyseus's patch interval: encode + send the state patch, timed like a tick (`slow_patch`). */
@@ -323,11 +367,14 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   }
 
   /**
-   * Where a player's horde view is centred: their own survivor. Story 2.8 hook: an "out" player's
-   * view follows the teammate they spectate.
+   * Where a player's horde view is centred: their own survivor, or for an "out" player the teammate
+   * they spectate (Story 2.8: shared `spectateTarget`, the same choice as the client camera).
    */
   viewTargetFor(playerId: string): { readonly x: number; readonly y: number } | undefined {
-    return this.controller?.world.players.get(playerId);
+    const world = this.controller?.world;
+    const p = world?.players.get(playerId);
+    if (!world || !p) return undefined;
+    return p.status === "out" ? (spectateTarget(world, playerId) ?? p) : p;
   }
 
   /** One horde frame per client whose player is in the run (AC 1, 4). */

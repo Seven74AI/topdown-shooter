@@ -1,3 +1,5 @@
+import { MAX_PLAYERS } from "@topdown/shared";
+
 /** Values the GameScene publishes each frame for the HUD to draw (the HUD never reads the World). */
 export interface HudModel {
   hp: number;
@@ -30,10 +32,17 @@ export interface HudModel {
   camX: number;
   camY: number;
   camZoom: number;
+  /** Story 2.8: the local player's status line ("" = none), e.g. "Reviving…". */
+  statusText: string;
+  /** Downed players: (x, y, seconds left) in world metres, and how many are valid. */
+  readonly downed: Float32Array;
+  downedCount: number;
 }
 
 /** Most rush markers shown (the last-5 rule marks 5). */
 export const MAX_RUSH_MARKERS = 8;
+/** Most downed countdowns shown: one per player. */
+export const MAX_DOWNED_MARKERS = MAX_PLAYERS;
 
 export const createHudModel = (): HudModel => ({
   hp: 0,
@@ -56,4 +65,7 @@ export const createHudModel = (): HudModel => ({
   camX: 0,
   camY: 0,
   camZoom: 1,
+  statusText: "",
+  downed: new Float32Array(MAX_DOWNED_MARKERS * 3),
+  downedCount: 0,
 });

@@ -1,4 +1,4 @@
-import { GameOver } from "./GameOver";
+import { ResultsScreen } from "./ResultsScreen";
 import { StartScreen } from "./StartScreen";
 import { LobbyScreen } from "./LobbyScreen";
 import { RotateOverlay } from "./RotateOverlay";
@@ -19,7 +19,7 @@ export function App({ joinCode = null }: AppProps) {
     <>
       <StartScreen joinCode={joinCode} />
       <LobbyScreen />
-      <GameOver />
+      <ResultsScreen />
       {urlOptions().tune && <TuningPanel />}
       {import.meta.env.DEV && <LoadoutPicker />}
       <StressResults />

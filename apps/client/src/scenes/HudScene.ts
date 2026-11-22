@@ -9,7 +9,7 @@ import type { HudModel } from "./hudModel";
 import type { InputRouter } from "../input/InputRouter";
 import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
-import { MAX_RUSH_MARKERS } from "./hudModel";
+import { MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS } from "./hudModel";
 import { PerfOverlay } from "../debug/PerfOverlay";
 
 export interface HudSceneData {
@@ -48,6 +48,11 @@ const BANNER_FADE_MS = 400;
 const ARROW_PX = 14;
 const ARROW_MARGIN = 28;
 const RUSH_COLOR = 0xff3b30;
+/** Story 2.8: downed countdown above each downed survivor, and the local status line. */
+const COUNTDOWN_TEXT_PX = 16;
+const STATUS_TEXT_PX = 18;
+const TEXT_STROKE = "#000000";
+const TEXT_STROKE_PX = 4;
 
 
 const STICK_FILL = 0xffffff;
@@ -100,6 +105,11 @@ export class HudScene extends Phaser.Scene {
   private shownW = 0;
   private shownH = 0;
   private perfOverlay: PerfOverlay | null = null;
+  private readonly countdowns: Phaser.GameObjects.Text[] = [];
+  /** Seconds each countdown text shows (setText only when it changes). */
+  private readonly shownSecs = new Int32Array(MAX_DOWNED_MARKERS).fill(-1);
+  private statusText!: Phaser.GameObjects.Text;
+  private shownStatus = "";
 
   constructor() {
     super("Hud");
@@ -115,6 +125,8 @@ export class HudScene extends Phaser.Scene {
     this.shownWeapon = "";
     this.shownWave = -1;
     this.shownBanner = "";
+    this.shownStatus = "";
+    this.shownSecs.fill(-1);
   }
 
   create(): void {
@@ -166,6 +178,16 @@ export class HudScene extends Phaser.Scene {
       // Triangle pointing +x; rotated toward the target.
       this.arrows.push(this.add.triangle(0, 0, a, 0, -a * 0.6, -a * 0.7, -a * 0.6, a * 0.7, RUSH_COLOR).setVisible(false));
     }
+    this.countdowns.length = 0;
+    for (let i = 0; i < MAX_DOWNED_MARKERS; i++) {
+      this.countdowns.push(
+        this.add
+          .text(0, 0, "", this.outlinedStyle(COUNTDOWN_TEXT_PX))
+          .setOrigin(0.5, 1)
+          .setVisible(false),
+      );
+    }
+    this.statusText = this.add.text(0, 0, "", this.outlinedStyle(STATUS_TEXT_PX)).setOrigin(0.5, 0).setVisible(false);
     this.hpBar = this.add.graphics();
     this.perfOverlay = new PerfOverlay(this); // Story 1.11 (top-right, toggled by ?debug=1 / three-finger tap)
     this.hpText = this.add.text(0, 0, "", {
@@ -203,6 +225,19 @@ export class HudScene extends Phaser.Scene {
     });
   }
 
+  /** White text with a dark outline, readable over the street at any zoom (Story 2.8). */
+  private outlinedStyle(cssPx: number): Phaser.Types.GameObjects.Text.TextStyle {
+    const k = dpr();
+    return {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: `${Math.round(cssPx * k)}px`,
+      color: "#ffffff",
+      fontStyle: "bold",
+      stroke: TEXT_STROKE,
+      strokeThickness: Math.round(TEXT_STROKE_PX * k),
+    };
+  }
+
   /** Places HUD buttons inside the safe area (canvas px) and registers their hit rects. */
   private layoutButtons(): void {
     const k = dpr();
@@ -236,6 +271,9 @@ export class HudScene extends Phaser.Scene {
     this.shownWeapon = "";
     this.hpText.setFontSize(Math.round(HP_TEXT_PX * dpr()));
     this.shownHp = -1; // force a redraw at the new scale
+    for (const t of this.countdowns) t.setFontSize(Math.round(COUNTDOWN_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr()));
+    this.statusText.setFontSize(Math.round(STATUS_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr()));
+    this.shownStatus = "\u0000"; // re-place the status line
   }
 
   /** Redraws the health bar only when HP changes (top-left, inside the safe area from Story 1.8 on). */
@@ -265,7 +303,39 @@ export class HudScene extends Phaser.Scene {
     this.drawWeapon();
     this.drawWave();
     this.drawRushArrows();
+    this.drawDowned();
     this.perfOverlay?.update();
+  }
+
+  /**
+   * Story 2.8: a countdown above each downed survivor (world → screen like the rush arrows, so the
+   * text stays crisp at any camera zoom) and the local status line under the wave text.
+   */
+  private drawDowned(): void {
+    const m = this.model;
+    const n = Math.min(m.downedCount, this.countdowns.length);
+    for (let i = 0; i < this.countdowns.length; i++) {
+      const t = this.countdowns[i] as Phaser.GameObjects.Text;
+      if (i >= n) {
+        if (t.visible) t.setVisible(false);
+        continue;
+      }
+      const secs = m.downed[i * 3 + 2] as number;
+      if (secs !== this.shownSecs[i]) {
+        this.shownSecs[i] = secs;
+        t.setText(`${secs} s`);
+      }
+      const sx = ((m.downed[i * 3] as number) - m.camX) * m.camZoom;
+      const sy = ((m.downed[i * 3 + 1] as number) - m.camY) * m.camZoom;
+      t.setPosition(sx, sy).setVisible(true);
+    }
+    if (m.statusText !== this.shownStatus) {
+      this.shownStatus = m.statusText;
+      this.statusText
+        .setText(m.statusText)
+        .setPosition(this.scale.width / 2, (12 + this.insets.top + WAVE_TEXT_PX + 12) * dpr())
+        .setVisible(m.statusText !== "");
+    }
   }
 
   /** "Wave 3 · Zombies 47" top-center, and the centered banner fading out. */

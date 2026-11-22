@@ -5,8 +5,8 @@ describe("uiStore", () => {
   it("notifies subscribers and routes requests", () => {
     const seen: string[] = [];
     const off = uiStore.subscribe((s) => seen.push(s.kind));
-    uiStore.set({ kind: "gameOver", waveReached: 3 });
-    expect(uiStore.get()).toEqual({ kind: "gameOver", waveReached: 3 });
+    uiStore.set({ kind: "results", wave: 3, rows: [], online: false });
+    expect(uiStore.get()).toEqual({ kind: "results", wave: 3, rows: [], online: false });
     let restarted = 0;
     uiStore.handle("restart", () => restarted++);
     uiStore.request("restart");
@@ -14,7 +14,7 @@ describe("uiStore", () => {
     uiStore.request("restart");
     off();
     uiStore.set({ kind: "playing" });
-    expect(seen).toEqual(["gameOver"]);
+    expect(seen).toEqual(["results"]);
     expect(restarted).toBe(1);
   });
 });

@@ -25,10 +25,15 @@ export const NET_EVENT_KIND = {
   WEAPON_SWAPPED: 7,
   MELEE_SWUNG: 8,
   PLAYER_DAMAGED: 9,
-  PLAYER_DIED: 10,
+  // 10 was PLAYER_DIED (removed in Story 2.8): never reuse a kind number.
   WAVE_STARTED: 11,
   WAVE_ENDED: 12,
   WAVE_RUSH_STARTED: 13,
+  PLAYER_DOWNED: 14,
+  PLAYER_REVIVED: 15,
+  PLAYER_OUT: 16,
+  PLAYER_RETURNED: 17,
+  TEAM_WIPED: 18,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -110,8 +115,16 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
     case "player.damaged":
       return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? -1 : zid(ctx, e.sourceZombieId)];
-    case "player.died":
-      return [K.PLAYER_DIED, playerSlotOf(e.playerId)];
+    case "player.downed":
+      return [K.PLAYER_DOWNED, playerSlotOf(e.playerId)];
+    case "player.revived":
+      return [K.PLAYER_REVIVED, playerSlotOf(e.playerId), playerSlotOf(e.reviverId)];
+    case "player.out":
+      return [K.PLAYER_OUT, playerSlotOf(e.playerId)];
+    case "player.returned":
+      return [K.PLAYER_RETURNED, playerSlotOf(e.playerId), cm(e.x), cm(e.y)];
+    case "team.wiped":
+      return [K.TEAM_WIPED, e.wave];
     case "wave.started":
       return [K.WAVE_STARTED, e.number, e.size];
     case "wave.ended":
@@ -198,8 +211,16 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       const src = n(t, 3);
       return { type: "player.damaged", playerId: pid(t, 1), amount: n(t, 2) / 10, sourceZombieId: src < 0 ? -1 : zombieSlotOfNetId(src) };
     }
-    case K.PLAYER_DIED:
-      return { type: "player.died", playerId: pid(t, 1) };
+    case K.PLAYER_DOWNED:
+      return { type: "player.downed", playerId: pid(t, 1) };
+    case K.PLAYER_REVIVED:
+      return { type: "player.revived", playerId: pid(t, 1), reviverId: pid(t, 2) };
+    case K.PLAYER_OUT:
+      return { type: "player.out", playerId: pid(t, 1) };
+    case K.PLAYER_RETURNED:
+      return { type: "player.returned", playerId: pid(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
+    case K.TEAM_WIPED:
+      return { type: "team.wiped", wave: n(t, 1) };
     case K.WAVE_STARTED:
       return { type: "wave.started", number: n(t, 1), size: n(t, 2) };
     case K.WAVE_ENDED:

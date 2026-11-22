@@ -113,7 +113,7 @@ describe("two weapon slots and swap (FR5, FR12)", () => {
     const { world, p, events } = setup();
     setInput(world, "local", input({ swap: true }));
     step(world, TICK_DT_S);
-    p.status = "dead";
+    p.status = "downed";
     run(world, 10);
     expect(p.loadout.active).toBe(0);
     expect(p.loadout.swapTicks).toBe(0);

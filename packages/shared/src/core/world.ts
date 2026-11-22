@@ -41,6 +41,8 @@ export interface World {
   readonly waves: WaveState;
   /** Debug switches (Story 1.11). Set only by dev cheats and the fixed `?stress` scenario. */
   readonly debug: WorldDebug;
+  /** Story 2.8: no player was standing; `team.wiped` was emitted (once). The run is over. */
+  teamWiped: boolean;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -82,6 +84,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(opts.balance),
     debug: { godMode: false },
+    teamWiped: false,
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

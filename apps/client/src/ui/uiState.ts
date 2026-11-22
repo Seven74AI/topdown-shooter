@@ -10,10 +10,20 @@ export type UiScreen =
   /** Online lobby; players come from `net/lobbyStore`. */
   | { kind: "lobby"; code: string }
   | { kind: "playing" }
-  /** `online`: Back to start (leaves the room) instead of Restart (Story 2.4). */
-  | { kind: "gameOver"; waveReached: number; online?: boolean }
+  /**
+   * Team wipe (Story 2.8): wave reached and kills per player, sorted by slot. `online`: Back to
+   * lobby (the whole room) instead of Restart.
+   */
+  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean }
   /** Dev builds: choose two weapons before the run (temporary until the shop, Story 3.3). */
   | { kind: "loadoutPicker"; weapons: readonly string[] };
+
+/** One line of the Results table. */
+export interface ResultRow {
+  readonly slot: number;
+  readonly name: string;
+  readonly kills: number;
+}
 
 export type LoadoutChoice = readonly [string, string | null];
 
@@ -26,6 +36,10 @@ export interface UiRequests {
   joinGame: (code: string, name: string) => void;
   /** Lobby: the run started (phase `wave`): start `Game` online on this session (Story 2.4). */
   startOnline: (session: NetSession) => void;
+  /** Results (online): Back to lobby, sends `lobby.return` (Story 2.8). */
+  lobbyReturn: () => void;
+  /** The room went back to the lobby: stop the Game scene without leaving the room (Story 2.8). */
+  backToLobby: () => void;
   /** Online run: leave it and go back to the start screen, with an error text if the connection dropped. */
   leaveRun: (error?: string) => void;
   /** Start screen: play offline, exactly as Epic 1. */
