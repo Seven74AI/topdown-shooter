@@ -28,17 +28,14 @@ export function applyZombieDamage(
   const { widthM, heightM } = world.map;
   z.x[id] = Math.min(widthM - r, Math.max(r, (z.x[id] as number) + dirX * pushbackM));
   z.y[id] = Math.min(heightM - r, Math.max(r, (z.y[id] as number) + dirY * pushbackM));
-  world.events.emit({
-    type: "zombie.hit",
-    zombieId: id,
-    x: z.x[id] as number,
-    y: z.y[id] as number,
-    dirX,
-    dirY,
-    damage: amount,
-    weapon,
-    sourceId: buildingId > 0 ? null : killerId,
-  });
+  const x = z.x[id] as number;
+  const y = z.y[id] as number;
+  if (buildingId > 0) {
+    // A turret's hit: no assist source; the building id is for the server's interest filter (review M2).
+    world.events.emit({ type: "zombie.hit", zombieId: id, x, y, dirX, dirY, damage: amount, weapon, sourceId: null, buildingId });
+  } else {
+    world.events.emit({ type: "zombie.hit", zombieId: id, x, y, dirX, dirY, damage: amount, weapon, sourceId: killerId });
+  }
   if ((z.hp[id] as number) <= 0) {
     killZombie(world, id, killerId, weapon, buildingId);
     return true;
