@@ -4,6 +4,7 @@ import { createOnlinePhaseHandler, resultsFromState } from "./onlineFlow";
 import { NetSession, RunInbox } from "./session";
 import { FakeRoom, fakePlayer, fakeState } from "./fakeRoom";
 import { NetSimHost } from "../sim/NetSimHost";
+import { activeRun } from "./activeRun";
 import type { UiScreen } from "../ui/uiState";
 
 const joined = { playerId: "p1", slot: 1, tickRateHz: 20 };
@@ -101,6 +102,19 @@ describe("online run cycle in one room (Story 2.8)", () => {
     const got: number[] = [];
     t.sessions[1]?.onEvents((m) => got.push(m.tick));
     expect(got).toEqual([1]);
+  });
+
+  it("activeRun follows the room: the run's session at wave, null at lobby (late scene starts check it)", () => {
+    const { phase, sessions } = setup();
+    phase("wave");
+    expect(activeRun.current()).toBe(sessions[0]);
+    phase("results");
+    expect(activeRun.current()).toBe(sessions[0]);
+    phase("lobby");
+    expect(activeRun.current()).toBeNull();
+    phase("wave");
+    expect(activeRun.current()).toBe(sessions[1]);
+    expect(activeRun.current()).not.toBe(sessions[0]); // a stale start for run 1 is detectable
   });
 
   it("no session (room not ready) starts nothing", () => {

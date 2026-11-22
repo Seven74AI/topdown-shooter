@@ -123,6 +123,32 @@ describe("revive", () => {
     expect(ofType(events, "player.revived")).toEqual([{ type: "player.revived", playerId: "p0", reviverId: "p1" }]);
   });
 
+  it("the reviver going down mid-revive resets the progress (review gap)", () => {
+    const { world, players } = setup(["p0", "p1", "p2"]);
+    const [a, b] = players as [PlayerState, PlayerState, PlayerState];
+    downPlayer(world, a);
+    placeNear(b, a, 1.1);
+    run(world, 30);
+    expect(a.reviveTicks).toBe(30);
+    downPlayer(world, b);
+    run(world, 1);
+    expect(a.reviveTicks).toBe(0);
+    expect(a.reviverId).toBeNull();
+    expect(a.status).toBe("downed");
+  });
+
+  it("the reviver leaving the run mid-revive resets the progress (review gap)", () => {
+    const { world, players } = setup(["p0", "p1", "p2"]);
+    const [a, b] = players as [PlayerState, PlayerState, PlayerState];
+    downPlayer(world, a);
+    placeNear(b, a, 1.1);
+    run(world, 30);
+    removePlayer(world, "p1");
+    run(world, 1);
+    expect(a.reviveTicks).toBe(0);
+    expect(a.reviverId).toBeNull();
+  });
+
   it("stepping to 1.3 m at tick 59 resets the progress; coming back restarts it from 0", () => {
     const { world, players, events } = setup();
     const [a, b] = players as [PlayerState, PlayerState];

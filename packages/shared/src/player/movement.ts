@@ -4,12 +4,12 @@ import { updateDowned } from "./downed";
 const MIN_VEC_LEN = 1e-6;
 
 /**
- * Moves every alive player from their input (downed and out players stand still), then runs the
- * downed/revive rules (Story 2.8). Runs on the server and in client prediction (Epic 2),
- * so it uses only + − × ÷, sqrt, min and max: no sin/cos/atan2, whose last bits can differ
- * between JavaScript engines and would make prediction drift.
+ * Moves every alive player from their input (downed and out players stand still). Runs on the
+ * server and in client prediction (Epic 2), so it uses only + − × ÷, sqrt, min and max: no
+ * sin/cos/atan2, whose last bits can differ between JavaScript engines and would make prediction
+ * drift. Prediction runs only this (`PREDICTION_SYSTEMS`): the downed rules are the server's.
  */
-export const updatePlayers: SystemFn = (world, dtS) => {
+export const movePlayers: SystemFn = (world, dtS) => {
   const speed = world.balance.player.speedMps;
   const { widthM, heightM } = world.map;
   for (const p of world.players.values()) {
@@ -39,5 +39,10 @@ export const updatePlayers: SystemFn = (world, dtS) => {
       p.facingY = input.moveY / moveLen;
     }
   }
-  updateDowned(world); // Story 2.8: last in the player system, so the order inside a tick stays fixed
+};
+
+/** The player system: movement, then the downed/revive rules (Story 2.8: last, so the order inside a tick stays fixed). */
+export const updatePlayers: SystemFn = (world, dtS) => {
+  movePlayers(world, dtS);
+  updateDowned(world);
 };

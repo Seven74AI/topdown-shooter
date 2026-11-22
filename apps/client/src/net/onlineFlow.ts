@@ -1,6 +1,7 @@
 import type { RunPhase, RunStateView } from "@topdown/shared";
 import type { ResultRow, UiRequests, UiScreen } from "../ui/uiState";
 import type { NetSession, RunInbox } from "./session";
+import { activeRun } from "./activeRun";
 
 /** What the phase handler needs (main.ts passes the real stores; tests pass fakes). */
 export interface OnlineFlowDeps {
@@ -46,12 +47,14 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
     if (phase === "wave") {
       session?.release();
       session = deps.makeSession();
+      activeRun.set(session);
       if (session) deps.ui.request("startOnline", session);
     } else if (phase === "results") {
       deps.ui.set({ kind: "results", ...resultsFromState(deps.state()), online: true });
     } else if (phase === "lobby") {
       session?.release();
       session = null;
+      activeRun.set(null);
       deps.inbox()?.reset();
       deps.ui.request("backToLobby");
       deps.ui.set({ kind: "lobby", code: deps.code });

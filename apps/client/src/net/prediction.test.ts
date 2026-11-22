@@ -129,6 +129,16 @@ describe("Predictor", () => {
     expect(p.x).toBeCloseTo(12 + STEP_M, 12);
   });
 
+  it("the prediction World never runs the downed rules: downed stays downed, no out, no wipe", () => {
+    const p = predictor();
+    p.reconcile(0, 10, 10, "downed");
+    for (let seq = 1; seq <= 500; seq++) p.applyLocal(move(seq, 1)); // longer than the 400-tick countdown
+    const w = (p as unknown as { world: { players: Map<string, { status: string }>; teamWiped: boolean } }).world;
+    expect(w.players.get("p0")?.status).toBe("downed");
+    expect(w.teamWiped).toBe(false);
+    expect(p.x).toBe(10);
+  });
+
   it("a downed player is not moved", () => {
     const p = predictor();
     p.reconcile(0, 10, 10, "downed");

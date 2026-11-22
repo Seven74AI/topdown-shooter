@@ -1,5 +1,5 @@
 import type { World } from "./world";
-import { updatePlayers } from "../player/movement";
+import { movePlayers, updatePlayers } from "../player/movement";
 import { updateZombies } from "../zombies/zombieAi";
 import { updateCombat } from "../combat/firing";
 import { updateWaves } from "../waves/waveDirector";
@@ -80,6 +80,7 @@ export const NO_SYSTEMS: Systems = {
 /**
  * Client prediction (Story 2.6, ADR-01): only input and movement run, the very functions the
  * server runs, so a predicted player ends exactly where the server puts it. Combat, zombies and
- * waves are never predicted.
+ * waves are never predicted, nor the downed/revive rules (the predictor takes status from the
+ * server; Story 2.8 review).
  */
-export const PREDICTION_SYSTEMS: Systems = { ...NO_SYSTEMS, input: applyInputs, player: updatePlayers };
+export const PREDICTION_SYSTEMS: Systems = { ...NO_SYSTEMS, input: applyInputs, player: movePlayers };

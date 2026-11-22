@@ -47,7 +47,7 @@ export {
   type NetEventKind,
   type SimEventsFlushed,
 } from "./net/netEvents";
-export { updatePlayers } from "./player/movement";
+export { movePlayers, updatePlayers } from "./player/movement";
 export { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "./zombies/zombieTypes";
 export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
 export { spawnRing } from "./zombies/spawnRing";

@@ -36,6 +36,7 @@ import { MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, createHudModel } from "./hudModel
 import { LocalSimHost, type SimStepStats } from "../sim/LocalSimHost";
 import { NetSimHost } from "../sim/NetSimHost";
 import type { SimHost } from "../sim/SimHost";
+import { activeRun } from "../net/activeRun";
 import type { NetSession } from "../net/session";
 import type { HudSceneData } from "./HudScene";
 import type { BootSceneData } from "./BootScene";
@@ -141,6 +142,15 @@ export class GameScene extends Phaser.Scene {
 
   create(data?: GameSceneData): void {
     const session = data?.mode === "online" ? data.session : null;
+    if (session && session !== activeRun.current()) {
+      // A start queued while this tab was hidden, for a run that is over (Story 2.8 review): go to
+      // the room's current run, or back to the lobby, instead of a dead scene over the lobby screen.
+      this.host = null; // Phaser reuses this object: never update a previous run's host
+      const now = activeRun.current();
+      if (now) this.scene.start("Game", { mode: "online", session: now } satisfies GameSceneData);
+      else this.scene.start("Boot", { lobby: true } satisfies BootSceneData);
+      return;
+    }
     this.mode = session ? "online" : "solo";
     const opts = urlOptions();
     // ?tune=1: the live tuning values from the panel (validated like any balance change). Online
@@ -195,7 +205,8 @@ export class GameScene extends Phaser.Scene {
       uiStore.set({ kind: "loadoutPicker", weapons: weaponIds(balance) });
     } else {
       this.running = true;
-      uiStore.set({ kind: "playing" });
+      // Online, the run may already be over when this scene starts late (hidden tab): keep Results up.
+      if (!session || session.room.state?.phase === "wave") uiStore.set({ kind: "playing" });
     }
 
     drawStreet(this, world.map);
