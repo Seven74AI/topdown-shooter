@@ -252,6 +252,7 @@ export class GameScene extends Phaser.Scene {
     this.toasts.clear();
     perf.hits = netHost ? netHost.netStats : null;
     perf.net = netHost; // Story 2.10: the overlay's network lines
+    perf.soloSeed = localHost ? localHost.world.seed : null; // Story 4.4: online the overlay reads the server's
     const stress = session ? null : opts.stress;
     this.stressMode = stress !== null;
     this.pausedAtMs = 0;
@@ -381,6 +382,7 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.clear();
       perf.hits = null;
       perf.net = null;
+      perf.soloSeed = null;
       this.host?.dispose(); // online: also leaves the room
       this.host = null;
       this.localHost = null;
@@ -400,6 +402,16 @@ export class GameScene extends Phaser.Scene {
     out.w = this.scale.width / m.camZoom;
     out.h = this.scale.height / m.camZoom;
     return out;
+  }
+
+  /** Story 4.4: the dev cheats' "Restart with seed" is solo only. */
+  get isOnline(): boolean {
+    return this.mode === "online";
+  }
+
+  /** Story 4.4: this run's seed (online the server's, from the room state). */
+  get runSeed(): number {
+    return this.host instanceof NetSimHost ? this.host.runSeed : (this.host?.world.seed ?? 0);
   }
 
   /** Dev tools: restart the run, with a given seed or a random one. */
@@ -513,7 +525,7 @@ export class GameScene extends Phaser.Scene {
   private showSoloResults(host: SceneHost, wave: number, heldOut: boolean): void {
     this.gameOver = true;
     const earned = host.world.players.get(host.localPlayerId)?.earned ?? 0;
-    uiStore.set({ kind: "results", wave: Math.max(1, wave), heldOut, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false });
+    uiStore.set({ kind: "results", wave: Math.max(1, wave), heldOut, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed });
   }
 
   /**

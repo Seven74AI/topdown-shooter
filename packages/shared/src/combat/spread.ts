@@ -5,7 +5,7 @@ import { DEG_TO_RAD, rotate } from "../math/vec";
  * seq that fired it, uniform in [-1, 1). The server (with lag compensation) and the shooter's
  * client both use it, so the cosmetic bullet flies exactly where the server's does: 2.7 rolled them
  * independently, which alone reversed ~3.6 % of Pistol hits on kiting Runners once the rewind fixed
- * the timing. Offline, the World's rng rolls as before (solo unchanged). At most one shot per seq
+ * the timing. Offline, the World's `combat` stream rolls (Story 4.4). At most one shot per seq
  * (every gun fires ≤ 20/s); a multi-pellet weapon would add the pellet index. Allocation-free.
  */
 export function seqSpreadRoll(playerId: string, seq: number): number {

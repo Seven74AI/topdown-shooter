@@ -15,6 +15,11 @@ export interface Rng {
   pick<T>(items: readonly T[]): T;
   /** Current state, for snapshots (Story 8.4). */
   getState(): RngState;
+  /**
+   * Story 4.4: restarts this generator in place exactly as `createRng(seed)` would (no allocation),
+   * for the per-build shop streams.
+   */
+  reseed(seed: number): void;
 }
 
 const WARM_UP_DRAWS = 12;
@@ -63,6 +68,24 @@ class Sfc32 implements Rng {
 
   getState(): RngState {
     return [this.a >>> 0, this.b >>> 0, this.c >>> 0, this.d >>> 0];
+  }
+
+  reseed(seed: number): void {
+    // splitmix32 inlined (no closure): the same four words `createRng` draws.
+    let s = seed | 0;
+    for (let k = 0; k < 4; k++) {
+      s = (s + 0x9e3779b9) | 0;
+      let t = s ^ (s >>> 16);
+      t = Math.imul(t, 0x21f0aaad);
+      t ^= t >>> 15;
+      t = Math.imul(t, 0x735a2d97);
+      const w = (t ^ (t >>> 15)) >>> 0;
+      if (k === 0) this.a = w;
+      else if (k === 1) this.b = w;
+      else if (k === 2) this.c = w;
+      else this.d = w;
+    }
+    for (let i = 0; i < WARM_UP_DRAWS; i++) this.nextUint32();
   }
 }
 

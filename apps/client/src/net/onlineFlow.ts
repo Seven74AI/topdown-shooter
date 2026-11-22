@@ -24,13 +24,13 @@ export interface OnlineFlowDeps {
 
 /**
  * Results from the room state: the wave reached (at least 1), whether the team held out (Story
- * 3.10), and kills and money earned per player, by slot.
+ * 3.10), kills and money earned per player, by slot, and the run seed (Story 4.4).
  */
-export function resultsFromState(state: RunStateView): { wave: number; heldOut: boolean; rows: ResultRow[] } {
+export function resultsFromState(state: RunStateView): { wave: number; heldOut: boolean; rows: ResultRow[]; seed: number } {
   const rows: ResultRow[] = [];
   state.players.forEach((p) => rows.push({ slot: p.slot, name: p.name, kills: p.kills, earned: p.earned }));
   rows.sort((a, b) => a.slot - b.slot);
-  return { wave: Math.max(1, state.resultWave), heldOut: state.resultHeldOut === true, rows };
+  return { wave: Math.max(1, state.resultWave), heldOut: state.resultHeldOut === true, rows, seed: state.runSeed ?? 0 };
 }
 
 /**

@@ -90,12 +90,14 @@ describe("online run cycle in one room (Story 2.8)", () => {
     expect(t.requests).toEqual([{ name: "startOnline", arg: t.sessions[0] }]);
 
     t.room.state.resultWave = 4;
+    t.room.state.runSeed = 3141592653; // Story 4.4: the server's seed reaches the Results
     t.phase("results");
     expect(t.screens.at(-1)).toEqual({
       kind: "results",
       wave: 4,
       heldOut: false,
       online: true,
+      seed: 3141592653,
       rows: [
         { slot: 0, name: "Ana", kills: 7, earned: 245 },
         { slot: 2, name: "Cid", kills: 3, earned: 120 },
@@ -173,7 +175,7 @@ describe("online run cycle in one room (Story 2.8)", () => {
 describe("resultsFromState", () => {
   it("shows at least wave 1, rows by slot", () => {
     const s = fakeState([fakePlayer(1, { kills: 2 })]);
-    expect(resultsFromState(s)).toEqual({ wave: 1, heldOut: false, rows: [{ slot: 1, name: "P1", kills: 2, earned: 0 }] });
+    expect(resultsFromState(s)).toEqual({ wave: 1, heldOut: false, rows: [{ slot: 1, name: "P1", kills: 2, earned: 0 }], seed: 0 });
   });
 
   it("Story 3.10: the last wave cleared → heldOut, the wave reached and each player's earnings", () => {
@@ -181,9 +183,11 @@ describe("resultsFromState", () => {
     s.phase = "results";
     s.resultWave = 5;
     s.resultHeldOut = true;
+    s.runSeed = 99;
     expect(resultsFromState(s)).toEqual({
       wave: 5,
       heldOut: true,
+      seed: 99,
       rows: [
         { slot: 0, name: "P0", kills: 52, earned: 655 },
         { slot: 3, name: "P3", kills: 40, earned: 610 },

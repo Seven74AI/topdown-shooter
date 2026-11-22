@@ -52,6 +52,8 @@ export interface FakeState {
   resultHeldOut: boolean;
   buildTicksLeft: number;
   scenario: string;
+  /** Story 4.4. */
+  runSeed: number;
 }
 
 export function fakeState(players: FakePlayer[] = []): FakeState {
@@ -68,6 +70,7 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     resultHeldOut: false,
     buildTicksLeft: 0,
     scenario: "",
+    runSeed: 0,
   };
 }
 

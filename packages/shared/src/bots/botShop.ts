@@ -3,6 +3,7 @@ import type { World } from "../core/world";
 import { buildingStats, cornerForCentre, ownedCount, placeBuilding } from "../buildings/buildings";
 import { buyWeapon, shopPrice } from "../economy/shop";
 import { setBuildReady } from "../run/runStateMachine";
+import type { BuildCommand } from "../replay/inputLog";
 
 /**
  * Story 3.10: the bots' build-phase shopping (the Story 2.10 `bots.json › shoppingList` hook), shared
@@ -121,9 +122,17 @@ export function createBotShopResult(): BotShopResult {
 /**
  * Headless bots (sims, Story 3.10): one build phase's shopping for `playerId` through the real
  * `buyWeapon` / `placeBuilding` rules, then Ready (`ready`, default true). Call it once, on a tick in
- * the build phase. Resets and fills `out`.
+ * the build phase. Resets and fills `out`. Story 4.4: `record` receives every action that changed
+ * the World (buy, place, Ready), in order, for the replay's input log.
  */
-export function botBuildPhase(world: World, playerId: string, list: readonly string[], out: BotShopResult, ready = true): BotShopResult {
+export function botBuildPhase(
+  world: World,
+  playerId: string,
+  list: readonly string[],
+  out: BotShopResult,
+  ready = true,
+  record?: (cmd: BuildCommand) => void,
+): BotShopResult {
   out.swap = false;
   out.weapons = 0;
   out.buildings = 0;
@@ -152,11 +161,13 @@ export function botBuildPhase(world: World, playerId: string, list: readonly str
     const id = list[i] as string;
     const before = p.wallet;
     if (shopPrice(balance, id) !== null) {
-      const r = buyWeapon(world, playerId, id, botWeaponSlot(self));
+      const slot = botWeaponSlot(self);
+      const r = buyWeapon(world, playerId, id, slot);
       if (!r.ok) {
         skip |= 1 << i;
         continue;
       }
+      record?.({ kind: "buy", playerId, weapon: id, slot });
       out.weapons++;
       out.bought.push(id);
       hands = r.value.slot;
@@ -165,6 +176,7 @@ export function botBuildPhase(world: World, playerId: string, list: readonly str
       if (ownedCount(world, playerId) < balance.buildings.maxPerPlayer) {
         for (let a = 0; botPlaceCandidate(balance, id, p.x, p.y, a, spot); a++) {
           if (placeBuilding(world, playerId, { type: id, gx: spot.gx, gy: spot.gy, rot: spot.rot }).ok) {
+            record?.({ kind: "place", playerId, type: id, gx: spot.gx, gy: spot.gy, rot: spot.rot });
             placed = true;
             break;
           }
@@ -179,6 +191,9 @@ export function botBuildPhase(world: World, playerId: string, list: readonly str
     out.spent += before - p.wallet;
   }
   out.swap = hands !== p.loadout.active;
-  if (ready) setBuildReady(world, playerId, true);
+  if (ready) {
+    setBuildReady(world, playerId, true);
+    record?.({ kind: "ready", playerId, ready: true });
+  }
   return out;
 }

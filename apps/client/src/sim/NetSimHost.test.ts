@@ -50,6 +50,14 @@ function setup(players = [fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20
 const inputs = (room: FakeRoom) => room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
 
 describe("NetSimHost", () => {
+  it("Story 4.4: runSeed is the server's (room state), the mirror World never draws a seed of its own", () => {
+    const t = setup();
+    expect(t.host.runSeed).toBe(0);
+    t.arrive(1, (s) => (s.runSeed = 3000000001));
+    expect(t.host.runSeed).toBe(3000000001);
+    expect(t.host.world.seed).toBe(0);
+  });
+
   it("is online and controls the player from run.joined", () => {
     const { host } = setup();
     expect(host.online).toBe(true);
