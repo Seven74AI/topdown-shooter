@@ -1395,6 +1395,10 @@ So that we judge the milestone on the right mood.
 **When** they are loaded
 **Then** they follow the final atlas layout and `category_name_variant` naming, are ≤ 2048 × 2048, and the first-load download stays under 15 MB
 
+**Given** the night moving on with decay (designer, 2026-11-22: a run is one night, no day-night cycle)
+**When** the decay stage changes
+**Then** the light state follows a time of night per stage: stage 1 dusk (a little blue left in the sky, warm shop light), stage 2 full night, stage 3 deep night with rain; stages 4–5 are darker placeholders until Epic 6 (blackout and fog in 6.4)
+
 ### Story 4.10: Milestone 1 playtest
 
 As the designer,
@@ -1914,6 +1918,10 @@ So that we choose together how much to risk.
 **Given** Extract
 **When** chosen
 **Then** the run is won and the Results screen shows "Extracted" with wave reached, kills and money per player (FR67)
+
+**Given** Extract chosen (designer, 2026-11-22)
+**When** the helicopter lifts off
+**Then** the first light of dawn rises over the district before the Results screen: the team survived the night
 
 ### Story 6.12: Endless mode
 
