@@ -1,6 +1,6 @@
 # Story 3.1: Build phase between waves
 
-Status: review
+Status: done
 
 ## Story
 
@@ -170,6 +170,18 @@ claude-opus-5-5 (story writer + builder agent, worktree `story-3-1`)
 - Modified (tools): `tools/bots/botClient.ts`.
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file.
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched folders 4× under load, ~35 mutations of which all but 6 were caught, A2 proven by adding schema fields, browser: two tabs under `?lag=150&jitter=20`, late scene start, same-room cycle, menu during build, solo pause, A5 refusal, bots). **Outcome:** decisions judged reasonable; one medium finding, fixed.
+- [x] [Med] After a hidden tab slept across wave → build (or a dropped `build.set_ready`), my Ready button showed the old Ready while the server had me not ready, and the next tap sent "not ready". Fix: `scenes/readyRequest.ts` — the server's `buildReady` is the truth; a tap is a pending request shown until the server agrees or for at most 1.5 s; a new build (phase or wave number change, even slept through) voids it. Tests incl. the slept-through build.
+- [x] [Low] Stale comments (where 3.2 pays the bonus; an orphan JSDoc in syncState): fixed.
+- [x] [Low] Dev balance switch (A5): ignored with a warning when `NODE_ENV=production` (the server image sets it); the warn line logs the parsed value, and a rejected value logs `dev_balance_override_ignored`. Bots can't join a dev-scaled server (they load the plain balance): noted.
+- [x] [Low] Bots sent Ready every 50 ms until confirmed: once per build, retried after 1 s.
+- [x] [Low] Test gaps: an empty World is never "all Ready"; an out player's old position doesn't block a free spot. (`startBuild`'s Ready clear is redundant with `startWave`'s: accepted.)
+- Noted: `buildTicksLeft` changes every tick in a build (≈ 60 B/s per client, negligible; A8 line for 3.10's measurement); `DEV_NO_WAVES` rooms stay in build forever and Ready does nothing there (intended for 3.3/3.4 checks); the NetSimHost mirror is still a hand-written copy (not covered by A2).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (Ready request model, production guard on the dev switch, bot Ready, comments, tests). Story done.
 
 - 2026-11-22: Story written (gds-create-story) and implemented: run state machine (Lobby → Build → Wave → … → Results), 30 s build phase with Ready (online and solo), build-start heal + return on a free spot, 5 s pause removed; retro A2 (schema-checked state copies), A5 (dev balance switch), A12 (free-spot return). Merged `claude/epic-2-continue` (3.2, 3.9, 2.10 dev parts). Status → review.

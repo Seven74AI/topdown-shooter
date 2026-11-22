@@ -17,7 +17,8 @@ import { killZombie } from "../zombies/zombiePool";
  * bookkeeping, Back to lobby, which drops the World).
  *
  * Story 3.3 (shop) and 3.4 (placement) act only while `world.run.phase === "build"`; the build timer
- * is `world.run.buildTicksLeft`. Story 3.2 pays the wave-clear bonus in `endWave`.
+ * is `world.run.buildTicksLeft`. Story 3.2's economy system pays the wave-clear bonus from the
+ * `wave.ended` event that `endWave` emits.
  */
 export type RunPhase = "lobby" | "build" | "wave" | "results";
 
@@ -69,7 +70,7 @@ export function endWave(world: World): void {
   expectPhase(world, "endWave", "wave");
   clearWave(world);
   world.events.emit({ type: "wave.ended", number: world.waves.number });
-  // Story 3.2: the wave-clear bonus (10 × N, every player) goes here, before the build starts.
+  // Story 3.2: the economy system pays the wave-clear bonus (10 × N, every player) from this event.
   startBuild(world);
 }
 

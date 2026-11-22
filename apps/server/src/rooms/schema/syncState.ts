@@ -91,14 +91,13 @@ function visitPlayer(p: SimPlayer): void {
   }
 }
 
-/** Story 2.8: countdown, revive progress (0–255) and kills; Story 3.1: build-phase Ready. */
 /** Story 3.2: wallet and earned total (integers; assigned only when they change). */
 function syncWallet(s: PlayerState, p: SimPlayer): void {
   if (s.wallet !== p.wallet) s.wallet = p.wallet;
   if (s.earned !== p.earned) s.earned = p.earned;
 }
 
-/** Story 2.8: countdown, revive progress (0–255) and kills. */
+/** Story 2.8: countdown, revive progress (0–255) and kills; Story 3.1: build-phase Ready. */
 function syncDowned(s: PlayerState, p: SimPlayer, kills: number): void {
   if (s.downedTicksLeft !== p.downedTicksLeft) s.downedTicksLeft = p.downedTicksLeft;
   const progress = Math.min(255, Math.round((p.reviveTicks / pass.reviveTicks) * 255));

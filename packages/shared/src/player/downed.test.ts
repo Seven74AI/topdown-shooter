@@ -440,4 +440,15 @@ describe("team wipe", () => {
     };
     expect(go()).toEqual(go());
   });
+
+  it("an out player's old position doesn't block a free spot; a standing one does (3.1 review)", () => {
+    const { world, players } = setup(["p0", "p1"]);
+    const [a, b] = players as [PlayerState, PlayerState];
+    b.x = a.x + 3;
+    b.y = a.y;
+    b.status = "out";
+    expect(spotBlocked(world, b.x, b.y, a.radiusM, a)).toBe(false);
+    b.status = "alive";
+    expect(spotBlocked(world, b.x, b.y, a.radiusM, a)).toBe(true);
+  });
 });

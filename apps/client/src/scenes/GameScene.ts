@@ -50,6 +50,7 @@ import {
 import { LocalSimHost, type SimStepStats } from "../sim/LocalSimHost";
 import { NetSimHost } from "../sim/NetSimHost";
 import type { SimHost } from "../sim/SimHost";
+import { ReadyRequest } from "./readyRequest";
 import { activeRun } from "../net/activeRun";
 import type { NetSession } from "../net/session";
 import type { HudSceneData } from "./HudScene";
@@ -168,11 +169,12 @@ export class GameScene extends Phaser.Scene {
    * Story 3.1: the Ready this device asked for in the current build phase (shown at once, while the
    * server's copy is a round trip away online), and the phase it belongs to: cleared when it changes.
    */
-  private localReady = false;
-  private readyPhase = "";
+  /** Story 3.1 review: my Ready button (server truth + a pending tap). */
+  private readonly ready = new ReadyRequest();
+  private myReady = false;
   private readyCount = 0;
   private readonly countReady = (p: PlayerState, id: string): void => {
-    if (id === this.host?.localPlayerId ? this.localReady : p.buildReady) this.readyCount++;
+    if (id === this.host?.localPlayerId ? this.myReady : p.buildReady) this.readyCount++;
   };
   /** Seconds in the "Downed: …" line now (the string is rebuilt only when it changes). */
   private statusSecs = -1;
@@ -246,8 +248,8 @@ export class GameScene extends Phaser.Scene {
     this.kills = 0;
     this.placement.cancel(); // Phaser reuses this scene object: no placement from the last run
     this.refusalTexts.clear();
-    this.localReady = false; // Phaser reuses this scene object (restart): no Ready from the last run
-    this.readyPhase = "";
+    this.ready.reset(); // Phaser reuses this scene object (restart): no Ready from the last run
+    this.myReady = false;
     this.statusSecs = -1;
     // Phaser reuses this scene object on restart: reset what the HUD reads (no stale banner).
     Object.assign(this.hudModel, createHudModel());
@@ -498,20 +500,19 @@ export class GameScene extends Phaser.Scene {
   private updateReady(host: SceneHost, menuOpen: boolean): void {
     const m = this.hudModel;
     const run = host.world.run;
-    if (run.phase !== this.readyPhase) {
-      this.readyPhase = run.phase; // a new phase: the server cleared every Ready too
-      this.localReady = false;
-    }
     const build = run.phase === "build";
     m.buildSecs = build ? Math.ceil(run.buildTicksLeft / TICK_RATE_HZ) : -1;
     m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.placement.active;
+    const serverReady = host.world.players.get(host.localPlayerId)?.buildReady === true;
+    const now = this.time.now;
+    this.myReady = this.ready.update(run.phase, host.world.waves.number, serverReady, now);
     const pressed = m.readyPressed;
     m.readyPressed = false;
     if (pressed && m.readyButton) {
-      this.localReady = !this.localReady;
-      host.setBuildReady(this.localReady);
+      this.myReady = this.ready.tap(serverReady, now);
+      host.setBuildReady(this.myReady);
     }
-    m.readyOn = this.localReady;
+    m.readyOn = this.myReady;
     this.readyCount = 0;
     if (build) host.world.players.forEach(this.countReady);
     m.readyCount = this.readyCount;

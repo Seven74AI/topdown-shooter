@@ -83,7 +83,7 @@ development_status:
 
   # Epic 3: Build phase and economy
   epic-3: in-progress
-  3-1-build-phase-between-waves: review
+  3-1-build-phase-between-waves: done
   3-2-personal-wallets-and-rewards: done
   3-3-fixed-list-shop: backlog
   3-4-place-a-wood-barricade: ready-for-dev
