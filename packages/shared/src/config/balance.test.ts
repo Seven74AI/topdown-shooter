@@ -6,8 +6,9 @@ import waves from "./balance/waves.json" with { type: "json" };
 import player from "./balance/player.json" with { type: "json" };
 import controls from "./balance/controls.json" with { type: "json" };
 import bots from "./balance/bots.json" with { type: "json" };
+import economy from "./balance/economy.json" with { type: "json" };
 
-const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, bots })) as RawBalanceFiles;
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots })) as RawBalanceFiles;
 
 describe("loadBalance", () => {
   it("loads the bundled files into a typed object", () => {

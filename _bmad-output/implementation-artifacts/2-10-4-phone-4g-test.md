@@ -217,6 +217,24 @@ Claude Opus 5.5 (Claude Code), builder agent in worktree `story-2-10`.
 - The summary box's layout on a small phone screen: at 800 × 450 the text is long and the box scrolls.
 - Revives in a real room: the bots never went down there (god mode in `net150`, and none in waves 1–3); the revive is proven by the headless policy test.
 
+### Notes for the merge (Epic 3 brief line 20)
+
+Merged `claude/epic-2-continue` (05837cb: Stories 3.2 wallets, 3.9 Crawlers, the Epic 2 retro) into `story-2-10`; 14 conflicts, all resolved by keeping both sides.
+
+- **Balance files:** `bots.json` sits next to 3.2's `economy.json` (`BUNDLED = { weapons, zombies, waves, player, controls, economy, bots }`; `balanceFileSchemas` has `economy` then `bots`). Shared tests that build balance by hand list `economy, bots`. A new balance file needs adding to all of them (`config/balance.test.ts`, `combat/{firing,aimAssist,melee,swap}.test.ts`, `waves/waveDirector.test.ts`, `zombies/zombieAi.test.ts`).
+- **RunController options:** `waveMix` (3.9) and `scenario` (2.10) are both applied in the constructor, `waveMix` first. `applyTestScenario` only touches `world.debug.godMode` and `world.waves.number`.
+- **RunRoom.startRun:** passes both `waveMix: parseWaveMix(DEV_WAVE_MIX)` and `scenario: this.scenario`. `onTick`'s event loop handles `wave.started` (`startWaveStats`) and `wave.ended` (`logWaveStats`: `net_stats`, `horde_stats`, `tick_stats`).
+- **urlOptions:** `scenario` (2.10) and `waveMix` (3.9) are separate fields; neither skips the start screen.
+- **Schema `RunState.scenario`** goes through every copy (brief line 3): schema (`RunState.ts`) → `RunStateView` (`stateView.ts`) → dev throttle `STATE_FIELDS` → `fakeRoom.ts` / test fakes → `NetSimHost.scenario` getter (read by the overlay). It is set once in `startRun`, not by `syncState`, and is kept on Back to lobby (`resetRunFields` leaves it: the room keeps its scenario). It is not World state; what the scenario changes in the World (`debug.godMode`, `waves.number`) is in `snapshotWorld` already. No Predictor impact.
+- **Bot policy and Crawlers:** the policy aims at the nearest zombie of any type. A test with `world.debug.waveMix = ["walker", "crawler"]` clears waves 1–2 with no team wipe.
+
+### Epic 3 brief check (lines 2, 3, 9, 20)
+
+- **Line 2:** after the merge, `git status` clean before commit; `npm run typecheck && npm run lint && npm test && npm run build` pass on `story-2-10` + `claude/epic-2-continue` (112 test files, 796 passed, 3 skipped).
+- **Line 3:** see the `RunState.scenario` note above.
+- **Line 9:** no new C2S message. The new `scenario` **join option** is validated: `joinOptionsSchema` (`z.enum(TEST_SCENARIOS).optional()`, strict object, size-capped) in `onAuth`, so an unknown name is refused with `ServerError(526, "invalid_options")` (test: "refuses a scenario name that does not exist"). `onCreate` checks it again with `isTestScenario`, and applies it only when the room default `allowTestScenarios` (from `ALLOW_TEST_SCENARIOS=1`, never from the client) is on.
+- **Line 20:** this section.
+
 ### File List
 
 - New: `packages/shared/src/net/{byteRate.ts, byteRate.test.ts, testScenarios.ts}`, `packages/shared/src/bots/{botPolicy.ts, botPolicy.test.ts}`, `packages/shared/src/config/balance/bots.json`, `apps/client/src/net/{netMeter.ts, netMeter.test.ts}`, `apps/client/src/debug/{netSummary.ts, netSummary.test.ts, NetResults.tsx, ResultsDialog.tsx}`, `apps/server/src/rooms/{RunRoom.net.test.ts, RunRoom.scenario.test.ts}`, `tools/bots/{run.ts, botClient.ts}`, `docs/perf/epic-2-network.md`
@@ -225,3 +243,4 @@ Claude Opus 5.5 (Claude Code), builder agent in worktree `story-2-10`.
 ## Change Log
 
 - 2026-11-22: Developer parts of Story 2.10 implemented (byte counters client + server, overlay network lines and TEST SCENARIO tag, wave summary with Copy results, `net150` scenario behind `ALLOW_TEST_SCENARIOS`, shared bot policy + `bots.json`, `tools/bots`, results doc with the local bot baseline and the designer's how-to). Status → review; the human 4-phone test (Tasks 10–11) is still open.
+- 2026-11-22: Merged `claude/epic-2-continue` (3.2, 3.9, Epic 2 retro); conflicts resolved keeping both sides; Crawler test for the bot policy; notes for the merge and Epic 3 brief check added.

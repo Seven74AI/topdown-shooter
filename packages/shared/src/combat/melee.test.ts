@@ -5,6 +5,7 @@ import zombies from "../config/balance/zombies.json" with { type: "json" };
 import waves from "../config/balance/waves.json" with { type: "json" };
 import player from "../config/balance/player.json" with { type: "json" };
 import controls from "../config/balance/controls.json" with { type: "json" };
+import economy from "../config/balance/economy.json" with { type: "json" };
 import bots from "../config/balance/bots.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
@@ -19,7 +20,7 @@ import { isMelee, weaponStats } from "./weapons";
 /** These tests cover one mechanic: keep the wave director from spawning extra zombies. */
 const NO_WAVES = { waves: () => {} };
 
-const balance = loadBalance({ weapons, zombies, waves, player, controls, bots } as RawBalanceFiles);
+const balance = loadBalance({ weapons, zombies, waves, player, controls, economy, bots } as RawBalanceFiles);
 const machete = weaponStats(balance, "machete");
 const walkerR = balance.zombies.types.walker?.radiusM ?? 0;
 

@@ -33,6 +33,14 @@ export class EventBus {
     return this.pending.length;
   }
 
+  /**
+   * The `i`-th event waiting for the next flush, in emit order (Story 3.2: the economy system reads
+   * this tick's events before they are delivered). Read only: never keep or change it.
+   */
+  pendingAt(i: number): SimEvent | undefined {
+    return this.pending[i];
+  }
+
   flush(): void {
     // Swap buffers so events emitted by handlers land in the (now empty) pending array.
     const batch = this.pending;

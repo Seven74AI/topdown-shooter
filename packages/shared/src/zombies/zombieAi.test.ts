@@ -5,6 +5,7 @@ import zombiesJson from "../config/balance/zombies.json" with { type: "json" };
 import waves from "../config/balance/waves.json" with { type: "json" };
 import player from "../config/balance/player.json" with { type: "json" };
 import controls from "../config/balance/controls.json" with { type: "json" };
+import economy from "../config/balance/economy.json" with { type: "json" };
 import bots from "../config/balance/bots.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
@@ -158,7 +159,7 @@ describe("contact damage (FR9)", () => {
     expect(p.hp).toBe(100);
     expect(p.status).toBe("alive");
     expect(events.some((e) => e.type === "player.damaged")).toBe(false);
-    expect(snapshotWorld(world).debug).toEqual({ godMode: true });
+    expect(snapshotWorld(world).debug).toEqual({ godMode: true, waveMix: null });
     world.debug.godMode = false;
     run(world, 21);
     expect(p.hp).toBeLessThan(100);
@@ -168,7 +169,7 @@ describe("contact damage (FR9)", () => {
     for (const [intervalS, expectedTicks] of [[0.3, 6], [1.5, 30], [0.7, 14]] as const) {
       const z = JSON.parse(JSON.stringify(zombiesJson));
       z.types.walker.attackIntervalS = intervalS;
-      const b = loadBalance({ weapons, zombies: z, waves, player, controls, bots } as RawBalanceFiles);
+      const b = loadBalance({ weapons, zombies: z, waves, player, controls, economy, bots } as RawBalanceFiles);
       const world = createWorld({ balance: b, seed: 1 , systems: NO_WAVES });
       const p = addPlayer(world, "local", 24, 16);
       p.hp = 1e9;

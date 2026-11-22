@@ -13,7 +13,7 @@ export {
 export { err, ok, type Result } from "./core/result";
 export { createRng, createRngFromState, type Rng, type RngState } from "./core/rng";
 export { EventBus, type EventHandler } from "./core/eventBus";
-export type { SimEvent, SimEventType } from "./core/simEvents";
+export { MONEY_REASONS, type MoneyReason, type SimEvent, type SimEventType } from "./core/simEvents";
 export { canonicalJson, fnv1a32 } from "./core/hash";
 export {
   BalanceError,
@@ -34,6 +34,8 @@ export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./
 export { teamSpawnPoint } from "./player/spawn";
 export { checkTeamWipe, downPlayer, findReviver, returnOutPlayers, updateDowned } from "./player/downed";
 export { spectateTarget } from "./player/spectate";
+export { playerSpeed, slowPlayer, tickSlow } from "./player/slow";
+export { MAX_WAVE_MIX, parseWaveMix } from "./waves/waveMix";
 export { headingToRad, lerpHeading, quantizeHeading } from "./net/heading";
 export {
   NET_EVENT_KIND,
@@ -144,3 +146,15 @@ export {
   type BotView,
   type BotZombie,
 } from "./bots/botPolicy";
+// Story 3.2: personal wallets and rewards.
+export {
+  MAX_DAMAGERS,
+  clearDamagers,
+  earn,
+  payKill,
+  recordDamager,
+  spendMoney,
+  updateEconomy,
+  type EconomyState,
+  type SpendError,
+} from "./economy/economy";

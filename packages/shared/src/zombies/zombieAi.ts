@@ -4,6 +4,8 @@ import type { SystemFn } from "../core/systems";
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import { downPlayer } from "../player/downed";
+import { slowPlayer } from "../player/slow";
+import type { ZombieTypeStats } from "../config/balanceSchema";
 import { zombieTypeOf } from "./zombiePool";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
@@ -45,8 +47,11 @@ function nearestAlivePlayer(x: number, y: number): PlayerState | null {
   return best;
 }
 
-function damagePlayer(world: World, p: PlayerState, amount: number, sourceZombieId: number): void {
+/** One zombie hit: damage, and the type's bite slow (Story 3.9: Crawlers). */
+function damagePlayer(world: World, p: PlayerState, stats: Readonly<ZombieTypeStats>, sourceZombieId: number): void {
   if (p.status !== "alive" || world.debug.godMode) return; // god mode: dev cheat / ?stress (Story 1.11)
+  const amount = stats.damage;
+  if (stats.biteSlowPct > 0) slowPlayer(p, stats.biteSlowPct, ticksFor(stats.biteSlowS));
   p.hp = Math.max(0, p.hp - amount);
   world.events.emit({ type: "player.damaged", playerId: p.id, amount, sourceZombieId });
   if (p.hp <= 0) downPlayer(world, p); // Story 2.8: down, not dead; zombies then ignore them
@@ -168,7 +173,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
       }
       if (d <= contact + CONTACT_EPS_M && pool.attackCooldownTicks[id] === 0) {
         pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
-        damagePlayer(world, target, stats.damage, id);
+        damagePlayer(world, target, stats, id);
       }
     }
     // The push-out can cross a wall: clamp again (a little overlap at walls beats leaving the map).

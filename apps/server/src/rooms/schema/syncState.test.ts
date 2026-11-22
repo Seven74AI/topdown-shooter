@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
-import { NEUTRAL_INPUT, downPlayer, loadBalance, quantizeHeading, setLoadout } from "@topdown/shared";
+import { NEUTRAL_INPUT, applyZombieDamage, downPlayer, loadBalance, quantizeHeading, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
 import { RunController } from "../../run/RunController";
 import { PlayerState, RunState } from "./RunState";
 import { resetRunFields, syncState } from "./syncState";
@@ -98,6 +98,40 @@ describe("syncState", () => {
     expect(state.aliveCount).toBe(1);
   });
 
+  it("copies wallet and earned (Story 3.2), and only when they change", () => {
+    const { controller, state, encoder } = setup();
+    syncState(state, controller);
+    expect(state.players.get("p0")?.wallet).toBe(100);
+    expect(state.players.get("p0")?.earned).toBe(0);
+    const w = controller.world;
+    const id = spawnZombie(w, "walker", 40, 28);
+    applyZombieDamage(w, id, 1, 1, 0, 0, "p0", "pistol");
+    applyZombieDamage(w, id, 100, 1, 0, 0, "p1", "pistol");
+    controller.tick(); // the economy pays the kill and the assist
+    syncState(state, controller);
+    expect(state.players.get("p1")).toMatchObject({ wallet: 102, earned: 2 });
+    expect(state.players.get("p0")).toMatchObject({ wallet: 101, earned: 1 });
+    encoder.encode();
+    encoder.discardChanges();
+    syncState(state, controller);
+    expect(encoder.hasChanges).toBe(false);
+  });
+
+  it("copies the bite slow (Story 3.9), counted down by the World", () => {
+    const { controller, state } = setup();
+    const p0 = controller.world.players.get("p0");
+    if (!p0) throw new Error("no p0");
+    slowPlayer(p0, 30, 20);
+    controller.tick(); // one movement tick slowed
+    syncState(state, controller);
+    expect(state.players.get("p0")?.slowTicks).toBe(19);
+    expect(state.players.get("p0")?.slowPct).toBe(30);
+    for (let i = 0; i < 19; i++) controller.tick();
+    syncState(state, controller);
+    expect(state.players.get("p0")?.slowTicks).toBe(0);
+    expect(state.players.get("p0")?.slowPct).toBe(0);
+  });
+
   it("resetRunFields puts every fight field and Ready back, keeping slot and name", () => {
     const { controller, state } = setup();
     controller.tick();
@@ -105,7 +139,11 @@ describe("syncState", () => {
     const s0 = state.players.get("p0");
     if (!s0) throw new Error("no p0");
     s0.kills = 5;
+    s0.wallet = 321;
+    s0.earned = 221;
     s0.status = "out";
+    s0.slowTicks = 12;
+    s0.slowPct = 30;
     state.resultWave = 3;
     resetRunFields(state);
     expect(s0.toJSON()).toEqual(new PlayerState({ slot: 0, name: "Ana", ready: false }).toJSON());

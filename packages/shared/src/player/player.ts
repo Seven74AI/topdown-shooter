@@ -36,6 +36,17 @@ export interface PlayerState {
   reviverId: string | null;
   /** `world.waves.number` when the player went out; they return when a later wave is active. */
   outSinceWave: number;
+  /**
+   * Story 3.2: personal wallet (spendable currency). Only the economy system and server-validated
+   * spending (`economy/economy.ts`) change it; the online client mirrors it from schema.
+   */
+  wallet: number;
+  /** Story 3.2: everything earned this run (never reduced by spending; Story 3.10 logs it). */
+  earned: number;
+  /** Story 3.9 (`player/slow.ts`): movement ticks left at reduced speed; 0 = not slowed. */
+  slowTicksLeft: number;
+  /** Speed reduction in integer percent while `slowTicksLeft > 0`; 0 otherwise. */
+  slowPct: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -61,6 +72,10 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     reviveTicks: 0,
     reviverId: null,
     outSinceWave: 0,
+    wallet: world.balance.economy.startingWallet,
+    earned: 0,
+    slowTicksLeft: 0,
+    slowPct: 0,
   };
   world.players.set(id, player);
   return player;

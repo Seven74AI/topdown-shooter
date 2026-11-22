@@ -65,6 +65,15 @@ describe("bot policy (Story 2.10)", () => {
     expect(downs).toBeLessThan(IDS.length);
   });
 
+  it("copes with Crawlers too (Story 3.9 wave mix): waves 1 and 2 cleared without a team wipe", () => {
+    const { world, tick } = botTeam(0x2010);
+    world.debug.waveMix = ["walker", "crawler"];
+    const limit = ticksOf(6 * 60);
+    while (world.tick < limit && !world.teamWiped && !(world.waves.number >= 3 && world.waves.phase === "active")) tick();
+    expect(world.teamWiped).toBe(false);
+    expect(world.waves.number).toBe(3);
+  });
+
   it("revives a downed teammate", () => {
     // No waves and no zombies: only the revive is tested.
     const { world, tick } = botTeam(7, { waves: () => {} });

@@ -5,6 +5,7 @@ import zombies from "../config/balance/zombies.json" with { type: "json" };
 import wavesJson from "../config/balance/waves.json" with { type: "json" };
 import player from "../config/balance/player.json" with { type: "json" };
 import controls from "../config/balance/controls.json" with { type: "json" };
+import economy from "../config/balance/economy.json" with { type: "json" };
 import bots from "../config/balance/bots.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
@@ -15,7 +16,7 @@ import { ZOMBIE_STATE } from "../zombies/zombieTypes";
 import { skipWave, waveSize } from "./waveDirector";
 
 function balanceWith(waves: Partial<typeof wavesJson> = {}) {
-  return loadBalance({ weapons, zombies, waves: { ...wavesJson, ...waves }, player, controls, bots } as RawBalanceFiles);
+  return loadBalance({ weapons, zombies, waves: { ...wavesJson, ...waves }, player, controls, economy, bots } as RawBalanceFiles);
 }
 
 /** Zombies frozen in place (tests drive kills by hand), invulnerable player. */

@@ -9,7 +9,7 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null, scenario: null });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null, scenario: null, waveMix: null });
   });
 
   it("reads ?debug=1 and its spellings", () => {
@@ -84,5 +84,12 @@ describe("parseUrlOptions: Story 2.10 test scenario", () => {
 
   it("does not skip the start screen (the scenario is an online test)", () => {
     expect(skipsStartScreen(parseUrlOptions("?scenario=net150"))).toBe(false);
+  });
+});
+
+describe("parseUrlOptions: Story 3.9 wave mix", () => {
+  it("passes ?wavemix through raw (parseWaveMix validates it against balance)", () => {
+    expect(parseUrlOptions("?solo&wavemix=walker,crawler").waveMix).toBe("walker,crawler");
+    expect(parseUrlOptions("?solo").waveMix).toBeNull();
   });
 });

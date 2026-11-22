@@ -92,6 +92,11 @@ export class Predictor {
     return this.player?.y ?? 0;
   }
 
+  /** Story 3.9: movement ticks the predicted player is still slowed (tests, the overlay). */
+  get slowTicksLeft(): number {
+    return this.player?.slowTicksLeft ?? 0;
+  }
+
   /** Facing of the predicted player: follows the latest aim at once, never reconciled. */
   get facingX(): number {
     return this.player?.facingX ?? 1;
@@ -137,8 +142,12 @@ export class Predictor {
     }
   }
 
-  /** Server truth for my player at `ackSeq`; replays newer inputs. Ignores acks older than the last one seen. */
-  reconcile(ackSeq: number, x: number, y: number, status: PlayerStatus): void {
+  /**
+   * Server truth for my player at `ackSeq`; replays newer inputs. Ignores acks older than the last
+   * one seen. Story 3.9: the bite slow of that same tick (`slowTicks`, `slowPct`) is rebased too, so
+   * the replay moves at the server's speed and counts the slow down like the server.
+   */
+  reconcile(ackSeq: number, x: number, y: number, status: PlayerStatus, slowTicks = 0, slowPct = 0): void {
     if (ackSeq < this.lastAck) return;
     this.lastAck = ackSeq;
     const first = this.player === null;
@@ -152,6 +161,8 @@ export class Predictor {
     const p = this.player as PlayerState;
     this.placeAt(x, y);
     p.status = status;
+    p.slowTicksLeft = slowTicks;
+    p.slowPct = slowTicks > 0 ? slowPct : 0;
     if (this.evictedSeq > ackSeq) {
       // A stall of over 3 s: inputs the server hasn't applied are gone from the history.
       this.count = 0;

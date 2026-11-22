@@ -39,6 +39,16 @@ export const PlayerState = schema(
     reviveProgress: t.uint8().default(0),
     /** Zombies killed this run. */
     kills: t.uint16().default(0),
+    // Story 3.2: the personal wallet. Only the server's economy system changes it.
+    /** Spendable currency. */
+    wallet: t.uint32().default(0),
+    /** Everything earned this run (never reduced by spending). */
+    earned: t.uint32().default(0),
+    // Story 3.9: the bite slow, for the client's prediction (`movePlayers` on both sides).
+    /** Movement ticks left at reduced speed (≤ 200: `biteSlowS` ≤ 10). */
+    slowTicks: t.uint8().default(0),
+    /** Speed reduction in integer percent while slowed (≤ 90). */
+    slowPct: t.uint8().default(0),
   },
   "PlayerState",
 );

@@ -28,6 +28,11 @@ export interface UrlOptions {
    * fixed test scenario (honoured only with `ALLOW_TEST_SCENARIOS=1`), or null.
    */
   scenario: TestScenario | null;
+  /**
+   * `?wavemix=walker,crawler` (Story 3.9, release-safe, solo only, temporary until Story 3.10's wave
+   * composition): the raw list; `parseWaveMix` keeps the types that exist in balance.
+   */
+  waveMix: string | null;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -55,6 +60,7 @@ export function parseUrlOptions(search: string): UrlOptions {
     solo: soloRaw !== null && TRUE_VALUES.has(soloRaw.trim().toLowerCase()),
     throttle: parseThrottle(q.get("lag"), q.get("jitter")),
     scenario: parseScenario(q.get("scenario")),
+    waveMix: q.get("wavemix"),
   };
 }
 

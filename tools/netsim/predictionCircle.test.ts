@@ -9,7 +9,7 @@
  * - One-way delay `oneWayMs ± jitterHalfMs` in both directions, ordered (TCP never reorders).
  */
 import { describe, expect, it } from "vitest";
-import { NEUTRAL_INPUT, TICK_DT_S, createRng, loadBalance, PLACEHOLDER_MAP, type PlayerInput } from "@topdown/shared";
+import { NEUTRAL_INPUT, TICK_DT_S, createRng, loadBalance, PLACEHOLDER_MAP, slowPlayer, ticksFor, type PlayerInput } from "@topdown/shared";
 import {
   INPUT_DRAIN_AFTER_TICKS,
   INPUT_DRAIN_EVERY_TICKS,
@@ -38,6 +38,13 @@ interface NetOptions {
   stall?: { fromMs: number; toMs: number };
   /** The client stops moving from this time on (ms). */
   stopAtMs?: number;
+  /**
+   * Story 3.9: a Crawler bite on the server every this many ms (the Crawler's slow applied right
+   * after that tick's step, as the zombie system does at the end of a tick).
+   */
+  biteEveryMs?: number;
+  /** Control run: the client ignores the streamed slow (what Story 3.9 must not do). */
+  ignoreSlow?: boolean;
 }
 
 interface Result {
@@ -52,6 +59,9 @@ interface Result {
   finalDrawn: { x: number; y: number };
   finalServer: { x: number; y: number };
   drops: { overflow: number; stale: number; drained: number };
+  bites: number;
+  /** Reconciles whose error was at least PREDICTION_IGNORE_M. */
+  visibleErrors: number;
 }
 
 /** A FIFO of `[dueMs, payload]` with ordered delivery. */
@@ -79,7 +89,13 @@ interface Snap {
   x: number;
   y: number;
   ackSeq: number;
+  slowTicks: number;
+  slowPct: number;
 }
+
+const crawler = balance.zombies.types.crawler;
+const BITE_PCT = crawler?.biteSlowPct ?? 0;
+const BITE_TICKS = ticksFor(crawler?.biteSlowS ?? 0);
 
 function simulate(o: NetOptions): Result {
   const rng = createRng(o.seed);
@@ -99,6 +115,8 @@ function simulate(o: NetOptions): Result {
   let seq = 0;
   let lastDrawn: { x: number; y: number } | null = null;
   let maxRatio = 0;
+  let bites = 0;
+  let nextBiteMs = o.biteEveryMs ?? Infinity;
   const drawn = { x: 0, y: 0 };
 
   for (let t = 0; t <= endMs; t++) {
@@ -109,7 +127,12 @@ function simulate(o: NetOptions): Result {
       else for (const input of arrivedInputs) ctrl.queueInput(ID, input);
       ctrl.tick();
       const p = ctrl.world.players.get(ID);
-      if (p) down.send(t, { x: Math.fround(p.x), y: Math.fround(p.y), ackSeq: ctrl.ackSeq(ID) });
+      if (p && t >= nextBiteMs) {
+        nextBiteMs += o.biteEveryMs ?? Infinity;
+        slowPlayer(p, BITE_PCT, BITE_TICKS);
+        bites++;
+      }
+      if (p) down.send(t, { x: Math.fround(p.x), y: Math.fround(p.y), ackSeq: ctrl.ackSeq(ID), slowTicks: p.slowTicksLeft, slowPct: p.slowPct });
     }
     if (t >= nextFrameMs) {
       nextFrameMs += FRAME_MS;
@@ -118,7 +141,8 @@ function simulate(o: NetOptions): Result {
       // Snapshots arrived between frames (socket callbacks): reconcile first.
       down.take(t, arrivedSnaps);
       for (const s of arrivedSnaps) {
-        predictor.reconcile(s.ackSeq, s.x, s.y, "alive");
+        if (o.ignoreSlow) predictor.reconcile(s.ackSeq, s.x, s.y, "alive");
+        else predictor.reconcile(s.ackSeq, s.x, s.y, "alive", s.slowTicks, s.slowPct);
         errors.push({ t, e: predictor.stats.lastErrorM });
       }
       // Then the frame: steps, like NetSimHost.update.
@@ -162,6 +186,8 @@ function simulate(o: NetOptions): Result {
     finalDrawn: { x: drawn.x, y: drawn.y },
     finalServer: { x: sp?.x ?? 0, y: sp?.y ?? 0 },
     drops: ctrl.drops(ID),
+    bites,
+    visibleErrors: errors.filter((e) => e.e >= PREDICTION_IGNORE_M).length,
   };
 }
 
@@ -228,5 +254,30 @@ describe("netsim: predicted circle walk (Story 2.6 AC 4)", () => {
     expect(r.drops.drained).toBeGreaterThan(0);
     expect(r.maxErrorAfterMs(drainDoneMs)).toBeLessThan(PREDICTION_IGNORE_M); // exact again
     expect(Math.hypot(r.finalDrawn.x - r.finalServer.x, r.finalDrawn.y - r.finalServer.y)).toBeLessThan(PREDICTION_IGNORE_M);
+  });
+});
+
+describe("netsim: Crawler bites while walking (Story 3.9 AC 3)", () => {
+  it("150 ms RTT, 20 ms jitter: only each bite's onset corrects; slowed and recovering steps match the server", () => {
+    for (const [biteEveryMs, seed] of [
+      [1500, 21], // slowed 1 s, then 0.5 s free
+      [700, 22], // refreshed before it runs out
+    ] as const) {
+      const r = simulate({ seconds: 30, oneWayMs: 75, jitterHalfMs: 10, seed, biteEveryMs, stopAtMs: 28_000 });
+      report(`bites every ${biteEveryMs} ms, 75±10 ms seed ${seed}`, r);
+      expect(r.bites).toBeGreaterThan(15);
+      expect(r.snaps).toBe(0);
+      expect(r.visibleErrors).toBeLessThanOrEqual(r.bites); // at most one per bite (its onset)
+      expect(r.maxErrorM).toBeLessThan(0.3); // ≈ 30 % of the few steps the client was ahead
+      expect(r.maxFrameMoveRatio).toBeLessThanOrEqual(1.5);
+      // Stopped for the last 2 s: drawn = server.
+      expect(Math.hypot(r.finalDrawn.x - r.finalServer.x, r.finalDrawn.y - r.finalServer.y)).toBeLessThan(PREDICTION_IGNORE_M);
+    }
+  });
+
+  it("control: a client that ignores the streamed slow corrects on almost every snapshot while slowed", () => {
+    const r = simulate({ seconds: 30, oneWayMs: 75, jitterHalfMs: 10, seed: 21, biteEveryMs: 1500, ignoreSlow: true });
+    report("bites every 1500 ms, slow ignored", r);
+    expect(r.visibleErrors).toBeGreaterThan(r.bites * 10);
   });
 });
