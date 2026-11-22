@@ -10,7 +10,7 @@ import { buildingCentreX, nearestZombieInRange } from "../buildings/turret";
 import { PLACEHOLDER_MAP } from "../map/placeholderMap";
 import { COVER_KINDS, type CoverKind, type CoverObject, type DistrictMap } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
-import { applyCoverStage } from "../map/obstacles";
+import { applyDecayStage } from "../decay/applyDecayStage";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { addPlayer } from "../player/player";
 import { startBuild, startWave } from "../run/runStateMachine";
@@ -140,8 +140,7 @@ describe("cover vs projectiles, per kind (Story 4.2 AC 3)", () => {
     const map = mapWith("car", BETWEEN, 2);
     expect(shootEast(map, 16).hits).toBe(1);
     const world = createWorld({ balance, seed: 1, map, systems: STILL });
-    world.debug.decayStage = 2;
-    expect(applyCoverStage(world)).toBe(true);
+    expect(applyDecayStage(world, 2, world.decay.variants)).toBe(true);
     expect(shotBlockT(world, 10, 16, 16, 16)).toBeGreaterThan(0);
   });
 
@@ -244,8 +243,7 @@ describe("player-visible properties on Downtown (Story 4.2, brief line 10)", () 
   function volley(px: number, py: number, zx: number, zy: number, s: number, stage = 1): { hits: number; fired: number } {
     const world = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP, systems: STILL });
     if (stage !== 1) {
-      world.debug.decayStage = stage;
-      applyCoverStage(world);
+      applyDecayStage(world, stage, world.decay.variants);
     }
     addPlayer(world, "p0", px, py);
     const p = world.players.get("p0");

@@ -9,12 +9,14 @@ import economy from "../config/balance/economy.json" with { type: "json" };
 import bots from "../config/balance/bots.json" with { type: "json" };
 import buildings from "../config/balance/buildings.json" with { type: "json" };
 import shop from "../config/balance/shop.json" with { type: "json" };
+import decay from "../config/balance/decay.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, footprint, footprintBlocked, placementError, removeBuilding, type Box } from "../buildings/buildings";
 import { ticksFor } from "../core/time";
 import { createWorld, step, type World } from "../core/world";
 import { snapshotWorld, worldDigest } from "../core/worldSnapshot";
 import { currentDecayStage } from "../map/decayStage";
+import { applyDecayStage } from "../decay/applyDecayStage";
 import type { DistrictMap, MapSpawn } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { PLACEHOLDER_MAP } from "../map/placeholderMap";
@@ -33,7 +35,7 @@ import { SPAWN_SIDE_NAMES, SPAWN_STATE, spawnPointStates, spawnSide } from "./sp
  * appear, so the waves end and the next ones start. Build phases are 0.5 s.
  */
 const fast = (waves: Partial<typeof wavesJson> = {}) =>
-  loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 0.5, ...waves }, player, controls, economy, bots, buildings, shop } as RawBalanceFiles);
+  loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 0.5, ...waves }, player, controls, economy, bots, buildings, shop, decay } as RawBalanceFiles);
 const balance = fast();
 const MIN_M = balance.waves.spawnMinPlayerDistanceM;
 const map = DOWNTOWN_MAP;
@@ -86,7 +88,8 @@ function sim(o: SimOpts) {
   const m = o.m ?? map;
   const world = createWorld({ balance: o.bal ?? balance, seed: o.seed ?? 1, map: m, systems: { zombies: () => {} } });
   world.debug.godMode = true;
-  world.debug.decayStage = o.stage ?? null;
+  applyDecayStage(world, o.stage ?? 1, world.decay.variants);
+  world.debug.decayStageByWave = [o.stage ?? 1]; // Story 4.5: the stage stays put across the build starts of the sim
   o.players.forEach((c, i) => {
     const [x, y] = typeof c.at === "string" ? [byName(m, c.at).x, byName(m, c.at).y] : c.at;
     const p = addPlayer(world, `p${i}`, x, y);

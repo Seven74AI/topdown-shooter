@@ -891,16 +891,264 @@
    "y": 0
   },
   {
+   "draworder": "topdown",
    "id": 5,
+   "name": "decay",
+   "objects": [
+    {
+     "height": 48,
+     "id": 41,
+     "name": "dumpster_alley_3",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "block"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 48,
+     "x": 1216,
+     "y": 832
+    },
+    {
+     "height": 64,
+     "id": 42,
+     "name": "abandoned_car_west",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "panic_abandoned_car"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "abandoned_car_west"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 144,
+     "x": 448,
+     "y": 416
+    },
+    {
+     "height": 144,
+     "id": 43,
+     "name": "abandoned_car_south",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "panic_abandoned_car"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "abandoned_car_south"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 64,
+     "x": 832,
+     "y": 784
+    },
+    {
+     "height": 0,
+     "id": 44,
+     "name": "parked_car_3_driven_off",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "remove"
+      },
+      {
+       "name": "target",
+       "type": "string",
+       "value": "parked_car_3"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 592,
+     "y": 896
+    },
+    {
+     "height": 0,
+     "id": 45,
+     "name": "fire_parked_car_2_ignites",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "ignite"
+      },
+      {
+       "name": "target",
+       "type": "string",
+       "value": "parked_car_2"
+      },
+      {
+       "name": "radiusM",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "breakdown_car_fire"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "fire_parked_car_2"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 496,
+     "y": 896
+    },
+    {
+     "height": 0,
+     "id": 46,
+     "name": "fire_street_car_west_ignites",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "ignite"
+      },
+      {
+       "name": "target",
+       "type": "string",
+       "value": "street_car_west"
+      },
+      {
+       "name": "radiusM",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "breakdown_car_fire"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "fire_street_car_west"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 192,
+     "y": 448
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "id": 6,
    "layers": [
     {
      "draworder": "topdown",
-     "id": 6,
+     "id": 7,
      "name": "stage1_ground",
      "objects": [
       {
        "height": 64,
-       "id": 41,
+       "id": 47,
        "name": "sidewalk_nw",
        "properties": [
         {
@@ -918,7 +1166,7 @@
       },
       {
        "height": 320,
-       "id": 42,
+       "id": 48,
        "name": "sidewalk_nw_east",
        "properties": [
         {
@@ -936,7 +1184,7 @@
       },
       {
        "height": 64,
-       "id": 43,
+       "id": 49,
        "name": "sidewalk_sw",
        "properties": [
         {
@@ -954,7 +1202,7 @@
       },
       {
        "height": 64,
-       "id": 44,
+       "id": 50,
        "name": "sidewalk_se",
        "properties": [
         {
@@ -972,7 +1220,7 @@
       },
       {
        "height": 320,
-       "id": 45,
+       "id": 51,
        "name": "sidewalk_se_west",
        "properties": [
         {
@@ -990,7 +1238,7 @@
       },
       {
        "height": 384,
-       "id": 46,
+       "id": 52,
        "name": "gas_forecourt",
        "properties": [
         {
@@ -1008,7 +1256,7 @@
       },
       {
        "height": 320,
-       "id": 47,
+       "id": 53,
        "name": "parking_lot",
        "properties": [
         {
@@ -1026,7 +1274,7 @@
       },
       {
        "height": 48,
-       "id": 48,
+       "id": 54,
        "name": "crosswalk_north",
        "properties": [
         {
@@ -1044,7 +1292,7 @@
       },
       {
        "height": 48,
-       "id": 49,
+       "id": 55,
        "name": "crosswalk_south",
        "properties": [
         {
@@ -1062,7 +1310,7 @@
       },
       {
        "height": 256,
-       "id": 50,
+       "id": 56,
        "name": "crosswalk_west",
        "properties": [
         {
@@ -1080,7 +1328,7 @@
       },
       {
        "height": 256,
-       "id": 51,
+       "id": 57,
        "name": "crosswalk_east",
        "properties": [
         {
@@ -1098,7 +1346,7 @@
       },
       {
        "height": 6.4,
-       "id": 52,
+       "id": 58,
        "name": "lane_west",
        "properties": [
         {
@@ -1116,7 +1364,7 @@
       },
       {
        "height": 6.4,
-       "id": 53,
+       "id": 59,
        "name": "lane_east",
        "properties": [
         {
@@ -1134,7 +1382,7 @@
       },
       {
        "height": 304,
-       "id": 54,
+       "id": 60,
        "name": "lane_north",
        "properties": [
         {
@@ -1152,7 +1400,7 @@
       },
       {
        "height": 304,
-       "id": 55,
+       "id": 61,
        "name": "lane_south",
        "properties": [
         {
@@ -1170,7 +1418,7 @@
       },
       {
        "height": 240,
-       "id": 56,
+       "id": 62,
        "name": "gas_canopy",
        "properties": [
         {
@@ -1202,16 +1450,16 @@
    "y": 0
   },
   {
-   "id": 7,
+   "id": 8,
    "layers": [
     {
      "draworder": "topdown",
-     "id": 8,
+     "id": 9,
      "name": "stage2_props",
      "objects": [
       {
        "height": 25.6,
-       "id": 57,
+       "id": 63,
        "name": "debris_west",
        "properties": [
         {
@@ -1229,7 +1477,7 @@
       },
       {
        "height": 25.6,
-       "id": 58,
+       "id": 64,
        "name": "debris_east",
        "properties": [
         {
@@ -1261,16 +1509,16 @@
    "y": 0
   },
   {
-   "id": 9,
+   "id": 10,
    "layers": [
     {
      "draworder": "topdown",
-     "id": 10,
+     "id": 11,
      "name": "stage3_props",
      "objects": [
       {
        "height": 32,
-       "id": 59,
+       "id": 65,
        "name": "debris_mid",
        "properties": [
         {
@@ -1288,7 +1536,7 @@
       },
       {
        "height": 32,
-       "id": 60,
+       "id": 66,
        "name": "debris_south",
        "properties": [
         {
@@ -1320,11 +1568,11 @@
    "y": 0
   },
   {
-   "id": 11,
+   "id": 12,
    "layers": [
     {
      "draworder": "topdown",
-     "id": 12,
+     "id": 13,
      "name": "stage4_props",
      "objects": [],
      "opacity": 1,
@@ -1342,11 +1590,11 @@
    "y": 0
   },
   {
-   "id": 13,
+   "id": 14,
    "layers": [
     {
      "draworder": "topdown",
-     "id": 14,
+     "id": 15,
      "name": "stage5_props",
      "objects": [],
      "opacity": 1,
@@ -1364,8 +1612,8 @@
    "y": 0
   }
  ],
- "nextlayerid": 15,
- "nextobjectid": 61,
+ "nextlayerid": 16,
+ "nextobjectid": 67,
  "orientation": "orthogonal",
  "properties": [
   {

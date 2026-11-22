@@ -1,4 +1,4 @@
-import { MAP_STAGE_COUNT, applyCoverStage, killZombie, parseRunSeed, type Building, type World } from "@topdown/shared";
+import { MAP_STAGE_COUNT, changeDecayStage, killZombie, parseRunSeed, type Building, type World } from "@topdown/shared";
 
 /** Pure helpers of the dev cheats (Story 1.11). Imported only by DevCheats.tsx, so they leave release builds with it. */
 
@@ -45,13 +45,14 @@ export function damageNearestBuilding(world: World, x: number, y: number, fracti
 }
 
 /**
- * Dev cheat (Story 4.2, solo only): sets the decay stage override (1–5) and applies it to the cover
- * (barrier from stage 2, sandbags from stage 3 on Downtown). Online the server owns the stage.
+ * Dev cheat (Story 4.2, solo only; Story 4.5: merged into the decay engine): moves the run to decay
+ * stage 1–5 through the DecaySystem's own path (`changeDecayStage`: the map's mutations, cover and
+ * spawn points by `minStage`, building refunds, push-outs, flow fields rebuilt, `decay.stage_changed`
+ * and its banner) — the same code a build start runs. Online the server owns the stage.
  * Returns the stage now in force.
  */
 export function setDecayStageCheat(world: World, stage: number): number {
   const s = Math.min(MAP_STAGE_COUNT, Math.max(1, Math.round(stage)));
-  world.debug.decayStage = s;
-  applyCoverStage(world);
-  return s;
+  changeDecayStage(world, s);
+  return world.decay.stage;
 }

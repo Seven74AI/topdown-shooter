@@ -204,7 +204,7 @@ function DevCheats({ game }: { game: Phaser.Game }) {
             Collision / grid view
           </label>
           <fieldset>
-            <legend>Decay stage (cover + spawns)</legend>
+            <legend>Decay stage (whole map)</legend>
             <div class="dev-cheats__row">
               <select
                 value={String(w ? currentDecayStage(w) : 1)}
@@ -220,8 +220,8 @@ function DevCheats({ game }: { game: Phaser.Game }) {
                 ))}
               </select>
             </div>
-            <p class="dev-cheats__info">Solo: moves the cover (4.2) and opens that stage's spawn points (4.3).</p>
-            {online && <p class="dev-cheats__info">Online: the server owns the decay stage (Story 4.5).</p>}
+            <p class="dev-cheats__info">Solo: runs the build-start decay for that stage (map mutations, cover, spawns, refunds, push-outs, flow fields, banner).</p>
+            {online && <p class="dev-cheats__info">Online: the server owns the decay stage (DEV_DECAY_STAGES=2,3 on a dev server).</p>}
           </fieldset>
           <fieldset>
             <legend>Run seed</legend>

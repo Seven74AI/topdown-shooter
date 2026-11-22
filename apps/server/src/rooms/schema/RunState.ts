@@ -99,6 +99,10 @@ const runFields = {
   scenario: t.string().default(""),
   /** Story 4.4: the run's seed (uint32; written once per run by `syncState`). Results and the overlay show it. */
   runSeed: t.uint32().default(0),
+  /** Story 4.5: the decay stage (0 in the lobby); written by `syncState` only when it changes (a build start). */
+  decayStage: t.uint8().default(0),
+  /** Story 4.5: the run's chosen variation candidates (bitmask; once per run). */
+  decayVariants: t.uint32().default(0),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

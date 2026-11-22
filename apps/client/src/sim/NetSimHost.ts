@@ -49,6 +49,7 @@ import { HordeBuffer, HordeSample } from "../net/hordeBuffer";
 import { HordeDecoder } from "../net/hordeDecoder";
 import { mirrorZombies } from "../net/mirrorZombies";
 import { mirrorBuildings } from "../net/mirrorBuildings";
+import { mirrorDecay } from "../net/mirrorDecay";
 import { Predictor } from "../net/prediction";
 import { AdaptiveDelay } from "../net/adaptiveDelay";
 import { RENDER_DELAY_MIN_MS, STALE_COSMETIC_TICKS } from "../net/netConfig";
@@ -503,6 +504,7 @@ export class NetSimHost implements SimHost {
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
     mirrorBuildings(state.buildings, this.world); // Story 3.4: drawn, and the placement preview's check
+    mirrorDecay(this.world, state.decayStage, state.decayVariants); // Story 4.5: drawn, the preview's check, cosmetic shots
   }
 
   /**
@@ -692,6 +694,7 @@ export class NetSimHost implements SimHost {
     this.snapshots.push(state);
     // Story 3.4: the buildings of this very patch, before the replay (the server moved me with them).
     this.predictor.syncBuildings(state.buildings);
+    this.predictor.syncDecay(state.decayStage, state.decayVariants); // Story 4.5: the same patch's map
     const me = state.players.get(this.localPlayerId);
     if (!me) return;
     this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct);

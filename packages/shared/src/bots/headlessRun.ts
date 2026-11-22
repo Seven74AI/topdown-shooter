@@ -67,7 +67,7 @@ export interface HeadlessRunLog {
   buildingsPlaced: number[];
   spent: number[];
   /** Money paid to the whole team by reason (kill, assist, revive, wave bonus). */
-  earnedBy: { kill: number; assist: number; revive: number; wave: number };
+  earnedBy: { kill: number; assist: number; revive: number; wave: number; refund: number };
   /** Turrets' kills (they pay the owner `buildingKillShare`; included in `earnedBy.kill`). */
   turretKills: number;
   waves: HeadlessWaveLog[];
@@ -102,7 +102,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     purchases: ids.map(() => []),
     buildingsPlaced: ids.map(() => 0),
     spent: ids.map(() => 0),
-    earnedBy: { kill: 0, assist: 0, revive: 0, wave: 0 },
+    earnedBy: { kill: 0, assist: 0, revive: 0, wave: 0, refund: 0 },
     turretKills: 0,
     waves: [],
   };
@@ -134,7 +134,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         if (current) current.revives++;
         break;
       case "money.earned":
-        log.earnedBy[e.reason] += e.amount;
+        log.earnedBy[e.reason] += e.amount; // Story 4.5: refunds are not in `earned` (fiveWaveSim checks the other four)
         break;
       case "zombie.killed": {
         if (e.buildingId !== undefined) log.turretKills++;
@@ -199,6 +199,6 @@ export function formatRunLine(r: HeadlessRunLog): string {
     `${r.players}p seed ${r.seed}: ${end} (cleared ${r.wavesCleared}); earned ${r.earned.join("/")}; kills ${r.kills.join("/")}; ` +
     `wallet ${r.wallet.join("/")}; weapons ${buys}; buildings ${r.buildingsPlaced.join("/")}; ` +
     `downs/revives by wave ${r.waves.map((w) => `${w.downs}/${w.revives}`).join(" ")}; ` +
-    `team money kill/assist/revive/wave ${r.earnedBy.kill}/${r.earnedBy.assist}/${r.earnedBy.revive}/${r.earnedBy.wave}; turret kills ${r.turretKills}`
+    `team money kill/assist/revive/wave ${r.earnedBy.kill}/${r.earnedBy.assist}/${r.earnedBy.revive}/${r.earnedBy.wave} (refunds ${r.earnedBy.refund}); turret kills ${r.turretKills}`
   );
 }

@@ -40,6 +40,7 @@ import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
 import { CoverView } from "../render/CoverView";
+import { DecayView } from "../render/DecayView";
 import { TurretView } from "../render/TurretView";
 import { Placement, placeRefusalText } from "./placement";
 import { RepairPanel, repairRefusalText } from "./repairPanel";
@@ -171,6 +172,8 @@ export class GameScene extends Phaser.Scene {
   private buildingView: BuildingView | null = null;
   /** Story 4.2: the active cover (redrawn when the decay stage changes it). */
   private coverView: CoverView | null = null;
+  /** Story 4.5: walls, hazards, fires and the visible stage group (redrawn on a stage change). */
+  private decayView: DecayView | null = null;
   /** Story 3.6: turret plates and heads (aim from the World / `turret.fired`). */
   private turretView: TurretView | null = null;
   /** Story 3.4: placement mode on this device (sticks off while active). */
@@ -312,6 +315,7 @@ export class GameScene extends Phaser.Scene {
     uiStore.handle("shop", (action) => this.shopInput(action));
 
     drawStreet(this, world.map);
+    this.decayView = new DecayView(this);
     this.coverView = new CoverView(this);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
@@ -368,6 +372,8 @@ export class GameScene extends Phaser.Scene {
       this.buildingView = null;
       this.coverView?.destroy();
       this.coverView = null;
+      this.decayView?.destroy();
+      this.decayView = null;
       this.turretView?.destroy();
       this.turretView = null;
       this.repairPanel.close();
@@ -483,6 +489,17 @@ export class GameScene extends Phaser.Scene {
   private showBanner(text: string): void {
     this.hudModel.bannerText = text;
     this.hudModel.bannerAtMs = this.time.now;
+  }
+
+  /**
+   * Story 4.5: a banner that shares the frame with another one goes on a second line instead of
+   * replacing it. A build start ends a wave and changes the decay stage in the same tick ("Wave 2
+   * cleared" + "Panic"); a dev stage table can change it at the run's first build ("Panic" + "Build phase").
+   */
+  private stackBanner(text: string): void {
+    const m = this.hudModel;
+    if (m.bannerText !== "" && m.bannerAtMs === this.time.now && !m.bannerText.includes("\n")) this.showBanner(`${m.bannerText}\n${text}`);
+    else this.showBanner(text);
   }
 
   /** Red chevrons above rushing zombies, and their positions for the HUD's edge arrows (FR30). */
@@ -846,11 +863,13 @@ export class GameScene extends Phaser.Scene {
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "build.started") {
-        if (e.wave === 1) this.showBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
+        if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
       } else if (e.type === "wave.started") {
         this.showBanner(`Wave ${e.number}`);
         // Story 2.10: measured only with the overlay on (the 1.11 rule: no measuring cost otherwise).
         if (perf.net && perf.overlayOn) netSummary.start(performance.now(), e.number, perf.net, netMeter);
+      } else if (e.type === "decay.stage_changed") {
+        this.stackBanner(host.world.balance.decay.stageNames[e.stage - 1] ?? `Stage ${e.stage}`); // Story 4.5: "Panic"
       } else if (e.type === "wave.ended") {
         this.showBanner(`Wave ${e.number} cleared`);
         if (perf.net) netSummary.end(performance.now(), e.number, perf.net, netMeter, perf.overlayOn);
@@ -862,6 +881,7 @@ export class GameScene extends Phaser.Scene {
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world);
+    this.decayView?.update(host.world);
     this.coverView?.update(host.world);
     this.buildingView?.update(host.world, this.placement);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);

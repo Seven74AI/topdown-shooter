@@ -63,6 +63,7 @@ import { assignSlot, hashGuestToken, nextHost, type Member } from "../run/lobby"
 import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
+import { parseDevDecayStages } from "../run/devDecayStages";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
@@ -472,6 +473,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.runSeed = runSeed;
     if (this.devRunSeed !== null) this.log.warn({ runSeed }, "dev_run_seed");
     const devPlacedHp = devAllowed ? parseDevHpFraction(process.env.DEV_PLACED_BUILDING_HP) : null;
+    // Story 4.5 (dev only, read per run like DEV_NO_WAVES): DEV_DECAY_STAGES=2,3 = the decay stage of waves 1, 2, ….
+    const devDecayStages = devAllowed ? parseDevDecayStages(process.env.DEV_DECAY_STAGES) : null;
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
@@ -479,6 +482,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       pauseWaves: process.env.DEV_NO_WAVES === "1",
       // Story 3.9 dev hook, kept by 3.10 as an override: DEV_WAVE_MIX=walker,crawler replaces the waves.json mix.
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
+      decayStageByWave: devDecayStages,
       scenario: this.scenario,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
       devPlacedHpFraction: devPlacedHp,
@@ -490,6 +494,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
         this.log.info({ playerId: s.playerId, wave: s.wave, matchRatio: +s.matchRatio.toFixed(2), k: +s.k.toFixed(2), t: +s.t.toFixed(1), samples: s.samples }, "spread_cancel_suspect"),
     });
     if (!controller.world.zombieHistory.enabled) this.log.warn("dev_no_rewind");
+    if (devDecayStages !== null) this.log.warn({ stages: devDecayStages }, "dev_decay_stages");
+    else if (process.env.DEV_DECAY_STAGES) this.log.warn({ value: process.env.DEV_DECAY_STAGES }, "dev_decay_stages_ignored");
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;
@@ -537,6 +543,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       else if (e.type === "wave.ended") this.logWaveStats(e.number);
       else if (e.type === "team.wiped") this.endRun(controller, e.wave, false);
       else if (e.type === "run.held_out") this.endRun(controller, e.wave, true); // Story 3.10
+      else if (e.type === "decay.stage_changed") this.log.info({ stage: e.stage, from: e.from, wave: controller.world.waves.number + 1, variants: controller.world.decay.variants }, "decay_stage_changed"); // Story 4.5 (architecture › logging: decay stage)
     }
     this.tickErrors = 0;
   }

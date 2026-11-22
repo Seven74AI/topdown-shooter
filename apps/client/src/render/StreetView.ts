@@ -1,5 +1,5 @@
 import type * as Phaser from "phaser";
-import type { DistrictMap, MapBox } from "@topdown/shared";
+import type { DistrictMap } from "@topdown/shared";
 
 const ASPHALT = 0x1c1f22;
 const GRID = 0x2a2e33;
@@ -16,25 +16,12 @@ const PROP_FILL: Readonly<Record<string, readonly [number, number]>> = {
   lane: [0x8a7a3a, 0.8],
   canopy: [0x4a5560, 0.35],
 };
-const SOLID = 0x3b3f46;
-const SOLID_EDGE = 0x15171a;
-const BUS = 0x8a6a1e;
-const BUS_EDGE = 0x3a2c0a;
-const HAZARD = 0x7a2a1a;
-const EDGE_M = 0.12;
-
-const fill = (g: Phaser.GameObjects.Graphics, b: MapBox): void => {
-  g.fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
-};
-const stroke = (g: Phaser.GameObjects.Graphics, b: MapBox, w: number): void => {
-  g.strokeRect(b.minX + w / 2, b.minY + w / 2, b.maxX - b.minX - w, b.maxY - b.minY - w);
-};
 
 /**
- * The district, drawn once (static; no per-frame cost): asphalt with a faint 4 m grid (to judge
- * speed), the `stage1_evening` ground props, stage-1 hazard zones (faint), the collision boxes as blocks
- * (the bus in its own colour). Story 4.2: the other cover objects are drawn by `CoverView` (they
- * depend on the decay stage).
+ * The district's base, drawn once (static; no per-frame cost): asphalt with a faint 4 m grid (to
+ * judge speed) and the `stage1_evening` ground props. Story 4.5: everything that depends on the
+ * decay stage — the walls (map collision boxes + `block` mutations; the bus in its own colour),
+ * hazard zones, fire records and the `stageN_*` group — is `DecayView`'s; the cover is `CoverView`'s.
  */
 export function drawStreet(scene: Phaser.Scene, map: DistrictMap): Phaser.GameObjects.Graphics {
   const g = scene.add.graphics().setDepth(0);
@@ -46,16 +33,6 @@ export function drawStreet(scene: Phaser.Scene, map: DistrictMap): Phaser.GameOb
   g.lineStyle(0.04, GRID, 1);
   for (let x = GRID_STEP_M; x < map.widthM; x += GRID_STEP_M) g.lineBetween(x, 0, x, map.heightM);
   for (let y = GRID_STEP_M; y < map.heightM; y += GRID_STEP_M) g.lineBetween(0, y, map.widthM, y);
-  g.fillStyle(HAZARD, 0.12);
-  for (const h of map.hazards) if (h.minStage <= 1) fill(g, h); // later stages: Story 4.5 (review L8)
-  const busNames = new Set(map.cover.filter((c) => c.kind === "bus").map((c) => `${c.minX},${c.minY},${c.maxX},${c.maxY}`));
-  for (const s of map.solids) {
-    const bus = busNames.has(`${s.minX},${s.minY},${s.maxX},${s.maxY}`);
-    g.fillStyle(bus ? BUS : SOLID, 1);
-    fill(g, s);
-    g.lineStyle(EDGE_M, bus ? BUS_EDGE : SOLID_EDGE, 1);
-    stroke(g, s, EDGE_M);
-  }
   g.lineStyle(BORDER_M, BORDER, 1).strokeRect(BORDER_M / 2, BORDER_M / 2, map.widthM - BORDER_M, map.heightM - BORDER_M);
   return g;
 }

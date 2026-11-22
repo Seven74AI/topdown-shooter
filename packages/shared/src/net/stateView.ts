@@ -98,6 +98,14 @@ export interface RunStateView {
   readonly scenario: string;
   /** Story 4.4: the run's seed (uint32), 0 in the lobby. Results and the performance overlay show it. */
   readonly runSeed: number;
+  /**
+   * Story 4.5: the decay stage (1–5; 0 in the lobby = not set yet) and the run's chosen variation
+   * candidates (bitmask over `map.decayVariants`). Written only when they change; the mirror and the
+   * Predictor apply them with the shared `applyDecayStage`, so a late join or a tab that slept
+   * across a build start lands on the server's map.
+   */
+  readonly decayStage: number;
+  readonly decayVariants: number;
 }
 
 /**
@@ -158,4 +166,6 @@ export const RUN_STATE_FIELDS = {
   buildTicksLeft: true,
   scenario: true,
   runSeed: true,
+  decayStage: true,
+  decayVariants: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings">, true>;
