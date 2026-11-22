@@ -42,7 +42,7 @@
 # - Story 9.2-9.10 depend on the hired artist and sound designer.
 
 generated: 2026-11-21T18:20:05
-last_updated: 2026-11-22T17:00:00
+last_updated: 2026-11-22T18:00:00
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -101,11 +101,11 @@ development_status:
   4-2-cover-and-bullet-rules: done
   4-3-spawn-points: done
   4-4-named-seed-streams: done
-  4-5-decay-stage-engine: backlog
+  4-5-decay-stage-engine: done
   4-6-evening: backlog
   4-7-panic: backlog
   4-8-breakdown-and-car-fires: backlog
-  4-9-placeholder-dead-city-look: review
+  4-9-placeholder-dead-city-look: done
   4-10-milestone-1-playtest: backlog  # human: playtest/spec, not a dev-agent story
   epic-4-retrospective: optional
 

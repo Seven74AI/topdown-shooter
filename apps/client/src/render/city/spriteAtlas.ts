@@ -3,7 +3,7 @@ import { ZOMBIE_TYPES, type ZombieTypeId } from "@topdown/shared";
 import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { CAR_COLORS } from "./dressing";
 import { addCanvasTexture } from "./canvasTexture";
-import { CHAR_EXTENT_R, drawBarrier, drawBus, drawCar, drawPump, drawSandbags, drawSurvivor, drawZombie } from "./spriteArt";
+import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawDumpster, drawPump, drawSandbags, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
  * Story 4.9: the placeholder atlases, drawn procedurally into canvases and registered as Phaser
@@ -32,12 +32,17 @@ export const CAR_FRAMES: readonly string[] = CAR_COLORS.map((_, i) => frameName(
 export const PROP_PUMP = frameName("prop", "pump", "a");
 export const PROP_BARRIER = frameName("prop", "barrier", "a");
 export const PROP_SANDBAGS = frameName("prop", "sandbags", "a");
+/** Story 4.5's `block` mutations: the dumpster, and a generic blockage for any other block. */
+export const PROP_DUMPSTER = frameName("prop", "dumpster", "a");
+export const PROP_BLOCK = frameName("prop", "block", "a");
 const PROP_NATIVE: Readonly<Record<string, readonly [number, number]>> = {
   [VEHICLE_BUS]: [320, 80],
   ...Object.fromEntries(CAR_FRAMES.map((n) => [n, [144, 64] as const])),
   [PROP_PUMP]: [64, 32],
   [PROP_BARRIER]: [192, 16],
   [PROP_SANDBAGS]: [96, 32],
+  [PROP_DUMPSTER]: [48, 48],
+  [PROP_BLOCK]: [48, 48],
 };
 /** Downtown atlas px per map px (64 px per metre). */
 export const DOWNTOWN_ATLAS_SCALE = 2;
@@ -123,6 +128,8 @@ function drawDowntownFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   else if (f.name === PROP_PUMP) drawPump(g, w, h);
   else if (f.name === PROP_BARRIER) drawBarrier(g, w, h);
   else if (f.name === PROP_SANDBAGS) drawSandbags(g, w, h);
+  else if (f.name === PROP_DUMPSTER) drawDumpster(g, w, h);
+  else if (f.name === PROP_BLOCK) drawBlock(g, w, h);
   else {
     const v = CAR_FRAMES.indexOf(f.name);
     if (v >= 0) {

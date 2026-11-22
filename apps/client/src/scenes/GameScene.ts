@@ -486,6 +486,17 @@ export class GameScene extends Phaser.Scene {
     this.hudModel.bannerAtMs = this.time.now;
   }
 
+  /**
+   * Story 4.5: a banner that shares the frame with another one goes on a second line instead of
+   * replacing it. A build start ends a wave and changes the decay stage in the same tick ("Wave 2
+   * cleared" + "Panic"); a dev stage table can change it at the run's first build ("Panic" + "Build phase").
+   */
+  private stackBanner(text: string): void {
+    const m = this.hudModel;
+    if (m.bannerText !== "" && m.bannerAtMs === this.time.now && !m.bannerText.includes("\n")) this.showBanner(`${m.bannerText}\n${text}`);
+    else this.showBanner(text);
+  }
+
   /** Red chevrons above rushing zombies, and their positions for the HUD's edge arrows (FR30). */
   private updateRushMarkers(alpha: number, centerX: number, centerY: number): void {
     const host = this.host;
@@ -847,11 +858,13 @@ export class GameScene extends Phaser.Scene {
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "build.started") {
-        if (e.wave === 1) this.showBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
+        if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
       } else if (e.type === "wave.started") {
         this.showBanner(`Wave ${e.number}`);
         // Story 2.10: measured only with the overlay on (the 1.11 rule: no measuring cost otherwise).
         if (perf.net && perf.overlayOn) netSummary.start(performance.now(), e.number, perf.net, netMeter);
+      } else if (e.type === "decay.stage_changed") {
+        this.stackBanner(host.world.balance.decay.stageNames[e.stage - 1] ?? `Stage ${e.stage}`); // Story 4.5: "Panic"
       } else if (e.type === "wave.ended") {
         this.showBanner(`Wave ${e.number} cleared`);
         if (perf.net) netSummary.end(performance.now(), e.number, perf.net, netMeter, perf.overlayOn);
@@ -918,8 +931,9 @@ export class GameScene extends Phaser.Scene {
     }
     // Story 4.9: after the camera target is known (hudModel.camX/camY are this frame's view).
     const zoom = this.cameras.main.zoom;
-    // Online: the first bake waits for the server's first state (runSeed arrives with it; review L).
-    const synced = !(host instanceof NetSimHost) || host.runSeed !== 0;
+    // Online: the first bake waits until the mirror has the server's decay stage (review L: no
+    // stage-1 bake followed by a second one a moment later on a late join).
+    const synced = !(host instanceof NetSimHost) || host.decaySynced;
     this.cityView?.update(host.world, this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000, synced);
   }
 }

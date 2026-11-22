@@ -85,6 +85,19 @@ export function earn(world: World, playerId: string, amount: number, reason: Mon
   world.events.emit({ type: "money.earned", playerId, amount, reason });
 }
 
+/**
+ * Story 4.5: gives `amount` back to a player's wallet (a building a decay stage destroyed) and
+ * emits `money.earned` with reason `refund`. Not counted in `earned` (money returned, not income).
+ * Nothing for an unknown player (left the run) or an amount ≤ 0.
+ */
+export function refundMoney(world: World, playerId: string, amount: number): void {
+  if (!(amount > 0)) return;
+  const p = world.players.get(playerId);
+  if (!p) return;
+  p.wallet += amount;
+  world.events.emit({ type: "money.earned", playerId, amount, reason: "refund" });
+}
+
 export type SpendError = "unknown_player" | "invalid_amount" | "insufficient_funds";
 
 /**

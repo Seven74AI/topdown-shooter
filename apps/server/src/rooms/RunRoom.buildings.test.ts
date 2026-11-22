@@ -115,7 +115,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     room.controller?.setBuildReady("p1", true);
     await vi.waitFor(() => expect(host.state.phase).toBe("wave"));
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 40, gy: 28, rot: 0 });
-    await vi.waitFor(() => expect(hostRec.refused).toHaveLength(5));
+    await vi.waitFor(() => expect(hostRec.refused).toHaveLength(5), { timeout: 5000 }); // a loaded machine missed 1 s once
     expect(hostRec.refused[4]).toBe("not_build_phase");
     expect(guestRec.refused).toEqual([]);
     expect(world(room).buildings.list).toHaveLength(6);

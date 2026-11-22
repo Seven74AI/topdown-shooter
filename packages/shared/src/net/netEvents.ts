@@ -42,6 +42,7 @@ export const NET_EVENT_KIND = {
   TURRET_FIRED: 23, // Story 3.6
   BUILDING_REPAIRED: 24, // Story 3.7
   RUN_HELD_OUT: 25, // Story 3.10
+  DECAY_STAGE_CHANGED: 26, // Story 4.5
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -166,6 +167,9 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "building.repaired":
       // Story 3.7: FX only (HP and wallet come from schema).
       return [K.BUILDING_REPAIRED, e.buildingId, playerSlotOf(e.playerId), e.cost, cm(e.x), cm(e.y)];
+    case "decay.stage_changed":
+      // Story 4.5: the banner (the map itself follows the room state's decayStage / decayVariants).
+      return [K.DECAY_STAGE_CHANGED, e.stage, e.from];
     case "test.ping":
       return null;
   }
@@ -292,6 +296,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.BUILDING_REPAIRED:
       return { type: "building.repaired", buildingId: n(t, 1), playerId: pid(t, 2), cost: n(t, 3), x: n(t, 4) / 100, y: n(t, 5) / 100 };
+    case K.DECAY_STAGE_CHANGED:
+      return { type: "decay.stage_changed", stage: n(t, 1), from: n(t, 2) };
     default:
       return null;
   }

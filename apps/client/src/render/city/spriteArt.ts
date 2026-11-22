@@ -582,3 +582,52 @@ export function drawSandbags(g: G, w: number, h: number): void {
     }
   }
 }
+
+/** A dumpster seen from above (a `block` mutation): green steel, two lids, corner caps. */
+export function drawDumpster(g: G, w: number, h: number): void {
+  g.fillStyle = "#2f4a37";
+  g.fillRect(1, 1, w - 2, h - 2);
+  bevel(g, 1, 1, w - 2, h - 2, 2, "rgba(255,255,255,0.22)", "rgba(0,0,0,0.45)");
+  // two lids (one slightly open: a dark gap) and a hinge line
+  g.fillStyle = "#38563f";
+  g.fillRect(4, 4, w / 2 - 5, h - 8);
+  g.fillRect(w / 2 + 1, 6, w / 2 - 5, h - 10);
+  g.fillStyle = "rgba(0,0,0,0.55)";
+  g.fillRect(w / 2 - 1, 4, 2, h - 8);
+  g.strokeStyle = "rgba(0,0,0,0.4)";
+  g.lineWidth = 1;
+  for (let x = 8; x < w - 4; x += 6) {
+    g.beginPath();
+    g.moveTo(x, 6);
+    g.lineTo(x, h - 6);
+    g.stroke();
+  }
+  g.fillStyle = "#1b1d1c";
+  for (const [x, y] of [
+    [1, 1],
+    [w - 5, 1],
+    [1, h - 5],
+    [w - 5, h - 5],
+  ] as const)
+    g.fillRect(x, y, 4, 4);
+  g.fillStyle = "rgba(200,190,150,0.35)"; // spilled rubbish
+  g.fillRect(w * 0.15, h - 4, 5, 3);
+  outline(g, 0.75, 0.75, w - 1.5, h - 1.5, 1.5);
+}
+
+/** A generic blockage (crates and rubble) for a `block` mutation that has no art of its own. */
+export function drawBlock(g: G, w: number, h: number): void {
+  g.fillStyle = "#4a4136";
+  g.fillRect(1, 1, w - 2, h - 2);
+  const n = Math.max(2, Math.round((w * h) / 400));
+  for (let i = 0; i < n; i++) {
+    const cw = 8 + hash(i * 3.7) * Math.min(14, w / 2);
+    const ch = 8 + hash(i * 5.3) * Math.min(14, h / 2);
+    const x = 2 + hash(i * 1.9) * Math.max(0, w - cw - 4);
+    const y = 2 + hash(i * 7.1) * Math.max(0, h - ch - 4);
+    g.fillStyle = i % 2 ? "#6b5a42" : "#5a5a55";
+    g.fillRect(x, y, cw, ch);
+    bevel(g, x, y, cw, ch, 1.5, "rgba(255,255,255,0.2)", "rgba(0,0,0,0.45)");
+  }
+  outline(g, 0.75, 0.75, w - 1.5, h - 1.5, 1.5);
+}

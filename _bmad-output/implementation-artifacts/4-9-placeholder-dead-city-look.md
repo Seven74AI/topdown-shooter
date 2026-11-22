@@ -1,6 +1,6 @@
 # Story 4.9: Placeholder Dead City look
 
-Status: review
+Status: done
 
 ## Story
 
@@ -20,7 +20,8 @@ so that we judge the milestone on the right mood.
 6. **Atlases.** Placeholder atlases follow the final atlas layout (`characters`, `downtown` (vehicles + props), `fx`, as in the architecture's `public/assets/atlases/`), every frame is named `category_name_variant` (snake case), each atlas ≤ 2048 × 2048, and the first-load download stays under 15 MB.
 7. **Gameplay readability kept.** Slot-coloured rings, names, teammate arrows, rush chevrons, zombie hit flash, the downed UI, health bars, placement preview, building selection, the shop UI and the debug overlays (`?debug=1`, collision grid) stay clearly visible on the darker scene. Player barricades and turrets match the look (cast shadow + bevel).
 8. **Phones.** Static layers are drawn once per stage (never per frame); rain is a small pooled set of sprites, lights are a few pre-drawn textures; no per-frame allocation. `?stress=150` FPS measured in headless Chromium before and after, with machine load.
-9. **Tests.** Unit tests for the pure helpers (frame naming, atlas packing ≤ 2048 and no overlap, palette contrast, stage filtering of hazards/props), each proven to fail under a mutation.
+9. **Night progression (designer, 2026-11-22; epics.md 4.9).** A run is one night, no day-night cycle: the light state follows the decay stage — stage 1 dusk (a little blue left in the sky, warm shop light), 2 full night, 3 deep night with full rain, 4–5 darker placeholders until Epic 6. Light drizzle at stages 1–2. Roofs readable at every stage; parameters per stage in one data table.
+10. **Tests.** Unit tests for the pure helpers (frame naming, atlas packing ≤ 2048 and no overlap, palette contrast, stage filtering of hazards/props), each proven to fail under a mutation.
 
 ## Tasks / Subtasks
 
@@ -31,6 +32,8 @@ so that we judge the milestone on the right mood.
 - [x] T5 `ZombieView` / `PlayerView` on atlas frames; `BuildingView` / `TurretView` shadows + bevel (AC 5, 7)
 - [x] T6 Browser check (Playwright, 1280×720 and 844×390): bus intersection, gas station, parking lot, wave with each zombie type, build phase with barricades + turret, stage-2 cheat; compare with `downtown-look-B-chosen.png`; FPS before/after (AC 1–8)
 - [x] T7 Gates, bundle + first-load size, merge notes (AC 6, 8)
+- [x] T9 Review fixes (part A): CanvasTexture pixel copy dropped; per-object random streams; contrast test on the real lightmap per stage; light state per stage (`NIGHT_BY_STAGE`); one-tile bake, tile culling, cached base layer, 12 % vignette bands; online first bake waits for the synced stage
+- [x] T10 Reconcile with Story 4.5 (part B): walls from `obstacles.walls`, block mutations as props (`prop_dumpster_a`, `prop_block_a`), fires from `world.decay.fires`, swap-model stage groups, `DecayView`/`drawStreet` removed (banner kept), redraw on 4.5's real stage path solo and online
 - [x] T8 (designer addition 2026-11-22) Revive zone: a circle of radius `balance.player.reviveRadiusM` (2.0 m after cfdab04, merged) around each downed player; faint idle, brighter and pulsing while a revive runs (AC 7)
 
 ## Dev Notes
@@ -38,7 +41,7 @@ so that we judge the milestone on the right mood.
 ### Decisions (non-interactive; the user delegated them)
 
 - **D1 Procedural, baked once per stage.** The static city (ground, shadows, buildings, cover, hazards, props, lamp heads) is drawn with Canvas 2D (the prototype's code, ported to TypeScript) into offscreen canvases at load and shown as Phaser canvas textures. It is redrawn only on a stage/obstacle change (`showStage`), never per frame. Zero image downloads.
-- **D2 Bake resolution and tiles.** Bake density = the camera zoom (device px per metre) rounded and clamped to 32–64 px/m (phones ≈ 64, 1280×720 desktop ≈ 53). The bake is split into tiles of ≤ 2048 × 2048 px (Downtown at 64 px/m: 3072 × 2048 → 2 tiles), so no texture ever exceeds the architecture's 2048 cap. Each tile draws the whole scene clipped by its canvas (simple; ~2× draw time, measured). Grain/speckle uses small pre-drawn noise patterns instead of tens of thousands of `fillRect`s (bake speed). Not re-baked on resize (a rotation keeps the first density; recorded).
+- **D2 Bake resolution and tiles.** Bake density = the camera zoom (device px per metre) rounded, at least 32 px/m and at most what fits the whole map in ONE ≤ 2048 px tile (review: Downtown 48 m → 42 px/m, 2016 × 1344; a DPR-2 side-by-side against 64 px/m showed no visible loss at phone zoom ≈ 70, at half the memory and bake time). `tileRects` still splits a larger map into ≤ 2048 tiles; each tile draws only what meets its bounds + `CULL_MARGIN_PX` (96 map px: shadows, blur, skid marks). Grain/speckle uses small pre-drawn noise patterns. The stage-independent part (ground, wet layer, static walls' shadows, roofs, low walls, pumps) is cached per tile (`drawBase`, keyed by the drawn wall names) and the stage overlay (cover + shadows, blocks, hazards, fires, stage group, canopy, lamp heads) + light are redrawn on a stage change. Not re-baked on resize (a rotation keeps the first density; recorded).
 - **D3 Atlases.** Three runtime atlases, laid out by a pure shelf packer (≤ 2048, 2 px padding) and named like the final files (`public/assets/atlases/characters|downtown|fx`): Phaser texture keys `atlas_characters`, `atlas_downtown`, `atlas_fx`, frames `category_name_variant` (`zombie_walker_a`, `survivor_body_a`, `vehicle_bus_a`, `vehicle_car_c`, `prop_pump_a`, `prop_barrier_a`, `prop_sandbags_a`, `fx_rain_a`, `fx_splash_a`, `fx_glow_a`, `fx_vignette_a`). Epic 9 replaces a frame by loading a real atlas under the same key and frame names; the code that draws (`ZombieView`, `PlayerView`, the bake's `drawImage` of vehicles/props) only knows the frame names. Buildings (roofs) are drawn to their exact boxes in the bake (static map art, not atlas frames).
 - **D4 Light baked into the static tiles.** A lightmap (ambient + moonlit tops + lamp pools + window spill + canopy light + the running car's headlight cone) and a glow (lamp heads, halos, neon, spill) are drawn at 8 px/m and composited onto every static tile at bake time (`multiply`, then `lighter`). *Changed during the build:* the first version showed them as two full-screen Phaser layers (MULTIPLY/ADD); headless Chromium fell from 22 to 8.6 FPS at 1280×720 (CPU rasterizer, fill-bound), and since characters are drawn above the light anyway the layers only lit the street. Dynamic lights (the flickering lamp, the bus's hazard blinkers, the barrier's lamps when the barrier exists) are a handful of additive `fx_glow_a` images whose alpha changes per frame. Graphics-drawn barricades/turrets carry the night in their colours (`NIGHT_DARKEN` = 0.35).
 - **D5 Depth order.** Lit street bake 0 · blood/trails 1 · barricades 3 · turret 3.5–4 · selection 4 · **dynamic lights 4.32 · revive zone 4.4** · crawler 4.5 · zombies 5–5.5 · FX 7 · projectiles 8 · rings 8.5 · downed ring 9 · survivors 10 · **rain 11.8, vignette 11.9** · chevrons/bars 12 · preview 13 · debug 1000. Characters, FX and UI are unlit, so the zombie hit flash (white FILL tint) stays full white and rings stay saturated; character sprites use a night-muted palette (prototype colours, slightly darker skins).
@@ -46,13 +49,17 @@ so that we judge the milestone on the right mood.
 - **D7 Car silhouettes.** Car bodies inset 1 map-px (≈ 3 cm) with a 4 px (12 cm) corner radius (prototype: 4 px inset, 10 px radius); tyres stay inside the box. Fixes weakness #2.
 - **D8 Gas-leak marker.** Hazard zones are a faint diagonal hatch with no outline and no label (labels were study annotations); the canopy keeps its red frame. Two shapes never share an outline. Fixes weakness #3. Hazards are drawn only when `stage ≥ minStage` (gas leak 2, car fires 3); fire visuals proper are Story 4.8's.
 - **D9 Cover comes from `world.obstacles.cover`,** never `map.cover` filtered again: it is the stage-filtered list and the one 4.5 mutates (moved/added cars). Car styles are looked up by name; an unknown car (added by a mutation) gets a colour by name hash and a front by orientation. The bus is drawn from cover kind `bus` (its duplicate collision box `city_bus` is skipped).
-- **D10 Stage props cumulative.** `stages[0..stage-1]` are drawn (debris added at stage 2 stays at 3). Debris is flat rubble (no shadow), since it is walkable.
-- **D11 Rain.** Light drizzle at stages 1–2, full rain from stage 3 (GDD: "rain begins" at Breakdown); `RAIN_DROPS_MAX` = 128 pooled streak images placed relative to the camera view each frame (hash of index + time, no allocation) + 16 pooled splash rings. Density per stage in the look block.
+- **D10 Stage groups swap (changed in review).** The architecture (§Decay Stage Engine: "DecayView … swaps Tiled visual layer groups (`stageN_*`)") and Story 4.5 use the swap model: stage 1's ground props are the base, stage N ≥ 2 shows `stageN_*` only (`stageGroupAt`). The first version drew them cumulatively. Stage-group props are flat rubble (no shadow: walkable).
+- **D11 Rain.** Light drizzle at stages 1–2, full rain from stage 3 (GDD: "rain begins" at Breakdown); 128 pooled streak images placed relative to the camera view each frame (hash of index + time, no allocation) + 16 pooled splash rings. Strength per stage = `NIGHT_BY_STAGE[i].rain`.
 - **D12 Players.** One survivor frame (`survivor_body_a`) for every slot (the ring tells players apart; per-character art is Epic 9). Downed and slowed are tints (MULTIPLY) of the sprite instead of the old body colours.
 - **D13 Old views removed.** `render/StreetView.ts` and `render/CoverView.ts` are replaced by `CityView` (their only caller was `GameScene`). The debug collision grid is unchanged.
 - **D14 Vignette as four edge bands in world space.** Four `fx_vignette_a` bands (20 % of the view's short side) placed around the camera view each frame; the centre is untouched. A single full-screen quad cost ~40 % of the headless frame rate (fill rate).
 - **D15 Revive zone (designer addition).** `DownedView` draws, on a second Graphics at depth 4.4 (on the ground, below zombies), a circle of radius `world.balance.player.reviveRadiusM` (read every frame from balance, no literal; centre to centre, the line's outer edge at the radius) around each downed player: pale revive-green (`0x8ff0c0`), fill 0.05 / line 0.35 when idle; fill 0.12, a thicker line pulsing 0.6–0.95 with the 2.9 pulse while `reviverId !== null` (a teammate in reach and the revive running). Pure style helper `render/reviveZone.ts` (no allocation: writes into a reused object). Redrawn only while someone is downed, like the progress ring.
-- **D16 Contrast numbers.** Roof colours are ~35 % brighter than the study's; streetlight core glow 22 px, tail 0.06, halo 0.07 (110 px), spill glow × 0.12. Worst lit sidewalk luma 87 vs roofs 111–118 (margin ≥ 18 enforced by the test). The lamp bulb itself (22 px core) is excluded: it is the light source.
+- **D17 Night per stage (designer, review).** `palette.ts › NIGHT_BY_STAGE` (index = stage − 1): `ambient`, `roofLight`, `topLightA`, `lampA`, `spillK`, `sky`/`skyA`, `rain`. Dusk 124,134,172 ambient + a blue sky glow 0.1, lamps 0.5, shop spill × 1.1; night 104,114,140; deep night 84,92,118, spill × 0.8, rain 1; late night 72,78,102 (× 0.6); before dawn 62,66,88 (× 0.45). Roof light stays 204–236 so roofs stay readable (tested per stage).
+- **D18 Story 4.5 objects.** Walls come from `world.obstacles.walls` (`drawnWalls`: minus the bus's twin), so a removed bus disappears and the stage-2 dumpster (`dumpster_alley_3`, a `block` mutation) is drawn as `prop_dumpster_a` with a low (1.4 m) shadow; any other block gets `prop_block_a` (crates/rubble). Added/removed cars come with `obstacles.cover`. Fires: `world.decay.fires` only (the car chosen this run), drawn as scorch + static flames + a fire pool in the lightmap/glow + a flickering additive light; the map's `fire` hazard zones are not drawn (Story 4.8 does real fire).
+- **D19 Memory.** `addCanvasTexture` drops the `CanvasTexture` constructor's `getImageData` copy (`imageData/data/pixels/buffer`; `refresh()` never reads it); canvases are sized to 0 on destroy (Safari).
+- **D20 Late join.** `CityView.update(…, synced)`: online the first bake waits for `NetSimHost.decaySynced` (room `decayStage` ≥ 1 and the mirror's `decay.stage` equal to it), so a late join / late scene start bakes once, at the server's stage.
+- **D16 Contrast numbers.** Roof colours are ~35 % brighter than the study's; streetlight core glow 22 px, tail 0.06, halo 0.07 (110 px), spill glow × 0.12. Review: the test now runs the REAL `drawLightmap` + `drawGlow` through a point-sampling canvas (`probeCanvas.ts`) at 25 points per roof and every 8 px of sidewalk (bulbs excluded, all decay variants on), per stage: darkest roof / brightest sidewalk luma = 118/78 (dusk), 111/70, 106/66, 101/58, 98/50 — margin ≥ 18 enforced.
 
 ### Current state (read before changing)
 
@@ -80,6 +87,44 @@ Vitest (`npm test`), pure helpers only (no Phaser in unit tests, like `buildingL
 - GDD › Art Style (readability rules, decay stages: rain from Breakdown)
 - Cover/stage: `packages/shared/src/map/obstacles.ts`, `map/decayStage.ts`, Story 4.2 D1/D9
 
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh review agent, 2026-11-22, on 90cbf3c. **Outcome:** approved with fixes; all fixed here.
+
+| # | Sev | Finding | Fix |
+| --- | --- | --- | --- |
+| 1 | M | `textures.addCanvas` keeps a full `getImageData` copy per texture (CanvasTexture.js:89): each bake held three times (~52 MB at DPR 1, ~75 MB on phones) | `canvasTexture.ts › addCanvasTexture` drops `imageData/data/pixels/buffer` (also for the three atlases); `releaseCanvas` zeroes canvases on destroy. Measured (Chromium `Runtime.getHeapUsage` backing store, solo, after GC): 53.9 → 33.8 MB at 1280×720 DPR 1, 61.8 → 33.8 MB at 844×390 DPR 2. Static bake memory (canvas + GPU + copy): 2 × 1272×1696 tiles ≈ 52 MB / 2 × 1536×2048 ≈ 75 MB → one 2016×1344 tile + its cached base ≈ 32 MB (canvas 10.8 + base 10.8 + GPU 10.8) at any DPR |
+| 2 | L | Debris and buildings shared one `mulberry(23)` stream: stage debris moved the rooftop units | `rng(key)`: one stream per object name / fixed label (ground patches, cracks, litter, puddles, glass, each building, each prop, each fire); test: a key's stream is unaffected by other draws |
+| 3 | L | The contrast test checked an analytic model: deleting the roof light fill in `drawLightmap` broke no test | `palette.test.ts` samples the real lightmap and glow through `probeCanvas.ts`, per stage; deleting the roof fill now fails 5 tests (all stages) |
+| 4 | perf | Each tile drew the whole map; everything redrawn per stage; 20 % vignette bands; 2 tiles | tile culling; cached stage-independent base; 12 % bands; one tile at 42 px/m (see D2) |
+| 5 | L | Online late join baked stage 1, then again when the real stage arrived | first bake waits for `NetSimHost.decaySynced` (D20); online check: 1 bake at stage 2 and at stage 3, also with the loop asleep across the Start |
+| 6 | new | Designer: one night per run, light follows the stage | `NIGHT_BY_STAGE` (D17), screenshots per stage |
+| 7 | 4.5 | Reconcile with the decay engine (walls, blocks, fires, stage groups, DecayView/drawStreet, real stage path) | D10, D18; `DecayView.ts` and `StreetView.ts` deleted, `stackBanner` kept; the redraw keys on `obstacles.stage/version` + fire count, which 4.5's `applyDecayStage` changes on every path (solo build start and cheat, the online mirror on any patch) |
+
+**Numbers (headless Chromium, SwiftShader CPU raster, 2 cores, my browser in the load).**
+
+| | before review (90cbf3c) | after |
+| --- | --- | --- |
+| `?stress=150` FPS 1280×720 | 15.8 / 14.9 / 14.2 (load 1.8–3.2) | 18.0 / 17.1 (load 0.8–1.7) |
+| `?stress=150` FPS 844×390 | 47.6 / 44.7 | 50.4 |
+| bake, first / stage change, 1280×720 | 214 / 151 ms (2 tiles, 53 px/m) | 104–173 / 43–46 ms (1 tile, 42 px/m) |
+| bake, first / stage change, 844×390 | 75 / 70 ms | 76–86 / 33–35 ms |
+| bake, DPR 2 phone size | 230–283 ms (2 tiles, 64 px/m) | 108–111 ms (1 tile) |
+| JS backing store | 53.9 / 61.8 MB | 33.8 / 33.8 MB |
+
+Pre-4.9 baseline for reference: 22 / 19 FPS and 58.7 FPS. Real phone still pending (4.10).
+
+**Mutations proven to fail (review round):** roof light fill deleted (5 tests); fire zones drawn from hazards (`kind !== "fire"` removed); stage groups cumulative again; walls truncated to the map's first 10 (dumpster missing); stage 3 ambient brighter than stage 2; `staticKey` ignoring the fire count; stage 3 roof light lowered to 150,155,170 (contrast). Earlier round: frame regex, packer padding, revive active fill, hazards `<=`.
+
+**Browser checks:** solo 1280×720 stage 1 (dusk), stage 2 (dumpster, abandoned car south, parked_car_3 gone, Panic banner), stage 3 (one burning car, sandbags, full rain, deep night) via the 4.5 build-phase cheat with variants 0b0110; online (server on 2649, `DEV_DECAY_STAGES=2` and `=3`, solo start): stage 2 with dumpster + abandoned car, stage 3 with the run's one fire (street_car_west in one run, parked_car_2 in another), one bake each, also with `loop.sleep()` across the Start. Best four in `/home/claude/proto/s49/`.
+
+**Not verified:** a real phone; a hidden tab sleeping across a mid-run build start online (the same mirror path as the late start, not run end to end: it needs a cleared wave); Safari.
+
+## Change Log
+
+- 2026-11-22: Story written and built (look B, atlases, revive zone); status review (90cbf3c).
+- 2026-11-22: Review fixes part A (memory, per-object streams, real-light contrast test, night per stage, one-tile cached bake, vignette 12 %, late-join bake); merged Story 4.5 and reconciled (walls, blocks, fires, swap-model stage groups, DecayView/StreetView removed); status done.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -102,8 +147,8 @@ Claude Opus 5.5
 
 ### Notes for the merge
 
-- **Stage entry point:** `apps/client/src/render/city/CityView.ts › CityView.showStage(stage, cover)` redraws the static layers and light. `CityView.update` already calls it whenever `world.obstacles.stage` or `.version` changes, so Story 4.5's `DecayView` needs nothing if `applyCoverStage`/its mutations bump the obstacle version; call `showStage(stage, world.obstacles.cover)` only for a redraw that the obstacles don't reflect. GameScene owns it as `this.cityView`. Hazards are shown by `minStage ≤ stage` (4.8's fire visuals can sit on top).
-- **Removed:** `render/StreetView.ts` (`drawStreet`) and `render/CoverView.ts`; their GameScene calls are replaced by `CityView`. If 4.5 edited either, move that change into `CityView`/`drawCity.ts`.
+- **Stage entry point:** `apps/client/src/render/city/CityView.ts › CityView.showStage(world)` redraws the static layers and light for the World's decay state. `CityView.update` calls it whenever `world.obstacles.stage/version` or the fire count changes (4.5's `applyDecayStage` on every path). Story 4.8: give fires their real look on top of `drawCity.ts › scorch/flames` (or replace them); a fire that expires changes the fire count, which redraws.
+- **Removed:** `render/StreetView.ts`, `render/CoverView.ts`, and (after merging 4.5) `render/DecayView.ts`; `GameScene.stackBanner` (4.5) kept. `NetSimHost.decaySynced` added (read-only getter).
 - **GameScene:** imports, the `cityView` field, its creation right after `applyZoom()` (needs the zoom), destroy in SHUTDOWN, `update` call at the end of `update()`, `downedView.update(world, this.time.now)`.
 - **Shared files:** none edited (no sim, collision, network, balance or map change; the map version is unchanged). Merged `claude/epic-2-continue` (cfdab04, revive radius 2.0 m) into the branch.
 - **Other client files:** `ZombieView` (atlas frames, variants by slot), `PlayerView` (survivor sprite, tints), `BuildingView`/`TurretView` (shadow + bevel, night colours), `DownedView` (revive zone).
@@ -124,4 +169,5 @@ Claude Opus 5.5
 - `apps/client/src/render/reviveZone.ts` (new) + `reviveZone.test.ts`
 - `apps/client/src/render/ZombieView.ts`, `PlayerView.ts`, `BuildingView.ts`, `TurretView.ts`, `DownedView.ts`
 - `apps/client/src/scenes/GameScene.ts`
-- `apps/client/src/render/StreetView.ts`, `apps/client/src/render/CoverView.ts` (deleted)
+- `apps/client/src/render/StreetView.ts`, `apps/client/src/render/CoverView.ts`, `apps/client/src/render/DecayView.ts` (deleted)
+- Review round: `apps/client/src/render/city/canvasTexture.ts`, `probeCanvas.ts`, `testScene.ts` (new); `apps/client/src/sim/NetSimHost.ts` (`decaySynced`)

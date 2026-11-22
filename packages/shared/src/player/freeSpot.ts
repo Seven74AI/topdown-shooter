@@ -86,3 +86,26 @@ export function findFreeSpotNear(
   }
   return false;
 }
+
+/**
+ * Story 4.5: the first spot round (cx, cy) where a circle of radius `r` is clear of the map edge,
+ * map boxes and buildings (bodies ignored): rings at `spawnOffsetM × 1 … rings`, 8 directions each,
+ * the same order as `findFreeSpotNear`. For a zombie a decay stage put inside a new box. Build
+ * starts only: no per-tick cost.
+ */
+export function findBoxFreeSpot(world: Readonly<World>, cx: number, cy: number, r: number, rings: number, out: { x: number; y: number }): boolean {
+  const step = world.balance.player.spawnOffsetM;
+  for (let ring = 1; ring <= rings; ring++) {
+    const dist = step * ring;
+    for (let i = 0; i < DIRS.length; i++) {
+      const [dx, dy] = DIRS[i] as readonly [number, number];
+      const x = cx + dx * dist;
+      const y = cy + dy * dist;
+      if (boxBlocked(world, x, y, r)) continue;
+      out.x = x;
+      out.y = y;
+      return true;
+    }
+  }
+  return false;
+}

@@ -54,6 +54,9 @@ export interface FakeState {
   scenario: string;
   /** Story 4.4. */
   runSeed: number;
+  /** Story 4.5. */
+  decayStage: number;
+  decayVariants: number;
 }
 
 export function fakeState(players: FakePlayer[] = []): FakeState {
@@ -71,6 +74,8 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     buildTicksLeft: 0,
     scenario: "",
     runSeed: 0,
+    decayStage: 1,
+    decayVariants: 0,
   };
 }
 

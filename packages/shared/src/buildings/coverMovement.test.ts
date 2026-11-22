@@ -6,7 +6,7 @@ import { createWorld, setInput, step, type World } from "../core/world";
 import { PLACEHOLDER_MAP } from "../map/placeholderMap";
 import { COVER_KINDS, type CoverKind, type DistrictMap, type MapBox } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
-import { applyCoverStage } from "../map/obstacles";
+import { applyDecayStage } from "../decay/applyDecayStage";
 import { NEUTRAL_INPUT } from "../net/input";
 import { addPlayer } from "../player/player";
 import { spotBlocked } from "../player/freeSpot";
@@ -112,8 +112,7 @@ describe("cover vs movement, per kind (Story 4.2 AC 1)", () => {
     addPlayer(world, "p0", 12.6, 16);
     const p = world.players.get("p0");
     if (!p) throw new Error("no p0");
-    world.debug.decayStage = 3;
-    applyCoverStage(world);
+    applyDecayStage(world, 3, world.decay.variants);
     setInput(world, "p0", { ...NEUTRAL_INPUT, seq: 1, moveX: 0, moveY: 0 });
     step(world, TICK_DT_S);
     expect(circleOverlapsBox(p.x, p.y, R - PLAYER_EPS, BOX.minX, BOX.minY, BOX.maxX, BOX.maxY)).toBe(false);
@@ -126,8 +125,7 @@ describe("player-visible properties on Downtown (Story 4.2, brief line 10)", () 
     const world = createWorld({ balance, seed: 7, map: DOWNTOWN_MAP, systems: { waves: noop } });
     world.debug.godMode = true;
     if (stage !== 1) {
-      world.debug.decayStage = stage;
-      applyCoverStage(world);
+      applyDecayStage(world, stage, world.decay.variants);
     }
     addPlayer(world, "p0", px, py);
     const p = world.players.get("p0");

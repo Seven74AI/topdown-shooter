@@ -16,6 +16,7 @@ import {
   type World,
 } from "@topdown/shared";
 import { mirrorBuildings } from "./mirrorBuildings";
+import { mirrorDecay } from "./mirrorDecay";
 import {
   PREDICTION_ERROR_BUCKETS,
   PREDICTION_ERROR_BUCKET_STEPS,
@@ -120,6 +121,24 @@ export class Predictor {
    */
   syncBuildings(buildings: ReadonlyMapView<BuildingStateView> | undefined): void {
     mirrorBuildings(buildings, this.world);
+  }
+
+  /**
+   * Story 4.5: the server's decay stage and variants (room state), applied before every reconcile
+   * like the buildings, with the shared `applyDecayStage`: the replay collides with the new map.
+   */
+  syncDecay(stage: number | undefined, variants: number | undefined): void {
+    mirrorDecay(this.world, stage, variants);
+  }
+
+  /** Story 4.5: the decay stage the prediction collides with (tests). */
+  get decayStage(): number {
+    return this.world.decay.stage;
+  }
+
+  /** Story 4.5: the prediction World's obstacle solids (tests: the same names as the server's). */
+  get solidNames(): string[] {
+    return this.world.obstacles.solids.map((b) => b.name);
   }
 
   /** Story 4.1: the map the prediction collides with (tests: the same object as the server's). */

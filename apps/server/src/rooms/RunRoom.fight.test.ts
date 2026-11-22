@@ -245,8 +245,11 @@ describe("RunRoom fight (Story 2.4)", () => {
     );
     expect(ticks).toBeGreaterThan(30);
     expect(patches).toBeGreaterThan(30);
-    expect(patchMean).toBeLessThan(5);
-    expect(mean).toBeLessThan(5);
+    // Timing asserts only with PERF_ASSERT=1 (Epic 3 retro: a loaded machine missed 5 ms once in 4.5).
+    if (process.env.PERF_ASSERT === "1") {
+      expect(patchMean).toBeLessThan(5);
+      expect(mean).toBeLessThan(5);
+    }
   });
 
   it("observes every tick for the slow-tick log", async () => {

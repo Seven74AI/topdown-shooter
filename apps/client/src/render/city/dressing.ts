@@ -58,6 +58,7 @@ export const HEIGHT_BY_KIND: Readonly<Record<string, number>> = {
   sandbags: 0.6,
   pump: 1.8,
   wall: 1.1,
+  block: 1.4,
   solid: 2,
 };
 

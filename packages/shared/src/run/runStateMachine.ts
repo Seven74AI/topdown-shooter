@@ -5,6 +5,7 @@ import type { PlayerState } from "../player/player";
 import { returnOutPlayers } from "../player/downed";
 import { beginWave, clearWave, updateWaves } from "../waves/waveDirector";
 import { killZombie } from "../zombies/zombiePool";
+import { decayFinish, decayMutate, stageForComingWave } from "../decay/decaySystem";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
@@ -47,16 +48,22 @@ const clearReady = (p: PlayerState): void => {
 };
 
 /**
- * Lobby | Wave → Build: a `buildPhaseS` countdown (ticks), every Ready cleared, every player healed
- * by `buildHealFrac` of max HP and downed or out players back next to a teammate (`returnOutPlayers`,
- * FR9/FR10), then `build.started { wave: next wave }`.
+ * Lobby | Wave → Build: a `buildPhaseS` countdown (ticks), every Ready cleared; Story 4.5: if the
+ * coming wave's decay stage differs, the DecaySystem's mutations, building refunds and push-outs
+ * (`decayMutate`, brief line 5); every player healed by `buildHealFrac` of max HP and downed or out
+ * players back next to a teammate (`returnOutPlayers`, FR9/FR10, avoiding the new boxes); then the
+ * flow fields rebuilt and `decay.stage_changed` (`decayFinish`); then `build.started { wave: next wave }`.
+ * The only place the stage changes in a run: never mid-wave.
  */
 export function startBuild(world: World): void {
   expectPhase(world, "startBuild", "lobby", "wave");
   world.run.phase = "build";
   world.run.buildTicksLeft = ticksFor(world.balance.waves.buildPhaseS);
   world.players.forEach(clearReady);
+  const from = world.decay.stage;
+  const decayed = decayMutate(world, stageForComingWave(world));
   returnOutPlayers(world);
+  if (decayed) decayFinish(world, from);
   world.events.emit({ type: "build.started", wave: world.waves.number + 1 });
 }
 

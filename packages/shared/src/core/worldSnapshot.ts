@@ -84,7 +84,16 @@ export function snapshotWorld(world: World) {
     // Story 4.1: the map is static frozen data; its name and content hash identify it.
     map: { name: world.map.name, version: world.map.version },
     // Story 4.2: the active obstacles follow from the map + stage; the stage and rebuild count identify them.
-    obstacles: { stage: world.obstacles.stage, version: world.obstacles.version, solids: world.obstacles.solids.length, shotBlockers: world.obstacles.shotBlockers.length },
+    obstacles: {
+      stage: world.obstacles.stage,
+      variants: world.obstacles.variants,
+      version: world.obstacles.version,
+      // Story 4.5: the boxes themselves (names in order): a mutation that changes the lists changes the digest.
+      solids: world.obstacles.solids.map((b) => b.name),
+      shotBlockers: world.obstacles.shotBlockers.map((b) => b.name),
+    },
+    // Story 4.5: the decay stage, the run's variation choices and the fire records.
+    decay: { stage: world.decay.stage, variants: world.decay.variants, fires: world.decay.fires.map((f) => ({ ...f })) },
     players: sortedEntries(world.players).map(
       ([id, p]) =>
         [

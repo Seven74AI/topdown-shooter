@@ -1,21 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP, createObstacles } from "@topdown/shared";
 import { drawGlow, drawLightmap, type CityScene } from "./drawCity";
 import { DOWNTOWN_DRESSING, MAP_PX_PER_M } from "./dressing";
 import { GROUND, LAMP_GLOW_R_PX, NIGHT_BY_STAGE, ROOFS, ROOF_DEFAULT, ROOF_MARGIN, hexRgb, lit, luma, nightAt, shadowLenPx, type Rgb } from "./palette";
 import { ProbeContext } from "./probeCanvas";
-import { staticSolids } from "./stageFilter";
-import type { AtlasCanvas } from "./spriteAtlas";
+import { blockNames, drawnWalls } from "./stageFilter";
+import { downtownScene } from "./testScene";
 
 const P = MAP_PX_PER_M;
-const NO_ATLAS = { canvas: null, frames: new Map() } as unknown as AtlasCanvas;
-const sceneAt = (stage: number): CityScene => ({ map: DOWNTOWN_MAP, dressing: DOWNTOWN_DRESSING, stage, cover: createObstacles(DOWNTOWN_MAP, stage).cover, atlas: NO_ATLAS });
+/** Every decay variant on (both abandoned cars, both car fires): the most light near sidewalks. */
+const ALL_VARIANTS = 0b1111;
+const sceneAt = (stage: number): CityScene => downtownScene(stage, ALL_VARIANTS);
 
 /** Roof sample points (inside the parapet) and sidewalk points (away from the lamp bulbs). */
 function probes(cs: CityScene): { roofs: { at: [number, number]; color: string }[]; walks: [number, number][] } {
   const roofs: { at: [number, number]; color: string }[] = [];
-  for (const b of staticSolids(cs.map, cs.cover)) {
-    if (DOWNTOWN_DRESSING.pumps.includes(b.name) || DOWNTOWN_DRESSING.walls.includes(b.name)) continue;
+  const blocks = blockNames(cs.map);
+  for (const b of drawnWalls(cs.walls, cs.cover)) {
+    if (DOWNTOWN_DRESSING.pumps.includes(b.name) || DOWNTOWN_DRESSING.walls.includes(b.name) || blocks.has(b.name)) continue;
     const x0 = b.minX * P + 8;
     const y0 = b.minY * P + 8;
     const w = (b.maxX - b.minX) * P - 16;

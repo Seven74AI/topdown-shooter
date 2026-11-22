@@ -1,40 +1,52 @@
 import { describe, expect, it } from "vitest";
 import { DOWNTOWN_MAP, createObstacles } from "@topdown/shared";
-import { hazardsAt, propsAt, staticKey, staticSolids } from "./stageFilter";
+import { blockNames, drawnWalls, hazardsAt, stageGroupAt, staticKey } from "./stageFilter";
+import { downtownScene } from "./testScene";
 import { CAR_COLORS, DOWNTOWN_DRESSING, carStyle } from "./dressing";
 
 const names = (l: readonly { name: string }[]): string[] => l.map((o) => o.name).sort();
 
 describe("what the static city draws at a stage", () => {
-  it("hazards only once their stage is reached (gas leak 2, car fires 3)", () => {
+  it("hazards only once their stage is reached (gas leak 2); fire zones never (fires come from decay.fires)", () => {
     expect(hazardsAt(DOWNTOWN_MAP, 1)).toEqual([]);
     expect(names(hazardsAt(DOWNTOWN_MAP, 2))).toEqual(["gas_leak_zone"]);
-    expect(names(hazardsAt(DOWNTOWN_MAP, 3))).toEqual(["fire_parked_car_2", "fire_street_car_west", "gas_leak_zone"]);
-    for (const h of DOWNTOWN_MAP.hazards) for (let s = 1; s <= 5; s++) expect(hazardsAt(DOWNTOWN_MAP, s).includes(h)).toBe(h.minStage <= s);
+    expect(names(hazardsAt(DOWNTOWN_MAP, 3))).toEqual(["gas_leak_zone"]);
+    for (const h of DOWNTOWN_MAP.hazards) for (let s = 1; s <= 5; s++) expect(hazardsAt(DOWNTOWN_MAP, s).includes(h)).toBe(h.minStage <= s && h.kind !== "fire");
   });
-  it("stage props are cumulative: debris that fell at stage 2 is still there at 3", () => {
-    const at = (s: number): string[] => names(propsAt(DOWNTOWN_MAP, s).filter((p) => p.kind === "debris"));
+  it("only the burning car chosen this run is on fire (4.5 variants)", () => {
+    expect(downtownScene(2, 0b1111).fires).toEqual([]);
+    expect(downtownScene(3, 0b0100).fires.map((f) => f.target)).toEqual(["parked_car_2"]);
+    expect(downtownScene(3, 0b1000).fires.map((f) => f.target)).toEqual(["street_car_west"]);
+  });
+  it("stage groups swap over the stage-1 base (architecture: DecayView swaps stageN_* groups)", () => {
+    const at = (s: number): string[] => names(stageGroupAt(DOWNTOWN_MAP, s));
     expect(at(1)).toEqual([]);
     expect(at(2)).toEqual(["debris_east", "debris_west"]);
-    expect(at(3)).toEqual(["debris_east", "debris_mid", "debris_south", "debris_west"]);
-    expect(propsAt(DOWNTOWN_MAP, 1).length).toBe(DOWNTOWN_MAP.stages[0]?.length);
+    expect(at(3)).toEqual(["debris_mid", "debris_south"]);
+    expect(at(4)).toEqual([]);
   });
-  it("cover comes from the active obstacle list: the barrier from stage 2, sandbags from 3", () => {
+  it("cover comes from the active obstacle list: the barrier from stage 2, sandbags from 3, mutations applied", () => {
     const kinds = (s: number): string[] => createObstacles(DOWNTOWN_MAP, s).cover.map((c) => c.kind);
     expect(kinds(1)).not.toContain("barrier");
     expect(kinds(2)).toContain("barrier");
     expect(kinds(2)).not.toContain("sandbags");
     expect(kinds(3)).toContain("sandbags");
+    expect(names(downtownScene(2, 0b0001).cover)).toContain("abandoned_car_west");
+    expect(names(downtownScene(2, 0b0001).cover)).not.toContain("parked_car_3");
   });
-  it("the bus's collision copy is skipped while its cover twin is drawn, kept if the twin is gone", () => {
-    const cover = createObstacles(DOWNTOWN_MAP, 1).cover;
-    expect(names(staticSolids(DOWNTOWN_MAP, cover))).not.toContain("city_bus");
-    expect(staticSolids(DOWNTOWN_MAP, cover)).toHaveLength(DOWNTOWN_MAP.solids.length - 1);
-    expect(names(staticSolids(DOWNTOWN_MAP, cover.filter((c) => c.kind !== "bus")))).toContain("city_bus");
+  it("walls come from obstacles.walls: the bus's twin is skipped, the dumpster (a block) appears at stage 2", () => {
+    const s1 = downtownScene(1);
+    expect(names(drawnWalls(s1.walls, s1.cover))).not.toContain("city_bus");
+    expect(names(drawnWalls(s1.walls, s1.cover.filter((c) => c.kind !== "bus")))).toContain("city_bus");
+    expect(names(drawnWalls(s1.walls, s1.cover))).not.toContain("dumpster_alley_3");
+    const s2 = downtownScene(2);
+    expect(names(drawnWalls(s2.walls, s2.cover))).toContain("dumpster_alley_3");
+    expect(blockNames(DOWNTOWN_MAP).has("dumpster_alley_3")).toBe(true);
   });
-  it("staticKey changes with the stage and with the obstacles version", () => {
-    expect(staticKey(1, 0)).not.toBe(staticKey(2, 0));
-    expect(staticKey(2, 0)).not.toBe(staticKey(2, 1));
+  it("staticKey changes with the stage, the obstacles version and the fire count", () => {
+    expect(staticKey(1, 0, 0)).not.toBe(staticKey(2, 0, 0));
+    expect(staticKey(2, 0, 0)).not.toBe(staticKey(2, 1, 0));
+    expect(staticKey(3, 4, 0)).not.toBe(staticKey(3, 4, 1));
   });
 });
 

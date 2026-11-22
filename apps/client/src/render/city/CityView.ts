@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import type { CoverObject, DistrictMap, World } from "@topdown/shared";
+import type { DistrictMap, World } from "@topdown/shared";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, dressingFor, type Dressing } from "./dressing";
 import { CULL_MARGIN_PX, baseKey, blinkerSpots, drawBase, drawGlow, drawLightmap, drawOverlay, type CityScene } from "./drawCity";
@@ -17,9 +17,11 @@ import { staticKey } from "./stageFilter";
  * A few pooled images animate the flickering lamp, the bus blinkers, the barrier lamps, rain and
  * splashes, plus a vignette. No allocation per frame.
  *
- * Stage entry point: `showStage(stage, cover)` redraws the static layers and the light for a decay
- * stage. `update` calls it by itself when `world.obstacles` changes stage or version (the 4.2 dev
- * cheat today, Story 4.5's `decay.stage_changed` later), so callers normally need nothing else.
+ * Stage entry point: `showStage(world)` redraws the static layers and the light for the World's
+ * decay stage (walls, cover, fires, stage group, light state). `update` calls it by itself when
+ * `world.obstacles` changes stage or version or the fire count changes: Story 4.5's
+ * `applyDecayStage` (solo build start, the dev cheat, the online mirror on any patch, including a
+ * tab that slept across a build start), so callers need nothing else.
  */
 
 /** Depths (D5): the lit street 0; animated lights above barricades/turrets, below every character. */
@@ -62,6 +64,11 @@ const BLINK_BUS_HZ = 6 / (2 * Math.PI);
 const BLINK_BUS_M = 1.6;
 const BLINK_BARRIER_M = 1.1;
 const BLINK_COLOR = 0xff9628;
+/** Burning cars: at most this many lit, the light's size and colour, its flicker rate. */
+const FIRE_LIGHTS = 4;
+const FIRE_LIGHT_M = 6;
+const FIRE_COLOR = 0xff7a28;
+const FIRE_FLICKER_HZ = 9;
 /**
  * Vignette: four edge bands, each this fraction of the view's smaller side (corners get two). Not
  * one full-screen quad: the centre stays untouched (fill rate on phones; headless Chromium showed a
@@ -99,6 +106,8 @@ export class CityView {
   private readonly flickerCore: Phaser.GameObjects.Image;
   private readonly busBlink: Phaser.GameObjects.Image[] = [];
   private readonly barrierBlink: Phaser.GameObjects.Image[] = [];
+  /** Flickering light over each burning car (`world.decay.fires`). */
+  private readonly fireLight: Phaser.GameObjects.Image[] = [];
   private readonly rain: Phaser.GameObjects.Image[] = [];
   private readonly splash: Phaser.GameObjects.Image[] = [];
   /** Top, bottom, left, right edge bands. */
@@ -111,8 +120,9 @@ export class CityView {
   private shownBaseKey: string | null = null;
   private stage = 1;
   private clockS = 0;
-  /** Last bake time (ms), for the debug notes. */
+  /** Last bake time (ms) and how many bakes ran (browser checks: a late join bakes once). */
   bakeMs = 0;
+  bakeCount = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -152,6 +162,7 @@ export class CityView {
       this.busBlink.push(glowImg(BLINK_BUS_M, BLINK_COLOR));
       this.barrierBlink.push(glowImg(BLINK_BARRIER_M, BLINK_COLOR));
     }
+    for (let i = 0; i < FIRE_LIGHTS; i++) this.fireLight.push(glowImg(FIRE_LIGHT_M, FIRE_COLOR));
     for (let i = 0; i < RAIN_POOL; i++) {
       this.rain.push(scene.add.image(0, 0, ATLAS_FX, FX_RAIN).setDisplaySize(RAIN_W_M, RAIN_LEN_M).setRotation(-Math.atan(RAIN_SLANT)).setDepth(RAIN_DEPTH).setVisible(false));
       this.dropSpeed[i] = RAIN_SPEED_MPS + hash(i + 0.5) * RAIN_SPEED_VAR_MPS;
@@ -181,14 +192,16 @@ export class CityView {
   }
 
   /**
-   * THE stage entry point (for Story 4.5's `decay.stage_changed`): redraws the static layers and the
-   * light for `stage` with `cover` (the active cover: `world.obstacles.cover`). Costs one bake
-   * (tens of ms on a phone): call it on a stage change, never per frame.
+   * THE stage entry point: redraws the static layers and the light for the World's decay stage
+   * (`world.obstacles` stage, walls and cover, `world.decay.fires`). Costs one bake (tens of ms):
+   * on a stage change only, never per frame (`update` does it on its own).
    */
-  showStage(stage: number, cover: readonly CoverObject[]): void {
+  showStage(world: Readonly<World>): void {
     const t0 = performance.now();
+    const o = world.obstacles;
+    const stage = o.stage;
     this.stage = stage;
-    const cs: CityScene = { map: this.map, dressing: this.dressing, stage, cover, atlas: this.atlas };
+    const cs: CityScene = { map: this.map, dressing: this.dressing, stage, cover: o.cover, walls: o.walls, fires: world.decay.fires, atlas: this.atlas };
     const ls = LIGHT_PX_PER_M / MAP_PX_PER_M;
     for (const [canvas, draw] of [
       [this.light, drawLightmap],
@@ -232,7 +245,9 @@ export class CityView {
     const spots = blinkerSpots(cs);
     this.placeBlinkers(this.busBlink, spots.bus);
     this.placeBlinkers(this.barrierBlink, spots.barrier);
+    this.placeBlinkers(this.fireLight, cs.fires.map((f) => [f.x * MAP_PX_PER_M, f.y * MAP_PX_PER_M] as [number, number]));
     this.bakeMs = performance.now() - t0;
+    this.bakeCount++;
   }
 
   private placeBlinkers(imgs: Phaser.GameObjects.Image[], spots: [number, number][]): void {
@@ -254,10 +269,10 @@ export class CityView {
     // instead of baking stage 1 and baking again a moment later.
     if (!synced && this.shownKey < 0) return;
     const o = world.obstacles;
-    const key = staticKey(o.stage, o.version);
+    const key = staticKey(o.stage, o.version, world.decay.fires.length);
     if (key !== this.shownKey) {
       this.shownKey = key;
-      this.showStage(o.stage, o.cover);
+      this.showStage(world);
     }
     this.clockS += dtS;
     const t = this.clockS;
@@ -269,6 +284,10 @@ export class CityView {
     const bar = Math.sin(t * 4 + 1) > 0 ? 0.45 : 0.1;
     (this.barrierBlink[0] as Phaser.GameObjects.Image).setAlpha(bar);
     (this.barrierBlink[1] as Phaser.GameObjects.Image).setAlpha(0.55 - bar);
+    for (let i = 0; i < this.fireLight.length; i++) {
+      const f = this.fireLight[i] as Phaser.GameObjects.Image;
+      if (f.visible) f.setAlpha(0.28 + 0.22 * hash(Math.floor(t * FIRE_FLICKER_HZ) + i * 17));
+    }
 
     const level = nightAt(this.stage).rain;
     const spanY = viewH + 2 * RAIN_MARGIN_M;
@@ -317,6 +336,6 @@ export class CityView {
     releaseCanvas(this.light);
     releaseCanvas(this.glow);
     this.tiles.length = 0;
-    for (const img of [this.flickerPool, this.flickerCore, ...this.busBlink, ...this.barrierBlink, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
+    for (const img of [this.flickerPool, this.flickerCore, ...this.busBlink, ...this.barrierBlink, ...this.fireLight, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
   }
 }

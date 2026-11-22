@@ -1,6 +1,6 @@
-import type { CoverObject, DistrictMap, MapBox } from "@topdown/shared";
+import type { CoverObject, DistrictMap, FireRecord, MapBox } from "@topdown/shared";
 import type { AtlasCanvas } from "./spriteAtlas";
-import { CAR_FRAMES, PROP_BARRIER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
+import { CAR_FRAMES, PROP_BARRIER, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
 import { HEIGHT_BY_KIND, MAP_PX_PER_M, carStyle, nameHash, type Dressing, type Front } from "./dressing";
 import {
   GROUND,
@@ -23,7 +23,7 @@ import {
   shadowLenPx,
 } from "./palette";
 import { bevel, circle, ell, outline, rrect, shade } from "./spriteArt";
-import { hazardsAt, laterPropsAt, staticSolids } from "./stageFilter";
+import { blockNames, drawnWalls, hazardsAt, stageGroupAt } from "./stageFilter";
 
 /**
  * Story 4.9: the static city (look B "Dead City"), ported from `downtown-look-study.html` to Canvas
@@ -41,6 +41,10 @@ export interface CityScene {
   readonly stage: number;
   /** The active cover (`world.obstacles.cover`: stage-filtered, mutated by Story 4.5). */
   readonly cover: readonly CoverObject[];
+  /** The walls (`world.obstacles.walls`: map collision boxes not removed + `block` mutations, 4.5). */
+  readonly walls: readonly MapBox[];
+  /** The burning cars (`world.decay.fires`, 4.5: which car burns is picked per run). */
+  readonly fires: readonly FireRecord[];
   readonly atlas: AtlasCanvas;
 }
 
@@ -212,23 +216,28 @@ interface Classified {
   readonly cover: Box[];
   /** Ground props of stage 1 (sidewalks, lot, crosswalks, lanes, canopy): the base layer. */
   readonly ground: Box[];
-  /** Props of the later stages shown now (debris). */
+  /** The visible stage group (swap model: `stageN_*` for N ≥ 2). */
   readonly stageProps: Box[];
+  /** `block` mutations in force (dumpster, rubble): low props. */
+  readonly blocks: Box[];
 }
 function classify(cs: CityScene): Classified {
   const d = cs.dressing;
   const buildings: Box[] = [];
   const pumps: Box[] = [];
   const walls: Box[] = [];
-  for (const s of staticSolids(cs.map, cs.cover)) {
-    if (d.pumps.includes(s.name)) pumps.push(toBox(s, "pump"));
+  const blocks: Box[] = [];
+  const blockSet = blockNames(cs.map);
+  for (const s of drawnWalls(cs.walls, cs.cover)) {
+    if (blockSet.has(s.name)) blocks.push(toBox(s, "block"));
+    else if (d.pumps.includes(s.name)) pumps.push(toBox(s, "pump"));
     else if (d.walls.includes(s.name)) walls.push(toBox(s, "wall"));
     else buildings.push(toBox(s, "building"));
   }
   const cover = cs.cover.map((c) => toBox(c, c.kind));
   const ground = (cs.map.stages[0] ?? []).map((p) => toBox(p, p.kind));
-  const stageProps = laterPropsAt(cs.map, cs.stage).map((p) => toBox(p, p.kind));
-  return { buildings, pumps, walls, cover, ground, stageProps };
+  const stageProps = stageGroupAt(cs.map, cs.stage).map((p) => toBox(p, p.kind));
+  return { buildings, pumps, walls, cover, ground, stageProps, blocks };
 }
 
 // ---------------------------------------------------------------------------
@@ -746,6 +755,40 @@ function lampHeads(g: G, d: Dressing, mapW: number): void {
   });
 }
 
+/** Burnt ground around a burning car (its fire radius), under the car. */
+function scorch(g: G, f: FireRecord): void {
+  const x = f.x * P;
+  const y = f.y * P;
+  const r = f.radiusM * P;
+  const gr = g.createRadialGradient(x, y, 0, x, y, r);
+  gr.addColorStop(0, "rgba(8,6,5,0.75)");
+  gr.addColorStop(0.7, "rgba(20,14,10,0.35)");
+  gr.addColorStop(1, "rgba(20,14,10,0)");
+  g.fillStyle = gr;
+  g.fillRect(x - r, y - r, 2 * r, 2 * r);
+}
+
+/** Static flames over the burning car (the view adds a flickering light; Story 4.8 does real fire). */
+function flames(g: G, f: FireRecord): void {
+  const R = rng(f.name);
+  const x = f.x * P;
+  const y = f.y * P;
+  for (let i = 0; i < 9; i++) {
+    const fx = x + (R() - 0.5) * 40;
+    const fy = y + (R() - 0.5) * 40;
+    const r = 6 + R() * 9;
+    const gr = g.createRadialGradient(fx, fy, 0, fx, fy, r);
+    gr.addColorStop(0, "rgba(255,236,170,0.95)");
+    gr.addColorStop(0.45, "rgba(255,140,40,0.8)");
+    gr.addColorStop(1, "rgba(200,40,10,0)");
+    g.fillStyle = gr;
+    g.fillRect(fx - r, fy - r, 2 * r, 2 * r);
+  }
+  g.fillStyle = "rgba(30,30,32,0.35)"; // smoke drifting with the light direction
+  ell(g, x + 26, y + 34, 26, 16, 0.6);
+  g.fill();
+}
+
 /** The map's whole area in map px (a bounds that culls nothing). */
 export function mapBounds(map: DistrictMap): Bounds {
   return { x0: 0, y0: 0, x1: map.widthM * P, y1: map.heightM * P };
@@ -770,11 +813,10 @@ export function drawBase(g: G, s: number, cs: CityScene, bd: Bounds): void {
   for (const o of k.pumps) if (boxIn(bd, o)) drawFrame(g, cs.atlas, PROP_PUMP, o, o.w >= o.h ? "right" : "down");
 }
 
-/** Key of what `drawBase` shows: the static solids drawn (their names). */
+/** Key of what `drawBase` shows: the buildings, pumps and walls drawn (their names). */
 export function baseKey(cs: CityScene): string {
-  return staticSolids(cs.map, cs.cover)
-    .map((b) => b.name)
-    .join("|");
+  const k = classify(cs);
+  return [...k.buildings, ...k.pumps, ...k.walls].map((b) => b.name).join("|");
 }
 
 /**
@@ -790,9 +832,13 @@ export function drawOverlay(g: G, s: number, cs: CityScene, bd: Bounds): void {
     else if (o.kind === "bus") castBoxShadow(g, s, { ...o, x: o.x + 1, y: o.y + 1, w: o.w - 2, h: o.h - 2 }, shadowLenPx(heightOf(d, o)), 0.6);
     else castBoxShadow(g, s, { ...o, x: o.x + 3, y: o.y + 3, w: o.w - 6, h: o.h - 6 }, shadowLenPx(heightOf(d, o)), 0.45, false);
   }
+  for (const o of k.blocks) if (boxIn(bd, o)) castBoxShadow(g, s, o, shadowLenPx(heightOf(d, o)), 0.5);
   hazards(g, cs);
-  for (const o of k.stageProps) if (o.kind === "debris" && boxIn(bd, o)) debris(g, o);
+  for (const f of cs.fires) scorch(g, f);
+  for (const o of k.stageProps) if (boxIn(bd, o)) debris(g, o); // every stage-group prop is debris-like for now
+  for (const o of k.blocks) if (boxIn(bd, o)) drawFrame(g, cs.atlas, o.name.includes("dumpster") ? PROP_DUMPSTER : PROP_BLOCK, o, "right");
   for (const o of k.cover) if (boxIn(bd, o)) coverPiece(g, cs, o);
+  for (const f of cs.fires) flames(g, f);
   for (const o of k.ground) if (o.kind === "canopy" && boxIn(bd, o)) canopy(g, o);
   lampHeads(g, d, cs.map.widthM * P);
 }
@@ -883,6 +929,7 @@ export function drawLightmap(g: G, cs: CityScene): void {
       g.fill();
     }
   }
+  for (const f of cs.fires) radial(g, f.x * P, f.y * P, f.radiusM * P * 2.5, "255,120,40", 0.45);
   // roofs: one fixed light level, whatever lamps are near (streetlights hang below the roofs)
   g.globalCompositeOperation = "source-over";
   g.fillStyle = `rgb(${night.roofLight})`;
@@ -916,6 +963,7 @@ export function drawGlow(g: G, cs: CityScene): void {
     for (let q = 0; q <= n; q++) oval(g, x1 + ((x2 - x1) * q) / n + nx * 8, y1 + ((y2 - y1) * q) / n + ny * 8, 24, 24, col, a * SPILL_GLOW_K);
   }
   for (const [x, y, rx, ry, col, a] of d.neon) oval(g, x, y, rx, ry, col, a);
+  for (const f of cs.fires) oval(g, f.x * P, f.y * P, f.radiusM * P * 1.6, f.radiusM * P * 1.6, "255,130,50", 0.12);
   const cp = k.ground.find((o) => o.name === d.canopy);
   if (cp) oval(g, cp.x + cp.w / 2, cp.y + cp.h / 2, 110, 120, "190,215,255", 0.12);
   const sc = k.cover.find((o) => o.name === d.runningCar);

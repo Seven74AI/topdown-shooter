@@ -2,7 +2,12 @@ import { FLOW_CELL_M } from "../config/constants";
 import { canonicalJson, fnv1a32 } from "../core/hash";
 import {
   COVER_KINDS,
+  DECAY_ACTIONS,
   MAP_STAGE_COUNT,
+  MAX_DECAY_VARIANTS,
+  type DecayAction,
+  type DecayMutation,
+  type DecayVariant,
   SPAWN_KINDS,
   type CoverKind,
   type CoverObject,
@@ -28,7 +33,7 @@ import { tiledMapSchema, type TiledLayer, type TiledObject, type TiledObjectGrou
  * and group layers `stage1_evening` … `stage5_collapse` at the top level. Anything else is ignored.
  */
 
-export const MAP_LAYERS = { collision: "collision", cover: "cover", spawns: "spawns", hazards: "hazards" } as const;
+export const MAP_LAYERS = { collision: "collision", cover: "cover", spawns: "spawns", hazards: "hazards", decay: "decay" } as const;
 export const MAP_STAGE_GROUPS = ["stage1_evening", "stage2_panic", "stage3_breakdown", "stage4_ruins", "stage5_collapse"] as const;
 
 /** Thrown for a map the sim can't use; `issues` name the layer and object. */
@@ -276,8 +281,134 @@ export function loadTiledMap(raw: unknown, name: string): DistrictMap {
     walk(g.layers);
   }
 
+  const { decay, decayVariants } = loadDecayLayer(top.get(MAP_LAYERS.decay), solids, cover, boxOf, fail);
+
   if (issues.length > 0) throw new MapError(issues);
-  const body = { name, widthM, heightM, spawnPoints, solids, cover, hazards, stages };
+  const body = { name, widthM, heightM, spawnPoints, solids, cover, hazards, stages, decay, decayVariants };
   const version = fnv1a32(canonicalJson(body)).toString(16).padStart(8, "0");
   return deepFreeze({ ...body, version });
+}
+
+/**
+ * Story 4.5: the optional `decay` object layer (a map without it never changes). Each object has
+ * `stage` (2–5: stage 1 is the base layers) and `action`; `add` / `block` are lattice rectangles
+ * (`add` also has a cover `kind`); `remove` / `ignite` name a `target` (a collision box, a cover
+ * object or an earlier add/block; `ignite` also `radiusM` > 0) and take its box. Optional variation:
+ * `variant` (candidate name), `group` and `pick` (the same on every object of the group, 1 ≤ pick <
+ * candidates of the group; one stage per group).
+ */
+function loadDecayLayer(
+  layer: TiledLayer | undefined,
+  solids: readonly MapBox[],
+  cover: readonly CoverObject[],
+  boxOf: (layer: string, o: TiledObject, lattice: boolean) => MapBox | null,
+  fail: (msg: string) => void,
+): { decay: DecayMutation[]; decayVariants: DecayVariant[] } {
+  const decay: DecayMutation[] = [];
+  const decayVariants: DecayVariant[] = [];
+  if (!layer) return { decay, decayVariants };
+  if (layer.type !== "objectgroup") {
+    fail(`layer ${MAP_LAYERS.decay} must be an object layer, got ${layer.type}`);
+    return { decay, decayVariants };
+  }
+  const L = layer.name;
+  // Names a mutation may target: collision and cover first, then earlier adds/blocks.
+  const known = new Map<string, MapBox>();
+  for (const b of solids) known.set(b.name, b);
+  for (const c of cover) {
+    if (known.has(c.name)) fail(`${L}: collision and cover both have an object named ${c.name}; targets must be unique`);
+    known.set(c.name, c);
+  }
+  const seen = new Set<string>();
+  const groups = new Map<string, { pick: number; stage: number; variants: Set<string> }>();
+  const variantIndex = new Map<string, number>();
+  for (const o of layer.objects) {
+    const label = `${L}: ${o.name || `#${o.id}`}`;
+    if (o.name === "") {
+      fail(`${L}: object #${o.id} needs a name`);
+      continue;
+    }
+    if (seen.has(o.name)) fail(`${L}: name ${o.name} is used twice`);
+    seen.add(o.name);
+    const props = propsOf(o.properties);
+    const stage = props.get("stage");
+    if (typeof stage !== "number" || !Number.isInteger(stage) || stage < 2 || stage > MAP_STAGE_COUNT) {
+      fail(`${label}: stage must be an integer 2–${MAP_STAGE_COUNT} (stage 1 is the base layers), got ${String(stage)}`);
+      continue;
+    }
+    const action = props.get("action");
+    if (typeof action !== "string" || !(DECAY_ACTIONS as readonly string[]).includes(action)) {
+      fail(`${label}: action must be one of ${DECAY_ACTIONS.join(", ")}, got ${String(action ?? "(none)")}`);
+      continue;
+    }
+    let box: MapBox | null;
+    let kind: CoverKind | "" = "";
+    let target = "";
+    let radiusM = 0;
+    if (action === "add" || action === "block") {
+      box = boxOf(L, o, true);
+      if (!box) continue;
+      if (known.has(o.name)) fail(`${label}: the name is already used by a collision or cover object`);
+      if (action === "add") {
+        const k = props.get("kind");
+        if (typeof k !== "string" || !(COVER_KINDS as readonly string[]).includes(k)) {
+          fail(`${label}: an add needs a cover kind (${COVER_KINDS.join(", ")}), got ${String(k ?? "(none)")}`);
+          continue;
+        }
+        kind = k as CoverKind;
+      }
+    } else {
+      const t = props.get("target");
+      const tb = typeof t === "string" ? known.get(t) : undefined;
+      if (typeof t !== "string" || !tb) {
+        fail(`${label}: target must name a collision box, a cover object or an earlier add/block, got ${String(t ?? "(none)")}`);
+        continue;
+      }
+      target = t;
+      box = { name: o.name, minX: tb.minX, minY: tb.minY, maxX: tb.maxX, maxY: tb.maxY };
+      if (action === "ignite") {
+        const r = props.get("radiusM");
+        if (typeof r !== "number" || !(r > 0)) {
+          fail(`${label}: an ignite needs radiusM > 0, got ${String(r ?? "(none)")}`);
+          continue;
+        }
+        radiusM = r;
+      }
+    }
+    let variant = -1;
+    const vName = props.get("variant");
+    const gName = props.get("group");
+    const pick = props.get("pick");
+    if (vName !== undefined || gName !== undefined || pick !== undefined) {
+      if (typeof vName !== "string" || vName === "" || typeof gName !== "string" || gName === "" || typeof pick !== "number" || !Number.isInteger(pick) || pick < 1) {
+        fail(`${label}: a variation needs variant (name), group (name) and pick (integer ≥ 1)`);
+        continue;
+      }
+      let g = groups.get(gName);
+      if (!g) {
+        g = { pick, stage, variants: new Set() };
+        groups.set(gName, g);
+      } else if (g.pick !== pick || g.stage !== stage) {
+        fail(`${label}: group ${gName} needs the same pick and stage on every object (pick ${g.pick}, stage ${g.stage})`);
+        continue;
+      }
+      const existing = variantIndex.get(vName);
+      if (existing === undefined) {
+        variantIndex.set(vName, decayVariants.length);
+        decayVariants.push({ name: vName, group: gName, pick, stage });
+        g.variants.add(vName);
+      } else if ((decayVariants[existing] as DecayVariant).group !== gName) {
+        fail(`${label}: variant ${vName} belongs to group ${(decayVariants[existing] as DecayVariant).group}`);
+        continue;
+      }
+      variant = variantIndex.get(vName) as number;
+    }
+    if (action === "add" || action === "block") known.set(o.name, box);
+    decay.push({ ...box, name: o.name, stage, action: action as DecayAction, kind, target, radiusM, variant });
+  }
+  for (const [gName, g] of groups) {
+    if (g.pick >= g.variants.size) fail(`${L}: group ${gName} picks ${g.pick} of ${g.variants.size} variants; it needs more candidates than picks`);
+  }
+  if (decayVariants.length > MAX_DECAY_VARIANTS) fail(`${L}: ${decayVariants.length} variants, at most ${MAX_DECAY_VARIANTS}`);
+  return { decay, decayVariants };
 }
