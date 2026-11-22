@@ -102,6 +102,16 @@ Claude Opus 5.5 (claude-opus-5-5), builder, worktree `story-4-6-7` (Stories 4.6 
 - Modified (tools): `maps/buildDowntown.ts`, `maps/downtown.tmx`, test `netsim/coverShots.test.ts`.
 - Tracking: `_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
+### Merge with the work branch (deb09ce, Story 4.9 Dead City look)
+
+- `render/StreetView.ts` (deleted by 4.9, modify/delete): deleted; its one-line shop-front tint is replaced by the real thing — CityView's shop-window light (`drawLightmap` / `drawGlow`) now comes from `windowSpill(map, dressing)` (`render/city/drawCity.ts`): one facade segment per `shopfrontsOf(map)` strip, on its glowing face, shining across the strip; colour/strength from the new `Dressing.shopLight` (by shop-front name, the values of 4.9's hand-placed front spills); `Dressing.spill` keeps only the three side-facade lights. Test `render/city/windowSpill.test.ts`; 4.9's contrast test (roofs brighter than lit sidewalks, every stage) still passes, now with every candidate on (`ALL_VARIANTS = 0xff`).
+- `scenes/GameScene.ts`: 4.9's CityView kept; the ambience player's create / update / dispose lines re-added next to it.
+- Moved cars and barriers: CityView already draws `world.obstacles.cover` by kind (car sprites with a stable colour by name for `*_in_road`, `PROP_BARRIER` striped police barriers with a short low shadow and blinker lamps) — checked in the browser at stage 2.
+- 4.9 tests updated for the 4.7 data: `stageFilter.test.ts` (fire bits are 6–7 now; the moved car replaces 4.5's abandoned car), `palette.test.ts` (the "night darkens" asphalt probe moved 2.5 m east, off the north street's moved car, whose lit top made stage 2 brighter there).
+- Map files regenerated from the merged generator: no change. Dev collision view fix kept.
+- Gates after the merge: typecheck, lint, test (185 files, 1,342 passed, 3 skipped; load 0.5–1.7), build green. Screenshots: `/home/claude/proto/s467/stage1-evening-deadcity.png`, `stage2-panic-deadcity.png` (+ `stage2-panic-collision.png`).
+
 ## Change Log
 
 - 2026-11-22: Story file written (gds-create-story) and built together with 4.6 on `story-4-6-7`. Status review.
+- 2026-11-22: Merged the work branch (deb09ce, Story 4.9); shop-front light from `shopfrontsOf` in CityView.

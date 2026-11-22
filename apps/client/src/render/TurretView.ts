@@ -1,17 +1,23 @@
 import type * as Phaser from "phaser";
 import { buildingCentreX, buildingCentreY, turretStats, type Building, type World } from "@topdown/shared";
+import { NIGHT_DARKEN, castShadow, headShadowOffset, raisedBevel } from "./city/raisedLook";
+import { darken } from "./buildingLook";
 
 /** Placeholder turret look (Story 9 replaces it): a metal plate over the base, a round head with a barrel. */
-const PLATE = 0x4a5560;
+const PLATE = darken(0x4a5560, NIGHT_DARKEN);
 const PLATE_EDGE = 0x22282e;
 const PLATE_INSET_M = 0.12;
-const HEAD = 0x7d8a96;
+const HEAD = darken(0x7d8a96, NIGHT_DARKEN);
 const HEAD_EDGE = 0x1b1f24;
 const HEAD_R_M = 0.28;
 const BARREL = 0x2b3138;
 const BARREL_LEN_M = 0.7;
 const BARREL_W_M = 0.14;
 const LINE_M = 0.05;
+/** Story 4.9: turret plate height and head height (m), for cast shadows (Dead City look). */
+const PLATE_HEIGHT_M = 0.4;
+const HEAD_HEIGHT_M = 1.1;
+const SHADOW_ALPHA = 0.45;
 /** Above the building base (3), below zombies (≥ 5). */
 const PLATE_DEPTH = 3.5;
 const HEAD_DEPTH = 4;
@@ -67,7 +73,11 @@ export class TurretView {
       if (relayout) {
         head.setPosition(cx, cy);
         const g = this.plates;
+        const off = headShadowOffset(HEAD_HEIGHT_M);
+        castShadow(g, b, PLATE_HEIGHT_M, PLATE_INSET_M);
         g.fillStyle(PLATE, 1).fillRect(b.minX + PLATE_INSET_M, b.minY + PLATE_INSET_M, b.maxX - b.minX - 2 * PLATE_INSET_M, b.maxY - b.minY - 2 * PLATE_INSET_M);
+        raisedBevel(g, b, PLATE_INSET_M);
+        g.fillStyle(0x000000, SHADOW_ALPHA).fillCircle(cx + off, cy + off * 1.5, HEAD_R_M); // the head's shadow (fixed light)
         g.lineStyle(LINE_M, PLATE_EDGE, 1).strokeRect(b.minX + PLATE_INSET_M, b.minY + PLATE_INSET_M, b.maxX - b.minX - 2 * PLATE_INSET_M, b.maxY - b.minY - 2 * PLATE_INSET_M);
       }
       if (!head.visible) head.setVisible(true);

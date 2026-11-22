@@ -295,6 +295,15 @@ export class NetSimHost implements SimHost {
     return this.session.room.state?.runSeed ?? 0;
   }
 
+  /**
+   * Story 4.9 review (late join): the mirror World carries the server's decay stage (the first patch
+   * with it was applied), so the city can bake once, straight at the right stage.
+   */
+  get decaySynced(): boolean {
+    const st = this.session.room.state?.decayStage ?? 0;
+    return st >= 1 && this.world.decay.stage === st;
+  }
+
   /** Story 2.10: this device holds the room's host slot. */
   get isHost(): boolean {
     const state = this.session.room.state;

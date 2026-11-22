@@ -32,15 +32,13 @@ import { InputRouter } from "../input/InputRouter";
 import { attachDesktopInput } from "../input/desktopInput";
 import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
-import { drawStreet } from "../render/StreetView";
 import { ZombieView } from "../render/ZombieView";
 import { BloodTrailView } from "../render/BloodTrailView";
 import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
-import { CoverView } from "../render/CoverView";
-import { DecayView } from "../render/DecayView";
+import { CityView } from "../render/city/CityView";
 import { TurretView } from "../render/TurretView";
 import { Placement, placeRefusalText } from "./placement";
 import { RepairPanel, repairRefusalText } from "./repairPanel";
@@ -171,10 +169,11 @@ export class GameScene extends Phaser.Scene {
   private downedView: DownedView | null = null;
   /** Story 3.4: placed buildings and the placement preview. */
   private buildingView: BuildingView | null = null;
-  /** Story 4.2: the active cover (redrawn when the decay stage changes it). */
-  private coverView: CoverView | null = null;
-  /** Story 4.5: walls, hazards, fires and the visible stage group (redrawn on a stage change). */
-  private decayView: DecayView | null = null;
+  /**
+   * Story 4.9: the Dead City look (static city baked per stage, light, rain, vignette). Its stage
+   * entry point is `showStage`; it also redraws by itself when the obstacles change stage/version.
+   */
+  private cityView: CityView | null = null;
   /** Stories 4.6/4.7: the stage's ambience loop (follows `world.decay.stage`; starts after a gesture). */
   ambience: AmbiencePlayer | null = null;
   /** Story 3.6: turret plates and heads (aim from the World / `turret.fired`). */
@@ -317,11 +316,8 @@ export class GameScene extends Phaser.Scene {
     shopStore.set(CLOSED_SHOP);
     uiStore.handle("shop", (action) => this.shopInput(action));
 
-    drawStreet(this, world.map);
-    this.decayView = new DecayView(this);
     this.ambience?.dispose(); // Phaser reuses this scene object: never two players
     this.ambience = new AmbiencePlayer();
-    this.coverView = new CoverView(this);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
@@ -344,6 +340,7 @@ export class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, world.map.widthM, world.map.heightM);
     this.applyZoom();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
+    this.cityView = new CityView(this, world.map, cam.zoom);
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
@@ -375,10 +372,8 @@ export class GameScene extends Phaser.Scene {
       this.placement.cancel();
       this.buildingView?.destroy();
       this.buildingView = null;
-      this.coverView?.destroy();
-      this.coverView = null;
-      this.decayView?.destroy();
-      this.decayView = null;
+      this.cityView?.destroy();
+      this.cityView = null;
       this.ambience?.dispose();
       this.ambience = null;
       this.turretView?.destroy();
@@ -887,10 +882,8 @@ export class GameScene extends Phaser.Scene {
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world);
-    this.downedView?.update(host.world);
-    this.decayView?.update(host.world);
+    this.downedView?.update(host.world, this.time.now);
     this.ambience?.update(host.world.decay.stage);
-    this.coverView?.update(host.world);
     this.buildingView?.update(host.world, this.placement);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.selectView?.update(host.world, this.repairPanel.id);
@@ -944,5 +937,11 @@ export class GameScene extends Phaser.Scene {
       const swapTicks = ticksFor(host.world.balance.player.swapS);
       this.hudModel.swapFrac = player.loadout.swapTicks > 0 ? (swapTicks - player.loadout.swapTicks + 1) / swapTicks : -1;
     }
+    // Story 4.9: after the camera target is known (hudModel.camX/camY are this frame's view).
+    const zoom = this.cameras.main.zoom;
+    // Online: the first bake waits until the mirror has the server's decay stage (review L: no
+    // stage-1 bake followed by a second one a moment later on a late join).
+    const synced = !(host instanceof NetSimHost) || host.decaySynced;
+    this.cityView?.update(host.world, this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000, synced);
   }
 }

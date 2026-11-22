@@ -2,12 +2,15 @@ import * as Phaser from "phaser";
 import { BUILD_GRID_M, buildingStats, buildingTypeIds, footprint, type Box, type Building, type World } from "@topdown/shared";
 import type { Placement } from "../scenes/placement";
 import { damageStage, darken, hpChecksum } from "./buildingLook";
+import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
 
-/** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline. */
-const WOOD = 0x8b5a2b;
-const PLANK_LINE = 0x5d3a1a;
-const OUTLINE = 0x2b1a0e;
+/** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline; night-darkened (Story 4.9). */
+const WOOD = darken(0x8b5a2b, NIGHT_DARKEN);
+const PLANK_LINE = darken(0x5d3a1a, NIGHT_DARKEN);
+const OUTLINE = 0x1a1008;
 const OUTLINE_M = 0.06;
+/** Story 4.9: barricade height (m), for its cast shadow (Dead City look). */
+const BARRICADE_HEIGHT_M = 1.2;
 /** Plank seams every this many metres along the long side. */
 const PLANK_M = 0.5;
 /** Above the street, blood and trails; below zombies (≥ 5), players (10) and FX. */
@@ -74,6 +77,8 @@ export class BuildingView {
     const bars = this.bars;
     g.clear();
     bars.clear();
+    // Story 4.9: every shadow first (one light direction, length by height), then the tops.
+    for (let i = 0; i < list.length; i++) castShadow(g, list[i] as Building, BARRICADE_HEIGHT_M);
     for (let i = 0; i < list.length; i++) {
       const b = list[i] as Building;
       const w = b.maxX - b.minX;
@@ -84,6 +89,7 @@ export class BuildingView {
       if (w >= h) for (let x = b.minX + PLANK_M; x < b.maxX - 1e-6; x += PLANK_M) g.lineBetween(x, b.minY, x, b.maxY);
       else for (let y = b.minY + PLANK_M; y < b.maxY - 1e-6; y += PLANK_M) g.lineBetween(b.minX, y, b.maxX, y);
       if (frac < 1) drawCracks(g, b, damageStage(frac) * CRACKS_PER_STAGE);
+      raisedBevel(g, b);
       g.lineStyle(OUTLINE_M, OUTLINE, 1).strokeRect(b.minX, b.minY, w, h);
       if (frac < 1) {
         const color = frac > 0.6 ? BAR_HIGH : frac > 0.3 ? BAR_MID : BAR_LOW;
