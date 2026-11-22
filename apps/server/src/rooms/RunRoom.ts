@@ -63,7 +63,7 @@ import { assignSlot, hashGuestToken, nextHost, type Member } from "../run/lobby"
 import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
-import { parseDevDecayStages } from "../run/devDecayStages";
+import { pickDevDecayStages } from "../run/devDecayStages";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
@@ -474,7 +474,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (this.devRunSeed !== null) this.log.warn({ runSeed }, "dev_run_seed");
     const devPlacedHp = devAllowed ? parseDevHpFraction(process.env.DEV_PLACED_BUILDING_HP) : null;
     // Story 4.5 (dev only, read per run like DEV_NO_WAVES): DEV_DECAY_STAGES=2,3 = the decay stage of waves 1, 2, ….
-    const devDecayStages = devAllowed ? parseDevDecayStages(process.env.DEV_DECAY_STAGES) : null;
+    const decayPick = pickDevDecayStages(process.env); // review L4: production ignores it (tested)
+    const devDecayStages = decayPick.stages;
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
@@ -495,7 +496,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     });
     if (!controller.world.zombieHistory.enabled) this.log.warn("dev_no_rewind");
     if (devDecayStages !== null) this.log.warn({ stages: devDecayStages }, "dev_decay_stages");
-    else if (process.env.DEV_DECAY_STAGES) this.log.warn({ value: process.env.DEV_DECAY_STAGES }, "dev_decay_stages_ignored");
+    else if (decayPick.ignored !== null) this.log.warn({ value: process.env.DEV_DECAY_STAGES, reason: decayPick.ignored }, "dev_decay_stages_ignored");
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;

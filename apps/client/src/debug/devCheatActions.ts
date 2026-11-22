@@ -49,10 +49,18 @@ export function damageNearestBuilding(world: World, x: number, y: number, fracti
  * stage 1–5 through the DecaySystem's own path (`changeDecayStage`: the map's mutations, cover and
  * spawn points by `minStage`, building refunds, push-outs, flow fields rebuilt, `decay.stage_changed`
  * and its banner) — the same code a build start runs. Online the server owns the stage.
- * Returns the stage now in force.
+ * Review L1: only in a build phase (or the lobby), like a real decay change — never mid-wave; in any
+ * other phase nothing happens (the panel disables the control: `decayCheatAllowed`). The next build
+ * start applies the timeline's stage again. Returns the stage now in force.
  */
 export function setDecayStageCheat(world: World, stage: number): number {
+  if (!decayCheatAllowed(world)) return world.decay.stage;
   const s = Math.min(MAP_STAGE_COUNT, Math.max(1, Math.round(stage)));
   changeDecayStage(world, s);
   return world.decay.stage;
+}
+
+/** Review L1: the decay stage cheat works only where a real stage change could happen (build phase, lobby). */
+export function decayCheatAllowed(world: World): boolean {
+  return world.run.phase === "build" || world.run.phase === "lobby";
 }

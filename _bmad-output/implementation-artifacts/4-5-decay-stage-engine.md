@@ -1,6 +1,6 @@
 # Story 4.5: Decay stage engine
 
-Status: review
+Status: done
 
 ## Story
 
@@ -45,6 +45,10 @@ so that wave 5 doesn't play like wave 1.
 - **D7 Visible stage group.** The stage-1 group is the base (ground, sidewalks) and always drawn; for stage N ≥ 2 the `stageN_*` group is drawn on top, swapped on change (Story 4.9 does the real look). Active hazards (`minStage ≤ stage`) and fire records drawn faintly.
 - **D8 Banner.** `decay.stage_changed` → banner line with the stage name; if the wave-cleared banner was set the same frame the name is appended on a second line.
 - **D9 Dev.** The cheat calls `changeDecayStage` (the same three steps + rebuild + event, solo only). `DEV_DECAY_STAGES` (server, dev only, ignored with a warning in production) replaces `stageByWave` in `world.debug.decayStageByWave` (server only, never synced: the clients get the result).
+
+### Note for Stories 4.6–4.8 (review)
+
+Decay content must never fully enclose a reachable area (a pocket players can stand in but zombies can't reach, or the other way round). `decay/decay.test.ts` › "every walkable cell is reachable from the team start" now checks this for every stage 1–5 and every variant combination (a chase field from the map centre reaches every non-wall nav cell; 80 fields, ~0.1 s). When you add `decay` objects, keep it green; if content legitimately walls off a dead corner, make that corner a wall (`block`) instead of leaving free cells behind it.
 
 ### Current state (read before changing)
 
@@ -156,6 +160,24 @@ Claude Opus 5.5 (claude-opus-5-5), builder, worktree `story-4-5`.
 - Modified (tools): `maps/{buildDowntown.ts,downtown.tmx}`, `checks/noCheatsInRelease.test.ts`.
 - Tracking: `_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
+## Senior Developer Review (AI)
+
+Fresh-agent review of 38db616: **approved**, no High or Medium findings. Small items fixed:
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| L1 | Low | The solo decay cheat ran `changeDecayStage` in any phase (mutations mid-wave; the next build reset the stage). | `setDecayStageCheat` acts only in the build phase or the lobby (`decayCheatAllowed`); otherwise nothing changes. The panel disables the control and shows "Build phase only (decay never changes mid-wave)." Test: `NetSimHost.decay.test.ts` › review L1. |
+| L2 | Low | The strict-overlap rule for destroying buildings had no test ("touching counts" survived). | Test: a barricade flush against the new dumpster survives with no refund; one 1 cm into it is destroyed and refunded 50 %. |
+| L4 | Low | No test that production ignores `DEV_DECAY_STAGES`. | Pure `pickDevDecayStages(env)` (the room uses it; logs `dev_decay_stages_ignored` with the reason); test for production, dev, absent and invalid values. |
+| Note | — | Decay content must not enclose a reachable area (only "zombies reach the team start" guarded it). | Added the all-stages × all-variants reachability test (cheap) and a Dev Note for 4.6–4.8. |
+
+Mutations proven after the fixes (each fails its test, then restored): R1 touching counts as overlap → review L2; R2 cheat allowed in any phase → review L1; R3 production check removed → review L4; R4 the dumpster widened to close alley 3 → reachability test (+ "a path can still be closed", "zombies still reach us"). The build's M1–M25 stand.
+
+Gates after the fixes: typecheck, lint, test (176 files, 1,295 passed, 3 skipped), build green (load ~1.3–1.6). A first full run had one failure in `RunRoom.fight.test.ts` (live tick mean 5.9 ms > 5 at load 2.7, other builders running); it passes alone with and without this change, and the re-run was green.
+
+Rendering note: Story 4.9 replaces `StreetView` / `CoverView` with `render/city/CityView`; `DecayView` is reconciled there (main session).
+
 ## Change Log
 
 - 2026-11-22: Story file written (gds-create-story) and built: decay stage engine (data, shared apply, DecaySystem at the build start, network, DecayView, cheat, tests). Status review.
+- 2026-11-22: Review (approved) fixes L1, L2, L4 and the reachability check for every stage; Status done.

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP, NET_EVENT_KIND, NEUTRAL_INPUT, S2C, changeDecayStage, createWorld, loadBalance, type SimEventsFlushed } from "@topdown/shared";
+import { DOWNTOWN_MAP, NET_EVENT_KIND, NEUTRAL_INPUT, S2C, changeDecayStage, createWorld, loadBalance, skipWave, startWave, type SimEventsFlushed } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { DevThrottle } from "../net/devThrottle";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost } from "./NetSimHost";
 import { LocalSimHost } from "./LocalSimHost";
-import { setDecayStageCheat } from "../debug/devCheatActions";
+import { decayCheatAllowed, setDecayStageCheat } from "../debug/devCheatActions";
 
 /**
  * Story 4.5 (brief lines 2, 11): the client's mirror World and its Predictor follow the room state's
@@ -126,5 +126,20 @@ describe("NetSimHost decay (Story 4.5)", () => {
     expect(host.drainEvents().some((e) => e.type === "decay.stage_changed")).toBe(true);
     expect(names(host.world.obstacles.solids)).toContain("dumpster_alley_3");
     expect(setDecayStageCheat(host.world, 9)).toBe(5); // clamped; stages 4–5 have no content yet
+  });
+
+  it("review L1: the solo decay cheat works only in the build phase (never mid-wave); in a wave it changes nothing", () => {
+    const host = new LocalSimHost({ balance, seed: 3 });
+    const w = host.world;
+    expect(decayCheatAllowed(w)).toBe(true); // the first build phase
+    startWave(w);
+    expect(decayCheatAllowed(w)).toBe(false);
+    const v = w.obstacles.version;
+    expect(setDecayStageCheat(w, 3)).toBe(1);
+    expect(w.decay.stage).toBe(1);
+    expect(w.obstacles.version).toBe(v);
+    skipWave(w); // → the next build phase
+    expect(decayCheatAllowed(w)).toBe(true);
+    expect(setDecayStageCheat(w, 3)).toBe(3);
   });
 });

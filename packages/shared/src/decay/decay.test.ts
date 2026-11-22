@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { bundledBalanceFiles, loadBalance, withOverrides, BalanceError } from "../config/balance";
 import { TICK_DT_S } from "../config/constants";
-import { placeBuilding, placementError, footprint, buildingStats, type Box } from "../buildings/buildings";
+import { addBuildingAt, placeBuilding, placementError, footprint, buildingStats, type Box } from "../buildings/buildings";
 import { circleOverlapsBox, segmentHitsBuildings } from "../buildings/collision";
 import type { SimEvent } from "../core/simEvents";
 import { createWorld, step, type World } from "../core/world";
@@ -16,7 +16,7 @@ import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
 import { skipWave, startBuild, startWave } from "../run/runStateMachine";
 import { killZombie, spawnZombie } from "../zombies/zombiePool";
-import { FLOW_UNREACHED, flowCellAt } from "../zombies/flowField";
+import { FLOW_UNREACHED, flowCellAt, rebuildFlowFieldNow } from "../zombies/flowField";
 import { ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
 import { jitteredSpawn } from "../waves/waveDirector";
 import { runHeadless } from "../bots/headlessRun";
@@ -397,6 +397,52 @@ describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
     expect(changeDecayStage(w, 3)).toBe(false);
     expect(changeDecayStage(w, 1)).toBe(true); // back (dev): stage 1's lists
     expect(names(w.obstacles.solids)).toEqual(names(createObstacles(DT, 1).solids));
+  });
+});
+
+describe("Story 4.5 review fixes", () => {
+  it("review L2: a barricade flush against a new solid survives with no refund; one overlapping it by 1 cm is destroyed and refunded", () => {
+    // Hand-made buildings (the lattice can't express 1 cm): flush = edge on the dumpster's face; overlap = 0.01 m into it.
+    for (const overlapM of [0, 0.01]) {
+      const w = downtownRun(13, 1);
+      const p0 = w.players.get("p0") as { wallet: number };
+      const wood = buildingStats(balance, "wood_barricade") as { price: number; hp: number };
+      const ok = addBuildingAt(w, { id: 50, type: "wood_barricade", ownerId: "p0", gx: 0, gy: 0, rot: 0, hp: wood.hp });
+      if (!ok) throw new Error("building");
+      const b = ok as unknown as { minX: number; minY: number; maxX: number; maxY: number };
+      // North of the dumpster: [38, 40] × [DUMPSTER.minY − 0.5 + overlap, DUMPSTER.minY + overlap].
+      b.minX = 38;
+      b.maxX = 40;
+      b.maxY = DUMPSTER.minY + overlapM;
+      b.minY = b.maxY - 0.5;
+      const before = p0.wallet;
+      expect(changeDecayStage(w, 2)).toBe(true);
+      if (overlapM === 0) {
+        expect(w.buildings.list.map((x) => x.id)).toEqual([50]);
+        expect(p0.wallet).toBe(before);
+      } else {
+        expect(w.buildings.list).toEqual([]);
+        expect(p0.wallet - before).toBe(Math.floor(wood.price * 0.5));
+      }
+    }
+  });
+
+  it("note for 4.6–4.8: at every stage and every variant combination, every walkable cell is reachable from the team start (no enclosed area)", () => {
+    let checked = 0;
+    for (let stage = 1; stage <= 5; stage++) {
+      for (let mask = 0; mask < 1 << DT.decayVariants.length; mask++) {
+        const w = createWorld({ balance, seed: 1, map: DT });
+        applyDecayStage(w, stage, mask);
+        addPlayer(w, "p0", DT.widthM / 2, DT.heightM / 2);
+        const { nav, chase } = w.pathing;
+        rebuildFlowFieldNow(chase, nav, w);
+        let unreached = 0;
+        for (let c = 0; c < nav.cells; c++) if (nav.wallAt[c] === 0 && (chase.front[c] as number) >= FLOW_UNREACHED) unreached++;
+        expect(unreached, `stage ${stage} mask ${mask}`).toBe(0);
+        checked++;
+      }
+    }
+    expect(checked).toBe(5 * 16);
   });
 });
 
