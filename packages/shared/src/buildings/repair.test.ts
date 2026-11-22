@@ -45,7 +45,9 @@ describe("repairBuilding (Story 3.7)", () => {
   it("restores full HP, charges the full-repair cost whatever the damage, and emits building.repaired with the next step", () => {
     const { world, events, b } = setup();
     const before = world.players.get("p0")?.wallet as number;
-    b.hp = 199.5; // 3.5 may leave fractional HP: still damaged
+    b.hp = 199.5; // shown as 200 (ceil): full, like the client's panel says (3.7 review)
+    expect(repairBuilding(world, "p0", b.id)).toEqual({ ok: false, error: "full_hp" });
+    b.hp = 199;
     const r = repairBuilding(world, "p0", b.id);
     expect(r).toEqual({ ok: true, value: { building: b, cost: 20 } });
     expect(b.hp).toBe(200);

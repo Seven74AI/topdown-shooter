@@ -184,7 +184,16 @@ Reviewer: fresh review agent, at 0afe16d (2026-11-22). Fixes by the story builde
 
 **Re-verification (story-3-4b):** typecheck, lint, test (128 files, 946 passed, 3 skipped), build pass. Netsim barricade: wall 150 ms RTT seeds 31–33 **0 snaps / 0 corrections**; L corner and slot at 150 ms (2 seeds each) **0 snaps / 0 corrections**; 300 ms 0 snaps; placed ahead 0 snaps; control 101 corrections. Browser (`/tmp/s34b/`): solo and one online page with `?lag=150&jitter=20` (host started alone, `?wallet=1000` + `DEV_STARTING_WALLET=1000`): through the Shop, an L corner (walking W+D ends exactly in the pocket corner, x = corner − 0.4, y = corner + 0.4) and a closed ring of 4 around the survivor (64 samples walking in 8 directions: 0 outside the inner 1.5 × 1.5 m area); online 0 snaps and 2 small smoothed corrections over the whole run (placing 6 buildings and walking); the online run reached wave 1 with zombies around the ring and none inside.
 
+
+### Re-review of the fixes (2026-11-22, fresh agent)
+
+- 150 random layouts × 400 ticks + dense-crowd rings in corners/edges: no centre ever inside a box, 0 ring crossings, deepest overlap 2e-6; netsim 0 snaps / 0 corrections everywhere (control 101).
+- [x] [Med] When the push-out didn't settle in 4 passes (a box corner meeting the map edge at an angle), the body went back to its pre-move spot and stopped up to ~15 cm short of its resting place; no test could tell 1 pass from 4. Fix: before falling back, try the move along x only and y only and keep the one that gets further. Test: a diagonal press into the corner/edge pocket ends on the edge at the corner (fails without the fix).
+- [x] [Low] Spawn clearance vs spawn jitter weren't checked together: the balance cross-check now requires `spawnClearM > spawnJitterM + the largest zombie radius`.
+
 ## Change Log
+
+- 2026-11-22: Re-review fixes (axis fallback in the push-out, spawn clearance cross-check).
 
 - 2026-11-22: Story written (gds-create-story), status ready-for-dev.
 - 2026-11-22: Built: shared buildings + collision, server-validated placement, schema/mirror/predictor/throttle copies, placement mode UI; tests incl. netsim; merged `claude/epic-2-continue` twice (3.1 Ready request model; Story 3.3 shop, temporary Build button removed); status review.

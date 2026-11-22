@@ -447,6 +447,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const players = Array.from(this.members.values(), (m) => ({ playerId: m.playerId, slot: m.slot }));
     const runSeed = randomUint32();
     this.runSeed = runSeed;
+    const devPlacedHp = devAllowed ? parseDevHpFraction(process.env.DEV_PLACED_BUILDING_HP) : null;
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
@@ -456,8 +457,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
       scenario: this.scenario,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
-      devPlacedHpFraction: devAllowed ? parseDevHpFraction(process.env.DEV_PLACED_BUILDING_HP) : null,
+      devPlacedHpFraction: devPlacedHp,
     });
+    if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
+    else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;
     const zombies = controller.world.zombies;
     this.eventCtx = { balance: serverBalance, zombieNetId: (id) => zombieNetId(id, zombies.generation[id] ?? 0) };
