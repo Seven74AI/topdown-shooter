@@ -8,6 +8,7 @@ import player from "./balance/player.json" with { type: "json" };
 import controls from "./balance/controls.json" with { type: "json" };
 import economy from "./balance/economy.json" with { type: "json" };
 import bots from "./balance/bots.json" with { type: "json" };
+import shop from "./balance/shop.json" with { type: "json" };
 
 type Schemas = typeof balanceFileSchemas;
 
@@ -29,7 +30,7 @@ export class BalanceError extends Error {
   }
 }
 
-const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots };
+const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, shop };
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -37,6 +38,15 @@ function deepFreeze<T>(value: T): T {
     Object.freeze(value);
   }
   return value;
+}
+
+/** Checks between files (each file is valid on its own). Story 3.3: the shop sells only known weapons. */
+function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
+  const weapons = parsed.weapons as Record<string, unknown>;
+  const shop = parsed.shop as { weapons: readonly string[] };
+  shop.weapons.forEach((id, i) => {
+    if (!(id in weapons)) issues.push(`shop.json: weapons.${i}: unknown weapon ${id}`);
+  });
 }
 
 /**
@@ -61,6 +71,7 @@ export function loadBalance(raw: RawBalanceFiles = BUNDLED): Balance {
       }
     }
   }
+  if (issues.length === 0) crossCheck(parsed, issues);
   if (issues.length > 0) throw new BalanceError(issues);
 
   const version = fnv1a32(canonicalJson(parsed)).toString(16).padStart(8, "0");

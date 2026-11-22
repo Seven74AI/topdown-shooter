@@ -1,5 +1,6 @@
 {
   "pistol": {
+    "name": "Pistol",
     "kind": "gun",
     "damage": 5,
     "rateHz": 3,
@@ -14,6 +15,7 @@
     "price": 0
   },
   "smg": {
+    "name": "SMG",
     "kind": "gun",
     "damage": 4,
     "rateHz": 12,
@@ -28,6 +30,7 @@
     "price": 200
   },
   "hunting_rifle": {
+    "name": "Hunting Rifle",
     "kind": "gun",
     "damage": 35,
     "rateHz": 1.2,
@@ -42,6 +45,7 @@
     "price": 350
   },
   "machete": {
+    "name": "Machete",
     "kind": "melee",
     "damage": 12,
     "rateHz": 2.5,

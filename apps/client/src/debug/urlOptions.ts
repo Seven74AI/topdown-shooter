@@ -1,4 +1,4 @@
-import { parseDevScale } from "@topdown/shared";
+import { parseDevScale, parseDevWallet } from "@topdown/shared";
 import { isTestScenario, type TestScenario } from "@topdown/shared";
 
 /**
@@ -29,6 +29,11 @@ export interface UrlOptions {
    * for browser checks; the server must run with the same `DEV_ZOMBIE_DAMAGE_SCALE`. null when absent.
    */
   zombieDamageScale: number | null;
+  /**
+   * `?wallet=2000` (Story 3.3, dev builds only, like `?zdmg`): every starting wallet for shop checks;
+   * the server must run with the same `DEV_STARTING_WALLET`. null when absent.
+   */
+  startingWallet: number | null;
   /**
    * `?scenario=net150` (Story 2.10, release-safe): the host's Create game asks the server for that
    * fixed test scenario (honoured only with `ALLOW_TEST_SCENARIOS=1`), or null.
@@ -66,6 +71,7 @@ export function parseUrlOptions(search: string): UrlOptions {
     solo: soloRaw !== null && TRUE_VALUES.has(soloRaw.trim().toLowerCase()),
     throttle: parseThrottle(q.get("lag"), q.get("jitter")),
     zombieDamageScale: parseDevScale(q.get("zdmg")),
+    startingWallet: parseDevWallet(q.get("wallet")),
     scenario: parseScenario(q.get("scenario")),
     waveMix: q.get("wavemix"),
   };

@@ -9,6 +9,8 @@ import {
   READY_BUTTON_BOTTOM_CSS_PX,
   READY_BUTTON_H_CSS_PX,
   READY_BUTTON_W_CSS_PX,
+  SHOP_BUTTON_GAP_CSS_PX,
+  SHOP_BUTTON_W_CSS_PX,
 } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
@@ -97,6 +99,8 @@ const READY_BG_ALPHA = 0.5;
 const READY_ON = 0x2e7d32;
 const READY_BORDER = 0xffffff;
 const READY_BORDER_PX = 2;
+/** Story 3.3: the Shop button's border (the money colour). */
+const SHOP_BORDER = 0xf5c542;
 /** Wave text → status line → toast line, CSS px from the top inset. */
 const WAVE_TOP_PX = 12;
 const LINE_GAP_PX = 12;
@@ -163,6 +167,10 @@ export class HudScene extends Phaser.Scene {
   private shownReadyVisible: boolean | null = null;
   /** `readyOn`, count and total folded into one key (redraw only when it changes). */
   private shownReadyKey = -1;
+  /** Story 3.3: the Shop button beside Ready (drawn on layout only; shown and hidden on change). */
+  private shopBtn!: Phaser.GameObjects.Graphics;
+  private shopLabel!: Phaser.GameObjects.Text;
+  private shownShopVisible: boolean | null = null;
   private shownBuildSecs = -2;
   private buttons = new HudButtons();
   /** Safe-area insets (CSS px), measured on create and resize only (getComputedStyle is costly). */
@@ -227,6 +235,7 @@ export class HudScene extends Phaser.Scene {
     this.shownToast = "";
     this.shownReadyVisible = null;
     this.shownReadyKey = -1;
+    this.shownShopVisible = null;
     this.shownBuildSecs = -2;
     this.shownMoney = -1;
     this.nextMoneyPop = 0;
@@ -275,6 +284,12 @@ export class HudScene extends Phaser.Scene {
     this.readyLabel = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
     this.buttons.set({ id: "ready", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.readyPressed = true;
+    });
+    // Story 3.3: Shop, right of Ready (a touch on it never starts a stick either).
+    this.shopBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.shopLabel = this.add.text(0, 0, "Shop", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.buttons.set({ id: "shop", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.shopPressed = true;
     });
     this.layoutButtons();
     this.reloadBar = this.add.graphics();
@@ -429,18 +444,42 @@ export class HudScene extends Phaser.Scene {
     this.layoutReadyButton();
   }
 
-  /** Story 3.1: the Ready button's hit rect and position (bottom centre, inside the safe area). */
+  /**
+   * Story 3.1: the Ready button's hit rect and position (bottom, inside the safe area). Story 3.3:
+   * Ready and Shop side by side, the pair centred.
+   */
   private layoutReadyButton(): void {
     const k = dpr();
     const w = READY_BUTTON_W_CSS_PX * k;
     const h = READY_BUTTON_H_CSS_PX * k;
-    const x = (this.scale.width - w) / 2;
+    const sw = SHOP_BUTTON_W_CSS_PX * k;
+    const gap = SHOP_BUTTON_GAP_CSS_PX * k;
+    const x = (this.scale.width - (w + gap + sw)) / 2;
     const y = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k - h;
     const rect = this.buttons.get("ready");
     if (rect) Object.assign(rect, { x, y, w, h });
     this.readyBtn.setPosition(x, y);
     this.readyLabel.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, y + h / 2);
     this.shownReadyKey = -1; // redraw at the new size
+    const sx = x + w + gap;
+    const shop = this.buttons.get("shop");
+    if (shop) Object.assign(shop, { x: sx, y, w: sw, h });
+    const g = this.shopBtn;
+    g.clear();
+    g.fillStyle(READY_BG, READY_BG_ALPHA).fillRoundedRect(0, 0, sw, h, READY_RADIUS_PX * k);
+    g.lineStyle(READY_BORDER_PX * k, SHOP_BORDER, 0.9).strokeRoundedRect(0, 0, sw, h, READY_RADIUS_PX * k);
+    g.setPosition(sx, y);
+    this.shopLabel.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(sx + sw / 2, y + h / 2);
+  }
+
+  /** Story 3.3: shows or hides the Shop button (only when that changes). */
+  private drawShop(): void {
+    const v = this.model.shopButton;
+    if (v === this.shownShopVisible) return;
+    this.shownShopVisible = v;
+    this.buttons.setVisible("shop", v);
+    this.shopBtn.setVisible(v);
+    this.shopLabel.setVisible(v);
   }
 
   /** Story 3.1: shows, hides and redraws the Ready button (only when what it shows changes). */
@@ -599,6 +638,7 @@ export class HudScene extends Phaser.Scene {
     this.drawTeammates();
     this.drawMenu();
     this.drawReady();
+    this.drawShop();
     this.perfOverlay?.update();
   }
 

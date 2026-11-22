@@ -168,3 +168,30 @@ describe("LocalSimHost", () => {
     expect(host.world.inputs.get("local")?.seq).toBe(1); // the host stamps one seq per step
   });
 });
+
+describe("LocalSimHost shop (Story 3.3)", () => {
+  it("buyWeapon runs the shared rules at once and leaves one answer", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
+    const me = host.world.players.get(LOCAL_PLAYER_ID);
+    if (!me) throw new Error("no player");
+    host.buyWeapon("smg", null); // 100 < 200
+    expect(host.takeShopAnswer()).toEqual({ ok: false, weapon: "smg", error: "insufficient_funds" });
+    expect(host.takeShopAnswer()).toBeNull();
+    me.wallet = 300;
+    host.buyWeapon("smg", null);
+    expect(host.takeShopAnswer()).toEqual({ ok: true, weapon: "smg", slot: 1 });
+    expect(me.wallet).toBe(100);
+    expect(me.loadout.slots[1]?.weapon).toBe("smg");
+  });
+
+  it("refused once the wave started", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
+    host.setBuildReady(true);
+    host.update(0.05);
+    expect(host.world.run.phase).toBe("wave");
+    host.buyWeapon("pistol", 1);
+    expect(host.takeShopAnswer()).toMatchObject({ ok: false, error: "not_build" });
+  });
+});

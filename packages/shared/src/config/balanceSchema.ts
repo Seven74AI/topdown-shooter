@@ -11,6 +11,8 @@ const common = {
   hitPushbackM: z.number().min(0),
   screenShake: z.boolean(),
   price: z.number().int().min(0),
+  /** Story 3.3: the display name (shop); the id in Title Case when absent. Not a gameplay number. */
+  name: z.string().min(1).max(24).optional(),
 };
 
 const gunSchema = z
@@ -156,6 +158,19 @@ export const botsSchema = z
   })
   .strict();
 
+/**
+ * Story 3.3: the fixed-list shop (replaced by the roguelike shop in Epic 5). Which weapons it offers,
+ * in order; prices stay on the weapons (`weapons.json › price`). `loadBalance` checks every id is a weapon.
+ */
+export const shopSchema = z
+  .object({
+    weapons: z
+      .array(balanceId)
+      .min(1)
+      .refine((ids) => new Set(ids).size === ids.length, "duplicate weapon id"),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -165,6 +180,7 @@ export const balanceFileSchemas = {
   controls: controlsSchema,
   economy: economySchema,
   bots: botsSchema,
+  shop: shopSchema,
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;

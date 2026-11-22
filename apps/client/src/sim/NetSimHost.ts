@@ -30,7 +30,7 @@ import {
   type WeaponSlot,
   type World,
 } from "@topdown/shared";
-import type { PlayerInfo, SimHost } from "./SimHost";
+import type { PlayerInfo, ShopAnswer, SimHost } from "./SimHost";
 import { MAX_CATCHUP_STEPS, type SimStepStats } from "./LocalSimHost";
 import type { NetSession } from "../net/session";
 import { ServerClock } from "../net/serverClock";
@@ -233,6 +233,7 @@ export class NetSimHost implements SimHost {
     // Batches that came while the scene was not built yet (hidden tab at Start) arrive first.
     this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
     this.offs.push(opts.session.onHorde((b) => this.hordeStats.receive(b)));
+    this.offs.push(opts.session.onShopAnswer((a) => this.shopAnswers.push(a)));
     room.onStateChange(this.onState);
     // The start patch (phase "wave", spawn positions) may already have arrived.
     if (room.state?.players && room.state.phase !== "lobby") this.takeSnapshot(room.state);
@@ -308,6 +309,19 @@ export class NetSimHost implements SimHost {
   /** Story 3.1: `build.set_ready` (the server ignores it outside a build); the flag comes back in the state. */
   setBuildReady(ready: boolean): void {
     if (!this.disposed) this.session.room.send(C2S.BUILD_SET_READY, { ready });
+  }
+
+  /** Story 3.3: answers of `shop.buy`, oldest first (a tap sends one at a time: at most a few). */
+  private readonly shopAnswers: ShopAnswer[] = [];
+
+  /** Story 3.3: `shop.buy`; the server decides, answers this client, and the state brings wallet and weapons. */
+  buyWeapon(weapon: string, slot: 0 | 1 | null): void {
+    if (this.disposed) return;
+    this.session.room.send(C2S.SHOP_BUY, slot === null ? { weapon } : { weapon, slot });
+  }
+
+  takeShopAnswer(): ShopAnswer | null {
+    return this.shopAnswers.shift() ?? null;
   }
 
   drainEvents(): readonly SimEvent[] {

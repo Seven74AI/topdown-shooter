@@ -6,6 +6,7 @@ import { createWorld, setInput, step, type World } from "../core/world";
 import { NEUTRAL_INPUT } from "../net/input";
 import { addPlayer, type PlayerState } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
+import { startBuild } from "../run/runStateMachine";
 
 /**
  * Story 3.2 (Epic 2 retro A10): a seeded headless bot run, 2 players with the Pistol only, real
@@ -105,6 +106,9 @@ function runSeed(seed: number) {
       waves.push({ wave: e.number, tick: world.tick, wallets });
     }
   });
+  // Story 3.3 fix: since 3.1 the World starts in the lobby; without this the sim never left it
+  // (every seed "reached wave 0" and the invariants held trivially).
+  startBuild(world);
   let seq = 0;
   while (world.tick < MAX_TICKS && !world.teamWiped && waves.length < MAX_WAVE) {
     seq++;
@@ -132,6 +136,7 @@ describe("economy bot sim (2 players, Pistol, seeded)", () => {
         `seed ${seed}: reached wave ${r.reached}${r.wiped ? " (wiped)" : ""}; wave ends ${ends || "none"}; final ${final}; by reason ${JSON.stringify(r.byReason)}`,
       );
     }
+    expect(lines.some((l) => !l.includes("reached wave 0"))).toBe(true); // the run really ran
     // packages/shared has no DOM/Node types (engine-free): reach the test runner's console untyped.
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[economy sim] wallets p0/p1 at each wave end\n${lines.join("\n")}`);
   }, 60_000);

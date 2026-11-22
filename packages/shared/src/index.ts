@@ -29,6 +29,8 @@ export {
   devBalanceOverrides,
   loadDevBalance,
   parseDevScale,
+  parseDevWallet,
+  MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
 export type { GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
@@ -135,6 +137,10 @@ export {
   runStartSchema,
   lobbyReturnSchema,
   buildSetReadySchema,
+  shopBuySchema,
+  type ShopBuy,
+  type ShopBought,
+  type ShopRefused,
   type BuildSetReady,
   type C2SType,
   type JoinOptions,
@@ -177,3 +183,17 @@ export {
   type EconomyState,
   type SpendError,
 } from "./economy/economy";
+export {
+  botShopPick,
+  buyWeapon,
+  owns,
+  shopBuildings,
+  shopPrice,
+  shopWeapons,
+  titleCase,
+  weaponName,
+  type Bought,
+  type ShopBuilding,
+  type ShopError,
+  type ShopWeapon,
+} from "./economy/shop";

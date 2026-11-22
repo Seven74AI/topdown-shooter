@@ -1,4 +1,9 @@
-import type { PlayerInput, SimEvent, World } from "@topdown/shared";
+import type { PlayerInput, ShopError, SimEvent, World } from "@topdown/shared";
+
+/** Story 3.3: how a purchase ended (solo at once, online the server's `shop.bought` / `shop.refused`). */
+export type ShopAnswer =
+  | { readonly ok: true; readonly weapon: string; readonly slot: 0 | 1 }
+  | { readonly ok: false; readonly weapon: string; readonly error: ShopError };
 
 /** Presentation data of a player (Story 2.9): kept out of the shared `PlayerState`. */
 export interface PlayerInfo {
@@ -32,6 +37,14 @@ export interface SimHost {
    * applies before the next step; online it is sent as `build.set_ready` and comes back in the state.
    */
   setBuildReady(ready: boolean): void;
+  /**
+   * Story 3.3: buy a weapon of the fixed shop (`slot`: which one it replaces when both are full).
+   * Solo the shared `buyWeapon` runs at once; online it is sent as `shop.buy` and the server decides.
+   * Either way the answer comes from `takeShopAnswer`; wallet and weapons change only in the World.
+   */
+  buyWeapon(weapon: string, slot: 0 | 1 | null): void;
+  /** The oldest purchase answer not taken yet, or null. */
+  takeShopAnswer(): ShopAnswer | null;
   /** Drops a swap/consumable latched but not sent yet (the in-run menu opened in the same step; 2.11 review). */
   clearEdges(): void;
   /**

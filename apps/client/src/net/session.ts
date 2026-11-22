@@ -6,8 +6,35 @@ import {
   type PlayerLeft,
   type RunJoined,
   type RunStateView,
+  type ShopError,
   type SimEventsFlushed,
 } from "@topdown/shared";
+import type { ShopAnswer } from "../sim/SimHost";
+
+const SHOP_ERRORS: readonly ShopError[] = [
+  "not_build",
+  "unknown_player",
+  "not_for_sale",
+  "already_owned",
+  "slot_required",
+  "invalid_amount",
+  "insufficient_funds",
+];
+
+/** A well-formed `shop.bought` (Story 3.3) as an answer, or null. */
+export function parseShopBought(m: unknown): ShopAnswer | null {
+  const o = m as { weapon?: unknown; slot?: unknown } | null;
+  if (!o || typeof o.weapon !== "string" || (o.slot !== 0 && o.slot !== 1)) return null;
+  return { ok: true, weapon: o.weapon, slot: o.slot };
+}
+
+/** A well-formed `shop.refused` (Story 3.3) as an answer, or null (an unknown error reads as `not_for_sale`). */
+export function parseShopRefused(m: unknown): ShopAnswer | null {
+  const o = m as { weapon?: unknown; error?: unknown } | null;
+  if (!o || typeof o.weapon !== "string" || typeof o.error !== "string") return null;
+  const error = (SHOP_ERRORS as readonly string[]).includes(o.error) ? (o.error as ShopError) : "not_for_sale";
+  return { ok: false, weapon: o.weapon, error };
+}
 
 /** A well-formed `player.left` (Story 2.11), or null. */
 export function parsePlayerLeft(m: unknown): PlayerLeft | null {
@@ -55,6 +82,8 @@ export interface NetRoomLike {
  *
  * `player.left` (Story 2.11) is listened to from the join as well; it goes to the `onPlayerLeft`
  * sink (the Game scene's toast) and is dropped while none listens (the lobby list follows the state).
+ * Story 3.3: `shop.bought` / `shop.refused` likewise go to the `onShopAnswer` sink (the networked
+ * host), dropped while none listens (a purchase is only made from a running Game scene).
  */
 export class RunInbox {
   /** Latest RTT the server measured for this client (2.10 overlay). */
@@ -69,12 +98,28 @@ export class RunInbox {
   earlyHordeDropped = 0;
   private hordeSink: ((bytes: Uint8Array) => void) | null = null;
   private leftSink: ((m: PlayerLeft) => void) | null = null;
+  private shopSink: ((a: ShopAnswer) => void) | null = null;
 
   constructor(private readonly room: Pick<NetRoomLike, "send" | "onMessage">) {
     this.offs.push(room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m)));
     this.offs.push(room.onMessage(S2C.NET_PINGED, (m: NetPinged) => this.receivePing(m)));
     this.offs.push(room.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => this.receiveHorde(b)));
     this.offs.push(room.onMessage(S2C.PLAYER_LEFT, (m: unknown) => this.receiveLeft(m)));
+    this.offs.push(room.onMessage(S2C.SHOP_BOUGHT, (m: unknown) => this.receiveShop(parseShopBought(m))));
+    this.offs.push(room.onMessage(S2C.SHOP_REFUSED, (m: unknown) => this.receiveShop(parseShopRefused(m))));
+  }
+
+  /** Each purchase answer from now on (Story 3.3). Returns the unsubscribe. */
+  onShopAnswer(sink: (a: ShopAnswer) => void): () => void {
+    this.shopSink = sink;
+    return () => {
+      if (this.shopSink === sink) this.shopSink = null;
+    };
+  }
+
+  private receiveShop(a: ShopAnswer | null): void {
+    if (this.closed || !this.shopSink || !a) return;
+    this.shopSink(a);
   }
 
   /** Each `player.left` from now on (Story 2.11). Returns the unsubscribe. */
@@ -124,6 +169,7 @@ export class RunInbox {
     this.sink = null;
     this.hordeSink = null;
     this.leftSink = null;
+    this.shopSink = null;
   }
 
   private receiveLeft(m: unknown): void {
@@ -201,6 +247,11 @@ export class NetSession {
   /** See `RunInbox.onPlayerLeft`. */
   onPlayerLeft(sink: (m: PlayerLeft) => void): () => void {
     return this.inbox.onPlayerLeft(sink);
+  }
+
+  /** See `RunInbox.onShopAnswer`. */
+  onShopAnswer(sink: (a: ShopAnswer) => void): () => void {
+    return this.inbox.onShopAnswer(sink);
   }
 
   /**
