@@ -3,6 +3,7 @@ import {
   NEUTRAL_INPUT,
   TICK_DT_S,
   addPlayer,
+  killZombie,
   createWorld,
   loadBalance,
   setInput,
@@ -319,5 +320,28 @@ describe("RunController", () => {
     expect(shoot(false)).toHaveLength(1);
     expect(shoot(false)[0]).toMatchObject({ sourceId: "p0" });
     expect(shoot(true)).toHaveLength(0);
+  });
+
+  it("counts kills per killer from zombie.killed (Story 2.8)", () => {
+    const c = newController();
+    const ids = [0, 1, 2].map((k) => spawnZombie(c.world, "walker", 5 + k, 5));
+    c.tick();
+    killZombie(c.world, ids[0] as number, "p0", "pistol");
+    killZombie(c.world, ids[1] as number, "p1", "pistol");
+    c.tick();
+    killZombie(c.world, ids[2] as number, "p0", "pistol");
+    c.tick();
+    expect(c.kills("p0")).toBe(2);
+    expect(c.kills("p1")).toBe(1);
+    expect(c.kills("p9")).toBe(0);
+  });
+
+  it("ignores kills with no player killer (cheats)", () => {
+    const c = newController();
+    const id = spawnZombie(c.world, "walker", 5, 5);
+    c.tick();
+    killZombie(c.world, id, null, "cheat");
+    c.tick();
+    expect(c.kills("p0") + c.kills("p1")).toBe(0);
   });
 });

@@ -3,5 +3,10 @@
   "speedMps": 4.5,
   "radiusM": 0.4,
   "swapS": 0.3,
-  "spawnOffsetM": 1.5
+  "spawnOffsetM": 1.5,
+  "downedS": 20,
+  "reviveS": 3,
+  "reviveRadiusM": 1.2,
+  "reviveHpFrac": 0.3,
+  "returnHpFrac": 0.5
 }

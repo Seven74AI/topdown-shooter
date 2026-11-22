@@ -9,6 +9,8 @@ import type { NetSession } from "../net/session";
 /** `scene.start("Boot", data)`: back from an online run, maybe with an error for the start screen. */
 export interface BootSceneData {
   error?: string;
+  /** Story 2.8: the room went back to the lobby; the lobby screen is already up (no title, no start screen). */
+  lobby?: boolean;
 }
 
 const TITLE_SHOW_MS = 500; // how long the title shows before the start screen (or a ?solo run)
@@ -21,6 +23,12 @@ export class BootScene extends Phaser.Scene {
 
   create(data?: BootSceneData): void {
     const error = data?.error;
+    if (data?.lobby) {
+      // Waiting for the next start in the same room: only the start handlers are needed.
+      uiStore.handle("startSolo", () => this.startSolo());
+      uiStore.handle("startOnline", (session) => this.startOnline(session));
+      return;
+    }
     const title = this.add
       .text(0, 0, GAME_TITLE, {
         fontFamily: "system-ui, sans-serif",

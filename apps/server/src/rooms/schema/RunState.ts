@@ -11,7 +11,7 @@ export const PlayerState = schema(
     name: t.string(),
     /** Lobby Ready (Story 2.3); Story 2.8 resets it when the room returns to the lobby. */
     ready: t.boolean().default(false),
-    // The fight (Story 2.4), written by `syncState` once per tick. Story 2.8 adds the status fields.
+    // The fight (Story 2.4), written by `syncState` once per tick.
     /** Metres (float32 ≈ 2 µm at 48 m). */
     x: t.float32().default(0),
     y: t.float32().default(0),
@@ -32,6 +32,13 @@ export const PlayerState = schema(
     reloadTicks0: t.uint16().default(0),
     reloadTicks1: t.uint16().default(0),
     swapTicks: t.uint8().default(0),
+    // Story 2.8: downed, revive and the Results screen.
+    /** Ticks until a downed player is out (0 when not downed). */
+    downedTicksLeft: t.uint16().default(0),
+    /** Revive progress, 0–255 = 0–100 %. */
+    reviveProgress: t.uint8().default(0),
+    /** Zombies killed this run. */
+    kills: t.uint16().default(0),
   },
   "PlayerState",
 );
@@ -47,6 +54,8 @@ export const RunState = schema(
     wave: t.uint16().default(0),
     remaining: t.uint16().default(0),
     aliveCount: t.uint16().default(0),
+    /** Story 2.8: the wave the team reached, set with phase "results". */
+    resultWave: t.uint16().default(0),
   },
   "RunState",
 );

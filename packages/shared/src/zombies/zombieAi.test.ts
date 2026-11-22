@@ -40,11 +40,11 @@ describe("Walker AI", () => {
     expect(world.zombies.x[id]).toBeGreaterThan(14); // toward b (6 m) not a (9 m)
   });
 
-  it("ignores dead players", () => {
+  it("ignores downed players", () => {
     const world = createWorld({ balance, seed: 1 , systems: NO_WAVES });
     const a = addPlayer(world, "a", 13, 10);
     addPlayer(world, "b", 30, 10);
-    a.status = "dead";
+    a.status = "downed";
     const id = spawnZombie(world, "walker", 12, 10);
     run(world, 10);
     expect(world.zombies.x[id]).toBeGreaterThan(12);
@@ -208,13 +208,13 @@ describe("contact damage (FR9)", () => {
     expect(p.hp).toBe(40);
   });
 
-  it("kills the player at 0 HP and stops targeting them", () => {
+  it("downs the player at 0 HP and stops targeting them", () => {
     const { world, p, events } = contactWorld(1);
     p.hp = 15;
     run(world, 21);
     expect(p.hp).toBe(0);
-    expect(p.status).toBe("dead");
-    expect(events.filter((e) => e.type === "player.died")).toEqual([{ type: "player.died", playerId: "local" }]);
+    expect(p.status).toBe("downed");
+    expect(events.filter((e) => e.type === "player.downed")).toEqual([{ type: "player.downed", playerId: "local" }]);
     const hitsAfter = events.filter((e) => e.type === "player.damaged").length;
     run(world, 40);
     expect(events.filter((e) => e.type === "player.damaged").length).toBe(hitsAfter);

@@ -148,7 +148,7 @@ export function endWave(world: World): void {
 export const updateWaves: SystemFn = (world) => {
   const w = world.waves;
   const b = world.balance.waves;
-  if (w.paused || collectAlivePlayers(world) === 0) return; // a dead team stops the director
+  if (w.paused || collectAlivePlayers(world) === 0) return; // no one standing stops the director
 
   if (w.phase !== "active") {
     w.timerTicks--;

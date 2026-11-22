@@ -1,0 +1,60 @@
+import type { RunPhase, RunStateView } from "@topdown/shared";
+import type { ResultRow, UiRequests, UiScreen } from "../ui/uiState";
+import type { NetSession, RunInbox } from "./session";
+
+/** What the phase handler needs (main.ts passes the real stores; tests pass fakes). */
+export interface OnlineFlowDeps {
+  /** The room code (the lobby screen shows it). */
+  readonly code: string;
+  /** The room's state (Results rows and wave). */
+  state(): RunStateView;
+  /**
+   * A fresh `NetSession` for a run that just started, or null when the room isn't ready (no
+   * `run.joined` yet, or the room was left). Built on the lobby store's fight room and inbox.
+   */
+  makeSession(): NetSession | null;
+  /** The room's `RunInbox` (kept by the lobby store for the room's lifetime). */
+  inbox(): RunInbox | null;
+  readonly ui: {
+    set(screen: UiScreen): void;
+    request<K extends keyof UiRequests>(name: K, ...args: Parameters<UiRequests[K]>): void;
+  };
+}
+
+/** Results from the room state: the wave reached (at least 1) and kills per player, by slot. */
+export function resultsFromState(state: RunStateView): { wave: number; rows: ResultRow[] } {
+  const rows: ResultRow[] = [];
+  state.players.forEach((p) => rows.push({ slot: p.slot, name: p.name, kills: p.kills }));
+  rows.sort((a, b) => a.slot - b.slot);
+  return { wave: Math.max(1, state.resultWave), rows };
+}
+
+/**
+ * The online run cycle of one room (Stories 2.4 and 2.8), driven by `phase`:
+ *
+ * - `wave`: a fresh `NetSession` → `startOnline` (the Game scene runs the fight). Every start in
+ *   the same room gets its own session, so the second run never reuses the first one's host.
+ * - `results`: the Results screen with Back to lobby (state-driven, so a late joiner of the
+ *   screen sees the same table).
+ * - `lobby` (after Results): the session is released (the Game scene's dispose then leaves nothing),
+ *   the inbox drops the old run's buffered batches, the Game scene stops (`backToLobby`) and the
+ *   lobby screen shows. The room is never left.
+ */
+export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase) => void {
+  let session: NetSession | null = null;
+  return (phase) => {
+    if (phase === "wave") {
+      session?.release();
+      session = deps.makeSession();
+      if (session) deps.ui.request("startOnline", session);
+    } else if (phase === "results") {
+      deps.ui.set({ kind: "results", ...resultsFromState(deps.state()), online: true });
+    } else if (phase === "lobby") {
+      session?.release();
+      session = null;
+      deps.inbox()?.reset();
+      deps.ui.request("backToLobby");
+      deps.ui.set({ kind: "lobby", code: deps.code });
+    }
+  };
+}

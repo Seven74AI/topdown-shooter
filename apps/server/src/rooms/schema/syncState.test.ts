@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
-import { NEUTRAL_INPUT, loadBalance, quantizeHeading, setLoadout } from "@topdown/shared";
+import { NEUTRAL_INPUT, downPlayer, loadBalance, quantizeHeading, setLoadout } from "@topdown/shared";
 import { RunController } from "../../run/RunController";
 import { PlayerState, RunState } from "./RunState";
-import { syncState } from "./syncState";
+import { resetRunFields, syncState } from "./syncState";
 
 const balance = loadBalance();
 
@@ -73,9 +73,43 @@ describe("syncState", () => {
   it("counts only alive players", () => {
     const { controller, state } = setup();
     const p1 = controller.world.players.get("p1");
-    if (p1) p1.status = "dead";
+    if (p1) p1.status = "downed";
     syncState(state, controller);
     expect(state.aliveCount).toBe(1);
-    expect(state.players.get("p1")?.status).toBe("dead");
+    expect(state.players.get("p1")?.status).toBe("downed");
+  });
+
+  it("copies the downed countdown, revive progress (0–255) and kills (Story 2.8)", () => {
+    const { controller, state } = setup();
+    const w = controller.world;
+    const p0 = w.players.get("p0");
+    const p1 = w.players.get("p1");
+    if (!p0 || !p1) throw new Error("no players");
+    downPlayer(w, p0);
+    p1.x = p0.x + 1; // within reach: the revive runs, the countdown pauses
+    p1.y = p0.y;
+    for (let i = 0; i < 30; i++) controller.tick();
+    syncState(state, controller);
+    const s0 = state.players.get("p0");
+    expect(s0?.status).toBe("downed");
+    expect(s0?.downedTicksLeft).toBe(400);
+    expect(s0?.reviveProgress).toBe(128); // 30 / 60 ticks
+    expect(s0?.kills).toBe(0);
+    expect(state.aliveCount).toBe(1);
+  });
+
+  it("resetRunFields puts every fight field and Ready back, keeping slot and name", () => {
+    const { controller, state } = setup();
+    controller.tick();
+    syncState(state, controller);
+    const s0 = state.players.get("p0");
+    if (!s0) throw new Error("no p0");
+    s0.kills = 5;
+    s0.status = "out";
+    state.resultWave = 3;
+    resetRunFields(state);
+    expect(s0.toJSON()).toEqual(new PlayerState({ slot: 0, name: "Ana", ready: false }).toJSON());
+    expect(state.resultWave).toBe(0);
+    expect(state.tick).toBe(0);
   });
 });

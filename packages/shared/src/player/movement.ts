@@ -1,9 +1,11 @@
 import type { SystemFn } from "../core/systems";
+import { updateDowned } from "./downed";
 
 const MIN_VEC_LEN = 1e-6;
 
 /**
- * Moves every alive player from their input. Runs on the server and in client prediction (Epic 2),
+ * Moves every alive player from their input (downed and out players stand still), then runs the
+ * downed/revive rules (Story 2.8). Runs on the server and in client prediction (Epic 2),
  * so it uses only + − × ÷, sqrt, min and max: no sin/cos/atan2, whose last bits can differ
  * between JavaScript engines and would make prediction drift.
  */
@@ -37,4 +39,5 @@ export const updatePlayers: SystemFn = (world, dtS) => {
       p.facingY = input.moveY / moveLen;
     }
   }
+  updateDowned(world); // Story 2.8: last in the player system, so the order inside a tick stays fixed
 };

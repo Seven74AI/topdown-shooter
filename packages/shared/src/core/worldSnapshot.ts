@@ -80,6 +80,7 @@ export function snapshotWorld(world: World) {
     zombies: snapshotZombies(world),
     waves: { ...world.waves },
     debug: { ...world.debug },
+    teamWiped: world.teamWiped,
   };
 }
 

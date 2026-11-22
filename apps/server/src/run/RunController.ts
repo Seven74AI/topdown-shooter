@@ -63,6 +63,8 @@ class PlayerSlot {
   drainSkips = 0;
   /** Ticks in a row that started with more than INPUT_QUEUE_TARGET inputs queued. */
   overTargetTicks = 0;
+  /** Zombies this player killed this run (Story 2.8 Results). */
+  kills = 0;
 }
 
 /**
@@ -187,6 +189,11 @@ export class RunController {
     return { overflow: s?.overflowDrops ?? 0, stale: s?.staleDrops ?? 0, drained: s?.drainSkips ?? 0 };
   }
 
+  /** Zombies this player killed this run (Story 2.8): counted from `zombie.killed` by `killerId`. */
+  kills(playerId: string): number {
+    return this.slots.get(playerId)?.kills ?? 0;
+  }
+
   /** Removes a player who left mid-run; zombies pick the next-nearest player on the next tick. */
   removePlayer(playerId: string): void {
     const s = this.slots.get(playerId);
@@ -226,6 +233,13 @@ export class RunController {
       setInput(this.world, s.playerId, cur);
     }
     step(this.world, TICK_DT_S);
-    return this.events;
+    const events = this.events;
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i] as SimEvent;
+      if (e.type !== "zombie.killed" || e.killerId === null) continue;
+      const killer = this.slots.get(e.killerId);
+      if (killer) killer.kills++;
+    }
+    return events;
   }
 }

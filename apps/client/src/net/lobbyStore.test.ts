@@ -26,7 +26,7 @@ describe("snapshotLobby", () => {
       ["p2", player(2, "Cid", true)],
       ["p0", player(0, "Ana")],
     ]);
-    const state: RunStateView = { phase: "lobby", hostSlot: 0, players, tick: 0, wave: 0, remaining: 0, aliveCount: 0 };
+    const state: RunStateView = { phase: "lobby", hostSlot: 0, players, tick: 0, wave: 0, remaining: 0, aliveCount: 0, resultWave: 0 };
     const s = snapshotLobby("ABCD", state, "p2");
     expect(s).toEqual({
       code: "ABCD",

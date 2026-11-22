@@ -88,6 +88,14 @@ export const playerSchema = z
     swapS: z.number().min(0),
     /** Run start (Story 2.4): survivors stand at the map centre ± this on each axis, by slot. */
     spawnOffsetM: z.number().min(0),
+    /** Story 2.8: a downed player is out after this long without a revive (paused while being revived). */
+    downedS: z.number().positive(),
+    /** A standing teammate this close (centre to centre) for `reviveS` revives a downed player. */
+    reviveS: z.number().positive(),
+    reviveRadiusM: z.number().positive(),
+    /** HP after a revive, and after an out player returns next wave, as a fraction of max HP. */
+    reviveHpFrac: z.number().gt(0).max(1),
+    returnHpFrac: z.number().gt(0).max(1),
   })
   .strict();
 

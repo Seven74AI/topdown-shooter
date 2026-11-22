@@ -11,10 +11,12 @@ import {
   createSlot,
   createWorld,
   decodeNetEvent,
+  findReviver,
   headingToRad,
   playerSlotOf,
   removePlayer,
   rotate,
+  ticksFor,
   type Balance,
   type NetEventContext,
   type PlayerInput,
@@ -193,6 +195,11 @@ export class NetSimHost implements SimHost {
     if (!this.world.players.has(id)) addPlayer(this.world, id, p.x, p.y);
   };
   private readonly writePlayer = (p: PlayerState): void => this.applyPlayer(p);
+  // Story 2.8: downed fields from state; the reviver is found from the mirrored positions.
+  private readonly reviveTicksTotal: number;
+  private readonly writeReviver = (p: PlayerState): void => {
+    p.reviverId = p.status === "downed" && p.reviveTicks > 0 ? (findReviver(this.world, p)?.id ?? null) : null;
+  };
 
   constructor(opts: NetSimHostOptions) {
     this.session = opts.session;
@@ -210,6 +217,7 @@ export class NetSimHost implements SimHost {
       this.localFired.push({ type: "weapon.fired", playerId: id, weapon: "", x: 0, y: 0, dirX: 1, dirY: 0 });
       this.localSwung.push({ type: "melee.swung", playerId: id, weapon: "", x: 0, y: 0, dirX: 1, dirY: 0, arcDeg: 0, rangeM: 0 });
     }
+    this.reviveTicksTotal = ticksFor(opts.balance.player.reviveS);
     const room = opts.session.room;
     // Batches that came while the scene was not built yet (hidden tab at Start) arrive first.
     this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
@@ -324,6 +332,8 @@ export class NetSimHost implements SimHost {
     this.world.players.forEach(this.dropMissing);
     state.players.forEach(this.addMissing);
     this.world.players.forEach(this.writePlayer);
+    this.world.players.forEach(this.writeReviver);
+    this.world.teamWiped = state.phase === "results";
     this.latest = null;
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
@@ -426,6 +436,7 @@ export class NetSimHost implements SimHost {
     p.hp = s.hp;
     p.maxHp = s.maxHp;
     p.status = s.status;
+    this.applyDowned(p, s);
     const lo = p.loadout;
     lo.active = s.active === 1 ? 1 : 0;
     lo.swapTicks = s.swapTicks;
@@ -457,6 +468,12 @@ export class NetSimHost implements SimHost {
     const a = headingToRad(pose.heading);
     p.facingX = Math.cos(a);
     p.facingY = Math.sin(a);
+  }
+
+  /** Story 2.8: countdown and revive progress (0–255 → ticks) from the latest state. */
+  private applyDowned(p: PlayerState, s: PlayerStateView): void {
+    p.downedTicksLeft = s.downedTicksLeft;
+    p.reviveTicks = Math.round((s.reviveProgress / 255) * this.reviveTicksTotal);
   }
 
   /** Reuses the slot object unless the weapon changed ("" = empty). */

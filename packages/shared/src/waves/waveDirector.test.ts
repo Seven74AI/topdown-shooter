@@ -166,7 +166,7 @@ describe("wave director (FR28, FR30)", () => {
 
   it("stops when no player is alive", () => {
     const { world, p } = setup();
-    p.status = "dead";
+    p.status = "downed";
     run(world, 200);
     expect(world.waves.number).toBe(0);
   });
