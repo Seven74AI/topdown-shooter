@@ -9,8 +9,8 @@ const HEAD = 0x7d8a96;
 const HEAD_EDGE = 0x1b1f24;
 const HEAD_R_M = 0.28;
 const BARREL = 0x2b3138;
-const BARREL_LEN_M = 0.5;
-const BARREL_W_M = 0.12;
+const BARREL_LEN_M = 0.7;
+const BARREL_W_M = 0.14;
 const LINE_M = 0.05;
 /** Above the building base (3), below zombies (≥ 5). */
 const PLATE_DEPTH = 3.5;

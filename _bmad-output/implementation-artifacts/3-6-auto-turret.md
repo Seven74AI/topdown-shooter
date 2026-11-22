@@ -1,6 +1,6 @@
 # Story 3.6: Auto-turret
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -17,7 +17,7 @@ so that I can hold a spot or cover a flank.
 > 2. **Only during a wave.** Turrets fire only while `world.run.phase === "wave"` (not in the build phase, the lobby or the results). Outside a wave their cooldown idles (no saved-up burst).
 > 3. **Targeting (server, shared).** Each tick of a wave, a turret whose cooldown is ready looks for the **nearest alive zombie whose centre is within `rangeM` of the turret's centre** using the zombie spatial grid (`queryRadius`, the shared `zombieCandidates` scratch); ties go to the lower pool slot (deterministic). It retargets on every shot (no lock-on) and turns **instantly** (no turn rate: the AC says "turns to the nearest zombie"). It aims with a **first-order lead**: the target's last-tick displacement (`x − prevX`) × the bullet's flight ticks, so a walking zombie is hit; it does not lead through push-outs. Zombies only (never players); no line-of-sight test (bullets pass over buildings, FR53).
 > 4. **Fire rate = the shared cooldown rule** (`combat/cooldown.ts`: `cooldownTickStart` → `cooldownReady` → `cooldownTickEnd(attacked, rateHz)`, the same functions the guns and the client's fire clock use). 5/s at 20 Hz is exactly one shot every 4 ticks. The state is one number per building (`Building.fireCooldownS`). This is the one place a timer is held in seconds, because the shared rule is; everything else counts ticks (brief line 6).
-> 5. **Where it runs: inside the combat system** (`updateCombat`, after the players' weapons and before the projectiles fly), right after the zombie grid is rebuilt, so the query sees this tick's positions and the shots fly in the same tick, like a player's. Not in the `buildings` slot: 3.5 owns that slot (flow field), and the grid there is a tick old.
+> 5. **Where it runs: the `buildings` slot** (`updateBuildings` in `buildings/buildingSystem.ts`, after 3.5's `updatePathing`; coordinator's instruction after 3.5 merged; the first draft ran it inside `updateCombat`). It runs before combat, so its shots fly in the same tick's combat, like a player's. The zombie grid there is last tick's (rebuilt at the start of combat): the query is widened by 1 m (`GRID_STALE_MARGIN_M`; a zombie moves ≤ 0.12 m a tick) and the range is checked exactly on the current positions, so no zombie in range is missed and the grid is never rebuilt twice.
 > 6. **Projectiles are real server projectiles** in the shared projectile pool (they can miss, hit a zombie in the way, travel visibly), tagged with the building id (`pool.building`, 0 = a player's shot) and their own pushback (`pool.pushbackM`). A turret hit emits `zombie.hit` with `sourceId: null` (turret damage gives **no assist credit** and never confirms the owner's 2.7 apparent hits) and weapon = the building type id; a turret kill emits `zombie.killed { killerId: ownerId, buildingId }`.
 > 7. **Kill pay (FR45):** the economy pays a `zombie.killed` that carries a `buildingId` with `payKill(world, zombieId, ownerId, economy.buildingKillShare)`: the owner gets floor(reward × 0.5) (Walker 2 → 1, Crawler 3 → 1); other players who damaged it get their usual assist. The owner's status does not matter (downed and out owners are paid, like the wave bonus); an owner who left the run is paid nothing (`earn` ignores unknown players), and the turret keeps shooting. A turret kill does **not** count as the owner's kill in the HUD/Results kill counters (those are "your kills").
 > 8. **Net event `turret.fired` = kind 23** (`[23, buildingId, heading]`, ~4 B msgpack; 22 is 3.5's `building.destroyed`, 24 is 3.7's). The muzzle position is not sent: every client knows the building and computes it (centre + direction × `muzzleM`). `zombie.killed` appends the building id at index 6 only for turret kills (player kills stay 6 fields). No schema field is added: turrets cost 0 B/s when idle and HP stays "only on change" (3.4/3.5).
@@ -32,28 +32,28 @@ so that I can hold a spot or cover a flank.
 5. **Zombies attack it.** Zombies blocked by or next to a turret attack it like any building (Story 3.5's generic building attacks; nothing turret-specific here). A destroyed turret's bullets in flight still fly and still pay its owner.
 6. **Determinism and cost.** Seeded runs with turrets are deterministic (`snapshotWorld` covers the turret's cooldown and aim, and the projectile's building tag). Targeting uses the spatial grid; no allocation per tick (server) or per frame (views).
 7. **Bandwidth.** Report the added bytes/s with 4 turrets firing (events + patches); idle turrets add 0 B/s.
-8. **Tests.** Vitest covers the balance schema (turret block optional), range (fires at 7.9 m, not at 8.1 m), nearest target + tie, the rate (exactly every 4 ticks, 5/s average), wave-only, damage and lead (a walking zombie is hit), kill pay (50 % floor, assist for a teammate, no assist from turret hits, owner left), the net event round trip (kind 23, `zombie.killed` building id), determinism (two seeded runs equal), the client mirror aim and cosmetic shot, a room integration test (`RunRoom.turret.test.ts`: place, wave, shots, pay to the owner over the wire), and a no-allocation check of the turret pass.
+8. **Tests.** Vitest covers the balance schema (turret block optional), range (fires at 7.9 m, not at 8.1 m), nearest target + tie, the rate (exactly every 4 ticks, 5/s average), wave-only, damage and lead (a walking zombie is hit), kill pay (50 % floor, assist for a teammate, no assist from turret hits, owner left), the net event round trip (kind 23, `zombie.killed` building id), determinism (two seeded runs equal), the client mirror aim and cosmetic shot, a room integration test (`RunRoom.turret.test.ts`: place, wave, shots, pay to the owner over the wire), the turret pass's cost and the bandwidth (`turretBandwidth.test.ts`), and the tick cost with turrets among 3.5's 24 buildings. No allocation per tick is checked by review (module-level scratch; the only allocation is each shot's event object).
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Balance** (AC 1)
-  - [ ] `buildings.json` `auto_turret` (decision 1); `turretSchema` + optional `turret` on `buildingTypeSchema`; type `TurretStats`.
-- [ ] **Task 2: Shared turret rules** (AC 2, 4, 6) — new `packages/shared/src/buildings/turret.ts`
-  - [ ] `Building.fireCooldownS`, `aimX`, `aimY` (additive; `addBuildingAt` initialises them); `turretStats(balance, type)`.
-  - [ ] `updateTurrets(world, dtS)`: wave-only, cooldown rule, nearest target via `queryRadius`, lead, spawn projectile, `turret.fired`.
-  - [ ] Projectile pool `building` + `pushbackM`; `updateProjectiles` uses them; `applyZombieDamage`/`killZombie` carry an optional building id (`zombie.hit.sourceId` null, `zombie.killed.buildingId`).
-  - [ ] Economy: `zombie.killed` with `buildingId` → `payKill(…, buildingKillShare)`.
-  - [ ] SimEvent `turret.fired`; `zombie.killed.buildingId?`; snapshot covers pool fields (Building fields are spread already).
-- [ ] **Task 3: Net** (AC 3, 7)
-  - [ ] Kind 23 `TURRET_FIRED` `[23, buildingId, heading]`; `zombie.killed` index 6 = building id when present; round-trip tests.
-- [ ] **Task 4: Server** (AC 4)
-  - [ ] `RunController` kill counter skips turret kills. `RunRoom.turret.test.ts`.
-- [ ] **Task 5: Client** (AC 2, 3)
-  - [ ] `NetSimHost.drainEvents`: `turret.fired` → muzzle from the mirror building, aim, cosmetic shot (`CosmeticProjectiles.spawnShot`).
-  - [ ] `TurretView` (plate + head, smooth turn), `ProjectileView` cyan for building shots, `FxView` muzzle + `turret_fire` sound (throttled), GameScene kill counter skips turret kills.
-- [ ] **Task 6: Checks** (AC 7, 8)
-  - [ ] `typecheck && lint && test && build` on the branch merged with `claude/epic-2-continue`.
-  - [ ] Browser: solo + two pages (guest `?lag=150&jitter=20`), screenshots `/tmp/s36/`.
+- [x] **Task 1: Balance** (AC 1)
+  - [x] `buildings.json` `auto_turret` (decision 1); `turretSchema` + optional `turret` on `buildingTypeSchema`; type `TurretStats`.
+- [x] **Task 2: Shared turret rules** (AC 2, 4, 6) — new `packages/shared/src/buildings/turret.ts`
+  - [x] `Building.fireCooldownS`, `aimX`, `aimY` (additive; `addBuildingAt` initialises them); `turretStats(balance, type)`.
+  - [x] `updateTurrets(world, dtS)` (called from 3.5's `updateBuildings`): wave-only, cooldown rule, nearest target via `queryRadius`, lead, spawn projectile, `turret.fired`.
+  - [x] Projectile pool `building` + `pushbackM`; `updateProjectiles` uses them; `applyZombieDamage`/`killZombie` carry an optional building id (`zombie.hit.sourceId` null, `zombie.killed.buildingId`).
+  - [x] Economy: `zombie.killed` with `buildingId` → `payKill(…, buildingKillShare)`.
+  - [x] SimEvent `turret.fired`; `zombie.killed.buildingId?`; snapshot covers pool fields (Building fields are spread already).
+- [x] **Task 3: Net** (AC 3, 7)
+  - [x] Kind 23 `TURRET_FIRED` `[23, buildingId, heading]`; `zombie.killed` index 6 = building id when present; round-trip tests.
+- [x] **Task 4: Server** (AC 4)
+  - [x] `RunController` kill counter skips turret kills. `RunRoom.turret.test.ts`.
+- [x] **Task 5: Client** (AC 2, 3)
+  - [x] `NetSimHost.drainEvents`: `turret.fired` → muzzle from the mirror building, aim, cosmetic shot (`CosmeticProjectiles.spawnShot`).
+  - [x] `TurretView` (plate + head, smooth turn), `ProjectileView` cyan for building shots, `FxView` muzzle + `turret_fire` sound (throttled), GameScene kill counter skips turret kills.
+- [x] **Task 6: Checks** (AC 7, 8)
+  - [x] `typecheck && lint && test && build` on the branch merged with `claude/epic-2-continue`.
+  - [x] Browser: solo + two pages (guest `?lag=150&jitter=20`), screenshots `/tmp/s36/`.
 
 ## Dev Notes
 
@@ -101,12 +101,56 @@ so that I can hold a spot or cover a flank.
 
 ### Agent Model Used
 
+Claude Opus 5.5 (claude-opus-5-5), BMAD gds-create-story + build, 2026-11-22.
+
 ### Debug Log References
+
+- `npm run typecheck && npm run lint && npm test && npm run build` pass on `story-3-6` merged with `claude/epic-2-continue` at 75eaf07 (Story 3.5 merged): 141 test files, 1018 passed (3 skipped). One earlier full run at load average ~5 (other agents on this 2-core box) failed three timing-sensitive tests (3.5's and 3.6's tick-cost p99 cases, 2.7's netsim reversed-hit rate); each passes alone and the next full run was green.
+- Brief line 15, tests proven to fail once by mutating the code: lead removed (`× 0`) → the lead test fails (0 hits of 6+ shots); wave check removed → the build-phase test fails; economy share forced to 1 → 3 kill-pay tests fail; turret hits with `sourceId: killerId` → the damage/assist test fails. (The first lead test, a 1.2 m/s Walker at 6 m, passed without the lead; it was made strict: 3 m/s at 7 m.)
+- Tick cost (`tickCostFlowField.test.ts`, new 3.6 case: 4 of the 24 buildings Auto-turrets, 4 players + 150 Walkers, wave): one run on this loaded 2-core box: baseline p99 0.18 ms; added p99 with 24 buildings (4 turrets) + field 4.53 ms, with 24 barricades + field 5.25 ms → the turrets' own added p99 ≈ 0 (within noise; the case asserts turrets − barricades ≤ 2 ms); 3.5's own case reads 0.98 → 7.70 ms in the same run (it passed in the full-suite run; the box is shared with other agents, so these p99s are noisy). The turret pass alone: 24 turrets all firing at 150 Walkers in range **0.086 ms/tick** (`turretBandwidth.test.ts`).
+- Bandwidth (`turretBandwidth.test.ts`, 4 turrets firing continuously, 4.9 kills/s, players idle so every byte is the turrets'): `turret.fired` **80 B/s** (20 shots/s × 4 B); all events incl. their hits, kills, the owners' `money.earned` and the per-tick message envelope **+698 B/s**; patches **+62 B/s** (only the owners' `wallet`/`earned` on kills, ~13 B per kill); turret aim and cooldown are never in the patch (0 B/s idle).
+- Browser (Playwright, headless Chromium, 844 × 390 @2x, touch; server :5567 with `ALLOW_SOLO_START=1 DEV_STARTING_WALLET=1000 DEV_ZOMBIE_DAMAGE_SCALE=0.05`, Vite :8073 with a temporary config, deleted), screenshots `/tmp/s36/`, logs `solo-log.txt`, `online-log.txt`, scripts `/tmp/s36scripts/`:
+  - solo (01–05): the Shop lists "Auto-turret $250" after the barricade; tapping it starts placement (hint "Auto-turret · $250", green); ✓ places a 1 × 1 m turret with 300/300 HP, wallet 1000 → 750; no shot in the build phase; in wave 1 it fired 29 shots (all drawn, cyan), 6 kills, each paid **+1** (Walker reward 2 × 50 %, floor) and nothing else (I did not shoot); the head turned through 13 aims.
+  - two pages, guest with `?lag=150&jitter=20` (10–15): each player buys a turret from the Shop (both see both, 300 HP, wallets 750); in the wave each page drew all 40 `turret.fired` (muzzle at the building, cosmetic shot), 9 turret kills; host paid 4 × +1, guest 5 × +1 (each only for its own turret); guest netStats 0 snaps / 0 corrections; 0 page errors.
 
 ### Completion Notes List
 
+- Shared: `buildings/turret.ts` (`updateTurrets`, `nearestZombieInRange`, `turretStats`, centre helpers), called from 3.5's `updateBuildings`; balance `turret` block (optional) on building types + `auto_turret`; `Building.fireCooldownS/aimX/aimY`; projectile pool `building`/`pushbackM`; `applyZombieDamage`/`killZombie` take an optional building id (`zombie.hit.sourceId` null, `zombie.killed.buildingId`); economy pays `buildingKillShare` for such kills; SimEvent + net kind 23 `turret.fired`; `zombie.killed` index 6.
+- Server: `RunController` kill counter skips turret kills; no schema change.
+- Client: `NetSimHost` resolves each `turret.fired` against the mirror building (muzzle, aim, cosmetic shot via `CosmeticProjectiles.spawnShot`); `TurretView` (plate + turning head over `BuildingView`'s base, so 3.5's health bar and cracks still show); `ProjectileView` cyan turret shots; `FxView` muzzle + throttled `turret_fire` click; HUD kill counter skips turret kills.
+- **Epic 3 brief:**
+  - L2: git status clean; typecheck + lint + test + build pass on the branch merged with the current `claude/epic-2-continue` (75eaf07).
+  - L3 (all copies): new World state = `Building.fireCooldownS/aimX/aimY` and the projectile pool's `building/pushbackM`. World ✓ → schema: **none** (deliberately: aim derived client-side, cooldown server-only) → `syncState`/`stateView`/devThrottle field lists: unchanged (no field) → NetSimHost mirror: `addBuildingAt` initialises the fields; aim written from `turret.fired` → Predictor: not affected (turrets collide as buildings, already copied) → `snapshotWorld`: building copies spread (cooldown + aim included), projectiles add `building` + `pushbackM`.
+  - L6: no float timers except the fire cooldown, which is the shared `cooldown.ts` rule (seconds by design; exact 4-tick period tested); no per-tick allocation in the turret pass (module scratch, shared `zombieCandidates`), only each shot's event object; `TurretView`/`ProjectileView` allocate nothing per frame (head Graphics pooled, plates redrawn on `version` change, colour changed only when a slot's kind changes).
+  - L8: nothing new from the client: placement, price, cap and repair stay server-validated by 3.4/3.7's generic paths (refusals unchanged).
+  - L11: turret aim derived client-side from `turret.fired` (4 B per shot), never synced per tick; HP only on change (unchanged); numbers above.
+  - L12: every turret number in `buildings.json › types.auto_turret.turret` (own block, schema-validated); kill share is `economy.buildingKillShare`; client-only presentation constants (colours, turn rate, sound throttle) in client code; the 1 m grid-staleness margin is a structural constant with its reasoning.
+  - L14: one mechanic per test (zombies' system replaced where it would interfere, `waves` off), fixed seeds, `bootTestServer()` in `RunRoom.turret.test.ts`.
+  - L15: see Debug Log (4 mutations).
+  - L20: see Notes for the merge.
+- **Unverified:** feel on a real phone (headless Chromium ~14 fps); zombies attacking and destroying a turret in the browser (3.5's generic attacks; covered by its tests, a turret is a building there); 4 turrets at once in the browser (measured in the bandwidth test instead); hidden-tab during turret fire (no new phase or client state beyond the aim, which is set by each event).
+- **Deviations:** turret firing runs in the `buildings` slot with a widened query on last tick's grid (coordinator's instruction) instead of after the grid rebuild in combat. Turret kills don't count as the owner's kills in the HUD/Results. Turret damage gives no assist credit (a decision; FR45 does not cover it).
+
+### Notes for the merge (brief line 20)
+
+- `buildings.json` + `balanceSchema.ts`: `auto_turret` type and `turretSchema` (optional `turret` on `buildingTypeSchema`); changes `balance.version`. Two tests updated for the second type (`buildings.test.ts`, `shop.test.ts`).
+- `buildings/buildings.ts`: three fields on `Building` + their init in `addBuildingAt` (additive). `buildings/buildingSystem.ts`: `updateTurrets` after `updatePathing`.
+- `combat/projectilePool.ts` (two arrays, optional spawn fields), `combat/firing.ts` (`updateProjectiles` picks weapon/pushback/building), `combat/damage.ts` + `zombies/zombiePool.ts` (optional `buildingId` param), `economy/economy.ts` (share), `core/simEvents.ts` (`turret.fired`, `zombie.killed.buildingId?`), `core/worldSnapshot.ts`, `net/netEvents.ts` (kind 23, index 6), `index.ts` (exports).
+- Server: `RunController` kill counter line; tests `RunRoom.turret.test.ts`, `run/turretBandwidth.test.ts`, a third case in 3.5's `tickCostFlowField.test.ts`.
+- Client: `NetSimHost` (`turretShot`), `cosmeticProjectiles.ts` (`spawnShot`), `GameScene` (TurretView + kill counter line), `ProjectileView`, `FxView` (`turret.fired` case), `placeholderSfx` (`turret_fire`), new `TurretView`.
+- **For 3.8 (Runners):** turrets lead with the target's last-tick displacement; fast Runners are hit (the lead test uses 3 m/s). If Runners flank via their own field, nothing here changes.
+- **For 3.10 (5-wave balance):** turret numbers are in `buildings.json`; a turret kill pays floor(reward × 0.5) (Walker/Crawler → 1), so turrets are a defense, not income; consider rewards when tuning. Bandwidth with 4 turrets ≈ +0.8 KB/s per client.
+- **For 3.5 (merged):** nothing turret-specific in pathing or attacks; the turret's bullets in flight still pay its owner after `damageBuilding` destroys it (tested).
+
 ### File List
+
+- New: `packages/shared/src/buildings/turret.ts`, `packages/shared/src/buildings/turret.test.ts`, `apps/client/src/render/TurretView.ts`, `apps/client/src/sim/NetSimHost.turret.test.ts`, `apps/server/src/rooms/RunRoom.turret.test.ts`, `apps/server/src/run/turretBandwidth.test.ts`.
+- Changed (shared): `config/balance/buildings.json`, `config/balanceSchema.ts`, `buildings/{buildings,buildingSystem}.ts`, `buildings/buildings.test.ts`, `combat/{projectilePool,firing,damage}.ts`, `zombies/zombiePool.ts`, `economy/economy.ts`, `economy/shop.test.ts`, `core/{simEvents,worldSnapshot}.ts`, `net/netEvents.ts`, `net/netEvents.test.ts`, `index.ts`.
+- Changed (server): `run/RunController.ts`, `run/tickCostFlowField.test.ts`.
+- Changed (client): `sim/NetSimHost.ts`, `net/cosmeticProjectiles.ts`, `scenes/GameScene.ts`, `render/{ProjectileView,FxView}.ts`, `audio/placeholderSfx.ts`.
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file.
 
 ## Change Log
 
 - 2026-11-22: Story written (gds-create-story), status ready-for-dev.
+- 2026-11-22: Built: shared turret rules, projectile building tag, kill share, net kind 23, client turret view and cosmetic shots; merged `claude/epic-2-continue` (Story 3.5; turret firing moved to the `buildings` slot); tests incl. room, bandwidth, tick cost; browser checks; status review.
