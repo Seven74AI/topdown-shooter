@@ -12,6 +12,7 @@ import {
   ticksFor,
   weaponIds,
   weaponStats,
+  parseWaveMix,
   ZOMBIE_STATE,
   type Balance,
   type PlayerInput,
@@ -26,6 +27,7 @@ import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
 import { drawStreet } from "../render/StreetView";
 import { ZombieView } from "../render/ZombieView";
+import { BloodTrailView } from "../render/BloodTrailView";
 import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
@@ -55,6 +57,8 @@ import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
 import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { netSummary } from "../debug/netSummary";
+import { netMeter } from "../net/netMeter";
 
 /** `scene.restart(data)` / `scene.start(data)` options. Phaser keeps the last data when given none: always pass an object. */
 export type GameSceneData =
@@ -140,6 +144,8 @@ export class GameScene extends Phaser.Scene {
     this.playerViews.delete(id);
   };
   private zombieView: ZombieView | null = null;
+  /** Story 3.9: blood trails behind Crawlers. */
+  private trailView: BloodTrailView | null = null;
   private projectileView: ProjectileView | null = null;
   private fxView: FxView | null = null;
   private downedView: DownedView | null = null;
@@ -211,6 +217,7 @@ export class GameScene extends Phaser.Scene {
     this.leaving = false;
     this.toasts.clear();
     perf.hits = netHost ? netHost.netStats : null;
+    perf.net = netHost; // Story 2.10: the overlay's network lines
     const stress = session ? null : opts.stress;
     this.stressMode = stress !== null;
     this.pausedAtMs = 0;
@@ -220,6 +227,8 @@ export class GameScene extends Phaser.Scene {
     const cx = world.map.widthM / 2;
     const cy = world.map.heightM / 2;
     if (!session) addPlayer(world, localId, cx, cy); // online, players come from the server
+    // Story 3.9 (temporary until 3.10): ?wavemix=walker,crawler mixes Crawlers into solo waves.
+    if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
     this.gameOver = false;
     this.kills = 0;
     this.localReady = false; // Phaser reuses this scene object (restart): no Ready from the last run
@@ -270,6 +279,7 @@ export class GameScene extends Phaser.Scene {
 
     drawStreet(this, world.map);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
+    this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
     this.fxView = new FxView(this, this.zombieView, localId);
     this.downedView = new DownedView(this, world);
@@ -306,6 +316,7 @@ export class GameScene extends Phaser.Scene {
       detachDesktop();
       this.router = null;
       stressRun.cancel();
+      netSummary.cancel();
       uiStore.handle("restart", undefined);
       uiStore.handle("startRun", undefined);
       uiStore.handle("leaveRun", undefined);
@@ -320,9 +331,12 @@ export class GameScene extends Phaser.Scene {
       this.downedView = null;
       this.projectileView?.destroy();
       this.zombieView?.destroy();
+      this.trailView?.destroy();
+      this.trailView = null;
       for (const v of this.playerViews.values()) v.destroy();
       this.playerViews.clear();
       perf.hits = null;
+      perf.net = null;
       this.host?.dispose(); // online: also leaves the room
       this.host = null;
       this.localHost = null;
@@ -560,6 +574,7 @@ export class GameScene extends Phaser.Scene {
     this.hudModel.toastText = this.toasts.current(this.time.now);
 
     if (this.running) host.update(deltaMs / 1000); // LocalSimHost caps catch-up after long frames
+    if (perf.net) netSummary.frame(performance.now(), perf.net); // Story 2.10: ping samples for the wave summary
     const events = host.drainEvents();
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
@@ -569,6 +584,8 @@ export class GameScene extends Phaser.Scene {
         this.showSoloResults(e.wave);
       } else if (e.type === "zombie.killed" && e.killerId === localId) {
         this.kills++;
+      } else if (e.type === "money.earned" && e.playerId === localId) {
+        this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame
       } else if (e.type === "weapon.fired" && e.playerId === localId) {
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
@@ -576,12 +593,15 @@ export class GameScene extends Phaser.Scene {
         if (e.wave === 1) this.showBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
       } else if (e.type === "wave.started") {
         this.showBanner(`Wave ${e.number}`);
+        if (perf.net) netSummary.start(performance.now(), e.number, perf.net, netMeter); // Story 2.10
       } else if (e.type === "wave.ended") {
         this.showBanner(`Wave ${e.number} cleared`);
+        if (perf.net) netSummary.end(performance.now(), e.number, perf.net, netMeter, perf.overlayOn);
       }
     }
 
     this.zombieView?.update(host.world, host.alpha);
+    this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world);
@@ -600,6 +620,9 @@ export class GameScene extends Phaser.Scene {
       recordSimFrame(host.stats, host.world.zombies, m.camX, m.camY, this.scale.width / m.camZoom, this.scale.height / m.camZoom);
       this.hudModel.hp = player.hp;
       this.hudModel.maxHp = player.maxHp;
+      this.hudModel.money = player.wallet;
+      this.hudModel.localX = viewOf.x;
+      this.hudModel.localY = viewOf.y;
       const slot = activeSlot(player.loadout);
       const stats = weaponStats(host.world.balance, slot.weapon);
       if (slot.weapon !== this.hudWeaponId) {

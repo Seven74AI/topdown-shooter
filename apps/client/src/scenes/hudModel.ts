@@ -66,6 +66,13 @@ export interface HudModel {
   teammateCount: number;
   /** Name per slot (index = slot), assigned only when it changes. */
   readonly teammateNames: string[];
+  /** Story 3.2: my wallet (server truth online). */
+  money: number;
+  /** My `money.earned` amounts this frame, summed; the HUD pops "+N" and sets it back to 0. */
+  moneyGain: number;
+  /** Drawn world position the camera follows (my survivor, or the teammate I spectate): the pops rise above it. */
+  localX: number;
+  localY: number;
 }
 
 /** Most rush markers shown (the last-5 rule marks 5). */
@@ -119,4 +126,8 @@ export const createHudModel = (): HudModel => ({
   teammateFlags: new Uint8Array(MAX_PLAYERS),
   teammateCount: 0,
   teammateNames: new Array<string>(MAX_PLAYERS).fill(""),
+  money: 0,
+  moneyGain: 0,
+  localX: 0,
+  localY: 0,
 });

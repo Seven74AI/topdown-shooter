@@ -2,19 +2,23 @@ import {
   NEUTRAL_INPUT,
   TICK_DT_S,
   addPlayer,
+  applyTestScenario,
   createWorld,
   removePlayer,
   setBuildReady,
   setInput,
   skippedInputWeaponTick,
   startBuild,
+  tickSlow,
   step,
   teamSpawnPoint,
   type Balance,
   type PlayerInput,
   type SimEvent,
   type Systems,
+  type TestScenario,
   type World,
+  type ZombieTypeId,
 } from "@topdown/shared";
 import { SHOT_ADVANCE_CAP_MS } from "../net/limits";
 
@@ -126,8 +130,12 @@ export interface RunControllerOptions {
   players: readonly { playerId: string; slot: number }[];
   /** Dev (`DEV_NO_WAVES=1`): waves don't advance (the Story 1.7 cheat flag). */
   pauseWaves?: boolean;
+  /** Dev (`DEV_WAVE_MIX=walker,crawler`, Story 3.9, until 3.10): wave zombies cycle through these types. */
+  waveMix?: readonly ZombieTypeId[] | null;
   /** Tests only: replace systems by name (Epic 1 lesson: isolate mechanics). */
   systems?: Partial<Systems>;
+  /** Story 2.10: a fixed test scenario (the room passes it only with `ALLOW_TEST_SCENARIOS=1`). */
+  scenario?: TestScenario | null;
 }
 
 /**
@@ -157,6 +165,8 @@ export class RunController {
   constructor(opts: RunControllerOptions) {
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, ...(opts.systems ? { systems: opts.systems } : {}) });
     this.world.waves.paused = opts.pauseWaves === true;
+    this.world.debug.waveMix = opts.waveMix ?? null;
+    if (opts.scenario) applyTestScenario(this.world, opts.scenario);
     const at = { x: 0, y: 0 };
     for (const { playerId, slot } of opts.players) {
       teamSpawnPoint(this.world, slot, at);
@@ -253,7 +263,11 @@ export class RunController {
         s.overTargetTicks = 0;
       }
       // Skipped inputs (overflow, drain): their weapon tick, a dry one (Story 2.7 review).
-      for (let k = 0; k < s.skippedCount; k++) skippedInputWeaponTick(this.world, s.playerId, s.skipped[k] as MutableInput);
+      const sp = s.skippedCount > 0 ? this.world.players.get(s.playerId) : undefined;
+      for (let k = 0; k < s.skippedCount; k++) {
+        skippedInputWeaponTick(this.world, s.playerId, s.skipped[k] as MutableInput);
+        if (sp) tickSlow(sp); // the skipped seq's slow tick, as the client predicted it (3.9 review)
+      }
       s.skippedCount = 0;
       const p = this.world.players.get(s.playerId);
       if (p) p.weaponsPaused = s.count === 0; // starved: the weapon waits for the next seq too

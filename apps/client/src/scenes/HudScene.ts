@@ -101,6 +101,31 @@ const READY_BORDER_PX = 2;
 const WAVE_TOP_PX = 12;
 const LINE_GAP_PX = 12;
 
+/** Story 3.2: the wallet line under the HP text, and the "+N" pops above my survivor. */
+const MONEY_TEXT_PX = 16;
+const MONEY_GAP_PX = 4;
+/** A text line's height as a multiple of its font size. */
+const LINE_HEIGHT = 1.3;
+const MONEY_COLOR = "#ffd54a";
+const MONEY_POPS = 6;
+const MONEY_POP_TEXT_PX = 16;
+const MONEY_POP_MS = 900;
+/**
+ * How far a pop rises while it fades (CSS px), and where it starts: right of the survivor, near head
+ * height (m), so it stays clear of the wave banner above the survivor (32 % of the screen height).
+ */
+const MONEY_POP_RISE_PX = 22;
+const MONEY_POP_RIGHT_M = 0.6;
+const MONEY_POP_LIFT_M = 0.2;
+
+/** One pooled "+N": the tween drives `rise` (canvas px) and `alpha`; `update` places the text. */
+interface MoneyPop {
+  readonly text: Phaser.GameObjects.Text;
+  rise: number;
+  alpha: number;
+  active: boolean;
+}
+
 const STICK_FILL = 0xffffff;
 const STICK_FILL_ALPHA = 0.12;
 const STICK_RING_ALPHA = 0.35;
@@ -175,6 +200,10 @@ export class HudScene extends Phaser.Scene {
   private readonly crosses: Phaser.GameObjects.Graphics[] = [];
   /** Preallocated `teammateMarkers` output. */
   private readonly markers = createTeammateMarkers();
+  private moneyText!: Phaser.GameObjects.Text;
+  private shownMoney = -1;
+  private readonly moneyPops: MoneyPop[] = [];
+  private nextMoneyPop = 0;
 
   constructor() {
     super("Hud");
@@ -199,6 +228,8 @@ export class HudScene extends Phaser.Scene {
     this.shownReadyVisible = null;
     this.shownReadyKey = -1;
     this.shownBuildSecs = -2;
+    this.shownMoney = -1;
+    this.nextMoneyPop = 0;
   }
 
   create(): void {
@@ -296,6 +327,14 @@ export class HudScene extends Phaser.Scene {
       fontSize: `${Math.round(HP_TEXT_PX * dpr())}px`,
       color: "#ffffff",
     });
+    // Story 3.2: wallet and "+N" pops (Phaser reuses this scene: the old objects died at shutdown).
+    this.moneyText = this.add.text(0, 0, "", this.moneyStyle(MONEY_TEXT_PX)).setVisible(false);
+    this.moneyPops.length = 0;
+    for (let i = 0; i < MONEY_POPS; i++) {
+      const text = this.add.text(0, 0, "", this.moneyStyle(MONEY_POP_TEXT_PX)).setOrigin(0, 1).setVisible(false);
+      this.moneyPops.push({ text, rise: 0, alpha: 0, active: false });
+    }
+    this.model.moneyGain = 0;
 
     // Buttons first (readiness fix U1): a touch that starts on a HUD button never spawns a stick.
     const down = (p: Phaser.Input.Pointer) => {
@@ -336,6 +375,19 @@ export class HudScene extends Phaser.Scene {
       fontStyle: "bold",
       stroke: TEXT_STROKE,
       strokeThickness: Math.round(TEXT_STROKE_PX * k),
+    };
+  }
+
+  /** Story 3.2: bold gold text with a dark stroke (wallet line and "+N"). */
+  private moneyStyle(cssPx: number): Phaser.Types.GameObjects.Text.TextStyle {
+    const k = dpr();
+    return {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: `${Math.round(cssPx * k)}px`,
+      color: MONEY_COLOR,
+      fontStyle: "bold",
+      stroke: TEXT_STROKE,
+      strokeThickness: Math.round(TEXT_STROKE_PX * k * 0.75),
     };
   }
 
@@ -461,6 +513,11 @@ export class HudScene extends Phaser.Scene {
     this.shownWeapon = "";
     this.hpText.setFontSize(Math.round(HP_TEXT_PX * dpr()));
     this.shownHp = -1; // force a redraw at the new scale
+    this.moneyText.setFontSize(Math.round(MONEY_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr() * 0.75));
+    this.shownMoney = -1;
+    for (const pop of this.moneyPops) {
+      pop.text.setFontSize(Math.round(MONEY_POP_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr() * 0.75));
+    }
     for (const t of this.countdowns) t.setFontSize(Math.round(COUNTDOWN_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr()));
     this.statusText.setFontSize(Math.round(STATUS_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr()));
     this.shownStatus = "\u0000"; // re-place the status line
@@ -487,11 +544,54 @@ export class HudScene extends Phaser.Scene {
     this.hpText.setText(`HP ${Math.ceil(hp)} / ${maxHp}`).setPosition(x, y + h + 4 * k);
   }
 
+  /**
+   * Story 3.2: "$120" under the HP text (setText only when it changes), and a "+N" beside the
+   * survivor for each frame's gain, rising and fading on a HUD tween (the solo pause freezes it).
+   */
+  private drawMoney(): void {
+    const m = this.model;
+    const k = dpr();
+    if (m.money !== this.shownMoney) {
+      this.shownMoney = m.money;
+      const safe = this.insets;
+      const y = (HP_MARGIN + safe.top + HP_BAR_H + 4 + HP_TEXT_PX * LINE_HEIGHT + MONEY_GAP_PX) * k;
+      this.moneyText.setText(`$${m.money}`).setPosition((HP_MARGIN + safe.left) * k, y).setVisible(true);
+    }
+    if (m.moneyGain > 0) {
+      const pop = this.moneyPops[this.nextMoneyPop] as MoneyPop;
+      this.nextMoneyPop = (this.nextMoneyPop + 1) % this.moneyPops.length;
+      this.tweens.killTweensOf(pop);
+      pop.text.setText(`+${m.moneyGain}`);
+      pop.rise = 0;
+      pop.alpha = 1;
+      pop.active = true;
+      this.tweens.add({
+        targets: pop,
+        rise: MONEY_POP_RISE_PX * k,
+        alpha: 0,
+        duration: MONEY_POP_MS,
+        ease: "Quad.easeIn",
+        onComplete: () => {
+          pop.active = false;
+          pop.text.setVisible(false);
+        },
+      });
+      m.moneyGain = 0;
+    }
+    const sx = (m.localX + MONEY_POP_RIGHT_M - m.camX) * m.camZoom;
+    const sy = (m.localY - MONEY_POP_LIFT_M - m.camY) * m.camZoom;
+    for (let i = 0; i < this.moneyPops.length; i++) {
+      const pop = this.moneyPops[i] as MoneyPop;
+      if (pop.active) pop.text.setPosition(sx, sy - pop.rise).setAlpha(pop.alpha).setVisible(true);
+    }
+  }
+
   override update(): void {
     const touch = !this.router.isMouse; // mouse mode hides the sticks
     this.drawStick(touch ? this.sticks.move : null, this.moveBase, this.moveKnob);
     this.drawStick(touch ? this.sticks.aim : null, this.aimBase, this.aimKnob);
     this.drawHealth();
+    this.drawMoney();
     this.drawWeapon();
     this.drawWave();
     this.drawRushArrows();

@@ -32,6 +32,8 @@ const EVENTS: SimEvent[] = [
   { type: "wave.ended", number: 3 },
   { type: "wave.rush_started", count: 5 },
   { type: "build.started", wave: 4 },
+  { type: "money.earned", playerId: "p2", amount: 30, reason: "wave" },
+  { type: "money.earned", playerId: "p0", amount: 1, reason: "assist" },
 ];
 
 /** Bytes msgpack uses for an integer (fixint, int8/16/32, uint8/16/32). */

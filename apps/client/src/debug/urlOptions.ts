@@ -1,4 +1,5 @@
 import { parseDevScale } from "@topdown/shared";
+import { isTestScenario, type TestScenario } from "@topdown/shared";
 
 /**
  * Every URL switch the client reads, parsed in one place (Story 1.11; Story 1.12 adds `?loadout`
@@ -28,6 +29,16 @@ export interface UrlOptions {
    * for browser checks; the server must run with the same `DEV_ZOMBIE_DAMAGE_SCALE`. null when absent.
    */
   zombieDamageScale: number | null;
+  /**
+   * `?scenario=net150` (Story 2.10, release-safe): the host's Create game asks the server for that
+   * fixed test scenario (honoured only with `ALLOW_TEST_SCENARIOS=1`), or null.
+   */
+  scenario: TestScenario | null;
+  /**
+   * `?wavemix=walker,crawler` (Story 3.9, release-safe, solo only, temporary until Story 3.10's wave
+   * composition): the raw list; `parseWaveMix` keeps the types that exist in balance.
+   */
+  waveMix: string | null;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -55,7 +66,14 @@ export function parseUrlOptions(search: string): UrlOptions {
     solo: soloRaw !== null && TRUE_VALUES.has(soloRaw.trim().toLowerCase()),
     throttle: parseThrottle(q.get("lag"), q.get("jitter")),
     zombieDamageScale: parseDevScale(q.get("zdmg")),
+    scenario: parseScenario(q.get("scenario")),
+    waveMix: q.get("wavemix"),
   };
+}
+
+function parseScenario(raw: string | null): TestScenario | null {
+  const v = raw?.trim().toLowerCase();
+  return isTestScenario(v) ? v : null;
 }
 
 function parseMs(raw: string | null, max: number): number | null {

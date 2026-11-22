@@ -6,6 +6,8 @@ import { pulseAlpha, pulseScale } from "./pulse";
 const BODY_COLOR = 0xd0d4d8;
 /** Story 2.8: a downed survivor is drawn darker; an out one is hidden. */
 const DOWNED_BODY_COLOR = 0x5a5e63;
+/** Story 3.9: a slowed survivor (Crawler bite) is drawn a sickly green-grey while it lasts. */
+const SLOWED_BODY_COLOR = 0x9fb08a;
 const TICK_COLOR = 0x202428;
 /** Story 2.9: ground ring in the slot colour (FR55, NFR11), in metres. */
 const RING_GAP_M = 0.15;
@@ -23,6 +25,7 @@ export class PlayerView {
   x = 0;
   y = 0;
   private shownStatus: PlayerState["status"] | null = null;
+  private shownSlowed = false;
   private slot = -1;
 
   constructor(scene: Phaser.Scene, radiusM: number) {
@@ -49,10 +52,13 @@ export class PlayerView {
     this.ring.setPosition(this.x, this.y);
     this.body.setPosition(this.x, this.y);
     this.tick.setPosition(this.x, this.y).setRotation(Math.atan2(p.facingY, p.facingX));
-    if (p.status !== this.shownStatus) {
-      this.shownStatus = p.status; // only touch the objects when the status changes
+    const slowed = p.slowTicksLeft > 0 && p.status === "alive";
+    if (p.status !== this.shownStatus || slowed !== this.shownSlowed) {
+      this.shownStatus = p.status; // only touch the objects when the status (or the slow) changes
+      this.shownSlowed = slowed;
       const shown = p.status !== "out";
-      this.body.setFillStyle(p.status === "downed" ? DOWNED_BODY_COLOR : BODY_COLOR).setVisible(shown);
+      const color = p.status === "downed" ? DOWNED_BODY_COLOR : slowed ? SLOWED_BODY_COLOR : BODY_COLOR;
+      this.body.setFillStyle(color).setVisible(shown);
       this.tick.setVisible(shown);
       this.ring.setVisible(shown).setScale(1).setAlpha(1);
     }

@@ -29,6 +29,13 @@ export interface PlayerStateView {
   readonly kills: number;
   /** Story 3.1: Ready in the current build phase. */
   readonly buildReady: boolean;
+  /** Story 3.2: personal wallet (server truth; the client never predicts it). */
+  readonly wallet: number;
+  /** Story 3.2: total earned this run (never reduced by spending). */
+  readonly earned: number;
+  /** Story 3.9: movement ticks left at reduced speed (Crawler bite), and the reduction in percent. */
+  readonly slowTicks: number;
+  readonly slowPct: number;
   /** `seq` of the last input the server applied for this player (Story 2.6 replays newer ones). */
   readonly ackSeq: number;
   /** Active weapon slot, 0 or 1. */
@@ -66,6 +73,8 @@ export interface RunStateView {
   readonly resultWave: number;
   /** Story 3.1: ticks left in the build phase (0 outside a build). */
   readonly buildTicksLeft: number;
+  /** Story 2.10: the test scenario this room runs (`TestScenario`), "" for a normal game. */
+  readonly scenario: string;
 }
 
 /**
@@ -97,6 +106,10 @@ export const PLAYER_STATE_FIELDS = {
   reviveProgress: true,
   kills: true,
   buildReady: true,
+  wallet: true,
+  earned: true,
+  slowTicks: true,
+  slowPct: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** `RunStateView`'s fields except `players` (a map, copied per player). */
@@ -109,4 +122,5 @@ export const RUN_STATE_FIELDS = {
   aliveCount: true,
   resultWave: true,
   buildTicksLeft: true,
+  scenario: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players">, true>;

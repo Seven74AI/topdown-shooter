@@ -1,12 +1,14 @@
 # Story 3.1: Build phase between waves
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
 As a player,
 I want a 30-second build phase before the first wave and after every wave, which ends early when we're all ready,
 so that we have a breather to prepare.
+
+> **Epic 2 retro (2026-11-22) adds A2, A5 and A12 to this story** (Tasks 8–10) and its "EPIC 3 BRIEF" as the checklist.
 
 > **Decisions made while writing this story (2026-11-22, no designer questions asked; change any of them freely):**
 > 1. The run state machine lives in **shared** code (`packages/shared/src/run/runStateMachine.ts`), not only on the server, so solo practice (`LocalSimHost`) runs exactly the same build phase. The server's room keeps only the room-level bits (members, Results bookkeeping, Back to lobby) and calls the shared transitions. The phase lives in the World (`world.run.phase`).
@@ -27,46 +29,46 @@ so that we have a breather to prepare.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Balance** (AC 2–4)
-  - [ ] `waves.json` + schema: add `buildPhaseS: 30`; remove `pauseBetweenWavesS` and `firstWaveDelayS`.
-  - [ ] `player.json` + schema: add `buildHealFrac: 0.5`; remove `returnHpFrac`. Update the balance tests that list these keys.
-- [ ] **Task 2: Run state machine (shared)** (AC 1, 2, 4)
-  - [ ] New `packages/shared/src/run/runStateMachine.ts`: `RunPhase = "lobby" | "build" | "wave" | "results"` (move the type here from `net/messages.ts` and re-export it there), `RunState { phase; buildTicksLeft }` in `world.run` (World starts in `"lobby"`).
-  - [ ] Transitions (each checks the current phase and throws on a wrong one):
+- [x] **Task 1: Balance** (AC 2–4)
+  - [x] `waves.json` + schema: add `buildPhaseS: 30`; remove `pauseBetweenWavesS` and `firstWaveDelayS`.
+  - [x] `player.json` + schema: add `buildHealFrac: 0.5`; remove `returnHpFrac`. Update the balance tests that list these keys.
+- [x] **Task 2: Run state machine (shared)** (AC 1, 2, 4)
+  - [x] New `packages/shared/src/run/runStateMachine.ts`: `RunPhase = "lobby" | "build" | "wave" | "results"` (move the type here from `net/messages.ts` and re-export it there), `RunState { phase; buildTicksLeft }` in `world.run` (World starts in `"lobby"`).
+  - [x] Transitions (each checks the current phase and throws on a wrong one):
     - `startBuild(world)`: lobby | wave → build. Sets `buildTicksLeft = ticksFor(buildPhaseS)`, clears every player's `buildReady`, heals and returns players (Task 3), emits `build.started { wave: waves.number + 1 }`.
     - `startWave(world)`: build → wave. Clears `buildReady`, calls the wave director's `beginWave` (number + 1, size, queue, `wave.started`).
     - `endWave(world)`: wave → build. Clears the wave's queue/remaining/rush, emits `wave.ended { number }`, then `startBuild`. (Story 3.2 pays the wave-clear bonus here.)
     - `endRun(world)`: build | wave → results. Nothing steps after it.
-  - [ ] `setBuildReady(world, playerId, ready)`: build phase only, known players only; ignored otherwise.
-  - [ ] `updateRun` system (the `waves` slot of `SYSTEM_ORDER`): if `world.teamWiped` and the phase is build/wave → `endRun`; if `waves.paused` → nothing; build: if every player is Ready (and there is at least one) or `--buildTicksLeft === 0` → `startWave` (the first spawn batch runs the same tick); wave: the wave director's spawn/rush step, and `endWave` when it reports the wave cleared.
-  - [ ] Move `skipWave` (dev cheat) next to the transitions (it kills wave zombies and calls `endWave`); `leaveLast` checks `world.run.phase === "wave"`.
-  - [ ] `waveDirector.ts`: remove `WavePhase`, `phase` and `timerTicks` from `WaveState`; `startWave` becomes the internal `beginWave`; `updateWaves` returns whether the wave was cleared. No import of the state machine from the director (no cycles).
-  - [ ] `snapshotWorld` gains `run` and each player's `buildReady` (players are spread already).
-  - [ ] `index.ts` exports the transitions, `setBuildReady`, `updateRun`, `RunPhase`, `RunState`.
-- [ ] **Task 3: Heal and return (shared)** (AC 3)
-  - [ ] `returnOutPlayers(world)` (reused, `player/downed.ts`): now heals every player by `maxHp × buildHealFrac` (capped) and returns **downed and out** players next to the lowest-slot standing teammate (same placement as 2.8), `player.returned` for each. Called only from `startBuild`. Remove the call from `updateDowned`, the `w.phase === "active"` check, and `PlayerState.outSinceWave`.
-  - [ ] `PlayerState.buildReady: boolean` (false).
-- [ ] **Task 4: Events** (AC 2): `build.started { wave }` in `simEvents.ts`; net kind `BUILD_STARTED: 19` in `netEvents.ts` with a round-trip test.
-- [ ] **Task 5: Server** (AC 1, 2, 5)
-  - [ ] Schema: `RunState.buildTicksLeft: t.uint16()`, `PlayerState.buildReady: t.boolean()`; `stateView.ts` views; `syncState` copies `phase` (build/wave/results from `world.run.phase`), `buildTicksLeft` and `buildReady`; `resetRunFields` resets them.
-  - [ ] `C2S.BUILD_SET_READY = "build.set_ready"`, `buildSetReadySchema = { ready: boolean }` (strict), registered with `this.net.guard`; the handler calls `controller.setBuildReady(playerId, ready)` (ignored outside a build).
-  - [ ] `RunController` constructor starts the run with `startBuild` (Lobby → Build) after adding the players; `setBuildReady` passes through.
-  - [ ] `RunRoom`: `onStart` no longer writes `phase = "wave"` (the first `syncState` writes `"build"`); `onTick` steps while the phase is build or wave; `team.wiped` keeps the room's `endRun` (Results bookkeeping, `run_ended` log). Joins stay lobby-only (Story 8.2 opens build-phase joins).
-- [ ] **Task 6: Client** (AC 2, 5)
-  - [ ] `SimHost.setBuildReady(ready)`: `LocalSimHost` calls the shared `setBuildReady` (applies before the next step); `NetSimHost` sends `build.set_ready`.
-  - [ ] `LocalSimHost` constructor calls `startBuild` (the player is added right after; the heal of nobody is a no-op, and the build event is delivered at the first step).
-  - [ ] `NetSimHost.applyState` mirrors `world.run.phase` (build/wave/results), `world.run.buildTicksLeft` and each player's `buildReady`.
-  - [ ] HUD: during a build the top line reads `Wave N in S s` (`S = ceil(buildTicksLeft / 20)`), and a Ready button shows at the bottom centre (`Ready` / `Ready ✓`, plus `k/n ready` online). A tap toggles the local player's Ready through `SimHost.setBuildReady`. The button hides during a wave, on Results, in the loadout picker and while the menu is open. Banner `Build phase` at the run's first build; `Wave N cleared` stays at a wave's end.
-  - [ ] Out status line: `You're out: back after this wave`.
-  - [ ] `onlineFlow`: the run's session starts at the first **build or wave** phase after the lobby (not on every `wave`), so build → wave → build never restarts the Game scene.
-  - [ ] Dev throttle: `PLAYER_FIELDS.buildReady` and `STATE_FIELDS.buildTicksLeft` (the `satisfies` check enforces it).
-- [ ] **Task 8: Epic 2 retro A2 — state copies checked against the server schema** (AC 5)
-  - [ ] Shared key lists `PLAYER_STATE_FIELDS` / `RUN_STATE_FIELDS` in `net/stateView.ts` (`satisfies Record<keyof view, true>`); the server schema (`RunState.ts`) asserts its own field names are exactly these; the dev throttle iterates them. A schema field missing from the copy is a compile error.
-- [ ] **Task 9: Epic 2 retro A5 — dev balance switch for browser checks**
-  - [ ] Shared `config/devBalance.ts` (`loadDevBalance({ zombieDamageScale })`, `parseDevScale`); server env `DEV_ZOMBIE_DAMAGE_SCALE` builds `serverBalance` with it (logs `dev_balance_override`); dev client builds read `?zdmg=<scale>` (`debug/clientBalance.ts`) for both the game and the join's `balanceVersion`, so versions match. Release clients ignore `?zdmg`.
-- [ ] **Task 10: Epic 2 retro A12 — free spot for the return**
-  - [ ] `player/freeSpot.ts`: one occupancy check `spotBlocked` (map edge, other players, alive zombies; Story 3.4 adds buildings there) and `findFreeSpotNear` (rings of `spawnOffsetM × 1…returnSearchRings`, 8 directions, +x first). `returnOutPlayers` uses it, falling back to the 2.8 spot when everything is taken. `player.json`: `returnSearchRings: 3`. Tests: zombie on a spot, teammate on a spot, map corner, full first ring → second ring, everything full → fallback.
-- [ ] **Task 7: Tests** (AC 6): see Dev Notes › Testing. Update the existing tests that assumed the 3 s intro, the 5 s pause, `waves.phase`, `outSinceWave`, `returnHpFrac`, or `phase === "wave"` right after Start.
+  - [x] `setBuildReady(world, playerId, ready)`: build phase only, known players only; ignored otherwise.
+  - [x] `updateRun` system (the `waves` slot of `SYSTEM_ORDER`): if `world.teamWiped` and the phase is build/wave → `endRun`; if `waves.paused` → nothing; build: if every player is Ready (and there is at least one) or `--buildTicksLeft === 0` → `startWave` (the first spawn batch runs the same tick); wave: the wave director's spawn/rush step, and `endWave` when it reports the wave cleared.
+  - [x] Move `skipWave` (dev cheat) next to the transitions (it kills wave zombies and calls `endWave`); `leaveLast` checks `world.run.phase === "wave"`.
+  - [x] `waveDirector.ts`: remove `WavePhase`, `phase` and `timerTicks` from `WaveState`; `startWave` becomes the internal `beginWave`; `updateWaves` returns whether the wave was cleared. No import of the state machine from the director (no cycles).
+  - [x] `snapshotWorld` gains `run` and each player's `buildReady` (players are spread already).
+  - [x] `index.ts` exports the transitions, `setBuildReady`, `updateRun`, `RunPhase`, `RunState`.
+- [x] **Task 3: Heal and return (shared)** (AC 3)
+  - [x] `returnOutPlayers(world)` (reused, `player/downed.ts`): now heals every player by `maxHp × buildHealFrac` (capped) and returns **downed and out** players next to the lowest-slot standing teammate (same placement as 2.8), `player.returned` for each. Called only from `startBuild`. Remove the call from `updateDowned`, the `w.phase === "active"` check, and `PlayerState.outSinceWave`.
+  - [x] `PlayerState.buildReady: boolean` (false).
+- [x] **Task 4: Events** (AC 2): `build.started { wave }` in `simEvents.ts`; net kind `BUILD_STARTED: 19` in `netEvents.ts` with a round-trip test.
+- [x] **Task 5: Server** (AC 1, 2, 5)
+  - [x] Schema: `RunState.buildTicksLeft: t.uint16()`, `PlayerState.buildReady: t.boolean()`; `stateView.ts` views; `syncState` copies `phase` (build/wave/results from `world.run.phase`), `buildTicksLeft` and `buildReady`; `resetRunFields` resets them.
+  - [x] `C2S.BUILD_SET_READY = "build.set_ready"`, `buildSetReadySchema = { ready: boolean }` (strict), registered with `this.net.guard`; the handler calls `controller.setBuildReady(playerId, ready)` (ignored outside a build).
+  - [x] `RunController` constructor starts the run with `startBuild` (Lobby → Build) after adding the players; `setBuildReady` passes through.
+  - [x] `RunRoom`: `onStart` no longer writes `phase = "wave"` (the first `syncState` writes `"build"`); `onTick` steps while the phase is build or wave; `team.wiped` keeps the room's `endRun` (Results bookkeeping, `run_ended` log). Joins stay lobby-only (Story 8.2 opens build-phase joins).
+- [x] **Task 6: Client** (AC 2, 5)
+  - [x] `SimHost.setBuildReady(ready)`: `LocalSimHost` calls the shared `setBuildReady` (applies before the next step); `NetSimHost` sends `build.set_ready`.
+  - [x] `LocalSimHost` constructor calls `startBuild` (the player is added right after; the heal of nobody is a no-op, and the build event is delivered at the first step).
+  - [x] `NetSimHost.applyState` mirrors `world.run.phase` (build/wave/results), `world.run.buildTicksLeft` and each player's `buildReady`.
+  - [x] HUD: during a build the top line reads `Wave N in S s` (`S = ceil(buildTicksLeft / 20)`), and a Ready button shows at the bottom centre (`Ready` / `Ready ✓`, plus `k/n ready` online). A tap toggles the local player's Ready through `SimHost.setBuildReady`. The button hides during a wave, on Results, in the loadout picker and while the menu is open. Banner `Build phase` at the run's first build; `Wave N cleared` stays at a wave's end.
+  - [x] Out status line: `You're out: back after this wave`.
+  - [x] `onlineFlow`: the run's session starts at the first **build or wave** phase after the lobby (not on every `wave`), so build → wave → build never restarts the Game scene.
+  - [x] Dev throttle: `PLAYER_FIELDS.buildReady` and `STATE_FIELDS.buildTicksLeft` (the `satisfies` check enforces it).
+- [x] **Task 8: Epic 2 retro A2 — state copies checked against the server schema** (AC 5)
+  - [x] Shared key lists `PLAYER_STATE_FIELDS` / `RUN_STATE_FIELDS` in `net/stateView.ts` (`satisfies Record<keyof view, true>`); the server schema (`RunState.ts`) asserts its own field names are exactly these; the dev throttle iterates them. A schema field missing from the copy is a compile error.
+- [x] **Task 9: Epic 2 retro A5 — dev balance switch for browser checks**
+  - [x] Shared `config/devBalance.ts` (`loadDevBalance({ zombieDamageScale })`, `parseDevScale`); server env `DEV_ZOMBIE_DAMAGE_SCALE` builds `serverBalance` with it (logs `dev_balance_override`); dev client builds read `?zdmg=<scale>` (`debug/clientBalance.ts`) for both the game and the join's `balanceVersion`, so versions match. Release clients ignore `?zdmg`.
+- [x] **Task 10: Epic 2 retro A12 — free spot for the return**
+  - [x] `player/freeSpot.ts`: one occupancy check `spotBlocked` (map edge, other players, alive zombies; Story 3.4 adds buildings there) and `findFreeSpotNear` (rings of `spawnOffsetM × 1…returnSearchRings`, 8 directions, +x first). `returnOutPlayers` uses it, falling back to the 2.8 spot when everything is taken. `player.json`: `returnSearchRings: 3`. Tests: zombie on a spot, teammate on a spot, map corner, full first ring → second ring, everything full → fallback.
+- [x] **Task 7: Tests** (AC 6): see Dev Notes › Testing. Update the existing tests that assumed the 3 s intro, the 5 s pause, `waves.phase`, `outSinceWave`, `returnHpFrac`, or `phase === "wave"` right after Start.
 
 ## Dev Notes
 
@@ -126,10 +128,48 @@ so that we have a breather to prepare.
 
 ### Agent Model Used
 
+claude-opus-5-5 (story writer + builder agent, worktree `story-3-1`)
+
 ### Debug Log References
+
+- Browser harness pitfalls (not game bugs): a Playwright `mouse.down()` at an off-screen point never reaches the canvas, and later moves with the button "held" never fire; two pages in one browser throttle the background page's rAF (starved inputs pause the server weapon). Fixed in the script (fire only at on-screen targets, `bring_to_front`, no-backgrounding flags).
+- Events emitted outside a step (transitions called from tests or dev cheats) are delivered at the next step's flush; tests flush by hand.
 
 ### Completion Notes List
 
+- **Run state machine (AC 1, 2, 4):** `packages/shared/src/run/runStateMachine.ts`: `RunPhase = lobby | build | wave | results` in `world.run` (with `buildTicksLeft`); `startBuild` (lobby|wave → build), `startWave` (build → wave), `endWave` (wave → build, emits `wave.ended` then starts the build in the same tick), `endRun` (build|wave → results); wrong-phase calls throw. `setBuildReady` (toggle, build only, known players). `updateRun` (the `waves` system slot): wipe → `endRun`; `waves.paused` freezes everything; build: everyone Ready (≥ 1 player) or the 600-tick countdown → `startWave` (first spawn batch on that tick); wave: `updateWaves` (now returns "cleared") → `endWave`. `skipWave` moved here. Wave director: `phase`/`timerTicks`/`WavePhase` removed, `beginWave`/`clearWave` exported; balance `buildPhaseS: 30` replaces `pauseBetweenWavesS`/`firstWaveDelayS`. `RunPhase` re-exported from `net/messages.ts`.
+- **Heal and return (AC 3, retro A12):** `returnOutPlayers` heals every standing player by `buildHealFrac` (0.5, replaces `returnHpFrac`) capped, then returns downed **and** out players (id order) with 50 HP on the first free spot near the lowest-slot standing teammate: `player/freeSpot.ts` `findFreeSpotNear` (rings `spawnOffsetM × 1…returnSearchRings(3)`, 8 directions, +x first) over one occupancy check `spotBlocked` (map edge, other placed players, alive zombies; **Story 3.4 adds buildings there**); fallback = the 2.8 spot. Called only by `startBuild`; `outSinceWave` and the per-tick return are gone.
+- **Events:** `build.started { wave }` (net kind **20**; 19 is 3.2's `money.earned`).
+- **Server:** `RunController` starts the run with `startBuild` and passes `setBuildReady` through; `RunRoom` registers `build.set_ready` via `this.net.guard(buildSetReadySchema, …)` (the guard's rate bucket applies), no longer writes `phase = "wave"` at Start, steps the World in build and wave. Joins stay lobby-only.
+- **Client:** `SimHost.setBuildReady` (Local: shared `setBuildReady`; Net: sends `build.set_ready`). `LocalSimHost` starts in build (solo has the same build phase; the menu pause freezes its countdown). HUD: top line `Wave N in S s`, bottom-centre Ready button (HudButtons `"ready"`, so touches never start a stick; `Ready`/`Ready ✓`, `k/n` online; shown state is this device's request at once, reset on every phase change; hidden in a wave, picker, Results, menu, `?stress`). Banner `Build phase` at the first build; out line `You're out: back after this wave`. `onlineFlow`: one session per run, started at the first build/wave after the lobby; a new run seen right after Results (lobby patch skipped under `?lag`) still gets a fresh session. Firing/moving in a build use the unchanged code paths (decision 2), so prediction and the local fire clock need no change; a build still needs one input per tick like a wave (starved/slow rules of 2.7/3.9 unchanged).
+- **Retro A2:** shared `PLAYER_STATE_FIELDS` / `RUN_STATE_FIELDS` (`net/stateView.ts`, `satisfies` the views); `RunState.ts` asserts the schema's field names are exactly these lists (proven: adding a probe schema field fails typecheck); `devThrottle` iterates them. Covers the merged 3.2/3.9/2.10 fields (`wallet`, `earned`, `slowTicks`, `slowPct`, `scenario`).
+- **Retro A5:** shared `config/devBalance.ts` (`loadDevBalance`, `parseDevScale`); server `DEV_ZOMBIE_DAMAGE_SCALE` (logs `dev_balance_override`), dev client `?zdmg=` via `debug/clientBalance.ts` for the game and the join version. Used for the online browser check (0.08) instead of editing JSON.
+- **State copies touched (brief line 3):** World (`world.run`, `PlayerState.buildReady`) → schema (`buildTicksLeft`, `buildReady`) → `syncState` (phase from the World, both fields, reset) → `stateView` + key lists → NetSimHost mirror (`world.run.phase/buildTicksLeft`, `buildReady`) → Predictor: not affected (no movement/weapon rule) → devThrottle (shared lists) → `snapshotWorld` (`run`; `buildReady` via the player spread) → `fakeRoom` test state. Bots: `tools/bots/botClient.ts` fights in build too and taps Ready once per patch; the shared bot test taps Ready.
+- **Tests:** 835 passing, 3 skipped (`npm test`, after merging `claude/epic-2-continue`). New: `run/runStateMachine.test.ts` (19: transitions, invalid ones throw, exactly 600 ticks, no spawns, Ready all/one/toggle/solo/leaver/ignored, Ready cleared, no pause, paused freeze, move+fire in build, heal + return, downed return, wipe → results, determinism with snapshot of `run`/`buildReady`), `config/devBalance.test.ts` (3), downed return/free-spot tests (zombie spot, teammate spot, corner, ring 2, fallback), `RunRoom.build.test.ts` (5, `bootTestServer`: countdown on both clients, `build.started` forwarded, Ready 1/2 keeps build, 2/2 starts wave 1, toggle + malformed Ready dropped by the guard, cleared wave → build with the downed teammate back at 50 HP and the other healed 40 → 90, Ready → wave 2, last player alone skips, lobby ignores Ready), client `onlineFlow` (2), `LocalSimHost` (2), `NetSimHost` build mirror (1), devThrottle copy (1), urlOptions `?zdmg`. Existing tests adapted (3 s build in the wave director tests, room helpers wait for `build`, horde/net stats tests start a wave by hand). `typecheck`, `lint`, `build` pass.
+- **Browser check (Python Playwright + Chromium 844×390, server PORT=4167, Vite 6673 via a temporary merged config, deleted):** screenshots in `/tmp/s31/`.
+  - Solo (`?solo&loadout=pistol,smg`): build `Wave 1 in 29 s` + Ready → click → wave 1 → HP set to 30, Skip wave → build `Wave 2 in 30 s`, HP 80 → Esc menu: countdown frozen (583 → 583) → Ready → wave 2. No page errors. (`solo-1…5`, `postmerge-solo-*`)
+  - Online (host Ana; guest Bo by share link under `?lag=150&jitter=20`; server `DEV_ZOMBIE_DAMAGE_SCALE=0.08`, clients `?zdmg=0.08`): both in build; Bo taps Ready → Ana's button `Ready 1/2`; Ana taps → wave 1 on both; Bo walks to the edge and goes down (`Downed … (20 s)`), his tab sleeps 5 s (`loop.sleep()/wake()`); Ana's scripted aim clears the wave (45 s) → build 2 on both: Bo back standing at 50 HP 1.5 m from Ana, `Ready 0/2`; both Ready → wave 2. Repeated after the merge (wallet `$190` shows). No page errors. (`online-1…5`, `postmerge-online-*`)
+- **Not verified:** real phones/touch on the Ready button (mouse only); a late Game scene start during a build (covered by the 2.8 `activeRun` tests, not re-run in a browser); an out (not just downed) player returning in a browser (unit + room tests); the in-run menu online during a build (solo only).
+- **Deviations:** the state machine is in `packages/shared/src/run/` (architecture says server `run/`), recorded as decision 1. `beginWave` counts all players for the wave size (was alive players; equal at a wave start since everyone is returned). `waves.paused` (DEV_NO_WAVES) freezes the build countdown and Ready too, so dev rooms with it stay in the build phase (useful for 3.3/3.4).
+
+### Notes for the merge (brief line 20)
+
+- `runStateMachine.ts` / `waveDirector.ts`: phases only via the transitions; `endWave` emits `wave.ended` (3.2 pays the bonus from that event) then `startBuild`. 3.9's `waveZombieType` is kept.
+- Schema (`RunState.ts`): field objects `playerFields`/`runFields` + the A2 assertions; every new field must also go into `PLAYER_STATE_FIELDS`/`RUN_STATE_FIELDS` (`stateView.ts`), or typecheck fails.
+- `NetSimHost.applyState`/`applyPlayer`: mirror lines for `run.phase`, `buildTicksLeft`, `buildReady`.
+- `main.ts` unchanged; `onlineFlow.ts` owns the build/wave session rule.
+- Balance JSON: `waves.buildPhaseS`; `player.buildHealFrac`, `player.returnSearchRings` (removed `waves.pauseBetweenWavesS`, `waves.firstWaveDelayS`, `player.returnHpFrac`).
+- 3.3/3.4: act only while `world.run.phase === "build"` (room: `controller.world.run.phase`); end shop/placement when it changes; add buildings to `spotBlocked`; put Shop next to the `"ready"` HUD button.
+
 ### File List
 
+- New: `packages/shared/src/run/runStateMachine.ts`, `run/runStateMachine.test.ts`, `player/freeSpot.ts`, `config/devBalance.ts`, `config/devBalance.test.ts`; `apps/server/src/rooms/RunRoom.build.test.ts`; `apps/client/src/debug/clientBalance.ts`.
+- Modified (shared): `waves/waveDirector.ts`, `player/{downed,player}.ts`, `core/{world,systems,simEvents,worldSnapshot}.ts`, `config/{balanceSchema.ts,balance/waves.json,balance/player.json}`, `net/{messages,netEvents,stateView,testScenarios}.ts`, `index.ts`; tests `waves/waveDirector.test.ts`, `player/{downed,slow}.test.ts`, `net/netEvents.test.ts`, `economy/economy.test.ts`, `bots/botPolicy.test.ts`.
+- Modified (server): `run/RunController.ts`, `rooms/RunRoom.ts`, `rooms/schema/{RunState,syncState}.ts`; tests `run/RunController.test.ts`, `rooms/RunRoom{,.fight,.downed,.leave,.economy,.net}.test.ts`.
+- Modified (client): `sim/{SimHost,LocalSimHost,NetSimHost}.ts`, `scenes/{GameScene,HudScene,hudModel}.ts`, `net/{onlineFlow,devThrottle,connection,fakeRoom}.ts`, `debug/{devCheatActions,urlOptions}.ts`, `ui/sizes.ts`; tests `sim/{LocalSimHost,NetSimHost.downed}.test.ts`, `net/{onlineFlow,devThrottle,lobbyStore}.test.ts`, `debug/{devCheatActions,urlOptions}.test.ts`.
+- Modified (tools): `tools/bots/botClient.ts`.
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`, this file.
+
 ## Change Log
+
+- 2026-11-22: Story written (gds-create-story) and implemented: run state machine (Lobby → Build → Wave → … → Results), 30 s build phase with Ready (online and solo), build-start heal + return on a free spot, 5 s pause removed; retro A2 (schema-checked state copies), A5 (dev balance switch), A12 (free-spot return). Merged `claude/epic-2-continue` (3.2, 3.9, 2.10 dev parts). Status → review.

@@ -122,8 +122,10 @@ describe("RunRoom fight (Story 2.4)", () => {
   it("forwards sim events to every client as tuples, with the tick", async () => {
     const { host, hostGot, guestGot } = await startTwo();
     await sendInputs(host, 3, { aimX: 1, fire: true });
-    await vi.waitFor(() => expect(guestGot.events.length).toBeGreaterThan(0));
-    const batch = guestGot.events[0] as SimEventsFlushed;
+    // Story 3.1: the first batch is the run's build.started; look for the one with the shot.
+    const hasShot = (m: SimEventsFlushed) => m.events.some((t) => t[0] === NET_EVENT_KIND.WEAPON_FIRED);
+    await vi.waitFor(() => expect(guestGot.events.some(hasShot)).toBe(true));
+    const batch = guestGot.events.find(hasShot) as SimEventsFlushed;
     expect(batch.tick).toBeGreaterThan(0);
     const fired = batch.events.find((t) => t[0] === NET_EVENT_KIND.WEAPON_FIRED);
     expect(fired?.[1]).toBe(0); // slot 0
@@ -279,6 +281,8 @@ describe("RunRoom fight (Story 2.4)", () => {
 
     const info = vi.spyOn(room.log, "info");
     startWave(world); // Story 3.1: the run is in its build phase (waves paused): start one by hand
+    const waveTick = world.tick;
+    await vi.waitFor(() => expect(world.tick).toBeGreaterThan(waveTick + 4)); // horde_stats restart at wave.started
     endWave(world); // emitted now, delivered by the next step's flush
     await vi.waitFor(() => expect(info.mock.calls.some((c) => c[1] === "horde_stats")).toBe(true));
     const line = info.mock.calls.find((c) => c[1] === "horde_stats")?.[0] as Record<string, unknown>;

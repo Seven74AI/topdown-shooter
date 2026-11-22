@@ -44,6 +44,14 @@ export const zombieTypeSchema = z
     attackIntervalS: z.number().positive(),
     radiusM: z.number().positive(),
     reward: z.number().int().min(0),
+    /**
+     * Story 3.9: a hit slows the player by this many percent (integer, so the server and the
+     * client's prediction compute the same speed from the same integers) for `biteSlowS`.
+     * Refreshes, never stacks. 0 = no slow.
+     */
+    biteSlowPct: z.number().int().min(0).max(90).default(0),
+    /** At most 10 s: the remaining ticks go on the wire as a uint8. */
+    biteSlowS: z.number().min(0).max(10).default(0),
   })
   .strict();
 
@@ -113,6 +121,41 @@ export const controlsSchema = z
   })
   .strict();
 
+/** Story 3.2: personal wallets and rewards (GDD › Economy and Resources). Kill rewards live on the zombie types. */
+export const economySchema = z
+  .object({
+    /** Every player's wallet at run start (FR12). */
+    startingWallet: z.number().int().min(0),
+    /** An assist (damaging a zombie a teammate kills) pays this share of the kill reward, rounded down (FR45). */
+    assistShare: z.number().min(0).max(1),
+    /** Paid to the reviver when a revive completes. */
+    reviveReward: z.number().int().min(0),
+    /** Wave N cleared pays N × this to every player in the run (downed and out included). */
+    waveClearBonusPerWave: z.number().int().min(0),
+    /** Story 3.6: a building's kill pays its owner this share of the kill reward, rounded down. */
+    buildingKillShare: z.number().min(0).max(1),
+  })
+  .strict();
+
+/**
+ * Story 2.10 bot policy (`bots/botPolicy.ts`): load-test and economy bots (Stories 3.10, 6.1,
+ * 10.8 tune these without code changes).
+ */
+export const botsSchema = z
+  .object({
+    /** A zombie closer than this (centre to centre): back away from it. */
+    keepDistanceM: z.number().min(0),
+    /** Farther than this from the centre of the alive team: move toward it. */
+    regroupDistM: z.number().min(0),
+    /** A downed teammate within this: go and revive them. */
+    reviveSearchM: z.number().min(0),
+    /** Stop this close to the downed teammate (inside `player.reviveRadiusM`, so the revive runs). */
+    reviveStopM: z.number().min(0),
+    /** Epic 3 hook: shop item ids bought in this order between waves. Unused until then. */
+    shoppingList: z.array(balanceId).default([]),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -120,6 +163,8 @@ export const balanceFileSchemas = {
   waves: wavesSchema,
   player: playerSchema,
   controls: controlsSchema,
+  economy: economySchema,
+  bots: botsSchema,
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;

@@ -106,6 +106,7 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.waveZombie[id] = waveZombie ? 1 : 0;
   pool.vx[id] = 0;
   pool.vy[id] = 0;
+  world.economy.damagerCount[id] = 0; // Story 3.2: a reused slot starts with no assist credit
   pool.alivePos[id] = pool.aliveCount;
   pool.aliveIds[pool.aliveCount++] = id;
   return id;

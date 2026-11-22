@@ -1,5 +1,6 @@
 import type { World } from "./world";
 import { MAX_PIERCE } from "../combat/projectilePool";
+import { MAX_DAMAGERS } from "../economy/economy";
 
 const sortedEntries = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -52,6 +53,17 @@ function snapshotProjectiles(world: World) {
   }));
 }
 
+/** Story 3.2: damagers per zombie slot (`[slot, ...playerIds]` for each slot with any). Wallets are on the players. */
+function snapshotEconomy(world: World) {
+  const e = world.economy;
+  const damagers: (number | string | null)[][] = [];
+  for (let id = 0; id < e.damagerCount.length; id++) {
+    const n = e.damagerCount[id] as number;
+    if (n > 0) damagers.push([id, ...e.damagers.slice(id * MAX_DAMAGERS, id * MAX_DAMAGERS + n)]);
+  }
+  return { damagers };
+}
+
 export function snapshotWorld(world: World) {
   return {
     tick: world.tick,
@@ -82,6 +94,7 @@ export function snapshotWorld(world: World) {
     run: { ...world.run },
     debug: { ...world.debug },
     teamWiped: world.teamWiped,
+    economy: snapshotEconomy(world),
   };
 }
 

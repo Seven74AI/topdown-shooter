@@ -9,7 +9,7 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, scenario: null, waveMix: null });
     expect(parseUrlOptions("?zdmg=0.1").zombieDamageScale).toBe(0.1); // retro A5
     expect(parseUrlOptions("?zdmg=x").zombieDamageScale).toBeNull();
   });
@@ -72,5 +72,26 @@ describe("parseUrlOptions: Story 2.6 network throttle", () => {
   it("is off without a usable value, and never skips the start screen", () => {
     for (const q of ["", "?lag=0", "?lag=abc", "?lag=-5&jitter=x", "?lag=1.5"]) expect(parseUrlOptions(q).throttle).toBeNull();
     expect(skipsStartScreen(parseUrlOptions("?lag=150&jitter=20"))).toBe(false);
+  });
+});
+
+describe("parseUrlOptions: Story 2.10 test scenario", () => {
+  it("accepts only the fixed scenario names", () => {
+    expect(parseUrlOptions("?scenario=net150").scenario).toBe("net150");
+    expect(parseUrlOptions("?scenario=NET150").scenario).toBe("net150");
+    expect(parseUrlOptions("?scenario=god").scenario).toBeNull();
+    expect(parseUrlOptions("?scenario").scenario).toBeNull();
+    expect(parseUrlOptions("?debug=1").scenario).toBeNull();
+  });
+
+  it("does not skip the start screen (the scenario is an online test)", () => {
+    expect(skipsStartScreen(parseUrlOptions("?scenario=net150"))).toBe(false);
+  });
+});
+
+describe("parseUrlOptions: Story 3.9 wave mix", () => {
+  it("passes ?wavemix through raw (parseWaveMix validates it against balance)", () => {
+    expect(parseUrlOptions("?solo&wavemix=walker,crawler").waveMix).toBe("walker,crawler");
+    expect(parseUrlOptions("?solo").waveMix).toBeNull();
   });
 });

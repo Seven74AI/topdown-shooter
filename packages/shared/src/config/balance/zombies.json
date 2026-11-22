@@ -7,6 +7,16 @@
       "attackIntervalS": 1.0,
       "radiusM": 0.35,
       "reward": 2
+    },
+    "crawler": {
+      "hp": 8,
+      "speedMps": 0.7,
+      "damage": 12,
+      "attackIntervalS": 1.0,
+      "radiusM": 0.35,
+      "reward": 3,
+      "biteSlowPct": 30,
+      "biteSlowS": 1
     }
   },
   "crowd": {

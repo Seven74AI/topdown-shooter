@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TEST_SCENARIOS } from "./testScenarios";
 
 /**
  * The client/server net contract (Story 2.1). Later stories extend it, never rename it.
@@ -84,6 +85,11 @@ export const joinOptionsSchema = z
     balanceVersion: z.string().min(1).max(16),
     /** Tells this device's player apart (Story 2.3); the server keeps only its SHA-256. */
     guestToken: guestTokenSchema,
+    /**
+     * Story 2.10: a fixed test scenario (`?scenario=net150` on the host's create). The server
+     * applies it only with `ALLOW_TEST_SCENARIOS=1`; otherwise the run is a normal one.
+     */
+    scenario: z.enum(TEST_SCENARIOS).optional(),
   })
   .strict();
 

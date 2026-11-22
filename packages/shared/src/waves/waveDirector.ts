@@ -2,7 +2,7 @@ import type { Balance } from "../config/balance";
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import { spawnZombie } from "../zombies/zombiePool";
-import { ZOMBIE_STATE } from "../zombies/zombieTypes";
+import { ZOMBIE_STATE, type ZombieTypeId } from "../zombies/zombieTypes";
 
 /**
  * Wave director state. Story 3.1: the run's phase (build / wave) lives in `world.run`
@@ -98,6 +98,18 @@ function pickSpawnPoint(world: World): number {
   return farthest;
 }
 
+/**
+ * Type of the next wave zombie: Walkers (Epic 1–2), or the dev wave mix (Story 3.9) cycled by the
+ * spawn index in the wave (no RNG draw, no extra state). Story 3.10 replaces this with the wave's
+ * composition from `waves.json`.
+ */
+function waveZombieType(world: World): ZombieTypeId {
+  const mix = world.debug.waveMix;
+  if (!mix || mix.length === 0) return "walker";
+  const index = world.waves.size - world.waves.queued;
+  return mix[index % mix.length] as ZombieTypeId;
+}
+
 function spawnWaveZombie(world: World): boolean {
   const sp = world.map.spawnPoints[pickSpawnPoint(world)];
   if (!sp) return false;
@@ -105,12 +117,13 @@ function spawnWaveZombie(world: World): boolean {
   const onHorizontalEdge = sp.y < 1 || sp.y > heightM - 1;
   const jitter = world.balance.waves.spawnJitterM;
   const j = world.rng.range(-jitter, jitter);
-  const stats = world.balance.zombies.types.walker;
-  if (!stats) throw new Error("waves: no balance for walker");
+  const type = waveZombieType(world);
+  const stats = world.balance.zombies.types[type];
+  if (!stats) throw new Error(`waves: no balance for ${type}`);
   const r = stats.radiusM;
   const x = Math.min(widthM - r, Math.max(r, onHorizontalEdge ? sp.x + j : sp.x));
   const y = Math.min(heightM - r, Math.max(r, onHorizontalEdge ? sp.y : sp.y + j));
-  return spawnZombie(world, "walker", x, y, true) >= 0;
+  return spawnZombie(world, type, x, y, true) >= 0;
 }
 
 /** Players in the World (the wave size counts them; Story 3.10 scales by it). */
