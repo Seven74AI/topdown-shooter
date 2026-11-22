@@ -13,6 +13,15 @@ import type { PlayerState } from "../player/player";
  * again as soon as `world.buildings.version` changes, so the attack rule and the next-cell choice
  * always see the current buildings.
  *
+ * **Clearance (3.5 review H1).** A zombie's body (radius ≤ one cell) does not fit through a one-cell
+ * gap. A grid *vertex* (cell corner) is free when its four cells are free and it is not on the map
+ * edge: a body centred there clears every box by ≥ 0.5 m. A move between two free orthogonal cells
+ * crosses their shared edge; when neither end of that edge is a free vertex the gap is narrower than
+ * a body (a 0.5 m slot between two buildings or a building and the map edge, or two offset corners
+ * 0.5 m apart): the move is a **pinch**, costs `buildingCostM` like a building cell, and carries the
+ * id of a building at the pinch (the zombie that takes it attacks that building). A diagonal move
+ * needs its shared vertex free.
+ *
  * **FlowField** — per cell, the path cost to the nearest alive player: a multi-source Dijkstra from
  * the players' cells, 8-connected (orthogonal step 2, diagonal 3 cost units; 1 unit = a quarter of
  * a cell), no corner cutting past building cells. Buildings are expensive, not walls, so a closed
@@ -56,6 +65,13 @@ export interface NavGrid {
   readonly buildingAt: Int32Array;
   /** Cost units added when stepping into the cell. */
   readonly enterCost: Int32Array;
+  /** Per vertex ((cols + 1) × (rows + 1)): 1 = a body centred there clears every building and the map edge. */
+  readonly vertexFree: Uint8Array;
+  /** Building id of a pinch on the edge between cell c and c + 1 (east) / c + cols (south); 0 = open. */
+  readonly pinchE: Int32Array;
+  readonly pinchS: Int32Array;
+  /** Cost units of a building cell or a pinch (from `buildingCostM`, cached when rasterized). */
+  buildingCost: number;
   /** `world.buildings.version` last rasterized (-1: never). */
   version: number;
 }
@@ -84,17 +100,44 @@ export interface FlowField {
   rebuilds: number;
 }
 
+/**
+ * Per zombie slot (3.5 review H1 safety net): while a zombie follows the field, every
+ * `pathing.stuckTicks` ticks its position is compared with the last check; less than
+ * `pathing.stuckMoveM` sets `stuck` (it then hits a building it touches).
+ */
+export interface ZombieProgress {
+  readonly anchorX: Float32Array;
+  readonly anchorY: Float32Array;
+  readonly ticks: Uint16Array;
+  readonly stuck: Uint8Array;
+  /** Pool generation the record belongs to (a reused slot starts over). */
+  readonly gen: Uint8Array;
+}
+
 export interface PathingState {
   readonly nav: NavGrid;
   /** The field every zombie type follows (Story 3.8 adds `flank`). */
   readonly chase: FlowField;
+  readonly progress: ZombieProgress;
 }
 
 export function createNavGrid(map: DistrictBounds): NavGrid {
   const cols = Math.max(1, Math.ceil(map.widthM / FLOW_CELL_M));
   const rows = Math.max(1, Math.ceil(map.heightM / FLOW_CELL_M));
   const cells = cols * rows;
-  return { cellM: FLOW_CELL_M, cols, rows, cells, buildingAt: new Int32Array(cells), enterCost: new Int32Array(cells), version: -1 };
+  return {
+    cellM: FLOW_CELL_M,
+    cols,
+    rows,
+    cells,
+    buildingAt: new Int32Array(cells),
+    enterCost: new Int32Array(cells),
+    vertexFree: new Uint8Array((cols + 1) * (rows + 1)),
+    pinchE: new Int32Array(cells),
+    pinchS: new Int32Array(cells),
+    buildingCost: 0,
+    version: -1,
+  };
 }
 
 export function createFlowField(nav: NavGrid, fillPenalty: FlowField["fillPenalty"] = null): FlowField {
@@ -114,9 +157,27 @@ export function createFlowField(nav: NavGrid, fillPenalty: FlowField["fillPenalt
   };
 }
 
-export function createPathingState(map: DistrictBounds): PathingState {
-  const nav = createNavGrid(map);
-  return { nav, chase: createFlowField(nav) };
+function createProgress(capacity: number): ZombieProgress {
+  return {
+    anchorX: new Float32Array(capacity),
+    anchorY: new Float32Array(capacity),
+    ticks: new Uint16Array(capacity),
+    stuck: new Uint8Array(capacity),
+    gen: new Uint8Array(capacity),
+  };
+}
+
+/** Bounds of the placeholder state of Worlds that never run pathing (3.5 review L5): one cell. */
+const NO_PATHING_MAP: DistrictBounds = { widthM: FLOW_CELL_M, heightM: FLOW_CELL_M };
+
+/**
+ * `map`'s pathing state for `zombieCapacity` zombie slots. `enabled: false` (the client's mirror and
+ * prediction Worlds, which never run the buildings or zombie systems) gives a one-cell placeholder
+ * instead of ~150 KB of grids (3.5 review L5).
+ */
+export function createPathingState(map: DistrictBounds, zombieCapacity: number, enabled = true): PathingState {
+  const nav = createNavGrid(enabled ? map : NO_PATHING_MAP);
+  return { nav, chase: createFlowField(nav), progress: createProgress(enabled ? zombieCapacity : 1) };
 }
 
 /** The cell index of a point (clamped to the grid). */
@@ -176,7 +237,78 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
       }
     }
   }
+  // Clearance: free vertices, then pinches on edges between two free cells.
+  const vcols = cols + 1;
+  const vf = nav.vertexFree;
+  for (let vy = 0; vy <= rows; vy++) {
+    for (let vx = 0; vx <= cols; vx++) {
+      let free = vx > 0 && vy > 0 && vx < cols && vy < rows ? 1 : 0;
+      if (free === 1) {
+        const c = (vy - 1) * cols + (vx - 1);
+        if (buildingAt[c] !== 0 || buildingAt[c + 1] !== 0 || buildingAt[c + cols] !== 0 || buildingAt[c + cols + 1] !== 0) free = 0;
+      }
+      vf[vy * vcols + vx] = free;
+    }
+  }
+  nav.pinchE.fill(0);
+  nav.pinchS.fill(0);
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const c = cy * cols + cx;
+      if (buildingAt[c] !== 0) continue;
+      // East edge: x = cx + 1, from vertex (cx + 1, cy) to (cx + 1, cy + 1).
+      if (cx + 1 < cols && buildingAt[c + 1] === 0 && vf[cy * vcols + cx + 1] === 0 && vf[(cy + 1) * vcols + cx + 1] === 0) {
+        nav.pinchE[c] = Math.min(vertexBuilding(nav, cx + 1, cy), vertexBuilding(nav, cx + 1, cy + 1));
+      }
+      // South edge: y = cy + 1, from vertex (cx, cy + 1) to (cx + 1, cy + 1).
+      if (cy + 1 < rows && buildingAt[c + cols] === 0 && vf[(cy + 1) * vcols + cx] === 0 && vf[(cy + 1) * vcols + cx + 1] === 0) {
+        nav.pinchS[c] = Math.min(vertexBuilding(nav, cx, cy + 1), vertexBuilding(nav, cx + 1, cy + 1));
+      }
+    }
+  }
+  // A pinch made by the map edge alone (no building at either end) stays open: nothing to break.
+  for (let c = 0; c < nav.cells; c++) {
+    if (nav.pinchE[c] === NO_BUILDING) nav.pinchE[c] = 0;
+    if (nav.pinchS[c] === NO_BUILDING) nav.pinchS[c] = 0;
+  }
+  nav.buildingCost = buildingCost;
   nav.version = world.buildings.version;
+}
+
+/** "No building here" for the min() in `vertexBuilding`. */
+const NO_BUILDING = 0x7fffffff;
+
+/** The smallest building id among the (up to four) cells around vertex (vx, vy); NO_BUILDING if none. */
+function vertexBuilding(nav: NavGrid, vx: number, vy: number): number {
+  let best = NO_BUILDING;
+  for (let dy = -1; dy <= 0; dy++) {
+    for (let dx = -1; dx <= 0; dx++) {
+      const cx = vx + dx;
+      const cy = vy + dy;
+      if (cx < 0 || cy < 0 || cx >= nav.cols || cy >= nav.rows) continue;
+      const id = nav.buildingAt[cy * nav.cols + cx] as number;
+      if (id !== 0 && id < best) best = id;
+    }
+  }
+  return best;
+}
+
+/** The pinch building id on the edge between orthogonal neighbours a and b (0: open or not a pinch). */
+export function flowEdgePinch(nav: NavGrid, a: number, b: number): number {
+  if (b === a + 1) return nav.pinchE[a] as number;
+  if (b === a - 1) return nav.pinchE[b] as number;
+  if (b === a + nav.cols) return nav.pinchS[a] as number;
+  if (b === a - nav.cols) return nav.pinchS[b] as number;
+  return 0;
+}
+
+/**
+ * The building a zombie must break to step from cell `from` to its neighbour `to`: the building on
+ * `to`, or the one at a pinch between them; 0 when the step is open.
+ */
+export function flowStepBuilding(nav: NavGrid, from: number, to: number): number {
+  const id = nav.buildingAt[to] as number;
+  return id !== 0 ? id : flowEdgePinch(nav, from, to);
 }
 
 // ---- indexed binary heap over `field.back` -------------------------------------------------
@@ -271,7 +403,7 @@ function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void 
 /** Settles one cell and relaxes its neighbours. */
 function settleOne(f: FlowField, nav: NavGrid): void {
   const c = pop(f);
-  const { cols, rows, buildingAt, enterCost } = nav;
+  const { cols, rows, buildingAt, enterCost, vertexFree } = nav;
   const back = f.back;
   const pen = f.penalty;
   // A zombie in a neighbour n walks n → c and pays the step plus entering c.
@@ -288,9 +420,11 @@ function settleOne(f: FlowField, nav: NavGrid): void {
     if (f.heapPos[n] === SETTLED) continue;
     let step = STEP_ORTHO;
     if (dx !== 0 && dy !== 0) {
-      // No corner cutting: both orthogonal cells between c and n must be free of buildings.
-      if (buildingAt[cy * cols + nx] !== 0 || buildingAt[ny * cols + cx] !== 0) continue;
+      // No corner cutting: the vertex between c and n must be free (its four cells free, clearance ≥ 0.5 m).
+      if (vertexFree[(cy + (dy > 0 ? 1 : 0)) * (cols + 1) + cx + (dx > 0 ? 1 : 0)] === 0) continue;
       step = STEP_DIAG;
+    } else if (buildingAt[n] === 0 && buildingAt[c] === 0 && flowEdgePinch(nav, c, n) !== 0) {
+      step += nav.buildingCost; // a gap narrower than a body: as costly as breaking a building
     }
     const nd = base + step;
     if (nd >= (back[n] as number)) continue;
@@ -345,7 +479,7 @@ export function flowNextCell(f: FlowField, nav: NavGrid, cell: number): number {
   const front = f.front;
   const here = front[cell] as number;
   if (here >= FLOW_UNREACHED) return -1;
-  const { cols, rows, buildingAt, enterCost } = nav;
+  const { cols, rows, buildingAt, enterCost, vertexFree } = nav;
   const pen = f.penalty;
   const cx = cell % cols;
   const cy = (cell - cx) / cols;
@@ -362,8 +496,10 @@ export function flowNextCell(f: FlowField, nav: NavGrid, cell: number): number {
     if (fn >= here) continue;
     let step = STEP_ORTHO;
     if (dx !== 0 && dy !== 0) {
-      if (buildingAt[cy * cols + nx] !== 0 || buildingAt[ny * cols + cx] !== 0) continue;
+      if (vertexFree[(cy + (dy > 0 ? 1 : 0)) * (cols + 1) + cx + (dx > 0 ? 1 : 0)] === 0) continue;
       step = STEP_DIAG;
+    } else if (buildingAt[n] === 0 && buildingAt[cell] === 0 && flowEdgePinch(nav, cell, n) !== 0) {
+      step += nav.buildingCost;
     }
     const cost = fn + step + (enterCost[n] as number) + (pen[n] as number);
     if (cost < bestCost) {
@@ -384,12 +520,24 @@ function hashInts(a: Int32Array): number {
   return h >>> 0;
 }
 
+/** FNV-1a over small unsigned typed arrays. */
+function hashBytes(a: Uint8Array | Uint16Array): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < a.length; i++) {
+    h ^= a[i] as number;
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
 /** Plain-data digest of the pathing state for `snapshotWorld` (determinism tests, Story 8.4). */
 export function snapshotPathing(p: PathingState) {
   const f = p.chase;
+  const pr = p.progress;
   return {
     navVersion: p.nav.version,
-    navHash: hashInts(p.nav.buildingAt) ^ hashInts(p.nav.enterCost),
+    navHash: hashInts(p.nav.buildingAt) ^ hashInts(p.nav.enterCost) ^ hashInts(p.nav.pinchE) ^ hashInts(p.nav.pinchS),
+    progressHash: hashInts(new Int32Array(pr.anchorX.buffer)) ^ hashInts(new Int32Array(pr.anchorY.buffer)) ^ hashBytes(pr.ticks) ^ hashBytes(pr.stuck) ^ hashBytes(pr.gen),
     chase: {
       building: f.building,
       buildSourceTick: f.buildSourceTick,
@@ -398,6 +546,7 @@ export function snapshotPathing(p: PathingState) {
       heapSize: f.heapSize,
       frontHash: hashInts(f.front),
       backHash: hashInts(f.back),
+      heapPosHash: hashInts(f.heapPos),
     },
   };
 }
