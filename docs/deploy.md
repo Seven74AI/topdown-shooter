@@ -147,8 +147,11 @@ Run as root on the VPS. Paste the output of steps 1, 2 and 6 into the story's Co
    curl -sS -o /dev/null -w '%{http_code}\n' https://hordes.sevend.io/j/ABCD          # 200 (the app)
    curl -sS -o /dev/null -w '%{http_code}\n' https://hordes.sevend.io/assets/nope.js  # 404
    curl -sS -o /dev/null -w '%{http_code}\n' https://hordes.sevend.io/api             # 404
-   # Origin check: a WebSocket upgrade from another origin is refused with 403
-   curl -sS -o /dev/null -w '%{http_code}\n' -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+   # Origin check: a WebSocket upgrade from another origin is refused with 403.
+   # --http1.1 is required: Cloudflare negotiates HTTP/2 by default, and over h2 the
+   # `Upgrade: websocket` header is ignored (h2 upgrades via extended CONNECT, RFC 8441),
+   # so the request would reach the server as a plain GET and 404 instead.
+   curl --http1.1 -sS -o /dev/null -w '%{http_code}\n' -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
      -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
      -H 'Origin: https://evil.example' https://hordes.sevend.io/api/x   # 403
    docker compose -f deploy/docker-compose.yml ps                      # server (healthy) and web, both Up

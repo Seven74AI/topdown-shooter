@@ -6,12 +6,12 @@ Goal: check that moving, aiming, auto-fire, aim assist, swapping and **melee und
 
 Open on your phone, in **landscape**. Both links start the run with a fixed pair of weapons. `tune=1` adds a **Tune** button for adjusting controls live.
 
-| Loadout | Link (VPS) | Link (GitHub Pages) |
-| --- | --- | --- |
-| Pistol + Machete | https://hordes.sevend.io/?loadout=pistol,machete&tune=1 | https://seven74ai.github.io/topdown-shooter/?loadout=pistol,machete&tune=1 |
-| SMG + Hunting Rifle | https://hordes.sevend.io/?loadout=smg,hunting_rifle&tune=1 | https://seven74ai.github.io/topdown-shooter/?loadout=smg,hunting_rifle&tune=1 |
+| Loadout | Link |
+| --- | --- |
+| Pistol + Machete | https://hordes.sevend.io/?loadout=pistol,machete&tune=1 |
+| SMG + Hunting Rifle | https://hordes.sevend.io/?loadout=smg,hunting_rifle&tune=1 |
 
-The VPS link only shows the newest build once the designer redeploys there. The GitHub Pages link updates on its own with every push to `master`.
+The links show the build last deployed to the VPS (`deploy/deploy.sh`). GitHub Pages was retired on 2026-11-22.
 
 Extras:
 - `&debug=1` shows FPS and load.
