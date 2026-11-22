@@ -122,7 +122,7 @@ export const buildSetReadySchema = z.object({ ready: z.boolean() }).strict();
 export type BuildSetReady = z.infer<typeof buildSetReadySchema>;
 
 /**
- * `building.place` (Story 3.4): a building type and its centre on the 1 m grid (uint8 indices) and
+ * `building.place` (Story 3.4): a building type, its min corner on the 0.5 m lattice (uint8 indices) and
  * rotation (90° steps). Only the shape is checked here; `placeBuilding` validates the rest.
  */
 export const buildingPlaceSchema = z

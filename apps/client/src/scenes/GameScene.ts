@@ -556,7 +556,7 @@ export class GameScene extends Phaser.Scene {
     const me = host.world.players.get(host.localPlayerId);
     const stats = buildingStats(host.world.balance, type);
     if (!me || !stats) return;
-    if (!this.placement.start(host.world.balance, type, me.x, me.y, me.facingX, me.facingY)) return;
+    if (!this.placement.start(host.world.balance, type, me.x, me.y, me.facingX, me.facingY, host.world.waves.number)) return;
     this.placingLabel = `${stats.name} · $${stats.price}`;
     this.router?.releaseAll();
     host.clearEdges();
@@ -572,7 +572,7 @@ export class GameScene extends Phaser.Scene {
     const m = this.hudModel;
     const p = this.placement;
     const can = this.canPlace(host, menuOpen);
-    if (p.active && !can) p.cancel();
+    if (p.active && (!can || host.world.waves.number !== p.wave)) p.cancel(); // review L3: a new wave/build ends it
     const tap = m.placeTap;
     const rotate = m.rotatePressed;
     const confirm = m.confirmPressed;

@@ -160,17 +160,17 @@ export const botsSchema = z
 
 /**
  * Story 3.4: one building type (GDD › Buildings and Defenses). The footprint is `widthM` along x and
- * `depthM` along y at rotation 0 (rotations 1 and 3 swap them); its centre sits on an integer point
- * of the 1 m build grid. Story 3.6 adds turret fields (with defaults).
+ * `depthM` along y at rotation 0 (rotations 1 and 3 swap them), both multiples of the 0.5 m build
+ * lattice; its min corner sits on a lattice point. Story 3.6 adds turret fields (with defaults).
  */
 export const buildingTypeSchema = z
   .object({
     /** Display name (shop, placement hint). */
     name: z.string().min(1).max(32),
     price: z.number().int().min(0),
-    /** Footprint in metres; at most 8 m so a footprint always fits the 1 m grid's uint8 indices. */
-    widthM: z.number().positive().max(8),
-    depthM: z.number().positive().max(8),
+    /** Footprint in metres: multiples of the 0.5 m lattice (`BUILD_GRID_M`), at most 8 m. */
+    widthM: z.number().positive().max(8).multipleOf(0.5),
+    depthM: z.number().positive().max(8).multipleOf(0.5),
     /** Full HP (synced as a uint16). */
     hp: z.number().int().positive().max(65535),
   })
@@ -181,6 +181,8 @@ export const buildingsSchema = z
   .object({
     /** Buildings one player may own at once (GDD: 6). */
     maxPerPlayer: z.number().int().min(1).max(64),
+    /** Review L5: no building within this many metres of a wave spawn point (spawns can't be boxed in). */
+    spawnClearM: z.number().min(0),
     types: z.record(balanceId, buildingTypeSchema),
   })
   .strict();

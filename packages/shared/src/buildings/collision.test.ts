@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
-import { TICK_DT_S } from "../config/constants";
+import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { PREDICTION_SYSTEMS } from "../core/systems";
 import { createWorld, setInput, step, type World } from "../core/world";
@@ -9,78 +9,124 @@ import { findFreeSpotNear, spotBlocked } from "../player/freeSpot";
 import { addPlayer } from "../player/player";
 import { startBuild } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
-import { addBuildingAt, type BuildingRotation } from "./buildings";
-import { circleOverlapsBox, pushOutOfBuildings, pushed } from "./collision";
+import { addBuildingAt, type Building, type BuildingRotation } from "./buildings";
+import { PUSH_MOVED, PUSH_NONE, PUSH_STUCK, circleOverlapsBox, pushOutOfBuildings, pushed } from "./collision";
 
 /** Story 3.4 (FR53): barricades block players and zombies; projectiles pass over. One mechanic per test. */
 const balance = loadBalance();
 const R = balance.player.radiusM;
+const RZ = balance.zombies.types.walker?.radiusM ?? 0;
 const WOOD = "wood_barricade";
 let nextId = 1;
-const wall = (world: World, gx: number, gy: number, rot: BuildingRotation = 0) =>
-  addBuildingAt(world, { id: nextId++, type: WOOD, ownerId: "p0", gx, gy, rot, hp: 200 });
+/** A barricade with its min corner at (x, y) metres (on the 0.5 m lattice). rot 0: 2 × 0.5 m; rot 1: 0.5 × 2 m. */
+const wall = (world: World, x: number, y: number, rot: BuildingRotation = 0): Building => {
+  const b = addBuildingAt(world, { id: nextId++, type: WOOD, ownerId: "p0", gx: x / BUILD_GRID_M, gy: y / BUILD_GRID_M, rot, hp: 200 });
+  if (!b) throw new Error("wall not added");
+  return b;
+};
 const move = (seq: number, moveX: number, moveY: number): PlayerInput => ({ ...NEUTRAL_INPUT, seq, moveX, moveY, aimX: moveX, aimY: moveY });
+/** No circle of radius r (minus float noise) overlaps any building. */
+const clearOfAll = (world: World, x: number, y: number, r: number): boolean =>
+  world.buildings.list.every((b) => !circleOverlapsBox(x, y, r - 1e-6, b.minX, b.minY, b.maxX, b.maxY));
+
+function walker(x: number, y: number) {
+  const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+  const p = addPlayer(world, "p0", x, y);
+  startBuild(world);
+  return { world, p };
+}
 
 describe("circle vs box", () => {
   it("overlap is strict (touching is not an overlap)", () => {
     expect(circleOverlapsBox(0, 1.4, 0.4, -1, 0, 1, 1)).toBe(true);
-    expect(circleOverlapsBox(0, 1.4, 0.4, -1, 0, 1, 1.0000001)).toBe(true);
     expect(circleOverlapsBox(0, 1.4000001, 0.4, -1, 0, 1, 1)).toBe(false);
     expect(circleOverlapsBox(1.3, 1.3, 0.4, -1, 0, 1, 1)).toBe(false); // corner: 0.42 m away
   });
 
-  it("pushes out along the closest point, or across the nearest face from inside", () => {
+  it("pushes out along the closest point; a centre inside leaves on the side it came from", () => {
     const world = createWorld({ balance, seed: 1 });
-    wall(world, 10, 10); // [9, 11] × [9.75, 10.25]
-    expect(pushOutOfBuildings(world, 10, 10.5, 0.4)).toBe(true);
+    wall(world, 9, 9.5); // [9, 11] × [9.5, 10]
+    expect(pushOutOfBuildings(world, 10, 10.2, 0.4, 10, 10.6)).toBe(PUSH_MOVED);
     expect(pushed.x).toBe(10);
-    expect(pushed.y).toBeCloseTo(10.65, 12);
-    expect(pushOutOfBuildings(world, 10.2, 9.9, 0.4)).toBe(true); // inside: top face is nearest
-    expect(pushed).toEqual({ x: 10.2, y: 9.35 });
-    expect(pushOutOfBuildings(world, 10, 12, 0.4)).toBe(false);
+    expect(pushed.y).toBeCloseTo(10.4, 12);
+    // Centre inside, nearer the bottom face, but it came from above (review M1): out of the top.
+    expect(pushOutOfBuildings(world, 10, 9.9, 0.4, 10, 9)).toBe(PUSH_MOVED);
+    expect(pushed).toEqual({ x: 10, y: 9.1 });
+    expect(pushOutOfBuildings(world, 10, 12, 0.4, 10, 12)).toBe(PUSH_NONE);
+    expect(pushed).toEqual({ x: 10, y: 12 });
+  });
+
+  it("a slot narrower than the body is STUCK: the circle stays where it came from", () => {
+    const world = createWorld({ balance, seed: 1 });
+    wall(world, 19, 10, 1); // [19, 19.5] × [10, 12]
+    wall(world, 20, 10, 1); // [20, 20.5] × [10, 12]: a 0.5 m slot at x ∈ [19.5, 20]
+    expect(pushOutOfBuildings(world, 19.75, 11, 0.4, 19.75, 12.5)).toBe(PUSH_STUCK);
+    expect(pushed).toEqual({ x: 19.75, y: 12.5 });
   });
 });
 
 describe("players vs barricades (shared movePlayers)", () => {
-  function walker(x: number, y: number) {
-    const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
-    const p = addPlayer(world, "p0", x, y);
-    startBuild(world);
-    return { world, p };
-  }
-
   it("stops at the face when walking straight into it", () => {
     const { world, p } = walker(20, 16);
-    const b = wall(world, 20, 13); // y ∈ [12.75, 13.25]
+    wall(world, 19, 12.5); // y ∈ [12.5, 13]
     for (let i = 1; i <= 60; i++) {
       setInput(world, "p0", move(i, 0, -1));
       step(world, TICK_DT_S);
-      expect(p.y).toBeGreaterThanOrEqual((b?.maxY ?? 0) + R - 1e-9);
+      expect(p.y).toBeGreaterThanOrEqual(13 + R - 1e-9);
     }
-    expect(p.y).toBeCloseTo(13.25 + R, 9);
+    expect(p.y).toBeCloseTo(13 + R, 9);
     expect(p.x).toBe(20);
   });
 
   it("slides along the face and round the end when walking at an angle", () => {
     const { world, p } = walker(20, 16);
-    wall(world, 20, 13);
+    wall(world, 19, 12.5);
     for (let i = 1; i <= 80; i++) {
       setInput(world, "p0", move(i, 0.5, -1));
       step(world, TICK_DT_S);
-      expect(circleOverlapsBox(p.x, p.y, R - 1e-9, 19, 12.75, 21, 13.25)).toBe(false); // never inside, also round the corner
+      expect(clearOfAll(world, p.x, p.y, R)).toBe(true);
     }
     expect(p.y).toBeLessThan(12); // got round the end
   });
 
-  it("can't get through a wall of touching barricades, nor between two at a corner", () => {
-    const { world, p } = walker(20, 16);
-    wall(world, 18, 13);
-    wall(world, 20, 13);
-    wall(world, 22, 13);
-    for (let i = 1; i <= 100; i++) {
-      setInput(world, "p0", move(i, i % 20 < 10 ? 0.3 : -0.3, -1));
+  it("H1: can't walk through a 0.5 m slot between two parallel barricades (wiggling too)", () => {
+    const { world, p } = walker(19.75, 14);
+    wall(world, 19, 10, 1);
+    wall(world, 20, 10, 1);
+    for (let i = 1; i <= 120; i++) {
+      setInput(world, "p0", move(i, i % 10 < 5 ? 0.15 : -0.15, -1));
       step(world, TICK_DT_S);
-      expect(p.y).toBeGreaterThan(13.25 + R - 0.01);
+      expect(clearOfAll(world, p.x, p.y, R)).toBe(true);
+      expect(p.y).toBeGreaterThan(12);
+    }
+  });
+
+  it("H1: can't squeeze between a barricade and the map edge through a 0.5 m gap", () => {
+    const { world, p } = walker(0.4, 14);
+    wall(world, 0.5, 10, 1); // [0.5, 1] × [10, 12]: 0.5 m from the left edge
+    for (let i = 1; i <= 100; i++) {
+      setInput(world, "p0", move(i, -0.3, -1));
+      step(world, TICK_DT_S);
+      expect(clearOfAll(world, p.x, p.y, R)).toBe(true);
+      expect(p.x).toBeGreaterThanOrEqual(R - 1e-9);
+      expect(p.y).toBeGreaterThan(12);
+    }
+  });
+
+  it("H2: a ring of four barricades is a closed region (from inside, walking every way)", () => {
+    const { world, p } = walker(20.25, 13.25);
+    wall(world, 19, 12, 0); // top    [19, 21] × [12, 12.5]
+    wall(world, 21, 12, 1); // right  [21, 21.5] × [12, 14]
+    wall(world, 19.5, 14, 0); // bottom [19.5, 21.5] × [14, 14.5]
+    wall(world, 19, 12.5, 1); // left   [19, 19.5] × [12.5, 14.5]  → inside [19.5, 21] × [12.5, 14]
+    for (let i = 1; i <= 400; i++) {
+      const a = i / 7;
+      setInput(world, "p0", move(i, Math.cos(a), Math.sin(a * 1.3)));
+      step(world, TICK_DT_S);
+      expect(p.x).toBeGreaterThan(19.5 + R - 1e-6);
+      expect(p.x).toBeLessThan(21 - R + 1e-6);
+      expect(p.y).toBeGreaterThan(12.5 + R - 1e-6);
+      expect(p.y).toBeLessThan(14 - R + 1e-6);
     }
   });
 
@@ -90,12 +136,13 @@ describe("players vs barricades (shared movePlayers)", () => {
     for (const w of [server, predicted]) {
       addPlayer(w, "p0", 20, 16);
       nextId = 1;
-      wall(w, 20, 13);
-      wall(w, 22, 14, 1);
-      wall(w, 17, 14, 1);
+      wall(w, 19, 12.5);
+      wall(w, 21, 12.5, 1); // an L corner
+      wall(w, 16, 13, 1);
+      wall(w, 16.5, 13, 1); // a slot
     }
     startBuild(server);
-    for (let i = 1; i <= 200; i++) {
+    for (let i = 1; i <= 300; i++) {
       const a = i / 13;
       for (const w of [server, predicted]) {
         setInput(w, "p0", move(i, Math.cos(a), Math.sin(a) - 0.5));
@@ -108,35 +155,87 @@ describe("players vs barricades (shared movePlayers)", () => {
 });
 
 describe("zombies vs barricades", () => {
-  it("a Walker chasing a player behind a barricade never crosses it", () => {
+  const zworld = () => {
     const world = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+    world.debug.godMode = true;
+    return world;
+  };
+
+  it("a Walker chasing a player behind a wall never crosses it", () => {
+    const world = zworld();
     addPlayer(world, "p0", 20, 16);
-    wall(world, 18, 19);
-    wall(world, 20, 19);
-    wall(world, 22, 19); // [17, 23] × [18.75, 19.25]
+    wall(world, 17, 18.5);
+    wall(world, 19, 18.5);
+    wall(world, 21, 18.5); // [17, 23] × [18.5, 19]
     const id = spawnZombie(world, "walker", 20, 23);
-    const rz = balance.zombies.types.walker?.radiusM ?? 0;
     for (let i = 0; i < 200; i++) {
       step(world, TICK_DT_S);
-      expect(world.zombies.y[id]).toBeGreaterThanOrEqual(19.25 + rz - 1e-6);
+      expect(world.zombies.y[id]).toBeGreaterThanOrEqual(19 + RZ - 1e-6);
     }
-    expect(world.zombies.y[id]).toBeCloseTo(19.25 + rz, 6); // pressed against it
+    expect(world.zombies.y[id]).toBeCloseTo(19 + RZ, 6);
+  });
+
+  it("H1: zombies don't pass a slot narrower than their body", () => {
+    const world = zworld();
+    addPlayer(world, "p0", 19.75, 15);
+    wall(world, 19, 10, 1);
+    wall(world, 20, 10, 1);
+    const ids = [spawnZombie(world, "walker", 19.75, 7), spawnZombie(world, "walker", 19.6, 6.2), spawnZombie(world, "walker", 19.9, 5.4)];
+    for (let i = 0; i < 300; i++) {
+      step(world, TICK_DT_S);
+      for (const id of ids) {
+        const x = world.zombies.x[id] as number;
+        const y = world.zombies.y[id] as number;
+        expect(clearOfAll(world, x, y, RZ)).toBe(true); // so never inside the slot (it is narrower than 2 × RZ)
+        expect(x > 19.5 && x < 20 && y > 10 && y < 12).toBe(false);
+      }
+    }
+  });
+
+  it("H2: an L corner and a T joint leave no gap: a zombie on one side never reaches the other", () => {
+    const world = zworld();
+    addPlayer(world, "p0", 22.5, 13.5); // inside the corner pocket
+    wall(world, 20, 12, 0); // [20, 22] × [12, 12.5]
+    wall(world, 22, 12, 0); // [22, 24] × [12, 12.5]   (a wall)
+    wall(world, 21.5, 12.5, 1); // [21.5, 22] × [12.5, 14.5]: T joint under the wall
+    wall(world, 24, 12, 1); // [24, 24.5] × [12, 14]: L corner at the wall's right end
+    // Zombies above the wall and left of the stem.
+    const ids = [spawnZombie(world, "walker", 22.5, 10), spawnZombie(world, "walker", 24.4, 10.5), spawnZombie(world, "walker", 20.8, 13.5)];
+    for (let i = 0; i < 400; i++) {
+      step(world, TICK_DT_S);
+      for (const id of ids) {
+        const x = world.zombies.x[id] as number;
+        const y = world.zombies.y[id] as number;
+        expect(clearOfAll(world, x, y, RZ)).toBe(true);
+        const inPocket = x > 22 && x < 24 && y > 12.5 && y < 14;
+        expect(inPocket).toBe(false); // the only ways in are under the stem or the L (y ≥ 14): they press on straight lines instead
+      }
+    }
+  });
+
+  it("M1: a player shoving a zombie into a barricade never pushes it through", () => {
+    const world = zworld();
+    const p = addPlayer(world, "p0", 20, 10.5);
+    wall(world, 19, 12.5); // [19, 21] × [12.5, 13]
+    const id = spawnZombie(world, "walker", 20, 12.5 - RZ);
+    for (let i = 1; i <= 60; i++) {
+      setInput(world, "p0", move(i, 0, 1)); // walk down onto the zombie, up to the wall
+      step(world, TICK_DT_S);
+      expect(world.zombies.y[id]).toBeLessThan(12.5);
+    }
+    expect(p.y).toBeLessThanOrEqual(12.5 - R + 1e-9);
   });
 
   it("a crowd pressing on a barricade stays out of it", () => {
-    const world = createWorld({ balance, seed: 2, systems: { waves: () => {} } });
+    const world = zworld();
     addPlayer(world, "p0", 24, 12);
-    for (let gx = 15; gx <= 33; gx += 2) wall(world, gx, 16); // [14, 34] × [15.75, 16.25]
+    for (let x = 14; x <= 32; x += 2) wall(world, x, 15.5); // [14, 34] × [15.5, 16]
     for (let i = 0; i < 40; i++) spawnZombie(world, "walker", 18 + (i % 10) * 1.2, 19 + Math.floor(i / 10));
-    const rz = balance.zombies.types.walker?.radiusM ?? 0;
     for (let t = 0; t < 300; t++) step(world, TICK_DT_S);
     const z = world.zombies;
     for (let i = 0; i < z.aliveCount; i++) {
       const id = z.aliveIds[i] as number;
-      const x = z.x[id] as number;
-      const y = z.y[id] as number;
-      // never inside the wall; at most a sliver of overlap from the crowd push this tick
-      expect(circleOverlapsBox(x, y, rz - 0.05, 14, 15.75, 34, 16.25)).toBe(false);
+      expect(clearOfAll(world, z.x[id] as number, z.y[id] as number, RZ)).toBe(true);
     }
   });
 });
@@ -146,7 +245,7 @@ describe("projectiles pass over barricades (FR53)", () => {
     const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
     const p = addPlayer(world, "p0", 20, 16);
     p.hp = 1e9;
-    wall(world, 20, 18);
+    wall(world, 19, 17.5);
     const id = spawnZombie(world, "walker", 20, 21);
     const events: SimEvent[] = [];
     world.events.subscribe((e) => events.push(e));
@@ -164,7 +263,7 @@ describe("free spots (spotBlocked) avoid buildings", () => {
     const mate = addPlayer(world, "p1", 20, 16);
     const me = addPlayer(world, "p0", 5, 5);
     expect(spotBlocked(world, 21.5, 16, R, me)).toBe(false);
-    wall(world, 21, 16, 1); // [20.75, 21.25] × [15, 17]: the +x ring point at 21.5 overlaps
+    wall(world, 21, 15, 1); // [21, 21.5] × [15, 17]: the +x ring point at 21.5 overlaps
     expect(spotBlocked(world, 21.5, 16, R, me)).toBe(true);
     const out = { x: 0, y: 0 };
     expect(findFreeSpotNear(world, mate.x, mate.y, me, out)).toBe(true);

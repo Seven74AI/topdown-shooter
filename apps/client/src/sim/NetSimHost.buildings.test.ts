@@ -42,15 +42,15 @@ describe("NetSimHost buildings (Story 3.4)", () => {
   it("the predictor gets the buildings of each snapshot before it replays (my survivor stops at them)", () => {
     const { room, host } = setup();
     room.state.tick = 1;
-    room.state.buildings.set("1", wood({ gx: 10, gy: 8 })); // y ∈ [7.75, 8.25]; I stand at (10, 12)
+    room.state.buildings.set("1", wood({ gx: 18, gy: 16 })); // [9, 11] × [8, 8.5]; I stand at (10, 12)
     room.patch();
     expect(host.predictor.buildingCount).toBe(1);
     for (let i = 0; i < 40; i++) {
       host.setLocalInput({ ...NEUTRAL_INPUT, moveY: -1, aimY: -1 });
       host.update(0.05);
     }
-    expect(host.predictor.y).toBeCloseTo(8.25 + balance.player.radiusM, 9);
-    expect(host.world.players.get("p1")?.y).toBeGreaterThanOrEqual(8.25 + balance.player.radiusM - 1e-9);
+    expect(host.predictor.y).toBeCloseTo(8.5 + balance.player.radiusM, 9);
+    expect(host.world.players.get("p1")?.y).toBeGreaterThanOrEqual(8.5 + balance.player.radiusM - 1e-9);
   });
 
   it("placeBuilding sends building.place; building.refused comes back through takePlaceRefusal once", () => {
@@ -88,11 +88,11 @@ describe("LocalSimHost placement (Story 3.4)", () => {
   it("places at once in a build phase; a refusal is taken once", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
-    host.placeBuilding({ type: "wood_barricade", gx: 24, gy: 12, rot: 0 });
+    host.placeBuilding({ type: "wood_barricade", gx: 46, gy: 24, rot: 0 }); // [23, 25] × [12, 12.5]
     expect(host.takePlaceRefusal()).toBeNull();
     expect(host.world.buildings.list).toHaveLength(1);
     expect(host.world.players.get(LOCAL_PLAYER_ID)?.wallet).toBe(balance.economy.startingWallet - 40);
-    host.placeBuilding({ type: "wood_barricade", gx: 24, gy: 16, rot: 0 }); // on me
+    host.placeBuilding({ type: "wood_barricade", gx: 46, gy: 32, rot: 0 }); // [23, 25] × [16, 16.5]: on me
     expect(host.takePlaceRefusal()).toBe("blocked");
     expect(host.takePlaceRefusal()).toBeNull();
     host.update(0.05);
