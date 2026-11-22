@@ -3,7 +3,7 @@ baseline_commit: a6d6b123cbc23e07c8c28dac13d992d6f6ab333a
 ---
 # Story 2.2: Deploy to the VPS
 
-Status: review
+Status: done
 
 <!-- Split story: the dev agent writes and tests the files in the repo; the deploy itself runs ON the VPS (by Hermes or the designer), because the cloud dev container cannot reach the VPS. -->
 
@@ -63,7 +63,7 @@ so that my friends and I can test online co-op on real phones over 4G.
   - [x] Keep `BASE_PATH` support in `vite.config.ts` (harmless).
   - [x] Mention in `docs/deploy.md` that the Pages site can be disabled in the repo settings (designer).
 - [x] **Task 8 (dev): `docs/deploy.md`** (AC 4): the current setup (see Dev Notes › What already runs on the VPS), first-time setup, deploy, rollback, logs (`docker compose logs -f server`), health URL, and the human checklist from Task 9.
-- [ ] **Task 9 (human, on the VPS: Hermes or the designer): Go live** (AC 1, 4). The cloud container has no access to the VPS, so this task is done there. Follow `docs/deploy.md`:
+- [x] **Task 9 (human, on the VPS: Hermes or the designer): Go live** (AC 1, 4). The cloud container has no access to the VPS, so this task is done there. Follow `docs/deploy.md`:
   - [ ] Record the current setup: `systemctl cat topdown-shooter.service`, and the cloudflared tunnel config for `sevend-io-stream`.
   - [ ] Check Docker: `docker compose version` (the designer confirmed Docker is installed on the VPS).
   - [ ] `cd /root/topdown-shooter && git fetch && git checkout master && git pull --ff-only`.
@@ -451,3 +451,7 @@ claude-opus-5-5 via gds-dev-story
   - Rate limit keyed by IPv6 /64.
   - CI smoke test of the stack.
   - Status stays `review` (VPS go-live pending).
+
+### Go-live (Task 9), 2026-11-22
+
+Done by Hermes on the VPS; full report in `docs/hermes-go-live-report-2026-11-22.md`. The Compose stack had been live since `012d1c4`; Hermes redeployed `95d271177a9b` (`ok` in deploy-history). Every deploy.md step-6 check passed: health 200, headers, immutable hashed assets, `/j/ABCD` 200, `/assets/nope.js` and `/api` 404, foreign-origin WebSocket 403 (the check needs `curl --http1.1` through Cloudflare; doc fixed in `7f16f7b`), server healthy + web up. Docker 29.5.2, Compose v5.1.4, 17 GB free; memory server 59 MiB / 768, web 17 MiB / 128. Open: the static-site fallback (step 2) was never prepared, so `deploy/rollback.sh` is the recovery path. GitHub Pages CI jobs removed and playtest links repointed (step 7). The two-browser / 4G join check is the designer's, folded into the 4.10 playtest.
