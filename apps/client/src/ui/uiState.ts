@@ -79,6 +79,11 @@ export interface UiRequests {
   leaveRun: (error?: string) => void;
   /** In-run menu (Story 2.11): ☰, Esc and the menu's buttons; the Game scene applies `menuStep`. */
   menu: (action: MenuAction) => void;
+  /**
+   * Story 3.4: placement mode for a building type (`balance.buildings.types` key). Story 3.3's shop
+   * calls it when a building is tapped, then closes; the Game scene ignores it outside a build phase.
+   */
+  startPlacement: (buildingTypeId: string) => void;
   /** Start screen: play offline, exactly as Epic 1. */
   startSolo: () => void;
   /** Lobby: leave the room and return to the start screen. */

@@ -6,6 +6,7 @@ import {
   ZOMBIE_POOL_CAPACITY,
   activeSlot,
   addPlayer,
+  buildingStats,
   isGun,
   setLoadout,
   spectateTarget,
@@ -15,6 +16,7 @@ import {
   parseWaveMix,
   ZOMBIE_STATE,
   type Balance,
+  type PlaceError,
   type PlayerInput,
   type PlayerState,
   type World,
@@ -31,6 +33,8 @@ import { BloodTrailView } from "../render/BloodTrailView";
 import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
+import { BuildingView } from "../render/BuildingView";
+import { Placement, placeRefusalText } from "./placement";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
 import { neutralizeInput } from "../input/menuInput";
 import { ToastQueue, playerLeftText } from "./toastQueue";
@@ -91,6 +95,8 @@ const STATUS_OUT = "You're out: back after this wave";
 /** Story 3.1: the banner at the run's first build phase. */
 const BUILD_BANNER = "Build phase";
 const STATUS_REVIVING = "Reviving…";
+/** Story 3.4: the temporary HUD entry point builds this type (Story 3.3's shop replaces it). */
+const TEMP_BUILD_TYPE = "wood_barricade";
 /** Solo Results: the one row's name. */
 const SOLO_NAME = "You";
 
@@ -149,6 +155,13 @@ export class GameScene extends Phaser.Scene {
   private projectileView: ProjectileView | null = null;
   private fxView: FxView | null = null;
   private downedView: DownedView | null = null;
+  /** Story 3.4: placed buildings and the placement preview. */
+  private buildingView: BuildingView | null = null;
+  /** Story 3.4: placement mode on this device (sticks off while active). */
+  private readonly placement = new Placement();
+  /** "Wood barricade · $40" for the type being placed, and the refusal texts (built once each). */
+  private placingLabel = "";
+  private readonly refusalTexts = new Map<PlaceError, string>();
   /** Solo Results (Story 2.8): zombies the local player killed this run (online: from room state). */
   private kills = 0;
   /**
@@ -231,6 +244,8 @@ export class GameScene extends Phaser.Scene {
     if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
     this.gameOver = false;
     this.kills = 0;
+    this.placement.cancel(); // Phaser reuses this scene object: no placement from the last run
+    this.refusalTexts.clear();
     this.localReady = false; // Phaser reuses this scene object (restart): no Ready from the last run
     this.readyPhase = "";
     this.statusSecs = -1;
@@ -250,6 +265,7 @@ export class GameScene extends Phaser.Scene {
       uiStore.handle("restart", () => this.scene.restart({} satisfies GameSceneData)); // {}: a new random seed
     }
     uiStore.handle("menu", (action) => this.onMenu(action)); // Story 2.11: the in-run menu's buttons
+    uiStore.handle("startPlacement", (type) => this.startPlacement(type)); // Story 3.4 (Story 3.3's shop calls it)
     // Story 2.11: teammates who leave get a toast; their ring, name and arrow go with their state entry.
     const offLeft = session?.onPlayerLeft((m) => {
       if (m.playerId !== localId) this.toasts.push(playerLeftText(m.name, m.reason));
@@ -283,6 +299,7 @@ export class GameScene extends Phaser.Scene {
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
     this.fxView = new FxView(this, this.zombieView, localId);
     this.downedView = new DownedView(this, world);
+    this.buildingView = new BuildingView(this);
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.chevrons.length = 0;
@@ -322,6 +339,10 @@ export class GameScene extends Phaser.Scene {
       uiStore.handle("leaveRun", undefined);
       uiStore.handle("backToLobby", undefined);
       uiStore.handle("menu", undefined);
+      uiStore.handle("startPlacement", undefined);
+      this.placement.cancel();
+      this.buildingView?.destroy();
+      this.buildingView = null;
       offLeft?.();
       this.toasts.clear();
       for (const c of this.chevrons) c.destroy();
@@ -483,7 +504,7 @@ export class GameScene extends Phaser.Scene {
     }
     const build = run.phase === "build";
     m.buildSecs = build ? Math.ceil(run.buildTicksLeft / TICK_RATE_HZ) : -1;
-    m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode;
+    m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.placement.active;
     const pressed = m.readyPressed;
     m.readyPressed = false;
     if (pressed && m.readyButton) {
@@ -495,6 +516,99 @@ export class GameScene extends Phaser.Scene {
     if (build) host.world.players.forEach(this.countReady);
     m.readyCount = this.readyCount;
     m.readyTotal = host.world.players.size;
+  }
+
+  /** Story 3.4: placement is possible now (a build phase, a run on screen, menu closed, my survivor standing). */
+  private canPlace(host: SceneHost, menuOpen: boolean): boolean {
+    const me = host.world.players.get(host.localPlayerId);
+    return (
+      host.world.run.phase === "build" &&
+      this.running &&
+      !this.gameOver &&
+      !this.leaving &&
+      !menuOpen &&
+      !this.stressMode &&
+      me !== undefined &&
+      me.status === "alive"
+    );
+  }
+
+  private refusalText(e: PlaceError): string {
+    let t = this.refusalTexts.get(e);
+    if (t === undefined) {
+      t = placeRefusalText(e, this.host?.world.balance ?? clientBalance());
+      this.refusalTexts.set(e, t);
+    }
+    return t;
+  }
+
+  /**
+   * Story 3.4: `startPlacement` (Story 3.3's shop; the temporary HUD button until then). Ignored
+   * outside a build phase, under the menu, on Results or for an unknown type. Every held stick, key
+   * and button lets go (the sticks are off while placing).
+   */
+  private startPlacement(type: string): void {
+    const host = this.host;
+    const screen = uiStore.get();
+    const menuOpen = screen.kind === "playing" && screen.menu !== "closed";
+    if (!host || !this.canPlace(host, menuOpen)) return;
+    const me = host.world.players.get(host.localPlayerId);
+    const stats = buildingStats(host.world.balance, type);
+    if (!me || !stats) return;
+    if (!this.placement.start(host.world.balance, type, me.x, me.y, me.facingX, me.facingY)) return;
+    this.placingLabel = `${stats.name} · $${stats.price}`;
+    this.router?.releaseAll();
+    host.clearEdges();
+  }
+
+  /**
+   * Story 3.4: placement mode, once per frame before the input goes to the host. Taps (canvas px)
+   * move the preview (through the camera that drew the frame), ⟳ rotates, ✕ cancels, ✓ sends the
+   * request (solo: applied at once) and ends placement mode; the phase leaving the build, the menu or
+   * game over cancel it. While active the input is neutral: the survivor stands still and holds fire.
+   */
+  private updatePlacement(host: SceneHost, menuOpen: boolean): void {
+    const m = this.hudModel;
+    const p = this.placement;
+    const can = this.canPlace(host, menuOpen);
+    if (p.active && !can) p.cancel();
+    m.buildButton = can && !p.active;
+    if (m.buildButton && m.buildLabel === "") {
+      const stats = buildingStats(host.world.balance, TEMP_BUILD_TYPE);
+      m.buildLabel = stats ? `${stats.name} $${stats.price}` : "";
+    }
+    const buildTap = m.buildPressed;
+    const tap = m.placeTap;
+    const rotate = m.rotatePressed;
+    const confirm = m.confirmPressed;
+    const cancel = m.cancelPressed;
+    m.buildPressed = m.placeTap = m.rotatePressed = m.confirmPressed = m.cancelPressed = false;
+    if (buildTap && m.buildButton) this.startPlacement(TEMP_BUILD_TYPE);
+    if (!p.active) {
+      m.placementActive = false;
+      return;
+    }
+    if (tap) {
+      const w = this.cameras.main.getWorldPoint(m.placeTapX, m.placeTapY, this.cursorWorld);
+      p.moveTo(w.x, w.y);
+    }
+    if (rotate) p.rotate();
+    if (cancel) {
+      p.cancel();
+      m.placementActive = false;
+      return;
+    }
+    p.check(host.world, host.localPlayerId);
+    if (confirm) {
+      const req = p.confirm();
+      if (req) host.placeBuilding(req);
+      m.placementActive = false;
+      return;
+    }
+    m.placementActive = true;
+    m.placementValid = p.error === null;
+    m.placementHint = p.error === null ? this.placingLabel : this.refusalText(p.error);
+    neutralizeInput(this.input_);
   }
 
   /** Countdowns of downed players for the HUD, and the local status line (Story 2.8). */
@@ -565,6 +679,7 @@ export class GameScene extends Phaser.Scene {
     // Menu open: online the run goes on and my survivor stands still (a fresh seq every step);
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     if (menuOpen) neutralizeInput(this.input_);
+    this.updatePlacement(host, menuOpen); // Story 3.4: placement mode turns the sticks off (neutral input)
     this.updateReady(host, menuOpen);
     if (this.localHost) {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
@@ -575,6 +690,8 @@ export class GameScene extends Phaser.Scene {
 
     if (this.running) host.update(deltaMs / 1000); // LocalSimHost caps catch-up after long frames
     if (perf.net) netSummary.frame(performance.now(), perf.net); // Story 2.10: ping samples for the wave summary
+    const refused = host.takePlaceRefusal(); // Story 3.4: the server (or solo) said no
+    if (refused) this.toasts.push(this.refusalText(refused));
     const events = host.drainEvents();
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
@@ -606,6 +723,7 @@ export class GameScene extends Phaser.Scene {
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world);
+    this.buildingView?.update(host.world, this.placement);
     const player = host.world.players.get(localId);
     const playerView = this.playerViews.get(localId);
     this.hudModel.teammateCount = 0; // never stale while my player is missing (2.9 review)

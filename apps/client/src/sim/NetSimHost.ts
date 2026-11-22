@@ -21,6 +21,8 @@ import {
   ticksFor,
   type Balance,
   type NetEventContext,
+  type PlaceError,
+  type PlaceRequest,
   type PlayerInput,
   type PlayerState,
   type PlayerStateView,
@@ -39,6 +41,7 @@ import { EventQueue } from "../net/eventQueue";
 import { HordeBuffer, HordeSample } from "../net/hordeBuffer";
 import { HordeDecoder } from "../net/hordeDecoder";
 import { mirrorZombies } from "../net/mirrorZombies";
+import { mirrorBuildings } from "../net/mirrorBuildings";
 import { Predictor } from "../net/prediction";
 import { AdaptiveDelay } from "../net/adaptiveDelay";
 import { RENDER_DELAY_MIN_MS } from "../net/netConfig";
@@ -199,6 +202,8 @@ export class NetSimHost implements SimHost {
   /** Story 2.9: reused `playerInfo` answer. */
   private readonly info: { slot: number; name: string } = { slot: 0, name: "" };
   private latest: RunStateView | null = null;
+  /** Story 3.4: the latest `building.refused`, until the scene takes it. */
+  private refusal: PlaceError | null = null;
   private readonly dropMissing = (_p: PlayerState, id: string): void => {
     if (!this.latest?.players.has(id)) removePlayer(this.world, id);
   };
@@ -233,6 +238,11 @@ export class NetSimHost implements SimHost {
     // Batches that came while the scene was not built yet (hidden tab at Start) arrive first.
     this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
     this.offs.push(opts.session.onHorde((b) => this.hordeStats.receive(b)));
+    this.offs.push(
+      opts.session.onBuildingRefused((reason) => {
+        this.refusal = reason;
+      }),
+    );
     room.onStateChange(this.onState);
     // The start patch (phase "wave", spawn positions) may already have arrived.
     if (room.state?.players && room.state.phase !== "lobby") this.takeSnapshot(room.state);
@@ -310,6 +320,17 @@ export class NetSimHost implements SimHost {
     if (!this.disposed) this.session.room.send(C2S.BUILD_SET_READY, { ready });
   }
 
+  /** Story 3.4: `building.place`; the building comes back in the state, a refusal as `building.refused`. */
+  placeBuilding(req: PlaceRequest): void {
+    if (!this.disposed) this.session.room.send(C2S.BUILDING_PLACE, { type: req.type, gx: req.gx, gy: req.gy, rot: req.rot });
+  }
+
+  takePlaceRefusal(): PlaceError | null {
+    const r = this.refusal;
+    this.refusal = null;
+    return r;
+  }
+
   drainEvents(): readonly SimEvent[] {
     const out = this.drained;
     out.length = 0;
@@ -385,6 +406,7 @@ export class NetSimHost implements SimHost {
     this.world.tick = state.tick;
     this.world.waves.number = state.wave;
     this.world.waves.remaining = state.remaining;
+    mirrorBuildings(state.buildings, this.world); // Story 3.4: drawn, and the placement preview's check
   }
 
   /**
@@ -574,6 +596,8 @@ export class NetSimHost implements SimHost {
   /** Others go into the interpolation ring; my own player reconciles the prediction (Story 2.6). */
   private takeSnapshot(state: RunStateView): void {
     this.snapshots.push(state);
+    // Story 3.4: the buildings of this very patch, before the replay (the server moved me with them).
+    this.predictor.syncBuildings(state.buildings);
     const me = state.players.get(this.localPlayerId);
     if (!me) return;
     this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct);

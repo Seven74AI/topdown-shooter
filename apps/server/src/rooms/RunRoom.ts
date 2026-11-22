@@ -17,6 +17,7 @@ import {
   S2C,
   TICK_RATE_HZ,
   buildSetReadySchema,
+  buildingPlaceSchema,
   encodeNetEvent,
   isTestScenario,
   joinOptionsSchema,
@@ -31,6 +32,8 @@ import {
   spectateTarget,
   startBlocker,
   zombieNetId,
+  type BuildingPlace,
+  type BuildingRefused,
   type JoinRefusal,
   type NetEvent,
   type NetEventContext,
@@ -221,6 +224,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
     this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
+    this.onMessage(C2S.BUILDING_PLACE, this.net.guard(buildingPlaceSchema, (c, m) => this.onPlaceBuilding(c, m)));
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -337,6 +341,25 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   onBuildReady(client: RunClient, ready: boolean): void {
     const member = this.members.get(client.sessionId);
     if (member) this.controller?.setBuildReady(member.playerId, ready);
+  }
+
+  /**
+   * `building.place` (Story 3.4, already shape-checked and rate-limited by the shared bucket): the
+   * shared `placeBuilding` validates phase, type, cap, money and spot from the server's World and
+   * charges the price. A refusal goes back to the sender only, as `building.refused { reason }`.
+   */
+  onPlaceBuilding(client: RunClient, m: BuildingPlace): void {
+    const member = this.members.get(client.sessionId);
+    const controller = this.controller;
+    if (!member) return;
+    const r = controller ? controller.placeBuilding(member.playerId, m) : null;
+    if (r?.ok) {
+      this.log.info({ playerId: member.playerId, type: m.type, gx: m.gx, gy: m.gy, rot: m.rot, id: r.value.id }, "building_placed");
+      return;
+    }
+    const reason = r ? r.error : "not_build_phase";
+    this.log.debug({ playerId: member.playerId, type: m.type, gx: m.gx, gy: m.gy, rot: m.rot, reason }, "building_refused"); // debug: a flood must not flood the log
+    client.send(S2C.BUILDING_REFUSED, { reason } satisfies BuildingRefused);
   }
 
   /**

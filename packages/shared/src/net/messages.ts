@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TEST_SCENARIOS } from "./testScenarios";
+import type { PlaceError } from "../buildings/buildings";
 
 /**
  * The client/server net contract (Story 2.1). Later stories extend it, never rename it.
@@ -22,6 +23,8 @@ export const C2S = {
   LOBBY_RETURN: "lobby.return",
   /** `{ ready: boolean }` in a build phase (Story 3.1). */
   BUILD_SET_READY: "build.set_ready",
+  /** `{ type, gx, gy, rot }` in a build phase (Story 3.4); a refusal comes back as `building.refused`. */
+  BUILDING_PLACE: "building.place",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -37,6 +40,8 @@ export const S2C = {
   SERVER_SHUTDOWN_STARTED: "server.shutdown_started",
   /** `{ playerId, name, reason }` (Story 2.11). */
   PLAYER_LEFT: "player.left",
+  /** `{ reason: PlaceError }` to the sender of a refused `building.place` (Story 3.4). */
+  BUILDING_REFUSED: "building.refused",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -108,6 +113,25 @@ export const runStartSchema = z.object({}).strict();
 /** `build.set_ready` (Story 3.1): the sender's build-phase Ready (a toggle); ignored outside a build. */
 export const buildSetReadySchema = z.object({ ready: z.boolean() }).strict();
 export type BuildSetReady = z.infer<typeof buildSetReadySchema>;
+
+/**
+ * `building.place` (Story 3.4): a building type and its centre on the 1 m grid (uint8 indices) and
+ * rotation (90° steps). Only the shape is checked here; `placeBuilding` validates the rest.
+ */
+export const buildingPlaceSchema = z
+  .object({
+    type: z.string().min(1).max(32),
+    gx: z.number().int().min(0).max(255),
+    gy: z.number().int().min(0).max(255),
+    rot: z.number().int().min(0).max(3),
+  })
+  .strict();
+export type BuildingPlace = z.infer<typeof buildingPlaceSchema>;
+
+/** `building.refused` payload (Story 3.4), to the sender only. */
+export interface BuildingRefused {
+  reason: PlaceError;
+}
 
 /** `lobby.return` (Story 2.8): `{}`, any member, phase "results" only. */
 export const lobbyReturnSchema = z.object({}).strict();

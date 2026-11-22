@@ -1,6 +1,6 @@
-import { quantizeHeading, ticksFor, type PlayerState as SimPlayer } from "@topdown/shared";
+import { quantizeHeading, ticksFor, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
 import type { RunController } from "../../run/RunController";
-import type { PlayerState, RunState } from "./RunState";
+import { BuildingState, type PlayerState, type RunState } from "./RunState";
 
 /**
  * Copies the World into room state once per tick (Story 2.4), right after `controller.tick()`.
@@ -26,6 +26,51 @@ export function syncState(state: RunState, controller: RunController): void {
   if (state.wave !== world.waves.number) state.wave = world.waves.number;
   if (state.remaining !== world.waves.remaining) state.remaining = world.waves.remaining;
   if (state.aliveCount !== alive) state.aliveCount = alive;
+  syncBuildings(state, world);
+}
+
+/**
+ * Story 3.4: the World's buildings → `state.buildings`. When `buildings.version` changed (a
+ * placement, 3.5's destruction) entries are added and removed (allocation is fine then: rare); every
+ * tick only HP is compared, and assigned when it changed. The schema entry per building id is kept
+ * here, per room state, so the per-tick pass needs no string keys.
+ */
+interface BuildingSync {
+  version: number;
+  readonly entries: Map<number, BuildingState>;
+}
+const buildingSyncs = new WeakMap<RunState, BuildingSync>();
+
+function syncBuildings(state: RunState, world: World): void {
+  let sync = buildingSyncs.get(state);
+  if (!sync) {
+    sync = { version: -1, entries: new Map() };
+    buildingSyncs.set(state, sync);
+  }
+  const list = world.buildings.list;
+  if (sync.version !== world.buildings.version) {
+    sync.version = world.buildings.version;
+    const keep = new Set<number>();
+    for (const b of list) {
+      keep.add(b.id);
+      if (!sync.entries.has(b.id)) {
+        const s = new BuildingState({ type: b.type, owner: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, hp: Math.ceil(b.hp) });
+        state.buildings.set(String(b.id), s);
+        sync.entries.set(b.id, s);
+      }
+    }
+    for (const id of [...sync.entries.keys()]) {
+      if (keep.has(id)) continue;
+      state.buildings.delete(String(id));
+      sync.entries.delete(id);
+    }
+  }
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    const s = sync.entries.get(b.id);
+    const hp = Math.ceil(b.hp);
+    if (s && s.hp !== hp) s.hp = hp;
+  }
 }
 
 /** The sync pass in progress (synchronous, so one shared record is enough). */
@@ -103,6 +148,8 @@ export function resetRunFields(state: RunState): void {
   state.aliveCount = 0;
   state.resultWave = 0;
   state.buildTicksLeft = 0;
+  state.buildings.clear(); // Story 3.4: the next run starts with none
+  buildingSyncs.delete(state);
 }
 
 function resetPlayer(s: PlayerState): void {

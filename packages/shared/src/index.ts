@@ -1,4 +1,5 @@
 export {
+  BUILD_GRID_M,
   GAME_TITLE,
   GRID_CELL_M,
   MUZZLE_OFFSET_M,
@@ -31,7 +32,7 @@ export {
   parseDevScale,
   type DevBalanceOptions,
 } from "./config/devBalance";
-export type { GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
+export type { BuildingTypeStats, GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, type WorldSnapshot } from "./core/worldSnapshot";
@@ -135,7 +136,10 @@ export {
   runStartSchema,
   lobbyReturnSchema,
   buildSetReadySchema,
+  buildingPlaceSchema,
   type BuildSetReady,
+  type BuildingPlace,
+  type BuildingRefused,
   type C2SType,
   type JoinOptions,
   type JoinRefusal,
@@ -151,7 +155,15 @@ export {
 } from "./net/messages";
 export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
-export { PLAYER_STATE_FIELDS, RUN_STATE_FIELDS, type PlayerStateView, type ReadonlyMapView, type RunStateView } from "./net/stateView";
+export {
+  BUILDING_STATE_FIELDS,
+  PLAYER_STATE_FIELDS,
+  RUN_STATE_FIELDS,
+  type BuildingStateView,
+  type PlayerStateView,
+  type ReadonlyMapView,
+  type RunStateView,
+} from "./net/stateView";
 export { BYTE_RATE_RING_S, ByteRate, KB_BYTES, attachByteCounters, messageBytes, type CountedRoomLike, type MessageSocketLike } from "./net/byteRate";
 export { NET150_START_WAVE, TEST_SCENARIOS, applyTestScenario, isTestScenario, type TestScenario } from "./net/testScenarios";
 export {
@@ -177,3 +189,26 @@ export {
   type EconomyState,
   type SpendError,
 } from "./economy/economy";
+// Story 3.4: buildings (placement, collision).
+export {
+  addBuildingAt,
+  buildingById,
+  buildingStats,
+  buildingTypeIds,
+  createBuildingState,
+  footprint,
+  footprintBlocked,
+  ownedCount,
+  placeBuilding,
+  placementError,
+  removeBuilding,
+  type Box,
+  type Building,
+  type BuildingRotation,
+  type BuildingSpec,
+  type BuildingState,
+  type PlaceError,
+  type PlaceRequest,
+} from "./buildings/buildings";
+export { circleHitsBuilding, circleOverlapsBox, pushOutOfBuildings, pushed } from "./buildings/collision";
+export { findFreeSpotNear, spotBlocked } from "./player/freeSpot";

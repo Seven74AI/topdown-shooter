@@ -7,6 +7,7 @@ import player from "../config/balance/player.json" with { type: "json" };
 import controls from "../config/balance/controls.json" with { type: "json" };
 import economy from "../config/balance/economy.json" with { type: "json" };
 import bots from "../config/balance/bots.json" with { type: "json" };
+import buildings from "../config/balance/buildings.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import { rebuildGrid } from "../core/spatialGrid";
 import type { SimEvent } from "../core/simEvents";
@@ -25,7 +26,7 @@ const O = { x: 10, y: 16 };
 function exactBalance() {
   const w = JSON.parse(JSON.stringify(weapons));
   for (const k of Object.keys(w)) if (w[k].kind === "gun") w[k].spreadDeg = 0;
-  return loadBalance({ weapons: w, zombies, waves, player, controls, economy, bots } as RawBalanceFiles);
+  return loadBalance({ weapons: w, zombies, waves, player, controls, economy, bots, buildings } as RawBalanceFiles);
 }
 
 function worldWith(...zs: [number, number][]) {

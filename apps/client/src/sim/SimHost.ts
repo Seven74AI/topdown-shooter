@@ -1,4 +1,4 @@
-import type { PlayerInput, SimEvent, World } from "@topdown/shared";
+import type { PlaceError, PlaceRequest, PlayerInput, SimEvent, World } from "@topdown/shared";
 
 /** Presentation data of a player (Story 2.9): kept out of the shared `PlayerState`. */
 export interface PlayerInfo {
@@ -32,6 +32,13 @@ export interface SimHost {
    * applies before the next step; online it is sent as `build.set_ready` and comes back in the state.
    */
   setBuildReady(ready: boolean): void;
+  /**
+   * Story 3.4: ask to place a building (the server validates; solo runs the same check now). A
+   * refusal comes back through `takePlaceRefusal` (solo at once, online a round trip later).
+   */
+  placeBuilding(req: PlaceRequest): void;
+  /** The oldest placement refusal not taken yet, or null. */
+  takePlaceRefusal(): PlaceError | null;
   /** Drops a swap/consumable latched but not sent yet (the in-run menu opened in the same step; 2.11 review). */
   clearEdges(): void;
   /**

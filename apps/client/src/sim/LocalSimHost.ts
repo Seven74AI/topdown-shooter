@@ -2,11 +2,14 @@ import {
   NEUTRAL_INPUT,
   TICK_DT_S,
   createWorld,
+  placeBuilding,
   setBuildReady,
   setInput,
   startBuild,
   step,
   type Balance,
+  type PlaceError,
+  type PlaceRequest,
   type PlayerInput,
   type SimEvent,
   type World,
@@ -51,6 +54,8 @@ export class LocalSimHost implements SimHost {
   /** Input sequence number, one per step (the shared input system fires edges once per seq). */
   private seq = 0;
   private events: SimEvent[] = [];
+  /** Story 3.4: the last placement refusal, until the scene takes it. */
+  private refusal: PlaceError | null = null;
   private drained: SimEvent[] = [];
   private readonly unsubscribe: () => void;
   readonly stats: SimStepStats = { lastUpdateSteps: 0, stepMs: new Float64Array(MAX_CATCHUP_STEPS), totalSteps: 0 };
@@ -66,6 +71,18 @@ export class LocalSimHost implements SimHost {
 
   setBuildReady(ready: boolean): void {
     setBuildReady(this.world, LOCAL_PLAYER_ID, ready);
+  }
+
+  /** Story 3.4: solo applies the placement at once (between steps, like the server's message handler). */
+  placeBuilding(req: PlaceRequest): void {
+    const r = placeBuilding(this.world, LOCAL_PLAYER_ID, req);
+    if (!r.ok) this.refusal = r.error;
+  }
+
+  takePlaceRefusal(): PlaceError | null {
+    const r = this.refusal;
+    this.refusal = null;
+    return r;
   }
 
   get alpha(): number {

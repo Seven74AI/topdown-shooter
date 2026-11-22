@@ -1,4 +1,4 @@
-import type { PlayerStateView, RunPhase, RunStateView } from "@topdown/shared";
+import type { BuildingStateView, PlayerStateView, RunPhase, RunStateView } from "@topdown/shared";
 import type { NetRoomLike } from "./session";
 
 /** Test helpers (Story 2.4): a plain room state and a fake room behind `NetRoomLike`. */
@@ -36,10 +36,14 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
   };
 }
 
+export type FakeBuilding = { -readonly [K in keyof BuildingStateView]: BuildingStateView[K] };
+
 export interface FakeState {
   phase: RunPhase;
   hostSlot: number;
   players: Map<string, FakePlayer>;
+  /** Story 3.4: by building id (as a string). */
+  buildings: Map<string, FakeBuilding>;
   tick: number;
   wave: number;
   remaining: number;
@@ -54,6 +58,7 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     phase: "wave",
     hostSlot: 0,
     players: new Map(players.map((p) => [`p${p.slot}`, p])),
+    buildings: new Map(),
     tick: 0,
     wave: 0,
     remaining: 0,

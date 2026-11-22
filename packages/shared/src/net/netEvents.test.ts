@@ -34,6 +34,7 @@ const EVENTS: SimEvent[] = [
   { type: "build.started", wave: 4 },
   { type: "money.earned", playerId: "p2", amount: 30, reason: "wave" },
   { type: "money.earned", playerId: "p0", amount: 1, reason: "assist" },
+  { type: "building.placed", buildingId: 3, buildingType: "wood_barricade", ownerId: "p1", gx: 47, gy: 31, rot: 3 },
 ];
 
 /** Bytes msgpack uses for an integer (fixint, int8/16/32, uint8/16/32). */
@@ -65,6 +66,13 @@ describe("netEvents", () => {
       expectSameEvent(decodeNetEvent(t as NetEvent, dec), e);
     }
     expect([...kinds].sort((a, b) => a - b)).toEqual(Object.values(NET_EVENT_KIND).sort((a, b) => a - b));
+  });
+
+  it("Story 3.4: building.placed carries the type as its index; an unknown index decodes to null", () => {
+    const t = encodeNetEvent({ type: "building.placed", buildingId: 9, buildingType: "wood_barricade", ownerId: "p0", gx: 1, gy: 2, rot: 1 }, enc);
+    expect(t).toEqual([NET_EVENT_KIND.BUILDING_PLACED, 9, 0, 0, 1, 2, 1]);
+    expect(msgpackTupleBytes(t as NetEvent)).toBeLessThanOrEqual(8);
+    expect(decodeNetEvent([NET_EVENT_KIND.BUILDING_PLACED, 9, 200, 0, 1, 2, 1], dec)).toBeNull();
   });
 
   it("sends the hit's source as a player slot, 255 for none (Story 2.7)", () => {

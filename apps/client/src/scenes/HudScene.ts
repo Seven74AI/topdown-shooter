@@ -9,6 +9,11 @@ import {
   READY_BUTTON_BOTTOM_CSS_PX,
   READY_BUTTON_H_CSS_PX,
   READY_BUTTON_W_CSS_PX,
+  BUILD_BUTTON_GAP_CSS_PX,
+  BUILD_BUTTON_H_CSS_PX,
+  BUILD_BUTTON_W_CSS_PX,
+  PLACE_BUTTON_CSS_PX,
+  PLACE_BUTTON_GAP_CSS_PX,
 } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
@@ -97,6 +102,17 @@ const READY_BG_ALPHA = 0.5;
 const READY_ON = 0x2e7d32;
 const READY_BORDER = 0xffffff;
 const READY_BORDER_PX = 2;
+/** Story 3.4: placement buttons (⟳ ✓ ✕), the temporary Build button and the hint line above ⟳ ✓ ✕. */
+const PLACE_IDS = ["rotate", "confirm", "cancel"] as const;
+const PLACE_GLYPHS = ["⟳", "✓", "✕"] as const;
+const PLACE_GLYPH_PX = 30;
+const PLACE_CONFIRM = 0x2e7d32;
+const PLACE_CANCEL = 0x8e2a2a;
+const BUILD_TEXT_PX = 16;
+const HINT_TEXT_PX = 18;
+const HINT_GAP_PX = 10;
+const HINT_VALID = "#ffffff";
+const HINT_BLOCKED = "#ff8a80";
 /** Wave text → status line → toast line, CSS px from the top inset. */
 const WAVE_TOP_PX = 12;
 const LINE_GAP_PX = 12;
@@ -165,6 +181,19 @@ export class HudScene extends Phaser.Scene {
   private shownReadyKey = -1;
   private shownBuildSecs = -2;
   private buttons = new HudButtons();
+  /** Story 3.4: the temporary Build button, ⟳ ✓ ✕ and the hint line. */
+  private buildBtn!: Phaser.GameObjects.Graphics;
+  private buildText!: Phaser.GameObjects.Text;
+  private shownBuildVisible: boolean | null = null;
+  private shownBuildLabel = "";
+  private readonly placeBtns: Phaser.GameObjects.Graphics[] = [];
+  private readonly placeGlyphs: Phaser.GameObjects.Text[] = [];
+  private placeHint!: Phaser.GameObjects.Text;
+  private shownPlacement: boolean | null = null;
+  private shownHint = "";
+  private shownHintValid: boolean | null = null;
+  /** The pointer moving the preview (touch or mouse), or -1. */
+  private placePointer = -1;
   /** Safe-area insets (CSS px), measured on create and resize only (getComputedStyle is costly). */
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
   private shownSwapVisible: boolean | null = null;
@@ -230,6 +259,12 @@ export class HudScene extends Phaser.Scene {
     this.shownBuildSecs = -2;
     this.shownMoney = -1;
     this.nextMoneyPop = 0;
+    this.shownBuildVisible = null;
+    this.shownBuildLabel = "";
+    this.shownPlacement = null;
+    this.shownHint = "";
+    this.shownHintValid = null;
+    this.placePointer = -1;
   }
 
   create(): void {
@@ -276,6 +311,24 @@ export class HudScene extends Phaser.Scene {
     this.buttons.set({ id: "ready", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.readyPressed = true;
     });
+    // Story 3.4: the temporary Build button (above Ready) and placement mode's ⟳ ✓ ✕ (where Ready was).
+    this.buildBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.buildText = this.add.text(0, 0, "", this.outlinedStyle(BUILD_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.buttons.set({ id: "build", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.buildPressed = true;
+    });
+    this.placeBtns.length = 0;
+    this.placeGlyphs.length = 0;
+    PLACE_IDS.forEach((id, i) => {
+      this.placeBtns.push(this.add.graphics().setDepth(1001).setVisible(false));
+      this.placeGlyphs.push(this.add.text(0, 0, PLACE_GLYPHS[i] ?? "", this.outlinedStyle(PLACE_GLYPH_PX)).setOrigin(0.5).setDepth(1002).setVisible(false));
+      this.buttons.set({ id, x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+        if (id === "rotate") this.model.rotatePressed = true;
+        else if (id === "confirm") this.model.confirmPressed = true;
+        else this.model.cancelPressed = true;
+      });
+    });
+    this.placeHint = this.add.text(0, 0, "", this.outlinedStyle(HINT_TEXT_PX)).setOrigin(0.5, 1).setDepth(1002).setVisible(false);
     this.layoutButtons();
     this.reloadBar = this.add.graphics();
     this.waveText = this.add
@@ -337,13 +390,26 @@ export class HudScene extends Phaser.Scene {
     this.model.moneyGain = 0;
 
     // Buttons first (readiness fix U1): a touch that starts on a HUD button never spawns a stick.
+    // Story 3.4: in placement mode a touch or click that misses the HUD buttons moves the preview
+    // (down and drag) and never reaches the sticks or the mouse fire.
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
+      if (this.model.placementActive) {
+        if (this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width).kind !== "button") {
+          this.placePointer = p.id;
+          this.placeTap(p.x, p.y);
+        }
+        return;
+      }
       hudPointerDown(this.buttons, this.router, p, this.scale.width);
     };
-    const move = (p: Phaser.Input.Pointer) => hudPointerMove(this.buttons, this.router, p);
+    const move = (p: Phaser.Input.Pointer) => {
+      if (this.model.placementActive && p.id === this.placePointer) this.placeTap(p.x, p.y);
+      hudPointerMove(this.buttons, this.router, p);
+    };
     const up = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // touchend is the activation event on iOS/Chrome; touchstart alone may not unlock
+      if (p.id === this.placePointer) this.placePointer = -1;
       hudPointerUp(this.buttons, this.router, p);
     };
     const reset = () => hudPointerReset(this.buttons, this.router);
@@ -427,6 +493,93 @@ export class HudScene extends Phaser.Scene {
     this.swapLabel.setFontSize(Math.round(28 * k)).setPosition(x + size / 2, y + size / 2);
     this.layoutMenuButton();
     this.layoutReadyButton();
+    this.layoutBuildButtons();
+  }
+
+  /** Story 3.4: a placement touch at canvas (x, y) for the GameScene (it converts through the camera). */
+  private placeTap(x: number, y: number): void {
+    const m = this.model;
+    m.placeTap = true;
+    m.placeTapX = x;
+    m.placeTapY = y;
+  }
+
+  /**
+   * Story 3.4: the Build button above Ready, and ⟳ ✓ ✕ in a row centred where Ready is (bottom
+   * centre, inside the safe area, 64 CSS px each), with the hint line above them. Drawn here (on
+   * layout) except the Build label, set in `drawBuild` when it changes.
+   */
+  private layoutBuildButtons(): void {
+    const k = dpr();
+    const bottom = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k;
+    const readyTop = bottom - READY_BUTTON_H_CSS_PX * k;
+    const bw = BUILD_BUTTON_W_CSS_PX * k;
+    const bh = BUILD_BUTTON_H_CSS_PX * k;
+    const bx = (this.scale.width - bw) / 2;
+    const by = readyTop - BUILD_BUTTON_GAP_CSS_PX * k - bh;
+    const build = this.buttons.get("build");
+    if (build) Object.assign(build, { x: bx, y: by, w: bw, h: bh });
+    this.buildBtn.clear().setPosition(bx, by);
+    this.buildBtn.fillStyle(READY_BG, READY_BG_ALPHA).fillRoundedRect(0, 0, bw, bh, READY_RADIUS_PX * k);
+    this.buildBtn.lineStyle(READY_BORDER_PX * k, READY_BORDER, 0.9).strokeRoundedRect(0, 0, bw, bh, READY_RADIUS_PX * k);
+    this.buildText.setFontSize(Math.round(BUILD_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(bx + bw / 2, by + bh / 2);
+    const size = PLACE_BUTTON_CSS_PX * k;
+    const gap = PLACE_BUTTON_GAP_CSS_PX * k;
+    const rowW = size * PLACE_IDS.length + gap * (PLACE_IDS.length - 1);
+    const y = bottom - size;
+    for (let i = 0; i < PLACE_IDS.length; i++) {
+      const x = (this.scale.width - rowW) / 2 + i * (size + gap);
+      const rect = this.buttons.get(PLACE_IDS[i] as string);
+      if (rect) Object.assign(rect, { x, y, w: size, h: size });
+      const g = (this.placeBtns[i] as Phaser.GameObjects.Graphics).clear().setPosition(x, y);
+      const fill = i === 1 ? PLACE_CONFIRM : i === 2 ? PLACE_CANCEL : READY_BG;
+      g.fillStyle(fill, i === 0 ? READY_BG_ALPHA : 0.85).fillRoundedRect(0, 0, size, size, READY_RADIUS_PX * k);
+      g.lineStyle(READY_BORDER_PX * k, READY_BORDER, 0.9).strokeRoundedRect(0, 0, size, size, READY_RADIUS_PX * k);
+      (this.placeGlyphs[i] as Phaser.GameObjects.Text)
+        .setFontSize(Math.round(PLACE_GLYPH_PX * k))
+        .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
+        .setPosition(x + size / 2, y + size / 2);
+    }
+    this.placeHint
+      .setFontSize(Math.round(HINT_TEXT_PX * k))
+      .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
+      .setPosition(this.scale.width / 2, y - HINT_GAP_PX * k);
+  }
+
+  /** Story 3.4: shows or hides the Build button and placement mode's buttons and hint (on change only). */
+  private drawBuild(): void {
+    const m = this.model;
+    if (m.buildButton !== this.shownBuildVisible) {
+      this.shownBuildVisible = m.buildButton;
+      this.buttons.setVisible("build", m.buildButton);
+      this.buildBtn.setVisible(m.buildButton);
+      this.buildText.setVisible(m.buildButton);
+    }
+    if (m.buildLabel !== this.shownBuildLabel) {
+      this.shownBuildLabel = m.buildLabel;
+      this.buildText.setText(m.buildLabel);
+    }
+    const placing = m.placementActive;
+    if (placing !== this.shownPlacement) {
+      this.shownPlacement = placing;
+      if (placing) hudPointerReset(this.buttons, this.router); // the sticks are off: let go of every held stick
+      this.placePointer = -1;
+      for (let i = 0; i < PLACE_IDS.length; i++) {
+        this.buttons.setVisible(PLACE_IDS[i] as string, placing);
+        (this.placeBtns[i] as Phaser.GameObjects.Graphics).setVisible(placing);
+        (this.placeGlyphs[i] as Phaser.GameObjects.Text).setVisible(placing);
+      }
+      this.placeHint.setVisible(placing);
+    }
+    if (!placing) return;
+    if (m.placementHint !== this.shownHint) {
+      this.shownHint = m.placementHint;
+      this.placeHint.setText(m.placementHint);
+    }
+    if (m.placementValid !== this.shownHintValid) {
+      this.shownHintValid = m.placementValid;
+      this.placeHint.setColor(m.placementValid ? HINT_VALID : HINT_BLOCKED);
+    }
   }
 
   /** Story 3.1: the Ready button's hit rect and position (bottom centre, inside the safe area). */
@@ -599,6 +752,7 @@ export class HudScene extends Phaser.Scene {
     this.drawTeammates();
     this.drawMenu();
     this.drawReady();
+    this.drawBuild();
     this.perfOverlay?.update();
   }
 

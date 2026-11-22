@@ -8,3 +8,10 @@ export const MENU_BUTTON_INSET_CSS_PX = 12;
 export const READY_BUTTON_W_CSS_PX = 168;
 export const READY_BUTTON_H_CSS_PX = 52;
 export const READY_BUTTON_BOTTOM_CSS_PX = 24;
+/** Story 3.4: placement mode's ⟳ ✓ ✕ buttons (square), bottom centre where Ready was (CSS px). */
+export const PLACE_BUTTON_CSS_PX = 64;
+export const PLACE_BUTTON_GAP_CSS_PX = 20;
+/** Story 3.4: the temporary "Wood barricade $40" button, above Ready (until Story 3.3's shop). */
+export const BUILD_BUTTON_W_CSS_PX = 200;
+export const BUILD_BUTTON_H_CSS_PX = 44;
+export const BUILD_BUTTON_GAP_CSS_PX = 12;

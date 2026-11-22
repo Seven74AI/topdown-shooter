@@ -41,6 +41,26 @@ export interface HudModel {
   readyTotal: number;
   /** Set by the HUD when Ready is tapped; the GameScene consumes it. */
   readyPressed: boolean;
+  /**
+   * Story 3.4: the temporary "Barricade $40" button (until Story 3.3's shop lists buildings): shown,
+   * its label, and set by the HUD when tapped (the GameScene consumes it).
+   */
+  buildButton: boolean;
+  buildLabel: string;
+  buildPressed: boolean;
+  /** Placement mode is on: touches move the preview, ⟳ ✓ ✕ show, the sticks are off. */
+  placementActive: boolean;
+  /** The line above ⟳ ✓ ✕ ("Wood barricade · $40", or why it is red) and whether the preview is valid. */
+  placementHint: string;
+  placementValid: boolean;
+  /** A placement touch (down or drag) in canvas px this frame; the GameScene consumes it. */
+  placeTap: boolean;
+  placeTapX: number;
+  placeTapY: number;
+  /** ⟳ ✓ ✕ taps; the GameScene consumes them. */
+  rotatePressed: boolean;
+  confirmPressed: boolean;
+  cancelPressed: boolean;
   /** Centered banner text and the scene time (ms) it was shown; empty when none. */
   bannerText: string;
   bannerAtMs: number;
@@ -111,6 +131,18 @@ export const createHudModel = (): HudModel => ({
   readyCount: 0,
   readyTotal: 0,
   readyPressed: false,
+  buildButton: false,
+  buildLabel: "",
+  buildPressed: false,
+  placementActive: false,
+  placementHint: "",
+  placementValid: true,
+  placeTap: false,
+  placeTapX: 0,
+  placeTapY: 0,
+  rotatePressed: false,
+  confirmPressed: false,
+  cancelPressed: false,
   bannerText: "",
   bannerAtMs: 0,
   rushers: new Float32Array(MAX_RUSH_MARKERS * 2),

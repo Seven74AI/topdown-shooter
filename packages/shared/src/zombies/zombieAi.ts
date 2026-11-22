@@ -7,6 +7,7 @@ import { downPlayer } from "../player/downed";
 import { slowPlayer } from "../player/slow";
 import type { ZombieTypeStats } from "../config/balanceSchema";
 import { zombieTypeOf } from "./zombiePool";
+import { pushOutOfBuildings, pushed } from "../buildings/collision";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
 const MAX_NEIGHBOURS = 64;
@@ -144,7 +145,8 @@ export const updateZombies: SystemFn = (world, dtS) => {
   // Pass 3: zombies never stay overlapped (hard rule on top of the soft separation).
   for (let it = 0; it < OVERLAP_ITERATIONS; it++) resolveOverlaps(world);
 
-  // Pass 4: keep out of players (last, so the crowd wraps around them) and attack.
+  // Pass 4: keep out of players (last, so the crowd wraps around them) and attack; then out of buildings.
+  const hasBuildings = world.buildings.list.length > 0;
   for (let i = 0; i < n; i++) {
     const id = ids[i] as number;
     const stats = world.balance.zombies.types[zombieTypeOf(pool, id)];
@@ -175,6 +177,11 @@ export const updateZombies: SystemFn = (world, dtS) => {
         pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
         damagePlayer(world, target, stats, id);
       }
+    }
+    // Story 3.4: buildings block zombies (they slide along; Story 3.5 paths around and attacks them).
+    if (hasBuildings && pushOutOfBuildings(world, x, y, rz)) {
+      x = pushed.x;
+      y = pushed.y;
     }
     // The push-out can cross a wall: clamp again (a little overlap at walls beats leaving the map).
     pool.x[id] = Math.min(widthM - rz, Math.max(rz, x));
