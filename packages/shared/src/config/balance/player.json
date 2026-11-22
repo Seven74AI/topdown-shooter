@@ -6,7 +6,7 @@
   "spawnOffsetM": 1.5,
   "downedS": 20,
   "reviveS": 3,
-  "reviveRadiusM": 1.2,
+  "reviveRadiusM": 2,
   "reviveHpFrac": 0.3,
   "buildHealFrac": 0.5,
   "returnSearchRings": 3,

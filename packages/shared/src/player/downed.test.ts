@@ -41,7 +41,7 @@ const placeNear = (p: PlayerState, of: PlayerState, distM: number) => {
 
 describe("balance (Story 2.8)", () => {
   it("has the downed numbers, converted to ticks: 400 down, 60 revive", () => {
-    expect(balance.player).toMatchObject({ downedS: 20, reviveS: 3, reviveRadiusM: 1.2, reviveHpFrac: 0.3, buildHealFrac: 0.5 });
+    expect(balance.player).toMatchObject({ downedS: 20, reviveS: 3, reviveRadiusM: 2, reviveHpFrac: 0.3, buildHealFrac: 0.5 });
     expect(DOWNED_TICKS).toBe(400);
     expect(REVIVE_TICKS).toBe(60);
   });
@@ -149,13 +149,13 @@ describe("revive", () => {
     expect(a.reviverId).toBeNull();
   });
 
-  it("stepping to 1.3 m at tick 59 resets the progress; coming back restarts it from 0", () => {
+  it("stepping to 2.1 m (outside the 2 m revive zone) at tick 59 resets the progress; coming back restarts it from 0", () => {
     const { world, players, events } = setup();
     const [a, b] = players as [PlayerState, PlayerState];
     downPlayer(world, a);
     placeNear(b, a, 1.1);
     run(world, REVIVE_TICKS - 1);
-    placeNear(b, a, 1.3);
+    placeNear(b, a, 2.1);
     run(world, 1);
     expect(a.reviveTicks).toBe(0);
     expect(a.reviverId).toBeNull();
