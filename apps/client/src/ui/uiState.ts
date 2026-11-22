@@ -1,4 +1,5 @@
 import type { NetSession } from "../net/session";
+import type { ShopAction } from "./shopStore";
 
 /**
  * Tiny typed store between Phaser scenes and Preact screens (no globals on window).
@@ -18,9 +19,7 @@ export type UiScreen =
    * Team wipe (Story 2.8): wave reached and kills per player, sorted by slot. `online`: Back to
    * lobby (the whole room) instead of Restart.
    */
-  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean }
-  /** Dev builds: choose two weapons before the run (temporary until the shop, Story 3.3). */
-  | { kind: "loadoutPicker"; weapons: readonly string[] };
+  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean };
 
 /** The in-run menu (Story 2.11): closed, open (Resume, Leave game), or asking to confirm the leave. */
 export type MenuState = "closed" | "open" | "confirmLeave";
@@ -60,11 +59,15 @@ export interface ResultRow {
   readonly kills: number;
 }
 
-export type LoadoutChoice = readonly [string, string | null];
-
 export interface UiRequests {
   restart: () => void;
-  startRun: (loadout: LoadoutChoice) => void;
+  /** Story 3.3: the shop's buttons (Close, a weapon, "Replace which?", a building); the Game scene runs `shopStep`. */
+  shop: (action: ShopAction) => void;
+  /**
+   * Story 3.4 contract: a building tapped in the shop starts placement mode for that building type
+   * (the shop has closed). The Game scene registers it and ignores it outside a build phase.
+   */
+  startPlacement: (buildingTypeId: string) => void;
   /** Start screen: create an online run with this (already validated) name. */
   createGame: (name: string) => void;
   /** Start screen: join the run with this (well-formed) code and (validated) name (Story 2.3). */
@@ -79,11 +82,6 @@ export interface UiRequests {
   leaveRun: (error?: string) => void;
   /** In-run menu (Story 2.11): ☰, Esc and the menu's buttons; the Game scene applies `menuStep`. */
   menu: (action: MenuAction) => void;
-  /**
-   * Story 3.4: placement mode for a building type (`balance.buildings.types` key). Story 3.3's shop
-   * calls it when a building is tapped, then closes; the Game scene ignores it outside a build phase.
-   */
-  startPlacement: (buildingTypeId: string) => void;
   /** Start screen: play offline, exactly as Epic 1. */
   startSolo: () => void;
   /** Lobby: leave the room and return to the start screen. */

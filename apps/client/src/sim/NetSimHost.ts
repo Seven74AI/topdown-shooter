@@ -32,7 +32,7 @@ import {
   type WeaponSlot,
   type World,
 } from "@topdown/shared";
-import type { PlayerInfo, SimHost } from "./SimHost";
+import type { PlayerInfo, ShopAnswer, SimHost } from "./SimHost";
 import { MAX_CATCHUP_STEPS, type SimStepStats } from "./LocalSimHost";
 import type { NetSession } from "../net/session";
 import { ServerClock } from "../net/serverClock";
@@ -243,6 +243,7 @@ export class NetSimHost implements SimHost {
         this.refusal = reason;
       }),
     );
+    this.offs.push(opts.session.onShopAnswer((a) => this.shopAnswers.push(a)));
     room.onStateChange(this.onState);
     // The start patch (phase "wave", spawn positions) may already have arrived.
     if (room.state?.players && room.state.phase !== "lobby") this.takeSnapshot(room.state);
@@ -329,6 +330,19 @@ export class NetSimHost implements SimHost {
     const r = this.refusal;
     this.refusal = null;
     return r;
+  }
+
+  /** Story 3.3: answers of `shop.buy`, oldest first (a tap sends one at a time: at most a few). */
+  private readonly shopAnswers: ShopAnswer[] = [];
+
+  /** Story 3.3: `shop.buy`; the server decides, answers this client, and the state brings wallet and weapons. */
+  buyWeapon(weapon: string, slot: 0 | 1 | null): void {
+    if (this.disposed) return;
+    this.session.room.send(C2S.SHOP_BUY, slot === null ? { weapon } : { weapon, slot });
+  }
+
+  takeShopAnswer(): ShopAnswer | null {
+    return this.shopAnswers.shift() ?? null;
   }
 
   drainEvents(): readonly SimEvent[] {

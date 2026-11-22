@@ -1,6 +1,7 @@
 import {
   NEUTRAL_INPUT,
   TICK_DT_S,
+  buyWeapon,
   createWorld,
   placeBuilding,
   setBuildReady,
@@ -14,7 +15,7 @@ import {
   type SimEvent,
   type World,
 } from "@topdown/shared";
-import type { PlayerInfo, SimHost } from "./SimHost";
+import type { PlayerInfo, ShopAnswer, SimHost } from "./SimHost";
 
 /** Most steps run in one frame; leftover time is dropped (avoids a catch-up spiral after a hidden tab). */
 export const MAX_CATCHUP_STEPS = 5;
@@ -83,6 +84,20 @@ export class LocalSimHost implements SimHost {
     const r = this.refusal;
     this.refusal = null;
     return r;
+  }
+
+  private shopAnswer: ShopAnswer | null = null;
+
+  /** Story 3.3: the shared rules, at once (between steps, like Ready); the answer waits for `takeShopAnswer`. */
+  buyWeapon(weapon: string, slot: 0 | 1 | null): void {
+    const r = buyWeapon(this.world, LOCAL_PLAYER_ID, weapon, slot);
+    this.shopAnswer = r.ok ? { ok: true, weapon, slot: r.value.slot } : { ok: false, weapon, error: r.error };
+  }
+
+  takeShopAnswer(): ShopAnswer | null {
+    const a = this.shopAnswer;
+    this.shopAnswer = null;
+    return a;
   }
 
   get alpha(): number {

@@ -30,6 +30,8 @@ export {
   devBalanceOverrides,
   loadDevBalance,
   parseDevScale,
+  parseDevWallet,
+  MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
 export type { BuildingTypeStats, GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
@@ -137,6 +139,10 @@ export {
   lobbyReturnSchema,
   buildSetReadySchema,
   buildingPlaceSchema,
+  shopBuySchema,
+  type ShopBuy,
+  type ShopBought,
+  type ShopRefused,
   type BuildSetReady,
   type BuildingPlace,
   type BuildingRefused,
@@ -212,3 +218,17 @@ export {
 } from "./buildings/buildings";
 export { circleHitsBuilding, circleOverlapsBox, pushOutOfBuildings, pushed } from "./buildings/collision";
 export { findFreeSpotNear, spotBlocked } from "./player/freeSpot";
+export {
+  botShopPick,
+  buyWeapon,
+  owns,
+  shopBuildings,
+  shopPrice,
+  shopWeapons,
+  titleCase,
+  weaponName,
+  type Bought,
+  type ShopBuilding,
+  type ShopError,
+  type ShopWeapon,
+} from "./economy/shop";

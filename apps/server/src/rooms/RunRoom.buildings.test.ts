@@ -15,6 +15,7 @@ import {
   type SimEventsFlushed,
 } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
+import { MAX_OTHER_MESSAGES_PER_S } from "../net/limits";
 import { RunRoom, serverBalance } from "./RunRoom";
 
 /** Story 3.4 integration: `building.place` → validated placement, state on every client, refusals to the sender. */
@@ -130,7 +131,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     expect(world(room).buildings.list[0]?.ownerId).toBe("p0");
   });
 
-  it("a burst of 40 placements (> 25/s) places at most the cap, never overspends, and the rest is rate-dropped", async () => {
+  it("a burst of 40 placements (> 25/s, the shared 10/s bucket) places at most the cap, never overspends, and the rest is rate-dropped", async () => {
     const { host, room, hostRec } = await startTwo();
     const me = world(room).players.get("p0");
     if (!me) throw new Error("no p0");
@@ -142,7 +143,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     expect(world(room).buildings.list).toHaveLength(6);
     expect(me.wallet).toBe(10_000 - 6 * 40);
     expect(hostRec.refused.every((r) => r === "limit")).toBe(true);
-    expect(6 + hostRec.refused.length).toBeLessThanOrEqual(26); // the shared bucket (25 + refill) let the rest drop
+    expect(6 + hostRec.refused.length).toBeLessThanOrEqual(MAX_OTHER_MESSAGES_PER_S + 1); // the shared "other" bucket (10, + refill) dropped the rest
     expect(room.state.phase).toBe("build");
   });
 

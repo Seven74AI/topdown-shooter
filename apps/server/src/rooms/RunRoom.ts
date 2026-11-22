@@ -23,12 +23,14 @@ import {
   joinOptionsSchema,
   loadDevBalance,
   parseDevScale,
+  parseDevWallet,
   lobbyReturnSchema,
   lobbySetReadySchema,
   netPongSchema,
   parseWaveMix,
   playerInputSchema,
   runStartSchema,
+  shopBuySchema,
   spectateTarget,
   startBlocker,
   zombieNetId,
@@ -42,6 +44,8 @@ import {
   type PlayerLeft,
   type PlayerLeftReason,
   type RunJoined,
+  type ShopBought,
+  type ShopRefused,
   type SimEvent,
   type SimEventsFlushed,
   type TestScenario,
@@ -64,12 +68,18 @@ import { PlayerState, RunState } from "./schema/RunState";
  * The balance this server runs; clients must send the same `balance.version` (AC 4). Dev/test only
  * (Epic 2 retro A5): `DEV_ZOMBIE_DAMAGE_SCALE=0.1` scales zombie damage for browser checks; a dev
  * client opened with `?zdmg=0.1` builds the same balance (same version), so it can still join.
+ * Story 3.3: `DEV_STARTING_WALLET=2000` (client `?wallet=2000`) sets every starting wallet for shop checks.
  */
-// Never in production (3.1 review): a production server ignores the switch and says so.
-const devZombieDamageScale = process.env.NODE_ENV === "production" ? null : parseDevScale(process.env.DEV_ZOMBIE_DAMAGE_SCALE);
-export const serverBalance = loadDevBalance({ zombieDamageScale: devZombieDamageScale });
-if (devZombieDamageScale !== null) log.warn({ scale: devZombieDamageScale, version: serverBalance.version }, "dev_balance_override");
-else if (process.env.DEV_ZOMBIE_DAMAGE_SCALE) log.warn({ value: process.env.DEV_ZOMBIE_DAMAGE_SCALE }, "dev_balance_override_ignored");
+// Never in production (3.1 review): a production server ignores the dev switches and says so.
+const devAllowed = process.env.NODE_ENV !== "production";
+const devZombieDamageScale = devAllowed ? parseDevScale(process.env.DEV_ZOMBIE_DAMAGE_SCALE) : null;
+const devStartingWallet = devAllowed ? parseDevWallet(process.env.DEV_STARTING_WALLET) : null;
+export const serverBalance = loadDevBalance({ zombieDamageScale: devZombieDamageScale, startingWallet: devStartingWallet });
+if (devZombieDamageScale !== null || devStartingWallet !== null) {
+  log.warn({ scale: devZombieDamageScale, wallet: devStartingWallet, version: serverBalance.version }, "dev_balance_override");
+} else if (process.env.DEV_ZOMBIE_DAMAGE_SCALE || process.env.DEV_STARTING_WALLET) {
+  log.warn({ scale: process.env.DEV_ZOMBIE_DAMAGE_SCALE, wallet: process.env.DEV_STARTING_WALLET }, "dev_balance_override_ignored");
+}
 
 /** HTTP-ish status for every join refusal; the message is the `JoinRefusal` reason. */
 export const JOIN_REFUSED_CODE = 526;
@@ -228,6 +238,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
     this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
     this.onMessage(C2S.BUILDING_PLACE, this.net.guard(buildingPlaceSchema, (c, m) => this.onPlaceBuilding(c, m)));
+    this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.weapon, m.slot ?? null)));
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -363,6 +374,26 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const reason = r ? r.error : "not_build_phase";
     this.log.debug({ playerId: member.playerId, type: m.type, gx: m.gx, gy: m.gy, rot: m.rot, reason }, "building_refused"); // debug: a flood must not flood the log
     client.send(S2C.BUILDING_REFUSED, { reason } satisfies BuildingRefused);
+  }
+
+  /**
+   * `shop.buy` (Story 3.3): the shared `buyWeapon` rules decide (build phase, for sale, not owned,
+   * slot, wallet via `spendMoney`); the sender alone gets `shop.bought` or `shop.refused` with the
+   * `Result` error. Wallet and weapons reach every client through the next patch. Rate: the shared
+   * "other" bucket (10/s); repeats can't overspend or buy a weapon twice (the rules refuse them).
+   */
+  onShopBuy(client: RunClient, weapon: string, slot: 0 | 1 | null): void {
+    const member = this.members.get(client.sessionId);
+    if (!member) return;
+    const controller = this.controller;
+    const r = controller ? controller.buyWeapon(member.playerId, weapon, slot) : ({ ok: false, error: "not_build" } as const);
+    if (r.ok) {
+      client.send(S2C.SHOP_BOUGHT, { weapon, slot: r.value.slot } satisfies ShopBought);
+      this.log.info({ playerId: member.playerId, weapon, slot: r.value.slot, wallet: controller?.world.players.get(member.playerId)?.wallet }, "shop_bought");
+    } else {
+      client.send(S2C.SHOP_REFUSED, { weapon, error: r.error } satisfies ShopRefused);
+      this.log.info({ playerId: member.playerId, weapon, error: r.error }, "shop_refused");
+    }
   }
 
   /**

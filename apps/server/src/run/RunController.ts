@@ -4,6 +4,7 @@ import {
   addPlayer,
   applyTestScenario,
   placeBuilding,
+  buyWeapon,
   createWorld,
   removePlayer,
   setBuildReady,
@@ -17,8 +18,10 @@ import {
   type Building,
   type PlaceError,
   type PlaceRequest,
-  type Result,
+  type Bought,
   type PlayerInput,
+  type Result,
+  type ShopError,
   type SimEvent,
   type Systems,
   type TestScenario,
@@ -195,6 +198,15 @@ export class RunController {
    */
   placeBuilding(playerId: string, req: PlaceRequest): Result<Building, PlaceError> {
     return placeBuilding(this.world, playerId, req);
+  }
+
+  /**
+   * Story 3.3: buys a weapon of the fixed shop for a player (the shared rules: build phase, price,
+   * wallet, slot). Applied at once, between ticks, like Ready; the next `syncState` sends the
+   * wallet and weapons. On an error nothing changed.
+   */
+  buyWeapon(playerId: string, weapon: string, slot: 0 | 1 | null): Result<Bought, ShopError> {
+    return buyWeapon(this.world, playerId, weapon, slot);
   }
 
   /** Queues one input (already validated). Old or duplicate seqs are ignored; a full ring drops its oldest. */

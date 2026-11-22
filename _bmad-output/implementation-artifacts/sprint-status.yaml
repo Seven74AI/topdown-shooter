@@ -42,7 +42,7 @@
 # - Story 9.2-9.10 depend on the hired artist and sound designer.
 
 generated: 2026-11-21T18:20:05
-last_updated: 2026-11-21T19:14:59
+last_updated: 2026-11-22T12:00:00
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -85,8 +85,8 @@ development_status:
   epic-3: in-progress
   3-1-build-phase-between-waves: done
   3-2-personal-wallets-and-rewards: done
-  3-3-fixed-list-shop: backlog
-  3-4-place-a-wood-barricade: ready-for-dev
+  3-3-fixed-list-shop: review
+  3-4-place-a-wood-barricade: review
   3-5-zombies-path-around-and-break-buildings: backlog
   3-6-auto-turret: backlog
   3-7-repair-buildings: backlog

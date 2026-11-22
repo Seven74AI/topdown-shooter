@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TEST_SCENARIOS } from "./testScenarios";
 import type { PlaceError } from "../buildings/buildings";
+import type { ShopError } from "../economy/shop";
 
 /**
  * The client/server net contract (Story 2.1). Later stories extend it, never rename it.
@@ -25,6 +26,8 @@ export const C2S = {
   BUILD_SET_READY: "build.set_ready",
   /** `{ type, gx, gy, rot }` in a build phase (Story 3.4); a refusal comes back as `building.refused`. */
   BUILDING_PLACE: "building.place",
+  /** `{ weapon, slot? }` in a build phase (Story 3.3); answered with `shop.bought` or `shop.refused`. */
+  SHOP_BUY: "shop.buy",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -42,6 +45,10 @@ export const S2C = {
   PLAYER_LEFT: "player.left",
   /** `{ reason: PlaceError }` to the sender of a refused `building.place` (Story 3.4). */
   BUILDING_REFUSED: "building.refused",
+  /** `{ weapon, slot }` to the buyer only (Story 3.3); wallet and weapons follow in the state. */
+  SHOP_BOUGHT: "shop.bought",
+  /** `{ weapon, error: ShopError }` to the buyer only (Story 3.3); nothing changed. */
+  SHOP_REFUSED: "shop.refused",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -131,6 +138,30 @@ export type BuildingPlace = z.infer<typeof buildingPlaceSchema>;
 /** `building.refused` payload (Story 3.4), to the sender only. */
 export interface BuildingRefused {
   reason: PlaceError;
+}
+
+/**
+ * `shop.buy` (Story 3.3): buy a weapon of the fixed shop. `slot` (0 or 1) says which weapon it
+ * replaces when both slots are full; with an empty second slot it is ignored (the weapon goes there).
+ */
+export const shopBuySchema = z
+  .object({
+    weapon: z.string().regex(/^[a-z][a-z0-9_]*$/).max(32),
+    slot: z.union([z.literal(0), z.literal(1)]).optional(),
+  })
+  .strict();
+export type ShopBuy = z.infer<typeof shopBuySchema>;
+
+/** `shop.bought` payload (Story 3.3). */
+export interface ShopBought {
+  weapon: string;
+  slot: 0 | 1;
+}
+
+/** `shop.refused` payload (Story 3.3): the `Result` error of `buyWeapon`. */
+export interface ShopRefused {
+  weapon: string;
+  error: ShopError;
 }
 
 /** `lobby.return` (Story 2.8): `{}`, any member, phase "results" only. */
