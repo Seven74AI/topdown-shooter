@@ -85,7 +85,10 @@ function fakeRoom() {
     state,
     send: vi.fn(),
     leave: vi.fn(async () => 1000),
-    onMessage: (type: string, cb: (m: unknown) => void) => handlers.set(type, cb),
+    onMessage: (type: string, cb: (m: unknown) => void) => {
+      handlers.set(type, cb);
+      return () => handlers.delete(type); // the SDK returns an unsubscribe
+    },
     onLeave: (cb: () => void) => (onLeave = cb),
   };
   return {
@@ -139,16 +142,22 @@ describe("lobbyStore", () => {
     expect(f.raw.send).toHaveBeenCalledWith(C2S.LOBBY_SET_READY, { ready: true });
     expect(f.raw.send).toHaveBeenCalledWith(C2S.RUN_START, {});
 
+    // Tick 1's events can arrive before the start patch: the room's inbox keeps them (2.4 review).
+    f.message(S2C.SIM_EVENTS_FLUSHED, { tick: 1, events: [] });
     f.state.phase = "wave";
     changed();
     await tick();
     expect(onPhase).toHaveBeenCalledExactlyOnceWith("wave");
+    const early: number[] = [];
+    lobbyStore.inbox()?.onEvents((m) => early.push(m.tick));
+    expect(early).toEqual([1]);
 
     lobbyStore.leave();
     expect(unwatch).toHaveBeenCalled();
     expect(f.raw.leave).toHaveBeenCalledWith(true);
     expect(lobbyStore.get().players).toEqual([]);
     expect(lobbyStore.current()).toBeNull();
+    expect(lobbyStore.inbox()).toBeNull();
     off();
   });
 

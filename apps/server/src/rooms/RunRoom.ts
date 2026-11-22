@@ -73,6 +73,8 @@ const PATCH_RATE_MS = 50;
 
 /** RTT probe period (Story 2.4): one `net.pinged` per client per second during a run. */
 export const PING_INTERVAL_MS = 1000;
+/** Pings whose send time is kept: a pong up to 5 s late still counts (Story 2.4 review; 2.7 needs high RTTs). */
+export const PING_HISTORY = 5;
 /** Weight of a new RTT sample in the EWMA. */
 const RTT_EWMA = 0.25;
 /** Tick exceptions in a row before the room gives up and disconnects everyone. */
@@ -114,10 +116,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private eventCtx: NetEventContext | null = null;
   private tickErrors = 0;
   private shuttingDown = false;
-  /** Latest `net.pinged` id, when it was sent, and who has answered it. */
+  /** Latest `net.pinged` id; send times of the last PING_HISTORY ids (slot `id % PING_HISTORY`). */
   private pingId = 0;
-  private pingSentAtMs = 0;
-  private readonly ponged = new Set<string>();
+  private readonly pingSentAtMs = new Float64Array(PING_HISTORY);
+  /** sessionId → highest ping id it answered: each id counts once, and an older id after a newer one is ignored. */
+  private readonly lastPongId = new Map<string, number>();
 
   /** Validates join options before a seat is reserved (runs for create and join). */
   static override async onAuth(_token: string, options: unknown, ctx: AuthContext): Promise<RunAuth> {
@@ -218,7 +221,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.state.players.delete(playerId);
     // Mid-run: out of the World too; zombies retarget next tick. Reconnect is Epic 8, "left" is 2.11.
     this.controller?.removePlayer(playerId);
-    this.ponged.delete(client.sessionId);
+    this.lastPongId.delete(client.sessionId);
     this.log.info({ playerId, code }, "player_left");
     // Epic 8 handles a host leaving mid-run.
     const host = slot === this.state.hostSlot ? nextHost(this.members.values()) : undefined;
@@ -306,8 +309,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Every second: each client gets the same ping id and its own RTT so far. */
   private ping(): void {
     this.pingId++;
-    this.pingSentAtMs = performance.now();
-    this.ponged.clear();
+    this.pingSentAtMs[this.pingId % PING_HISTORY] = performance.now();
     for (const client of this.clients) {
       const member = this.members.get(client.sessionId);
       if (!member) continue;
@@ -315,12 +317,16 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
   }
 
-  /** `net.pong` for the latest ping (older or repeated ones are ignored): EWMA, then the controller. */
+  /**
+   * `net.pong` for one of the last PING_HISTORY pings: EWMA, then the controller. Unknown, too old,
+   * repeated, or older-than-last ids are ignored.
+   */
   onPong(client: RunClient, id: number): void {
     const member = this.members.get(client.sessionId);
-    if (!member || id !== this.pingId || this.ponged.has(client.sessionId)) return;
-    this.ponged.add(client.sessionId);
-    const sample = performance.now() - this.pingSentAtMs;
+    if (!member || id > this.pingId || id <= this.pingId - PING_HISTORY || id < 1) return;
+    if (id <= (this.lastPongId.get(client.sessionId) ?? 0)) return;
+    this.lastPongId.set(client.sessionId, id);
+    const sample = performance.now() - (this.pingSentAtMs[id % PING_HISTORY] as number);
     member.rttMs = member.rttMs === 0 ? sample : member.rttMs + RTT_EWMA * (sample - member.rttMs);
     this.controller?.setRtt(member.playerId, member.rttMs);
   }

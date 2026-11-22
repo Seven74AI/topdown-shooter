@@ -167,6 +167,19 @@ describe("NetSimHost", () => {
     expect(later[0]).toMatchObject({ playerId: "p0", weapon: "pistol", x: 10, y: 5 });
   });
 
+  it("events that came before the host was built (hidden tab at Start) still play", () => {
+    const room = new FakeRoom(fakeState([fakePlayer(1, { x: 20, y: 10 })]));
+    const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
+    room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 1, events: [[NET_EVENT_KIND.WAVE_STARTED, 1, 8]] } satisfies SimEventsFlushed);
+    let now = 0;
+    const host = new NetSimHost({ balance, session, now: () => now });
+    now = 5000;
+    room.state.tick = 100;
+    room.patch();
+    host.update(0);
+    expect(host.drainEvents()).toEqual([{ type: "wave.started", number: 1, size: 8 }]);
+  });
+
   it("answers net.pinged with net.pong at once and keeps the RTT", () => {
     const { host, room } = setup();
     room.deliver(S2C.NET_PINGED, { id: 7, rttMs: 83 });

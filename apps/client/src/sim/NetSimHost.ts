@@ -2,7 +2,6 @@ import {
   C2S,
   NEUTRAL_INPUT,
   NO_SYSTEMS,
-  S2C,
   TICK_DT_S,
   addPlayer,
   createSlot,
@@ -12,7 +11,6 @@ import {
   removePlayer,
   type Balance,
   type NetEventContext,
-  type NetPinged,
   type PlayerInput,
   type PlayerState,
   type PlayerStateView,
@@ -75,8 +73,6 @@ export class NetSimHost implements SimHost {
   /** Positions are written already interpolated: alpha never matters. */
   readonly alpha = 0;
   readonly stats: SimStepStats = { lastUpdateSteps: 0, stepMs: new Float64Array(MAX_CATCHUP_STEPS), totalSteps: 0 };
-  /** Latest RTT the server measured for this client (2.10 overlay). */
-  rttMs = 0;
   /** Sent inputs, oldest first from `historyHead` (Story 2.6 replays `seq > ackSeq`). */
   readonly history: readonly PlayerInput[];
   private readonly historyRing: MutableInput[];
@@ -120,11 +116,16 @@ export class NetSimHost implements SimHost {
     this.historyRing = Array.from({ length: INPUT_HISTORY_SIZE }, () => ({ ...NEUTRAL_INPUT }));
     this.history = this.historyRing;
     const room = opts.session.room;
-    this.offs.push(room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m)));
-    this.offs.push(room.onMessage(S2C.NET_PINGED, (m: NetPinged) => this.receivePing(m)));
+    // Batches that came while the scene was not built yet (hidden tab at Start) arrive first.
+    this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
     room.onStateChange(this.onState);
     // The start patch (phase "wave", spawn positions) may already have arrived.
     if (room.state?.players) this.snapshots.push(room.state);
+  }
+
+  /** Latest RTT the server measured for this client (2.10 overlay); the session answers the pings. */
+  get rttMs(): number {
+    return this.session.rttMs;
   }
 
   /** The (fractional) tick being drawn: server estimate − 100 ms. NaN before the first snapshot. */
@@ -261,12 +262,5 @@ export class NetSimHost implements SimHost {
       const e = decodeNetEvent(t, this.ctx);
       if (e) this.queue.push(m.tick, e);
     }
-  }
-
-  /** Answer at once: the server's RTT is ping → pong. */
-  private receivePing(m: NetPinged): void {
-    if (this.disposed || !m || typeof m.id !== "number") return;
-    this.session.room.send(C2S.NET_PONG, { id: m.id });
-    this.rttMs = m.rttMs;
   }
 }

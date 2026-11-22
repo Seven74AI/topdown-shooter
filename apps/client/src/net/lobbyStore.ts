@@ -9,6 +9,7 @@ import {
 } from "@topdown/shared";
 import type { RunConnection } from "./connection";
 import { lostReason, type LostReason } from "./serverNotice";
+import { RunInbox } from "./session";
 
 export interface LobbyPlayer {
   readonly playerId: string;
@@ -84,6 +85,8 @@ type Listener = (s: LobbySnapshot) => void;
 class LobbyStore {
   private room: RunConnection | null = null;
   private joined: RunJoined | null = null;
+  /** Fight messages of the current room, buffered from the join on (Story 2.4 review). */
+  private runInbox: RunInbox | null = null;
   private snapshot: LobbySnapshot = EMPTY;
   private unwatch: (() => void) | null = null;
   private readonly listeners = new Set<Listener>();
@@ -95,6 +98,11 @@ class LobbyStore {
   /** `run.joined` of the current room (Story 2.4's `NetSession` takes it from here). */
   joinedInfo(): RunJoined | null {
     return this.joined;
+  }
+
+  /** The current room's `RunInbox` (the `NetSession` takes it at the start). */
+  inbox(): RunInbox | null {
+    return this.runInbox;
   }
 
   /** The current room, if any. */
@@ -112,6 +120,7 @@ class LobbyStore {
     this.detach();
     this.room = room;
     this.joined = null;
+    this.runInbox = new RunInbox(room);
     let phase: RunPhase = "lobby";
     let queued = false;
     const update = (): void => {
@@ -176,6 +185,8 @@ class LobbyStore {
     this.unwatch = null;
     this.room = null;
     this.joined = null;
+    this.runInbox?.close();
+    this.runInbox = null;
   }
 
   private set(s: LobbySnapshot): void {

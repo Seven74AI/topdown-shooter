@@ -14,7 +14,7 @@ import {
   type PlayerInput,
   type SimEvent,
 } from "@topdown/shared";
-import { INPUT_QUEUE_MAX, RunController } from "./RunController";
+import { INPUT_DRAIN_AFTER_TICKS, INPUT_QUEUE_MAX, INPUT_QUEUE_TARGET, RunController } from "./RunController";
 
 const balance = loadBalance();
 const SEED = 1234;
@@ -110,6 +110,83 @@ describe("RunController", () => {
     expect(c.drops("p0").overflow).toBe(2);
     c.tick();
     expect(c.ackSeq("p0")).toBe(3);
+  });
+
+  it("an overflow keeps the dropped input's swap and consumable flags", () => {
+    const c = newController();
+    c.queueInput("p0", input(1, { swap: true }));
+    c.queueInput("p0", input(2, { consumable: true }));
+    for (let seq = 3; seq <= INPUT_QUEUE_MAX + 2; seq++) c.queueInput("p0", input(seq));
+    expect(c.drops("p0").overflow).toBe(2);
+    c.tick();
+    expect(c.ackSeq("p0")).toBe(3);
+    expect(c.world.inputs.get("p0")).toMatchObject({ seq: 3, swap: true, consumable: true });
+  });
+
+  it("drains a backlog after a 300 ms stall back to the target within 2 s", () => {
+    const c = newController();
+    let seq = 0;
+    const send = () => c.queueInput("p0", input(++seq, { moveX: 1 }));
+    for (let i = 0; i < 20; i++) {
+      send();
+      c.tick();
+    }
+    expect(c.queued("p0")).toBe(0);
+    // Stall: 6 ticks with nothing arriving, then the 6 held inputs land at once.
+    for (let i = 0; i < 6; i++) c.tick();
+    for (let i = 0; i < 6; i++) send();
+    let settledAt = -1;
+    for (let t = 0; t < 40; t++) {
+      send();
+      c.tick();
+      if (settledAt < 0 && c.queued("p0") <= INPUT_QUEUE_TARGET) settledAt = t;
+    }
+    expect(settledAt).toBeGreaterThanOrEqual(0);
+    expect(settledAt).toBeLessThan(40);
+    expect(c.queued("p0")).toBeLessThanOrEqual(INPUT_QUEUE_TARGET);
+    expect(c.drops("p0")).toEqual({ overflow: 1, stale: 0, drained: 4 });
+    // The lag is gone: the newest input is at most TARGET ticks from being applied.
+    expect(seq - c.ackSeq("p0")).toBeLessThanOrEqual(INPUT_QUEUE_TARGET);
+  });
+
+  it("a drained input's swap still happens", () => {
+    const c = newController();
+    const p = c.world.players.get("p0");
+    if (!p) throw new Error("no p0");
+    setLoadout(balance, p.loadout, ["pistol", "smg"]);
+    // A backlog of 5, kept there by one new input per tick. Tick t applies seq t until the
+    // drain starts on tick INPUT_DRAIN_AFTER_TICKS: it skips that seq, which carries the swap.
+    const skipped = INPUT_DRAIN_AFTER_TICKS;
+    let seq = 0;
+    const send = () => {
+      seq++;
+      c.queueInput("p0", input(seq, { swap: seq === skipped }));
+    };
+    for (let i = 0; i < 5; i++) send();
+    const swaps: SimEvent["type"][] = [];
+    const acked: number[] = [];
+    for (let i = 0; i < INPUT_DRAIN_AFTER_TICKS + 30; i++) {
+      send();
+      for (const e of c.tick()) if (e.type === "weapon.swap_started") swaps.push(e.type);
+      acked.push(c.ackSeq("p0"));
+    }
+    expect(acked).not.toContain(skipped);
+    expect(c.drops("p0").drained).toBeGreaterThan(0);
+    expect(swaps).toEqual(["weapon.swap_started"]);
+    expect(p.loadout.active).toBe(1);
+  });
+
+  it("normal jitter (inputs arriving in pairs) never triggers a drain", () => {
+    const c = newController();
+    let seq = 0;
+    for (let i = 0; i < 200; i++) {
+      if (i % 2 === 0) {
+        c.queueInput("p0", input(++seq));
+        c.queueInput("p0", input(++seq));
+      }
+      c.tick();
+    }
+    expect(c.drops("p0")).toEqual({ overflow: 0, stale: 0, drained: 0 });
   });
 
   it("a swap followed by 3 starved ticks swaps once", () => {

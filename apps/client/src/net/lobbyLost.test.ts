@@ -13,6 +13,7 @@ function fakeRoom() {
     onStateChange: () => {},
     onMessage: (type: string, cb: (payload: unknown) => void) => {
       handlers[type] = cb;
+      return () => delete handlers[type]; // the SDK returns an unsubscribe
     },
     onLeave: (cb: (code: number) => void) => {
       leave = cb;

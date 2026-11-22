@@ -82,8 +82,9 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
       onPhase: (phase) => {
         // The host started: the Game scene runs the fight online (Story 2.4). `run.joined` came long before.
         const joined = lobbyStore.joinedInfo();
-        if (phase === "wave" && joined && lobbyStore.current() === room) {
-          uiStore.request("startOnline", new NetSession(room, joined, leaveRoom));
+        const inbox = lobbyStore.inbox();
+        if (phase === "wave" && joined && inbox && lobbyStore.current() === room) {
+          uiStore.request("startOnline", new NetSession(room, joined, leaveRoom, inbox));
         }
       },
     });

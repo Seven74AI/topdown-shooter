@@ -15,7 +15,7 @@ import {
   type SimEventsFlushed,
 } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
-import { MAX_TICK_ERRORS_IN_A_ROW, RunRoom, TICK_ERROR_MESSAGE, serverBalance } from "./RunRoom";
+import { MAX_TICK_ERRORS_IN_A_ROW, PING_HISTORY, RunRoom, TICK_ERROR_MESSAGE, serverBalance, type RunClient } from "./RunRoom";
 
 /** Story 2.4 integration: the server runs the fight. */
 let colyseus: ColyseusTestServer;
@@ -129,6 +129,27 @@ describe("RunRoom fight (Story 2.4)", () => {
     const member = [...room.members.values()].find((m) => m.playerId === "p0");
     expect(member?.rttMs).toBe(room.controller?.rttMs("p0"));
     expect(member?.rttMs).toBeLessThan(200);
+  });
+
+  it("counts a pong up to PING_HISTORY pings late, once, and never an older one after a newer one", async () => {
+    const { room } = await startTwo();
+    const controller = room.controller;
+    if (!controller) throw new Error("no controller");
+    const setRtt = vi.spyOn(controller, "setRtt");
+    const internals = room as unknown as { ping(): void; pingId: number };
+    for (let i = 0; i < PING_HISTORY; i++) internals.ping();
+    const latest = internals.pingId;
+    const p0 = room.clients.find((c) => room.members.get(c.sessionId)?.playerId === "p0") as RunClient;
+    room.onPong(p0, latest + 1); // never sent
+    room.onPong(p0, latest - PING_HISTORY); // fell out of the window
+    expect(setRtt).not.toHaveBeenCalled();
+    room.onPong(p0, latest - PING_HISTORY + 1); // the oldest kept: ~4 s late in real play
+    expect(setRtt).toHaveBeenCalledTimes(1);
+    room.onPong(p0, latest - PING_HISTORY + 1); // repeat
+    room.onPong(p0, latest - PING_HISTORY); // older than the one answered
+    expect(setRtt).toHaveBeenCalledTimes(1);
+    room.onPong(p0, latest);
+    expect(setRtt).toHaveBeenCalledTimes(2);
   });
 
   it("removes a player who leaves mid-run from the World and the state", async () => {

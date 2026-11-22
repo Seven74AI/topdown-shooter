@@ -16,6 +16,12 @@ import {
 
 /** Inputs kept per player: 6 steps = 300 ms of jitter (Story 2.4 › Input queue). */
 export const INPUT_QUEUE_MAX = 6;
+/** Backlog the queue should settle at: 2 inputs = 100 ms of jitter cover (Story 2.4 review). */
+export const INPUT_QUEUE_TARGET = 2;
+/** Ticks in a row above the target before the server starts skipping (10 = 0.5 s; one burst isn't a backlog). */
+export const INPUT_DRAIN_AFTER_TICKS = 10;
+/** While draining, skip one input every this many ticks (2 → a 6-input backlog is gone in ~0.9 s). */
+export const INPUT_DRAIN_EVERY_TICKS = 2;
 
 type MutableInput = { -readonly [K in keyof PlayerInput]: PlayerInput[K] };
 
@@ -48,7 +54,25 @@ class PlayerSlot {
   overflowDrops = 0;
   /** Inputs ignored because their seq was not newer. */
   staleDrops = 0;
+  /** Inputs skipped to drain a lasting backlog (their edge flags carried forward). */
+  drainSkips = 0;
+  /** Ticks in a row that started with more than INPUT_QUEUE_TARGET inputs queued. */
+  overTargetTicks = 0;
 }
+
+/**
+ * Drops the oldest queued input but keeps its one-shot flags: a swap or consumable press must
+ * never be lost (Epic 1 lesson), so they are OR-ed into the input that is now oldest.
+ */
+const dropOldest = (s: PlayerSlot): void => {
+  const dropped = s.ring[s.head] as MutableInput;
+  s.head = (s.head + 1) % INPUT_QUEUE_MAX;
+  s.count--;
+  if (s.count === 0) return;
+  const next = s.ring[s.head] as MutableInput;
+  next.swap = next.swap || dropped.swap;
+  next.consumable = next.consumable || dropped.consumable;
+};
 
 export interface RunControllerOptions {
   balance: Balance;
@@ -69,6 +93,13 @@ export interface RunControllerOptions {
  * Input rule: each tick a player with queued input applies the oldest one (`ackSeq` = its seq);
  * a starved player holds still with the same seq, keeping aim and fire. So the server's movement
  * for acked inputs equals the client's prediction exactly (Story 2.6).
+ *
+ * Backlog drain: after a stall the client's burst sits in the queue as permanent lag, since the
+ * client sends one input per tick and the server applies one. When a player's queue starts more
+ * than INPUT_QUEUE_TARGET deep for INPUT_DRAIN_AFTER_TICKS ticks in a row, the oldest input is
+ * skipped every INPUT_DRAIN_EVERY_TICKS ticks until it is back at the target. A skipped input's
+ * movement is never applied (`ackSeq` jumps past it; Story 2.6 reconciles from the server state);
+ * its swap/consumable flags are carried into the next input. `drops().drained` counts skips.
  */
 export class RunController {
   readonly world: World;
@@ -99,9 +130,9 @@ export class RunController {
       s.staleDrops++;
       return;
     }
-    if (s.count === INPUT_QUEUE_MAX) {
-      s.head = (s.head + 1) % INPUT_QUEUE_MAX;
-      s.count--;
+    const full = s.count === INPUT_QUEUE_MAX;
+    if (full) {
+      dropOldest(s);
       s.overflowDrops++;
     }
     copyInput(s.ring[(s.head + s.count) % INPUT_QUEUE_MAX] as MutableInput, input);
@@ -129,10 +160,10 @@ export class RunController {
     return this.slots.get(playerId)?.count ?? 0;
   }
 
-  /** Dropped inputs so far: `overflow` (ring full) and `stale` (seq not newer). */
-  drops(playerId: string): { overflow: number; stale: number } {
+  /** Dropped inputs so far: `overflow` (ring full), `stale` (seq not newer), `drained` (backlog skips). */
+  drops(playerId: string): { overflow: number; stale: number; drained: number } {
     const s = this.slots.get(playerId);
-    return { overflow: s?.overflowDrops ?? 0, stale: s?.staleDrops ?? 0 };
+    return { overflow: s?.overflowDrops ?? 0, stale: s?.staleDrops ?? 0, drained: s?.drainSkips ?? 0 };
   }
 
   /** Removes a player who left mid-run; zombies pick the next-nearest player on the next tick. */
@@ -149,6 +180,16 @@ export class RunController {
     for (let i = 0; i < this.order.length; i++) {
       const s = this.order[i] as PlayerSlot;
       const cur = s.current;
+      if (s.count > INPUT_QUEUE_TARGET) {
+        s.overTargetTicks++;
+        if (s.overTargetTicks >= INPUT_DRAIN_AFTER_TICKS) {
+          dropOldest(s);
+          s.drainSkips++;
+          s.overTargetTicks = INPUT_DRAIN_AFTER_TICKS - INPUT_DRAIN_EVERY_TICKS;
+        }
+      } else {
+        s.overTargetTicks = 0;
+      }
       if (s.count > 0) {
         copyInput(cur, s.ring[s.head] as MutableInput);
         s.head = (s.head + 1) % INPUT_QUEUE_MAX;
