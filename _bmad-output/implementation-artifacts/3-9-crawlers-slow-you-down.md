@@ -1,6 +1,6 @@
 # Story 3.9: Crawlers slow you down
 
-Status: review
+Status: done
 
 ## Story
 
@@ -154,7 +154,17 @@ claude-opus-5-5 (builder agent, worktree `story-3-9`)
 - `tools/netsim/predictionCircle.test.ts` (modified)
 - `_bmad-output/implementation-artifacts/3-9-crawlers-slow-you-down.md` (new), `sprint-status.yaml` (modified)
 
+## Senior Developer Review (AI)
+
+- **Date:** 2026-11-22 · **Reviewer:** independent review agent (fresh context; full suite, touched tests 5×, 17 mutations of which 15 were caught, solo and online browser checks under `?lag=150&jitter=20`). **Outcome:** no high findings; one medium, fixed. The 3.2 merge confirmed correct.
+- [x] [Med] A starved server tick still counted the slow down, so a stall near a slow's end gave a 0.07–0.14 m correction per snapshot (AC 3 says no corrections while slowed). Fix, as the 2.7 weapon timing: `movePlayers` doesn't count the slow on a starved tick (`weaponsPaused`), and RunController counts it once per skipped input. Netsim test: a stall across a slow's end adds no corrections beyond those of the bites and the stall alone (fails without the fix: 11 vs ≤ 9).
+- [x] [Low] The NetSimHost → Predictor slow wiring was untested (defaults hid it): test that a streamed slow makes my predicted step 70 % (fails if the wiring is removed).
+- [x] [Low] The determinism test never had a bite: Crawlers now start next to the player and the test asserts slowed ticks happened.
+- Noted: the schema accepts `biteSlowPct > 0` with `biteSlowS: 0` (no slow, no error); the drawn Crawler is 2.8 × 1.4 radii (collision stays the 0.35 m circle, a recorded decision); with > 40 Crawlers the trails get shorter than 5 s (fine for 3.10).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (slow counts applied seqs, wiring and determinism tests). Story done.
 
 - 2026-11-22: Story created from the real code (Epic 2 complete).
 - 2026-11-22: Story 3.9 implemented: Crawler type (8 HP, 0.7 m/s, 12 dmg, reward 3), bite slow 30 % / 20 ticks (refresh, no stack) in player state + schema + predictor, long low silhouette beneath Walkers, pooled 5 s blood trail, slowed tint, dev wave mix (`?wavemix`, `DEV_WAVE_MIX`). 739 tests passing. Status → review.

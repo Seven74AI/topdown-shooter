@@ -19,7 +19,10 @@ export const movePlayers: SystemFn = (world, dtS) => {
     p.prevX = p.x;
     p.prevY = p.y;
     const speed = playerSpeed(baseSpeed, p);
-    tickSlow(p);
+    // A starved server tick (no input arrived: `weaponsPaused`, Story 2.7) doesn't count the slow
+    // down either: like the weapon, it counts applied seqs, as the client's prediction does (3.9
+    // review). Skipped inputs count it in RunController. Solo and prediction never pause.
+    if (!p.weaponsPaused) tickSlow(p);
     if (p.status !== "alive") continue;
     const input = world.inputs.get(p.id);
     if (!input) continue;

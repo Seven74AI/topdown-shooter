@@ -275,6 +275,18 @@ describe("netsim: Crawler bites while walking (Story 3.9 AC 3)", () => {
     }
   });
 
+  it("a stall across a slow's end adds no correction of its own (starved ticks don't count the slow; 3.9 review)", () => {
+    // Bites at 1.5 s, 3 s, 4.5 s …: the 4.5 s slow ends at 5.5 s. The stall straddles that end.
+    const base = { seconds: 12, oneWayMs: 75, jitterHalfMs: 0, seed: 23, stopAtMs: 10_000 } as const;
+    const stall = { fromMs: 5350, toMs: 5550 };
+    const both = simulate({ ...base, biteEveryMs: 1500, stall });
+    const bitesOnly = simulate({ ...base, biteEveryMs: 1500 });
+    const stallOnly = simulate({ ...base, stall });
+    report("bites + stall across a slow's end", both);
+    expect(both.snaps).toBe(0);
+    expect(both.visibleErrors).toBeLessThanOrEqual(bitesOnly.visibleErrors + stallOnly.visibleErrors);
+  });
+
   it("control: a client that ignores the streamed slow corrects on almost every snapshot while slowed", () => {
     const r = simulate({ seconds: 30, oneWayMs: 75, jitterHalfMs: 10, seed: 21, biteEveryMs: 1500, ignoreSlow: true });
     report("bites every 1500 ms, slow ignored", r);

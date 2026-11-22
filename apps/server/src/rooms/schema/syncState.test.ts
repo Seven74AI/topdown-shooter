@@ -122,11 +122,20 @@ describe("syncState", () => {
     const p0 = controller.world.players.get("p0");
     if (!p0) throw new Error("no p0");
     slowPlayer(p0, 30, 20);
-    controller.tick(); // one movement tick slowed
+    let seq = 0;
+    // The slow counts applied seqs (3.9 review: a starved tick doesn't count it): send one per tick.
+    const tick = () => {
+      controller.queueInput("p0", { ...NEUTRAL_INPUT, seq: ++seq });
+      controller.tick();
+    };
+    tick(); // one movement tick slowed
     syncState(state, controller);
     expect(state.players.get("p0")?.slowTicks).toBe(19);
     expect(state.players.get("p0")?.slowPct).toBe(30);
-    for (let i = 0; i < 19; i++) controller.tick();
+    controller.tick(); // starved: the slow waits for the next seq
+    syncState(state, controller);
+    expect(state.players.get("p0")?.slowTicks).toBe(19);
+    for (let i = 0; i < 19; i++) tick();
     syncState(state, controller);
     expect(state.players.get("p0")?.slowTicks).toBe(0);
     expect(state.players.get("p0")?.slowPct).toBe(0);

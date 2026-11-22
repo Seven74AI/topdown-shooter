@@ -299,6 +299,15 @@ describe("NetSimHost", () => {
       expect(host.world.players.get("p0")?.x).toBe(10);
     });
 
+    it("the streamed Crawler slow reaches my prediction (3.9 review: the wiring was untested)", () => {
+      const { host, arrive, setNow } = setup();
+      setNow(1000);
+      arrive(1, (st) => Object.assign(st.players.get("p1") ?? {}, { slowTicks: 10, slowPct: 30 }));
+      host.setLocalInput({ ...NEUTRAL_INPUT, moveX: 1 });
+      host.update(0.05); // one predicted step, slowed
+      expect(host.predictor.x).toBeCloseTo(20 + (STEP_M * 70) / 100, 6);
+    });
+
     it("an exact server ack causes no correction; a skipped input is smoothed", () => {
       const { host, arrive, setNow } = setup();
       setNow(1000);

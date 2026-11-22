@@ -185,13 +185,16 @@ describe("dev wave mix (Story 3.9, until 3.10)", () => {
   });
 
   it("is deterministic: the same seed with Crawlers gives identical snapshots (slow included)", () => {
+    let slowedTicks = 0;
     const sim = () => {
       const world = createWorld({ balance, seed: 42 });
       world.debug.waveMix = parseWaveMix("crawler,walker,crawler", balance);
       addPlayer(world, "p0", 24, 16).hp = 1e9;
+      for (let k = 0; k < 6; k++) spawnZombie(world, "crawler", 24.6 + k * 0.1, 16, true); // bites guaranteed
       for (let i = 0; i < 600; i++) {
         setInput(world, "p0", { ...NEUTRAL_INPUT, seq: i + 1, moveX: i % 80 < 40 ? 0.3 : -0.3 });
         step(world, TICK_DT_S);
+        if ((world.players.get("p0")?.slowTicksLeft ?? 0) > 0) slowedTicks++;
       }
       return world;
     };
@@ -199,5 +202,6 @@ describe("dev wave mix (Story 3.9, until 3.10)", () => {
     const b = sim();
     expect(snapshotWorld(a)).toEqual(snapshotWorld(b));
     expect(snapshotWorld(a).players[0]?.[1]).toHaveProperty("slowTicksLeft");
+    expect(slowedTicks).toBeGreaterThan(0); // the run really had bites (review: it never did)
   });
 });

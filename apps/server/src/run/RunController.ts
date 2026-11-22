@@ -7,6 +7,7 @@ import {
   removePlayer,
   setInput,
   skippedInputWeaponTick,
+  tickSlow,
   step,
   teamSpawnPoint,
   type Balance,
@@ -253,7 +254,11 @@ export class RunController {
         s.overTargetTicks = 0;
       }
       // Skipped inputs (overflow, drain): their weapon tick, a dry one (Story 2.7 review).
-      for (let k = 0; k < s.skippedCount; k++) skippedInputWeaponTick(this.world, s.playerId, s.skipped[k] as MutableInput);
+      const sp = s.skippedCount > 0 ? this.world.players.get(s.playerId) : undefined;
+      for (let k = 0; k < s.skippedCount; k++) {
+        skippedInputWeaponTick(this.world, s.playerId, s.skipped[k] as MutableInput);
+        if (sp) tickSlow(sp); // the skipped seq's slow tick, as the client predicted it (3.9 review)
+      }
       s.skippedCount = 0;
       const p = this.world.players.get(s.playerId);
       if (p) p.weaponsPaused = s.count === 0; // starved: the weapon waits for the next seq too
