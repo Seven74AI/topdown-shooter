@@ -34,7 +34,7 @@ export {
   MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
-export type { BuildingTypeStats, GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
+export type { BuildingTypeStats, TurretStats, GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, type WorldSnapshot } from "./core/worldSnapshot";
@@ -232,6 +232,8 @@ export {
   pushed,
   type PushResult,
 } from "./buildings/collision";
+// Story 3.6: auto-turrets.
+export { buildingCentreX, buildingCentreY, nearestZombieInRange, turretStats, updateTurrets } from "./buildings/turret";
 // Story 3.7: repairs.
 export { REPAIR_ERRORS, buildingAtPoint, isDamaged, repairBuilding, repairCost, repairError, type RepairError, type Repaired } from "./buildings/repair";
 export { findFreeSpotNear, spotBlocked } from "./player/freeSpot";

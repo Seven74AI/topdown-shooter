@@ -9,6 +9,22 @@
       "widthM": 2,
       "depthM": 0.5,
       "hp": 200
+    },
+    "auto_turret": {
+      "name": "Auto-turret",
+      "price": 250,
+      "widthM": 1,
+      "depthM": 1,
+      "hp": 300,
+      "turret": {
+        "rangeM": 8,
+        "rateHz": 5,
+        "damage": 3,
+        "projectileSpeedMps": 40,
+        "projectileRangeM": 9,
+        "muzzleM": 0.5,
+        "hitPushbackM": 0.05
+      }
     }
   }
 }

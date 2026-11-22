@@ -43,6 +43,14 @@ export interface Building {
   readonly minY: number;
   readonly maxX: number;
   readonly maxY: number;
+  /**
+   * Story 3.6 (turrets; 0 / (1, 0) on other types): the fire cooldown in seconds (the shared rule in
+   * `combat/cooldown.ts`) and the unit aim of the last shot. The server's World writes the aim on
+   * every shot; the client mirror writes it from `turret.fired` (never synced per tick).
+   */
+  fireCooldownS: number;
+  aimX: number;
+  aimY: number;
 }
 
 export interface BuildingState {
@@ -224,6 +232,9 @@ export function addBuildingAt(world: World, spec: BuildingSpec): Building | null
     minY: box.minY,
     maxX: box.maxX,
     maxY: box.maxY,
+    fireCooldownS: 0,
+    aimX: 1,
+    aimY: 0,
   };
   const s = world.buildings;
   let i = s.list.length;

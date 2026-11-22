@@ -808,7 +808,8 @@ export class GameScene extends Phaser.Scene {
       this.fxView?.handle(e);
       if (e.type === "team.wiped" && !host.online && !this.gameOver) {
         this.showSoloResults(e.wave);
-      } else if (e.type === "zombie.killed" && e.killerId === localId) {
+      } else if (e.type === "zombie.killed" && e.killerId === localId && e.buildingId === undefined) {
+        // Story 3.6: my turret's kills pay me (money.earned) but are not my kills.
         this.kills++;
       } else if (e.type === "money.earned" && e.playerId === localId) {
         this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame

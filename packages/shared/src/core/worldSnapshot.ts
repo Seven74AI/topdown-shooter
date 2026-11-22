@@ -48,6 +48,8 @@ function snapshotProjectiles(world: World) {
     advanceM: p.advanceM[id],
     pierceLeft: p.pierceLeft[id],
     weapon: p.weapon[id],
+    building: p.building[id], // Story 3.6
+    pushbackM: p.pushbackM[id],
     owner: p.owner[id],
     hits: Array.from(p.hitIds.subarray(id * MAX_PIERCE, id * MAX_PIERCE + (p.hitCount[id] ?? 0))),
   }));
@@ -95,7 +97,8 @@ export function snapshotWorld(world: World) {
     debug: { ...world.debug },
     teamWiped: world.teamWiped,
     economy: snapshotEconomy(world),
-    // Story 3.4: buildings in id order (plain copies) and the counters.
+    // Story 3.4: buildings in id order (plain copies) and the counters. Story 3.6: the copies
+    // include each turret's fire cooldown and aim.
     buildings: {
       list: world.buildings.list.map((b) => ({ ...b })),
       nextId: world.buildings.nextId,
