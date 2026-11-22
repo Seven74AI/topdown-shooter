@@ -20,11 +20,19 @@ describe("ShriekCues (Story 3.8, FR84)", () => {
     expect(c.check(2, 1, 30, 10, VIEW, 1)).toBe(1);
   });
 
-  it("rate-limited: Runners entering within the quiet time stay quiet (no stacked shrieks)", () => {
+  it("rate-limited per screen side: Runners entering within the quiet time cue once it is over (review L7)", () => {
     const c = new ShriekCues(8);
-    expect(c.check(1, 0, 20, 10, VIEW, 1)).toBe(0);
-    expect(c.check(2, 0, 20, 10, VIEW, 1 + SHRIEK_MIN_INTERVAL_S / 2)).toBeNaN();
-    expect(c.check(2, 0, 20, 10, VIEW, 5)).toBeNaN(); // it was marked: never shrieks late
-    expect(c.check(3, 0, 20, 10, VIEW, 1 + SHRIEK_MIN_INTERVAL_S)).toBe(0);
+    expect(c.check(1, 0, 25, 10, VIEW, 1)).toBeCloseTo(0.5, 5); // right
+    expect(c.check(2, 0, 26, 10, VIEW, 1 + SHRIEK_MIN_INTERVAL_S / 2)).toBeNaN(); // right, in the window: not yet
+    expect(c.check(2, 0, 26, 10, VIEW, 1 + SHRIEK_MIN_INTERVAL_S)).toBeCloseTo(0.6, 5); // later: it cues
+    expect(c.check(2, 0, 26, 10, VIEW, 5)).toBeNaN(); // once
+  });
+
+  it("ten from the right don't silence one from the left", () => {
+    const c = new ShriekCues(16);
+    let cued = 0;
+    for (let i = 0; i < 10; i++) if (!Number.isNaN(c.check(i, 0, 28, 10, VIEW, 1 + i * 0.01))) cued++;
+    expect(cued).toBe(1);
+    expect(c.check(12, 0, 12, 10, VIEW, 1.05)).toBeCloseTo(-0.8, 5); // left side has its own window
   });
 });

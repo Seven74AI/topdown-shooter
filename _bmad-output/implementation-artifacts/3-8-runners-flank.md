@@ -1,6 +1,6 @@
 # Story 3.8: Runners flank
 
-Status: review
+Status: done
 
 ## Story
 
@@ -27,7 +27,7 @@ so that we have to watch our sides.
 - [x] **T1 Balance** (AC 1, 2, 3, 4)
   - [x] `zombies.json › types.runner { hp 6, speedMps 4.0, damage 8, attackIntervalS 1.0, radiusM 0.35, reward 3, flanks: true }`.
   - [x] `zombieTypeSchema.flanks: z.boolean().default(false)` (Walkers/Crawlers keep their JSON).
-  - [x] New block `zombies.flank { coneHalfAngleDeg 45, coneRadiusM 10, penaltyM 1.0, directWithinM 1.5 }` + `flankSchema` (strict).
+  - [x] New block `zombies.flank { coneHalfAngleDeg 45, coneRadiusM 10, coneApexBackM 0.5, penaltyM 1.0, directWithinM 1.0, maxFlankS 2.5, closingSpeedFrac 0.5 }` (the last two from the review, H1) + `flankSchema` (strict).
 - [x] **T2 Type**: append `"runner"` to `ZOMBIE_TYPES` (index 2, after `"crawler"`). No horde format change.
 - [x] **T3 Flank field (shared, `zombies/flowField.ts`)** (AC 2, 3)
   - [x] `PathingState.flank = createFlowField(nav, fillFlankPenalty)` and `flankActive` (mutable flag); module-level `fillFlankPenalty` (no closure, no allocation): zero the layer, then for each alive player mark the cone cells in its bounding box.
@@ -55,6 +55,7 @@ so that we have to watch our sides.
 - **D5 Open ground vs 3.5's D3** (Walkers walk straight when the line is clear): Runners must flank in the open, so the clear-line rule becomes "clear line **and** outside the target's angular front cone" for them (an infinite cone: a Runner 20 m straight ahead still swings wide). Walking straight from outside the cone keeps the Runner on its side; near the player the offset apex widens the cone, so it is pushed further round until it is within `directWithinM`.
 - **D6 Shriek trigger:** on the client, when a Runner **first enters my camera view** (once per zombie generation; a Runner leaving the horde margin and coming back is the same generation and stays quiet), at most one shriek per 0.3 s (a wave of Runners doesn't stack shrieks), panned by its screen x (FR84: the cue tells you which side). It works the same solo and online, needs no event or bytes, and a teammate's Runner far away doesn't shriek on my phone. Uses the existing `playSfx` placeholder synth (Story 9.10 swaps the recording by name).
 - **D7 No wire change:** the behaviour is server-side; the client needs the type only (horde type nibble index 2). No `FLANK` state in `ZOMBIE_STATE` (no client use).
+- **D9 (review H1, decided by the main session) Flanking is a time-limited commitment:** a per-zombie flank timer in ticks (`flank.maxFlankS` = 2.5 s). It counts the ticks a Runner, while eligible to flank (not rushing, farther than `directWithinM`), gets closer to its target by less than `closingSpeedFrac` (0.5) × its speed per tick: circling the cone's rim, or held up. When it runs out the Runner goes straight in (Walker rule, like RUSH) until it bites (reset) or dies (a new generation starts over). Counting "not closing in" rather than "following the field" keeps the detour round the cone free (that path closes at ≥ 0.75 × speed), so the flank-vs-Walker numbers are unchanged. Stored in `pathing.progress` (`flankTicks`, `flankLastD`, `flankGen`; in `snapshotPathing`).
 - **D8 Look:** thin and leaning (GDD readability: "Runner thin and leaning"): narrow shoulders, head pushed forward past the shoulders, arms swept back, one leg stretched behind; pale ochre-grey skin and a dark-red shirt so it pops among the green-grey Walkers; drawn at 2.8 × 1.6 radii, depth 5.5 (above Walkers: readable in a crowd). Collision radius 0.35 m like every zombie (crowd packing and the 0.5 m lattice slot rule unchanged); thinness is visual only.
 
 ### Current state (read before changing)
@@ -157,7 +158,22 @@ claude-opus-5-5 (builder agent, worktree `story-3-8`)
 - Modified (tools): `tools/netsim/hitsSim.ts`, `tools/netsim/hits.test.ts`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
+## Senior Developer Review (AI)
+
+Review by a fresh agent at 4c524bf; fixes on branch `story-3-8b` (from `claude/epic-2-continue` d5d58d2, with the 3.5 review fixes: pinches, stuck safety net, `PERF_ASSERT`).
+
+- [x] **H1 (High): a Runner the player keeps aiming at never attacked** (it circled just outside the 10 m cone rim and the pistol's 9 m range). Fix (main session's decision, D9): per-zombie flank timer, new balance keys `zombies.flank.maxFlankS` (2.5 s) and `closingSpeedFrac` (0.5); after 2.5 s of not closing in, the Runner goes straight in until it bites or dies (`zombieAi.ts` `flankTimeSpent` / `resetFlankTime`; state in `pathing.progress`, hashed in `snapshotPathing`). Tests: an aim tracking the Runner every tick from 20 m → **contact after 7.25 s** (bound maxFlankS + travel 5 s + 1 s = 8.5 s; min distance 0.75 m); the bite resets the timer and a new zombie in the slot starts over. Flank-vs-Walker re-measured, **unchanged**: one player one at a time Runners 12/12 (mean 58°) vs Walkers 0/12 (26°); crowd of 12 Runners 6/6 (70°) vs 1/6 (40°); two-player line 12/12 (60°) vs 0/12 (14°). Browser (solo, the mouse moved onto the Runner ~20×/s, `/tmp/s38b/track-*.png`): it held at 10.2–10.9 m while the timer counted to 50 ticks, then came straight in: **contact 6.65 s** of game time after being placed 18 m in front; no page errors. Mutation (timer disabled) fails both H1 tests.
+- [x] **M2: restart and age gate untested.** The restart test now asserts `flank.buildSourceTick ≥ comeback` on the first odd tick after the comeback (an unfinished rebuild was left before the pause); new gate test: the old front is older than 4P when a Runner returns straight ahead in the aim — it walks straight (y unchanged) every tick until the new field swaps in, then goes off to the side. Mutations: removing `flank.building = false` fails the restart test; removing the `≤ flankMaxAge` gate fails the gate test.
+- [x] **M3: snapshot coverage and front penalty untested.** New tests: two worlds differing only in the aim (so only the flank field differs; zombie-progress hashes left out) → equal chase digests, different pathing digests (fails without the flank digest); `flowNextCell` keeps choosing the west neighbour after the in-progress `penalty` layer marks it 60,000 (fails when it reads `f.penalty`).
+- [x] **L4:** `flankerAlive` skips RUSH-state flankers (test: a rushing Runner alone → `flankActive` false, no flank rebuild, chase ≤ 2P; fails under the mutation).
+- [x] **L5:** T1 now says `directWithinM 1.0` (and lists the review keys).
+- [x] **L7:** `ShriekCues` rate-limits **per screen side** (left / right of the centre), and a Runner that enters in its side's quiet window is not marked: it cues on a later frame once the window is over (if still in view). Tests: a right-side Runner in the window cues after it; ten from the right don't silence one from the left.
+- [x] **Benchmark / bandwidth (with 3.6's turrets):** `PERF_ASSERT=1 npx vitest run apps/server/src/run/tickCostFlowField.test.ts --silent=false`. The machine was never fully quiet (other agents; load 1.4–6.7). The two runs at the lowest load (≈ 1.4–1.7) passed every timing assert: 3.8 case (100 Walkers + 50 Runners, 24 buildings incl. 4 firing turrets, both fields) **added p99 0.94–1.16 ms** (mean added 0.43–0.48 ms), max age chase 10 / flank 10 ticks (bound 12); full rebuild 0.82 ms (0.27 ms/tick). A third run as the load rose (baseline p99 4.1 ms by itself) failed the asserts in all three cases, the unchanged 3.5 one included: machine noise. Without `PERF_ASSERT` the suite passes. **Bandwidth split** (deterministic, new `[bandwidth 3.8]` line): same room (24 buildings, 4 turrets), 150 Walkers → 100 Walkers + 50 Runners: patches 1,964 → 1,970 B/s (+6), events 713 → 708 B/s (−5) — **Runners ≈ 0 B/s** (no field of their own; the type rides in the horde nibble). The jump from 409 → 708 B/s events against the no-building baseline is the turrets' `turret.fired` + hits/kills (3.6: 428 → 713 B/s), and patches 1,809 → 1,970 B/s are building HP/re-adds plus turret kills' wallet changes.
+- Netsim, hits: unchanged code paths (Runner reversed-hit finding is now Story 2.12, rewound hit testing).
+
 ## Change Log
+
+- 2026-11-22: Review fixes (story-3-8b): flank timer (H1, `maxFlankS`), restart/gate/snapshot/front-penalty tests (M2, M3), RUSH skip (L4), spec text (L5), per-side shriek window (L7), bandwidth split with turrets; status done.
 
 - 2026-11-22: Story created from the real code (Stories 3.1–3.5, 3.7, 3.9 merged), status ready-for-dev.
 - 2026-11-22: Merged `claude/epic-2-continue` (501457e: Story 3.6, 3.4/3.7 re-review fixes); benchmark with turrets; checks and browser re-run.

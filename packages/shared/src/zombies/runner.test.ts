@@ -7,7 +7,7 @@ import { createWorld, setInput, step, type World } from "../core/world";
 import { snapshotWorld } from "../core/worldSnapshot";
 import { NEUTRAL_INPUT } from "../net/input";
 import { addPlayer, type PlayerState } from "../player/player";
-import { FLOW_UNITS_PER_M, flowCellAt, flowFieldMaxAgeTicks, flowRefreshTicks, flowSharedMaxAgeTicks } from "./flowField";
+import { FLOW_UNITS_PER_M, flowCellAt, flowFieldMaxAgeTicks, flowNextCell, flowRefreshTicks, flowSharedMaxAgeTicks, rebuildFlowFieldNow } from "./flowField";
 import { killZombie, spawnZombie } from "./zombiePool";
 import { ZOMBIE_STATE, ZOMBIE_TYPES, zombieTypeIndex, type ZombieTypeId } from "./zombieTypes";
 
@@ -50,12 +50,14 @@ describe("Runner balance (Story 3.8, FR21)", () => {
     expect(balance.zombies.types.walker?.flanks).toBe(false);
     expect(balance.zombies.types.crawler?.flanks).toBe(false);
     expect(ZOMBIE_TYPES.indexOf("runner")).toBe(2); // after "crawler": the index is on the wire
-    expect(flank).toEqual({ coneHalfAngleDeg: 45, coneRadiusM: 10, coneApexBackM: 0.5, penaltyM: 1, directWithinM: 1 });
+    expect(flank).toEqual({ coneHalfAngleDeg: 45, coneRadiusM: 10, coneApexBackM: 0.5, penaltyM: 1, directWithinM: 1, maxFlankS: 2.5, closingSpeedFrac: 0.5 });
   });
 
   it("the flank block is validated", () => {
     expect(() => loadBalance(withOverrides(bundledBalanceFiles(), [["zombies", "flank.coneHalfAngleDeg", 120]]))).toThrow(BalanceError);
     expect(() => loadBalance(withOverrides(bundledBalanceFiles(), [["zombies", "flank.penaltyM", -1]]))).toThrow(BalanceError);
+    expect(() => loadBalance(withOverrides(bundledBalanceFiles(), [["zombies", "flank.maxFlankS", 0]]))).toThrow(BalanceError);
+    expect(() => loadBalance(withOverrides(bundledBalanceFiles(), [["zombies", "flank.closingSpeedFrac", 1.5]]))).toThrow(BalanceError);
   });
 });
 
@@ -161,6 +163,17 @@ describe("flank field cadence (Story 3.8, brief line 10)", () => {
     }
   });
 
+  it("review L4: rushing Runners (FR30) don't keep the flank field going: the chase field gets every tick", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    addPlayer(w, "a", 20, 16);
+    const id = spawnZombie(w, "runner", 45, 2);
+    w.zombies.state[id] = ZOMBIE_STATE.RUSH;
+    for (let t = 0; t < 30; t++) step(w, TICK_DT_S);
+    expect(w.pathing.flankActive).toBe(false);
+    expect(w.pathing.flank.rebuilds).toBe(0);
+    expect(w.tick - w.pathing.chase.sourceTick).toBeLessThanOrEqual(flowFieldMaxAgeTicks(w));
+  });
+
   it("when Runners come back after a pause the flank rebuild restarts with fresh aims", () => {
     const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
     addPlayer(w, "a", 20, 16);
@@ -170,10 +183,52 @@ describe("flank field cadence (Story 3.8, brief line 10)", () => {
     killZombie(w, id, null, "test");
     for (let t = 0; t < 50; t++) step(w, TICK_DT_S);
     expect(w.pathing.flankActive).toBe(false);
+    const stale = w.pathing.flank.buildSourceTick; // the rebuild left unfinished before the pause
+    expect(w.pathing.flank.building).toBe(true);
     const comeback = w.tick;
+    expect(stale).toBeLessThan(comeback);
     spawnZombie(w, "runner", 45, 2);
+    // The first odd tick after the comeback advances the flank field: a fresh rebuild, not the old one (review M2).
+    step(w, TICK_DT_S);
+    if ((comeback & 1) === 0) step(w, TICK_DT_S);
+    expect(w.pathing.flank.buildSourceTick).toBeGreaterThanOrEqual(comeback);
     for (let t = 0; t < 4 * P; t++) step(w, TICK_DT_S);
     expect(w.pathing.flank.sourceTick).toBeGreaterThanOrEqual(comeback);
+  });
+
+  it("review M2: a Runner never follows a flank field older than 4P: back after a pause, it walks straight until the new field is in", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    w.debug.godMode = true;
+    facing(w, "a", 10, 16, 1, 0);
+    const first = spawnZombie(w, "runner", 46, 2);
+    for (let t = 0; t < 4 * P + 2; t++) {
+      aimAt(w, "a", t + 1, 1, 0);
+      step(w, TICK_DT_S);
+    }
+    expect(w.pathing.flank.rebuilds).toBeGreaterThan(0); // an old front field exists
+    killZombie(w, first, null, "test");
+    for (let t = 0; t < 60; t++) {
+      aimAt(w, "a", w.tick + 1, 1, 0);
+      step(w, TICK_DT_S);
+    }
+    const comeback = w.tick;
+    expect(comeback - w.pathing.flank.sourceTick).toBeGreaterThan(flowSharedMaxAgeTicks(w));
+    // Straight ahead in the aim: a fresh field would send it sideways at once.
+    const id = spawnZombie(w, "runner", 22, 16);
+    let straightTicks = 0;
+    while (w.pathing.flank.sourceTick < comeback) {
+      aimAt(w, "a", w.tick + 1, 1, 0);
+      step(w, TICK_DT_S);
+      if (w.pathing.flank.sourceTick >= comeback) break; // the new field swapped in (and steered) this tick
+      expect(w.zombies.y[id]).toBeCloseTo(16, 4); // the stale field is never read
+      straightTicks++;
+    }
+    expect(straightTicks).toBeGreaterThan(2);
+    for (let t = 0; t < 10; t++) {
+      aimAt(w, "a", w.tick + 1, 1, 0);
+      step(w, TICK_DT_S);
+    }
+    expect(Math.abs((w.zombies.y[id] as number) - 16)).toBeGreaterThan(0.3); // the fresh field: off to the side
   });
 });
 
@@ -334,6 +389,99 @@ describe("Runners flank (Story 3.8, epics AC 3, fixed seed)", () => {
     report("two-player line, one at a time", r, wk);
     expect(r.flanked).toBeGreaterThan(wk.flanked);
     expect(r.flanked).toBeGreaterThanOrEqual(9);
+  });
+});
+
+describe("3.8 review H1: flanking is a time-limited commitment", () => {
+  it("a Runner the player keeps aiming at (aim tracking it every tick) still comes in: contact within maxFlankS + travel time", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    w.debug.godMode = true;
+    const a = facing(w, "a", 10, 16, 1, 0);
+    const id = spawnZombie(w, "runner", 30, 16.5);
+    const travelS = 20 / runner!.speedMps;
+    const limitTicks = Math.ceil((flank.maxFlankS + travelS + 1) / TICK_DT_S);
+    let contact = -1;
+    let minD = Infinity;
+    for (let t = 0; t < 1200 && contact < 0; t++) {
+      // The aim follows the Runner every tick (the reviewer's repro: it used to circle at 10–11 m for good).
+      const zx = (w.zombies.x[id] as number) - a.x;
+      const zy = (w.zombies.y[id] as number) - a.y;
+      aimAt(w, "a", t + 1, zx, zy);
+      step(w, TICK_DT_S);
+      const d = Math.hypot((w.zombies.x[id] as number) - a.x, (w.zombies.y[id] as number) - a.y);
+      minD = Math.min(minD, d);
+      if (d <= runner!.radiusM + a.radiusM + 0.05) contact = t;
+    }
+    log(`[flank H1] tracked Runner: contact after ${(contact * TICK_DT_S).toFixed(2)} s (limit ${(limitTicks * TICK_DT_S).toFixed(2)} s; min distance ${minD.toFixed(2)} m)`);
+    expect(contact).toBeGreaterThan(0);
+    expect(contact).toBeLessThanOrEqual(limitTicks);
+  });
+
+  it("the commitment ends with a bite and starts over for a new zombie in the slot", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    w.debug.godMode = true;
+    const a = facing(w, "a", 10, 16, 1, 0);
+    const id = spawnZombie(w, "runner", 30, 16.5);
+    const pr = w.pathing.progress;
+    const max = Math.round(flank.maxFlankS / TICK_DT_S);
+    let bitAt = -1;
+    for (let t = 0; t < 1200 && bitAt < 0; t++) {
+      aimAt(w, "a", t + 1, (w.zombies.x[id] as number) - a.x, (w.zombies.y[id] as number) - a.y);
+      step(w, TICK_DT_S);
+      if (w.zombies.attackCooldownTicks[id] !== 0) bitAt = t;
+    }
+    expect(bitAt).toBeGreaterThan(0);
+    expect(pr.flankTicks[id]).toBe(0); // the bite reset it
+    for (let t = 0; t < max + 40; t++) step(w, TICK_DT_S);
+    killZombie(w, id, null, "test");
+    const again = spawnZombie(w, "runner", 30, 16.5);
+    // Leftovers of an earlier zombie in that slot (an older generation, timer spent) must not carry over.
+    pr.flankTicks[again] = max;
+    pr.flankGen[again] = ((w.zombies.generation[again] as number) + 255) & 0xff;
+    step(w, TICK_DT_S);
+    expect(pr.flankTicks[again]).toBe(0);
+    expect(pr.flankGen[again]).toBe(w.zombies.generation[again]);
+  });
+});
+
+describe("3.8 review M3: the snapshot covers the flank field; steering reads the front penalty", () => {
+  it("two worlds differing only in the flank field (the aim) give different pathing digests, equal chase digests", () => {
+    const make = (fy: number) => {
+      const w = createWorld({ balance, seed: 3, systems: NO_WAVES });
+      facing(w, "a", 20, 16, 1, 0);
+      spawnZombie(w, "runner", 46, 2);
+      for (let t = 0; t < 4 * P; t++) {
+        aimAt(w, "a", t + 1, 1, fy);
+        step(w, TICK_DT_S);
+      }
+      return w;
+    };
+    const a = make(0);
+    const b = make(1);
+    // The zombie-progress hashes differ too (the Runner moved differently): leave them out, so only
+    // the flank field's digest can tell the two apart.
+    const withoutProgress = (w: World) => {
+      const p: Partial<ReturnType<typeof snapshotWorld>["pathing"]> = { ...snapshotWorld(w).pathing };
+      delete p.progressHash;
+      delete p.flankHash;
+      return p;
+    };
+    const sa = withoutProgress(a);
+    const sb = withoutProgress(b);
+    expect(sa.chase).toEqual(sb.chase);
+    expect(sa).not.toEqual(sb);
+  });
+
+  it("flowNextCell picks the next cell with the penalty the front was built with, not the rebuild in progress", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    facing(w, "a", 20.25, 16.25, -1, 0); // facing west: the east side is free of the cone
+    const { nav, flank: f } = w.pathing;
+    rebuildFlowFieldNow(f, nav, w);
+    const from = flowCellAt(nav, 25.25, 16.25);
+    const west = flowCellAt(nav, 24.75, 16.25);
+    expect(flowNextCell(f, nav, from)).toBe(west);
+    f.penalty[west] = 60000; // a newer (in-progress) penalty layer must not change the front's steering
+    expect(flowNextCell(f, nav, from)).toBe(west);
   });
 });
 

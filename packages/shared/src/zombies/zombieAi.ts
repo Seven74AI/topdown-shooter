@@ -135,6 +135,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
   const hasBuildings = world.buildings.list.length > 0;
   const flank = world.balance.zombies.flank;
   const flankMaxAge = flowSharedMaxAgeTicks(world);
+  const maxFlankTicks = ticksFor(flank.maxFlankS);
 
   // Pass 1: desired velocity + separation, from positions at the start of the tick.
   for (let i = 0; i < n; i++) {
@@ -159,7 +160,14 @@ export const updateZombies: SystemFn = (world, dtS) => {
         // Story 3.8: a Runner flanks: in front of its target (or blocked) it follows the flank field,
         // which keeps off every player's front cone; close in, outside the cone with a clear line,
         // rushing (FR30) or with no fresh flank field it goes as a Walker.
-        if (stats.flanks && pool.state[id] !== ZOMBIE_STATE.RUSH && d > flank.directWithinM && (blocked || inFlankCone(world, target, x, y))) {
+        // Review H1: flanking is time-limited: after `flank.maxFlankS` spent not closing in, it commits.
+        if (
+          stats.flanks &&
+          pool.state[id] !== ZOMBIE_STATE.RUSH &&
+          d > flank.directWithinM &&
+          !flankTimeSpent(world, id, d, stats.speedMps * dtS * flank.closingSpeedFrac, maxFlankTicks) &&
+          (blocked || inFlankCone(world, target, x, y))
+        ) {
           const f = world.pathing.flank;
           if (f.sourceTick >= 0 && world.tick - f.sourceTick <= flankMaxAge) steered = steerByField(world, f, x, y, id);
         }
@@ -255,6 +263,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
       if (d <= contact + CONTACT_EPS_M && pool.attackCooldownTicks[id] === 0) {
         pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
         damagePlayer(world, target, stats, id);
+        if (stats.flanks) resetFlankTime(world, id); // review H1: it bit: a new commitment starts
       }
     }
     let pushStuck = false;
@@ -304,6 +313,41 @@ function touchingBuilding(world: World, x: number, y: number, reach: number): nu
     }
   }
   return best;
+}
+
+/**
+ * 3.8 review H1: a flanker's time budget. Counts the ticks it gets closer to its target by less than
+ * `minClosingM` (circling the cone's rim, or held up); true once `maxTicks` are spent — then it goes
+ * straight in (Walker rule) until it bites (`resetFlankTime`) or dies (a new generation starts over).
+ * Only called while it is eligible to flank (not rushing, farther than `directWithinM`).
+ */
+function flankTimeSpent(world: World, id: number, d: number, minClosingM: number, maxTicks: number): boolean {
+  const pr = world.pathing.progress;
+  if (id >= pr.flankTicks.length) return false; // a World without pathing
+  const gen = world.zombies.generation[id] as number;
+  if (pr.flankGen[id] !== gen) {
+    pr.flankGen[id] = gen;
+    pr.flankTicks[id] = 0;
+    pr.flankLastD[id] = d;
+    return false;
+  }
+  let t = pr.flankTicks[id] as number;
+  const closed = (pr.flankLastD[id] as number) - d;
+  pr.flankLastD[id] = d;
+  if (t >= maxTicks) return true;
+  if (closed < minClosingM) {
+    t++;
+    pr.flankTicks[id] = t;
+  }
+  return t >= maxTicks;
+}
+
+function resetFlankTime(world: World, id: number): void {
+  const pr = world.pathing.progress;
+  if (id >= pr.flankTicks.length) return;
+  pr.flankGen[id] = world.zombies.generation[id] as number;
+  pr.flankTicks[id] = 0;
+  pr.flankLastD[id] = 0;
 }
 
 /**
