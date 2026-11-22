@@ -306,7 +306,12 @@ describe("Story 4.8 expiry: a fire burns 2 waves, then goes out at a build start
     expect(w.decay.fires).toEqual(lit);
     const v = w.obstacles.version;
     const n = events.length;
-    nextBuild(w); // → wave 4: out
+    // → wave 4: out. Checked right at the build start, before any pathing tick could rebuild anything.
+    startWave(w);
+    for (let t = 0; t < 5; t++) step(w, TICK_DT_S);
+    const rebuildsBefore = w.pathing.chase.rebuilds;
+    skipWave(w);
+    expect(w.pathing.chase.rebuilds).toBe(rebuildsBefore + 1); // the DecaySystem's step 4
     expect(w.decay.fires).toEqual([]);
     expect(w.decay.firesOut).toBe(lit.reduce((m, f) => m | (1 << f.index), 0));
     expect(w.obstacles.version).toBe(v + 1); // the renderer's redraw key

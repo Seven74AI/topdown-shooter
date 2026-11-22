@@ -1,6 +1,6 @@
 # Story 4.8: Breakdown and car fires
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -23,13 +23,13 @@ so that fire becomes a danger and a tool.
 
 ## Tasks / Subtasks
 
-- [ ] T1 Balance `decay.fire` + schema; loader: `radiusM` optional on ignites, ≤ 32 ignites; generator: 3 candidates pick 2, drop ignite radii and fire hazards; regenerate (AC 1, 2)
-- [ ] T2 `decay/fire.ts`: fire indices, `firesOut` in `DecayState`, `applyDecayStage(…, firesOut)`, nav fire cost (`setNavFires`), expiry + lighting in the DecaySystem (`startBuild` step 1), `updateFires` damage system in the `decayTimers` slot, `segmentHitsFire` for zombie LOS (AC 3–5)
-- [ ] T3 Snapshot: `firesOut`, `fireEndWave`, `burnTicks` (AC 8 same seed)
-- [ ] T4 Schema / syncState / stateView / fakeRoom / mirror / Predictor (AC 6)
-- [ ] T5 Client hurt cue (`render/fireCue.ts` + PlayerView tint + HUD line); CityView redraw on expiry (AC 7)
-- [ ] T6 Tests + mutations; fuzz; netsim; bandwidth; perf (AC 8)
-- [ ] T7 Browser check; gates; merge with 4.6/4.7 when it lands; merge notes
+- [x] T1 Balance `decay.fire` + schema; loader: `radiusM` optional on ignites, ≤ 32 ignites; generator: 3 candidates pick 2, drop ignite radii and fire hazards; regenerate (AC 1, 2)
+- [x] T2 `decay/fire.ts`: fire indices, `firesOut` in `DecayState`, `applyDecayStage(…, firesOut)`, nav fire cost (`setNavFires`), expiry + lighting in the DecaySystem (`startBuild` step 1), `updateFires` damage system in the `decayTimers` slot, `segmentHitsFire` for zombie LOS (AC 3–5)
+- [x] T3 Snapshot: `firesOut`, `fireEndWave`, `burnTicks` (AC 8 same seed)
+- [x] T4 Schema / syncState / stateView / fakeRoom / mirror / Predictor (AC 6)
+- [x] T5 Client hurt cue (`render/fireCue.ts` + PlayerView tint + HUD line); CityView redraw on expiry (AC 7)
+- [x] T6 Tests + mutations; fuzz; netsim; bandwidth; perf (AC 8)
+- [x] T7 Browser check; gates; merge with 4.6/4.7 when it lands; merge notes
 
 ## Dev Notes
 
@@ -71,7 +71,7 @@ World (`decay.firesOut`, `fireEndWave`, `burnTicks`, `fires`; nav `fireCost`) �
 
 4.5's reachability test (every stage × every variant combination), spawn clearance, push-out determinism, prediction = server, balance frozen (no existing number changes), all existing tests; stage-1/2 behaviour unchanged.
 
-### Merge with 4.6/4.7 (parallel)
+### Merge with 4.6/4.7 (parallel; done: merged 9009877 into story-4-8)
 
 They edit `tools/maps/buildDowntown.ts` (curb cars, moved cars, police lines, shop fronts) and the variant layout (movers = bits 0–5, so the fire group becomes bits 6–8 and `legalDecayMasks` = C(6,4) × C(3,2) = 45). My generator edits are confined to the `hazards` array (two fire rects removed) and the two ignite objects + one new one. Generated map files are regenerated, never hand-merged.
 
@@ -88,8 +88,75 @@ Claude Opus 5.5 (claude-opus-5-5), builder, worktree `story-4-8`.
 
 ### Debug Log References
 
+- Baseline at deb09ce: 1,324 passed / 3 skipped (one map-files test failed only because I regenerated the map while it ran). After the story: 1,348 passed. After merging 4.6/4.7 (9009877): **1,370 passed / 3 skipped (188 files)**.
+- `node_modules` copied from the main checkout (`cp -a`; `readlink -f node_modules/@topdown/shared` → this worktree's package).
+- Existing tests changed: 4.5 `decay.test.ts` (3 ignites, pick 2 of 3, fire record has `index`, ignite radius optional, the cheat lights 2 fires, 45 masks); `downtown.test.ts` (fire hazard rects gone); after the merge, 4.6/4.7's counts of combinations 30 → 45 (`panic.test.ts`, `evening.test.ts`, `palette.test.ts`) and the fuzz runs 48 layouts (≥ 45 masks, a multiple of 4 for its bare-layout count); `lobbyStore.test.ts` state literal; `render/city/testScene.ts` (fire records built with `fireRecordOf(m, index, radius)`).
+- Browser: the solo cheat to stage 3 alone is undone by the next build start (the real table says stage 1 for wave 2: 4.5's cheat semantics), so the solo expiry check sets the solo World's `debug.decayStageByWave = [3,3,3,3,3]` (the server's `DEV_DECAY_STAGES`) first.
+- Online the police line (4.7) closes the lot's north side: the keyboard walk to the lot fire goes round it via the south street.
+
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Stage 3 contains:** two of three cars burning (`parked_car_1`, `parked_car_2`, `street_car_west`; `streams.decay`, pick 2), zone r 2 m round the car's centre, the cars stay solid cover; 4.2's `sandbags_south` (unchanged); 4.9's full rain (unchanged); 4.5's stage-3 spawns.
+- **Decisions D1–D14** as in Dev Notes. In short: downed players are spared (own countdown), fire kills credit nobody (no reward, no assists), turrets and barricades burn, inside = strict circle overlap, zones don't stack, pulses of 5 every 0.5 s, fires go out at the build start 2 waves after the one that lit them (step 1 of the build-start order, fields rebuilt, no banner).
+- **One apply path:** `applyDecayStage(world, stage, variants, firesOut)` (shared) builds the burning list and the nav fire cost; the DecaySystem computes `firesOut` (`fireExpiry`) and end waves (`lightNewFires`); `updateFires` in the `decayTimers` slot does the damage (server and solo only); `segmentHitsFire` for zombies' straight-line check.
+- **Tests added:** `decay/fire.test.ts` (13: balance + schema refusals; Downtown candidates + all 3 pairs seen + 2 burn in every run; same seed + replay digest through a stage-3 bot run with expiry; each target type; going down + building burning down; no stacking / phases / god mode / wipe; real timeline waves 5–6; expiry alone (rebuild at the build start, no banner, redraw key); cheat back and forth; nav cost; "zombies route around a burning car but still reach us"; "with no other way they cross"; every spawn × type at stage 3 reaches the team, 28 of 29,248 zombie-ticks in fire), `sim/NetSimHost.fire.test.ts` (6: mirror + Predictor fires and expiry, redraw key, hidden tab, `?lag` throttle copy, cue from server events, solo LocalSimHost damage), `tools/netsim/fire.test.ts` (2: lag 150/20, client HP = server HP, every fire hit seen, 0 corrections from fire, fires out on the client when out on the server, hidden tab across the expiry), `syncState.test.ts` (+1), `decayBandwidth.test.ts` (+1), `tickCostDowntown.test.ts` (+1), the Downtown fuzz (fires vs an independent rewrite from map data, damage liveness, expiry in every stage-3 layout).
+- **Fuzz run (after the merge):** 48 layouts, all 45 variant masks; 32 stage-3 layouts with 2 fires each, 19 zombie pulses (8 fire kills), 440 building pulses, 183 zombie-ticks in fire, 32 expiries; every zombie reached a player, no body in a box.
+- **Mutations proven** (script `/tmp/s48mut/run.py`, outside the repo; each makes the listed tests fail, then restored):
+
+  | # | Mutation | Failing tests |
+  |---|---|---|
+  | M1 | downed players burn | each target type |
+  | M2 | zombies don't burn | each target type |
+  | M3 | buildings don't burn | each target type, building burns down |
+  | M4 | turrets don't burn | each target type |
+  | M5 | touching counts as inside | each target type |
+  | M6 | zones stack | no stacking / phases |
+  | M7 | burns in the lobby | no stacking / phases |
+  | M8 | fire kill credited to a player | each target type |
+  | M9 | fires never go out | replay, real timeline, expiry alone, cheat, NetSimHost.fire, netsim fire, fuzz (8) |
+  | M10 | out one wave early | replay, real timeline, expiry alone |
+  | M11 | no nav fire cost | nav cost, route around, player-visible stage 3 |
+  | M12 | fire cells are walls | nav cost, "no other way", player-visible |
+  | M13 | zombie line of sight ignores fire | player-visible stage 3 (fire-tick share) |
+  | M14 | fields not rebuilt when only fires go out | expiry alone |
+  | M15 | syncState never writes `decayFiresOut` | syncState 4.8, bandwidth 4.8 |
+  | M16 | mirror ignores `decayFiresOut` | NetSimHost.fire (2), netsim fire (2) |
+  | M17 | Predictor ignores `decayFiresOut` | NetSimHost.fire (2), netsim fire (2) |
+  | M18 | snapshot without `burnTicks` | replay digest |
+  | M19 | a pulse every tick | each target type, phases, player-visible |
+  | M20 | bites count as fire hits (cue) | fire cue pure |
+  | M21 | fires burn 3 waves | real timeline, expiry alone, cheat |
+  | M22 | a map radius override (1 m) on one car | Downtown candidates, no stacking |
+
+- **Bandwidth:** burning with nobody inside: 0 B/s added (idle patch unchanged, 5 B); a player standing in fire: **+24 B/s** (2 `player.damaged` events of 5 B + the HP field); 4 players all in fire ≈ 100 B/s; the expiry: `decayFiresOut` +5 B once; lighting: nothing extra (it rides on the stage change). Fire kills are ordinary `zombie.killed` events; no `zombie.hit` per pulse. Online browser overlay: down 0.7 KB/s (one player, no wave).
+- **Perf** (`PERF_ASSERT=1`, load 2.1–2.2 with other builders): 4 players + 150 Walkers at stage 3, 2 fires burning vs fires out: p99 0.687 vs 0.518 ms (**+0.169 ms**), mean +0.020 ms; 70 pulses in 700 ticks. Build-start spike test unchanged.
+- **Browser** (Python Playwright + Chromium headless 1280×720, server :2681 `DEV_DECAY_STAGES=3,3,3,3,3`, Vite :5281, temp config deleted), shots in `/tmp/s48pw/shots/`: `solo-1-two-fires.png` (cheat → stage 3: street_car_west + parked_car_1 burning, sandbags, rain); `solo-2-player-in-fire.png` (survivor beside the burning car: HP 100 → 75 in ~3 s of headless time, HUD "HP 75 / 100   Burning"); `solo-3-zombies-route.png` (wave 1 with both fires: 864 zombie samples, 0 inside a fire); `solo-4-fires-out.png` (after Skip wave × 2: build before wave 3, fires gone, `firesOut` 6, re-baked). Online (`?lag=150&jitter=20`, solo start): stage 3 at the first build with parked_car_1 + parked_car_2 burning, the Predictor's fires = the mirror's, walked by keyboard into the lot fire: HP 100 → 80, "Burning" on; corrections 3 / snaps 0 (from walking round the police line's corner under lag, not fire). No page errors.
+- **Not verified:** real phones/touch; the ember tint on the survivor is subtle on the dark sprite (the HUD line is the clear cue); the zone's 2 m edge is not drawn as an area (4.9's flames + glow only: a playtest point for 4.10); an online run reaching the expiry (needs 2 cleared waves; covered by the netsim and NetSimHost tests); multiple online players in fire; no fire/rain ambience loop for stage 3 (optional, left to 4.10 / Epic 9; 4.7's `audio/ambience.ts` keeps its stage-2 loop at stage 3); headless Chromium ran at ~18–24 fps.
+
+### Notes for the merge (brief line 19)
+
+- **Map files:** `tools/maps/buildDowntown.ts` is the source; my edits are the `hazards` array (two `fire` rects removed) and the block marked `---- Story 4.8 … end Story 4.8` in `decay`. **Never hand-merge** `downtown.tmx`, `apps/client/public/assets/maps/downtown.tmj` or `packages/shared/src/map/data/downtown.tmj.json`: take either side and run `npm run maps:build`.
+- **Map loader (`loadTiledMap.ts`, `districtMap.ts`):** an ignite's `radiusM` is optional (0 = `decay.json › fire.radiusM`); at most `MAX_DECAY_FIRES` (32) ignites.
+- **Balance:** `decay.json › fire` block (+ schema refines); `balance.version` changes.
+- **Decay (`decayState.ts`, `applyDecayStage.ts`, `decaySystem.ts`, new `fire.ts`):** `DecayState` gains `firesOut`, `fireSlots`, `fireEndWave`, `burnTicks`; `FireRecord.index`; `createDecayState(variants, map?, radius?)`; `fireRecordOf(m, index, radius)` (no cache); `applyDecayStage(world, stage, variants, firesOut = world.decay.firesOut)`; `decayMutate` expires and lights fires and returns true when only fires changed; `decayFinish` emits `decay.stage_changed` only when the stage changed.
+- **`runStateMachine.startBuild`:** unchanged (the expiry lives in `decayMutate`).
+- **Systems:** `decayTimers` = `updateFires` (tests of one mechanic that pass `systems` may want `decayTimers: () => {}`).
+- **Nav grid (`flowField.ts`):** `NavGrid.fireCost` + `setNavFires`; `rasterizeBuildings` adds it to `enterCost`. **Zombie AI:** the straight-line check also counts fire.
+- **Schema / `syncState` / `stateView` / `fakeRoom`:** `decayFiresOut` appended after `decayVariants` (take both sides if another story appends); `resetRunFields` clears it; devThrottle needs nothing.
+- **Snapshot:** `decay.firesOut`, `fireEndWave`, `burnTicks` (digests of a given seed change).
+- **Client:** `mirrorDecay(world, stage, variants, firesOut)`; `Predictor.syncDecay(…, firesOut)` + `fireNames`; `render/fireCue.ts` (new); `PlayerView.update(…, burning)`; `hudModel.burning`; HudScene HP line. `CityView` needs nothing: a fire going out bumps `obstacles.version`.
+- **Variant bits:** after 4.7, movers are bits 0–5 and the fire group bits 6–8; `legalDecayMasks(DOWNTOWN_MAP)` = 45. Tests that pick a fire should look the variant up by name.
 
 ### File List
+
+- New: `packages/shared/src/decay/fire.ts`, `packages/shared/src/decay/fire.test.ts`, `apps/client/src/render/fireCue.ts`, `apps/client/src/sim/NetSimHost.fire.test.ts`, `tools/netsim/fire.test.ts`, this story file.
+- Modified (shared): `config/balance/decay.json`, `config/balanceSchema.ts`, `core/{systems,world,worldSnapshot}.ts`, `decay/{applyDecayStage,decayState,decaySystem}.ts`, `index.ts`, `map/{districtMap,loadTiledMap}.ts`, `map/data/downtown.tmj.json`, `net/stateView.ts`, `zombies/{flowField,zombieAi}.ts`; tests `decay/{decay,panic}.test.ts`, `map/{downtown,evening}.test.ts`, `zombies/downtown.fuzz.test.ts`.
+- Modified (server): `rooms/schema/{RunState,syncState}.ts`; tests `rooms/schema/syncState.test.ts`, `run/{decayBandwidth,tickCostDowntown}.test.ts`.
+- Modified (client): `net/{fakeRoom,mirrorDecay,prediction}.ts`, `render/PlayerView.ts`, `render/city/testScene.ts`, `scenes/{GameScene,HudScene,hudModel}.ts`, `sim/NetSimHost.ts`, `public/assets/maps/downtown.tmj`; tests `net/lobbyStore.test.ts`, `render/city/palette.test.ts`.
+- Modified (tools): `maps/{buildDowntown.ts,downtown.tmx}`.
+- Tracking: `_bmad-output/implementation-artifacts/sprint-status.yaml`.
+
+## Change Log
+
+- 2026-11-22: Story file written (gds-create-story) and built: car fires (2 of 3 cars, 10 dmg/s, 2 waves, flow cost, sync on change, hurt cue), tests and mutations; merged 4.6/4.7 (9009877), map regenerated, 45 combinations re-checked. Status review.
