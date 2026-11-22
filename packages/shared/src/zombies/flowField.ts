@@ -2,7 +2,7 @@ import { FLOW_CELL_M } from "../config/constants";
 import type { World } from "../core/world";
 import type { Building } from "../buildings/buildings";
 import type { DistrictBounds, MapBox } from "../map/districtMap";
-import { mapCollisionCells } from "../map/collisionCells";
+import { fillCollisionCells, mapCollisionCells } from "../map/collisionCells";
 import type { PlayerState } from "../player/player";
 import { ZOMBIE_STATE, ZOMBIE_TYPES } from "./zombieTypes";
 
@@ -40,8 +40,9 @@ import { ZOMBIE_STATE, ZOMBIE_TYPES } from "./zombieTypes";
  * (cost, cell) so equal costs pop in a fixed order: deterministic). Runs only where zombies run
  * (server, solo): the client's prediction never does.
  *
- * **Walls (Story 4.1).** The map's collision boxes (`world.map.solids`) are written once into
- * `wallAt` when the grid is created (static). Unlike building cells they are never entered (no cost
+ * **Walls (Story 4.1).** The map's collision boxes (Story 4.2: `world.obstacles.solids`, i.e. plus
+ * the active cover) are written into `wallAt` when the grid is created, and again only when the
+ * decay stage changes the active cover (`setNavWalls`, from `applyCoverStage`). Unlike building cells they are never entered (no cost
  * makes them passable: nothing to break), a vertex touching one is not free, an edge narrower than a
  * body whose ends touch only walls and the map edge is closed (`closedE/S`), and a pinch between a
  * wall and a building carries the building's id (zombies break the building). Free cells next to a
@@ -175,6 +176,16 @@ export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly
     buildingCost: 0,
     version: -1,
   };
+}
+
+/**
+ * Story 4.2: rewrites the wall cells from `boxes` (the World's obstacle list after a decay stage
+ * change) and forces the next pathing tick to re-rasterize (vertices, pinches, near-wall costs).
+ * Allocates nothing. Never per tick.
+ */
+export function setNavWalls(nav: NavGrid, boxes: readonly MapBox[]): void {
+  fillCollisionCells(nav.wallAt, nav.cols, nav.rows, nav.cellM, boxes);
+  nav.version = -1;
 }
 
 export function createFlowField(nav: NavGrid, fillPenalty: FlowField["fillPenalty"] = null): FlowField {

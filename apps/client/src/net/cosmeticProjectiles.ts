@@ -9,6 +9,7 @@ import {
   rebuildGrid,
   recordProjectileHit,
   segmentCircleT,
+  shotBlockT,
   spawnProjectile,
   weaponIds,
   zombieNetId,
@@ -31,7 +32,9 @@ const hitId = new Int32Array(ZOMBIE_POOL_CAPACITY);
  *
  * Each frame they move `speed × frameDtS` (frame time: they are visual only), with `prevX = x`
  * so the view's lerp is a no-op. A projectile is freed at its range, outside the map, or once its
- * segment has crossed `pierce` mirror zombies. They never damage, flash or push anything: only
+ * segment has crossed `pierce` mirror zombies, or (Story 4.2) where it first enters a car, the bus or a
+ * map box, exactly as the server's shot does (`shotBlockT` on the mirror World's obstacles, which
+ * `createWorld` builds from the same map and stage). They never damage, flash or push anything: only
  * the server's `zombie.hit` does. No allocation per frame.
  */
 export class CosmeticProjectiles {
@@ -51,6 +54,8 @@ export class CosmeticProjectiles {
     pushbackM: 0,
   };
   private gridFresh = false;
+  /** Story 4.2: cosmetic shots that ended on a car, the bus or a map box (netsim and debug counter). */
+  coverStops = 0;
 
   constructor(
     private readonly world: World,
@@ -128,13 +133,15 @@ export class CosmeticProjectiles {
       const x1 = x0 + dx * step;
       const y1 = y0 + dy * step;
       const count = queryRadius(this.world.zombieGrid, z.x, z.y, (x0 + x1) / 2, (y0 + y1) / 2, step / 2 + maxR, candidates);
+      // Story 4.2: the server's rule on the mirror's obstacles: stop at the first car / bus / map box.
+      const blockT = shotBlockT(this.world, x0, y0, x1, y1);
       let hits = 0;
       for (let k = 0; k < count; k++) {
         const zid = candidates[k] as number;
         if (!isZombieAlive(z, zid) || projectileHasHit(pool, id, zid)) continue;
         const r = types[zombieTypeOf(z, zid)]?.radiusM ?? 0;
         const t = segmentCircleT(x0, y0, x1, y1, z.x[zid] as number, z.y[zid] as number, r);
-        if (t < 0) continue;
+        if (t < 0 || (blockT >= 0 && t > blockT)) continue;
         let j = hits++;
         while (j > 0 && (hitT[j - 1] as number) > t) {
           hitT[j] = hitT[j - 1] as number;
@@ -155,6 +162,10 @@ export class CosmeticProjectiles {
           stoppedAt = hitT[k] as number;
           break;
         }
+      }
+      if (stoppedAt < 0 && blockT >= 0) {
+        stoppedAt = blockT;
+        this.coverStops++;
       }
       if (stoppedAt >= 0) {
         this.place(id, x0 + dx * step * stoppedAt, y0 + dy * step * stoppedAt);

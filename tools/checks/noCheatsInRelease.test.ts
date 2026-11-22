@@ -28,8 +28,8 @@ export const CHEAT_STRINGS = [
   "dev-gear",
   "Dev loadout",
   "__game",
-  "Collision / grid view",
-  "Spawn stage preview",
+  "Collision / grid view", // Story 4.3
+  "Decay stage (cover + spawns)", // Stories 4.2 + 4.3 solo stage cheat
 ];
 
 function builtFiles(dir: string): string[] {

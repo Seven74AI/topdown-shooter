@@ -6,7 +6,6 @@ import { spendMoney } from "../economy/economy";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { circleOverlapsBox } from "./collision";
 import { BUILD_GRID_M } from "../config/constants";
-import { decayStage } from "../decay/decayStage";
 
 /**
  * Story 3.4: buildings (GDD › Buildings and Defenses; FR50, FR51, FR53).
@@ -150,22 +149,21 @@ export function buildingById(world: Readonly<World>, id: number): Building | und
 const scratch: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
 /**
- * The box is off the map, within `buildings.spawnClearM` of a spawn point open at the coming decay
- * stage (review L5: spawns can't be boxed in; Story 4.3: `decayStage`, which during a build phase is
- * the coming wave's stage — a building on a later stage's spawn closes that spawn while it stands), overlaps a map collision box (Story 4.1) or another building (touching edges are fine: barricades form walls and
+ * The box is off the map, within `buildings.spawnClearM` of a spawn point of any decay stage (review
+ * L5: spawns can't be boxed in; Story 4.3 review M: not even the ones that open later), overlaps a map collision box (Story 4.1) or another building (touching edges are fine: barricades form walls and
  * corners), a placed player (out players are off the map) or an alive zombie.
  */
 export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>): boolean {
   const { widthM, heightM, spawnPoints } = world.map;
   if (box.minX < 0 || box.minY < 0 || box.maxX > widthM || box.maxY > heightM) return true;
   const clear = world.balance.buildings.spawnClearM;
-  const stage = decayStage(world); // Story 4.3 (brief line 7): the spawns open at the coming stage
+  // Story 4.3 review M: every spawn point of every decay stage (brief line 7's "active at the coming
+  // stage" is a subset), so a barricade can never seal a spawn that opens later.
   for (let i = 0; i < spawnPoints.length; i++) {
-    const sp = spawnPoints[i] as { x: number; y: number; minStage: number };
-    if (sp.minStage > stage) continue;
+    const sp = spawnPoints[i] as { x: number; y: number };
     if (circleOverlapsBox(sp.x, sp.y, clear, box.minX, box.minY, box.maxX, box.maxY)) return true;
   }
-  const solids = world.map.solids; // Story 4.1: the map's collision boxes (touching is fine, like buildings)
+  const solids = world.obstacles.solids; // Story 4.1/4.2: map collision boxes + active cover (touching is fine, like buildings)
   for (let i = 0; i < solids.length; i++) {
     const b = solids[i] as Box;
     if (box.minX < b.maxX && box.maxX > b.minX && box.minY < b.maxY && box.maxY > b.minY) return true;

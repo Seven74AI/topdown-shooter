@@ -23,7 +23,9 @@ import {
   TICK_DT_S,
   ZOMBIE_STATE,
   assistAim,
+  boxBlocked,
   createRng,
+  distanceToBox,
   createWorld,
   encodeNetEvent,
   loadBalance,
@@ -36,6 +38,7 @@ import {
   spawnZombie,
   zombieNetId,
   type Balance,
+  type DistrictMap,
   type NetEvent,
   type PlayerInput,
   type WeaponId,
@@ -81,6 +84,11 @@ export interface Options {
   rewind?: boolean;
   /** Story 2.12: another balance (e.g. a weapon without spread, to separate spread from timing). */
   balance?: Balance;
+  /** Story 4.2: the server's map (default the open street) and the client's (mirror + Predictor; default the same). */
+  map?: DistrictMap;
+  clientMap?: DistrictMap;
+  /** Story 4.2: where the survivor stands (standing runs; default the team start). */
+  start?: { x: number; y: number };
 }
 
 export interface Result {
@@ -96,6 +104,9 @@ export interface Result {
   serverHitsByMe: number;
   kills: number;
   shots: number;
+  /** Story 4.2: shots that ended on a shot blocker (car, bus, map box): the server's, and my cosmetic ones. */
+  serverCoverStops: number;
+  clientCoverStops: number;
 }
 
 /** Ordered FIFO with `dueMs`. */
@@ -128,7 +139,9 @@ interface Down {
 export function simulate(o: Options): Result {
   const balance = o.balance ?? DEFAULT_BALANCE;
   const rng = createRng(o.seed);
-  const ctrl = new RunController({ balance, seed: o.seed, players: [{ playerId: ID, slot: 0 }], systems: { waves: () => {} }, map: PLACEHOLDER_MAP, lagCompensation: o.rewind !== false }); // the open street: kiting circles
+  const map = o.map ?? PLACEHOLDER_MAP; // the open street: kiting circles
+  const clientMap = o.clientMap ?? map;
+  const ctrl = new RunController({ balance, seed: o.seed, players: [{ playerId: ID, slot: 0 }], systems: { waves: () => {} }, map, lagCompensation: o.rewind !== false });
   const sp = ctrl.world.players.get(ID);
   if (!sp) throw new Error("no player");
   setLoadout(balance, sp.loadout, [o.weapon, null]);
@@ -137,16 +150,26 @@ export function simulate(o: Options): Result {
   if (o.kite) {
     sp.x = sp.prevX = cx + KITE_RADIUS_M;
     sp.y = sp.prevY = cy;
+  } else if (o.start) {
+    sp.x = sp.prevX = o.start.x;
+    sp.y = sp.prevY = o.start.y;
   }
   ctrl.setRtt(ID, 2 * o.oneWayMs);
   const z = ctrl.world.zombies;
   const ctx = { balance, zombieNetId: (id: number) => zombieNetId(id, z.generation[id] ?? 0) };
+  const spawnRadius = balance.zombies.types[o.zombieType ?? "walker"]?.radiusM ?? 0;
   const spawnRingWalker = () => {
-    const a = rng.range(0, 2 * Math.PI);
-    const d = rng.range(9, 11);
     const { widthM, heightM } = ctrl.world.map;
-    const x = Math.min(widthM - SPAWN_MARGIN_M, Math.max(SPAWN_MARGIN_M, sp.x + Math.cos(a) * d));
-    const y = Math.min(heightM - SPAWN_MARGIN_M, Math.max(SPAWN_MARGIN_M, sp.y + Math.sin(a) * d));
+    let x = 0;
+    let y = 0;
+    // Story 4.2: re-draw a spot inside a map box or cover (never on the open street: same draws as before).
+    for (let tries = 0; tries < 50; tries++) {
+      const a = rng.range(0, 2 * Math.PI);
+      const d = rng.range(9, 11);
+      x = Math.min(widthM - SPAWN_MARGIN_M, Math.max(SPAWN_MARGIN_M, sp.x + Math.cos(a) * d));
+      y = Math.min(heightM - SPAWN_MARGIN_M, Math.max(SPAWN_MARGIN_M, sp.y + Math.sin(a) * d));
+      if (!boxBlocked(ctrl.world, x, y, spawnRadius)) break;
+    }
     spawnZombie(ctrl.world, o.zombieType ?? "walker", x, y);
   };
   const walkers = o.walkers ?? WALKERS;
@@ -157,8 +180,8 @@ export function simulate(o: Options): Result {
   const down = new Link<Down>(o.oneWayMs, o.jitterHalfMs, rng);
 
   // Client.
-  const mirror = createWorld({ balance, seed: 0, map: PLACEHOLDER_MAP, systems: NO_SYSTEMS });
-  const predictor = new Predictor(balance, PLACEHOLDER_MAP, ID);
+  const mirror = createWorld({ balance, seed: 0, map: clientMap, systems: NO_SYSTEMS });
+  const predictor = new Predictor(balance, clientMap, ID);
   const clock = new LocalFireClock(balance);
   const hits = new ReversedHits();
   const serverClock = new ServerClock();
@@ -180,6 +203,12 @@ export function simulate(o: Options): Result {
   let shots = 0;
   const localShotSeqs: number[] = [];
   const serverShotSeqs: number[] = [];
+  // Story 4.2: every slot's position before a tick; a slot that is free after it, moved, and lies on a
+  // blocker's face was stopped by cover this tick (also a shot fired and stopped in the same tick).
+  const pool = ctrl.world.projectiles;
+  const xBefore = new Float32Array(pool.capacity);
+  const yBefore = new Float32Array(pool.capacity);
+  let serverCoverStops = 0;
 
   const sampleHorde = (rt: number): void => {
     let a: Down | null = null;
@@ -226,7 +255,16 @@ export function simulate(o: Options): Result {
       up.take(t, arrivedInputs);
       for (const input of arrivedInputs) ctrl.queueInput(ID, input);
       sp.hp = 1e9;
+      xBefore.set(pool.x);
+      yBefore.set(pool.y);
       const evs = ctrl.tick();
+      for (let id = 0; id < pool.capacity; id++) {
+        if ((pool.alivePos[id] as number) >= 0) continue;
+        const px = pool.x[id] as number;
+        const py = pool.y[id] as number;
+        if (px === xBefore[id] && py === yBefore[id]) continue; // untouched this tick
+        if (ctrl.world.obstacles.shotBlockers.some((b) => distanceToBox(px, py, b.minX, b.minY, b.maxX, b.maxY) <= 1e-4)) serverCoverStops++;
+      }
       const events: NetEvent[] = [];
       for (const e of evs) {
         const enc = encodeNetEvent(e, ctx);
@@ -363,6 +401,6 @@ export function simulate(o: Options): Result {
     predictor.frame(dtMs / 1000);
     hits.update(t);
   }
-  return { ...hits.counts, serverHitsByMe, kills: killCount, shots, localShotSeqs, serverShotSeqs, viewOffsets, drops: ctrl.drops(ID) };
+  return { ...hits.counts, serverHitsByMe, kills: killCount, shots, localShotSeqs, serverShotSeqs, viewOffsets, drops: ctrl.drops(ID), serverCoverStops, clientCoverStops: cosmetics.coverStops };
 }
 

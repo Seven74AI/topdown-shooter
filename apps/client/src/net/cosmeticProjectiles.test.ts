@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_SYSTEMS, createWorld, loadBalance, spawnZombie, zombieNetId } from "@topdown/shared";
+import { COVER_KINDS, NO_SYSTEMS, PLACEHOLDER_MAP, createWorld, loadBalance, spawnZombie, zombieNetId, type CoverKind, type DistrictMap } from "@topdown/shared";
 import { CosmeticProjectiles } from "./cosmeticProjectiles";
 
 const balance = loadBalance();
@@ -69,4 +69,38 @@ describe("CosmeticProjectiles (Story 2.7)", () => {
     c.clear();
     expect(world.projectiles.aliveCount).toBe(0);
   });
+});
+
+describe("CosmeticProjectiles vs cover (Story 4.2)", () => {
+  const withCover = (kind: CoverKind) => {
+    const map: DistrictMap = { ...PLACEHOLDER_MAP, name: "cover-cosmetic", cover: [{ name: "c", kind, minStage: 1, minX: 12, minY: 15, maxX: 14, maxY: 17 }] };
+    const world = createWorld({ balance, seed: 0, map, systems: NO_SYSTEMS });
+    const seen: number[] = [];
+    const c = new CosmeticProjectiles(world, "p0", (id) => seen.push(id));
+    return { world, c, seen };
+  };
+
+  for (const kind of COVER_KINDS) {
+    const stops = kind === "car" || kind === "bus";
+    it(`${kind}: ${stops ? "my cosmetic shot (and a turret's) stops at its face, no apparent hit behind it" : "my cosmetic shot flies over it and reports the zombie behind"}`, () => {
+      const { world, c, seen } = withCover(kind);
+      spawnZombie(world, "walker", 16, 16);
+      c.spawn("p0", "hunting_rifle", 10, 16, 1, 0);
+      let maxX = 0;
+      for (let i = 0; i < 60; i++) {
+        c.update(FRAME);
+        if (world.projectiles.aliveCount > 0) maxX = Math.max(maxX, world.projectiles.x[world.projectiles.aliveIds[0] as number] as number);
+      }
+      expect(world.projectiles.aliveCount).toBe(0);
+      expect(seen).toHaveLength(stops ? 0 : 1);
+      expect(c.coverStops).toBe(stops ? 1 : 0);
+      if (stops) {
+        expect(world.projectiles.x[0]).toBeCloseTo(12, 4); // ended on the face
+        expect(maxX).toBeLessThanOrEqual(12 + 1e-4);
+        c.spawnShot(1, "auto_turret", 10, 16, 1, 0, 40, 8);
+        fly(c, 30);
+        expect(c.coverStops).toBe(2);
+      }
+    });
+  }
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NET_EVENT_KIND, S2C, loadBalance, quantizeHeading, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
+import { NET_EVENT_KIND, PLACEHOLDER_MAP, S2C, loadBalance, quantizeHeading, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost, RENDER_DELAY_TICKS } from "./NetSimHost";
@@ -13,7 +13,8 @@ function setup() {
   room.state.phase = "wave";
   let now = 0;
   const session = new NetSession(room, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
-  const host = new NetSimHost({ balance, session, now: () => now });
+  // Story 4.2: the open street (on Downtown (15.5, 5.5) is inside the apartments, whose walls stop the shot).
+  const host = new NetSimHost({ balance, session, now: () => now, map: PLACEHOLDER_MAP });
   // A turret with its min corner at (15, 5): centre (15.5, 5.5). Owned by p0 (not me).
   room.state.buildings.set("4", { type: "auto_turret", owner: "p0", gx: 30, gy: 10, rot: 0, hp: 300 });
   now = 500;

@@ -220,13 +220,17 @@ export function clearWave(world: World): void {
 export function updateWaves(world: World): boolean {
   const w = world.waves;
   const b = world.balance.waves;
-  if (countAlivePlayers(world) === 0) return false; // no one standing stops the director
+  if (countAlivePlayers(world) === 0) {
+    w.spawnHeldSinceTick = -1; // Story 4.3 review L2: an interrupted hold starts over
+    return false; // no one standing stops the director
+  }
 
   w.spawnTimerTicks--;
   if (w.spawnTimerTicks <= 0 && w.queued > 0) {
     w.spawnTimerTicks = ticksFor(b.spawnIntervalS);
     const room = b.maxAlive - world.zombies.aliveCount;
     const batch = Math.min(b.spawnPerInterval, w.queued, Math.max(0, room));
+    if (batch === 0) w.spawnHeldSinceTick = -1; // review L2: no pick this interval (pool full): the hold starts over
     for (let i = 0; i < batch; i++) {
       if (!spawnWaveZombie(world)) break;
       w.queued--;

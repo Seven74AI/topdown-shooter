@@ -2,7 +2,7 @@ import { circleOverlapsBox } from "../buildings/collision";
 import type { Building } from "../buildings/buildings";
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
-import { decayStage } from "../decay/decayStage";
+import { currentDecayStage } from "../map/decayStage";
 import type { DistrictMap, SpawnPoint } from "../map/districtMap";
 
 /**
@@ -10,8 +10,8 @@ import type { DistrictMap, SpawnPoint } from "../map/districtMap";
  *
  * A point is, in this order:
  * - CLOSED: not open yet at the decay stage (`minStage > decayStage(world)`);
- * - BLOCKED: a building overlaps its `buildings.spawnClearM` circle (placement never allows that for
- *   an open point, so only a building placed before the point opened can; it stays shut meanwhile);
+ * - BLOCKED: a building overlaps its `buildings.spawnClearM` circle. A guard only: placement keeps
+ *   that clearance from the spawns of every stage (review M), so it never happens in normal play;
  * - NEAR: closer than `waves.spawnMinPlayerDistanceM` + `spawnJitterM` to a living player (standing
  *   or downed), so even a jittered zombie appears ≥ 6 m away;
  * - OPEN: usable.
@@ -21,8 +21,9 @@ import type { DistrictMap, SpawnPoint } from "../map/districtMap";
  * of that side weighted away from the recently used points (integer weights; two `streams.spawns.int`
  * draws). With no OPEN point
  * the batch is held (`pickSpawnPoint` returns −1, nothing leaves the queue) for up to
- * `spawnPick.allNearMaxWaitS`, then the open-stage point farthest from the living players is used, so
- * camping every spawn slows a wave but never stalls it. No allocation per call (scratch reused).
+ * `spawnPick.allNearMaxWaitS`, then the NEAR point farthest from the living players is used, so
+ * camping every spawn slows a wave but never stalls it (review L1: with no NEAR point either, it keeps
+ * holding). The wave director resets the hold when a pick is not attempted (review L2). No allocation per call (scratch reused).
  */
 export const SPAWN_STATE = { OPEN: 0, NEAR: 1, BLOCKED: 2, CLOSED: 3 } as const;
 export type SpawnState = (typeof SPAWN_STATE)[keyof typeof SPAWN_STATE];
@@ -82,7 +83,7 @@ function classify(world: Readonly<World>): number {
     states = new Uint8Array(points.length);
     nearestD2 = new Float64Array(points.length);
   }
-  const stage = decayStage(world);
+  const stage = currentDecayStage(world);
   const minD = world.balance.waves.spawnMinPlayerDistanceM + world.balance.waves.spawnJitterM;
   const minD2 = minD * minD;
   let open = 0;
@@ -163,7 +164,7 @@ function farthest(count: number, maxState: number): number {
 
 /**
  * Index of the spawn point for the next wave zombie, or −1 to hold the batch (no point is OPEN and
- * the hold is younger than `allNearMaxWaitS`). Draws one `streams.spawns.int` when it picks among
+ * the hold is younger than `allNearMaxWaitS`, or no point is NEAR either). Draws one `streams.spawns.int` when it picks among
  * OPEN points (two: the side, then the point); the fallback (farthest) draws nothing.
  */
 export function pickSpawnPoint(world: World): number {
@@ -203,11 +204,10 @@ export function pickSpawnPoint(world: World): number {
   }
   if (w.spawnHeldSinceTick < 0) w.spawnHeldSinceTick = world.tick;
   if (world.tick - w.spawnHeldSinceTick < ticksFor(world.balance.waves.spawnPick.allNearMaxWaitS)) return -1;
-  // Held long enough: the farthest point that is open at this stage and not under a building, else
-  // any open-stage point, else (a map always has a stage-1 point, so unreachable) any point.
-  let pick = farthest(points.length, SPAWN_STATE.NEAR);
-  if (pick < 0) pick = farthest(points.length, SPAWN_STATE.BLOCKED);
-  if (pick < 0) pick = farthest(points.length, SPAWN_STATE.CLOSED);
+  // Held long enough: the NEAR point farthest from the living players. Review L1: never a BLOCKED or
+  // CLOSED one (a zombie inside a building or at a shut spawn); with none, keep holding (queue kept).
+  const pick = farthest(points.length, SPAWN_STATE.NEAR);
+  if (pick < 0) return -1;
   remember(world, pick);
   return pick;
 }

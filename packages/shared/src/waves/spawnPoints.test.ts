@@ -10,17 +10,18 @@ import bots from "../config/balance/bots.json" with { type: "json" };
 import buildings from "../config/balance/buildings.json" with { type: "json" };
 import shop from "../config/balance/shop.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
-import { addBuildingAt, buildingStats, footprint, footprintBlocked, type Box } from "../buildings/buildings";
+import { addBuildingAt, buildingStats, footprint, footprintBlocked, placementError, removeBuilding, type Box } from "../buildings/buildings";
 import { ticksFor } from "../core/time";
 import { createWorld, step, type World } from "../core/world";
-import { worldDigest } from "../core/worldSnapshot";
-import { decayStage } from "../decay/decayStage";
+import { snapshotWorld, worldDigest } from "../core/worldSnapshot";
+import { currentDecayStage } from "../map/decayStage";
 import type { DistrictMap, MapSpawn } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { PLACEHOLDER_MAP } from "../map/placeholderMap";
 import { addPlayer, type PlayerStatus } from "../player/player";
 import { startBuild } from "../run/runStateMachine";
 import { killZombie } from "../zombies/zombiePool";
+import { updateWaves } from "./waveDirector";
 import { SPAWN_SIDE_NAMES, SPAWN_STATE, spawnPointStates, spawnSide } from "./spawnPick";
 
 /**
@@ -256,10 +257,10 @@ describe("Story 4.3 spawn points: what the players see", () => {
   });
 });
 
-describe("Story 4.3 spawn points: stages, buildings, determinism", () => {
+describe("Story 4.3 spawn points: stages, buildings, determinism, review fixes", () => {
   it("stage 1 is today's stage; zombies come only from spawns open at the stage, and later stages really use their new spawns", () => {
     const w = createWorld({ balance, seed: 1, map });
-    expect(decayStage(w)).toBe(1);
+    expect(currentDecayStage(w)).toBe(1);
     for (const stage of [1, 2, 3]) {
       const r = sim({ stage, seed: 7, waves: 3, players: [{ at: [24, 16] }, { at: [23, 16] }] });
       const used = new Set(r.spawned.map((s) => map.spawnPoints[s.source] as MapSpawn));
@@ -272,30 +273,120 @@ describe("Story 4.3 spawn points: stages, buildings, determinism", () => {
     expect(plain.spawned.every((s) => map.spawnPoints[s.source]?.minStage === 1)).toBe(true);
   });
 
-  it("brief line 7: placement clearance checks the spawns open at the coming stage; a building on a later spawn closes it", () => {
+  it("review M: you can't place a barricade on a spawn that opens later (any stage's spawn keeps its clearance)", () => {
     const stats = buildingStats(balance, "wood_barricade");
     if (!stats) throw new Error("no barricade");
-    const mw = byName(map, "manhole_west"); // stage 2, at (12, 18)
-    const gx = Math.round((mw.x - 1) / 0.5);
-    const gy = Math.round((mw.y + 0.5) / 0.5);
     const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-    footprint(stats, gx, gy, 0, box);
     const w = createWorld({ balance, seed: 1, map });
-    expect(footprintBlocked(w, box)).toBe(false); // stage 1: the manhole is still shut, building allowed
-    w.debug.decayStage = 2;
-    expect(footprintBlocked(w, box)).toBe(true); // stage 2: refused (spawnClearM)
-    // A barricade built there at stage 1 keeps the manhole closed at stage 2 (the dev view says so).
-    const r = sim({
-      stage: 2,
-      waves: 2,
+    addPlayer(w, "p0", 24, 16).wallet = 1000;
+    startBuild(w);
+    expect(currentDecayStage(w)).toBe(1);
+    let checked = 0;
+    for (const sp of map.spawnPoints.filter((s) => s.minStage > 1)) {
+      // A barricade centred on the later spawn point, in both rotations: refused at stage 1.
+      for (const rot of [0, 1] as const) {
+        const fw = rot === 0 ? stats.widthM : stats.depthM;
+        const fh = rot === 0 ? stats.depthM : stats.widthM;
+        const gx = Math.round((sp.x - fw / 2) / 0.5);
+        const gy = Math.round((sp.y - fh / 2) / 0.5);
+        footprint(stats, gx, gy, rot, box);
+        expect(footprintBlocked(w, box), `${sp.name} rot ${rot}`).toBe(true);
+        expect(placementError(w, "p0", { type: "wood_barricade", gx, gy, rot }), sp.name).toBe("blocked");
+        checked++;
+      }
+    }
+    expect(checked).toBe(2 * 10); // all 10 stage-2/3 spawns
+    // Just outside spawnClearM (2 m) of manhole_west is still fine: the rule is clearance, not a ban on the street.
+    const mw = byName(map, "manhole_west");
+    footprint(stats, Math.round((mw.x + 2.5) / 0.5), Math.round((mw.y - 0.5) / 0.5), 0, box);
+    expect(footprintBlocked(w, box)).toBe(false);
+  });
+
+  it("review L1: the BLOCKED guard — a spawn under a building (forced past placement) or a shut one is never used; with nothing else the batch holds, and the wave still finishes", () => {
+    const stats = buildingStats(balance, "wood_barricade");
+    if (!stats) throw new Error("no barricade");
+    const base = PLACEHOLDER_MAP.spawnPoints as MapSpawn[];
+    const m: DistrictMap = {
+      ...PLACEHOLDER_MAP,
+      version: "l1",
+      spawnPoints: [{ ...(base[0] as MapSpawn) }, { ...(base[3] as MapSpawn), minStage: 2 }, { ...(base[9] as MapSpawn) }],
+    };
+    const blockSpawn0 = (ww: World) => {
+      const sp = m.spawnPoints[0] as MapSpawn; // (6, 0.5)
+      addBuildingAt(ww, { id: 99, type: "wood_barricade", ownerId: "p0", gx: Math.round((sp.x - stats.widthM / 2) / 0.5), gy: 2, rot: 0, hp: stats.hp });
+    };
+    // Spawn 0 under a building, spawn 1 shut (stage 2), spawn 2 camped: after the hold, only spawn 2 is used.
+    const camped = sim({ m, waves: 2, players: [{ at: [m.spawnPoints[2]!.x + 1, m.spawnPoints[2]!.y] }], setup: blockSpawn0 });
+    expect(camped.wavesEnded).toBe(2);
+    expect(camped.spawned.length).toBe(sum(2, 1));
+    expect(new Set(camped.spawned.map((s) => s.source))).toEqual(new Set([2]));
+    // No spawn open or near (spawn 2 under a building too): nothing spawns, nothing is lost; once the
+    // building goes, the wave finishes.
+    let removedAt = -1;
+    const held = sim({
+      m,
+      waves: 1,
       players: [{ at: [24, 16] }],
-      setup: (ww) => addBuildingAt(ww, { id: 1, type: "wood_barricade", ownerId: "p0", gx, gy, rot: 0, hp: stats.hp }),
+      setup: (ww) => {
+        blockSpawn0(ww);
+        addBuildingAt(ww, { id: 98, type: "wood_barricade", ownerId: "p0", gx: 0, gy: Math.round((m.spawnPoints[2]!.y - stats.widthM / 2) / 0.5), rot: 1, hp: stats.hp });
+      },
+      onTick: (ww, starts) => {
+        if (removedAt < 0 && starts[1] !== undefined && ww.tick - starts[1] >= ticksFor(5)) {
+          expect(ww.waves.queued).toBe(ww.waves.size); // held, not lost
+          removeBuilding(ww, 98);
+          removedAt = ww.tick;
+        }
+      },
     });
-    const states = spawnPointStates(r.world, new Uint8Array(map.spawnPoints.length));
-    expect(states[map.spawnPoints.indexOf(mw)]).toBe(SPAWN_STATE.BLOCKED);
-    expect(r.spawned.length).toBe(sum(2, 1));
-    expect(r.spawned.some((s) => s.source === map.spawnPoints.indexOf(mw))).toBe(false);
-    expect(r.spawned.some((s) => map.spawnPoints[s.source]?.name === "manhole_north")).toBe(true); // the other stage-2 manhole works
+    expect(removedAt).toBeGreaterThan(0);
+    expect(held.wavesEnded).toBe(1);
+    expect(held.spawned.length).toBe(sum(1, 1));
+    expect(held.spawned.every((s) => s.tick > removedAt && s.source === 2)).toBe(true);
+  });
+
+  it("review L2: a hold interrupted by a full pool or by nobody standing starts over (the next pick waits the full time again)", () => {
+    const two: DistrictMap = { ...PLACEHOLDER_MAP, version: "two", spawnPoints: (PLACEHOLDER_MAP.spawnPoints as MapSpawn[]).filter((_, i) => i === 0 || i === 3) };
+    const wait = ticksFor(balance.waves.spawnPick.allNearMaxWaitS);
+    const w = createWorld({ balance: fast({ maxAlive: 2 }), seed: 3, map: two, systems: { zombies: () => {} } });
+    w.debug.godMode = true;
+    addPlayer(w, "p0", 6, 2);
+    addPlayer(w, "p1", 42, 2); // both spawns camped
+    startBuild(w);
+    while (w.run.phase !== "wave") step(w, TICK_DT_S);
+    const t0 = w.tick;
+    while (w.zombies.aliveCount < 2 && w.tick - t0 < 4 * wait) step(w, TICK_DT_S);
+    expect(w.tick - t0).toBeGreaterThanOrEqual(wait - 1); // the first hold really waited, then 2 came (pool full)
+    // Full pool for longer than the wait.
+    for (let i = 0; i < 3 * wait; i++) step(w, TICK_DT_S);
+    expect(w.zombies.aliveCount).toBe(2);
+    expect(w.waves.spawnHeldSinceTick).toBe(-1);
+    for (let i = w.zombies.aliveCount - 1; i >= 0; i--) killZombie(w, w.zombies.aliveIds[i] as number, "p0", "pistol");
+    const t1 = w.tick;
+    while (w.zombies.aliveCount === 0 && w.tick - t1 < 4 * wait) step(w, TICK_DT_S);
+    expect(w.zombies.aliveCount).toBeGreaterThan(0); // liveness
+    expect(w.tick - t1).toBeGreaterThanOrEqual(wait - 1); // waited the full time again
+    // Nobody standing (a downed team is a wipe in a real run, so the director is called directly).
+    for (let i = w.zombies.aliveCount - 1; i >= 0; i--) killZombie(w, w.zombies.aliveIds[i] as number, "p0", "pistol");
+    step(w, TICK_DT_S);
+    expect(w.waves.spawnHeldSinceTick).toBeGreaterThanOrEqual(0); // holding again
+    for (const p of w.players.values()) p.status = "downed";
+    updateWaves(w);
+    expect(w.waves.spawnHeldSinceTick).toBe(-1);
+  });
+
+  it("review L4: the pick memory (recentSpawns) is part of snapshotWorld and its digest", () => {
+    const a = createWorld({ balance, seed: 5, map });
+    const b = createWorld({ balance, seed: 5, map });
+    expect(worldDigest(b)).toBe(worldDigest(a));
+    b.waves.recentSpawns[0] = 7;
+    expect(snapshotWorld(b).waves.recentSpawns[0]).toBe(7);
+    expect(worldDigest(b)).not.toBe(worldDigest(a));
+    // After a real wave the memory holds picks, and two runs of one seed agree on it.
+    const r1 = sim({ seed: 9, waves: 1, players: [{ at: [24, 16] }] });
+    const r2 = sim({ seed: 9, waves: 1, players: [{ at: [24, 16] }] });
+    expect(r1.world.waves.recentSpawnCount).toBeGreaterThan(0);
+    expect(snapshotWorld(r1.world).waves.recentSpawns).toEqual(snapshotWorld(r2.world).waves.recentSpawns);
   });
 
   it("dev view states: closed (stage), blocked (building), near (a living player) and open", () => {

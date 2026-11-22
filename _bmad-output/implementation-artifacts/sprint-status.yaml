@@ -42,7 +42,7 @@
 # - Story 9.2-9.10 depend on the hired artist and sound designer.
 
 generated: 2026-11-21T18:20:05
-last_updated: 2026-11-22T15:30:00
+last_updated: 2026-11-22T17:00:00
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -98,8 +98,8 @@ development_status:
   # Epic 4: Downtown and city decay (Milestone 1)
   epic-4: in-progress
   4-1-downtown-map: done
-  4-2-cover-and-bullet-rules: backlog
-  4-3-spawn-points: review
+  4-2-cover-and-bullet-rules: done
+  4-3-spawn-points: done
   4-4-named-seed-streams: done
   4-5-decay-stage-engine: backlog
   4-6-evening: backlog

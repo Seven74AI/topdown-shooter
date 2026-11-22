@@ -26,10 +26,25 @@ export interface MapBox {
 export const COVER_KINDS = ["car", "bus", "barrier", "sandbags"] as const;
 export type CoverKind = (typeof COVER_KINDS)[number];
 
+/**
+ * Story 4.2 (FR56): every active cover kind blocks bodies; only these also stop projectiles (cars
+ * and the bus). Barriers and sandbags let shots pass, like player barricades.
+ */
+export const COVER_STOPS_SHOTS: Readonly<Record<CoverKind, boolean>> = Object.freeze({
+  car: true,
+  bus: true,
+  barrier: false,
+  sandbags: false,
+});
+
 /** Decay stages a map object can name in `minStage` (`stage1_evening` … `stage5_collapse`). */
 export const MAP_STAGE_COUNT = 5;
 
-/** A `cover` object: data only in Story 4.1 (no collision, no bullet rule; Stories 4.2 / 4.8). */
+/**
+ * A `cover` object. Story 4.2: while active (`minStage` ≤ the current decay stage) it blocks bodies
+ * and the flow field like a collision box; cars and the bus also stop shots (`COVER_STOPS_SHOTS`).
+ * The World's active copy is `world.obstacles` (`map/obstacles.ts`).
+ */
 export interface CoverObject extends MapBox {
   readonly kind: CoverKind;
   /** First decay stage the object exists in (1 = from the start; Story 4.5 applies later ones). */
@@ -51,7 +66,7 @@ export type SpawnJitterAxis = "x" | "y";
 
 /**
  * A zombie spawn point of the `spawns` layer. Story 4.3: zombies come only from points with
- * `minStage` ≤ the decay stage (`decay/decayStage.ts`), never within 6 m of a living player
+ * `minStage` ≤ the decay stage (`map/decayStage.ts › currentDecayStage`), never within 6 m of a living player
  * (`waves/spawnPick.ts`).
  */
 export interface MapSpawn extends SpawnPoint {

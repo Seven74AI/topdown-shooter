@@ -8,17 +8,20 @@ import type { Building } from "./buildings";
  * sqrt, min and max (the Story 2.6 rule: identical results in every JavaScript engine), visits the
  * buildings in id order, and allocates nothing.
  *
- * Story 4.1: the map's static collision boxes (`world.map.solids`, the Tiled `collision` layer) are
- * obstacles exactly like buildings: every test here visits them first (in map order), then the
- * buildings. They are never attacked (zombies hit buildings only) and never removed.
+ * Story 4.1: the map's static collision boxes (the Tiled `collision` layer) are obstacles exactly
+ * like buildings: every test here visits them first (in map order), then the buildings. They are
+ * never attacked (zombies hit buildings only) and never removed.
+ *
+ * Story 4.2: the list is `world.obstacles.solids` (`map/obstacles.ts`): the map boxes, then the
+ * cover active at the current decay stage (car, bus, barrier, sandbags all block bodies, FR56).
  */
 
 /** Any obstacle box (a building or a map solid). */
 type BoxView = Pick<MapBox, "minX" | "minY" | "maxX" | "maxY">;
 
-/** Story 4.1: the World has any obstacle (map solids or buildings): movement must run the push-out. */
+/** Story 4.1: the World has any obstacle (map solids, active cover or buildings): movement must run the push-out. */
 export function hasObstacles(world: Readonly<World>): boolean {
-  return world.map.solids.length > 0 || world.buildings.list.length > 0;
+  return world.obstacles.solids.length > 0 || world.buildings.list.length > 0;
 }
 
 /** Below this centre-to-box distance the circle counts as inside the box (pushed out along the shortest axis). */
@@ -35,7 +38,7 @@ export function circleOverlapsBox(x: number, y: number, r: number, minX: number,
 
 /** The circle overlaps any map solid (Story 4.1) or building (`spotBlocked`, free-spot search). */
 export function circleHitsBuilding(world: Readonly<World>, x: number, y: number, r: number): boolean {
-  const solids = world.map.solids;
+  const solids = world.obstacles.solids;
   for (let i = 0; i < solids.length; i++) {
     const b = solids[i] as MapBox;
     if (circleOverlapsBox(x, y, r, b.minX, b.minY, b.maxX, b.maxY)) return true;
@@ -152,7 +155,7 @@ export function pushOutOfBuildings(
 /** One push-out attempt for the target (x, y): passes until stable, or PUSH_STUCK (then `pushed` = from). */
 function settle(world: Readonly<World>, x: number, y: number, r: number, fromX: number, fromY: number): PushResult {
   const list = world.buildings.list;
-  const solids = world.map.solids;
+  const solids = world.obstacles.solids;
   const { widthM, heightM } = world.map;
   let px = x;
   let py = y;
@@ -246,7 +249,7 @@ export function segmentHitsBox(x0: number, y0: number, dx: number, dy: number, m
  */
 export function segmentHitsBuildings(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number, r: number): boolean {
   const list = world.buildings.list;
-  const solids = world.map.solids;
+  const solids = world.obstacles.solids;
   const dx = x1 - x0;
   const dy = y1 - y0;
   for (let i = 0; i < solids.length; i++) {

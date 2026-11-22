@@ -26,6 +26,7 @@ import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
 import { rotateBySeqSpread } from "./spread";
+import { shotBlockT } from "./cover";
 
 const MIN_AIM = 1e-6;
 /**
@@ -222,6 +223,9 @@ function updateProjectiles(world: World, dtS: number): void {
     const ys = view ? view.y : z.y;
     const qr = step / 2 + maxZombieRadius(world.balance);
     const count = queryRadius(view ? view.grid : world.zombieGrid, xs, ys, (x0 + x1) / 2, (y0 + y1) / 2, qr, candidates);
+    // Story 4.2: the shot stops where this sweep first enters a car, the bus or a map box (-1: none);
+    // zombies past that point are behind cover and not hit.
+    const blockT = shotBlockT(world, x0, y0, x1, y1);
     let hits = 0;
     for (let k = 0; k < count; k++) {
       const zid = candidates[k] as number;
@@ -229,7 +233,7 @@ function updateProjectiles(world: World, dtS: number): void {
       if (!isZombieAlive(z, zid) || projectileHasHit(pool, id, zid)) continue;
       const r = world.balance.zombies.types[zombieTypeOf(z, zid)]?.radiusM ?? 0;
       const t = segmentCircleT(x0, y0, x1, y1, xs[zid] as number, ys[zid] as number, r);
-      if (t < 0) continue;
+      if (t < 0 || (blockT >= 0 && t > blockT)) continue;
       // insertion sort by t (small)
       let j = hits++;
       while (j > 0 && (hitT[j - 1] as number) > t) {
@@ -257,6 +261,7 @@ function updateProjectiles(world: World, dtS: number): void {
       }
     }
 
+    if (stoppedAt < 0 && blockT >= 0) stoppedAt = blockT; // Story 4.2: into the cover's face
     if (stoppedAt >= 0) {
       pool.x[id] = x0 + dx * step * stoppedAt;
       pool.y[id] = y0 + dy * step * stoppedAt;

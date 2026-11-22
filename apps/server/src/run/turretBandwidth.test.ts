@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
 import { pack } from "msgpackr";
 import {
+  PLACEHOLDER_MAP,
   BUILD_GRID_M,
   NET_EVENT_KIND,
   addBuildingAt,
@@ -41,7 +42,8 @@ interface Bw {
  */
 function measure(turrets: boolean): Bw {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
-  const c = new RunController({ balance, seed: 5, players, pauseWaves: true, systems: { zombies: () => {} } });
+  // Story 4.2: the open street (these turret spots were drawn for it; on Downtown some sit in buildings, whose walls now stop shots).
+  const c = new RunController({ balance, seed: 5, players, pauseWaves: true, systems: { zombies: () => {} }, map: PLACEHOLDER_MAP });
   const world = c.world;
   world.debug.godMode = true;
   startWave(world);
@@ -124,7 +126,7 @@ interface Worst {
  */
 function worstCase(): Worst {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
-  const c = new RunController({ balance, seed: 7, players, pauseWaves: true, systems: { zombies: () => {}, player: () => {} } });
+  const c = new RunController({ balance, seed: 7, players, pauseWaves: true, systems: { zombies: () => {}, player: () => {} }, map: PLACEHOLDER_MAP }); // Story 4.2: see measure()
   const world = c.world;
   world.debug.godMode = true;
   const views = [

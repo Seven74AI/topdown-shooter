@@ -57,6 +57,7 @@ export { NEUTRAL_INPUT, VIEW_TICK_SCALE, playerInputSchema, viewTickOfInput, typ
 export { PLACEHOLDER_MAP, type DistrictBounds, type DistrictMap, type SpawnPoint } from "./map/placeholderMap";
 export {
   COVER_KINDS,
+  COVER_STOPS_SHOTS,
   MAP_STAGE_COUNT,
   SPAWN_KINDS,
   type CoverKind,
@@ -68,10 +69,12 @@ export {
   type SpawnKind,
   type VisualProp,
 } from "./map/districtMap";
-export { decayStage } from "./decay/decayStage";
 export { SPAWN_SIDE, SPAWN_SIDE_NAMES, SPAWN_STATE, spawnPointStates, spawnSide, type SpawnState } from "./waves/spawnPick";
 export { MAP_LAYERS, MAP_STAGE_GROUPS, MapError, loadTiledMap } from "./map/loadTiledMap";
-export { mapCollisionCells } from "./map/collisionCells";
+export { fillCollisionCells, mapCollisionCells } from "./map/collisionCells";
+export { FIRST_DECAY_STAGE, currentDecayStage } from "./map/decayStage";
+export { applyCoverStage, createObstacles, type ObstacleState } from "./map/obstacles";
+export { segmentBoxEntryT, shotBlockT, shotLineClear } from "./combat/cover";
 export { DOWNTOWN_MAP } from "./map/downtown";
 export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./player/player";
 export { teamSpawnPoint } from "./player/spawn";
@@ -307,6 +310,7 @@ export {
   advanceFlowField,
   createFlowField,
   createNavGrid,
+  setNavWalls,
   flowCellAt,
   flowEdgePinch,
   flowFieldMaxAgeTicks,
@@ -329,7 +333,7 @@ export { updateBuildings } from "./buildings/buildingSystem";
 export { buildingCentreX, buildingCentreY, nearestZombieInRange, turretStats, updateTurrets } from "./buildings/turret";
 // Story 3.7: repairs.
 export { REPAIR_ERRORS, buildingAtPoint, isDamaged, repairBuilding, repairCost, repairError, type RepairError, type Repaired } from "./buildings/repair";
-export { findFreeSpotNear, spotBlocked } from "./player/freeSpot";
+export { boxBlocked, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,
   buyWeapon,

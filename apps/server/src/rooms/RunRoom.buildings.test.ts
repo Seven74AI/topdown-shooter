@@ -103,7 +103,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 5, gy: 5, rot: 0 });
     await vi.waitFor(() => expect(hostRec.refused).toEqual(["blocked", "money"]));
     me.wallet = 1000;
-    for (let i = 0; i < 6; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 10 + i * 6, gy: 20, rot: 0 });
+    for (let i = 0; i < 6; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 14 + i * 6, gy: 20, rot: 0 }); // Story 4.3: x ≥ 7 m, clear of window_corner_shop (4, 10.6)
     await vi.waitFor(() => expect(world(room).buildings.list).toHaveLength(6));
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 5, gy: 28, rot: 0 });
     await vi.waitFor(() => expect(hostRec.refused).toEqual(["blocked", "money", "limit"]));
@@ -138,7 +138,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     const me = world(room).players.get("p0");
     if (!me) throw new Error("no p0");
     me.wallet = 10_000;
-    for (let i = 0; i < 40; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 10 + (i % 8) * 6, gy: 20 + Math.floor(i / 8) * 4, rot: 0 });
+    for (let i = 0; i < 40; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 14 + (i % 8) * 6, gy: 20 + Math.floor(i / 8) * 4, rot: 0 });
     await vi.waitFor(() => expect(world(room).buildings.list).toHaveLength(6));
     const tick = world(room).tick;
     await vi.waitFor(() => expect(world(room).tick).toBeGreaterThan(tick + 4));

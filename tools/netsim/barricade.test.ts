@@ -77,6 +77,8 @@ interface Options {
   breaks?: { atMs: number; gx: number; gy: number }[];
   /** Story 4.1: the predictor's map (default the server's, `DOWNTOWN_MAP`; the control run passes the open street). */
   predictorMap?: DistrictMap;
+  /** Story 4.2: where the survivor starts (default: the team start). */
+  start?: { x: number; y: number };
 }
 
 function buildingsView(ctrl: RunController): Map<string, BuildingStateView> {
@@ -90,6 +92,10 @@ function simulate(o: Options) {
   const ctrl = new RunController({ balance, seed: 1, players: [{ playerId: ID, slot: 0 }], pauseWaves: true, systems: { waves: () => {} } });
   const me = ctrl.world.players.get(ID);
   if (me) me.wallet = 1000;
+  if (me && o.start) {
+    me.x = me.prevX = o.start.x;
+    me.y = me.prevY = o.start.y;
+  }
   const up = new Link<PlayerInput>(o.oneWayMs, o.jitterHalfMs, rng);
   const down = new Link<Snap>(o.oneWayMs, o.jitterHalfMs, rng);
   const predictor = new Predictor(balance, o.predictorMap ?? DOWNTOWN_MAP, ID);
@@ -124,7 +130,7 @@ function simulate(o: Options) {
       const p = ctrl.world.players.get(ID);
       if (p) {
         down.send(t, { x: Math.fround(p.x), y: Math.fround(p.y), ackSeq: ctrl.ackSeq(ID), buildings: buildingsView(ctrl) });
-        for (const b of [...ctrl.world.buildings.list, ...ctrl.world.map.solids]) {
+        for (const b of [...ctrl.world.buildings.list, ...ctrl.world.obstacles.solids]) { // Story 4.2: + active cover
           const cx = Math.min(b.maxX, Math.max(b.minX, p.x));
           const cy = Math.min(b.maxY, Math.max(b.minY, p.y));
           minWallGapM = Math.min(minWallGapM, Math.hypot(p.x - cx, p.y - cy) - p.radiusM);
@@ -204,6 +210,13 @@ const slotPath = (t: number) => (t < 4000 ? norm(Math.sin(t / 150) * 0.3, -1) : 
 const downtownPath = (t: number) =>
   t < 2000 ? { x: 1, y: 0 } : t < 3000 ? norm(1, 0.6) : t < 5000 ? norm(-1, -1) : t < 7000 ? norm(-1, -0.3) : { x: 0, y: 0 };
 
+/**
+ * Story 4.2: from (6, 11.5) down onto the roof of street_car_west ([4, 8.5] × [13, 15]), slide east
+ * round its corner, down its east face, then west under it along its south face.
+ */
+const carPath = (t: number) =>
+  t < 1500 ? { x: 0, y: 1 } : t < 3000 ? norm(1, 0.25) : t < 4500 ? norm(-1, 0.6) : t < 6500 ? norm(-1, -0.4) : { x: 0, y: 0 };
+
 const report = (name: string, r: ReturnType<typeof simulate>): void => {
   console.info(
     `[netsim] ${name}: snaps=${r.snaps} corrections=${r.corrections} visible=${r.visibleErrors} maxErrorM=${r.maxErrorM.toExponential(2)} minWallGapM=${r.minWallGapM.toFixed(4)}`,
@@ -256,6 +269,21 @@ describe("netsim: walking into barricades (Story 3.4, brief line 4)", () => {
     }
     const control = simulate({ seed: 41, oneWayMs: 75, jitterHalfMs: 10, places: [], path: downtownPath, seconds: 8, predictorMap: PLACEHOLDER_MAP });
     report("downtown control (predictor on the open street)", control);
+    expect(control.visibleErrors).toBeGreaterThan(0);
+  });
+
+  it("Story 4.2: pressing on and sliding round a street car: 0 snaps (the predictor has the server's cover); control: a predictor without cover snaps", () => {
+    for (const seed of [43, 44]) {
+      const r = simulate({ seed, oneWayMs: 75, jitterHalfMs: 10, places: [], path: carPath, seconds: 8, start: { x: 6, y: 11.5 } });
+      report(`street car 75±10 ms seed ${seed}`, r);
+      expect(r.minWallGapM).toBeGreaterThan(-1e-6); // never inside the car
+      expect(r.minWallGapM).toBeLessThan(1e-6); // ... and it really pressed on it
+      expect(r.snaps).toBe(0);
+      expect(r.visibleErrors).toBe(0);
+      expect(r.finalErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+    }
+    const control = simulate({ seed: 43, oneWayMs: 75, jitterHalfMs: 10, places: [], path: carPath, seconds: 8, start: { x: 6, y: 11.5 }, predictorMap: { ...DOWNTOWN_MAP, cover: [] } });
+    report("street car control (predictor without cover)", control);
     expect(control.visibleErrors).toBeGreaterThan(0);
   });
 

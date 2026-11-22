@@ -1,12 +1,12 @@
 import type * as Phaser from "phaser";
 import { h, render } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { MAP_STAGE_COUNT, ZOMBIE_TYPES, decayStage, setLoadout, skipWave, spawnRing, weaponIds, type ZombieTypeId } from "@topdown/shared";
+import { MAP_STAGE_COUNT, ZOMBIE_TYPES, currentDecayStage, setLoadout, skipWave, spawnRing, weaponIds, type ZombieTypeId } from "@topdown/shared";
 import type { GameScene } from "../scenes/GameScene";
 import { LOCAL_PLAYER_ID } from "../sim/LocalSimHost";
 import { perf } from "./perfStats";
 import { spawnInView, type ViewRect } from "./stressScenario";
-import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, parseSeed } from "./devCheatActions";
+import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, parseSeed, setDecayStageCheat } from "./devCheatActions";
 import { CollisionGridView } from "./collisionGridView";
 import "./DevCheats.css";
 
@@ -26,9 +26,6 @@ const CHEAT_MONEY = 500;
 const CHEAT_BUILDING_DAMAGE = 0.5;
 /** Story 3.3: the dev loadout's "no second weapon" choice. */
 const NO_WEAPON = "";
-
-/** Story 4.3: the stages the spawn preview offers (Downtown's spawns open at stages 1–3; 4.5 drives the real stage). */
-const PREVIEW_STAGES = Array.from({ length: MAP_STAGE_COUNT }, (_, i) => i + 1);
 
 /** Story 4.3: the collision / grid view, drawn every frame while on (one per page). */
 const gridView = new CollisionGridView();
@@ -95,7 +92,7 @@ function DevCheats({ game }: { game: Phaser.Game }) {
         <div class="dev-cheats" role="dialog" aria-label="Dev cheats">
           <h2>Dev cheats</h2>
           <p class="dev-cheats__info">
-            seed {scene()?.runSeed ?? "—"} · wave {w?.waves.number ?? 0} · alive {w?.zombies.aliveCount ?? 0} · stage {w ? decayStage(w) : "—"}
+            seed {scene()?.runSeed ?? "—"} · wave {w?.waves.number ?? 0} · alive {w?.zombies.aliveCount ?? 0} · stage {w ? currentDecayStage(w) : "—"}
           </p>
           <fieldset>
             <legend>Spawn zombies</legend>
@@ -206,26 +203,26 @@ function DevCheats({ game }: { game: Phaser.Game }) {
             />
             Collision / grid view
           </label>
-          <div class="dev-cheats__row">
-            <label>
-              Spawn stage preview{" "}
+          <fieldset>
+            <legend>Decay stage (cover + spawns)</legend>
+            <div class="dev-cheats__row">
               <select
-                aria-label="Spawn stage preview"
+                value={String(w ? currentDecayStage(w) : 1)}
+                aria-label="Decay stage"
                 disabled={online}
-                value={String(w?.debug.decayStage ?? 0)}
                 onChange={(e) => {
-                  const v = Number((e.target as HTMLSelectElement).value);
-                  if (w && !online) w.debug.decayStage = v === 0 ? null : v; // solo: the wave director uses it too
+                  if (w && !online) setDecayStageCheat(w, Number((e.target as HTMLSelectElement).value));
                   refresh();
                 }}
               >
-                <option value="0">real</option>
-                {PREVIEW_STAGES.map((st) => (
-                  <option value={String(st)}>{st}</option>
+                {Array.from({ length: MAP_STAGE_COUNT }, (_, i) => (
+                  <option value={String(i + 1)}>stage {i + 1}</option>
                 ))}
               </select>
-            </label>
-          </div>
+            </div>
+            <p class="dev-cheats__info">Solo: moves the cover (4.2) and opens that stage's spawn points (4.3).</p>
+            {online && <p class="dev-cheats__info">Online: the server owns the decay stage (Story 4.5).</p>}
+          </fieldset>
           <fieldset>
             <legend>Run seed</legend>
             <div class="dev-cheats__row">

@@ -1,5 +1,5 @@
 import type * as Phaser from "phaser";
-import { GRID_CELL_M, SPAWN_STATE, ZOMBIE_TYPES, decayStage, jitteredSpawn, spawnPointStates, type World } from "@topdown/shared";
+import { GRID_CELL_M, SPAWN_STATE, ZOMBIE_TYPES, currentDecayStage, jitteredSpawn, spawnPointStates, type World } from "@topdown/shared";
 
 /**
  * Dev collision / grid view (architecture › Debug tools; Story 4.3). DEVELOPMENT BUILDS ONLY: imported
@@ -8,7 +8,7 @@ import { GRID_CELL_M, SPAWN_STATE, ZOMBIE_TYPES, decayStage, jitteredSpawn, spaw
  * - the 2 m spatial grid (`GRID_CELL_M`), map collision boxes (red), cover (orange; faint = a later
  *   stage), buildings (yellow) and body hitboxes (players cyan, zombies magenta);
  * - every spawn point: a disc coloured by its state now (green open, orange near a player — skipped,
- *   red blocked by a building, grey not open at this stage), its jitter segment, and a label
+ *   red blocked by a building — a guard that placement never lets happen, grey not open at this stage), its jitter segment, and a label
  *   `S<minStage> <kind>` + the state. The panel line shows the stage in force.
  */
 const GRID = 0x3a6ea5;
@@ -26,9 +26,11 @@ const STATE_COLOR: Readonly<Record<number, number>> = {
 export const SPAWN_STATE_LABEL: Readonly<Record<number, string>> = {
   [SPAWN_STATE.OPEN]: "open",
   [SPAWN_STATE.NEAR]: "near player",
-  [SPAWN_STATE.BLOCKED]: "blocked",
+  [SPAWN_STATE.BLOCKED]: "blocked (guard)",
   [SPAWN_STATE.CLOSED]: "closed",
 };
+/** CSS colour per state (built once: no string per frame). */
+const STATE_CSS: Readonly<Record<number, string>> = Object.fromEntries(Object.entries(STATE_COLOR).map(([k, c]) => [k, `#${c.toString(16).padStart(6, "0")}`]));
 const LINE_M = 0.06;
 const SPAWN_DISC_M = 0.45;
 /** Label text: drawn at 28 px, scaled so a line is ~0.45 m tall in the world. */
@@ -46,6 +48,8 @@ export class CollisionGridView {
   private labels: Phaser.GameObjects.Text[] = [];
   private scene: Phaser.Scene | null = null;
   private states = new Uint8Array(0);
+  /** Review L3: the state each label shows; its text and colour change only when the state does. */
+  private labelState = new Int16Array(0);
   private readonly lo = { x: 0, y: 0 };
   private readonly hi = { x: 0, y: 0 };
 
@@ -58,7 +62,7 @@ export class CollisionGridView {
     g.lineStyle(LINE_M / 2, GRID, 0.5);
     for (let x = GRID_CELL_M; x < map.widthM; x += GRID_CELL_M) g.lineBetween(x, 0, x, map.heightM);
     for (let y = GRID_CELL_M; y < map.heightM; y += GRID_CELL_M) g.lineBetween(0, y, map.widthM, y);
-    const stage = decayStage(world);
+    const stage = currentDecayStage(world);
     g.lineStyle(LINE_M, SOLID, 0.9);
     for (const b of map.solids) g.strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
     for (const c of map.cover) {
@@ -78,7 +82,8 @@ export class CollisionGridView {
     }
     spawnPointStates(world, this.states);
     const jitter = world.balance.waves.spawnJitterM;
-    map.spawnPoints.forEach((sp, i) => {
+    for (let i = 0; i < map.spawnPoints.length; i++) {
+      const sp = map.spawnPoints[i] as (typeof map.spawnPoints)[number];
       const state = this.states[i] as number;
       const color = STATE_COLOR[state] ?? 0xffffff;
       jitteredSpawn(world, sp, -jitter, 0, this.lo);
@@ -87,8 +92,11 @@ export class CollisionGridView {
       g.fillStyle(color, state === SPAWN_STATE.CLOSED ? 0.45 : 0.85).fillCircle(sp.x, sp.y, SPAWN_DISC_M);
       g.lineStyle(LINE_M, 0x000000, 1).strokeCircle(sp.x, sp.y, SPAWN_DISC_M);
       const t = this.labels[i];
-      if (t) t.setText(spawnLabel(sp.minStage, sp.kind, state)).setColor(`#${color.toString(16).padStart(6, "0")}`);
-    });
+      if (t && this.labelState[i] !== state) {
+        this.labelState[i] = state;
+        t.setText(spawnLabel(sp.minStage, sp.kind, state)).setColor(STATE_CSS[state] ?? "#ffffff");
+      }
+    }
   }
 
   /** Hides everything (view turned off). */
@@ -106,6 +114,7 @@ export class CollisionGridView {
     this.scene = scene;
     this.g = scene.add.graphics().setDepth(DEPTH);
     this.states = new Uint8Array(world.map.spawnPoints.length);
+    this.labelState = new Int16Array(world.map.spawnPoints.length).fill(-1);
     this.labels = world.map.spawnPoints.map((sp) => {
       const t = scene.add.text(0, 0, "", { fontFamily: "monospace", fontSize: `${LABEL_PX}px`, color: "#ffffff", stroke: "#000000", strokeThickness: 6 });
       // Labels sit beside the disc, on the map side (points at the right/bottom edges get them inside).
