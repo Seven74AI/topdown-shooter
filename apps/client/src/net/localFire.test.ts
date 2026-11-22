@@ -147,7 +147,7 @@ describe("LocalFireClock (Story 2.7)", () => {
     const tries: [Partial<View>, Partial<PlayerInput>][] = [
       [{ reloadTicks0: 5 }, {}],
       [{ swapTicks: 3 }, {}],
-      [{ status: "dead" }, {}],
+      [{ status: "downed" }, {}],
       [{}, { fire: false }],
       [{}, { aimX: 0, aimY: 0 }],
     ];
