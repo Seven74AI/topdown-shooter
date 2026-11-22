@@ -89,7 +89,7 @@ export interface Result {
   /** Seqs on which the client's fire clock shot, and on which the server's weapon fired. */
   localShotSeqs: number[];
   serverShotSeqs: number[];
-  drops: { overflow: number; stale: number; drained: number; jumped: number };
+  drops: { overflow: number; stale: number; drained: number; jumped: number; resyncs: number; rate: number };
   apparentHits: number;
   confirmed: number;
   reversed: number;

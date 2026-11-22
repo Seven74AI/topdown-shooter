@@ -34,10 +34,8 @@ export const SHOT_ADVANCE_CAP_MS = 150;
 export const REWIND_CAP_MS = 300;
 
 /**
- * Story 2.12 review M1: an input more than this many seqs past the last one queued is refused
- * (counted as `jumped`), so a client can't pick seqs for their spread rolls. An honest client sends
- * every seq in order (20/s), so a jump of one second's worth never happens.
+ * Story 2.12 re-review M-A: the server accepts only the next seq (an honest client sends every seq
+ * in order), so a client can't pick seqs for their spread rolls. After this many refused inputs in a
+ * row (1 s of inputs) the queue resyncs to the client's seqs (a client that really restarted).
  */
-export const MAX_INPUT_SEQ_JUMP = 20;
-/** After this many refused jumps in a row (1 s of inputs) the queue resyncs to the client's seqs. */
 export const INPUT_SEQ_RESYNC_AFTER = 20;

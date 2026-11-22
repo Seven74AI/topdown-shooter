@@ -184,8 +184,33 @@ Claude Opus 5.5 (claude-opus-5-5), story writer and builder in worktree `story-2
   These replace the Completion Notes' figures (25.9/3.0, 29.9/2.0, 20.3/2.2, 45.0/17.1 %), which were measured before the 3.5 merge.
 - Checks: typecheck, lint, test (1131 passed, 3 skipped), build pass.
 
+### Re-review round 2 (2026-11-22, fresh agent, at 653195f; decisions by the main session)
+
+- [x] **[Med] M-A Seqs were still pickable.** Jumps of 2–20 were accepted on every input: a client picking the lowest-|roll| seq among the next 20 kept only ~6.5 % of the SMG spread. A pre-rotating cheat sending every other seq got no reports, because the watch skips non-consecutive seqs. **Fix:**
+  - `RunController.queueInput` accepts only `lastQueuedSeq + 1`. An honest client always sends seq + 1 (reliable WebSocket, NetSimHost +1 per step, a hidden tab drops the accumulator rather than bursting, and the bots also send seq + 1). Any other forward seq is refused (`drops().jumped`).
+  - The resync after `INPUT_SEQ_RESYNC_AFTER` = 20 refusals in a row is kept. It is counted (`drops().resyncs`), resets the spread watch's previous sample, and calls `onSeqResync`; `RunRoom` logs `seq_gap_suspect` (info, at most once per wave per player).
+  - `MAX_INPUT_SEQ_JUMP` is removed.
+  - Skipping seqs now costs a cheat almost all its inputs: of an every-other-seq stream, only one input in about 21 is accepted.
+  - Test: seq + 2 refused, then seq + 1 accepted; resync after 20, with one report.
+  - Mutation proven: the old 20-seq window fails the test.
+- [x] **[Med] M-B Honest bursts.** After a ~2.5 s stall about 50 inputs arrive at once. The 25-token bucket drops the later ones, the next input then looked like a jump, and 20 more were refused: a 1 s freeze and lost swap/consumable edges. **Fix:**
+  - `MessageGuard.guard` takes an optional `onRateDrop(client, message)`. `RunRoom.onInputRateDropped` passes the unvalidated message to `RunController.rateDroppedInput`, which reads only `seq`, `swap` and `consumable`.
+  - If the dropped input is the next seq, the seq counts as received (no gap) and its edge flags are carried onto the next queued input. Its movement and shot are not applied, as for an overflow drop; the prediction reconciles.
+  - Deviation from "the dropOldest rule (swap only without weapon debt)": a rate-dropped input never gets a dry weapon tick. It is newer than the inputs still queued, so a dry tick before the next step would run its weapon ahead of older seqs (a swap could change which weapon they fire). So its swap is always carried.
+  - `drops().rate` counts these.
+  - Test (MessageGuard + RunController, fake clock): a 2.5 s stall, then a burst of 50 with a swap and a consumable on bucket-dropped seqs. Result: bucket drops > 0, 0 refusals, exactly 1 swap and 1 consumable applied, moving every tick afterwards, acks caught up.
+  - Mutations proven: ignoring rate drops (the code before this fix) fails the test; not carrying the swap fails it.
+  - `predictionCircle`'s newest-only counter-example now reports the skipped arrivals the same way (`rateDroppedInput`). Its numbers still show the errors it exists to show (62 corrections, max error 0.225 m).
+- [x] **[Low] L The spread watch read the weapon before this tick's swap.** **Fix:** `RunController.tick` marks slots that applied a new input and feeds the watch after `step()`, so it reads the weapon after the swap. No dedicated test: one sample per swap could only shift a 40-sample window. Not separately proven.
+- Noted: the watch reset on resync survives mutation (a resynced seq is never `prev + 1`, which the watch already requires). It is kept as a defensive reset.
+- **Known limits (recorded, not fixed):**
+  - A cheat can still hold fire on bad rolls. That costs it fire rate, and the telemetry may not catch it.
+  - It can also discard a queued bad-roll seq through a queue overflow (a 7-input burst drops the oldest; a dry tick is given only against weapon debt). The bucket (25/s against 20 ticks) limits that to about 5 seqs per second, and every discarded seq is a shot not fired.
+- Checks: typecheck, lint, test (1134 passed, 3 skipped), build pass.
+
 ## Change Log
 
+- 2026-11-22: Re-review round 2 fixes (M-A only the next seq, resync telemetry `seq_gap_suspect`; M-B rate-bucket drops keep seqs and edges; L watch after the swap; known limits recorded). Merged claude/epic-2-continue (a8c813e).
 - 2026-11-22: Review fixes (M1 spread-cancel telemetry + seq-jump refusal, M2 shared spread helper + client test, M3 control margin + current numbers, L2 memo/lerp/live-row tests, L3 measured, L5 integer view tick). Status → done.
 
 - 2026-11-22: Implemented (zombie history + rewound view, view tick on the input, rewound shots/melee/assist, excess-over-cap advance, mid-tick sweeps, online seq spread, DEV_NO_REWIND, netsim cases, benchmark). Merged claude/epic-2-continue (c1bdd10). Status → review.

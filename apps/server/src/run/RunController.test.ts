@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   NEUTRAL_INPUT,
   TICK_DT_S,
+  playerInputSchema,
   addPlayer,
   killZombie,
   createWorld,
@@ -18,7 +19,8 @@ import {
   type PlayerInput,
   type SimEvent,
 } from "@topdown/shared";
-import { INPUT_SEQ_RESYNC_AFTER, MAX_INPUT_SEQ_JUMP } from "../net/limits";
+import { INPUT_SEQ_RESYNC_AFTER } from "../net/limits";
+import { MessageGuard } from "../net/messageGuard";
 import { INPUT_DRAIN_AFTER_TICKS, INPUT_QUEUE_MAX, INPUT_QUEUE_TARGET, REWIND_CAP_TICKS, RunController, parseDevHpFraction } from "./RunController";
 
 const balance = loadBalance();
@@ -163,7 +165,7 @@ describe("RunController", () => {
     expect(settledAt).toBeGreaterThanOrEqual(INPUT_DRAIN_AFTER_TICKS - 1); // not before the window
     expect(settledAt).toBeLessThan(60);
     expect(c.queued("p0")).toBeLessThanOrEqual(INPUT_QUEUE_TARGET);
-    expect(c.drops("p0")).toEqual({ overflow: 1, stale: 0, drained: 4, jumped: 0 });
+    expect(c.drops("p0")).toMatchObject({ overflow: 1, stale: 0, drained: 4, jumped: 0 });
     // The lag is gone: the newest input is at most TARGET ticks from being applied.
     expect(seq - c.ackSeq("p0")).toBeLessThanOrEqual(INPUT_QUEUE_TARGET);
   });
@@ -267,7 +269,7 @@ describe("RunController", () => {
       }
       c.tick();
     }
-    expect(c.drops("p0")).toEqual({ overflow: 0, stale: 0, drained: 0, jumped: 0 });
+    expect(c.drops("p0")).toMatchObject({ overflow: 0, stale: 0, drained: 0, jumped: 0 });
   });
 
   it("a swap followed by starved ticks swaps once, and only finishes as new seqs arrive", () => {
@@ -467,20 +469,64 @@ describe("RunController", () => {
     expect(shoot(false)).toBe(0);
   });
 
-  it("refuses an input more than 20 seqs ahead (seqs can't be picked), resyncing after a second of jumps (Story 2.12 review M1)", () => {
-    const c = newController();
+  it("accepts only the next seq (seqs can't be picked), resyncing after a second of refusals (Story 2.12 re-review M-A)", () => {
+    const resyncs: number[] = [];
+    const c = new RunController({ balance, seed: SEED, players: TWO, pauseWaves: true, onSeqResync: (_id, _w, n) => resyncs.push(n) });
     for (let seq = 1; seq <= 5; seq++) c.queueInput("p0", input(seq));
-    c.queueInput("p0", input(5 + MAX_INPUT_SEQ_JUMP + 1)); // a picked seq
+    c.queueInput("p0", input(7)); // skipping one seq (a picked roll)
     expect(c.drops("p0").jumped).toBe(1);
     expect(c.queued("p0")).toBe(5);
-    c.queueInput("p0", input(5 + MAX_INPUT_SEQ_JUMP)); // within the window: fine
+    c.queueInput("p0", input(6)); // the next seq: fine
     expect(c.queued("p0")).toBe(6);
     // A client that really jumped (sends on from far ahead) is accepted after INPUT_SEQ_RESYNC_AFTER refusals.
     const far = 1000;
     for (let k = 0; k < INPUT_SEQ_RESYNC_AFTER; k++) c.queueInput("p0", input(far + k));
     expect(c.drops("p0").jumped).toBe(1 + INPUT_SEQ_RESYNC_AFTER);
     c.queueInput("p0", input(far + INPUT_SEQ_RESYNC_AFTER));
+    expect(c.drops("p0")).toMatchObject({ jumped: 1 + INPUT_SEQ_RESYNC_AFTER, resyncs: 1 });
+    expect(resyncs).toEqual([1]);
+    c.queueInput("p0", input(far + INPUT_SEQ_RESYNC_AFTER + 1));
     expect(c.drops("p0").jumped).toBe(1 + INPUT_SEQ_RESYNC_AFTER);
+  });
+
+  it("a 2.5 s stall then a burst of 50 through the rate bucket: no refusals, no lost edges, movement resumes (Story 2.12 re-review M-B)", () => {
+    let now = 0;
+    const guard = new MessageGuard<{ sessionId: string }>(() => now, { warn: () => {} });
+    const client = { sessionId: "s0" };
+    guard.add(client, "p0");
+    const c = new RunController({ balance, seed: SEED, players: [{ playerId: "p0", slot: 0 }], systems: { waves: () => {}, zombies: () => {} } });
+    const p = c.world.players.get("p0");
+    if (!p) throw new Error("no p0");
+    setLoadout(balance, p.loadout, ["pistol", "smg"]);
+    const send = guard.guard(playerInputSchema, (_c, m) => c.queueInput("p0", m), "input", (_c, m) => c.rateDroppedInput("p0", m));
+    const SWAP_SEQ = 85; // inside the burst (seqs 40–89), past the 25 tokens: dropped by the bucket
+    const CONSUMABLE_SEQ = 80;
+    const held: PlayerInput[] = [];
+    let swaps = 0;
+    let consumables = 0;
+    let lastX = p.x;
+    let movedLate = 0;
+    for (let seq = 1; seq <= 200; seq++) {
+      now = seq * 50;
+      const inp = input(seq, { moveX: seq % 40 < 20 ? 1 : -1, swap: seq === SWAP_SEQ, consumable: seq === CONSUMABLE_SEQ });
+      if (now >= 2000 && now < 4500) held.push(inp); // ~50 inputs held by the network
+      else {
+        for (const h of held) send(client, h); // the burst arrives at once
+        held.length = 0;
+        send(client, inp);
+      }
+      for (const e of c.tick()) if (e.type === "weapon.swap_started") swaps++;
+      if (c.world.inputs.get("p0")?.consumable) consumables++;
+      if (seq > 170 && p.x !== lastX) movedLate++;
+      lastX = p.x;
+    }
+    expect(guard.pending(client)?.rate ?? 0).toBeGreaterThan(0); // the bucket really dropped some
+    expect(c.drops("p0").rate).toBeGreaterThan(0);
+    expect(c.drops("p0").jumped).toBe(0);
+    expect(swaps).toBe(1);
+    expect(consumables).toBe(1);
+    expect(movedLate).toBeGreaterThan(25); // moving again, every tick
+    expect(c.ackSeq("p0")).toBeGreaterThan(195);
   });
 
   it("reports a spread-cancelling aim once per wave through onSpreadCancelSuspect; an honest jittery aim never (Story 2.12 review M1)", () => {

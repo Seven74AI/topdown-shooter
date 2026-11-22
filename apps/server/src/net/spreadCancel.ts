@@ -55,6 +55,11 @@ export class SpreadCancelWatch {
     this.suspect.playerId = playerId;
   }
 
+  /** Forgets the previous sample (a seq resync: the next input is no neighbour). */
+  reset(): void {
+    this.prevSeq = -1;
+  }
+
   /**
    * One newly applied input. `spreadDeg` is the active gun's spread (0 for none / melee). Returns
    * the suspect report when a window just closed flagged and this wave has no report yet, else null.

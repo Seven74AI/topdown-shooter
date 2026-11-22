@@ -235,7 +235,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     await this.setPrivate(true, false);
     this.setState(new RunState({ phase: "lobby", hostSlot: 0 }));
 
-    this.onMessage(C2S.INPUT_SEND, this.net.guard(playerInputSchema, (c, input) => this.onInput(c, input), "input"));
+    this.onMessage(
+      C2S.INPUT_SEND,
+      this.net.guard(playerInputSchema, (c, input) => this.onInput(c, input), "input", (c, m) => this.onInputRateDropped(c, m)),
+    );
     this.onMessage(C2S.LOBBY_SET_READY, this.net.guard(lobbySetReadySchema, (c, m) => this.onSetReady(c, m.ready)));
     this.onMessage(C2S.RUN_START, this.net.guard(runStartSchema, (c) => this.onStart(c)));
     this.onMessage(C2S.NET_PONG, this.net.guard(netPongSchema, (c, m) => this.onPong(c, m.id)));
@@ -463,6 +466,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Story 2.12: rewound hit testing; DEV_NO_REWIND=1 (dev only) turns it off for A/B checks of the overlay's reversed hits.
       lagCompensation: !(devAllowed && process.env.DEV_NO_REWIND === "1"),
       // Story 2.12 review M1: telemetry only (at most once per wave per player), never a kick.
+      onSeqResync: (playerId, wave, resyncs) => this.log.info({ playerId, wave, resyncs }, "seq_gap_suspect"),
       onSpreadCancelSuspect: (s) =>
         this.log.info({ playerId: s.playerId, wave: s.wave, matchRatio: +s.matchRatio.toFixed(2), k: +s.k.toFixed(2), t: +s.t.toFixed(1), samples: s.samples }, "spread_cancel_suspect"),
     });
@@ -755,6 +759,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   }
 
   /** `input.send` (already validated and rate-limited): queued for the World (lobby: ignored). */
+  /**
+   * Story 2.12 re-review M-B: an `input.send` the rate bucket dropped (an honest burst after a stall).
+   * Only seq and edge flags are read; the controller counts the seq as received and carries the edges.
+   */
+  onInputRateDropped(client: RunClient, message: unknown): void {
+    const member = this.members.get(client.sessionId);
+    if (member) this.controller?.rateDroppedInput(member.playerId, message);
+  }
+
   onInput(client: RunClient, input: PlayerInput): void {
     const member = this.members.get(client.sessionId);
     if (member) this.controller?.queueInput(member.playerId, input);

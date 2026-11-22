@@ -123,7 +123,11 @@ function simulate(o: NetOptions): Result {
     if (t >= nextServerMs) {
       nextServerMs += TICK_MS;
       up.take(t, arrivedInputs);
-      if (o.newestOnly && arrivedInputs.length > 0) ctrl.queueInput(ID, arrivedInputs[arrivedInputs.length - 1] as PlayerInput);
+      if (o.newestOnly && arrivedInputs.length > 0) {
+        // Story 2.12 re-review: the older arrivals count as received but unapplied (the server accepts only the next seq).
+        for (let k = 0; k < arrivedInputs.length - 1; k++) ctrl.rateDroppedInput(ID, arrivedInputs[k]);
+        ctrl.queueInput(ID, arrivedInputs[arrivedInputs.length - 1] as PlayerInput);
+      }
       else for (const input of arrivedInputs) ctrl.queueInput(ID, input);
       ctrl.tick();
       const p = ctrl.world.players.get(ID);

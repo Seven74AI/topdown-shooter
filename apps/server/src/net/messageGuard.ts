@@ -73,12 +73,17 @@ export class MessageGuard<C extends GuardClient> {
     schema: SafeParser<T>,
     handler: (client: C, message: T) => void,
     bucket: MessageBucket = "other",
+    /** Story 2.12 re-review M-B: told about each message the rate bucket dropped (unvalidated). */
+    onRateDrop?: (client: C, message: unknown) => void,
   ): (client: C, message: unknown) => void {
     return (client, message) => {
       const g = this.clients.get(client.sessionId);
       if (!g) return; // not joined (or already left): nothing to deliver to
       const now = this.now();
-      if (!(bucket === "input" ? g.input : g.other).take(now)) return this.count(g, "rate", now);
+      if (!(bucket === "input" ? g.input : g.other).take(now)) {
+        onRateDrop?.(client, message);
+        return this.count(g, "rate", now);
+      }
       const parsed = schema.safeParse(message);
       if (!parsed.success) return this.count(g, "invalid", now);
       handler(client, parsed.data);

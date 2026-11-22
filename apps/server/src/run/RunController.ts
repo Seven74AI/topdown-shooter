@@ -37,7 +37,7 @@ import {
   type World,
   type ZombieTypeId,
 } from "@topdown/shared";
-import { INPUT_SEQ_RESYNC_AFTER, MAX_INPUT_SEQ_JUMP, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS } from "../net/limits";
+import { INPUT_SEQ_RESYNC_AFTER, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS } from "../net/limits";
 import { SpreadCancelWatch, type SpreadCancelSuspect } from "../net/spreadCancel";
 
 /** Story 2.12: the rewind cap in ticks (REWIND_CAP_MS, never more than the shared history holds). */
@@ -90,10 +90,21 @@ class PlayerSlot {
   overflowDrops = 0;
   /** Inputs ignored because their seq was not newer. */
   staleDrops = 0;
-  /** Story 2.12 review M1: inputs refused for jumping more than MAX_INPUT_SEQ_JUMP seqs ahead. */
+  /** Story 2.12 review M1 / re-review M-A: inputs refused because their seq was not the next one. */
   jumpDrops = 0;
   /** Refused jumps in a row (a resync after INPUT_SEQ_RESYNC_AFTER). */
   jumpStreak = 0;
+  /** Resyncs to a jumped-ahead seq (re-review M-A; telemetry `seq_gap_suspect`). */
+  resyncs = 0;
+  /** Wave of the last `seq_gap_suspect` report (at most one per wave). */
+  resyncReportedWave = -1;
+  /** Re-review M-B: in-order inputs the message rate bucket dropped (their seq counts as received). */
+  rateDrops = 0;
+  /** Edge flags of rate-dropped inputs, carried onto the next input queued (never lost). */
+  carrySwap = false;
+  carryConsumable = false;
+  /** A new input was applied this tick (the spread watch reads it after the step). */
+  appliedThisTick = false;
   /** Story 2.12 review M1: spread-cancel telemetry. */
   readonly spreadWatch: SpreadCancelWatch;
   /** Inputs skipped to drain a lasting backlog (their edge flags carried forward). */
@@ -189,6 +200,11 @@ export interface RunControllerOptions {
    * like it cancels the predictable spread. Telemetry only (the room logs `spread_cancel_suspect`).
    */
   onSpreadCancelSuspect?: (s: SpreadCancelSuspect) => void;
+  /**
+   * Story 2.12 re-review M-A: called (at most once per wave per player) when a player's input seqs
+   * had to be resynced (a run of non-consecutive seqs). Telemetry only (`seq_gap_suspect`).
+   */
+  onSeqResync?: (playerId: string, wave: number, resyncs: number) => void;
 }
 
 /**
@@ -216,10 +232,12 @@ export class RunController {
   private readonly events: SimEvent[] = [];
   private readonly devPlacedHpFraction: number | null;
   private readonly onSpreadCancelSuspect: ((s: SpreadCancelSuspect) => void) | null;
+  private readonly onSeqResync: ((playerId: string, wave: number, resyncs: number) => void) | null;
 
   constructor(opts: RunControllerOptions) {
     this.devPlacedHpFraction = opts.devPlacedHpFraction ?? null;
     this.onSpreadCancelSuspect = opts.onSpreadCancelSuspect ?? null;
+    this.onSeqResync = opts.onSeqResync ?? null;
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, ...(opts.systems ? { systems: opts.systems } : {}) });
     this.world.waves.paused = opts.pauseWaves === true;
     this.world.debug.waveMix = opts.waveMix ?? null;
@@ -279,12 +297,23 @@ export class RunController {
       s.staleDrops++;
       return;
     }
-    // Story 2.12 review M1: seqs can't be picked (the spread roll is the seq's). A long run of jumps
-    // (a client that really restarted its seqs further on) resyncs after a second.
-    if (s.lastQueuedSeq > 0 && input.seq > s.lastQueuedSeq + MAX_INPUT_SEQ_JUMP && s.jumpStreak < INPUT_SEQ_RESYNC_AFTER) {
-      s.jumpDrops++;
-      s.jumpStreak++;
-      return;
+    // Story 2.12 re-review M-A: seqs can't be picked (the spread roll is the seq's). An honest client
+    // sends every seq in order (reliable WebSocket, +1 per step, no catch-up burst; rate-bucket drops
+    // are reported through `rateDroppedInput`), so only the next seq is accepted. A run of
+    // INPUT_SEQ_RESYNC_AFTER refusals (a client that really restarted its seqs further on) resyncs.
+    if (s.lastQueuedSeq > 0 && input.seq !== s.lastQueuedSeq + 1) {
+      if (s.jumpStreak < INPUT_SEQ_RESYNC_AFTER) {
+        s.jumpDrops++;
+        s.jumpStreak++;
+        return;
+      }
+      s.resyncs++;
+      s.spreadWatch.reset(); // the previous sample is no neighbour of this seq
+      const wave = this.world.waves.number;
+      if (s.resyncReportedWave !== wave) {
+        s.resyncReportedWave = wave;
+        this.onSeqResync?.(playerId, wave, s.resyncs);
+      }
     }
     s.jumpStreak = 0;
     const full = s.count === INPUT_QUEUE_MAX;
@@ -292,9 +321,33 @@ export class RunController {
       dropOldest(s);
       s.overflowDrops++;
     }
-    copyInput(s.ring[(s.head + s.count) % INPUT_QUEUE_MAX] as MutableInput, input);
+    const slot = s.ring[(s.head + s.count) % INPUT_QUEUE_MAX] as MutableInput;
+    copyInput(slot, input);
+    // Re-review M-B: edges of rate-dropped inputs land on this one.
+    if (s.carrySwap) slot.swap = true;
+    if (s.carryConsumable) slot.consumable = true;
+    s.carrySwap = s.carryConsumable = false;
     s.count++;
     s.lastQueuedSeq = input.seq;
+  }
+
+  /**
+   * Story 2.12 re-review M-B: an `input.send` the message rate bucket dropped (an honest burst after a
+   * stall can exceed MAX_INPUTS_PER_S), unvalidated. Only its seq and edge flags are read (no full
+   * validation: the bucket exists to spare that work). If it is the next seq, the seq counts as
+   * received (no gap, so the following inputs are not refused) and its swap/consumable move to the
+   * next input queued; like an overflow drop, its movement and shot are not applied (the prediction
+   * reconciles). Anything else is ignored.
+   */
+  rateDroppedInput(playerId: string, message: unknown): void {
+    const s = this.slots.get(playerId);
+    if (!s || typeof message !== "object" || message === null) return;
+    const m = message as { seq?: unknown; swap?: unknown; consumable?: unknown };
+    if (typeof m.seq !== "number" || m.seq !== s.lastQueuedSeq + 1) return;
+    s.lastQueuedSeq = m.seq;
+    s.rateDrops++;
+    if (m.swap === true) s.carrySwap = true;
+    if (m.consumable === true) s.carryConsumable = true;
   }
 
   /**
@@ -323,9 +376,16 @@ export class RunController {
   }
 
   /** Dropped inputs so far: `overflow` (ring full), `stale` (seq not newer), `drained` (backlog skips). */
-  drops(playerId: string): { overflow: number; stale: number; drained: number; jumped: number } {
+  drops(playerId: string): { overflow: number; stale: number; drained: number; jumped: number; resyncs: number; rate: number } {
     const s = this.slots.get(playerId);
-    return { overflow: s?.overflowDrops ?? 0, stale: s?.staleDrops ?? 0, drained: s?.drainSkips ?? 0, jumped: s?.jumpDrops ?? 0 };
+    return {
+      overflow: s?.overflowDrops ?? 0,
+      stale: s?.staleDrops ?? 0,
+      drained: s?.drainSkips ?? 0,
+      jumped: s?.jumpDrops ?? 0,
+      resyncs: s?.resyncs ?? 0,
+      rate: s?.rateDrops ?? 0,
+    };
   }
 
   /** Zombies this player killed this run (Story 2.8): counted from `zombie.killed` by `killerId`. */
@@ -381,7 +441,7 @@ export class RunController {
         s.head = (s.head + 1) % INPUT_QUEUE_MAX;
         s.count--;
         s.ackSeq = cur.seq;
-        if (p && p.rewindMaxTicks > 0) this.watchSpread(s, p);
+        s.appliedThisTick = true;
       } else {
         // Starved: hold still, keep aim and fire, same seq (edge flags already spent on it). The
         // weapon is paused above: it never fires a shot the client's fire clock didn't predict.
@@ -393,6 +453,14 @@ export class RunController {
       setInput(this.world, s.playerId, cur);
     }
     step(this.world, TICK_DT_S);
+    // Story 2.12 review M1 (re-review L): the spread watch reads the weapon after this tick's swap.
+    for (let i = 0; i < this.order.length; i++) {
+      const s = this.order[i] as PlayerSlot;
+      if (!s.appliedThisTick) continue;
+      s.appliedThisTick = false;
+      const p = this.world.players.get(s.playerId);
+      if (p && p.rewindMaxTicks > 0) this.watchSpread(s, p);
+    }
     const events = this.events;
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
