@@ -161,7 +161,7 @@ export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>): bo
     const sp = spawnPoints[i] as { x: number; y: number };
     if (circleOverlapsBox(sp.x, sp.y, clear, box.minX, box.minY, box.maxX, box.maxY)) return true;
   }
-  const solids = world.map.solids; // Story 4.1: the map's collision boxes (touching is fine, like buildings)
+  const solids = world.obstacles.solids; // Story 4.1/4.2: map collision boxes + active cover (touching is fine, like buildings)
   for (let i = 0; i < solids.length; i++) {
     const b = solids[i] as Box;
     if (box.minX < b.maxX && box.maxX > b.minX && box.minY < b.maxY && box.maxY > b.minY) return true;

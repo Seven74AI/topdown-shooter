@@ -423,10 +423,11 @@ describe("RunController", () => {
       const p = c.world.players.get("p0");
       if (!p) throw new Error("no p0");
       setLoadout(balance, p.loadout, ["hunting_rifle", null]); // no spread: the aim alone decides
-      const zid = spawnZombie(c.world, "walker", p.x + 8, p.y);
+      // West of the team start (Story 4.2: 8 m east is inside the bus, which stops the shot).
+      const zid = spawnZombie(c.world, "walker", p.x - 8, p.y);
       const a = (5 * Math.PI) / 180;
       const events: SimEvent[] = [];
-      c.queueInput("p0", input(1, { aimX: Math.cos(a), aimY: Math.sin(a), fire: true, isMouse }));
+      c.queueInput("p0", input(1, { aimX: -Math.cos(a), aimY: Math.sin(a), fire: true, isMouse }));
       for (let t = 0; t < 8; t++) events.push(...c.tick());
       expect(events.some((e) => e.type === "weapon.fired")).toBe(true);
       return events.filter((e) => e.type === "zombie.hit" && e.zombieId === zid);

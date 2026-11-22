@@ -83,6 +83,8 @@ export function snapshotWorld(world: World) {
     lastAppliedSeq: sortedEntries(world.lastAppliedSeq),
     // Story 4.1: the map is static frozen data; its name and content hash identify it.
     map: { name: world.map.name, version: world.map.version },
+    // Story 4.2: the active obstacles follow from the map + stage; the stage and rebuild count identify them.
+    obstacles: { stage: world.obstacles.stage, version: world.obstacles.version, solids: world.obstacles.solids.length, shotBlockers: world.obstacles.shotBlockers.length },
     players: sortedEntries(world.players).map(
       ([id, p]) =>
         [

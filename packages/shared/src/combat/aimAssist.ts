@@ -6,6 +6,7 @@ import { zombieCandidates as candidates } from "./scratch";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import type { ZombieView } from "./rewind";
+import { shotBlockT, shotLineClear } from "./cover";
 
 const MIN_DIST_SQ = 1e-6;
 
@@ -20,6 +21,7 @@ const MIN_DIST_SQ = 1e-6;
  * Pure over the World: Story 2.7 runs it on the server with server positions.
  * Requires the zombie grid to be current (the combat system rebuilds it first).
  * Story 2.12: `view` (rewound positions and their grid) replaces the live positions when given.
+ * Story 4.2: a zombie behind a shot blocker (car, bus, map box) is neither a target nor a raw hit.
  */
 export function assistAim(
   world: World,
@@ -42,6 +44,8 @@ export function assistAim(
   const count = queryRadius(view ? view.grid : world.zombieGrid, xs, ys, ox, oy, rangeM + maxZombieRadius(world.balance), candidates);
   const ex = ox + dirX * rangeM;
   const ey = oy + dirY * rangeM;
+  // Story 4.2: the raw aim "already hits" only a zombie before the first car / bus / map box on it.
+  const blockT = shotBlockT(world, ox, oy, ex, ey);
   let best = -1;
   let bestD2 = Infinity;
   let bestVx = 0;
@@ -52,7 +56,8 @@ export function assistAim(
     const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
     const zx = xs[id] as number;
     const zy = ys[id] as number;
-    if (segmentCircleT(ox, oy, ex, ey, zx, zy, r) >= 0) {
+    const rawT = segmentCircleT(ox, oy, ex, ey, zx, zy, r);
+    if (rawT >= 0 && (blockT < 0 || rawT <= blockT)) {
       return -1; // the raw aim already hits a zombie: keep it
     }
     const vx = zx - ox;
@@ -63,6 +68,7 @@ export function assistAim(
     const d = Math.sqrt(d2);
     if ((vx * dirX + vy * dirY) / d < cosLimit) continue;
     if (d2 < bestD2) {
+      if (!shotLineClear(world, ox, oy, zx, zy)) continue; // Story 4.2: never bend a shot into cover
       best = id;
       bestD2 = d2;
       bestVx = vx / d;

@@ -125,12 +125,12 @@ describe("syncState", () => {
     encoder.discardChanges();
     const w = controller.world;
     w.run.phase = "build"; // RunController started in a build phase; setup's state says "wave"
-    const r = controller.placeBuilding("p0", { type: "wood_barricade", gx: 16, gy: 28, rot: 1 });
+    const r = controller.placeBuilding("p0", { type: "wood_barricade", gx: 18, gy: 28, rot: 1 }); // Story 4.2: clear of street_car_west (x 4–8.5)
     expect(r.ok).toBe(true);
     controller.tick(); // the wallet change and the building go out with this tick
     syncState(state, controller);
     expect([...state.buildings.keys()]).toEqual(["1"]);
-    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "wood_barricade", owner: "p0", gx: 16, gy: 28, rot: 1, hp: 200 });
+    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "wood_barricade", owner: "p0", gx: 18, gy: 28, rot: 1, hp: 200 });
     const placedBytes = encoder.encode().length;
     encoder.discardChanges();
     controller.tick();

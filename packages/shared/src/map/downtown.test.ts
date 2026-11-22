@@ -112,7 +112,8 @@ describe("Downtown map data (Story 4.1)", () => {
       free++;
       if ((chase.front[c] as number) >= FLOW_UNREACHED) unreached++;
     }
-    expect(free).toBe(96 * 64 - 1780);
+    // Story 4.2: the 5 stage-1 cars are walls too (3 parked 2 × 4.5 m + 2 street 4.5 × 2 m = 5 × 36 cells).
+    expect(free).toBe(96 * 64 - 1780 - 5 * 36);
     expect(unreached).toBe(0);
     for (const sp of map.spawnPoints) expect(chase.front[flowCellAt(nav, sp.x, sp.y)], sp.name).toBeLessThan(FLOW_UNREACHED);
   });

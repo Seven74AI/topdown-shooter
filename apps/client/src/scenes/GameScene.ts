@@ -39,6 +39,7 @@ import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
 import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
+import { CoverView } from "../render/CoverView";
 import { TurretView } from "../render/TurretView";
 import { Placement, placeRefusalText } from "./placement";
 import { RepairPanel, repairRefusalText } from "./repairPanel";
@@ -168,6 +169,8 @@ export class GameScene extends Phaser.Scene {
   private downedView: DownedView | null = null;
   /** Story 3.4: placed buildings and the placement preview. */
   private buildingView: BuildingView | null = null;
+  /** Story 4.2: the active cover (redrawn when the decay stage changes it). */
+  private coverView: CoverView | null = null;
   /** Story 3.6: turret plates and heads (aim from the World / `turret.fired`). */
   private turretView: TurretView | null = null;
   /** Story 3.4: placement mode on this device (sticks off while active). */
@@ -309,6 +312,7 @@ export class GameScene extends Phaser.Scene {
     uiStore.handle("shop", (action) => this.shopInput(action));
 
     drawStreet(this, world.map);
+    this.coverView = new CoverView(this);
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
@@ -362,6 +366,8 @@ export class GameScene extends Phaser.Scene {
       this.placement.cancel();
       this.buildingView?.destroy();
       this.buildingView = null;
+      this.coverView?.destroy();
+      this.coverView = null;
       this.turretView?.destroy();
       this.turretView = null;
       this.repairPanel.close();
@@ -856,6 +862,7 @@ export class GameScene extends Phaser.Scene {
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world);
+    this.coverView?.update(host.world);
     this.buildingView?.update(host.world, this.placement);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.selectView?.update(host.world, this.repairPanel.id);

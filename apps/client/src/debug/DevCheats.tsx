@@ -1,12 +1,12 @@
 import type * as Phaser from "phaser";
 import { h, render } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { ZOMBIE_TYPES, setLoadout, skipWave, spawnRing, weaponIds, type ZombieTypeId } from "@topdown/shared";
+import { MAP_STAGE_COUNT, ZOMBIE_TYPES, currentDecayStage, setLoadout, skipWave, spawnRing, weaponIds, type ZombieTypeId } from "@topdown/shared";
 import type { GameScene } from "../scenes/GameScene";
 import { LOCAL_PLAYER_ID } from "../sim/LocalSimHost";
 import { perf } from "./perfStats";
 import { spawnInView, type ViewRect } from "./stressScenario";
-import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, parseSeed } from "./devCheatActions";
+import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, parseSeed, setDecayStageCheat } from "./devCheatActions";
 import "./DevCheats.css";
 
 /**
@@ -172,6 +172,25 @@ function DevCheats({ game }: { game: Phaser.Game }) {
             />
             Perf overlay
           </label>
+          <fieldset>
+            <legend>Decay stage (cover)</legend>
+            <div class="dev-cheats__row">
+              <select
+                value={String(w ? currentDecayStage(w) : 1)}
+                aria-label="Decay stage"
+                disabled={online}
+                onChange={(e) => {
+                  if (w && !online) setDecayStageCheat(w, Number((e.target as HTMLSelectElement).value));
+                  refresh();
+                }}
+              >
+                {Array.from({ length: MAP_STAGE_COUNT }, (_, i) => (
+                  <option value={String(i + 1)}>stage {i + 1}</option>
+                ))}
+              </select>
+            </div>
+            {online && <p class="dev-cheats__info">Online: the server owns the decay stage (Story 4.5).</p>}
+          </fieldset>
           <fieldset>
             <legend>Run seed</legend>
             <div class="dev-cheats__row">

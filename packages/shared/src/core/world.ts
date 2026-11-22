@@ -14,6 +14,8 @@ import { EventBus } from "./eventBus";
 import { createEconomyState, type EconomyState } from "../economy/economy";
 import { createBuildingState, type BuildingState } from "../buildings/buildings";
 import { createPathingState, type PathingState } from "../zombies/flowField";
+import { createObstacles, type ObstacleState } from "../map/obstacles";
+import { FIRST_DECAY_STAGE } from "../map/decayStage";
 import { createSeedStreams, type SeedStreams } from "./seedStreams";
 import { createRewoundView, createZombieHistory, recordZombieHistory, type RewoundView, type ZombieHistory } from "../combat/rewind";
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
@@ -42,6 +44,12 @@ export interface World {
    * shared data; the game's hosts pass `DOWNTOWN_MAP`, tests default to the open `PLACEHOLDER_MAP`.
    */
   readonly map: DistrictMap;
+  /**
+   * Story 4.2: the obstacles active at the current decay stage (`map/obstacles.ts`): map collision
+   * boxes + active cover for bodies and the nav grid, map boxes + cars/bus for shots. Every
+   * collision and shot test reads these lists, never `map.solids` / `map.cover` directly.
+   */
+  readonly obstacles: ObstacleState;
   /** Players by id (Epic 1: one player, "local"). */
   readonly players: Map<string, PlayerState>;
   /** Zombie storage (struct-of-arrays pool). */
@@ -89,6 +97,11 @@ export interface WorldDebug {
    * null = the real composition.
    */
   waveMix: readonly ZombieTypeId[] | null;
+  /**
+   * Story 4.2 dev override of the decay stage (solo cheat only; null = the real stage, which is 1
+   * until Story 4.5). Read only through `currentDecayStage`; apply with `applyCoverStage`.
+   */
+  decayStage: number | null;
 }
 
 export interface CreateWorldOptions {
@@ -108,6 +121,8 @@ const DT_TOLERANCE = 1e-9;
 export function createWorld(opts: CreateWorldOptions): World {
   const seed = opts.seed >>> 0;
   const map = opts.map ?? PLACEHOLDER_MAP;
+  // Story 4.2: a new World is at the first decay stage (`currentDecayStage` with no override).
+  const obstacles = createObstacles(map, FIRST_DECAY_STAGE);
   const world: World = {
     tick: 0,
     balance: opts.balance,
@@ -118,18 +133,20 @@ export function createWorld(opts: CreateWorldOptions): World {
     inputs: new Map(),
     lastAppliedSeq: new Map(),
     map,
+    obstacles,
     players: new Map(),
     zombies: createZombiePool(ZOMBIE_POOL_CAPACITY),
     zombieGrid: createSpatialGrid(map, GRID_CELL_M, ZOMBIE_POOL_CAPACITY),
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(),
     run: createRunState(),
-    debug: { godMode: false, waveMix: null },
+    debug: { godMode: false, waveMix: null, decayStage: null },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),
     // 3.5 review L5: Worlds whose buildings system never runs (client mirror, prediction) get a placeholder.
-    pathing: createPathingState(map, ZOMBIE_POOL_CAPACITY, (opts.systems?.buildings ?? DEFAULT_SYSTEMS.buildings) === DEFAULT_SYSTEMS.buildings),
+    // Story 4.2: the nav grid walls off the map boxes and the active cover.
+    pathing: createPathingState({ widthM: map.widthM, heightM: map.heightM, solids: obstacles.solids }, ZOMBIE_POOL_CAPACITY, (opts.systems?.buildings ?? DEFAULT_SYSTEMS.buildings) === DEFAULT_SYSTEMS.buildings),
     zombieHistory: createZombieHistory(),
     rewoundView: createRewoundView(map),
   };
