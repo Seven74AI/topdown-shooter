@@ -107,6 +107,18 @@ describe("LocalFireClock (Story 2.7)", () => {
     expect(local).toEqual(server);
   });
 
+  it("a second swap tap soon after the first is replayed like the server does (review MED-1)", () => {
+    for (const second of [64, 66, 67, 68, 70]) {
+      const { server, local } = compare(["pistol", "smg"], 160, (seq) => fireInput(seq, { swap: seq === 60 || seq === second }), 6);
+      expect(local, `second tap on ${second}`).toEqual(server);
+    }
+  });
+
+  it("swap taps every few steps with a stale snapshot still match", () => {
+    const { server, local } = compare(["smg", "hunting_rifle"], 200, (seq) => fireInput(seq, { swap: seq % 9 === 0 && seq < 120 }), 8);
+    expect(local).toEqual(server);
+  });
+
   it("matches with the trigger pulsed and a swap in the middle", () => {
     const { server, local } = compare(["smg", "pistol"], 200, (seq) =>
       fireInput(seq, { fire: seq % 17 < 11, swap: seq === 60 || seq === 140 }),
@@ -148,6 +160,7 @@ describe("LocalFireClock (Story 2.7)", () => {
       [{ reloadTicks0: 5 }, {}],
       [{ swapTicks: 3 }, {}],
       [{ status: "downed" }, {}],
+      [{ status: "out" }, {}],
       [{}, { fire: false }],
       [{}, { aimX: 0, aimY: 0 }],
     ];

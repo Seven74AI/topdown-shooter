@@ -5,6 +5,7 @@ import {
   createWorld,
   removePlayer,
   setInput,
+  skippedInputWeaponTick,
   step,
   teamSpawnPoint,
   type Balance,
@@ -65,27 +66,34 @@ class PlayerSlot {
   overTargetTicks = 0;
   /** Zombies this player killed this run (Story 2.8 Results). */
   kills = 0;
+  /**
+   * Story 2.7 review: inputs dropped since the last tick (overflow or drain), oldest first (copies).
+   * Each gets a weapon-only tick before the next step, so weapon timing follows seqs.
+   */
+  readonly skipped: MutableInput[] = Array.from({ length: SKIPPED_MAX }, () => ({ ...NEUTRAL_INPUT }));
+  skippedCount = 0;
 }
+
+/** Dropped inputs remembered for their weapon-only tick (more in one tick is a client flood: dropped). */
+const SKIPPED_MAX = 16;
 
 /**
  * Drops the oldest queued input but keeps its one-shot flags: a swap or consumable press must
- * never be lost (Epic 1 lesson). Each flag moves to the first later input that doesn't have it
- * yet, so two presses on consecutive seqs stay two presses (a swap toggle ends on the same weapon
- * as the client predicted). Callers keep at least one input queued after the drop.
+ * never be lost (Epic 1 lesson). The swap is kept at its own seq (Story 2.7 review): the dropped
+ * input gets a dry weapon tick (`skippedInputWeaponTick`) before the next step, so the swap, the
+ * cooldown and the ammo follow exactly what the client's fire clock predicted for that seq. A consumable moves to the first later
+ * input that doesn't have it yet (two presses on consecutive seqs stay two presses). Callers keep
+ * at least one input queued after the drop.
  */
 const dropOldest = (s: PlayerSlot): void => {
   const dropped = s.ring[s.head] as MutableInput;
   s.head = (s.head + 1) % INPUT_QUEUE_MAX;
   s.count--;
-  let swap = dropped.swap;
+  if (s.skippedCount < SKIPPED_MAX) copyInput(s.skipped[s.skippedCount++] as MutableInput, dropped);
   let consumable = dropped.consumable;
-  for (let i = 0; i < s.count && (swap || consumable); i++) {
+  for (let i = 0; i < s.count && consumable; i++) {
     const next = s.ring[(s.head + i) % INPUT_QUEUE_MAX] as MutableInput;
-    if (swap && !next.swap) {
-      next.swap = true;
-      swap = false;
-    }
-    if (consumable && !next.consumable) {
+    if (!next.consumable) {
       next.consumable = true;
       consumable = false;
     }
@@ -218,13 +226,19 @@ export class RunController {
       } else {
         s.overTargetTicks = 0;
       }
+      // Skipped inputs (overflow, drain): their weapon tick, a dry one (Story 2.7 review).
+      for (let k = 0; k < s.skippedCount; k++) skippedInputWeaponTick(this.world, s.playerId, s.skipped[k] as MutableInput);
+      s.skippedCount = 0;
+      const p = this.world.players.get(s.playerId);
+      if (p) p.weaponsPaused = s.count === 0; // starved: the weapon waits for the next seq too
       if (s.count > 0) {
         copyInput(cur, s.ring[s.head] as MutableInput);
         s.head = (s.head + 1) % INPUT_QUEUE_MAX;
         s.count--;
         s.ackSeq = cur.seq;
       } else {
-        // Starved: hold still, keep aim and fire, same seq (edge flags already spent on it).
+        // Starved: hold still, keep aim and fire, same seq (edge flags already spent on it). The
+        // weapon is paused above: it never fires a shot the client's fire clock didn't predict.
         cur.moveX = 0;
         cur.moveY = 0;
         cur.swap = false;

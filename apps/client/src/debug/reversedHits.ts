@@ -2,6 +2,11 @@
 export const REVERSED_HITS_RING = 64;
 /** Slack added to RTT + render delay before an unconfirmed apparent hit counts as reversed (ms). */
 export const REVERSED_HIT_SLACK_MS = 300;
+/**
+ * Slack on the early-hit window (one-way delay + render delay + this, ms): a server hit that beat
+ * my bullet to the drawn zombie waits only that long, so it can't confirm a later shot's hit.
+ */
+export const EARLY_HIT_SLACK_MS = 50;
 
 /** The counters on `NetSimHost.netStats` and the perf overlay. */
 export interface HitCounts {
@@ -26,10 +31,11 @@ export function hitsLine(h: HitCounts): string {
  * - `apparent(netId, nowMs, windowMs)`: my bullet first crossed the mirror zombie with that full
  *   net id (`slot | generation << 8`, so a reused slot never matches an old zombie). It becomes an
  *   expectation with deadline `now + windowMs` (NetSimHost passes RTT + delay + 300 ms).
- * - `serverHit(netId, nowMs, windowMs)`, on arrival: a server `zombie.hit` from me confirms the
- *   oldest matching expectation. With a low RTT the server's hit can arrive before my bullet
- *   reaches the drawn zombie (which is 100–150 ms behind), so an unmatched hit is kept until its
- *   own deadline and confirms an expectation that comes later.
+ * - `serverHit(netId, nowMs, earlyWindowMs)`, on arrival: a server `zombie.hit` from my gun
+ *   confirms the oldest matching expectation. With a low RTT the server's hit can arrive before
+ *   my bullet reaches the drawn zombie (which is 100–150 ms behind), so an unmatched hit is kept
+ *   for `earlyWindowMs` (NetSimHost: one-way + render delay + EARLY_HIT_SLACK_MS) and confirms
+ *   an expectation that comes within it. Melee hits are not passed in.
  * - `serverKilled(netId)`, on arrival, any killer: that zombie is dead on the server. A later
  *   apparent hit on its still-drawn body (unless an early hit of mine on it is still unmatched) (the death plays at the render tick) is not tracked,
  *   and pending expectations on it are dropped: the player sees it die, nothing is reversed.
@@ -67,7 +73,7 @@ export class ReversedHits {
     this.expNext = (this.expNext + 1) % REVERSED_HITS_RING;
   }
 
-  serverHit(netId: number, nowMs: number, windowMs: number): void {
+  serverHit(netId: number, nowMs: number, earlyWindowMs: number): void {
     const k = this.oldest(this.expId, this.expDue, netId, nowMs);
     if (k >= 0) {
       this.expId[k] = -1;
@@ -75,7 +81,7 @@ export class ReversedHits {
       return;
     }
     this.hitId[this.hitNext] = netId;
-    this.hitDue[this.hitNext] = nowMs + windowMs;
+    this.hitDue[this.hitNext] = nowMs + earlyWindowMs;
     this.hitNext = (this.hitNext + 1) % REVERSED_HITS_RING;
   }
 

@@ -17,6 +17,7 @@
  * did not confirm in time (reversed).
  */
 import {
+  MUZZLE_OFFSET_M,
   NEUTRAL_INPUT,
   NET_EVENT_KIND,
   TICK_DT_S,
@@ -41,7 +42,7 @@ import { RunController } from "../../apps/server/src/run/RunController";
 import { Predictor } from "../../apps/client/src/net/prediction";
 import { LocalFireClock, type FireGateView } from "../../apps/client/src/net/localFire";
 import { CosmeticProjectiles } from "../../apps/client/src/net/cosmeticProjectiles";
-import { ReversedHits, REVERSED_HIT_SLACK_MS } from "../../apps/client/src/debug/reversedHits";
+import { EARLY_HIT_SLACK_MS, ReversedHits, REVERSED_HIT_SLACK_MS } from "../../apps/client/src/debug/reversedHits";
 import { ServerClock } from "../../apps/client/src/net/serverClock";
 import { AdaptiveDelay } from "../../apps/client/src/net/adaptiveDelay";
 import { HordeSample } from "../../apps/client/src/net/hordeBuffer";
@@ -65,9 +66,15 @@ export interface Options {
   weapon: WeaponId;
   /** The player kites: walks a 10 m circle around the map centre at full speed (one lap ≈ 14 s). */
   kite: boolean;
+  /** Client → server inputs sent during [fromMs, toMs) are held and arrive in one burst at toMs + one-way. */
+  stall?: { fromMs: number; toMs: number };
 }
 
 export interface Result {
+  /** Seqs on which the client's fire clock shot, and on which the server's weapon fired. */
+  localShotSeqs: number[];
+  serverShotSeqs: number[];
+  drops: { overflow: number; stale: number; drained: number };
   apparentHits: number;
   confirmed: number;
   reversed: number;
@@ -85,8 +92,8 @@ class Link<T> {
     private readonly jitterHalfMs: number,
     private readonly rng: { range(a: number, b: number): number },
   ) {}
-  send(now: number, v: T): void {
-    const due = Math.max(this.lastDue, now + this.oneWayMs + this.rng.range(-this.jitterHalfMs, this.jitterHalfMs));
+  send(now: number, v: T, notBefore = -Infinity): void {
+    const due = Math.max(this.lastDue, notBefore, now + this.oneWayMs + this.rng.range(-this.jitterHalfMs, this.jitterHalfMs));
     this.lastDue = due;
     this.items.push({ due, v });
   }
@@ -151,6 +158,8 @@ export function simulate(o: Options): Result {
   let serverHitsByMe = 0;
   let killCount = 0;
   let shots = 0;
+  const localShotSeqs: number[] = [];
+  const serverShotSeqs: number[] = [];
 
   const sampleHorde = (rt: number): void => {
     let a: Down | null = null;
@@ -203,6 +212,7 @@ export function simulate(o: Options): Result {
         const enc = encodeNetEvent(e, ctx);
         if (enc) events.push(enc);
         if (e.type === "zombie.hit" && e.sourceId === ID) serverHitsByMe++;
+        if (e.type === "weapon.fired" && e.playerId === ID) serverShotSeqs.push(ctrl.ackSeq(ID));
         if (e.type === "zombie.killed") killCount++;
       }
       while (z.aliveCount < WALKERS) spawnRingWalker();
@@ -245,7 +255,7 @@ export function simulate(o: Options): Result {
       delay.snapshot(t, d.tick);
       predictor.reconcile(d.me.ackSeq, d.me.x, d.me.y, d.me.status);
       for (const e of d.events) {
-        if (e[0] === NET_EVENT_KIND.ZOMBIE_HIT && e[7] === 0) hits.serverHit(e[1] as number, t, windowMs());
+        if (e[0] === NET_EVENT_KIND.ZOMBIE_HIT && e[7] === 0) hits.serverHit(e[1] as number, t, o.oneWayMs + delay.delayMs + EARLY_HIT_SLACK_MS);
         if (e[0] === NET_EVENT_KIND.ZOMBIE_KILLED) {
           hits.serverKilled(e[1] as number);
           kills.push({ tick: d.tick, netId: e[1] as number });
@@ -303,12 +313,14 @@ export function simulate(o: Options): Result {
         fire: best >= 0 && bestD < range + 0.5,
         isMouse: false,
       };
-      up.send(t, input);
+      const stalled = o.stall !== undefined && t >= o.stall.fromMs && t < o.stall.toMs;
+      up.send(t, input, stalled && o.stall ? o.stall.toMs + o.oneWayMs : -Infinity);
       predictor.applyLocal(input);
       if (clock.step(input, latest?.me) && stats?.kind === "gun") {
         shots++;
+        localShotSeqs.push(input.seq);
         const a = clock.attack;
-        const off = balance.player.radiusM + 0.1;
+        const off = balance.player.radiusM + MUZZLE_OFFSET_M;
         const mx = predictor.x + a.dirX * off;
         const my = predictor.y + a.dirY * off;
         cosmetics.ensureGrid();
@@ -325,6 +337,6 @@ export function simulate(o: Options): Result {
     predictor.frame(dtMs / 1000);
     hits.update(t);
   }
-  return { ...hits.counts, serverHitsByMe, kills: killCount, shots };
+  return { ...hits.counts, serverHitsByMe, kills: killCount, shots, localShotSeqs, serverShotSeqs, drops: ctrl.drops(ID) };
 }
 

@@ -41,4 +41,27 @@ describe("netsim: server-confirmed hits (Story 2.7 AC 4, NFR5 early read)", () =
       expect(pct(r)).toBeLessThan(15); // no rewind in v1: a moving shooter sees the horde ~RTT/2 + delay late
     }
   });
+
+  it("stall → burst → drain (review MED-2): the server fires only on seqs the client's clock shot on", () => {
+    for (const weapon of ["smg", "pistol"] as const) {
+      const stall = { fromMs: 5000, toMs: 5400 };
+      const r = simulate({ seconds: 20, oneWayMs: 75, jitterHalfMs: 10, seed: 8, weapon, kite: false, stall });
+      const local = new Set(r.localShotSeqs);
+      const server = new Set(r.serverShotSeqs);
+      const serverOnly = r.serverShotSeqs.filter((s) => !local.has(s));
+      const localOnly = r.localShotSeqs.filter((s) => !server.has(s) && s <= Math.max(...r.serverShotSeqs));
+      console.info(
+        `[netsim hits] stall 400 ms ${weapon}: local ${r.localShotSeqs.length} server ${r.serverShotSeqs.length} shots; ` +
+          `server-only ${serverOnly.length}, local-only ${localOnly.length} (${localOnly.join(",")}); drops ${JSON.stringify(r.drops)}; ` +
+          `reversed ${r.reversed}/${r.apparentHits}`,
+      );
+      expect(r.drops.overflow + r.drops.drained).toBeGreaterThan(0); // the stall really skipped inputs
+      expect(server.size).toBe(r.serverShotSeqs.length); // at most one shot per seq
+      expect(serverOnly).toEqual([]);
+      // Local-only shots are exactly on skipped seqs (the server never applies them), never later.
+      expect(localOnly.length).toBeLessThanOrEqual(r.drops.overflow + r.drops.drained);
+      const lastSkipSeq = Math.ceil((stall.toMs + 3000) / 50);
+      expect(localOnly.filter((s) => s > lastSkipSeq)).toEqual([]);
+    }
+  });
 });

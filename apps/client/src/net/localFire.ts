@@ -21,6 +21,8 @@ export type FireGateView = Pick<
 /** Local shots remembered per seq for predicted ammo: 64 steps = 3.2 s (the predictor's history). */
 export const LOCAL_SHOT_HISTORY = 64;
 const MIN_AIM = 1e-6;
+/** Unacknowledged swap taps remembered (a tap every 2 steps for 0.8 s). */
+const SWAP_TAPS_MAX = 8;
 
 /** What the last `step` that returned true attacked with (one object, reused). */
 export interface LocalAttack {
@@ -39,11 +41,13 @@ export interface LocalAttack {
  * - Cadence: the shared cooldown rule (`combat/cooldown.ts`, the functions `firing.ts` uses) per
  *   slot, step by step, so a held trigger fires on exactly the steps the server does.
  * - Gates: alive, fire with an aim, not swapping, not reloading, and (guns) predicted ammo > 0.
- * - Swap and reload are timed by seq, because the server applies one input per tick: a snapshot
- *   with `ackSeq` A and `swapTicks`/`reloadTicks` k means the swap ends on seq A + k (the weapon
- *   can fire that step) and the reload on seq A + k (it can fire from the next one). Before the
- *   snapshot knows, my own swap tap on seq S ends on S + N, and my shot that empties the
- *   magazine on seq S starts a reload that ends on S + R. Gating on the stale snapshot alone
+ * - Swap and reload are timed by seq: the server's weapon timers advance once per seq it was
+ *   sent (a starved tick pauses them, a skipped input still gets its weapon tick: Story 2.7
+ *   review), so a snapshot with `ackSeq` A and `swapTicks`/`reloadTicks` k means the swap ends on
+ *   seq A + k (the weapon can fire that step) and the reload on seq A + k (it can fire from the
+ *   next one). Before the snapshot knows, my unacknowledged swap taps are replayed by the
+ *   server's rule (`swapState`), and my shot that empties the magazine on seq S starts a reload
+ *   that ends on S + R. Gating on the stale snapshot alone
  *   would put every shot after a reload one RTT behind the server's (seen in the hits harness).
  * - Predicted ammo = the snapshot's ammo of the slot minus my local shots on it with
  *   `seq > ackSeq` (a ring of shots per seq), or a full magazine minus my shots after a predicted
@@ -60,8 +64,11 @@ export class LocalFireClock {
   private readonly shotCount = new Uint8Array(LOCAL_SHOT_HISTORY);
   private readonly shotSlot = new Uint8Array(LOCAL_SHOT_HISTORY);
   private lastSeq = 0;
-  /** Seq of my last swap tap that started a swap (0: none). */
-  private swapSeq = 0;
+  /** Gun shots this clock has fired so far (NetSimHost's safety net compares the server's). */
+  shotsFired = 0;
+  /** My swap taps the snapshot hasn't acknowledged yet, oldest first (Story 2.7 review). */
+  private readonly taps = new Float64Array(SWAP_TAPS_MAX);
+  private tapCount = 0;
   /** Per slot: seq of my local shot that emptied the magazine (0: none). */
   private readonly emptySeq = new Float64Array(2);
   private attackSlot = 0;
@@ -79,6 +86,7 @@ export class LocalFireClock {
     this.shotSeq[i] = input.seq;
     this.shotCount[i] = attacked && !this.attack.melee ? 1 : 0;
     this.shotSlot[i] = this.attackSlot;
+    if (attacked && !this.attack.melee) this.shotsFired++;
     this.lastSeq = input.seq;
     return attacked;
   }
@@ -93,20 +101,15 @@ export class LocalFireClock {
     const stats = this.balance.weapons[weapon];
     const end = this.reloadEndSeq(me, slot as 0 | 1);
     if (end > 0 && this.lastSeq + 1 > end && stats && isGun(stats)) return stats.magazine - this.shotsAfter(end, slot);
-    if (end > 0) return 0;
     return (slot === 1 ? me.ammo1 : me.ammo0) - this.shotsAfter(me.ackSeq, slot);
   }
 
   private decide(input: PlayerInput, me: FireGateView): boolean {
     const seq = input.seq;
     const shown = me.active === 1 ? 1 : 0;
-    // Swap: the snapshot's, else my own tap the server hasn't applied yet.
-    if (this.swapSeq > 0 && me.ackSeq >= this.swapSeq) this.swapSeq = 0; // the snapshot knows now
-    if (input.swap && this.swapSeq === 0 && me.swapTicks === 0 && me.weapon1 !== "" && me.status === "alive") this.swapSeq = seq;
-    const swapEnd = me.swapTicks > 0 ? me.ackSeq + me.swapTicks : this.swapSeq > 0 ? this.swapSeq + ticksFor(this.balance.player.swapS) : 0;
-    const swapping = swapEnd > 0 && seq < swapEnd;
-    const flipped = swapEnd > 0 && seq >= swapEnd;
-    const active = flipped ? (shown === 0 ? 1 : 0) : shown;
+    if (input.swap) this.pushTap(seq);
+    const swapping = this.swapState(me, seq);
+    const active = this.flips % 2 === 1 ? (shown === 0 ? 1 : 0) : shown;
     this.attackSlot = active;
     this.syncSlot(0, me.weapon0);
     this.syncSlot(1, me.weapon1);
@@ -139,6 +142,50 @@ export class LocalFireClock {
       a.dirY = input.aimY / aimLen;
     }
     return attacked;
+  }
+
+  private flips = 0;
+
+  /**
+   * Replays the swap from the snapshot (`ackSeq` + `swapTicks`) and my unacknowledged taps, the
+   * way the server applies them one seq per tick: a tap on seq S (not during a swap, nor on the
+   * seq a swap ends) swaps on S … S+N−1 and flips the active slot on S+N. Sets `flips` (how many
+   * swaps have flipped by `seq`); returns true while swapping on `seq`.
+   */
+  private swapState(me: FireGateView, seq: number): boolean {
+    while (this.tapCount > 0 && (this.taps[0] as number) <= me.ackSeq) this.shiftTap();
+    const n = ticksFor(this.balance.player.swapS);
+    let end = me.swapTicks > 0 ? me.ackSeq + me.swapTicks : 0;
+    let swapping = end > 0 && seq < end;
+    let flips = end > 0 && !swapping ? 1 : 0;
+    if (me.weapon1 !== "" && me.status === "alive") {
+      for (let i = 0; i < this.tapCount; i++) {
+        const t = this.taps[i] as number;
+        if (t > seq) break;
+        if (end > 0 && t <= end) continue; // the server ignores it
+        end = t + n;
+        if (seq < end) swapping = true;
+        else flips++;
+      }
+    }
+    this.flips = flips;
+    return swapping;
+  }
+
+  private pushTap(seq: number): void {
+    if (this.tapCount === SWAP_TAPS_MAX) this.shiftTap();
+    this.taps[this.tapCount++] = seq;
+  }
+
+  private shiftTap(): void {
+    this.taps.copyWithin(0, 1, this.tapCount);
+    this.tapCount--;
+  }
+
+  /** Reload ticks left in `slot` as predicted for the next step (the HUD's reload bar). */
+  predictedReloadTicks(me: FireGateView, slot: 0 | 1): number {
+    const end = this.reloadEndSeq(me, slot);
+    return end > 0 ? Math.max(0, end - this.lastSeq) : 0;
   }
 
   /** Seq on which the slot's reload ends (it may fire from the next), or 0 when none is known. */

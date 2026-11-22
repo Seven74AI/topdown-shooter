@@ -2,12 +2,14 @@ import {
   C2S,
   NET_EVENT_KIND,
   NEUTRAL_INPUT,
+  MUZZLE_OFFSET_M,
   NET_NONE,
   NO_SYSTEMS,
   TICK_DT_S,
   addPlayer,
   assistAim,
   createRng,
+  weaponIds,
   createSlot,
   createWorld,
   decodeNetEvent,
@@ -42,7 +44,7 @@ import { AdaptiveDelay } from "../net/adaptiveDelay";
 import { RENDER_DELAY_MIN_MS } from "../net/netConfig";
 import { LocalFireClock } from "../net/localFire";
 import { CosmeticProjectiles } from "../net/cosmeticProjectiles";
-import { REVERSED_HIT_SLACK_MS, ReversedHits } from "../debug/reversedHits";
+import { EARLY_HIT_SLACK_MS, REVERSED_HIT_SLACK_MS, ReversedHits } from "../debug/reversedHits";
 
 /** Starting interpolation delay in ticks (100 ms); `AdaptiveDelay` then moves it within 100–150 ms. */
 export const RENDER_DELAY_TICKS = RENDER_DELAY_MIN_MS / (TICK_DT_S * 1000);
@@ -64,8 +66,6 @@ export interface NetStats {
   reversed: number;
 }
 
-/** Projectiles leave just outside the shooter's body (the server's `firing.ts` muzzle offset). */
-const MUZZLE_OFFSET_M = 0.1;
 /** Local cosmetic events (own shots and swings) handed out per frame at most; a ring of reused objects. */
 const LOCAL_EVENT_RING = 8;
 /** Own weapon-state events held for the next drain (arrive between frames). */
@@ -152,6 +152,11 @@ export class NetSimHost implements SimHost {
   readonly cosmetics: CosmeticProjectiles;
   readonly hits = new ReversedHits();
   private readonly measureHits: () => boolean;
+  /** Whether the counter ran last frame: turning it on again starts from a clean slate. */
+  private measuring = false;
+  /** My own server `weapon.fired` seen, and how many of them were drawn as unpredicted. */
+  private serverOwnShots = 0;
+  private unpredictedShots = 0;
   private readonly localSlot: number;
   /** Client-side spread for my cosmetic shots (the server rolls its own: never the same). */
   private readonly spreadRng = createRng(0x2e7);
@@ -255,7 +260,10 @@ export class NetSimHost implements SimHost {
     if (frameDtS > 0) this.stepInputs(frameDtS);
     this.predictor.frame(frameDtS);
     this.applyState();
-    if (this.measureHits()) this.hits.update(t0);
+    const measure = this.measureHits();
+    if (measure && !this.measuring) this.hits.reset(); // nothing pending from before it was off
+    this.measuring = measure;
+    if (measure) this.hits.update(t0);
     this.updateNetStats();
     this.stats.stepMs[0] = this.now() - t0;
   }
@@ -401,8 +409,22 @@ export class NetSimHost implements SimHost {
     return this.session.rttMs + this.delay.delayMs + REVERSED_HIT_SLACK_MS;
   }
 
+  /**
+   * How long a server hit that beat my bullet to the drawn zombie waits for it: one-way delay +
+   * render delay + slack (the drawn zombie is that far behind), so it can't confirm a later shot.
+   */
+  private earlyHitWindowMs(): number {
+    return this.session.rttMs / 2 + this.delay.delayMs + EARLY_HIT_SLACK_MS;
+  }
+
   private onApparentHit(netId: number): void {
-    if (this.measureHits()) this.hits.apparent(netId, this.now(), this.hitWindowMs());
+    if (this.measuring) this.hits.apparent(netId, this.now(), this.hitWindowMs());
+  }
+
+  /** True for a gun (melee hits have no cosmetic bullet to confirm). */
+  private isGunIndex(weaponIndex: number | undefined): boolean {
+    const id = weaponIds(this.world.balance)[weaponIndex ?? -1];
+    return id !== undefined && this.world.balance.weapons[id]?.kind === "gun";
   }
 
   private updateNetStats(): void {
@@ -442,6 +464,19 @@ export class NetSimHost implements SimHost {
     lo.swapTicks = s.swapTicks;
     lo.slots[0] = this.syncSlot(lo.slots[0], s.weapon0, s.ammo0, s.reloadTicks0) ?? lo.slots[0];
     lo.slots[1] = this.syncSlot(lo.slots[1], s.weapon1, s.ammo1, s.reloadTicks1);
+    if (p.id === this.localPlayerId) this.predictAmmo(lo.slots[0], s, 0).predictAmmo(lo.slots[1], s, 1);
+  }
+
+  /**
+   * Story 2.7 review: my HUD ammo and reload bar follow the local fire clock (the server's lag an
+   * RTT behind the instant muzzle flashes).
+   */
+  private predictAmmo(slot: WeaponSlot | null, s: PlayerStateView, i: 0 | 1): this {
+    if (slot && this.world.balance.weapons[slot.weapon]?.kind === "gun") {
+      slot.ammo = Math.max(0, this.fireClock.predictedAmmo(s, i));
+      slot.reloadTicks = this.fireClock.predictedReloadTicks(s, i);
+    }
+    return this;
   }
 
   /** Story 2.6: the local survivor at its predicted, smoothed position (alpha = step fraction). */
@@ -504,19 +539,25 @@ export class NetSimHost implements SimHost {
 
   private receiveEvents(m: SimEventsFlushed): void {
     if (this.disposed || !m || !Array.isArray(m.events) || typeof m.tick !== "number") return;
-    const measure = this.measureHits();
+    const measure = this.measuring;
     const now = measure ? this.now() : 0;
     for (const t of m.events) {
       if (!Array.isArray(t)) continue;
       const kind = t[0];
       // Story 2.7, on arrival: my own server hits confirm my apparent ones (full net id, index 1).
-      if (measure && kind === NET_EVENT_KIND.ZOMBIE_HIT && typeof t[1] === "number" && this.isMine(t[7])) {
-        this.hits.serverHit(t[1], now, this.hitWindowMs());
+      if (measure && kind === NET_EVENT_KIND.ZOMBIE_HIT && typeof t[1] === "number" && this.isMine(t[7]) && this.isGunIndex(t[6])) {
+        this.hits.serverHit(t[1], now, this.earlyHitWindowMs());
       } else if (measure && kind === NET_EVENT_KIND.ZOMBIE_KILLED && typeof t[1] === "number") {
         this.hits.serverKilled(t[1]);
       }
-      // My own shot and swing already played locally.
-      if ((kind === NET_EVENT_KIND.WEAPON_FIRED || kind === NET_EVENT_KIND.MELEE_SWUNG) && this.isMine(t[1])) continue;
+      // My own shot and swing already played locally. Safety net: a server shot beyond every shot
+      // my fire clock made was not predicted, so it is drawn (at the render tick, like others').
+      if (kind === NET_EVENT_KIND.MELEE_SWUNG && this.isMine(t[1])) continue;
+      if (kind === NET_EVENT_KIND.WEAPON_FIRED && this.isMine(t[1])) {
+        this.serverOwnShots++;
+        if (this.serverOwnShots <= this.fireClock.shotsFired + this.unpredictedShots) continue;
+        this.unpredictedShots++;
+      }
       const e = decodeNetEvent(t, this.ctx);
       if (!e) continue;
       if (this.isOwnWeaponState(kind, t[1])) {

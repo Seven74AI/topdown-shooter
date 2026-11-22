@@ -1,6 +1,7 @@
 export {
   GAME_TITLE,
   GRID_CELL_M,
+  MUZZLE_OFFSET_M,
   PROJECTILE_POOL_CAPACITY,
   TICK_DT_S,
   TICK_RATE_HZ,
@@ -90,6 +91,7 @@ export {
   type ProjectileSpawn,
 } from "./combat/projectilePool";
 export { COOLDOWN_EPS_S, cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./combat/cooldown";
+export { skippedInputWeaponTick } from "./combat/firing";
 export { segmentCircleT } from "./math/sweep";
 export { rotate } from "./math/vec";
 export { maxZombieRadius } from "./zombies/zombieTypes";

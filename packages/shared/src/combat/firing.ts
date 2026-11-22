@@ -7,7 +7,8 @@ import { DEG_TO_RAD, len, rotate } from "../math/vec";
 import { segmentCircleT } from "../math/sweep";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
-import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
+import { MUZZLE_OFFSET_M, TICK_DT_S, ZOMBIE_POOL_CAPACITY } from "../config/constants";
+import type { PlayerInput } from "../net/input";
 import { applyZombieDamage } from "./damage";
 import { assistAim } from "./aimAssist";
 import { zombieCandidates as candidates } from "./scratch";
@@ -23,8 +24,6 @@ import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
 import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
 
-/** Projectiles spawn just outside the shooter's body. */
-const MUZZLE_OFFSET_M = 0.1;
 const MIN_AIM = 1e-6;
 
 // Sized to the whole zombie pool, so a candidate query can never be truncated.
@@ -50,17 +49,17 @@ const spawn: ProjectileSpawn = {
  * the same functions). It may end a tick slightly negative while the trigger is held, so the
  * average rate is exact; a tick without a shot clamps it back to ≥ 0 (no saved-up burst).
  */
-function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
+function updatePlayerWeapon(world: World, p: PlayerState, dtS: number, input: PlayerInput | undefined): void {
   // The weapon not in hand keeps cooling down (a swap never stretches its next shot).
   const other = p.loadout.slots[p.loadout.active === 0 ? 1 : 0];
   if (other) other.cooldownS = cooldownIdle(other.cooldownS, dtS);
-  if (updateSwap(world, p)) {
+  if (updateSwap(world, p, input)) {
     activeSlot(p.loadout).cooldownS = cooldownIdle(activeSlot(p.loadout).cooldownS, dtS);
     return; // neither weapon fires during a swap (FR5)
   }
   const slot = activeSlot(p.loadout);
   slot.cooldownS = cooldownTickStart(slot.cooldownS, dtS);
-  const attacked = tryFire(world, p, slot.cooldownS);
+  const attacked = tryFire(world, p, slot.cooldownS, input);
   slot.cooldownS = cooldownTickEnd(slot.cooldownS, attacked, weaponStats(world.balance, slot.weapon).rateHz);
 }
 
@@ -70,7 +69,7 @@ function updatePlayerWeapon(world: World, p: PlayerState, dtS: number): void {
  * if its magazine is empty, a full reload starts. Taps during a swap or with one weapon are ignored.
  * Returns true while swapping (no firing this tick).
  */
-function updateSwap(world: World, p: PlayerState): boolean {
+function updateSwap(world: World, p: PlayerState, input: PlayerInput | undefined): boolean {
   const lo = p.loadout;
   if (lo.swapTicks > 0 && p.status !== "alive") {
     lo.swapTicks = 0; // a downed or out player's swap is cancelled
@@ -92,7 +91,6 @@ function updateSwap(world: World, p: PlayerState): boolean {
     }
     return true;
   }
-  const input = world.inputs.get(p.id);
   if (!input?.swap || !lo.slots[1] || p.status !== "alive") return false;
   const current = activeSlot(lo);
   current.reloadTicks = 0; // swapping away cancels the reload
@@ -105,7 +103,7 @@ function updateSwap(world: World, p: PlayerState): boolean {
  * Handles reload and firing (or a melee swing) for this tick. Returns true if the weapon attacked
  * (the caller adds the cooldown).
  */
-function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
+function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerInput | undefined): boolean {
   const slot = activeSlot(p.loadout);
   const stats = weaponStats(world.balance, slot.weapon);
 
@@ -119,7 +117,6 @@ function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
   }
   if (p.status !== "alive") return false;
 
-  const input = world.inputs.get(p.id);
   if (!input || !input.fire) return false;
   const aimLen = len(input.aimX, input.aimY);
   if (aimLen < MIN_AIM || !cooldownReady(cooldownS)) return false;
@@ -127,10 +124,19 @@ function tryFire(world: World, p: PlayerState, cooldownS: number): boolean {
   dir.y = input.aimY / aimLen;
   if (isMelee(stats)) {
     // Melee (Story 1.9): instant arc hit along the raw aim, no ammo, no reload, no aim assist.
-    swingMelee(world, p, slot.weapon, stats, dir.x, dir.y);
+    if (!dryFire) swingMelee(world, p, slot.weapon, stats, dir.x, dir.y);
     return true;
   }
   if (slot.ammo <= 0) return false;
+  if (dryFire) {
+    // A skipped input's shot: its round and cooldown are spent, nothing flies (see skippedInputWeaponTick).
+    slot.ammo--;
+    if (slot.ammo === 0) {
+      slot.reloadTicks = ticksFor(stats.reloadS);
+      world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+    }
+    return true;
+  }
 
   // Aim assist on touch only (FR4), before spread; mouse aim is never assisted.
   const offset = p.radiusM + MUZZLE_OFFSET_M;
@@ -241,6 +247,32 @@ export const updateCombat: SystemFn = (world, dtS) => {
   // Known, accepted: a zombie pushed into another cell by a hit this tick is found only via its old cell
   // until the next rebuild (queries use generous radii, so this almost never matters; ≤ 1 tick).
   rebuildGrid(world.zombieGrid, z.aliveIds, z.aliveCount, z.x, z.y);
-  world.players.forEach((p) => updatePlayerWeapon(world, p, dtS));
+  world.players.forEach((p) => {
+    // Story 2.7 review: a starved server tick (no new input) pauses the weapon, like the client's
+    // fire clock, which only advances per sent input.
+    if (!p.weaponsPaused) updatePlayerWeapon(world, p, dtS, world.inputs.get(p.id));
+  });
   updateProjectiles(world, dtS);
 };
+
+/** True inside `skippedInputWeaponTick`: the weapon runs its tick but a shot or swing has no effect. */
+let dryFire = false;
+
+/**
+ * Story 2.7 review: the weapon tick of an input the server skips (backlog drain or queue overflow,
+ * Story 2.4). The weapon runs exactly as if the input were applied (cooldowns, reload, swap tap,
+ * and a shot uses its round and cooldown), but a shot spawns no projectile and emits no
+ * `weapon.fired`, and a swing hits nothing. So the server's weapon timing and ammo follow every
+ * seq the client sent, which is what the client's local fire clock predicts (its cosmetic shot on
+ * that seq simply did nothing). Allocation-free; call before `step`.
+ */
+export function skippedInputWeaponTick(world: World, playerId: string, input: PlayerInput): void {
+  const p = world.players.get(playerId);
+  if (!p) return; // a skipped input is a real seq: it runs even after a starved tick
+  dryFire = true;
+  try {
+    updatePlayerWeapon(world, p, TICK_DT_S, input);
+  } finally {
+    dryFire = false;
+  }
+}
