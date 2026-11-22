@@ -34,6 +34,8 @@ export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./
 export { teamSpawnPoint } from "./player/spawn";
 export { checkTeamWipe, downPlayer, findReviver, returnOutPlayers, updateDowned } from "./player/downed";
 export { spectateTarget } from "./player/spectate";
+export { playerSpeed, slowPlayer, tickSlow } from "./player/slow";
+export { MAX_WAVE_MIX, parseWaveMix } from "./waves/waveMix";
 export { headingToRad, lerpHeading, quantizeHeading } from "./net/heading";
 export {
   NET_EVENT_KIND,

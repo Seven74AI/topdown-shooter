@@ -29,6 +29,8 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     kills: 0,
     wallet: 100,
     earned: 0,
+    slowTicks: 0,
+    slowPct: 0,
     ...over,
   };
 }

@@ -1,7 +1,7 @@
 import type { Balance } from "../config/balance";
 
 /** Zombie type index ↔ balance id. Order is fixed; append only (the index goes on the wire in Story 2.5). */
-export const ZOMBIE_TYPES = ["walker"] as const;
+export const ZOMBIE_TYPES = ["walker", "crawler"] as const;
 export type ZombieTypeId = (typeof ZOMBIE_TYPES)[number];
 
 /** Per-zombie behaviour state stored as a u8 in the pool. More states arrive later (flank, windup, rush…). */

@@ -194,4 +194,60 @@ describe("Predictor", () => {
     }
     expect(p.stats.maxErrorM).toBeLessThan(PREDICTION_IGNORE_M);
   });
+
+  it("Story 3.9: while slowed the predicted speed equals the server's, step for step", () => {
+    // Server side: the same shared movement, the player slowed by a bite at the ack's tick.
+    const server = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+    const sp = addPlayer(server, "p0", 10, 10);
+    sp.slowTicksLeft = 20;
+    sp.slowPct = 30;
+    const p = new Predictor(balance, PLACEHOLDER_MAP, "p0");
+    p.reconcile(0, 10, 10, "alive", 20, 30);
+    expect(p.slowTicksLeft).toBe(20);
+    for (let s = 1; s <= 25; s++) {
+      const input = move(s, 0.8, 0.6);
+      setInput(server, "p0", input);
+      step(server, TICK_DT_S);
+      p.applyLocal(input);
+      expect(p.x).toBe(sp.x); // bit-identical, slowed (1–20) and full speed again (21–25)
+      expect(p.y).toBe(sp.y);
+      expect(p.slowTicksLeft).toBe(sp.slowTicksLeft);
+    }
+    expect(p.x).toBeCloseTo(10 + 0.8 * TICK_DT_S * balance.player.speedMps * (20 * 0.7 + 5), 9);
+  });
+
+  it("Story 3.9: a snapshot with the slow replays the unacked inputs slowed: no correction from the server's view", () => {
+    const server = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+    const sp = addPlayer(server, "p0", 10, 10);
+    const p = predictor();
+    const hist: number[] = []; // server x and slow ticks after each seq
+    const slowHist: number[] = [];
+    // Seq 1 applied by the server; then the bite (slow 20 ticks at the end of that tick).
+    setInput(server, "p0", move(1, 1));
+    step(server, TICK_DT_S);
+    sp.slowTicksLeft = 20;
+    sp.slowPct = 30;
+    const ackX = sp.x;
+    const slowAtAck = sp.slowTicksLeft;
+    for (let s = 1; s <= 4; s++) p.applyLocal(move(s, 1)); // the client is 3 inputs ahead
+    for (let s = 2; s <= 4; s++) {
+      setInput(server, "p0", move(s, 1));
+      step(server, TICK_DT_S);
+    }
+    p.reconcile(1, ackX, 10, "alive", slowAtAck, 30); // onset: one correction
+    expect(p.x).toBe(sp.x);
+    expect(p.slowTicksLeft).toBe(sp.slowTicksLeft);
+    const corrections = p.stats.corrections;
+    // From now on the server's later snapshots agree with the prediction: no correction.
+    for (let s = 5; s <= 40; s++) {
+      p.applyLocal(move(s, 1));
+      setInput(server, "p0", move(s, 1));
+      step(server, TICK_DT_S);
+      if (s >= 8) p.reconcile(s - 3, Math.fround(hist[s - 3] ?? 0), 10, "alive", slowHist[s - 3] ?? 0, 30);
+      hist[s] = sp.x;
+      slowHist[s] = sp.slowTicksLeft;
+    }
+    expect(p.stats.corrections).toBe(corrections);
+    expect(p.stats.lastErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+  });
 });

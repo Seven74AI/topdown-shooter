@@ -1,5 +1,6 @@
 import type { SystemFn } from "../core/systems";
 import { updateDowned } from "./downed";
+import { playerSpeed, tickSlow } from "./slow";
 
 const MIN_VEC_LEN = 1e-6;
 
@@ -8,13 +9,17 @@ const MIN_VEC_LEN = 1e-6;
  * server and in client prediction (Epic 2), so it uses only + − × ÷, sqrt, min and max: no
  * sin/cos/atan2, whose last bits can differ between JavaScript engines and would make prediction
  * drift. Prediction runs only this (`PREDICTION_SYSTEMS`): the downed rules are the server's.
+ * Story 3.9: a slowed player moves at `playerSpeed`, and the slow counts down here (after the
+ * move, for every status), so the predictor counts the same ticks as the server.
  */
 export const movePlayers: SystemFn = (world, dtS) => {
-  const speed = world.balance.player.speedMps;
+  const baseSpeed = world.balance.player.speedMps;
   const { widthM, heightM } = world.map;
   for (const p of world.players.values()) {
     p.prevX = p.x;
     p.prevY = p.y;
+    const speed = playerSpeed(baseSpeed, p);
+    tickSlow(p);
     if (p.status !== "alive") continue;
     const input = world.inputs.get(p.id);
     if (!input) continue;

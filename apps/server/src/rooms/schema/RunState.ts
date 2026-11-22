@@ -44,6 +44,11 @@ export const PlayerState = schema(
     wallet: t.uint32().default(0),
     /** Everything earned this run (never reduced by spending). */
     earned: t.uint32().default(0),
+    // Story 3.9: the bite slow, for the client's prediction (`movePlayers` on both sides).
+    /** Movement ticks left at reduced speed (≤ 200: `biteSlowS` ≤ 10). */
+    slowTicks: t.uint8().default(0),
+    /** Speed reduction in integer percent while slowed (≤ 90). */
+    slowPct: t.uint8().default(0),
   },
   "PlayerState",
 );

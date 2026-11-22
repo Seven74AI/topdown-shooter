@@ -37,6 +37,8 @@ const PLAYER_FIELDS = {
   kills: true,
   wallet: true,
   earned: true,
+  slowTicks: true,
+  slowPct: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 const STATE_FIELDS = {
   phase: true,

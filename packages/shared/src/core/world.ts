@@ -7,6 +7,7 @@ import type { PlayerState } from "../player/player";
 import { GRID_CELL_M, PROJECTILE_POOL_CAPACITY, ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { createProjectilePool, type ProjectilePool } from "../combat/projectilePool";
 import { createZombiePool, type ZombiePool } from "../zombies/zombiePool";
+import type { ZombieTypeId } from "../zombies/zombieTypes";
 import { createSpatialGrid, type SpatialGrid } from "./spatialGrid";
 import { EventBus } from "./eventBus";
 import { createEconomyState, type EconomyState } from "../economy/economy";
@@ -52,6 +53,11 @@ export interface World {
 export interface WorldDebug {
   /** The player takes no damage (contact damage is skipped). */
   godMode: boolean;
+  /**
+   * Story 3.9 dev hook (temporary until 3.10's wave composition): wave zombies cycle through these
+   * types (`?wavemix=` solo, `DEV_WAVE_MIX` on the server). null = Walkers only.
+   */
+  waveMix: readonly ZombieTypeId[] | null;
 }
 
 export interface CreateWorldOptions {
@@ -86,7 +92,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     zombieGrid: createSpatialGrid(map, GRID_CELL_M, ZOMBIE_POOL_CAPACITY),
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(opts.balance),
-    debug: { godMode: false },
+    debug: { godMode: false, waveMix: null },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
   };

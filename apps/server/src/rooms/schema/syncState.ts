@@ -84,6 +84,8 @@ function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
   if (s.weapon1 !== weapon1) s.weapon1 = weapon1;
   if (s.ammo1 !== ammo1) s.ammo1 = ammo1;
   if (s.reloadTicks1 !== reload1) s.reloadTicks1 = reload1;
+  if (s.slowTicks !== p.slowTicksLeft) s.slowTicks = p.slowTicksLeft; // Story 3.9
+  if (s.slowPct !== p.slowPct) s.slowPct = p.slowPct;
 }
 
 /** Story 2.8 › `lobby.return`: every fight field and Ready flag back to its default; slot and name stay. */
@@ -118,4 +120,6 @@ function resetPlayer(s: PlayerState): void {
   s.kills = 0;
   s.wallet = 0;
   s.earned = 0;
+  s.slowTicks = 0;
+  s.slowPct = 0;
 }
