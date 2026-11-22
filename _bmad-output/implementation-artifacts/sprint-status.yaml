@@ -92,7 +92,7 @@ development_status:
   3-7-repair-buildings: done
   3-8-runners-flank: done
   3-9-crawlers-slow-you-down: done
-  3-10-five-wave-run-with-player-count-scaling: ready-for-dev
+  3-10-five-wave-run-with-player-count-scaling: review
   epic-3-retrospective: optional
 
   # Epic 4: Downtown and city decay (Milestone 1)

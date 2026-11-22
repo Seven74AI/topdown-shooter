@@ -1,6 +1,6 @@
 # Story 3.10: Five-wave run with player-count scaling
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -34,15 +34,15 @@ so that the run feels right with 2, 3 or 4 players.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Balance schema + JSON** (AC 1, 2, 7): `wavesSchema` gains `runWaves` (int ≥ 1), `playerCountScale` (4 numbers in (0, 1]), `mix` (array ≥ 1 of `record<balanceId, int ≥ 0>`, each with a positive total). `loadBalance` checks every mix type is a zombie type with balance. `waves.json` gets the values of decisions 1–3.
-- [ ] **Task 2: Wave director** (AC 1–3): `waveSize(balance, n, players)` scales; `WaveState` gains preallocated `typeTarget` / `typeSpawned` (`Uint16Array(ZOMBIE_TYPES.length)`), filled in `beginWave`; `waveZombieType` picks the type furthest behind its share (dev mix overrides). No allocation per tick. `snapshotWorld` copies the two arrays.
-- [ ] **Task 3: Run end** (AC 4): `RunState.heldOut`; `endWave` ends the run after wave `runWaves` (`run.held_out { wave }` after `wave.ended`, then `endRun`), else `startBuild`. Sim event + net kind 25 `[25, wave]` (encode/decode).
-- [ ] **Task 4: Server** (AC 4, 5): `RunRoom.onTick` handles `run.held_out` → `endRun(controller, wave, true)`; schema `RunState.resultHeldOut: boolean` (+ `stateView`, `RUN_STATE_FIELDS`, `resetRunFields`, fake room, devThrottle via the key list); `run_ended` logs `heldOut`, `kills`, `earned`.
-- [ ] **Task 5: Client Results** (AC 4): `ResultRow.earned`, `UiScreen.results.heldOut`; `resultsFromState` reads `resultHeldOut` and `earned`; `ResultsScreen` title and Earned column; solo `GameScene` shows Results on `run.held_out` (and the wipe) with earned.
-- [ ] **Task 6: Bot shop policy** (AC 6): shared `bots/botShop.ts`: `botShopNext` (pure: next list entry to buy, or none), `botWeaponSlot`, `botPlaceCandidate` (fixed candidate spots around the bot), and `botBuildPhase(world, id, list)` for headless runs (real `buyWeapon` / `placeBuilding`). `tools/bots` does the same over the wire (`shop.buy`, `building.place`, one try per step, refusals move on), swaps to a new weapon, and its summary prints per-player kills, earned, wallet, purchases and buildings. `bots.json › shoppingList` set from the sims.
-- [ ] **Task 7: Five-wave sim** (AC 5, 7, 8): `economy/fiveWaveSim.test.ts` (2/3/4 bots × seeds, real balance, real systems, bots Ready at once after shopping) with the anti-silent-pass assertions; the old 3.2/3.3 sims keep running (updated for the run end).
-- [ ] **Task 8: Measurements** (AC 9): `run/economyBandwidth.test.ts` (money patches + events in a 4-player wave; `buildTicksLeft` in a build); a real 4-bot run with `tools/bots` (numbers in Completion Notes).
-- [ ] **Task 9: Tests and checks** (AC 10): see Testing; browser check solo through W2 (Runners) with `?zdmg=`, the "You held out!" screen (dev skip), screenshots under `/tmp/s310/`.
+- [x] **Task 1: Balance schema + JSON** (AC 1, 2, 7): `wavesSchema` gains `runWaves` (int ≥ 1), `playerCountScale` (4 numbers in (0, 1]), `mix` (array ≥ 1 of `record<balanceId, int ≥ 0>`, each with a positive total). `loadBalance` checks every mix type is a zombie type with balance. `waves.json` gets the values of decisions 1–3.
+- [x] **Task 2: Wave director** (AC 1–3): `waveSize(balance, n, players)` scales; `WaveState` gains preallocated `typeTarget` / `typeSpawned` (`Uint16Array(ZOMBIE_TYPES.length)`), filled in `beginWave`; `waveZombieType` picks the type furthest behind its share (dev mix overrides). No allocation per tick. `snapshotWorld` copies the two arrays.
+- [x] **Task 3: Run end** (AC 4): `RunState.heldOut`; `endWave` ends the run after wave `runWaves` (`run.held_out { wave }` after `wave.ended`, then `endRun`), else `startBuild`. Sim event + net kind 25 `[25, wave]` (encode/decode).
+- [x] **Task 4: Server** (AC 4, 5): `RunRoom.onTick` handles `run.held_out` → `endRun(controller, wave, true)`; schema `RunState.resultHeldOut: boolean` (+ `stateView`, `RUN_STATE_FIELDS`, `resetRunFields`, fake room, devThrottle via the key list); `run_ended` logs `heldOut`, `kills`, `earned`.
+- [x] **Task 5: Client Results** (AC 4): `ResultRow.earned`, `UiScreen.results.heldOut`; `resultsFromState` reads `resultHeldOut` and `earned`; `ResultsScreen` title and Earned column; solo `GameScene` shows Results on `run.held_out` (and the wipe) with earned.
+- [x] **Task 6: Bot shop policy** (AC 6): shared `bots/botShop.ts`: `botShopNext` (pure: next list entry to buy, or none), `botWeaponSlot`, `botPlaceCandidate` (fixed candidate spots around the bot), and `botBuildPhase(world, id, list)` for headless runs (real `buyWeapon` / `placeBuilding`). `tools/bots` does the same over the wire (`shop.buy`, `building.place`, one try per step, refusals move on), swaps to a new weapon, and its summary prints per-player kills, earned, wallet, purchases and buildings. `bots.json › shoppingList` set from the sims.
+- [x] **Task 7: Five-wave sim** (AC 5, 7, 8): `economy/fiveWaveSim.test.ts` (2/3/4 bots × seeds, real balance, real systems, bots Ready at once after shopping) with the anti-silent-pass assertions; the old 3.2/3.3 sims keep running (updated for the run end).
+- [x] **Task 8: Measurements** (AC 9): `run/economyBandwidth.test.ts` (money patches + events in a 4-player wave; `buildTicksLeft` in a build); a real 4-bot run with `tools/bots` (numbers in Completion Notes).
+- [x] **Task 9: Tests and checks** (AC 10): see Testing; browser check solo through W2 (Runners) with `?zdmg=`, the "You held out!" screen (dev skip), screenshots under `/tmp/s310/`.
 
 ## Dev Notes
 
@@ -96,12 +96,69 @@ GDD: ≈ 2,500–3,000 per player over 10 waves (100 start + 550 wave bonus + �
 
 ### Agent Model Used
 
+Claude Opus 5.5 (claude-opus-5-5), story writer and builder in worktree `story-3-10`.
+
 ### Debug Log References
+
+- Sims: `npx tsx tools/sims/fiveWave.ts --players 2,3,4 --seeds 1-6 [--list …] [--set file.path=value]` (outputs kept under `/tmp/s310/m-*.txt`, not committed).
+- Real bot runs: `tools/bots/run.ts --url http://localhost:6167 --count 4` against `PORT=6167 node --import tsx src/index.ts` (server log `/tmp/s310/server-bots.log`), and `--scenario net150 --hold-fire 25` with `ALLOW_TEST_SCENARIOS=1` (`/tmp/s310/server-net150.log`).
+- Browser: `/tmp/s310-tools/check.py`, `check2.py` (Playwright, Chromium headless, temporary Vite config on :8673, deleted after).
 
 ### Completion Notes List
 
+- **Built:** `waves.json` gains `runWaves: 5`, `playerCountScale: [0.4, 0.6, 0.8, 1.0]` and `mix` (per-wave integer weights, decision 2) with schema + cross-file check; `waveSize` scales by players at the wave start; `waveTypeCounts` / `waveMixOf` give exact counts; `WaveState.typeTarget/typeSpawned` (preallocated `Uint16Array`s) and `waveZombieType` spread the types evenly (no RNG draw, no allocation per tick; `snapshotWorld` copies both arrays); the dev wave mix stays as an override. `endWave` after wave `runWaves`: `wave.ended` → `run.held_out` → `endRun` (`world.run.heldOut`); net kind 25. Server: `RunState.resultHeldOut`, `endRun(…, heldOut)`, `run_ended` logs `heldOut` + kills + earned. Client: `ResultRow.earned`, `UiScreen.results.heldOut`, `resultsTitle`, "You held out!" + "Wave reached N" + Earned column; solo shows it on `run.held_out` (earned read from the World after the step, so the last bonus is in). Bots: shared `bots/botShop.ts` (`botShopNext`, `botWeaponSlot`, `botPlaceCandidate`, `botBuildPhase`), `bots/headlessRun.ts` (`runHeadless`, `formatRunLine`), `tools/bots` shops/builds over the wire and prints `bots_economy`; `tools/sims/fiveWave.ts` sweep. `bots.json`: `shoppingList: [smg, wood_barricade, wood_barricade, auto_turret]`, `buildRadiiM: [2.5, 4]`.
+- **Balance decisions (AC 7, brief line 13; revive untouched at 3 s / full damage).** Changed: only the deliverable keys (`waves.json` curve/mix/scale/runWaves, `bots.json` list). **No price, heal, bonus or reward change**, for these reasons (seeded sims on the merged tip, 6 seeds per team size):
+
+  | Bots | Shopping | Held out | Cleared by wave (W1/W2/W3/W4/W5) | Earned / player, mean (min–max) | Weapons | Downs |
+  |---|---|---|---|---|---|---|
+  | 2 | none (Pistol only) | 1/6 | 6/6/6/4/1 | 479 (282–724) | – | wipes in W3–W5 |
+  | 3 | none | 4/6 | 6/6/6/5/4 | 548 (274–692) | – | |
+  | 4 | none | 2/6 | 6/6/6/6/2 | 504 (436–602) | – | |
+  | 2 | `bots.json` list | **6/6** | 6/6/6/6/6 | **625** (599–668) | SMG at W3 build (all) | 0 |
+  | 3 | list | **6/6** | 6/6/6/6/6 | **553** (482–644) | SMG at W3–W4 build | 0 |
+  | 4 | list | **6/6** | 6/6/6/6/6 | **529** (485–577) | SMG at W3–W4 build | 0 |
+
+  - Survival: the retro risk ("all Pistol runs wipe in W2") is gone with the player-count scale; Pistol-only teams now reach W3–W5 and hold out in 7/18 runs, while every team that buys the SMG holds out (18/18, no downs). So the shop is what decides the run (pillar 2) and no lever needs moving to make 5 waves survivable. Each bot also places 2 barricades; turrets come only in 2 runs (W5 build, 31 and 57 turret kills): the 250 price is out of reach before W5 with the SMG first. Nobody buys the Hunting Rifle (not on the list).
+  - Earnings vs the GDD (5-wave share ≈ 650–790 earned per player, Dev Notes): 2 players 625 (just under), 3 players 553, 4 players 529 (−19 %). Team money splits kill/assist/revive/wave as e.g. 1430/87/0/600 at 4 players: kill money is fixed by the composition (every zombie dies), the gap is **assists** (bots: ~6 % of kill money; the GDD's breakdown assumes ~50 %: 750 assists vs 1,500 kills). The levers that would close it are GDD numbers (FR45 bonus 10 × N, the enemy-table rewards), so they stay and the designer decides. Measured options: Walker reward 2 → 3 gives 704/626/604 (2/3/4 bots); wave bonus 10 → 15 × N gives 683/609/596 (3 seeds each); neither changes survival.
+  - Flag for the designer: bots with SMGs never go down in 5 waves (perfect 360° awareness, aim assist, kiting); real players will find it harder. Difficulty grows in Epics 4–6 (decay, Spitters, Brutes).
+- **Real 4-bot run (local server, `tools/bots`, normal run, bots shop and build): held out, wave 5.**
+  - Earned: Bot 1 525, Bot 2 538, Bot 3 512, Bot 4 549 (kills 147/157/137/159; SMG at W3–W4 build; 2 barricades each; wallets 332–369). `run_ended {wave: 5, heldOut: true}` logged.
+  - Per client download (avg / busiest second), by wave: W1 3.1 / 5.9 KB/s, W2 4.6 / 8.9, W3 4.8 / 8.9, W4 5.1 / 10.3, W5 5.7 / 10.9 (horde 1.9–3.8 KB/s of it). Upload ~1.9 KB/s. Peak alive 40/65/82/87/91 (the bots thin it fast). Tick avg 0.86–1.21 ms, max 10–32 ms, 0 slow ticks; patch avg ≤ 0.35 ms.
+  - Worst case (`--scenario net150 --hold-fire 25`, god mode, W4 160 + W5 200 mixed, **150 alive reached**): per client avg 6.8–9.2 KB/s, busiest second 19.9 KB/s (horde avg 5.1–7.5, the rest ≈ 1.7 KB/s) → inside the 30 KB/s budget (horde ≤ 24 + rest ≤ 6). Tick avg 1.0 ms, max 51–62 ms (1 slow tick per wave; load average ~5 from other agents on this 2-core box). Earned there 316–366 (two waves only).
+- **Bandwidth measured with the tickCost approach (`run/economyBandwidth.test.ts`, 3.2's and 3.1's open items):** wave 3 with 4 bots fighting: `wallet`/`earned` patches **48 B/s**, `money.earned` events **20 B/s** per client (162 events in 40 s; patches + events total 1.13 KB/s, horde not included). Build phase: `buildTicksLeft` **60 B/s** per client. Story 3.10's own additions: `resultHeldOut` once per run, `run.held_out` ≈ 3 B once; the composition adds nothing (the type nibble already exists).
+- **Browser checks (solo, `?solo=1&zdmg=0.02`, headless Chromium 1280 × 720, ~14–17 fps), screenshots in `/tmp/s310/`:** build phase (`solo-1-build.png`); W1 16 Walkers (× 0.4) played and cleared by aiming at the nearest zombie with the mouse (`solo-2`, `solo-3`); **W2 32 = 26 Walkers + 6 Runners**, a Runner on screen (`solo-4-wave2-runners.png`, `solo-4b`), W2 cleared for real (earned 132, `solo-5`); W3 started with Crawlers + Runners; then the dev cheat panel's **Skip wave** to W5 → **"You held out!" / Wave reached 5 / You 48 kills $252** (`solo-6-you-held-out.png`); Restart → a fresh build phase with $100 (`solo-7-restart.png`). No console errors.
+- **Proved the new tests can fail (brief line 15, done here too):** the spread test fails with the "furthest behind" comparison removed; the run-end tests (2) fail with `>` instead of `>=`; 5 wave tests fail without the player scale; the "saves up" bot test fails with `continue` instead of `return -1`; the five-wave sim fails without `startBuild` (runs never start) and without `botBuildPhase` (no purchases).
+- **Epic 3 brief, lines asked for:**
+  - **2** — `git status` clean; `npm run typecheck && npm run lint && npm test && npm run build` pass on `story-3-10` merged with `claude/epic-2-continue` (4a5dcd7): 148 files, 1,097 passed, 3 skipped.
+  - **3** — new state through every copy: `world.run.heldOut` (World) → `RunState.resultHeldOut` (schema, set by the room's `endRun` like `resultWave`; `syncState.resetRunFields` clears it) → `RunStateView.resultHeldOut` + `RUN_STATE_FIELDS` (so the `?lag` devThrottle copies it; compile-time key check) → `NetSimHost` mirror (`world.run.heldOut`) → no Predictor impact (not movement/weapon) → `snapshotWorld` (`run` spread). `WaveState.typeTarget/typeSpawned`: World only (server/solo), copied in `snapshotWorld`; never synced (clients don't need them). New event `run.held_out` → net kind 25 (encode/decode, global in the 3.6 event-interest filter). `FakeRoom` state gains the field.
+  - **11** — see bandwidth lines above (money 68 B/s, build timer 60 B/s, real-run KB/s, 150-alive worst case 19.9 KB/s peak).
+  - **12** — every number in balance JSON: wave curve/mix/scale/run length in `waves.json`, shopping list and build radii in `bots.json`; the 8 candidate directions are a bot search pattern (constant in `botShop.ts`), not gameplay.
+  - **13** — revive untouched; the sim table above is the evidence; no economy lever changed (reasons and measured options above).
+  - **14** — one mechanic per test (`systems: { zombies: () => {} }` where kills are by hand), seeded, `bootTestServer()` in `RunRoom.3-10.test.ts`.
+  - **15** — mutations above.
+  - **20** — Notes for the merge below.
+- **Not verified:** the online "You held out!" in a browser (covered by `RunRoom.3-10.test.ts` over the wire and `onlineFlow.test.ts`; the screen component is the same as solo); real phones; feel of Runners/Crawlers in a full 4-player browser run; whether human teams match the bots' assist share (the earnings gap depends on it).
+
+### Notes for the merge (shared files touched; brief line 20)
+
+- `waves.json` / `balanceSchema.ts` (`wavesSchema` gains `runWaves`, `playerCountScale`, `mix`; `botsSchema` gains `buildRadiiM`, `shoppingList` max 31) / `balance.ts` (mix types cross-check) / `bots.json`: the balance version changes (clients and server must match).
+- `run/runStateMachine.ts`: `RunState.heldOut`; `endWave` may now go to Results. Any story that adds a transition after `endWave` must keep the `runWaves` check (Epic 6 sets 10).
+- `waves/waveDirector.ts`: `waveZombieType` returns a type **index**; `spawnWaveZombie` counts `typeSpawned`. Stories adding zombie types (Epic 5) only add weights to `mix`.
+- `core/simEvents.ts` + `net/netEvents.ts`: `run.held_out`, kind **25** (next free: 26).
+- Server `RunRoom.ts` (`onTick` handles `run.held_out`; `endRun(controller, wave, heldOut)`), `schema/RunState.ts` (`resultHeldOut`), `syncState.ts` (reset). Client `onlineFlow.ts`, `ResultsScreen.tsx`, `uiState.ts` (`ResultRow.earned`, `results.heldOut`), `GameScene.ts` (`showSoloResults(host, wave, heldOut)`), `NetSimHost.ts` (mirror), `fakeRoom.ts`.
+- Tests whose expectations moved with the scale: `runStateMachine.test.ts` (2 players: W1 24), `slow.test.ts` (solo W1 16), `economy.test.ts` (2 players pinned at × 1.0 by override), `waveDirector.test.ts` (old one-player tests pin the scale at 1.0; new block uses the real one).
+- Merged `claude/epic-2-continue` at 4a5dcd7 (3.5/3.6/3.8 review fixes): no conflicts. The sim table and bot numbers above are from the merged tip (3.5's clearance-aware field made Pistol-only teams a little weaker than before the merge; shopping teams unchanged at 18/18).
+
 ### File List
+
+- New: `packages/shared/src/bots/botShop.ts`, `packages/shared/src/bots/botShop.test.ts`, `packages/shared/src/bots/headlessRun.ts`, `packages/shared/src/economy/fiveWaveSim.test.ts`, `apps/server/src/rooms/RunRoom.3-10.test.ts`, `apps/server/src/run/economyBandwidth.test.ts`, `tools/sims/fiveWave.ts`, this file.
+- Modified (shared): `config/balance/waves.json`, `config/balance/bots.json`, `config/balanceSchema.ts`, `config/balance.ts`, `waves/waveDirector.ts`, `waves/waveMix.ts`, `run/runStateMachine.ts`, `core/simEvents.ts`, `core/world.ts`, `core/worldSnapshot.ts`, `net/netEvents.ts`, `net/stateView.ts`, `net/testScenarios.ts`, `bots/botPolicy.ts`, `economy/shop.ts`, `index.ts`; tests `waves/waveDirector.test.ts`, `run/runStateMachine.test.ts`, `net/netEvents.test.ts`, `economy/economy.test.ts`, `player/slow.test.ts`.
+- Modified (server): `rooms/RunRoom.ts`, `rooms/schema/RunState.ts`, `rooms/schema/syncState.ts`, `run/RunController.ts` (comment).
+- Modified (client): `net/onlineFlow.ts`, `net/fakeRoom.ts`, `sim/NetSimHost.ts`, `ui/ResultsScreen.tsx`, `ui/uiState.ts`, `ui/overlay.css`, `scenes/GameScene.ts`, `debug/urlOptions.ts` (comment); tests `net/onlineFlow.test.ts`, `net/lobbyStore.test.ts`, `ui/uiState.test.ts`, `sim/NetSimHost.downed.test.ts`.
+- Modified (tools): `tools/bots/botClient.ts`, `tools/bots/run.ts`.
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
 ## Change Log
 
 - 2026-11-22: Story created (gds-create-story, from the real code).
+- 2026-11-22: Built: 5-wave curve with per-wave mix and player-count scale, run end with "You held out!" Results (kills + earned), bots shop and build (headless and `tools/bots`), five-wave sim, economy bandwidth test, room test; balance pass (no economy lever changed, evidence in Completion Notes); real 4-bot runs; browser checks; merged `claude/epic-2-continue`. Status → review.
