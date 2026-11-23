@@ -91,3 +91,6 @@ Player:
 
 ## 23: the green patch (Story 5.6)
 ![23](objects/24_acid_puddle.png)
+
+## 24, 25: what is the survivor holding? (Story 5.2)
+![24](objects/25_survivor_fire_axe.png) ![25](objects/26_survivor_chainsaw.png)

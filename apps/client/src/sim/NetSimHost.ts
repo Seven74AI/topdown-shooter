@@ -515,7 +515,9 @@ export class NetSimHost implements SimHost {
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
       room.send(C2S.INPUT_SEND, buf); // encoded synchronously: the buffer can be reused
-      this.predictor.applyLocal(buf); // Story 2.6: my survivor moves now, not a round trip later
+      // Story 2.6: my survivor moves now, not a round trip later. Story 5.2: with the weapon state the
+      // server's movement sees on this seq (the fire clock's, from the seq before: the Chainsaw slow).
+      this.predictor.applyLocal(buf, this.fireClock.moveWeapon, this.fireClock.moveSwapping);
       // Story 2.7: my weapon fires now too (cosmetic; the server fires its own shot from this input).
       if (this.fireClock.step(buf, room.state?.players?.get(this.localPlayerId))) this.localAttack(buf.isMouse, buf.seq);
       this.accumulatorS -= TICK_DT_S;

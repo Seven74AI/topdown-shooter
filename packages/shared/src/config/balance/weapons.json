@@ -86,5 +86,30 @@
     "hitPushbackM": 0.15,
     "screenShake": false,
     "price": 450
+  },
+  "fire_axe": {
+    "name": "Fire Axe",
+    "kind": "melee",
+    "damage": 30,
+    "rateHz": 1.1,
+    "rangeM": 2.2,
+    "arcDeg": 140,
+    "knockbackM": 1.5,
+    "hitPushbackM": 0,
+    "screenShake": true,
+    "price": 300
+  },
+  "chainsaw": {
+    "name": "Chainsaw",
+    "kind": "melee",
+    "damage": 6,
+    "rateHz": 10,
+    "rangeM": 1.5,
+    "arcDeg": 60,
+    "hitPushbackM": 0.05,
+    "screenShake": false,
+    "wielderSlowPct": 20,
+    "quietHits": true,
+    "price": 600
   }
 }

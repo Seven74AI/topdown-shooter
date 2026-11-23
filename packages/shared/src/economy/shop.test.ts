@@ -23,7 +23,7 @@ function setup(wallet: number, weapons: readonly [string, string | null] = ["pis
 const ids = (p: PlayerState) => [p.loadout.slots[0].weapon, p.loadout.slots[1]?.weapon ?? null];
 
 describe("shop list (Story 3.3)", () => {
-  it("lists Pistol 0, Machete 150, SMG 200, Hunting Rifle 350, Shotgun 250, Assault Rifle 450 from balance, in shop order", () => {
+  it("lists Pistol 0, Machete 150, SMG 200, Hunting Rifle 350, Shotgun 250, Assault Rifle 450, Fire Axe 300, Chainsaw 600 from balance, in shop order", () => {
     expect(shopWeapons(balance).map((w) => [w.id, w.price])).toEqual([
       ["pistol", 0],
       ["machete", 150],
@@ -31,8 +31,10 @@ describe("shop list (Story 3.3)", () => {
       ["hunting_rifle", 350],
       ["shotgun", 250],
       ["assault_rifle", 450],
+      ["fire_axe", 300],
+      ["chainsaw", 600],
     ]);
-    expect(shopWeapons(balance).map((w) => w.name)).toEqual(["Pistol", "Machete", "SMG", "Hunting Rifle", "Shotgun", "Assault Rifle"]);
+    expect(shopWeapons(balance).map((w) => w.name)).toEqual(["Pistol", "Machete", "SMG", "Hunting Rifle", "Shotgun", "Assault Rifle", "Fire Axe", "Chainsaw"]);
     expect(weaponName(balance, "smg")).toBe("SMG");
     expect(weaponName(balance, "big_gun")).toBe("Big Gun");
     expect(shopPrice(balance, "smg")).toBe(200);

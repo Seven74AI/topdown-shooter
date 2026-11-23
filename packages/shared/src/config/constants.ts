@@ -56,3 +56,10 @@ export const REWIND_MAX_TICKS = 6;
  * more to interpolate a fractional tick, one spare.
  */
 export const ZOMBIE_HISTORY_TICKS = REWIND_MAX_TICKS + 2;
+
+/**
+ * An aim shorter than this is "no aim": the weapon doesn't attack (`combat/firing.ts › tryFire`)
+ * and, Story 5.2, the Chainsaw's wielder slow doesn't apply (`player/slow.ts`). The client's dead
+ * zone sends a zero aim inside it.
+ */
+export const MIN_AIM_LEN = 1e-6;

@@ -60,6 +60,9 @@ export class Predictor {
   private readonly world: World;
   private player: PlayerState | null = null;
   private readonly ring: MutableInput[];
+  /** Story 5.2: per ring entry, the active weapon and swap state my movement saw (from LocalFire). */
+  private readonly ringWeapon: string[];
+  private readonly ringSwapping: Uint8Array;
   private head = 0;
   private count = 0;
   /** Highest seq pushed out of the full ring before it was acknowledged (it can't be replayed). */
@@ -80,6 +83,8 @@ export class Predictor {
   ) {
     this.world = createWorld({ balance, seed: 0, map, systems: PREDICTION_SYSTEMS });
     this.ring = Array.from({ length: PREDICTION_HISTORY_SIZE }, () => ({ ...NEUTRAL_INPUT }));
+    this.ringWeapon = new Array<string>(PREDICTION_HISTORY_SIZE).fill("");
+    this.ringSwapping = new Uint8Array(PREDICTION_HISTORY_SIZE);
   }
 
   /** True once the first snapshot created the predicted player. */
@@ -164,18 +169,27 @@ export class Predictor {
     this.offsetY = 0;
   }
 
-  /** One local fixed step: record the input and step the prediction World. */
-  applyLocal(input: PlayerInput): void {
+  /**
+   * One local fixed step: record the input and step the prediction World. Story 5.2 (F6): `weapon`
+   * and `swapping` are my active weapon and swap state as the server's movement of this seq sees
+   * them (`LocalFireClock.moveWeapon` / `moveSwapping` before its step for this seq), so the
+   * shared `wielderSlowPct` (the Chainsaw's 20 %) gives the server's speed; kept per seq for replays.
+   */
+  applyLocal(input: PlayerInput, weapon = "", swapping = false): void {
     if (this.count === PREDICTION_HISTORY_SIZE) {
       this.evictedSeq = (this.ring[this.head] as MutableInput).seq;
       this.head = (this.head + 1) % PREDICTION_HISTORY_SIZE;
       this.count--;
     }
-    const slot = this.ring[(this.head + this.count) % PREDICTION_HISTORY_SIZE] as MutableInput;
+    const k = (this.head + this.count) % PREDICTION_HISTORY_SIZE;
+    const slot = this.ring[k] as MutableInput;
     copyMovement(slot, input);
+    this.ringWeapon[k] = weapon;
+    this.ringSwapping[k] = swapping ? 1 : 0;
     this.count++;
     this.stats.unackedInputs = this.count;
     if (this.player) {
+      this.wield(k);
       setInput(this.world, this.playerId, slot);
       step(this.world, TICK_DT_S);
     }
@@ -226,7 +240,9 @@ export class Predictor {
       p.prevY = y - lastDy;
     }
     for (let i = 0; i < this.count; i++) {
-      setInput(this.world, this.playerId, this.ring[(this.head + i) % PREDICTION_HISTORY_SIZE] as MutableInput);
+      const k = (this.head + i) % PREDICTION_HISTORY_SIZE;
+      this.wield(k);
+      setInput(this.world, this.playerId, this.ring[k] as MutableInput);
       step(this.world, TICK_DT_S);
     }
     this.stats.unackedInputs = this.count;
@@ -286,6 +302,22 @@ export class Predictor {
   private drawnY(): number {
     const p = this.player;
     return p ? p.prevY + (p.y - p.prevY) * this.alpha + this.offsetY : 0;
+  }
+
+  /**
+   * Story 5.2: the predicted player holds ring entry k's weapon (one slot, never swapping on its own:
+   * the prediction World runs no combat), so `movePlayers` reads the server's wield state.
+   */
+  private wield(k: number): void {
+    const lo = (this.player as PlayerState).loadout;
+    lo.slots[0].weapon = this.ringWeapon[k] as string;
+    lo.active = 0;
+    lo.swapTicks = this.ringSwapping[k] === 1 ? 1 : 0;
+  }
+
+  /** Story 5.2: the weapon the predicted player held on its latest step (tests). */
+  get wieldWeapon(): string {
+    return this.player?.loadout.slots[0].weapon ?? "";
   }
 
   private placeAt(x: number, y: number): void {

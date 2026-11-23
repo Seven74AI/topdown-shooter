@@ -35,6 +35,29 @@ describe("loadBalance", () => {
     expect(Object.keys(b.weapons).slice(0, 4)).toEqual(["pistol", "smg", "hunting_rifle", "machete"]);
   });
 
+  it("fire axe and chainsaw match the GDD table (Story 5.2)", () => {
+    const b = loadBalance();
+    expect(b.weapons.fire_axe).toMatchObject({ kind: "melee", name: "Fire Axe", damage: 30, rateHz: 1.1, rangeM: 2.2, arcDeg: 140, knockbackM: 1.5, hitPushbackM: 0, screenShake: true, price: 300, wielderSlowPct: 0, quietHits: false });
+    expect(b.weapons.chainsaw).toMatchObject({ kind: "melee", name: "Chainsaw", damage: 6, rateHz: 10, rangeM: 1.5, arcDeg: 60, knockbackM: 0, hitPushbackM: 0.05, screenShake: false, price: 600, wielderSlowPct: 20, quietHits: true });
+    expect(b.weapons.machete).toMatchObject({ knockbackM: 0, wielderSlowPct: 0, quietHits: false }); // unchanged
+    // Appended after Round A's ids: the wire's weapon index of every older weapon stays.
+    expect(Object.keys(b.weapons)).toEqual(["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw"]);
+    expect(b.shop.weapons.slice(-2)).toEqual(["fire_axe", "chainsaw"]);
+    for (const t of Object.values(b.zombies.types)) expect(t.knockbackTakenPct).toBe(100);
+    expect(b.controls.fx).toMatchObject({ maxSwingArcs: 8, maxChainsawSparks: 32 });
+  });
+
+  it("refuses a fractional or too large wielderSlowPct and a fractional knockbackTakenPct (Story 5.2)", () => {
+    const files = raw();
+    ((files.weapons as Record<string, Record<string, number>>).chainsaw as Record<string, number>).wielderSlowPct = 20.5;
+    expect(() => loadBalance(files)).toThrow(/weapons\.json: chainsaw\.wielderSlowPct/);
+    ((files.weapons as Record<string, Record<string, number>>).chainsaw as Record<string, number>).wielderSlowPct = 95;
+    expect(() => loadBalance(files)).toThrow(/weapons\.json: chainsaw\.wielderSlowPct/);
+    const f2 = raw();
+    ((f2.zombies as { types: Record<string, Record<string, number>> }).types.walker as Record<string, number>).knockbackTakenPct = 20.5;
+    expect(() => loadBalance(f2)).toThrow(/zombies\.json: types\.walker\.knockbackTakenPct/);
+  });
+
   it("pellets defaults to 1 for the old guns (Story 5.3)", () => {
     const b = loadBalance();
     for (const id of ["pistol", "smg", "hunting_rifle"]) expect((b.weapons[id] as { pellets: number }).pellets).toBe(1);

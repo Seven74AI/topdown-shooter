@@ -72,13 +72,34 @@ function compare(weapons: readonly [WeaponId, WeaponId | null], steps: number, i
 }
 
 describe("LocalFireClock (Story 2.7)", () => {
-  for (const weapon of ["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle"] as const) {
+  for (const weapon of ["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw"] as const) {
     it(`fires on exactly the steps the shared World fires over 200 steps: ${weapon}`, () => {
       const { server, local } = compare([weapon, null], 200, (seq) => fireInput(seq));
       expect(server.filter(Boolean).length).toBeGreaterThan(5);
       expect(local).toEqual(server);
     });
   }
+
+  it("Story 5.2: moveWeapon / moveSwapping are the server's weapon state after each seq (what its next movement sees), with a lagging snapshot and swaps", () => {
+    const world = createWorld({ balance, seed: 7, systems: { waves: () => {}, zombies: () => {} } });
+    const p = addPlayer(world, "p0", 5, 16);
+    setLoadout(balance, p.loadout, ["chainsaw", "pistol"]);
+    const clock = new LocalFireClock(balance);
+    const views: View[] = [viewOf(p, 0)];
+    let swapSteps = 0;
+    for (let seq = 1; seq <= 300; seq++) {
+      const input = fireInput(seq, { fire: seq % 17 < 11, swap: seq % 41 === 0 || seq === 83 });
+      clock.step(input, views[Math.max(0, views.length - 1 - 6)]);
+      setInput(world, "p0", input);
+      step(world, TICK_DT_S);
+      views.push(viewOf(p, seq));
+      const lo = p.loadout;
+      expect(clock.moveWeapon, `seq ${seq}`).toBe(lo.slots[lo.active]?.weapon);
+      expect(clock.moveSwapping, `seq ${seq}`).toBe(lo.swapTicks > 0);
+      if (lo.swapTicks > 0) swapSteps++;
+    }
+    expect(swapSteps).toBeGreaterThan(20); // liveness: swaps really ran
+  });
 
   it("predicts my own swap by seq while the snapshot lags (no shot during it, the other weapon after)", () => {
     const clock = new LocalFireClock(balance);

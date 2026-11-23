@@ -2,7 +2,8 @@ import type * as Phaser from "phaser";
 import { buildingStats, footprint, type Balance, type Box, type SimEvent } from "@topdown/shared";
 import { playSfx } from "../audio/placeholderSfx";
 import type { ZombieView } from "./ZombieView";
-import { blastLengthFor, fireSfxFor, muzzleScaleFor } from "./weaponLook";
+import { blastLengthFor, fireSfxFor, muzzleScaleFor, swingLookFor, swingSfxFor } from "./weaponLook";
+import { SPARK_BLOOD, SPARK_STEEL, SawClock, SparkPool } from "./meleeFx";
 
 const SPLAT_CAP = 200;
 const SPLAT_FADE_MS = 10_000;
@@ -35,6 +36,19 @@ const BLAST_SMOKE_MS = 900;
 const BLAST_OUTER = 0xffc46b;
 const BLAST_INNER = 0xfff1c4;
 const BLAST_MS = 110;
+/** Story 5.2: the Fire Axe's heavy arc (wider fade, a warm smear on the leading edge). */
+const AXE_SWING_MS = 200;
+const AXE_FILL = 0xf2e6dc;
+const AXE_FILL_ALPHA = 0.3;
+const AXE_EDGE = 0xffd2b8;
+const AXE_EDGE_M = 0.22;
+/** Story 5.2: the Chainsaw's faint standing wedge (refreshed every 0.1 s while it cuts) and its sparks. */
+const SAW_FILL = 0xffc98a;
+const SAW_FILL_ALPHA = 0.16;
+const SAW_SWING_MS = 140;
+const SPARK_STEEL_COLOR = 0xffe2a0;
+const SPARK_BLOOD_COLOR = 0x8a1010;
+const SPARK_M = 0.1;
 
 /**
  * The client-side event dispatcher for effects: hit flashes, blood splats, death puffs, muzzle
@@ -59,6 +73,18 @@ export class FxView {
   private readonly blastRings: Phaser.GameObjects.Arc[] = [];
   private readonly blastSmoke: Phaser.GameObjects.Arc[] = [];
   private readonly upgrades: Phaser.GameObjects.Arc[] = [];
+  /** Story 5.2: next swing Graphics to reuse once the pool is at `fx.maxSwingArcs` (oldest first). */
+  private nextSwing = 0;
+  /** Story 5.2: the Chainsaw's sparks (fixed pool, drawn into one Graphics per frame). */
+  private sparks: SparkPool | null = null;
+  private sparkGfx: Phaser.GameObjects.Graphics | null = null;
+  /** Story 5.2: when each player's Chainsaw last cut (running frame, my rev loop). */
+  saw: SawClock | null = null;
+  /**
+   * Story 5.2: zombies in a swing's arc as drawn on this client (my own Chainsaw swings online are
+   * local events without the server's hit count); set by GameScene.
+   */
+  cutCount: ((x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number) => number) | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -94,10 +120,15 @@ export class FxView {
           if (this.buildingOwner(e.buildingId) === this.localPlayerId || this.scene.cameras.main.worldView.contains(e.x, e.y)) playSfx("turret_fire");
         }
         break;
-      case "melee.swung":
-        this.swing(e.x, e.y, e.dirX, e.dirY, e.arcDeg, e.rangeM);
-        if (e.playerId === this.localPlayerId) playSfx("weapon_machete_swing");
+      case "melee.swung": {
+        // Story 5.2: the swing's look by weapon; every look draws exactly the sim's sector (F1).
+        const look = swingLookFor(e.weapon);
+        if (look === "saw") this.sawCut(e.playerId, e.x, e.y, e.dirX, e.dirY, e.arcDeg, e.rangeM, e.hits);
+        else this.swing(e.x, e.y, e.dirX, e.dirY, e.arcDeg, e.rangeM, look === "heavy");
+        const sfx = swingSfxFor(e.weapon);
+        if (sfx && e.playerId === this.localPlayerId) playSfx(sfx);
         break;
+      }
       case "weapon.reload_started":
         if (e.playerId === this.localPlayerId) playSfx("weapon_reload_start");
         break;
@@ -254,25 +285,95 @@ export class FxView {
     this.scene.tweens.add({ targets: ring, scale: 2, alpha: 0, duration: REPAIR_MS, onComplete: () => ring.setVisible(false) });
   }
 
-  /** Translucent arc wedge for a melee swing: a pooled Graphics, redrawn only on the swing, then hidden. */
-  private swing(x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number): void {
-    let g = this.swings.find((o) => !o.visible);
-    if (!g) {
-      g = this.scene.add.graphics().setDepth(7).setVisible(false);
+  /**
+   * A pooled swing Graphics: a hidden one, else a new one up to `controls.json › fx.maxSwingArcs`
+   * (Story 5.2, brief line 12), else the oldest is reused.
+   */
+  private takeSwing(): Phaser.GameObjects.Graphics {
+    const free = this.swings.find((o) => !o.visible);
+    if (free) return free;
+    const cap = this.balance?.controls.fx.maxSwingArcs ?? 1;
+    if (this.swings.length < cap) {
+      const g = this.scene.add.graphics().setDepth(7).setVisible(false);
       this.swings.push(g);
+      return g;
     }
-    const graphics = g;
+    const g = this.swings[this.nextSwing % this.swings.length] as Phaser.GameObjects.Graphics;
+    this.nextSwing = (this.nextSwing + 1) % this.swings.length;
+    this.scene.tweens.killTweensOf(g);
+    return g;
+  }
+
+  /**
+   * Translucent arc wedge for a melee swing: a pooled Graphics, redrawn only on the swing, then hidden.
+   * Story 5.2: `heavy` (the Fire Axe): denser, slower to fade, with a warm smear along the arc's rim.
+   */
+  private swing(x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number, heavy = false, fill = SWING_COLOR, alpha = SWING_ALPHA, ms = SWING_MS): void {
+    const graphics = this.takeSwing();
     const facing = Math.atan2(dirY, dirX);
     const half = (arcDeg / 2) * DEG_TO_RAD;
     graphics.clear();
-    graphics.fillStyle(SWING_COLOR, SWING_ALPHA);
+    graphics.fillStyle(heavy ? AXE_FILL : fill, heavy ? AXE_FILL_ALPHA : alpha);
     graphics.slice(0, 0, rangeM, facing - half, facing + half, false);
     graphics.fillPath();
+    if (heavy) {
+      graphics.lineStyle(AXE_EDGE_M, AXE_EDGE, 0.55);
+      graphics.beginPath();
+      graphics.arc(0, 0, rangeM - AXE_EDGE_M / 2, facing - half, facing + half, false);
+      graphics.strokePath();
+    }
     graphics.setPosition(x, y).setAlpha(1).setVisible(true);
-    this.scene.tweens.add({ targets: graphics, alpha: 0, duration: SWING_MS, onComplete: () => graphics.setVisible(false) });
+    this.scene.tweens.add({ targets: graphics, alpha: 0, duration: heavy ? AXE_SWING_MS : ms, onComplete: () => graphics.setVisible(false) });
+  }
+
+  /**
+   * Story 5.2: one Chainsaw tick: the faint 60° wedge (the sim's sector), sparks at the blade tip and
+   * blood when it cut someone (`hits` from the server; my own online swings count the drawn zombies).
+   */
+  private sawCut(playerId: string, x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number, hits: number | undefined): void {
+    this.swing(x, y, dirX, dirY, arcDeg, rangeM, false, SAW_FILL, SAW_FILL_ALPHA, SAW_SWING_MS);
+    this.saw?.swung(playerId, this.scene.time.now);
+    const fx = this.balance?.controls.fx;
+    if (!fx) return;
+    if (!this.sparks) this.sparks = new SparkPool(fx.maxChainsawSparks, fx.chainsawSparkMs);
+    const cut = hits ?? this.cutCount?.(x, y, dirX, dirY, arcDeg, rangeM) ?? 0;
+    const tipM = rangeM * 0.75;
+    const tx = x + dirX * tipM;
+    const ty = y + dirY * tipM;
+    this.sparks.spawn(tx, ty, dirX, dirY, cut > 0 ? fx.chainsawSparksPerHit : fx.chainsawSparksPerMiss, SPARK_STEEL);
+    if (cut > 0) this.sparks.spawn(tx, ty, dirX, dirY, Math.ceil(fx.chainsawSparksPerHit / 2), SPARK_BLOOD);
+  }
+
+  /** Story 5.2: once per frame: moves the sparks and redraws them into one Graphics (no objects per spark). */
+  update(deltaMs: number): void {
+    const sp = this.sparks;
+    if (!sp) return;
+    const live = sp.update(deltaMs);
+    if (!this.sparkGfx) this.sparkGfx = this.scene.add.graphics().setDepth(8.8);
+    const g = this.sparkGfx;
+    g.clear();
+    if (live === 0) return;
+    for (let k = 0; k < sp.cap; k++) {
+      if ((sp.lifeMs[k] as number) <= 0) continue;
+      g.fillStyle(sp.kind[k] === SPARK_BLOOD ? SPARK_BLOOD_COLOR : SPARK_STEEL_COLOR, sp.alpha(k));
+      g.fillRect((sp.x[k] as number) - SPARK_M / 2, (sp.y[k] as number) - SPARK_M / 2, SPARK_M, SPARK_M);
+    }
+  }
+
+  /** Story 5.2: live sparks (tests, the stress check). */
+  get liveSparks(): number {
+    const sp = this.sparks;
+    if (!sp) return 0;
+    let n = 0;
+    for (let k = 0; k < sp.cap; k++) if ((sp.lifeMs[k] as number) > 0) n++;
+    return n;
   }
 
   destroy(): void {
+    this.sparkGfx?.destroy();
+    this.sparkGfx = null;
+    this.sparks = null;
+    this.saw?.clear();
     for (const o of [...this.splats, ...this.puffs, ...this.flashes, ...this.swings, ...this.blasts, ...this.debrisPuffs, ...this.repairs, ...this.blastFlashes, ...this.blastFires, ...this.blastRings, ...this.blastSmoke, ...this.upgrades]) o.destroy();
     this.blasts.length = 0;
     this.debrisPuffs.length = 0;

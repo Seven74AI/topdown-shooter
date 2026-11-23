@@ -33,3 +33,15 @@ export function streakScales(balance: Balance): Float32Array {
   });
   return out;
 }
+
+/**
+ * Story 5.2: how a melee swing looks and sounds. "light" = the machete's plain wedge; "heavy" = the
+ * Fire Axe's wide, slower arc with a bright leading-edge smear; "saw" = the Chainsaw's faint
+ * standing wedge (it swings 10×/s) with a spark / blood spray at the blade.
+ */
+export type SwingLook = "light" | "heavy" | "saw";
+const SWING_LOOK: Readonly<Record<string, SwingLook>> = { fire_axe: "heavy", chainsaw: "saw" };
+export const swingLookFor = (weapon: string): SwingLook => SWING_LOOK[weapon] ?? "light";
+const SWING_SFX: Readonly<Record<string, SfxName | null>> = { fire_axe: "weapon_axe_swing", chainsaw: null };
+/** The local swing sound (null: the Chainsaw's rev loop instead). */
+export const swingSfxFor = (weapon: string): SfxName | null => (weapon in SWING_SFX ? (SWING_SFX[weapon] ?? null) : "weapon_machete_swing");

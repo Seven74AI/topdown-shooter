@@ -130,3 +130,27 @@ describe("five-wave bot sim with the Shotgun and the Assault Rifle (Story 5.3, b
   }, 180_000);
 });
 
+describe("bot sim with the Fire Axe and the Chainsaw (Story 5.2, brief lines 9 and 15)", () => {
+  it("bots that buy them still run to Results (waves ended), and both really kill", () => {
+    // A test-only shopping list: the bots start with 700 (enough for the Chainsaw at the first build).
+    const rich = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 700]]));
+    const lists: Record<string, readonly string[]> = { fire_axe: ["fire_axe", "wood_barricade"], chainsaw: ["chainsaw", "wood_barricade"] };
+    const lines: string[] = [];
+    for (const [weapon, list] of Object.entries(lists)) {
+      let kills = 0;
+      let bought = 0;
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance: rich, seed, players: 4, list });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
+        kills += r.killsByWeapon[weapon] ?? 0;
+        bought += r.purchases.flat().filter((p) => p.startsWith(`${weapon}@`)).length;
+        lines.push(`${weapon} seed ${seed}: ${formatRunLine(r)} kills by ${weapon} ${r.killsByWeapon[weapon] ?? 0}`);
+      }
+      expect(bought).toBeGreaterThan(0);
+      expect(kills).toBeGreaterThan(0); // liveness: the new weapon was used (bot survival is not difficulty evidence)
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[five-wave sim 5.2]\n${lines.join("\n")}`);
+  }, 180_000);
+});
