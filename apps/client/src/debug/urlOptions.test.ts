@@ -49,6 +49,11 @@ describe("parseUrlOptions: Story 1.12 options", () => {
     expect(parseUrlOptions("?loadout=SMG, Hunting_Rifle").loadout).toEqual(["smg", "hunting_rifle"]);
     expect(parseUrlOptions("?loadout=smg").loadout).toEqual(["smg", null]);
     expect(parseUrlOptions("?loadout=smg,smg").loadout).toEqual(["smg", null]);
+    // Story 5.1: id:level entries pass through (levels are checked by validLoadout).
+    expect(parseUrlOptions("?loadout=smg:3,machete:2").loadout).toEqual(["smg:3", "machete:2"]);
+    expect(parseUrlOptions("?loadout=smg:3,smg:2").loadout).toEqual(["smg:3", null]);
+    expect(parseUrlOptions("?loadout=smg:x").loadout).toEqual(["smg:x", null]);
+    expect(parseUrlOptions("?loadout=smg:<b>").loadout).toBeNull();
     expect(parseUrlOptions("?loadout=<script>").loadout).toBeNull();
     expect(parseUrlOptions("").loadout).toBeNull();
   });

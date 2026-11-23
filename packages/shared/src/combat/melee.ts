@@ -21,12 +21,14 @@ const MIN_DIST = 1e-6;
  * the player. No aim assist, ignores cover. Requires the zombie grid to be current. Returns hits.
  * Story 2.12: with a `view`, the arc is tested against those (rewound) positions; the damage and
  * the pushback (away from the player, along the rewound direction) go to the present zombie.
+ * Story 5.1: `damage` per zombie hit is the caller's `weaponDamage(balance, weapon, slot.level)`.
  */
 export function swingMelee(
   world: World,
   p: PlayerState,
   weapon: WeaponId,
   stats: MeleeStats,
+  damage: number,
   dirX: number,
   dirY: number,
   view: ZombieView | null = null,
@@ -57,7 +59,7 @@ export function swingMelee(
     const d = Math.sqrt(vx * vx + vy * vy);
     const px = d > MIN_DIST ? vx / d : dirX;
     const py = d > MIN_DIST ? vy / d : dirY;
-    applyZombieDamage(world, id, stats.damage, px, py, stats.hitPushbackM, p.id, weapon);
+    applyZombieDamage(world, id, damage, px, py, stats.hitPushbackM, p.id, weapon);
     hits++;
   }
   return hits;

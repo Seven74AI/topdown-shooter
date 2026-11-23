@@ -412,6 +412,12 @@ export class NetSimHost implements SimHost {
     this.session.room.send(C2S.SHOP_BUY, slot === null ? { weapon } : { weapon, slot });
   }
 
+  /** Story 5.1: `shop.upgrade`; the server decides and answers this client; the state brings the level and wallet. */
+  upgradeWeapon(weapon: string): void {
+    if (this.disposed) return;
+    this.session.room.send(C2S.SHOP_UPGRADE, { weapon });
+  }
+
   takeShopAnswer(): ShopAnswer | null {
     return this.shopAnswers.shift() ?? null;
   }
@@ -663,8 +669,8 @@ export class NetSimHost implements SimHost {
     const lo = p.loadout;
     lo.active = s.active === 1 ? 1 : 0;
     lo.swapTicks = s.swapTicks;
-    lo.slots[0] = this.syncSlot(lo.slots[0], s.weapon0, s.ammo0, s.reloadTicks0) ?? lo.slots[0];
-    lo.slots[1] = this.syncSlot(lo.slots[1], s.weapon1, s.ammo1, s.reloadTicks1);
+    lo.slots[0] = this.syncSlot(lo.slots[0], s.weapon0, s.ammo0, s.reloadTicks0, s.level0) ?? lo.slots[0];
+    lo.slots[1] = this.syncSlot(lo.slots[1], s.weapon1, s.ammo1, s.reloadTicks1, s.level1);
     if (p.id === this.localPlayerId) this.predictAmmo(lo.slots[0], s, 0).predictAmmo(lo.slots[1], s, 1);
   }
 
@@ -713,11 +719,12 @@ export class NetSimHost implements SimHost {
   }
 
   /** Reuses the slot object unless the weapon changed ("" = empty). */
-  private syncSlot(slot: WeaponSlot | null, weapon: string, ammo: number, reloadTicks: number): WeaponSlot | null {
+  private syncSlot(slot: WeaponSlot | null, weapon: string, ammo: number, reloadTicks: number, level: number): WeaponSlot | null {
     if (weapon === "" || !this.world.balance.weapons[weapon]) return null;
     const out = slot && slot.weapon === weapon ? slot : createSlot(this.world.balance, weapon);
     out.ammo = ammo;
     out.reloadTicks = reloadTicks;
+    out.level = level > 0 ? level : 1; // Story 5.1: server truth (0 only for an empty slot); HUD and shop read it
     return out;
   }
 

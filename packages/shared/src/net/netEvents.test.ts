@@ -52,6 +52,9 @@ const EVENTS: SimEvent[] = [
   { type: "acid.splashed", puddleId: 3, x: 47.99, y: 31.99, hitPlayerId: "p2" },
   { type: "acid.splashed", puddleId: 4, x: 0, y: 0, hitPlayerId: null },
   { type: "player.damaged", playerId: "p1", amount: 2, sourceZombieId: -3 },
+  // Story 5.1: a weapon upgrade.
+  { type: "weapon.upgraded", playerId: "p2", weapon: "smg", slot: 1, level: 3 },
+  { type: "weapon.upgraded", playerId: "p0", weapon: "pistol", slot: 0, level: 4 },
 ];
 
 /** Story 3.6: a turret shot (its muzzle is not sent). */

@@ -1,7 +1,8 @@
 import type { Balance } from "../config/balance";
 import type { World } from "../core/world";
 import { buildingStats, cornerForCentre, ownedCount, placeBuilding } from "../buildings/buildings";
-import { buyWeapon, shopPrice } from "../economy/shop";
+import { buyWeapon, shopPrice, upgradeWeapon } from "../economy/shop";
+import { upgradePrice } from "../combat/weapons";
 import { setBuildReady } from "../run/runStateMachine";
 import type { BuildCommand } from "../replay/inputLog";
 
@@ -16,8 +17,18 @@ import type { BuildCommand } from "../replay/inputLog";
  * - a building type: its k-th entry in the list means "own k of that type"; owned enough → next;
  *   affordable → place it on the first candidate spot the rules accept (`botPlaceCandidate`); no spot
  *   (or the 6-building cap) → next; too dear → stop;
+ * - Story 5.1: `upgrade:<weapon>`: its k-th entry in the list means "hold that weapon at level ≥ k + 1";
+ *   not held, or already that high (or at the max level) → next; affordable → upgrade it; too dear → stop;
  * - an id the shop doesn't sell → next.
  */
+
+/** Story 5.1: the shopping-list prefix of a weapon upgrade (`upgrade:smg`). */
+export const UPGRADE_ENTRY_PREFIX = "upgrade:";
+
+/** The weapon of an `upgrade:<weapon>` entry, or null for any other entry. */
+export function upgradeEntryWeapon(entry: string): string | null {
+  return entry.startsWith(UPGRADE_ENTRY_PREFIX) ? entry.slice(UPGRADE_ENTRY_PREFIX.length) : null;
+}
 
 /** What the shopping rules need to know about the bot (from a World or from net state). */
 export interface BotShopSelf {
@@ -26,6 +37,9 @@ export interface BotShopSelf {
   /** "" = empty second slot. */
   weapon1: string;
   active: number;
+  /** Story 5.1: the slots' upgrade levels (absent = I). */
+  level0?: number;
+  level1?: number;
 }
 
 /**
@@ -44,6 +58,16 @@ export function botShopNext(
   for (let i = 0; i < n; i++) {
     if ((skip & (1 << i)) !== 0) continue;
     const id = list[i] as string;
+    const up = upgradeEntryWeapon(id);
+    if (up !== null) {
+      const level = self.weapon0 === up ? (self.level0 ?? 1) : self.weapon1 === up ? (self.level1 ?? 1) : 0;
+      if (level === 0 || !(up in balance.weapons)) continue; // not held: nothing to upgrade
+      let want = 1;
+      for (let k = 0; k <= i; k++) if (list[k] === id) want++;
+      if (level >= want || level >= balance.shop.upgrades.maxLevel) continue;
+      if (upgradePrice(balance, up) > self.wallet) return -1;
+      return i;
+    }
     const weaponPrice = shopPrice(balance, id);
     if (weaponPrice !== null) {
       if (self.weapon0 === id || self.weapon1 === id) continue;
@@ -109,14 +133,16 @@ export interface BotShopResult {
   /** The last weapon bought is in the slot not in hands: swap to it on the next input. */
   swap: boolean;
   weapons: number;
+  /** Story 5.1: weapon upgrades bought. */
+  upgrades: number;
   buildings: number;
   spent: number;
-  /** The weapons bought, in order (for the sim's log). */
+  /** The weapons bought (and Story 5.1 `upgrade:<weapon>` entries), in order (for the sim's log). */
   readonly bought: string[];
 }
 
 export function createBotShopResult(): BotShopResult {
-  return { swap: false, weapons: 0, buildings: 0, spent: 0, bought: [] };
+  return { swap: false, weapons: 0, upgrades: 0, buildings: 0, spent: 0, bought: [] };
 }
 
 /**
@@ -135,13 +161,14 @@ export function botBuildPhase(
 ): BotShopResult {
   out.swap = false;
   out.weapons = 0;
+  out.upgrades = 0;
   out.buildings = 0;
   out.spent = 0;
   out.bought.length = 0;
   const p = world.players.get(playerId);
   if (!p || world.run.phase !== "build") return out;
   const balance = world.balance;
-  const self: BotShopSelf = { wallet: 0, weapon0: "", weapon1: "", active: 0 };
+  const self: BotShopSelf = { wallet: 0, weapon0: "", weapon1: "", active: 0, level0: 1, level1: 1 };
   const owned = (type: string): number => {
     let n = 0;
     for (const b of world.buildings.list) if (b.ownerId === playerId && b.type === type) n++;
@@ -156,11 +183,23 @@ export function botBuildPhase(
     self.weapon0 = p.loadout.slots[0].weapon;
     self.weapon1 = p.loadout.slots[1]?.weapon ?? "";
     self.active = hands;
+    self.level0 = p.loadout.slots[0].level;
+    self.level1 = p.loadout.slots[1]?.level ?? 1;
     const i = botShopNext(balance, self, owned, list, skip);
     if (i < 0) break;
     const id = list[i] as string;
     const before = p.wallet;
-    if (shopPrice(balance, id) !== null) {
+    const up = upgradeEntryWeapon(id);
+    if (up !== null) {
+      // Story 5.1: the same `upgradeWeapon` the shop's Upgrade row runs.
+      if (!upgradeWeapon(world, playerId, up).ok) {
+        skip |= 1 << i;
+        continue;
+      }
+      record?.({ kind: "upgrade", playerId, weapon: up });
+      out.upgrades++;
+      out.bought.push(id);
+    } else if (shopPrice(balance, id) !== null) {
       const slot = botWeaponSlot(self);
       const r = buyWeapon(world, playerId, id, slot);
       if (!r.ok) {

@@ -33,6 +33,7 @@ import {
   playerInputSchema,
   runStartSchema,
   shopBuySchema,
+  shopUpgradeSchema,
   spectateTarget,
   startBlocker,
   zombieNetId,
@@ -50,6 +51,8 @@ import {
   type RunJoined,
   type ShopBought,
   type ShopRefused,
+  type ShopUpgraded,
+  type ShopUpgradeRefused,
   type SimEvent,
   type TestScenario,
   type World,
@@ -264,6 +267,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.weapon, m.slot ?? null)));
     this.onMessage(C2S.BUILDING_REPAIR, this.net.guard(buildingRepairSchema, (c, m) => this.onRepairBuilding(c, m.id)));
     this.onMessage(C2S.BUILDING_UPGRADE, this.net.guard(buildingUpgradeSchema, (c, m) => this.onUpgradeBuilding(c, m.id))); // Story 5.9
+    this.onMessage(C2S.SHOP_UPGRADE, this.net.guard(shopUpgradeSchema, (c, m) => this.onShopUpgrade(c, m.weapon))); // Story 5.1
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -465,6 +469,27 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     } else {
       client.send(S2C.SHOP_REFUSED, { weapon, error: r.error } satisfies ShopRefused);
       this.log.info({ playerId: member.playerId, weapon, error: r.error }, "shop_refused");
+    }
+  }
+
+  /**
+   * `shop.upgrade` (Story 5.1, shape-checked and rate-limited by the shared "other" bucket): the
+   * shared `upgradeWeapon` rules decide (build phase, own weapon, below the max level, the sender's
+   * wallet). The sender alone gets `shop.upgraded` or `shop.upgrade_refused`; the level and wallet
+   * reach every client in the next patch (`level0`/`level1`). Repeats can't overspend: each one is
+   * checked against the wallet and the level as they are by then.
+   */
+  onShopUpgrade(client: RunClient, weapon: string): void {
+    const member = this.members.get(client.sessionId);
+    if (!member) return;
+    const controller = this.controller;
+    const r = controller ? controller.upgradeWeapon(member.playerId, weapon) : ({ ok: false, error: "not_build" } as const);
+    if (r.ok) {
+      client.send(S2C.SHOP_UPGRADED, { weapon, slot: r.value.slot, level: r.value.level } satisfies ShopUpgraded);
+      this.log.info({ playerId: member.playerId, weapon, slot: r.value.slot, level: r.value.level, price: r.value.price }, "shop_upgraded");
+    } else {
+      client.send(S2C.SHOP_UPGRADE_REFUSED, { weapon, error: r.error } satisfies ShopUpgradeRefused);
+      this.log.info({ playerId: member.playerId, weapon, error: r.error }, "shop_upgrade_refused");
     }
   }
 

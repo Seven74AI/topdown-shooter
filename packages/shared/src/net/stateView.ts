@@ -48,6 +48,9 @@ export interface PlayerStateView {
   readonly reloadTicks0: number;
   readonly reloadTicks1: number;
   readonly swapTicks: number;
+  /** Story 5.1: each slot's upgrade level (1–4; 0 = empty slot). */
+  readonly level0: number;
+  readonly level1: number;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -138,6 +141,8 @@ export const PLAYER_STATE_FIELDS = {
   reloadTicks0: true,
   reloadTicks1: true,
   swapTicks: true,
+  level0: true, // Story 5.1
+  level1: true,
   downedTicksLeft: true,
   reviveProgress: true,
   kills: true,

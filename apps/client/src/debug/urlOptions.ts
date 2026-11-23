@@ -18,7 +18,8 @@ export interface UrlOptions {
   stressFire: boolean;
   /**
    * `?loadout=pistol,machete` (Story 1.12, release-safe): the starting two weapons, or null. Ids are
-   * only shape-checked here; the game keeps those that exist in balance.
+   * only shape-checked here; the game keeps those that exist in balance. Story 5.1: each may carry
+   * an upgrade level, `?loadout=smg:3,machete:2` (solo only; `validLoadout` maps a bad level to 1).
    */
   loadout: readonly [string, string | null] | null;
   /** `?tune=1` (Story 1.12, release-safe): the live tuning panel for the controls playtest. */
@@ -118,7 +119,8 @@ export function skipsStartScreen(o: UrlOptions): boolean {
   return o.solo || o.stress !== null || o.loadout !== null || o.tune;
 }
 
-const WEAPON_ID = /^[a-z][a-z0-9_]*$/;
+/** A weapon id, optionally with Story 5.1's `:level` (`smg:3`; the level is checked by `validLoadout`). */
+const WEAPON_ID = /^[a-z][a-z0-9_]*(:[a-z0-9]{1,3})?$/;
 
 function parseLoadout(raw: string | null): readonly [string, string | null] | null {
   if (raw === null) return null;
@@ -128,7 +130,8 @@ function parseLoadout(raw: string | null): readonly [string, string | null] | nu
     .filter((s) => WEAPON_ID.test(s))
     .slice(0, 2);
   if (ids.length === 0) return null;
-  return [ids[0] as string, ids[1] && ids[1] !== ids[0] ? ids[1] : null];
+  const id = (s: string): string => s.split(":")[0] as string;
+  return [ids[0] as string, ids[1] && id(ids[1]) !== id(ids[0] as string) ? ids[1] : null];
 }
 
 function parseStress(raw: string | null): number | null {

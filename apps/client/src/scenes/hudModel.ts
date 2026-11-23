@@ -11,6 +11,9 @@ export interface HudModel {
   inAcid: boolean;
   /** Active weapon's display name. */
   weaponName: string;
+  /** Story 5.1: the active and the other weapon's upgrade level (1 = I: no mark). */
+  weaponLevel: number;
+  otherWeaponLevel: number;
   /** Rounds in the magazine; -1 for melee (no magazine). */
   ammo: number;
   magazine: number;
@@ -135,12 +138,22 @@ export const NAME_LIFT_M = 0.9;
 export const TEAMMATE_DOWNED = 1;
 export const TEAMMATE_OUT = 2;
 
+/**
+ * Story 5.1: the HUD's upgrade tier mark for a level: its roman numeral (the U1 plate shows it),
+ * "" for level I (a clean default: no mark) or anything out of range.
+ */
+export function hudTierMark(level: number): string {
+  return Number.isInteger(level) && level >= 2 && level <= 4 ? (["", "", "II", "III", "IV"][level] as string) : "";
+}
+
 export const createHudModel = (): HudModel => ({
   hp: 0,
   maxHp: 1,
   burning: false,
   inAcid: false,
   weaponName: "",
+  weaponLevel: 1,
+  otherWeaponLevel: 1,
   ammo: 0,
   magazine: 0,
   reloadFrac: -1,
