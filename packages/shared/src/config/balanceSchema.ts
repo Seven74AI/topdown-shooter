@@ -426,7 +426,8 @@ export const playerSchema = z
     /** Story 2.8: a downed player is out after this long without a revive (paused while being revived). */
     downedS: z.number().positive(),
     /** A standing teammate this close (centre to centre) for `reviveS` revives a downed player. */
-    reviveS: z.number().positive(),
+    // Story 5.11 re-review: the synced revive need (`reviveNeed`) is a uint8 of ticks.
+    reviveS: z.number().positive().refine((s) => Math.round(s * TICK_RATE_HZ) <= 255, "reviveS × 20 must fit the uint8 reviveNeed"),
     reviveRadiusM: z.number().positive(),
     /** HP after a revive, as a fraction of max HP. */
     reviveHpFrac: z.number().gt(0).max(1),
@@ -772,7 +773,7 @@ export const gearItemSchema = z
     /** Move speed bonus in integer percent (multiplies with slows). */
     speedBonusPct: z.number().int().min(0).max(50).optional(),
     /** Seconds the owner needs to revive a downed teammate (instead of `player.reviveS`). */
-    reviveS: z.number().positive().optional(),
+    reviveS: z.number().positive().refine((s) => Math.round(s * TICK_RATE_HZ) <= 255, "reviveS × 20 must fit the uint8 reviveNeed").optional(),
   })
   .strict()
   .refine((g) => (g.maxHpBonus === undefined) === (g.armorTier === undefined), "maxHpBonus and armorTier go together (armor)");

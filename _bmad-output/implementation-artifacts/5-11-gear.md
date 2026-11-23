@@ -4,7 +4,7 @@ baseline_commit: 6d563bce3a20c15567c757a3b6c63af49dc039ef
 
 # Story 5.11: Gear
 
-Status: review
+Status: done
 
 ## Story
 
@@ -273,7 +273,17 @@ Merged `origin/master` (4258175: 5.16 build bar, grenade lob-over, camera shake,
 
 Mutation check of the fixes: 8/8 killed (M1 gear, M1 weapon ×2 incl. the room test, L1, L2 sync, L2 mirror, bot covered armor, shoes twice).
 
+**Re-review (fresh agent), 2026-11-23:** clean of high/medium (M1/L1/L2/L3 hold, the merge lost nothing, 16/17 mutations killed, gate passes). Lows:
+
+- [x] **R1 (low):** `player.reviveS` and a gear item's `reviveS` now refine `round(reviveS × 20) ≤ 255` (the synced uint8 `reviveNeed` would wrap); test in `balance.test.ts` (13 s refused, 12.75 s accepted).
+- [x] **R2 (low, accepted, not fixed here):** placing, repairing and upgrading buildings have no standing check (pre-existing; only crafted messages reach it, the build bar hides while down). Story 5.10 is changing `buildings.ts` in parallel: **scheduled for Story 5.20** (take back / sell / undo), which owns the server building actions.
+- [x] **R3 (low):** the `syncState` reset check now resets mid-revive (`reviveNeed` 30 → 0), so deleting `s.reviveNeed = 0` fails.
+- [x] **Nit:** `upgradeWeapon`'s doc comment lists the standing check in the order.
+
+Status → done.
+
 ### Change Log
 
+- 2026-11-23: Re-review lows (reviveS uint8 refine, mid-revive reset test, doc nit; buildings standing check → Story 5.20); status done.
 - 2026-11-23: Review fixes (M1 not_alive, L1 fastest kit in reach, L2 synced revive need, L3 24 px lines, 2 survivor tests, grey note, 5.12 hook).
 - 2026-11-23: Story 5.11 built (gear: shared rules, network, shop, HUD with GR6 icons, bots, sims); status review.

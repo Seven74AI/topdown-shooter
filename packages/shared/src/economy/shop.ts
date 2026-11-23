@@ -165,8 +165,8 @@ export interface WeaponUpgraded {
 
 /**
  * Story 5.1 (F1–F4): upgrades the `weapon` in one of `playerId`'s slots by one level, paid from
- * their own wallet at `upgradePrice`. Checks, in order: a build phase, a known player, the weapon
- * is in one of the player's slots, below `upgrades.maxLevel`, then `spendMoney`. On success only
+ * their own wallet at `upgradePrice`. Checks, in order: a build phase, a known player, standing
+ * (Story 5.11 review: `not_alive` while downed or out), the weapon is in one of the player's slots, below `upgrades.maxLevel`, then `spendMoney`. On success only
  * that slot's `level` rises (ammo, reload, cooldown and the active slot stay) and
  * `weapon.upgraded` is emitted. On an error nothing changes. Draws no random number.
  */

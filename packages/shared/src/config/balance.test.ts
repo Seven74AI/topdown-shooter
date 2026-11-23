@@ -345,6 +345,15 @@ describe("gear.json (Story 5.11)", () => {
     const half = raw();
     delete ((half.gear as { items: Record<string, Record<string, unknown>> }).items.body_armor_1 as Record<string, unknown>).armorTier;
     expect(() => loadBalance(half)).toThrow(/maxHpBonus and armorTier/);
+    // re-review: reviveS must fit the synced uint8 reviveNeed (255 ticks = 12.75 s)
+    const slowKit = raw();
+    ((slowKit.gear as { items: Record<string, Record<string, unknown>> }).items.revive_kit as Record<string, unknown>).reviveS = 13;
+    expect(() => loadBalance(slowKit)).toThrow(/gear\.json: items\.revive_kit\.reviveS/);
+    const slowPlayer = raw();
+    (slowPlayer.player as Record<string, unknown>).reviveS = 13;
+    expect(() => loadBalance(slowPlayer)).toThrow(/player\.json: reviveS/);
+    ((slowKit.gear as { items: Record<string, Record<string, unknown>> }).items.revive_kit as Record<string, unknown>).reviveS = 12.75;
+    expect(() => loadBalance(slowKit)).not.toThrow();
   });
 });
 
