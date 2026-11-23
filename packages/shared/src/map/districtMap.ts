@@ -20,6 +20,12 @@ export interface MapBox {
   readonly minY: number;
   readonly maxX: number;
   readonly maxY: number;
+  /**
+   * A real building (collision layer only, Tiled bool property `building`): lobbed rounds don't fly
+   * over it (designer 2026-11-23). Every other wall — the bus, gas pumps, low walls, a dumpster — is
+   * low enough to lob over, like cars, barricades and turrets.
+   */
+  readonly building?: boolean;
 }
 
 /** Story 4.1: kinds of the `cover` layer (Story 4.2 gives them their bullet and movement rules). */

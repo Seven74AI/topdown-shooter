@@ -47,10 +47,10 @@ const EPS = 1e-5;
 const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
 /** Independent LOS: does any sample point of the segment lie strictly inside a blocker box grown by `grow` (negative: shrunk)? */
-function sampledBlocked(world: World, x0: number, y0: number, x1: number, y1: number, grow: number): boolean {
+function sampledBlocked(world: World, x0: number, y0: number, x1: number, y1: number, grow: number, list: readonly MapBox[] = world.obstacles.shotBlockers): boolean {
   const len = Math.hypot(x1 - x0, y1 - y0);
   const n = Math.max(1, Math.ceil(len / SAMPLE_M));
-  for (const b of world.obstacles.shotBlockers) {
+  for (const b of list) {
     const minX = b.minX - grow;
     const minY = b.minY - grow;
     const maxX = b.maxX + grow;
@@ -227,8 +227,10 @@ describe("explosion fuzz (Story 5.5, AC 9)", () => {
           const a = rng.range(0, Math.PI * 2);
           lobTarget(world, GL, shooter.x, shooter.y, shooter.radiusM, Math.cos(a), Math.sin(a), rng.range(0, 1.2), lob);
           counts.tracks++;
-          // the drawn track (centre → landing) never enters a blocker (beyond the sampling tolerance)
-          expect(sampledBlocked(world, shooter.x, shooter.y, lob.x, lob.y, -SAMPLE_M * 1.5), `seed ${seed} track through a blocker`).toBe(false);
+          // the track (centre → landing) never enters a building (beyond the sampling tolerance): it flies over the rest
+          expect(sampledBlocked(world, shooter.x, shooter.y, lob.x, lob.y, -SAMPLE_M * 1.5, world.obstacles.lobBlockers), `seed ${seed} track through a building`).toBe(false);
+          // FR-B2: it never lands inside any blocker (a car roof would blind the blast)
+          expect(sampledBlocked(world, lob.x, lob.y, lob.x, lob.y, -SAMPLE_M * 1.5), `seed ${seed} landed inside a blocker`).toBe(false);
           if (lob.blocked) {
             counts.trackStops++;
             // stopped: one backoff (+ tolerance) further along the aim is inside a blocker, unless the centre itself is
