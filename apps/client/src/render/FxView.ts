@@ -23,15 +23,6 @@ const DEBRIS_MS = 450;
 const REPAIR_COLOR = 0x7cff8a;
 const REPAIR_RING_M = 0.6;
 const REPAIR_MS = 450;
-/** Story 5.9: the mine blast FX (sizes in m, times in ms). */
-const BLAST_FLASH_M = 0.9;
-const BLAST_FLASH_MS = 120;
-const BLAST_FIRE_M = 1.2;
-const BLAST_FIRE_MS = 380;
-const BLAST_RING_MS = 320;
-const BLAST_RING_CAP = 24;
-const BLAST_SMOKE_PUFFS = 6;
-const BLAST_SMOKE_MS = 900;
 /** Story 5.3: the Shotgun's blast cone (warm outer cone, brighter core), fading quickly. */
 const BLAST_OUTER = 0xffc46b;
 const BLAST_INNER = 0xfff1c4;
@@ -67,11 +58,7 @@ export class FxView {
   /** Story 3.5: for building footprints (set by GameScene with the host's World balance). */
   balance: Balance | null = null;
   private readonly repairs: Phaser.GameObjects.Arc[] = [];
-  /** Story 5.9: mine blast pools (each grows only to the most blasts on screen at once) and the upgrade ring. */
-  private readonly blastFlashes: Phaser.GameObjects.Arc[] = [];
-  private readonly blastFires: Phaser.GameObjects.Arc[] = [];
-  private readonly blastRings: Phaser.GameObjects.Arc[] = [];
-  private readonly blastSmoke: Phaser.GameObjects.Arc[] = [];
+  /** Story 5.9: the upgrade ring. (Story 5.5: the mine blast is drawn by `ExplosionView` from `explosion.happened`, EX2.) */
   private readonly upgrades: Phaser.GameObjects.Arc[] = [];
   /** Story 5.2: next swing Graphics to reuse once the pool is at `fx.maxSwingArcs` (oldest first). */
   private nextSwing = 0;
@@ -134,10 +121,6 @@ export class FxView {
       case "weapon.reloaded":
         if (e.playerId === this.localPlayerId) playSfx("weapon_reloaded");
         break;
-      case "mine.exploded": // Story 5.9: flash + fireball + shock ring + smoke (pooled)
-        this.mineBlast(e.x, e.y);
-        playSfx("building_mine_blast");
-        break;
       case "building.upgraded": // Story 5.9: a steel-blue ring and a clank
         this.upgraded(e.x, e.y);
         if (e.playerId === this.localPlayerId) playSfx("building_upgraded");
@@ -197,40 +180,6 @@ export class FxView {
     const m = this.take(this.flashes, 0.18, 0xffe9a8, 9);
     m.setPosition(x, y).setScale(scale).setAlpha(1).setVisible(true);
     this.scene.tweens.add({ targets: m, alpha: 0, duration: MUZZLE_MS, onComplete: () => m.setVisible(false) });
-  }
-
-  /** Story 5.9: a mine blast: a white flash, an orange fireball, a ring to the blast radius, dark smoke puffs (all pooled). */
-  private mineBlast(x: number, y: number): void {
-    const flash = this.take(this.blastFlashes, BLAST_FLASH_M, 0xfff3d0, 9.5);
-    flash.setPosition(x, y).setScale(0.6).setAlpha(1).setVisible(true);
-    this.scene.tweens.add({ targets: flash, scale: 1.6, alpha: 0, duration: BLAST_FLASH_MS, onComplete: () => flash.setVisible(false) });
-    const fire = this.take(this.blastFires, BLAST_FIRE_M, 0xff7a1a, 9.4);
-    fire.setPosition(x, y).setScale(0.4).setAlpha(0.95).setVisible(true);
-    this.scene.tweens.add({ targets: fire, scale: 1.2, alpha: 0, duration: BLAST_FIRE_MS, onComplete: () => fire.setVisible(false) });
-    let r = this.blastRings.find((o) => !o.visible);
-    if (!r) {
-      if (this.blastRings.length >= BLAST_RING_CAP) r = this.blastRings[0] as Phaser.GameObjects.Arc;
-      else {
-        r = this.scene.add.circle(0, 0, 1).setStrokeStyle(0.12, 0xffd8a0, 1).setDepth(9.3).setVisible(false);
-        this.blastRings.push(r);
-      }
-    }
-    const ring = r;
-    this.scene.tweens.killTweensOf(ring);
-    const radius = this.mineBlastRadius();
-    ring.setPosition(x, y).setScale(0.3).setAlpha(0.9).setVisible(true);
-    this.scene.tweens.add({ targets: ring, scale: radius, alpha: 0, duration: BLAST_RING_MS, onComplete: () => ring.setVisible(false) });
-    for (let k = 0; k < BLAST_SMOKE_PUFFS; k++) {
-      const p = this.take(this.blastSmoke, 0.45, 0x2a2622, 9.2);
-      const a = (k / BLAST_SMOKE_PUFFS) * Math.PI * 2;
-      p.setPosition(x + Math.cos(a) * 0.3, y + Math.sin(a) * 0.3).setScale(0.6).setAlpha(0.75).setVisible(true);
-      this.scene.tweens.add({ targets: p, x: x + Math.cos(a) * 1.4, y: y + Math.sin(a) * 1.4 - 0.4, scale: 1.8, alpha: 0, duration: BLAST_SMOKE_MS, onComplete: () => p.setVisible(false) });
-    }
-  }
-
-  /** The mine's blast radius from balance (the ring grows exactly to it), 2.5 m without one. */
-  private mineBlastRadius(): number {
-    return (this.balance ? buildingStats(this.balance, "mine")?.mine?.blastRadiusM : undefined) ?? 2.5;
   }
 
   /** Story 5.9: a pooled steel-blue ring at an upgraded building. */
@@ -373,7 +322,7 @@ export class FxView {
     this.sparkGfx = null;
     this.sparks = null;
     this.saw?.dispose();
-    for (const o of [...this.splats, ...this.puffs, ...this.flashes, ...this.swings, ...this.blasts, ...this.debrisPuffs, ...this.repairs, ...this.blastFlashes, ...this.blastFires, ...this.blastRings, ...this.blastSmoke, ...this.upgrades]) o.destroy();
+    for (const o of [...this.splats, ...this.puffs, ...this.flashes, ...this.swings, ...this.blasts, ...this.debrisPuffs, ...this.repairs, ...this.upgrades]) o.destroy();
     this.blasts.length = 0;
     this.debrisPuffs.length = 0;
     this.splats.length = 0;
@@ -381,10 +330,6 @@ export class FxView {
     this.flashes.length = 0;
     this.swings.length = 0;
     this.repairs.length = 0;
-    this.blastFlashes.length = 0;
-    this.blastFires.length = 0;
-    this.blastRings.length = 0;
-    this.blastSmoke.length = 0;
     this.upgrades.length = 0;
   }
 }

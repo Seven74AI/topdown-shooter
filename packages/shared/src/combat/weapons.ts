@@ -1,5 +1,5 @@
 import type { Balance } from "../config/balance";
-import type { FlameStats, GunStats, MeleeStats, WeaponStats } from "../config/balanceSchema";
+import type { FlameStats, GunStats, LauncherStats, MeleeStats, WeaponStats } from "../config/balanceSchema";
 import { TICK_RATE_HZ } from "../config/constants";
 
 /** A balance weapon id ("pistol", "smg", …). Validated against balance at use. */
@@ -32,15 +32,19 @@ export const isFlame = (w: WeaponStats): w is FlameStats => w.kind === "flame";
 export const fuelTicksOf = (w: FlameStats): number => Math.round(w.fuelS * TICK_RATE_HZ);
 
 /**
- * Story 5.4: what a full slot holds: a gun's magazine, a flame weapon's fuel ticks, 0 for melee.
+ * Story 5.4: what a full slot holds: a gun's or launcher's magazine, a flame weapon's fuel ticks, 0 for melee.
  * Every "full magazine" (createSlot, reload end, the HUD, the client's fire clock) uses this.
  */
 export function magazineOf(w: WeaponStats): number {
-  return w.kind === "gun" ? w.magazine : w.kind === "flame" ? fuelTicksOf(w) : 0;
+  return w.kind === "gun" || w.kind === "launcher" ? w.magazine : w.kind === "flame" ? fuelTicksOf(w) : 0;
 }
 
-/** Story 5.4: the weapon uses ammo (and reloads at 0): guns and flame weapons. */
-export const usesAmmo = (w: WeaponStats): w is GunStats | FlameStats => w.kind !== "melee";
+/** Story 5.4: the weapon uses ammo (and reloads at 0): guns, launchers (5.5) and flame weapons. */
+export const usesAmmo = (w: WeaponStats): w is GunStats | LauncherStats | FlameStats => w.kind !== "melee";
+/** Story 5.5: the Grenade Launcher (lobs a round; magazine and reload as a gun's). */
+export const isLauncher = (w: WeaponStats): w is LauncherStats => w.kind === "launcher";
+/** Story 5.5: a weapon with a magazine and a reload (guns and launchers): the shared ammo rules. */
+export const hasMagazine = (w: WeaponStats): w is GunStats | LauncherStats => w.kind === "gun" || w.kind === "launcher";
 
 /**
  * Story 5.1 (F2, F5): the ONE damage source for player weapons. Level L deals

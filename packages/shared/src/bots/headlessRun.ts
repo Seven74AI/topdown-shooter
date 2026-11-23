@@ -1,6 +1,6 @@
 import type { Balance } from "../config/balance";
 import { TICK_DT_S } from "../config/constants";
-import type { SimEvent } from "../core/simEvents";
+import { DAMAGE_SOURCE_EXPLOSION, type SimEvent } from "../core/simEvents";
 import { setInput, step, type World } from "../core/world";
 import type { DistrictMap } from "../map/districtMap";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
@@ -83,6 +83,8 @@ export interface HeadlessRunLog {
   waves: HeadlessWaveLog[];
   /** Story 5.7 (liveness): Brutes spawned (by wave), killed, and the money paid in the ticks of their kills. */
   brutes: { spawnedInWave: number[]; killed: number; killPay: number };
+  /** Story 5.8 (liveness): Bloater swells and bursts per wave (index = wave − 1), chain links, players hit by blasts. */
+  bloaters: { swellsInWave: number[]; burstsInWave: number[]; chains: number; playerHits: number };
 }
 
 export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
@@ -121,6 +123,12 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     upgradedKills: 0,
     waves: [],
     brutes: { spawnedInWave: [], killed: 0, killPay: 0 },
+    bloaters: { swellsInWave: [], burstsInWave: [], chains: 0, playerHits: 0 },
+  };
+  const perWave = (a: number[]): void => {
+    const i = Math.max(0, world.waves.number - 1);
+    while (a.length <= i) a.push(0);
+    a[i] = (a[i] as number) + 1;
   };
   let bruteKillTick = -1;
   let current: HeadlessWaveLog | null = null;
@@ -151,11 +159,21 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         if (current) current.revives++;
         break;
       case "money.earned":
-        log.earnedBy[e.reason] += e.amount; // Story 4.5: refunds are not in `earned` (fiveWaveSim checks the other four)
+        log.earnedBy[e.reason] += e.amount; // Story 4.5: refunds are not in `earned` (the six-wave sim checks the other four)
         if (world.tick === bruteKillTick && (e.reason === "kill" || e.reason === "assist")) log.brutes.killPay += e.amount;
         break;
       case "zombie.brute_spawned":
         log.brutes.spawnedInWave.push(world.waves.number);
+        break;
+      case "player.damaged":
+        if (e.sourceZombieId === DAMAGE_SOURCE_EXPLOSION) log.bloaters.playerHits++;
+        break;
+      case "bloater.swell_started":
+        perWave(log.bloaters.swellsInWave);
+        break;
+      case "bloater.burst":
+        perWave(log.bloaters.burstsInWave);
+        if (e.chain) log.bloaters.chains++;
         break;
       case "zombie.killed": {
         if (e.buildingId !== undefined) log.turretKills++;

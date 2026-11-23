@@ -1,0 +1,52 @@
+<title>Epic 6 Forge Report</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{color-scheme:dark;--bg:#111214;--paper:#1b1c20;--fg:#e8e4da;--muted:#a19c90;--red:#d23b33;--gold:#f2b448}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;padding:28px max(16px,env(safe-area-inset-left,0px)) 40px}
+h1{font:700 34px/1.1 "Arial Narrow",system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;margin:0 0 4px}
+h2{font:700 15px/1 system-ui;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:28px 0 10px}
+.top{display:flex;gap:20px;align-items:center;flex-wrap:wrap}.top>div{flex:1;min-width:240px}
+ul{padding-left:20px}li{margin:6px 0}.muted{color:var(--muted)}
+.cast{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.cast div{background:var(--paper);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px}
+.cast b{display:block}.cast i{color:var(--muted);font-size:13px}
+</style>
+<main>
+<div class="top">
+<svg width="170" height="170" viewBox="0 0 170 170" role="img" aria-label="Hardened seal">
+<defs><radialGradient id="w" cx="40%" cy="35%"><stop offset="0" stop-color="#e2574c"/><stop offset="1" stop-color="#7a1712"/></radialGradient></defs>
+<path d="M85 6 C108 10 120 4 136 22 C152 38 166 52 160 80 C166 108 150 124 134 140 C116 160 100 164 82 162 C60 166 44 156 30 140 C12 124 4 104 8 82 C4 58 16 40 32 26 C48 10 64 4 85 6Z" fill="url(#w)"/>
+<circle cx="85" cy="84" r="58" fill="none" stroke="#f0b0a8" stroke-opacity=".5" stroke-width="2" stroke-dasharray="4 4"/>
+<text x="85" y="80" text-anchor="middle" font-family="Arial Narrow,system-ui" font-weight="700" font-size="24" fill="#fbe3dc" letter-spacing="2">HARDENED</text>
+<text x="85" y="102" text-anchor="middle" font-family="system-ui" font-size="11" fill="#fbe3dc" letter-spacing="3">EPIC 6 · 2026-11-23</text>
+</svg>
+<div><h1>Epic 6: the full run</h1><p class="muted">Behemoth, Ruins and Collapse, blackout, six events, the extract vote, endless. Six open questions from the roundtable plus one about events, answered in two rounds. The designer took the recommended option every time.</p></div>
+</div>
+<h2>Locked</h2>
+<ul>
+<li><b>Crash stun is the boss's one co-op trick.</b> Bait a charge into the bus or a car: stunned 2 s, ×1.5 damage.</li>
+<li><b>Fair at 150 ms.</b> Zones fixed at the start, fill drawn from the server tick, 0.25 m edge grace, no rewind for boss hits, telegraphs never shorten, one attack at a time.</li>
+<li><b>Always two events per run</b>, waves 3–8, never wave 5, never back to back. Each one gives players a choice: shoot the armed car, shoot the gas tank early, see what's in the crate.</li>
+<li><b>Endless grows to 600 zombies, then gets tougher</b> (+6 % HP per wave). A Behemoth every 5th wave with +25 % HP each time. Events on even waves.</li>
+<li><b>Floodlight lights 6 m in the dark.</b> <b>110 zombies alive</b> while the boss lives. <b>Ruins debris</b> is sound only.</li>
+</ul>
+<h2>Rejected, and why</h2>
+<ul>
+<li>Back weak spot: hard to read on a boss that keeps turning toward a new target. Kept as an idea for endless.</li>
+<li>1–2 events: some runs would get only one. Three: almost every wave.</li>
+<li>+40 zombies forever: waves of five minutes by wave 20.</li>
+<li>Falling-debris damage: a new hazard in the story that already has the most new map work.</li>
+<li>Keeping 150 alive during the boss: slam rings lost under bodies, worst-case frame cost.</li>
+</ul>
+<h2>Still open</h2>
+<ul><li>Solo HP: the bot went down at 65 s with the boss above half. Solo stays "allowed, not tuned"; the playtest decides 0.4 or 0.3.</li><li>Every number is a starting value; the 4-phone playtest of the prototype is the next check.</li></ul>
+<h2>Who pressure-tested it</h2>
+<div class="cast">
+<div>🎲<b>Samus Shepard</b><i>Game designer: every system must create a team decision.</i></div>
+<div>🏛️<b>Cloud Dragonborn</b><i>Architect: did the lag math, stopped throws from changing the map.</i></div>
+<div>🕹️<b>Link Freeman</b><i>Developer: counted stories, killed the debris hazard and +40 forever.</i></div>
+<div>📱<b>Mo</b><i>Speaks for the four friends: "when I die I want to say 'my bad'."</i></div>
+</div>
+<p class="muted">Files: proposal.md, revised-stories.md, party-notes.md, behemoth-prototype.html in docs/ideas/epic-6/.</p>
+</main>

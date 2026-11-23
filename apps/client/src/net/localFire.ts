@@ -35,6 +35,10 @@ export interface LocalAttack {
   /** Unit raw aim (the server's direction before assist and spread). */
   dirX: number;
   dirY: number;
+  /** Story 5.5: a launcher's lob (no projectile: a cosmetic round to the lob target). */
+  launcher: boolean;
+  /** Story 5.5: the raw aim's length (a launcher's lob distance, FR-A). */
+  aimLen: number;
 }
 
 /**
@@ -61,7 +65,7 @@ export interface LocalAttack {
  * Phaser-free and SDK-free (the `tools/netsim` hits harness runs it). No allocation per step.
  */
 export class LocalFireClock {
-  readonly attack: LocalAttack = { weapon: "", melee: false, flame: false, dirX: 1, dirY: 0 };
+  readonly attack: LocalAttack = { weapon: "", melee: false, flame: false, dirX: 1, dirY: 0, launcher: false, aimLen: 1 };
   private readonly cooldown = new Float64Array(2);
   private readonly cooldownWeapon: string[] = ["", ""];
   private readonly shotSeq = new Float64Array(LOCAL_SHOT_HISTORY).fill(-1);
@@ -176,6 +180,8 @@ export class LocalFireClock {
       a.flame = flame;
       a.dirX = input.aimX / aimLen;
       a.dirY = input.aimY / aimLen;
+      a.launcher = stats.kind === "launcher";
+      a.aimLen = aimLen;
     }
     return attacked;
   }

@@ -246,6 +246,17 @@ Claude Opus 5.5 (gds-dev-story, worktree `story-5-4`).
 | Client: `GameScene.ts`, `HudScene.ts`, `hudModel.ts`, `SimHost.ts`, `LocalSimHost.ts`, `NetSimHost.ts`, `localFire.ts`, `fireCue.ts`, `burnCue.ts`, `PlayerView.ts`, `weaponArt.ts`, `spriteArt.ts` (drawSurvivor `back`), `spriteAtlas.ts`, `placeholderSfx.ts` | flame view/cues/HUD/FF cue/art/sound | `isFireHit` is now `tag === "fire"` (a 5.5/5.8 hit must carry its tag). `FireHitQueue` gained `fireHitSource`. |
 | `docs/playtests/milestone-1/readability-*` | rows 27–29 | 5.5/5.8 add rows too: renumber at merge. |
 
+### Merge with the work branch (5.8 Bloaters + 5.5 Grenade Launcher, eeb727a)
+
+- `combat.json`: one file, 5.5's `explosion` block + 5.4's `friendlyFire` and `fx`; the landed file keeps `friendlyFire.pct: 50` (an integer percent, as in both branches), so no conversion to 0.5 was needed.
+- `damagePlayerBy`: 5.4's implementation kept (same contract signature as 5.5's stub); it also maps a zombie-less explosion/fire to source −2/−1 as 5.5's stub did. 5.5's `explode(world, spec)` kept: `friendlyFire: false` (the Bloater) passes a null source, so the 50 % share is bypassed (new row in the friendly-fire table).
+- Weapons: `grenade_launcher` first, then `flamethrower`, `gas_torch` (weapons.json and shop); `magazineOf`/`usesAmmo` cover launchers; 5.5's `hasMagazine`/`isLauncher` kept.
+- Events: 33/34 = 5.8, 35/36 = 5.5, 37/38 = 5.4 (unchanged).
+- Art: 5.5's `tube`/`gripPart` kept; 5.4's FT helpers renamed `flameTube`/`flameGrip`.
+- Readability rows 34–36 (pictures `35_`–`37_`), after 5.5's 33.
+- Bots buying flame weapons: not added (not trivial: needs the 6-wave sim with bot flamers and FF numbers).
+- Gate on the merged result 18:32–18:37: typecheck / lint / test (250 files, 2,007 passed, 3 skipped) / build green; load 2.3 → 5.8.
+
 ### File List
 
 - `apps/client/src/audio/placeholderSfx.ts`

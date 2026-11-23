@@ -171,3 +171,7 @@ Turret behaviour and tests, building placement rules (spawn clearance, lattice),
 - Ultimate context engine analysis completed - comprehensive developer guide created.
 
 ### File List
+
+## Change from the Epic 6 design session (designer, 2026-11-23)
+
+Decision D5 (`docs/ideas/epic-6/proposal.md`): the floodlight's light radius is **6 m during blackout waves** (Epic 6, Story 6.3), 4 m otherwise. Put both radii in balance JSON (e.g. `floodlight.lightRadiusM` 4 and `floodlight.blackoutLightRadiusM` 6) so 6.3 only switches between them.

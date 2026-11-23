@@ -54,9 +54,10 @@ describe("loadBalance", () => {
     expect(b.weapons.flamethrower).toMatchObject({ ...same, name: "Flamethrower", rangeM: 6, coneDeg: 20, price: 700 });
     expect(b.weapons.gas_torch).toMatchObject({ ...same, name: "Gas torch", rangeM: 3, coneDeg: 60, price: 550 });
     // appended (older wire weapon indices stay) and in the fixed-list shop
-    expect(Object.keys(b.weapons).slice(-2)).toEqual(["flamethrower", "gas_torch"]);
-    expect(b.shop.weapons.slice(-2)).toEqual(["gas_torch", "flamethrower"]);
-    expect(b.combat).toEqual({ friendlyFire: { pct: 50, canDown: true }, fx: { maxFlameParticles: 96, flameParticlesPerS: 90, maxBurningZombieFx: 40 } });
+    expect(Object.keys(b.weapons).slice(-3)).toEqual(["grenade_launcher", "flamethrower", "gas_torch"]); // after 5.5's
+    expect(b.shop.weapons.slice(-3)).toEqual(["grenade_launcher", "gas_torch", "flamethrower"]);
+    expect(b.combat.friendlyFire).toEqual({ pct: 50, canDown: true });
+    expect(b.combat.fx).toEqual({ maxFlameParticles: 96, flameParticlesPerS: 90, maxBurningZombieFx: 40 });
   });
 
   it("Story 5.4: refuses fractional pulse ticks, fuel past uint16, a non-whole friendly-fire pulse, a mine share apart from the FF rule", () => {
@@ -286,5 +287,27 @@ describe("Story 5.1: weapon upgrades", () => {
     const neg = raw();
     (neg.weapons as { pistol: { upgradeBasePrice: number } }).pistol.upgradeBasePrice = -1;
     expect(() => loadBalance(neg)).toThrow(/weapons\.json: pistol\.upgradeBasePrice/);
+  });
+});
+
+describe("Story 5.5: the Grenade Launcher and combat.json", () => {
+  type Raw = { weapons: Record<string, Record<string, unknown>>; combat: { friendlyFire: Record<string, unknown>; explosion: Record<string, unknown> }; buildings: { types: Record<string, { mine?: Record<string, unknown> }> } };
+  const bad = (edit: (f: Raw) => void, re: RegExp): void => {
+    const files = raw();
+    edit(files as unknown as Raw);
+    expect(() => loadBalance(files)).toThrow(re);
+  };
+  it("loads the launcher (GDD numbers) and the explosion block", () => {
+    const b = loadBalance();
+    expect(b.weapons.grenade_launcher).toMatchObject({ kind: "launcher", damage: 40, rateHz: 0.8, lobRangeM: 12, minLobM: 3, lobSpeedMps: 20, blastRadiusM: 2, blastPushM: 0.6, blastBuildingDamage: 0, magazine: 4, reloadS: 3, price: 800 });
+    expect(b.combat).toMatchObject({ friendlyFire: { pct: 50, canDown: true }, explosion: { maxLiveRounds: 32, faceBackoffM: 0.05 } });
+  });
+  it("refuses minLobM ≥ lobRangeM, rangeM ≠ lobRangeM, a flight over 255 ticks, a pool over 255, a mine share apart from the friendly-fire rule", () => {
+    bad((f) => ((f.weapons.grenade_launcher as Record<string, unknown>).minLobM = 12), /minLobM must be below lobRangeM/);
+    bad((f) => ((f.weapons.grenade_launcher as Record<string, unknown>).rangeM = 10), /must equal lobRangeM/);
+    bad((f) => ((f.weapons.grenade_launcher as Record<string, unknown>).lobSpeedMps = 0.5), /255 ticks/);
+    bad((f) => (f.combat.explosion.maxLiveRounds = 256), /maxLiveRounds/);
+    bad((f) => ((f.buildings.types.mine?.mine as Record<string, unknown>).playerShare = 0.4), /friendlyFire\.pct/);
+    bad((f) => ((f.weapons.grenade_launcher as Record<string, unknown>).spreadDeg = 5), /spreadDeg/);
   });
 });

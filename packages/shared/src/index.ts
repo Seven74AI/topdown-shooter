@@ -37,7 +37,7 @@ export {
   MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
-export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, GunStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
+export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, worldDigest, type WorldSnapshot } from "./core/worldSnapshot";
@@ -111,10 +111,26 @@ export {
   type SimEventsFlushed,
 } from "./net/netEvents";
 export { movePlayers, updatePlayers } from "./player/movement";
-export { ZOMBIE_STATE, ZOMBIE_TYPES, isRushState, isWindupState, type ZombieTypeId } from "./zombies/zombieTypes";
+export { ZOMBIE_STATE, ZOMBIE_TYPES, isRushState, isSwellState, isWindupState, type ZombieTypeId } from "./zombies/zombieTypes";
 export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
 export { spawnRing } from "./zombies/spawnRing";
 export { BRUTE_LOOKS, announceSpawn, bruteLookIndex } from "./zombies/brute"; // Story 5.7
+export {
+  BLOATER_BLAST_WEAPON,
+  BLOATER_LOOKS,
+  BLOATER_SWELL_WEAPON,
+  blastTrace,
+  bloaterLookIndex,
+  bloaterStats,
+  circleInGas,
+  clearBlasts,
+  createBlastQueue,
+  explodesOf,
+  processBlasts,
+  resetBloaterStats,
+  updateGas,
+  type BlastQueue,
+} from "./zombies/bloater"; // Story 5.8
 export { createSpatialGrid, queryRadius, queryRect, rebuildGrid, type SpatialGrid } from "./core/spatialGrid";
 export {
   HORDE_BACKPRESSURE_BYTES,
@@ -146,7 +162,7 @@ export {
 } from "./net/hordeFormat";
 export { inRect, viewRect, type Rect } from "./net/interest";
 export { activeSlot, createLoadout, createSlot, setLoadout, validLevel, type Loadout, type WeaponSlot } from "./combat/loadout";
-export { fuelTicksOf, isFlame, isGun, isMelee, magazineOf, upgradePrice, usesAmmo, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
+export { fuelTicksOf, hasMagazine, isFlame, isGun, isLauncher, isMelee, magazineOf, upgradePrice, usesAmmo, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
 // Story 5.4: flames, ignites and the friendly-fire rule
 export { FLAME_SLOTS, NO_FLAME_SLOT, flameStats, flameTick, resetFlameClocks, updateIgnites } from "./combat/flame";
 export { damagePlayerBy, friendlyFireStats } from "./combat/damage";
@@ -374,7 +390,20 @@ export { setBuildingType } from "./buildings/buildings";
 export { UPGRADE_ERRORS, upgradeBuilding, upgradeError, upgradeStep, type UpgradeError, type Upgraded } from "./buildings/upgrade";
 export { trapCounters, updateTraps } from "./buildings/trap";
 export { mineCounters, updateMines } from "./buildings/mine";
-export { blastResult, explode } from "./combat/explosion";
+export {
+  clearGrenades,
+  createGrenadePool,
+  createLobTarget,
+  grenadeCounters,
+  launchGrenade,
+  lobAimLength,
+  lobFlightTicks,
+  lobTarget,
+  updateGrenades,
+  type GrenadePool,
+  type LobTarget,
+} from "./combat/grenades";
+export { EXPLOSION_KINDS, blastResult, createExplosionSpec, damagePlayerByExplosion, explode, explosionCounters, type ExplosionKind, type ExplosionSpec } from "./combat/explosion";
 export { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,

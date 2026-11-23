@@ -4,6 +4,7 @@ import { ZOMBIE_SLOT_HOLD_TICKS } from "../config/constants";
 /** Story 5.4: flamer slots per body (one per player slot: MAX_PLAYERS). */
 export const FLAME_SLOTS = 4;
 import { ZOMBIE_STATE, ZOMBIE_TYPES, zombieTypeIndex, type ZombieTypeId } from "./zombieTypes";
+import { onZombieKilled } from "./bloater";
 
 /**
  * Struct-of-arrays zombie storage (architecture › Entity Patterns). Pre-allocated: spawning and
@@ -50,6 +51,8 @@ export interface ZombiePool {
   readonly spitTicks: Uint16Array;
   /** Story 5.6: the player id a winding-up Spitter aims at (references, preallocated; null otherwise). */
   readonly spitTarget: (string | null)[];
+  /** Story 5.8: a swelling Bloater's ticks until it bursts (0 = not swelling; reset on spawn). */
+  readonly swellTicks: Uint8Array;
   /** Story 5.9: ticks spent on spike traps since the last spike hit (the per-body spike clock; 0 on spawn). */
   readonly trapTicks: Uint16Array;
   /** Story 5.9: this tick's trap slow in % (written by `updateTraps` before the zombies move; 0 off traps). */
@@ -116,6 +119,7 @@ export function createZombiePool(capacity: number): ZombiePool {
     fireTicks: new Uint16Array(capacity),
     spitTicks: new Uint16Array(capacity), // Story 5.6
     spitTarget: new Array<string | null>(capacity).fill(null),
+    swellTicks: new Uint8Array(capacity), // Story 5.8
     trapTicks: new Uint16Array(capacity),
     slowPct: new Uint8Array(capacity),
     knockShot: new Uint32Array(capacity * KNOCK_MEMORY), // Story 5.3
@@ -175,6 +179,7 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.fireTicks[id] = 0; // Story 4.8: a reused slot starts with a cold burn clock
   pool.spitTicks[id] = 0; // Story 5.6: ready to wind up
   pool.spitTarget[id] = null;
+  pool.swellTicks[id] = 0; // Story 5.8: a new Bloater is not swelling
   pool.trapTicks[id] = 0; // Story 5.9: and a cold spike clock, at full speed
   pool.slowPct[id] = 0;
   pool.knockShot.fill(0, id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY); // Story 5.3: no shot has knocked a new zombie yet
@@ -222,6 +227,9 @@ export function killZombie(world: World, id: number, killerId: string | null, we
   const y = pool.y[id] as number;
   if (buildingId > 0) world.events.emit({ type: "zombie.killed", zombieId: id, killerId, x, y, weapon, buildingId });
   else world.events.emit({ type: "zombie.killed", zombieId: id, killerId, x, y, weapon });
+  // Story 5.8 (FR-B): a Bloater that dies, from any cause, bursts where it died (one hook, no
+  // listener: the order is deterministic). Removal without dying (`clearZombies`) never gets here.
+  onZombieKilled(world, id, x, y, killerId, buildingId, weapon);
 }
 
 /** Balance id of a zombie's type. */

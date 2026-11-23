@@ -36,7 +36,7 @@ describe("shopStep (Story 3.3)", () => {
   it("opens with the items, syncs wallet and slots, closes", () => {
     const s = opened();
     expect(s).toMatchObject({ open: true, wallet: 250, slots: ["pistol", null], pending: null, message: "" });
-    expect(s.weapons.map((w) => w.id)).toEqual(["pistol", "machete", "smg", "hunting_rifle", "shotgun", "assault_rifle", "fire_axe", "chainsaw", "gas_torch", "flamethrower"]); // Story 5.4
+    expect(s.weapons.map((w) => w.id)).toEqual(["pistol", "machete", "smg", "hunting_rifle", "shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher", "gas_torch", "flamethrower"]); // Stories 5.5, 5.4
     expect(run(s, { type: "close" }).s.open).toBe(false);
   });
 

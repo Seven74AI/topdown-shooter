@@ -34,6 +34,9 @@ Player:
 24 what is the survivor holding?
 25 what is the survivor holding?
 26 what:            what does it do?
+27 what:            what does it do?
+28 what is about to happen? where is it safe?
+29 what is the green cloud? what does it do to you?
 ```
 
 ## 1
@@ -101,9 +104,26 @@ Player:
 ## 26 (Story 5.7)
 ![26](objects/27_brute.png)
 
-## 27, 28: what is the survivor holding, and what does it do? (Story 5.4)
-![27](objects/28_flamethrower_cone.png) ![28](objects/29_gas_torch_cone.png)
+## 27 (Story 5.8)
+![27](objects/28_bloater.png)
 
-## 29: what is happening to these zombies? (Story 5.4)
-![29](objects/30_burning_zombies.png)
+## 28 (Story 5.8)
+![28](objects/29_bloater_swell.png)
 
+## 29 (Story 5.8)
+![29](objects/30_bloater_gas.png)
+
+## 30: the small thing in the air, and the ring ahead (Story 5.5)
+![30](objects/31_grenade_round.png)
+
+## 31: the orange ring at the car (Story 5.5)
+![31](objects/32_landing_ring_car.png)
+
+## 32, 33: two blasts (Story 5.5)
+![32](objects/33_explosion_fireball.png) ![33](objects/34_explosion_shockwave.png)
+
+## 34, 35: what is the survivor holding, and what does it do? (Story 5.4)
+![34](objects/35_flamethrower_cone.png) ![35](objects/36_gas_torch_cone.png)
+
+## 36: what is happening to these zombies? (Story 5.4)
+![36](objects/37_burning_zombies.png)

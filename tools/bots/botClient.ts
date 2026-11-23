@@ -1,6 +1,7 @@
 import { Client, type Room } from "@colyseus/sdk";
 import {
   DOWNTOWN_MAP,
+  MUZZLE_OFFSET_M,
   BYTES,
   ByteRate,
   C2S,
@@ -292,7 +293,12 @@ export class BotClient {
     v.self.y = me.y;
     v.self.status = me.status;
     const weapon = me.active === 1 ? me.weapon1 : me.weapon0;
-    v.self.rangeM = balance.weapons[weapon]?.rangeM ?? 0;
+    const ws = balance.weapons[weapon];
+    v.self.rangeM = ws?.rangeM ?? 0;
+    // Story 5.5: a launcher lobs to the target's distance (the aim length; FR-A).
+    v.self.lobRangeM = ws?.kind === "launcher" ? ws.lobRangeM : 0;
+    v.self.minLobM = ws?.kind === "launcher" ? ws.minLobM : 0;
+    v.self.muzzleM = balance.player.radiusM + MUZZLE_OFFSET_M;
     v.teammateCount = 0;
     state.players.forEach(this.visitMate);
     const h = this.horde;

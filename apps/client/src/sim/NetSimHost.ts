@@ -4,6 +4,9 @@ import {
   NET_EVENT_KIND,
   NEUTRAL_INPUT,
   MUZZLE_OFFSET_M,
+  createLobTarget,
+  lobFlightTicks,
+  lobTarget,
   NET_NONE,
   NO_SYSTEMS,
   TICK_DT_S,
@@ -27,7 +30,6 @@ import {
   ticksFor,
   type Balance,
   type DistrictMap,
-  type NetEventContext,
   type PlaceError,
   type PlaceRequest,
   type RepairError,
@@ -87,6 +89,7 @@ const ARRIVAL_EVENTS_MAX = 64;
 
 type FiredEvent = Extract<SimEvent, { type: "weapon.fired" }>;
 type SwungEvent = Extract<SimEvent, { type: "melee.swung" }>;
+type LaunchedEvent = Extract<SimEvent, { type: "grenade.launched" }>;
 
 type MutableInput = { -readonly [K in keyof PlayerInput]: PlayerInput[K] };
 
@@ -189,6 +192,9 @@ export class NetSimHost implements SimHost {
   private readonly aimDir = { x: 1, y: 0 };
   private readonly localFired: FiredEvent[] = [];
   private readonly localSwung: SwungEvent[] = [];
+  /** Story 5.5: my instant launches (id 0: the server's echo replaces them in the view). */
+  private readonly localLaunched: LaunchedEvent[] = [];
+  private readonly lobOut = createLobTarget();
   private localNext = 0;
   private readonly immediate: SimEvent[] = [];
   private readonly arrival: SimEvent[] = [];
@@ -199,7 +205,8 @@ export class NetSimHost implements SimHost {
   private readonly clock = new ServerClock();
   private readonly snapshots = new SnapshotRing();
   private readonly queue = new EventQueue();
-  private readonly ctx: NetEventContext;
+  /** Story 5.5: `tick` is set to each flush's tick before decoding (grenade landing ticks). */
+  private readonly ctx: { balance: Balance; tick: number };
   private readonly offs: (() => void)[] = [];
   private readonly onState = (state: RunStateView): void => this.receiveState(state);
   /** Horde stream (Story 2.5); `hordeStats` counts frames and decode errors for the 2.10 overlay. */
@@ -251,7 +258,7 @@ export class NetSimHost implements SimHost {
     this.now = opts.now ?? (() => performance.now());
     // Story 4.1: the mirror and the Predictor use the server's map (same bundled data; the join sends `mapVersion`).
     this.world = createWorld({ balance: opts.balance, seed: 0, map: opts.map ?? DOWNTOWN_MAP, systems: NO_SYSTEMS });
-    this.ctx = { balance: opts.balance };
+    this.ctx = { balance: opts.balance, tick: 0 };
     this.puddleS = acidSpitOf(opts.balance)?.puddleS ?? 0; // Story 5.6 review M1
     this.predictor = new Predictor(opts.balance, this.world.map, this.localPlayerId);
     this.measureHits = opts.measureHits ?? (() => true);
@@ -262,6 +269,7 @@ export class NetSimHost implements SimHost {
       const id = this.localPlayerId;
       this.localFired.push({ type: "weapon.fired", playerId: id, weapon: "", x: 0, y: 0, dirX: 1, dirY: 0 });
       this.localSwung.push({ type: "melee.swung", playerId: id, weapon: "", x: 0, y: 0, dirX: 1, dirY: 0, arcDeg: 0, rangeM: 0 });
+      this.localLaunched.push({ type: "grenade.launched", playerId: id, grenadeId: 0, x: 0, y: 0, tx: 0, ty: 0, landTick: 0, flightTicks: 1 });
     }
     this.reviveTicksTotal = ticksFor(opts.balance.player.reviveS);
     const room = opts.session.room;
@@ -465,8 +473,17 @@ export class NetSimHost implements SimHost {
         if (e.type === "spitter.spat" && stale) continue;
         if (e.type === "acid.splashed" && ageS >= this.puddleS) continue;
         e.ageS = ageS;
+      } else if (e.type === "grenade.launched" || e.type === "explosion.happened") {
+        // Story 5.5: its age (a woken tab's backlog): a round starts that far into its flight (one
+        // long landed is dropped by the view's lost timer), a stale blast shows nothing (no double
+        // or ghost blasts on wake: the build start in the same backlog clears the rounds).
+        e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       } else if (e.type === "zombie.brute_spawned") {
         // Story 5.7 (Beat the rule 9): its age, so a woken tab's backlog neither roars nor shows the banner late.
+        e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
+      } else if (e.type === "bloater.burst" || e.type === "bloater.swell_started") {
+        // Story 5.8: its age: BloaterFx back-dates a burst's cloud (and drops one older than gasS: no
+        // ghost cloud after a woken tab), GameScene plays no burst sound for a stale one.
         e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       }
       out[w++] = e;
@@ -602,6 +619,28 @@ export class NetSimHost implements SimHost {
     const offset = balance.player.radiusM + MUZZLE_OFFSET_M;
     const mx = px + a.dirX * offset;
     const my = py + a.dirY * offset;
+    if (stats.kind === "launcher") {
+      // Story 5.5 (2.7): my round flies now, to the landing point the sim's own rule gives from my
+      // predicted position on the mirror's cover; the server's `grenade.launched` replaces it.
+      const fired = this.localFired[k] as FiredEvent;
+      fired.weapon = a.weapon;
+      fired.x = mx;
+      fired.y = my;
+      fired.dirX = a.dirX;
+      fired.dirY = a.dirY;
+      this.immediate.push(fired);
+      const t = lobTarget(this.world, stats, px, py, balance.player.radiusM, a.dirX, a.dirY, a.aimLen, this.lobOut);
+      const l = this.localLaunched[k] as LaunchedEvent;
+      l.x = t.x0;
+      l.y = t.y0;
+      l.tx = t.x;
+      l.ty = t.y;
+      l.flightTicks = lobFlightTicks(stats, t.distM);
+      l.landTick = Number.NaN;
+      l.ageS = 0;
+      this.immediate.push(l);
+      return;
+    }
     const dir = this.aimDir;
     dir.x = a.dirX;
     dir.y = a.dirY;
@@ -701,7 +740,7 @@ export class NetSimHost implements SimHost {
    */
   private predictAmmo(slot: WeaponSlot | null, s: PlayerStateView, i: 0 | 1): this {
     const kind = slot ? this.world.balance.weapons[slot.weapon]?.kind : undefined;
-    if (slot && (kind === "gun" || kind === "flame")) { // Story 5.4: my fuel follows the fire clock too
+    if (slot && (kind === "gun" || kind === "launcher" || kind === "flame")) { // Story 5.4: my fuel follows the fire clock too
       slot.ammo = Math.max(0, this.fireClock.predictedAmmo(s, i));
       slot.reloadTicks = this.fireClock.predictedReloadTicks(s, i);
     }
@@ -779,6 +818,7 @@ export class NetSimHost implements SimHost {
 
   private receiveEvents(m: SimEventsFlushed): void {
     if (this.disposed || !m || !Array.isArray(m.events) || typeof m.tick !== "number") return;
+    this.ctx.tick = m.tick; // Story 5.5: a round's landing tick is relative to its flush
     const measure = this.measuring;
     const now = measure ? this.now() : 0;
     for (const t of m.events) {

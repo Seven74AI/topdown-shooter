@@ -3,10 +3,11 @@ import { bundledBalanceFiles, loadBalance, withOverrides } from "../config/balan
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
 import { spitStats } from "../zombies/spit";
 import { trapCounters } from "../buildings/trap";
+import { explosionCounters } from "../combat/explosion";
 import { mineCounters } from "../buildings/mine";
 
 /**
- * Story 3.10 (AC 5, 7, 8): the seeded 5-wave run with 2/3/4 bots, the real balance (waves.json
+ * Story 3.10 (AC 5, 7, 8): the seeded run (Story 5.8: `runWaves` 6; the file keeps its 3.10 name) with 2/3/4 bots, the real balance (waves.json
  * curve, mix and player-count scale) and every real system. The bots shop from `bots.json ›
  * shoppingList` in each build phase (real shop and placement rules) and tap Ready. Each player's
  * earnings go to the test output, next to the GDD target cut to 5 waves (story Dev Notes: earned ≈
@@ -66,7 +67,7 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
       const rs = runs.filter((r) => r.players === n);
       const earned = rs.flatMap((r) => r.earned);
       const mean = Math.round(earned.reduce((a, b) => a + b, 0) / earned.length);
-      const byWave = [1, 2, 3, 4, 5].map((w) => rs.filter((r) => r.wavesCleared >= w).length);
+      const byWave = [1, 2, 3, 4, 5, 6].map((w) => rs.filter((r) => r.wavesCleared >= w).length);
       return `${n}p: held out ${rs.filter((r) => r.heldOut).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${mean} (${Math.min(...earned)}–${Math.max(...earned)})`;
     });
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
@@ -212,4 +213,63 @@ describe("five-wave bot sim with weapon upgrades (Story 5.1, brief lines 9 and 1
     expect(upgrades).toBeGreaterThanOrEqual(1); // liveness: upgrades were bought …
     expect(upgradedKills).toBeGreaterThanOrEqual(1); // … and an upgraded weapon really killed
   }, 180_000);
+});
+
+describe("six-wave bot sim with the Grenade Launcher (Story 5.5, brief lines 9 and 15; AC 8)", () => {
+  it("bots that buy it still run to Results (waves ended), its rounds really burst and kill; self- and friendly damage logged", () => {
+    // A test-only shopping list and start money (bots.json stays untouched): 800 buys the launcher at the first build.
+    const six = loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "runWaves", 6], ["economy", "startingWallet", 800]]));
+    const lines: string[] = [];
+    let kills = 0;
+    let bought = 0;
+    explosionCounters.happened = explosionCounters.selfDamage = explosionCounters.friendlyDamage = explosionCounters.playersHit = 0;
+    for (const players of [2, 4]) {
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance: six, seed, players, list: ["grenade_launcher", "wood_barricade"] });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
+        kills += r.killsByWeapon.grenade_launcher ?? 0;
+        bought += r.purchases.flat().filter((p) => p.startsWith("grenade_launcher@")).length;
+        lines.push(`${players}p seed ${seed}: ${formatRunLine(r)} kills by grenade_launcher ${r.killsByWeapon.grenade_launcher ?? 0}`);
+      }
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
+      `[six-wave sim 5.5] ${explosionCounters.happened} blasts; player hits ${explosionCounters.playersHit}, self damage ${explosionCounters.selfDamage}, friendly damage ${explosionCounters.friendlyDamage} (bots: not difficulty evidence)\n${lines.join("\n")}`,
+    );
+    expect(bought).toBeGreaterThan(0);
+    expect(explosionCounters.happened).toBeGreaterThan(0); // liveness: ≥ 1 explosion
+    expect(kills).toBeGreaterThan(0);
+  }, 600_000);
+});
+
+describe("six-wave bot sim with Bloaters (Story 5.8, brief lines 9 and 15)", () => {
+  it("1–4 bots × seeds 1–4: every run reaches Results (held out or wiped); wave 6 really brings Bloaters that swell and burst", () => {
+    const lines: string[] = [];
+    let reached6 = 0;
+    let bursts6 = 0;
+    let chains = 0;
+    for (const players of [1, 2, 3, 4]) {
+      for (const seed of [1, 2, 3, 4]) {
+        const r = runHeadless({ balance, seed, players });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
+        if (r.heldOut) expect(r.wavesCleared).toBe(6);
+        // Bloaters only from wave 6 (D9).
+        expect(r.bloaters.burstsInWave.slice(0, 5).every((n) => n === 0)).toBe(true);
+        if (r.reached >= 6) {
+          reached6++;
+          bursts6 += r.bloaters.burstsInWave[5] ?? 0;
+        }
+        chains += r.bloaters.chains;
+        const earned = r.earned.reduce((a, b) => a + b, 0);
+        lines.push(`${formatRunLine(r)} | W6 Bloater swells ${r.bloaters.swellsInWave[5] ?? 0}, bursts ${r.bloaters.burstsInWave[5] ?? 0}, chain links ${r.bloaters.chains}, blast hits on players ${r.bloaters.playerHits}; team earned ${earned}`);
+      }
+    }
+    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[sim] Story 5.8 six waves:\n${lines.join("\n")}`);
+    expect(reached6).toBeGreaterThan(0); // liveness: some runs got to wave 6 …
+    expect(bursts6).toBeGreaterThanOrEqual(reached6); // … and Bloaters burst there (≥ 1 per such run on average)
+    expect(chains).toBeGreaterThanOrEqual(0);
+  }, 900_000);
 });

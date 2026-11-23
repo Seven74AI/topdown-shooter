@@ -1765,9 +1765,208 @@ So that I can stop a dangerous zombie at a choke point.
 **When** it steps in
 **Then** the designer-chosen rule applies (held shorter, or breaks the trap), written as a fairness rule before the build
 
+### Building UX rework (Stories 5.15–5.25)
+
+(Added 2026-11-23 from the building-UX idea session; designer picked **B · Carry + drag**, decisions in `docs/ideas/building-ux/ux-spec.md` §15. 5.15–5.19 (BX-1–BX-5) are client-only and can run alongside other Epic 5 work; 5.20, 5.22 and 5.24 (BX-6, BX-8, BX-10) touch the server's building code: schedule them after 5.10 and 5.14 have merged. Every story inherits the EPIC 5 BRIEF.)
+
+### Story 5.15: Carry the ghost and keep moving
+
+(BX-1 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want to keep walking while I hold a building, so that I can put it exactly where I'm standing instead of freezing and tapping.
+
+**Acceptance criteria**
+1. **Given** a build phase, **when** I start placing a building, **then** the left stick still moves my survivor, the input sent is normal movement (not `neutralizeInput`), and the right stick doesn't fire (there is nothing to shoot; the right half is reserved for building in a build phase).
+2. **Given** I'm holding a building and not pinned (BX-5), **then** the ghost's near edge sits **1.0 m** (`BUILD_CARRY_GAP_M`, balance/controls JSON) beyond my body along my facing: `centre = me + facing × (0.4 + 1.0 + half the footprint's extent along facing)`, its min corner snapped to the 0.5 m lattice with **0.1 m hysteresis**.
+3. **Given** a non-square building, **then** it auto-rotates so its long side is across my facing; it changes only when facing passes a diagonal by more than **10°**. The two-sided barricade art puts its struts on my side.
+4. **When** I press ⟳, **then** it turns 90° clockwise around its centre and auto-rotate is off for this held item (🔒 on the button).
+5. The hand cluster replaces ⟳ ✓ ✕ in the bottom centre: **Place** 76 px at (92, 92), **⟳** 60 px at (190, 80), **✕** 48 px at (80, 196) (CSS px from the bottom-right safe-area corner; ux-spec §4). Ready moves 40 px left of centre.
+6. **Place** sends `building.place` at once (no confirm step). The ghost stays in hand only after BX-4; until then Place ends holding (as ✓ does today).
+7. Holding ends on ✕, the phase leaving the build, a new wave number, the menu opening, me being downed/out, or game over (today's rules, unchanged).
+8. My own body never blocks the carried ghost at default settings (the 1.0 m gap); if a teammate does, the ghost is red (BX-3 says why).
+
+**Fairness / beat the rule:** walking doesn't change what the server accepts (same `placementError`). Reviewers try: carry a ghost onto a teammate, onto a spawn's 2 m circle, off the map edge, through a wall corner; place while running at full speed under `?lag=150` (the spot sent = the spot shown at the press).
+
+**Tests:** `placement.ts` unit tests for the carry centre per type and facing (barricade 1.65 m, turret 1.9 m, trap 2.4 m), the rotation hysteresis, the snap hysteresis; a browser check that the survivor moves while holding.
+
+---
+
+### Story 5.16: Build bar replaces the shop for buildings
+
+(BX-2 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want my buildings under my right thumb, so that I don't open a menu for every barricade.
+
+**Acceptance criteria**
+1. **Given** a build phase with empty hands and nothing selected, **then** the bottom-right shows a **4 × 2 grid of 56 px tiles** (8 px gaps, 16 px inset): every building where `forSale && inShop` (5.10's flag) in balance order, and **🛒 Shop** as the last tile. 5.14's bear trap appears without UI changes.
+2. Each tile shows the building's icon (the same code-drawn art as in the world) and price. **When** I can't afford it, **then** the tile is at 40 % opacity with a red price; **when** I'm at the cap, the count above the grid reads "6/6" in red.
+3. **When** I tap an affordable tile, **then** that building is in my hands (BX-1) at once. **When** I tap an unaffordable tile or I'm at the cap, **then** nothing is picked and the reason toasts ("Need $250 (you have $180)", "Building limit reached (6)").
+4. The Shop tile opens today's shop (weapons, upgrades, 5.13 cards). The shop no longer lists buildings, and the separate Shop button next to Ready is gone.
+5. The grid is hidden while holding (hand cluster) and while a building is selected (BX-7).
+6. More than 7 building types: the 7th tile becomes "More ▸" and pages. (Not needed today.)
+
+**Tests:** tile list from balance (with `inShop: false` hidden), affordability and cap states, shop no longer lists buildings, a browser screenshot at 800 × 360 and 1024 × 768.
+
+---
+
+### Story 5.17: Why it's red
+
+(BX-3 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want to know why I can't build somewhere and what's in the way, so that I fix it in one move.
+
+**Acceptance criteria**
+1. A shared, **client-used** `blockReason(world, ownerId, box, exceptId?)` next to `footprintBlocked` returns the first cause in this order with what caused it: off map → spawn clearance (which spawn) → map solid/cover (which object) → another building (which) → me → a teammate (who) → a zombie. `footprintBlocked` stays the server's check; a unit test proves `blockReason(...) !== null ⇔ footprintBlocked(...)` over random layouts (fuzz, brief 7).
+2. The reason line above the hand cluster shows: "Off the street", "Too close to a zombie spawn (2 m)", "Blocked by the bus / a car / the sandbags / a wall" (from a name table for the Downtown objects), "Overlaps a building", "You're standing there", "Bo is standing there", "A zombie is in the way", "Need $X (you have $Y)", "Building limit reached (6)". The server's refusal codes don't change.
+3. The culprit is outlined red in the world: the map box, the building, the spawn's 2 m circle, the player's ring.
+4. While I hold anything, every spawn's 2 m no-build circle in view is drawn faint (red 12 % fill, dashed edge).
+5. Blocked ghosts get a 45° hatch and a ✕ glyph as well as the red colour (colour-blind safe). Place turns grey with a red ring but still sends (the server judges, as today).
+6. Range rings from balance: turret `rangeM`, mine trigger/blast (today), med station `heal.radiusM`, floodlight `light.radiusM`, bear trap plate.
+7. A reason stays on screen ≥ 250 ms before switching back to valid (no flicker while walking past a teammate).
+
+**Fairness / beat the rule:** the client explanation never disagrees with the server's accept/refuse for the same World (the fuzz test). Reviewers try a spot that's off-map *and* near a spawn (first cause wins, matching the order).
+
+---
+
+### Story 5.18: Place, place, place (chain and pending under lag)
+
+(BX-4 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want to place several of the same building in a row and trust it under lag, so that I can build a wall in seconds.
+
+**Acceptance criteria**
+1. One Place = one building (designer: no hold-to-paint).
+2. **Given** I place and can still afford another and I'm under the cap (counting pending), **then** the same building stays in my hands. Otherwise the hand empties with a toast ("Not enough money for another" / "Building limit reached (6)").
+3. **Chain jump:** the next ghost appears **pinned one footprint further along its long side** (barricades end to end; square types one footprint toward the right of my facing; mines 1.0 m), toward the side of my last drag (BX-5) if any. If that spot is blocked, the ghost goes back to carry.
+4. **Pending:** a sent placement is drawn as a dashed outline with a spinner tick; it counts as occupied for my next ghost; its price comes off the **shown** wallet (HUD, tiles, chip) until the answer.
+5. On `building.placed` the pending box becomes the building. On `building.refused` (or no answer within **2 s**) it shakes 3 × 150 ms, fades in 300 ms, the reason toasts and the shown wallet goes back.
+6. No more than `maxPerPlayer − owned − pending` placements are ever in flight; at most 4 sends per second from one client.
+7. **Under `?lag=150&jitter=20`:** three quick Places give three buildings, no double charge, the HUD wallet never shows less than the server's final wallet for more than one round trip.
+
+**Fairness / beat the rule (F1, F6):** reviewers try 10 taps in 1 s with $100 (only 2 barricades accepted, 2 charged), tapping Place at the build→wave edge (refused `not_build_phase`, nothing charged), a hidden tab across a build start with pending boxes (cleared on the new phase).
+
+**Tests:** unit tests for the chain jump per type/rot, pending wallet maths; NetSimHost test at 150 ms; browser check of a 3-barricade wall.
+
+---
+
+### Story 5.19: Thumb drag to nudge and pin
+
+(BX-5 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want to nudge the ghost with my right thumb without covering it, so that the last half-metre is easy.
+
+**Acceptance criteria**
+1. **Given** I'm holding a building, **when** a touch on the right half that didn't start on a button travels > **8 px**, **then** the ghost is **pinned** and moves by the finger's movement × **gain 1.0** (relative, never jumping under the finger). Snap with 0.1 m hysteresis.
+2. The left stick keeps moving my survivor at the same time.
+3. Pinned = the ghost stays in the world while I walk. The item chip shows "↩ carry" (orange border); tapping it carries it again. A pinned ghost that leaves the view returns to carry by itself.
+4. The ghost is clamped to the view, 1 m in from the edges.
+5. `controls.json` holds `buildDragGain`, `buildDragStartPx`; `?tune=1` exposes them (as the stick radius today).
+6. The camera does **not** lead toward a pinned ghost (designer): it stays on the survivor as today.
+
+**Tests:** placement unit tests for relative drag, pin/unpin; a browser check that a right-half drag doesn't fire or aim.
+
+---
+
+### Story 5.20: Take back, sell and undo
+
+(BX-6 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want to undo a misplaced building and sell old ones, so that a mistake costs nothing and I can rebuild my defence.
+
+**Acceptance criteria**
+1. **Server:** C2S `building.sell { id }` (int 1–65535, strict, `this.net.guard`). Shared `sellBuilding(world, playerId, id)` checks in order: unknown player → not build phase → gone → not owner; refunds per F2, removes the building (`version++`, `wallVersion++` if solid), emits `building.sold { buildingId, ownerId, refund, x, y }` (new net event kind). Refusal S2C `building.sell_refused { id, reason }`.
+2. **Server bookkeeping:** each building keeps `paid` (price + upgrades) and `paidThisBuild` (reset to 0 at every build start). Server-only: not synced, not in `snapshotWorld`'s client view; in `snapshotWorld` for determinism.
+3. **Undo chip ↶** (48 px at (270, 64), or (300, 64) with empty hands) for **10 s** (designer) after each placement, with a draining ring; pressing it sells that building (100 % refund). If the placement is still pending, the undo is sent as soon as it's placed.
+4. The label reads **"Take back +$40"** for a building placed this build phase and **"Sell +$20"** otherwise (BX-7 shows it).
+5. FX: the building lifts and fades in 200 ms, "+$40" floats up; coins sound; 12 ms haptic.
+
+**Fairness / beat the rule:** reviewers try: sell a teammate's building (refused `not_owner`); sell in a wave (refused); upgrade then sell in the same phase (100 % of both); upgrade last phase, sell now (50 % of everything); sell a worn spike trap and rebuy (net = repair cost); spam sell with a crafted id flood (guard); a mine sold while a zombie stands on it in the build phase (no blast: removed in the build phase only).
+
+**Copies (brief 2):** World (`paid`, `paidThisBuild` server-side) → `syncState` removes it → mirror → Predictor (collision follows the removal) → `devThrottle` → `snapshotWorld`.
+
+---
+
+### Story 5.21: Building action bar
+
+(BX-7 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want the actions for a building under my right thumb, so that repairing, upgrading and selling are one tap away.
+
+**Acceptance criteria**
+1. **Given** a build phase with empty hands, **when** I tap a building (3.7's tap rule and 0.4 m tolerance, unchanged), **then** the bottom-right shows the action bar (buttons 78 × 56, 8 gap, right-aligned at 16, centre bottom 112): **✥ Move** (owner), **Upgrade $Y** (owner, has a next tier: 5.9), **Repair $X** (anyone; "full HP" and dimmed when full), **Take back / Sell +$Z** (owner), **✕**. Info line above: "Spike trap · Yours · HP 93/300".
+2. A teammate's building shows only Repair and ✕, with "Only Bo can move, upgrade or sell it".
+3. This replaces 3.7's bottom-centre repair panel; `RepairPanel` keeps its logic (pending upgrade, wave-close rules).
+4. **Long-press** (450 ms, ≤ 12 px) on my own building picks it up (BX-8); a ring fills from 150 ms.
+5. The menu opens **only by tapping** a building (designer): no walk-up select.
+6. A tap that lands on Ready **and** within a building's tap area selects the building instead of starting the wave (the menu has no other route). Other HUD buttons keep priority.
+
+**Tests:** RepairPanel tests extended for the owner/teammate button sets; browser screenshots of both.
+
+---
+
+### Story 5.22: Move a building
+
+(BX-8 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want to pick up my building and put it somewhere else for free, so that I can fix a bad spot without losing money.
+
+**Acceptance criteria**
+1. **Server:** C2S `building.move { id, gx, gy, rot }` (strict, guard). Shared `moveBuilding(world, playerId, req)` checks: unknown player → not build phase → gone → not owner → the new footprint with the building itself ignored (`footprintBlocked(world, box, exceptId)`, the existing rules otherwise). On success it updates gx/gy/rot and the footprint, `version++` (`wallVersion++` if solid), emits `building.moved { buildingId, gx, gy, rot }`. Refused → nothing changes, `building.move_refused { id, reason }`.
+2. **Client:** Move ✥ or a long-press puts it in my hands: pinned at its current spot (carry mode: in front of me), its old spot drawn dashed (it still stands and blocks for everyone until the move is accepted). Place sends the move; ✕ puts it back (sends nothing). The Place label reads "MOVE", the reason line "Move Spike trap · free".
+3. Pending move: dashed at the new spot until `building.moved`; refusal shakes it there and the building stays where it was.
+
+**Fairness / beat the rule (F3, F5):** reviewers try: move a teammate's (refused); move during a wave (refused); move a damaged barricade (HP kept); move a worn spike trap (wear kept); move onto its own old footprint shifted 0.5 m (allowed: itself ignored); move into a spawn circle (refused); move a wall to seal a teammate in (same rule as placement: a footprint can't overlap a player).
+
+**Copies (brief 2):** buildings are now movable, so `Building`'s readonly `gx, gy, rot, minX…maxY` become writable through `moveBuilding` only; check every cache that assumed "buildings never move" (BuildingView's sprite transform keyed by `version`; flow field via `wallVersion`; light list (5.10) and heal list rebuilt on `version`).
+
+---
+
+### Story 5.23: Placement feel and owner marks
+
+(BX-9 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want placing to feel solid and to see whose buildings are whose, so that building with friends is readable.
+
+**Acceptance criteria**
+1. Pick: the ghost scales 0.8 → 1.0 in 120 ms; a soft click.
+2. Placed (mine or a teammate's): 8 dust particles for 0.4 s, the building drops 0.15 m → 0 in 120 ms, a "thunk" (wood), "clank" (metal/turret) or "click" (mine/trap); my own: 12 ms haptic. A teammate's at > 12 m is quieter.
+3. Refused: 30-40-30 ms haptic + a dull buzz.
+4. For 3 s after placing, an L-shaped corner tab in the owner's ring colour (2.9 colours); during a build phase every building shows a 0.18 m owner dot at its min corner. Both hidden during waves.
+5. Haptics follow the existing mute setting; every haptic has a visual twin. All effects pooled (brief 12).
+
+---
+
+### Story 5.24: Teammates' ghosts
+
+(BX-10 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a player, I want to see what my teammates are about to build, so that we don't build on top of each other.
+
+**Acceptance criteria**
+1. C2S `building.ghost { type, gx, gy, rot }` (or `type: ""` for none), guarded, sent **only on change and at most 4 Hz**, build phase only. The server relays it to the other players (not stored in the schema, not in the World).
+2. Others see it as a dashed outline in the sender's ring colour, 50 % alpha, with "Bo · Auto-turret" above it. Never coloured valid/blocked, never blocks anything (F7).
+3. Ghosts vanish at the wave start, when the sender leaves, and after 1 s without an update.
+4. Bandwidth: report the measured B/s (expected ≤ 0.4 KB/s for 30 s of build, 0 in waves; brief 11).
+
+**Beat the rule:** reviewers try flooding ghosts (guard drops > 10/s silently), sending a ghost in a wave (dropped), a ghost onto a spawn (cosmetic only).
+
+---
+
+### Story 5.25: Mouse and keys parity (optional)
+
+(BX-11 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
+
+As a desktop player, I want the same building flow with mouse and keys.
+
+**Acceptance criteria:** the ghost follows the cursor (absolute) when a mouse moved last; `1`–`7` pick from the build bar; `R` / wheel rotates; left click / `Space` places; right click / `Esc` puts away; `Z` undoes; `M` picks up the selected building. Keys added to `keyMap.ts`.
+
+---
+
 ## Epic 6: The full run: decay, boss, events, endless
 
-A team plays the full 10 waves from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets the special events, votes to extract or stay, and can go endless.
+(Epic 6 stories revised 2026-11-23 from the Epic 6 idea session: `docs/ideas/epic-6/proposal.md`, designer decisions D1–D7; Behemoth prototype claude.ai/artifact/16PKRmcKLyK4qfoG9ghASM.)
+
+A team plays the full 10 waves from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets two special events, votes to extract or stay, and can go endless.
 
 ### Story 6.1: The full 10-wave curve
 
@@ -1779,8 +1978,8 @@ So that a run builds to a real climax.
 
 **Given** `waves.json`
 **When** a run is played with 4 players
-**Then** wave sizes grow by ≈ 40 per wave from ≈ 40 (W1) to ≈ 400 (W10), still at most 150 alive, and the mix follows the introduction order: W7–9 full mix, W10 finale with the largest horde (FR28, FR29)
-**And** the 0.6 / 0.8 player-count multipliers still apply
+**Then** wave sizes are N × 40 (W10 = 400), at most 150 alive, × 0.4 / 0.6 / 0.8 / 1.0 by player count (FR28)
+**And** waves 7–10 use this mix (walker / runner / crawler / spitter / bloater): W7 38/22/15/10/15, W8 35/24/15/11/15, W9 40/18/17/10/15, W10 38/22/15/10/15, with 2 fixed Brutes in each of waves 7–10 (not scaled by player count) (FR29)
 
 **Given** the temporary 6-wave ending from Epic 5
 **When** this story is done
@@ -1788,7 +1987,8 @@ So that a run builds to a real climax.
 
 **Given** a full 10-wave run with 4 bots
 **When** the economy is logged
-**Then** each player's earnings are compared with the 2,500–3,000 target and the result is written to the test output
+**Then** each player's earnings are compared with the 2,500–3,000 target and the result is written to the test output, and the sim asserts that all 10 waves were played
+
 
 ### Story 6.2: Ruins
 
@@ -1800,12 +2000,14 @@ So that the map squeezes us as the city breaks.
 
 **Given** the build phase before wave 7
 **When** stage 4 is applied
-**Then** rubble closes one alley (picked by the `decay` stream) and blocks other paths, collapsed walls activate new spawn points (`minStage: 4`), and streetlights start flickering (FR62)
-**And** cells covered by rubble refuse building placement ("Can't build here") (FR53)
+**Then** rubble closes one of alleys 1–3 (a decay variant picked by the `decay` stream), 3 rubble piles (≈ 2 × 1.5 m) appear in the streets as hard cover (they stop bullets and bodies), and 2 breach spawn points with `minStage: 4` open in building walls facing the intersection (FR62)
+**And** cells covered by rubble refuse building placement ("Can't build here"), and buildings already there are destroyed with the usual 50 % refund (FR53)
+**And** the "no area is ever enclosed" and spawn-clearance tests pass on every stage × variant combination
 
 **Given** stage 4
 **When** it plays
-**Then** the wind and falling-debris placeholder ambience plays
+**Then** each streetlight drops out for 0.15–0.6 s every 4–10 s (seeded per lamp), shop glow is at 30 %, and the wind and falling-debris placeholder ambience plays (debris is sound and dust only, no damage: designer, D4)
+
 
 ### Story 6.3: Blackout lighting
 
@@ -1817,8 +2019,8 @@ So that light becomes something we fight for.
 
 **Given** the server's light state
 **When** the blackout flag is on
-**Then** the client draws a darkness render texture at half resolution over the map, cutting out each player's flashlight cone along their aim (60°, 8 m; Tactical flashlight 80°, 12 m), floodlight circles (8 m), fire zones and muzzle flashes (FR64)
-**And** zombie eyes are drawn above the darkness
+**Then** the client draws a half-resolution darkness texture leaving unlit ground at 10 % light, and cuts out: each player's flashlight cone along their aim (60°, 8 m; Tactical flashlight 80°, 12 m), a 1.6 m glow round every survivor, floodlights (6 m radius in blackout: designer, D5), fire zones (4 m) and muzzle flashes (3 m for 100 ms) (FR64)
+**And** teammates (with rings), zombie eyes within 14 m, event markers and anything Stories 6.5–6.10 mark "above the darkness" are drawn above it
 
 **Given** the blackout flag is off
 **When** the game renders
@@ -1826,7 +2028,7 @@ So that light becomes something we fight for.
 
 **Given** this story is done
 **When** the shop is built
-**Then** the Floodlight and Tactical flashlight are switched into the shop (balance flag from Stories 5.10 and 5.11)
+**Then** the Floodlight and Tactical flashlight are in the shop from wave 1 (balance flag from Stories 5.10 and 5.11)
 
 **Given** quality settings
 **When** a player looks for a way to turn darkness off
@@ -1836,26 +2038,31 @@ So that light becomes something we fight for.
 **When** used with 150 zombies in view on the reference phones
 **Then** FPS is recorded in `docs/perf/epic-6-blackout.md`
 
+
 ### Story 6.4: Collapse
 
 As a player,
-I want the power to die, fog to roll in, and wave 9 to be fought in the dark,
+I want the power to die, fog to roll in, and the last two waves to be fought in the dark,
 So that the run hits its tension peak.
 
 **Acceptance Criteria:**
 
 **Given** the build phase before wave 9
 **When** stage 5 is applied
-**Then** the power is out (streetlights and shop glow removed from the light state), wave 9 is a blackout wave, and fog limits vision to 10 m (FR63)
+**Then** the power is out (streetlights and shop glow removed from the light state) and waves 9 and 10 are blackout waves (FR63)
 
-**Given** fog
+**Given** a wave at stage 5
 **When** a zombie is more than 10 m from the local player
-**Then** it is hidden by the fog on that player's screen; fog vision cannot be turned off (only its visual quality can)
+**Then** it is hidden on that player's screen unless it is inside that player's flashlight beam (which sees to its full length); fog vision cannot be turned off (only its visual quality can)
 
-**Given** wave 10
+**Given** a build phase at stage 5
 **When** it plays
-**Then** it is also dark, lit only by fires, floodlights, flashlights and muzzle flashes
-**And** the near-silence placeholder ambience plays (growls and rain)
+**Then** the darkness is at half strength and fog opens to 14 m (planning is not done blind)
+
+**Given** stage 5
+**When** it plays
+**Then** the near-silence placeholder ambience plays (growls and rain)
+
 
 ### Story 6.5: The Behemoth arrives
 
@@ -1867,38 +2074,54 @@ So that the run ends with a fight we'll talk about.
 
 **Given** wave 10
 **When** half of the wave's zombies have spawned
-**Then** the Behemoth enters from a spawn point: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP × the player-count multiplier (0.6 / 0.8 / 1.0) (FR33, FR31)
-**And** a boss health bar appears at the top of the screen and placeholder boss music starts
-
-**Given** the Behemoth near players
-**When** it uses ground slam
-**Then** it raises its arms for 1.2 s, then hits everything within 4 m for 40 damage (FR34)
+**Then** a 4 s warning plays (rumble, red edge marker, "Something big is coming"), then the Behemoth walks in from the street edge farthest from the team and at least 14 m from every player: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP × 0.4 / 0.6 / 0.8 / 1.0 by player count (FR33, FR31)
+**And** while it lives at most 110 zombies are alive (150 again after it dies), a boss bar with a 50 % notch shows at the top of the screen, and placeholder boss music starts
 
 **Given** the Behemoth
-**When** Vitest runs
-**Then** tests cover HP scaling, slam telegraph timing and damage
+**When** it picks a target
+**Then** it chases the standing player who dealt it the most damage in the last 5 s (ties: nearest), switches at most once every 4 s, never targets a downed player, and the target shows a red skull to everyone
+
+**Given** a standing player within 4.0 m of its centre and the slam ready
+**When** it slams
+**Then** it raises its arms for 1.2 s while a red hatched ring of 4.5 m from its centre fills, then players whose centre is inside 4.25 m (0.25 m edge grace) take 40 damage and are pushed 2 m out; 0.8 s recovery, cooldown 4 s (FR34, FR84)
+
+**Given** any boss attack
+**When** it is telegraphed
+**Then** the danger zone is fixed at the telegraph's start, the start tick is sent reliably and the client draws the fill from that tick, hits use the player's newest server position (no rewind), only one boss attack runs at a time, and a gap of 2.8 / 2.2 / 1.8 / 1.5 s (1–4 players) follows each recovery
+**And** telegraphs draw above zombies, darkness and fog (with a hole for the boss's body), and an edge marker with the next attack's icon shows when the boss is off screen
+
+**Given** Vitest
+**When** it runs
+**Then** tests cover HP scaling, slam timing and radius, edge grace (just inside hit, just outside missed), the target rule, the alive cap and one-attack-at-a-time
+
 
 ### Story 6.6: Behemoth charge and throw
 
 As a team,
 I want the Behemoth to charge through our defenses and throw wrecks at us,
-So that we have to keep moving.
+So that we have to keep moving, and can bait it into a wall.
 
 **Acceptance Criteria:**
 
-**Given** a player 5–10 m away in a straight line
+**Given** its target 5–12 m away with at least 4 m of clear lane
 **When** the Behemoth charges
-**Then** it lowers its head for 1.0 s, then rushes 10 m in a straight line, dealing 30 damage to players it hits and destroying every building in its path (FR34, FR53)
+**Then** it lowers its head for 1.0 s while a lane as wide as its body plus a survivor (4.8 m) is drawn to where it will stop, then rushes up to 10 m at 12 m/s; players it touches (0.25 m grace) take 30 damage and are shoved 2.5 m sideways, once per charge; every building in its path is destroyed; zombies in its path are trampled (FR34, FR53)
+**And** the stop point is found at telegraph start by sweeping its body against static cover; if the lane ends on hard cover (car, bus, building, rubble, map edge) the lane shows a CRASH mark
 
-**Given** a player more than 8 m away
+**Given** a charge that ends on hard cover
+**When** it crashes
+**Then** it is stunned for 2 s and takes × 1.5 damage meanwhile (designer, D1); otherwise 1.0 s recovery; cooldown 7 s
+
+**Given** a standing player more than 8 m away and the throw ready
 **When** the Behemoth throws
-**Then** it picks up the nearest wreck or rubble piece (or tears up a chunk of road if none is near), telegraphs for 1 s, and throws it at the player's position: 35 damage within 3 m of the impact
+**Then** it aims at the farthest such player's position at the telegraph start, lifts a chunk for 1 s (from the nearest rubble pile or burnt car within 6 m, else the road; visual only) while a 3 m ring shows at the landing spot, and the chunk flies 0.8 s: 35 damage within 3 m (0.25 m grace), a crater decal, no collision change; 0.6 s recovery, cooldown 6 s
 
 **Given** its attacks
-**When** they cool down
-**Then** the Behemoth chooses between slam, charge and throw by distance, with cooldowns from `boss.json`
+**When** the gap ends
+**Then** it picks slam if anyone is close, else charge if the target is in range with a clear lane, else throw, else it walks; cooldowns from `boss.json`
 
-### Story 6.7: Enrage and the end of wave 10
+
+### Story 6.7: Enrage and the end of the Behemoth
 
 As a team,
 I want the Behemoth to get angrier when it's hurt, and its death to call the helicopter,
@@ -1906,13 +2129,15 @@ So that the last half of the fight is the hardest.
 
 **Acceptance Criteria:**
 
-**Given** the Behemoth at 50% HP or less
+**Given** the Behemoth at 50 % HP or less and not mid-attack
 **When** it enrages
-**Then** it moves 30% faster, its attack cooldowns are 30% shorter, and a Crawler drops off its back every 4 s (FR35)
+**Then** it roars for 1.5 s standing still (players within 5 m pushed 1.5 m, no damage), then moves 30 % faster, its cooldowns and gaps are 30 % shorter, and a Crawler drops off its back every 8 / 6 / 5 / 4 s (1–4 players) (FR35)
+**And** telegraph lengths do not change (test)
 
 **Given** the Behemoth dies
 **When** `boss.killed` is emitted
-**Then** an "Evac inbound" banner shows, and the remaining wave 10 zombies must still be cleared (the last-5 rule applies) before the helicopter lands (FR36)
+**Then** every player gets 150, an "Evac inbound" banner shows, the alive cap returns to 150, and the remaining wave 10 zombies must still be cleared (the last-5 rule applies) before the helicopter lands (FR36)
+
 
 ### Story 6.8: Special events, car alarm and stampede
 
@@ -1924,21 +2149,22 @@ So that no two runs play the same.
 
 **Given** a new run
 **When** events are scheduled from the `events` seed stream
-**Then** 1 or 2 events are placed in waves 3–9, never in wave 5 (the first Brute's wave), at most one per wave (FR37)
-**And** each event starts at a random moment between 20% and 60% of its wave's spawns, with a banner and sound
+**Then** exactly 2 different events are placed in 2 different waves of 3–8, never wave 5, never in back-to-back waves (designer, D2), respecting each event's gate (gas leak: stage 2+; car alarm: a parked car still parked; power failure: waves 6–8) (FR37)
+**And** each event starts at a random moment between 20 % and 60 % of its wave's spawns, with a banner, a sound and a map marker drawn above the darkness
 
 **Given** the car alarm
 **When** it triggers
-**Then** a parked car's alarm sounds and all zombies within 15 m head toward that car for 15 s (FR38)
+**Then** a parked car blinks "armed" for 20 s; when a player shoots it, or when the 20 s run out, its alarm sounds for 15 s and every zombie within 15 m heads to that car (FR38, designer D7)
 
 **Given** the stampede
 **When** it triggers
-**Then** a mass of Runners (outside the wave count) enters from one map edge and crosses the map in one direction for 10 s, then leaves by the far edge (FR41)
-**And** stampede Runners still on the map after the 10 s join the wave: they count toward zombies remaining and the last-5 rule
+**Then** after a 3 s warning (rumble, dust at a map edge, arrows across the lane) 12 / 18 / 24 / 30 Runners (1–4 players, outside the wave count) cross in a straight 8 m lane at 5 m/s for 10 s without chasing, dealing 8 damage on contact; up to 30 may exceed the alive cap and normal spawns pause meanwhile (FR41)
+**And** stampede Runners still on the map after the 10 s become normal Runners that count toward zombies remaining and the last-5 rule
 
 **Given** a framework for events
 **When** a new event is added
 **Then** it is one module in `shared/events` with its data in `events.json`
+
 
 ### Story 6.9: Gas leak and supply drop
 
@@ -1950,12 +2176,14 @@ So that we have to choose between risk and reward.
 
 **Given** the gas leak
 **When** it triggers
-**Then** the gas station tank hisses with a visible warning radius for 10 s, then explodes: zombies within 6 m die and players within 6 m take 60 damage (FR39)
+**Then** the gas station tank hisses for 10 s with a visible 6 m ring, then explodes: zombies within 6 m die, players within 6 m take 60 damage (friendly fire, as with Bloaters), buildings take 150 (FR39)
+**And** after the first 3 s any player can shoot the tank to set it off at once (designer, D7); kills credit whoever set it off
 
 **Given** the supply drop
 **When** it triggers
-**Then** a crate lands at a random reachable spot (from the `events` stream) with a marker for all players (FR40)
-**And** the first player to touch it gets a rare weapon (Flamethrower, Grenade Launcher, Chainsaw or Assault Rifle at level II) in their active slot
+**Then** a smoke flare marks a reachable spot at least 12 m from the team's centre (from the `events` stream), and 5 s later a crate lands there with a marker for all players showing the weapon inside (FR40, designer D7)
+**And** the first player to stand on it for 1 s gets that weapon at level II (Flamethrower, Gas torch, Grenade Launcher, Chainsaw or Assault Rifle) in an empty slot, otherwise in place of the active weapon (a warning shows before the 1 s completes); the crate stays until the wave ends
+
 
 ### Story 6.10: Power failure and survivor
 
@@ -1965,17 +2193,18 @@ So that the run keeps asking for teamwork.
 
 **Acceptance Criteria:**
 
-**Given** the power failure
+**Given** the power failure (waves 6–8 only)
 **When** it triggers
-**Then** the current wave becomes a blackout wave until it ends (FR42)
+**Then** the streetlights flicker for 2 s, then the current wave becomes a blackout wave until it ends (FR42)
 
 **Given** the survivor
 **When** it triggers
-**Then** an NPC with 50 HP appears with a marker and a safe-point marker elsewhere on the map; it follows the nearest player within 3 m and zombies target it like a player (FR43)
+**Then** an NPC with 50 HP appears at least 15 m from the team with a marker, and a safe-point marker appears at least 20 m from it; it follows the nearest player within 3 m at 4.0 m/s, crouches when nobody is near, and zombies target it like a player; both markers and the NPC draw above the darkness (FR43)
 
-**Given** the survivor reaches the safe point alive
+**Given** the survivor reaches the safe point before the wave ends
 **When** escorted
-**Then** every player gets +100 currency; if it dies, nobody gets the bonus
+**Then** every player gets +100 currency; if it dies or the wave ends first, nobody gets the bonus
+
 
 ### Story 6.11: Evacuation vote
 
@@ -1986,8 +2215,8 @@ So that we choose together how much to risk.
 **Acceptance Criteria:**
 
 **Given** wave 10 cleared after the Behemoth's death
-**When** the helicopter lands
-**Then** every player sees Extract and Stay buttons and a 15 s countdown (FR66)
+**When** the helicopter lands on the intersection (6 m pad, searchlight)
+**Then** every player, downed and out players included, sees Extract and Stay buttons and a 15 s countdown, and every vote shows live in its slot colour; nothing else moves during the vote (FR66)
 
 **Given** the votes
 **When** the countdown ends or everyone has voted
@@ -1995,11 +2224,12 @@ So that we choose together how much to risk.
 
 **Given** Extract
 **When** chosen
-**Then** the run is won and the Results screen shows "Extracted" with wave reached, kills and money per player (FR67)
+**Then** the helicopter lifts off, the first light of dawn rises over the district for 4 s (designer, 2026-11-22), then the run is won and the Results screen shows "Extracted" with wave reached, kills and money per player (FR67)
 
-**Given** Extract chosen (designer, 2026-11-22)
-**When** the helicopter lifts off
-**Then** the first light of dawn rises over the district before the Results screen: the team survived the night
+**Given** Stay
+**When** chosen
+**Then** a normal 30 s build phase for wave 11 starts
+
 
 ### Story 6.12: Endless mode
 
@@ -2011,11 +2241,16 @@ So that we can push our luck for more rewards.
 
 **Given** Stay
 **When** wave 11 and later run
-**Then** each wave has 40 more zombies than the last (still max 150 alive) and 1 more Brute, blackout happens on every other wave (11, 13, 15…), and the map stays at stage 5 (FR68)
+**Then** each wave has 40 more zombies than the last at 4 players until 600 (wave 15), then stays at 600 and zombies get +6 % HP per wave after 15; still max 150 alive; × the player-count table (FR68, designer D3)
+**And** each wave has 1 more Brute than the last (wave 11 = 3), at most 6 alive; blackout on odd waves (11, 13, 15…); the map stays at stage 5 with fog
 
 **Given** every 5th wave (15, 20, 25…)
 **When** it runs
-**Then** a Behemoth appears in it, and after it is cleared a new evacuation vote opens
+**Then** a Behemoth appears in it with +25 % HP per earlier endless Behemoth (× 1.25, × 1.5…), with the same telegraphs, and after that wave is cleared a new evacuation vote opens
+
+**Given** an even endless wave without a Behemoth (12, 14, 16, 18, 22…)
+**When** it is scheduled
+**Then** one event that fits runs in it (designer, D3)
 
 **Given** a team wipe in endless before extracting
 **When** the run ends
@@ -2179,6 +2414,159 @@ So that I have a goal beyond one map.
 **Given** a player's first extraction from Downtown
 **When** progress is saved
 **Then** district 2 is recorded as unlocked for that player and its card shows "Unlocked: coming soon" (FR81)
+
+(Stories 7.8–7.12 added 2026-11-23 from the customization idea session: `docs/ideas/customization/proposal.md`, decisions D1–D7 and O1–O6 by the designer; cosmetic only, no bonuses; built with accounts.)
+
+### Story 7.8: Survivor parts in game code
+
+As a player,
+I want my survivor to be built from parts I can swap,
+So that customization is possible without new image files.
+
+**Acceptance Criteria:**
+
+**Given** the art pick
+**When** the story starts
+**Then** the designer picks part looks from a code-drawing page (starting point: `docs/ideas/customization/avatar-editor.html`) before any part is built, and every part passes the "no gameplay signal" check (no armor plates, red-cross bags, shoulder lights, zombie skin or Runner shirts)
+
+**Given** `drawSurvivor` in `apps/client/src/render/city/spriteArt.ts`
+**When** it is split into part functions (top, headgear, hair, backpack, accent, skin)
+**Then** the default look draws exactly today's survivor (pixel test against the current frame), and the held gun stays its own layer under the arms (Story 5.3 convention)
+
+**Given** `packages/shared` `cosmetics.json`
+**When** it is read
+**Then** it lists 55 parts (35 starter, 10 milestone, 10 loot; proposal §3, §6), each with id, slot, colour inputs (none / top / hair / accent) and unlock rule (`starter`, `milestone:<id>`, `loot`), and no gameplay numbers
+
+**Given** any chosen colour
+**When** a part is drawn for the game
+**Then** it is night-muted the same way as the `CHAR` colours (darker and slightly desaturated, more per decay stage), and the editor can show both versions
+
+**Given** every part
+**When** drawn at 35 px per metre (0.4 m body radius)
+**Then** each non-"none" part changes at least 40 px² or the outline compared with "none" (automated pixel-count test)
+
+### Story 7.9: My look in the game
+
+As a player,
+I want my friends to see the survivor I made,
+So that I can find myself and they can recognise me.
+
+**Acceptance Criteria:**
+
+**Given** a join (Story 2.3)
+**When** the client sends its join options
+**Then** it includes the look code (≤ 96 characters, `v1|…` format) from the player's progress; the server checks each part exists and is owned by the account, replaces any bad part with the default, and **never refuses a join because of a look**
+
+**Given** the room state
+**When** a player joins
+**Then** their look is one string field set once; it costs nothing per tick
+
+**Given** a player's look
+**When** the Game scene creates their survivor
+**Then** the body is drawn once into a per-player canvas texture (≤ 4 per run, ≤ ~2 ms total on the Honor 10), the gun image is drawn under it, and the downed view uses the same body
+**And** the slot ring, name and edge arrows keep the slot colour (Story 2.9)
+
+**Given** the lobby
+**When** a player is in a slot
+**Then** their slot card shows their survivor (close-up drawing); identical looks are allowed
+
+**Given** `?stress=150`
+**When** 4 custom survivors are on screen
+**Then** phone FPS matches the 4.10 numbers (the floor)
+
+### Story 7.10: Survivor editor
+
+As a player,
+I want to make my survivor in under 30 seconds,
+So that customizing is fun, not a chore.
+
+**Acceptance Criteria:**
+
+**Given** the start screen
+**When** I tap "Survivor" (or my own card in the lobby)
+**Then** a Preact screen opens with tabs Top / Head / Hair / Pack / Accent / Skin, a big rotating preview, and a **game-size preview** (35 px per metre on wet asphalt, slot ring, a few zombies and teammates around)
+
+**Given** the tabs
+**When** I pick a part or a colour
+**Then** both previews update at once; colours use a free picker; the top colour shows the night-muted in-game swatch next to it
+
+**Given** any colour, even one close to a slot ring colour or Runner red
+**When** I pick it
+**Then** it is accepted with no warning (designer decision O6)
+
+**Given** a locked part
+**When** it shows
+**Then** a milestone item shows a lock and how to get it ("Extract from Downtown once"); a loot item shows only a silhouette and "Found during waves"; neither shows a price
+
+**Given** I tap Random
+**When** it runs
+**Then** it picks only parts I own and random colours
+
+**Given** I tap Done
+**When** the server saves it
+**Then** the look is written to my `progress` row (new `look` field, this story's migration) and cached on the device (try/catch); it is used from my next join
+
+### Story 7.11: Milestone items
+
+As a player,
+I want to earn special items by doing something memorable,
+So that my survivor shows what I've done.
+
+**Acceptance Criteria:**
+
+**Given** this story's migration
+**When** it runs
+**Then** `progress` gets `cosmetics` (owned item ids) and `stats` (lifetime counters: revives, kills, barricades built, runs played)
+
+**Given** a run ends (Story 7.2's transaction)
+**When** Supplies are banked
+**Then** the same transaction updates the counters and grants every milestone reached (M1–M10, proposal §6); each is granted once
+
+**Given** a new milestone item
+**When** the Results screen shows
+**Then** it shows "New item: Riot helmet (first extraction)" with a close-up drawing
+
+**Given** the milestone rules
+**When** Vitest runs
+**Then** tests cover each milestone, no double grant, wipe and quit runs, and a failed write retried once (7.2 rule)
+
+### Story 7.12: Surprise loot bag
+
+As a player,
+I want a rare bag to drop during a wave,
+So that some runs end with a surprise.
+
+**Acceptance Criteria:**
+
+**Given** a run starts
+**When** the `loot` seed stream is read (Story 4.4)
+**Then** with chance `loot.runChance` = 0.2 (balance JSON) the run has one bag, at a chosen wave 3–10 and kill index in that wave; the rate doesn't depend on zombie or player count; solo runs too; endless adds none
+
+**Given** that kill
+**When** the zombie dies
+**Then** a bag appears where it died, visible to all (glint, atlased, Dead City look) for 400 ticks (20 s), then disappears
+
+**Given** a living player
+**When** their centre comes within 0.6 m of the bag
+**Then** the server gives the bag to them (first by tick order; ties to the lower slot); everyone sees a short "Bag found!" cue; downed or out players can't pick it up
+
+**Given** the bag is picked up
+**When** the item is chosen
+**Then** it is a random loot item the player doesn't own; if they own all 10, they get "Collector" on Results and no item
+
+**Given** the run ends (extract, wipe or quit)
+**When** Results show
+**Then** the finder sees "Found in wave N: <item>" and the item is banked in Story 7.2's transaction, even after a wipe or a quit
+
+**Given** Epic 8's snapshot rule
+**When** a run is saved or a player rejoins
+**Then** the bag (position, ticks left) and a pending found item are in the snapshot (round-trip test)
+
+**Given** the loot rules
+**When** Vitest runs
+**Then** a seeded sim over 1,000 run seeds gives 20 % ± 3 % runs with a bag, every bag at waves 3–10, the same seed gives the same bag, and the bag never spawns inside a solid
+
+---
 
 ## Epic 8: Real-life resilience
 

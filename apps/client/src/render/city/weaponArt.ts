@@ -1081,6 +1081,11 @@ export const UPGRADE_LOOK_LEVEL = 3;
 export const WEAPON_TIER_ICON: Readonly<Record<string, (c: G, size: number) => void>> = {
   shotgun: drawShotgunTactical,
   assault_rifle: drawAssaultRifleModern,
+  grenade_launcher: (c, size) => drawGrenadeLauncherBlooper(c, size), // Story 5.5: GL2 at III (GL3 at IV: `WEAPON_TOP_TIER_ICON`)
+};
+/** Story 5.5: a third look at level IV (the Grenade Launcher's GL3 pump); weapons without one keep their III look. */
+export const WEAPON_TOP_TIER_ICON: Readonly<Record<string, (c: G, size: number) => void>> = {
+  grenade_launcher: (c, size) => drawGrenadeLauncherPump(c, size),
 };
 
 /** The U1 plate's width (CSS px) per level (the numeral's width); height is `TIER_PLATE_H`. */
@@ -1138,6 +1143,164 @@ export function tierMarkUrl(level: number): string | null {
   return url;
 }
 
+// ================= Story 5.5: the Grenade Launcher (round C: GL1 base; GL2 / GL3 its III / IV looks) =================
+// Ported from `docs/art/epic-5/round-c/looks.html › glIcon1–3, heldGL` (icons: side view, metres,
+// muzzle +x; held: top-down, r units).
+
+/** A shaded tube along x (looks.html `tube`). */
+function tube(c: G, x0: number, x1: number, y: number, d: number, base: string, tex: Tex, r = d * 0.3): void {
+  part(c, (q) => R(q, x0, y - d / 2, x1 - x0, d, r), { base, lit: "top", box: [x0, y - d / 2, x1, y + d / 2], tex, hi: 0.45, lo: 0.5, rim: 0.4 });
+}
+/** A ribbed pistol grip / foregrip (looks.html `gripPart`). */
+function gripPart(c: G, x: number, y: number, len: number, ang: number, w: number, base: string): void {
+  const ca = Math.cos(ang);
+  const sa = Math.sin(ang);
+  const pts: readonly (readonly [number, number])[] = [[-w / 2, 0], [w / 2, 0], [(w / 2) * 0.9, len], [(-w / 2) * 1.1, len]];
+  const g: PathFn = (q) => {
+    pts.forEach(([px, py], i) => {
+      const X = x + px * ca - py * sa;
+      const Y = y + px * sa + py * ca;
+      if (i) q.lineTo(X, Y);
+      else q.moveTo(X, Y);
+    });
+    q.closePath();
+  };
+  part(c, g, { base, box: [x - len, y - 0.01, x + len, y + len], tex: polyTex(91, true), hi: 0.3, rim: 0.3 });
+  c.save();
+  c.beginPath();
+  g(c);
+  c.clip();
+  for (let k = 1; k < 6; k++) strokeP(c, (q) => { q.moveTo(x - 0.06, y + (len * k) / 6); q.lineTo(x + 0.06, y + (len * k) / 6 + 0.004); }, "rgba(0,0,0,0.35)", 1 * P, "butt");
+  c.restore();
+}
+const GL_POLY = "#202124";
+const GL_OD = "#3b4030";
+
+/** GL1 revolver-drum launcher, side view (the story's "stubby drum launcher"). `size` px per metre. */
+function glIcon1(c: G): void {
+  const bar = (path: PathFn, w: number): void => {
+    strokeP(c, path, "#050506", w + 2 * P);
+    strokeP(c, path, "#26282b", w);
+    c.save();
+    c.translate(0, -w * 0.25);
+    strokeP(c, path, "rgba(180,190,205,0.25)", w * 0.25);
+    c.restore();
+  };
+  bar((q) => { q.moveTo(-0.41, -0.035); q.lineTo(-0.17, -0.035); }, 0.02);
+  bar((q) => { q.moveTo(-0.41, 0.065); q.lineTo(-0.2, 0.01); }, 0.018);
+  bar((q) => { q.moveTo(-0.33, -0.035); q.lineTo(-0.3, 0.044); }, 0.012);
+  part(c, (q) => R(q, -0.445, -0.055, 0.04, 0.14, 0.012), { base: "#151517", box: [-0.445, -0.055, -0.405, 0.085], tex: polyTex(41, true), hi: 0.25 });
+  gripPart(c, -0.145, 0.01, 0.09, 0.3, 0.036, GL_OD);
+  trigger(c, (q) => { q.moveTo(-0.13, 0.012); q.quadraticCurveTo(-0.135, 0.05, -0.1, 0.048); q.lineTo(-0.075, 0.045); q.quadraticCurveTo(-0.065, 0.03, -0.065, 0.012); }, (q) => { q.moveTo(-0.095, 0.012); q.quadraticCurveTo(-0.093, 0.03, -0.103, 0.036); });
+  part(c, (q) => R(q, -0.19, -0.07, 0.33, 0.024, 0.006), { base: "#2a2c2f", box: [-0.19, -0.07, 0.14, -0.046], tex: steelTex(42, 0.8), hi: 0.45 });
+  part(c, (q) => R(q, -0.19, -0.05, 0.08, 0.07, 0.01), { base: GL_POLY, box: [-0.19, -0.05, -0.11, 0.02], tex: polyTex(43), hi: 0.35 });
+  const dr: PathFn = (q) => R(q, -0.105, -0.052, 0.205, 0.142, 0.022);
+  part(c, dr, { base: "#35383c", lit: "top", box: [-0.105, -0.052, 0.1, 0.09], tex: steelTex(44, 1), hi: 0.5, lo: 0.55 });
+  c.save();
+  c.beginPath();
+  dr(c);
+  c.clip();
+  for (let y = -0.035; y < 0.09; y += 0.024) {
+    strokeP(c, (q) => { q.moveTo(-0.09, y); q.lineTo(0.085, y); }, "rgba(0,0,0,0.55)", 2.2 * P, "butt");
+    strokeP(c, (q) => { q.moveTo(-0.09, y + 2 * P); q.lineTo(0.085, y + 2 * P); }, "rgba(200,210,225,0.18)", 1 * P, "butt");
+  }
+  for (const x of [-0.1, 0.095]) fillP(c, (q) => R(q, x - 0.008, -0.06, 0.016, 0.16), "rgba(10,10,12,0.7)");
+  c.restore();
+  tube(c, 0.1, 0.36, -0.022, 0.058, "#2a2c30", steelTex(45, 0.9), 0.008);
+  part(c, (q) => R(q, 0.335, -0.056, 0.03, 0.068, 0.006), { base: "#1f2124", box: [0.335, -0.056, 0.365, 0.012], hi: 0.45, line: 1 });
+  fillP(c, (q) => R(q, 0.1, 0.01, 0.26, 0.012), "rgba(0,0,0,0.35)");
+  gripPart(c, 0.21, 0.012, 0.075, -0.08, 0.032, GL_OD);
+  part(c, (q) => Pg(q, [-0.04, -0.07, -0.03, -0.1, 0.08, -0.1, 0.09, -0.07]), { base: "#1c1d20", box: [-0.04, -0.1, 0.09, -0.07], tex: polyTex(46, true), hi: 0.3, line: 1 });
+  for (const [x, y] of [[-0.17, -0.035], [0.12, -0.058], [0.12, 0.01]] as const) rivet(c, x, y, 0.005, "#4a4d52");
+}
+
+/** GL2 break-action wooden "blooper", side view (the Grenade Launcher's level III look). */
+function glIcon2(c: G): void {
+  const st: PathFn = (q) => {
+    q.moveTo(-0.42, -0.04);
+    q.bezierCurveTo(-0.32, -0.035, -0.2, -0.03, -0.11, -0.035);
+    q.lineTo(-0.11, 0.02);
+    q.quadraticCurveTo(-0.16, 0.025, -0.2, 0.04);
+    q.bezierCurveTo(-0.28, 0.065, -0.36, 0.08, -0.42, 0.095);
+    q.closePath();
+  };
+  part(c, st, { base: "#6a4426", box: [-0.42, -0.04, -0.11, 0.095], tex: woodTex(51, 0.06), hi: 0.32 });
+  part(c, (q) => Pg(q, [-0.445, -0.044, -0.42, -0.041, -0.42, 0.096, -0.445, 0.1]), { base: "#141415", box: [-0.445, -0.044, -0.42, 0.1], tex: polyTex(52, true), hi: 0.2 });
+  part(c, (q) => R(q, -0.125, -0.05, 0.11, 0.07, 0.01), { base: "#2a2c30", box: [-0.125, -0.05, -0.015, 0.02], tex: steelTex(53, 1), hi: 0.45 });
+  fillP(c, (q) => R(q, -0.1, -0.062, 0.03, 0.014, 0.004), "#1d1e21");
+  trigger(c, (q) => { q.moveTo(-0.11, 0.02); q.quadraticCurveTo(-0.115, 0.058, -0.08, 0.056); q.lineTo(-0.055, 0.053); q.quadraticCurveTo(-0.045, 0.038, -0.045, 0.02); }, (q) => { q.moveTo(-0.08, 0.02); q.quadraticCurveTo(-0.078, 0.038, -0.088, 0.044); });
+  tube(c, -0.02, 0.33, -0.02, 0.064, "#2c2f33", steelTex(54, 0.9), 0.01);
+  part(c, (q) => R(q, 0.315, -0.055, 0.025, 0.07, 0.006), { base: "#222427", box: [0.315, -0.055, 0.34, 0.015], hi: 0.45, line: 1 });
+  const fe: PathFn = (q) => { q.moveTo(0.0, 0.008); q.lineTo(0.2, 0.008); q.quadraticCurveTo(0.215, 0.02, 0.2, 0.034); q.lineTo(0.0, 0.034); q.closePath(); };
+  part(c, fe, { base: "#5c3a21", box: [0, 0.008, 0.215, 0.034], tex: woodTex(55, 0), hi: 0.3 });
+  part(c, (q) => { q.moveTo(0.05, -0.052); q.lineTo(0.058, -0.11); q.lineTo(0.095, -0.11); q.lineTo(0.1, -0.052); q.closePath(); }, { base: "#1c1d20", box: [0.05, -0.11, 0.1, -0.052], hi: 0.3, line: 1 });
+  fillP(c, (q) => R(q, 0.064, -0.1, 0.022, 0.04), "#08090a");
+  for (const [x, y] of [[-0.1, -0.03], [-0.04, 0.0]] as const) rivet(c, x, y, 0.0045, "#4a4d52");
+}
+
+/** GL3 pump-action tube launcher (4-round tube under the barrel), side view (the level IV look). */
+function glIcon3(c: G): void {
+  const st: PathFn = (q) => {
+    q.moveTo(-0.47, -0.045);
+    q.bezierCurveTo(-0.38, -0.04, -0.26, -0.035, -0.17, -0.04);
+    q.lineTo(-0.17, 0.02);
+    q.quadraticCurveTo(-0.21, 0.024, -0.25, 0.04);
+    q.bezierCurveTo(-0.32, 0.065, -0.4, 0.08, -0.47, 0.095);
+    q.closePath();
+  };
+  part(c, st, { base: "#5e3d22", box: [-0.47, -0.045, -0.17, 0.095], tex: woodTex(61, 0.06), hi: 0.3 });
+  part(c, (q) => Pg(q, [-0.49, -0.048, -0.47, -0.045, -0.47, 0.096, -0.49, 0.1]), { base: "#141415", box: [-0.49, -0.048, -0.47, 0.1], tex: polyTex(62, true), hi: 0.2 });
+  trigger(c, (q) => { q.moveTo(-0.16, 0.022); q.quadraticCurveTo(-0.165, 0.06, -0.13, 0.058); q.lineTo(-0.105, 0.055); q.quadraticCurveTo(-0.095, 0.04, -0.095, 0.022); }, (q) => { q.moveTo(-0.13, 0.022); q.quadraticCurveTo(-0.128, 0.04, -0.138, 0.046); });
+  part(c, (q) => R(q, -0.175, -0.06, 0.17, 0.085, 0.008), { base: "#26282c", box: [-0.175, -0.06, -0.005, 0.025], tex: steelTex(63, 1), hi: 0.45 });
+  fillP(c, (q) => R(q, -0.13, -0.045, 0.07, 0.03, 0.003), "#08090a");
+  tube(c, -0.01, 0.33, 0.022, 0.046, "#2a2c30", steelTex(64, 0.8), 0.01);
+  tube(c, -0.01, 0.4, -0.034, 0.05, "#24262a", steelTex(65, 0.9), 0.008);
+  part(c, (q) => R(q, 0.385, -0.062, 0.022, 0.056, 0.005), { base: "#1d1f22", box: [0.385, -0.062, 0.407, -0.006], hi: 0.45, line: 1 });
+  const fe: PathFn = (q) => R(q, 0.07, -0.004, 0.17, 0.054, 0.014);
+  part(c, fe, { base: "#6a4426", box: [0.07, -0.004, 0.24, 0.05], tex: woodTex(66, 0), hi: 0.32 });
+  c.save();
+  c.beginPath();
+  fe(c);
+  c.clip();
+  for (let x = 0.085; x < 0.235; x += 0.0105) strokeP(c, (q) => { q.moveTo(x, -0.01); q.lineTo(x, 0.06); }, "rgba(14,6,2,0.78)", 1.8 * P, "butt");
+  c.restore();
+  part(c, (q) => Pg(q, [0.02, -0.058, 0.03, -0.1, 0.07, -0.1, 0.08, -0.058]), { base: "#1c1d20", box: [0.02, -0.1, 0.08, -0.058], hi: 0.3, line: 1 });
+  for (let y = -0.094; y < -0.062; y += 0.008) strokeP(c, (q) => { q.moveTo(0.035, y); q.lineTo(0.065, y); }, "rgba(200,205,210,0.35)", 0.8 * P, "butt");
+  part(c, (q) => R(q, -0.11, -0.044, 0.04, 0.024, 0.004), { base: "#a8853a", box: [-0.11, -0.044, -0.07, -0.02], hi: 0.6, line: 0.8 }); // a 40 mm round in the port
+}
+
+/** An icon drawing at `size` px per metre (the shared icon frame: `P` set, scaled, restored). */
+function glIcon(draw: (c: G) => void): (c: G, size: number) => void {
+  return (c, size) => {
+    P = 1 / size;
+    c.save();
+    c.scale(size, size);
+    draw(c);
+    c.restore();
+  };
+}
+export const drawGrenadeLauncherBlooper = glIcon(glIcon2);
+export const drawGrenadeLauncherPump = glIcon(glIcon3);
+
+/**
+ * GL1 Grenade Launcher (Story 5.5). `view` "icon": the side view, `size` px per metre; "held":
+ * top-down in the survivor's hands, `size` = r px (looks.html `heldGL('GL1')`: a fat drum, a short
+ * stubby barrel; it reads as "not a gun" at game size).
+ */
+export function drawGrenadeLauncher(c: G, view: WeaponArtView, size: number): void {
+  if (view === "icon") return glIcon(glIcon1)(c, size);
+  const r = size;
+  c.lineJoin = "round";
+  heldPart(c, (q) => R(q, r * 0.1, -r * 0.1, r * 0.42, r * 0.2, r * 0.04), "#26282b", r);
+  c.fillStyle = "#0d0e10";
+  c.fillRect(r * 0.16, -r * 0.05, r * 0.28, r * 0.1);
+  heldPart(c, (q) => R(q, r * 0.5, -r * 0.25, r * 0.56, r * 0.5, r * 0.11), "#4f545b", r);
+  for (let y = -r * 0.15; y < r * 0.2; y += r * 0.1) strokeP(c, (q) => { q.moveTo(r * 0.55, y); q.lineTo(r * 1.01, y); }, "rgba(0,0,0,0.65)", Math.max(1, r * 0.05), "butt");
+  heldGlint(c, r * 0.56, r * 1.0, -r * 0.2, r, 0.4);
+  heldPart(c, (q) => R(q, r * 1.04, -r * 0.15, r * 0.8, r * 0.3, r * 0.06), "#2e3135", r);
+  heldPart(c, (q) => R(q, r * 1.8, -r * 0.18, r * 0.1, r * 0.36, r * 0.03), "#1f2124", r);
+  heldGlint(c, r * 1.07, r * 1.78, -r * 0.09, r, 0.4);
+}
 
 // ================= Story 5.4: the flame weapons (round C: FT1 Flamethrower, FT2 Gas torch) =================
 // Ported from `docs/art/epic-5/round-c/looks.html` (FT1 military twin-tank, FT2 scavenged propane rig).
@@ -1168,7 +1331,7 @@ function rustTex(seed: number, amt = 1): Tex {
     }
   };
 }
-function tube(c: G, x0: number, x1: number, y: number, d: number, base: string, tex: Tex, o: { r?: number } = {}): PathFn {
+function flameTube(c: G, x0: number, x1: number, y: number, d: number, base: string, tex: Tex, o: { r?: number } = {}): PathFn {
   const p: PathFn = (q) => R(q, x0, y - d / 2, x1 - x0, d, o.r ?? d * 0.3);
   part(c, p, { base, lit: "top", box: [x0, y - d / 2, x1, y + d / 2], tex, hi: 0.45, lo: 0.5, rim: 0.4 });
   return p;
@@ -1201,7 +1364,7 @@ function holes(c: G, clip: PathFn, x0: number, x1: number, y0: number, y1: numbe
   }
   c.restore();
 }
-function gripPart(c: G, x: number, y: number, len: number, ang: number, w: number, base: string, tex?: Tex): void {
+function flameGrip(c: G, x: number, y: number, len: number, ang: number, w: number, base: string, tex?: Tex): void {
   const ca = Math.cos(ang);
   const sa = Math.sin(ang);
   const pts = [[-w / 2, 0], [w / 2, 0], [(w / 2) * 0.9, len], [(-w / 2) * 1.1, len]] as const;
@@ -1322,7 +1485,7 @@ export function drawFlamethrower(c: G, view: WeaponArtView, size: number): void 
   fillP(c, (q) => R(q, -0.25, 0.054, 0.03, 0.11), "rgba(30,26,18,0.9)");
   part(c, (q) => R(q, -0.095, 0.08, 0.03, 0.05, 0.008), { base: "#8a6a2c", box: [-0.095, 0.08, -0.065, 0.13], hi: 0.5, line: 1 });
   hoseS(c, (q) => { q.moveTo(-0.07, 0.1); q.bezierCurveTo(0.02, 0.13, 0.02, 0.02, -0.12, 0.0); q.quadraticCurveTo(-0.24, -0.02, -0.27, -0.05); }, 0.022, "#1d1e20");
-  gripPart(c, -0.215, -0.045, 0.085, 0.35, 0.032, "#1e1f22");
+  flameGrip(c, -0.215, -0.045, 0.085, 0.35, 0.032, "#1e1f22");
   trigger(
     c,
     (q) => { q.moveTo(-0.195, -0.045); q.quadraticCurveTo(-0.2, -0.01, -0.165, -0.012); q.lineTo(-0.14, -0.015); q.quadraticCurveTo(-0.13, -0.03, -0.13, -0.045); },
@@ -1330,12 +1493,12 @@ export function drawFlamethrower(c: G, view: WeaponArtView, size: number): void 
   );
   part(c, (q) => R(q, -0.3, -0.098, 0.12, 0.055, 0.01), { base: "#2a2c30", box: [-0.3, -0.098, -0.18, -0.043], tex: steelTex(13, 1), hi: 0.45 });
   rivet(c, -0.285, -0.07, 0.012, "#b08a3c", true);
-  tube(c, -0.18, 0.36, -0.07, 0.03, "#25272b", steelTex(14, 0.8));
-  gripPart(c, 0.015, -0.06, 0.075, -0.1, 0.03, "#1e1f22");
-  const hs = tube(c, 0.1, 0.34, -0.07, 0.056, FT1_OD, steelTex(15, 1.1), { r: 0.01 });
+  flameTube(c, -0.18, 0.36, -0.07, 0.03, "#25272b", steelTex(14, 0.8));
+  flameGrip(c, 0.015, -0.06, 0.075, -0.1, 0.03, "#1e1f22");
+  const hs = flameTube(c, 0.1, 0.34, -0.07, 0.056, FT1_OD, steelTex(15, 1.1), { r: 0.01 });
   holes(c, hs, 0.115, 0.33, -0.09, -0.05, 0.013, 0.0035);
   for (const x of [0.105, 0.335]) fillP(c, (q) => R(q, x - 0.006, -0.1, 0.012, 0.06, 0.003), "#2c2f22");
-  tube(c, 0.22, 0.355, -0.026, 0.022, "#2a2c30", steelTex(16, 0.8));
+  flameTube(c, 0.22, 0.355, -0.026, 0.022, "#2a2c30", steelTex(16, 0.8));
   fillP(c, (q) => R(q, 0.25, -0.04, 0.012, 0.03), "#1a1b1d");
   // the nozzle, bolder than the card's (it is what says "flamethrower" at shop size)
   part(c, (q) => Pg(q, [0.34, -0.092, 0.4, -0.086, 0.45, -0.08, 0.45, -0.06, 0.4, -0.054, 0.34, -0.048]), { base: "#2b2d31", box: [0.34, -0.092, 0.45, -0.048], tex: steelTex(17, 1), hi: 0.55 });
@@ -1431,14 +1594,14 @@ export function drawGasTorch(c: G, view: WeaponArtView, size: number): void {
   fillP(c, (q) => R(q, -0.33, -0.1, 0.06, 0.07), "#7a7b76");
   for (let x = -0.33; x < -0.27; x += 0.012) strokeP(c, (q) => { q.moveTo(x, -0.1); q.lineTo(x + 0.006, -0.03); }, "rgba(0,0,0,0.3)", 0.8 * P, "butt");
   c.restore();
-  gripPart(c, -0.17, -0.05, 0.09, 0.32, 0.034, "#3e5a37", polyTex(22));
+  flameGrip(c, -0.17, -0.05, 0.09, 0.32, 0.034, "#3e5a37", polyTex(22));
   trigger(
     c,
     (q) => { q.moveTo(-0.15, -0.05); q.quadraticCurveTo(-0.155, -0.012, -0.12, -0.014); q.lineTo(-0.1, -0.018); q.quadraticCurveTo(-0.09, -0.03, -0.09, -0.05); },
     (q) => { q.moveTo(-0.12, -0.05); q.quadraticCurveTo(-0.118, -0.032, -0.13, -0.024); },
   );
   part(c, (q) => R(q, -0.21, -0.09, 0.1, 0.05, 0.012), { base: "#3e5a37", box: [-0.21, -0.09, -0.11, -0.04], tex: polyTex(23), hi: 0.4 });
-  tube(c, -0.12, 0.39, -0.068, 0.027, "#7d8186", rustTex(24, 0.7));
+  flameTube(c, -0.12, 0.39, -0.068, 0.027, "#7d8186", rustTex(24, 0.7));
   for (const x of [-0.02, 0.2, 0.31]) part(c, (q) => R(q, x, -0.084, 0.035, 0.032, 0.004), { base: "#77786f", box: [x, -0.084, x + 0.035, -0.052], tex: polyTex(25 + ((x * 10) | 0)), hi: 0.35, line: 0.9 });
   part(c, (q) => Pg(q, [0.385, -0.08, 0.43, -0.086, 0.452, -0.09, 0.452, -0.046, 0.43, -0.05, 0.385, -0.056]), { base: "#a8853a", box: [0.385, -0.09, 0.452, -0.046], tex: steelTex(26, 0.5), hi: 0.55 });
   for (let x = 0.395; x < 0.43; x += 0.008) strokeP(c, (q) => { q.moveTo(x, -0.083); q.lineTo(x, -0.053); }, "rgba(60,40,10,0.6)", 0.8 * P, "butt");
@@ -1456,10 +1619,11 @@ export function drawGasTorch(c: G, view: WeaponArtView, size: number): void {
   }
   part(c, (q) => R(q, 0.215, -0.0, 0.04, 0.06, 0.01), { base: "#9a9da2", box: [0.215, 0, 0.255, 0.06], tex: steelTex(28, 0.6), hi: 0.5, line: 1 });
   hoseS(c, (q) => { q.moveTo(0.25, 0.025); q.bezierCurveTo(0.31, 0.03, 0.33, -0.02, 0.3, -0.05); }, 0.014, "#2a2b2d", false);
-  tube(c, 0.33, 0.4, -0.036, 0.018, "#2b4f8c", polyTex(29));
+  flameTube(c, 0.33, 0.4, -0.036, 0.018, "#2b4f8c", polyTex(29));
   pilotIcon(c, 0.405, -0.036, true);
   c.restore();
 }
+
 
 /** Weapons with their own art, by balance id (the rest keep the survivor's plain gun and a text-only shop row). */
 export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, size: number) => void>> = {
@@ -1467,14 +1631,15 @@ export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, siz
   assault_rifle: drawAssaultRifle,
   fire_axe: drawFireAxe,
   chainsaw: drawChainsaw,
+  grenade_launcher: drawGrenadeLauncher, // Story 5.5 (GL1)
   flamethrower: drawFlamethrower, // Story 5.4: FT1
   gas_torch: drawGasTorch, // Story 5.4: FT2
 };
-
 /** Story 5.4: what a weapon puts on the survivor's back instead of the backpack (FT1's twin tanks). */
 export const WEAPON_BACK_ART: Readonly<Record<string, (c: G, r: number) => void>> = {
   flamethrower: drawFlamethrowerBack,
 };
+
 
 /** Shop icon size (CSS px) and the side-view scale: a 1 m gun fills the width. */
 export const ICON_W = 96;
@@ -1492,8 +1657,9 @@ export function weaponIconUrl(weapon: string, level = 1): string | null {
   const draw = WEAPON_ART[weapon];
   if (!draw || typeof document === "undefined") return null;
   // Story 5.1: from level III the weapon's upgrade-tier look (G3, R1), when it has one.
-  const tier = level >= UPGRADE_LOOK_LEVEL ? WEAPON_TIER_ICON[weapon] : undefined;
-  const key = tier ? `${weapon}:tier` : weapon;
+  const top = level >= 4 ? WEAPON_TOP_TIER_ICON[weapon] : undefined;
+  const tier = top ?? (level >= UPGRADE_LOOK_LEVEL ? WEAPON_TIER_ICON[weapon] : undefined);
+  const key = top ? `${weapon}:top` : tier ? `${weapon}:tier` : weapon;
   const cached = iconUrls.get(key);
   if (cached) return cached;
   const cv = document.createElement("canvas");

@@ -37,10 +37,11 @@ describe("shop list (Story 3.3)", () => {
       ["assault_rifle", 450],
       ["fire_axe", 300],
       ["chainsaw", 600],
+      ["grenade_launcher", 800], // Story 5.5
       ["gas_torch", 550], // Story 5.4
       ["flamethrower", 700],
     ]);
-    expect(shopWeapons(balance).map((w) => w.name)).toEqual(["Pistol", "Machete", "SMG", "Hunting Rifle", "Shotgun", "Assault Rifle", "Fire Axe", "Chainsaw", "Gas torch", "Flamethrower"]);
+    expect(shopWeapons(balance).map((w) => w.name)).toEqual(["Pistol", "Machete", "SMG", "Hunting Rifle", "Shotgun", "Assault Rifle", "Fire Axe", "Chainsaw", "Grenade Launcher", "Gas torch", "Flamethrower"]);
     expect(weaponName(balance, "smg")).toBe("SMG");
     expect(weaponName(balance, "big_gun")).toBe("Big Gun");
     expect(shopPrice(balance, "smg")).toBe(200);

@@ -123,7 +123,7 @@ function crossCheckFlames(parsed: Record<string, unknown>, issues: string[]): vo
     if (Math.abs(v - Math.round(v)) > 1e-9) issues.push(`weapons.json: ${id}: damage × playerPulseS × friendlyFire.pct / 100 = ${v} must be a whole number (player HP is whole)`);
   }
   for (const [id, t] of Object.entries((parsed.buildings as { types: Record<string, BuildingTypeStats> }).types)) {
-    if (t.mine && Math.abs(t.mine.playerShare * 100 - pct) > 1e-9) issues.push(`buildings.json: types.${id}.mine.playerShare ${t.mine.playerShare} must equal combat.json friendlyFire.pct / 100 (${pct / 100})`);
+    if (t.mine && Math.abs(t.mine.playerShare * 100 - pct) > 1e-9) issues.push(`buildings.json: types.${id}.mine.playerShare ${t.mine.playerShare} must equal combat.json friendlyFire.pct / 100 (${pct / 100}): the blast uses the friendly-fire rule`);
   }
 }
 

@@ -6,7 +6,7 @@ import { spawnZombie } from "../zombies/zombiePool";
 import { applyZombieDamage, damagePlayerBy, type DamageTag } from "./damage";
 import { addPlayer } from "../player/player";
 import { bundledBalanceFiles, withOverrides } from "../config/balance";
-import { explode } from "./explosion";
+import { createExplosionSpec, explode } from "./explosion";
 
 describe("applyZombieDamage", () => {
   it("emits zombie.hit, pushes back, and kills at 0 HP once", () => {
@@ -119,8 +119,19 @@ describe("Story 5.4: friendly-fire table (damagePlayerBy)", () => {
     a.y = 16;
     b.x = 21;
     b.y = 16;
-    explode(world, 20.5, 16, 2.5, 80, 0.5, "p0", "mine", 1);
+    explode(world, { ...createExplosionSpec(), x: 20.5, y: 16, radiusM: 2.5, zombieDamage: 80, playerDamage: 80, kind: "mine", sourcePlayerId: "p0", weapon: "mine", buildingId: 1 });
     expect(a.hp).toBe(60);
     expect(b.hp).toBe(60);
+  });
+
+  it("5.8 row: friendlyFire false (the Bloater blast) bypasses the share: the full amount even when a player popped it", () => {
+    const { world, a, b } = setup();
+    a.x = 20;
+    a.y = 16;
+    b.x = 21;
+    b.y = 16;
+    explode(world, { ...createExplosionSpec(), x: 20.5, y: 16, radiusM: 2.5, zombieDamage: 30, playerDamage: 30, friendlyFire: false, kind: "bloater", sourcePlayerId: "p0", weapon: "bloater" });
+    expect(a.hp).toBe(70);
+    expect(b.hp).toBe(70);
   });
 });

@@ -23,7 +23,8 @@ import {
 } from "./projectilePool";
 import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
-import { isFlame, isMelee, magazineOf, usesAmmo, weaponDamage, weaponIds, weaponStats } from "./weapons";
+import { isFlame, isLauncher, isMelee, magazineOf, usesAmmo, weaponDamage, weaponIds, weaponStats } from "./weapons";
+import { launchGrenade, updateGrenades } from "./grenades";
 import { flameTick, updateIgnites } from "./flame";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
@@ -197,8 +198,20 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
     return true;
   }
 
-  // Aim assist on touch only (FR4), before spread; mouse aim is never assisted.
   const offset = p.radiusM + MUZZLE_OFFSET_M;
+  if (isLauncher(stats)) {
+    // Story 5.5: one lobbed round along the raw aim (no aim assist, no spread); the aim length is
+    // the lob distance (FR-A). A full pool spends nothing (no ammo, no cooldown).
+    if (!launchGrenade(world, p, slot.weapon, slot.level, stats, dir.x, dir.y, aimLen)) return false;
+    slot.ammo--;
+    world.events.emit({ type: "weapon.fired", playerId: p.id, weapon: slot.weapon, x: p.x + dir.x * offset, y: p.y + dir.y * offset, dirX: dir.x, dirY: dir.y });
+    if (slot.ammo === 0) {
+      slot.reloadTicks = ticksFor(stats.reloadS);
+      world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+    }
+    return true;
+  }
+  // Aim assist on touch only (FR4), before spread; mouse aim is never assisted.
   if (!input.isMouse) {
     const view = rewind > 0 ? rewoundView(world, world.tick - rewind) : null;
     assistAim(world, p.x + dir.x * offset, p.y + dir.y * offset, dir.x, dir.y, stats.rangeM, dir, view);
@@ -375,6 +388,7 @@ export const updateCombat: SystemFn = (world, dtS) => {
     if (!p.weaponsPaused) updatePlayerWeapon(world, p, dtS, world.inputs.get(p.id));
   });
   updateProjectiles(world, dtS);
+  updateGrenades(world); // Story 5.5: rounds landing this tick burst (after the projectiles)
   updateIgnites(world); // Story 5.4 (FR-G): burning zombies, after every weapon of the tick
 };
 

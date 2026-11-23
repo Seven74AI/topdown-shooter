@@ -13,7 +13,7 @@ import { startBuild, startWave } from "../run/runStateMachine";
 import { isZombieAlive, spawnZombie } from "../zombies/zombiePool";
 import { addBuildingAt, buildingById, ownedCount, placementError, type Building } from "./buildings";
 import { mineCounters } from "./mine";
-import { blastResult, explode } from "../combat/explosion";
+import { blastResult, createExplosionSpec, explode } from "../combat/explosion";
 import { zombieCandidates } from "../combat/scratch";
 
 /**
@@ -281,7 +281,7 @@ describe("mine (Story 5.9)", () => {
     for (let k = 0; k < 16; k++) {
       expect(zombieCandidates[k]).toBe(1000 + k);
       visited++;
-      if (k === 3) explode(world, 20.5, 16, 2.5, 1, 0.5, "p0", "mine", 0); // re-entrant blast mid-iteration
+      if (k === 3) explode(world, { ...createExplosionSpec(), x: 20.5, y: 16, radiusM: 2.5, zombieDamage: 1, playerDamage: 1, kind: "mine", sourcePlayerId: "p0", weapon: "mine" }); // re-entrant blast mid-iteration (Story 5.5: the spec API)
     }
     expect(visited).toBe(16);
     expect(blastResult.zombiesHit).toBe(5); // liveness: the blast really hit

@@ -7,7 +7,7 @@ import type { WeaponId } from "./weapons";
 import { recordDamager } from "../economy/economy";
 import type { PlayerState } from "../player/player";
 import { downPlayer } from "../player/downed";
-import { DAMAGE_TAGS, type DamageTag } from "../core/simEvents";
+import { DAMAGE_SOURCE_EXPLOSION, DAMAGE_SOURCE_FIRE, DAMAGE_TAGS, type DamageTag } from "../core/simEvents";
 
 export { DAMAGE_TAGS, type DamageTag };
 
@@ -42,7 +42,9 @@ export function damagePlayerBy(world: World, target: PlayerState, amount: number
   }
   const taken = Math.min(dmg, target.hp);
   target.hp = Math.max(0, target.hp - dmg);
-  world.events.emit({ type: "player.damaged", playerId: target.id, amount: dmg, sourceZombieId, tag, sourcePlayerId });
+  // A zombie-less blast or fire keeps its 5.9/4.8 source code on the wire (−2 / −1) whatever the caller passed.
+  const src = sourceZombieId >= 0 ? sourceZombieId : tag === "explosion" ? DAMAGE_SOURCE_EXPLOSION : tag === "fire" ? DAMAGE_SOURCE_FIRE : sourceZombieId;
+  world.events.emit({ type: "player.damaged", playerId: target.id, amount: dmg, sourceZombieId: src, tag, sourcePlayerId });
   if (sourcePlayerId !== null) {
     friendlyFireStats.hits++;
     friendlyFireStats.damage += taken;

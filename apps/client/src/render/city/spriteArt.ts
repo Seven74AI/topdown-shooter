@@ -7,6 +7,7 @@ import type { ZombieTypeId } from "@topdown/shared";
 import { CAR_COLORS, CAR_WRECK } from "./dressing";
 import { drawSpitter } from "./spitterArt";
 import { drawBrute } from "./bruteArt";
+import { BL_EXTENT_R, drawBloater } from "./bloaterArt";
 
 type G = CanvasRenderingContext2D;
 
@@ -94,6 +95,7 @@ export const CHAR_EXTENT_R: Readonly<Record<ZombieTypeId | "survivor", number>> 
   crawler: 1.75,
   spitter: 2.35, // Story 5.6 (P4): mouth drops ahead and the acid trail behind (drawn × SPITTER_ART_SCALE) reach ~2.3 r
   brute: 1.5, // Story 5.7: fists ~1.2 r ahead, the windup fists ~1.45 r to the side, BR5's dragged chain ~1.3 r behind
+  bloater: BL_EXTENT_R, // Story 5.8: 1.8 r: the 1.35 × swollen body and its puffy hands (the reference's 0.9 m frame)
   survivor: 2.7, // Story 5.2: the Chainsaw's bar (and its running blur) reaches 2.66 r ahead, the Fire Axe 2.46 r
 };
 
@@ -111,6 +113,8 @@ export function drawZombie(c: G, type: ZombieTypeId, r: number, variant: number,
   if (type === "spitter") return drawSpitter(c, r, variant, windup);
   // Story 5.7: the Brute's five looks (BR1–BR5) and its windup pose, one function.
   if (type === "brute") return drawBrute(c, r, variant, windup);
+  // Story 5.8: the Bloater's five looks (BL1–BL5); its swell frames are drawn by `drawBloater` directly.
+  if (type === "bloater") return drawBloater(c, r, variant, 0);
   const seed = 5 + variant * 13 + (type === "runner" ? 100 : type === "crawler" ? 200 : 0);
   c.lineJoin = "round";
   c.strokeStyle = CHAR.outline;

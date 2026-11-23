@@ -113,6 +113,26 @@
     "quietHits": true,
     "price": 600
   },
+  "grenade_launcher": {
+    "name": "Grenade Launcher",
+    "kind": "launcher",
+    "damage": 40,
+    "rateHz": 0.8,
+    "rangeM": 12,
+    "lobRangeM": 12,
+    "minLobM": 3,
+    "lobSpeedMps": 20,
+    "minFlightS": 0.25,
+    "blastRadiusM": 2,
+    "blastPushM": 0.6,
+    "blastBuildingDamage": 0,
+    "magazine": 4,
+    "reloadS": 3.0,
+    "spreadDeg": 0,
+    "hitPushbackM": 0,
+    "screenShake": true,
+    "price": 800
+  },
   "flamethrower": {
     "name": "Flamethrower",
     "kind": "flame",

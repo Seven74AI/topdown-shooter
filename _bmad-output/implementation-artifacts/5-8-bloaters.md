@@ -1,6 +1,6 @@
 # Story 5.8: Bloaters
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -97,18 +97,18 @@ so that tight crowds and careless melee become dangerous.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art pick first:** ~5 Meshy proposals (`nano-banana-pro`, the 4.11 style line) for (a) the Bloater seen from directly above (round, swollen, torn shirt stretched over a bloated belly, sickly skin, clearly wider than a Walker and different from a Brute), (b) its swollen state (the same, close to bursting, glowing veins), (c) the gas cloud (a low yellow-green fog disc on wet asphalt) and the blast (a gory burst with a gas puff). Publish a private proposal page and **wait for the designer's pick**. Record it in `docs/art/5-8/README.md` (4.11 format). Frames: `zombie_bloater_body_a/b`, `zombie_bloater_swell_a`, `fx_gas_cloud_a…`, `fx_explosion_bloater_a`.
-- [ ] **T1 Balance + schema (AC 1, 6):** the `explodes` block in `zombieTypeSchema` (optional, refines), `zombies.json › blasts`, `bloater` type, `waves.json` (`runWaves` 6, mix row 6), `ZOMBIE_TYPES`/`ZOMBIE_STATE` append, `loadBalance` checks (mix ids exist). Tests: `balance.test.ts`.
-- [ ] **T2 AI + swell (AC 2):** `zombies/bloater.ts`, hooks in `zombieAi.ts` (passes 1, 2, 4), `swellTicks` in `zombiePool.ts`. Tests in `bloater.test.ts`.
-- [ ] **T3 Blasts + chain + credit (AC 3, 5):** the `killZombie` hook, the `world.blasts` ring, `processBlasts` at the start of the zombies system, the 5.5 `explode()` call with `kind: "bloater"` (append it to `EXPLOSION_KINDS`) and `creditPlayerId`. Tests.
-- [ ] **T4 Gas (AC 4):** `world.gas` pool, `updateGas`, the 3.9 slow. Tests.
-- [ ] **T5 Waves (AC 6, 12):** update every 5-wave assumption (list above); the 6-wave sim with liveness.
-- [ ] **T6 Copies (brief 2):** World (`blasts`, `gas`, pool `swellTicks`) → `snapshotWorld` → schema (none; `slowTicks`/`slowPct` already synced) → `syncState` (none) → key lists (none) → mirror (`mirrorZombies`: `SWELL` state; `NetSimHost` cosmetic clouds from events) → Predictor (none, D7) → devThrottle (none). `netEvents.ts` (swell kind; explosion kind index), `hordeFormat.ts` (state value ≤ 7 test).
-- [ ] **T7 Client (AC 8):** `ZombieView` look + swell animation + fuse ring, `render/GasView.ts` (pooled clouds), the bloater variant of `ExplosionView`, the gas screen tint, sounds, the readability sheet.
-- [ ] **T8 Network tests (AC 13).**
-- [ ] **T9 Fuzz + mutations (AC 9, 14).**
-- [ ] **T10 Bandwidth + perf + phone FPS (AC 7, 10):** extend `weaponBandwidth.test.ts` (or a new `bloaterBandwidth.test.ts`), `tickCostDowntown.test.ts` (40 Bloaters + a forced chain), `?stress=150&wavemix=bloater,walker`.
-- [ ] **T11 Browser + gates + merge notes:** Playwright solo `?wavemix=bloater` (touch → swell → blast after 1 s; a chain; gas slow on the HUD), online 2 players under lag.
+- [x] ~~**T0 Art pick first:**~~ Skipped on the coordinator's instruction: the designer's round-C decision already picked all five code drawings BL1–BL5 as random variants (`render/city/bloaterArt.ts`). ~5 Meshy proposals (`nano-banana-pro`, the 4.11 style line) for (a) the Bloater seen from directly above (round, swollen, torn shirt stretched over a bloated belly, sickly skin, clearly wider than a Walker and different from a Brute), (b) its swollen state (the same, close to bursting, glowing veins), (c) the gas cloud (a low yellow-green fog disc on wet asphalt) and the blast (a gory burst with a gas puff). Publish a private proposal page and **wait for the designer's pick**. Record it in `docs/art/5-8/README.md` (4.11 format). Frames: `zombie_bloater_body_a/b`, `zombie_bloater_swell_a`, `fx_gas_cloud_a…`, `fx_explosion_bloater_a`.
+- [x] **T1 Balance + schema (AC 1, 6):** the `explodes` block in `zombieTypeSchema` (optional, refines), `zombies.json › blasts`, `bloater` type, `waves.json` (`runWaves` 6, mix row 6), `ZOMBIE_TYPES`/`ZOMBIE_STATE` append, `loadBalance` checks (mix ids exist). Tests: `balance.test.ts`.
+- [x] **T2 AI + swell (AC 2):** `zombies/bloater.ts`, hooks in `zombieAi.ts` (passes 1, 2, 4), `swellTicks` in `zombiePool.ts`. Tests in `bloater.test.ts`.
+- [x] **T3 Blasts + chain + credit (AC 3, 5):** the `killZombie` hook, the `world.blasts` ring, `processBlasts` at the start of the zombies system, the 5.5 `explode()` call with `kind: "bloater"` (append it to `EXPLOSION_KINDS`) and `creditPlayerId`. Tests.
+- [x] **T4 Gas (AC 4):** `world.gas` pool, `updateGas`, the 3.9 slow. Tests.
+- [x] **T5 Waves (AC 6, 12):** update every 5-wave assumption (list above); the 6-wave sim with liveness.
+- [x] **T6 Copies (brief 2):** World (`blasts`, `gas`, pool `swellTicks`) → `snapshotWorld` → schema (none; `slowTicks`/`slowPct` already synced) → `syncState` (none) → key lists (none) → mirror (`mirrorZombies`: `SWELL` state; `NetSimHost` cosmetic clouds from events) → Predictor (none, D7) → devThrottle (none). `netEvents.ts` (swell kind; explosion kind index), `hordeFormat.ts` (state value ≤ 7 test).
+- [x] **T7 Client (AC 8):** `ZombieView` look + swell animation + fuse ring, `render/GasView.ts` (pooled clouds), the bloater variant of `ExplosionView`, the gas screen tint, sounds, the readability sheet.
+- [x] **T8 Network tests (AC 13).**
+- [x] **T9 Fuzz + mutations (AC 9, 14).**
+- [x] **T10 Bandwidth + perf + phone FPS (AC 7, 10):** extend `weaponBandwidth.test.ts` (or a new `bloaterBandwidth.test.ts`), `tickCostDowntown.test.ts` (40 Bloaters + a forced chain), `?stress=150&wavemix=bloater,walker`.
+- [x] **T11 Browser + gates + merge notes:** Playwright solo `?wavemix=bloater` (touch → swell → blast after 1 s; a chain; gas slow on the HUD), online 2 players under lag.
 
 ## Dev Notes
 
@@ -171,10 +171,66 @@ Bloaters are one more character frame set in `ATLAS_CHARACTERS` (no extra draw c
 
 ### Agent Model Used
 
+Claude Opus 5.5 (builder, worktree `story-5-8`, ports 5587 / 4587; no game server was needed).
+
 ### Debug Log References
+
+- Gate (2026-11-23, `uptime` load 10.1 → 8.6 during the run, other builders active): `npm run typecheck` ✓, `npm run lint` ✓, `npm test` ✓ **239 files, 1,870 passed, 3 skipped**, `npm run build` ✓.
+- Six-wave sims (`npx tsx tools/sims/fiveWave.ts --players 1,2,3,4 --seeds 1-4`, real balance, bots.json list; 22.7 s):
+
+| Team | Held out (seeds 1–4) | Cleared by wave 1/2/3/4/5/6 | W6 Bloater bursts per run | Chain links per run | Blast hits on bots | Earned / player (mean) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1p | 2/4 (wiped W5, W4) | 4/4/4/3/2/2 | 14 | 9–10 | 0 | 781 |
+| 2p | 4/4 | 4/4/4/4/4/4 | 21 | 8–12 | 0 | 930 |
+| 3p | 4/4 | 4/4/4/4/4/4 | 28 | 9–16 | 0 | 839 |
+| 4p | 4/4 | 4/4/4/4/4/4 | 36 | 11–17 | 0 | 803 |
+
+  Bots shoot Bloaters from range, so no blast ever reached them (bot survival is not difficulty evidence).
+- Bandwidth (`bloaterBandwidth.test.ts`): wave 6 at 4 players, 90 s: **+18.9 B/s per client** (12 swells, 35 bursts); a forced 20-Bloater chain: worst tick 456 B, 295 B/s over its 3 s.
+- Tick cost (`tickCostBloater.test.ts`, `PERF_ASSERT=1`, load 7.3): 150 Walkers p99 0.915 ms; 110 Walkers + 40 Bloaters + a 20-Bloater chain every 2 s p99 1.605 ms (**+0.69 ms**), worst single tick 9.4 ms (a chain tick under load); 426 blasts. (First run at load 10.9: +1.43 ms.)
+- Headless FPS (swiftshader, 844×390 @2×, load 3.5–6.7; noisy): `?stress=150` 9.4 / 7.3 / 7.6 fps; `?stress=150&wavemix=bloater,walker` 7.5 / 5.0 / 13.3 fps. In the Bloater runs the god-mode survivor's crowd blows itself up (75 Bloaters chain through the Walkers): alive 0 by the end of the 20 s window, so this measures the burst/cloud peak, not a lasting load. The 4.10 phone numbers were not re-measured on a phone.
+- Netsim (`tools/netsim/bloater.test.ts`, lag 150 ± 20): running away when the CLIENT sees the swell cleared the blast in 12/12 seeds; standing still, client HP = server HP after the blast and the cloud lands ≤ 1 cm from the server's; the gas slow reaches the client 2 server ticks late per run (onset + end, the Crawler bite's latency: D7 kept, no Predictor clouds); a tab asleep across a burst and a build start woke with 0 clouds.
+- Fuzz (`bloater.fuzz.test.ts`, 8 layouts × stages 1–3 × 4 players × 40 Bloaters + 25 Walkers × 4,000 ticks): every death burst exactly once, removals never; all swells ended; each tick's blast hits equalled the independent overlap + line-of-sight rewrite; no body in a box; 0 overflows; gas slowed only players with a line of sight; liveness ≥ 1 chain and ≥ 1 player hit.
+- Mutations (`scratchpad/b58/mutate.py`, `mutate2.py`, each once): **22 of 23 killed.** M1 swell bites, M2 no blast when the player leaves, M3 double blast mid-swell, M4 same-tick chain, M5 blast ignores cover, M6 gas through cars, M7 FF halves the blast, M8 slow stacks, M9 zombies slowed (survived first: its Walker died in the blast; made tough, then killed), M10 queue drops overflow, M11 runWaves 5, M12 no building damage, M13 swell queued (21 ticks), M14 crowd pushes a swelling Bloater, M15 removal bursts, M16 no credit down a chain; client C1 stale burst drawn, C2 build start keeps clouds, C4 cloud never fades, C5 swell frames stuck, C6 swell event not decoded, C7 blast hits global (survived first; `eventInterest.test` case added, then killed). **Survived (equivalent):** C3 "no particle cap check": the slot search is bounded by the pool anyway.
+- Browser (Playwright, solo dev build `?solo=1`, the dev-cheat spawn): a Bloater walked up, swelled (fuse ring filling), burst 22 polled ticks later (the sim tests pin it at 20), HP 100 → 70, slow 30 %, gas edge tint on; a 9-Bloater pack chained out in 1–2 ticks; all five looks in one crowd; no page errors. Screenshots: `docs/art/epic-5/round-c/ingame/5-8-{swell,burst,chain,gas,looks}.png`.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Sim (shared):** `zombies/bloater.ts` holds every rule: the swell (`startSwell`/`tickSwell`, pass 4), the one `killZombie` hook (`onZombieKilled`: swell end → blast now, D6; any other death → the FIFO ring `world.blasts`; `cheat`/`decay` removals never burst), `processBlasts` at the start of the zombies slot (≤ `maxBlastsPerTick`, oldest first; blasts queued while they run wait a tick, FR-E; a full queue fires its oldest at once), the gas (`world.gas` = an `AreaPool` of kind GAS, `updateGas` at the end of the slot, the 3.9 `slowPlayer`, line of sight to the cloud centre), `clearBlasts` at every build start and at Results. The blast goes through the shared `explode()` with `playerShare = playerDamage / zombieDamage` (30, never halved: D1) and a new optional `BlastExtra { buildingDamage, pushM }` (wall buildings only, cover-checked; the 0.5 m push via `applyKnockback`). Kill credit = the Bloater's killer, passed down chains; turret kills keep the building share; swell and fire blasts credit nobody.
+- **AI:** swelling Bloaters stand (pass 1), are not moved by the hard overlap pass (the other body takes it all), never bite; a Bloater blocked by a wall it touches swells there (builder decision: otherwise a 0-damage Bloater would stand at a barricade forever; its blast does the D3 40). The rush marker never overwrites SWELL.
+- **Balance:** `zombies.json` bloater (25 HP, 0.9 m/s, 0 damage, 0.5 m, reward 6, `wideBody: true` — the 0.5 m body needs the wide grid; balance.ts rejects > 0.35 m otherwise), `explodes` block (zod: whole ticks, integer percent, swell ≤ 255 ticks), `blasts` caps; `waves.json` `runWaves` 6 + the D9 mix row; `controls.json › fx.maxBloaterParticles` 240, `maxFuseRings` 16.
+- **Wire:** `BLOATER_SWELL_STARTED` 33 `[k, netId, cm x, cm y]`, `BLOATER_BURST` 34 `[k, cm x, cm y, chain]` — local in `EventInterest`, as are a blast's non-killing zombie hits. SWELL = 5 in the state nibble (≤ 7).
+- **Client:** `bloaterArt.ts` (BL1–BL5 ported with the round-C library, arms under the clothes; frames `zombie_bloater_{a..e}` + `zombie_bloater_swell{1..3}_{a..e}`, 123 px), look per Bloater from the stream `look:bloater:<netId>` (`bloaterLookIndex`); `ZombieView` steps the swell frames over the fuse with a quickening green pulse and plays the rising swell sound (gurgle cue on first view); `BloaterView` + `bloaterFx.ts`: fuse rings at the exact blast radius, pooled fog discs (2 per cloud, ≤ 24 clouds) at exactly `gasRadiusM` for exactly `gasS`, flash, shock ring, bile drops → splats, cloth scraps, gas puffs (one pool, 240); FX frames in `atlas_fx` (`bloaterFxArt.ts`, through `addGeneratedTexture` via `register`); HUD gas edge tint; burst pop + near-blast shake; readability sheet items 27–29.
+- Every five-wave assumption follows `runWaves` (list in AC 6); `fiveWaveSim.test.ts` keeps its name (merge safety) and gains the six-wave Bloater block (1–4 bots × seeds 1–4).
+
+### Beat the rule (builder attempts)
+
+1. Outrun the swell: ✓ (tests + netsim under lag: 12/12 clear; 4.5 m/s × 1 s > the 2.0 m from contact to the 2.9 m edge). 2. Bait it into a crowd: chain one tick per link, ≤ 8 per tick, no double blast (tests + fuzz). 3. Pop it next to a teammate: the teammate AND the shooter take 30 (D1, designer accepted). 4. Behind a car: no damage, no gas; sandbags/barricades don't shield (tests). 5. Melee kill at Machete reach: 30 to the wielder (test). Fire Axe knockback distances not measured. 6. Spawns: 6 m − jitter 0.75 m > 2.9 m reach (test); blasting a spawn is allowed. 7. 40 packed + one grenade: 40 bursts over ≥ 5 ticks, none lost, 0 overflow (test). 8. Gas + Crawler: 30 %, not 60 % (test). 9. Downed player: no swell (test). 10. Lost `bloater.swell_started`: the state nibble still draws the swell; lost `bloater.burst`: no cloud drawn, the server slow still applies (readability cost: the edge tint only shows inside a drawn cloud).
+
+### Notes for the merge
+
+- **`combat/explosion.ts` (5.5 owns it):** I kept the 5.9 positional `explode()` and appended one optional parameter `extra: BlastExtra | null` (`buildingDamage`, `pushM`) plus `blastWalls` and `blastResult.buildingsHit`. At the 5.5 merge fold these into its spec object (`buildingDamage`, `pushM`, `creditPlayerId`) and change the one call in `zombies/bloater.ts › runBlast`: `kind "bloater"`, `radiusM`, `zombieDamage 40`, `playerDamage 30`, `sourcePlayerId: null`, `creditPlayerId: credit` (+ the turret's `buildingId`), `weapon "bloater_blast"`. If 5.5 adds `explosion.happened`, `bloater.burst` can become its `kind bloater` (BloaterFx and NetSimHost key on `bloater.burst` today). Never two blast functions.
+- **5.4 (`damagePlayerBy`):** the blast's player damage still goes through `damagePlayerByExplosion` inside `explode()` (no source player = no friendly-fire scaling). After 5.4 it is `damagePlayerBy(…, "explosion", null)`. The gas does no damage.
+- **Event kinds 33/34** were the next free when built; 5.4/5.5 may also have taken 33+: renumber at merge, never reuse.
+- **`ZOMBIE_TYPES`** appended `bloater` (index 5); **`ZOMBIE_STATE.SWELL = 5`** (5.4's burning bit 3 of the nibble stays free).
+- `zombies/zombiePool.ts` (`swellTicks`, the hook in `killZombie`, which now imports `bloater.ts`), `zombieAi.ts` (pass 1 stand, pass 3 overlap, pass 4 swell + wall swell, burnt-out swells after the loop), `waveDirector.ts` (rush keeps SWELL), `core/world.ts` (`blasts`, `gas`), `worldSnapshot.ts` (`bloater: { queue, gas }`, `swellTicks`: digests change), `systems.ts` (zombie slot order), `runStateMachine.ts` (`clearBlasts` in `startBuild` and `endRun`), `hazards/areaPool.ts` (`AREA_KIND.GAS`), `simEvents.ts`, `netEvents.ts`, `index.ts` exports, `balanceSchema.ts` (`explodesSchema`, `blastsSchema`, two fx caps), balance JSON (zombies, waves, controls).
+- Tests adjusted for 6 waves: `decay.test` (stage list), `waveDirector.test` (sizes, mix row 6, 6-slot arrays), `runStateMachine.test`, `RunRoom.3-10.test`, `slow.test`, `netEvents.test`; three reach tests now remove reached zombies with `"cheat"` (a killed Bloater would burst). 5.4/5.5 tests that kill Bloaters with `"pistol"`-style weapons will see blasts.
+- Client: `ZombieView.ts`, `spriteArt.ts` (`CHAR_EXTENT_R.bloater`), `spriteAtlas.ts` (frames), `GameScene.ts`, `HudScene.ts`/`hudModel.ts` (`gasGlow`), `NetSimHost.ts` (ages the two events), `placeholderSfx.ts` (3 sounds), new `BloaterView`/`bloaterFx`/`bloaterLook`/`bloaterArt`/`bloaterFxArt`. Server: `eventInterest.ts`.
+
+### Not verified
+
+- No phone: headless swiftshader FPS only (5–13 fps, noisy, load 3.5–7); the 4.10 phone floor not re-measured. The stress Bloater run empties its own crowd.
+- No online browser run with 2 players under `?lag` (covered by the netsim harness and NetSimHost tests instead); the late-Game-scene start not exercised for Bloaters specifically (cosmetic clouds come only from events after the start, like acid).
+- Fire Axe knockback vs the swell (Beat the rule 5) distances not recorded. Sounds are placeholders, heard by nobody.
+- Flow-field rebuilds mid-wave when a blast destroys a barricade (as when zombies break one; brief line 7's "only at build start" is not met for destroyed walls, same as before 5.8).
+- Swell frames: the fuse ring is drawn from the client's own clock after it first sees SWELL (≈ 1 trip late online), so the client's ring finishes ~75–150 ms after the server's blast.
 
 ### File List
+
+New: `packages/shared/src/zombies/bloater.ts`, `bloater.test.ts`, `bloater.fuzz.test.ts`; `apps/client/src/render/BloaterView.ts`, `bloaterFx.ts`, `bloaterFx.test.ts`, `bloaterLook.ts`, `bloaterLook.test.ts`, `city/bloaterArt.ts`, `city/bloaterFxArt.ts`; `apps/client/src/sim/NetSimHost.bloater.test.ts`; `apps/server/src/run/bloaterBandwidth.test.ts`, `tickCostBloater.test.ts`; `tools/netsim/bloater.test.ts`; `docs/art/epic-5/round-c/ingame/5-8-{swell,burst,chain,gas,looks}.png`; `docs/playtests/milestone-1/objects/{28_bloater,29_bloater_swell,30_bloater_gas}.png`.
+
+Modified: `packages/shared/src/{bots/headlessRun.ts, combat/explosion.ts, config/balanceSchema.ts, config/balance/{controls,waves,zombies}.json, core/{simEvents,systems,world,worldSnapshot}.ts, hazards/areaPool.ts, index.ts, net/netEvents.ts, run/runStateMachine.ts, waves/waveDirector.ts, zombies/{zombieAi,zombiePool,zombieTypes}.ts}`; tests `decay/{decay,fire,panic}.test.ts, economy/fiveWaveSim.test.ts, net/netEvents.test.ts, player/slow.test.ts, run/runStateMachine.test.ts, waves/waveDirector.test.ts`; `apps/client/src/{audio/placeholderSfx.ts, render/ZombieView.ts, render/city/{spriteArt,spriteAtlas}.ts, scenes/{GameScene,HudScene,hudModel}.ts, sim/NetSimHost.ts}`; `apps/server/src/net/{eventInterest.ts, eventInterest.test.ts}`, `apps/server/src/rooms/RunRoom.3-10.test.ts`; `tools/sims/fiveWave.ts`; `docs/playtests/milestone-1/readability-{sheet,key}.md`; this story file.
+
+### Change Log
+
+- 2026-11-23: Story 5.8 built (Bloaters: swell, death blast through the shared `explode()`, chains ≤ 8/tick, gas slow, kill credit, 6-wave run with the wave-6 mix, five code looks with swell frames, pooled burst/gas FX, fuse ring, HUD tint, events + interest, fuzz, netsim, bandwidth, tick cost, sims, mutations, browser check). Status → review.

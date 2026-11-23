@@ -104,7 +104,38 @@ const flameSchema = z
   .refine((f) => Math.round(f.igniteS * TICK_RATE_HZ) <= 255, { message: "igniteS × 20 must fit a uint8 clock", path: ["igniteS"] })
   .refine((f) => Math.round(f.pulseS * TICK_RATE_HZ) <= 255 && Math.round(f.playerPulseS * TICK_RATE_HZ) <= 255 && Math.round(f.ignitePulseS * TICK_RATE_HZ) <= 255, "pulses must fit a uint8 clock");
 
-export const weaponSchema = z.discriminatedUnion("kind", [gunSchema, meleeSchema, flameSchema]);
+/**
+ * Story 5.5: a launcher (the Grenade Launcher). One trigger pull lobs one round along the raw aim
+ * (no spread, no aim assist) to the aim point at `minLobM`–`lobRangeM` from the muzzle (the aim
+ * vector's length encodes the distance: `combat/grenades.ts`). It flies a straight ground track at
+ * `lobSpeedMps` (at least `minFlightS`); cars, the bus and buildings stop it at their face (4.2).
+ * On landing it bursts (`combat/explosion.ts`): `damage` (× the 5.1 level) to every body the blast
+ * of `blastRadiusM` reaches with a clear line, zombies pushed `blastPushM` straight out (swept, 5.3),
+ * players through the friendly-fire rule (`combat.json › friendlyFire`), buildings `blastBuildingDamage`.
+ * Magazine and reload follow the gun rules. `rangeM` is the lob range too (it must equal `lobRangeM`).
+ */
+const launcherSchema = z
+  .object({
+    kind: z.literal("launcher"),
+    ...common,
+    spreadDeg: z.literal(0),
+    magazine: z.number().int().positive(),
+    reloadS: z.number().positive(),
+    lobRangeM: z.number().positive().max(30),
+    minLobM: z.number().positive(),
+    lobSpeedMps: z.number().positive(),
+    minFlightS: z.number().positive().max(2),
+    blastRadiusM: z.number().positive().max(6),
+    blastPushM: z.number().min(0).max(3),
+    blastBuildingDamage: z.number().min(0),
+  })
+  .strict()
+  .refine((l) => l.minLobM < l.lobRangeM, { message: "minLobM must be below lobRangeM", path: ["minLobM"] })
+  .refine((l) => l.rangeM === l.lobRangeM, { message: "a launcher's rangeM is its lob range: it must equal lobRangeM", path: ["rangeM"] })
+  // The landing tick goes on the wire as `landTick − tick` in a u8.
+  .refine((l) => Math.round(Math.max(l.minFlightS, l.lobRangeM / l.lobSpeedMps) * TICK_RATE_HZ) <= 255, { message: "the longest flight must fit 255 ticks (lobRangeM / lobSpeedMps)", path: ["lobSpeedMps"] });
+
+export const weaponSchema = z.discriminatedUnion("kind", [gunSchema, meleeSchema, flameSchema, launcherSchema]);
 export const weaponsSchema = z.record(balanceId, weaponSchema);
 
 /** Story 5.6 helper: `s` seconds is a whole number of ticks. */
@@ -146,6 +177,45 @@ export const spitCapsSchema = z
   .object({
     maxLiveSpits: z.number().int().min(1).max(256),
     maxLivePuddles: z.number().int().min(1).max(256),
+  })
+  .strict();
+
+/**
+ * Story 5.8: a Bloater's blast (FR24). On contact with a standing player it swells for `swellS`
+ * (stands still, never bites), then bursts where it stands; dying from any cause bursts it too. The
+ * blast hits bodies whose circle overlaps `blastRadiusM` with a clear shot line (4.2 cover):
+ * standing players take `playerDamage` (never halved: D1), zombies `zombieDamage` (pushed
+ * `pushM`), player wall buildings `buildingDamage`. It leaves a gas cloud of `gasRadiusM` for
+ * `gasS` that slows standing players inside it `gasSlowPct` (the 3.9 slow, `gasLingerS` after).
+ */
+export const explodesSchema = z
+  .object({
+    swellS: z.number().positive().max(5),
+    blastRadiusM: z.number().positive().max(10),
+    playerDamage: z.number().min(0),
+    zombieDamage: z.number().positive(),
+    buildingDamage: z.number().int().min(0),
+    pushM: z.number().min(0).max(3),
+    gasRadiusM: z.number().positive().max(10),
+    /** At most 60 s (ticks in a Uint16). */
+    gasS: z.number().positive().max(60),
+    gasSlowPct: z.number().int().min(0).max(90),
+    /** At most 10 s: the slow's remaining ticks go on the wire as a uint8 (3.9). */
+    gasLingerS: z.number().positive().max(10),
+  })
+  .strict()
+  .refine((e) => wholeTicks(e.swellS) && wholeTicks(e.gasS) && wholeTicks(e.gasLingerS), "explodes swellS, gasS and gasLingerS must be whole numbers of ticks")
+  .refine((e) => Math.round(e.swellS * TICK_RATE_HZ) <= 255, "explodes swellS must fit a uint8 of ticks");
+
+/** Story 5.8: the Bloater blast queue and the gas cloud pool (brief lines 10, 12). */
+export const blastsSchema = z
+  .object({
+    /** Queued (chain) blasts run at most this many per tick, oldest first (FR-E, D4). */
+    maxBlastsPerTick: z.number().int().min(1).max(64),
+    /** The blast queue's size (a full queue runs its oldest blast at once: never dropped). */
+    queueCapacity: z.number().int().min(1).max(1024),
+    /** Live gas clouds (the oldest is replaced when full). */
+    maxGasClouds: z.number().int().min(1).max(256),
   })
   .strict();
 
@@ -205,6 +275,8 @@ export const zombieTypeSchema = z
      * grid (every box grown by `pathing.wideInflateM`) and follows the wide chase field.
      */
     wideBody: z.boolean().default(false),
+    /** Story 5.8: bursts on contact (after a swell) and on death (Bloaters); absent = never explodes. */
+    explodes: explodesSchema.optional(),
   })
   .strict();
 
@@ -279,7 +351,7 @@ export const flankSchema = z
   .strict();
 
 export const zombiesSchema = z
-  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema, pathing: pathingSchema, flank: flankSchema, spitCaps: spitCapsSchema })
+  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema, pathing: pathingSchema, flank: flankSchema, spitCaps: spitCapsSchema, blasts: blastsSchema })
   .strict();
 
 export const wavesSchema = z
@@ -392,6 +464,10 @@ export const fxSchema = z
     chainsawSparkMs: z.number().int().min(16).max(1000),
     /** The rev loop stops this long after the last chainsaw tick (ms). */
     chainsawRevHoldMs: z.number().int().min(50).max(1000),
+    /** Story 5.8: Bloater burst particles (bile drops, cloth scraps, gas puffs) alive at once, all bursts together. */
+    maxBloaterParticles: z.number().int().min(16).max(1024).default(240),
+    /** Story 5.8: fuse rings drawn at once (one per swelling Bloater on screen). */
+    maxFuseRings: z.number().int().min(1).max(64).default(16),
   })
   .strict();
 
@@ -616,8 +692,11 @@ export const decaySchema = z
   .strict();
 
 /**
- * Story 5.4 (round C interface contract; 5.5 adds `explosion`, 5.8 `bloater` fx caps): the
- * friendly-fire rule (`combat/damage.ts › damagePlayerBy`) and the flame effect caps.
+ * Story 5.5 (shared with 5.4, 5.8, 5.12): `combat.json`. `friendlyFire` (owner 5.4): a player's fire
+ * or explosion that hits a player (a teammate or the shooter) deals `pct` % of its damage; it can
+ * down them when `canDown`. `explosion` (owner 5.5): the grenade pool size (`maxLiveRounds`, a u8 id
+ * on the wire), how far a round stopped by cover bursts in front of the face, and the client's
+ * effect caps (pools: brief line 12). `fx` (Story 5.4): the flame stream and burning-zombie caps.
  */
 export const combatSchema = z
   .object({
@@ -627,6 +706,26 @@ export const combatSchema = z
         pct: z.number().int().min(0).max(100),
         /** D1: friendly fire may down a teammate (false: it stops at 1 HP). */
         canDown: z.boolean(),
+      })
+      .strict(),
+    explosion: z
+      .object({
+        maxLiveRounds: z.number().int().min(1).max(255),
+        faceBackoffM: z.number().min(0.001).max(0.5),
+        fx: z
+          .object({
+            /** The cosmetic round's arc height (scale + shadow offset; never changes the track). */
+            lobArcM: z.number().min(0).max(5),
+            /** Camera shake for every player within this of a blast (settings toggle respected). */
+            shakeWithinM: z.number().min(0).max(20),
+            maxExplosionParticles: z.number().int().min(8).max(512),
+            maxScorchDecals: z.number().int().min(1).max(64),
+            /** Explosions drawn at once (flash + rings each; the oldest is reused). */
+            maxLiveExplosions: z.number().int().min(1).max(32),
+            /** A cosmetic round whose `explosion.happened` never came is hidden this many ticks after its landing tick. */
+            lostEventTicks: z.number().int().min(1).max(100),
+          })
+          .strict(),
       })
       .strict(),
     /** Client-only effect caps (brief line 12): never read by the simulation. */
@@ -655,7 +754,7 @@ export const balanceFileSchemas = {
   buildings: buildingsSchema,
   shop: shopSchema,
   decay: decaySchema,
-  combat: combatSchema, // Story 5.4
+  combat: combatSchema, // Story 5.5 (5.4 owns friendlyFire)
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;
@@ -663,9 +762,11 @@ export type GunStats = z.output<typeof gunSchema>;
 export type MeleeStats = z.output<typeof meleeSchema>;
 export type FlameStats = z.output<typeof flameSchema>;
 export type CombatStats = z.output<typeof combatSchema>;
+export type LauncherStats = z.output<typeof launcherSchema>;
 export type WeaponStats = z.output<typeof weaponSchema>;
 export type ZombieTypeStats = z.output<typeof zombieTypeSchema>;
 export type SpitStats = z.output<typeof spitSchema>;
+export type ExplodesStats = z.output<typeof explodesSchema>;
 export type BuildingTypeStats = z.output<typeof buildingTypeSchema>;
 export type TurretStats = z.output<typeof turretSchema>;
 export type TrapStats = z.output<typeof trapSchema>;
