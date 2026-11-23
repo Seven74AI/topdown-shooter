@@ -48,7 +48,7 @@ so that I can stop a dangerous zombie at a choke point.
 
 1. **A new floor building `bear_trap`** (`buildings.json › types`, appended after `med_station`: the type index is on the wire): **price 50, 1 × 1 m footprint, 100 HP, `solid: false`, `stopsBullets: false`**, in the shop/build bar (`forSale`/`inShop` true), counts toward the 6-building cap, 2 m spawn clearance (5.9 DD8). Its stats live in a new `bearTrap` block (`plateRadiusM 0.35, holdS 3, snapDamage 5, wearPerCatch 25, rearmS 1`) — every number in JSON (D1–D6).
 2. **Snap.** During a wave, the tick an alive zombie's **centre** comes within `plateRadiusM` of an **armed** trap's centre, the jaws close: that zombie takes `snapDamage` (5) and is **held** for `holdS` (3 s; Brutes `holdS × heavyHoldPct` = 1.5 s, D3). The trap is now *holding*. One zombie per catch.
-3. **Held.** A held zombie does not move: no walking, no crowd push, no hard-overlap shove, no knockback (Shotgun, Fire Axe, Bloater push). It is still a body (others crowd round it, players can't walk through it) and **still attacks**: it bites/swings a player in reach, a Spitter still spits, a Bloater touching a player still swells (D2 "caught by the leg, not stunned").
+3. **Held.** A held zombie does not move: no walking, no crowd push, no hard-overlap shove, no knockback (Shotgun, Fire Axe, Bloater push). It is still a body (others crowd round it; players are never blocked by zombie bodies in this game: it simply doesn't yield, corrected 2026-11-23, accepted) and **still attacks**: it bites/swings a player in reach, a Spitter still spits, a Bloater touching a player still swells (D2 "caught by the leg, not stunned").
 4. **Release.** After the hold (or when the held zombie dies), the zombie walks on and the trap is **sprung**: closed, harmless, drawn closed. It costs the trap `wearPerCatch` HP (25 → 4 catches); at 0 HP it is removed like a worn spike trap (`building.destroyed`).
 5. **Re-arm (D4).** A sprung trap re-arms when **any standing player** keeps their body over its plate circle for `rearmS` (1 s, their own clock, reset on leaving) — in a wave or a build phase, free. Every sprung trap also re-arms by itself at each build start. Players never trigger, get held by, or get hurt by a bear trap.
 6. **Credit.** A snap kill (a 5-HP Runner/Walker at low HP) is the trap's and its owner's (`zombie.killed` with `buildingId`, 3.6 M1 rule), like spike-trap kills.
@@ -63,7 +63,7 @@ so that I can stop a dangerous zombie at a choke point.
 12. **F6 Held means held, not harmless.** A held zombie keeps biting/spitting/swelling at what's in reach; walking up to it to shoot point-blank is a risk, never a free kill.
 13. **F7 Players are never caught.** Walking over an armed trap does nothing; standing on a sprung one re-arms it after 1 s (only a standing player; downed/out players don't). A player can't re-arm a trap while a zombie is held in it.
 14. **F8 No chains or stacking with spike traps.** Bear traps can't overlap other buildings (`footprintBlocked`); a zombie held next to a spike trap takes the spike trap's normal per-body damage only if its body is on the spike trap.
-15. **F9 Wear is visible and repairable.** HP bar shows wear (100 → 75 → 50 → 25); fire (4.8) and Bloater blast building damage (5.8) wear it too; a mine blast doesn't (5.9 DD6); repair as any building (3.7: 50 % of 50 = 25 to full).
+15. **F9 Wear is visible and repairable.** HP bar shows wear (100 → 75 → 50 → 25); fire (4.8) wears it too; mine and Bloater blasts don't (floor, as the spike trap: they only damage walls; corrected 2026-11-23, accepted); repair as any building (3.7: 50 % of 50 = 25 to full).
 16. **F10 Hidden tab / late join see the truth.** Open/closed comes from schema state, never only from an event; a tab that slept through a snap shows the closed trap.
 
 ### Netcode, perf, readability (brief 11–14)
@@ -123,7 +123,7 @@ so that I can stop a dangerous zombie at a choke point.
 | D9 | Two zombies at once | **Catches one** (the lowest id, deterministic) | — |
 | D10 | Build phase | **Never catches in a build phase** (like mines) | — |
 | D11 | Closed look | **Same B-T1 trap, jaws shut**, drawn by the builder; designer reviews the screenshot | Designer wants a mockup first |
-| D12 | Fire / blasts | **Fire and Bloater blasts wear it; mine blasts don't** (as the spike trap) | Immune to all |
+| D12 | Fire / blasts | **Fire wears it; mine and Bloater blasts don't** (as the spike trap; corrected 2026-11-23 from "fire and Bloater blasts", accepted) | Immune to all |
 
 ### Current state (read before changing)
 
