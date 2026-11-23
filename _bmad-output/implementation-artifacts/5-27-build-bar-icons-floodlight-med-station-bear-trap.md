@@ -1,6 +1,6 @@
 # Story 5.27: Build-bar icons for the floodlight, med station and bear trap
 
-Status: review
+Status: done
 
 (Added 2026-11-23: designer approved I1-style icons in the build-icons session; page claude.ai/artifact/32iPpVeANTX8ipBPGk4Vqf, code `docs/art/5-27/icons.html` › `floodlightFL1`, `medStationMS10`, `bearTrapBT1`. Builds on Story 5.26, `render/city/buildIcons.ts`.)
 
@@ -61,3 +61,7 @@ Claude (builder cloud session, 2026-11-23). Baseline: `3dab0ac`.
 ### Change Log
 
 - 2026-11-23: Story built (FL1, MS10, B-T1 icons baked and mapped). Status → review.
+
+## Senior Developer Review (AI) — fresh agent, 2026-11-23
+
+Clean: ports match the approved drawings line by line; atlas 796×72 via addGeneratedTexture; ids match balance (bear_trap matches story-5-14); no per-frame allocation; 6/6 mutations killed; full gate green. Nit (long JSDoc line) left as is.
