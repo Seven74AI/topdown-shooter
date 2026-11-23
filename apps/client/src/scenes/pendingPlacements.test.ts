@@ -154,7 +154,7 @@ describe("Story 5.18: PendingPlacements", () => {
     add(p, w, req(10));
     p.update(w, "p0", 0, true);
     p.pump(0, () => {});
-    expect(p.update(w, "p0", 3000, true)).toBe(0); // woken after 3 s: +100 ms of running time only
+    expect(p.update(w, "p0", 3000, true)).toBe(0); // woken after 3 s: +250 ms of running time only
     expect(p.clockMs).toBe(MAX_FRAME_GAP_MS);
     expect(p.count).toBe(1);
     build(w, req(10), 1); // the state applied on the woken frame answers it
@@ -232,6 +232,42 @@ describe("Story 5.18: PendingPlacements", () => {
     build(w, req(20), 1); // its building comes: nothing awaits → pairing on again
     p.update(w, "p0", t + 316, true);
     expect([p.matching, p.count]).toEqual([true, 0]);
+  });
+
+  it("re-review: a slow device (4 fps) still times out at 2 s; a frame gap only counts up to 250 ms", () => {
+    const w = world();
+    const p = new PendingPlacements();
+    add(p, w, req(10));
+    p.update(w, "p0", 0, true);
+    p.pump(0, () => {});
+    let n = 0;
+    for (let t = 250; t <= 1750; t += 250) n += p.update(w, "p0", t, true);
+    expect(n).toBe(0);
+    expect(p.update(w, "p0", 2000, true)).toBe(1); // 8 frames × 250 ms = 2 s
+    const q = new PendingPlacements();
+    q.update(w, "p0", 0, true);
+    q.update(w, "p0", 400, true); // 5 fps-ish… a 400 ms frame counts 250
+    expect(q.clockMs).toBe(250);
+  });
+
+  it("review L1 (re-review): evicting a still-awaiting ghost from a full pool switches pairing off: the next refusal picks no box", () => {
+    const w = world();
+    const p = new PendingPlacements();
+    for (let i = 0; i < PENDING_POOL; i++) add(p, w, req(i * 4));
+    let t = 0;
+    while (p.pump(t, () => {})) {
+      t += 250;
+      p.update(w, "p0", t, false);
+    }
+    for (let k = 0; k < 20; k++) {
+      t += 250;
+      p.update(w, "p0", t, true); // every box times out: a full pool of awaiting ghosts
+    }
+    expect([p.count, live(p), p.matching]).toEqual([0, PENDING_POOL, true]);
+    expect(add(p, w, req(200))).toBe(true); // evicts the oldest ghost (its answer may still come)
+    expect(p.matching).toBe(false);
+    expect(p.refuse("blocked", t)).toBe("none");
+    expect(p.count).toBe(1); // the new box is still pending
   });
 
   it("review L1: a refusal the host dropped switches pairing off while boxes await", () => {

@@ -29,8 +29,11 @@ import type { Box, Building, PlaceError, PlaceRequest, World } from "@topdown/sh
 export const PENDING_POOL = 16;
 /** D6 (review L2): a timed-out box waits this long (running time, from its timeout) for a late answer, then is forgotten. */
 export const GHOST_KEEP_MS = 10_000;
-/** Review M1: the timeout clock advances at most this much per frame (a hidden tab or a hitch pauses it). */
-export const MAX_FRAME_GAP_MS = 100;
+/**
+ * Review M1: the timeout clock advances at most this much per frame (a hidden tab or a hitch pauses
+ * it). Re-review: 250 ms keeps a real timeout at 2 s down to 4 fps.
+ */
+export const MAX_FRAME_GAP_MS = 250;
 /** ux-spec §6.4: the refusal look, 3 shakes × 150 ms (±0.1 m), then a 300 ms fade. */
 export const SHAKE_COUNT = 3;
 export const SHAKE_MS = 150;

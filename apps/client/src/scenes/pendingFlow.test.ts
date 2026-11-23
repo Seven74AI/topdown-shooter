@@ -87,6 +87,19 @@ describe("Story 5.18: runPendingFrame", () => {
     expect(r.pending.count).toBe(0);
   });
 
+  it("re-review: a box times out only after the host step, and its building (applied by that step) is matched before the timeout", () => {
+    const r = rig();
+    r.pending.add(REQ, 40, BOX, 0, "build", r.world.waves.number);
+    r.frame(); // sent at the first frame
+    while (r.pending.clockMs + 16 < 2000) r.frame();
+    expect(r.pending.clockMs).toBeLessThan(2000); // not timed out yet…
+    expect(r.pending.clockMs + 16).toBeGreaterThanOrEqual(2000); // …but the next frame's 2 s run out
+    r.setStep(() => addBuildingAt(r.world, { id: 1, type: REQ.type, ownerId: "p0", gx: 10, gy: 10, rot: 0, hp: 100 }));
+    r.frame(); // the frame its 2 s run out: the host step brings the building
+    expect(r.toasts).toEqual([]);
+    expect(r.pending.count).toBe(0);
+  });
+
   it("review L1: when the host dropped a refusal, the next ones only toast (no box is guessed)", () => {
     const r = rig();
     r.pending.add(REQ, 40, BOX, 0, "build", r.world.waves.number);
