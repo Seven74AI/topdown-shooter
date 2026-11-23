@@ -1,6 +1,8 @@
 import {
+  BUILD_GRID_M,
   buildingStats,
-  cornerForCentre,
+  footprintH,
+  footprintW,
   placementError,
   type Balance,
   type BuildingRotation,
@@ -9,11 +11,15 @@ import {
   type PlaceRequest,
   type World,
 } from "@topdown/shared";
+import { holdBuildingInput } from "../input/menuInput";
+import type { MutablePlayerInput } from "../input/InputRouter";
 
-/** The preview starts on the grid point this far in front of the survivor (m; presentation only). */
-export const PREVIEW_AHEAD_M = 2;
 /** Grid indices go on the wire as uint8. */
 const MAX_GRID_INDEX = 255;
+/** A move vector shorter than this leaves the carry facing as it was (the stick/keys already apply their dead zone). */
+const MIN_FACING_LEN = 1e-6;
+const DEG = Math.PI / 180;
+const DIAGONAL_DEG = 45;
 
 /** Player text for a refused placement (Story 3.4; Story 3.3's contract). */
 export function placeRefusalText(e: PlaceError, balance: Balance): string {
@@ -32,27 +38,69 @@ export function placeRefusalText(e: PlaceError, balance: Balance): string {
   }
 }
 
-const clampIndex = (i: number): number => Math.min(MAX_GRID_INDEX, Math.max(0, i));
+/** Review L4: an index the wire (uint8) can carry; an off-map ghost keeps its real index and is never sent. */
+const onWireIndex = (i: number): boolean => i >= 0 && i <= MAX_GRID_INDEX;
 
 /**
- * Story 3.4: placement mode on this device (Phaser-free, so it is unit-tested). The scene starts it
- * (`startPlacement`), feeds taps in world metres, ⟳ / ✓ / ✕, and ends it when the phase leaves the
- * build, the wave number changes (review L3), the menu opens or the run ends. Review H2: the preview
- * is centred on the finger (the anchor point) and its min corner snapped to the nearest point of the
- * 0.5 m lattice (`cornerForCentre`, the same indices the server stores); ⟳ turns it around the same
- * anchor. `check` runs the shared placement rules on the World this device sees, so the preview is
- * green exactly when the server would accept it (others' positions aside).
+ * Story 5.15 (AC 6): the rotation that puts a non-square footprint's long side across the facing,
+ * with the barricade's struts (rot 0 north, 1 east, 2 south, 3 west) on the builder's side:
+ * facing north → 2, south → 0, east → 3, west → 1. `nsNow` is the current axis (true = the
+ * facing counts as north/south); it switches only past the 45° diagonal by `hysteresisDeg`.
+ * Returns the new axis in bit 2 (4 = north/south) and the rot in bits 0–1.
+ */
+export function autoRot(fx: number, fy: number, nsNow: boolean | null, hysteresisDeg: number): number {
+  const fromX = Math.atan2(Math.abs(fy), Math.abs(fx)) / DEG; // 0 = east/west, 90 = north/south
+  let ns: boolean;
+  if (nsNow === null) ns = fromX >= DIAGONAL_DEG;
+  else if (nsNow) ns = fromX >= DIAGONAL_DEG - hysteresisDeg;
+  else ns = fromX > DIAGONAL_DEG + hysteresisDeg;
+  const rot = ns ? (fy < 0 ? 2 : 0) : fx > 0 ? 3 : 1;
+  return rot | (ns ? 4 : 0);
+}
+
+/**
+ * Story 5.15 (AC 3): the carried ghost's centre along one axis: the survivor at `me`, a unit
+ * facing (fx, fy), the footprint W × H at its rot; the near edge sits `gapM` beyond the body circle
+ * (`bodyM`) along the facing (the box's half extent along the facing is (|fx|·W + |fy|·H) / 2).
+ */
+export function carryDistance(fx: number, fy: number, w: number, h: number, bodyM: number, gapM: number): number {
+  return bodyM + gapM + (Math.abs(fx) * w + Math.abs(fy) * h) / 2;
+}
+
+/**
+ * Story 5.15 (AC 5): the lattice index for a continuous min-corner coordinate `cornerM`, keeping
+ * `current` until the corner is more than `hysteresisM` past the half-cell boundary (`current` NaN:
+ * snap fresh to the nearest point, as `cornerForCentre` does). Indices may be negative (off the map).
+ */
+export function snapAxis(cornerM: number, current: number, hysteresisM: number): number {
+  const c = cornerM / BUILD_GRID_M;
+  if (Number.isFinite(current) && Math.abs(c - current) <= 0.5 + hysteresisM / BUILD_GRID_M) return current;
+  return Math.round(c);
+}
+
+/**
+ * Story 3.4 placement mode on this device; Story 5.15: the ghost is **carried** (Phaser-free, so it
+ * is unit-tested). The scene starts it (`startPlacement`), calls `carry` once per frame with my
+ * survivor as drawn and this frame's move input, feeds ⟳ / Place / ✕, and ends it when the phase
+ * leaves the build, the wave number changes (review L3), the menu or shop opens or the run ends.
+ * The ghost's near edge sits `controls.build.carryGapM` beyond my body along my last move direction,
+ * its min corner on the 0.5 m lattice with a small hysteresis; non-square footprints turn their long
+ * side across the facing until ⟳ locks the rotation. `check` runs the shared placement rules on the
+ * World this device sees, so the ghost is green exactly when the server would accept it (others'
+ * positions aside). No allocation per frame.
  */
 export class Placement {
   active = false;
   type = "";
-  /** Min corner, 0.5 m lattice indices. */
+  /** Min corner, 0.5 m lattice indices (review L4: not clamped: past the map edge they go negative and the ghost shows there, red). */
   gx = 0;
   gy = 0;
   rot: BuildingRotation = 0;
-  /** The point the preview is centred on (metres): the last tap, or ahead of the survivor at start. */
-  anchorX = 0;
-  anchorY = 0;
+  /** ⟳ was pressed for this held item: auto-rotate is off (🔒 on the button). */
+  locked = false;
+  /** The unit carry facing: my last move direction (the survivor's facing at the start). */
+  facingX = 1;
+  facingY = 0;
   /** `world.waves.number` when placement started (review L3: a new wave or build ends it). */
   wave = 0;
   /** The shared check's answer for the current preview (null = valid), set by `check`. */
@@ -60,47 +108,106 @@ export class Placement {
   /** One request object, filled by `confirm` (valid until the next call). */
   private readonly req: { type: string; gx: number; gy: number; rot: number } = { type: "", gx: 0, gy: 0, rot: 0 };
   private stats: Readonly<BuildingTypeStats> | null = null;
-  private readonly corner = { gx: 0, gy: 0 };
+  private square = false;
+  /** Auto-rotate's axis (true = north/south), null until the first carry of a hold. */
+  private ns: boolean | null = null;
+  /** False: the next snap is fresh, no hysteresis (start, rotation, a new footprint shape). */
+  private snapped = false;
+  private gapM = 1;
+  private hysteresisM = 0.1;
+  private rotHysteresisDeg = 10;
+  private bodyM = 0.4;
+  private lastX = 0;
+  private lastY = 0;
 
   /** Starts placing `type` during wave number `wave`'s build (an unknown type does nothing and returns false). */
   start(balance: Balance, type: string, x: number, y: number, facingX: number, facingY: number, wave = 0): boolean {
     const stats = buildingStats(balance, type);
     if (!stats) return false;
+    const b = balance.controls.build;
+    this.gapM = b.carryGapM;
+    this.hysteresisM = b.snapHysteresisM;
+    this.rotHysteresisDeg = b.autoRotateHysteresisDeg;
+    this.bodyM = balance.player.radiusM;
     this.stats = stats;
+    this.square = stats.widthM === stats.depthM;
     this.active = true;
     this.type = type;
     this.rot = 0;
+    this.locked = false;
+    this.ns = null;
+    this.snapped = false;
     this.wave = wave;
-    this.moveTo(x + facingX * PREVIEW_AHEAD_M, y + facingY * PREVIEW_AHEAD_M);
     this.error = null;
+    const len = Math.sqrt(facingX * facingX + facingY * facingY);
+    if (len > MIN_FACING_LEN && Number.isFinite(len)) {
+      this.facingX = facingX / len;
+      this.facingY = facingY / len;
+    } else {
+      this.facingX = 1;
+      this.facingY = 0;
+    }
+    this.carry(x, y, 0, 0);
     return true;
   }
 
-  /** A tap or drag at world (x, y): the preview is centred there, its corner snapped to the lattice. */
-  moveTo(x: number, y: number): void {
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    this.anchorX = x;
-    this.anchorY = y;
-    this.snap();
+  /**
+   * Once per frame: my survivor at (x, y) as drawn, this frame's move input (moveX, moveY). A
+   * non-zero move turns the carry facing; at rest the last facing stays.
+   */
+  carry(x: number, y: number, moveX: number, moveY: number): void {
+    const stats = this.stats;
+    if (!this.active || !stats || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    this.lastX = x;
+    this.lastY = y;
+    const len = Math.sqrt(moveX * moveX + moveY * moveY);
+    if (len > MIN_FACING_LEN && Number.isFinite(len)) {
+      this.facingX = moveX / len;
+      this.facingY = moveY / len;
+    }
+    const fx = this.facingX;
+    const fy = this.facingY;
+    if (!this.square && !this.locked) {
+      const r = autoRot(fx, fy, this.ns, this.rotHysteresisDeg);
+      this.ns = (r & 4) !== 0;
+      const rot = (r & 3) as BuildingRotation;
+      if (rot !== this.rot) {
+        if ((rot & 1) !== (this.rot & 1)) this.snapped = false; // a new footprint shape: snap fresh
+        this.rot = rot;
+      }
+    }
+    const w = footprintW(stats, this.rot);
+    const h = footprintH(stats, this.rot);
+    const d = carryDistance(fx, fy, w, h, this.bodyM, this.gapM);
+    const cx = x + fx * d;
+    const cy = y + fy * d;
+    this.gx = snapAxis(cx - w / 2, this.snapped ? this.gx : Number.NaN, this.hysteresisM);
+    this.gy = snapAxis(cy - h / 2, this.snapped ? this.gy : Number.NaN, this.hysteresisM);
+    this.snapped = true;
   }
 
-  /** ⟳: the next 90° step, around the anchor point. */
+  /** ⟳: the next 90° step clockwise; auto-rotate is off for this held item; the carry gap is kept for the new footprint. */
   rotate(): void {
+    if (!this.active) return;
     this.rot = ((this.rot + 1) & 3) as BuildingRotation;
-    this.snap();
+    this.locked = true;
+    this.snapped = false;
+    this.carry(this.lastX, this.lastY, 0, 0);
   }
 
-  private snap(): void {
-    if (!this.stats) return;
-    cornerForCentre(this.stats, this.rot, this.anchorX, this.anchorY, this.corner);
-    this.gx = clampIndex(this.corner.gx);
-    this.gy = clampIndex(this.corner.gy);
+  /** Review L4: the shown spot fits the wire's 0–255 lattice indices (an off-map ghost may not). */
+  onWire(): boolean {
+    return onWireIndex(this.gx) && onWireIndex(this.gy);
   }
 
-  /** ✓: ends placement mode and returns the request to send (the server judges it), or null when inactive. */
+  /**
+   * Place: ends placement mode and returns the request to send for the spot shown now (the server
+   * judges it), or null when inactive or when the spot can't go on the wire (off the map: `onWire`).
+   */
   confirm(): PlaceRequest | null {
     if (!this.active) return null;
     this.active = false;
+    if (!this.onWire()) return null;
     const r = this.req;
     r.type = this.type;
     r.gx = this.gx;
@@ -125,4 +232,73 @@ export class Placement {
     this.error = this.active ? placementError(world, ownerId, r) : null;
     return this.error === null;
   }
+}
+
+/** The HUD fields the placement step reads and writes (`HudModel` has them all). */
+export interface PlacementHud {
+  placementActive: boolean;
+  placementValid: boolean;
+  placementLocked: boolean;
+  placementHint: string;
+  rotatePressed: boolean;
+  confirmPressed: boolean;
+  cancelPressed: boolean;
+}
+
+/** One frame's context for `stepPlacement` (the scene reuses one object: no allocation per frame). */
+export interface PlacementFrame {
+  /** Placement is possible now (build phase, run on screen, no menu/shop, my survivor standing). */
+  can: boolean;
+  /** `world.waves.number` now (review L3: a new wave or build ends holding). */
+  wave: number;
+  /** My survivor as last drawn (metres). */
+  x: number;
+  y: number;
+  ownerId: string;
+  /** "Wood barricade · $40" for the held type. */
+  label: string;
+  refusal: (e: PlaceError) => string;
+  /** Sends the request (solo: applied at once; the server judges). */
+  send: (req: PlaceRequest) => void;
+  /** Shows a short message (an off-map Place that can't be sent). */
+  toast: (text: string) => void;
+}
+
+/**
+ * Story 5.15 (review M1): placement mode for one frame, before the input goes to the host. In this
+ * order: the cancel rules; while holding, `holdBuildingInput` (I keep walking: the move is kept,
+ * aim and fire are not); ✕ puts it away; **Place sends the spot shown in the last frame, before
+ * this frame's carry** (AC 10); ⟳ turns it; then the ghost is carried with my survivor as drawn and
+ * this frame's move input, and the shared check colours it (the HUD's valid / hint / 🔒).
+ */
+export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlayerInput, world: Readonly<World>, f: PlacementFrame): void {
+  if (p.active && (!f.can || f.wave !== p.wave)) p.cancel();
+  const rotate = m.rotatePressed;
+  const confirm = m.confirmPressed;
+  const cancel = m.cancelPressed;
+  m.rotatePressed = m.confirmPressed = m.cancelPressed = false;
+  if (!p.active) {
+    m.placementActive = false;
+    return;
+  }
+  holdBuildingInput(input);
+  if (cancel) {
+    p.cancel();
+    m.placementActive = false;
+    return;
+  }
+  if (confirm) {
+    const req = p.confirm();
+    if (req) f.send(req);
+    else f.toast(f.refusal("blocked")); // off the map: nothing the wire can carry, the shared rule says "blocked"
+    m.placementActive = false;
+    return;
+  }
+  if (rotate) p.rotate();
+  p.carry(f.x, f.y, input.moveX, input.moveY);
+  p.check(world, f.ownerId);
+  m.placementActive = true;
+  m.placementValid = p.error === null;
+  m.placementLocked = p.locked;
+  m.placementHint = p.error === null ? f.label : f.refusal(p.error);
 }

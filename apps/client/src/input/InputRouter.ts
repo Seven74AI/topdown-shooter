@@ -103,6 +103,12 @@ export class InputRouter {
     return this.kbm.keyUp(code);
   }
 
+  /** Story 5.15: holding a building starts: the aim stick and the mouse button let go; movement (stick, keys) is kept. */
+  releaseAim(): void {
+    this.kbm.leftButton = false;
+    this.sticks.releaseAim();
+  }
+
   /** Window blur / tab hidden: release every key, the mouse button and the sticks. */
   releaseAll(): void {
     this.kbm.releaseAll();

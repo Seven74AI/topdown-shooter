@@ -15,3 +15,16 @@ export function neutralizeInput(out: MutablePlayerInput): MutablePlayerInput {
   out.consumable = NEUTRAL_INPUT.consumable;
   return out;
 }
+
+/**
+ * Story 5.15: the input while I hold a building in a build phase. I keep walking (the move is
+ * kept), but nothing aims or fires: the right half belongs to the build cluster, and with a zero
+ * aim the sim faces my survivor the way it walks (the carry facing). Swap, consumable and the seq
+ * are untouched (edge flags stay once per input seq).
+ */
+export function holdBuildingInput(out: MutablePlayerInput): MutablePlayerInput {
+  out.aimX = 0;
+  out.aimY = 0;
+  out.fire = false;
+  return out;
+}

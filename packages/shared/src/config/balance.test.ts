@@ -158,6 +158,19 @@ describe("loadBalance", () => {
     expect(() => loadBalance(c)).toThrow(/controls\.json: aimDeadZone: /);
   });
 
+  it("Story 5.15: controls.build (carry gap, snap and auto-rotate hysteresis) loads, defaults and is bounded", () => {
+    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10 });
+    const d = raw();
+    delete (d.controls as { build?: unknown }).build;
+    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10 });
+    const h = raw();
+    (h.controls as { build: { snapHysteresisM: number } }).build.snapHysteresisM = 0.25; // half a cell: the index would never settle
+    expect(() => loadBalance(h)).toThrow(/controls\.json: build\.snapHysteresisM: /);
+    const r = raw();
+    (r.controls as { build: { autoRotateHysteresisDeg: number } }).build.autoRotateHysteresisDeg = 45;
+    expect(() => loadBalance(r)).toThrow(/controls\.json: build\.autoRotateHysteresisDeg: /);
+  });
+
   it("rejects a run whose last wave overflows the per-type counts (3.10 review)", () => {
     const files = raw();
     (files.waves as { zombiesPerWave: number; runWaves: number }).zombiesPerWave = 300;

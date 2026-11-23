@@ -24,6 +24,7 @@ import {
   type Balance,
   type SimEvent,
   type PlaceError,
+  type PlaceRequest,
   type RepairError,
   type PlayerInput,
   type PlayerState,
@@ -62,7 +63,7 @@ import { ExplosionView } from "../render/ExplosionView";
 import { STALE_EXPLOSION_S, blastLookFor } from "../render/grenadeFx";
 import { CityView } from "../render/city/CityView";
 import { TurretView } from "../render/TurretView";
-import { Placement, placeRefusalText } from "./placement";
+import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
 import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
@@ -245,10 +246,23 @@ export class GameScene extends Phaser.Scene {
   ambience: AmbiencePlayer | null = null;
   /** Story 3.6: turret plates and heads (aim from the World / `turret.fired`). */
   private turretView: TurretView | null = null;
-  /** Story 3.4: placement mode on this device (sticks off while active). */
+  /** Story 3.4: placement mode on this device; Story 5.15: the ghost is carried while I walk. */
   private readonly placement = new Placement();
   /** "Wood barricade · $40" for the type being placed, and the refusal texts (built once each). */
   private placingLabel = "";
+  /** Story 5.15: the placement step's per-frame context (one object, refilled every frame). */
+  private readonly sendPlace = (req: PlaceRequest): void => this.host?.placeBuilding(req);
+  private readonly placeFrame: PlacementFrame = {
+    can: false,
+    wave: 0,
+    x: 0,
+    y: 0,
+    ownerId: "",
+    label: "",
+    refusal: (e) => this.refusalText(e),
+    send: this.sendPlace,
+    toast: (text) => this.toasts.push(text),
+  };
   private readonly refusalTexts = new Map<PlaceError, string>();
   /** Story 3.7: the repair panel on this device, the selected building's outline. */
   private readonly repairPanel = new RepairPanel();
@@ -723,8 +737,8 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Story 3.4: `startPlacement` (Story 3.3's shop calls it when a building is tapped). Ignored
-   * outside a build phase, under the menu, on Results or for an unknown type. Every held stick, key
-   * and button lets go (the sticks are off while placing).
+   * outside a build phase, under the menu, on Results or for an unknown type. Story 5.15: I keep
+   * walking: only the aim stick and the mouse button let go (a held move stick or key keeps steering).
    */
   private startPlacement(type: string): void {
     const host = this.host;
@@ -734,53 +748,30 @@ export class GameScene extends Phaser.Scene {
     const me = host.world.players.get(host.localPlayerId);
     const stats = buildingStats(host.world.balance, type);
     if (!me || !stats) return;
-    if (!this.placement.start(host.world.balance, type, me.x, me.y, me.facingX, me.facingY, host.world.waves.number)) return;
+    const pv = this.playerViews.get(host.localPlayerId);
+    if (!this.placement.start(host.world.balance, type, pv?.x ?? me.x, pv?.y ?? me.y, me.facingX, me.facingY, host.world.waves.number)) return;
     this.placingLabel = `${stats.name} · $${stats.price}`;
-    this.router?.releaseAll();
+    this.router?.releaseAim();
     host.clearEdges();
   }
 
   /**
-   * Story 3.4: placement mode, once per frame before the input goes to the host. Taps (canvas px)
-   * move the preview (through the camera that drew the frame), ⟳ rotates, ✕ cancels, ✓ sends the
-   * request (solo: applied at once) and ends placement mode; the phase leaving the build, the menu or
-   * game over cancel it. While active the input is neutral: the survivor stands still and holds fire.
+   * Story 3.4 / 5.15: placement mode, once per frame before the input goes to the host
+   * (`stepPlacement`: hold input, ✕, Place = the spot shown last frame, ⟳, then the carry with my
+   * survivor as last drawn and the shared check). One reused frame object: no allocation per frame.
    */
   private updatePlacement(host: SceneHost, menuOpen: boolean): void {
-    const m = this.hudModel;
-    const p = this.placement;
-    const can = this.canPlace(host, menuOpen);
-    if (p.active && (!can || host.world.waves.number !== p.wave)) p.cancel(); // review L3: a new wave/build ends it
-    const tap = m.placeTap;
-    const rotate = m.rotatePressed;
-    const confirm = m.confirmPressed;
-    const cancel = m.cancelPressed;
-    m.placeTap = m.rotatePressed = m.confirmPressed = m.cancelPressed = false;
-    if (!p.active) {
-      m.placementActive = false;
-      return;
-    }
-    if (tap) {
-      const w = this.cameras.main.getWorldPoint(m.placeTapX, m.placeTapY, this.cursorWorld);
-      p.moveTo(w.x, w.y);
-    }
-    if (rotate) p.rotate();
-    if (cancel) {
-      p.cancel();
-      m.placementActive = false;
-      return;
-    }
-    p.check(host.world, host.localPlayerId);
-    if (confirm) {
-      const req = p.confirm();
-      if (req) host.placeBuilding(req);
-      m.placementActive = false;
-      return;
-    }
-    m.placementActive = true;
-    m.placementValid = p.error === null;
-    m.placementHint = p.error === null ? this.placingLabel : this.refusalText(p.error);
-    neutralizeInput(this.input_);
+    const f = this.placeFrame;
+    const me = host.world.players.get(host.localPlayerId);
+    const pv = this.playerViews.get(host.localPlayerId);
+    f.can = this.canPlace(host, menuOpen);
+    f.wave = host.world.waves.number;
+    f.x = pv?.x ?? me?.x ?? 0;
+    f.y = pv?.y ?? me?.y ?? 0;
+    f.ownerId = host.localPlayerId;
+    f.label = this.placingLabel;
+    f.send = this.sendPlace;
+    stepPlacement(this.placement, this.hudModel, this.input_, host.world, f);
   }
 
   /**
@@ -1021,7 +1012,7 @@ export class GameScene extends Phaser.Scene {
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     const shopOpen = this.updateShop(host, menuOpen);
     if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
-    this.updatePlacement(host, menuOpen || shopOpen); // Story 3.4: placement mode turns the sticks off (neutral input)
+    this.updatePlacement(host, menuOpen || shopOpen); // Story 3.4 / 5.15: holding keeps the move, drops aim and fire
     this.updateRepair(host, menuOpen, shopOpen); // Story 3.7: tap a building → Repair
     this.updateReady(host, menuOpen || shopOpen);
     if (this.localHost) {

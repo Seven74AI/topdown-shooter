@@ -80,6 +80,11 @@ export class TouchSticks {
     if (this.aim?.pointerId === pointerId) this.aim = null;
   }
 
+  /** Story 5.15: lets go of the aim stick only (holding a building starts: the move thumb keeps steering). */
+  releaseAim(): void {
+    this.aim = null;
+  }
+
   /** Releases every stick (window blur, scene shutdown). */
   reset(): void {
     this.move = null;

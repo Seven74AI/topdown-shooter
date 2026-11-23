@@ -49,16 +49,17 @@ export interface HudModel {
   readyTotal: number;
   /** Set by the HUD when Ready is tapped; the GameScene consumes it. */
   readyPressed: boolean;
-  /** Story 3.4: placement mode is on: touches move the preview, ⟳ ✓ ✕ show, the sticks are off. */
+  /**
+   * Story 3.4: placement mode is on. Story 5.15: I hold a building and keep walking: the hand cluster
+   * (Place, ⟳, ✕) shows at the bottom right, the move stick works, the right half aims and fires nothing.
+   */
   placementActive: boolean;
-  /** The line above ⟳ ✓ ✕ ("Wood barricade · $40", or why it is red) and whether the preview is valid. */
+  /** The hint line ("Wood barricade · $40", or why it is red) and whether the preview is valid. */
   placementHint: string;
   placementValid: boolean;
-  /** A placement touch (down or drag) in canvas px this frame; the GameScene consumes it. */
-  placeTap: boolean;
-  placeTapX: number;
-  placeTapY: number;
-  /** ⟳ ✓ ✕ taps; the GameScene consumes them. */
+  /** Story 5.15: ⟳ was pressed for this held item (auto-rotate off): the 🔒 badge on ⟳. */
+  placementLocked: boolean;
+  /** Place / ⟳ / ✕ taps (ids confirm / rotate / cancel); the GameScene consumes them. */
   rotatePressed: boolean;
   confirmPressed: boolean;
   cancelPressed: boolean;
@@ -186,9 +187,7 @@ export const createHudModel = (): HudModel => ({
   placementActive: false,
   placementHint: "",
   placementValid: true,
-  placeTap: false,
-  placeTapX: 0,
-  placeTapY: 0,
+  placementLocked: false,
   rotatePressed: false,
   confirmPressed: false,
   cancelPressed: false,
