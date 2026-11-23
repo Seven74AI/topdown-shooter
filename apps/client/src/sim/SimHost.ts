@@ -1,3 +1,4 @@
+import type { FlameCues } from "../render/flameCues";
 import type { PlaceError, PlaceRequest, PlayerInput, RepairError, ShopError, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
 
 /**
@@ -89,6 +90,11 @@ export interface SimHost {
   readonly localPlayerId: string;
   /** True for the networked host: renderers may use it to pick data sources (e.g. Story 2.5 heading). */
   readonly online: boolean;
+  /**
+   * Story 5.4: who is flaming now (the cones). The scene feeds it every drained event; the networked
+   * host also feeds my predicted flame and every state patch's fuel (the lost-event fallback).
+   */
+  readonly flames: FlameCues;
   /**
    * Slot and name of a player (Story 2.9). The returned object may be reused: read it before the
    * next call. Unknown ids get slot 0 (or the id's slot online) and "".

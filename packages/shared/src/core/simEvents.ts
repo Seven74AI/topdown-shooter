@@ -15,6 +15,15 @@ export const DAMAGE_SOURCE_EXPLOSION = -2;
 export const DAMAGE_SOURCE_ACID = -3;
 
 /**
+ * Story 5.4: what hurt a player (`player.damaged.tag`). Append only: the index goes on the wire.
+ * The friendly-fire rule (`combat/damage.ts › damagePlayerBy`) reads it: a PLAYER's `bullet` and
+ * `melee` never hurt players; their `fire` and `explosion` deal `combat.json › friendlyFire.pct`.
+ * `zombie` = bites (and other zombie-caused damage), `acid` = Spitter spit and puddles (5.6).
+ */
+export const DAMAGE_TAGS = ["zombie", "bullet", "melee", "fire", "explosion", "acid"] as const;
+export type DamageTag = (typeof DAMAGE_TAGS)[number];
+
+/**
  * Every event the simulation can emit (architecture › Event System).
  * Naming: domain.past_tense in snake case. Each story adds its own variants.
  */
@@ -51,7 +60,12 @@ export type SimEvent =
   | { type: "weapon.swapped"; playerId: string; active: 0 | 1; weapon: string }
   /** Story 5.2: `hits` (zombies cut) only for a `quietHits` weapon (the Chainsaw), which sends no `zombie.hit` each. */
   | { type: "melee.swung"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number; arcDeg: number; rangeM: number; hits?: number }
-  | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number }
+  /**
+   * Story 5.4: `tag` = what hurt (`DAMAGE_TAGS`), `sourcePlayerId` = the player whose fire or blast
+   * it was (friendly fire; null for zombies, car fire, acid). `sourceZombieId` keeps its 4.8/5.6/5.9
+   * meaning (the biting zombie, or −1 fire / −2 blast / −3 acid).
+   */
+  | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number; tag: DamageTag; sourcePlayerId: string | null }
   | { type: "player.downed"; playerId: string }
   | { type: "player.revived"; playerId: string; reviverId: string }
   | { type: "player.out"; playerId: string }
@@ -140,6 +154,12 @@ export type SimEvent =
    * cloud state goes on the wire. `chain` = it was killed by another blast (queued a tick).
    */
   | { type: "bloater.burst"; x: number; y: number; chain: boolean; /** Client only: seconds since it happened. */ ageS?: number }
+  /**
+   * Story 5.4: `playerId` started / stopped flaming (the first and last tick of a burst; never one
+   * per tick). Remote clients draw the cone from the flamer's synced heading while it is on.
+   */
+  | { type: "weapon.flame_started"; playerId: string; weapon: string }
+  | { type: "weapon.flame_stopped"; playerId: string }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

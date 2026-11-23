@@ -103,7 +103,7 @@ describe("Story 5.7 F1: you always see the Brute's hit coming", () => {
       else expect(world.zombies.x[id], `still at windup tick ${t}`).toBeCloseTo(x0, 6);
     }
     expect(hitAt).toBe(WINDUP);
-    expect(hitsOn(events, "p0")).toEqual([{ type: "player.damaged", playerId: "p0", amount: 35, sourceZombieId: id }]);
+    expect(hitsOn(events, "p0")).toEqual([{ type: "player.damaged", playerId: "p0", amount: 35, sourceZombieId: id, tag: "zombie", sourcePlayerId: null }]);
     expect(p.hp).toBe(65);
     expect(world.zombies.state[id]).toBe(ZOMBIE_STATE.CHASE);
     expect(world.zombies.attackCooldownTicks[id]).toBe(INTERVAL);

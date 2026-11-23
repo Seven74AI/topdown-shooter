@@ -1,6 +1,10 @@
+---
+baseline_commit: b84caa3501de1e548dae55180d51f0155e2b0add
+---
+
 # Story 5.4: Flamethrower and fire friendly fire
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -103,20 +107,20 @@ so that I can hold a choke point, while being careful of my friends.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art pick first (AC 7):** make ~5 Meshy proposals (`nano-banana-pro`, text to image, the 4.11 style line: strict top-down orthographic, gritty realistic, night, wet asphalt, cool streetlight from the upper left, muted, crisp silhouette, no text) for (a) the survivor holding the Flamethrower (tank on the back, nozzle forward), (b) the flame jet / cone (a 35° spray reaching 4 m, bright core, smoky edge), and (c) a burning zombie. Publish a private proposal page (as 4.11 did) and **wait for the designer's pick**. Save the picks plus prompts in `docs/art/5-4/README.md` with the same table as `docs/art/4-11/README.md`. Sprites come from the picks (cut out, Dead City palette, `fx_flame_jet_a`, `weapon_flamethrower_held_a`, `fx_burning_a…`). Build in the atlases (`render/city/spriteAtlas.ts`, `ATLAS_FX`, ≤ 2048²).
-- [ ] **T1 Balance + schema (AC 1, 4):** `flameSchema` in `balanceSchema.ts` (the discriminated union gains `kind: "flame"`), `weapons.json › flamethrower`, new `combat.json` + loader in `config/balance.ts` (and `balance.version`), `shop.json` entry, refines. Tests: `config/balance.test.ts` (refusals: fractional pulse ticks, fuel > uint16, non-whole FF pulse).
-  - [ ] `weapons.ts`: `isFlame()`. Every `isGun`/`isMelee` switch gets a `flame` branch (`loadout.ts › createSlot`: ammo = fuel ticks; `firing.ts`; client HUD; `botShop`).
-- [ ] **T2 Friendly-fire rule (AC 4, 5, 11):** `DAMAGE_TAGS`, `damagePlayerBy`. Move `zombieAi.ts › damagePlayer` and `decay/fire.ts › burnPlayer` onto it with no behaviour change (the 4.8 tests must stay green untouched). `SimEvent` `player.damaged` + `tag`, `sourcePlayerId`. Netevent fields. `fireCue.isFireHit`. **If 5.9's mine has its own 50 % code, move it onto `damagePlayerBy` here** (a 5.9 test row in the FF table).
-  - [ ] Test `damage.test.ts › "friendly-fire table"` (AC 11).
-- [ ] **T3 Flame weapon (AC 2, 8, 12):** `combat/flame.ts`: `flameTick(world, p, slot, stats, dirX, dirY, view)` (cone via `circleOverlapsSector` + `shotBlockT` per candidate; zombie clocks `world.flame.zombieClock` Uint8Array(capacity × MAX_PLAYERS); player clocks on `PlayerState.flameClock: Uint8Array(MAX_PLAYERS)`; burst edge tracking `PlayerState.flaming`). `tryFire` branch for `isFlame`: fuel, auto reload, no cooldown. `applyZombieDamage` gains an options arg `{ quiet }`, or reuse 5.2's continuous-melee option if it exists. `resetBurnClocks` (4.8) also zeroes the flame clocks at every build start.
-  - [ ] Tests `combat/flame.test.ts`: cone, cover, clocks, stacking, fuel/reload/swap, rewind, upgrades.
-- [ ] **T4 Ignite (AC 3):** pool fields, `updateIgnites` in the combat system after the weapons, credit, refresh. Tests in `flame.test.ts`.
-- [ ] **T5 Snapshot / sync copies (brief line 2):** World (`flame` clocks, pool ignite fields, `PlayerState.flaming/flameClock`) → `snapshotWorld` (all of them) → schema: nothing new (ammo reused) → `syncState` (fuel through `ammo`) → `stateView` key lists: none → `fakeRoom`: none → mirror (`mirrorZombies` reads the burning bit into a client-only `burning` array; it never feeds the sim) → Predictor: no change (combat is not predicted; flaming does not slow the player) → devThrottle: none. `netEvents.ts` kinds 27/28 + `player.damaged` fields + quiet-hit drop. `hordeFormat.ts` burning bit.
-- [ ] **T6 Client (AC 7):** `render/FlameView.ts` (pooled jet + particles; ray clip by `shotBlockT` on the mirror World), `render/ZombieView.ts` burning overlay, the `localFire.ts` flame branch, HUD fuel bar (`scenes/hudModel.ts`, `HudScene.ts`), friendly-fire cue (reuse 4.11's burning cue module and damage numbers), `audio/placeholderSfx.ts` loop `weapon_flamethrower_loop` (start/stop on the events).
-- [ ] **T7 Network tests (AC 14):** `netEvents.test.ts`, `hordeFormat.test.ts`, `sim/NetSimHost.flame.test.ts`, `tools/netsim/flame.test.ts` (lag 150/20, hidden tab across a build start, late Game scene start).
-- [ ] **T8 Fuzz + liveness + mutations (AC 13, 15):** `combat/flame.fuzz.test.ts`. Record a mutation table like 4.8's (e.g. M1 the cone ignores cover, M2 a shared pulse tick, M3 FF at 100 %, M4 bullets hurt teammates, M5 ignite stacks, M6 no fuel use while flaming, M7 quiet hits on the wire, M8 burning bit dropped).
-- [ ] **T9 Bandwidth + perf + phone FPS (AC 10, brief 11/12/16):** `apps/server/src/run/weaponBandwidth.test.ts` (new; pattern of `decayBandwidth.test.ts`), `tickCostDowntown.test.ts` (+4 flamers), `?stress=150` with `?loadout=flamethrower,smg` and the stress bots flaming: headless FPS before/after, load recorded. Flame particles capped by `combat.json › fx.maxFlameParticles` (recommend 96) and `fx.maxBurningZombieFx` (recommend 40).
-- [ ] **T10 Readability + docs:** add the flame cone and burning zombie to `docs/playtests/milestone-1/readability-sheet.md` (or the Epic 5 sheet). Run the browser check (Playwright: solo `?loadout=flamethrower,pistol`, online 2 players with a teammate in the cone). Run the gates. Write the merge notes.
+- [x] **T0 Art pick first (skipped per the main session: Round C looks decided — FT1/FS1, FT2/FS2 drawn in code) (AC 7):** make ~5 Meshy proposals (`nano-banana-pro`, text to image, the 4.11 style line: strict top-down orthographic, gritty realistic, night, wet asphalt, cool streetlight from the upper left, muted, crisp silhouette, no text) for (a) the survivor holding the Flamethrower (tank on the back, nozzle forward), (b) the flame jet / cone (a 35° spray reaching 4 m, bright core, smoky edge), and (c) a burning zombie. Publish a private proposal page (as 4.11 did) and **wait for the designer's pick**. Save the picks plus prompts in `docs/art/5-4/README.md` with the same table as `docs/art/4-11/README.md`. Sprites come from the picks (cut out, Dead City palette, `fx_flame_jet_a`, `weapon_flamethrower_held_a`, `fx_burning_a…`). Build in the atlases (`render/city/spriteAtlas.ts`, `ATLAS_FX`, ≤ 2048²).
+- [x] **T1 Balance + schema (AC 1, 4):** `flameSchema` in `balanceSchema.ts` (the discriminated union gains `kind: "flame"`), `weapons.json › flamethrower`, new `combat.json` + loader in `config/balance.ts` (and `balance.version`), `shop.json` entry, refines. Tests: `config/balance.test.ts` (refusals: fractional pulse ticks, fuel > uint16, non-whole FF pulse).
+  - [x] `weapons.ts`: `isFlame()`. Every `isGun`/`isMelee` switch gets a `flame` branch (`loadout.ts › createSlot`: ammo = fuel ticks; `firing.ts`; client HUD; `botShop`).
+- [x] **T2 Friendly-fire rule (AC 4, 5, 11):** `DAMAGE_TAGS`, `damagePlayerBy`. Move `zombieAi.ts › damagePlayer` and `decay/fire.ts › burnPlayer` onto it with no behaviour change (the 4.8 tests must stay green untouched). `SimEvent` `player.damaged` + `tag`, `sourcePlayerId`. Netevent fields. `fireCue.isFireHit`. **If 5.9's mine has its own 50 % code, move it onto `damagePlayerBy` here** (a 5.9 test row in the FF table).
+  - [x] Test `damage.test.ts › "friendly-fire table"` (AC 11).
+- [x] **T3 Flame weapon (AC 2, 8, 12):** `combat/flame.ts`: `flameTick(world, p, slot, stats, dirX, dirY, view)` (cone via `circleOverlapsSector` + `shotBlockT` per candidate; zombie clocks `world.flame.zombieClock` Uint8Array(capacity × MAX_PLAYERS); player clocks on `PlayerState.flameClock: Uint8Array(MAX_PLAYERS)`; burst edge tracking `PlayerState.flaming`). `tryFire` branch for `isFlame`: fuel, auto reload, no cooldown. `applyZombieDamage` gains an options arg `{ quiet }`, or reuse 5.2's continuous-melee option if it exists. `resetBurnClocks` (4.8) also zeroes the flame clocks at every build start.
+  - [x] Tests `combat/flame.test.ts`: cone, cover, clocks, stacking, fuel/reload/swap, rewind, upgrades.
+- [x] **T4 Ignite (AC 3):** pool fields, `updateIgnites` in the combat system after the weapons, credit, refresh. Tests in `flame.test.ts`.
+- [x] **T5 Snapshot / sync copies (brief line 2):** World (`flame` clocks, pool ignite fields, `PlayerState.flaming/flameClock`) → `snapshotWorld` (all of them) → schema: nothing new (ammo reused) → `syncState` (fuel through `ammo`) → `stateView` key lists: none → `fakeRoom`: none → mirror (`mirrorZombies` reads the burning bit into a client-only `burning` array; it never feeds the sim) → Predictor: no change (combat is not predicted; flaming does not slow the player) → devThrottle: none. `netEvents.ts` kinds 27/28 + `player.damaged` fields + quiet-hit drop. `hordeFormat.ts` burning bit.
+- [x] **T6 Client (AC 7):** `render/FlameView.ts` (pooled jet + particles; ray clip by `shotBlockT` on the mirror World), `render/ZombieView.ts` burning overlay, the `localFire.ts` flame branch, HUD fuel bar (`scenes/hudModel.ts`, `HudScene.ts`), friendly-fire cue (reuse 4.11's burning cue module and damage numbers), `audio/placeholderSfx.ts` loop `weapon_flamethrower_loop` (start/stop on the events).
+- [x] **T7 Network tests (AC 14):** `netEvents.test.ts`, `hordeFormat.test.ts`, `sim/NetSimHost.flame.test.ts`, `tools/netsim/flame.test.ts` (lag 150/20, hidden tab across a build start, late Game scene start).
+- [x] **T8 Fuzz + liveness + mutations (AC 13, 15):** `combat/flame.fuzz.test.ts`. Record a mutation table like 4.8's (e.g. M1 the cone ignores cover, M2 a shared pulse tick, M3 FF at 100 %, M4 bullets hurt teammates, M5 ignite stacks, M6 no fuel use while flaming, M7 quiet hits on the wire, M8 burning bit dropped).
+- [x] **T9 Bandwidth + perf + phone FPS (AC 10, brief 11/12/16):** `apps/server/src/run/weaponBandwidth.test.ts` (new; pattern of `decayBandwidth.test.ts`), `tickCostDowntown.test.ts` (+4 flamers), `?stress=150` with `?loadout=flamethrower,smg` and the stress bots flaming: headless FPS before/after, load recorded. Flame particles capped by `combat.json › fx.maxFlameParticles` (recommend 96) and `fx.maxBurningZombieFx` (recommend 40).
+- [x] **T10 Readability + docs:** add the flame cone and burning zombie to `docs/playtests/milestone-1/readability-sheet.md` (or the Epic 5 sheet). Run the browser check (Playwright: solo `?loadout=flamethrower,pistol`, online 2 players with a teammate in the cone). Run the gates. Write the merge notes.
 
 ## Dev Notes
 
@@ -182,10 +186,157 @@ One jet sprite per active flamer (additive), plus a shared particle pool (`fx.ma
 
 ### Agent Model Used
 
+Claude Opus 5.5 (gds-dev-story, worktree `story-5-4`).
+
 ### Debug Log References
+
+- Round C decisions override the story's 4 m × 35° single weapon: **two** flame weapons (`flamethrower` FT1/FS1 6 m × 20° 700; `gas_torch` FT2/FS2 3 m × 60° 550), same burn, fuel and friendly-fire rules.
+- Gate 18:16–18:19: `npm run typecheck && npm run lint && npm test && npm run build` green (235 files / 1,883 tests passed, 3 skipped); `uptime` load 3.56 → 5.10 (other builders running). Not yet merged with the work branch (5.8/5.5): see Notes for the merge.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+**What was built (shared sim, used by server, solo, bots, replays through `step`):**
+- `combat/damage.ts › damagePlayerBy(world, target, amount, tag, sourcePlayerId, sourceZombieId = -1)` — THE player-damage path (round C contract). `DAMAGE_TAGS = zombie, bullet, melee, fire, explosion, acid` (append only; `acid` added so 5.6 keeps its own cue). Player source: bullet/melee → 0 (no event), fire/explosion → `round(amount × combat.friendlyFire.pct / 100)` (also the shooter's own body), `canDown` false clamps at 1 HP. Bites (`zombieAi`), car fire (`decay/fire`), acid (`spit`) and blasts (`explosion.ts`, 5.9's `damagePlayerByExplosion` removed) moved onto it with unchanged amounts (4.8/5.6/5.9 tests green untouched except 3 literal events that gained the 2 new fields). An owned mine now gets its 50 % from the FF rule; `loadBalance` cross-checks `mine.playerShare × 100 = friendlyFire.pct`.
+- `player.damaged` gains `tag` and `sourcePlayerId` (required fields). Wire kind 9 appends `[tagIndex, sourceSlot]` **only** when they say more than the source does (friendly fire): bites, car fire, acid, owner-less blasts keep the 4-field tuple (0 added bytes; the 5.6 acid bandwidth test stays green). Old 4-field tuples decode to the implied tag.
+- `combat/flame.ts`: `flameTick` (cone = `circleOverlapsSector` from the muzzle; cover = `shotBlockT` muzzle→centre, nothing when the muzzle is in cover; barricades/sandbags/barriers don't stop it; players at live positions, flamer's own body never), per-(body, flamer slot) clocks (zombie pulse on the first tick then every 5 ticks; teammate pulse after 10 ticks), quiet hits (5.2's `applyZombieDamageQuiet`, no `zombie.hit`; assists recorded), ignite (refresh, never stack, own clock, credit last igniter, kill weapon = the igniting weapon id), `updateIgnites` in the combat system after the weapons, `resetFlameClocks` from `resetBurnClocks` (every build start), flame slot table `world.flameSlots` (wire slot when free). Damage from 5.1's `weaponDamage` (per second) × pulse; ignite × the same level share; FF rounded per pulse in `damagePlayerBy` (whole at level I, schema-checked; IV = 9).
+- `firing.ts`: flame branch in `tryFire` (no cooldown/projectile/assist; 1 fuel tick per flaming tick; auto reload at 0; swap rules unchanged: an empty tank reloads from the start on swap-back), burst edges `weapon.flame_started { playerId, weapon }` / `weapon.flame_stopped` (kinds 37/38) on the first/last tick only, `usesAmmo`/`magazineOf` for reload/createSlot.
+- Balance: `flameSchema` in the weapon union (refines: whole ticks, uint16 fuel, uint8 clocks, rateHz = tick rate), `combat.json` (`friendlyFire {pct 50, canDown true}`, `fx {maxFlameParticles 96, flameParticlesPerS 90, maxBurningZombieFx 40}`), both weapons in `shop.json` (appended; older weapon indices unchanged).
+- Wire/sync: horde record state-nibble bit 3 = burning (`wireState`, `MAX_WIRE_ZOMBIE_STATE = 7`), server encoder sets it, `mirrorZombies` writes it into the mirror's `igniteTicks` (1/0, client-only). Fuel rides in `ammo0/1`. `snapshotWorld`: zombie flame clocks + ignite fields, `flameSlots`; players' `flameSlot/flaming/flameClock` via the player spread.
+- Client: `LocalFireClock` predicts flaming + fuel (no cooldown, fuel like ammo; a flame tick is no gun shot for the 2.7 safety net); `FlameCues` (events, my predicted cone online, lost-`flame_stopped` fallback after 3 patches of non-falling fuel or not alive); `FlameView` (shared capped particle pool + per-flamer floor glow from the 4.12 fire atlas, every particle ray clipped at the first shot blocker on the mirror World; burning zombies: 2 flickering flames each, nearest camera first, ≤ 40); HUD fuel % + orange fuel bar; FF cue (teammate's "-N" in the source's ring colour; flamer sees the victim's ring flash orange 250 ms); flame roar loop (my flame only, burst edges, stops in a hidden tab); FT1/FT2 art ported (icons + held + FT1 back tanks replacing the pack; FT1 icon improved: bolder nozzle with a lick of flame); `?stressfire` with a flame weapon keeps its crowd (toughened, like melee).
+
+**Tests (new/changed):** `combat/damage.test.ts` friendly-fire table (10 rows + share/rounding, downed/out/god, canDown both ways, 5.9 mine row); `combat/flame.test.ts` 28 tests (FR-A cone edges both weapons, raw aim, no self damage; FR-B car/corner/muzzle-in-car/sandbags/barrier/barricades, no building damage, teammate behind car; FR-C first-tick, step in/out patterns, player grace, build-start reset, two flamers stack; FR-D/E griefing 10 HP/s → down at 10 s, live player positions; FR-G ignite length/refresh/credit/no spread; FR-H fuel/reload/edges, no fuel use when idle/swapping/downed, swap-to-dodge; level IV; rewind online vs live offline; quiet hits; digest determinism; liveness wave sim); `combat/flame.fuzz.test.ts` (12 Downtown layouts × stages 1–3 × 2 flamers near cover × 2,000 ticks, independent cone/cover rewrite: 19,476 pulses, 24,865 hurt bodies checked, 3,091 in-cone bodies behind cover never burned, 957 kills, 272 ignite kills, 1,058 FF pulses all allowed; no body in a box; zombies reach players; no nav rebuild); `balance.test.ts` (both weapons, combat.json, 7 refusals); `netEvents.test.ts` (round trips + 4-field rule); `hordeFormat.test.ts` (burning bit, states ≤ 7); `localFire.test.ts` (flame ticks and fuel = server's, lag 0/6); `flameJet.test.ts` (reach/angle/clip/cap/frame-rate independence/blue core; cues incl. lost stop); `NetSimHost.flame.test.ts` (burning bit mirror, remote cone on/off, dropped stop ends ≤ 3 patches, own cone instant + predicted fuel, FF event); `burnCue.test.ts` (FF colour + victim); `weaponBandwidth.test.ts` + `tickCostDowntown.test.ts` flame cases.
+
+**Mutations (each new test set run once against each):** M1 cover ignored → CAUGHT (3); M2 shared pulse tick → CAUGHT (3); M3 FF 100 % → CAUGHT (12); M4 bullets/melee hurt → CAUGHT (2); M5 ignite stacks → CAUGHT (1); M6 no fuel use → CAUGHT (7); M7 a `zombie.hit` per pulse → CAUGHT (2: flame quiet-hit test, bandwidth test); M8 burning bit dropped → CAUGHT (2); M9 no lost-stop fallback → CAUGHT (2); M10 drawn fire not clipped → CAUGHT (1); M11 teammates through cover → CAUGHT (1 unit test; the fuzz didn't hit that case); M12 player pulse on first tick → CAUGHT (8); M13 clocks not reset at build start → CAUGHT (1).
+
+**Beat the rule (builder's attempts):** 1 griefing: 5 every 0.5 s → down at exactly 200 ticks (10 s); every hit carries `sourcePlayerId` (logged per player via `friendlyFireStats` + events), victim's "-5" in the flamer's colour, flamer sees an orange ring flash — test. 2 through a car / at its corner: no damage while the muzzle→centre line enters the car, visual stops at the face — tests + screenshot `5-4-flame-stopped-by-car.png` + fuzz (3,091 in-cone bodies behind cover, 0 burned). 3 through barricade/sandbags: damage (D7, choke point) — test; note designer F7 (melee blocked by barricades) does NOT apply to flames (ranged, like guns) — confirm in play. 4 step out on the pulse: exact ceil/floor counts on 3 patterns — test. 5 swap to dodge reload: restarts at 3.0 s, mid-burst swap keeps fuel — test. 6 two flamers: stacks (2 × 5 per 0.5 s on a teammate; separate clocks, both credited) — test; accepted as written (designer may object). 7 self damage: none (aiming everywhere for 40 ticks) — test. 8 ignite farming: burn kills credit the igniter after a swap, weapon `flamethrower` — test. 9 lag exploit: players never rewound — test. 10 event loss: cone ends ≤ 3 patches — tests. Extra: nozzle pressed into a car → nothing burns (FR-B), stacking burns → refresh only (M5).
+
+**Bandwidth (AC 10, `weaponBandwidth.test.ts`, 4 players into 150 zombies, every event to everyone):** 4 × Flamethrower held: zombie.hit 0 B/s, edges 3 B/s, all events 124 B/s per client; in 1.5 s/0.5 s bursts: edges 12 B/s, 143 B/s; Gas torch 116 / 135 B/s; vs 4 × SMG 1,246 B/s (its zombie.hit 504 B/s). Friendly-fire pulse = 8 B tuple (only FF gets the 2 extra fields). Burning zombies 0 B (state bit). Fuel patch: `ammo` uint16 changes every tick while flaming (estimated ~60–80 B/s per flamer, not measured: see Not verified).
+
+**Perf:** tick p99 (4 flamers × 150 Walkers, Downtown, best of 2): Pistols 1.031 ms, Flamethrowers 0.992 ms (+−0.04), Gas torches 0.957 ms (+−0.07), load 4.9 (no PERF_ASSERT run). Headless Chromium (swiftshader, DPR 2, 844×390) `?stress=150&stressfire=1`, crowd toughened (all 150 burning, the worst case), load 6–8: Chainsaw baseline 7.2 / 7.4 / 8.0 / 8.2 fps; Flamethrower 5.0 / 5.3 / 5.7 / 6.5; Gas torch 5.3 / 6.8 (burning overlay cut to 2 flames, no glow sprite, after the first round). Headless numbers are not phone evidence.
+
+**Browser check (Playwright, solo dev build on :5547):** screenshots in `docs/art/epic-5/round-c/ingame/`: `5-4-flamethrower-jet.png`, `5-4-gas-torch-cone.png` (blue core), `5-4-flame-stopped-by-car.png`, `5-4-stress150-burning.png` (burning zombies, HUD fuel bar), `5-4-shop-icons.png`. No page errors.
+
+**Bots (AC 9):** not added to the bot buy order (no 6-wave sim run with bot flamers; existing sims unchanged). Bot FF avoidance not a goal.
+
+### Not verified
+
+- Online browser check with 2 real clients (teammate in the cone, `?lag=150&jitter=20`, hidden tab across a build start, late Game scene start): covered only by `NetSimHost.flame.test.ts` / FakeRoom, not by a real server + two browsers.
+- Fuel `ammo` patch bytes per flamer (estimated, not measured); `tools/netsim` flame scenario not written.
+- Phone FPS (headless swiftshader only); 4 flaming stress bots (solo stress has one survivor).
+- `PERF_ASSERT=1` run not done (numbers recorded without the assert).
+- Bots buying flame weapons / the 6-wave sim with bot flamers; FF damage dealt by bots.
+- The flame roar loop and the look of FS1/FS2 against the designer's looks.html (particles approximate the cards; no side-by-side review).
+- "No allocation growth" in the fuzz (pooled by construction, not measured).
+
+### Notes for the merge
+
+| Shared file | What changed | Merge note |
+| --- | --- | --- |
+| `combat/damage.ts` | `damagePlayerBy(world, target, amount, tag, sourcePlayerId, sourceZombieId = -1)`, `DAMAGE_TAGS`/`DamageTag` re-export, `friendlyFireStats`; `applyZombieDamageQuiet` takes `killerId: string \| null` | Keep THIS implementation (5.5's stub has the same contract signature per the story; the coordinator's paraphrase `(world, player, amount, sourcePlayerId?, …)` puts the tag first — use the contract order: tag before sourcePlayerId). Offer the quiet path to 5.5/5.8 (already used by 5.2). |
+| `combat/explosion.ts` | blast players go through `damagePlayerBy(tag "explosion", killerId)`; `damagePlayerByExplosion` removed (index export too) | 5.5 owns `explode()`: route its player damage through `damagePlayerBy`; owner-less (Bloater) = full damage. |
+| `config/balance/combat.json` + `balanceSchema.ts › combatSchema` + `balance.ts` | new file `friendlyFire {pct, canDown}`, `fx {maxFlameParticles, flameParticlesPerS, maxBurningZombieFx}`; `crossCheckFlames` (FF pulse whole, mine share = FF pct) | 5.5 also creates combat.json: ONE file, merge both blocks (pct is an int 50 here; 5.5 used 0.5 — pick one and fix the other side's reads). Test fixtures listing files gained `combat`. |
+| `core/simEvents.ts` | `player.damaged` + `tag`, `sourcePlayerId` (required); `DAMAGE_TAGS`; `weapon.flame_started/stopped` | every literal `player.damaged` in other branches needs the 2 fields. |
+| `net/netEvents.ts` | kinds `FLAME_STARTED 37`, `FLAME_STOPPED 38` (33/34 = 5.8, 35/36 = 5.5); kind 9 appends tag + source slot only for FF | renumber only if 37/38 got taken. |
+| `net/hordeFormat.ts`, `apps/server/net/hordeEncoder.ts`, `client/net/mirrorZombies.ts` | burning bit (state ≤ 7) | any new ZOMBIE_STATE must stay ≤ 7. |
+| `zombies/zombiePool.ts` | `flameClock`, `igniteTicks/Clock`, `igniterSlot`, `igniteWeapon`, `igniteDamage` (reset in spawn); `FLAME_SLOTS` | |
+| `zombies/zombieAi.ts`, `zombies/spit.ts`, `decay/fire.ts` | damage via `damagePlayerBy`; `resetBurnClocks` calls `resetFlameClocks` | 5.8 Bloater blast/gas: use `damagePlayerBy` with null source. |
+| `combat/firing.ts`, `weapons.ts`, `loadout.ts` | flame branch, burst edges, `isFlame/fuelTicksOf/magazineOf/usesAmmo`, `updateIgnites` after projectiles | 5.5's grenade branch sits beside the flame branch in `tryFire`. |
+| `player/player.ts`, `core/world.ts`, `core/worldSnapshot.ts` | `flameSlot/flaming/flameClock`, `world.flameSlots`, snapshot fields | |
+| `weapons.json`, `shop.json` | `flamethrower`, `gas_torch` appended | 5.5's `grenade_launcher` also appends: weapon indices shift by order — fine as long as older ones stay. shop/balance/shopStore tests list the shop. |
+| Client: `GameScene.ts`, `HudScene.ts`, `hudModel.ts`, `SimHost.ts`, `LocalSimHost.ts`, `NetSimHost.ts`, `localFire.ts`, `fireCue.ts`, `burnCue.ts`, `PlayerView.ts`, `weaponArt.ts`, `spriteArt.ts` (drawSurvivor `back`), `spriteAtlas.ts`, `placeholderSfx.ts` | flame view/cues/HUD/FF cue/art/sound | `isFireHit` is now `tag === "fire"` (a 5.5/5.8 hit must carry its tag). `FireHitQueue` gained `fireHitSource`. |
+| `docs/playtests/milestone-1/readability-*` | rows 27–29 | 5.5/5.8 add rows too: renumber at merge. |
+
+### Merge with the work branch (5.8 Bloaters + 5.5 Grenade Launcher, eeb727a)
+
+- `combat.json`: one file, 5.5's `explosion` block + 5.4's `friendlyFire` and `fx`; the landed file keeps `friendlyFire.pct: 50` (an integer percent, as in both branches), so no conversion to 0.5 was needed.
+- `damagePlayerBy`: 5.4's implementation kept (same contract signature as 5.5's stub); it also maps a zombie-less explosion/fire to source −2/−1 as 5.5's stub did. 5.5's `explode(world, spec)` kept: `friendlyFire: false` (the Bloater) passes a null source, so the 50 % share is bypassed (new row in the friendly-fire table).
+- Weapons: `grenade_launcher` first, then `flamethrower`, `gas_torch` (weapons.json and shop); `magazineOf`/`usesAmmo` cover launchers; 5.5's `hasMagazine`/`isLauncher` kept.
+- Events: 33/34 = 5.8, 35/36 = 5.5, 37/38 = 5.4 (unchanged).
+- Art: 5.5's `tube`/`gripPart` kept; 5.4's FT helpers renamed `flameTube`/`flameGrip`.
+- Readability rows 34–36 (pictures `35_`–`37_`), after 5.5's 33.
+- Bots buying flame weapons: not added (not trivial: needs the 6-wave sim with bot flamers and FF numbers).
+- Gate on the merged result 18:32–18:37: typecheck / lint / test (250 files, 2,007 passed, 3 skipped) / build green; load 2.3 → 5.8.
 
 ### File List
+
+- `apps/client/src/audio/placeholderSfx.ts`
+- `apps/client/src/net/localFire.test.ts`
+- `apps/client/src/net/localFire.ts`
+- `apps/client/src/net/mirrorZombies.ts`
+- `apps/client/src/render/FlameView.ts` (new)
+- `apps/client/src/render/PlayerView.ts`
+- `apps/client/src/render/acidFx.test.ts`
+- `apps/client/src/render/burnCue.test.ts`
+- `apps/client/src/render/burnCue.ts`
+- `apps/client/src/render/city/spriteArt.ts`
+- `apps/client/src/render/city/spriteAtlas.ts`
+- `apps/client/src/render/city/weaponArt.ts`
+- `apps/client/src/render/fireCue.ts`
+- `apps/client/src/render/flameCues.ts` (new)
+- `apps/client/src/render/flameJet.test.ts` (new)
+- `apps/client/src/render/flameJet.ts` (new)
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/scenes/HudScene.ts`
+- `apps/client/src/scenes/hudModel.ts`
+- `apps/client/src/sim/LocalSimHost.ts`
+- `apps/client/src/sim/NetSimHost.fire.test.ts`
+- `apps/client/src/sim/NetSimHost.flame.test.ts` (new)
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/client/src/sim/SimHost.ts`
+- `apps/client/src/ui/shopStore.test.ts`
+- `apps/server/src/net/eventInterest.test.ts`
+- `apps/server/src/net/hordeEncoder.ts`
+- `apps/server/src/run/tickCostDowntown.test.ts`
+- `apps/server/src/run/weaponBandwidth.test.ts`
+- `docs/art/epic-5/round-c/ingame/5-4-flamethrower-jet.png` (new)
+- `docs/art/epic-5/round-c/ingame/5-4-gas-torch-cone.png` (new)
+- `docs/art/epic-5/round-c/ingame/5-4-flame-stopped-by-car.png` (new)
+- `docs/art/epic-5/round-c/ingame/5-4-stress150-burning.png` (new)
+- `docs/art/epic-5/round-c/ingame/5-4-shop-icons.png` (new)
+- `docs/playtests/milestone-1/objects/28_flamethrower_cone.png` (new)
+- `docs/playtests/milestone-1/objects/29_gas_torch_cone.png` (new)
+- `docs/playtests/milestone-1/objects/30_burning_zombies.png` (new)
+- `docs/playtests/milestone-1/readability-key.md`
+- `docs/playtests/milestone-1/readability-sheet.md`
+- `packages/shared/src/combat/aimAssist.test.ts`
+- `packages/shared/src/combat/damage.test.ts`
+- `packages/shared/src/combat/damage.ts`
+- `packages/shared/src/combat/explosion.ts`
+- `packages/shared/src/combat/firing.test.ts`
+- `packages/shared/src/combat/firing.ts`
+- `packages/shared/src/combat/flame.fuzz.test.ts` (new)
+- `packages/shared/src/combat/flame.test.ts` (new)
+- `packages/shared/src/combat/flame.ts` (new)
+- `packages/shared/src/combat/loadout.ts`
+- `packages/shared/src/combat/melee.test.ts`
+- `packages/shared/src/combat/swap.test.ts`
+- `packages/shared/src/combat/weapons.ts`
+- `packages/shared/src/config/balance.test.ts`
+- `packages/shared/src/config/balance.ts`
+- `packages/shared/src/config/balance/combat.json` (new)
+- `packages/shared/src/config/balance/shop.json`
+- `packages/shared/src/config/balance/weapons.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/core/simEvents.ts`
+- `packages/shared/src/core/world.ts`
+- `packages/shared/src/core/worldSnapshot.ts`
+- `packages/shared/src/decay/fire.ts`
+- `packages/shared/src/economy/shop.test.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/net/hordeFormat.test.ts`
+- `packages/shared/src/net/hordeFormat.ts`
+- `packages/shared/src/net/netEvents.test.ts`
+- `packages/shared/src/net/netEvents.ts`
+- `packages/shared/src/player/player.ts`
+- `packages/shared/src/waves/spawnPoints.test.ts`
+- `packages/shared/src/waves/waveDirector.test.ts`
+- `packages/shared/src/zombies/brute.test.ts`
+- `packages/shared/src/zombies/spit.ts`
+- `packages/shared/src/zombies/zombieAi.test.ts`
+- `packages/shared/src/zombies/zombieAi.ts`
+- `packages/shared/src/zombies/zombiePool.ts`
+- `_bmad-output/implementation-artifacts/5-4-flamethrower-and-fire-friendly-fire.md`
+
+### Change Log
+
+- 2026-11-23: Story 5.4 built (two flame weapons per round C, friendly-fire rule `damagePlayerBy`, ignite, burning bit, flame cues/view/HUD/art, tests, fuzz, mutations, bandwidth/perf, browser check). Status → review.

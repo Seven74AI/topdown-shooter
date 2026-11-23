@@ -11,6 +11,8 @@ const CROWD = 150;
 interface Bw {
   /** All of `sim.events_flushed` per client (everything to everyone: no interest filter, the worst case). */
   eventBps: number;
+  /** Story 5.4: the flame burst edges (flame_started/stopped) and friendly-fire player.damaged, packed one by one. */
+  flameBps: number;
   /** The tuples a shot causes directly: weapon.fired and zombie.hit (packed one by one). */
   firedBps: number;
   hitBps: number;
@@ -26,7 +28,7 @@ interface Bw {
  * x = 10 and firing east into a 150-zombie crowd (standing still, a new one where one died) for
  * 30 s, online (lag compensation on, like the server). Per client: every event to everyone.
  */
-function measure(weapon: string | null, firing = 4): Bw {
+function measure(weapon: string | null, firing = 4, pulse = false): Bw {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
   const c = new RunController({ balance, seed: 11, players, pauseWaves: true, systems: { zombies: () => {} }, map: PLACEHOLDER_MAP });
   const world = c.world;
@@ -46,6 +48,7 @@ function measure(weapon: string | null, firing = 4): Bw {
   let eventBytes = 0;
   let firedBytes = 0;
   let hitBytes = 0;
+  let flameBytes = 0;
   let shots = 0;
   let kills = 0;
   let lobBytes = 0;
@@ -59,7 +62,9 @@ function measure(weapon: string | null, firing = 4): Bw {
     }
     // Story 5.5: a launcher aims 6 m out (the aim length carries the distance; others ignore it: normalised).
     const aimX = balance.weapons[weapon ?? ""]?.kind === "launcher" ? 0.5 : 1;
-    players.forEach(({ playerId }, i) => c.queueInput(playerId, { ...NEUTRAL_INPUT, seq: t + 1, aimX, aimY: 0, fire: weapon !== null && i < firing, isMouse: true }));
+    // Story 5.4 `pulse`: the trigger held 1.5 s, released 0.5 s (bursts: the flame edge events flow)
+    const held = !pulse || t % 40 < 30;
+    players.forEach(({ playerId }, i) => c.queueInput(playerId, { ...NEUTRAL_INPUT, seq: t + 1, aimX, aimY: 0, fire: weapon !== null && i < firing && held, isMouse: true }));
     const events = c.tick();
     const tuples = [];
     for (const e of events) {
@@ -70,6 +75,7 @@ function measure(weapon: string | null, firing = 4): Bw {
         shots++;
         firedBytes += pack(tu).length;
       } else if (tu[0] === NET_EVENT_KIND.ZOMBIE_HIT) hitBytes += pack(tu).length;
+      else if (tu[0] === NET_EVENT_KIND.FLAME_STARTED || tu[0] === NET_EVENT_KIND.FLAME_STOPPED || (tu[0] === NET_EVENT_KIND.PLAYER_DAMAGED && tu.length > 4)) flameBytes += pack(tu).length;
       else if (tu[0] === NET_EVENT_KIND.ZOMBIE_KILLED && e.type === "zombie.killed" && e.weapon === weapon) kills++;
       else if (tu[0] === NET_EVENT_KIND.GRENADE_LAUNCHED || tu[0] === NET_EVENT_KIND.EXPLOSION_HAPPENED) {
         lobBytes += pack(tu).length;
@@ -78,7 +84,7 @@ function measure(weapon: string | null, firing = 4): Bw {
     }
     eventBytes += tuples.length > 0 ? pack({ tick: world.tick, events: tuples }).length : 0;
   }
-  return { eventBps: eventBytes / SECONDS, firedBps: firedBytes / SECONDS, hitBps: hitBytes / SECONDS, shots, kills, lobBps: lobBytes / SECONDS, blasts };
+  return { eventBps: eventBytes / SECONDS, firedBps: firedBytes / SECONDS, hitBps: hitBytes / SECONDS, flameBps: flameBytes / SECONDS, shots, kills, lobBps: lobBytes / SECONDS, blasts };
 }
 
 /** The story's estimate per firing player (weapon.fired + zombie.hit), B/s. */
@@ -120,6 +126,26 @@ describe("Grenade Launcher bandwidth (Story 5.5, AC 10, brief line 11)", () => {
       expect(w.hitBps).toBe(0); // blast hits are quiet
       expect(perLauncher).toBeLessThanOrEqual(40 * 1.5);
       expect(w.eventBps).toBeLessThan(30 * 1024);
+    }
+  });
+});
+
+describe("Flamethrower bandwidth (Story 5.4, AC 10)", () => {
+  it("4 flamers into the 150-zombie crowd (held and in bursts) vs 4 SMGs: no zombie.hit per pulse, burst edges only, events far under the SMG's", () => {
+    const smg = measure("smg");
+    for (const weapon of ["flamethrower", "gas_torch"] as const) {
+      for (const pulse of [false, true]) {
+        const f = measure(weapon, 4, pulse);
+        console.log(
+          `[weapon bandwidth 5.4] 4 × ${weapon}${pulse ? " (bursts 1.5 s on / 0.5 s off)" : " (held)"}: ${(f.kills / SECONDS).toFixed(1)} kills/s; zombie.hit ${f.hitBps.toFixed(0)} B/s; flame edges ${f.flameBps.toFixed(0)} B/s; ` +
+            `all events ${f.eventBps.toFixed(0)} B/s per client vs 4 × SMG ${smg.eventBps.toFixed(0)} B/s (SMG zombie.hit ${smg.hitBps.toFixed(0)} B/s)`,
+        );
+        expect(f.kills).toBeGreaterThanOrEqual(50); // liveness: the flames really killed
+        expect(f.hitBps).toBe(0); // quiet hits: never a zombie.hit per pulse
+        expect(f.firedBps).toBe(0); // no weapon.fired per tick
+        expect(f.flameBps).toBeLessThanOrEqual(4 * 2 * 4); // ≤ 1 burst/s per flamer: 2 edges × ≤ 4 B
+        expect(f.eventBps).toBeLessThan(smg.eventBps);
+      }
     }
   });
 });

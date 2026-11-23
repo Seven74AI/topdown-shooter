@@ -121,3 +121,9 @@ Player:
 
 ## 32, 33: two blasts (Story 5.5)
 ![32](objects/33_explosion_fireball.png) ![33](objects/34_explosion_shockwave.png)
+
+## 34, 35: what is the survivor holding, and what does it do? (Story 5.4)
+![34](objects/35_flamethrower_cone.png) ![35](objects/36_gas_torch_cone.png)
+
+## 36: what is happening to these zombies? (Story 5.4)
+![36](objects/37_burning_zombies.png)

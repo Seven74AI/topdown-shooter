@@ -5,7 +5,7 @@ import type { SpitStats } from "../config/balanceSchema";
 import type { Balance } from "../config/balance";
 import { shotBlockT, shotLineClear } from "../combat/cover";
 import { segmentCircleT } from "../math/sweep";
-import { downPlayer } from "../player/downed";
+import { damagePlayerBy } from "../combat/damage";
 import type { PlayerState } from "../player/player";
 import { AREA_KIND, clearAreas, spawnArea } from "../hazards/areaPool";
 import { freeSpit, clearSpits } from "./spitPool";
@@ -173,10 +173,8 @@ function splash(world: World, i: number, x: number, y: number, hitPlayerId: stri
 
 /** Acid damage to a standing player (spit or puddle): HP, `player.damaged` (source −3), down at 0. */
 function acidDamage(world: World, p: PlayerState, amount: number): void {
-  if (p.status !== "alive" || world.debug.godMode) return; // F5; god mode: dev cheat / ?stress
-  p.hp = Math.max(0, p.hp - amount);
-  world.events.emit({ type: "player.damaged", playerId: p.id, amount, sourceZombieId: DAMAGE_SOURCE_ACID });
-  if (p.hp <= 0) downPlayer(world, p);
+  // F5 (standing only) and god mode are the rule's own (Story 5.4: the one player-damage path).
+  damagePlayerBy(world, p, amount, "acid", null, DAMAGE_SOURCE_ACID);
 }
 
 /** Globs in flight: one swept step each (from the end: a splash moves the last spit into the hole). */

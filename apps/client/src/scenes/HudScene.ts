@@ -26,7 +26,7 @@ import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
 import { MAX_PLAYERS } from "@topdown/shared";
 import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, hudTierMark } from "./hudModel";
-import { SLOT_COLORS } from "../render/playerColors";
+import { SLOT_COLORS, SLOT_COLOR_CSS } from "../render/playerColors";
 import { createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
 import { pulseAlpha, pulseScale } from "../render/pulse";
 import { PerfOverlay } from "../debug/PerfOverlay";
@@ -79,6 +79,8 @@ const SWAP_BTN_RIGHT = 24;
 const SWAP_BTN_BOTTOM = 120;
 const RELOAD_BAR_W = 120;
 const RELOAD_BAR_H = 6;
+/** Story 5.4: the fuel bar of a flame weapon (orange, under the fuel percent). */
+const FUEL_BAR_COLOR = 0xff8a2a;
 /** Wave panel (top-center) and banner. */
 const WAVE_TEXT_PX = 16;
 const BANNER_TEXT_PX = 34;
@@ -628,7 +630,9 @@ export class HudScene extends Phaser.Scene {
     const now = this.time.now;
     for (let i = 0; i < m.fireHitCount; i++) {
       const slot = this.firePool.spawn(now, m.fireHitAmounts[i] as number);
-      (this.firePops[slot] as Phaser.GameObjects.Text).setText(fireDamageLabel(m.fireHitAmounts[i] as number));
+      // Story 5.4: a teammate's flame shows its "-N" in their ring colour (who hurt you).
+      const src = m.fireHitSource[i] as number;
+      (this.firePops[slot] as Phaser.GameObjects.Text).setText(fireDamageLabel(m.fireHitAmounts[i] as number)).setColor(src >= 0 ? (SLOT_COLOR_CSS[src] ?? FIRE_POP_COLOR) : FIRE_POP_COLOR);
     }
     m.fireHitCount = 0;
     const k = dpr();
@@ -1323,11 +1327,12 @@ export class HudScene extends Phaser.Scene {
     const safe = this.insets;
     const x = this.scale.width - (AMMO_MARGIN + safe.right) * k;
     const y = this.scale.height - (AMMO_MARGIN + safe.bottom) * k - RELOAD_BAR_H * k - 6 * k;
-    const count = m.ammo < 0 ? "—" : `${m.ammo} / ${m.magazine}`;
+    // Story 5.4: a flame weapon shows its fuel (percent + an orange bar) instead of a round count.
+    const count = m.ammo < 0 ? "—" : m.fuel ? `Fuel ${m.ammo}%` : `${m.ammo} / ${m.magazine}`;
     const status = swapping ? "Swapping" : reloading ? "Reloading" : count;
     this.ammoText.setText(`  ${status}`).setPosition(x, y);
     this.placeNameAndMark(this.ammoNameText, this.ammoMark, this.ammoText, `▶ ${m.weaponName}`, m.weaponLevel, x, y);
-    const otherCount = m.otherAmmo < 0 ? "—" : `${m.otherAmmo} / ${m.otherMag}`;
+    const otherCount = m.otherAmmo < 0 ? "—" : m.otherFuel ? `Fuel ${m.otherAmmo}%` : `${m.otherAmmo} / ${m.otherMag}`;
     const oy = y - this.ammoText.height - 2 * k;
     this.otherText.setText(hasOther ? `  ${otherCount}` : "").setPosition(x, oy);
     this.placeNameAndMark(this.otherNameText, this.otherMark, this.otherText, hasOther ? m.otherWeaponName : "", hasOther ? m.otherWeaponLevel : 1, x, oy);
@@ -1338,6 +1343,12 @@ export class HudScene extends Phaser.Scene {
       const by = y + 6 * k;
       this.reloadBar.fillStyle(0x000000, 0.6).fillRect(x - w, by, w, h);
       this.reloadBar.fillStyle(swapping ? 0xf5c542 : 0xffffff, 0.9).fillRect(x - w, by, w * progress, h);
+    } else if (m.fuel && m.ammo >= 0) {
+      const w = RELOAD_BAR_W * k;
+      const h = RELOAD_BAR_H * k;
+      const by = y + 6 * k;
+      this.reloadBar.fillStyle(0x000000, 0.6).fillRect(x - w, by, w, h);
+      this.reloadBar.fillStyle(FUEL_BAR_COLOR, 0.95).fillRect(x - w, by, (w * m.ammo) / 100, h);
     }
   }
 

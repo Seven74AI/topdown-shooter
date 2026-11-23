@@ -1,6 +1,6 @@
 import type { Balance } from "../config/balance";
 import { weaponIds, type WeaponId } from "../combat/weapons";
-import { MONEY_REASONS, type SimEvent } from "../core/simEvents";
+import { DAMAGE_TAGS, MONEY_REASONS, type DamageTag, type SimEvent } from "../core/simEvents";
 import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
 import { buildingTypeIds } from "../buildings/buildings";
@@ -57,6 +57,8 @@ export const NET_EVENT_KIND = {
   // Story 5.5 (renumbered after 5.8's at the merge; never reuse):
   GRENADE_LAUNCHED: 35,
   EXPLOSION_HAPPENED: 36,
+  FLAME_STARTED: 37, // Story 5.4 (27–32 taken, 33/34 = 5.8 Bloaters, 35/36 = 5.5 Grenade Launcher; never reuse)
+  FLAME_STOPPED: 38, // Story 5.4
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -152,9 +154,15 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return e.hits !== undefined
         ? [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY), Math.min(255, e.hits)]
         : [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
-    case "player.damaged":
-      // Story 5.9: a negative source (fire -1, blast -2) travels as is.
-      return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? e.sourceZombieId : zid(ctx, e.sourceZombieId)];
+    case "player.damaged": {
+      // Story 5.9: a negative source (fire -1, blast -2) travels as is. Story 5.4: the tag
+      // (`DAMAGE_TAGS` index, index 4) and the source player's slot (friendly fire, index 5) are
+      // appended only when they say more than the source does (a player's fire or blast): bites,
+      // car fire, acid and owner-less blasts keep their 4-field tuple (0 added bytes).
+      const src = e.sourceZombieId < 0 ? e.sourceZombieId : zid(ctx, e.sourceZombieId);
+      if (e.sourcePlayerId === null && e.tag === legacyTag(e.sourceZombieId)) return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), src];
+      return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), src, DAMAGE_TAGS.indexOf(e.tag), playerSlotOf(e.sourcePlayerId)];
+    }
     case "player.downed":
       return [K.PLAYER_DOWNED, playerSlotOf(e.playerId)];
     case "player.revived":
@@ -228,12 +236,22 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "bloater.burst":
       // Story 5.8: the burst FX and the gas cloud (no cloud state on the wire; hits and kills are their own events).
       return [K.BLOATER_BURST, cm(e.x), cm(e.y), e.chain ? 1 : 0];
+    case "weapon.flame_started":
+      // Story 5.4: the burst's first tick (the cone's direction is the flamer's synced heading).
+      return [K.FLAME_STARTED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon)];
+    case "weapon.flame_stopped":
+      return [K.FLAME_STOPPED, playerSlotOf(e.playerId)];
     case "test.ping":
       return null;
   }
 }
 
 const n = (t: NetEvent, i: number): number => t[i] ?? 0;
+
+/** Story 5.4: the tag a tag-less `player.damaged` tuple implies (4.8 fire −1, 5.9 blast −2, 5.6 acid −3, else a bite). */
+function legacyTag(src: number): DamageTag {
+  return src === -1 ? "fire" : src === -2 ? "explosion" : src === -3 ? "acid" : "zombie";
+}
 const pid = (t: NetEvent, i: number): string => playerIdOfSlot(n(t, i)) ?? "";
 
 /**
@@ -315,8 +333,21 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.PLAYER_DAMAGED: {
       const src = n(t, 3);
-      return { type: "player.damaged", playerId: pid(t, 1), amount: n(t, 2) / 10, sourceZombieId: src < 0 ? src : zombieSlotOfNetId(src) };
+      // Story 5.4: a tuple without the tag (older server) takes it from the source.
+      const tag = t.length > 4 ? (DAMAGE_TAGS[n(t, 4)] ?? legacyTag(src)) : legacyTag(src);
+      return {
+        type: "player.damaged",
+        playerId: pid(t, 1),
+        amount: n(t, 2) / 10,
+        sourceZombieId: src < 0 ? src : zombieSlotOfNetId(src),
+        tag,
+        sourcePlayerId: playerIdOfSlot(t[5] ?? NET_NONE),
+      };
     }
+    case K.FLAME_STARTED:
+      return { type: "weapon.flame_started", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)) };
+    case K.FLAME_STOPPED:
+      return { type: "weapon.flame_stopped", playerId: pid(t, 1) };
     case K.PLAYER_DOWNED:
       return { type: "player.downed", playerId: pid(t, 1) };
     case K.PLAYER_REVIVED:

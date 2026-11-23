@@ -99,6 +99,12 @@ export interface World {
   readonly spits: SpitPool;
   /** Story 5.6 (D5): ground damage areas — acid puddles (pool sized by `spitCaps.maxLivePuddles`). */
   readonly areas: AreaPool;
+  /**
+   * Story 5.4: the flame slot table — slot `s` (0–3) → the id of the player holding it (null: free).
+   * A player's flame slot indexes the per-(body, flamer) flame clocks and a zombie's igniter
+   * (`combat/flame.ts`); assigned in `addPlayer` (the wire slot when it is free), freed in `removePlayer`.
+   */
+  readonly flameSlots: (string | null)[];
   /** Story 5.5: lobbed rounds in flight (pool sized by `combat.json › explosion.maxLiveRounds`). */
   readonly grenades: GrenadePool;
   /** Story 5.8: queued Bloater blasts (chain links wait a tick; ring of `zombies.json › blasts.queueCapacity`). */
@@ -176,6 +182,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     rewoundView: createRewoundView(map),
     spits: createSpitPool(opts.balance.zombies.spitCaps.maxLiveSpits), // Story 5.6
     areas: createAreaPool(opts.balance.zombies.spitCaps.maxLivePuddles),
+    flameSlots: [null, null, null, null], // Story 5.4 (FLAME_SLOTS = MAX_PLAYERS)
     grenades: createGrenadePool(opts.balance.combat.explosion.maxLiveRounds), // Story 5.5
     blasts: createBlastQueue(opts.balance.zombies.blasts.queueCapacity), // Story 5.8
     gas: createAreaPool(opts.balance.zombies.blasts.maxGasClouds),

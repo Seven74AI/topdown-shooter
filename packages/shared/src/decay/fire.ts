@@ -2,7 +2,8 @@ import type { World } from "../core/world";
 import { ticksFor } from "../core/time";
 import { circleOverlapsBox } from "../buildings/collision";
 import { buildingStats, damageBuilding, type Building } from "../buildings/buildings";
-import { downPlayer } from "../player/downed";
+import { damagePlayerBy } from "../combat/damage";
+import { resetFlameClocks } from "../combat/flame";
 import type { PlayerState } from "../player/player";
 import { killZombie, zombieTypeOf } from "../zombies/zombiePool";
 import { circleInFire, type FireRecord } from "./decayState";
@@ -74,10 +75,9 @@ const burnPlayer = (p: PlayerState): void => {
   if (!circleInFire(world.decay.fires, p.x, p.y, p.radiusM)) return;
   if (++p.fireTicks < pass.pulse) return;
   p.fireTicks = 0;
-  p.hp = Math.max(0, p.hp - pass.amount);
   firePulse.players++;
-  world.events.emit({ type: "player.damaged", playerId: p.id, amount: pass.amount, sourceZombieId: DAMAGE_SOURCE_FIRE });
-  if (p.hp <= 0) downPlayer(world, p);
+  // Story 5.4 (D2): environment fire is no player's source: full damage, tagged `fire` for the cues.
+  damagePlayerBy(world, p, pass.amount, "fire", null, DAMAGE_SOURCE_FIRE);
 };
 
 /** Fire hits so far (tests and logs; not read by the sim). */
@@ -154,6 +154,7 @@ export function resetBurnClocks(world: World): void {
   world.players.forEach(coolPlayer);
   world.zombies.fireTicks.fill(0);
   world.zombies.trapTicks.fill(0); // Story 5.9: the spike clock follows the same rule (4.8 D19)
+  resetFlameClocks(world); // Story 5.4 (FR-C): the flame clocks and ignites follow it too
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) (list[i] as Building).fireTicks = 0;
 }

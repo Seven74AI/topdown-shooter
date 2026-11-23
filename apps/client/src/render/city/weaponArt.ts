@@ -1302,6 +1302,329 @@ export function drawGrenadeLauncher(c: G, view: WeaponArtView, size: number): vo
   heldGlint(c, r * 1.07, r * 1.78, -r * 0.09, r, 0.4);
 }
 
+// ================= Story 5.4: the flame weapons (round C: FT1 Flamethrower, FT2 Gas torch) =================
+// Ported from `docs/art/epic-5/round-c/looks.html` (FT1 military twin-tank, FT2 scavenged propane rig).
+
+function rustTex(seed: number, amt = 1): Tex {
+  return (c, x0, y0, x1, y1) => {
+    const r = mulberry(seed);
+    const w = x1 - x0;
+    const h = y1 - y0;
+    const area = (w * h) / (P * P);
+    const nb = Math.min(26, 4 + area * 0.0015) * amt;
+    for (let i = 0; i < nb; i++) {
+      const x = x0 + r() * w;
+      const y = y0 + r() * h;
+      const rr = Math.max(w, h) * (0.04 + r() * 0.14);
+      const g = c.createRadialGradient(x, y, 0, x, y, rr);
+      const col = r() < 0.5 ? "150,72,28" : "92,46,20";
+      g.addColorStop(0, `rgba(${col},${0.28 + r() * 0.32})`);
+      g.addColorStop(1, `rgba(${col},0)`);
+      c.fillStyle = g;
+      c.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+    }
+    const n = Math.min(900, area * 0.05 * amt);
+    for (let i = 0; i < n; i++) {
+      c.fillStyle = r() < 0.6 ? `rgba(160,84,36,${0.18 + r() * 0.3})` : `rgba(28,20,15,${0.2 + r() * 0.3})`;
+      const sz = P * (0.6 + r() * 1.6);
+      c.fillRect(x0 + r() * w, y0 + r() * h, sz, sz);
+    }
+  };
+}
+function flameTube(c: G, x0: number, x1: number, y: number, d: number, base: string, tex: Tex, o: { r?: number } = {}): PathFn {
+  const p: PathFn = (q) => R(q, x0, y - d / 2, x1 - x0, d, o.r ?? d * 0.3);
+  part(c, p, { base, lit: "top", box: [x0, y - d / 2, x1, y + d / 2], tex, hi: 0.45, lo: 0.5, rim: 0.4 });
+  return p;
+}
+function hoseS(c: G, path: PathFn, w: number, col: string, ridge = true): void {
+  strokeP(c, path, "#050506", w + 2.2 * P);
+  strokeP(c, path, col, w);
+  if (ridge) {
+    c.save();
+    c.setLineDash([w * 0.35, w * 0.35]);
+    strokeP(c, path, "rgba(0,0,0,0.45)", w * 0.9, "butt");
+    c.restore();
+  }
+  c.save();
+  c.translate(-w * 0.12, -w * 0.18);
+  strokeP(c, path, "rgba(200,210,225,0.22)", w * 0.25);
+  c.restore();
+}
+function holes(c: G, clip: PathFn, x0: number, x1: number, y0: number, y1: number, step: number, r: number): void {
+  c.save();
+  c.beginPath();
+  clip(c);
+  c.clip();
+  let row = 0;
+  for (let y = y0; y <= y1; y += step, row++) {
+    for (let x = x0 + (row % 2) * (step / 2); x <= x1; x += step) {
+      fillP(c, (q) => E(q, x, y, r, r * 0.8), "rgba(4,4,5,0.9)");
+      fillP(c, (q) => E(q, x + r * 0.3, y + r * 0.35, r * 0.5, r * 0.3), "rgba(255,190,120,0.10)");
+    }
+  }
+  c.restore();
+}
+function flameGrip(c: G, x: number, y: number, len: number, ang: number, w: number, base: string, tex?: Tex): void {
+  const ca = Math.cos(ang);
+  const sa = Math.sin(ang);
+  const pts = [[-w / 2, 0], [w / 2, 0], [(w / 2) * 0.9, len], [(-w / 2) * 1.1, len]] as const;
+  const g: PathFn = (q) => {
+    for (let i = 0; i < 4; i++) {
+      const [px, py] = pts[i] as readonly [number, number];
+      const X = x + px * ca - py * sa;
+      const Y = y + px * sa + py * ca;
+      if (i) q.lineTo(X, Y);
+      else q.moveTo(X, Y);
+    }
+    q.closePath();
+  };
+  part(c, g, { base, box: [x - len, y - 0.01, x + len, y + len], tex: tex ?? polyTex(91, true), hi: 0.3, rim: 0.3 });
+  c.save();
+  c.beginPath();
+  g(c);
+  c.clip();
+  for (let k = 1; k < 6; k++) strokeP(c, (q) => { q.moveTo(x - 0.06, y + (len * k) / 6); q.lineTo(x + 0.06, y + (len * k) / 6 + 0.004); }, "rgba(0,0,0,0.35)", 1 * P, "butt");
+  c.restore();
+}
+function glowAt(c: G, x: number, y: number, r: number, rgb: string, a: number): void {
+  if (a <= 0 || r <= 0) return;
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  const g = c.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(${rgb},${a})`);
+  g.addColorStop(0.3, `rgba(${rgb},${a * 0.5})`);
+  g.addColorStop(1, `rgba(${rgb},0)`);
+  c.fillStyle = g;
+  c.beginPath();
+  c.arc(x, y, r, 0, TAU);
+  c.fill();
+  c.restore();
+}
+/** The pilot flame at the nozzle (orange FT1, blue FT2), a still frame (the atlas is drawn once). */
+function pilotIcon(c: G, x: number, y: number, blue: boolean): void {
+  if (blue) {
+    glowAt(c, x, y, 0.03, "120,170,255", 0.9);
+    glowAt(c, x + 0.008, y, 0.012, "235,245,255", 0.9);
+  } else {
+    glowAt(c, x, y, 0.032, "255,150,50", 0.9);
+    glowAt(c, x + 0.006, y - 0.002, 0.012, "255,240,200", 0.9);
+  }
+}
+function pilotHeld(c: G, x: number, y: number, r: number, blue: boolean): void {
+  if (blue) {
+    glowAt(c, x, y, r * 0.2, "110,160,255", 0.9);
+    glowAt(c, x, y, r * 0.08, "235,245,255", 0.9);
+  } else {
+    glowAt(c, x, y, r * 0.22, "255,150,50", 0.85);
+    glowAt(c, x, y, r * 0.08, "255,240,200", 0.9);
+  }
+}
+function heldBox(c: G, x: number, y: number, w: number, h: number, fill: string, rad: number): void {
+  c.beginPath();
+  R(c, x, y, w, h, rad);
+  c.fillStyle = fill;
+  c.fill();
+  c.stroke();
+}
+
+const FT1_OD = "#4b5034";
+
+/**
+ * Story 5.4 FT1: the Flamethrower, an old army twin-tank (two olive tanks, a perforated heat shield
+ * on the wand, an orange pilot flame). "icon": side view (`size` px per metre); "held": top-down in
+ * the hands (`size` = r px), the tanks on the back come from `drawFlamethrowerBack`.
+ * Icon improved over the round C card (designer: "shop icon to be improved"): a bolder nozzle with
+ * a lick of fuel flame, and lighter tank tops, so it reads as a flamethrower at 96 × 44.
+ */
+export function drawFlamethrower(c: G, view: WeaponArtView, size: number): void {
+  if (view === "held") {
+    const r = size;
+    c.lineWidth = Math.max(1, r * 0.05);
+    c.strokeStyle = "rgba(6,6,6,0.85)";
+    heldBox(c, r * 0.3, -r * 0.15, r * 0.34, r * 0.3, "#2a2c30", r * 0.05);
+    heldBox(c, r * 0.6, -r * 0.08, r * 1.5, r * 0.16, "#25272b", r * 0.06);
+    heldBox(c, r * 1.18, -r * 0.14, r * 0.85, r * 0.28, FT1_OD, r * 0.06);
+    c.fillStyle = "rgba(0,0,0,0.75)";
+    for (let x = r * 1.27; x < r * 1.98; x += r * 0.11) {
+      for (const y of [-r * 0.06, r * 0.03]) {
+        c.beginPath();
+        c.arc(x, y, Math.max(0.6, r * 0.03), 0, TAU);
+        c.fill();
+      }
+    }
+    heldBox(c, r * 1.62, r * 0.12, r * 0.4, r * 0.11, "#2a2c30", r * 0.04);
+    c.beginPath();
+    c.moveTo(r * 2.02, -r * 0.1);
+    c.lineTo(r * 2.27, -r * 0.06);
+    c.lineTo(r * 2.27, r * 0.06);
+    c.lineTo(r * 2.02, r * 0.1);
+    c.closePath();
+    c.fillStyle = "#2b2d31";
+    c.fill();
+    c.stroke();
+    strokeP(c, (q) => { q.moveTo(r * 0.62, -r * 0.055); q.lineTo(r * 2.0, -r * 0.055); }, "rgba(190,205,225,0.35)", Math.max(0.8, r * 0.03), "butt");
+    pilotHeld(c, r * 2.02, r * 0.175, r, false);
+    return;
+  }
+  P = 1 / size;
+  c.save();
+  c.scale(size, size);
+  const tk = (y: number, base: string, sd: number): void => {
+    const p: PathFn = (q) => R(q, -0.5, y, 0.4, 0.1, 0.05);
+    part(c, p, { base, lit: "top", box: [-0.5, y, -0.1, y + 0.1], tex: steelTex(sd, 0.9), hi: 0.5, lo: 0.55 });
+    c.save();
+    c.beginPath();
+    p(c);
+    c.clip();
+    for (const x of [-0.43, -0.17]) strokeP(c, (q) => { q.moveTo(x, y - 0.01); q.lineTo(x, y + 0.11); }, "rgba(0,0,0,0.4)", 2 * P, "butt");
+    c.restore();
+  };
+  tk(-0.005, shade(FT1_OD, -0.3), 11);
+  tk(0.055, FT1_OD, 12);
+  fillP(c, (q) => R(q, -0.37, 0.054, 0.03, 0.11), "rgba(30,26,18,0.9)");
+  fillP(c, (q) => R(q, -0.25, 0.054, 0.03, 0.11), "rgba(30,26,18,0.9)");
+  part(c, (q) => R(q, -0.095, 0.08, 0.03, 0.05, 0.008), { base: "#8a6a2c", box: [-0.095, 0.08, -0.065, 0.13], hi: 0.5, line: 1 });
+  hoseS(c, (q) => { q.moveTo(-0.07, 0.1); q.bezierCurveTo(0.02, 0.13, 0.02, 0.02, -0.12, 0.0); q.quadraticCurveTo(-0.24, -0.02, -0.27, -0.05); }, 0.022, "#1d1e20");
+  flameGrip(c, -0.215, -0.045, 0.085, 0.35, 0.032, "#1e1f22");
+  trigger(
+    c,
+    (q) => { q.moveTo(-0.195, -0.045); q.quadraticCurveTo(-0.2, -0.01, -0.165, -0.012); q.lineTo(-0.14, -0.015); q.quadraticCurveTo(-0.13, -0.03, -0.13, -0.045); },
+    (q) => { q.moveTo(-0.16, -0.045); q.quadraticCurveTo(-0.158, -0.03, -0.168, -0.022); },
+  );
+  part(c, (q) => R(q, -0.3, -0.098, 0.12, 0.055, 0.01), { base: "#2a2c30", box: [-0.3, -0.098, -0.18, -0.043], tex: steelTex(13, 1), hi: 0.45 });
+  rivet(c, -0.285, -0.07, 0.012, "#b08a3c", true);
+  flameTube(c, -0.18, 0.36, -0.07, 0.03, "#25272b", steelTex(14, 0.8));
+  flameGrip(c, 0.015, -0.06, 0.075, -0.1, 0.03, "#1e1f22");
+  const hs = flameTube(c, 0.1, 0.34, -0.07, 0.056, FT1_OD, steelTex(15, 1.1), { r: 0.01 });
+  holes(c, hs, 0.115, 0.33, -0.09, -0.05, 0.013, 0.0035);
+  for (const x of [0.105, 0.335]) fillP(c, (q) => R(q, x - 0.006, -0.1, 0.012, 0.06, 0.003), "#2c2f22");
+  flameTube(c, 0.22, 0.355, -0.026, 0.022, "#2a2c30", steelTex(16, 0.8));
+  fillP(c, (q) => R(q, 0.25, -0.04, 0.012, 0.03), "#1a1b1d");
+  // the nozzle, bolder than the card's (it is what says "flamethrower" at shop size)
+  part(c, (q) => Pg(q, [0.34, -0.092, 0.4, -0.086, 0.45, -0.08, 0.45, -0.06, 0.4, -0.054, 0.34, -0.048]), { base: "#2b2d31", box: [0.34, -0.092, 0.45, -0.048], tex: steelTex(17, 1), hi: 0.55 });
+  fillP(c, (q) => R(q, 0.444, -0.08, 0.009, 0.02, 0.002), "#9c7a36");
+  // a lick of burning fuel out of the nozzle
+  const lick: PathFn = (q) => { q.moveTo(0.452, -0.078); q.quadraticCurveTo(0.49, -0.095, 0.515, -0.072); q.quadraticCurveTo(0.49, -0.062, 0.452, -0.062); q.closePath(); };
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  const lg = c.createLinearGradient(0.452, 0, 0.515, 0);
+  lg.addColorStop(0, "rgba(255,235,170,0.95)");
+  lg.addColorStop(0.5, "rgba(255,150,40,0.85)");
+  lg.addColorStop(1, "rgba(200,60,10,0)");
+  fillP(c, lick, "rgba(0,0,0,0)");
+  c.beginPath();
+  lick(c);
+  c.fillStyle = lg;
+  c.fill();
+  c.restore();
+  pilotIcon(c, 0.365, -0.026, false);
+  c.restore();
+}
+
+/** FT1's twin tanks on the survivor's back (top-down, r px; replaces the backpack). */
+export function drawFlamethrowerBack(c: G, r: number): void {
+  c.lineWidth = Math.max(1, r * 0.06);
+  for (const sgn of [-1, 1]) {
+    const x = -r * 0.78;
+    const y = sgn * r * 0.29;
+    const rr = r * 0.3;
+    c.beginPath();
+    c.arc(x, y, rr, 0, TAU);
+    const g = c.createRadialGradient(x - rr * 0.35, y - rr * 0.35, 0, x, y, rr);
+    g.addColorStop(0, shade(FT1_OD, 0.35));
+    g.addColorStop(0.6, FT1_OD);
+    g.addColorStop(1, shade(FT1_OD, -0.55));
+    c.fillStyle = g;
+    c.fill();
+    c.strokeStyle = "rgba(6,6,6,0.85)";
+    c.stroke();
+    c.beginPath();
+    c.arc(x, y, rr * 0.32, 0, TAU);
+    c.fillStyle = "#8a6a2c";
+    c.fill();
+    c.stroke();
+  }
+  c.fillStyle = "#1e1d18";
+  c.fillRect(-r * 0.84, -r * 0.05, r * 0.16, r * 0.1);
+  c.beginPath();
+  c.moveTo(-r * 0.62, r * 0.42);
+  c.bezierCurveTo(-r * 0.25, r * 1.12, r * 0.25, r * 0.75, r * 0.38, r * 0.14);
+  c.lineCap = "round";
+  c.strokeStyle = "rgba(6,6,6,0.9)";
+  c.lineWidth = r * 0.17;
+  c.stroke();
+  c.strokeStyle = "#1d1e20";
+  c.lineWidth = r * 0.11;
+  c.stroke();
+  c.strokeStyle = "rgba(190,200,215,0.25)";
+  c.lineWidth = r * 0.03;
+  c.stroke();
+  c.lineCap = "butt";
+}
+
+const FT2_RED = "#8e2a20";
+
+/**
+ * Story 5.4 FT2: the Gas torch, a scavenged propane rig (a water pipe, a red propane bottle clamped
+ * under it, a blue camping-torch pilot). "icon": side view; "held": top-down (`size` = r px).
+ */
+export function drawGasTorch(c: G, view: WeaponArtView, size: number): void {
+  if (view === "held") {
+    const r = size;
+    c.lineWidth = Math.max(1, r * 0.05);
+    c.strokeStyle = "rgba(6,6,6,0.85)";
+    heldBox(c, r * 0.12, -r * 0.09, r * 0.5, r * 0.18, "#6b4a2a", r * 0.05);
+    heldBox(c, r * 0.62, r * 0.02, r * 0.95, r * 0.38, FT2_RED, r * 0.17);
+    heldBox(c, r * 0.45, -r * 0.07, r * 1.75, r * 0.14, "#7d8186", r * 0.05);
+    for (const x of [0.78, 1.35]) heldBox(c, r * x, -r * 0.11, r * 0.12, r * 0.5, "#8f9399", r * 0.02);
+    heldBox(c, r * 2.15, -r * 0.11, r * 0.15, r * 0.22, "#a8853a", r * 0.04);
+    strokeP(c, (q) => { q.moveTo(r * 0.47, -r * 0.035); q.lineTo(r * 2.15, -r * 0.035); }, "rgba(210,220,230,0.4)", Math.max(0.8, r * 0.03), "butt");
+    pilotHeld(c, r * 2.15, r * 0.15, r, true);
+    return;
+  }
+  P = 1 / size;
+  c.save();
+  c.scale(size, size);
+  const st: PathFn = (q) => { q.moveTo(-0.48, -0.085); q.lineTo(-0.2, -0.075); q.lineTo(-0.2, -0.045); q.lineTo(-0.48, -0.04); q.quadraticCurveTo(-0.5, -0.062, -0.48, -0.085); q.closePath(); };
+  part(c, st, { base: "#6b4a2a", box: [-0.5, -0.09, -0.2, -0.04], tex: woodTex(21, 0), hi: 0.3 });
+  c.save();
+  c.beginPath();
+  st(c);
+  c.clip();
+  fillP(c, (q) => R(q, -0.33, -0.1, 0.06, 0.07), "#7a7b76");
+  for (let x = -0.33; x < -0.27; x += 0.012) strokeP(c, (q) => { q.moveTo(x, -0.1); q.lineTo(x + 0.006, -0.03); }, "rgba(0,0,0,0.3)", 0.8 * P, "butt");
+  c.restore();
+  flameGrip(c, -0.17, -0.05, 0.09, 0.32, 0.034, "#3e5a37", polyTex(22));
+  trigger(
+    c,
+    (q) => { q.moveTo(-0.15, -0.05); q.quadraticCurveTo(-0.155, -0.012, -0.12, -0.014); q.lineTo(-0.1, -0.018); q.quadraticCurveTo(-0.09, -0.03, -0.09, -0.05); },
+    (q) => { q.moveTo(-0.12, -0.05); q.quadraticCurveTo(-0.118, -0.032, -0.13, -0.024); },
+  );
+  part(c, (q) => R(q, -0.21, -0.09, 0.1, 0.05, 0.012), { base: "#3e5a37", box: [-0.21, -0.09, -0.11, -0.04], tex: polyTex(23), hi: 0.4 });
+  flameTube(c, -0.12, 0.39, -0.068, 0.027, "#7d8186", rustTex(24, 0.7));
+  for (const x of [-0.02, 0.2, 0.31]) part(c, (q) => R(q, x, -0.084, 0.035, 0.032, 0.004), { base: "#77786f", box: [x, -0.084, x + 0.035, -0.052], tex: polyTex(25 + ((x * 10) | 0)), hi: 0.35, line: 0.9 });
+  part(c, (q) => Pg(q, [0.385, -0.08, 0.43, -0.086, 0.452, -0.09, 0.452, -0.046, 0.43, -0.05, 0.385, -0.056]), { base: "#a8853a", box: [0.385, -0.09, 0.452, -0.046], tex: steelTex(26, 0.5), hi: 0.55 });
+  for (let x = 0.395; x < 0.43; x += 0.008) strokeP(c, (q) => { q.moveTo(x, -0.083); q.lineTo(x, -0.053); }, "rgba(60,40,10,0.6)", 0.8 * P, "butt");
+  const bt: PathFn = (q) => R(q, -0.11, -0.035, 0.33, 0.13, 0.06);
+  part(c, bt, { base: FT2_RED, lit: "top", box: [-0.11, -0.035, 0.22, 0.095], tex: rustTex(27, 0.6), hi: 0.42, lo: 0.55 });
+  c.save();
+  c.beginPath();
+  bt(c);
+  c.clip();
+  fillP(c, (q) => R(q, 0.0, 0.0, 0.12, 0.05, 0.005), "rgba(205,195,170,0.55)");
+  c.restore();
+  for (const x of [-0.06, 0.15]) {
+    fillP(c, (q) => R(q, x, -0.09, 0.014, 0.19, 0.003), "#8f9399");
+    strokeP(c, (q) => { q.moveTo(x + 0.003, -0.088); q.lineTo(x + 0.003, 0.09); }, "rgba(255,255,255,0.35)", 0.8 * P);
+  }
+  part(c, (q) => R(q, 0.215, -0.0, 0.04, 0.06, 0.01), { base: "#9a9da2", box: [0.215, 0, 0.255, 0.06], tex: steelTex(28, 0.6), hi: 0.5, line: 1 });
+  hoseS(c, (q) => { q.moveTo(0.25, 0.025); q.bezierCurveTo(0.31, 0.03, 0.33, -0.02, 0.3, -0.05); }, 0.014, "#2a2b2d", false);
+  flameTube(c, 0.33, 0.4, -0.036, 0.018, "#2b4f8c", polyTex(29));
+  pilotIcon(c, 0.405, -0.036, true);
+  c.restore();
+}
+
+
 /** Weapons with their own art, by balance id (the rest keep the survivor's plain gun and a text-only shop row). */
 export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, size: number) => void>> = {
   shotgun: drawShotgun,
@@ -1309,15 +1632,22 @@ export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, siz
   fire_axe: drawFireAxe,
   chainsaw: drawChainsaw,
   grenade_launcher: drawGrenadeLauncher, // Story 5.5 (GL1)
+  flamethrower: drawFlamethrower, // Story 5.4: FT1
+  gas_torch: drawGasTorch, // Story 5.4: FT2
 };
+/** Story 5.4: what a weapon puts on the survivor's back instead of the backpack (FT1's twin tanks). */
+export const WEAPON_BACK_ART: Readonly<Record<string, (c: G, r: number) => void>> = {
+  flamethrower: drawFlamethrowerBack,
+};
+
 
 /** Shop icon size (CSS px) and the side-view scale: a 1 m gun fills the width. */
 export const ICON_W = 96;
 export const ICON_H = 44;
 const iconUrls = new Map<string, string>();
 /** Where the side view's origin sits in the icon (share of the height; px right): the art is not centred on 0. */
-const ICON_Y: Readonly<Record<string, number>> = { assault_rifle: 0.36, fire_axe: 0.5, chainsaw: 0.62 };
-const ICON_X_SHIFT: Readonly<Record<string, number>> = { chainsaw: -2 };
+const ICON_Y: Readonly<Record<string, number>> = { assault_rifle: 0.36, fire_axe: 0.5, chainsaw: 0.62, flamethrower: 0.58, gas_torch: 0.62 };
+const ICON_X_SHIFT: Readonly<Record<string, number>> = { chainsaw: -2, flamethrower: -2, gas_torch: 0 };
 
 /**
  * The side-view icon of `weapon` (Story 5.1: at upgrade `level`) as a PNG data URL (drawn once on first use, then cached), or null

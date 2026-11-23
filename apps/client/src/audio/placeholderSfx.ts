@@ -472,3 +472,62 @@ export function stopChainsawRev(): void {
   rev.stop(c.currentTime);
   rev = null;
 }
+
+/** Story 5.4: the flame weapons' placeholder roar loop (`weapon_flamethrower_loop`): filtered noise with a slow flutter. */
+let flameLoop: { stop(at: number): void } | null = null;
+const FLAME_GAIN = 0.2;
+const FLAME_FADE_S = 0.1;
+
+/**
+ * Starts the looping roar when MY flame starts (the burst edge, never per tick or frame). Returns
+ * false when audio is not running yet (the caller retries next frame).
+ */
+export function startFlameLoop(): boolean {
+  if (flameLoop) return true;
+  const c = context();
+  if (!c || c.state !== "running" || !master || !noise) return false;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.setValueAtTime(0.001, t);
+  out.gain.exponentialRampToValueAtTime(FLAME_GAIN, t + FLAME_FADE_S);
+  out.connect(master);
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = 420;
+  bp.Q.value = 0.7;
+  bp.connect(out);
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  src.loop = true;
+  const flutter = c.createGain();
+  flutter.gain.value = 0.75;
+  const lfo = c.createOscillator();
+  lfo.frequency.value = 9;
+  const lfoGain = c.createGain();
+  lfoGain.gain.value = 0.25;
+  lfo.connect(lfoGain).connect(flutter.gain);
+  src.connect(flutter).connect(bp);
+  src.start(t);
+  lfo.start(t);
+  flameLoop = {
+    stop(at: number) {
+      out.gain.cancelScheduledValues(at);
+      out.gain.setValueAtTime(Math.max(0.001, out.gain.value), at);
+      out.gain.exponentialRampToValueAtTime(0.001, at + FLAME_FADE_S);
+      src.stop(at + FLAME_FADE_S);
+      lfo.stop(at + FLAME_FADE_S);
+    },
+  };
+  return true;
+}
+
+/** Stops the roar (a short fade). */
+export function stopFlameLoop(): void {
+  const c = ctx;
+  if (!flameLoop || !c) {
+    flameLoop = null;
+    return;
+  }
+  flameLoop.stop(c.currentTime);
+  flameLoop = null;
+}

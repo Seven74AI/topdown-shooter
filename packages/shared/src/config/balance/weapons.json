@@ -132,5 +132,39 @@
     "hitPushbackM": 0,
     "screenShake": true,
     "price": 800
+  },
+  "flamethrower": {
+    "name": "Flamethrower",
+    "kind": "flame",
+    "damage": 20,
+    "rangeM": 6,
+    "coneDeg": 20,
+    "fuelS": 6,
+    "reloadS": 3.0,
+    "pulseS": 0.25,
+    "playerPulseS": 0.5,
+    "igniteDamagePerS": 3,
+    "igniteS": 3,
+    "ignitePulseS": 0.5,
+    "hitPushbackM": 0,
+    "screenShake": false,
+    "price": 700
+  },
+  "gas_torch": {
+    "name": "Gas torch",
+    "kind": "flame",
+    "damage": 20,
+    "rangeM": 3,
+    "coneDeg": 60,
+    "fuelS": 6,
+    "reloadS": 3.0,
+    "pulseS": 0.25,
+    "playerPulseS": 0.5,
+    "igniteDamagePerS": 3,
+    "igniteS": 3,
+    "ignitePulseS": 0.5,
+    "hitPushbackM": 0,
+    "screenShake": false,
+    "price": 550
   }
 }

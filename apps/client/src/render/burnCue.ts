@@ -44,18 +44,38 @@ export function edgeGlowAlpha(burning: boolean, sinceLastHitMs: number, pulseMs:
 /** The HUD's fixed queue of fire hits on MY survivor this frame (in `hudModel`). */
 export interface FireHitQueue {
   readonly fireHitAmounts: Float32Array;
+  /**
+   * Story 5.4: per queued hit, the slot (0–3) of the TEAMMATE whose fire it was (friendly fire: the
+   * "-N" shows in their ring colour), or -1 (car fire, acid, my own fire).
+   */
+  readonly fireHitSource: Int8Array;
   fireHitCount: number;
 }
+
+/** Story 5.4: the slot of a friendly-fire source (-1: none / not a teammate). */
+export type SlotOf = (playerId: string) => number;
 
 /**
  * One drained event: a fire hit marks that player burning (everyone's survivor shows it); a hit on
  * MY survivor also queues a "-N" for the HUD. Returns true for a fire hit.
  */
-export function routeFireHit(e: SimEvent, localId: string, nowMs: number, cue: FireCue, q: FireHitQueue): boolean {
+export function routeFireHit(e: SimEvent, localId: string, nowMs: number, cue: FireCue, q: FireHitQueue, slotOf?: SlotOf): boolean {
   if (!isFireHit(e)) return false;
   cue.hit(e.playerId, nowMs);
-  if (e.playerId === localId && q.fireHitCount < q.fireHitAmounts.length) q.fireHitAmounts[q.fireHitCount++] = e.amount;
+  if (e.playerId === localId && q.fireHitCount < q.fireHitAmounts.length) {
+    const src = e.sourcePlayerId;
+    q.fireHitSource[q.fireHitCount] = src !== null && src !== localId && slotOf ? slotOf(src) : -1;
+    q.fireHitAmounts[q.fireHitCount++] = e.amount;
+  }
   return true;
+}
+
+/**
+ * Story 5.4 (AC 7f): the flamer's cue: when MY fire hurts a teammate, their ring flashes orange
+ * (so you notice that you are the problem). Returns the hurt teammate's id, or null.
+ */
+export function friendlyFireVictim(e: SimEvent, localId: string): string | null {
+  return e.type === "player.damaged" && e.sourcePlayerId === localId && e.playerId !== localId ? e.playerId : null;
 }
 
 /**
@@ -65,7 +85,10 @@ export function routeFireHit(e: SimEvent, localId: string, nowMs: number, cue: F
 export function routeAcidHit(e: SimEvent, localId: string, nowMs: number, cue: FireCue, q: FireHitQueue): boolean {
   if (!isAcidHit(e)) return false;
   cue.hit(e.playerId, nowMs);
-  if (e.playerId === localId && q.fireHitCount < q.fireHitAmounts.length) q.fireHitAmounts[q.fireHitCount++] = e.amount;
+  if (e.playerId === localId && q.fireHitCount < q.fireHitAmounts.length) {
+    q.fireHitSource[q.fireHitCount] = -1;
+    q.fireHitAmounts[q.fireHitCount++] = e.amount;
+  }
   return true;
 }
 

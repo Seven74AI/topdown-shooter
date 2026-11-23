@@ -78,7 +78,7 @@ describe("EventInterest (Story 3.6 review M2)", () => {
       { type: "spitter.spat", zombieId: 3, spitId: 1, x: 3, y: 3, toX: 8, toY: 3 }, // top-left only
       { type: "spitter.spat", zombieId: 4, spitId: 2, x: 15, y: 20, toX: 21, toY: 20 }, // ends inside the far view
       { type: "acid.splashed", puddleId: 1, x: 8, y: 3, hitPlayerId: null },
-      { type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: -3 },
+      { type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: -3, tag: "acid", sourcePlayerId: null },
     ];
     interest.prepare(world, events, ctx);
     expect(interest.localCount).toBe(3);

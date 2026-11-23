@@ -42,10 +42,38 @@ describe("loadBalance", () => {
     expect(b.weapons.chainsaw).toMatchObject({ kind: "melee", name: "Chainsaw", damage: 6, rateHz: 10, rangeM: 1.5, arcDeg: 60, knockbackM: 0, hitPushbackM: 0.05, screenShake: false, price: 600, wielderSlowPct: 20, quietHits: true });
     expect(b.weapons.machete).toMatchObject({ knockbackM: 0, wielderSlowPct: 0, quietHits: false }); // unchanged
     // Appended after Round A's ids: the wire's weapon index of every older weapon stays.
-    expect(Object.keys(b.weapons)).toEqual(["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher"]);
-    expect(b.shop.weapons.slice(-3)).toEqual(["fire_axe", "chainsaw", "grenade_launcher"]);
+    expect(Object.keys(b.weapons).slice(0, 8)).toEqual(["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw"]);
+    expect(b.shop.weapons.slice(6, 8)).toEqual(["fire_axe", "chainsaw"]);
     for (const [id, t] of Object.entries(b.zombies.types)) expect(t.knockbackTakenPct, id).toBe(id === "brute" ? 20 : 100); // Story 5.7: the Brute takes 20 %
     expect(b.controls.fx).toMatchObject({ maxSwingArcs: 8, maxChainsawSparks: 32 });
+  });
+
+  it("Story 5.4: the two flame weapons (round C: fuel jet 6 m × 20° for 700, gas torch 3 m × 60° for 550) and combat.json", () => {
+    const b = loadBalance();
+    const same = { kind: "flame", damage: 20, rateHz: 20, fuelS: 6, reloadS: 3, pulseS: 0.25, playerPulseS: 0.5, igniteDamagePerS: 3, igniteS: 3, ignitePulseS: 0.5, hitPushbackM: 0, knockbackM: 0, screenShake: false };
+    expect(b.weapons.flamethrower).toMatchObject({ ...same, name: "Flamethrower", rangeM: 6, coneDeg: 20, price: 700 });
+    expect(b.weapons.gas_torch).toMatchObject({ ...same, name: "Gas torch", rangeM: 3, coneDeg: 60, price: 550 });
+    // appended (older wire weapon indices stay) and in the fixed-list shop
+    expect(Object.keys(b.weapons).slice(-3)).toEqual(["grenade_launcher", "flamethrower", "gas_torch"]); // after 5.5's
+    expect(b.shop.weapons.slice(-3)).toEqual(["grenade_launcher", "gas_torch", "flamethrower"]);
+    expect(b.combat.friendlyFire).toEqual({ pct: 50, canDown: true });
+    expect(b.combat.fx).toEqual({ maxFlameParticles: 96, flameParticlesPerS: 90, maxBurningZombieFx: 40 });
+  });
+
+  it("Story 5.4: refuses fractional pulse ticks, fuel past uint16, a non-whole friendly-fire pulse, a mine share apart from the FF rule", () => {
+    const bad = (edit: (files: RawBalanceFiles) => void, msg: RegExp) => {
+      const files = raw();
+      edit(files);
+      expect(() => loadBalance(files)).toThrow(msg);
+    };
+    const ft = (f: RawBalanceFiles) => (f.weapons as Record<string, Record<string, unknown>>).flamethrower as Record<string, unknown>;
+    bad((f) => (ft(f).pulseS = 0.26), /whole numbers of ticks/);
+    bad((f) => (ft(f).igniteS = 2.99), /whole numbers of ticks/);
+    bad((f) => (ft(f).fuelS = 3300), /uint16/);
+    bad((f) => (ft(f).rateHz = 10), /rateHz must be the tick rate/);
+    bad((f) => (ft(f).damage = 21), /must be a whole number \(player HP is whole\)/); // 21 × 0.5 × 50 % = 5.25
+    bad((f) => (((f.combat as Record<string, Record<string, unknown>>).friendlyFire as Record<string, unknown>).pct = 40), /playerShare 0.5 must equal/);
+    bad((f) => delete (f as Record<string, unknown>).combat, /combat.json: file missing/);
   });
 
   it("refuses a fractional or too large wielderSlowPct and a fractional knockbackTakenPct (Story 5.2)", () => {

@@ -59,6 +59,51 @@ const meleeSchema = z
   })
   .strict();
 
+/** Story 5.4 helper: `s` seconds is a whole number of ticks (the 20 Hz tick). */
+const wholeTickS = (s: number): boolean => Math.abs(s * TICK_RATE_HZ - Math.round(s * TICK_RATE_HZ)) < 1e-9;
+
+/**
+ * Story 5.4: a flame weapon (the Flamethrower and the Gas torch, round C). No projectile and no
+ * cooldown: while the trigger is held with fuel left, every tick puts out a cone `rangeM` long
+ * (muzzle to the body's edge) and `coneDeg` wide. `damage` is the damage PER SECOND (5.1's
+ * `weaponDamage` scales it per upgrade level); a zombie in the cone takes `damage × pulseS` every
+ * `pulseS` it spends there (its own clock, first pulse on its first tick), a teammate
+ * `damage × playerPulseS × friendlyFire.pct / 100` every `playerPulseS` (first pulse after one
+ * pulse). A flame pulse ignites the zombie: `igniteDamagePerS × ignitePulseS` every `ignitePulseS`
+ * for `igniteS` (refreshed, never stacked). Fuel is `fuelS` of held fire, counted in ticks (the
+ * slot's `ammo`, uint16 on the wire); at 0 a `reloadS` refill starts on its own.
+ */
+const flameSchema = z
+  .object({
+    kind: z.literal("flame"),
+    damage: z.number().positive(),
+    /** Always the tick rate (a flame acts every tick; kept so every weapon has a rate). */
+    rateHz: z.number().positive().default(TICK_RATE_HZ),
+    rangeM: z.number().positive().max(12),
+    coneDeg: z.number().positive().max(120),
+    fuelS: z.number().positive(),
+    reloadS: z.number().positive(),
+    pulseS: z.number().positive().max(2),
+    playerPulseS: z.number().positive().max(2),
+    igniteDamagePerS: z.number().min(0),
+    igniteS: z.number().min(0).max(12),
+    ignitePulseS: z.number().positive().max(2),
+    knockbackM: z.number().min(0).max(0).default(0),
+    hitPushbackM: z.number().min(0),
+    screenShake: z.boolean(),
+    price: z.number().int().min(0),
+    name: z.string().min(1).max(24).optional(),
+    upgradeBasePrice: z.number().int().min(0).optional(),
+  })
+  .strict()
+  .refine((f) => f.rateHz === TICK_RATE_HZ, { message: "a flame weapon acts every tick: rateHz must be the tick rate", path: ["rateHz"] })
+  .refine((f) => wholeTickS(f.pulseS) && wholeTickS(f.playerPulseS) && wholeTickS(f.ignitePulseS) && wholeTickS(f.igniteS) && wholeTickS(f.fuelS) && wholeTickS(f.reloadS), {
+    message: "flame pulseS, playerPulseS, ignitePulseS, igniteS, fuelS and reloadS must be whole numbers of ticks",
+  })
+  .refine((f) => Math.round(f.fuelS * TICK_RATE_HZ) <= 65535, { message: "fuelS × 20 must fit the uint16 ammo field", path: ["fuelS"] })
+  .refine((f) => Math.round(f.igniteS * TICK_RATE_HZ) <= 255, { message: "igniteS × 20 must fit a uint8 clock", path: ["igniteS"] })
+  .refine((f) => Math.round(f.pulseS * TICK_RATE_HZ) <= 255 && Math.round(f.playerPulseS * TICK_RATE_HZ) <= 255 && Math.round(f.ignitePulseS * TICK_RATE_HZ) <= 255, "pulses must fit a uint8 clock");
+
 /**
  * Story 5.5: a launcher (the Grenade Launcher). One trigger pull lobs one round along the raw aim
  * (no spread, no aim assist) to the aim point at `minLobM`–`lobRangeM` from the muzzle (the aim
@@ -90,7 +135,7 @@ const launcherSchema = z
   // The landing tick goes on the wire as `landTick − tick` in a u8.
   .refine((l) => Math.round(Math.max(l.minFlightS, l.lobRangeM / l.lobSpeedMps) * TICK_RATE_HZ) <= 255, { message: "the longest flight must fit 255 ticks (lobRangeM / lobSpeedMps)", path: ["lobSpeedMps"] });
 
-export const weaponSchema = z.discriminatedUnion("kind", [gunSchema, meleeSchema, launcherSchema]);
+export const weaponSchema = z.discriminatedUnion("kind", [gunSchema, meleeSchema, flameSchema, launcherSchema]);
 export const weaponsSchema = z.record(balanceId, weaponSchema);
 
 /** Story 5.6 helper: `s` seconds is a whole number of ticks. */
@@ -651,13 +696,15 @@ export const decaySchema = z
  * or explosion that hits a player (a teammate or the shooter) deals `pct` % of its damage; it can
  * down them when `canDown`. `explosion` (owner 5.5): the grenade pool size (`maxLiveRounds`, a u8 id
  * on the wire), how far a round stopped by cover bursts in front of the face, and the client's
- * effect caps (pools: brief line 12).
+ * effect caps (pools: brief line 12). `fx` (Story 5.4): the flame stream and burning-zombie caps.
  */
 export const combatSchema = z
   .object({
     friendlyFire: z
       .object({
+        /** A player's fire or explosion hitting a player (a teammate or themself) deals this % (GDD: 50). Bullets and melee: 0. */
         pct: z.number().int().min(0).max(100),
+        /** D1: friendly fire may down a teammate (false: it stops at 1 HP). */
         canDown: z.boolean(),
       })
       .strict(),
@@ -681,6 +728,17 @@ export const combatSchema = z
           .strict(),
       })
       .strict(),
+    /** Client-only effect caps (brief line 12): never read by the simulation. */
+    fx: z
+      .object({
+        /** Flame particles alive at once over every flamer (a shared pool). */
+        maxFlameParticles: z.number().int().min(8).max(512),
+        /** Particles each flamer emits per second (frame-rate independent). */
+        flameParticlesPerS: z.number().min(1).max(600),
+        /** Burning zombies drawn with a flame overlay (nearest the camera first). */
+        maxBurningZombieFx: z.number().int().min(0).max(128),
+      })
+      .strict(),
   })
   .strict();
 
@@ -702,6 +760,8 @@ export const balanceFileSchemas = {
 export type BalanceFileName = keyof typeof balanceFileSchemas;
 export type GunStats = z.output<typeof gunSchema>;
 export type MeleeStats = z.output<typeof meleeSchema>;
+export type FlameStats = z.output<typeof flameSchema>;
+export type CombatStats = z.output<typeof combatSchema>;
 export type LauncherStats = z.output<typeof launcherSchema>;
 export type WeaponStats = z.output<typeof weaponSchema>;
 export type ZombieTypeStats = z.output<typeof zombieTypeSchema>;

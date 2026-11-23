@@ -23,8 +23,9 @@ import {
 } from "./projectilePool";
 import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
-import { hasMagazine, isLauncher, isMelee, weaponDamage, weaponIds, weaponStats } from "./weapons";
+import { isFlame, isLauncher, isMelee, magazineOf, usesAmmo, weaponDamage, weaponIds, weaponStats } from "./weapons";
 import { launchGrenade, updateGrenades } from "./grenades";
+import { flameTick, updateIgnites } from "./flame";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
 import { pelletDirection, rotateBySeqSpread, seqPelletRoll } from "./spread";
@@ -73,6 +74,22 @@ const spawn: ProjectileSpawn = {
  * average rate is exact; a tick without a shot clamps it back to ≥ 0 (no saved-up burst).
  */
 function updatePlayerWeapon(world: World, p: PlayerState, dtS: number, input: PlayerInput | undefined): void {
+  flamedNow = false;
+  weaponTick(world, p, dtS, input);
+  // Story 5.4: burst edges only (never one event per tick): the first and the last tick of a flame.
+  if (flamedNow && !p.flaming) {
+    p.flaming = true;
+    world.events.emit({ type: "weapon.flame_started", playerId: p.id, weapon: activeSlot(p.loadout).weapon });
+  } else if (!flamedNow && p.flaming) {
+    p.flaming = false;
+    world.events.emit({ type: "weapon.flame_stopped", playerId: p.id });
+  }
+}
+
+/** Story 5.4: the player flamed on this weapon tick (set by `tryFire`). */
+let flamedNow = false;
+
+function weaponTick(world: World, p: PlayerState, dtS: number, input: PlayerInput | undefined): void {
   // The weapon not in hand keeps cooling down (a swap never stretches its next shot).
   const other = p.loadout.slots[p.loadout.active === 0 ? 1 : 0];
   if (other) other.cooldownS = cooldownIdle(other.cooldownS, dtS);
@@ -105,7 +122,7 @@ function updateSwap(world: World, p: PlayerState, input: PlayerInput | undefined
       const slot = activeSlot(lo);
       world.events.emit({ type: "weapon.swapped", playerId: p.id, active: lo.active, weapon: slot.weapon });
       const stats = weaponStats(world.balance, slot.weapon);
-      if (hasMagazine(stats) && slot.ammo === 0 && slot.reloadTicks === 0) {
+      if (usesAmmo(stats) && slot.ammo === 0 && slot.reloadTicks === 0) {
         slot.reloadTicks = ticksFor(stats.reloadS);
         world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
         return true; // the reload starts counting next tick, like a reload after the last shot
@@ -132,8 +149,8 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
 
   if (slot.reloadTicks > 0) {
     slot.reloadTicks--;
-    if (slot.reloadTicks === 0 && hasMagazine(stats)) {
-      slot.ammo = stats.magazine;
+    if (slot.reloadTicks === 0 && usesAmmo(stats)) {
+      slot.ammo = magazineOf(stats); // Story 5.4: a flame weapon's full tank
       world.events.emit({ type: "weapon.reloaded", playerId: p.id, weapon: slot.weapon });
     }
     return false; // no firing while reloading (including the tick the reload ends)
@@ -142,7 +159,24 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
 
   if (!input || !input.fire) return false;
   const aimLen = len(input.aimX, input.aimY);
-  if (aimLen < MIN_AIM_LEN || !cooldownReady(cooldownS)) return false;
+  if (aimLen < MIN_AIM_LEN) return false;
+  if (isFlame(stats)) {
+    // Story 5.4 (FR-H): a flame acts every tick the trigger is held with fuel (no cooldown, no
+    // projectile, no aim assist): one fuel tick per flaming tick; at 0 the reload starts on its own.
+    if (slot.ammo <= 0) return false;
+    flamedNow = true;
+    if (!dryFire) {
+      const rw = rewindTicksFor(world, p, input);
+      flameTick(world, p, slot, stats, input.aimX / aimLen, input.aimY / aimLen, rw > 0 ? rewoundView(world, world.tick - rw) : null);
+    }
+    slot.ammo--;
+    if (slot.ammo === 0) {
+      slot.reloadTicks = ticksFor(stats.reloadS);
+      world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
+    }
+    return false; // no cooldown: the next tick may flame again
+  }
+  if (!cooldownReady(cooldownS)) return false;
   dir.x = input.aimX / aimLen;
   dir.y = input.aimY / aimLen;
   // Story 2.12: online, test against the zombies as the shooter drew them (0 offline / no view tick).
@@ -355,6 +389,7 @@ export const updateCombat: SystemFn = (world, dtS) => {
   });
   updateProjectiles(world, dtS);
   updateGrenades(world); // Story 5.5: rounds landing this tick burst (after the projectiles)
+  updateIgnites(world); // Story 5.4 (FR-G): burning zombies, after every weapon of the tick
 };
 
 /** True inside `skippedInputWeaponTick`: the weapon runs its tick but a shot or swing has no effect. */

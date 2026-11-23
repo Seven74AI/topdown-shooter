@@ -95,12 +95,12 @@ describe("the drawn acid ring is the sim's rule (4.8 D16)", () => {
 
 describe("acid has its own hurt cue (D4: never 'Burning')", () => {
   it("source −3 is acid, −1 is fire; each routes to its own cue", () => {
-    const acid: SimEvent = { type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: -3 };
-    const fire: SimEvent = { type: "player.damaged", playerId: "p0", amount: 5, sourceZombieId: -1 };
+    const acid: SimEvent = { type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: -3, tag: "acid", sourcePlayerId: null };
+    const fire: SimEvent = { type: "player.damaged", playerId: "p0", amount: 5, sourceZombieId: -1, tag: "fire", sourcePlayerId: null };
     expect([isAcidHit(acid), isFireHit(acid), isAcidHit(fire), isFireHit(fire)]).toEqual([true, false, false, true]);
     const fc = new FireCue();
     const ac = new FireCue(600);
-    const q = { fireHitAmounts: new Float32Array(4), fireHitCount: 0 };
+    const q = { fireHitAmounts: new Float32Array(4), fireHitSource: new Int8Array(4), fireHitCount: 0 };
     routeFireHit(acid, "p0", 0, fc, q);
     routeAcidHit(acid, "p0", 0, ac, q);
     expect(fc.burning("p0", 10)).toBe(false);

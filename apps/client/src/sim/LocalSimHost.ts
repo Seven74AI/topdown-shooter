@@ -1,3 +1,4 @@
+import { FlameCues } from "../render/flameCues";
 import {
   NEUTRAL_INPUT,
   TICK_DT_S,
@@ -48,6 +49,8 @@ export class LocalSimHost implements SimHost {
   readonly world: World;
   readonly localPlayerId = LOCAL_PLAYER_ID;
   readonly online = false;
+  /** Story 5.4: solo flames come from the sim's own burst events (never lost). */
+  readonly flames = new FlameCues();
   private accumulatorS = 0;
   /**
    * Story 2.11: the in-run menu pauses solo practice. While paused `update` steps nothing and the

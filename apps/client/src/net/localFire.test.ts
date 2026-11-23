@@ -71,6 +71,44 @@ function compare(weapons: readonly [WeaponId, WeaponId | null], steps: number, i
   return { server, local, clock, p };
 }
 
+/** Story 5.4: the server flamed on a tick iff the player's burst flag is set after it. */
+function compareFlame(weapons: readonly [WeaponId, WeaponId | null], steps: number, inputAt: (seq: number) => PlayerInput, lagSteps: number) {
+  const world = createWorld({ balance, seed: 7, systems: { waves: () => {}, zombies: () => {} } });
+  const p = addPlayer(world, "p0", 5, 16);
+  setLoadout(balance, p.loadout, weapons);
+  const clock = new LocalFireClock(balance);
+  const server: boolean[] = [];
+  const local: boolean[] = [];
+  const fuel: number[][] = [];
+  const views: View[] = [viewOf(p, 0)];
+  for (let seq = 1; seq <= steps; seq++) {
+    const input = inputAt(seq);
+    const snap = views[Math.max(0, views.length - 1 - lagSteps)] as View;
+    local.push(clock.step(input, snap) && clock.attack.flame);
+    setInput(world, "p0", input);
+    step(world, TICK_DT_S);
+    server.push(p.flaming);
+    views.push(viewOf(p, seq));
+    fuel.push([clock.predictedAmmo(snap, 0), p.loadout.slots[0].ammo]);
+  }
+  return { server, local, fuel, clock };
+}
+
+describe("Story 5.4: the fire clock predicts flaming and fuel (own flame instant, 2.7)", () => {
+  for (const weapon of ["flamethrower", "gas_torch"] as const) {
+    for (const lag of [0, 6]) {
+      it(`${weapon}: flames on exactly the server's ticks through a tank, its reload, pulses and swaps (snapshot ${lag} steps old)`, () => {
+        const { server, local, fuel, clock } = compareFlame([weapon, "pistol"], 400, (seq) => fireInput(seq, { fire: seq % 50 < 44 || seq > 300, swap: seq === 210 || seq === 230 }), lag);
+        expect(server.filter(Boolean).length).toBeGreaterThan(150); // liveness: a whole tank and more
+        expect(local).toEqual(server);
+        // predicted fuel = the server's after each step (slot 0, while it is the active one)
+        for (let i = 0; i < 200; i++) expect(fuel[i]?.[0], `seq ${i + 1}`).toBe(fuel[i]?.[1]);
+        expect(clock.shotsFired).toBeLessThan(20); // only the Pistol's shots (seq 210–230): a flame tick is no gun shot (the 2.7 shot safety net)
+      });
+    }
+  }
+});
+
 describe("LocalFireClock (Story 2.7)", () => {
   for (const weapon of ["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw"] as const) {
     it(`fires on exactly the steps the shared World fires over 200 steps: ${weapon}`, () => {

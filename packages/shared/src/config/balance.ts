@@ -107,11 +107,23 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
     issues.push(`buildings.json: spawnClearM ${buildings.spawnClearM} must exceed waves.spawnJitterM + the largest zombie radius (${waves.spawnJitterM + maxRz})`);
   }
   crossCheckBuildingTypes(parsed.buildings as { types: Record<string, BuildingTypeStats> }, issues);
-  // Story 5.5: a mine's blast goes through the shared friendly-fire rule (`explode` → damagePlayerBy),
-  // so its player share must be that rule's (5.9's 50 %; one rule, F6).
-  const ffPct = (parsed.combat as { friendlyFire: { pct: number } }).friendlyFire.pct;
+  crossCheckFlames(parsed, issues);
+}
+
+/**
+ * Story 5.4: a flame weapon's friendly-fire pulse at level I (`damage × playerPulseS × pct / 100`)
+ * is whole (player HP stays whole; higher levels round per pulse in `damagePlayerBy`), and a mine's
+ * `playerShare` equals the friendly-fire share (an owned mine's blast goes through the one rule).
+ */
+function crossCheckFlames(parsed: Record<string, unknown>, issues: string[]): void {
+  const pct = (parsed.combat as { friendlyFire: { pct: number } }).friendlyFire.pct;
+  for (const [id, w] of Object.entries(parsed.weapons as Record<string, { kind: string; damage: number; playerPulseS?: number }>)) {
+    if (w.kind !== "flame") continue;
+    const v = (w.damage * (w.playerPulseS ?? 0) * pct) / 100;
+    if (Math.abs(v - Math.round(v)) > 1e-9) issues.push(`weapons.json: ${id}: damage × playerPulseS × friendlyFire.pct / 100 = ${v} must be a whole number (player HP is whole)`);
+  }
   for (const [id, t] of Object.entries((parsed.buildings as { types: Record<string, BuildingTypeStats> }).types)) {
-    if (t.mine && Math.abs(t.mine.playerShare * 100 - ffPct) > 1e-9) issues.push(`buildings.json: types.${id}.mine.playerShare ${t.mine.playerShare} must equal combat.json friendlyFire.pct / 100 (${ffPct / 100}): the blast uses the friendly-fire rule`);
+    if (t.mine && Math.abs(t.mine.playerShare * 100 - pct) > 1e-9) issues.push(`buildings.json: types.${id}.mine.playerShare ${t.mine.playerShare} must equal combat.json friendlyFire.pct / 100 (${pct / 100}): the blast uses the friendly-fire rule`);
   }
 }
 

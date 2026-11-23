@@ -1,5 +1,8 @@
 import type { World } from "../core/world";
 import { ZOMBIE_SLOT_HOLD_TICKS } from "../config/constants";
+
+/** Story 5.4: flamer slots per body (one per player slot: MAX_PLAYERS). */
+export const FLAME_SLOTS = 4;
 import { ZOMBIE_STATE, ZOMBIE_TYPES, zombieTypeIndex, type ZombieTypeId } from "./zombieTypes";
 import { onZombieKilled } from "./bloater";
 
@@ -62,6 +65,22 @@ export interface ZombiePool {
    */
   readonly knockShot: Uint32Array;
   readonly knockHead: Uint8Array;
+  /**
+   * Story 5.4 (FR-C): per (zombie, flamer slot) flame clock at `[id × FLAME_SLOTS + slot]`: ticks
+   * (mod the pulse) this zombie has spent in that flamer's cone (0 = the next tick in it pulses).
+   * Kept while outside the cone; 0 on spawn and at every build start.
+   */
+  readonly flameClock: Uint8Array;
+  /**
+   * Story 5.4 (FR-G): the ignite — ticks of burning left (0 = not burning; the horde record's
+   * "burning" bit, and on the client mirror 1/0 from that bit), the burn's own pulse clock, the
+   * flamer slot credited (255 = none), its weapon index and the damage per ignite pulse. 0 on spawn.
+   */
+  readonly igniteTicks: Uint8Array;
+  readonly igniteClock: Uint8Array;
+  readonly igniterSlot: Uint8Array;
+  readonly igniteWeapon: Uint8Array;
+  readonly igniteDamage: Float32Array;
   /** Scratch velocities for the AI (computed for all zombies first, then applied). */
   readonly vx: Float32Array;
   readonly vy: Float32Array;
@@ -105,6 +124,12 @@ export function createZombiePool(capacity: number): ZombiePool {
     slowPct: new Uint8Array(capacity),
     knockShot: new Uint32Array(capacity * KNOCK_MEMORY), // Story 5.3
     knockHead: new Uint8Array(capacity),
+    flameClock: new Uint8Array(capacity * FLAME_SLOTS), // Story 5.4
+    igniteTicks: new Uint8Array(capacity),
+    igniteClock: new Uint8Array(capacity),
+    igniterSlot: new Uint8Array(capacity).fill(255),
+    igniteWeapon: new Uint8Array(capacity),
+    igniteDamage: new Float32Array(capacity),
     type: new Uint8Array(capacity),
     state: new Uint8Array(capacity),
     generation: new Uint8Array(capacity),
@@ -159,6 +184,12 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.slowPct[id] = 0;
   pool.knockShot.fill(0, id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY); // Story 5.3: no shot has knocked a new zombie yet
   pool.knockHead[id] = 0;
+  pool.flameClock.fill(0, id * FLAME_SLOTS, id * FLAME_SLOTS + FLAME_SLOTS); // Story 5.4: cold flame clocks, not burning
+  pool.igniteTicks[id] = 0;
+  pool.igniteClock[id] = 0;
+  pool.igniterSlot[id] = 255;
+  pool.igniteWeapon[id] = 0;
+  pool.igniteDamage[id] = 0;
   pool.type[id] = zombieTypeIndex(type);
   pool.state[id] = ZOMBIE_STATE.CHASE;
   pool.waveZombie[id] = waveZombie ? 1 : 0;
