@@ -135,6 +135,45 @@ export const spitCapsSchema = z
   })
   .strict();
 
+/**
+ * Story 5.8: a Bloater's blast (FR24). On contact with a standing player it swells for `swellS`
+ * (stands still, never bites), then bursts where it stands; dying from any cause bursts it too. The
+ * blast hits bodies whose circle overlaps `blastRadiusM` with a clear shot line (4.2 cover):
+ * standing players take `playerDamage` (never halved: D1), zombies `zombieDamage` (pushed
+ * `pushM`), player wall buildings `buildingDamage`. It leaves a gas cloud of `gasRadiusM` for
+ * `gasS` that slows standing players inside it `gasSlowPct` (the 3.9 slow, `gasLingerS` after).
+ */
+export const explodesSchema = z
+  .object({
+    swellS: z.number().positive().max(5),
+    blastRadiusM: z.number().positive().max(10),
+    playerDamage: z.number().min(0),
+    zombieDamage: z.number().positive(),
+    buildingDamage: z.number().int().min(0),
+    pushM: z.number().min(0).max(3),
+    gasRadiusM: z.number().positive().max(10),
+    /** At most 60 s (ticks in a Uint16). */
+    gasS: z.number().positive().max(60),
+    gasSlowPct: z.number().int().min(0).max(90),
+    /** At most 10 s: the slow's remaining ticks go on the wire as a uint8 (3.9). */
+    gasLingerS: z.number().positive().max(10),
+  })
+  .strict()
+  .refine((e) => wholeTicks(e.swellS) && wholeTicks(e.gasS) && wholeTicks(e.gasLingerS), "explodes swellS, gasS and gasLingerS must be whole numbers of ticks")
+  .refine((e) => Math.round(e.swellS * TICK_RATE_HZ) <= 255, "explodes swellS must fit a uint8 of ticks");
+
+/** Story 5.8: the Bloater blast queue and the gas cloud pool (brief lines 10, 12). */
+export const blastsSchema = z
+  .object({
+    /** Queued (chain) blasts run at most this many per tick, oldest first (FR-E, D4). */
+    maxBlastsPerTick: z.number().int().min(1).max(64),
+    /** The blast queue's size (a full queue runs its oldest blast at once: never dropped). */
+    queueCapacity: z.number().int().min(1).max(1024),
+    /** Live gas clouds (the oldest is replaced when full). */
+    maxGasClouds: z.number().int().min(1).max(256),
+  })
+  .strict();
+
 export const zombieTypeSchema = z
   .object({
     hp: z.number().positive(),
@@ -191,6 +230,8 @@ export const zombieTypeSchema = z
      * grid (every box grown by `pathing.wideInflateM`) and follows the wide chase field.
      */
     wideBody: z.boolean().default(false),
+    /** Story 5.8: bursts on contact (after a swell) and on death (Bloaters); absent = never explodes. */
+    explodes: explodesSchema.optional(),
   })
   .strict();
 
@@ -265,7 +306,7 @@ export const flankSchema = z
   .strict();
 
 export const zombiesSchema = z
-  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema, pathing: pathingSchema, flank: flankSchema, spitCaps: spitCapsSchema })
+  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema, pathing: pathingSchema, flank: flankSchema, spitCaps: spitCapsSchema, blasts: blastsSchema })
   .strict();
 
 export const wavesSchema = z
@@ -378,6 +419,10 @@ export const fxSchema = z
     chainsawSparkMs: z.number().int().min(16).max(1000),
     /** The rev loop stops this long after the last chainsaw tick (ms). */
     chainsawRevHoldMs: z.number().int().min(50).max(1000),
+    /** Story 5.8: Bloater burst particles (bile drops, cloth scraps, gas puffs) alive at once, all bursts together. */
+    maxBloaterParticles: z.number().int().min(16).max(1024).default(240),
+    /** Story 5.8: fuse rings drawn at once (one per swelling Bloater on screen). */
+    maxFuseRings: z.number().int().min(1).max(64).default(16),
   })
   .strict();
 
@@ -661,6 +706,7 @@ export type LauncherStats = z.output<typeof launcherSchema>;
 export type WeaponStats = z.output<typeof weaponSchema>;
 export type ZombieTypeStats = z.output<typeof zombieTypeSchema>;
 export type SpitStats = z.output<typeof spitSchema>;
+export type ExplodesStats = z.output<typeof explodesSchema>;
 export type BuildingTypeStats = z.output<typeof buildingTypeSchema>;
 export type TurretStats = z.output<typeof turretSchema>;
 export type TrapStats = z.output<typeof trapSchema>;

@@ -55,6 +55,8 @@ const BURNING_TEXT = "#ffa060";
 /** Story 5.6: the HP line's colour and the screen-edge glow while in acid (green, never the fire orange). */
 const ACID_TEXT = "#b6ff5a";
 const ACID_GLOW_COLOR = 0x7cff28;
+/** Story 5.8: the gas slow's edge tint (lighter, yellower than acid: slowed, not hurt). */
+const GAS_GLOW_COLOR = 0xd8ec7a;
 /**
  * Story 4.11: my "-N" fire-damage pops (small, orange, left of my survivor: the money "+N" pops sit
  * right of it) and the orange screen-edge glow while I burn (four bands, each this fraction of the
@@ -642,7 +644,9 @@ export class HudScene extends Phaser.Scene {
       t.setPosition(sx, sy - p * FIRE_POP_RISE_PX * k).setAlpha(1 - p * p).setVisible(true);
     }
     const acid = m.acidGlow > m.burnGlow; // Story 5.6: green for acid, orange for fire
-    const a = acid ? m.acidGlow : m.burnGlow;
+    const hurt = acid ? m.acidGlow : m.burnGlow;
+    const gas = m.gasGlow > hurt; // Story 5.8: a light yellow-green while the gas slows me (hurt cues win)
+    const a = gas ? m.gasGlow : hurt;
     // review fix L2: indexed access (no array destructuring / iterator per frame)
     const glow = this.edgeGlow;
     const top = glow[0] as Phaser.GameObjects.Image;
@@ -660,7 +664,7 @@ export class HudScene extends Phaser.Scene {
     bottom.setPosition(w / 2, h - band / 2).setDisplaySize(w, band);
     left.setPosition(band / 2, h / 2).setDisplaySize(h, band);
     right.setPosition(w - band / 2, h / 2).setDisplaySize(h, band);
-    const tint = acid ? ACID_GLOW_COLOR : EDGE_GLOW_COLOR;
+    const tint = gas ? GAS_GLOW_COLOR : acid ? ACID_GLOW_COLOR : EDGE_GLOW_COLOR;
     for (let i = 0; i < glow.length; i++) (glow[i] as Phaser.GameObjects.Image).setAlpha(a).setTint(tint).setVisible(true);
   }
 

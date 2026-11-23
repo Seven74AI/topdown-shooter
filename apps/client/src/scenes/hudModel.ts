@@ -121,6 +121,8 @@ export interface HudModel {
   burnGlow: number;
   /** Story 5.6: my green screen-edge glow alpha while in acid (0 = off); the larger of the two glows shows. */
   acidGlow: number;
+  /** Story 5.8: my light yellow-green screen-edge tint alpha while the Bloater gas slows me (0 = off; the largest glow shows). */
+  gasGlow: number;
   /** Story 4.11: fire hits on MY survivor this frame (amounts); the HUD pops "-N" for each and sets the count to 0. */
   readonly fireHitAmounts: Float32Array;
   fireHitCount: number;
@@ -220,6 +222,7 @@ export const createHudModel = (): HudModel => ({
   localY: 0,
   burnGlow: 0,
   acidGlow: 0,
+  gasGlow: 0,
   fireHitAmounts: new Float32Array(FIRE_HIT_QUEUE),
   fireHitCount: 0,
 });

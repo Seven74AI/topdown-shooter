@@ -151,6 +151,27 @@ describe("explode: damage and friendly fire (FR-D, D4)", () => {
     expect(blastResult.buildingsHit).toBe(1);
   });
 
+  it("friendlyFire false (the Bloater, 5.8 D1): FULL damage to every player even when a player popped it; the popper keeps the kill credit", () => {
+    const { world, events, p0, p1 } = setup();
+    for (const p of [p0, p1]) {
+      p.x = p.prevX = 20;
+      p.y = p.prevY = 15.5;
+    }
+    const weak = spawnZombie(world, "walker", 20.5, 16);
+    const h0 = p0.hp;
+    const h1 = p1.hp;
+    explode(world, grenade(20, 16, { kind: "bloater", friendlyFire: false, playerDamage: 30, sourcePlayerId: "p0", weapon: "bloater_blast", announce: false }));
+    world.events.flush();
+    expect(h0 - p0.hp).toBe(30); // the popper too: not halved
+    expect(h1 - p1.hp).toBe(30);
+    expect(of(events, "zombie.killed").find((e) => e.zombieId === weak)?.killerId).toBe("p0");
+    expect(of(events, "explosion.happened")).toHaveLength(0); // announce false: the Bloater sends its own burst event
+    // the same blast with the friendly-fire share (a grenade): halved
+    p0.hp = h0;
+    explode(world, grenade(20, 16, { playerDamage: 30, sourcePlayerId: "p0" }));
+    expect(h0 - p0.hp).toBe(15);
+  });
+
   it("no player source (a Bloater): full damage to players", () => {
     const { world, p0 } = setup();
     p0.x = p0.prevX = 20;

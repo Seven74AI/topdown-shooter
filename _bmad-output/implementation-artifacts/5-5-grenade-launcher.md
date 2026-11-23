@@ -193,16 +193,16 @@ Claude Opus 5.5 (claude-opus-5-5), `gds-dev-story`, worktree `.claude/worktrees/
 - `combat/grenades.ts`: SoA pool `world.grenades`, `lobTarget` (FR-A clamp 3–12 m from the muzzle via the aim length; FR-B track from the body centre, stopped at the first shot blocker minus the backoff — shared by sim, client marker, own-shot copy, bots), `launchGrenade` (full pool → nothing spent, documented), `updateGrenades` (bursts at `landTick` after the projectiles; a round of a player who left bursts with no credit and the FF share applied). Cleared at build start and Results. `grenade.launched` + `explosion.happened` events only (no schema state).
 - `combat/explosion.ts` (5.9's `explode()` extended, not duplicated): spec API (`ExplosionSpec` per the round C contract + `buildingId`, `quiet`, `grenadeId`), `EXPLOSION_KINDS = ["grenade", "mine"]`, cover-checked overlap per body, one hit per body (own scratch buffer kept), players through `damagePlayerBy(tag "explosion")`, swept 0.6 m push via 5.3's `applyKnockback` (Brute 20 %), optional building damage (for 5.8), one `explosion.happened`, counters (incl. self/friendly damage). The 5.9 mine now calls it with kind `mine` (80 damage, players 40 through the FF rule; a balance cross-check ties `mine.playerShare` to `friendlyFire.pct`); all 5.9 mine tests pass unchanged except the one direct `explode` call moved to the spec API.
 - `combat/damage.ts`: `DAMAGE_TAGS` + `damagePlayerBy` **stub with 5.4's exact signature** (take 5.4's at merge).
-- Network: kinds 33 `GRENADE_LAUNCHED` `[k, slot, id, x, y, tx, ty, flightTicks]`, 34 `EXPLOSION_HAPPENED` `[k, kind, x, y, r, srcSlot, grenadeId]`; the decoder rebuilds the absolute landing tick from the flush tick (`NetEventContext.tick`). Explosions are global events (not interest-filtered).
+- Network: kinds 35 `GRENADE_LAUNCHED` `[k, slot, id, x, y, tx, ty, flightTicks]`, 36 `EXPLOSION_HAPPENED` `[k, kind, x, y, r, srcSlot, grenadeId]`; the decoder rebuilds the absolute landing tick from the flush tick (`NetEventContext.tick`). Explosions are global events (not interest-filtered).
 - Client: aim length for the launcher only (`input/lobAim.ts`; mouse = cursor distance from the muzzle, touch D1 = deflection past the fire dead zone → 3–12 m); `GrenadeView` (pooled rounds on the 1.5 m arc with shadow, the landing ring at the exact blast radius from `lobTarget`, amber when cover stops it); `grenadeFx.ts` (pure: `GrenadeFlights` — own instant copy adopted/snapped by the server echo, hidden by its explosion or `lostEventTicks` after landing, cleared at build start; `BlastParticles` ring pool capped at 96; `Explosions` + scorch pool 16); `ExplosionView` (EX1 fireball and EX2 shockwave+debris from round C, flash/glow/edge ring at the exact radius, scorch fading by the build start); `blastFxAtlas.ts` registered through `addGeneratedTexture`. The 5.9 mine's old tween blast in `FxView` is replaced by EX2 from `explosion.happened`; every blast shakes within `fx.shakeWithinM` (settings toggle) and plays `fx_explosion` / `building_mine_blast`; `weapon_grenade_launch` sound. NetSimHost: own launch instant (2.7), `ageS` on new events (woken tab: no stale blast), predicted ammo for launchers. GL1 held + icon, GL2 icon at level III, GL3 at IV (`WEAPON_TOP_TIER_ICON`).
 - Bots: `botPolicy`/`botClient` lob to the target's distance. `?stressfire` with the launcher lobs at the nearest zombie and keeps its crowd.
-- Readability sheet: entries 27–30 (round + ring, the amber ring at a car, EX1, EX2).
+- Readability sheet: entries 30–33 (after 5.8’s 27–29) (round + ring, the amber ring at a car, EX1, EX2).
 
 #### Beat the rule (builder attempts)
 
 1. Grenade through/over a car — the track stops at the near face (tests + browser: ring and blast at face − 0.05 m); a zombie behind the car is safe (FR-C test, fuzz).
 2. Hiding behind a car from your own blast — safe when the centre line crosses it (explosion test "car shields player").
-3. Blast through sandbags/barricades — hits (tests); readability sheet line 29 says so.
+3. Blast through sandbags/barricades — hits (tests); readability sheet line 32 says so.
 4. Point-blank self-damage — aiming at your feet lands 3 m out (2 m + 0.4 m < 3 m + muzzle: unharmed); a car 2 m away: 20 each time (liveness sim, netsim, browser); repeated → downed (test "a blast can down a player").
 5. Teammate griefing — 20 per blast, ≤ 0.8/s (16 HP/s); logged in the bot sim (friendly 846 over 4 runs).
 6. Spawn camping — allowed (fuzz includes blast points on spawn jitter segments; no special rule). Kills per blast at spawns vs open not separately measured (left for the designer's playtest).
@@ -214,11 +214,11 @@ Claude Opus 5.5 (claude-opus-5-5), `gds-dev-story`, worktree `.claude/worktrees/
 #### Notes for the merge (shared files)
 
 - `packages/shared/src/combat/damage.ts`: **take 5.4's** `DAMAGE_TAGS` / `damagePlayerBy` (my stub has the same signature; it emits `player.damaged` without `tag`/`sourcePlayerId` and maps tag explosion → `sourceZombieId` −2). 5.4's quiet `applyZombieDamage(…, { quiet })` can replace my use of `applyZombieDamageQuiet` in `explode`.
-- `packages/shared/src/config/balance/combat.json`, `balanceSchema.ts › combatSchema`, `balance.ts` (loader + BUNDLED): both 5.4 and 5.5 create them — merge into one file/schema: 5.4's `friendlyFire` (+ its fx caps) and my `explosion` block. The cross-check "mine.playerShare = friendlyFire.pct / 100" is mine. Every hand-built balance object in tests needs `combat` (I added it to 7 test files).
+- `packages/shared/src/config/balance/combat.json`, `balanceSchema.ts › combatSchema`, `balance.ts` (loader + BUNDLED): **keep 5.5's** (on the work branch since the 5.8 merge); 5.4 merges its `friendlyFire` (same shape) and fx caps INTO it later, not a second file/loader. The cross-check "mine.playerShare = friendlyFire.pct / 100" is mine. Every hand-built balance object in tests needs `combat` (I added it to 7 test files).
 - `balanceSchema.ts`: the weapon union gains `launcher` (5.4 adds `flame`): keep both. `combat/weapons.ts`: `hasMagazine` must also include 5.4's fuel weapon if it reloads like a gun.
-- `net/netEvents.ts`: kinds 33/34 taken here; 5.4 and 5.8 also want "next free" numbers — renumber at merge (never reuse), and update `netEvents.test.ts` fixtures.
+- `net/netEvents.ts`: 33/34 are 5.8's (Bloater swell/burst), 35/36 are mine (renumbered at the 5.8 merge); 5.4 takes the next free (37+).
 - `core/simEvents.ts`: `grenade.launched`, `explosion.happened` (5.8 adds its own; `EXPLOSION_KINDS` append-only: 5.8 appends `bloater` after `mine`).
-- `combat/explosion.ts`: 5.8 adds the Bloater blast through `explode(world, spec)` with kind `bloater`, `sourcePlayerId` = popper, `buildingDamage` 40 (supported), `playerDamage` 30 with no FF (pass `sourcePlayerId` only for credit — note: with `sourcePlayerId` set, the FF rule halves player damage; 5.8 D1 wants full 30, so 5.8 needs either a `friendlyFire: false` spec flag or credit via a separate field). Client: add the Bloater look in `blastLookFor`.
+- `combat/explosion.ts`: ONE API, `explode(world, spec)`. The 5.8 merge folded 5.8's trailing `BlastExtra` (building damage, push) into the spec (wall buildings only, 5.8's rule) and moved the Bloater call and its tests onto it: kind `bloater`, `friendlyFire: false` (full 30 to every player even when a player popped it, designer decision; the popper keeps the credit via `sourcePlayerId`), `announce: false` (its own `bloater.burst` is the visual). Grenades and mines keep `friendlyFire: true` (halved). Tests for both cases in `explosion.test.ts`.
 - `combat/firing.ts`: launcher branch before aim assist; `hasMagazine` in swap/reload. `core/world.ts`: `grenades`. `core/worldSnapshot.ts`: `grenades`. `run/runStateMachine.ts`: `clearGrenades` at build start and Results. `index.ts`: new exports.
 - `bots/botPolicy.ts` (`BotSelf` gains `lobRangeM`, `minLobM`, `muzzleM`), `tools/bots/botClient.ts`.
 - Client: `scenes/GameScene.ts` (views, marker, router lob arg, explosion shake/sound replacing the mine shake), `sim/NetSimHost.ts` (own launch, `ageS`, ctx tick, launcher ammo), `render/FxView.ts` (mine blast removed), `render/city/weaponArt.ts` (GL1–3, `WEAPON_TOP_TIER_ICON`; 5.4 adds flamethrower art to `WEAPON_ART`), `render/weaponLook.ts`, `audio/placeholderSfx.ts`, `input/InputRouter.ts` + `TouchSticks.ts` (`deflection`), `net/localFire.ts`, `debug/stressScenario.ts`.
@@ -242,7 +242,7 @@ New:
 - `apps/client/src/sim/NetSimHost.grenade.test.ts`
 - `tools/netsim/grenade.test.ts`
 - `docs/art/epic-5/round-c/ingame/5-5-landing-ring.png`, `5-5-round-in-flight.png`, `5-5-fireball.png`, `5-5-fireball-late.png`, `5-5-car-face-ring.png`, `5-5-car-face-blast.png`, `5-5-mine-shockwave.png`, `5-5-mine-shockwave-late.png`
-- `docs/playtests/milestone-1/objects/28_grenade_round.png`, `29_landing_ring_car.png`, `30_explosion_fireball.png`, `31_explosion_shockwave.png`
+- `docs/playtests/milestone-1/objects/31_grenade_round.png`, `32_landing_ring_car.png`, `33_explosion_fireball.png`, `34_explosion_shockwave.png`
 
 Modified:
 - `packages/shared/src/combat/explosion.ts`, `damage.ts`, `firing.ts`, `loadout.ts`, `weapons.ts`
@@ -259,5 +259,7 @@ Modified:
 - `_bmad-output/implementation-artifacts/5-5-grenade-launcher.md`
 
 ### Change Log
+
+- 2026-11-23: Merged the work branch with Story 5.8 (Bloaters): one `explode(world, spec)` API (5.8's options folded in; `friendlyFire` and `announce` spec fields), my events renumbered to 35/36 after 5.8's 33/34, readability entries renumbered 30–33; gate re-run green.
 
 - 2026-11-23: Story 5.5 built (Grenade Launcher: launcher weapon kind, lobbed round pool, shared cover-checked `explode()` with the 5.9 mine moved onto it, events 33/34, client rounds/landing ring/EX1+EX2 explosions, bots, tests incl. fuzz/netsim/mutations). Status → review.

@@ -280,7 +280,7 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
         }
         // Story 5.7: a zombie that reached us leaves (killed), so the crowd round the team never fills the 3 m
         // circle: with a 1.2 m Brute per spawn the bodies no longer fit, and late arrivals would stay outside it.
-        for (const id of reached) if (z.alivePos[id] !== -1) killZombie(w, id, null, "pistol");
+        for (const id of reached) if (z.alivePos[id] !== -1) killZombie(w, id, null, "cheat"); // Story 5.8: removed, not killed (a Bloater would burst)
       }
       expect(spawned.length, `mask ${mask}`).toBe(14 * types.length); // liveness: 14 spawns open at stage 2
       expect(reached.size, `mask ${mask}: ${spawned.length - reached.size} never reached us: ${spawned.filter((id) => !reached.has(id)).map((id) => `${w.zombies.type[id]}@${(w.zombies.x[id] as number).toFixed(2)},${(w.zombies.y[id] as number).toFixed(2)}`).join(" ")}`).toBe(spawned.length);

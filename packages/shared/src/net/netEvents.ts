@@ -51,9 +51,12 @@ export const NET_EVENT_KIND = {
   ACID_SPLASHED: 30, // Story 5.6
   WEAPON_UPGRADED: 31, // Story 5.1 (renumber at merge if taken; never reuse)
   BRUTE_SPAWNED: 32, // Story 5.7 (31 is 5.1's WEAPON_UPGRADED; renumber at merge if taken, never reuse)
-  // Story 5.5 (next free numbers; 5.4 and 5.8 run in parallel: renumber at merge if taken, never reuse):
-  GRENADE_LAUNCHED: 33,
-  EXPLOSION_HAPPENED: 34,
+  // Story 5.8 (next free numbers when built; 5.4/5.5 are built in parallel: renumber at merge if taken, never reuse)
+  BLOATER_SWELL_STARTED: 33,
+  BLOATER_BURST: 34,
+  // Story 5.5 (renumbered after 5.8's at the merge; never reuse):
+  GRENADE_LAUNCHED: 35,
+  EXPLOSION_HAPPENED: 36,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -219,6 +222,12 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "explosion.happened":
       // Story 5.5: the visual (hits, kills and player damage are their own events); the round's id appended (index 6).
       return [K.EXPLOSION_HAPPENED, e.kind, cm(e.x), cm(e.y), cm(e.radiusM), playerSlotOf(e.sourcePlayerId), e.grenadeId & 0xff];
+    case "bloater.swell_started":
+      // Story 5.8: the swell cue and the fuse ring (the swell itself is the streamed SWELL state).
+      return [K.BLOATER_SWELL_STARTED, zid(ctx, e.zombieId), cm(e.x), cm(e.y)];
+    case "bloater.burst":
+      // Story 5.8: the burst FX and the gas cloud (no cloud state on the wire; hits and kills are their own events).
+      return [K.BLOATER_BURST, cm(e.x), cm(e.y), e.chain ? 1 : 0];
     case "test.ping":
       return null;
   }
@@ -385,6 +394,10 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       if (kind >= EXPLOSION_KINDS.length) return null;
       return { type: "explosion.happened", kind, x: n(t, 2) / 100, y: n(t, 3) / 100, radiusM: n(t, 4) / 100, sourcePlayerId: playerIdOfSlot(n(t, 5)), grenadeId: n(t, 6) };
     }
+    case K.BLOATER_SWELL_STARTED:
+      return { type: "bloater.swell_started", zombieId: zombieSlotOfNetId(n(t, 1)), x: n(t, 2) / 100, y: n(t, 3) / 100 };
+    case K.BLOATER_BURST:
+      return { type: "bloater.burst", x: n(t, 1) / 100, y: n(t, 2) / 100, chain: n(t, 3) === 1 };
     default:
       return null;
   }

@@ -117,17 +117,28 @@ development_status:
   5-1-weapon-upgrades-i-iv: done
   5-2-fire-axe-and-chainsaw: done
   5-3-shotgun-and-assault-rifle: done
-  5-4-flamethrower-and-fire-friendly-fire: ready-for-dev
-  5-5-grenade-launcher: ready-for-dev
+  5-4-flamethrower-and-fire-friendly-fire: in-progress
+  5-5-grenade-launcher: in-progress
   5-6-spitters: done
   5-7-the-first-brute: done
-  5-8-bloaters: ready-for-dev
+  5-8-bloaters: in-progress
   5-9-metal-barricade-spike-trap-and-mine: done
   5-10-floodlight-and-med-station: ready-for-dev
   5-11-gear: ready-for-dev
   5-12-consumables: ready-for-dev
   5-13-roguelike-card-shop: ready-for-dev
   5-14-bear-trap: backlog  # designer 2026-11-23: second trap type; after round A (needs 5.9's non-solid buildings)
+  5-15-carry-the-ghost-and-keep-moving: backlog  # building UX BX-1
+  5-16-build-bar-replaces-the-shop-for-buildings: backlog  # building UX BX-2
+  5-17-why-it-s-red: backlog  # building UX BX-3
+  5-18-place-place-place-chain-and-pending-under-lag: backlog  # building UX BX-4
+  5-19-thumb-drag-to-nudge-and-pin: backlog  # building UX BX-5
+  5-20-take-back-sell-and-undo: backlog  # building UX BX-6
+  5-21-building-action-bar: backlog  # building UX BX-7
+  5-22-move-a-building: backlog  # building UX BX-8
+  5-23-placement-feel-and-owner-marks: backlog  # building UX BX-9
+  5-24-teammates-ghosts: backlog  # building UX BX-10
+  5-25-mouse-and-keys-parity-optional: backlog  # building UX BX-11
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless
@@ -155,6 +166,11 @@ development_status:
   7-5-training-boosts: backlog
   7-6-upgrade-to-an-account: backlog
   7-7-district-unlock-rule: backlog
+  7-8-survivor-parts-in-game-code: backlog  # customization (docs/ideas/customization)
+  7-9-my-look-in-the-game: backlog  # customization (docs/ideas/customization)
+  7-10-survivor-editor: backlog  # customization (docs/ideas/customization)
+  7-11-milestone-items: backlog  # customization (docs/ideas/customization)
+  7-12-surprise-loot-bag: backlog  # customization (docs/ideas/customization)
   epic-7-retrospective: optional
 
   # Epic 8: Real-life resilience

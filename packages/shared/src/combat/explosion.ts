@@ -1,7 +1,8 @@
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import type { Building } from "../buildings/buildings";
-import { damageBuilding } from "../buildings/buildings";
+import { buildingById, damageBuilding } from "../buildings/buildings";
+import { distanceToBox } from "../buildings/collision";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { shotLineClear } from "./cover";
@@ -18,11 +19,13 @@ import type { WeaponId } from "./weapons";
  *   (centre distance < `radiusM` + body radius, strict: the 4.8 "touches the ring = hit" rule) AND
  *   the line from the blast centre to the body's centre enters no shot blocker (Story 4.2: map
  *   boxes, cars, the bus). Barricades, turrets, sandbags and barriers don't stop it (they only stop
- *   bodies). A player building is hit when the blast circle overlaps its box and the line to the
- *   box's nearest point is clear.
- * - **FR-D friendly fire:** players take `playerDamage` through `damagePlayerBy(tag "explosion",
- *   sourcePlayerId)` (Story 5.4's rule: 50 % when a player set it off, the shooter included;
- *   full damage with no player source, e.g. a Bloater). Downed and out players are unharmed; god mode spares.
+ *   bodies). A player WALL building (`solid`: barricades, turrets; floor traps and mines never) is
+ *   hit when the blast circle overlaps its box and the line to the box's nearest point is clear (5.8 D3).
+ * - **FR-D friendly fire:** players take `playerDamage` through `damagePlayerBy(tag "explosion")`.
+ *   With `friendlyFire` (grenades, mines) and a `sourcePlayerId`, Story 5.4's share applies (50 %,
+ *   the shooter included); without it (`friendlyFire: false`, the Bloater: designer decision 5.8 D1)
+ *   every player takes the full amount even when a player popped it — the popper still gets the
+ *   kill credit. Downed and out players are unharmed; god mode spares.
  * - **FR-E one blast = one hit per body:** the bodies in range are collected first (the blast's OWN
  *   scratch buffer: 5.9 review L2, callers may be iterating the shared `zombieCandidates`), then
  *   damaged, so kills during the pass never skip or double anyone. No per-tick area.
@@ -35,7 +38,7 @@ import type { WeaponId } from "./weapons";
  */
 
 /** Append only: the index goes on the wire (`explosion.happened.kind`). 5.8 appends "bloater". */
-export const EXPLOSION_KINDS = ["grenade", "mine"] as const;
+export const EXPLOSION_KINDS = ["grenade", "mine", "bloater"] as const;
 export type ExplosionKind = (typeof EXPLOSION_KINDS)[number];
 
 export interface ExplosionSpec {
@@ -43,8 +46,14 @@ export interface ExplosionSpec {
   y: number;
   radiusM: number;
   zombieDamage: number;
-  /** The base amount: `damagePlayerBy` applies friendly fire only when `sourcePlayerId` is set. */
+  /** The base amount to each player (see `friendlyFire`). */
   playerDamage: number;
+  /**
+   * Apply the friendly-fire share (Story 5.4: 50 %) when a player set it off (grenades, mines).
+   * false: the full `playerDamage` to every player whoever popped it (the Bloater, 5.8 D1); the
+   * kill credit still goes to `sourcePlayerId`.
+   */
+  friendlyFire: boolean;
   /** To each player building the blast reaches (grenades and mines 0: 5.5 D4, 5.9 DD6). */
   buildingDamage: number;
   /** Zombies pushed this far straight out (× the type's knockback share); 0 = none. */
@@ -60,18 +69,20 @@ export interface ExplosionSpec {
   quiet: boolean;
   /** The round that burst (`explosion.happened.grenadeId`); 0 = not a round. */
   grenadeId: number;
+  /** Emit `explosion.happened` (false: the caller sends its own visual event, the Bloater's `bloater.burst`). */
+  announce: boolean;
 }
 
 /** A spec with every field at rest (callers keep one and fill it: no allocation per blast). */
 export function createExplosionSpec(): ExplosionSpec {
-  return { x: 0, y: 0, radiusM: 0, zombieDamage: 0, playerDamage: 0, buildingDamage: 0, pushM: 0, kind: "grenade", sourcePlayerId: null, weapon: "", buildingId: 0, quiet: false, grenadeId: 0 };
+  return { x: 0, y: 0, radiusM: 0, zombieDamage: 0, playerDamage: 0, friendlyFire: true, buildingDamage: 0, pushM: 0, kind: "grenade", sourcePlayerId: null, weapon: "", buildingId: 0, quiet: false, grenadeId: 0, announce: true };
 }
 
 /** Review L2 (5.9): the blast's own target list (never the shared combat candidate buffer). */
 const blastTargets = new Int32Array(ZOMBIE_POOL_CAPACITY);
-/** Buildings in range (references reused; the array only grows to the most ever hit at once). */
-const buildingTargets: Building[] = [];
-let buildingCount = 0;
+/** Story 5.8: the buildings a blast reaches (ids; collected first: a destroyed one leaves the list). */
+const MAX_BLAST_BUILDINGS = 64;
+const buildingTargets = new Int32Array(MAX_BLAST_BUILDINGS);
 
 /** What the last `explode` did (tests, sims, liveness asserts). */
 export const blastResult = { zombiesHit: 0, zombiesKilled: 0, playersHit: 0, buildingsHit: 0 };
@@ -89,7 +100,7 @@ const blastPlayer = (p: PlayerState): void => {
   const reach = s.radiusM + p.radiusM;
   if (dx * dx + dy * dy >= reach * reach) return; // FR-C overlap
   if (!shotLineClear(world, s.x, s.y, p.x, p.y)) return; // FR-C: cover shields
-  const taken = damagePlayerBy(world, p, s.playerDamage, "explosion", s.sourcePlayerId);
+  const taken = damagePlayerBy(world, p, s.playerDamage, "explosion", s.friendlyFire ? s.sourcePlayerId : null);
   if (taken > 0) {
     blastResult.playersHit++;
     explosionCounters.playersHit++;
@@ -156,6 +167,7 @@ export function explode(world: World, spec: ExplosionSpec): number {
   explosionCounters.happened++;
   explosionCounters.zombiesHit += blastResult.zombiesHit;
   explosionCounters.zombiesKilled += blastResult.zombiesKilled;
+  if (!spec.announce) return blastResult.zombiesHit;
   world.events.emit({
     type: "explosion.happened",
     kind: EXPLOSION_KINDS.indexOf(spec.kind),
@@ -168,24 +180,22 @@ export function explode(world: World, spec: ExplosionSpec): number {
   return blastResult.zombiesHit;
 }
 
-/** Player buildings whose box the blast circle overlaps with a clear line to its nearest point (collected, then damaged). */
+/** Wall buildings whose box the blast circle overlaps with a clear line to its nearest point (collected, then damaged). */
 function blastBuildings(world: World, spec: ExplosionSpec): void {
   const list = world.buildings.list;
-  buildingCount = 0;
-  const r2 = spec.radiusM * spec.radiusM;
-  for (let i = 0; i < list.length; i++) {
+  let n = 0;
+  for (let i = 0; i < list.length && n < MAX_BLAST_BUILDINGS; i++) {
     const b = list[i] as Building;
+    if (!b.solid || distanceToBox(spec.x, spec.y, b.minX, b.minY, b.maxX, b.maxY) >= spec.radiusM) continue;
     const nx = Math.min(b.maxX, Math.max(b.minX, spec.x));
     const ny = Math.min(b.maxY, Math.max(b.minY, spec.y));
-    const dx = nx - spec.x;
-    const dy = ny - spec.y;
-    if (dx * dx + dy * dy >= r2) continue;
-    if (!shotLineClear(world, spec.x, spec.y, nx, ny)) continue;
-    buildingTargets[buildingCount++] = b;
+    if (!shotLineClear(world, spec.x, spec.y, nx, ny)) continue; // a car between: shielded
+    buildingTargets[n++] = b.id;
   }
-  for (let k = 0; k < buildingCount; k++) {
-    damageBuilding(world, buildingTargets[k] as Building, spec.buildingDamage);
+  for (let k = 0; k < n; k++) {
+    const b = buildingById(world, buildingTargets[k] as number);
+    if (!b) continue;
     blastResult.buildingsHit++;
+    damageBuilding(world, b, spec.buildingDamage);
   }
-  buildingCount = 0;
 }

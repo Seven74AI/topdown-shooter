@@ -111,10 +111,26 @@ export {
   type SimEventsFlushed,
 } from "./net/netEvents";
 export { movePlayers, updatePlayers } from "./player/movement";
-export { ZOMBIE_STATE, ZOMBIE_TYPES, isRushState, isWindupState, type ZombieTypeId } from "./zombies/zombieTypes";
+export { ZOMBIE_STATE, ZOMBIE_TYPES, isRushState, isSwellState, isWindupState, type ZombieTypeId } from "./zombies/zombieTypes";
 export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
 export { spawnRing } from "./zombies/spawnRing";
 export { BRUTE_LOOKS, announceSpawn, bruteLookIndex } from "./zombies/brute"; // Story 5.7
+export {
+  BLOATER_BLAST_WEAPON,
+  BLOATER_LOOKS,
+  BLOATER_SWELL_WEAPON,
+  blastTrace,
+  bloaterLookIndex,
+  bloaterStats,
+  circleInGas,
+  clearBlasts,
+  createBlastQueue,
+  explodesOf,
+  processBlasts,
+  resetBloaterStats,
+  updateGas,
+  type BlastQueue,
+} from "./zombies/bloater"; // Story 5.8
 export { createSpatialGrid, queryRadius, queryRect, rebuildGrid, type SpatialGrid } from "./core/spatialGrid";
 export {
   HORDE_BACKPRESSURE_BYTES,

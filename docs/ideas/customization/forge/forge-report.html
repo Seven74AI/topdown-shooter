@@ -1,0 +1,52 @@
+<title>Customization Forge Report</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one column record sheet, seal top right. Single dark theme (matches the game's night look). */
+:root { color-scheme: dark; --bg: #131518; --panel: #1c1f23; --line: #343941; --fg: #dcd6c8; --muted: #8f8b80; --wax: #b8452e; --amber: #e0a646; }
+body { background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.5; }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+header { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 1.7rem; text-wrap: balance; } h2 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: .08em; color: var(--amber); margin: 0 0 8px; }
+p.sub { margin: 4px 0 0; color: var(--muted); }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.who { display: grid; gap: 8px; } .who div { display: grid; grid-template-columns: 2em 1fr; gap: 6px; }
+.muted { color: var(--muted); }
+</style>
+<div class="wrap">
+  <header>
+    <div><h1>Survivor customization</h1><p class="sub">Forge session, 2026-11-23 · topdown-shooter · designer + roundtable</p></div>
+    <svg width="132" height="132" viewBox="0 0 132 132" role="img" aria-label="Seal: hardened">
+      <circle cx="66" cy="66" r="58" fill="#b8452e"/><circle cx="66" cy="66" r="58" fill="none" stroke="#7d2c1c" stroke-width="6" stroke-dasharray="7 5"/>
+      <circle cx="66" cy="66" r="42" fill="none" stroke="#e9c2a8" stroke-width="2"/>
+      <text x="66" y="62" text-anchor="middle" font-family="Georgia, serif" font-size="17" font-weight="700" fill="#f4dccb" letter-spacing="2">HARDENED</text>
+      <text x="66" y="82" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#f4dccb" letter-spacing="1">LOOKS ONLY</text>
+    </svg>
+  </header>
+  <section><h2>Outcome</h2><p>The idea survived as a <strong>look-only character customization</strong> that ships with accounts (Epic 7): free starter parts, milestone items, and a very rare loot bag found during a wave. The "bonus equipment" half was dropped by the designer.</p></section>
+  <section><h2>Locked</h2><ul>
+    <li>No bonuses on equipment. The character's look only.</li>
+    <li>Six visible slots (top, headgear, hair, pack, accent, skin) and any colour for top, hair and accent.</li>
+    <li>Slot ring, name and arrows keep the team colour; chosen colours are night-lit in game; no colour warning.</li>
+    <li>35 starter, 10 milestone, 10 loot items. Cosmetics never cost Supplies.</li>
+    <li>Loot bag goes to whoever grabs it; the chance is per run (1 in 5 recommended), so the number of zombies doesn't matter.</li>
+    <li>Built together with Epic 7; the look travels as a short code sent once on join.</li>
+  </ul></section>
+  <section><h2>Rejected</h2><ul>
+    <li>Permanent stat gear: would leave new friends behind and break Training's caps.</li>
+    <li>Cosmetics bought with Supplies: a hat would compete with unlocking a gun.</li>
+    <li>A fixed muted palette: the designer wants free colours.</li>
+    <li>A device-only first release: the designer prefers one release with accounts.</li>
+  </ul></section>
+  <section><h2>Weak points that survived</h2><ul>
+    <li>Free colours can make a jacket look like another player's ring colour. Mitigated, not removed.</li>
+    <li>At 1 bag in 5 runs, collecting all 10 loot items takes ~200 runs per player. Fine for a surprise; tune in playtests.</li>
+    <li>Per-player body textures are drawn at join; needs the phone FPS check from Epic 5's brief.</li>
+  </ul></section>
+  <section><h2>Who pressure-tested it</h2><div class="who">
+    <div><span>🎲</span><span><strong>Samus Shepard</strong>, game designer. "Permanent stat gear is a no."</span></div>
+    <div><span>🎨</span><span><strong>Sally</strong>, UX designer. "If 150 items are invisible in play, that's a lie we're telling the player."</span></div>
+    <div><span>🏛️</span><span><strong>Cloud Dragonborn</strong>, game architect. "One string per player, zero per-tick cost."</span></div>
+    <div><span>🎮</span><span><strong>Dex</strong>, player voice. "Don't make me choose between the flamethrower and a hat."</span></div>
+  </div><p class="muted" style="margin:10px 0 0">Open choices decided (O1–O5 as recommended, no colour hint); the main session adds draft stories 7.8–7.12 with gds-correct-course.</p></section>
+</div>

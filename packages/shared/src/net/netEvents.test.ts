@@ -62,6 +62,10 @@ const EVENTS: SimEvent[] = [
   { type: "grenade.launched", playerId: "p2", grenadeId: 255, x: 10.5, y: 3.25, tx: 22.49, ty: 3.01, landTick: 12, flightTicks: 12 },
   { type: "explosion.happened", kind: 0, x: 22.49, y: 3.01, radiusM: 2, sourcePlayerId: "p2", grenadeId: 255 },
   { type: "explosion.happened", kind: 1, x: 0, y: 31.99, radiusM: 2.5, sourcePlayerId: null, grenadeId: 0 },
+  // Story 5.8
+  { type: "bloater.swell_started", zombieId: 17, x: 12.34, y: 5.6 },
+  { type: "bloater.burst", x: 0.5, y: 31.5, chain: false },
+  { type: "bloater.burst", x: 47.5, y: 0.5, chain: true },
 ];
 
 /** Story 3.6: a turret shot (its muzzle is not sent). */

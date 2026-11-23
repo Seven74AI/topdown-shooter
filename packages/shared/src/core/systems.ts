@@ -7,16 +7,20 @@ import { updateEconomy } from "../economy/economy";
 import { updateBuildings } from "../buildings/buildingSystem";
 import { updateFires } from "../decay/fire";
 import { updateAcid, updateSpits } from "../zombies/spit";
+import { processBlasts, updateGas } from "../zombies/bloater";
 
 /**
+ * Story 5.8: queued Bloater blasts run first and the gas last (`zombies/bloater.ts`).
  * Story 5.6: the `zombies` slot: the AI (Spitters wind up and release spits in pass 1), then the
  * globs in flight (`updateSpits`), then the acid puddles' damage and lifetime (`updateAcid`).
  * Server and solo only (never predicted: HP is server truth).
  */
 export const updateZombieSlot: SystemFn = (world, dtS) => {
+  processBlasts(world); // Story 5.8: queued Bloater blasts first (this tick's deaths, last tick's chain links)
   updateZombies(world, dtS);
   updateSpits(world);
   updateAcid(world);
+  updateGas(world); // Story 5.8: the gas slow and the clouds' lifetime
 };
 
 /** Fixed system order per tick (architecture › Communication Patterns). Never reorder. */

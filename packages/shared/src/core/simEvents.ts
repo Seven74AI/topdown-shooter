@@ -128,6 +128,18 @@ export type SimEvent =
    * damage follow as their own events; this is the visual. `grenadeId` = the round that burst (0: none).
    */
   | { type: "explosion.happened"; kind: number; x: number; y: number; radiusM: number; sourcePlayerId: string | null; grenadeId: number; /** Client only, as above. */ ageS?: number }
+  /**
+   * Story 5.8 (FR-A): Bloater `zombieId` touched a standing player and started its swell at (x, y):
+   * it bursts exactly `explodes.swellS` later where it stands (the client's cue and fuse ring; the
+   * swell is also the zombie's streamed SWELL state).
+   */
+  | { type: "bloater.swell_started"; zombieId: number; x: number; y: number; /** Client only: seconds since it happened. */ ageS?: number }
+  /**
+   * Story 5.8: a Bloater burst at (x, y) (its blast ran this tick; hits and kills are their own
+   * events). The client draws the burst and the gas cloud (`gasRadiusM` for `gasS`) from it: no
+   * cloud state goes on the wire. `chain` = it was killed by another blast (queued a tick).
+   */
+  | { type: "bloater.burst"; x: number; y: number; chain: boolean; /** Client only: seconds since it happened. */ ageS?: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

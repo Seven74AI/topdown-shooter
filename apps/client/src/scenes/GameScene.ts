@@ -40,6 +40,8 @@ import { ACID_CUE_MS, FireCue } from "../render/fireCue";
 import { ACID_SOUND_MAX_AGE_S, AcidFx } from "../render/acidFx";
 import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
+import { BloaterFx } from "../render/bloaterFx";
+import { BloaterView } from "../render/BloaterView";
 import { playSfx, startChainsawRev, stopChainsawRev } from "../audio/placeholderSfx";
 import { SawClock } from "../render/meleeFx";
 import { BurnView } from "../render/BurnView";
@@ -115,6 +117,8 @@ export function newRunSeed(): number {
 /** The fight: runs the World through a SimHost, draws it, and feeds it the local input. */
 const RUSH_COLOR = 0xff3b30;
 /** Short screen shake for heavy weapons (FR19); intensity is a fraction of the view size. */
+/** Story 5.8: the gas-slow edge tint (steady: slowed, not hurt). */
+const GAS_GLOW_ALPHA = 0.32;
 const SHAKE_MS = 80;
 const SHAKE_INTENSITY = 0.004;
 /** Rush chevron, in meters, drawn above each of the wave's last zombies. */
@@ -195,6 +199,9 @@ export class GameScene extends Phaser.Scene {
   /** Story 5.6: the cosmetic spits and puddles (from events, both modes), their view, my acid cue and their clock (s; frozen by the solo pause). */
   private acidFx: AcidFx | null = null;
   private acidView: AcidView | null = null;
+  /** Story 5.8: cosmetic Bloater bursts and gas clouds (from events) and the fuse rings. */
+  private bloaterFx: BloaterFx | null = null;
+  private bloaterView: BloaterView | null = null;
   private readonly acidCue = new FireCue(ACID_CUE_MS);
   private acidClockS = 0;
   private projectileView: ProjectileView | null = null;
@@ -385,6 +392,10 @@ export class GameScene extends Phaser.Scene {
     this.acidView = new AcidView(this, this.acidFx, spitBal?.puddleRadiusM ?? 1);
     this.grenadeView = new GrenadeView(this, balance, localId); // Story 5.5
     this.explosionView = new ExplosionView(this, balance);
+    // Story 5.8: pools sized by the balance caps (gas clouds = the server's pool, particles by controls.json › fx).
+    const blEx = balance.zombies.types.bloater?.explodes;
+    this.bloaterFx = new BloaterFx(balance.zombies.blasts.maxGasClouds, balance.controls.fx.maxBloaterParticles, blEx?.gasRadiusM ?? 2.5, blEx?.gasS ?? 4);
+    this.bloaterView = new BloaterView(this, this.bloaterFx, this.zombieView, blEx?.blastRadiusM ?? 2.5, balance.controls.fx.maxFuseRings);
     this.chevrons.length = 0;
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
       const c = CHEVRON_M;
@@ -467,6 +478,9 @@ export class GameScene extends Phaser.Scene {
       this.grenadeView = null;
       this.explosionView?.destroy();
       this.explosionView = null;
+      this.bloaterView?.destroy();
+      this.bloaterView = null;
+      this.bloaterFx = null;
       perf.hits = null;
       perf.net = null;
       perf.soloSeed = null;
@@ -886,6 +900,18 @@ export class GameScene extends Phaser.Scene {
     this.burnView?.end();
   }
 
+  /** Story 5.8: a burst's wet pop (on screen, fresh only) and a short shake when my survivor is near it (the mine's rule). */
+  private bloaterBurst(host: SimHost, e: Extract<SimEvent, { type: "bloater.burst" }>): void {
+    if ((e.ageS ?? 0) > ACID_SOUND_MAX_AGE_S) return; // a woken tab's backlog: silent
+    const v = this.cameras.main.worldView;
+    if (e.x >= v.x && e.y >= v.y && e.x <= v.x + v.width && e.y <= v.y + v.height) {
+      playSfx("zombie_bloater_burst", Math.max(-1, Math.min(1, (e.x - (v.x + v.width / 2)) / Math.max(1e-6, v.width / 2))));
+    }
+    const me = host.world.players.get(host.localPlayerId);
+    const k = me ? mineShakeIntensity(Math.hypot(me.x - e.x, me.y - e.y)) : 0;
+    if (k > 0 && getSettings().screenShake) this.cameras.main.shake(MINE_SHAKE_MS, k);
+  }
+
   /** Story 5.6: the spit's "ptoo" and the splash's hiss, only when on screen (panned by screen position). */
   /** Story 5.5: the launcher in my survivor's hands (alive, not swapping), else null. */
   private localLauncher(host: SimHost): LauncherStats | null {
@@ -989,6 +1015,7 @@ export class GameScene extends Phaser.Scene {
       if (this.acidFx?.handle(e, this.acidClockS)) this.acidSound(e);
       this.grenadeView?.handle(e, this.acidClockS); // Story 5.5: rounds in flight
       this.explosionView?.handle(e, this.acidClockS);
+      if (this.bloaterFx?.handle(e, this.acidClockS) && e.type === "bloater.burst") this.bloaterBurst(host, e);
       // Story 4.11: a build or wave start (a fire may have gone out) closes every burning cue; a real hit relights it.
       if (e.type === "build.started" || e.type === "wave.started") {
         this.fireCue.clear();
@@ -1046,6 +1073,7 @@ export class GameScene extends Phaser.Scene {
     this.grenadeView?.update(this.acidClockS);
     this.explosionView?.update(fxDtS, this.acidClockS);
     this.updateLobMarker(host);
+    this.bloaterView?.update(host.world, this.acidClockS); // Story 5.8 (the same paused-aware clock)
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.downedView?.update(host.world, this.time.now);
@@ -1074,6 +1102,8 @@ export class GameScene extends Phaser.Scene {
       // Story 5.6: my acid cue (green edge glow, "Acid"), pulsing with the puddle's 0.4 s damage tick.
       this.hudModel.inAcid = this.acidCue.burning(localId, this.time.now);
       this.hudModel.acidGlow = edgeGlowAlpha(this.hudModel.inAcid && player.status === "alive", this.acidCue.sinceLastHit(localId, this.time.now), (acidSpitOf(host.world.balance)?.puddlePulseS ?? 0.4) * 1000);
+      // Story 5.8: a light yellow-green edge while the gas slows me (the server's slow, inside a drawn cloud).
+      this.hudModel.gasGlow = player.status === "alive" && player.slowTicksLeft > 0 && this.bloaterFx?.inCloud(player.x, player.y, player.radiusM, this.acidClockS) === true ? GAS_GLOW_ALPHA : 0;
       this.hudModel.maxHp = player.maxHp;
       this.hudModel.money = player.wallet;
       this.hudModel.localX = viewOf.x;

@@ -27,13 +27,18 @@ export type SfxName =
   | "zombie_brute_roar"
   // Story 5.5: the Grenade Launcher's hollow "thoonk" and a blast (positional, rate-limited).
   | "weapon_grenade_launch"
-  | "fx_explosion";
+  | "fx_explosion"
+  | "zombie_bloater_gurgle"
+  | "zombie_bloater_swell"
+  | "zombie_bloater_burst";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
 /** Story 5.9: mines going off in the same instant make one blast sound. */
 const BLAST_MIN_INTERVAL_S = 0.08;
 let lastBlastAt = -1;
+/** Story 5.8: the swell sound's length (the balance `explodes.swellS`, 1 s; cosmetic). */
+const BLOATER_SWELL_SFX_S = 1.0;
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -267,6 +272,47 @@ function gurgle(c: AudioContext, at: number, pan: number): void {
   }
 }
 
+/**
+ * Story 5.8: the Bloater's swell (FR84 telegraph): a wet, rising stretch over the 1 s fuse — a
+ * sine climbing an octave and a half under a tightening band-pass, with bubbling on top. Placeholder
+ * until Epic 9's sounds.
+ */
+function swellRise(c: AudioContext, at: number, pan: number, dur: number): void {
+  const out = outputFor(c, pan);
+  if (!out || !noise) return;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.001, at);
+  g.gain.exponentialRampToValueAtTime(0.35, at + dur * 0.92);
+  g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 4;
+  bp.frequency.setValueAtTime(180, at);
+  bp.frequency.exponentialRampToValueAtTime(900, at + dur);
+  bp.connect(g).connect(out);
+  const o = c.createOscillator();
+  o.type = "triangle";
+  o.frequency.setValueAtTime(70, at);
+  o.frequency.exponentialRampToValueAtTime(220, at + dur);
+  const wob = c.createOscillator();
+  wob.frequency.setValueAtTime(8, at);
+  wob.frequency.linearRampToValueAtTime(22, at + dur);
+  const wobGain = c.createGain();
+  wobGain.gain.value = 25;
+  wob.connect(wobGain).connect(o.frequency);
+  o.connect(bp);
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  src.loop = true;
+  const hiss = c.createGain();
+  hiss.gain.value = 0.15;
+  src.connect(hiss).connect(bp);
+  for (const n of [o, wob, src]) {
+    n.start(at);
+    n.stop(at + dur);
+  }
+}
+
 /** `pan` (-1 left … +1 right) is used by positional cues (the Runner's shriek); the others ignore it. */
 export function playSfx(name: SfxName, pan = 0): void {
   const c = context();
@@ -344,6 +390,18 @@ export function playSfx(name: SfxName, pan = 0): void {
       break;
     case "zombie_brute_roar": // Story 5.7
       roar(c, t, pan);
+      break;
+    case "zombie_bloater_gurgle": // Story 5.8: a Bloater first in view (a low, slow gurgle)
+      gurgle(c, t, pan);
+      break;
+    case "zombie_bloater_swell": // Story 5.8: the 1 s fuse
+      swellRise(c, t, pan, BLOATER_SWELL_SFX_S);
+      break;
+    case "zombie_bloater_burst": // Story 5.8: a wet pop and a gassy whoosh (rate-limited like the mine blast: a chain)
+      if (t - lastBlastAt < BLAST_MIN_INTERVAL_S) return;
+      lastBlastAt = t;
+      burst(c, t, 0.22, 0.9, 260);
+      sweep(c, t + 0.03, 0.5, 0.35, 1800, 500);
       break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;

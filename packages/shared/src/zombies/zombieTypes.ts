@@ -1,7 +1,7 @@
 import type { Balance } from "../config/balance";
 
 /** Zombie type index ↔ balance id. Order is fixed; append only (the index goes on the wire in Story 2.5). */
-export const ZOMBIE_TYPES = ["walker", "crawler", "runner", "spitter", "brute"] as const; // Story 5.6: spitter = 3; Story 5.7: brute = 4
+export const ZOMBIE_TYPES = ["walker", "crawler", "runner", "spitter", "brute", "bloater"] as const; // Story 5.6: spitter = 3; Story 5.7: brute = 4; Story 5.8: bloater = 5
 export type ZombieTypeId = (typeof ZOMBIE_TYPES)[number];
 
 /** Per-zombie behaviour state stored as a u8 in the pool. More states arrive later (flank, windup, rush…). */
@@ -14,7 +14,19 @@ export const ZOMBIE_STATE = {
   WINDUP: 3,
   /** Story 5.6: a rushing Spitter (FR30, still marked) in its windup. */
   RUSH_WINDUP: 4,
+  /**
+   * Story 5.8: a Bloater swelling before it bursts (FR-A: stands still, never bites, always ends in
+   * a blast; streamed in the horde nibble, so a client that missed the event still draws it). A
+   * rushing Bloater that swells shows SWELL too (it no longer moves: its rush marker is moot).
+   * Values stay ≤ 7 (Story 5.4 reserves the nibble's bit 3 for "burning").
+   */
+  SWELL: 5,
 } as const;
+
+/** Story 5.8: a Bloater's swell (the telegraph: growing, glowing, the fuse ring). */
+export function isSwellState(state: number): boolean {
+  return state === ZOMBIE_STATE.SWELL;
+}
 
 /** Story 5.6: rushing (FR30), whether or not in a windup. Every "is it rushing" check uses this. */
 export function isRushState(state: number): boolean {

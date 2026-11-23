@@ -31,6 +31,7 @@ function snapshotZombies(world: World) {
       fireTicks: z.fireTicks[id], // Story 4.8 review L4
       spitTicks: z.spitTicks[id], // Story 5.6
       spitTarget: z.spitTarget[id] ?? null,
+      swellTicks: z.swellTicks[id], // Story 5.8
       trapTicks: z.trapTicks[id], // Story 5.9
       slowPct: z.slowPct[id],
       knockShot: Array.from(z.knockShot.subarray(id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY)), // Story 5.3
@@ -108,6 +109,20 @@ function snapshotAreas(world: World) {
   return out;
 }
 
+/** Story 5.8: the queued Bloater blasts (oldest first) and the gas clouds (live slots). */
+function snapshotBlasts(world: World) {
+  const q = world.blasts;
+  const queue = [];
+  for (let k = 0; k < q.count; k++) {
+    const i = (q.head + k) % q.capacity;
+    queue.push({ x: q.x[i], y: q.y[i], type: q.type[i], credit: q.credit[i] ?? null, creditBuilding: q.creditBuilding[i], chain: q.chain[i] });
+  }
+  const g = world.gas;
+  const gas = [];
+  for (let i = 0; i < g.capacity; i++) if (g.active[i] === 1) gas.push({ slot: i, x: g.x[i], y: g.y[i], radiusM: g.radiusM[i], ticksLeft: g.ticksLeft[i], bornTick: g.bornTick[i] });
+  return { queue, gas };
+}
+
 export function snapshotWorld(world: World) {
   return {
     tick: world.tick,
@@ -180,6 +195,8 @@ export function snapshotWorld(world: World) {
     spits: snapshotSpits(world),
     areas: snapshotAreas(world),
     grenades: snapshotGrenades(world), // Story 5.5
+    // Story 5.8: queued Bloater blasts and gas clouds (each zombie's `swellTicks` rides in `zombies`).
+    bloater: snapshotBlasts(world),
     // Story 2.12: the zombie position history (evolved state: switch, row labels, hash of the rows).
     zombieHistory: snapshotZombieHistory(world.zombieHistory),
   };

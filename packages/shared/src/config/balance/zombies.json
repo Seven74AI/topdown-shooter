@@ -64,9 +64,31 @@
       "swingToleranceM": 0.01,
       "gapReachM": 1.8,
       "wideBody": true
+    },
+    "bloater": {
+      "hp": 25,
+      "speedMps": 0.9,
+      "damage": 0,
+      "attackIntervalS": 1.0,
+      "radiusM": 0.5,
+      "reward": 6,
+      "wideBody": true,
+      "explodes": {
+        "swellS": 1.0,
+        "blastRadiusM": 2.5,
+        "playerDamage": 30,
+        "zombieDamage": 40,
+        "buildingDamage": 40,
+        "pushM": 0.5,
+        "gasRadiusM": 2.5,
+        "gasS": 4.0,
+        "gasSlowPct": 30,
+        "gasLingerS": 0.25
+      }
     }
   },
   "spitCaps": { "maxLiveSpits": 24, "maxLivePuddles": 32 },
+  "blasts": { "maxBlastsPerTick": 8, "queueCapacity": 64, "maxGasClouds": 24 },
   "crowd": {
     "separationRadiusM": 0.9,
     "separationStrength": 10.0,

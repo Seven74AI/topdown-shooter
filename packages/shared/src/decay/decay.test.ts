@@ -265,7 +265,7 @@ function nextBuild(w: World): SimEvent[] {
 const insideAny = (w: World, x: number, y: number, r: number) => w.obstacles.solids.some((b) => circleOverlapsBox(x, y, r - 1e-6, b.minX, b.minY, b.maxX, b.maxY));
 
 describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
-  it("stage changes only at the build start before waves 3 and 5 (never mid-wave): a whole 5-wave run", () => {
+  it("stage changes only at the build start before waves 3 and 5 (never mid-wave): a whole 6-wave run", () => {
     const w = createWorld({ balance, seed: 11, map: DT });
     w.debug.godMode = true;
     addPlayer(w, "p0", 24, 16);
@@ -293,9 +293,9 @@ describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
         lastStage = w.decay.stage;
       }
     }
-    expect(held).toBe(true); // liveness: the 5 waves really ran
+    expect(held).toBe(true); // liveness: the 6 waves really ran (Story 5.8: runWaves 6)
     expect(midWave).toBe(0);
-    expect(stageAtWaveStart).toEqual([1, 1, 2, 2, 3]);
+    expect(stageAtWaveStart).toEqual([1, 1, 2, 2, 3, 3]);
     expect(changes.map((c) => [c.stage, c.wave, c.phase])).toEqual([
       [2, 3, "build"],
       [3, 5, "build"],
@@ -586,7 +586,7 @@ describe("Story 4.5 player-visible properties", () => {
       }
       // Story 5.7: a zombie that reached us leaves (killed), so the crowd round the team never fills the 3 m
       // circle: with a 1.2 m Brute per spawn the bodies no longer fit, and late arrivals would stay outside it.
-      for (const id of reached) if (z.alivePos[id] !== -1) killZombie(w, id, null, "pistol");
+      for (const id of reached) if (z.alivePos[id] !== -1) killZombie(w, id, null, "cheat"); // Story 5.8: removed, not killed (a Bloater would burst)
     }
     expect(spawned.length).toBe(14 * ZOMBIE_TYPES.length); // liveness: 14 spawns open at stage 2
     expect(reached.size).toBe(spawned.length);
