@@ -54,7 +54,7 @@ canvas { display: block; }
 
   <section class="panel">
     <header><span class="code">New</span><h2>FL1 floodlight · MS10 med station · B-T1 bear trap</h2></header>
-    <p><b>Floodlight</b>: the yellow tripod work light with rubber feet, the halogen head with its grille and lit glass facing you, cable trailing off to the left. <b>Med station</b>: the blue-grey crate with the orange case and white bag on top and the grey case whose LED panel shows the glowing green cross. <b>Bear trap</b>: round steel jaws lying open with the teeth up, leaf springs to both sides, the round plate in the middle and the chain to a stake.</p>
+    <p><b>Floodlight</b>: the yellow tripod work light with rubber feet, the halogen head with its grille and lit glass facing you, cable trailing off to the left. <b>Med station</b>: the blue-grey crate with an orange first-aid case (handle, big white cross) and the grey case whose LED panel shows the glowing green cross. <b>Bear trap</b>: round steel jaws lying open with the teeth up, leaf springs to both sides, the round plate in the middle and the chain to a stake.</p>
     <div><div class="label">Enlarged ×3 (new icons in yellow, shipped ones for comparison)</div><div class="big" id="big"></div></div>
   </section>
 
@@ -210,7 +210,7 @@ canvas { display: block; }
   const CRATE = "#3b4652", CRATE_HI = "#56636f", CRATE_DK = "#262e37";
   const ORANGE = "#c8641e", ORANGE_HI = "#e07e34", ORANGE_DK = "#8f4410";
   const GREY = "#59616b", GREY_HI = "#7a838d", GREY_DK = "#3a4048";
-  const BAG = "#e0ddd4", BAG_DK = "#b3afa4", CROSS_W = "#f2eee4";
+  const CROSS_W = "#f2eee4";
   const LED = "#5dff8a", LED_GLOW = "90,255,140", PANEL = "#121417";
 
   /** A box in the I1 view: a lighter top face over a front face, outlined. */
@@ -221,7 +221,7 @@ canvas { display: block; }
   }
   function cross(g, x, y, s, t, style) { g.fillStyle = style; g.fillRect(x - s / 2, y - t / 2, s, t); g.fillRect(x - t / 2, y - s / 2, t, s); }
 
-  /** MS10 med station: a blue-grey crate with an orange case, a white bag and a grey case whose LED panel glows a green cross. */
+  /** MS10 med station: a blue-grey crate with an orange first-aid case and a grey case whose LED panel glows a green cross. */
   const medStationMS10 = (g, w, h) => {
     const lw = w * 0.018;
     shadow(g, w / 2, h * 0.9, w * 0.46, h * 0.07);
@@ -229,16 +229,16 @@ canvas { display: block; }
     box3(g, w * 0.06, h * 0.52, w * 0.88, h * 0.1, h * 0.26, CRATE_HI, CRATE, lw);
     g.fillStyle = CRATE_DK; g.fillRect(w * 0.06, h * 0.7, w * 0.88, h * 0.04);
     for (const x of [0.22, 0.78]) { g.fillStyle = "#1d2126"; g.fillRect(w * x - w * 0.05, h * 0.64, w * 0.1, h * 0.04); }
-    // orange case, back left
-    box3(g, w * 0.1, h * 0.24, w * 0.4, h * 0.08, h * 0.22, ORANGE_HI, ORANGE, lw);
-    g.fillStyle = ORANGE_DK; g.fillRect(w * 0.1, h * 0.38, w * 0.4, h * 0.03);
-    g.fillStyle = "#2a2c30"; g.fillRect(w * 0.24, h * 0.2, w * 0.12, h * 0.04);
-    cross(g, w * 0.3, h * 0.43, w * 0.09, w * 0.03, CROSS_W);
-    // white bag, front left, slumped
-    g.fillStyle = BAG; g.strokeStyle = OUT; g.lineWidth = lw;
-    g.beginPath(); g.moveTo(w * 0.08, h * 0.62); g.quadraticCurveTo(w * 0.07, h * 0.46, w * 0.18, h * 0.44); g.lineTo(w * 0.4, h * 0.45); g.quadraticCurveTo(w * 0.48, h * 0.48, w * 0.46, h * 0.62); g.closePath(); g.fill(); g.stroke();
-    g.fillStyle = BAG_DK; g.fillRect(w * 0.1, h * 0.555, w * 0.35, h * 0.025);
-    g.strokeStyle = "#7a776e"; g.lineWidth = w * 0.014; g.beginPath(); g.moveTo(w * 0.2, h * 0.445); g.quadraticCurveTo(w * 0.27, h * 0.36, w * 0.34, h * 0.45); g.stroke();
+    // orange first-aid case, left: carry handle on top, a big white cross on its front
+    g.strokeStyle = OUT; g.lineWidth = w * 0.03; g.lineCap = "round";
+    g.beginPath(); g.moveTo(w * 0.22, h * 0.26); g.lineTo(w * 0.22, h * 0.18); g.lineTo(w * 0.36, h * 0.18); g.lineTo(w * 0.36, h * 0.26); g.stroke();
+    g.strokeStyle = "#2a2c30"; g.lineWidth = w * 0.016;
+    g.beginPath(); g.moveTo(w * 0.22, h * 0.26); g.lineTo(w * 0.22, h * 0.18); g.lineTo(w * 0.36, h * 0.18); g.lineTo(w * 0.36, h * 0.26); g.stroke();
+    g.lineCap = "butt";
+    box3(g, w * 0.09, h * 0.24, w * 0.4, h * 0.08, h * 0.3, ORANGE_HI, ORANGE, lw);
+    g.fillStyle = ORANGE_DK; g.fillRect(w * 0.09, h * 0.32, w * 0.4, h * 0.03);
+    g.fillStyle = "#2a2c30"; for (const x of [0.13, 0.42]) g.fillRect(w * x, h * 0.31, w * 0.03, h * 0.06);
+    cross(g, w * 0.29, h * 0.45, w * 0.17, w * 0.06, CROSS_W);
     // grey case, right, tall: the LED panel on its front
     box3(g, w * 0.5, h * 0.08, w * 0.42, h * 0.08, h * 0.48, GREY_HI, GREY, lw);
     g.fillStyle = GREY_DK; g.fillRect(w * 0.88, h * 0.16, w * 0.04, h * 0.48);
