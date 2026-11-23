@@ -135,11 +135,6 @@ export interface WorldDebug {
    * the solo cheat now changes the real stage through the DecaySystem.)
    */
   decayStageByWave: readonly number[] | null;
-  /**
-   * Story 5.10 dev switch (server `DEV_SHOP_ALL=1`, solo `?shopall=1`): types with `inShop: false`
-   * (the floodlight until 6.3) are listed and placeable. Outside balance: `balance.version` is unchanged.
-   */
-  shopAll: boolean;
 }
 
 export interface CreateWorldOptions {
@@ -182,7 +177,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(),
     run: createRunState(),
-    debug: { godMode: false, waveMix: null, decayStageByWave: null, shopAll: false },
+    debug: { godMode: false, waveMix: null, decayStageByWave: null },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),

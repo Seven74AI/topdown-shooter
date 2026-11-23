@@ -434,6 +434,12 @@ export class NetSimHost implements SimHost {
     this.session.room.send(C2S.SHOP_UPGRADE, { weapon });
   }
 
+  /** Story 5.11: `shop.buy_item`; the server decides and answers this client; the state brings gear, max HP and wallet. */
+  buyItem(item: string): void {
+    if (this.disposed) return;
+    this.session.room.send(C2S.SHOP_BUY_ITEM, { item });
+  }
+
   takeShopAnswer(): ShopAnswer | null {
     return this.shopAnswers.shift() ?? null;
   }
@@ -715,6 +721,7 @@ export class NetSimHost implements SimHost {
     else this.writeInterpolated(p, s);
     p.hp = s.hp;
     p.maxHp = s.maxHp;
+    p.gear = s.gear; // Story 5.11: HUD icons, shop "Owned", the reviver's kit (the predictor has its own copy)
     p.status = s.status;
     p.buildReady = s.buildReady;
     p.slowTicksLeft = s.slowTicks; // Story 3.9: the slowed look (the predictor has its own copy)
@@ -777,7 +784,9 @@ export class NetSimHost implements SimHost {
   /** Story 2.8: countdown and revive progress (0–255 → ticks) from the latest state. */
   private applyDowned(p: PlayerState, s: PlayerStateView): void {
     p.downedTicksLeft = s.downedTicksLeft;
-    p.reviveTicks = Math.round((s.reviveProgress / 255) * this.reviveTicksTotal);
+    // Story 5.11 review L2: progress is of the server's synced need (fastest kit in reach), never re-derived here.
+    p.reviveNeedTicks = s.reviveNeed;
+    p.reviveTicks = Math.round((s.reviveProgress / 255) * (s.reviveNeed > 0 ? s.reviveNeed : this.reviveTicksTotal));
   }
 
   /** Reuses the slot object unless the weapon changed ("" = empty). */
@@ -809,7 +818,7 @@ export class NetSimHost implements SimHost {
     this.predictor.syncDecay(state.decayStage, state.decayVariants, state.decayFiresOut); // Story 4.5: the same patch's map
     const me = state.players.get(this.localPlayerId);
     if (!me) return;
-    this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct, me.knockTicks, me.knockDx, me.knockDy, me.knockStepMm);
+    this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct, me.knockTicks, me.knockDx, me.knockDy, me.knockStepMm, me.gear);
     // Events go out at the tick, patches later on one socket: every server shot for seqs ≤ ack is
     // already counted. Local shots there beyond them were never fired by the server.
     this.fireClock.ack(me.ackSeq);

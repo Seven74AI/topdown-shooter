@@ -1,6 +1,10 @@
+---
+baseline_commit: 6d563bce3a20c15567c757a3b6c63af49dc039ef
+---
+
 # Story 5.11: Gear
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -42,7 +46,7 @@ so that my build is more than my weapons.
 3. **HUD icons.** The HUD shows one small icon per owned gear item (fixed order, beside the HP text), from the server's state online. The shop marks owned gear "Owned" (disabled).
 4. **Fairness rule: body armor.** Body armor I gives **+25 max HP**; Body armor II gives **+50 max HP and replaces armor I** (buying II while owning I clears bit I; II owned ⇒ I is refused `already_owned`: "armor II covers it"). Max HP = `player.maxHp + bonus of the best armor owned` (never both). On purchase the player's **current HP rises by the max-HP increase** (100/100 → 125/125; I → II: +25); never above the new max. Every heal cap (build heal, revive HP fraction, Story 5.10 med station, Story 5.12 medkit) uses this max. Revive HP = `ceil(maxHp × reviveHpFrac)` of the new max.
 5. **Fairness rule: running shoes.** **+10 % move speed**, integer percent, applied in `movePlayers` (server **and** the client Predictor) as `base × (100 + bonusPct) / 100`, then the slow (`× (100 − slowPct) / 100`, 3.9) — bonus and slows **multiply**, never add: a Crawler-slowed shoe wearer moves at 4.5 × 1.1 × 0.7 m/s. Story 5.2's Chainsaw −20 % and 5.8's gas −30 % are slows and follow the same rule. Prediction stays bit-identical to the server (same integer expression on both sides).
-6. **Fairness rule: revive kit (D1).** The kit belongs to the **reviver**: a teammate who owns it revives a downed player in **1.5 s** instead of 3 s (`gear.json › revive_kit.reviveS`). The time needed each tick is that of the current reviver (the nearest standing teammate in reach, 2.8's rule); progress ticks are kept when the reviver changes, so a kit owner taking over a half-done revive finishes as soon as progress ≥ their 30 ticks. Two revivers still count as one (no stacking). A downed kit owner gains nothing from their own kit.
+6. **Fairness rule: revive kit (D1).** The kit belongs to the **reviver**: a teammate who owns it revives a downed player in **1.5 s** instead of 3 s (`gear.json › revive_kit.reviveS`). The time needed each tick is the **fastest need among all standing teammates in reach** (review L1, main session decision, "Better together": a kit owner in the 2 m zone counts even when a plain teammate stands nearer; the nearest is still the reviver shown); progress ticks are kept when revivers change, so a kit owner stepping in to a half-done revive finishes as soon as progress ≥ their 30 ticks. Two revivers still count as one (no stacking: two kits = 30 ticks). A downed kit owner gains nothing from their own kit.
 7. **Tactical flashlight** is only recorded (the bit, synced) for 6.3's blackout cone; no gameplay effect and not for sale yet (AC 1).
 8. **Server truth and pending.** Online the shop sends `shop.buy_item { item }` (new message, contract shared with Story 5.12) and shows "Waiting…" until `shop.bought_item` / `shop.refused_item` arrives or the state shows the bit (3.3's pending + 3 s timeout); HUD icons, max HP and speed follow the synced `gear` field, never the tap.
 9. **Network.** New player schema field `gear` (uint8), in `PlayerStateView`/`PLAYER_STATE_FIELDS`, written on change only; `maxHp` already synced. The Predictor reads `gear` from each state (rebase on `ackSeq` like `slowTicks`). Bandwidth: one 2–3 B patch per purchase; 0 B/s otherwise.
@@ -57,7 +61,7 @@ so that my build is more than my weapons.
 | G3 | Buy armor at 10 HP to "heal" | HP +25 (the bonus only); build heal already ran at build start |
 | G4 | Spam `shop.buy_item` under `?lag=150&jitter=20` (double tap) | One purchase; the second is `already_owned` (or not sent while pending) |
 | G5 | Craft `shop.buy_item {item:"tactical_flashlight"}` | `not_for_sale` (unless `DEV_SHOP_ALL=1`) |
-| G6 | Buy gear in a wave / while downed / out | `not_build` (only in build phases; everyone stands at a build start) |
+| G6 | Buy gear in a wave / while downed / out | Wave: `not_build`. Downed / out in a build phase (a fire can down someone after the build start): `not_alive` (review M1; weapons too) |
 | G7 | Shoes + Crawler bite + Chainsaw | Speed = base × 1.1 × 0.7 (strongest slow only, 3.9) — never faster than base × 1.1 |
 | G8 | Make prediction drift with shoes (lag, slept tab, late join) | Predictor rebases with `gear` at `ackSeq`: no snap after the first state |
 | G9 | Two kit owners reviving together | 1.5 s, not faster |
@@ -68,38 +72,38 @@ so that my build is more than my weapons.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art pick (first; AC 3).** ~5 Meshy proposals per **gear icon set** (one consistent style for all 5: armor I vest, armor II heavy vest/plates, running shoes, revive kit (medic bag + syringe/defib), tactical flashlight) — HUD icons at 24–32 CSS px must read on a phone at a glance, Dead City palette, no text. One private proposal page; the designer picks one set (or mixes); save to `docs/art/5-11/` + `README.md` (4.11 format). Build atlas frames `icon_gear_armor1_a`, `icon_gear_armor2_a`, `icon_gear_shoes_a`, `icon_gear_revivekit_a`, `icon_gear_flashlight_a` (HUD atlas ≤ 2048², category_name_variant). No HUD drawing before the pick.
-- [ ] **T1 Balance `gear.json` (AC 1, 4–7).**
-  - [ ] `balanceSchema.ts`: `gearSchema = z.object({ items: z.record(balanceId, gearItemSchema) }).strict()`, `gearItemSchema = { name, price int ≥ 0, inShop default true, maxHpBonus? int ≥ 0, armorTier? int 1–2, speedBonusPct? int 0–50, reviveS? > 0, light? (reserved: omit) }`; refine ≤ 8 items (uint8 mask). Register `gear: gearSchema` in `balanceFileSchemas`.
-  - [ ] `gear.json`: `body_armor_1` {name "Body armor I", price 150, maxHpBonus 25, armorTier 1}, `body_armor_2` {"Body armor II", 350, 50, tier 2}, `running_shoes` {150, speedBonusPct 10}, `revive_kit` {150, reviveS 1.5}, `tactical_flashlight` {120, inShop false}. `balance.version` changes.
-  - [ ] Tests: `config/balance.test.ts` › "gear validates; > 8 items refused; unknown fields refused".
-- [ ] **T2 Shared gear rules — new `packages/shared/src/economy/gear.ts` (AC 2, 4–7).**
-  - [ ] `gearIds(balance)` (cached key order), `gearBit(balance, id)`, `owns(p, id)`, `armorBonus(balance, mask)` (best tier), `speedBonusPct(balance, mask)`, `reviveTicksFor(balance, reviverMask)` (`ticksFor(revive_kit.reviveS)` if owned else `ticksFor(player.reviveS)`), `effectiveMaxHp(balance, mask)`.
-  - [ ] `buyGear(world, playerId, item): Result<{ item }, ShopError>` — order: `not_build` → `unknown_player` → `not_for_sale` (unknown id or `inShop: false` without `debug.shopAll`) → `already_owned` (bit set, or armor tier ≤ owned tier) → `spendMoney`; then set the bit (armor II clears I), `maxHp = effectiveMaxHp`, `hp += newMax − oldMax`.
-  - [ ] `player/player.ts`: `gear: number` (0) in `PlayerState` + `addPlayer`.
-  - [ ] Tests `economy/gear.test.ts`: every refusal in order, wallet unchanged on refusal; I→II; II then I refused; HP rise and cap; flashlight hidden/allowed.
-- [ ] **T3 Effects in the sim (AC 4–6).**
-  - [ ] `player/slow.ts › playerSpeed(baseMps, p, bonusPct = 0)`: `base × (100 + bonusPct) / 100` then the slow expression (one formula, used by server and Predictor); `movement.ts` passes `speedBonusPct(world.balance, p.gear)`.
-  - [ ] `player/downed.ts › updateDowned`: required ticks = `reviveTicksFor(balance, reviver.gear)` per downed player per tick (replace the single `reviveTicks` constant); keep "progress kept while any reviver is in reach".
-  - [ ] Every heal cap already reads `p.maxHp`: verify `returnOutPlayers`/build heal (`downed.ts` lines ~97/149), revive (`Math.ceil(p.maxHp × reviveHpFrac)`), and 5.10/5.12 if merged.
-  - [ ] `apps/server/src/rooms/schema/syncState.ts`: `reviveProgress` = `reviveTicks / reviveTicksFor(reviver)` (the current reviver's need; `pass.reviveTicks` constant goes) — `NetSimHost` line ~679 reconstructs ticks with the same rule (it knows `reviverId` via `findReviver` and every player's `gear`).
-  - [ ] Tests: `player/movement.test.ts` › "shoes: 4.95 m/s; shoes + 30 % slow = 4.5 × 1.1 × 0.7"; `player/downed.test.ts` › "kit reviver 30 ticks; plain reviver 60; takeover at 31 completes; downed kit owner 60; two kit revivers 30"; `player/slow.test.ts` › "bonus and slow multiply in integers, bit-identical to the Predictor's call".
-- [ ] **T4 Network (AC 8, 9).**
-  - [ ] `net/messages.ts`: `C2S.SHOP_BUY_ITEM = "shop.buy_item"`, `shopBuyItemSchema = z.object({ item: balanceId-like regex, max 32 }).strict()`; `S2C.SHOP_BOUGHT_ITEM` `{ item }`, `S2C.SHOP_REFUSED_ITEM` `{ item, error: ShopError }`. **Story 5.12 uses the same message** for consumables (one dispatcher, `buyItem(world, playerId, item)` in `economy/shop.ts`: gear id → `buyGear`, consumable id → 5.12's `buyConsumable`; unknown → `not_for_sale`). (5.1's `shop.upgrade` is weapon-only; do not overload it.)
-  - [ ] `RunRoom.ts`: `this.onMessage(C2S.SHOP_BUY_ITEM, this.net.guard(shopBuyItemSchema, (c, m) => this.onShopBuyItem(c, m.item)))` → `RunController.buyItem` → reply to the sender only (3.3 pattern).
-  - [ ] Schema `playerFields.gear: t.uint8().default(0)`; `PlayerStateView.gear`; `PLAYER_STATE_FIELDS.gear`; `syncState.visitPlayer` writes on change; `resetRunFields` zeroes it; `fakeRoom` + devThrottle via the key list (compile check in `RunState.ts`).
-  - [ ] Mirror: `NetSimHost.applyState` copies `gear` and `maxHp` to the mirror player; Predictor: `reconcile(ackSeq, x, y, status, slowTicks, slowPct, gear)` sets the predicted player's `gear` before replaying.
-  - [ ] `core/worldSnapshot.ts`: player `gear`.
-  - [ ] Tests: `net/messages.test.ts` (schema refusals); `RunRoom.shop.test.ts` › "buy_item gear: bought to the buyer only, state gear bit + maxHp, wallet; refusals"; `syncState.test.ts` › "gear on change only; reset on lobby return"; `apps/client/src/net/prediction.test.ts` › "shoes: predicted = server over 200 ticks incl. a bite slow; a state with new gear rebases without a snap"; `NetSimHost.shop.test.ts` › "mirror gear/maxHp from state"; `core/determinism.test.ts`/replay › "same seed + log with gear purchases → same digest".
-- [ ] **T5 Client UI (AC 1, 3, 8)** — after T0.
-  - [ ] `ui/shopStore.ts`: `ShopAction` `{ type: "item"; item }`, state `gear: readonly ShopGear[]`, `owned` mask from sync; pending/timeout as weapons; `SHOP_TEXT.gear`, `already_owned` text ("Owned"), armor II note "Replaces Body armor I".
-  - [ ] `ui/ShopScreen.tsx`: a Gear section (name, price, Owned/short states).
-  - [ ] `sim/SimHost.ts › buyItem(item)`; `LocalSimHost` runs `buyItem` on the World; `NetSimHost` sends `shop.buy_item`; answers into `ShopAnswer`.
-  - [ ] HUD: `hudModel.gearMask`; `HudScene` draws up to 5 pooled icon images beside the HP text (redraw on mask change only).
-  - [ ] Tests: `ui/shopStore.test.ts` › "gear buy → pending → bought; refused; timeout; owned disabled"; `scenes/hudModel` gear mask from state (`playerInfo.test.ts` pattern).
-- [ ] **T6 Bots + balance sim (brief 15).** `bots/botShop.ts`: `shoppingList` ids may be gear ids (bought with `buyItem`); add e.g. `body_armor_1`, `running_shoes` to a test list (not the default JSON unless the designer agrees). Run `tools/sims/fiveWave.ts` (6 waves after 5.8) with gear: assert ≥ 1 gear purchase per bot and that waves ended; report earnings spent on gear. Bot survival is not difficulty evidence.
-- [ ] **T7 Lag/lifecycle + browser (brief 14, 18).** `?lag=150&jitter=20`: buy shoes, walk: no rubber-banding; buy armor: HP text 125/125 after the state; slept tab across a build start keeps gear; late Game scene start shows the icons. Screenshots of the shop and HUD icons on a phone-size viewport.
-- [ ] **T8 Gates, mutations, merge notes.**
+- [x] **T0 Art pick (first; AC 3).** *(Overridden by the orchestrator: art is game code, Canvas 2D. Designer picked **GR6** during the build; ported from looks.html.)* ~5 Meshy proposals per **gear icon set** (one consistent style for all 5: armor I vest, armor II heavy vest/plates, running shoes, revive kit (medic bag + syringe/defib), tactical flashlight) — HUD icons at 24–32 CSS px must read on a phone at a glance, Dead City palette, no text. One private proposal page; the designer picks one set (or mixes); save to `docs/art/5-11/` + `README.md` (4.11 format). Build atlas frames `icon_gear_armor1_a`, `icon_gear_armor2_a`, `icon_gear_shoes_a`, `icon_gear_revivekit_a`, `icon_gear_flashlight_a` (HUD atlas ≤ 2048², category_name_variant). No HUD drawing before the pick.
+- [x] **T1 Balance `gear.json` (AC 1, 4–7).**
+  - [x] `balanceSchema.ts`: `gearSchema = z.object({ items: z.record(balanceId, gearItemSchema) }).strict()`, `gearItemSchema = { name, price int ≥ 0, inShop default true, maxHpBonus? int ≥ 0, armorTier? int 1–2, speedBonusPct? int 0–50, reviveS? > 0, light? (reserved: omit) }`; refine ≤ 8 items (uint8 mask). Register `gear: gearSchema` in `balanceFileSchemas`.
+  - [x] `gear.json`: `body_armor_1` {name "Body armor I", price 150, maxHpBonus 25, armorTier 1}, `body_armor_2` {"Body armor II", 350, 50, tier 2}, `running_shoes` {150, speedBonusPct 10}, `revive_kit` {150, reviveS 1.5}, `tactical_flashlight` {120, inShop false}. `balance.version` changes.
+  - [x] Tests: `config/balance.test.ts` › "gear validates; > 8 items refused; unknown fields refused".
+- [x] **T2 Shared gear rules — new `packages/shared/src/economy/gear.ts` (AC 2, 4–7).**
+  - [x] `gearIds(balance)` (cached key order), `gearBit(balance, id)`, `owns(p, id)`, `armorBonus(balance, mask)` (best tier), `speedBonusPct(balance, mask)`, `reviveTicksFor(balance, reviverMask)` (`ticksFor(revive_kit.reviveS)` if owned else `ticksFor(player.reviveS)`), `effectiveMaxHp(balance, mask)`.
+  - [x] `buyGear(world, playerId, item): Result<{ item }, ShopError>` — order: `not_build` → `unknown_player` → `not_for_sale` (unknown id or `inShop: false` without `debug.shopAll`) → `already_owned` (bit set, or armor tier ≤ owned tier) → `spendMoney`; then set the bit (armor II clears I), `maxHp = effectiveMaxHp`, `hp += newMax − oldMax`.
+  - [x] `player/player.ts`: `gear: number` (0) in `PlayerState` + `addPlayer`.
+  - [x] Tests `economy/gear.test.ts`: every refusal in order, wallet unchanged on refusal; I→II; II then I refused; HP rise and cap; flashlight hidden/allowed.
+- [x] **T3 Effects in the sim (AC 4–6).**
+  - [x] `player/slow.ts › playerSpeed(baseMps, p, bonusPct = 0)`: `base × (100 + bonusPct) / 100` then the slow expression (one formula, used by server and Predictor); `movement.ts` passes `speedBonusPct(world.balance, p.gear)`.
+  - [x] `player/downed.ts › updateDowned`: required ticks = `reviveTicksFor(balance, reviver.gear)` per downed player per tick (replace the single `reviveTicks` constant); keep "progress kept while any reviver is in reach".
+  - [x] Every heal cap already reads `p.maxHp`: verify `returnOutPlayers`/build heal (`downed.ts` lines ~97/149), revive (`Math.ceil(p.maxHp × reviveHpFrac)`), and 5.10/5.12 if merged.
+  - [x] `apps/server/src/rooms/schema/syncState.ts`: `reviveProgress` = `reviveTicks / reviveTicksFor(reviver)` (the current reviver's need; `pass.reviveTicks` constant goes) — `NetSimHost` line ~679 reconstructs ticks with the same rule (it knows `reviverId` via `findReviver` and every player's `gear`).
+  - [x] Tests: `player/movement.test.ts` › "shoes: 4.95 m/s; shoes + 30 % slow = 4.5 × 1.1 × 0.7"; `player/downed.test.ts` › "kit reviver 30 ticks; plain reviver 60; takeover at 31 completes; downed kit owner 60; two kit revivers 30"; `player/slow.test.ts` › "bonus and slow multiply in integers, bit-identical to the Predictor's call".
+- [x] **T4 Network (AC 8, 9).**
+  - [x] `net/messages.ts`: `C2S.SHOP_BUY_ITEM = "shop.buy_item"`, `shopBuyItemSchema = z.object({ item: balanceId-like regex, max 32 }).strict()`; `S2C.SHOP_BOUGHT_ITEM` `{ item }`, `S2C.SHOP_REFUSED_ITEM` `{ item, error: ShopError }`. **Story 5.12 uses the same message** for consumables (one dispatcher, `buyItem(world, playerId, item)` in `economy/shop.ts`: gear id → `buyGear`, consumable id → 5.12's `buyConsumable`; unknown → `not_for_sale`). (5.1's `shop.upgrade` is weapon-only; do not overload it.)
+  - [x] `RunRoom.ts`: `this.onMessage(C2S.SHOP_BUY_ITEM, this.net.guard(shopBuyItemSchema, (c, m) => this.onShopBuyItem(c, m.item)))` → `RunController.buyItem` → reply to the sender only (3.3 pattern).
+  - [x] Schema `playerFields.gear: t.uint8().default(0)`; `PlayerStateView.gear`; `PLAYER_STATE_FIELDS.gear`; `syncState.visitPlayer` writes on change; `resetRunFields` zeroes it; `fakeRoom` + devThrottle via the key list (compile check in `RunState.ts`).
+  - [x] Mirror: `NetSimHost.applyState` copies `gear` and `maxHp` to the mirror player; Predictor: `reconcile(ackSeq, x, y, status, slowTicks, slowPct, gear)` sets the predicted player's `gear` before replaying.
+  - [x] `core/worldSnapshot.ts`: player `gear`.
+  - [x] Tests: `net/messages.test.ts` (schema refusals); `RunRoom.shop.test.ts` › "buy_item gear: bought to the buyer only, state gear bit + maxHp, wallet; refusals"; `syncState.test.ts` › "gear on change only; reset on lobby return"; `apps/client/src/net/prediction.test.ts` › "shoes: predicted = server over 200 ticks incl. a bite slow; a state with new gear rebases without a snap"; `NetSimHost.shop.test.ts` › "mirror gear/maxHp from state"; `core/determinism.test.ts`/replay › "same seed + log with gear purchases → same digest".
+- [x] **T5 Client UI (AC 1, 3, 8)** — after T0.
+  - [x] `ui/shopStore.ts`: `ShopAction` `{ type: "item"; item }`, state `gear: readonly ShopGear[]`, `owned` mask from sync; pending/timeout as weapons; `SHOP_TEXT.gear`, `already_owned` text ("Owned"), armor II note "Replaces Body armor I".
+  - [x] `ui/ShopScreen.tsx`: a Gear section (name, price, Owned/short states).
+  - [x] `sim/SimHost.ts › buyItem(item)`; `LocalSimHost` runs `buyItem` on the World; `NetSimHost` sends `shop.buy_item`; answers into `ShopAnswer`.
+  - [x] HUD: `hudModel.gearMask`; `HudScene` draws up to 5 pooled icon images beside the HP text (redraw on mask change only).
+  - [x] Tests: `ui/shopStore.test.ts` › "gear buy → pending → bought; refused; timeout; owned disabled"; `scenes/hudModel` gear mask from state (`playerInfo.test.ts` pattern).
+- [x] **T6 Bots + balance sim (brief 15).** `bots/botShop.ts`: `shoppingList` ids may be gear ids (bought with `buyItem`); add e.g. `body_armor_1`, `running_shoes` to a test list (not the default JSON unless the designer agrees). Run `tools/sims/fiveWave.ts` (6 waves after 5.8) with gear: assert ≥ 1 gear purchase per bot and that waves ended; report earnings spent on gear. Bot survival is not difficulty evidence.
+- [x] **T7 Lag/lifecycle + browser (brief 14, 18).** `?lag=150&jitter=20`: buy shoes, walk: no rubber-banding; buy armor: HP text 125/125 after the state; slept tab across a build start keeps gear; late Game scene start shows the icons. Screenshots of the shop and HUD icons on a phone-size viewport.
+- [x] **T8 Gates, mutations, merge notes.**
 
 ## Dev Notes
 
@@ -158,10 +162,128 @@ Prediction bit-identity (2.6, 3.9 tests), revive rules (countdown pauses while r
 
 ### Agent Model Used
 
+Claude (builder session, story-5-11)
+
 ### Debug Log References
+
+- Gate log and browser script: builder scratchpad (`check.cjs`, `mutate.py`); results copied below and in `docs/art/5-11/README.md`.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Built:** `gear.json` + `gearSchema` (≤ 8 items, integers, armor needs `maxHpBonus` + `armorTier`); `economy/gear.ts` (cached per-balance tables, `buyGear`, `armorBonus` best tier only, `speedBonusPct`, `reviveTicksFor`, `effectiveMaxHp`, `shopGear`/`allGear`); `buyItem` dispatcher in `economy/shop.ts` (5.12 adds its consumable branch there); `PlayerState.gear`; `playerSpeed(base, p, wieldPct, bonusPct)`; per-reviver revive ticks in `updateDowned`; `shop.buy_item` / `shop.bought_item` / `shop.refused_item`; schema `gear` (uint8, appended last), `PlayerStateView`/`PLAYER_STATE_FIELDS`, `syncState` (on change; revive progress over the current reviver's need), `resetRunFields`; NetSimHost mirror (`gear`, `maxHp`, revive ticks from the reviver's kit), Predictor `reconcile(…, gear)`; `DownedView` ring uses the reviver's need; shop store + `ShopScreen` Gear section (self-contained `GearSection`); HUD icons beside the HP text (pooled, redrawn on change only); bots (headless + wire bot client) buy gear ids from a shopping list; replay log `item` command; `?shopall=1` / `DEV_SHOP_ALL=1`.
+- **Fairness rules as built:** armor I +25 / II +50, never summed, II clears I, II owned ⇒ I `already_owned`; current HP rises by the max increase on purchase (D2), never above max; all heal caps read `p.maxHp` (build heal, return HP, revive `ceil(maxHp × reviveHpFrac)` — verified by tests); shoes `base × 110 / 100` then every slow multiplies (bite 30 %, Chainsaw 20 %: 4.5 × 1.1 × 0.7 × 0.8 when both); revive kit belongs to the reviver (30 ticks), progress kept on a takeover, two kit owners = 30 ticks, a downed kit owner = 60 ticks.
+- **Art: GR6** (designer pick, sent by the main session mid-build): GR4 painted objects on the GR2 steel tag, ported from `docs/art/epic-5/round-d/looks.html` (`makePainter('real'/'tag'/'realtag')`, `ICONS`, `bakeIcon`) into `apps/client/src/render/city/itemIcons.ts` — reusable `realPainter`, `drawSteelTag`, `bakeItemIcon({ tag, designPx })`, `ITEM_ICONS` (5.12 adds the CI4 medkit/grenade/molotov drawings there and bakes with `tag: false`). `gearIcons.ts` bakes the atlas `hud_gear` (5 × 96 px frames + 4 px gaps, 96 = 32 CSS px at dpr 3; frames `icon_gear_<name>_a`) through `addGeneratedTexture`; the DOM shop uses `gearIconUrl` (same bake, data URL). Checked at dpr 2 and 3 (screens).
+- **Tests (all new ones mutation-checked, 17/17 mutations killed):** `economy/gear.test.ts` (refusal order, wallet unchanged, I→II, II then I, HP rise/cap incl. G3, heal caps, flashlight hidden / sold with shopAll, persistence through downed/out/return/build starts), `config/balance.test.ts` gear block, `player/slow.test.ts` + `movement.test.ts` (4.95 m/s, product with slows, G7), `player/downed.test.ts` (kit 30, plain 60, takeover at 31 → done, downed kit owner 60, two kits 30, revive HP of 125), `net/messages.test.ts`, `syncState.test.ts` (on change only, < 12 B per gear patch, < 20 B with HP/maxHp, reset; revive progress with a kit), `RunRoom.shop.test.ts` (round trip to the buyer only; refusals incl. double tap, hidden, unknown, money, wave, malformed dropped), `prediction.test.ts` (shoes + bite over 200 ticks: 0 snaps, ≤ 2 corrections, end error < 10 µm; without gear in reconcile > 10 corrections), `NetSimHost.shop.test.ts` (send, answers, mirror gear/maxHp from state not from the answer, kit revive ticks), `shopStore.test.ts` (rows, Owned/covered, pending until state bit, state-first unlock, refusal, timeout, owned sends nothing), `gearIcons.test.ts`, `replay.test.ts` (same seed + log with gear → same digest; without item commands → different), `fiveWaveSim.test.ts` gear sim.
+- **6-wave sim with gear** (list `body_armor_1, running_shoes, smg, revive_kit, body_armor_2, wood_barricade`; 2p and 4p × seeds 1–2): every run reached Results (wiped in W4, cleared 3 — Pistol-only bots that spent on gear first; bot survival is not difficulty evidence), every bot bought ≥ 1 gear item, 21 items, $3150 on gear; maxHp 125 for armor-I owners.
+- **Browser (headless Chromium, 800 × 360):** shop + HUD screenshots in `docs/art/5-11/`. Online with `?lag=150&jitter=20`: "Buying…" then "Bought Running shoes"; state gear 5, HP 125/125, wallet 700; predictor over 6 s walking with shoes: 0 corrections, 0 snaps; slept tab 3 s → gear kept (state, mirror, HUD).
+- **Bandwidth:** one uint8 patch per purchase (< 12 B; < 20 B with HP + maxHp for armor); 0 B/s otherwise.
+- **Decisions taken while building:** (1) `?shopall=1` / `DEV_SHOP_ALL=1` implemented in the minimal form (5.10 not merged): `loadDevBalance({ shopAll })` sets every gear item's `inShop` to true, changing `balance.version` like the other dev switches; `?shopall` is dev-build-only (release solo drops it). (2) G7 says "strongest slow only, 3.9", but the code since 5.2 multiplies the Chainsaw's wielder slow with a bite slow; kept the existing formula and multiplied the shoes bonus in front (never faster than base × 1.1). (3) The shop shows "Buying…" (3.3's existing word) while pending, not "Waiting…". (4) Bots buy gear only from a test shopping list; `bots.json` unchanged.
+- **Not verified:** real phones; `?stress=150` FPS with the new HUD icons (3–5 static images, redrawn only on a change — no per-frame cost expected, but not measured); a late Game scene start specifically (the HUD reads the mirror's `gear` every frame, so it should show at once); the 6-wave sim beyond 2/4 players × 2 seeds; PERF_ASSERT tick timing (gear adds a few integer ops per player per tick, no allocation).
+
+### Notes for the merge (brief line 19)
+
+- `config/balanceSchema.ts` / `config/balance.ts`: new `gear` file (`gearSchema`, `GearItemStats`); every test that builds a balance from the JSON imports (`aimAssist`, `firing`, `melee`, `swap`, `zombieAi`, `waveDirector`, `spawnPoints`, `balance.test`) now lists `gear`.
+- `config/devBalance.ts`: `shopAll` option + `parseDevShopAll`. **5.10 owns this switch**: if 5.10 also adds it, keep one option that flips both the floodlight's and gear's `inShop` (server `DEV_SHOP_ALL`, client `?shopall`, `urlOptions.shopAll`, `clientBalance`/`soloOverrides`).
+- `player/player.ts`: `gear` field (0). Any `PlayerState` literal elsewhere needs it.
+- `player/slow.ts`: `playerSpeed(baseMps, p, wieldPct = 0, bonusPct = 0)` — 5.2/5.8 callers unchanged; `movement.ts` passes `speedBonusPct(balance, p.gear)`.
+- `player/downed.ts`: per-reviver ticks (`reviveTicksFor(balance, reviver.gear)`); `syncState.ts` and `NetSimHost.writeReviver` use the same rule for `reviveProgress`; `DownedView` ring too. 5.10's med station heal must cap at `p.maxHp` (already armored).
+- `net/messages.ts`: `SHOP_BUY_ITEM`, `SHOP_BOUGHT_ITEM`, `SHOP_REFUSED_ITEM`, `shopBuyItemSchema` — **shared with 5.12**: one definition after the merge. `economy/shop.ts › buyItem`: 5.12 adds `if (isConsumable(...)) return buyConsumable(...)` at the marked line; the client's `SimHost.buyItem`, `ShopAnswer kind: "item"`, `parseShopBoughtItem/RefusedItem`, the shop store's `item` action/effect, the bots' `kind: "item"` replay command are all item-generic.
+- `RunState.ts`: `playerFields.gear` appended last; `stateView.ts` `gear`; `fakeRoom.ts` `gear: 0`.
+- `prediction.ts`: `reconcile(…, knockStepMm, gear)` — new last parameter.
+- `ui/shopStore.ts` / `ShopScreen.tsx` (**5.16 overlap**): Gear state is `gear`, `gearMask`, `awaitGear`; the screen's section is the separate `GearSection` component inserted before Buildings — when 5.16 removes Buildings, keep the `<GearSection>` line.
+- `render/city/itemIcons.ts` (**5.12**): the CI4 consumable icons belong in `ITEM_ICONS` with the same painter (`bakeItemIcon(..., { tag: false, designPx: 40 })`).
+- `scenes/HudScene.ts` (**5.16 overlap**): gear icons are created after `ensureAtlases(this)` and drawn from `drawHealth()` → `drawGear()`; `hudModel` gains `gearMask`, `gearIds`.
+- `bots/botShop.ts` / `headlessRun.ts` / `tools/bots/botClient.ts`: gear ids in a shopping list; `BotShopResult.gear`, `HeadlessRunLog.gear/gearSpent/gearMask/maxHp`.
+- `replay/inputLog.ts`: `BuildCommand kind: "item"` (5.12 consumables reuse it).
 
 ### File List
+
+- `packages/shared/src/config/balance/gear.json` (new)
+- `packages/shared/src/economy/gear.ts` (new)
+- `packages/shared/src/economy/gear.test.ts` (new)
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/config/balance.ts`
+- `packages/shared/src/config/balance.test.ts`
+- `packages/shared/src/config/devBalance.ts`
+- `packages/shared/src/economy/shop.ts`
+- `packages/shared/src/economy/fiveWaveSim.test.ts`
+- `packages/shared/src/player/player.ts`
+- `packages/shared/src/player/slow.ts`
+- `packages/shared/src/player/slow.test.ts`
+- `packages/shared/src/player/movement.ts`
+- `packages/shared/src/player/movement.test.ts`
+- `packages/shared/src/player/downed.ts`
+- `packages/shared/src/player/downed.test.ts`
+- `packages/shared/src/net/messages.ts`
+- `packages/shared/src/net/messages.test.ts`
+- `packages/shared/src/net/stateView.ts`
+- `packages/shared/src/bots/botShop.ts`
+- `packages/shared/src/bots/headlessRun.ts`
+- `packages/shared/src/replay/inputLog.ts`
+- `packages/shared/src/replay/replay.test.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/combat/aimAssist.test.ts`, `firing.test.ts`, `melee.test.ts`, `swap.test.ts`; `zombies/zombieAi.test.ts`; `waves/waveDirector.test.ts`, `spawnPoints.test.ts` (balance file list)
+- `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/rooms/RunRoom.shop.test.ts`
+- `apps/server/src/rooms/schema/RunState.ts`
+- `apps/server/src/rooms/schema/syncState.ts`
+- `apps/server/src/rooms/schema/syncState.test.ts`
+- `apps/server/src/run/RunController.ts`
+- `apps/client/src/render/city/gearIcons.ts` (new)
+- `apps/client/src/render/city/itemIcons.ts` (new: GR6 / CI4 painters)
+- `apps/client/src/render/city/gearIcons.test.ts` (new)
+- `apps/client/src/render/DownedView.ts`
+- `apps/client/src/net/prediction.ts`
+- `apps/client/src/net/prediction.test.ts`
+- `apps/client/src/net/session.ts`
+- `apps/client/src/net/fakeRoom.ts`
+- `apps/client/src/sim/SimHost.ts`
+- `apps/client/src/sim/LocalSimHost.ts`
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/client/src/sim/NetSimHost.shop.test.ts`
+- `apps/client/src/ui/shopStore.ts`
+- `apps/client/src/ui/shopStore.test.ts`
+- `apps/client/src/ui/ShopScreen.tsx`
+- `apps/client/src/ui/overlay.css`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/scenes/HudScene.ts`
+- `apps/client/src/scenes/hudModel.ts`
+- `apps/client/src/debug/urlOptions.ts`
+- `apps/client/src/debug/urlOptions.test.ts`
+- `apps/client/src/debug/clientBalance.ts`
+- `apps/client/src/debug/clientBalance.test.ts`
+- `tools/bots/botClient.ts`
+- `docs/art/5-11/` (README + 8 screenshots, new)
+- `_bmad-output/implementation-artifacts/5-11-gear.md`, `sprint-status.yaml`
+
+### Senior Developer Review (AI)
+
+Fresh-agent review (main session), 2026-11-23: **1 medium, 3 low, 2 mutation survivors**; gate passed. All fixed on `story-5-11`:
+
+- [x] **M1 (medium) — G6 beatable:** a downed or out player could buy in a build phase (fire hurts in build: `decay/fire.ts`), e.g. armor raised HP 0 → 25 while downed. Fix: new `ShopError` **`not_alive`**, checked right after `unknown_player` in `buyGear`, `buyItem` (so 5.12 inherits it) and `buyWeapon` (the same pre-existing gap). Client: error list + text "You can't shop while down". Tests: downed-in-build and out-in-build for gear, `buyItem` and weapons (`gear.test.ts`), round trip `RunRoom.shop.test.ts`. Story G6 row corrected. *(Needs the fresh re-review.)* Follow-up (main session): `upgradeWeapon` refuses `not_alive` too (`WeaponUpgradeError`, client list + text): one rule, "you can't shop while down"; tested in `gear.test.ts`.
+- [x] **L1 — kit ignored behind a nearer plain teammate:** the need is now the fastest kit among all revivers in reach (`findReviver` ORs every in-reach reviver's gear; `reviveTicksFor` of that). AC 6 text updated; test "kit owner in reach counts when a plain teammate stands nearer".
+- [x] **L2 — client ring re-derived the denominator from interpolated positions:** new `PlayerState.reviveNeedTicks` (World truth), synced as schema `reviveNeed` (uint8, appended, written on change only: at most a byte per revive start/stop), `PlayerStateView`/`PLAYER_STATE_FIELDS`/`fakeRoom`/`resetRunFields`; `syncState` progress = `reviveTicks / reviveNeedTicks`; the mirror and `DownedView` divide by the synced need. Tests in `syncState.test.ts` and `NetSimHost.shop.test.ts` (the nearest mirrored teammate has no kit, the ring still uses the server's 30).
+- [x] **L3 — line widths designed for 32 px, shown at 24:** `designPx: 24` (bake still 96 px for dpr 3). Fresh dpr-2 shot `docs/art/5-11/5-11-hud-24px-dpr2-crop.png`.
+- [x] **Mutation survivors:** `botShop.test.ts` "skips armor I when II is owned"; `gear.test.ts` "buy shoes twice → already_owned".
+- [x] **Designer:** armor II's "Replaces Body armor I" note is neutral grey (`.shop__gear-note`, #bbb), shot `5-11-shop-owned-note-grey-800x360.png`.
+- [x] **5.12 hook:** the shop store's unlock-on-state test is one function, `itemArrived` (`ui/shopStore.ts`), with a comment saying where 5.12's consumable count goes.
+
+Merged `origin/master` (4258175: 5.16 build bar, grenade lob-over, camera shake, downed-teammate alert): conflicts in `shopStore.ts`/`.test.ts`, `ShopScreen.tsx`, `GameScene.ts` resolved — the shop has no buildings now; the Gear section and the `item` effect stay.
+
+Mutation check of the fixes: 8/8 killed (M1 gear, M1 weapon ×2 incl. the room test, L1, L2 sync, L2 mirror, bot covered armor, shoes twice).
+
+**Re-review (fresh agent), 2026-11-23:** clean of high/medium (M1/L1/L2/L3 hold, the merge lost nothing, 16/17 mutations killed, gate passes). Lows:
+
+- [x] **R1 (low):** `player.reviveS` and a gear item's `reviveS` now refine `round(reviveS × 20) ≤ 255` (the synced uint8 `reviveNeed` would wrap); test in `balance.test.ts` (13 s refused, 12.75 s accepted).
+- [x] **R2 (low, accepted, not fixed here):** placing, repairing and upgrading buildings have no standing check (pre-existing; only crafted messages reach it, the build bar hides while down). Story 5.10 is changing `buildings.ts` in parallel: **scheduled for Story 5.20** (take back / sell / undo), which owns the server building actions.
+- [x] **R3 (low):** the `syncState` reset check now resets mid-revive (`reviveNeed` 30 → 0), so deleting `s.reviveNeed = 0` fails.
+- [x] **Nit:** `upgradeWeapon`'s doc comment lists the standing check in the order.
+
+Status → done.
+
+### Change Log
+
+- 2026-11-23: Re-review lows (reviveS uint8 refine, mid-revive reset test, doc nit; buildings standing check → Story 5.20); status done.
+- 2026-11-23: Review fixes (M1 not_alive, L1 fastest kit in reach, L2 synced revive need, L3 24 px lines, 2 survivor tests, grey note, 5.12 hook).
+- 2026-11-23: Story 5.11 built (gear: shared rules, network, shop, HUD with GR6 icons, bots, sims); status review.

@@ -12,6 +12,8 @@ import {
   upgradeBuilding,
   buyWeapon,
   upgradeWeapon,
+  buyItem,
+  type BoughtItem,
   createWorld,
   DOWNTOWN_MAP,
   removePlayer,
@@ -190,8 +192,6 @@ export interface RunControllerOptions {
   waveMix?: readonly ZombieTypeId[] | null;
   /** Tests only: replace systems by name (Epic 1 lesson: isolate mechanics). */
   systems?: Partial<Systems>;
-  /** Story 5.10 dev (`DEV_SHOP_ALL=1`): `inShop: false` types (the floodlight) can be placed. */
-  shopAll?: boolean;
   /** Story 4.5 dev (`DEV_DECAY_STAGES=2,3`): the decay stage per wave instead of `decay.json`. null = the real table. */
   decayStageByWave?: readonly number[] | null;
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map; tests may pass the open `PLACEHOLDER_MAP`). */
@@ -255,7 +255,6 @@ export class RunController {
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, map: opts.map ?? DOWNTOWN_MAP, ...(opts.systems ? { systems: opts.systems } : {}) });
     this.world.waves.paused = opts.pauseWaves === true;
     this.world.debug.waveMix = opts.waveMix ?? null;
-    this.world.debug.shopAll = opts.shopAll === true; // Story 5.10
     this.world.debug.decayStageByWave = opts.decayStageByWave ?? null; // before the first build start
     if (opts.scenario) applyTestScenario(this.world, opts.scenario);
     const lagComp = opts.lagCompensation !== false;
@@ -313,6 +312,11 @@ export class RunController {
   /** Story 5.1: `shop.upgrade`, between ticks (the shared `upgradeWeapon`'s rules). */
   upgradeWeapon(playerId: string, weapon: string): Result<WeaponUpgraded, WeaponUpgradeError> {
     return upgradeWeapon(this.world, playerId, weapon);
+  }
+
+  /** Story 5.11: `shop.buy_item` (gear; Story 5.12 consumables), between ticks (the shared `buyItem`). */
+  buyItem(playerId: string, item: string): Result<BoughtItem, ShopError> {
+    return buyItem(this.world, playerId, item);
   }
 
   /** Queues one input (already validated). Old or duplicate seqs are ignored; a full ring drops its oldest. */

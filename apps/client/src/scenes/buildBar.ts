@@ -39,25 +39,23 @@ export interface BuildTile {
 }
 
 const itemCache = new WeakMap<Balance, readonly BuildTile[]>();
-/** Story 5.10 review M2: the list with `inShop: false` types too (the dev shop-all switch). */
-const itemCacheAll = new WeakMap<Balance, readonly BuildTile[]>();
 
 /**
- * The building tiles, in balance order: `shopBuildings(balance, shopAll)` (every priced type except
- * upgrade-only tiers; Story 5.10: types with `inShop: false`, the floodlight until 6.3, only with the
- * dev shop-all switch `?shopall=1`). Cached per balance and flag (no allocation per call).
+ * The building tiles, in balance order: `shopBuildings` (every priced type except upgrade-only tiers
+ * and, Story 5.10, `inShop: false` types — the floodlight until 6.3; the dev switch `?shopall=1`
+ * builds a balance with every `inShop` true, so the floodlight shows then). Cached per balance (no
+ * allocation per call).
  */
-export function buildBarItems(balance: Balance, shopAll = false): readonly BuildTile[] {
-  const cache = shopAll ? itemCacheAll : itemCache;
-  let list = cache.get(balance);
+export function buildBarItems(balance: Balance): readonly BuildTile[] {
+  let list = itemCache.get(balance);
   if (!list) {
     const out: BuildTile[] = [];
-    for (const b of shopBuildings(balance, shopAll)) {
+    for (const b of shopBuildings(balance)) {
       const stats = buildingStats(balance, b.id);
       out.push(Object.freeze({ id: b.id, name: b.name, price: b.price, turret: turretStats(balance, b.id) !== undefined, widthM: stats?.widthM ?? 1, depthM: stats?.depthM ?? 1 }));
     }
     list = Object.freeze(out);
-    cache.set(balance, list);
+    itemCache.set(balance, list);
   }
   return list;
 }

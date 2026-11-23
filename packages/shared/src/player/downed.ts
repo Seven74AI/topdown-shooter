@@ -4,6 +4,7 @@ import type { PlayerState } from "./player";
 import { spectateTarget } from "./spectate";
 import { findFreeSpotNear, spotBlocked } from "./freeSpot";
 import { teamSpawnPoint } from "./spawn";
+import { reviveTicksFor } from "../economy/gear";
 
 /**
  * Downed, revive, out and team wipe (Story 2.8, FR10/FR11). Every timer counts ticks.
@@ -38,11 +39,12 @@ function collectInIdOrder(world: Readonly<World>): void {
 }
 
 /** The search in progress (synchronous, so one shared record is enough: no closure per call). */
-const reach: { downed: PlayerState | null; r2: number; best: PlayerState | null; bestD2: number } = {
+const reach: { downed: PlayerState | null; r2: number; best: PlayerState | null; bestD2: number; gear: number } = {
   downed: null,
   r2: 0,
   best: null,
   bestD2: Infinity,
+  gear: 0,
 };
 
 function visitReviver(p: PlayerState): void {
@@ -52,6 +54,7 @@ function visitReviver(p: PlayerState): void {
   const dy = p.y - d.y;
   const d2 = dx * dx + dy * dy;
   if (d2 > reach.r2) return;
+  reach.gear |= p.gear; // Story 5.11 review L1: every reviver's kit counts (the fastest wins)
   // Nearest wins; on a tie the lower id (= lower slot), so the result never depends on Map order.
   if (d2 < reach.bestD2 || (d2 === reach.bestD2 && reach.best !== null && p.id < reach.best.id)) {
     reach.best = p;
@@ -69,6 +72,7 @@ export function findReviver(world: Readonly<World>, downed: PlayerState): Player
   reach.r2 = r * r;
   reach.best = null;
   reach.bestD2 = Infinity;
+  reach.gear = 0;
   world.players.forEach(visitReviver);
   const best = reach.best;
   reach.downed = null;
@@ -84,6 +88,7 @@ export function downPlayer(world: World, p: PlayerState): void {
   p.downedTicksLeft = ticksFor(world.balance.player.downedS);
   p.reviveTicks = 0;
   p.reviverId = null;
+  p.reviveNeedTicks = 0;
   world.events.emit({ type: "player.downed", playerId: p.id });
   checkTeamWipe(world); // solo: going down ends the run on the same tick
 }
@@ -151,6 +156,7 @@ export function returnOutPlayers(world: World): void {
     p.downedTicksLeft = 0;
     p.reviveTicks = 0;
     p.reviverId = null;
+    p.reviveNeedTicks = 0;
     world.events.emit({ type: "player.returned", playerId: p.id, x, y });
   }
 }
@@ -179,7 +185,6 @@ export function checkTeamWipe(world: World): void {
 export function updateDowned(world: World): void {
   if (world.teamWiped) return;
   const stats = world.balance.player;
-  const reviveTicks = ticksFor(stats.reviveS);
   collectInIdOrder(world);
   for (let i = 0; i < ordered.length; i++) {
     const p = ordered[i] as PlayerState;
@@ -188,18 +193,24 @@ export function updateDowned(world: World): void {
     if (reviver) {
       p.reviveTicks++;
       p.reviverId = reviver.id;
-      if (p.reviveTicks >= reviveTicks) {
+      // Story 5.11 (D1, review L1): the time needed is the fastest kit among ALL revivers in reach
+      // (still one revive, no stacking: two kits = 30 ticks); progress is kept when revivers
+      // change, so a kit owner stepping in finishes a half-done revive.
+      p.reviveNeedTicks = reviveTicksFor(world.balance, reach.gear);
+      if (p.reviveTicks >= p.reviveNeedTicks) {
         p.status = "alive";
         p.hp = Math.ceil(p.maxHp * stats.reviveHpFrac);
         p.downedTicksLeft = 0;
         p.reviveTicks = 0;
         p.reviverId = null;
+        p.reviveNeedTicks = 0;
         world.events.emit({ type: "player.revived", playerId: p.id, reviverId: reviver.id });
       }
       continue; // the countdown pauses while a revive is in progress
     }
     p.reviveTicks = 0; // moving away resets the revive
     p.reviverId = null;
+    p.reviveNeedTicks = 0;
     p.downedTicksLeft--;
     if (p.downedTicksLeft <= 0) {
       p.downedTicksLeft = 0;

@@ -71,13 +71,16 @@ describe("shop list (Story 3.3)", () => {
     ]);
   });
 
-  it("Story 5.10: the floodlight is not listed (inShop: false); listed with shopAll; upgrade-only tiers never", () => {
+  it("Story 5.10: the floodlight is not listed (inShop: false); listed with the ONE dev shop-all balance (5.10 + 5.11), which unhides gear too; upgrade-only tiers never", async () => {
     expect(shopBuildings(balance).map((b) => b.id)).not.toContain("floodlight");
-    const all = shopBuildings(balance, true);
+    const { loadDevBalance, shopGear, allGear } = await import("../index");
+    const devBal = loadDevBalance({ zombieDamageScale: null, shopAll: true });
+    const all = shopBuildings(devBal);
     expect(all.find((b) => b.id === "floodlight")).toEqual({ id: "floodlight", name: "Floodlight", price: 100 });
     expect(all.map((b) => b.id)).not.toContain("metal_barricade");
-    expect(shopBuildings(balance, true)).toBe(all); // cached per balance and flag
-    expect(shopBuildings(balance)).not.toBe(all);
+    expect(shopBuildings(devBal)).toBe(all); // cached per balance
+    expect(shopGear(devBal).length).toBe(allGear(devBal).length); // the same switch lists every gear item
+    expect(shopGear(balance).length).toBeLessThan(allGear(balance).length); // (the flashlight is hidden without it)
   });
 
   it("Story 5.9: upgrade-only types are not in the shop; spike_trap 80 and mine 60 are", () => {

@@ -206,6 +206,93 @@ describe("revive", () => {
     expect(ofType(events, "player.revived")).toEqual([{ type: "player.revived", playerId: "p0", reviverId: "p2" }]);
   });
 
+  describe("Story 5.11: revive kit (D1: the kit belongs to the reviver)", () => {
+    const KIT = 8; // revive_kit bit
+    const KIT_TICKS = ticksFor(balance.gear.items.revive_kit?.reviveS ?? 0);
+    it("a kit reviver needs 30 ticks; a plain reviver 60", () => {
+      expect(KIT_TICKS).toBe(30);
+      const { world, players, events } = setup();
+      const [a, b] = players as [PlayerState, PlayerState];
+      b.gear = KIT;
+      downPlayer(world, a);
+      placeNear(b, a, 1.1);
+      run(world, KIT_TICKS - 1);
+      expect(a.status).toBe("downed");
+      run(world, 1);
+      expect(a.status).toBe("alive");
+      expect(ofType(events, "player.revived")).toHaveLength(1);
+    });
+
+    it("G10: a kit owner taking over at 31/60 completes that tick (progress kept)", () => {
+      const { world, players } = setup(["p0", "p1", "p2"]);
+      const [a, b, c] = players as [PlayerState, PlayerState, PlayerState];
+      c.gear = KIT;
+      downPlayer(world, a);
+      placeNear(b, a, 1.0);
+      placeNear(c, a, 50); // far away
+      run(world, 31);
+      expect(a.reviveTicks).toBe(31);
+      expect(a.reviverId).toBe("p1");
+      placeNear(c, a, -0.5); // nearer than b: c is the reviver now
+      run(world, 1);
+      expect(a.status).toBe("alive");
+    });
+
+    it("review L1: a kit owner in reach counts even when a plain teammate stands nearer (fastest need, no stacking)", () => {
+      const { world, players } = setup(["p0", "p1", "p2"]);
+      const [a, b, c] = players as [PlayerState, PlayerState, PlayerState];
+      c.gear = KIT;
+      downPlayer(world, a);
+      placeNear(b, a, 0.5); // nearer: the reviver shown
+      placeNear(c, a, -1.5); // the kit owner, also in the 2 m zone
+      run(world, 1);
+      expect(a.reviverId).toBe("p1");
+      expect(a.reviveNeedTicks).toBe(KIT_TICKS);
+      run(world, KIT_TICKS - 2);
+      expect(a.status).toBe("downed");
+      run(world, 1);
+      expect(a.status).toBe("alive");
+      expect(a.reviveNeedTicks).toBe(0);
+    });
+
+    it("G11: a downed kit owner gains nothing: revived in 60 ticks by a plain teammate", () => {
+      const { world, players } = setup();
+      const [a, b] = players as [PlayerState, PlayerState];
+      a.gear = KIT;
+      downPlayer(world, a);
+      placeNear(b, a, 1.1);
+      run(world, REVIVE_TICKS - 1);
+      expect(a.status).toBe("downed");
+      run(world, 1);
+      expect(a.status).toBe("alive");
+    });
+
+    it("G9: two kit owners reviving together: still 30 ticks, not faster", () => {
+      const { world, players } = setup(["p0", "p1", "p2"]);
+      const [a, b, c] = players as [PlayerState, PlayerState, PlayerState];
+      b.gear = KIT;
+      c.gear = KIT;
+      downPlayer(world, a);
+      placeNear(b, a, 1.0);
+      placeNear(c, a, -0.8);
+      run(world, KIT_TICKS - 1);
+      expect(a.status).toBe("downed");
+      expect(a.reviveTicks).toBe(KIT_TICKS - 1);
+      run(world, 1);
+      expect(a.status).toBe("alive");
+    });
+
+    it("revive HP is ceil(maxHp × reviveHpFrac) of the armored max (125 → 38)", () => {
+      const { world, players } = setup();
+      const [a, b] = players as [PlayerState, PlayerState];
+      a.maxHp = 125;
+      downPlayer(world, a);
+      placeNear(b, a, 1.1);
+      run(world, REVIVE_TICKS);
+      expect(a.hp).toBe(Math.ceil(125 * 0.3));
+    });
+  });
+
   it("a downed teammate can't revive", () => {
     const { world, players } = setup(["p0", "p1", "p2"]);
     const [a, b] = players as [PlayerState, PlayerState];

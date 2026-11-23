@@ -11,6 +11,8 @@ import {
   RUN_ROOM_NAME,
   S2C,
   skipWave,
+  loadDevBalance,
+  startBuild,
   type BuildingRefused,
   type RunStateView,
   type SimEventsFlushed,
@@ -18,6 +20,7 @@ import {
 import { bootTestServer } from "../test/bootTestServer";
 import { MAX_OTHER_MESSAGES_PER_S } from "../net/limits";
 import { RunRoom, serverBalance } from "./RunRoom";
+import { RunController } from "../run/RunController";
 
 /** Story 3.4 integration: `building.place` → validated placement, state on every client, refusals to the sender. */
 let colyseus: ColyseusTestServer;
@@ -144,15 +147,18 @@ describe("RunRoom buildings (Story 3.4)", () => {
     expect(world(room).players.get("p0")?.wallet).toBe(600);
   });
 
-  it("Story 5.10 (B10): with the dev switch DEV_SHOP_ALL=1 the server places a floodlight (and it becomes a light on the server's World)", async () => {
-    vi.stubEnv("DEV_SHOP_ALL", "1");
-    const { host, room, hostRec } = await startTwo();
-    expect(world(room).debug.shopAll).toBe(true);
-    host.send(C2S.BUILDING_PLACE, { type: "floodlight", gx: 12, gy: 30, rot: 0 });
-    await vi.waitFor(() => expect(host.state.buildings.size).toBe(1));
-    expect(hostRec.refused).toEqual([]);
-    await vi.waitFor(() => expect(world(room).lights.list.filter((l) => l.kind === "floodlight")).toHaveLength(1));
-    expect(world(room).lights.list.find((l) => l.kind === "floodlight")).toMatchObject({ x: 6.5, y: 15.5, radiusM: 4 });
+  it("Story 5.10 (B10): a run on the dev shop-all balance (what DEV_SHOP_ALL=1 builds) places a floodlight, and it becomes a light on the server's World", () => {
+    const players = [{ playerId: "p0", slot: 0 }];
+    const c = new RunController({ balance: loadDevBalance({ zombieDamageScale: null, shopAll: true }), seed: 3, players, pauseWaves: true });
+    const w = c.world;
+    if (w.run.phase === "lobby") startBuild(w);
+    const p = w.players.get("p0");
+    if (!p) throw new Error("no p0");
+    const r = c.placeBuilding("p0", { type: "floodlight", gx: Math.round((p.x + 3) * 2), gy: Math.round(p.y * 2), rot: 0 });
+    expect(r.ok).toBe(true);
+    c.tick();
+    expect(w.lights.list.filter((l) => l.kind === "floodlight")).toHaveLength(1);
+    expect(w.lights.list[w.lights.list.length - 1]).toMatchObject({ kind: "floodlight", radiusM: 4 });
   });
 
   it("a malformed message is dropped by the guard (no reply), the room keeps running", async () => {

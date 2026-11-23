@@ -7,13 +7,13 @@ let cached: Balance | null = null;
  * The balance this client plays and joins with. Release builds: the bundled one. Dev builds
  * (Epic 2 retro A5): `?zdmg=<scale>` applies the shared dev switch, matching a server started with
  * `DEV_ZOMBIE_DAMAGE_SCALE=<scale>` (same `balance.version`, so the join check passes). Story 3.3:
- * `?wallet=<n>` likewise matches `DEV_STARTING_WALLET=<n>`.
+ * `?wallet=<n>` likewise matches `DEV_STARTING_WALLET=<n>`; Story 5.11: `?shopall=1` matches `DEV_SHOP_ALL=1`.
  */
 export function clientBalance(): Balance {
   if (!cached) {
-    const { zombieDamageScale, startingWallet } = urlOptions();
-    const dev = import.meta.env.DEV && (zombieDamageScale !== null || startingWallet !== null);
-    cached = dev ? loadDevBalance({ zombieDamageScale, startingWallet }) : loadBalance();
+    const { zombieDamageScale, startingWallet, shopAll } = urlOptions();
+    const dev = import.meta.env.DEV && (zombieDamageScale !== null || startingWallet !== null || shopAll);
+    cached = dev ? loadDevBalance({ zombieDamageScale, startingWallet, shopAll }) : loadBalance();
   }
   return cached;
 }
@@ -24,8 +24,8 @@ export function clientBalance(): Balance {
  * the bundled balance, so the server's join check never sees it and friends' runs can't be cheated.
  * `?zdmg` stays dev-only.
  */
-export function soloOverrides(dev: boolean, o: { zombieDamageScale: number | null; startingWallet: number | null }) {
-  return dev ? o : { zombieDamageScale: null, startingWallet: o.startingWallet };
+export function soloOverrides(dev: boolean, o: { zombieDamageScale: number | null; startingWallet: number | null; shopAll?: boolean }) {
+  return dev ? { ...o, shopAll: o.shopAll ?? false } : { zombieDamageScale: null, startingWallet: o.startingWallet, shopAll: false }; // Story 5.11: ?shopall dev-only
 }
 
 let soloCached: Balance | null = null;
@@ -33,9 +33,9 @@ let soloCached: Balance | null = null;
 /** The balance a solo (offline) run plays: `clientBalance()` plus the release-safe `?wallet`. */
 export function soloBalance(): Balance {
   if (!soloCached) {
-    const { zombieDamageScale, startingWallet } = urlOptions();
-    const o = soloOverrides(import.meta.env.DEV, { zombieDamageScale, startingWallet });
-    soloCached = o.zombieDamageScale === null && o.startingWallet === null ? clientBalance() : loadDevBalance(o);
+    const { zombieDamageScale, startingWallet, shopAll } = urlOptions();
+    const o = soloOverrides(import.meta.env.DEV, { zombieDamageScale, startingWallet, shopAll });
+    soloCached = o.zombieDamageScale === null && o.startingWallet === null && !o.shopAll ? clientBalance() : loadDevBalance(o);
   }
   return soloCached;
 }

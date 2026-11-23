@@ -273,3 +273,36 @@ describe("six-wave bot sim with Bloaters (Story 5.8, brief lines 9 and 15)", () 
     expect(chains).toBeGreaterThanOrEqual(0);
   }, 900_000);
 });
+
+describe("six-wave bot sim with gear (Story 5.11, brief lines 9 and 15)", () => {
+  it("bots that buy armor, shoes and the revive kit still run to Results (waves ended); every bot bought gear", () => {
+    // A test-only shopping list (bots.json stays untouched): gear first, then the SMG and a barricade.
+    const LIST = ["body_armor_1", "running_shoes", "smg", "revive_kit", "body_armor_2", "wood_barricade"];
+    const lines: string[] = [];
+    let bought = 0;
+    let spentOnGear = 0;
+    let armored = 0;
+    for (const players of [2, 4]) {
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance, seed, players, list: LIST });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
+        for (let i = 0; i < players; i++) {
+          expect(r.gear[i]).toBeGreaterThanOrEqual(1); // liveness: every bot bought gear
+          expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number));
+          if (((r.gearMask[i] as number) & 3) !== 0) {
+            armored++;
+            expect(r.maxHp[i]).toBe((r.gearMask[i] as number) & 2 ? 150 : 125); // the best armor only
+          }
+        }
+        bought += r.gear.reduce((a, b) => a + b, 0);
+        spentOnGear += r.gearSpent.reduce((a, b) => a + b, 0);
+        lines.push(`${formatRunLine(r)} | gear ${r.gear.join("/")} (masks ${r.gearMask.join("/")}), spent on gear ${r.gearSpent.join("/")} of ${r.spent.join("/")}`);
+      }
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[six-wave sim 5.11] list ${LIST.join(",")}: ${bought} gear items, $${spentOnGear} on gear\n${lines.join("\n")}`);
+    expect(bought).toBeGreaterThanOrEqual(8);
+    expect(armored).toBeGreaterThanOrEqual(1);
+  }, 180_000);
+});

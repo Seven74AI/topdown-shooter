@@ -14,6 +14,18 @@ export interface DevBalanceOptions {
    * (`DEV_STARTING_WALLET` / `?wallet=`). null / absent = the bundled value.
    */
   startingWallet?: number | null;
+  /**
+   * Stories 5.10 + 5.11, ONE switch (`DEV_SHOP_ALL=1` / `?shopall=1`): every `inShop: false` item
+   * is listed, placed and sold — the floodlight (building) and the tactical flashlight (gear) until
+   * Story 6.3. Changes `balance.version` like every switch, so client and server must both have it on
+   * (a client with `?shopall` and a server without it is refused at join: a visible refusal).
+   */
+  shopAll?: boolean;
+}
+
+/** `"1"` / `"true"` → true; anything else (absent included) → false. */
+export function parseDevShopAll(raw: string | null | undefined): boolean {
+  return raw === "1" || raw === "true";
 }
 
 /** Largest dev starting wallet accepted. */
@@ -53,5 +65,13 @@ export function devBalanceOverrides(opts: DevBalanceOptions): BalanceOverride[] 
 /** The bundled balance with the dev switches applied (validated like any balance). */
 export function loadDevBalance(opts: DevBalanceOptions): Balance {
   const overrides = devBalanceOverrides(opts);
-  return overrides.length === 0 ? loadBalance() : loadBalance(withOverrides(bundledBalanceFiles(), overrides));
+  if (overrides.length === 0 && !opts.shopAll) return loadBalance();
+  const raw = withOverrides(bundledBalanceFiles(), overrides);
+  if (opts.shopAll) {
+    // Story 5.11: overrides are numbers only, so the boolean `inShop` is set here (gear, and Story
+    // 5.10's building types: one switch unhides both).
+    for (const g of Object.values((raw.gear as { items: Record<string, { inShop?: boolean }> }).items)) g.inShop = true;
+    for (const t of Object.values((raw.buildings as { types: Record<string, { inShop?: boolean }> }).types)) t.inShop = true;
+  }
+  return loadBalance(raw);
 }

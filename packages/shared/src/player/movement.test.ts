@@ -43,6 +43,21 @@ describe("player movement", () => {
     expect(p.y).toBeCloseTo(16, 6);
   });
 
+  it("Story 5.11: running shoes → 4.95 m/s; shoes + a 30 % slow → 4.5 × 1.1 × 0.7", () => {
+    const { world, p } = setup();
+    p.gear = 4; // running_shoes (bit 2)
+    setInput(world, "local", move(1, 0));
+    stepFor(world, 1);
+    expect(p.x).toBeCloseTo(24 + 4.95, 6);
+    const s = setup();
+    s.p.gear = 4;
+    s.p.slowTicksLeft = 20;
+    s.p.slowPct = 30;
+    setInput(s.world, "local", move(1, 0));
+    stepFor(s.world, 1);
+    expect(s.p.x).toBeCloseTo(24 + 4.5 * 1.1 * 0.7, 6);
+  });
+
   it("scales speed linearly with the stick value", () => {
     const { world, p } = setup();
     setInput(world, "local", move(0, 0.5));

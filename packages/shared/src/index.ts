@@ -33,6 +33,7 @@ export {
   devBalanceOverrides,
   loadDevBalance,
   parseDevScale,
+  parseDevShopAll,
   parseDevWallet,
   MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
@@ -229,6 +230,10 @@ export {
   buildingRepairSchema,
   buildingUpgradeSchema,
   shopBuySchema,
+  shopBuyItemSchema,
+  type ShopBuyItem,
+  type ShopBoughtItem,
+  type ShopRefusedItem,
   shopUpgradeSchema,
   type ShopUpgrade,
   type ShopUpgraded,
@@ -285,6 +290,8 @@ export {
   botPlaceCandidate,
   botPlaceTries,
   botShopNext,
+  botGearPrice,
+  botOwnsGear,
   botWeaponSlot,
   UPGRADE_ENTRY_PREFIX,
   upgradeEntryWeapon,
@@ -423,6 +430,23 @@ export {
   type ShopWeapon,
 } from "./economy/shop";
 // Story 5.1: weapon upgrades I–IV (damage helper `weaponDamage` is exported with the weapons above).
+export { buyItem, type BoughtItem } from "./economy/shop";
+export {
+  allGear,
+  armorBonus,
+  armorTier,
+  buyGear,
+  effectiveMaxHp,
+  gearBit,
+  gearIds,
+  ownsGear,
+  reviveTicksFor,
+  shopGear,
+  speedBonusPct,
+  type BoughtGear,
+  type GearId,
+  type ShopGear,
+} from "./economy/gear";
 export { romanLevel, shopUpgrades, upgradePriceTable, upgradeWeapon, type ShopUpgradeRow, type WeaponUpgradeError, type WeaponUpgraded } from "./economy/shop";
 // Story 5.6: Spitters, spits and acid puddles.
 export { acidSpit, acidSpitOf, circleInAcid, clearAcid, spawnSpit, spitStats, spitterStep, updateAcid, updateSpits } from "./zombies/spit";

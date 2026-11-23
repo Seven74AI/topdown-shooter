@@ -23,6 +23,7 @@ import type { ShopAnswer } from "../sim/SimHost";
 const SHOP_ERRORS: readonly ShopError[] = [
   "not_build",
   "unknown_player",
+  "not_alive", // Story 5.11 review M1
   "not_for_sale",
   "already_owned",
   "slot_required",
@@ -46,7 +47,7 @@ export function parseShopRefused(m: unknown): ShopAnswer | null {
 }
 
 /** Story 5.1: `upgradeWeapon`'s errors (an unknown one reads as `not_owned`). */
-const WEAPON_UPGRADE_ERRORS: readonly WeaponUpgradeError[] = ["not_build", "unknown_player", "not_owned", "max_level", "invalid_amount", "insufficient_funds"];
+const WEAPON_UPGRADE_ERRORS: readonly WeaponUpgradeError[] = ["not_build", "unknown_player", "not_alive", "not_owned", "max_level", "invalid_amount", "insufficient_funds"];
 
 /** A well-formed `shop.upgraded` (Story 5.1) as an answer, or null. */
 export function parseShopUpgraded(m: unknown): ShopAnswer | null {
@@ -61,6 +62,21 @@ export function parseShopUpgradeRefused(m: unknown): ShopAnswer | null {
   if (!o || typeof o.weapon !== "string" || typeof o.error !== "string") return null;
   const error = (WEAPON_UPGRADE_ERRORS as readonly string[]).includes(o.error) ? (o.error as WeaponUpgradeError) : "not_owned";
   return { kind: "upgrade", ok: false, weapon: o.weapon, error };
+}
+
+/** A well-formed `shop.bought_item` (Story 5.11) as an answer, or null. */
+export function parseShopBoughtItem(m: unknown): ShopAnswer | null {
+  const o = m as { item?: unknown } | null;
+  if (!o || typeof o.item !== "string") return null;
+  return { kind: "item", ok: true, item: o.item };
+}
+
+/** A well-formed `shop.refused_item` (Story 5.11) as an answer, or null (an unknown error reads as `not_for_sale`). */
+export function parseShopRefusedItem(m: unknown): ShopAnswer | null {
+  const o = m as { item?: unknown; error?: unknown } | null;
+  if (!o || typeof o.item !== "string" || typeof o.error !== "string") return null;
+  const error = (SHOP_ERRORS as readonly string[]).includes(o.error) ? (o.error as ShopError) : "not_for_sale";
+  return { kind: "item", ok: false, item: o.item, error };
 }
 
 /** A well-formed `player.left` (Story 2.11), or null. */
@@ -160,6 +176,8 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.SHOP_REFUSED, (m: unknown) => this.receiveShop(parseShopRefused(m))));
     this.offs.push(room.onMessage(S2C.SHOP_UPGRADED, (m: unknown) => this.receiveShop(parseShopUpgraded(m)))); // Story 5.1
     this.offs.push(room.onMessage(S2C.SHOP_UPGRADE_REFUSED, (m: unknown) => this.receiveShop(parseShopUpgradeRefused(m))));
+    this.offs.push(room.onMessage(S2C.SHOP_BOUGHT_ITEM, (m: unknown) => this.receiveShop(parseShopBoughtItem(m)))); // Story 5.11
+    this.offs.push(room.onMessage(S2C.SHOP_REFUSED_ITEM, (m: unknown) => this.receiveShop(parseShopRefusedItem(m))));
     this.offs.push(room.onMessage(S2C.BUILDING_REPAIR_REFUSED, (m: unknown) => this.receiveRepairRefused(m)));
     this.offs.push(room.onMessage(S2C.BUILDING_UPGRADE_REFUSED, (m: unknown) => this.receiveUpgradeRefused(m)));
   }

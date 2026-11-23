@@ -67,9 +67,8 @@ describe("pickDrawnLights", () => {
 
 describe("Story 5.10 review L5: no re-bake of the city when a floodlight or med station is placed or destroyed", () => {
   it("CityView's bake key (stage, obstacles.version, fire count) stays the same through placements, healing and a destroy", async () => {
-    const { DOWNTOWN_MAP, TICK_DT_S, addPlayer, createWorld, damageBuilding, loadBalance, placeBuilding, startBuild, step } = await import("@topdown/shared");
-    const world = createWorld({ balance: loadBalance(), seed: 3, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
-    world.debug.shopAll = true;
+    const { DOWNTOWN_MAP, TICK_DT_S, addPlayer, createWorld, damageBuilding, loadDevBalance, placeBuilding, startBuild, step } = await import("@topdown/shared");
+    const world = createWorld({ balance: loadDevBalance({ zombieDamageScale: null, shopAll: true }), seed: 3, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
     addPlayer(world, "p0", 24, 16);
     startBuild(world);
     const key = () => staticKey(world.obstacles.stage, world.obstacles.version, world.decay.fires.length);

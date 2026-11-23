@@ -217,7 +217,7 @@ export function placementError(world: Readonly<World>, ownerId: string, req: Pla
   if (world.run.phase !== "build") return "not_build_phase";
   const stats = buildingStats(world.balance, req.type);
   if (!stats || !stats.forSale || !isRotation(req.rot)) return "unknown_type"; // Story 5.9: upgrade-only tiers are never placed
-  if (!stats.inShop && !world.debug.shopAll) return "not_for_sale"; // Story 5.10: not offered yet (the floodlight until 6.3)
+  if (!stats.inShop) return "not_for_sale"; // Story 5.10: not offered yet (the floodlight until 6.3; dev: `loadDevBalance({ shopAll })`)
   if (!Number.isInteger(req.gx) || !Number.isInteger(req.gy)) return "blocked";
   if (ownedCount(world, ownerId) >= world.balance.buildings.maxPerPlayer) return "limit";
   if (p.wallet < stats.price) return "money";

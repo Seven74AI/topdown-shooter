@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, type Balance } from "@topdown/shared";
+import { loadBalance, loadDevBalance, type Balance } from "@topdown/shared";
 import {
   BUILD_BAR_SLOTS,
   SLOT_EMPTY,
@@ -51,12 +51,12 @@ describe("buildBarItems (Story 5.16 AC 2)", () => {
     expect(ids).toEqual(["wood_barricade", "auto_turret", "spike_trap", "mine", "med_station", "bear_trap"]);
   });
 
-  it("Story 5.10 review M2: with the dev shop-all switch the hidden floodlight is a tile (between mine and med station, balance order); cached per flag", () => {
-    const all = buildBarItems(balance, true);
+  it("Story 5.10 review M2: with the dev shop-all balance (?shopall / DEV_SHOP_ALL) the hidden floodlight is a tile (between mine and med station, balance order)", () => {
+    const devBal = loadDevBalance({ zombieDamageScale: null, shopAll: true });
+    const all = buildBarItems(devBal);
     expect(all.map((t) => t.id)).toEqual(["wood_barricade", "auto_turret", "spike_trap", "mine", "floodlight", "med_station"]);
     expect(all.find((t) => t.id === "floodlight")).toMatchObject({ name: "Floodlight", price: 100, turret: false, widthM: 1, depthM: 1 });
-    expect(buildBarItems(balance, true)).toBe(all);
-    expect(buildBarItems(balance)).not.toBe(all);
+    expect(buildBarItems(devBal)).toBe(all);
     expect(buildBarItems(balance).map((t) => t.id)).not.toContain("floodlight");
   });
 

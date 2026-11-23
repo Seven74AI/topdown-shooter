@@ -1,4 +1,4 @@
-import { parseDevScale, parseDevWallet, parseRunSeed } from "@topdown/shared";
+import { parseDevScale, parseDevShopAll, parseDevWallet, parseRunSeed } from "@topdown/shared";
 import { isTestScenario, type TestScenario } from "@topdown/shared";
 
 /**
@@ -70,9 +70,10 @@ export interface UrlOptions {
    */
   lowFx: boolean;
   /**
-   * `?shopall=1` (Story 5.10, dev builds only: a release build ignores it): the shop lists `inShop: false` types (the floodlight until
-   * 6.3) and solo's World places them; online the server must run with `DEV_SHOP_ALL=1` or it refuses
-   * them `not_for_sale`. false otherwise.
+   * `?shopall=1` (Stories 5.10 + 5.11, ONE switch, dev builds only: a release build ignores it):
+   * every `inShop: false` item — the floodlight and the tactical flashlight until 6.3 — is listed,
+   * placed and sold, through the dev balance (`loadDevBalance({ shopAll })`, same as the server's
+   * `DEV_SHOP_ALL=1`; it changes `balance.version`, so both sides must have it on). false otherwise.
    */
   shopAll: boolean;
 }
@@ -111,7 +112,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     stressLights: q.get("stressbuild")?.trim().toLowerCase() === "lights",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
-    shopAll: dev && TRUE_VALUES.has(q.get("shopall")?.trim().toLowerCase() ?? "-"), // review L3: dev builds only
+    shopAll: dev && parseDevShopAll(q.get("shopall")?.trim().toLowerCase()), // dev builds only (review L3); one switch for hidden buildings and gear
   };
 }
 

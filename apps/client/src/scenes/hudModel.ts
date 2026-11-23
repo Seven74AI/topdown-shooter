@@ -10,6 +10,12 @@ export interface HudModel {
   burning: boolean;
   /** Story 5.6: the server reports my survivor in acid (the HP text adds "Acid", the edge glow turns green). */
   inAcid: boolean;
+  /**
+   * Story 5.11: my owned gear (the World's `gear`; online the state's, never the tap) and the gear
+   * ids in bit order (`gearIds(balance)`, the same array every frame): the HUD's icons beside the HP text.
+   */
+  gearMask: number;
+  gearIds: readonly string[];
   /** Active weapon's display name. */
   weaponName: string;
   /** Story 5.1: the active and the other weapon's upgrade level (1 = I: no mark). */
@@ -171,6 +177,8 @@ export const createHudModel = (): HudModel => ({
   maxHp: 1,
   burning: false,
   inAcid: false,
+  gearMask: 0, // Story 5.11
+  gearIds: [],
   weaponName: "",
   weaponLevel: 1,
   otherWeaponLevel: 1,

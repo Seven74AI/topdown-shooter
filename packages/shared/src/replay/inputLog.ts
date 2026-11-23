@@ -4,7 +4,7 @@ import { createWorld, setInput, step, type World } from "../core/world";
 import type { PlayerInput } from "../net/input";
 import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
-import { buyWeapon, upgradeWeapon } from "../economy/shop";
+import { buyItem, buyWeapon, upgradeWeapon } from "../economy/shop";
 import { placeBuilding } from "../buildings/buildings";
 import type { DistrictMap } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
@@ -22,7 +22,9 @@ export type BuildCommand =
   | { kind: "place"; playerId: string; type: string; gx: number; gy: number; rot: number }
   | { kind: "ready"; playerId: string; ready: boolean }
   /** Story 5.1: a weapon upgrade (`upgradeWeapon`). */
-  | { kind: "upgrade"; playerId: string; weapon: string };
+  | { kind: "upgrade"; playerId: string; weapon: string }
+  /** Story 5.11: a shop item (`buyItem`: gear; Story 5.12 consumables). */
+  | { kind: "item"; playerId: string; item: string };
 
 export type ReplayCommand = ({ kind: "input"; playerId: string; input: PlayerInput } | BuildCommand) & { tick: number };
 
@@ -74,6 +76,9 @@ export function applyCommand(world: World, cmd: ReplayCommand): void {
       break;
     case "upgrade":
       upgradeWeapon(world, cmd.playerId, cmd.weapon);
+      break;
+    case "item":
+      buyItem(world, cmd.playerId, cmd.item);
       break;
   }
 }

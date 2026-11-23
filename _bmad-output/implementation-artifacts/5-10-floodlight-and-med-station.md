@@ -228,12 +228,12 @@ Builder in its own cloud session (container), branch `story-5-10` from the work 
 - `balanceSchema.ts › buildingTypeSchema`: new `inShop`, `light`, `heal`; `balance.ts › buildingKind` and the exclusivity count include them. `controls.fx` gains three keys (schema defaults match the JSON).
 - `buildings.ts`: `PlaceError` + `"not_for_sale"` (handled in `placement.ts › placeRefusalText` and `session.ts › PLACE_ERRORS`; 5.16's build bar should show the same text).
 - `buildingSystem.ts`: `updatePathing → updateTurrets → updateTraps → updateMines → updateMedStations → updateLightState`.
-- `world.ts`: `lights` (derived) and `debug.shopAll` (in `snapshotWorld().debug` via the spread; tests that compare `debug` exactly need `shopAll: false`).
-- `shop.ts`: `shopBuildings(balance, shopAll = false)` (only caller: `GameScene` shop open; 5.16's bar lists from balance and should skip `inShop: false` unless `?shopall`).
+- `world.ts`: `lights` (derived). (No `debug.shopAll` any more: the shop-all switch is the dev balance, see the 5.11 merge note.)
+- `shop.ts`: `shopBuildings` skips `inShop: false` (the dev balance sets every `inShop` true). `devBalance.ts`: `shopAll` also unhides building types.
 - `applyDecayStage.ts` and `mirrorBuildings.ts` call `updateLightState` at their end.
 - `palette.ts`: `NightLight.floodA` on every row. `spriteAtlas.ts`: new FX frame `fx_floodpool_a`. `buildingsAtlas.ts`: three new frames. `recordCanvas.ts`: `bezierCurveTo`.
 - `mineLook.ts › buildingShadowHeightM`: light → 0, heal → 0.9 m.
-- `RunRoom.ts`: `DEV_SHOP_ALL` next to `DEV_WAVE_MIX` (dev only). `RunController` option `shopAll`.
+- `RunRoom.ts`: `devShopAll = pickDevShopAll(process.env).shopAll` feeds `loadDevBalance` (one switch with 5.11).
 - `PlayerView.ts`: `healCue(on)` + a small Graphics per player. `GameScene.ts`: two views, the heal cue in `syncPlayerView`, `?shopall` for solo and the shop list, `?stressbuild=lights`.
 - `docs/epic-5-decisions.md` and `docs/art/epic-5/round-d/looks.html` were checked out from the work branch tip `d526464` (MS10 pick) unchanged, so they merge cleanly.
 
@@ -254,7 +254,10 @@ Fresh-agent review by the main session (2026-11-23): **no high, 2 medium (both o
 
 Floodlight FPS (≈ −20 % headless): accepted as is by the designer (see open question 1).
 
-**Gate after the merge + fixes** (`typecheck && lint && test && build` on `story-5-10` = master `4258175` + this story): green, **260 files passed (1 skipped), 2,129 tests passed (3 skipped)**, build OK; load 0.16 before, 4.48 after. Story 5.11 not merged yet (not on master at this point).
+**Merge of Story 5.11 (master `71b73fd`) — ONE shop-all switch.** 5.11 had added a minimal `?shopall` / `DEV_SHOP_ALL` that builds a dev balance with every gear `inShop` true (changes `balance.version`). The two switches are now one, on 5.11's mechanism: `loadDevBalance({ shopAll: true })` sets `inShop: true` on gear AND building types, so the floodlight and the tactical flashlight unhide together. Removed this story's parallel path: `world.debug.shopAll`, `RunController({ shopAll })`, the per-run room pick, and the `shopAll` parameters of `shopBuildings` / `buildBarItems` (they read `inShop` from the balance, so M2 now holds by construction: the dev balance lists the floodlight in the build bar). Guards kept: client `parseUrlOptions(…, dev = import.meta.env.DEV)` ignores `?shopall` in a release build; the server computes the switch with the tested `pickDevShopAll(env)` (production → ignored, logged by `dev_balance_override_ignored`). Deviation from AC 3's "outside balance": the version now changes, so a client with `?shopall` against a server without `DEV_SHOP_ALL` is refused at join (visible) instead of per placement (B10). Heal-cap tests now use real body armor I (`buyGear` → maxHp 125). PR #6's `stopsBullets`: the floodlight and med station stay `false` (obstacles, not cover).
+
+
+**Gate after the merge + fixes** (`typecheck && lint && test && build` on `story-5-10` = master `4258175` + this story): green, **260 files passed (1 skipped), 2,129 tests passed (3 skipped)**, build OK; load 0.16 before, 4.48 after. Story 5.11 not merged yet at that point (see below).
 
 ## Change from the Epic 6 design session (designer, 2026-11-23)
 

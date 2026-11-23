@@ -36,6 +36,11 @@ export const C2S = {
   BUILDING_UPGRADE: "building.upgrade",
   /** `{ weapon }` in a build phase (Story 5.1); answered with `shop.upgraded` or `shop.upgrade_refused`. */
   SHOP_UPGRADE: "shop.upgrade",
+  /**
+   * `{ item }` in a build phase (Story 5.11 gear; Story 5.12 consumables use the same message);
+   * answered with `shop.bought_item` or `shop.refused_item`.
+   */
+  SHOP_BUY_ITEM: "shop.buy_item",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -65,6 +70,10 @@ export const S2C = {
   SHOP_UPGRADED: "shop.upgraded",
   /** `{ weapon, error: WeaponUpgradeError }` to the sender only (Story 5.1); nothing changed. */
   SHOP_UPGRADE_REFUSED: "shop.upgrade_refused",
+  /** `{ item }` to the buyer only (Story 5.11); gear, max HP and wallet follow in the state. */
+  SHOP_BOUGHT_ITEM: "shop.bought_item",
+  /** `{ item, error: ShopError }` to the buyer only (Story 5.11); nothing changed. */
+  SHOP_REFUSED_ITEM: "shop.refused_item",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -251,6 +260,28 @@ export interface ShopUpgraded {
 export interface ShopUpgradeRefused {
   weapon: string;
   error: WeaponUpgradeError;
+}
+
+/**
+ * `shop.buy_item` (Story 5.11): buy one shop item by its balance id — gear (`gear.json`) now,
+ * consumables (Story 5.12) later. Only the shape is checked here; `buyItem` decides on the World.
+ */
+export const shopBuyItemSchema = z
+  .object({
+    item: z.string().regex(/^[a-z][a-z0-9_]*$/).max(32),
+  })
+  .strict();
+export type ShopBuyItem = z.infer<typeof shopBuyItemSchema>;
+
+/** `shop.bought_item` payload (Story 5.11). */
+export interface ShopBoughtItem {
+  item: string;
+}
+
+/** `shop.refused_item` payload (Story 5.11): the `Result` error of `buyItem`. */
+export interface ShopRefusedItem {
+  item: string;
+  error: ShopError;
 }
 
 /** `lobby.return` (Story 2.8): `{}`, any member, phase "results" only. */

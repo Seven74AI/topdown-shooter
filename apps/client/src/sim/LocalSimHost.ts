@@ -4,6 +4,7 @@ import {
   TICK_DT_S,
   buyWeapon,
   upgradeWeapon,
+  buyItem,
   createWorld,
   DOWNTOWN_MAP,
   placeBuilding,
@@ -139,6 +140,12 @@ export class LocalSimHost implements SimHost {
   upgradeWeapon(weapon: string): void {
     const r = upgradeWeapon(this.world, LOCAL_PLAYER_ID, weapon);
     this.shopAnswer = r.ok ? { kind: "upgrade", ok: true, weapon, slot: r.value.slot, level: r.value.level } : { kind: "upgrade", ok: false, weapon, error: r.error };
+  }
+
+  /** Story 5.11: the shared dispatcher, at once (between steps); the answer waits for `takeShopAnswer`. */
+  buyItem(item: string): void {
+    const r = buyItem(this.world, LOCAL_PLAYER_ID, item);
+    this.shopAnswer = r.ok ? { kind: "item", ok: true, item } : { kind: "item", ok: false, item, error: r.error };
   }
 
   takeShopAnswer(): ShopAnswer | null {

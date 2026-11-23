@@ -115,7 +115,7 @@ describe("parseUrlOptions: Story 3.9 wave mix", () => {
   });
   it("Story 5.10: ?shopall=1 (the shop-all dev switch) and ?stressbuild=lights", () => {
     expect(parseUrlOptions("?shopall=1").shopAll).toBe(true);
-    expect(parseUrlOptions("?shopall").shopAll).toBe(true);
+    expect(parseUrlOptions("?shopall=true").shopAll).toBe(true); // 5.11's parser: "1" / "true"
     expect(parseUrlOptions("?shopall=0").shopAll).toBe(false);
     expect(parseUrlOptions("?shopall=1", false).shopAll).toBe(false); // review L3: a release build ignores it
     expect(parseUrlOptions("?stress=150&stressbuild=lights")).toMatchObject({ stressLights: true, stressBuild: false });

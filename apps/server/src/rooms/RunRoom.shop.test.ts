@@ -13,6 +13,8 @@ import {
   type PlayerState,
   type RunStateView,
   type ShopBought,
+  type ShopBoughtItem,
+  type ShopRefusedItem,
   type ShopRefused,
   type ShopUpgraded,
   type ShopUpgradeRefused,
@@ -50,10 +52,14 @@ interface Answers {
   refused: ShopRefused[];
   upgraded: ShopUpgraded[];
   upgradeRefused: ShopUpgradeRefused[];
+  boughtItem: ShopBoughtItem[];
+  refusedItem: ShopRefusedItem[];
 }
 
 function listen(client: RunSdkRoom): Answers {
-  const a: Answers = { bought: [], refused: [], upgraded: [], upgradeRefused: [] };
+  const a: Answers = { bought: [], refused: [], upgraded: [], upgradeRefused: [], boughtItem: [], refusedItem: [] };
+  client.onMessage(S2C.SHOP_BOUGHT_ITEM, (m: ShopBoughtItem) => a.boughtItem.push(m));
+  client.onMessage(S2C.SHOP_REFUSED_ITEM, (m: ShopRefusedItem) => a.refusedItem.push(m));
   client.onMessage(S2C.SHOP_UPGRADED, (m: ShopUpgraded) => a.upgraded.push(m));
   client.onMessage(S2C.SHOP_UPGRADE_REFUSED, (m: ShopUpgradeRefused) => a.upgradeRefused.push(m));
   client.onMessage(S2C.RUN_JOINED, () => {});
@@ -214,5 +220,62 @@ describe("RunRoom weapon upgrades (Story 5.1)", () => {
     expect(p.loadout.slots[0].level).toBe(3);
     expect(hostAnswers.upgradeRefused.every((r) => r.error === "insufficient_funds")).toBe(true);
     await vi.waitFor(() => expect(host.state.players.get("p0")).toMatchObject({ wallet: 30, level0: 3 }));
+  });
+});
+
+describe("RunRoom gear (Story 5.11)", () => {
+  it("buy_item gear: bought to the buyer only; state gear bit + maxHp + hp + wallet reach both clients", async () => {
+    const { host, guest, room, hostAnswers, guestAnswers } = await startTwo();
+    player(room, "p0").wallet = 500;
+    host.send(C2S.SHOP_BUY_ITEM, { item: "body_armor_1" });
+    await vi.waitFor(() => expect(hostAnswers.boughtItem).toEqual([{ item: "body_armor_1" }]));
+    for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.players.get("p0")).toMatchObject({ gear: 1, maxHp: 125, hp: 125, wallet: 350 }));
+    host.send(C2S.SHOP_BUY_ITEM, { item: "body_armor_2" });
+    await vi.waitFor(() => expect(host.state.players.get("p0")).toMatchObject({ gear: 2, maxHp: 150, hp: 150, wallet: 0 }));
+    expect(guestAnswers.boughtItem).toEqual([]);
+    expect(guest.state.players.get("p1")).toMatchObject({ gear: 0, maxHp: 100 });
+  });
+
+  it("refusals: owned (G1/G4 double tap), hidden flashlight (G5), unknown, money, wave (G6); malformed dropped", async () => {
+    const { host, room, hostAnswers } = await startTwo();
+    const p = player(room, "p0");
+    p.wallet = 160;
+    host.send(C2S.SHOP_BUY_ITEM, { item: "running_shoes" });
+    host.send(C2S.SHOP_BUY_ITEM, { item: "running_shoes" }); // a double tap
+    host.send(C2S.SHOP_BUY_ITEM, { item: "tactical_flashlight" });
+    host.send(C2S.SHOP_BUY_ITEM, { item: "jetpack" });
+    host.send(C2S.SHOP_BUY_ITEM, { item: "revive_kit" });
+    host.send(C2S.SHOP_BUY_ITEM, { item: "Revive Kit" }); // malformed: dropped
+    await vi.waitFor(() => expect(hostAnswers.refusedItem).toHaveLength(4));
+    expect(hostAnswers.boughtItem).toEqual([{ item: "running_shoes" }]);
+    expect(hostAnswers.refusedItem).toEqual([
+      { item: "running_shoes", error: "already_owned" },
+      { item: "tactical_flashlight", error: "not_for_sale" },
+      { item: "jetpack", error: "not_for_sale" },
+      { item: "revive_kit", error: "insufficient_funds" },
+    ]);
+    expect(p.wallet).toBe(10);
+    p.wallet = 1000;
+    const w = room.controller?.world;
+    if (!w) throw new Error("no run");
+    startWave(w);
+    host.send(C2S.SHOP_BUY_ITEM, { item: "revive_kit" });
+    await vi.waitFor(() => expect(hostAnswers.refusedItem.at(-1)).toEqual({ item: "revive_kit", error: "not_build" }));
+    expect(p.gear).toBe(4);
+    expect(p.wallet).toBe(1000);
+    expect(room.clients.length).toBe(2);
+  });
+
+  it("review M1: a downed player in a build phase is refused not_alive (gear and weapons); nothing changes", async () => {
+    const { host, room, hostAnswers } = await startTwo();
+    const p = player(room, "p0");
+    p.wallet = 1000;
+    p.status = "downed";
+    p.hp = 0;
+    host.send(C2S.SHOP_BUY_ITEM, { item: "body_armor_1" });
+    host.send(C2S.SHOP_BUY, { weapon: "smg" });
+    await vi.waitFor(() => expect(hostAnswers.refusedItem).toEqual([{ item: "body_armor_1", error: "not_alive" }]));
+    await vi.waitFor(() => expect(hostAnswers.refused).toEqual([{ weapon: "smg", error: "not_alive" }]));
+    expect([p.hp, p.maxHp, p.gear, p.wallet]).toEqual([0, 100, 0, 1000]);
   });
 });

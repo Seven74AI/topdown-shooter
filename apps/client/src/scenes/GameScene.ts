@@ -10,6 +10,8 @@ import {
   isFlame,
   hasMagazine,
   setLoadout,
+  shopGear,
+  gearIds,
   ownedCount,
   shopWeapons,
   upgradePriceTable,
@@ -373,7 +375,6 @@ export class GameScene extends Phaser.Scene {
     if (!session) addPlayer(world, localId, cx, cy); // online, players come from the server
     // Story 3.9 dev hook, kept by 3.10 as an override: ?wavemix=walker,crawler replaces the waves.json mix (solo).
     if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
-    if (!session) world.debug.shopAll = opts.shopAll; // Story 5.10 (?shopall=1): solo's World; online the server's DEV_SHOP_ALL decides
     this.gameOver = false;
     this.kills = 0;
     this.placement.cancel(); // Phaser reuses this scene object: no placement from the last run
@@ -871,7 +872,7 @@ export class GameScene extends Phaser.Scene {
       const balance = host.world.balance;
       this.router?.releaseAll(); // nothing stays held under the shop (as for the menu)
       host.clearEdges();
-      this.shopInput({ type: "open", weapons: shopWeapons(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel });
+      this.shopInput({ type: "open", weapons: shopWeapons(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel, gear: shopGear(balance) });
     }
     // Answers: shown while open, dropped while closed (the World already has the result).
     for (let a = host.takeShopAnswer(); a !== null; a = host.takeShopAnswer()) this.shopInput({ type: "answer", answer: a });
@@ -884,8 +885,9 @@ export class GameScene extends Phaser.Scene {
         // Story 5.1: levels from the World (online: the state mirror), so the shop shows server truth.
         const l0 = me.loadout.slots[0].level;
         const l1 = me.loadout.slots[1]?.level ?? 0;
-        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1] || l0 !== s.levels[0] || l1 !== s.levels[1]) {
-          this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1], levels: [l0, l1] });
+        // Story 5.11: the owned gear from the World (online: the state's `gear`), never the tap.
+        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1] || l0 !== s.levels[0] || l1 !== s.levels[1] || me.gear !== s.gearMask) {
+          this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1], levels: [l0, l1], gearMask: me.gear });
         }
       }
       if (s.pending !== null) {
@@ -906,7 +908,8 @@ export class GameScene extends Phaser.Scene {
     const e = r.effect;
     if (e === null) return;
     if (e.type === "buy") this.host?.buyWeapon(e.weapon, e.slot);
-    else this.host?.upgradeWeapon(e.weapon); // Story 5.1
+    else if (e.type === "upgrade") this.host?.upgradeWeapon(e.weapon); // Story 5.1
+    else this.host?.buyItem(e.item); // Story 5.11
   }
 
   /**
@@ -927,7 +930,7 @@ export class GameScene extends Phaser.Scene {
     f.owned = ownedCount(world, host.localPlayerId);
     f.cap = world.balance.buildings.maxPerPlayer;
     f.wallet = world.players.get(host.localPlayerId)?.wallet ?? 0;
-    m.buildItems = buildBarItems(world.balance, urlOptions().shopAll); // Story 5.10 review M2: ?shopall shows the floodlight
+    m.buildItems = buildBarItems(world.balance); // Story 5.10 review M2: the ?shopall dev balance lists the floodlight
     const r = stepBuildBar(m, f, this.barStep);
     if (r.toast !== "") {
       this.toasts.pushUnique(r.toast); // tapping a refused tile again doesn't queue the same line again
@@ -1215,6 +1218,8 @@ export class GameScene extends Phaser.Scene {
       // Story 5.8: a light yellow-green edge while the gas slows me (the server's slow, inside a drawn cloud).
       this.hudModel.gasGlow = player.status === "alive" && player.slowTicksLeft > 0 && this.bloaterFx?.inCloud(player.x, player.y, player.radiusM, this.acidClockS) === true ? GAS_GLOW_ALPHA : 0;
       this.hudModel.maxHp = player.maxHp;
+      this.hudModel.gearMask = player.gear; // Story 5.11: the HUD's gear icons (server truth online)
+      this.hudModel.gearIds = gearIds(host.world.balance);
       this.hudModel.money = player.wallet;
       this.hudModel.localX = viewOf.x;
       this.hudModel.localY = viewOf.y;

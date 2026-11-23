@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance, bundledBalanceFiles, withOverrides } from "../config/balance";
+import { loadDevBalance } from "../config/devBalance";
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { createWorld, setInput, step, type World } from "../core/world";
@@ -127,24 +128,25 @@ describe("placeBuilding", () => {
     expect(placementError(world, "p0", { type: WOOD, gx: 40.5, gy: 40, rot: 0 })).toBe("blocked");
   });
 
-  it("Story 5.10: a floodlight (inShop: false) is refused not_for_sale, wallet unchanged; accepted with debug.shopAll; a med station is placeable", () => {
+  it("Story 5.10: a floodlight (inShop: false) is refused not_for_sale, wallet unchanged; placed with the dev shop-all balance; a med station is placeable", () => {
     const { world } = setup();
     const wallet = world.players.get("p0")?.wallet;
     expect(placeBuilding(world, "p0", { type: "floodlight", gx: 40, gy: 40, rot: 0 })).toEqual({ ok: false, error: "not_for_sale" });
     expect(world.buildings.list).toHaveLength(0);
     expect(world.players.get("p0")?.wallet).toBe(wallet);
-    world.debug.shopAll = true;
-    const r = placeBuilding(world, "p0", { type: "floodlight", gx: 40, gy: 40, rot: 0 });
-    expect(r.ok).toBe(true);
-    expect(world.players.get("p0")?.wallet).toBe((wallet ?? 0) - 100);
-    expect(world.buildings.list[0]).toMatchObject({ type: "floodlight", hp: 150, solid: true, minX: 20, maxX: 21, minY: 20, maxY: 21 });
-    world.debug.shopAll = false;
     world.players.get("p0")!.wallet = 1000;
     expect(placeBuilding(world, "p0", { type: "med_station", gx: 44, gy: 40, rot: 0 }).ok).toBe(true);
-    expect(world.buildings.list[1]).toMatchObject({ type: "med_station", hp: 300, solid: true });
+    expect(world.buildings.list[0]).toMatchObject({ type: "med_station", hp: 300, solid: true });
+    // The ONE dev switch (DEV_SHOP_ALL / ?shopall, Stories 5.10 + 5.11): a balance with every inShop true.
+    const dev = createWorld({ balance: loadDevBalance({ zombieDamageScale: null, shopAll: true }), seed: 1, systems: NO_WAVES });
+    addPlayer(dev, "p0", 10, 10);
+    startBuild(dev);
+    const w0 = dev.players.get("p0")?.wallet ?? 0;
+    expect(placeBuilding(dev, "p0", { type: "floodlight", gx: 40, gy: 40, rot: 0 }).ok).toBe(true);
+    expect(dev.players.get("p0")?.wallet).toBe(w0 - 100);
+    expect(dev.buildings.list[0]).toMatchObject({ type: "floodlight", hp: 150, solid: true, minX: 20, maxX: 21, minY: 20, maxY: 21 });
     // Upgrade-only tiers stay unknown_type even with the switch (forSale is a different flag).
-    world.debug.shopAll = true;
-    expect(placementError(world, "p0", { type: "metal_barricade", gx: 50, gy: 50, rot: 0 })).toBe("unknown_type");
+    expect(placementError(dev, "p0", { type: "metal_barricade", gx: 50, gy: 50, rot: 0 })).toBe("unknown_type");
   });
 
   it("the footprint must lie inside the map; it may touch every edge, in both orientations (H2)", () => {

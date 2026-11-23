@@ -6,7 +6,7 @@ import type { DistrictMap } from "../map/districtMap";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { createHeadlessWorld, type BuildCommand, type InputLog } from "../replay/inputLog";
 import { botConfigOf, botInput, botViewFromWorld, createBotView, type BotView } from "./botPolicy";
-import { botBuildPhase, createBotShopResult } from "./botShop";
+import { botBuildPhase, botGearPrice, createBotShopResult } from "./botShop";
 import { zombieTypeIndex } from "../zombies/zombieTypes";
 
 /**
@@ -80,6 +80,12 @@ export interface HeadlessRunLog {
   upgrades: number[];
   /** Story 5.1: players' kills with a weapon above level I (liveness of upgrades in the sims). */
   upgradedKills: number;
+  /** Story 5.11: gear items bought by each bot, and what they spent on gear. */
+  gear: number[];
+  gearSpent: number[];
+  /** Story 5.11: each bot's owned-gear mask and max HP at the end of the run. */
+  gearMask: number[];
+  maxHp: number[];
   waves: HeadlessWaveLog[];
   /** Story 5.7 (liveness): Brutes spawned (by wave), killed, and the money paid in the ticks of their kills. */
   brutes: { spawnedInWave: number[]; killed: number; killPay: number };
@@ -121,6 +127,10 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     killsByWeapon: {},
     upgrades: ids.map(() => 0),
     upgradedKills: 0,
+    gear: ids.map(() => 0),
+    gearSpent: ids.map(() => 0),
+    gearMask: [],
+    maxHp: [],
     waves: [],
     brutes: { spawnedInWave: [], killed: 0, killPay: 0 },
     bloaters: { swellsInWave: [], burstsInWave: [], chains: 0, playerHits: 0 },
@@ -210,6 +220,8 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         log.buildingsPlaced[i] = (log.buildingsPlaced[i] as number) + shop.buildings;
         log.spent[i] = (log.spent[i] as number) + shop.spent;
         log.upgrades[i] = (log.upgrades[i] as number) + shop.upgrades;
+        log.gear[i] = (log.gear[i] as number) + shop.gear; // Story 5.11
+        for (const w of shop.bought) log.gearSpent[i] = (log.gearSpent[i] as number) + (botGearPrice(balance, w) ?? 0);
         if (shop.swap) swapNext[i] = true;
       });
     }
@@ -239,6 +251,8 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
   log.ticks = world.tick;
   log.earned = ids.map((id) => world.players.get(id)?.earned ?? 0);
   log.wallet = ids.map((id) => world.players.get(id)?.wallet ?? 0);
+  log.gearMask = ids.map((id) => world.players.get(id)?.gear ?? 0);
+  log.maxHp = ids.map((id) => world.players.get(id)?.maxHp ?? 0);
   return log;
 }
 

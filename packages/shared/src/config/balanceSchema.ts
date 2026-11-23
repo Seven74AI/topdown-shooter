@@ -426,7 +426,8 @@ export const playerSchema = z
     /** Story 2.8: a downed player is out after this long without a revive (paused while being revived). */
     downedS: z.number().positive(),
     /** A standing teammate this close (centre to centre) for `reviveS` revives a downed player. */
-    reviveS: z.number().positive(),
+    // Story 5.11 re-review: the synced revive need (`reviveNeed`) is a uint8 of ticks.
+    reviveS: z.number().positive().refine((s) => Math.round(s * TICK_RATE_HZ) <= 255, "reviveS × 20 must fit the uint8 reviveNeed"),
     reviveRadiusM: z.number().positive(),
     /** HP after a revive, as a fraction of max HP. */
     reviveHpFrac: z.number().gt(0).max(1),
@@ -803,6 +804,35 @@ export const combatSchema = z
   })
   .strict();
 
+/**
+ * Story 5.11: one gear item (FR48). Every number is an integer: max HP bonus, armor tier, speed
+ * bonus in integer percent (prediction stays bit-identical). `inShop: false` hides and refuses an
+ * item (the tactical flashlight until Story 6.3; dev: `DEV_SHOP_ALL=1` / `?shopall=1`).
+ */
+export const gearItemSchema = z
+  .object({
+    name: z.string().min(1).max(24),
+    price: z.number().int().min(0),
+    inShop: z.boolean().default(true),
+    /** Max HP added while this is the best armor owned (never summed with another armor). */
+    maxHpBonus: z.number().int().min(0).optional(),
+    /** Armor tier (1–2): owning a tier refuses every tier ≤ it; a higher tier replaces lower ones. */
+    armorTier: z.number().int().min(1).max(2).optional(),
+    /** Move speed bonus in integer percent (multiplies with slows). */
+    speedBonusPct: z.number().int().min(0).max(50).optional(),
+    /** Seconds the owner needs to revive a downed teammate (instead of `player.reviveS`). */
+    reviveS: z.number().positive().refine((s) => Math.round(s * TICK_RATE_HZ) <= 255, "reviveS × 20 must fit the uint8 reviveNeed").optional(),
+  })
+  .strict()
+  .refine((g) => (g.maxHpBonus === undefined) === (g.armorTier === undefined), "maxHpBonus and armorTier go together (armor)");
+
+/** Story 5.11: the gear items, in bit order (`PlayerState.gear` is a uint8 mask: at most 8). */
+export const gearSchema = z
+  .object({
+    items: z.record(balanceId, gearItemSchema).refine((r) => Object.keys(r).length <= 8, "at most 8 gear items (the gear mask is a uint8)"),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -816,6 +846,7 @@ export const balanceFileSchemas = {
   shop: shopSchema,
   decay: decaySchema,
   combat: combatSchema, // Story 5.5 (5.4 owns friendlyFire)
+  gear: gearSchema, // Story 5.11
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;
@@ -834,3 +865,4 @@ export type TrapStats = z.output<typeof trapSchema>;
 export type MineStats = z.output<typeof mineSchema>;
 export type LightStats = z.output<typeof lightSchema>;
 export type HealStats = z.output<typeof healSchema>;
+export type GearItemStats = z.output<typeof gearItemSchema>;

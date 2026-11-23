@@ -13,6 +13,7 @@ import { endRun, startBuild, startWave } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import { addBuildingAt, type Building } from "./buildings";
 import { inHealReach } from "./medStation";
+import { buyGear } from "../economy/gear";
 
 /**
  * Story 5.10: med station healing (fairness ACs 5–8, Beat the rule B1–B8, B15). One mechanic per
@@ -68,11 +69,15 @@ describe("Story 5.10 med station (AC 4–8)", () => {
   });
 
   it("review L1: the cap is exact: maxHp − 0.1 reaches exactly maxHp in one tick (100 and an armored 125), never above", () => {
-    for (const max of [100, 125]) {
-      const { world, place } = setup();
+    for (const armored of [false, true]) {
+      const { world, place } = setup({ phase: "build" });
       place(20, 16);
-      const p = player(world, "p0", 21.5, 16.5, max - 0.1);
-      p.maxHp = max;
+      const p = player(world, "p0", 21.5, 16.5, 100);
+      p.wallet = 1000;
+      if (armored) expect(buyGear(world, "p0", "body_armor_1").ok).toBe(true);
+      const max = p.maxHp;
+      expect(max).toBe(armored ? 125 : 100);
+      p.hp = max - 0.1;
       run(world, 1);
       expect(p.hp).toBe(max);
       run(world, 5);
@@ -236,11 +241,14 @@ describe("Story 5.10 med station (AC 4–8)", () => {
     expect(p.hp).toBeCloseTo(70, 6);
   });
 
-  it("caps at the player's own maxHp (5.11 armor: maxHp 125 heals to 125, never above) (B8)", () => {
-    const { world, place } = setup();
+  it("caps at the player's own maxHp with real 5.11 armor (body armor I: 125 heals to 125, never above) (B8)", () => {
+    const { world, place } = setup({ phase: "build" });
     place(20, 16);
-    const p = player(world, "p0", 21.5, 16.5, 110);
-    p.maxHp = 125;
+    const p = player(world, "p0", 21.5, 16.5, 100);
+    p.wallet = 1000;
+    expect(buyGear(world, "p0", "body_armor_1").ok).toBe(true);
+    expect(p.maxHp).toBe(125);
+    p.hp = 110;
     run(world, 200);
     expect(p.hp).toBe(125);
     p.maxHp = 100; // armor lost: above the cap is never healed further (and never raised)

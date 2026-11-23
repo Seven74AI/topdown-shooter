@@ -390,3 +390,53 @@ describe("Predictor: the Chainsaw's wielder slow (Story 5.2 F6)", () => {
   });
 });
 
+
+describe("Predictor: running shoes (Story 5.11, AC 5 / G8)", () => {
+  const SHOES = 4; // running_shoes bit
+  it("shoes: predicted = server over 200 ticks incl. a bite slow (0 corrections); the state with new gear rebases without a snap", () => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+    const sp = addPlayer(world, "p0", 10, 10);
+    const p = predictor(10, 10);
+    sp.gear = SHOES; // bought in the build phase before the first input
+    const history: { seq: number; x: number; y: number; slow: number; pct: number }[] = [];
+    let fastestStep = 0;
+    for (let seq = 1; seq <= 200; seq++) {
+      if (seq === 80) {
+        sp.slowTicksLeft = 20; // a Crawler bite on the server, seen by the client with the next acks
+        sp.slowPct = 30;
+      }
+      const input = move(seq, Math.cos(seq * 0.03), Math.sin(seq * 0.03));
+      p.applyLocal(input);
+      setInput(world, "p0", input);
+      step(world, TICK_DT_S);
+      fastestStep = Math.max(fastestStep, Math.hypot(sp.x - sp.prevX, sp.y - sp.prevY));
+      history.push({ seq, x: sp.x, y: sp.y, slow: sp.slowTicksLeft, pct: sp.slowPct });
+      const ack = history[history.length - 4];
+      if (ack) p.reconcile(ack.seq, Math.fround(ack.x), Math.fround(ack.y), "alive", ack.slow, ack.pct, 0, 0, 0, 0, SHOES);
+    }
+    expect(fastestStep).toBeCloseTo(balance.player.speedMps * 1.1 * TICK_DT_S, 9); // liveness: the server really ran with the shoes
+    expect(p.stats.snaps).toBe(0);
+    // The first reconcile shows the shoes (the inputs before it were predicted at base speed) and
+    // the bite onset each give at most one small correction; never a snap; then the paths agree.
+    expect(p.stats.corrections).toBeLessThanOrEqual(2);
+    expect(Math.hypot(p.x - sp.x, p.y - sp.y)).toBeLessThan(1e-5);
+  });
+
+  it("without gear in the reconcile the prediction drifts (the field is what makes it agree)", () => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+    const sp = addPlayer(world, "p0", 10, 10);
+    sp.gear = SHOES;
+    const p = predictor(10, 10);
+    const history: { seq: number; x: number; y: number }[] = [];
+    for (let seq = 1; seq <= 60; seq++) {
+      const input = move(seq, 1, 0);
+      p.applyLocal(input);
+      setInput(world, "p0", input);
+      step(world, TICK_DT_S);
+      history.push({ seq, x: sp.x, y: sp.y });
+      const ack = history[history.length - 4];
+      if (ack) p.reconcile(ack.seq, Math.fround(ack.x), Math.fround(ack.y), "alive");
+    }
+    expect(p.stats.corrections).toBeGreaterThan(10);
+  });
+});
