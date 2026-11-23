@@ -11,3 +11,5 @@ Own game server (port 2618, `DEV_STARTING_WALLET`) and Vite client (port 5218) �
 | `5-18-ten-end.png` | Final: 2 barricades, $20. |
 
 Measured (page state each sample): wall run — 3 `building_placed`, wallet 5000 → 4880 (charged once each), the shown wallet never below 4880, at most 2 boxes pending at once. Ten-tap run — the server log has **2 `building_placed`, 0 `building_refused`**, wallet 100 → 20, the shown wallet never below 20. No console or page errors in either run.
+
+Review M1 re-check (same setup, $5000): Place, then `window.__game.loop.sleep()` for 3 s, `wake()` → no toast in the next 2 s, the building built, wallet $4960 once, shown wallet never below $4960, no errors (`5-18-after-sleep.png`).

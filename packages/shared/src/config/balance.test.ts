@@ -17,7 +17,7 @@ import economy from "./balance/economy.json" with { type: "json" };
 const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear })) as RawBalanceFiles;
 
 /** Story 5.18: the chain and pending numbers in controls.build. */
-const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, chainUnpinWalkM: 2 } as const;
+const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, chainUnpinWalkM: 2, barQuietMs: 300 } as const;
 
 describe("loadBalance", () => {
   it("loads the bundled files into a typed object", () => {
@@ -196,7 +196,7 @@ describe("loadBalance", () => {
       delete (d.controls as { build: Record<string, unknown> }).build[k];
       expect(loadBalance(d).controls.build[k]).toBe(CHAIN[k]);
     }
-    for (const [k, bad] of [["pendingTimeoutMs", 100], ["pendingTimeoutMs", 10001], ["chainSendGapMs", 99], ["chainMinStepM", 0.4], ["chainUnpinWalkM", -1]] as const) {
+    for (const [k, bad] of [["pendingTimeoutMs", 100], ["pendingTimeoutMs", 10001], ["chainSendGapMs", 149], ["barQuietMs", 2001], ["chainMinStepM", 0.4], ["chainUnpinWalkM", -1]] as const) {
       const d = raw();
       (d.controls as { build: Record<string, unknown> }).build[k] = bad;
       expect(() => loadBalance(d)).toThrow(new RegExp(`controls\\.json: build\\.${k}: `));

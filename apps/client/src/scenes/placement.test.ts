@@ -595,6 +595,8 @@ describe("Story 5.18: place, place, place (chain, pin, pending-aware check)", ()
     expect(at("spike_trap", 0, 0, 1)).toEqual([-4, 0]); // 2 m
     expect(at("mine", 0, 0, -1)).toEqual([2, 0]); // 0.5 m mine jumps 1.0 m
     expect(chainOffset(0.5, 0.5, 0, -1, 2, o)).toEqual({ dgx: 4, dgy: 0 }); // the minimum comes from balance
+    expect(chainOffset(0.75, 0.75, 0, -1, 0.5, o)).toEqual({ dgx: 2, dgy: 0 }); // review L4: a 0.75 m footprint jumps 1 m (ceil), never into itself
+    expect(chainOffset(0.6, 0.6, 0, -1, 0.5, o)).toEqual({ dgx: 2, dgy: 0 }); // 0.6 m: rounding would jump 0.5 m, into itself
   });
 
   it("every buyable type in balance (5.10's floodlight and med station too) chains to a box that touches but never overlaps the last, every facing and rot", () => {

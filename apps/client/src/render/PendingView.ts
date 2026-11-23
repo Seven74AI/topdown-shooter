@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { PENDING_POOL, type PendingPlacements } from "../scenes/pendingPlacements";
+import type { PendingPlacements } from "../scenes/pendingPlacements";
 import { dashedRect } from "./dashes";
 import { newPendingLook, pendingLook } from "./pendingLook";
 
@@ -23,14 +23,17 @@ export class PendingView {
   private readonly boxes: Phaser.GameObjects.Graphics[] = [];
   private readonly spinners: Phaser.GameObjects.Graphics[] = [];
   /** What each slot's box was drawn for: the entry's order (0 = nothing) and colour. */
-  private readonly drawnOrder = new Float64Array(PENDING_POOL);
-  private readonly drawnRed = new Uint8Array(PENDING_POOL);
+  private readonly drawnOrder: Float64Array;
+  private readonly drawnRed: Uint8Array;
   private readonly look = newPendingLook();
   /** Box redraws so far (tests and browser checks read it). */
   redraws = 0;
 
-  constructor(scene: Phaser.Scene) {
-    for (let i = 0; i < PENDING_POOL; i++) {
+  /** `size`: the tracker's pool (`PendingPlacements.entries.length`, sized from balance at the run start). */
+  constructor(scene: Phaser.Scene, size: number) {
+    this.drawnOrder = new Float64Array(size);
+    this.drawnRed = new Uint8Array(size);
+    for (let i = 0; i < size; i++) {
       this.boxes.push(scene.add.graphics().setDepth(PENDING_DEPTH).setVisible(false));
       const s = scene.add.graphics().setDepth(PENDING_DEPTH).setVisible(false);
       s.lineStyle(SPINNER_LINE_M, WHITE, 0.9);
@@ -43,7 +46,8 @@ export class PendingView {
 
   update(pending: PendingPlacements, nowMs: number): void {
     const entries = pending.entries;
-    for (let i = 0; i < PENDING_POOL; i++) {
+    const n = Math.min(entries.length, this.boxes.length);
+    for (let i = 0; i < n; i++) {
       const e = entries[i];
       const g = this.boxes[i];
       const s = this.spinners[i];

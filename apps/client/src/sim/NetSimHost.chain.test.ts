@@ -6,6 +6,7 @@ import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost } from "./NetSimHost";
 import { CHAIN_MONEY_TEXT, Placement, placeRefusalText, stepPlacement, type PlacementFrame, type PlacementHud } from "../scenes/placement";
 import { PendingPlacements, newestBuildingId } from "../scenes/pendingPlacements";
+import { NO_ANSWER_TEXT, runPendingFrame, type PendingFlowScene } from "../scenes/pendingFlow";
 
 /**
  * Story 5.18 (AC 7–11, B1–B2): the chain and the pending boxes against a fake server that runs the
@@ -42,7 +43,7 @@ function rig(wallet: number, seed = 7) {
   const session = new NetSession(throttle, { playerId: "p1", slot: 1, tickRateHz: 20 }, () => {});
   const host = new NetSimHost({ balance, session, now: () => now });
   const pending = new PendingPlacements();
-  pending.configure(balance.controls.build.pendingTimeoutMs, balance.controls.build.chainSendGapMs);
+  pending.configure(balance.controls.build.pendingTimeoutMs, balance.controls.build.chainSendGapMs, balance.buildings.maxPerPlayer);
   const p = new Placement();
   const m: PlacementHud = { placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false };
   const toasts: string[] = [];
@@ -73,7 +74,13 @@ function rig(wallet: number, seed = 7) {
   const shown: [number, number, number][] = [];
   /** Server ticks are paused until this time (a server hitch: messages are still handled on arrival). */
   let stallUntil = 0;
+  /** The server drops every place unanswered (as the message guard would). */
+  let deaf = false;
   const handle = (): void => {
+    if (deaf) {
+      handled = room.sentOf(C2S.BUILDING_PLACE).length;
+      return;
+    }
     // the places that arrived, in order, between ticks (a refusal goes out at once, the building with the next patch)
     const sent = room.sentOf(C2S.BUILDING_PLACE) as PlaceRequest[];
     for (; handled < sent.length; handled++) {
@@ -87,10 +94,26 @@ function rig(wallet: number, seed = 7) {
   const serverTick = (): void => {
     room.state.tick++;
     room.state.phase = server.run.phase;
+    room.state.wave = server.waves.number;
     for (const b of server.buildings.list) room.state.buildings.set(String(b.id), { type: b.type, owner: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, hp: b.hp });
     const me = room.state.players.get("p1");
     if (me) me.wallet = server.players.get("p1")?.wallet ?? 0;
     room.patch();
+  };
+  let tapNow = false;
+  const dropped = { seen: 0 };
+  const send = (r: PlaceRequest): void => host.placeBuilding(r);
+  const scene: PendingFlowScene = {
+    beforeHost: () => {
+      f.wave = w().waves.number;
+      f.can = w().run.phase === "build";
+      f.nowMs = now;
+      m.confirmPressed = tapNow;
+      stepPlacement(p, m, { ...NEUTRAL_INPUT }, w(), f);
+    },
+    stepHost: () => host.update(FRAME_MS / 1000),
+    toast: (t) => toasts.push(t),
+    refusalText: (e) => placeRefusalText(e, balance),
   };
   const frame = (tap = false): void => {
     now += FRAME_MS;
@@ -100,17 +123,8 @@ function rig(wallet: number, seed = 7) {
       if (now >= stallUntil) serverTick();
       nextTick += TICK_MS;
     }
-    pending.update(w(), "p1", now);
-    f.wave = w().waves.number;
-    f.can = w().run.phase === "build";
-    f.nowMs = now;
-    m.confirmPressed = tap;
-    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w(), f);
-    pending.pump(now, (r) => host.placeBuilding(r));
-    pending.update(w(), "p1", now);
-    host.update(FRAME_MS / 1000);
-    pending.update(w(), "p1", now); // the patch just applied may carry my buildings and their charge
-    for (let r = host.takePlaceRefusal(); r !== null; r = host.takePlaceRefusal()) if (pending.refuse(r, now) !== "ghost") toasts.push(placeRefusalText(r, balance));
+    tapNow = tap;
+    runPendingFrame(pending, host, now, scene, send, dropped); // GameScene's order (review M2)
     shown.push([now, (w().players.get("p1")?.wallet ?? 0) - pending.money, server.players.get("p1")?.wallet ?? 0]);
   };
   const start = (): void => {
@@ -121,7 +135,21 @@ function rig(wallet: number, seed = 7) {
   const stall = (ms: number): void => {
     stallUntil = now + ms;
   };
-  return { server, room, host, pending, p, m, toasts, refusals, shown, frame, start, stall, now: () => now };
+  /** A hidden tab: no frame for `ms` (the server keeps ticking; the throttle isn't pumped). */
+  const sleep = (ms: number, during?: () => void): void => {
+    const end = now + ms;
+    while (nextTick <= end) {
+      serverTick();
+      nextTick += TICK_MS;
+      during?.();
+      during = undefined;
+    }
+    now = end - FRAME_MS; // the next frame lands at `end`
+  };
+  const setDeaf = (v: boolean): void => {
+    deaf = v;
+  };
+  return { server, room, host, pending, p, m, toasts, refusals, shown, frame, start, stall, sleep, setDeaf, now: () => now };
 }
 
 /** Longest stretch (ms) the shown wallet was below `final`. */
@@ -222,6 +250,62 @@ describe("Story 5.18: chain + pending under ?lag=150&jitter=20 (NetSimHost, fake
     expect(shook).toEqual([42]); // never the accepted box, and no "No answer" timeout
     expect(s.toasts).toEqual(["Can't build here"]);
     expect([s.pending.count, s.pending.money]).toEqual([0, 0]);
+  });
+
+  it("review M1: Place, then a hidden tab for 3 s: no false \"No answer\", the box becomes the building, charged once", () => {
+    const s = rig(5000);
+    s.start();
+    s.frame(true);
+    for (let i = 0; i < 6; i++) s.frame(); // sent; the server built it; the patch is still on its way
+    s.sleep(3000);
+    for (let i = 0; i < 60; i++) s.frame();
+    expect(s.toasts).toEqual([]);
+    expect(s.server.buildings.list.length).toBe(1);
+    expect(s.server.players.get("p1")?.wallet).toBe(4960);
+    expect([s.pending.count, s.shown.at(-1)?.[1]]).toEqual([0, 4960]);
+  });
+
+  it("review M1: the tab hides in the very frame of the Place (the send still queued): woken, the answer comes a round trip later and no box times out", () => {
+    const s = rig(5000);
+    s.start();
+    s.frame(true);
+    s.sleep(3000);
+    for (let i = 0; i < 60; i++) s.frame();
+    expect(s.toasts).toEqual([]);
+    expect(s.server.buildings.list.length).toBe(1);
+    expect([s.pending.count, s.shown.at(-1)?.[1]]).toEqual([0, 4960]);
+  });
+
+  it("review M1 / B3: a hidden tab across a build start with a box pending: cleared on the woken frame, no false toast", () => {
+    const s = rig(5000);
+    s.setDeaf(true); // the place never gets an answer before the phase ends
+    s.start();
+    s.frame(true);
+    s.frame();
+    s.sleep(5000, () => {
+      startWave(s.server);
+      startBuild(s.server); // the next build: a new wave number
+    });
+    s.frame();
+    expect([s.pending.count, s.pending.money]).toEqual([0, 0]);
+    for (let i = 0; i < 200; i++) s.frame();
+    expect(s.toasts).toEqual([]);
+    expect(s.shown.at(-1)?.[1]).toBe(5000);
+  });
+
+  it("a server that never answers: after 2 s the box shakes with \"No answer from the server\" and the money is shown back (AC 7, B8)", () => {
+    const s = rig(5000);
+    s.setDeaf(true);
+    s.start();
+    s.frame(true);
+    let maxPending = 0;
+    for (let i = 0; i < 160; i++) {
+      s.frame();
+      maxPending = Math.max(maxPending, s.pending.count);
+    }
+    expect(maxPending).toBe(1);
+    expect(s.toasts).toEqual([NO_ANSWER_TEXT]);
+    expect([s.pending.count, s.shown.at(-1)?.[1]]).toEqual([0, 5000]);
   });
 
   it("Place at the build→wave edge: refused not_build_phase, nothing charged, the box goes with the phase (B2)", () => {

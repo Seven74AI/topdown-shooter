@@ -51,7 +51,7 @@ so that I can build a wall in seconds.
 9. **Lifecycle (F1, brief 14).** A **phase change or a new wave number** clears every pending box (queued ones are never sent; nothing is charged by the client; a late building or `not_build_phase` refusal shows as server truth / a toast). This covers a hidden tab slept across a build start. A new run (scene restart) starts with no pending.
 10. **Fairness: the server decides (F1).** Pending boxes, the shown wallet and the chain are predictions; the server's `placeBuilding` rules and refusal codes are unchanged. **Placed + pending ≤ `maxPerPlayer`** on this device at all times.
 11. **Under `?lag=150&jitter=20`:** three quick Places give three buildings, no double charge (final wallet = start − 3 × price), and the shown wallet is never below the server's final wallet for longer than one round trip.
-12. **Numbers (brief 10).** `controls.json › build`: `pendingTimeoutMs 2000`, `chainSendGapMs 250`, `chainMinStepM 1.0`, `chainUnpinWalkM 2.0` (zod with bounds and defaults so older fixtures load). Shake/fade timings are the ux-spec's look constants next to the view. No allocation per frame: one pool of pending entries (16), one pool of box Graphics (each drawn once when a box takes the slot and once when it turns red), the spinner by `setRotation`, shake by `setPosition`, fade by `setAlpha`.
+12. **Numbers (brief 10).** `controls.json › build`: `pendingTimeoutMs 2000`, `chainSendGapMs 250`, `chainMinStepM 1.0`, `chainUnpinWalkM 2.0`, `barQuietMs 300` (review Q2) (zod with bounds and defaults so older fixtures load; send gap ≥ 150 ms, review L2). Shake/fade timings are the ux-spec's look constants next to the view. No allocation per frame: one pool of pending entries (16), one pool of box Graphics (each drawn once when a box takes the slot and once when it turns red), the spinner by `setRotation`, shake by `setPosition`, fade by `setAlpha`.
 13. **Tests:** `pendingPlacements.test.ts` (wallet/count maths, rate gap, FIFO refusals with an accepted box in between, timeout → ghost → late refusal, match by spot + newer id, two boxes on one spot, clear on phase/wave, pool limit); `placement.test.ts` (+ chain jump per type and rot, square to the right of facing, mine 1.0 m, blocked jump → carry, pinned stays while walking, unpin by walk and by view, ⟳ while pinned, pending-aware check: limit / money / overlap order, chain toasts, Place gate); `NetSimHost.buildings.test.ts` (refusal released after the next patch; several refusals in one frame); **`NetSimHost.chain.test.ts`** (a fake server with the shared `placeBuilding`, DevThrottle at 150 ms ± 20: three quick Places → three buildings, wallet once each, shown wallet bound; 10 taps with $100 → 2 sent, 2 charged; refusal at the build→wave edge); `balance.test.ts` (defaults/bounds). Browser check online with an own server + client at `?lag=150&jitter=20`: a 3-barricade wall in a few taps, no double charge, 10 taps with $100. Screenshots in `docs/art/5-18/`.
 
 ## Beat the rule (reviewer: try each, record the result)
@@ -118,7 +118,29 @@ None of the sim copies. NetSimHost (client) changes when a refusal is handed on;
 - `controls.json` / `balanceSchema.ts › buildControlsSchema`: four fields added after `reasonHoldMs` (5.19 adds its drag numbers after these).
 - `scenes/placement.ts`: `PlacementFrame` gains `pending`, `viewMinX/Y`, `viewMaxX/Y`; `Placement` gains `pinned`, `pin`/`unpin`, `chainStep`, `request`. **5.19**: hook the "↩ carry" chip to `unpin()` and make the drag set `pinned`; switch the chain direction to the last drag's side in `chainStep`.
 - `sim/NetSimHost.ts`: `takePlaceRefusal` releases after the next patch. **5.24 (move) / 5.22 (sell)** refusals carry no id either: reuse the same pattern.
+- **5.19 (designer via main session, Q3)**: 5.19's pin chip **replaces** the 2 m walk-away rule — set `controls.build.chainUnpinWalkM` to 0 (or drop the walk check in `Placement.carry`) when the chip lands.
+- **5.23 (Q1)**: keep "a blocked chain jump goes back to carry" (the red ghost on the last box); polish it there.
+- `scenes/pendingFlow.ts › runPendingFrame` (review M2) owns the per-frame order of the pending placements; GameScene's `beforeHostStep` / `hostStep` are its two scene steps. New per-frame work that must see this frame's boxes goes into `beforeHostStep`.
+- `SimHost` gains `placeRefusalsDropped` (review L1); a new host must count refusals it drops.
 - `scenes/GameScene.ts`: the shown wallet (`shownWallet()`) replaces the World wallet for the HUD, bar, hint and shop. **5.10** buildings need nothing (generic chain step); **5.12**'s consumable buy uses the shop's wallet (already the shown one).
+
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh agent dispatched by the main session, 2026-11-23. **Outcome:** 2 medium, 4 low, 1 nit; the oldest-first refusal design holds (B1 confirmed online: 2 placed, $100 → $20). Fixed on `story-5-18`; the mediums go to a re-review.
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| M1 | Medium | A spurious "No answer from the server" after a hidden tab / any frame gap > 2 s, although the building was built and charged (the timeout ran in the frame's first update, before the host applied the state that answered it). | Timeouts are checked only in the update after the host step (`update(…, timeouts)`), and they count **running time**: `clockMs` sums frame gaps capped at `MAX_FRAME_GAP_MS` = 100 ms, so a hidden tab or a hitch never times a box out. Tests: unit (one long gap, timeouts off, B3 clear on the woken frame) and netsim (Place then a 3 s hidden tab, with the send already out and with it still queued; a hidden tab across a build start). Browser: the reviewer's repro (Place, `loop.sleep()` 3 s, `wake()`) → no toast, built, $4960. |
+| M2 | Medium | GameScene's pending wiring was untested ("no match after host.update" and "the pump never sends" survived; the netsim copied the loop by hand and dropped the timeout toast). | New Phaser-free `scenes/pendingFlow.ts › runPendingFrame(pending, host, now, scene, send, dropped)`: update → `beforeHost` (placement step … input) → pump + update → `stepHost` → update with timeouts (toast) → dropped-refusal check → refusals. GameScene calls it with `beforeHostStep` / `hostStep`; the netsim test uses it too (+ a never-answering server: the timeout toast). `pendingFlow.test.ts` (fake host) pins the order. Both mutants killed. |
+| L1 | Low | After a stall > 10 s (a ghost forgotten) or > 8 refusals in one frame (ring overflow), refusals shifted to newer boxes. | `PendingPlacements.matching`: off once a ghost is forgotten while still awaiting, a still-awaiting box is evicted, or the host reports a dropped refusal (`SimHost.placeRefusalsDropped`, counted by NetSimHost's ring and LocalSimHost's slot → `lost()`); while off, refusals only toast; back on when no box awaits. |
+| L2 | Low | `chainSendGapMs` min 100 allowed 10/s (the guard's limit); the ghost keep counted from the send (timeout max 10 s = keep); `maxPerPlayer` max 64 > pool 16. | Send gap min **150** ms; the ghost keep counts 10 s of running time **from the timeout**; the pool is sized from balance (`configure`: max(16, 2 × maxPerPlayer + 4)) and the view from the pool. |
+| L3 | Low (accepted) | Two identical boxes on one spot, the first refused and the second accepted: the wrong one shakes. | **Accepted** (main session): same spot, same look; money and cap are right. |
+| L4 | Low | `chainOffset` rounded the step (a 0.6 m footprint would jump 0.5 m, into itself). | `Math.ceil` (with a 1e-9 guard). Test: 0.6 m and 0.75 m → 1 m. |
+| Q1–Q3 | Designer (main session) | Open questions. | Q1: keep ghost-back-to-hands (polish in 5.23). **Q2: build-bar taps within `controls.build.barQuietMs` = 300 ms after the hand empties pick nothing** (and the Shop tile does nothing): `BuildBarFrame.quiet`, `GameScene.handEmptiedMs` (test in `buildBar.test.ts`). Q3: 5.19's chip replaces the walk-away rule (Notes for the merge). |
+
+Gate after the fixes on the tree merged with master `609f9a2`: `npm run typecheck && npm run lint && npm test && npm run build` → exit 0; **272 files passed / 1 skipped, 2,252 tests passed / 3 skipped**; build OK. Load 0.65 at the start, 3.3 at the end (4-core container, this builder alone).
+
+Mutations of the fixes, one each, all **killed**: no frame-gap cap (unit and netsim, after adding the "send still queued" case); timeouts in every update; no match after the host step (netsim and flow test); the pump never sends; ghost expiry keeps pairing; dropped refusal ignored; ghost keep from the send; pool not sized from balance; quiet ignored; round instead of ceil; send gap min 100.
 
 ## Dev Agent Record
 
@@ -165,9 +187,15 @@ Claude (builder cloud session, 2026-11-23). Baseline `3bbb955` (master with 5.15
 - `apps/client/src/render/pendingLook.ts` (new)
 - `apps/client/src/render/pendingLook.test.ts` (new)
 - `apps/client/src/render/dashes.ts`
+- `apps/client/src/scenes/pendingFlow.ts`, `pendingFlow.test.ts` (new, review M2)
+- `apps/client/src/scenes/buildBar.ts`, `buildBar.test.ts` (Q2)
+- `apps/client/src/sim/SimHost.ts`, `apps/client/src/sim/LocalSimHost.ts` (review L1)
+- `apps/client/src/render/PendingView.ts` sized from the pool (review L2)
 - `docs/art/5-18/README.md`, `5-18-wall-pending.png`, `5-18-wall-built.png`, `5-18-wall-end.png`, `5-18-ten-taps.png`, `5-18-ten-end.png` (new)
 
 ### Change Log
+
+- 2026-11-23: Review fixes M1, M2, L1, L2, L4 + designer answers Q1–Q3 (Q2: 300 ms build-bar quiet window); L3 accepted; master `609f9a2` (5.26) merged. Status stays review (the mediums get a re-review).
 
 - 2026-11-23: Story written (gds-create-story) from the code on master `3bbb955`.
 - 2026-11-23: Built (gds-dev-story): pending tracker, chain + pin, refusal ordering in NetSimHost, pending view, shown wallet; master `69bd924` (5.10/5.11) merged; gate green. Status → review.

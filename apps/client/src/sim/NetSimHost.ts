@@ -242,6 +242,8 @@ export class NetSimHost implements SimHost {
   private readonly refusalTicks = new Float64Array(REFUSAL_RING);
   private refusalHead = 0;
   private refusalCount = 0;
+  /** Story 5.18 (review L1): refusals the full ring had to drop. */
+  placeRefusalsDropped = 0;
   /** Story 3.7: the latest `building.repair_refused`, until the scene takes it. */
   private repairRefusal: RepairError | null = null;
   /** Story 5.9: the last upgrade refusal, until the scene takes it. */
@@ -416,6 +418,7 @@ export class NetSimHost implements SimHost {
       // full (≤ 4 sends/s make this a broken link): the oldest goes; its box times out instead
       this.refusalHead = (this.refusalHead + 1) % REFUSAL_RING;
       this.refusalCount--;
+      this.placeRefusalsDropped++;
     }
     const i = (this.refusalHead + this.refusalCount) % REFUSAL_RING;
     this.refusals[i] = reason;

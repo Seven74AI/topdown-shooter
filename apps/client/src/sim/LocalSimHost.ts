@@ -89,8 +89,14 @@ export class LocalSimHost implements SimHost {
   /** Story 3.4: solo applies the placement at once (between steps, like the server's message handler). */
   placeBuilding(req: PlaceRequest): void {
     const r = placeBuilding(this.world, LOCAL_PLAYER_ID, req);
-    if (!r.ok) this.refusal = r.error;
+    if (!r.ok) {
+      if (this.refusal !== null) this.placeRefusalsDropped++; // Story 5.18 review L1: two in one frame (never paced like that)
+      this.refusal = r.error;
+    }
   }
+
+  /** Story 5.18 (review L1): refusals overwritten before the scene took them. */
+  placeRefusalsDropped = 0;
 
   takePlaceRefusal(): PlaceError | null {
     const r = this.refusal;

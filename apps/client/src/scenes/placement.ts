@@ -71,7 +71,7 @@ export function chainOffset(w: number, h: number, fx: number, fy: number, minSte
   const proj = alongX ? rx : ry;
   const sign = proj < -1e-6 ? -1 : 1;
   const len = Math.max(alongX ? w : h, minStepM);
-  const cells = Math.round(len / BUILD_GRID_M);
+  const cells = Math.ceil(len / BUILD_GRID_M - 1e-9); // review L4: never shorter than the footprint (a 0.75 m step is 2 cells)
   out.dgx = alongX ? sign * cells : 0;
   out.dgy = alongX ? 0 : sign * cells;
   return out;

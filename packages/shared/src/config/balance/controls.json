@@ -23,6 +23,7 @@
     "pendingTimeoutMs": 2000,
     "chainSendGapMs": 250,
     "chainMinStepM": 1.0,
-    "chainUnpinWalkM": 2.0
+    "chainUnpinWalkM": 2.0,
+    "barQuietMs": 300
   }
 }
