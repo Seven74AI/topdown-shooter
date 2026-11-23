@@ -4,7 +4,7 @@ baseline_commit: e2399a6ff7d2fe38b709c3b56827a90d2a3241e7
 
 # Story 5.9: Metal barricade, spike trap and mine
 
-Status: review
+Status: done
 
 ## Story
 

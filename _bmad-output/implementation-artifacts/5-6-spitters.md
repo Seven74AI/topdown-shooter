@@ -4,7 +4,7 @@ baseline_commit: e2399a6ff7d2fe38b709c3b56827a90d2a3241e7
 
 # Story 5.6: Spitters
 
-Status: review
+Status: done
 
 ## Story
 
@@ -345,3 +345,7 @@ Merged the work branch at `1614402` first (5.9 review fixes + M1c art): it merge
 ## Change Log
 
 - 2026-11-23: Story 5.6 built (Spitters: AI, spits, acid puddles, wire events, client look/sound/cue, tests, fuzz, sims, bandwidth, browser check). Status → review.
+
+### Re-review of the fixes (2026-11-23, fresh agent)
+
+No high or medium findings at 3e2dc4d. M1 correct on every path (same stale rule as `weapon.fired`; puddles back-dated on the client acid clock; build start clears in order; solo capped catch-up; late scene start clean). M2 only affects Spitters. L3 exact (60 ticks). `drawSpitter` (P4) top-down, built once into the atlas. Sims (5 waves, seeds 1–4, held out): 1p 2/4, 2p 2/4, 3p 4/4, 4p 4/4 (bots stand in acid and never dodge spits). Gate green (1,593 tests). Lows: (a) **correction:** acid reaches through any blocker thinner than the puddle radius (1.0 m), not 0.4 m — reachable in play when a missed glob lands next to the 0.5 m `parking_wall` or a barricade; **designer decision pending** (recommended: puddles don't hurt across walls, cars and buildings); (b) the "no sound for stale events" check in GameScene is not directly tested. Status: done.
