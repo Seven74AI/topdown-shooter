@@ -157,8 +157,8 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.set(id, view);
     }
     view.update(p, this.host?.alpha ?? 0, this.time.now);
-    // Story 4.11: flames, smoke and embers on every survivor the server reports burning.
-    if (p.status === "alive" && this.fireCue.burning(id, this.time.now)) this.burnView?.draw(view.x, view.y, this.playerRadiusM, this.time.now / 1000);
+    // Story 4.11 / 4.12: flames, smoke and embers on every survivor the server reports burning (dying down after).
+    this.burnView?.draw(id, view.x, view.y, this.playerRadiusM, p.status === "alive" && this.fireCue.burning(id, this.time.now));
   };
   /** Story 4.11: the burning cues on survivors (pooled). */
   private burnView: BurnView | null = null;
@@ -360,7 +360,7 @@ export class GameScene extends Phaser.Scene {
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.fireCue.clear(); // Story 4.8
-    this.burnView = new BurnView(this); // Story 4.11
+    this.burnView = new BurnView(this, urlOptions().lowFx); // Story 4.11 / 4.12 (?fx=low: half the particles)
     // Story 5.6: pools sized by the balance caps (created once per scene start).
     this.acidCue.clear();
     this.acidClockS = 0;
@@ -378,7 +378,7 @@ export class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, world.map.widthM, world.map.heightM);
     this.applyZoom();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
-    this.cityView = new CityView(this, world.map, cam.zoom);
+    this.cityView = new CityView(this, world.map, cam.zoom, urlOptions().lowFx);
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
@@ -853,9 +853,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Adds, updates and removes player views to match `world.players` (no allocation per frame). */
-  private syncPlayerViews(world: Readonly<World>): void {
+  private syncPlayerViews(world: Readonly<World>, dtS: number): void {
     this.playerViews.forEach(this.dropPlayerView); // deleting inside forEach is safe for a Map
-    this.burnView?.begin();
+    this.burnView?.begin(dtS, this.time.now / 1000);
     world.players.forEach(this.syncPlayerView);
     this.burnView?.end();
   }
@@ -978,7 +978,7 @@ export class GameScene extends Phaser.Scene {
     if (this.localHost?.paused !== true) this.acidClockS += deltaMs / 1000;
     this.acidView?.update(this.acidClockS);
     this.projectileView?.update(host.world.projectiles, host.alpha);
-    this.syncPlayerViews(host.world);
+    this.syncPlayerViews(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.downedView?.update(host.world, this.time.now);
     this.ambience?.update(host.world.decay.stage);
     this.buildingView?.update(host.world, this.placement);

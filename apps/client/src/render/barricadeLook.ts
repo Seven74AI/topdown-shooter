@@ -49,6 +49,46 @@ export function framePointToWorld(t: Readonly<SpriteTransform>, lx: number, ly: 
   return out;
 }
 
+export interface BoxOut {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/**
+ * Story 4.12: the world box of a band of the art across its whole length — frame-local y from `y0`
+ * to `y1` (m, at a 0.5 m deep frame; scaled with the footprint's depth) — under the building's
+ * rotation. The B6 palisade casts its tall shadow from its plank row only (`B6_ROW_Y0..Y1`), not
+ * from the low struts behind it.
+ */
+export function frameBandBox(b: FootprintLike, y0: number, y1: number, out: BoxOut): BoxOut {
+  const t = barricadeTransform(b, scratch);
+  const k = t.h / 0.5;
+  const c = Math.round(Math.cos(t.angle));
+  const s = Math.round(Math.sin(t.angle));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const lx of [-t.w / 2, t.w / 2]) {
+    for (const ly of [y0 * k, y1 * k]) {
+      const x = t.x + lx * c - ly * s;
+      const y = t.y + lx * s + ly * c;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  out.minX = minX;
+  out.minY = minY;
+  out.maxX = maxX;
+  out.maxY = maxY;
+  return out;
+}
+const scratch: SpriteTransform = { x: 0, y: 0, angle: 0, w: 0, h: 0 };
+
 /**
  * The art is drawn in true colours; Graphics and sprites above the baked light carry the night in
  * their colour (4.9 D4). A lighter darkening than `NIGHT_DARKEN` (0.35): the weathered wood is

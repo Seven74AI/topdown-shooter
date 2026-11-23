@@ -509,6 +509,37 @@ export function drawCar(g: G, L: number, W: number, variant: number): void {
   g.stroke();
 }
 
+/** Story 4.12 (fire-lab panel D): how burnt a burning car looks (the lab's 1.3). */
+export const CAR_CHAR = 1.3;
+
+/**
+ * Story 4.12: the burning car, in the game's own `drawCar` style, charred (fire-lab panel D's
+ * `bakeCar`): the same car darkened all over, a burnt black engine bay and cabin, soot blots. Only
+ * the car's own pixels are touched (`source-atop` inside the car's box).
+ */
+export function drawCharredCar(g: G, L: number, W: number, variant: number, char = CAR_CHAR): void {
+  drawCar(g, L, W, variant);
+  g.save();
+  g.beginPath();
+  g.rect(-L / 2, -W / 2, L, W);
+  g.clip();
+  g.globalCompositeOperation = "source-atop";
+  g.fillStyle = `rgba(10,8,6,${0.22 * char})`;
+  g.fillRect(-L, -W, 2 * L, 2 * W);
+  const blot = (x: number, y: number, r: number, a: number): void => {
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(8,6,5,${Math.min(1, a)})`);
+    gr.addColorStop(0.6, `rgba(14,10,8,${Math.min(1, a * 0.6)})`);
+    gr.addColorStop(1, "rgba(14,10,8,0)");
+    g.fillStyle = gr;
+    g.fillRect(x - r, y - r, 2 * r, 2 * r);
+  };
+  blot(L * 0.33, 0, 30, 0.85 * char); // engine bay
+  blot(-L * 0.08, 0, 30, 0.7 * char); // cabin
+  for (let i = 0; i < 9; i++) blot((hash(i * 3.1 + variant) - 0.5) * L * 0.9, (hash(i * 5.7 + variant) - 0.5) * W * 0.8, 6 + hash(i * 1.3) * 12, 0.55 * char);
+  g.restore();
+}
+
 export function drawPump(g: G, w: number, h: number): void {
   g.fillStyle = "#4a4a47";
   g.fillRect(0, 0, w, h);
@@ -564,36 +595,6 @@ export function drawBarrier(g: G, w: number, h: number): void {
   g.fill();
   circle(g, w - 5, h / 2, 2.6);
   g.fill();
-}
-
-export function drawSandbags(g: G, w: number, h: number): void {
-  const bag = 19.2;
-  const per = Math.max(1, Math.floor(w / bag));
-  for (const [row, oy, off] of [
-    [0, 9, 0],
-    [1, h - 9, bag / 2],
-  ] as const) {
-    for (let i = 0; i < per; i++) {
-      const bx = off + bag / 2 + i * bag;
-      if (bx > w - 6) continue;
-      g.fillStyle = row ? "#7a7058" : "#6c6350";
-      ell(g, bx, oy, bag / 2, 7.5);
-      g.fill();
-      g.fillStyle = "rgba(255,255,255,0.12)";
-      ell(g, bx - 2, oy - 2.5, 5, 2.5);
-      g.fill();
-      g.strokeStyle = "rgba(0,0,0,0.35)";
-      g.lineWidth = 0.8;
-      g.beginPath();
-      g.moveTo(bx - 6, oy);
-      g.lineTo(bx + 6, oy);
-      g.stroke();
-      g.strokeStyle = "#0a0a0b";
-      g.lineWidth = 1.1;
-      ell(g, bx, oy, bag / 2, 7.5);
-      g.stroke();
-    }
-  }
 }
 
 /** A dumpster seen from above (a `block` mutation): green steel, two lids, corner caps. */

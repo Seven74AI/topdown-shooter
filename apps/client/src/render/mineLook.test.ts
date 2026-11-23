@@ -84,7 +84,7 @@ describe("Story 5.9: the buildings atlas", () => {
     const layout = packAtlas(specs);
     expect(layout.width).toBeLessThanOrEqual(MAX_ATLAS_PX);
     expect(layout.height).toBeLessThanOrEqual(MAX_ATLAS_PX);
-    for (const type of ["reinforced_barricade", "metal_barricade", "spike_trap", "mine"]) {
+    for (const type of ["wood_barricade", "reinforced_barricade", "metal_barricade", "spike_trap", "mine"]) {
       const f = buildingFrame(type);
       expect(f?.texture).toBe(ATLAS_BUILDINGS);
       const spec = specs.find((s) => s.name === f?.frame);
@@ -93,7 +93,6 @@ describe("Story 5.9: the buildings atlas", () => {
       expect([spec?.w, spec?.h]).toEqual([(stats?.widthM ?? 0) * BUILDINGS_PX_PER_M, (stats?.depthM ?? 0) * BUILDINGS_PX_PER_M]);
     }
     expect(buildingFrame("auto_turret")).toBeNull(); // keeps its plank box + turret plate
-    expect(buildingFrame("wood_barricade")?.texture).not.toBe(ATLAS_BUILDINGS); // 4.11's B6 sprite
   });
 
   it("review M1: a turret next to wearing traps never changes the re-lay key; the turret's own wear does", () => {

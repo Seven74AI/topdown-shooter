@@ -61,6 +61,11 @@ export interface UrlOptions {
    * round the survivor for the phone benchmark with the new floor buildings active; false otherwise.
    */
   stressBuild: boolean;
+  /**
+   * `?fx=low` (Story 4.12, release-safe): the low-quality fire — half the particles of every burning
+   * car and survivor (caps and spawn rates halved). false otherwise.
+   */
+  lowFx: boolean;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -95,6 +100,7 @@ export function parseUrlOptions(search: string): UrlOptions {
     waveMix: q.get("wavemix"),
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
+    lowFx: q.get("fx")?.trim().toLowerCase() === "low",
   };
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SimEvent } from "@topdown/shared";
 import { FIRE_CUE_MS, FireCue } from "./fireCue";
-import { EDGE_GLOW_MAX, EDGE_GLOW_MIN, FIRE_HIT_QUEUE, FIRE_POP_MS, FIRE_POP_POOL, PopPool, bodyFlameSpot, edgeGlowAlpha, fireDamageLabel, routeFireHit } from "./burnCue";
+import { EDGE_GLOW_MAX, EDGE_GLOW_MIN, FIRE_HIT_QUEUE, FIRE_POP_MS, FIRE_POP_POOL, PopPool, edgeGlowAlpha, fireDamageLabel, routeFireHit } from "./burnCue";
 
 const fireHit = (playerId: string, amount = 5): SimEvent => ({ type: "player.damaged", playerId, amount, sourceZombieId: -1 });
 const bite = (playerId: string): SimEvent => ({ type: "player.damaged", playerId, amount: 10, sourceZombieId: 3 });
@@ -66,11 +66,4 @@ describe("Story 4.11: burning cues from the server's fire events", () => {
     for (let i = 0; i < FIRE_POP_POOL; i++) expect(pool.alive(i, 5000)).toBe(false);
   });
 
-  it("body flames stay on the body", () => {
-    const out = { x: 0, y: 0 };
-    for (let i = 0; i < 3; i++) {
-      bodyFlameSpot(i, 3, 1.23, 0.4, out);
-      expect(Math.hypot(out.x, out.y)).toBeLessThanOrEqual(0.4);
-    }
-  });
 });

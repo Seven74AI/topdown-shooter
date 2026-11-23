@@ -3,6 +3,8 @@ import type { CoverObject, MapBox } from "@topdown/shared";
 import { bakeTiles, type BakeTile } from "./bakeTiles";
 import { baseKey, drawOverlay, mapBounds, type CityScene } from "./drawCity";
 import { downtownScene } from "./testScene";
+import { packAtlas } from "./atlasLayout";
+import { downtownSpecs } from "./spriteAtlas";
 
 /** A fake 2D context: records every call and property write (no DOM). */
 function recorder(): { ctx: CanvasRenderingContext2D; log: string[] } {
@@ -86,10 +88,13 @@ describe("random streams at the call sites (re-review L4)", () => {
     expect(overlayLog(downtownScene(2))).toBe(overlayLog(cs));
     expect(overlayLog(renamed)).not.toBe(overlayLog(cs));
   });
-  it("renaming a fire (same spot) changes its flames", () => {
-    const cs = downtownScene(3, 0b01001111);
+  it("Story 4.12: the burning car is baked charred (its target's frame), and no flame is baked any more (the view's particles)", () => {
+    const frames = new Map(packAtlas(downtownSpecs()).frames.map((f) => [f.name, f] as const));
+    const cs: CityScene = { ...downtownScene(3, 0b01001111), atlas: { canvas: null, frames } as unknown as CityScene["atlas"] };
     expect(cs.fires.length).toBe(1);
     const renamed: CityScene = { ...cs, fires: cs.fires.map((f) => ({ ...f, name: `${f.name}X` })) };
-    expect(overlayLog(renamed)).not.toBe(overlayLog(cs));
+    expect(overlayLog(renamed)).toBe(overlayLog(cs)); // 4.11's static flames (seeded by the fire's name) are gone
+    const notACar: CityScene = { ...cs, fires: cs.fires.map((f) => ({ ...f, target: "nothing" })) };
+    expect(overlayLog(notACar)).not.toBe(overlayLog(cs)); // same scorch, but the car is drawn from its normal frame
   });
 });

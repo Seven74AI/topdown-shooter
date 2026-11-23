@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import type { DistrictMap, FireRecord, World } from "@topdown/shared";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
-import { MAP_PX_PER_M, dressingFor, type Dressing } from "./dressing";
+import { MAP_PX_PER_M, carStyle, dressingFor, type Dressing } from "./dressing";
 import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, type CityScene } from "./drawCity";
 import { bakeTiles } from "./bakeTiles";
 import { LAMP, LAMP_GLOW, nightAt } from "./palette";
@@ -9,24 +9,8 @@ import { ATLAS_FX, FX_GLOW, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type
 import { hash } from "./spriteArt";
 import { addCanvasTexture, releaseCanvas } from "./canvasTexture";
 import { staticKey } from "./stageFilter";
-import {
-  FIRE_EMBERS,
-  FIRE_EMBER_FLICKER_HZ,
-  FIRE_EMBER_M,
-  FIRE_RING_ALPHA,
-  FIRE_RING_COLOR,
-  RING_FLAMES_MAX,
-  RING_FLAME_FLICKER_HZ,
-  damageTickPulse,
-  emberSpot,
-  fireRingWidthM,
-  ringFlameCount,
-  ringFlameMarksEdge,
-  ringFlameSizeM,
-  ringFlameSpot,
-  strokeFireRings,
-} from "./fireRing";
-import { ATLAS_OBJECTS, FLAME_FRAMES, SMOKE_FRAMES } from "./objectsAtlas";
+import { FIRE_RING_ALPHA, FIRE_RING_COLOR, FIRE_RING_GLOW_PX, damageTickPulse, fireRingGlowAlpha, fireRingWidthM, strokeFireRings, strokeFireRingGlows } from "./fireRing";
+import { FireView } from "./FireView";
 
 /**
  * Story 4.9: the Dead City look of the district (look B). Static layers (ground, shadows, buildings,
@@ -48,15 +32,6 @@ const STATIC_DEPTH = 0;
 const DYN_LIGHT_DEPTH = 4.32;
 /** Story 4.8 review M3: the fire ring and its embers lie on the ground: above blood (1), below barricades (3). */
 const FIRE_RING_DEPTH = 1.5;
-/**
- * Story 4.11: ring flames on the ground with the ring; the car's flames above the car (and the
- * dynamic lights); review fix (L3): the smoke above the car flames but BELOW zombies (4.5–5.5) and
- * survivors (10), so it never hides an approaching zombie; sparks above the characters, below the rain.
- */
-const RING_FLAME_DEPTH = 1.6;
-const CAR_FLAME_DEPTH = 4.36;
-const SMOKE_DEPTH = 4.38;
-const SPARK_DEPTH = 11.6;
 const RAIN_DEPTH = 11.8;
 const VIGNETTE_DEPTH = 11.9;
 
@@ -94,35 +69,8 @@ const BLINK_BUS_HZ = 6 / (2 * Math.PI);
 const BLINK_BUS_M = 1.6;
 const BLINK_BARRIER_M = 1.1;
 const BLINK_COLOR = 0xff9628;
-/** Burning cars: at most this many lit, the light's size and colour, its flicker rate. */
+/** Burning cars: at most this many drawn (Story 4.12: each a pooled particle fire, `FireView`). */
 const FIRE_LIGHTS = 4;
-const FIRE_LIGHT_M = 4; // review M3: the flicker light's size = the zone's diameter (2 × 2 m), no glow past the ring
-const FIRE_COLOR = 0xff7a28;
-const FIRE_FLICKER_HZ = 9;
-/**
- * Story 4.11 (designer pick F6): the burning car's live effects, per fire (at most `FIRE_LIGHTS`):
- * ring flames (fireRing.ts), flames over the car, a smoke plume drifting to the lower right (the
- * shadow side of the scene's light) and rising sparks. All pooled; positions of the ring flames are
- * set once per bake; per frame only frame / size / alpha change.
- */
-const CAR_FLAMES = 4;
-const CAR_FLAME_SPREAD_M = 0.7;
-const CAR_FLAME_M = 1.1;
-const CAR_FLAME_FLICKER_HZ = 10;
-const SMOKE_PER_FIRE = 6;
-const SMOKE_LOOP_S = 3.2;
-const SMOKE_START_M = 1.2;
-const SMOKE_END_M = 3;
-const SMOKE_DRIFT_X_M = 3.2;
-const SMOKE_DRIFT_Y_M = 2.2;
-const SMOKE_ALPHA = 0.4;
-/** Grey smoke lit from below by the fire (a dark tint vanished on the night street). */
-const SMOKE_TINT = 0x9a8f86;
-const SPARKS_PER_FIRE = 10;
-const SPARK_LOOP_S = 1.3;
-const SPARK_M = 0.09;
-const SPARK_RISE_M = 1.8;
-const SPARK_COLOR = 0xffb050;
 
 /**
  * Vignette: four edge bands, each this fraction of the view's smaller side (corners get two). Not
@@ -161,22 +109,13 @@ export class CityView {
   private readonly flickerCore: Phaser.GameObjects.Image;
   private readonly busBlink: Phaser.GameObjects.Image[] = [];
   private readonly barrierBlink: Phaser.GameObjects.Image[] = [];
-  /** Flickering light over each burning car (`world.decay.fires`). */
-  private readonly fireLight: Phaser.GameObjects.Image[] = [];
-  /** Story 4.8 review M3: the ember ring at each zone's damage edge, and its ember dots. */
+  /** Story 4.8 review M3: the thin ring at each zone's damage edge; Story 4.12: its soft glow just inside it. */
   private readonly fireRing: Phaser.GameObjects.Graphics;
-  private readonly embers: Phaser.GameObjects.Image[] = [];
+  private readonly fireRingGlow: Phaser.GameObjects.Graphics;
   private fires: readonly FireRecord[] = [];
-  /** Story 4.11: the live fire effects (pooled per fire slot) and each ring flame's shown frame. */
-  private readonly ringFlames: Phaser.GameObjects.Image[] = [];
-  private readonly ringFrame = new Int8Array(FIRE_LIGHTS * RING_FLAMES_MAX).fill(-1);
-  private readonly ringCount = new Int32Array(FIRE_LIGHTS);
-  private readonly carFlames: Phaser.GameObjects.Image[] = [];
-  private readonly smoke: Phaser.GameObjects.Image[] = [];
-  private readonly sparks: Phaser.GameObjects.Image[] = [];
-  private readonly spot = { x: 0, y: 0 };
+  /** Story 4.12: the code-drawn particle fire of every burning car (lab panel D). */
+  readonly fireView: FireView;
   private ringZoom = -1;
-  private readonly ember = { x: 0, y: 0 };
   private readonly rain: Phaser.GameObjects.Image[] = [];
   private readonly splash: Phaser.GameObjects.Image[] = [];
   /** Top, bottom, left, right edge bands. */
@@ -198,6 +137,8 @@ export class CityView {
     private readonly map: DistrictMap,
     /** Camera zoom (device px per metre) when the run starts: the bake density (D2). */
     zoomPxPerM: number,
+    /** Story 4.12: `?fx=low`, half the fire particles. */
+    lowFx = false,
   ) {
     this.dressing = dressingFor(map.name);
     this.atlas = ensureAtlases(scene);
@@ -229,15 +170,9 @@ export class CityView {
     }
     for (let i = 0; i < 2; i++) this.busBlink.push(glowImg(BLINK_BUS_M, BLINK_COLOR));
     for (let i = 0; i < BARRIER_LAMPS; i++) this.barrierBlink.push(glowImg(BLINK_BARRIER_M, BLINK_COLOR));
-    for (let i = 0; i < FIRE_LIGHTS; i++) this.fireLight.push(glowImg(FIRE_LIGHT_M, FIRE_COLOR));
     this.fireRing = scene.add.graphics().setDepth(FIRE_RING_DEPTH);
-    for (let i = 0; i < FIRE_LIGHTS * FIRE_EMBERS; i++) this.embers.push(glowImg(FIRE_EMBER_M, FIRE_RING_COLOR).setDepth(FIRE_RING_DEPTH));
-    const objImg = (frame: string, depth: number): Phaser.GameObjects.Image => scene.add.image(0, 0, ATLAS_OBJECTS, frame).setDepth(depth).setVisible(false);
-    // Flames use normal blending: their PNG carries full-strength colour with alpha from brightness (additive saturated to yellow-green over the lit car).
-    for (let i = 0; i < FIRE_LIGHTS * RING_FLAMES_MAX; i++) this.ringFlames.push(objImg(FLAME_FRAMES[0] as string, RING_FLAME_DEPTH));
-    for (let i = 0; i < FIRE_LIGHTS * CAR_FLAMES; i++) this.carFlames.push(objImg(FLAME_FRAMES[i % FLAME_FRAMES.length] as string, CAR_FLAME_DEPTH));
-    for (let i = 0; i < FIRE_LIGHTS * SMOKE_PER_FIRE; i++) this.smoke.push(objImg(SMOKE_FRAMES[i % SMOKE_FRAMES.length] as string, SMOKE_DEPTH).setTint(SMOKE_TINT));
-    for (let i = 0; i < FIRE_LIGHTS * SPARKS_PER_FIRE; i++) this.sparks.push(glowImg(SPARK_M, SPARK_COLOR).setDepth(SPARK_DEPTH));
+    this.fireRingGlow = scene.add.graphics().setDepth(FIRE_RING_DEPTH).setBlendMode(Phaser.BlendModes.ADD);
+    this.fireView = new FireView(scene, FIRE_LIGHTS, lowFx);
     for (let i = 0; i < RAIN_POOL; i++) {
       this.rain.push(scene.add.image(0, 0, ATLAS_FX, FX_RAIN).setDisplaySize(RAIN_W_M, RAIN_LEN_M).setRotation(-Math.atan(RAIN_SLANT)).setDepth(RAIN_DEPTH).setVisible(false));
       this.dropSpeed[i] = RAIN_SPEED_MPS + hash(i + 0.5) * RAIN_SPEED_VAR_MPS;
@@ -291,20 +226,25 @@ export class CityView {
     const spots = blinkerSpots(cs);
     this.placeBlinkers(this.busBlink, spots.bus);
     this.placeBlinkers(this.barrierBlink, spots.barrier);
-    this.placeBlinkers(this.fireLight, cs.fires.map((f) => [f.x * MAP_PX_PER_M, f.y * MAP_PX_PER_M] as [number, number]));
     this.fires = cs.fires;
     this.ringZoom = -1; // redraw the ring
-    this.placeFireFx();
+    // Story 4.12: the particle fires follow the bake's fires; flames on the car follow its facing.
+    this.fireView.setFires(cs.fires, (f) => {
+      const car = o.cover.find((c) => c.name === f.target);
+      if (!car) return 0;
+      const front = carStyle(this.dressing, car.name, car.maxX - car.minX, car.maxY - car.minY).front;
+      return front === "right" ? 0 : front === "down" ? Math.PI / 2 : front === "left" ? Math.PI : -Math.PI / 2;
+    });
     this.bakeMs = performance.now() - t0;
     this.bakeCount++;
   }
 
   /**
-   * Story 4.8 review M3: the ember ring at each burning zone's damage edge (`fireRingRadiusM`: a body
-   * touching it burns), ~2 px whatever the zoom (redrawn only when the zoom or the fires change), and
-   * the ember dots drifting and flickering on it (pooled, alpha and position only).
+   * Story 4.8 review M3: the thin ring at each burning zone's damage edge (`fireRingRadiusM`: a body
+   * touching it burns), ~2 px whatever the zoom (redrawn only when the zoom or the fires change).
+   * Story 4.12 (lab panel D): a soft additive band just inside it, pulsing with the damage tick.
    */
-  private updateFireRing(t: number): void {
+  private updateFireRing(t: number, pulseS: number): void {
     const zoom = this.scene.cameras.main.zoom;
     const fires = this.fires;
     if (zoom !== this.ringZoom) {
@@ -313,89 +253,12 @@ export class CityView {
       g.clear();
       g.lineStyle(fireRingWidthM(zoom), FIRE_RING_COLOR, FIRE_RING_ALPHA);
       strokeFireRings(g, fires, FIRE_LIGHTS);
+      const glow = this.fireRingGlow;
+      glow.clear();
+      glow.lineStyle(FIRE_RING_GLOW_PX / Math.max(1e-6, zoom), FIRE_RING_COLOR, 1);
+      strokeFireRingGlows(glow, fires, FIRE_LIGHTS, zoom);
     }
-    for (let i = 0; i < this.embers.length; i++) {
-      const img = this.embers[i] as Phaser.GameObjects.Image;
-      const f = fires[Math.floor(i / FIRE_EMBERS)];
-      if (!f) {
-        if (img.visible) img.setVisible(false);
-        continue;
-      }
-      emberSpot(f, i % FIRE_EMBERS, FIRE_EMBERS, t, this.ember);
-      img.setPosition(this.ember.x, this.ember.y).setVisible(true).setAlpha(0.25 + 0.6 * hash(Math.floor(t * FIRE_EMBER_FLICKER_HZ) + i * 13));
-    }
-  }
-
-  /** Story 4.11: shows the pooled fire effects of the burning fires (hides the rest); ring flames sit on the ring. */
-  private placeFireFx(): void {
-    for (let s = 0; s < FIRE_LIGHTS; s++) {
-      const f = this.fires[s];
-      const n = f ? ringFlameCount(f) : 0;
-      this.ringCount[s] = n;
-      for (let i = 0; i < RING_FLAMES_MAX; i++) {
-        const img = this.ringFlames[s * RING_FLAMES_MAX + i] as Phaser.GameObjects.Image;
-        if (f && i < n) {
-          ringFlameSpot(f, i, n, this.spot);
-          // inside another burning zone it marks no edge (the edge of the union is what burns): hidden
-          img.setPosition(this.spot.x, this.spot.y).setRotation(hash(i * 3.7 + s) * Math.PI * 2).setVisible(ringFlameMarksEdge(this.fires, s, this.spot.x, this.spot.y));
-        } else img.setVisible(false);
-      }
-      for (const [pool, per] of [
-        [this.carFlames, CAR_FLAMES],
-        [this.smoke, SMOKE_PER_FIRE],
-        [this.sparks, SPARKS_PER_FIRE],
-      ] as const) {
-        for (let i = 0; i < per; i++) (pool[s * per + i] as Phaser.GameObjects.Image).setVisible(f !== undefined);
-      }
-    }
-  }
-
-  /** Story 4.11: flicker, the damage-tick pulse, smoke and sparks (alpha / size / position only). */
-  private updateFireFx(t: number, pulseS: number): void {
-    const pulse = damageTickPulse(t, pulseS);
-    for (let s = 0; s < FIRE_LIGHTS; s++) {
-      const f = this.fires[s];
-      if (!f) continue;
-      const step = Math.floor(t * RING_FLAME_FLICKER_HZ);
-      const n = this.ringCount[s] as number;
-      for (let i = 0; i < n; i++) {
-        const k = s * RING_FLAMES_MAX + i;
-        const img = this.ringFlames[k] as Phaser.GameObjects.Image;
-        const fr = (step + i * 7 + s * 3) % FLAME_FRAMES.length;
-        if (this.ringFrame[k] !== fr) {
-          this.ringFrame[k] = fr;
-          img.setFrame(FLAME_FRAMES[fr] as string);
-        }
-        const flick = hash(step * 1.3 + i * 13.1 + s * 5.7);
-        const size = ringFlameSizeM(flick, pulse); // review fix: the size the inset is computed for
-        img.setDisplaySize(size, size).setAlpha(0.6 + 0.25 * flick + 0.15 * pulse);
-      }
-      const cstep = Math.floor(t * CAR_FLAME_FLICKER_HZ);
-      for (let i = 0; i < CAR_FLAMES; i++) {
-        const img = this.carFlames[s * CAR_FLAMES + i] as Phaser.GameObjects.Image;
-        const flick = hash(cstep * 0.7 + i * 9.3 + s);
-        const size = CAR_FLAME_M * (0.7 + 0.5 * flick);
-        img.setPosition(f.x + (hash(i * 4.1 + s) - 0.5) * 2 * CAR_FLAME_SPREAD_M, f.y + (hash(i * 6.3 + s) - 0.5) * CAR_FLAME_SPREAD_M);
-        img.setDisplaySize(size, size).setAlpha(0.7 + 0.3 * flick).setRotation(flick * 0.6);
-      }
-      for (let i = 0; i < SMOKE_PER_FIRE; i++) {
-        const img = this.smoke[s * SMOKE_PER_FIRE + i] as Phaser.GameObjects.Image;
-        const ph0 = t / SMOKE_LOOP_S + i / SMOKE_PER_FIRE + s * 0.21;
-        const ph = ph0 - Math.floor(ph0);
-        const size = SMOKE_START_M + (SMOKE_END_M - SMOKE_START_M) * ph;
-        const wob = (hash(Math.floor(ph0) * 3.3 + i) - 0.5) * 0.8;
-        img.setPosition(f.x + SMOKE_DRIFT_X_M * ph + wob, f.y + SMOKE_DRIFT_Y_M * ph * ph - 0.3 + wob * 0.5);
-        img.setDisplaySize(size, size).setRotation(ph0 * 0.8 + i).setAlpha(SMOKE_ALPHA * Math.min(1, ph * 6) * (1 - ph));
-      }
-      for (let i = 0; i < SPARKS_PER_FIRE; i++) {
-        const img = this.sparks[s * SPARKS_PER_FIRE + i] as Phaser.GameObjects.Image;
-        const ph0 = t / SPARK_LOOP_S + i / SPARKS_PER_FIRE + s * 0.37;
-        const ph = ph0 - Math.floor(ph0);
-        const cyc = Math.floor(ph0);
-        const ox = (hash(cyc * 7.1 + i * 3.3 + s) - 0.5) * 2 * CAR_FLAME_SPREAD_M;
-        img.setPosition(f.x + ox + ph * 0.8, f.y - ph * SPARK_RISE_M).setAlpha(1 - ph);
-      }
-    }
+    this.fireRingGlow.setAlpha(fireRingGlowAlpha(damageTickPulse(t, pulseS)));
   }
 
   private placeBlinkers(imgs: Phaser.GameObjects.Image[], spots: [number, number][]): void {
@@ -432,12 +295,8 @@ export class CityView {
     const bar = Math.sin(t * 4 + 1) > 0 ? 0.45 : 0.1;
     // Each barrier's two lamps alternate (spots come in pairs per barrier).
     for (let i = 0; i < this.barrierBlink.length; i++) (this.barrierBlink[i] as Phaser.GameObjects.Image).setAlpha(i % 2 === 0 ? bar : 0.55 - bar);
-    for (let i = 0; i < this.fireLight.length; i++) {
-      const f = this.fireLight[i] as Phaser.GameObjects.Image;
-      if (f.visible) f.setAlpha(0.28 + 0.22 * hash(Math.floor(t * FIRE_FLICKER_HZ) + i * 17));
-    }
-    this.updateFireRing(t);
-    this.updateFireFx(t, world.balance.decay.fire.pulseS);
+    this.updateFireRing(t, world.balance.decay.fire.pulseS);
+    this.fireView.update(dtS, t, viewX, viewY, viewW, viewH);
 
     const level = nightAt(this.stage).rain;
     const spanY = viewH + 2 * RAIN_MARGIN_M;
@@ -487,6 +346,8 @@ export class CityView {
     releaseCanvas(this.glow);
     this.tiles.length = 0;
     this.fireRing.destroy();
-    for (const img of [this.flickerPool, this.flickerCore, ...this.busBlink, ...this.barrierBlink, ...this.fireLight, ...this.embers, ...this.ringFlames, ...this.carFlames, ...this.smoke, ...this.sparks, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
+    this.fireRingGlow.destroy();
+    this.fireView.destroy();
+    for (const img of [this.flickerPool, this.flickerCore, ...this.busBlink, ...this.barrierBlink, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
   }
 }
