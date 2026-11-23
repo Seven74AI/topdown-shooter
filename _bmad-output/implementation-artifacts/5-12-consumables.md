@@ -221,7 +221,7 @@ Claude (builder session, cloud).
   combat system); thrown items in 5.5's pool (`item`) with `landConsumable` (hand-grenade blast / molotov zone);
   molotov zones and the shared fire pass; schema, sync, views, mirror, snapshot; events; client E key, HUD button
   with pending, throw ring, flights with HG/MB art, the molotov fire view, CI4 icons, shop section; bots; fuzz, sims,
-  bandwidth, perf, readability rows 37–40.
+  bandwidth, perf, readability rows 39–42.
 - Not verified: real phones; a hidden tab asleep across a BUILD START (the online check slept mid-wave); a late
   Game scene start with a slot; touch throwing on a real device (aim stick held with one finger, button with another).
 

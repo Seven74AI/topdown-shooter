@@ -22,6 +22,7 @@ import type { HudModel } from "./hudModel";
 import { layoutHandCluster, newHandLayout, type HandRect } from "./handCluster";
 import { BUILD_BAR_SLOTS, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP, TILE_SHORT, buildBarSlots, layoutBuildBar, newBuildBarLayout, readyLeftX, tileState, type BuildTile } from "./buildBar";
 import { ATLAS_BUILDINGS, FRAME_WOOD, buildingFrame, ensureBuildingsAtlas } from "../render/city/buildingsAtlas";
+import { BUILD_ICON_FRAME_H, BUILD_ICON_FRAME_W, BUILD_ICON_ORIGIN_X, BUILD_ICON_ORIGIN_Y, BUILD_ICON_TEXTURE, buildIconFrame, ensureBuildIcons } from "../render/city/buildIcons";
 import { drawPlankIcon } from "../render/BuildingView";
 import { drawTurretIcon } from "../render/TurretView";
 import type { InputRouter } from "../input/InputRouter";
@@ -519,8 +520,10 @@ export class HudScene extends Phaser.Scene {
     this.placeHint = this.add.text(0, 0, "", this.outlinedStyle(HINT_TEXT_PX)).setOrigin(1, 1).setDepth(1002).setVisible(false);
     this.placeLock = this.add.graphics().setDepth(1003).setVisible(false);
     // Story 5.16: the build bar (bottom right, hands empty in a build phase; a touch on a tile never
-    // starts a stick). The icons reuse the buildings atlas (registered through addGeneratedTexture).
+    // starts a stick). Story 5.26: the icons come from the build icon atlas; a type without one falls
+    // back to the buildings atlas (world art). Both are registered through addGeneratedTexture.
     ensureBuildingsAtlas(this);
+    ensureBuildIcons(this);
     this.barTiles.length = 0;
     this.barIcons.length = 0;
     this.barIconGfx.length = 0;
@@ -1175,7 +1178,7 @@ export class HudScene extends Phaser.Scene {
         (this.barTiles[s] as Phaser.GameObjects.Graphics).setVisible(on);
         (this.barPrices[s] as Phaser.GameObjects.Text).setVisible(on);
         (this.barGlyphs[s] as Phaser.GameObjects.Text).setVisible(on && slot < 0);
-        const framed = slot >= 0 && buildingFrame((m.buildItems[slot] as BuildTile).id) !== null;
+        const framed = slot >= 0 && hasBarImage((m.buildItems[slot] as BuildTile).id);
         (this.barIcons[s] as Phaser.GameObjects.Image).setVisible(on && framed);
         (this.barIconGfx[s] as Phaser.GameObjects.Graphics).setVisible(on && slot >= 0 && !framed);
       }
@@ -1234,10 +1237,19 @@ export class HudScene extends Phaser.Scene {
       if (slot < 0) continue;
       const item = items[slot] as BuildTile;
       price.setText(`$${item.price}`);
-      const art = buildingFrame(item.id);
-      if (art) {
-        // The same code-drawn frame as in the world (rot 0), fitted into the icon box.
-        const img = (this.barIcons[s] as Phaser.GameObjects.Image).setTexture(art.texture, art.frame);
+      const icon = buildIconFrame(item.id);
+      const art = icon === null ? buildingFrame(item.id) : null;
+      if (icon !== null) {
+        // Story 5.26: the type's own build-bar icon (I1 / T1 / M1), at the mockup's size (48 × 36 CSS px
+        // frame, its 44 × 30 box centred on the icon anchor).
+        (this.barIcons[s] as Phaser.GameObjects.Image)
+          .setTexture(BUILD_ICON_TEXTURE, icon)
+          .setOrigin(BUILD_ICON_ORIGIN_X, BUILD_ICON_ORIGIN_Y)
+          .setPosition(cx, cy)
+          .setDisplaySize(BUILD_ICON_FRAME_W * k, BUILD_ICON_FRAME_H * k);
+      } else if (art) {
+        // No icon yet (e.g. 5.10's types): the same code-drawn frame as in the world (rot 0), fitted into the icon box.
+        const img = (this.barIcons[s] as Phaser.GameObjects.Image).setTexture(art.texture, art.frame).setOrigin(0.5);
         const aspect = img.frame.width / Math.max(1, img.frame.height);
         const w = aspect >= boxW / boxH ? boxW : boxH * aspect;
         img.setPosition(cx, cy).setDisplaySize(w, w / aspect);
@@ -1753,4 +1765,9 @@ export class HudScene extends Phaser.Scene {
     base.setPosition(touch.originX, touch.originY).setVisible(true);
     knob.setPosition(touch.originX + dx, touch.originY + dy).setVisible(true);
   }
+}
+
+/** Story 5.26: a building tile shows an Image (its build icon, else its world-art frame), not the turret/plank Graphics. */
+function hasBarImage(type: string): boolean {
+  return buildIconFrame(type) !== null || buildingFrame(type) !== null;
 }

@@ -128,11 +128,17 @@ Player:
 ## 36: what is happening to these zombies? (Story 5.4)
 ![36](objects/37_burning_zombies.png)
 
-## 37: the round button bottom right, and its number (Story 5.12)
-![37](../../art/5-12/5-12-hud-wave-ring-800x360.png)
+## 37: what is this, and does it stop bullets? (Story 5.10)
+![37](objects/38_floodlight.png)
 
-## 38, 39: what was thrown, and what is happening there? (Story 5.12)
-![38](../../art/5-12/5-12-molotov-flight-800x360.png) ![39](../../art/5-12/5-12-molotov-fire-800x360.png)
+## 38: what is this, and what happens inside the green ring? (Story 5.10)
+![38](objects/39_med_station.png)
 
-## 40: what just happened by the bus? (Story 5.12)
-![40](../../art/5-12/5-12-grenade-flight-800x360.png)
+## 39: the round button bottom right, and its number (Story 5.12)
+![39](../../art/5-12/5-12-hud-wave-ring-800x360.png)
+
+## 40, 41: what was thrown, and what is happening there? (Story 5.12)
+![40](../../art/5-12/5-12-molotov-flight-800x360.png) ![41](../../art/5-12/5-12-molotov-fire-800x360.png)
+
+## 42: what just happened by the bus? (Story 5.12)
+![42](../../art/5-12/5-12-grenade-flight-800x360.png)

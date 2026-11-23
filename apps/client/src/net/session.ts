@@ -88,7 +88,7 @@ export function parsePlayerLeft(m: unknown): PlayerLeft | null {
   return { playerId: o.playerId, name: o.name, reason: o.reason };
 }
 
-const PLACE_ERRORS: readonly PlaceError[] = ["unknown_player", "not_build_phase", "unknown_type", "limit", "money", "blocked"];
+const PLACE_ERRORS: readonly PlaceError[] = ["unknown_player", "not_build_phase", "unknown_type", "not_for_sale", "limit", "money", "blocked"];
 
 /** The reason of a well-formed `building.refused` (Story 3.4), or null. */
 export function parseBuildingRefused(m: unknown): PlaceError | null {

@@ -141,6 +141,8 @@ function snapshotBlasts(world: World) {
   return { queue, gas };
 }
 
+// Story 5.10: `world.lights` is not here on purpose: it is derived from the buildings and
+// `decay.fires` (both snapshotted), never simulation state of its own; med stations have no clock.
 export function snapshotWorld(world: World) {
   return {
     tick: world.tick,

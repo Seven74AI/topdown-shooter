@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { NEUTRAL_INPUT, PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, setInput, setLoadout, step, type SimEvent } from "@topdown/shared";
+import { DOWNTOWN_MAP, lightsOf, NEUTRAL_INPUT, PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, setInput, setLoadout, step, type SimEvent } from "@topdown/shared";
 import { perf } from "./perfStats";
 import {
   STRESS_DURATION_MS,
@@ -8,6 +8,9 @@ import {
   STRESS_FLOOR_BUILDINGS,
   formatStressReport,
   placeStressFloor,
+  placeStressLights,
+  STRESS_FLOODLIGHTS,
+  STRESS_MED_STATIONS,
   setupStressWorld,
   toughenStressZombies,
   spawnInView,
@@ -208,6 +211,26 @@ describe("StressRun interruption", () => {
   });
 });
 
+
+describe("Story 5.10: ?stressbuild=lights", () => {
+  it("lays 8 floodlights and 4 med stations round the survivor on Downtown, none overlapping; they stay standing; 8 lights", () => {
+    const world = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP });
+    addPlayer(world, "local", 24, 16);
+    expect(placeStressLights(world, "local", 24, 16)).toBe(STRESS_FLOODLIGHTS + STRESS_MED_STATIONS);
+    const types = world.buildings.list.map((b) => b.type);
+    expect(types.filter((t) => t === "floodlight").length).toBe(8);
+    expect(types.filter((t) => t === "med_station").length).toBe(4);
+    const list = world.buildings.list;
+    for (let i = 0; i < list.length; i++)
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]!;
+        const b = list[j]!;
+        expect(a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY).toBe(false);
+      }
+    expect(list.every((b) => b.hp === b.maxHp && b.hp >= 1e9)).toBe(true);
+    expect(lightsOf(world).filter((l) => l.kind === "floodlight")).toHaveLength(8);
+  });
+});
 
 describe("Story 5.9: ?stressbuild=traps", () => {
   it("lays 24 non-overlapping spike traps and mines round the survivor; the crowd can't die on them", () => {

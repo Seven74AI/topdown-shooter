@@ -62,6 +62,8 @@ export interface UrlOptions {
    * round the survivor for the phone benchmark with the new floor buildings active; false otherwise.
    */
   stressBuild: boolean;
+  /** `?stressbuild=lights` (Story 5.10, only with `?stress`): 8 floodlights and 4 med stations round the survivor. */
+  stressLights: boolean;
   /**
    * `?stressbuild=molotov` (Story 5.12, release-safe, only with `?stress`): 8 molotov fire zones kept
    * burning round the survivor (relit as they end) for the phone benchmark with the fire visuals at
@@ -74,9 +76,10 @@ export interface UrlOptions {
    */
   lowFx: boolean;
   /**
-   * `?shopall=1` (Story 5.11, the minimal form of Story 5.10's switch; dev builds only, like `?zdmg`):
-   * `inShop: false` items are listed and sold (the tactical flashlight); online the server must run
-   * with `DEV_SHOP_ALL=1` (same `balance.version`). false otherwise.
+   * `?shopall=1` (Stories 5.10 + 5.11, ONE switch, dev builds only: a release build ignores it):
+   * every `inShop: false` item — the floodlight and the tactical flashlight until 6.3 — is listed,
+   * placed and sold, through the dev balance (`loadDevBalance({ shopAll })`, same as the server's
+   * `DEV_SHOP_ALL=1`; it changes `balance.version`, so both sides must have it on). false otherwise.
    */
   shopAll: boolean;
 }
@@ -92,7 +95,7 @@ export const MAX_STRESS_WALKERS = 200;
 
 const TRUE_VALUES = new Set(["", "1", "true", "on", "yes"]);
 
-export function parseUrlOptions(search: string): UrlOptions {
+export function parseUrlOptions(search: string, dev: boolean = import.meta.env.DEV): UrlOptions {
   const q = new URLSearchParams(search);
   const debugRaw = q.get("debug");
   const debug = debugRaw !== null && TRUE_VALUES.has(debugRaw.trim().toLowerCase());
@@ -114,8 +117,9 @@ export function parseUrlOptions(search: string): UrlOptions {
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     stressMolotov: q.get("stressbuild")?.trim().toLowerCase() === "molotov",
+    stressLights: q.get("stressbuild")?.trim().toLowerCase() === "lights",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
-    shopAll: parseDevShopAll(q.get("shopall")?.trim().toLowerCase()),
+    shopAll: dev && parseDevShopAll(q.get("shopall")?.trim().toLowerCase()), // dev builds only (review L3); one switch for hidden buildings and gear
   };
 }
 

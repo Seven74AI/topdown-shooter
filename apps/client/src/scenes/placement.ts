@@ -1,11 +1,16 @@
 import {
   BUILD_GRID_M,
+  blockReason,
   buildingStats,
+  createBlockReason,
+  footprint,
   footprintH,
   footprintW,
   placementError,
   type Balance,
   type BuildingRotation,
+  type BlockReason,
+  type Box,
   type BuildingTypeStats,
   type PlaceError,
   type PlaceRequest,
@@ -32,6 +37,8 @@ export function placeRefusalText(e: PlaceError, balance: Balance): string {
       return "Not enough money";
     case "not_build_phase":
       return "Only during the build phase";
+    case "not_for_sale":
+      return "Not for sale yet";
     case "unknown_type":
     case "unknown_player":
       return "Can't build that";
@@ -105,6 +112,24 @@ export class Placement {
   wave = 0;
   /** The shared check's answer for the current preview (null = valid), set by `check`. */
   error: PlaceError | null = null;
+  /**
+   * Story 5.17: why the current preview is `blocked` (the shared `blockReason`, the first cause and its
+   * culprit), valid while `hasReason`; set by `explain`.
+   */
+  readonly reason: BlockReason = createBlockReason();
+  hasReason = false;
+  /**
+   * Story 5.17 (AC 8, D2): what the player sees — the error and reason, held ≥ `reasonHoldMs` before
+   * the look goes back to valid (a new error/reason shows at once; blocked never waits). The HUD,
+   * the ghost and the culprit outline read these, never `error` directly.
+   */
+  shownError: PlaceError | null = null;
+  readonly shownReason: BlockReason = createBlockReason();
+  shownHasReason = false;
+  /** Scene clock (ms) of the last frame the preview was blocked (review L1: valid needs `reasonHoldMs` of continuous clear). */
+  shownSinceMs = 0;
+  /** +1 whenever the shown error/reason changes (views redraw on it; no string per frame). */
+  shownVersion = 0;
   /** One request object, filled by `confirm` (valid until the next call). */
   private readonly req: { type: string; gx: number; gy: number; rot: number } = { type: "", gx: 0, gy: 0, rot: 0 };
   private stats: Readonly<BuildingTypeStats> | null = null;
@@ -119,6 +144,8 @@ export class Placement {
   private bodyM = 0.4;
   private lastX = 0;
   private lastY = 0;
+  private holdMs = 250;
+  private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
   /** Starts placing `type` during wave number `wave`'s build (an unknown type does nothing and returns false). */
   start(balance: Balance, type: string, x: number, y: number, facingX: number, facingY: number, wave = 0): boolean {
@@ -128,6 +155,7 @@ export class Placement {
     this.gapM = b.carryGapM;
     this.hysteresisM = b.snapHysteresisM;
     this.rotHysteresisDeg = b.autoRotateHysteresisDeg;
+    this.holdMs = b.reasonHoldMs;
     this.bodyM = balance.player.radiusM;
     this.stats = stats;
     this.square = stats.widthM === stats.depthM;
@@ -139,6 +167,7 @@ export class Placement {
     this.snapped = false;
     this.wave = wave;
     this.error = null;
+    this.resetShown();
     const len = Math.sqrt(facingX * facingX + facingY * facingY);
     if (len > MIN_FACING_LEN && Number.isFinite(len)) {
       this.facingX = facingX / len;
@@ -220,6 +249,54 @@ export class Placement {
   cancel(): void {
     this.active = false;
     this.error = null;
+    this.resetShown();
+  }
+
+  private resetShown(): void {
+    this.hasReason = false;
+    if (this.shownError !== null) this.shownVersion++;
+    this.shownError = null;
+    this.shownHasReason = false;
+  }
+
+  /**
+   * Story 5.17: after `check`, the first cause of a `blocked` preview (`blockReason` on the same World
+   * and box as `placementError`), then the hold (AC 8): a new error or reason shows at once; valid is shown only after `reasonHoldMs` of continuous clear (review L1: every
+   * blocked frame restarts the clock, so a one-frame clear never flashes green).
+   */
+  explain(world: Readonly<World>, ownerId: string, nowMs: number): void {
+    const stats = this.stats;
+    this.hasReason = false;
+    if (this.active && stats && this.error === "blocked") {
+      this.hasReason = blockReason(world, ownerId, footprint(stats, this.gx, this.gy, this.rot, this.box), 0, this.reason) !== null;
+    }
+    const e = this.active ? this.error : null;
+    if (e !== null) {
+      if (!this.sameAsShown(e)) {
+        this.shownError = e;
+        this.shownHasReason = this.hasReason;
+        const r = this.reason;
+        const s = this.shownReason;
+        s.cause = r.cause;
+        s.index = r.index;
+        s.id = r.id;
+        s.playerId = r.playerId;
+        this.shownVersion++;
+      }
+      this.shownSinceMs = nowMs; // review L1: every blocked frame restarts the hold
+    } else if (this.shownError !== null && nowMs - this.shownSinceMs >= this.holdMs) {
+      this.shownError = null;
+      this.shownHasReason = false;
+      this.shownVersion++;
+    }
+  }
+
+  private sameAsShown(e: PlaceError): boolean {
+    if (e !== this.shownError || this.hasReason !== this.shownHasReason) return false;
+    if (!this.hasReason) return true;
+    const r = this.reason;
+    const s = this.shownReason;
+    return r.cause === s.cause && r.index === s.index && r.id === s.id && r.playerId === s.playerId;
   }
 
   /** The shared placement check for the current preview (`error`); returns whether it is valid. */
@@ -262,6 +339,10 @@ export interface PlacementFrame {
   send: (req: PlaceRequest) => void;
   /** Shows a short message (an off-map Place that can't be sent). */
   toast: (text: string) => void;
+  /** Story 5.17: the scene clock (ms) for the reason hold. */
+  nowMs: number;
+  /** Story 5.17: the reason line for a shown error (and its blocked reason, or null); called every blocked frame, so it caches its string by key (no allocation per frame). */
+  hintText: (e: PlaceError, reason: Readonly<BlockReason> | null) => string;
 }
 
 /**
@@ -297,8 +378,10 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
   if (rotate) p.rotate();
   p.carry(f.x, f.y, input.moveX, input.moveY);
   p.check(world, f.ownerId);
+  p.explain(world, f.ownerId, f.nowMs); // Story 5.17: why it's red, held ≥ reasonHoldMs before valid
   m.placementActive = true;
-  m.placementValid = p.error === null;
   m.placementLocked = p.locked;
-  m.placementHint = p.error === null ? f.label : f.refusal(p.error);
+  const shown = p.shownError;
+  m.placementValid = shown === null;
+  m.placementHint = shown === null ? f.label : f.hintText(shown, p.shownHasReason ? p.shownReason : null);
 }

@@ -1994,6 +1994,14 @@ As a player, I want each building tile in the build bar to show a clear, recogni
 
 **Acceptance criteria:** the build bar (5.16) draws code-drawn icons in style **I1** (low three-quarter tilted objects): wood barricade I1, spike trap I1, auto-turret **T1** sentry gun (T2 armoured dome drawn and kept for a later turret tier/skin), mine **M1** pressure mine. Icons are baked once through `addGeneratedTexture` into a HUD atlas (`icon_build_<type>_a`, ≤ 2048²), crisp at 56 CSS px tiles on dpr 2–3; any building type without an icon falls back to its world art (med station, floodlight, bear trap get I1 icons when their stories ask). Affordable / unaffordable / cap states unchanged. Browser screenshots at 800 × 360 and 568 × 320.
 
+### Story 5.27: Build-bar icons for the floodlight, med station and bear trap
+
+(Added 2026-11-23: designer approved I1-style icons in the build-icons session; page claude.ai/artifact/32iPpVeANTX8ipBPGk4Vqf, code `docs/art/5-27/icons.html` › `floodlightFL1`, `medStationMS10` (orange first-aid case with a big white cross on the left), `bearTrapBT1`.)
+
+As a player, I want every building tile in the build bar to show the same kind of tilted icon, so that the bar reads as one set.
+
+**Acceptance criteria:** the three drawings are ported into `render/city/buildIcons.ts` (same `(g, w, h)` form, 44×30 box, I1 palette) and mapped in `BUILD_ICONS` / `TYPE_FRAMES` (`floodlight`, `med_station`, `bear_trap`; the bear trap maps harmlessly until Story 5.14 adds the type); the 5.26 test asserts every shop building now has an icon; screenshots with `?shopall=1` at 800 × 360 and 568 × 320.
+
 ---
 
 ## Epic 6: The full run: decay, boss, events, endless

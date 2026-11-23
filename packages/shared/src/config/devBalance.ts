@@ -15,9 +15,10 @@ export interface DevBalanceOptions {
    */
   startingWallet?: number | null;
   /**
-   * Story 5.11 (the minimal form of Story 5.10's switch): every `inShop: false` item is listed and
-   * sold (`DEV_SHOP_ALL=1` / `?shopall=1`), e.g. the tactical flashlight. Changes `balance.version`
-   * like every switch, so client and server must both have it on.
+   * Stories 5.10 + 5.11, ONE switch (`DEV_SHOP_ALL=1` / `?shopall=1`): every `inShop: false` item
+   * is listed, placed and sold — the floodlight (building) and the tactical flashlight (gear) until
+   * Story 6.3. Changes `balance.version` like every switch, so client and server must both have it on
+   * (a client with `?shopall` and a server without it is refused at join: a visible refusal).
    */
   shopAll?: boolean;
 }
@@ -67,8 +68,10 @@ export function loadDevBalance(opts: DevBalanceOptions): Balance {
   if (overrides.length === 0 && !opts.shopAll) return loadBalance();
   const raw = withOverrides(bundledBalanceFiles(), overrides);
   if (opts.shopAll) {
-    // Story 5.11: overrides are numbers only, so the boolean `inShop` is set here.
+    // Story 5.11: overrides are numbers only, so the boolean `inShop` is set here (gear, and Story
+    // 5.10's building types: one switch unhides both).
     for (const g of Object.values((raw.gear as { items: Record<string, { inShop?: boolean }> }).items)) g.inShop = true;
+    for (const t of Object.values((raw.buildings as { types: Record<string, { inShop?: boolean }> }).types)) t.inShop = true;
   }
   return loadBalance(raw);
 }

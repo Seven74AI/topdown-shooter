@@ -116,6 +116,38 @@ export function placeStressFloor(world: World, ownerId: string, cx: number, cy: 
   return laid;
 }
 
+/** Story 5.10 `?stressbuild=lights`: floodlights and med stations laid round the survivor (AC 11's benchmark). */
+export const STRESS_FLOODLIGHTS = 8;
+export const STRESS_MED_STATIONS = 4;
+const STRESS_LIGHT_RINGS_M = [3, 4.5, 6] as const;
+
+/**
+ * Story 5.10: lays `floods` floodlights and `meds` med stations on rings round (cx, cy) on free
+ * spots (no placement rules, like `placeStressFloor`), before the Walkers. Returns how many.
+ */
+export function placeStressLights(world: World, ownerId: string, cx: number, cy: number, floods = STRESS_FLOODLIGHTS, meds = STRESS_MED_STATIONS): number {
+  const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  let laidF = 0;
+  let laidM = 0;
+  for (const r of STRESS_LIGHT_RINGS_M) {
+    for (let k = 0; k < 12 && laidF + laidM < floods + meds; k++) {
+      const type = laidF < floods && (k % 3 !== 2 || laidM >= meds) ? "floodlight" : "med_station";
+      const stats = buildingStats(world.balance, type);
+      if (!stats) return laidF + laidM;
+      const a = (k / 12) * Math.PI * 2 + r;
+      const gx = Math.round((cx + Math.cos(a) * r - stats.widthM / 2) / BUILD_GRID_M);
+      const gy = Math.round((cy + Math.sin(a) * r - stats.depthM / 2) / BUILD_GRID_M);
+      if (footprintBlocked(world, footprint(stats, gx, gy, 0, box))) continue;
+      const b = addBuildingAt(world, { id: world.buildings.nextId, type, ownerId, gx, gy, rot: 0, hp: stats.hp });
+      if (!b) continue;
+      b.hp = b.maxHp = 1e9; // the benchmark keeps all 12 standing (full HP: no bar)
+      if (type === "floodlight") laidF++;
+      else laidM++;
+    }
+  }
+  return laidF + laidM;
+}
+
 /** Story 5.9: under `?stressbuild=traps` the Walkers can't die on the spikes (the crowd stays 150 for the whole run). */
 export function toughenStressZombies(world: World): void {
   const z = world.zombies;
