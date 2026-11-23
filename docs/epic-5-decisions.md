@@ -120,3 +120,13 @@ Page: claude.ai/artifact/NasqdNNAhnHQEkbHVcamFZ (code drawings in `docs/art/epic
 - **Survivor customization: scheduled** as Stories 7.8–7.12 (Epic 7, with accounts; `docs/ideas/customization/`).
 - **Building-system UX rework: scheduled** as Stories 5.15–5.25 (designer picked "B · Carry + drag"; `docs/ideas/building-ux/`). 5.15–5.19 client-only, can start any time; 5.20, 5.22, 5.24 after 5.10 and 5.14.
 - **Epic 6 design: scheduled** — the revised Stories 6.1–6.12 replace the old Epic 6 texts in epics.md (`docs/ideas/epic-6/`, designer decisions D1–D7: Behemoth crash stun only, always 2 events per run, endless +40 zombies/wave up to 600 then +6 % HP, Ruins debris ambience only, floodlight 6 m in blackout (noted in Story 5.10), alive cap 110 while the Behemoth lives, event levers kept). Implied GDD updates (events 2 per run, endless cap 600) are recorded here; the supply drop's weapon list gains the Gas torch.
+
+## Round D looks (designer, 2026-11-23)
+
+Page: claude.ai/artifact/9VXjyGj7JTSgVDJKUcD3xQ (code drawings in `docs/art/epic-5/round-d/looks.html`).
+- **Floodlight (5.10): FL1 tripod work light = base look; FL5 stadium lamp on sandbags = upgrade/skin look.** FL2–FL4 not used.
+- **Med station (5.10): all five (MS1–MS5) rejected** → new iteration MS6–MS10 requested.
+- **Gear icons (5.11): open.** Requested two more mockups: realistic icon (GR4) on an embossed metal tag (GR2) = GR6, realistic icon on a sticker (GR5) = GR7.
+- **Consumable icons (5.12): CI4** (realistic painted objects).
+- **Hand grenade (5.12): all three kept** (HG1 pineapple base; HG2 smooth M67, HG3 can-shaped as variants/upgrade looks). The thrown grenade uses these, not 5.5's 40 mm round.
+- Molotov bottle/fire (MB1–MB3): not picked yet.
