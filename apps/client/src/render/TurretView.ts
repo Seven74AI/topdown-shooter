@@ -2,6 +2,7 @@ import type * as Phaser from "phaser";
 import { buildingCentreX, buildingCentreY, turretStats, type Building, type World } from "@topdown/shared";
 import { NIGHT_DARKEN, castShadow, headShadowOffset, raisedBevel } from "./city/raisedLook";
 import { darken } from "./buildingLook";
+import { drawPlankIcon } from "./BuildingView";
 
 /** Placeholder turret look (Story 9 replaces it): a metal plate over the base, a round head with a barrel. */
 const PLATE = darken(0x4a5560, NIGHT_DARKEN);
@@ -24,6 +25,24 @@ const HEAD_DEPTH = 4;
 /** The head turns toward the last shot's aim with this rate (1/s, exponential: frame-rate independent). */
 const TURN_RATE = 25;
 const TWO_PI = Math.PI * 2;
+
+/**
+ * Story 5.16: a turret as a build-bar icon (canvas px): the plank base, the metal plate and the head
+ * with its barrel pointing east, in the world's colours and proportions. `sidePx` = the 1 m
+ * footprint's side; drawn into `g` once per layout (Graphics only, no texture).
+ */
+export function drawTurretIcon(g: Phaser.GameObjects.Graphics, cx: number, cy: number, sidePx: number): void {
+  const s = sidePx; // canvas px per metre (the footprint is 1 m)
+  const x = cx - s / 2;
+  const y = cy - s / 2;
+  drawPlankIcon(g, x, y, s, s, s);
+  const inset = PLATE_INSET_M * s;
+  g.fillStyle(PLATE, 1).fillRect(x + inset, y + inset, s - 2 * inset, s - 2 * inset);
+  g.lineStyle(Math.max(1, LINE_M * s), PLATE_EDGE, 1).strokeRect(x + inset, y + inset, s - 2 * inset, s - 2 * inset);
+  g.fillStyle(BARREL, 1).fillRect(cx, cy - (BARREL_W_M * s) / 2, BARREL_LEN_M * s * 0.7, BARREL_W_M * s); // the barrel kept inside the tile
+  g.fillStyle(HEAD, 1).fillCircle(cx, cy, HEAD_R_M * s);
+  g.lineStyle(Math.max(1, LINE_M * s), HEAD_EDGE, 1).strokeCircle(cx, cy, HEAD_R_M * s);
+}
 
 /**
  * Story 3.6: auto-turrets drawn on top of `BuildingView`'s base (so Story 3.5's damaged look and

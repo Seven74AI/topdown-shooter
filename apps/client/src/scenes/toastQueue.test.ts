@@ -35,6 +35,24 @@ describe("ToastQueue (Story 2.11)", () => {
     expect(q.current(0)).toBe("");
   });
 
+  it("Story 5.16: pushUnique doesn't stack the same line; withdraw removes it and the next starts in full", () => {
+    const q = new ToastQueue();
+    q.pushUnique("Need $250 (you have $100)");
+    q.pushUnique("Need $250 (you have $100)");
+    q.push("Bo left");
+    expect(q.current(0)).toBe("Need $250 (you have $100)");
+    expect(q.current(TOAST_SHOW_MS)).toBe("Bo left"); // only one copy queued
+    const r = new ToastQueue();
+    r.push("Need $250 (you have $100)");
+    r.push("Bo left");
+    expect(r.current(1000)).toBe("Need $250 (you have $100)");
+    r.withdraw("Need $250 (you have $100)");
+    expect(r.current(1500)).toBe("Bo left");
+    expect(r.current(1500 + TOAST_SHOW_MS - 1)).toBe("Bo left"); // a full 3 s from when it showed
+    r.withdraw("nothing like it");
+    expect(r.current(1500 + TOAST_SHOW_MS)).toBe("");
+  });
+
   it("words the reason", () => {
     expect(playerLeftText("Bo", "left")).toBe("Bo left");
     expect(playerLeftText("Bo", "disconnected")).toBe("Bo lost connection");
