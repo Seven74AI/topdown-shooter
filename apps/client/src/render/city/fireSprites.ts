@@ -130,6 +130,55 @@ export function flameCoreFrac(): number {
   return core;
 }
 
+let coreByVariant: Float32Array | null = null;
+let outByVariant: Float32Array | null = null;
+
+/**
+ * Story 4.12 review M1: the core fraction of ONE flame variant (its own ≥ 50 % texels + `CORE_MARGIN`),
+ * so a flame of a compact shape may sit closer to the edge than the largest shape allows.
+ */
+export function flameCoreFracOf(variant: number): number {
+  if (!coreByVariant) {
+    coreByVariant = new Float32Array(FLAME_VARIANTS);
+    flameMasks().forEach((m, v) => ((coreByVariant as Float32Array)[v] = Math.min(1, maskCoreFrac(m, FLAME_SPRITE_PX) + CORE_MARGIN)));
+  }
+  return coreByVariant[variant] as number;
+}
+
+/**
+ * How far the bright texels (alpha ≥ 50 %) of a mask reach toward the sprite's −y side, as a fraction
+ * of the half height: max over those texels of (−v) at the texel's outer corner. Direction-aware: an
+ * edge flame drawn with its −y side facing outward has its bright edge exactly `frac × h / 2` from
+ * its centre.
+ */
+export function maskReachUp(mask: Float32Array, size: number, threshold = 0.5): number {
+  let reach = -1;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if ((mask[y * size + x] as number) < threshold) continue;
+      const v = (y / size) * 2 - 1; // the texel's top edge (most −y)
+      if (-v > reach) reach = -v;
+    }
+  }
+  return reach;
+}
+
+/**
+ * Review M1: edge flames overlap their neighbours along the ring, and additive halos stack: they are
+ * placed by the reach of their texels ≥ this alpha (not 50 %), so even two stacked halos stay under
+ * 50 % past R.
+ */
+export const EDGE_REACH_ALPHA = 0.15;
+
+/** `maskReachUp` (at `EDGE_REACH_ALPHA`) of a flame variant + `CORE_MARGIN` (filtering), memoized. */
+export function flameReachUpOf(variant: number): number {
+  if (!outByVariant) {
+    outByVariant = new Float32Array(FLAME_VARIANTS);
+    flameMasks().forEach((m, v) => ((outByVariant as Float32Array)[v] = Math.min(1, maskReachUp(m, FLAME_SPRITE_PX, EDGE_REACH_ALPHA) + CORE_MARGIN)));
+  }
+  return outByVariant[variant] as number;
+}
+
 /** The lab's flame colour ramp: [position, r, g, b]. */
 const RAMP: readonly (readonly [number, number, number, number])[] = [
   [0, 255, 246, 214],
