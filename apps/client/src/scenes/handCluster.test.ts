@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { layoutHandCluster, newHandLayout, type HandRect } from "./handCluster";
-import { MIN_BUTTON_CSS_PX } from "../ui/sizes";
+import { HAND_HINT_LINE_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, MIN_BUTTON_CSS_PX } from "../ui/sizes";
 
 /** Gap between two circles (centre distance minus both radii). */
 const gap = (a: HandRect, b: HandRect) => Math.hypot(a.x + a.size / 2 - (b.x + b.size / 2), a.y + a.size / 2 - (b.y + b.size / 2)) - a.size / 2 - b.size / 2;
@@ -12,7 +12,7 @@ describe("Story 5.15: the hand cluster (ux-spec §4)", () => {
     expect(l.place).toEqual({ x: 800 - 92 - 38, y: 360 - 92 - 38, size: 76 });
     expect(l.rotate).toEqual({ x: 800 - 190 - 30, y: 360 - 80 - 30, size: 60 });
     expect(l.cancel).toEqual({ x: 800 - 80 - 24, y: 360 - 196 - 24, size: 48 });
-    expect([l.hintX, l.hintY]).toEqual([784, 110]);
+    expect([l.hintX, l.hintY]).toEqual([784, 360 - 196 - 24 - 6]); // 6 px above ✕'s top edge
   });
 
   it("every target ≥ 48 px, ≥ 12 px apart, hit rects never overlap, inside the screen, above the hint line; insets and dpr respected", () => {
@@ -33,6 +33,24 @@ describe("Story 5.15: the hand cluster (ux-spec §4)", () => {
           expect(gap(all[i] as HandRect, all[j] as HandRect)).toBeGreaterThanOrEqual(12 * k);
           expect(overlap(all[i] as HandRect, all[j] as HandRect)).toBe(false);
         }
+    }
+  });
+
+  it("review L3: the safe-area insets move every button and the hint by exactly the inset (× dpr)", () => {
+    const k = 2;
+    const l = layoutHandCluster(800 * k, 360 * k, 24, 16, k, newHandLayout());
+    expect(l.place).toEqual({ x: 800 * k - (92 + 24) * k - 38 * k, y: 360 * k - (92 + 16) * k - 38 * k, size: 76 * k });
+    expect(l.rotate).toEqual({ x: 800 * k - (190 + 24) * k - 30 * k, y: 360 * k - (80 + 16) * k - 30 * k, size: 60 * k });
+    expect(l.cancel).toEqual({ x: 800 * k - (80 + 24) * k - 24 * k, y: 360 * k - (196 + 16) * k - 24 * k, size: 48 * k });
+    expect([l.hintX, l.hintY]).toEqual([800 * k - (16 + 24) * k, l.cancel.y - 6 * k]);
+  });
+
+  it("review L5: on a 568 × 320 phone (and 800 × 360) the hint line stays below ☰ / ⚙ and above the buttons", () => {
+    for (const [W, H] of [[568, 320], [800, 360], [1024, 768]] as const) {
+      const l = layoutHandCluster(W, H, 0, 0, 1, newHandLayout());
+      const menuBottom = MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX;
+      expect(l.hintY - HAND_HINT_LINE_CSS_PX).toBeGreaterThanOrEqual(menuBottom + 4);
+      expect(l.hintY).toBeLessThanOrEqual(Math.min(l.place.y, l.rotate.y, l.cancel.y));
     }
   });
 });

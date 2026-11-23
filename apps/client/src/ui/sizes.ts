@@ -17,9 +17,14 @@ export const READY_SHIFT_LEFT_CSS_PX = 40;
 export const HAND_PLACE = { sizeCss: 76, rightCss: 92, bottomCss: 92 } as const;
 export const HAND_ROTATE = { sizeCss: 60, rightCss: 190, bottomCss: 80 } as const;
 export const HAND_CANCEL = { sizeCss: 48, rightCss: 80, bottomCss: 196 } as const;
-/** The hint line: right-aligned this far inside the right inset, its bottom this far above the bottom inset (D3: the item chip's slot). */
+/**
+ * The hint line: right-aligned this far inside the right inset, its bottom this far above ✕'s top
+ * edge (review L5: anchored to the cluster, so on a 320 px-tall phone it stays below ☰ / ⚙).
+ */
 export const HAND_HINT_RIGHT_CSS_PX = 16;
-export const HAND_HINT_BOTTOM_CSS_PX = 250;
+export const HAND_HINT_GAP_CSS_PX = 6;
+/** The hint line's height at 18 px with its 4 px stroke (CSS px; layout checks only). */
+export const HAND_HINT_LINE_CSS_PX = 26;
 /** Story 3.3: the Shop button, right of Ready with this gap; the pair is centred at the bottom (CSS px). */
 export const SHOP_BUTTON_W_CSS_PX = 120;
 export const SHOP_BUTTON_GAP_CSS_PX = 12;
