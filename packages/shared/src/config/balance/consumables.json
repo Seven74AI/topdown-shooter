@@ -1,6 +1,7 @@
 {
   "useCooldownS": 0.5,
   "maxLiveMolotovZones": 8,
+  "fireFaceToleranceM": 0.02,
   "fx": { "particleShare": 0.7, "smokeShare": 0.3, "edgeSpacingM": 0.7, "maxParticles": 140, "maxEdgeFlames": 120 },
   "items": {
     "medkit": { "name": "Medkit", "price": 60, "pack": 1, "kind": "heal", "healHp": 50 },

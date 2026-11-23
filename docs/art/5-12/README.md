@@ -26,7 +26,8 @@ ports, `?lag=150&jitter=20&wallet=1000`, dpr 1.
 | --- | --- |
 | `5-12-shop-consumables-800x360.png` | The shop's always-available Consumables section: Medkit ×1 $60, Grenades ×3 $80, Molotovs ×2 $100 (CI4 icons). |
 | `5-12-shop-bought-full-800x360.png` | After buying grenades: Grenades ×3 reads "Full" (disabled: a refill at full is `already_full`); Medkit and Molotovs note "Replaces Grenades ×3". |
-| `5-12-hud-build-greyed-800x360.png` | Build phase with the build bar: the consumable button sits above the grid's left edge (the swap is hidden under the bar); grenades greyed (waves only, D3). |
+| `5-12-hud-build-greyed-800x360.png` | Build phase with the build bar (before the follow-up, one weapon: no swap): the consumable button above the grid; grenades greyed (waves only, D3). |
+| `5-12-build-buttons-568x320.png`, `-800x360`, `-1024x768` | Main-session decision: in a build phase the consumable button (medkit, usable at 40 HP) and swap sit in a row above the build bar's top-left edge; E there healed 40 → 90 at every size. |
 | `5-12-hud-wave-ring-800x360.png` | Wave: the button (grenade, 3) and the throw's landing ring — the exact 2.5 m blast — at the mouse distance. |
 | `5-12-grenade-flight-800x360.png` | Aimed onto the bus: the round lands at the bus's near face (PR #5 lob rule: it flies over cars/bus, a roof aim lands at the near face) and bursts (EX2, ring at 2.5 m). |
 | `5-12-grenade-blast-800x360.png` | The blast's dust ring and debris a moment later. |

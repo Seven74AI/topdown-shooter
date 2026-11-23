@@ -414,6 +414,35 @@ describe("Molotovs (AC 6; M-A … M-C)", () => {
     expect(hp0 - (world.zombies.hp[z] as number)).toBe(4 * 5);
   });
 
+  it("M-D cover (acid rule): a zone lit at a car's face never burns behind the car; in front it burns; sandbags don't shield", () => {
+    const map: DistrictMap = {
+      ...PLACEHOLDER_MAP,
+      name: "c-fire-cover",
+      cover: [
+        { name: "test_car", kind: "car", minStage: 1, minX: 15, minY: 6, maxX: 17, maxY: 10 },
+        { name: "test_bags", kind: "sandbags", minStage: 1, minX: 12.8, minY: 6.5, maxX: 13.4, maxY: 9.5 },
+      ],
+    };
+    const { world, events, p } = setup({ map });
+    give(p, "molotovs", 2);
+    // aimed onto the car roof: it lands at the car's near face (x ≈ 14.95), centre y 8
+    p.x = 9;
+    p.y = 8;
+    setInput(world, "p0", input(true, (16 - 9 - OFFSET) / 8));
+    run(world, 1);
+    const l = of(events, "grenade.launched")[0]!;
+    expect(l.tx).toBeLessThan(15);
+    expect(l.tx).toBeGreaterThan(14.9);
+    const behind = tank(world, 17.6, 8); // 2.65 m from the centre: inside the 3 m circle, behind the car
+    const front = tank(world, 14.2, 9.8);
+    const pastBags = tank(world, 12.3, 8); // the line from the centre crosses the sandbags (they don't shield)
+    run(world, 120, () => input(false));
+    expect(molotovStats.ignited).toBe(1);
+    expect(world.zombies.hp[behind]).toBe(1000);
+    expect(world.zombies.hp[front]).toBe(1000 - 32);
+    expect(world.zombies.hp[pastBags]).toBeLessThan(1000);
+  });
+
   it("molotov fire doesn't hurt buildings (D4) and doesn't rebuild the nav grid", () => {
     const { world, events, p } = setup();
     const { tx, ty, flight } = molotovAt(world, p, events);

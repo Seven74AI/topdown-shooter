@@ -888,6 +888,8 @@ export const consumablesSchema = z
     useCooldownS: z.number().positive().refine(wholeTicks, "useCooldownS must be a whole number of ticks"),
     /** Live molotov fire zones at most (a new one replaces the oldest; brief 10/12). */
     maxLiveMolotovZones: z.number().int().min(1).max(32),
+    /** M-D: blocker entries this close to a molotov zone's centre don't shield (a zone lit at a face burns that side). */
+    fireFaceToleranceM: z.number().min(0).max(0.2),
     /**
      * Client look budget of one molotov zone's particle fire (brief 12): its share of a car fire's
      * low-quality particle caps and spawn rates, and the spacing of its ring flames (m).

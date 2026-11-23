@@ -1,6 +1,7 @@
 import type { World } from "../core/world";
 import { AREA_KIND, clearAreas, createAreaPool, replaced, spawnArea, type AreaPool } from "./areaPool";
 import { consumableStatsAt, molotovTicksAt } from "../economy/consumables";
+import { shotBlockT } from "../combat/cover";
 
 /**
  * Story 5.12: molotov fire zones — round fire areas on the ground (5.6's area pool, kind FIRE) with
@@ -14,6 +15,9 @@ import { consumableStatsAt, molotovTicksAt } from "../economy/consumables";
  *   fire clock per body over car fires and molotov zones together: a pulse every `pulseS` spent in
  *   any fire, kept while outside (stepping out on the pulse tick dodges nothing), and never two fire
  *   hits for one pulse (zones and car fires don't stack).
+ * - **M-D cover (main-session decision 2026-11-23, the 5.6 acid rule):** a body burns only with a
+ *   clear line from the zone's centre (walls, cars, the bus, buildings block; barricades and
+ *   sandbags don't): fire never reaches behind a car it was thrown against (`molotovZoneAt`).
  * - **M-C lifetime in ticks:** a zone is damage-eligible on exactly `durationS` worth of ticks (it
  *   counts down after the damage pass, like 5.6's puddles), then ends. At the cap
  *   (`consumables.json › maxLiveMolotovZones`) a new zone replaces the oldest. Every build start
@@ -59,18 +63,28 @@ export function igniteMolotov(world: World, item: number, x: number, y: number, 
 }
 
 /**
- * The first live zone (lowest slot) the circle (x, y, r) overlaps strictly, or -1. Deterministic
- * (slot order), allocation-free.
+ * The first live zone (lowest slot) that burns the circle (x, y, r), or -1: the circle overlaps the
+ * zone strictly AND (M-D, main-session decision 2026-11-23, the 5.6 acid rule) no shot blocker
+ * stands between the body's centre and the zone's centre — map walls, cars, the bus and buildings
+ * shield it; barricades, sandbags, turrets and traps don't. A zone lit at a face (its centre pulled
+ * back `faceBackoffM`) still burns that side: blocker entries within `fireFaceToleranceM` of the
+ * centre are ignored. Deterministic (slot order), allocation-free.
  */
 export function molotovZoneAt(world: Readonly<World>, x: number, y: number, r: number): number {
   const a = world.molotovs.areas;
   if (a.count === 0) return -1;
+  const faceTol = world.balance.consumables.fireFaceToleranceM;
   for (let i = 0; i < a.capacity; i++) {
     if (a.active[i] !== 1) continue;
-    const dx = x - (a.x[i] as number);
-    const dy = y - (a.y[i] as number);
+    const cx = a.x[i] as number;
+    const cy = a.y[i] as number;
+    const dx = x - cx;
+    const dy = y - cy;
     const rr = r + (a.radiusM[i] as number);
-    if (dx * dx + dy * dy < rr * rr) return i;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= rr * rr) continue;
+    const t = shotBlockT(world, x, y, cx, cy);
+    if (t < 0 || (1 - t) * Math.sqrt(d2) <= faceTol) return i;
   }
   return -1;
 }

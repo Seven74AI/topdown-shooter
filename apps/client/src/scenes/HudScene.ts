@@ -37,6 +37,7 @@ import { PerfOverlay } from "../debug/PerfOverlay";
 import { FIRE_POP_POOL, FIRE_POP_RISE_PX, PopPool, fireDamageLabel } from "../render/burnCue";
 import { ATLAS_FX, FX_EDGE, FX_TIER_MARKS, FX_TIER_SCALE, ensureAtlases } from "../render/city/spriteAtlas";
 import { GEAR_ICON_CSS_PX, GEAR_ICON_FRAME_PX, GEAR_ICON_TEXTURE, ensureGearIcons, gearIconFramesFor } from "../render/city/gearIcons";
+import { RIGHT_BUTTON_CSS_PX, layoutRightButtons, newRightButtonsLayout } from "./consumableButton";
 import { CONSUMABLE_ICON_CSS_PX, CONSUMABLE_ICON_FRAMES, CONSUMABLE_ICON_TEXTURE, ensureConsumableIcons } from "../render/city/consumableIcons";
 
 export interface HudSceneData {
@@ -79,13 +80,8 @@ const EDGE_GLOW_DEPTH = -1;
 const AMMO_TEXT_PX = 18;
 const OTHER_TEXT_PX = MIN_TEXT_CSS_PX;
 const AMMO_MARGIN = 24;
-/** Swap button (FR5): 64 × 64 CSS px, bottom-right, above where the right thumb rests. */
-const SWAP_BTN_PX = 64;
-const SWAP_BTN_RIGHT = 24;
-const SWAP_BTN_BOTTOM = 120;
-/** Story 5.12 (D5): the consumable button's gap left of swap, above the build grid, and its count badge (CSS px). */
-const CONS_BTN_GAP_PX = 16;
-const CONS_BAR_GAP_PX = 28;
+/** Swap (FR5) and Story 5.12's consumable button: 64 × 64 CSS px, placed by `layoutRightButtons` (consumableButton.ts). */
+/** Story 5.12: the consumable button's count badge (CSS px) and its pending / greyed looks. */
 const CONS_COUNT_PX = 16;
 const CONS_PENDING_ALPHA = 0.5;
 const CONS_GREY_ALPHA = 0.4;
@@ -295,6 +291,7 @@ export class HudScene extends Phaser.Scene {
   private readonly bar = newBuildBarLayout();
   /** Story 5.12: scratch for the consumable button above the grid. */
   private readonly consBar = newBuildBarLayout();
+  private readonly rightBtns = newRightButtonsLayout();
   private readonly barSlots = new Int16Array(BUILD_BAR_SLOTS);
   private barPage = 0;
   private barSlotsDirty = true;
@@ -468,7 +465,7 @@ export class HudScene extends Phaser.Scene {
     this.ammoMark = this.add.image(0, 0, ATLAS_FX, FX_TIER_MARKS[2]).setOrigin(1, 0.5).setVisible(false);
     this.otherMark = this.add.image(0, 0, ATLAS_FX, FX_TIER_MARKS[2]).setOrigin(1, 0.5).setVisible(false);
     this.swapBtn = this.add
-      .circle(0, 0, (SWAP_BTN_PX / 2) * dpr(), 0xffffff, 0.14)
+      .circle(0, 0, (RIGHT_BUTTON_CSS_PX / 2) * dpr(), 0xffffff, 0.14)
       .setStrokeStyle(2 * dpr(), 0xffffff, 0.5)
       .setVisible(false);
     this.swapLabel = this.add
@@ -484,7 +481,7 @@ export class HudScene extends Phaser.Scene {
     // Story 5.12 (AC 1, D5): the consumable button, 16 px left of swap at the same height.
     ensureConsumableIcons(this);
     this.consBtn = this.add
-      .circle(0, 0, (SWAP_BTN_PX / 2) * dpr(), 0xffffff, 0.14)
+      .circle(0, 0, (RIGHT_BUTTON_CSS_PX / 2) * dpr(), 0xffffff, 0.14)
       .setStrokeStyle(2 * dpr(), 0xffffff, 0.5)
       .setVisible(false);
     this.consIcon = this.add.image(0, 0, CONSUMABLE_ICON_TEXTURE, CONSUMABLE_ICON_FRAMES.medkit).setVisible(false);
@@ -818,9 +815,11 @@ export class HudScene extends Phaser.Scene {
   private layoutButtons(): void {
     const k = dpr();
     const safe = this.insets;
-    const size = SWAP_BTN_PX * k;
-    const x = this.scale.width - (SWAP_BTN_RIGHT + safe.right) * k - size;
-    const y = this.scale.height - (SWAP_BTN_BOTTOM + safe.bottom) * k - size;
+    const bl = layoutBuildBar(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consBar);
+    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns);
+    const size = l.size;
+    const x = l.swapX;
+    const y = l.swapY;
     const rect = this.buttons.get("swap");
     if (rect) Object.assign(rect, { x, y, w: size, h: size });
     this.swapBtn.setRadius(size / 2).setPosition(x + size / 2, y + size / 2);
@@ -840,14 +839,11 @@ export class HudScene extends Phaser.Scene {
   private layoutConsumableButton(): void {
     const k = dpr();
     const safe = this.insets;
-    const size = SWAP_BTN_PX * k;
-    let x = this.scale.width - (SWAP_BTN_RIGHT + safe.right) * k - size - (CONS_BTN_GAP_PX * k + size);
-    let y = this.scale.height - (SWAP_BTN_BOTTOM + safe.bottom) * k - size;
-    if (this.consAboveBar) {
-      const l = layoutBuildBar(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consBar);
-      x = l.left;
-      y = l.top - CONS_BAR_GAP_PX * k - size;
-    }
+    const bl = layoutBuildBar(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consBar);
+    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns);
+    const size = l.size;
+    const x = l.consX;
+    const y = l.consY;
     const rect = this.buttons.get("consumable");
     if (rect) Object.assign(rect, { x, y, w: size, h: size });
     this.consBtn.setRadius(size / 2).setPosition(x + size / 2, y + size / 2);
@@ -861,7 +857,7 @@ export class HudScene extends Phaser.Scene {
     const m = this.model;
     if (m.buildBar !== this.consAboveBar) {
       this.consAboveBar = m.buildBar;
-      this.layoutConsumableButton();
+      this.layoutButtons(); // swap and the consumable move above / below the build bar together
     }
     const frame = m.consumableItem !== null ? CONSUMABLE_ICON_FRAMES[m.consumableItem] : undefined;
     const show = m.consumableVisible && frame !== undefined;
@@ -1663,7 +1659,8 @@ export class HudScene extends Phaser.Scene {
       this.otherMark.setAlpha(a);
       this.reloadBar.setAlpha(a);
     }
-    const hasOther = m.otherWeaponName !== "" && !hidden;
+    // Story 5.12 (main-session decision 2026-11-23): in a build phase the swap sits above the build bar; hidden only while holding.
+    const hasOther = m.otherWeaponName !== "" && !m.placementActive;
     if (hasOther !== this.shownSwapVisible) {
       this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
       this.buttons.setVisible("swap", hasOther);

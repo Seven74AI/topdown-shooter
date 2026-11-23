@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { consumableUsable, consumableVisible, createConsumablePending, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
+import { ABOVE_BAR_GAP_CSS_PX, consumableUsable, consumableVisible, createConsumablePending, layoutRightButtons, newRightButtonsLayout, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
+import { layoutBuildBar, newBuildBarLayout, readyLeftX } from "./buildBar";
+import { BUILD_COUNT_TEXT_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 const base: ConsumableButtonInput = { item: "grenades", count: 3, kind: "grenade", alive: true, running: true, placement: false, shopOpen: false, menuOpen: false, phase: "wave", hp: 100, maxHp: 100 };
 
@@ -37,5 +39,48 @@ describe("consumable button (Story 5.12, AC 1, 7)", () => {
     expect(tapConsumable(p, 1531, { ...base, count: 2 })).toBe(true);
     updateConsumablePending(p, 1540, null, 0); // the last one: the slot empties
     expect(p.active).toBe(false);
+  });
+});
+
+
+describe("swap + consumable above the build bar (Story 5.12, main-session decision; 5.16 D3)", () => {
+  type Rect = { name: string; x: number; y: number; w: number; h: number };
+  const gapOf = (a: Rect, b: Rect): number => Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
+  for (const [W, H] of [
+    [568, 320],
+    [800, 360],
+    [1024, 768],
+  ] as const) {
+    for (const k of [1, 2]) {
+      it(`${W}×${H} at dpr ${k}: on screen, ≥ 12 px from the tiles, the count line, Ready, ☰ and each other`, () => {
+        const w = W * k;
+        const h = H * k;
+        const bar = layoutBuildBar(w, h, 0, 0, k, newBuildBarLayout());
+        const l = layoutRightButtons(w, h, 0, 0, k, true, bar.left, bar.top, newRightButtonsLayout());
+        const cons: Rect = { name: "consumable", x: l.consX, y: l.consY, w: l.size, h: l.size };
+        const swap: Rect = { name: "swap", x: l.swapX, y: l.swapY, w: l.size, h: l.size };
+        const others: Rect[] = [];
+        for (let s = 0; s < bar.x.length; s++) others.push({ name: `tile ${s}`, x: bar.x[s] as number, y: bar.y[s] as number, w: bar.tile, h: bar.tile });
+        const countH = BUILD_COUNT_TEXT_CSS_PX * k * 1.3;
+        others.push({ name: "count", x: bar.countX - 48 * k, y: bar.countY - countH, w: 48 * k, h: countH }); // "10/12" right-aligned
+        const rw = READY_BUTTON_W_CSS_PX * k;
+        const rh = READY_BUTTON_H_CSS_PX * k;
+        others.push({ name: "ready", x: readyLeftX(w, rw, bar.left, k), y: h - READY_BUTTON_BOTTOM_CSS_PX * k - rh, w: rw, h: rh });
+        const ms = MENU_BUTTON_CSS_PX * k;
+        others.push({ name: "menu", x: w - MENU_BUTTON_INSET_CSS_PX * k - ms, y: MENU_BUTTON_INSET_CSS_PX * k, w: ms, h: ms });
+        for (const b of [cons, swap]) {
+          expect(b.x).toBeGreaterThanOrEqual(0);
+          expect(b.y).toBeGreaterThanOrEqual(0);
+          expect(b.x + b.w).toBeLessThanOrEqual(w);
+          for (const o of others) expect(gapOf(b, o), `${b.name} vs ${o.name}`).toBeGreaterThanOrEqual(ABOVE_BAR_GAP_CSS_PX * k - 1e-6);
+        }
+        expect(gapOf(cons, swap)).toBeGreaterThanOrEqual(ABOVE_BAR_GAP_CSS_PX * k - 1e-6);
+      });
+    }
+  }
+
+  it("outside the build bar: swap bottom right, the consumable 16 px left of it (D5)", () => {
+    const l = layoutRightButtons(800, 360, 0, 0, 1, false, 0, 0, newRightButtonsLayout());
+    expect([l.swapX, l.swapY, l.consX, l.consY]).toEqual([800 - 24 - 64, 360 - 120 - 64, 800 - 24 - 64 - 16 - 64, 360 - 120 - 64]);
   });
 });
