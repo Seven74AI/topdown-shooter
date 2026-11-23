@@ -1,0 +1,55 @@
+# Digest: PWA offline caching + phone-browser-as-host (r1-1)
+
+Track: offline caching of the game (PWA) and one phone browser acting as authoritative host. Accessed 2026-11-23. 14 tool calls.
+
+## Findings
+
+### Storage, quotas, eviction (Q1)
+- Since Safari 17 (iOS 17), the per-origin quota is up to 60% of total disk for browser apps and 15% for other apps that embed WebKit. The overall cap is 80% and 20% respectively. Going over throws QuotaExceededError. A 5–15 MB game is far below this | https://webkit.org/blog/14403/updates-to-storage-policy/ | WebKit | 2023-08-10 | accessed 2026-11-23 | confidence high | policy
+- Home Screen web apps get the same origin and overall quotas as a browser app | https://webkit.org/blog/14403/updates-to-storage-policy/ | WebKit | 2023-08-10 | accessed 2026-11-23 | confidence high | policy
+- WebKit evicts whole origins, least-recently-used first, in three cases: the overall quota is exceeded, the device runs low on storage, or ITP sees no interaction with the site. Default mode is best-effort. Origins with an active page, or in persistent mode, may be excluded | https://webkit.org/blog/14403/updates-to-storage-policy/ | WebKit | 2023-08-10 | accessed 2026-11-23 | confidence high | policy
+- `navigator.storage.persist()` and `persisted()` are supported in Safari 17+. WebKit decides by heuristics, for example whether the site is opened as a Home Screen web app | https://webkit.org/blog/14403/updates-to-storage-policy/ | WebKit | 2023-08-10 | accessed 2026-11-23 | confidence high | compat
+- ITP's 7-day cap deletes all script-writable storage, explicitly including "Service Worker registrations and cache", after 7 days of Safari use with no user interaction on the site | https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/ | WebKit | 2020-03-24 | accessed 2026-11-23 | confidence high | policy
+- Home Screen web apps "are not part of Safari and thus have their own counter of days of use". WebKit says it does not expect the first party in such an app to have its data deleted. In practice, a Home Screen install is the durable option on iOS. The 2023 post gives no updated day count, so I did not confirm that the 7-day number still holds in Safari 18 or 26 | https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/ | WebKit | 2020-03-24 | accessed 2026-11-23 | confidence medium (rule is old; not re-confirmed for Safari 18/26) | policy
+- Unverified belief: Home Screen web apps on iOS keep their storage separate from Safari tabs, so a cache filled in Safari does not carry over to the installed app and must be re-downloaded online after installing. The "own counter" wording supports this, but no primary source this run says so directly | https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/ | WebKit | 2020-03-24 | accessed 2026-11-23 | confidence low | policy
+- EU: iOS 17.4 beta removed Home Screen web apps in the EU under the DMA. Apple reversed this on 2024-03-01 and kept them, still built on WebKit. I found nothing newer showing a further change | https://www.macrumors.com/2024/03/01/apple-walks-back-decision-to-disable-eu-web-apps/ | MacRumors | 2024-03-01 | accessed 2026-11-23 | confidence medium (secondary source; status since 2024 not re-checked) | policy
+
+### Secure context offline (Q2)
+- A top-level document is a secure context when its URL is "potentially trustworthy", for example `https://`. The test is the URL and scheme, not live network state. Service workers are always secure contexts. MDN does not spell out the case of a cached HTTPS page served offline by a service worker. Inference: it stays secure, because its URL is still https | https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts | MDN | n.d. (living doc) | accessed 2026-11-23 | confidence medium | spec
+
+### Host phone in background (Q3)
+- Chrome does not call requestAnimationFrame for background pages. Background timers are aligned to fire at most once per second. After 10 s in the background a time budget applies, regenerating at 0.01 s per second. Pages with WebSockets or WebRTC are exempt from the budget but still capped at once per second. Pages playing audible audio count as foreground. Result: a 20 Hz sim cannot run in a backgrounded Chrome tab | https://developer.chrome.com/blog/background_tabs | Chrome for Developers | n.d. (Chrome 57 era, ~2017) | accessed 2026-11-23 | confidence high | performance
+- Chrome 139 shortens the time before Android freezes background pages and their workers from 5 minutes to 1 minute. When a page is frozen, timers and callbacks stop entirely. The release notes list no exemptions | https://developer.chrome.com/release-notes/139 | Chrome for Developers | 2025 (Chrome 139) | accessed 2026-11-23 | confidence high | performance
+- Chrome 133+ also freezes CPU-heavy background tabs when Energy Saver is on (aimed at about 10% of background tabs) | https://developer.chrome.com/blog/freezing-on-energy-saver | Chrome for Developers | 2025 | accessed 2026-11-23 | confidence medium (from search summary, page not fetched) | performance
+- iOS Safari suspends WebRTC (and Web Audio) once the screen locks or Safari goes to the background. Data-channel-only connections do not keep the page alive. Backgrounded tabs may be suspended, with no JS running. All of this comes from developer forum and bugzilla reports; Apple publishes no official background-execution policy for web pages | https://developer.apple.com/forums/thread/774239 ; https://developer.apple.com/forums/thread/799259 | Apple Developer Forums | 2025 | accessed 2026-11-23 | confidence medium | compat
+- Screen Wake Lock: Chrome Android supports it since 84 (2020-07). iOS Safari has had it in browser tabs since 16.4. In Home Screen web apps it was broken (WebKit bug 254545) until Safari/iOS 18.4, whose notes say "Fixed Wake Lock API for Home Screen Web Apps". Baseline "newly available" since 2025-03-31 | https://developer.apple.com/documentation/safari-release-notes/safari-18_4-release-notes | Apple | 2025-03-31 | accessed 2026-11-23 | confidence high | compat
+- Wake Lock support data: Chrome Android 84, Safari iOS 18.4 | https://web-platform-dx.github.io/web-features-explorer/features/screen-wake-lock | W3C WebDX CG | n.d. | accessed 2026-11-23 | confidence high | compat
+- iOS bug: after leaving to the Home Screen and returning, re-requesting the wake lock failed with NotAllowedError (WebKit bug 255363, 2023). I did not check whether it is fixed. Re-acquire on `visibilitychange` and handle the rejection | https://bugs.webkit.org/show_bug.cgi?id=255363 | WebKit Bugzilla | 2023-04 | accessed 2026-11-23 | confidence low (current status unknown) | compat
+- Wake lock only prevents auto-lock. It does nothing if the host user switches apps or presses the power button, which still triggers the throttling and suspension above (inference from the findings above) | (synthesis) | — | — | accessed 2026-11-23 | confidence medium | compat
+
+### Performance and thermal (Q4)
+- Chrome freezes background pages "and associated workers", so moving the sim into a Web Worker does not escape background freezing on Android | https://developer.chrome.com/release-notes/139 | Chrome for Developers | 2025 | accessed 2026-11-23 | confidence high | performance
+- Qualcomm recommends profiling at least 10 minutes of continuous play on Android, because short tests miss thermal throttling | https://www.qualcomm.com/developer/blog/2025/08/optimize-performance-and-graphics-for-adreno-gpu-low-power-gaming | Qualcomm | 2025-08 | accessed 2026-11-23 | confidence medium (from search summary) | performance
+- In Netmarble's case study, a native game under thermal throttling swung between 40 and 56 fps on Android. It is native, not browser, but shows how big the throttling effect can be | https://developer.android.com/stories/games/netmarble-got-adpf | Android Developers | n.d. | accessed 2026-11-23 | confidence medium | performance
+- A developer reported high energy use and heat on iOS for a Phaser 3 game in a WebView (Cordova), even with fine frame rate | https://developer.apple.com/forums/thread/125684 | Apple Developer Forums | ~2019 | accessed 2026-11-23 | confidence low | performance
+
+### Host-tab precedents (Q5)
+- Construct 3's browser Multiplayer plugin (host-peer over WebRTC) does not provide automatic host migration. The suggested workaround: detect the host drop, pause, reconnect peers to a new room, and send state to the new host | https://bugnet.io/blog/fix-construct3-multiplayer-host-migration-crash | Bugnet | n.d. | accessed 2026-11-23 | confidence low (third-party blog) | spec
+- Guidance for host-based WebRTC games: when the host leaves, either end the match or migrate state. For short matches (<5 min), ending the match is acceptable. Signaling still needs a broker | https://abratabia.com/multiplayer-web-games/webrtc.php | abratabia | n.d. | accessed 2026-11-23 | confidence low | spec
+- WebRTC on a LAN with no internet can work with host-only candidates. Known problems: mDNS `.local` candidates failing to resolve, and ICE gathering failing on a pure LAN in Firefox. Pion's offline demo avoids signaling and mDNS by presetting ICE credentials and DTLS certs, and only works in Chromium | https://github.com/pion/offline-browser-communication ; https://bugzilla.mozilla.org/show_bug.cgi?id=1698141 | Pion / Mozilla | n.d. / 2021 | accessed 2026-11-23 | confidence medium | compat
+
+## Leads worth chasing
+- WebKit storage policy for Safari 18/26: is the ITP 7-day rule still 7 days, and does it apply to installed web apps today (webkit.org blog, Safari 26 release notes)?
+- Primary confirmation that iOS Home Screen web apps have a separate storage container from Safari (WebKit or Apple docs). This matters because the cache must be filled inside the installed app while online.
+- Status of WebKit bug 255363 (wake lock re-acquire NotAllowedError).
+- Whether iOS gives any grace period (seconds) before suspending a backgrounded tab with an open RTCDataChannel. Needs a device test.
+- Chrome Android: does a page with an active WebRTC connection or audible audio avoid the 1-minute freeze (Page Lifecycle docs)?
+- Offline signaling between phones with no server (manual SDP or QR exchange) — belongs to the networking track, but it gates the whole host route.
+- Real host-tab games: PeerJS/Trystero-based party games, Construct 3 multiplayer, Godot HTML5 WebRTC exports — any post-mortems.
+
+## Looked for but could not find
+- An official Apple or WebKit statement on JS execution and timers for backgrounded or locked iOS Safari pages (only forum and bugzilla reports).
+- Current (2025–2026) official confirmation of the 7-day ITP cap numbers and the exemption for installed web apps.
+- Measured battery or thermal numbers for long mobile *browser* game sessions (only native figures and unsourced blog estimates).
+- Data on Web Worker CPU throughput or throttling specific to iOS Safari when the page is in the foreground.
+- A documented browser game that does working host migration between phone tabs.
