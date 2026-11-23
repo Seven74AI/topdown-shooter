@@ -6,7 +6,7 @@ import { DEG_TO_RAD } from "../math/vec";
 import type { PlayerState } from "../player/player";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
-import { applyZombieDamage } from "./damage";
+import { applyKnockback, applyZombieDamage, applyZombieDamageQuiet, knockbackShare, knockbacks } from "./damage";
 import { zombieCandidates as candidates } from "./scratch";
 import type { WeaponId } from "./weapons";
 import type { ZombieView } from "./rewind";
@@ -21,7 +21,14 @@ const MIN_DIST = 1e-6;
  * the player. No aim assist, ignores cover. Requires the zombie grid to be current. Returns hits.
  * Story 2.12: with a `view`, the arc is tested against those (rewound) positions; the damage and
  * the pushback (away from the player, along the rewound direction) go to the present zombie.
- * Story 5.1: `damage` per zombie hit is the caller's `weaponDamage(balance, weapon, slot.level)`.
+ *
+ * Story 5.2: a weapon with `knockbackM` > 0 (the Fire Axe) then knocks each zombie it hit and
+ * didn't kill back along the same direction through the shared swept `applyKnockback` (stops at
+ * the first face; once per zombie per swing: each candidate is visited once). A `quietHits` weapon
+ * (the Chainsaw, 10 swings/s) sends no `zombie.hit` per zombie (`applyZombieDamageQuiet`), and its
+ * `melee.swung` (emitted after the hits) carries the hit count for the client's sparks.
+ * Story 5.1: `damage` per zombie hit is the caller's `weaponDamage(balance, weapon, slot.level)`
+ * (an axe swing and every Chainsaw tick).
  */
 export function swingMelee(
   world: World,
@@ -39,7 +46,9 @@ export function swingMelee(
   const half = (stats.arcDeg / 2) * DEG_TO_RAD;
   const cosH = Math.cos(half);
   const sinH = Math.sin(half);
-  world.events.emit({ type: "melee.swung", playerId: p.id, weapon, x: ox, y: oy, dirX, dirY, arcDeg: stats.arcDeg, rangeM: reach });
+  const quiet = stats.quietHits;
+  if (!quiet) world.events.emit({ type: "melee.swung", playerId: p.id, weapon, x: ox, y: oy, dirX, dirY, arcDeg: stats.arcDeg, rangeM: reach });
+  const knock = stats.knockbackM;
 
   const z = world.zombies;
   const xs = view ? view.x : z.x;
@@ -59,8 +68,16 @@ export function swingMelee(
     const d = Math.sqrt(vx * vx + vy * vy);
     const px = d > MIN_DIST ? vx / d : dirX;
     const py = d > MIN_DIST ? vy / d : dirY;
-    applyZombieDamage(world, id, damage, px, py, stats.hitPushbackM, p.id, weapon);
+    const died = quiet
+      ? applyZombieDamageQuiet(world, id, damage, px, py, stats.hitPushbackM, p.id, weapon)
+      : applyZombieDamage(world, id, damage, px, py, stats.hitPushbackM, p.id, weapon);
+    if (knock > 0 && !died) {
+      knockbacks.applied++;
+      if (applyKnockback(world, id, px, py, knock) < knock * knockbackShare(world, id) - 1e-9) knockbacks.stopped++;
+    }
     hits++;
   }
+  if (quiet) world.events.emit({ type: "melee.swung", playerId: p.id, weapon, x: ox, y: oy, dirX, dirY, arcDeg: stats.arcDeg, rangeM: reach, hits });
   return hits;
 }
+

@@ -163,7 +163,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     buildings: createBuildingState(),
     // 3.5 review L5: Worlds whose buildings system never runs (client mirror, prediction) get a placeholder.
     // Story 4.2: the nav grid walls off the map boxes and the active cover.
-    pathing: createPathingState({ widthM: map.widthM, heightM: map.heightM, solids: obstacles.solids }, ZOMBIE_POOL_CAPACITY, (opts.systems?.buildings ?? DEFAULT_SYSTEMS.buildings) === DEFAULT_SYSTEMS.buildings),
+    pathing: createPathingState({ widthM: map.widthM, heightM: map.heightM, solids: obstacles.solids }, ZOMBIE_POOL_CAPACITY, (opts.systems?.buildings ?? DEFAULT_SYSTEMS.buildings) === DEFAULT_SYSTEMS.buildings, opts.balance.zombies.pathing.wideInflateM),
     zombieHistory: createZombieHistory(),
     rewoundView: createRewoundView(map),
     spits: createSpitPool(opts.balance.zombies.spitCaps.maxLiveSpits), // Story 5.6

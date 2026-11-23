@@ -37,8 +37,10 @@ import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
 import { ACID_CUE_MS, FireCue } from "../render/fireCue";
 import { ACID_SOUND_MAX_AGE_S, AcidFx } from "../render/acidFx";
+import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
-import { playSfx } from "../audio/placeholderSfx";
+import { playSfx, startChainsawRev, stopChainsawRev } from "../audio/placeholderSfx";
+import { SawClock, countInArc } from "../render/meleeFx";
 import { BurnView } from "../render/BurnView";
 import { edgeGlowAlpha, routeAcidHit, routeFireHit } from "../render/burnCue";
 import { ZombieView } from "../render/ZombieView";
@@ -138,6 +140,8 @@ export class GameScene extends Phaser.Scene {
   private leaving = false;
   /** Story 2.11: "<name> left" lines for the HUD, one at a time. */
   private readonly toasts = new ToastQueue();
+  /** Story 5.7: the Brute spawn cue (reused record). */
+  private readonly bruteCue: BruteCue = { roar: false, banner: false, pan: 0 };
   /** How this run is simulated: the local World, or the server's (Story 2.4). */
   mode: "solo" | "online" = "solo";
   private sticks: TouchSticks | null = null;
@@ -156,7 +160,7 @@ export class GameScene extends Phaser.Scene {
       view.setSlot(this.host?.playerInfo(id).slot ?? 0); // Story 2.9: ring colour by slot
       this.playerViews.set(id, view);
     }
-    view.update(p, this.host?.alpha ?? 0, this.time.now);
+    view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
     // Story 4.11 / 4.12: flames, smoke and embers on every survivor the server reports burning (dying down after).
     this.burnView?.draw(id, view.x, view.y, this.playerRadiusM, p.status === "alive" && this.fireCue.burning(id, this.time.now));
   };
@@ -347,11 +351,14 @@ export class GameScene extends Phaser.Scene {
 
     this.ambience?.dispose(); // Phaser reuses this scene object: never two players
     this.ambience = new AmbiencePlayer();
-    this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
+    this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
     this.fxView.balance = balance; // Story 3.5: building footprints for the debris
+    // Story 5.2: Chainsaw running state (survivor frame, my rev loop) and the drawn-arc count for my own cuts.
+    this.fxView.saw = new SawClock(balance.controls.fx.chainsawRevHoldMs);
+    this.fxView.cutCount = (x, y, dx, dy, arc, range) => countInArc(host.world, x, y, dx, dy, arc, range);
     this.downedView = new DownedView(this, world);
     this.buildingView = new BuildingView(this, balance);
     this.mineView = new MineView(this, balance);
@@ -384,7 +391,9 @@ export class GameScene extends Phaser.Scene {
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
       if (opts.stressBuild) placeStressFloor(world, localId, cx, cy); // Story 5.9: before the Walkers
       setupStressWorld(world, stress, view, cx, cy, parseWaveMix(opts.waveMix, balance)); // Story 5.6: ?wavemix=walker,spitter
-      if (opts.stressBuild) toughenStressZombies(world);
+      // Story 5.2: a melee ?stressfire benchmark (?loadout=chainsaw) keeps its crowd: the zombies can't die.
+      const meleeFire = this.stressFire && urlLoadout !== null && balance.weapons[urlLoadout.weapons[0]]?.kind === "melee";
+      if (opts.stressBuild || meleeFire) toughenStressZombies(world);
       stressRun.start(performance.now(), stress);
     }
 
@@ -428,6 +437,7 @@ export class GameScene extends Phaser.Scene {
       for (const c of this.chevrons) c.destroy();
       this.chevrons.length = 0;
       this.fxView?.destroy();
+      stopChainsawRev(); // Story 5.2: never a rev left running after the scene
       this.downedView?.destroy();
       this.downedView = null;
       this.projectileView?.destroy();
@@ -951,12 +961,19 @@ export class GameScene extends Phaser.Scene {
         this.kills++;
       } else if (e.type === "money.earned" && e.playerId === localId) {
         this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame
+      } else if (e.type === "zombie.brute_spawned") {
+        // Story 5.7 (AC 4): a roar for every Brute, the "Brute!" banner for the run's first.
+        const cue = bruteSpawnCue(e, this.cameras.main.worldView, this.bruteCue);
+        if (cue.roar) playSfx("zombie_brute_roar", cue.pan);
+        if (cue.banner) this.stackBanner(BRUTE_BANNER);
       } else if (e.type === "mine.exploded") {
         // Story 5.9: a short shake when my survivor is within 6 m of the blast (`mineShakeIntensity`).
         const me = host.world.players.get(localId);
         const k = me ? mineShakeIntensity(Math.hypot(me.x - e.x, me.y - e.y)) : 0;
         if (k > 0 && getSettings().screenShake) this.cameras.main.shake(MINE_SHAKE_MS, k);
-      } else if (e.type === "weapon.fired" && e.playerId === localId) {
+      } else if ((e.type === "weapon.fired" || e.type === "melee.swung") && e.playerId === localId) {
+        // Story 5.2: my own swing of a screenShake melee weapon (the Fire Axe) shakes too. Online it is
+        // the local swing (NetSimHost drops my server echo), so it shakes once and without a round trip.
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "build.started") {
@@ -973,6 +990,12 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Story 5.2: Chainsaw sparks (one Graphics), and my rev loop starts/stops with my cuts (not per swing).
+    this.fxView?.update(this.localHost?.paused === true ? 0 : deltaMs);
+    if (this.fxView?.saw) this.fxView.saw.frameMs = deltaMs;
+    const rev = this.fxView?.saw?.revStep(localId, this.time.now);
+    if (rev === "start") startChainsawRev();
+    else if (rev === "stop") stopChainsawRev();
     this.zombieView?.update(host.world, host.alpha);
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     if (this.localHost?.paused !== true) this.acidClockS += deltaMs / 1000;

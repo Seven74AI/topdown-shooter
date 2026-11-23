@@ -1,6 +1,9 @@
+---
+baseline_commit: 26bab2b
+---
 # Story 5.2: Fire Axe and Chainsaw
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -62,34 +65,34 @@ so that I can carve through the crowd up close.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art pick (first; brief 13).** ~5 Meshy proposals per weapon (`nano-banana-pro`, the 4.11 shared style line: strict top-down orthographic, gritty realistic, night, wet asphalt, cool streetlight from the upper left, muted, crisp silhouette, no text), shown **in a survivor's hands seen from above** at the in-game size: Fire Axe **A1** red fire-department axe, **A2** worn wooden haft + rusty head, **A3** yellow-handled pick-head axe, **A4** taped haft with blood, **A5** long two-handed felling axe; Chainsaw **C1** orange classic, **C2** yellow/black, **C3** rusty with a missing guard, **C4** red with a long bar, **C5** compact grey electric. Plus 3 swing-effect sketches (axe arc smear; chainsaw spark spray). One private proposal page; the designer picks; record in `docs/art/5-2/README.md` (+ images). (AC 7)
-- [ ] **T1 Balance + schema** (AC 1)
-  - [ ] `balanceSchema.ts › meleeSchema`: `wielderSlowPct: z.number().int().min(0).max(90).default(0)` (integer for prediction, like `biteSlowPct`). `common.knockbackM` already exists (default 0; unused until now). `zombieTypeSchema`: `knockbackTakenPct: int 0–100, default 100` (5.7 sets the Brute's 20; add it here if 5.7 isn't merged — whoever is first).
-  - [ ] `weapons.json` + `shop.json` entries (AC 1). `config/balance.test.ts` (+ `fire axe and chainsaw match the GDD table`).
-- [ ] **T2 Swept knockback** (AC 2; F2, F3) — **reuse Round A 5.3's `combat/damage.ts › applyKnockback(world, zid, dirX, dirY, distM)`** (5.3 T4: moves the body along the direction, stopping at first contact with any map solid or solid building, boxes grown by the zombie radius, clamped to the map; allocation-free). Do not add a second helper.
-  - [ ] Verify 5.3's helper against a 1.5 m push (3× its 0.5 m case): it must stop at the first face along the whole segment (a swept test, not an end-point push-out). If 5.3 used end-point push-out or fixed sub-steps sized for 0.5 m, make it a true segment sweep (or sub-steps ≤ `zombies.json › knockback.stepM` 0.2 m, < half the thinnest wall) and re-run 5.3's knockback fuzz.
-  - [ ] Inside `applyKnockback`: `distM × knockbackTakenPct / 100` of the zombie's type (D3; the Brute's 20 % from 5.7). Apply the same factor to `hitPushbackM` in `applyZombieDamage`.
-  - [ ] `combat/melee.ts › swingMelee`: after `applyZombieDamage` (pushback = `hitPushbackM`), if `stats.knockbackM > 0` and the zombie is still alive → `applyKnockback(world, id, px, py, stats.knockbackM)`. Each zombie at most once per swing (one loop pass per swing: already true; test it). With a rewound `view` (2.12), the direction is the rewound one, the move applies to the present zombie (existing pattern).
-  - [ ] Tests `combat/knockback.test.ts` (5.3's file: extend): `axe knocks back exactly 1.5 m in the open`, `axe stops at a wood barricade face and never crosses it` (both rotations, approach angles 0–90° step 5°), `stops at a car, the bus, a building box, a turret, the map edge`, `a Brute moves 20 %` (type override if 5.7 isn't merged), `one push per zombie per swing`, `killed zombies are not moved`, `rewound swing pushes the present zombie`.
-- [ ] **T3 Chainsaw + speed penalty** (AC 3, 4, 5; F4, F5, F6)
-  - [ ] No new timer: the chainsaw is a melee weapon with `rateHz 10` (the cooldown rule fires it every 2nd tick exactly; verify with a test, not by reasoning).
-  - [ ] `player/slow.ts`: `wielderSlowPct(balance, p, input)` (active slot's weapon `wielderSlowPct` if alive, `loadout.swapTicks === 0`, `input.fire`, aim length ≥ the `MIN_AIM` used in `tryFire`) and `playerSpeed(base, p, wieldPct)` = `base × (100 − slowPct) × (100 − wieldPct) / 10000` (integers, + − × ÷ only, same expression on both sides).
-  - [ ] `player/movement.ts › movePlayers`: passes it. The Predictor's World has only its player: it needs the real active weapon → T5.
-  - [ ] Tests `player/slow.test.ts` (+ `chainsaw slows to 3.6 m/s only while attacking`, `no slow while swapping / downed / aim released / chainsaw not in hand`, `stacks with a Crawler bite to 2.52 m/s`), `combat/melee.test.ts` (+ `chainsaw ticks 10 times in 20 ticks`, `60 damage per second per zombie in the arc at level I`, `axe and chainsaw arcs: inside / on the edge / outside`, `chainsaw is continuous: a zombie walking in is hit on the next chainsaw tick`).
-- [ ] **T4 Client** (AC 2, 3, 7)
-  - [ ] `scenes/GameScene.ts`: screen shake also on my own `melee.swung` of a `screenShake` weapon (today only `weapon.fired`); online from the local swing (`NetSimHost.localSwung`), never twice.
-  - [ ] `render/FxView.ts`: axe swing look (wider, heavier) and chainsaw spark spray, both pooled with a fixed cap (no allocation per swing); `audio/placeholderSfx.ts`: `weapon_axe_swing`, `weapon_chainsaw_rev` (looped while active, stopped after 150 ms without a chainsaw swing).
-  - [ ] Survivor in-hand weapon from the T0 picks (`render/PlayerView.ts` + `render/city/spriteArt.ts` / `spriteAtlas.ts` frames, `category_name_variant`, in the existing ≤ 2048² characters atlas; check `atlasLayout.test.ts`).
-  - [ ] Readability sheet: add the axe and chainsaw (`docs/playtests/milestone-1/readability-sheet.md` + key) as new rows.
-- [ ] **T5 Prediction copy** (AC 5; brief 2)
-  - [ ] `apps/client/src/net/prediction.ts`: `Predictor.step(input, wield)` (or a `setWield(weapon, swapping)` before each step) fed from `LocalFire`'s per-seq active weapon and swap state; replayed inputs on reconcile use the same per-seq values (store them in the ring next to the input copy: preallocated fields, no allocation).
-  - [ ] Tests `net/prediction.test.ts` (+ `chainsaw slow predicted: 0 corrections over 200 ticks attacking`), `tools/netsim` (+ `chainsaw.test.ts`: `?lag=150&jitter=20`, corrections from the chainsaw ≤ the baseline's, client position = server position at ack).
-- [ ] **T6 Fuzz, bandwidth, perf, liveness** (brief 7, 9, 11, 16)
-  - [ ] Extend 5.3's `combat/knockback.fuzz.test.ts` (or the block in `zombies/downtown.fuzz.test.ts`): random barricade/turret layouts × every decay stage (and the 4.8 fires) × ≥ 2,000 ticks with 4 axe bots swinging at crowds next to cover: **no zombie centre inside any box after any tick, no zombie on the far side of a barricade it started in front of within the knocked tick** (track side-of-face per hit), **no stall (zombies still reach a player)**, **flow fields rebuilt only at build starts** (count rebuild starts outside `startBuild` = 0), ≥ 100 knockbacks really happened and ≥ 20 ended against a face (liveness).
-  - [ ] `apps/server/src/run/` bandwidth test (pattern `turretBandwidth.test.ts`): 1 chainsaw player in a crowd of 6 for 10 s → bytes/s of `melee.swung` + `zombie.hit` to one other client; assert ≤ 1,500 B/s and report the number.
-  - [ ] `tickCost.test.ts` (+ case, behind `PERF_ASSERT=1`): 4 chainsaws in 150 zombies; added p99 recorded with the machine load.
-  - [ ] Sim: a bot loadout `fire_axe,chainsaw` in the 6-wave sim: waves ended, kills by each weapon ≥ 1.
-- [ ] **T7 Gates.** Mutations listed (knockback not swept → fuzz fails; slow without `fire` check → slow test; chainsaw rate 20 → tick test; arc in radians mismatch → arc test; Predictor ignoring wield → netsim). Browser check (Playwright): `?loadout=fire_axe,chainsaw`, solo and online with `?lag=150&jitter=20`: knockback against a barricade, chainsaw slow, shake setting off/on. `typecheck && lint && test && build`. Merge notes.
+- [x] **T0 Art pick (skipped as instructed: designer picked AX1 / CS1 from `docs/art/epic-5/round-b/looks.html`, drawn in game code) (first; brief 13).** ~5 Meshy proposals per weapon (`nano-banana-pro`, the 4.11 shared style line: strict top-down orthographic, gritty realistic, night, wet asphalt, cool streetlight from the upper left, muted, crisp silhouette, no text), shown **in a survivor's hands seen from above** at the in-game size: Fire Axe **A1** red fire-department axe, **A2** worn wooden haft + rusty head, **A3** yellow-handled pick-head axe, **A4** taped haft with blood, **A5** long two-handed felling axe; Chainsaw **C1** orange classic, **C2** yellow/black, **C3** rusty with a missing guard, **C4** red with a long bar, **C5** compact grey electric. Plus 3 swing-effect sketches (axe arc smear; chainsaw spark spray). One private proposal page; the designer picks; record in `docs/art/5-2/README.md` (+ images). (AC 7)
+- [x] **T1 Balance + schema** (AC 1)
+  - [x] `balanceSchema.ts › meleeSchema`: `wielderSlowPct: z.number().int().min(0).max(90).default(0)` (integer for prediction, like `biteSlowPct`). `common.knockbackM` already exists (default 0; unused until now). `zombieTypeSchema`: `knockbackTakenPct: int 0–100, default 100` (5.7 sets the Brute's 20; add it here if 5.7 isn't merged — whoever is first).
+  - [x] `weapons.json` + `shop.json` entries (AC 1). `config/balance.test.ts` (+ `fire axe and chainsaw match the GDD table`).
+- [x] **T2 Swept knockback** (AC 2; F2, F3) — **reuse Round A 5.3's `combat/damage.ts › applyKnockback(world, zid, dirX, dirY, distM)`** (5.3 T4: moves the body along the direction, stopping at first contact with any map solid or solid building, boxes grown by the zombie radius, clamped to the map; allocation-free). Do not add a second helper.
+  - [x] Verify 5.3's helper against a 1.5 m push (3× its 0.5 m case): it must stop at the first face along the whole segment (a swept test, not an end-point push-out). If 5.3 used end-point push-out or fixed sub-steps sized for 0.5 m, make it a true segment sweep (or sub-steps ≤ `zombies.json › knockback.stepM` 0.2 m, < half the thinnest wall) and re-run 5.3's knockback fuzz.
+  - [x] Inside `applyKnockback`: `distM × knockbackTakenPct / 100` of the zombie's type (D3; the Brute's 20 % from 5.7). Apply the same factor to `hitPushbackM` in `applyZombieDamage`.
+  - [x] `combat/melee.ts › swingMelee`: after `applyZombieDamage` (pushback = `hitPushbackM`), if `stats.knockbackM > 0` and the zombie is still alive → `applyKnockback(world, id, px, py, stats.knockbackM)`. Each zombie at most once per swing (one loop pass per swing: already true; test it). With a rewound `view` (2.12), the direction is the rewound one, the move applies to the present zombie (existing pattern).
+  - [x] Tests `combat/knockback.test.ts` (5.3's file: extend): `axe knocks back exactly 1.5 m in the open`, `axe stops at a wood barricade face and never crosses it` (both rotations, approach angles 0–90° step 5°), `stops at a car, the bus, a building box, a turret, the map edge`, `a Brute moves 20 %` (type override if 5.7 isn't merged), `one push per zombie per swing`, `killed zombies are not moved`, `rewound swing pushes the present zombie`.
+- [x] **T3 Chainsaw + speed penalty** (AC 3, 4, 5; F4, F5, F6)
+  - [x] No new timer: the chainsaw is a melee weapon with `rateHz 10` (the cooldown rule fires it every 2nd tick exactly; verify with a test, not by reasoning).
+  - [x] `player/slow.ts`: `wielderSlowPct(balance, p, input)` (active slot's weapon `wielderSlowPct` if alive, `loadout.swapTicks === 0`, `input.fire`, aim length ≥ the `MIN_AIM` used in `tryFire`) and `playerSpeed(base, p, wieldPct)` = `base × (100 − slowPct) × (100 − wieldPct) / 10000` (integers, + − × ÷ only, same expression on both sides).
+  - [x] `player/movement.ts › movePlayers`: passes it. The Predictor's World has only its player: it needs the real active weapon → T5.
+  - [x] Tests `player/slow.test.ts` (+ `chainsaw slows to 3.6 m/s only while attacking`, `no slow while swapping / downed / aim released / chainsaw not in hand`, `stacks with a Crawler bite to 2.52 m/s`), `combat/melee.test.ts` (+ `chainsaw ticks 10 times in 20 ticks`, `60 damage per second per zombie in the arc at level I`, `axe and chainsaw arcs: inside / on the edge / outside`, `chainsaw is continuous: a zombie walking in is hit on the next chainsaw tick`).
+- [x] **T4 Client** (AC 2, 3, 7)
+  - [x] `scenes/GameScene.ts`: screen shake also on my own `melee.swung` of a `screenShake` weapon (today only `weapon.fired`); online from the local swing (`NetSimHost.localSwung`), never twice.
+  - [x] `render/FxView.ts`: axe swing look (wider, heavier) and chainsaw spark spray, both pooled with a fixed cap (no allocation per swing); `audio/placeholderSfx.ts`: `weapon_axe_swing`, `weapon_chainsaw_rev` (looped while active, stopped after 150 ms without a chainsaw swing).
+  - [x] Survivor in-hand weapon from the T0 picks (`render/PlayerView.ts` + `render/city/spriteArt.ts` / `spriteAtlas.ts` frames, `category_name_variant`, in the existing ≤ 2048² characters atlas; check `atlasLayout.test.ts`).
+  - [x] Readability sheet: add the axe and chainsaw (`docs/playtests/milestone-1/readability-sheet.md` + key) as new rows.
+- [x] **T5 Prediction copy** (AC 5; brief 2)
+  - [x] `apps/client/src/net/prediction.ts`: `Predictor.step(input, wield)` (or a `setWield(weapon, swapping)` before each step) fed from `LocalFire`'s per-seq active weapon and swap state; replayed inputs on reconcile use the same per-seq values (store them in the ring next to the input copy: preallocated fields, no allocation).
+  - [x] Tests `net/prediction.test.ts` (+ `chainsaw slow predicted: 0 corrections over 200 ticks attacking`), `tools/netsim` (+ `chainsaw.test.ts`: `?lag=150&jitter=20`, corrections from the chainsaw ≤ the baseline's, client position = server position at ack).
+- [x] **T6 Fuzz, bandwidth, perf, liveness** (brief 7, 9, 11, 16)
+  - [x] Extend 5.3's `combat/knockback.fuzz.test.ts` (or the block in `zombies/downtown.fuzz.test.ts`): random barricade/turret layouts × every decay stage (and the 4.8 fires) × ≥ 2,000 ticks with 4 axe bots swinging at crowds next to cover: **no zombie centre inside any box after any tick, no zombie on the far side of a barricade it started in front of within the knocked tick** (track side-of-face per hit), **no stall (zombies still reach a player)**, **flow fields rebuilt only at build starts** (count rebuild starts outside `startBuild` = 0), ≥ 100 knockbacks really happened and ≥ 20 ended against a face (liveness).
+  - [x] `apps/server/src/run/` bandwidth test (pattern `turretBandwidth.test.ts`): 1 chainsaw player in a crowd of 6 for 10 s → bytes/s of `melee.swung` + `zombie.hit` to one other client; assert ≤ 1,500 B/s and report the number.
+  - [x] `tickCost.test.ts` (+ case, behind `PERF_ASSERT=1`): 4 chainsaws in 150 zombies; added p99 recorded with the machine load.
+  - [x] Sim: a bot loadout `fire_axe,chainsaw` in the 6-wave sim: waves ended, kills by each weapon ≥ 1.
+- [x] **T7 Gates.** Mutations listed (knockback not swept → fuzz fails; slow without `fire` check → slow test; chainsaw rate 20 → tick test; arc in radians mismatch → arc test; Predictor ignoring wield → netsim). Browser check (Playwright): `?loadout=fire_axe,chainsaw`, solo and online with `?lag=150&jitter=20`: knockback against a barricade, chainsaw slow, shake setting off/on. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
 
@@ -180,10 +183,97 @@ New: 2 weapon frames (atlas), axe arc + chainsaw spark pools (fixed caps), one l
 
 ### Agent Model Used
 
+Claude Opus 5.5 (builder, worktree `story-5-2`, ports 4527 / 5527).
+
 ### Debug Log References
+
+- Fuzz finding 1 (axe): the 5.3 fuzz checked the whole-tick chord pre-tick → post-tick; with 1.5 m knocks a zombie knocked along a face and then slid round the corner by the zombie system made a chord across the box corner that no leg crossed (false positive). Fuzz finding 2: four axes hitting one zombie in one tick = three legal legs whose chord cut a barricade corner (false positive). Fix: `combat/damage.ts › knockbackTrace` (test-only probe, null in the game) checks every knockback leg; the zombie system's leg is checked from the post-combat position.
+- Mutation finding: "knockback not swept" was NOT caught by the axe fuzz at first (players at the team spawn never knocked anything into a map box: 0 of 4,811 face stops were map boxes). Fix: `nearCover` layouts (players 1–2.5 m off a random map box) and an assert that ≥ 20 knocks stop at a map box; now caught.
+- Netsim: one start-up correction when the client attacks before the first snapshot names its weapons (LocalFire can't know them). Same for one RTT after buying the Chainsaw. Accepted; the netsim attacks from 0.6 s on.
+- Before the merge, full `npm test` at load 11.7–13.4 had 7 timeouts at vitest's 5 s default (replay ×3, waveDirector, predictionCircle LAN, tickCostFlowField ×2); all pass on their own and the merged gate with `--testTimeout=30000` (the work branch's new default) is green.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+**What was built**
+- Balance: `fire_axe` (30 dmg, 1.1/s, 2.2 m, 140°, knockback 1.5 m, pushback 0, shake, $300) and `chainsaw` (6 dmg, 10/s, 1.5 m, 60°, pushback 0.05, `wielderSlowPct` 20, `quietHits`, $600) appended to `weapons.json` / `shop.json`. Schema: `meleeSchema.wielderSlowPct` (int 0–90), `meleeSchema.quietHits` (bool), `zombieTypeSchema.knockbackTakenPct` (int 0–100, default 100; 5.7's Brute sets 20), `controls.json › fx` (client effect caps: `maxSwingArcs` 8, `maxChainsawSparks` 32, sparks per hit/miss, spark life, rev hold 150 ms). The caps went into `controls.json` (not a new `fx.json`): a new balance file would have meant editing the 25 test fixtures that list every file.
+- Axe (F2, F3): `swingMelee` knocks each zombie it hit and didn't kill once per swing through 5.3's `applyKnockback` (one helper). `applyKnockback` and the hit pushback scale by `knockbackTakenPct`. Rewound swings push the present zombie along the rewound direction.
+- Chainsaw (F4): no new timer (cooldown rule, every 2nd tick exactly: tested). **Quiet hit path** (`applyZombieDamageQuiet`): no `zombie.hit` per zombie per tick; same HP/pushback/kill; assist credit recorded directly (`recordDamager`); its `melee.swung` is emitted after the hits with `hits` (wire: appended index 6, quiet weapons only).
+- Slow (F5, F6): `player/slow.ts › wielderSlowPct` (alive, not swapping, fire held, aim ≥ `MIN_AIM_LEN`, active weapon's pct) and `playerSpeed(base, p, wieldPct)` = integer product with the bite slow (2.52 m/s). `movePlayers` uses it (server, solo, Predictor). `LocalFireClock.moveWeapon / moveSwapping` = the weapon state the server's movement sees on the next seq; `Predictor.applyLocal(input, weapon, swapping)` stores it per ring entry (preallocated) and replays with it.
+- Client: own `melee.swung` of a `screenShake` weapon shakes (online from the local swing; the server echo is dropped: once). `FxView`: heavy axe arc (wide, rim smear, 200 ms), chainsaw faint standing 60° wedge + spark/blood spray from a fixed `SparkPool` drawn into one Graphics per frame; swing Graphics pool capped at `maxSwingArcs`. Sounds: `weapon_axe_swing`, Chainsaw rev loop (`startChainsawRev`/`stopChainsawRev`, started/stopped by `SawClock.revStep`, never per swing). Art (game code): `weaponArt.ts › drawFireAxe` (AX1) and `drawChainsaw` (CS1, + running-blade view), shop icons and atlas frames `survivor_fire_axe_a`, `survivor_chainsaw_a`, `survivor_chainsaw_b` (running, shown while it cuts). `CHAR_EXTENT_R.survivor` 2.15 → 2.7 (the bar reaches 2.66 r). `?stressfire` with a melee loadout keeps its crowd (tough zombies).
+- Readability sheet rows 24–25 (`objects/25_survivor_fire_axe.png`, `26_survivor_chainsaw.png`).
+
+**Numbers**
+- Knockback fuzz (axe, 4 players near cover): 10 layouts, 60 buildings, 19,678 knockbacks, 6,715 stopped at a face (5,241 at a map box), 758 axe kills; every leg swept-checked, no body in a box after combat or after the tick, zombies reach a player in every tough layout, nav rebuilds outside building changes 0. Shotgun fuzz unchanged (789 / 260 / 357).
+- Bandwidth (1 Chainsaw, 6 zombies in the arc, 10 s, to one other client, no interest filter): **120 B/s** (10 ticks/s, 6 cut per tick, 0 `zombie.hit`); the same with one `zombie.hit` per cut would be 920 B/s. Fire Axe: 114 B/s. Budget 1,500 B/s: OK; D5's fallback not needed.
+- Tick cost (Downtown, 4 players + 150 Walkers, best of 2): Pistols p99 0.591 ms, Chainsaws 0.547 ms (added −0.04), Fire Axes 0.497 ms (added −0.10); load 3.52 on 4 cores (`uptime` 15:31). Asserts behind `PERF_ASSERT=1`.
+- Netsim `?lag=150&jitter=20` (75 ± 10 ms), 3 seeds, Chainsaw ↔ Pistol swaps every 3.5 s, attack bursts: 0 corrections, 0 snaps (baseline machete: 0); LAN 20 s attacking: 0 corrections over > 200 slowed ticks (asserted); control without wield state: 172 corrections.
+- Bot sim (4 bots, $700 start, test-only lists): Fire Axe kills 338 / 319, Chainsaw kills 329 / 336, every run reached Results (wiped in W4, cleared 3); Chainsaw assists paid (237, 236): the quiet path keeps the credit.
+- Browser (Playwright, solo dev build, DPR 2, 844 × 390): axe knock of a Walker 0.6 m in front of a barricade → stopped at the face (26.15 = minX − r, then walked back 0.06 the same tick), camera shake on with the setting on, none with it off; Chainsaw attacking 3.60 m/s vs 4.50 released (sim speed), running frame `survivor_chainsaw_b`, rev loop on, sparks 8–12 live (cap 32). Online with `?wallet=2000&lag=150&jitter=20` (2 clients): bought the Chainsaw, swapped, walked attacking 2.5 s: corrections 0 → 0, snaps 0; the guest sees the host's Chainsaw after a 2 s hidden-tab sleep. Screenshots: `docs/art/epic-5/round-b/ingame/5-2-axe-swing.png`, `5-2-axe-swing-noshake.png`, `5-2-axe-knockback-barricade.png`, `5-2-chainsaw-cutting.png`, `5-2-shop-icons.png`.
+- Headless FPS `?stress=150&stressfire=1` (tough crowd, 20 s each, two rounds): Machete 16.6 / 8.0, Chainsaw 14.0 / 8.9, Fire Axe 9.9 / 9.7 fps at load 5.2 → 9.6 (4 cores). The spread is the machine load (other builders), not the effects; no difference measurable. Before (Pistol, crowd dying): 9.2 / 10.4 at load 12.8 → 8.7.
+
+**Merged with the work branch** (`claude/gracious-turing-0db3j6` at e378702, with 5.1 and 4.12): conflicts in `melee.ts` (5.1's `damage` parameter kept; my `meleeDamage` removed, so axe swings and Chainsaw ticks = `weaponDamage(balance, weapon, slot.level)` via `tryFire`), `shop.json` (5.1's `upgrades` + my two ids), `fiveWaveSim.test.ts` (both describes), `weaponArt.ts` (both art blocks; icon origin table + 5.1's tier icon), `spriteAtlas.ts` (imports), `GameScene.ts` (my running-frame arg + 4.12's burn view). New test: Chainsaw IV 10.5/tick kills a Walker in one tick, Fire Axe III 45 (mutation "stats.damage instead of weaponDamage" caught). Gate on the merged branch: `npm run typecheck && npm run lint && npx vitest run --testTimeout=30000 && npm run build` all green (1,701 passed, 3 skipped; 222 files); `uptime` load 8.30 → 8.37 (4 cores) at 16:16–16:19.
+
+**Mutations (each once; all caught)**
+knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before: see Debug Log), fuzz leg check off (2), slow without the fire check (1), chainsaw rate 20 (3), arc half-angle halved (1), Predictor ignores the wield state (4 incl. netsim), quiet path emits `zombie.hit` (2 incl. bandwidth), `knockbackTakenPct` ignored (1), killed zombies knocked (1), quiet path records no assist (1), slows "stronger only" (1), LocalFire `moveWeapon` from the snapshot slot (1), `countInArc` ignores the radius (1), rev hold ignored (3), axe knockback skipped (13).
+
+**Beat the rule (my attempts)**
+1. Zombie pressed (0.1 mm) against a barricade, swung from behind: stays at the face (test). Gap of 0.5 m between two barricades: not crossed (test). Into a car / bus / building box / barrier / sandbags / turret / map edge: stops at the face (tests).
+2. Crowd axed into corners by 4 axes next to cover: no body in a box after combat or after the tick, no nav rebuild (fuzz).
+3. Aim stick released on alternate ticks: the slow follows the aim exactly per tick, and so does the swing (no swing → no slow; test "aim released → full speed next tick"). Holding fire with aim inside the dead zone: no swing, no slow.
+4. Swap spam: during a swap no slow and no damage (cooldown idle); slow/damage only while the Chainsaw is in hand (tests).
+5. Chainsaw through cover: melee ignores cover (1.9 rule), the drawn wedge is the sim sector (F1 test, `countInArc` test).
+6. Two axes on one zombie in one tick: two pushes, each once, each swept (fuzz has 4 axes; per-leg checks).
+7. Brute 20 %: 0.3 m (test with a stand-in type; 5.7 sets the value).
+8. `?lag=150&jitter=20`: 0 corrections (netsim, browser).
+9. Into a car fire: allowed, it burns there (test); out of the map: impossible (test); onto a spawn point: allowed (spawns are not solids).
+10. Chainsaw IV: 6 × 1.75 = 10.5 per tick: a Walker (10) dies in one tick (test, after merging 5.1).
+
+### Notes for the merge (builder)
+
+| Shared file | What 5.2 changed | Likely conflicts |
+| --- | --- | --- |
+| `config/balance/weapons.json`, `shop.json` | `fire_axe`, `chainsaw` appended after `assault_rifle` | 5.4/5.5/5.12 append too: keep append order (wire index) |
+| `config/balanceSchema.ts` | `meleeSchema.wielderSlowPct`, `meleeSchema.quietHits`, `zombieTypeSchema.knockbackTakenPct`, `fxSchema` in `controlsSchema.fx` | 5.7 adds `knockbackTakenPct` too: keep ONE (int 0–100, default 100) |
+| `combat/melee.ts` | knockback after damage, quiet path; damage = 5.1's `damage` parameter (already merged here) | 5.7 (Brute) if it touches the swing |
+| `combat/damage.ts` | `knockbacks` counters moved here (re-exported from `firing.ts`), `knockbackShare`, `applyZombieDamageQuiet`, `knockbackTrace`, pushback × share | 5.4 (its own quiet flame path: consider reusing `applyZombieDamageQuiet`), 5.7 (Brute: no second scale) |
+| `combat/firing.ts` | `MIN_AIM_LEN` constant, `knockbacks` import | 5.1 / 5.4 / 5.5 |
+| `config/constants.ts` | `MIN_AIM_LEN` | append |
+| `core/simEvents.ts`, `net/netEvents.ts` | `melee.swung.hits` (index 6, quiet weapons only) | 5.1 uses event kind 31 (no clash: no new kind here) |
+| `player/slow.ts`, `movement.ts` | `wielderSlowPct`, `playerSpeed(base, p, wieldPct)` integer product | 5.6/5.8/5.11 slows: multiply into the same formula |
+| `apps/client/src/net/prediction.ts`, `localFire.ts`, `sim/NetSimHost.ts` | per-seq wield state into the Predictor | 5.12 (consumables) may touch NetSimHost's step loop |
+| `render/FxView.ts`, `weaponLook.ts`, `PlayerView.ts`, `city/weaponArt.ts`, `spriteAtlas.ts`, `spriteArt.ts` | melee looks, sparks, frames; survivor extent 2.7 | 5.1 (upgrade marks), 5.4/5.5 art: append to `WEAPON_ART` |
+| `scenes/GameScene.ts` | shake on own `melee.swung`, fx update + rev, running frame, melee `?stressfire` toughens the crowd | most Round B stories |
+| `audio/placeholderSfx.ts` | `weapon_axe_swing`, rev loop | append |
+| test fixtures | `shop.test.ts`, `shopStore.test.ts` weapon lists; `knockback.fuzz.test.ts` now `runFuzz(...)` | 5.4/5.5 shop lists |
+
+### Not verified
+
+- Real phones (FPS, the rev loop's sound, touch aim with the Chainsaw); headless Chromium ran at 8–17 fps under load 5–13, so the running-frame/rev timing was seen working but not at 60 fps.
+- 5.7's Brute (not merged into this branch: knockback × 20 % tested with a stand-in type).
+- A late Game-scene start with the Chainsaw already in hand (the start-up correction is measured only in the netsim).
+- No Meshy art step (skipped as instructed); no `docs/art/5-2/README.md`.
 
 ### File List
+
+- `packages/shared/src/config/balance/weapons.json`, `shop.json`, `controls.json`
+- `packages/shared/src/config/balanceSchema.ts`, `constants.ts`, `balance.test.ts`
+- `packages/shared/src/combat/damage.ts`, `melee.ts`, `firing.ts`
+- `packages/shared/src/combat/heavyMelee.test.ts` (new; + 5.1 level test after the merge), `knockback.test.ts` (new), `knockback.fuzz.test.ts`
+- `packages/shared/src/core/simEvents.ts`, `net/netEvents.ts`
+- `packages/shared/src/player/slow.ts`, `movement.ts`, `slow.test.ts`
+- `packages/shared/src/economy/shop.test.ts`, `fiveWaveSim.test.ts`
+- `apps/server/src/run/meleeBandwidth.test.ts` (new), `tickCostDowntown.test.ts`
+- `apps/client/src/net/localFire.ts`, `localFire.test.ts`, `prediction.ts`, `prediction.test.ts`
+- `apps/client/src/sim/NetSimHost.ts`, `scenes/GameScene.ts`, `ui/shopStore.test.ts`
+- `apps/client/src/render/FxView.ts`, `PlayerView.ts`, `weaponLook.ts`, `meleeFx.ts` (new), `meleeFx.test.ts` (new)
+- `apps/client/src/render/city/weaponArt.ts`, `spriteAtlas.ts`, `spriteArt.ts`
+- `apps/client/src/audio/placeholderSfx.ts`
+- `tools/netsim/chainsaw.test.ts` (new)
+- `docs/playtests/milestone-1/readability-sheet.md`, `readability-key.md`, `objects/25_survivor_fire_axe.png`, `objects/26_survivor_chainsaw.png` (new)
+- `docs/art/epic-5/round-b/ingame/5-2-*.png` (new)
+- `_bmad-output/implementation-artifacts/5-2-fire-axe-and-chainsaw.md`
+
+## Change Log
+
+- 2026-11-23: Story 5.2 built (Fire Axe with swept 1.5 m knockback through 5.3's helper, Chainsaw with quiet hits and a predicted 20 % wielder slow, AX1/CS1 art in game code, sparks/arc/rev effects, fuzz near cover, bandwidth and tick-cost tests, netsim); status → review.
+- 2026-11-23: merged the work branch (5.1 upgrades, 4.12); axe/Chainsaw damage through `weaponDamage`; gate green.

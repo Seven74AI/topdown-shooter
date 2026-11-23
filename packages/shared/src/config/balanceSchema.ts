@@ -45,6 +45,17 @@ const meleeSchema = z
     kind: z.literal("melee"),
     ...common,
     arcDeg: z.number().positive().max(360),
+    /**
+     * Story 5.2: the wielder moves this many percent slower while attacking with it (the Chainsaw's
+     * 20: alive, not swapping, fire held with an aim). Integer, so the server and the client's
+     * prediction compute the same speed (`player/slow.ts`, the 3.9 rule). 0 = no slow.
+     */
+    wielderSlowPct: z.number().int().min(0).max(90).default(0),
+    /**
+     * Story 5.2: hits send no `zombie.hit` each (a 10 Hz Chainsaw would send one per zombie per
+     * tick); damage, assist credit and kills are the same, and `melee.swung` carries the hit count.
+     */
+    quietHits: z.boolean().default(false),
   })
   .strict();
 
@@ -104,10 +115,33 @@ export const zombieTypeSchema = z
     biteSlowPct: z.number().int().min(0).max(90).default(0),
     /** At most 10 s: the remaining ticks go on the wire as a uint8. */
     biteSlowS: z.number().min(0).max(10).default(0),
+    /**
+     * Story 5.2 (shared with 5.7's Brute): the share of a knockback or hit pushback this type
+     * takes, in percent (100 = all of it; the Brute 20). Applied inside `applyKnockback`.
+     */
+    knockbackTakenPct: z.number().int().min(0).max(100).default(100),
     /** Story 3.8: follows the flank field (Runners) instead of the chase field. */
     flanks: z.boolean().default(false),
     /** Story 5.6: a ranged spit (Spitters); absent = no ranged attack. */
     spit: spitSchema.optional(),
+    /** Story 5.7 (F5): a hit on a building does `damage × this` (Brutes 3×). */
+    buildingDamageMult: z.number().min(1).default(1),
+    /** Story 5.7 (F2): a hit on a standing player knocks them this far straight away (0 = none). */
+    hitKnockbackM: z.number().min(0).max(5).default(0),
+    /** Story 5.7: over this long (ticks on the wire: at most 2.5 s). */
+    knockbackS: z.number().positive().max(2.5).default(0.2),
+    /**
+     * Story 5.7 (F1): before every hit on a player the zombie stands still this long (the WINDUP
+     * state, streamed: the telegraph), then hits only a body within contact + `swingReachM`. 0 = an
+     * instant hit (every type before the Brute). A melee windup; 5.6's ranged `spit.windupS` is its own.
+     */
+    windupS: z.number().min(0).max(5).default(0),
+    swingReachM: z.number().min(0).max(2).default(0),
+    /**
+     * Story 5.7 (D1): wider than the flow field's clearance rule allows (0.35 m): paths on the wide
+     * grid (every box grown by `pathing.wideInflateM`) and follows the wide chase field.
+     */
+    wideBody: z.boolean().default(false),
   })
   .strict();
 
@@ -138,6 +172,12 @@ export const pathingSchema = z
     nearWallCostM: z.number().min(0),
     /** A zombie steers at the centre of the cell this many steps down the field (stops before a building). */
     lookaheadCells: z.number().int().min(1).max(8),
+    /**
+     * Story 5.7 (D1): the wide grid grows every map box, building and fire by this much, so a
+     * `wideBody` type up to `MAX_PATHING_ZOMBIE_RADIUS_M` + this behaves like a 0.35 m body on it.
+     * At most one 0.5 m cell (the rasterizer grows a box by whole cells).
+     */
+    wideInflateM: z.number().min(0).max(0.5).default(0.25),
   })
   .strict();
 
@@ -225,6 +265,14 @@ export const wavesSchema = z
           .refine((m) => Object.values(m).some((w) => w > 0), "a wave mix needs a positive weight"),
       )
       .min(1),
+    /**
+     * Story 5.7 (FR29): exact zombies per type in wave i + 1, NOT scaled by player count (one Brute
+     * in waves 5 and 6 at every party size). Part of the wave size (taken off the mix's share,
+     * Walkers first). Waves past the list have none (unlike `mix`): later epics only add entries.
+     */
+    fixed: z.array(z.record(balanceId, z.number().int().min(0).max(255))).default([]),
+    /** Story 5.7: the first fixed zombie of a wave spawns once this fraction of the wave has spawned (not in the opening burst). */
+    fixedAtFraction: z.number().min(0).max(1).default(0.25),
   })
   .strict();
 
@@ -260,11 +308,33 @@ export const playerSchema = z
   .strict();
 
 /** Touch control tuning (Story 1.12 playtest tunes these). Dead zones are fractions of the stick radius. */
+/**
+ * Story 5.2 (brief line 12): caps of client-only effect pools (fixed size, the oldest reused),
+ * `controls.json › fx`. Read by the client only; not gameplay.
+ */
+export const fxSchema = z
+  .object({
+    /** Heavy melee swing arcs (the Fire Axe) alive at once. */
+    maxSwingArcs: z.number().int().min(1).max(64),
+    /** Chainsaw sparks alive at once. */
+    maxChainsawSparks: z.number().int().min(1).max(256),
+    /** Sparks per chainsaw tick that cuts at least one zombie (fewer when the blade cuts air). */
+    chainsawSparksPerHit: z.number().int().min(1).max(16),
+    chainsawSparksPerMiss: z.number().int().min(0).max(16),
+    /** A spark lives this long (ms). */
+    chainsawSparkMs: z.number().int().min(16).max(1000),
+    /** The rev loop stops this long after the last chainsaw tick (ms). */
+    chainsawRevHoldMs: z.number().int().min(50).max(1000),
+  })
+  .strict();
+
 export const controlsSchema = z
   .object({
     moveDeadZone: z.number().min(0).max(0.9),
     aimDeadZone: z.number().min(0).max(0.9),
     aimAssistDeg: z.number().min(0).max(45),
+    /** Story 5.2: client effect caps (no new balance file: every test fixture lists the files). */
+    fx: fxSchema,
   })
   .strict();
 

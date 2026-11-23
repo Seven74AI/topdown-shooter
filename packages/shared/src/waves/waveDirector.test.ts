@@ -16,7 +16,7 @@ import { createWorld, step, type World } from "../core/world";
 import { addPlayer } from "../player/player";
 import { killZombie } from "../zombies/zombiePool";
 import { ZOMBIE_STATE, ZOMBIE_TYPES } from "../zombies/zombieTypes";
-import { waveMixOf, waveSize, waveTypeCounts } from "./waveDirector";
+import { applyFixedCounts, spawnJitterFor, spawnReachM, waveMixOf, waveSize, waveTypeCounts } from "./waveDirector";
 import { skipWave, startBuild } from "../run/runStateMachine";
 
 /**
@@ -236,16 +236,17 @@ describe("five-wave curve and composition (Story 3.10)", () => {
       waveTypeCounts(waveMixOf(real, n), waveSize(real, n, players), out);
       return Object.fromEntries(ZOMBIE_TYPES.map((t, i) => [t, out[i]]));
     };
-    expect(counts(1)).toEqual({ walker: 40, crawler: 0, runner: 0, spitter: 0 });
-    expect(counts(2)).toEqual({ walker: 64, crawler: 0, runner: 16, spitter: 0 });
-    expect(counts(3)).toEqual({ walker: 78, crawler: 18, runner: 24, spitter: 0 });
+    expect(counts(1)).toEqual({ walker: 40, crawler: 0, runner: 0, spitter: 0, brute: 0 });
+    expect(counts(2)).toEqual({ walker: 64, crawler: 0, runner: 16, spitter: 0, brute: 0 });
+    expect(counts(3)).toEqual({ walker: 78, crawler: 18, runner: 24, spitter: 0, brute: 0 });
     // Story 5.6 (DD3): 160 × {50, 25, 17, 8} % = 80 / 40 / 27.2 / 12.8 → floors + the leftover one to the Walkers.
-    expect(counts(4)).toEqual({ walker: 81, crawler: 27, runner: 40, spitter: 12 });
-    expect(counts(5)).toEqual({ walker: 90, crawler: 44, runner: 50, spitter: 16 });
+    expect(counts(4)).toEqual({ walker: 81, crawler: 27, runner: 40, spitter: 12, brute: 0 });
+    // The mix share alone (Story 5.7's fixed Brute is folded in by `applyFixedCounts`: below).
+    expect(counts(5)).toEqual({ walker: 90, crawler: 44, runner: 50, spitter: 16, brute: 0 });
     // Solo: wave 4 is 64 → 32 / 16 / 10.88 / 5.12 → 32 + 1, 10, 16, 5.
-    expect(counts(4, 1)).toEqual({ walker: 33, crawler: 10, runner: 16, spitter: 5 });
+    expect(counts(4, 1)).toEqual({ walker: 33, crawler: 10, runner: 16, spitter: 5, brute: 0 });
     // Leftovers go one by one in type order: 32 × 80 % = 25.6 → 26 Walkers, 6 Runners.
-    expect(counts(2, 1)).toEqual({ walker: 26, crawler: 0, runner: 6, spitter: 0 });
+    expect(counts(2, 1)).toEqual({ walker: 26, crawler: 0, runner: 6, spitter: 0, brute: 0 });
     // Waves past the list use the last entry.
     expect(waveMixOf(real, 9)).toBe(real.waves.mix[real.waves.mix.length - 1]);
   });
@@ -279,10 +280,11 @@ describe("five-wave curve and composition (Story 3.10)", () => {
   }
 
   it("spreads the types through the wave (no block of Runners at the end) and spawns the exact composition", () => {
-    const order = spawnOrder(5); // solo W5: 80 = 37 Walkers, 17 Crawlers, 20 Runners, 6 Spitters (Story 5.6)
+    // solo W5: 80 = 37 Walkers, 17 Crawlers, 20 Runners, 6 Spitters (Story 5.6); Story 5.7: one Walker's slot is the Brute.
+    const order = spawnOrder(5);
     expect(order).toHaveLength(80);
     const count = (t: string, from = 0, to = order.length) => order.slice(from, to).filter((x) => x === t).length;
-    expect([count("walker"), count("crawler"), count("runner"), count("spitter")]).toEqual([37, 17, 20, 6]);
+    expect([count("walker"), count("crawler"), count("runner"), count("spitter"), count("brute")]).toEqual([36, 17, 20, 6, 1]);
     for (let q = 0; q < 4; q++) {
       // every quarter of the wave holds a quarter of each type (± 1)
       expect(Math.abs(count("runner", q * 20, (q + 1) * 20) - 5)).toBeLessThanOrEqual(1);
@@ -352,5 +354,99 @@ describe("five-wave curve and composition (Story 3.10)", () => {
     run(world, 1);
     expect(world.waves.queued).toBe(0);
     expect(world.waves.rushing).toBe(true);
+  });
+});
+
+describe("Story 5.7: the Brute in the waves (AC 3, 4; F6, F8)", () => {
+  /** A real-balance run of `runWaves` waves for `players` players; per wave, the spawn order and Brute spawn events. */
+  function runOrders(players: number, runWaves = 6, seed = 3) {
+    const world = createWorld({ balance: balanceWith({ runWaves }, true), seed, systems: { zombies: () => {} } });
+    for (let i = 0; i < players; i++) addPlayer(world, `p${i}`, 24 + i, 16).hp = 1e9;
+    const events: SimEvent[] = [];
+    world.events.subscribe((e) => events.push(e));
+    startBuild(world);
+    const orders = new Map<number, string[]>();
+    const positions: [number, number][] = [];
+    const seen = new Set<number>();
+    for (let guard = 0; guard < 60000 && world.run.phase !== "results"; guard++) {
+      step(world, TICK_DT_S);
+      if (world.run.phase !== "wave") continue;
+      const order = orders.get(world.waves.number) ?? [];
+      orders.set(world.waves.number, order);
+      const z = world.zombies;
+      for (let i = 0; i < z.aliveCount; i++) {
+        const id = z.aliveIds[i] as number;
+        const key = id | ((z.generation[id] as number) << 16) | (world.waves.number << 24);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const type = ZOMBIE_TYPES[z.type[id] as number] as string;
+        order.push(type);
+        if (type === "brute") positions.push([z.x[id] as number, z.y[id] as number]);
+      }
+      // Recorded: gone (the 150-alive cap never holds the queue; the wave ends on its own).
+      while (z.aliveCount > 0) killZombie(world, z.aliveIds[0] as number, null, "pistol");
+    }
+    return { world, orders, events, positions };
+  }
+
+  it("exactly one Brute in wave 5 and one in wave 6 at 1, 2, 3 and 4 players; none before (not scaled, FR27)", () => {
+    for (let players = 1; players <= 4; players++) {
+      const { orders, world } = runOrders(players);
+      expect(world.run.phase, `${players}p`).toBe("results");
+      for (let wave = 1; wave <= 6; wave++) {
+        const order = orders.get(wave) ?? [];
+        expect(order.length, `${players}p wave ${wave}`).toBe(waveSize(world.balance, wave, players)); // the wave size is unchanged
+        expect(order.filter((t) => t === "brute").length, `${players}p wave ${wave}`).toBe(wave >= 5 ? 1 : 0);
+      }
+    }
+  }, 120_000);
+
+  it("solo wave 5 (80 zombies, × 0.4): the Brute is the 21st spawn (after 25 %), it takes a Walker's slot", () => {
+    const { orders } = runOrders(1);
+    const order = orders.get(5) as string[];
+    expect(order).toHaveLength(80);
+    expect(order.indexOf("brute")).toBe(20);
+    expect(order.filter((t) => t === "walker")).toHaveLength(36); // 37 by the mix, one slot to the Brute
+  }, 60_000);
+
+  it("zombie.brute_spawned for every Brute; first = true only for the run's first; brutesSpawned counts them", () => {
+    const { events, world } = runOrders(2);
+    const b = events.filter((e) => e.type === "zombie.brute_spawned");
+    expect(b.map((e) => e.type === "zombie.brute_spawned" && e.first)).toEqual([true, false]);
+    expect(world.waves.brutesSpawned).toBe(2);
+  }, 60_000);
+
+  it("spawns stream only: same seed → the same Brute spawn points; another seed → others", () => {
+    const a = runOrders(2, 6, 11).positions;
+    const b = runOrders(2, 6, 11).positions;
+    const c = runOrders(2, 6, 12).positions;
+    expect(a).toHaveLength(2);
+    expect(b).toEqual(a);
+    expect(c).not.toEqual(a);
+  }, 120_000);
+
+  it("a Brute spawns ≥ spawnMinPlayerDistanceM from every standing player and its jitter is narrowed (jitter + radius ≤ a Walker's)", () => {
+    const bal = balanceWith({}, true);
+    expect(spawnJitterFor(bal, 0.6)).toBeCloseTo(0.75, 9);
+    expect(spawnJitterFor(bal, 0.35)).toBe(1);
+    expect(spawnReachM(bal)).toBeCloseTo(1.35, 9);
+    const { positions, world } = runOrders(1);
+    for (const [x, y] of positions) {
+      for (const p of world.players.values()) expect(Math.hypot(x - p.x, y - p.y)).toBeGreaterThanOrEqual(bal.waves.spawnMinPlayerDistanceM);
+    }
+  }, 60_000);
+
+  it("applyFixedCounts: Walkers give the slot first, then the largest share; waves past the list have none", () => {
+    const bal = balanceWith({}, true);
+    const target = new Uint16Array(ZOMBIE_TYPES.length);
+    const fixed = new Uint16Array(ZOMBIE_TYPES.length);
+    target.set([0, 3, 5, 1, 0]);
+    applyFixedCounts(bal, 5, 9, target, fixed);
+    expect(Array.from(target)).toEqual([0, 3, 4, 1, 1]); // no Walkers: the Runners (largest) give it
+    expect(Array.from(fixed)).toEqual([0, 0, 0, 0, 1]);
+    target.set([10, 0, 0, 0, 0]);
+    applyFixedCounts(bal, 7, 10, target, fixed);
+    expect(Array.from(target)).toEqual([10, 0, 0, 0, 0]); // wave 7: no entry
+    expect(Array.from(fixed)).toEqual([0, 0, 0, 0, 0]);
   });
 });

@@ -62,6 +62,14 @@ const playerFields = {
   slowTicks: t.uint8().default(0),
   /** Speed reduction in integer percent while slowed (≤ 90). */
   slowPct: t.uint8().default(0),
+  // Story 5.7: a Brute's knockback, for the client's prediction (`movePlayers` on both sides).
+  /** Movement ticks left in the knock (≤ 50: `knockbackS` ≤ 2.5). */
+  knockTicks: t.uint8().default(0),
+  /** The knock's unit direction × 127 (`player/knockback.ts`). */
+  knockDx: t.int8().default(0),
+  knockDy: t.int8().default(0),
+  /** Its distance per tick in millimetres (1.5 m / 4 ticks = 375). */
+  knockStepMm: t.uint16().default(0),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;

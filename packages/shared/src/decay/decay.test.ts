@@ -584,6 +584,9 @@ describe("Story 4.5 player-visible properties", () => {
           if (Math.hypot(p.x - (z.x[id] as number), p.y - (z.y[id] as number)) <= 3 && !segmentHitsBuildings(w, z.x[id] as number, z.y[id] as number, p.x, p.y, 0)) reached.add(id);
         }
       }
+      // Story 5.7: a zombie that reached us leaves (killed), so the crowd round the team never fills the 3 m
+      // circle: with a 1.2 m Brute per spawn the bodies no longer fit, and late arrivals would stay outside it.
+      for (const id of reached) if (z.alivePos[id] !== -1) killZombie(w, id, null, "pistol");
     }
     expect(spawned.length).toBe(14 * ZOMBIE_TYPES.length); // liveness: 14 spawns open at stage 2
     expect(reached.size).toBe(spawned.length);

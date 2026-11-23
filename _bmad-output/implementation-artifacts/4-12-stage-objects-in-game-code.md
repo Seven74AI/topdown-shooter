@@ -175,8 +175,38 @@ Claude Opus 5.5 (claude-opus-5-5), builder, worktree `story-4-12`.
 - `apps/client/src/scenes/GameScene.ts`, `BootScene.ts`; `apps/client/src/debug/urlOptions.ts` + `urlOptions.test.ts`
 - Deleted: `apps/client/src/render/city/objectsAtlas.ts`, `objectsAtlas.test.ts`, `apps/client/public/assets/atlases/objects.png`, `objects.json`, `tools/art/build_sprites.py`, `tools/art/prompts.json`
 - `docs/art/4-12/ingame/*.png` (new: 5 screenshots)
+- `docs/art/4-12/img/objects.png` (review fix L4: the fire lab's reference image)
+
+## Review fixes (2026-11-23)
+
+Fresh reviewer on d42d2e2: one medium (fairness), four lows. All fixed on `story-4-12`, keeping fire D's look.
+
+| # | Sev | Finding | Fix |
+| --- | --- | --- | --- |
+| M1 | M | The flame ring was gappy INSIDE R: within 15 cm of R only 17–40 % of directions had bright flame (12–24 % with `?fx=low`); the nearest bright pixel was a median 0.64 m inside R, so a body touching R could burn with no flame under it. The fit shrank every flame by the largest of the four shapes' cores, and buoyancy carried edge flames up until they were culled. | **Fixed edge slots** (`fireParticles.ts › CarFire.edgeN`, `edgeFlameDraw`): one flame per 0.3 m of circumference (R = 2 m: 42; ≤ 80; size and spacing scale down below R = 2 m), **the same in `?fx=low`**. No buoyancy: they only sway a little along the ring and flicker in size, shape and colour. Each is drawn with its −y side facing outward. Its centre sits so its OWN shape's reach toward that side ends on R (`flameReachUpOf`: texels ≥ `EDGE_REACH_ALPHA` 0.15, + 0.02). Because additive halos stack, edge flames are placed by their 15 % halo rather than their 50 % core. Alpha is 0.8–0.95 with an orange ramp start, so the overlapping ring reads flame-coloured, not white. Free flames now use their own shape's core (`flameCoreFracOf`) and are fitted to R − 8 cm (`freeFlameFitR`), so their halos don't stack past R with the ring's. **Edge coverage** (summed alpha × mask, 180 rays, frames 1–5 s, 3 seeds): R = 2 m full, **every frame ≥ 98.3 % of directions bright within 0.1 m inside R** (mean 99.8 %; median nearest bright point 0.06 m inside R, p95 0.08 m); `?fx=low` same (98.3 % / 99.8 %); R = 3.5 m 91.7 % / 91.1 % (low); R = 1 m 100 %. Summed bright past R + 0.02 m: max 0.33 (< 0.5). The screen check gives a bright reach minus R of 2e-15 m. |
+| L1 | L | The ~0.9 s body-fire die-down was not pinned (a "burn → 0 instantly" mutation survived). | Test: burn is 1 while burning, 0.4–0.6 with flames still showing 0.45 s after the cue ends, and 0 at 0.95 s. The slot frees only when every particle is gone. |
+| L2 | L | `?fx=low` halving the spawn rate was untested. | Test: in the first 0.1 s (below every cap), low has 35–65 % of full's flames. |
+| L3 | L | GPU fill. | Smoke cap 44 → 26, smoke end size ≤ 2.2 m (was ≤ 3.5), smoke hidden under alpha 0.04 (car and body), `LOW_FX_SIZE` = 1 (low mode no longer enlarges particles; test). Free flames 130 → 110 (with the edge slots: 110 + 42 + 26 + 24 = 202 per fire at R = 2 m). Not done: trimming the flame frames' transparent corners — they're square textures and Phaser Images draw quads, so it would need a mesh or other geometry. |
+| L4 | L | `docs/art/4-12/fire-lab.html` loads `img/objects.png`, which wasn't in git. | Copied to `docs/art/4-12/img/objects.png` (the lab's "Today (4.11)" panel reference). |
+
+**New tests, mutation-proven once:** N1 low halves the edge slots (2 fail), N2 edge flames placed by their 50 % core (2), N3 edge flames 5 cm out (2), N4 free flames not inset (survived at first → the free-flame test now asserts their cores end ≥ 6 cm inside R → killed), N5 edge spacing 0.6 m (2), N6 body fire off instantly, N7 low doesn't halve rates, N8 edge flames pulled 30 cm in, N9 low enlarges particles — **all 9 killed**. The outside rule test is kept: free flames ≤ R − 0.06 m, and an exact texel test for edge flames (every ≥ 50 % texel ≤ R + 0.02 m for every shape and flicker at R = 1, 2, 3.5).
+
+**FPS, `?stress=150` at stage 3 next to the fires, headless Chromium (SwiftShader) 844 × 390 DPR 2, interleaved dev builds** (1-min load before → after):
+
+| Run | 4.11 sprite fire | After fixes (full) | After fixes (`?fx=low`) |
+| --- | --- | --- | --- |
+| 1 | 6.9 / 6.5 / 6.3 (5.3 → 7.0) | 6.1 / 5.4 / 5.0 (7.0 → 8.1) | 6.3 / 5.2 / 6.7 (8.1 → 8.7) |
+| 2 | 11.3 / 7.1 / 6.5 (8.7 → 7.9) | 12.3 / 12.0 / 11.5 (7.9 → 7.4) | 13.1 / 12.4 / 7.6 (7.4 → 6.0) |
+| 3 | 8.5 / 6.2 / 5.6 (8.2 → 8.6) | 6.4 / 5.1 / 6.2 (8.6 → 9.2) | 11.3 / 9.9 / 8.6 (9.2 → 8.2) |
+
+The box stayed at load 5–9, so the numbers are noisy. The fixed full fire is about level with the 4.11 baseline. `?fx=low` is ≥ baseline in two of three runs. Which cars burn is random per run (some runs had one fire on screen). Phones are still the real check.
+
+Screenshots re-taken: `docs/art/4-12/ingame/burning-car.png` and `survivor-burning.png` (the edge ring is a continuous band of flames now).
+
+**Gate** (`--testTimeout=30000`): typecheck, lint, test (215 files passed, 1 skipped; 1,610 tests passed, 3 skipped), build green; load 4.66 before, 8.69 after.
 
 ## Change Log
 
 - 2026-11-23: Story written (gds-create-story, non-interactive, designer decisions recorded).
 - 2026-11-23: Built (gds-dev-story): fire-lab D particle fire + charred car, burning-survivor particles, B6 and S2 in code, Meshy objects atlas/loader/fallback/tools removed, `?fx=low`, culling; tests + 16 mutations; browser screenshots; FPS before/after with load. Status review.
+- 2026-11-23: Review fixes: fixed edge-flame slots so a body touching R stands in visible flame (M1); body die-down and low spawn-rate tests (L1, L2); smoke cap/size/cull and no enlarged low particles (L3); fire-lab reference image added (L4); 9 mutations; FPS and two screenshots re-taken. Status review.

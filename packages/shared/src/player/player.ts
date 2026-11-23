@@ -62,6 +62,15 @@ export interface PlayerState {
    * hit (kept while outside, reset at every build start; the 4.8 D3 rule). Server / solo only.
    */
   acidTicks: number;
+  /**
+   * Story 5.7 (`player/knockback.ts`): movement ticks left in a Brute's knockback (0 = none), its
+   * direction as the unit vector × 127 (int8 each) and its distance per tick in millimetres. All on
+   * the wire: the client's prediction slides exactly like the server.
+   */
+  knockTicks: number;
+  knockDx: number;
+  knockDy: number;
+  knockStepMm: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -94,6 +103,10 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     fireTicks: 0,
     acidTicks: 0, // Story 5.6
     slowPct: 0,
+    knockTicks: 0, // Story 5.7
+    knockDx: 0,
+    knockDy: 0,
+    knockStepMm: 0,
   };
   world.players.set(id, player);
   return player;

@@ -1,6 +1,7 @@
 import { FLOW_CELL_M } from "../config/constants";
 import type { World } from "../core/world";
 import type { Building } from "../buildings/buildings";
+import { segmentHitsBox } from "../buildings/collision";
 import type { DistrictBounds, MapBox } from "../map/districtMap";
 import { fillCollisionCells, mapCollisionCells } from "../map/collisionCells";
 import type { PlayerState } from "../player/player";
@@ -54,6 +55,18 @@ import { ZOMBIE_TYPES, isRushState } from "./zombieTypes";
  * types) follow it. The two fields share the budget: while a flanker is alive, even ticks advance
  * the chase field and odd ticks the flank field (each ≤ 4P ticks old); otherwise the chase field
  * gets every tick (≤ 2P) and the flank field pauses (restarted fresh when flankers come back).
+ *
+ * **Story 5.7 (D1): the wide grid.** The clearance rule above holds for bodies ≤ 0.35 m. A Brute
+ * (`wideBody`, 0.6 m) paths on a second NavGrid, `wide`, whose map boxes, buildings and fires are
+ * grown by `pathing.wideInflateM` (0.25 m; the rasterizer's "any overlap" makes that one whole cell)
+ * and whose outer cell ring is wall. A free cell's centre is then ≥ 0.75 m from every real box, and
+ * so is every orthogonal step between two free cells: the wide grid has no pinches (a one-cell lane
+ * is a 1.5 m gap, which a 1.2 m Brute fits); diagonals still need their vertex free. A grown
+ * building cell keeps its building id (a Brute blocked by a barricade attacks it). Its field,
+ * `wideChase`, is the chase field on that grid; it joins the round-robin only while a wide-body
+ * zombie is alive (1–2 per wave), so the per-tick budget is unchanged: the active fields (chase,
+ * then flank, then wide) take the ticks in turn, `tick % active`. Push-out and collision still use
+ * the true radius against the true boxes (`collision.ts` is unchanged).
  */
 
 /** "No player reachable" (also: no alive player when the field was seeded). */
@@ -72,6 +85,8 @@ const NDY = [0, 0, 1, -1, 1, 1, -1, -1] as const;
 
 export interface NavGrid {
   readonly cellM: number;
+  /** Story 5.7: how much every box is grown on this grid (0: the normal grid; `wideInflateM`: the wide grid). */
+  readonly inflateM: number;
   readonly cols: number;
   readonly rows: number;
   readonly cells: number;
@@ -159,19 +174,27 @@ export interface PathingState {
   readonly flank: FlowField;
   /** Story 3.8: a flanking zombie was alive this tick, so the two fields alternate ticks. */
   flankActive: boolean;
+  /** Story 5.7 (D1): the wide grid (boxes grown by `pathing.wideInflateM`) and its chase field (wide-body types). */
+  readonly wide: NavGrid;
+  readonly wideChase: FlowField;
+  /** Story 5.7: a wide-body zombie was alive this tick (its field takes a share of the ticks). */
+  wideActive: boolean;
+  /** Story 5.7: fields that shared the ticks this tick (1–3; the max-age rule scales with it). */
+  activeFields: number;
 }
 
-export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly MapBox[] }): NavGrid {
+export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly MapBox[] }, inflateM = 0): NavGrid {
   const cols = Math.max(1, Math.ceil(map.widthM / FLOW_CELL_M));
   const rows = Math.max(1, Math.ceil(map.heightM / FLOW_CELL_M));
   const cells = cols * rows;
   return {
     cellM: FLOW_CELL_M,
+    inflateM,
     cols,
     rows,
     cells,
     buildingAt: new Int32Array(cells),
-    wallAt: mapCollisionCells(map, FLOW_CELL_M),
+    wallAt: mapCollisionCells(map, FLOW_CELL_M, inflateM),
     closedE: new Uint8Array(cells),
     closedS: new Uint8Array(cells),
     enterCost: new Int32Array(cells),
@@ -190,7 +213,7 @@ export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly
  * Allocates nothing. Never per tick.
  */
 export function setNavWalls(nav: NavGrid, boxes: readonly MapBox[]): void {
-  fillCollisionCells(nav.wallAt, nav.cols, nav.rows, nav.cellM, boxes);
+  fillCollisionCells(nav.wallAt, nav.cols, nav.rows, nav.cellM, boxes, nav.inflateM); // Story 5.7: grown on the wide grid
   nav.version = -1;
 }
 
@@ -261,14 +284,19 @@ const NO_PATHING_MAP: DistrictBounds = { widthM: FLOW_CELL_M, heightM: FLOW_CELL
  * prediction Worlds, which never run the buildings or zombie systems) gives a one-cell placeholder
  * instead of ~150 KB of grids (3.5 review L5).
  */
-export function createPathingState(map: DistrictBounds & { readonly solids?: readonly MapBox[] }, zombieCapacity: number, enabled = true): PathingState {
+export function createPathingState(map: DistrictBounds & { readonly solids?: readonly MapBox[] }, zombieCapacity: number, enabled = true, wideInflateM = 0.25): PathingState {
   const nav = createNavGrid(enabled ? map : NO_PATHING_MAP);
+  const wide = enabled ? createNavGrid(map, wideInflateM) : createNavGrid(NO_PATHING_MAP); // Story 5.7
   return {
     nav,
     chase: createFlowField(nav),
     flank: createFlowField(nav, fillFlankPenalty),
     flankActive: false,
     progress: createProgress(enabled ? zombieCapacity : 1),
+    wide,
+    wideChase: createFlowField(wide),
+    wideActive: false,
+    activeFields: 1,
   };
 }
 
@@ -294,10 +322,11 @@ export function flowFieldMaxAgeTicks(world: Readonly<World>): number {
 
 /**
  * Story 3.8: the oldest either field may be while the two share the ticks (a flanker is alive): 4P.
- * Flankers never follow a flank field older than this.
+ * Flankers never follow a flank field older than this. Story 5.7: with three fields sharing the
+ * ticks (flankers and a Brute alive) each refreshes every 3P ticks: 6P.
  */
 export function flowSharedMaxAgeTicks(world: Readonly<World>): number {
-  return 4 * flowRefreshTicks(world);
+  return 2 * Math.max(2, world.pathing.activeFields) * flowRefreshTicks(world);
 }
 
 /** Writes the wall buildings into the grid (only when `buildings.wallVersion` changed; Story 5.9: floor buildings never). */
@@ -308,14 +337,15 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
   const buildingCost = Math.max(1, Math.round(pathing.buildingCostM * FLOW_UNITS_PER_M));
   const nearWall = Math.round(pathing.nearWallCostM * FLOW_UNITS_PER_M);
   const { cols, rows, cellM, buildingAt, enterCost, wallAt } = nav;
+  const g = nav.inflateM; // Story 5.7 (D1): grown on the wide grid (the id stays on the grown cells)
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
     if (!b.solid) continue; // Story 5.9: floor is never in the nav grid (F1)
-    const x0 = Math.max(0, Math.floor(b.minX / cellM));
-    const x1 = Math.min(cols - 1, Math.ceil(b.maxX / cellM) - 1);
-    const y0 = Math.max(0, Math.floor(b.minY / cellM));
-    const y1 = Math.min(rows - 1, Math.ceil(b.maxY / cellM) - 1);
+    const x0 = Math.max(0, Math.floor((b.minX - g) / cellM));
+    const x1 = Math.min(cols - 1, Math.ceil((b.maxX + g) / cellM) - 1);
+    const y0 = Math.max(0, Math.floor((b.minY - g) / cellM));
+    const y1 = Math.min(rows - 1, Math.ceil((b.maxY + g) / cellM) - 1);
     for (let cy = y0; cy <= y1; cy++) {
       for (let cx = x0; cx <= x1; cx++) {
         buildingAt[cy * cols + cx] = b.id;
@@ -339,10 +369,10 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
     for (let i = 0; i < list.length; i++) {
       const b = list[i] as Building;
       if (!b.solid) continue; // Story 5.9
-      const x0 = Math.max(0, Math.floor(b.minX / cellM) - 1);
-      const x1 = Math.min(cols - 1, Math.ceil(b.maxX / cellM));
-      const y0 = Math.max(0, Math.floor(b.minY / cellM) - 1);
-      const y1 = Math.min(rows - 1, Math.ceil(b.maxY / cellM));
+      const x0 = Math.max(0, Math.floor((b.minX - g) / cellM) - 1);
+      const x1 = Math.min(cols - 1, Math.ceil((b.maxX + g) / cellM));
+      const y0 = Math.max(0, Math.floor((b.minY - g) / cellM) - 1);
+      const y1 = Math.min(rows - 1, Math.ceil((b.maxY + g) / cellM));
       for (let cy = y0; cy <= y1; cy++) {
         for (let cx = x0; cx <= x1; cx++) {
           const c = cy * cols + cx;
@@ -369,7 +399,11 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
   nav.pinchS.fill(0);
   nav.closedE.fill(0);
   nav.closedS.fill(0);
-  for (let cy = 0; cy < rows; cy++) {
+  // Story 5.7 (D1): on the wide grid every box is grown by a whole cell, so the centre of every free
+  // cell is ≥ 0.75 m from every real box and every orthogonal step between two free cells keeps
+  // ≥ 0.75 m (> the 0.6 m body): no edge between free cells is narrower than the body (no pinches).
+  // A one-cell lane between grown boxes is a 1.5 m gap: a Brute fits (alley 3 past the dumpster).
+  for (let cy = 0; cy < rows && nav.inflateM === 0; cy++) {
     for (let cx = 0; cx < cols; cx++) {
       const c = cy * cols + cx;
       if (buildingAt[c] !== 0 || wallAt[c] !== 0) continue;
@@ -521,15 +555,64 @@ function pop(f: FlowField): number {
 // ---- rebuild ---------------------------------------------------------------------------------
 
 /** Seeding pass in progress (module-level callback: no closure per rebuild). */
-const seed: { field: FlowField | null; nav: NavGrid | null } = { field: null, nav: null };
+const seed: { field: FlowField | null; nav: NavGrid | null; world: Readonly<World> | null } = { field: null, nav: null, world: null };
 const seedPlayer = (p: PlayerState): void => {
   if (p.status !== "alive") return;
   const f = seed.field as FlowField;
-  const c = flowCellAt(seed.nav as NavGrid, p.x, p.y);
+  const nav = seed.nav as NavGrid;
+  const c = flowCellAt(nav, p.x, p.y);
+  if (nav.inflateM > 0 && nav.wallAt[c] !== 0) {
+    seedAround(f, nav, c, p.x, p.y, seed.world as Readonly<World>);
+    return;
+  }
   if (f.back[c] === 0) return; // two players in one cell
   f.back[c] = 0;
   push(f, c);
 };
+
+/**
+ * Story 5.7: on the wide grid a player pressed against a box (or in a corner) stands in a grown
+ * wall cell, which is never entered: the field starts from the nearest free cells instead (the
+ * first ring of cells round it that has one, and the ring after it; cost two units per ring), so a
+ * Brute still comes as close as its body allows and breaks the barricades round such a player. A
+ * player in a slot narrower than a Brute (the 1 m between the bus and a car) is seeded from the
+ * slot's mouths (up to `SEED_AROUND_RINGS` cells away): the Brute waits there.
+ */
+const SEED_AROUND_RINGS = 6;
+
+/** The segment crosses the interior of a map solid (active cover included). */
+function lineCrossesSolid(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number): boolean {
+  const solids = world.obstacles.solids;
+  for (let i = 0; i < solids.length; i++) {
+    const b = solids[i] as MapBox;
+    if (segmentHitsBox(x0, y0, x1 - x0, y1 - y0, b.minX, b.minY, b.maxX, b.maxY)) return true;
+  }
+  return false;
+}
+function seedAround(f: FlowField, nav: NavGrid, c: number, px: number, py: number, world: Readonly<World>): void {
+  const { cols, rows, wallAt } = nav;
+  const cx = c % cols;
+  const cy = (c - cx) / cols;
+  let found = 0;
+  for (let ring = 1; ring <= SEED_AROUND_RINGS && (found === 0 || ring <= found + 1); ring++) {
+    for (let ny = Math.max(0, cy - ring); ny <= Math.min(rows - 1, cy + ring); ny++) {
+      for (let nx = Math.max(0, cx - ring); nx <= Math.min(cols - 1, cx + ring); nx++) {
+        if (Math.max(Math.abs(nx - cx), Math.abs(ny - cy)) !== ring) continue;
+        const n = ny * cols + nx;
+        if (wallAt[n] !== 0) continue;
+        // Never across a map box (the other side of the parking wall is not "near" the player).
+        if (lineCrossesSolid(world, px, py, (nx + 0.5) * nav.cellM, (ny + 0.5) * nav.cellM)) continue;
+        if (found === 0) found = ring;
+        const cost = STEP_ORTHO * ring;
+        if ((f.back[n] as number) <= cost) continue;
+        const queued = f.heapPos[n] !== NOT_QUEUED;
+        f.back[n] = cost;
+        if (queued) siftUp(f, f.heapPos[n] as number);
+        else push(f, n);
+      }
+    }
+  }
+}
 
 function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void {
   f.back.fill(FLOW_UNREACHED);
@@ -538,9 +621,11 @@ function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void 
   if (f.fillPenalty) f.fillPenalty(f, world);
   seed.field = f;
   seed.nav = nav;
+  seed.world = world;
   world.players.forEach(seedPlayer); // Map insertion order: the same on every run
   seed.field = null;
   seed.nav = null;
+  seed.world = null;
   f.buildSourceTick = world.tick;
   f.building = true;
 }
@@ -700,6 +785,33 @@ function flankTypeMask(world: Readonly<World>): number {
   return m;
 }
 
+/** Story 5.7: per Balance, which `ZOMBIE_TYPES` indices have a wide body (bit mask). */
+const wideMaskCache = new WeakMap<object, number>();
+function wideTypeMask(world: Readonly<World>): number {
+  const types = world.balance.zombies.types;
+  let m = wideMaskCache.get(types);
+  if (m === undefined) {
+    m = 0;
+    for (let i = 0; i < ZOMBIE_TYPES.length; i++) if (types[ZOMBIE_TYPES[i] as string]?.wideBody) m |= 1 << i;
+    wideMaskCache.set(types, m);
+  }
+  return m;
+}
+
+/** Story 5.7: is a zombie with a wide body alive (rushing or not: a rushing Brute still follows its field when blocked)? */
+export function wideBodyAlive(world: Readonly<World>): boolean {
+  const mask = wideTypeMask(world);
+  if (mask === 0) return false;
+  const pool = world.zombies;
+  for (let i = 0; i < pool.aliveCount; i++) if ((mask >> (pool.type[pool.aliveIds[i] as number] as number)) & 1) return true;
+  return false;
+}
+
+/** Story 5.7: the zombie type index has a wide body (the AI's grid/field choice). */
+export function isWideType(world: Readonly<World>, typeIndex: number): boolean {
+  return ((wideTypeMask(world) >> typeIndex) & 1) === 1;
+}
+
 /** Story 3.8: is a zombie of a flanking type alive? */
 function flankerAlive(world: Readonly<World>): boolean {
   const mask = flankTypeMask(world);
@@ -721,20 +833,24 @@ function flankerAlive(world: Readonly<World>): boolean {
  */
 export function updatePathing(world: World): void {
   const pathing = world.pathing;
-  const { nav, chase, flank } = pathing;
+  const { nav, chase, flank, wide, wideChase } = pathing;
   if (nav.version !== world.buildings.wallVersion) rasterizeBuildings(nav, world);
   const budget = world.balance.zombies.pathing.rebuildCellsPerTick;
-  if (!flankerAlive(world)) {
-    pathing.flankActive = false;
-    advanceFlowField(chase, nav, world, budget);
-    return;
-  }
-  if (!pathing.flankActive) {
-    pathing.flankActive = true;
-    flank.building = false; // drop a rebuild seeded before the pause: the next one starts now
-  }
-  if ((world.tick & 1) === 0) advanceFlowField(chase, nav, world, budget);
-  else advanceFlowField(flank, nav, world, budget);
+  const flankOn = flankerAlive(world);
+  const wideOn = wideBodyAlive(world); // Story 5.7
+  if (wideOn && wide.version !== world.buildings.wallVersion) rasterizeBuildings(wide, world);
+  if (flankOn && !pathing.flankActive) flank.building = false; // drop a rebuild seeded before the pause: the next one starts now
+  if (wideOn && !pathing.wideActive) wideChase.building = false; // Story 5.7: the same for the wide field
+  pathing.flankActive = flankOn;
+  pathing.wideActive = wideOn;
+  // The active fields take the ticks in turn (chase, flank, wide): one field's budget per tick.
+  // Chase + flank alone: even ticks chase, odd ticks flank (Story 3.8, unchanged).
+  const count = 1 + (flankOn ? 1 : 0) + (wideOn ? 1 : 0);
+  pathing.activeFields = count;
+  const slot = count === 1 ? 0 : world.tick % count;
+  if (slot === 0) advanceFlowField(chase, nav, world, budget);
+  else if (slot === 1 && flankOn) advanceFlowField(flank, nav, world, budget);
+  else advanceFlowField(wideChase, wide, world, budget);
 }
 
 /**
@@ -777,6 +893,35 @@ export function flowNextCell(f: FlowField, nav: NavGrid, cell: number): number {
     }
   }
   return best;
+}
+
+/**
+ * Story 5.7: a wide body may stand in a grown wall cell of the wide grid (next to a box corner, or
+ * pushed against a face): such a cell has no field. The reached cell within `rings` cells with the
+ * lowest field cost (ties: scan order), or -1. Allocation-free.
+ */
+export function flowNearestReachedCell(f: FlowField, nav: NavGrid, cell: number, rings: number): number {
+  const front = f.front;
+  if ((front[cell] as number) < FLOW_UNREACHED) return cell;
+  const { cols, rows } = nav;
+  const cx = cell % cols;
+  const cy = (cell - cx) / cols;
+  for (let r = 1; r <= rings; r++) {
+    let best = -1;
+    let bestCost = FLOW_UNREACHED;
+    for (let ny = Math.max(0, cy - r); ny <= Math.min(rows - 1, cy + r); ny++) {
+      for (let nx = Math.max(0, cx - r); nx <= Math.min(cols - 1, cx + r); nx++) {
+        const n = ny * cols + nx;
+        const v = front[n] as number;
+        if (v < bestCost) {
+          bestCost = v;
+          best = n;
+        }
+      }
+    }
+    if (best >= 0) return best;
+  }
+  return -1;
 }
 
 /** FNV-1a over an Int32Array (snapshot digest; not per tick). */
@@ -835,5 +980,11 @@ export function snapshotPathing(p: PathingState) {
     // Story 3.8
     flankActive: p.flankActive,
     flank: { ...snapshotField(p.flank), penaltyHash: hashU16(p.flank.penalty), frontPenaltyHash: hashU16(p.flank.frontPenalty) },
+    // Story 5.7: the wide grid and its field
+    wideActive: p.wideActive,
+    activeFields: p.activeFields,
+    wideNavVersion: p.wide.version,
+    wideNavHash: hashInts(p.wide.buildingAt) ^ hashInts(p.wide.enterCost) ^ hashInts(p.wide.pinchE) ^ hashInts(p.wide.pinchS) ^ hashBytes(p.wide.closedE) ^ hashBytes(p.wide.closedS) ^ hashBytes(p.wide.wallAt),
+    wideChase: snapshotField(p.wideChase),
   };
 }

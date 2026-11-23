@@ -8,6 +8,8 @@ export type SfxName =
   | "weapon_shotgun_fire"
   | "weapon_assault_rifle_fire"
   | "weapon_machete_swing"
+  // Story 5.2: the Fire Axe's heavy whoosh and thunk (the Chainsaw's rev is a loop: `startChainsawRev`).
+  | "weapon_axe_swing"
   | "weapon_reload_start"
   | "weapon_reloaded"
   | "zombie_hit"
@@ -20,7 +22,9 @@ export type SfxName =
   // Story 5.6: the Spitter's windup gurgle (positional), its spit, and the acid's hiss.
   | "zombie_spitter_gurgle"
   | "zombie_spitter_spit"
-  | "fx_acid_hiss";
+  | "fx_acid_hiss"
+  // Story 5.7: the Brute's roar (positional; on every Brute's spawn).
+  | "zombie_brute_roar";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -84,6 +88,51 @@ function burst(c: AudioContext, at: number, durS: number, gain: number, filterHz
   src.connect(f).connect(g).connect(master);
   src.start(at);
   src.stop(at + durS);
+}
+
+/** Story 5.7: a low, long roar: two detuned growling saws under a falling noise band (panned). */
+function roar(c: AudioContext, at: number, pan: number): void {
+  const out = outputFor(c, pan);
+  if (!out || !noise) return;
+  const dur = 1.1;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.001, at);
+  g.gain.exponentialRampToValueAtTime(0.5, at + 0.12);
+  g.gain.exponentialRampToValueAtTime(0.25, at + 0.7);
+  g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(900, at);
+  lp.frequency.exponentialRampToValueAtTime(300, at + dur);
+  lp.connect(g).connect(out);
+  const trem = c.createOscillator();
+  trem.frequency.value = 31;
+  const tremGain = c.createGain();
+  tremGain.gain.value = 18;
+  trem.connect(tremGain);
+  for (const detune of [0, 23]) {
+    const o = c.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(95, at);
+    o.frequency.exponentialRampToValueAtTime(62, at + dur);
+    o.detune.value = detune;
+    tremGain.connect(o.frequency);
+    o.connect(lp);
+    o.start(at);
+    o.stop(at + dur);
+  }
+  trem.start(at);
+  trem.stop(at + dur);
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 1.2;
+  bp.frequency.setValueAtTime(700, at);
+  bp.frequency.exponentialRampToValueAtTime(250, at + dur);
+  src.connect(bp).connect(lp);
+  src.start(at);
+  src.stop(at + dur);
 }
 
 /** Noise through a band-pass whose center sweeps from `fromHz` to `toHz` (a whoosh). */
@@ -236,6 +285,10 @@ export function playSfx(name: SfxName, pan = 0): void {
     case "weapon_machete_swing":
       sweep(c, t, 0.12, 0.5, 900, 3200); // whoosh: noise through a rising band-pass
       break;
+    case "weapon_axe_swing": // Story 5.2: a slower, deeper whoosh with a low thunk at its end
+      sweep(c, t, 0.2, 0.6, 400, 1600);
+      burst(c, t + 0.12, 0.08, 0.6, 300);
+      break;
     case "weapon_reload_start":
       click(c, t, 900, 0.3);
       click(c, t + 0.12, 700, 0.3);
@@ -276,10 +329,73 @@ export function playSfx(name: SfxName, pan = 0): void {
     case "fx_acid_hiss":
       sweep(c, t, 0.35, 0.25, 5000, 2500);
       break;
+    case "zombie_brute_roar": // Story 5.7
+      roar(c, t, pan);
+      break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;
       lastHitAt = t;
       burst(c, t, 0.05, 0.4, 500);
       break;
   }
+}
+
+/** Story 5.2: the Chainsaw's placeholder rev loop (`weapon_chainsaw_rev`): nodes of the running loop. */
+let rev: { stop(at: number): void } | null = null;
+const REV_GAIN = 0.16;
+const REV_FADE_S = 0.08;
+
+/**
+ * Starts the looping rev (a buzzing sawtooth chopped at 22 Hz through a low-pass, with a little
+ * hiss). Called once when my Chainsaw starts cutting (`SawClock.revStep`), never per swing or frame.
+ */
+export function startChainsawRev(): void {
+  const c = context();
+  if (!c || c.state !== "running" || rev || !master || !noise) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.setValueAtTime(0.001, t);
+  out.gain.exponentialRampToValueAtTime(REV_GAIN, t + REV_FADE_S);
+  out.connect(master);
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 1400;
+  lp.connect(out);
+  const o = c.createOscillator();
+  o.type = "sawtooth";
+  o.frequency.value = 112;
+  const chop = c.createGain();
+  chop.gain.value = 0.6;
+  const lfo = c.createOscillator();
+  lfo.frequency.value = 22;
+  const lfoGain = c.createGain();
+  lfoGain.gain.value = 0.4;
+  lfo.connect(lfoGain).connect(chop.gain);
+  o.connect(chop).connect(lp);
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  src.loop = true;
+  const hiss = c.createGain();
+  hiss.gain.value = 0.25;
+  src.connect(hiss).connect(lp);
+  for (const n of [o, lfo, src]) n.start(t);
+  rev = {
+    stop(at: number) {
+      out.gain.cancelScheduledValues(at);
+      out.gain.setValueAtTime(Math.max(0.001, out.gain.value), at);
+      out.gain.exponentialRampToValueAtTime(0.001, at + REV_FADE_S);
+      for (const n of [o, lfo, src]) n.stop(at + REV_FADE_S);
+    },
+  };
+}
+
+/** Stops the rev loop (a short fade). */
+export function stopChainsawRev(): void {
+  const c = ctx;
+  if (!rev || !c) {
+    rev = null;
+    return;
+  }
+  rev.stop(c.currentTime);
+  rev = null;
 }

@@ -49,7 +49,8 @@ export type SimEvent =
   | { type: "weapon.reloaded"; playerId: string; weapon: string }
   | { type: "weapon.swap_started"; playerId: string }
   | { type: "weapon.swapped"; playerId: string; active: 0 | 1; weapon: string }
-  | { type: "melee.swung"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number; arcDeg: number; rangeM: number }
+  /** Story 5.2: `hits` (zombies cut) only for a `quietHits` weapon (the Chainsaw), which sends no `zombie.hit` each. */
+  | { type: "melee.swung"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number; arcDeg: number; rangeM: number; hits?: number }
   | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number }
   | { type: "player.downed"; playerId: string }
   | { type: "player.revived"; playerId: string; reviverId: string }
@@ -111,6 +112,8 @@ export type SimEvent =
    * lifetime from balance).
    */
   | { type: "acid.splashed"; puddleId: number; x: number; y: number; hitPlayerId: string | null; /** Review M1: client only, as above. */ ageS?: number }
+  /** Story 5.7: a Brute appeared (roar on every one; `first` = the run's first Brute: the "Brute!" banner). Sent to everyone. */
+  | { type: "zombie.brute_spawned"; zombieId: number; x: number; y: number; first: boolean; /** Client only: seconds since it happened (a woken tab's backlog: no late banner). */ ageS?: number }
   /** Story 5.1: `playerId` upgraded the weapon in `slot` to `level` (2–maxLevel; build phase only). */
   | { type: "weapon.upgraded"; playerId: string; weapon: string; slot: 0 | 1; level: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them

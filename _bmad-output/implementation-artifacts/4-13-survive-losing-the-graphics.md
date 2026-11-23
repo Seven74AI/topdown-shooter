@@ -163,9 +163,11 @@ Claude Opus 5.5 (claude-opus-5-5), gds-create-story + gds-dev-story, non-interac
 - `apps/client/src/debug/netSummary.test.ts`
 - `apps/client/src/ui/App.tsx`
 - `apps/client/src/ui/overlay.css`
-- `docs/art/4-13/` (new): `before.png`, `after-loss.png`, `after-restore.png`, `after-restore-without-fix.png`, `after-restore-gap20s-stress.png`, `after-restore-online.png`, `never-restored-online.png`, `canvas-mode.png`, `reproduce-context-loss.cjs`
+- `docs/art/4-13/` (new): `before.png`, `after-loss.png`, `after-restore.png`, `after-restore-without-fix.png`, `after-restore-gap20s-stress.png`, `after-restore-online.png`, `never-restored-online.png`, `canvas-mode.png`, `reproduce-context-loss.cjs`, `reproduce-merged.cjs`, `merged-before.png`, `merged-after-loss.png`, `merged-after-restore.png`, `merged-after-restore-shop.png`
 
 ## Change Log
 
 - 2026-11-23: Story created (gds-create-story); designer's correction (Android only, reload fixes it) folded in.
 - 2026-11-23: Implemented — texture registry + rebuild on WebGL restore / 2D canvas restore / emptied-canvas probe; city re-bake; Text redraw; reload notice if never restored; Canvas-mode banner; renderer in debug overlay and Copy results; tests; Playwright evidence. Status → review.
+- 2026-11-23: Merged `claude/gracious-turing-0db3j6` (5.1 tier marks, 5.2 Fire Axe / Chainsaw, 5.7 Brute, 4.12 review fixes): no conflicts. Every new art goes through the existing atlases (characters / fx / buildings / firefx), already registered; no new `addCanvasTexture` / `addCanvas` / `generateTexture` / render texture; the shop weapon and tier icons are DOM data-URL images (untouched by a GL loss). Re-ran the reproduction on the merged dev build (`reproduce-merged.cjs`: stage 3 with both car fires, a Brute, chainsaw III + fire axe III; all 51 source canvases wiped, lost / restored): 8/8 entries rebuilt, screen as before; shop with the III → IV upgrade icons after the restore (`merged-*.png`).
+

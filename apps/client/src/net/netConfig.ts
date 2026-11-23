@@ -7,6 +7,11 @@
 export const PREDICTION_IGNORE_M = 0.001;
 /** Prediction errors from this size on snap instead of smoothing (1 m). */
 export const PREDICTION_SNAP_M = 1.0;
+/**
+ * Story 5.7: the reconcile that first shows a Brute's knockback (1.5 m the client could not
+ * predict) smooths an error up to this instead of snapping (knock + the usual 1 m).
+ */
+export const PREDICTION_KNOCK_SNAP_M = 2.5;
 /** Time constant of the visual offset decay after a correction (s): ~63 % gone after 0.1 s. */
 export const PREDICTION_SMOOTH_TAU_S = 0.1;
 /** Inputs the predictor can replay: 64 steps = 3.2 s; an older ack snaps. */

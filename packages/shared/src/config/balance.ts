@@ -76,10 +76,32 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   if (biggest > 65535) issues.push(`waves.json: the last wave would hold ${biggest} zombies, more than the 65,535 a wave can count`);
   const maxRz = Math.max(0, ...Object.values(zombies.types).map((t) => t.radiusM));
   // 3.5 re-review: the flow field's pinch rule assumes a body fits a free cell diagonal (0.354 m
-  // clearance past two corners); a bigger zombie type needs the clearance rule extended first.
-  if (maxRz > MAX_PATHING_ZOMBIE_RADIUS_M) {
-    issues.push(`zombies.json: a zombie radius of ${maxRz} m exceeds ${MAX_PATHING_ZOMBIE_RADIUS_M} m, the largest the flow field's clearance rule supports`);
+  // clearance past two corners). Story 5.7 (D1): a `wideBody` type paths on the wide grid, whose
+  // boxes are grown by `pathing.wideInflateM`: there the limit is 0.35 m + that.
+  const inflate = (parsed.zombies as { pathing: { wideInflateM: number } }).pathing.wideInflateM;
+  for (const [id, t] of Object.entries(zombies.types as Record<string, { radiusM: number; wideBody: boolean }>)) {
+    const limit = t.wideBody ? MAX_PATHING_ZOMBIE_RADIUS_M + inflate : MAX_PATHING_ZOMBIE_RADIUS_M;
+    if (t.radiusM > limit + 1e-9) {
+      issues.push(
+        t.wideBody
+          ? `zombies.json: types.${id}: a wide body of ${t.radiusM} m exceeds ${limit} m (${MAX_PATHING_ZOMBIE_RADIUS_M} m + pathing.wideInflateM), the largest the wide grid supports`
+          : `zombies.json: types.${id}: a zombie radius of ${t.radiusM} m exceeds ${MAX_PATHING_ZOMBIE_RADIUS_M} m, the largest the flow field's clearance rule supports (set wideBody for a wider type)`,
+      );
+    }
   }
+  // Story 5.7: fixed per-wave counts name known types and fit the smallest (solo) wave they are in.
+  const fixedList = (parsed.waves as { fixed: readonly Record<string, number>[] }).fixed;
+  const soloScale = Math.min(...wv.playerCountScale);
+  fixedList.forEach((m, i) => {
+    let sum = 0;
+    for (const [id, c] of Object.entries(m)) {
+      sum += c;
+      if (!(id in zombies.types)) issues.push(`waves.json: fixed.${i}: unknown zombie type ${id}`);
+      else if (!(ZOMBIE_TYPES as readonly string[]).includes(id)) issues.push(`waves.json: fixed.${i}: ${id} is not in ZOMBIE_TYPES`);
+    }
+    const smallest = Math.max(1, Math.round((i + 1) * wv.zombiesPerWave * soloScale));
+    if (sum > smallest) issues.push(`waves.json: fixed.${i}: ${sum} fixed zombies exceed the smallest wave ${i + 1} (${smallest} solo)`);
+  });
   if (buildings.spawnClearM <= waves.spawnJitterM + maxRz) {
     issues.push(`buildings.json: spawnClearM ${buildings.spawnClearM} must exceed waves.spawnJitterM + the largest zombie radius (${waves.spawnJitterM + maxRz})`);
   }

@@ -345,6 +345,7 @@ Merged the work branch at `1614402` first (5.9 review fixes + M1c art): it merge
 ## Change Log
 
 - 2026-11-23: Story 5.6 built (Spitters: AI, spits, acid puddles, wire events, client look/sound/cue, tests, fuzz, sims, bandwidth, browser check). Status → review.
+- 2026-11-23 (in Story 5.7's branch, designer decision on re-review low (a)): **acid puddles no longer hurt across walls, cars or buildings.** `circleInAcid` (the damage rule, used by `updateAcid`) now also requires that the segment from the body's centre to the puddle's centre does not enter a shot blocker (`shotBlockT`: car, bus, building, map wall — the spit-vs-cover rule of F3) more than `ACID_FACE_TOLERANCE_M` (2 cm) before the puddle centre (a spit stopped at a face leaves its centre on that face). Barricades, sandbags, turrets and traps don't block it (4.2). Test: `hazards/acid.test.ts` › "a puddle never hurts across a wall, car or building; barricades don't block it" (the 0.5 m `parking_wall` from both sides, a puddle centre on either face, a barricade between). Mutants "acid ignores cover" and "tolerance 0" killed.
 
 ### Re-review of the fixes (2026-11-23, fresh agent)
 

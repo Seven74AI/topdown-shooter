@@ -1,9 +1,9 @@
 import * as Phaser from "phaser";
 import type { FireRecord } from "@topdown/shared";
 import { ATLAS_FIREFX, FIRE_FLAME_FRAMES, FIRE_SMOKE_FRAMES, FX_FIRE_EMBER, FX_FIRE_LIGHT, ensureFireFxAtlas } from "./fireFxAtlas";
-import { CarFire, fireInView, FIRE_EMBERS_MAX, FIRE_FLAMES_MAX, FIRE_SMOKE_MAX, emberDraw, fireFlicker, flameDraw, smokeDraw, type ParticleDraw } from "./fireParticles";
+import { CarFire, EDGE_SLOTS_MAX, fireInView, FIRE_EMBERS_MAX, FIRE_FLAMES_MAX, FIRE_SMOKE_MAX, edgeFlameDraw, emberDraw, fireFlicker, flameDraw, freeFlameFitR, smokeDraw, type ParticleDraw } from "./fireParticles";
 import { fireRingRadiusM } from "./fireRing";
-import { flameCoreFrac } from "./fireSprites";
+import { flameCoreFracOf, flameReachUpOf } from "./fireSprites";
 
 /**
  * Depths (4.11 review L3 kept): the ground light with the other animated lights; the smoke above the
@@ -17,14 +17,18 @@ const FLAME_DEPTH = 4.38;
 const EMBER_DEPTH = 11.6;
 /** Lab panel D's ground light: 2R wide (it ends at the zone edge), additive, flickering. */
 const LIGHT_ALPHA = 0.13;
-/** Particles fainter than this are hidden instead of drawn (fill rate). */
+/** Particles fainter than this are hidden instead of drawn (fill rate; review L3: smoke 0.04). */
 const MIN_ALPHA = 0.01;
+const MIN_SMOKE_ALPHA = 0.04;
 
 
 interface Slot {
   name: string | null;
   readonly fire: CarFire;
   readonly flames: Phaser.GameObjects.Image[];
+  /** Review M1: the fixed edge-ring flames. */
+  readonly edge: Phaser.GameObjects.Image[];
+  readonly edgeFrame: Int8Array;
   readonly smoke: Phaser.GameObjects.Image[];
   readonly embers: Phaser.GameObjects.Image[];
   readonly light: Phaser.GameObjects.Image;
@@ -59,6 +63,8 @@ export class FireView {
         name: null,
         fire: new CarFire(0x4f12 + s * 7919, low),
         flames: [],
+        edge: [],
+        edgeFrame: new Int8Array(EDGE_SLOTS_MAX).fill(-1),
         smoke: [],
         embers: [],
         light: img(FX_FIRE_LIGHT, LIGHT_DEPTH, true),
@@ -70,6 +76,7 @@ export class FireView {
         shown: false,
       };
       for (let i = 0; i < FIRE_FLAMES_MAX; i++) slot.flames.push(img(FIRE_FLAME_FRAMES[0] as string, FLAME_DEPTH, true));
+      for (let i = 0; i < EDGE_SLOTS_MAX; i++) slot.edge.push(img(FIRE_FLAME_FRAMES[0] as string, FLAME_DEPTH, true));
       for (let i = 0; i < FIRE_SMOKE_MAX; i++) slot.smoke.push(img(FIRE_SMOKE_FRAMES[0] as string, SMOKE_DEPTH, false));
       for (let i = 0; i < FIRE_EMBERS_MAX; i++) slot.embers.push(img(FX_FIRE_EMBER, EMBER_DEPTH, true));
       this.slots.push(slot);
@@ -117,13 +124,19 @@ export class FireView {
    * images' displayed size) passes the zone edge, at most (≤ 0 = the edge rule holds on screen).
    */
   brightEdgeExcess(): number {
-    const core = flameCoreFrac();
     let worst = -Infinity;
     for (const s of this.slots) {
       if (s.name === null) continue;
-      for (const img of s.flames) {
+      for (let i = 0; i < s.flames.length; i++) {
+        const img = s.flames[i] as Phaser.GameObjects.Image;
         if (!img.visible) continue;
-        const e = Math.hypot(img.x - s.x, img.y - s.y) + (core * Math.max(img.displayWidth, img.displayHeight)) / 2 - s.r;
+        const e = Math.hypot(img.x - s.x, img.y - s.y) + (flameCoreFracOf(s.flameFrame[i] as number) * Math.max(img.displayWidth, img.displayHeight)) / 2 - s.r;
+        if (e > worst) worst = e;
+      }
+      for (let i = 0; i < s.edge.length; i++) {
+        const img = s.edge[i] as Phaser.GameObjects.Image;
+        if (!img.visible) continue;
+        const e = Math.hypot(img.x - s.x, img.y - s.y) + (flameReachUpOf(s.edgeFrame[i] as number) * img.displayHeight) / 2 - s.r;
         if (e > worst) worst = e;
       }
     }
@@ -153,7 +166,7 @@ export class FireView {
       const fp = fire.flames;
       for (let i = 0; i < fp.cap; i++) {
         const img = slot.flames[i] as Phaser.GameObjects.Image;
-        if (!flameDraw(fp, i, slot.r, d) || d.alpha < MIN_ALPHA) {
+        if (!flameDraw(fp, i, freeFlameFitR(slot.r), d) || d.alpha < MIN_ALPHA) {
           if (img.visible) img.setVisible(false);
           continue;
         }
@@ -164,10 +177,23 @@ export class FireView {
         img.setPosition(slot.x + d.x, slot.y + d.y).setDisplaySize(d.w, d.h).setRotation(d.rot).setAlpha(d.alpha).setTint(d.tint);
         if (!img.visible) img.setVisible(true);
       }
+      for (let i = 0; i < EDGE_SLOTS_MAX; i++) {
+        const img = slot.edge[i] as Phaser.GameObjects.Image;
+        if (!edgeFlameDraw(fire, i, tS, slot.r, d)) {
+          if (img.visible) img.setVisible(false);
+          continue;
+        }
+        if (slot.edgeFrame[i] !== d.frame) {
+          slot.edgeFrame[i] = d.frame;
+          img.setFrame(FIRE_FLAME_FRAMES[d.frame] as string);
+        }
+        img.setPosition(slot.x + d.x, slot.y + d.y).setDisplaySize(d.w, d.h).setRotation(d.rot).setAlpha(d.alpha).setTint(d.tint);
+        if (!img.visible) img.setVisible(true);
+      }
       const sp = fire.smoke;
       for (let i = 0; i < sp.cap; i++) {
         const img = slot.smoke[i] as Phaser.GameObjects.Image;
-        if (!smokeDraw(sp, i, "black", 0, 0, d) || d.alpha < MIN_ALPHA) {
+        if (!smokeDraw(sp, i, "black", 0, 0, d) || d.alpha < MIN_SMOKE_ALPHA) {
           if (img.visible) img.setVisible(false);
           continue;
         }
@@ -195,6 +221,7 @@ export class FireView {
     slot.shown = false;
     slot.light.setVisible(false);
     for (const img of slot.flames) img.setVisible(false);
+    for (const img of slot.edge) img.setVisible(false);
     for (const img of slot.smoke) img.setVisible(false);
     for (const img of slot.embers) img.setVisible(false);
   }
@@ -203,6 +230,7 @@ export class FireView {
     for (const s of this.slots) {
       s.light.destroy();
       for (const img of s.flames) img.destroy();
+      for (const img of s.edge) img.destroy();
       for (const img of s.smoke) img.destroy();
       for (const img of s.embers) img.destroy();
     }

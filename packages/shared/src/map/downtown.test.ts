@@ -9,10 +9,9 @@ import { buildingStats, footprint, footprintBlocked, placementError, type Box } 
 import { startBuild } from "../run/runStateMachine";
 import { returnOutPlayers } from "../player/downed";
 import { spawnZombie } from "../zombies/zombiePool";
-import { maxZombieRadius } from "../zombies/zombieTypes";
 import { FLOW_UNREACHED, flowCellAt, rebuildFlowFieldNow } from "../zombies/flowField";
 import { mapCollisionCells } from "./collisionCells";
-import { jitteredSpawn } from "../waves/waveDirector";
+import { jitteredSpawn, spawnJitterFor } from "../waves/waveDirector";
 import { spawnSide } from "../waves/spawnPick";
 import { DOWNTOWN_MAP } from "./downtown";
 
@@ -101,11 +100,12 @@ describe("Downtown map data (Story 4.1)", () => {
     // jitter axis (Story 4.3: the wave director's `jitteredSpawn` rule, checked through it), grown by
     // the largest zombie radius on every side, overlaps no collision box and (Story 4.3) no cover
     // object of any stage (Story 4.2 makes cover block bodies).
-    const j = balance.waves.spawnJitterM;
-    const rz = maxZombieRadius(balance);
     const lo = { x: 0, y: 0 };
     const hi = { x: 0, y: 0 };
+    // Story 5.7: per zombie type (a wide body jitters less: `spawnJitterFor`).
+    for (const rz of [...new Set(Object.values(balance.zombies.types).map((t) => t.radiusM))])
     for (const sp of map.spawnPoints) {
+      const j = spawnJitterFor(balance, rz);
       jitteredSpawn(world, sp, -j, rz, lo);
       jitteredSpawn(world, sp, j, rz, hi);
       expect(Math.hypot(hi.x - lo.x, hi.y - lo.y), sp.name).toBeCloseTo(2 * j, 9); // really jittered, not clamped

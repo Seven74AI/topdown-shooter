@@ -1,4 +1,4 @@
-import { BUILD_GRID_M, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId } from "@topdown/shared";
+import { BUILD_GRID_M, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
 import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, perf, type PerfSummaryResult } from "./perfStats";
 import { gfxStatus } from "../render/gfx/gfxStatus";
 
@@ -62,7 +62,9 @@ export function spawnInView(
       const dy = y - avoidY;
       if (dx * dx + dy * dy >= clearM * clearM) break;
     }
-    if (spawnZombie(world, type, x, y) < 0) break; // pool full
+    const id = spawnZombie(world, type, x, y);
+    if (id < 0) break; // pool full
+    announceSpawn(world, id); // Story 5.7: a dev-cheat Brute roars (the run's first gets the banner)
     spawned++;
   }
   return spawned;

@@ -131,6 +131,64 @@ describe("five-wave bot sim with the Shotgun and the Assault Rifle (Story 5.3, b
 });
 
 
+describe("six-wave bot sim with the Brute (Story 5.7, brief lines 9 and 15)", () => {
+  // `runWaves` 6 (the run Story 5.8 makes live): waves 5 and 6 each bring one Brute.
+  const six = loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "runWaves", 6]]));
+  it("every run ends; a Brute spawned in wave 5 (and 6), was killed, and its kill was paid (25 + assists)", () => {
+    const lines: string[] = [];
+    let reached5 = 0;
+    let killed = 0;
+    let pay = 0;
+    for (const players of [2, 4]) {
+      for (const seed of SEEDS) {
+        const r = runHeadless({ balance: six, seed, players });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        if (r.heldOut) expect(r.wavesCleared).toBe(6);
+        if (r.reached >= 5) {
+          reached5++;
+          expect(r.brutes.spawnedInWave.filter((w) => w === 5), `seed ${seed} ${players}p`).toHaveLength(1);
+        }
+        if (r.reached >= 6) expect(r.brutes.spawnedInWave.filter((w) => w === 6)).toHaveLength(1);
+        expect(r.brutes.spawnedInWave.every((w) => w === 5 || w === 6)).toBe(true);
+        if (r.wavesCleared >= 5) expect(r.brutes.killed).toBeGreaterThanOrEqual(1); // a cleared wave 5 killed its Brute
+        killed += r.brutes.killed;
+        pay += r.brutes.killPay;
+        lines.push(`${formatRunLine(r)} | Brutes spawned in waves ${r.brutes.spawnedInWave.join(",") || "-"}, killed ${r.brutes.killed}, paid ${r.brutes.killPay}`);
+      }
+    }
+    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[sim] Story 5.7 six waves:\n${lines.join("\n")}`);
+    expect(reached5).toBeGreaterThan(0);
+    expect(killed).toBeGreaterThan(0);
+    expect(pay).toBeGreaterThanOrEqual(12 * killed); // each Brute kill paid: 25 (+ assists) by a player, 50 % to a turret's owner (D6)
+  }, 600_000);
+});
+
+describe("bot sim with the Fire Axe and the Chainsaw (Story 5.2, brief lines 9 and 15)", () => {
+  it("bots that buy them still run to Results (waves ended), and both really kill", () => {
+    // A test-only shopping list: the bots start with 700 (enough for the Chainsaw at the first build).
+    const rich = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 700]]));
+    const lists: Record<string, readonly string[]> = { fire_axe: ["fire_axe", "wood_barricade"], chainsaw: ["chainsaw", "wood_barricade"] };
+    const lines: string[] = [];
+    for (const [weapon, list] of Object.entries(lists)) {
+      let kills = 0;
+      let bought = 0;
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance: rich, seed, players: 4, list });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
+        kills += r.killsByWeapon[weapon] ?? 0;
+        bought += r.purchases.flat().filter((p) => p.startsWith(`${weapon}@`)).length;
+        lines.push(`${weapon} seed ${seed}: ${formatRunLine(r)} kills by ${weapon} ${r.killsByWeapon[weapon] ?? 0}`);
+      }
+      expect(bought).toBeGreaterThan(0);
+      expect(kills).toBeGreaterThan(0); // liveness: the new weapon was used (bot survival is not difficulty evidence)
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[five-wave sim 5.2]\n${lines.join("\n")}`);
+  }, 180_000);
+});
+
 describe("five-wave bot sim with weapon upgrades (Story 5.1, brief lines 9 and 15)", () => {
   it("bots that upgrade their SMG still run to Results, and upgraded weapons really kill", () => {
     // A test-only shopping list (bots.json stays untouched): the SMG, two upgrades, then a barricade.

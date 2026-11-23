@@ -10,6 +10,7 @@ import { spawnZombie } from "../zombies/zombiePool";
 import { circleInAcid, spawnSpit } from "../zombies/spit";
 import { startBuild } from "../run/runStateMachine";
 import { AREA_KIND, spawnArea } from "./areaPool";
+import { DOWNTOWN_MAP } from "../map/downtown";
 
 /**
  * Story 5.6: acid puddles (AC 4, F4, F5, AC 15, DD4). One mechanic per test: no wave director;
@@ -183,5 +184,44 @@ describe("acid puddles (Story 5.6 F4: standing in acid always hurts at 5/s)", ()
     expect(ids).not.toContain(100); // the oldest went
     expect(ids).toContain(999);
     expect(ids).toContain(101);
+  });
+  it("5.6 re-review (designer): a puddle never hurts across a wall, car or building; barricades don't block it", () => {
+    // parking_wall: x 10–10.5, y 24–32 (0.5 m thick, a shot blocker). Puddle 0.2 m west of it, player 0.05 m east of it:
+    // the circles overlap (1.2 m < 1 + 0.35) but the line from the puddle centre to the body crosses the wall.
+    const pr = balance.player.radiusM;
+    const cases: [string, number, number, boolean][] = [
+      ["across parking_wall", 9.8, 10.5 + pr + 0.05, false],
+      ["same side as the puddle", 9.8, 9.8 - 0.6, true],
+      ["puddle centre on the wall's face (a spit stopped there), body on that side", 10 - 1e-9, 10 - 0.6, true],
+      ["puddle centre on the wall's far face, body across", 10.5 + 1e-9, 10 - pr - 0.05, false],
+      // A glob stopped at the face leaves its centre a float hair (or the client's ½ cm rounding) inside the wall.
+      ["puddle centre 5 mm inside the wall's west face, body west of it", 10 + 0.005, 10 - 0.6, true],
+      ["puddle centre 5 mm inside the wall's east face, body west of it", 10.5 - 0.005, 10 - pr - 0.05, false],
+    ];
+    for (const [name, px, bx, hurt] of cases) {
+      const w = createWorld({ balance, seed: 1, map: DOWNTOWN_MAP, systems: NO_WAVES });
+      const p = addPlayer(w, "p0", bx, 28);
+      p.hp = 1e9;
+      spawnArea(w.areas, balance.zombies.spitCaps.maxLivePuddles, AREA_KIND.ACID, 1, px, 28, R, 10_000, w.tick);
+      const hits = acidHits(w);
+      for (let i = 0; i < PULSE * 3; i++) {
+        p.x = bx; // standing still (no input)
+        p.y = 28;
+        tick(w);
+      }
+      expect(hits.length > 0, name).toBe(hurt);
+      expect(circleInAcid(w, bx, 28, pr), name).toBe(hurt);
+    }
+    // A barricade between puddle and body does not block acid (barricades only stop bodies, 4.2).
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    const p = addPlayer(w, "p0", 21.5, 16);
+    p.hp = 1e9;
+    addBuildingAt(w, { id: 1, type: "wood_barricade", ownerId: "p0", gx: 41, gy: 30, rot: 1, hp: 200 }); // x 20.5–21, y 15–17
+    const b = w.buildings.list[0];
+    expect(b && b.minX > 20.2 && b.maxX <= 21.5 - balance.player.radiusM ? "between" : `not between ${b?.minX}-${b?.maxX}`).toBe("between");
+    puddle(w, 20.3, 16);
+    const hits = acidHits(w);
+    tick(w, PULSE * 2);
+    expect(hits.length).toBeGreaterThan(0);
   });
 });

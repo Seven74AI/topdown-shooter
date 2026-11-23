@@ -1,5 +1,13 @@
 {
   "moveDeadZone": 0.1,
   "aimDeadZone": 0.3,
-  "aimAssistDeg": 8
+  "aimAssistDeg": 8,
+  "fx": {
+    "maxSwingArcs": 8,
+    "maxChainsawSparks": 32,
+    "chainsawSparksPerHit": 4,
+    "chainsawSparksPerMiss": 1,
+    "chainsawSparkMs": 180,
+    "chainsawRevHoldMs": 150
+  }
 }

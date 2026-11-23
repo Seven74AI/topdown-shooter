@@ -22,6 +22,7 @@ import {
   PREDICTION_ERROR_BUCKET_STEPS,
   PREDICTION_HISTORY_SIZE,
   PREDICTION_IGNORE_M,
+  PREDICTION_KNOCK_SNAP_M,
   PREDICTION_SMOOTH_TAU_S,
   PREDICTION_SNAP_M,
 } from "./netConfig";
@@ -37,6 +38,8 @@ export interface PredictionStats {
   lastErrorM: number;
   /** Inputs sent but not yet acknowledged after the latest reconcile. */
   unackedInputs: number;
+  /** Story 5.7: corrections that slid a newly seen knockback in (smoothed up to `PREDICTION_KNOCK_SNAP_M`, not snapped). */
+  knockSlides: number;
 }
 
 type MutableInput = { -readonly [K in keyof PlayerInput]: PlayerInput[K] };
@@ -56,10 +59,13 @@ type MutableInput = { -readonly [K in keyof PlayerInput]: PlayerInput[K] };
  * No allocation per step, reconcile or frame (the history is a preallocated ring of copies).
  */
 export class Predictor {
-  readonly stats: PredictionStats = { corrections: 0, snaps: 0, maxErrorM: 0, lastErrorM: 0, unackedInputs: 0 };
+  readonly stats: PredictionStats = { corrections: 0, snaps: 0, maxErrorM: 0, lastErrorM: 0, unackedInputs: 0, knockSlides: 0 };
   private readonly world: World;
   private player: PlayerState | null = null;
   private readonly ring: MutableInput[];
+  /** Story 5.2: per ring entry, the active weapon and swap state my movement saw (from LocalFire). */
+  private readonly ringWeapon: string[];
+  private readonly ringSwapping: Uint8Array;
   private head = 0;
   private count = 0;
   /** Highest seq pushed out of the full ring before it was acknowledged (it can't be replayed). */
@@ -69,6 +75,8 @@ export class Predictor {
   private offsetY = 0;
   /** The alpha of the last `renderX`: reconcile measures the error at the point drawn last. */
   private alpha = 0;
+  /** Story 5.7: the ack seq at which the last knock seen ends (ack + knockTicks): a new knock has another. */
+  private knockEndSeq = -1;
   private readonly errorBuckets = new Float64Array(PREDICTION_ERROR_BUCKETS);
   private bucket = 0;
   private bucketSteps = 0;
@@ -80,6 +88,8 @@ export class Predictor {
   ) {
     this.world = createWorld({ balance, seed: 0, map, systems: PREDICTION_SYSTEMS });
     this.ring = Array.from({ length: PREDICTION_HISTORY_SIZE }, () => ({ ...NEUTRAL_INPUT }));
+    this.ringWeapon = new Array<string>(PREDICTION_HISTORY_SIZE).fill("");
+    this.ringSwapping = new Uint8Array(PREDICTION_HISTORY_SIZE);
   }
 
   /** True once the first snapshot created the predicted player. */
@@ -94,6 +104,11 @@ export class Predictor {
 
   get y(): number {
     return this.player?.y ?? 0;
+  }
+
+  /** Story 5.7: movement ticks of a knockback the predicted player still slides (tests). */
+  get knockTicks(): number {
+    return this.player?.knockTicks ?? 0;
   }
 
   /** Story 3.9: movement ticks the predicted player is still slowed (tests, the overlay). */
@@ -164,18 +179,27 @@ export class Predictor {
     this.offsetY = 0;
   }
 
-  /** One local fixed step: record the input and step the prediction World. */
-  applyLocal(input: PlayerInput): void {
+  /**
+   * One local fixed step: record the input and step the prediction World. Story 5.2 (F6): `weapon`
+   * and `swapping` are my active weapon and swap state as the server's movement of this seq sees
+   * them (`LocalFireClock.moveWeapon` / `moveSwapping` before its step for this seq), so the
+   * shared `wielderSlowPct` (the Chainsaw's 20 %) gives the server's speed; kept per seq for replays.
+   */
+  applyLocal(input: PlayerInput, weapon = "", swapping = false): void {
     if (this.count === PREDICTION_HISTORY_SIZE) {
       this.evictedSeq = (this.ring[this.head] as MutableInput).seq;
       this.head = (this.head + 1) % PREDICTION_HISTORY_SIZE;
       this.count--;
     }
-    const slot = this.ring[(this.head + this.count) % PREDICTION_HISTORY_SIZE] as MutableInput;
+    const k = (this.head + this.count) % PREDICTION_HISTORY_SIZE;
+    const slot = this.ring[k] as MutableInput;
     copyMovement(slot, input);
+    this.ringWeapon[k] = weapon;
+    this.ringSwapping[k] = swapping ? 1 : 0;
     this.count++;
     this.stats.unackedInputs = this.count;
     if (this.player) {
+      this.wield(k);
       setInput(this.world, this.playerId, slot);
       step(this.world, TICK_DT_S);
     }
@@ -191,8 +215,12 @@ export class Predictor {
    * Server truth for my player at `ackSeq`; replays newer inputs. Ignores acks older than the last
    * one seen. Story 3.9: the bite slow of that same tick (`slowTicks`, `slowPct`) is rebased too, so
    * the replay moves at the server's speed and counts the slow down like the server.
+   * Story 5.7: so is a Brute's knockback (`knockTicks` left at the ack, its int8 direction and mm per
+   * tick): the replay slides the same ticks the server does. The reconcile that first shows a knock
+   * the client could not foresee (it happened on the server) smooths the jump instead of snapping,
+   * up to `PREDICTION_KNOCK_SNAP_M`: the survivor visibly slides back rather than teleporting.
    */
-  reconcile(ackSeq: number, x: number, y: number, status: PlayerStatus, slowTicks = 0, slowPct = 0): void {
+  reconcile(ackSeq: number, x: number, y: number, status: PlayerStatus, slowTicks = 0, slowPct = 0, knockTicks = 0, knockDx = 0, knockDy = 0, knockStepMm = 0): void {
     if (ackSeq < this.lastAck) return;
     this.lastAck = ackSeq;
     const first = this.player === null;
@@ -208,6 +236,13 @@ export class Predictor {
     p.status = status;
     p.slowTicksLeft = slowTicks;
     p.slowPct = slowTicks > 0 ? slowPct : 0;
+    p.knockTicks = knockTicks; // Story 5.7
+    p.knockDx = knockDx;
+    p.knockDy = knockDy;
+    p.knockStepMm = knockStepMm;
+    const newKnock = knockTicks > 0 && ackSeq + knockTicks !== this.knockEndSeq;
+    if (knockTicks > 0) this.knockEndSeq = ackSeq + knockTicks;
+    const snapM = newKnock ? PREDICTION_KNOCK_SNAP_M : PREDICTION_SNAP_M;
     if (this.evictedSeq > ackSeq) {
       // A stall of over 3 s: inputs the server hasn't applied are gone from the history.
       this.count = 0;
@@ -226,7 +261,9 @@ export class Predictor {
       p.prevY = y - lastDy;
     }
     for (let i = 0; i < this.count; i++) {
-      setInput(this.world, this.playerId, this.ring[(this.head + i) % PREDICTION_HISTORY_SIZE] as MutableInput);
+      const k = (this.head + i) % PREDICTION_HISTORY_SIZE;
+      this.wield(k);
+      setInput(this.world, this.playerId, this.ring[k] as MutableInput);
       step(this.world, TICK_DT_S);
     }
     this.stats.unackedInputs = this.count;
@@ -239,15 +276,16 @@ export class Predictor {
     const e = Math.sqrt(ex * ex + ey * ey);
     this.recordError(e);
     if (e < PREDICTION_IGNORE_M) return; // float32 rounding: offset unchanged
-    if (e >= PREDICTION_SNAP_M) {
+    if (e >= snapM) {
       this.snap();
       return;
     }
     this.offsetX += ex;
     this.offsetY += ey;
     this.stats.corrections++;
+    if (newKnock) this.stats.knockSlides++;
     // Corrections in a row can add up: a total offset ≥ 1 m snaps too (review fix).
-    if (this.offsetX * this.offsetX + this.offsetY * this.offsetY >= PREDICTION_SNAP_M * PREDICTION_SNAP_M) this.snap();
+    if (this.offsetX * this.offsetX + this.offsetY * this.offsetY >= snapM * snapM) this.snap();
   }
 
   /** Smoothed position to draw this frame. */
@@ -286,6 +324,22 @@ export class Predictor {
   private drawnY(): number {
     const p = this.player;
     return p ? p.prevY + (p.y - p.prevY) * this.alpha + this.offsetY : 0;
+  }
+
+  /**
+   * Story 5.2: the predicted player holds ring entry k's weapon (one slot, never swapping on its own:
+   * the prediction World runs no combat), so `movePlayers` reads the server's wield state.
+   */
+  private wield(k: number): void {
+    const lo = (this.player as PlayerState).loadout;
+    lo.slots[0].weapon = this.ringWeapon[k] as string;
+    lo.active = 0;
+    lo.swapTicks = this.ringSwapping[k] === 1 ? 1 : 0;
+  }
+
+  /** Story 5.2: the weapon the predicted player held on its latest step (tests). */
+  get wieldWeapon(): string {
+    return this.player?.loadout.slots[0].weapon ?? "";
   }
 
   private placeAt(x: number, y: number): void {

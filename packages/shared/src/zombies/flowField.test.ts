@@ -4,6 +4,9 @@ import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, removeBuilding, type BuildingRotation } from "../buildings/buildings";
 import { createWorld, step, type World } from "../core/world";
 import { addPlayer } from "../player/player";
+import { spawnZombie } from "./zombiePool";
+import { DOWNTOWN_MAP } from "../map/downtown";
+import { applyDecayStage } from "../decay/applyDecayStage";
 import {
   FLOW_UNREACHED,
   FLOW_UNITS_PER_M,
@@ -13,6 +16,7 @@ import {
   flowFieldMaxAgeTicks,
   flowNextCell,
   flowRefreshTicks,
+  flowSharedMaxAgeTicks,
   rasterizeBuildings,
   rebuildFlowFieldNow,
   snapshotPathing,
@@ -253,3 +257,117 @@ describe("flow field: review fixes", () => {
     expect(w.pathing.nav.cells).toBe(1);
   });
 });
+
+describe("Story 5.7 (D1): the wide grid and the wide chase field", () => {
+  /** A full-width line of barricades at y [16, 16.5] with one gap [gx, gx + gap] (a 1 × 1 m turret plugs the odd metre). */
+  function lineWithGap(w: World, gx: number, gap: number): void {
+    for (let x = 0; x + 2 <= gx; x += 2) wall(w, x, 16);
+    for (let x = gx + gap; x + 2 <= 48; x += 2) wall(w, x, 16);
+  }
+
+  it("the wide grid closes a 1.0 m gap the chase grid keeps open, and keeps a 1.5 m gap open (a 1.2 m Brute fits)", () => {
+    for (const [gap, wideOpen] of [
+      [1.0, false],
+      [1.5, true],
+      [2.0, true],
+    ] as const) {
+      const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+      lineWithGap(w, 24, gap);
+      addPlayer(w, "a", 24.5, 8);
+      const { nav, chase, wide, wideChase } = w.pathing;
+      rebuildFlowFieldNow(chase, nav, w);
+      rebuildFlowFieldNow(wideChase, wide, w);
+      // Walk the field down from below the line: does it go through the gap without a building?
+      const through = (f: typeof chase, g: typeof nav): boolean => {
+        let c = flowCellAt(g, 24 + gap / 2, 24);
+        for (let k = 0; k < 400; k++) {
+          const n = flowNextCell(f, g, c);
+          if (n < 0) return f.front[c] === 0;
+          if (g.buildingAt[n] !== 0) return false;
+          c = n;
+        }
+        return false;
+      };
+      if (gap <= 1.5) expect(through(chase, nav), `chase ${gap}`).toBe(true); // a 0.35 m body fits a 1 m gap
+      expect(through(wideChase, wide), `wide ${gap}`).toBe(wideOpen);
+      expect(wide.inflateM).toBe(balance.zombies.pathing.wideInflateM);
+    }
+  });
+
+  it("grows map boxes, buildings and the map edge by a whole cell; building ids stay on the grown cells", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    const b = wall(w, 20, 10); // [20, 22] × [10, 10.5]
+    const { nav, wide } = w.pathing;
+    rasterizeBuildings(nav, w);
+    rasterizeBuildings(wide, w);
+    expect(wide.buildingAt[flowCellAt(wide, 19.75, 10.25)]).toBe(b?.id);
+    expect(nav.buildingAt[flowCellAt(nav, 19.75, 10.25)]).toBe(0);
+    expect(wide.buildingAt[flowCellAt(wide, 21, 9.75)]).toBe(b?.id);
+    expect(wide.buildingAt[flowCellAt(wide, 21, 10.75)]).toBe(b?.id);
+    expect(wide.buildingAt[flowCellAt(wide, 21, 11.25)]).toBe(0);
+    expect(wide.wallAt[flowCellAt(wide, 0.25, 16)]).toBe(1); // the edge ring
+    expect(nav.wallAt[flowCellAt(nav, 0.25, 16)]).toBe(0);
+    expect(wide.wallAt[flowCellAt(wide, 0.75, 16)]).toBe(0);
+  });
+
+  it("the wide field idles without a Brute (the chase field keeps every tick), shares the ticks while one lives", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    addPlayer(w, "a", 24, 16).hp = 1e9;
+    for (let i = 0; i < 5; i++) spawnZombie(w, "walker", 5 + i, 5);
+    const P = flowRefreshTicks(w);
+    run(w, 60);
+    expect(w.pathing.wideChase.rebuilds).toBe(0);
+    expect(w.pathing.wideActive).toBe(false);
+    const chase0 = w.pathing.chase.rebuilds;
+    expect(chase0).toBeGreaterThanOrEqual(Math.floor(60 / P) - 1);
+    const id = spawnZombie(w, "brute", 40, 28);
+    w.zombies.hp[id] = 1e9;
+    const chase1 = w.pathing.chase.rebuilds;
+    run(w, 60);
+    expect(w.pathing.wideActive).toBe(true);
+    expect(w.pathing.activeFields).toBe(2);
+    expect(w.pathing.wideChase.rebuilds).toBeGreaterThanOrEqual(Math.floor(60 / (2 * P)) - 1);
+    expect(w.pathing.chase.rebuilds - chase1).toBeGreaterThanOrEqual(Math.floor(60 / (2 * P)) - 1);
+    expect(w.tick - w.pathing.wideChase.sourceTick).toBeLessThanOrEqual(4 * P);
+    // Runners too: three fields, each ≤ 6P old; the flank rule's max age follows.
+    spawnZombie(w, "runner", 2, 30);
+    run(w, 90);
+    expect(w.pathing.activeFields).toBe(3);
+    expect(flowSharedMaxAgeTicks(w)).toBe(6 * P);
+    for (const f of [w.pathing.chase, w.pathing.flank, w.pathing.wideChase]) expect(w.tick - f.sourceTick).toBeLessThanOrEqual(6 * P);
+  });
+
+  it("walls are rewritten only at decay changes (build starts) on both grids; buildings only re-rasterize", () => {
+    const w = createWorld({ balance, seed: 1, map: DOWNTOWN_MAP, systems: NO_WAVES });
+    addPlayer(w, "a", 24, 14.5).hp = 1e9;
+    spawnZombie(w, "brute", 40, 28);
+    const walls = Array.from(w.pathing.nav.wallAt);
+    const wideWalls = Array.from(w.pathing.wide.wallAt);
+    expect(wideWalls.filter((v) => v === 1).length).toBeGreaterThan(walls.filter((v) => v === 1).length); // grown
+    for (let t = 0; t < 100; t++) {
+      if (t === 20) wall(w, 22, 20);
+      if (t === 60) removeBuilding(w, w.buildings.list[0]?.id ?? 0);
+      step(w, TICK_DT_S);
+    }
+    expect(Array.from(w.pathing.nav.wallAt)).toEqual(walls);
+    expect(Array.from(w.pathing.wide.wallAt)).toEqual(wideWalls);
+    applyDecayStage(w, 2, w.decay.variants);
+    expect(Array.from(w.pathing.nav.wallAt)).not.toEqual(walls);
+    expect(Array.from(w.pathing.wide.wallAt)).not.toEqual(wideWalls);
+  });
+
+  it("snapshotPathing covers the wide grid and field", () => {
+    const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+    addPlayer(w, "a", 24, 16);
+    spawnZombie(w, "brute", 40, 28);
+    const s0 = JSON.stringify(snapshotPathing(w.pathing));
+    run(w, 10);
+    const s1 = snapshotPathing(w.pathing);
+    expect(JSON.stringify(s1)).not.toBe(s0);
+    expect(s1.wideChase.rebuilds).toBeGreaterThan(0);
+  });
+});
+
+function run(w: World, n: number): void {
+  for (let i = 0; i < n; i++) step(w, TICK_DT_S);
+}

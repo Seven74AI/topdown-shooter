@@ -247,3 +247,25 @@ describe("HordeEncoder", () => {
     expect(mean).toBeLessThan(1);
   });
 });
+
+describe("Story 5.7: the Brute on the wire (brief line 11)", () => {
+  it("one Brute in view is one more 8 B horde record (= 160 B/s at 20 Hz, like a Walker); its windup rides the state nibble", () => {
+    const { world, enc, client } = setup(24, 16);
+    const stats = newHordeStats();
+    spawnZombie(world, "walker", 28, 16);
+    enc.prepare(world);
+    enc.send(world, client, stats, 24, 16);
+    const one = (client.frames[0] as Uint8Array).length;
+    const b = spawnZombie(world, "brute", 22, 16);
+    world.zombies.state[b] = ZOMBIE_STATE.WINDUP;
+    enc.prepare(world);
+    enc.send(world, client, stats, 24, 16);
+    const frame = client.frames[1] as Uint8Array;
+    expect(frame.length - one).toBe(8);
+    const rec = decode(frame).recs.find((r) => (r.netId & 0xff) === b);
+    expect(rec && rec.typeState & 0x0f).toBe(4); // ZOMBIE_TYPES index 4 = brute
+    expect(rec && stateOfTypeState(rec.typeState)).toBe(ZOMBIE_STATE.WINDUP);
+    console.info(`[bandwidth 5.7] a Brute in view: +${(frame.length - one) * TICK_RATE_HZ} B/s per phone (one horde record)`);
+    expect((frame.length - one) * TICK_RATE_HZ).toBe(160);
+  });
+});

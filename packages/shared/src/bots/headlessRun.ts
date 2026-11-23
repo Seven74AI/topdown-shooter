@@ -7,6 +7,7 @@ import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { createHeadlessWorld, type BuildCommand, type InputLog } from "../replay/inputLog";
 import { botConfigOf, botInput, botViewFromWorld, createBotView, type BotView } from "./botPolicy";
 import { botBuildPhase, createBotShopResult } from "./botShop";
+import { zombieTypeIndex } from "../zombies/zombieTypes";
 
 /**
  * Story 3.10: one seeded headless run with bots (the Epic 2 retro A10 sim, grown up): the real
@@ -17,6 +18,9 @@ import { botBuildPhase, createBotShopResult } from "./botShop";
  * until Results (held out or wiped) or `maxTicks`. For sims and balance sweeps (tests,
  * `tools/sims`); not used by the game.
  */
+/** Story 5.7: the Brute's type index (the sims log its spawns and kills). */
+const BRUTE_TYPE = zombieTypeIndex("brute");
+
 export interface HeadlessRunOptions {
   balance: Balance;
   seed: number;
@@ -77,6 +81,8 @@ export interface HeadlessRunLog {
   /** Story 5.1: players' kills with a weapon above level I (liveness of upgrades in the sims). */
   upgradedKills: number;
   waves: HeadlessWaveLog[];
+  /** Story 5.7 (liveness): Brutes spawned (by wave), killed, and the money paid in the ticks of their kills. */
+  brutes: { spawnedInWave: number[]; killed: number; killPay: number };
 }
 
 export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
@@ -114,7 +120,9 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     upgrades: ids.map(() => 0),
     upgradedKills: 0,
     waves: [],
+    brutes: { spawnedInWave: [], killed: 0, killPay: 0 },
   };
+  let bruteKillTick = -1;
   let current: HeadlessWaveLog | null = null;
   let waveStart = 0;
   const standing = (): number => {
@@ -144,9 +152,17 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         break;
       case "money.earned":
         log.earnedBy[e.reason] += e.amount; // Story 4.5: refunds are not in `earned` (fiveWaveSim checks the other four)
+        if (world.tick === bruteKillTick && (e.reason === "kill" || e.reason === "assist")) log.brutes.killPay += e.amount;
+        break;
+      case "zombie.brute_spawned":
+        log.brutes.spawnedInWave.push(world.waves.number);
         break;
       case "zombie.killed": {
         if (e.buildingId !== undefined) log.turretKills++;
+        if (world.zombies.type[e.zombieId] === BRUTE_TYPE) {
+          log.brutes.killed++;
+          bruteKillTick = world.tick;
+        }
         const k = e.killerId === null || e.buildingId !== undefined ? -1 : ids.indexOf(e.killerId);
         if (k >= 0) {
           log.kills[k] = (log.kills[k] as number) + 1;

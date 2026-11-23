@@ -5,7 +5,7 @@ import { createWorld } from "../core/world";
 import { snapshotWorld } from "../core/worldSnapshot";
 import { circleOverlapsBox } from "../buildings/collision";
 import { teamSpawnPoint } from "../player/spawn";
-import { jitteredSpawn } from "../waves/waveDirector";
+import { jitteredSpawn, spawnJitterFor } from "../waves/waveDirector";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { flowCellAt } from "../zombies/flowField";
 import { DOWNTOWN_MAP } from "./downtown";
@@ -91,8 +91,8 @@ describe("obstacle lists (Story 4.2)", () => {
   });
 
   it("at every stage the team start and every spawn (± jitter, grown by the largest zombie) are clear of active cover", () => {
-    const jitter = balance.waves.spawnJitterM;
-    const rz = maxZombieRadius(balance);
+    const radii = [...new Set(Object.values(balance.zombies.types).map((t) => t.radiusM))];
+    expect(Math.max(...radii)).toBe(maxZombieRadius(balance));
     // Story 4.5: every combination of the variation candidates (any run can pick any of them).
     for (let stage = 1; stage <= MAP_STAGE_COUNT; stage++)
     for (const mask of legalDecayMasks(map)) {
@@ -107,15 +107,19 @@ describe("obstacle lists (Story 4.2)", () => {
       // along their building, manholes along their street), against collision and active cover.
       const lo = { x: 0, y: 0 };
       const hi = { x: 0, y: 0 };
-      for (const sp of map.spawnPoints) {
-        jitteredSpawn(world, sp, -jitter, rz, lo);
-        jitteredSpawn(world, sp, jitter, rz, hi);
-        const minX = Math.min(lo.x, hi.x) - rz;
-        const maxX = Math.max(lo.x, hi.x) + rz;
-        const minY = Math.min(lo.y, hi.y) - rz;
-        const maxY = Math.max(lo.y, hi.y) + rz;
-        for (const c of world.obstacles.solids) {
-          expect(minX < c.maxX && maxX > c.minX && minY < c.maxY && maxY > c.minY, `stage ${stage} mask ${mask}: ${sp.name} vs ${c.name}`).toBe(false);
+      // Story 5.7: per zombie type (a wide body jitters less: `spawnJitterFor`).
+      for (const rz of radii) {
+        const jitter = spawnJitterFor(balance, rz);
+        for (const sp of map.spawnPoints) {
+          jitteredSpawn(world, sp, -jitter, rz, lo);
+          jitteredSpawn(world, sp, jitter, rz, hi);
+          const minX = Math.min(lo.x, hi.x) - rz;
+          const maxX = Math.max(lo.x, hi.x) + rz;
+          const minY = Math.min(lo.y, hi.y) - rz;
+          const maxY = Math.max(lo.y, hi.y) + rz;
+          for (const c of world.obstacles.solids) {
+            expect(minX < c.maxX && maxX > c.minX && minY < c.maxY && maxY > c.minY, `stage ${stage} mask ${mask}: ${sp.name} (r ${rz}) vs ${c.name}`).toBe(false);
+          }
         }
       }
     }

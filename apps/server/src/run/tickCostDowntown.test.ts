@@ -233,6 +233,26 @@ describe("tick cost of Spitters (Story 5.6, brief line 16)", () => {
   }, 120_000);
 });
 
+describe("tick cost of the Fire Axe and the Chainsaw (Story 5.2, brief line 16)", () => {
+  it("4 players with Chainsaws (10 cuts/s each) / Fire Axes (1.5 m swept knockback) + 150 Walkers on Downtown add ≤ 2 ms to the tick p99 over Pistols", () => {
+    const runs = [measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, "chainsaw"), measure(DOWNTOWN_MAP, 1, null, "fire_axe"), measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, "chainsaw"), measure(DOWNTOWN_MAP, 1, null, "fire_axe")];
+    const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
+    const pistol = pick(runs[0] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
+    const saw = pick(runs[1] as ReturnType<typeof measure>, runs[4] as ReturnType<typeof measure>);
+    const axe = pick(runs[2] as ReturnType<typeof measure>, runs[5] as ReturnType<typeof measure>);
+    console.log(
+      `[tick cost 5.2] Pistols p99 ${pistol.p99.toFixed(3)} ms (mean ${pistol.mean.toFixed(3)}); Chainsaws p99 ${saw.p99.toFixed(3)} ms (mean ${saw.mean.toFixed(3)}), added p99 ${(saw.p99 - pistol.p99).toFixed(3)} ms; ` +
+        `Fire Axes p99 ${axe.p99.toFixed(3)} ms (mean ${axe.mean.toFixed(3)}), added p99 ${(axe.p99 - pistol.p99).toFixed(3)} ms; kills ${pistol.kills} / ${saw.kills} / ${axe.kills}; load ${loadavg()[0]?.toFixed(2)}`,
+    );
+    expect(saw.kills).toBeGreaterThan(0); // liveness: the melee weapons really cut
+    expect(axe.kills).toBeGreaterThan(0);
+    if (PERF_ASSERT) {
+      expect(saw.p99 - pistol.p99).toBeLessThanOrEqual(2);
+      expect(axe.p99 - pistol.p99).toBeLessThanOrEqual(2);
+    }
+  }, 180_000);
+});
+
 describe("build-start spike of a decay stage change (Story 4.5)", () => {
   it("4 players + 150 Walkers + 24 buildings: mutations + building refunds + push-outs + both flow fields rebuilt stay well inside one 50 ms tick", () => {
     const REPEATS = 12;

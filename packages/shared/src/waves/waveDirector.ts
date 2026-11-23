@@ -1,7 +1,8 @@
-import type { Balance } from "../config/balance";
+import { MAX_PATHING_ZOMBIE_RADIUS_M, type Balance } from "../config/balance";
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import { spawnZombie } from "../zombies/zombiePool";
+import { announceSpawn } from "../zombies/brute";
 import { createSpawnPickState, pickSpawnPoint, type SpawnPickState } from "./spawnPick";
 import { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
 
@@ -30,6 +31,15 @@ export interface WaveState extends SpawnPickState {
    */
   readonly typeTarget: Uint16Array;
   readonly typeSpawned: Uint16Array;
+  /**
+   * Story 5.7: this wave's fixed zombies per type (`waves.json › fixed`, part of `typeTarget`) and how
+   * many of them have spawned; they wait until `fixedAt` wave zombies have spawned, then go first.
+   */
+  readonly fixedTarget: Uint16Array;
+  readonly fixedSpawned: Uint16Array;
+  fixedAt: number;
+  /** Story 5.7: Brutes spawned this run (the "Brute!" banner shows for the first only). */
+  brutesSpawned: number;
 }
 
 export function createWaveState(): WaveState {
@@ -43,6 +53,10 @@ export function createWaveState(): WaveState {
     paused: false,
     typeTarget: new Uint16Array(ZOMBIE_TYPES.length),
     typeSpawned: new Uint16Array(ZOMBIE_TYPES.length),
+    fixedTarget: new Uint16Array(ZOMBIE_TYPES.length), // Story 5.7
+    fixedSpawned: new Uint16Array(ZOMBIE_TYPES.length),
+    fixedAt: 0,
+    brutesSpawned: 0,
     ...createSpawnPickState(), // Story 4.3
   };
 }
@@ -93,6 +107,33 @@ export function waveTypeCounts(mix: Readonly<Record<string, number>>, size: numb
   }
 }
 
+/**
+ * Story 5.7 (FR29, D5): wave `number`'s fixed zombies (`waves.json › fixed`, not scaled by player
+ * count) into `fixedOut`, and folded into `typeTarget`: each fixed zombie takes a slot of the mix's
+ * share, Walkers first, then the type with the largest share (ties: the earlier type). The wave size
+ * is unchanged. Waves past the list have none.
+ */
+export function applyFixedCounts(balance: Balance, number: number, size: number, typeTarget: Uint16Array, fixedOut: Uint16Array): void {
+  fixedOut.fill(0);
+  const fixed = balance.waves.fixed[number - 1];
+  if (!fixed) return;
+  let total = 0;
+  for (let t = 0; t < ZOMBIE_TYPES.length; t++) {
+    const c = Math.min(fixed[ZOMBIE_TYPES[t] as string] ?? 0, size - total);
+    fixedOut[t] = c;
+    total += c;
+  }
+  if (total === 0) return;
+  // Take `total` slots off the mix's share (Walkers first, then the largest share).
+  for (let left = total; left > 0; left--) {
+    let from = (typeTarget[0] as number) > 0 ? 0 : -1;
+    if (from < 0) for (let t = 1; t < ZOMBIE_TYPES.length; t++) if ((typeTarget[t] as number) > 0 && (from < 0 || (typeTarget[t] as number) > (typeTarget[from] as number))) from = t;
+    if (from < 0) break; // unreachable: the shares add up to the size ≥ total
+    typeTarget[from] = (typeTarget[from] as number) - 1;
+  }
+  for (let t = 0; t < ZOMBIE_TYPES.length; t++) typeTarget[t] = (typeTarget[t] as number) + (fixedOut[t] as number);
+}
+
 /** Standing players this tick (the director stops when none is). */
 function countAlivePlayers(world: World): number {
   let n = 0;
@@ -117,20 +158,44 @@ function waveZombieType(world: World): number {
   const w = world.waves;
   const dev = world.debug.waveMix;
   if (dev && dev.length > 0) return ZOMBIE_TYPES.indexOf(dev[(w.size - w.queued) % dev.length] as ZombieTypeId);
+  // Story 5.7: once `fixedAt` wave zombies are out, the fixed ones go first (the Brute after 25 %).
+  if (w.size - w.queued >= w.fixedAt) {
+    for (let t = 0; t < ZOMBIE_TYPES.length; t++) if ((w.fixedSpawned[t] as number) < (w.fixedTarget[t] as number)) return t;
+  }
   let best = -1;
   for (let t = 0; t < ZOMBIE_TYPES.length; t++) {
-    const target = w.typeTarget[t] as number;
-    const done = w.typeSpawned[t] as number;
+    // The mix's share only (fixed zombies are held above).
+    const target = (w.typeTarget[t] as number) - (w.fixedTarget[t] as number);
+    const done = (w.typeSpawned[t] as number) - (w.fixedSpawned[t] as number);
     if (done >= target) continue;
     if (best < 0) {
       best = t;
       continue;
     }
-    const bt = w.typeTarget[best] as number;
-    const bd = w.typeSpawned[best] as number;
+    const bt = (w.typeTarget[best] as number) - (w.fixedTarget[best] as number);
+    const bd = (w.typeSpawned[best] as number) - (w.fixedSpawned[best] as number);
     if ((done + 1) * bt < (bd + 1) * target) best = t;
   }
   return best < 0 ? 0 : best;
+}
+
+/**
+ * Story 5.7: the jitter of a zombie of radius r: `spawnJitterM`, less what the body is wider than
+ * the pathing limit (0.35 m), so jitter + radius never exceeds a Walker's (1 + 0.35 m): the Downtown
+ * spawn areas that are clear for a Walker (the 3 m alley mouths) are clear for a Brute too.
+ */
+export function spawnJitterFor(balance: Balance, radiusM: number): number {
+  return Math.max(0, balance.waves.spawnJitterM - Math.max(0, radiusM - MAX_PATHING_ZOMBIE_RADIUS_M));
+}
+
+/**
+ * The largest jitter + radius of any zombie type: how far from a spawn point (along its axis, then
+ * on every side) a spawned body can reach. The map tests grow each spawn's area by it.
+ */
+export function spawnReachM(balance: Balance): number {
+  let m = 0;
+  for (const t of Object.values(balance.zombies.types)) m = Math.max(m, spawnJitterFor(balance, t.radiusM) + t.radiusM);
+  return m;
 }
 
 /** `jitteredSpawn` result (reused). */
@@ -159,15 +224,20 @@ export function jitteredSpawn(
 function spawnWaveZombie(world: World): boolean {
   const sp = world.map.spawnPoints[pickSpawnPoint(world)];
   if (!sp) return false;
-  const jitter = world.balance.waves.spawnJitterM;
-  const j = world.streams.spawns.range(-jitter, jitter);
-  const typeIndex = waveZombieType(world);
+  const typeIndex = waveZombieType(world); // no RNG draw
   const type = ZOMBIE_TYPES[typeIndex] as ZombieTypeId;
   const stats = world.balance.zombies.types[type];
   if (!stats) throw new Error(`waves: no balance for ${type}`);
+  const jitter = spawnJitterFor(world.balance, stats.radiusM); // Story 5.7: narrower for a wide body
+  const j = world.streams.spawns.range(-jitter, jitter);
   jitteredSpawn(world, sp, j, stats.radiusM, spawnAt);
-  if (spawnZombie(world, type, spawnAt.x, spawnAt.y, true) < 0) return false;
-  world.waves.typeSpawned[typeIndex] = (world.waves.typeSpawned[typeIndex] as number) + 1;
+  const id = spawnZombie(world, type, spawnAt.x, spawnAt.y, true);
+  if (id < 0) return false;
+  const w = world.waves;
+  w.typeSpawned[typeIndex] = (w.typeSpawned[typeIndex] as number) + 1;
+  // Story 5.7: a fixed zombie of this type counts first (the mix's share never serves one early).
+  if ((w.fixedSpawned[typeIndex] as number) < (w.fixedTarget[typeIndex] as number) && w.size - w.queued >= w.fixedAt) w.fixedSpawned[typeIndex] = (w.fixedSpawned[typeIndex] as number) + 1;
+  announceSpawn(world, id);
   return true;
 }
 
@@ -192,6 +262,11 @@ export function beginWave(world: World): void {
   w.number += 1;
   w.size = waveSize(world.balance, w.number, Math.max(1, playerCount));
   waveTypeCounts(waveMixOf(world.balance, w.number), w.size, w.typeTarget);
+  applyFixedCounts(world.balance, w.number, w.size, w.typeTarget, w.fixedTarget); // Story 5.7
+  w.fixedSpawned.fill(0);
+  let fixedTotal = 0;
+  for (let t = 0; t < ZOMBIE_TYPES.length; t++) fixedTotal += w.fixedTarget[t] as number;
+  w.fixedAt = Math.min(w.size - fixedTotal, Math.round(w.size * world.balance.waves.fixedAtFraction));
   w.typeSpawned.fill(0);
   w.queued = w.size;
   w.remaining = w.size;

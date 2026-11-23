@@ -1,7 +1,8 @@
 import type { SystemFn } from "../core/systems";
 import { updateDowned } from "./downed";
-import { playerSpeed, tickSlow } from "./slow";
+import { playerSpeed, tickSlow, wielderSlowPct } from "./slow";
 import { hasObstacles, pushOutOfBuildings, pushed } from "../buildings/collision";
+import { stepKnock } from "./knockback";
 
 const MIN_VEC_LEN = 1e-6;
 
@@ -22,13 +23,20 @@ export const movePlayers: SystemFn = (world, dtS) => {
   for (const p of world.players.values()) {
     p.prevX = p.x;
     p.prevY = p.y;
-    const speed = playerSpeed(baseSpeed, p);
+    const input = world.inputs.get(p.id);
+    // Story 5.2: the Chainsaw slows its wielder while attacking (multiplies with a bite slow).
+    const speed = playerSpeed(baseSpeed, p, wielderSlowPct(world.balance, p, input));
     // A starved server tick (no input arrived: `weaponsPaused`, Story 2.7) doesn't count the slow
     // down either: like the weapon, it counts applied seqs, as the client's prediction does (3.9
     // review). Skipped inputs count it in RunController. Solo and prediction never pause.
     if (!p.weaponsPaused) tickSlow(p);
-    if (p.status !== "alive") continue;
-    const input = world.inputs.get(p.id);
+    if (p.status !== "alive") {
+      p.knockTicks = 0; // Story 5.7 (F3): a downed body is never pushed
+      continue;
+    }
+    // Story 5.7 (F2): a Brute's knockback slides the body instead of the input move (no steering;
+    // the aim below still follows the input). Counts applied seqs only, like the slow.
+    const knocked = !p.weaponsPaused && stepKnock(world, p);
     if (!input) continue;
 
     let mx = input.moveX;
@@ -41,13 +49,13 @@ export const movePlayers: SystemFn = (world, dtS) => {
     const r = p.radiusM;
     const nx = p.x + mx * speed * dtS;
     const ny = p.y + my * speed * dtS;
-    if (hasObstacles(world)) {
+    if (!knocked && hasObstacles(world)) {
       // Story 3.4 (+ 4.1's map solids): obstacles and the map edge together (slide along faces; a slot narrower than the
       // body is impassable: the survivor stays where it was, review H1).
       pushOutOfBuildings(world, nx, ny, r, p.x, p.y);
       p.x = pushed.x;
       p.y = pushed.y;
-    } else {
+    } else if (!knocked) {
       p.x = Math.min(widthM - r, Math.max(r, nx));
       p.y = Math.min(heightM - r, Math.max(r, ny));
     }

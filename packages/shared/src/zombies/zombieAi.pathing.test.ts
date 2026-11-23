@@ -317,3 +317,56 @@ describe("Story 3.5 review H1 with Story 3.8's flank field: Runners don't jam in
     expect(reached).toBeGreaterThan(0);
   });
 });
+
+describe("Story 5.7: a Brute paths with its wide body (D1; Beat the rule 1)", () => {
+  /** A Brute's body overlaps a building by more than float slack. */
+  const bruteInBuilding = (world: World, id: number) =>
+    world.buildings.list.some((b) => circleOverlapsBox(world.zombies.x[id] as number, world.zombies.y[id] as number, 0.6 - 0.02, b.minX, b.minY, b.maxX, b.maxY));
+
+  function line(wall: (x: number, y: number, rot?: BuildingRotation) => Building, from: number, to: number, gapAt: number, gap: number): void {
+    for (let x = from; x + 2 <= gapAt; x += 2) wall(x, 16);
+    for (let x = gapAt + gap; x + 2 <= to; x += 2) wall(x, 16);
+  }
+
+  it("a 1.0 m gap with a way round: Walkers take the gap, the Brute walks round the end; no barricade is touched", () => {
+    const { world, events, wall } = setup(3);
+    line(wall, 10, 38, 24, 1); // y [16, 16.5], x [10, 38] with a gap at [24, 25]
+    const p = addPlayer(world, "p0", 24.5, 10);
+    p.hp = 1e9;
+    const brute = spawnZombie(world, "brute", 24.5, 24);
+    const walker = spawnZombie(world, "walker", 22, 24);
+    let bruteAt = -1;
+    let walkerAt = -1;
+    for (let t = 0; t < 20 * 60 && (bruteAt < 0 || walkerAt < 0); t++) {
+      step(world, TICK_DT_S);
+      expect(bruteInBuilding(world, brute), `tick ${t}`).toBe(false);
+      for (const e of events) if (e.type === "player.damaged" && e.sourceZombieId === brute && bruteAt < 0) bruteAt = t;
+      for (const e of events) if (e.type === "player.damaged" && e.sourceZombieId === walker && walkerAt < 0) walkerAt = t;
+    }
+    expect(walkerAt).toBeGreaterThan(0);
+    expect(bruteAt).toBeGreaterThan(walkerAt); // the long way round
+    expect(world.buildings.list.every((b) => b.hp === HP)).toBe(true);
+    expect(events.some((e) => e.type === "building.destroyed")).toBe(false);
+  });
+
+  it("a full-width line with only a 1.0 m gap: the Brute breaks a barricade (never clips through the gap); Walkers still use the gap", () => {
+    const { world, events, wall } = setup(3);
+    line(wall, 0, 48, 24, 1); // [0, 24] and [25, 47]; [47, 48] plugged below
+    addBuildingAt(world, { id: 999, type: "auto_turret", ownerId: "p0", gx: 94, gy: 32, rot: 0, hp: 300 }); // x [47, 48], y [16, 17]
+    const p = addPlayer(world, "p0", 24.5, 10);
+    p.hp = 1e9;
+    const brute = spawnZombie(world, "brute", 24.5, 24);
+    world.zombies.hp[brute] = 1e9; // the turret shoots back
+    let reachedAt = -1;
+    for (let t = 0; t < 20 * 90 && reachedAt < 0; t++) {
+      step(world, TICK_DT_S);
+      expect(bruteInBuilding(world, brute), `tick ${t}`).toBe(false);
+      if ((world.zombies.y[brute] as number) < 16) expect(events.some((e) => e.type === "building.destroyed"), "crossed without breaking anything").toBe(true);
+      if (events.some((e) => e.type === "player.damaged" && e.sourceZombieId === brute)) reachedAt = t;
+    }
+    expect(events.filter((e) => e.type === "building.destroyed").length).toBeGreaterThanOrEqual(1);
+    expect(reachedAt).toBeGreaterThan(0);
+    // Wood barricade: 200 HP = 2 Brute hits (105 each): a breach in ~2 attack intervals once there.
+    expect(reachedAt).toBeLessThan(20 * 60);
+  });
+});

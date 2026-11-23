@@ -49,6 +49,7 @@ export const NET_EVENT_KIND = {
   SPITTER_SPAT: 29, // Story 5.6 (renumbered at the 5.9 merge; never reuse)
   ACID_SPLASHED: 30, // Story 5.6
   WEAPON_UPGRADED: 31, // Story 5.1 (renumber at merge if taken; never reuse)
+  BRUTE_SPAWNED: 32, // Story 5.7 (31 is 5.1's WEAPON_UPGRADED; renumber at merge if taken, never reuse)
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -134,7 +135,10 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.WEAPON_SWAPPED, playerSlotOf(e.playerId), e.active, weaponIndex(b, e.weapon)];
     case "melee.swung":
       // Arc and range come from the weapon's balance on decode (melee.ts emits exactly those).
-      return [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
+      // Story 5.2: a quiet weapon's (Chainsaw) swing appends its hit count (index 6).
+      return e.hits !== undefined
+        ? [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY), Math.min(255, e.hits)]
+        : [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
     case "player.damaged":
       // Story 5.9: a negative source (fire -1, blast -2) travels as is.
       return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? e.sourceZombieId : zid(ctx, e.sourceZombieId)];
@@ -193,6 +197,9 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.SPITTER_SPAT, zid(ctx, e.zombieId), e.spitId, cm(e.x), cm(e.y), cm(e.toX), cm(e.toY)];
     case "acid.splashed":
       return [K.ACID_SPLASHED, e.puddleId, cm(e.x), cm(e.y), playerSlotOf(e.hitPlayerId)];
+    case "zombie.brute_spawned":
+      // Story 5.7: the roar and (first only) the banner; the Brute itself comes in the horde stream.
+      return [K.BRUTE_SPAWNED, zid(ctx, e.zombieId), cm(e.x), cm(e.y), e.first ? 1 : 0];
     case "weapon.upgraded":
       // Story 5.1: one per upgrade (the level itself comes from schema level0/level1).
       return [K.WEAPON_UPGRADED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), e.slot, e.level];
@@ -267,7 +274,7 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       const weapon = weaponOf(b, n(t, 2));
       const stats = b.weapons[weapon];
       const melee = stats?.kind === "melee" ? stats : null;
-      return {
+      const swung: Extract<SimEvent, { type: "melee.swung" }> = {
         type: "melee.swung",
         playerId: pid(t, 1),
         weapon,
@@ -278,6 +285,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
         arcDeg: melee?.arcDeg ?? 0,
         rangeM: melee?.rangeM ?? 0,
       };
+      if (t.length > 6) swung.hits = n(t, 6); // Story 5.2: a quiet weapon's hit count
+      return swung;
     }
     case K.PLAYER_DAMAGED: {
       const src = n(t, 3);
@@ -337,6 +346,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "spitter.spat", zombieId: zombieSlotOfNetId(n(t, 1)), spitId: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, toX: n(t, 5) / 100, toY: n(t, 6) / 100 };
     case K.ACID_SPLASHED:
       return { type: "acid.splashed", puddleId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100, hitPlayerId: playerIdOfSlot(n(t, 4)) };
+    case K.BRUTE_SPAWNED:
+      return { type: "zombie.brute_spawned", zombieId: zombieSlotOfNetId(n(t, 1)), x: n(t, 2) / 100, y: n(t, 3) / 100, first: n(t, 4) === 1 };
     case K.WEAPON_UPGRADED:
       return { type: "weapon.upgraded", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)), slot: n(t, 3) === 1 ? 1 : 0, level: n(t, 4) };
     default:

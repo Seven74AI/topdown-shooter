@@ -1,5 +1,7 @@
 /**
  * Story 5.3: the Shotgun and Assault Rifle art, drawn in game code (Canvas 2D; Epic 5 art method).
+ * Story 5.2 adds the Fire Axe (AX1) and the Chainsaw (CS1, with its running-blade view), ported from
+ * `docs/art/epic-5/round-b/looks.html`.
  * Each gun is ONE drawing function with two views, so the designer's final pick drops in by
  * replacing that function:
  *
@@ -571,6 +573,299 @@ export function drawAssaultRifle(c: G, view: WeaponArtView, size: number): void 
   c.restore();
 }
 
+// ================= Story 5.2: Fire Axe AX1 and Chainsaw CS1 (docs/art/epic-5/round-b/looks.html) =================
+/** A wobbly blob (paint chips on the axe head). */
+function blobPath(c: G, cx: number, cy: number, rx: number, ry: number, seed: number, amp = 0.15, n = 56): void {
+  const r = mulberry(seed);
+  const ph = [r() * TAU, r() * TAU, r() * TAU] as const;
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * TAU;
+    const k = 1 + amp * (0.5 * Math.sin(a * 2 + ph[0]) + 0.3 * Math.sin(a * 3 + ph[1]) + 0.2 * Math.sin(a * 5 + ph[2]));
+    const x = cx + Math.cos(a) * rx * k;
+    const y = cy + Math.sin(a) * ry * k;
+    if (i) c.lineTo(x, y);
+    else c.moveTo(x, y);
+  }
+  c.closePath();
+}
+/** Outlined flat fill for the top-down views (`k` px per metre). */
+function heldFill(c: G, path: PathFn, fill: string, k: number): void {
+  c.beginPath();
+  path(c);
+  c.fillStyle = fill;
+  c.fill();
+  c.lineWidth = Math.max(1, k * 0.02) / k;
+  c.strokeStyle = HELD.outline;
+  c.stroke();
+}
+
+/** AX1: red fire-department axe (red-painted pick head, bright ground edge, varnished hickory haft). */
+const AX1 = { head: { base: "#9c2318", bd: 0.15, flare: 0.03, bulge: 0.035, pl: 0.17, ew: 0.03 }, haft: { base: "#8a5a2c", x0: -0.47 }, hx: 0.36, edge: "#c9ccd0" } as const;
+type AxeHead = (typeof AX1)["head"];
+/** The pick-head axe head at x = hx (side view: blade edge up at −y, pick down at +y). */
+function axeHeadPath(hx: number, o: AxeHead): PathFn {
+  const ew = o.ew;
+  return (q) => {
+    q.moveTo(hx - ew, -0.022);
+    q.quadraticCurveTo(hx - ew * 0.8, -o.bd * 0.5, hx - ew - o.flare, -o.bd);
+    q.quadraticCurveTo(hx + 0.005, -o.bd - o.bulge, hx + ew + o.flare * 0.9, -o.bd + 0.006);
+    q.quadraticCurveTo(hx + ew * 0.85, -o.bd * 0.5, hx + ew, -0.022);
+    q.lineTo(hx + ew, 0.022);
+    q.quadraticCurveTo(hx + ew * 0.75, o.pl * 0.45, hx + 0.005, o.pl);
+    q.lineTo(hx - 0.003, o.pl + 0.004);
+    q.quadraticCurveTo(hx - ew * 0.75, o.pl * 0.45, hx - ew, 0.022);
+    q.closePath();
+  };
+}
+function haftPath(x0: number, x1: number, t: number): PathFn {
+  return (q) => {
+    q.moveTo(x0 + 0.01, -t * 1.25);
+    q.quadraticCurveTo(x0 + 0.12, -t * 0.9, (x0 + x1) / 2, -t);
+    q.lineTo(x1, -t * 0.95);
+    q.lineTo(x1, t * 0.95);
+    q.lineTo((x0 + x1) / 2, t);
+    q.quadraticCurveTo(x0 + 0.12, t * 1.1, x0 + 0.01, t * 1.5);
+    q.quadraticCurveTo(x0 - 0.012, t * 0.2, x0 + 0.01, -t * 1.25);
+    q.closePath();
+  };
+}
+const axeEdge = (hx: number, o: AxeHead): PathFn => (q) => {
+  q.moveTo(hx - 0.03 - o.flare, -o.bd);
+  q.quadraticCurveTo(hx + 0.005, -o.bd - o.bulge, hx + 0.03 + o.flare * 0.9, -o.bd + 0.006);
+};
+
+/**
+ * Story 5.2 AX1 Fire Axe. `view` "icon": side view, `size` px per metre, centred; "held": top-down
+ * in the survivor's hands (`size` = r px = 0.4 m), the haft along +x, the red head flat at the far
+ * end with the bright edge out to the left (−y) and the pick to the right: the whole silhouette is
+ * longer than any gun's, with a wide red T at the end (readable at a glance).
+ */
+export function drawFireAxe(c: G, view: WeaponArtView, size: number): void {
+  const A = AX1;
+  if (view === "held") {
+    const k = size / 0.4;
+    c.save();
+    c.scale(k, k);
+    const OP = P;
+    P = 1 / k;
+    const x0 = 0.06;
+    const hx = 0.9;
+    heldFill(c, haftPath(x0, hx + 0.05, 0.02), A.haft.base, k);
+    strokeP(c, (q) => { q.moveTo(x0 + 0.05, -0.012); q.lineTo(hx, -0.011); }, "rgba(230,210,170,0.3)", Math.max(0.7, k * 0.008) / k, "butt");
+    c.save();
+    c.translate(hx, 0);
+    c.scale(1.4, 1.4);
+    c.translate(-hx, 0);
+    const hp = axeHeadPath(hx, A.head);
+    heldFill(c, hp, A.head.base, k * 1.4);
+    c.save();
+    c.beginPath();
+    hp(c);
+    c.clip();
+    c.save();
+    c.translate(0, 0.012);
+    strokeP(c, axeEdge(hx, A.head), A.edge, 0.032, "butt");
+    c.restore();
+    c.restore();
+    c.beginPath();
+    hp(c);
+    c.lineWidth = Math.max(1, k * 0.02) / (k * 1.4);
+    c.strokeStyle = HELD.outline;
+    c.stroke();
+    c.restore();
+    P = OP;
+    c.restore();
+    return;
+  }
+  P = 1 / size;
+  c.save();
+  c.scale(size, size);
+  const H = A.haft;
+  const hx = A.hx;
+  const hp = axeHeadPath(hx, A.head);
+  part(c, haftPath(H.x0, hx + 0.05, 0.017), { base: H.base, box: [H.x0, -0.03, hx + 0.05, 0.03], tex: woodTex(61, 0), hi: 0.35 });
+  part(c, hp, { base: A.head.base, box: [hx - 0.08, -A.head.bd - 0.04, hx + 0.08, A.head.pl], tex: steelTex(64, 0.6), hi: 0.4, lo: 0.45 });
+  c.save();
+  c.beginPath();
+  hp(c);
+  c.clip();
+  const r = mulberry(65);
+  for (let i = 0; i < 18; i++) fillP(c, (q) => blobPath(q, hx + (r() - 0.5) * 0.14, -0.14 + r() * 0.3, 0.004 + r() * 0.01, 0.003 + r() * 0.007, 66 + i, 0.5, 16), "rgba(150,155,160,0.6)");
+  c.save();
+  c.translate(0, 0.012);
+  strokeP(c, axeEdge(hx, A.head), A.edge, 0.03, "butt");
+  c.restore();
+  c.save();
+  c.translate(0, 0.003);
+  strokeP(c, axeEdge(hx, A.head), "rgba(255,255,255,0.5)", 0.006, "butt");
+  c.restore();
+  c.restore();
+  part(c, (q) => R(q, hx - 0.028, -0.012, 0.056, 0.024, 0.004), { base: shade(A.head.base, -0.4), box: [hx - 0.028, -0.012, hx + 0.028, 0.012], hi: 0.2, rim: 0.15, line: 0.9 });
+  fillP(c, (q) => E(q, hx + 0.04, 0, 0.009, 0.017), shade(H.base, -0.2));
+  c.restore();
+}
+
+/** CS1: orange classic chainsaw (orange body, white starter cover, black handles and guard, steel bar). */
+const CS1 = { body: "#c0601c", cover: "#c9c4b8", bar: 0.46 } as const;
+
+/** The chain on the bar: teeth when still, a bright streak band when running (the "running-blade blur"). */
+function chainTeeth(c: G, x0: number, x1: number, y0: number, y1: number, off: number, run: boolean): void {
+  const ry = (y1 - y0) / 2;
+  const cy = (y0 + y1) / 2;
+  if (run) {
+    for (const y of [y0, y1]) {
+      const g = c.createLinearGradient(x0, 0, x1, 0);
+      g.addColorStop(0, "rgba(170,178,188,0.25)");
+      g.addColorStop(0.5, "rgba(215,222,230,0.75)");
+      g.addColorStop(1, "rgba(170,178,188,0.35)");
+      c.beginPath();
+      c.moveTo(x0, y);
+      c.lineTo(x1, y);
+      c.strokeStyle = g;
+      c.lineWidth = 0.016;
+      c.lineCap = "butt";
+      c.stroke();
+      c.save();
+      c.setLineDash([0.03, 0.018]);
+      c.lineDashOffset = -off * (y === y0 ? 1 : -1);
+      const dy = y === y0 ? -0.004 : 0.004;
+      strokeP(c, (q) => { q.moveTo(x0, y + dy); q.lineTo(x1, y + dy); }, "rgba(255,255,255,0.55)", 0.003, "butt");
+      c.restore();
+    }
+    strokeP(c, (q) => q.arc(x1, cy, ry, -Math.PI / 2, Math.PI / 2), "rgba(210,218,228,0.6)", 0.016, "butt");
+    return;
+  }
+  for (const [y, d] of [[y0, -1], [y1, 1]] as const) {
+    for (let x = x0 + 0.006; x < x1 - 0.004; x += 0.019) {
+      fillP(c, (q) => Pg(q, [x, y, x + 0.012, y, x + 0.016, y + d * 0.011, x + 0.004, y + d * 0.012]), "#2b2d31");
+      strokeP(c, (q) => { q.moveTo(x + 0.004, y + d * 0.012); q.lineTo(x + 0.016, y + d * 0.011); }, "rgba(200,208,218,0.55)", 0.9 * P, "butt");
+    }
+  }
+  for (let a = -1.4; a <= 1.4; a += 0.45) {
+    const x = x1 + Math.cos(a) * ry;
+    const y = cy + Math.sin(a) * ry;
+    fillP(c, (q) => E(q, x + Math.cos(a) * 0.006, y + Math.sin(a) * 0.006, 0.007, 0.005, a), "#2b2d31");
+  }
+}
+
+/**
+ * Story 5.2 CS1 Chainsaw, still or running (`run`: the chain is a bright blur, the saw jitters).
+ * "icon": side view, `size` px per metre; "held": top-down (`size` = r px = 0.4 m): the orange
+ * engine block in both hands and a long steel bar straight ahead (no gun is that wide and orange).
+ */
+export function drawChainsaw(c: G, view: WeaponArtView, size: number, run = false, t = 0): void {
+  const S = CS1;
+  if (view === "held") {
+    const k = size / 0.4;
+    c.save();
+    c.scale(k, k);
+    const OP = P;
+    P = 1 / k;
+    const jit = run ? Math.sin(t * 90) * 0.004 : 0;
+    c.translate(jit * 0.5, jit);
+    const bx0 = 0.56;
+    const bx1 = 0.56 + S.bar;
+    heldFill(c, (q) => R(q, bx0, -0.024, bx1 - bx0, 0.048, 0.024), "#9aa0a8", k);
+    if (run) {
+      for (const y of [-0.022, 0.022]) strokeP(c, (q) => { q.moveTo(bx0 + 0.02, y); q.lineTo(bx1, y); }, "rgba(235,240,248,0.85)", 0.012, "butt");
+      fillP(c, (q) => E(q, bx1 + 0.01, 0, 0.035, 0.03), "rgba(220,228,238,0.25)");
+    } else {
+      for (let x = bx0 + 0.02; x < bx1; x += 0.03) for (const y of [-0.026, 0.026]) fillP(c, (q) => E(q, x, y, 0.008, 0.006), "#2b2d31");
+    }
+    heldFill(c, (q) => R(q, 0.26, -0.1, 0.32, 0.19, 0.045), S.body, k);
+    heldFill(c, (q) => R(q, 0.31, -0.125, 0.17, 0.045, 0.015), S.cover, k);
+    strokeP(c, (q) => { q.moveTo(0.29, -0.06); q.lineTo(0.55, -0.06); }, "rgba(255,255,255,0.22)", 0.012, "butt");
+    heldFill(c, (q) => R(q, 0.1, -0.022, 0.18, 0.044, 0.02), "#1d1e21", k);
+    const loop: PathFn = (q) => {
+      q.moveTo(0.36, 0.09);
+      q.bezierCurveTo(0.4, 0.17, 0.55, 0.14, 0.55, 0.0);
+      q.bezierCurveTo(0.55, -0.1, 0.47, -0.15, 0.43, -0.13);
+    };
+    strokeP(c, loop, HELD.outline, 0.04 + 2 / k);
+    strokeP(c, loop, "#1f2023", 0.04);
+    heldFill(c, (q) => R(q, 0.575, -0.11, 0.025, 0.22, 0.008), "#1c1d20", k);
+    P = OP;
+    c.restore();
+    return;
+  }
+  P = 1 / size;
+  c.save();
+  c.scale(size, size);
+  const jit = run ? Math.sin(t * 90) * 0.0015 : 0;
+  c.translate(jit, -jit);
+  const bx0 = 0.03;
+  const bx1 = 0.03 + S.bar;
+  const bh = 0.05;
+  const bp: PathFn = (q) => {
+    q.moveTo(bx0, -bh / 2);
+    q.lineTo(bx1, -bh * 0.42);
+    q.arc(bx1, 0, bh * 0.42, -Math.PI / 2, Math.PI / 2);
+    q.lineTo(bx0, bh / 2);
+    q.closePath();
+  };
+  part(c, bp, { base: "#8b9097", box: [bx0, -bh / 2, bx1 + bh / 2, bh / 2], tex: steelTex(71, 0.9), hi: 0.45 });
+  c.save();
+  c.beginPath();
+  bp(c);
+  c.clip();
+  strokeP(c, (q) => { q.moveTo(bx0 + 0.02, 0); q.lineTo(bx1 - 0.02, 0); }, "rgba(0,0,0,0.3)", 1.4 * P);
+  for (let x = bx0 + 0.06; x < bx1 - 0.04; x += 0.11) rivet(c, x, 0.012, 0.004, "#9aa0a8");
+  c.restore();
+  chainTeeth(c, bx0, bx1, -bh / 2 - 0.002, bh / 2 + 0.002, t * 0.6, run);
+  const rh: PathFn = (q) => {
+    q.moveTo(-0.2, 0.035);
+    q.lineTo(-0.36, 0.045);
+    q.quadraticCurveTo(-0.4, 0.04, -0.4, 0.005);
+    q.quadraticCurveTo(-0.39, -0.03, -0.34, -0.035);
+    q.lineTo(-0.2, -0.04);
+    q.lineTo(-0.2, -0.015);
+    q.lineTo(-0.34, -0.012);
+    q.quadraticCurveTo(-0.37, -0.01, -0.372, 0.006);
+    q.quadraticCurveTo(-0.37, 0.022, -0.34, 0.022);
+    q.lineTo(-0.2, 0.015);
+    q.closePath();
+  };
+  part(c, rh, { base: "#1d1e21", box: [-0.4, -0.04, -0.2, 0.045], tex: polyTex(72), hi: 0.35 });
+  const body: PathFn = (q) => {
+    q.moveTo(-0.24, -0.075);
+    q.quadraticCurveTo(-0.24, -0.1, -0.21, -0.1);
+    q.lineTo(0.03, -0.09);
+    q.quadraticCurveTo(0.06, -0.085, 0.065, -0.05);
+    q.lineTo(0.07, 0.05);
+    q.quadraticCurveTo(0.065, 0.08, 0.03, 0.085);
+    q.lineTo(-0.2, 0.09);
+    q.quadraticCurveTo(-0.24, 0.09, -0.24, 0.06);
+    q.closePath();
+  };
+  part(c, body, { base: S.body, box: [-0.24, -0.1, 0.07, 0.09], tex: polyTex(73), hi: 0.38, lo: 0.45 });
+  c.save();
+  c.beginPath();
+  body(c);
+  c.clip();
+  fillP(c, (q) => R(q, -0.24, 0.035, 0.31, 0.06), "rgba(0,0,0,0.35)");
+  part(c, (q) => E(q, -0.1, 0.0, 0.07, 0.062), { base: S.cover, box: [-0.17, -0.062, -0.03, 0.062], tex: polyTex(74), hi: 0.4, rim: 0.35, line: 1.1 });
+  for (let j = -2; j <= 2; j++) strokeP(c, (q) => { q.moveTo(-0.14, j * 0.018); q.lineTo(-0.06, j * 0.018); }, "rgba(0,0,0,0.5)", 1.6 * P, "butt");
+  for (let x = -0.02; x < 0.05; x += 0.014) strokeP(c, (q) => { q.moveTo(x, -0.07); q.lineTo(x, -0.035); }, "rgba(0,0,0,0.5)", 1.4 * P, "butt");
+  c.restore();
+  part(c, (q) => R(q, -0.21, -0.12, 0.04, 0.025, 0.008), { base: "#2a2b2e", box: [-0.21, -0.12, -0.17, -0.095], hi: 0.4, line: 1 });
+  const th: PathFn = (q) => {
+    q.moveTo(-0.17, -0.095);
+    q.bezierCurveTo(-0.16, -0.19, -0.06, -0.2, 0.0, -0.17);
+    q.quadraticCurveTo(0.04, -0.15, 0.045, -0.09);
+  };
+  strokeP(c, th, "#050506", 0.026 + 2 * P);
+  strokeP(c, th, "#1f2023", 0.026);
+  c.save();
+  c.translate(-0.002, -0.006);
+  strokeP(c, th, "rgba(180,190,205,0.3)", 0.006);
+  c.restore();
+  part(c, (q) => Pg(q, [0.05, -0.085, 0.075, -0.085, 0.105, -0.185, 0.085, -0.195]), { base: "#1c1d20", box: [0.05, -0.195, 0.105, -0.085], tex: polyTex(75), hi: 0.35 });
+  for (const [x, y] of [[-0.22, -0.06], [0.045, 0.06], [0.045, -0.06]] as const) rivet(c, x, y, 0.005, "#55585c");
+  c.restore();
+}
+/** The Chainsaw's running-blade view (the survivor frame `survivor_chainsaw_b`, shown while it cuts). */
+export const drawChainsawRunning = (c: G, view: WeaponArtView, size: number): void => drawChainsaw(c, view, size, true, 0.37);
+
 // ================= Story 5.1: upgrade-tier looks (levels III–IV) and the U1 tier plate =================
 
 /** A red shotgun shell with a brass base (G3's side strap), object units. */
@@ -847,12 +1142,17 @@ export function tierMarkUrl(level: number): string | null {
 export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, size: number) => void>> = {
   shotgun: drawShotgun,
   assault_rifle: drawAssaultRifle,
+  fire_axe: drawFireAxe,
+  chainsaw: drawChainsaw,
 };
 
 /** Shop icon size (CSS px) and the side-view scale: a 1 m gun fills the width. */
 export const ICON_W = 96;
 export const ICON_H = 44;
 const iconUrls = new Map<string, string>();
+/** Where the side view's origin sits in the icon (share of the height; px right): the art is not centred on 0. */
+const ICON_Y: Readonly<Record<string, number>> = { assault_rifle: 0.36, fire_axe: 0.5, chainsaw: 0.62 };
+const ICON_X_SHIFT: Readonly<Record<string, number>> = { chainsaw: -2 };
 
 /**
  * The side-view icon of `weapon` (Story 5.1: at upgrade `level`) as a PNG data URL (drawn once on first use, then cached), or null
@@ -872,7 +1172,7 @@ export function weaponIconUrl(weapon: string, level = 1): string | null {
   const g = cv.getContext("2d");
   if (!g) return null;
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  g.translate(ICON_W / 2, ICON_H * (weapon === "assault_rifle" ? (tier ? 0.4 : 0.36) : 0.42));
+  g.translate(ICON_W / 2 + (ICON_X_SHIFT[weapon] ?? 0), ICON_H * (weapon === "assault_rifle" && tier ? 0.4 : (ICON_Y[weapon] ?? 0.42)));
   if (tier) tier(g, ICON_W * 0.92);
   else draw(g, "icon", ICON_W * 0.92);
   const url = cv.toDataURL("image/png");

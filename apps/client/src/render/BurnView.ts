@@ -15,6 +15,8 @@ const EMBER_DEPTH = 10.3;
 /** The lab's warm light on a burning body: this wide (× body radius) and bright at full burn. */
 const GLOW_R = 3.5;
 const GLOW_ALPHA = 0.3;
+/** Review L3 (fill): smoke puffs fainter than this are hidden. */
+const MIN_SMOKE_ALPHA = 0.04;
 
 interface Slot {
   id: string | null;
@@ -143,7 +145,7 @@ export class BurnView {
     }
     for (let i = 0; i < f.smoke.cap; i++) {
       const img = slot.smoke[i] as Phaser.GameObjects.Image;
-      if (!smokeDraw(f.smoke, i, "dark", NaN, NaN, d)) {
+      if (!smokeDraw(f.smoke, i, "dark", NaN, NaN, d) || d.alpha < MIN_SMOKE_ALPHA) {
         if (img.visible) img.setVisible(false);
         continue;
       }

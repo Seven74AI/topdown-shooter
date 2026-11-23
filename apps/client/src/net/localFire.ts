@@ -75,6 +75,14 @@ export class LocalFireClock {
   /** Per slot: seq of my local shot that emptied the magazine (0: none). */
   private readonly emptySeq = new Float64Array(2);
   private attackSlot = 0;
+  /**
+   * Story 5.2 (F6): my active weapon and whether a swap runs, as the server's weapon state stands
+   * after the last stepped seq, i.e. what its `movePlayers` sees on the NEXT seq (movement runs
+   * before combat in a tick). The Predictor takes these for the next input, so the Chainsaw's
+   * wielder slow is predicted with the server's rule ("" before the first snapshot: no slow).
+   */
+  moveWeapon: WeaponId = "";
+  moveSwapping = false;
 
   constructor(private readonly balance: Balance) {}
 
@@ -130,6 +138,9 @@ export class LocalFireClock {
     const other = active === 0 ? 1 : 0;
     this.cooldown[other] = cooldownIdle(this.cooldown[other] as number, TICK_DT_S);
     const weapon = active === 1 ? me.weapon1 : me.weapon0;
+    // Story 5.2: the state this seq's combat leaves (a downed player's swap is cancelled).
+    this.moveWeapon = weapon;
+    this.moveSwapping = swapping && me.status === "alive";
     const stats = this.balance.weapons[weapon];
     if (!stats) return false;
     if (swapping) {

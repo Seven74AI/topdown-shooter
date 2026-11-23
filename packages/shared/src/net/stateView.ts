@@ -36,6 +36,11 @@ export interface PlayerStateView {
   /** Story 3.9: movement ticks left at reduced speed (Crawler bite), and the reduction in percent. */
   readonly slowTicks: number;
   readonly slowPct: number;
+  /** Story 5.7: a Brute's knockback in progress (ticks left, unit direction × 127, mm per tick): the prediction slides like the server. */
+  readonly knockTicks: number;
+  readonly knockDx: number;
+  readonly knockDy: number;
+  readonly knockStepMm: number;
   /** `seq` of the last input the server applied for this player (Story 2.6 replays newer ones). */
   readonly ackSeq: number;
   /** Active weapon slot, 0 or 1. */
@@ -151,6 +156,10 @@ export const PLAYER_STATE_FIELDS = {
   earned: true,
   slowTicks: true,
   slowPct: true,
+  knockTicks: true, // Story 5.7
+  knockDx: true,
+  knockDy: true,
+  knockStepMm: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */

@@ -1,4 +1,4 @@
-import { FLAME_STEPS, FLAME_TINTS, FLAME_VARIANTS, SMOKE_PALETTES, SMOKE_TONES, SMOKE_VARIANTS, flameCoreFrac, type SmokePalette } from "./fireSprites";
+import { FLAME_STEPS, FLAME_TINTS, FLAME_VARIANTS, SMOKE_PALETTES, SMOKE_TONES, SMOKE_VARIANTS, flameCoreFracOf, flameRampColor, flameReachUpOf, type SmokePalette } from "./fireSprites";
 
 /**
  * Story 4.12: the code-drawn fire as particles (designer pick: fire-lab panel "D — fuel flames, no
@@ -14,16 +14,45 @@ import { FLAME_STEPS, FLAME_TINTS, FLAME_VARIANTS, SMOKE_PALETTES, SMOKE_TONES, 
  * the edge, so a clear ring of flames marks it. Smoke and sparks may drift past it (they do not burn).
  */
 
-/** Caps per burning car (lab panel D: 130 + 44 + 24 = 198 ≈ 200). */
-export const FIRE_FLAMES_MAX = 130;
-export const FIRE_SMOKE_MAX = 44;
+/**
+ * Caps per burning car (lab panel D: 130 + 44 + 24 = 198 ≈ 200). Review L3 (fill): smoke 44 → 26;
+ * review M1: the edge ring is its own fixed set of slots (`EDGE_SLOTS_MAX`, never halved), so the
+ * free flames drop to 110: at R = 2 m 110 + 42 edge + 26 + 24 = 202 (the edge slots scale with R, ≤ 80).
+ */
+export const FIRE_FLAMES_MAX = 110;
+export const FIRE_SMOKE_MAX = 26;
 export const FIRE_EMBERS_MAX = 24;
+/**
+ * Review M1 (the reverse half of the edge rule: a body touching R stands in visible flame): fixed
+ * angular edge slots, one flame per `EDGE_SPACING_M` of circumference, at most `EDGE_SLOTS_MAX`, the
+ * same in `?fx=low`. They never rise (no buoyancy: a little tangential sway only), flicker in size,
+ * shape and colour, and each sits so its OWN shape's bright edge (direction-aware) ends on R.
+ */
+export const EDGE_SPACING_M = 0.3;
+export const EDGE_SLOTS_MAX = 80;
+export const EDGE_FLAME_M = 0.7;
+/** Smaller zones get smaller, closer edge flames (a 1.4 m flame would wrap a 1 m ring): × min(1, R / this). */
+const EDGE_REF_R = 2;
+/**
+ * Review M1: the free flames fit to R minus this (their bright cores end a little inside R): the edge
+ * slots mark R, and the free flames' soft halos must not stack with theirs past it.
+ */
+export const FREE_FLAME_INSET_M = 0.08;
+/** The radius the free (particle) flames of a zone of radius `R` are fitted to (`flameDraw`'s `fitR`). */
+export const freeFlameFitR = (R: number): number => Math.max(0.05, R - FREE_FLAME_INSET_M);
+/** Tangential size / normal size of an edge flame (wider along the ring). */
+const EDGE_ASPECT = 2.0;
+const EDGE_SWAY_RAD = 0.05;
+const EDGE_FRAME_HZ = 7;
+/** Edge flames overlap (additive): a lower alpha and an orange start of the ramp keep the ring flame-coloured, not white. */
+const EDGE_ALPHA = 0.8;
+const EDGE_RAMP_T = 0.38;
 /** Caps per burning survivor (lab "Burning survivor"). */
 export const BODY_FLAMES_MAX = 28;
 export const BODY_SMOKE_MAX = 10;
 export const BODY_EMBERS_MAX = 14;
-/** Low quality (`?fx=low`): half of every cap and every spawn rate; particles a bit bigger. */
-export const LOW_FX_SIZE = 1.15;
+/** Low quality (`?fx=low`): half of every cap and every spawn rate (review L3: particles NOT enlarged). */
+export const LOW_FX_SIZE = 1;
 /** The longest step simulated (s): a woken tab never fast-forwards a burst. */
 export const FX_MAX_DT_S = 0.05;
 /** Wind: smoke, flames and sparks lean to the lower right. */
@@ -32,9 +61,11 @@ export const WIND_Y = 0.32;
 /** Lab panel D: spawn rates (per s) and the share of flames at the edge / on the car. */
 const D_FLAME_RATE = 300;
 const D_CAR_SHARE = 0.34;
-const D_EDGE_SHARE = 0.6;
+const D_EDGE_SHARE = 0.35;
 const D_SMOKE_RATE = 12;
 const D_EMBER_RATE = 16;
+/** Review L3: smoke grows to at most this size (m; the lab: 3.5). */
+const SMOKE_END_MAX_M = 2.2;
 /** Smoke peak alpha (car fire / survivor) and the lab's per-puff cap. */
 const FIRE_SMOKE_ALPHA = 0.6;
 const BODY_SMOKE_ALPHA = 0.45;
@@ -205,6 +236,11 @@ export class CarFire {
   private readonly rnd: FxRandom;
   private ca = 1;
   private sa = 0;
+  /** Review M1: the edge ring's fixed slots (angle and phase per slot); `edgeN` used for the current R. */
+  edgeN = 0;
+  readonly edgeAngle = new Float32Array(EDGE_SLOTS_MAX);
+  readonly edgePhase = new Float32Array(EDGE_SLOTS_MAX);
+  private edgeR = -1;
 
   constructor(
     seed: number,
@@ -230,13 +266,25 @@ export class CarFire {
     return this.flames.n + this.smoke.n + this.embers.n;
   }
 
+  /** Lays the edge slots for a zone of radius `R` (evenly round the ring, one per `EDGE_SPACING_M`). */
+  private layEdge(R: number): void {
+    if (R === this.edgeR) return;
+    this.edgeR = R;
+    const n = Math.max(8, Math.min(EDGE_SLOTS_MAX, Math.ceil((2 * Math.PI * R) / (EDGE_SPACING_M * edgeScale(R)))));
+    this.edgeN = n;
+    for (let i = 0; i < n; i++) {
+      this.edgeAngle[i] = ((i + 0.5) / n) * 2 * Math.PI;
+      this.edgePhase[i] = this.rnd.next() * 100;
+    }
+  }
+
   /** One step (`dt` s, clamped to `FX_MAX_DT_S`) at clock `T` (s) for a zone of radius `R` (m). */
   update(dtIn: number, T: number, R: number): void {
+    this.layEdge(R);
     const dt = Math.min(FX_MAX_DT_S, Math.max(0, dtIn));
     if (dt <= 0) return;
     const r = this.rnd;
     const low = this.low;
-    const core = flameCoreFrac();
     const fl = halfCap(FIRE_FLAMES_MAX, low);
     for (let n = emit(this.acc, 0, D_FLAME_RATE, dt, low); n > 0; n--) {
       if (r.next() < D_CAR_SHARE) {
@@ -250,7 +298,7 @@ export class CarFire {
         const edge = r.next() < D_EDGE_SHARE;
         const a = r.range(0, 2 * Math.PI);
         const se = edge ? r.range(0.26, 0.4) : r.range(0.3, 0.55);
-        const rr = edge ? R - core * se * 0.5 - r.range(0, 0.06) : R * Math.sqrt(r.next()) * 0.95;
+        const rr = edge ? R - flameCoreFracOf(FLAME_VARIANTS - 1) * se * 0.5 - r.range(0, 0.06) : R * Math.sqrt(r.next()) * 0.95;
         put(this.flames, fl, r, low, Math.cos(a) * rr, Math.sin(a) * rr, r.range(-0.15, 0.15), r.range(-0.7, -0.3), se, 0, edge ? r.range(0.24, 0.4) : r.range(0.28, 0.5));
       }
     }
@@ -258,7 +306,7 @@ export class CarFire {
     for (let n = emit(this.acc, 1, D_SMOKE_RATE, dt, low); n > 0; n--) {
       const lx = r.range(-0.6, 1.6);
       const ly = r.range(-0.6, 0.6);
-      put(this.smoke, sm, r, low, lx * this.ca - ly * this.sa, lx * this.sa + ly * this.ca, WIND_X * 1.6, WIND_Y * 1.4 - 0.2, r.range(0.7, 1.0), r.range(2.8, 3.5), r.range(3.0, 4.2));
+      put(this.smoke, sm, r, low, lx * this.ca - ly * this.sa, lx * this.sa + ly * this.ca, WIND_X * 1.6, WIND_Y * 1.4 - 0.2, r.range(0.7, 1.0), r.range(1.8, SMOKE_END_MAX_M), r.range(3.0, 4.2));
     }
     const em = halfCap(FIRE_EMBERS_MAX, low);
     for (let n = emit(this.acc, 2, D_EMBER_RATE, dt, low); n > 0; n--) {
@@ -379,9 +427,10 @@ export function flameDraw(P: ParticlePool, i: number, fitR: number, out: Particl
   let H = size * (1 - (st - 1) * 0.25);
   const x = P.x[i] as number;
   const y = P.y[i] as number;
+  const frame = Math.floor((P.seed[i] as number) * 97) % FLAME_VARIANTS;
   if (fitR > 0) {
     const allow = fitR - Math.sqrt(x * x + y * y);
-    const core = flameCoreFrac() * L * 0.5;
+    const core = flameCoreFracOf(frame) * L * 0.5; // review M1: this shape's own core
     if (core > allow) {
       if (allow < EDGE_MIN_ALLOW_M) return false;
       const f = allow / core;
@@ -396,7 +445,36 @@ export function flameDraw(P: ParticlePool, i: number, fitR: number, out: Particl
   out.rot = sp > 0.05 ? Math.atan2(vy, vx) : -Math.PI / 2;
   out.alpha = (t < 0.08 ? t / 0.08 : 1) * (P.a[i] as number);
   out.tint = FLAME_TINTS[Math.min(FLAME_STEPS - 1, Math.floor(t * FLAME_STEPS))] as number;
-  out.frame = Math.floor((P.seed[i] as number) * 97) % FLAME_VARIANTS;
+  out.frame = frame;
+  return true;
+}
+
+function edgeScale(R: number): number {
+  return Math.min(1, R / EDGE_REF_R);
+}
+
+/**
+ * Review M1: edge flame `i` of `fire` (zone radius `R`, clock `T`) → `out` (relative to the centre).
+ * Drawn with its −y side facing OUT (rot = angle + 90°), so its bright edge is
+ * `flameReachUpOf(frame) × h / 2` from its centre: the centre sits exactly that far inside R. No
+ * allocation; pure function of the slot and the clock (no buoyancy, no drift away from the edge).
+ */
+export function edgeFlameDraw(fire: CarFire, i: number, T: number, R: number, out: ParticleDraw): boolean {
+  if (i >= fire.edgeN) return false;
+  const ph = fire.edgePhase[i] as number;
+  const fr = Math.floor(T * EDGE_FRAME_HZ + ph) % FLAME_VARIANTS;
+  const flick = 0.5 + 0.3 * Math.sin(T * 9.1 + ph * 7) + 0.2 * Math.sin(T * 23.3 + ph * 3);
+  const h = EDGE_FLAME_M * edgeScale(R) * (0.85 + 0.15 * flick);
+  const a = (fire.edgeAngle[i] as number) + EDGE_SWAY_RAD * Math.sin(T * 2.3 + ph);
+  const r = R - (flameReachUpOf(fr) * h) / 2;
+  out.x = Math.cos(a) * r;
+  out.y = Math.sin(a) * r;
+  out.w = h * EDGE_ASPECT;
+  out.h = h;
+  out.rot = a + Math.PI / 2;
+  out.alpha = EDGE_ALPHA + 0.15 * flick;
+  out.tint = flameRampColor(EDGE_RAMP_T + 0.2 * (1 - flick));
+  out.frame = fr;
   return true;
 }
 

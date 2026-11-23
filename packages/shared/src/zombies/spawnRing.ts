@@ -1,5 +1,6 @@
 import type { World } from "../core/world";
 import { spawnZombie } from "./zombiePool";
+import { announceSpawn } from "./brute";
 import type { ZombieTypeId } from "./zombieTypes";
 
 /** Fraction of the even angular spacing used as random jitter, so a ring doesn't look mechanical. */
@@ -19,7 +20,11 @@ export function spawnRing(world: World, type: ZombieTypeId, count: number, cx: n
     const a = i * step + world.streams.spawns.range(-ANGLE_JITTER, ANGLE_JITTER) * step;
     const x = Math.min(widthM - r, Math.max(r, cx + Math.cos(a) * radiusM));
     const y = Math.min(heightM - r, Math.max(r, cy + Math.sin(a) * radiusM));
-    if (spawnZombie(world, type, x, y) >= 0) spawned++;
+    const id = spawnZombie(world, type, x, y);
+    if (id >= 0) {
+      spawned++;
+      announceSpawn(world, id); // Story 5.7: a dev-cheat Brute roars too (and the run's first gets the banner)
+    }
   }
   return spawned;
 }
