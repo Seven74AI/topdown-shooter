@@ -11,13 +11,17 @@ import {
   FIRE_SMOKE_MAX,
   FIRE_CULL_MARGIN_M,
   FX_MAX_DT_S,
+  LOW_FX_SIZE,
+  EDGE_SLOTS_MAX,
+  edgeFlameDraw,
   emberDraw,
   fireInView,
   flameDraw,
+  freeFlameFitR,
   smokeDraw,
   type ParticleDraw,
 } from "./fireParticles";
-import { CORE_MARGIN, FIRE_LIGHT_STOPS, FLAME_SPRITE_PX, FLAME_TINTS, flameCoreFrac, flameMasks, maskCoreFrac } from "./fireSprites";
+import { CORE_MARGIN, EDGE_REACH_ALPHA, FIRE_LIGHT_STOPS, FLAME_SPRITE_PX, FLAME_TINTS, FLAME_VARIANTS, flameCoreFrac, flameCoreFracOf, flameMasks, flameReachUpOf, maskCoreFrac } from "./fireSprites";
 import { fireRingRadiusM } from "./fireRing";
 
 const balance = loadBalance();
@@ -35,15 +39,46 @@ function run(fire: CarFire, r: number, steps: number, each?: (t: number) => void
   }
 }
 
-/** The farthest bright point (alpha > 50 %) of every flame drawn this frame, from the zone centre. */
+/** The farthest bright point (alpha > 50 %) of every free flame drawn this frame, from the zone centre (its own shape's core). */
 function brightEdges(fire: CarFire, r: number, out: number[]): number[] {
   out.length = 0;
-  const core = flameCoreFrac();
   for (let i = 0; i < fire.flames.cap; i++) {
-    if (!flameDraw(fire.flames, i, r, d)) continue;
-    out.push(Math.hypot(d.x, d.y) + (core * Math.max(d.w, d.h)) / 2);
+    if (!flameDraw(fire.flames, i, freeFlameFitR(r), d)) continue;
+    out.push(Math.hypot(d.x, d.y) + (flameCoreFracOf(d.frame) * Math.max(d.w, d.h)) / 2);
   }
   return out;
+}
+
+/** Every drawn flame (free + edge slots) as the screen sees it: additive alpha × mask, summed. */
+interface Drawn {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  c: number;
+  s: number;
+  a: number;
+  m: Float32Array;
+}
+const SPX = FLAME_SPRITE_PX;
+function drawnFlames(fire: CarFire, t: number, r: number, out: Drawn[]): Drawn[] {
+  out.length = 0;
+  const push = (): void => void out.push({ x: d.x, y: d.y, w: d.w, h: d.h, c: Math.cos(d.rot), s: Math.sin(d.rot), a: d.alpha, m: flameMasks()[d.frame] as Float32Array });
+  for (let i = 0; i < fire.flames.cap; i++) if (flameDraw(fire.flames, i, freeFlameFitR(r), d) && d.alpha >= 0.01) push();
+  for (let i = 0; i < EDGE_SLOTS_MAX; i++) if (edgeFlameDraw(fire, i, t, r, d)) push();
+  return out;
+}
+function field(fl: readonly Drawn[], px: number, py: number): number {
+  let sum = 0;
+  for (const f of fl) {
+    const dx = px - f.x;
+    const dy = py - f.y;
+    const u = (dx * f.c + dy * f.s) / (f.w / 2);
+    const v = (-dx * f.s + dy * f.c) / (f.h / 2);
+    if (u <= -1 || u >= 1 || v <= -1 || v >= 1) continue;
+    sum += (f.m[Math.min(SPX - 1, Math.floor(((v + 1) / 2) * SPX)) * SPX + Math.min(SPX - 1, Math.floor(((u + 1) / 2) * SPX))] as number) * f.a;
+  }
+  return sum;
 }
 
 describe("Story 4.12: the code fire keeps 4.11's edge rule (your body touches the flames = you burn)", () => {
@@ -61,7 +96,7 @@ describe("Story 4.12: the code fire keeps 4.11's edge rule (your body touches th
     }
   });
 
-  it("no drawn flame's bright edge ever passes R + 0.02 m (many seeds, radii, car facings, both qualities)", () => {
+  it("no drawn free flame's bright edge ever passes R + 0.02 m (many seeds, radii, car facings, both qualities)", () => {
     const edges: number[] = [];
     let drawn = 0;
     for (const low of [false, true])
@@ -76,59 +111,104 @@ describe("Story 4.12: the code fire keeps 4.11's edge rule (your body touches th
           fire.setCar(angle);
           run(fire, r, 240, () => {
             for (const e of brightEdges(fire, r, edges)) {
-              expect(e).toBeLessThanOrEqual(r + 0.02);
+              // review M1: the free flames' cores end ≥ 6 cm inside R (the edge slots own R; halos must not stack past it)
+              expect(e).toBeLessThanOrEqual(r - 0.06);
               drawn++;
             }
           });
         }
-    expect(drawn).toBeGreaterThan(100_000); // the property was checked on real flames
+    expect(drawn).toBeGreaterThan(80_000); // the property was checked on real flames
   });
 
-  it("a clear ring of flames marks the edge: bright edges reach R in every direction", () => {
-    const fire = new CarFire(3);
-    const SECTORS = 16;
-    const hits = new Int32Array(SECTORS);
-    let frames = 0;
-    let maxEdge = 0;
-    run(fire, R, 60); // warm up 1 s
-    run(fire, R, 120, () => {
-      frames++;
-      const seen = new Uint8Array(SECTORS);
-      const core = flameCoreFrac();
-      for (let i = 0; i < fire.flames.cap; i++) {
-        if (!flameDraw(fire.flames, i, R, d)) continue;
-        const e = Math.hypot(d.x, d.y) + (core * Math.max(d.w, d.h)) / 2;
-        maxEdge = Math.max(maxEdge, e);
-        if (e < R - 0.25) continue;
-        const a = Math.atan2(d.y, d.x);
-        seen[Math.floor(((a + Math.PI) / (2 * Math.PI)) * SECTORS) % SECTORS] = 1;
-      }
-      for (let k = 0; k < SECTORS; k++) hits[k] = (hits[k] as number) + (seen[k] as number);
+  it("review M1: no edge-slot flame's texel of alpha ≥ 50 % lies past R + 0.02 m (exact, every shape and flicker)", () => {
+    // the bright texels' outer corners per shape, in sprite units (−1..1)
+    const pts = flameMasks().map((m) => {
+      const out: number[] = [];
+      for (let y = 0; y < SPX; y++)
+        for (let x = 0; x < SPX; x++) {
+          if ((m[y * SPX + x] as number) < 0.5) continue;
+          for (const [cx, cy] of [
+            [x, y],
+            [x + 1, y],
+            [x, y + 1],
+            [x + 1, y + 1],
+          ] as const)
+            out.push((cx / SPX) * 2 - 1, (cy / SPX) * 2 - 1);
+        }
+      return out;
     });
-    expect(maxEdge).toBeGreaterThan(R - 0.03); // the visible edge lies ON the radius, not inside it
-    for (let k = 0; k < SECTORS; k++) expect((hits[k] as number) / frames, `sector ${k}`).toBeGreaterThan(0.75);
+    let checked = 0;
+    for (const r of [1, R, 3.5]) {
+      const fire = new CarFire(5);
+      fire.update(DT, 0, r);
+      for (let t = 0; t < 2; t += 0.07)
+        for (let i = 0; i < fire.edgeN; i++) {
+          expect(edgeFlameDraw(fire, i, t, r, d)).toBe(true);
+          const c = Math.cos(d.rot);
+          const sn = Math.sin(d.rot);
+          const p = pts[d.frame] as number[];
+          let worst = 0;
+          for (let k = 0; k < p.length; k += 2) {
+            const lx = ((p[k] as number) * d.w) / 2;
+            const ly = ((p[k + 1] as number) * d.h) / 2;
+            worst = Math.max(worst, Math.hypot(d.x + lx * c - ly * sn, d.y + lx * sn + ly * c));
+          }
+          expect(worst).toBeLessThanOrEqual(r + 0.02);
+          checked++;
+        }
+    }
+    expect(checked).toBeGreaterThan(2000);
+    expect(EDGE_REACH_ALPHA).toBeLessThan(0.5); // edge flames are placed by their faint halo, not only their core
+    for (let v = 0; v < FLAME_VARIANTS; v++) expect(flameReachUpOf(v)).toBeGreaterThan(0.3);
   });
 
-  it("a body reaching the outermost flame's bright edge is inside the zone (circleInFire); one 2 cm farther is not", () => {
-    const zone: FireRecord = { name: "f", target: "car", x: 10, y: 8, radiusM: R, stage: 3, index: 0 };
-    const fire = new CarFire(11);
-    run(fire, fireRingRadiusM(zone), 90);
-    const core = flameCoreFrac();
-    let checked = 0;
-    for (let i = 0; i < fire.flames.cap; i++) {
-      if (!flameDraw(fire.flames, i, R, d)) continue;
-      const dist = Math.hypot(d.x, d.y);
-      const e = dist + (core * Math.max(d.w, d.h)) / 2;
-      if (e < R - 0.02 || dist < 1e-6) continue; // the flames that mark the edge
-      const ux = d.x / dist;
-      const uy = d.y / dist;
-      for (const r of [balance.player.radiusM, ...Object.values(balance.zombies.types).map((z) => z.radiusM)]) {
-        expect(circleInFire([zone], zone.x + ux * (e + r - 1e-3), zone.y + uy * (e + r - 1e-3), r)).toBe(true);
-        expect(circleInFire([zone], zone.x + ux * (e + r + 0.02 + 1e-3), zone.y + uy * (e + r + 0.02 + 1e-3), r)).toBe(false);
-        checked++;
+  it("review M1: a body touching R stands in visible flame — within 0.1 m inside R, ≥ 90 % of directions are bright (summed alpha × mask ≥ 0.5) in EVERY frame, both qualities; and nothing that bright past R + 0.02 m", () => {
+    const fl: Drawn[] = [];
+    const RAYS = 120;
+    for (const low of [false, true])
+      for (const r of [R, 3.5]) {
+        const fire = new CarFire(17, low);
+        fire.setCar(0.3);
+        let frames = 0;
+        let worstShare = 1;
+        let worstOut = 0;
+        run(fire, r, 150, (t) => {
+          if (t < 1 || Math.round(t / DT) % 10 !== 0) return;
+          drawnFlames(fire, t, r, fl);
+          let ok = 0;
+          for (let j = 0; j < RAYS; j++) {
+            const an = ((j + 0.5) / RAYS) * 2 * Math.PI;
+            const cs = Math.cos(an);
+            const sn = Math.sin(an);
+            for (let q = r; q >= r - 0.1 - 1e-9; q -= 0.01)
+              if (field(fl, cs * q, sn * q) >= 0.5) {
+                ok++;
+                break;
+              }
+            for (let q = r + 0.02; q <= r + 0.25; q += 0.03) worstOut = Math.max(worstOut, field(fl, cs * q, sn * q));
+          }
+          worstShare = Math.min(worstShare, ok / RAYS);
+          frames++;
+        });
+        expect(frames).toBeGreaterThan(5);
+        expect(worstShare, `low ${low} R ${r}`).toBeGreaterThanOrEqual(0.9);
+        expect(worstOut, `low ${low} R ${r}`).toBeLessThan(0.5); // your body touches visible flame = you burn
       }
+  });
+
+  it("the edge ring has the same slots in ?fx=low (never halved) and one per ≤ 0.3 m of circumference at R = 2 m", () => {
+    const a = new CarFire(1);
+    const b = new CarFire(1, true);
+    a.update(DT, 0, R);
+    b.update(DT, 0, R);
+    expect(a.edgeN).toBe(b.edgeN);
+    expect((2 * Math.PI * R) / a.edgeN).toBeLessThanOrEqual(0.3);
+    const zone: FireRecord = { name: "f", target: "car", x: 10, y: 8, radiusM: fireRingRadiusM({ x: 0, y: 0, radiusM: R }), stage: 3, index: 0 };
+    // a body whose edge just reaches R burns; 2 cm out it does not (the sim's rule the ring marks)
+    for (const pr of [balance.player.radiusM, ...Object.values(balance.zombies.types).map((z) => z.radiusM)]) {
+      expect(circleInFire([zone], zone.x + R + pr - 1e-3, zone.y, pr)).toBe(true);
+      expect(circleInFire([zone], zone.x + R + pr + 0.02, zone.y, pr)).toBe(false);
     }
-    expect(checked).toBeGreaterThan(20);
   });
 
   it("flames grow hot to cool over their life (white-yellow → deep red) and fade in", () => {
@@ -158,6 +238,18 @@ describe("Story 4.12: particle pools are fixed and capped (phones)", () => {
       expect(fire.flames.cap).toBe(FIRE_FLAMES_MAX);
     }
     expect(FIRE_FLAMES_MAX + FIRE_SMOKE_MAX + FIRE_EMBERS_MAX).toBeLessThanOrEqual(200);
+  });
+
+  it("review L2: ?fx=low halves the spawn rate too (not only the caps): half the flames in the first 0.1 s", () => {
+    const full = new CarFire(8);
+    const low = new CarFire(8, true);
+    run(full, R, 6);
+    run(low, R, 6);
+    expect(full.flames.n).toBeGreaterThan(20); // below every cap: the rate decides
+    const ratio = low.flames.n / full.flames.n;
+    expect(ratio).toBeGreaterThan(0.35);
+    expect(ratio).toBeLessThan(0.65);
+    expect(LOW_FX_SIZE).toBe(1); // review L3: low mode never enlarges particles (fill rate)
   });
 
   it("a woken tab (one 5 s frame) is one capped step, not a burst; a paused frame (dt 0) changes nothing", () => {
@@ -234,6 +326,19 @@ describe("Story 4.12: a burning survivor (server fire events only)", () => {
     expect(f.count()).toBe(0); // the slot frees only once every flame, puff and spark is gone
     expect(k * DT).toBeLessThan(3.5); // fade 0.9 s + the longest puff
     expect(k * DT).toBeGreaterThan(0.5); // not cut off at once
+  });
+
+  it("review L1: the flames die down over ~0.9 s after the last fire hit (not cut off)", () => {
+    const f = new BodyFire(4);
+    let t = 0;
+    for (let k = 0; k < 30; k++) f.update(DT, (t += DT), 0, 0, 0.4, true);
+    expect(f.burn).toBe(1);
+    for (let k = 0; k < 27; k++) f.update(DT, (t += DT), 0, 0, 0.4, false); // 0.45 s after
+    expect(f.burn).toBeGreaterThan(0.4);
+    expect(f.burn).toBeLessThan(0.6);
+    expect(f.flames.n).toBeGreaterThan(0); // still burning visibly, smaller
+    for (let k = 0; k < 30; k++) f.update(DT, (t += DT), 0, 0, 0.4, false); // 0.95 s after
+    expect(f.burn).toBe(0);
   });
 
   it("never burning = nothing at all (no event, no flames)", () => {
