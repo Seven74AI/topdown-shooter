@@ -8,7 +8,7 @@ import { killZombie } from "../zombies/zombiePool";
 import { decayFinish, decayMutate, stageForComingWave } from "../decay/decaySystem";
 import { clearAcid } from "../zombies/spit";
 import { clearGrenades } from "../combat/grenades";
-import { clearBlasts } from "../zombies/bloater";
+import { clearBlasts, drainBlasts } from "../zombies/bloater";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
@@ -67,6 +67,7 @@ export function startBuild(world: World): void {
   const decayed = decayMutate(world, stageForComingWave(world));
   clearAcid(world); // Story 5.6 DD4: no spits, no puddles in a build phase; acid clocks restart
   clearGrenades(world.grenades); // Story 5.5: no round bursts in a build phase (no ghost blasts)
+  drainBlasts(world); // Story 5.8 review L1: a Bloater killed on the wave's last tick still bursts
   clearBlasts(world); // Story 5.8: no queued blasts, no gas clouds in a build phase
   returnOutPlayers(world);
   if (decayed) decayFinish(world, from);

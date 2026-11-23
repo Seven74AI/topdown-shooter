@@ -17,7 +17,7 @@ import { addBuildingAt, buildingById, type Building } from "../buildings/buildin
 import { applyZombieDamage, applyZombieDamageQuiet } from "../combat/damage";
 import { createExplosionSpec, explode } from "../combat/explosion";
 import { spawnJitterFor } from "../waves/waveDirector";
-import { BLOATER_BLAST_WEAPON, BLOATER_LOOKS, bloaterLookIndex, bloaterStats, blastTrace, circleInGas, resetBloaterStats } from "./bloater";
+import { BLAST_QUEUE_MIN, BLOATER_BLAST_WEAPON, BLOATER_LOOKS, bloaterLookIndex, bloaterStats, blastTrace, circleInGas, resetBloaterStats } from "./bloater";
 import { isZombieAlive, killZombie, spawnZombie } from "./zombiePool";
 import { ZOMBIE_STATE } from "./zombieTypes";
 
@@ -245,11 +245,11 @@ describe("Story 5.8 FR-B: death = blast, from any cause; removal is not a death"
     expect(world.gas.count).toBe(1);
     shoot(world, world.zombies.aliveIds[0] as number);
     expect(world.blasts.count).toBe(1);
-    startBuild(world); // e.g. the wave ended between ticks (dev skip)
+    startBuild(world); // e.g. the wave ended between ticks (dev skip): the queued blast goes off first (review L1), then all is cleared
     expect(world.blasts.count).toBe(0);
     expect(world.gas.count).toBe(0);
     run(world, 2);
-    expect(bursts(events)).toHaveLength(1);
+    expect(bursts(events)).toHaveLength(2);
   });
 });
 
@@ -404,15 +404,56 @@ describe("Story 5.8 FR-E: chains are visible and bounded; credit flows down the 
     expect(bloaterStats.overflow).toBe(0);
   });
 
-  it("a full queue runs its oldest blast at once: never dropped (M10)", () => {
+  it("review M: the queue can't fill (≥ 2 × the pool even with queueCapacity 2), so no blast ever runs inside another explode(); never dropped (M10)", () => {
     const small = loadBalance(withOverrides(bundledBalanceFiles(), [["zombies", "blasts.queueCapacity", 2]]));
     const { world, events } = setup({ systems: STILL, balance: small });
+    expect(world.blasts.capacity).toBe(BLAST_QUEUE_MIN);
     addPlayer(world, "p0", 46, 30);
-    const ids = [0, 1, 2, 3, 4].map((k) => spawnZombie(world, "bloater", 5 + k * 6, 5));
-    for (const id of ids) shoot(world, id);
-    expect(bloaterStats.overflow).toBe(3);
-    run(world, 3);
-    expect(bursts(events)).toHaveLength(5);
+    // 60 Bloaters and 6 tough Walkers inside one grenade: every Walker is hit exactly once by it.
+    for (let k = 0; k < 60; k++) spawnZombie(world, "bloater", 8 + (k % 10) * 0.6, 8 + Math.floor(k / 10) * 0.6);
+    const walkers = [0, 1, 2, 3, 4, 5].map((k) => tough(world, spawnZombie(world, "walker", 9 + k * 0.5, 12.2)));
+    const perTick = new Map<number, number>();
+    blastTrace.fn = (_x, _y, _c, _ch, tick) => perTick.set(tick, (perTick.get(tick) ?? 0) + 1);
+    explode(world, { ...createExplosionSpec(), x: 11, y: 10, radiusM: 4, zombieDamage: 100, playerDamage: 0, sourcePlayerId: "p0", weapon: "grenade_launcher", kind: "grenade", announce: false });
+    expect(bloaterStats.blasts).toBe(0); // nothing ran inside the grenade
+    expect(world.blasts.count).toBe(60);
+    for (const w of walkers) expect(world.zombies.hp[w]).toBe(1e6 - 100);
+    run(world, 12);
+    expect(bursts(events)).toHaveLength(60);
+    expect(Math.max(...perTick.values())).toBeLessThanOrEqual(8);
+    expect(bloaterStats.overflow).toBe(0);
+  });
+
+  it("review L1: a Bloater killed on the wave's last tick still bursts at the build start", () => {
+    const { world, events } = setup({ systems: STILL });
+    addPlayer(world, "p0", 46, 30);
+    startBuild(world);
+    startWave(world);
+    shoot(world, spawnZombie(world, "bloater", 10, 10));
+    expect(world.blasts.count).toBe(1);
+    startBuild(world); // the wave ended before the zombies system ran
+    run(world, 1);
+    expect(bursts(events)).toHaveLength(1);
+    expect(world.blasts.count).toBe(0);
+  });
+
+  it("review L2: two swells ending on the same tick both burst on that tick (20 ticks), neither as a chain link", () => {
+    const { world, events } = setup({ systems: STILL });
+    addPlayer(world, "p0", 20, 16);
+    addPlayer(world, "p1", 20, 18.2);
+    spawnZombie(world, "bloater", 20 + BL.radiusM + PR, 16);
+    spawnZombie(world, "bloater", 20 + BL.radiusM + PR, 18.2);
+    const ticks: number[] = [];
+    blastTrace.fn = (_x, _y, credit, chain, tick) => {
+      ticks.push(tick);
+      expect(chain).toBe(false);
+      expect(credit).toBeNull();
+    };
+    run(world, 1);
+    expect(events.filter((e) => e.type === "bloater.swell_started")).toHaveLength(2);
+    run(world, SWELL + 3);
+    expect(ticks).toEqual([SWELL, SWELL]);
+    expect(bloaterStats.swellBlasts).toBe(2);
   });
 
   it("same order every run: two identical chains give identical blast sequences", () => {

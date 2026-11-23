@@ -225,6 +225,19 @@ Claude Opus 5.5 (builder, worktree `story-5-8`, ports 5587 / 4587; no game serve
 - Flow-field rebuilds mid-wave when a blast destroys a barricade (as when zombies break one; brief line 7's "only at build start" is not met for destroyed walls, same as before 5.8).
 - Swell frames: the fuse ring is drawn from the client's own clock after it first sees SWELL (≈ 1 trip late online), so the client's ring finishes ~75–150 ms after the server's blast.
 
+### Review fixes (2026-11-23)
+
+Gate after the fixes: typecheck, lint, test (246 files, 1,940 passed, 3 skipped), build ✓ (load 1.7 → 7.0).
+
+Merged the work branch first (`eeb727a`: 5.5's `explode(world, spec)`, which now carries the Bloater blast with `friendlyFire: false`, `announce: false`, `buildingDamage`, `pushM`). Then, inside `zombies/bloater.ts` (no `explosion.ts`/`damage.ts` change):
+
+- **MEDIUM (a full queue ran a blast inside another explode()):** the queue is now at least `BLAST_QUEUE_MIN` = 2 × the zombie pool (balance `queueCapacity` is only a lower bound), so it can't fill; `onZombieKilled` never runs a blast (a full queue would count `overflow` and drop: unreachable, asserted 0 by the tests and fuzz). Test: 60 Bloaters + 6 tough Walkers in one grenade with `queueCapacity` 2: no blast inside the grenade, each Walker hit once, 60 bursts later, ≤ 8 per tick.
+- **L1 (a Bloater killed on a wave's last tick never burst):** `drainBlasts` runs the queue (and its chain links) at the build start before `clearBlasts`. Test.
+- **L2 (two swells ending on one tick: the second became a chain link, 21 ticks):** a burnt-out swell is flagged (`blasts.burnt`); if another swell's blast kills it first it is queued as a swell blast and `burstBurntSwells` fires it after pass 4, on the same tick, credit nobody. Test (two swells → both at tick 20, neither a chain).
+- **L3:** the fuzz compares hit sets on every tick a Bloater blast fired, and adds a cover probe every 100 ticks (a Bloater lit right behind cover from a player). Mutant "player cover removed" now fails the fuzz.
+- **Accepted, noted:** L4 a gas cloud is invisible to a client that never got its (local) `bloater.burst` event (the slow still applies); L5 gaps narrower than ~0.5 m (the wide grid) keep a player out of a Bloater's reach.
+- Mutations of the new tests: R1 queue sized by balance (fills/drops) killed; R2 no drain at the build start killed; R3 burnt swells left as chain links killed; R4 player cover removed killed (fuzz). "A full queue runs a blast inside the kill" is unreachable with the minimum size (not run).
+
 ### File List
 
 New: `packages/shared/src/zombies/bloater.ts`, `bloater.test.ts`, `bloater.fuzz.test.ts`; `apps/client/src/render/BloaterView.ts`, `bloaterFx.ts`, `bloaterFx.test.ts`, `bloaterLook.ts`, `bloaterLook.test.ts`, `city/bloaterArt.ts`, `city/bloaterFxArt.ts`; `apps/client/src/sim/NetSimHost.bloater.test.ts`; `apps/server/src/run/bloaterBandwidth.test.ts`, `tickCostBloater.test.ts`; `tools/netsim/bloater.test.ts`; `docs/art/epic-5/round-c/ingame/5-8-{swell,burst,chain,gas,looks}.png`; `docs/playtests/milestone-1/objects/{28_bloater,29_bloater_swell,30_bloater_gas}.png`.
