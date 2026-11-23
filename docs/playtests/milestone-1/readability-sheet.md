@@ -31,7 +31,9 @@ Player:
 21 what:            bullets:            can you walk on it?   + what do the two circles mean?
 22 what:            what does it do?
 23 what:            bullets:   + when does it hurt you?
-24 what:            what does it do?
+24 what is the survivor holding?
+25 what is the survivor holding?
+26 what:            what does it do?
 ```
 
 ## 1
@@ -93,5 +95,8 @@ Player:
 ## 23: the green patch (Story 5.6)
 ![23](objects/24_acid_puddle.png)
 
-## 24 (Story 5.7)
-![24](objects/25_brute.png)
+## 24, 25: what is the survivor holding? (Story 5.2)
+![24](objects/25_survivor_fire_axe.png) ![25](objects/26_survivor_chainsaw.png)
+
+## 26 (Story 5.7)
+![26](objects/27_brute.png)

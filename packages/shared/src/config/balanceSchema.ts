@@ -14,6 +14,11 @@ const common = {
   price: z.number().int().min(0),
   /** Story 3.3: the display name (shop); the id in Title Case when absent. Not a gameplay number. */
   name: z.string().min(1).max(24).optional(),
+  /**
+   * Story 5.1: the price an upgrade level is a share of (`shop.json › upgrades.priceShare`) when
+   * it differs from `price` (the free Pistol: 100). Absent = `price`.
+   */
+  upgradeBasePrice: z.number().int().min(0).optional(),
 };
 
 const gunSchema = z
@@ -40,6 +45,17 @@ const meleeSchema = z
     kind: z.literal("melee"),
     ...common,
     arcDeg: z.number().positive().max(360),
+    /**
+     * Story 5.2: the wielder moves this many percent slower while attacking with it (the Chainsaw's
+     * 20: alive, not swapping, fire held with an aim). Integer, so the server and the client's
+     * prediction compute the same speed (`player/slow.ts`, the 3.9 rule). 0 = no slow.
+     */
+    wielderSlowPct: z.number().int().min(0).max(90).default(0),
+    /**
+     * Story 5.2: hits send no `zombie.hit` each (a 10 Hz Chainsaw would send one per zombie per
+     * tick); damage, assist credit and kills are the same, and `melee.swung` carries the hit count.
+     */
+    quietHits: z.boolean().default(false),
   })
   .strict();
 
@@ -99,17 +115,17 @@ export const zombieTypeSchema = z
     biteSlowPct: z.number().int().min(0).max(90).default(0),
     /** At most 10 s: the remaining ticks go on the wire as a uint8. */
     biteSlowS: z.number().min(0).max(10).default(0),
+    /**
+     * Story 5.2 (shared with 5.7's Brute): the share of a knockback or hit pushback this type
+     * takes, in percent (100 = all of it; the Brute 20). Applied inside `applyKnockback`.
+     */
+    knockbackTakenPct: z.number().int().min(0).max(100).default(100),
     /** Story 3.8: follows the flank field (Runners) instead of the chase field. */
     flanks: z.boolean().default(false),
     /** Story 5.6: a ranged spit (Spitters); absent = no ranged attack. */
     spit: spitSchema.optional(),
     /** Story 5.7 (F5): a hit on a building does `damage × this` (Brutes 3×). */
     buildingDamageMult: z.number().min(1).default(1),
-    /**
-     * Story 5.7 (F4; shared with 5.2): every pushback and knockback from player weapons and turrets
-     * moves this type only this many percent of the distance (Brutes 20). Integer.
-     */
-    knockbackTakenPct: z.number().int().min(0).max(100).default(100),
     /** Story 5.7 (F2): a hit on a standing player knocks them this far straight away (0 = none). */
     hitKnockbackM: z.number().min(0).max(5).default(0),
     /** Story 5.7: over this long (ticks on the wire: at most 2.5 s). */
@@ -292,11 +308,33 @@ export const playerSchema = z
   .strict();
 
 /** Touch control tuning (Story 1.12 playtest tunes these). Dead zones are fractions of the stick radius. */
+/**
+ * Story 5.2 (brief line 12): caps of client-only effect pools (fixed size, the oldest reused),
+ * `controls.json › fx`. Read by the client only; not gameplay.
+ */
+export const fxSchema = z
+  .object({
+    /** Heavy melee swing arcs (the Fire Axe) alive at once. */
+    maxSwingArcs: z.number().int().min(1).max(64),
+    /** Chainsaw sparks alive at once. */
+    maxChainsawSparks: z.number().int().min(1).max(256),
+    /** Sparks per chainsaw tick that cuts at least one zombie (fewer when the blade cuts air). */
+    chainsawSparksPerHit: z.number().int().min(1).max(16),
+    chainsawSparksPerMiss: z.number().int().min(0).max(16),
+    /** A spark lives this long (ms). */
+    chainsawSparkMs: z.number().int().min(16).max(1000),
+    /** The rev loop stops this long after the last chainsaw tick (ms). */
+    chainsawRevHoldMs: z.number().int().min(50).max(1000),
+  })
+  .strict();
+
 export const controlsSchema = z
   .object({
     moveDeadZone: z.number().min(0).max(0.9),
     aimDeadZone: z.number().min(0).max(0.9),
     aimAssistDeg: z.number().min(0).max(45),
+    /** Story 5.2: client effect caps (no new balance file: every test fixture lists the files). */
+    fx: fxSchema,
   })
   .strict();
 
@@ -338,9 +376,13 @@ export const botsSchema = z
     /**
      * Story 3.10: shop item ids (weapons and building types) bought in this order in every build
      * phase (`bots/botShop.ts`): stop at the first one the wallet can't pay (save up); a building
-     * type listed k times means "own k".
+     * type listed k times means "own k". Story 5.1: `upgrade:<weapon>` upgrades a held weapon (listed
+     * k times: "at level ≥ k + 1").
      */
-    shoppingList: z.array(balanceId).max(31).default([]),
+    shoppingList: z
+      .array(z.union([balanceId, z.string().regex(/^upgrade:[a-z][a-z0-9_]*$/, "an upgrade entry is upgrade:<weapon id>")]))
+      .max(31)
+      .default([]),
     /** Story 3.10: a bot tries to place a building at these distances (m) around itself, 8 directions each. */
     buildRadiiM: z.array(z.number().positive().max(8)).min(1).max(4).default([2.5]),
   })
@@ -452,6 +494,19 @@ export const shopSchema = z
       .array(balanceId)
       .min(1)
       .refine((ids) => new Set(ids).size === ids.length, "duplicate weapon id"),
+    /**
+     * Story 5.1: weapon upgrades I–IV (GDD › Weapon Systems › Upgrades). Level L deals
+     * `damage × (1 + damagePerLevel × (L − 1))`; every level costs `round(priceShare × upgrade base)`
+     * (`upgradeBasePrice`, else `price`). `maxLevel` ≤ 4: levels I–IV are the design (the HUD/shop
+     * marks and the atlas frames cover II–IV only; 5.1 review L1).
+     */
+    upgrades: z
+      .object({
+        maxLevel: z.number().int().min(1).max(4),
+        damagePerLevel: z.number().min(0),
+        priceShare: z.number().positive(),
+      })
+      .strict(),
   })
   .strict();
 

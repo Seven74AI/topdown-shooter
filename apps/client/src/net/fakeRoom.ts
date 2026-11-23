@@ -24,6 +24,8 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     reloadTicks0: 0,
     reloadTicks1: 0,
     swapTicks: 0,
+    level0: 1, // Story 5.1
+    level1: 0,
     downedTicksLeft: 0,
     reviveProgress: 0,
     kills: 0,

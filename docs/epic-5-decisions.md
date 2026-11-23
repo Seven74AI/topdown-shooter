@@ -101,3 +101,4 @@ Page: claude.ai/artifact/GzRpZP8eS6n7JVMDs9ctcy (code drawings, copied to `docs/
 - **Fire Axe AX1, Chainsaw CS1, upgrade marks U1** are the base looks; the other versions are kept for upgrade tiers or skins later (rule: first = base, others = upgrade/skin looks).
 - **Acid through thin walls (5.6 re-review):** puddles do NOT hurt across walls, cars and buildings (main session applied the recommended option; designer did not object).
 - Fire: the designer likes the flames of fire-lab version C (fuel fire) but not its lava-style floor → version D (C's flames, normal asphalt with only a soft light) under review.
+- **Fire = fire-lab version D** (designer, 2026-11-23): fuel-fire particle flames, smoke and embers on normal asphalt (scorch + soft flickering ground light, no lava pool), a ring of flames at the 2 m damage edge. Code in `docs/art/4-12/fire-lab.html` (panel D; survivor panel for the burning survivor). Story 4.12 builds it.

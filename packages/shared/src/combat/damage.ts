@@ -4,6 +4,22 @@ import type { Building } from "../buildings/buildings";
 import { segmentBoxEntryT } from "./cover";
 import { isZombieAlive, killZombie, zombieTypeOf } from "../zombies/zombiePool";
 import type { WeaponId } from "./weapons";
+import { recordDamager } from "../economy/economy";
+
+/**
+ * Story 5.3: knockbacks applied by shots and swings, and how many stopped short at a face
+ * (diagnostic counters for tests and the fuzz liveness checks; not simulation state, never
+ * snapshotted). Story 5.2: moved here from `firing.ts` (re-exported there) so melee counts too.
+ */
+export const knockbacks = { applied: 0, stopped: 0 };
+
+/**
+ * Story 5.2 (D3, shared with 5.7's Brute): the share of a knockback or pushback zombie `id`'s type
+ * takes (`knockbackTakenPct` / 100; 1 for every type without the field).
+ */
+export function knockbackShare(world: World, id: number): number {
+  return (world.balance.zombies.types[zombieTypeOf(world.zombies, id)]?.knockbackTakenPct ?? 100) / 100;
+}
 
 /**
  * Damages a zombie hit along direction (dirX, dirY): emits `zombie.hit`, pushes it back by
@@ -26,14 +42,7 @@ export function applyZombieDamage(
 ): boolean {
   const z = world.zombies;
   if (!isZombieAlive(z, id)) return false;
-  z.hp[id] = (z.hp[id] as number) - amount;
-  const zt = world.balance.zombies.types[zombieTypeOf(z, id)];
-  const r = zt?.radiusM ?? 0;
-  // Story 5.7 (F4): a Brute takes only `knockbackTakenPct` of every pushback (100 for the others: unchanged).
-  const push = zt && zt.knockbackTakenPct !== 100 ? (pushbackM * zt.knockbackTakenPct) / 100 : pushbackM;
-  const { widthM, heightM } = world.map;
-  z.x[id] = Math.min(widthM - r, Math.max(r, (z.x[id] as number) + dirX * push));
-  z.y[id] = Math.min(heightM - r, Math.max(r, (z.y[id] as number) + dirY * push));
+  hurt(world, id, amount, dirX, dirY, pushbackM);
   const x = z.x[id] as number;
   const y = z.y[id] as number;
   if (buildingId > 0) {
@@ -44,6 +53,35 @@ export function applyZombieDamage(
   }
   if ((z.hp[id] as number) <= 0) {
     killZombie(world, id, killerId, weapon, buildingId);
+    return true;
+  }
+  return false;
+}
+
+/** HP and the map-clamped pushback (scaled by the type's `knockbackTakenPct`, Story 5.2 D3). */
+function hurt(world: World, id: number, amount: number, dirX: number, dirY: number, pushbackM: number): void {
+  const z = world.zombies;
+  z.hp[id] = (z.hp[id] as number) - amount;
+  const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
+  const push = pushbackM > 0 ? pushbackM * knockbackShare(world, id) : 0;
+  const { widthM, heightM } = world.map;
+  z.x[id] = Math.min(widthM - r, Math.max(r, (z.x[id] as number) + dirX * push));
+  z.y[id] = Math.min(heightM - r, Math.max(r, (z.y[id] as number) + dirY * push));
+}
+
+/**
+ * Story 5.2: `applyZombieDamage` without the `zombie.hit` event (the quiet hit path for weapons
+ * that hit every tick, the Chainsaw: no event per zombie per tick). The same HP, pushback and kill
+ * (`zombie.killed` as usual); the assist credit the economy would take from the hit event is
+ * recorded directly. Returns true if the zombie died.
+ */
+export function applyZombieDamageQuiet(world: World, id: number, amount: number, dirX: number, dirY: number, pushbackM: number, killerId: string, weapon: WeaponId): boolean {
+  const z = world.zombies;
+  if (!isZombieAlive(z, id)) return false;
+  hurt(world, id, amount, dirX, dirY, pushbackM);
+  recordDamager(world, id, killerId);
+  if ((z.hp[id] as number) <= 0) {
+    killZombie(world, id, killerId, weapon, 0);
     return true;
   }
   return false;
@@ -77,7 +115,8 @@ function knockT(x: number, y: number, mx: number, my: number, r: number, b: Pick
 }
 
 /**
- * Story 5.3 (shared with 5.2's Fire Axe and 5.7's Brute): knocks zombie `id` up to `distM` along
+ * Story 5.3 (shared with 5.2's Fire Axe and 5.7's Brute): knocks zombie `id` up to `distM` (× its
+ * type's `knockbackTakenPct` / 100, Story 5.2 D3: the Brute takes 20 %) along
  * the unit (dirX, dirY), swept: it stops when its body touches a map solid (car, bus, building box,
  * barrier, sandbags: `world.obstacles.solids`) or a player WALL building (Story 5.9: traps and mines
  * are floor and never stop it), and never leaves the map
@@ -86,11 +125,9 @@ function knockT(x: number, y: number, mx: number, my: number, r: number, b: Pick
 export function applyKnockback(world: World, id: number, dirX: number, dirY: number, distM: number): number {
   const z = world.zombies;
   if (!isZombieAlive(z, id) || distM <= 0) return 0;
-  const zt = world.balance.zombies.types[zombieTypeOf(z, id)];
-  const r = zt?.radiusM ?? 0;
-  // Story 5.7 (F4; shared with 5.2): a Brute moves only `knockbackTakenPct` of the knock (axe 1.5 → 0.3 m, shotgun 0.5 → 0.1 m).
-  if (zt && zt.knockbackTakenPct !== 100) distM = (distM * zt.knockbackTakenPct) / 100;
+  distM *= knockbackShare(world, id);
   if (distM <= 0) return 0;
+  const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
   const x = z.x[id] as number;
   const y = z.y[id] as number;
   const mx = dirX * distM;
@@ -114,5 +151,13 @@ export function applyKnockback(world: World, id: number, dirX: number, dirY: num
   const d = t < 1 ? Math.max(0, t * distM - KNOCK_FACE_GAP_M) : distM;
   z.x[id] = Math.min(widthM - r, Math.max(r, x + dirX * d));
   z.y[id] = Math.min(heightM - r, Math.max(r, y + dirY * d));
+  knockbackTrace.fn?.(id, x, y, z.x[id] as number, z.y[id] as number);
   return d;
 }
+
+/**
+ * Story 5.2: a test-only probe of every knockback leg (zombie, from, to). Several knocks of one tick
+ * (four axes on one zombie) make a path whose start-to-end chord can cut a box corner that no leg
+ * touches, so the fuzz checks each leg here. Null in the game (one null check per knock).
+ */
+export const knockbackTrace: { fn: ((id: number, x0: number, y0: number, x1: number, y1: number) => void) | null } = { fn: null };

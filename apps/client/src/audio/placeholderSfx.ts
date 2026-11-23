@@ -8,6 +8,8 @@ export type SfxName =
   | "weapon_shotgun_fire"
   | "weapon_assault_rifle_fire"
   | "weapon_machete_swing"
+  // Story 5.2: the Fire Axe's heavy whoosh and thunk (the Chainsaw's rev is a loop: `startChainsawRev`).
+  | "weapon_axe_swing"
   | "weapon_reload_start"
   | "weapon_reloaded"
   | "zombie_hit"
@@ -283,6 +285,10 @@ export function playSfx(name: SfxName, pan = 0): void {
     case "weapon_machete_swing":
       sweep(c, t, 0.12, 0.5, 900, 3200); // whoosh: noise through a rising band-pass
       break;
+    case "weapon_axe_swing": // Story 5.2: a slower, deeper whoosh with a low thunk at its end
+      sweep(c, t, 0.2, 0.6, 400, 1600);
+      burst(c, t + 0.12, 0.08, 0.6, 300);
+      break;
     case "weapon_reload_start":
       click(c, t, 900, 0.3);
       click(c, t + 0.12, 700, 0.3);
@@ -332,4 +338,64 @@ export function playSfx(name: SfxName, pan = 0): void {
       burst(c, t, 0.05, 0.4, 500);
       break;
   }
+}
+
+/** Story 5.2: the Chainsaw's placeholder rev loop (`weapon_chainsaw_rev`): nodes of the running loop. */
+let rev: { stop(at: number): void } | null = null;
+const REV_GAIN = 0.16;
+const REV_FADE_S = 0.08;
+
+/**
+ * Starts the looping rev (a buzzing sawtooth chopped at 22 Hz through a low-pass, with a little
+ * hiss). Called once when my Chainsaw starts cutting (`SawClock.revStep`), never per swing or frame.
+ */
+export function startChainsawRev(): void {
+  const c = context();
+  if (!c || c.state !== "running" || rev || !master || !noise) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.setValueAtTime(0.001, t);
+  out.gain.exponentialRampToValueAtTime(REV_GAIN, t + REV_FADE_S);
+  out.connect(master);
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 1400;
+  lp.connect(out);
+  const o = c.createOscillator();
+  o.type = "sawtooth";
+  o.frequency.value = 112;
+  const chop = c.createGain();
+  chop.gain.value = 0.6;
+  const lfo = c.createOscillator();
+  lfo.frequency.value = 22;
+  const lfoGain = c.createGain();
+  lfoGain.gain.value = 0.4;
+  lfo.connect(lfoGain).connect(chop.gain);
+  o.connect(chop).connect(lp);
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  src.loop = true;
+  const hiss = c.createGain();
+  hiss.gain.value = 0.25;
+  src.connect(hiss).connect(lp);
+  for (const n of [o, lfo, src]) n.start(t);
+  rev = {
+    stop(at: number) {
+      out.gain.cancelScheduledValues(at);
+      out.gain.setValueAtTime(Math.max(0.001, out.gain.value), at);
+      out.gain.exponentialRampToValueAtTime(0.001, at + REV_FADE_S);
+      for (const n of [o, lfo, src]) n.stop(at + REV_FADE_S);
+    },
+  };
+}
+
+/** Stops the rev loop (a short fade). */
+export function stopChainsawRev(): void {
+  const c = ctx;
+  if (!rev || !c) {
+    rev = null;
+    return;
+  }
+  rev.stop(c.currentTime);
+  rev = null;
 }

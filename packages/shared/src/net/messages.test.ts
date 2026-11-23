@@ -78,9 +78,9 @@ describe("net contract", () => {
     expect(runStartSchema.safeParse(null).success).toBe(false);
   });
 
-  it("has 4 players at most and needs 2 to start", () => {
+  it("has 4 players at most and needs 1 to start", () => {
     expect(MAX_PLAYERS).toBe(4);
-    expect(MIN_PLAYERS_TO_START).toBe(2);
+    expect(MIN_PLAYERS_TO_START).toBe(1); // designer 2026-11-23: online runs can be played alone
   });
 });
 

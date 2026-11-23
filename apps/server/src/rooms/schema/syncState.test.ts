@@ -232,6 +232,29 @@ describe("syncState", () => {
     expect([s?.knockTicks, s?.knockDx, s?.knockDy, s?.knockStepMm]).toEqual([0, 0, 0, 0]);
   });
 
+  it("Story 5.1: levels are synced (0 = empty slot), written only on change, and reset", () => {
+    const { controller, state, encoder } = setup();
+    const p0 = controller.world.players.get("p0");
+    if (!p0) throw new Error("no p0");
+    syncState(state, controller);
+    expect(state.players.get("p0")).toMatchObject({ level0: 1, level1: 0 }); // Pistol at I, no second weapon
+    setLoadout(balance, p0.loadout, ["pistol", "smg"], [2, 3]);
+    syncState(state, controller);
+    expect(state.players.get("p0")).toMatchObject({ level0: 2, level1: 3 });
+    encoder.encode();
+    encoder.discardChanges();
+    syncState(state, controller);
+    expect(encoder.hasChanges).toBe(false); // a level costs nothing per tick
+    (p0.loadout.slots[1] as { level: number }).level = 4;
+    syncState(state, controller);
+    expect(encoder.hasChanges).toBe(true);
+    const bytes = encoder.encode().length;
+    expect(bytes).toBeLessThan(12); // one uint8 field patch
+    expect(state.players.get("p0")?.level1).toBe(4);
+    resetRunFields(state);
+    expect(state.players.get("p0")).toMatchObject({ level0: 0, level1: 0 });
+  });
+
   it("resetRunFields puts every fight field and Ready back, keeping slot and name", () => {
     const { controller, state } = setup();
     controller.tick();

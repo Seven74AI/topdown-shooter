@@ -141,8 +141,8 @@ export {
   type HordeSink,
 } from "./net/hordeFormat";
 export { inRect, viewRect, type Rect } from "./net/interest";
-export { activeSlot, createLoadout, createSlot, setLoadout, type Loadout, type WeaponSlot } from "./combat/loadout";
-export { isGun, isMelee, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
+export { activeSlot, createLoadout, createSlot, setLoadout, validLevel, type Loadout, type WeaponSlot } from "./combat/loadout";
+export { isGun, isMelee, upgradePrice, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
 export type { ProjectilePool } from "./combat/projectilePool";
 // Story 2.7: cosmetic projectiles in the client mirror, the shared cooldown rule, the swept test.
 export {
@@ -203,6 +203,10 @@ export {
   buildingRepairSchema,
   buildingUpgradeSchema,
   shopBuySchema,
+  shopUpgradeSchema,
+  type ShopUpgrade,
+  type ShopUpgraded,
+  type ShopUpgradeRefused,
   type ShopBuy,
   type ShopBought,
   type ShopRefused,
@@ -256,6 +260,8 @@ export {
   botPlaceTries,
   botShopNext,
   botWeaponSlot,
+  UPGRADE_ENTRY_PREFIX,
+  upgradeEntryWeapon,
   createBotShopResult,
   type BotShopResult,
   type BotShopSelf,
@@ -377,6 +383,8 @@ export {
   type ShopError,
   type ShopWeapon,
 } from "./economy/shop";
+// Story 5.1: weapon upgrades I–IV (damage helper `weaponDamage` is exported with the weapons above).
+export { romanLevel, shopUpgrades, upgradePriceTable, upgradeWeapon, type ShopUpgradeRow, type WeaponUpgradeError, type WeaponUpgraded } from "./economy/shop";
 // Story 5.6: Spitters, spits and acid puddles.
 export { acidSpit, acidSpitOf, circleInAcid, clearAcid, spawnSpit, spitStats, spitterStep, updateAcid, updateSpits } from "./zombies/spit";
 export { createSpitPool, type SpitPool } from "./zombies/spitPool";

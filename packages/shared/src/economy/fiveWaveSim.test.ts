@@ -163,3 +163,53 @@ describe("six-wave bot sim with the Brute (Story 5.7, brief lines 9 and 15)", ()
     expect(pay).toBeGreaterThanOrEqual(12 * killed); // each Brute kill paid: 25 (+ assists) by a player, 50 % to a turret's owner (D6)
   }, 600_000);
 });
+
+describe("bot sim with the Fire Axe and the Chainsaw (Story 5.2, brief lines 9 and 15)", () => {
+  it("bots that buy them still run to Results (waves ended), and both really kill", () => {
+    // A test-only shopping list: the bots start with 700 (enough for the Chainsaw at the first build).
+    const rich = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 700]]));
+    const lists: Record<string, readonly string[]> = { fire_axe: ["fire_axe", "wood_barricade"], chainsaw: ["chainsaw", "wood_barricade"] };
+    const lines: string[] = [];
+    for (const [weapon, list] of Object.entries(lists)) {
+      let kills = 0;
+      let bought = 0;
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance: rich, seed, players: 4, list });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
+        kills += r.killsByWeapon[weapon] ?? 0;
+        bought += r.purchases.flat().filter((p) => p.startsWith(`${weapon}@`)).length;
+        lines.push(`${weapon} seed ${seed}: ${formatRunLine(r)} kills by ${weapon} ${r.killsByWeapon[weapon] ?? 0}`);
+      }
+      expect(bought).toBeGreaterThan(0);
+      expect(kills).toBeGreaterThan(0); // liveness: the new weapon was used (bot survival is not difficulty evidence)
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[five-wave sim 5.2]\n${lines.join("\n")}`);
+  }, 180_000);
+});
+
+describe("five-wave bot sim with weapon upgrades (Story 5.1, brief lines 9 and 15)", () => {
+  it("bots that upgrade their SMG still run to Results, and upgraded weapons really kill", () => {
+    // A test-only shopping list (bots.json stays untouched): the SMG, two upgrades, then a barricade.
+    const LIST = ["smg", "upgrade:smg", "upgrade:smg", "wood_barricade"];
+    const lines: string[] = [];
+    let upgrades = 0;
+    let upgradedKills = 0;
+    for (const players of [2, 4]) {
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance, seed, players, list: LIST });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
+        for (let i = 0; i < players; i++) expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number));
+        upgrades += r.upgrades.reduce((a, b) => a + b, 0);
+        upgradedKills += r.upgradedKills;
+        lines.push(`${formatRunLine(r)} | upgrades ${r.upgrades.join("/")}, kills with an upgraded weapon ${r.upgradedKills}, spent ${r.spent.join("/")}`);
+      }
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[five-wave sim 5.1] list ${LIST.join(",")}: ${upgrades} upgrades, ${upgradedKills} upgraded kills\n${lines.join("\n")}`);
+    expect(upgrades).toBeGreaterThanOrEqual(1); // liveness: upgrades were bought …
+    expect(upgradedKills).toBeGreaterThanOrEqual(1); // … and an upgraded weapon really killed
+  }, 180_000);
+});

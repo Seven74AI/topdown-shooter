@@ -1,0 +1,820 @@
+<title>Fire Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0c0d0f;
+    --panel: #15161a;
+    --panel-edge: #26272d;
+    --ink: #ebe6dd;
+    --muted: #9b958c;
+    --accent: #ff8a3d;
+    --good: #8fd16a;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #0c0d0f; --panel: #15161a; }
+  }
+  :root[data-theme="dark"] { --bg: #0c0d0f; --panel: #15161a; }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 var(--sans);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 28px 56px;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h1 span { color: var(--accent); }
+  .lead { color: var(--muted); margin: 0 0 16px; max-width: 70ch; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin: 0 0 22px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 10px; }
+  .controls label { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; user-select: none; }
+  .controls input { accent-color: var(--accent); width: 18px; height: 18px; }
+  .controls .note { color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 20px; }
+  .panel { background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 12px; padding: 14px; min-width: 0; }
+  .panel .new { display: inline-block; margin-left: 6px; padding: 2px 6px; border-radius: 4px; background: var(--accent); color: #1a0e05; letter-spacing: 0.06em; }
+  .panel h2 { font-size: 17px; margin: 0 0 2px; }
+  .panel .tag { font: 600 11px/1 var(--mono); color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+  .panel p { margin: 4px 0 10px; color: var(--muted); font-size: 13.5px; }
+  canvas { display: block; width: 100%; height: auto; border-radius: 6px; background: #111214; }
+  .cap { font: 12px/1.4 var(--mono); color: var(--muted); margin: 8px 0 0; }
+  .stats { font: 600 12.5px/1.4 var(--mono); color: var(--good); margin: 8px 0 0; display: flex; gap: 14px; flex-wrap: wrap; }
+  .strip-label { font: 11px/1 var(--mono); color: var(--muted); margin: 10px 0 5px; }
+  .rule { margin: 28px 0 0; color: var(--muted); font-size: 13.5px; max-width: 80ch; }
+  .rule b { color: var(--ink); }
+</style>
+
+<div class="wrap">
+  <h1>Fire <span>Lab</span></h1>
+  <p class="lead">Burning car fires drawn live with particles in Canvas 2D: pooled particles, soft sprites made once, additive flames, normal-blend smoke. Top view is a 1.33× close-up; the strip below each is true in-game size (48 px per metre).</p>
+  <div class="controls">
+    <label><input type="checkbox" id="slow"> Slow phone mode (half the particles)</label>
+    <label><input type="checkbox" id="edge"> Show the 2 m damage edge</label>
+    <label><input type="checkbox" id="pause"> Pause</label>
+    <span class="note" id="motionNote"></span>
+  </div>
+  <div class="grid" id="grid"></div>
+  <p class="rule"><b>Rule in every panel:</b> bright flame (alpha over 50 %) never passes the 2 m damage edge. Each flame particle is shrunk as it nears the edge so its bright core ends on it; the thin ring line marks the edge. Smoke and sparks may drift out, always semi-transparent.</p>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+// ---------------------------------------------------------------- constants
+const R = 2;                 // fire damage zone radius (m)
+const CAR_L = 4.5, CAR_W = 2; // car (m)
+const SURV_R = 0.4;          // survivor radius (m)
+const PULSE_S = 0.5;         // damage tick (balance decay.fire.pulseS)
+const MAIN_PPM = 64;         // close-up view
+const GAME_PPM = 48;         // in-game: 32 px/m at 1.5x zoom
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+const WIND_X = 0.55, WIND_Y = 0.32; // smoke drifts to the lower right (the game's shadow side)
+const reduceMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
+let slow = false, showEdge = false, paused = false;
+
+const TAU = Math.PI * 2;
+function hash(n) { const s = Math.sin(n) * 43758.5453; return s - Math.floor(s); }
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function rnd(a, b) { return a + Math.random() * (b - a); }
+function mk(w, h) { const c = document.createElement("canvas"); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return c; }
+function vnoise(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const h = (a, b) => hash(a * 127.1 + b * 311.7 + s * 74.7);
+  return lerp(lerp(h(xi, yi), h(xi + 1, yi), u), lerp(h(xi, yi + 1), h(xi + 1, yi + 1), u), v);
+}
+function fbm(x, y, s) { let a = 0, amp = 0.5, f = 1; for (let o = 0; o < 4; o++) { a += amp * vnoise(x * f, y * f, s + o * 13); f *= 2.03; amp *= 0.5; } return a / 0.9375; }
+
+// ---------------------------------------------------------------- game art (copied from spriteArt.ts / dressing.ts)
+const CAR_COLORS = ["#5d2a25", "#2f4656", "#6b6550", "#55595c", "#7f817b"];
+const CAR_WRECK = [false, true, false, true, false];
+const CHAR = { outline: "rgba(6,6,6,0.7)", jacket: "#3c5670", pack: "#26251f", cap: "#1f2326", survivorSkin: "#c49a7c", gun: "#17181a" };
+function circle(c, x, y, r) { c.beginPath(); c.arc(x, y, r, 0, TAU); }
+function ell(c, x, y, rx, ry, a = 0) { c.beginPath(); c.ellipse(x, y, Math.max(0.01, rx), Math.max(0.01, ry), a, 0, TAU); }
+function rrect(c, x, y, w, h, r) {
+  const q = Math.max(0, Math.min(r, w / 2, h / 2));
+  c.beginPath(); c.moveTo(x + q, y); c.lineTo(x + w - q, y); c.quadraticCurveTo(x + w, y, x + w, y + q);
+  c.lineTo(x + w, y + h - q); c.quadraticCurveTo(x + w, y + h, x + w - q, y + h); c.lineTo(x + q, y + h);
+  c.quadraticCurveTo(x, y + h, x, y + h - q); c.lineTo(x, y + q); c.quadraticCurveTo(x, y, x + q, y); c.closePath();
+}
+function rgbOf(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function shade(h, t) { const f = t < 0 ? 0 : 255, a = Math.abs(t); const c = rgbOf(h).map((v) => Math.round(v + (f - v) * a)); return `rgb(${c[0]},${c[1]},${c[2]})`; }
+function carBody(g, L, W) { rrect(g, -L / 2 + 1, -W / 2 + 1, L - 2, W - 2, 4); }
+function drawCar(g, L, W, variant) {
+  const col = CAR_COLORS[variant % CAR_COLORS.length], wreck = CAR_WRECK[variant % CAR_WRECK.length];
+  g.fillStyle = "#0b0b0c";
+  for (const sx of [-L * 0.31, L * 0.3]) for (const sy of [-1, 1]) g.fillRect(sx - 10, sy * (W / 2 - 3) - 3, 20, 6);
+  g.fillStyle = col; carBody(g, L, W); g.fill();
+  const gr = g.createLinearGradient(0, -W / 2, 0, W / 2);
+  gr.addColorStop(0, "rgba(255,255,255,0.10)"); gr.addColorStop(0.5, "rgba(255,255,255,0)"); gr.addColorStop(1, "rgba(0,0,0,0.25)");
+  g.fillStyle = gr; carBody(g, L, W); g.fill();
+  g.fillStyle = shade(col, -0.3); g.fillRect(L * 0.1, -W / 2 + 1, 5, 4); g.fillRect(L * 0.1, W / 2 - 5, 5, 4);
+  g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = 1; g.beginPath();
+  g.moveTo(L * 0.22, -W * 0.18); g.lineTo(L / 2 - 6, -W * 0.14); g.moveTo(L * 0.22, W * 0.18); g.lineTo(L / 2 - 6, W * 0.14); g.stroke();
+  g.fillStyle = "#121a23"; g.beginPath();
+  g.moveTo(L * 0.2, -W / 2 + 7); g.lineTo(L * 0.2, W / 2 - 7); g.lineTo(L * 0.04, W / 2 - 10); g.lineTo(L * 0.04, -W / 2 + 10); g.closePath(); g.fill();
+  g.fillStyle = "rgba(160,185,210,0.2)"; g.beginPath();
+  g.moveTo(L * 0.17, -W / 2 + 9); g.lineTo(L * 0.12, -W / 2 + 9); g.lineTo(L * 0.07, W / 2 - 14); g.lineTo(L * 0.1, W / 2 - 14); g.closePath(); g.fill();
+  if (wreck) {
+    g.strokeStyle = "rgba(220,230,240,0.5)"; g.lineWidth = 0.7; g.beginPath();
+    for (let k = 0; k < 7; k++) { g.moveTo(L * 0.13, 0); g.lineTo(L * 0.13 + (hash(k * 2.3 + variant) - 0.5) * 18, (hash(k * 4.7 + variant) - 0.5) * W * 0.8); }
+    g.stroke();
+  }
+  g.fillStyle = "#111820"; g.beginPath();
+  g.moveTo(-L * 0.2, -W / 2 + 9); g.lineTo(-L * 0.2, W / 2 - 9); g.lineTo(-L * 0.31, W / 2 - 11); g.lineTo(-L * 0.31, -W / 2 + 11); g.closePath(); g.fill();
+  const rx = -L * 0.2, rw = L * 0.24, ry = -W / 2 + 9, rh = W - 18;
+  g.fillStyle = shade(col, 0.2); rrect(g, rx, ry, rw, rh, 3); g.fill();
+  g.fillStyle = "rgba(255,255,255,0.16)"; g.fillRect(rx + 1, ry + 1, rw - 2, 1.5);
+  g.strokeStyle = "rgba(0,0,0,0.5)"; g.lineWidth = 1; rrect(g, rx, ry, rw, rh, 3); g.stroke();
+  g.fillStyle = "#ddd6ad"; g.fillRect(L / 2 - 5, -W / 2 + 6, 4, 9); g.fillRect(L / 2 - 5, W / 2 - 15, 4, 9);
+  g.fillStyle = "#8c1d17"; g.fillRect(-L / 2 + 2, -W / 2 + 6, 3, 9); g.fillRect(-L / 2 + 2, W / 2 - 15, 3, 9);
+  g.strokeStyle = "#08080a"; g.lineWidth = 1.6; carBody(g, L, W); g.stroke();
+}
+function drawSurvivor(c, r) {
+  c.lineJoin = "round"; c.strokeStyle = CHAR.outline; c.lineWidth = Math.max(1, r * 0.08);
+  c.fillStyle = CHAR.gun; rrect(c, r * 0.3, -r * 0.13, r * 1.75, r * 0.26, 1); c.fill();
+  c.strokeStyle = CHAR.jacket; c.lineCap = "round"; c.lineWidth = r * 0.3; c.beginPath();
+  c.moveTo(0, -r * 0.6); c.lineTo(r * 0.85, -r * 0.1); c.moveTo(0, r * 0.6); c.lineTo(r * 0.55, r * 0.12); c.stroke();
+  c.lineCap = "butt"; c.strokeStyle = CHAR.outline; c.lineWidth = Math.max(1, r * 0.08);
+  c.fillStyle = CHAR.pack; rrect(c, -r * 0.98, -r * 0.48, r * 0.5, r * 0.96, r * 0.15); c.fill();
+  c.fillStyle = CHAR.jacket; ell(c, -r * 0.05, 0, r * 0.52, r * 0.9); c.fill(); c.stroke();
+  c.fillStyle = CHAR.survivorSkin; circle(c, r * 0.12, 0, r * 0.4); c.fill(); c.stroke();
+  c.fillStyle = CHAR.cap; ell(c, r * 0.02, 0, r * 0.36, r * 0.4); c.fill();
+  c.beginPath(); c.ellipse(r * 0.38, 0, r * 0.16, r * 0.3, 0, -Math.PI / 2, Math.PI / 2); c.fill();
+}
+
+// Car baked once per variant at 128 px/m (native art is 32 px/m), slightly charred.
+const CAR_K = 4, CAR_PAD = 4; // native px padding
+function bakeCar(variant, char) {
+  const Ln = CAR_L * 32, Wn = CAR_W * 32;
+  const c = mk((Ln + 2 * CAR_PAD) * CAR_K, (Wn + 2 * CAR_PAD) * CAR_K), g = c.getContext("2d");
+  g.translate((Ln / 2 + CAR_PAD) * CAR_K, (Wn / 2 + CAR_PAD) * CAR_K); g.scale(CAR_K, CAR_K);
+  drawCar(g, Ln, Wn, variant);
+  if (char > 0) {
+    g.globalCompositeOperation = "source-atop";
+    g.fillStyle = `rgba(10,8,6,${0.22 * char})`; g.fillRect(-Ln, -Wn, 2 * Ln, 2 * Wn);
+    const blot = (x, y, r, a) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(8,6,5,${a})`); gr.addColorStop(0.6, `rgba(14,10,8,${a * 0.6})`); gr.addColorStop(1, "rgba(14,10,8,0)"); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); };
+    blot(Ln * 0.33, 0, 30, 0.85 * char);  // engine bay
+    blot(-Ln * 0.08, 0, 30, 0.7 * char);  // cabin
+    for (let i = 0; i < 9; i++) blot((hash(i * 3.1 + variant) - 0.5) * Ln * 0.9, (hash(i * 5.7 + variant) - 0.5) * Wn * 0.8, 6 + hash(i * 1.3) * 12, 0.55 * char);
+    g.globalCompositeOperation = "source-over";
+  }
+  return c;
+}
+function drawCarSprite(ctx, v, car) {
+  ctx.setTransform(v.k, 0, 0, v.k, v.ox, v.oy);
+  const p = CAR_PAD / 32;
+  ctx.drawImage(car, -CAR_L / 2 - p, -CAR_W / 2 - p, CAR_L + 2 * p, CAR_W + 2 * p);
+}
+
+// ---------------------------------------------------------------- particle sprites (made once)
+// Flame: ragged noisy soft blob, 4 shapes x 16 colour steps (white-yellow -> orange -> deep red).
+const FS = 96, VARS = 4, STEPS = 16;
+const RAMP = [[0, 255, 246, 214], [0.1, 255, 220, 125], [0.27, 255, 158, 52], [0.48, 240, 96, 24], [0.7, 168, 42, 12], [1, 74, 13, 6]];
+function rampAt(t) {
+  for (let i = 1; i < RAMP.length; i++) if (t <= RAMP[i][0]) { const a = RAMP[i - 1], b = RAMP[i], u = (t - a[0]) / (b[0] - a[0]); return [lerp(a[1], b[1], u), lerp(a[2], b[2], u), lerp(a[3], b[3], u)]; }
+  return RAMP[RAMP.length - 1].slice(1);
+}
+let CORE = 0; // radius (fraction of the sprite half-size) inside which mask alpha can reach 50 %
+const flameMasks = [];
+for (let v = 0; v < VARS; v++) {
+  const m = new Float32Array(FS * FS);
+  for (let y = 0; y < FS; y++) for (let x = 0; x < FS; x++) {
+    const dx = ((x + 0.5) / FS) * 2 - 1, dy = ((y + 0.5) / FS) * 2 - 1, r = Math.hypot(dx, dy), an = Math.atan2(dy, dx);
+    const n = fbm(Math.cos(an) * 1.7 + v * 5.1 + r * 1.4, Math.sin(an) * 1.7 + r * 2.3, 11 + v * 7);
+    const rr = r * (0.72 + 0.62 * n);
+    let a = Math.pow(clamp(1 - rr, 0, 1), 1.15) * 1.45;
+    const q = fbm(dx * 4.2 + v * 9, dy * 4.2 - v * 3, 3 + v);
+    a *= clamp(0.25 + 1.25 * q * q * 1.6, 0, 1.3);
+    a = clamp(a, 0, 1);
+    m[y * FS + x] = a;
+    if (a >= 0.5 && r > CORE) CORE = r;
+  }
+  flameMasks.push(m);
+}
+CORE = Math.min(1, CORE + 0.02);
+function tintMask(mask, size, rgb, aMul) {
+  const c = mk(size, size), g = c.getContext("2d"), im = g.createImageData(size, size), d = im.data;
+  for (let i = 0; i < size * size; i++) { d[i * 4] = rgb[0]; d[i * 4 + 1] = rgb[1]; d[i * 4 + 2] = rgb[2]; d[i * 4 + 3] = Math.round(clamp(mask[i] * aMul, 0, 1) * 255); }
+  g.putImageData(im, 0, 0); return c;
+}
+const flameSpr = [];
+for (let s = 0; s < STEPS; s++) { const rgb = rampAt(s / (STEPS - 1)); for (let v = 0; v < VARS; v++) flameSpr.push(tintMask(flameMasks[v], FS, rgb, 1)); }
+
+// Smoke: puffy noisy blobs, 3 shapes x 6 tones per palette (young smoke is lit warm from below).
+const SS = 96, SVARS = 3, STONES = 6;
+const SMOKE_PALS = {
+  dark: [[150, 112, 84], [104, 92, 84], [84, 80, 79], [72, 70, 71], [62, 61, 63], [56, 56, 59]],
+  grey: [[156, 132, 112], [124, 116, 110], [104, 101, 100], [90, 89, 90], [78, 78, 80], [70, 70, 73]],
+  black: [[120, 82, 56], [70, 58, 50], [50, 46, 44], [42, 40, 40], [37, 36, 37], [34, 34, 36]],
+};
+const smokeMasks = [];
+for (let v = 0; v < SVARS; v++) {
+  const m = new Float32Array(SS * SS);
+  for (let y = 0; y < SS; y++) for (let x = 0; x < SS; x++) {
+    const dx = ((x + 0.5) / SS) * 2 - 1, dy = ((y + 0.5) / SS) * 2 - 1, r = Math.hypot(dx, dy), an = Math.atan2(dy, dx);
+    const n = fbm(Math.cos(an) * 1.2 + v * 4.3, Math.sin(an) * 1.2 + v * 2.1, 40 + v);
+    const rr = r * (0.75 + 0.5 * n);
+    let a = clamp((1 - rr) / 0.6, 0, 1); a = a * a * (3 - 2 * a);
+    const q = fbm(dx * 2.6 + v * 7, dy * 2.6, 60 + v);
+    a *= 0.25 + 1.9 * q * q;
+    m[y * SS + x] = clamp(a, 0, 1);
+  }
+  smokeMasks.push(m);
+}
+const smokeSpr = {};
+for (const k in SMOKE_PALS) { smokeSpr[k] = []; for (let t = 0; t < STONES; t++) for (let v = 0; v < SVARS; v++) smokeSpr[k].push(tintMask(smokeMasks[v], SS, SMOKE_PALS[k][t], 1)); }
+
+function radialSprite(size, stops) {
+  const c = mk(size, size), g = c.getContext("2d"), gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  for (const [o, col] of stops) gr.addColorStop(o, col);
+  g.fillStyle = gr; g.fillRect(0, 0, size, size); return c;
+}
+const emberSpr = radialSprite(32, [[0, "rgba(255,246,210,1)"], [0.18, "rgba(255,200,110,0.9)"], [0.45, "rgba(255,130,40,0.25)"], [1, "rgba(255,90,20,0)"]]);
+const coalSpr = radialSprite(64, [[0, "rgba(255,170,70,0.9)"], [0.35, "rgba(230,80,20,0.45)"], [1, "rgba(160,30,10,0)"]]);
+// Ground glow: ends exactly at the sprite edge (drawn 2R wide), peak alpha < 0.5 once multiplied.
+const groundGlow = radialSprite(256, [[0, "rgba(255,160,70,1)"], [0.5, "rgba(255,118,40,0.62)"], [0.9, "rgba(235,80,25,0.36)"], [0.985, "rgba(220,70,20,0.18)"], [1, "rgba(220,70,20,0)"]]);
+// FX_GLOW of the game atlas, pre-tinted (Phaser tint x additive).
+function gameGlow(hex) { const [r, g, b] = rgbOf(hex); return radialSprite(64, [[0, `rgba(${r},${g},${b},1)`], [0.45, `rgba(${r},${g},${b},0.45)`], [1, `rgba(${r},${g},${b},0)`]]); }
+
+// Fuel pool (style C): noisy burning disc with a crisp edge exactly at the sprite edge.
+function bakePool(seed) {
+  const S = 320, c = mk(S, S), g = c.getContext("2d"), im = g.createImageData(S, S), d = im.data;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const dx = ((x + 0.5) / S) * 2 - 1, dy = ((y + 0.5) / S) * 2 - 1, r = Math.hypot(dx, dy), i = (y * S + x) * 4;
+    if (r >= 1) { d[i + 3] = 0; continue; }
+    const n = fbm(dx * 4 + seed, dy * 4 - seed, seed), n2 = fbm(dx * 9 - seed, dy * 9 + seed * 2, seed + 9);
+    const ridge = 1 - Math.abs(2 * n2 - 1); // thin bright fire lines
+    let hot = clamp(Math.pow(ridge, 4) * 0.85 + (n - 0.5) * 0.7, 0, 1);
+    hot = clamp(hot + 0.45 * Math.pow(clamp((r - 0.82) / 0.16, 0, 1), 1.5), 0, 1); // hotter rim: the edge reads
+    const rgb = rampAt(clamp(0.92 - hot * 0.85, 0.06, 1));
+    let a = 0.3 + 0.7 * hot;
+    a *= clamp((1 - r) / 0.012, 0, 1);
+    d[i] = rgb[0]; d[i + 1] = rgb[1]; d[i + 2] = rgb[2]; d[i + 3] = Math.round(a * 255);
+  }
+  g.putImageData(im, 0, 0); return c;
+}
+const poolA = bakePool(3.7), poolB = bakePool(8.1);
+
+// ---------------------------------------------------------------- particle pools (fixed arrays)
+class Pool {
+  constructor(cap) {
+    this.cap = cap; this.n = 0; this.cur = 0;
+    this.al = new Uint8Array(cap);
+    for (const f of ["x", "y", "vx", "vy", "age", "life", "s", "s1", "seed", "a"]) this[f] = new Float32Array(cap);
+  }
+  spawn(limit) {
+    if (this.n >= limit) return -1;
+    for (let k = 0; k < this.cap; k++) {
+      const i = (this.cur + k) % this.cap;
+      if (!this.al[i]) { this.al[i] = 1; this.n++; this.cur = (i + 1) % this.cap; this.age[i] = 0; this.seed[i] = Math.random(); this.a[i] = 1; return i; }
+    }
+    return -1;
+  }
+  clear() { this.al.fill(0); this.n = 0; }
+}
+function lim(cap) { return slow ? cap >> 1 : cap; }
+function put(P, cap, x, y, vx, vy, s, s1, life) {
+  const i = P.spawn(lim(cap)); if (i < 0) return -1;
+  if (s1 > 0) P.a[i] = 0.6 + 0.4 * Math.random();
+  P.x[i] = x; P.y[i] = y; P.vx[i] = vx; P.vy[i] = vy; P.s[i] = s * (slow ? 1.15 : 1); P.s1[i] = s1; P.life[i] = life; return i;
+}
+// flames: buoyant (screen-up), wind lean, swirling turbulence field
+function stepFlames(P, dt, T, buoy, turb, lean, drag) {
+  const dd = Math.max(0, 1 - drag * dt);
+  for (let i = 0; i < P.cap; i++) {
+    if (!P.al[i]) continue;
+    const age = (P.age[i] += dt);
+    if (age >= P.life[i]) { P.al[i] = 0; P.n--; continue; }
+    const x = P.x[i], y = P.y[i], s = P.seed[i];
+    const tx = Math.sin(T * 5.3 + y * 3.1 + s * 40) + 0.6 * Math.sin(T * 11.7 + x * 5.3 + s * 17);
+    const ty = Math.cos(T * 4.1 + x * 2.7 + s * 23);
+    P.vx[i] = (P.vx[i] + (tx * turb + WIND_X * lean) * dt) * dd;
+    P.vy[i] = (P.vy[i] + (ty * turb * 0.5 - buoy + WIND_Y * lean * 0.5) * dt) * dd;
+    P.x[i] = x + P.vx[i] * dt; P.y[i] = y + P.vy[i] * dt;
+  }
+}
+function stepSmoke(P, dt, T) {
+  for (let i = 0; i < P.cap; i++) {
+    if (!P.al[i]) continue;
+    const age = (P.age[i] += dt);
+    if (age >= P.life[i]) { P.al[i] = 0; P.n--; continue; }
+    const s = P.seed[i];
+    const tx = Math.sin(T * 0.9 + P.y[i] * 1.3 + s * 30) * 0.35 + (s - 0.5) * 0.5;
+    P.vx[i] += (WIND_X + tx - P.vx[i]) * 0.9 * dt;
+    P.vy[i] += (WIND_Y - 0.18 - P.vy[i]) * 0.7 * dt;
+    P.x[i] += P.vx[i] * dt; P.y[i] += P.vy[i] * dt;
+  }
+}
+function stepEmbers(P, dt, T, turb) {
+  const dd = Math.max(0, 1 - 0.9 * dt);
+  for (let i = 0; i < P.cap; i++) {
+    if (!P.al[i]) continue;
+    const age = (P.age[i] += dt);
+    if (age >= P.life[i]) { P.al[i] = 0; P.n--; continue; }
+    const s = P.seed[i];
+    P.vx[i] = (P.vx[i] + (Math.sin(T * 7 + s * 50 + P.y[i] * 4) * turb + WIND_X * 0.8) * dt) * dd;
+    P.vy[i] = (P.vy[i] + (Math.cos(T * 6 + s * 31) * turb * 0.6 - 0.35) * dt) * dd;
+    P.x[i] += P.vx[i] * dt; P.y[i] += P.vy[i] * dt;
+  }
+}
+
+// ---------------------------------------------------------------- drawing particles
+// v = view: {k: device px per metre, ox, oy: device px of the fire centre, ppm}
+function drawFlames(ctx, v, P, fitR) {
+  ctx.globalCompositeOperation = "lighter";
+  const k = v.k;
+  for (let i = 0; i < P.cap; i++) {
+    if (!P.al[i]) continue;
+    const t = P.age[i] / P.life[i];
+    const grow = t < 0.18 ? 0.5 + 0.5 * (t / 0.18) : 1 - 0.62 * ((t - 0.18) / 0.82);
+    const size = P.s[i] * grow;
+    const vx = P.vx[i], vy = P.vy[i], sp = Math.sqrt(vx * vx + vy * vy);
+    const st = 1 + Math.min(0.9, sp * 0.55);
+    let L = size * st, H = size * (1 - (st - 1) * 0.25);
+    const x = P.x[i], y = P.y[i];
+    if (fitR > 0) { // the rule: the bright core (alpha > 50 %) ends at the damage edge at most
+      const allow = fitR - Math.sqrt(x * x + y * y), core = CORE * L * 0.5;
+      if (core > allow) { if (allow < 0.025) continue; const f = allow / core; L *= f; H *= f; }
+    }
+    let cs = 0, sn = -1; if (sp > 0.05) { cs = vx / sp; sn = vy / sp; }
+    const idx = Math.min(STEPS - 1, (t * STEPS) | 0) * VARS + (((P.seed[i] * 97) | 0) % VARS);
+    ctx.globalAlpha = (t < 0.08 ? t / 0.08 : 1) * P.a[i];
+    ctx.setTransform(cs * L * k, sn * L * k, -sn * H * k, cs * H * k, v.ox + x * k, v.oy + y * k);
+    ctx.drawImage(flameSpr[idx], -0.5, -0.5, 1, 1);
+  }
+}
+function drawSmoke(ctx, v, P, pal, amax) {
+  ctx.globalCompositeOperation = "source-over";
+  const k = v.k, spr = smokeSpr[pal];
+  for (let i = 0; i < P.cap; i++) {
+    if (!P.al[i]) continue;
+    const t = P.age[i] / P.life[i], u = 1 - t;
+    const size = P.s[i] + (P.s1[i] - P.s[i]) * (1 - u * u);
+    const d = Math.sqrt(P.x[i] * P.x[i] + P.y[i] * P.y[i]), fz = clamp((d - 0.8) / 1.6, 0.18, 1);
+    const a = amax * P.a[i] * fz * (t < 0.2 ? t / 0.2 : Math.pow(u / 0.8, 1.2));
+    const s = P.seed[i], rot = s * TAU + P.age[i] * (s < 0.5 ? -0.3 : 0.3);
+    const cs = Math.cos(rot) * size * k, sn = Math.sin(rot) * size * k;
+    ctx.globalAlpha = Math.min(0.6, a);
+    ctx.setTransform(cs, sn, -sn, cs, v.ox + P.x[i] * k, v.oy + P.y[i] * k);
+    ctx.drawImage(spr[Math.min(STONES - 1, (t * STONES * 1.15) | 0) * SVARS + (((s * 31) | 0) % SVARS)], -0.5, -0.5, 1, 1);
+  }
+}
+function drawEmbers(ctx, v, P) {
+  ctx.globalCompositeOperation = "lighter";
+  const k = v.k;
+  for (let i = 0; i < P.cap; i++) {
+    if (!P.al[i]) continue;
+    const t = P.age[i] / P.life[i], x = P.x[i], y = P.y[i];
+    const vx = P.vx[i], vy = P.vy[i], sp = Math.sqrt(vx * vx + vy * vy);
+    const st = 1 + Math.min(2.2, sp * 0.9);
+    const size = P.s[i] * 5 * (1 - t * 0.5), L = size * st, H = size;
+    let a = (0.55 + 0.45 * Math.sin(P.age[i] * 26 + P.seed[i] * 40)) * Math.pow(1 - t, 0.7);
+    if (x * x + y * y > R * R) a = Math.min(a, 0.45);
+    let cs = 0, sn = -1; if (sp > 0.05) { cs = vx / sp; sn = vy / sp; }
+    ctx.globalAlpha = a;
+    ctx.setTransform(cs * L * k, sn * L * k, -sn * H * k, cs * H * k, v.ox + x * k, v.oy + y * k);
+    ctx.drawImage(emberSpr, -0.5, -0.5, 1, 1);
+  }
+}
+function flick(T, s) { return 0.72 + 0.14 * Math.sin(T * 13.1 + s) + 0.09 * Math.sin(T * 29.7 + s * 2.3) + 0.05 * Math.sin(T * 51.3 + s * 5.1); }
+function drawGlow(ctx, v, a) {
+  ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = a;
+  ctx.setTransform(v.k, 0, 0, v.k, v.ox, v.oy); ctx.drawImage(groundGlow, -R, -R, 2 * R, 2 * R);
+}
+function drawRingLine(ctx, v, alpha, pulse) {
+  ctx.setTransform(v.k, 0, 0, v.k, v.ox, v.oy);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = 0.1 + 0.08 * pulse; ctx.strokeStyle = "#ff7828"; ctx.lineWidth = 5 / v.ppm;
+  circle(ctx, 0, 0, R - 2.5 / v.ppm); ctx.stroke();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = alpha; ctx.lineWidth = 2 / v.ppm;
+  circle(ctx, 0, 0, R - 1 / v.ppm); ctx.stroke();
+}
+function drawEdgeOverlay(ctx, v) {
+  if (!showEdge) return;
+  ctx.setTransform(v.k, 0, 0, v.k, v.ox, v.oy); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = "#39d7ff"; ctx.lineWidth = 1 / v.ppm; ctx.setLineDash([4 / v.ppm, 4 / v.ppm]);
+  circle(ctx, 0, 0, R); ctx.stroke(); ctx.setLineDash([]);
+}
+// Heat haze: horizontal strips of the region over the fire nudged sideways.
+function shimmer(ctx, v, T, scratch) {
+  const c = ctx.canvas, sg = scratch.getContext("2d");
+  const x0 = Math.max(0, (v.ox - 2.4 * v.k) | 0), y0 = Math.max(0, (v.oy - 1.9 * v.k) | 0);
+  const w = Math.min(c.width - x0, (4.8 * v.k) | 0), h = Math.min(c.height - y0, (3.4 * v.k) | 0);
+  if (w <= 0 || h <= 0) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
+  sg.clearRect(0, 0, w, h); sg.drawImage(c, x0, y0, w, h, 0, 0, w, h);
+  const sh = Math.max(2, Math.round(3 * DPR)), amp = 0.8 * DPR * (v.ppm / 48);
+  for (let j = 0; j < h; j += sh) {
+    const off = Math.sin(j / DPR * 0.11 + T * 13) * amp * Math.sin(Math.PI * j / h) + Math.sin(j / DPR * 0.043 - T * 7) * amp * 0.5;
+    ctx.drawImage(scratch, 0, j, w, sh, x0 + off, y0 + j, w, sh);
+  }
+}
+
+// ---------------------------------------------------------------- ground (baked per view)
+function bakeGround(wCss, hCss, v, opts) {
+  const c = mk(wCss * DPR, hCss * DPR), g = c.getContext("2d");
+  g.fillStyle = "#18191c"; g.fillRect(0, 0, c.width, c.height);
+  // large wet / worn patches
+  for (let i = 0; i < 14; i++) {
+    const x = hash(i * 7.3 + 1) * c.width, y = hash(i * 3.9 + 2) * c.height, r = (40 + hash(i * 1.7) * 120) * DPR;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    const lighter = i % 3 === 0;
+    gr.addColorStop(0, lighter ? "rgba(52,62,78,0.22)" : "rgba(0,0,0,0.22)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  // grit
+  for (let i = 0; i < c.width * c.height / 90; i++) {
+    const x = hash(i * 1.37 + 0.1) * c.width, y = hash(i * 2.71 + 0.3) * c.height, l = hash(i * 0.77);
+    g.fillStyle = l > 0.5 ? `rgba(120,124,132,${0.05 + 0.07 * l})` : `rgba(0,0,0,${0.18 * l + 0.05})`;
+    g.fillRect(x, y, DPR, DPR);
+  }
+  g.setTransform(v.k, 0, 0, v.k, v.ox, v.oy);
+  // faded parking stripes
+  g.fillStyle = "rgba(150,150,140,0.14)";
+  for (const sx of [-3.2, 3.2]) g.fillRect(sx - 0.05, -2.8, 0.1, 5.6);
+  // cracks
+  g.strokeStyle = "rgba(0,0,0,0.45)"; g.lineWidth = 1.2 / v.ppm;
+  for (let k2 = 0; k2 < 4; k2++) {
+    let x = -6 + hash(k2 * 9.1) * 12, y = -3 + hash(k2 * 4.4) * 6; g.beginPath(); g.moveTo(x, y);
+    for (let s = 0; s < 6; s++) { x += (hash(k2 * 13 + s) - 0.4) * 0.6; y += (hash(k2 * 17 + s * 3) - 0.5) * 0.6; g.lineTo(x, y); }
+    g.stroke();
+  }
+  // scorch (as drawCity.scorch)
+  const gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
+  gr.addColorStop(0, "rgba(8,6,5,0.8)"); gr.addColorStop(0.9, "rgba(14,10,8,0.66)"); gr.addColorStop(1, "rgba(20,14,10,0)");
+  g.fillStyle = gr; g.fillRect(-R, -R, 2 * R, 2 * R);
+  // car shadow (cast to the lower right)
+  for (let s = 0; s < 6; s++) { g.fillStyle = "rgba(0,0,0,0.12)"; rrect(g, -CAR_L / 2 + 0.04 * s, -CAR_W / 2 + 0.05 * s, CAR_L, CAR_W, 0.15); g.fill(); }
+  return c;
+}
+
+// ---------------------------------------------------------------- the atlas (today's look)
+const atlas = new Image();
+let atlasReady = false;
+atlas.onload = () => { atlasReady = true; bakeTodaySmoke(); if (stillMode()) renderStill(); };
+atlas.src = "img/objects.png";
+// frame rects from objects.json
+const FR = {
+  fx_flame_a: [326, 132, 64, 64], fx_flame_b: [392, 132, 64, 64], fx_flame_c: [2, 262, 64, 64], fx_flame_d: [68, 262, 64, 64],
+  fx_smoke_a: [2, 2, 128, 128], fx_smoke_b: [132, 2, 128, 128], fx_smoke_c: [262, 2, 128, 128], fx_smoke_d: [2, 132, 128, 128],
+};
+const FLAME_FRAMES = ["fx_flame_a", "fx_flame_b", "fx_flame_c", "fx_flame_d"];
+const SMOKE_FRAMES = ["fx_smoke_a", "fx_smoke_b", "fx_smoke_c", "fx_smoke_d"];
+let todaySmoke = [];
+function bakeTodaySmoke() { // Phaser tint 0x9a8f86 = multiply
+  todaySmoke = SMOKE_FRAMES.map((f) => {
+    const [x, y, w, h] = FR[f], c = mk(w, h), g = c.getContext("2d");
+    g.drawImage(atlas, x, y, w, h, 0, 0, w, h);
+    g.globalCompositeOperation = "multiply"; g.fillStyle = "#9a8f86"; g.fillRect(0, 0, w, h);
+    g.globalCompositeOperation = "destination-in"; g.drawImage(atlas, x, y, w, h, 0, 0, w, h);
+    return c;
+  });
+}
+const glowFire = gameGlow("#ff7a28"), glowRing = gameGlow("#ff7828"), glowSpark = gameGlow("#ffb050");
+function drawFrame(ctx, v, name, x, y, size, rot, alpha) {
+  const [fx, fy, fw, fh] = FR[name], k = v.k, cs = Math.cos(rot) * size * k, sn = Math.sin(rot) * size * k;
+  ctx.globalAlpha = alpha; ctx.setTransform(cs, sn, -sn, cs, v.ox + x * k, v.oy + y * k);
+  ctx.drawImage(atlas, fx, fy, fw, fh, -0.5, -0.5, 1, 1);
+}
+function drawImg(ctx, v, img, x, y, size, rot, alpha) {
+  const k = v.k, cs = Math.cos(rot) * size * k, sn = Math.sin(rot) * size * k;
+  ctx.globalAlpha = alpha; ctx.setTransform(cs, sn, -sn, cs, v.ox + x * k, v.oy + y * k);
+  ctx.drawImage(img, -0.5, -0.5, 1, 1);
+}
+function pulseAt(T) { const ph = (T % PULSE_S) / PULSE_S; return Math.exp(-ph * 5); }
+
+// ---------------------------------------------------------------- scenes
+// TODAY (Story 4.11): CityView ring flames / car flames / smoke / sparks / embers / light + drawCity static flames.
+const RING_FLAME_M = 0.8, CORE_FRAC_TODAY = 0.45;
+const ringCentreR = R - CORE_FRAC_TODAY * RING_FLAME_M * 1.0 * 1.15;
+const RING_N = Math.max(6, Math.min(24, Math.round((TAU * ringCentreR) / 0.75)));
+const todayStatic = []; for (let i = 0; i < 9; i++) todayStatic.push([(hash(i * 1.9 + 0.3) - 0.5) * 40 / 32, (hash(i * 2.7 + 0.9) - 0.5) * 40 / 32, (6 + hash(i * 3.3 + 0.2) * 9) / 32]);
+function drawToday(ctx, v, T) {
+  if (!atlasReady) return;
+  const P = pulseAt(T);
+  // lightmap warmth inside the ring (drawCity: radial 255,120,40 within R)
+  ctx.globalCompositeOperation = "lighter"; ctx.setTransform(v.k, 0, 0, v.k, v.ox, v.oy);
+  // static flames baked over the car (drawCity.flames)
+  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+  for (const [fx, fy, r] of todayStatic) {
+    const gr = ctx.createRadialGradient(fx, fy, 0, fx, fy, r);
+    gr.addColorStop(0, "rgba(255,236,170,0.95)"); gr.addColorStop(0.45, "rgba(255,140,40,0.8)"); gr.addColorStop(1, "rgba(200,40,10,0)");
+    ctx.fillStyle = gr; ctx.fillRect(fx - r, fy - r, 2 * r, 2 * r);
+  }
+  ctx.fillStyle = "rgba(30,30,32,0.35)"; ell(ctx, 26 / 32, 34 / 32, 26 / 32, 16 / 32, 0.6); ctx.fill();
+  // flicker light (FIRE_LIGHT_M = 4 m, additive)
+  ctx.globalCompositeOperation = "lighter";
+  drawImg(ctx, v, glowFire, 0, 0, 4, 0, 0.28 + 0.22 * hash(Math.floor(T * 9)));
+  // ring line + 8 ember dots
+  ctx.globalCompositeOperation = "source-over";
+  ctx.setTransform(v.k, 0, 0, v.k, v.ox, v.oy); ctx.globalAlpha = 0.55; ctx.strokeStyle = "#ff7828"; ctx.lineWidth = 2 / v.ppm; circle(ctx, 0, 0, R); ctx.stroke();
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU + T * 0.15 * (i % 2 === 0 ? 1 : -1); drawImg(ctx, v, glowRing, Math.cos(a) * R, Math.sin(a) * R, 0.22, 0, 0.25 + 0.6 * hash(Math.floor(T * 7) + i * 13)); }
+  // ring flames (normal blending, frame swap at 8 Hz)
+  ctx.globalCompositeOperation = "source-over";
+  const step = Math.floor(T * 8);
+  for (let i = 0; i < RING_N; i++) {
+    const a = ((i + 0.5) / RING_N) * TAU, fr = (step + i * 7) % 4, f = hash(step * 1.3 + i * 13.1);
+    const size = RING_FLAME_M * (0.8 + 0.2 * f) * (1 + 0.15 * P);
+    drawFrame(ctx, v, FLAME_FRAMES[fr], Math.cos(a) * ringCentreR, Math.sin(a) * ringCentreR, size, hash(i * 3.7) * TAU, 0.6 + 0.25 * f + 0.15 * P);
+  }
+  // car flames (4)
+  const cstep = Math.floor(T * 10);
+  for (let i = 0; i < 4; i++) {
+    const f = hash(cstep * 0.7 + i * 9.3), size = 1.1 * (0.7 + 0.5 * f);
+    drawFrame(ctx, v, FLAME_FRAMES[i % 4], (hash(i * 4.1) - 0.5) * 1.4, (hash(i * 6.3) - 0.5) * 0.7, size, f * 0.6, 0.7 + 0.3 * f);
+  }
+  // smoke (6)
+  for (let i = 0; i < 6; i++) {
+    const ph0 = T / 3.2 + i / 6, ph = ph0 - Math.floor(ph0), size = 1.2 + 1.8 * ph, wob = (hash(Math.floor(ph0) * 3.3 + i) - 0.5) * 0.8;
+    drawImg(ctx, v, todaySmoke[i % 4], 3.2 * ph + wob, 2.2 * ph * ph - 0.3 + wob * 0.5, size, ph0 * 0.8 + i, 0.4 * Math.min(1, ph * 6) * (1 - ph));
+  }
+  // sparks (10)
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 10; i++) {
+    const ph0 = T / 1.3 + i / 10, ph = ph0 - Math.floor(ph0), ox = (hash(Math.floor(ph0) * 7.1 + i * 3.3) - 0.5) * 1.4;
+    drawImg(ctx, v, glowSpark, ox + ph * 0.8, -ph * 1.8, 0.09, 0, 1 - ph);
+  }
+}
+
+// CODE FIRES ------------------------------------------------------------
+// caps per fire (full mode; slow phone mode halves every cap and every spawn rate)
+const CAPS = {
+  A: { flames: 80, ring: 64, smoke: 40, embers: 26 },
+  B: { flames: 34, ring: 40, smoke: 30, embers: 56 },
+  C: { flames: 120, ring: 0, smoke: 44, embers: 24 },
+  D: { flames: 130, ring: 0, smoke: 44, embers: 24 },
+};
+class Fire {
+  constructor(style) {
+    this.style = style; this.cap = CAPS[style];
+    this.flames = new Pool(this.cap.flames); this.ring = new Pool(Math.max(1, this.cap.ring));
+    this.smoke = new Pool(this.cap.smoke); this.embers = new Pool(this.cap.embers);
+    this.acc = new Float32Array(8);
+    this.crawl = new Float32Array(10); this.crawlW = new Float32Array(10);
+    for (let i = 0; i < 10; i++) { this.crawl[i] = hash(i * 2.9) * TAU; this.crawlW[i] = (0.12 + hash(i * 5.1) * 0.25) * (i % 2 ? 1 : -1); }
+    this.coals = []; for (let i = 0; i < 12; i++) this.coals.push([(hash(i * 3.3 + 1) - 0.5) * 3.2, (hash(i * 7.7 + 2) - 0.5) * 1.5, 0.22 + hash(i * 1.1) * 0.25, hash(i * 9.9) * TAU]);
+  }
+  count() { return this.flames.n + this.ring.n + this.smoke.n + this.embers.n; }
+  capTotal() { return this.cap.flames + this.cap.ring + this.cap.smoke + this.cap.embers; }
+  emit(slot, rate, dt) { // returns how many to spawn this step
+    const a = this.acc[slot] + rate * dt * (slow ? 0.5 : 1); const n = Math.floor(a); this.acc[slot] = a - n; return n;
+  }
+  update(dt, T) {
+    const st = this.style, c = this.cap, pulse = pulseAt(T);
+    if (st === "A") {
+      for (let n = this.emit(0, 150, dt); n > 0; n--) { // engine + cabin: tall roaring flames
+        const eng = Math.random() < 0.55;
+        const x = eng ? rnd(0.85, 1.5) : rnd(-0.95, 0.5), y = eng ? rnd(-0.6, 0.6) : rnd(-0.5, 0.5);
+        const i = put(this.flames, c.flames, x, y, rnd(-0.25, 0.25), rnd(-1.8, -1.0), rnd(0.45, 0.8), 0, rnd(0.4, 0.7));
+        if (i >= 0) this.flames.a[i] = 0.62;
+      }
+      for (let n = this.emit(1, 150 * (1 + 0.4 * pulse), dt); n > 0; n--) { // ring of small fires, 14 sites on the edge
+        const site = (Math.random() * 14) | 0, a = ((site + 0.5) / 14) * TAU + rnd(-0.06, 0.06), s = rnd(0.3, 0.44);
+        const rr = R - CORE * s * 0.5 - rnd(0, 0.08);
+        const i = put(this.ring, c.ring, Math.cos(a) * rr, Math.sin(a) * rr, rnd(-0.1, 0.1), rnd(-0.5, -0.2), s, 0, rnd(0.28, 0.5));
+        if (i >= 0) this.ring.a[i] = 0.8;
+      }
+      for (let n = this.emit(2, 11, dt); n > 0; n--) put(this.smoke, c.smoke, rnd(0, 1.4), rnd(-0.3, 0.4), WIND_X * 1.6, WIND_Y * 1.4 - 0.2, rnd(0.6, 0.9), rnd(2.6, 3.4), rnd(3.0, 4.0));
+      for (let n = this.emit(3, 22, dt); n > 0; n--) put(this.embers, c.embers, rnd(-1, 1.4), rnd(-0.6, 0.6), rnd(-0.6, 0.6), rnd(-2.6, -1.2), rnd(0.05, 0.085), 0, rnd(0.7, 1.5));
+      stepFlames(this.flames, dt, T, 1.1, 1.5, 0.5, 1.0);
+      stepFlames(this.ring, dt, T, 0.4, 1.0, 0.15, 2.0);
+      stepEmbers(this.embers, dt, T, 3.0);
+    } else if (st === "B") {
+      for (let n = this.emit(0, 55, dt); n > 0; n--) { // low flames from a few hot spots
+        const h = this.coals[(Math.random() * 7) | 0];
+        const i = put(this.flames, c.flames, h[0] * 0.8 + rnd(-0.25, 0.25), h[1] * 0.8 + rnd(-0.2, 0.2), rnd(-0.15, 0.15), rnd(-0.75, -0.35), rnd(0.3, 0.52), 0, rnd(0.35, 0.6));
+        if (i >= 0) this.flames.a[i] = 0.75;
+      }
+      for (let i = 0; i < 10; i++) this.crawl[i] += this.crawlW[i] * dt;
+      for (let n = this.emit(1, 75, dt); n > 0; n--) { // creeping ground fronts along the edge
+        const f = (Math.random() * 10) | 0, a = this.crawl[f] + rnd(-0.2, 0.2), s = rnd(0.26, 0.4), rr = R - CORE * s * 0.5 - rnd(0, 0.1);
+        const tw = this.crawlW[f] * rr; // move with the front along the ring
+        put(this.ring, c.ring, Math.cos(a) * rr, Math.sin(a) * rr, -Math.sin(a) * tw, Math.cos(a) * tw - 0.12, s, 0, rnd(0.35, 0.6));
+      }
+      for (let n = this.emit(2, 7.5, dt); n > 0; n--) put(this.smoke, c.smoke, rnd(-1.2, 1.6), rnd(-0.6, 0.6), WIND_X * 1.2, WIND_Y - 0.2, rnd(0.5, 0.8), rnd(2.2, 2.9), rnd(3.6, 4.6));
+      for (let n = this.emit(3, 34, dt); n > 0; n--) {
+        const fromRing = Math.random() < 0.3, a = rnd(0, TAU);
+        const x = fromRing ? Math.cos(a) * (R - 0.2) : rnd(-1.6, 1.6), y = fromRing ? Math.sin(a) * (R - 0.2) : rnd(-0.8, 0.8);
+        put(this.embers, c.embers, x, y, rnd(-0.4, 0.4), rnd(-1.3, -0.4), rnd(0.04, 0.07), 0, rnd(1.1, 2.4));
+      }
+      stepFlames(this.flames, dt, T, 0.5, 1.2, 0.35, 1.6);
+      stepFlames(this.ring, dt, T, 0.25, 0.8, 0.1, 1.2);
+      stepEmbers(this.embers, dt, T, 2.2);
+    } else { // C
+      const D = st === "D";
+      for (let n = this.emit(0, D ? 300 : 240, dt); n > 0; n--) {
+        const s = rnd(0.3, 0.55);
+        if (Math.random() < 0.34) { // the car itself
+          const i = put(this.flames, c.flames, rnd(-0.9, 1.4), rnd(-0.6, 0.6), rnd(-0.2, 0.2), rnd(-1.5, -0.8), rnd(0.5, 0.85), 0, rnd(0.4, 0.7));
+          if (i >= 0) this.flames.a[i] = 0.7;
+        } else { // flames over the whole pool, denser at its edge
+          const edge = Math.random() < (D ? 0.6 : 0.42), a = rnd(0, TAU), se = edge && D ? rnd(0.26, 0.4) : s;
+          const rr = edge ? R - CORE * se * 0.5 - rnd(0, D ? 0.06 : 0.12) : R * Math.sqrt(Math.random()) * 0.95;
+          put(this.flames, c.flames, Math.cos(a) * rr, Math.sin(a) * rr, rnd(-0.15, 0.15), rnd(-0.7, -0.3), se, 0, edge && D ? rnd(0.24, 0.4) : rnd(0.28, 0.5));
+        }
+      }
+      for (let n = this.emit(2, 12, dt); n > 0; n--) put(this.smoke, c.smoke, rnd(-0.6, 1.6), rnd(-0.6, 0.6), WIND_X * 1.6, WIND_Y * 1.4 - 0.2, rnd(0.7, 1.0), rnd(2.8, 3.5), rnd(3.0, 4.2));
+      for (let n = this.emit(3, 16, dt); n > 0; n--) put(this.embers, c.embers, rnd(-1.6, 1.6), rnd(-1.2, 1.2), rnd(-0.6, 0.6), rnd(-2.4, -1.0), rnd(0.05, 0.08), 0, rnd(0.7, 1.4));
+      stepFlames(this.flames, dt, T, 0.8, 1.4, 0.3, 1.2);
+      stepEmbers(this.embers, dt, T, 3.0);
+    }
+    stepSmoke(this.smoke, dt, T);
+  }
+  // layers: under = ground light (before the car for C), mid = glow, flames; top = smoke, embers, ring line
+  drawUnder(ctx, v, T) {
+    if (this.style !== "C") return;
+    ctx.globalCompositeOperation = "lighter";
+    const f1 = flick(T, 1.3), f2 = flick(T * 1.1, 4.2);
+    drawImg(ctx, v, poolA, 0, 0, 2 * R, T * 0.13, 0.5 * f1);
+    drawImg(ctx, v, poolB, 0, 0, 2 * R, -T * 0.21 + 1.3, 0.42 * f2);
+  }
+  drawMid(ctx, v, T, scratch) {
+    const st = this.style;
+    drawGlow(ctx, v, (st === "B" ? 0.12 : st === "C" ? 0.07 : st === "D" ? 0.13 : 0.14) * flick(T, 0.7));
+    if (st === "A") { // a small hot spot of light under each edge fire
+      ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < 14; i++) { const a = ((i + 0.5) / 14) * TAU, rr = R - 0.2; drawImg(ctx, v, coalSpr, Math.cos(a) * rr, Math.sin(a) * rr, 0.38, 0, 0.35 * flick(T, i * 1.7)); }
+    }
+    if (st === "B") { // glowing coals on the wreck
+      ctx.globalCompositeOperation = "lighter";
+      for (const [x, y, s, ph] of this.coals) drawImg(ctx, v, coalSpr, x, y, s * 1.6, 0, 0.45 + 0.35 * Math.sin(T * 1.7 + ph) * Math.sin(T * 0.6 + ph * 2));
+    }
+    if (scratch) shimmer(ctx, v, T, scratch);
+    drawSmoke(ctx, v, this.smoke, st === "A" ? "dark" : st === "B" ? "grey" : "black", st === "B" ? 0.5 : 0.6);
+    drawFlames(ctx, v, this.ring, R);
+    drawFlames(ctx, v, this.flames, R);
+  }
+  drawTop(ctx, v, T) {
+    const st = this.style;
+    drawEmbers(ctx, v, this.embers);
+    drawRingLine(ctx, v, st === "C" ? 0.5 : 0.55, pulseAt(T));
+  }
+}
+
+// Burning survivor: walks into the zone and back out (6 s loop).
+class Survivor {
+  constructor() {
+    this.x = 3.5; this.y = 1.7; this.face = Math.PI; this.burn = 0; this.vx = 0;
+    this.flames = new Pool(28); this.smoke = new Pool(10); this.embers = new Pool(14); this.acc = new Float32Array(3);
+  }
+  count() { return this.flames.n + this.smoke.n + this.embers.n; }
+  emit(slot, rate, dt) { const a = this.acc[slot] + rate * dt * (slow ? 0.5 : 1); const n = Math.floor(a); this.acc[slot] = a - n; return n; }
+  update(dt, T) {
+    const ph = T % 6.5; let x;
+    if (ph < 1.3) x = lerp(3.5, 1.0, ph / 1.3);
+    else if (ph < 3.0) x = 1.0;
+    else if (ph < 4.3) x = lerp(1.0, 3.5, (ph - 3.0) / 1.3);
+    else x = 3.5;
+    this.vx = dt > 0 ? (x - this.x) / dt : 0; if (this.vx < -0.1) this.face = Math.PI; else if (this.vx > 0.1) this.face = 0;
+    this.x = x;
+    const inside = Math.hypot(this.x, this.y) < R + SURV_R;
+    this.burn = inside ? Math.min(1, this.burn + dt * 5) : Math.max(0, this.burn - dt / 0.9);
+    const b = this.burn;
+    for (let n = this.emit(0, 60 * b, dt); n > 0; n--) {
+      const a = rnd(0, TAU), r = Math.sqrt(Math.random()) * 0.32;
+      put(this.flames, 28, this.x + Math.cos(a) * r, this.y + Math.sin(a) * r, this.vx * 0.5 + rnd(-0.2, 0.2), rnd(-1.1, -0.5), rnd(0.26, 0.42) * (0.6 + 0.4 * b), 0, rnd(0.28, 0.5));
+    }
+    for (let n = this.emit(1, 5 * b, dt); n > 0; n--) put(this.smoke, 10, this.x + rnd(-0.2, 0.2), this.y - 0.3, this.vx * 0.4, -0.4, 0.3, rnd(1.1, 1.5), rnd(1.6, 2.2));
+    for (let n = this.emit(2, 12 * b, dt); n > 0; n--) put(this.embers, 14, this.x + rnd(-0.3, 0.3), this.y + rnd(-0.3, 0.3), this.vx * 0.3 + rnd(-0.4, 0.4), rnd(-2, -0.8), rnd(0.04, 0.065), 0, rnd(0.5, 1.1));
+    stepFlames(this.flames, dt, T, 1.2, 1.4, 0.2, 1.2); stepSmoke(this.smoke, dt, T); stepEmbers(this.embers, dt, T, 2.5);
+  }
+  drawBody(ctx, v) {
+    const k = v.k, X = v.ox + this.x * k, Y = v.oy + this.y * k, rpx = SURV_R * v.ppm;
+    ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 0.45;
+    ctx.setTransform(DPR, 0, 0, DPR, X + 0.08 * k, Y + 0.1 * k); ctx.fillStyle = "#000"; ell(ctx, 0, 0, rpx * 1.05, rpx * 0.95); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.setTransform(DPR, 0, 0, DPR, X, Y); ctx.strokeStyle = "#2f7ff0"; ctx.lineWidth = Math.max(1.5, rpx * 0.12); circle(ctx, 0, 0, rpx * 1.12); ctx.stroke();
+    const c = Math.cos(this.face) * DPR, s = Math.sin(this.face) * DPR;
+    ctx.setTransform(c, s, -s, c, X, Y); drawSurvivor(ctx, rpx);
+    if (this.burn > 0) { ctx.globalCompositeOperation = "lighter"; drawImg(ctx, v, groundGlow, this.x, this.y, 1.4, 0, 0.3 * this.burn * flick(performance.now() / 1000, 3)); }
+    drawFlames(ctx, v, this.flames, 0);
+  }
+  drawTop(ctx, v) { drawSmoke(ctx, v, this.smoke, "dark", 0.45); drawEmbers(ctx, v, this.embers); }
+}
+
+// ---------------------------------------------------------------- panels
+const PANELS = [
+  { id: "today", tag: "Reference", title: "Today (4.11)", desc: "Meshy atlas sprites as the game draws them: 13 ring flames, 4 car flames, 6 smoke puffs, 10 sparks, 8 ember dots, a flicker light.", variant: 0, char: 0, cap: "sprites: fixed 41 per fire (13 ring + 4 car + 6 smoke + 10 sparks + 8 dots)" },
+  { id: "A", tag: "Code fire A", title: "Roaring", desc: "Tall flames out of the engine bay and cabin, 14 small fires on the zone edge, thick dark smoke on the wind.", variant: 0, char: 1 },
+  { id: "B", tag: "Code fire B", title: "Smouldering", desc: "Low flames from hot spots, glowing coals and lots of embers, flame fronts creeping round the edge, grey smoke.", variant: 1, char: 1.2 },
+  { id: "C", tag: "Code fire C", title: "Fuel fire", desc: "Burning fuel fills the zone up to the damage edge as a flickering pool, the car burns in the middle, black smoke.", variant: 2, char: 1.3 },
+  { id: "D", tag: "Code fire D", badge: "new", title: "Fuel flames, no pool", desc: "The fuel fire's flames, smoke and embers on plain night asphalt: no glowing floor, just a scorch and the flames' flickering light.", variant: 2, char: 1.3 },
+  { id: "S", tag: "Style A + body", title: "Burning survivor", desc: "The survivor walks into the zone and out again. Flames, smoke and embers on the body while inside, fading after.", variant: 0, char: 1 },
+];
+const MAIN_W = 480, MAIN_H = 320, STRIP_W = 480, STRIP_H = 210;
+const grid = document.getElementById("grid");
+const scenes = [];
+for (const p of PANELS) {
+  const el = document.createElement("section"); el.className = "panel";
+  el.innerHTML = `<div class="tag">${p.tag}${p.badge ? ` <span class="new">${p.badge}</span>` : ""}</div><h2>${p.title}</h2><p>${p.desc}</p>`;
+  const main = mk(MAIN_W * DPR, MAIN_H * DPR), strip = mk(STRIP_W * DPR, STRIP_H * DPR);
+  main.style.aspectRatio = `${MAIN_W} / ${MAIN_H}`; strip.style.aspectRatio = `${STRIP_W} / ${STRIP_H}`;
+  main.setAttribute("aria-label", `${p.title}, close-up`); strip.setAttribute("aria-label", `${p.title}, in-game size`);
+  el.appendChild(main);
+  const sl = document.createElement("div"); sl.className = "strip-label"; sl.textContent = "In-game size · 48 px/m · 2 m zone = 192 px across"; el.appendChild(sl);
+  el.appendChild(strip);
+  const stats = document.createElement("div"); stats.className = "stats"; el.appendChild(stats);
+  const cap = document.createElement("div"); cap.className = "cap"; el.appendChild(cap);
+  grid.appendChild(el);
+  const vm = { k: MAIN_PPM * DPR, ox: 205 * DPR, oy: 150 * DPR, ppm: MAIN_PPM };
+  const vs = { k: GAME_PPM * DPR, ox: 175 * DPR, oy: 100 * DPR, ppm: GAME_PPM };
+  const fire = p.id === "today" ? null : new Fire(p.id === "S" ? "A" : p.id);
+  scenes.push({
+    p, main, strip, stats, cap, vm, vs, fire, surv: p.id === "S" ? new Survivor() : null,
+    ctxM: main.getContext("2d"), ctxS: strip.getContext("2d"),
+    gM: bakeGround(MAIN_W, MAIN_H, vm), gS: bakeGround(STRIP_W, STRIP_H, vs),
+    car: bakeCar(p.variant, p.char), scrM: mk(main.width, main.height), scrS: mk(strip.width, strip.height),
+    ms: 0, visible: true, T: 0,
+  });
+}
+function capText(s) {
+  if (!s.fire) return s.p.cap;
+  const c = s.fire.cap, h = (n) => (slow ? n >> 1 : n);
+  let t = `cap per fire: flames ≤ ${h(c.flames)}` + (c.ring ? ` · edge ≤ ${h(c.ring)}` : "") + ` · smoke ≤ ${h(c.smoke)} · embers ≤ ${h(c.embers)} = ${h(s.fire.capTotal())}`;
+  if (s.surv) t += ` · body ≤ ${h(28) + h(10) + h(14)}`;
+  return t;
+}
+function refreshCaps() { for (const s of scenes) s.cap.textContent = capText(s); }
+refreshCaps();
+
+function renderView(s, ctx, v, ground, scratch) {
+  const T = s.T;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
+  ctx.drawImage(ground, 0, 0);
+  if (!s.fire) { drawCarSprite(ctx, v, s.car); drawToday(ctx, v, T); drawEdgeOverlay(ctx, v); return; }
+  s.fire.drawUnder(ctx, v, T);
+  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+  drawCarSprite(ctx, v, s.car);
+  s.fire.drawMid(ctx, v, T, scratch);
+  if (s.surv) s.surv.drawBody(ctx, v);
+  s.fire.drawTop(ctx, v, T);
+  if (s.surv) s.surv.drawTop(ctx, v);
+  drawEdgeOverlay(ctx, v);
+}
+function tick(s, dt) {
+  const t0 = performance.now();
+  s.T += dt;
+  if (s.fire) s.fire.update(dt, s.T);
+  if (s.surv) s.surv.update(dt, s.T);
+  renderView(s, s.ctxM, s.vm, s.gM, s.scrM);
+  renderView(s, s.ctxS, s.vs, s.gS, s.scrS);
+  const ms = performance.now() - t0;
+  s.ms = s.ms ? s.ms * 0.92 + ms * 0.08 : ms;
+}
+function showStats() {
+  for (const s of scenes) {
+    const n = s.fire ? s.fire.count() + (s.surv ? s.surv.count() : 0) : 41;
+    s.stats.innerHTML = `<span>${s.fire ? "particles" : "sprites"} ${n}</span><span>${s.ms.toFixed(2)} ms / frame (both views)</span>`;
+  }
+}
+
+// only animate panels on screen
+const io = new IntersectionObserver((es) => { for (const e of es) { const s = scenes.find((q) => q.main.parentElement === e.target); if (s) s.visible = e.isIntersecting; } });
+for (const s of scenes) io.observe(s.main.parentElement);
+
+function stillMode() { return reduceMQ.matches; }
+function renderStill() {
+  for (const s of scenes) {
+    s.T = 0; if (s.fire) { for (const P of [s.fire.flames, s.fire.ring, s.fire.smoke, s.fire.embers]) P.clear(); }
+    if (s.surv) { for (const P of [s.surv.flames, s.surv.smoke, s.surv.embers]) P.clear(); }
+    const warm = s.surv ? 2.2 : 3; // survivor: mid-burn
+    for (let t = 0; t < warm; t += 1 / 60) { s.T += 1 / 60; if (s.fire) s.fire.update(1 / 60, s.T); if (s.surv) s.surv.update(1 / 60, s.T); }
+    s.T -= 1 / 60; s.ms = 0; tick(s, 1 / 60);
+  }
+  showStats();
+}
+
+let last = performance.now(), lastStats = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
+  if (!paused && !stillMode()) for (const s of scenes) if (s.visible) tick(s, dt);
+  if (now - lastStats > 300) { lastStats = now; showStats(); }
+  requestAnimationFrame(frame);
+}
+const note = document.getElementById("motionNote");
+function applyMotion() { note.textContent = stillMode() ? "Reduced motion is on: showing a still frame." : ""; if (stillMode()) renderStill(); }
+reduceMQ.addEventListener("change", applyMotion);
+applyMotion();
+requestAnimationFrame(frame);
+
+document.getElementById("slow").addEventListener("change", (e) => { slow = e.target.checked; refreshCaps(); if (stillMode()) renderStill(); });
+document.getElementById("edge").addEventListener("change", (e) => { showEdge = e.target.checked; if (stillMode() || paused) for (const s of scenes) { renderView(s, s.ctxM, s.vm, s.gM, null); renderView(s, s.ctxS, s.vs, s.gS, null); } });
+document.getElementById("pause").addEventListener("change", (e) => { paused = e.target.checked; });
+window.__fireLab = { scenes, get CORE() { return CORE; } };
+})();
+</script>

@@ -3,10 +3,10 @@ import { ZOMBIE_TYPES, type ZombieTypeId } from "@topdown/shared";
 import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { CAR_COLORS } from "./dressing";
 import { addCanvasTexture } from "./canvasTexture";
-import { OBJ_SANDBAGS, ensureObjectsAtlas, objectsFrameSource, type FrameSource } from "./objectsAtlas";
+import { drawObjectInFrame, drawSandbags } from "./objectArt";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
-import { WEAPON_ART } from "./weaponArt";
-import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawDumpster, drawPump, drawSandbags, drawSurvivor, drawZombie } from "./spriteArt";
+import { TIER_PLATE_H, WEAPON_ART, drawChainsawRunning, drawTierPlate, tierPlateWidth } from "./weaponArt";
+import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawCharredCar, drawDumpster, drawPump, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
  * Story 4.9: the placeholder atlases, drawn procedurally into canvases and registered as Phaser
@@ -37,12 +37,17 @@ export const BRUTE_WINDUP_FRAMES: readonly string[] = Array.from({ length: ZOMBI
  * `survivor_shotgun_a`, `survivor_assault_rifle_a`. Other weapons use `SURVIVOR_FRAME`.
  */
 export const SURVIVOR_WEAPON_FRAMES: Readonly<Record<string, string>> = Object.fromEntries(Object.keys(WEAPON_ART).map((w) => [w, frameName("survivor", w, "a")]));
-/** The survivor frame for the active weapon (no string building per frame). */
-export const survivorFrameFor = (weapon: string): string => SURVIVOR_WEAPON_FRAMES[weapon] ?? SURVIVOR_FRAME;
+/** Story 5.2: the survivor with the Chainsaw running (chain blurred), shown while it cuts. */
+export const SURVIVOR_CHAINSAW_RUNNING = frameName("survivor", "chainsaw", "b");
+/** The survivor frame for the active weapon (no string building per frame); `running`: a Chainsaw that is cutting. */
+export const survivorFrameFor = (weapon: string, running = false): string =>
+  running && weapon === "chainsaw" ? SURVIVOR_CHAINSAW_RUNNING : (SURVIVOR_WEAPON_FRAMES[weapon] ?? SURVIVOR_FRAME);
 
 /** Downtown vehicles and props: frame name → native size in map px (32 px = 1 m). */
 export const VEHICLE_BUS = frameName("vehicle", "bus", "a");
 export const CAR_FRAMES: readonly string[] = CAR_COLORS.map((_, i) => frameName("vehicle", "car", variantLetter(i)));
+/** Story 4.12: each car variant burnt (fire-lab panel D): drawn for a car that is a fire's target. */
+export const CAR_BURNT_FRAMES: readonly string[] = CAR_COLORS.map((_, i) => frameName("vehicle", "carburnt", variantLetter(i)));
 export const PROP_PUMP = frameName("prop", "pump", "a");
 export const PROP_BARRIER = frameName("prop", "barrier", "a");
 export const PROP_SANDBAGS = frameName("prop", "sandbags", "a");
@@ -52,6 +57,7 @@ export const PROP_BLOCK = frameName("prop", "block", "a");
 const PROP_NATIVE: Readonly<Record<string, readonly [number, number]>> = {
   [VEHICLE_BUS]: [320, 80],
   ...Object.fromEntries(CAR_FRAMES.map((n) => [n, [144, 64] as const])),
+  ...Object.fromEntries(CAR_BURNT_FRAMES.map((n) => [n, [144, 64] as const])),
   [PROP_PUMP]: [64, 32],
   [PROP_BARRIER]: [192, 16],
   [PROP_SANDBAGS]: [96, 32],
@@ -70,6 +76,12 @@ export const FX_EDGE = frameName("fx", "edge", "a");
 /** Story 5.6: the spit glob in flight and the acid puddle (two shapes); the puddle frame's edge is the damage edge. */
 export const FX_SPIT_GLOB = `${frameName("fx", "spit", "glob")}_01`;
 export const FX_ACID_PUDDLES: readonly string[] = ["01", "02"].map((v) => `${frameName("fx", "acid", "puddle")}_${v}`);
+/**
+ * Story 5.1: the U1 upgrade tier plates for the HUD, by level (index 2–4 = II–IV; I has no mark),
+ * drawn at `FX_TIER_SCALE` px per CSS px.
+ */
+export const FX_TIER_MARKS: readonly string[] = ["", "", frameName("fx", "tiermark", "b"), frameName("fx", "tiermark", "c"), frameName("fx", "tiermark", "d")];
+export const FX_TIER_SCALE = 3;
 const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_RAIN]: [4, 28],
   [FX_SPLASH]: [40, 20],
@@ -78,6 +90,7 @@ const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_EDGE]: [8, 64],
   [FX_SPIT_GLOB]: [48, 48],
   ...Object.fromEntries(FX_ACID_PUDDLES.map((n) => [n, [128, 128] as const])),
+  ...Object.fromEntries([2, 3, 4].map((lv) => [FX_TIER_MARKS[lv] as string, [Math.ceil(tierPlateWidth(lv) * FX_TIER_SCALE), TIER_PLATE_H * FX_TIER_SCALE] as const])),
 };
 
 export interface AtlasCanvas {
@@ -99,6 +112,7 @@ export function characterSpecs(): FrameSpec[] {
   const s = Math.ceil(2 * CHAR_EXTENT_R.survivor * CHAR_R_PX);
   out.push({ name: SURVIVOR_FRAME, w: s, h: s });
   for (const name of Object.values(SURVIVOR_WEAPON_FRAMES)) out.push({ name, w: s, h: s });
+  out.push({ name: SURVIVOR_CHAINSAW_RUNNING, w: s, h: s });
   return out;
 }
 export function downtownSpecs(): FrameSpec[] {
@@ -143,6 +157,7 @@ function zombieOf(name: string): { type: ZombieTypeId; variant: number } | null 
 function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   g.translate(f.x + f.w / 2, f.y + f.h / 2);
   if (f.name === SURVIVOR_FRAME) return drawSurvivor(g, CHAR_R_PX);
+  if (f.name === SURVIVOR_CHAINSAW_RUNNING) return drawSurvivor(g, CHAR_R_PX, (c, r) => drawChainsawRunning(c, "held", r));
   for (const [weapon, name] of Object.entries(SURVIVOR_WEAPON_FRAMES)) {
     const art = WEAPON_ART[weapon];
     if (name === f.name && art) return drawSurvivor(g, CHAR_R_PX, (c, r) => art(c, "held", r));
@@ -155,29 +170,24 @@ function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   if (bw >= 0) drawZombie(g, "brute", CHAR_R_PX, bw, true);
 }
 
-/** Story 4.11: loaded frames that replace a procedural downtown frame (the sandbags). */
-let downtownSources: ReadonlyMap<string, FrameSource> = new Map();
-
 function drawDowntownFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
-  const src = downtownSources.get(f.name);
-  if (src) {
-    g.drawImage(src.image, src.x, src.y, src.w, src.h, f.x, f.y, f.w, f.h);
-    return;
-  }
   const [w, h] = nativeSize(f.name);
+  // Story 4.12: the S2 sandbags drawn in code, in metres (3 × 1 m at 64 px/m)
+  if (f.name === PROP_SANDBAGS) return drawObjectInFrame(g, f.x, f.y, f.w, f.h, f.w / (w / 32), (c) => drawSandbags(c, w / 32, h / 32));
   g.translate(f.x, f.y);
   g.scale(DOWNTOWN_ATLAS_SCALE, DOWNTOWN_ATLAS_SCALE);
   if (f.name === VEHICLE_BUS) drawBus(g, w, h);
   else if (f.name === PROP_PUMP) drawPump(g, w, h);
   else if (f.name === PROP_BARRIER) drawBarrier(g, w, h);
-  else if (f.name === PROP_SANDBAGS) drawSandbags(g, w, h);
   else if (f.name === PROP_DUMPSTER) drawDumpster(g, w, h);
   else if (f.name === PROP_BLOCK) drawBlock(g, w, h);
   else {
     const v = CAR_FRAMES.indexOf(f.name);
-    if (v >= 0) {
+    const b = CAR_BURNT_FRAMES.indexOf(f.name);
+    if (v >= 0 || b >= 0) {
       g.translate(w / 2, h / 2);
-      drawCar(g, w, h, v);
+      if (v >= 0) drawCar(g, w, h, v);
+      else drawCharredCar(g, w, h, b);
     }
   }
 }
@@ -216,6 +226,10 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   } else if (FX_ACID_PUDDLES.includes(f.name)) {
     g.translate(x + w / 2, y + h / 2);
     drawAcidPuddle(g, w, 131 + FX_ACID_PUDDLES.indexOf(f.name) * 70);
+  } else if (FX_TIER_MARKS.indexOf(f.name) >= 2) {
+    g.translate(x, y);
+    g.scale(FX_TIER_SCALE, FX_TIER_SCALE);
+    drawTierPlate(g, FX_TIER_MARKS.indexOf(f.name)); // Story 5.1
   } else if (f.name === FX_VIGNETTE) {
     // one edge band (dark at the top, clear at the bottom); the view lays four around the screen
     const gr = g.createLinearGradient(0, y, 0, y + h);
@@ -240,12 +254,6 @@ function register(scene: Phaser.Scene, key: string, make: () => AtlasCanvas): At
 
 /** Creates the three atlases (idempotent) and returns the downtown one (the static bake draws from it). */
 export function ensureAtlases(scene: Phaser.Scene): AtlasCanvas {
-  // Story 4.11: the loaded stage-object atlas (or its stand-ins) first: the downtown atlas copies its sandbags.
-  ensureObjectsAtlas(scene);
-  if (!scene.textures.exists(ATLAS_DOWNTOWN)) {
-    const sandbags = objectsFrameSource(scene, OBJ_SANDBAGS);
-    downtownSources = sandbags ? new Map([[PROP_SANDBAGS, sandbags]]) : new Map();
-  }
   register(scene, ATLAS_CHARACTERS, () => build(characterSpecs(), drawCharacterFrame));
   register(scene, ATLAS_FX, () => build(fxSpecs(), drawFxFrame));
   const d = register(scene, ATLAS_DOWNTOWN, () => build(downtownSpecs(), drawDowntownFrame));

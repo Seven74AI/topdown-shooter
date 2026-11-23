@@ -47,7 +47,10 @@ function counting(world: World): { kills: number[]; turretKills: number; wavesEn
   return c;
 }
 
-describe("headless replay (Story 4.4, NFR10)", () => {
+/** Whole-run replays take ~1–3 s alone; give them room when the machine is busy (gates flaked at load 7–13). */
+const REPLAY_TIMEOUT_MS = 30_000;
+
+describe("headless replay (Story 4.4, NFR10)", { timeout: REPLAY_TIMEOUT_MS }, () => {
   const rec = record();
 
   it("the recorded run really happened (waves ended, kills, buys, buildings)", () => {
@@ -121,5 +124,33 @@ describe("headless replay (Story 4.4, NFR10)", () => {
   it("the build commands matter: a log without them diverges", () => {
     const w = replayRun(balance, { ...rec.log, commands: rec.log.commands.filter((c) => c.kind === "input" || c.kind === "ready") });
     expect(worldDigest(w)).not.toBe(rec.digest);
+  });
+
+  it("Story 5.1: replay with an upgrade gives the same digest (and the level really rose)", () => {
+    const LIST = ["smg", "upgrade:smg", "upgrade:smg", "wood_barricade"];
+    const log = createInputLog(SEED, PLAYERS);
+    let digest = 0;
+    let levels: number[] = [];
+    const run = runHeadless({
+      balance,
+      seed: SEED,
+      players: PLAYERS,
+      list: LIST,
+      record: log,
+      onEnd: (w) => {
+        digest = worldDigest(w);
+        levels = [...w.players.values()].map((p) => Math.max(p.loadout.slots[0].level, p.loadout.slots[1]?.level ?? 0));
+      },
+    });
+    const ups = log.commands.filter((c) => c.kind === "upgrade");
+    expect(ups.length).toBeGreaterThanOrEqual(2); // liveness: upgrades were bought and logged
+    expect(run.upgrades.reduce((a, b) => a + b, 0)).toBe(ups.length);
+    expect(Math.max(...levels)).toBeGreaterThan(1);
+    const w = replayRun(balance, log);
+    expect(worldDigest(w)).toBe(digest);
+    expect(Math.max(...[...w.players.values()].map((p) => p.loadout.slots[1]?.level ?? 0))).toBeGreaterThan(1);
+    // Without the upgrade commands the run diverges (the level is in the digest; damage differs).
+    const w2 = replayRun(balance, { ...log, commands: log.commands.filter((c) => c.kind !== "upgrade") });
+    expect(worldDigest(w2)).not.toBe(digest);
   });
 });

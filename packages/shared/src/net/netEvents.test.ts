@@ -52,6 +52,9 @@ const EVENTS: SimEvent[] = [
   { type: "acid.splashed", puddleId: 3, x: 47.99, y: 31.99, hitPlayerId: "p2" },
   { type: "acid.splashed", puddleId: 4, x: 0, y: 0, hitPlayerId: null },
   { type: "player.damaged", playerId: "p1", amount: 2, sourceZombieId: -3 },
+  // Story 5.1: a weapon upgrade.
+  { type: "weapon.upgraded", playerId: "p2", weapon: "smg", slot: 1, level: 3 },
+  { type: "weapon.upgraded", playerId: "p0", weapon: "pistol", slot: 0, level: 4 },
   // Story 5.7: the Brute's roar / banner (first of the run, then a later one).
   { type: "zombie.brute_spawned", zombieId: 9, x: 0.6, y: 31.4, first: true },
   { type: "zombie.brute_spawned", zombieId: 200, x: 47.4, y: 16, first: false },

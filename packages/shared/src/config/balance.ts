@@ -53,6 +53,11 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   shop.weapons.forEach((id, i) => {
     if (!(id in weapons)) issues.push(`shop.json: weapons.${i}: unknown weapon ${id}`);
   });
+  // Story 5.1: every weapon can be upgraded and no upgrade is free (a 0 price is a balance bug).
+  const share = (parsed.shop as { upgrades: { priceShare: number } }).upgrades.priceShare;
+  for (const [id, w] of Object.entries(weapons as Record<string, { price: number; upgradeBasePrice?: number }>)) {
+    if (Math.round(share * (w.upgradeBasePrice ?? w.price)) < 1) issues.push(`weapons.json: ${id}: its upgrade price is 0 (set upgradeBasePrice)`);
+  }
   // 3.4 re-review: a zombie spawned with the largest jitter must still be clear of any building.
   const zombies = parsed.zombies as { types: Record<string, { radiusM: number }> };
   const waves = parsed.waves as { spawnJitterM: number };

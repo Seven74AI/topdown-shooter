@@ -41,7 +41,7 @@ export function snapshotLobby(code: string, state: RunStateView, localPlayerId: 
 /** Text under the host's Start button (AC 4). */
 export const START_HINT = {
   notReady: "Waiting for everyone to be Ready",
-  tooFew: "Need at least 2 players",
+  tooFew: "Need at least 1 player",
 } as const;
 
 /** What the lobby screen shows, derived from a snapshot. */

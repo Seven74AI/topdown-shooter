@@ -142,6 +142,10 @@ function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
   if (s.weapon1 !== weapon1) s.weapon1 = weapon1;
   if (s.ammo1 !== ammo1) s.ammo1 = ammo1;
   if (s.reloadTicks1 !== reload1) s.reloadTicks1 = reload1;
+  // Story 5.1: upgrade levels (0 = empty slot).
+  if (s.level0 !== a.level) s.level0 = a.level;
+  const level1 = b ? b.level : 0;
+  if (s.level1 !== level1) s.level1 = level1;
   if (s.slowTicks !== p.slowTicksLeft) s.slowTicks = p.slowTicksLeft; // Story 3.9
   if (s.slowPct !== p.slowPct) s.slowPct = p.slowPct;
   if (s.knockTicks !== p.knockTicks) s.knockTicks = p.knockTicks; // Story 5.7
@@ -185,6 +189,8 @@ function resetPlayer(s: PlayerState): void {
   s.reloadTicks0 = 0;
   s.reloadTicks1 = 0;
   s.swapTicks = 0;
+  s.level0 = 0; // Story 5.1
+  s.level1 = 0;
   s.downedTicksLeft = 0;
   s.reviveProgress = 0;
   s.kills = 0;

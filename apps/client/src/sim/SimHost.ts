@@ -1,9 +1,14 @@
-import type { PlaceError, PlaceRequest, PlayerInput, RepairError, ShopError, SimEvent, UpgradeError, World } from "@topdown/shared";
+import type { PlaceError, PlaceRequest, PlayerInput, RepairError, ShopError, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
 
-/** Story 3.3: how a purchase ended (solo at once, online the server's `shop.bought` / `shop.refused`). */
+/**
+ * Story 3.3: how a purchase ended (solo at once, online the server's `shop.bought` / `shop.refused`).
+ * Story 5.1: `kind: "upgrade"` for a weapon upgrade (`shop.upgraded` / `shop.upgrade_refused`).
+ */
 export type ShopAnswer =
-  | { readonly ok: true; readonly weapon: string; readonly slot: 0 | 1 }
-  | { readonly ok: false; readonly weapon: string; readonly error: ShopError };
+  | { readonly kind?: "buy"; readonly ok: true; readonly weapon: string; readonly slot: 0 | 1 }
+  | { readonly kind?: "buy"; readonly ok: false; readonly weapon: string; readonly error: ShopError }
+  | { readonly kind: "upgrade"; readonly ok: true; readonly weapon: string; readonly slot: 0 | 1; readonly level: number }
+  | { readonly kind: "upgrade"; readonly ok: false; readonly weapon: string; readonly error: WeaponUpgradeError };
 
 /** Presentation data of a player (Story 2.9): kept out of the shared `PlayerState`. */
 export interface PlayerInfo {
@@ -65,6 +70,12 @@ export interface SimHost {
    * Either way the answer comes from `takeShopAnswer`; wallet and weapons change only in the World.
    */
   buyWeapon(weapon: string, slot: 0 | 1 | null): void;
+  /**
+   * Story 5.1: upgrade one of my weapons by one level. Solo the shared `upgradeWeapon` runs at once;
+   * online it is sent as `shop.upgrade` and the server decides. The answer comes from
+   * `takeShopAnswer` (`kind: "upgrade"`); the level and wallet change only in the World (online: state).
+   */
+  upgradeWeapon(weapon: string): void;
   /** The oldest purchase answer not taken yet, or null. */
   takeShopAnswer(): ShopAnswer | null;
   /** Drops a swap/consumable latched but not sent yet (the in-run menu opened in the same step; 2.11 review). */

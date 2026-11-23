@@ -7,9 +7,9 @@ import { DEG_TO_RAD, len, rotate } from "../math/vec";
 import { segmentCircleT } from "../math/sweep";
 import { isZombieAlive, knockedBy, rememberKnock, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
-import { MUZZLE_OFFSET_M, TICK_DT_S, ZOMBIE_POOL_CAPACITY } from "../config/constants";
+import { MIN_AIM_LEN, MUZZLE_OFFSET_M, TICK_DT_S, ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { viewTickOfInput, type PlayerInput } from "../net/input";
-import { applyKnockback, applyZombieDamage } from "./damage";
+import { applyKnockback, applyZombieDamage, knockbacks } from "./damage";
 import { assistAim } from "./aimAssist";
 import { zombieCandidates as candidates } from "./scratch";
 import { activeSlot } from "./loadout";
@@ -23,19 +23,15 @@ import {
 } from "./projectilePool";
 import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
-import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
+import { isGun, isMelee, weaponDamage, weaponIds, weaponStats } from "./weapons";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
 import { pelletDirection, rotateBySeqSpread, seqPelletRoll } from "./spread";
 import { shotBlockT } from "./cover";
 
-const MIN_AIM = 1e-6;
 
-/**
- * Story 5.3: knockbacks applied by shots and how many stopped short at a face (diagnostic counters
- * for tests and the fuzz liveness checks; not simulation state, never snapshotted).
- */
-export const knockbacks = { applied: 0, stopped: 0 };
+/** Story 5.3 counters (they live in `damage.ts` since Story 5.2; re-exported for the old imports). */
+export { knockbacks };
 /**
  * Story 2.12: a rewound sweep covers one tick of flight; it is tested at that tick's middle (the
  * cosmetic bullet meets drawn zombies continuously). Netsim, kiting Runners at 150 ms, 20 seeds
@@ -145,14 +141,15 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
 
   if (!input || !input.fire) return false;
   const aimLen = len(input.aimX, input.aimY);
-  if (aimLen < MIN_AIM || !cooldownReady(cooldownS)) return false;
+  if (aimLen < MIN_AIM_LEN || !cooldownReady(cooldownS)) return false;
   dir.x = input.aimX / aimLen;
   dir.y = input.aimY / aimLen;
   // Story 2.12: online, test against the zombies as the shooter drew them (0 offline / no view tick).
   const rewind = dryFire ? 0 : rewindTicksFor(world, p, input);
   if (isMelee(stats)) {
     // Melee (Story 1.9): instant arc hit along the raw aim, no ammo, no reload, no aim assist.
-    if (!dryFire) swingMelee(world, p, slot.weapon, stats, dir.x, dir.y, rewind > 0 ? rewoundView(world, world.tick - rewind) : null);
+    // Story 5.1: the swing's damage comes from the slot's upgrade level (the one shared rule).
+    if (!dryFire) swingMelee(world, p, slot.weapon, stats, weaponDamage(world.balance, slot.weapon, slot.level), dir.x, dir.y, rewind > 0 ? rewoundView(world, world.tick - rewind) : null);
     return true;
   }
   if (slot.ammo <= 0) return false;
@@ -184,7 +181,7 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
 
   spawn.speedMps = stats.projectileSpeedMps;
   spawn.rangeM = stats.rangeM;
-  spawn.damage = stats.damage;
+  spawn.damage = weaponDamage(world.balance, slot.weapon, slot.level); // Story 5.1: every pellet/bullet
   spawn.pierce = stats.pierce;
   spawn.weaponIndex = weaponIds(world.balance).indexOf(slot.weapon);
   spawn.owner = p.id;

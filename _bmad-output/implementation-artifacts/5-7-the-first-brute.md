@@ -1,6 +1,6 @@
 # Story 5.7: The first Brute
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -63,40 +63,40 @@ so that we learn to focus fire and protect our buildings.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art pick (first; brief 13).** ~5 Meshy proposals (`nano-banana-pro`, 4.11's shared style line; top-down, at in-game scale next to a Walker for size): **BR1** hulking riot-cop zombie with a cracked vest, **BR2** huge construction worker in a torn hi-vis jacket, **BR3** shirtless butcher with a stained apron, **BR4** bouncer in a burst black suit, **BR5** firefighter zombie in heavy turnout gear. For the pick, each also gets its WINDUP pose sketch. One private proposal page; the designer picks; record in `docs/art/5-7/README.md` (+ images). Nothing drawn before the pick. (AC 8)
-- [ ] **T1 Balance + schema** (AC 1, 2, 3)
-  - [ ] `balanceSchema.ts › zombieTypeSchema`: `buildingDamageMult` (≥ 1, default 1), `knockbackTakenPct` (int 0–100, default 100 — **shared with 5.2: add once**), `hitKnockbackM` (≥ 0, default 0), `knockbackS` (> 0, default 0.2), `windupS` (≥ 0 ≤ 5, default 0 — **reuse Round A 5.6's Spitter windup field if it exists**), `swingReachM` (≥ 0, default 0), `wideBody` (bool, default false).
-  - [ ] `waves.json › fixed` + `fixedAtFraction` (schema in `wavesSchema`); `balance.ts › crossCheck`: fixed types exist and are in `ZOMBIE_TYPES`; fixed count ≤ smallest wave size; the radius check becomes: non-wide types ≤ `MAX_PATHING_ZOMBIE_RADIUS_M` (0.35), wide types ≤ `MAX_PATHING_ZOMBIE_RADIUS_M + nav.wideInflateM` (D1); `spawnClearM` > jitter + the largest radius (2 > 1 + 0.6 ✓).
-  - [ ] `zombieTypes.ts › ZOMBIE_TYPES` append `"brute"`; `ZOMBIE_STATE.WINDUP` (reuse 5.6's).
-  - [ ] Tests `config/balance.test.ts` (+ `brute matches the GDD`, `fixed counts validated`, `a wide body over the wide limit is refused`).
-- [ ] **T2 Wide-body pathing** (AC 5; D1)
-  - [ ] `zombies/flowField.ts`: `PathingState.wide: NavGrid` = a second `createNavGrid` whose solids (map boxes, active cover) and rasterized buildings are grown by `inflateM` = `max(wide radius) − MAX_PATHING_ZOMBIE_RADIUS_M` (0.25 m), so the existing clearance rule (body ≤ 0.35 m) holds for the Brute; the building ids stay on the grown cells (a Brute blocked by a barricade attacks it). `setNavWalls`/`setNavFires` write both grids (fires grown by the wide radius); `rasterizeBuildings` re-rasterizes both on `buildings.version`.
-  - [ ] `FlowField wideChase` on `wide`, advanced only while a `wideBody` zombie is alive, sharing `rebuildCellsPerTick` round-robin with chase/flank (the 3.8 pattern; `flowFieldMaxAgeTicks` covers 3 fields). No extra cells per tick.
-  - [ ] `zombieAi.ts`: a `wideBody` type steers by `wideChase` (and checks LOS with its own radius, already per type).
-  - [ ] `snapshotPathing` includes the wide grid/field hashes.
-  - [ ] Tests `flowField.test.ts` (+ `wide grid closes a 1.0 m gap the chase grid keeps open`, `wide field idles without a Brute`, `walls rebuilt only at build starts on both grids`), `zombieAi.pathing.test.ts` (+ `a Brute routes around a barricade gap it doesn't fit and breaks the barricade when that is the only way`).
-- [ ] **T3 Brute AI, damage, knockback** (AC 5, 6; F1–F5)
-  - [ ] `zombieAi.ts`: WINDUP state per zombie (`pool.state`, a new `pool.windupTicks: Uint8Array` or 5.6's): enter on contact with a standing player when `attackCooldownTicks === 0` and `windupS > 0`; stand still while winding up; at 0 → `swingHits(contact + swingReachM)` → `damagePlayer` + `knockPlayer`; then `attackCooldownTicks = ticksFor(attackIntervalS)`. Types without `windupS` keep today's instant hit (unchanged code path).
-  - [ ] Building hits: `damageBuilding(world, b, stats.damage * stats.buildingDamageMult)`.
-  - [ ] `player/knockback.ts` (new, shared): `knockPlayer(p, fromX, fromY, stats)` sets `knockTicks`, `knockDx/Dy` (int8 quantised); not for downed/out; `movePlayers` applies it (AC 6), stopping at boxes (push-out) and fire edges.
-  - [ ] Weapon/turret knockback on the Brute: `knockbackTakenPct` in `applyZombieDamage`'s pushback and in 5.3's `applyKnockback` (5.2 adds it there too: whoever merges first).
-  - [ ] `resolveOverlaps`: split each overlap by body area (`r_j² / (r_i² + r_j²)` to i), equal radii → ½ as today (no change for existing types; test it).
-  - [ ] Tests `zombies/brute.test.ts` (new): `stats and reward`, `windup 10 ticks then the hit`, `stepping out during the windup dodges it`, `hit = 35 damage + 1.5 m knockback away from the Brute in 4 ticks`, `knockback stops at a barricade, car, bus, building, turret, map edge` (every approach angle 0–345° step 15°), `knockback stops at a fire edge`, `no knockback when the hit downs`, `105 damage to a building per hit (wood 2 hits, turret 3 hits)`, `axe moves a Brute 0.3 m, pistol pushback 20 %`, `overlap: a Walker moves the Brute 25 %`, `per-body windup: two Brutes on two players are independent`.
-- [ ] **T4 Waves + mini-boss event** (AC 3, 4; F6)
-  - [ ] `waves/waveDirector.ts › beginWave`: `fixed` counts into `typeTarget` (taken off Walkers, then the largest share); `waveZombieType` holds fixed types until `fixedAtFraction × size` have spawned, then serves them first; `world.waves.brutesSpawned` counter (reset per run, in `snapshotWorld`); emit `zombie.brute_spawned`.
-  - [ ] `core/simEvents.ts` + `net/netEvents.ts` (encode/decode; zombie net id), `eventInterest.ts`: sent to everyone (it is a team cue).
-  - [ ] Client: `GameScene` (banner on `first`, roar on each), `audio/placeholderSfx.ts` (`zombie_brute_roar`), `render/ZombieView.ts › LOOKS.brute` (depth above Walkers, cue roar), `render/city/spriteArt.ts › drawZombie` + `CHAR_EXTENT_R.brute` + WINDUP frame, `spriteAtlas.ts` frames (atlas ≤ 2048²: `atlasLayout.test.ts`).
-  - [ ] Tests `waveDirector.test.ts` (+ `wave 5 has exactly one Brute at 1–4 players`, `it spawns after 25 % of the wave`, `spawns stream only: same seed → same Brute spawn point`), `GameScene`-free tests for the banner rule (hudModel / toast queue), `NetSimHost` (+ `brute_spawned decoded; banner once per run`).
-- [ ] **T5 Prediction copy** (AC 6, 7; brief 2, 14)
-  - [ ] Schema `knockTicks/knockDx/knockDy`, `syncState` (on change), `resetRunFields`, stateView key list, `fakeRoom`, devThrottle (key list), `NetSimHost` mirror (client World player), `Predictor.reconcile(ackSeq, x, y, status, slowTicks, slowPct, knockTicks, knockDx, knockDy)`; the Predictor's World has the map, buildings (`mirrorBuildings`) and fires (`syncDecay`), so the stop rules match.
-  - [ ] Tests `net/prediction.test.ts` (+ `knockback predicted after the ack: 0 corrections in the open, against a barricade, at a fire edge`), `tools/netsim/brute.test.ts` (new: `?lag=150&jitter=20`, a Brute hits the bot player 5×: client position = server at every ack, no snap ≥ 1 m from a knockback, corrections recorded), `syncState.test.ts` (+ `knock fields synced and reset`), `NetSimHost` hidden-tab test across the wave-5 build start (`window.__game.loop.sleep()/wake()` in the browser check; Vitest: apply a state that jumped across the Brute spawn).
-- [ ] **T6 Fuzz, reachability, bandwidth, perf, sims** (brief 7, 9, 11, 15, 16)
-  - [ ] `zombies/downtown.fuzz.test.ts` (extend): random barricade/turret layouts × every decay stage and variant mask (incl. 4.8 fires; 5.9 metal barricades/spikes/mines if merged) × ≥ 3,000 ticks with Brutes in the mix and bots standing next to cover: **no Brute centre inside a (grown or real) box**, **no player inside a box or a fire after a knockback**, **no stall: every Brute reaches a player or a building it attacks**, **wide/chase fields rebuild walls only at build starts**; liveness: ≥ 1 knockback per layout, ≥ 1 Brute building hit, ≥ 1 Brute kill.
-  - [ ] Reachability: a lone Brute from every spawn point × every stage reaches the team start (the 4.5 reachability pattern), with the wide field.
-  - [ ] Bandwidth: one Brute in view adds one 8 B horde record at 20 Hz = **160 B/s** per phone (as one more Walker); `brute_spawned` ~20 B per spawn; knock fields ~3 B per hit. Assert in a bandwidth test (`decayBandwidth.test.ts` pattern) and report.
-  - [ ] Tick cost (`tickCostFlowField.test.ts` + case, `PERF_ASSERT=1`): 150 zombies incl. 2 Brutes, 3 fields: added p99 recorded with load (≤ the 2 ms Epic budget).
-  - [ ] 6-wave sim (`economy/fiveWaveSim.test.ts`, 6 waves once 5.8 lands; else `runWaves` override 5): assert waves ended, a Brute spawned in wave 5, was killed, and its 25 reward (+ assists) was paid (brief 9, 15).
-- [ ] **T7 Gates.** Mutations (e.g. windup skipped → dodge test; knockback without push-out → fuzz; fire stop removed → fire test; `buildingDamageMult` ignored → building test; Brute on the chase grid → reachability/fuzz; `first` always true → banner test) and which tests failed. Browser check (Playwright): solo `?wavemix=brute` and the real wave 5 (`?wallet=` + build Ready ×4), online two tabs with `?lag=150&jitter=20`: banner once, roar, windup visible, knockback slides, stops at a barricade. `typecheck && lint && test && build`. Merge notes.
+- [x] ~~**T0 Art pick (first; brief 13).**~~ Skipped on the coordinator's instruction: the designer's round-B decision (`docs/epic-5-decisions.md`) already picked the looks: all five code drawings BR1–BR5 as random variants, ported in `render/city/bruteArt.ts` (no Meshy, no `docs/art/5-7/README.md`). ~5 Meshy proposals (`nano-banana-pro`, 4.11's shared style line; top-down, at in-game scale next to a Walker for size): **BR1** hulking riot-cop zombie with a cracked vest, **BR2** huge construction worker in a torn hi-vis jacket, **BR3** shirtless butcher with a stained apron, **BR4** bouncer in a burst black suit, **BR5** firefighter zombie in heavy turnout gear. For the pick, each also gets its WINDUP pose sketch. One private proposal page; the designer picks; record in `docs/art/5-7/README.md` (+ images). Nothing drawn before the pick. (AC 8)
+- [x] **T1 Balance + schema** (AC 1, 2, 3)
+  - [x] `balanceSchema.ts › zombieTypeSchema`: `buildingDamageMult` (≥ 1, default 1), `knockbackTakenPct` (int 0–100, default 100 — **shared with 5.2: add once**), `hitKnockbackM` (≥ 0, default 0), `knockbackS` (> 0, default 0.2), `windupS` (≥ 0 ≤ 5, default 0 — **reuse Round A 5.6's Spitter windup field if it exists**), `swingReachM` (≥ 0, default 0), `wideBody` (bool, default false).
+  - [x] `waves.json › fixed` + `fixedAtFraction` (schema in `wavesSchema`); `balance.ts › crossCheck`: fixed types exist and are in `ZOMBIE_TYPES`; fixed count ≤ smallest wave size; the radius check becomes: non-wide types ≤ `MAX_PATHING_ZOMBIE_RADIUS_M` (0.35), wide types ≤ `MAX_PATHING_ZOMBIE_RADIUS_M + nav.wideInflateM` (D1); `spawnClearM` > jitter + the largest radius (2 > 1 + 0.6 ✓).
+  - [x] `zombieTypes.ts › ZOMBIE_TYPES` append `"brute"`; `ZOMBIE_STATE.WINDUP` (reuse 5.6's).
+  - [x] Tests `config/balance.test.ts` (+ `brute matches the GDD`, `fixed counts validated`, `a wide body over the wide limit is refused`).
+- [x] **T2 Wide-body pathing** (AC 5; D1)
+  - [x] `zombies/flowField.ts`: `PathingState.wide: NavGrid` = a second `createNavGrid` whose solids (map boxes, active cover) and rasterized buildings are grown by `inflateM` = `max(wide radius) − MAX_PATHING_ZOMBIE_RADIUS_M` (0.25 m), so the existing clearance rule (body ≤ 0.35 m) holds for the Brute; the building ids stay on the grown cells (a Brute blocked by a barricade attacks it). `setNavWalls`/`setNavFires` write both grids (fires grown by the wide radius); `rasterizeBuildings` re-rasterizes both on `buildings.version`.
+  - [x] `FlowField wideChase` on `wide`, advanced only while a `wideBody` zombie is alive, sharing `rebuildCellsPerTick` round-robin with chase/flank (the 3.8 pattern; `flowFieldMaxAgeTicks` covers 3 fields). No extra cells per tick.
+  - [x] `zombieAi.ts`: a `wideBody` type steers by `wideChase` (and checks LOS with its own radius, already per type).
+  - [x] `snapshotPathing` includes the wide grid/field hashes.
+  - [x] Tests `flowField.test.ts` (+ `wide grid closes a 1.0 m gap the chase grid keeps open`, `wide field idles without a Brute`, `walls rebuilt only at build starts on both grids`), `zombieAi.pathing.test.ts` (+ `a Brute routes around a barricade gap it doesn't fit and breaks the barricade when that is the only way`).
+- [x] **T3 Brute AI, damage, knockback** (AC 5, 6; F1–F5)
+  - [x] `zombieAi.ts`: WINDUP state per zombie (`pool.state`, a new `pool.windupTicks: Uint8Array` or 5.6's): enter on contact with a standing player when `attackCooldownTicks === 0` and `windupS > 0`; stand still while winding up; at 0 → `swingHits(contact + swingReachM)` → `damagePlayer` + `knockPlayer`; then `attackCooldownTicks = ticksFor(attackIntervalS)`. Types without `windupS` keep today's instant hit (unchanged code path).
+  - [x] Building hits: `damageBuilding(world, b, stats.damage * stats.buildingDamageMult)`.
+  - [x] `player/knockback.ts` (new, shared): `knockPlayer(p, fromX, fromY, stats)` sets `knockTicks`, `knockDx/Dy` (int8 quantised); not for downed/out; `movePlayers` applies it (AC 6), stopping at boxes (push-out) and fire edges.
+  - [x] Weapon/turret knockback on the Brute: `knockbackTakenPct` in `applyZombieDamage`'s pushback and in 5.3's `applyKnockback` (5.2 adds it there too: whoever merges first).
+  - [x] `resolveOverlaps`: split each overlap by body area (`r_j² / (r_i² + r_j²)` to i), equal radii → ½ as today (no change for existing types; test it).
+  - [x] Tests `zombies/brute.test.ts` (new): `stats and reward`, `windup 10 ticks then the hit`, `stepping out during the windup dodges it`, `hit = 35 damage + 1.5 m knockback away from the Brute in 4 ticks`, `knockback stops at a barricade, car, bus, building, turret, map edge` (every approach angle 0–345° step 15°), `knockback stops at a fire edge`, `no knockback when the hit downs`, `105 damage to a building per hit (wood 2 hits, turret 3 hits)`, `axe moves a Brute 0.3 m, pistol pushback 20 %`, `overlap: a Walker moves the Brute 25 %`, `per-body windup: two Brutes on two players are independent`.
+- [x] **T4 Waves + mini-boss event** (AC 3, 4; F6)
+  - [x] `waves/waveDirector.ts › beginWave`: `fixed` counts into `typeTarget` (taken off Walkers, then the largest share); `waveZombieType` holds fixed types until `fixedAtFraction × size` have spawned, then serves them first; `world.waves.brutesSpawned` counter (reset per run, in `snapshotWorld`); emit `zombie.brute_spawned`.
+  - [x] `core/simEvents.ts` + `net/netEvents.ts` (encode/decode; zombie net id), `eventInterest.ts`: sent to everyone (it is a team cue).
+  - [x] Client: `GameScene` (banner on `first`, roar on each), `audio/placeholderSfx.ts` (`zombie_brute_roar`), `render/ZombieView.ts › LOOKS.brute` (depth above Walkers, cue roar), `render/city/spriteArt.ts › drawZombie` + `CHAR_EXTENT_R.brute` + WINDUP frame, `spriteAtlas.ts` frames (atlas ≤ 2048²: `atlasLayout.test.ts`).
+  - [x] Tests `waveDirector.test.ts` (+ `wave 5 has exactly one Brute at 1–4 players`, `it spawns after 25 % of the wave`, `spawns stream only: same seed → same Brute spawn point`), `GameScene`-free tests for the banner rule (hudModel / toast queue), `NetSimHost` (+ `brute_spawned decoded; banner once per run`).
+- [x] **T5 Prediction copy** (AC 6, 7; brief 2, 14)
+  - [x] Schema `knockTicks/knockDx/knockDy`, `syncState` (on change), `resetRunFields`, stateView key list, `fakeRoom`, devThrottle (key list), `NetSimHost` mirror (client World player), `Predictor.reconcile(ackSeq, x, y, status, slowTicks, slowPct, knockTicks, knockDx, knockDy)`; the Predictor's World has the map, buildings (`mirrorBuildings`) and fires (`syncDecay`), so the stop rules match.
+  - [x] Tests `net/prediction.test.ts` (+ `knockback predicted after the ack: 0 corrections in the open, against a barricade, at a fire edge`), `tools/netsim/brute.test.ts` (new: `?lag=150&jitter=20`, a Brute hits the bot player 5×: client position = server at every ack, no snap ≥ 1 m from a knockback, corrections recorded), `syncState.test.ts` (+ `knock fields synced and reset`), `NetSimHost` hidden-tab test across the wave-5 build start (`window.__game.loop.sleep()/wake()` in the browser check; Vitest: apply a state that jumped across the Brute spawn).
+- [x] **T6 Fuzz, reachability, bandwidth, perf, sims** (brief 7, 9, 11, 15, 16)
+  - [x] `zombies/downtown.fuzz.test.ts` (extend): random barricade/turret layouts × every decay stage and variant mask (incl. 4.8 fires; 5.9 metal barricades/spikes/mines if merged) × ≥ 3,000 ticks with Brutes in the mix and bots standing next to cover: **no Brute centre inside a (grown or real) box**, **no player inside a box or a fire after a knockback**, **no stall: every Brute reaches a player or a building it attacks**, **wide/chase fields rebuild walls only at build starts**; liveness: ≥ 1 knockback per layout, ≥ 1 Brute building hit, ≥ 1 Brute kill.
+  - [x] Reachability: a lone Brute from every spawn point × every stage reaches the team start (the 4.5 reachability pattern), with the wide field.
+  - [x] Bandwidth: one Brute in view adds one 8 B horde record at 20 Hz = **160 B/s** per phone (as one more Walker); `brute_spawned` ~20 B per spawn; knock fields ~3 B per hit. Assert in a bandwidth test (`decayBandwidth.test.ts` pattern) and report.
+  - [x] Tick cost (`tickCostFlowField.test.ts` + case, `PERF_ASSERT=1`): 150 zombies incl. 2 Brutes, 3 fields: added p99 recorded with load (≤ the 2 ms Epic budget).
+  - [x] 6-wave sim (`economy/fiveWaveSim.test.ts`, 6 waves once 5.8 lands; else `runWaves` override 5): assert waves ended, a Brute spawned in wave 5, was killed, and its 25 reward (+ assists) was paid (brief 9, 15).
+- [x] **T7 Gates.** Mutations (e.g. windup skipped → dodge test; knockback without push-out → fuzz; fire stop removed → fire test; `buildingDamageMult` ignored → building test; Brute on the chase grid → reachability/fuzz; `first` always true → banner test) and which tests failed. Browser check (Playwright): solo `?wavemix=brute` and the real wave 5 (`?wallet=` + build Ready ×4), online two tabs with `?lag=150&jitter=20`: banner once, roar, windup visible, knockback slides, stops at a barricade. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
 
@@ -189,10 +189,131 @@ New: Brute frames (normal + windup, 2–3 variants) in the characters atlas (big
 
 ### Agent Model Used
 
+Claude Opus 5.5 (`claude-opus-5-5`), builder in worktree `.claude/worktrees/story-5-7` (branch `story-5-7`), method `gds-dev-story`, 2026-11-23. Ports: Vite 5577 (temporary `vite.story57.config.ts`, deleted), server 4577 (stopped by PID).
+
 ### Debug Log References
+
+- **The wide grid, first version (whole-cell growth + the 3.5 pinch rule) was too strict:** a 1.5 m gap became a closed one-cell lane, so a Brute from `alley_3_mouth` at stage 2 never got past the dumpster (1.5 m left for a 1.2 m body). Fix (D1 refined): on the wide grid every box is grown by a whole cell, so every free cell centre is ≥ 0.75 m from every real box and so is every orthogonal step between two free cells → the wide grid has **no pinches** (a one-cell lane is a 1.5 m gap, which the Brute fits); diagonals still need their vertex free. Tested (`flowField.test › closes a 1.0 m gap, keeps 1.5 m open`; mutant "wide grid with pinches" killed).
+- **Spawn jitter:** the 3 m alley mouths cannot hold a 1.2 m body jittered ±1 m (the map tests grow each spawn area by the largest radius). New rule `spawnJitterFor(r) = spawnJitterM − max(0, r − 0.35)` (0.75 m for the Brute): jitter + radius never exceeds a Walker's 1.35 m. One draw from `spawns` as before (the type is now chosen first; it draws nothing). The map/panic/obstacle tests check every type's own area.
+- **Cornered players:** on the wide grid a player pressed against a box stands in a grown wall cell (never entered) → no field (fuzz seeds 2, 13). `seedAround`: the field starts from the nearest free ring of cells round such a player (up to 6 cells, never across a map solid — the first version seeded the far side of the parking wall). A player in a slot narrower than the Brute (1 m between bus and car) is seeded from the slot's mouths: the Brute waits there.
+- A Brute body standing in a grown wall cell steers from the best reached cell next to it (`flowNearestReachedCell`).
+- **Overlap pairs:** a Walker's overlap query (2 × 0.35 + margin) misses a Brute 0.9 m away; pairs are now handled by the bigger body (equal bodies: the lower id, unchanged), so Walker-only crowds are bit-for-bit as before.
+- **Crowd jams in the reach tests:** with a Brute per spawn, 70 bodies no longer fit in the 3 m circle the 4.5/4.7/4.8 reachability tests use; those tests now remove a zombie once it reached the team. In 4.8's fire test a 1.0 m/s Brute once shoved a 0.7 m/s Crawler into the street_west fire (seed 12, 1 of 95); the test now spawns Brutes in a second batch (it checks pathing, not crowd shoves). Noted below as Beat-the-rule 11.
+- Net event kind: 31 was taken by 5.1 (`WEAPON_UPGRADED`) → `BRUTE_SPAWNED: 32`.
+- Browser check: the Vite dep optimizer cached the stashed (pre-5.7) shared package after the FPS "before" run (Brutes silently became Walkers in `?wavemix`); restarted Vite with `--force` before the "after" numbers.
+- The shared scratchpad holds other builders' files (a `record.md` of 5.1 almost went into this story); my scratch files are under `scratchpad/s57/` and the named scripts `brute_check.mjs`, `fps.mjs`, `mutate.py`.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+**What was built (all simulation in `packages/shared`)**
+
+- **Balance:** `zombies.json › types.brute { hp 120, speedMps 1.0, damage 35, attackIntervalS 1.5, radiusM 0.6, reward 25, buildingDamageMult 3, knockbackTakenPct 20, hitKnockbackM 1.5, knockbackS 0.2, windupS 0.5, swingReachM 0.3, wideBody true }`, `pathing.wideInflateM 0.25`; `waves.json › fixed [{},{},{},{},{brute:1},{brute:1}]`, `fixedAtFraction 0.25`. Schema defaults keep every other type unchanged (`knockbackTakenPct` is 5.2's field, defined once after the merge). `crossCheck`: per-type radius limit (0.35 m, or 0.35 + `wideInflateM` for `wideBody`), fixed counts name known `ZOMBIE_TYPES` and fit the smallest (solo) wave.
+- **Type index 4** `brute` (append-only). Windup reuses 5.6's `ZOMBIE_STATE.WINDUP / RUSH_WINDUP` and the per-zombie `spitTicks` clock (Brutes have no spit) — no second mechanism.
+- **Wide-body pathing (D1):** `PathingState.wide` (NavGrid with `inflateM`: map solids, active cover, wall buildings and the map edge grown by a whole cell; fires grown by 0.6 m) + `wideChase` field; it joins the round-robin only while a wide body lives (`activeFields` 1–3, `tick % active`; chase + flank alone is exactly 3.8's even/odd split); `flowSharedMaxAgeTicks` = 2 × max(2, active) × P (6P with three fields). `setNavWalls/setNavFires` write both grids (`applyDecayStage`), `rasterizeBuildings` grows buildings on the wide grid (ids stay on the grown cells: a blocked Brute attacks the barricade), `decayFinish` rebuilds the wide field only if a Brute lives. `snapshotPathing` covers the wide grid and field.
+- **AI (`zombieAi.ts`):** a windup type touching a standing player with its attack ready stands still for `windupS` (10 ticks, its own clock), then `resolveSwing`: the nearest standing player strictly closer than contact + `swingReachM` takes 35 and the knockback (not when the hit downs); the attack interval runs either way. Building hits × `buildingDamageMult` (no windup on buildings). Types without `windupS` keep the instant bite (unchanged path). Overlap split by body area (`r_j²/(r_i²+r_j²)`).
+- **Knockback (`player/knockback.ts`, new):** `knockPlayer` sets `knockTicks` (4), `knockDx/Dy` (unit × 127, int8) and `knockStepMm` (375); `stepKnock` in `movePlayers` (shared with the Predictor) slides 0.375 m per applied seq through `pushOutOfBuildings` (cars, bus, buildings, barricades, turrets, map boxes, edge) and ends the knock instead of entering a burning fire; no steering while knocked (aim still follows input); a downed body's knock is cleared. *Deviation:* a fourth field `knockStepMm` (uint16) carries the per-tick distance (the story listed three); it keeps the step per hitting type without a type lookup in movement.
+- **Weapons/turrets on a Brute (F4):** 5.2's `knockbackShare` (`knockbackTakenPct`/100) in `applyKnockback` and the pushback (my copy was dropped at the merge in favour of 5.2's identical helper).
+- **Waves (F6, AC 3):** `applyFixedCounts` folds fixed zombies into `typeTarget` (Walkers give the slot first, then the largest share); `waveZombieType` holds them until `fixedAt = round(size × 0.25)` spawns, then serves them first; `brutesSpawned` counts per run; `announceSpawn` (wave director, dev ring, dev "in view") emits `zombie.brute_spawned { zombieId, x, y, first }`.
+- **Wire:** `NET_EVENT_KIND.BRUTE_SPAWNED 32` (10 B), global in `EventInterest` (team cue); schema `knockTicks uint8, knockDx int8, knockDy int8, knockStepMm uint16` → `syncState` (on change) + `resetRunFields` → `PlayerStateView`/`PLAYER_STATE_FIELDS` (devThrottle key list follows) → `fakeRoom` → `NetSimHost` mirror copy → `Predictor.reconcile(…, knockTicks, knockDx, knockDy, knockStepMm)`; the reconcile that first shows a knock smooths up to `PREDICTION_KNOCK_SNAP_M` 2.5 m instead of snapping (`stats.knockSlides`). Brute position/state: the existing horde record (type nibble 4, WINDUP in the state nibble).
+- **Client:** `render/city/bruteArt.ts` (new): the five round-B looks BR1 riot cop, BR2 hi-vis worker, BR3 butcher, BR4 bodybuilder, BR5 prisoner, ported from `docs/art/epic-5/round-b/looks.html`, idle + windup pose each, **arms always under the clothes/torso (the designer's fix)**; atlas frames `zombie_brute_{a..e}` + `zombie_brute_windup_{a..e}` (102 px, `CHAR_EXTENT_R.brute` 1.5). Look per Brute = `bruteLookIndex(runSeed, netId)` from the named stream `look:brute:<netId>` (same on every client, nothing on the wire). `ZombieView`: depth 5.8, windup frame (no Spitter gurgle for it), heavier hit flash (160 ms). `GameScene` + `render/bruteCue.ts`: roar (`zombie_brute_roar`, panned, clamped) on every spawn, "Brute!" banner on `first`; a woken tab's backlog (`ageS` from NetSimHost) roars nothing after 1 s and shows no banner after 3 s.
+- **Acid fix (5.6 re-review, designer):** `circleInAcid` also requires the body → puddle-centre segment not to enter a shot blocker more than 2 cm before the centre; barricades/sandbags/turrets/traps don't block. Logged in the 5.6 story's change log.
+
+**Fairness rules → tests**
+
+| Rule | Tests (`packages/shared/src/zombies/brute.test.ts` unless named) |
+| --- | --- |
+| F1 windup 0.5 s, dodge by 0.3 m | "touch → WINDUP 10 ticks, then 35", "exactly 0.3 m dodges, 0.29 m does not", "walking away always dodges; standing still never does", "per body: two Brutes 3 ticks apart"; Walker instant bite unchanged |
+| F2 1.5 m, never into/through | open ground 24 angles (0.375 m × 4, straight, no steering, control back); car, bus, building, parking_wall, wood barricade, turret × 24 angles; map edge × 4; fire edge × 2 fires × 24 angles; fuzz; `prediction.test` (open, barricade, fire) |
+| F3 downed never pushed | "the hit that downs knocks nothing; never knocked later" |
+| F4 weapons barely move it | "axe 1.5 → 0.3, shotgun 0.5 → 0.1, pushback × 0.2", "overlap split by area (25 %), Walkers ½" |
+| F5 105 per building hit | wood: 105 then destroyed by the 2nd; turret: 105, 105, destroyed by the 3rd, one interval apart; "open way round → barricade untouched" |
+| F6 never on top of you | `waveDirector.test` (spawn ≥ 6 m, narrowed jitter, `spawns` stream only, banner `first` once); map tests (every type's jitter area clear) |
+| F7 body = hitbox | "bullet hits at 0.59 m, misses at 0.61 m" |
+| F8 same Brute for everyone | `waveDirector.test` "exactly one Brute in waves 5 and 6 at 1–4 players" (+ wave size unchanged); stats from balance only |
+
+Also: `flowField.test` (+5: 1.0 m closed / 1.5 m open, growth + ids, idles without a Brute / shares ticks / 6P bound, walls only at decay changes on both grids, snapshot), `zombieAi.pathing.test` (+2: round the end of a line with a 1 m gap; breaks a barricade when the gap is the only way, never clips), `balance.test` (+3), `netEvents.test`, `syncState.test`, `hordeEncoder.test`, `eventInterest.test`, `atlasLayout.test`, `bruteCue.test` (new), `NetSimHost.brute.test` (new: decoded, banner once, hidden tab across the spawn, knock fields mirrored), `tools/netsim/brute.test.ts` (new), `zombies/brute.fuzz.test.ts` (new), `acid.test` (+1 with 7 cases), `fiveWaveSim.test` (+1: six waves).
+
+**Fuzz (brief 7)** — `brute.fuzz.test.ts`: 16 layouts (stages 1–3, variant masks, players pressed against cover or next to a fire, 4–18 wood/metal barricades and turrets, 2–3 Brutes + 20 Walkers/Crawlers, the team kills one crowd zombie per player per second) × 3,000 ticks, one stage change mid-run: no Brute or player inside a box, nobody knocked into fire, no stall, walls only at the stage change; **1,481 knockbacks, 4,878 knock ticks stopped short by something, 21 Brute building hits, 35/38 Brutes hit a player** (the rest reached within 3 m with a clear line). Reachability: a lone Brute from every open spawn × stages 1–3 × every 4th variant mask reaches the team (all reached). The Downtown fuzz now jitters each type by its own rule (Brutes are among its random types; still green).
+
+**Sims (brief 9, 15)** — six waves (`runWaves` 6 override), 2 and 4 bots, seeds 1–3: all 6 runs held out; every run: Brutes spawned in waves 5 and 6, both killed, kill pay 49–74 per run (25 + assists; turret kills pay the owner half).
+
+**Netsim (brief 14)** — `?lag=150&jitter=20` (75 ± 10 ms each way), Brute next to the bot player, barricade behind: 10 hits in 20 s, **0 snaps, exactly 1 smoothed correction per knock (its reveal), drawn = server after** (3 seeds); control (knock ignored): 39 corrections.
+
+**Bandwidth (brief 11)** — one Brute in view = one more 8 B horde record = **+160 B/s** per phone (test); `brute_spawned` **10 B** per spawn (global); a knock's schema patch **11 B** at the hit (+ the countdown, ~1 B/tick for 3 ticks). Nothing per tick otherwise. Total far under 30 KB/s; horde ≤ 24 KB/s unchanged (the Brute takes a Walker's slot in the wave count).
+
+**Tick cost (brief 16, `PERF_ASSERT=1`, 4 cores, load 6.9–8.3)** — 98 Walkers + 50 Runners + 2 Brutes, 24 buildings (4 firing turrets): chase + flank p99 1.588 ms → + wide field **1.156 ms** (added −0.43 ms: noise, the third field shares the existing cell budget, no extra cells per tick); max age chase/flank/wide 15 ticks (bound 6P = 18). Under heavier load (12–17) the older tick-cost tests time out at 5 s; the work branch's 30 s test timeout (merged) fixes that.
+
+**Phone FPS (brief 12)** — headless Chromium SwiftShader, 844 × 390 DPR 2, rAF over 20 s after 5 s. Before (base, `?stress=150`): 7.3 / 5.7 fps (load 7.4). After: `?stress=150` 7.0; with 15 Brutes (`?wavemix=walker×9,brute`) 7.9; with 75 Brutes (`walker,brute`) 8.2 (worst second 6–7; load 7.8–8.3). No measurable loss (noise-level numbers on a busy box). Brute frames are 10 atlas frames (102 px) in the characters atlas, no new pools.
+
+**Mutations (brief 9; each once, `scratchpad/mutate.py`)** — 23 mutants, **22 killed:** windup skipped; reach not strict; knock without push-out; fire stop removed; `buildingDamageMult` ignored; Brute on the chase grid; `first` always true; `knockbackTakenPct` ignored; overlap split ½; fixed Brute at the wave start; no fixed counts; wide grid with pinches; no seed round a cornered player; wide field never advances; predictor ignores the knock; reveal snaps; syncState drops `knockDy`; late banner kept; acid ignores cover; acid face tolerance 0 (survived first — the test had no centre inside the wall; added two cases, then killed); wide radius limit unchecked. **Survived (equivalent):** "knock on a downing hit" in `damagePlayer` — `knockPlayer` itself refuses a non-standing player (and `movePlayers` clears a downed body's knock).
+
+**Beat the rule (brief 4) — my attempts**
+
+1. Stand in a 0.9–1.1 m gap between barricades: the Brute walks round when there is a way round, else breaks a barricade (2 hits), never clips (tests). A 1.5 m gap is passable for it (alley 3 + dumpster). **Holds.**
+2. Kite at 4.5 m/s: never hit (1 m/s Brute). Standing still and stepping exactly 0.3 m on the last windup tick: dodged; 0.29 m: hit (test). **Holds — exactly the rule.**
+3. Knocked toward car, bus, building, thin wall, barricade, turret, map edge, burning car: never inside, never through, never into fire (24 angles each + fuzz). The knock slides along a face (normal player collision). **Holds.**
+4. Knock under `?lag=150&jitter=20`: no snap; one smoothed slide per hit (netsim). **Holds.**
+5. Cage the Brute's spawn: barricades must stay 2 m clear of spawns (4.3); a closed ring round the team costs 2 hits per wood barricade, 6 per metal. Not timed in a browser.
+6. Axe/shotgun it into a corner: 0.3 / 0.1 m per hit, swept, stops at boxes (test). **Holds.**
+7. Hide behind a turret line: a turret falls in 3 hits = 3 s of contact (test); turrets shoot back (120 HP).
+8. Downed next to the Brute: not pushed, not hit again (test). **Holds.**
+9. Hidden tab across the Brute spawn: decided **once, or skipped if stale** — no roar after 1 s, no banner after 3 s; `first` is true on exactly one event per run (test). **Holds.**
+10. Solo wave 5 (80): exactly 1 Brute, the 21st spawn (test). **Holds.**
+11. *Found:* a player in a slot narrower than 1.2 m (the 1 m between the bus and the street car, the 1 m between the parking wall and parked_car_1) is out of the Brute's reach; it waits at the slot's mouth. Walkers still come in. Designer to judge (option: Brute breaks nothing there by design, it cannot break cars).
+12. *Found:* a Brute shoves slower zombies ahead of it (it takes only ~25 % of an overlap); once it pushed a Crawler into a fire (fire test seed 12). Emergent, harmless.
+
+### Gate
+
+On the branch merged with `claude/gracious-turing-0db3j6` (5.1, 5.2, 4.12, 4.13; conflicts resolved in `damage.ts`, `movement.ts`, `netEvents.ts`, `simEvents.ts`, `balanceSchema.ts`, `spriteArt.ts`, tests and the readability sheet): `npm run typecheck && npm run lint && npm test && npm run build` green — **227 test files passed, 1 skipped; 1,760 tests passed, 3 skipped**. `uptime` during the test run: load 6.7 → 9.5 (4 cores); during typecheck/lint/build: 6.1–7.7.
+
+### Not verified
+
+- **Phones:** only headless SwiftShader FPS on a box at load 7–8 (noise-level numbers). The 4.10 phone floor must be rechecked with `?stress=150&wavemix=walker,brute`.
+- **Online two-tab browser check under `?lag=150&jitter=20` was not run** (time; the box was at load 8–17). Covered instead by `tools/netsim/brute.test.ts` (real RunController + Predictor), `NetSimHost.brute.test.ts` (decode, banner once, hidden tab across the spawn) and `prediction.test.ts`. The solo browser check (dev cheat spawn) ran: banner "Brute!", roar call, windup frame, a hit knocking the survivor 1.5 m, lineup of looks.
+- The real wave 5 in a browser (`?wallet=` + Ready ×4) was not played; the sims cover it (waves 5/6 each spawned exactly one Brute that was killed).
+- Sound only as code (placeholder roar); not listened to.
+- Beat-the-rule 5 (time to break out of a caged spawn) not measured.
 
 ### File List
+
+New:
+- `packages/shared/src/player/knockback.ts`, `packages/shared/src/zombies/brute.ts`
+- `packages/shared/src/zombies/brute.test.ts`, `packages/shared/src/zombies/brute.fuzz.test.ts`
+- `apps/client/src/render/city/bruteArt.ts`, `apps/client/src/render/bruteCue.ts`, `apps/client/src/render/bruteCue.test.ts`, `apps/client/src/sim/NetSimHost.brute.test.ts`
+- `tools/netsim/brute.test.ts`
+- `docs/art/epic-5/round-b/ingame/5-7-banner.png`, `5-7-windup.png`, `5-7-knockback.png`, `5-7-looks.png`, `5-7-looks-sheet.png`
+- `docs/playtests/milestone-1/objects/27_brute.png`
+
+Modified:
+- `packages/shared/src/config/balance/zombies.json`, `config/balance/waves.json`, `config/balanceSchema.ts`, `config/balance.ts`, `config/balance.test.ts`
+- `packages/shared/src/zombies/zombieTypes.ts`, `zombies/zombieAi.ts`, `zombies/flowField.ts`, `zombies/spawnRing.ts`, `zombies/spit.ts`, `zombies/flowField.test.ts`, `zombies/zombieAi.pathing.test.ts`, `zombies/downtown.fuzz.test.ts`
+- `packages/shared/src/map/collisionCells.ts`, `map/downtown.test.ts`, `map/obstacles.test.ts`
+- `packages/shared/src/decay/applyDecayStage.ts`, `decay/decaySystem.ts`, `decay/decay.test.ts`, `decay/fire.test.ts`, `decay/panic.test.ts`
+- `packages/shared/src/player/player.ts`, `player/movement.ts`, `player/slow.test.ts`
+- `packages/shared/src/waves/waveDirector.ts`, `waves/waveDirector.test.ts`
+- `packages/shared/src/core/world.ts`, `core/simEvents.ts`, `net/netEvents.ts`, `net/netEvents.test.ts`, `net/stateView.ts`, `index.ts`
+- `packages/shared/src/combat/damage.ts` (merge: 5.2's helper kept), `bots/headlessRun.ts`, `economy/fiveWaveSim.test.ts`, `hazards/acid.test.ts`
+- `apps/server/src/rooms/schema/RunState.ts`, `rooms/schema/syncState.ts`, `rooms/schema/syncState.test.ts`, `net/eventInterest.test.ts`, `net/hordeEncoder.test.ts`, `run/tickCostFlowField.test.ts`
+- `apps/client/src/net/prediction.ts`, `net/prediction.test.ts`, `net/netConfig.ts`, `net/fakeRoom.ts`, `sim/NetSimHost.ts`
+- `apps/client/src/render/ZombieView.ts`, `render/city/spriteArt.ts`, `render/city/spriteAtlas.ts`, `render/city/atlasLayout.test.ts`, `scenes/GameScene.ts`, `audio/placeholderSfx.ts`, `debug/stressScenario.ts`
+- `docs/playtests/milestone-1/readability-sheet.md`, `readability-key.md`
+- `_bmad-output/implementation-artifacts/5-6-spitters.md` (change log: acid vs cover), this story file
+
+### Notes for the merge (brief 19)
+
+- `zombieTypes.ts › ZOMBIE_TYPES`: `brute` = 4 (after `spitter`). 5.8's `bloater` goes after it unless it lands first; the wire carries the index: never reorder; the client's `bruteLookIndex` / `ZombieView` key on the type name, tests count index 4 in a few places (`hordeEncoder.test`, fuzz `zombieTypeIndex("brute")`).
+- `net/netEvents.ts`: `BRUTE_SPAWNED: 32` (27–28 = 5.9, 29–30 = 5.6, 31 = 5.1). Renumber if taken; never reuse.
+- `balanceSchema.ts › zombieTypeSchema`: one strict object; `knockbackTakenPct` is 5.2's (defined once); 5.7 adds `buildingDamageMult, hitKnockbackM, knockbackS, windupS, swingReachM, wideBody`; `pathingSchema.wideInflateM`; `wavesSchema.fixed, fixedAtFraction`.
+- `combat/damage.ts`: 5.2's `knockbackShare` / `hurt` are the single place (my duplicate was dropped at the merge).
+- `zombieAi.ts`: windup state machine shared with 5.6 (`isWindupState`); the melee windup is gated on `stats.windupS > 0` (Spitters' top-level `windupS` is 0: their spit windup lives in `spit.windupS`). Overlap pairs are now handled by the bigger body. `steerByField` takes the nav grid.
+- `flowField.ts`: `PathingState` gained `wide, wideChase, wideActive, activeFields`; `NavGrid.inflateM`; a future building kind must go through `rasterizeBuildings` (growth applies automatically); 5.9-style floor stays out of both grids.
+- `player/movement.ts` (shared with 5.2's chainsaw slow): the knock is stepped after `tickSlow`, before the input move, applied seqs only.
+- Schema / `PlayerStateView` / `fakeRoom` / `syncState`: appended `knockTicks, knockDx, knockDy, knockStepMm`; `Predictor.reconcile` gained four trailing params (callers: NetSimHost, netsim tests).
+- `waves.json`: `fixed` beside `mix` (5.6 and 5.8 add mix weights). When 5.8 sets `runWaves` 6, the wave-6 Brute goes live (the six-wave sim already covers it).
+- `spriteArt.ts` (`CHAR_EXTENT_R.survivor` is 5.2's 2.7; `brute` 1.5), `spriteAtlas.ts`, `ZombieView.ts`, `GameScene.ts`, `placeholderSfx.ts`: appended entries.
+- Readability sheet: the Brute is item 26 (`27_brute.png`) after 5.2's 24–25.
+- Map tests (`downtown.test`, `obstacles.test`, `panic.test`) now check each type's spawn area with `spawnJitterFor`.
+
+## Change Log
+
+- 2026-11-23: Story 5.7 built (Brute: balance, wide-body pathing, windup, knockback with prediction, fixed wave counts, spawn event/banner/roar, five code looks with the arms-under-clothes fix, tests, fuzz, reachability, six-wave sim, netsim, bandwidth, tick cost, FPS, mutations). Also the 5.6 acid-vs-cover fix. Merged `claude/gracious-turing-0db3j6` (5.1, 5.2, 4.12, 4.13). Status → review.

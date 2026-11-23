@@ -35,6 +35,29 @@ describe("loadBalance", () => {
     expect(Object.keys(b.weapons).slice(0, 4)).toEqual(["pistol", "smg", "hunting_rifle", "machete"]);
   });
 
+  it("fire axe and chainsaw match the GDD table (Story 5.2)", () => {
+    const b = loadBalance();
+    expect(b.weapons.fire_axe).toMatchObject({ kind: "melee", name: "Fire Axe", damage: 30, rateHz: 1.1, rangeM: 2.2, arcDeg: 140, knockbackM: 1.5, hitPushbackM: 0, screenShake: true, price: 300, wielderSlowPct: 0, quietHits: false });
+    expect(b.weapons.chainsaw).toMatchObject({ kind: "melee", name: "Chainsaw", damage: 6, rateHz: 10, rangeM: 1.5, arcDeg: 60, knockbackM: 0, hitPushbackM: 0.05, screenShake: false, price: 600, wielderSlowPct: 20, quietHits: true });
+    expect(b.weapons.machete).toMatchObject({ knockbackM: 0, wielderSlowPct: 0, quietHits: false }); // unchanged
+    // Appended after Round A's ids: the wire's weapon index of every older weapon stays.
+    expect(Object.keys(b.weapons)).toEqual(["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw"]);
+    expect(b.shop.weapons.slice(-2)).toEqual(["fire_axe", "chainsaw"]);
+    for (const [id, t] of Object.entries(b.zombies.types)) expect(t.knockbackTakenPct, id).toBe(id === "brute" ? 20 : 100); // Story 5.7: the Brute takes 20 %
+    expect(b.controls.fx).toMatchObject({ maxSwingArcs: 8, maxChainsawSparks: 32 });
+  });
+
+  it("refuses a fractional or too large wielderSlowPct and a fractional knockbackTakenPct (Story 5.2)", () => {
+    const files = raw();
+    ((files.weapons as Record<string, Record<string, number>>).chainsaw as Record<string, number>).wielderSlowPct = 20.5;
+    expect(() => loadBalance(files)).toThrow(/weapons\.json: chainsaw\.wielderSlowPct/);
+    ((files.weapons as Record<string, Record<string, number>>).chainsaw as Record<string, number>).wielderSlowPct = 95;
+    expect(() => loadBalance(files)).toThrow(/weapons\.json: chainsaw\.wielderSlowPct/);
+    const f2 = raw();
+    ((f2.zombies as { types: Record<string, Record<string, number>> }).types.walker as Record<string, number>).knockbackTakenPct = 20.5;
+    expect(() => loadBalance(f2)).toThrow(/zombies\.json: types\.walker\.knockbackTakenPct/);
+  });
+
   it("pellets defaults to 1 for the old guns (Story 5.3)", () => {
     const b = loadBalance();
     for (const id of ["pistol", "smg", "hunting_rifle"]) expect((b.weapons[id] as { pellets: number }).pellets).toBe(1);
@@ -198,5 +221,42 @@ describe("Story 5.9: building tiers, traps and mines", () => {
     bad((t) => ((t.mine as Record<string, unknown>).upgradesTo = { type: "metal_barricade", price: 100 }), /a floor type can't upgrade/);
     bad((t) => ((t.spike_trap as { trap: { pulseS: number } }).trap.pulseS = 0.33), /whole number/);
     bad((t) => ((t.mine as { mine: { blastRadiusM: number } }).mine.blastRadiusM = 0.5), /at least triggerRadiusM/);
+  });
+});
+
+describe("Story 5.1: weapon upgrades", () => {
+  it("upgrades block is validated", () => {
+    expect(loadBalance().shop.upgrades).toEqual({ maxLevel: 4, damagePerLevel: 0.25, priceShare: 0.6 });
+    const bad = (patch: Record<string, unknown>, re: RegExp): void => {
+      const files = raw();
+      Object.assign((files.shop as { upgrades: Record<string, unknown> }).upgrades, patch);
+      expect(() => loadBalance(files)).toThrow(re);
+    };
+    bad({ maxLevel: 0 }, /shop\.json: upgrades\.maxLevel/);
+    bad({ maxLevel: 5 }, /shop\.json: upgrades\.maxLevel/); // review L1: I–IV is the design
+    bad({ maxLevel: 16 }, /shop\.json: upgrades\.maxLevel/);
+    bad({ maxLevel: 2.5 }, /shop\.json: upgrades\.maxLevel/);
+    bad({ damagePerLevel: -0.1 }, /shop\.json: upgrades\.damagePerLevel/);
+    bad({ priceShare: 0 }, /shop\.json: upgrades\.priceShare/);
+    bad({ extra: 1 }, /shop\.json: upgrades/);
+    const files = raw();
+    delete (files.shop as { upgrades?: unknown }).upgrades;
+    expect(() => loadBalance(files)).toThrow(/shop\.json: upgrades/);
+  });
+
+  it("pistol upgrade base is 100", () => {
+    const b = loadBalance();
+    expect(b.weapons.pistol?.upgradeBasePrice).toBe(100);
+    expect(b.weapons.pistol?.price).toBe(0);
+    for (const id of Object.keys(b.weapons)) if (id !== "pistol") expect(b.weapons[id]?.upgradeBasePrice).toBeUndefined();
+  });
+
+  it("every weapon has a non-zero upgrade price", () => {
+    const files = raw();
+    delete (files.weapons as { pistol: { upgradeBasePrice?: number } }).pistol.upgradeBasePrice;
+    expect(() => loadBalance(files)).toThrow(/weapons\.json: pistol: its upgrade price is 0/);
+    const neg = raw();
+    (neg.weapons as { pistol: { upgradeBasePrice: number } }).pistol.upgradeBasePrice = -1;
+    expect(() => loadBalance(neg)).toThrow(/weapons\.json: pistol\.upgradeBasePrice/);
   });
 });

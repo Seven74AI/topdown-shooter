@@ -108,18 +108,19 @@ development_status:
   4-9-placeholder-dead-city-look: done
   4-10-milestone-1-playtest: backlog  # human: playtest/spec, not a dev-agent story. DEFERRED (designer 2026-11-23: 'way, way later'); no longer blocks Epic 5. Plan ready: docs/playtests/milestone-1.md
   4-11-stage-object-readability-pass: done  # designer 2026-11-23: redraw sandbags, wood barricade, fire ring + burning-player effects (prototype: claude.ai/artifact/DD4ECzvpxW98HGW65b6oGZ)
-  4-12-stage-objects-in-game-code: backlog  # designer 2026-11-23: redraw 4.11's Meshy sprites in code; burning car pick pending
+  4-12-stage-objects-in-game-code: in-progress  # designer 2026-11-23: 4.11 objects in game code; fire = fire-lab D
+  4-13-survive-losing-the-graphics: in-progress  # bug 2026-11-23: objects vanish after an app switch; reload didn't help
   epic-4-retrospective: done  # partial retro 2026-11-23 (4.10 deferred); 4.11 re-added by the designer the same day (sandbags, barricade, fire)
 
   # Epic 5: Full arsenal and bestiary
   epic-5: in-progress  # all 13 story files written 2026-11-23; decisions: docs/epic-5-decisions.md
-  5-1-weapon-upgrades-i-iv: ready-for-dev
-  5-2-fire-axe-and-chainsaw: ready-for-dev
+  5-1-weapon-upgrades-i-iv: in-progress
+  5-2-fire-axe-and-chainsaw: in-progress
   5-3-shotgun-and-assault-rifle: done
   5-4-flamethrower-and-fire-friendly-fire: ready-for-dev
   5-5-grenade-launcher: ready-for-dev
   5-6-spitters: done
-  5-7-the-first-brute: ready-for-dev
+  5-7-the-first-brute: in-progress
   5-8-bloaters: ready-for-dev
   5-9-metal-barricade-spike-trap-and-mine: done
   5-10-floodlight-and-med-station: ready-for-dev

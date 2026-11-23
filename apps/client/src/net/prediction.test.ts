@@ -7,6 +7,7 @@ import {
   createWorld,
   loadBalance,
   setInput,
+  setLoadout,
   step,
   type PlayerInput,
   DOWNTOWN_MAP,
@@ -351,3 +352,41 @@ describe("Predictor", () => {
     });
   });
 });
+
+describe("Predictor: the Chainsaw's wielder slow (Story 5.2 F6)", () => {
+  it("chainsaw slow predicted: 0 corrections over 200 ticks attacking (snapshot 4 steps behind)", () => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+    const sp = addPlayer(world, "p0", 10, 10);
+    setLoadout(balance, sp.loadout, ["chainsaw", null]);
+    const p = predictor(10, 10);
+    const history: { seq: number; x: number; y: number }[] = [];
+    for (let seq = 1; seq <= 200; seq++) {
+      const input = move(seq, Math.cos(seq * 0.05), Math.sin(seq * 0.05), { aimX: 1, aimY: 0, fire: true });
+      p.applyLocal(input, "chainsaw", false);
+      setInput(world, "p0", input);
+      step(world, TICK_DT_S);
+      history.push({ seq, x: sp.x, y: sp.y });
+      const ack = history[history.length - 5];
+      if (ack) p.reconcile(ack.seq, ack.x, ack.y, "alive");
+    }
+    expect(p.wieldWeapon).toBe("chainsaw");
+    expect(Math.hypot(sp.x - sp.prevX, sp.y - sp.prevY)).toBeCloseTo(balance.player.speedMps * 0.8 * TICK_DT_S, 9); // liveness: the server really slowed
+    expect(p.stats.corrections).toBe(0);
+    expect(p.stats.snaps).toBe(0);
+    expect(Math.hypot(p.x - sp.x, p.y - sp.y)).toBeLessThan(1e-5);
+  });
+
+  it("no slow while swapping or without the chainsaw; replays use each seq's own wield state", () => {
+    const p = predictor();
+    p.applyLocal(move(1, 1, 0, { aimX: 1, fire: true }), "chainsaw", true); // swapping: full speed
+    expect(p.x).toBeCloseTo(10 + STEP_M, 12);
+    p.applyLocal(move(2, 1, 0, { aimX: 1, fire: true }), "chainsaw", false); // attacking: 80 %
+    expect(p.x).toBeCloseTo(10 + STEP_M + STEP_M * 0.8, 12);
+    p.applyLocal(move(3, 1, 0, { aimX: 1, fire: true }), "pistol", false);
+    expect(p.x).toBeCloseTo(10 + STEP_M * 2.8, 12);
+    p.reconcile(0, 10, 10, "alive"); // replays 1–3 with their own states
+    expect(p.x).toBeCloseTo(10 + STEP_M * 2.8, 12);
+    expect(p.stats.corrections).toBe(0);
+  });
+});
+

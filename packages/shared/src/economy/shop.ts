@@ -1,8 +1,8 @@
 import type { Balance } from "../config/balance";
 import { err, ok, type Result } from "../core/result";
 import type { World } from "../core/world";
-import { createSlot, type Loadout } from "../combat/loadout";
-import type { WeaponId } from "../combat/weapons";
+import { createSlot, type Loadout, type WeaponSlot } from "../combat/loadout";
+import { upgradePrice, type WeaponId } from "../combat/weapons";
 import { spendMoney, type SpendError } from "./economy";
 
 /**
@@ -113,6 +113,8 @@ export function owns(loadout: Loadout, weapon: WeaponId): boolean {
  * the shop, not already in a slot, a slot (the empty second slot first; with both full `slot` must
  * say which one is replaced), then the wallet (`spendMoney`). On success the weapon is in that slot
  * with a full magazine; the replaced weapon is lost and the active slot index is unchanged.
+ * Story 5.1: the new slot starts at level I (a replaced weapon's upgrades are lost; buying it again
+ * later starts at I too).
  * On an error nothing changes.
  */
 export function buyWeapon(world: World, playerId: string, weapon: WeaponId, slot: 0 | 1 | null): Result<Bought, ShopError> {
@@ -141,4 +143,88 @@ export function botShopPick(balance: Balance, wallet: number, loadout: Loadout, 
     if (price !== null && price <= wallet && !owns(loadout, id)) return id;
   }
   return null;
+}
+
+/**
+ * Story 5.1: why `upgradeWeapon` refused (checked in this order). Named apart from the buildings'
+ * `UpgradeError` (Story 5.9).
+ */
+export type WeaponUpgradeError = "not_build" | "unknown_player" | "not_owned" | "max_level" | SpendError;
+
+/** What one weapon upgrade did. */
+export interface WeaponUpgraded {
+  readonly slot: 0 | 1;
+  /** The new level (2–maxLevel). */
+  readonly level: number;
+  readonly price: number;
+}
+
+/**
+ * Story 5.1 (F1–F4): upgrades the `weapon` in one of `playerId`'s slots by one level, paid from
+ * their own wallet at `upgradePrice`. Checks, in order: a build phase, a known player, the weapon
+ * is in one of the player's slots, below `upgrades.maxLevel`, then `spendMoney`. On success only
+ * that slot's `level` rises (ammo, reload, cooldown and the active slot stay) and
+ * `weapon.upgraded` is emitted. On an error nothing changes. Draws no random number.
+ */
+export function upgradeWeapon(world: World, playerId: string, weapon: WeaponId): Result<WeaponUpgraded, WeaponUpgradeError> {
+  if (world.run.phase !== "build") return err("not_build");
+  const p = world.players.get(playerId);
+  if (!p) return err("unknown_player");
+  const lo = p.loadout;
+  const slot: 0 | 1 | null = lo.slots[0].weapon === weapon ? 0 : lo.slots[1]?.weapon === weapon ? 1 : null;
+  if (slot === null) return err("not_owned");
+  const s = lo.slots[slot] as WeaponSlot;
+  if (s.level >= world.balance.shop.upgrades.maxLevel) return err("max_level");
+  const price = upgradePrice(world.balance, weapon);
+  const paid = spendMoney(world, playerId, price);
+  if (!paid.ok) return paid;
+  s.level++;
+  world.events.emit({ type: "weapon.upgraded", playerId, weapon, slot, level: s.level });
+  return ok({ slot, level: s.level, price });
+}
+
+/** One row of the shop's Upgrades section (Story 5.1). */
+export interface ShopUpgradeRow {
+  weapon: WeaponId;
+  name: string;
+  slot: 0 | 1;
+  level: number;
+  /** The price of the next level, or null at the max level. */
+  nextPrice: number | null;
+}
+
+/**
+ * Story 5.1: the shop's upgrade rows for a loadout, slot 0 first (one per weapon held). Allocates
+ * (UI and bots, once per change; never per tick). Independent of the fixed weapon list (5.13).
+ */
+export function shopUpgrades(balance: Balance, loadout: Loadout): ShopUpgradeRow[] {
+  const rows: ShopUpgradeRow[] = [];
+  for (const slot of [0, 1] as const) {
+    const s = loadout.slots[slot];
+    if (!s) continue;
+    const max = s.level >= balance.shop.upgrades.maxLevel;
+    rows.push({ weapon: s.weapon, name: weaponName(balance, s.weapon), slot, level: s.level, nextPrice: max ? null : upgradePrice(balance, s.weapon) });
+  }
+  return rows;
+}
+
+const upgradeTableCache = new WeakMap<Balance, Readonly<Record<string, number>>>();
+
+/** Story 5.1: every weapon's upgrade price per level, by id (cached per balance; the shop UI). */
+export function upgradePriceTable(balance: Balance): Readonly<Record<string, number>> {
+  let t = upgradeTableCache.get(balance);
+  if (!t) {
+    const out: Record<string, number> = {};
+    for (const id of Object.keys(balance.weapons)) out[id] = upgradePrice(balance, id);
+    t = Object.freeze(out);
+    upgradeTableCache.set(balance, t);
+  }
+  return t;
+}
+
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"] as const;
+
+/** Story 5.1: 1 → "I" … 15 → "XV" (the HUD and shop marks); anything else → "". */
+export function romanLevel(level: number): string {
+  return ROMAN[level] ?? "";
 }

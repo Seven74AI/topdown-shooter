@@ -327,14 +327,9 @@ describe("RunRoom lobby (Story 2.3)", () => {
     expect(info).toHaveBeenCalledWith({ playerId: "p1", reason: "not_host" }, "run_start_refused");
   });
 
-  it("refuses a solo start unless allowSoloStart, then accepts it", async () => {
+  it("accepts a solo start even when allowSoloStart is off (designer 2026-11-23: online runs can be played alone)", async () => {
     const { client, room } = await createRun();
-    const info = vi.spyOn(room.log, "info");
     room.allowSoloStart = false;
-    await readyAndStart(room, client);
-    expect(room.state.phase).toBe("lobby");
-    expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "too_few" }, "run_start_refused");
-    room.allowSoloStart = true;
     await readyAndStart(room, client);
     expect(room.state.phase).toBe("build");
   });
@@ -381,17 +376,15 @@ describe("RunRoom lobby (Story 2.3)", () => {
     expect((await fourth.joined).slot).toBe(3);
   });
 
-  it("refuses a start after a leave drops the room below 2 players", async () => {
+  it("lets the host start alone after the guest leaves", async () => {
     const host = await createRun();
     host.room.allowSoloStart = false;
     const guest = await joinRun(host.client.roomId);
     await guest.joined;
     await guest.client.leave(true);
     await vi.waitFor(() => expect(host.room.state.players.size).toBe(1));
-    const info = vi.spyOn(host.room.log, "info");
     await readyAndStart(host.room, host.client);
-    expect(host.room.state.phase).toBe("lobby");
-    expect(info).toHaveBeenCalledWith({ playerId: "p0", reason: "too_few" }, "run_start_refused");
+    expect(host.room.state.phase).toBe("build");
   });
 
   it("keeps the guest token and its hash out of room state and logs", async () => {

@@ -195,7 +195,7 @@ Placed during build phases on a 1 m grid; they persist until destroyed and can b
 **Decay interaction:** fires damage buildings inside them; rubble blocks placement; the Behemoth's charge destroys buildings. Brutes deal 3× damage to buildings.
 ### Enemy Wave Design
 **Wave size (4 players):** wave 1 ≈ 40 zombies, growing by ≈ 40 per wave to ≈ 400 in wave 10; at most ≈ 150 alive at once (the rest queue at spawn points).
-**Player-count scaling:** zombie count and boss HP × **0.6** (2 players), **0.8** (3), **1.0** (4). A mid-run join rescales from the next wave. Solo (1 player) is not a target mode [NOTE FOR DESIGNER: solo testing could use × 0.4].
+**Player-count scaling:** zombie count and boss HP × **0.6** (2 players), **0.8** (3), **1.0** (4). A mid-run join rescales from the next wave. **Solo (1 player) online runs are allowed** (designer, 2026-11-23): × **0.4**; going down alone ends the run (team wipe). Balance targets stay tuned for 2–4.
 
 **Wave 10 boss: The Behemoth.** Arrives mid-wave with the horde still active.
 - Size 5× a walker (radius 2 m); speed 1.3 m/s; immune to knockback. HP **6,000** at 4 players (≈ 40 s of focused team fire; scaled by player count).

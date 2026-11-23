@@ -16,6 +16,7 @@ import {
   type RunStateView,
   type ShopError,
   type SimEventsFlushed,
+  type WeaponUpgradeError,
 } from "@topdown/shared";
 import type { ShopAnswer } from "../sim/SimHost";
 
@@ -42,6 +43,24 @@ export function parseShopRefused(m: unknown): ShopAnswer | null {
   if (!o || typeof o.weapon !== "string" || typeof o.error !== "string") return null;
   const error = (SHOP_ERRORS as readonly string[]).includes(o.error) ? (o.error as ShopError) : "not_for_sale";
   return { ok: false, weapon: o.weapon, error };
+}
+
+/** Story 5.1: `upgradeWeapon`'s errors (an unknown one reads as `not_owned`). */
+const WEAPON_UPGRADE_ERRORS: readonly WeaponUpgradeError[] = ["not_build", "unknown_player", "not_owned", "max_level", "invalid_amount", "insufficient_funds"];
+
+/** A well-formed `shop.upgraded` (Story 5.1) as an answer, or null. */
+export function parseShopUpgraded(m: unknown): ShopAnswer | null {
+  const o = m as { weapon?: unknown; slot?: unknown; level?: unknown } | null;
+  if (!o || typeof o.weapon !== "string" || (o.slot !== 0 && o.slot !== 1) || typeof o.level !== "number" || !Number.isInteger(o.level)) return null;
+  return { kind: "upgrade", ok: true, weapon: o.weapon, slot: o.slot, level: o.level };
+}
+
+/** A well-formed `shop.upgrade_refused` (Story 5.1) as an answer, or null. */
+export function parseShopUpgradeRefused(m: unknown): ShopAnswer | null {
+  const o = m as { weapon?: unknown; error?: unknown } | null;
+  if (!o || typeof o.weapon !== "string" || typeof o.error !== "string") return null;
+  const error = (WEAPON_UPGRADE_ERRORS as readonly string[]).includes(o.error) ? (o.error as WeaponUpgradeError) : "not_owned";
+  return { kind: "upgrade", ok: false, weapon: o.weapon, error };
 }
 
 /** A well-formed `player.left` (Story 2.11), or null. */
@@ -139,6 +158,8 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.BUILDING_REFUSED, (m: unknown) => this.receiveRefused(m)));
     this.offs.push(room.onMessage(S2C.SHOP_BOUGHT, (m: unknown) => this.receiveShop(parseShopBought(m))));
     this.offs.push(room.onMessage(S2C.SHOP_REFUSED, (m: unknown) => this.receiveShop(parseShopRefused(m))));
+    this.offs.push(room.onMessage(S2C.SHOP_UPGRADED, (m: unknown) => this.receiveShop(parseShopUpgraded(m)))); // Story 5.1
+    this.offs.push(room.onMessage(S2C.SHOP_UPGRADE_REFUSED, (m: unknown) => this.receiveShop(parseShopUpgradeRefused(m))));
     this.offs.push(room.onMessage(S2C.BUILDING_REPAIR_REFUSED, (m: unknown) => this.receiveRepairRefused(m)));
     this.offs.push(room.onMessage(S2C.BUILDING_UPGRADE_REFUSED, (m: unknown) => this.receiveUpgradeRefused(m)));
   }

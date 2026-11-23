@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, shopWeapons, type ShopBuilding } from "@topdown/shared";
-import { CLOSED_SHOP, SHOP_PENDING_TIMEOUT_MS, shopAllowed, shopErrorText, shopStep, type ShopInput, type ShopState } from "./shopStore";
+import { loadBalance, shopWeapons, upgradePriceTable, type ShopBuilding } from "@topdown/shared";
+import {
+  CLOSED_SHOP,
+  SHOP_PENDING_TIMEOUT_MS,
+  replaceWarning,
+  shopAllowed,
+  shopErrorText,
+  shopStep,
+  upgradeErrorText,
+  upgradeKey,
+  upgradeRows,
+  type ShopInput,
+  type ShopState,
+} from "./shopStore";
 
 const weapons = shopWeapons(loadBalance());
 const buildings: ShopBuilding[] = [{ id: "wood_barricade", name: "Wood Barricade", price: 40 }];
@@ -24,7 +36,7 @@ describe("shopStep (Story 3.3)", () => {
   it("opens with the items, syncs wallet and slots, closes", () => {
     const s = opened();
     expect(s).toMatchObject({ open: true, wallet: 250, slots: ["pistol", null], pending: null, message: "" });
-    expect(s.weapons.map((w) => w.id)).toEqual(["pistol", "machete", "smg", "hunting_rifle", "shotgun", "assault_rifle"]);
+    expect(s.weapons.map((w) => w.id)).toEqual(["pistol", "machete", "smg", "hunting_rifle", "shotgun", "assault_rifle", "fire_axe", "chainsaw"]);
     expect(run(s, { type: "close" }).s.open).toBe(false);
   });
 
@@ -116,5 +128,86 @@ describe("shopStep (Story 3.3)", () => {
     expect(shopErrorText("not_build")).toBe("The shop is closed");
     expect(shopErrorText("already_owned")).toBe("You already have it");
     expect(shopErrorText("unknown_player")).toBe("Can't buy that");
+  });
+});
+
+describe("shopStep upgrades (Story 5.1, F1)", () => {
+  const balance = loadBalance();
+  const prices = upgradePriceTable(balance);
+  const openUp = (slots: readonly [string, string | null], levels: readonly [number, number], wallet = 500) =>
+    run(CLOSED_SHOP, { type: "open", weapons, buildings, upgradePrices: prices, maxLevel: 4 }, { type: "sync", wallet, slots, levels }).s;
+
+  it("rows follow my slots (slot 0 first) with the shown price; a weapon I don't own has no row", () => {
+    const s = openUp(["pistol", "smg"], [1, 2]);
+    expect(upgradeRows(s)).toEqual([
+      { weapon: "pistol", slot: 0, level: 1, price: 60 },
+      { weapon: "smg", slot: 1, level: 2, price: 120 },
+    ]);
+    expect(upgradeRows(openUp(["machete", null], [3, 0]))).toEqual([{ weapon: "machete", slot: 0, level: 3, price: 90 }]);
+  });
+
+  it("upgrade pending until the answer: one effect per tap, a second tap sends nothing", () => {
+    const { s, effects } = run(openUp(["pistol", "smg"], [1, 1]), { type: "upgrade", weapon: "smg" }, { type: "upgrade", weapon: "smg" }, { type: "upgrade", weapon: "pistol" }, { type: "buy", weapon: "machete" });
+    expect(effects).toEqual([{ type: "upgrade", weapon: "smg" }]);
+    expect(s.pending).toBe(upgradeKey("smg"));
+    // A buy answer for something else doesn't unlock it; the upgrade answer does, with its text.
+    const late = run(s, { type: "answer", answer: { ok: true, weapon: "smg", slot: 1 } }).s;
+    expect(late.pending).toBe(upgradeKey("smg"));
+    // The ok answer alone keeps it pending (review fix): the state hasn't shown the new level yet.
+    const answered = run(s, { type: "answer", answer: { kind: "upgrade", ok: true, weapon: "smg", slot: 1, level: 2 } }).s;
+    expect(answered).toMatchObject({ pending: upgradeKey("smg"), message: "smg upgraded to II", refused: false, levels: [1, 1] });
+    // A sync without the new level (e.g. the wallet first) still keeps it; the one with it unlocks.
+    const walletOnly = run(answered, { type: "sync", wallet: 380, slots: ["pistol", "smg"], levels: [1, 1] }).s;
+    expect(walletOnly.pending).toBe(upgradeKey("smg"));
+    const done = run(walletOnly, { type: "sync", wallet: 380, slots: ["pistol", "smg"], levels: [1, 2] });
+    expect(done.s).toMatchObject({ pending: null, awaitLevel: null, message: "smg upgraded to II", refused: false, wallet: 380, levels: [1, 2] });
+    const refused = run(s, { type: "answer", answer: { kind: "upgrade", ok: false, weapon: "smg", error: "insufficient_funds" } }).s;
+    expect(refused).toMatchObject({ pending: null, message: "Not enough money", refused: true });
+  });
+
+  it("review probe: open → upgrade → ok answer → upgrade with no sync between sends ONE effect (no double buy from a stale row)", () => {
+    const { s, effects } = run(
+      openUp(["pistol", "smg"], [1, 1]),
+      { type: "upgrade", weapon: "smg" },
+      { type: "answer", answer: { kind: "upgrade", ok: true, weapon: "smg", slot: 1, level: 2 } },
+      { type: "upgrade", weapon: "smg" },
+    );
+    expect(effects).toEqual([{ type: "upgrade", weapon: "smg" }]);
+    expect(s.pending).toBe(upgradeKey("smg"));
+    // After the state agrees, the next tap is a new, honest upgrade (II → III at the shown price).
+    const next = run(s, { type: "sync", wallet: 380, slots: ["pistol", "smg"], levels: [1, 2] }, { type: "upgrade", weapon: "smg" });
+    expect(next.effects).toEqual([{ type: "upgrade", weapon: "smg" }]);
+    // No state ever (lost patch): the 3 s timeout still gives the buttons back.
+    const t = run(s, { type: "time", nowMs: 1000 }, { type: "time", nowMs: 1000 + SHOP_PENDING_TIMEOUT_MS });
+    expect(t.s).toMatchObject({ pending: null, awaitLevel: null });
+  });
+
+  it("the shown level is the World's (sync), never the answer's", () => {
+    const s = run(openUp(["pistol", null], [1, 0]), { type: "upgrade", weapon: "pistol" }, { type: "answer", answer: { kind: "upgrade", ok: true, weapon: "pistol", slot: 0, level: 2 } }).s;
+    expect(upgradeRows(s)[0]?.level).toBe(1); // until the state agrees
+    expect(upgradeRows(run(s, { type: "sync", wallet: 440, slots: ["pistol", null], levels: [2, 0] }).s)[0]?.level).toBe(2);
+  });
+
+  it("max row disabled: at IV the row has no price and a tap sends nothing", () => {
+    const s = openUp(["smg", null], [4, 0]);
+    expect(upgradeRows(s)).toEqual([{ weapon: "smg", slot: 0, level: 4, price: null }]);
+    expect(run(s, { type: "upgrade", weapon: "smg" }).effects).toEqual([]);
+    expect(run(s, { type: "upgrade", weapon: "machete" }).effects).toEqual([]); // not mine
+  });
+
+  it("replace warns when levels would be lost (only for a slot above I)", () => {
+    const s = run(openUp(["pistol", "smg"], [1, 3]), { type: "buy", weapon: "machete" }).s;
+    expect(s.choosing).toBe("machete");
+    expect(replaceWarning(s, 1)).toBe("Its upgrades are lost.");
+    expect(replaceWarning(s, 0)).toBe("");
+    expect(run(s, { type: "upgrade", weapon: "smg" }).effects).toEqual([]); // no upgrade while choosing
+  });
+
+  it("refusal texts", () => {
+    expect(upgradeErrorText("max_level")).toBe("Already at max level");
+    expect(upgradeErrorText("not_owned")).toBe("You don't have that weapon");
+    expect(upgradeErrorText("not_build")).toBe("The shop is closed");
+    expect(upgradeErrorText("insufficient_funds")).toBe("Not enough money");
+    expect(upgradeErrorText("unknown_player")).toBe("Can't upgrade that");
   });
 });

@@ -1,7 +1,7 @@
 import { shopfrontsOf, type CoverObject, type DistrictMap, type FireRecord, type MapBox } from "@topdown/shared";
 import { SCORCH_FULL_FRAC } from "./fireRing";
 import type { AtlasCanvas } from "./spriteAtlas";
-import { CAR_FRAMES, PROP_BARRIER, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
+import { CAR_BURNT_FRAMES, CAR_FRAMES, PROP_BARRIER, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
 import { HEIGHT_BY_KIND, MAP_PX_PER_M, carStyle, nameHash, type Dressing, type Front } from "./dressing";
 import {
   GROUND,
@@ -676,7 +676,9 @@ function coverPiece(g: G, cs: CityScene, b: Box): void {
   if (b.kind === "bus") drawFrame(g, cs.atlas, VEHICLE_BUS, b, horiz ? "right" : "down");
   else if (b.kind === "car") {
     const st = carStyle(cs.dressing, b.name, b.w, b.h);
-    drawFrame(g, cs.atlas, CAR_FRAMES[st.variant % CAR_FRAMES.length] as string, b, st.front);
+    // Story 4.12: a burning car is the same car, charred (fire-lab panel D)
+    const frames = cs.fires.some((f) => f.target === b.name) ? CAR_BURNT_FRAMES : CAR_FRAMES;
+    drawFrame(g, cs.atlas, frames[st.variant % frames.length] as string, b, st.front);
   } else if (b.kind === "barrier") drawFrame(g, cs.atlas, PROP_BARRIER, b, horiz ? "right" : "down");
   else if (b.kind === "sandbags") drawFrame(g, cs.atlas, PROP_SANDBAGS, b, horiz ? "right" : "down");
 }
@@ -773,27 +775,6 @@ function scorch(g: G, f: FireRecord): void {
   g.fillRect(x - r, y - r, 2 * r, 2 * r);
 }
 
-/** Static flames over the burning car (the view adds a flickering light; Story 4.8 does real fire). */
-function flames(g: G, f: FireRecord): void {
-  const R = rng(f.name);
-  const x = f.x * P;
-  const y = f.y * P;
-  for (let i = 0; i < 9; i++) {
-    const fx = x + (R() - 0.5) * 40;
-    const fy = y + (R() - 0.5) * 40;
-    const r = 6 + R() * 9;
-    const gr = g.createRadialGradient(fx, fy, 0, fx, fy, r);
-    gr.addColorStop(0, "rgba(255,236,170,0.95)");
-    gr.addColorStop(0.45, "rgba(255,140,40,0.8)");
-    gr.addColorStop(1, "rgba(200,40,10,0)");
-    g.fillStyle = gr;
-    g.fillRect(fx - r, fy - r, 2 * r, 2 * r);
-  }
-  g.fillStyle = "rgba(30,30,32,0.35)"; // smoke drifting with the light direction
-  ell(g, x + 26, y + 34, 26, 16, 0.6);
-  g.fill();
-}
-
 /** The map's whole area in map px (a bounds that culls nothing). */
 export function mapBounds(map: DistrictMap): Bounds {
   return { x0: 0, y0: 0, x1: map.widthM * P, y1: map.heightM * P };
@@ -849,7 +830,6 @@ export function drawOverlay(g: G, s: number, cs: CityScene, bd: Bounds): void {
   for (const o of k.stageProps) if (boxIn(bd, o)) debris(g, o); // every stage-group prop is debris-like for now
   for (const o of k.blocks) if (boxIn(bd, o)) drawFrame(g, cs.atlas, o.name.includes("dumpster") ? PROP_DUMPSTER : PROP_BLOCK, o, "right");
   for (const o of k.cover) if (boxIn(bd, o)) coverPiece(g, cs, o);
-  for (const f of cs.fires) flames(g, f);
   for (const o of k.ground) if (o.kind === "canopy" && boxIn(bd, o)) canopy(g, o);
   lampHeads(g, d, cs.map.widthM * P);
 }
