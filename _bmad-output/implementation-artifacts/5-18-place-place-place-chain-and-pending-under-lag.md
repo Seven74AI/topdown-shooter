@@ -1,6 +1,6 @@
 # Story 5.18: Place, place, place (chain and pending under lag)
 
-Status: review
+Status: done
 
 (Building UX rework BX-4. Design: `docs/ideas/building-ux/ux-spec.md` §5 (numbers: pending timeout 2 s, chain rate ≤ 4/s), §6.3 Place, §6.4 Pending, §15 (designer: **B · Carry + drag**, **no hold-to-paint**: one Place = one building, walls come from the chain jump), `draft-stories.md` › BX-4, feel: `prototype.html` / claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR. Spine-wins rule: where the spec and the prototype disagree, the spec wins. Builds on 5.15 (`stepPlacement`, carry, hand cluster), 5.16 (build bar, `pickError`, toasts) and 5.17 (`blockReason`, the reason line, the 250 ms hold). **Client-only: no message, schema or server change.** Takes over two accepted lows: **5.15 L7** (the server judges `building.place` before queued inputs, so after a fast reversal under big lag a green ghost can be refused `blocked` — handled like any pending refusal) and **5.16 L2** (the build bar's count/wallet lagged one round trip online — the pending count and wallet now feed `buildOwned` / the tiles' wallet).)
 
@@ -142,6 +142,16 @@ Gate after the fixes on the tree merged with master `609f9a2`: `npm run typechec
 
 Mutations of the fixes, one each, all **killed**: no frame-gap cap (unit and netsim, after adding the "send still queued" case); timeouts in every update; no match after the host step (netsim and flow test); the pump never sends; ghost expiry keeps pairing; dropped refusal ignored; ghost keep from the send; pool not sized from balance; quiet ignored; round instead of ceil; send gap min 100.
 
+**Re-review (fresh agent, 2026-11-23) of `edd1094`:** clean — no new bugs (online SIGSTOP stall of the server → "No answer" at 2.07 s and the late building charged once; hidden tab → no toast). Two low test gaps and one tweak, done:
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| R2-L1 | Low | Nothing pinned "a box times out only after the host step, and matching runs before the timeout". | `pendingFlow.test.ts`: sent at clock 0, frames until the next one runs out its 2 s, that frame's host step brings the building → no toast, count 0. Mutants killed: the timeout loop before `matchBuildings`; timeouts on in the pre-host update. |
+| R2-L2 | Low | The eviction path (a full pool of awaiting ghosts) was untested. | `pendingPlacements.test.ts`: 16 timed-out ghosts, one more box evicts the oldest → pairing off, the next refusal → "none", the new box still counted. Mutant "eviction keeps pairing" killed. |
+| R2-T | Tweak | `MAX_FRAME_GAP_MS` 100 would stretch a real timeout on a slow device. | **250 ms** (a real 2 s timeout down to 4 fps; hidden tabs still covered). Test: 8 frames × 250 ms time out at 2 s; a 400 ms frame counts 250. Mutant "cap 100" killed. |
+
+Touched tests (`pendingPlacements`, `pendingFlow`, `NetSimHost.chain`: 31 passed) + typecheck + lint after merging master `91282c1` (5.27 build-bar icons: no overlap). Status → **done**.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -194,6 +204,8 @@ Claude (builder cloud session, 2026-11-23). Baseline `3bbb955` (master with 5.15
 - `docs/art/5-18/README.md`, `5-18-wall-pending.png`, `5-18-wall-built.png`, `5-18-wall-end.png`, `5-18-ten-taps.png`, `5-18-ten-end.png` (new)
 
 ### Change Log
+
+- 2026-11-23: Re-review clean; lows R2-L1, R2-L2 and the 250 ms frame-gap cap done; master `91282c1` merged. Status → done.
 
 - 2026-11-23: Review fixes M1, M2, L1, L2, L4 + designer answers Q1–Q3 (Q2: 300 ms build-bar quiet window); L3 accepted; master `609f9a2` (5.26) merged. Status stays review (the mediums get a re-review).
 
