@@ -246,6 +246,8 @@ describe("Story 5.15 (review M1): stepPlacement, one frame of placement mode", (
       refusal: (e: PlaceError) => placeRefusalText(e, balance),
       send: (r) => sent.push({ ...r }),
       toast: (t) => toasts.push(t),
+      nowMs: 0,
+      hintText: (e: PlaceError) => placeRefusalText(e, balance),
     };
   }
   const walking = (): MutablePlayerInput => ({ ...NEUTRAL_INPUT, moveX: 0, moveY: -1, aimX: 1, aimY: 0, fire: true });
@@ -329,5 +331,105 @@ describe("Story 5.15 (review M1): stepPlacement, one frame of placement mode", (
     f.can = false; // menu/shop open, downed, out of the build
     stepPlacement(p, m, walking(), w, f);
     expect([p.active, m.placementActive]).toEqual([false, false]);
+  });
+});
+
+describe("Story 5.17: why it's red — the reason and its 250 ms hold", () => {
+  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false });
+  const HOLD = balance.controls.build.reasonHoldMs;
+  /** p0 at (20, 16) facing north holding a barricade; p1 (Bo) can step onto the ghost and away. */
+  function setup() {
+    const w = world();
+    const bo = addPlayer(w, "p1", 40, 16);
+    const p = new Placement();
+    const m = hud();
+    const f: PlacementFrame = {
+      can: true,
+      wave: 0,
+      x: 20,
+      y: 16,
+      ownerId: "p0",
+      label: "Wood barricade · $40",
+      refusal: (e: PlaceError) => placeRefusalText(e, balance),
+      send: () => {},
+      toast: () => {},
+      nowMs: 1000,
+      hintText: (e, r) => (r ? `${e}:${r.cause}:${r.playerId}` : e),
+    };
+    p.start(balance, WOOD, 20, 16, 0, -1);
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    const b = box(p);
+    const onGhost = (): void => {
+      bo.x = (b.minX + b.maxX) / 2;
+      bo.y = (b.minY + b.maxY) / 2;
+    };
+    const away = (): void => {
+      bo.x = 40;
+      bo.y = 16;
+    };
+    return { w, p, m, f, onGhost, away, step: (ms: number) => ((f.nowMs = ms), stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f)) };
+  }
+
+  it("blocked shows at once with its cause and culprit; valid comes back only after the hold", () => {
+    const s = setup();
+    expect([s.m.placementValid, s.m.placementHint]).toEqual([true, "Wood barricade · $40"]);
+    s.onGhost();
+    s.step(1016);
+    expect([s.m.placementValid, s.m.placementHint]).toEqual([false, "blocked:teammate:p1"]);
+    expect([s.p.error, s.p.hasReason, s.p.reason.cause, s.p.shownReason.playerId]).toEqual(["blocked", true, "teammate", "p1"]);
+    s.away(); // Bo walks past in one frame
+    s.step(1032);
+    expect(s.p.error).toBeNull(); // the truth is valid…
+    expect([s.m.placementValid, s.m.placementHint, s.p.shownError]).toEqual([false, "blocked:teammate:p1", "blocked"]); // …the look holds
+    s.step(1016 + HOLD - 1);
+    expect(s.m.placementValid).toBe(false);
+    s.step(1016 + HOLD);
+    expect([s.m.placementValid, s.m.placementHint, s.p.shownError]).toEqual([true, "Wood barricade · $40", null]);
+  });
+
+  it("a new reason replaces the shown one at once (and restarts the hold); blocked never waits", () => {
+    const s = setup();
+    s.onGhost();
+    s.step(1016);
+    s.away();
+    s.step(1100); // valid, held
+    (s.w.players.get("p0") as { wallet: number }).wallet = 0; // money now fails before the spot
+    s.step(1110);
+    expect([s.m.placementValid, s.m.placementHint, s.p.shownSinceMs]).toEqual([false, "money", 1110]);
+    (s.w.players.get("p0") as { wallet: number }).wallet = 1000;
+    s.step(1110 + HOLD - 1);
+    expect(s.m.placementValid).toBe(false);
+    s.step(1110 + HOLD);
+    expect(s.m.placementValid).toBe(true);
+    s.onGhost();
+    s.step(1110 + HOLD + 1); // blocked again: red on that very frame
+    expect(s.m.placementValid).toBe(false);
+  });
+
+  it("a long red goes back to valid at once once it has been up 250 ms; a new hold starts clean", () => {
+    const s = setup();
+    s.onGhost();
+    s.step(1016);
+    s.step(2000);
+    s.away();
+    s.step(2016);
+    expect(s.m.placementValid).toBe(true);
+    s.onGhost();
+    s.step(2032);
+    expect(s.p.shownError).toBe("blocked");
+    s.p.cancel();
+    expect([s.p.shownError, s.p.shownHasReason, s.p.hasReason]).toEqual([null, false, false]);
+    s.away();
+    s.p.start(balance, WOOD, 20, 16, 0, -1);
+    s.step(2040);
+    expect([s.m.placementValid, s.m.placementHint]).toEqual([true, "Wood barricade · $40"]);
+  });
+
+  it("the reason is the shared blockReason of the shown box (off the map at the west edge)", () => {
+    const s = setup();
+    s.f.x = 0.5;
+    s.p.start(balance, WOOD, 0.5, 16, -1, 0);
+    stepPlacement(s.p, s.m, { ...NEUTRAL_INPUT, moveX: -1 }, s.w, s.f);
+    expect([s.m.placementValid, s.p.reason.cause, s.m.placementHint]).toEqual([false, "off_map", "blocked:off_map:"]);
   });
 });

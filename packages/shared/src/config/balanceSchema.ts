@@ -480,6 +480,8 @@ export const buildControlsSchema = z
     snapHysteresisM: z.number().min(0).max(0.24),
     /** Auto-rotate switches N/S ↔ E/W only when the facing is this many degrees past a 45° diagonal. */
     autoRotateHysteresisDeg: z.number().min(0).max(44),
+    /** Story 5.17: a shown block reason stays at least this long before the ghost looks valid again (ms; presentation only). */
+    reasonHoldMs: z.number().min(0).max(2000).default(250),
   })
   .strict();
 
@@ -490,7 +492,7 @@ export const controlsSchema = z
     aimAssistDeg: z.number().min(0).max(45),
     /** Story 5.2: client effect caps (no new balance file: every test fixture lists the files). */
     fx: fxSchema,
-    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10 }),
+    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250 }),
   })
   .strict();
 
