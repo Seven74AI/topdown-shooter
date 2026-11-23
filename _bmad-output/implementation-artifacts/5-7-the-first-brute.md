@@ -1,6 +1,6 @@
 # Story 5.7: The first Brute
 
-Status: review
+Status: done
 
 ## Story
 
@@ -331,3 +331,7 @@ Modified:
 
 - 2026-11-23: Review fixes (M1 → F9 long reach into gaps, L1 swing tolerance, L2 skipped-seq knock count, L3 wide field dropped at decay changes, L4 constants to balance, L5 look names); merged the work branch again. Status → review.
 - 2026-11-23: Story 5.7 built (Brute: balance, wide-body pathing, windup, knockback with prediction, fixed wave counts, spawn event/banner/roar, five code looks with the arms-under-clothes fix, tests, fuzz, reachability, six-wave sim, netsim, bandwidth, tick cost, FPS, mutations). Also the 5.6 acid-vs-cover fix. Merged `claude/gracious-turing-0db3j6` (5.1, 5.2, 4.12, 4.13). Status → review.
+
+### Re-review of the fixes (2026-11-23, fresh agent)
+
+No high or medium findings at ce420b7; fixes correct. Whole-map scan (0.1 m steps, stages 0–3, two variant masks): the 1.8 m gap reach applies only inside the 1 m slots (7 with all variants, incl. bus↔street_car_east and curb_car_west_s↔police_line_lot), only once the player's centre is on the mouth line; never in the open, next to a single box, behind barricades, at the map edge or to downed players; line of sight via `meleeLineClear`; the knock pushes the player deeper. The middle of a 4.5 m slot stays out of reach (designer's "dodge by stepping deeper"). 1 cm rule deterministic; L2/L3 correct; balance values schema-checked. Gate green (1,813 tests). Lows **accepted** (test gaps only): ring-2 band untested (zombieAi.ts:390); no test of a player stepping deeper during the wind-up (reach 2.3 m mutant survives, zombieAi.ts:408); dropping `meleeLineClear` from `gapSwing` survives (zombieAi.ts:319; code is right); `wideGapRing` line check untested (harmless). Status: done once on master.
