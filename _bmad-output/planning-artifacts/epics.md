@@ -327,7 +327,33 @@ A team plays 5 waves with build phases: earning into personal wallets, buying fr
 2–4 players online in Downtown play 5 waves through Evening → Panic → Breakdown: cars move into the road, barriers block paths, fires burn. Placeholder Dead City art, cover rules, spawn points and the run seed.
 **FRs covered:** FR26 (route around cover), FR32, FR53 (fire damage), FR54, FR56, FR57 (fire), FR58, FR59, FR60, FR61, FR65, FR82 (placeholder)
 
-### Epic 5: Full arsenal and bestiary
+#### Story 4.11: Stage-object readability pass
+
+As a player,
+I want the sandbags, the wood barricade and a burning car's fire to be recognisable at a glance, and to see clearly when I am burning,
+So that I understand the street and react to fire without being told.
+
+(Added by the designer on 2026-11-23 after playing the deployed build; prototype: `claude.ai/artifact/DD4ECzvpxW98HGW65b6oGZ`.)
+
+**Acceptance Criteria:**
+
+**Given** stage 3 sandbags
+**When** they are drawn
+**Then** they read as burlap sandbags (tan, pillow-shaped, tied ends, woven texture, brick stacking) and still look low (short shadow)
+
+**Given** a wood barricade
+**When** it is drawn
+**Then** it reads as nailed wooden planks with a cross-brace, clearly different from sandbags, with the damage look and HP bar unchanged
+
+**Given** a burning car
+**When** a player approaches
+**Then** the damage edge is shown by flames along the zone edge that pulse with the damage tick, exactly at the radius where damage starts
+
+**Given** a survivor taking fire damage (server events)
+**When** they burn
+**Then** every player sees flames, embers and smoke on that survivor, and the burning player also sees the designer-chosen own-player cues (e.g. screen-edge glow, damage numbers)
+
+## Epic 5: Full arsenal and bestiary
 Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop; every zombie type demands its own answer.
 **FRs covered:** FR8, FR13 (6 weapons), FR14 (lobbed), FR16, FR17, FR18, FR23, FR24, FR25, FR47, FR48, FR49, FR52 (5 buildings), FR53, FR57 (acid, gas), FR84 (telegraphs)
 
