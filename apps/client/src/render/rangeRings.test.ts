@@ -15,6 +15,10 @@ describe("rangeRings", () => {
     expect(rangeRings(buildingStats(balance, "spike_trap"))).toEqual([]);
     expect(rangeRings(undefined)).toEqual([]);
   });
+  it("the real floodlight and med station: one ring each (the 6 m blackout pool is not shown; 5.10 review)", () => {
+    expect(rangeRings(buildingStats(balance, "floodlight"))).toEqual([{ key: "light.radiusM", radiusM: 4 }]);
+    expect(rangeRings(buildingStats(balance, "med_station"))).toEqual([{ key: "heal.radiusM", radiusM: 2 }]);
+  });
   it("a later type's heal / light / plate radius gets a ring with no UI change (5.10, 5.14)", () => {
     const base = buildingStats(balance, "wood_barricade") as BuildingTypeStats;
     const med = { ...base, heal: { radiusM: 2, hpPerS: 5 } } as unknown as BuildingTypeStats;

@@ -1,6 +1,6 @@
 # Story 5.10: Floodlight and med station
 
-Status: review
+Status: done
 
 ## Story
 
@@ -264,3 +264,12 @@ Floodlight FPS (≈ −20 % headless): accepted as is by the designer (see open 
 ## Change from the Epic 6 design session (designer, 2026-11-23)
 
 Decision D5 (`docs/ideas/epic-6/proposal.md`): the floodlight's light radius is **6 m during blackout waves** (Epic 6, Story 6.3), 4 m otherwise. Put both radii in balance JSON (e.g. `floodlight.lightRadiusM` 4 and `floodlight.blackoutLightRadiusM` 6) so 6.3 only switches between them.
+
+### Re-review of the fixes (fresh agent, 2026-11-23) — clean of high/medium
+
+Re-review of f679f61/5b5861c: M1, M2 (now by construction via `loadDevBalance({ shopAll })`), the single shop-all switch, release guards and L1–L5 hold; merged with master 3bbb955 (5.17) without conflicts, full gate green (2,199 tests). Lows fixed by the main session at merge:
+- No test pinned "floodlight and med station don't stop bullets" (PR #6) → `stopsBullets: false` added to both balance assertions.
+- 5.17's generic range rings drew the floodlight's Epic 6 `blackoutRadiusM` (6 m) as a second ghost ring → `rangeRings` skips `blackoutRadiusM`; test against the real balance (one ring each).
+- `floodLightMergeM` schema default unprotected → test parses fx without the field and expects 4 (the default-2 mutation now fails).
+- Nit: `inShop` doc comment now names `loadDevBalance({ shopAll })` (world.debug.shopAll was removed).
+Accepted: the `?tune` solo path (`tunedBalance()`) ignores `?shopall` (dev-only convenience).

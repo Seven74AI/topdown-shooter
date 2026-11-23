@@ -667,7 +667,7 @@ export const buildingTypeSchema = z
     // ---- Story 5.10 (floodlight, med station) ----
     /**
      * Story 5.10: false = placeable but not offered yet (the floodlight until Story 6.3): not listed
-     * by the shop, refused `not_for_sale` by placement unless the dev switch `debug.shopAll` is on.
+     * by the shop, refused `not_for_sale` by placement unless the dev balance unhides it (`loadDevBalance({ shopAll })`).
      * Different from `forSale: false` (upgrade-only tiers, never placed at all).
      */
     inShop: z.boolean().default(true),

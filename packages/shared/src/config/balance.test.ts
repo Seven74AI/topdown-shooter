@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BalanceError, bundledBalanceFiles, loadBalance, withOverrides, type RawBalanceFiles } from "./balance";
+import { fxSchema } from "./balanceSchema";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
@@ -281,8 +282,12 @@ describe("Story 5.9: building tiers, traps and mines", () => {
 
   it("Story 5.10 building blocks: light/heal validate; two behaviour blocks refused; inShop defaults true", () => {
     const t = loadBalance().buildings.types;
-    expect(t.floodlight).toMatchObject({ inShop: false, forSale: true, solid: true, light: { radiusM: 4, blackoutRadiusM: 6 } });
-    expect(t.med_station).toMatchObject({ inShop: true, solid: true, heal: { radiusM: 2, hpPerS: 5 } });
+    expect(t.floodlight).toMatchObject({ inShop: false, forSale: true, solid: true, stopsBullets: false, light: { radiusM: 4, blackoutRadiusM: 6 } });
+    expect(t.med_station).toMatchObject({ inShop: true, solid: true, stopsBullets: false, heal: { radiusM: 2, hpPerS: 5 } });
+    // 5.10 review: the schema default of the pool-sharing distance matches controls.json (4 m).
+    const fxWithout: Record<string, unknown> = { ...controls.fx };
+    delete fxWithout.floodLightMergeM;
+    expect(fxSchema.parse(fxWithout).floodLightMergeM).toBe(4);
     for (const id of ["wood_barricade", "auto_turret", "spike_trap", "mine"]) expect(t[id]?.inShop, id).toBe(true);
     // The new types are appended (the wire index of every older type stays).
     expect(Object.keys(t).slice(-2)).toEqual(["floodlight", "med_station"]);
