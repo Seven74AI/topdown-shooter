@@ -127,6 +127,12 @@ describe("RunRoom", () => {
     const missing = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ mapVersion: undefined })));
     expect(missing.code).toBe(JOIN_REFUSED_CODE);
     expect(missing.message).toBe("balance_mismatch"); // an old tab: "Please refresh", not "invalid options"
+    // re-review L3: present but malformed is a bad client, not an old one
+    for (const mapVersion of [123, "x".repeat(17), "", null]) {
+      const bad = await refusal(colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ mapVersion })));
+      expect(bad.code).toBe(JOIN_REFUSED_CODE);
+      expect(bad.message).toBe("invalid_options");
+    }
     const ok = await colyseus.sdk.create(RUN_ROOM_NAME, createOptions({ mapVersion: DOWNTOWN_MAP.version }));
     expect(ok.roomId).toBeTruthy();
     await ok.leave();

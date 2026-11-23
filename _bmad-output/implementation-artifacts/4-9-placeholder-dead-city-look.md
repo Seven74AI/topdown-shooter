@@ -120,10 +120,30 @@ Pre-4.9 baseline for reference: 22 / 19 FPS and 58.7 FPS. Real phone still pendi
 
 **Not verified:** a real phone; a hidden tab sleeping across a mid-run build start online (the same mirror path as the late start, not run end to end: it needs a cleared wave); Safari.
 
+## Re-review of the fixes (2026-11-23)
+
+**Reviewer:** fresh re-review agent, on the 4.9 fixes (229e3fe, deb09ce) and the 4.1 fixes (c54e796). **Outcome:** one medium (handled elsewhere), four lows; L2–L4 and the untested base cache fixed here (branch `story-4-9-rr`).
+
+| # | Sev | Finding | What was done |
+| --- | --- | --- | --- |
+| M1 | M | Fire return bug (the 4.8 ignition return path) | Fixed in the 4.8 re-review branch, not here |
+| L1 | L | `returnSpot` fallbacks | Handled in the 4.8 branch, not here |
+| L2 | L | `drawCity.ts › baseKey` held only building/pump/wall names, but the cached base draws the bus's skid marks and glass from the cover list (the bus is filtered out of the walls as `bus_hull`'s twin): a moved or removed bus would leave old marks (latent: no Downtown mutation touches the bus) | `baseKey` now ends with the bus's box (`#bus@x,y,w,h`, or `#nobus`); the bake stays as cheap (one string per stage change). Test `bakeTiles.test.ts`: moving the bus together with its wall twin, or removing both, changes the key |
+| L3 | L | `RunRoom.checkAuth`: a present but malformed `mapVersion` (a number, 17 characters) was refused as `balance_mismatch` | Only a missing `mapVersion` is an old build (`balance_mismatch`); a present malformed one (123, 17 chars, "", null) is `invalid_options`. Test in `RunRoom.test.ts` (Story 4.1 case, `bootTestServer`, `ServerError(526)`) |
+| L4 | L | `stageFilter.test.ts` tested `rng()` only with keys differing in their first letters; hashing only the first 2 characters survived | New unit case: 10 real keys sharing prefixes (`debris_east/west/wesX`, `parked_car_2/3`, `ground_*`, `se_/sw_offices`) give 10 different streams. Call-site cases in `bakeTiles.test.ts` (real `drawOverlay` on a recording 2D context, no DOM): renaming one debris prop or one fire at the same spot changes what is drawn; the same scene draws the same |
+| — | (no test) | "Base layer never redrawn after the first bake" survived | The tile bake loop moved out of `CityView.showStage` into `bakeTiles.ts › bakeTiles` (no Phaser; behaviour unchanged, `CityView` keeps the key and refreshes the textures). Test with fake canvases and spy painters: first bake draws the base, a stage change that keeps the base (1 → 2) draws only the overlay, a moved bus redraws the base |
+
+**Mutations proven to fail (each new test once):** `baseKey` without the bus box (2 tests); `redrawBase = shownBaseKey === null` (base never redrawn after the first bake: 1 test); `rng` hashing `key.slice(0, 2)` (3 tests); `debris` keyed by `o.kind` (1 test); `flames` keyed by `f.target` (1 test); L3 fix removed, and `absent` forced true (1 test each). First attempt at L2's test moved only the bus cover: it passed with the mutation (the orphaned wall twin became a "building" and changed the key), so the test now moves cover and wall together, as a decay mutation would.
+
+**Gate:** `npm run typecheck && npm run lint && npm test && npm run build` green on `story-4-9-rr`: 190 test files passed (1 skipped), 1,384 tests passed (3 skipped). Load (`uptime`): 0.51 before, 2.41 after the gate (no perf numbers taken).
+
+**Not verified:** no browser run (the bake code moved but is unchanged in effect; the real canvas bake and `tex.refresh` were not exercised after the move); no Downtown mutation moves the bus today, so L2 is only covered by synthetic scenes; not merged with the 4.8 re-review branch (M1, L1 live there).
+
 ## Change Log
 
 - 2026-11-22: Story written and built (look B, atlases, revive zone); status review (90cbf3c).
 - 2026-11-22: Review fixes part A (memory, per-object streams, real-light contrast test, night per stage, one-tile cached bake, vignette 12 %, late-join bake); merged Story 4.5 and reconciled (walls, blocks, fires, swap-model stage groups, DecayView/StreetView removed); status done.
+- 2026-11-23: Re-review of the fixes: L2 (bus box in `baseKey`), L3 (malformed `mapVersion` → `invalid_options`), L4 (prefix-sharing keys and call-site stream tests), base-cache test via `bakeTiles.ts`.
 
 ## Dev Agent Record
 
@@ -171,3 +191,4 @@ Claude Opus 5.5
 - `apps/client/src/scenes/GameScene.ts`
 - `apps/client/src/render/StreetView.ts`, `apps/client/src/render/CoverView.ts`, `apps/client/src/render/DecayView.ts` (deleted)
 - Review round: `apps/client/src/render/city/canvasTexture.ts`, `probeCanvas.ts`, `testScene.ts` (new); `apps/client/src/sim/NetSimHost.ts` (`decaySynced`)
+- Re-review: `apps/client/src/render/city/bakeTiles.ts` + `bakeTiles.test.ts` (new); `CityView.ts`, `drawCity.ts`, `stageFilter.test.ts`; `apps/server/src/rooms/RunRoom.ts`, `RunRoom.test.ts`

@@ -2,7 +2,8 @@ import * as Phaser from "phaser";
 import type { DistrictMap, FireRecord, World } from "@topdown/shared";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, dressingFor, type Dressing } from "./dressing";
-import { BARRIER_LAMPS, CULL_MARGIN_PX, baseKey, blinkerSpots, drawBase, drawGlow, drawLightmap, drawOverlay, type CityScene } from "./drawCity";
+import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, type CityScene } from "./drawCity";
+import { bakeTiles } from "./bakeTiles";
 import { LAMP, LAMP_GLOW, nightAt } from "./palette";
 import { ATLAS_FX, FX_GLOW, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type AtlasCanvas } from "./spriteAtlas";
 import { hash } from "./spriteArt";
@@ -220,37 +221,8 @@ export class CityView {
       g.setTransform(ls, 0, 0, ls, 0, 0);
       draw(g, cs);
     }
-    const s = this.bakePxPerM / MAP_PX_PER_M;
-    const mapW = this.map.widthM * MAP_PX_PER_M;
-    const mapH = this.map.heightM * MAP_PX_PER_M;
-    const bk = baseKey(cs);
-    const redrawBase = bk !== this.shownBaseKey;
-    this.shownBaseKey = bk;
-    for (const t of this.tiles) {
-      // the tile's area in map px, grown so shadows and blur from outside still land on it
-      const x0 = t.x * MAP_PX_PER_M;
-      const y0 = t.y * MAP_PX_PER_M;
-      const bd = { x0: x0 - CULL_MARGIN_PX, y0: y0 - CULL_MARGIN_PX, x1: x0 + t.canvas.width / s + CULL_MARGIN_PX, y1: y0 + t.canvas.height / s + CULL_MARGIN_PX };
-      if (redrawBase) {
-        const b = t.base.getContext("2d") as CanvasRenderingContext2D;
-        b.setTransform(1, 0, 0, 1, 0, 0);
-        b.clearRect(0, 0, t.base.width, t.base.height);
-        b.setTransform(s, 0, 0, s, -t.x * this.bakePxPerM, -t.y * this.bakePxPerM);
-        drawBase(b, s, cs, bd);
-      }
-      const g = t.canvas.getContext("2d") as CanvasRenderingContext2D;
-      g.setTransform(1, 0, 0, 1, 0, 0);
-      g.clearRect(0, 0, t.canvas.width, t.canvas.height);
-      g.drawImage(t.base, 0, 0);
-      g.setTransform(s, 0, 0, s, -t.x * this.bakePxPerM, -t.y * this.bakePxPerM);
-      drawOverlay(g, s, cs, bd);
-      g.globalCompositeOperation = "multiply";
-      g.drawImage(this.light, 0, 0, mapW, mapH);
-      g.globalCompositeOperation = "lighter";
-      g.drawImage(this.glow, 0, 0, mapW, mapH);
-      g.globalCompositeOperation = "source-over";
-      t.tex.refresh();
-    }
+    this.shownBaseKey = bakeTiles(this.tiles, cs, this.bakePxPerM, this.shownBaseKey, this.light, this.glow).baseKey;
+    for (const t of this.tiles) t.tex.refresh();
     const spots = blinkerSpots(cs);
     this.placeBlinkers(this.busBlink, spots.bus);
     this.placeBlinkers(this.barrierBlink, spots.barrier);

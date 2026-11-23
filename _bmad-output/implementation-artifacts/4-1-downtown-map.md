@@ -162,3 +162,4 @@ Gates after the fixes (merged with 4f9acbf): typecheck, lint, test (165 files, 1
 
 - 2026-11-22: Story built (37ccca1).
 - 2026-11-22: Merged the work branch with Story 4.4 (b95329d; headlessRun conflict resolved). Review fixes M1, M2, L3–L8; Status done.
+- 2026-11-23: Re-review L3 (on branch `story-4-9-rr`): a present but malformed `mapVersion` is refused as `invalid_options`; only a missing one is `balance_mismatch` (`RunRoom.checkAuth`, test in `RunRoom.test.ts`).
