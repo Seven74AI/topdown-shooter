@@ -485,3 +485,39 @@ describe("liveness (brief line 9): a flamer holds the line for a whole wave", ()
     expect(of(events, "player.damaged").filter((e) => e.playerId === "p1" && e.sourcePlayerId === "p0").length).toBeGreaterThanOrEqual(1);
   }, 60_000);
 });
+
+describe("review fixes (2026-11-23): a flame slot changing hands", () => {
+  it("L1: a burn lit by a player who left credits nobody, even after a newcomer takes their slot", async () => {
+    const { removePlayer } = await import("../player/player");
+    const s = setup();
+    const p1 = addPlayer(s.world, "p1", PX, PY + 3);
+    setLoadout(balance, p1.loadout, ["flamethrower", null]);
+    const ign = FT.igniteDamagePerS * FT.ignitePulseS;
+    const id = at(s.world, 0, 2, ZDMG + 2 * ign); // dies on its 2nd burn pulse
+    s.world.zombies.y[id] = PY + 3;
+    const dx = (s.world.zombies.x[id] as number) - PX;
+    s.tick({ fire: false }, { p1: { aimX: dx, aimY: 0, fire: true } }); // p1 lights it
+    expect(s.world.zombies.igniterSlot[id]).toBe(1);
+    removePlayer(s.world, "p1");
+    expect(s.world.zombies.igniterSlot[id]).toBe(255);
+    const p9 = addPlayer(s.world, "p9", PX, PY - 3); // takes the free slot 1
+    expect(p9.flameSlot).toBe(1);
+    for (let i = 0; i < 30; i++) s.tick({ fire: false });
+    const kill = of(s.events, "zombie.killed").find((e) => e.zombieId === id);
+    expect(kill).toMatchObject({ killerId: null, weapon: "flamethrower" });
+  });
+
+  it("L2: a newcomer in a freed slot starts with cold flame clocks on every zombie (no inherited exposure)", async () => {
+    const { removePlayer } = await import("../player/player");
+    const s = setup();
+    const p1 = addPlayer(s.world, "p1", PX, PY);
+    const id = at(s.world, 0, 2);
+    s.world.zombies.flameClock[id * 4 + p1.flameSlot] = 3; // p1's half-built exposure
+    s.p.flameClock[p1.flameSlot] = 7;
+    removePlayer(s.world, "p1");
+    const p9 = addPlayer(s.world, "p9", PX, PY);
+    expect(p9.flameSlot).toBe(1);
+    expect(s.world.zombies.flameClock[id * 4 + 1]).toBe(0);
+    expect(s.p.flameClock[1]).toBe(0);
+  });
+});

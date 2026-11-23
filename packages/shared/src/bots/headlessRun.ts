@@ -1,6 +1,6 @@
 import type { Balance } from "../config/balance";
 import { TICK_DT_S } from "../config/constants";
-import { DAMAGE_SOURCE_EXPLOSION, type SimEvent } from "../core/simEvents";
+import type { SimEvent } from "../core/simEvents";
 import { setInput, step, type World } from "../core/world";
 import type { DistrictMap } from "../map/districtMap";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
@@ -166,7 +166,8 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         log.brutes.spawnedInWave.push(world.waves.number);
         break;
       case "player.damaged":
-        if (e.sourceZombieId === DAMAGE_SOURCE_EXPLOSION) log.bloaters.playerHits++;
+        // Story 5.4 review L4: a Bloater's blast is the owner-less explosion (mines and grenades carry their player)
+        if (e.tag === "explosion" && e.sourcePlayerId === null) log.bloaters.playerHits++;
         break;
       case "bloater.swell_started":
         perWave(log.bloaters.swellsInWave);

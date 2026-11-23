@@ -77,6 +77,7 @@ export function claimFlameSlot(world: World, p: PlayerState): void {
   slots[s] = p.id;
   const z = world.zombies;
   for (let id = 0; id < z.capacity; id++) z.flameClock[id * FLAME_SLOTS + s] = 0;
+  forgetIgniter(world, s);
   world.players.forEach((q) => {
     q.flameClock[s] = 0;
   });
@@ -85,7 +86,20 @@ export function claimFlameSlot(world: World, p: PlayerState): void {
 /** Frees the flame slot of player `id` (it leaves). Its ignites keep burning, credited to nobody. */
 export function releaseFlameSlot(world: World, id: string): void {
   const slots = world.flameSlots;
-  for (let i = 0; i < FLAME_SLOTS; i++) if (slots[i] === id) slots[i] = null;
+  for (let i = 0; i < FLAME_SLOTS; i++) {
+    if (slots[i] !== id) continue;
+    slots[i] = null;
+    forgetIgniter(world, i);
+  }
+}
+
+/**
+ * Review L1: burns lit by slot `s` are credited to nobody once that slot is freed or reclaimed (a
+ * newcomer taking the slot never collects a departed player's burn kills).
+ */
+function forgetIgniter(world: World, s: number): void {
+  const z = world.zombies;
+  for (let id = 0; id < z.capacity; id++) if (z.igniterSlot[id] === s) z.igniterSlot[id] = NO_FLAME_SLOT;
 }
 
 /** Module-level callback (no closure per call). */
