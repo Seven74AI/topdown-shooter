@@ -755,6 +755,35 @@ export const combatSchema = z
   })
   .strict();
 
+/**
+ * Story 5.11: one gear item (FR48). Every number is an integer: max HP bonus, armor tier, speed
+ * bonus in integer percent (prediction stays bit-identical). `inShop: false` hides and refuses an
+ * item (the tactical flashlight until Story 6.3; dev: `DEV_SHOP_ALL=1` / `?shopall=1`).
+ */
+export const gearItemSchema = z
+  .object({
+    name: z.string().min(1).max(24),
+    price: z.number().int().min(0),
+    inShop: z.boolean().default(true),
+    /** Max HP added while this is the best armor owned (never summed with another armor). */
+    maxHpBonus: z.number().int().min(0).optional(),
+    /** Armor tier (1–2): owning a tier refuses every tier ≤ it; a higher tier replaces lower ones. */
+    armorTier: z.number().int().min(1).max(2).optional(),
+    /** Move speed bonus in integer percent (multiplies with slows). */
+    speedBonusPct: z.number().int().min(0).max(50).optional(),
+    /** Seconds the owner needs to revive a downed teammate (instead of `player.reviveS`). */
+    reviveS: z.number().positive().optional(),
+  })
+  .strict()
+  .refine((g) => (g.maxHpBonus === undefined) === (g.armorTier === undefined), "maxHpBonus and armorTier go together (armor)");
+
+/** Story 5.11: the gear items, in bit order (`PlayerState.gear` is a uint8 mask: at most 8). */
+export const gearSchema = z
+  .object({
+    items: z.record(balanceId, gearItemSchema).refine((r) => Object.keys(r).length <= 8, "at most 8 gear items (the gear mask is a uint8)"),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -768,6 +797,7 @@ export const balanceFileSchemas = {
   shop: shopSchema,
   decay: decaySchema,
   combat: combatSchema, // Story 5.5 (5.4 owns friendlyFire)
+  gear: gearSchema, // Story 5.11
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;
@@ -784,3 +814,4 @@ export type BuildingTypeStats = z.output<typeof buildingTypeSchema>;
 export type TurretStats = z.output<typeof turretSchema>;
 export type TrapStats = z.output<typeof trapSchema>;
 export type MineStats = z.output<typeof mineSchema>;
+export type GearItemStats = z.output<typeof gearItemSchema>;

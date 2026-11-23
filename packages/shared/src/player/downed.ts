@@ -4,6 +4,7 @@ import type { PlayerState } from "./player";
 import { spectateTarget } from "./spectate";
 import { findFreeSpotNear, spotBlocked } from "./freeSpot";
 import { teamSpawnPoint } from "./spawn";
+import { reviveTicksFor } from "../economy/gear";
 
 /**
  * Downed, revive, out and team wipe (Story 2.8, FR10/FR11). Every timer counts ticks.
@@ -179,7 +180,6 @@ export function checkTeamWipe(world: World): void {
 export function updateDowned(world: World): void {
   if (world.teamWiped) return;
   const stats = world.balance.player;
-  const reviveTicks = ticksFor(stats.reviveS);
   collectInIdOrder(world);
   for (let i = 0; i < ordered.length; i++) {
     const p = ordered[i] as PlayerState;
@@ -188,7 +188,9 @@ export function updateDowned(world: World): void {
     if (reviver) {
       p.reviveTicks++;
       p.reviverId = reviver.id;
-      if (p.reviveTicks >= reviveTicks) {
+      // Story 5.11 (D1): the time needed is the CURRENT reviver's (a revive kit owner: 1.5 s);
+      // progress is kept when the reviver changes, so a kit owner finishes a half-done revive.
+      if (p.reviveTicks >= reviveTicksFor(world.balance, reviver.gear)) {
         p.status = "alive";
         p.hp = Math.ceil(p.maxHp * stats.reviveHpFrac);
         p.downedTicksLeft = 0;

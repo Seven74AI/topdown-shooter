@@ -219,8 +219,11 @@ export class Predictor {
    * tick): the replay slides the same ticks the server does. The reconcile that first shows a knock
    * the client could not foresee (it happened on the server) smooths the jump instead of snapping,
    * up to `PREDICTION_KNOCK_SNAP_M`: the survivor visibly slides back rather than teleporting.
+   * Story 5.11: and the owned `gear` (the running shoes' speed bonus): the replay from `ackSeq`
+   * moves at the server's speed from the first state that shows the shoes (gear never changes in a
+   * wave, so no input in flight straddles a purchase).
    */
-  reconcile(ackSeq: number, x: number, y: number, status: PlayerStatus, slowTicks = 0, slowPct = 0, knockTicks = 0, knockDx = 0, knockDy = 0, knockStepMm = 0): void {
+  reconcile(ackSeq: number, x: number, y: number, status: PlayerStatus, slowTicks = 0, slowPct = 0, knockTicks = 0, knockDx = 0, knockDy = 0, knockStepMm = 0, gear = 0): void {
     if (ackSeq < this.lastAck) return;
     this.lastAck = ackSeq;
     const first = this.player === null;
@@ -240,6 +243,7 @@ export class Predictor {
     p.knockDx = knockDx;
     p.knockDy = knockDy;
     p.knockStepMm = knockStepMm;
+    p.gear = gear; // Story 5.11
     const newKnock = knockTicks > 0 && ackSeq + knockTicks !== this.knockEndSeq;
     if (knockTicks > 0) this.knockEndSeq = ackSeq + knockTicks;
     const snapM = newKnock ? PREDICTION_KNOCK_SNAP_M : PREDICTION_SNAP_M;

@@ -32,6 +32,7 @@ import { pulseAlpha, pulseScale } from "../render/pulse";
 import { PerfOverlay } from "../debug/PerfOverlay";
 import { FIRE_POP_POOL, FIRE_POP_RISE_PX, PopPool, fireDamageLabel } from "../render/burnCue";
 import { ATLAS_FX, FX_EDGE, FX_TIER_MARKS, FX_TIER_SCALE, ensureAtlases } from "../render/city/spriteAtlas";
+import { GEAR_ICON_CSS_PX, GEAR_ICON_FRAME_PX, GEAR_ICON_TEXTURE, ensureGearIcons, gearIconFramesFor } from "../render/city/gearIcons";
 
 export interface HudSceneData {
   sticks: TouchSticks;
@@ -202,6 +203,10 @@ export class HudScene extends Phaser.Scene {
   private stickRadiusCss = STICK_RADIUS_CSS_PX;
   private hpBar!: Phaser.GameObjects.Graphics;
   private hpText!: Phaser.GameObjects.Text;
+  /** Story 5.11: pooled gear icons beside the HP text (one per gear item; redrawn on a change only). */
+  private readonly gearIcons: Phaser.GameObjects.Image[] = [];
+  private readonly gearFrames: string[] = [];
+  private shownGearMask = -1;
   private shownHp = -1;
   private shownMaxHp = -1;
   private shownBurning = false;
@@ -534,6 +539,11 @@ export class HudScene extends Phaser.Scene {
     for (let i = 0; i < FIRE_POP_POOL; i++) this.firePops.push(this.add.text(0, 0, "", this.firePopStyle()).setOrigin(1, 1).setVisible(false));
     this.model.fireHitCount = 0;
     ensureAtlases(this);
+    // Story 5.11: gear icons (Phaser reuses this scene: rebuilt here, shown on the next HP redraw).
+    ensureGearIcons(this);
+    this.gearIcons.length = 0;
+    for (let i = 0; i < 8; i++) this.gearIcons.push(this.add.image(0, 0, GEAR_ICON_TEXTURE).setOrigin(0, 0.5).setVisible(false));
+    this.shownGearMask = -1;
     this.edgeGlow.length = 0;
     for (let i = 0; i < 4; i++) {
       this.edgeGlow.push(
@@ -1045,6 +1055,7 @@ export class HudScene extends Phaser.Scene {
     this.shownWeapon = "";
     this.hpText.setFontSize(Math.round(HP_TEXT_PX * dpr()));
     this.shownHp = -1; // force a redraw at the new scale
+    this.shownGearMask = -1;
     this.moneyText.setFontSize(Math.round(MONEY_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr() * 0.75));
     this.shownMoney = -1;
     for (const pop of this.moneyPops) {
@@ -1060,8 +1071,9 @@ export class HudScene extends Phaser.Scene {
 
   /** Redraws the health bar only when HP changes (top-left, inside the safe area from Story 1.8 on). */
   private drawHealth(): void {
-    const { hp, maxHp, burning, inAcid } = this.model;
-    if (hp === this.shownHp && maxHp === this.shownMaxHp && burning === this.shownBurning && inAcid === this.shownAcid) return;
+    const { hp, maxHp, burning, inAcid, gearMask } = this.model;
+    if (hp === this.shownHp && maxHp === this.shownMaxHp && burning === this.shownBurning && inAcid === this.shownAcid && gearMask === this.shownGearMask) return;
+    this.shownGearMask = gearMask;
     this.shownHp = hp;
     this.shownMaxHp = maxHp;
     this.shownBurning = burning;
@@ -1081,6 +1093,23 @@ export class HudScene extends Phaser.Scene {
       .setText(burning ? `HP ${Math.ceil(hp)} / ${maxHp}   Burning` : inAcid ? `HP ${Math.ceil(hp)} / ${maxHp}   Acid` : `HP ${Math.ceil(hp)} / ${maxHp}`)
       .setColor(burning ? BURNING_TEXT : inAcid ? ACID_TEXT : "#ffffff")
       .setPosition(x, y + h + 4 * k);
+    this.drawGear(this.hpText.x + this.hpText.width + 8 * k, this.hpText.y + this.hpText.height / 2);
+  }
+
+  /** Story 5.11 (AC 3, D7): one icon per owned gear item, fixed order, beside the HP text. */
+  private drawGear(x0: number, cy: number): void {
+    const k = dpr();
+    const frames = gearIconFramesFor(this.model.gearIds, this.model.gearMask, this.gearFrames);
+    const size = GEAR_ICON_CSS_PX * k;
+    for (let i = 0; i < this.gearIcons.length; i++) {
+      const icon = this.gearIcons[i] as Phaser.GameObjects.Image;
+      const frame = frames[i];
+      if (frame === undefined) {
+        icon.setVisible(false);
+        continue;
+      }
+      icon.setFrame(frame).setScale(size / GEAR_ICON_FRAME_PX).setPosition(x0 + i * (size + 4 * k), cy).setVisible(true);
+    }
   }
 
   /**

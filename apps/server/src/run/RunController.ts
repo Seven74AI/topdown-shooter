@@ -12,6 +12,8 @@ import {
   upgradeBuilding,
   buyWeapon,
   upgradeWeapon,
+  buyItem,
+  type BoughtItem,
   createWorld,
   DOWNTOWN_MAP,
   removePlayer,
@@ -310,6 +312,11 @@ export class RunController {
   /** Story 5.1: `shop.upgrade`, between ticks (the shared `upgradeWeapon`'s rules). */
   upgradeWeapon(playerId: string, weapon: string): Result<WeaponUpgraded, WeaponUpgradeError> {
     return upgradeWeapon(this.world, playerId, weapon);
+  }
+
+  /** Story 5.11: `shop.buy_item` (gear; Story 5.12 consumables), between ticks (the shared `buyItem`). */
+  buyItem(playerId: string, item: string): Result<BoughtItem, ShopError> {
+    return buyItem(this.world, playerId, item);
   }
 
   /** Queues one input (already validated). Old or duplicate seqs are ignored; a full ring drops its oldest. */

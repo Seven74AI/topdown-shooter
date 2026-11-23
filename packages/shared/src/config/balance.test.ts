@@ -10,9 +10,10 @@ import buildings from "./balance/buildings.json" with { type: "json" };
 import shop from "./balance/shop.json" with { type: "json" };
 import decay from "./balance/decay.json" with { type: "json" };
 import combat from "./balance/combat.json" with { type: "json" };
+import gear from "./balance/gear.json" with { type: "json" };
 import economy from "./balance/economy.json" with { type: "json" };
 
-const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat })) as RawBalanceFiles;
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear })) as RawBalanceFiles;
 
 describe("loadBalance", () => {
   it("loads the bundled files into a typed object", () => {
@@ -324,3 +325,26 @@ describe("Story 5.5: the Grenade Launcher and combat.json", () => {
     bad((f) => ((f.weapons.grenade_launcher as Record<string, unknown>).spreadDeg = 5), /spreadDeg/);
   });
 });
+
+describe("gear.json (Story 5.11)", () => {
+  it("gear validates; > 8 items refused; unknown fields refused; armor needs both numbers", () => {
+    const b = loadBalance(raw());
+    expect(Object.keys(b.gear.items)).toHaveLength(5);
+    expect(b.gear.items.tactical_flashlight?.inShop).toBe(false);
+    expect(b.gear.items.body_armor_1?.inShop).toBe(true);
+    const many = raw();
+    const items = (many.gear as { items: Record<string, unknown> }).items;
+    for (let i = 0; i < 4; i++) items[`extra_${i}`] = { name: "X", price: 1 };
+    expect(() => loadBalance(many)).toThrow(/at most 8 gear items/);
+    const odd = raw();
+    ((odd.gear as { items: Record<string, Record<string, unknown>> }).items.running_shoes as Record<string, unknown>).jump = 2;
+    expect(() => loadBalance(odd)).toThrow(/gear\.json: items\.running_shoes/);
+    const frac = raw();
+    ((frac.gear as { items: Record<string, Record<string, unknown>> }).items.running_shoes as Record<string, unknown>).speedBonusPct = 10.5;
+    expect(() => loadBalance(frac)).toThrow(/gear\.json/);
+    const half = raw();
+    delete ((half.gear as { items: Record<string, Record<string, unknown>> }).items.body_armor_1 as Record<string, unknown>).armorTier;
+    expect(() => loadBalance(half)).toThrow(/maxHpBonus and armorTier/);
+  });
+});
+

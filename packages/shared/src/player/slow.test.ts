@@ -161,6 +161,23 @@ describe("bite slow (Story 3.9)", () => {
   });
 });
 
+describe("gear speed bonus (Story 5.11, AC 5)", () => {
+  it("bonus and slow multiply in integers, bit-identical to the one expression the Predictor calls", () => {
+    const p = { slowTicksLeft: 0, slowPct: 0 } as PlayerState;
+    expect(playerSpeed(4.5, p, 0, 10)).toBe((4.5 * 110) / 100);
+    expect(playerSpeed(4.5, p, 0, 10)).toBeCloseTo(4.95, 12);
+    slowPlayer(p, 30, 20);
+    const bitten = playerSpeed(4.5, p, 0, 10);
+    expect(bitten).toBe((((4.5 * 110) / 100) * 70) / 100);
+    expect(bitten).toBeCloseTo(4.5 * 1.1 * 0.7, 12); // never 4.5 × (1 + 0.1 − 0.3)
+    // G7: shoes + bite + Chainsaw: every factor multiplies; never faster than base × 1.1.
+    const all = playerSpeed(4.5, p, 20, 10);
+    expect(all).toBe((((4.5 * 110) / 100) * 70 * 80) / 10000);
+    expect(all).toBeLessThan(4.95);
+    expect(playerSpeed(4.5, p, 20, 0)).toBe((4.5 * 70 * 80) / 10000); // no bonus: unchanged formula
+  });
+});
+
 describe("dev wave mix (Story 3.9; Story 3.10 keeps it as an override)", () => {
   it("parseWaveMix keeps known types only", () => {
     expect(parseWaveMix("walker, Crawler,ghost,", balance)).toEqual(["walker", "crawler"]);

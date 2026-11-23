@@ -613,6 +613,12 @@ p.in-run-menu__title {
   flex: none;
 }
 
+/* Story 5.11: gear icons are square (24 CSS px, D7). */
+.shop__icon--gear {
+  width: 24px;
+  height: 24px;
+}
+
 .shop__item:active {
   background: #333;
 }

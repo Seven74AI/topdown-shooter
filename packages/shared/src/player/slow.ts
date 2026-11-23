@@ -40,12 +40,15 @@ export function wielderSlowPct(balance: Balance, p: Readonly<PlayerState>, input
  * Speed this tick. Integer percent: the server and the predictor compute the same expression from
  * the same integers, so the result is bit-identical (+ − × ÷ only, see movement.ts). Story 5.2:
  * the wielder slow (`wieldPct`) multiplies with a bite slow (0.8 × 0.7 = 56 %, never the stronger
- * only); other slows (5.6, 5.8, 5.11) join this one formula as further factors.
+ * only); other slows (5.6, 5.8) join this one formula as further factors. Story 5.11: a gear speed
+ * bonus (`bonusPct`, the running shoes' 10) multiplies first: `base × (100 + bonus) / 100`, then
+ * every slow — bonus and slows never add.
  */
-export function playerSpeed(baseMps: number, p: Readonly<PlayerState>, wieldPct = 0): number {
+export function playerSpeed(baseMps: number, p: Readonly<PlayerState>, wieldPct = 0, bonusPct = 0): number {
+  const base = bonusPct > 0 ? (baseMps * (100 + bonusPct)) / 100 : baseMps;
   const slow = p.slowTicksLeft > 0 ? p.slowPct : 0;
-  if (wieldPct <= 0) return slow > 0 ? (baseMps * (100 - slow)) / 100 : baseMps;
-  return (baseMps * (100 - slow) * (100 - wieldPct)) / 10000;
+  if (wieldPct <= 0) return slow > 0 ? (base * (100 - slow)) / 100 : base;
+  return (base * (100 - slow) * (100 - wieldPct)) / 10000;
 }
 
 /** One tick of the slow timer (every status: a downed player's slow just runs out). */

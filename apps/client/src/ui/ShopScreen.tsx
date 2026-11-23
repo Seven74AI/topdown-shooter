@@ -1,7 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 import { romanLevel, titleCase } from "@topdown/shared";
 import { uiStore } from "./uiState";
-import { SHOP_TEXT, replaceWarning, shopStore, upgradeRows, type ShopAction, type ShopState } from "./shopStore";
+import { SHOP_TEXT, gearRows, replaceWarning, shopStore, upgradeRows, type ShopAction, type ShopState } from "./shopStore";
+import { GEAR_ICON_CSS_PX, gearIconUrl } from "../render/city/gearIcons";
 import { TIER_PLATE_H, tierMarkUrl, tierPlateWidth, weaponIconUrl } from "../render/city/weaponArt";
 
 /** Story 5.1: the U1 stamped plate for a level (the roman numeral as text where no canvas). */
@@ -129,6 +130,7 @@ export function ShopScreen() {
                 );
               })}
             </div>
+            <GearSection s={s} busy={busy} />
             {s.buildings.length > 0 && (
               <>
                 <h3 class="shop__section">{SHOP_TEXT.buildings}</h3>
@@ -152,5 +154,41 @@ export function ShopScreen() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Story 5.11: the Gear section (self-contained: Story 5.16 reshapes the rest of the shop). One row
+ * per item the shop lists, "Owned" (disabled) for owned gear and armor a higher tier covers.
+ */
+function GearSection({ s, busy }: { s: ShopState; busy: boolean }) {
+  const rows = gearRows(s);
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <h3 class="shop__section">{SHOP_TEXT.gear}</h3>
+      <div class="shop__items">
+        {rows.map((r) => {
+          const icon = gearIconUrl(r.id);
+          return (
+            <button
+              key={r.id}
+              type="button"
+              class={`shop__item shop__item--gear${r.owned ? " shop__item--owned" : ""}${r.short ? " shop__item--short" : ""}${icon ? " shop__item--icon" : ""}`}
+              disabled={r.owned || busy}
+              aria-label={r.owned ? `${r.name}, ${SHOP_TEXT.owned}` : `${r.name}, ${price(r.price)}`}
+              onClick={() => send({ type: "item", item: r.id })}
+            >
+              {icon ? <img class="shop__icon shop__icon--gear" src={icon} alt="" width={GEAR_ICON_CSS_PX} height={GEAR_ICON_CSS_PX} /> : null}
+              <span class="shop__text">
+                <span class="shop__name">{r.name}</span>
+                <span class="shop__price">{r.owned ? SHOP_TEXT.owned : price(r.price)}</span>
+                {r.note ? <span class="shop__lost">{r.note}</span> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }

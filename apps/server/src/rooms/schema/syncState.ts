@@ -1,4 +1,4 @@
-import { quantizeHeading, ticksFor, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
+import { quantizeHeading, reviveTicksFor, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
 import type { RunController } from "../../run/RunController";
 import { BuildingState, type PlayerState, type RunState } from "./RunState";
 
@@ -13,7 +13,6 @@ export function syncState(state: RunState, controller: RunController): void {
   pass.state = state;
   pass.controller = controller;
   pass.alive = 0;
-  pass.reviveTicks = ticksFor(world.balance.player.reviveS);
   world.players.forEach(visitPlayer); // a module-level callback: no closure per tick
   const alive = pass.alive;
   pass.state = null;
@@ -82,11 +81,10 @@ function syncBuildings(state: RunState, world: World): void {
 }
 
 /** The sync pass in progress (synchronous, so one shared record is enough). */
-const pass: { state: RunState | null; controller: RunController | null; alive: number; reviveTicks: number } = {
+const pass: { state: RunState | null; controller: RunController | null; alive: number } = {
   state: null,
   controller: null,
   alive: 0,
-  reviveTicks: 1,
 };
 
 function visitPlayer(p: SimPlayer): void {
@@ -108,7 +106,13 @@ function syncWallet(s: PlayerState, p: SimPlayer): void {
 /** Story 2.8: countdown, revive progress (0–255) and kills; Story 3.1: build-phase Ready. */
 function syncDowned(s: PlayerState, p: SimPlayer, kills: number): void {
   if (s.downedTicksLeft !== p.downedTicksLeft) s.downedTicksLeft = p.downedTicksLeft;
-  const progress = Math.min(255, Math.round((p.reviveTicks / pass.reviveTicks) * 255));
+  // Story 5.11: the denominator is the CURRENT reviver's need (a revive kit owner: 30 ticks, else 60).
+  let progress = 0;
+  if (p.reviveTicks > 0 && pass.controller) {
+    const world = pass.controller.world;
+    const reviver = p.reviverId === null ? undefined : world.players.get(p.reviverId);
+    progress = Math.min(255, Math.round((p.reviveTicks / reviveTicksFor(world.balance, reviver ? reviver.gear : 0)) * 255));
+  }
   if (s.reviveProgress !== progress) s.reviveProgress = progress;
   if (s.kills !== kills) s.kills = kills;
   if (s.buildReady !== p.buildReady) s.buildReady = p.buildReady;
@@ -152,6 +156,7 @@ function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
   if (s.knockDx !== p.knockDx) s.knockDx = p.knockDx;
   if (s.knockDy !== p.knockDy) s.knockDy = p.knockDy;
   if (s.knockStepMm !== p.knockStepMm) s.knockStepMm = p.knockStepMm;
+  if (s.gear !== p.gear) s.gear = p.gear; // Story 5.11: on a purchase only
 }
 
 /** Story 2.8 › `lobby.return`: every fight field and Ready flag back to its default; slot and name stay. */
@@ -203,4 +208,5 @@ function resetPlayer(s: PlayerState): void {
   s.knockDx = 0;
   s.knockDy = 0;
   s.knockStepMm = 0;
+  s.gear = 0; // Story 5.11: the next run starts with none
 }

@@ -82,6 +82,11 @@ export interface PlayerState {
    * length FLAME_SLOTS (preallocated). Server / solo only.
    */
   flameClock: number[];
+  /**
+   * Story 5.11 (`economy/gear.ts`): owned gear as a bitmask (bit i = the i-th `gear.json` item);
+   * kept for the whole run. On the wire (uint8): the client's prediction reads the shoes from it.
+   */
+  gear: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -121,6 +126,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     flameSlot: 255, // Story 5.4: set by claimFlameSlot below
     flaming: false,
     flameClock: [0, 0, 0, 0],
+    gear: 0, // Story 5.11
   };
   world.players.set(id, player);
   claimFlameSlot(world, player);

@@ -11,6 +11,7 @@ import {
   lobbySetReadySchema,
   playerNameSchema,
   runStartSchema,
+  shopBuyItemSchema,
 } from "./messages";
 
 const TOKEN = "0123456789abcdef0123456789abcdef";
@@ -93,5 +94,15 @@ describe("building.repair (Story 3.7)", () => {
     }
     expect(C2S.BUILDING_REPAIR).toBe("building.repair");
     expect(S2C.BUILDING_REPAIR_REFUSED).toBe("building.repair_refused");
+  });
+});
+
+describe("shop.buy_item (Story 5.11; shared with 5.12)", () => {
+  it("names the messages and accepts only { item: balance id ≤ 32 }", () => {
+    expect([C2S.SHOP_BUY_ITEM, S2C.SHOP_BOUGHT_ITEM, S2C.SHOP_REFUSED_ITEM]).toEqual(["shop.buy_item", "shop.bought_item", "shop.refused_item"]);
+    expect(shopBuyItemSchema.safeParse({ item: "running_shoes" }).success).toBe(true);
+    for (const bad of [{}, { item: "" }, { item: "Running" }, { item: "a".repeat(33) }, { item: 3 }, { item: "body_armor_1", extra: 1 }, { item: "x-y" }]) {
+      expect(shopBuyItemSchema.safeParse(bad).success).toBe(false);
+    }
   });
 });

@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { ticksFor, type PlayerState, type World } from "@topdown/shared";
+import { reviveTicksFor, type PlayerState, type World } from "@topdown/shared";
 import { REVIVE_ZONE_COLOR, reviveZoneStyle, type ReviveZoneStyle } from "./reviveZone";
 
 /** Ring around a downed survivor, in metres (world space, so it zooms with the camera). */
@@ -14,14 +14,15 @@ const ZONE_DEPTH = 4.4;
 
 /**
  * Story 2.8: a revive progress ring around each downed player: a dark track, and an arc that fills
- * clockwise from 12 o'clock with `reviveTicks / ticksFor(reviveS)`. Moving away resets it (the
+ * clockwise from 12 o'clock with `reviveTicks / ` the current reviver's need (Story 5.11: a revive
+ * kit owner's 30 ticks, else `ticksFor(reviveS)`). Moving away resets it (the
  * World does; this only draws). One Graphics object, redrawn only while someone is downed.
  * The countdown text is drawn by the HUD in screen space (crisp at any zoom).
  * Story 4.9: also the revive zone (radius `player.reviveRadiusM`, see `reviveZone.ts`) on the ground.
  */
 export class DownedView {
   private readonly g: Phaser.GameObjects.Graphics;
-  private readonly reviveTicks: number;
+  private world: Readonly<World> | null = null;
   private drawn = false;
   private any = false;
   private readonly zone: Phaser.GameObjects.Graphics;
@@ -37,7 +38,9 @@ export class DownedView {
     const r = p.radiusM + RING_GAP_M;
     const g = this.g;
     g.lineStyle(RING_WIDTH_M, TRACK_COLOR, TRACK_ALPHA).strokeCircle(p.x, p.y, r);
-    const frac = Math.min(1, p.reviveTicks / this.reviveTicks);
+    const w = this.world as Readonly<World>;
+    const reviver = p.reviverId === null ? undefined : w.players.get(p.reviverId);
+    const frac = Math.min(1, p.reviveTicks / reviveTicksFor(w.balance, reviver ? reviver.gear : 0));
     if (frac <= 0) return;
     g.lineStyle(RING_WIDTH_M, FILL_COLOR, 1)
       .beginPath()
@@ -48,7 +51,7 @@ export class DownedView {
   constructor(scene: Phaser.Scene, world: Readonly<World>) {
     this.g = scene.add.graphics().setDepth(9);
     this.zone = scene.add.graphics().setDepth(ZONE_DEPTH);
-    this.reviveTicks = ticksFor(world.balance.player.reviveS);
+    this.world = world;
   }
 
   /**
@@ -57,6 +60,7 @@ export class DownedView {
    */
   update(world: Readonly<World>, timeMs: number): void {
     this.reviveRadiusM = world.balance.player.reviveRadiusM;
+    this.world = world;
     this.timeMs = timeMs;
     if (this.drawn) {
       this.g.clear();

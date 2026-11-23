@@ -153,4 +153,31 @@ describe("headless replay (Story 4.4, NFR10)", { timeout: REPLAY_TIMEOUT_MS }, (
     const w2 = replayRun(balance, { ...log, commands: log.commands.filter((c) => c.kind !== "upgrade") });
     expect(worldDigest(w2)).not.toBe(digest);
   });
+
+  it("Story 5.11: replay with gear purchases gives the same digest (gear is in snapshotWorld); without them it diverges", () => {
+    const LIST = ["body_armor_1", "running_shoes", "revive_kit"];
+    const log = createInputLog(SEED, PLAYERS);
+    let digest = 0;
+    let masks: number[] = [];
+    runHeadless({
+      balance,
+      seed: SEED,
+      players: PLAYERS,
+      list: LIST,
+      record: log,
+      onEnd: (w) => {
+        digest = worldDigest(w);
+        masks = [...w.players.values()].map((p) => p.gear);
+      },
+    });
+    const items = log.commands.filter((c) => c.kind === "item");
+    expect(items.length).toBeGreaterThanOrEqual(2); // liveness: gear was bought and logged
+    expect(masks.some((m) => m !== 0)).toBe(true);
+    const w = replayRun(balance, log);
+    expect(worldDigest(w)).toBe(digest);
+    expect([...w.players.values()].map((p) => p.gear)).toEqual(masks);
+    expect(snapshotWorld(w).players.some(([, p]) => (p as { gear: number }).gear !== 0)).toBe(true);
+    const w2 = replayRun(balance, { ...log, commands: log.commands.filter((c) => c.kind !== "item") });
+    expect(worldDigest(w2)).not.toBe(digest);
+  });
 });

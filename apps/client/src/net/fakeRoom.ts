@@ -38,6 +38,7 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     knockDx: 0,
     knockDy: 0,
     knockStepMm: 0,
+    gear: 0, // Story 5.11
     ...over,
   };
 }

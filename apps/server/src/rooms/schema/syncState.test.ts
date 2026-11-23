@@ -255,6 +255,47 @@ describe("syncState", () => {
     expect(state.players.get("p0")).toMatchObject({ level0: 0, level1: 0 });
   });
 
+  it("Story 5.11: gear (with maxHp/hp) written on change only (one small patch), reset on lobby return", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    const p0 = w.players.get("p0");
+    if (!p0) throw new Error("no p0");
+    syncState(state, controller);
+    expect(state.players.get("p0")?.gear).toBe(0);
+    encoder.encode();
+    encoder.discardChanges();
+    syncState(state, controller);
+    expect(encoder.hasChanges).toBe(false); // 0 B/s while nothing is bought
+    p0.gear = 4;
+    syncState(state, controller);
+    expect(encoder.encode().length).toBeLessThan(12); // one uint8 field patch
+    encoder.discardChanges();
+    p0.gear = 5;
+    p0.maxHp = 125;
+    p0.hp = 125;
+    syncState(state, controller);
+    const bytes = encoder.encode().length;
+    expect(bytes).toBeLessThan(20); // gear + maxHp + hp: an armor purchase
+    expect(state.players.get("p0")).toMatchObject({ gear: 5, maxHp: 125, hp: 125 });
+    resetRunFields(state);
+    expect(state.players.get("p0")?.gear).toBe(0);
+  });
+
+  it("Story 5.11: revive progress uses the current reviver's need (kit owner: 15 of 30 ticks = 50 %)", () => {
+    const { controller, state } = setup();
+    const w = controller.world;
+    const p0 = w.players.get("p0");
+    const p1 = w.players.get("p1");
+    if (!p0 || !p1) throw new Error("no players");
+    p1.gear = 8; // revive_kit
+    downPlayer(w, p0);
+    p1.x = p0.x + 1;
+    p1.y = p0.y;
+    for (let i = 0; i < 15; i++) controller.tick();
+    syncState(state, controller);
+    expect(state.players.get("p0")?.reviveProgress).toBe(128);
+  });
+
   it("resetRunFields puts every fight field and Ready back, keeping slot and name", () => {
     const { controller, state } = setup();
     controller.tick();

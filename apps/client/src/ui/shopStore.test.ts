@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, shopWeapons, upgradePriceTable, type ShopBuilding } from "@topdown/shared";
+import { loadBalance, shopGear, shopWeapons, upgradePriceTable, type ShopBuilding } from "@topdown/shared";
 import {
   CLOSED_SHOP,
   SHOP_PENDING_TIMEOUT_MS,
+  SHOP_TEXT,
+  gearRows,
+  itemKey,
   replaceWarning,
   shopAllowed,
   shopErrorText,
@@ -209,5 +212,57 @@ describe("shopStep upgrades (Story 5.1, F1)", () => {
     expect(upgradeErrorText("not_build")).toBe("The shop is closed");
     expect(upgradeErrorText("insufficient_funds")).toBe("Not enough money");
     expect(upgradeErrorText("unknown_player")).toBe("Can't upgrade that");
+  });
+});
+
+describe("shopStep gear (Story 5.11, AC 1/3/8)", () => {
+  const b = loadBalance();
+  const gear = shopGear(b);
+  const open = (gearMask = 0, wallet = 500) => run(CLOSED_SHOP, { type: "open", weapons, buildings, gear }, { type: "sync", wallet, slots: ["pistol", null], gearMask }).s;
+  const ok = (item: string): ShopInput => ({ type: "answer", answer: { kind: "item", ok: true, item } });
+
+  it("lists the 4 shop items (no flashlight); owned / covered rows are Owned, armor II notes the replacement", () => {
+    expect(gearRows(open()).map((r) => r.id)).toEqual(["body_armor_1", "body_armor_2", "running_shoes", "revive_kit"]);
+    const withI = gearRows(open(1));
+    expect(withI.map((r) => r.owned)).toEqual([true, false, false, false]);
+    expect(withI[1]?.note).toBe(SHOP_TEXT.replacesArmor1);
+    const withII = gearRows(open(2));
+    expect(withII.map((r) => [r.owned, r.covered])).toEqual([
+      [true, true],
+      [true, false],
+      [false, false],
+      [false, false],
+    ]);
+    expect(withII[0]?.note).toBe(SHOP_TEXT.coveredByArmor2);
+    expect(gearRows(open(0, 100)).map((r) => r.short)).toEqual([true, true, true, true]);
+  });
+
+  it("buy → pending (one effect; a double tap sends nothing) → bought answer → still pending until the state shows the bit", () => {
+    const r = run(open(), { type: "item", item: "running_shoes" }, { type: "item", item: "running_shoes" }, { type: "item", item: "revive_kit" });
+    expect(r.effects).toEqual([{ type: "item", item: "running_shoes" }]);
+    expect(r.s.pending).toBe(itemKey("running_shoes"));
+    const answered = run(r.s, ok("running_shoes")).s;
+    expect(answered.message).toBe("Bought Running shoes");
+    expect(answered.pending).toBe(itemKey("running_shoes")); // the state doesn't show it yet
+    expect(answered.awaitGear).toBe(4);
+    const synced = run(answered, { type: "sync", wallet: 350, slots: ["pistol", null], gearMask: 4 }).s;
+    expect(synced.pending).toBeNull();
+    expect(gearRows(synced).find((x) => x.id === "running_shoes")?.owned).toBe(true);
+  });
+
+  it("the state first (patch before the answer) unlocks too; the late answer only shows its text", () => {
+    const r = run(open(), { type: "item", item: "body_armor_1" }, { type: "sync", wallet: 350, slots: ["pistol", null], gearMask: 1 });
+    expect(r.s.pending).toBeNull();
+    expect(run(r.s, ok("body_armor_1")).s.pending).toBeNull();
+  });
+
+  it("refused: text, unlocked, nothing owned; timeout gives the buttons back; owned rows send nothing", () => {
+    const refused = run(open(), { type: "item", item: "revive_kit" }, { type: "answer", answer: { kind: "item", ok: false, item: "revive_kit", error: "insufficient_funds" } }).s;
+    expect([refused.pending, refused.refused, refused.message, refused.gearMask]).toEqual([null, true, "Not enough money", 0]);
+    const timed = run(open(), { type: "item", item: "revive_kit" }, { type: "time", nowMs: 1000 }, { type: "time", nowMs: 1000 + SHOP_PENDING_TIMEOUT_MS }).s;
+    expect(timed.pending).toBeNull();
+    expect(run(open(2), { type: "item", item: "body_armor_1" }).effects).toEqual([]); // covered by II
+    expect(run(open(4), { type: "item", item: "running_shoes" }).effects).toEqual([]);
+    expect(run(open(), { type: "item", item: "tactical_flashlight" }).effects).toEqual([]); // not listed
   });
 });

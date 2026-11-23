@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { C2S, S2C, loadBalance } from "@topdown/shared";
-import { NetSession, parseShopBought, parseShopRefused, parseShopUpgradeRefused, parseShopUpgraded } from "../net/session";
+import { NetSession, parseShopBought, parseShopBoughtItem, parseShopRefused, parseShopRefusedItem, parseShopUpgradeRefused, parseShopUpgraded } from "../net/session";
 import { DevThrottle } from "../net/devThrottle";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost } from "./NetSimHost";
@@ -135,5 +135,53 @@ describe("NetSimHost weapon upgrades (Story 5.1)", () => {
     expect(parseShopUpgradeRefused({ weapon: "smg", error: "max_level" })).toEqual({ kind: "upgrade", ok: false, weapon: "smg", error: "max_level" });
     expect(parseShopUpgradeRefused({ weapon: "smg", error: "weird" })).toEqual({ kind: "upgrade", ok: false, weapon: "smg", error: "not_owned" });
     expect(parseShopUpgradeRefused(null)).toBeNull();
+  });
+});
+
+describe("NetSimHost gear (Story 5.11)", () => {
+  it("buyItem sends one shop.buy_item and changes nothing locally; answers come through takeShopAnswer", () => {
+    const { room, host } = setup();
+    host.update(1 / 60);
+    host.buyItem("running_shoes");
+    expect(room.sentOf(C2S.SHOP_BUY_ITEM)).toEqual([{ item: "running_shoes" }]);
+    host.update(1 / 60);
+    expect(host.world.players.get("p0")?.gear).toBe(0);
+    room.deliver(S2C.SHOP_BOUGHT_ITEM, { item: "running_shoes" });
+    room.deliver(S2C.SHOP_REFUSED_ITEM, { item: "revive_kit", error: "insufficient_funds" });
+    room.deliver(S2C.SHOP_BOUGHT_ITEM, { item: 3 });
+    expect(host.takeShopAnswer()).toEqual({ kind: "item", ok: true, item: "running_shoes" });
+    expect(host.takeShopAnswer()).toEqual({ kind: "item", ok: false, item: "revive_kit", error: "insufficient_funds" });
+    expect(host.takeShopAnswer()).toBeNull();
+    expect(parseShopRefusedItem({ item: "x", error: "weird" })).toEqual({ kind: "item", ok: false, item: "x", error: "not_for_sale" });
+    expect(parseShopBoughtItem(null)).toBeNull();
+  });
+
+  it("mirror gear/maxHp from state (never the answer); revive progress uses the reviver's kit", () => {
+    const room = new FakeRoom({
+      ...fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 11, y: 10 })]),
+      phase: "wave",
+    });
+    const session = new NetSession(room, { playerId: "p0", slot: 0, tickRateHz: 20 }, () => {});
+    const host = new NetSimHost({ balance, session, now: () => 0 });
+    host.update(1 / 60);
+    room.deliver(S2C.SHOP_BOUGHT_ITEM, { item: "body_armor_1" });
+    host.update(1 / 60);
+    expect(host.world.players.get("p0")).toMatchObject({ gear: 0, maxHp: 100 });
+    const s0 = room.state.players.get("p0");
+    const s1 = room.state.players.get("p1");
+    if (!s0 || !s1) throw new Error("no players");
+    s0.gear = 1;
+    s0.maxHp = 125;
+    s0.hp = 125;
+    s0.status = "downed";
+    s0.reviveProgress = 128; // half of the reviver's need
+    s1.gear = 8; // the reviver owns the kit: 30 ticks
+    room.state.tick++;
+    host.update(1 / 60);
+    const me = host.world.players.get("p0");
+    expect(me).toMatchObject({ gear: 1, maxHp: 125, hp: 125 });
+    expect(me?.reviverId).toBe("p1");
+    expect(me?.reviveTicks).toBe(15);
+    expect(host.world.players.get("p1")?.gear).toBe(8);
   });
 });

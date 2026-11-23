@@ -4,6 +4,7 @@ import type { World } from "../core/world";
 import { createSlot, type Loadout, type WeaponSlot } from "../combat/loadout";
 import { upgradePrice, type WeaponId } from "../combat/weapons";
 import { spendMoney, type SpendError } from "./economy";
+import { buyGear, gearBit } from "./gear";
 
 /**
  * Story 3.3: the fixed-list shop (Epic 5 replaces it with the roguelike card shop).
@@ -227,4 +228,24 @@ const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", 
 /** Story 5.1: 1 → "I" … 15 → "XV" (the HUD and shop marks); anything else → "". */
 export function romanLevel(level: number): string {
   return ROMAN[level] ?? "";
+}
+
+/** Story 5.11: what one `shop.buy_item` purchase did (gear now; Story 5.12 adds consumables). */
+export interface BoughtItem {
+  readonly item: string;
+  readonly price: number;
+}
+
+/**
+ * Story 5.11: the one dispatcher of `shop.buy_item` (server for the message, solo on the local
+ * World, bots): a gear id → `buyGear`. Story 5.12 adds its branch here (a consumable id →
+ * `buyConsumable`). Anything else is `not_for_sale` — after the build-phase and player checks, so
+ * the refusal order matches `buyGear`'s.
+ */
+export function buyItem(world: World, playerId: string, item: string): Result<BoughtItem, ShopError> {
+  if (gearBit(world.balance, item) !== 0) return buyGear(world, playerId, item);
+  // Story 5.12: if (isConsumable(world.balance, item)) return buyConsumable(world, playerId, item);
+  if (world.run.phase !== "build") return err("not_build");
+  if (!world.players.has(playerId)) return err("unknown_player");
+  return err("not_for_sale");
 }

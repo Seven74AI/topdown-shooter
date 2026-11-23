@@ -3,6 +3,8 @@ import type { World } from "../core/world";
 import { buildingStats, cornerForCentre, ownedCount, placeBuilding } from "../buildings/buildings";
 import { buyWeapon, shopPrice, upgradeWeapon } from "../economy/shop";
 import { upgradePrice } from "../combat/weapons";
+import { armorTier, gearBit, shopGear } from "../economy/gear";
+import { buyItem } from "../economy/shop";
 import { setBuildReady } from "../run/runStateMachine";
 import type { BuildCommand } from "../replay/inputLog";
 
@@ -19,6 +21,8 @@ import type { BuildCommand } from "../replay/inputLog";
  *   (or the 6-building cap) → next; too dear → stop;
  * - Story 5.1: `upgrade:<weapon>`: its k-th entry in the list means "hold that weapon at level ≥ k + 1";
  *   not held, or already that high (or at the max level) → next; affordable → upgrade it; too dear → stop;
+ * - Story 5.11: a gear id (`gear.json`, in the shop): owned (or an armor tier ≤ the owned one) → next;
+ *   affordable → buy it (`buyItem`, the `shop.buy_item` rules); too dear → stop;
  * - an id the shop doesn't sell → next.
  */
 
@@ -40,6 +44,23 @@ export interface BotShopSelf {
   /** Story 5.1: the slots' upgrade levels (absent = I). */
   level0?: number;
   level1?: number;
+  /** Story 5.11: the owned-gear mask (absent = none). */
+  gear?: number;
+}
+
+/** Story 5.11: the shop price of gear `id` if the shop sells it (listed: `inShop`), else null. */
+export function botGearPrice(balance: Balance, id: string): number | null {
+  for (const g of shopGear(balance)) if (g.id === id) return g.price;
+  return null;
+}
+
+/** Story 5.11: the bot already has gear `id` (or a higher armor tier covers it). */
+export function botOwnsGear(balance: Balance, gear: number, id: string): boolean {
+  const bit = gearBit(balance, id);
+  if (bit === 0) return false;
+  if ((gear & bit) !== 0) return true;
+  const tier = balance.gear.items[id]?.armorTier ?? 0;
+  return tier > 0 && armorTier(balance, gear) >= tier;
 }
 
 /**
@@ -66,6 +87,12 @@ export function botShopNext(
       for (let k = 0; k <= i; k++) if (list[k] === id) want++;
       if (level >= want || level >= balance.shop.upgrades.maxLevel) continue;
       if (upgradePrice(balance, up) > self.wallet) return -1;
+      return i;
+    }
+    const gearPrice = botGearPrice(balance, id); // Story 5.11
+    if (gearPrice !== null) {
+      if (botOwnsGear(balance, self.gear ?? 0, id)) continue;
+      if (gearPrice > self.wallet) return -1;
       return i;
     }
     const weaponPrice = shopPrice(balance, id);
@@ -135,14 +162,16 @@ export interface BotShopResult {
   weapons: number;
   /** Story 5.1: weapon upgrades bought. */
   upgrades: number;
+  /** Story 5.11: gear items bought. */
+  gear: number;
   buildings: number;
   spent: number;
-  /** The weapons bought (and Story 5.1 `upgrade:<weapon>` entries), in order (for the sim's log). */
+  /** The weapons bought (and Story 5.1 `upgrade:<weapon>` entries, Story 5.11 gear ids), in order (for the sim's log). */
   readonly bought: string[];
 }
 
 export function createBotShopResult(): BotShopResult {
-  return { swap: false, weapons: 0, upgrades: 0, buildings: 0, spent: 0, bought: [] };
+  return { swap: false, weapons: 0, upgrades: 0, gear: 0, buildings: 0, spent: 0, bought: [] };
 }
 
 /**
@@ -162,13 +191,14 @@ export function botBuildPhase(
   out.swap = false;
   out.weapons = 0;
   out.upgrades = 0;
+  out.gear = 0;
   out.buildings = 0;
   out.spent = 0;
   out.bought.length = 0;
   const p = world.players.get(playerId);
   if (!p || world.run.phase !== "build") return out;
   const balance = world.balance;
-  const self: BotShopSelf = { wallet: 0, weapon0: "", weapon1: "", active: 0, level0: 1, level1: 1 };
+  const self: BotShopSelf = { wallet: 0, weapon0: "", weapon1: "", active: 0, level0: 1, level1: 1, gear: 0 };
   const owned = (type: string): number => {
     let n = 0;
     for (const b of world.buildings.list) if (b.ownerId === playerId && b.type === type) n++;
@@ -185,6 +215,7 @@ export function botBuildPhase(
     self.active = hands;
     self.level0 = p.loadout.slots[0].level;
     self.level1 = p.loadout.slots[1]?.level ?? 1;
+    self.gear = p.gear;
     const i = botShopNext(balance, self, owned, list, skip);
     if (i < 0) break;
     const id = list[i] as string;
@@ -198,6 +229,15 @@ export function botBuildPhase(
       }
       record?.({ kind: "upgrade", playerId, weapon: up });
       out.upgrades++;
+      out.bought.push(id);
+    } else if (botGearPrice(balance, id) !== null) {
+      // Story 5.11: the same `buyItem` the shop's Gear row runs (`shop.buy_item`).
+      if (!buyItem(world, playerId, id).ok) {
+        skip |= 1 << i;
+        continue;
+      }
+      record?.({ kind: "item", playerId, item: id });
+      out.gear++;
       out.bought.push(id);
     } else if (shopPrice(balance, id) !== null) {
       const slot = botWeaponSlot(self);

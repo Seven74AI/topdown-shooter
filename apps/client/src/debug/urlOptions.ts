@@ -1,4 +1,4 @@
-import { parseDevScale, parseDevWallet, parseRunSeed } from "@topdown/shared";
+import { parseDevScale, parseDevShopAll, parseDevWallet, parseRunSeed } from "@topdown/shared";
 import { isTestScenario, type TestScenario } from "@topdown/shared";
 
 /**
@@ -67,6 +67,12 @@ export interface UrlOptions {
    * car and survivor (caps and spawn rates halved). false otherwise.
    */
   lowFx: boolean;
+  /**
+   * `?shopall=1` (Story 5.11, the minimal form of Story 5.10's switch; dev builds only, like `?zdmg`):
+   * `inShop: false` items are listed and sold (the tactical flashlight); online the server must run
+   * with `DEV_SHOP_ALL=1` (same `balance.version`). false otherwise.
+   */
+  shopAll: boolean;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -102,6 +108,7 @@ export function parseUrlOptions(search: string): UrlOptions {
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
+    shopAll: parseDevShopAll(q.get("shopall")?.trim().toLowerCase()),
   };
 }
 

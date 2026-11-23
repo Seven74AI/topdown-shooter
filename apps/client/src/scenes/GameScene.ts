@@ -11,6 +11,8 @@ import {
   hasMagazine,
   setLoadout,
   shopBuildings,
+  shopGear,
+  gearIds,
   shopWeapons,
   upgradePriceTable,
   spectateTarget,
@@ -844,7 +846,7 @@ export class GameScene extends Phaser.Scene {
       const balance = host.world.balance;
       this.router?.releaseAll(); // nothing stays held under the shop (as for the menu)
       host.clearEdges();
-      this.shopInput({ type: "open", weapons: shopWeapons(balance), buildings: shopBuildings(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel });
+      this.shopInput({ type: "open", weapons: shopWeapons(balance), buildings: shopBuildings(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel, gear: shopGear(balance) });
     }
     // Answers: shown while open, dropped while closed (the World already has the result).
     for (let a = host.takeShopAnswer(); a !== null; a = host.takeShopAnswer()) this.shopInput({ type: "answer", answer: a });
@@ -857,8 +859,9 @@ export class GameScene extends Phaser.Scene {
         // Story 5.1: levels from the World (online: the state mirror), so the shop shows server truth.
         const l0 = me.loadout.slots[0].level;
         const l1 = me.loadout.slots[1]?.level ?? 0;
-        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1] || l0 !== s.levels[0] || l1 !== s.levels[1]) {
-          this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1], levels: [l0, l1] });
+        // Story 5.11: the owned gear from the World (online: the state's `gear`), never the tap.
+        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1] || l0 !== s.levels[0] || l1 !== s.levels[1] || me.gear !== s.gearMask) {
+          this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1], levels: [l0, l1], gearMask: me.gear });
         }
       }
       if (s.pending !== null) {
@@ -881,6 +884,7 @@ export class GameScene extends Phaser.Scene {
     if (e === null) return;
     if (e.type === "buy") this.host?.buyWeapon(e.weapon, e.slot);
     else if (e.type === "upgrade") this.host?.upgradeWeapon(e.weapon); // Story 5.1
+    else if (e.type === "item") this.host?.buyItem(e.item); // Story 5.11
     else uiStore.request("startPlacement", e.id); // Story 3.4: placement mode
   }
 
@@ -1140,6 +1144,8 @@ export class GameScene extends Phaser.Scene {
       // Story 5.8: a light yellow-green edge while the gas slows me (the server's slow, inside a drawn cloud).
       this.hudModel.gasGlow = player.status === "alive" && player.slowTicksLeft > 0 && this.bloaterFx?.inCloud(player.x, player.y, player.radiusM, this.acidClockS) === true ? GAS_GLOW_ALPHA : 0;
       this.hudModel.maxHp = player.maxHp;
+      this.hudModel.gearMask = player.gear; // Story 5.11: the HUD's gear icons (server truth online)
+      this.hudModel.gearIds = gearIds(host.world.balance);
       this.hudModel.money = player.wallet;
       this.hudModel.localX = viewOf.x;
       this.hudModel.localY = viewOf.y;

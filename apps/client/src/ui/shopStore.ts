@@ -1,4 +1,4 @@
-import { romanLevel, type ShopBuilding, type ShopError, type ShopWeapon, type WeaponUpgradeError } from "@topdown/shared";
+import { romanLevel, type ShopBuilding, type ShopError, type ShopGear, type ShopWeapon, type WeaponUpgradeError } from "@topdown/shared";
 import type { ShopAnswer } from "../sim/SimHost";
 
 /**
@@ -29,6 +29,14 @@ export interface ShopState {
    * level` (the answer can arrive before the state patch); null otherwise. The timeout still applies.
    */
   readonly awaitLevel: { readonly slot: 0 | 1; readonly level: number } | null;
+  /** Story 5.11: the gear the shop lists (from balance, set at open) and my owned-gear mask (server truth online). */
+  readonly gear: readonly ShopGear[];
+  readonly gearMask: number;
+  /**
+   * Story 5.11 (AC 8): an accepted gear purchase stays pending until a sync shows this bit (the
+   * answer can arrive before the state patch); 0 otherwise. The timeout still applies.
+   */
+  readonly awaitGear: number;
   /** When `pending` was sent (ms, the scene's clock), for the timeout. */
   readonly pendingAtMs: number;
   /** Both slots full: the weapon waiting for "Replace which?". */
@@ -49,6 +57,9 @@ export const CLOSED_SHOP: ShopState = Object.freeze({
   maxLevel: 1,
   pending: null,
   awaitLevel: null,
+  gear: [],
+  gearMask: 0,
+  awaitGear: 0,
   pendingAtMs: 0,
   choosing: null,
   message: "",
@@ -65,6 +76,8 @@ export type ShopAction =
   | { readonly type: "buy"; readonly weapon: string }
   /** Story 5.1: tap an Upgrade row. */
   | { readonly type: "upgrade"; readonly weapon: string }
+  /** Story 5.11: tap a Gear item (Story 5.12: consumables use the same action and message). */
+  | { readonly type: "item"; readonly item: string }
   /** "Replace which?": the slot the chosen weapon replaces. */
   | { readonly type: "slot"; readonly slot: 0 | 1 }
   /** "Replace which?": Cancel. */
@@ -82,14 +95,17 @@ export type ShopInput =
       /** Story 5.1 (absent: no upgrades offered). */
       readonly upgradePrices?: Readonly<Record<string, number>>;
       readonly maxLevel?: number;
+      /** Story 5.11 (absent: no Gear section). */
+      readonly gear?: readonly ShopGear[];
     }
-  | { readonly type: "sync"; readonly wallet: number; readonly slots: readonly [string, string | null]; readonly levels?: readonly [number, number] }
+  | { readonly type: "sync"; readonly wallet: number; readonly slots: readonly [string, string | null]; readonly levels?: readonly [number, number]; readonly gearMask?: number }
   | { readonly type: "answer"; readonly answer: ShopAnswer }
   | { readonly type: "time"; readonly nowMs: number };
 
 export type ShopEffect =
   | { readonly type: "buy"; readonly weapon: string; readonly slot: 0 | 1 | null }
   | { readonly type: "upgrade"; readonly weapon: string }
+  | { readonly type: "item"; readonly item: string }
   | { readonly type: "startPlacement"; readonly id: string }
   | null;
 
@@ -116,7 +132,48 @@ export const SHOP_TEXT = {
   max: "Max",
   upgradesLost: "Its upgrades are lost.",
   upgraded: (name: string, level: number) => `${name} upgraded to ${romanLevel(level)}`,
+  // Story 5.11
+  gear: "Gear",
+  replacesArmor1: "Replaces Body armor I",
+  coveredByArmor2: "Armor II covers it",
 } as const;
+
+/** Story 5.11: the `pending` key of a gear / item purchase (never a weapon id: ids have no colon). */
+export const itemKey = (item: string): string => `item:${item}`;
+
+/** Story 5.11: how a Gear row shows (pure: the screen and the tests read it). */
+export interface GearRowView {
+  readonly id: string;
+  readonly name: string;
+  readonly price: number;
+  /** Owned, or an armor of a tier ≤ the one owned (armor II covers I): "Owned", disabled. */
+  readonly owned: boolean;
+  /** Owned only by being covered by a higher armor tier (the row's note). */
+  readonly covered: boolean;
+  /** Not owned and more than the wallet. */
+  readonly short: boolean;
+  /** A note under the name ("Replaces Body armor I"; "" = none). */
+  readonly note: string;
+}
+
+/** Story 5.11: the highest armor tier in my mask (0 = none). */
+function ownedArmorTier(s: ShopState): number {
+  let best = 0;
+  for (const g of s.gear) if (g.armorTier > best && (s.gearMask & g.bit) !== 0) best = g.armorTier;
+  return best;
+}
+
+/** Story 5.11: the Gear rows from the state the World fed (bit order). */
+export function gearRows(s: ShopState): GearRowView[] {
+  const tier = ownedArmorTier(s);
+  return s.gear.map((g) => {
+    const bitOwned = (s.gearMask & g.bit) !== 0;
+    const covered = !bitOwned && g.armorTier > 0 && g.armorTier <= tier;
+    const owned = bitOwned || covered;
+    const note = covered ? SHOP_TEXT.coveredByArmor2 : !owned && g.armorTier > 1 && tier > 0 ? SHOP_TEXT.replacesArmor1 : "";
+    return { id: g.id, name: g.name, price: g.price, owned, covered, short: !owned && g.price > s.wallet, note };
+  });
+}
 
 /** Story 5.1: refusal texts of an upgrade. */
 export function upgradeErrorText(error: WeaponUpgradeError): string {
@@ -197,21 +254,31 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
         buildings: input.buildings,
         upgradePrices: input.upgradePrices ?? {},
         maxLevel: input.maxLevel ?? 1,
+        gear: input.gear ?? [],
         wallet: s.wallet,
         slots: s.slots,
         levels: s.levels,
+        gearMask: s.gearMask,
       });
     case "close":
       // Keeps wallet and slots (fed every frame while open anyway); an answer after close is ignored.
-      return s.open ? same({ ...CLOSED_SHOP, wallet: s.wallet, slots: s.slots, levels: s.levels }) : same(s);
+      return s.open ? same({ ...CLOSED_SHOP, wallet: s.wallet, slots: s.slots, levels: s.levels, gearMask: s.gearMask }) : same(s);
     case "sync": {
       const levels = input.levels ?? s.levels;
-      if (s.wallet === input.wallet && s.slots[0] === input.slots[0] && s.slots[1] === input.slots[1] && s.levels[0] === levels[0] && s.levels[1] === levels[1]) return same(s);
+      const gearMask = input.gearMask ?? s.gearMask;
+      if (s.wallet === input.wallet && s.slots[0] === input.slots[0] && s.slots[1] === input.slots[1] && s.levels[0] === levels[0] && s.levels[1] === levels[1] && s.gearMask === gearMask) return same(s);
       // Story 5.1 review: the state now shows the accepted upgrade: the rows are current, unlock them.
       if (s.awaitLevel !== null && levels[s.awaitLevel.slot] >= s.awaitLevel.level) {
-        return same({ ...s, wallet: input.wallet, slots: input.slots, levels, pending: null, pendingAtMs: 0, awaitLevel: null });
+        return same({ ...s, wallet: input.wallet, slots: input.slots, levels, gearMask, pending: null, pendingAtMs: 0, awaitLevel: null });
       }
-      return same({ ...s, wallet: input.wallet, slots: input.slots, levels });
+      // Story 5.11 (AC 8): the state shows the bought gear (answer first or not): unlock.
+      if (s.pending !== null && s.pending.startsWith("item:")) {
+        const bit = s.awaitGear !== 0 ? s.awaitGear : (s.gear.find((g) => itemKey(g.id) === s.pending)?.bit ?? 0);
+        if (bit !== 0 && (gearMask & bit) !== 0 && (s.gearMask & bit) === 0) {
+          return same({ ...s, wallet: input.wallet, slots: input.slots, levels, gearMask, pending: null, pendingAtMs: 0, awaitGear: 0 });
+        }
+      }
+      return same({ ...s, wallet: input.wallet, slots: input.slots, levels, gearMask });
     }
     case "upgrade": {
       // Story 5.1 (F1): one tap sends one upgrade at a time; nothing while anything is pending.
@@ -219,6 +286,13 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
       const row = upgradeRows(s).find((r) => r.weapon === input.weapon);
       if (!row || row.price === null) return same(s);
       return { state: { ...s, pending: upgradeKey(input.weapon), pendingAtMs: 0, message: "", refused: false }, effect: { type: "upgrade", weapon: input.weapon } };
+    }
+    case "item": {
+      // Story 5.11: one purchase in flight at a time (G4/G13); owned / covered gear sends nothing.
+      if (!s.open || s.pending !== null || s.choosing !== null) return same(s);
+      const row = gearRows(s).find((r) => r.id === input.item);
+      if (!row || row.owned) return same(s);
+      return { state: { ...s, pending: itemKey(input.item), pendingAtMs: 0, awaitGear: 0, message: "", refused: false }, effect: { type: "item", item: input.item } };
     }
     case "buy": {
       if (!s.open || s.pending !== null || ownsWeapon(s, input.weapon)) return same(s);
@@ -235,7 +309,7 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
       return s.choosing === null ? same(s) : same({ ...s, choosing: null });
     case "building":
       if (!s.open || !s.buildings.some((b) => b.id === input.id)) return same(s);
-      return { state: { ...CLOSED_SHOP, wallet: s.wallet, slots: s.slots, levels: s.levels }, effect: { type: "startPlacement", id: input.id } };
+      return { state: { ...CLOSED_SHOP, wallet: s.wallet, slots: s.slots, levels: s.levels, gearMask: s.gearMask }, effect: { type: "startPlacement", id: input.id } };
     case "answer": {
       const a = input.answer;
       if (!s.open) return same(s);
@@ -244,6 +318,14 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
       if (a.kind === "upgrade") {
         message = a.ok ? SHOP_TEXT.upgraded(nameOf(a.weapon), a.level) : upgradeErrorText(a.error);
         key = upgradeKey(a.weapon);
+      } else if (a.kind === "item") {
+        const g = s.gear.find((x) => x.id === a.item);
+        message = a.ok ? SHOP_TEXT.bought(g?.name ?? nameOf(a.item)) : shopErrorText(a.error);
+        key = itemKey(a.item);
+        if (s.pending !== null && key === s.pending && a.ok && g && (s.gearMask & g.bit) === 0) {
+          // Story 5.11 (AC 8): accepted, but the state doesn't show the bit yet: stay pending on it.
+          return same({ ...s, awaitGear: g.bit, message, refused: false });
+        }
       } else {
         message = a.ok ? SHOP_TEXT.bought(nameOf(a.weapon)) : shopErrorText(a.error);
         key = a.weapon;
@@ -255,12 +337,12 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
       if (a.kind === "upgrade" && a.ok && s.pending !== null && s.levels[a.slot] < a.level) {
         return same({ ...s, awaitLevel: { slot: a.slot, level: a.level }, message, refused: false });
       }
-      return same({ ...s, pending: null, pendingAtMs: 0, awaitLevel: null, message, refused: !a.ok });
+      return same({ ...s, pending: null, pendingAtMs: 0, awaitLevel: null, awaitGear: 0, message, refused: !a.ok });
     }
     case "time":
       if (s.pending === null) return same(s);
       if (s.pendingAtMs === 0) return same({ ...s, pendingAtMs: input.nowMs }); // the clock starts with the first frame after the send
-      return input.nowMs - s.pendingAtMs >= SHOP_PENDING_TIMEOUT_MS ? same({ ...s, pending: null, pendingAtMs: 0, awaitLevel: null }) : same(s);
+      return input.nowMs - s.pendingAtMs >= SHOP_PENDING_TIMEOUT_MS ? same({ ...s, pending: null, pendingAtMs: 0, awaitLevel: null, awaitGear: 0 }) : same(s);
   }
 }
 

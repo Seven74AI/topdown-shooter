@@ -9,7 +9,10 @@ export type ShopAnswer =
   | { readonly kind?: "buy"; readonly ok: true; readonly weapon: string; readonly slot: 0 | 1 }
   | { readonly kind?: "buy"; readonly ok: false; readonly weapon: string; readonly error: ShopError }
   | { readonly kind: "upgrade"; readonly ok: true; readonly weapon: string; readonly slot: 0 | 1; readonly level: number }
-  | { readonly kind: "upgrade"; readonly ok: false; readonly weapon: string; readonly error: WeaponUpgradeError };
+  | { readonly kind: "upgrade"; readonly ok: false; readonly weapon: string; readonly error: WeaponUpgradeError }
+  /** Story 5.11: `shop.bought_item` / `shop.refused_item` (gear; Story 5.12 consumables). */
+  | { readonly kind: "item"; readonly ok: true; readonly item: string }
+  | { readonly kind: "item"; readonly ok: false; readonly item: string; readonly error: ShopError };
 
 /** Presentation data of a player (Story 2.9): kept out of the shared `PlayerState`. */
 export interface PlayerInfo {
@@ -77,6 +80,12 @@ export interface SimHost {
    * `takeShopAnswer` (`kind: "upgrade"`); the level and wallet change only in the World (online: state).
    */
   upgradeWeapon(weapon: string): void;
+  /**
+   * Story 5.11: buy one shop item by id (gear; Story 5.12 consumables). Solo the shared `buyItem`
+   * runs at once; online it is sent as `shop.buy_item` and the server decides. The answer comes from
+   * `takeShopAnswer` (`kind: "item"`); gear, max HP and wallet change only in the World (online: state).
+   */
+  buyItem(item: string): void;
   /** The oldest purchase answer not taken yet, or null. */
   takeShopAnswer(): ShopAnswer | null;
   /** Drops a swap/consumable latched but not sent yet (the in-run menu opened in the same step; 2.11 review). */

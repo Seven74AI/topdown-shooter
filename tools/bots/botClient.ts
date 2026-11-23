@@ -17,9 +17,11 @@ import {
   botPlaceCandidate,
   botPlaceTries,
   botShopNext,
+  botGearPrice,
   botWeaponSlot,
   createBotView,
   shopPrice,
+  gearBit,
   upgradeEntryWeapon,
   upgradePrice,
   loadBalance,
@@ -37,6 +39,8 @@ import {
   type RunJoined,
   type RunStateView,
   type ShopBought,
+  type ShopBoughtItem,
+  type ShopRefusedItem,
   type ShopRefused,
   type ShopUpgraded,
   type ShopUpgradeRefused,
@@ -127,8 +131,8 @@ const SHOP_ANSWER_TICKS = 40;
 const levelOf = (me: PlayerStateView, weapon: string): number => (me.weapon0 === weapon ? me.level0 : me.weapon1 === weapon ? me.level1 : 0);
 
 interface PendingShop {
-  /** Story 5.1: "upgrade" = a weapon upgrade (`owned` holds the level it waits for). */
-  kind: "weapon" | "building" | "upgrade";
+  /** Story 5.1: "upgrade" = a weapon upgrade (`owned` holds the level it waits for). Story 5.11: "gear" (`owned` = its bit). */
+  kind: "weapon" | "building" | "upgrade" | "gear";
   /** Index in the shopping list. */
   index: number;
   id: string;
@@ -217,6 +221,8 @@ export class BotClient {
     room.onMessage(S2C.SHOP_REFUSED, (m: ShopRefused) => this.shopRefused(m));
     room.onMessage(S2C.SHOP_UPGRADED, (m: ShopUpgraded) => this.shopUpgraded(m)); // Story 5.1
     room.onMessage(S2C.SHOP_UPGRADE_REFUSED, (m: ShopUpgradeRefused) => this.shopUpgradeRefused(m));
+    room.onMessage(S2C.SHOP_BOUGHT_ITEM, (m: ShopBoughtItem) => this.shopBoughtItem(m)); // Story 5.11
+    room.onMessage(S2C.SHOP_REFUSED_ITEM, (m: ShopRefusedItem) => this.shopRefusedItem(m));
     room.onMessage(S2C.BUILDING_REFUSED, (m: BuildingRefused) => this.placeRefused(m));
     room.onMessage(S2C.BUILDING_REPAIR_REFUSED, () => {});
     room.onMessage(S2C.SERVER_SHUTDOWN_STARTED, () => {});
@@ -350,6 +356,8 @@ export class BotClient {
         this.shopPending = null;
       } else if (pending.kind === "upgrade" && pending.bought && levelOf(me, pending.id) >= pending.owned) {
         this.shopPending = null; // Story 5.1: the state shows the new level
+      } else if (pending.kind === "gear" && pending.bought && (me.gear & pending.owned) !== 0) {
+        this.shopPending = null; // Story 5.11: the state shows the gear bit
       } else if (pending.kind === "building" && this.owned(state, pending.id) > pending.owned) {
         this.buildingsPlaced++;
         this.spent += balance.buildings.types[pending.id]?.price ?? 0;
@@ -369,6 +377,7 @@ export class BotClient {
     self.active = this.hands;
     self.level0 = me.level0; // Story 5.1
     self.level1 = me.level1;
+    self.gear = me.gear; // Story 5.11
     const i = botShopNext(balance, self, (t) => this.owned(state, t), this.list, this.shopSkip);
     if (i < 0) {
       this.shopDone = true;
@@ -380,6 +389,11 @@ export class BotClient {
     if (up !== null) {
       this.room.send(C2S.SHOP_UPGRADE, { weapon: up }); // Story 5.1
       this.shopPending = { kind: "upgrade", index: i, id: up, owned: levelOf(me, up) + 1, sentAtTick: state.tick, bought: false };
+      return;
+    }
+    if (botGearPrice(balance, id) !== null) {
+      this.room.send(C2S.SHOP_BUY_ITEM, { item: id }); // Story 5.11
+      this.shopPending = { kind: "gear", index: i, id, owned: gearBit(balance, id), sentAtTick: state.tick, bought: false };
       return;
     }
     if (shopPrice(balance, id) !== null) {
@@ -428,6 +442,23 @@ export class BotClient {
     const p = this.shopPending;
     if (!p || p.kind !== "upgrade") return;
     this.log({ msg: "bot_upgrade_refused", bot: this.name, weapon: m.weapon, error: m.error });
+    this.shopSkip |= 1 << p.index;
+    this.shopPending = null;
+  }
+
+  /** Story 5.11: `shop.bought_item`; the pending entry clears once the state shows the gear bit. */
+  private shopBoughtItem(m: ShopBoughtItem): void {
+    const p = this.shopPending;
+    if (!p || p.kind !== "gear" || p.id !== m.item) return;
+    this.purchases.push(`${m.item}@W${this.waveNumber + 1}`);
+    this.spent += botGearPrice(balance, m.item) ?? 0;
+    p.bought = true;
+  }
+
+  private shopRefusedItem(m: ShopRefusedItem): void {
+    const p = this.shopPending;
+    if (!p || p.kind !== "gear") return;
+    this.log({ msg: "bot_item_refused", bot: this.name, item: m.item, error: m.error });
     this.shopSkip |= 1 << p.index;
     this.shopPending = null;
   }

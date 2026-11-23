@@ -25,6 +25,7 @@ import {
   joinOptionsSchema,
   loadDevBalance,
   parseDevScale,
+  parseDevShopAll,
   parseDevWallet,
   lobbyReturnSchema,
   lobbySetReadySchema,
@@ -33,6 +34,7 @@ import {
   playerInputSchema,
   runStartSchema,
   shopBuySchema,
+  shopBuyItemSchema,
   shopUpgradeSchema,
   spectateTarget,
   startBlocker,
@@ -50,6 +52,8 @@ import {
   type PlayerLeftReason,
   type RunJoined,
   type ShopBought,
+  type ShopBoughtItem,
+  type ShopRefusedItem,
   type ShopRefused,
   type ShopUpgraded,
   type ShopUpgradeRefused,
@@ -83,11 +87,13 @@ import { PlayerState, RunState } from "./schema/RunState";
 const devAllowed = process.env.NODE_ENV !== "production";
 const devZombieDamageScale = devAllowed ? parseDevScale(process.env.DEV_ZOMBIE_DAMAGE_SCALE) : null;
 const devStartingWallet = devAllowed ? parseDevWallet(process.env.DEV_STARTING_WALLET) : null;
-export const serverBalance = loadDevBalance({ zombieDamageScale: devZombieDamageScale, startingWallet: devStartingWallet });
-if (devZombieDamageScale !== null || devStartingWallet !== null) {
-  log.warn({ scale: devZombieDamageScale, wallet: devStartingWallet, version: serverBalance.version }, "dev_balance_override");
-} else if (process.env.DEV_ZOMBIE_DAMAGE_SCALE || process.env.DEV_STARTING_WALLET) {
-  log.warn({ scale: process.env.DEV_ZOMBIE_DAMAGE_SCALE, wallet: process.env.DEV_STARTING_WALLET }, "dev_balance_override_ignored");
+/** Story 5.11 (Story 5.10's switch, minimal form): `DEV_SHOP_ALL=1` (client `?shopall=1`) sells `inShop: false` items. */
+const devShopAll = devAllowed && parseDevShopAll(process.env.DEV_SHOP_ALL);
+export const serverBalance = loadDevBalance({ zombieDamageScale: devZombieDamageScale, startingWallet: devStartingWallet, shopAll: devShopAll });
+if (devZombieDamageScale !== null || devStartingWallet !== null || devShopAll) {
+  log.warn({ scale: devZombieDamageScale, wallet: devStartingWallet, shopAll: devShopAll, version: serverBalance.version }, "dev_balance_override");
+} else if (process.env.DEV_ZOMBIE_DAMAGE_SCALE || process.env.DEV_STARTING_WALLET || process.env.DEV_SHOP_ALL) {
+  log.warn({ scale: process.env.DEV_ZOMBIE_DAMAGE_SCALE, wallet: process.env.DEV_STARTING_WALLET, shopAll: process.env.DEV_SHOP_ALL }, "dev_balance_override_ignored");
 }
 
 /** HTTP-ish status for every join refusal; the message is the `JoinRefusal` reason. */
@@ -268,6 +274,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.BUILDING_REPAIR, this.net.guard(buildingRepairSchema, (c, m) => this.onRepairBuilding(c, m.id)));
     this.onMessage(C2S.BUILDING_UPGRADE, this.net.guard(buildingUpgradeSchema, (c, m) => this.onUpgradeBuilding(c, m.id))); // Story 5.9
     this.onMessage(C2S.SHOP_UPGRADE, this.net.guard(shopUpgradeSchema, (c, m) => this.onShopUpgrade(c, m.weapon))); // Story 5.1
+    this.onMessage(C2S.SHOP_BUY_ITEM, this.net.guard(shopBuyItemSchema, (c, m) => this.onShopBuyItem(c, m.item))); // Story 5.11
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -490,6 +497,26 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     } else {
       client.send(S2C.SHOP_UPGRADE_REFUSED, { weapon, error: r.error } satisfies ShopUpgradeRefused);
       this.log.info({ playerId: member.playerId, weapon, error: r.error }, "shop_upgrade_refused");
+    }
+  }
+
+  /**
+   * `shop.buy_item` (Story 5.11 gear; Story 5.12 consumables; shape-checked and rate-limited by the
+   * shared "other" bucket): the shared `buyItem` decides (build phase, for sale, not owned, the
+   * sender's wallet). The sender alone gets `shop.bought_item` or `shop.refused_item`; gear, max HP
+   * and wallet reach every client in the next patch. A repeat is `already_owned`: no double charge.
+   */
+  onShopBuyItem(client: RunClient, item: string): void {
+    const member = this.members.get(client.sessionId);
+    if (!member) return;
+    const controller = this.controller;
+    const r = controller ? controller.buyItem(member.playerId, item) : ({ ok: false, error: "not_build" } as const);
+    if (r.ok) {
+      client.send(S2C.SHOP_BOUGHT_ITEM, { item } satisfies ShopBoughtItem);
+      this.log.info({ playerId: member.playerId, item, price: r.value.price, wallet: controller?.world.players.get(member.playerId)?.wallet }, "shop_bought_item");
+    } else {
+      client.send(S2C.SHOP_REFUSED_ITEM, { item, error: r.error } satisfies ShopRefusedItem);
+      this.log.info({ playerId: member.playerId, item, error: r.error }, "shop_refused_item");
     }
   }
 
