@@ -1,0 +1,27 @@
+{
+  "note": "Story 4.11 sprites. Raw images: Meshy text-to-image, ai_model nano-banana-pro (raw files kept outside git). Rebuild: python3 -I tools/art/build_sprites.py <raw_dir>. Frame sizes: sandbags 3 x 1 m at 64 px/m (baked into the city at <= 42 px/m); barricade 2 x 0.5 m at 96 px/m (a live sprite, phones zoom ~70-105 px/m); flames 64 px, smoke 128 px.",
+  "styleObject": "Strict top-down orthographic view from directly overhead (bird's-eye, camera pointing straight down, 90 degrees), a single isolated game sprite for a gritty realistic top-down zombie shooter. Muted, desaturated, realistic textures, crisp readable silhouette, soft light from the upper left. Absolutely NO cast shadow, no ground, no puddles: the object sits on a perfectly flat uniform pure magenta (#FF00FF) background with nothing else. Centered, filling about 85% of the frame width. No text, no people, no perspective.",
+  "styleVfx": "The background is completely pitch black (#000000), solid black everywhere around, like a VFX element shot against black for additive blending. Realistic, no ground, no text, no frame lines, no grid lines.",
+  "sprites": [
+    {
+      "frame": "prop_sandbags_a", "raw": "raw_sandbags2.png", "key": "magenta", "w": 192, "h": 64, "erode": true,
+      "grade": [0.9, 0.95, 0.8], "saturation": 0.8, "aspect": "16:9", "style": "styleObject",
+      "prompt": "A low military sandbag wall seen from directly overhead, so only the tops of the bags are visible: olive-drab canvas sandbags lying flat, three rows side by side in neat brick-offset bond, each bag a plump rounded pillow with tied folded ends and a coarse woven canvas texture, slight sag, a little sand spilled at the edges. The wall is a long thin rectangle, three times as long as it is wide."
+    },
+    {
+      "frame": "building_barricade_a", "raw": "raw_barricade2.png", "key": "magenta", "w": 192, "h": 48, "erode": true, "cropX": [0.0, 0.556],
+      "aspect": "16:9", "style": "styleObject",
+      "prompt": "A wooden palisade barricade seen from high above, looking almost straight down: a straight row of fifteen thick vertical wooden stakes standing tightly side by side, each stake with a sharpened pointed top, weathered dark wet grey-brown wood with nails and a horizontal rail, propped up from behind by four diagonal wooden struts that slant back and down to the ground behind the wall. The whole object is long and thin, four times as long as it is deep."
+    },
+    {
+      "frames": ["fx_flame_a", "fx_flame_b", "fx_flame_c", "fx_flame_d"], "raw": "raw_flames2.png", "key": "flame", "gain": 1.6, "floor": 28, "side": 64,
+      "aspect": "1:1", "style": "styleVfx",
+      "prompt": "Four separate small patches of burning debris fire on the ground, seen from directly above, arranged in a 2 by 2 layout with lots of black space between them, each patch an irregular cluster of small bright orange and yellow flame tongues with a hot yellow-white core and a few glowing embers, like small fires of burning wreckage."
+    },
+    {
+      "frames": ["fx_smoke_a", "fx_smoke_b", "fx_smoke_c", "fx_smoke_d"], "raw": "raw_smoke1.png", "key": "smoke", "gain": 1.25, "floor": 14, "side": 128,
+      "aspect": "1:1", "style": "styleVfx",
+      "prompt": "Four separate soft round puffs of thick grey-white smoke seen from directly above, arranged in a 2 by 2 layout with lots of black space between them, each puff billowing, volumetric, wispy edges, lit softly."
+    }
+  ]
+}

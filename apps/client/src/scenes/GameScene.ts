@@ -32,7 +32,9 @@ import { InputRouter } from "../input/InputRouter";
 import { attachDesktopInput } from "../input/desktopInput";
 import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
-import { FireCue, isFireHit } from "../render/fireCue";
+import { FireCue } from "../render/fireCue";
+import { BurnView } from "../render/BurnView";
+import { edgeGlowAlpha, routeFireHit } from "../render/burnCue";
 import { ZombieView } from "../render/ZombieView";
 import { BloodTrailView } from "../render/BloodTrailView";
 import { FxView } from "../render/FxView";
@@ -143,8 +145,12 @@ export class GameScene extends Phaser.Scene {
       view.setSlot(this.host?.playerInfo(id).slot ?? 0); // Story 2.9: ring colour by slot
       this.playerViews.set(id, view);
     }
-    view.update(p, this.host?.alpha ?? 0, this.time.now, this.fireCue.burning(id, this.time.now));
+    view.update(p, this.host?.alpha ?? 0, this.time.now);
+    // Story 4.11: flames, smoke and embers on every survivor the server reports burning.
+    if (p.status === "alive" && this.fireCue.burning(id, this.time.now)) this.burnView?.draw(view.x, view.y, this.playerRadiusM, this.time.now / 1000);
   };
+  /** Story 4.11: the burning cues on survivors (pooled). */
+  private burnView: BurnView | null = null;
   /** Story 2.9: every other player for the HUD's names and edge arrows (drawn position, slot, flags). */
   private readonly collectTeammate = (p: PlayerState, id: string): void => {
     const host = this.host;
@@ -327,12 +333,13 @@ export class GameScene extends Phaser.Scene {
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
     this.fxView.balance = balance; // Story 3.5: building footprints for the debris
     this.downedView = new DownedView(this, world);
-    this.buildingView = new BuildingView(this);
+    this.buildingView = new BuildingView(this, balance);
     this.turretView = new TurretView(this);
     this.selectView = new BuildingSelectView(this);
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.fireCue.clear(); // Story 4.8
+    this.burnView = new BurnView(this); // Story 4.11
     this.chevrons.length = 0;
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
       const c = CHEVRON_M;
@@ -398,6 +405,8 @@ export class GameScene extends Phaser.Scene {
       this.trailView = null;
       for (const v of this.playerViews.values()) v.destroy();
       this.playerViews.clear();
+      this.burnView?.destroy();
+      this.burnView = null;
       perf.hits = null;
       perf.net = null;
       perf.soloSeed = null;
@@ -797,7 +806,9 @@ export class GameScene extends Phaser.Scene {
   /** Adds, updates and removes player views to match `world.players` (no allocation per frame). */
   private syncPlayerViews(world: Readonly<World>): void {
     this.playerViews.forEach(this.dropPlayerView); // deleting inside forEach is safe for a Map
+    this.burnView?.begin();
     world.players.forEach(this.syncPlayerView);
+    this.burnView?.end();
   }
 
   private applyZoom(): void {
@@ -858,7 +869,10 @@ export class GameScene extends Phaser.Scene {
       const e = events[i];
       if (!e) continue;
       this.fxView?.handle(e);
-      if (isFireHit(e)) this.fireCue.hit(e.playerId, this.time.now); // Story 4.8: the hurt cue
+      // Story 4.8 hurt cue; Story 4.11: my hits also queue a "-N" for the HUD.
+      routeFireHit(e, localId, this.time.now, this.fireCue, this.hudModel);
+      // Story 4.11: a build or wave start (a fire may have gone out) closes every burning cue; a real hit relights it.
+      if (e.type === "build.started" || e.type === "wave.started") this.fireCue.clear();
       if ((e.type === "team.wiped" || e.type === "run.held_out") && !host.online && !this.gameOver) {
         this.showSoloResults(host, e.wave, e.type === "run.held_out");
       } else if (e.type === "zombie.killed" && e.killerId === localId && e.buildingId === undefined) {
@@ -907,6 +921,8 @@ export class GameScene extends Phaser.Scene {
       recordSimFrame(host.stats, host.world.zombies, m.camX, m.camY, this.scale.width / m.camZoom, this.scale.height / m.camZoom);
       this.hudModel.hp = player.hp;
       this.hudModel.burning = this.fireCue.burning(localId, this.time.now); // Story 4.8
+      // Story 4.11: my screen-edge glow, pulsing with the fire's damage tick.
+      this.hudModel.burnGlow = edgeGlowAlpha(this.hudModel.burning && player.status === "alive", this.fireCue.sinceLastHit(localId, this.time.now), host.world.balance.decay.fire.pulseS * 1000);
       this.hudModel.maxHp = player.maxHp;
       this.hudModel.money = player.wallet;
       this.hudModel.localX = viewOf.x;

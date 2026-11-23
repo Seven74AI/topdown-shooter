@@ -4,6 +4,7 @@ import { dpr } from "../display";
 import { uiStore } from "../ui/uiState";
 import { skipsStartScreen, urlOptions } from "../debug/urlOptions";
 import { prewarmAmbience } from "../audio/ambience";
+import { preloadObjectsAtlas } from "../render/city/objectsAtlas";
 import type { GameSceneData } from "./GameScene";
 import type { NetSession } from "../net/session";
 
@@ -22,6 +23,11 @@ const TITLE_FONT_PX = 32; // CSS pixels; scaled by dpr() so it reads the same on
 export class BootScene extends Phaser.Scene {
   constructor() {
     super("Boot");
+  }
+
+  /** Story 4.11: the stage-object atlas (sandbags, barricade, flames, smoke; ~0.2 MB), once per page. */
+  preload(): void {
+    preloadObjectsAtlas(this, import.meta.env.BASE_URL ?? "/");
   }
 
   create(data?: BootSceneData): void {

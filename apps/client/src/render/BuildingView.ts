@@ -1,16 +1,24 @@
 import * as Phaser from "phaser";
-import { BUILD_GRID_M, buildingStats, buildingTypeIds, footprint, type Box, type Building, type World } from "@topdown/shared";
+import { BUILD_GRID_M, MAX_PLAYERS, buildingStats, buildingTypeIds, footprint, type Balance, type Box, type Building, type World } from "@topdown/shared";
 import type { Placement } from "../scenes/placement";
 import { damageStage, darken, hpChecksum } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
+import { barricadePoolSize, barricadeTint, barricadeTransform, type SpriteTransform } from "./barricadeLook";
+import { ATLAS_OBJECTS, OBJ_BARRICADE, ensureObjectsAtlas } from "./city/objectsAtlas";
 
 /** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline; night-darkened (Story 4.9). */
 const WOOD = darken(0x8b5a2b, NIGHT_DARKEN);
 const PLANK_LINE = darken(0x5d3a1a, NIGHT_DARKEN);
 const OUTLINE = 0x1a1008;
 const OUTLINE_M = 0.06;
-/** Story 4.9: barricade height (m), for its cast shadow (Dead City look). */
-const BARRICADE_HEIGHT_M = 1.2;
+/** Story 4.9: barricade height (m), for its cast shadow (Dead City look). Story 4.11: a tall palisade (B6). */
+const BARRICADE_HEIGHT_M = 1.6;
+/** Story 4.11: the type drawn with the palisade art (others keep the plank box; turrets add their plate on top). */
+const BARRICADE_TYPE = "wood_barricade";
+/** Sprites sit on the building layer; cracks just above them, under turrets (3.5). */
+const CRACK_DEPTH = 3.05;
+/** The placement preview's ghost of the turned art, under the coloured box. */
+const GHOST_ALPHA = 0.7;
 /** Plank seams every this many metres along the long side. */
 const PLANK_M = 0.5;
 /** Above the street, blood and trails; below zombies (≥ 5), players (10) and FX. */
@@ -48,6 +56,12 @@ const GRID_LINE_M = 0.03;
  */
 export class BuildingView {
   private readonly placed: Phaser.GameObjects.Graphics;
+  /** Story 4.11: barricade art (pooled), cracks over it, and the preview's ghost. */
+  private readonly sprites: Phaser.GameObjects.Image[] = [];
+  private readonly cracks: Phaser.GameObjects.Graphics;
+  private readonly ghost: Phaser.GameObjects.Image;
+  private readonly xf: SpriteTransform = { x: 0, y: 0, angle: 0, w: 0, h: 0 };
+  private readonly ghostRot = { minX: 0, minY: 0, maxX: 0, maxY: 0, rot: 0 };
   private readonly bars: Phaser.GameObjects.Graphics;
   private readonly preview: Phaser.GameObjects.Graphics;
   private shownVersion = -1;
@@ -56,8 +70,13 @@ export class BuildingView {
   private shownPreviewKey = -1;
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, balance?: Readonly<Balance>) {
+    ensureObjectsAtlas(scene);
+    const pool = barricadePoolSize(balance?.buildings.maxPerPlayer, MAX_PLAYERS); // review fix L1: sized from balance, never throws
     this.placed = scene.add.graphics().setDepth(BUILDING_DEPTH);
+    for (let i = 0; i < pool; i++) this.sprites.push(scene.add.image(0, 0, ATLAS_OBJECTS, OBJ_BARRICADE).setDepth(BUILDING_DEPTH).setVisible(false));
+    this.cracks = scene.add.graphics().setDepth(CRACK_DEPTH);
+    this.ghost = scene.add.image(0, 0, ATLAS_OBJECTS, OBJ_BARRICADE).setDepth(PREVIEW_DEPTH).setAlpha(GHOST_ALPHA).setVisible(false);
     this.bars = scene.add.graphics().setDepth(BAR_DEPTH);
     this.preview = scene.add.graphics().setDepth(PREVIEW_DEPTH).setVisible(false);
   }
@@ -75,22 +94,33 @@ export class BuildingView {
     this.shownHpSum = hpSum;
     const g = this.placed;
     const bars = this.bars;
+    const cracks = this.cracks;
     g.clear();
     bars.clear();
-    // Story 4.9: every shadow first (one light direction, length by height), then the tops.
+    cracks.clear();
+    // Story 4.9: every shadow first (one light direction, length by height), then the tops. Story 4.11:
+    // the shadow is the game's (never baked into the art), so a turned barricade's falls the same way.
     for (let i = 0; i < list.length; i++) castShadow(g, list[i] as Building, BARRICADE_HEIGHT_M);
+    let used = 0;
     for (let i = 0; i < list.length; i++) {
       const b = list[i] as Building;
       const w = b.maxX - b.minX;
       const h = b.maxY - b.minY;
       const frac = b.maxHp > 0 ? Math.min(1, Math.max(0, b.hp / b.maxHp)) : 1;
-      g.fillStyle(darken(WOOD, (1 - frac) * DAMAGE_DARKEN), 1).fillRect(b.minX, b.minY, w, h);
-      g.lineStyle(OUTLINE_M / 2, PLANK_LINE, 1);
-      if (w >= h) for (let x = b.minX + PLANK_M; x < b.maxX - 1e-6; x += PLANK_M) g.lineBetween(x, b.minY, x, b.maxY);
-      else for (let y = b.minY + PLANK_M; y < b.maxY - 1e-6; y += PLANK_M) g.lineBetween(b.minX, y, b.maxX, y);
-      if (frac < 1) drawCracks(g, b, damageStage(frac) * CRACKS_PER_STAGE);
-      raisedBevel(g, b);
-      g.lineStyle(OUTLINE_M, OUTLINE, 1).strokeRect(b.minX, b.minY, w, h);
+      if (b.type === BARRICADE_TYPE && used < this.sprites.length) {
+        // Story 4.11: the B6 palisade, turned with the placement; damage = darker tint + cracks.
+        const t = barricadeTransform(b, this.xf);
+        (this.sprites[used++] as Phaser.GameObjects.Image).setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setTint(barricadeTint(frac)).setVisible(true);
+        if (frac < 1) drawCracks(cracks, b, damageStage(frac) * CRACKS_PER_STAGE);
+      } else {
+        g.fillStyle(darken(WOOD, (1 - frac) * DAMAGE_DARKEN), 1).fillRect(b.minX, b.minY, w, h);
+        g.lineStyle(OUTLINE_M / 2, PLANK_LINE, 1);
+        if (w >= h) for (let x = b.minX + PLANK_M; x < b.maxX - 1e-6; x += PLANK_M) g.lineBetween(x, b.minY, x, b.maxY);
+        else for (let y = b.minY + PLANK_M; y < b.maxY - 1e-6; y += PLANK_M) g.lineBetween(b.minX, y, b.maxX, y);
+        if (frac < 1) drawCracks(g, b, damageStage(frac) * CRACKS_PER_STAGE);
+        raisedBevel(g, b);
+        g.lineStyle(OUTLINE_M, OUTLINE, 1).strokeRect(b.minX, b.minY, w, h);
+      }
       if (frac < 1) {
         const color = frac > 0.6 ? BAR_HIGH : frac > 0.3 ? BAR_MID : BAR_LOW;
         if (w >= h) {
@@ -108,12 +138,17 @@ export class BuildingView {
         }
       }
     }
+    for (let i = used; i < this.sprites.length; i++) {
+      const img = this.sprites[i] as Phaser.GameObjects.Image;
+      if (img.visible) img.setVisible(false);
+    }
   }
 
   private drawPreview(world: Readonly<World>, p: Placement): void {
     const stats = p.active ? buildingStats(world.balance, p.type) : undefined;
     if (!stats) {
       if (this.preview.visible) this.preview.setVisible(false);
+      if (this.ghost.visible) this.ghost.setVisible(false);
       this.shownPreviewKey = -1;
       return;
     }
@@ -123,6 +158,17 @@ export class BuildingView {
     this.shownPreviewKey = key;
     const b = footprint(stats, p.gx, p.gy, p.rot, this.box);
     const color = valid ? VALID : BLOCKED;
+    if (p.type === BARRICADE_TYPE) {
+      // Story 4.11: the turned art under the coloured box, so the struts' side shows before confirming.
+      const r = this.ghostRot;
+      r.minX = b.minX;
+      r.minY = b.minY;
+      r.maxX = b.maxX;
+      r.maxY = b.maxY;
+      r.rot = p.rot;
+      const t = barricadeTransform(r, this.xf);
+      this.ghost.setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setVisible(true);
+    } else if (this.ghost.visible) this.ghost.setVisible(false);
     const g = this.preview;
     g.clear().setVisible(true);
     g.lineStyle(GRID_LINE_M, 0xffffff, GRID_ALPHA);
@@ -133,12 +179,16 @@ export class BuildingView {
     const y1 = b.maxY + m;
     for (let y = y0; y <= y1 + 1e-6; y += BUILD_GRID_M) g.lineBetween(x0, y, x1, y);
     for (let x = x0; x <= x1 + 1e-6; x += BUILD_GRID_M) g.lineBetween(x, y0, x, y1);
-    g.fillStyle(color, PREVIEW_FILL_ALPHA).fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+    g.fillStyle(color, p.type === BARRICADE_TYPE ? PREVIEW_FILL_ALPHA / 2 : PREVIEW_FILL_ALPHA).fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
     g.lineStyle(PREVIEW_LINE_M, color, 1).strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
   }
 
   destroy(): void {
     this.placed.destroy();
+    for (const img of this.sprites) img.destroy();
+    this.sprites.length = 0;
+    this.cracks.destroy();
+    this.ghost.destroy();
     this.bars.destroy();
     this.preview.destroy();
   }

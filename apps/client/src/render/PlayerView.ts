@@ -11,8 +11,6 @@ const BODY_TINT = 0xffffff;
 const DOWNED_TINT = 0x6a6e74;
 /** Story 3.9: a slowed survivor (Crawler bite) is drawn a sickly green while it lasts. */
 const SLOWED_TINT = 0xa9cf8a;
-/** Story 4.8: a survivor the server reports burning (fire damage in the last `FIRE_CUE_MS`) glows ember. */
-const BURNING_TINT = 0xff8a4a;
 /** Story 2.9: ground ring in the slot colour (FR55, NFR11), in metres. */
 const RING_GAP_M = 0.15;
 const RING_WIDTH_M = 0.08;
@@ -29,7 +27,6 @@ export class PlayerView {
   y = 0;
   private shownStatus: PlayerState["status"] | null = null;
   private shownSlowed = false;
-  private shownBurning = false;
   private slot = -1;
 
   constructor(scene: Phaser.Scene, radiusM: number) {
@@ -51,19 +48,18 @@ export class PlayerView {
   }
 
   /** Reads the player (never writes it) and draws it at the interpolated position; `timeMs` drives the downed pulse. */
-  update(p: PlayerState, alpha: number, timeMs: number, burning = false): void {
+  update(p: PlayerState, alpha: number, timeMs: number): void {
     this.x = lerp(p.prevX, p.x, alpha);
     this.y = lerp(p.prevY, p.y, alpha);
     this.ring.setPosition(this.x, this.y);
     this.body.setPosition(this.x, this.y).setRotation(Math.atan2(p.facingY, p.facingX));
     const slowed = p.slowTicksLeft > 0 && p.status === "alive";
-    const burnt = burning && p.status === "alive"; // Story 4.8
-    if (p.status !== this.shownStatus || slowed !== this.shownSlowed || burnt !== this.shownBurning) {
-      this.shownStatus = p.status; // only touch the objects when the status (or the slow, or the fire) changes
+    // Story 4.11: no burning tint any more (4.8's ember tint): BurnView draws flames, smoke and embers on the body.
+    if (p.status !== this.shownStatus || slowed !== this.shownSlowed) {
+      this.shownStatus = p.status; // only touch the objects when the status (or the slow) changes
       this.shownSlowed = slowed;
-      this.shownBurning = burnt;
       const shown = p.status !== "out";
-      const tint = p.status === "downed" ? DOWNED_TINT : burnt ? BURNING_TINT : slowed ? SLOWED_TINT : BODY_TINT;
+      const tint = p.status === "downed" ? DOWNED_TINT : slowed ? SLOWED_TINT : BODY_TINT;
       this.body.setTint(tint).setVisible(shown);
       this.ring.setVisible(shown).setScale(1).setAlpha(1);
     }

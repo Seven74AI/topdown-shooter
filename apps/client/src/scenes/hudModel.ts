@@ -1,4 +1,5 @@
 import { MAX_PLAYERS } from "@topdown/shared";
+import { FIRE_HIT_QUEUE } from "../render/burnCue";
 
 /** Values the GameScene publishes each frame for the HUD to draw (the HUD never reads the World). */
 export interface HudModel {
@@ -106,6 +107,11 @@ export interface HudModel {
   /** Drawn world position the camera follows (my survivor, or the teammate I spectate): the pops rise above it. */
   localX: number;
   localY: number;
+  /** Story 4.11: my screen-edge glow alpha (0 = off), from the server's fire hits. */
+  burnGlow: number;
+  /** Story 4.11: fire hits on MY survivor this frame (amounts); the HUD pops "-N" for each and sets the count to 0. */
+  readonly fireHitAmounts: Float32Array;
+  fireHitCount: number;
 }
 
 /** Most rush markers shown (the last-5 rule marks 5). */
@@ -185,4 +191,7 @@ export const createHudModel = (): HudModel => ({
   moneyGain: 0,
   localX: 0,
   localY: 0,
+  burnGlow: 0,
+  fireHitAmounts: new Float32Array(FIRE_HIT_QUEUE),
+  fireHitCount: 0,
 });

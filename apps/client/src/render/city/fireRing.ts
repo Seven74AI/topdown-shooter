@@ -50,3 +50,82 @@ export function strokeFireRings(g: { strokeCircle(x: number, y: number, r: numbe
     g.strokeCircle(f.x, f.y, fireRingRadiusM(f));
   }
 }
+
+/**
+ * Story 4.11 (designer pick F6): a circle of small flames marks the danger zone. Each flame's
+ * visible core ends EXACTLY at the ring (`fireRingRadiusM`: your body touches the flames = you
+ * burn), evenly spaced about `RING_FLAME_SPACING_M` apart, at most `RING_FLAMES_MAX` per fire.
+ */
+export const RING_FLAME_SPACING_M = 0.75;
+export const RING_FLAMES_MAX = 24;
+/** A ring flame's base size (m), its flicker range (× base) and rate, and its swell on the damage tick (fraction). */
+export const RING_FLAME_M = 0.8;
+export const RING_FLAME_FLICK_MIN = 0.8;
+export const RING_FLAME_FLICK_MAX = 1.0;
+export const RING_FLAME_FLICKER_HZ = 8;
+export const RING_PULSE_GROW = 0.15;
+/**
+ * Review fix (M): how far a flame's solid core (alpha > 50 %) reaches from its centre, as a fraction
+ * of the drawn size — the largest over the four flame frames at any rotation, measured by
+ * `tools/art/build_sprites.py` (written into `objects.json › meta.coreFrac`; a test keeps this ≥ it).
+ */
+export const RING_FLAME_CORE_FRAC = 0.45;
+
+/** The drawn size (m) of a ring flame for a flicker value (0..1) and the damage-tick pulse (0..1). */
+export function ringFlameSizeM(flick: number, pulse: number): number {
+  return RING_FLAME_M * (RING_FLAME_FLICK_MIN + (RING_FLAME_FLICK_MAX - RING_FLAME_FLICK_MIN) * flick) * (1 + RING_PULSE_GROW * pulse);
+}
+
+/** The largest drawn size (full flicker, full swell) and its core radius (m). */
+export function ringFlameMaxCoreM(): number {
+  return RING_FLAME_CORE_FRAC * ringFlameSizeM(1, 1);
+}
+
+/**
+ * Review fix (M): the circle the flame CENTRES sit on — inset so every flame's visible core, at its
+ * largest, ends exactly at the damage edge: visible fire never reaches outside the zone ("your body
+ * touches the flames = you burn"). The thin ring line still marks R itself.
+ */
+export function ringFlameCentreRadiusM(f: FireZone): number {
+  return Math.max(0, fireRingRadiusM(f) - ringFlameMaxCoreM());
+}
+
+/** How many flames ring fire `f` (≥ 6, ≤ `RING_FLAMES_MAX`). */
+export function ringFlameCount(f: FireZone): number {
+  const n = Math.round((2 * Math.PI * ringFlameCentreRadiusM(f)) / RING_FLAME_SPACING_M);
+  return Math.max(6, Math.min(RING_FLAMES_MAX, n));
+}
+
+/** Flame `i` of `n` on fire `f`'s ring, into `out` (no allocation): its outer core edge on the zone radius. */
+export function ringFlameSpot(f: FireZone, i: number, n: number, out: { x: number; y: number }): void {
+  const a = ((i + 0.5) / n) * 2 * Math.PI;
+  const r = ringFlameCentreRadiusM(f);
+  out.x = f.x + Math.cos(a) * r;
+  out.y = f.y + Math.sin(a) * r;
+}
+
+/**
+ * The damage-tick pulse (0..1): a kick at each `pulseS` boundary of the view's clock that fades
+ * over the pulse (cosmetic: the server's per-body burn clocks are not synced; the rhythm matches).
+ */
+export function damageTickPulse(tS: number, pulseS: number): number {
+  if (!(pulseS > 0)) return 0;
+  const ph = (tS % pulseS) / pulseS;
+  return Math.exp(-ph * 5);
+}
+
+/**
+ * A ring flame of fire `self` at (x, y) marks the danger edge unless it lies strictly inside another
+ * burning zone (two cars burning side by side: the edge of the union is what burns).
+ */
+export function ringFlameMarksEdge(fires: readonly FireZone[], self: number, x: number, y: number): boolean {
+  for (let j = 0; j < fires.length; j++) {
+    if (j === self) continue;
+    const f = fires[j] as FireZone;
+    const dx = x - f.x;
+    const dy = y - f.y;
+    const r = fireRingRadiusM(f);
+    if (dx * dx + dy * dy < r * r) return false;
+  }
+  return true;
+}

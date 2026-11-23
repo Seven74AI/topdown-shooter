@@ -29,6 +29,12 @@ export class FireCue {
     return t !== undefined && nowMs - t < FIRE_CUE_MS;
   }
 
+  /** Story 4.11: ms since the player's last fire hit (Infinity when never hit). */
+  sinceLastHit(playerId: string, nowMs: number): number {
+    const t = this.lastHitMs.get(playerId);
+    return t === undefined ? Infinity : nowMs - t;
+  }
+
   clear(): void {
     this.lastHitMs.clear();
   }
