@@ -51,7 +51,7 @@ so that I have more ways to fill my role.
 
 ### Fairness rules (brief line 3; player-visible, each is tested)
 
-7. **F1 Fan, not luck.** The 8 pellets fill the 30° cone evenly: the cone is cut into 8 equal slices and exactly one pellet flies inside each slice (its place inside the slice is random). So a Walker right in front of the muzzle within 1.5 m always takes all 8 pellets (32 damage); a point-blank shot is never "unlucky".
+7. **F1 Fan, not luck.** The 8 pellets fill the 30° cone evenly: the cone is cut into 8 equal slices and exactly one pellet flies inside each slice (its place inside the slice is random). So a Walker right in front of the muzzle within 1.35 m (walker radius / sin 15°; designer approved 2026-11-23) always takes all 8 pellets (32 damage); a point-blank shot is never "unlucky".
 8. **F2 Range is a hard edge.** A pellet never deals damage beyond 5 m from the muzzle; the AR's bullet never beyond 11 m (projectile range, as today).
 9. **F3 Cover.** Pellets and AR bullets stop at a car, the bus or a building (4.2 `shotBlockT`) and pass over barriers, sandbags and player buildings; a zombie behind a car is never hit by a pellet that the car stopped, and the client's cosmetic pellets stop at the same face.
 10. **F4 Knockback never pushes a zombie through anything.** A knocked-back zombie stops when its body touches a map solid (car, bus, building, barrier, sandbags) or a player building; it never ends inside a box or on the far side of a barricade, and never leaves the map.
@@ -284,6 +284,16 @@ Claude Opus 5.5 (claude-opus-5-5), builder agent, worktree `.claude/worktrees/st
 - `docs/playtests/milestone-1/readability-sheet.md`, `docs/playtests/milestone-1/objects/17_survivor_shotgun.png`, `18_survivor_assault_rifle.png` (new)
 - `docs/art/epic-5/round-a/ingame/5-3-shotgun-blast.png`, `5-3-shop-icons.png` (new)
 
+### Review fixes (2026-11-23)
+
+- **M1 (F5 with two shots in one tick):** `ZombiePool.knockShot` now remembers the last `KNOCK_MEMORY` = 4 knocking shot ids per zombie (a ring with `knockHead`; `knockedBy` / `rememberKnock`). This covers one shot in flight per player, and it needs no player-id-to-slot mapping (solo's `local` id has no slot). I used this instead of the suggested `knockShot[zid*4+slot]`. `snapshotWorld` stores the ring and its head. Test: two co-op Shotguns at a Walker 2.6–4.1 m away, 60 seeds: at most 2 knockbacks and at most 1 m in total (> 50 cases with exactly 2 knockbacks, as a liveness check).
+- **M2 (tunnelling at 1.5 m):** `knockT` lets a body that already overlaps a box move only if the move starts heading away from the box's nearest point. The distance along a line to a convex box is convex, so such a move never gets closer and never crosses the box. A centre inside the box stays put. Test: a body pressed in by 1e-5 to 0.2 m, knocked 1.5 m straight and on three diagonals, never ends past the far side; a knock away from the box still moves the full 1.5 m.
+- **L3:** AC 7 now reads "within 1.35 m".
+- **L4:** `applyKnockback` cuts the move at the map bounds before the box sweep, so the edge clamp can no longer slide a body into a box. Test: a diagonal knock next to a car on the map's east edge.
+- **L5 (dev-only mismatch):** with `DEV_NO_REWIND=1` (lag compensation off, `rewindMaxTicks` 0), the server rolls pellets from the `combat` stream while clients draw the fan from the seq. So online with that switch, cosmetic pellets do not match the server's. Single bullets have the same mismatch: their spread also falls back to the stream. This is accepted because it is a dev switch only.
+- Mutations (each once, each caught by its new test): one remembered shot id; the old end-distance rule; no map pre-clip.
+
 ### Change Log
 
 - 2026-11-23: Story 5.3 built (Shotgun with stratified 8-pellet fan and swept once-per-shot knockback, Assault Rifle, network seq field, cosmetic pellets, art in game code, shop icons, `?stressfire`); status → review.
+- 2026-11-23: Review fixes M1, M2, L3, L4, L5 (see "Review fixes").

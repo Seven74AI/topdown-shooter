@@ -5,6 +5,7 @@ import { snapshotPathing } from "../zombies/flowField";
 import { snapshotZombieHistory } from "../combat/rewind";
 import { snapshotSeedStreams } from "./seedStreams";
 import { canonicalJson, fnv1a32 } from "./hash";
+import { KNOCK_MEMORY } from "../zombies/zombiePool";
 
 const sortedEntries = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -28,7 +29,8 @@ function snapshotZombies(world: World) {
       waveZombie: z.waveZombie[id],
       attackCooldownTicks: z.attackCooldownTicks[id],
       fireTicks: z.fireTicks[id], // Story 4.8 review L4
-      knockShot: z.knockShot[id], // Story 5.3
+      knockShot: Array.from(z.knockShot.subarray(id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY)), // Story 5.3
+      knockHead: z.knockHead[id],
     })),
     nextUnused: z.nextUnused,
     freed: Array.from({ length: z.freedCount }, (_, k) => {
