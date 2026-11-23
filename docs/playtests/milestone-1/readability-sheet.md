@@ -23,6 +23,8 @@ Player:
 11 what:            bullets:
 12 what:            bullets:
 13-15 are these three different? what does each one do?
+16 what is the survivor holding?
+17 what is the survivor holding?
 ```
 
 ## 1
@@ -63,3 +65,6 @@ Player:
 
 ## 13, 14, 15
 ![13](objects/14_walker.png) ![14](objects/15_runner.png) ![15](objects/16_crawler.png)
+
+## 16, 17: what is the survivor holding? (Story 5.3: Shotgun, Assault Rifle)
+![16](objects/17_survivor_shotgun.png) ![17](objects/18_survivor_assault_rifle.png)

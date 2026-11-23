@@ -1,4 +1,7 @@
 import type { World } from "../core/world";
+import type { MapBox } from "../map/districtMap";
+import type { Building } from "../buildings/buildings";
+import { segmentBoxEntryT } from "./cover";
 import { isZombieAlive, killZombie, zombieTypeOf } from "../zombies/zombiePool";
 import type { WeaponId } from "./weapons";
 
@@ -41,4 +44,59 @@ export function applyZombieDamage(
     return true;
   }
   return false;
+}
+
+/** Story 5.3: a knocked-back body stops this far short of the face it would touch (float safety). */
+const KNOCK_FACE_GAP_M = 1e-4;
+
+/** Squared distance from (x, y) to the box (0 inside). */
+function boxDist2(x: number, y: number, b: Pick<MapBox, "minX" | "minY" | "maxX" | "maxY">): number {
+  const dx = x - Math.min(b.maxX, Math.max(b.minX, x));
+  const dy = y - Math.min(b.maxY, Math.max(b.minY, y));
+  return dx * dx + dy * dy;
+}
+
+/**
+ * The share t ∈ [0, 1] of the move (x, y) → (x + mx, y + my) a circle of radius r can make before
+ * its body touches the box (the box grown by r; corners count square: a little early, never late).
+ * A body already overlapping the box may move away from it but not deeper.
+ */
+function knockT(x: number, y: number, mx: number, my: number, r: number, b: Pick<MapBox, "minX" | "minY" | "maxX" | "maxY">, t: number): number {
+  const minX = b.minX - r;
+  const minY = b.minY - r;
+  const maxX = b.maxX + r;
+  const maxY = b.maxY + r;
+  if (Math.max(x, x + mx) < minX || Math.min(x, x + mx) > maxX || Math.max(y, y + my) < minY || Math.min(y, y + my) > maxY) return t;
+  if (x > minX && x < maxX && y > minY && y < maxY) {
+    // Already inside the grown box (pressed against a face): only a move that gets no closer is free.
+    return boxDist2(x + mx, y + my, b) >= boxDist2(x, y, b) ? t : 0;
+  }
+  const e = segmentBoxEntryT(x, y, mx, my, minX, minY, maxX, maxY);
+  return e >= 0 && e < t ? e : t;
+}
+
+/**
+ * Story 5.3 (shared with 5.2's Fire Axe and 5.7's Brute): knocks zombie `id` up to `distM` along
+ * the unit (dirX, dirY), swept: it stops when its body touches a map solid (car, bus, building box,
+ * barrier, sandbags: `world.obstacles.solids`) or a player building, and never leaves the map
+ * (fairness rule F4: never into or through anything). Allocation-free. Returns the distance moved.
+ */
+export function applyKnockback(world: World, id: number, dirX: number, dirY: number, distM: number): number {
+  const z = world.zombies;
+  if (!isZombieAlive(z, id) || distM <= 0) return 0;
+  const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
+  const x = z.x[id] as number;
+  const y = z.y[id] as number;
+  const mx = dirX * distM;
+  const my = dirY * distM;
+  let t = 1;
+  const solids = world.obstacles.solids;
+  for (let i = 0; i < solids.length && t > 0; i++) t = knockT(x, y, mx, my, r, solids[i] as MapBox, t);
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length && t > 0; i++) t = knockT(x, y, mx, my, r, list[i] as Building, t);
+  const d = t < 1 ? Math.max(0, t * distM - KNOCK_FACE_GAP_M) : distM;
+  const { widthM, heightM } = world.map;
+  z.x[id] = Math.min(widthM - r, Math.max(r, x + dirX * d));
+  z.y[id] = Math.min(heightM - r, Math.max(r, y + dirY * d));
+  return d;
 }

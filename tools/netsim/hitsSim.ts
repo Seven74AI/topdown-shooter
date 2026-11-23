@@ -32,7 +32,9 @@ import {
   NO_SYSTEMS,
   PLACEHOLDER_MAP,
   packTypeState,
+  pelletDirection,
   rotateBySeqSpread,
+  seqPelletRoll,
   VIEW_TICK_SCALE,
   setLoadout,
   spawnZombie,
@@ -107,7 +109,20 @@ export interface Result {
   /** Story 4.2: shots that ended on a shot blocker (car, bus, map box): the server's, and my cosmetic ones. */
   serverCoverStops: number;
   clientCoverStops: number;
+  /**
+   * Story 5.3 (F6): pellet-gun shots fired on both sides (same seq), and how many of them had any
+   * pellet whose cosmetic direction differs from the server's by more than `FAN_EPS_RAD`. Both
+   * fans come from the same `pelletDirection` + `seqPelletRoll`, so this measures the centre aim
+   * (aim assist on the mirror vs the server's rewound view) and the seq the server's event carried.
+   */
+  fanShots: number;
+  fanMismatches: number;
+  /** The largest pellet direction difference seen (radians). */
+  fanMaxDiffRad: number;
 }
+
+/** Story 5.3: two pellet directions this close (radians) are the same (Float32 noise). */
+export const FAN_EPS_RAD = 1e-4;
 
 /** Ordered FIFO with `dueMs`. */
 class Link<T> {
@@ -209,6 +224,9 @@ export function simulate(o: Options): Result {
   const xBefore = new Float32Array(pool.capacity);
   const yBefore = new Float32Array(pool.capacity);
   let serverCoverStops = 0;
+  // Story 5.3: each pellet-gun shot's centre aim by 16-bit seq, server side and client side.
+  const serverFan = new Map<number, { x: number; y: number; seq: number }>();
+  const clientFan = new Map<number, { x: number; y: number }>();
 
   const sampleHorde = (rt: number): void => {
     let a: Down | null = null;
@@ -272,6 +290,7 @@ export function simulate(o: Options): Result {
         if (e.type === "zombie.hit" && e.sourceId === ID) serverHitsByMe++;
         if (e.type === "weapon.fired" && e.playerId === ID) {
           serverShotSeqs.push(ctrl.ackSeq(ID));
+          if (e.seq !== undefined) serverFan.set(ctrl.ackSeq(ID) & 0xffff, { x: e.dirX, y: e.dirY, seq: e.seq });
           // Combat ran at world.tick − 1 (the tick is counted at the end of the step).
           const vt = viewTickBySeq.get(ctrl.ackSeq(ID)) ?? -1;
           if (vt >= 0) viewOffsets.push(ctrl.world.tick - 1 - vt / VIEW_TICK_SCALE);
@@ -392,8 +411,9 @@ export function simulate(o: Options): Result {
         const my = predictor.y + a.dirY * off;
         cosmetics.ensureGrid();
         assistAim(mirror, mx, my, a.dirX, a.dirY, stats.rangeM, dir);
-        if (stats.spreadDeg > 0) rotateBySeqSpread(dir.x, dir.y, ID, input.seq, stats.spreadDeg, dir); // 2.12: the shared helper, as NetSimHost
-        cosmetics.spawn(ID, a.weapon, mx, my, dir.x, dir.y);
+        if (stats.spreadDeg > 0 && stats.pellets === 1) rotateBySeqSpread(dir.x, dir.y, ID, input.seq, stats.spreadDeg, dir); // 2.12: the shared helper, as NetSimHost
+        cosmetics.spawn(ID, a.weapon, mx, my, dir.x, dir.y, input.seq & 0xffff); // Story 5.3: a pellet fan from the seq, as NetSimHost
+        if (stats.pellets > 1) clientFan.set(input.seq & 0xffff, { x: dir.x, y: dir.y });
       }
       accMs -= TICK_MS;
       steps++;
@@ -401,6 +421,42 @@ export function simulate(o: Options): Result {
     predictor.frame(dtMs / 1000);
     hits.update(t);
   }
-  return { ...hits.counts, serverHitsByMe, kills: killCount, shots, localShotSeqs, serverShotSeqs, viewOffsets, drops: ctrl.drops(ID), serverCoverStops, clientCoverStops: cosmetics.coverStops };
+  // Story 5.3: rebuild both fans with the shared functions and compare pellet by pellet.
+  let fanShots = 0;
+  let fanMismatches = 0;
+  let fanMaxDiffRad = 0;
+  const wStats = balance.weapons[o.weapon];
+  if (wStats?.kind === "gun" && wStats.pellets > 1) {
+    const a = { x: 0, y: 0 };
+    const b = { x: 0, y: 0 };
+    for (const [seq16, sv] of serverFan) {
+      const cl = clientFan.get(seq16);
+      if (!cl) continue;
+      fanShots++;
+      let worst = 0;
+      for (let k = 0; k < wStats.pellets; k++) {
+        pelletDirection(sv.x, sv.y, wStats.spreadDeg, wStats.pellets, k, seqPelletRoll(ID, sv.seq, k), a);
+        pelletDirection(cl.x, cl.y, wStats.spreadDeg, wStats.pellets, k, seqPelletRoll(ID, seq16, k), b);
+        worst = Math.max(worst, Math.abs(Math.atan2(a.x * b.y - a.y * b.x, a.x * b.x + a.y * b.y)));
+      }
+      fanMaxDiffRad = Math.max(fanMaxDiffRad, worst);
+      if (worst > FAN_EPS_RAD) fanMismatches++;
+    }
+  }
+  return {
+    ...hits.counts,
+    serverHitsByMe,
+    kills: killCount,
+    shots,
+    localShotSeqs,
+    serverShotSeqs,
+    viewOffsets,
+    drops: ctrl.drops(ID),
+    serverCoverStops,
+    clientCoverStops: cosmetics.coverStops,
+    fanShots,
+    fanMismatches,
+    fanMaxDiffRad,
+  };
 }
 

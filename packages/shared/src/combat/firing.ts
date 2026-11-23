@@ -9,12 +9,13 @@ import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { MUZZLE_OFFSET_M, TICK_DT_S, ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { viewTickOfInput, type PlayerInput } from "../net/input";
-import { applyZombieDamage } from "./damage";
+import { applyKnockback, applyZombieDamage } from "./damage";
 import { assistAim } from "./aimAssist";
 import { zombieCandidates as candidates } from "./scratch";
 import { activeSlot } from "./loadout";
 import {
   freeProjectile,
+  nextShotId,
   projectileHasHit,
   recordProjectileHit,
   spawnProjectile,
@@ -25,10 +26,16 @@ import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from 
 import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
-import { rotateBySeqSpread } from "./spread";
+import { pelletDirection, rotateBySeqSpread, seqPelletRoll } from "./spread";
 import { shotBlockT } from "./cover";
 
 const MIN_AIM = 1e-6;
+
+/**
+ * Story 5.3: knockbacks applied by shots and how many stopped short at a face (diagnostic counters
+ * for tests and the fuzz liveness checks; not simulation state, never snapshotted).
+ */
+export const knockbacks = { applied: 0, stopped: 0 };
 /**
  * Story 2.12: a rewound sweep covers one tick of flight; it is tested at that tick's middle (the
  * cosmetic bullet meets drawn zombies continuously). Netsim, kiting Runners at 150 ms, 20 seeds
@@ -41,6 +48,13 @@ const REWIND_SWEEP_MID_TICKS = 0.5;
 const hitT = new Float32Array(ZOMBIE_POOL_CAPACITY);
 const hitId = new Int32Array(ZOMBIE_POOL_CAPACITY);
 const dir = { x: 0, y: 0 };
+const pelletDir = { x: 0, y: 0 };
+// Story 5.3: knockbacks queued during one tick's projectile sweep (at most one per zombie per shot).
+const knockZid = new Int32Array(ZOMBIE_POOL_CAPACITY);
+const knockDirX = new Float32Array(ZOMBIE_POOL_CAPACITY);
+const knockDirY = new Float32Array(ZOMBIE_POOL_CAPACITY);
+const knockDist = new Float32Array(ZOMBIE_POOL_CAPACITY);
+let knockCount = 0;
 const spawn: ProjectileSpawn = {
   x: 0,
   y: 0,
@@ -158,7 +172,8 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
     const view = rewind > 0 ? rewoundView(world, world.tick - rewind) : null;
     assistAim(world, p.x + dir.x * offset, p.y + dir.y * offset, dir.x, dir.y, stats.rangeM, dir, view);
   }
-  if (stats.spreadDeg > 0) {
+  const pellets = stats.pellets;
+  if (pellets === 1 && stats.spreadDeg > 0) {
     // Story 2.12: online (lag compensation on), the roll is the seq's, the one the shooter's client drew.
     if (p.rewindMaxTicks > 0) rotateBySeqSpread(dir.x, dir.y, p.id, input.seq, stats.spreadDeg, dir);
     else {
@@ -167,10 +182,6 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
     }
   }
 
-  spawn.x = p.x + dir.x * offset;
-  spawn.y = p.y + dir.y * offset;
-  spawn.dirX = dir.x;
-  spawn.dirY = dir.y;
   spawn.speedMps = stats.projectileSpeedMps;
   spawn.rangeM = stats.rangeM;
   spawn.damage = stats.damage;
@@ -184,10 +195,33 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
   const advanceS = rewind > 0 ? Math.min(p.shotAdvanceS, Math.max(0, world.tick - viewTickOfInput(input) - rewind) * TICK_DT_S) : p.shotAdvanceS;
   spawn.advanceM = stats.projectileSpeedMps * advanceS;
   spawn.rewindTicks = rewind;
-  spawnProjectile(world.projectiles, spawn);
+  // Story 5.3: a weapon with knockback tags the shot's projectiles with one shot id (once per shot, F5).
+  spawn.shotId = stats.knockbackM > 0 ? nextShotId(world.projectiles) : 0;
+  // Every pellet flies from the muzzle on the centre aim's side; the event carries the centre aim.
+  spawn.x = p.x + dir.x * offset;
+  spawn.y = p.y + dir.y * offset;
+  if (pellets === 1) {
+    spawn.dirX = dir.x;
+    spawn.dirY = dir.y;
+    spawnProjectile(world.projectiles, spawn);
+  } else {
+    // Story 5.3 (F1): a stratified fan; online the seq's rolls (the shooter's and remote clients'
+    // cosmetic pellets use the same), offline the `combat` stream, pellet 0 first.
+    const online = p.rewindMaxTicks > 0;
+    const seq16 = input.seq & 0xffff;
+    for (let k = 0; k < pellets; k++) {
+      const u = online ? seqPelletRoll(p.id, seq16, k) : world.streams.combat.next();
+      pelletDirection(dir.x, dir.y, stats.spreadDeg, pellets, k, u, pelletDir);
+      spawn.dirX = pelletDir.x;
+      spawn.dirY = pelletDir.y;
+      if (spawnProjectile(world.projectiles, spawn) < 0) break; // pool full: the rest of the fan is lost
+    }
+  }
+  spawn.shotId = 0;
 
   slot.ammo--;
-  world.events.emit({ type: "weapon.fired", playerId: p.id, weapon: slot.weapon, x: spawn.x, y: spawn.y, dirX: dir.x, dirY: dir.y });
+  if (pellets === 1) world.events.emit({ type: "weapon.fired", playerId: p.id, weapon: slot.weapon, x: spawn.x, y: spawn.y, dirX: dir.x, dirY: dir.y });
+  else world.events.emit({ type: "weapon.fired", playerId: p.id, weapon: slot.weapon, x: spawn.x, y: spawn.y, dirX: dir.x, dirY: dir.y, seq: input.seq & 0xffff });
   if (slot.ammo === 0) {
     slot.reloadTicks = ticksFor(stats.reloadS);
     world.events.emit({ type: "weapon.reload_started", playerId: p.id, weapon: slot.weapon, reloadS: stats.reloadS });
@@ -249,10 +283,22 @@ function updateProjectiles(world: World, dtS: number): void {
     // Story 3.6: a turret's shot carries its building id, type and pushback; a player's its weapon.
     const building = pool.building[id] as number;
     const weapon = building > 0 ? (buildingTypeIds(world.balance)[pool.weapon[id] as number] ?? "") : (ids[pool.weapon[id] as number] ?? "pistol");
-    const pushback = building > 0 ? (pool.pushbackM[id] as number) : weaponStats(world.balance, weapon).hitPushbackM;
+    const wStats = building > 0 ? null : weaponStats(world.balance, weapon);
+    const pushback = wStats ? wStats.hitPushbackM : (pool.pushbackM[id] as number);
+    const shotId = pool.shotId[id] as number;
     for (let k = 0; k < hits; k++) {
       const zid = hitId[k] as number;
       recordProjectileHit(pool, id, zid);
+      // Story 5.3 (F5): the first projectile of a shot to hit a zombie queues its knockback, once
+      // per shot, along that projectile; applied after every projectile of this tick has swept, so
+      // the rest of a point-blank fan still meets the body where it was (F1).
+      if (shotId > 0 && wStats && z.knockShot[zid] !== shotId && knockCount < ZOMBIE_POOL_CAPACITY) {
+        z.knockShot[zid] = shotId;
+        knockZid[knockCount] = zid;
+        knockDirX[knockCount] = dx;
+        knockDirY[knockCount] = dy;
+        knockDist[knockCount++] = wStats.knockbackM;
+      }
       applyZombieDamage(world, zid, pool.damage[id] as number, dx, dy, pushback, pool.owner[id] ?? null, weapon, building);
       pool.pierceLeft[id] = (pool.pierceLeft[id] as number) - 1;
       if (pool.pierceLeft[id] === 0) {
@@ -275,6 +321,14 @@ function updateProjectiles(world: World, dtS: number): void {
       freeProjectile(pool, id);
     }
   }
+  // Story 5.3 (F4): queued knockbacks, each swept against every box (a zombie killed meanwhile stays put).
+  for (let k = 0; k < knockCount; k++) {
+    const dist = knockDist[k] as number;
+    if (!isZombieAlive(z, knockZid[k] as number)) continue;
+    knockbacks.applied++;
+    if (applyKnockback(world, knockZid[k] as number, knockDirX[k] as number, knockDirY[k] as number, dist) < dist) knockbacks.stopped++;
+  }
+  knockCount = 0;
 }
 
 /** Combat system: weapons fire, then projectiles fly and hit (before zombies move this tick). */

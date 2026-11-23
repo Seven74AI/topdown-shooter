@@ -4,11 +4,13 @@ import {
   freeProjectile,
   isZombieAlive,
   maxZombieRadius,
+  pelletDirection,
   projectileHasHit,
   queryRadius,
   rebuildGrid,
   recordProjectileHit,
   segmentCircleT,
+  seqPelletRoll,
   shotBlockT,
   spawnProjectile,
   weaponIds,
@@ -76,8 +78,17 @@ export class CosmeticProjectiles {
     this.gridFresh = true;
   }
 
-  /** Spawns a cosmetic shot of `weapon` from (x, y) along the unit (dirX, dirY). Returns its id or -1. */
-  spawn(ownerId: string, weapon: string, x: number, y: number, dirX: number, dirY: number): number {
+  private readonly pelletDir = { x: 0, y: 0 };
+
+  /**
+   * Spawns a cosmetic shot of `weapon` from (x, y) along the unit (dirX, dirY). Returns its id (a
+   * pellet gun's first pellet) or -1. Story 5.3: a pellet gun spawns its whole fan around the centre
+   * aim, pellet k along `pelletDirection` with `seqPelletRoll(owner, seq, k)`: the server's own
+   * functions, so the cosmetic pellets fly where the server's do (F6). `seq` is the shot's 16-bit
+   * input seq (my local shot's, or a remote `weapon.fired`'s); without one (-1) each pellet takes
+   * its slice's middle.
+   */
+  spawn(ownerId: string, weapon: string, x: number, y: number, dirX: number, dirY: number, seq = -1): number {
     const stats = this.world.balance.weapons[weapon];
     if (!stats || stats.kind !== "gun") return -1;
     const s = this.spawnBuf;
@@ -90,7 +101,18 @@ export class CosmeticProjectiles {
     s.pierce = stats.pierce;
     s.weaponIndex = Math.max(0, weaponIds(this.world.balance).indexOf(weapon));
     s.owner = ownerId;
-    return spawnProjectile(this.world.projectiles, s);
+    if (stats.pellets === 1) return spawnProjectile(this.world.projectiles, s);
+    let first = -1;
+    const d = this.pelletDir;
+    for (let k = 0; k < stats.pellets; k++) {
+      pelletDirection(dirX, dirY, stats.spreadDeg, stats.pellets, k, seq >= 0 ? seqPelletRoll(ownerId, seq & 0xffff, k) : 0.5, d);
+      s.dirX = d.x;
+      s.dirY = d.y;
+      const id = spawnProjectile(this.world.projectiles, s);
+      if (id < 0) break;
+      if (first < 0) first = id;
+    }
+    return first;
   }
 
   /**

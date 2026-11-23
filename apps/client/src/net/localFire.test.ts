@@ -72,7 +72,7 @@ function compare(weapons: readonly [WeaponId, WeaponId | null], steps: number, i
 }
 
 describe("LocalFireClock (Story 2.7)", () => {
-  for (const weapon of ["pistol", "smg", "hunting_rifle", "machete"] as const) {
+  for (const weapon of ["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle"] as const) {
     it(`fires on exactly the steps the shared World fires over 200 steps: ${weapon}`, () => {
       const { server, local } = compare([weapon, null], 200, (seq) => fireInput(seq));
       expect(server.filter(Boolean).length).toBeGreaterThan(5);
@@ -124,6 +124,17 @@ describe("LocalFireClock (Story 2.7)", () => {
       fireInput(seq, { fire: seq % 17 < 11, swap: seq === 60 || seq === 140 }),
     );
     expect(local).toEqual(server);
+  });
+
+  it("Story 5.3: a shotgun pull spends one predicted shell (8 pellets, one round)", () => {
+    const clock = new LocalFireClock(balance);
+    const w = createWorld({ balance, seed: 1 });
+    const p = addPlayer(w, "p0", 5, 5);
+    setLoadout(balance, p.loadout, ["shotgun", null]);
+    const stale: View = viewOf(p, 0); // 6 shells, ack 0
+    expect(stale.ammo0).toBe(6);
+    expect(clock.step(fireInput(1), stale)).toBe(true);
+    expect(clock.predictedAmmo(stale)).toBe(5);
   });
 
   it("stops at predicted ammo 0 while the snapshot lags behind", () => {
