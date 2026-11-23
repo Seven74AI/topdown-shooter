@@ -1068,7 +1068,7 @@ function renderHGStrip(o){const[W,H]=stripSize(o,280);const c=prep(o.sv,W,H);c.d
   label(c,12,16,`throw ${Math.hypot(S[0],S[1]).toFixed(1)} m (2–8 m)`,'rgba(230,228,220,0.5)','left');}
 
 // ================= PAGE =================
-const REC={fl:'FL1',ms:'MS7',gr:'GR6',ci:'CI4',mb:'MB1',hg:'HG1'};
+const REC={fl:'FL1',ms:'MS10',gr:'GR6',ci:'CI4',mb:'MB1',hg:'HG1'};
 function fold(gridId,text){const d=document.createElement('details');d.className='fold';d.innerHTML=`<summary>${text}</summary><div class="grid"></div>`;document.getElementById(gridId).after(d);
   d.addEventListener('toggle',()=>{if(d.open)requestAnimationFrame(()=>cards.forEach(o=>{if(d.contains(o.el)){o.drawMain(o,o.T);o.drawStrip(o,o.T);}}));});return d.querySelector('.grid');}
 const cards=[];
