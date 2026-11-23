@@ -64,7 +64,7 @@ const of = <T extends SimEvent["type"]>(events: SimEvent[], type: T) => events.f
 const lobRight = (distM: number): PlayerInput => ({ ...NEUTRAL_INPUT, aimX: lobAimLength(GL, distM), aimY: 0, fire: true, isMouse: true });
 
 beforeEach(() => {
-  explosionCounters.happened = explosionCounters.playersHit = explosionCounters.playerDamage = 0;
+  explosionCounters.happened = explosionCounters.playersHit = explosionCounters.playerDamage = explosionCounters.selfDamage = explosionCounters.friendlyDamage = 0;
 });
 
 describe("explode: who it hits (FR-C)", () => {
@@ -166,10 +166,14 @@ describe("explode: damage and friendly fire (FR-D, D4)", () => {
     expect(h1 - p1.hp).toBe(30);
     expect(of(events, "zombie.killed").find((e) => e.zombieId === weak)?.killerId).toBe("p0");
     expect(of(events, "explosion.happened")).toHaveLength(0); // announce false: the Bloater sends its own burst event
+    expect(explosionCounters.selfDamage).toBe(0); // not friendly fire: not counted as self / friendly damage
+    expect(explosionCounters.friendlyDamage).toBe(0);
     // the same blast with the friendly-fire share (a grenade): halved
     p0.hp = h0;
     explode(world, grenade(20, 16, { playerDamage: 30, sourcePlayerId: "p0" }));
     expect(h0 - p0.hp).toBe(15);
+    expect(explosionCounters.selfDamage).toBe(15); // the grenade's halved hits do count
+    expect(explosionCounters.friendlyDamage).toBe(15);
   });
 
   it("no player source (a Bloater): full damage to players", () => {

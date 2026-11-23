@@ -127,18 +127,11 @@ const blastPlayer = (p: PlayerState): void => {
     f.playersHit++;
     explosionCounters.playersHit++;
     explosionCounters.playerDamage += taken;
-    if (f.source === p.id) explosionCounters.selfDamage += taken;
-    else if (f.source !== null) explosionCounters.friendlyDamage += taken;
+    // Self / friendly damage only where friendly fire applies (a Bloater popped by a player is neither).
+    if (f.ffSource === p.id) explosionCounters.selfDamage += taken;
+    else if (f.ffSource !== null) explosionCounters.friendlyDamage += taken;
   }
 };
-
-/**
- * Story 5.9 (kept for its callers and tests): `amount` blast damage to a standing player with no
- * friendly-fire share (the amount is final). Emits `player.damaged` (source -2). Returns whether it hurt.
- */
-export function damagePlayerByExplosion(world: World, p: PlayerState, amount: number): boolean {
-  return damagePlayerBy(world, p, amount, "explosion", null) > 0;
-}
 
 /** A blast per `spec` (see the module rules). Returns how many zombies it hit. Re-entrant (review M1). */
 export function explode(world: World, spec: Readonly<ExplosionSpec>): number {

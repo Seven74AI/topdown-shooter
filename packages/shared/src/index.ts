@@ -403,7 +403,7 @@ export {
   type GrenadePool,
   type LobTarget,
 } from "./combat/grenades";
-export { EXPLOSION_KINDS, blastResult, createExplosionSpec, damagePlayerByExplosion, explode, explosionCounters, type ExplosionKind, type ExplosionSpec } from "./combat/explosion";
+export { EXPLOSION_KINDS, blastResult, createExplosionSpec, explode, explosionCounters, type ExplosionKind, type ExplosionSpec } from "./combat/explosion";
 export { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,
