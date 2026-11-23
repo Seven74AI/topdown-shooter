@@ -617,6 +617,12 @@ export const buildingTypeSchema = z
     // ---- Story 5.9 (walls vs floor, upgrades, traps, mines) ----
     /** Story 5.9: true = a wall (blocks bodies and the flow field, zombies attack it); false = floor (traps, mines). */
     solid: z.boolean().default(true),
+    /**
+     * Bullets stop on it (designer 2026-11-23: the barricade tiers): every player's and turret's shot,
+     * aim assist and turret targeting. Only a wall (`solid`) may; an upgrade keeps it. Explosions,
+     * flames, melee and acid don't read it.
+     */
+    stopsBullets: z.boolean().default(false),
     /** Story 5.9: false = only reached by an upgrade (never in the shop, refused by placement). */
     forSale: z.boolean().default(true),
     /** Story 5.9: the next tier and what the step costs (the target's `price` is the total paid: F9). */

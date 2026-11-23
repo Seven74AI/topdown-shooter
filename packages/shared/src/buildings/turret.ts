@@ -6,7 +6,7 @@ import { zombieCandidates as candidates } from "../combat/scratch";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "../combat/cooldown";
 import { spawnProjectile, type ProjectileSpawn } from "../combat/projectilePool";
 import { isZombieAlive } from "../zombies/zombiePool";
-import { shotLineClear } from "../combat/cover";
+import { bulletLineClear } from "../combat/cover";
 import { buildingStats, buildingTypeIds, type Building } from "./buildings";
 
 /**
@@ -78,7 +78,7 @@ export function nearestZombieInRange(world: Readonly<World>, x: number, y: numbe
     const d2 = dx * dx + dy * dy;
     if (d2 > r2) continue;
     if (d2 < bestD2 || (d2 === bestD2 && id < best)) {
-      if (!shotLineClear(world, x, y, z.x[id] as number, z.y[id] as number)) continue; // Story 4.2: no shots into cover
+      if (!bulletLineClear(world, x, y, z.x[id] as number, z.y[id] as number)) continue; // Story 4.2: no shots into cover (barricades included)
       best = id;
       bestD2 = d2;
     }
