@@ -104,3 +104,12 @@ Page: claude.ai/artifact/GzRpZP8eS6n7JVMDs9ctcy (code drawings, copied to `docs/
 - **Fire = fire-lab version D** (designer, 2026-11-23): fuel-fire particle flames, smoke and embers on normal asphalt (scorch + soft flickering ground light, no lava pool), a ring of flames at the 2 m damage edge. Code in `docs/art/4-12/fire-lab.html` (panel D; survivor panel for the burning survivor). Story 4.12 builds it.
 - **Melee can't hit through barricades and walls** (designer, 2026-11-23, after the 5.2 review found chainsaw farming from behind a barricade): wall buildings and shot-blocking map cover (walls, cars, bus, buildings) stop melee; low cover that bullets pass (sandbags, police barriers, traps, mines) doesn't. Applies to every melee weapon (Machete, Fire Axe, Chainsaw). Built in the 5.2 fix round.
 - **Brute and narrow gaps** (designer, 2026-11-23, after the 5.7 review found players untouchable in 1 m car gaps): when the player is in a gap the Brute can't enter, its reach grows from 1.3 m to 1.8 m (same 0.5 s wind-up, dodged by stepping deeper; still needs a clear line).
+
+## Round C looks (designer, 2026-11-23)
+
+Page: claude.ai/artifact/NasqdNNAhnHQEkbHVcamFZ (code drawings in `docs/art/epic-5/round-c/looks.html`).
+- **Two flamethrowers** (designer: "fuel jet for the one with longer range but narrower, gas torch for the shorter but wider"): **Flamethrower** = FT1 military twin-tank body (shop icon to be improved) with the **FS1 fuel jet** stream; **Gas torch** = FT2 propane rig (main-session suggestion, FT3 rejected) with the **FS2 gas torch cone**. Proposed numbers (designer may change): Flamethrower 6 m reach, 20° cone, price 700; Gas torch 3 m reach, 60° cone, price 550; same burn damage/fuel rules as 5.4. Built in 5.4.
+- FS3 rolling fire: rejected.
+- Grenade Launcher: all three kept (GL1 base; GL2/GL3 upgrade or skin looks).
+- Explosions: keep both **EX1 fireball** (Grenade Launcher, main-session suggestion) and **EX2 shockwave + debris** (the 5.9 mine blast, and later the 5.12 hand grenade). EX3 not used.
+- Bloaters: **all five BL1–BL5 as random per-Bloater variants** (as the Brute).
