@@ -2,6 +2,7 @@ import {
   NEUTRAL_INPUT,
   TICK_DT_S,
   buyWeapon,
+  upgradeWeapon,
   createWorld,
   DOWNTOWN_MAP,
   placeBuilding,
@@ -129,6 +130,12 @@ export class LocalSimHost implements SimHost {
   buyWeapon(weapon: string, slot: 0 | 1 | null): void {
     const r = buyWeapon(this.world, LOCAL_PLAYER_ID, weapon, slot);
     this.shopAnswer = r.ok ? { ok: true, weapon, slot: r.value.slot } : { ok: false, weapon, error: r.error };
+  }
+
+  /** Story 5.1: the shared rule, at once (between steps); the answer waits for `takeShopAnswer`. */
+  upgradeWeapon(weapon: string): void {
+    const r = upgradeWeapon(this.world, LOCAL_PLAYER_ID, weapon);
+    this.shopAnswer = r.ok ? { kind: "upgrade", ok: true, weapon, slot: r.value.slot, level: r.value.level } : { kind: "upgrade", ok: false, weapon, error: r.error };
   }
 
   takeShopAnswer(): ShopAnswer | null {

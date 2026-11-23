@@ -25,13 +25,13 @@ import type { InputRouter } from "../input/InputRouter";
 import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
 import { MAX_PLAYERS } from "@topdown/shared";
-import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M } from "./hudModel";
+import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, hudTierMark } from "./hudModel";
 import { SLOT_COLORS } from "../render/playerColors";
 import { createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
 import { pulseAlpha, pulseScale } from "../render/pulse";
 import { PerfOverlay } from "../debug/PerfOverlay";
 import { FIRE_POP_POOL, FIRE_POP_RISE_PX, PopPool, fireDamageLabel } from "../render/burnCue";
-import { ATLAS_FX, FX_EDGE, ensureAtlases } from "../render/city/spriteAtlas";
+import { ATLAS_FX, FX_EDGE, FX_TIER_MARKS, FX_TIER_SCALE, ensureAtlases } from "../render/city/spriteAtlas";
 
 export interface HudSceneData {
   sticks: TouchSticks;
@@ -199,6 +199,13 @@ export class HudScene extends Phaser.Scene {
   private aimKnob!: Phaser.GameObjects.Arc;
   private ammoText!: Phaser.GameObjects.Text;
   private otherText!: Phaser.GameObjects.Text;
+  /** Story 5.1: "▶ NAME" / "NAME" left of the U1 tier plate; `ammoText` / `otherText` hold the counts. */
+  private ammoNameText!: Phaser.GameObjects.Text;
+  private otherNameText!: Phaser.GameObjects.Text;
+  private ammoMark!: Phaser.GameObjects.Image;
+  private otherMark!: Phaser.GameObjects.Image;
+  private shownLevel = -1;
+  private shownOtherLevel = -1;
   private swapBtn!: Phaser.GameObjects.Arc;
   private swapLabel!: Phaser.GameObjects.Text;
   private menuBtn!: Phaser.GameObjects.Graphics;
@@ -307,6 +314,8 @@ export class HudScene extends Phaser.Scene {
     this.shownBurning = false;
     this.shownAcid = false;
     this.shownWeapon = "";
+    this.shownLevel = -1; // Story 5.1
+    this.shownOtherLevel = -1;
     this.shownWave = -1;
     this.shownBanner = "";
     this.shownStatus = "";
@@ -356,6 +365,15 @@ export class HudScene extends Phaser.Scene {
     this.otherText = this.add
       .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(OTHER_TEXT_PX * dpr())}px`, color: "#9aa0a6" })
       .setOrigin(1, 1);
+    this.ammoNameText = this.add
+      .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(AMMO_TEXT_PX * dpr())}px`, color: "#ffffff" })
+      .setOrigin(1, 1);
+    this.otherNameText = this.add
+      .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(OTHER_TEXT_PX * dpr())}px`, color: "#9aa0a6" })
+      .setOrigin(1, 1);
+    // Story 5.1: the U1 plates come from the FX atlas (ensured above for the edge glow); hidden at level I.
+    this.ammoMark = this.add.image(0, 0, ATLAS_FX, FX_TIER_MARKS[2]).setOrigin(1, 0.5).setVisible(false);
+    this.otherMark = this.add.image(0, 0, ATLAS_FX, FX_TIER_MARKS[2]).setOrigin(1, 0.5).setVisible(false);
     this.swapBtn = this.add
       .circle(0, 0, (SWAP_BTN_PX / 2) * dpr(), 0xffffff, 0.14)
       .setStrokeStyle(2 * dpr(), 0xffffff, 0.5)
@@ -966,6 +984,8 @@ export class HudScene extends Phaser.Scene {
     this.aimKnob.setRadius(KNOB_RADIUS_CSS_PX * dpr());
     this.ammoText.setFontSize(Math.round(AMMO_TEXT_PX * dpr()));
     this.otherText.setFontSize(Math.round(OTHER_TEXT_PX * dpr()));
+    this.ammoNameText.setFontSize(Math.round(AMMO_TEXT_PX * dpr()));
+    this.otherNameText.setFontSize(Math.round(OTHER_TEXT_PX * dpr()));
     this.layoutButtons();
     this.shownOther = "";
     this.waveText.setFontSize(Math.round(WAVE_TEXT_PX * dpr()));
@@ -1274,6 +1294,8 @@ export class HudScene extends Phaser.Scene {
       m.otherAmmo === this.shownOtherAmmo &&
       swapStep === this.shownSwapStep &&
       m.weaponName === this.shownWeapon &&
+      m.weaponLevel === this.shownLevel &&
+      m.otherWeaponLevel === this.shownOtherLevel &&
       m.ammo === this.shownAmmo &&
       m.magazine === this.shownMag &&
       reloadStep === this.shownReloadStep &&
@@ -1283,6 +1305,8 @@ export class HudScene extends Phaser.Scene {
       return; // nothing changed: no string building, no redraw
     }
     this.shownWeapon = m.weaponName;
+    this.shownLevel = m.weaponLevel;
+    this.shownOtherLevel = m.otherWeaponLevel;
     this.shownOther = m.otherWeaponName;
     this.shownOtherAmmo = m.otherAmmo;
     this.shownSwapStep = swapStep;
@@ -1297,11 +1321,12 @@ export class HudScene extends Phaser.Scene {
     const y = this.scale.height - (AMMO_MARGIN + safe.bottom) * k - RELOAD_BAR_H * k - 6 * k;
     const count = m.ammo < 0 ? "—" : `${m.ammo} / ${m.magazine}`;
     const status = swapping ? "Swapping" : reloading ? "Reloading" : count;
-    this.ammoText.setText(`▶ ${m.weaponName}  ${status}`).setPosition(x, y);
+    this.ammoText.setText(`  ${status}`).setPosition(x, y);
+    this.placeNameAndMark(this.ammoNameText, this.ammoMark, this.ammoText, `▶ ${m.weaponName}`, m.weaponLevel, x, y);
     const otherCount = m.otherAmmo < 0 ? "—" : `${m.otherAmmo} / ${m.otherMag}`;
-    this.otherText
-      .setText(hasOther ? `${m.otherWeaponName}  ${otherCount}` : "")
-      .setPosition(x, y - this.ammoText.height - 2 * k);
+    const oy = y - this.ammoText.height - 2 * k;
+    this.otherText.setText(hasOther ? `  ${otherCount}` : "").setPosition(x, oy);
+    this.placeNameAndMark(this.otherNameText, this.otherMark, this.otherText, hasOther ? m.otherWeaponName : "", hasOther ? m.otherWeaponLevel : 1, x, oy);
     this.reloadBar.clear();
     if (reloading || swapping) {
       const w = RELOAD_BAR_W * k;
@@ -1310,6 +1335,24 @@ export class HudScene extends Phaser.Scene {
       this.reloadBar.fillStyle(0x000000, 0.6).fillRect(x - w, by, w, h);
       this.reloadBar.fillStyle(swapping ? 0xf5c542 : 0xffffff, 0.9).fillRect(x - w, by, w * progress, h);
     }
+  }
+
+  /**
+   * Story 5.1: lays one weapon line out right to left: the count (already at `x`), the U1 tier
+   * plate for `level` (none at I: `hudTierMark`), then the name. Only called when something changed.
+   */
+  private placeNameAndMark(nameText: Phaser.GameObjects.Text, mark: Phaser.GameObjects.Image, count: Phaser.GameObjects.Text, name: string, level: number, x: number, y: number): void {
+    const k = dpr();
+    let right = x - count.width;
+    const frame = hudTierMark(level) !== "" && name !== "" ? FX_TIER_MARKS[level] : undefined;
+    if (frame) {
+      const h = count.height * 0.72; // the plate sits inside the line height
+      mark.setFrame(frame).setVisible(true);
+      mark.setScale(h / (mark.frame.realHeight || FX_TIER_SCALE));
+      mark.setPosition(right - 2 * k, y - count.height / 2);
+      right -= mark.displayWidth + 6 * k;
+    } else mark.setVisible(false);
+    nameText.setText(name).setPosition(right, y);
   }
 
   private drawStick(touch: StickTouch | null, base: Phaser.GameObjects.Arc, knob: Phaser.GameObjects.Arc): void {

@@ -23,7 +23,7 @@ import {
 } from "./projectilePool";
 import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
-import { isGun, isMelee, weaponIds, weaponStats } from "./weapons";
+import { isGun, isMelee, weaponDamage, weaponIds, weaponStats } from "./weapons";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
 import { pelletDirection, rotateBySeqSpread, seqPelletRoll } from "./spread";
@@ -152,7 +152,8 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
   const rewind = dryFire ? 0 : rewindTicksFor(world, p, input);
   if (isMelee(stats)) {
     // Melee (Story 1.9): instant arc hit along the raw aim, no ammo, no reload, no aim assist.
-    if (!dryFire) swingMelee(world, p, slot.weapon, stats, dir.x, dir.y, rewind > 0 ? rewoundView(world, world.tick - rewind) : null);
+    // Story 5.1: the swing's damage comes from the slot's upgrade level (the one shared rule).
+    if (!dryFire) swingMelee(world, p, slot.weapon, stats, weaponDamage(world.balance, slot.weapon, slot.level), dir.x, dir.y, rewind > 0 ? rewoundView(world, world.tick - rewind) : null);
     return true;
   }
   if (slot.ammo <= 0) return false;
@@ -184,7 +185,7 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
 
   spawn.speedMps = stats.projectileSpeedMps;
   spawn.rangeM = stats.rangeM;
-  spawn.damage = stats.damage;
+  spawn.damage = weaponDamage(world.balance, slot.weapon, slot.level); // Story 5.1: every pellet/bullet
   spawn.pierce = stats.pierce;
   spawn.weaponIndex = weaponIds(world.balance).indexOf(slot.weapon);
   spawn.owner = p.id;

@@ -5,7 +5,7 @@ import { CAR_COLORS } from "./dressing";
 import { addCanvasTexture } from "./canvasTexture";
 import { OBJ_SANDBAGS, ensureObjectsAtlas, objectsFrameSource, type FrameSource } from "./objectsAtlas";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
-import { WEAPON_ART } from "./weaponArt";
+import { TIER_PLATE_H, WEAPON_ART, drawTierPlate, tierPlateWidth } from "./weaponArt";
 import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawDumpster, drawPump, drawSandbags, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
@@ -68,6 +68,12 @@ export const FX_EDGE = frameName("fx", "edge", "a");
 /** Story 5.6: the spit glob in flight and the acid puddle (two shapes); the puddle frame's edge is the damage edge. */
 export const FX_SPIT_GLOB = `${frameName("fx", "spit", "glob")}_01`;
 export const FX_ACID_PUDDLES: readonly string[] = ["01", "02"].map((v) => `${frameName("fx", "acid", "puddle")}_${v}`);
+/**
+ * Story 5.1: the U1 upgrade tier plates for the HUD, by level (index 2–4 = II–IV; I has no mark),
+ * drawn at `FX_TIER_SCALE` px per CSS px.
+ */
+export const FX_TIER_MARKS: readonly string[] = ["", "", frameName("fx", "tiermark", "b"), frameName("fx", "tiermark", "c"), frameName("fx", "tiermark", "d")];
+export const FX_TIER_SCALE = 3;
 const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_RAIN]: [4, 28],
   [FX_SPLASH]: [40, 20],
@@ -76,6 +82,7 @@ const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_EDGE]: [8, 64],
   [FX_SPIT_GLOB]: [48, 48],
   ...Object.fromEntries(FX_ACID_PUDDLES.map((n) => [n, [128, 128] as const])),
+  ...Object.fromEntries([2, 3, 4].map((lv) => [FX_TIER_MARKS[lv] as string, [Math.ceil(tierPlateWidth(lv) * FX_TIER_SCALE), TIER_PLATE_H * FX_TIER_SCALE] as const])),
 };
 
 export interface AtlasCanvas {
@@ -210,6 +217,10 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   } else if (FX_ACID_PUDDLES.includes(f.name)) {
     g.translate(x + w / 2, y + h / 2);
     drawAcidPuddle(g, w, 131 + FX_ACID_PUDDLES.indexOf(f.name) * 70);
+  } else if (FX_TIER_MARKS.indexOf(f.name) >= 2) {
+    g.translate(x, y);
+    g.scale(FX_TIER_SCALE, FX_TIER_SCALE);
+    drawTierPlate(g, FX_TIER_MARKS.indexOf(f.name)); // Story 5.1
   } else if (f.name === FX_VIGNETTE) {
     // one edge band (dark at the top, clear at the bottom); the view lays four around the screen
     const gr = g.createLinearGradient(0, y, 0, y + h);

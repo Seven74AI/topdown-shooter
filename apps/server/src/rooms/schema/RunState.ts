@@ -40,6 +40,9 @@ const playerFields = {
   reloadTicks0: t.uint16().default(0),
   reloadTicks1: t.uint16().default(0),
   swapTicks: t.uint8().default(0),
+  // Story 5.1: each slot's upgrade level (1–4; 0 = empty slot). Changes only on an upgrade or a buy.
+  level0: t.uint8().default(0),
+  level1: t.uint8().default(0),
   // Story 2.8: downed, revive and the Results screen.
   /** Ticks until a downed player is out (0 when not downed). */
   downedTicksLeft: t.uint16().default(0),

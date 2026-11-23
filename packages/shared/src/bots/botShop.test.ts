@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance } from "../config/balance";
+import { bundledBalanceFiles, loadBalance } from "../config/balance";
 import { createWorld } from "../core/world";
 import { addPlayer } from "../player/player";
 import { startBuild, startWave } from "../run/runStateMachine";
@@ -108,5 +108,49 @@ describe("botBuildPhase (headless bots)", () => {
     expect(r.buildings).toBe(balance.buildings.maxPerPlayer);
     expect(r.bought).toEqual(["smg"]); // the 7th barricade was skipped, the SMG after it bought
     expect(p.wallet).toBe(1000 - 6 * 40 - 200);
+  });
+});
+
+describe("Story 5.1: upgrade:<weapon> shopping entries", () => {
+  function world(wallet: number) {
+    const w = createWorld({ balance, seed: 1 });
+    const p = addPlayer(w, "p0", 24, 16);
+    p.wallet = wallet;
+    startBuild(w);
+    return { w, p };
+  }
+
+  it("bot upgrades its SMG twice when it can afford it", () => {
+    const { w, p } = world(200 + 120 * 2 + 50);
+    const log: string[] = [];
+    const r = botBuildPhase(w, "p0", ["smg", "upgrade:smg", "upgrade:smg", "upgrade:pistol"], createBotShopResult(), true, (c) => void log.push(c.kind));
+    expect(r.bought).toEqual(["smg", "upgrade:smg", "upgrade:smg"]);
+    expect(r.upgrades).toBe(2);
+    expect(p.loadout.slots[1]?.level).toBe(3); // liveness: the level really rose
+    expect(p.loadout.slots[0].level).toBe(1); // Pistol 60 > the 50 left: saving up
+    expect(p.wallet).toBe(50);
+    expect(r.spent).toBe(440);
+    expect(log).toEqual(["buy", "upgrade", "upgrade", "ready"]);
+    // Next build phase with money: the list is already satisfied for the SMG (level 3 = two entries).
+    p.wallet = 1000;
+    const r2 = botBuildPhase(w, "p0", ["smg", "upgrade:smg", "upgrade:smg", "upgrade:pistol"], createBotShopResult());
+    expect(r2.bought).toEqual(["upgrade:pistol"]);
+    expect(p.loadout.slots[1]?.level).toBe(3);
+  });
+
+  it("botShopNext: not held → next; too dear → stop (save up); at max → next", () => {
+    const list = ["upgrade:smg", "upgrade:machete", "wood_barricade"];
+    expect(botShopNext(balance, self(500), none, list)).toBe(2); // holds neither
+    expect(botShopNext(balance, { ...self(100, "smg") }, none, list)).toBe(-1); // SMG 120 > 100
+    expect(botShopNext(balance, { ...self(500, "smg"), level1: 4 }, none, ["upgrade:smg", "upgrade:smg", "upgrade:smg", "upgrade:smg", "wood_barricade"])).toBe(4);
+    expect(botShopNext(balance, { ...self(500, "smg"), level1: 2 }, none, ["upgrade:smg", "upgrade:smg"])).toBe(1);
+  });
+
+  it("bots.json accepts upgrade entries and refuses malformed ones", () => {
+    const files = bundledBalanceFiles();
+    (files.bots as { shoppingList: string[] }).shoppingList = ["smg", "upgrade:smg"];
+    expect(loadBalance(files).bots.shoppingList).toEqual(["smg", "upgrade:smg"]);
+    (files.bots as { shoppingList: string[] }).shoppingList = ["upgrade:SMG"];
+    expect(() => loadBalance(files)).toThrow(/bots\.json: shoppingList\.0/);
   });
 });

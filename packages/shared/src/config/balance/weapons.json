@@ -12,7 +12,8 @@
     "projectileSpeedMps": 60,
     "hitPushbackM": 0.15,
     "screenShake": false,
-    "price": 0
+    "price": 0,
+    "upgradeBasePrice": 100
   },
   "smg": {
     "name": "SMG",

@@ -1,8 +1,15 @@
 import { useEffect, useState } from "preact/hooks";
-import { titleCase } from "@topdown/shared";
+import { romanLevel, titleCase } from "@topdown/shared";
 import { uiStore } from "./uiState";
-import { SHOP_TEXT, shopStore, type ShopAction, type ShopState } from "./shopStore";
-import { weaponIconUrl } from "../render/city/weaponArt";
+import { SHOP_TEXT, replaceWarning, shopStore, upgradeRows, type ShopAction, type ShopState } from "./shopStore";
+import { TIER_PLATE_H, tierMarkUrl, tierPlateWidth, weaponIconUrl } from "../render/city/weaponArt";
+
+/** Story 5.1: the U1 stamped plate for a level (the roman numeral as text where no canvas). */
+function TierMark({ level }: { level: number }) {
+  const url = tierMarkUrl(level);
+  const label = romanLevel(level);
+  return url ? <img class="tier-mark" src={url} alt={label} width={tierPlateWidth(level)} height={TIER_PLATE_H} /> : <span class="tier-mark">{label}</span>;
+}
 
 const send = (action: ShopAction) => uiStore.request("shop", action);
 const price = (n: number) => (n === 0 ? SHOP_TEXT.free : `$${n}`);
@@ -20,6 +27,7 @@ export function ShopScreen() {
   const busy = s.pending !== null;
   const owned = (id: string) => s.slots[0] === id || s.slots[1] === id;
   const nameOf = (id: string) => s.weapons.find((w) => w.id === id)?.name ?? titleCase(id);
+  const upgrades = upgradeRows(s);
   return (
     <div class="shop" role="dialog" aria-modal="true" aria-labelledby="shop-title">
       <div class="shop__panel">
@@ -46,6 +54,9 @@ export function ShopScreen() {
               {([0, 1] as const).map((slot) => (
                 <button key={slot} type="button" class="btn" autofocus={slot === 0} onClick={() => send({ type: "slot", slot })}>
                   {slot + 1}. {nameOf(s.slots[slot] ?? "")}
+                  {s.levels[slot] > 1 ? ` ${romanLevel(s.levels[slot])}` : ""}
+                  {/* Story 5.1: replacing an upgraded weapon loses its levels. */}
+                  {replaceWarning(s, slot) ? <span class="shop__lost">{replaceWarning(s, slot)}</span> : null}
                 </button>
               ))}
               <button type="button" class="btn btn--secondary" onClick={() => send({ type: "cancel" })}>
@@ -56,6 +67,44 @@ export function ShopScreen() {
           </div>
         ) : (
           <>
+            {upgrades.length > 0 && (
+              <>
+                {/* Story 5.1: always available; one row per weapon I hold, slot 0 first. */}
+                <h3 class="shop__section">{SHOP_TEXT.upgrades}</h3>
+                <div class="shop__items">
+                  {upgrades.map((u) => {
+                    const max = u.price === null;
+                    const short = !max && (u.price as number) > s.wallet;
+                    // The weapon as it looks at its current level (G1 → G3, R2 → R1 from III).
+                    const icon = weaponIconUrl(u.weapon, u.level);
+                    return (
+                      <button
+                        key={`${u.slot}:${u.weapon}`}
+                        type="button"
+                        class={`shop__item shop__item--upgrade${max ? " shop__item--owned" : ""}${short ? " shop__item--short" : ""}${icon ? " shop__item--icon" : ""}`}
+                        disabled={max || busy}
+                        aria-label={max ? `${nameOf(u.weapon)} ${romanLevel(u.level)}, ${SHOP_TEXT.max}` : `Upgrade ${nameOf(u.weapon)} ${romanLevel(u.level)} to ${romanLevel(u.level + 1)}, ${price(u.price as number)}`}
+                        onClick={() => send({ type: "upgrade", weapon: u.weapon })}
+                      >
+                        {icon ? <img class="shop__icon" src={icon} alt="" width={64} height={29} /> : null}
+                        <span class="shop__text">
+                          <span class="shop__name shop__name--upgrade">
+                            {nameOf(u.weapon)} <TierMark level={u.level} />
+                            {max ? null : (
+                              <>
+                                {" → "}
+                                <TierMark level={u.level + 1} />
+                              </>
+                            )}
+                          </span>
+                          <span class="shop__price">{max ? SHOP_TEXT.max : price(u.price as number)}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
             <h3 class="shop__section">{SHOP_TEXT.weapons}</h3>
             <div class="shop__items">
               {s.weapons.map((w) => {

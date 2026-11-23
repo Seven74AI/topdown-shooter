@@ -646,3 +646,27 @@ p.in-run-menu__title {
   font-size: 14px;
   color: #bbb;
 }
+
+/* Story 5.1: upgrade rows and the U1 stamped tier plate (drawn in game code, `weaponArt.ts › drawTierPlate`). */
+.shop__name--upgrade {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tier-mark {
+  display: inline-block;
+  height: 15px;
+  width: auto;
+  vertical-align: middle;
+  image-rendering: auto;
+  font: 700 12px/15px "Arial Narrow", system-ui, sans-serif;
+}
+
+.shop__lost {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ff8a80;
+}
