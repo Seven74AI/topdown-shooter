@@ -3,7 +3,7 @@ baseline_commit: e2399a6ff7d2fe38b709c3b56827a90d2a3241e7
 ---
 # Story 5.3: Shotgun and Assault Rifle
 
-Status: review
+Status: done
 
 ## Story
 
@@ -297,3 +297,7 @@ Claude Opus 5.5 (claude-opus-5-5), builder agent, worktree `.claude/worktrees/st
 
 - 2026-11-23: Story 5.3 built (Shotgun with stratified 8-pellet fan and swept once-per-shot knockback, Assault Rifle, network seq field, cosmetic pellets, art in game code, shop icons, `?stressfire`); status → review.
 - 2026-11-23: Review fixes M1, M2, L3, L4, L5 (see "Review fixes").
+
+### Re-review of the fixes (2026-11-23, fresh agent)
+
+No high or medium findings; M1, M2 and L4 hold (200k random knocks at 0.5 m and 1.5 m against single, thin, touching, L-shaped and gapped boxes: no tunnelling; the 4-entry knock ring cannot overflow: turret shots never knock, one knocking shot per player in flight, global shot ids). Gate green (1,472 tests). Lows **accepted** by the main session: L-a a body in the grown box's square corner area knocked slightly toward the box loses its knock (~0.2 % of random cases, harmless); L-b the centre-inside guard is untested; L-c ring reset on pool reuse is untested (harmless: ids only count up). Note: "4 is enough" relies on shot lifetime < time between shots, not enforced by the balance schema. Status: done.
