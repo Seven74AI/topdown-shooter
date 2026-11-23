@@ -3,7 +3,7 @@ import { BUILD_GRID_M, MAX_PLAYERS, buildingStats, buildingTypeIds, footprint, t
 import type { Placement } from "../scenes/placement";
 import { damageStage, darken, hpChecksum } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
-import { barricadeTint, barricadeTransform, type SpriteTransform } from "./barricadeLook";
+import { barricadePoolSize, barricadeTint, barricadeTransform, type SpriteTransform } from "./barricadeLook";
 import { ATLAS_OBJECTS, OBJ_BARRICADE, ensureObjectsAtlas } from "./city/objectsAtlas";
 
 /** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline; night-darkened (Story 4.9). */
@@ -15,8 +15,6 @@ const OUTLINE_M = 0.06;
 const BARRICADE_HEIGHT_M = 1.6;
 /** Story 4.11: the type drawn with the palisade art (others keep the plank box; turrets add their plate on top). */
 const BARRICADE_TYPE = "wood_barricade";
-/** Story 4.11: pooled barricade sprites: every player's whole allowance (checked against balance at construction). */
-export const MAX_BARRICADE_SPRITES = 24;
 /** Sprites sit on the building layer; cracks just above them, under turrets (3.5). */
 const CRACK_DEPTH = 3.05;
 /** The placement preview's ghost of the turned art, under the coloured box. */
@@ -73,12 +71,10 @@ export class BuildingView {
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
   constructor(scene: Phaser.Scene, balance?: Readonly<Balance>) {
-    if (balance && balance.buildings.maxPerPlayer * MAX_PLAYERS > MAX_BARRICADE_SPRITES) {
-      throw new Error(`buildings.maxPerPlayer × ${MAX_PLAYERS} exceeds MAX_BARRICADE_SPRITES ${MAX_BARRICADE_SPRITES}`);
-    }
     ensureObjectsAtlas(scene);
+    const pool = barricadePoolSize(balance?.buildings.maxPerPlayer, MAX_PLAYERS); // review fix L1: sized from balance, never throws
     this.placed = scene.add.graphics().setDepth(BUILDING_DEPTH);
-    for (let i = 0; i < MAX_BARRICADE_SPRITES; i++) this.sprites.push(scene.add.image(0, 0, ATLAS_OBJECTS, OBJ_BARRICADE).setDepth(BUILDING_DEPTH).setVisible(false));
+    for (let i = 0; i < pool; i++) this.sprites.push(scene.add.image(0, 0, ATLAS_OBJECTS, OBJ_BARRICADE).setDepth(BUILDING_DEPTH).setVisible(false));
     this.cracks = scene.add.graphics().setDepth(CRACK_DEPTH);
     this.ghost = scene.add.image(0, 0, ATLAS_OBJECTS, OBJ_BARRICADE).setDepth(PREVIEW_DEPTH).setAlpha(GHOST_ALPHA).setVisible(false);
     this.bars = scene.add.graphics().setDepth(BAR_DEPTH);

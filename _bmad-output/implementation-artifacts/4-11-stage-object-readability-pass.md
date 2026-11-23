@@ -137,9 +137,31 @@ Claude Opus 5.5 (claude-opus-5-5), builder, worktree `story-4-11`.
 - `apps/client/src/render/city/fireRing.ts`, `fireRing.test.ts`, `CityView.ts`, `spriteAtlas.ts`
 - `apps/client/src/render/BuildingView.ts`, `PlayerView.ts`, `fireCue.ts`
 - `apps/client/src/scenes/BootScene.ts`, `GameScene.ts`, `HudScene.ts`, `hudModel.ts`
-- `tools/art/build_sprites.py`, `tools/art/prompts.json` (new)
+- `tools/art/build_sprites.py`, `tools/art/prompts.json` (new; review: `meta.coreFrac`)
 - `docs/art/4-11/ingame/*.png` (new: 5 screenshots)
+
+## Senior Developer Review (AI)
+
+Fresh reviewer, 2026-11-23, on 6cc4716: one medium, three lows (L3 a design decision by the main session). All fixed on `story-4-11`.
+
+### Review fixes (2026-11-23)
+
+| # | Sev | Finding | Fix |
+| --- | --- | --- | --- |
+| M | M | Ring flame centres sat on R but each flame was drawn 0.75–1.5 m wide, so its solid core reached 0.2–0.35 m past R: a body touching visible flames could take no damage (the test checked centres only). | Flames now sit so their solid core (alpha > 50 %) ends at R at their LARGEST size (full flicker + damage-tick swell): `ringFlameCentreRadiusM = R − RING_FLAME_CORE_FRAC × ringFlameSizeM(1, 1)`. `RING_FLAME_CORE_FRAC` 0.45 ≥ the art's measured 0.44 (`build_sprites.py` writes `objects.json › meta.coreFrac`; a test keeps the constant ≥ it). Flames a bit smaller and calmer (base 0.8 m, flicker 0.8–1.0, swell 15 %; max 0.92 m, core 0.41 m; centres at 1.59 m for R 2 m, 13 flames). CityView uses the same `ringFlameSizeM`. The thin 2 px ring line still marks R. Tests: every flame's outer core edge ∈ [R − 2 cm, R + 2 cm] for all flicker/swell values; neighbouring cores leave ≤ 0.8 m gaps; touching a flame's outer edge ⇔ `circleInFire`. |
+| L1 | L | `BuildingView` threw if `maxPerPlayer × 4 > 24` (schema allows 64). | Pool sized from balance: `barricadePoolSize(maxPerPlayer, MAX_PLAYERS)` (default 24 without a balance); no throw. Test (6 → 24, 7 → 28, 64 → 256). |
+| L2 | L | `HudScene.drawBurn` destructured the glow array and used `for…of` every frame. | Indexed access. |
+| L3 | L | Smoke above characters (depth 11.5), up to 4.2 m at alpha 0.62: could hide zombies and cost fill. | Smoke at depth 4.38 (above the car and its flames, below crawlers 4.5, zombies and survivors), max alpha 0.4, puffs 1.2 → 3 m. |
+
+**Mutations proven (each new test once, restored):** N1 no inset (2 tests fail); N2 inset ignores the swell; N3 core fraction 0.40 < the art's; N4 spacing 1.5 m (ring gaps); N5 pool not sized from balance. The build's M1–M12 still apply (M1 now fails the outer-edge tests).
+
+**FPS, `?stress=150` next to both burning cars, headless 844 × 390 DPR 2:** 12.6 / 12.5 / 12.4 (load 1.30 → 3.35) and 14.5 / 13.2 / 12.5 (load 3.35 → 3.67; other work on the box). Before the story 13.0–16.1, after the first build 12.2–12.6: roughly unchanged by the fixes on this busy box; a GPU check is still a 4.10 item.
+
+**Screenshots updated** (`docs/art/4-11/ingame/`): `burning-car-flame-circle.png`, `survivor-burning.png`, `wide.png` (and the other two re-shot in the same run).
+
+**Gate:** typecheck, lint, test (194 files passed, 1 skipped; 1,418 tests passed, 3 skipped), build green; load 3.37 before, 3.78 after.
 
 ## Change Log
 
 - 2026-11-23: Story written (gds-create-story, designer decisions recorded) and built: Meshy sprites + `atlas_objects` (sandbags S2, barricade B6, flames, smoke), turned barricade sprites, F6 fire ring/flames/smoke/sparks, burning-survivor cues (flames, smoke, embers, my edge glow and "-N"), BURNING_TINT removed; tests + 12 mutations; browser screenshots; FPS before/after. Status review.
+- 2026-11-23: Review fixes: ring flames inset so their visible core ends at R (M), barricade pool from balance (L1), no per-frame destructuring in the HUD (L2), smoke under the characters and lighter (L3); tests + 5 mutations; screenshots and FPS re-taken.

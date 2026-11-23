@@ -593,9 +593,14 @@ export class HudScene extends Phaser.Scene {
       t.setPosition(sx, sy - p * FIRE_POP_RISE_PX * k).setAlpha(1 - p * p).setVisible(true);
     }
     const a = m.burnGlow;
-    const [top, bottom, left, right] = this.edgeGlow as [Phaser.GameObjects.Image, Phaser.GameObjects.Image, Phaser.GameObjects.Image, Phaser.GameObjects.Image];
+    // review fix L2: indexed access (no array destructuring / iterator per frame)
+    const glow = this.edgeGlow;
+    const top = glow[0] as Phaser.GameObjects.Image;
+    const bottom = glow[1] as Phaser.GameObjects.Image;
+    const left = glow[2] as Phaser.GameObjects.Image;
+    const right = glow[3] as Phaser.GameObjects.Image;
     if (a <= 0) {
-      if (top.visible) for (const g of this.edgeGlow) g.setVisible(false);
+      if (top.visible) for (let i = 0; i < glow.length; i++) (glow[i] as Phaser.GameObjects.Image).setVisible(false);
       return;
     }
     const w = this.scale.width;
@@ -605,7 +610,7 @@ export class HudScene extends Phaser.Scene {
     bottom.setPosition(w / 2, h - band / 2).setDisplaySize(w, band);
     left.setPosition(band / 2, h / 2).setDisplaySize(h, band);
     right.setPosition(w - band / 2, h / 2).setDisplaySize(h, band);
-    for (const g of this.edgeGlow) g.setAlpha(a).setVisible(true);
+    for (let i = 0; i < glow.length; i++) (glow[i] as Phaser.GameObjects.Image).setAlpha(a).setVisible(true);
   }
 
   /** Story 2.9: bold white name tag with a dark stroke. */

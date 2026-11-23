@@ -156,6 +156,18 @@ def build(raw_dir, out_dir):
     sheet = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     for name, (fx, fy, w, h) in placed.items():
         sheet.paste(frames[name], (fx, fy))
+    # Story 4.11 review fix: how far each flame's solid core (alpha > 50 %) reaches from its centre, as a
+    # fraction of the frame width, at any rotation (radial). The game insets the ring flames by it.
+    core = 0.0
+    for name, img in frames.items():
+        if not name.startswith("fx_flame_"):
+            continue
+        w, h = img.size
+        a = img.getchannel("A").load()
+        for yy in range(h):
+            for xx in range(w):
+                if a[xx, yy] > 127:
+                    core = max(core, ((xx + 0.5 - w / 2) ** 2 + (yy + 0.5 - h / 2) ** 2) ** 0.5 / w)
     os.makedirs(out_dir, exist_ok=True)
     sheet.save(os.path.join(out_dir, "objects.png"), optimize=True)
     meta = {
@@ -165,7 +177,8 @@ def build(raw_dir, out_dir):
             for n, (fx, fy, w, h) in sorted(placed.items())
         },
         "meta": {"app": "tools/art/build_sprites.py", "image": "objects.png", "format": "RGBA8888",
-                 "size": {"w": width, "h": height}, "scale": "1"},
+                 "size": {"w": width, "h": height}, "scale": "1",
+                 "coreFrac": round(core + 0.0005, 3)},
     }
     with open(os.path.join(out_dir, "objects.json"), "w") as f:
         json.dump(meta, f, indent=1)

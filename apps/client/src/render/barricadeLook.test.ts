@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildingStats, footprint, loadBalance, type Box } from "@topdown/shared";
-import { BARRICADE_DAMAGE_DARKEN, BARRICADE_NIGHT_DARKEN, barricadeTint, barricadeTransform, framePointToWorld } from "./barricadeLook";
+import { BARRICADE_DAMAGE_DARKEN, BARRICADE_NIGHT_DARKEN, DEFAULT_BARRICADE_SPRITES, barricadePoolSize, barricadeTint, barricadeTransform, framePointToWorld } from "./barricadeLook";
 import { darken } from "./buildingLook";
 
 const balance = loadBalance();
@@ -66,5 +66,14 @@ describe("Story 4.11: the wood barricade art turns with its placement", () => {
       last = g;
     }
     expect(barricadeTint(2)).toBe(barricadeTint(1));
+  });
+});
+
+describe("Story 4.11 review fix L1: the barricade pool is sized from balance", () => {
+  it("holds every player's allowance for any legal maxPerPlayer (7 → 28, the schema's 64 → 256) and the default without a balance", () => {
+    expect(barricadePoolSize(balance.buildings.maxPerPlayer, 4)).toBe(balance.buildings.maxPerPlayer * 4);
+    expect(barricadePoolSize(7, 4)).toBe(28);
+    expect(barricadePoolSize(64, 4)).toBe(256);
+    expect(barricadePoolSize(undefined, 4)).toBe(DEFAULT_BARRICADE_SPRITES);
   });
 });

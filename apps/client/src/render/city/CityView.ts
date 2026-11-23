@@ -17,12 +17,12 @@ import {
   FIRE_RING_COLOR,
   RING_FLAMES_MAX,
   RING_FLAME_FLICKER_HZ,
-  RING_FLAME_M,
   damageTickPulse,
   emberSpot,
   fireRingWidthM,
   ringFlameCount,
   ringFlameMarksEdge,
+  ringFlameSizeM,
   ringFlameSpot,
   strokeFireRings,
 } from "./fireRing";
@@ -48,10 +48,14 @@ const STATIC_DEPTH = 0;
 const DYN_LIGHT_DEPTH = 4.32;
 /** Story 4.8 review M3: the fire ring and its embers lie on the ground: above blood (1), below barricades (3). */
 const FIRE_RING_DEPTH = 1.5;
-/** Story 4.11: ring flames on the ground with the ring; the car's flames above the car (and the dynamic lights), below zombies (5); smoke and sparks above the characters, below the rain. */
+/**
+ * Story 4.11: ring flames on the ground with the ring; the car's flames above the car (and the
+ * dynamic lights); review fix (L3): the smoke above the car flames but BELOW zombies (4.5–5.5) and
+ * survivors (10), so it never hides an approaching zombie; sparks above the characters, below the rain.
+ */
 const RING_FLAME_DEPTH = 1.6;
 const CAR_FLAME_DEPTH = 4.36;
-const SMOKE_DEPTH = 11.5;
+const SMOKE_DEPTH = 4.38;
 const SPARK_DEPTH = 11.6;
 const RAIN_DEPTH = 11.8;
 const VIGNETTE_DEPTH = 11.9;
@@ -107,11 +111,11 @@ const CAR_FLAME_M = 1.1;
 const CAR_FLAME_FLICKER_HZ = 10;
 const SMOKE_PER_FIRE = 6;
 const SMOKE_LOOP_S = 3.2;
-const SMOKE_START_M = 1.5;
-const SMOKE_END_M = 4.2;
+const SMOKE_START_M = 1.2;
+const SMOKE_END_M = 3;
 const SMOKE_DRIFT_X_M = 3.2;
 const SMOKE_DRIFT_Y_M = 2.2;
-const SMOKE_ALPHA = 0.62;
+const SMOKE_ALPHA = 0.4;
 /** Grey smoke lit from below by the fire (a dark tint vanished on the night street). */
 const SMOKE_TINT = 0x9a8f86;
 const SPARKS_PER_FIRE = 10;
@@ -119,8 +123,6 @@ const SPARK_LOOP_S = 1.3;
 const SPARK_M = 0.09;
 const SPARK_RISE_M = 1.8;
 const SPARK_COLOR = 0xffb050;
-/** How much the damage-tick pulse swells the ring flames (fraction of their size). */
-const RING_PULSE_GROW = 0.3;
 
 /**
  * Vignette: four edge bands, each this fraction of the view's smaller side (corners get two). Not
@@ -365,7 +367,7 @@ export class CityView {
           img.setFrame(FLAME_FRAMES[fr] as string);
         }
         const flick = hash(step * 1.3 + i * 13.1 + s * 5.7);
-        const size = RING_FLAME_M * (0.75 + 0.4 * flick) * (1 + RING_PULSE_GROW * pulse);
+        const size = ringFlameSizeM(flick, pulse); // review fix: the size the inset is computed for
         img.setDisplaySize(size, size).setAlpha(0.6 + 0.25 * flick + 0.15 * pulse);
       }
       const cstep = Math.floor(t * CAR_FLAME_FLICKER_HZ);

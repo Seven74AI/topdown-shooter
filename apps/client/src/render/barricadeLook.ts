@@ -63,3 +63,15 @@ export function barricadeTint(hpFrac: number): number {
   const f = Math.min(1, Math.max(0, hpFrac));
   return darken(darken(0xffffff, BARRICADE_NIGHT_DARKEN), (1 - f) * BARRICADE_DAMAGE_DARKEN);
 }
+
+/** Pool size when no balance is given (4 players × 6). */
+export const DEFAULT_BARRICADE_SPRITES = 24;
+
+/**
+ * Review fix (L1): the barricade sprite pool holds every player's whole allowance from the balance
+ * (`maxPerPlayer × players`), so a balance change never crashes the scene; without a balance, the default.
+ */
+export function barricadePoolSize(maxPerPlayer: number | undefined, players: number): number {
+  if (maxPerPlayer === undefined || !(maxPerPlayer > 0)) return DEFAULT_BARRICADE_SPRITES;
+  return Math.ceil(maxPerPlayer) * players;
+}

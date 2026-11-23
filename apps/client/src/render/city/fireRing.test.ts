@@ -3,18 +3,25 @@ import { circleInFire, loadBalance, type FireRecord } from "@topdown/shared";
 import {
   FIRE_EMBERS,
   RING_FLAMES_MAX,
+  RING_FLAME_CORE_FRAC,
   RING_FLAME_SPACING_M,
   damageTickPulse,
   emberSpot,
   fireRingRadiusM,
   fireRingWidthM,
+  ringFlameCentreRadiusM,
   ringFlameCount,
+  ringFlameMaxCoreM,
+  ringFlameSizeM,
   ringFlameMarksEdge,
   ringFlameSpot,
   strokeFireRings,
 } from "./fireRing";
 
+import objectsJson from "../../../public/assets/atlases/objects.json";
+
 const balance = loadBalance();
+const objectsMeta = (objectsJson as unknown as { meta: { coreFrac: number } }).meta;
 const fire: FireRecord = { name: "f", target: "car", x: 10, y: 8, radiusM: balance.decay.fire.radiusM, stage: 3, index: 0 };
 
 describe("Story 4.8 review M3: the fire ring is the damage edge", () => {
@@ -62,9 +69,11 @@ describe("Story 4.8 review M3: the fire ring is the damage edge", () => {
   });
 });
 
-describe("Story 4.11 (F6): the circle of small flames sits exactly at the damage edge", () => {
-  it("every ring flame is centred on the zone radius, evenly spaced all round", () => {
-    const out = { x: 0, y: 0 };
+describe("Story 4.11 (F6): the circle of small flames ends exactly at the damage edge", () => {
+  const out = { x: 0, y: 0 };
+  const coreAt = (flick: number, pulse: number) => RING_FLAME_CORE_FRAC * ringFlameSizeM(flick, pulse);
+
+  it("review fix: every flame's visible core, at its largest (full flicker + damage-tick swell), ends within 2 cm of R, never past it", () => {
     for (const r of [1, balance.decay.fire.radiusM, 3.5]) {
       const f = { ...fire, radiusM: r };
       const n = ringFlameCount(f);
@@ -72,33 +81,51 @@ describe("Story 4.11 (F6): the circle of small flames sits exactly at the damage
       let sy = 0;
       for (let i = 0; i < n; i++) {
         ringFlameSpot(f, i, n, out);
-        expect(Math.hypot(out.x - f.x, out.y - f.y)).toBeCloseTo(fireRingRadiusM(f), 9);
+        const d = Math.hypot(out.x - f.x, out.y - f.y);
+        let maxOuter = 0;
+        for (const flick of [0, 0.5, 1]) for (const pulse of [0, 0.5, 1]) maxOuter = Math.max(maxOuter, d + coreAt(flick, pulse));
+        expect(maxOuter).toBeLessThanOrEqual(fireRingRadiusM(f) + 0.02);
+        expect(maxOuter).toBeGreaterThanOrEqual(fireRingRadiusM(f) - 0.02); // it still marks the edge
         sx += out.x - f.x;
         sy += out.y - f.y;
       }
-      // evenly spread: the flames' centroid is the fire's centre
-      expect(Math.hypot(sx, sy) / n).toBeLessThan(1e-9);
+      expect(Math.hypot(sx, sy) / n).toBeLessThan(1e-9); // evenly spread round the car
     }
   });
 
-  it("your body touches the flames = you burn: a body reaching a flame's centre is inside the zone (circleInFire), one just short is not", () => {
-    const out = { x: 0, y: 0 };
+  it("review fix: the flames still close the ring (gap between neighbouring cores ≤ 0.8 m at their smallest)", () => {
+    for (const r of [1, balance.decay.fire.radiusM, 3.5]) {
+      const f = { ...fire, radiusM: r };
+      const n = ringFlameCount(f);
+      const chord = 2 * ringFlameCentreRadiusM(f) * Math.sin(Math.PI / n);
+      expect(chord - 2 * coreAt(0, 0)).toBeLessThanOrEqual(0.8);
+    }
+  });
+
+  it("the core fraction covers the art: the build script's measured coreFrac (objects.json) ≤ RING_FLAME_CORE_FRAC", () => {
+    expect(objectsMeta.coreFrac).toBeGreaterThan(0);
+    expect(objectsMeta.coreFrac).toBeLessThanOrEqual(RING_FLAME_CORE_FRAC);
+  });
+
+  it("your body touches the flames = you burn: a body reaching a flame's outer core edge is inside the zone (circleInFire), one just short is not", () => {
     const n = ringFlameCount(fire);
+    const core = ringFlameMaxCoreM();
     for (const r of [balance.player.radiusM, ...Object.values(balance.zombies.types).map((z) => z.radiusM)]) {
       for (let i = 0; i < n; i++) {
         ringFlameSpot(fire, i, n, out);
-        const ux = (out.x - fire.x) / fire.radiusM;
-        const uy = (out.y - fire.y) / fire.radiusM;
-        // body centre outside, its edge 1 mm past the flame centre toward the car: burns
-        expect(circleInFire([fire], out.x + ux * (r - 1e-3), out.y + uy * (r - 1e-3), r)).toBe(true);
-        // its edge 1 mm short of the flame centre: safe
-        expect(circleInFire([fire], out.x + ux * (r + 1e-3), out.y + uy * (r + 1e-3), r)).toBe(false);
+        const d = Math.hypot(out.x - fire.x, out.y - fire.y);
+        const ux = (out.x - fire.x) / d;
+        const uy = (out.y - fire.y) / d;
+        const ex = out.x + ux * core; // the flame's outer visible edge
+        const ey = out.y + uy * core;
+        expect(circleInFire([fire], ex + ux * (r - 1e-3), ey + uy * (r - 1e-3), r)).toBe(true);
+        expect(circleInFire([fire], ex + ux * (r + 0.02 + 1e-3), ey + uy * (r + 0.02 + 1e-3), r)).toBe(false);
       }
     }
   });
 
   it("flame count follows the circumference, capped (pool size per fire)", () => {
-    expect(ringFlameCount(fire)).toBe(Math.round((2 * Math.PI * fire.radiusM) / RING_FLAME_SPACING_M));
+    expect(ringFlameCount(fire)).toBe(Math.round((2 * Math.PI * ringFlameCentreRadiusM(fire)) / RING_FLAME_SPACING_M));
     expect(ringFlameCount({ ...fire, radiusM: 50 })).toBe(RING_FLAMES_MAX);
     expect(ringFlameCount({ ...fire, radiusM: 0.1 })).toBe(6);
   });
