@@ -13,7 +13,6 @@
   --fg: #d9d4c7;
   --muted: #8d8a80;
   --sodium: #e0a646;      /* streetlight amber: the one accent */
-  --hint: #e07b5a;
   --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -50,7 +49,6 @@ button.primary { background: var(--sodium); color: #1a1408; border-color: var(--
 .color { display: grid; grid-template-columns: auto auto auto; gap: 6px; align-items: center; font-size: 13px; }
 .color input { width: 38px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; }
 .sw { width: 24px; height: 24px; border-radius: 3px; border: 1px solid var(--line); }
-.hintline { color: var(--hint); font-size: 13px; min-height: 1.3em; margin-top: 8px; }
 .skins { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .skins button { width: 34px; height: 34px; border-radius: 50%; padding: 0; }
 .skins button[aria-pressed="true"] { outline: 2px solid var(--sodium); outline-offset: 2px; }
@@ -367,16 +365,6 @@ function renderPanel() {
   if (tab === "hair") cols.appendChild(colorRow("cHair", "Hair colour"));
   if (tab === "acc" || tab === "head") cols.appendChild(colorRow("cAcc", tab === "head" ? "Cap, beanie, bandana colour" : "Accent colour"));
   if (cols.children.length) panel.appendChild(cols);
-  const hint = document.createElement("div"); hint.className = "hintline"; hint.id = "hint"; panel.appendChild(hint); updateHint();
-}
-/** Soft hint (proposal §4): never blocks. */
-function updateHint() {
-  const el = document.getElementById("hint"); if (!el) return;
-  const [h, s] = hsl(look.cTop); let msg = "";
-  SLOT.forEach((sc, i) => { if (i === slot) return; const [h2] = hsl(sc); const d = Math.min(Math.abs(h - h2), 360 - Math.abs(h - h2)); if (s > .45 && d < 16) msg = `Close to the ${SLOT_NAMES[i]} team ring: teammates may mix you up. You can keep it.`; });
-  const m = rgb(nightMute(look.cTop, stage));
-  for (const rr of RUNNER_REDS) { const q = rgb(rr); if (Math.hypot(m[0] - q[0], m[1] - q[1], m[2] - q[2]) < 34) msg = "At night this looks like a Runner's dark-red shirt. You can keep it."; }
-  el.textContent = tab === "top" ? msg : "";
 }
 
 // ---------- the street at game size ----------
@@ -492,11 +480,11 @@ sc.addEventListener("pointerdown", e => {
 // ---------- wiring ----------
 function changed(rerenderPanel) {
   document.getElementById("code").textContent = lookCode(look);
-  drawCloseup(); if (rerenderPanel) renderPanel(); else updateHint();
+  drawCloseup(); if (rerenderPanel) renderPanel();
 }
 function slotsUI() {
   const el = document.getElementById("slots"); el.innerHTML = "";
-  SLOT.forEach((h, i) => { const b = document.createElement("button"); b.type = "button"; b.style.background = h; b.setAttribute("aria-label", SLOT_NAMES[i] + " slot"); b.setAttribute("aria-pressed", String(i === slot)); b.onclick = () => { slot = i; slotsUI(); drawCloseup(); updateHint(); }; el.appendChild(b); });
+  SLOT.forEach((h, i) => { const b = document.createElement("button"); b.type = "button"; b.style.background = h; b.setAttribute("aria-label", SLOT_NAMES[i] + " slot"); b.setAttribute("aria-pressed", String(i === slot)); b.onclick = () => { slot = i; slotsUI(); drawCloseup(); }; el.appendChild(b); });
 }
 document.getElementById("random").onclick = () => { const r = randomLook(Math.floor(Math.random() * 1e5)); if (unlockAll) { for (const k of ["top", "head", "pack", "acc"]) { const all = CAT[k]; r[k] = all[Math.floor(Math.random() * all.length)].id; } } look = r; changed(true); };
 document.getElementById("reset").onclick = () => { look = Object.assign({}, DEFAULT); changed(true); };

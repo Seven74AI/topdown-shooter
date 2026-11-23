@@ -46,7 +46,7 @@ The designer chose any colour. To keep teammates readable, these things stay fix
 
 1. **The slot ring, name and edge arrows keep the slot colour** (blue, orange, green, purple; Story 2.9). The ring is the team signal, the jacket is personal.
 2. **Night light applies to the chosen colour.** Survivors are drawn above the darkness layer, so they carry the night themselves (`CHAR` colours are pre-darkened). A chosen colour is darkened and slightly desaturated the same way, and more at later decay stages. Neon pink becomes "neon pink at night". The editor shows both the chosen colour and the in-game colour.
-3. **A soft hint, never a block.** If the top colour is very close to a slot ring colour, or to Runner dark red, the editor shows one line ("Close to the orange team ring, teammates may mix you up") and still lets you keep it.
+3. **No colour warning** (designer, O6): the editor never warns about or blocks a colour, even one close to a slot ring or Runner red. The ring and the game-size preview are enough.
 4. **Never copy a gameplay signal.** No item may look like armor plates, a red-cross medic bag, a shoulder flashlight, zombie skin or a Runner shirt pattern. The art pick checks this.
 
 ## 5. Surprise loot (very rare, per run)
@@ -142,7 +142,9 @@ In the editor, a locked milestone item shows its lock and **how to get it** ("Ex
 
 C1 can be drawn early (it's only art and a catalogue) and the designer can pick looks with the mockup. It ships with C2.
 
-## 10. Open choices for the designer
+## 10. Open choices: decided (designer, 2026-11-23)
+
+O1–O5 accepted as recommended; O6 changed: no colour hint.
 
 | Code | Choice | Recommended |
 | --- | --- | --- |
@@ -151,6 +153,6 @@ C1 can be drawn early (it's only art and a catalogue) and the designer can pick 
 | O3 | Duplicate looks in one lobby | **allowed, no warning** (the ring tells you apart) |
 | O4 | Editor entry points | **Start screen "Survivor" button + tap your own card in the lobby** |
 | O5 | Item counts | **35 starter / 10 milestone / 10 loot** (§3) |
-| O6 | The "close to a team colour" hint | **show it, never block** |
+| O6 | The "close to a team colour" hint | ~~show it, never block~~ **not needed** (designer) |
 
-"ok" accepts all six recommended values.
+

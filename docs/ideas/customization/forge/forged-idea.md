@@ -4,7 +4,7 @@
 
 - Customization = the character's **look only**. No bonuses on equipment, no stat items, no kits.
 - Slots that are visible at ~38 px: top style, headgear, hair, backpack, accent, skin. **Any colour** for top, hair, accent.
-- Readability: slot ring, name and arrows keep the slot colour; chosen colours are night-muted in game; a soft hint for slot-like or Runner-red colours, never a block.
+- Readability: slot ring, name and arrows keep the slot colour; chosen colours are night-muted in game; no colour warning in the editor (O6).
 - Items: 35 starter (free), 10 milestone (earned once), 10 loot. Cosmetics never cost Supplies.
 - Loot bag: whoever grabs it; **per-run chance** (recommended 1 in 5 runs), wave 3–10, picked by the run seed, so zombie count doesn't change the rate; kept even after a wipe.
 - Ships **with Epic 7** (look, owned cosmetics and stats on the `progress` row). Device-only storage noted as a fallback, not planned.

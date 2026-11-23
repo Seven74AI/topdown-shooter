@@ -1,6 +1,6 @@
 # Draft stories: survivor customization
 
-For the main session to add to Epic 7 with `gds-correct-course` once the designer accepts `proposal.md`. Written in the `epics.md` style. Numbers are the proposal's recommended values (open choices O1–O6). Working ids C1–C5; suggested final ids **7.8–7.12** (after 7.7). Each story starts with the Epic 5 art method: code drawings, the designer picks, Meshy only as a reference.
+For the main session to add to Epic 7 with `gds-correct-course` once the designer accepts `proposal.md`. Written in the `epics.md` style. Numbers are the designer's decided values (proposal §10: O1–O5 as recommended, O6 no colour hint). Working ids C1–C5; suggested final ids **7.8–7.12** (after 7.7). Each story starts with the Epic 5 art method: code drawings, the designer picks, Meshy only as a reference.
 
 Order: C1 → C2 → C3, then C4 and C5 in parallel (different files: C4 touches run-end stats, C5 touches the wave/pickup loop).
 
@@ -79,9 +79,9 @@ So that customizing is fun, not a chore.
 **When** I pick a part or a colour
 **Then** both previews update at once; colours use a free picker; the top colour shows the night-muted in-game swatch next to it
 
-**Given** a top colour very close to a slot ring colour or Runner red
+**Given** any colour, even one close to a slot ring colour or Runner red
 **When** I pick it
-**Then** a one-line hint names the clash and I can still keep it
+**Then** it is accepted with no warning (designer decision O6)
 
 **Given** a locked part
 **When** it shows
