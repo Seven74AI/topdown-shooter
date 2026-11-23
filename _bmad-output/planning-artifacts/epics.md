@@ -327,87 +327,9 @@ A team plays 5 waves with build phases: earning into personal wallets, buying fr
 2–4 players online in Downtown play 5 waves through Evening → Panic → Breakdown: cars move into the road, barriers block paths, fires burn. Placeholder Dead City art, cover rules, spawn points and the run seed.
 **FRs covered:** FR26 (route around cover), FR32, FR53 (fire damage), FR54, FR56, FR57 (fire), FR58, FR59, FR60, FR61, FR65, FR82 (placeholder)
 
-#### Story 4.11: Stage-object readability pass
-
-As a player,
-I want the sandbags, the wood barricade and a burning car's fire to be recognisable at a glance, and to see clearly when I am burning,
-So that I understand the street and react to fire without being told.
-
-(Added by the designer on 2026-11-23 after playing the deployed build; prototype: `claude.ai/artifact/DD4ECzvpxW98HGW65b6oGZ`.)
-
-**Acceptance Criteria:**
-
-**Given** stage 3 sandbags
-**When** they are drawn
-**Then** they read as burlap sandbags (tan, pillow-shaped, tied ends, woven texture, brick stacking) and still look low (short shadow)
-
-**Given** a wood barricade
-**When** it is drawn
-**Then** it reads as nailed wooden planks with a cross-brace, clearly different from sandbags, with the damage look and HP bar unchanged
-
-**Given** a burning car
-**When** a player approaches
-**Then** the damage edge is shown by flames along the zone edge that pulse with the damage tick, exactly at the radius where damage starts
-
-**Given** a survivor taking fire damage (server events)
-**When** they burn
-**Then** every player sees flames, embers and smoke on that survivor, and the burning player also sees an orange screen-edge glow and a "-5" damage number per fire tick
-
-Designer picks (2026-11-23, references in `docs/art/4-11/`): sandbags **S2** (olive-drab military wall), wood barricade **B6** (sharpened palisade on struts, turns with placement), burning car **F6** (smoke, burning debris, glow, a circle of small fires at the damage edge); burning cues: all four. **B8** (upright pallets + barbed wire) is kept for a later barricade upgrade (Epic 5).
-
-### Story 4.12: Story 4.11 objects redrawn in game code
-
-As the designer,
-I want every object in the game drawn in game code,
-So that the art is consistent, free to change and ready for customization.
-
-(Added 2026-11-23 after the designer chose game code for all art; mockups on the comparison page, "round 4" and "round 5" cards.)
-
-**Acceptance Criteria:**
-
-**Given** the wood barricade (B6), the sandbags (S2), the burning car (designer's pick from three code versions) and the burning-survivor flames/smoke
-**When** they are drawn
-**Then** they come from game-code drawing functions with the same look as the accepted mockups, the 4.11 rules still hold (flames' visible edge at the damage radius, smoke below characters, barricade rotation with a game-drawn shadow), and the Meshy `objects` atlas and its loader are removed
-
-### Story 4.13: Survive losing the graphics (bug)
-
-As a player on a phone,
-I want the game to come back intact after I switch apps,
-So that the street, cars, survivors and zombies don't vanish.
-
-(Bug reported 2026-11-23 by the designer's friend: after switching apps and coming back, everything except the floor was invisible, and a page reload did not fix it.)
-
-**Acceptance Criteria:**
-
-**Given** the browser loses and restores the WebGL context (app switch, memory pressure)
-**When** the game comes back
-**Then** every generated texture (city tiles, character/zombie/building/fx atlases, fire particles, weapon art) is rebuilt and the game looks as before, solo and online
-
-**Given** the browser starts the game without WebGL (Phaser falls back to the Canvas renderer, e.g. Chrome blocked WebGL for the site after a GPU crash)
-**When** the game loads
-**Then** it either renders correctly in Canvas mode or shows a clear message ("Graphics acceleration is off — fully close and reopen your browser"), never a silent floor-only screen; the debug overlay shows which renderer is active
-
 ## Epic 5: Full arsenal and bestiary
 Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop; every zombie type demands its own answer.
 **FRs covered:** FR8, FR13 (6 weapons), FR14 (lobbed), FR16, FR17, FR18, FR23, FR24, FR25, FR47, FR48, FR49, FR52 (5 buildings), FR53, FR57 (acid, gas), FR84 (telegraphs)
-
-#### Story 5.14: Bear trap
-
-As a player,
-I want a bear trap that grabs a zombie and holds it in place for a few seconds,
-So that I can stop a dangerous zombie at a choke point.
-
-(Added by the designer on 2026-11-23 as a second trap type, recognisable at a glance without its name; art drawn in game code, designs on the comparison page.)
-
-**Acceptance Criteria:**
-
-**Given** a bear trap placed in the build phase (non-solid, like the 5.9 spike trap)
-**When** a zombie steps on its plate
-**Then** the jaws close and hold that zombie in place for a set time (balance JSON), then the trap must be re-armed or wears out; the closed trap looks different from the open one
-
-**Given** a Brute or other heavy zombie
-**When** it steps in
-**Then** the designer-chosen rule applies (held shorter, or breaks the trap), written as a fairness rule before the build
 
 ## Epic 6: The full run: decay, boss, events, endless
 A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets the special events, votes to extract or stay, and can go endless.
@@ -1494,6 +1416,66 @@ So that we know big-horde co-op works on our phones before building more.
 **Then** feedback on fun, difficulty, economy, building and decay is written to `docs/playtests/milestone-1.md`
 **And** the designer records a go / fix-first decision for starting Epic 5, with any fixes turned into stories
 
+### Story 4.11: Stage-object readability pass
+
+As a player,
+I want the sandbags, the wood barricade and a burning car's fire to be recognisable at a glance, and to see clearly when I am burning,
+So that I understand the street and react to fire without being told.
+
+(Added by the designer on 2026-11-23 after playing the deployed build; prototype: `claude.ai/artifact/DD4ECzvpxW98HGW65b6oGZ`.)
+
+**Acceptance Criteria:**
+
+**Given** stage 3 sandbags
+**When** they are drawn
+**Then** they read as burlap sandbags (tan, pillow-shaped, tied ends, woven texture, brick stacking) and still look low (short shadow)
+
+**Given** a wood barricade
+**When** it is drawn
+**Then** it reads as nailed wooden planks with a cross-brace, clearly different from sandbags, with the damage look and HP bar unchanged
+
+**Given** a burning car
+**When** a player approaches
+**Then** the damage edge is shown by flames along the zone edge that pulse with the damage tick, exactly at the radius where damage starts
+
+**Given** a survivor taking fire damage (server events)
+**When** they burn
+**Then** every player sees flames, embers and smoke on that survivor, and the burning player also sees an orange screen-edge glow and a "-5" damage number per fire tick
+
+Designer picks (2026-11-23, references in `docs/art/4-11/`): sandbags **S2** (olive-drab military wall), wood barricade **B6** (sharpened palisade on struts, turns with placement), burning car **F6** (smoke, burning debris, glow, a circle of small fires at the damage edge); burning cues: all four. **B8** (upright pallets + barbed wire) is kept for a later barricade upgrade (Epic 5).
+
+### Story 4.12: Story 4.11 objects redrawn in game code
+
+As the designer,
+I want every object in the game drawn in game code,
+So that the art is consistent, free to change and ready for customization.
+
+(Added 2026-11-23 after the designer chose game code for all art; mockups on the comparison page, "round 4" and "round 5" cards.)
+
+**Acceptance Criteria:**
+
+**Given** the wood barricade (B6), the sandbags (S2), the burning car (designer's pick from three code versions) and the burning-survivor flames/smoke
+**When** they are drawn
+**Then** they come from game-code drawing functions with the same look as the accepted mockups, the 4.11 rules still hold (flames' visible edge at the damage radius, smoke below characters, barricade rotation with a game-drawn shadow), and the Meshy `objects` atlas and its loader are removed
+
+### Story 4.13: Survive losing the graphics (bug)
+
+As a player on a phone,
+I want the game to come back intact after I switch apps,
+So that the street, cars, survivors and zombies don't vanish.
+
+(Bug reported 2026-11-23 by the designer's friend: after switching apps and coming back, everything except the floor was invisible, and a page reload did not fix it.)
+
+**Acceptance Criteria:**
+
+**Given** the browser loses and restores the WebGL context (app switch, memory pressure)
+**When** the game comes back
+**Then** every generated texture (city tiles, character/zombie/building/fx atlases, fire particles, weapon art) is rebuilt and the game looks as before, solo and online
+
+**Given** the browser starts the game without WebGL (Phaser falls back to the Canvas renderer, e.g. Chrome blocked WebGL for the site after a GPU crash)
+**When** the game loads
+**Then** it either renders correctly in Canvas mode or shows a clear message ("Graphics acceleration is off — fully close and reopen your browser"), never a silent floor-only screen; the debug overlay shows which renderer is active
+
 ## Epic 5: Full arsenal and bestiary
 
 Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop. Every zombie type demands its own answer. Until Epic 6 the temporary run grows to 6 waves so Spitters (W4), the first Brute (W5) and Bloaters (W6) all appear. Until Epic 7 every player's pool contains every item.
@@ -1764,6 +1746,24 @@ So that every build phase is a different choice.
 **When** Vitest runs
 **Then** tests cover the card floor, owned-item exclusion, reroll and same-seed reproducibility
 **And** the fixed-list shop from Story 3.3 is removed
+
+### Story 5.14: Bear trap
+
+As a player,
+I want a bear trap that grabs a zombie and holds it in place for a few seconds,
+So that I can stop a dangerous zombie at a choke point.
+
+(Added by the designer on 2026-11-23 as a second trap type, recognisable at a glance without its name; art drawn in game code, designs on the comparison page.)
+
+**Acceptance Criteria:**
+
+**Given** a bear trap placed in the build phase (non-solid, like the 5.9 spike trap)
+**When** a zombie steps on its plate
+**Then** the jaws close and hold that zombie in place for a set time (balance JSON), then the trap must be re-armed or wears out; the closed trap looks different from the open one
+
+**Given** a Brute or other heavy zombie
+**When** it steps in
+**Then** the designer-chosen rule applies (held shorter, or breaks the trap), written as a fairness rule before the build
 
 ## Epic 6: The full run: decay, boss, events, endless
 
