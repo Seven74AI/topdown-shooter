@@ -52,35 +52,39 @@ h3{font:500 19px/1.2 var(--display);letter-spacing:.03em;text-transform:uppercas
 .seg button{font:500 10.5px var(--mono);color:var(--mute);background:transparent;border:0;padding:3px 9px;cursor:pointer;letter-spacing:.03em}
 .seg button[aria-pressed="true"]{background:var(--acid);color:var(--bg)}
 .seg button:focus-visible{outline:2px solid var(--acid);outline-offset:-2px}
+details.fold{margin-top:16px;border:1px dashed var(--card-line);border-radius:10px;padding:8px 12px}
+details.fold summary{cursor:pointer;font:500 12px var(--mono);color:var(--mute);letter-spacing:.03em}
+details.fold .grid{margin-top:12px}
 footer{margin-top:30px;color:var(--faint);font-size:12px}
 </style>
 
 <header>
   <h1>Round <span>D</span> looks</h1>
+  <p class="note"><b>Iteration 2.</b> Floodlight FL1 (base) and FL5 (upgrade) picked; new med stations MS6–MS10; new gear mockups GR6 and GR7; CI4 picked; all three hand grenades picked; molotov still open.</p>
   <p class="intro">Code drawings for Stories 5.10, 5.11 and 5.12. Everything in the street is strictly top-down. The strip under each card is real in-game size (48 px/m) with a survivor (0.4 m) and a Walker (0.35 m) for scale; the icon strips are real HUD size in CSS px.</p>
   <p class="note">Each effect stops at its real edge: floodlight pool 4 m (6 m in a blackout), med-station ring 2 m, molotov fire 3 m, hand-grenade blast 2.5 m. The molotov fire uses the fire-lab D particles (the 4.12 car fire), the grenade the EX2 shockwave. With reduced motion every card shows one still frame.</p>
 </header>
 <main>
   <section>
-    <h2>Floodlight <small>5.10 · FL1–FL5 · 1 × 1 m · light 4 m (blackout 6 m)</small></h2>
+    <h2>Floodlight <small>5.10 · picked FL1 + FL5 · 1 × 1 m · light 4 m (blackout 6 m)</small></h2>
     <p class="sub">A buildable lamp seen from straight above, casting one warm-white pool of exactly 4 m radius on wet asphalt, with rain glinting in it. The pool is one radial glow drawn with additive blend (the game’s pooled <code>FX_GLOW</code>, max 8): no lightmap, no shadows. In the strip, shots pass over the lamp (not cover) while a Walker is stopped by it (an obstacle). Use the switch under the strip for the 6 m blackout pool.</p>
     <p class="rec" id="rec-fl"></p>
     <div class="grid" id="fl"></div>
   </section>
   <section>
-    <h2>Med station <small>5.10 · MS1–MS5 · 1 × 1 m · heal ring 2 m</small></h2>
-    <p class="sub">A medical crate or kiosk, white with a cross, and a soft green ring at exactly 2 m from its centre: a body touching the ring heals 5 HP/s. In the strip the survivor inside gets the heal cue (green plus signs rising); the one outside gets nothing.</p>
+    <h2>Med station <small>5.10 · iteration 2 · MS6–MS10 · 1 × 1 m · heal ring 2 m</small></h2>
+    <p class="sub">Iteration 2: five new directions, none of them the plain white box with a cross that MS1–MS5 shared (collapsed at the bottom). Each sits on a 1 × 1 m footprint and a soft green ring at exactly 2 m from its centre: a body touching the ring heals 5 HP/s. In the strip the survivor inside gets the heal cue (green plus signs rising); the one outside gets nothing.</p>
     <p class="rec" id="rec-ms"></p>
     <div class="grid" id="ms"></div>
   </section>
   <section>
-    <h2>Gear icons <small>5.11 · GR1–GR5 · 5 icons per set</small></h2>
-    <p class="sub">Body armor I, Body armor II, Running shoes, Revive kit, Tactical flashlight, in one style per set. Big drawing on top; the strip is the real HUD: the 200 × 16 health bar, the “HP 100 / 100” text and the owned-gear icons beside it at 24 px (the story’s size) and 32 px, then shop buttons with the “Owned” state. No text inside the icons.</p>
+    <h2>Gear icons <small>5.11 · GR1–GR7 · 5 icons per set</small></h2>
+    <p class="sub">Body armor I, Body armor II, Running shoes, Revive kit, Tactical flashlight, in one style per set. New: GR6 (GR4 objects on GR2 tags) and GR7 (GR4 objects on GR5 stickers). Big drawing on top; the strip is the real HUD: the 200 × 16 health bar, the “HP 100 / 100” text and the owned-gear icons beside it at 24 px (the story’s size) and 32 px, then shop buttons with the “Owned” state. No text inside the icons.</p>
     <p class="rec" id="rec-gr"></p>
     <div class="grid" id="gr"></div>
   </section>
   <section>
-    <h2>Consumable icons <small>5.12 · CI1–CI5 · medkit, grenades, molotovs</small></h2>
+    <h2>Consumable icons <small>5.12 · picked CI4 · medkit, grenades, molotovs</small></h2>
     <p class="sub">The same five style families, on the real 64 × 64 px round consumable button (icon 40 px, count badge bottom right) left of the swap button, as under a phone’s right thumb. The last button shows the medkit greyed out at full HP.</p>
     <p class="rec" id="rec-ci"></p>
     <div class="grid" id="ci"></div>
@@ -92,8 +96,8 @@ footer{margin-top:30px;color:var(--faint);font-size:12px}
     <div class="grid" id="mb"></div>
   </section>
   <section>
-    <h2>Hand grenade <small>5.12 · HG1–HG3 · optional · blast 2.5 m</small></h2>
-    <p class="sub">A hand grenade in flight (spinning, growing with the arc), a short roll, then the EX2 shockwave and debris from round C at the 2.5 m radius. Optional: answer “HG reuse” to keep 5.5’s 40 mm round as the thrown body instead.</p>
+    <h2>Hand grenade <small>5.12 · HG1–HG3 all picked · blast 2.5 m</small></h2>
+    <p class="sub">A hand grenade in flight (spinning, growing with the arc), a short roll, then the EX2 shockwave and debris from round C at the 2.5 m radius.</p>
     <p class="rec" id="rec-hg"></p>
     <div class="grid" id="hg"></div>
   </section>
@@ -670,6 +674,67 @@ const MSS=[
  {id:'MS4',name:'Stretcher kit',desc:'A folded orange ambulance stretcher with a white trauma bag (green cross) and an oxygen bottle on top.',draw:drawMS4},
  {id:'MS5',name:'IV-pole station',desc:'A white supply cabinet with a green cross beside a five-legged drip stand holding two IV bags.',draw:drawMS5},
 ];
+
+// ---- iteration 2: MS6–MS10 (no plain white box) ----
+function heartP(x,y,s){return q=>{q.moveTo(x,y+0.6*s);q.bezierCurveTo(x-1.05*s,y-0.05*s,x-0.5*s,y-0.85*s,x,y-0.3*s);q.bezierCurveTo(x+0.5*s,y-0.85*s,x+1.05*s,y-0.05*s,x,y+0.6*s);q.closePath();};}
+function drawMS6(c){ // improvised survivor aid post: folding table under a tarp, medkits, lantern, IV bag
+  const tb=q=>R(q,-0.46,-0.32,0.8,0.64,0.02);shadowOf(c,tb,0.06,0.08,0.05,0.55);
+  rod(c,q=>{q.moveTo(-0.43,-0.37);q.lineTo(-0.43,0.37);q.moveTo(0.31,-0.37);q.lineTo(0.31,0.37);},0.02,'#7d838b');
+  const tp=q=>blobPath(q,-0.06,0,0.43,0.35,301,0.07,48);
+  part(c,tp,{base:'#6f6646',lit:'top',box:[-0.5,-0.36,0.38,0.36],tex:clothTex(302,'40,30,15'),hi:0.3,lo:0.45});
+  c.save();c.beginPath();tp(c);c.clip();for(const[x0,y0,x1,y1]of[[-0.45,-0.2,0.1,-0.3],[-0.3,0.3,0.3,0.22],[0.05,-0.36,0.35,0.1]])strokeP(c,q=>{q.moveTo(x0,y0);q.quadraticCurveTo((x0+x1)/2,(y0+y1)/2+0.05,x1,y1);},'rgba(20,16,6,0.4)',2*P);c.restore();
+  fillP(c,q=>blobPath(q,-0.12,0.03,0.17,0.16,303,0.06,30),'rgba(228,222,206,0.92)');crossPart(c,-0.12,0.03,0.22,0.075,RED);
+  for(const[x,y,w,h,col]of[[0.06,-0.27,0.17,0.11,'#b3261e'],[-0.42,0.15,0.13,0.09,'#d0641c']]){part(c,q=>R(q,x,y,w,h,0.015),{base:col,lit:'top',box:[x,y,x+w,y+h],hi:0.4,line:1});fillP(c,crossP(x+w/2,y+h/2,h*0.55,h*0.18),'#f2eee4');}
+  part(c,q=>E(q,0.17,0.17,0.05,0.05),{base:'#3a3c40',lit:'radial',box:[0.12,0.12,0.22,0.22],hi:0.4,line:1});glow(c,0.17,0.17,0.32,'255,214,150',0.5);glow(c,0.17,0.17,0.04,'255,245,220',0.9);
+  rod(c,q=>{q.moveTo(0.43,0.12);q.lineTo(0.43,0.44);},0.016,'#b8bec6');
+  part(c,q=>R(q,0.37,0.08,0.12,0.09,0.03),{base:'#cfe0d8',lit:'radial',box:[0.37,0.08,0.49,0.17],hi:0.5,lo:0.2,rim:0.5,line:1});strokeP(c,q=>{q.moveTo(0.38,0.13);q.quadraticCurveTo(0.3,0.2,0.2,-0.05);},'rgba(220,235,235,0.5)',1.2*P);}
+function drawMS7(c){ // AED / defibrillator kiosk on a concrete footing
+  const ft=q=>R(q,-0.45,-0.45,0.9,0.9,0.05);shadowOf(c,ft,0.03,0.04,0.03,0.45);
+  part(c,ft,{base:'#686761',lit:'top',box:[-0.45,-0.45,0.45,0.45],tex:polyTex(311),hi:0.25,lo:0.45});
+  hazard(c,q=>R(q,-0.45,0.36,0.9,0.09,0.03),-0.45,0.45,0.36,0.45,0.05);
+  const bd=q=>R(q,-0.33,-0.32,0.66,0.6,0.06);shadowOf(c,bd,0.07,0.09,0.05,0.65);
+  part(c,bd,{base:'#1f9150',lit:'top',box:[-0.33,-0.32,0.33,0.28],tex:steelTex(312,0.6),hi:0.4,lo:0.45});
+  part(c,q=>R(q,-0.35,-0.34,0.7,0.13,0.05),{base:'#156b3a',lit:'top',box:[-0.35,-0.34,0.35,-0.21],hi:0.35,line:1.1});
+  part(c,heartP(0,0.02,0.16),{base:'#f4f2ea',lit:'radial',box:[-0.17,-0.13,0.17,0.12],hi:0.3,lo:0.2,rim:0.2,line:1});
+  fillP(c,q=>Pg(q,[0.025,-0.11,-0.055,0.03,0.0,0.03,-0.03,0.13,0.06,-0.01,0.005,-0.01]),'#1f9150');
+  glow(c,0.24,-0.27,0.07,'120,255,150',0.9);glow(c,0,0,0.5,'110,255,150',0.16);}
+function drawMS8(c){ // big green military med crate, stencilled
+  const bp=q=>R(q,-0.48,-0.36,0.96,0.72,0.03);shadowOf(c,bp,0.05,0.06,0.04,0.6);
+  for(const s of[-1,1])strokeP(c,q=>{q.moveTo(s*0.48,-0.12);q.quadraticCurveTo(s*0.56,0,s*0.48,0.12);},'#c8b88a',3.2*P);
+  part(c,bp,{base:'#4c5832',lit:'top',box:[-0.48,-0.36,0.48,0.36],tex:woodTex(321,0,0.5),hi:0.3,lo:0.45});
+  c.save();c.beginPath();bp(c);c.clip();strokeP(c,q=>R(q,-0.43,-0.31,0.86,0.62,0.01),'rgba(12,16,4,0.6)',2.2*P);for(const x of[-0.3,0.3])fillP(c,q=>R(q,x-0.03,-0.36,0.06,0.72),'rgba(28,34,16,0.55)');
+    c.globalAlpha=0.85;strokeP(c,q=>R(q,-0.17,-0.2,0.34,0.34,0.01),'#e2ddc8',3*P);fillP(c,crossP(0,-0.03,0.24,0.08),'#e2ddc8');
+    for(let i=0;i<5;i++)fillP(c,q=>R(q,-0.2+i*0.085,0.2,0.055,0.05),'#e2ddc8');
+    const r=mulberry(322);c.globalCompositeOperation='destination-out';for(let i=0;i<90;i++)fillP(c,q=>E(q,-0.25+r()*0.5,-0.25+r()*0.55,0.006+r()*0.01,0.004+r()*0.006),'#000');c.restore();
+  part(c,bp,{base:'rgba(0,0,0,0)',box:[-0.48,-0.36,0.48,0.36],hi:0.15,lo:0.2,rim:0.2,inner:0.1});
+  for(const x of[-0.4,0.4])for(const y of[-0.33,0.33])rivet(c,x,y,0.02,'#8a8e94',true);}
+function drawMS9(c){ // pharmacy shelf dragged out and tipped on its back, green pharmacy sign on top
+  const fr=q=>R(q,-0.48,-0.32,0.96,0.64,0.02);shadowOf(c,fr,0.05,0.06,0.04,0.6);
+  part(c,fr,{base:'#b9bec4',lit:'top',box:[-0.48,-0.32,0.48,0.32],tex:steelTex(331,0.9),hi:0.35,lo:0.45});
+  const cols=['#f0ede4','#2f6fa8','#c23a24','#e8c040','#f0ede4','#58a070'],r=mulberry(332);
+  for(let row=0;row<3;row++){const y=-0.27+row*0.19;fillP(c,q=>R(q,-0.44,y,0.88,0.16),'#2b2e33');
+    for(let x=-0.42;x<0.4;){const w=0.05+r()*0.07;if(r()<0.3){part(c,q=>E(q,x+0.03,y+0.08,0.028,0.028),{base:cols[(r()*6)|0],lit:'radial',box:[x,y+0.05,x+0.06,y+0.11],hi:0.5,line:0.9});x+=0.07;}
+      else{const h=0.09+r()*0.05;part(c,q=>R(q,x,y+0.16-h-0.01,w,h,0.005),{base:cols[(r()*6)|0],lit:'top',box:[x,y,x+w,y+0.16],hi:0.3,line:0.9});x+=w+0.012;}}}
+  for(let i=0;i<4;i++){const x=-0.4+r()*0.8,y=0.34+r()*0.1;part(c,q=>R(q,x,y,0.07,0.045,0.005),{base:cols[i],lit:'top',box:[x,y,x+0.07,y+0.045],hi:0.3,line:0.9});}
+  const sx=0.22,sy=-0.02;part(c,q=>R(q,sx-0.15,sy-0.15,0.3,0.3,0.03),{base:'#1b1d20',box:[sx-0.15,sy-0.15,sx+0.15,sy+0.15],hi:0.25,line:1.1});
+  fillP(c,crossP(sx,sy,0.24,0.085),'#5dff8a');glow(c,sx,sy,0.45,'90,255,140',0.45);glow(c,sx,sy,0.14,'200,255,210',0.6);}
+function drawMS10(c){ // stack of med cases with a glowing green-cross LED panel
+  const b0=q=>R(q,-0.48,-0.4,0.96,0.8,0.05);shadowOf(c,b0,0.05,0.06,0.04,0.6);
+  part(c,b0,{base:'#3b4652',lit:'top',box:[-0.48,-0.4,0.48,0.4],tex:polyTex(341),hi:0.3,lo:0.45});
+  for(const x of[-0.3,0.3])part(c,q=>R(q,x-0.05,0.35,0.1,0.06,0.01),{base:'#1d2126',box:[x-0.05,0.35,x+0.05,0.41],hi:0.3,line:1});
+  const b1=q=>R(q,-0.44,-0.36,0.44,0.32,0.04);shadowOf(c,b1,0.05,0.06,0.04,0.6);part(c,b1,{base:'#c8641e',lit:'top',box:[-0.44,-0.36,0,-0.04],tex:polyTex(342),hi:0.35,lo:0.45});
+  strokeP(c,q=>{q.moveTo(-0.44,-0.2);q.lineTo(0,-0.2);},'rgba(0,0,0,0.4)',1.6*P);fillP(c,crossP(-0.22,-0.28,0.08,0.026),'#f2eee4');
+  const b2=q=>R(q,0.02,-0.1,0.42,0.44,0.04);shadowOf(c,b2,0.06,0.08,0.05,0.6);part(c,b2,{base:'#59616b',lit:'top',box:[0.02,-0.1,0.44,0.34],tex:steelTex(343,0.7),hi:0.35,lo:0.45});
+  part(c,q=>R(q,0.07,-0.05,0.32,0.32,0.03),{base:'#121417',box:[0.07,-0.05,0.39,0.27],hi:0.2,line:1.1});
+  fillP(c,crossP(0.23,0.11,0.24,0.085),'#5dff8a');glow(c,0.23,0.11,0.5,'90,255,140',0.5);glow(c,0.23,0.11,0.14,'210,255,220',0.6);
+  part(c,q=>R(q,-0.4,0.06,0.34,0.24,0.03),{base:'#e0ddd4',lit:'top',box:[-0.4,0.06,-0.06,0.3],tex:clothTex(344,'80,80,70'),hi:0.3,lo:0.4});strokeP(c,q=>{q.moveTo(-0.4,0.18);q.lineTo(-0.06,0.18);},'rgba(0,0,0,0.3)',2*P);}
+const MSS2=[
+ {id:'MS6',name:'Improvised aid post',desc:'A folding table under a khaki tarp with a painted red cross, two medkits, a lit lantern and an IV bag on a pole: survivors made this.',draw:drawMS6},
+ {id:'MS7',name:'AED kiosk',desc:'A bright green defibrillator kiosk on a concrete footing with hazard tape: white heart with a bolt, a green status light.',draw:drawMS7},
+ {id:'MS8',name:'Military med crate',desc:'A big olive army crate with rope handles and a worn white stencil: cross in a square, stencil bars.',draw:drawMS8},
+ {id:'MS9',name:'Pharmacy shelf',desc:'A pharmacy shelf dragged into the street and tipped on its back: boxes and bottles in the racks, a lit green pharmacy cross on top.',draw:drawMS9},
+ {id:'MS10',name:'Case stack, green panel',desc:'Hard cases stacked on a blue-grey crate (orange, grey, a white bag) with a glowing green-cross LED panel on top.',draw:drawMS10},
+];
 const MS_R=2;
 function healRing(c,cx,cy,Rpx,T){c.setTransform(DPR,0,0,DPR,0,0);c.globalCompositeOperation='source-over';
   const g=c.createRadialGradient(cx,cy,Rpx*0.62,cx,cy,Rpx);g.addColorStop(0,'rgba(90,220,130,0)');g.addColorStop(1,'rgba(90,220,130,0.17)');c.fillStyle=g;c.beginPath();c.arc(cx,cy,Rpx,0,TAU);c.fill();
@@ -757,6 +822,8 @@ const ICONS={
 };
 const GEAR_IDS=['armor1','armor2','shoes','revive','flash'],CONS_IDS=['medkit','grenade','molotov'];
 function makePainter(st,g,size,ic){
+  if(st==='realtag'||st==='realsticker'){const base=makePainter(st==='realtag'?'tag':'sticker',g,size,ic),real=makePainter('real',g,size,ic);
+    return Object.assign({},real,{pre(){base.pre();if(st==='realtag'){g.translate(0.5,0.5);g.scale(0.8,0.8);g.translate(-0.5,-0.5);}}});}
   const px=1/size,col=ic.col,W1=w=>Math.max(px,w);
   const cut=f=>{g.save();g.globalCompositeOperation='destination-out';f();g.restore();};
   if(st==='stencil'){const pc='#eadcbc';return{
@@ -807,6 +874,8 @@ const STYLES=[
  {st:'edge',g:'GR3',c:'CI3',name:'Silhouette + colour edge',gd:'Near-black silhouettes with a bright coloured edge and a soft glow, one colour per item (armour blue, shoes yellow, kit green, light warm white).',cd:'Dark silhouettes with a glowing coloured edge like GR3: medkit red, grenade olive-yellow, molotov orange.'},
  {st:'real',g:'GR4',c:'CI4',name:'Realistic mini-illustration',gd:'Small painted objects in their real colours: olive vest, black plate carrier, red runner, red medic bag with a syringe, black torch with a beam.',cd:'Painted objects like GR4: white first-aid tin, olive grenade, green bottle with a burning rag.'},
  {st:'sticker',g:'GR5',c:'CI5',name:'Police evidence sticker',gd:'A black pictogram on a cream evidence sticker with a red band and a peeled corner (the card shop’s C3 “police evidence tag” family).',cd:'Evidence stickers like GR5; red band, peeled corner, black pictogram.'},
+ {st:'realtag',g:'GR6',c:null,name:'Painted objects on metal tags',gd:'New: the GR4 painted objects, each mounted on the GR2 steel tag. The grey plate gives the dark items (plate carrier, torch) a background on any screen.'},
+ {st:'realsticker',g:'GR7',c:null,name:'Painted objects on stickers',gd:'New: the GR4 painted objects on the GR5 evidence sticker (cream, red band, peeled corner): the brightest, card-shop look.'},
 ];
 const MC=mk(4,4).getContext('2d');
 function renderGRMain(o){const W=o.W,H=o.H;const c=prep(o.cv,W,H);if(!o.bg)o.bg=bgCharcoal(W,H);c.drawImage(o.bg,0,0);
@@ -838,13 +907,17 @@ function consBtn(c,cx,cy,img,count,grey){roundBtn(c,cx,cy,grey);putIcon(c,img,cx
   if(count){c.setTransform(DPR,0,0,DPR,0,0);const bx=cx+22,by=cy+22;c.globalAlpha=grey?0.6:1;c.fillStyle='#101214';c.beginPath();c.arc(bx,by,11,0,TAU);c.fill();c.lineWidth=1.5;c.strokeStyle='rgba(255,255,255,0.75)';c.stroke();
     c.fillStyle='#fff';c.font='700 12px system-ui, sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('×'+count,bx,by+0.5);c.globalAlpha=1;}}
 function swapBtn(c,cx,cy){roundBtn(c,cx,cy,false);c.fillStyle='#fff';c.font='28px system-ui, sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('⇄',cx,cy+1);}
-function renderCIStrip(o){const W=Math.max(300,Math.round(o.sv.clientWidth||540)),H=214;const c=prep(o.sv,W,H);c.drawImage(stripBg(o,W,H),0,0);
+function renderCIStrip(o){const pair=o.S.c==='CI4',W=Math.max(300,Math.round(o.sv.clientWidth||540)),H=pair?214+3*64+30:214;const c=prep(o.sv,W,H);c.drawImage(stripBg(o,W,H),0,0);
   const sx=W-24-32,s2=sx-64-16,y1=50,y2=150;
   // phone layout: consumable 16 px left of swap, same height (story D5)
   consBtn(c,s2,y2,bakeIcon(o.S.st,'grenade',40),3);swapBtn(c,sx,y2);
   consBtn(c,sx,y1,bakeIcon(o.S.st,'medkit',40),1,true);consBtn(c,sx-80,y1,bakeIcon(o.S.st,'medkit',40),1);consBtn(c,sx-160,y1,bakeIcon(o.S.st,'molotov',40),2);
   label(c,sx,y1+46,'full HP');label(c,sx-80,y1+46,'medkit');label(c,sx-160,y1+46,'molotov');label(c,s2,y2+46,'consumable');label(c,sx,y2+46,'swap');
-  if(W>460){c.setTransform(DPR,0,0,DPR,0,0);c.globalAlpha=0.12;c.fillStyle='#fff';c.beginPath();c.ellipse(sx-30,H+40,90,70,0,0,TAU);c.fill();c.globalAlpha=1;label(c,14,y2+4,'right-thumb corner, 64 px buttons, icon 40 px','rgba(230,228,220,0.45)','left');}}
+  if(W>460){c.setTransform(DPR,0,0,DPR,0,0);c.globalAlpha=0.12;c.fillStyle='#fff';c.beginPath();c.ellipse(sx-30,H+40,90,70,0,0,TAU);c.fill();c.globalAlpha=1;label(c,14,y2+4,'right-thumb corner, 64 px buttons, icon 40 px','rgba(230,228,220,0.45)','left');}
+  if(pair){const y=222;c.setTransform(DPR,0,0,DPR,0,0);c.fillStyle='rgba(8,9,11,0.62)';c.fillRect(8,y-6,W-16,3*64+24);label(c,16,y+8,'CI4 beside each realistic gear set (all 32 px)','rgba(230,228,220,0.7)','left');
+    ['GR4','GR6','GR7'].forEach((gid,i)=>{const S=STYLES.find(q=>q.g===gid),ry=y+20+i*64;label(c,16,ry+9,gid+' · '+S.name+'   |   CI4','rgba(184,240,74,0.8)','left');let x=16;
+      for(const id of GEAR_IDS){putIcon(c,bakeIcon(S.st,id,32),x,ry+16,32);x+=35;}x+=6;c.setTransform(DPR,0,0,DPR,0,0);c.fillStyle='rgba(255,255,255,0.25)';c.fillRect(x,ry+18,1,28);x+=8;
+      for(const id of CONS_IDS){putIcon(c,bakeIcon('real',id,32),x,ry+16,32);x+=35;}});}}
 
 // ================= THROWN BODIES (metres, along +x) =================
 function glassPart(c,path,box,base){part(c,path,{base,lit:'top',box,hi:0.55,lo:0.5,rim:0.5,inner:0.3,line:1.1});}
@@ -995,7 +1068,9 @@ function renderHGStrip(o){const[W,H]=stripSize(o,280);const c=prep(o.sv,W,H);c.d
   label(c,12,16,`throw ${Math.hypot(S[0],S[1]).toFixed(1)} m (2–8 m)`,'rgba(230,228,220,0.5)','left');}
 
 // ================= PAGE =================
-const REC={fl:'FL1',ms:'MS2',gr:'GR3',ci:'CI3',mb:'MB1',hg:'HG2'};
+const REC={fl:'FL1',ms:'MS7',gr:'GR6',ci:'CI4',mb:'MB1',hg:'HG1'};
+function fold(gridId,text){const d=document.createElement('details');d.className='fold';d.innerHTML=`<summary>${text}</summary><div class="grid"></div>`;document.getElementById(gridId).after(d);
+  d.addEventListener('toggle',()=>{if(d.open)requestAnimationFrame(()=>cards.forEach(o=>{if(d.contains(o.el)){o.drawMain(o,o.T);o.drawStrip(o,o.T);}}));});return d.querySelector('.grid');}
 const cards=[];
 function makeCard(parent,o){const a=document.createElement('article');a.className='card';
   const seg=o.toggle?`<span class="seg" role="group" aria-label="Light pool"><button type="button" data-m="0" aria-pressed="true">normal · 4 m</button><button type="button" data-m="1" aria-pressed="false">blackout · 6 m</button></span>`:'';
@@ -1008,20 +1083,24 @@ function stripBg(o,W,H){if(!o.bg2||o.bg2w!==W||o.bg2h!==H){o.bg2=bgAsphalt(W,H,o
 function build(){
   GRAIN=makeGrain();AGG=makeAgg();buildFx();buildRD();
   const recs={
-    fl:'<b>Recommended: FL1</b> tripod work light. Its yellow legs read at 48 px as “a lamp on legs”, and the open tripod says “you can shoot past this” better than a solid base; FL3 if you want something chunkier.',
-    ms:'<b>Recommended: MS2</b> cabinet on a stand. White box + cross reads instantly at night and the visible legs say “obstacle, not cover”; MS1 has the strongest cross but looks like a crate you could hide behind.',
-    gr:'<b>Recommended: GR3</b> silhouette + colour edge. It is the only set where all five stay distinct at 24 px on a dark phone screen (colour does the work); GR5 stickers if you want the card-shop family look.',
-    ci:'<b>Recommended: CI3</b>, the same family as GR3 (pick the gear and consumable sets by the same number: GR1+CI1 … GR5+CI5). Red, olive and orange edges tell the three apart on the button at a glance.',
-    mb:'<b>Recommended: MB1</b> wine bottle with the even pool. The fire reaches the whole 3 m circle fastest, so what you see is what burns; MB2’s forward splash is the most dramatic if a little less honest for 0.75 s.',
-    hg:'<b>Recommended: HG2</b> smooth M67 (matches the CI grenade icon; at 48 px every grenade is a 4 px blob, so a round silhouette and the blast matter more than ridges). Reusing the 40 mm round is fine too.'};
+    fl:'<b>Picked: FL1</b> tripod work light as the base look, <b>FL5</b> stadium lamp on sandbags as the upgrade/skin look.',
+    ms:'<b>Recommended: MS7</b> AED kiosk. It is the only one that reads as “medical” without a white box: a bright green block with a white heart, the same green as the heal ring, so ring and station read as one thing at night; a concrete footing and a slim kiosk say obstacle, not cover. MS10 if you want a glowing cross.',
+    gr:'<b>Recommended: GR6</b> painted objects on metal tags. CI4 is realistic, so the gear should be too, and plain GR4 loses its dark items (plate carrier, torch) on the dark HUD; the grey tag gives every icon the same outline at 24 px without GR7’s bright cream squares shouting next to the HP bar.',
+    ci:'<b>Picked: CI4</b> realistic painted objects. The CI4 card shows it beside GR4, GR6 and GR7 to choose the matching gear set.',
+    mb:'<b>Recommended: MB1</b> wine bottle with the even pool (no answer yet). The fire reaches the whole 3 m circle fastest, so what you see is what burns.',
+    hg:'<b>Picked: all three.</b> HG1 pineapple is the base look; HG2 and HG3 are random or upgrade variants (at 48 px every grenade is a 4 px blob, so the variety costs nothing in readability).'};
   for(const k in recs)document.getElementById('rec-'+k).innerHTML=recs[k];
   const tagOf=(cat,id)=>REC[cat]===id?'recommended':'';
-  FLS.forEach((F,i)=>makeCard(document.getElementById('fl'),{pud2:2,id:F.id,name:F.name,desc:F.desc,F,W:600,H:280,seed:300+i*7,anim:true,toggle:true,tag:tagOf('fl',F.id),stripR:'1 × 1 m',drawMain:renderFLMain,drawStrip:renderFLStrip,step:(o,dt)=>{o.T+=dt;},still:2.86}));
-  MSS.forEach((F,i)=>makeCard(document.getElementById('ms'),{id:F.id,name:F.name,desc:F.desc,F,W:600,H:280,seed:400+i*7,anim:true,tag:tagOf('ms',F.id),stripR:'ring = 2 m from the centre',drawMain:renderMSMain,drawStrip:renderMSStrip,step:(o,dt)=>{o.T+=dt;},still:0.5}));
-  STYLES.forEach((S,i)=>makeCard(document.getElementById('gr'),{id:S.g,name:S.name,desc:S.gd,S,W:600,H:170,seed:500+i*7,anim:false,tag:tagOf('gr',S.g)||(S.g==='GR5'?'card-shop family':''),stripL:'real HUD size · CSS px',stripR:'pairs with '+S.c,drawMain:renderGRMain,drawStrip:renderGRStrip}));
-  STYLES.forEach((S,i)=>makeCard(document.getElementById('ci'),{id:S.c,name:S.name,desc:S.cd,S,W:600,H:176,seed:550+i*7,anim:false,tag:tagOf('ci',S.c),stripL:'real button size · CSS px',stripR:'pairs with '+S.g,drawMain:renderCIMain,drawStrip:renderCIStrip}));
+  const flNo=fold('fl','FL2–FL4 · not picked (click to show)'),msNo=fold('ms','MS1–MS5 · rejected in iteration 1 (click to show)'),ciNo=fold('ci','CI1, CI2, CI3, CI5 · not picked (click to show)');
+  const flTag={FL1:'picked · base',FL5:'picked · upgrade'};
+  FLS.forEach((F,i)=>makeCard(flTag[F.id]?document.getElementById('fl'):flNo,{pud2:2,id:F.id,name:F.name,desc:F.desc,F,W:600,H:280,seed:300+i*7,anim:true,toggle:true,tag:flTag[F.id]||'not picked',stripR:'1 × 1 m',drawMain:renderFLMain,drawStrip:renderFLStrip,step:(o,dt)=>{o.T+=dt;},still:2.86}));
+  MSS2.forEach((F,i)=>makeCard(document.getElementById('ms'),{id:F.id,name:F.name,desc:F.desc,F,W:600,H:280,seed:450+i*7,anim:true,tag:tagOf('ms',F.id)||'new',stripR:'ring = 2 m from the centre',drawMain:renderMSMain,drawStrip:renderMSStrip,step:(o,dt)=>{o.T+=dt;},still:0.5}));
+  MSS.forEach((F,i)=>makeCard(msNo,{id:F.id,name:F.name,desc:F.desc,F,W:600,H:280,seed:400+i*7,anim:true,tag:'rejected',stripR:'ring = 2 m from the centre',drawMain:renderMSMain,drawStrip:renderMSStrip,step:(o,dt)=>{o.T+=dt;},still:0.5}));
+  STYLES.forEach((S,i)=>makeCard(document.getElementById('gr'),{id:S.g,name:S.name,desc:S.gd,S,W:600,H:170,seed:500+i*7,anim:false,tag:tagOf('gr',S.g)||(S.c?'':'new'),stripL:'real HUD size · CSS px',stripR:S.c?'pairs with '+S.c:'pairs with CI4',drawMain:renderGRMain,drawStrip:renderGRStrip}));
+  STYLES.filter(S=>S.c).forEach((S,i)=>makeCard(S.c==='CI4'?document.getElementById('ci'):ciNo,{id:S.c,name:S.name,desc:S.cd+(S.c==='CI4'?' Below the buttons: CI4 next to GR4, GR6 and GR7.':''),S,W:600,H:176,seed:550+i*7,anim:false,tag:S.c==='CI4'?'picked':'not picked',stripL:'real button size · CSS px',stripR:S.c==='CI4'?'gear: GR4 / GR6 / GR7':'pairs with '+S.g,drawMain:renderCIMain,drawStrip:renderCIStrip}));
   MBS.forEach((M,i)=>{const st=makeMol(M);st.S0=throwFrom(5.2,MOL_R);const o=makeCard(document.getElementById('mb'),{id:M.id,name:M.name,desc:M.desc,st,W:600,H:400,seed:600+i*7,anim:true,tag:tagOf('mb',M.id),stripR:'fire 3 m · 4 s',drawMain:(o)=>renderMBMain(o.st),drawStrip:(o)=>{renderMBStripW(o);},step:(o,dt)=>{throwFor(o,MOL_R,166,170,330);stepMol(o.st,dt);},still:MB_T0+1.4});st.cv=o.cv;st.W=600;st.H=400;st.seed=o.seed;});
-  HGS.forEach((Hd,i)=>{const st=makeHG(Hd);st.S0=throwFrom(5.6,HG_R+0.5);const o=makeCard(document.getElementById('hg'),{id:Hd.id,name:Hd.name,desc:Hd.desc,st,W:600,H:400,seed:700+i*7,anim:true,tag:tagOf('hg',Hd.id),stripR:'blast 2.5 m',drawMain:(o)=>renderHGMain(o.st),drawStrip:(o)=>renderHGStripW(o),step:(o,dt)=>{throwFor(o,HG_R+0.5,150,140,280);stepHG(o.st,dt);},still:HG_T0+0.14});st.cv=o.cv;st.W=600;st.H=400;st.seed=o.seed;});
+  const hgTag={HG1:'picked · base',HG2:'picked · variant',HG3:'picked · variant'};
+  HGS.forEach((Hd,i)=>{const st=makeHG(Hd);st.S0=throwFrom(5.6,HG_R+0.5);const o=makeCard(document.getElementById('hg'),{id:Hd.id,name:Hd.name,desc:Hd.desc,st,W:600,H:400,seed:700+i*7,anim:true,tag:hgTag[Hd.id],stripR:'blast 2.5 m',drawMain:(o)=>renderHGMain(o.st),drawStrip:(o)=>renderHGStripW(o),step:(o,dt)=>{throwFor(o,HG_R+0.5,150,140,280);stepHG(o.st,dt);},still:HG_T0+0.14});st.cv=o.cv;st.W=600;st.H=400;st.seed=o.seed;});
   const draw=o=>{o.drawMain(o,o.T);o.drawStrip(o,o.T);};
   const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches||QS.has('static');
   STATIC=reduce&&FREEZE==null;
