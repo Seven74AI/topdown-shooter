@@ -37,7 +37,7 @@ Every story also starts with an **art pick**: the designer chooses the look from
 
 **5.4 Flamethrower:** car fires stay full damage; flames never ignite players; burning zombies keep chasing; zombie burn 5 every 0.25 s; 1 fuel per firing tick, auto reload; no building damage; price 700.
 
-**5.5 Grenade Launcher:** touch aim = stick push mapped to 3–12 m with a landing ring; rounds burst at a car's face (no lob over); minimum 3 m; no building damage; zombies pushed 0.6 m; no knockback on players; 20 m/s; price 800.
+**5.5 Grenade Launcher:** touch aim = stick push mapped to 3–12 m with a landing ring; ~~rounds burst at a car's face (no lob over)~~ rounds fly over everything except real buildings (changed 2026-11-23, see below); minimum 3 m; no building damage; zombies pushed 0.6 m; no knockback on players; 20 m/s; price 800.
 
 **5.8 Bloaters:** blast kills credit whoever popped it (passed down a chain); 40 damage to buildings; chain blasts one link per tick (max 8); radius 0.5 m; swell blast 20 ticks after it starts, standing still; gas slow = Crawler slow; wave 6 mix walker 40 / runner 20 / crawler 15 / spitter 10 / bloater 15.
 
@@ -104,6 +104,7 @@ Page: claude.ai/artifact/GzRpZP8eS6n7JVMDs9ctcy (code drawings, copied to `docs/
 - **Fire = fire-lab version D** (designer, 2026-11-23): fuel-fire particle flames, smoke and embers on normal asphalt (scorch + soft flickering ground light, no lava pool), a ring of flames at the 2 m damage edge. Code in `docs/art/4-12/fire-lab.html` (panel D; survivor panel for the burning survivor). Story 4.12 builds it.
 - **Melee can't hit through barricades and walls** (designer, 2026-11-23, after the 5.2 review found chainsaw farming from behind a barricade): wall buildings and shot-blocking map cover (walls, cars, bus, buildings) stop melee; low cover that bullets pass (sandbags, police barriers, traps, mines) doesn't. Applies to every melee weapon (Machete, Fire Axe, Chainsaw). Built in the 5.2 fix round.
 - **Brute and narrow gaps** (designer, 2026-11-23, after the 5.7 review found players untouchable in 1 m car gaps): when the player is in a gap the Brute can't enter, its reach grows from 1.3 m to 1.8 m (same 0.5 s wind-up, dodged by stepping deeper; still needs a clear line).
+- **Grenade Launcher lobs over obstacles** (designer, 2026-11-23, replacing 5.5's "no lob over"): rounds fly over cars, the bus, gas pumps, low walls, barriers, sandbags, barricades and turrets; only real buildings (map collision boxes with `building: true`: the corner shop, apartments, gas kiosk, diner, offices, warehouse) stop them at the face. A round aimed onto a car's roof lands at the car's near face (so the blast still sees around it). Explosions are still shielded by cars and the bus (FR-C unchanged).
 
 ## Round C looks (designer, 2026-11-23)
 
