@@ -2,7 +2,7 @@ import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import type { ExplodesStats } from "../config/balanceSchema";
 import { ticksFor } from "../core/time";
-import { explode, type BlastExtra } from "../combat/explosion";
+import { createExplosionSpec, explode } from "../combat/explosion";
 import { shotLineClear } from "../combat/cover";
 import { slowPlayer } from "../player/slow";
 import { AREA_KIND, clearAreas, spawnArea, type AreaPool } from "../hazards/areaPool";
@@ -91,8 +91,8 @@ export function explodesOf(world: Readonly<World>, typeIndex: number): Readonly<
 
 /** True while a blast runs (its kills are chain links: queued for the next tick, FR-E). */
 let inBlast = false;
-/** Reused for every blast (no allocation). */
-const extra: BlastExtra = { buildingDamage: 0, pushM: 0 };
+/** Reused for every blast (no allocation). Story 5.5 merge: the shared spec API. */
+const spec = createExplosionSpec();
 
 /**
  * One blast at (x, y) with type `typeIndex`'s stats, credited to `credit` (and turret `building`),
@@ -104,12 +104,24 @@ function runBlast(world: World, typeIndex: number, x: number, y: number, credit:
   bloaterStats.blasts++;
   if (chain) bloaterStats.chainBlasts++;
   blastTrace.fn?.(x, y, credit, chain, world.tick);
-  extra.buildingDamage = e.buildingDamage;
-  extra.pushM = e.pushM;
+  spec.x = x;
+  spec.y = y;
+  spec.radiusM = e.blastRadiusM;
+  spec.zombieDamage = e.zombieDamage;
+  spec.playerDamage = e.playerDamage;
+  spec.friendlyFire = false; // D1: the full playerDamage to everyone, even when a player popped it
+  spec.buildingDamage = e.buildingDamage;
+  spec.pushM = e.pushM;
+  spec.kind = "bloater";
+  spec.sourcePlayerId = credit; // D2: the kills credit whoever popped it
+  spec.weapon = BLOATER_BLAST_WEAPON;
+  spec.buildingId = building;
+  spec.quiet = false;
+  spec.grenadeId = 0;
+  spec.announce = false; // its own `bloater.burst` is the visual
   const was = inBlast;
   inBlast = true;
-  // D1: the player damage is the Bloater's own (playerShare = playerDamage / zombieDamage, never halved).
-  explode(world, x, y, e.blastRadiusM, e.zombieDamage, e.playerDamage / e.zombieDamage, credit, BLOATER_BLAST_WEAPON, building, extra);
+  explode(world, spec);
   inBlast = was;
   spawnArea(world.gas, world.balance.zombies.blasts.maxGasClouds, AREA_KIND.GAS, 0, x, y, e.gasRadiusM, ticksFor(e.gasS), world.tick);
   world.events.emit({ type: "bloater.burst", x, y, chain });

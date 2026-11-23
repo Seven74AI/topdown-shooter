@@ -117,6 +117,18 @@ export type SimEvent =
   /** Story 5.1: `playerId` upgraded the weapon in `slot` to `level` (2–maxLevel; build phase only). */
   | { type: "weapon.upgraded"; playerId: string; weapon: string; slot: 0 | 1; level: number }
   /**
+   * Story 5.5: `playerId` lobbed round `grenadeId` (u8, wraps) from the muzzle (x, y); it bursts at
+   * (tx, ty) — the aim point, or in front of the first car / bus / building on its track — on
+   * server tick `landTick`. The client flies a cosmetic round from this (no per-tick state).
+   */
+  | { type: "grenade.launched"; playerId: string; grenadeId: number; x: number; y: number; tx: number; ty: number; landTick: number; /** landTick − the launch tick (the wire carries this, u8). */ flightTicks: number; /** Client only (never on the wire): seconds since the server tick, set by NetSimHost on drain. */ ageS?: number }
+  /**
+   * Story 5.5 (shared with 5.8, 5.9, 5.12): a blast of `radiusM` at (x, y) (`EXPLOSION_KINDS[kind]`),
+   * set off by `sourcePlayerId` (null: no player, or one who left). Its hits, kills and player
+   * damage follow as their own events; this is the visual. `grenadeId` = the round that burst (0: none).
+   */
+  | { type: "explosion.happened"; kind: number; x: number; y: number; radiusM: number; sourcePlayerId: string | null; grenadeId: number; /** Client only, as above. */ ageS?: number }
+  /**
    * Story 5.8 (FR-A): Bloater `zombieId` touched a standing player and started its swell at (x, y):
    * it bursts exactly `explodes.swellS` later where it stands (the client's cue and fuse ring; the
    * swell is also the zombie's streamed SWELL state).

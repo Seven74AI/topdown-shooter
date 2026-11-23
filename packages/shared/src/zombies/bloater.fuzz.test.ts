@@ -5,7 +5,7 @@ import { addBuildingAt, buildingStats, footprint, footprintBlocked, type Box, ty
 import { circleOverlapsBox } from "../buildings/collision";
 import { shotLineClear } from "../combat/cover";
 import { applyZombieDamage } from "../combat/damage";
-import { explode } from "../combat/explosion";
+import { createExplosionSpec, explode } from "../combat/explosion";
 import { createRng, type Rng } from "../core/rng";
 import { DAMAGE_SOURCE_EXPLOSION, type SimEvent } from "../core/simEvents";
 import { ticksFor } from "../core/time";
@@ -171,7 +171,7 @@ describe("Story 5.8 Bloater fuzz (AC 9): random Downtown layouts × stages × 4 
             const id = z.aliveIds[rng.int(0, z.aliveCount - 1)] as number;
             const how = rng.int(0, 9);
             if (how < 4) applyZombieDamage(world, id, 1000, 1, 0, 0, `p${rng.int(0, 3)}`, "pistol");
-            else if (how < 6) explode(world, z.x[id] as number, z.y[id] as number, 1.5, 100, 0, "p0", "grenade_launcher");
+            else if (how < 6) explode(world, { ...createExplosionSpec(), x: z.x[id] as number, y: z.y[id] as number, radiusM: 1.5, zombieDamage: 100, playerDamage: 0, sourcePlayerId: "p0", weapon: "grenade_launcher", buildingId: 0, kind: "grenade" });
             else if (how < 8) killZombie(world, id, null, "fire");
             else {
               if (z.type[id] === BLOATER) removed.add(id);

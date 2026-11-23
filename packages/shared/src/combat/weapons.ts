@@ -1,5 +1,5 @@
 import type { Balance } from "../config/balance";
-import type { GunStats, MeleeStats, WeaponStats } from "../config/balanceSchema";
+import type { GunStats, LauncherStats, MeleeStats, WeaponStats } from "../config/balanceSchema";
 
 /** A balance weapon id ("pistol", "smg", …). Validated against balance at use. */
 export type WeaponId = string;
@@ -24,6 +24,10 @@ export function weaponStats(balance: Balance, id: WeaponId): WeaponStats {
 
 export const isGun = (w: WeaponStats): w is GunStats => w.kind === "gun";
 export const isMelee = (w: WeaponStats): w is MeleeStats => w.kind === "melee";
+/** Story 5.5: the Grenade Launcher (lobs a round; magazine and reload as a gun's). */
+export const isLauncher = (w: WeaponStats): w is LauncherStats => w.kind === "launcher";
+/** Story 5.5: a weapon with a magazine and a reload (guns and launchers): the shared ammo rules. */
+export const hasMagazine = (w: WeaponStats): w is GunStats | LauncherStats => w.kind === "gun" || w.kind === "launcher";
 
 /**
  * Story 5.1 (F2, F5): the ONE damage source for player weapons. Level L deals

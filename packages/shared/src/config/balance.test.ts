@@ -9,9 +9,10 @@ import bots from "./balance/bots.json" with { type: "json" };
 import buildings from "./balance/buildings.json" with { type: "json" };
 import shop from "./balance/shop.json" with { type: "json" };
 import decay from "./balance/decay.json" with { type: "json" };
+import combat from "./balance/combat.json" with { type: "json" };
 import economy from "./balance/economy.json" with { type: "json" };
 
-const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay })) as RawBalanceFiles;
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat })) as RawBalanceFiles;
 
 describe("loadBalance", () => {
   it("loads the bundled files into a typed object", () => {
@@ -41,8 +42,8 @@ describe("loadBalance", () => {
     expect(b.weapons.chainsaw).toMatchObject({ kind: "melee", name: "Chainsaw", damage: 6, rateHz: 10, rangeM: 1.5, arcDeg: 60, knockbackM: 0, hitPushbackM: 0.05, screenShake: false, price: 600, wielderSlowPct: 20, quietHits: true });
     expect(b.weapons.machete).toMatchObject({ knockbackM: 0, wielderSlowPct: 0, quietHits: false }); // unchanged
     // Appended after Round A's ids: the wire's weapon index of every older weapon stays.
-    expect(Object.keys(b.weapons)).toEqual(["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw"]);
-    expect(b.shop.weapons.slice(-2)).toEqual(["fire_axe", "chainsaw"]);
+    expect(Object.keys(b.weapons)).toEqual(["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher"]);
+    expect(b.shop.weapons.slice(-3)).toEqual(["fire_axe", "chainsaw", "grenade_launcher"]);
     for (const [id, t] of Object.entries(b.zombies.types)) expect(t.knockbackTakenPct, id).toBe(id === "brute" ? 20 : 100); // Story 5.7: the Brute takes 20 %
     expect(b.controls.fx).toMatchObject({ maxSwingArcs: 8, maxChainsawSparks: 32 });
   });
@@ -258,5 +259,27 @@ describe("Story 5.1: weapon upgrades", () => {
     const neg = raw();
     (neg.weapons as { pistol: { upgradeBasePrice: number } }).pistol.upgradeBasePrice = -1;
     expect(() => loadBalance(neg)).toThrow(/weapons\.json: pistol\.upgradeBasePrice/);
+  });
+});
+
+describe("Story 5.5: the Grenade Launcher and combat.json", () => {
+  type Raw = { weapons: Record<string, Record<string, unknown>>; combat: { friendlyFire: Record<string, unknown>; explosion: Record<string, unknown> }; buildings: { types: Record<string, { mine?: Record<string, unknown> }> } };
+  const bad = (edit: (f: Raw) => void, re: RegExp): void => {
+    const files = raw();
+    edit(files as unknown as Raw);
+    expect(() => loadBalance(files)).toThrow(re);
+  };
+  it("loads the launcher (GDD numbers) and the explosion block", () => {
+    const b = loadBalance();
+    expect(b.weapons.grenade_launcher).toMatchObject({ kind: "launcher", damage: 40, rateHz: 0.8, lobRangeM: 12, minLobM: 3, lobSpeedMps: 20, blastRadiusM: 2, blastPushM: 0.6, blastBuildingDamage: 0, magazine: 4, reloadS: 3, price: 800 });
+    expect(b.combat).toMatchObject({ friendlyFire: { pct: 50, canDown: true }, explosion: { maxLiveRounds: 32, faceBackoffM: 0.05 } });
+  });
+  it("refuses minLobM ≥ lobRangeM, rangeM ≠ lobRangeM, a flight over 255 ticks, a pool over 255, a mine share apart from the friendly-fire rule", () => {
+    bad((f) => ((f.weapons.grenade_launcher as Record<string, unknown>).minLobM = 12), /minLobM must be below lobRangeM/);
+    bad((f) => ((f.weapons.grenade_launcher as Record<string, unknown>).rangeM = 10), /must equal lobRangeM/);
+    bad((f) => ((f.weapons.grenade_launcher as Record<string, unknown>).lobSpeedMps = 0.5), /255 ticks/);
+    bad((f) => (f.combat.explosion.maxLiveRounds = 256), /maxLiveRounds/);
+    bad((f) => ((f.buildings.types.mine?.mine as Record<string, unknown>).playerShare = 0.4), /friendlyFire\.pct/);
+    bad((f) => ((f.weapons.grenade_launcher as Record<string, unknown>).spreadDeg = 5), /spreadDeg/);
   });
 });

@@ -15,7 +15,7 @@ import { playerSpeed } from "../player/slow";
 import { startBuild, startWave } from "../run/runStateMachine";
 import { addBuildingAt, buildingById, type Building } from "../buildings/buildings";
 import { applyZombieDamage, applyZombieDamageQuiet } from "../combat/damage";
-import { explode } from "../combat/explosion";
+import { createExplosionSpec, explode } from "../combat/explosion";
 import { spawnJitterFor } from "../waves/waveDirector";
 import { BLOATER_BLAST_WEAPON, BLOATER_LOOKS, bloaterLookIndex, bloaterStats, blastTrace, circleInGas, resetBloaterStats } from "./bloater";
 import { isZombieAlive, killZombie, spawnZombie } from "./zombiePool";
@@ -208,7 +208,7 @@ describe("Story 5.8 FR-B: death = blast, from any cause; removal is not a death"
     ["a bullet", (w, id) => applyZombieDamage(w, id, 100, 1, 0, 0, "p0", "pistol")],
     ["melee", (w, id) => applyZombieDamage(w, id, 100, 1, 0, 0, "p0", "machete")],
     ["a quiet hit (chainsaw / flames)", (w, id) => applyZombieDamageQuiet(w, id, 100, 1, 0, 0, "p0", "chainsaw")],
-    ["a grenade / mine blast (explode)", (w, id) => explode(w, w.zombies.x[id] as number, w.zombies.y[id] as number, 1, 100, 0, "p0", "mine", 7)],
+    ["a grenade / mine blast (explode)", (w, id) => explode(w, { ...createExplosionSpec(), x: w.zombies.x[id] as number, y: w.zombies.y[id] as number, radiusM: 1, zombieDamage: 100, playerDamage: 0, sourcePlayerId: "p0", weapon: "mine", buildingId: 7, kind: "mine" })],
     ["car fire (credits nobody)", (w, id) => killZombie(w, id, null, "fire")],
     ["a turret (its owner, building share)", (w, id) => applyZombieDamage(w, id, 100, 1, 0, 0, "p0", "auto_turret", 3)],
   ];
@@ -396,7 +396,7 @@ describe("Story 5.8 FR-E: chains are visible and bounded; credit flows down the 
       perTick.set(tick, (perTick.get(tick) ?? 0) + 1);
       order.push(x);
     };
-    explode(world, 8, 8, 1.5, 100, 0, "p0", "grenade_launcher");
+    explode(world, { ...createExplosionSpec(), x: 8, y: 8, radiusM: 1.5, zombieDamage: 100, playerDamage: 0, sourcePlayerId: "p0", weapon: "grenade_launcher", buildingId: 0, kind: "grenade" });
     run(world, 30);
     expect(bursts(events)).toHaveLength(40); // every Bloater burst exactly once
     expect(Math.max(...perTick.values())).toBeLessThanOrEqual(8);

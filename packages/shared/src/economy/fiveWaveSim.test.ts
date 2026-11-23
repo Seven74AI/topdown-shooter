@@ -3,6 +3,7 @@ import { bundledBalanceFiles, loadBalance, withOverrides } from "../config/balan
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
 import { spitStats } from "../zombies/spit";
 import { trapCounters } from "../buildings/trap";
+import { explosionCounters } from "../combat/explosion";
 import { mineCounters } from "../buildings/mine";
 
 /**
@@ -212,6 +213,34 @@ describe("five-wave bot sim with weapon upgrades (Story 5.1, brief lines 9 and 1
     expect(upgrades).toBeGreaterThanOrEqual(1); // liveness: upgrades were bought …
     expect(upgradedKills).toBeGreaterThanOrEqual(1); // … and an upgraded weapon really killed
   }, 180_000);
+});
+
+describe("six-wave bot sim with the Grenade Launcher (Story 5.5, brief lines 9 and 15; AC 8)", () => {
+  it("bots that buy it still run to Results (waves ended), its rounds really burst and kill; self- and friendly damage logged", () => {
+    // A test-only shopping list and start money (bots.json stays untouched): 800 buys the launcher at the first build.
+    const six = loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "runWaves", 6], ["economy", "startingWallet", 800]]));
+    const lines: string[] = [];
+    let kills = 0;
+    let bought = 0;
+    explosionCounters.happened = explosionCounters.selfDamage = explosionCounters.friendlyDamage = explosionCounters.playersHit = 0;
+    for (const players of [2, 4]) {
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance: six, seed, players, list: ["grenade_launcher", "wood_barricade"] });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
+        kills += r.killsByWeapon.grenade_launcher ?? 0;
+        bought += r.purchases.flat().filter((p) => p.startsWith("grenade_launcher@")).length;
+        lines.push(`${players}p seed ${seed}: ${formatRunLine(r)} kills by grenade_launcher ${r.killsByWeapon.grenade_launcher ?? 0}`);
+      }
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
+      `[six-wave sim 5.5] ${explosionCounters.happened} blasts; player hits ${explosionCounters.playersHit}, self damage ${explosionCounters.selfDamage}, friendly damage ${explosionCounters.friendlyDamage} (bots: not difficulty evidence)\n${lines.join("\n")}`,
+    );
+    expect(bought).toBeGreaterThan(0);
+    expect(explosionCounters.happened).toBeGreaterThan(0); // liveness: ≥ 1 explosion
+    expect(kills).toBeGreaterThan(0);
+  }, 600_000);
 });
 
 describe("six-wave bot sim with Bloaters (Story 5.8, brief lines 9 and 15)", () => {

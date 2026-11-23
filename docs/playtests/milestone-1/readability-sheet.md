@@ -112,3 +112,12 @@ Player:
 
 ## 29 (Story 5.8)
 ![29](objects/30_bloater_gas.png)
+
+## 30: the small thing in the air, and the ring ahead (Story 5.5)
+![30](objects/31_grenade_round.png)
+
+## 31: the orange ring at the car (Story 5.5)
+![31](objects/32_landing_ring_car.png)
+
+## 32, 33: two blasts (Story 5.5)
+![32](objects/33_explosion_fireball.png) ![33](objects/34_explosion_shockwave.png)

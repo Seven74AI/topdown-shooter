@@ -25,18 +25,18 @@ describe("TouchSticks", () => {
     const s = new TouchSticks(100, 0.1, 0.3);
     s.pointerDown(2, 600, 200, W);
     s.pointerMove(2, 620, 200); // 20%: aims, does not fire
-    expect(s.aimVector()).toEqual({ x: 1, y: 0, fire: false });
+    expect(s.aimVector()).toEqual({ x: 1, y: 0, fire: false, deflection: 0.2 });
     s.pointerMove(2, 600, 240); // 40%: fires
-    expect(s.aimVector()).toEqual({ x: 0, y: 1, fire: true });
+    expect(s.aimVector()).toEqual({ x: 0, y: 1, fire: true, deflection: 0.4 });
     s.pointerUp(2);
-    expect(s.aimVector()).toEqual({ x: 0, y: 0, fire: false });
+    expect(s.aimVector()).toEqual({ x: 0, y: 0, fire: false, deflection: 0 });
   });
 
   it("gives no aim direction while the aim thumb rests at its origin", () => {
     const s = new TouchSticks(100, 0.1, 0.3);
     s.pointerDown(2, 600, 200, W);
     s.pointerMove(2, 602, 200);
-    expect(s.aimVector()).toEqual({ x: 0, y: 0, fire: false });
+    expect(s.aimVector()).toEqual({ x: 0, y: 0, fire: false, deflection: 0.02 });
   });
 
   it("tracks move and aim thumbs independently", () => {
@@ -46,7 +46,7 @@ describe("TouchSticks", () => {
     s.pointerMove(1, 200, 300);
     s.pointerMove(2, 600, 200);
     expect(s.moveVector().x).toBeCloseTo(1, 9);
-    expect(s.aimVector()).toEqual({ x: 0, y: -1, fire: true });
+    expect(s.aimVector()).toEqual({ x: 0, y: -1, fire: true, deflection: 1 });
     s.pointerUp(1);
     expect(s.move).toBeNull();
     expect(s.aim).not.toBeNull();

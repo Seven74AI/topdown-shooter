@@ -31,3 +31,12 @@ Scoring for the 4.10 decision rule: an object is **readable** when ≥ 3 of 4 pl
 | 29 | `30_bloater_gas.png` | the gas cloud after a burst (Story 5.8): yellow-green fog, ring at its 2.5 m edge, bile splats; the screen edge tints light green while it slows you | through (a ground hazard; no gas behind a car) | slows you 30 % (never hurts), 0.25 s after you leave; gone after 4 s and at every build start |
 
 Pictures: Playwright, solo dev build, 844×390 at 2×, HUD and survivor hidden, normal zoom (2026-11-23). The helper noted: shop fronts other than the diner and kiosk barely glow; the streetlight is a small dot; rain is faint in a still frame; zombies are ~0.7 m across and differ mainly by colour; barricade and sandbags are both low and brownish; the turret reads as a box with a stub; a moved car looks like any parked car.
+
+Story 5.5 additions (pictures: Playwright, solo dev build, 844×390 at 2×, HUD shown, 2026-11-23):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 30 | `31_grenade_round.png` | a Grenade Launcher round in flight (brass and olive 40 mm, drawn 3 × size, raised on its arc with a shadow) and the landing ring (white = it lands at the aim point; the ring is the exact 2 m blast) | n/a | right if "grenade / shell / rocket"; the ring shows where it bursts and how big the blast is |
+| 31 | `32_landing_ring_car.png` | the landing ring pulled back to a car's face (amber): cars, the bus and buildings stop the round | cars **stop** it | a round never flies over a car; standing 2 m from that face you take 20 of your own blast |
+| 32 | `33_explosion_fireball.png` | grenade explosion (EX1 fireball): fills the circle and stops at its thin ring = the 2 m damage edge | blasts are **stopped** by cars/bus/buildings, **not** by barricades/sandbags | 40 to zombies, 20 to every survivor in it (the shooter too); zombies pushed 0.6 m |
+| 33 | `34_explosion_shockwave.png` | mine explosion (EX2 shockwave + debris): white flash, a ring rolling out to the 2.5 m edge, chunks | as 32 | Story 5.9's mine now uses the shared blast look |

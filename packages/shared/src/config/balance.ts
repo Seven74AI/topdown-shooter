@@ -12,6 +12,7 @@ import bots from "./balance/bots.json" with { type: "json" };
 import buildings from "./balance/buildings.json" with { type: "json" };
 import shop from "./balance/shop.json" with { type: "json" };
 import decay from "./balance/decay.json" with { type: "json" };
+import combat from "./balance/combat.json" with { type: "json" };
 
 type Schemas = typeof balanceFileSchemas;
 
@@ -33,7 +34,7 @@ export class BalanceError extends Error {
   }
 }
 
-const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay };
+const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat };
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -106,6 +107,12 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
     issues.push(`buildings.json: spawnClearM ${buildings.spawnClearM} must exceed waves.spawnJitterM + the largest zombie radius (${waves.spawnJitterM + maxRz})`);
   }
   crossCheckBuildingTypes(parsed.buildings as { types: Record<string, BuildingTypeStats> }, issues);
+  // Story 5.5: a mine's blast goes through the shared friendly-fire rule (`explode` → damagePlayerBy),
+  // so its player share must be that rule's (5.9's 50 %; one rule, F6).
+  const ffPct = (parsed.combat as { friendlyFire: { pct: number } }).friendlyFire.pct;
+  for (const [id, t] of Object.entries((parsed.buildings as { types: Record<string, BuildingTypeStats> }).types)) {
+    if (t.mine && Math.abs(t.mine.playerShare * 100 - ffPct) > 1e-9) issues.push(`buildings.json: types.${id}.mine.playerShare ${t.mine.playerShare} must equal combat.json friendlyFire.pct / 100 (${ffPct / 100}): the blast uses the friendly-fire rule`);
+  }
 }
 
 /**

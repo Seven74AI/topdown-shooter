@@ -10,6 +10,7 @@ import bots from "../config/balance/bots.json" with { type: "json" };
 import buildings from "../config/balance/buildings.json" with { type: "json" };
 import shop from "../config/balance/shop.json" with { type: "json" };
 import decay from "../config/balance/decay.json" with { type: "json" };
+import combat from "../config/balance/combat.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, footprint, footprintBlocked, placementError, removeBuilding, type Box } from "../buildings/buildings";
 import { ticksFor } from "../core/time";
@@ -35,7 +36,7 @@ import { SPAWN_SIDE_NAMES, SPAWN_STATE, spawnPointStates, spawnSide } from "./sp
  * appear, so the waves end and the next ones start. Build phases are 0.5 s.
  */
 const fast = (waves: Partial<typeof wavesJson> = {}) =>
-  loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 0.5, ...waves }, player, controls, economy, bots, buildings, shop, decay } as RawBalanceFiles);
+  loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 0.5, ...waves }, player, controls, economy, bots, buildings, shop, decay, combat } as RawBalanceFiles);
 const balance = fast();
 const MIN_M = balance.waves.spawnMinPlayerDistanceM;
 const map = DOWNTOWN_MAP;

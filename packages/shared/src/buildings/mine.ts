@@ -1,5 +1,5 @@
 import type { World } from "../core/world";
-import { explode } from "../combat/explosion";
+import { createExplosionSpec, explode } from "../combat/explosion";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { buildingStats, removeBuilding, type Building } from "./buildings";
 
@@ -17,6 +17,8 @@ import { buildingStats, removeBuilding, type Building } from "./buildings";
  * - **F6 zombies only:** players never trigger a mine (walking over one is safe).
  * - **No chains (DD7):** a blast never looks at other mines; a mine only goes off by its own trigger.
  * - The blast is the shared `explode` (F5 cover, F6 50 % to standing players, no building damage).
+ *   Story 5.5: kind "mine"; players take `damage` through the friendly-fire rule (`damagePlayerBy`:
+ *   50 % = `playerShare`, which the balance cross-check ties to it), kills pay the owner (`buildingId`).
  *
  * The trigger is checked on every alive zombie's current position (a linear pass: ≤ 24 mines × the
  * alive zombies; the spatial grid is a tick old here and misses a zombie spawned last tick). No
@@ -25,6 +27,9 @@ import { buildingStats, removeBuilding, type Building } from "./buildings";
 
 /** Mines set off, summed over every World (tests, sims, liveness asserts: reset it first). */
 export const mineCounters = { exploded: 0 };
+
+/** Story 5.5: the blast spec, reused (no allocation per blast). */
+const spec = createExplosionSpec();
 
 /** A zombie's body overlaps the circle (x, y, r) right now (strict). */
 function zombieTouches(world: World, x: number, y: number, r: number): boolean {
@@ -54,7 +59,20 @@ export function updateMines(world: World): void {
     removeBuilding(world, b.id); // first: gone before its own blast's kills are paid (cap freed)
     world.events.emit({ type: "mine.exploded", buildingId: b.id, x, y });
     mineCounters.exploded++;
-    explode(world, x, y, m.blastRadiusM, m.damage, m.playerShare, b.ownerId, b.type, b.id);
+    spec.x = x;
+    spec.y = y;
+    spec.radiusM = m.blastRadiusM;
+    spec.zombieDamage = m.damage;
+    spec.playerDamage = m.damage; // × friendlyFire.pct (= playerShare) inside damagePlayerBy
+    spec.buildingDamage = 0; // DD6
+    spec.pushM = 0; // DD9
+    spec.kind = "mine";
+    spec.sourcePlayerId = b.ownerId;
+    spec.weapon = b.type;
+    spec.buildingId = b.id;
+    spec.quiet = false; // 5.9: a zombie.hit per body (unchanged)
+    spec.grenadeId = 0;
+    explode(world, spec);
     if (i > list.length) i = list.length; // defensive: nothing else is removed by a blast (DD6)
   }
 }

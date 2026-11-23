@@ -8,8 +8,11 @@ export const MINE_SHAKE_MAX = 0.012;
 export const MINE_SHAKE_MIN = 0.003;
 export const MINE_SHAKE_MS = 220;
 
-/** The shake intensity for a blast `distM` away (0 = none). */
-export function mineShakeIntensity(distM: number): number {
-  if (!(distM >= 0) || distM > MINE_SHAKE_RADIUS_M) return 0;
-  return MINE_SHAKE_MIN + (MINE_SHAKE_MAX - MINE_SHAKE_MIN) * (1 - distM / MINE_SHAKE_RADIUS_M);
+/**
+ * The shake intensity for a blast `distM` away (0 = none). Story 5.5: every explosion uses it
+ * (grenades, mines; `withinM` = `combat.json › explosion.fx.shakeWithinM`, 6 m like the mine's).
+ */
+export function mineShakeIntensity(distM: number, withinM = MINE_SHAKE_RADIUS_M): number {
+  if (!(distM >= 0) || distM > withinM || !(withinM > 0)) return 0;
+  return MINE_SHAKE_MIN + (MINE_SHAKE_MAX - MINE_SHAKE_MIN) * (1 - distM / withinM);
 }
