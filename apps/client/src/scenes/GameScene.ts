@@ -40,7 +40,7 @@ import { ACID_SOUND_MAX_AGE_S, AcidFx } from "../render/acidFx";
 import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
 import { playSfx, startChainsawRev, stopChainsawRev } from "../audio/placeholderSfx";
-import { SawClock, countInArc } from "../render/meleeFx";
+import { SawClock } from "../render/meleeFx";
 import { BurnView } from "../render/BurnView";
 import { edgeGlowAlpha, routeAcidHit, routeFireHit } from "../render/burnCue";
 import { ZombieView } from "../render/ZombieView";
@@ -357,8 +357,9 @@ export class GameScene extends Phaser.Scene {
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
     this.fxView.balance = balance; // Story 3.5: building footprints for the debris
     // Story 5.2: Chainsaw running state (survivor frame, my rev loop) and the drawn-arc count for my own cuts.
-    this.fxView.saw = new SawClock(balance.controls.fx.chainsawRevHoldMs);
-    this.fxView.cutCount = (x, y, dx, dy, arc, range) => countInArc(host.world, x, y, dx, dy, arc, range);
+    // Review M2/L3: the rev loop stops when the tab hides; it counts as playing only once really started.
+    this.fxView.saw = new SawClock(balance.controls.fx.chainsawRevHoldMs, { start: startChainsawRev, stop: stopChainsawRev }, typeof document !== "undefined" ? document : null);
+    this.fxView.world = host.world;
     this.downedView = new DownedView(this, world);
     this.buildingView = new BuildingView(this, balance);
     this.mineView = new MineView(this, balance);
@@ -993,9 +994,7 @@ export class GameScene extends Phaser.Scene {
     // Story 5.2: Chainsaw sparks (one Graphics), and my rev loop starts/stops with my cuts (not per swing).
     this.fxView?.update(this.localHost?.paused === true ? 0 : deltaMs);
     if (this.fxView?.saw) this.fxView.saw.frameMs = deltaMs;
-    const rev = this.fxView?.saw?.revStep(localId, this.time.now);
-    if (rev === "start") startChainsawRev();
-    else if (rev === "stop") stopChainsawRev();
+    this.fxView?.saw?.revUpdate(localId, this.time.now);
     this.zombieView?.update(host.world, host.alpha);
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     if (this.localHost?.paused !== true) this.acidClockS += deltaMs / 1000;

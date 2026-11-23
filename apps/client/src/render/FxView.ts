@@ -1,9 +1,9 @@
 import type * as Phaser from "phaser";
-import { buildingStats, footprint, type Balance, type Box, type SimEvent } from "@topdown/shared";
+import { ZOMBIE_POOL_CAPACITY, buildingStats, footprint, type Balance, type Box, type SimEvent, type World } from "@topdown/shared";
 import { playSfx } from "../audio/placeholderSfx";
 import type { ZombieView } from "./ZombieView";
 import { blastLengthFor, fireSfxFor, muzzleScaleFor, swingLookFor, swingSfxFor } from "./weaponLook";
-import { SPARK_BLOOD, SPARK_STEEL, SawClock, SparkPool } from "./meleeFx";
+import { ChainsawCutFx, SPARK_BLOOD, SPARK_STEEL, SawClock, SparkPool } from "./meleeFx";
 
 const SPLAT_CAP = 200;
 const SPLAT_FADE_MS = 10_000;
@@ -80,11 +80,10 @@ export class FxView {
   private sparkGfx: Phaser.GameObjects.Graphics | null = null;
   /** Story 5.2: when each player's Chainsaw last cut (running frame, my rev loop). */
   saw: SawClock | null = null;
-  /**
-   * Story 5.2: zombies in a swing's arc as drawn on this client (my own Chainsaw swings online are
-   * local events without the server's hit count); set by GameScene.
-   */
-  cutCount: ((x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number) => number) | null = null;
+  /** Story 5.2: the drawn World (the mirror online): the zombies a Chainsaw cut flashes; set by GameScene. */
+  world: Readonly<World> | null = null;
+  /** Story 5.2 review M1: Chainsaw cuts flash the zombies in the arc and play the hit sound (no zombie.hit). */
+  private readonly sawFx = new ChainsawCutFx(ZOMBIE_POOL_CAPACITY, (id) => this.zombies.flash(id), () => playSfx("zombie_hit"));
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -336,7 +335,7 @@ export class FxView {
     const fx = this.balance?.controls.fx;
     if (!fx) return;
     if (!this.sparks) this.sparks = new SparkPool(fx.maxChainsawSparks, fx.chainsawSparkMs);
-    const cut = hits ?? this.cutCount?.(x, y, dirX, dirY, arcDeg, rangeM) ?? 0;
+    const cut = this.sawFx.cut(this.world, hits, x, y, dirX, dirY, arcDeg, rangeM);
     const tipM = rangeM * 0.75;
     const tx = x + dirX * tipM;
     const ty = y + dirY * tipM;
@@ -373,7 +372,7 @@ export class FxView {
     this.sparkGfx?.destroy();
     this.sparkGfx = null;
     this.sparks = null;
-    this.saw?.clear();
+    this.saw?.dispose();
     for (const o of [...this.splats, ...this.puffs, ...this.flashes, ...this.swings, ...this.blasts, ...this.debrisPuffs, ...this.repairs, ...this.blastFlashes, ...this.blastFires, ...this.blastRings, ...this.blastSmoke, ...this.upgrades]) o.destroy();
     this.blasts.length = 0;
     this.debrisPuffs.length = 0;

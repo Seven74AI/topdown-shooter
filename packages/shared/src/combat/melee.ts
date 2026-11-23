@@ -8,6 +8,7 @@ import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { applyKnockback, applyZombieDamage, applyZombieDamageQuiet, knockbackShare, knockbacks } from "./damage";
 import { zombieCandidates as candidates } from "./scratch";
+import { meleeLineClear } from "./cover";
 import type { WeaponId } from "./weapons";
 import type { ZombieView } from "./rewind";
 
@@ -18,7 +19,10 @@ const MIN_DIST = 1e-6;
  * emits `melee.swung`, then damages every live zombie whose body overlaps the arc
  * (`stats.rangeM` to the zombie's edge, `stats.arcDeg` wide) through `applyZombieDamage`, so the
  * flash, pushback and kill events are the ones guns use. Each zombie is pushed straight away from
- * the player. No aim assist, ignores cover. Requires the zombie grid to be current. Returns hits.
+ * the player. No aim assist. Requires the zombie grid to be current. Returns hits.
+ * Story 5.2 (designer, review round; replaces 1.9's "melee ignores cover"): a zombie in the arc is
+ * hit only when the line from the wielder's centre to its centre is clear (`meleeLineClear`: walls,
+ * cars, the bus, buildings and wall buildings block; barriers, sandbags, traps and mines don't).
  * Story 2.12: with a `view`, the arc is tested against those (rewound) positions; the damage and
  * the pushback (away from the player, along the rewound direction) go to the present zombie.
  *
@@ -63,6 +67,7 @@ export function swingMelee(
     const cx = xs[id] as number;
     const cy = ys[id] as number;
     if (!circleOverlapsSector(cx, cy, r, ox, oy, dirX, dirY, reach, cosH, sinH)) continue;
+    if (!meleeLineClear(world, ox, oy, cx, cy)) continue; // Story 5.2: no hit through a wall
     const vx = cx - ox;
     const vy = cy - oy;
     const d = Math.sqrt(vx * vx + vy * vy);
