@@ -369,6 +369,24 @@ So that the art is consistent, free to change and ready for customization.
 **When** they are drawn
 **Then** they come from game-code drawing functions with the same look as the accepted mockups, the 4.11 rules still hold (flames' visible edge at the damage radius, smoke below characters, barricade rotation with a game-drawn shadow), and the Meshy `objects` atlas and its loader are removed
 
+### Story 4.13: Survive losing the graphics (bug)
+
+As a player on a phone,
+I want the game to come back intact after I switch apps,
+So that the street, cars, survivors and zombies don't vanish.
+
+(Bug reported 2026-11-23 by the designer's friend: after switching apps and coming back, everything except the floor was invisible, and a page reload did not fix it.)
+
+**Acceptance Criteria:**
+
+**Given** the browser loses and restores the WebGL context (app switch, memory pressure)
+**When** the game comes back
+**Then** every generated texture (city tiles, character/zombie/building/fx atlases, fire particles, weapon art) is rebuilt and the game looks as before, solo and online
+
+**Given** the browser starts the game without WebGL (Phaser falls back to the Canvas renderer, e.g. Chrome blocked WebGL for the site after a GPU crash)
+**When** the game loads
+**Then** it either renders correctly in Canvas mode or shows a clear message ("Graphics acceleration is off — fully close and reopen your browser"), never a silent floor-only screen; the debug overlay shows which renderer is active
+
 ## Epic 5: Full arsenal and bestiary
 Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop; every zombie type demands its own answer.
 **FRs covered:** FR8, FR13 (6 weapons), FR14 (lobbed), FR16, FR17, FR18, FR23, FR24, FR25, FR47, FR48, FR49, FR52 (5 buildings), FR53, FR57 (acid, gas), FR84 (telegraphs)
