@@ -1,0 +1,1110 @@
+<title>Build Placement Lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one full-screen game canvas; a settings card floats over it. Single dark "Dead City at dusk" look. */
+:root {
+  --ink: #e9ecef;
+  --ink-dim: #9aa3ab;
+  --panel: rgba(16, 18, 21, 0.94);
+  --edge: #3d434a;
+  --go: #2e7d32;
+  --warn: #ff8a80;
+  --accent: #ffb74d;
+  --ground: #1b1d20;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; background: var(--ground); color: var(--ink); overflow: hidden; overscroll-behavior: none; }
+body { font-family: var(--body); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+canvas#c { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; }
+#probe { position: fixed; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+#panel { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); z-index: 5; padding: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+[hidden] { display: none !important; }
+#panel .card { background: var(--panel); border: 1px solid var(--edge); border-radius: 14px; width: min(760px, 100%); max-height: 100%; overflow-y: auto; padding: 16px 18px; box-sizing: border-box; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+#panel h1 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: 0.02em; margin: 0; text-wrap: balance; grid-column: 1 / -1; }
+#panel h1 small { font-weight: 500; color: var(--ink-dim); font-size: 16px; margin-left: 8px; letter-spacing: 0.04em; text-transform: uppercase; }
+#panel .col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#panel label { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-dim); }
+#panel select { font: 500 15px var(--body); background: #24282d; color: var(--ink); border: 1px solid var(--edge); border-radius: 8px; padding: 8px; min-height: 40px; }
+#panel select:focus-visible, #panel button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#panel .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+#panel .modes button { font: 600 16px var(--display); letter-spacing: 0.03em; min-height: 54px; border-radius: 10px; border: 1px solid var(--edge); background: #24282d; color: var(--ink); padding: 6px; line-height: 1.1; }
+#panel .modes button small { display: block; font: 500 12px var(--body); color: var(--ink-dim); letter-spacing: 0; }
+#panel .modes button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+#panel .help { font-size: 14px; line-height: 1.45; color: var(--ink); margin: 0; padding-left: 18px; }
+#panel .help li { margin-bottom: 3px; }
+#panel .metrics { font-size: 13px; color: var(--ink-dim); font-variant-numeric: tabular-nums; line-height: 1.5; }
+#panel .row { display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1; }
+#panel .row button { font: 600 17px var(--display); letter-spacing: 0.04em; min-height: 48px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--edge); background: #24282d; color: var(--ink); }
+#panel .row button.primary { background: var(--go); border-color: #4caf50; flex: 1; }
+#panel .tag { font-size: 12px; color: var(--ink-dim); }
+#turn { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; background: var(--ground); z-index: 6; font: 600 22px var(--display); padding: 24px; }
+@media (orientation: portrait) and (max-width: 700px) { #turn { display: flex; } }
+@media (max-width: 640px) { #panel .card { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<canvas id="c" aria-label="Building placement prototype on a Downtown street"></canvas>
+<div id="probe"></div>
+<div id="turn">Turn your phone sideways<br><span style="font: 400 15px var(--body); color: var(--ink-dim)">The game is landscape only.</span></div>
+
+<div id="panel">
+  <div class="card">
+    <h1>Build Placement Lab <small>Downtown · build phase</small></h1>
+    <div class="col">
+      <div class="modes" role="group" aria-label="Placement mode">
+        <button id="m-today" type="button">Today<small>shop · freeze · tap</small></button>
+        <button id="m-carry" type="button">A · Carry<small>walk it into place</small></button>
+        <button id="m-hybrid" type="button">B · Carry + drag<small>recommended</small></button>
+      </div>
+      <ul class="help" id="help"></ul>
+    </div>
+    <div class="col">
+      <label for="o-scale">Scale <select id="o-scale"><option value="48">48 px/m (lab)</option><option value="game">Game camera (24 m wide)</option></select></label>
+      <label for="o-lag">Server lag <select id="o-lag"><option value="0">0 ms</option><option value="150">150 ms (?lag=150)</option><option value="300">300 ms</option></select></label>
+      <label for="o-gap">Carry gap <select id="o-gap"><option value="0.5">0.5 m</option><option value="1">1.0 m</option><option value="1.5">1.5 m</option></select></label>
+      <label for="o-gain">Drag gain <select id="o-gain"><option value="0.75">0.75</option><option value="1">1.0</option><option value="1.5">1.5</option></select></label>
+      <label for="o-lead">Camera lead <select id="o-lead"><option value="0">Off</option><option value="1">On (35 %, max 3 m)</option></select></label>
+      <label for="o-bo">Teammate Bo <select id="o-bo"><option value="1">On (builds too)</option><option value="0">Off</option></select></label>
+      <label for="o-timer">Build timer <select id="o-timer"><option value="1">30 s, then a wave</option><option value="0">Paused</option></select></label>
+      <label for="o-prox">Walk-up select <select id="o-prox"><option value="0">Off</option><option value="1">On (damaged, 0.8 m)</option></select></label>
+      <div class="metrics" id="metrics"></div>
+    </div>
+    <div class="row">
+      <button id="b-go" class="primary" type="button">Play</button>
+      <button id="b-full" type="button">Full screen</button>
+      <button id="b-reset" type="button">Reset run</button>
+    </div>
+    <div class="tag" style="grid-column: 1 / -1">Ideas prototype for the building UX rework (docs/ideas/building-ux). Real Downtown geometry, spawn clearance 2 m, 0.5 m lattice, 6 buildings per player, prices from buildings.json. The bear trap's numbers are placeholders. Nothing here is game code.</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ---------- constants (metres unless noted; HUD sizes in CSS px) ---------- */
+const MAP_W = 48, MAP_H = 32, GRID = 0.5, BODY_R = 0.4, SPEED = 4.5, SPAWN_CLEAR = 2, CAP = 6;
+const TAP_MS = 300, TAP_PX = 12, HOLD_MS = 450, DRAG_PX = 8, UNDO_MS = 5000, PENDING_TIMEOUT_MS = 2000;
+const STICK_R = 56;
+const TYPES = {
+  wood_barricade: { name: 'Wood barricade', short: 'Barricade', price: 40, w: 2, d: 0.5, hp: 200, solid: true, up: 'reinforced_barricade', upPrice: 50 },
+  reinforced_barricade: { name: 'Reinforced barricade', price: 90, w: 2, d: 0.5, hp: 350, solid: true, up: 'metal_barricade', upPrice: 70 },
+  metal_barricade: { name: 'Metal barricade', price: 160, w: 2, d: 0.5, hp: 600, solid: true },
+  auto_turret: { name: 'Auto-turret', short: 'Turret', price: 250, w: 1, d: 1, hp: 300, solid: true, rings: [[8, '#7fc4ff']] },
+  spike_trap: { name: 'Spike trap', short: 'Spikes', price: 80, w: 2, d: 2, hp: 300, solid: false },
+  mine: { name: 'Mine', short: 'Mine', price: 60, w: 0.5, d: 0.5, hp: 1, solid: false, rings: [[1, '#ff5a46'], [2.5, '#ffb74d']] },
+  bear_trap: { name: 'Bear trap', short: 'Bear trap', price: 70, w: 1, d: 1, hp: 150, solid: false, rings: [[0.5, '#ffd27f']] },
+  med_station: { name: 'Med station', short: 'Med', price: 400, w: 1, d: 1, hp: 300, solid: true, rings: [[2, '#69f0ae']] },
+  floodlight: { name: 'Floodlight', short: 'Light', price: 100, w: 1, d: 1, hp: 150, solid: true, rings: [[4, '#ffe9a8']] },
+};
+const BAR = ['wood_barricade', 'auto_turret', 'spike_trap', 'mine', 'bear_trap', 'med_station', 'floodlight', 'shop'];
+const SHOP_TYPES = ['wood_barricade', 'auto_turret', 'spike_trap', 'mine', 'bear_trap', 'med_station', 'floodlight'];
+const OWNER_COL = { me: '#4fc3f7', bo: '#ffa94d' };
+const OWNER_NAME = { me: 'Yours', bo: "Bo's" };
+
+/* Downtown (downtown.tmj, 32 px = 1 m): collision + cover boxes, spawns. */
+const M = (x, y, w, h) => ({ minX: x / 32, minY: y / 32, maxX: (x + w) / 32, maxY: (y + h) / 32 });
+const SOLIDS = [
+  { ...M(0, 0, 256, 320), kind: 'roof', label: 'the corner shop', name: 'CORNER SHOP' },
+  { ...M(352, 0, 224, 320), kind: 'roof', label: 'the apartments', name: 'APARTMENTS' },
+  { ...M(1312, 0, 224, 192), kind: 'roof', label: 'the gas kiosk', name: 'GAS KIOSK' },
+  { ...M(1040, 112, 64, 32), kind: 'pump', label: 'a gas pump' },
+  { ...M(1040, 224, 64, 32), kind: 'pump', label: 'a gas pump' },
+  { ...M(960, 464, 320, 80), kind: 'bus', label: 'the bus' },
+  { ...M(0, 704, 224, 320), kind: 'roof', label: 'the diner', name: 'DINER' },
+  { ...M(320, 768, 16, 256), kind: 'wall', label: 'the parking wall' },
+  { ...M(960, 704, 256, 320), kind: 'roof', label: 'the offices', name: 'OFFICES' },
+  { ...M(1312, 704, 224, 320), kind: 'roof', label: 'the warehouse', name: 'WAREHOUSE' },
+  { ...M(368, 832, 64, 144), kind: 'car', label: 'a parked car', tint: '#5b6b7a' },
+  { ...M(464, 832, 64, 144), kind: 'car', label: 'a parked car', tint: '#7a5050' },
+  { ...M(560, 832, 64, 144), kind: 'car', label: 'a parked car', tint: '#6d6f5a' },
+  { ...M(128, 416, 144, 64), kind: 'car', label: 'a car', tint: '#55606b' },
+  { ...M(1344, 560, 144, 64), kind: 'car', label: 'a car', tint: '#6b5a48' },
+  { ...M(96, 576, 144, 64), kind: 'car', label: 'a car', tint: '#4d5d52' },
+  { ...M(384, 384, 144, 64), kind: 'car', label: 'a car', tint: '#7b6a4a' },
+  { ...M(432, 576, 144, 64), kind: 'car', label: 'a car', tint: '#5a5a6e' },
+  { ...M(640, 0, 64, 144), kind: 'car', label: 'a car', tint: '#6e4c4c' },
+  { ...M(832, 768, 64, 144), kind: 'car', label: 'a car', tint: '#4f6670' },
+  { ...M(672, 192, 192, 16), kind: 'barrier', label: 'the police barrier' },
+  { ...M(720, 720, 96, 32), kind: 'sandbags', label: 'the sandbags' },
+];
+const SPAWNS = [[16, 512], [1520, 512], [768, 16], [768, 1008], [304, 16], [272, 1008], [1264, 1008], [1200, 16], [480, 1008], [384, 576], [768, 128], [128, 339], [112, 685], [1088, 685], [704, 864], [1408, 432], [595, 160], [1424, 685], [1424, 211]].map(([x, y]) => ({ x: x / 32, y: y / 32 }));
+
+/* ---------- settings ---------- */
+const S = { mode: 'hybrid', scale: '48', lag: 150, gap: 1, gain: 1, lead: false, bo: true, timer: true, prox: false };
+try {
+  const q = new URLSearchParams(location.search);
+  if (q.get('mode')) S.mode = q.get('mode');
+  if (q.get('lag')) S.lag = +q.get('lag') || 0;
+  if (q.get('scale')) S.scale = q.get('scale');
+} catch (e) { /* no query string inside the viewer */ }
+try { const saved = JSON.parse(localStorage.getItem('bpl-settings') || 'null'); if (saved) Object.assign(S, saved); } catch (e) { /* storage blocked */ }
+function saveSettings() { try { localStorage.setItem('bpl-settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
+
+/* ---------- geometry ---------- */
+const FW = (t, rot) => (rot & 1 ? t.d : t.w);
+const FH = (t, rot) => (rot & 1 ? t.w : t.d);
+const boxOf = (type, gx, gy, rot) => { const t = TYPES[type]; const x = gx * GRID, y = gy * GRID; return { minX: x, minY: y, maxX: x + FW(t, rot), maxY: y + FH(t, rot) }; };
+const overlap = (a, b) => a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY;
+function circleBox(cx, cy, r, b) { const px = Math.max(b.minX, Math.min(cx, b.maxX)), py = Math.max(b.minY, Math.min(cy, b.maxY)); const dx = cx - px, dy = cy - py; return dx * dx + dy * dy < r * r; }
+const centre = (b) => ({ x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 });
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const now = () => performance.now();
+const square = (t) => t.w === t.d;
+
+/* ---------- state ---------- */
+let wave = 1, phase = 'build', timeLeft = 30, waveT = 0;
+const me = { id: 'me', name: 'You', x: 24, y: 17.2, fx: 0, fy: -1, card: 0 };
+const bo = { id: 'bo', name: 'Bo', x: 20.5, y: 14, fx: 0, fy: -1, card: 0, plan: 0, st: 'walk', t: 0, ghost: null, wander: 0 };
+let server, client;
+let hand = null;        // the held ghost
+let selId = 0;          // the selected building (client)
+let pending = [];       // sent placements waiting for an answer
+let pendingMoves = [];  // sent moves
+let fails = [];         // refused boxes (shake + fade)
+let toasts = [], floats = [], puffs = [];
+let reqSeq = 1, undo = null; // {reqId, id, until}
+let boGhostShown = null, boGhostNext = 0;
+let shopOpen = false;   // today mode's shop list
+let camX = 24, camY = 16, camLeadX = 0, camLeadY = 0;
+let proxT = 0, proxId = 0;
+const net = [];
+const metrics = { picks: 0, placed: 0, refused: 0, undos: 0, rotates: 0, moves: 0, sold: 0, pickToPlace: [] };
+
+function resetRun() {
+  server = { buildings: [], nextId: 1, wallet: { me: 1000, bo: 1000 }, phase: 'build' };
+  try { const q = new URLSearchParams(location.search); if (q.get('wallet')) server.wallet.me = +q.get('wallet') || 1000; } catch (e) { /* ignore */ }
+  client = { buildings: [], wallet: server.wallet.me };
+  wave = 1; phase = 'build'; timeLeft = 30; hand = null; selId = 0; pending = []; pendingMoves = []; fails = []; toasts = []; floats = []; puffs = []; undo = null;
+  me.x = 24; me.y = 17.2; me.fx = 0; me.fy = -1;
+  bo.x = 20.5; bo.y = 14; bo.plan = 0; bo.st = 'walk'; bo.ghost = null; boGhostShown = null;
+  net.length = 0; shopOpen = false;
+  Object.assign(metrics, { picks: 0, placed: 0, refused: 0, undos: 0, rotates: 0, moves: 0, sold: 0, pickToPlace: [] });
+}
+
+/* ---------- rules (shared by "server" and client prediction) ---------- */
+function players() { return S.bo ? [me, bo] : [me]; }
+function spotProblem(list, box, ownerId, exceptId, extra) {
+  if (box.minX < 0 || box.minY < 0 || box.maxX > MAP_W || box.maxY > MAP_H) return { code: 'off' };
+  for (const sp of SPAWNS) if (circleBox(sp.x, sp.y, SPAWN_CLEAR, box)) return { code: 'spawn', spawn: sp };
+  for (const s of SOLIDS) if (overlap(box, s)) return { code: 'solid', solid: s };
+  for (const b of list) if (b.id !== exceptId && overlap(box, b.box)) return { code: 'building', b };
+  if (extra) for (const p of extra) if (overlap(box, p.box)) return { code: 'pending', p };
+  for (const p of players()) if (circleBox(p.x, p.y, BODY_R, box)) return p.id === ownerId ? { code: 'me', p } : { code: 'mate', p };
+  return null;
+}
+const owned = (list, o) => list.filter((b) => b.owner === o).length;
+function serverPlaceError(o, req) {
+  if (server.phase !== 'build') return { code: 'phase' };
+  const t = TYPES[req.type];
+  if (owned(server.buildings, o) >= CAP) return { code: 'limit' };
+  if (server.wallet[o] < t.price) return { code: 'money', need: t.price, have: server.wallet[o] };
+  return spotProblem(server.buildings, boxOf(req.type, req.gx, req.gy, req.rot), o, 0, null);
+}
+function reasonText(e) {
+  if (!e) return '';
+  if (S.mode === 'today') {
+    if (e.code === 'money') return 'Not enough money';
+    if (e.code === 'limit') return 'Building limit reached (6)';
+    if (e.code === 'phase') return 'Only during the build phase';
+    if (e.code === 'noanswer') return 'No answer from the server';
+    return "Can't build here";
+  }
+  switch (e.code) {
+    case 'limit': return 'Building limit reached (6)';
+    case 'money': return `Need $${e.need} (you have $${Math.max(0, e.have)})`;
+    case 'off': return 'Off the street';
+    case 'spawn': return 'Too close to a zombie spawn (2 m)';
+    case 'solid': return 'Blocked by ' + e.solid.label;
+    case 'building': return 'Overlaps a building';
+    case 'pending': return 'Overlaps one you just placed';
+    case 'me': return "You're standing there";
+    case 'mate': return `${e.p.name} is standing there`;
+    case 'phase': return 'Only during the build phase';
+    case 'owner': return 'Only its builder can do that';
+    case 'gone': return 'That building is gone';
+    case 'full': return 'Nothing to repair';
+    case 'top': return 'Already the strongest';
+    case 'noanswer': return 'No answer from the server';
+  }
+  return "Can't build here";
+}
+
+/* ---------- the "server" (authoritative), with lag ---------- */
+const cloneB = (b) => ({ ...b, box: { ...b.box } });
+function later(ms, fn) { net.push({ at: now() + ms, fn }); }
+function send(msg) { later(S.lag / 2 + 25, () => serverHandle(msg)); }
+function toClient(fn) { later(S.lag / 2, fn); }
+function serverHandle(m) {
+  const o = m.owner;
+  const sb = (id) => server.buildings.find((b) => b.id === id);
+  if (m.kind === 'place') {
+    const e = serverPlaceError(o, m);
+    if (e) { if (o === 'me') toClient(() => onRefused(m.reqId, e)); return; }
+    const t = TYPES[m.type];
+    server.wallet[o] -= t.price;
+    const b = { id: server.nextId++, type: m.type, owner: o, gx: m.gx, gy: m.gy, rot: m.rot, hp: t.hp, maxHp: t.hp, paid: t.price, paidThisBuild: t.price, box: boxOf(m.type, m.gx, m.gy, m.rot) };
+    server.buildings.push(b);
+    const copy = cloneB(b), w = server.wallet.me;
+    toClient(() => onPlaced(m.reqId, copy, w));
+    return;
+  }
+  const b = sb(m.id);
+  const refuse = (code) => { if (o === 'me') toClient(() => onActionRefused(m, { code })); };
+  if (server.phase !== 'build') return refuse('phase');
+  if (!b) return refuse('gone');
+  if (m.kind === 'move') {
+    if (b.owner !== o) return refuse('owner');
+    const box = boxOf(b.type, m.gx, m.gy, m.rot);
+    const e = spotProblem(server.buildings, box, o, b.id, null);
+    if (e) { if (o === 'me') toClient(() => onActionRefused(m, e)); return; }
+    Object.assign(b, { gx: m.gx, gy: m.gy, rot: m.rot, box });
+    const copy = cloneB(b); toClient(() => onMoved(m, copy));
+  } else if (m.kind === 'sell') {
+    if (b.owner !== o) return refuse('owner');
+    const refund = b.paidThisBuild + Math.floor(0.5 * (b.paid - b.paidThisBuild));
+    server.wallet[o] += refund;
+    server.buildings = server.buildings.filter((x) => x !== b);
+    const w = server.wallet.me; toClient(() => onSold(m, b.id, refund, w));
+  } else if (m.kind === 'repair') {
+    if (b.hp >= b.maxHp) return refuse('full');
+    const cost = Math.ceil(TYPES[b.type].price * 0.5);
+    if (server.wallet[o] < cost) { if (o === 'me') toClient(() => onActionRefused(m, { code: 'money', need: cost, have: server.wallet[o] })); return; }
+    server.wallet[o] -= cost; b.hp = b.maxHp;
+    const copy = cloneB(b), w = server.wallet.me; toClient(() => onUpdated(m, copy, w, -cost));
+  } else if (m.kind === 'upgrade') {
+    const t = TYPES[b.type];
+    if (b.owner !== o) return refuse('owner');
+    if (!t.up) return refuse('top');
+    if (server.wallet[o] < t.upPrice) { if (o === 'me') toClient(() => onActionRefused(m, { code: 'money', need: t.upPrice, have: server.wallet[o] })); return; }
+    server.wallet[o] -= t.upPrice; b.type = t.up; b.maxHp = TYPES[t.up].hp; b.hp = b.maxHp; b.paid += t.upPrice; b.paidThisBuild += t.upPrice;
+    const copy = cloneB(b), w = server.wallet.me; toClient(() => onUpdated(m, copy, w, -t.upPrice));
+  }
+}
+function upsertClient(copy) { const i = client.buildings.findIndex((b) => b.id === copy.id); if (i >= 0) client.buildings[i] = copy; else client.buildings.push(copy); }
+function onPlaced(reqId, copy, w) {
+  const p = pending.find((x) => x.reqId === reqId);
+  pending = pending.filter((x) => x.reqId !== reqId);
+  upsertClient(copy); client.wallet = w;
+  puff(copy, copy.owner); buzz(12); thunk(copy.type);
+  metrics.placed++;
+  if (undo && undo.reqId === reqId) undo.id = copy.id;
+  if (p && p.undoAsked) { send({ kind: 'sell', owner: 'me', id: copy.id }); }
+}
+function onRefused(reqId, e) {
+  const p = pending.find((x) => x.reqId === reqId);
+  pending = pending.filter((x) => x.reqId !== reqId);
+  if (p) fails.push({ box: p.box, type: p.type, rot: p.rot, t: now() });
+  metrics.refused++; buzz([30, 40, 30]); toast(reasonText(e), true);
+  if (undo && undo.reqId === reqId) undo = null;
+}
+function onMoved(m, copy) { pendingMoves = pendingMoves.filter((x) => x.id !== m.id); upsertClient(copy); puff(copy, 'me'); thunk(copy.type); buzz(12); metrics.moves++; }
+function onSold(m, id, refund, w) {
+  const b = client.buildings.find((x) => x.id === id);
+  client.buildings = client.buildings.filter((x) => x.id !== id); client.wallet = w;
+  if (b) { const c = centre(b.box); floats.push({ x: c.x, y: c.y, text: `+$${refund}`, col: '#9ccc65', t: now() }); }
+  if (selId === id) selId = 0;
+  metrics.sold++; coins(); buzz(12);
+}
+function onUpdated(m, copy, w, delta) {
+  upsertClient(copy); client.wallet = w;
+  const c = centre(copy.box); floats.push({ x: c.x, y: c.y, text: `-$${-delta}`, col: '#ffcc80', t: now() });
+  puff(copy, 'me'); thunk(copy.type);
+}
+function onActionRefused(m, e) {
+  pendingMoves = pendingMoves.filter((x) => x.id !== m.id);
+  if (m.kind === 'move') { const b = client.buildings.find((x) => x.id === m.id); if (b) fails.push({ box: boxOf(b.type, m.gx, m.gy, m.rot), type: b.type, rot: m.rot, t: now() }); }
+  buzz([30, 40, 30]); toast(reasonText(e), true);
+}
+
+/* ---------- client prediction ---------- */
+const shownWallet = () => client.wallet - pending.reduce((s, p) => s + p.cost, 0);
+const myCount = () => owned(client.buildings, 'me') + pending.length;
+function handError() {
+  if (!hand) return null;
+  if (phase !== 'build') return { code: 'phase' };
+  const t = TYPES[hand.type];
+  if (!hand.moveId) {
+    if (myCount() >= CAP) return { code: 'limit' };
+    if (shownWallet() < t.price) return { code: 'money', need: t.price, have: shownWallet() };
+  }
+  return spotProblem(client.buildings, boxOf(hand.type, hand.gx, hand.gy, hand.rot), 'me', hand.moveId, pending);
+}
+function pickError(type) {
+  if (myCount() >= CAP) return { code: 'limit' };
+  if (shownWallet() < TYPES[type].price) return { code: 'money', need: TYPES[type].price, have: shownWallet() };
+  return null;
+}
+
+/* ---------- hand: pick, carry, drag, rotate, place ---------- */
+function cardinalOf(fx, fy) { const a = Math.atan2(fy, fx); return ((Math.round(a / (Math.PI / 2)) % 4) + 4) % 4; } // 0 E, 1 S, 2 W, 3 N
+function rotForCardinal(c) { return c === 3 ? 0 : c === 1 ? 2 : c === 0 ? 1 : 3; } // struts on the builder's side
+function pick(type) {
+  if (phase !== 'build') return;
+  const e = pickError(type);
+  if (e) { toast(reasonText(e), true); buzz([30, 40, 30]); return; }
+  selId = 0;
+  hand = { type, rot: 0, autoRot: S.mode !== 'today', pinned: false, cx: me.x, cy: me.y, gx: null, gy: null, moveId: 0, pickT: now(), first: true, err: null, shakeT: -1e9, lastAxis: 0, popT: now() };
+  me.card = cardinalOf(me.fx, me.fy);
+  if (hand.autoRot && !square(TYPES[type])) hand.rot = rotForCardinal(me.card);
+  if (S.mode === 'today') { hand.cx = me.x + me.fx * 2; hand.cy = me.y + me.fy * 2; snap(true); }
+  metrics.picks++;
+  click();
+}
+function pickUp(id) {
+  const b = client.buildings.find((x) => x.id === id);
+  if (!b || b.owner !== 'me' || phase !== 'build') return;
+  const c = centre(b.box);
+  selId = 0;
+  hand = { type: b.type, rot: b.rot, autoRot: false, pinned: S.mode === 'hybrid', cx: c.x, cy: c.y, gx: b.gx, gy: b.gy, moveId: id, pickT: now(), first: false, err: null, shakeT: -1e9, lastAxis: 0, popT: now() };
+  buzz(15); click();
+}
+function putAway() { hand = null; }
+function snap(force) {
+  const t = TYPES[hand.type];
+  const tx = (hand.cx - FW(t, hand.rot) / 2) / GRID, ty = (hand.cy - FH(t, hand.rot) / 2) / GRID;
+  if (force || hand.gx === null || Math.abs(tx - hand.gx) > 0.7) hand.gx = Math.round(tx);
+  if (force || hand.gy === null || Math.abs(ty - hand.gy) > 0.7) hand.gy = Math.round(ty);
+}
+function rotate() {
+  if (!hand) return;
+  hand.rot = (hand.rot + 1) & 3; hand.autoRot = false; metrics.rotates++;
+  const c = centre(boxOf(hand.type, hand.gx, hand.gy, (hand.rot + 3) & 3));
+  if (S.mode === 'today' || hand.pinned) { hand.cx = c.x; hand.cy = c.y; }
+  snap(true); click();
+}
+function carryUpdate() {
+  const t = TYPES[hand.type];
+  if (hand.autoRot && !square(t)) {
+    const a = Math.atan2(me.fy, me.fx), ca = [0, Math.PI / 2, Math.PI, -Math.PI / 2][me.card];
+    let d = Math.abs(a - ca); if (d > Math.PI) d = 2 * Math.PI - d;
+    if (d > (55 * Math.PI) / 180) me.card = cardinalOf(me.fx, me.fy);
+    const r = rotForCardinal(me.card);
+    if (r !== hand.rot) { hand.rot = r; hand.gx = null; }
+  }
+  const w = FW(t, hand.rot), h = FH(t, hand.rot);
+  const he = Math.abs(me.fx) * w / 2 + Math.abs(me.fy) * h / 2;
+  const dist = BODY_R + S.gap + he;
+  hand.cx = me.x + me.fx * dist; hand.cy = me.y + me.fy * dist;
+  snap(false);
+}
+function dragBy(dxPx, dyPx) {
+  const ppm = pxPerM();
+  hand.pinned = true;
+  hand.cx += (dxPx / ppm) * S.gain; hand.cy += (dyPx / ppm) * S.gain;
+  const v = viewRect();
+  hand.cx = clamp(hand.cx, v.minX + 1, v.maxX - 1); hand.cy = clamp(hand.cy, v.minY + 1, v.maxY - 1);
+  const t = TYPES[hand.type];
+  hand.lastAxis = (hand.rot & 1 ? Math.sign(dyPx) : Math.sign(dxPx)) || hand.lastAxis;
+  snap(false);
+}
+function place() {
+  if (!hand || phase !== 'build') return;
+  const e = handError();
+  const box = boxOf(hand.type, hand.gx, hand.gy, hand.rot);
+  if (e) { hand.shakeT = now(); buzz([30, 40, 30]); }
+  if (hand.moveId) {
+    send({ kind: 'move', owner: 'me', id: hand.moveId, gx: hand.gx, gy: hand.gy, rot: hand.rot });
+    pendingMoves.push({ id: hand.moveId, box, type: hand.type, rot: hand.rot, t: now() });
+    hand = null; return;
+  }
+  const t = TYPES[hand.type];
+  const reqId = reqSeq++;
+  pending.push({ reqId, type: hand.type, rot: hand.rot, box, cost: t.price, t: now(), undoAsked: false });
+  send({ kind: 'place', owner: 'me', reqId, type: hand.type, gx: hand.gx, gy: hand.gy, rot: hand.rot });
+  if (hand.first) { metrics.pickToPlace.push((now() - hand.pickT) / 1000); hand.first = false; }
+  if (S.mode !== 'today') undo = { reqId, id: 0, until: now() + UNDO_MS };
+  if (S.mode === 'today') { hand = null; return; }
+  if (e) return; // predicted refusal: keep the ghost where it is
+  // chain: the same item stays in hand if I can still afford it and I'm under the cap
+  const pe = pickError(hand.type);
+  if (pe) { hand = null; toast(pe.code === 'money' ? 'Not enough money for another' : reasonText(pe), false); return; }
+  if (S.mode === 'hybrid') {
+    // next ghost one footprint further along the long side, pinned
+    const c = centre(box);
+    let ax = 0, ay = 0, step;
+    if (square(t)) {
+      const rx = -me.fy, ry = me.fx; // right of facing
+      if (Math.abs(rx) >= Math.abs(ry)) { ax = Math.sign(rx) || 1; step = FW(t, hand.rot); } else { ay = Math.sign(ry) || 1; step = FH(t, hand.rot); }
+      if (hand.type === 'mine') step = 1;
+    } else {
+      const along = hand.rot & 1 ? 'y' : 'x';
+      const rx = -me.fy, ry = me.fx;
+      const s = hand.lastAxis || Math.sign(along === 'x' ? rx : ry) || 1;
+      if (along === 'x') ax = s; else ay = s;
+      step = t.w;
+    }
+    hand.cx = c.x + ax * step; hand.cy = c.y + ay * step; hand.pinned = true;
+    snap(true);
+    const e2 = spotProblem(client.buildings, boxOf(hand.type, hand.gx, hand.gy, hand.rot), 'me', 0, pending);
+    if (e2) { hand.pinned = false; hand.gx = null; }
+  }
+  hand.popT = now();
+}
+function doUndo() {
+  if (!undo) return;
+  metrics.undos++;
+  if (undo.id) send({ kind: 'sell', owner: 'me', id: undo.id });
+  else { const p = pending.find((x) => x.reqId === undo.reqId); if (p) p.undoAsked = true; }
+  undo = null; click();
+}
+
+/* ---------- selection actions ---------- */
+function act(kind) {
+  const b = client.buildings.find((x) => x.id === selId);
+  if (!b) { selId = 0; return; }
+  if (kind === 'repair' && b.hp >= b.maxHp) { toast('Nothing to repair', true); return; }
+  if (kind === 'move') { pickUp(b.id); return; }
+  send({ kind, owner: 'me', id: b.id });
+  if (kind === 'sell' || kind === 'repair' || (S.mode === 'today' && kind !== 'upgrade')) selId = 0;
+  click();
+}
+function buildingAt(x, y, tol) {
+  let best = null, bd = 1e9;
+  for (const b of client.buildings) {
+    const bb = b.box;
+    if (x >= bb.minX - tol && x <= bb.maxX + tol && y >= bb.minY - tol && y <= bb.maxY + tol) {
+      const c = centre(bb), d = Math.hypot(c.x - x, c.y - y);
+      if (d < bd) { bd = d; best = b; }
+    }
+  }
+  return best;
+}
+
+/* ---------- waves (simulated) ---------- */
+function startWave() {
+  phase = 'wave'; waveT = 3.2; hand = null; selId = 0; shopOpen = false; undo = null;
+  server.phase = 'wave';
+  for (const b of server.buildings) {
+    if (b.type === 'mine') { if (Math.random() < 0.5) b.hp = 0; continue; }
+    b.hp = Math.max(1, Math.round(b.hp - b.maxHp * (0.2 + Math.random() * 0.5)));
+  }
+  server.buildings = server.buildings.filter((b) => b.hp > 0);
+  const snap = server.buildings.map(cloneB);
+  toClient(() => { client.buildings = snap; });
+}
+function endWave() {
+  wave++; phase = 'build'; timeLeft = 30; server.phase = 'build';
+  server.wallet.me += 150; server.wallet.bo += 150;
+  for (const b of server.buildings) b.paidThisBuild = 0;
+  const snap = server.buildings.map(cloneB), w = server.wallet.me;
+  toClient(() => { client.buildings = snap; client.wallet = w; });
+  toast(`Build phase · wave ${wave} cleared · +$150`, false);
+}
+
+/* ---------- Bo, the teammate ---------- */
+const BO_PLAN = [
+  { x: 21.2, y: 12.4, fx: 0, fy: -1, type: 'wood_barricade' },
+  { x: 27.4, y: 19.7, fx: 0, fy: 1, type: 'wood_barricade' },
+  { x: 19.4, y: 18.5, fx: -1, fy: 0, type: 'spike_trap' },
+];
+const BO_WANDER = [[22, 14], [26, 18], [20, 19], [27, 13]];
+function moveBody(p, vx, vy, dt) {
+  p.x += vx * dt; p.y += vy * dt;
+  const boxes = SOLIDS.concat(client.buildings.filter((b) => TYPES[b.type].solid).map((b) => b.box));
+  for (let k = 0; k < 2; k++) for (const b of boxes) {
+    const px = clamp(p.x, b.minX, b.maxX), py = clamp(p.y, b.minY, b.maxY);
+    const dx = p.x - px, dy = p.y - py, d2 = dx * dx + dy * dy;
+    if (d2 < BODY_R * BODY_R) {
+      if (d2 > 1e-9) { const d = Math.sqrt(d2), push = BODY_R - d; p.x += (dx / d) * push; p.y += (dy / d) * push; }
+      else { const l = p.x - b.minX, r = b.maxX - p.x, t = p.y - b.minY, bt = b.maxY - p.y, m = Math.min(l, r, t, bt); if (m === l) p.x = b.minX - BODY_R; else if (m === r) p.x = b.maxX + BODY_R; else if (m === t) p.y = b.minY - BODY_R; else p.y = b.maxY + BODY_R; }
+    }
+  }
+  p.x = clamp(p.x, BODY_R, MAP_W - BODY_R); p.y = clamp(p.y, BODY_R, MAP_H - BODY_R);
+}
+function boUpdate(dt) {
+  if (!S.bo) { bo.ghost = null; return; }
+  const goal = bo.plan < BO_PLAN.length ? BO_PLAN[bo.plan] : null;
+  if (phase !== 'build') bo.ghost = null;
+  if (goal && phase === 'build') {
+    if (bo.st === 'walk') {
+      const dx = goal.x - bo.x, dy = goal.y - bo.y, d = Math.hypot(dx, dy);
+      if (d < 0.15) { bo.st = 'hold'; bo.t = 2.4; bo.fx = goal.fx; bo.fy = goal.fy; }
+      else { bo.fx = dx / d; bo.fy = dy / d; moveBody(bo, bo.fx * 3, bo.fy * 3, dt); }
+      if (d < 4) { const t = TYPES[goal.type], rot = square(t) ? 0 : rotForCardinal(cardinalOf(goal.fx, goal.fy)); const dist = BODY_R + 1 + Math.abs(goal.fx) * FW(t, rot) / 2 + Math.abs(goal.fy) * FH(t, rot) / 2; bo.ghost = { type: goal.type, rot, gx: Math.round((bo.x + bo.fx * dist - FW(t, rot) / 2) / GRID), gy: Math.round((bo.y + bo.fy * dist - FH(t, rot) / 2) / GRID) }; }
+    } else if (bo.st === 'hold') {
+      bo.t -= dt;
+      const t = TYPES[goal.type], rot = square(t) ? 0 : rotForCardinal(cardinalOf(goal.fx, goal.fy));
+      const dist = BODY_R + 1 + Math.abs(goal.fx) * FW(t, rot) / 2 + Math.abs(goal.fy) * FH(t, rot) / 2;
+      bo.ghost = { type: goal.type, rot, gx: Math.round((bo.x + goal.fx * dist - FW(t, rot) / 2) / GRID), gy: Math.round((bo.y + goal.fy * dist - FH(t, rot) / 2) / GRID) };
+      if (bo.t <= 0) { serverHandle({ kind: 'place', owner: 'bo', reqId: 0, type: bo.ghost.type, gx: bo.ghost.gx, gy: bo.ghost.gy, rot: bo.ghost.rot }); bo.ghost = null; bo.plan++; bo.st = 'walk'; }
+    }
+  } else {
+    bo.ghost = null;
+    const w = BO_WANDER[bo.wander % BO_WANDER.length]; const dx = w[0] - bo.x, dy = w[1] - bo.y, d = Math.hypot(dx, dy);
+    if (d < 0.3) bo.wander++; else { bo.fx = dx / d; bo.fy = dy / d; moveBody(bo, bo.fx * 1.6, bo.fy * 1.6, dt); }
+  }
+  // the teammate ghost goes out at ≤ 4 Hz, only when it changes; it arrives one-way-lag later
+  if (now() >= boGhostNext) {
+    boGhostNext = now() + 250;
+    const g = bo.ghost ? { ...bo.ghost } : null;
+    const k = (x) => (x ? `${x.type}${x.gx},${x.gy},${x.rot}` : '');
+    if (k(g) !== k(boGhostShown)) toClient(() => { boGhostShown = g; });
+  }
+}
+
+/* ---------- camera / view ---------- */
+let W = 0, H = 0, DPR = 1;
+const inset = { l: 0, r: 0, t: 0, b: 0 };
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+function pxPerM() { return S.scale === 'game' ? Math.max(W / 24, H / 13.5) : 48; }
+function viewRect() { const p = pxPerM(); return { minX: camX - W / 2 / p, maxX: camX + W / 2 / p, minY: camY - H / 2 / p, maxY: camY + H / 2 / p }; }
+const w2s = (x, y) => { const p = pxPerM(); return { x: (x - camX) * p + W / 2, y: (y - camY) * p + H / 2 }; };
+const s2w = (x, y) => { const p = pxPerM(); return { x: (x - W / 2) / p + camX, y: (y - H / 2) / p + camY }; };
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 3); W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  const ps = getComputedStyle(document.getElementById('probe'));
+  inset.t = parseFloat(ps.paddingTop) || 0; inset.r = parseFloat(ps.paddingRight) || 0; inset.b = parseFloat(ps.paddingBottom) || 0; inset.l = parseFloat(ps.paddingLeft) || 0;
+}
+window.addEventListener('resize', resize);
+
+/* ---------- feedback: haptics, sound, toasts ---------- */
+function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* not allowed */ } }
+let actx = null;
+function audio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; } } return actx; }
+function tone(f0, f1, dur, type, vol) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.setValueAtTime(f0, a.currentTime); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), a.currentTime + dur);
+  g.gain.setValueAtTime(vol, a.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur); o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + dur);
+}
+const click = () => tone(900, 700, 0.04, 'square', 0.03);
+const thunk = (type) => { if (type.includes('barricade') || type === 'spike_trap') tone(160, 60, 0.16, 'triangle', 0.25); else if (type === 'mine' || type === 'bear_trap') tone(1200, 500, 0.05, 'square', 0.05); else tone(420, 180, 0.12, 'sawtooth', 0.08); };
+const coins = () => { tone(1300, 1300, 0.06, 'sine', 0.08); setTimeout(() => tone(1700, 1700, 0.08, 'sine', 0.08), 70); };
+function toast(text, bad) { toasts.push({ text, bad, t: now() }); if (toasts.length > 3) toasts.shift(); }
+function puff(b, owner) { const c = centre(b.box); for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + Math.random() * 0.5; puffs.push({ x: c.x, y: c.y, vx: Math.cos(a) * 1.4, vy: Math.sin(a) * 1.4, t: now() }); } b.dropT = now(); b.tabT = now(); }
+
+/* ---------- input ---------- */
+const ptrs = new Map();
+let stick = null; // {id, ox, oy, vx, vy}
+const keys = new Set();
+let buttons = [];
+function hitButton(x, y) {
+  for (let i = buttons.length - 1; i >= 0; i--) {
+    const b = buttons[i];
+    if (b.r ? Math.hypot(x - b.cx, y - b.cy) <= b.r + 4 : x >= b.x - 4 && x <= b.x + b.w + 4 && y >= b.y - 4 && y <= b.y + b.h + 4) return b;
+  }
+  return null;
+}
+cv.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); audio(); if (actx && actx.state === 'suspended') actx.resume();
+  try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  const x = e.clientX, y = e.clientY;
+  const p = { id: e.pointerId, x0: x, y0: y, x, y, lx: x, ly: y, t0: now(), moved: false, kind: 'none', hold: 0, dragging: false };
+  const btn = hitButton(x, y);
+  if (btn) { p.kind = 'button'; ptrs.set(e.pointerId, p); btn.fn(); return; }
+  if (shopOpen) { shopOpen = false; ptrs.set(e.pointerId, p); return; }
+  if (S.mode === 'today' && hand) { p.kind = 'todayGhost'; todayAnchor(x, y); ptrs.set(e.pointerId, p); return; }
+  if (x < W / 2) { if (!stick) { stick = { id: e.pointerId, ox: x, oy: y, vx: 0, vy: 0 }; p.kind = 'stick'; } }
+  else p.kind = 'right';
+  if (!hand && S.mode !== 'today' && phase === 'build') { const w = s2w(x, y); const b = buildingAt(w.x, w.y, 0.4); if (b && b.owner === 'me') p.hold = b.id; }
+  ptrs.set(e.pointerId, p);
+}, { passive: false });
+cv.addEventListener('pointermove', (e) => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  p.x = e.clientX; p.y = e.clientY;
+  if (Math.hypot(p.x - p.x0, p.y - p.y0) > TAP_PX) p.moved = true;
+  if (p.kind === 'stick' && stick && stick.id === p.id) {
+    let dx = p.x - stick.ox, dy = p.y - stick.oy; const d = Math.hypot(dx, dy);
+    if (d > STICK_R) { stick.ox = p.x - (dx / d) * STICK_R; stick.oy = p.y - (dy / d) * STICK_R; dx = p.x - stick.ox; dy = p.y - stick.oy; }
+    const m = Math.hypot(dx, dy) < 10 ? 0 : 1;
+    stick.vx = (dx / STICK_R) * m; stick.vy = (dy / STICK_R) * m;
+  } else if (p.kind === 'todayGhost') todayAnchor(p.x, p.y);
+  else if (p.kind === 'right' && hand && S.mode === 'hybrid' && phase === 'build') {
+    if (!p.dragging && Math.hypot(p.x - p.x0, p.y - p.y0) > DRAG_PX) { p.dragging = true; p.lx = p.x; p.ly = p.y; }
+    if (p.dragging) { dragBy(p.x - p.lx, p.y - p.ly); p.lx = p.x; p.ly = p.y; }
+  }
+}, { passive: false });
+function endPtr(e, cancelled) {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  ptrs.delete(e.pointerId);
+  if (stick && stick.id === p.id) stick = null;
+  if (cancelled || p.kind === 'button' || p.kind === 'todayGhost') return;
+  if (!p.moved && now() - p.t0 <= TAP_MS && !hand && phase === 'build') {
+    const w = s2w(p.x, p.y); const b = buildingAt(w.x, w.y, 0.4);
+    selId = b ? b.id : 0; if (b) click();
+  }
+}
+cv.addEventListener('pointerup', (e) => endPtr(e, false));
+cv.addEventListener('pointercancel', (e) => endPtr(e, true));
+cv.addEventListener('contextmenu', (e) => e.preventDefault());
+function todayAnchor(x, y) { const w = s2w(x, y); hand.cx = w.x; hand.cy = w.y; snap(true); }
+window.addEventListener('keydown', (e) => {
+  if (!panelHidden()) return;
+  const k = e.key.toLowerCase(); keys.add(k);
+  if (k === 'r') rotate();
+  else if (k === ' ') { e.preventDefault(); place(); }
+  else if (k === 'escape') { if (hand) putAway(); else if (selId) selId = 0; else openPanel(); }
+  else if (k === 'z') doUndo();
+  else if (k >= '1' && k <= '7' && S.mode !== 'today') { const t = SHOP_TYPES[+k - 1]; if (hand && hand.type === t) putAway(); else pick(t); }
+});
+window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
+
+/* ---------- update ---------- */
+let last = now();
+function update() {
+  const t = now(); const dt = Math.min(0.05, (t - last) / 1000); last = t;
+  for (let i = 0; i < net.length; ) { if (net[i].at <= t) { const f = net[i].fn; net.splice(i, 1); f(); } else i++; }
+  for (const p of pending) if (t - p.t > PENDING_TIMEOUT_MS + S.lag) { onRefused(p.reqId, { code: 'noanswer' }); break; }
+  if (!panelHidden()) return;
+  if (S.timer && phase === 'build') { timeLeft -= dt; if (timeLeft <= 0) startWave(); }
+  if (phase === 'wave') { waveT -= dt; if (waveT <= 0) endWave(); }
+  // my survivor (frozen while placing in today's flow)
+  let vx = 0, vy = 0;
+  if (stick) { vx = stick.vx; vy = stick.vy; }
+  if (keys.has('a') || keys.has('arrowleft')) vx -= 1; if (keys.has('d') || keys.has('arrowright')) vx += 1;
+  if (keys.has('w') || keys.has('arrowup')) vy -= 1; if (keys.has('s') || keys.has('arrowdown')) vy += 1;
+  const m = Math.hypot(vx, vy);
+  if (m > 1) { vx /= m; vy /= m; }
+  const frozen = S.mode === 'today' && (hand || shopOpen);
+  if (!frozen && m > 0.15) { const l = Math.hypot(vx, vy); me.fx = vx / l; me.fy = vy / l; moveBody(me, vx * SPEED, vy * SPEED, dt); }
+  boUpdate(dt);
+  if (hand) {
+    if (S.mode !== 'today' && !hand.pinned) carryUpdate();
+    if (hand.pinned) { const v = viewRect(), c = centre(boxOf(hand.type, hand.gx, hand.gy, hand.rot)); if (c.x < v.minX - 0.5 || c.x > v.maxX + 0.5 || c.y < v.minY - 0.5 || c.y > v.maxY + 0.5) { hand.pinned = false; hand.gx = null; carryUpdate(); } }
+    hand.err = handError();
+  }
+  // long-press pick-up
+  for (const p of ptrs.values()) if (p.hold && !p.moved && t - p.t0 >= HOLD_MS && !hand) { pickUp(p.hold); p.hold = 0; if (p.kind === 'right') { p.dragging = false; p.x0 = p.x; p.y0 = p.y; } }
+  // walk-up select (stretch)
+  if (S.prox && S.mode !== 'today' && !hand && !selId && phase === 'build') {
+    let near = 0;
+    for (const b of client.buildings) if (b.hp < b.maxHp && circleBox(me.x, me.y, BODY_R + 0.8, b.box)) { near = b.id; break; }
+    if (near && near === proxId) { proxT += dt; if (proxT >= 0.3) { selId = near; proxT = 0; } } else { proxId = near; proxT = 0; }
+  }
+  if (selId && !client.buildings.find((b) => b.id === selId)) selId = 0;
+  if (undo && t > undo.until) undo = null;
+  // camera
+  let lx = 0, ly = 0;
+  if (S.lead && hand && hand.pinned) { const c = centre(boxOf(hand.type, hand.gx, hand.gy, hand.rot)); lx = clamp((c.x - me.x) * 0.35, -3, 3); ly = clamp((c.y - me.y) * 0.35, -3, 3); }
+  const k = 1 - Math.exp(-dt / 0.2); camLeadX += (lx - camLeadX) * k; camLeadY += (ly - camLeadY) * k;
+  const p = pxPerM(), hw = W / 2 / p, hh = H / 2 / p;
+  camX = hw * 2 >= MAP_W ? MAP_W / 2 : clamp(me.x + camLeadX, hw, MAP_W - hw);
+  camY = hh * 2 >= MAP_H ? MAP_H / 2 : clamp(me.y + camLeadY, hh, MAP_H - hh);
+}
+
+/* ---------- drawing: world ---------- */
+const C = { asphalt: '#2a2d31', walk: '#3a3d41', lot: '#33363a', line: 'rgba(214,190,110,0.55)', roof: '#1c1e22', roofEdge: '#4a4e54', label: 'rgba(170,176,184,0.55)' };
+function rect(b) { ctx.fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY); }
+function strokeBox(b) { ctx.strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY); }
+function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+function worldTransform() { const p = pxPerM(); ctx.setTransform(DPR * p, 0, 0, DPR * p, DPR * (W / 2 - camX * p), DPR * (H / 2 - camY * p)); }
+function drawMap() {
+  ctx.fillStyle = C.asphalt; ctx.fillRect(0, 0, MAP_W, MAP_H);
+  ctx.fillStyle = C.lot; ctx.fillRect(30, 0, 18, 10); ctx.fillRect(10.5, 22, 9.5, 10);
+  ctx.strokeStyle = 'rgba(200,200,200,0.18)'; ctx.lineWidth = 0.06;
+  for (let x = 11; x <= 20; x += 3) { ctx.beginPath(); ctx.moveTo(x, 25.5); ctx.lineTo(x, 31); ctx.stroke(); }
+  ctx.fillStyle = C.walk;
+  for (const s of SOLIDS) if (s.kind === 'roof') ctx.fillRect(Math.max(0, s.minX - 1.5), Math.max(0, s.minY - 1.5), Math.min(MAP_W, s.maxX + 1.5) - Math.max(0, s.minX - 1.5), Math.min(MAP_H, s.maxY + 1.5) - Math.max(0, s.minY - 1.5));
+  // centre lines and crosswalks
+  ctx.strokeStyle = C.line; ctx.lineWidth = 0.12; ctx.setLineDash([1.2, 1.2]);
+  ctx.beginPath(); ctx.moveTo(0, 16); ctx.lineTo(17, 16); ctx.moveTo(31, 16); ctx.lineTo(MAP_W, 16); ctx.moveTo(24, 0); ctx.lineTo(24, 9); ctx.moveTo(24, 23); ctx.lineTo(24, MAP_H); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(220,220,220,0.08)';
+  for (let i = 0; i < 9; i++) { ctx.fillRect(19 + i * 1.2, 9.6, 0.6, 1.6); ctx.fillRect(19 + i * 1.2, 20.8, 0.6, 1.6); ctx.fillRect(16.6, 11.5 + i * 1.1, 1.6, 0.55); ctx.fillRect(29.8, 11.5 + i * 1.1, 1.6, 0.55); }
+  for (const s of SOLIDS) drawSolid(s);
+  // spawn markers
+  for (const sp of SPAWNS) { ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.arc(sp.x, sp.y, 0.35, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(160,70,60,0.8)'; ctx.lineWidth = 0.06; ctx.stroke(); }
+}
+function drawSolid(s) {
+  const w = s.maxX - s.minX, h = s.maxY - s.minY;
+  if (s.kind === 'roof') {
+    ctx.fillStyle = C.roof; rect(s); ctx.strokeStyle = C.roofEdge; ctx.lineWidth = 0.12; strokeBox(s);
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 0.05;
+    for (let y = s.minY + 1; y < s.maxY; y += 1) { ctx.beginPath(); ctx.moveTo(s.minX, y); ctx.lineTo(s.maxX, y); ctx.stroke(); }
+  } else if (s.kind === 'car') {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(s.minX + 0.12, s.minY + 0.15, w, h);
+    ctx.fillStyle = s.tint; rrect(s.minX, s.minY, w, h, 0.35); ctx.fill();
+    ctx.fillStyle = 'rgba(20,28,36,0.75)';
+    if (w > h) { ctx.fillRect(s.minX + w * 0.22, s.minY + 0.2, w * 0.16, h - 0.4); ctx.fillRect(s.minX + w * 0.66, s.minY + 0.2, w * 0.12, h - 0.4); }
+    else { ctx.fillRect(s.minX + 0.2, s.minY + h * 0.22, w - 0.4, h * 0.16); ctx.fillRect(s.minX + 0.2, s.minY + h * 0.66, w - 0.4, h * 0.12); }
+  } else if (s.kind === 'bus') {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(s.minX + 0.15, s.minY + 0.2, w, h);
+    ctx.fillStyle = '#9c8130'; rrect(s.minX, s.minY, w, h, 0.3); ctx.fill();
+    ctx.fillStyle = 'rgba(20,28,36,0.7)'; for (let x = s.minX + 0.6; x < s.maxX - 0.8; x += 1.15) ctx.fillRect(x, s.minY + 0.25, 0.8, h - 0.5);
+  } else if (s.kind === 'barrier') {
+    for (let x = s.minX, i = 0; x < s.maxX; x += 0.5, i++) { ctx.fillStyle = i % 2 ? '#d8d8d8' : '#b83b32'; ctx.fillRect(x, s.minY, 0.5, h); }
+  } else if (s.kind === 'sandbags') {
+    ctx.fillStyle = '#8f7d5a'; for (let x = s.minX + 0.3; x < s.maxX; x += 0.55) for (let y = s.minY + 0.25; y < s.maxY; y += 0.5) { ctx.beginPath(); ctx.ellipse(x, y, 0.3, 0.22, 0, 0, 7); ctx.fill(); }
+  } else { ctx.fillStyle = s.kind === 'pump' ? '#5a5f66' : '#4a4d52'; rect(s); }
+}
+function drawRoofLabels() {
+  ctx.font = '600 13px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C.label;
+  for (const s of SOLIDS) if (s.name) { const c = w2s((s.minX + s.maxX) / 2, (s.minY + s.maxY) / 2); ctx.fillText(s.name, c.x, c.y); }
+}
+const STRUT = [[0, 1], [-1, 0], [0, -1], [1, 0]];
+function drawBuildingShape(type, box, rot, a, hpFrac) {
+  const t = TYPES[type], w = box.maxX - box.minX, h = box.maxY - box.minY, c = centre(box);
+  ctx.globalAlpha = a;
+  const dmg = hpFrac === undefined ? 1 : 0.55 + 0.45 * hpFrac;
+  const shade = (hex) => { const n = parseInt(hex.slice(1), 16); const r = Math.round(((n >> 16) & 255) * dmg), g = Math.round(((n >> 8) & 255) * dmg), b = Math.round((n & 255) * dmg); return `rgb(${r},${g},${b})`; };
+  if (type.includes('barricade')) {
+    const col = type === 'wood_barricade' ? '#8b5a2b' : type === 'reinforced_barricade' ? '#6d4a2a' : '#7c858d';
+    const [sx, sy] = STRUT[rot];
+    const horiz = w >= h;
+    // plank band on the far side from the struts (60 % of the depth), struts in the rest
+    let pb;
+    if (horiz) pb = sy > 0 ? { minX: box.minX, minY: box.minY, maxX: box.maxX, maxY: box.minY + h * 0.6 } : { minX: box.minX, minY: box.maxY - h * 0.6, maxX: box.maxX, maxY: box.maxY };
+    else pb = sx > 0 ? { minX: box.minX, minY: box.minY, maxX: box.minX + w * 0.6, maxY: box.maxY } : { minX: box.maxX - w * 0.6, minY: box.minY, maxX: box.maxX, maxY: box.maxY };
+    ctx.strokeStyle = shade('#3b2614'); ctx.lineWidth = 0.07;
+    const n = 3;
+    for (let i = 0; i < n; i++) {
+      const f = (i + 0.5) / n; ctx.beginPath();
+      if (horiz) { const x = box.minX + w * f; const y0 = sy > 0 ? pb.maxY : pb.minY, y1 = sy > 0 ? box.maxY : box.minY; ctx.moveTo(x - 0.18, y0); ctx.lineTo(x, y1); ctx.lineTo(x + 0.18, y0); }
+      else { const y = box.minY + h * f; const x0 = sx > 0 ? pb.maxX : pb.minX, x1 = sx > 0 ? box.maxX : box.minX; ctx.moveTo(x0, y - 0.18); ctx.lineTo(x1, y); ctx.lineTo(x0, y + 0.18); }
+      ctx.stroke();
+    }
+    ctx.fillStyle = shade(col); rect(pb);
+    ctx.strokeStyle = shade(type === 'metal_barricade' ? '#4b5258' : '#5d3a1a'); ctx.lineWidth = 0.035;
+    if (horiz) for (let x = box.minX + 0.5; x < box.maxX - 0.01; x += 0.5) { ctx.beginPath(); ctx.moveTo(x, pb.minY); ctx.lineTo(x, pb.maxY); ctx.stroke(); }
+    else for (let y = box.minY + 0.5; y < box.maxY - 0.01; y += 0.5) { ctx.beginPath(); ctx.moveTo(pb.minX, y); ctx.lineTo(pb.maxX, y); ctx.stroke(); }
+    if (type !== 'wood_barricade') { ctx.fillStyle = shade('#a7b0b8'); if (horiz) { ctx.fillRect(box.minX + 0.3, pb.minY, 0.08, pb.maxY - pb.minY); ctx.fillRect(box.maxX - 0.38, pb.minY, 0.08, pb.maxY - pb.minY); } else { ctx.fillRect(pb.minX, box.minY + 0.3, pb.maxX - pb.minX, 0.08); ctx.fillRect(pb.minX, box.maxY - 0.38, pb.maxX - pb.minX, 0.08); } }
+    ctx.strokeStyle = '#1a1008'; ctx.lineWidth = 0.05; strokeBox(pb);
+  } else if (type === 'auto_turret') {
+    ctx.fillStyle = shade('#444c55'); rrect(box.minX + 0.05, box.minY + 0.05, w - 0.1, h - 0.1, 0.15); ctx.fill();
+    ctx.strokeStyle = '#15181b'; ctx.lineWidth = 0.05; ctx.stroke();
+    ctx.fillStyle = shade('#6f7a84'); ctx.beginPath(); ctx.arc(c.x, c.y, 0.3, 0, 7); ctx.fill();
+    let best = SPAWNS[0], bd = 1e9; for (const sp of SPAWNS) { const d = Math.hypot(sp.x - c.x, sp.y - c.y); if (d < bd) { bd = d; best = sp; } }
+    const ang = Math.atan2(best.y - c.y, best.x - c.x);
+    ctx.strokeStyle = shade('#2b3036'); ctx.lineWidth = 0.14; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x + Math.cos(ang) * 0.55, c.y + Math.sin(ang) * 0.55); ctx.stroke();
+  } else if (type === 'spike_trap') {
+    ctx.fillStyle = shade('#4a3a28'); rect(box); ctx.strokeStyle = '#1d150c'; ctx.lineWidth = 0.05; strokeBox(box);
+    ctx.fillStyle = shade('#c9ced3'); for (let x = box.minX + 0.25; x < box.maxX; x += 0.375) for (let y = box.minY + 0.25; y < box.maxY; y += 0.375) { ctx.beginPath(); ctx.arc(x, y, 0.045, 0, 7); ctx.fill(); }
+  } else if (type === 'mine') {
+    ctx.fillStyle = shade('#3c4238'); ctx.beginPath(); ctx.arc(c.x, c.y, 0.22, 0, 7); ctx.fill(); ctx.strokeStyle = '#111'; ctx.lineWidth = 0.03; ctx.stroke();
+    ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(c.x, c.y, 0.07, 0, 7); ctx.fill();
+  } else if (type === 'bear_trap') {
+    ctx.strokeStyle = shade('#8d939a'); ctx.lineWidth = 0.06; ctx.beginPath(); ctx.arc(c.x, c.y, 0.4, 0, 7); ctx.stroke();
+    for (let i = 0; i < 12; i++) { const a2 = (i / 12) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(c.x + Math.cos(a2) * 0.4, c.y + Math.sin(a2) * 0.4); ctx.lineTo(c.x + Math.cos(a2) * 0.28, c.y + Math.sin(a2) * 0.28); ctx.stroke(); }
+    ctx.fillStyle = shade('#b08a3a'); ctx.beginPath(); ctx.arc(c.x, c.y, 0.14, 0, 7); ctx.fill();
+  } else if (type === 'med_station') {
+    ctx.fillStyle = shade('#d9dde0'); rrect(box.minX + 0.06, box.minY + 0.06, w - 0.12, h - 0.12, 0.1); ctx.fill(); ctx.strokeStyle = '#30363b'; ctx.lineWidth = 0.05; ctx.stroke();
+    ctx.fillStyle = '#2e9d57'; ctx.fillRect(c.x - 0.09, c.y - 0.3, 0.18, 0.6); ctx.fillRect(c.x - 0.3, c.y - 0.09, 0.6, 0.18);
+  } else if (type === 'floodlight') {
+    ctx.fillStyle = shade('#3f454b'); rrect(box.minX + 0.12, box.minY + 0.12, w - 0.24, h - 0.24, 0.1); ctx.fill();
+    ctx.fillStyle = '#ffe9a8'; ctx.fillRect(c.x - 0.28, c.y - 0.12, 0.56, 0.24);
+  }
+  ctx.globalAlpha = 1;
+}
+function hatch(box, col) {
+  ctx.save(); ctx.beginPath(); ctx.rect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY); ctx.clip();
+  ctx.strokeStyle = col; ctx.lineWidth = 0.05;
+  const hh = box.maxY - box.minY;
+  for (let k = box.minX - hh; k < box.maxX; k += 0.25) { ctx.beginPath(); ctx.moveTo(k, box.minY); ctx.lineTo(k + hh, box.maxY); ctx.stroke(); }
+  ctx.restore();
+}
+function dashedBox(box, col, lw, dash) { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.setLineDash(dash); strokeBox(box); ctx.setLineDash([]); }
+function drawBody(p, col) {
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(p.x + 0.08, p.y + 0.1, BODY_R, 0, 7); ctx.fill();
+  ctx.fillStyle = '#3d4a3f'; ctx.beginPath(); ctx.arc(p.x, p.y, BODY_R * 0.85, 0, 7); ctx.fill();
+  ctx.fillStyle = '#c9a27e'; ctx.beginPath(); ctx.arc(p.x + p.fx * 0.12, p.y + p.fy * 0.12, 0.17, 0, 7); ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 0.07; ctx.beginPath(); ctx.arc(p.x, p.y, BODY_R + 0.06, 0, 7); ctx.stroke();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(p.x + p.fx * 0.62, p.y + p.fy * 0.62); ctx.lineTo(p.x + p.fx * 0.46 - p.fy * 0.1, p.y + p.fy * 0.46 + p.fx * 0.1); ctx.lineTo(p.x + p.fx * 0.46 + p.fy * 0.1, p.y + p.fy * 0.46 - p.fx * 0.1); ctx.fill();
+}
+function drawWorld() {
+  const t = now();
+  worldTransform();
+  drawMap();
+  const holding = !!hand && phase === 'build';
+  const err = hand ? hand.err : null;
+  // no-build circles for every spawn while holding (new modes)
+  if (holding && S.mode !== 'today') {
+    for (const sp of SPAWNS) {
+      const hot = err && err.code === 'spawn' && err.spawn === sp;
+      ctx.fillStyle = hot ? 'rgba(229,57,53,0.22)' : 'rgba(229,57,53,0.09)'; ctx.beginPath(); ctx.arc(sp.x, sp.y, SPAWN_CLEAR, 0, 7); ctx.fill();
+      ctx.strokeStyle = hot ? 'rgba(255,90,70,0.95)' : 'rgba(229,57,53,0.4)'; ctx.lineWidth = hot ? 0.08 : 0.04; ctx.setLineDash([0.3, 0.2]); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  // buildings: floor first, then walls
+  const list = client.buildings;
+  for (const pass of [false, true]) for (const b of list) {
+    if (TYPES[b.type].solid !== pass) continue;
+    const moving = (hand && hand.moveId === b.id) || pendingMoves.some((m) => m.id === b.id);
+    let box = b.box;
+    if (b.dropT && t - b.dropT < 120) { const k = 1 - (t - b.dropT) / 120; box = { minX: b.box.minX, maxX: b.box.maxX, minY: b.box.minY - 0.15 * k, maxY: b.box.maxY - 0.15 * k }; }
+    drawBuildingShape(b.type, box, b.rot, moving ? 0.35 : 1, b.hp / b.maxHp);
+    if (moving) dashedBox(b.box, 'rgba(255,255,255,0.8)', 0.05, [0.2, 0.15]);
+  }
+  // hp bars, owner pips, corner tabs
+  for (const b of list) {
+    const f = b.hp / b.maxHp, bb = b.box, w = bb.maxX - bb.minX, h = bb.maxY - bb.minY;
+    if (f < 1 && b.maxHp > 1) {
+      const col = f > 0.6 ? '#7cc544' : f > 0.3 ? '#e0b030' : '#d84a32';
+      ctx.fillStyle = 'rgba(26,26,26,0.85)';
+      if (w >= h) { const bx = bb.minX + 0.12, bw = w - 0.24, by = (bb.minY + bb.maxY - 0.14) / 2; ctx.fillRect(bx - 0.02, by - 0.02, bw + 0.04, 0.18); ctx.fillStyle = col; ctx.fillRect(bx, by, bw * f, 0.14); }
+      else { const by = bb.minY + 0.12, bh = h - 0.24, bx = (bb.minX + bb.maxX - 0.14) / 2; ctx.fillRect(bx - 0.02, by - 0.02, 0.18, bh + 0.04); ctx.fillStyle = col; ctx.fillRect(bx, by + bh * (1 - f), 0.14, bh * f); }
+    }
+    if (phase === 'build' && S.mode !== 'today') { ctx.fillStyle = OWNER_COL[b.owner]; ctx.beginPath(); ctx.arc(bb.minX + 0.12, bb.minY + 0.12, 0.09, 0, 7); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 0.03; ctx.stroke(); }
+    if (b.tabT && t - b.tabT < 3000 && S.mode !== 'today') { ctx.globalAlpha = 1 - (t - b.tabT) / 3000; ctx.strokeStyle = OWNER_COL[b.owner]; ctx.lineWidth = 0.1; ctx.beginPath(); ctx.moveTo(bb.minX, bb.minY + 0.5); ctx.lineTo(bb.minX, bb.minY); ctx.lineTo(bb.minX + 0.5, bb.minY); ctx.stroke(); ctx.globalAlpha = 1; }
+  }
+  // selection outline
+  const sel = list.find((b) => b.id === selId);
+  if (sel) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.08; const bb = sel.box; ctx.strokeRect(bb.minX - 0.1, bb.minY - 0.1, bb.maxX - bb.minX + 0.2, bb.maxY - bb.minY + 0.2); }
+  // pending placements and moves: dashed, with a spinner tick
+  for (const p of pending.concat(pendingMoves)) {
+    drawBuildingShape(p.type, p.box, p.rot, 0.35);
+    dashedBox(p.box, 'rgba(255,255,255,0.9)', 0.06, [0.18, 0.12]);
+    const a = (t / 120) % (Math.PI * 2); ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.06; ctx.beginPath(); ctx.arc(p.box.maxX, p.box.minY, 0.16, a, a + 4); ctx.stroke();
+  }
+  // refused: shake 3 × 150 ms, then fade
+  fails = fails.filter((f) => t - f.t < 750);
+  for (const f of fails) {
+    const k = t - f.t, dx = k < 450 ? Math.sin((k / 150) * Math.PI * 2) * 0.1 : 0, a = k < 450 ? 0.9 : 0.9 * (1 - (k - 450) / 300);
+    const b = { minX: f.box.minX + dx, maxX: f.box.maxX + dx, minY: f.box.minY, maxY: f.box.maxY };
+    ctx.globalAlpha = a; ctx.fillStyle = 'rgba(229,57,53,0.45)'; rect(b); ctx.strokeStyle = '#e53935'; ctx.lineWidth = 0.08; strokeBox(b); ctx.globalAlpha = 1;
+  }
+  // teammate ghost (cosmetic, ≤ 4 Hz): dashed in their colour
+  if (S.bo && boGhostShown && phase === 'build' && S.mode !== 'today') {
+    const g = boGhostShown, box = boxOf(g.type, g.gx, g.gy, g.rot);
+    drawBuildingShape(g.type, box, g.rot, 0.3); dashedBox(box, OWNER_COL.bo, 0.06, [0.25, 0.15]);
+  }
+  // bodies
+  if (S.bo) drawBody(bo, OWNER_COL.bo);
+  drawBody(me, OWNER_COL.me);
+  // culprit highlight
+  if (holding && err && S.mode !== 'today') {
+    ctx.strokeStyle = '#ff5a46'; ctx.lineWidth = 0.08;
+    if (err.code === 'solid') strokeBox(err.solid);
+    if (err.code === 'building') strokeBox(err.b.box);
+    if (err.code === 'pending') strokeBox(err.p.box);
+    if (err.code === 'me' || err.code === 'mate') { ctx.beginPath(); ctx.arc(err.p.x, err.p.y, BODY_R + 0.15, 0, 7); ctx.stroke(); }
+  }
+  // my ghost
+  if (holding) {
+    const box0 = boxOf(hand.type, hand.gx, hand.gy, hand.rot);
+    const sk = t - hand.shakeT, dx = sk < 450 ? Math.sin((sk / 150) * Math.PI * 2) * 0.1 : 0;
+    const pop = Math.min(1, (t - hand.popT) / 120), sc = 0.8 + 0.2 * pop;
+    const c = centre(box0), hw = ((box0.maxX - box0.minX) / 2) * sc, hh = ((box0.maxY - box0.minY) / 2) * sc;
+    const box = { minX: c.x - hw + dx, maxX: c.x + hw + dx, minY: c.y - hh, maxY: c.y + hh };
+    const valid = !err, col = valid ? '#4caf50' : '#e53935';
+    // lattice ±4 cells
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 0.03;
+    for (let y = box0.minY - 2; y <= box0.maxY + 2.001; y += GRID) { ctx.beginPath(); ctx.moveTo(box0.minX - 2, y); ctx.lineTo(box0.maxX + 2, y); ctx.stroke(); }
+    for (let x = box0.minX - 2; x <= box0.maxX + 2.001; x += GRID) { ctx.beginPath(); ctx.moveTo(x, box0.minY - 2); ctx.lineTo(x, box0.maxY + 2); ctx.stroke(); }
+    const rings = TYPES[hand.type].rings;
+    if (rings) for (const [r, rc] of rings) { ctx.strokeStyle = rc; ctx.globalAlpha = valid ? 0.75 : 0.35; ctx.lineWidth = 0.05; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
+    drawBuildingShape(hand.type, box, hand.rot, 0.7);
+    ctx.fillStyle = valid ? 'rgba(76,175,80,0.3)' : 'rgba(229,57,53,0.38)'; rect(box);
+    if (!valid && S.mode !== 'today') hatch(box, 'rgba(255,255,255,0.28)');
+    ctx.strokeStyle = col; ctx.lineWidth = 0.08; strokeBox(box);
+    if (!valid && S.mode !== 'today') { const s = Math.min(0.2, (box.maxX - box.minX) / 3, (box.maxY - box.minY) / 3); ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.07; ctx.beginPath(); ctx.moveTo(c.x - s, c.y - s); ctx.lineTo(c.x + s, c.y + s); ctx.moveTo(c.x + s, c.y - s); ctx.lineTo(c.x - s, c.y + s); ctx.stroke(); }
+    if (hand.pinned && S.mode === 'hybrid') { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(box.maxX, box.minY, 0.11, 0, 7); ctx.fill(); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(box.maxX, box.minY, 0.06, 0, 7); ctx.fill(); }
+  }
+  // dust puffs
+  puffs = puffs.filter((p) => t - p.t < 400);
+  for (const p of puffs) { const k = (t - p.t) / 400; ctx.fillStyle = `rgba(190,180,160,${0.5 * (1 - k)})`; ctx.beginPath(); ctx.arc(p.x + p.vx * k * 0.6, p.y + p.vy * k * 0.6, 0.12 + 0.2 * k, 0, 7); ctx.fill(); }
+  // long-press ring
+  for (const p of ptrs.values()) if (p.hold && !p.moved && !hand) {
+    const k = (t - p.t0 - 150) / (HOLD_MS - 150); if (k <= 0) continue;
+    const b = client.buildings.find((x) => x.id === p.hold); if (!b) continue;
+    const c = centre(b.box); ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.09; ctx.beginPath(); ctx.arc(c.x, c.y, 0.75, -Math.PI / 2, -Math.PI / 2 + Math.min(1, k) * Math.PI * 2); ctx.stroke();
+  }
+}
+function drawWorldText() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  drawRoofLabels();
+  const t = now();
+  ctx.font = '600 15px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (S.bo) { const s = w2s(bo.x, bo.y - 0.75); outlined('Bo', s.x, s.y, OWNER_COL.bo); }
+  if (S.bo && boGhostShown && phase === 'build' && S.mode !== 'today') { const b = boxOf(boGhostShown.type, boGhostShown.gx, boGhostShown.gy, boGhostShown.rot); const s = w2s((b.minX + b.maxX) / 2, b.minY - 0.3); outlined('Bo · ' + TYPES[boGhostShown.type].name, s.x, s.y, OWNER_COL.bo); }
+  floats = floats.filter((f) => t - f.t < 900);
+  ctx.font = '700 18px "Barlow Condensed", sans-serif';
+  for (const f of floats) { const k = (t - f.t) / 900; const s = w2s(f.x, f.y - 0.6 * k - 0.4); ctx.globalAlpha = 1 - k * k; outlined(f.text, s.x, s.y, f.col); ctx.globalAlpha = 1; }
+}
+function outlined(text, x, y, col) { ctx.lineWidth = 4; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.strokeText(text, x, y); ctx.fillStyle = col; ctx.fillText(text, x, y); }
+
+/* ---------- drawing: HUD (CSS px) ---------- */
+function btnRect(id, x, y, w, h, fn) { buttons.push({ id, x, y, w, h, fn }); }
+function btnCircle(id, cx, cy, r, fn) { buttons.push({ id, cx, cy, r, fn }); }
+function panelBox(x, y, w, h, fill, border, r) { rrect(x, y, w, h, r === undefined ? 12 : r); ctx.fillStyle = fill; ctx.fill(); if (border) { ctx.lineWidth = 2; ctx.strokeStyle = border; ctx.stroke(); } }
+function circle(cx, cy, r, fill, border, bw) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fillStyle = fill; ctx.fill(); if (border) { ctx.lineWidth = bw || 2; ctx.strokeStyle = border; ctx.stroke(); } }
+function label(text, x, y, size, col, weight, align) { ctx.font = `${weight || 600} ${size}px "Barlow Condensed", sans-serif`; ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle'; outlined(text, x, y, col || '#fff'); }
+function icon(type, cx, cy, size) {
+  const t = TYPES[type], rot = 0, w = FW(t, rot), h = FH(t, rot), s = size / Math.max(w, h, 1);
+  ctx.setTransform(DPR * s, 0, 0, DPR * s, DPR * (cx - (w / 2) * s), DPR * (cy - (h / 2) * s));
+  drawBuildingShape(type, { minX: 0, minY: 0, maxX: w, maxY: h }, type.includes('barricade') ? 0 : rot, 1);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+function drawHUD() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  buttons = [];
+  const t = now();
+  const L = inset.l, R = W - inset.r, T = inset.t, B = H - inset.b;
+  // top: settings, wave/timer, wallet
+  panelBox(L + 12, T + 8, 44, 44, 'rgba(0,0,0,0.45)', 'rgba(255,255,255,0.5)', 10);
+  ctx.fillStyle = '#fff'; for (let i = 0; i < 3; i++) ctx.fillRect(L + 23, T + 20 + i * 8, 22, 3);
+  btnRect('settings', L + 12, T + 8, 44, 44, openPanel);
+  label(S.mode === 'today' ? 'TODAY' : S.mode === 'carry' ? 'A · CARRY' : 'B · CARRY + DRAG', L + 66, T + 30, 14, '#cfd6dc', 600, 'left');
+  const mm = Math.max(0, Math.ceil(timeLeft)), ts = `0:${String(mm).padStart(2, '0')}`;
+  label(phase === 'build' ? `WAVE ${wave} · BUILD ${S.timer ? ts : '(paused)'}` : `WAVE ${wave} · ZOMBIES! (simulated)`, W / 2, T + 24, 18, phase === 'build' ? '#fff' : '#ff8a80', 700);
+  label(`$${shownWallet()}`, R - 20, T + 24, 22, '#ffe082', 700, 'right');
+  label(`${myCount()}/${CAP} built`, R - 20, T + 46, 14, myCount() >= CAP ? '#ff8a80' : '#cfd6dc', 600, 'right');
+  // toasts
+  toasts = toasts.filter((x) => t - x.t < 2200);
+  toasts.forEach((x, i) => { const a = Math.min(1, (2200 - (t - x.t)) / 300); ctx.globalAlpha = a; label(x.text, W / 2, T + 56 + i * 24, 18, x.bad ? '#ff8a80' : '#c5e1a5', 600); ctx.globalAlpha = 1; });
+  if (phase !== 'build') { label('Buildings take damage, mines go off, then the next build phase starts', W / 2, H / 2 - 60, 16, '#cfd6dc', 500); return; }
+  // left stick
+  if (stick) { circle(stick.ox, stick.oy, STICK_R, 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.35)'); circle(stick.ox + stick.vx * STICK_R, stick.oy + stick.vy * STICK_R, 24, 'rgba(255,255,255,0.35)'); }
+  if (S.mode === 'today') drawTodayHUD(L, R, T, B); else drawNewHUD(L, R, T, B);
+}
+function readyButton(cx, B) {
+  const w = 168, h = 52, x = cx - w / 2, y = B - 24 - h;
+  panelBox(x, y, w, h, 'rgba(0,0,0,0.5)', 'rgba(255,255,255,0.9)');
+  label('READY', cx, y + h / 2, 20, '#fff', 700);
+  btnRect('ready', x, y, w, h, () => { startWave(); });
+}
+function drawTodayHUD(L, R, T, B) {
+  const sel = client.buildings.find((b) => b.id === selId);
+  if (hand) {
+    const size = 64, gap = 20, rowW = size * 3 + gap * 2, y = B - 24 - size;
+    const glyphs = ['⟳', '✓', '✕'], fills = ['rgba(0,0,0,0.5)', 'rgba(46,125,50,0.85)', 'rgba(142,42,42,0.85)'];
+    const fns = [rotate, place, putAway];
+    for (let i = 0; i < 3; i++) { const x = (W - rowW) / 2 + i * (size + gap); panelBox(x, y, size, size, fills[i], 'rgba(255,255,255,0.9)'); label(glyphs[i], x + size / 2, y + size / 2 + 1, 30, '#fff', 700); btnRect('p' + i, x, y, size, size, fns[i]); }
+    const st = TYPES[hand.type];
+    label(hand.err ? reasonText(hand.err) : `${st.name} · $${st.price}`, W / 2, y - 16, 18, hand.err ? '#ff8a80' : '#fff', 600);
+    label('Sticks off: tap or drag to move the preview', W / 2, y - 40, 14, '#cfd6dc', 500);
+    return;
+  }
+  // Ready + Shop pair, bottom centre
+  const rw = 168, sw = 120, gap = 12, total = rw + gap + sw, x0 = (W - total) / 2, h = 52, y = B - 24 - h;
+  panelBox(x0, y, rw, h, 'rgba(0,0,0,0.5)', 'rgba(255,255,255,0.9)'); label('READY', x0 + rw / 2, y + h / 2, 20, '#fff', 700); btnRect('ready', x0, y, rw, h, startWave);
+  panelBox(x0 + rw + gap, y, sw, h, 'rgba(0,0,0,0.5)', 'rgba(255,255,255,0.9)'); label('SHOP', x0 + rw + gap + sw / 2, y + h / 2, 20, '#fff', 700); btnRect('shop', x0 + rw + gap, y, sw, h, () => { shopOpen = !shopOpen; selId = 0; });
+  if (sel && !shopOpen) {
+    const st = TYPES[sel.type], ry = y - 12 - 52, cost = Math.ceil(st.price * 0.5), rx = (W - 168 - 12 - 52) / 2;
+    panelBox(rx, ry, 168, 52, 'rgba(0,0,0,0.5)', sel.hp < sel.maxHp ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)'); label(`Repair $${cost}`, rx + 84, ry + 26, 20, sel.hp < sel.maxHp ? '#fff' : '#8a9096', 700); btnRect('repair', rx, ry, 168, 52, () => act('repair'));
+    panelBox(rx + 180, ry, 52, 52, 'rgba(0,0,0,0.5)', 'rgba(255,255,255,0.9)'); label('✕', rx + 206, ry + 26, 20, '#fff', 700); btnRect('close', rx + 180, ry, 52, 52, () => { selId = 0; });
+    label(`${st.name} · ${OWNER_NAME[sel.owner]}`, rx + 244, ry + 16, 15, '#fff', 600, 'left'); label(`HP ${Math.ceil(sel.hp)} / ${sel.maxHp}`, rx + 244, ry + 36, 15, '#fff', 600, 'left');
+    if (sel.owner === 'me' && st.up) { const uy = ry - 12 - 52; panelBox(rx, uy, 168, 52, 'rgba(0,0,0,0.5)', 'rgba(255,255,255,0.9)'); label(`Upgrade $${st.upPrice}`, rx + 84, uy + 26, 20, '#fff', 700); btnRect('upgrade', rx, uy, 168, 52, () => act('upgrade')); }
+    if (sel.hp >= sel.maxHp) label('Nothing to repair', rx + 84, ry - 10, 14, '#ff8a80', 600);
+  }
+  if (shopOpen) {
+    const pw = Math.min(560, W - 32), rowH = 46, rows = Math.ceil(SHOP_TYPES.length / 2), ph = 52 + rowH * rows, px = (W - pw) / 2, py = Math.max(T + 54, B - 24 - 52 - 12 - ph);
+    panelBox(px, py, pw, ph, 'rgba(16,18,21,0.96)', 'rgba(255,255,255,0.5)', 14);
+    label('SHOP · BUILDINGS', px + 16, py + 24, 18, '#fff', 700, 'left'); label('(weapons not in this prototype)', px + pw - 16, py + 24, 13, '#9aa3ab', 500, 'right');
+    const cw = (pw - 30) / 2;
+    SHOP_TYPES.forEach((type, i) => {
+      const rx = px + 10 + (i % 2) * (cw + 10), ry = py + 44 + Math.floor(i / 2) * rowH, rh = rowH - 6;
+      const st = TYPES[type], ok = !pickError(type);
+      panelBox(rx, ry, cw, rh, 'rgba(255,255,255,0.06)', null, 8);
+      icon(type, rx + 22, ry + rh / 2, 24);
+      label(st.name, rx + 44, ry + rh / 2, 16, ok ? '#fff' : '#8a9096', 600, 'left'); label('$' + st.price, rx + cw - 10, ry + rh / 2, 16, ok ? '#ffe082' : '#ff8a80', 700, 'right');
+      btnRect('shop-' + type, rx, ry, cw, rh, () => { shopOpen = false; pick(type); });
+    });
+  }
+}
+function drawNewHUD(L, R, T, B) {
+  const t = now();
+  const sel = client.buildings.find((b) => b.id === selId);
+  readyButton(W / 2 - 40, B);
+  if (hand) {
+    const st = TYPES[hand.type], valid = !hand.err;
+    // Place 76 at (92, 92); Rotate 60 at (190, 80); ✕ 48 at (80, 196); Undo 48 at (270, 64)
+    const pc = { x: R - 92, y: B - 92 };
+    circle(pc.x, pc.y, 38, valid ? 'rgba(46,125,50,0.92)' : 'rgba(59,63,68,0.9)', valid ? '#fff' : '#e53935', 3);
+    label(hand.moveId ? 'MOVE' : 'PLACE', pc.x, pc.y + 1, 19, '#fff', 700);
+    btnCircle('place', pc.x, pc.y, 38, place);
+    const rc = { x: R - 190, y: B - 80 };
+    circle(rc.x, rc.y, 30, 'rgba(0,0,0,0.55)', 'rgba(255,255,255,0.9)'); label('⟳', rc.x, rc.y + 1, 28, '#fff', 700);
+    if (!hand.autoRot && !square(st)) label('🔒', rc.x + 20, rc.y - 20, 12, '#fff', 500);
+    btnCircle('rotate', rc.x, rc.y, 30, rotate);
+    const xc = { x: R - 80, y: B - 196 };
+    circle(xc.x, xc.y, 24, 'rgba(142,42,42,0.85)', 'rgba(255,255,255,0.9)'); label('✕', xc.x, xc.y + 1, 20, '#fff', 700);
+    btnCircle('putaway', xc.x, xc.y, 24, putAway);
+    // item chip (tap = carry again when pinned)
+    const chipW = 176, cx0 = R - 16 - chipW, cy0 = B - 250 - 16;
+    panelBox(cx0, cy0, chipW, 32, 'rgba(0,0,0,0.55)', hand.pinned && S.mode === 'hybrid' ? '#ffb74d' : 'rgba(255,255,255,0.4)', 8);
+    const left = hand.moveId ? 'moving' : `×${Math.max(0, Math.min(CAP - myCount(), Math.floor(shownWallet() / st.price)))} left`;
+    label(hand.pinned && S.mode === 'hybrid' ? `↩ carry · ${st.short || st.name}` : `${st.short || st.name} · $${st.price} · ${left}`, cx0 + chipW / 2, cy0 + 16, 15, '#fff', 600);
+    btnRect('chip', cx0, cy0, chipW, 32, () => { if (hand.pinned) { hand.pinned = false; hand.gx = null; click(); } });
+    // reason line
+    label(valid ? (hand.moveId ? `Move ${st.name} · free` : `Place ${st.name} · $${st.price}`) : reasonText(hand.err), R - 16, cy0 - 14, 17, valid ? '#fff' : '#ff8a80', 600, 'right');
+    if (S.mode === 'hybrid' && !hand.pinned) label('drag here to nudge', R - 150, B - 150, 13, 'rgba(255,255,255,0.45)', 500);
+  } else if (sel) {
+    const st = TYPES[sel.type], mine = sel.owner === 'me', cost = Math.ceil(st.price * 0.5);
+    const takeBack = sel.paidThisBuild > 0 && sel.paidThisBuild === sel.paid;
+    const refund = sel.paidThisBuild + Math.floor(0.5 * (sel.paid - sel.paidThisBuild));
+    const items = [];
+    if (mine) items.push({ id: 'move', a: '✥ Move', b: 'free', fn: () => act('move') });
+    if (mine && st.up) items.push({ id: 'upgrade', a: 'Upgrade', b: `$${st.upPrice}`, fn: () => act('upgrade') });
+    items.push({ id: 'repair', a: 'Repair', b: sel.hp < sel.maxHp ? `$${cost}` : 'full HP', dim: sel.hp >= sel.maxHp, fn: () => act('repair') });
+    if (mine) items.push({ id: 'sell', a: takeBack ? 'Take back' : 'Sell', b: `+$${refund}`, fn: () => act('sell') });
+    const bw = 78, bh = 56, gap = 8, closeW = 56;
+    const total = items.length * (bw + gap) + closeW, x0 = R - 16 - total, y0 = B - 112 - bh / 2;
+    items.forEach((it, i) => {
+      const x = x0 + i * (bw + gap);
+      panelBox(x, y0, bw, bh, 'rgba(0,0,0,0.58)', it.dim ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.9)', 10);
+      label(it.a, x + bw / 2, y0 + 20, 17, it.dim ? '#8a9096' : '#fff', 700); label(it.b, x + bw / 2, y0 + 40, 15, it.id === 'sell' ? '#c5e1a5' : '#ffe082', 600);
+      btnRect(it.id, x, y0, bw, bh, it.fn);
+    });
+    const cx = x0 + items.length * (bw + gap);
+    panelBox(cx, y0, closeW, bh, 'rgba(142,42,42,0.85)', 'rgba(255,255,255,0.9)', 10); label('✕', cx + closeW / 2, y0 + bh / 2, 20, '#fff', 700); btnRect('close', cx, y0, closeW, bh, () => { selId = 0; });
+    label(`${st.name} · ${OWNER_NAME[sel.owner]} · HP ${Math.ceil(sel.hp)}/${sel.maxHp}`, R - 16, y0 - 16, 16, '#fff', 600, 'right');
+    if (!mine) label('Only Bo can move, upgrade or sell it', R - 16, y0 - 38, 14, '#cfd6dc', 500, 'right');
+  } else {
+    // build bar: 4 × 2 tiles of 56, gap 8, inset 16
+    const tile = 56, gap = 8, gx0 = R - 16 - 4 * tile - 3 * gap, gy0 = B - 16 - 2 * tile - gap;
+    BAR.forEach((type, i) => {
+      const col = i % 4, row = Math.floor(i / 4), x = gx0 + col * (tile + gap), y = gy0 + row * (tile + gap);
+      if (type === 'shop') { panelBox(x, y, tile, tile, 'rgba(0,0,0,0.55)', 'rgba(255,255,255,0.6)', 10); label('🛒', x + tile / 2, y + 22, 20, '#fff', 500); label('Shop', x + tile / 2, y + 44, 14, '#fff', 600); btnRect('shop', x, y, tile, tile, () => toast('Shop: weapons, gear and cards (not in this prototype)', false)); return; }
+      const st = TYPES[type], e = pickError(type);
+      ctx.globalAlpha = e ? 0.45 : 1;
+      panelBox(x, y, tile, tile, 'rgba(0,0,0,0.58)', 'rgba(255,255,255,0.85)', 10);
+      icon(type, x + tile / 2, y + 22, 30);
+      ctx.globalAlpha = 1;
+      label(`$${st.price}`, x + tile / 2, y + 45, 14, e && e.code === 'money' ? '#ff8a80' : '#ffe082', 700);
+      btnRect('tile-' + type, x, y, tile, tile, () => pick(type));
+    });
+    label(`${myCount()}/${CAP}`, R - 16, gy0 - 12, 15, myCount() >= CAP ? '#ff8a80' : '#fff', 600, 'right');
+    label('Build', gx0, gy0 - 12, 15, '#fff', 600, 'left');
+  }
+  // undo chip (5 s), left of Rotate
+  if (undo && !sel) {
+    const uc = { x: hand ? R - 270 : R - 300, y: B - 64 }, k = clamp((undo.until - t) / UNDO_MS, 0, 1);
+    circle(uc.x, uc.y, 24, 'rgba(0,0,0,0.6)', 'rgba(255,255,255,0.35)');
+    ctx.strokeStyle = '#ffb74d'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(uc.x, uc.y, 24, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
+    label('↶', uc.x, uc.y + 1, 22, '#fff', 700);
+    btnCircle('undo', uc.x, uc.y, 24, doUndo);
+  }
+}
+
+/* ---------- loop ---------- */
+function frame() {
+  update();
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#111316'; ctx.fillRect(0, 0, cv.width, cv.height);
+  drawWorld(); drawWorldText(); drawHUD();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- settings panel ---------- */
+const panel = document.getElementById('panel');
+const panelHidden = () => panel.hidden;
+const HELP = {
+  today: ['Tap <b>Shop</b>, pick a building. Your survivor freezes.', 'Tap or drag anywhere to move the preview (it sits under your finger).', '⟳ rotates, ✓ places and ends placing, ✕ cancels.', 'Tap a building for Repair / Upgrade.'],
+  carry: ['Tap a tile in the <b>build bar</b> (bottom right). The ghost is carried 1 m in front of you.', 'Walk it into place with the left stick. Barricades turn across the way you face.', '<b>Place</b> places and keeps the next one in hand. ⟳ locks the rotation. ✕ puts it away. ↶ undoes.', 'Tap a building: Move, Upgrade, Repair, Take back / Sell. Long-press your own to pick it up.'],
+  hybrid: ['Tap a tile in the <b>build bar</b>. The ghost is carried 1 m in front of you.', 'Walk close, then <b>drag on the right half</b> to nudge it (it stays pinned; tap the chip to carry it again).', '<b>Place</b> places; the next ghost jumps end-to-end: Place, Place, Place = a wall. ↶ undoes.', 'Tap a building: Move, Upgrade, Repair, Take back / Sell. Long-press your own to pick it up.'],
+};
+function syncPanel() {
+  for (const m of ['today', 'carry', 'hybrid']) document.getElementById('m-' + m).setAttribute('aria-pressed', String(S.mode === m));
+  document.getElementById('help').innerHTML = HELP[S.mode].map((x) => `<li>${x}</li>`).join('');
+  const set = (id, v) => { document.getElementById(id).value = String(v); };
+  set('o-scale', S.scale); set('o-lag', S.lag); set('o-gap', S.gap); set('o-gain', S.gain); set('o-lead', S.lead ? 1 : 0); set('o-bo', S.bo ? 1 : 0); set('o-timer', S.timer ? 1 : 0); set('o-prox', S.prox ? 1 : 0);
+  const avg = metrics.pickToPlace.length ? (metrics.pickToPlace.reduce((a, b) => a + b, 0) / metrics.pickToPlace.length).toFixed(1) + ' s' : '–';
+  document.getElementById('metrics').innerHTML = `This run: ${metrics.placed} placed · ${metrics.refused} refused · ${metrics.undos} undos · ${metrics.rotates} rotates · ${metrics.moves} moves · ${metrics.sold} sold<br>Pick → first place: ${avg} (avg of ${metrics.pickToPlace.length})`;
+}
+function openPanel() { hand = null; shopOpen = false; stick = null; ptrs.clear(); syncPanel(); panel.hidden = false; }
+for (const m of ['today', 'carry', 'hybrid']) document.getElementById('m-' + m).addEventListener('click', () => { S.mode = m; hand = null; selId = 0; saveSettings(); syncPanel(); });
+const bind = (id, fn) => document.getElementById(id).addEventListener('change', (e) => { fn(e.target.value); saveSettings(); });
+bind('o-scale', (v) => { S.scale = v; }); bind('o-lag', (v) => { S.lag = +v; }); bind('o-gap', (v) => { S.gap = +v; }); bind('o-gain', (v) => { S.gain = +v; });
+bind('o-lead', (v) => { S.lead = v === '1'; }); bind('o-bo', (v) => { S.bo = v === '1'; }); bind('o-timer', (v) => { S.timer = v === '1'; }); bind('o-prox', (v) => { S.prox = v === '1'; });
+document.getElementById('b-go').addEventListener('click', () => { panel.hidden = true; last = now(); audio(); });
+document.getElementById('b-reset').addEventListener('click', () => { resetRun(); syncPanel(); });
+document.getElementById('b-full').addEventListener('click', () => {
+  const el = document.documentElement; const p = el.requestFullscreen ? el.requestFullscreen() : null;
+  if (p && p.then) p.then(() => { try { const o = screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); if (o && o.catch) o.catch(() => {}); } catch (e) { /* ignore */ } }).catch(() => {});
+});
+
+resetRun(); resize(); syncPanel(); requestAnimationFrame(frame);
+window.__lab = { S, me, w2s, startWave, get hand() { return hand; }, get client() { return client; }, get server() { return server; }, pick, place, rotate, act, get buttons() { return buttons; }, get selId() { return selId; } };
+</script>
