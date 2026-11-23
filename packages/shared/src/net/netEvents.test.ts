@@ -64,7 +64,7 @@ const EVENTS: SimEvent[] = [
   { type: "zombie.brute_spawned", zombieId: 9, x: 0.6, y: 31.4, first: true },
   { type: "zombie.brute_spawned", zombieId: 200, x: 47.4, y: 16, first: false },
   // Story 5.5: a lobbed round (the decoder without a flush tick puts landTick = flightTicks) and blasts.
-  { type: "grenade.launched", playerId: "p2", grenadeId: 255, x: 10.5, y: 3.25, tx: 22.49, ty: 3.01, landTick: 12, flightTicks: 12 },
+  { type: "grenade.launched", playerId: "p2", grenadeId: 255, x: 10.5, y: 3.25, tx: 22.49, ty: 3.01, landTick: 12, flightTicks: 12, seq: 65535 },
   { type: "explosion.happened", kind: 0, x: 22.49, y: 3.01, radiusM: 2, sourcePlayerId: "p2", grenadeId: 255 },
   { type: "explosion.happened", kind: 1, x: 0, y: 31.99, radiusM: 2.5, sourcePlayerId: null, grenadeId: 0 },
   // Story 5.8

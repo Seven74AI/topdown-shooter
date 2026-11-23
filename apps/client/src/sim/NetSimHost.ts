@@ -269,7 +269,7 @@ export class NetSimHost implements SimHost {
       const id = this.localPlayerId;
       this.localFired.push({ type: "weapon.fired", playerId: id, weapon: "", x: 0, y: 0, dirX: 1, dirY: 0 });
       this.localSwung.push({ type: "melee.swung", playerId: id, weapon: "", x: 0, y: 0, dirX: 1, dirY: 0, arcDeg: 0, rangeM: 0 });
-      this.localLaunched.push({ type: "grenade.launched", playerId: id, grenadeId: 0, x: 0, y: 0, tx: 0, ty: 0, landTick: 0, flightTicks: 1 });
+      this.localLaunched.push({ type: "grenade.launched", playerId: id, grenadeId: 0, x: 0, y: 0, tx: 0, ty: 0, landTick: 0, flightTicks: 1, seq: 0 });
     }
     this.reviveTicksTotal = ticksFor(opts.balance.player.reviveS);
     const room = opts.session.room;
@@ -637,6 +637,7 @@ export class NetSimHost implements SimHost {
       l.ty = t.y;
       l.flightTicks = lobFlightTicks(stats, t.distM);
       l.landTick = Number.NaN;
+      l.seq = seq & 0xffff; // review L1: the server echo of this shot carries the same seq
       l.ageS = 0;
       this.immediate.push(l);
       return;

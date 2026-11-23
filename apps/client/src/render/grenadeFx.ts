@@ -10,8 +10,13 @@ import { EXPLOSION_KINDS, TICK_DT_S, type SimEvent } from "@topdown/shared";
  * - a round flies from the muzzle to its landing point in `flightTicks` server ticks from the moment
  *   its event is drawn (a woken tab's late event starts that much earlier: `ageS`), along a
  *   cosmetic arc (`lobArcM`: scale + shadow offset; never a different track);
- * - my server `grenade.launched` replaces my local copy (the oldest unmatched one): it takes the
- *   server's id and is snapped to the server's landing point if the clip differs;
+ * - my server `grenade.launched` replaces my local copy of THE SAME SHOT (matched by the input seq,
+ *   review L1: a local copy of a shot the server never fired is never matched to a later echo, it
+ *   just times out): it takes the server's id, is snapped to the server's landing point if the clip
+ *   differs, and its landing is re-timed to the server's: the echo is drawn at the render tick of
+ *   the launch, so the round lands `flightTicks` later in render time — exactly when the blast is
+ *   drawn (the explosion event is drained at the render tick of the landing). The round slows a
+ *   little instead of lying on the ground waiting for the blast (or vanishing first at high RTT);
  * - `explosion.happened` with its id hides it (the blast visual waits for that event: pending until
  *   the server agrees); a round whose event never came lies on the ground at its landing point and
  *   is hidden `lostEventTicks` after its landing (no round stuck on screen);
@@ -30,6 +35,8 @@ export class GrenadeFlights {
   readonly ty: Float64Array;
   readonly startS: Float64Array;
   readonly landS: Float64Array;
+  /** The shot's 16-bit input seq (-1: unknown). */
+  readonly seq: Int32Array;
   count = 0;
   /** Rounds my server echo snapped to a different landing point (the browser check reads it). */
   snaps = 0;
@@ -48,12 +55,13 @@ export class GrenadeFlights {
     this.ty = new Float64Array(capacity);
     this.startS = new Float64Array(capacity);
     this.landS = new Float64Array(capacity);
+    this.seq = new Int32Array(capacity).fill(-1);
   }
 
   /** Routes one drained event (others are ignored). Returns the slot freed by an explosion (-1: none). */
   handle(e: SimEvent, nowS: number): number {
     if (e.type === "grenade.launched") {
-      this.launched(e.playerId, e.grenadeId, e.x, e.y, e.tx, e.ty, e.flightTicks, nowS - (e.ageS ?? 0));
+      this.launched(e.playerId, e.grenadeId, e.x, e.y, e.tx, e.ty, e.flightTicks, nowS - (e.ageS ?? 0), e.seq);
     } else if (e.type === "explosion.happened") {
       return e.grenadeId > 0 ? this.burst(e.grenadeId) : -1;
     } else if (e.type === "build.started") this.clear();
@@ -61,16 +69,17 @@ export class GrenadeFlights {
   }
 
   /** A round in flight (my id-0 event is my local instant copy). */
-  launched(owner: string, id: number, x0: number, y0: number, tx: number, ty: number, flightTicks: number, startS: number): void {
-    if (id > 0 && owner === this.localPlayerId) {
-      // My server echo: adopt my oldest local copy.
-      let best = -1;
-      for (let i = 0; i < this.capacity; i++) if (this.id[i] === 0 && this.owner[i] === owner && (best < 0 || (this.startS[i] as number) < (this.startS[best] as number))) best = i;
-      if (best >= 0) {
-        this.id[best] = id;
-        if (Math.abs((this.tx[best] as number) - tx) > 0.01 || Math.abs((this.ty[best] as number) - ty) > 0.01) this.snaps++;
-        this.tx[best] = tx;
-        this.ty[best] = ty;
+  launched(owner: string, id: number, x0: number, y0: number, tx: number, ty: number, flightTicks: number, startS: number, seq = -1): void {
+    const landS = startS + Math.max(1, flightTicks) * TICK_DT_S;
+    if (id > 0 && owner === this.localPlayerId && seq >= 0) {
+      // My server echo: adopt the local copy of the same shot (same seq).
+      for (let i = 0; i < this.capacity; i++) {
+        if (this.id[i] !== 0 || this.owner[i] !== owner || this.seq[i] !== seq) continue;
+        this.id[i] = id;
+        if (Math.abs((this.tx[i] as number) - tx) > 0.01 || Math.abs((this.ty[i] as number) - ty) > 0.01) this.snaps++;
+        this.tx[i] = tx;
+        this.ty[i] = ty;
+        this.landS[i] = Math.max(this.landS[i] as number, landS); // the server's landing, in render time
         return;
       }
     }
@@ -96,7 +105,8 @@ export class GrenadeFlights {
     this.tx[slot] = tx;
     this.ty[slot] = ty;
     this.startS[slot] = startS;
-    this.landS[slot] = startS + Math.max(1, flightTicks) * TICK_DT_S;
+    this.landS[slot] = landS;
+    this.seq[slot] = seq;
   }
 
   /** The round `id` burst (its explosion event): hidden. Returns its slot or -1. */
@@ -122,6 +132,7 @@ export class GrenadeFlights {
   private free(i: number): void {
     this.id[i] = -1;
     this.owner[i] = null;
+    this.seq[i] = -1;
     this.count--;
   }
 

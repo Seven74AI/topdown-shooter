@@ -226,7 +226,7 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.WEAPON_UPGRADED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), e.slot, e.level];
     case "grenade.launched":
       // Story 5.5: the round's flight (cosmetic on the client); the landing tick as ticks from the launch (u8).
-      return [K.GRENADE_LAUNCHED, playerSlotOf(e.playerId), e.grenadeId & 0xff, cm(e.x), cm(e.y), cm(e.tx), cm(e.ty), Math.min(255, Math.max(0, e.flightTicks))];
+      return [K.GRENADE_LAUNCHED, playerSlotOf(e.playerId), e.grenadeId & 0xff, cm(e.x), cm(e.y), cm(e.tx), cm(e.ty), Math.min(255, Math.max(0, e.flightTicks)), e.seq & 0xffff]; // review L1: the shot's seq (index 8)
     case "explosion.happened":
       // Story 5.5: the visual (hits, kills and player damage are their own events); the round's id appended (index 6).
       return [K.EXPLOSION_HAPPENED, e.kind, cm(e.x), cm(e.y), cm(e.radiusM), playerSlotOf(e.sourcePlayerId), e.grenadeId & 0xff];
@@ -418,6 +418,7 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
         ty: n(t, 6) / 100,
         landTick: (ctx.tick ?? 1) - 1 + flightTicks,
         flightTicks,
+        seq: n(t, 8) & 0xffff,
       };
     }
     case K.EXPLOSION_HAPPENED: {
