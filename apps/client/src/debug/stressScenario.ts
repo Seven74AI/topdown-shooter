@@ -1,5 +1,6 @@
 import { BUILD_GRID_M, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
 import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, perf, type PerfSummaryResult } from "./perfStats";
+import { gfxStatus } from "../render/gfx/gfxStatus";
 
 /**
  * The fixed `?stress=N` scenario (Story 1.11, NFR1). It runs in release builds too, because the
@@ -256,11 +257,14 @@ export interface StressEnv {
   /** CSS viewport size and the render DPR. */
   viewport: string;
   dpr: number;
+  /** Story 4.13: the renderer line (`gfxStatus.line()`, e.g. "renderer WebGL"); absent in old callers. */
+  renderer?: string;
 }
 
 function browserEnv(): StressEnv {
   if (typeof window === "undefined") return { userAgent: "unknown", viewport: "?", dpr: 1 };
   return {
+    renderer: gfxStatus.line(),
     userAgent: navigator.userAgent,
     viewport: `${window.innerWidth}×${window.innerHeight}`,
     dpr: Math.min(window.devicePixelRatio || 1, 2),
@@ -281,6 +285,7 @@ export function formatStressReport(r: PerfSummaryResult, walkers: number, env: S
     `render avg ${f2(r.renderAvgMs)} ms · update avg ${f2(r.updateAvgMs)} ms · frame avg ${f2(r.frameAvgMs)} ms`,
     `target (avg ${TARGET_AVG_FPS}, never < ${TARGET_MIN_FPS}): ${verdict} · bottleneck: ${r.bottleneck}`,
     `viewport ${env.viewport} @ dpr ${env.dpr}`,
+    ...(env.renderer ? [env.renderer] : []),
     `UA ${env.userAgent}`,
     "",
     "| device | browser | avg FPS | min FPS | % < 30 | tick avg / max ms | render ms | bottleneck |",

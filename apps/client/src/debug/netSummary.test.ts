@@ -110,8 +110,9 @@ describe("NetWaveSummary (Story 2.10)", () => {
         snaps: 0,
         corrections: 3,
       },
-      env,
+      { ...env, renderer: "renderer WebGL · context lost 2 · restored 2" },
     );
+    expect(text.split("\n")).toContain("renderer WebGL · context lost 2 · restored 2"); // Story 4.13
     expect(text).toContain("| (device) | UA-test | (4G / Wi-Fi + ?lag=150&jitter=20) | 20.8 / 26.1 | 2.3 | 142 / 180 | 4 / 212 (1.9%) | 59.8 / 41.2 | 0 |");
     expect(text).not.toContain("TEST SCENARIO");
   });

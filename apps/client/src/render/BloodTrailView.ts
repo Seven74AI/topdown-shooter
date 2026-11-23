@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { ZOMBIE_TYPES, type World, type ZombieTypeId } from "@topdown/shared";
+import { addGeneratedTexture } from "./city/canvasTexture";
 
 /** Types that leave a blood trail (Story 3.9: Crawlers drag themselves along). */
 const TRAIL_TYPES: readonly ZombieTypeId[] = ["crawler"];
@@ -24,13 +25,25 @@ const BLOOD = 0x4a0c0c;
 const DEPTH = 1;
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
+/**
+ * The smear, drawn on a canvas (Story 4.13: through the texture registry, so a lost graphics context
+ * redraws it; it was `Graphics.generateTexture` before, which nothing could redraw).
+ */
 function makeTexture(scene: Phaser.Scene): void {
   if (scene.textures.exists(TEX_KEY)) return;
-  const g = scene.make.graphics({}, false);
-  g.fillStyle(BLOOD, 1).fillEllipse(TEX_W * 0.5, TEX_H * 0.5, TEX_W * 0.9, TEX_H * 0.55);
-  g.fillStyle(BLOOD, 0.7).fillEllipse(TEX_W * 0.3, TEX_H * 0.38, TEX_W * 0.4, TEX_H * 0.5);
-  g.generateTexture(TEX_KEY, TEX_W, TEX_H);
-  g.destroy();
+  const canvas = document.createElement("canvas");
+  canvas.width = TEX_W;
+  canvas.height = TEX_H;
+  addGeneratedTexture(scene, TEX_KEY, canvas, (g) => {
+    const ellipse = (cx: number, cy: number, w: number, h: number, alpha: number): void => {
+      g.fillStyle = `rgba(${(BLOOD >> 16) & 255},${(BLOOD >> 8) & 255},${BLOOD & 255},${alpha})`;
+      g.beginPath();
+      g.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
+      g.fill();
+    };
+    ellipse(TEX_W * 0.5, TEX_H * 0.5, TEX_W * 0.9, TEX_H * 0.55, 1);
+    ellipse(TEX_W * 0.3, TEX_H * 0.38, TEX_W * 0.4, TEX_H * 0.5, 0.7);
+  });
 }
 
 /**

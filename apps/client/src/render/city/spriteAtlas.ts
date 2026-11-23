@@ -2,7 +2,7 @@ import type * as Phaser from "phaser";
 import { ZOMBIE_TYPES, type ZombieTypeId } from "@topdown/shared";
 import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { CAR_COLORS } from "./dressing";
-import { addCanvasTexture } from "./canvasTexture";
+import { addGeneratedTexture } from "./canvasTexture";
 import { drawObjectInFrame, drawSandbags } from "./objectArt";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
 import { TIER_PLATE_H, WEAPON_ART, drawChainsawRunning, drawTierPlate, tierPlateWidth } from "./weaponArt";
@@ -127,15 +127,11 @@ export function nativeSize(frame: string): readonly [number, number] {
   return PROP_NATIVE[frame] ?? [32, 32];
 }
 
-function build(specs: FrameSpec[], draw: (g: CanvasRenderingContext2D, f: PlacedFrame) => void): AtlasCanvas {
-  const layout = packAtlas(specs);
-  const canvas = document.createElement("canvas");
-  canvas.width = layout.width;
-  canvas.height = layout.height;
-  const g = canvas.getContext("2d") as CanvasRenderingContext2D;
-  const frames = new Map<string, PlacedFrame>();
-  for (const f of layout.frames) {
-    frames.set(f.name, f);
+type DrawFrame = (g: CanvasRenderingContext2D, f: PlacedFrame) => void;
+
+/** Draws every frame, each clipped to its rectangle. */
+function paintFrames(g: CanvasRenderingContext2D, frames: Iterable<PlacedFrame>, draw: DrawFrame): void {
+  for (const f of frames) {
     g.save();
     g.beginPath();
     g.rect(f.x, f.y, f.w, f.h);
@@ -143,7 +139,23 @@ function build(specs: FrameSpec[], draw: (g: CanvasRenderingContext2D, f: Placed
     draw(g, f);
     g.restore();
   }
+}
+
+/** Lays the frames out on a canvas of the atlas's size (not drawn yet). */
+function layOut(specs: FrameSpec[]): AtlasCanvas {
+  const layout = packAtlas(specs);
+  const canvas = document.createElement("canvas");
+  canvas.width = layout.width;
+  canvas.height = layout.height;
+  const frames = new Map<string, PlacedFrame>();
+  for (const f of layout.frames) frames.set(f.name, f);
   return { canvas, frames };
+}
+
+function build(specs: FrameSpec[], draw: DrawFrame): AtlasCanvas {
+  const a = layOut(specs);
+  paintFrames(a.canvas.getContext("2d") as CanvasRenderingContext2D, a.frames.values(), draw);
+  return a;
 }
 
 function zombieOf(name: string): { type: ZombieTypeId; variant: number } | null {
@@ -243,20 +255,30 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
 
 let downtownAtlas: AtlasCanvas | null = null;
 
-/** Registers a canvas as a texture with its frames (once per game: textures outlive scene restarts). */
-function register(scene: Phaser.Scene, key: string, make: () => AtlasCanvas): AtlasCanvas | null {
+/**
+ * Registers an atlas as a texture with its frames (once per game: textures outlive scene restarts).
+ * Story 4.13: drawn through `addGeneratedTexture`, so a lost graphics context redraws it in place.
+ */
+function register(scene: Phaser.Scene, key: string, specs: () => FrameSpec[], draw: DrawFrame): AtlasCanvas | null {
   if (scene.textures.exists(key)) return null;
-  const a = make();
-  const tex = addCanvasTexture(scene, key, a.canvas);
-  if (tex) for (const f of a.frames.values()) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
+  const a = layOut(specs());
+  addGeneratedTexture(
+    scene,
+    key,
+    a.canvas,
+    (g) => paintFrames(g, a.frames.values(), draw),
+    (tex) => {
+      for (const f of a.frames.values()) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
+    },
+  );
   return a;
 }
 
 /** Creates the three atlases (idempotent) and returns the downtown one (the static bake draws from it). */
 export function ensureAtlases(scene: Phaser.Scene): AtlasCanvas {
-  register(scene, ATLAS_CHARACTERS, () => build(characterSpecs(), drawCharacterFrame));
-  register(scene, ATLAS_FX, () => build(fxSpecs(), drawFxFrame));
-  const d = register(scene, ATLAS_DOWNTOWN, () => build(downtownSpecs(), drawDowntownFrame));
+  register(scene, ATLAS_CHARACTERS, characterSpecs, drawCharacterFrame);
+  register(scene, ATLAS_FX, fxSpecs, drawFxFrame);
+  const d = register(scene, ATLAS_DOWNTOWN, downtownSpecs, drawDowntownFrame);
   if (d) downtownAtlas = d;
   if (!downtownAtlas) downtownAtlas = build(downtownSpecs(), drawDowntownFrame);
   return downtownAtlas;

@@ -6,6 +6,7 @@ import { hitsLine } from "./reversedHits";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
 import { netMeter } from "../net/netMeter";
 import { urlOptions } from "./urlOptions";
+import { gfxStatus } from "../render/gfx/gfxStatus";
 
 /** Monospace text, CSS px × dpr (≥ 12 px rule). */
 const TEXT_CSS_PX = 13;
@@ -84,6 +85,7 @@ export class PerfOverlay {
     // Story 4.4: the run seed (online the server's, from the room state).
     const seed = perf.net ? perf.net.runSeed : perf.soloSeed;
     if (seed !== null) lines.push(`seed ${seed}`);
+    lines.push(gfxStatus.line()); // Story 4.13: WebGL / Canvas, lost / restored counts
     const net = perf.net;
     if (net) {
       const n = net.netStats;

@@ -5,6 +5,7 @@ import { StartScreen } from "./StartScreen";
 import { LobbyScreen } from "./LobbyScreen";
 import { RotateOverlay } from "./RotateOverlay";
 import { ServerNotice } from "./ServerNotice";
+import { GfxNotice } from "./GfxNotice";
 import { TuningPanel } from "../debug/TuningPanel";
 import { urlOptions } from "../debug/urlOptions";
 import { StressResults } from "../debug/StressResults";
@@ -28,6 +29,7 @@ export function App({ joinCode = null }: AppProps) {
       <StressResults />
       <NetResults />
       <ServerNotice />
+      <GfxNotice />
       <RotateOverlay />
     </>
   );

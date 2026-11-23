@@ -6,6 +6,9 @@ import { GameScene } from "./scenes/GameScene";
 import { HudScene } from "./scenes/HudScene";
 import { App } from "./ui/App";
 import { installPerfProbe } from "./debug/perfProbe";
+import { installGraphicsGuard } from "./render/gfx/graphicsGuard";
+import { gfxStatus } from "./render/gfx/gfxStatus";
+import { textureRegistry } from "./render/gfx/textureRegistry";
 import { urlOptions } from "./debug/urlOptions";
 import { uiStore } from "./ui/uiState";
 import { lobbyStore } from "./net/lobbyStore";
@@ -50,6 +53,10 @@ window.addEventListener("resize", () => {
 
 // Performance overlay and ?stress timing (Story 1.11): release builds too.
 installPerfProbe(game, urlOptions().debug);
+
+// Story 4.13: survive a lost WebGL context (Android app switch): redraw every generated texture on
+// restore; a reload notice if it never comes back; a message when there is no WebGL at all.
+installGraphicsGuard(game, () => lobbyStore.current() !== null);
 
 // Online lobby (Stories 2.1/2.3): networking stays in net/, the scenes don't know about it. The SDK
 // is loaded on the first Create game or Join, so solo play doesn't download it.
@@ -156,5 +163,9 @@ if (import.meta.env.DEV) {
   // Dev builds only: Vite replaces import.meta.env.DEV with false in production and drops this
   // block, the dynamic import and the cheat chunk (checked by tools/checks/noCheatsInRelease.test.ts).
   Object.assign(window, { __game: game }); // for automated browser checks (docs/perf/epic-1-stress.md)
+  // Story 4.13 browser checks: renderer, lost / restored counts, registry rebuilds.
+  Object.assign(window, {
+    __gfx: () => ({ line: gfxStatus.line(), rebuilds: textureRegistry.rebuildCount, last: textureRegistry.lastReport, keys: textureRegistry.keys() }),
+  });
   void import("./debug/DevCheats").then(({ mountDevCheats }) => mountDevCheats(game));
 }

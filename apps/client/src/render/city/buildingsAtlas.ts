@@ -1,6 +1,6 @@
 import type * as Phaser from "phaser";
 import { frameName, packAtlas, type FrameSpec, type PlacedFrame } from "./atlasLayout";
-import { addCanvasTexture } from "./canvasTexture";
+import { addGeneratedTexture } from "./canvasTexture";
 import { drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "./buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "./objectArt";
 
@@ -67,10 +67,18 @@ export function ensureBuildingsAtlas(scene: Phaser.Scene): void {
   const canvas = document.createElement("canvas");
   canvas.width = layout.width;
   canvas.height = layout.height;
-  const g = canvas.getContext("2d") as CanvasRenderingContext2D;
-  for (const f of layout.frames) drawFrame(g, f);
-  const tex = addCanvasTexture(scene, ATLAS_BUILDINGS, canvas);
-  if (tex) for (const f of layout.frames) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
+  // Story 4.13: redrawn in place after a lost graphics context (texture registry).
+  addGeneratedTexture(
+    scene,
+    ATLAS_BUILDINGS,
+    canvas,
+    (g) => {
+      for (const f of layout.frames) drawFrame(g, f);
+    },
+    (tex) => {
+      for (const f of layout.frames) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
+    },
+  );
 }
 
 function drawFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
