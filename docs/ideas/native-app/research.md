@@ -8,7 +8,7 @@ status: complete
 preset: 'standard'
 validation: 'normal'
 claims_verified: 6
-claims_unverified: 4
+claims_unverified: 3
 claims_disputed: 1
 created: '2026-11-23'
 updated: '2026-11-23'
