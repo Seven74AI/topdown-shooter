@@ -160,16 +160,29 @@ describe("loadBalance", () => {
   });
 
   it("Story 5.15: controls.build (carry gap, snap and auto-rotate hysteresis) loads, defaults and is bounded", () => {
-    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10 });
+    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250 });
     const d = raw();
     delete (d.controls as { build?: unknown }).build;
-    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10 });
+    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250 });
     const h = raw();
     (h.controls as { build: { snapHysteresisM: number } }).build.snapHysteresisM = 0.25; // half a cell: the index would never settle
     expect(() => loadBalance(h)).toThrow(/controls\.json: build\.snapHysteresisM: /);
     const r = raw();
     (r.controls as { build: { autoRotateHysteresisDeg: number } }).build.autoRotateHysteresisDeg = 45;
     expect(() => loadBalance(r)).toThrow(/controls\.json: build\.autoRotateHysteresisDeg: /);
+  });
+
+  it("Story 5.17: controls.build.reasonHoldMs is 250, defaults when missing and is bounded", () => {
+    expect(loadBalance().controls.build.reasonHoldMs).toBe(250);
+    const d = raw();
+    delete (d.controls as { build: { reasonHoldMs?: number } }).build.reasonHoldMs;
+    expect(loadBalance(d).controls.build.reasonHoldMs).toBe(250);
+    const h = raw();
+    (h.controls as { build: { reasonHoldMs: number } }).build.reasonHoldMs = -1;
+    expect(() => loadBalance(h)).toThrow(/controls\.json: build\.reasonHoldMs: /);
+    const l = raw();
+    (l.controls as { build: { reasonHoldMs: number } }).build.reasonHoldMs = 2001;
+    expect(() => loadBalance(l)).toThrow(/controls\.json: build\.reasonHoldMs: /);
   });
 
   it("rejects a run whose last wave overflows the per-type counts (3.10 review)", () => {

@@ -6,7 +6,9 @@ import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
 import { barricadePoolSize, barricadeTint, barricadeTransform, frameBandBox, type BoxOut, type SpriteTransform } from "./barricadeLook";
 import { B6_ROW_Y0, B6_ROW_Y1 } from "./city/objectArt";
 import { ATLAS_BUILDINGS, FRAME_WOOD, buildingFrame, ensureBuildingsAtlas } from "./city/buildingsAtlas";
-import { buildingShadowHeightM, mineRingRadii } from "./mineLook";
+import { buildingShadowHeightM } from "./mineLook";
+import { HATCH_MAX_SEGMENTS, HATCH_SPACING_M, crossHalf, hatchSegments } from "./ghostHatch";
+import { rangeRings } from "./rangeRings";
 
 /** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline; night-darkened (Story 4.9). */
 const WOOD = darken(0x8b5a2b, NIGHT_DARKEN);
@@ -51,6 +53,15 @@ const VALID = 0x4caf50;
 const BLOCKED = 0xe53935;
 const PREVIEW_FILL_ALPHA = 0.45;
 const PREVIEW_LINE_M = 0.08;
+/** Story 5.17 (AC 6, ux-spec §7.1): a blocked ghost's 45° hatch (white 25 %, 0.25 m apart) and ✕ (0.4 m). */
+const HATCH_ALPHA = 0.25;
+const HATCH_LINE_M = 0.04;
+const CROSS_M = 0.4;
+const CROSS_LINE_M = 0.09;
+/** Story 5.17 (AC 7): range rings other than the mine's two (turret, and 5.10/5.14 types) and their dimming while blocked. */
+const RING_OTHER = 0xffffff;
+const RING_OTHER_ALPHA = 0.6;
+const RING_BLOCKED_DIM = 0.5;
 /** A light 0.5 m lattice around the preview, so the snap is visible (± this many cells beyond its box). */
 const GRID_CELLS = 4;
 const GRID_ALPHA = 0.18;
@@ -96,6 +107,7 @@ export class BuildingView {
   private shownPreviewKey = -1;
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   private readonly band: BoxOut = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  private readonly hatch = new Float64Array(HATCH_MAX_SEGMENTS * 4);
 
   constructor(scene: Phaser.Scene, balance?: Readonly<Balance>) {
     ensureBuildingsAtlas(scene); // Story 5.9 / 4.12: every tier (B6 too), the trap and the mine (code-drawn, once per game)
@@ -207,7 +219,7 @@ export class BuildingView {
       this.shownPreviewKey = -1;
       return;
     }
-    const valid = p.error === null;
+    const valid = p.shownError === null; // Story 5.17: the held look (≥ reasonHoldMs before valid again)
     // Story 5.15 (review L4): an off-map ghost has negative indices; offset them so the key stays unique.
     const key = p.gx + 512 + (p.gy + 512) * 2048 + p.rot * 4194304 + (valid ? 16777216 : 0) + buildingTypeIds(world.balance).indexOf(p.type) * 33554432;
     if (key === this.shownPreviewKey) return;
@@ -239,13 +251,29 @@ export class BuildingView {
     for (let x = x0; x <= x1 + 1e-6; x += BUILD_GRID_M) g.lineBetween(x, y0, x, y1);
     g.fillStyle(color, art ? PREVIEW_FILL_ALPHA / 2 : PREVIEW_FILL_ALPHA).fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
     g.lineStyle(PREVIEW_LINE_M, color, 1).strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+    const cx = (b.minX + b.maxX) / 2;
+    const cy = (b.minY + b.maxY) / 2;
+    if (!valid) {
+      // Story 5.17 (AC 6): colour-blind safe — a 45° hatch and a ✕ on top of the red.
+      const n = hatchSegments(b.minX, b.minY, b.maxX, b.maxY, HATCH_SPACING_M, this.hatch);
+      const hs = this.hatch;
+      g.lineStyle(HATCH_LINE_M, 0xffffff, HATCH_ALPHA);
+      for (let i = 0; i < n; i++) g.lineBetween(hs[i * 4] as number, hs[i * 4 + 1] as number, hs[i * 4 + 2] as number, hs[i * 4 + 3] as number);
+      const c = crossHalf(b.maxX - b.minX, b.maxY - b.minY, CROSS_M);
+      g.lineStyle(CROSS_LINE_M, 0xffffff, 0.95);
+      g.lineBetween(cx - c, cy - c, cx + c, cy + c);
+      g.lineBetween(cx - c, cy + c, cx + c, cy - c);
+    }
     // Story 5.9 (F4, 7.4): a mine previews its trigger and blast circles at exactly the sim's radii.
-    const rings = mineRingRadii(stats);
-    if (rings) {
-      const cx = (b.minX + b.maxX) / 2;
-      const cy = (b.minY + b.maxY) / 2;
-      g.lineStyle(RING_LINE_M, RING_TRIGGER, 0.9).strokeCircle(cx, cy, rings.triggerM);
-      g.lineStyle(RING_LINE_M, RING_BLAST, 0.7).strokeCircle(cx, cy, rings.blastM);
+    // Story 5.17 (AC 7): every range ring the type's balance declares (turret 8 m; later the med
+    // station, floodlight, bear trap), read generically; dimmed while blocked.
+    const rings = rangeRings(stats);
+    const dim = valid ? 1 : RING_BLOCKED_DIM;
+    for (let i = 0; i < rings.length; i++) {
+      const ring = rings[i] as (typeof rings)[number];
+      const color = ring.key === "mine.triggerRadiusM" ? RING_TRIGGER : ring.key === "mine.blastRadiusM" ? RING_BLAST : RING_OTHER;
+      const alpha = ring.key === "mine.triggerRadiusM" ? 0.9 : ring.key === "mine.blastRadiusM" ? 0.7 : RING_OTHER_ALPHA;
+      g.lineStyle(RING_LINE_M, color, alpha * dim).strokeCircle(cx, cy, ring.radiusM);
     }
   }
 
