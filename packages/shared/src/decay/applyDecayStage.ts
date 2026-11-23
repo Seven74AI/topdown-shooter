@@ -34,6 +34,7 @@ export function applyDecayStage(world: World, stage: number, variants: number, f
   fillObstacles(o, world.map, s, v);
   o.version++;
   setNavWalls(world.pathing.nav, o.solids);
+  setNavWalls(world.pathing.wide, o.solids); // Story 5.7: grown on the wide grid
   d.fires.length = 0;
   let fi = 0;
   for (const m of world.map.decay) {
@@ -46,6 +47,8 @@ export function applyDecayStage(world: World, stage: number, variants: number, f
   }
   // Story 4.8: fire cells cost zombies `fire.navCostM` each (rebuilt with the fields at the build start).
   setNavFires(world.pathing.nav, d.fires, Math.round(world.balance.decay.fire.navCostM * FLOW_UNITS_PER_M), MAX_PATHING_ZOMBIE_RADIUS_M);
+  // Story 5.7: on the wide grid a fire is grown by the largest wide body (a Brute touching it would burn).
+  setNavFires(world.pathing.wide, d.fires, Math.round(world.balance.decay.fire.navCostM * FLOW_UNITS_PER_M), MAX_PATHING_ZOMBIE_RADIUS_M + world.balance.zombies.pathing.wideInflateM);
   d.stage = s;
   d.variants = v;
   d.firesOut = out;

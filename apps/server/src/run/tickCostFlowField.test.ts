@@ -58,6 +58,9 @@ interface Result {
   turretShots: number;
   /** Story 3.8: the flank field's max age (0 without Runners). */
   maxFlankAge: number;
+  /** Story 5.7: the wide field's max age (0 without Brutes) and the Brute spawn events' bytes. */
+  maxWideAge: number;
+  bruteEventBps: number;
 }
 
 /**
@@ -71,7 +74,7 @@ interface Result {
  * and bandwidth (turret.fired + their hits and kills; no schema field is added).
  */
 const TURRET_ROW_Y = 27;
-function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
+function measure(withBuildings: boolean, turrets = false, runners = 0, brutes = 0): Result {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
   const c = new RunController({
     balance,
@@ -104,15 +107,25 @@ function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
   const points = world.map.spawnPoints;
   let spawnAt = 0;
   const RUNNER = zombieTypeIndex("runner");
+  const BRUTE = zombieTypeIndex("brute");
   const topUp = (): void => {
-    // Story 3.8: `runners` of the 150 are Runners (kept topped up like the Walkers).
+    // Story 3.8: `runners` of the 150 are Runners (kept topped up like the Walkers). Story 5.7: `brutes` Brutes too.
     let aliveRunners = 0;
-    for (let i = 0; i < world.zombies.aliveCount; i++) if (world.zombies.type[world.zombies.aliveIds[i] as number] === RUNNER) aliveRunners++;
+    let aliveBrutes = 0;
+    for (let i = 0; i < world.zombies.aliveCount; i++) {
+      const t = world.zombies.type[world.zombies.aliveIds[i] as number];
+      if (t === RUNNER) aliveRunners++;
+      else if (t === BRUTE) aliveBrutes++;
+    }
     while (world.zombies.aliveCount < WALKERS) {
       const sp = points[spawnAt++ % points.length];
-      const type = aliveRunners < runners ? "runner" : "walker";
+      const type = aliveBrutes < brutes ? "brute" : aliveRunners < runners ? "runner" : "walker";
       if (!sp || spawnZombie(world, type, sp.x, sp.y, true) < 0) break;
       if (type === "runner") aliveRunners++;
+      if (type === "brute") {
+        aliveBrutes++;
+        world.events.emit({ type: "zombie.brute_spawned", zombieId: world.zombies.aliveIds[world.zombies.aliveCount - 1] as number, x: sp.x, y: sp.y, first: false }); // its spawn cue, counted below
+      }
     }
   };
   if (world.run.phase === "build") startWave(world); // turrets fire only in a wave
@@ -125,6 +138,8 @@ function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
   let destroyed = 0;
   let maxAge = 0;
   let maxFlankAge = 0;
+  let maxWideAge = 0;
+  let bruteEventBytes = 0;
   for (let t = 1; t <= WARMUP_TICKS + MEASURED_TICKS; t++) {
     topUp();
     topUpBuildings();
@@ -139,6 +154,7 @@ function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
     for (const e of events) {
       const tu = encodeNetEvent(e, ctx);
       if (tu) tuples.push(tu);
+      if (tu && e.type === "zombie.brute_spawned" && t > WARMUP_TICKS) bruteEventBytes += pack(tu).length;
     }
     const patch = encoder.encode();
     encoder.discardChanges();
@@ -153,6 +169,7 @@ function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
       }
       if (withBuildings) maxAge = Math.max(maxAge, world.tick - world.pathing.chase.sourceTick);
       if (withBuildings && runners > 0) maxFlankAge = Math.max(maxFlankAge, world.tick - world.pathing.flank.sourceTick);
+      if (withBuildings && brutes > 0 && world.pathing.wideChase.sourceTick >= 0) maxWideAge = Math.max(maxWideAge, world.tick - world.pathing.wideChase.sourceTick);
     }
   }
   times.sort((a, b) => a - b);
@@ -167,6 +184,8 @@ function measure(withBuildings: boolean, turrets = false, runners = 0): Result {
     maxAge,
     turretShots,
     maxFlankAge,
+    maxWideAge,
+    bruteEventBps: bruteEventBytes / seconds,
   };
 }
 
@@ -269,4 +288,30 @@ describe("tick cost with the flow field (Story 3.5, brief line 10)", () => {
     expect(field.maxFlankAge).toBeLessThanOrEqual(shared);
     expect(field.maxFlankAge).toBeGreaterThan(0);
   });
+
+  it("Story 5.7: + 2 Brutes (the wide field, three fields sharing the budget): the third field's added tick p99 ≤ 2 ms", () => {
+    const RUNNERS = 50;
+    const runs = [measure(true, true, RUNNERS, 0), measure(true, true, RUNNERS, 2), measure(true, true, RUNNERS, 0), measure(true, true, RUNNERS, 2), measure(false, false, RUNNERS, 2)];
+    const pick = (a: Result, b: Result): Result => (a.p99 <= b.p99 ? a : b);
+    const two = pick(runs[0] as Result, runs[2] as Result);
+    const three = pick(runs[1] as Result, runs[3] as Result);
+    const bare = runs[4] as Result;
+    const added = three.p99 - two.p99;
+    const bound = (() => {
+      const w = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+      w.pathing.activeFields = 3;
+      return flowSharedMaxAgeTicks(w);
+    })();
+    console.log(
+      `[tick cost 5.7] 98 Walkers + 50 Runners + 2 Brutes, 24 buildings (4 turrets): chase + flank p99 ${two.p99.toFixed(3)} ms (mean ${two.mean.toFixed(3)}) → ` +
+        `+ wide field p99 ${three.p99.toFixed(3)} ms (mean ${three.mean.toFixed(3)}, max ${three.max.toFixed(3)}); added p99 ${added.toFixed(3)} ms; ` +
+        `no buildings/fields with Brutes p99 ${bare.p99.toFixed(3)}; max age chase ${three.maxAge} / flank ${three.maxFlankAge} / wide ${three.maxWideAge} ticks (bound ${bound}); ` +
+        `patches ${two.patchBps.toFixed(0)} → ${three.patchBps.toFixed(0)} B/s, events ${two.eventBps.toFixed(0)} → ${three.eventBps.toFixed(0)} B/s (brute_spawned ${three.bruteEventBps.toFixed(1)} B/s at a Brute re-added every death)`,
+    );
+    if (PERF_ASSERT) expect(added).toBeLessThanOrEqual(2);
+    expect(three.maxWideAge).toBeGreaterThan(0);
+    expect(three.maxWideAge).toBeLessThanOrEqual(bound);
+    expect(three.maxAge).toBeLessThanOrEqual(bound);
+    expect(three.maxFlankAge).toBeLessThanOrEqual(bound);
+  }, 120_000);
 });

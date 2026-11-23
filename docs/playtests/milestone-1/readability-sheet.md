@@ -31,6 +31,7 @@ Player:
 21 what:            bullets:            can you walk on it?   + what do the two circles mean?
 22 what:            what does it do?
 23 what:            bullets:   + when does it hurt you?
+24 what:            what does it do?
 ```
 
 ## 1
@@ -91,3 +92,6 @@ Player:
 
 ## 23: the green patch (Story 5.6)
 ![23](objects/24_acid_puddle.png)
+
+## 24 (Story 5.7)
+![24](objects/25_brute.png)

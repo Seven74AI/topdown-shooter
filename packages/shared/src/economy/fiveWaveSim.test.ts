@@ -130,3 +130,36 @@ describe("five-wave bot sim with the Shotgun and the Assault Rifle (Story 5.3, b
   }, 180_000);
 });
 
+
+describe("six-wave bot sim with the Brute (Story 5.7, brief lines 9 and 15)", () => {
+  // `runWaves` 6 (the run Story 5.8 makes live): waves 5 and 6 each bring one Brute.
+  const six = loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "runWaves", 6]]));
+  it("every run ends; a Brute spawned in wave 5 (and 6), was killed, and its kill was paid (25 + assists)", () => {
+    const lines: string[] = [];
+    let reached5 = 0;
+    let killed = 0;
+    let pay = 0;
+    for (const players of [2, 4]) {
+      for (const seed of SEEDS) {
+        const r = runHeadless({ balance: six, seed, players });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        if (r.heldOut) expect(r.wavesCleared).toBe(6);
+        if (r.reached >= 5) {
+          reached5++;
+          expect(r.brutes.spawnedInWave.filter((w) => w === 5), `seed ${seed} ${players}p`).toHaveLength(1);
+        }
+        if (r.reached >= 6) expect(r.brutes.spawnedInWave.filter((w) => w === 6)).toHaveLength(1);
+        expect(r.brutes.spawnedInWave.every((w) => w === 5 || w === 6)).toBe(true);
+        if (r.wavesCleared >= 5) expect(r.brutes.killed).toBeGreaterThanOrEqual(1); // a cleared wave 5 killed its Brute
+        killed += r.brutes.killed;
+        pay += r.brutes.killPay;
+        lines.push(`${formatRunLine(r)} | Brutes spawned in waves ${r.brutes.spawnedInWave.join(",") || "-"}, killed ${r.brutes.killed}, paid ${r.brutes.killPay}`);
+      }
+    }
+    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[sim] Story 5.7 six waves:\n${lines.join("\n")}`);
+    expect(reached5).toBeGreaterThan(0);
+    expect(killed).toBeGreaterThan(0);
+    expect(pay).toBeGreaterThanOrEqual(12 * killed); // each Brute kill paid: 25 (+ assists) by a player, 50 % to a turret's owner (D6)
+  }, 600_000);
+});

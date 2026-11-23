@@ -27,10 +27,13 @@ export function applyZombieDamage(
   const z = world.zombies;
   if (!isZombieAlive(z, id)) return false;
   z.hp[id] = (z.hp[id] as number) - amount;
-  const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
+  const zt = world.balance.zombies.types[zombieTypeOf(z, id)];
+  const r = zt?.radiusM ?? 0;
+  // Story 5.7 (F4): a Brute takes only `knockbackTakenPct` of every pushback (100 for the others: unchanged).
+  const push = zt && zt.knockbackTakenPct !== 100 ? (pushbackM * zt.knockbackTakenPct) / 100 : pushbackM;
   const { widthM, heightM } = world.map;
-  z.x[id] = Math.min(widthM - r, Math.max(r, (z.x[id] as number) + dirX * pushbackM));
-  z.y[id] = Math.min(heightM - r, Math.max(r, (z.y[id] as number) + dirY * pushbackM));
+  z.x[id] = Math.min(widthM - r, Math.max(r, (z.x[id] as number) + dirX * push));
+  z.y[id] = Math.min(heightM - r, Math.max(r, (z.y[id] as number) + dirY * push));
   const x = z.x[id] as number;
   const y = z.y[id] as number;
   if (buildingId > 0) {
@@ -83,7 +86,11 @@ function knockT(x: number, y: number, mx: number, my: number, r: number, b: Pick
 export function applyKnockback(world: World, id: number, dirX: number, dirY: number, distM: number): number {
   const z = world.zombies;
   if (!isZombieAlive(z, id) || distM <= 0) return 0;
-  const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
+  const zt = world.balance.zombies.types[zombieTypeOf(z, id)];
+  const r = zt?.radiusM ?? 0;
+  // Story 5.7 (F4; shared with 5.2): a Brute moves only `knockbackTakenPct` of the knock (axe 1.5 → 0.3 m, shotgun 0.5 → 0.1 m).
+  if (zt && zt.knockbackTakenPct !== 100) distM = (distM * zt.knockbackTakenPct) / 100;
+  if (distM <= 0) return 0;
   const x = z.x[id] as number;
   const y = z.y[id] as number;
   const mx = dirX * distM;

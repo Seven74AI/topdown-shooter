@@ -48,6 +48,7 @@ export const NET_EVENT_KIND = {
   MINE_EXPLODED: 28,
   SPITTER_SPAT: 29, // Story 5.6 (renumbered at the 5.9 merge; never reuse)
   ACID_SPLASHED: 30, // Story 5.6
+  BRUTE_SPAWNED: 32, // Story 5.7 (31 is 5.1's WEAPON_UPGRADED; renumber at merge if taken, never reuse)
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -192,6 +193,9 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.SPITTER_SPAT, zid(ctx, e.zombieId), e.spitId, cm(e.x), cm(e.y), cm(e.toX), cm(e.toY)];
     case "acid.splashed":
       return [K.ACID_SPLASHED, e.puddleId, cm(e.x), cm(e.y), playerSlotOf(e.hitPlayerId)];
+    case "zombie.brute_spawned":
+      // Story 5.7: the roar and (first only) the banner; the Brute itself comes in the horde stream.
+      return [K.BRUTE_SPAWNED, zid(ctx, e.zombieId), cm(e.x), cm(e.y), e.first ? 1 : 0];
     case "test.ping":
       return null;
   }
@@ -333,6 +337,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "spitter.spat", zombieId: zombieSlotOfNetId(n(t, 1)), spitId: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, toX: n(t, 5) / 100, toY: n(t, 6) / 100 };
     case K.ACID_SPLASHED:
       return { type: "acid.splashed", puddleId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100, hitPlayerId: playerIdOfSlot(n(t, 4)) };
+    case K.BRUTE_SPAWNED:
+      return { type: "zombie.brute_spawned", zombieId: zombieSlotOfNetId(n(t, 1)), x: n(t, 2) / 100, y: n(t, 3) / 100, first: n(t, 4) === 1 };
     default:
       return null;
   }

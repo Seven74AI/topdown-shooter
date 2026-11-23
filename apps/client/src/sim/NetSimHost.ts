@@ -451,6 +451,9 @@ export class NetSimHost implements SimHost {
         if (e.type === "spitter.spat" && stale) continue;
         if (e.type === "acid.splashed" && ageS >= this.puddleS) continue;
         e.ageS = ageS;
+      } else if (e.type === "zombie.brute_spawned") {
+        // Story 5.7 (Beat the rule 9): its age, so a woken tab's backlog neither roars nor shows the banner late.
+        e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       }
       out[w++] = e;
     }
@@ -656,6 +659,10 @@ export class NetSimHost implements SimHost {
     p.buildReady = s.buildReady;
     p.slowTicksLeft = s.slowTicks; // Story 3.9: the slowed look (the predictor has its own copy)
     p.slowPct = s.slowPct;
+    p.knockTicks = s.knockTicks; // Story 5.7: mirrored for the look (the predictor has its own copy)
+    p.knockDx = s.knockDx;
+    p.knockDy = s.knockDy;
+    p.knockStepMm = s.knockStepMm;
     this.applyDowned(p, s);
     // Story 3.2: money is server truth (schema), never predicted.
     p.wallet = s.wallet;
@@ -739,7 +746,7 @@ export class NetSimHost implements SimHost {
     this.predictor.syncDecay(state.decayStage, state.decayVariants, state.decayFiresOut); // Story 4.5: the same patch's map
     const me = state.players.get(this.localPlayerId);
     if (!me) return;
-    this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct);
+    this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct, me.knockTicks, me.knockDx, me.knockDy, me.knockStepMm);
     // Events go out at the tick, patches later on one socket: every server shot for seqs ≤ ack is
     // already counted. Local shots there beyond them were never fired by the server.
     this.fireClock.ack(me.ackSeq);

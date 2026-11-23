@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_ATLAS_PX, frameName, isFrameName, layoutIsValid, packAtlas, tileRects, variantLetter } from "./atlasLayout";
-import { characterSpecs, downtownSpecs, fxSpecs, ZOMBIE_FRAMES, SURVIVOR_FRAME } from "./spriteAtlas";
+import { BRUTE_WINDUP_FRAMES, characterSpecs, downtownSpecs, fxSpecs, ZOMBIE_FRAMES, SURVIVOR_FRAME } from "./spriteAtlas";
 import { ZOMBIE_TYPES } from "@topdown/shared";
 
 describe("atlas frame names (category_name_variant)", () => {
@@ -31,6 +31,12 @@ describe("placeholder atlases follow the final layout", () => {
       expect(layoutIsValid(l)).toBe(true);
     });
   }
+  it("Story 5.7: the Brute has its five looks (BR1–BR5) and a windup frame for each, in a frame its 1.5 r art fits", () => {
+    const specs = sets.characters;
+    expect(ZOMBIE_FRAMES.brute).toEqual(["zombie_brute_a", "zombie_brute_b", "zombie_brute_c", "zombie_brute_d", "zombie_brute_e"]);
+    expect(BRUTE_WINDUP_FRAMES).toHaveLength(5);
+    for (const f of [...ZOMBIE_FRAMES.brute, ...BRUTE_WINDUP_FRAMES]) expect(specs.find((s) => s.name === f)?.w, f).toBe(102);
+  });
   it("every zombie type has its own frames (distinct silhouettes), plus the survivor", () => {
     const names = sets.characters.map((s) => s.name);
     for (const t of ZOMBIE_TYPES) {

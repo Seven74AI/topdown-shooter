@@ -261,10 +261,12 @@ export function decayMutate(world: World, stage: number): boolean {
  * stage changed, the event (Story 4.8: fires going out alone rebuild the fields, no banner).
  */
 export function decayFinish(world: World, from: number): void {
-  const { nav, chase, flank } = world.pathing;
+  const { nav, chase, flank, wide, wideChase } = world.pathing;
   if (nav.cells > 1) {
     rebuildFlowFieldNow(chase, nav, world);
     rebuildFlowFieldNow(flank, nav, world);
+    // Story 5.7: the wide field too, but only while a wide body lives (a build start has none: it idles).
+    if (world.pathing.wideActive) rebuildFlowFieldNow(wideChase, wide, world);
   }
   if (world.decay.stage !== from) world.events.emit({ type: "decay.stage_changed", stage: world.decay.stage, from });
 }

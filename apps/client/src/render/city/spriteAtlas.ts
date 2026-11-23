@@ -21,7 +21,7 @@ export const ATLAS_FX = "atlas_fx";
 /** Collision radius in frame px (characters are drawn in radius units, so the frame fits every balance radius). */
 export const CHAR_R_PX = 34;
 /** Walker/runner/crawler variants (clothes); the survivor has one. */
-export const ZOMBIE_VARIANTS: Readonly<Record<ZombieTypeId, number>> = { walker: 4, runner: 2, crawler: 2, spitter: 2 };
+export const ZOMBIE_VARIANTS: Readonly<Record<ZombieTypeId, number>> = { walker: 4, runner: 2, crawler: 2, spitter: 2, brute: 5 }; // Story 5.7: BR1–BR5
 
 /** Frame names per zombie type (built once: views never build strings per frame). */
 export const ZOMBIE_FRAMES: Readonly<Record<ZombieTypeId, readonly string[]>> = Object.fromEntries(
@@ -30,6 +30,8 @@ export const ZOMBIE_FRAMES: Readonly<Record<ZombieTypeId, readonly string[]>> = 
 export const SURVIVOR_FRAME = frameName("survivor", "body", "a");
 /** Story 5.6: the Spitter's windup pose (rearing back, mouth blazing), one per clothes variant. */
 export const SPITTER_WINDUP_FRAMES: readonly string[] = Array.from({ length: ZOMBIE_VARIANTS.spitter }, (_, i) => `${frameName("zombie", "spitter", "windup")}_${variantLetter(i)}`);
+/** Story 5.7: the Brute's windup pose (arms raised under the clothes), one per look (BR1–BR5). */
+export const BRUTE_WINDUP_FRAMES: readonly string[] = Array.from({ length: ZOMBIE_VARIANTS.brute }, (_, i) => `${frameName("zombie", "brute", "windup")}_${variantLetter(i)}`);
 /**
  * Story 5.3: the survivor holding a weapon with its own art (`weaponArt.ts`), by weapon id:
  * `survivor_shotgun_a`, `survivor_assault_rifle_a`. Other weapons use `SURVIVOR_FRAME`.
@@ -92,6 +94,8 @@ export function characterSpecs(): FrameSpec[] {
   }
   const sp = Math.ceil(2 * CHAR_EXTENT_R.spitter * CHAR_R_PX);
   for (const name of SPITTER_WINDUP_FRAMES) out.push({ name, w: sp, h: sp });
+  const br = Math.ceil(2 * CHAR_EXTENT_R.brute * CHAR_R_PX);
+  for (const name of BRUTE_WINDUP_FRAMES) out.push({ name, w: br, h: br });
   const s = Math.ceil(2 * CHAR_EXTENT_R.survivor * CHAR_R_PX);
   out.push({ name: SURVIVOR_FRAME, w: s, h: s });
   for (const name of Object.values(SURVIVOR_WEAPON_FRAMES)) out.push({ name, w: s, h: s });
@@ -147,6 +151,8 @@ function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   if (z) drawZombie(g, z.type, CHAR_R_PX, z.variant);
   const w = SPITTER_WINDUP_FRAMES.indexOf(f.name);
   if (w >= 0) drawZombie(g, "spitter", CHAR_R_PX, w, true);
+  const bw = BRUTE_WINDUP_FRAMES.indexOf(f.name);
+  if (bw >= 0) drawZombie(g, "brute", CHAR_R_PX, bw, true);
 }
 
 /** Story 4.11: loaded frames that replace a procedural downtown frame (the sandbags). */

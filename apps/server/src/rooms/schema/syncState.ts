@@ -144,6 +144,10 @@ function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
   if (s.reloadTicks1 !== reload1) s.reloadTicks1 = reload1;
   if (s.slowTicks !== p.slowTicksLeft) s.slowTicks = p.slowTicksLeft; // Story 3.9
   if (s.slowPct !== p.slowPct) s.slowPct = p.slowPct;
+  if (s.knockTicks !== p.knockTicks) s.knockTicks = p.knockTicks; // Story 5.7
+  if (s.knockDx !== p.knockDx) s.knockDx = p.knockDx;
+  if (s.knockDy !== p.knockDy) s.knockDy = p.knockDy;
+  if (s.knockStepMm !== p.knockStepMm) s.knockStepMm = p.knockStepMm;
 }
 
 /** Story 2.8 › `lobby.return`: every fight field and Ready flag back to its default; slot and name stay. */
@@ -189,4 +193,8 @@ function resetPlayer(s: PlayerState): void {
   s.earned = 0;
   s.slowTicks = 0;
   s.slowPct = 0;
+  s.knockTicks = 0; // Story 5.7
+  s.knockDx = 0;
+  s.knockDy = 0;
+  s.knockStepMm = 0;
 }

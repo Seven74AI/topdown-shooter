@@ -36,6 +36,7 @@ import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
 import { ACID_CUE_MS, FireCue } from "../render/fireCue";
 import { ACID_SOUND_MAX_AGE_S, AcidFx } from "../render/acidFx";
+import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
 import { playSfx } from "../audio/placeholderSfx";
 import { BurnView } from "../render/BurnView";
@@ -137,6 +138,8 @@ export class GameScene extends Phaser.Scene {
   private leaving = false;
   /** Story 2.11: "<name> left" lines for the HUD, one at a time. */
   private readonly toasts = new ToastQueue();
+  /** Story 5.7: the Brute spawn cue (reused record). */
+  private readonly bruteCue: BruteCue = { roar: false, banner: false, pan: 0 };
   /** How this run is simulated: the local World, or the server's (Story 2.4). */
   mode: "solo" | "online" = "solo";
   private sticks: TouchSticks | null = null;
@@ -345,7 +348,7 @@ export class GameScene extends Phaser.Scene {
 
     this.ambience?.dispose(); // Phaser reuses this scene object: never two players
     this.ambience = new AmbiencePlayer();
-    this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
+    this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
@@ -943,6 +946,11 @@ export class GameScene extends Phaser.Scene {
         this.kills++;
       } else if (e.type === "money.earned" && e.playerId === localId) {
         this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame
+      } else if (e.type === "zombie.brute_spawned") {
+        // Story 5.7 (AC 4): a roar for every Brute, the "Brute!" banner for the run's first.
+        const cue = bruteSpawnCue(e, this.cameras.main.worldView, this.bruteCue);
+        if (cue.roar) playSfx("zombie_brute_roar", cue.pan);
+        if (cue.banner) this.stackBanner(BRUTE_BANNER);
       } else if (e.type === "mine.exploded") {
         // Story 5.9: a short shake when my survivor is within 6 m of the blast (`mineShakeIntensity`).
         const me = host.world.players.get(localId);

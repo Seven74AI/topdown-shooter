@@ -10,8 +10,9 @@ import { zombieTypeOf } from "./zombiePool";
 import { PUSH_STUCK, distanceToBox, hasObstacles, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
 import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
-import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, type FlowField } from "./flowField";
-import { isRushState } from "./zombieTypes";
+import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, isWideType, type FlowField, type NavGrid } from "./flowField";
+import { ZOMBIE_STATE, isRushState, isWindupState } from "./zombieTypes";
+import { knockPlayer } from "../player/knockback";
 import { segmentHitsFire } from "../decay/fire";
 import { collectStanding, spitterStep } from "./spit";
 import { updateMines } from "../buildings/mine";
@@ -66,7 +67,7 @@ function nearestAlivePlayer(x: number, y: number): PlayerState | null {
   return best;
 }
 
-/** One zombie hit: damage, and the type's bite slow (Story 3.9: Crawlers). */
+/** One zombie hit: damage, and the type's bite slow (Story 3.9: Crawlers). Story 5.7: the knockback (Brutes; never when the hit downs, F3). */
 function damagePlayer(world: World, p: PlayerState, stats: Readonly<ZombieTypeStats>, sourceZombieId: number): void {
   if (p.status !== "alive" || world.debug.godMode) return; // god mode: dev cheat / ?stress (Story 1.11)
   const amount = stats.damage;
@@ -74,7 +75,14 @@ function damagePlayer(world: World, p: PlayerState, stats: Readonly<ZombieTypeSt
   p.hp = Math.max(0, p.hp - amount);
   world.events.emit({ type: "player.damaged", playerId: p.id, amount, sourceZombieId });
   if (p.hp <= 0) downPlayer(world, p); // Story 2.8: down, not dead; zombies then ignore them
+  else if (stats.hitKnockbackM > 0) {
+    knockPlayer(p, world.zombies.x[sourceZombieId] as number, world.zombies.y[sourceZombieId] as number, stats);
+    bruteStats.knocks++;
+  }
 }
+
+/** Story 5.7: Brute swings so far (tests and logs; not read by the sim). */
+export const bruteStats = { windups: 0, hits: 0, misses: 0, knocks: 0, buildingHits: 0 };
 
 /**
  * Story 3.5: where a zombie at (x, y) whose straight line is blocked steers: the centre of the cell
@@ -83,10 +91,23 @@ function damagePlayer(world: World, p: PlayerState, stats: Readonly<ZombieTypeSt
  * and the zombie steers at the nearest point of its box (straight at the face: never along it into
  * the gap between two buildings). False when there is no field there yet (then it walks straight).
  */
-function steerByField(world: World, field: FlowField, x: number, y: number, id: number): boolean {
-  const nav = world.pathing.nav;
+function steerByField(world: World, field: FlowField, nav: NavGrid, x: number, y: number, id: number): boolean {
   if (field.sourceTick < 0) return false;
-  const here = flowCellAt(nav, x, y);
+  let here = flowCellAt(nav, x, y);
+  if (nav.inflateM > 0) {
+    // Story 5.7: a wide body standing in a grown wall cell (no field there) steers from the best
+    // reached cell next to it.
+    const near = flowNearestReachedCell(field, nav, here, 2);
+    if (near < 0) return false;
+    if (near !== here) {
+      const next = flowNextCell(field, nav, near);
+      const to = next >= 0 && flowStepBuilding(nav, near, next) === 0 ? next : near;
+      steer.x = flowCellCenterX(nav, to);
+      steer.y = flowCellCenterY(nav, to);
+      return true;
+    }
+    here = near;
+  }
   const first = flowNextCell(field, nav, here);
   if (first < 0) return false;
   // The building on the next cell, or at a gap too narrow for a body between here and there (review H1).
@@ -157,7 +178,14 @@ export const updateZombies: SystemFn = (world, dtS) => {
 
     targetBuilding[id] = 0;
     fieldMode[id] = 0;
-    // Story 5.6: a Spitter in range with a clear line stands (winds up / cools down); else it walks.
+    // Story 5.7 (F1): a Brute winding up a swing stands still (no walking, no soft push; the hard
+    // overlap pass can still shove it). Story 5.6: a Spitter in range with a clear line stands
+    // (winds up / cools down); else it walks.
+    if (stats.windupS > 0 && isWindupState(pool.state[id] as number)) {
+      pool.vx[id] = 0;
+      pool.vy[id] = 0;
+      continue;
+    }
     const holds = stats.spit !== undefined && spitterStep(world, id, stats.radiusM, stats.spit);
     const target = holds ? null : nearestAlivePlayer(x, y);
     if (target) {
@@ -182,10 +210,14 @@ export const updateZombies: SystemFn = (world, dtS) => {
           (blocked || inFlankCone(world, target, x, y))
         ) {
           const f = world.pathing.flank;
-          if (f.sourceTick >= 0 && world.tick - f.sourceTick <= flankMaxAge) steered = steerByField(world, f, x, y, id);
+          if (f.sourceTick >= 0 && world.tick - f.sourceTick <= flankMaxAge) steered = steerByField(world, f, world.pathing.nav, x, y, id);
         }
         // Story 3.5: a building in the way → follow the flow field (straight again once the line is clear).
-        if (!steered && blocked) steered = steerByField(world, world.pathing.chase, x, y, id);
+        // Story 5.7 (D1): a wide body follows the wide chase field on the wide grid.
+        if (!steered && blocked) {
+          const pa = world.pathing;
+          steered = isWideType(world, pool.type[id] as number) ? steerByField(world, pa.wideChase, pa.wide, x, y, id) : steerByField(world, pa.chase, pa.nav, x, y, id);
+        }
         if (steered) {
           fieldMode[id] = 1; // review H1: either field (chase or flank) counts for the stuck safety net
           dx = steer.x - x;
@@ -256,6 +288,14 @@ export const updateZombies: SystemFn = (world, dtS) => {
 
     if ((pool.attackCooldownTicks[id] as number) > 0) pool.attackCooldownTicks[id] = (pool.attackCooldownTicks[id] as number) - 1;
 
+    // Story 5.7 (F1, D2): a melee windup on this body's own clock (`spitTicks`: Brutes have no spit).
+    const windup = stats.windupS > 0 && isWindupState(pool.state[id] as number);
+    if (windup) {
+      const left = (pool.spitTicks[id] as number) - 1;
+      pool.spitTicks[id] = Math.max(0, left);
+      if (left <= 0) resolveSwing(world, id, x, y, stats);
+    }
+
     const target = nearestAlivePlayer(x, y);
     if (target) {
       const contact = rz + target.radiusM;
@@ -272,10 +312,15 @@ export const updateZombies: SystemFn = (world, dtS) => {
         y = target.y + (dy / d) * contact;
         d = contact;
       }
-      if (d <= contact + CONTACT_EPS_M && pool.attackCooldownTicks[id] === 0) {
-        pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
-        damagePlayer(world, target, stats, id);
-        if (stats.flanks) resetFlankTime(world, id); // review H1: it bit: a new commitment starts
+      if (d <= contact + CONTACT_EPS_M && pool.attackCooldownTicks[id] === 0 && !windup) {
+        if (stats.windupS > 0) {
+          // Story 5.7 (F1): touch → stand and wind up; the hit is decided at its end (`resolveSwing`).
+          if (!isWindupState(pool.state[id] as number)) startWindup(world, id, stats);
+        } else {
+          pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
+          damagePlayer(world, target, stats, id);
+          if (stats.flanks) resetFlankTime(world, id); // review H1: it bit: a new commitment starts
+        }
       }
     }
     let pushStuck = false;
@@ -304,11 +349,13 @@ export const updateZombies: SystemFn = (world, dtS) => {
     if (bid === 0 && fieldMode[id] === 1 && hasBuildings && pushStuck) {
       bid = touchingBuilding(world, x, y, rz + CONTACT_EPS_M);
     }
-    if (bid !== 0 && pool.attackCooldownTicks[id] === 0) {
+    if (bid !== 0 && pool.attackCooldownTicks[id] === 0 && !(stats.windupS > 0 && isWindupState(pool.state[id] as number))) {
       const b = buildingById(world, bid);
       if (b && distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) <= rz + CONTACT_EPS_M) {
         pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
-        damageBuilding(world, b, stats.damage);
+        // Story 5.7 (F5): Brutes hit buildings 3× (no windup on buildings).
+        damageBuilding(world, b, stats.damage * stats.buildingDamageMult);
+        if (stats.buildingDamageMult > 1) bruteStats.buildingHits++;
       }
     }
   }
@@ -317,6 +364,37 @@ export const updateZombies: SystemFn = (world, dtS) => {
   // buildings-slot pass before combat catches bodies that were already there: never twice).
   updateMines(world);
 };
+
+/** Story 5.7: a zombie of a windup type touches a standing player with its attack ready: it winds up (state + its own clock). */
+function startWindup(world: World, id: number, stats: Readonly<ZombieTypeStats>): void {
+  const pool = world.zombies;
+  pool.state[id] = isRushState(pool.state[id] as number) ? ZOMBIE_STATE.RUSH_WINDUP : ZOMBIE_STATE.WINDUP;
+  pool.spitTicks[id] = Math.max(1, ticksFor(stats.windupS));
+  bruteStats.windups++;
+}
+
+/**
+ * Story 5.7 (F1): the end of a windup. The swing lands on the nearest standing player whose centre
+ * is closer than contact + `swingReachM` (strictly: a player who stepped `swingReachM` away is
+ * missed); the attack interval runs either way.
+ */
+function resolveSwing(world: World, id: number, x: number, y: number, stats: Readonly<ZombieTypeStats>): void {
+  const pool = world.zombies;
+  pool.state[id] = isRushState(pool.state[id] as number) ? ZOMBIE_STATE.RUSH : ZOMBIE_STATE.CHASE;
+  pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
+  const p = nearestAlivePlayer(x, y);
+  if (p) {
+    const dx = p.x - x;
+    const dy = p.y - y;
+    const reach = stats.radiusM + p.radiusM + stats.swingReachM;
+    if (dx * dx + dy * dy < reach * reach) {
+      bruteStats.hits++;
+      damagePlayer(world, p, stats, id);
+      return;
+    }
+  }
+  bruteStats.misses++;
+}
 
 /**
  * Id of the nearest WALL building within `reach` of (x, y) (ties: the lower id), or 0: the stuck
@@ -376,7 +454,8 @@ function resetFlankTime(world: World, id: number): void {
 
 /**
  * Hard rule on top of the soft separation: two zombies never stay overlapped. Each overlapping pair
- * (handled once, lower id first) is pushed apart by half the overlap each, then clamped to the map.
+ * (handled once: by the bigger body, equal bodies by the lower id) is pushed apart, the overlap
+ * split by body area (Story 5.7; equal bodies: half each), then clamped to the map.
  * The soft push alone loses against the pressure of a big crowd chasing one player.
  */
 function resolveOverlaps(world: World): void {
@@ -391,8 +470,10 @@ function resolveOverlaps(world: World): void {
     const count = queryRadius(world.zombieGrid, pool.x, pool.y, pool.x[id] as number, pool.y[id] as number, qr, neighbours);
     for (let k = 0; k < count; k++) {
       const j = neighbours[k] as number;
-      if (j <= id) continue;
       const rj = world.balance.zombies.types[zombieTypeOf(pool, j)]?.radiusM ?? 0;
+      // Each pair once: by the bigger body (its query reaches the smaller one; Story 5.7), equal
+      // bodies by the lower id (as before).
+      if (rj > ri || (rj === ri && j <= id)) continue;
       const ox = (pool.x[id] as number) - (pool.x[j] as number);
       const oy = (pool.y[id] as number) - (pool.y[j] as number);
       const d = Math.sqrt(ox * ox + oy * oy);
@@ -407,11 +488,19 @@ function resolveOverlaps(world: World): void {
         ux = ox / d;
         uy = oy / d;
       }
-      const h = overlap / 2;
-      pool.x[id] = Math.min(widthM - ri, Math.max(ri, (pool.x[id] as number) + ux * h));
-      pool.y[id] = Math.min(heightM - ri, Math.max(ri, (pool.y[id] as number) + uy * h));
-      pool.x[j] = Math.min(widthM - rj, Math.max(rj, (pool.x[j] as number) - ux * h));
-      pool.y[j] = Math.min(heightM - rj, Math.max(rj, (pool.y[j] as number) - uy * h));
+      // Story 5.7 (F4): split by body area — i moves rj² / (ri² + rj²) of the overlap (equal radii: ½ each, as before).
+      let hi = overlap / 2;
+      let hj = hi;
+      if (ri !== rj) {
+        const ai = ri * ri;
+        const aj = rj * rj;
+        hi = (overlap * aj) / (ai + aj);
+        hj = overlap - hi;
+      }
+      pool.x[id] = Math.min(widthM - ri, Math.max(ri, (pool.x[id] as number) + ux * hi));
+      pool.y[id] = Math.min(heightM - ri, Math.max(ri, (pool.y[id] as number) + uy * hi));
+      pool.x[j] = Math.min(widthM - rj, Math.max(rj, (pool.x[j] as number) - ux * hj));
+      pool.y[j] = Math.min(heightM - rj, Math.max(rj, (pool.y[j] as number) - uy * hj));
     }
   }
 }

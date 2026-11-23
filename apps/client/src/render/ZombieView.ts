@@ -1,8 +1,8 @@
 import * as Phaser from "phaser";
-import { ATLAS_CHARACTERS, SPITTER_WINDUP_FRAMES, ZOMBIE_FRAMES, ensureAtlases } from "./city/spriteAtlas";
+import { ATLAS_CHARACTERS, BRUTE_WINDUP_FRAMES, SPITTER_WINDUP_FRAMES, ZOMBIE_FRAMES, ensureAtlases } from "./city/spriteAtlas";
 import { GurgleCues, windupScale } from "./spitCue";
 import { CHAR_EXTENT_R } from "./city/spriteArt";
-import { ZOMBIE_TYPES, headingToRad, isWindupState, type PlayerState, type Balance, type World, type ZombieTypeId } from "@topdown/shared";
+import { ZOMBIE_TYPES, bruteLookIndex, headingToRad, isWindupState, type PlayerState, type Balance, type World, type ZombieTypeId } from "@topdown/shared";
 import { playSfx, type SfxName } from "../audio/placeholderSfx";
 import { ShriekCues } from "./shriekCue";
 
@@ -11,6 +11,8 @@ const MIN_TURN_MOVE_M = 1e-4;
 /** Only for a type missing from balance (never in a valid build). */
 const DEFAULT_RADIUS_M = 0.35;
 const FLASH_MS = 80;
+/** Story 5.7 (AC 8): a Brute's hit flash is heavier (held longer: it soaks many hits). */
+const BRUTE_FLASH_MS = 160;
 
 /** How one zombie type is shown. Frames (`atlas_characters`, Story 4.9) face +x, centred on the body. */
 interface ZombieLook {
@@ -32,14 +34,18 @@ const LOOKS = {
   runner: { depth: 5.5, cue: "zombie_runner_shriek" },
   // Story 5.6: hunched woman, distended jaw glowing green; its cue is the windup gurgle (below).
   spitter: { depth: 5.2, cue: null },
+  // Story 5.7: 1.2 m wide, hunched, five looks (BR1–BR5); drawn above the crowd. Its roar plays on
+  // its spawn event (GameScene), not when it enters the view.
+  brute: { depth: 5.8, cue: null },
 } as const satisfies Record<ZombieTypeId, ZombieLook>;
 
 const lookOf = (type: ZombieTypeId): ZombieLook => LOOKS[type];
 
 /** Clothes variant of a zombie slot (stable per slot and generation: a crowd is not all one shirt). */
-const variantOf = (type: ZombieTypeId, id: number, gen: number): string => {
+const variantOf = (type: ZombieTypeId, id: number, gen: number, look: number): string => {
   const frames = ZOMBIE_FRAMES[type];
-  return frames[(id * 7 + gen) % frames.length] as string;
+  // Story 5.7: a Brute's look comes from the run seed's `look:brute:<netId>` stream (`look`).
+  return frames[(type === "brute" ? look : id * 7 + gen) % frames.length] as string;
 };
 
 /**
@@ -63,6 +69,10 @@ export class ZombieView {
   /** Story 5.6: per slot, the windup start (scene ms) while it shows the windup pose; 0 = normal pose. */
   private readonly windupSince: Float64Array;
   private readonly side: Float32Array;
+  /** Story 5.7: per slot, the Brute look (`bruteLookIndex`, picked once per new zombie). */
+  private readonly look: Uint8Array;
+  /** Story 5.7: 1 while the slot shows a Brute (its heavier flash). */
+  private readonly brute: Uint8Array;
   private readonly gurgles = new GurgleCues();
   /** Scratch for `nearestPlayer` (module-free callback, no closure per frame). */
   private readonly near = { x: 0, y: 0, px: 0, py: 0, d2: Infinity };
@@ -84,6 +94,8 @@ export class ZombieView {
     capacity: number,
     /** Use the streamed heading (the networked host's mirror). */
     private readonly streamedHeading = false,
+    /** Story 5.7: the run seed (room state online, the World's seed solo): the Brute looks' stream. */
+    private readonly runSeed: () => number = () => 0,
   ) {
     ensureAtlases(scene); // Story 4.9: the character atlas (idempotent)
     this.shownFrame = new Int32Array(capacity).fill(-1);
@@ -93,11 +105,13 @@ export class ZombieView {
     this.cues = new ShriekCues(capacity);
     this.windupSince = new Float64Array(capacity);
     this.side = new Float32Array(capacity);
+    this.look = new Uint8Array(capacity);
+    this.brute = new Uint8Array(capacity);
   }
 
   /** White hit flash for a zombie (FR19). */
   flash(id: number): void {
-    this.flashUntil[id] = this.scene.time.now + FLASH_MS;
+    this.flashUntil[id] = this.scene.time.now + (this.brute[id] === 1 ? BRUTE_FLASH_MS : FLASH_MS);
     this.images[id]?.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
   }
 
@@ -109,7 +123,7 @@ export class ZombieView {
       const type: ZombieTypeId = ZOMBIE_TYPES[z.type[id] as number] ?? "walker";
       let img = this.images[id];
       if (!img) {
-        img = this.scene.add.image(0, 0, ATLAS_CHARACTERS, variantOf(type, id, 0));
+        img = this.scene.add.image(0, 0, ATLAS_CHARACTERS, variantOf(type, id, 0, 0));
         this.images[id] = img;
       }
       const gen = z.generation[id] as number;
@@ -121,7 +135,9 @@ export class ZombieView {
         const side = 2 * r * CHAR_EXTENT_R[type];
         this.side[id] = side;
         this.windupSince[id] = 0;
-        img.setTexture(ATLAS_CHARACTERS, variantOf(type, id, gen)).setDisplaySize(side, side).setDepth(look.depth).setVisible(true);
+        this.look[id] = type === "brute" ? bruteLookIndex(this.runSeed(), id | (gen << 8)) : 0; // the horde net id
+        this.brute[id] = type === "brute" ? 1 : 0;
+        img.setTexture(ATLAS_CHARACTERS, variantOf(type, id, gen, this.look[id] as number)).setDisplaySize(side, side).setDepth(look.depth).setVisible(true);
         this.flashUntil[id] = 0; // a new zombie in this slot never inherits a flash
         img.clearTint().setTintMode(Phaser.TintModes.MULTIPLY);
       }
@@ -154,12 +170,17 @@ export class ZombieView {
       const since = this.windupSince[id] as number;
       if (winding && since === 0) {
         this.windupSince[id] = this.scene.time.now || 1;
-        img.setFrame(SPITTER_WINDUP_FRAMES[(id * 7 + gen) % SPITTER_WINDUP_FRAMES.length] as string);
-        const pan = this.gurgles.windupStarted(drawX, drawY, this.scene.cameras.main.worldView, this.scene.time.now / 1000);
-        if (!Number.isNaN(pan)) playSfx("zombie_spitter_gurgle", pan);
+        if (type === "brute") {
+          // Story 5.7 (F1): the raised-arms pose of its look (no gurgle: that is the Spitter's).
+          img.setFrame(BRUTE_WINDUP_FRAMES[(this.look[id] as number) % BRUTE_WINDUP_FRAMES.length] as string);
+        } else {
+          img.setFrame(SPITTER_WINDUP_FRAMES[(id * 7 + gen) % SPITTER_WINDUP_FRAMES.length] as string);
+          const pan = this.gurgles.windupStarted(drawX, drawY, this.scene.cameras.main.worldView, this.scene.time.now / 1000);
+          if (!Number.isNaN(pan)) playSfx("zombie_spitter_gurgle", pan);
+        }
       } else if (!winding && since !== 0) {
         this.windupSince[id] = 0;
-        img.setFrame(variantOf(type, id, gen)).setDisplaySize(this.side[id] as number, this.side[id] as number);
+        img.setFrame(variantOf(type, id, gen, this.look[id] as number)).setDisplaySize(this.side[id] as number, this.side[id] as number);
       }
       if (winding) {
         const s = (this.side[id] as number) * windupScale((this.scene.time.now - (this.windupSince[id] as number)) / 1000);

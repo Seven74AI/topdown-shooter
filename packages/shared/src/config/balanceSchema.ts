@@ -103,6 +103,29 @@ export const zombieTypeSchema = z
     flanks: z.boolean().default(false),
     /** Story 5.6: a ranged spit (Spitters); absent = no ranged attack. */
     spit: spitSchema.optional(),
+    /** Story 5.7 (F5): a hit on a building does `damage × this` (Brutes 3×). */
+    buildingDamageMult: z.number().min(1).default(1),
+    /**
+     * Story 5.7 (F4; shared with 5.2): every pushback and knockback from player weapons and turrets
+     * moves this type only this many percent of the distance (Brutes 20). Integer.
+     */
+    knockbackTakenPct: z.number().int().min(0).max(100).default(100),
+    /** Story 5.7 (F2): a hit on a standing player knocks them this far straight away (0 = none). */
+    hitKnockbackM: z.number().min(0).max(5).default(0),
+    /** Story 5.7: over this long (ticks on the wire: at most 2.5 s). */
+    knockbackS: z.number().positive().max(2.5).default(0.2),
+    /**
+     * Story 5.7 (F1): before every hit on a player the zombie stands still this long (the WINDUP
+     * state, streamed: the telegraph), then hits only a body within contact + `swingReachM`. 0 = an
+     * instant hit (every type before the Brute). A melee windup; 5.6's ranged `spit.windupS` is its own.
+     */
+    windupS: z.number().min(0).max(5).default(0),
+    swingReachM: z.number().min(0).max(2).default(0),
+    /**
+     * Story 5.7 (D1): wider than the flow field's clearance rule allows (0.35 m): paths on the wide
+     * grid (every box grown by `pathing.wideInflateM`) and follows the wide chase field.
+     */
+    wideBody: z.boolean().default(false),
   })
   .strict();
 
@@ -133,6 +156,12 @@ export const pathingSchema = z
     nearWallCostM: z.number().min(0),
     /** A zombie steers at the centre of the cell this many steps down the field (stops before a building). */
     lookaheadCells: z.number().int().min(1).max(8),
+    /**
+     * Story 5.7 (D1): the wide grid grows every map box, building and fire by this much, so a
+     * `wideBody` type up to `MAX_PATHING_ZOMBIE_RADIUS_M` + this behaves like a 0.35 m body on it.
+     * At most one 0.5 m cell (the rasterizer grows a box by whole cells).
+     */
+    wideInflateM: z.number().min(0).max(0.5).default(0.25),
   })
   .strict();
 
@@ -220,6 +249,14 @@ export const wavesSchema = z
           .refine((m) => Object.values(m).some((w) => w > 0), "a wave mix needs a positive weight"),
       )
       .min(1),
+    /**
+     * Story 5.7 (FR29): exact zombies per type in wave i + 1, NOT scaled by player count (one Brute
+     * in waves 5 and 6 at every party size). Part of the wave size (taken off the mix's share,
+     * Walkers first). Waves past the list have none (unlike `mix`): later epics only add entries.
+     */
+    fixed: z.array(z.record(balanceId, z.number().int().min(0).max(255))).default([]),
+    /** Story 5.7: the first fixed zombie of a wave spawns once this fraction of the wave has spawned (not in the opening burst). */
+    fixedAtFraction: z.number().min(0).max(1).default(0.25),
   })
   .strict();
 

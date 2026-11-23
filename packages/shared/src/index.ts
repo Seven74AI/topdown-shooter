@@ -94,6 +94,7 @@ export { teamSpawnPoint } from "./player/spawn";
 export { checkTeamWipe, downPlayer, findReviver, returnOutPlayers, updateDowned } from "./player/downed";
 export { spectateTarget } from "./player/spectate";
 export { playerSpeed, slowPlayer, tickSlow } from "./player/slow";
+export { KNOCK_DIR_SCALE, knockPlayer, stepKnock } from "./player/knockback"; // Story 5.7
 export { MAX_WAVE_MIX, parseWaveMix } from "./waves/waveMix";
 export { headingToRad, lerpHeading, quantizeHeading } from "./net/heading";
 export {
@@ -113,6 +114,7 @@ export { movePlayers, updatePlayers } from "./player/movement";
 export { ZOMBIE_STATE, ZOMBIE_TYPES, isRushState, isWindupState, type ZombieTypeId } from "./zombies/zombieTypes";
 export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
 export { spawnRing } from "./zombies/spawnRing";
+export { BRUTE_LOOKS, announceSpawn, bruteLookIndex } from "./zombies/brute"; // Story 5.7
 export { createSpatialGrid, queryRadius, queryRect, rebuildGrid, type SpatialGrid } from "./core/spatialGrid";
 export {
   HORDE_BACKPRESSURE_BYTES,
@@ -171,7 +173,7 @@ export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
 export { swingMelee } from "./combat/melee";
 export { circleOverlapsSector } from "./math/sector";
-export { jitteredSpawn, updateWaves, waveMixOf, waveSize, waveTypeCounts, type WaveState } from "./waves/waveDirector";
+export { applyFixedCounts, spawnJitterFor, spawnReachM, jitteredSpawn, updateWaves, waveMixOf, waveSize, waveTypeCounts, type WaveState } from "./waves/waveDirector";
 export {
   endRun,
   endWave,
@@ -341,6 +343,9 @@ export {
   rasterizeBuildings,
   rebuildFlowFieldNow,
   updatePathing,
+  flowNearestReachedCell,
+  isWideType,
+  wideBodyAlive,
   type FlowField,
   type NavGrid,
   type PathingState,

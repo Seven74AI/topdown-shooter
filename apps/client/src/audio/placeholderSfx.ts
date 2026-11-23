@@ -20,7 +20,9 @@ export type SfxName =
   // Story 5.6: the Spitter's windup gurgle (positional), its spit, and the acid's hiss.
   | "zombie_spitter_gurgle"
   | "zombie_spitter_spit"
-  | "fx_acid_hiss";
+  | "fx_acid_hiss"
+  // Story 5.7: the Brute's roar (positional; on every Brute's spawn).
+  | "zombie_brute_roar";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -84,6 +86,51 @@ function burst(c: AudioContext, at: number, durS: number, gain: number, filterHz
   src.connect(f).connect(g).connect(master);
   src.start(at);
   src.stop(at + durS);
+}
+
+/** Story 5.7: a low, long roar: two detuned growling saws under a falling noise band (panned). */
+function roar(c: AudioContext, at: number, pan: number): void {
+  const out = outputFor(c, pan);
+  if (!out || !noise) return;
+  const dur = 1.1;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.001, at);
+  g.gain.exponentialRampToValueAtTime(0.5, at + 0.12);
+  g.gain.exponentialRampToValueAtTime(0.25, at + 0.7);
+  g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(900, at);
+  lp.frequency.exponentialRampToValueAtTime(300, at + dur);
+  lp.connect(g).connect(out);
+  const trem = c.createOscillator();
+  trem.frequency.value = 31;
+  const tremGain = c.createGain();
+  tremGain.gain.value = 18;
+  trem.connect(tremGain);
+  for (const detune of [0, 23]) {
+    const o = c.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(95, at);
+    o.frequency.exponentialRampToValueAtTime(62, at + dur);
+    o.detune.value = detune;
+    tremGain.connect(o.frequency);
+    o.connect(lp);
+    o.start(at);
+    o.stop(at + dur);
+  }
+  trem.start(at);
+  trem.stop(at + dur);
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 1.2;
+  bp.frequency.setValueAtTime(700, at);
+  bp.frequency.exponentialRampToValueAtTime(250, at + dur);
+  src.connect(bp).connect(lp);
+  src.start(at);
+  src.stop(at + dur);
 }
 
 /** Noise through a band-pass whose center sweeps from `fromHz` to `toHz` (a whoosh). */
@@ -275,6 +322,9 @@ export function playSfx(name: SfxName, pan = 0): void {
       break;
     case "fx_acid_hiss":
       sweep(c, t, 0.35, 0.25, 5000, 2500);
+      break;
+    case "zombie_brute_roar": // Story 5.7
+      roar(c, t, pan);
       break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;

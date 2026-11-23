@@ -7,7 +7,7 @@ import { shotBlockT, shotLineClear } from "../combat/cover";
 import { segmentCircleT } from "../math/sweep";
 import { downPlayer } from "../player/downed";
 import type { PlayerState } from "../player/player";
-import { AREA_KIND, circleInArea, clearAreas, spawnArea } from "../hazards/areaPool";
+import { AREA_KIND, clearAreas, spawnArea } from "../hazards/areaPool";
 import { freeSpit, clearSpits } from "./spitPool";
 import { ZOMBIE_STATE, isRushState, isWindupState } from "./zombieTypes";
 import { DAMAGE_SOURCE_ACID } from "../core/simEvents";
@@ -233,7 +233,7 @@ const acidPass = { world: null as World | null, amount: 0, pulse: 0 };
 const acidPlayer = (p: PlayerState): void => {
   const world = acidPass.world as World;
   if (p.status !== "alive" || world.debug.godMode) return; // F5
-  if (!circleInArea(world.areas, AREA_KIND.ACID, p.x, p.y, p.radiusM)) return;
+  if (!circleInAcid(world, p.x, p.y, p.radiusM)) return;
   if (++p.acidTicks < acidPass.pulse) return;
   p.acidTicks = 0;
   spitStats.acidHits++;
@@ -299,7 +299,35 @@ export function clearAcid(world: World): void {
   world.players.forEach(coolAcid);
 }
 
-/** The circle (x, y, r) is inside a live acid puddle (strict overlap): the rule the client's ring draws. */
+/**
+ * 5.6 re-review (designer, 2026-11-23): a puddle reaches a body only when nothing that stops shots
+ * stands between them. The line runs from the body's centre to the puddle's centre (a body is
+ * always outside every box); it is blocked when it enters a shot blocker (car, bus, building, map
+ * wall: `shotBlockT`, the spit-vs-cover rule of F3) more than this far before the puddle centre. A
+ * spit stopped at a face leaves its puddle centre ON that face (float rounding: a hair inside; the
+ * client's copy: within ½ cm), which must not block the body on that side.
+ */
+export const ACID_FACE_TOLERANCE_M = 0.02;
+
+/**
+ * The circle (x, y, r) is inside a live acid puddle (strict overlap: the ring the client draws) AND
+ * no shot blocker stands between it and the puddle's centre (barricades, sandbags, turrets, traps
+ * don't count: 4.2). Allocation-free.
+ */
 export function circleInAcid(world: Readonly<World>, x: number, y: number, r: number): boolean {
-  return circleInArea(world.areas, AREA_KIND.ACID, x, y, r);
+  const pool = world.areas;
+  if (pool.count === 0) return false;
+  for (let i = 0; i < pool.capacity; i++) {
+    if (pool.active[i] !== 1 || pool.kind[i] !== AREA_KIND.ACID) continue;
+    const cx = pool.x[i] as number;
+    const cy = pool.y[i] as number;
+    const dx = x - cx;
+    const dy = y - cy;
+    const rr = r + (pool.radiusM[i] as number);
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= rr * rr) continue;
+    const t = shotBlockT(world, x, y, cx, cy);
+    if (t < 0 || (1 - t) * Math.sqrt(d2) <= ACID_FACE_TOLERANCE_M) return true;
+  }
+  return false;
 }

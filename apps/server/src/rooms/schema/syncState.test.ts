@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
-import { NEUTRAL_INPUT, applyZombieDamage, changeDecayStage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
+import { NEUTRAL_INPUT, knockPlayer, applyZombieDamage, changeDecayStage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
 import { RunController } from "../../run/RunController";
 import { PlayerState, RunState } from "./RunState";
 import { resetRunFields, syncState } from "./syncState";
@@ -203,6 +203,33 @@ describe("syncState", () => {
     syncState(state, controller);
     expect(state.players.get("p0")?.slowTicks).toBe(0);
     expect(state.players.get("p0")?.slowPct).toBe(0);
+  });
+
+  it("Story 5.7: copies a Brute's knockback (ticks, int8 direction, mm per tick), counted down; reset clears it", () => {
+    const { controller, state, encoder } = setup();
+    const p0 = controller.world.players.get("p0");
+    const brute = balance.zombies.types.brute;
+    if (!p0 || !brute) throw new Error("setup");
+    syncState(state, controller);
+    encoder.encode();
+    encoder.discardChanges();
+    knockPlayer(p0, p0.x - 0.6, p0.y + 0.8, brute); // knocked toward (+0.6, −0.8)
+    syncState(state, controller);
+    const s = state.players.get("p0");
+    expect([s?.knockTicks, s?.knockDx, s?.knockDy, s?.knockStepMm]).toEqual([4, 76, -102, 375]);
+    const bytes = encoder.encode().length;
+    encoder.discardChanges();
+    console.info(`[bandwidth] Brute knockback: ${bytes} B patch at the hit`);
+    expect(bytes).toBeLessThan(20);
+    let seq = 0;
+    for (let i = 0; i < 4; i++) {
+      controller.queueInput("p0", { ...NEUTRAL_INPUT, seq: ++seq });
+      controller.tick();
+    }
+    syncState(state, controller);
+    expect(s?.knockTicks).toBe(0);
+    resetRunFields(state);
+    expect([s?.knockTicks, s?.knockDx, s?.knockDy, s?.knockStepMm]).toEqual([0, 0, 0, 0]);
   });
 
   it("resetRunFields puts every fight field and Ready back, keeping slot and name", () => {

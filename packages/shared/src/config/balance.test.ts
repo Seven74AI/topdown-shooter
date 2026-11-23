@@ -52,6 +52,41 @@ describe("loadBalance", () => {
     expect(() => loadBalance(set({ pellets: 1, hitPushbackM: 0.15 }))).not.toThrow();
   });
 
+  it("Story 5.7: the Brute matches the GDD; other types keep the new fields' defaults", () => {
+    const b = loadBalance();
+    expect(b.zombies.types.brute).toMatchObject({ hp: 120, speedMps: 1.0, damage: 35, attackIntervalS: 1.5, radiusM: 0.6, reward: 25, buildingDamageMult: 3, knockbackTakenPct: 20, hitKnockbackM: 1.5, knockbackS: 0.2, windupS: 0.5, swingReachM: 0.3, wideBody: true });
+    for (const id of ["walker", "crawler", "runner", "spitter"]) {
+      expect(b.zombies.types[id], id).toMatchObject({ buildingDamageMult: 1, knockbackTakenPct: 100, hitKnockbackM: 0, windupS: 0, swingReachM: 0, wideBody: false });
+    }
+    expect(b.zombies.pathing.wideInflateM).toBe(0.25);
+    expect(b.waves.fixed).toEqual([{}, {}, {}, {}, { brute: 1 }, { brute: 1 }]);
+    expect(b.waves.fixedAtFraction).toBe(0.25);
+  });
+
+  it("Story 5.7: fixed counts are validated (known type, in ZOMBIE_TYPES, ≤ the smallest wave)", () => {
+    const set = (fixed: unknown) => {
+      const files = raw();
+      (files.waves as { fixed: unknown }).fixed = fixed;
+      return files;
+    };
+    expect(() => loadBalance(set([{ behemoth: 1 }]))).toThrow(/waves\.json: fixed\.0: unknown zombie type behemoth/);
+    // Wave 1 solo = 40 × 0.4 = 16 zombies.
+    expect(() => loadBalance(set([{ brute: 17 }]))).toThrow(/waves\.json: fixed\.0: 17 fixed zombies exceed the smallest wave 1 \(16 solo\)/);
+    expect(() => loadBalance(set([{ brute: 16 }]))).not.toThrow();
+    expect(() => loadBalance(set([{ brute: -1 }]))).toThrow(/waves\.json: fixed\.0\.brute/);
+  });
+
+  it("Story 5.7: a wide body over the wide limit is refused, a non-wide body over 0.35 m too", () => {
+    const set = (patch: Record<string, unknown>) => {
+      const files = raw();
+      Object.assign((files.zombies as { types: Record<string, Record<string, unknown>> }).types.brute as Record<string, unknown>, patch);
+      return files;
+    };
+    expect(() => loadBalance(set({ radiusM: 0.61 }))).toThrow(/types\.brute: a wide body of 0\.61 m exceeds 0\.6 m/);
+    expect(() => loadBalance(set({ wideBody: false }))).toThrow(/types\.brute: a zombie radius of 0\.6 m exceeds 0\.35 m/);
+    expect(() => loadBalance(set({ radiusM: 0.6 }))).not.toThrow();
+  });
+
   it("names the file and key when a value is invalid", () => {
     const files = raw();
     (files.weapons as { pistol: { damage: number } }).pistol.damage = -5;

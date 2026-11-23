@@ -13,7 +13,7 @@ import { downPlayer } from "../player/downed";
 import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
 import { endRun, skipWave, startBuild, startWave } from "../run/runStateMachine";
-import { spawnZombie } from "../zombies/zombiePool";
+import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { FLOW_UNITS_PER_M, rebuildFlowFieldNow } from "../zombies/flowField";
 import { ZOMBIE_TYPES, isWindupState, type ZombieTypeId } from "../zombies/zombieTypes";
 import { jitteredSpawn } from "../waves/waveDirector";
@@ -443,31 +443,43 @@ describe("Story 4.8 flow field: fire cells are very costly, not walls", () => {
       startBuild(w); // the real DecaySystem path into stage 3
       expect(w.decay.fires).toHaveLength(2);
       startWave(w);
-      const spawned: number[] = [];
-      const out = { x: 0, y: 0 };
-      for (const sp of DT.spawnPoints) {
-        for (const type of ZOMBIE_TYPES as readonly ZombieTypeId[]) {
-          jitteredSpawn(w, sp, 0, balance.zombies.types[type]?.radiusM ?? 0, out);
-          spawned.push(spawnZombie(w, type, out.x, out.y));
+      // Story 5.7: two batches — the 0.35 m types, then the Brutes. In one crowd a 1.0 m/s Brute shoves
+      // a 0.7 m/s Crawler ahead of it (it takes 80 % of their overlap) and once pushed one into the
+      // street_west fire (seed 12: 1 of 95); that is the crowd, not the pathing, which this checks.
+      const batches: (readonly ZombieTypeId[])[] = [ZOMBIE_TYPES.filter((t) => t !== "brute"), ["brute"]];
+      let spawnedCount = 0;
+      for (const batch of batches) {
+        const spawned: number[] = [];
+        const out = { x: 0, y: 0 };
+        for (const sp of DT.spawnPoints) {
+          for (const type of batch) {
+            jitteredSpawn(w, sp, 0, balance.zombies.types[type]?.radiusM ?? 0, out);
+            spawned.push(spawnZombie(w, type, out.x, out.y));
+          }
         }
-      }
-      const reached = new Set<number>();
-      for (let t = 0; t < 20 * 90 && reached.size < spawned.length; t++) {
-        step(w, TICK_DT_S);
-        const z = w.zombies;
-        for (const id of spawned) {
-          if (reached.has(id) || z.alivePos[id] === -1) continue;
-          const x = z.x[id] as number;
-          const y = z.y[id] as number;
-          zombieTicks++;
-          if (isWindupState(z.state[id] as number)) reached.add(id); // Story 5.6: a Spitter "reaches" us when it winds up (in range, clear line)
-          if (circleInFire(w.decay.fires, x, y, 0.35)) fireTicks++;
-          for (const p of w.players.values()) if (Math.hypot(p.x - x, p.y - y) <= 3 && !segmentHitsBuildings(w, x, y, p.x, p.y, 0)) reached.add(id);
+        const reached = new Set<number>();
+        for (let t = 0; t < 20 * 90 && reached.size < spawned.length; t++) {
+          step(w, TICK_DT_S);
+          const z = w.zombies;
+          for (const id of spawned) {
+            if (reached.has(id) || z.alivePos[id] === -1) continue;
+            const x = z.x[id] as number;
+            const y = z.y[id] as number;
+            zombieTicks++;
+            if (isWindupState(z.state[id] as number)) reached.add(id); // Story 5.6: a Spitter "reaches" us when it winds up (in range, clear line)
+            if (circleInFire(w.decay.fires, x, y, 0.35)) fireTicks++;
+            for (const p of w.players.values()) if (Math.hypot(p.x - x, p.y - y) <= 3 && !segmentHitsBuildings(w, x, y, p.x, p.y, 0)) reached.add(id);
+          }
+          // Story 5.7: a zombie that reached us leaves (killed), so the crowd round the team never fills the 3 m
+          // circle: with a 1.2 m Brute per spawn the bodies no longer fit, and late arrivals would stay outside it.
+          for (const id of reached) if (z.alivePos[id] !== -1) killZombie(w, id, null, "pistol");
         }
+        expect(spawned.length).toBe(DT.spawnPoints.length * batch.length);
+        expect(reached.size, `seed ${seed}: ${spawned.filter((id) => !reached.has(id)).map((id) => `${w.zombies.type[id]}@${(w.zombies.x[id] as number).toFixed(2)},${(w.zombies.y[id] as number).toFixed(2)} alive ${w.zombies.alivePos[id]}`).join(" ")}`).toBe(spawned.length);
+        spawnedCount += spawned.length;
       }
-      expect(spawned.length).toBe(DT.spawnPoints.length * ZOMBIE_TYPES.length);
-      expect(reached.size, `seed ${seed}`).toBe(spawned.length);
-      total += spawned.length;
+      expect(spawnedCount).toBe(DT.spawnPoints.length * ZOMBIE_TYPES.length);
+      total += spawnedCount;
     }
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fire] stage 3: ${total} zombies reached the team; ${fireTicks} of ${zombieTicks} zombie-ticks in fire`);
     expect(fireTicks / zombieTicks).toBeLessThan(0.01);

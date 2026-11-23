@@ -13,10 +13,10 @@ import { NEUTRAL_INPUT } from "../net/input";
 import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
 import { skipWave, startBuild, startWave } from "../run/runStateMachine";
-import { jitteredSpawn } from "../waves/waveDirector";
+import { jitteredSpawn, spawnJitterFor } from "../waves/waveDirector";
 import { FLOW_UNREACHED, flowCellAt, rebuildFlowFieldNow } from "../zombies/flowField";
-import { maxZombieRadius, ZOMBIE_TYPES, isWindupState, type ZombieTypeId } from "../zombies/zombieTypes";
-import { spawnZombie } from "../zombies/zombiePool";
+import { ZOMBIE_TYPES, isWindupState, type ZombieTypeId } from "../zombies/zombieTypes";
+import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { applyDecayStage } from "./applyDecayStage";
 import { circleInFire, fireRecordOf, legalDecayMasks } from "./decayState";
 import { changeDecayStage, relocated } from "./decaySystem";
@@ -159,8 +159,7 @@ describe("Story 4.7 Panic: 4 cars into the road (decay stream)", () => {
 
 describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", () => {
   it("every stage × every combination: no enclosed cell, no slot narrower than a body, spawns' jitter areas and the team start clear", () => {
-    const jitter = balance.waves.spawnJitterM;
-    const rz = maxZombieRadius(balance);
+    const radii = [...new Set(Object.values(balance.zombies.types).map((t) => t.radiusM))];
     const lo = { x: 0, y: 0 };
     const hi = { x: 0, y: 0 };
     const at = { x: 0, y: 0 };
@@ -179,11 +178,14 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
           if (nav.closedE[c] !== 0 || nav.closedS[c] !== 0) closed++;
         }
         expect([unreached, closed], `stage ${stage} mask ${mask}`).toEqual([0, 0]);
-        for (const sp of DT.spawnPoints) {
-          jitteredSpawn(w, sp, -jitter, rz, lo);
-          jitteredSpawn(w, sp, jitter, rz, hi);
-          const area: MapBox = { name: sp.name, minX: Math.min(lo.x, hi.x) - rz, maxX: Math.max(lo.x, hi.x) + rz, minY: Math.min(lo.y, hi.y) - rz, maxY: Math.max(lo.y, hi.y) + rz };
-          for (const s of w.obstacles.solids) expect(overlaps(area, s), `stage ${stage} mask ${mask}: ${sp.name} vs ${s.name}`).toBe(false);
+        for (const rz of radii) {
+          const jitter = spawnJitterFor(balance, rz); // Story 5.7: per type (a wide body jitters less)
+          for (const sp of DT.spawnPoints) {
+            jitteredSpawn(w, sp, -jitter, rz, lo);
+            jitteredSpawn(w, sp, jitter, rz, hi);
+            const area: MapBox = { name: sp.name, minX: Math.min(lo.x, hi.x) - rz, maxX: Math.max(lo.x, hi.x) + rz, minY: Math.min(lo.y, hi.y) - rz, maxY: Math.max(lo.y, hi.y) + rz };
+            for (const s of w.obstacles.solids) expect(overlaps(area, s), `stage ${stage} mask ${mask}: ${sp.name} (r ${rz}) vs ${s.name}`).toBe(false);
+          }
         }
         for (let slot = 0; slot < 4; slot++) {
           teamSpawnPoint(w, slot, at);
@@ -220,15 +222,14 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
   });
 
   it("4.3 re-review L2 (in 4.8 rr): no fire an ignite can light touches any spawn's whole jitter segment (every spawn, every stage), for the largest zombie", () => {
-    const jitter = balance.waves.spawnJitterM;
-    const rz = maxZombieRadius(balance);
     const w = createWorld({ balance, seed: 1, map: DT });
     const ignites = DT.decay.filter((m) => m.action === "ignite");
     expect(ignites).toHaveLength(3); // liveness: the three candidate cars
     const lo = { x: 0, y: 0 };
     const hi = { x: 0, y: 0 };
     let margin = Infinity;
-    for (const m of ignites) {
+    for (const m of ignites) for (const rz of [...new Set(Object.values(balance.zombies.types).map((t) => t.radiusM))]) {
+      const jitter = spawnJitterFor(balance, rz); // Story 5.7: per type
       const fire = fireRecordOf(m, 0, balance.decay.fire.radiusM);
       for (const sp of DT.spawnPoints) {
         jitteredSpawn(w, sp, -jitter, rz, lo);
@@ -277,9 +278,12 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
             if (Math.hypot(p.x - (z.x[id] as number), p.y - (z.y[id] as number)) <= 3 && !segmentHitsBuildings(w, z.x[id] as number, z.y[id] as number, p.x, p.y, 0)) reached.add(id);
           }
         }
+        // Story 5.7: a zombie that reached us leaves (killed), so the crowd round the team never fills the 3 m
+        // circle: with a 1.2 m Brute per spawn the bodies no longer fit, and late arrivals would stay outside it.
+        for (const id of reached) if (z.alivePos[id] !== -1) killZombie(w, id, null, "pistol");
       }
       expect(spawned.length, `mask ${mask}`).toBe(14 * types.length); // liveness: 14 spawns open at stage 2
-      expect(reached.size, `mask ${mask}: ${spawned.length - reached.size} never reached us`).toBe(spawned.length);
+      expect(reached.size, `mask ${mask}: ${spawned.length - reached.size} never reached us: ${spawned.filter((id) => !reached.has(id)).map((id) => `${w.zombies.type[id]}@${(w.zombies.x[id] as number).toFixed(2)},${(w.zombies.y[id] as number).toFixed(2)}`).join(" ")}`).toBe(spawned.length);
       spawnedTotal += spawned.length;
     }
     expect(spawnedTotal).toBe(40 * 14 + 5 * 14 * ZOMBIE_TYPES.length); // Story 4.8: 45 combinations, every 10th with all types

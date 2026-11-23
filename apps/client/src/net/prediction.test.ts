@@ -9,6 +9,14 @@ import {
   setInput,
   step,
   type PlayerInput,
+  DOWNTOWN_MAP,
+  addBuildingAt,
+  applyDecayStage,
+  circleInFire,
+  knockPlayer,
+  type BuildingStateView,
+  type DistrictMap,
+  type World,
 } from "@topdown/shared";
 import { Predictor } from "./prediction";
 import { PREDICTION_HISTORY_SIZE, PREDICTION_IGNORE_M, PREDICTION_SNAP_M } from "./netConfig";
@@ -249,5 +257,97 @@ describe("Predictor", () => {
     }
     expect(p.stats.corrections).toBe(corrections);
     expect(p.stats.lastErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+  });
+
+  describe("Story 5.7: a Brute's knockback, predicted after the ack", () => {
+    const brute = balance.zombies.types.brute as NonNullable<(typeof balance.zombies.types)["brute"]>;
+    /**
+     * Server World (the shared `movePlayers`, one step per input) and a Predictor 3 inputs ahead.
+     * The knock lands at the end of the server's tick for seq 1; the client learns it with the ack
+     * of seq 1. Returns the predictor's stats after 40 more inputs, each acked 3 later.
+     */
+    function knockCase(map: DistrictMap, x: number, y: number, ux: number, uy: number, prepare: (w: World) => void, sync: (p: Predictor) => void) {
+      const server = createWorld({ balance, seed: 1, map, systems: { waves: () => {}, zombies: () => {}, buildings: () => {} } });
+      prepare(server);
+      const sp = addPlayer(server, "p0", x, y);
+      const p = new Predictor(balance, map, "p0");
+      sync(p);
+      p.reconcile(0, x, y, "alive");
+      const hist: { x: number; y: number; k: number; dx: number; dy: number; mm: number }[] = [];
+      const snap = () => ({ x: Math.fround(sp.x), y: Math.fround(sp.y), k: sp.knockTicks, dx: sp.knockDx, dy: sp.knockDy, mm: sp.knockStepMm });
+      const mv = (s: number) => move(s, -ux * 0.5, -uy * 0.5); // walking back into the Brute: the knock overrides it
+      setInput(server, "p0", mv(1));
+      step(server, TICK_DT_S);
+      knockPlayer(sp, sp.x - ux, sp.y - uy, brute); // the zombie system of that tick
+      hist[1] = snap();
+      for (let s = 1; s <= 4; s++) p.applyLocal(mv(s));
+      for (let s = 2; s <= 4; s++) {
+        setInput(server, "p0", mv(s));
+        step(server, TICK_DT_S);
+        hist[s] = snap();
+      }
+      const h1 = hist[1] as (typeof hist)[number];
+      p.reconcile(1, h1.x, h1.y, "alive", 0, 0, h1.k, h1.dx, h1.dy, h1.mm); // the reveal: one smoothed slide
+      const reveal = { corrections: p.stats.corrections, snaps: p.stats.snaps, slides: p.stats.knockSlides };
+      let inFire = false;
+      let along = 0; // the farthest the server pushed the body along the knock
+      for (const h of hist) if (h) along = Math.max(along, (h.x - x) * ux + (h.y - y) * uy);
+      for (let s = 5; s <= 44; s++) {
+        p.applyLocal(mv(s));
+        setInput(server, "p0", mv(s));
+        step(server, TICK_DT_S);
+        hist[s] = snap();
+        const h = hist[s - 3] as (typeof hist)[number];
+        p.reconcile(s - 3, h.x, h.y, "alive", 0, 0, h.k, h.dx, h.dy, h.mm);
+        if (server.decay.fires.length > 0 && circleInFire(server.decay.fires, sp.x, sp.y, sp.radiusM)) inFire = true;
+        along = Math.max(along, (sp.x - x) * ux + (sp.y - y) * uy);
+      }
+      return { reveal, after: { corrections: p.stats.corrections - reveal.corrections, snaps: p.stats.snaps - reveal.snaps }, lastErrorM: p.stats.lastErrorM, moved: along, inFire };
+    }
+
+    it("in the open: the reveal slides (no snap), then 0 corrections", () => {
+      const r = knockCase(PLACEHOLDER_MAP, 20, 16, 1, 0, () => {}, () => {});
+      expect(r.moved).toBeCloseTo(1.5 - 0.5 * STEP_M, 3); // seq 1 walked half a step back first
+      expect(r.reveal).toEqual({ corrections: 1, snaps: 0, slides: 1 });
+      expect(r.after).toEqual({ corrections: 0, snaps: 0 });
+      expect(r.lastErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+    });
+
+    it("against a barricade: the replay stops at it like the server, 0 corrections after the reveal", () => {
+      const view: BuildingStateView = { type: "wood_barricade", owner: "p0", gx: 42, gy: 30, rot: 1, hp: 200 }; // x [21, 21.5], y [15, 17]
+      const r = knockCase(
+        PLACEHOLDER_MAP,
+        20,
+        16,
+        1,
+        0,
+        (w) => addBuildingAt(w, { id: 1, type: view.type, ownerId: view.owner, gx: view.gx, gy: view.gy, rot: 0 === view.rot ? 0 : 1, hp: 200 }),
+        (p) => p.syncBuildings(new Map([["1", view]])),
+      );
+      expect(r.moved).toBeLessThan(1.5 - 0.5); // stopped by the barricade (0.6 m to its face)
+      expect(r.after).toEqual({ corrections: 0, snaps: 0 });
+      expect(r.lastErrorM).toBeLessThan(PREDICTION_IGNORE_M);
+    });
+
+    it("at a fire edge: never into the fire, and the replay agrees (0 corrections after the reveal)", () => {
+      const probe = createWorld({ balance, seed: 4, map: DOWNTOWN_MAP, systems: { waves: () => {}, zombies: () => {}, buildings: () => {} } });
+      applyDecayStage(probe, 3, probe.decay.variants);
+      const f = probe.decay.fires.find((c) => c.name.includes("street_car_west")) ?? probe.decay.fires[0];
+      if (!f) throw new Error("no fire");
+      // East of the fire, knocked west toward it.
+      const x = f.x + f.radiusM + balance.player.radiusM + 0.5;
+      const r = knockCase(
+        DOWNTOWN_MAP,
+        x,
+        f.y,
+        -1,
+        0,
+        (w) => applyDecayStage(w, 3, probe.decay.variants),
+        (p) => p.syncDecay(3, probe.decay.variants, 0),
+      );
+      expect(r.inFire).toBe(false);
+      expect(r.moved).toBeLessThan(1.5);
+      expect(r.after).toEqual({ corrections: 0, snaps: 0 });
+    });
   });
 });

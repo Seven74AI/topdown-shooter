@@ -32,6 +32,10 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     earned: 0,
     slowTicks: 0,
     slowPct: 0,
+    knockTicks: 0, // Story 5.7
+    knockDx: 0,
+    knockDy: 0,
+    knockStepMm: 0,
     ...over,
   };
 }

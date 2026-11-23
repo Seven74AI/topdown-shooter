@@ -6,6 +6,7 @@
 import type { ZombieTypeId } from "@topdown/shared";
 import { CAR_COLORS, CAR_WRECK } from "./dressing";
 import { drawSpitter } from "./spitterArt";
+import { drawBrute } from "./bruteArt";
 
 type G = CanvasRenderingContext2D;
 
@@ -92,6 +93,7 @@ export const CHAR_EXTENT_R: Readonly<Record<ZombieTypeId | "survivor", number>> 
   runner: 1.5,
   crawler: 1.75,
   spitter: 2.35, // Story 5.6 (P4): mouth drops ahead and the acid trail behind (drawn × SPITTER_ART_SCALE) reach ~2.3 r
+  brute: 1.5, // Story 5.7: fists ~1.2 r ahead, the windup fists ~1.45 r to the side, BR5's dragged chain ~1.3 r behind
   survivor: 2.15,
 };
 
@@ -107,6 +109,8 @@ function wounds(c: G, r: number, seed: number, n: number): void {
 export function drawZombie(c: G, type: ZombieTypeId, r: number, variant: number, windup = false): void {
   // Story 5.6: the Spitter's whole look is one function (the designer's pick drops in there).
   if (type === "spitter") return drawSpitter(c, r, variant, windup);
+  // Story 5.7: the Brute's five looks (BR1–BR5) and its windup pose, one function.
+  if (type === "brute") return drawBrute(c, r, variant, windup);
   const seed = 5 + variant * 13 + (type === "runner" ? 100 : type === "crawler" ? 200 : 0);
   c.lineJoin = "round";
   c.strokeStyle = CHAR.outline;

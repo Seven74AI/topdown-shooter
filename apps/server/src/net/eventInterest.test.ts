@@ -86,3 +86,21 @@ describe("EventInterest (Story 3.6 review M2)", () => {
     expect(kinds(interest.eventsFor(world, 36, 24))).toEqual([NET_EVENT_KIND.SPITTER_SPAT, NET_EVENT_KIND.PLAYER_DAMAGED]);
   });
 });
+
+describe("Story 5.7: zombie.brute_spawned", () => {
+  it("is global (a team cue: every client gets it, wherever it is) and ~10 B on the wire", async () => {
+    const { pack } = await import("msgpackr");
+    const { EventInterest } = await import("./eventInterest");
+    const { createWorld, loadBalance, encodeNetEvent } = await import("@topdown/shared");
+    const balance = loadBalance();
+    const world = createWorld({ balance, seed: 1 });
+    const e = { type: "zombie.brute_spawned" as const, zombieId: 3, x: 0.6, y: 31.4, first: true };
+    const ei = new EventInterest();
+    ei.prepare(world, [e], { balance, zombieNetId: (id: number) => id });
+    expect(ei.localCount).toBe(0);
+    expect(ei.eventsFor(world, 46, 2)).toHaveLength(1); // a client on the far side of the map
+    const bytes = pack(encodeNetEvent(e, { balance, zombieNetId: (id: number) => id | (7 << 8) })).length;
+    console.info(`[bandwidth 5.7] brute_spawned: ${bytes} B per Brute spawn`);
+    expect(bytes).toBeLessThanOrEqual(12);
+  });
+});

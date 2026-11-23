@@ -1,7 +1,7 @@
 import type { Balance } from "../config/balance";
 
 /** Zombie type index ↔ balance id. Order is fixed; append only (the index goes on the wire in Story 2.5). */
-export const ZOMBIE_TYPES = ["walker", "crawler", "runner", "spitter"] as const; // Story 5.6: spitter = 3
+export const ZOMBIE_TYPES = ["walker", "crawler", "runner", "spitter", "brute"] as const; // Story 5.6: spitter = 3; Story 5.7: brute = 4
 export type ZombieTypeId = (typeof ZOMBIE_TYPES)[number];
 
 /** Per-zombie behaviour state stored as a u8 in the pool. More states arrive later (flank, windup, rush…). */
@@ -10,7 +10,7 @@ export const ZOMBIE_STATE = {
   CHASE: 1,
   /** One of the last zombies of a wave: marked on screen, heads straight for the nearest player (FR30). */
   RUSH: 2,
-  /** Story 5.6: a Spitter rearing back before a spit (the telegraph; streamed in the horde nibble). */
+  /** Story 5.6: a Spitter rearing back before a spit (the telegraph; streamed in the horde nibble). Story 5.7: also a Brute's raised arms before a swing. */
   WINDUP: 3,
   /** Story 5.6: a rushing Spitter (FR30, still marked) in its windup. */
   RUSH_WINDUP: 4,

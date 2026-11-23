@@ -111,6 +111,8 @@ export type SimEvent =
    * lifetime from balance).
    */
   | { type: "acid.splashed"; puddleId: number; x: number; y: number; hitPlayerId: string | null; /** Review M1: client only, as above. */ ageS?: number }
+  /** Story 5.7: a Brute appeared (roar on every one; `first` = the run's first Brute: the "Brute!" banner). Sent to everyone. */
+  | { type: "zombie.brute_spawned"; zombieId: number; x: number; y: number; first: boolean; /** Client only: seconds since it happened (a woken tab's backlog: no late banner). */ ageS?: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

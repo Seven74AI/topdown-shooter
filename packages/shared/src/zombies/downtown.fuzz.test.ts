@@ -18,7 +18,7 @@ import { addPlayer } from "../player/player";
 import { spotBlocked } from "../player/freeSpot";
 import { teamSpawnPoint } from "../player/spawn";
 import { spawnZombie } from "./zombiePool";
-import { jitteredSpawn } from "../waves/waveDirector";
+import { jitteredSpawn, spawnJitterFor } from "../waves/waveDirector";
 import { SPAWN_STATE, spawnPointStates } from "../waves/spawnPick";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { setInput } from "../core/world";
@@ -243,7 +243,8 @@ function layout(seed: number) {
   const at2 = { x: 0, y: 0 };
   const spawnAt = (sp: { x: number; y: number }, k: number): void => {
     const type = zombieType();
-    const j = k % 3 === 0 ? -jitter : k % 3 === 1 ? jitter : rng.range(-jitter, jitter); // the extremes too
+    const jt = spawnJitterFor(balance, balance.zombies.types[type]?.radiusM ?? 0); // Story 5.7: a Brute jitters less
+    const j = k % 3 === 0 ? -jt : k % 3 === 1 ? jt : rng.range(-jt, jt); // the extremes too
     jitteredSpawn(world, sp, j, balance.zombies.types[type]?.radiusM ?? 0, at2);
     spawned.push(spawnZombie(world, type, at2.x, at2.y));
   };

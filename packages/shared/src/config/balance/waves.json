@@ -16,5 +16,7 @@
     { "walker": 65, "runner": 20, "crawler": 15 },
     { "walker": 50, "runner": 25, "crawler": 17, "spitter": 8 },
     { "walker": 45, "runner": 25, "crawler": 22, "spitter": 8 }
-  ]
+  ],
+  "fixed": [{}, {}, {}, {}, { "brute": 1 }, { "brute": 1 }],
+  "fixedAtFraction": 0.25
 }
