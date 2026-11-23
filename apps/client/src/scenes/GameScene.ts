@@ -207,6 +207,7 @@ export class GameScene extends Phaser.Scene {
     m.teammates[i * 2 + 1] = view ? view.y : p.y;
     m.teammateSlot[i] = info.slot;
     m.teammateFlags[i] = (p.status === "downed" ? TEAMMATE_DOWNED : 0) | (p.status === "out" ? TEAMMATE_OUT : 0);
+    m.teammateSecs[i] = p.status === "downed" ? Math.ceil(p.downedTicksLeft / TICK_RATE_HZ) : 0;
     if (m.teammateNames[info.slot] !== info.name) m.teammateNames[info.slot] = info.name;
   };
   private readonly dropPlayerView = (view: PlayerView, id: string): void => {
@@ -1066,6 +1067,11 @@ export class GameScene extends Phaser.Scene {
       }
       if ((e.type === "team.wiped" || e.type === "run.held_out") && !host.online && !this.gameOver) {
         this.showSoloResults(host, e.wave, e.type === "run.held_out");
+      } else if (e.type === "player.downed" && e.playerId !== localId && !host.world.teamWiped && host.world.players.get(e.playerId)?.status === "downed") {
+        // A teammate went down (and still is: a woken tab's backlog stays quiet once revived): say who,
+        // with an alert; the pulsing edge arrow shows where and how long they have.
+        this.stackBanner(`${host.playerInfo(e.playerId).name || "A teammate"} is down!`);
+        playSfx("player_teammate_downed");
       } else if (e.type === "zombie.killed" && e.killerId === localId && e.buildingId === undefined) {
         // Story 3.6: my turret's kills pay me (money.earned) but are not my kills.
         this.kills++;

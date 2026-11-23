@@ -11,15 +11,17 @@ export interface TeammateMarker {
   angle: number;
   slot: number;
   downed: boolean;
+  /** Seconds left on the downed countdown (0 when not downed). */
+  secs: number;
   /** The teammate's own screen position (for the name tag when on screen). */
   sx: number;
   sy: number;
 }
 
 export const createTeammateMarkers = (): TeammateMarker[] =>
-  Array.from({ length: MAX_PLAYERS }, () => ({ visible: false, x: 0, y: 0, angle: 0, slot: 0, downed: false, sx: 0, sy: 0 }));
+  Array.from({ length: MAX_PLAYERS }, () => ({ visible: false, x: 0, y: 0, angle: 0, slot: 0, downed: false, secs: 0, sx: 0, sy: 0 }));
 
-type MarkerModel = Pick<HudModel, "teammates" | "teammateSlot" | "teammateFlags" | "teammateCount" | "camX" | "camY" | "camZoom">;
+type MarkerModel = Pick<HudModel, "teammates" | "teammateSlot" | "teammateFlags" | "teammateSecs" | "teammateCount" | "camX" | "camY" | "camZoom">;
 
 /**
  * Fills `out` (preallocated, ≥ MAX_PLAYERS entries) with one marker per teammate that is not out,
@@ -38,6 +40,7 @@ export function teammateMarkers(model: MarkerModel, screenW: number, screenH: nu
       const m = out[used++] as TeammateMarker;
       m.slot = slot;
       m.downed = (flags & TEAMMATE_DOWNED) !== 0;
+      m.secs = m.downed ? (model.teammateSecs[i] as number) : 0;
       m.sx = ((model.teammates[i * 2] as number) - model.camX) * model.camZoom;
       m.sy = ((model.teammates[i * 2 + 1] as number) - model.camY) * model.camZoom;
       m.visible = edgeArrow(m.sx, m.sy, screenW, screenH, margin, m);

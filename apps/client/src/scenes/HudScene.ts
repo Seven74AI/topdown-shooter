@@ -111,6 +111,12 @@ const CROSS_PX = 6;
 const CROSS_THICK_PX = 2.5;
 const CROSS_INSET_PX = 20;
 const CROSS_COLOR = 0xffffff;
+/** An off-screen DOWNED teammate's arrow is this much bigger (before the pulse), so it can't be missed. */
+const MATE_DOWNED_SCALE = 1.5;
+/** Their "Bo · 14 s" label: centred this far inward from the arrow tip (CSS px), in this colour. */
+const MATE_LABEL_INSET_PX = 62;
+const MATE_DOWNED_COLOR = "#ff6b6b";
+const NAME_COLOR = "#ffffff";
 /** Story 2.11: ☰ (three white bars on a dark square), and the toast line under the status line. */
 const MENU_BAR_W_FRAC = 0.5;
 const MENU_BAR_H_PX = 3;
@@ -291,6 +297,8 @@ export class HudScene extends Phaser.Scene {
   /** Story 2.9, all indexed by slot: name tags, edge arrows and downed crosses, created once. */
   private readonly names: Phaser.GameObjects.Text[] = [];
   private readonly shownNames: string[] = new Array<string>(MAX_PLAYERS).fill("");
+  /** Name tags currently in the downed colour (the off-screen "Bo · 14 s" label), by slot. */
+  private readonly redNames: boolean[] = new Array<boolean>(MAX_PLAYERS).fill(false);
   private readonly mateArrows: Phaser.GameObjects.Triangle[] = [];
   private readonly crosses: Phaser.GameObjects.Graphics[] = [];
   /** Preallocated `teammateMarkers` output. */
@@ -1166,6 +1174,7 @@ export class HudScene extends Phaser.Scene {
   /**
    * Story 2.9: a name tag over each on-screen teammate, and an edge arrow in their slot colour for
    * each off-screen one (with a "+" when downed). Downed markers pulse. Out teammates: nothing.
+   * An off-screen downed teammate's arrow is 1.5× bigger and carries a red "Bo · 14 s" label.
    */
   private drawTeammates(): void {
     const m = this.model;
@@ -1183,9 +1192,16 @@ export class HudScene extends Phaser.Scene {
       const arrow = this.mateArrows[slot] as Phaser.GameObjects.Triangle;
       const cross = this.crosses[slot] as Phaser.GameObjects.Graphics;
       const label = m.teammateNames[slot] ?? "";
-      if (label !== this.shownNames[slot]) {
-        this.shownNames[slot] = label;
-        name.setText(label);
+      const offDowned = mk.visible && mk.downed;
+      // Off screen and down: who, and how long they have ("Bo · 14 s"), in red beside the arrow.
+      const text = offDowned ? `${label || "Teammate"} · ${mk.secs} s` : label;
+      if (text !== this.shownNames[slot]) {
+        this.shownNames[slot] = text;
+        name.setText(text);
+      }
+      if (offDowned !== this.redNames[slot]) {
+        this.redNames[slot] = offDowned;
+        name.setColor(offDowned ? MATE_DOWNED_COLOR : NAME_COLOR);
       }
       if (!mk.visible) {
         if (arrow.visible) arrow.setVisible(false);
@@ -1199,8 +1215,16 @@ export class HudScene extends Phaser.Scene {
         name.setPosition(mk.sx, ny).setVisible(label !== "");
         continue;
       }
-      if (name.visible) name.setVisible(false);
-      const pulse = mk.downed ? pulseScale(now) : 1;
+      const pulse = mk.downed ? pulseScale(now) * MATE_DOWNED_SCALE : 1;
+      if (offDowned) {
+        // Inward from the arrow, kept fully on screen.
+        const inset = MATE_LABEL_INSET_PX * k * MATE_DOWNED_SCALE;
+        const hw = name.width / 2 + 4 * k;
+        const hh = name.height / 2 + 4 * k;
+        const lx = Math.min(this.scale.width - hw, Math.max(hw, mk.x - Math.cos(mk.angle) * inset));
+        const ly = Math.min(this.scale.height - hh, Math.max(hh, mk.y - Math.sin(mk.angle) * inset));
+        name.setPosition(lx, ly).setVisible(true);
+      } else if (name.visible) name.setVisible(false);
       arrow
         .setPosition(mk.x, mk.y)
         .setRotation(mk.angle)
