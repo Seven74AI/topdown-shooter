@@ -351,7 +351,9 @@ So that I understand the street and react to fire without being told.
 
 **Given** a survivor taking fire damage (server events)
 **When** they burn
-**Then** every player sees flames, embers and smoke on that survivor, and the burning player also sees the designer-chosen own-player cues (e.g. screen-edge glow, damage numbers)
+**Then** every player sees flames, embers and smoke on that survivor, and the burning player also sees an orange screen-edge glow and a "-5" damage number per fire tick
+
+Designer picks (2026-11-23, references in `docs/art/4-11/`): sandbags **S2** (olive-drab military wall), wood barricade **B6** (sharpened palisade on struts, turns with placement), burning car **F6** (smoke, burning debris, glow, a circle of small fires at the damage edge); burning cues: all four. **B8** (upright pallets + barbed wire) is kept for a later barricade upgrade (Epic 5).
 
 ## Epic 5: Full arsenal and bestiary
 Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop; every zombie type demands its own answer.
