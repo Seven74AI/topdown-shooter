@@ -1,5 +1,7 @@
 # GDD Decision Log — topdown-shooter
 
+> **Later decisions** (Epic 3 onward) live in `docs/epic-5-decisions.md`, `HANDOFF.md` §4 and `docs/ideas/epic-6/proposal.md` §0. The 2026-11-23 alignment answers are at the end of `docs/epic-5-decisions.md`. The GDD was brought in line with them on 2026-11-23.
+
 - 2026-11-21 — v0.0 workspace created. Intent: Create. Input: final game brief v1.0 + addendum + brief decision log.
 - 2026-11-21 — Game type proposed: Shooter (primary, high complexity), with Roguelike run-structure elements and Tower-defense building elements folded into a dedicated section. Pending user confirmation.
 - 2026-11-21 — Working mode: Facilitative (Claude proposes concrete designs with numbers, user keeps/changes). Game type hybrid accepted implicitly (Shooter + roguelike + tower-defense sections).
@@ -16,7 +18,7 @@
 - 2026-11-21 — Accepted: Supplies meta-currency (+10/wave, +50 boss, +100 extract, +20/endless wave kept only on extract); starter pool and unlock costs; capped Training boosts (HP +10%, dmg +5%, start money 150, reload +5%); ~15–20 runs to unlock all; district 2 unlocked by first Downtown extract; difficulty curve W1–10 as proposed.
 - 2026-11-21 — Accepted: share-link lobby + 4-letter code, up to 4 players; guest play with later account upgrade; join mid-run only during build phases; 2-min reconnect window keeping wallet/gear; host migration; host "Save and quit" during build phase, server keeps run 7 days, resumable with a different group; 4 quick pings instead of voice; no matchmaking/voice/PvP in v1. Technical targets and audio direction accepted.
 - 2026-11-21 — Drafted remaining sections (multiplayer, art, audio, technical specs, assets, success metrics, out of scope, assumptions) and 10 development epics (epics.md). Pending user review of epics + open items (art production method, gore level, host-required-to-resume assumption).
-- 2026-11-21 — Art/audio production: option D — placeholder or AI-assisted art for prototypes (Epics 1–8), then a hired artist (and sound designer) for the final Dead City look (Epic 9).
+- 2026-11-21 — Art/audio production: option D — placeholder or AI-assisted art for prototypes (Epics 1–8), then a hired artist (and sound designer) for the final Dead City look (Epic 9). *Superseded 2026-11-23: all art is drawn in game code (`docs/epic-5-decisions.md` › Art method) and nobody is hired; Epic 9 polishes the code-drawn art and the audio (code/procedural or licensed/free libraries).*
 - 2026-11-21 — Gore: blood + dismemberment.
 - 2026-11-21 — Resume rule confirmed: the host must be present to resume a saved run (assumption removed).
 - 2026-11-21 — Finalize step 2 (input reconciliation): applied all 14 findings — Hunting Rifle added to Epic 1 (one weapon per range in Milestone 1); 'what players walk away with' restored; melee playtest risk; ~30 KB/s bandwidth target; wave-modifier candidates; CCTV intro + Blood Moon district as future content; resume wording fixed; Epic 8 depends on Epic 3; player-count scaling moved to Epic 3; grain + gore toggle in settings, blackout not optional; decay and zombie intent details; placeholders replaced; missing epic coverage added.
