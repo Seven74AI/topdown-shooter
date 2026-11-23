@@ -1,6 +1,6 @@
 # Story 5.8: Bloaters
 
-Status: review
+Status: done
 
 ## Story
 
@@ -247,3 +247,7 @@ Modified: `packages/shared/src/{bots/headlessRun.ts, combat/explosion.ts, config
 ### Change Log
 
 - 2026-11-23: Story 5.8 built (Bloaters: swell, death blast through the shared `explode()`, chains ≤ 8/tick, gas slow, kill credit, 6-wave run with the wave-6 mix, five code looks with swell frames, pooled burst/gas FX, fuse ring, HUD tint, events + interest, fuzz, netsim, bandwidth, tick cost, sims, mutations, browser check). Status → review.
+
+### Re-review of the fixes (2026-11-23, fresh agent)
+
+No high or medium findings at 8f6da9c. Nesting fixed (queueCapacity 1 and 64: a grenade on 6 Bloaters + 6 tough Walkers runs no blast inside it, each Walker takes exactly 100; capacity is `max(requested, 512)`; the only inline blast is the swell kill, outside any explode(); mines/grenades killing a swelling Bloater queue it). L2 exact (`[20, 20]`). Queue ~10 KB per world. 4 of 5 mutations caught (the fifth is equivalent). Gate green (1,940 tests). Lows **accepted** by the main session (reachable only with custom balance or dev wave skips, not in the bundled game): a balance with `maxBlastsPerTick: 1` and very high spawn rates can overflow the queue (dropped blasts are counted); `drainBlasts` at a build start ignores the per-tick cap and a drained blast could down the last player after the wave was cleared (bundled Bloaters only appear in wave 6, which ends the run without draining). Status: done once on master.
