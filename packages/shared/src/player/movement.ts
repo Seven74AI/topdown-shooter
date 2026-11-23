@@ -1,6 +1,6 @@
 import type { SystemFn } from "../core/systems";
 import { updateDowned } from "./downed";
-import { playerSpeed, tickSlow } from "./slow";
+import { playerSpeed, tickSlow, wielderSlowPct } from "./slow";
 import { hasObstacles, pushOutOfBuildings, pushed } from "../buildings/collision";
 
 const MIN_VEC_LEN = 1e-6;
@@ -22,13 +22,14 @@ export const movePlayers: SystemFn = (world, dtS) => {
   for (const p of world.players.values()) {
     p.prevX = p.x;
     p.prevY = p.y;
-    const speed = playerSpeed(baseSpeed, p);
+    const input = world.inputs.get(p.id);
+    // Story 5.2: the Chainsaw slows its wielder while attacking (multiplies with a bite slow).
+    const speed = playerSpeed(baseSpeed, p, wielderSlowPct(world.balance, p, input));
     // A starved server tick (no input arrived: `weaponsPaused`, Story 2.7) doesn't count the slow
     // down either: like the weapon, it counts applied seqs, as the client's prediction does (3.9
     // review). Skipped inputs count it in RunController. Solo and prediction never pause.
     if (!p.weaponsPaused) tickSlow(p);
     if (p.status !== "alive") continue;
-    const input = world.inputs.get(p.id);
     if (!input) continue;
 
     let mx = input.moveX;

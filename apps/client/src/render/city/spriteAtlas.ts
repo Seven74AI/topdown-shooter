@@ -5,7 +5,7 @@ import { CAR_COLORS } from "./dressing";
 import { addCanvasTexture } from "./canvasTexture";
 import { drawObjectInFrame, drawSandbags } from "./objectArt";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
-import { TIER_PLATE_H, WEAPON_ART, drawTierPlate, tierPlateWidth } from "./weaponArt";
+import { TIER_PLATE_H, WEAPON_ART, drawChainsawRunning, drawTierPlate, tierPlateWidth } from "./weaponArt";
 import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawCharredCar, drawDumpster, drawPump, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
@@ -35,8 +35,11 @@ export const SPITTER_WINDUP_FRAMES: readonly string[] = Array.from({ length: ZOM
  * `survivor_shotgun_a`, `survivor_assault_rifle_a`. Other weapons use `SURVIVOR_FRAME`.
  */
 export const SURVIVOR_WEAPON_FRAMES: Readonly<Record<string, string>> = Object.fromEntries(Object.keys(WEAPON_ART).map((w) => [w, frameName("survivor", w, "a")]));
-/** The survivor frame for the active weapon (no string building per frame). */
-export const survivorFrameFor = (weapon: string): string => SURVIVOR_WEAPON_FRAMES[weapon] ?? SURVIVOR_FRAME;
+/** Story 5.2: the survivor with the Chainsaw running (chain blurred), shown while it cuts. */
+export const SURVIVOR_CHAINSAW_RUNNING = frameName("survivor", "chainsaw", "b");
+/** The survivor frame for the active weapon (no string building per frame); `running`: a Chainsaw that is cutting. */
+export const survivorFrameFor = (weapon: string, running = false): string =>
+  running && weapon === "chainsaw" ? SURVIVOR_CHAINSAW_RUNNING : (SURVIVOR_WEAPON_FRAMES[weapon] ?? SURVIVOR_FRAME);
 
 /** Downtown vehicles and props: frame name → native size in map px (32 px = 1 m). */
 export const VEHICLE_BUS = frameName("vehicle", "bus", "a");
@@ -105,6 +108,7 @@ export function characterSpecs(): FrameSpec[] {
   const s = Math.ceil(2 * CHAR_EXTENT_R.survivor * CHAR_R_PX);
   out.push({ name: SURVIVOR_FRAME, w: s, h: s });
   for (const name of Object.values(SURVIVOR_WEAPON_FRAMES)) out.push({ name, w: s, h: s });
+  out.push({ name: SURVIVOR_CHAINSAW_RUNNING, w: s, h: s });
   return out;
 }
 export function downtownSpecs(): FrameSpec[] {
@@ -149,6 +153,7 @@ function zombieOf(name: string): { type: ZombieTypeId; variant: number } | null 
 function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   g.translate(f.x + f.w / 2, f.y + f.h / 2);
   if (f.name === SURVIVOR_FRAME) return drawSurvivor(g, CHAR_R_PX);
+  if (f.name === SURVIVOR_CHAINSAW_RUNNING) return drawSurvivor(g, CHAR_R_PX, (c, r) => drawChainsawRunning(c, "held", r));
   for (const [weapon, name] of Object.entries(SURVIVOR_WEAPON_FRAMES)) {
     const art = WEAPON_ART[weapon];
     if (name === f.name && art) return drawSurvivor(g, CHAR_R_PX, (c, r) => art(c, "held", r));

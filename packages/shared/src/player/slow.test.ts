@@ -9,7 +9,8 @@ import { parseWaveMix } from "../waves/waveMix";
 import { spawnZombie, zombieTypeOf } from "../zombies/zombiePool";
 import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
 import { addPlayer, type PlayerState } from "./player";
-import { playerSpeed, slowPlayer, tickSlow } from "./slow";
+import { playerSpeed, slowPlayer, tickSlow, wielderSlowPct } from "./slow";
+import { setLoadout } from "../combat/loadout";
 import { setBuildReady, startBuild } from "../run/runStateMachine";
 
 /** These tests cover one mechanic: keep the wave director from spawning extra zombies. */
@@ -208,3 +209,81 @@ describe("dev wave mix (Story 3.9; Story 3.10 keeps it as an override)", () => {
     expect(slowedTicks).toBeGreaterThan(0); // the run really had bites (review: it never did)
   });
 });
+
+describe("Story 5.2: the Chainsaw slows its wielder only while attacking (F5)", () => {
+  const STEP_ATTACK = (SPEED * 80) / 100 * TICK_DT_S; // 3.6 m/s
+  const STEP_BOTH = (SPEED * 70 * 80) / 10000 * TICK_DT_S; // 2.52 m/s
+  const chainsawWorld = (weapons: [string, string | null] = ["chainsaw", "pistol"]) => {
+    const world = createWorld({ balance, seed: 3, systems: { waves: () => {}, zombies: () => {} } });
+    const p = addPlayer(world, "p0", 10, 16);
+    setLoadout(balance, p.loadout, weapons);
+    return { world, p };
+  };
+  /** One tick walking +x with the given aim/fire; returns the distance moved. */
+  const walk = (world: World, p: PlayerState, seq: number, extra: Partial<typeof NEUTRAL_INPUT> = {}) => {
+    const x0 = p.x;
+    setInput(world, "p0", { ...NEUTRAL_INPUT, seq, moveX: 1, aimX: 0, aimY: 1, fire: true, ...extra });
+    step(world, TICK_DT_S);
+    return p.x - x0;
+  };
+
+  it("balance: 20 % on the Chainsaw, 0 on every other weapon", () => {
+    for (const [id, w] of Object.entries(balance.weapons)) expect(w.kind === "melee" ? w.wielderSlowPct : 0, id).toBe(id === "chainsaw" ? 20 : 0);
+  });
+
+  it("chainsaw slows to 3.6 m/s only while attacking", () => {
+    const { world, p } = chainsawWorld();
+    for (let t = 1; t <= 20; t++) expect(walk(world, p, t)).toBeCloseTo(STEP_ATTACK, 12);
+    expect(speedNow(p, world)).toBeCloseTo(3.6, 12);
+    // aim released (fire held by a stick that sends zero aim inside the dead zone) → full speed next tick
+    expect(walk(world, p, 21, { aimX: 0, aimY: 0 })).toBeCloseTo(FULL_STEP, 12);
+    expect(walk(world, p, 22, { fire: false })).toBeCloseTo(FULL_STEP, 12);
+    expect(walk(world, p, 23)).toBeCloseTo(STEP_ATTACK, 12);
+    expect(walk(world, p, 24, { aimX: 1e-7, aimY: 0 })).toBeCloseTo(FULL_STEP, 12); // below MIN_AIM_LEN: no swing, no slow
+  });
+
+  it("no slow while swapping / downed / aim released / chainsaw not in hand", () => {
+    const a = chainsawWorld(["pistol", "chainsaw"]);
+    expect(walk(a.world, a.p, 1)).toBeCloseTo(FULL_STEP, 12); // the Chainsaw in the other slot
+    expect(walk(a.world, a.p, 2, { swap: true })).toBeCloseTo(FULL_STEP, 12); // the tap tick: the swap starts in combat
+    const swapTicks = Math.round(balance.player.swapS / TICK_DT_S);
+    for (let t = 0; t < swapTicks; t++) expect(walk(a.world, a.p, 3 + t), `swap tick ${t}`).toBeCloseTo(FULL_STEP, 12);
+    expect(a.p.loadout.active).toBe(1);
+    expect(walk(a.world, a.p, 3 + swapTicks)).toBeCloseTo(STEP_ATTACK, 12); // now in hand and attacking
+    // swap away: full speed from the next tick on (the swap is running)
+    walk(a.world, a.p, 4 + swapTicks, { swap: true });
+    expect(walk(a.world, a.p, 5 + swapTicks)).toBeCloseTo(FULL_STEP, 12);
+
+    const d = chainsawWorld();
+    d.p.status = "downed";
+    expect(wielderSlowPct(balance, d.p, { ...NEUTRAL_INPUT, aimX: 1, fire: true })).toBe(0);
+    d.p.status = "alive";
+    expect(wielderSlowPct(balance, d.p, { ...NEUTRAL_INPUT, aimX: 1, fire: true })).toBe(20);
+    expect(wielderSlowPct(balance, d.p, undefined)).toBe(0);
+    const m = chainsawWorld(["machete", null]);
+    expect(walk(m.world, m.p, 1)).toBeCloseTo(FULL_STEP, 12);
+  });
+
+  it("stacks with a Crawler bite to 2.52 m/s (multiplied, never below)", () => {
+    const { world, p } = chainsawWorld();
+    slowPlayer(p, 30, 10);
+    expect(speedNow(p, world)).toBeCloseTo(2.52, 12);
+    expect(walk(world, p, 1)).toBeCloseTo(STEP_BOTH, 12);
+    expect(playerSpeed(SPEED, p, 20)).toBe((SPEED * 70 * 80) / 10000);
+    expect(playerSpeed(SPEED, p, 0)).toBe((SPEED * 70) / 100); // the 3.9 expression unchanged without a wield slow
+  });
+
+  it("the same integers give the same speed on both sides (no float percent)", () => {
+    const { world, p } = chainsawWorld();
+    const input = { ...NEUTRAL_INPUT, aimX: 0.3, aimY: -0.9, fire: true };
+    expect(Number.isInteger(wielderSlowPct(balance, p, input))).toBe(true);
+    // A second World with the same state computes the identical number (the Predictor's case).
+    const b = chainsawWorld();
+    expect(playerSpeed(SPEED, b.p, wielderSlowPct(balance, b.p, input))).toBe(playerSpeed(SPEED, p, wielderSlowPct(world.balance, p, input)));
+  });
+});
+
+/** The speed `movePlayers` would use for p now with a held, aimed trigger. */
+function speedNow(p: PlayerState, world: World): number {
+  return playerSpeed(SPEED, p, wielderSlowPct(world.balance, p, { ...NEUTRAL_INPUT, aimX: 1, fire: true }));
+}

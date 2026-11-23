@@ -92,7 +92,7 @@ export const CHAR_EXTENT_R: Readonly<Record<ZombieTypeId | "survivor", number>> 
   runner: 1.5,
   crawler: 1.75,
   spitter: 2.35, // Story 5.6 (P4): mouth drops ahead and the acid trail behind (drawn × SPITTER_ART_SCALE) reach ~2.3 r
-  survivor: 2.15,
+  survivor: 2.7, // Story 5.2: the Chainsaw's bar (and its running blur) reaches 2.66 r ahead, the Fire Axe 2.46 r
 };
 
 function wounds(c: G, r: number, seed: number, n: number): void {

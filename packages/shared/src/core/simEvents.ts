@@ -49,7 +49,8 @@ export type SimEvent =
   | { type: "weapon.reloaded"; playerId: string; weapon: string }
   | { type: "weapon.swap_started"; playerId: string }
   | { type: "weapon.swapped"; playerId: string; active: 0 | 1; weapon: string }
-  | { type: "melee.swung"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number; arcDeg: number; rangeM: number }
+  /** Story 5.2: `hits` (zombies cut) only for a `quietHits` weapon (the Chainsaw), which sends no `zombie.hit` each. */
+  | { type: "melee.swung"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number; arcDeg: number; rangeM: number; hits?: number }
   | { type: "player.damaged"; playerId: string; amount: number; sourceZombieId: number }
   | { type: "player.downed"; playerId: string }
   | { type: "player.revived"; playerId: string; reviverId: string }

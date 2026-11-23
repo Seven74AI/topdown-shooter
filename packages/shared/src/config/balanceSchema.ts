@@ -45,6 +45,17 @@ const meleeSchema = z
     kind: z.literal("melee"),
     ...common,
     arcDeg: z.number().positive().max(360),
+    /**
+     * Story 5.2: the wielder moves this many percent slower while attacking with it (the Chainsaw's
+     * 20: alive, not swapping, fire held with an aim). Integer, so the server and the client's
+     * prediction compute the same speed (`player/slow.ts`, the 3.9 rule). 0 = no slow.
+     */
+    wielderSlowPct: z.number().int().min(0).max(90).default(0),
+    /**
+     * Story 5.2: hits send no `zombie.hit` each (a 10 Hz Chainsaw would send one per zombie per
+     * tick); damage, assist credit and kills are the same, and `melee.swung` carries the hit count.
+     */
+    quietHits: z.boolean().default(false),
   })
   .strict();
 
@@ -104,6 +115,11 @@ export const zombieTypeSchema = z
     biteSlowPct: z.number().int().min(0).max(90).default(0),
     /** At most 10 s: the remaining ticks go on the wire as a uint8. */
     biteSlowS: z.number().min(0).max(10).default(0),
+    /**
+     * Story 5.2 (shared with 5.7's Brute): the share of a knockback or hit pushback this type
+     * takes, in percent (100 = all of it; the Brute 20). Applied inside `applyKnockback`.
+     */
+    knockbackTakenPct: z.number().int().min(0).max(100).default(100),
     /** Story 3.8: follows the flank field (Runners) instead of the chase field. */
     flanks: z.boolean().default(false),
     /** Story 5.6: a ranged spit (Spitters); absent = no ranged attack. */
@@ -260,11 +276,33 @@ export const playerSchema = z
   .strict();
 
 /** Touch control tuning (Story 1.12 playtest tunes these). Dead zones are fractions of the stick radius. */
+/**
+ * Story 5.2 (brief line 12): caps of client-only effect pools (fixed size, the oldest reused),
+ * `controls.json › fx`. Read by the client only; not gameplay.
+ */
+export const fxSchema = z
+  .object({
+    /** Heavy melee swing arcs (the Fire Axe) alive at once. */
+    maxSwingArcs: z.number().int().min(1).max(64),
+    /** Chainsaw sparks alive at once. */
+    maxChainsawSparks: z.number().int().min(1).max(256),
+    /** Sparks per chainsaw tick that cuts at least one zombie (fewer when the blade cuts air). */
+    chainsawSparksPerHit: z.number().int().min(1).max(16),
+    chainsawSparksPerMiss: z.number().int().min(0).max(16),
+    /** A spark lives this long (ms). */
+    chainsawSparkMs: z.number().int().min(16).max(1000),
+    /** The rev loop stops this long after the last chainsaw tick (ms). */
+    chainsawRevHoldMs: z.number().int().min(50).max(1000),
+  })
+  .strict();
+
 export const controlsSchema = z
   .object({
     moveDeadZone: z.number().min(0).max(0.9),
     aimDeadZone: z.number().min(0).max(0.9),
     aimAssistDeg: z.number().min(0).max(45),
+    /** Story 5.2: client effect caps (no new balance file: every test fixture lists the files). */
+    fx: fxSchema,
   })
   .strict();
 

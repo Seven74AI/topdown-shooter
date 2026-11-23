@@ -134,7 +134,10 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.WEAPON_SWAPPED, playerSlotOf(e.playerId), e.active, weaponIndex(b, e.weapon)];
     case "melee.swung":
       // Arc and range come from the weapon's balance on decode (melee.ts emits exactly those).
-      return [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
+      // Story 5.2: a quiet weapon's (Chainsaw) swing appends its hit count (index 6).
+      return e.hits !== undefined
+        ? [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY), Math.min(255, e.hits)]
+        : [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
     case "player.damaged":
       // Story 5.9: a negative source (fire -1, blast -2) travels as is.
       return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? e.sourceZombieId : zid(ctx, e.sourceZombieId)];
@@ -267,7 +270,7 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       const weapon = weaponOf(b, n(t, 2));
       const stats = b.weapons[weapon];
       const melee = stats?.kind === "melee" ? stats : null;
-      return {
+      const swung: Extract<SimEvent, { type: "melee.swung" }> = {
         type: "melee.swung",
         playerId: pid(t, 1),
         weapon,
@@ -278,6 +281,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
         arcDeg: melee?.arcDeg ?? 0,
         rangeM: melee?.rangeM ?? 0,
       };
+      if (t.length > 6) swung.hits = n(t, 6); // Story 5.2: a quiet weapon's hit count
+      return swung;
     }
     case K.PLAYER_DAMAGED: {
       const src = n(t, 3);

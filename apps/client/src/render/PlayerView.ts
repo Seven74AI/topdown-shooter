@@ -50,12 +50,13 @@ export class PlayerView {
   }
 
   /** Reads the player (never writes it) and draws it at the interpolated position; `timeMs` drives the downed pulse. */
-  update(p: PlayerState, alpha: number, timeMs: number): void {
+  update(p: PlayerState, alpha: number, timeMs: number, sawRunning = false): void {
     this.x = lerp(p.prevX, p.x, alpha);
     this.y = lerp(p.prevY, p.y, alpha);
     this.ring.setPosition(this.x, this.y);
     this.body.setPosition(this.x, this.y).setRotation(Math.atan2(p.facingY, p.facingX));
-    const frame = survivorFrameFor(p.loadout.slots[p.loadout.active]?.weapon ?? "");
+    // Story 5.2: a Chainsaw that is cutting shows its running (blurred chain) frame.
+    const frame = survivorFrameFor(p.loadout.slots[p.loadout.active]?.weapon ?? "", sawRunning && p.status === "alive");
     if (frame !== this.shownFrame) {
       this.shownFrame = frame;
       this.body.setFrame(frame);

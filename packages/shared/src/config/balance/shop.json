@@ -1,4 +1,4 @@
 {
-  "weapons": ["pistol", "machete", "smg", "hunting_rifle", "shotgun", "assault_rifle"],
+  "weapons": ["pistol", "machete", "smg", "hunting_rifle", "shotgun", "assault_rifle", "fire_axe", "chainsaw"],
   "upgrades": { "maxLevel": 4, "damagePerLevel": 0.25, "priceShare": 0.6 }
 }
