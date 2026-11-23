@@ -1,4 +1,4 @@
-import { HAND_CANCEL, HAND_HINT_BOTTOM_CSS_PX, HAND_HINT_RIGHT_CSS_PX, HAND_PLACE, HAND_ROTATE } from "../ui/sizes";
+import { HAND_CANCEL, HAND_HINT_GAP_CSS_PX, HAND_HINT_RIGHT_CSS_PX, HAND_PLACE, HAND_ROTATE } from "../ui/sizes";
 
 /** A square hit rect (canvas px, top-left) around a round button. */
 export interface HandRect {
@@ -36,6 +36,6 @@ export function layoutHandCluster(width: number, height: number, insetRight: num
   at(HAND_ROTATE, width, height, insetRight, insetBottom, k, out.rotate);
   at(HAND_CANCEL, width, height, insetRight, insetBottom, k, out.cancel);
   out.hintX = width - (HAND_HINT_RIGHT_CSS_PX + insetRight) * k;
-  out.hintY = height - (HAND_HINT_BOTTOM_CSS_PX + insetBottom) * k;
+  out.hintY = out.cancel.y - HAND_HINT_GAP_CSS_PX * k; // just above ✕, the cluster's top
   return out;
 }

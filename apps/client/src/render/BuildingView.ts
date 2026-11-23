@@ -195,7 +195,8 @@ export class BuildingView {
       return;
     }
     const valid = p.error === null;
-    const key = p.gx + p.gy * 256 + p.rot * 65536 + (valid ? 262144 : 0) + buildingTypeIds(world.balance).indexOf(p.type) * 524288;
+    // Story 5.15 (review L4): an off-map ghost has negative indices; offset them so the key stays unique.
+    const key = p.gx + 512 + (p.gy + 512) * 2048 + p.rot * 4194304 + (valid ? 16777216 : 0) + buildingTypeIds(world.balance).indexOf(p.type) * 33554432;
     if (key === this.shownPreviewKey) return;
     this.shownPreviewKey = key;
     const b = footprint(stats, p.gx, p.gy, p.rot, this.box);

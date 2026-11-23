@@ -24,6 +24,7 @@ import {
   type Balance,
   type SimEvent,
   type PlaceError,
+  type PlaceRequest,
   type RepairError,
   type PlayerInput,
   type PlayerState,
@@ -62,12 +63,12 @@ import { ExplosionView } from "../render/ExplosionView";
 import { STALE_EXPLOSION_S, blastLookFor } from "../render/grenadeFx";
 import { CityView } from "../render/city/CityView";
 import { TurretView } from "../render/TurretView";
-import { Placement, placeRefusalText } from "./placement";
+import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
 import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
-import { holdBuildingInput, neutralizeInput } from "../input/menuInput";
+import { neutralizeInput } from "../input/menuInput";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
 import {
@@ -248,6 +249,19 @@ export class GameScene extends Phaser.Scene {
   private readonly placement = new Placement();
   /** "Wood barricade · $40" for the type being placed, and the refusal texts (built once each). */
   private placingLabel = "";
+  /** Story 5.15: the placement step's per-frame context (one object, refilled every frame). */
+  private readonly sendPlace = (req: PlaceRequest): void => this.host?.placeBuilding(req);
+  private readonly placeFrame: PlacementFrame = {
+    can: false,
+    wave: 0,
+    x: 0,
+    y: 0,
+    ownerId: "",
+    label: "",
+    refusal: (e) => this.refusalText(e),
+    send: this.sendPlace,
+    toast: (text) => this.toasts.push(text),
+  };
   private readonly refusalTexts = new Map<PlaceError, string>();
   /** Story 3.7: the repair panel on this device, the selected building's outline. */
   private readonly repairPanel = new RepairPanel();
@@ -741,57 +755,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Story 3.4: placement mode, once per frame before the input goes to the host: rotate, put away,
-   * Place sends the request (solo: applied at once) and ends placement mode; the phase leaving the
-   * build, the menu, the shop or game over cancel it. Story 5.15: while holding I keep walking
-   * (`holdBuildingInput`: the move is sent, aim and fire are not). Place sends the spot drawn in the
-   * last frame (AC 10: it is handled before this frame's carry, `carryPlacement`).
+   * Story 3.4 / 5.15: placement mode, once per frame before the input goes to the host
+   * (`stepPlacement`: hold input, ✕, Place = the spot shown last frame, ⟳, then the carry with my
+   * survivor as last drawn and the shared check). One reused frame object: no allocation per frame.
    */
   private updatePlacement(host: SceneHost, menuOpen: boolean): void {
-    const m = this.hudModel;
-    const p = this.placement;
-    const can = this.canPlace(host, menuOpen);
-    if (p.active && (!can || host.world.waves.number !== p.wave)) p.cancel(); // review L3: a new wave/build ends it
-    const rotate = m.rotatePressed;
-    const confirm = m.confirmPressed;
-    const cancel = m.cancelPressed;
-    m.rotatePressed = m.confirmPressed = m.cancelPressed = false;
-    if (!p.active) {
-      m.placementActive = false;
-      return;
-    }
-    holdBuildingInput(this.input_);
-    if (cancel) {
-      p.cancel();
-      m.placementActive = false;
-      return;
-    }
-    if (confirm) {
-      const req = p.confirm();
-      if (req) host.placeBuilding(req);
-      m.placementActive = false;
-      return;
-    }
-    if (rotate) p.rotate();
-  }
-
-  /**
-   * Story 5.15: the carried ghost follows my survivor as drawn this frame (after `syncPlayerViews`,
-   * before the ghost is drawn), turned by this frame's move input; then the shared check colours it.
-   */
-  private carryPlacement(host: SceneHost): void {
-    const m = this.hudModel;
-    const p = this.placement;
-    if (!p.active) return;
+    const f = this.placeFrame;
     const me = host.world.players.get(host.localPlayerId);
     const pv = this.playerViews.get(host.localPlayerId);
-    if (!me) return;
-    p.carry(pv?.x ?? me.x, pv?.y ?? me.y, this.input_.moveX, this.input_.moveY);
-    p.check(host.world, host.localPlayerId);
-    m.placementActive = true;
-    m.placementValid = p.error === null;
-    m.placementLocked = p.locked;
-    m.placementHint = p.error === null ? this.placingLabel : this.refusalText(p.error);
+    f.can = this.canPlace(host, menuOpen);
+    f.wave = host.world.waves.number;
+    f.x = pv?.x ?? me?.x ?? 0;
+    f.y = pv?.y ?? me?.y ?? 0;
+    f.ownerId = host.localPlayerId;
+    f.label = this.placingLabel;
+    f.send = this.sendPlace;
+    stepPlacement(this.placement, this.hudModel, this.input_, host.world, f);
   }
 
   /**
@@ -1134,7 +1113,6 @@ export class GameScene extends Phaser.Scene {
     this.syncPlayerViews(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.downedView?.update(host.world, this.time.now);
     this.ambience?.update(host.world.decay.stage);
-    this.carryPlacement(host); // Story 5.15: after my survivor is drawn, before the ghost is
     this.buildingView?.update(host.world, this.placement);
     this.mineView?.update(host.world, this.time.now);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);

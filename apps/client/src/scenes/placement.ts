@@ -11,6 +11,8 @@ import {
   type PlaceRequest,
   type World,
 } from "@topdown/shared";
+import { holdBuildingInput } from "../input/menuInput";
+import type { MutablePlayerInput } from "../input/InputRouter";
 
 /** Grid indices go on the wire as uint8. */
 const MAX_GRID_INDEX = 255;
@@ -36,7 +38,8 @@ export function placeRefusalText(e: PlaceError, balance: Balance): string {
   }
 }
 
-const clampIndex = (i: number): number => Math.min(MAX_GRID_INDEX, Math.max(0, i));
+/** Review L4: an index the wire (uint8) can carry; an off-map ghost keeps its real index and is never sent. */
+const onWireIndex = (i: number): boolean => i >= 0 && i <= MAX_GRID_INDEX;
 
 /**
  * Story 5.15 (AC 6): the rotation that puts a non-square footprint's long side across the facing,
@@ -66,12 +69,12 @@ export function carryDistance(fx: number, fy: number, w: number, h: number, body
 
 /**
  * Story 5.15 (AC 5): the lattice index for a continuous min-corner coordinate `cornerM`, keeping
- * `current` until the corner is more than `hysteresisM` past the half-cell boundary (`current` < 0:
- * snap fresh to the nearest point, as `cornerForCentre` does).
+ * `current` until the corner is more than `hysteresisM` past the half-cell boundary (`current` NaN:
+ * snap fresh to the nearest point, as `cornerForCentre` does). Indices may be negative (off the map).
  */
 export function snapAxis(cornerM: number, current: number, hysteresisM: number): number {
   const c = cornerM / BUILD_GRID_M;
-  if (current >= 0 && Math.abs(c - current) <= 0.5 + hysteresisM / BUILD_GRID_M) return current;
+  if (Number.isFinite(current) && Math.abs(c - current) <= 0.5 + hysteresisM / BUILD_GRID_M) return current;
   return Math.round(c);
 }
 
@@ -89,7 +92,7 @@ export function snapAxis(cornerM: number, current: number, hysteresisM: number):
 export class Placement {
   active = false;
   type = "";
-  /** Min corner, 0.5 m lattice indices. */
+  /** Min corner, 0.5 m lattice indices (review L4: not clamped: past the map edge they go negative and the ghost shows there, red). */
   gx = 0;
   gy = 0;
   rot: BuildingRotation = 0;
@@ -178,8 +181,8 @@ export class Placement {
     const d = carryDistance(fx, fy, w, h, this.bodyM, this.gapM);
     const cx = x + fx * d;
     const cy = y + fy * d;
-    this.gx = clampIndex(snapAxis(cx - w / 2, this.snapped ? this.gx : -1, this.hysteresisM));
-    this.gy = clampIndex(snapAxis(cy - h / 2, this.snapped ? this.gy : -1, this.hysteresisM));
+    this.gx = snapAxis(cx - w / 2, this.snapped ? this.gx : Number.NaN, this.hysteresisM);
+    this.gy = snapAxis(cy - h / 2, this.snapped ? this.gy : Number.NaN, this.hysteresisM);
     this.snapped = true;
   }
 
@@ -192,10 +195,19 @@ export class Placement {
     this.carry(this.lastX, this.lastY, 0, 0);
   }
 
-  /** Place: ends placement mode and returns the request to send for the spot shown now (the server judges it), or null when inactive. */
+  /** Review L4: the shown spot fits the wire's 0–255 lattice indices (an off-map ghost may not). */
+  onWire(): boolean {
+    return onWireIndex(this.gx) && onWireIndex(this.gy);
+  }
+
+  /**
+   * Place: ends placement mode and returns the request to send for the spot shown now (the server
+   * judges it), or null when inactive or when the spot can't go on the wire (off the map: `onWire`).
+   */
   confirm(): PlaceRequest | null {
     if (!this.active) return null;
     this.active = false;
+    if (!this.onWire()) return null;
     const r = this.req;
     r.type = this.type;
     r.gx = this.gx;
@@ -220,4 +232,73 @@ export class Placement {
     this.error = this.active ? placementError(world, ownerId, r) : null;
     return this.error === null;
   }
+}
+
+/** The HUD fields the placement step reads and writes (`HudModel` has them all). */
+export interface PlacementHud {
+  placementActive: boolean;
+  placementValid: boolean;
+  placementLocked: boolean;
+  placementHint: string;
+  rotatePressed: boolean;
+  confirmPressed: boolean;
+  cancelPressed: boolean;
+}
+
+/** One frame's context for `stepPlacement` (the scene reuses one object: no allocation per frame). */
+export interface PlacementFrame {
+  /** Placement is possible now (build phase, run on screen, no menu/shop, my survivor standing). */
+  can: boolean;
+  /** `world.waves.number` now (review L3: a new wave or build ends holding). */
+  wave: number;
+  /** My survivor as last drawn (metres). */
+  x: number;
+  y: number;
+  ownerId: string;
+  /** "Wood barricade · $40" for the held type. */
+  label: string;
+  refusal: (e: PlaceError) => string;
+  /** Sends the request (solo: applied at once; the server judges). */
+  send: (req: PlaceRequest) => void;
+  /** Shows a short message (an off-map Place that can't be sent). */
+  toast: (text: string) => void;
+}
+
+/**
+ * Story 5.15 (review M1): placement mode for one frame, before the input goes to the host. In this
+ * order: the cancel rules; while holding, `holdBuildingInput` (I keep walking: the move is kept,
+ * aim and fire are not); ✕ puts it away; **Place sends the spot shown in the last frame, before
+ * this frame's carry** (AC 10); ⟳ turns it; then the ghost is carried with my survivor as drawn and
+ * this frame's move input, and the shared check colours it (the HUD's valid / hint / 🔒).
+ */
+export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlayerInput, world: Readonly<World>, f: PlacementFrame): void {
+  if (p.active && (!f.can || f.wave !== p.wave)) p.cancel();
+  const rotate = m.rotatePressed;
+  const confirm = m.confirmPressed;
+  const cancel = m.cancelPressed;
+  m.rotatePressed = m.confirmPressed = m.cancelPressed = false;
+  if (!p.active) {
+    m.placementActive = false;
+    return;
+  }
+  holdBuildingInput(input);
+  if (cancel) {
+    p.cancel();
+    m.placementActive = false;
+    return;
+  }
+  if (confirm) {
+    const req = p.confirm();
+    if (req) f.send(req);
+    else f.toast(f.refusal("blocked")); // off the map: nothing the wire can carry, the shared rule says "blocked"
+    m.placementActive = false;
+    return;
+  }
+  if (rotate) p.rotate();
+  p.carry(f.x, f.y, input.moveX, input.moveY);
+  p.check(world, f.ownerId);
+  m.placementActive = true;
+  m.placementValid = p.error === null;
+  m.placementLocked = p.locked;
+  m.placementHint = p.error === null ? f.label : f.refusal(p.error);
 }
