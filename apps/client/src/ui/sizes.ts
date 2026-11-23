@@ -8,7 +8,7 @@ export const MENU_BUTTON_INSET_CSS_PX = 12;
 export const READY_BUTTON_W_CSS_PX = 168;
 export const READY_BUTTON_H_CSS_PX = 52;
 export const READY_BUTTON_BOTTOM_CSS_PX = 24;
-/** Story 3.1 / 5.15: Ready (and Shop beside it) sit this far left of the screen centre, clear of the hand cluster (CSS px). */
+/** Story 3.1 / 5.15: Ready sits this far left of the screen centre, clear of the hand cluster (CSS px; 5.16: Shop moved into the build bar). */
 export const READY_SHIFT_LEFT_CSS_PX = 40;
 /**
  * Story 5.15 (ux-spec §4): the hand cluster while holding a building, circles measured from the
@@ -25,10 +25,22 @@ export const HAND_HINT_RIGHT_CSS_PX = 16;
 export const HAND_HINT_GAP_CSS_PX = 6;
 /** The hint line's height at 18 px with its 4 px stroke (CSS px; layout checks only). */
 export const HAND_HINT_LINE_CSS_PX = 26;
-/** Story 3.3: the Shop button, right of Ready with this gap; the pair is centred at the bottom (CSS px). */
-export const SHOP_BUTTON_W_CSS_PX = 120;
-export const SHOP_BUTTON_GAP_CSS_PX = 12;
-/** Story 3.7: the repair panel's row (Repair + ✕), one row above Ready / Shop (CSS px). */
+/**
+ * Story 5.16 (ux-spec §4): the build bar, bottom right while my hands are empty in a build phase:
+ * a grid of square tiles (size, gap) this far inside the right and bottom safe-area insets (CSS px).
+ */
+export const BUILD_BAR_COLS = 4;
+export const BUILD_BAR_ROWS = 2;
+export const BUILD_TILE_CSS_PX = 56;
+export const BUILD_TILE_GAP_CSS_PX = 8;
+export const BUILD_BAR_INSET_CSS_PX = 16;
+/** The tile's price line and the count line ("4/6") above the grid's top-right (text px, gap px). */
+export const BUILD_PRICE_TEXT_CSS_PX = 14;
+export const BUILD_COUNT_TEXT_CSS_PX = 15;
+export const BUILD_COUNT_GAP_CSS_PX = 4;
+/** Ready keeps at least this far left of the build bar (it slides further left on narrow screens). */
+export const READY_BAR_GAP_CSS_PX = 12;
+/** Story 3.7: the repair panel's row (Repair + ✕), one row above Ready (CSS px). */
 export const REPAIR_BUTTON_W_CSS_PX = 168;
 export const REPAIR_CLOSE_CSS_PX = 52;
 export const REPAIR_ROW_GAP_CSS_PX = 12;

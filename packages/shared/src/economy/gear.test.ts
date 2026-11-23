@@ -6,7 +6,7 @@ import { addPlayer, type PlayerState } from "../player/player";
 import { startBuild, startWave } from "../run/runStateMachine";
 import { downPlayer, returnOutPlayers } from "../player/downed";
 import { allGear, armorBonus, buyGear, effectiveMaxHp, gearBit, gearIds, ownsGear, reviveTicksFor, shopGear, speedBonusPct } from "./gear";
-import { buyItem, buyWeapon } from "./shop";
+import { buyItem, buyWeapon, upgradeWeapon } from "./shop";
 
 const balance = loadBalance();
 const NO_WAVES = { waves: () => {} };
@@ -104,6 +104,8 @@ describe("review M1 (G6): only a standing player shops", () => {
       expect(buyGear(world, "p0", "jetpack")).toEqual({ ok: false, error: "not_alive" });
       expect(buyItem(world, "p0", "medkit_xl")).toEqual({ ok: false, error: "not_alive" });
       expect(buyWeapon(world, "p0", "smg", null)).toEqual({ ok: false, error: "not_alive" });
+      expect(upgradeWeapon(world, "p0", "pistol")).toEqual({ ok: false, error: "not_alive" });
+      expect(p.loadout.slots[0].level).toBe(1);
       expect([p.hp, p.maxHp, p.gear, p.wallet, p.loadout.slots[1]]).toEqual([0, 100, 0, 1000, null]);
       p.status = "alive";
       expect(buyGear(world, "p0", "body_armor_1").ok).toBe(true);

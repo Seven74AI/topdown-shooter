@@ -2,7 +2,7 @@ import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import type { LauncherStats } from "../config/balanceSchema";
 import { MUZZLE_OFFSET_M, TICK_RATE_HZ } from "../config/constants";
-import { shotBlockT } from "./cover";
+import { lobBlockT, segmentBoxEntryT } from "./cover";
 import { createExplosionSpec, explode } from "./explosion";
 import { weaponDamage, weaponIds, type WeaponId } from "./weapons";
 
@@ -15,11 +15,15 @@ import { weaponDamage, weaponIds, type WeaponId } from "./weapons";
  *   raw aim from the muzzle, clamped to [`minLobM`, `lobRangeM`]. The aim vector's length carries the
  *   distance: `distM = |aim| × lobRangeM` (the client encodes it, `lobAimLength`). The client's
  *   landing ring is drawn at `lobTarget` too: one function for the sim, the marker and the own-shot copy.
- * - **FR-B cars, the bus and buildings stop the round:** it flies a straight ground track from the
- *   shooter's centre through the muzzle to the landing point; if that track enters a shot blocker
- *   (4.2 `shotBlockT`), the round bursts at the entry point pulled back `faceBackoffM` toward the
- *   shooter (never behind the shooter's centre). Barriers, sandbags and barricades don't stop it.
- *   Zombies on the way are not hit: it flies over them (the arc is cosmetic).
+ * - **FR-B only real buildings stop the round (designer 2026-11-23, replacing "no lob over cars"):**
+ *   it flies a straight ground track from the shooter's centre through the muzzle to the landing
+ *   point; if that track enters a building (`lobBlockT`: map walls flagged `building`), the round
+ *   bursts at the entry point pulled back `faceBackoffM` toward the shooter (never behind the
+ *   shooter's centre). It flies over cars, the bus, gas pumps, low walls, barriers, sandbags,
+ *   barricades and turrets, and over zombies (the arc is cosmetic).
+ * - **FR-B2 it never lands inside cover:** an aim point inside a shot blocker it flew over (a car
+ *   roof) lands at that blocker's near face instead, pulled back the same way, so the blast's
+ *   line-of-sight rule (FR-C, from the centre) still sees around it.
  * - **FR-E/F:** it bursts on the server's landing tick (`landTick`), on the zombies where they are
  *   then (no rewind), through `explode` (one hit per body). Nothing per tick goes on the wire: the
  *   launch is one `grenade.launched` (start, landing point, landing tick), the burst one
@@ -114,7 +118,7 @@ export function createLobTarget(): LobTarget {
 
 /**
  * FR-A + FR-B: where a round lobbed by a body of radius `radiusM` at (px, py) along the unit
- * (dirX, dirY) with aim length `aimLen` (0–1) lands. Pure (reads only the World's shot blockers);
+ * (dirX, dirY) with aim length `aimLen` (0–1) lands. Pure (reads only the World's obstacle lists);
  * the server, solo, bots, the client's landing ring and the own-shot copy all call it.
  */
 export function lobTarget(world: Readonly<World>, stats: Readonly<LauncherStats>, px: number, py: number, radiusM: number, dirX: number, dirY: number, aimLen: number, out: LobTarget): LobTarget {
@@ -126,22 +130,43 @@ export function lobTarget(world: Readonly<World>, stats: Readonly<LauncherStats>
   const ey = my + dirY * wanted;
   out.x0 = mx;
   out.y0 = my;
-  // The track starts at the body's centre: a car pressed against the muzzle still stops it.
-  const t = shotBlockT(world, px, py, ex, ey);
-  if (t < 0) {
-    out.x = ex;
-    out.y = ey;
-    out.distM = wanted;
-    out.blocked = false;
-    return out;
-  }
+  // The track starts at the body's centre: a building pressed against the muzzle still stops it.
   const full = offset + wanted;
-  const along = Math.max(0, t * full - world.balance.combat.explosion.faceBackoffM);
-  out.x = px + dirX * along;
-  out.y = py + dirY * along;
-  out.distM = Math.max(0, along - offset);
-  out.blocked = true;
+  const backoff = world.balance.combat.explosion.faceBackoffM;
+  const t = lobBlockT(world, px, py, ex, ey);
+  let along = t < 0 ? full : Math.max(0, t * full - backoff);
+  let blocked = t >= 0;
+  // FR-B2: never land inside cover (a few passes: a pulled-back point may sit in a box touching it).
+  for (let pass = 0; pass < MAX_LAND_PASSES && along > 0; pass++) {
+    const tIn = blockerEntryAt(world, px, py, ex, ey, px + dirX * along, py + dirY * along);
+    if (tIn < 0) break;
+    along = Math.max(0, tIn * full - backoff);
+    blocked = true;
+  }
+  out.x = blocked ? px + dirX * along : ex;
+  out.y = blocked ? py + dirY * along : ey;
+  out.distM = blocked ? Math.max(0, along - offset) : wanted;
+  out.blocked = blocked;
   return out;
+}
+
+/** Passes of FR-B2 (cars parked bumper to bumper: each pass moves to the next box's face). */
+const MAX_LAND_PASSES = 8;
+
+/**
+ * FR-B2: the track's entry t (centre (px, py) → (ex, ey)) into the earliest shot blocker that
+ * strictly contains the point (lx, ly), or -1 when the point is in none.
+ */
+function blockerEntryAt(world: Readonly<World>, px: number, py: number, ex: number, ey: number, lx: number, ly: number): number {
+  const list = world.obstacles.shotBlockers;
+  let best = -1;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as { minX: number; minY: number; maxX: number; maxY: number };
+    if (!(lx > b.minX && lx < b.maxX && ly > b.minY && ly < b.maxY)) continue;
+    const tb = segmentBoxEntryT(px, py, ex - px, ey - py, b.minX, b.minY, b.maxX, b.maxY);
+    if (tb >= 0 && (best < 0 || tb < best)) best = tb;
+  }
+  return best;
 }
 
 /**

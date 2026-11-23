@@ -1,16 +1,16 @@
-import { romanLevel, type ShopBuilding, type ShopError, type ShopGear, type ShopWeapon, type WeaponUpgradeError } from "@topdown/shared";
+import { romanLevel, type ShopError, type ShopGear, type ShopWeapon, type WeaponUpgradeError } from "@topdown/shared";
 import type { ShopAnswer } from "../sim/SimHost";
 
 /**
  * Story 3.3: the shop screen's state, between the Game scene (which owns the purchases and feeds
- * wallet and slots) and the Preact `ShopScreen`. `shopStep` is the pure state machine; the Game
+ * wallet and slots) and the Preact `ShopScreen`. Story 5.16: weapons and upgrades only (buildings are
+ * picked from the build bar). `shopStep` is the pure state machine; the Game
  * scene applies it and runs the `buy` effect it returns (one `SimHost.buyWeapon` per effect).
  */
 export interface ShopState {
   readonly open: boolean;
   /** Offered items (from balance, set at open). */
   readonly weapons: readonly ShopWeapon[];
-  readonly buildings: readonly ShopBuilding[];
   /** My wallet and weapons as the World has them (server truth online). */
   readonly wallet: number;
   readonly slots: readonly [string, string | null];
@@ -49,7 +49,6 @@ export interface ShopState {
 export const CLOSED_SHOP: ShopState = Object.freeze({
   open: false,
   weapons: [],
-  buildings: [],
   wallet: 0,
   slots: ["", null] as const,
   levels: [0, 0] as const,
@@ -81,9 +80,7 @@ export type ShopAction =
   /** "Replace which?": the slot the chosen weapon replaces. */
   | { readonly type: "slot"; readonly slot: 0 | 1 }
   /** "Replace which?": Cancel. */
-  | { readonly type: "cancel" }
-  /** Tap a building (Story 3.4 contract): starts placement, closes the shop. */
-  | { readonly type: "building"; readonly id: string };
+  | { readonly type: "cancel" };
 
 /** Everything that drives the shop: the player's actions, plus what the Game scene feeds. */
 export type ShopInput =
@@ -91,7 +88,6 @@ export type ShopInput =
   | {
       readonly type: "open";
       readonly weapons: readonly ShopWeapon[];
-      readonly buildings: readonly ShopBuilding[];
       /** Story 5.1 (absent: no upgrades offered). */
       readonly upgradePrices?: Readonly<Record<string, number>>;
       readonly maxLevel?: number;
@@ -106,7 +102,6 @@ export type ShopEffect =
   | { readonly type: "buy"; readonly weapon: string; readonly slot: 0 | 1 | null }
   | { readonly type: "upgrade"; readonly weapon: string }
   | { readonly type: "item"; readonly item: string }
-  | { readonly type: "startPlacement"; readonly id: string }
   | null;
 
 export interface ShopStepResult {
@@ -118,7 +113,6 @@ export interface ShopStepResult {
 export const SHOP_TEXT = {
   title: "Shop",
   weapons: "Weapons",
-  buildings: "Buildings",
   owned: "Owned",
   free: "Free",
   close: "Close",
@@ -182,6 +176,8 @@ export function upgradeErrorText(error: WeaponUpgradeError): string {
       return "Not enough money";
     case "max_level":
       return "Already at max level";
+    case "not_alive":
+      return "You can't shop while down"; // Story 5.11 review
     case "not_owned":
       return "You don't have that weapon";
     case "not_build":
@@ -265,7 +261,6 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
         ...CLOSED_SHOP,
         open: true,
         weapons: input.weapons,
-        buildings: input.buildings,
         upgradePrices: input.upgradePrices ?? {},
         maxLevel: input.maxLevel ?? 1,
         gear: input.gear ?? [],
@@ -318,9 +313,6 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
     }
     case "cancel":
       return s.choosing === null ? same(s) : same({ ...s, choosing: null });
-    case "building":
-      if (!s.open || !s.buildings.some((b) => b.id === input.id)) return same(s);
-      return { state: { ...CLOSED_SHOP, wallet: s.wallet, slots: s.slots, levels: s.levels, gearMask: s.gearMask }, effect: { type: "startPlacement", id: input.id } };
     case "answer": {
       const a = input.answer;
       if (!s.open) return same(s);
@@ -354,6 +346,13 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
       if (s.pending === null) return same(s);
       if (s.pendingAtMs === 0) return same({ ...s, pendingAtMs: input.nowMs }); // the clock starts with the first frame after the send
       return input.nowMs - s.pendingAtMs >= SHOP_PENDING_TIMEOUT_MS ? same({ ...s, pending: null, pendingAtMs: 0, awaitLevel: null, awaitGear: 0 }) : same(s);
+    default: {
+      // Exhaustive (review L6): a new ShopInput type fails to compile here. At run time an unknown
+      // action (e.g. an old client's "building") changes nothing.
+      const unknown: never = input;
+      void unknown;
+      return same(s);
+    }
   }
 }
 

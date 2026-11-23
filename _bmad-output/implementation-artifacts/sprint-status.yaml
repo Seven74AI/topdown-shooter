@@ -1,5 +1,5 @@
-# generated: 2026-11-21T18:20:05
-# last_updated: 2026-11-21T19:14:59
+# generated: 11-21-2026 18:20
+# last_updated: 11-23-2026 10:40
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -41,8 +41,8 @@
 # - Stories marked "human" are playtests or specs run by the designer; mark them done by hand.
 # - Story 9.2-9.10 depend on the hired artist and sound designer.
 
-generated: 2026-11-21T18:20:05
-last_updated: 2026-11-23T10:40:00
+generated: 11-21-2026 18:20
+last_updated: 11-23-2026 10:40
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -129,7 +129,7 @@ development_status:
   5-13-roguelike-card-shop: ready-for-dev
   5-14-bear-trap: backlog  # designer 2026-11-23: second trap type; after round A (needs 5.9's non-solid buildings)
   5-15-carry-the-ghost-and-keep-moving: done  # building UX BX-1
-  5-16-build-bar-replaces-the-shop-for-buildings: backlog  # building UX BX-2
+  5-16-build-bar-replaces-the-shop-for-buildings: done  # building UX BX-2
   5-17-why-it-s-red: backlog  # building UX BX-3
   5-18-place-place-place-chain-and-pending-under-lag: backlog  # building UX BX-4
   5-19-thumb-drag-to-nudge-and-pin: backlog  # building UX BX-5
@@ -139,6 +139,7 @@ development_status:
   5-23-placement-feel-and-owner-marks: backlog  # building UX BX-9
   5-24-teammates-ghosts: backlog  # building UX BX-10
   5-25-mouse-and-keys-parity-optional: backlog  # building UX BX-11
+  5-26-build-bar-icons: backlog  # designer 2026-11-23: I1 tilted icons, T1 turret (T2 kept), M1 mine; after 5.16
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless
@@ -149,7 +150,7 @@ development_status:
   6-4-collapse: backlog
   6-5-the-behemoth-arrives: backlog
   6-6-behemoth-charge-and-throw: backlog
-  6-7-enrage-and-the-end-of-wave-10: backlog
+  6-7-enrage-and-the-end-of-the-behemoth: backlog
   6-8-special-events-car-alarm-and-stampede: backlog
   6-9-gas-leak-and-supply-drop: backlog
   6-10-power-failure-and-survivor: backlog

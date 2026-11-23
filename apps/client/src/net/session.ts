@@ -47,7 +47,7 @@ export function parseShopRefused(m: unknown): ShopAnswer | null {
 }
 
 /** Story 5.1: `upgradeWeapon`'s errors (an unknown one reads as `not_owned`). */
-const WEAPON_UPGRADE_ERRORS: readonly WeaponUpgradeError[] = ["not_build", "unknown_player", "not_owned", "max_level", "invalid_amount", "insufficient_funds"];
+const WEAPON_UPGRADE_ERRORS: readonly WeaponUpgradeError[] = ["not_build", "unknown_player", "not_alive", "not_owned", "max_level", "invalid_amount", "insufficient_funds"];
 
 /** A well-formed `shop.upgraded` (Story 5.1) as an answer, or null. */
 export function parseShopUpgraded(m: unknown): ShopAnswer | null {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, shopGear, shopWeapons, upgradePriceTable, type ShopBuilding } from "@topdown/shared";
+import { loadBalance, shopGear, shopWeapons, upgradePriceTable } from "@topdown/shared";
 import {
   CLOSED_SHOP,
   SHOP_PENDING_TIMEOUT_MS,
@@ -18,7 +18,6 @@ import {
 } from "./shopStore";
 
 const weapons = shopWeapons(loadBalance());
-const buildings: ShopBuilding[] = [{ id: "wood_barricade", name: "Wood Barricade", price: 40 }];
 
 /** Runs inputs from a state; returns the last state and every effect. */
 function run(from: ShopState, ...inputs: ShopInput[]) {
@@ -33,7 +32,7 @@ function run(from: ShopState, ...inputs: ShopInput[]) {
 }
 
 const opened = (slots: readonly [string, string | null] = ["pistol", null], wallet = 250) =>
-  run(CLOSED_SHOP, { type: "open", weapons, buildings }, { type: "sync", wallet, slots }).s;
+  run(CLOSED_SHOP, { type: "open", weapons }, { type: "sync", wallet, slots }).s;
 
 describe("shopStep (Story 3.3)", () => {
   it("opens with the items, syncs wallet and slots, closes", () => {
@@ -95,11 +94,13 @@ describe("shopStep (Story 3.3)", () => {
     expect(run(opened(), { type: "buy", weapon: "pistol" }, { type: "buy", weapon: "rocket" }).effects).toEqual([]);
   });
 
-  it("a building starts placement (3.4 contract) and closes the shop; never a purchase", () => {
-    const { s, effects } = run(opened(), { type: "building", id: "wood_barricade" });
-    expect(effects).toEqual([{ type: "startPlacement", id: "wood_barricade" }]);
-    expect(s.open).toBe(false);
-    expect(run(opened(), { type: "building", id: "nope" }).effects).toEqual([]);
+  it("Story 5.16: the shop has no buildings: no list, no building action, no placement effect", () => {
+    const s = opened();
+    expect(Object.keys(s)).not.toContain("buildings");
+    // A building id sent as a shop action (an old client path) is not a shop action any more: nothing happens.
+    const { s: after, effects } = run(s, { type: "building", id: "wood_barricade" } as unknown as ShopInput);
+    expect(effects).toEqual([]);
+    expect(after.open).toBe(true);
   });
 
   it("nothing happens while closed (taps, answers)", () => {
@@ -138,7 +139,7 @@ describe("shopStep upgrades (Story 5.1, F1)", () => {
   const balance = loadBalance();
   const prices = upgradePriceTable(balance);
   const openUp = (slots: readonly [string, string | null], levels: readonly [number, number], wallet = 500) =>
-    run(CLOSED_SHOP, { type: "open", weapons, buildings, upgradePrices: prices, maxLevel: 4 }, { type: "sync", wallet, slots, levels }).s;
+    run(CLOSED_SHOP, { type: "open", weapons, upgradePrices: prices, maxLevel: 4 }, { type: "sync", wallet, slots, levels }).s;
 
   it("rows follow my slots (slot 0 first) with the shown price; a weapon I don't own has no row", () => {
     const s = openUp(["pistol", "smg"], [1, 2]);
@@ -218,7 +219,7 @@ describe("shopStep upgrades (Story 5.1, F1)", () => {
 describe("shopStep gear (Story 5.11, AC 1/3/8)", () => {
   const b = loadBalance();
   const gear = shopGear(b);
-  const open = (gearMask = 0, wallet = 500) => run(CLOSED_SHOP, { type: "open", weapons, buildings, gear }, { type: "sync", wallet, slots: ["pistol", null], gearMask }).s;
+  const open = (gearMask = 0, wallet = 500) => run(CLOSED_SHOP, { type: "open", weapons, gear }, { type: "sync", wallet, slots: ["pistol", null], gearMask }).s;
   const ok = (item: string): ShopInput => ({ type: "answer", answer: { kind: "item", ok: true, item } });
 
   it("lists the 4 shop items (no flashlight); owned / covered rows are Owned, armor II notes the replacement", () => {

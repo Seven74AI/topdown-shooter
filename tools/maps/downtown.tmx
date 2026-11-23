@@ -6,16 +6,40 @@
   <property name="cellM" type="float" value="0.5"/>
  </properties>
  <objectgroup id="1" name="collision">
-  <object id="1" name="nw_corner_shop" x="0" y="0" width="256" height="320"/>
-  <object id="2" name="nw_apartments" x="352" y="0" width="224" height="320"/>
-  <object id="3" name="gas_kiosk" x="1312" y="0" width="224" height="192"/>
+  <object id="1" name="nw_corner_shop" x="0" y="0" width="256" height="320">
+   <properties>
+    <property name="building" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="2" name="nw_apartments" x="352" y="0" width="224" height="320">
+   <properties>
+    <property name="building" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="3" name="gas_kiosk" x="1312" y="0" width="224" height="192">
+   <properties>
+    <property name="building" type="bool" value="true"/>
+   </properties>
+  </object>
   <object id="4" name="gas_pump_a" x="1040" y="112" width="64" height="32"/>
   <object id="5" name="gas_pump_b" x="1040" y="224" width="64" height="32"/>
   <object id="6" name="city_bus" x="960" y="464" width="320" height="80"/>
-  <object id="7" name="sw_diner" x="0" y="704" width="224" height="320"/>
+  <object id="7" name="sw_diner" x="0" y="704" width="224" height="320">
+   <properties>
+    <property name="building" type="bool" value="true"/>
+   </properties>
+  </object>
   <object id="8" name="parking_wall" x="320" y="768" width="16" height="256"/>
-  <object id="9" name="se_offices" x="960" y="704" width="256" height="320"/>
-  <object id="10" name="se_warehouse" x="1312" y="704" width="224" height="320"/>
+  <object id="9" name="se_offices" x="960" y="704" width="256" height="320">
+   <properties>
+    <property name="building" type="bool" value="true"/>
+   </properties>
+  </object>
+  <object id="10" name="se_warehouse" x="1312" y="704" width="224" height="320">
+   <properties>
+    <property name="building" type="bool" value="true"/>
+   </properties>
+  </object>
  </objectgroup>
  <objectgroup id="2" name="cover">
   <object id="11" name="bus_hull" x="960" y="464" width="320" height="80">

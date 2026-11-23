@@ -1,4 +1,5 @@
 import { MAX_PLAYERS } from "@topdown/shared";
+import type { BuildTile } from "./buildBar";
 import { FIRE_HIT_QUEUE } from "../render/burnCue";
 
 /** Values the GameScene publishes each frame for the HUD to draw (the HUD never reads the World). */
@@ -69,9 +70,18 @@ export interface HudModel {
   rotatePressed: boolean;
   confirmPressed: boolean;
   cancelPressed: boolean;
-  /** Story 3.3: the Shop button is shown (as Ready, while the shop is closed). */
-  shopButton: boolean;
-  /** Set by the HUD when Shop is tapped; the GameScene consumes it. */
+  /**
+   * Story 5.16: the build bar is shown (a build phase, hands empty, nothing selected, shop and menu
+   * closed, my survivor standing): its building tiles (balance order, from `buildBarItems`), my
+   * buildings and the cap (the count line; with `money` the tiles' short/cap look).
+   */
+  buildBar: boolean;
+  buildItems: readonly BuildTile[];
+  buildOwned: number;
+  buildCap: number;
+  /** Set by the HUD when a building tile is tapped (its type id, "" = none); the GameScene consumes it. */
+  buildPick: string;
+  /** Set by the HUD when the build bar's Shop tile is tapped (Story 3.3's shop); the GameScene consumes it. */
   shopPressed: boolean;
   /** Story 3.7: taps on the game view select buildings now (a build phase, no placement, shop or menu). */
   tapsEnabled: boolean;
@@ -114,6 +124,8 @@ export interface HudModel {
   readonly teammates: Float32Array;
   readonly teammateSlot: Int8Array;
   readonly teammateFlags: Uint8Array;
+  /** Seconds left on a downed teammate's countdown (same index as `teammateSlot`; 0 when not downed). */
+  readonly teammateSecs: Int16Array;
   teammateCount: number;
   /** Name per slot (index = slot), assigned only when it changes. */
   readonly teammateNames: string[];
@@ -197,7 +209,11 @@ export const createHudModel = (): HudModel => ({
   rotatePressed: false,
   confirmPressed: false,
   cancelPressed: false,
-  shopButton: false,
+  buildBar: false,
+  buildItems: [],
+  buildOwned: 0,
+  buildCap: 0,
+  buildPick: "",
   shopPressed: false,
   tapsEnabled: false,
   worldTap: false,
@@ -226,6 +242,7 @@ export const createHudModel = (): HudModel => ({
   teammates: new Float32Array(MAX_PLAYERS * 2),
   teammateSlot: new Int8Array(MAX_PLAYERS),
   teammateFlags: new Uint8Array(MAX_PLAYERS),
+  teammateSecs: new Int16Array(MAX_PLAYERS),
   teammateCount: 0,
   teammateNames: new Array<string>(MAX_PLAYERS).fill(""),
   money: 0,

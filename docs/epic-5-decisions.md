@@ -37,7 +37,7 @@ Every story also starts with an **art pick**: the designer chooses the look from
 
 **5.4 Flamethrower:** car fires stay full damage; flames never ignite players; burning zombies keep chasing; zombie burn 5 every 0.25 s; 1 fuel per firing tick, auto reload; no building damage; price 700.
 
-**5.5 Grenade Launcher:** touch aim = stick push mapped to 3–12 m with a landing ring; rounds burst at a car's face (no lob over); minimum 3 m; no building damage; zombies pushed 0.6 m; no knockback on players; 20 m/s; price 800.
+**5.5 Grenade Launcher:** touch aim = stick push mapped to 3–12 m with a landing ring; ~~rounds burst at a car's face (no lob over)~~ rounds fly over everything except real buildings (changed 2026-11-23, see below); minimum 3 m; no building damage; zombies pushed 0.6 m; no knockback on players; 20 m/s; price 800.
 
 **5.8 Bloaters:** blast kills credit whoever popped it (passed down a chain); 40 damage to buildings; chain blasts one link per tick (max 8); radius 0.5 m; swell blast 20 ticks after it starts, standing still; gas slow = Crawler slow; wave 6 mix walker 40 / runner 20 / crawler 15 / spitter 10 / bloater 15.
 
@@ -104,6 +104,7 @@ Page: claude.ai/artifact/GzRpZP8eS6n7JVMDs9ctcy (code drawings, copied to `docs/
 - **Fire = fire-lab version D** (designer, 2026-11-23): fuel-fire particle flames, smoke and embers on normal asphalt (scorch + soft flickering ground light, no lava pool), a ring of flames at the 2 m damage edge. Code in `docs/art/4-12/fire-lab.html` (panel D; survivor panel for the burning survivor). Story 4.12 builds it.
 - **Melee can't hit through barricades and walls** (designer, 2026-11-23, after the 5.2 review found chainsaw farming from behind a barricade): wall buildings and shot-blocking map cover (walls, cars, bus, buildings) stop melee; low cover that bullets pass (sandbags, police barriers, traps, mines) doesn't. Applies to every melee weapon (Machete, Fire Axe, Chainsaw). Built in the 5.2 fix round.
 - **Brute and narrow gaps** (designer, 2026-11-23, after the 5.7 review found players untouchable in 1 m car gaps): when the player is in a gap the Brute can't enter, its reach grows from 1.3 m to 1.8 m (same 0.5 s wind-up, dodged by stepping deeper; still needs a clear line).
+- **Grenade Launcher lobs over obstacles** (designer, 2026-11-23, replacing 5.5's "no lob over"): rounds fly over cars, the bus, gas pumps, low walls, barriers, sandbags, barricades and turrets; only real buildings (map collision boxes with `building: true`: the corner shop, apartments, gas kiosk, diner, offices, warehouse) stop them at the face. A round aimed onto a car's roof lands at the car's near face (so the blast still sees around it). Explosions are still shielded by cars and the bus (FR-C unchanged).
 
 ## Round C looks (designer, 2026-11-23)
 
@@ -125,8 +126,17 @@ Page: claude.ai/artifact/NasqdNNAhnHQEkbHVcamFZ (code drawings in `docs/art/epic
 
 Page: claude.ai/artifact/9VXjyGj7JTSgVDJKUcD3xQ (code drawings in `docs/art/epic-5/round-d/looks.html`).
 - **Floodlight (5.10): FL1 tripod work light = base look; FL5 stadium lamp on sandbags = upgrade/skin look.** FL2–FL4 not used.
-- **Med station (5.10): all five (MS1–MS5) rejected** → new iteration MS6–MS10 requested.
-- **Gear icons (5.11): open.** Requested two more mockups: realistic icon (GR4) on an embossed metal tag (GR2) = GR6, realistic icon on a sticker (GR5) = GR7.
+- **Med station (5.10): all five (MS1–MS5) rejected**; iteration 2 → **MS10 case stack with a glowing green-cross LED panel** (designer, 2026-11-23).
+- **Gear icons (5.11): GR6** = the realistic painted objects (GR4) on embossed metal tags (GR2).
 - **Consumable icons (5.12): CI4** (realistic painted objects).
 - **Hand grenade (5.12): all three kept** (HG1 pineapple base; HG2 smooth M67, HG3 can-shaped as variants/upgrade looks). The thrown grenade uses these, not 5.5's 40 mm round.
-- Molotov bottle/fire (MB1–MB3): not picked yet.
+- **Molotov (5.12): all three kept** (like the grenade): MB1 wine bottle / even spread = base; MB2 beer bottle / forward splash and MB3 flask / joining puddles as random variants.
+
+## Build-bar icons (designer, 2026-11-23, Story 5.16 follow-up)
+
+Page: claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3 (code drawings in `docs/art/5-16/icons/index.html`).
+- **Buildings get their own build-bar icons**, separate from the top-down world art (like weapons have their own shop icons). 5.16 ships with the world art in the tiles; the icons come in a small follow-up story.
+- Style **I1 tilted objects** (a low three-quarter view with height). Wood barricade **I1**, spike trap **I1**.
+- Auto-turret: **T1 sentry gun** (base) and **T2 armoured dome** kept (by the two-pick rule: T2 for a later turret upgrade tier or skin).
+- Mine: **M1 pressure mine** (thick olive disc, raised plate, red light).
+- Later buildings (med station, floodlight, bear trap) get an I1-style icon when built; until then the tile falls back to the world art.

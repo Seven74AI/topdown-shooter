@@ -153,7 +153,7 @@ export function botShopPick(balance: Balance, wallet: number, loadout: Loadout, 
  * Story 5.1: why `upgradeWeapon` refused (checked in this order). Named apart from the buildings'
  * `UpgradeError` (Story 5.9).
  */
-export type WeaponUpgradeError = "not_build" | "unknown_player" | "not_owned" | "max_level" | SpendError;
+export type WeaponUpgradeError = "not_build" | "unknown_player" | "not_alive" | "not_owned" | "max_level" | SpendError;
 
 /** What one weapon upgrade did. */
 export interface WeaponUpgraded {
@@ -174,6 +174,7 @@ export function upgradeWeapon(world: World, playerId: string, weapon: WeaponId):
   if (world.run.phase !== "build") return err("not_build");
   const p = world.players.get(playerId);
   if (!p) return err("unknown_player");
+  if (p.status !== "alive") return err("not_alive"); // Story 5.11 review: one rule, no shopping while down
   const lo = p.loadout;
   const slot: 0 | 1 | null = lo.slots[0].weapon === weapon ? 0 : lo.slots[1]?.weapon === weapon ? 1 : null;
   if (slot === null) return err("not_owned");

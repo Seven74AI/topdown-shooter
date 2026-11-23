@@ -30,7 +30,9 @@ export type SfxName =
   | "fx_explosion"
   | "zombie_bloater_gurgle"
   | "zombie_bloater_swell"
-  | "zombie_bloater_burst";
+  | "zombie_bloater_burst"
+  // A teammate went down: a two-note falling alert (not positional: the edge arrow shows where).
+  | "player_teammate_downed";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -160,6 +162,21 @@ function sweep(c: AudioContext, at: number, durS: number, gain: number, fromHz: 
   src.connect(f).connect(g).connect(master);
   src.start(at);
   src.stop(at + durS);
+}
+
+/** A clean triangle-wave note with a soft attack and decay (UI alerts). */
+function tone(c: AudioContext, at: number, durS: number, gain: number, hz: number): void {
+  if (!master) return;
+  const o = c.createOscillator();
+  o.type = "triangle";
+  o.frequency.value = hz;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.001, at);
+  g.gain.exponentialRampToValueAtTime(gain, at + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, at + durS);
+  o.connect(g).connect(master);
+  o.start(at);
+  o.stop(at + durS + 0.02);
 }
 
 function click(c: AudioContext, at: number, hz: number, gain: number): void {
@@ -402,6 +419,10 @@ export function playSfx(name: SfxName, pan = 0): void {
       lastBlastAt = t;
       burst(c, t, 0.22, 0.9, 260);
       sweep(c, t + 0.03, 0.5, 0.35, 1800, 500);
+      break;
+    case "player_teammate_downed":
+      tone(c, t, 0.16, 0.22, 880);
+      tone(c, t + 0.18, 0.28, 0.22, 587);
       break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;
