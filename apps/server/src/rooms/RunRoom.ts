@@ -218,7 +218,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const parsed = joinOptionsSchema.safeParse(options);
     if (!parsed.success) {
       // Story 4.1 review M1: a client older than the map (no mapVersion) is an old build: "Please refresh".
-      if (parsed.error.issues.every((i) => i.path[0] === "mapVersion")) throw refuse("balance_mismatch");
+      // Re-review L3: only a MISSING one; a present but malformed one (a number, 17 chars) is invalid_options.
+      const absent = typeof options === "object" && options !== null && (options as { mapVersion?: unknown }).mapVersion === undefined;
+      if (absent && parsed.error.issues.every((i) => i.path[0] === "mapVersion")) throw refuse("balance_mismatch");
       throw refuse("invalid_options");
     }
     if (parsed.data.balanceVersion !== serverBalance.version) throw refuse("balance_mismatch");

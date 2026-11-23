@@ -77,4 +77,13 @@ describe("random streams per thing (review L: roofs never shift when stage debri
     expect([a2(), a2(), a2()]).toEqual(first);
     expect(rng("nw_apartments")()).not.toBe(first[0]);
   });
+  it("keys that share a prefix or differ only at the end still give different streams (re-review L4)", async () => {
+    const { rng } = await import("./drawCity");
+    const keys = ["debris_east", "debris_west", "debris_wesX", "parked_car_2", "parked_car_3", "ground_cracks", "ground_litter", "ground_patches", "se_offices", "sw_offices"];
+    const firsts = keys.map((k) => {
+      const r = rng(k);
+      return [r(), r(), r()].join(",");
+    });
+    expect(new Set(firsts).size).toBe(keys.length);
+  });
 });

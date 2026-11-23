@@ -818,10 +818,16 @@ export function drawBase(g: G, s: number, cs: CityScene, bd: Bounds): void {
   for (const o of k.pumps) if (boxIn(bd, o)) drawFrame(g, cs.atlas, PROP_PUMP, o, o.w >= o.h ? "right" : "down");
 }
 
-/** Key of what `drawBase` shows: the buildings, pumps and walls drawn (their names). */
+/**
+ * Key of what `drawBase` shows: the buildings, pumps and walls drawn (their names), and every cover
+ * box `drawGround` reads (re-review L2: the bus's skid marks and glass sit in the base, so a moved or
+ * removed bus must redraw it).
+ */
 export function baseKey(cs: CityScene): string {
   const k = classify(cs);
-  return [...k.buildings, ...k.pumps, ...k.walls].map((b) => b.name).join("|");
+  const solids = [...k.buildings, ...k.pumps, ...k.walls].map((b) => b.name).join("|");
+  const bus = k.cover.find((c) => c.kind === "bus");
+  return bus ? `${solids}#bus@${bus.x},${bus.y},${bus.w},${bus.h}` : `${solids}#nobus`;
 }
 
 /**
