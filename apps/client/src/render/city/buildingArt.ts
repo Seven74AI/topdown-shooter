@@ -6,7 +6,7 @@
  * - `drawReinforcedBarricade`: the B8 look (`docs/art/4-11/barricade_upgrade_b8.jpg`): upright
  *   weathered pallets propped by diagonal struts, a coil of barbed wire along the top.
  * - `drawMetalBarricade`: the designer's pick M1c (round 3): strictly top-down riveted steel plates
- *   between four square posts with hazard-striped caps.
+ *   between four square posts with striped caps (no yellow plate: designer, 2026-11-23).
  * - `drawSpikeTrap`: the designer's pick T1, the nail board (rusty nails standing up from weathered
  *   planks), ported from `code-drawings.html › drawT1` and scaled to the 2 × 2 m footprint.
  * - `drawMine`: the designer's pick N6 (round 3): the olive pressure-plate mine with a red light in
@@ -188,14 +188,17 @@ export function drawReinforcedBarricade(g: Ctx, w: number, d: number): void {
   }
 }
 
-/** Yellow/black hazard stripes in a box (the reference's `hazard`). */
+/**
+ * Diagonal stripes in a box (the reference's `hazard`). Designer (2026-11-23): no yellow plate on the
+ * metal barricade: the caps keep their stripes in steel tones (light steel / near-black).
+ */
 function hazard(g: Ctx, x: number, y: number, w: number, h: number, stripe: number): void {
   g.save();
   g.beginPath();
   g.rect(x, y, w, h);
   g.clip();
-  rect(g, x, y, w, h, "#e2b11f");
-  g.fillStyle = "#16161a";
+  rect(g, x, y, w, h, "#6a6f75");
+  g.fillStyle = "#1c1d20";
   for (let k = -h - stripe * 2; k < w + h; k += stripe * 2) {
     g.beginPath();
     g.moveTo(x + k, y + h);
@@ -254,8 +257,9 @@ function steelPlate(g: Ctx, x0: number, y0: number, x1: number, y1: number, base
 
 /**
  * Story 5.9 / designer M1c (round 3, `code-drawings › drawM1c`): the metal barricade, strictly top
- * down: three riveted steel plates between four chunky square posts whose caps carry yellow/black
- * hazard stripes and four hex rivets. Centred on the 2 × 0.5 m footprint (the posts span its depth;
+ * down: three riveted steel plates between four chunky square posts whose caps carry diagonal
+ * steel stripes (designer 2026-11-23: the yellow plate removed) and four hex rivets. Centred on the
+ * 2 × 0.5 m footprint (the posts span its depth;
  * the reference's baked shadow and braces are left to the game's cast shadow).
  */
 export function drawMetalBarricade(g: Ctx, w: number, d: number): void {
