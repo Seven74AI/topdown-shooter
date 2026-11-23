@@ -1,6 +1,6 @@
 # Story 5.15: Carry the ghost and keep moving
 
-Status: review
+Status: done
 
 (Building UX rework BX-1. Design: `docs/ideas/building-ux/ux-spec.md` (designer decisions §15: **B · Carry + drag**), `draft-stories.md` › BX-1, feel: `prototype.html` / claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR. Spine-wins rule: where the spec and the prototype disagree, the spec wins.)
 
@@ -137,6 +137,17 @@ Mutation list after the fixes (one line each, touched tests): carry before Place
 
 Gate after the fixes (one full run on `story-5-15`): `npm run typecheck && npm run lint && npm test && npm run build` → exit 0; **251 files passed / 1 skipped, 2,032 tests passed / 3 skipped**; build OK. Load average 1.0 at the start, 4.0 at the end (4-core container, this builder alone). Browser re-check at 800 × 360 and 568 × 320 (headless Chromium, CDP touch): walk while holding, ⟳ lock, Place, put away; no console errors.
 
+**Re-review (fresh agent, 2026-11-23) of `6d2b4f9`:** no high or medium; every fix holds; the full gate passes. Four lows (tests and docs), fixed:
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| R2-L1 | Low | The hold input wasn't asserted on the ✕ / Place frame (moving `holdBuildingInput` below those branches survived). | The Place-frame and ✕-frame tests assert `fire === false`, `aimX/aimY === 0` and the move kept on that frame's input. |
+| R2-L2 | Low | The north-edge case never called `onWire()` / `confirm()` (an "onWire checks only gx" mutant survived). | The north-edge turret (gx on the wire, gy negative) asserts `onWire()` false and `confirm()` null. |
+| R2-L3 | Low | ⟳-before-carry order untested. | Facing east (rot 3), ⟳ on the frame the move turns north → rot 0 (3 + 1, locked), not north's auto-rot 2 turned once (3). |
+| R2-L4 | Low | Completion Notes and the Change Log (Q1) still said the hint sits 250 px up. | Both updated: 6 px above ✕ (L5); Q1's "stays where it is" marked as replaced by L5. |
+
+Touched tests only (test/doc change, no full gate per the main session): `placement.test.ts`, `handCluster.test.ts`, `menuInput.test.ts`. Mutants checked: hold input moved below the ✕/Place branches, `onWire` checking only gx, carry before ⟳ — all killed. Status → **done**.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -151,7 +162,7 @@ Claude (builder cloud session, 2026-11-23). Baseline commit `4c30563`.
 
 - **Carry** (`scenes/placement.ts`): `carry(x, y, moveX, moveY)` once per frame; centre = me + facing × (0.4 + 1.0 + support of the footprint along the facing), per-axis snap with 0.1 m hysteresis (`snapAxis`), auto-rotate with the 45° ± 10° axis switch and struts on the builder's side (`autoRot`), ⟳ = rot + 1 and lock. The finger-anchored `moveTo` / `PREVIEW_AHEAD_M` are gone (BX-5 adds a relative drag). No allocation per frame.
 - **Input while holding**: `holdBuildingInput` keeps the move and clears aim + fire (swap/consumable edges and the seq untouched); `InputRouter.releaseAim` / `TouchSticks.releaseAim` at the start of holding (the move stick keeps steering). `GameScene.updatePlacement` handles ✕ / Place / ⟳ before the input is sent; Place sends the gx/gy/rot drawn last frame; the new `carryPlacement` runs after `syncPlayerViews` and before `buildingView.update`, so the ghost is placed from the survivor as drawn this frame and the next Place sends exactly that.
-- **HUD**: round hand cluster bottom right from `layoutHandCluster` (Place 76 px at (92, 92), ⟳ 60 at (190, 80), ✕ 48 at (80, 196)); Place green / grey + red ring; padlock badge drawn in Graphics (no texture); hint line right-aligned at 16 px, bottom 250 (D3); weapon lines (alpha 0) and the swap button hidden while holding (D4); left-half touches start the move stick while holding, right-half touches / mouse presses that miss the buttons are claimed and do nothing; Ready + Shop 40 px left of centre.
+- **HUD**: round hand cluster bottom right from `layoutHandCluster` (Place 76 px at (92, 92), ⟳ 60 at (190, 80), ✕ 48 at (80, 196)); Place green / grey + red ring; padlock badge drawn in Graphics (no texture); hint line right-aligned at 16 px, its bottom 6 px above ✕ (review L5; first built at 250 px up, D3); weapon lines (alpha 0) and the swap button hidden while holding (D4); left-half touches start the move stick while holding, right-half touches / mouse presses that miss the buttons are claimed and do nothing; Ready + Shop 40 px left of centre.
 - **Balance**: `controls.json › build { carryGapM 1.0, snapHysteresisM 0.1, autoRotateHysteresisDeg 10 }`, zod with defaults (older fixtures load) and bounds (hysteresis < half a cell, < 45°).
 - **Copies (brief 2)**: none touched. No message, schema, server, Predictor or mirror change; the request is the unchanged `building.place`. 0 B/s added.
 - **Tests**: `placement.test.ts` (12: carry distances 1.65 / 1.9 / 2.4 / 1.65 m and diagonal, start, walking + facing at rest, struts N→2 S→0 E→3 W→1, rotate hysteresis 34/36/54/56°, snap hysteresis 0.09 vs 0.11 m, ⟳ lock, 4,000-step own-body fuzz, 0–255 clamp, Place = shown spot, shared check incl. a teammate); `menuInput.test.ts` (+3: hold input, `releaseAim` keeps the move stick, online sends normal movement with fresh seqs); `handCluster.test.ts` (2: positions, ≥ 48 px, ≥ 12 px apart, no overlap, insets × dpr 1–3); `balance.test.ts` (+1: controls.build defaults/bounds).
@@ -184,5 +195,6 @@ Claude (builder cloud session, 2026-11-23). Baseline commit `4c30563`.
 ### Change Log
 
 - 2026-11-23: Story written (gds-create-story) and built (gds-dev-story): carry + keep moving, hand cluster, controls.build numbers. Status → review.
+- 2026-11-23: Re-review lows R2-L1–L4 fixed (tests and docs); status → done.
 - 2026-11-23: Review fixes M1, L2–L6 (L7 accepted); status stays review.
-- 2026-11-23: Open questions settled (designer: "go with your recommendation"). Q1: the reason line stays where it is (right side, 250 px up), and the readability check over busy city art goes on the phone playtest list; 5.16/5.18 move it above the item chip anyway. Q2: Ready keeps the 40 px left shift now (no effect while holding; it matters once 5.16's build bar shares the corner). Q3: whichever of 5.12 and 5.15 merges second makes 5.12's consumable button hide while holding, like the swap button (`HudScene.drawWeapon`'s `hidden` flag); the reviewer checks it after the merge.
+- 2026-11-23: Open questions settled (designer: "go with your recommendation"). Q1: the reason line stays where it is (right side, 250 px up) — *replaced by review L5: it now sits 6 px above ✕, which also clears ☰/⚙ on a 320 px-tall phone* — and the readability check over busy city art goes on the phone playtest list; 5.16/5.18 move it above the item chip anyway. Q2: Ready keeps the 40 px left shift now (no effect while holding; it matters once 5.16's build bar shares the corner). Q3: whichever of 5.12 and 5.15 merges second makes 5.12's consumable button hide while holding, like the swap button (`HudScene.drawWeapon`'s `hidden` flag); the reviewer checks it after the merge.

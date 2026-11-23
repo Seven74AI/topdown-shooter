@@ -173,13 +173,19 @@ describe("Story 5.15: carry the ghost (AC 3–7, 11)", () => {
     expect(p.onWire()).toBe(false);
     expect(p.confirm()).toBeNull(); // nothing the uint8 wire could carry (a wrapped -1 would be 255)
     expect(p.active).toBe(false);
-    p.start(balance, "auto_turret", 20, 0.5, 0, -1); // north edge
+    p.start(balance, "auto_turret", 20, 0.5, 0, -1); // north edge: only gy is off the wire
+    expect(p.gx).toBeGreaterThanOrEqual(0);
     expect(p.gy).toBeLessThan(0);
     expect(gapTo(p, 20, 0.5)).toBeGreaterThan(BODY + 0.5);
     p.carry(Number.NaN, 2, 1, 0); // ignored
     expect(p.gy).toBeLessThan(0);
+    expect(p.onWire()).toBe(false);
     p.carry(20, 6, 0, -1); // back inside: on the wire again
     expect(p.onWire()).toBe(true);
+    p.carry(20, 0.5, 0, -1); // and out again
+    expect(p.onWire()).toBe(false);
+    expect(p.confirm()).toBeNull();
+    expect(p.active).toBe(false);
   });
 
   it("Place returns the spot shown now, once; ✕ ends it with nothing", () => {
@@ -271,8 +277,10 @@ describe("Story 5.15 (review M1): stepPlacement, one frame of placement mode", (
     const shown = { type: WOOD, gx: p.gx, gy: p.gy, rot: p.rot };
     f.y = 10; // my survivor moved 6 m before the press is handled
     m.confirmPressed = true;
-    stepPlacement(p, m, walking(), w, f);
+    const pressFrame = walking();
+    stepPlacement(p, m, pressFrame, w, f);
     expect(sent).toEqual([shown]);
+    expect([pressFrame.moveY, pressFrame.aimX, pressFrame.aimY, pressFrame.fire]).toEqual([-1, 0, 0, false]); // the press frame is a hold frame too
     expect([p.active, m.placementActive, m.confirmPressed]).toEqual([false, false, false]);
   });
 
@@ -288,8 +296,19 @@ describe("Story 5.15 (review M1): stepPlacement, one frame of placement mode", (
     stepPlacement(p, m, walking(), w, f);
     expect([p.rot, m.placementLocked]).toEqual([3, true]);
     m.cancelPressed = true;
-    stepPlacement(p, m, walking(), w, f);
+    const cancelFrame = walking();
+    stepPlacement(p, m, cancelFrame, w, f);
     expect([p.active, m.placementActive, sent.length]).toEqual([false, false, 0]);
+    expect([cancelFrame.moveY, cancelFrame.aimX, cancelFrame.aimY, cancelFrame.fire]).toEqual([-1, 0, 0, false]); // the ✕ frame is a hold frame too
+    // ⟳ is applied before this frame's carry: facing east (rot 3), then ⟳ on the frame the move turns
+    // north gives 3 + 1 = 0 (locked), never north's auto-rot 2 turned once more (3).
+    p.start(balance, WOOD, 20, 16, 1, 0);
+    stepPlacement(p, m, { ...NEUTRAL_INPUT, moveX: 1 }, w, f);
+    expect(p.rot).toBe(3);
+    m.rotatePressed = true;
+    stepPlacement(p, m, { ...NEUTRAL_INPUT, moveY: -1 }, w, f);
+    expect([p.rot, p.locked]).toEqual([0, true]);
+    p.cancel();
     const input = walking();
     stepPlacement(p, m, input, w, f); // not holding: the input is left alone
     expect(input.fire).toBe(true);
