@@ -120,3 +120,12 @@ Page: claude.ai/artifact/NasqdNNAhnHQEkbHVcamFZ (code drawings in `docs/art/epic
 - **Survivor customization: scheduled** as Stories 7.8–7.12 (Epic 7, with accounts; `docs/ideas/customization/`).
 - **Building-system UX rework: scheduled** as Stories 5.15–5.25 (designer picked "B · Carry + drag"; `docs/ideas/building-ux/`). 5.15–5.19 client-only, can start any time; 5.20, 5.22, 5.24 after 5.10 and 5.14.
 - **Epic 6 design: scheduled** — the revised Stories 6.1–6.12 replace the old Epic 6 texts in epics.md (`docs/ideas/epic-6/`, designer decisions D1–D7: Behemoth crash stun only, always 2 events per run, endless +40 zombies/wave up to 600 then +6 % HP, Ruins debris ambience only, floodlight 6 m in blackout (noted in Story 5.10), alive cap 110 while the Behemoth lives, event levers kept). Implied GDD updates (events 2 per run, endless cap 600) are recorded here; the supply drop's weapon list gains the Gas torch.
+
+## Build-bar icons (designer, 2026-11-23, Story 5.16 follow-up)
+
+Page: claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3 (code drawings in `docs/art/5-16/icons/index.html`).
+- **Buildings get their own build-bar icons**, separate from the top-down world art (like weapons have their own shop icons). 5.16 ships with the world art in the tiles; the icons come in a small follow-up story.
+- Style **I1 tilted objects** (a low three-quarter view with height). Wood barricade **I1**, spike trap **I1**.
+- Auto-turret: **T1 sentry gun** (base) and **T2 armoured dome** kept (by the two-pick rule: T2 for a later turret upgrade tier or skin).
+- Mine: **M1 pressure mine** (thick olive disc, raised plate, red light).
+- Later buildings (med station, floodlight, bear trap) get an I1-style icon when built; until then the tile falls back to the world art.
