@@ -202,7 +202,7 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
   if (isLauncher(stats)) {
     // Story 5.5: one lobbed round along the raw aim (no aim assist, no spread); the aim length is
     // the lob distance (FR-A). A full pool spends nothing (no ammo, no cooldown).
-    if (!launchGrenade(world, p, slot.weapon, slot.level, stats, dir.x, dir.y, aimLen)) return false;
+    if (!launchGrenade(world, p, slot.weapon, slot.level, stats, dir.x, dir.y, aimLen, input.seq)) return false;
     slot.ammo--;
     world.events.emit({ type: "weapon.fired", playerId: p.id, weapon: slot.weapon, x: p.x + dir.x * offset, y: p.y + dir.y * offset, dirX: dir.x, dirY: dir.y });
     if (slot.ammo === 0) {

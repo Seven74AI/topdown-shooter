@@ -17,7 +17,7 @@ import { addBuildingAt, type Building } from "../buildings/buildings";
 import { BUILD_GRID_M } from "../config/constants";
 import { setLoadout } from "./loadout";
 import { lobAimLength } from "./grenades";
-import { applyZombieDamage } from "./damage";
+import { applyZombieDamage, knockbackTrace } from "./damage";
 import { blastResult, createExplosionSpec, explode, explosionCounters, type ExplosionSpec } from "./explosion";
 import type { LauncherStats } from "../config/balanceSchema";
 
@@ -368,5 +368,60 @@ describe("liveness sim (AC 14): a player shells a crowd for a wave", () => {
     for (let t = 0; t < 30 && hp === p.hp; t++) step(world, TICK_DT_S);
     expect(hp - p.hp).toBe(20);
     expect(explosionCounters.playersHit).toBeGreaterThan(before);
+  });
+});
+
+describe("review M1: explode() is re-entrant (a blast inside a blast)", () => {
+  it("a nested blast that REUSES the outer's spec object keeps exact one-hit-per-body, the outer's centre and both credits", () => {
+    const { world, events, p0, p1 } = setup();
+    p0.x = p0.prevX = 10;
+    p0.y = p0.prevY = 10.8; // in the outer blast only
+    p1.x = p1.prevX = 30;
+    p1.y = p1.prevY = 10.8; // in the inner blast only
+    const outer: number[] = [];
+    const inner: number[] = [];
+    for (let k = 0; k < 8; k++) outer.push(tough(world, spawnZombie(world, "walker", 10 + Math.cos(k) * 1.3, 10 + Math.sin(k) * 1.3)));
+    for (let k = 0; k < 5; k++) inner.push(tough(world, spawnZombie(world, "walker", 30 + Math.cos(k) * 1.2, 10 + Math.sin(k) * 1.2)));
+    const spec = grenade(10, 10, { quiet: false });
+    let nested = 0;
+    knockbackTrace.fn = () => {
+      if (nested++ > 0) return;
+      // mid outer pass: the same spec object is refilled for another blast and run at once
+      spec.x = 30;
+      spec.sourcePlayerId = "p1";
+      spec.grenadeId = 2;
+      explode(world, spec);
+    };
+    const h0 = p0.hp;
+    const h1 = p1.hp;
+    try {
+      explode(world, spec);
+    } finally {
+      knockbackTrace.fn = null;
+    }
+    world.events.flush();
+    expect(nested).toBeGreaterThan(1); // liveness: the nested blast really ran inside the outer one
+    for (const id of [...outer, ...inner]) expect(world.zombies.hp[id], `zombie ${id}`).toBe(1000 - GL.damage); // once each
+    const hits = of(events, "zombie.hit");
+    expect(hits.filter((e) => outer.includes(e.zombieId)).every((e) => e.sourceId === "p0")).toBe(true);
+    expect(hits.filter((e) => inner.includes(e.zombieId)).every((e) => e.sourceId === "p1")).toBe(true);
+    expect(hits).toHaveLength(13);
+    expect(h0 - p0.hp).toBe(20); // the outer player pass used the outer centre …
+    expect(h1 - p1.hp).toBe(20); // … the inner its own; nobody hit twice
+    const ex = of(events, "explosion.happened");
+    expect(ex.map((e) => [e.x, e.grenadeId, e.sourcePlayerId])).toEqual([
+      [30, 2, "p1"],
+      [10, 1, "p0"],
+    ]);
+  });
+
+  it("review L2: an ownerless round's blast is quiet too (no zombie.hit per body), kills still sent", () => {
+    const { world, events } = setup();
+    tough(world, spawnZombie(world, "walker", 20.5, 16));
+    spawnZombie(world, "walker", 19.5, 16);
+    explode(world, grenade(20, 16, { sourcePlayerId: null }));
+    world.events.flush();
+    expect(of(events, "zombie.hit")).toHaveLength(0);
+    expect(of(events, "zombie.killed")).toHaveLength(1);
   });
 });

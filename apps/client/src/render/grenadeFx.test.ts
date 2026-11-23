@@ -4,7 +4,7 @@ import { BlastParticles, Explosions, FLAME_CORE_FRAC, GrenadeFlights, P_DUST, P_
 import { scorchPixels } from "./city/blastFxAtlas";
 
 /** Story 5.5: the client's cosmetic rounds and explosions (AC 7, 15; FR-E: pending until the server agrees). */
-const launched = (playerId: string, grenadeId: number, flightTicks = 12, ageS = 0): SimEvent => ({ type: "grenade.launched", playerId, grenadeId, x: 0, y: 0, tx: 12, ty: 0, landTick: 0, flightTicks, ageS });
+const launched = (playerId: string, grenadeId: number, flightTicks = 12, ageS = 0, seq = 0): SimEvent => ({ type: "grenade.launched", playerId, grenadeId, x: 0, y: 0, tx: 12, ty: 0, landTick: 0, flightTicks, ageS, seq });
 const exploded = (grenadeId: number): SimEvent => ({ type: "explosion.happened", kind: 0, x: 12, y: 0, radiusM: 2, sourcePlayerId: "p1", grenadeId });
 const pose: RoundPose = { x: 0, y: 0, z: 0, heading: 0, landed: false };
 
@@ -35,10 +35,10 @@ describe("GrenadeFlights (Story 5.5)", () => {
     expect(f.count).toBe(0);
   });
 
-  it("my local instant copy is replaced by my server echo (id adopted, landing snapped), then burst by its id", () => {
+  it("my local instant copy is replaced by my server echo of the SAME shot (seq): id adopted, landing snapped, then burst by its id", () => {
     const f = new GrenadeFlights(4, "p0", 0.5);
-    f.launched("p0", 0, 0, 0, 12, 0, 12, 5); // local: no cover known
-    f.handle({ ...(launched("p0", 9) as Extract<SimEvent, { type: "grenade.launched" }>), tx: 8, ty: 0 }, 5.2);
+    f.launched("p0", 0, 0, 0, 12, 0, 12, 5, 41); // local: no cover known
+    f.handle({ ...(launched("p0", 9, 12, 0, 41) as Extract<SimEvent, { type: "grenade.launched" }>), tx: 8, ty: 0 }, 5.2);
     expect(f.count).toBe(1);
     expect(f.snaps).toBe(1);
     f.pose(0, 99, 1.5, pose);
@@ -46,6 +46,31 @@ describe("GrenadeFlights (Story 5.5)", () => {
     expect(f.startS[0]).toBe(5); // keeps its instant start
     f.handle(exploded(9), 6);
     expect(f.count).toBe(0);
+  });
+
+  it("review L1: the echo re-times my round's landing to the server's (render time): it lands as the blast is drawn, not before", () => {
+    const f = new GrenadeFlights(4, "p0", 0.5);
+    f.launched("p0", 0, 0, 0, 12, 0, 12, 5, 7); // local: lands at 5.6
+    expect(f.landS[0]).toBeCloseTo(5.6, 9);
+    f.handle(launched("p0", 3, 12, 0, 7), 5.34); // the echo drawn 0.34 s later (≈ ?lag=150 RTT + render delay)
+    expect(f.landS[0]).toBeCloseTo(5.34 + 12 * TICK_DT_S, 9); // = when the explosion event is drawn
+    f.pose(0, 5.6, 1.5, pose);
+    expect(pose.landed).toBe(false); // still flying where it used to lie on the ground
+    f.update(5.34 + 12 * TICK_DT_S + 0.49); // at 300 ms RTT it no longer runs out its lost timer before the blast
+    expect(f.count).toBe(1);
+    f.handle(exploded(3), 6);
+    expect(f.count).toBe(0);
+  });
+
+  it("review L1: a local copy of a shot the server never fired is not matched to the next shot's echo; it times out", () => {
+    const f = new GrenadeFlights(4, "p0", 0.5);
+    f.launched("p0", 0, 0, 0, 12, 0, 12, 5, 40); // a dry shot: no echo will come
+    f.launched("p0", 0, 0, 0, 12, 0, 12, 6.25, 65); // the next shot
+    f.handle(launched("p0", 4, 12, 0, 65), 6.5);
+    expect(Array.from(f.id).filter((v) => v !== -1).sort()).toEqual([0, 4]); // the orphan is still id 0
+    expect(f.seq[0]).toBe(40);
+    f.update(5 + 12 * TICK_DT_S + 0.51);
+    expect(f.count).toBe(1); // the orphan timed out, the matched one flies on
   });
 
   it("a build start drops every round (no ghost blasts after a slept tab); a stale launch starts back-dated", () => {

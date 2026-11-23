@@ -78,35 +78,57 @@ export function createExplosionSpec(): ExplosionSpec {
   return { x: 0, y: 0, radiusM: 0, zombieDamage: 0, playerDamage: 0, friendlyFire: true, buildingDamage: 0, pushM: 0, kind: "grenade", sourcePlayerId: null, weapon: "", buildingId: 0, quiet: false, grenadeId: 0, announce: true };
 }
 
-/** Review L2 (5.9): the blast's own target list (never the shared combat candidate buffer). */
-const blastTargets = new Int32Array(ZOMBIE_POOL_CAPACITY);
+/**
+ * Review M1 (5.5): `explode` is re-entrant. A blast can set off another inside it (a kill that a
+ * caller turns into a blast at once, or a test): every call captures its spec into locals at entry
+ * and takes its own slice of the target buffers (a stack: `top` is where the next nested call's
+ * slice starts), and the player pass reads the frame of the current depth. So a nested blast never
+ * overwrites the outer one's targets, centre or credit, and each body is still hit once per blast.
+ * Depth is bounded (`MAX_BLAST_DEPTH`; the 5.8 queue never runs a blast inline, so 1 is normal).
+ */
+export const MAX_BLAST_DEPTH = 8;
+/** Review L2 (5.9): the blasts' own target lists (never the shared combat candidate buffer); one slice per depth. */
+const blastTargets = new Int32Array(ZOMBIE_POOL_CAPACITY * MAX_BLAST_DEPTH);
+let targetTop = 0;
 /** Story 5.8: the buildings a blast reaches (ids; collected first: a destroyed one leaves the list). */
 const MAX_BLAST_BUILDINGS = 64;
-const buildingTargets = new Int32Array(MAX_BLAST_BUILDINGS);
+const buildingTargets = new Int32Array(MAX_BLAST_BUILDINGS * MAX_BLAST_DEPTH);
+let buildingTop = 0;
 
-/** What the last `explode` did (tests, sims, liveness asserts). */
+/** What the last finished `explode` did (tests, sims, liveness asserts; the outermost when nested). */
 export const blastResult = { zombiesHit: 0, zombiesKilled: 0, playersHit: 0, buildingsHit: 0 };
 /** Blasts so far, summed over every World (tests and sims: reset it first). */
 export const explosionCounters = { happened: 0, zombiesHit: 0, zombiesKilled: 0, playersHit: 0, playerDamage: 0, selfDamage: 0, friendlyDamage: 0 };
 
-/** Module-level state of the player pass (no closure per call). */
-const pass = { world: null as World | null, spec: null as ExplosionSpec | null };
+/** One blast's captured spec and counts (preallocated per depth: no allocation per blast). */
+interface BlastFrame {
+  world: World | null;
+  x: number;
+  y: number;
+  radiusM: number;
+  playerDamage: number;
+  ffSource: string | null;
+  source: string | null;
+  playersHit: number;
+}
+const frames: BlastFrame[] = Array.from({ length: MAX_BLAST_DEPTH }, () => ({ world: null, x: 0, y: 0, radiusM: 0, playerDamage: 0, ffSource: null, source: null, playersHit: 0 }));
+let depth = 0;
 
 const blastPlayer = (p: PlayerState): void => {
-  const world = pass.world as World;
-  const s = pass.spec as ExplosionSpec;
-  const dx = p.x - s.x;
-  const dy = p.y - s.y;
-  const reach = s.radiusM + p.radiusM;
+  const f = frames[depth - 1] as BlastFrame;
+  const world = f.world as World;
+  const dx = p.x - f.x;
+  const dy = p.y - f.y;
+  const reach = f.radiusM + p.radiusM;
   if (dx * dx + dy * dy >= reach * reach) return; // FR-C overlap
-  if (!shotLineClear(world, s.x, s.y, p.x, p.y)) return; // FR-C: cover shields
-  const taken = damagePlayerBy(world, p, s.playerDamage, "explosion", s.friendlyFire ? s.sourcePlayerId : null);
+  if (!shotLineClear(world, f.x, f.y, p.x, p.y)) return; // FR-C: cover shields
+  const taken = damagePlayerBy(world, p, f.playerDamage, "explosion", f.ffSource);
   if (taken > 0) {
-    blastResult.playersHit++;
+    f.playersHit++;
     explosionCounters.playersHit++;
     explosionCounters.playerDamage += taken;
-    if (s.sourcePlayerId === p.id) explosionCounters.selfDamage += taken;
-    else if (s.sourcePlayerId !== null) explosionCounters.friendlyDamage += taken;
+    if (f.source === p.id) explosionCounters.selfDamage += taken;
+    else if (f.source !== null) explosionCounters.friendlyDamage += taken;
   }
 };
 
@@ -118,84 +140,117 @@ export function damagePlayerByExplosion(world: World, p: PlayerState, amount: nu
   return damagePlayerBy(world, p, amount, "explosion", null) > 0;
 }
 
-/** A blast per `spec` (see the module rules). Returns how many zombies it hit. */
-export function explode(world: World, spec: ExplosionSpec): number {
-  blastResult.zombiesHit = 0;
-  blastResult.zombiesKilled = 0;
-  blastResult.playersHit = 0;
-  blastResult.buildingsHit = 0;
-  const { x, y, radiusM } = spec;
-  const z = world.zombies;
-  let n = 0;
-  for (let k = 0; k < z.aliveCount; k++) {
-    const id = z.aliveIds[k] as number;
-    const rz = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
-    const zx = z.x[id] as number;
-    const zy = z.y[id] as number;
-    const dx = zx - x;
-    const dy = zy - y;
-    const reach = radiusM + rz;
-    if (dx * dx + dy * dy >= reach * reach) continue;
-    if (!shotLineClear(world, x, y, zx, zy)) continue; // FR-C
-    blastTargets[n++] = id;
-  }
-  for (let k = 0; k < n; k++) {
-    const id = blastTargets[k] as number;
-    const dx = (z.x[id] as number) - x;
-    const dy = (z.y[id] as number) - y;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    const ux = d > 1e-6 ? dx / d : 1;
-    const uy = d > 1e-6 ? dy / d : 0;
-    blastResult.zombiesHit++;
-    const killed =
-      spec.quiet && spec.sourcePlayerId !== null && spec.buildingId === 0
-        ? applyZombieDamageQuiet(world, id, spec.zombieDamage, ux, uy, 0, spec.sourcePlayerId, spec.weapon)
-        : applyZombieDamage(world, id, spec.zombieDamage, ux, uy, 0, spec.sourcePlayerId, spec.weapon, spec.buildingId);
-    if (killed) blastResult.zombiesKilled++;
-    else if (spec.pushM > 0 && isZombieAlive(z, id)) {
-      // D5: straight out, swept (stops at the first face; the Brute takes its share inside).
-      knockbacks.applied++;
-      if (applyKnockback(world, id, ux, uy, spec.pushM) < spec.pushM * 0.999) knockbacks.stopped++;
+/** A blast per `spec` (see the module rules). Returns how many zombies it hit. Re-entrant (review M1). */
+export function explode(world: World, spec: Readonly<ExplosionSpec>): number {
+  if (depth >= MAX_BLAST_DEPTH) throw new Error(`explode: blasts nested deeper than ${MAX_BLAST_DEPTH}`);
+  // Capture the spec: a caller may reuse (and a nested blast refill) the same spec object.
+  const x = spec.x;
+  const y = spec.y;
+  const radiusM = spec.radiusM;
+  const zombieDamage = spec.zombieDamage;
+  const pushM = spec.pushM;
+  const source = spec.sourcePlayerId;
+  const weapon = spec.weapon;
+  const buildingId = spec.buildingId;
+  const quiet = spec.quiet;
+  const buildingDamage = spec.buildingDamage;
+  const kind = spec.kind;
+  const grenadeId = spec.grenadeId;
+  const announce = spec.announce;
+  const f = frames[depth] as BlastFrame;
+  f.world = world;
+  f.x = x;
+  f.y = y;
+  f.radiusM = radiusM;
+  f.playerDamage = spec.playerDamage;
+  f.ffSource = spec.friendlyFire ? source : null;
+  f.source = source;
+  f.playersHit = 0;
+  depth++;
+  const base = targetTop;
+  let zombiesHit = 0;
+  let zombiesKilled = 0;
+  let buildingsHit = 0;
+  try {
+    const z = world.zombies;
+    let n = 0;
+    for (let k = 0; k < z.aliveCount; k++) {
+      const id = z.aliveIds[k] as number;
+      const rz = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
+      const zx = z.x[id] as number;
+      const zy = z.y[id] as number;
+      const dx = zx - x;
+      const dy = zy - y;
+      const reach = radiusM + rz;
+      if (dx * dx + dy * dy >= reach * reach) continue;
+      if (!shotLineClear(world, x, y, zx, zy)) continue; // FR-C
+      blastTargets[base + n++] = id;
     }
+    targetTop = base + n; // a nested blast takes the slice after this one
+    for (let k = 0; k < n; k++) {
+      const id = blastTargets[base + k] as number;
+      if (!isZombieAlive(z, id)) continue; // killed meanwhile by a nested blast (its hit was that blast's)
+      const dx = (z.x[id] as number) - x;
+      const dy = (z.y[id] as number) - y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const ux = d > 1e-6 ? dx / d : 1;
+      const uy = d > 1e-6 ? dy / d : 0;
+      zombiesHit++;
+      // Review L2: quiet for every player-weapon blast, an ownerless round's too (no zombie.hit per body).
+      const killed =
+        quiet && buildingId === 0
+          ? applyZombieDamageQuiet(world, id, zombieDamage, ux, uy, 0, source, weapon)
+          : applyZombieDamage(world, id, zombieDamage, ux, uy, 0, source, weapon, buildingId);
+      if (killed) zombiesKilled++;
+      else if (pushM > 0 && isZombieAlive(z, id)) {
+        // D5: straight out, swept (stops at the first face; the Brute takes its share inside).
+        knockbacks.applied++;
+        if (applyKnockback(world, id, ux, uy, pushM) < pushM * 0.999) knockbacks.stopped++;
+      }
+    }
+    world.players.forEach(blastPlayer); // reads frames[depth - 1]: this blast's, nested ones restore it
+    if (buildingDamage > 0) buildingsHit = blastBuildings(world, x, y, radiusM, buildingDamage);
+  } finally {
+    targetTop = base;
+    depth--;
+    f.world = null;
   }
-  pass.world = world;
-  pass.spec = spec;
-  world.players.forEach(blastPlayer);
-  pass.world = null;
-  pass.spec = null;
-  if (spec.buildingDamage > 0) blastBuildings(world, spec);
+  blastResult.zombiesHit = zombiesHit;
+  blastResult.zombiesKilled = zombiesKilled;
+  blastResult.playersHit = f.playersHit;
+  blastResult.buildingsHit = buildingsHit;
   explosionCounters.happened++;
-  explosionCounters.zombiesHit += blastResult.zombiesHit;
-  explosionCounters.zombiesKilled += blastResult.zombiesKilled;
-  if (!spec.announce) return blastResult.zombiesHit;
-  world.events.emit({
-    type: "explosion.happened",
-    kind: EXPLOSION_KINDS.indexOf(spec.kind),
-    x,
-    y,
-    radiusM,
-    sourcePlayerId: spec.sourcePlayerId,
-    grenadeId: spec.grenadeId,
-  });
-  return blastResult.zombiesHit;
+  explosionCounters.zombiesHit += zombiesHit;
+  explosionCounters.zombiesKilled += zombiesKilled;
+  if (!announce) return zombiesHit;
+  world.events.emit({ type: "explosion.happened", kind: EXPLOSION_KINDS.indexOf(kind), x, y, radiusM, sourcePlayerId: source, grenadeId });
+  return zombiesHit;
 }
 
-/** Wall buildings whose box the blast circle overlaps with a clear line to its nearest point (collected, then damaged). */
-function blastBuildings(world: World, spec: ExplosionSpec): void {
+/** Wall buildings whose box the blast circle overlaps with a clear line to its nearest point (collected, then damaged). Returns how many. */
+function blastBuildings(world: World, x: number, y: number, radiusM: number, amount: number): number {
   const list = world.buildings.list;
+  const base = buildingTop;
   let n = 0;
   for (let i = 0; i < list.length && n < MAX_BLAST_BUILDINGS; i++) {
     const b = list[i] as Building;
-    if (!b.solid || distanceToBox(spec.x, spec.y, b.minX, b.minY, b.maxX, b.maxY) >= spec.radiusM) continue;
-    const nx = Math.min(b.maxX, Math.max(b.minX, spec.x));
-    const ny = Math.min(b.maxY, Math.max(b.minY, spec.y));
-    if (!shotLineClear(world, spec.x, spec.y, nx, ny)) continue; // a car between: shielded
-    buildingTargets[n++] = b.id;
+    if (!b.solid || distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) >= radiusM) continue;
+    const nx = Math.min(b.maxX, Math.max(b.minX, x));
+    const ny = Math.min(b.maxY, Math.max(b.minY, y));
+    if (!shotLineClear(world, x, y, nx, ny)) continue; // a car between: shielded
+    buildingTargets[base + n++] = b.id;
   }
-  for (let k = 0; k < n; k++) {
-    const b = buildingById(world, buildingTargets[k] as number);
-    if (!b) continue;
-    blastResult.buildingsHit++;
-    damageBuilding(world, b, spec.buildingDamage);
+  buildingTop = base + n;
+  let hit = 0;
+  try {
+    for (let k = 0; k < n; k++) {
+      const b = buildingById(world, buildingTargets[base + k] as number);
+      if (!b) continue;
+      hit++;
+      damageBuilding(world, b, amount);
+    }
+  } finally {
+    buildingTop = base;
   }
+  return hit;
 }

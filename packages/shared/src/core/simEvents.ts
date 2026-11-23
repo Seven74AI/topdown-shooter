@@ -135,7 +135,7 @@ export type SimEvent =
    * (tx, ty) — the aim point, or in front of the first car / bus / building on its track — on
    * server tick `landTick`. The client flies a cosmetic round from this (no per-tick state).
    */
-  | { type: "grenade.launched"; playerId: string; grenadeId: number; x: number; y: number; tx: number; ty: number; landTick: number; /** landTick − the launch tick (the wire carries this, u8). */ flightTicks: number; /** Client only (never on the wire): seconds since the server tick, set by NetSimHost on drain. */ ageS?: number }
+  | { type: "grenade.launched"; playerId: string; grenadeId: number; x: number; y: number; tx: number; ty: number; landTick: number; /** landTick − the launch tick (the wire carries this, u8). */ flightTicks: number; /** Review L1: the 16-bit input seq of the shot (the shooter's client matches its instant copy by it). */ seq: number; /** Client only (never on the wire): seconds since the server tick, set by NetSimHost on drain. */ ageS?: number }
   /**
    * Story 5.5 (shared with 5.8, 5.9, 5.12): a blast of `radiusM` at (x, y) (`EXPLOSION_KINDS[kind]`),
    * set off by `sourcePlayerId` (null: no player, or one who left). Its hits, kills and player

@@ -164,7 +164,7 @@ const target = createLobTarget();
  * Lobs one round for `p` (the launcher branch of `tryFire`). Returns false when the pool is full
  * (then nothing is spent: no ammo, no cooldown, no events; counted in `grenadeCounters.poolFull`).
  */
-export function launchGrenade(world: World, p: PlayerState, weapon: WeaponId, level: number, stats: Readonly<LauncherStats>, dirX: number, dirY: number, aimLen: number): boolean {
+export function launchGrenade(world: World, p: PlayerState, weapon: WeaponId, level: number, stats: Readonly<LauncherStats>, dirX: number, dirY: number, aimLen: number, seq = 0): boolean {
   const pool = world.grenades;
   if (pool.count >= pool.capacity) {
     grenadeCounters.poolFull++;
@@ -195,6 +195,7 @@ export function launchGrenade(world: World, p: PlayerState, weapon: WeaponId, le
     ty: target.y,
     landTick: pool.landTick[i] as number,
     flightTicks: (pool.landTick[i] as number) - world.tick,
+    seq: seq & 0xffff,
   });
   return true;
 }
