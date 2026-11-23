@@ -3,7 +3,7 @@ baseline_commit: 26bab2b
 ---
 # Story 5.2: Fire Axe and Chainsaw
 
-Status: review
+Status: done
 
 ## Story
 
@@ -298,3 +298,7 @@ knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before:
 - 2026-11-23: Story 5.2 built (Fire Axe with swept 1.5 m knockback through 5.3's helper, Chainsaw with quiet hits and a predicted 20 % wielder slow, AX1/CS1 art in game code, sparks/arc/rev effects, fuzz near cover, bandwidth and tick-cost tests, netsim); status → review.
 - 2026-11-23: merged the work branch (5.1 upgrades, 4.12); axe/Chainsaw damage through `weaponDamage`; gate green.
 - 2026-11-23: review fixes M1 (cut flash + sound), M2 (rev stops in a hidden tab / on shutdown), L3 (rev retries until audio runs); designer rule F7: melee blocked by walls, cars and wall buildings.
+
+### Re-review of the fixes (2026-11-23, fresh agent)
+
+No high or medium findings at b4f36c0. F7 (melee can't hit through barricades and walls): every melee hit goes through `swingMelee` (server with rewound positions, solo, bots); the client cosmetic path `zombiesInArc` uses the same `meleeLineClear`; the mirror world has the same blockers; knockback only inside the hit branch. M2/L3 correct (listener removed in `dispose`). 4 mutations, all caught. Gate green (1,786 tests). Lows **accepted** by the main session: (a) centre-to-centre line means a Brute (0.6 m) whose centre is behind a car corner can't be hit even if its body sticks out (designer's rule; client and server agree); (b) a cut flashes every zombie the observer sees in the arc, not only the server's hits, and zombies killed by the cut don't flash (cosmetic); (c) the "spike trap or a mine" test never adds a mine. Status: done once on master.
