@@ -79,7 +79,7 @@ import type { NetSession } from "../net/session";
 import type { HudSceneData } from "./HudScene";
 import type { BootSceneData } from "./BootScene";
 import { urlOptions } from "../debug/urlOptions";
-import { clientBalance } from "../debug/clientBalance";
+import { clientBalance, soloBalance } from "../debug/clientBalance";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
@@ -278,8 +278,9 @@ export class GameScene extends Phaser.Scene {
     this.mode = session ? "online" : "solo";
     const opts = urlOptions();
     // ?tune=1: the live tuning values from the panel (validated like any balance change). Online
-    // always plays the bundled balance: the server checked that version at join.
-    const balance: Balance = opts.tune && !session ? tunedBalance() : clientBalance();
+    // always plays the bundled balance: the server checked that version at join. Solo: `?wallet`
+    // works in release builds too (designer 2026-11-23, soloBalance).
+    const balance: Balance = session ? clientBalance() : opts.tune ? tunedBalance() : soloBalance();
     const stickRadiusCss = opts.tune ? getTuning().stickRadiusCssPx : STICK_RADIUS_CSS_PX;
     const soloSeed = data?.mode !== "online" && data?.seed !== undefined ? data.seed >>> 0 : undefined;
     // Story 2.7: the reversed-hit counter runs in dev builds, and in release while the overlay is on.

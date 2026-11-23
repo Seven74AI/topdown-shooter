@@ -37,8 +37,9 @@ export interface UrlOptions {
    */
   zombieDamageScale: number | null;
   /**
-   * `?wallet=2000` (Story 3.3, dev builds only, like `?zdmg`): every starting wallet for shop checks;
-   * the server must run with the same `DEV_STARTING_WALLET`. null when absent.
+   * `?wallet=2000` (Story 3.3): every starting wallet for shop checks. Dev builds: solo and online
+   * (the server must run with the same `DEV_STARTING_WALLET`). Release builds: SOLO runs only
+   * (designer 2026-11-23, `soloBalance`); online ignores it. null when absent.
    */
   startingWallet: number | null;
   /**
@@ -52,7 +53,7 @@ export interface UrlOptions {
    */
   waveMix: string | null;
   /**
-   * `?seed=<uint32>` (Story 4.4, dev builds only, like `?wallet`): the host's Create asks the server
+   * `?seed=<uint32>` (Story 4.4, dev builds only, like `?zdmg`): the host's Create asks the server
    * for this run seed; honoured only by a dev server with `DEV_ALLOW_RUN_SEED=1`. null when absent.
    */
   runSeed: number | null;
