@@ -8,7 +8,11 @@
       "price": 40,
       "widthM": 2,
       "depthM": 0.5,
-      "hp": 200
+      "hp": 200,
+      "upgradesTo": {
+        "type": "reinforced_barricade",
+        "price": 50
+      }
     },
     "auto_turret": {
       "name": "Auto-turret",
@@ -24,6 +28,54 @@
         "projectileRangeM": 9,
         "muzzleM": 0.5,
         "hitPushbackM": 0.05
+      }
+    },
+    "reinforced_barricade": {
+      "name": "Reinforced barricade",
+      "price": 90,
+      "widthM": 2,
+      "depthM": 0.5,
+      "hp": 350,
+      "forSale": false,
+      "upgradesTo": {
+        "type": "metal_barricade",
+        "price": 70
+      }
+    },
+    "metal_barricade": {
+      "name": "Metal barricade",
+      "price": 160,
+      "widthM": 2,
+      "depthM": 0.5,
+      "hp": 600,
+      "forSale": false
+    },
+    "spike_trap": {
+      "name": "Spike trap",
+      "price": 80,
+      "widthM": 2,
+      "depthM": 2,
+      "hp": 300,
+      "solid": false,
+      "trap": {
+        "damagePerS": 4,
+        "pulseS": 0.5,
+        "slowPct": 40,
+        "wearPerHit": 1
+      }
+    },
+    "mine": {
+      "name": "Mine",
+      "price": 60,
+      "widthM": 0.5,
+      "depthM": 0.5,
+      "hp": 1,
+      "solid": false,
+      "mine": {
+        "triggerRadiusM": 1,
+        "blastRadiusM": 2.5,
+        "damage": 80,
+        "playerShare": 0.5
       }
     }
   }

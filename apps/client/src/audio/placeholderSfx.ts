@@ -11,10 +11,15 @@ export type SfxName =
   | "zombie_hit"
   | "building_repaired"
   | "turret_fire"
-  | "zombie_runner_shriek";
+  | "zombie_runner_shriek"
+  | "building_mine_blast"
+  | "building_upgraded";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
+/** Story 5.9: mines going off in the same instant make one blast sound. */
+const BLAST_MIN_INTERVAL_S = 0.08;
+let lastBlastAt = -1;
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -189,6 +194,16 @@ export function playSfx(name: SfxName, pan = 0): void {
       break;
     case "zombie_runner_shriek":
       shriek(c, t, pan);
+      break;
+    case "building_mine_blast": // Story 5.9: a deep thump with a noisy tail (rate-limited: a field of mines)
+      if (t - lastBlastAt < BLAST_MIN_INTERVAL_S) return;
+      lastBlastAt = t;
+      burst(c, t, 0.35, 1, 180);
+      burst(c, t + 0.02, 0.2, 0.6, 900);
+      break;
+    case "building_upgraded": // Story 5.9: a metallic clank
+      click(c, t, 1800, 0.4);
+      burst(c, t + 0.05, 0.08, 0.5, 2600);
       break;
     case "turret_fire": // Story 3.6: a soft, high, short tick (quieter than a gun)
       if (t - lastTurretAt < TURRET_MIN_INTERVAL_S) return;

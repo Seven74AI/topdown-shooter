@@ -1,9 +1,9 @@
-import { addBuildingAt, removeBuilding, type Building, type BuildingRotation, type BuildingStateView, type ReadonlyMapView, type World } from "@topdown/shared";
+import { addBuildingAt, removeBuilding, setBuildingType, type Building, type BuildingRotation, type BuildingStateView, type ReadonlyMapView, type World } from "@topdown/shared";
 
 /**
  * Story 3.4: the room state's buildings → a client World (the NetSimHost mirror, which draws them and
  * checks the placement preview, and the Predictor's World, whose `movePlayers` must collide with
- * exactly the server's buildings). Adds and removes by id (the map key), copies HP; the World's list
+ * exactly the server's buildings). Adds and removes by id (the map key), copies HP and (Story 5.9) a type change; the World's list
  * stays sorted by id, so collision visits them in the server's order. Module-level callbacks and a
  * generation counter: no allocation per call unless a building appears (rare).
  */
@@ -30,6 +30,8 @@ const visit = (s: BuildingStateView, key: string): void => {
     addBuildingAt(world, { id, type: s.type, ownerId: s.owner, gx: s.gx, gy: s.gy, rot, hp: s.hp });
     return;
   }
+  // Story 5.9: an upgrade changes the type in place (same id and footprint: collision is unchanged).
+  if (b.type !== s.type) setBuildingType(world, b, s.type, s.hp);
   if (b.hp !== s.hp) b.hp = s.hp;
 };
 

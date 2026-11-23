@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
+import { trapCounters } from "../buildings/trap";
+import { mineCounters } from "../buildings/mine";
 
 /**
  * Story 3.10 (AC 5, 7, 8): the seeded 5-wave run with 2/3/4 bots, the real balance (waves.json
@@ -57,5 +59,35 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
       `[five-wave sim] GDD target cut to 5 waves: earned ≈ 650–790 per player\n${lines.join("\n")}\n${summary.join("\n")}`,
     );
+  }, 180_000);
+});
+
+describe("five-wave bot sim with spike traps and mines (Story 5.9, task 8.2)", () => {
+  /** A test-local shopping list (bots.json stays untouched): the SMG, then traps and mines, then barricades. */
+  const LIST = ["smg", "spike_trap", "mine", "spike_trap", "mine", "wood_barricade", "wood_barricade"];
+  it("every run ends (held out or wiped, never the tick limit); traps and mines really fired; earnings vs spend logged", () => {
+    trapCounters.pulses = trapCounters.kills = trapCounters.wornOut = 0;
+    mineCounters.exploded = 0;
+    const lines: string[] = [];
+    let placed = 0;
+    for (const players of [2, 4]) {
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance, seed, players, list: LIST });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
+        for (const w of r.waves.slice(0, r.wavesCleared)) expect(w.size).toBeGreaterThan(0);
+        placed += r.buildingsPlaced.reduce((a, b) => a + b, 0);
+        const earned = r.earned.reduce((a, b) => a + b, 0);
+        const spent = r.spent.reduce((a, b) => a + b, 0);
+        lines.push(`${formatRunLine(r)} | team earned ${earned}, spent ${spent}`);
+      }
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
+      `[five-wave sim 5.9] list ${LIST.join(",")}: ${placed} buildings placed, ${trapCounters.pulses} spike hits, ${trapCounters.kills} trap kills, ${trapCounters.wornOut} worn out, ${mineCounters.exploded} mines exploded\n${lines.join("\n")}`,
+    );
+    expect(placed).toBeGreaterThan(0);
+    expect(trapCounters.pulses).toBeGreaterThan(0); // liveness: the traps really worked in real waves
+    expect(mineCounters.exploded).toBeGreaterThan(0);
   }, 180_000);
 });

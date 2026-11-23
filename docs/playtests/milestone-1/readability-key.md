@@ -17,5 +17,9 @@ Scoring for the 4.10 decision rule: an object is **readable** when ≥ 3 of 4 pl
 | 11 | `13_turret.png` | turret (player-built) | through | |
 | 12 | `11_rain_overall.png` | rain / puddles (night, stage 3) | n/a | mood check, not an object |
 | 13–15 | `14_walker.png`, `15_runner.png`, `16_crawler.png` | Walker (pale, slow), Runner (red, fast, flanks), Crawler (green, low, slows on bite) | n/a | Epic 3 check: can they tell them apart? |
+| 16 | `17_reinforced_barricade.png` | reinforced barricade (player-built, wood tier 2, B8 look) | **through** (stops bodies only) | walk on it: no. Story 5.9 |
+| 17 | `18_metal_barricade.png` | metal barricade (tier 3; placeholder art, redesign pending) | **through** (stops bodies only) | walk on it: no. Story 5.9 |
+| 18 | `19_spike_trap.png` | spike trap (nail board, floor) | **through** | walk on it: yes (players unharmed); zombies hurt + slowed. Story 5.9 |
+| 19 | `20_mine.png` | mine (floor, single use; placeholder art) | **through** | walk on it: yes (players never set it off); inner ring = a zombie touching it sets it off, outer ring = blast (hurts you 40 too). Story 5.9 |
 
 Pictures: Playwright, solo dev build, 844×390 at 2×, HUD and survivor hidden, normal zoom (2026-11-23). The helper noted: shop fronts other than the diner and kiosk barely glow; the streetlight is a small dot; rain is faint in a still frame; zombies are ~0.7 m across and differ mainly by colour; barricade and sandbags are both low and brownish; the turret reads as a box with a stub; a moved car looks like any parked car.

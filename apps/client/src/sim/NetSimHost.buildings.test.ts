@@ -67,6 +67,33 @@ describe("NetSimHost buildings (Story 3.4)", () => {
     expect(host.takePlaceRefusal()).toBeNull();
   });
 
+  it("Story 5.9: upgradeBuilding sends building.upgrade; the mirror (and the predictor) show the new tier only when the state does; a refusal comes back once", () => {
+    const { room, host } = setup();
+    room.state.buildings.set("4", wood({ owner: "p1" }));
+    room.patch();
+    host.update(1 / 60);
+    host.upgradeBuilding(4);
+    expect(room.sentOf(C2S.BUILDING_UPGRADE)).toEqual([{ id: 4 }]);
+    host.update(1 / 60);
+    expect(host.world.buildings.list[0]?.type).toBe("wood_barricade"); // pending: nothing predicted
+    const b = room.state.buildings.get("4");
+    if (b) {
+      b.type = "reinforced_barricade";
+      b.hp = 350;
+    }
+    room.state.tick = 2;
+    room.patch();
+    host.update(1 / 60);
+    const m = host.world.buildings.list[0];
+    expect([m?.id, m?.type, m?.hp, m?.maxHp, m?.solid]).toEqual([4, "reinforced_barricade", 350, 350, true]);
+    expect(host.predictor.buildingCount).toBe(1);
+    room.deliver(S2C.BUILDING_UPGRADE_REFUSED, { id: 4, reason: "money" });
+    expect(host.takeUpgradeRefusal()).toBe("money");
+    expect(host.takeUpgradeRefusal()).toBeNull();
+    room.deliver(S2C.BUILDING_UPGRADE_REFUSED, { id: 4, reason: "bogus" });
+    expect(host.takeUpgradeRefusal()).toBeNull();
+  });
+
   it("the dev throttle copies buildings (all BUILDING_STATE_FIELDS) and drops removed ones", () => {
     const room = new FakeRoom(fakeState([fakePlayer(0)]));
     room.state.buildings.set("1", wood({ hp: 120, rot: 2 }));

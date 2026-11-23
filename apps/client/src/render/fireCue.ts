@@ -1,4 +1,4 @@
-import type { SimEvent } from "@topdown/shared";
+import { DAMAGE_SOURCE_FIRE, type SimEvent } from "@topdown/shared";
 
 /**
  * Story 4.8: how long after the server's last fire hit (`player.damaged` with no zombie source) a
@@ -7,9 +7,9 @@ import type { SimEvent } from "@topdown/shared";
  */
 export const FIRE_CUE_MS = 700;
 
-/** A `player.damaged` event that came from fire (Story 4.8: the only zombie-less damage source). */
+/** A `player.damaged` event that came from fire (Story 4.8; Story 5.9: a blast is -2, not fire). */
 export function isFireHit(e: SimEvent): e is Extract<SimEvent, { type: "player.damaged" }> {
-  return e.type === "player.damaged" && e.sourceZombieId < 0;
+  return e.type === "player.damaged" && e.sourceZombieId === DAMAGE_SOURCE_FIRE;
 }
 
 /**

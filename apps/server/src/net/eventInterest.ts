@@ -23,6 +23,9 @@ import {
  *   flight (muzzle + direction × `projectileRangeM`);
  * - a turret's non-killing `zombie.hit` (the hit flash): the zombie's position or the turret's centre.
  *
+ * - Story 5.9: `mine.exploded` (the blast FX): the mine's centre. A mine's non-killing hits are
+ *   turret-style building hits (above). `building.upgraded` stays global (money / HUD).
+ *
  * A client gets a local event only if one of its two points lies in that client's horde view rect
  * (Story 2.5 `viewRect` around `viewTargetFor`, + `HORDE_VIEW_MARGIN_M`). Everything else (kills,
  * money, buildings, waves, players' shots…) stays reliable to everyone, in emit order. A killing
@@ -61,6 +64,8 @@ export class EventInterest {
         const b = buildingById(world, e.buildingId);
         const range = b ? (turretStats(world.balance, b.type)?.projectileRangeM ?? 0) : 0;
         this.setLocal(k, b ? buildingCentreX(b) : e.x, b ? buildingCentreY(b) : e.y, e.x + e.dirX * range, e.y + e.dirY * range);
+      } else if (e.type === "mine.exploded") {
+        this.setLocal(k, e.x, e.y, e.x, e.y); // Story 5.9: the blast FX is local (the removal is schema, for everyone)
       } else if (e.type === "zombie.hit" && e.buildingId !== undefined) {
         const next = events[i + 1];
         const kills = next !== undefined && next.type === "zombie.killed" && next.zombieId === e.zombieId;

@@ -49,6 +49,11 @@ export interface UrlOptions {
    * for this run seed; honoured only by a dev server with `DEV_ALLOW_RUN_SEED=1`. null when absent.
    */
   runSeed: number | null;
+  /**
+   * `?stressbuild=traps` (Story 5.9, release-safe, only with `?stress`): 24 spike traps and mines laid
+   * round the survivor for the phone benchmark with the new floor buildings active; false otherwise.
+   */
+  stressBuild: boolean;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -80,6 +85,7 @@ export function parseUrlOptions(search: string): UrlOptions {
     scenario: parseScenario(q.get("scenario")),
     waveMix: q.get("wavemix"),
     runSeed: parseRunSeed(q.get("seed")),
+    stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
   };
 }
 

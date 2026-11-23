@@ -6,6 +6,13 @@ export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund"] as c
 export type MoneyReason = (typeof MONEY_REASONS)[number];
 
 /**
+ * `player.damaged.sourceZombieId` below 0: not a zombie's bite. Story 4.8: -1 = a fire pulse (the
+ * client's burn cue); Story 5.9: -2 = a blast (mines; 5.5/5.8/5.12 reuse it: no burn cue).
+ */
+export const DAMAGE_SOURCE_FIRE = -1;
+export const DAMAGE_SOURCE_EXPLOSION = -2;
+
+/**
  * Every event the simulation can emit (architecture › Event System).
  * Naming: domain.past_tense in snake case. Each story adds its own variants.
  */
@@ -72,6 +79,13 @@ export type SimEvent =
    * shows the stage's name as a banner (the map itself follows the room state).
    */
   | { type: "decay.stage_changed"; stage: number; from: number }
+  /**
+   * Story 5.9: `playerId` upgraded their building `buildingId` to `toType` for `cost` (the step
+   * price); (x, y) = its footprint's centre. FX + HUD only (type, HP and wallet come from schema).
+   */
+  | { type: "building.upgraded"; buildingId: number; playerId: string; cost: number; toType: string; x: number; y: number }
+  /** Story 5.9: mine `buildingId` went off at (x, y) (already removed; its hits/kills follow as events). */
+  | { type: "mine.exploded"; buildingId: number; x: number; y: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

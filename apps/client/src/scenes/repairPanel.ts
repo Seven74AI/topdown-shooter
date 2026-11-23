@@ -1,4 +1,4 @@
-import { buildingAtPoint, buildingById, buildingStats, repairCost, repairError, type RepairError, type World } from "@topdown/shared";
+import { buildingAtPoint, buildingById, buildingStats, repairCost, repairError, upgradeError, upgradeStep, type RepairError, type UpgradeError, type World } from "@topdown/shared";
 
 /** A tap this close to a building (m, each side of its footprint) selects it: a 0.5 m barricade is thin under a finger. */
 export const BUILDING_TAP_TOLERANCE_M = 0.4;
@@ -16,6 +16,24 @@ export function repairRefusalText(e: RepairError): string {
       return "That building is gone";
     case "unknown_player":
       return "Can't repair that";
+  }
+}
+
+/** Player text for a refused (or predicted-refused) upgrade (Story 5.9). */
+export function upgradeRefusalText(e: UpgradeError): string {
+  switch (e) {
+    case "money":
+      return "Not enough money";
+    case "not_owner":
+      return "Only its builder can upgrade it";
+    case "not_upgradable":
+      return "Already the strongest";
+    case "not_build_phase":
+      return "Only during the build phase";
+    case "gone":
+      return "That building is gone";
+    case "unknown_player":
+      return "Can't upgrade that";
   }
 }
 
@@ -43,6 +61,20 @@ export class RepairPanel {
   private shownMaxHp = -1;
   private shownCost = -1;
   private shownError: RepairError | null | undefined = undefined;
+  /**
+   * Story 5.9: the Upgrade button, shown only on MY buildings that have a next tier (or while my
+   * upgrade is pending). `upgradeLabel` "Upgrade $50"; the next tier's name and HP are the info's
+   * third line ("→ Reinforced barricade · 350 HP"); `upgradeReason` why it would be refused.
+   */
+  upgradeShown = false;
+  upgradeLabel = "";
+  upgradeReason = "";
+  upgradeErrorNow: UpgradeError | null = null;
+  /** Story 5.9 (brief 14): the type I asked to upgrade FROM; "Upgrading…" until the World's type differs (or a refusal clears it). */
+  private pendingFrom: string | null = null;
+  private shownPending = false;
+  private shownType = "";
+  private shownUpgradeError: UpgradeError | null | undefined = undefined;
   /** `world.waves.number` when the panel opened (a new wave closes it, even one a hidden tab slept through). */
   private openedAtWave = -1;
 
@@ -55,10 +87,31 @@ export class RepairPanel {
     const b = Number.isFinite(x) && Number.isFinite(y) ? buildingAtPoint(world, x, y, BUILDING_TAP_TOLERANCE_M) : null;
     this.id = b ? b.id : 0;
     this.openedAtWave = world.waves.number;
+    this.pendingFrom = null;
   }
 
   close(): void {
     this.id = 0;
+    this.pendingFrom = null;
+  }
+
+  /** Story 5.9: Upgrade: the id to send (0 = nothing to send: closed, pending, or not mine). The panel stays open, pending. */
+  pressUpgrade(world: Readonly<World>): number {
+    if (this.id === 0 || this.pendingFrom !== null || !this.upgradeShown) return 0;
+    const b = buildingById(world, this.id);
+    if (!b) return 0;
+    this.pendingFrom = b.type;
+    return this.id;
+  }
+
+  /** Story 5.9: the server refused my upgrade (or solo did): no longer pending. */
+  upgradeRefused(): void {
+    this.pendingFrom = null;
+  }
+
+  /** Story 5.9: an upgrade is waiting for the World to show the new tier. */
+  get upgradePending(): boolean {
+    return this.pendingFrom !== null;
   }
 
   /** Repair: the id to send (0 when closed); the panel closes either way. */
@@ -84,11 +137,28 @@ export class RepairPanel {
       this.id = 0; // repairs over for now, or destroyed meanwhile (Story 3.5)
       return false;
     }
+    if (this.pendingFrom !== null && b.type !== this.pendingFrom) this.pendingFrom = null; // the state shows the new tier
+    const pending = this.pendingFrom !== null;
+    const step = b.ownerId === playerId ? upgradeStep(world, b.type) : null;
+    this.upgradeErrorNow = step ? upgradeError(world, playerId, b.id) : null;
+    this.upgradeShown = pending || step !== null;
     this.error = repairError(world, playerId, b.id);
     const cost = repairCost(world.balance, b.type);
     const hp = Math.ceil(b.hp);
-    if (b.id !== this.shownId || hp !== this.shownHp || b.maxHp !== this.shownMaxHp || cost !== this.shownCost || this.error !== this.shownError) {
+    if (
+      b.id !== this.shownId ||
+      hp !== this.shownHp ||
+      b.maxHp !== this.shownMaxHp ||
+      cost !== this.shownCost ||
+      this.error !== this.shownError ||
+      b.type !== this.shownType ||
+      pending !== this.shownPending ||
+      this.upgradeErrorNow !== this.shownUpgradeError
+    ) {
       this.shownId = b.id;
+      this.shownType = b.type;
+      this.shownPending = pending;
+      this.shownUpgradeError = this.upgradeErrorNow;
       this.shownHp = hp;
       this.shownMaxHp = b.maxHp;
       this.shownCost = cost;
@@ -98,6 +168,10 @@ export class RepairPanel {
       this.info = `${name}${mine ? "" : ` · ${ownerName(b.ownerId)}'s`}\nHP ${hp} / ${b.maxHp}`;
       this.label = `Repair $${cost}`;
       this.reason = this.error === null ? "" : repairRefusalText(this.error);
+      const next = step ? buildingStats(world.balance, step.type) : undefined;
+      if (next && step && !pending) this.info += `\n→ ${next.name} · ${next.hp} HP`;
+      this.upgradeLabel = pending ? "Upgrading…" : step ? `Upgrade $${step.price}` : "";
+      this.upgradeReason = pending || this.upgradeErrorNow === null ? "" : upgradeRefusalText(this.upgradeErrorNow);
     }
     return true;
   }

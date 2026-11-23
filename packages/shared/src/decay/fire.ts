@@ -1,11 +1,12 @@
 import type { World } from "../core/world";
 import { ticksFor } from "../core/time";
 import { circleOverlapsBox } from "../buildings/collision";
-import { damageBuilding, type Building } from "../buildings/buildings";
+import { buildingStats, damageBuilding, type Building } from "../buildings/buildings";
 import { downPlayer } from "../player/downed";
 import type { PlayerState } from "../player/player";
 import { killZombie, zombieTypeOf } from "../zombies/zombiePool";
 import { circleInFire, type FireRecord } from "./decayState";
+import { DAMAGE_SOURCE_FIRE } from "../core/simEvents";
 
 /**
  * Story 4.8: car fires (FR57, FR53, FR61). The burning zones are `world.decay.fires` (written only
@@ -75,7 +76,7 @@ const burnPlayer = (p: PlayerState): void => {
   p.fireTicks = 0;
   p.hp = Math.max(0, p.hp - pass.amount);
   firePulse.players++;
-  world.events.emit({ type: "player.damaged", playerId: p.id, amount: pass.amount, sourceZombieId: -1 });
+  world.events.emit({ type: "player.damaged", playerId: p.id, amount: pass.amount, sourceZombieId: DAMAGE_SOURCE_FIRE });
   if (p.hp <= 0) downPlayer(world, p);
 };
 
@@ -129,6 +130,7 @@ export function updateFires(world: World): void {
   for (let i = list.length - 1; i >= 0; i--) {
     const b = list[i] as Building;
     if (!boxInFire(fires, b)) continue;
+    if (buildingStats(world.balance, b.type)?.mine) continue; // Story 5.9 DD5: mines are immune to fire (traps burn and wear)
     if (++b.fireTicks < pulse) continue;
     b.fireTicks = 0;
     damageBuilding(world, b, amount);
@@ -151,6 +153,7 @@ const coolPlayer = (p: PlayerState): void => {
 export function resetBurnClocks(world: World): void {
   world.players.forEach(coolPlayer);
   world.zombies.fireTicks.fill(0);
+  world.zombies.trapTicks.fill(0); // Story 5.9: the spike clock follows the same rule (4.8 D19)
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) (list[i] as Building).fireTicks = 0;
 }

@@ -136,6 +136,9 @@ const REPAIR_OK = 0x4caf50;
 const REPAIR_DIM_ALPHA = 0.55;
 const REPAIR_INFO_PX = 16;
 const REPAIR_REASON = "#ff8a80";
+/** Story 5.9: the Upgrade button when it would be accepted (steel blue: a stronger wall). */
+const UPGRADE_FILL = 0x37587a;
+const UPGRADE_BORDER = 0x90caf9;
 /** Story 3.3: the Shop button's border (the money colour). */
 const SHOP_BORDER = 0xf5c542;
 /** Wave text → status line → toast line, CSS px from the top inset. */
@@ -233,6 +236,14 @@ export class HudScene extends Phaser.Scene {
   private shownRepairLabel = "";
   /** -1 = not drawn yet, 0 = dimmed, 1 = valid. */
   private shownRepairValid = -1;
+  /** Story 5.9: the Upgrade button one row above Repair, its refusal text to its left. */
+  private upgradeBtn!: Phaser.GameObjects.Graphics;
+  private upgradeText!: Phaser.GameObjects.Text;
+  private upgradeReason!: Phaser.GameObjects.Text;
+  private shownUpgradeShown: boolean | null = null;
+  private shownUpgradeLabel = "";
+  private shownUpgradeReason = "";
+  private shownUpgradeValid = -1;
   private readonly taps = new TapDetector();
   /** Safe-area insets (CSS px), measured on create and resize only (getComputedStyle is costly). */
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -314,6 +325,10 @@ export class HudScene extends Phaser.Scene {
     this.shownRepairReason = "";
     this.shownRepairLabel = "";
     this.shownRepairValid = -1;
+    this.shownUpgradeShown = null;
+    this.shownUpgradeLabel = "";
+    this.shownUpgradeReason = "";
+    this.shownUpgradeValid = -1;
     this.taps.reset();
   }
 
@@ -396,6 +411,17 @@ export class HudScene extends Phaser.Scene {
     });
     this.buttons.set({ id: "repairClose", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.repairClosePressed = true;
+    });
+    // Story 5.9: Upgrade (my own upgradable buildings only).
+    this.upgradeBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.upgradeText = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.upgradeReason = this.add
+      .text(0, 0, "", { ...this.outlinedStyle(REPAIR_INFO_PX), color: REPAIR_REASON })
+      .setOrigin(1, 0.5)
+      .setDepth(1002)
+      .setVisible(false);
+    this.buttons.set({ id: "upgrade", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.upgradePressed = true;
     });
     this.layoutButtons();
     this.reloadBar = this.add.graphics();
@@ -685,8 +711,50 @@ export class HudScene extends Phaser.Scene {
     this.repairReason
       .setFontSize(Math.round(REPAIR_INFO_PX * k))
       .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
-      .setPosition(tx, y + h / 2 - lineH);
+      .setPosition(tx, y + h / 2 - lineH * 1.5); // above the info (up to 3 lines since Story 5.9)
     this.shownRepairValid = -1; // redraw at the new size
+    // Story 5.9: Upgrade one row above Repair, same width; its refusal text to its left.
+    const uy = y - gap - h;
+    const up = this.buttons.get("upgrade");
+    if (up) Object.assign(up, { x, y: uy, w, h });
+    this.upgradeBtn.setPosition(x, uy);
+    this.upgradeText.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, uy + h / 2);
+    this.upgradeReason.setFontSize(Math.round(REPAIR_INFO_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x - gap, uy + h / 2);
+    this.shownUpgradeValid = -1;
+  }
+
+  /** Story 5.9: shows, hides and updates the Upgrade button (only when what it shows changes). */
+  private drawUpgrade(): void {
+    const m = this.model;
+    const shown = m.repairOpen && m.upgradeShown;
+    if (shown !== this.shownUpgradeShown) {
+      this.shownUpgradeShown = shown;
+      this.buttons.setVisible("upgrade", shown);
+      this.upgradeBtn.setVisible(shown);
+      this.upgradeText.setVisible(shown);
+      this.upgradeReason.setVisible(shown);
+    }
+    if (!shown) return;
+    if (m.upgradeLabel !== this.shownUpgradeLabel) {
+      this.shownUpgradeLabel = m.upgradeLabel;
+      this.upgradeText.setText(m.upgradeLabel);
+    }
+    if (m.upgradeReason !== this.shownUpgradeReason) {
+      this.shownUpgradeReason = m.upgradeReason;
+      this.upgradeReason.setText(m.upgradeReason);
+    }
+    const valid = m.upgradeReason === "" ? 1 : 0;
+    if (valid === this.shownUpgradeValid) return;
+    this.shownUpgradeValid = valid;
+    const k = dpr();
+    const w = REPAIR_BUTTON_W_CSS_PX * k;
+    const h = READY_BUTTON_H_CSS_PX * k;
+    const g = this.upgradeBtn;
+    g.clear();
+    g.fillStyle(valid ? UPGRADE_FILL : READY_BG, valid ? 0.85 : READY_BG_ALPHA).fillRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
+    g.lineStyle(READY_BORDER_PX * k, valid ? UPGRADE_BORDER : READY_BORDER, 0.9).strokeRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
+    g.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
+    this.upgradeText.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
   }
 
   /** Story 3.7: shows, hides and updates the repair panel (only when what it shows changes). */
@@ -999,6 +1067,7 @@ export class HudScene extends Phaser.Scene {
     this.drawPlacement();
     this.drawShop();
     this.drawRepair();
+    this.drawUpgrade(); // Story 5.9
     this.perfOverlay?.update();
   }
 

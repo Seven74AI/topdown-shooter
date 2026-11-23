@@ -17,7 +17,7 @@ export {
 export { err, ok, type Result } from "./core/result";
 export { createRng, createRngFromState, type Rng, type RngState } from "./core/rng";
 export { EventBus, type EventHandler } from "./core/eventBus";
-export { MONEY_REASONS, type MoneyReason, type SimEvent, type SimEventType } from "./core/simEvents";
+export { DAMAGE_SOURCE_EXPLOSION, DAMAGE_SOURCE_FIRE, MONEY_REASONS, type MoneyReason, type SimEvent, type SimEventType } from "./core/simEvents";
 export { canonicalJson, fnv1a32 } from "./core/hash";
 export {
   BalanceError,
@@ -37,7 +37,7 @@ export {
   MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
-export type { BuildingTypeStats, TurretStats, GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
+export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, worldDigest, type WorldSnapshot } from "./core/worldSnapshot";
@@ -199,6 +199,7 @@ export {
   buildSetReadySchema,
   buildingPlaceSchema,
   buildingRepairSchema,
+  buildingUpgradeSchema,
   shopBuySchema,
   type ShopBuy,
   type ShopBought,
@@ -208,6 +209,8 @@ export {
   type BuildingRefused,
   type BuildingRepair,
   type BuildingRepairRefused,
+  type BuildingUpgrade,
+  type BuildingUpgradeRefused,
   type C2SType,
   type JoinOptions,
   type JoinRefusal,
@@ -348,6 +351,12 @@ export { updateBuildings } from "./buildings/buildingSystem";
 export { buildingCentreX, buildingCentreY, nearestZombieInRange, turretStats, updateTurrets } from "./buildings/turret";
 // Story 3.7: repairs.
 export { REPAIR_ERRORS, buildingAtPoint, isDamaged, repairBuilding, repairCost, repairError, type RepairError, type Repaired } from "./buildings/repair";
+// Story 5.9: walls vs floor, upgrades, spike traps, mines, the shared blast.
+export { setBuildingType } from "./buildings/buildings";
+export { UPGRADE_ERRORS, upgradeBuilding, upgradeError, upgradeStep, type UpgradeError, type Upgraded } from "./buildings/upgrade";
+export { trapCounters, updateTraps } from "./buildings/trap";
+export { mineCounters, updateMines } from "./buildings/mine";
+export { blastResult, damagePlayerByExplosion, explode } from "./combat/explosion";
 export { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,

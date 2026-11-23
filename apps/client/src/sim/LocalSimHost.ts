@@ -6,6 +6,7 @@ import {
   DOWNTOWN_MAP,
   placeBuilding,
   repairBuilding,
+  upgradeBuilding,
   setBuildReady,
   setInput,
   startBuild,
@@ -15,6 +16,7 @@ import {
   type PlaceError,
   type PlaceRequest,
   type RepairError,
+  type UpgradeError,
   type PlayerInput,
   type SimEvent,
   type World,
@@ -98,6 +100,21 @@ export class LocalSimHost implements SimHost {
   repairBuilding(id: number): void {
     const r = repairBuilding(this.world, LOCAL_PLAYER_ID, id);
     if (!r.ok) this.repairRefusal = r.error;
+  }
+
+  /** Story 5.9: the last upgrade refusal, until the scene takes it. */
+  private upgradeRefusal: UpgradeError | null = null;
+
+  /** Story 5.9: solo applies the upgrade at once (between steps, like the server's message handler). */
+  upgradeBuilding(id: number): void {
+    const r = upgradeBuilding(this.world, LOCAL_PLAYER_ID, id);
+    if (!r.ok) this.upgradeRefusal = r.error;
+  }
+
+  takeUpgradeRefusal(): UpgradeError | null {
+    const r = this.upgradeRefusal;
+    this.upgradeRefusal = null;
+    return r;
   }
 
   takeRepairRefusal(): RepairError | null {

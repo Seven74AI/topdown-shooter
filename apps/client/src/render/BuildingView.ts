@@ -1,10 +1,12 @@
 import * as Phaser from "phaser";
 import { BUILD_GRID_M, MAX_PLAYERS, buildingStats, buildingTypeIds, footprint, type Balance, type Box, type Building, type World } from "@topdown/shared";
 import type { Placement } from "../scenes/placement";
-import { damageStage, darken, hpChecksum } from "./buildingLook";
+import { barFraction, buildingDrawKey, damageStage, darken } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
 import { barricadePoolSize, barricadeTint, barricadeTransform, type SpriteTransform } from "./barricadeLook";
 import { ATLAS_OBJECTS, OBJ_BARRICADE, ensureObjectsAtlas } from "./city/objectsAtlas";
+import { buildingFrame, ensureBuildingsAtlas } from "./city/buildingsAtlas";
+import { buildingShadowHeightM, mineRingRadii } from "./mineLook";
 
 /** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline; night-darkened (Story 4.9). */
 const WOOD = darken(0x8b5a2b, NIGHT_DARKEN);
@@ -13,8 +15,12 @@ const OUTLINE = 0x1a1008;
 const OUTLINE_M = 0.06;
 /** Story 4.9: barricade height (m), for its cast shadow (Dead City look). Story 4.11: a tall palisade (B6). */
 const BARRICADE_HEIGHT_M = 1.6;
-/** Story 4.11: the type drawn with the palisade art (others keep the plank box; turrets add their plate on top). */
-const BARRICADE_TYPE = "wood_barricade";
+/** Story 5.9: floor art (traps, mines) sits just under the walls' shadows and every body. */
+const FLOOR_DEPTH = 2.95;
+/** Story 5.9 (F4): the mine's trigger and blast rings in the placement preview. */
+const RING_LINE_M = 0.05;
+const RING_TRIGGER = 0xff5a46;
+const RING_BLAST = 0xffb74d;
 /** Sprites sit on the building layer; cracks just above them, under turrets (3.5). */
 const CRACK_DEPTH = 3.05;
 /** The placement preview's ghost of the turned art, under the coloured box. */
@@ -65,13 +71,17 @@ export class BuildingView {
   private readonly bars: Phaser.GameObjects.Graphics;
   private readonly preview: Phaser.GameObjects.Graphics;
   private shownVersion = -1;
-  private shownHpSum = -1;
+  /** Story 5.9 (AC 16): per-building damage stage / bar step, not raw HP (a worn trap must not redraw every tick). */
+  private shownDrawKey = -1;
+  /** Story 5.9: plank-box buildings (turrets) on screen: their wear is drawn into the shadow layer, so it re-lays. */
+  private boxCount = 0;
   /** gx, gy, rot, validity and type folded into one number (no string per frame). */
   private shownPreviewKey = -1;
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
   constructor(scene: Phaser.Scene, balance?: Readonly<Balance>) {
     ensureObjectsAtlas(scene);
+    ensureBuildingsAtlas(scene); // Story 5.9: the new tiers, the trap and the mine (code-drawn, once per game)
     const pool = barricadePoolSize(balance?.buildings.maxPerPlayer, MAX_PLAYERS); // review fix L1: sized from balance, never throws
     this.placed = scene.add.graphics().setDepth(BUILDING_DEPTH);
     for (let i = 0; i < pool; i++) this.sprites.push(scene.add.image(0, 0, ATLAS_OBJECTS, OBJ_BARRICADE).setDepth(BUILDING_DEPTH).setVisible(false));
@@ -86,33 +96,56 @@ export class BuildingView {
     this.drawPreview(world, placement);
   }
 
+  /**
+   * Story 5.9 (AC 16): two levels of redraw. A building added, removed or retyped (`version`, or a
+   * plank-box building's wear) re-lays everything: shadows, sprites, boxes. Wear alone (the draw key:
+   * each building's bar step) only re-tints the sprites and redraws the cracks and the bars, so a crowd
+   * on the spikes never rebuilds the shadow layer.
+   */
   private drawPlaced(world: Readonly<World>): void {
     const list = world.buildings.list;
-    const hpSum = hpChecksum(list);
-    if (world.buildings.version === this.shownVersion && hpSum === this.shownHpSum) return;
+    const key = buildingDrawKey(list);
+    const relayout = world.buildings.version !== this.shownVersion || (key !== this.shownDrawKey && this.boxCount > 0);
+    if (!relayout && key === this.shownDrawKey) return;
     this.shownVersion = world.buildings.version;
-    this.shownHpSum = hpSum;
+    this.shownDrawKey = key;
     const g = this.placed;
     const bars = this.bars;
     const cracks = this.cracks;
-    g.clear();
     bars.clear();
     cracks.clear();
-    // Story 4.9: every shadow first (one light direction, length by height), then the tops. Story 4.11:
-    // the shadow is the game's (never baked into the art), so a turned barricade's falls the same way.
-    for (let i = 0; i < list.length; i++) castShadow(g, list[i] as Building, BARRICADE_HEIGHT_M);
+    if (relayout) {
+      g.clear();
+      this.boxCount = 0;
+      // Story 4.9: every shadow first (one light direction, length by height), then the tops. Story 4.11:
+      // the shadow is the game's (never baked into the art), so a turned barricade's falls the same way.
+      // Story 5.9: by kind (walls tall, a trap a few centimetres, a mine none).
+      for (let i = 0; i < list.length; i++) {
+        const b = list[i] as Building;
+        const hM = buildingShadowHeightM(buildingStats(world.balance, b.type), BARRICADE_HEIGHT_M);
+        if (hM > 0) castShadow(g, b, hM);
+      }
+    }
     let used = 0;
     for (let i = 0; i < list.length; i++) {
       const b = list[i] as Building;
       const w = b.maxX - b.minX;
       const h = b.maxY - b.minY;
-      const frac = b.maxHp > 0 ? Math.min(1, Math.max(0, b.hp / b.maxHp)) : 1;
-      if (b.type === BARRICADE_TYPE && used < this.sprites.length) {
+      const frac = barFraction(b);
+      const art = buildingFrame(b.type);
+      if (art && used < this.sprites.length) {
         // Story 4.11: the B6 palisade, turned with the placement; damage = darker tint + cracks.
-        const t = barricadeTransform(b, this.xf);
-        (this.sprites[used++] as Phaser.GameObjects.Image).setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setTint(barricadeTint(frac)).setVisible(true);
-        if (frac < 1) drawCracks(cracks, b, damageStage(frac) * CRACKS_PER_STAGE);
-      } else {
+        // Story 5.9: every tier, the spike trap and the mine the same way (floor below the walls, no cracks).
+        const img = this.sprites[used++] as Phaser.GameObjects.Image;
+        if (relayout) {
+          const t = barricadeTransform(b, this.xf);
+          if (img.texture.key !== art.texture || img.frame.name !== art.frame) img.setTexture(art.texture, art.frame);
+          img.setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setDepth(b.solid ? BUILDING_DEPTH : FLOOR_DEPTH).setVisible(true);
+        }
+        img.setTint(barricadeTint(frac));
+        if (frac < 1 && b.solid) drawCracks(cracks, b, damageStage(frac) * CRACKS_PER_STAGE);
+      } else if (relayout) {
+        this.boxCount++;
         g.fillStyle(darken(WOOD, (1 - frac) * DAMAGE_DARKEN), 1).fillRect(b.minX, b.minY, w, h);
         g.lineStyle(OUTLINE_M / 2, PLANK_LINE, 1);
         if (w >= h) for (let x = b.minX + PLANK_M; x < b.maxX - 1e-6; x += PLANK_M) g.lineBetween(x, b.minY, x, b.maxY);
@@ -121,7 +154,7 @@ export class BuildingView {
         raisedBevel(g, b);
         g.lineStyle(OUTLINE_M, OUTLINE, 1).strokeRect(b.minX, b.minY, w, h);
       }
-      if (frac < 1) {
+      if (frac < 1 && b.maxHp > 1) {
         const color = frac > 0.6 ? BAR_HIGH : frac > 0.3 ? BAR_MID : BAR_LOW;
         if (w >= h) {
           const bw = w - 2 * BAR_INSET_M;
@@ -138,9 +171,11 @@ export class BuildingView {
         }
       }
     }
-    for (let i = used; i < this.sprites.length; i++) {
-      const img = this.sprites[i] as Phaser.GameObjects.Image;
-      if (img.visible) img.setVisible(false);
+    if (relayout) {
+      for (let i = used; i < this.sprites.length; i++) {
+        const img = this.sprites[i] as Phaser.GameObjects.Image;
+        if (img.visible) img.setVisible(false);
+      }
     }
   }
 
@@ -158,7 +193,8 @@ export class BuildingView {
     this.shownPreviewKey = key;
     const b = footprint(stats, p.gx, p.gy, p.rot, this.box);
     const color = valid ? VALID : BLOCKED;
-    if (p.type === BARRICADE_TYPE) {
+    const art = buildingFrame(p.type);
+    if (art) {
       // Story 4.11: the turned art under the coloured box, so the struts' side shows before confirming.
       const r = this.ghostRot;
       r.minX = b.minX;
@@ -167,6 +203,7 @@ export class BuildingView {
       r.maxY = b.maxY;
       r.rot = p.rot;
       const t = barricadeTransform(r, this.xf);
+      if (this.ghost.texture.key !== art.texture || this.ghost.frame.name !== art.frame) this.ghost.setTexture(art.texture, art.frame);
       this.ghost.setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setVisible(true);
     } else if (this.ghost.visible) this.ghost.setVisible(false);
     const g = this.preview;
@@ -179,8 +216,16 @@ export class BuildingView {
     const y1 = b.maxY + m;
     for (let y = y0; y <= y1 + 1e-6; y += BUILD_GRID_M) g.lineBetween(x0, y, x1, y);
     for (let x = x0; x <= x1 + 1e-6; x += BUILD_GRID_M) g.lineBetween(x, y0, x, y1);
-    g.fillStyle(color, p.type === BARRICADE_TYPE ? PREVIEW_FILL_ALPHA / 2 : PREVIEW_FILL_ALPHA).fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+    g.fillStyle(color, art ? PREVIEW_FILL_ALPHA / 2 : PREVIEW_FILL_ALPHA).fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
     g.lineStyle(PREVIEW_LINE_M, color, 1).strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+    // Story 5.9 (F4, 7.4): a mine previews its trigger and blast circles at exactly the sim's radii.
+    const rings = mineRingRadii(stats);
+    if (rings) {
+      const cx = (b.minX + b.maxX) / 2;
+      const cy = (b.minY + b.maxY) / 2;
+      g.lineStyle(RING_LINE_M, RING_TRIGGER, 0.9).strokeCircle(cx, cy, rings.triggerM);
+      g.lineStyle(RING_LINE_M, RING_BLAST, 0.7).strokeCircle(cx, cy, rings.blastM);
+    }
   }
 
   destroy(): void {
