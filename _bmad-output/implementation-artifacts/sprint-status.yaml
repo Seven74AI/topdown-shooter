@@ -108,6 +108,7 @@ development_status:
   4-9-placeholder-dead-city-look: done
   4-10-milestone-1-playtest: backlog  # human: playtest/spec, not a dev-agent story. DEFERRED (designer 2026-11-23: 'way, way later'); no longer blocks Epic 5. Plan ready: docs/playtests/milestone-1.md
   4-11-stage-object-readability-pass: done  # designer 2026-11-23: redraw sandbags, wood barricade, fire ring + burning-player effects (prototype: claude.ai/artifact/DD4ECzvpxW98HGW65b6oGZ)
+  4-12-stage-objects-in-game-code: backlog  # designer 2026-11-23: redraw 4.11's Meshy sprites in code; burning car pick pending
   epic-4-retrospective: done  # partial retro 2026-11-23 (4.10 deferred); 4.11 re-added by the designer the same day (sandbags, barricade, fire)
 
   # Epic 5: Full arsenal and bestiary

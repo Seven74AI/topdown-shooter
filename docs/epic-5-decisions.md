@@ -85,3 +85,9 @@ Code drawings in `docs/art/epic-5/round-a/code-drawings.html` (round 3 badges fo
 Corrugated barricade (M2) dropped. Spitter (5.6): pick still open (P1/P2/P4; P2 needs more iteration). Rule: when the designer picks two, the first is the base look and the second the upgrade-tier look.
 
 5.3 fairness rule: "point blank, all 8 pellets hit" holds within **1.35 m** (designer OK).
+
+## Art decisions, later the same day (designer, 2026-11-23)
+
+- Spitter (5.6) = **P4** (gaunt, pustules, acid trail). 5.6 currently draws P2: swap into `drawSpitter`.
+- Metal barricade M1c: **remove the yellow plate**.
+- 4.11's Meshy sprites are redrawn in game code (round 4 mockups accepted): wood barricade B6, sandbags S2, burning survivor effects. The reinforced barricade B8 is already in code (5.9). The **burning car** gets 3 new versions in the style of the game's existing cars (not Meshy), designer picks one → Story 4.12.

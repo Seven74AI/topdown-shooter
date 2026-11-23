@@ -355,6 +355,20 @@ So that I understand the street and react to fire without being told.
 
 Designer picks (2026-11-23, references in `docs/art/4-11/`): sandbags **S2** (olive-drab military wall), wood barricade **B6** (sharpened palisade on struts, turns with placement), burning car **F6** (smoke, burning debris, glow, a circle of small fires at the damage edge); burning cues: all four. **B8** (upright pallets + barbed wire) is kept for a later barricade upgrade (Epic 5).
 
+### Story 4.12: Story 4.11 objects redrawn in game code
+
+As the designer,
+I want every object in the game drawn in game code,
+So that the art is consistent, free to change and ready for customization.
+
+(Added 2026-11-23 after the designer chose game code for all art; mockups on the comparison page, "round 4" and "round 5" cards.)
+
+**Acceptance Criteria:**
+
+**Given** the wood barricade (B6), the sandbags (S2), the burning car (designer's pick from three code versions) and the burning-survivor flames/smoke
+**When** they are drawn
+**Then** they come from game-code drawing functions with the same look as the accepted mockups, the 4.11 rules still hold (flames' visible edge at the damage radius, smoke below characters, barricade rotation with a game-drawn shadow), and the Meshy `objects` atlas and its loader are removed
+
 ## Epic 5: Full arsenal and bestiary
 Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop; every zombie type demands its own answer.
 **FRs covered:** FR8, FR13 (6 weapons), FR14 (lobbed), FR16, FR17, FR18, FR23, FR24, FR25, FR47, FR48, FR49, FR52 (5 buildings), FR53, FR57 (acid, gas), FR84 (telegraphs)
