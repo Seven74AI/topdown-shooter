@@ -9,6 +9,7 @@ import {
   applyTestScenario,
   placeBuilding,
   repairBuilding,
+  upgradeBuilding,
   buyWeapon,
   createWorld,
   DOWNTOWN_MAP,
@@ -29,6 +30,8 @@ import {
   type PlayerState,
   type RepairError,
   type Repaired,
+  type UpgradeError,
+  type Upgraded,
   type Bought,
   type PlayerInput,
   type Result,
@@ -285,6 +288,11 @@ export class RunController {
    */
   repairBuilding(playerId: string, buildingId: number): Result<Repaired, RepairError> {
     return repairBuilding(this.world, playerId, buildingId);
+  }
+
+  /** Story 5.9: `building.upgrade`, between ticks (the shared `upgradeBuilding`'s rules). */
+  upgradeBuilding(playerId: string, buildingId: number): Result<Upgraded, UpgradeError> {
+    return upgradeBuilding(this.world, playerId, buildingId);
   }
 
   /**

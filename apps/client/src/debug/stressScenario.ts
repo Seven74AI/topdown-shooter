@@ -1,4 +1,4 @@
-import { spawnZombie, type DistrictMap, type PlayerInput, type World, type ZombieTypeId } from "@topdown/shared";
+import { BUILD_GRID_M, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId } from "@topdown/shared";
 import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, perf, type PerfSummaryResult } from "./perfStats";
 
 /**
@@ -72,6 +72,40 @@ export function setupStressWorld(world: World, walkers: number, view: ViewRect, 
   world.debug.godMode = true;
   world.waves.paused = true;
   return spawnInView(world, "walker", walkers, view, playerX, playerY);
+}
+
+/** Story 5.9: floor buildings `?stressbuild=traps` lays (every player's whole allowance: 4 × 6). */
+export const STRESS_FLOOR_BUILDINGS = 24;
+/** Rings (m) round the survivor where they are tried, 16 directions each. */
+const STRESS_FLOOR_RINGS_M: readonly number[] = [3, 5, 7, 9, 11];
+
+/**
+ * Story 5.9 (`?stressbuild=traps`): lays up to `count` floor buildings round (cx, cy), spike traps and
+ * mines alternately, on free lattice spots (the shared `footprintBlocked`, without the cap or money:
+ * a benchmark, not a placement). Call before the Walkers spawn. Returns how many were laid.
+ */
+export function placeStressFloor(world: World, ownerId: string, cx: number, cy: number, count = STRESS_FLOOR_BUILDINGS): number {
+  const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  let laid = 0;
+  for (const r of STRESS_FLOOR_RINGS_M) {
+    for (let k = 0; k < 16 && laid < count; k++) {
+      const type = laid % 2 === 0 ? "spike_trap" : "mine";
+      const stats = buildingStats(world.balance, type);
+      if (!stats) return laid;
+      const a = (k / 16) * Math.PI * 2;
+      const gx = Math.round((cx + Math.cos(a) * r - stats.widthM / 2) / BUILD_GRID_M);
+      const gy = Math.round((cy + Math.sin(a) * r - stats.depthM / 2) / BUILD_GRID_M);
+      if (footprintBlocked(world, footprint(stats, gx, gy, 0, box))) continue;
+      if (addBuildingAt(world, { id: world.buildings.nextId, type, ownerId, gx, gy, rot: 0, hp: stats.hp })) laid++;
+    }
+  }
+  return laid;
+}
+
+/** Story 5.9: under `?stressbuild=traps` the Walkers can't die on the spikes (the crowd stays 150 for the whole run). */
+export function toughenStressZombies(world: World): void {
+  const z = world.zombies;
+  for (let i = 0; i < z.aliveCount; i++) z.hp[z.aliveIds[i] as number] = 1e9;
 }
 
 /**

@@ -27,8 +27,8 @@ export type BuildingRotation = 0 | 1 | 2 | 3;
 
 export interface Building {
   readonly id: number;
-  /** Key of `balance.buildings.types`. */
-  readonly type: string;
+  /** Key of `balance.buildings.types`. Story 5.9: changes only through `setBuildingType` (an upgrade, same footprint). */
+  type: string;
   /** Player id of the builder ("p0"–"p3" online, "local" solo); Story 3.6 credits kills to it. */
   readonly ownerId: string;
   /** Min corner as 0.5 m lattice indices (x = gx × BUILD_GRID_M m). */
@@ -37,7 +37,14 @@ export interface Building {
   readonly rot: BuildingRotation;
   /** Story 3.5 damages it; Story 3.7 repairs it to `maxHp`. */
   hp: number;
-  readonly maxHp: number;
+  /** Story 5.9: follows `type` (`setBuildingType`). */
+  maxHp: number;
+  /**
+   * Story 5.9: a wall (true: blocks bodies and the flow field, zombies attack it) or floor (false:
+   * spike traps, mines; never blocks anything). Cached from the type at `addBuildingAt`; an upgrade
+   * keeps it (same footprint, same kind).
+   */
+  readonly solid: boolean;
   /** The footprint in metres (cached at creation; buildings never move). */
   readonly minX: number;
   readonly minY: number;
@@ -60,12 +67,18 @@ export interface BuildingState {
   readonly list: Building[];
   /** Next id to hand out (ids start at 1). */
   nextId: number;
-  /** +1 on every add and remove (Story 3.5's flow-field dirty counter). */
+  /** +1 on every add, remove and (Story 5.9) type change: renderers and the schema sync follow it. */
   version: number;
+  /**
+   * Story 5.9: +1 only when a WALL (`solid`) is added or removed: the flow field's dirty counter.
+   * Floor buildings (traps, mines) and upgrades (same footprint) never change what blocks, so a mine
+   * exploding mid-wave never re-rasterizes the nav grid.
+   */
+  wallVersion: number;
 }
 
 export function createBuildingState(): BuildingState {
-  return { list: [], nextId: 1, version: 0 };
+  return { list: [], nextId: 1, version: 0, wallVersion: 0 };
 }
 
 /** Why a placement is refused. The client maps it to text (`placeRefusalText`). */
@@ -201,7 +214,7 @@ export function placementError(world: Readonly<World>, ownerId: string, req: Pla
   if (!p) return "unknown_player";
   if (world.run.phase !== "build") return "not_build_phase";
   const stats = buildingStats(world.balance, req.type);
-  if (!stats || !isRotation(req.rot)) return "unknown_type";
+  if (!stats || !stats.forSale || !isRotation(req.rot)) return "unknown_type"; // Story 5.9: upgrade-only tiers are never placed
   if (!Number.isInteger(req.gx) || !Number.isInteger(req.gy)) return "blocked";
   if (ownedCount(world, ownerId) >= world.balance.buildings.maxPerPlayer) return "limit";
   if (p.wallet < stats.price) return "money";
@@ -237,6 +250,7 @@ export function addBuildingAt(world: World, spec: BuildingSpec): Building | null
     rot: spec.rot,
     hp: spec.hp,
     maxHp: stats.hp,
+    solid: stats.solid,
     minX: box.minX,
     minY: box.minY,
     maxX: box.maxX,
@@ -252,6 +266,7 @@ export function addBuildingAt(world: World, spec: BuildingSpec): Building | null
   s.list.splice(i, 0, b);
   if (b.id >= s.nextId) s.nextId = b.id + 1;
   s.version++;
+  if (b.solid) s.wallVersion++; // Story 5.9: floor never dirties the flow field
   return b;
 }
 
@@ -259,9 +274,11 @@ export function addBuildingAt(world: World, spec: BuildingSpec): Building | null
 export function removeBuilding(world: World, id: number): boolean {
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) {
-    if ((list[i] as Building).id !== id) continue;
+    const b = list[i] as Building;
+    if (b.id !== id) continue;
     list.splice(i, 1);
     world.buildings.version++;
+    if (b.solid) world.buildings.wallVersion++; // Story 5.9
     return true;
   }
   return false;
@@ -306,5 +323,23 @@ export function damageBuilding(world: World, b: Building, amount: number): boole
   if (b.hp > 0) return false;
   if (!removeBuilding(world, b.id)) return false;
   world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot });
+  return true;
+}
+
+/**
+ * Story 5.9 (D1): turns `b` into `type` in place (an upgrade): same id, footprint and owner; the new
+ * type's full HP (DD2). `version` +1 (the schema sync and renderers follow it); `wallVersion` is
+ * untouched (same footprint: nothing that blocks changed). Returns false for an unknown type or a
+ * different footprint / kind (never happens through `upgradeBuilding`: the balance cross-check).
+ */
+export function setBuildingType(world: World, b: Building, type: string, hp?: number): boolean {
+  const stats = buildingStats(world.balance, type);
+  if (!stats || stats.solid !== b.solid) return false;
+  const box = footprint(stats, b.gx, b.gy, b.rot, scratch);
+  if (box.maxX !== b.maxX || box.maxY !== b.maxY) return false;
+  b.type = type;
+  b.maxHp = stats.hp;
+  b.hp = hp ?? stats.hp;
+  world.buildings.version++;
   return true;
 }

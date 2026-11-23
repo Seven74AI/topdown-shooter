@@ -96,7 +96,7 @@ export interface NavGrid {
   readonly pinchS: Int32Array;
   /** Cost units of a building cell or a pinch (from `buildingCostM`, cached when rasterized). */
   buildingCost: number;
-  /** `world.buildings.version` last rasterized (-1: never). */
+  /** `world.buildings.wallVersion` last rasterized (-1: never; Story 5.9: walls only). */
   version: number;
 }
 
@@ -300,7 +300,7 @@ export function flowSharedMaxAgeTicks(world: Readonly<World>): number {
   return 4 * flowRefreshTicks(world);
 }
 
-/** Writes the buildings into the grid (only when `buildings.version` changed). */
+/** Writes the wall buildings into the grid (only when `buildings.wallVersion` changed; Story 5.9: floor buildings never). */
 export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
   nav.buildingAt.fill(0);
   nav.enterCost.fill(0);
@@ -311,6 +311,7 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
+    if (!b.solid) continue; // Story 5.9: floor is never in the nav grid (F1)
     const x0 = Math.max(0, Math.floor(b.minX / cellM));
     const x1 = Math.min(cols - 1, Math.ceil(b.maxX / cellM) - 1);
     const y0 = Math.max(0, Math.floor(b.minY / cellM));
@@ -337,6 +338,7 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
     }
     for (let i = 0; i < list.length; i++) {
       const b = list[i] as Building;
+      if (!b.solid) continue; // Story 5.9
       const x0 = Math.max(0, Math.floor(b.minX / cellM) - 1);
       const x1 = Math.min(cols - 1, Math.ceil(b.maxX / cellM));
       const y0 = Math.max(0, Math.floor(b.minY / cellM) - 1);
@@ -393,7 +395,7 @@ export function rasterizeBuildings(nav: NavGrid, world: Readonly<World>): void {
   const fireCost = nav.fireCost;
   for (let c = 0; c < nav.cells; c++) if (fireCost[c] !== 0 && wallAt[c] === 0) enterCost[c] = (enterCost[c] as number) + (fireCost[c] as number);
   nav.buildingCost = buildingCost;
-  nav.version = world.buildings.version;
+  nav.version = world.buildings.wallVersion; // Story 5.9: walls only
 }
 
 /** "No building here" for the min() in `vertexBuilding`. */
@@ -606,7 +608,7 @@ export function advanceFlowField(f: FlowField, nav: NavGrid, world: Readonly<Wor
 
 /** The whole field at once (Story 8.4 after a restore; benchmarks). */
 export function rebuildFlowFieldNow(f: FlowField, nav: NavGrid, world: Readonly<World>): void {
-  if (nav.version !== world.buildings.version) rasterizeBuildings(nav, world);
+  if (nav.version !== world.buildings.wallVersion) rasterizeBuildings(nav, world);
   f.building = false;
   advanceFlowField(f, nav, world, nav.cells + 1);
 }
@@ -720,7 +722,7 @@ function flankerAlive(world: Readonly<World>): boolean {
 export function updatePathing(world: World): void {
   const pathing = world.pathing;
   const { nav, chase, flank } = pathing;
-  if (nav.version !== world.buildings.version) rasterizeBuildings(nav, world);
+  if (nav.version !== world.buildings.wallVersion) rasterizeBuildings(nav, world);
   const budget = world.balance.zombies.pathing.rebuildCellsPerTick;
   if (!flankerAlive(world)) {
     pathing.flankActive = false;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { addPlayer, createWorld, loadBalance, placeBuilding, removeBuilding, startBuild, startWave, type Building, type World } from "@topdown/shared";
-import { RepairPanel, repairRefusalText } from "./repairPanel";
+import { UPGRADE_ERRORS, addPlayer, createWorld, loadBalance, placeBuilding, removeBuilding, setBuildingType, startBuild, startWave, upgradeBuilding, type Building, type World } from "@topdown/shared";
+import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
 
 const balance = loadBalance();
 const names = (id: string) => (id === "p1" ? "Bo" : id);
@@ -34,14 +34,14 @@ describe("RepairPanel (Story 3.7)", () => {
     const p = new RepairPanel();
     p.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
     p.update(world, "p1", true, names);
-    expect(p.info).toBe("Wood barricade\nHP 200 / 200");
+    expect(p.info).toBe("Wood barricade\nHP 200 / 200\n→ Reinforced barricade · 350 HP"); // Story 5.9: my own: the next tier
     expect(p.reason).toBe("Nothing to repair");
     b.hp = 12.3; // synced HP is rounded up
     const me = world.players.get("p1");
     if (!me) throw new Error("no p1");
     me.wallet = 5;
     p.update(world, "p1", true, names);
-    expect(p.info).toBe("Wood barricade\nHP 13 / 200");
+    expect(p.info).toBe("Wood barricade\nHP 13 / 200\n→ Reinforced barricade · 350 HP");
     expect(p.reason).toBe("Not enough money");
   });
 
@@ -83,5 +83,59 @@ describe("RepairPanel (Story 3.7)", () => {
     expect(repairRefusalText("not_build_phase")).toBe("Only during the build phase");
     expect(repairRefusalText("gone")).toBe("That building is gone");
     expect(repairRefusalText("unknown_player")).toBe("Can't repair that");
+  });
+});
+
+describe("RepairPanel upgrade line (Story 5.9)", () => {
+  const open = (world: World, b: Building, who: string): RepairPanel => {
+    const p = new RepairPanel();
+    p.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+    p.update(world, who, true, names);
+    return p;
+  };
+
+  it("shows the next tier's name, HP and price on MY upgradable building only", () => {
+    const { world, b } = setup();
+    const mine = open(world, b, "p1");
+    expect(mine.upgradeShown).toBe(true);
+    expect(mine.upgradeLabel).toBe("Upgrade $50");
+    expect(mine.info.split("\n")[2]).toBe("→ Reinforced barricade · 350 HP");
+    expect(mine.upgradeReason).toBe("");
+    const theirs = open(world, b, "p0");
+    expect(theirs.upgradeShown).toBe(false);
+    expect(theirs.info).not.toContain("→");
+    setBuildingType(world, b, "metal_barricade");
+    const top = open(world, b, "p1");
+    expect(top.upgradeShown).toBe(false); // the strongest tier: no Upgrade
+  });
+
+  it("predicts the refusal text (money); pending after a press until the World shows the new tier", () => {
+    const { world, b } = setup();
+    const me = world.players.get("p1");
+    if (!me) throw new Error("p1");
+    me.wallet = 10;
+    const p = open(world, b, "p1");
+    expect(p.upgradeReason).toBe("Not enough money");
+    me.wallet = 500;
+    p.update(world, "p1", true, names);
+    expect(p.upgradeReason).toBe("");
+    expect(p.pressUpgrade(world)).toBe(b.id);
+    expect(p.pressUpgrade(world)).toBe(0); // a second tap while pending sends nothing
+    p.update(world, "p1", true, names);
+    expect([p.open, p.upgradePending, p.upgradeLabel]).toEqual([true, true, "Upgrading…"]);
+    expect(p.info).toBe("Wood barricade\nHP 200 / 200"); // still the old tier: server truth
+    upgradeBuilding(world, "p1", b.id); // what the next state patch carries
+    p.update(world, "p1", true, names);
+    expect(p.upgradePending).toBe(false);
+    expect(p.info).toBe("Reinforced barricade\nHP 350 / 350\n→ Metal barricade · 600 HP");
+    expect(p.upgradeLabel).toBe("Upgrade $70");
+    p.pressUpgrade(world);
+    p.upgradeRefused(); // a refusal ends the wait
+    p.update(world, "p1", true, names);
+    expect(p.upgradeLabel).toBe("Upgrade $70");
+  });
+
+  it("has a text for every refusal reason", () => {
+    for (const e of UPGRADE_ERRORS) expect(upgradeRefusalText(e).length).toBeGreaterThan(0);
   });
 });

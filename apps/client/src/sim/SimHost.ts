@@ -1,4 +1,4 @@
-import type { PlaceError, PlaceRequest, PlayerInput, RepairError, ShopError, SimEvent, World } from "@topdown/shared";
+import type { PlaceError, PlaceRequest, PlayerInput, RepairError, ShopError, SimEvent, UpgradeError, World } from "@topdown/shared";
 
 /** Story 3.3: how a purchase ended (solo at once, online the server's `shop.bought` / `shop.refused`). */
 export type ShopAnswer =
@@ -51,6 +51,14 @@ export interface SimHost {
   repairBuilding(id: number): void;
   /** The latest repair refusal not taken yet, or null. */
   takeRepairRefusal(): RepairError | null;
+  /**
+   * Story 5.9: ask to upgrade my building `id` one tier (wood → reinforced → metal), paid from my
+   * wallet (the server validates; solo runs the same rules now). The building shows the new tier
+   * only when the World says so (online: the state). A refusal comes back through `takeUpgradeRefusal`.
+   */
+  upgradeBuilding(id: number): void;
+  /** The latest upgrade refusal not taken yet, or null. */
+  takeUpgradeRefusal(): UpgradeError | null;
   /**
    * Story 3.3: buy a weapon of the fixed shop (`slot`: which one it replaces when both are full).
    * Solo the shared `buyWeapon` runs at once; online it is sent as `shop.buy` and the server decides.

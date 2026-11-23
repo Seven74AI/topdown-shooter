@@ -14,14 +14,20 @@ import type { Building } from "./buildings";
  *
  * Story 4.2: the list is `world.obstacles.solids` (`map/obstacles.ts`): the map boxes, then the
  * cover active at the current decay stage (car, bus, barrier, sandbags all block bodies, FR56).
+ *
+ * Story 5.9 (F1 "floor is floor"): only WALL buildings (`Building.solid`) count here; spike traps
+ * and mines never block a body or a zombie's line of sight.
  */
 
 /** Any obstacle box (a building or a map solid). */
 type BoxView = Pick<MapBox, "minX" | "minY" | "maxX" | "maxY">;
 
-/** Story 4.1: the World has any obstacle (map solids, active cover or buildings): movement must run the push-out. */
+/** Story 4.1: the World has any obstacle (map solids, active cover or buildings): movement must run the push-out. Story 5.9: walls only (floor buildings never block). */
 export function hasObstacles(world: Readonly<World>): boolean {
-  return world.obstacles.solids.length > 0 || world.buildings.list.length > 0;
+  if (world.obstacles.solids.length > 0) return true;
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length; i++) if ((list[i] as Building).solid) return true;
+  return false;
 }
 
 /** Below this centre-to-box distance the circle counts as inside the box (pushed out along the shortest axis). */
@@ -46,7 +52,7 @@ export function circleHitsBuilding(world: Readonly<World>, x: number, y: number,
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
-    if (circleOverlapsBox(x, y, r, b.minX, b.minY, b.maxX, b.maxY)) return true;
+    if (b.solid && circleOverlapsBox(x, y, r, b.minX, b.minY, b.maxX, b.maxY)) return true; // Story 5.9: walls only
   }
   return false;
 }
@@ -169,7 +175,8 @@ function settle(world: Readonly<World>, x: number, y: number, r: number, fromX: 
       any = true;
     }
     for (let i = 0; i < list.length; i++) {
-      if (!pushBox(list[i] as Building, px, py, r, fromX, fromY)) continue;
+      const b = list[i] as Building;
+      if (!b.solid || !pushBox(b, px, py, r, fromX, fromY)) continue; // Story 5.9: floor never pushes
       px = pushed.x;
       py = pushed.y;
       any = true;
@@ -200,7 +207,7 @@ function settle(world: Readonly<World>, x: number, y: number, r: number, fromX: 
   }
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
-    if (circleOverlapsBox(px, py, rr, b.minX, b.minY, b.maxX, b.maxY)) {
+    if (b.solid && circleOverlapsBox(px, py, rr, b.minX, b.minY, b.maxX, b.maxY)) {
       pushed.x = fromX;
       pushed.y = fromY;
       return PUSH_STUCK;
@@ -258,7 +265,7 @@ export function segmentHitsBuildings(world: Readonly<World>, x0: number, y0: num
   }
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
-    if (segmentHitsBox(x0, y0, dx, dy, b.minX - r, b.minY - r, b.maxX + r, b.maxY + r)) return true;
+    if (b.solid && segmentHitsBox(x0, y0, dx, dy, b.minX - r, b.minY - r, b.maxX + r, b.maxY + r)) return true; // Story 5.9: walls only
   }
   return false;
 }

@@ -29,6 +29,7 @@ import {
   type PlaceError,
   type PlaceRequest,
   type RepairError,
+  type UpgradeError,
   type PlayerInput,
   type PlayerState,
   type PlayerStateView,
@@ -217,6 +218,8 @@ export class NetSimHost implements SimHost {
   private refusal: PlaceError | null = null;
   /** Story 3.7: the latest `building.repair_refused`, until the scene takes it. */
   private repairRefusal: RepairError | null = null;
+  /** Story 5.9: the last upgrade refusal, until the scene takes it. */
+  private upgradeRefusal: UpgradeError | null = null;
   private readonly dropMissing = (_p: PlayerState, id: string): void => {
     if (!this.latest?.players.has(id)) removePlayer(this.world, id);
   };
@@ -261,6 +264,11 @@ export class NetSimHost implements SimHost {
     this.offs.push(
       opts.session.onRepairRefused((reason) => {
         this.repairRefusal = reason;
+      }),
+    );
+    this.offs.push(
+      opts.session.onUpgradeRefused((reason) => {
+        this.upgradeRefusal = reason;
       }),
     );
     room.onStateChange(this.onState);
@@ -371,6 +379,17 @@ export class NetSimHost implements SimHost {
   /** Story 3.7: `building.repair`; HP and wallet come back in the state, a refusal as `building.repair_refused`. */
   repairBuilding(id: number): void {
     if (!this.disposed) this.session.room.send(C2S.BUILDING_REPAIR, { id });
+  }
+
+  /** Story 5.9: `building.upgrade`; the new type, HP and wallet come back in the state, a refusal as `building.upgrade_refused`. */
+  upgradeBuilding(id: number): void {
+    if (!this.disposed) this.session.room.send(C2S.BUILDING_UPGRADE, { id });
+  }
+
+  takeUpgradeRefusal(): UpgradeError | null {
+    const r = this.upgradeRefusal;
+    this.upgradeRefusal = null;
+    return r;
   }
 
   takeRepairRefusal(): RepairError | null {

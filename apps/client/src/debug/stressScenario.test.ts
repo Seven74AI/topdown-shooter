@@ -5,8 +5,11 @@ import {
   STRESS_DURATION_MS,
   STRESS_WARMUP_MS,
   StressRun,
+  STRESS_FLOOR_BUILDINGS,
   formatStressReport,
+  placeStressFloor,
   setupStressWorld,
+  toughenStressZombies,
   spawnInView,
   stressFireInput,
   viewAround,
@@ -175,3 +178,25 @@ describe("StressRun interruption", () => {
   });
 });
 
+
+describe("Story 5.9: ?stressbuild=traps", () => {
+  it("lays 24 non-overlapping spike traps and mines round the survivor; the crowd can't die on them", () => {
+    const world = createWorld({ balance, seed: 3, map: PLACEHOLDER_MAP });
+    addPlayer(world, "local", 24, 16);
+    expect(placeStressFloor(world, "local", 24, 16)).toBe(STRESS_FLOOR_BUILDINGS);
+    const types = world.buildings.list.map((b) => b.type);
+    expect(types.filter((t) => t === "spike_trap").length).toBe(12);
+    expect(types.filter((t) => t === "mine").length).toBe(12);
+    const list = world.buildings.list;
+    for (let i = 0; i < list.length; i++)
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]!;
+        const b = list[j]!;
+        expect(a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY).toBe(false);
+      }
+    setupStressWorld(world, 50, viewAround(world.map, 24, 16, 20, 10, { x: 0, y: 0, w: 0, h: 0 }), 24, 16);
+    toughenStressZombies(world);
+    for (let i = 0; i < 100; i++) step(world, TICK_DT_S);
+    expect(world.zombies.aliveCount).toBe(50);
+  });
+});

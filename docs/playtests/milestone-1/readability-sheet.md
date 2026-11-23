@@ -25,6 +25,10 @@ Player:
 13-15 are these three different? what does each one do?
 16 what is the survivor holding?
 17 what is the survivor holding?
+18 what:            bullets:            can you walk on it?
+19 what:            bullets:            can you walk on it?
+20 what:            bullets:            can you walk on it?
+21 what:            bullets:            can you walk on it?   + what do the two circles mean?
 ```
 
 ## 1
@@ -68,3 +72,14 @@ Player:
 
 ## 16, 17: what is the survivor holding? (Story 5.3: Shotgun, Assault Rifle)
 ![16](objects/17_survivor_shotgun.png) ![17](objects/18_survivor_assault_rifle.png)
+## 18 (Epic 5)
+![18](objects/19_reinforced_barricade.png)
+
+## 19 (Epic 5)
+![19](objects/20_metal_barricade.png)
+
+## 20 (Epic 5)
+![20](objects/21_spike_trap.png)
+
+## 21 (Epic 5): the small round thing
+![21](objects/22_mine.png)

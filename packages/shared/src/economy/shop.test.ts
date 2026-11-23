@@ -52,11 +52,22 @@ describe("shop list (Story 3.3)", () => {
     expect(() => loadBalance(files)).toThrow(/shop\.json: weapons\.\d+: unknown weapon rocket/);
   });
 
-  it("buildings: the bundled buildings.json lists the Wood barricade (3.4) and the Auto-turret (3.6)", () => {
+  it("buildings: the bundled buildings.json lists the Wood barricade (3.4), the Auto-turret (3.6), the spike trap and the mine (5.9)", () => {
     expect(shopBuildings(balance)).toEqual([
       { id: "wood_barricade", name: "Wood barricade", price: 40 },
       { id: "auto_turret", name: "Auto-turret", price: 250 },
+      { id: "spike_trap", name: "Spike trap", price: 80 },
+      { id: "mine", name: "Mine", price: 60 },
     ]);
+  });
+
+  it("Story 5.9: upgrade-only types are not in the shop; spike_trap 80 and mine 60 are", () => {
+    const ids = shopBuildings(balance).map((b) => b.id);
+    expect(ids).not.toContain("reinforced_barricade");
+    expect(ids).not.toContain("metal_barricade");
+    expect(balance.buildings.types.metal_barricade?.forSale).toBe(false);
+    const fake = { ...balance, buildings: { types: { a: { price: 1 }, b: { price: 2, forSale: false } } } } as unknown as Balance;
+    expect(shopBuildings(fake).map((b) => b.id)).toEqual(["a"]);
   });
 
   it("buildings: every type with a price, named by `name` or the Title-Cased id (3.4 contract)", () => {

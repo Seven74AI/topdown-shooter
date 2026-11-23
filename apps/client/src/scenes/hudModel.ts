@@ -75,6 +75,11 @@ export interface HudModel {
   /** Repair and ✕ taps; the GameScene consumes them. */
   repairPressed: boolean;
   repairClosePressed: boolean;
+  /** Story 5.9: the Upgrade button (my upgradable building in the open panel), its label and refusal text; its tap. */
+  upgradeShown: boolean;
+  upgradeLabel: string;
+  upgradeReason: string;
+  upgradePressed: boolean;
   /** Centered banner text and the scene time (ms) it was shown; empty when none. */
   bannerText: string;
   bannerAtMs: number;
@@ -172,6 +177,10 @@ export const createHudModel = (): HudModel => ({
   repairLabel: "",
   repairPressed: false,
   repairClosePressed: false,
+  upgradeShown: false,
+  upgradeLabel: "",
+  upgradeReason: "",
+  upgradePressed: false,
   bannerText: "",
   bannerAtMs: 0,
   rushers: new Float32Array(MAX_RUSH_MARKERS * 2),

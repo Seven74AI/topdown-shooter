@@ -76,7 +76,8 @@ function knockT(x: number, y: number, mx: number, my: number, r: number, b: Pick
 /**
  * Story 5.3 (shared with 5.2's Fire Axe and 5.7's Brute): knocks zombie `id` up to `distM` along
  * the unit (dirX, dirY), swept: it stops when its body touches a map solid (car, bus, building box,
- * barrier, sandbags: `world.obstacles.solids`) or a player building, and never leaves the map
+ * barrier, sandbags: `world.obstacles.solids`) or a player WALL building (Story 5.9: traps and mines
+ * are floor and never stop it), and never leaves the map
  * (fairness rule F4: never into or through anything). Allocation-free. Returns the distance moved.
  */
 export function applyKnockback(world: World, id: number, dirX: number, dirY: number, distM: number): number {
@@ -99,7 +100,10 @@ export function applyKnockback(world: World, id: number, dirX: number, dirY: num
   const solids = world.obstacles.solids;
   for (let i = 0; i < solids.length && t > 0; i++) t = knockT(x, y, mx, my, r, solids[i] as MapBox, t);
   const list = world.buildings.list;
-  for (let i = 0; i < list.length && t > 0; i++) t = knockT(x, y, mx, my, r, list[i] as Building, t);
+  for (let i = 0; i < list.length && t > 0; i++) {
+    const b = list[i] as Building;
+    if (b.solid) t = knockT(x, y, mx, my, r, b, t); // Story 5.9: only walls stop it (a spike trap or a mine is floor)
+  }
   const d = t < 1 ? Math.max(0, t * distM - KNOCK_FACE_GAP_M) : distM;
   z.x[id] = Math.min(widthM - r, Math.max(r, x + dirX * d));
   z.y[id] = Math.min(heightM - r, Math.max(r, y + dirY * d));

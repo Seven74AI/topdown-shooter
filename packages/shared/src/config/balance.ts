@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { canonicalJson, fnv1a32 } from "../core/hash";
-import { balanceFileSchemas, type BalanceFileName } from "./balanceSchema";
+import { balanceFileSchemas, type BalanceFileName, type BuildingTypeStats } from "./balanceSchema";
 import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
@@ -77,6 +77,47 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   }
   if (buildings.spawnClearM <= waves.spawnJitterM + maxRz) {
     issues.push(`buildings.json: spawnClearM ${buildings.spawnClearM} must exceed waves.spawnJitterM + the largest zombie radius (${waves.spawnJitterM + maxRz})`);
+  }
+  crossCheckBuildingTypes(parsed.buildings as { types: Record<string, BuildingTypeStats> }, issues);
+}
+
+/**
+ * Story 5.9: the upgrade ladder and the floor types. An `upgradesTo` names an existing upgrade-only
+ * type (`forSale: false`) with the same footprint whose `price` is this price + the step (the
+ * "total paid" rule: repairs and refunds use it, F9); no cycles; floor types (`solid: false`) never
+ * upgrade; `turret`, `trap` and `mine` exclude each other; traps and mines are floor.
+ */
+function crossCheckBuildingTypes(buildings: { types: Record<string, BuildingTypeStats> }, issues: string[]): void {
+  const types = buildings.types;
+  for (const [id, t] of Object.entries(types)) {
+    const kinds = (t.turret ? 1 : 0) + (t.trap ? 1 : 0) + (t.mine ? 1 : 0);
+    if (kinds > 1) issues.push(`buildings.json: types.${id}: turret, trap and mine exclude each other`);
+    if ((t.trap || t.mine) && t.solid) issues.push(`buildings.json: types.${id}: a trap or mine must be floor (solid: false)`);
+    const up = t.upgradesTo;
+    if (!up) continue;
+    if (!t.solid) issues.push(`buildings.json: types.${id}: a floor type can't upgrade`);
+    const next = Object.prototype.hasOwnProperty.call(types, up.type) ? types[up.type] : undefined;
+    if (!next) {
+      issues.push(`buildings.json: types.${id}.upgradesTo: unknown type ${up.type}`);
+      continue;
+    }
+    if (next.forSale) issues.push(`buildings.json: types.${id}.upgradesTo: ${up.type} must be upgrade-only (forSale: false)`);
+    if (next.widthM !== t.widthM || next.depthM !== t.depthM || next.solid !== t.solid) issues.push(`buildings.json: types.${id}.upgradesTo: ${up.type} must have the same footprint`);
+    if (next.price !== t.price + up.price) issues.push(`buildings.json: types.${id}.upgradesTo: ${up.type}'s price must be ${t.price} + ${up.price} = ${t.price + up.price} (the total paid)`);
+  }
+  // No cycles: following upgradesTo from any type ends within the number of types.
+  const n = Object.keys(types).length;
+  for (const id of Object.keys(types)) {
+    let cur: string | undefined = id;
+    let steps = 0;
+    while (cur !== undefined && steps <= n) {
+      cur = types[cur]?.upgradesTo?.type;
+      steps++;
+    }
+    if (steps > n) {
+      issues.push(`buildings.json: types.${id}: the upgrade ladder loops`);
+      break;
+    }
   }
 }
 

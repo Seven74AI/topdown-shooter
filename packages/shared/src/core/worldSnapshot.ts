@@ -29,6 +29,8 @@ function snapshotZombies(world: World) {
       waveZombie: z.waveZombie[id],
       attackCooldownTicks: z.attackCooldownTicks[id],
       fireTicks: z.fireTicks[id], // Story 4.8 review L4
+      trapTicks: z.trapTicks[id], // Story 5.9
+      slowPct: z.slowPct[id],
       knockShot: Array.from(z.knockShot.subarray(id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY)), // Story 5.3
       knockHead: z.knockHead[id],
     })),
@@ -140,6 +142,7 @@ export function snapshotWorld(world: World) {
       list: world.buildings.list.map((b) => ({ ...b })),
       nextId: world.buildings.nextId,
       version: world.buildings.version,
+      wallVersion: world.buildings.wallVersion, // Story 5.9
     },
     // Story 3.5: the flow field's counters and hashes of its buffers (it is evolved state, not synced).
     pathing: snapshotPathing(world.pathing),

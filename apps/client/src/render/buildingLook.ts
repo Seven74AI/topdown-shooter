@@ -29,3 +29,30 @@ export function hpChecksum(list: readonly Building[]): number {
   }
   return h >>> 0;
 }
+
+/** Story 5.9 (AC 16): the HP bar's steps (a 300 HP trap redraws every 15 HP, not on every spike). */
+export const BAR_STEPS = 20;
+
+/**
+ * Story 5.9: the HP fraction as drawn: 1 at full HP, else rounded UP to the bar's step and never
+ * above the last step below full (the first hit always shows; then one redraw per step).
+ */
+export function barFraction(b: Pick<Building, "hp" | "maxHp">): number {
+  if (b.maxHp <= 0 || b.hp >= b.maxHp) return 1;
+  const f = Math.max(0, b.hp / b.maxHp);
+  return Math.min((BAR_STEPS - 1) / BAR_STEPS, Math.ceil(f * BAR_STEPS) / BAR_STEPS);
+}
+
+/**
+ * Story 5.9 (AC 16): the buildings layer's redraw key: every building's (id, drawn bar step) in list
+ * order (FNV-1a, no allocation). Raw HP changes inside a step (a trap worn by one spike) keep it.
+ */
+export function buildingDrawKey(list: readonly Building[]): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    h = Math.imul(h ^ b.id, 0x01000193);
+    h = Math.imul(h ^ Math.round(barFraction(b) * BAR_STEPS), 0x01000193);
+  }
+  return h >>> 0;
+}

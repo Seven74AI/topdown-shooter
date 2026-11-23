@@ -3,8 +3,11 @@ import {
   C2S,
   S2C,
   REPAIR_ERRORS,
+  UPGRADE_ERRORS,
   type BuildingRefused,
   type BuildingRepairRefused,
+  type BuildingUpgradeRefused,
+  type UpgradeError,
   type NetPinged,
   type PlaceError,
   type PlayerLeft,
@@ -61,6 +64,12 @@ export function parseBuildingRefused(m: unknown): PlaceError | null {
 export function parseRepairRefused(m: unknown): RepairError | null {
   const reason = (m as Partial<BuildingRepairRefused> | null)?.reason;
   return typeof reason === "string" && (REPAIR_ERRORS as readonly string[]).includes(reason) ? (reason as RepairError) : null;
+}
+
+/** The reason of a well-formed `building.upgrade_refused` (Story 5.9), or null. */
+export function parseUpgradeRefused(m: unknown): UpgradeError | null {
+  const reason = (m as Partial<BuildingUpgradeRefused> | null)?.reason;
+  return typeof reason === "string" && (UPGRADE_ERRORS as readonly string[]).includes(reason) ? (reason as UpgradeError) : null;
 }
 
 /** Event batches kept while no game scene listens yet: 200 ticks = 10 s of a hidden tab at Start. */
@@ -120,6 +129,7 @@ export class RunInbox {
   private refusedSink: ((reason: PlaceError) => void) | null = null;
   private shopSink: ((a: ShopAnswer) => void) | null = null;
   private repairSink: ((reason: RepairError) => void) | null = null;
+  private upgradeSink: ((reason: UpgradeError) => void) | null = null;
 
   constructor(private readonly room: Pick<NetRoomLike, "send" | "onMessage">) {
     this.offs.push(room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m)));
@@ -130,6 +140,21 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.SHOP_BOUGHT, (m: unknown) => this.receiveShop(parseShopBought(m))));
     this.offs.push(room.onMessage(S2C.SHOP_REFUSED, (m: unknown) => this.receiveShop(parseShopRefused(m))));
     this.offs.push(room.onMessage(S2C.BUILDING_REPAIR_REFUSED, (m: unknown) => this.receiveRepairRefused(m)));
+    this.offs.push(room.onMessage(S2C.BUILDING_UPGRADE_REFUSED, (m: unknown) => this.receiveUpgradeRefused(m)));
+  }
+
+  /** Story 5.9: each `building.upgrade_refused` from now on (dropped while none listens). Returns the unsubscribe. */
+  onUpgradeRefused(sink: (reason: UpgradeError) => void): () => void {
+    this.upgradeSink = sink;
+    return () => {
+      if (this.upgradeSink === sink) this.upgradeSink = null;
+    };
+  }
+
+  private receiveUpgradeRefused(m: unknown): void {
+    if (this.closed || !this.upgradeSink) return;
+    const reason = parseUpgradeRefused(m);
+    if (reason) this.upgradeSink(reason);
   }
 
   /** Story 3.7: each `building.repair_refused` from now on (dropped while none listens). Returns the unsubscribe. */
@@ -217,6 +242,7 @@ export class RunInbox {
     this.refusedSink = null;
     this.shopSink = null;
     this.repairSink = null;
+    this.upgradeSink = null;
   }
 
   private receiveRefused(m: unknown): void {
@@ -310,6 +336,11 @@ export class NetSession {
   /** See `RunInbox.onRepairRefused`. */
   onRepairRefused(sink: (reason: RepairError) => void): () => void {
     return this.inbox.onRepairRefused(sink);
+  }
+
+  /** See `RunInbox.onUpgradeRefused` (Story 5.9). */
+  onUpgradeRefused(sink: (reason: UpgradeError) => void): () => void {
+    return this.inbox.onUpgradeRefused(sink);
   }
 
   /** See `RunInbox.onShopAnswer`. */

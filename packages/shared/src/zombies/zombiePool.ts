@@ -43,6 +43,10 @@ export interface ZombiePool {
   freedCount: number;
   /** Story 4.8 review L4: ticks spent inside a fire since the last fire hit (the burn clock; 0 on spawn). */
   readonly fireTicks: Uint16Array;
+  /** Story 5.9: ticks spent on spike traps since the last spike hit (the per-body spike clock; 0 on spawn). */
+  readonly trapTicks: Uint16Array;
+  /** Story 5.9: this tick's trap slow in % (written by `updateTraps` before the zombies move; 0 off traps). */
+  readonly slowPct: Uint8Array;
   /**
    * Story 5.3: the last `KNOCK_MEMORY` shot ids (`ProjectilePool.shotId`) that knocked this zombie
    * back, a ring per slot at `[id × KNOCK_MEMORY, …)` written at `knockHead[id]` (once per shot, F5;
@@ -87,6 +91,8 @@ export function createZombiePool(capacity: number): ZombiePool {
     hp: new Float32Array(capacity),
     attackCooldownTicks: new Uint16Array(capacity),
     fireTicks: new Uint16Array(capacity),
+    trapTicks: new Uint16Array(capacity),
+    slowPct: new Uint8Array(capacity),
     knockShot: new Uint32Array(capacity * KNOCK_MEMORY), // Story 5.3
     knockHead: new Uint8Array(capacity),
     type: new Uint8Array(capacity),
@@ -136,6 +142,8 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.hp[id] = stats.hp;
   pool.attackCooldownTicks[id] = 0;
   pool.fireTicks[id] = 0; // Story 4.8: a reused slot starts with a cold burn clock
+  pool.trapTicks[id] = 0; // Story 5.9: and a cold spike clock, at full speed
+  pool.slowPct[id] = 0;
   pool.knockShot.fill(0, id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY); // Story 5.3: no shot has knocked a new zombie yet
   pool.knockHead[id] = 0;
   pool.type[id] = zombieTypeIndex(type);

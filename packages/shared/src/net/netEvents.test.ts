@@ -42,6 +42,11 @@ const EVENTS: SimEvent[] = [
   { type: "building.repaired", buildingId: 3, playerId: "p2", cost: 20, x: 47.25, y: 31.5 },
   // Story 3.6: a turret's kill (the building type is no weapon: decodes to "").
   { type: "zombie.killed", zombieId: 7, killerId: "p1", x: 3, y: 4, weapon: "", buildingId: 12 },
+  // Story 5.9: an upgrade, a mine blast, a blast's player damage (source -2, not fire).
+  { type: "building.upgraded", buildingId: 5, playerId: "p3", cost: 70, toType: "metal_barricade", x: 12.25, y: 7.5 },
+  { type: "mine.exploded", buildingId: 9, x: 20.25, y: 11.75 },
+  { type: "player.damaged", playerId: "p1", amount: 40, sourceZombieId: -2 },
+  { type: "player.damaged", playerId: "p2", amount: 5, sourceZombieId: -1 },
 ];
 
 /** Story 3.6: a turret shot (its muzzle is not sent). */

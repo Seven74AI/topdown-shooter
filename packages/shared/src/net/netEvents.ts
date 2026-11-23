@@ -43,6 +43,9 @@ export const NET_EVENT_KIND = {
   BUILDING_REPAIRED: 24, // Story 3.7
   RUN_HELD_OUT: 25, // Story 3.10
   DECAY_STAGE_CHANGED: 26, // Story 4.5
+  // Story 5.9 (next free numbers at merge; never reuse):
+  BUILDING_UPGRADED: 27,
+  MINE_EXPLODED: 28,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -130,7 +133,8 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       // Arc and range come from the weapon's balance on decode (melee.ts emits exactly those).
       return [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
     case "player.damaged":
-      return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? -1 : zid(ctx, e.sourceZombieId)];
+      // Story 5.9: a negative source (fire -1, blast -2) travels as is.
+      return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? e.sourceZombieId : zid(ctx, e.sourceZombieId)];
     case "player.downed":
       return [K.PLAYER_DOWNED, playerSlotOf(e.playerId)];
     case "player.revived":
@@ -173,6 +177,14 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "decay.stage_changed":
       // Story 4.5: the banner (the map itself follows the room state's decayStage / decayVariants).
       return [K.DECAY_STAGE_CHANGED, e.stage, e.from];
+    case "building.upgraded": {
+      // Story 5.9: FX + toast (the new type, HP and wallet come from schema).
+      const t = buildingTypeIds(b).indexOf(e.toType);
+      return [K.BUILDING_UPGRADED, e.buildingId, playerSlotOf(e.playerId), e.cost, t < 0 ? NET_NONE : t, cm(e.x), cm(e.y)];
+    }
+    case "mine.exploded":
+      // Story 5.9: the blast FX (the removal comes from schema; hits and kills are their own events).
+      return [K.MINE_EXPLODED, e.buildingId, cm(e.x), cm(e.y)];
     case "test.ping":
       return null;
   }
@@ -258,7 +270,7 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.PLAYER_DAMAGED: {
       const src = n(t, 3);
-      return { type: "player.damaged", playerId: pid(t, 1), amount: n(t, 2) / 10, sourceZombieId: src < 0 ? -1 : zombieSlotOfNetId(src) };
+      return { type: "player.damaged", playerId: pid(t, 1), amount: n(t, 2) / 10, sourceZombieId: src < 0 ? src : zombieSlotOfNetId(src) };
     }
     case K.PLAYER_DOWNED:
       return { type: "player.downed", playerId: pid(t, 1) };
@@ -303,6 +315,13 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "building.repaired", buildingId: n(t, 1), playerId: pid(t, 2), cost: n(t, 3), x: n(t, 4) / 100, y: n(t, 5) / 100 };
     case K.DECAY_STAGE_CHANGED:
       return { type: "decay.stage_changed", stage: n(t, 1), from: n(t, 2) };
+    case K.BUILDING_UPGRADED: {
+      const toType = buildingTypeIds(b)[n(t, 4)];
+      if (toType === undefined) return null;
+      return { type: "building.upgraded", buildingId: n(t, 1), playerId: pid(t, 2), cost: n(t, 3), toType, x: n(t, 5) / 100, y: n(t, 6) / 100 };
+    }
+    case K.MINE_EXPLODED:
+      return { type: "mine.exploded", buildingId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
     default:
       return null;
   }
