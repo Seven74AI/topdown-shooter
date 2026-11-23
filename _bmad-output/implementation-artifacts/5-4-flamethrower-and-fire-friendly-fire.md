@@ -4,7 +4,7 @@ baseline_commit: b84caa3501de1e548dae55180d51f0155e2b0add
 
 # Story 5.4: Flamethrower and fire friendly fire
 
-Status: review
+Status: done
 
 ## Story
 
