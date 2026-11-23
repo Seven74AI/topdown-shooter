@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, shopBuildings } from "@topdown/shared";
+import { loadBalance, loadDevBalance, shopBuildings } from "@topdown/shared";
 import { textureRegistry } from "../gfx/textureRegistry";
 import {
   BUILD_ICONS,
@@ -20,23 +20,28 @@ import {
   paintBuildIcon,
 } from "./buildIcons";
 import { RecordCanvas, asContext } from "./recordCanvas";
-import { buildingFrame } from "./buildingsAtlas";
 
-describe("build-bar icons (Story 5.26)", () => {
-  it("the picked icons (I1 barricade, I1 spikes, T1 turret, M1 mine); every other shop building has world art to fall back on", () => {
+describe("build-bar icons (Stories 5.26, 5.27)", () => {
+  it("every shop building has its icon (Story 5.27), with ?shopall the floodlight too", () => {
     const ids = shopBuildings(loadBalance()).map((b) => b.id);
-    expect(ids.length).toBeGreaterThanOrEqual(4);
-    // 5.26 review: 5.10's med station (and later types) have no icon yet by design; each tile must still
-    // have an icon OR world art, never only the Graphics fallback.
-    for (const id of ids) expect(buildIconFrame(id) !== null || buildingFrame(id) !== null, id).toBe(true);
+    expect(ids.length).toBeGreaterThanOrEqual(5);
+    for (const id of ids) expect(buildIconFrame(id), id).not.toBeNull();
+    const all = shopBuildings(loadDevBalance({ zombieDamageScale: null, shopAll: true })).map((b) => b.id);
+    expect(all).toContain("floodlight");
+    for (const id of all) expect(buildIconFrame(id), id).not.toBeNull();
+    const frames = new Set(BUILD_ICONS.map((i) => i.frame));
+    for (const id of [...all, "bear_trap"]) expect(frames.has(buildIconFrame(id)!), id).toBe(true); // mapped frames are baked
     expect(buildIconFrame("wood_barricade")).toBe("icon_build_barricade_a");
     expect(buildIconFrame("spike_trap")).toBe("icon_build_spiketrap_a");
     expect(buildIconFrame("auto_turret")).toBe("icon_build_turret_a");
     expect(buildIconFrame("mine")).toBe("icon_build_mine_a");
+    expect(buildIconFrame("floodlight")).toBe("icon_build_floodlight_a");
+    expect(buildIconFrame("med_station")).toBe("icon_build_medstation_a");
+    expect(buildIconFrame("bear_trap")).toBe("icon_build_beartrap_a"); // Story 5.14's type: mapped ahead
   });
 
-  it("a type without an icon (5.10's types, upgrade tiers, unknown, prototype keys) returns null: world-art fallback", () => {
-    for (const t of ["floodlight", "med_station", "bear_trap", "metal_barricade", "", "toString", "__proto__"]) expect(buildIconFrame(t), t).toBeNull();
+  it("a type without an icon (upgrade tiers, unknown, prototype keys) returns null: world-art fallback", () => {
+    for (const t of ["metal_barricade", "", "toString", "__proto__"]) expect(buildIconFrame(t), t).toBeNull();
   });
 
   it("T2 is baked and kept but no building type maps to it", () => {
