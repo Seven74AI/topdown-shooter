@@ -79,8 +79,12 @@ export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started"
 
 /** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
 export const MAX_PLAYERS = 4;
-/** Players needed before the host can start (dev builds may start alone, Story 2.3). */
-export const MIN_PLAYERS_TO_START = 2;
+/**
+ * Players needed before the host can start. Designer, 2026-11-23: 1 — a real online run can be
+ * played alone (sized × 0.4 by the wave tables). Story 2.3 needed 2 and let only dev builds start
+ * alone (`allowSoloStart`), which now changes nothing.
+ */
+export const MIN_PLAYERS_TO_START = 1;
 
 /** A guest token: 16 random bytes as lowercase hex (Story 2.3). Not a secret in Epic 2. */
 export const guestTokenSchema = z.string().regex(/^[0-9a-f]{32}$/);
