@@ -1,6 +1,6 @@
 # Story 5.18: Place, place, place (chain and pending under lag)
 
-Status: in-progress
+Status: review
 
 (Building UX rework BX-4. Design: `docs/ideas/building-ux/ux-spec.md` §5 (numbers: pending timeout 2 s, chain rate ≤ 4/s), §6.3 Place, §6.4 Pending, §15 (designer: **B · Carry + drag**, **no hold-to-paint**: one Place = one building, walls come from the chain jump), `draft-stories.md` › BX-4, feel: `prototype.html` / claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR. Spine-wins rule: where the spec and the prototype disagree, the spec wins. Builds on 5.15 (`stepPlacement`, carry, hand cluster), 5.16 (build bar, `pickError`, toasts) and 5.17 (`blockReason`, the reason line, the 250 ms hold). **Client-only: no message, schema or server change.** Takes over two accepted lows: **5.15 L7** (the server judges `building.place` before queued inputs, so after a fast reversal under big lag a green ghost can be refused `blocked` — handled like any pending refusal) and **5.16 L2** (the build bar's count/wallet lagged one round trip online — the pending count and wallet now feed `buildOwned` / the tiles' wallet).)
 
@@ -70,14 +70,14 @@ so that I can build a wall in seconds.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Numbers.** `controls.json` + `buildControlsSchema`: `pendingTimeoutMs`, `chainSendGapMs`, `chainMinStepM`, `chainUnpinWalkM`; `balance.test.ts`.
-- [ ] **T2 `scenes/pendingPlacements.ts`** (Phaser-free): pooled entries, `add`, `pump`, `sync`, `refuse`, `update` (phase/wave clear, timeouts, end of the refusal animation, ghost expiry), `count`, `money`, `overlaps`; tests.
-- [ ] **T3 Placement chain + pin** (`placement.ts`): pending-aware `check`, the pending overlap reason, `chainStep`, `pin`/`unpin`, `carry` while pinned, ⟳ around the centre, Place gate + chain in `stepPlacement` (`PlacementFrame.pending`, view rect); tests.
-- [ ] **T4 NetSimHost refusal queue**: a small ring of (reason, tick at arrival); `takePlaceRefusal` returns the oldest only once `world.tick` is newer; tests.
-- [ ] **T5 `render/PendingView.ts`**: pooled dashed boxes + spinner, shake/fade; GameScene wiring (sync → step → pump → sync; refusals → `refuse`; shown wallet into HUD, bar, hint, shop).
-- [ ] **T6 NetSimHost chain test at 150 ms**, mutations.
-- [ ] **T7 Browser check online** (own ports, `?lag=150&jitter=20`), screenshots `docs/art/5-18/`.
-- [ ] **T8 Gate + record.**
+- [x] **T1 Numbers.** `controls.json` + `buildControlsSchema`: `pendingTimeoutMs`, `chainSendGapMs`, `chainMinStepM`, `chainUnpinWalkM`; `balance.test.ts`.
+- [x] **T2 `scenes/pendingPlacements.ts`** (Phaser-free): pooled entries, `add`, `pump`, `sync`, `refuse`, `update` (phase/wave clear, timeouts, end of the refusal animation, ghost expiry), `count`, `money`, `overlaps`; tests.
+- [x] **T3 Placement chain + pin** (`placement.ts`): pending-aware `check`, the pending overlap reason, `chainStep`, `pin`/`unpin`, `carry` while pinned, ⟳ around the centre, Place gate + chain in `stepPlacement` (`PlacementFrame.pending`, view rect); tests.
+- [x] **T4 NetSimHost refusal queue**: a small ring of (reason, tick at arrival); `takePlaceRefusal` returns the oldest only once `world.tick` is newer; tests.
+- [x] **T5 `render/PendingView.ts`**: pooled dashed boxes + spinner, shake/fade; GameScene wiring (sync → step → pump → sync; refusals → `refuse`; shown wallet into HUD, bar, hint, shop).
+- [x] **T6 NetSimHost chain test at 150 ms**, mutations.
+- [x] **T7 Browser check online** (own ports, `?lag=150&jitter=20`), screenshots `docs/art/5-18/`.
+- [x] **T8 Gate + record.**
 
 ## Dev Notes
 
@@ -124,12 +124,50 @@ None of the sim copies. NetSimHost (client) changes when a refusal is handed on;
 
 ### Agent Model Used
 
+Claude (builder cloud session, 2026-11-23). Baseline `3bbb955` (master with 5.15–5.17); master `69bd924` (5.10, 5.11) merged in before the final gate.
+
 ### Debug Log References
+
+- Browser check (online, own server :2618 + Vite :5218, `?lag=150&jitter=20`, Playwright mobile 800 × 360, real touch taps): see `docs/art/5-18/README.md`. Wall: 3 built end to end, $5000 → $4880, shown wallet min 4880, ≤ 2 pending at once. Ten taps with $100: server log 2 `building_placed` / 0 `building_refused`, $100 → $20, shown min 20, toast "Not enough money for another". No console errors.
+- The netsim test found a real bug while building: the patch lands inside `host.update`, after the frame's first pending match, so for one frame the HUD subtracted a price twice. Fixed by matching again right after `host.update` (GameScene and the test loop).
+- Mutation M9b first survived (with the 250 ms send gap and 150 ms RTT the netsim never had an accepted box in flight when a refusal came). Added a server-hitch case (messages handled on arrival, ticks paused 700 ms): now killed.
 
 ### Completion Notes List
 
+- **Pending tracker** (`scenes/pendingPlacements.ts`, Phaser-free): a pool of 16 entries; `add` (queued, counted), `pump` (oldest queued, ≥ `chainSendGapMs` 250 ms apart), `update` (phase/wave clear, boxes that became my buildings — same type/gx/gy/rot, owner me, id newer than both the newest id known at the press and the last match — timeouts after `pendingTimeoutMs` 2 s → refusal look + invisible ghost for a late answer, ghosts forgotten after 10 s), `refuse` (oldest awaiting box; "shown" / "ghost" / "none"), `count`, `money`, `overlaps`. No allocation after construction.
+- **Chain + pin** (`scenes/placement.ts`): `check(world, owner, pending)` is pending-aware in `placementError`'s order (limit counting pending → money from the shown wallet → my pending ground = `blocked`, reason "Overlaps a building"); `placeGate` turns a Place down on the device only when pending makes the refusal certain (cap counting pending; short with a box pending) — with nothing pending a predicted refusal still sends (5.15); `stepPlacement`'s Place: request → gate → send → can I pay/build another (else hand empties: "Not enough money for another" / "Building limit reached (6)") → `chain` (jump `chainOffset`: long side end to end, squares to the right of the facing, ≥ `chainMinStepM` 1 m; pinned; blocked → back to carry). Pinned ghosts don't follow me; ⟳ turns them around their centre; back to carry after `chainUnpinWalkM` 2 m of walking or when the centre leaves the view (1 m inset).
+- **NetSimHost**: refusals go into a ring of 8 with the room state's tick at arrival; `takePlaceRefusal` hands the oldest on only once the mirror World's tick is newer (every building the server accepted before the refusal is then mirrored), so FIFO matching is exact without ids. Also fixes the old single slot that lost a second refusal in one frame.
+- **View** (`render/PendingView.ts`, `render/pendingLook.ts`, `dashedRect` in `render/dashes.ts`): one Graphics pair per pool slot, drawn when a box takes the slot and once when it turns red; per frame only position (shake ±0.1 m, 3 × 150 ms), alpha (300 ms fade) and the spinner's rotation (1 turn/s). No texture.
+- **GameScene**: Place → `queuePlace` (box at the shown spot); per frame pending update → placement step → pump + update → `host.update` → update again → every refusal to `refuse` (toast unless "ghost") → "No answer from the server" on timeouts. The shown wallet (`wallet − pending.money`) feeds the HUD money, the build bar (and `owned + pending` for its count: 5.16 L2), the reason line and the shop.
+- **Balance** (`controls.json › build`): `pendingTimeoutMs 2000`, `chainSendGapMs 250`, `chainMinStepM 1.0`, `chainUnpinWalkM 2.0` (zod, bounds, defaults).
+- **Copies (brief 2)**: no sim copy, message, schema or server change; 0 B/s added. 5.15 L7 (green ghost refused after a fast reversal) is now just a pending refusal: shake, fade, money back.
+- **Tests**: `pendingPlacements.test.ts` (12), `placement.test.ts` (+10 in the 5.18 block, one 5.15 test updated: Place now keeps the item), `pendingLook.test.ts` (4), `NetSimHost.buildings.test.ts` (+1, one updated: a refusal now needs the next patch), `NetSimHost.chain.test.ts` (5: three quick Places at 150 ± 20 ms, 10 taps with $100, a refused box between two accepted ones, a server hitch, the build→wave edge), `balance.test.ts` (+1).
+- **Mutations (brief 9)**, one per new test area, all **killed**: refuse takes the newest box; match ignores `afterId`; no send gap; timeout ends awaiting; chain jumps left; pending ground not occupied; gate ignores pending on the cap; never unpin by walking; refusal released at once (buildings test, and the netsim after the hitch case); shake 0.2 m; dashed edge with even slots; timeout default 3000; chain without the money gate (netsim); chain step along the wrong axis (every-type test).
+- **Full gate** on `story-5-18` merged with master `69bd924`: `npm run typecheck && npm run lint && npm test && npm run build` → exit 0; **270 files passed / 1 skipped, 2,232 tests passed / 3 skipped**; build OK. Load 2.4 at the start, 3.8 at the end (4-core container, this builder alone). (Before the merge: 262 files / 2,181 tests, exit 0.) The every-type chain test was added after that gate (touched test + lint + typecheck run, 34/34).
+- **Not verified**: a real phone; a hidden tab slept across a build start in the browser (unit + netsim cover the clear; not driven with `loop.sleep()`); a real network stall (the netsim hitch only); several players building at once online; the pending boxes' readability over busy city art at phone size (only headless shots); 5.10's floodlight / med station chained in the browser (unit-tested generically).
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/5-18-place-place-place-chain-and-pending-under-lag.md` (new)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `packages/shared/src/config/balance/controls.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/config/balance.test.ts`
+- `apps/client/src/scenes/pendingPlacements.ts` (new)
+- `apps/client/src/scenes/pendingPlacements.test.ts` (new)
+- `apps/client/src/scenes/placement.ts`
+- `apps/client/src/scenes/placement.test.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/client/src/sim/NetSimHost.buildings.test.ts`
+- `apps/client/src/sim/NetSimHost.chain.test.ts` (new)
+- `apps/client/src/render/PendingView.ts` (new)
+- `apps/client/src/render/pendingLook.ts` (new)
+- `apps/client/src/render/pendingLook.test.ts` (new)
+- `apps/client/src/render/dashes.ts`
+- `docs/art/5-18/README.md`, `5-18-wall-pending.png`, `5-18-wall-built.png`, `5-18-wall-end.png`, `5-18-ten-taps.png`, `5-18-ten-end.png` (new)
 
 ### Change Log
 
-- 2026-11-23: Story written (gds-create-story) from the code on master `3bbb955`. Status → ready-for-dev.
+- 2026-11-23: Story written (gds-create-story) from the code on master `3bbb955`.
+- 2026-11-23: Built (gds-dev-story): pending tracker, chain + pin, refusal ordering in NetSimHost, pending view, shown wallet; master `69bd924` (5.10/5.11) merged; gate green. Status → review.

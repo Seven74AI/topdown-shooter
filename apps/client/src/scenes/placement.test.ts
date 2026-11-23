@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEUTRAL_INPUT, addPlayer, spawnZombie, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave, type PlaceError, type PlaceRequest } from "@topdown/shared";
+import { NEUTRAL_INPUT, addPlayer, buildingTypeIds, spawnZombie, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave, type PlaceError, type PlaceRequest } from "@topdown/shared";
 import { CHAIN_MONEY_TEXT, Placement, autoRot, carryDistance, chainOffset, placeGate, placeRefusalText, snapAxis, stepPlacement, type PlacementFrame, type PlacementHud } from "./placement";
 import { PendingPlacements, newestBuildingId } from "./pendingPlacements";
 import type { MutablePlayerInput } from "../input/InputRouter";
@@ -595,6 +595,27 @@ describe("Story 5.18: place, place, place (chain, pin, pending-aware check)", ()
     expect(at("spike_trap", 0, 0, 1)).toEqual([-4, 0]); // 2 m
     expect(at("mine", 0, 0, -1)).toEqual([2, 0]); // 0.5 m mine jumps 1.0 m
     expect(chainOffset(0.5, 0.5, 0, -1, 2, o)).toEqual({ dgx: 4, dgy: 0 }); // the minimum comes from balance
+  });
+
+  it("every buyable type in balance (5.10's floodlight and med station too) chains to a box that touches but never overlaps the last, every facing and rot", () => {
+    const o = { dgx: 0, dgy: 0 };
+    let checked = 0;
+    for (const id of buildingTypeIds(balance)) {
+      const s = buildingStats(balance, id);
+      if (!s?.forSale) continue;
+      for (const rot of [0, 1, 2, 3]) {
+        for (const [fx, fy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [Math.SQRT1_2, -Math.SQRT1_2]] as const) {
+          const a = footprint(s, 40, 40, rot, { minX: 0, minY: 0, maxX: 0, maxY: 0 });
+          chainOffset(footprintW(s, rot), footprintH(s, rot), fx, fy, balance.controls.build.chainMinStepM, o);
+          const b = footprint(s, 40 + o.dgx, 40 + o.dgy, rot, { minX: 0, minY: 0, maxX: 0, maxY: 0 });
+          const overlap = a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY;
+          expect(overlap, `${id} rot ${rot}`).toBe(false);
+          expect(Math.hypot(o.dgx, o.dgy) * 0.5).toBeGreaterThanOrEqual(balance.controls.build.chainMinStepM - 1e-9);
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(5 * 4 * 5); // wood, turret, spike trap, mine + 5.10's types
   });
 
   it("three Places standing still = a 6 m wall end to end, each box pending, nothing overlapping (AC 2, 3, 5)", () => {
