@@ -91,3 +91,27 @@ describe("five-wave bot sim with spike traps and mines (Story 5.9, task 8.2)", (
     expect(mineCounters.exploded).toBeGreaterThan(0);
   }, 180_000);
 });
+describe("five-wave bot sim with the Shotgun and the Assault Rifle (Story 5.3, brief line 15)", () => {
+  it("bots that buy them still run to Results, and the new guns really kill", () => {
+    // A test-only shopping list (not bots.json): bot 1 buys the Shotgun, bot 2 the Assault Rifle when affordable.
+    const lists: Record<string, readonly string[]> = { shotgun: ["shotgun", "wood_barricade"], assault_rifle: ["assault_rifle", "wood_barricade"] };
+    const lines: string[] = [];
+    for (const [weapon, list] of Object.entries(lists)) {
+      let kills = 0;
+      let bought = 0;
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance, seed, players: 4, list });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
+        kills += r.killsByWeapon[weapon] ?? 0;
+        bought += r.purchases.flat().filter((p) => p.startsWith(`${weapon}@`)).length;
+        lines.push(`${weapon} seed ${seed}: ${formatRunLine(r)} kills by ${weapon} ${r.killsByWeapon[weapon] ?? 0}`);
+      }
+      expect(bought).toBeGreaterThan(0);
+      expect(kills).toBeGreaterThan(0); // liveness: the new gun was used (bot survival is not difficulty evidence)
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[five-wave sim 5.3]\n${lines.join("\n")}`);
+  }, 180_000);
+});
+

@@ -15,6 +15,8 @@ import {
   loadBalance,
   quantizeHeading,
   seqSpreadRoll,
+  seqPelletRoll,
+  pelletDirection,
   type PlayerInput,
   type SimEventsFlushed,
 } from "@topdown/shared";
@@ -414,6 +416,27 @@ describe("NetSimHost", () => {
         shots++;
       }
       expect(shots).toBeGreaterThan(3);
+    });
+
+    it("Story 5.3: my local Shotgun shot keeps the centre aim and spawns the seq's 8-pellet fan (the server's)", () => {
+      const { host, arrive, setNow } = setup([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 20, y: 10, weapon0: "shotgun", ammo0: 6 })]);
+      setNow(1000);
+      arrive(10);
+      host.update(0);
+      host.setLocalInput(fire);
+      host.update(0.05); // one step
+      const fired = host.drainEvents().filter((e) => e.type === "weapon.fired");
+      expect(fired).toHaveLength(1);
+      expect(fired[0]).toMatchObject({ weapon: "shotgun", dirX: expect.closeTo(1, 9), dirY: expect.closeTo(0, 9) }); // no single roll on the centre
+      const pool = host.world.projectiles;
+      expect(pool.aliveCount).toBe(8);
+      const out = { x: 0, y: 0 };
+      const want = Array.from({ length: 8 }, (_, k) => {
+        pelletDirection(1, 0, 30, 8, k, seqPelletRoll("p1", host.sentSeq & 0xffff, k), out);
+        return Math.atan2(out.y, out.x);
+      }).sort((a, b) => a - b);
+      const got = Array.from({ length: 8 }, (_, i) => Math.atan2(pool.dirY[pool.aliveIds[i] as number] as number, pool.dirX[pool.aliveIds[i] as number] as number)).sort((a, b) => a - b);
+      got.forEach((a, k) => expect(a).toBeCloseTo(want[k] as number, 5));
     });
 
     it("drops my own server weapon.fired once predicted; others' shots wait for the render tick and fly cosmetically", () => {

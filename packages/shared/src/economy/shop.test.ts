@@ -23,14 +23,16 @@ function setup(wallet: number, weapons: readonly [string, string | null] = ["pis
 const ids = (p: PlayerState) => [p.loadout.slots[0].weapon, p.loadout.slots[1]?.weapon ?? null];
 
 describe("shop list (Story 3.3)", () => {
-  it("lists Pistol 0, Machete 150, SMG 200, Hunting Rifle 350 from balance, in shop order", () => {
+  it("lists Pistol 0, Machete 150, SMG 200, Hunting Rifle 350, Shotgun 250, Assault Rifle 450 from balance, in shop order", () => {
     expect(shopWeapons(balance).map((w) => [w.id, w.price])).toEqual([
       ["pistol", 0],
       ["machete", 150],
       ["smg", 200],
       ["hunting_rifle", 350],
+      ["shotgun", 250],
+      ["assault_rifle", 450],
     ]);
-    expect(shopWeapons(balance).map((w) => w.name)).toEqual(["Pistol", "Machete", "SMG", "Hunting Rifle"]);
+    expect(shopWeapons(balance).map((w) => w.name)).toEqual(["Pistol", "Machete", "SMG", "Hunting Rifle", "Shotgun", "Assault Rifle"]);
     expect(weaponName(balance, "smg")).toBe("SMG");
     expect(weaponName(balance, "big_gun")).toBe("Big Gun");
     expect(shopPrice(balance, "smg")).toBe(200);
@@ -47,7 +49,7 @@ describe("shop list (Story 3.3)", () => {
     const files = bundledBalanceFiles();
     (files.shop as { weapons: string[] }).weapons.push("rocket");
     expect(() => loadBalance(files)).toThrow(BalanceError);
-    expect(() => loadBalance(files)).toThrow(/shop\.json: weapons\.4: unknown weapon rocket/);
+    expect(() => loadBalance(files)).toThrow(/shop\.json: weapons\.\d+: unknown weapon rocket/);
   });
 
   it("buildings: the bundled buildings.json lists the Wood barricade (3.4), the Auto-turret (3.6), the spike trap and the mine (5.9)", () => {

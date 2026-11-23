@@ -431,7 +431,7 @@ export class NetSimHost implements SimHost {
       const stale = (ticks[i - from] as number) < staleBefore;
       if (e.type === "weapon.fired") {
         if (stale) continue;
-        this.cosmetics.spawn(e.playerId, e.weapon, e.x, e.y, e.dirX, e.dirY);
+        this.cosmetics.spawn(e.playerId, e.weapon, e.x, e.y, e.dirX, e.dirY, e.seq ?? -1); // Story 5.3: a pellet gun's seq
       } else if (e.type === "turret.fired") {
         if (stale) {
           this.turretAim(e);
@@ -574,7 +574,8 @@ export class NetSimHost implements SimHost {
       assistAim(this.world, mx, my, a.dirX, a.dirY, stats.rangeM, dir);
     }
     // Story 2.12: the seq's roll, the one the server (with lag compensation) gives its shot too.
-    if (stats.spreadDeg > 0) rotateBySeqSpread(dir.x, dir.y, this.localPlayerId, seq, stats.spreadDeg, dir);
+    // Story 5.3: a pellet gun's centre aim has no roll (its fan does: `cosmetics.spawn` with the seq).
+    if (stats.spreadDeg > 0 && stats.pellets === 1) rotateBySeqSpread(dir.x, dir.y, this.localPlayerId, seq, stats.spreadDeg, dir);
     const e = this.localFired[k] as FiredEvent;
     e.weapon = a.weapon;
     e.x = mx;
@@ -582,7 +583,7 @@ export class NetSimHost implements SimHost {
     e.dirX = dir.x;
     e.dirY = dir.y;
     this.immediate.push(e);
-    this.cosmetics.spawn(this.localPlayerId, a.weapon, mx, my, dir.x, dir.y);
+    this.cosmetics.spawn(this.localPlayerId, a.weapon, mx, my, dir.x, dir.y, seq & 0xffff);
   }
 
   /** Expectation window of an apparent hit: RTT + render delay + slack (Story 2.7). */

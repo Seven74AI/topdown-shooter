@@ -9,7 +9,7 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false });
     expect(parseUrlOptions("?stress=150&stressbuild=traps").stressBuild).toBe(true); // Story 5.9
     expect(parseUrlOptions("?stressbuild=walls").stressBuild).toBe(false);
     expect(parseUrlOptions("?zdmg=0.1").zombieDamageScale).toBe(0.1); // retro A5
@@ -24,6 +24,11 @@ describe("parseUrlOptions", () => {
   it("reads ?debug=1 and its spellings", () => {
     for (const q of ["?debug=1", "?debug", "?debug=true", "?debug=ON"]) expect(parseUrlOptions(q).debug).toBe(true);
     for (const q of ["?debug=0", "?debug=false", "?debugx=1"]) expect(parseUrlOptions(q).debug).toBe(false);
+  });
+
+  it("Story 5.3: reads ?stressfire=1", () => {
+    expect(parseUrlOptions("?stress=150&stressfire=1&loadout=shotgun")).toMatchObject({ stress: 150, stressFire: true, loadout: ["shotgun", null] });
+    expect(parseUrlOptions("?stressfire=0").stressFire).toBe(false);
   });
 
   it("reads ?stress=N, defaulting a bare ?stress to 150 and capping at 200", () => {

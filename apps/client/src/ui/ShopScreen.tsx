@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { titleCase } from "@topdown/shared";
 import { uiStore } from "./uiState";
 import { SHOP_TEXT, shopStore, type ShopAction, type ShopState } from "./shopStore";
+import { weaponIconUrl } from "../render/city/weaponArt";
 
 const send = (action: ShopAction) => uiStore.request("shop", action);
 const price = (n: number) => (n === 0 ? SHOP_TEXT.free : `$${n}`);
@@ -60,16 +61,21 @@ export function ShopScreen() {
               {s.weapons.map((w) => {
                 const mine = owned(w.id);
                 const short = !mine && w.price > s.wallet;
+                // Story 5.3: weapons with their own art show their side-view icon (drawn once, cached).
+                const icon = weaponIconUrl(w.id);
                 return (
                   <button
                     key={w.id}
                     type="button"
-                    class={`shop__item${mine ? " shop__item--owned" : ""}${short ? " shop__item--short" : ""}`}
+                    class={`shop__item${mine ? " shop__item--owned" : ""}${short ? " shop__item--short" : ""}${icon ? " shop__item--icon" : ""}`}
                     disabled={mine || busy}
                     onClick={() => send({ type: "buy", weapon: w.id })}
                   >
-                    <span class="shop__name">{w.name}</span>
-                    <span class="shop__price">{mine ? SHOP_TEXT.owned : price(w.price)}</span>
+                    {icon ? <img class="shop__icon" src={icon} alt="" width={64} height={29} /> : null}
+                    <span class="shop__text">
+                      <span class="shop__name">{w.name}</span>
+                      <span class="shop__price">{mine ? SHOP_TEXT.owned : price(w.price)}</span>
+                    </span>
                   </button>
                 );
               })}

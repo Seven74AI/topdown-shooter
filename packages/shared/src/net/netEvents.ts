@@ -117,7 +117,10 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
         playerSlotOf(e.sourceId), // Story 2.7 (appended: index 7)
       ];
     case "weapon.fired":
-      return [K.WEAPON_FIRED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
+      // Story 5.3: a pellet gun's shot appends its 16-bit input seq (index 6): remote clients rebuild the fan from it.
+      return e.seq !== undefined
+        ? [K.WEAPON_FIRED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY), e.seq & 0xffff]
+        : [K.WEAPON_FIRED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
     case "weapon.reload_started":
       return [K.WEAPON_RELOAD_STARTED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), Math.round(e.reloadS * 1000)];
     case "weapon.reloaded":
@@ -228,7 +231,7 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.WEAPON_FIRED: {
       const a = headingToRad(n(t, 5));
-      return {
+      const fired: Extract<SimEvent, { type: "weapon.fired" }> = {
         type: "weapon.fired",
         playerId: pid(t, 1),
         weapon: weaponOf(b, n(t, 2)),
@@ -237,6 +240,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
         dirX: Math.cos(a),
         dirY: Math.sin(a),
       };
+      if (t.length > 6) fired.seq = n(t, 6) & 0xffff; // Story 5.3: a pellet gun's seq
+      return fired;
     }
     case K.WEAPON_RELOAD_STARTED:
       return { type: "weapon.reload_started", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)), reloadS: n(t, 3) / 1000 };

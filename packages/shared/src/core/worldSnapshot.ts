@@ -5,6 +5,7 @@ import { snapshotPathing } from "../zombies/flowField";
 import { snapshotZombieHistory } from "../combat/rewind";
 import { snapshotSeedStreams } from "./seedStreams";
 import { canonicalJson, fnv1a32 } from "./hash";
+import { KNOCK_MEMORY } from "../zombies/zombiePool";
 
 const sortedEntries = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -30,6 +31,8 @@ function snapshotZombies(world: World) {
       fireTicks: z.fireTicks[id], // Story 4.8 review L4
       trapTicks: z.trapTicks[id], // Story 5.9
       slowPct: z.slowPct[id],
+      knockShot: Array.from(z.knockShot.subarray(id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY)), // Story 5.3
+      knockHead: z.knockHead[id],
     })),
     nextUnused: z.nextUnused,
     freed: Array.from({ length: z.freedCount }, (_, k) => {
@@ -58,6 +61,7 @@ function snapshotProjectiles(world: World) {
     weapon: p.weapon[id],
     building: p.building[id], // Story 3.6
     pushbackM: p.pushbackM[id],
+    shotId: p.shotId[id], // Story 5.3
     owner: p.owner[id],
     hits: Array.from(p.hitIds.subarray(id * MAX_PIERCE, id * MAX_PIERCE + (p.hitCount[id] ?? 0))),
   }));
@@ -120,6 +124,7 @@ export function snapshotWorld(world: World) {
         ] as const,
     ),
     projectiles: snapshotProjectiles(world),
+    lastShotId: world.projectiles.lastShotId, // Story 5.3: the shot counter
     zombies: snapshotZombies(world),
     waves: {
       ...world.waves,

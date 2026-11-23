@@ -5,6 +5,8 @@
  */
 export type SfxName =
   | "weapon_pistol_fire"
+  | "weapon_shotgun_fire"
+  | "weapon_assault_rifle_fire"
   | "weapon_machete_swing"
   | "weapon_reload_start"
   | "weapon_reloaded"
@@ -177,6 +179,14 @@ export function playSfx(name: SfxName, pan = 0): void {
     case "weapon_pistol_fire":
       burst(c, t, 0.06, 0.9, 3500);
       click(c, t, 200, 0.5);
+      break;
+    case "weapon_shotgun_fire": // Story 5.3: a deep, long boom
+      burst(c, t, 0.16, 1, 1400);
+      click(c, t, 90, 0.8);
+      break;
+    case "weapon_assault_rifle_fire": // Story 5.3: a sharp crack, shorter than the pistol's (8/s)
+      burst(c, t, 0.045, 0.8, 4200);
+      click(c, t, 260, 0.4);
       break;
     case "weapon_machete_swing":
       sweep(c, t, 0.12, 0.5, 900, 3200); // whoosh: noise through a rising band-pass

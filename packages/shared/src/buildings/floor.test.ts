@@ -3,7 +3,10 @@ import { bundledBalanceFiles, loadBalance, withOverrides, type Balance } from ".
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import type { SystemFn } from "../core/systems";
-import { createWorld, step, type World } from "../core/world";
+import { createWorld, setInput, step, type World } from "../core/world";
+import { applyKnockback } from "../combat/damage";
+import { setLoadout } from "../combat/loadout";
+import { NEUTRAL_INPUT } from "../net/input";
 import type { MapBox } from "../map/districtMap";
 import { destroyBlockedBuildings } from "../decay/decaySystem";
 import { addPlayer } from "../player/player";
@@ -160,5 +163,38 @@ describe("floor buildings (Story 5.9 F1)", () => {
     expect(spotBlocked(world, 15, 16, 0.4, null)).toBe(false);
     expect(spotBlocked(world, 20.25, 15.25, 0.4, null)).toBe(false);
     expect(spotBlocked(world, 25, 15.25, 0.4, null)).toBe(true);
+  });
+
+  it("merge with 5.3: a knocked zombie slides over a spike trap and a mine but stops at a barricade's face", () => {
+    const { world, place } = setup();
+    place(12, 15, "spike_trap"); // [12, 14] × [15, 17]
+    place(15, 15.75, "mine"); // [15, 15.5] × [15.75, 16.25]
+    const z = spawnZombie(world, "walker", 11, 16);
+    const moved = applyKnockback(world, z, 1, 0, 5); // across the trap and the mine
+    expect(moved).toBeCloseTo(5, 6);
+    expect(world.zombies.x[z]).toBeCloseTo(16, 5);
+    const w = place(18, 15, "wood_barricade", 1); // [18, 18.5] × [15, 17]
+    const r = balance.zombies.types.walker?.radiusM ?? 0;
+    applyKnockback(world, z, 1, 0, 5);
+    expect(world.zombies.x[z]).toBeLessThanOrEqual(w.minX - r + 1e-9); // stopped at the wall
+    expect(world.zombies.x[z]).toBeGreaterThan(w.minX - r - 1e-3);
+  });
+
+  it("merge with 5.3: Shotgun pellets fly over a spike trap, a mine and a barricade (buildings never stop shots)", () => {
+    const { world, events, place } = setup(balance, { waves: noop, zombies: noop });
+    startWave(world);
+    place(10.5, 15, "spike_trap"); // [10.5, 12.5]: the Shotgun reaches 5 m
+    place(12.5, 15.75, "mine");
+    place(13, 15, "wood_barricade", 1); // [13, 13.5]
+    const p = world.players.get("p0");
+    if (!p) throw new Error("p0");
+    p.x = p.prevX = 10;
+    p.y = p.prevY = 16;
+    setLoadout(balance, p.loadout, ["shotgun", null]);
+    const z = spawnZombie(world, "walker", 14, 16);
+    world.zombies.hp[z] = 1e6;
+    setInput(world, "p0", { ...NEUTRAL_INPUT, seq: 1, aimX: 1, aimY: 0, fire: true, isMouse: true });
+    run(world, 10);
+    expect(events.filter((e) => e.type === "zombie.hit" && e.zombieId === z && e.weapon === "shotgun").length).toBeGreaterThan(0);
   });
 });

@@ -41,7 +41,8 @@ export type SimEvent =
       /** Story 3.6 review M2: the turret whose shot it was (server only, not on the wire: interest filtering). */
       buildingId?: number;
     }
-  | { type: "weapon.fired"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number }
+  /** Story 5.3: `seq` (16-bit input seq) only for pellet guns: remote clients rebuild the fan from it. */
+  | { type: "weapon.fired"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number; seq?: number }
   | { type: "weapon.reload_started"; playerId: string; weapon: string; reloadS: number }
   | { type: "weapon.reloaded"; playerId: string; weapon: string }
   | { type: "weapon.swap_started"; playerId: string }

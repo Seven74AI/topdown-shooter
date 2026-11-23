@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, step } from "@topdown/shared";
+import { NEUTRAL_INPUT, PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, setInput, setLoadout, step, type SimEvent } from "@topdown/shared";
 import { perf } from "./perfStats";
 import {
   STRESS_DURATION_MS,
@@ -11,6 +11,7 @@ import {
   setupStressWorld,
   toughenStressZombies,
   spawnInView,
+  stressFireInput,
   viewAround,
   type ViewRect,
 } from "./stressScenario";
@@ -21,6 +22,39 @@ const env = () => ({ userAgent: "TestUA", viewport: "844×390", dpr: 2 });
 // The global `perf` singleton is shared by every test in this file; reset it so a test can never
 // observe the overlay/summary/ring-buffer state left behind by an earlier one.
 beforeEach(() => perf.reset());
+
+describe("stressFireInput (Story 5.3 ?stressfire)", () => {
+  it("aims at the nearest zombie and holds fire; the stress survivor's Shotgun really kills", () => {
+    const world = createWorld({ balance, seed: 4, map: PLACEHOLDER_MAP });
+    const p = addPlayer(world, "local", 24, 16);
+    setLoadout(balance, p.loadout, ["shotgun", null]);
+    const view: ViewRect = { x: 0, y: 0, w: 0, h: 0 };
+    setupStressWorld(world, 150, viewAround(world.map, 24, 16, 20, 10, view), 24, 16);
+    const input = { ...NEUTRAL_INPUT };
+    let kills = 0;
+    let fired = 0;
+    world.events.subscribe((e: SimEvent) => {
+      if (e.type === "zombie.killed" && e.weapon === "shotgun") kills++;
+      if (e.type === "weapon.fired") fired++;
+    });
+    for (let t = 0; t < 200; t++) {
+      expect(stressFireInput(world, "local", input)).toBe(true);
+      expect(Math.hypot(input.aimX, input.aimY)).toBeCloseTo(1, 6);
+      setInput(world, "local", { ...input, seq: t + 1 });
+      step(world, TICK_DT_S);
+    }
+    expect(fired).toBeGreaterThan(5);
+    expect(kills).toBeGreaterThan(5);
+  });
+
+  it("releases fire with no zombie", () => {
+    const world = createWorld({ balance, seed: 4, map: PLACEHOLDER_MAP });
+    addPlayer(world, "local", 24, 16);
+    const input = { ...NEUTRAL_INPUT, fire: true };
+    expect(stressFireInput(world, "local", input)).toBe(false);
+    expect(input.fire).toBe(false);
+  });
+});
 
 describe("viewAround", () => {
   it("centers the view on the target and clamps it inside the map", () => {

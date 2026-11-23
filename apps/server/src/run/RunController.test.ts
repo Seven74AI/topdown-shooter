@@ -553,6 +553,26 @@ describe("RunController", () => {
     expect(run(false)).toBe(0);
   });
 
+  it("Story 5.3: the Shotgun never triggers spread_cancel_suspect, even with the 'cancelling' aim (its fan has no single roll)", () => {
+    let reports = 0;
+    const c = new RunController({ balance, seed: SEED, players: [{ playerId: "p0", slot: 0 }], systems: { waves: () => {}, zombies: () => {} }, onSpreadCancelSuspect: () => reports++ });
+    const p = c.world.players.get("p0");
+    if (!p) throw new Error("no p0");
+    setLoadout(balance, p.loadout, ["shotgun", null]);
+    const half = (30 / 2) * (Math.PI / 180);
+    let fired = 0;
+    c.world.events.subscribe((e) => {
+      if (e.type === "weapon.fired") fired++;
+    });
+    for (let seq = 1; seq <= 600; seq++) {
+      const a = 0.4 - seqSpreadRoll("p0", seq) * half;
+      c.queueInput("p0", input(seq, { aimX: Math.cos(a), aimY: Math.sin(a), fire: true, isMouse: true }));
+      c.tick();
+    }
+    expect(fired).toBeGreaterThan(20); // it really fired
+    expect(reports).toBe(0);
+  });
+
   it("counts kills per killer from zombie.killed (Story 2.8)", () => {
     const c = newController();
     const ids = [0, 1, 2].map((k) => spawnZombie(c.world, "walker", 5 + k, 5));

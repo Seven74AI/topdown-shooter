@@ -11,6 +11,12 @@ export interface UrlOptions {
   /** `?stress=150`: number of Walkers for the fixed stress scenario, or null when absent/invalid. */
   stress: number | null;
   /**
+   * `?stressfire=1` (Story 5.3, with `?stress`): the stress scenario's survivor holds fire at the
+   * nearest zombie, with the `?loadout` weapon (e.g. `?stress=150&stressfire=1&loadout=shotgun`), so
+   * the benchmark measures pellets, flashes and hits too.
+   */
+  stressFire: boolean;
+  /**
    * `?loadout=pistol,machete` (Story 1.12, release-safe): the starting two weapons, or null. Ids are
    * only shape-checked here; the game keeps those that exist in balance.
    */
@@ -73,9 +79,11 @@ export function parseUrlOptions(search: string): UrlOptions {
   const debug = debugRaw !== null && TRUE_VALUES.has(debugRaw.trim().toLowerCase());
   const tuneRaw = q.get("tune");
   const soloRaw = q.get("solo");
+  const stressFireRaw = q.get("stressfire");
   return {
     debug,
     stress: parseStress(q.get("stress")),
+    stressFire: stressFireRaw !== null && TRUE_VALUES.has(stressFireRaw.trim().toLowerCase()),
     loadout: parseLoadout(q.get("loadout")),
     tune: tuneRaw !== null && TRUE_VALUES.has(tuneRaw.trim().toLowerCase()),
     solo: soloRaw !== null && TRUE_VALUES.has(soloRaw.trim().toLowerCase()),

@@ -328,8 +328,11 @@ Modified:
 - `apps/client/src/debug/urlOptions.ts`, `debug/urlOptions.test.ts`, `debug/stressScenario.ts`, `debug/stressScenario.test.ts`
 - `tools/netsim/barricade.test.ts`
 - `docs/playtests/milestone-1/readability-sheet.md`, `docs/playtests/milestone-1/readability-key.md`
+- (merge) `packages/shared/src/combat/damage.ts` (knockback stops at walls only), `docs/art/4-11/README.md` (B8 note); sheet pictures renumbered to `docs/playtests/milestone-1/objects/19_reinforced_barricade.png` … `22_mine.png`
 - `_bmad-output/implementation-artifacts/5-9-metal-barricade-spike-trap-and-mine.md`
 
 ### Change Log
 
 - 2026-11-23: Story 5.9 built (builder, worktree `story-5-9`): wall/floor flag + wall-only flow-field counter across every building loop; spike trap (per-body clock, slow, wear); mine (trigger, shared cover-respecting blast, 50 % to standing players); barricade ladder wood → reinforced (B8) → metal (M1c) with owner-only upgrade message, schema retype, pending panel; code-drawn art (B8, M1c, T1, N6) in one atlas; mine rings and lights; blast FX; `?stressbuild=traps`; tests incl. fuzz, bandwidth, tick cost, netsim, mutations; readability sheet rows. Status → review.
+- 2026-11-23: Merged the work branch (`claude/gracious-turing-0db3j6`: Story 5.3 Shotgun/Assault Rifle + review fixes). Conflicts resolved by keeping both sides (zombie pool/snapshot fields, FxView constants and pools: 5.9's mine blast method renamed `mineBlast` next to 5.3's pellet `blast`; stress switches `?stressfire` + `?stressbuild`; `tickCostDowntown.measure(map, stage, firesOut, weapon, floor)`; five-wave sims). 5.3 added no net event kinds, so 5.9 keeps 27/28; building-type balance order unchanged. 5.3's `applyKnockback` now stops only at WALL buildings (`b.solid`); new floor tests: a knocked zombie slides over a trap and a mine and stops at a barricade (mutation-proven), Shotgun pellets fly over a trap, a mine and a barricade (pellets, like bullets, never test buildings). Readability sheet: 5.3's rows 16–17 first, 5.9's renumbered 18–21 (pictures `19_…`–`22_…`). `docs/art/4-11/README.md`: B8 "now used by Story 5.9". Gate on the merge: 207 files passed (1 skipped), 1,534 tests passed (3 skipped); typecheck, lint, build green; load 4.26 before, 3.37 after.
+

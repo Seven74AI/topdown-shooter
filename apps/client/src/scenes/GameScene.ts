@@ -39,6 +39,7 @@ import { ZombieView } from "../render/ZombieView";
 import { BloodTrailView } from "../render/BloodTrailView";
 import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
+import { streakScales } from "../render/weaponLook";
 import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
 import { MineView } from "../render/MineView";
@@ -75,7 +76,7 @@ import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
-import { placeStressFloor, setupStressWorld, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { placeStressFloor, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
@@ -121,6 +122,8 @@ export class GameScene extends Phaser.Scene {
   private host: SceneHost | null = null;
   /** `?stress` benchmark run (no in-run menu). */
   private stressMode = false;
+  /** Story 5.3 `?stressfire=1`: under `?stress`, my survivor holds fire at the nearest zombie. */
+  private stressFire = false;
   /** When the solo pause started (scene time), to shift the HUD's banner clock on resume. */
   private pausedAtMs = 0;
   /** The same host when solo (the in-run menu pauses it, Story 2.11); null online. */
@@ -276,6 +279,7 @@ export class GameScene extends Phaser.Scene {
     perf.soloSeed = localHost ? localHost.world.seed : null; // Story 4.4: online the overlay reads the server's
     const stress = session ? null : opts.stress;
     this.stressMode = stress !== null;
+    this.stressFire = stress !== null && opts.stressFire;
     this.pausedAtMs = 0;
     this.host = host;
     const world = host.world;
@@ -317,7 +321,7 @@ export class GameScene extends Phaser.Scene {
     // ?loadout=a,b (release-safe): start with those weapons; unknown ids are ignored. Solo only.
     // Story 3.3: every other run starts with the Pistol (the dev loadout is a dev cheat now).
     const urlLoadout = opts.loadout && !session ? validLoadout(opts.loadout, weaponIds(balance)) : null;
-    if (urlLoadout && stress === null) {
+    if (urlLoadout && (stress === null || this.stressFire)) { // Story 5.3: ?stressfire benchmarks the ?loadout weapon
       const p = world.players.get(localId);
       if (p) setLoadout(balance, p.loadout, urlLoadout);
     }
@@ -333,7 +337,7 @@ export class GameScene extends Phaser.Scene {
     this.ambience = new AmbiencePlayer();
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
-    this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
+    this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
     this.fxView.balance = balance; // Story 3.5: building footprints for the debris
     this.downedView = new DownedView(this, world);
@@ -873,6 +877,7 @@ export class GameScene extends Phaser.Scene {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
       this.localHost.paused = menuOpen;
     }
+    if (this.stressFire) stressFireInput(host.world, host.localPlayerId, this.input_);
     host.setLocalInput(this.input_);
     this.hudModel.toastText = this.toasts.current(this.time.now);
 

@@ -25,8 +25,15 @@ const gunSchema = z
     reloadS: z.number().positive(),
     pierce: z.number().int().min(1),
     projectileSpeedMps: z.number().positive(),
+    /**
+     * Story 5.3: projectiles per trigger pull (the Shotgun's 8 pellets; 1 = a single bullet). One pull
+     * spends one round and one cooldown; pellets fill the spread cone evenly (`pelletDirection`).
+     */
+    pellets: z.number().int().min(1).max(16).default(1),
   })
-  .strict();
+  .strict()
+  // Story 5.3: a pellet gun knocks back once per shot (`knockbackM`), never per pellet.
+  .refine((g) => g.pellets === 1 || g.hitPushbackM === 0, { message: "a pellet gun (pellets > 1) needs hitPushbackM 0 (knockback is per shot: knockbackM)", path: ["hitPushbackM"] });
 
 const meleeSchema = z
   .object({

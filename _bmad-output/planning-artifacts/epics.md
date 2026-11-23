@@ -359,7 +359,25 @@ Designer picks (2026-11-23, references in `docs/art/4-11/`): sandbags **S2** (ol
 Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop; every zombie type demands its own answer.
 **FRs covered:** FR8, FR13 (6 weapons), FR14 (lobbed), FR16, FR17, FR18, FR23, FR24, FR25, FR47, FR48, FR49, FR52 (5 buildings), FR53, FR57 (acid, gas), FR84 (telegraphs)
 
-### Epic 6: The full run: decay, boss, events, endless
+#### Story 5.14: Bear trap
+
+As a player,
+I want a bear trap that grabs a zombie and holds it in place for a few seconds,
+So that I can stop a dangerous zombie at a choke point.
+
+(Added by the designer on 2026-11-23 as a second trap type, recognisable at a glance without its name; art drawn in game code, designs on the comparison page.)
+
+**Acceptance Criteria:**
+
+**Given** a bear trap placed in the build phase (non-solid, like the 5.9 spike trap)
+**When** a zombie steps on its plate
+**Then** the jaws close and hold that zombie in place for a set time (balance JSON), then the trap must be re-armed or wears out; the closed trap looks different from the open one
+
+**Given** a Brute or other heavy zombie
+**When** it steps in
+**Then** the designer-chosen rule applies (held shorter, or breaks the trap), written as a fairness rule before the build
+
+## Epic 6: The full run: decay, boss, events, endless
 A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets the special events, votes to extract or stay, and can go endless.
 **FRs covered:** FR28 (full curve), FR29, FR31 (boss HP), FR33–FR43, FR53 (rubble, charge), FR57 (gas leak), FR62, FR63, FR64, FR66, FR67, FR68, FR84 (boss telegraphs)
 

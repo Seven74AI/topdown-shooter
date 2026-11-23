@@ -17,6 +17,7 @@ import {
   createWorld,
   loadBalance,
   rebuildFlowFieldNow,
+  setLoadout,
   shotBlockT,
   skipWave,
   spawnZombie,
@@ -40,7 +41,7 @@ const WARMUP_TICKS = 100;
 const MEASURED_TICKS = 600;
 const PERF_ASSERT = process.env.PERF_ASSERT === "1";
 
-function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, floor = false) {
+function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, weapon: string | null = null, floor = false) {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
   // Story 4.8 (review L6: fire respects `waves.paused`): the fire cases hold the waves with a no-op
   // wave system instead of the dev pause, so the fires burn.
@@ -50,6 +51,8 @@ function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, fl
       : new RunController({ balance, seed: 99, players, map, systems: { waves: () => {} } });
   const world = c.world;
   world.debug.godMode = true;
+  // Story 5.3: every player with this weapon (default: the starting Pistol).
+  if (weapon) for (const p of world.players.values()) setLoadout(balance, p.loadout, [weapon, null]);
   if (stage !== 1) {
     applyDecayStage(world, stage, world.decay.variants, firesOut ?? 0); // Story 4.2: every cover object active (worst case)
   }
@@ -185,7 +188,7 @@ describe("tick cost of car fires (Story 4.8)", () => {
 
 describe("tick cost of spike traps and mines (Story 5.9)", () => {
   it("4 players + 150 Walkers on Downtown: 24 traps and mines add ≤ 2 ms to the tick p99 (budget: the whole Epic 5 adds ≤ 2 ms)", () => {
-    const runs = [measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, true), measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, true)];
+    const runs = [measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, null, true), measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, null, true)];
     const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
     const bare = pick(runs[0] as ReturnType<typeof measure>, runs[2] as ReturnType<typeof measure>);
     const floor = pick(runs[1] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
@@ -254,5 +257,20 @@ describe("build-start spike of a decay stage change (Story 4.5)", () => {
       expect(median).toBeLessThan(10);
       expect(max).toBeLessThan(25);
     }
+  }, 120_000);
+});
+
+describe("tick cost of the Shotgun (Story 5.3, brief line 16)", () => {
+  it("4 Shotgun players into 150 Walkers on Downtown: ≤ 2 ms added to the tick p99 over 4 Pistols", () => {
+    const runs = [measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, "shotgun"), measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, "shotgun")];
+    const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
+    const pistol = pick(runs[0] as ReturnType<typeof measure>, runs[2] as ReturnType<typeof measure>);
+    const shotgun = pick(runs[1] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
+    console.log(
+      `[tick cost 5.3] 4 Pistols p99 ${pistol.p99.toFixed(3)} ms (mean ${pistol.mean.toFixed(3)}, kills ${pistol.kills}); ` +
+        `4 Shotguns p99 ${shotgun.p99.toFixed(3)} ms (mean ${shotgun.mean.toFixed(3)}, kills ${shotgun.kills}); added p99 ${(shotgun.p99 - pistol.p99).toFixed(3)} ms`,
+    );
+    expect(shotgun.kills).toBeGreaterThan(20); // liveness: the pellets really killed
+    if (PERF_ASSERT) expect(shotgun.p99 - pistol.p99).toBeLessThanOrEqual(2);
   }, 120_000);
 });

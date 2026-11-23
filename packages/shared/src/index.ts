@@ -162,11 +162,11 @@ export {
   type ZombieHistory,
   type ZombieView,
 } from "./combat/rewind";
-export { rotateBySeqSpread, seqSpreadRoll } from "./combat/spread";
+export { pelletDirection, rotateBySeqSpread, seqPelletRoll, seqSpreadRoll } from "./combat/spread";
 export { segmentCircleT } from "./math/sweep";
 export { rotate } from "./math/vec";
 export { maxZombieRadius, zombieTypeIndex } from "./zombies/zombieTypes";
-export { applyZombieDamage } from "./combat/damage";
+export { applyKnockback, applyZombieDamage } from "./combat/damage";
 export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
 export { swingMelee } from "./combat/melee";
