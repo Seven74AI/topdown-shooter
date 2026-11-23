@@ -8,8 +8,10 @@ import type { Building } from "../buildings/buildings";
  * A projectile stops where its swept segment first enters a shot blocker (`world.obstacles.shotBlockers`:
  * the map's collision boxes and active cars and the bus); zombies further along are not hit. Used by
  * the server's projectiles (player, turret and rewound shots: one loop), the client's cosmetic
- * projectiles, aim assist and the turrets' target choice, so every copy agrees. Barriers, sandbags
- * and player barricades are not shot blockers. Only + − × ÷ min max: the same t in every engine.
+ * projectiles, aim assist and the turrets' target choice, so every copy agrees — through
+ * `bulletBlockT`, which adds the barricade tiers (designer 2026-11-23: barricades stop bullets,
+ * everyone's). Barriers, sandbags and turrets stop no bullets. Explosions, flames, Spitter acid and
+ * Bloater gas use `shotBlockT` alone (barricades don't shield them). Only + − × ÷ min max: the same t in every engine.
  *
  * Cost (decision D5): Downtown has 14 shot blockers; each test rejects a box on the segment's
  * bounding box before the slab test, so a projectile step costs ~14 compares. No broadphase grid.
@@ -85,6 +87,37 @@ function firstEntryT(list: readonly MapBox[], x0: number, y0: number, x1: number
     if (t >= 0 && (best < 0 || t < best)) best = t;
   }
   return best;
+}
+
+/**
+ * Bullets (designer 2026-11-23): the first t at which the segment enters a shot blocker OR a
+ * building whose type stops bullets (the barricade tiers; never turrets or floor), or -1. Every
+ * player's and turret's projectile, aim assist and turret targeting use it; explosions, flames,
+ * melee and acid keep `shotBlockT` / `meleeLineClear`. No allocation.
+ */
+export function bulletBlockT(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number): number {
+  let best = shotBlockT(world, x0, y0, x1, y1);
+  const list = world.buildings.list;
+  if (list.length === 0) return best;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const loX = Math.min(x0, x1);
+  const hiX = Math.max(x0, x1);
+  const loY = Math.min(y0, y1);
+  const hiY = Math.max(y0, y1);
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    if (!b.stopsBullets) continue;
+    if (hiX < b.minX || loX > b.maxX || hiY < b.minY || loY > b.maxY) continue;
+    const t = segmentBoxEntryT(x0, y0, dx, dy, b.minX, b.minY, b.maxX, b.maxY);
+    if (t >= 0 && (best < 0 || t < best)) best = t;
+  }
+  return best;
+}
+
+/** No bullet blocker between (x0, y0) and (x1, y1) (aim assist and turret targets: a bullet there could land). */
+export function bulletLineClear(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number): boolean {
+  return bulletBlockT(world, x0, y0, x1, y1) < 0;
 }
 
 /** No shot blocker between (x0, y0) and (x1, y1) (aim assist and turret targets: a shot there could land). */

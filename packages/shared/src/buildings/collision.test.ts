@@ -247,20 +247,46 @@ describe("zombies vs barricades", () => {
   });
 });
 
-describe("projectiles pass over barricades (FR53)", () => {
-  it("a shot fired across a barricade hits the zombie behind it", () => {
-    const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
-    const p = addPlayer(world, "p0", 20, 16);
-    p.hp = 1e9;
-    wall(world, 19, 17.5);
-    const id = spawnZombie(world, "walker", 20, 21);
+describe("barricades stop bullets, everyone's (designer 2026-11-23, replacing FR53's pass-over)", () => {
+  const shootDown = (world: World) => {
     const events: SimEvent[] = [];
     world.events.subscribe((e) => events.push(e));
     for (let i = 1; i <= 10; i++) {
       setInput(world, "p0", { ...NEUTRAL_INPUT, seq: i, aimX: 0, aimY: 1, fire: true });
       step(world, TICK_DT_S);
     }
-    expect(events.some((e) => e.type === "zombie.hit" && e.zombieId === id)).toBe(true);
+    return events;
+  };
+
+  it("my own shot across my own barricade stops on it: the zombie behind is never hit, and the shot did fire", () => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+    const p = addPlayer(world, "p0", 20, 16);
+    p.hp = 1e9;
+    wall(world, 19, 17.5); // owned by p0
+    const id = spawnZombie(world, "walker", 20, 21);
+    const events = shootDown(world);
+    expect(events.some((e) => e.type === "weapon.fired")).toBe(true);
+    expect(events.some((e) => e.type === "zombie.hit" && e.zombieId === id)).toBe(false);
+  });
+
+  it("an upgraded (metal) barricade stops it too; a turret doesn't", () => {
+    for (const type of ["metal_barricade", "auto_turret"] as const) {
+      const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+      const p = addPlayer(world, "p0", 20, 16);
+      p.hp = 1e9;
+      expect(addBuildingAt(world, { id: nextId++, type, ownerId: "p1", gx: 19.5 / BUILD_GRID_M, gy: 17.5 / BUILD_GRID_M, rot: 0, hp: 300 })).not.toBeNull();
+      const id = spawnZombie(world, "walker", 20, 21);
+      const hit = shootDown(world).some((e) => e.type === "zombie.hit" && e.zombieId === id);
+      expect(hit, type).toBe(type === "auto_turret");
+    }
+  });
+
+  it("with no barricade the same shot hits (liveness)", () => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {}, zombies: () => {} } });
+    const p = addPlayer(world, "p0", 20, 16);
+    p.hp = 1e9;
+    const id = spawnZombie(world, "walker", 20, 21);
+    expect(shootDown(world).some((e) => e.type === "zombie.hit" && e.zombieId === id)).toBe(true);
   });
 });
 
