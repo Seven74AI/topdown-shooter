@@ -113,3 +113,9 @@ Page: claude.ai/artifact/NasqdNNAhnHQEkbHVcamFZ (code drawings in `docs/art/epic
 - Grenade Launcher: all three kept (GL1 base; GL2/GL3 upgrade or skin looks).
 - Explosions: keep both **EX1 fireball** (Grenade Launcher, main-session suggestion) and **EX2 shockwave + debris** (the 5.9 mine blast, and later the 5.12 hand grenade). EX3 not used.
 - Bloaters: **all five BL1–BL5 as random per-Bloater variants** (as the Brute).
+
+## Ideas outside Epic 5 (designer, 2026-11-23)
+
+- **Offline play (Bluetooth / local Wi-Fi): dropped.** The research on branch `claude/idea-offline-play` stays there for reference; nothing is scheduled.
+- **Survivor customization: scheduled** as Stories 7.8–7.12 (Epic 7, with accounts; `docs/ideas/customization/`).
+- **Building-system UX rework:** a design session (party + UX spec + prototypes) on branch `claude/idea-building-ux`; its stories get added with gds-correct-course when it's done.
