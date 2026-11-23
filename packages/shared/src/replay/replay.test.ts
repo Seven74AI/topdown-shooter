@@ -47,7 +47,10 @@ function counting(world: World): { kills: number[]; turretKills: number; wavesEn
   return c;
 }
 
-describe("headless replay (Story 4.4, NFR10)", () => {
+/** Whole-run replays take ~1–3 s alone; give them room when the machine is busy (gates flaked at load 7–13). */
+const REPLAY_TIMEOUT_MS = 30_000;
+
+describe("headless replay (Story 4.4, NFR10)", { timeout: REPLAY_TIMEOUT_MS }, () => {
   const rec = record();
 
   it("the recorded run really happened (waves ended, kills, buys, buildings)", () => {
