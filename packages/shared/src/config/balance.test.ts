@@ -157,6 +157,8 @@ describe("Story 5.9: building tiers, traps and mines", () => {
       (t.reinforced_barricade as { price: number }).price = 161; // keep the sums consistent-ish: the loop is what fails
     }, /upgrade ladder loops/);
     bad((t) => ((t.spike_trap as Record<string, unknown>).solid = true), /a trap or mine must be floor/);
+    // Review L4: an upgrade keeps the building's kind (a barricade tier can't grow a turret).
+    bad((t) => ((t.reinforced_barricade as Record<string, unknown>).turret = { ...(t.auto_turret as { turret: object }).turret }), /must be the same kind of building \(barricade, not turret\)/);
     bad((t) => ((t.spike_trap as Record<string, unknown>).mine = { triggerRadiusM: 1, blastRadiusM: 2, damage: 1, playerShare: 0 }), /exclude each other/);
     bad((t) => ((t.mine as Record<string, unknown>).upgradesTo = { type: "metal_barricade", price: 100 }), /a floor type can't upgrade/);
     bad((t) => ((t.spike_trap as { trap: { pulseS: number } }).trap.pulseS = 0.33), /whole number/);

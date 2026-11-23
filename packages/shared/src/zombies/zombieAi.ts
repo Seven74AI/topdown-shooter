@@ -13,6 +13,7 @@ import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, type FlowField } from "./flowField";
 import { ZOMBIE_STATE } from "./zombieTypes";
 import { segmentHitsFire } from "../decay/fire";
+import { updateMines } from "../buildings/mine";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
 const MAX_NEIGHBOURS = 64;
@@ -307,6 +308,10 @@ export const updateZombies: SystemFn = (world, dtS) => {
       }
     }
   }
+  // Story 5.9 review L1 (F7 "same tick"): mines check their trigger again on the bodies' new
+  // positions, so a zombie that walks into a trigger circle sets the mine off this tick (the
+  // buildings-slot pass before combat catches bodies that were already there: never twice).
+  updateMines(world);
 };
 
 /**
