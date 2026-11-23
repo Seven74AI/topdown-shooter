@@ -93,3 +93,11 @@ Corrugated barricade (M2) dropped. Spitter (5.6): pick still open (P1/P2/P4; P2 
 - 4.11's Meshy sprites are redrawn in game code (round 4 mockups accepted): wood barricade B6, sandbags S2, burning survivor effects. The reinforced barricade B8 is already in code (5.9). The **burning car** gets 3 new versions in the style of the game's existing cars (not Meshy), designer picks one → Story 4.12.
 - Barricade mockups approved (wood B6 in code, reinforced B8, metal M1c without the yellow plate).
 - Burning car: the three round-5 code versions were rejected ("the fire effect was better before"). Next: a particle-based fire lab in code (today's 4.11 fire vs three code fire styles, with smoke) before Story 4.12.
+
+## Round B looks and more (designer, 2026-11-23: "every version is great, keep everything")
+
+Page: claude.ai/artifact/GzRpZP8eS6n7JVMDs9ctcy (code drawings, copied to `docs/art/epic-5/round-b/looks.html`).
+- **Brute (5.7): all five looks (BR1–BR5) are used as random variants**, one per Brute. Fix: in the wind-up pose the arms must be drawn UNDER the clothes (today they are drawn over them).
+- **Fire Axe AX1, Chainsaw CS1, upgrade marks U1** are the base looks; the other versions are kept for upgrade tiers or skins later (rule: first = base, others = upgrade/skin looks).
+- **Acid through thin walls (5.6 re-review):** puddles do NOT hurt across walls, cars and buildings (main session applied the recommended option; designer did not object).
+- Fire: the designer likes the flames of fire-lab version C (fuel fire) but not its lava-style floor → version D (C's flames, normal asphalt with only a soft light) under review.
