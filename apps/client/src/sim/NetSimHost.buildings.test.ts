@@ -18,6 +18,13 @@ function setup() {
   return { room, host };
 }
 
+/** A patch one tick newer than the room's, applied to the mirror. */
+function nextPatch(room: FakeRoom, host: NetSimHost): void {
+  room.state.tick++;
+  room.patch();
+  host.update(1 / 60);
+}
+
 describe("NetSimHost buildings (Story 3.4)", () => {
   it("mirrors the state's buildings into its World (add, HP, remove) in id order", () => {
     const { room, host } = setup();
@@ -60,11 +67,33 @@ describe("NetSimHost buildings (Story 3.4)", () => {
     expect(host.takePlaceRefusal()).toBeNull();
     room.deliver(S2C.BUILDING_REFUSED, { reason: "limit" });
     room.deliver(S2C.BUILDING_REFUSED, { reason: "nonsense" }); // malformed: dropped
+    nextPatch(room, host); // Story 5.18: handed on with the next patch
     expect(host.takePlaceRefusal()).toBe("limit");
     expect(host.takePlaceRefusal()).toBeNull();
     host.dispose();
     room.deliver(S2C.BUILDING_REFUSED, { reason: "money" });
     expect(host.takePlaceRefusal()).toBeNull();
+  });
+
+  it("Story 5.18 (AC 8): a refusal waits for a patch newer than the one before it (the buildings accepted earlier are then mirrored); several come out in order", () => {
+    const { room, host } = setup();
+    room.state.tick = 10;
+    room.patch();
+    host.update(1 / 60);
+    room.deliver(S2C.BUILDING_REFUSED, { reason: "blocked" });
+    room.deliver(S2C.BUILDING_REFUSED, { reason: "money" });
+    host.update(1 / 60);
+    expect(host.takePlaceRefusal()).toBeNull(); // the mirror still shows tick 10
+    room.state.buildings.set("1", wood({ owner: "p1" })); // accepted before the refusals: in the next patch
+    nextPatch(room, host);
+    expect(host.world.buildings.list.length).toBe(1);
+    expect(host.takePlaceRefusal()).toBe("blocked");
+    expect(host.takePlaceRefusal()).toBe("money");
+    expect(host.takePlaceRefusal()).toBeNull();
+    room.deliver(S2C.BUILDING_REFUSED, { reason: "limit" }); // arrived after tick 11
+    expect(host.takePlaceRefusal()).toBeNull();
+    nextPatch(room, host);
+    expect(host.takePlaceRefusal()).toBe("limit");
   });
 
   it("Story 5.9: upgradeBuilding sends building.upgrade; the mirror (and the predictor) show the new tier only when the state does; a refusal comes back once", () => {

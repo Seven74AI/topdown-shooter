@@ -34,6 +34,8 @@ import {
   type LauncherStats,
   type World,
   buildingById,
+  footprint,
+  type Box,
 } from "@topdown/shared";
 import { dpr } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
@@ -60,6 +62,8 @@ import { streakScales } from "../render/weaponLook";
 import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
 import { BlockReasonView } from "../render/BlockReasonView";
+import { PendingView } from "../render/PendingView";
+import { PendingPlacements, newestBuildingId } from "./pendingPlacements";
 import { MineView } from "../render/MineView";
 import { MINE_SHAKE_MS, mineShakeIntensity } from "../render/mineBlast";
 import { GrenadeView } from "../render/GrenadeView";
@@ -127,6 +131,8 @@ export function newRunSeed(): number {
 /** The fight: runs the World through a SimHost, draws it, and feeds it the local input. */
 /** Story 5.4: how long a teammate's ring flashes orange after my fire hurt them (ms). */
 const FF_FLASH_MS = 250;
+/** Story 5.18 (AC 7): a sent placement with no answer within `pendingTimeoutMs`. */
+const NO_ANSWER_TEXT = "No answer from the server";
 const RUSH_COLOR = 0xff3b30;
 /** Short screen shake for heavy weapons (FR19); intensity is a fraction of the view size. */
 /** Story 5.8: the gas-slow edge tint (steady: slowed, not hurt). */
@@ -257,7 +263,13 @@ export class GameScene extends Phaser.Scene {
   /** "Wood barricade · $40" for the type being placed, and the refusal texts (built once each). */
   private placingLabel = "";
   /** Story 5.15: the placement step's per-frame context (one object, refilled every frame). */
-  private readonly sendPlace = (req: PlaceRequest): void => this.host?.placeBuilding(req);
+  private readonly sendPlace = (req: PlaceRequest): void => this.queuePlace(req);
+  /** Story 5.18: my placements without an answer yet (the chain's pending boxes), and how they are drawn. */
+  private readonly pending = new PendingPlacements();
+  private pendingView: PendingView | null = null;
+  private readonly pendingBox: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  /** Story 5.18: the pump's send (the request is the tracker's reused object: the host encodes at once). */
+  private readonly sendNow = (req: PlaceRequest): void => this.host?.placeBuilding(req);
   private readonly placeFrame: PlacementFrame = {
     can: false,
     wave: 0,
@@ -270,6 +282,11 @@ export class GameScene extends Phaser.Scene {
     toast: (text) => this.toasts.push(text),
     nowMs: 0,
     hintText: (e, r) => this.hintText(e, r),
+    pending: this.pending,
+    viewMinX: Number.NaN,
+    viewMinY: Number.NaN,
+    viewMaxX: Number.NaN,
+    viewMaxY: Number.NaN,
   };
   /** Story 5.17: the reason line's last text and what it was built from (rebuilt only when one changes: no string per frame). */
   private hint = { e: "" as PlaceError | "", cause: "", index: 0, id: 0, playerId: "", name: "", wallet: -1, type: "", text: "" };
@@ -378,6 +395,8 @@ export class GameScene extends Phaser.Scene {
     this.gameOver = false;
     this.kills = 0;
     this.placement.cancel(); // Phaser reuses this scene object: no placement from the last run
+    this.pending.reset(); // Story 5.18: nor a pending box
+    this.pending.configure(balance.controls.build.pendingTimeoutMs, balance.controls.build.chainSendGapMs);
     this.refusalTexts.clear();
     this.repairPanel.close(); // Story 3.7: no selection from the last run
     this.ready.reset(); // Phaser reuses this scene object (restart): no Ready from the last run
@@ -433,6 +452,7 @@ export class GameScene extends Phaser.Scene {
     this.downedView = new DownedView(this, world);
     this.buildingView = new BuildingView(this, balance);
     this.blockReasonView = new BlockReasonView(this);
+    this.pendingView = new PendingView(this);
     this.mineView = new MineView(this, balance);
     this.turretView = new TurretView(this);
     this.selectView = new BuildingSelectView(this);
@@ -505,6 +525,9 @@ export class GameScene extends Phaser.Scene {
       this.buildingView = null;
       this.blockReasonView?.destroy();
       this.blockReasonView = null;
+      this.pending.reset();
+      this.pendingView?.destroy();
+      this.pendingView = null;
       this.mineView?.destroy();
       this.mineView = null;
       this.cityView?.destroy();
@@ -754,7 +777,7 @@ export class GameScene extends Phaser.Scene {
   private hintText(e: PlaceError, r: Readonly<BlockReason> | null): string {
     const host = this.host;
     if (!host) return "";
-    const wallet = host.world.players.get(host.localPlayerId)?.wallet ?? 0;
+    const wallet = this.shownWallet(host); // Story 5.18: pending prices off
     const h = this.hint;
     const type = this.placement.type;
     const cause = r ? r.cause : "";
@@ -816,7 +839,42 @@ export class GameScene extends Phaser.Scene {
     f.label = this.placingLabel;
     f.send = this.sendPlace;
     f.nowMs = this.time.now;
+    const v = this.cameras.main.worldView; // Story 5.18: a pinned ghost that leaves it goes back to carry
+    f.viewMinX = v.x;
+    f.viewMinY = v.y;
+    f.viewMaxX = v.x + v.width;
+    f.viewMaxY = v.y + v.height;
     stepPlacement(this.placement, this.hudModel, this.input_, host.world, f);
+  }
+
+  /**
+   * Story 5.18: my wallet as shown (HUD, build bar, reason line, shop): the World's (server truth
+   * online) minus the prices of my pending placements (AC 5). Never changes the World.
+   */
+  private shownWallet(host: SceneHost): number {
+    const w = host.world.players.get(host.localPlayerId)?.wallet ?? 0;
+    return Math.max(0, w - this.pending.money);
+  }
+
+  /** Story 5.18: a Place → a pending box at the spot shown (sent by `pumpPending` within the send gap). */
+  private queuePlace(req: PlaceRequest): void {
+    const host = this.host;
+    if (!host) return;
+    const world = host.world;
+    const stats = buildingStats(world.balance, req.type);
+    if (!stats) return;
+    footprint(stats, req.gx, req.gy, req.rot, this.pendingBox);
+    if (!this.pending.add(req, stats.price, this.pendingBox, newestBuildingId(world), world.run.phase, world.waves.number)) host.placeBuilding(req); // pool full (never with 6 counted): send unpaced
+  }
+
+  /**
+   * Story 5.18: once per frame, before and after the placement step: the phase/wave clear, boxes that
+   * became buildings, timeouts ("No answer from the server"); `send` also sends the next queued box (≤ 4/s).
+   */
+  private updatePending(host: SceneHost, send: boolean): void {
+    const now = this.time.now;
+    if (send) this.pending.pump(now, this.sendNow); // solo builds at once: the update below matches it this frame
+    if (this.pending.update(host.world, host.localPlayerId, now) > 0) this.toasts.push(NO_ANSWER_TEXT);
   }
 
   /**
@@ -905,8 +963,9 @@ export class GameScene extends Phaser.Scene {
         const l0 = me.loadout.slots[0].level;
         const l1 = me.loadout.slots[1]?.level ?? 0;
         // Story 5.11: the owned gear from the World (online: the state's `gear`), never the tap.
-        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1] || l0 !== s.levels[0] || l1 !== s.levels[1] || me.gear !== s.gearMask) {
-          this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1], levels: [l0, l1], gearMask: me.gear });
+        const wallet = this.shownWallet(host); // Story 5.18: pending prices off
+        if (wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1] || l0 !== s.levels[0] || l1 !== s.levels[1] || me.gear !== s.gearMask) {
+          this.shopInput({ type: "sync", wallet, slots: [w0, w1], levels: [l0, l1], gearMask: me.gear });
         }
       }
       if (s.pending !== null) {
@@ -946,9 +1005,9 @@ export class GameScene extends Phaser.Scene {
     f.can = this.canPlace(host, menuOpen || shopOpen);
     f.holding = this.placement.active;
     f.selected = this.repairPanel.open;
-    f.owned = ownedCount(world, host.localPlayerId);
+    f.owned = ownedCount(world, host.localPlayerId) + this.pending.count; // Story 5.18 (5.16 L2): pending counts
     f.cap = world.balance.buildings.maxPerPlayer;
-    f.wallet = world.players.get(host.localPlayerId)?.wallet ?? 0;
+    f.wallet = this.shownWallet(host);
     m.buildItems = buildBarItems(world.balance);
     const r = stepBuildBar(m, f, this.barStep);
     if (r.toast !== "") {
@@ -1094,7 +1153,9 @@ export class GameScene extends Phaser.Scene {
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     const shopOpen = this.updateShop(host, menuOpen);
     if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
+    this.updatePending(host, false); // Story 5.18: answered / cleared boxes first (the step's check counts the rest)
     this.updatePlacement(host, menuOpen || shopOpen); // Story 3.4 / 5.15: holding keeps the move, drops aim and fire
+    this.updatePending(host, true); // Story 5.18: the next queued Place goes out (≤ 4/s)
     this.updateRepair(host, menuOpen, shopOpen); // Story 3.7: tap a building → Repair
     this.updateBuildBar(host, menuOpen, shopOpen); // Story 5.16: tap a tile → the building is in my hands
     this.updateReady(host, menuOpen || shopOpen);
@@ -1108,8 +1169,12 @@ export class GameScene extends Phaser.Scene {
 
     if (this.running) host.update(deltaMs / 1000); // LocalSimHost caps catch-up after long frames
     if (perf.net) netSummary.frame(performance.now(), perf.net); // Story 2.10: ping samples for the wave summary
-    const refused = host.takePlaceRefusal(); // Story 3.4: the server (or solo) said no
-    if (refused) this.toasts.push(this.refusalText(refused));
+    this.updatePending(host, false); // Story 5.18: the patch this update applied may carry my buildings (and their charge): match them now
+    // Story 3.4: the server (or solo) said no. Story 5.18: each to the oldest unanswered box (AC 8); a
+    // box that already timed out doesn't toast twice (D7).
+    for (let refused = host.takePlaceRefusal(); refused !== null; refused = host.takePlaceRefusal()) {
+      if (this.pending.refuse(refused, this.time.now) !== "ghost") this.toasts.push(this.refusalText(refused));
+    }
     const repairRefused = host.takeRepairRefusal(); // Story 3.7
     if (repairRefused) this.toasts.push(this.repairText(repairRefused));
     const upgradeRefused = host.takeUpgradeRefusal(); // Story 5.9
@@ -1210,6 +1275,7 @@ export class GameScene extends Phaser.Scene {
     this.ambience?.update(host.world.decay.stage);
     this.buildingView?.update(host.world, this.placement);
     this.blockReasonView?.update(host.world, this.placement, this.drawnAt);
+    this.pendingView?.update(this.pending, this.time.now); // Story 5.18
     this.mineView?.update(host.world, this.time.now);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.selectView?.update(host.world, this.repairPanel.id);
@@ -1238,7 +1304,7 @@ export class GameScene extends Phaser.Scene {
       this.hudModel.maxHp = player.maxHp;
       this.hudModel.gearMask = player.gear; // Story 5.11: the HUD's gear icons (server truth online)
       this.hudModel.gearIds = gearIds(host.world.balance);
-      this.hudModel.money = player.wallet;
+      this.hudModel.money = this.shownWallet(host); // Story 5.18: pending prices off (AC 5)
       this.hudModel.localX = viewOf.x;
       this.hudModel.localY = viewOf.y;
       const slot = activeSlot(player.loadout);

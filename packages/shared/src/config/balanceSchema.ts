@@ -483,6 +483,14 @@ export const buildControlsSchema = z
     autoRotateHysteresisDeg: z.number().min(0).max(44),
     /** Story 5.17: a shown block reason stays at least this long before the ghost looks valid again (ms; presentation only). */
     reasonHoldMs: z.number().min(0).max(2000).default(250),
+    /** Story 5.18: a sent placement with no `building.placed` / `building.refused` after this long is treated as refused (ms). */
+    pendingTimeoutMs: z.number().int().min(250).max(10000).default(2000),
+    /** Story 5.18: the least time between two `building.place` sends from this client (ms; 250 = at most 4/s, the guard allows 10/s). */
+    chainSendGapMs: z.number().int().min(100).max(2000).default(250),
+    /** Story 5.18: the chain jump is the footprint along the jump axis, but at least this far (m; a 0.5 m mine jumps 1.0 m). */
+    chainMinStepM: z.number().min(0.5).max(4).default(1),
+    /** Story 5.18: a pinned chain ghost goes back to carry once I walk this far from where I placed (m; 0 = never by walking). */
+    chainUnpinWalkM: z.number().min(0).max(20).default(2),
   })
   .strict();
 
@@ -493,7 +501,7 @@ export const controlsSchema = z
     aimAssistDeg: z.number().min(0).max(45),
     /** Story 5.2: client effect caps (no new balance file: every test fixture lists the files). */
     fx: fxSchema,
-    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250 }),
+    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, chainUnpinWalkM: 2 }),
   })
   .strict();
 

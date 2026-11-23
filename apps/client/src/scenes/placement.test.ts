@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NEUTRAL_INPUT, addPlayer, spawnZombie, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave, type PlaceError, type PlaceRequest } from "@topdown/shared";
-import { Placement, autoRot, carryDistance, placeRefusalText, snapAxis, stepPlacement, type PlacementFrame, type PlacementHud } from "./placement";
+import { CHAIN_MONEY_TEXT, Placement, autoRot, carryDistance, chainOffset, placeGate, placeRefusalText, snapAxis, stepPlacement, type PlacementFrame, type PlacementHud } from "./placement";
+import { PendingPlacements, newestBuildingId } from "./pendingPlacements";
 import type { MutablePlayerInput } from "../input/InputRouter";
 
 /** Story 3.4: placement mode on the device; Story 5.15: carried ghost (offset, auto-rotate, hysteresis, lock), confirm/cancel, the shared check. */
@@ -268,7 +269,7 @@ describe("Story 5.15 (review M1): stepPlacement, one frame of placement mode", (
     expect(p.gy).toBe(gy0 - 8);
   });
 
-  it("Place sends the spot drawn last frame, before this frame's carry moves it (AC 10), and ends holding", () => {
+  it("Place sends the spot drawn last frame, before this frame's carry moves it (AC 10); Story 5.18: the item stays in hand, pinned one footprint along", () => {
     const w = world();
     const sent: PlaceRequest[] = [];
     const p = new Placement();
@@ -283,7 +284,8 @@ describe("Story 5.15 (review M1): stepPlacement, one frame of placement mode", (
     stepPlacement(p, m, pressFrame, w, f);
     expect(sent).toEqual([shown]);
     expect([pressFrame.moveY, pressFrame.aimX, pressFrame.aimY, pressFrame.fire]).toEqual([-1, 0, 0, false]); // the press frame is a hold frame too
-    expect([p.active, m.placementActive, m.confirmPressed]).toEqual([false, false, false]);
+    expect([p.active, m.placementActive, m.confirmPressed, p.pinned]).toEqual([true, true, false, true]); // Story 5.18: the chain
+    expect([p.gx, p.gy, p.rot]).toEqual([shown.gx + 4, shown.gy, shown.rot]); // facing north: 2 m to the east, end to end
   });
 
   it("⟳ locks, ✕ sends nothing, an off-map Place toasts instead of sending, and the cancel rules end holding", () => {
@@ -531,5 +533,190 @@ describe("Story 5.17 review: the culprit changing while blocked; start resets; a
     expect(ok.ok).toBe(true);
     s.step(1016);
     expect([s.p.reason.cause, s.p.hasReason, s.m.placementHint]).toEqual(["building", true, `blocked:building::${s.w.buildings.list[0]?.id}`]);
+  });
+});
+
+describe("Story 5.18: place, place, place (chain, pin, pending-aware check)", () => {
+  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false });
+  const still = (): MutablePlayerInput => ({ ...NEUTRAL_INPUT });
+  function rig(wallet: number) {
+    const w = world();
+    (w.players.get("p0") as { wallet: number }).wallet = wallet;
+    const pending = new PendingPlacements();
+    const sent: PlaceRequest[] = [];
+    const toasts: string[] = [];
+    const p = new Placement();
+    const m = hud();
+    const f: PlacementFrame = {
+      can: true,
+      wave: w.waves.number,
+      x: 20,
+      y: 16,
+      ownerId: "p0",
+      label: "Wood barricade · $40",
+      refusal: (e: PlaceError) => placeRefusalText(e, balance),
+      send: (r) => {
+        sent.push({ ...r });
+        const s = buildingStats(balance, r.type);
+        if (!s) throw new Error("type");
+        pending.add(r, s.price, footprint(s, r.gx, r.gy, r.rot, { minX: 0, minY: 0, maxX: 0, maxY: 0 }), newestBuildingId(w), w.run.phase, w.waves.number);
+      },
+      toast: (t) => toasts.push(t),
+      nowMs: 0,
+      hintText: (e: PlaceError) => placeRefusalText(e, balance),
+      pending,
+      viewMinX: Number.NaN,
+      viewMinY: Number.NaN,
+      viewMaxX: Number.NaN,
+      viewMaxY: Number.NaN,
+    };
+    const tap = () => {
+      m.confirmPressed = true;
+      stepPlacement(p, m, still(), w, f);
+    };
+    return { w, pending, sent, toasts, p, m, f, tap };
+  }
+
+  it("chain jump per type and rot: long side end to end, squares to the right of my facing, at least 1 m (AC 3, D4)", () => {
+    const o = { dgx: 0, dgy: 0 };
+    const at = (type: string, rot: number, fx: number, fy: number) => {
+      const s = buildingStats(balance, type);
+      if (!s) throw new Error(type);
+      const r = chainOffset(footprintW(s, rot), footprintH(s, rot), fx, fy, balance.controls.build.chainMinStepM, o);
+      return [r.dgx, r.dgy];
+    };
+    expect(at(WOOD, 2, 0, -1)).toEqual([4, 0]); // facing north: 2 m east
+    expect(at(WOOD, 0, 0, 1)).toEqual([-4, 0]); // facing south: right is west
+    expect(at(WOOD, 3, 1, 0)).toEqual([0, 4]); // facing east: right is south
+    expect(at(WOOD, 1, -1, 0)).toEqual([0, -4]); // facing west: right is north
+    expect(at(WOOD, 0, 1, 0)).toEqual([0 + 4, 0]); // locked across the facing: along the long side, +x by default
+    expect(at("auto_turret", 0, 0, -1)).toEqual([2, 0]); // 1 m square, right of north = east
+    expect(at("auto_turret", 0, 1, 0)).toEqual([0, 2]);
+    expect(at("spike_trap", 0, 0, 1)).toEqual([-4, 0]); // 2 m
+    expect(at("mine", 0, 0, -1)).toEqual([2, 0]); // 0.5 m mine jumps 1.0 m
+    expect(chainOffset(0.5, 0.5, 0, -1, 2, o)).toEqual({ dgx: 4, dgy: 0 }); // the minimum comes from balance
+  });
+
+  it("three Places standing still = a 6 m wall end to end, each box pending, nothing overlapping (AC 2, 3, 5)", () => {
+    const r = rig(5000);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    r.tap();
+    r.tap();
+    r.tap();
+    expect(r.sent.map((q) => [q.gx, q.gy, q.rot])).toEqual([
+      [38, 28, 2],
+      [42, 28, 2],
+      [46, 28, 2],
+    ]);
+    expect([r.pending.count, r.pending.money, r.p.active, r.p.pinned, r.p.gx]).toEqual([3, 120, true, true, 50]);
+    expect(r.toasts).toEqual([]);
+  });
+
+  it("10 taps with $100: 2 sent, then the hand empties with \"Not enough money for another\" (B1)", () => {
+    const r = rig(100);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    for (let i = 0; i < 10; i++) r.tap();
+    expect(r.sent.length).toBe(2);
+    expect([r.pending.money, r.p.active, r.m.placementActive]).toEqual([80, false, false]);
+    expect(r.toasts).toEqual([CHAIN_MONEY_TEXT]);
+  });
+
+  it("the cap counts pending: at 5/6 one Place, then \"Building limit reached (6)\"; at 6/6 Place sends nothing (AC 2, 6, B4)", () => {
+    const r = rig(5000);
+    for (let i = 0; i < 5; i++) expect(placeBuilding(r.w, "p0", { type: "mine", gx: 30 + 4 * i, gy: 40, rot: 0 }).ok).toBe(true);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    r.tap();
+    expect([r.sent.length, r.p.active]).toEqual([1, false]);
+    expect(r.toasts).toEqual(["Building limit reached (6)"]);
+    expect(placeBuilding(r.w, "p0", { type: "mine", gx: 30, gy: 44, rot: 0 }).ok).toBe(true); // the server built it: 6/6
+    r.pending.clear();
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    r.tap();
+    expect(r.sent.length).toBe(1); // turned down on the device: never more than max − owned − pending in flight
+    expect(r.toasts).toEqual(["Building limit reached (6)", "Building limit reached (6)"]);
+  });
+
+  it("placeGate: cap counting pending first; money only with a box pending (with none, a predicted refusal still sends: 5.15)", () => {
+    const w = world();
+    (w.players.get("p0") as { wallet: number }).wallet = 30;
+    const none = { count: 0, money: 0, overlaps: () => false };
+    expect(placeGate(w, "p0", 40, none)).toBeNull();
+    expect(placeGate(w, "p0", 40, { count: 1, money: 0, overlaps: () => false })).toBe("money");
+    expect(placeGate(w, "p0", 20, { count: 1, money: 10, overlaps: () => false })).toBeNull();
+    expect(placeGate(w, "p0", 20, { count: 6, money: 0, overlaps: () => false })).toBe("limit");
+  });
+
+  it("a blocked jump goes back to carry at once; the carried ghost on my pending box says \"Overlaps a building\" (AC 3, 5)", () => {
+    const r = rig(5000);
+    expect(placeBuilding(r.w, "p0", { type: "mine", gx: 43, gy: 28, rot: 0 }).ok).toBe(true); // on the jump spot
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    r.tap();
+    expect([r.p.active, r.p.pinned, r.p.gx, r.p.gy]).toEqual([true, false, 38, 28]); // carried: on the box just placed
+    expect([r.p.error, r.p.pendingOverlap, r.p.shownHasReason, r.p.shownReason.cause]).toEqual(["blocked", true, true, "building"]);
+  });
+
+  it("pending-aware check, placementError's order: limit, then money, then my pending box's ground", () => {
+    const w = world();
+    (w.players.get("p0") as { wallet: number }).wallet = 100;
+    const p = new Placement();
+    p.start(balance, WOOD, 20, 16, 0, -1);
+    const pend = (count: number, money: number, over: boolean) => ({ count, money, overlaps: () => over });
+    expect(p.check(w, "p0", pend(6, 0, true))).toBe(false);
+    expect(p.error).toBe("limit");
+    p.check(w, "p0", pend(1, 80, true));
+    expect(p.error).toBe("money");
+    p.check(w, "p0", pend(1, 40, true));
+    expect([p.error, p.pendingOverlap]).toEqual(["blocked", true]);
+    p.check(w, "p0", pend(1, 40, false));
+    expect([p.error, p.pendingOverlap]).toEqual([null, false]);
+    p.check(w, "p0", null);
+    expect(p.error).toBeNull();
+  });
+
+  it("pinned stays put while I walk ≤ 2 m, goes back to carry after 2 m or when it leaves the view; ⟳ turns it around its centre (AC 4, D3)", () => {
+    const r = rig(5000);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    r.tap();
+    const pin = [r.p.gx, r.p.gy];
+    r.f.x = 21.9; // walked 1.9 m east
+    stepPlacement(r.p, r.m, { ...NEUTRAL_INPUT, moveX: 1 }, r.w, r.f);
+    expect([r.p.pinned, r.p.gx, r.p.gy]).toEqual([true, ...pin]);
+    r.m.rotatePressed = true; // ⟳: around the centre (22, 14.25) → a 0.5 × 2 box, corner (21.75, 13.25) snapped
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect([r.p.pinned, r.p.rot, r.p.locked, r.p.gx, r.p.gy]).toEqual([true, 3, true, 44, 27]);
+    r.f.x = 22.1; // 2.1 m from where I placed
+    stepPlacement(r.p, r.m, { ...NEUTRAL_INPUT, moveX: 1 }, r.w, r.f);
+    expect(r.p.pinned).toBe(false);
+    // the view rule: pin again, then a view that no longer holds the ghost's centre
+    r.f.x = 20;
+    r.tap();
+    expect(r.p.pinned).toBe(true);
+    const b = r.p.ghostBox();
+    if (!b) throw new Error("box");
+    r.f.viewMinX = (b.minX + b.maxX) / 2 - 0.9; // its centre 0.9 m inside the left edge: within the 1 m inset
+    r.f.viewMinY = 0;
+    r.f.viewMaxX = r.f.viewMinX + 20;
+    r.f.viewMaxY = 30;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.pinned).toBe(false);
+  });
+
+  it("✕ or a cancel rule ends a chain like any hold; a new hold starts unpinned", () => {
+    const r = rig(5000);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    r.tap();
+    expect(r.p.pinned).toBe(true);
+    r.m.cancelPressed = true;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect([r.p.active, r.p.pinned]).toEqual([false, false]);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    expect(r.p.pinned).toBe(false);
   });
 });

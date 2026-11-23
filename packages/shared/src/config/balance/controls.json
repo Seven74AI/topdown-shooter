@@ -16,6 +16,10 @@
     "carryGapM": 1.0,
     "snapHysteresisM": 0.1,
     "autoRotateHysteresisDeg": 10,
-    "reasonHoldMs": 250
+    "reasonHoldMs": 250,
+    "pendingTimeoutMs": 2000,
+    "chainSendGapMs": 250,
+    "chainMinStepM": 1.0,
+    "chainUnpinWalkM": 2.0
   }
 }
