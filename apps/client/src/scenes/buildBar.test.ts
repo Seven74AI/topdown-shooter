@@ -72,6 +72,7 @@ describe("buildBarSlots (AC 2, 3; D1 Shop last)", () => {
     expect(Array.from(buildBarSlots(9, 0, slots))).toEqual([0, 1, 2, 3, 4, 5, SLOT_MORE, SLOT_SHOP]);
     expect(Array.from(buildBarSlots(9, 1, slots))).toEqual([6, 7, 8, SLOT_EMPTY, SLOT_EMPTY, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP]);
     expect(Array.from(buildBarSlots(9, 2, slots))).toEqual([0, 1, 2, 3, 4, 5, SLOT_MORE, SLOT_SHOP]);
+    expect(Array.from(buildBarSlots(9, -1, slots))).toEqual([6, 7, 8, SLOT_EMPTY, SLOT_EMPTY, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP]); // negative pages wrap too
   });
 
   it("no types: only Shop", () => {
@@ -174,6 +175,9 @@ describe("stepBuildBar (AC 6–10)", () => {
     m.buildPick = "auto_turret";
     const r = stepBuildBar(m, frame({ wallet: 250 }), out());
     expect(r).toEqual({ show: true, pick: "auto_turret", toast: "" });
+    const n = model();
+    stepBuildBar(n, frame({ owned: 4, cap: 6 }), out());
+    expect([n.buildOwned, n.buildCap]).toEqual([4, 6]); // the count line reads this frame's World
     expect(m.buildPick).toBe("");
     expect([m.buildOwned, m.buildCap]).toEqual([0, 6]);
     expect(stepBuildBar(m, frame(), out()).pick).toBe(""); // consumed: a second frame picks nothing

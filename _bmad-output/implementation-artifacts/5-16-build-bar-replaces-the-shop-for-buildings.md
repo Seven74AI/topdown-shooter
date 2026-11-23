@@ -1,6 +1,6 @@
 # Story 5.16: Build bar replaces the shop for buildings
 
-Status: review
+Status: done
 
 (Building UX rework BX-2. Design: `docs/ideas/building-ux/ux-spec.md` §2–§4, §7.2, §9, §15 (designer: **B · Carry + drag**), `draft-stories.md` › BX-2, feel: `prototype.html` / claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR (`drawNewHUD` › build bar). Spine-wins rule: where the spec and the prototype disagree, the spec wins. Builds on Story 5.15 (`stepPlacement`, the hand cluster).)
 
@@ -52,7 +52,7 @@ so that I don't open a menu for every barricade.
 10. **Fairness: build phase only (F4).** The bar exists only while `shopAllowed` holds (a build phase, a run on screen, no menu, not leaving, not under `?stress`) and I'm alive; it hides the frame that stops holding; a tap on a tile that has just hidden does nothing.
 11. **Shop tile.** Tapping 🛒 Shop opens today's shop (weapons, upgrades; later 5.13's cards). **The shop no longer lists buildings** (no "Buildings" section, no building action), and the separate Shop button next to Ready is gone.
 12. **Hidden** while holding (the hand cluster), while a building is selected (the repair panel today, BX-7's action bar later), while the shop or the menu is open, and outside a build phase. While the bar shows, the swap button and the ammo lines are hidden (they sit under the grid; nothing to shoot in a build phase; `Q` still swaps on keys).
-13. **Ready** stays at the bottom (168 × 52, 24 px up), centred 40 px left of the screen centre (5.15), and slides further left if needed so its right edge stays **≥ 12 px** left of the grid (568 × 320: Ready's centre at 208 px instead of 244). Every target ≥ 48 px and ≥ 12 px apart; nothing overlaps ☰ / ⚙ at 568 × 320.
+13. **Ready** stays at the bottom (168 × 52, 24 px up), centred 40 px left of the screen centre (5.15), and slides further left if needed so its right edge stays **≥ 12 px** left of the grid (568 × 320: Ready's centre at 208 px instead of 244). Every target ≥ 48 px; ≥ 12 px between clusters (Ready ↔ grid); tiles 8 px apart (ux-spec §4); nothing overlaps ☰ / ⚙ at 568 × 320.
 14. **Numbers (brief 10).** Tile size, gap, inset, columns/rows, count text, the Ready gap: `ui/sizes.ts` (CSS px, layout only, like 5.15's hand cluster). Prices and the cap: `buildings.json` (unchanged). No allocation per frame: the tiles redraw only when their state key (page, each tile's short/cap bit, count, cap) changes.
 15. **Tests:** `buildBar.test.ts` — the tile list from balance (today's four, an `inShop: false` type left out, upgrade-only tiers left out, a new type appears), the slots (Shop last, empties, paging with More at > 7 types and its wrap), the layout (exact tile rects with insets at dpr 1–3, ≥ 48 px, ≥ 12 px apart from Ready, nothing past the safe area), the pick (cap before money, the toast texts), the tile states (short, cap); `shopStore.test.ts` — the shop has no building action; a browser check at **800 × 360, 568 × 320 and 1024 × 768**: the bar, a short tile, the cap state, tap → building in hand, the Shop tile opens the shop without buildings. Screenshots in `docs/art/5-16/`.
 
@@ -121,6 +121,22 @@ None. World, schema, syncState, state views, NetSimHost mirror, Predictor, devTh
 - `ui/sizes.ts`: `SHOP_BUTTON_W/GAP` removed; `BUILD_BAR_*`, `READY_BAR_GAP_CSS_PX` added.
 - `hudModel.ts`: `shopButton` removed; `buildBar`, `buildItems`, `buildOwned`, `buildCap`, `buildPick` added. `uiState.ts`: the `startPlacement` request is gone.
 
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh agent dispatched by the main session, 2026-11-23. **Outcome:** no high, no medium; 6 lows, fixed on `story-5-16` except L2 (accepted). No re-review needed for lows (main session).
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| L1 | Low | A dimmed tile's price text stayed fully opaque (only background and icon faded). | `barPrices[s].setAlpha(a)`: the whole tile dims (the red price still marks "too expensive"). |
+| L2 | Low (accepted) | Online, the count and the wallet lag one round trip after a Place, so a quick second pick can pass locally and be refused at Place. | **Accepted, not fixed** (main session). Story 5.18's pending wallet/count feeds `buildOwned` / `money` (merge note). |
+| L3 | Low | Two taps in one frame: the second overwrote the first. | `pressTile` keeps the first pick of the frame (`buildPick === ""`); a Shop tap in the same frame as a pick is dropped. |
+| L4 | Low | The page index survived the bar closing (it reopened on page 2 when paging exists). | `drawBuildBar` resets `barPage = 0` when the bar goes from shown to hidden. |
+| L5 | Low | AC 13 said "≥ 12 px apart" while tiles are 8 px apart. | Reworded: ≥ 12 px between clusters, tiles 8 px apart (ux-spec §4). |
+| L6 | Low | Stale "Shop beside Ready" comments; the new `default` in `shopStep` hid missing cases. | Comments updated (HudScene, sizes, GameScene); `default` now has a `never` check (compile-time exhaustive, run-time no-op). |
+| + | Test | A mutant dropping `m.buildOwned = f.owned` survived; no negative page case. | `stepBuildBar` asserts the owned count and cap are copied into the model; `buildBarSlots(9, -1)` = page 2. |
+
+Touched tests after the fixes: `buildBar.test.ts`, `shopStore.test.ts`, `toastQueue.test.ts` pass; `npm run typecheck` and `npm run lint` pass. Mutant re-checked: removing `m.buildOwned = f.owned` is now **killed**.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -161,4 +177,5 @@ Claude (builder cloud session, 2026-11-23). Baseline: master `3b62074` (5.15 mer
 - 2026-11-23: Designer, on the thin barricade icon: buildings should have their own build-bar icons, separate from the world art (like weapons have their own shop icons). Decision (designer: "follow your recommendation"): **5.16 stays as built** (tiles use the world art, AC 4 unchanged) and goes to review; the icons are a **small follow-up story** (number to be assigned by the main session, e.g. after 5.16 merges). Proposal page with three code-drawn styles (I1 tilted object, I2 bold pictogram, I3 close-up top view) for the four current buildings: `docs/art/5-16/icons/index.html`, claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3. Follow-up scope: the picked icons drawn once into an icon atlas through `addGeneratedTexture`, `buildingIcon(type)` used by `HudScene.placeBarSlots` with a fallback to `buildingFrame` / the plank box, so later buildings (med station, floodlight, bear trap) work before their icon exists.
 - 2026-11-23: Icon round 1 (designer): style **I1 tilted objects**; the I1 wood barricade and spike trap are kept; the turret and mine "could be better". Round 2 on the same page: turret T1 sentry gun / T2 armoured dome / T3 game crate + square head; mine M1 pressure mine / M2 half buried / M3 warning band. Waiting for the designer's turret + mine pick (for the follow-up story).
 - 2026-11-23: Icon picks final (designer): barricade I1, spike trap I1, turret **T1** (T2 kept for a later upgrade tier/skin, two-pick rule), mine **M1**. Recorded in `docs/epic-5-decisions.md` › Build-bar icons. Ready for the follow-up story.
+- 2026-11-23: Review lows L1, L3–L6 fixed (L2 accepted) + two test assertions; status → done.
 - 2026-11-23: Built (gds-dev-story): build bar, shop without buildings, toast withdraw/pushUnique. Status → review.

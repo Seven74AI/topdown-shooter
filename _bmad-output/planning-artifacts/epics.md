@@ -945,6 +945,32 @@ So that I can quit cleanly without closing the browser.
 **When** I leave
 **Then** I return to the start screen and my teammates see "<name> left"; the run goes on without me (no reconnect window for a deliberate leave)
 
+### Story 2.12: Rewound hit testing
+
+As a player shooting while I run,
+I want my shots to hit the zombies I aimed at on my screen,
+So that a hit I saw is not taken back by the server, even against fast Runners.
+
+(Added 2026-11-22 as a follow-up to Story 2.10 AC 3: at 150 ms RTT the netsim measured 5.3 % reversed hits kiting Walkers and 28.9 % kiting Runners, above the architecture's 1-in-20 threshold for rewinding.)
+
+**Acceptance Criteria:**
+
+**Given** an online run and a player firing a gun or swinging melee
+**When** the server tests the hit
+**Then** it uses the zombie positions the shooter saw (server tick minus the shooter's view offset, capped at 300 ms), only zombie positions are rewound, and the 2.7 shot advance is not added when the rewind applies
+
+**Given** a hit on a rewound position
+**When** it lands
+**Then** damage, pushback, kill and rewards apply to the present zombie; a zombie that is dead now, or a reused slot, is not hit
+
+**Given** a solo run, or an input without a view tick
+**When** the player fires
+**Then** behaviour is unchanged from 2.7, and a client cannot rewind more than 300 ms or into the future
+
+**Given** `tools/netsim/hits.test.ts` with the rewind on
+**When** kiting Runners and Walkers at 150 ms RTT
+**Then** fewer than 5 % of apparent hits are reversed, and the added tick cost (4 players firing SMGs + 150 zombies) has p99 ≤ 1 ms
+
 ## Epic 3: Build phase and economy
 
 A team plays 5 waves with build phases: earning into personal wallets, buying from a fixed-list shop, and placing Auto-turrets and Wood barricades on a grid. Runners and Crawlers join the horde, zombies path around and break buildings, and zombie count scales with player count. The 6-card roguelike shop replaces the fixed list in Epic 5.
@@ -1444,7 +1470,7 @@ So that I understand the street and react to fire without being told.
 
 Designer picks (2026-11-23, references in `docs/art/4-11/`): sandbags **S2** (olive-drab military wall), wood barricade **B6** (sharpened palisade on struts, turns with placement), burning car **F6** (smoke, burning debris, glow, a circle of small fires at the damage edge); burning cues: all four. **B8** (upright pallets + barbed wire) is kept for a later barricade upgrade (Epic 5).
 
-### Story 4.12: Story 4.11 objects redrawn in game code
+### Story 4.12: Stage objects in game code
 
 As the designer,
 I want every object in the game drawn in game code,
@@ -1458,7 +1484,7 @@ So that the art is consistent, free to change and ready for customization.
 **When** they are drawn
 **Then** they come from game-code drawing functions with the same look as the accepted mockups, the 4.11 rules still hold (flames' visible edge at the damage radius, smoke below characters, barricade rotation with a game-drawn shadow), and the Meshy `objects` atlas and its loader are removed
 
-### Story 4.13: Survive losing the graphics (bug)
+### Story 4.13: Survive losing the graphics
 
 As a player on a phone,
 I want the game to come back intact after I switch apps,
