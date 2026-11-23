@@ -182,6 +182,13 @@ describe("formatStressReport", () => {
     expect(text).toContain("avg FPS 30.0 · min FPS 12.5 (worst second 22)");
     expect(text).toContain("frames < 30 FPS: 41.23 %");
     expect(text).toContain("missed · bottleneck: simulation");
+    expect(text).not.toContain("renderer"); // no renderer line given
+  });
+
+  it("Story 4.13: prints the renderer line when the env has one", () => {
+    const r = { durationS: 60, frames: 1, avgFps: 1, minFps: 1, worstSecondFps: 1, pctUnder30: 0, frameAvgMs: 1, tickAvgMs: 1, tickMaxMs: 1, renderAvgMs: 1, updateAvgMs: 1, bottleneck: "simulation" as const, targetMet: false };
+    const text = formatStressReport(r, 150, { ...env(), renderer: "renderer Canvas" });
+    expect(text.split("\n")).toContain("renderer Canvas");
   });
 });
 

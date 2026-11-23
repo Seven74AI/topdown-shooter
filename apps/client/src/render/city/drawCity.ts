@@ -181,6 +181,10 @@ interface Patterns {
   readonly wet: CanvasPattern;
 }
 let patternTiles: { grain: HTMLCanvasElement; fine: HTMLCanvasElement; wet: HTMLCanvasElement } | null = null;
+/** Story 4.13: drops the cached noise tiles (the browser may have emptied them with a lost graphics context). */
+export function resetPatternTiles(): void {
+  patternTiles = null;
+}
 function patterns(g: G): Patterns {
   patternTiles ??= {
     grain: noiseTile(7, 128, 300, "rgba(255,255,255,0.03)", "rgba(0,0,0,0.16)", 0.5, 1.3),

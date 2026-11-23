@@ -2,7 +2,7 @@ import * as Phaser from "phaser";
 import type { DistrictMap, FireRecord, World } from "@topdown/shared";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, carStyle, dressingFor, type Dressing } from "./dressing";
-import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, type CityScene } from "./drawCity";
+import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, resetPatternTiles, type CityScene } from "./drawCity";
 import { bakeTiles } from "./bakeTiles";
 import { LAMP, LAMP_GLOW, nightAt } from "./palette";
 import { ATLAS_FX, FX_GLOW, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type AtlasCanvas } from "./spriteAtlas";
@@ -11,6 +11,7 @@ import { addCanvasTexture, releaseCanvas } from "./canvasTexture";
 import { staticKey } from "./stageFilter";
 import { FIRE_RING_ALPHA, FIRE_RING_COLOR, FIRE_RING_GLOW_PX, damageTickPulse, fireRingGlowAlpha, fireRingWidthM, strokeFireRings, strokeFireRingGlows } from "./fireRing";
 import { FireView } from "./FireView";
+import { RebuildPhase, textureRegistry } from "../gfx/textureRegistry";
 
 /**
  * Story 4.9: the Dead City look of the district (look B). Static layers (ground, shadows, buildings,
@@ -131,6 +132,8 @@ export class CityView {
   /** Last bake time (ms) and how many bakes ran (browser checks: a late join bakes once). */
   bakeMs = 0;
   bakeCount = 0;
+  /** Story 4.13: drops this view's entry from the texture registry. */
+  private readonly unregisterRebuild: () => void;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -186,6 +189,22 @@ export class CityView {
       // the band's dark edge is its frame's top: rotate it to face each screen edge
       this.vignette.push(scene.add.image(0, 0, ATLAS_FX, FX_VIGNETTE).setDepth(VIGNETTE_DEPTH).setRotation([0, Math.PI, -Math.PI / 2, Math.PI / 2][i] as number));
     }
+    // Story 4.13: after a lost graphics context the bake tiles, their base caches and the noise
+    // patterns may be empty: bake everything again on the next update (after the atlases, which the
+    // registry redraws first). A 2D `contextrestored` on any tile canvas asks for the same.
+    this.unregisterRebuild = textureRegistry.register(
+      `city_static_${id}`,
+      RebuildPhase.bake,
+      () => this.invalidateBake(),
+      this.tiles.flatMap((t) => [t.canvas, t.base]),
+    );
+  }
+
+  /** Story 4.13: the next `update` bakes the whole city again (base layer included). */
+  invalidateBake(): void {
+    resetPatternTiles();
+    this.shownBaseKey = null;
+    this.shownKey = -1;
   }
 
   private layer(key: string, wPx: number, hPx: number, xM: number, yM: number, wM: number, hM: number, depth: number): Layer {
@@ -336,6 +355,7 @@ export class CityView {
   }
 
   destroy(): void {
+    this.unregisterRebuild();
     for (const l of this.tiles) {
       l.img.destroy();
       this.scene.textures.remove(l.key);

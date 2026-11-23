@@ -1,4 +1,5 @@
 import { PerfSummary, perf, type NetOverlaySource } from "./perfStats";
+import { gfxStatus } from "../render/gfx/gfxStatus";
 
 /**
  * The online wave summary (Story 2.10, Task 4): from `wave.started` to `wave.ended`, FPS (the
@@ -54,6 +55,8 @@ export interface NetSummaryEnv {
    * estimate from measured throughput, not the radio type (desktop Chrome says "4g" on localhost).
    */
   connection: string;
+  /** Story 4.13: the renderer line (`gfxStatus.line()`, e.g. "renderer WebGL"); absent in old callers. */
+  renderer?: string;
 }
 
 type Listener = (report: string) => void;
@@ -185,6 +188,7 @@ function browserEnv(): NetSummaryEnv {
     dpr: Math.min(window.devicePixelRatio || 1, 2),
     throttle: lag || jitter ? `?lag=${lag ?? 0}&jitter=${jitter ?? 0}` : "none",
     connection: typeof conn === "string" ? conn : "?",
+    renderer: gfxStatus.line(),
   };
 }
 
@@ -204,6 +208,7 @@ export function formatNetReport(r: NetWaveResult, env: NetSummaryEnv): string {
     `snaps ${r.snaps} · corrections ${r.corrections}`,
     `throttle ${env.throttle} · effectiveType (estimate) ${env.connection}`,
     `viewport ${env.viewport} @ dpr ${env.dpr}`,
+    ...(env.renderer ? [env.renderer] : []),
     `UA ${env.userAgent}`,
     "",
     "| device | browser | network | avg / peak down KB/s | up KB/s | avg / p95 ping ms | reversed / apparent hits | FPS avg / min | snaps |",

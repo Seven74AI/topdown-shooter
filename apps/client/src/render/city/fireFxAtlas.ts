@@ -1,6 +1,6 @@
 import type * as Phaser from "phaser";
 import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame } from "./atlasLayout";
-import { addCanvasTexture } from "./canvasTexture";
+import { addGeneratedTexture } from "./canvasTexture";
 import { EMBER_STOPS, FIRE_LIGHT_STOPS, FLAME_SPRITE_PX, FLAME_VARIANTS, SMOKE_SPRITE_PX, SMOKE_VARIANTS, flameMasks, smokeMask, type RadialStops } from "./fireSprites";
 
 /**
@@ -34,10 +34,18 @@ export function ensureFireFxAtlas(scene: Phaser.Scene): void {
   const canvas = document.createElement("canvas");
   canvas.width = layout.width;
   canvas.height = layout.height;
-  const g = canvas.getContext("2d") as CanvasRenderingContext2D;
-  for (const f of layout.frames) drawFrame(g, f);
-  const tex = addCanvasTexture(scene, ATLAS_FIREFX, canvas);
-  if (tex) for (const f of layout.frames) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
+  // Story 4.13: redrawn in place after a lost graphics context (texture registry).
+  addGeneratedTexture(
+    scene,
+    ATLAS_FIREFX,
+    canvas,
+    (g) => {
+      for (const f of layout.frames) drawFrame(g, f);
+    },
+    (tex) => {
+      for (const f of layout.frames) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
+    },
+  );
 }
 
 function putMask(g: CanvasRenderingContext2D, f: PlacedFrame, mask: Float32Array): void {
