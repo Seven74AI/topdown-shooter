@@ -92,6 +92,15 @@ export interface PlayerState {
    * kept for the whole run. On the wire (uint8): the client's prediction reads the shoes from it.
    */
   gear: number;
+  /**
+   * Story 5.12 (`economy/consumables.ts`, `combat/consumables.ts`): the quick-use slot — the
+   * consumable id (a `consumables.json` key) or null, and how many are left (0 ⇔ null). On the wire
+   * as a uint8 index (255 = empty) and a uint8 count.
+   */
+  consumable: string | null;
+  consumableCount: number;
+  /** Story 5.12 (D1, D7): applied-input ticks until the next use is allowed (0 = ready). Server / solo only. */
+  consumableCooldownTicks: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -133,6 +142,9 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     flaming: false,
     flameClock: [0, 0, 0, 0],
     gear: 0, // Story 5.11
+    consumable: null, // Story 5.12
+    consumableCount: 0,
+    consumableCooldownTicks: 0,
   };
   world.players.set(id, player);
   claimFlameSlot(world, player);

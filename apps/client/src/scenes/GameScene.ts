@@ -1,6 +1,13 @@
 import * as Phaser from "phaser";
+import { MolotovView } from "../render/MolotovView";
+import { consumableUsable, consumableVisible, createConsumablePending, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
 import {
   NEUTRAL_INPUT,
+  consumableStats,
+  shopConsumables,
+  throwAimLength,
+  throwStatsOf,
+  type ThrowStats,
   PROJECTILE_POOL_CAPACITY,
   TICK_RATE_HZ,
   ZOMBIE_POOL_CAPACITY,
@@ -97,7 +104,7 @@ import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
-import { placeStressFloor, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { keepStressMolotovs, placeStressFloor, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
@@ -147,6 +154,8 @@ export class GameScene extends Phaser.Scene {
   private host: SceneHost | null = null;
   /** `?stress` benchmark run (no in-run menu). */
   private stressMode = false;
+  /** Story 5.12: `?stressbuild=molotov` with `?stress`. */
+  private stressMolotov = false;
   /** Story 5.3 `?stressfire=1`: under `?stress`, my survivor holds fire at the nearest zombie. */
   private stressFire = false;
   /** When the solo pause started (scene time), to shift the HUD's banner clock on resume. */
@@ -234,6 +243,8 @@ export class GameScene extends Phaser.Scene {
   /** Story 5.5: cosmetic rounds + the landing marker, and explosions (both from events; the acid clock drives them). */
   private grenadeView: GrenadeView | null = null;
   private explosionView: ExplosionView | null = null;
+  /** Story 5.12: molotov fire zones (from events; the 4.12 particle fire, ring at the 3 m edge). */
+  private molotovView: MolotovView | null = null;
   private fxView: FxView | null = null;
   private downedView: DownedView | null = null;
   /** Story 3.4: placed buildings and the placement preview. */
@@ -354,6 +365,7 @@ export class GameScene extends Phaser.Scene {
     perf.soloSeed = localHost ? localHost.world.seed : null; // Story 4.4: online the overlay reads the server's
     const stress = session ? null : opts.stress;
     this.stressMode = stress !== null;
+    this.stressMolotov = stress !== null && urlOptions().stressMolotov;
     this.stressFire = stress !== null && opts.stressFire;
     this.pausedAtMs = 0;
     this.host = host;
@@ -366,6 +378,7 @@ export class GameScene extends Phaser.Scene {
     if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
     this.gameOver = false;
     this.kills = 0;
+    this.consumablePending.active = false; // Story 5.12: Phaser reuses the scene: no pending use from the last run
     this.placement.cancel(); // Phaser reuses this scene object: no placement from the last run
     this.refusalTexts.clear();
     this.repairPanel.close(); // Story 3.7: no selection from the last run
@@ -438,6 +451,7 @@ export class GameScene extends Phaser.Scene {
     this.acidView = new AcidView(this, this.acidFx, spitBal?.puddleRadiusM ?? 1);
     this.grenadeView = new GrenadeView(this, balance, localId); // Story 5.5
     this.explosionView = new ExplosionView(this, balance);
+    this.molotovView = new MolotovView(this, balance); // Story 5.12
     // Story 5.8: pools sized by the balance caps (gas clouds = the server's pool, particles by controls.json › fx).
     const blEx = balance.zombies.types.bloater?.explodes;
     this.bloaterFx = new BloaterFx(balance.zombies.blasts.maxGasClouds, balance.controls.fx.maxBloaterParticles, blEx?.gasRadiusM ?? 2.5, blEx?.gasS ?? 4);
@@ -529,6 +543,8 @@ export class GameScene extends Phaser.Scene {
       this.grenadeView = null;
       this.explosionView?.destroy();
       this.explosionView = null;
+      this.molotovView?.destroy();
+      this.molotovView = null;
       this.bloaterView?.destroy();
       this.bloaterView = null;
       this.bloaterFx = null;
@@ -819,6 +835,10 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Story 5.12: the consumable button's inputs (reused every frame) and its pending use. */
+  private readonly consumableIn: ConsumableButtonInput = { item: null, count: 0, kind: null, alive: false, running: false, placement: false, shopOpen: false, menuOpen: false, phase: "lobby", hp: 0, maxHp: 1 };
+  private readonly consumablePending = createConsumablePending();
+
   private readonly repairTexts = new Map<RepairError, string>();
   private repairText(e: RepairError): string {
     let t = this.repairTexts.get(e);
@@ -853,7 +873,7 @@ export class GameScene extends Phaser.Scene {
       const balance = host.world.balance;
       this.router?.releaseAll(); // nothing stays held under the shop (as for the menu)
       host.clearEdges();
-      this.shopInput({ type: "open", weapons: shopWeapons(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel, gear: shopGear(balance) });
+      this.shopInput({ type: "open", weapons: shopWeapons(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel, gear: shopGear(balance), consumables: shopConsumables(balance) });
     }
     // Answers: shown while open, dropped while closed (the World already has the result).
     for (let a = host.takeShopAnswer(); a !== null; a = host.takeShopAnswer()) this.shopInput({ type: "answer", answer: a });
@@ -867,8 +887,9 @@ export class GameScene extends Phaser.Scene {
         const l0 = me.loadout.slots[0].level;
         const l1 = me.loadout.slots[1]?.level ?? 0;
         // Story 5.11: the owned gear from the World (online: the state's `gear`), never the tap.
-        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1] || l0 !== s.levels[0] || l1 !== s.levels[1] || me.gear !== s.gearMask) {
-          this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1], levels: [l0, l1], gearMask: me.gear });
+        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1] || l0 !== s.levels[0] || l1 !== s.levels[1] || me.gear !== s.gearMask || me.consumable !== s.slotItem || me.consumableCount !== s.slotCount) {
+          // Story 5.12: and my consumable slot (server truth online).
+          this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1], levels: [l0, l1], gearMask: me.gear, slotItem: me.consumable, slotCount: me.consumableCount });
         }
       }
       if (s.pending !== null) {
@@ -996,6 +1017,42 @@ export class GameScene extends Phaser.Scene {
     return stats?.kind === "launcher" ? stats : null;
   }
 
+  /** Story 5.12 (D11): the throwable in my slot (alive), whose range the aim length carries when no launcher is in hand; else null. */
+  private localThrow(host: SimHost): ThrowStats | null {
+    const p = host.world.players.get(host.localPlayerId);
+    if (!p || p.status !== "alive" || p.consumableCount <= 0) return null;
+    return throwStatsOf(host.world.balance, p.consumable);
+  }
+
+  /**
+   * Story 5.12 (AC 1, 7): the button's state for this frame and the edge-flag gate: a tap or E is
+   * sent only when the item is usable and no earlier use is pending (no optimistic use).
+   */
+  private updateConsumable(host: SimHost, menuOpen: boolean, shopOpen: boolean): void {
+    const m = this.hudModel;
+    const p = host.world.players.get(host.localPlayerId);
+    const b = this.consumableIn;
+    b.item = p?.consumable ?? null;
+    b.count = p?.consumableCount ?? 0;
+    b.kind = consumableStats(host.world.balance, b.item)?.kind ?? null;
+    b.alive = p?.status === "alive";
+    b.running = this.running && !this.gameOver;
+    b.placement = m.placementActive;
+    b.shopOpen = shopOpen;
+    b.menuOpen = menuOpen;
+    b.phase = host.world.run.phase;
+    b.hp = p?.hp ?? 0;
+    b.maxHp = p?.maxHp ?? 1;
+    const now = this.time.now;
+    updateConsumablePending(this.consumablePending, now, b.item, b.count);
+    if (this.input_.consumable && !tapConsumable(this.consumablePending, now, b)) this.input_.consumable = false;
+    m.consumableItem = b.item;
+    m.consumableCount = b.count;
+    m.consumableVisible = consumableVisible(b);
+    m.consumableUsable = consumableUsable(b);
+    m.consumablePending = this.consumablePending.active;
+  }
+
   /** Story 5.5 (AC 7a): the landing ring while the launcher is aimed (the sim's `lobTarget` on the drawn World). */
   private updateLobMarker(host: SimHost): void {
     const view = this.grenadeView;
@@ -1007,6 +1064,10 @@ export class GameScene extends Phaser.Scene {
     const len = Math.hypot(ax, ay);
     if (!lob || !pv || len < 1e-6) view.drawMarker(host.world, null, 0, 0, 0, 1, 0, 0);
     else view.drawMarker(host.world, lob, pv.x, pv.y, this.playerRadiusM, ax / len, ay / len, len);
+    // Story 5.12 (D11): the throw's ring (the exact blast / fire radius) while a throwable is in my slot in a wave.
+    const thr = this.running && !this.gameOver && host.world.run.phase === "wave" && !this.hudModel.placementActive ? this.localThrow(host) : null;
+    if (!thr || !pv || len < 1e-6) view.drawThrowMarker(host.world, null, 0, 0, 0, 1, 0, 0);
+    else view.drawThrowMarker(host.world, thr, pv.x, pv.y, this.playerRadiusM, ax / len, ay / len, throwAimLength(thr, len, lob ? lob.lobRangeM : 0));
   }
 
   private acidSound(e: SimEvent): void {
@@ -1033,8 +1094,10 @@ export class GameScene extends Phaser.Scene {
     const cw = this.cursorWorld.set(Number.NaN, Number.NaN);
     if (router.isMouse && pv && !Number.isNaN(router.cursorX)) this.cameras.main.getWorldPoint(router.cursorX, router.cursorY, cw);
     // Story 5.5: with the launcher in hand the aim's length carries the lob distance (FR-A, D1).
-    router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y, this.localLauncher(host), this.playerRadiusM);
+    // Story 5.12 (D11): with no launcher in hand, a throwable in my slot sets the aim length (its throw range).
+    router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y, this.localLauncher(host) ?? this.localThrow(host), this.playerRadiusM, this.hudModel.consumablePressed);
     this.hudModel.swapPressed = false;
+    this.hudModel.consumablePressed = false;
     if (!this.running) this.input_.swap = false; // nothing swaps before the run is on screen
 
     // Story 2.11: ☰ and Esc toggle the in-run menu (Esc is never game input).
@@ -1060,11 +1123,17 @@ export class GameScene extends Phaser.Scene {
     this.updateRepair(host, menuOpen, shopOpen); // Story 3.7: tap a building → Repair
     this.updateBuildBar(host, menuOpen, shopOpen); // Story 5.16: tap a tile → the building is in my hands
     this.updateReady(host, menuOpen || shopOpen);
+    this.updateConsumable(host, menuOpen, shopOpen); // Story 5.12: after placement (the hand cluster hides the button)
     if (this.localHost) {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
       this.localHost.paused = menuOpen;
     }
     if (this.stressFire) stressFireInput(host.world, host.localPlayerId, this.input_);
+    if (this.stressMolotov && this.localHost) {
+      // Story 5.12 (`?stressbuild=molotov`): 8 molotov zones kept burning round my survivor (the visual cap).
+      const me = host.world.players.get(host.localPlayerId);
+      if (me) keepStressMolotovs(host.world, host.localPlayerId, me.x, me.y);
+    }
     host.setLocalInput(this.input_);
     this.hudModel.toastText = this.toasts.current(this.time.now);
 
@@ -1095,6 +1164,7 @@ export class GameScene extends Phaser.Scene {
       if (this.acidFx?.handle(e, this.acidClockS)) this.acidSound(e);
       this.grenadeView?.handle(e, this.acidClockS); // Story 5.5: rounds in flight
       this.explosionView?.handle(e, this.acidClockS);
+      this.molotovView?.handle(e, this.acidClockS); // Story 5.12: fire zones and their throws' direction
       if (this.bloaterFx?.handle(e, this.acidClockS) && e.type === "bloater.burst") this.bloaterBurst(host, e);
       // Story 4.11: a build or wave start (a fire may have gone out) closes every burning cue; a real hit relights it.
       if (e.type === "build.started" || e.type === "wave.started") {
@@ -1164,6 +1234,12 @@ export class GameScene extends Phaser.Scene {
     this.acidView?.update(this.acidClockS);
     this.grenadeView?.update(this.acidClockS);
     this.explosionView?.update(fxDtS, this.acidClockS);
+    if (this.molotovView) {
+      const cam = this.cameras.main;
+      const vw = this.scale.width / cam.zoom;
+      const vh = this.scale.height / cam.zoom;
+      this.molotovView.update(fxDtS, this.acidClockS, cam.midPoint.x - vw / 2, cam.midPoint.y - vh / 2, vw, vh, cam.zoom);
+    }
     this.updateLobMarker(host);
     this.bloaterView?.update(host.world, this.acidClockS); // Story 5.8 (the same paused-aware clock)
     this.projectileView?.update(host.world.projectiles, host.alpha);

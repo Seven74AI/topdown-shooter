@@ -5,7 +5,7 @@
  * - `KeyF` → "ping" (Story 8.7)
  * - `Escape` → "menu" (Story 2.11: opens and closes the in-run menu; never game input)
  */
-export type KeyAction = "up" | "down" | "left" | "right" | "swap" | "menu";
+export type KeyAction = "up" | "down" | "left" | "right" | "swap" | "consumable" | "menu";
 
 export const KEY_MAP: Readonly<Record<string, KeyAction>> = Object.freeze({
   KeyW: "up",
@@ -17,6 +17,7 @@ export const KEY_MAP: Readonly<Record<string, KeyAction>> = Object.freeze({
   ArrowLeft: "left",
   ArrowRight: "right",
   KeyQ: "swap",
+  KeyE: "consumable", // Story 5.12: latched once per press like swap
   Escape: "menu",
 });
 

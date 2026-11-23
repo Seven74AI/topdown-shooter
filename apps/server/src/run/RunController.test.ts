@@ -145,6 +145,23 @@ describe("RunController", () => {
     expect(c.world.inputs.get("p0")).toMatchObject({ seq: 3, swap: false, consumable: true });
   });
 
+  it("Story 5.12: a consumable press on a dropped input reaches the use system exactly once (one medkit, one heal)", () => {
+    const c = newController();
+    const p = c.world.players.get("p0");
+    if (!p) throw new Error("no p0");
+    p.consumable = "medkit";
+    p.consumableCount = 1;
+    p.hp = 20;
+    const used: SimEvent[] = [];
+    owe(c, 2);
+    c.queueInput("p0", input(1));
+    c.queueInput("p0", input(2, { consumable: true })); // dropped by the overflow: carried to seq 3
+    for (let seq = 3; seq <= INPUT_QUEUE_MAX + 2; seq++) c.queueInput("p0", input(seq));
+    for (let t = 0; t < 40; t++) for (const e of c.tick()) if (e.type === "consumable.used") used.push(e);
+    expect(used).toHaveLength(1);
+    expect([p.hp, p.consumableCount, p.consumable]).toEqual([70, 0, null]);
+  });
+
   it("drains a backlog after a 300 ms stall back to the target within 3 s", () => {
     const c = newController();
     let seq = 0;

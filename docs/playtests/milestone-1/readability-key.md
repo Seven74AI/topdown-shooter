@@ -43,3 +43,12 @@ Story 5.5 additions (pictures: Playwright, solo dev build, 844×390 at 2×, HUD 
 | 34 | `35_flamethrower_cone.png` | survivor with the Flamethrower (Story 5.4, FT1: olive twin tanks on the back, long wand) and its fuel jet | **stopped by** cars, the bus, buildings (the fire ends at their face); goes over barricades and sandbags | right if "flamethrower"; 6 m long, 20° narrow: zombies in it burn (5 every 0.25 s + 3 s of burning); a teammate in it loses 5 every 0.5 s (friendly fire) |
 | 35 | `36_gas_torch_cone.png` | survivor with the Gas torch (Story 5.4, FT2: red propane bottle under a pipe, blue pilot) and its cone | as 34 | right if "torch / gas burner / flamethrower"; 3 m short, 60° wide, blue at the nozzle |
 | 36 | `37_burning_zombies.png` | burning zombies (Story 5.4: small flames on the body for 3 s after a flame hit) | n/a | right if "on fire / burning"; they keep chasing; the burn credits whoever lit them |
+
+Story 5.12 additions (pictures: Playwright, solo dev build, 800×360 at 2×, HUD shown, 2026-11-23; files in `docs/art/5-12/`):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 37 | `5-12-hud-wave-ring-800x360.png` | the consumable button (CI4 grenade, count 3) left of swap, and the throw's landing ring (white, the exact 2.5 m blast) | n/a | right if "grenades / quick item"; E or a tap throws one; greyed when it can't be used now (a throwable in a build phase, a medkit at full HP), dimmed while the server hasn't confirmed the last use |
+| 38 | `5-12-molotov-flight-800x360.png` | a molotov in flight (a bottle with a burning rag; HG1–3 / MB1–3 looks vary per throw) | flies **over** cars, the bus, barricades; only buildings stop it | right if "molotov / fire bottle" |
+| 39 | `5-12-molotov-fire-800x360.png` | molotov fire: the 4.12 fire on the asphalt with a ring of flames at the 3 m edge = the damage edge | fire goes through barricades and sandbags (a ground area) | 8/s to zombies, 4/s to survivors (teammates and you), never stacks with a car fire, 4 s, burns no building, no path change |
+| 40 | `5-12-grenade-flight-800x360.png` | a hand grenade blast (EX2 shockwave + debris) at the bus's near face, its ring = the 2.5 m damage edge | the blast is **stopped by** cars/bus/buildings, **not** by barricades/sandbags | 40 to zombies, 20 to every survivor in it (you too) |

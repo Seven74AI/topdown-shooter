@@ -5,6 +5,7 @@ import { buyWeapon, shopPrice, upgradeWeapon } from "../economy/shop";
 import { upgradePrice } from "../combat/weapons";
 import { armorTier, gearBit, shopGear } from "../economy/gear";
 import { buyItem } from "../economy/shop";
+import { consumableStats, isConsumable } from "../economy/consumables";
 import { setBuildReady } from "../run/runStateMachine";
 import type { BuildCommand } from "../replay/inputLog";
 
@@ -46,6 +47,9 @@ export interface BotShopSelf {
   level1?: number;
   /** Story 5.11: the owned-gear mask (absent = none). */
   gear?: number;
+  /** Story 5.12: the consumable slot (absent = empty). */
+  consumable?: string | null;
+  consumableCount?: number;
 }
 
 /** Story 5.11: the shop price of gear `id` if the shop sells it (listed: `inShop`), else null. */
@@ -87,6 +91,12 @@ export function botShopNext(
       for (let k = 0; k <= i; k++) if (list[k] === id) want++;
       if (level >= want || level >= balance.shop.upgrades.maxLevel) continue;
       if (upgradePrice(balance, up) > self.wallet) return -1;
+      return i;
+    }
+    const cons = consumableStats(balance, id); // Story 5.12: fill / refill the slot (a full one: skip)
+    if (cons && cons.inShop) {
+      if (self.consumable === id && (self.consumableCount ?? 0) >= cons.pack) continue;
+      if (cons.price > self.wallet) return -1;
       return i;
     }
     const gearPrice = botGearPrice(balance, id); // Story 5.11
@@ -198,7 +208,7 @@ export function botBuildPhase(
   const p = world.players.get(playerId);
   if (!p || world.run.phase !== "build") return out;
   const balance = world.balance;
-  const self: BotShopSelf = { wallet: 0, weapon0: "", weapon1: "", active: 0, level0: 1, level1: 1, gear: 0 };
+  const self: BotShopSelf = { wallet: 0, weapon0: "", weapon1: "", active: 0, level0: 1, level1: 1, gear: 0, consumable: null, consumableCount: 0 };
   const owned = (type: string): number => {
     let n = 0;
     for (const b of world.buildings.list) if (b.ownerId === playerId && b.type === type) n++;
@@ -216,6 +226,8 @@ export function botBuildPhase(
     self.level0 = p.loadout.slots[0].level;
     self.level1 = p.loadout.slots[1]?.level ?? 1;
     self.gear = p.gear;
+    self.consumable = p.consumable; // Story 5.12
+    self.consumableCount = p.consumableCount;
     const i = botShopNext(balance, self, owned, list, skip);
     if (i < 0) break;
     const id = list[i] as string;
@@ -229,6 +241,14 @@ export function botBuildPhase(
       }
       record?.({ kind: "upgrade", playerId, weapon: up });
       out.upgrades++;
+      out.bought.push(id);
+    } else if (isConsumable(balance, id)) {
+      // Story 5.12: the same `buyItem` the shop's Consumables row runs.
+      if (!buyItem(world, playerId, id).ok) {
+        skip |= 1 << i;
+        continue;
+      }
+      record?.({ kind: "item", playerId, item: id });
       out.bought.push(id);
     } else if (botGearPrice(balance, id) !== null) {
       // Story 5.11: the same `buyItem` the shop's Gear row runs (`shop.buy_item`).

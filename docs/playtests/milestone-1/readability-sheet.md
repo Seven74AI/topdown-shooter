@@ -127,3 +127,12 @@ Player:
 
 ## 36: what is happening to these zombies? (Story 5.4)
 ![36](objects/37_burning_zombies.png)
+
+## 37: the round button bottom right, and its number (Story 5.12)
+![37](../../art/5-12/5-12-hud-wave-ring-800x360.png)
+
+## 38, 39: what was thrown, and what is happening there? (Story 5.12)
+![38](../../art/5-12/5-12-molotov-flight-800x360.png) ![39](../../art/5-12/5-12-molotov-fire-800x360.png)
+
+## 40: what just happened by the bus? (Story 5.12)
+![40](../../art/5-12/5-12-grenade-flight-800x360.png)

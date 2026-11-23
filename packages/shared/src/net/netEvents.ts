@@ -59,6 +59,9 @@ export const NET_EVENT_KIND = {
   EXPLOSION_HAPPENED: 36,
   FLAME_STARTED: 37, // Story 5.4 (27–32 taken, 33/34 = 5.8 Bloaters, 35/36 = 5.5 Grenade Launcher; never reuse)
   FLAME_STOPPED: 38, // Story 5.4
+  // Story 5.12 (next free numbers when built; 5.10 is built in parallel: renumber at merge if taken, never reuse)
+  CONSUMABLE_USED: 39,
+  MOLOTOV_IGNITED: 40,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -226,7 +229,10 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.WEAPON_UPGRADED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), e.slot, e.level];
     case "grenade.launched":
       // Story 5.5: the round's flight (cosmetic on the client); the landing tick as ticks from the launch (u8).
-      return [K.GRENADE_LAUNCHED, playerSlotOf(e.playerId), e.grenadeId & 0xff, cm(e.x), cm(e.y), cm(e.tx), cm(e.ty), Math.min(255, Math.max(0, e.flightTicks)), e.seq & 0xffff]; // review L1: the shot's seq (index 8)
+      // Story 5.12: a thrown consumable appends its item (index + 1, index 9); a launcher round adds 0 bytes.
+      return e.item !== undefined && e.item > 0
+        ? [K.GRENADE_LAUNCHED, playerSlotOf(e.playerId), e.grenadeId & 0xff, cm(e.x), cm(e.y), cm(e.tx), cm(e.ty), Math.min(255, Math.max(0, e.flightTicks)), e.seq & 0xffff, e.item & 0xff]
+        : [K.GRENADE_LAUNCHED, playerSlotOf(e.playerId), e.grenadeId & 0xff, cm(e.x), cm(e.y), cm(e.tx), cm(e.ty), Math.min(255, Math.max(0, e.flightTicks)), e.seq & 0xffff]; // review L1: the shot's seq (index 8)
     case "explosion.happened":
       // Story 5.5: the visual (hits, kills and player damage are their own events); the round's id appended (index 6).
       return [K.EXPLOSION_HAPPENED, e.kind, cm(e.x), cm(e.y), cm(e.radiusM), playerSlotOf(e.sourcePlayerId), e.grenadeId & 0xff];
@@ -241,6 +247,12 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.FLAME_STARTED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon)];
     case "weapon.flame_stopped":
       return [K.FLAME_STOPPED, playerSlotOf(e.playerId)];
+    case "consumable.used":
+      // Story 5.12: HUD + sound only (the count comes from schema; a throw's flight is its grenade.launched).
+      return [K.CONSUMABLE_USED, playerSlotOf(e.playerId), e.item & 0xff];
+    case "molotov.ignited":
+      // Story 5.12: the zone (radius and lifetime from balance; no zone state on the wire).
+      return [K.MOLOTOV_IGNITED, e.zoneId & 0xffff, e.item & 0xff, cm(e.x), cm(e.y), playerSlotOf(e.playerId)];
     case "test.ping":
       return null;
   }
@@ -408,7 +420,7 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "weapon.upgraded", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)), slot: n(t, 3) === 1 ? 1 : 0, level: n(t, 4) };
     case K.GRENADE_LAUNCHED: {
       const flightTicks = n(t, 7);
-      return {
+      const launched: Extract<SimEvent, { type: "grenade.launched" }> = {
         type: "grenade.launched",
         playerId: pid(t, 1),
         grenadeId: n(t, 2),
@@ -420,7 +432,13 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
         flightTicks,
         seq: n(t, 8) & 0xffff,
       };
+      if (t.length > 9 && n(t, 9) > 0) launched.item = n(t, 9); // Story 5.12: a thrown consumable
+      return launched;
     }
+    case K.CONSUMABLE_USED:
+      return { type: "consumable.used", playerId: pid(t, 1), item: n(t, 2) };
+    case K.MOLOTOV_IGNITED:
+      return { type: "molotov.ignited", zoneId: n(t, 1), item: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, playerId: playerIdOfSlot(n(t, 5)) };
     case K.EXPLOSION_HAPPENED: {
       const kind = n(t, 1);
       if (kind >= EXPLOSION_KINDS.length) return null;

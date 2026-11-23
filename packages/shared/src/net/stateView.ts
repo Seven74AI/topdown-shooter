@@ -60,6 +60,9 @@ export interface PlayerStateView {
   readonly gear: number;
   /** Story 5.11 review L2: ticks this downed player's revive needs (0 = none in progress); `reviveProgress` is of this. */
   readonly reviveNeed: number;
+  /** Story 5.12: the quick-use slot — the consumable's index (255 = empty) and how many are left. */
+  readonly consumable: number;
+  readonly consumableCount: number;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -166,6 +169,8 @@ export const PLAYER_STATE_FIELDS = {
   knockStepMm: true,
   gear: true, // Story 5.11
   reviveNeed: true,
+  consumable: true, // Story 5.12
+  consumableCount: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */

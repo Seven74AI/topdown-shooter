@@ -11,6 +11,7 @@ import {
   NO_SYSTEMS,
   TICK_DT_S,
   acidSpitOf,
+  consumableAt,
   addPlayer,
   assistAim,
   buildingById,
@@ -479,6 +480,10 @@ export class NetSimHost implements SimHost {
         if (e.type === "spitter.spat" && stale) continue;
         if (e.type === "acid.splashed" && ageS >= this.puddleS) continue;
         e.ageS = ageS;
+      } else if (e.type === "molotov.ignited") {
+        // Story 5.12: back-dated by its age (MolotovFires starts it that much earlier and drops one
+        // older than its life): a woken tab shows exactly the server's live zones, no ghost fire.
+        e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       } else if (e.type === "grenade.launched" || e.type === "explosion.happened") {
         // Story 5.5: its age (a woken tab's backlog): a round starts that far into its flight (one
         // long landed is dropped by the view's lost timer), a stale blast shows nothing (no double
@@ -722,6 +727,8 @@ export class NetSimHost implements SimHost {
     p.hp = s.hp;
     p.maxHp = s.maxHp;
     p.gear = s.gear; // Story 5.11: HUD icons, shop "Owned", the reviver's kit (the predictor has its own copy)
+    p.consumable = consumableAt(this.world.balance, s.consumable); // Story 5.12: the slot is server truth (never predicted)
+    p.consumableCount = p.consumable === null ? 0 : s.consumableCount;
     p.status = s.status;
     p.buildReady = s.buildReady;
     p.slowTicksLeft = s.slowTicks; // Story 3.9: the slowed look (the predictor has its own copy)

@@ -407,9 +407,37 @@ export {
   lobFlightTicks,
   lobTarget,
   updateGrenades,
+  throwConsumable,
   type GrenadePool,
+  type LobFlight,
+  type LobRange,
   type LobTarget,
 } from "./combat/grenades";
+// Story 5.12: consumables (slot, shop, use, molotov fire zones).
+export {
+  CONSUMABLE_NONE,
+  allConsumables,
+  buyConsumable,
+  consumableAt,
+  consumableCooldownTicks,
+  consumableIds,
+  consumableIndex,
+  consumableStats,
+  consumableStatsAt,
+  isConsumable,
+  molotovTicksAt,
+  shopConsumables,
+  throwStatsAt,
+  throwStatsOf,
+  type BoughtConsumable,
+  type ConsumableId,
+  type ConsumableKind,
+  type ShopConsumable,
+  type ThrowStats,
+} from "./economy/consumables";
+export { consumableCounters, launcherRangeInHand, throwAimLength, throwVariant, tryUseConsumable, useConsumables } from "./combat/consumables";
+export { clearMolotovZones, createMolotovZones, igniteMolotov, molotovStats, molotovZoneAt, type MolotovZones } from "./hazards/molotov";
+export { type ConsumableItemStats } from "./config/balanceSchema";
 export { EXPLOSION_KINDS, blastResult, createExplosionSpec, explode, explosionCounters, type ExplosionKind, type ExplosionSpec } from "./combat/explosion";
 export { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
@@ -448,5 +476,5 @@ export { romanLevel, shopUpgrades, upgradePriceTable, upgradeWeapon, type ShopUp
 // Story 5.6: Spitters, spits and acid puddles.
 export { acidSpit, acidSpitOf, circleInAcid, clearAcid, spawnSpit, spitStats, spitterStep, updateAcid, updateSpits } from "./zombies/spit";
 export { createSpitPool, type SpitPool } from "./zombies/spitPool";
-export { AREA_KIND, circleInArea, createAreaPool, type AreaPool } from "./hazards/areaPool";
+export { AREA_KIND, circleInArea, clearAreas, createAreaPool, spawnArea, type AreaPool } from "./hazards/areaPool";
 export { type SpitStats } from "./config/balanceSchema";

@@ -242,6 +242,21 @@ export class CarFire {
   private readonly rnd: FxRandom;
   private ca = 1;
   private sa = 0;
+  /**
+   * Story 5.12: a molotov's pool fire instead of a burning car (no car-shaped spawn areas): the
+   * spread look (MB1 even pool 0, MB2 forward splash 1, MB3 joining puddles 2), the throw's direction,
+   * the fire's age (s) and its envelope (0–1: the last 0.6 s fade). -1 = a car fire.
+   */
+  poolSpread = -1;
+  private poolDir = 0;
+  private poolAge = 0;
+  /** Story 5.12: the pool fire's envelope (0–1), read by `edgeFlameDraw`. */
+  poolEnv = 1;
+  private readonly poolPts = new Float32Array(15);
+  /** Story 5.12: a pool fire's share of the caps and rates, and its ring flames' spacing (`consumables.json › fx`). */
+  private poolShare = 1;
+  private poolSmokeShare = 1;
+  private poolEdgeM = EDGE_SPACING_M;
   /** Review M1: the edge ring's fixed slots (angle and phase per slot); `edgeN` used for the current R. */
   edgeN = 0;
   readonly edgeAngle = new Float32Array(EDGE_SLOTS_MAX);
@@ -270,6 +285,107 @@ export class CarFire {
     this.acc.fill(0);
   }
 
+  /**
+   * Story 5.12: make this a molotov pool fire (looks.html MB cards): `spread` 0 even / 1 forward
+   * splash / 2 joining puddles, the throw direction (rad), its age (s) and envelope (0–1). Set every
+   * frame (no allocation); the puddle centres are laid once from the seed when the spread is set.
+   */
+  setPool(spread: number, dir: number, ageS: number, env: number): void {
+    if (spread !== this.poolSpread) {
+      this.poolSpread = spread;
+      const r = this.rnd;
+      for (let i = 0; i < 5; i++) {
+        const a = r.range(0, 2 * Math.PI);
+        const d = r.range(0.1, 0.57);
+        this.poolPts[i * 3] = Math.cos(a) * d;
+        this.poolPts[i * 3 + 1] = Math.sin(a) * d;
+        this.poolPts[i * 3 + 2] = r.range(0.18, 0.33);
+      }
+    }
+    this.poolDir = dir;
+    this.poolAge = ageS;
+    this.poolEnv = env;
+  }
+
+  /** Story 5.12: the pool fire's particle budget (brief 12: 8 zones must stay cheap on a phone). */
+  setPoolBudget(share: number, smokeShare: number, edgeSpacingM: number): void {
+    this.poolShare = Math.min(1, Math.max(0.05, share));
+    this.poolSmokeShare = Math.min(1, Math.max(0.05, smokeShare));
+    if (edgeSpacingM !== this.poolEdgeM) {
+      this.poolEdgeM = edgeSpacingM;
+      this.edgeR = -1; // re-lay the ring
+    }
+  }
+
+  /** Story 5.12: how far the pool's fire has spread along angle `a` (m, ≤ R; looks.html `molReach`). */
+  poolReach(a: number, R: number): number {
+    const te = this.poolAge;
+    if (this.poolSpread === 1) return R * easeOut((te - 0.4 * ((1 - Math.cos(a - this.poolDir)) / 2)) / 0.35);
+    if (this.poolSpread === 2) return R * easeOut((te - 0.35) / 0.55);
+    return R * easeOut(te / 0.45);
+  }
+
+  /** Story 5.12: one step of a molotov pool fire (looks.html `stepMol`, at the 4.12 particle caps and rates). */
+  private updatePool(dt: number, T: number, R: number): void {
+    const r = this.rnd;
+    const low = this.low;
+    const env = this.poolEnv;
+    const te = this.poolAge;
+    const k = this.poolShare;
+    const fl = Math.max(4, Math.round(halfCap(FIRE_FLAMES_MAX, low) * k));
+    for (let n = emit(this.acc, 0, D_FLAME_RATE * env * k, dt, low); n > 0; n--) {
+      const a = r.range(0, 2 * Math.PI);
+      const reach = this.poolReach(a, R);
+      if (r.next() < D_EDGE_SHARE) {
+        // the edge flames: on the ring once the fuel has reached it, else on the spreading front
+        const se = r.range(0.26, 0.4);
+        const d = reach >= R - 0.02 ? R - flameCoreFracOf(FLAME_VARIANTS - 1) * se * 0.5 - r.range(0, 0.06) : reach - flameCoreFracOf(FLAME_VARIANTS - 1) * se * 0.5;
+        if (d < 0.25) continue;
+        put(this.flames, fl, r, low, Math.cos(a) * d, Math.sin(a) * d, r.range(-0.15, 0.15), r.range(-0.7, -0.3), se, 0, r.range(0.24, 0.4));
+        continue;
+      }
+      let x: number;
+      let y: number;
+      if (this.poolSpread === 2 && te < 0.9 && r.next() < 0.65) {
+        // MB3: a few burning puddles first, joining into the circle
+        const k = Math.floor(r.next() * 5) * 3;
+        const pr = (this.poolPts[k + 2] as number) * R * easeOut(te / 0.22) * 3;
+        const pa = r.range(0, 2 * Math.PI);
+        const pd = pr * Math.sqrt(r.next());
+        x = (this.poolPts[k] as number) * R + Math.cos(pa) * pd;
+        y = (this.poolPts[k + 1] as number) * R + Math.sin(pa) * pd;
+      } else if (this.poolSpread === 1 && te < 0.5 && r.next() < 0.55) {
+        // MB2: the fuel splashes forward along the throw
+        const L = r.range(-0.5, R * 0.95 * easeOut(te / 0.25));
+        const w = r.range(-0.4, 0.4);
+        x = Math.cos(this.poolDir) * L - Math.sin(this.poolDir) * w;
+        y = Math.sin(this.poolDir) * L + Math.cos(this.poolDir) * w;
+      } else {
+        const d = reach * 0.95 * Math.sqrt(r.next());
+        x = Math.cos(a) * d;
+        y = Math.sin(a) * d;
+      }
+      if (Math.hypot(x, y) > R - 0.1) continue;
+      put(this.flames, fl, r, low, x, y, r.range(-0.15, 0.15), r.range(-0.7, -0.3), r.range(0.3, 0.55), 0, r.range(0.28, 0.5));
+    }
+    const ks = this.poolSmokeShare;
+    const sm = Math.max(1, Math.round(halfCap(FIRE_SMOKE_MAX, low) * ks));
+    for (let n = emit(this.acc, 1, D_SMOKE_RATE * env * ks, dt, low); n > 0; n--) {
+      const a = r.range(0, 2 * Math.PI);
+      const d = Math.min(this.poolReach(a, R), R * 0.8) * Math.sqrt(r.next());
+      put(this.smoke, sm, r, low, Math.cos(a) * d, Math.sin(a) * d, WIND_X * 1.6, WIND_Y * 1.4 - 0.2, r.range(0.7, 1.0), r.range(1.8, SMOKE_END_MAX_M), r.range(3.0, 4.2));
+    }
+    const em = Math.max(2, Math.round(halfCap(FIRE_EMBERS_MAX, low) * k));
+    for (let n = emit(this.acc, 2, D_EMBER_RATE * env * k, dt, low); n > 0; n--) {
+      const a = r.range(0, 2 * Math.PI);
+      const d = R * 0.9 * Math.sqrt(r.next());
+      put(this.embers, em, r, low, Math.cos(a) * d, Math.sin(a) * d, r.range(-0.6, 0.6), r.range(-2.4, -1.0), r.range(0.05, 0.08), 0, r.range(0.7, 1.4));
+    }
+    stepFlames(this.flames, dt, T, 0.8, 1.4, 0.3, 1.2);
+    stepEmbers(this.embers, dt, T, 3.0);
+    stepSmoke(this.smoke, dt, T);
+  }
+
   count(): number {
     return this.flames.n + this.smoke.n + this.embers.n;
   }
@@ -278,7 +394,8 @@ export class CarFire {
   layEdge(R: number): void {
     if (R === this.edgeR) return;
     this.edgeR = R;
-    const n = Math.max(8, Math.min(EDGE_SLOTS_MAX, Math.ceil((2 * Math.PI * R) / (EDGE_SPACING_M * edgeScale(R)))));
+    const spacing = this.poolSpread >= 0 ? this.poolEdgeM : EDGE_SPACING_M; // Story 5.12: a pool's own spacing
+    const n = Math.max(8, Math.min(EDGE_SLOTS_MAX, Math.ceil((2 * Math.PI * R) / (spacing * edgeScale(R)))));
     this.edgeN = n;
     for (let i = 0; i < n; i++) {
       this.edgeAngle[i] = ((i + 0.5) / n) * 2 * Math.PI;
@@ -291,6 +408,10 @@ export class CarFire {
     this.layEdge(R);
     const dt = Math.min(FX_MAX_DT_S, Math.max(0, dtIn));
     if (dt <= 0) return;
+    if (this.poolSpread >= 0) {
+      this.updatePool(dt, T, R);
+      return;
+    }
     const r = this.rnd;
     const low = this.low;
     const fl = halfCap(FIRE_FLAMES_MAX, low);
@@ -326,6 +447,12 @@ export class CarFire {
     stepEmbers(this.embers, dt, T, 3.0);
     stepSmoke(this.smoke, dt, T);
   }
+}
+
+/** Story 5.12: looks.html `ease` (cubic out, clamped). */
+function easeOut(t: number): number {
+  const u = Math.min(1, Math.max(0, t));
+  return 1 - Math.pow(1 - u, 3);
 }
 
 /**
@@ -515,13 +642,15 @@ export function edgeFlameDraw(fire: CarFire, i: number, T: number, R: number, ou
   const flick = 0.5 + 0.3 * Math.sin(T * 9.1 + ph * 7) + 0.2 * Math.sin(T * 23.3 + ph * 3);
   const h = EDGE_FLAME_M * edgeSizeScale(R) * (0.85 + 0.15 * flick);
   const a = (fire.edgeAngle[i] as number) + EDGE_SWAY_RAD * Math.sin(T * 2.3 + ph);
+  // Story 5.12: a molotov's ring flames light where the spreading fuel has reached the edge, and fade with it.
+  if (fire.poolSpread >= 0 && (fire.poolEnv <= 0 || fire.poolReach(fire.edgeAngle[i] as number, R) < R - 0.05)) return false;
   const r = R - (flameReachUpOf(fr) * h) / 2;
   out.x = Math.cos(a) * r;
   out.y = Math.sin(a) * r;
   out.w = h * EDGE_ASPECT;
   out.h = h;
   out.rot = a + Math.PI / 2;
-  out.alpha = EDGE_ALPHA + 0.15 * flick;
+  out.alpha = (EDGE_ALPHA + 0.15 * flick) * (fire.poolSpread >= 0 ? fire.poolEnv : 1);
   out.tint = flameRampColor(EDGE_RAMP_T + 0.2 * (1 - flick));
   out.frame = fr;
   return true;

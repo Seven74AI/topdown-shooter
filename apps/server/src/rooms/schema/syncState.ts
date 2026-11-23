@@ -1,4 +1,4 @@
-import { quantizeHeading, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
+import { CONSUMABLE_NONE, consumableIndex, quantizeHeading, type Balance, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
 import type { RunController } from "../../run/RunController";
 import { BuildingState, type PlayerState, type RunState } from "./RunState";
 
@@ -94,7 +94,15 @@ function visitPlayer(p: SimPlayer): void {
     syncPlayer(s, p, pass.controller.ackSeq(p.id));
     syncDowned(s, p, pass.controller.kills(p.id));
     syncWallet(s, p);
+    syncConsumable(s, p, pass.controller.world.balance);
   }
+}
+
+/** Story 5.12: the quick-use slot (index + count; assigned only when they change: a purchase or a use). */
+function syncConsumable(s: PlayerState, p: SimPlayer, balance: Balance): void {
+  const index = consumableIndex(balance, p.consumable);
+  if (s.consumable !== index) s.consumable = index;
+  if (s.consumableCount !== p.consumableCount) s.consumableCount = p.consumableCount;
 }
 
 /** Story 3.2: wallet and earned total (integers; assigned only when they change). */
@@ -207,4 +215,6 @@ function resetPlayer(s: PlayerState): void {
   s.knockStepMm = 0;
   s.gear = 0; // Story 5.11: the next run starts with none
   s.reviveNeed = 0;
+  s.consumable = CONSUMABLE_NONE; // Story 5.12: the next run starts empty
+  s.consumableCount = 0;
 }

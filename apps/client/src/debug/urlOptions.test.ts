@@ -9,7 +9,7 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false, lowFx: false, shopAll: false });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false, stressMolotov: false, lowFx: false, shopAll: false });
     expect(parseUrlOptions("?shopall=1").shopAll).toBe(true); // Story 5.11
     expect(parseUrlOptions("?shopall=0").shopAll).toBe(false);
     expect(parseUrlOptions("?fx=low").lowFx).toBe(true); // Story 4.12

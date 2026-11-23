@@ -25,6 +25,7 @@ import { swingMelee } from "./melee";
 import { cooldownIdle, cooldownReady, cooldownTickEnd, cooldownTickStart } from "./cooldown";
 import { isFlame, isLauncher, isMelee, magazineOf, usesAmmo, weaponDamage, weaponIds, weaponStats } from "./weapons";
 import { launchGrenade, updateGrenades } from "./grenades";
+import { useConsumables } from "./consumables";
 import { flameTick, updateIgnites } from "./flame";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
@@ -382,6 +383,7 @@ export const updateCombat: SystemFn = (world, dtS) => {
   // Known, accepted: a zombie pushed into another cell by a hit this tick is found only via its old cell
   // until the next rebuild (queries use generous radii, so this almost never matters; ≤ 1 tick).
   rebuildGrid(world.zombieGrid, z.aliveIds, z.aliveCount, z.x, z.y);
+  useConsumables(world); // Story 5.12: the quick-use slot first (a throw lands on its own tick in updateGrenades)
   world.players.forEach((p) => {
     // Story 2.7 review: a starved server tick (no new input) pauses the weapon, like the client's
     // fire clock, which only advances per sent input.

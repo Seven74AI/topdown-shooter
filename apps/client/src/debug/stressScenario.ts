@@ -1,4 +1,4 @@
-import { BUILD_GRID_M, MUZZLE_OFFSET_M, activeSlot, lobAimLength, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
+import { BUILD_GRID_M, MUZZLE_OFFSET_M, activeSlot, igniteMolotov, consumableIndex, molotovTicksAt, lobAimLength, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
 import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, perf, type PerfSummaryResult } from "./perfStats";
 import { gfxStatus } from "../render/gfx/gfxStatus";
 
@@ -298,3 +298,32 @@ export function formatStressReport(r: PerfSummaryResult, walkers: number, env: S
 
 /** The one stress run of the page. */
 export const stressRun = new StressRun();
+
+/** Story 5.12: zones kept burning by `?stressbuild=molotov` (the cap), on a ring this far round the survivor. */
+export const STRESS_MOLOTOVS = 8;
+const STRESS_MOLOTOV_RING_M = 5;
+
+/**
+ * Story 5.12 (`?stressbuild=molotov`): relights molotov zones on a ring round (cx, cy) until
+ * `STRESS_MOLOTOVS` burn (call every frame; nothing is allocated while they burn). Returns how many
+ * were lit now.
+ */
+export function keepStressMolotovs(world: World, playerId: string, cx: number, cy: number): number {
+  const item = consumableIndex(world.balance, "molotovs");
+  const cap = Math.min(STRESS_MOLOTOVS, world.balance.consumables.maxLiveMolotovZones);
+  // `?stress` holds the waves (and so the fire pass that ages the zones): end them here on their life in ticks.
+  const a0 = world.molotovs.areas;
+  const life = molotovTicksAt(world.balance, item).durationTicks;
+  for (let i = 0; i < a0.capacity; i++) {
+    if (a0.active[i] === 1 && world.tick - (a0.bornTick[i] as number) >= life) {
+      a0.active[i] = 0;
+      a0.count--;
+    }
+  }
+  let lit = 0;
+  for (let k = 0; world.molotovs.areas.count < cap && k < cap; k++) {
+    const a = ((world.molotovs.nextId + k) % cap) * ((2 * Math.PI) / cap);
+    if (igniteMolotov(world, item, cx + Math.cos(a) * STRESS_MOLOTOV_RING_M, cy + Math.sin(a) * STRESS_MOLOTOV_RING_M, playerId) >= 0) lit++;
+  }
+  return lit;
+}

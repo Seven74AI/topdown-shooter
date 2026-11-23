@@ -60,6 +60,20 @@ describe("KeyboardMouse", () => {
     expect(k.moveVector()).toEqual({ x: 0, y: 0 });
   });
 
+  it("Story 5.12: E gives one consumable edge per press (auto-repeat adds none, blur drops a latched press)", () => {
+    expect(keyAction("KeyE")).toBe("consumable");
+    const k = new KeyboardMouse();
+    k.keyDown("KeyE");
+    k.keyDown("KeyE", true);
+    expect(k.takeConsumable()).toBe(true);
+    expect(k.takeConsumable()).toBe(false);
+    expect(k.takeSwap()).toBe(false); // its own latch
+    k.keyUp("KeyE");
+    k.keyDown("KeyE");
+    k.releaseAll();
+    expect(k.takeConsumable()).toBe(false);
+  });
+
   it("Q gives one swap edge per press; auto-repeat adds none", () => {
     const k = new KeyboardMouse();
     k.keyDown("KeyQ");

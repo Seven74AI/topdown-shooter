@@ -63,6 +63,12 @@ export interface UrlOptions {
    */
   stressBuild: boolean;
   /**
+   * `?stressbuild=molotov` (Story 5.12, release-safe, only with `?stress`): 8 molotov fire zones kept
+   * burning round the survivor (relit as they end) for the phone benchmark with the fire visuals at
+   * their cap; false otherwise.
+   */
+  stressMolotov: boolean;
+  /**
    * `?fx=low` (Story 4.12, release-safe): the low-quality fire — half the particles of every burning
    * car and survivor (caps and spawn rates halved). false otherwise.
    */
@@ -107,6 +113,7 @@ export function parseUrlOptions(search: string): UrlOptions {
     waveMix: q.get("wavemix"),
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
+    stressMolotov: q.get("stressbuild")?.trim().toLowerCase() === "molotov",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
     shopAll: parseDevShopAll(q.get("shopall")?.trim().toLowerCase()),
   };

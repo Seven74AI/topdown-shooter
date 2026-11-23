@@ -37,6 +37,8 @@ export class GrenadeFlights {
   readonly landS: Float64Array;
   /** The shot's 16-bit input seq (-1: unknown). */
   readonly seq: Int32Array;
+  /** Story 5.12: 0 = a launcher round; k = a thrown consumable (index k − 1): the view picks its sprite. */
+  readonly item: Uint8Array;
   count = 0;
   /** Rounds my server echo snapped to a different landing point (the browser check reads it). */
   snaps = 0;
@@ -56,25 +58,29 @@ export class GrenadeFlights {
     this.startS = new Float64Array(capacity);
     this.landS = new Float64Array(capacity);
     this.seq = new Int32Array(capacity).fill(-1);
+    this.item = new Uint8Array(capacity);
   }
 
   /** Routes one drained event (others are ignored). Returns the slot freed by an explosion (-1: none). */
   handle(e: SimEvent, nowS: number): number {
     if (e.type === "grenade.launched") {
-      this.launched(e.playerId, e.grenadeId, e.x, e.y, e.tx, e.ty, e.flightTicks, nowS - (e.ageS ?? 0), e.seq);
+      this.launched(e.playerId, e.grenadeId, e.x, e.y, e.tx, e.ty, e.flightTicks, nowS - (e.ageS ?? 0), e.seq, e.item ?? 0);
     } else if (e.type === "explosion.happened") {
       return e.grenadeId > 0 ? this.burst(e.grenadeId) : -1;
+    } else if (e.type === "molotov.ignited") {
+      return this.burstAt(e.x, e.y); // Story 5.12: a bottle ends where its fire is lit (no blast, no id)
     } else if (e.type === "build.started") this.clear();
     return -1;
   }
 
   /** A round in flight (my id-0 event is my local instant copy). */
-  launched(owner: string, id: number, x0: number, y0: number, tx: number, ty: number, flightTicks: number, startS: number, seq = -1): void {
+  launched(owner: string, id: number, x0: number, y0: number, tx: number, ty: number, flightTicks: number, startS: number, seq = -1, item = 0): void {
     const landS = startS + Math.max(1, flightTicks) * TICK_DT_S;
-    if (id > 0 && owner === this.localPlayerId && seq >= 0) {
+    // Story 5.12: a thrown consumable never adopts a launcher's local copy (it has none: no optimistic use).
+    if (id > 0 && owner === this.localPlayerId && seq >= 0 && item === 0) {
       // My server echo: adopt the local copy of the same shot (same seq).
       for (let i = 0; i < this.capacity; i++) {
-        if (this.id[i] !== 0 || this.owner[i] !== owner || this.seq[i] !== seq) continue;
+        if (this.id[i] !== 0 || this.owner[i] !== owner || this.seq[i] !== seq || this.item[i] !== 0) continue;
         this.id[i] = id;
         if (Math.abs((this.tx[i] as number) - tx) > 0.01 || Math.abs((this.ty[i] as number) - ty) > 0.01) this.snaps++;
         this.tx[i] = tx;
@@ -107,12 +113,25 @@ export class GrenadeFlights {
     this.startS[slot] = startS;
     this.landS[slot] = landS;
     this.seq[slot] = seq;
+    this.item[slot] = item;
   }
 
   /** The round `id` burst (its explosion event): hidden. Returns its slot or -1. */
   burst(id: number): number {
     for (let i = 0; i < this.capacity; i++) {
       if (this.id[i] === id) {
+        this.free(i);
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /** Story 5.12: the thrown item (item > 0) landing at (x, y) (within the wire's 1 cm) ends. Returns its slot or -1. */
+  burstAt(x: number, y: number): number {
+    for (let i = 0; i < this.capacity; i++) {
+      if (this.id[i] === -1 || this.item[i] === 0) continue;
+      if (Math.abs((this.tx[i] as number) - x) <= 0.011 && Math.abs((this.ty[i] as number) - y) <= 0.011) {
         this.free(i);
         return i;
       }
@@ -130,6 +149,7 @@ export class GrenadeFlights {
   }
 
   private free(i: number): void {
+    this.item[i] = 0;
     this.id[i] = -1;
     this.owner[i] = null;
     this.seq[i] = -1;
@@ -153,6 +173,7 @@ export class GrenadeFlights {
     out.z = 4 * arcM * u * (1 - u);
     out.heading = Math.atan2(dy, dx);
     out.landed = u >= 1;
+    out.u = u;
     return out;
   }
 }
@@ -163,6 +184,8 @@ export interface RoundPose {
   z: number;
   heading: number;
   landed: boolean;
+  /** Story 5.12: 0–1 along the flight (a thrown item tumbles with it). */
+  u?: number;
 }
 
 // ======================= explosion particles (EX1 fireball, EX2 shockwave) =======================

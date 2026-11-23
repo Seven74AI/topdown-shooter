@@ -11,9 +11,10 @@ import shop from "./balance/shop.json" with { type: "json" };
 import decay from "./balance/decay.json" with { type: "json" };
 import combat from "./balance/combat.json" with { type: "json" };
 import gear from "./balance/gear.json" with { type: "json" };
+import consumables from "./balance/consumables.json" with { type: "json" };
 import economy from "./balance/economy.json" with { type: "json" };
 
-const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear })) as RawBalanceFiles;
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables })) as RawBalanceFiles;
 
 describe("loadBalance", () => {
   it("loads the bundled files into a typed object", () => {
@@ -357,3 +358,36 @@ describe("gear.json (Story 5.11)", () => {
   });
 });
 
+
+describe("consumables.json (Story 5.12)", () => {
+  type Items = { items: Record<string, Record<string, unknown>> };
+  it("consumables validate; fractional tick durations refused; > 8 items refused; a throwable needs its numbers", () => {
+    const b = loadBalance(raw());
+    expect(Object.keys(b.consumables.items)).toEqual(["medkit", "grenades", "molotovs"]);
+    expect(b.consumables.useCooldownS).toBe(0.5);
+    expect(b.consumables.items.grenades).toMatchObject({ price: 80, pack: 3, damage: 40, radiusM: 2.5, throwRangeM: 8, minThrowM: 2 });
+    expect(b.consumables.items.molotovs).toMatchObject({ price: 100, pack: 2, radiusM: 3, durationS: 4, damagePerS: 8, pulseS: 0.5 });
+    expect(b.consumables.items.medkit).toMatchObject({ price: 60, pack: 1, healHp: 50 });
+    const frac = raw();
+    ((frac.consumables as Items).items.molotovs as Record<string, unknown>).durationS = 4.01;
+    expect(() => loadBalance(frac)).toThrow(/durationS must be a whole number of ticks/);
+    const fracPulse = raw();
+    ((fracPulse.consumables as Items).items.molotovs as Record<string, unknown>).pulseS = 0.33;
+    expect(() => loadBalance(fracPulse)).toThrow(/pulseS must be a whole number of ticks/);
+    const odd = raw();
+    ((odd.consumables as Items).items.molotovs as Record<string, unknown>).damagePerS = 6; // 3 per pulse: no whole half
+    expect(() => loadBalance(odd)).toThrow(/even whole number/);
+    const cd = raw();
+    (cd.consumables as Record<string, unknown>).useCooldownS = 0.52;
+    expect(() => loadBalance(cd)).toThrow(/useCooldownS/);
+    const many = raw();
+    for (let i = 0; i < 6; i++) (many.consumables as Items).items[`extra_${i}`] = { name: "X", price: 1, pack: 1, kind: "heal", healHp: 1 };
+    expect(() => loadBalance(many)).toThrow(/1–8 consumables/);
+    const noRange = raw();
+    delete ((noRange.consumables as Items).items.grenades as Record<string, unknown>).throwRangeM;
+    expect(() => loadBalance(noRange)).toThrow(/a throwable needs/);
+    const noHeal = raw();
+    delete ((noHeal.consumables as Items).items.medkit as Record<string, unknown>).healHp;
+    expect(() => loadBalance(noHeal)).toThrow(/a heal item needs healHp/);
+  });
+});

@@ -135,7 +135,7 @@ export type SimEvent =
    * (tx, ty) — the aim point, or in front of the first car / bus / building on its track — on
    * server tick `landTick`. The client flies a cosmetic round from this (no per-tick state).
    */
-  | { type: "grenade.launched"; playerId: string; grenadeId: number; x: number; y: number; tx: number; ty: number; landTick: number; /** landTick − the launch tick (the wire carries this, u8). */ flightTicks: number; /** Review L1: the 16-bit input seq of the shot (the shooter's client matches its instant copy by it). */ seq: number; /** Client only (never on the wire): seconds since the server tick, set by NetSimHost on drain. */ ageS?: number }
+  | { type: "grenade.launched"; playerId: string; grenadeId: number; x: number; y: number; tx: number; ty: number; landTick: number; /** landTick − the launch tick (the wire carries this, u8). */ flightTicks: number; /** Review L1: the 16-bit input seq of the shot (the shooter's client matches its instant copy by it). */ seq: number; /** Client only (never on the wire): seconds since the server tick, set by NetSimHost on drain. */ ageS?: number; /** Story 5.12: a thrown consumable (its index + 1); absent / 0 = a weapon's round. */ item?: number }
   /**
    * Story 5.5 (shared with 5.8, 5.9, 5.12): a blast of `radiusM` at (x, y) (`EXPLOSION_KINDS[kind]`),
    * set off by `sourcePlayerId` (null: no player, or one who left). Its hits, kills and player
@@ -160,6 +160,17 @@ export type SimEvent =
    */
   | { type: "weapon.flame_started"; playerId: string; weapon: string }
   | { type: "weapon.flame_stopped"; playerId: string }
+  /**
+   * Story 5.12: `playerId` used one consumable `item` (its `consumables.json` index): HUD and sound
+   * only (the count comes from schema; a throw also sends `grenade.launched`).
+   */
+  | { type: "consumable.used"; playerId: string; item: number }
+  /**
+   * Story 5.12: a molotov (consumable `item`) lit fire zone `zoneId` (u16) at (x, y), thrown by
+   * `playerId` (null: nobody / left). Radius and lifetime come from balance; the client draws the
+   * zone from this (no zone state on the wire) and applies the same cap rule.
+   */
+  | { type: "molotov.ignited"; zoneId: number; item: number; x: number; y: number; playerId: string | null; /** Client only: seconds since it happened. */ ageS?: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

@@ -102,7 +102,7 @@ function snapshotGrenades(world: World) {
   const g = world.grenades;
   const out = [];
   for (let i = 0; i < g.count; i++) {
-    out.push({ id: g.id[i], x0: g.x0[i], y0: g.y0[i], tx: g.tx[i], ty: g.ty[i], landTick: g.landTick[i], owner: g.owner[i] ?? null, weapon: g.weapon[i], level: g.level[i] });
+    out.push({ id: g.id[i], x0: g.x0[i], y0: g.y0[i], tx: g.tx[i], ty: g.ty[i], landTick: g.landTick[i], owner: g.owner[i] ?? null, weapon: g.weapon[i], level: g.level[i], item: g.item[i] }); // Story 5.12: item
   }
   return { list: out, nextId: g.nextId };
 }
@@ -114,6 +114,17 @@ function snapshotAreas(world: World) {
     if (a.active[i] === 1) out.push({ slot: i, id: a.id[i], kind: a.kind[i], x: a.x[i], y: a.y[i], radiusM: a.radiusM[i], ticksLeft: a.ticksLeft[i], bornTick: a.bornTick[i] });
   }
   return out;
+}
+
+/** Story 5.12: the molotov fire zones (live slots, with thrower and item) and the id counter. */
+function snapshotMolotovs(world: World) {
+  const m = world.molotovs;
+  const a = m.areas;
+  const out = [];
+  for (let i = 0; i < a.capacity; i++) {
+    if (a.active[i] === 1) out.push({ slot: i, id: a.id[i], x: a.x[i], y: a.y[i], radiusM: a.radiusM[i], ticksLeft: a.ticksLeft[i], bornTick: a.bornTick[i], owner: m.owner[i] ?? null, item: m.item[i] });
+  }
+  return { list: out, nextId: m.nextId };
 }
 
 /** Story 5.8: the queued Bloater blasts (oldest first) and the gas clouds (live slots). */
@@ -202,6 +213,8 @@ export function snapshotWorld(world: World) {
     spits: snapshotSpits(world),
     areas: snapshotAreas(world),
     grenades: snapshotGrenades(world), // Story 5.5
+    // Story 5.12: molotov zones (players' consumable slot, count and cooldown ride in `players`).
+    molotovs: snapshotMolotovs(world),
     // Story 5.8: queued Bloater blasts and gas clouds (each zombie's `swellTicks` rides in `zombies`).
     bloater: snapshotBlasts(world),
     // Story 2.12: the zombie position history (evolved state: switch, row labels, hash of the rows).

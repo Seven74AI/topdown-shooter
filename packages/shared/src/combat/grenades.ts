@@ -5,6 +5,8 @@ import { MUZZLE_OFFSET_M, TICK_RATE_HZ } from "../config/constants";
 import { lobBlockT, segmentBoxEntryT } from "./cover";
 import { createExplosionSpec, explode } from "./explosion";
 import { weaponDamage, weaponIds, type WeaponId } from "./weapons";
+import { consumableAt, consumableStatsAt } from "../economy/consumables";
+import { igniteMolotov } from "../hazards/molotov";
 
 /**
  * Story 5.5: lobbed rounds (the Grenade Launcher; 5.12's hand grenades and molotovs reuse the lob).
@@ -34,6 +36,11 @@ import { weaponDamage, weaponIds, type WeaponId } from "./weapons";
  * with no credit (its player damage already at the friendly-fire share). Cleared at every build
  * start and at the run's end. No allocation after creation.
  */
+/** Story 5.12: what `lobTarget` / `lobAimLength` read (a launcher's stats, or a throwable consumable's). */
+export type LobRange = Pick<LauncherStats, "minLobM" | "lobRangeM">;
+/** Story 5.12: what `lobFlightTicks` reads. */
+export type LobFlight = Pick<LauncherStats, "lobSpeedMps" | "minFlightS">;
+
 export interface GrenadePool {
   readonly capacity: number;
   readonly x0: Float64Array;
@@ -50,6 +57,8 @@ export interface GrenadePool {
   readonly level: Uint8Array;
   /** u8 id (1–255, wraps; never 0 = "no round"). */
   readonly id: Uint8Array;
+  /** Story 5.12: 0 = a weapon's round; k = a thrown consumable (index k − 1 in `consumables.json`). */
+  readonly item: Uint8Array;
   count: number;
   nextId: number;
 }
@@ -66,6 +75,7 @@ export function createGrenadePool(capacity: number): GrenadePool {
     weapon: new Uint8Array(capacity),
     level: new Uint8Array(capacity),
     id: new Uint8Array(capacity),
+    item: new Uint8Array(capacity),
     count: 0,
     nextId: 1,
   };
@@ -90,13 +100,14 @@ function freeGrenade(pool: GrenadePool, i: number): void {
     pool.weapon[i] = pool.weapon[last] as number;
     pool.level[i] = pool.level[last] as number;
     pool.id[i] = pool.id[last] as number;
+    pool.item[i] = pool.item[last] as number;
   }
   pool.owner[last] = null;
   pool.count--;
 }
 
 /** Counters summed over every World (tests, sims, liveness asserts: reset them first). */
-export const grenadeCounters = { launched: 0, landed: 0, coverStops: 0, poolFull: 0 };
+export const grenadeCounters = { launched: 0, landed: 0, coverStops: 0, poolFull: 0, thrown: 0, handBlasts: 0, molotovsLanded: 0 };
 
 /** Where a lob lands (`lobTarget`'s output; reuse one). */
 export interface LobTarget {
@@ -121,7 +132,7 @@ export function createLobTarget(): LobTarget {
  * (dirX, dirY) with aim length `aimLen` (0–1) lands. Pure (reads only the World's obstacle lists);
  * the server, solo, bots, the client's landing ring and the own-shot copy all call it.
  */
-export function lobTarget(world: Readonly<World>, stats: Readonly<LauncherStats>, px: number, py: number, radiusM: number, dirX: number, dirY: number, aimLen: number, out: LobTarget): LobTarget {
+export function lobTarget(world: Readonly<World>, stats: Readonly<LobRange>, px: number, py: number, radiusM: number, dirX: number, dirY: number, aimLen: number, out: LobTarget): LobTarget {
   const offset = radiusM + MUZZLE_OFFSET_M;
   const mx = px + dirX * offset;
   const my = py + dirY * offset;
@@ -173,13 +184,13 @@ function blockerEntryAt(world: Readonly<World>, px: number, py: number, ex: numb
  * The aim length a client sends for a lob of `distM` from the muzzle (FR-A, the inverse of
  * `lobTarget`'s distance): clamp(distM / lobRangeM, minLobM / lobRangeM, 1).
  */
-export function lobAimLength(stats: Readonly<LauncherStats>, distM: number): number {
+export function lobAimLength(stats: Readonly<LobRange>, distM: number): number {
   const d = Number.isFinite(distM) ? distM : stats.lobRangeM;
   return Math.min(1, Math.max(stats.minLobM / stats.lobRangeM, d / stats.lobRangeM));
 }
 
 /** Flight time in ticks for a lob of `distM` (≥ 1): max(minFlightS, distM / lobSpeedMps), rounded to ticks. */
-export function lobFlightTicks(stats: Readonly<LauncherStats>, distM: number): number {
+export function lobFlightTicks(stats: Readonly<LobFlight>, distM: number): number {
   return Math.max(1, Math.round(Math.max(stats.minFlightS, distM / stats.lobSpeedMps) * TICK_RATE_HZ));
 }
 
@@ -208,6 +219,7 @@ export function launchGrenade(world: World, p: PlayerState, weapon: WeaponId, le
   pool.weapon[i] = Math.max(0, weaponIds(world.balance).indexOf(weapon));
   pool.level[i] = level;
   pool.id[i] = id;
+  pool.item[i] = 0;
   grenadeCounters.launched++;
   if (target.blocked) grenadeCounters.coverStops++;
   world.events.emit({
@@ -225,7 +237,81 @@ export function launchGrenade(world: World, p: PlayerState, weapon: WeaponId, le
   return true;
 }
 
+/**
+ * Story 5.12: throws one consumable (`item` = its index) for `p` along the unit (dirX, dirY) with aim
+ * length `aimLen` — the same lob as the launcher (FR-A clamp, FR-B only buildings stop it, FR-B2
+ * never inside cover), with the item's own range and speed. Emits `grenade.launched` with `item`.
+ * Returns false when the pool is full (nothing spent).
+ */
+export function throwConsumable(world: World, p: PlayerState, item: number, stats: Readonly<LobRange & LobFlight>, dirX: number, dirY: number, aimLen: number, seq = 0): boolean {
+  const pool = world.grenades;
+  if (pool.count >= pool.capacity) {
+    grenadeCounters.poolFull++;
+    return false;
+  }
+  lobTarget(world, stats, p.x, p.y, p.radiusM, dirX, dirY, aimLen, target);
+  const i = pool.count++;
+  const id = pool.nextId;
+  pool.nextId = id >= 255 ? 1 : id + 1;
+  pool.x0[i] = target.x0;
+  pool.y0[i] = target.y0;
+  pool.tx[i] = target.x;
+  pool.ty[i] = target.y;
+  pool.landTick[i] = world.tick + lobFlightTicks(stats, target.distM);
+  pool.owner[i] = p.id;
+  pool.weapon[i] = 0;
+  pool.level[i] = 1;
+  pool.id[i] = id;
+  pool.item[i] = item + 1;
+  grenadeCounters.thrown++;
+  if (target.blocked) grenadeCounters.coverStops++;
+  world.events.emit({
+    type: "grenade.launched",
+    playerId: p.id,
+    grenadeId: id,
+    x: target.x0,
+    y: target.y0,
+    tx: target.x,
+    ty: target.y,
+    landTick: pool.landTick[i] as number,
+    flightTicks: (pool.landTick[i] as number) - world.tick,
+    seq: seq & 0xffff,
+    item: item + 1,
+  });
+  return true;
+}
+
 const spec = createExplosionSpec();
+
+/**
+ * Story 5.12: a thrown consumable lands at `spec.x, spec.y`: a hand grenade bursts (`explode`, the
+ * EX2 `hand_grenade` look; zombies full, players the friendly-fire share, no building damage: 5.5
+ * D4), a molotov lights a fire zone (`hazards/molotov.ts`).
+ */
+function landConsumable(world: World, item: number, owner: string | null): void {
+  const s = consumableStatsAt(world.balance, item);
+  if (!s) return;
+  const present = owner !== null && world.players.has(owner);
+  if (s.kind === "molotov") {
+    grenadeCounters.molotovsLanded++;
+    igniteMolotov(world, item, spec.x, spec.y, present ? owner : null);
+    return;
+  }
+  if (s.kind !== "grenade") return;
+  const dmg = s.damage ?? 0;
+  spec.radiusM = s.radiusM ?? 0;
+  spec.zombieDamage = dmg;
+  spec.playerDamage = present ? dmg : Math.round((dmg * world.balance.combat.friendlyFire.pct) / 100);
+  spec.buildingDamage = 0;
+  spec.pushM = 0;
+  spec.kind = "hand_grenade";
+  spec.sourcePlayerId = present ? owner : null;
+  spec.weapon = consumableAt(world.balance, item) ?? "";
+  spec.buildingId = 0;
+  spec.quiet = true;
+  grenadeCounters.handBlasts++;
+  explode(world, spec);
+}
 
 /** Rounds whose landing tick has come burst (in the combat system, after the projectiles). */
 export function updateGrenades(world: World): void {
@@ -240,7 +326,13 @@ export function updateGrenades(world: World): void {
     spec.y = pool.ty[i] as number;
     spec.grenadeId = pool.id[i] as number;
     const level = pool.level[i] as number;
+    const item = pool.item[i] as number;
     freeGrenade(pool, i); // first: a blast never sees its own round
+    if (item > 0) {
+      landConsumable(world, item - 1, owner);
+      if (i > pool.count) i = pool.count;
+      continue;
+    }
     if (!stats || stats.kind !== "launcher") continue;
     const dmg = weaponDamage(world.balance, weapon, level);
     // The owner left: no credit, and the friendly-fire share applied here (no player source to apply it).
