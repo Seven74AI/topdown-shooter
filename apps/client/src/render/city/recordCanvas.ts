@@ -152,9 +152,13 @@ export class RecordCanvas {
   arc(x: number, y: number, r: number): void {
     this.box(x, y, r, r);
   }
-  ellipse(x: number, y: number, rx: number, ry: number): void {
-    const r = Math.max(rx, ry);
-    this.box(x, y, r, r);
+  ellipse(x: number, y: number, rx: number, ry: number, rotation = 0): void {
+    // Story 5.26: exact for an unrotated ellipse; a rotated one keeps the conservative circle.
+    if (rotation === 0) this.box(x, y, rx, ry);
+    else {
+      const r = Math.max(rx, ry);
+      this.box(x, y, r, r);
+    }
   }
   rect(x: number, y: number, w: number, h: number): void {
     this.pt(x, y);
