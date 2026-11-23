@@ -254,6 +254,8 @@ Fresh-agent review by the main session (2026-11-23): **no high, 2 medium (both o
 
 Floodlight FPS (≈ −20 % headless): accepted as is by the designer (see open question 1).
 
+**Gate after the merge + fixes** (`typecheck && lint && test && build` on `story-5-10` = master `4258175` + this story): green, **260 files passed (1 skipped), 2,129 tests passed (3 skipped)**, build OK; load 0.16 before, 4.48 after. Story 5.11 not merged yet (not on master at this point).
+
 ## Change from the Epic 6 design session (designer, 2026-11-23)
 
 Decision D5 (`docs/ideas/epic-6/proposal.md`): the floodlight's light radius is **6 m during blackout waves** (Epic 6, Story 6.3), 4 m otherwise. Put both radii in balance JSON (e.g. `floodlight.lightRadiusM` 4 and `floodlight.blackoutLightRadiusM` 6) so 6.3 only switches between them.
