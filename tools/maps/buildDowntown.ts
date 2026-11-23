@@ -38,7 +38,7 @@ const PX = 32; // pixels per tile
 const METERS_PER_TILE = 1;
 const CELL_M = 0.5;
 
-type Props = Record<string, string | number>;
+type Props = Record<string, string | number | boolean>;
 interface Rect {
   name: string;
   x: number;
@@ -63,17 +63,18 @@ interface Group {
   layers: Layer[];
 }
 
+/** `building: true`: a real building, lobbed rounds don't fly over it (the pumps, the bus and the parking wall are low). */
 const collision: Rect[] = [
-  { name: "nw_corner_shop", x: 0, y: 0, w: 8, h: 10 },
-  { name: "nw_apartments", x: 11, y: 0, w: 7, h: 10 },
-  { name: "gas_kiosk", x: 41, y: 0, w: 7, h: 6 },
+  { name: "nw_corner_shop", x: 0, y: 0, w: 8, h: 10, props: { building: true } },
+  { name: "nw_apartments", x: 11, y: 0, w: 7, h: 10, props: { building: true } },
+  { name: "gas_kiosk", x: 41, y: 0, w: 7, h: 6, props: { building: true } },
   { name: "gas_pump_a", x: 32.5, y: 3.5, w: 2, h: 1 },
   { name: "gas_pump_b", x: 32.5, y: 7, w: 2, h: 1 },
   { name: "city_bus", x: 30, y: 14.5, w: 10, h: 2.5 },
-  { name: "sw_diner", x: 0, y: 22, w: 7, h: 10 },
+  { name: "sw_diner", x: 0, y: 22, w: 7, h: 10, props: { building: true } },
   { name: "parking_wall", x: 10, y: 24, w: 0.5, h: 8 },
-  { name: "se_offices", x: 30, y: 22, w: 8, h: 10 },
-  { name: "se_warehouse", x: 41, y: 22, w: 7, h: 10 },
+  { name: "se_offices", x: 30, y: 22, w: 8, h: 10, props: { building: true } },
+  { name: "se_warehouse", x: 41, y: 22, w: 7, h: 10, props: { building: true } },
 ];
 
 const cover: Rect[] = [
@@ -292,12 +293,12 @@ const topLayers: Layer[] = [
 
 // ---- writers ---------------------------------------------------------------------------------
 
-type JsonProp = { name: string; type: "int" | "float" | "string"; value: string | number };
+type JsonProp = { name: string; type: "int" | "float" | "string" | "bool"; value: string | number | boolean };
 const jsonProps = (p: Props | undefined): JsonProp[] | undefined =>
   p
     ? Object.entries(p).map(([name, value]) => ({
         name,
-        type: typeof value === "string" ? "string" : Number.isInteger(value) && name !== "metersPerTile" && name !== "cellM" ? "int" : "float",
+        type: typeof value === "string" ? "string" : typeof value === "boolean" ? "bool" : Number.isInteger(value) && name !== "metersPerTile" && name !== "cellM" ? "int" : "float",
         value,
       }))
     : undefined;

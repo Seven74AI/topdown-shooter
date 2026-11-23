@@ -59,7 +59,18 @@ export function segmentBoxEntryT(x0: number, y0: number, dx: number, dy: number,
  * crosses none. Swept: a fast shot can't tunnel through a thin car between ticks.
  */
 export function shotBlockT(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number): number {
-  const list = world.obstacles.shotBlockers;
+  return firstEntryT(world.obstacles.shotBlockers, x0, y0, x1, y1);
+}
+
+/**
+ * The first t ∈ [0, 1] at which a lobbed round's ground track (x0, y0) → (x1, y1) enters a real
+ * building (`world.obstacles.lobBlockers`), or -1. The round flies over everything else.
+ */
+export function lobBlockT(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number): number {
+  return firstEntryT(world.obstacles.lobBlockers, x0, y0, x1, y1);
+}
+
+function firstEntryT(list: readonly MapBox[], x0: number, y0: number, x1: number, y1: number): number {
   const dx = x1 - x0;
   const dy = y1 - y0;
   const loX = Math.min(x0, x1);

@@ -10,6 +10,8 @@ import { COVER_STOPS_SHOTS, type CoverObject, type DecayMutation, type DistrictM
  *   exact copy of a collision box (the bus is both `city_bus` and `bus_hull`).
  * - `shotBlockers`: what stops projectiles — the walls, then active cover whose kind stops shots
  *   (`COVER_STOPS_SHOTS`: car, bus), deduplicated the same way.
+ * - `lobBlockers`: what stops a lobbed round's track — the walls flagged `building` (designer
+ *   2026-11-23: rounds fly over cars, the bus, pumps, low walls, barricades and turrets).
  * - `walls`: the walls alone (the client draws them; Story 4.5).
  * - `cover`: the active cover objects (the client draws them; tests).
  *
@@ -26,6 +28,7 @@ export interface ObstacleState {
   version: number;
   readonly solids: MapBox[];
   readonly shotBlockers: MapBox[];
+  readonly lobBlockers: MapBox[];
   readonly walls: MapBox[];
   readonly cover: CoverObject[];
 }
@@ -84,6 +87,7 @@ function pushCover(o: ObstacleState, map: DistrictMap, c: CoverObject): void {
 export function fillObstacles(o: ObstacleState, map: DistrictMap, stage: number, variants: number): void {
   o.solids.length = 0;
   o.shotBlockers.length = 0;
+  o.lobBlockers.length = 0;
   o.walls.length = 0;
   o.cover.length = 0;
   const removed = map.decay.length > 0 ? removedNames(map, stage, variants) : null;
@@ -97,6 +101,7 @@ export function fillObstacles(o: ObstacleState, map: DistrictMap, stage: number,
   for (let i = 0; i < o.walls.length; i++) {
     o.solids.push(o.walls[i] as MapBox);
     o.shotBlockers.push(o.walls[i] as MapBox);
+    if ((o.walls[i] as MapBox).building === true) o.lobBlockers.push(o.walls[i] as MapBox);
   }
   for (let i = 0; i < map.cover.length; i++) {
     const c = map.cover[i] as CoverObject;
@@ -110,7 +115,7 @@ export function fillObstacles(o: ObstacleState, map: DistrictMap, stage: number,
 
 /** The obstacle lists of `map` at `stage` with `variants` (`createWorld` passes the first stage). */
 export function createObstacles(map: DistrictMap, stage: number, variants = 0): ObstacleState {
-  const o: ObstacleState = { stage, variants, version: 0, solids: [], shotBlockers: [], walls: [], cover: [] };
+  const o: ObstacleState = { stage, variants, version: 0, solids: [], shotBlockers: [], lobBlockers: [], walls: [], cover: [] };
   fillObstacles(o, map, stage, variants);
   return o;
 }

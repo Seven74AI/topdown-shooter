@@ -12,6 +12,13 @@
      "height": 320,
      "id": 1,
      "name": "nw_corner_shop",
+     "properties": [
+      {
+       "name": "building",
+       "type": "bool",
+       "value": true
+      }
+     ],
      "rotation": 0,
      "type": "",
      "visible": true,
@@ -23,6 +30,13 @@
      "height": 320,
      "id": 2,
      "name": "nw_apartments",
+     "properties": [
+      {
+       "name": "building",
+       "type": "bool",
+       "value": true
+      }
+     ],
      "rotation": 0,
      "type": "",
      "visible": true,
@@ -34,6 +48,13 @@
      "height": 192,
      "id": 3,
      "name": "gas_kiosk",
+     "properties": [
+      {
+       "name": "building",
+       "type": "bool",
+       "value": true
+      }
+     ],
      "rotation": 0,
      "type": "",
      "visible": true,
@@ -78,6 +99,13 @@
      "height": 320,
      "id": 7,
      "name": "sw_diner",
+     "properties": [
+      {
+       "name": "building",
+       "type": "bool",
+       "value": true
+      }
+     ],
      "rotation": 0,
      "type": "",
      "visible": true,
@@ -100,6 +128,13 @@
      "height": 320,
      "id": 9,
      "name": "se_offices",
+     "properties": [
+      {
+       "name": "building",
+       "type": "bool",
+       "value": true
+      }
+     ],
      "rotation": 0,
      "type": "",
      "visible": true,
@@ -111,6 +146,13 @@
      "height": 320,
      "id": 10,
      "name": "se_warehouse",
+     "properties": [
+      {
+       "name": "building",
+       "type": "bool",
+       "value": true
+      }
+     ],
      "rotation": 0,
      "type": "",
      "visible": true,
