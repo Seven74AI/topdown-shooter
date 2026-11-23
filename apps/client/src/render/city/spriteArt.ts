@@ -91,7 +91,7 @@ export const CHAR_EXTENT_R: Readonly<Record<ZombieTypeId | "survivor", number>> 
   walker: 1.55,
   runner: 1.5,
   crawler: 1.75,
-  spitter: 1.9, // Story 5.6: arms and the hanging jaw (drawn × SPITTER_ART_SCALE) reach ~1.8 r
+  spitter: 2.35, // Story 5.6 (P4): mouth drops ahead and the acid trail behind (drawn × SPITTER_ART_SCALE) reach ~2.3 r
   survivor: 2.15,
 };
 

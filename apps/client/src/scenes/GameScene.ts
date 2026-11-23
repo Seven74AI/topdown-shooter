@@ -35,7 +35,7 @@ import { attachDesktopInput } from "../input/desktopInput";
 import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
 import { ACID_CUE_MS, FireCue } from "../render/fireCue";
-import { AcidFx } from "../render/acidFx";
+import { ACID_SOUND_MAX_AGE_S, AcidFx } from "../render/acidFx";
 import { AcidView } from "../render/AcidView";
 import { playSfx } from "../audio/placeholderSfx";
 import { BurnView } from "../render/BurnView";
@@ -855,6 +855,7 @@ export class GameScene extends Phaser.Scene {
   /** Story 5.6: the spit's "ptoo" and the splash's hiss, only when on screen (panned by screen position). */
   private acidSound(e: SimEvent): void {
     if (e.type !== "spitter.spat" && e.type !== "acid.splashed") return;
+    if ((e.ageS ?? 0) > ACID_SOUND_MAX_AGE_S) return; // review M1: no sound burst from a woken tab's backlog
     const v = this.cameras.main.worldView;
     if (e.x < v.x || e.y < v.y || e.x > v.x + v.width || e.y > v.y + v.height) return;
     const pan = Math.max(-1, Math.min(1, (e.x - (v.x + v.width / 2)) / Math.max(1e-6, v.width / 2)));

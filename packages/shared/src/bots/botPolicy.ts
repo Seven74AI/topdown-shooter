@@ -4,6 +4,8 @@ import { activeSlot } from "../combat/loadout";
 import type { PlayerInput } from "../net/input";
 import type { PlayerState, PlayerStatus } from "../player/player";
 import { MAX_PLAYERS } from "../net/messages";
+import { zombieTypeOf } from "../zombies/zombiePool";
+import { isRushState } from "../zombies/zombieTypes";
 
 /**
  * A simple bot (Story 2.10, AC 5) for load tests (2.10), economy runs (3.10, 6.1) and balance
@@ -15,7 +17,7 @@ import { MAX_PLAYERS } from "../net/messages";
  * 1. a downed teammate within `reviveSearchM`: move to them, stop within `reviveStopM` (standing
  *    there revives them, Story 2.8);
  * 2. a zombie closer than `keepDistanceM`: back away from it;
- * 2b. (Story 5.6) the nearest zombie just beyond my weapon's range (≤ `closeInExtraM` more): step toward it;
+ * 2b. (Story 5.6) the nearest zombie is a Spitter holding its spot just beyond my weapon's range (≤ `closeInExtraM` more): step toward it;
  * 3. farther than `regroupDistM` from the centre of the alive team: move toward it;
  * 4. otherwise stand still.
  *
@@ -43,6 +45,8 @@ export interface BotZombie {
   x: number;
   y: number;
   distM: number;
+  /** Story 5.6 review M2: a stand-off zombie holding its spot (a Spitter, not rushing); false otherwise / unknown. */
+  holdsSpot?: boolean;
 }
 
 /** What a bot can know. Preallocated by `createBotView`; filled in place each tick. */
@@ -79,7 +83,7 @@ export function createBotView(): BotView {
     teammates,
     teammateCount: 0,
     nearestZombie: null,
-    zombie: { x: 0, y: 0, distM: 0 },
+    zombie: { x: 0, y: 0, distM: 0, holdsSpot: false },
   };
 }
 
@@ -156,10 +160,10 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
     return;
   }
 
-  // 2b. Story 5.6: the nearest zombie stands just out of my range (a Spitter at 6 m vs the 5 m
-  // Shotgun): step toward it so I can shoot back.
+  // 2b. Story 5.6 (review M2): the nearest zombie is a Spitter holding its spot just out of my range
+  // (6 m vs the 5 m Shotgun): step toward it so I can shoot back. Never for walking zombies.
   const extra = cfg.closeInExtraM ?? 0;
-  if (z && extra > 0 && z.distM > me.rangeM && z.distM <= me.rangeM + extra) {
+  if (z && z.holdsSpot === true && extra > 0 && z.distM > me.rangeM && z.distM <= me.rangeM + extra) {
     moveToward(out, z.x - me.x, z.y - me.y);
     return;
   }
@@ -208,6 +212,7 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
   let bestD2 = Infinity;
   let bx = 0;
   let by = 0;
+  let bid = -1;
   for (let i = 0; i < zs.aliveCount; i++) {
     const id = zs.aliveIds[i] as number;
     const dx = (zs.x[id] as number) - p.x;
@@ -217,12 +222,15 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
       bestD2 = d2;
       bx = zs.x[id] as number;
       by = zs.y[id] as number;
+      bid = id;
     }
   }
   if (bestD2 < Infinity) {
     out.zombie.x = bx;
     out.zombie.y = by;
     out.zombie.distM = Math.sqrt(bestD2);
+    // Review M2: a Spitter holds its spot unless it rushes (FR30: then it walks in between spits).
+    out.zombie.holdsSpot = world.balance.zombies.types[zombieTypeOf(zs, bid)]?.spit !== undefined && !isRushState(zs.state[bid] as number);
     out.nearestZombie = out.zombie;
   }
 }

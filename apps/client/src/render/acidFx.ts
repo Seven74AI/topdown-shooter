@@ -18,6 +18,8 @@ import type { SimEvent } from "@topdown/shared";
  * Fixed pools, no allocation per event or frame.
  */
 export const GLOB_GRACE_S = 0.5;
+/** Review M1: a spit or splash event older than this when drained (a woken tab) plays no sound. */
+export const ACID_SOUND_MAX_AGE_S = 0.25;
 
 export class AcidFx {
   readonly globId: Int32Array;
@@ -57,8 +59,9 @@ export class AcidFx {
 
   /** Routes one drained event (others are ignored). Returns true when it was a spit/acid/build event. */
   handle(e: SimEvent, nowS: number): boolean {
-    if (e.type === "spitter.spat") this.spat(e.spitId, e.x, e.y, e.toX, e.toY, nowS);
-    else if (e.type === "acid.splashed") this.splashed(e.puddleId, e.x, e.y, nowS);
+    // Review M1: an event drained late (a woken tab) starts as far back as it is old.
+    if (e.type === "spitter.spat") this.spat(e.spitId, e.x, e.y, e.toX, e.toY, nowS - (e.ageS ?? 0));
+    else if (e.type === "acid.splashed") this.splashed(e.puddleId, e.x, e.y, nowS - (e.ageS ?? 0));
     else if (e.type === "build.started") this.clear();
     else return false;
     return true;

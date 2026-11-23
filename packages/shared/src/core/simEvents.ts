@@ -94,13 +94,23 @@ export type SimEvent =
    * end of its flight (the target's position at release, or the range end). It flies straight at the
    * type's `spit.speedMps`; `acid.splashed` with the same id ends it.
    */
-  | { type: "spitter.spat"; zombieId: number; spitId: number; x: number; y: number; toX: number; toY: number }
+  | {
+      type: "spitter.spat";
+      zombieId: number;
+      spitId: number;
+      x: number;
+      y: number;
+      toX: number;
+      toY: number;
+      /** Review M1: client only (never on the wire): seconds since the server tick, set by NetSimHost on drain. */
+      ageS?: number;
+    }
   /**
    * Story 5.6: glob `puddleId` (= its `spitId`) ended at (x, y) — on a player (`hitPlayerId`), at a
    * car / bus / building face, or at its aim point — and left an acid puddle there (radius and
    * lifetime from balance).
    */
-  | { type: "acid.splashed"; puddleId: number; x: number; y: number; hitPlayerId: string | null }
+  | { type: "acid.splashed"; puddleId: number; x: number; y: number; hitPlayerId: string | null; /** Review M1: client only, as above. */ ageS?: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];
