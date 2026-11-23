@@ -18,7 +18,7 @@ import { FLOW_UNREACHED, flowCellAt, rebuildFlowFieldNow } from "../zombies/flow
 import { maxZombieRadius, ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
 import { spawnZombie } from "../zombies/zombiePool";
 import { applyDecayStage } from "./applyDecayStage";
-import { legalDecayMasks } from "./decayState";
+import { circleInFire, fireRecordOf, legalDecayMasks } from "./decayState";
 import { changeDecayStage, relocated } from "./decaySystem";
 
 /**
@@ -217,6 +217,35 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
         }
       }
     }
+  });
+
+  it("4.3 re-review L2 (in 4.8 rr): no fire an ignite can light touches any spawn's whole jitter segment (every spawn, every stage), for the largest zombie", () => {
+    const jitter = balance.waves.spawnJitterM;
+    const rz = maxZombieRadius(balance);
+    const w = createWorld({ balance, seed: 1, map: DT });
+    const ignites = DT.decay.filter((m) => m.action === "ignite");
+    expect(ignites).toHaveLength(3); // liveness: the three candidate cars
+    const lo = { x: 0, y: 0 };
+    const hi = { x: 0, y: 0 };
+    let margin = Infinity;
+    for (const m of ignites) {
+      const fire = fireRecordOf(m, 0, balance.decay.fire.radiusM);
+      for (const sp of DT.spawnPoints) {
+        jitteredSpawn(w, sp, -jitter, rz, lo);
+        jitteredSpawn(w, sp, jitter, rz, hi);
+        // The point of the segment lo–hi closest to the fire's centre (the jitter is a straight segment).
+        const dx = hi.x - lo.x;
+        const dy = hi.y - lo.y;
+        const len2 = dx * dx + dy * dy;
+        const t = len2 > 0 ? Math.min(1, Math.max(0, ((fire.x - lo.x) * dx + (fire.y - lo.y) * dy) / len2)) : 0;
+        const cx = lo.x + dx * t;
+        const cy = lo.y + dy * t;
+        expect(circleInFire([fire], cx, cy, rz), `${m.name} touches ${sp.name}'s jitter segment`).toBe(false);
+        for (let k = 0; k <= 8; k++) expect(circleInFire([fire], lo.x + (dx * k) / 8, lo.y + (dy * k) / 8, rz)).toBe(false);
+        margin = Math.min(margin, Math.hypot(cx - fire.x, cy - fire.y) - (fire.radiusM + rz));
+      }
+    }
+    expect(margin).toBeGreaterThan(0); // closest today: parking_lot_south vs parked_car_2 (≈ 3.25 m vs 2.35 m needed)
   });
 
   it("zombies reach us after Panic, on the real map, for every combination: a Walker from every spawn open at stage 2 (all types for 3 combinations)", () => {

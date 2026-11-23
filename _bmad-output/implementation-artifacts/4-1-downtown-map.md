@@ -162,3 +162,4 @@ Gates after the fixes (merged with 4f9acbf): typecheck, lint, test (165 files, 1
 
 - 2026-11-22: Story built (37ccca1).
 - 2026-11-22: Merged the work branch with Story 4.4 (b95329d; headlessRun conflict resolved). Review fixes M1, M2, L3–L8; Status done.
+- Re-review 2026-11-23 L1: the two untested `returnSpot` fallbacks (team starts; boxes-only wide rings) now have tests in `player/downed.test.ts` (every ring blocked, a zombie / a fire on team starts, never in a box or a fire); mutations "team start accepted unchecked" and "boxes-only ring removed" fail them. Fixed in 4.8 rr (fire-aware placement, Story 4.8 re-review H1).

@@ -2,12 +2,15 @@ import type { World } from "../core/world";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import type { PlayerState } from "./player";
 import { circleHitsBuilding } from "../buildings/collision";
+import { circleInFire } from "../decay/decayState";
 
 /**
  * Free-spot search for placing a player (Epic 2 retro A12; Story 3.1's build-start return). One
  * occupancy check, `spotBlocked`, decides what a circle may not overlap: the map edge, other players
  * (out players are off the map), alive zombies and (Story 3.4) buildings, so every placement that
- * uses it (this return, later joins) avoids them too.
+ * uses it (this return, later joins) avoids them too. Story 4.8 re-review H1: and every burning fire
+ * zone (`world.decay.fires`, the damage's own "body touches the ring = burns" rule, `circleInFire`),
+ * unless the caller asks for a fire-blind last resort (`avoidFire` false).
  */
 
 /** Candidate directions, tried in this order on each ring (fixed: deterministic). */
@@ -22,11 +25,19 @@ const DIRS: readonly (readonly [number, number])[] = [
   [-Math.SQRT1_2, -Math.SQRT1_2],
 ];
 
-/** The circle (x, y, r) overlaps the map edge, another placed player, an alive zombie or a building. */
-export function spotBlocked(world: Readonly<World>, x: number, y: number, r: number, self: PlayerState | null): boolean {
+/**
+ * The circle (x, y, r) overlaps the map edge, another placed player, an alive zombie, a building or
+ * (Story 4.8 re-review H1, unless `avoidFire` is false) a burning fire zone.
+ */
+export function spotBlocked(world: Readonly<World>, x: number, y: number, r: number, self: PlayerState | null, avoidFire = true): boolean {
   const { widthM, heightM } = world.map;
   if (x < r || x > widthM - r || y < r || y > heightM - r) return true;
-  return bodiesAt(world, x, y, r, self) || circleHitsBuilding(world, x, y, r);
+  return bodiesAt(world, x, y, r, self) || circleHitsBuilding(world, x, y, r) || (avoidFire && circleInFire(world.decay.fires, x, y, r));
+}
+
+/** Story 4.8 re-review H1: `boxBlocked`, or (when `avoidFire`) the circle is in a burning fire zone. */
+export function boxOrFireBlocked(world: Readonly<World>, x: number, y: number, r: number, avoidFire = true): boolean {
+  return boxBlocked(world, x, y, r) || (avoidFire && circleInFire(world.decay.fires, x, y, r));
 }
 
 /** Story 4.1 review L4: the circle overlaps the map edge, a map box or a building (bodies ignored). */
@@ -70,6 +81,8 @@ export function findFreeSpotNear(
   rings = world.balance.player.returnSearchRings,
   /** Story 4.1 review L4: true = only the map edge, map boxes and buildings count (players and zombies ignored). */
   boxesOnly = false,
+  /** Story 4.8 re-review H1: burning fire zones count too (false only for a fire-blind last resort). */
+  avoidFire = true,
 ): boolean {
   const stats = world.balance.player;
   for (let ring = 1; ring <= rings; ring++) {
@@ -78,7 +91,7 @@ export function findFreeSpotNear(
       const [dx, dy] = DIRS[i] as readonly [number, number];
       const x = cx + dx * dist;
       const y = cy + dy * dist;
-      if (boxesOnly ? boxBlocked(world, x, y, self.radiusM) : spotBlocked(world, x, y, self.radiusM, self)) continue;
+      if (boxesOnly ? boxOrFireBlocked(world, x, y, self.radiusM, avoidFire) : spotBlocked(world, x, y, self.radiusM, self, avoidFire)) continue;
       out.x = x;
       out.y = y;
       return true;

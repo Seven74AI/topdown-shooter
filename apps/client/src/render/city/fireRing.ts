@@ -39,3 +39,14 @@ export function emberSpot(f: FireZone, i: number, n: number, t: number, out: { x
 export function fireRingWidthM(zoomPxPerM: number): number {
   return FIRE_RING_WIDTH_PX / Math.max(1e-6, zoomPxPerM);
 }
+
+/**
+ * Story 4.8 re-review L3: strokes the ring of the first `max` zones on `g` (CityView's Graphics) at
+ * `fireRingRadiusM`; pure over a `strokeCircle` sink so the radius drawn is pinned by a test.
+ */
+export function strokeFireRings(g: { strokeCircle(x: number, y: number, r: number): unknown }, fires: readonly FireZone[], max: number): void {
+  for (let i = 0; i < fires.length && i < max; i++) {
+    const f = fires[i] as FireZone;
+    g.strokeCircle(f.x, f.y, fireRingRadiusM(f));
+  }
+}
