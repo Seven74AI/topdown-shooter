@@ -131,3 +131,19 @@ export function legalDecayMasks(map: DistrictMap): number[] {
   }
   return masks.sort((a, b) => a - b);
 }
+
+/**
+ * Story 4.8: the body circle overlaps a burning zone (strict: centre closer than zone radius + body
+ * radius; "your body touches the ring = you burn", D16). Lives here (no imports) so player placement
+ * (`player/freeSpot.ts`) can use the same rule as the damage without an import cycle.
+ */
+export function circleInFire(fires: readonly FireRecord[], x: number, y: number, r: number): boolean {
+  for (let i = 0; i < fires.length; i++) {
+    const f = fires[i] as FireRecord;
+    const dx = x - f.x;
+    const dy = y - f.y;
+    const rr = r + f.radiusM;
+    if (dx * dx + dy * dy < rr * rr) return true;
+  }
+  return false;
+}

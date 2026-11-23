@@ -5,7 +5,7 @@ import { damageBuilding, type Building } from "../buildings/buildings";
 import { downPlayer } from "../player/downed";
 import type { PlayerState } from "../player/player";
 import { killZombie, zombieTypeOf } from "../zombies/zombiePool";
-import type { FireRecord } from "./decayState";
+import { circleInFire, type FireRecord } from "./decayState";
 
 /**
  * Story 4.8: car fires (FR57, FR53, FR61). The burning zones are `world.decay.fires` (written only
@@ -25,17 +25,7 @@ import type { FireRecord } from "./decayState";
  * No allocation per tick (module-level callbacks and scratch only).
  */
 
-/** The body circle overlaps a burning zone (strict). */
-export function circleInFire(fires: readonly FireRecord[], x: number, y: number, r: number): boolean {
-  for (let i = 0; i < fires.length; i++) {
-    const f = fires[i] as FireRecord;
-    const dx = x - f.x;
-    const dy = y - f.y;
-    const rr = r + f.radiusM;
-    if (dx * dx + dy * dy < rr * rr) return true;
-  }
-  return false;
-}
+export { circleInFire } from "./decayState";
 
 function boxInFire(fires: readonly FireRecord[], b: Building): boolean {
   for (let i = 0; i < fires.length; i++) {
@@ -144,6 +134,25 @@ export function updateFires(world: World): void {
     damageBuilding(world, b, amount);
     firePulse.buildings++;
   }
+}
+
+/** Module-level callback (no closure per call). */
+const coolPlayer = (p: PlayerState): void => {
+  p.fireTicks = 0;
+};
+
+/**
+ * Story 4.8 re-review L2: every body's burn clock restarts at each build start (players, every zombie
+ * slot, buildings). Within a wave (and its build phase) the clock is kept while a body is outside, so
+ * stepping out dodges nothing (review L4); across a build start the exposure never carries over, so
+ * brushing a fire for 9 ticks in wave 3 doesn't make one tick in wave 5 cost a pulse. Runs in
+ * `decayMutate` (server and solo; the client's Worlds run no systems). No allocation.
+ */
+export function resetBurnClocks(world: World): void {
+  world.players.forEach(coolPlayer);
+  world.zombies.fireTicks.fill(0);
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length; i++) (list[i] as Building).fireTicks = 0;
 }
 
 /** Story 4.8 review M1/M2: the fires lit at this build start (filled by `newlyLitFires`; build starts only). */

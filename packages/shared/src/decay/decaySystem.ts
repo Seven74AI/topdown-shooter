@@ -3,7 +3,7 @@ import type { MapBox } from "../map/districtMap";
 import { buildingStats, removeBuilding, type Building } from "../buildings/buildings";
 import { PUSH_STUCK, circleHitsBuilding, pushOutOfBuildings, pushed } from "../buildings/collision";
 import { refundMoney } from "../economy/economy";
-import { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "../player/freeSpot";
+import { boxBlocked, boxOrFireBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "../player/freeSpot";
 import type { PlayerState } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
 import { killZombie, zombieTypeOf } from "../zombies/zombiePool";
@@ -11,7 +11,7 @@ import { rebuildFlowFieldNow } from "../zombies/flowField";
 import { applyDecayStage } from "./applyDecayStage";
 import { stageForWave } from "./decayState";
 import type { FireRecord } from "./decayState";
-import { buildingInFires, circleInFire, fireExpiry, lightNewFires, newlyLitFires } from "./fire";
+import { buildingInFires, circleInFire, fireExpiry, lightNewFires, newlyLitFires, resetBurnClocks } from "./fire";
 
 /**
  * Story 4.5 `DecaySystem` (FR58; architecture › Decay Stage Engine). Runs only at the start of a
@@ -74,9 +74,12 @@ function placePlayer(p: PlayerState, x: number, y: number): void {
 }
 
 /**
- * A player inside a solid: the shortest push-out if it lands clear of boxes and bodies; else the
- * free-spot rings (bodies counted), the wide rings, the wide rings ignoring bodies; else the team
- * starts. Returns false only if every candidate is blocked (never on Downtown).
+ * A player inside a solid: the shortest push-out if it lands clear of boxes, bodies and fires; else
+ * the free-spot rings (bodies counted), the wide rings, the wide rings ignoring bodies; else the team
+ * starts. Story 4.8 re-review H1: every one of these also stays out of every burning fire (a push-out
+ * from a new box must not land in a fire still burning from the previous wave); only if all fail,
+ * the fire-blind wide rings and team starts (in a fire beats inside a box), counted in
+ * `relocated.leftInFire`. Returns false only if every candidate is blocked (never on Downtown).
  */
 function relocatePlayer(world: World, p: PlayerState): boolean {
   const r = p.radiusM;
@@ -93,8 +96,21 @@ function relocatePlayer(world: World, p: PlayerState): boolean {
   }
   for (let slot = 0; slot < 4; slot++) {
     teamSpawnPoint(world, slot, spot);
+    if (!boxOrFireBlocked(world, spot.x, spot.y, r)) {
+      placePlayer(p, spot.x, spot.y);
+      return true;
+    }
+  }
+  if (findFreeSpotNear(world, x, y, p, spot, rings, true, false)) {
+    placePlayer(p, spot.x, spot.y);
+    relocated.leftInFire++;
+    return true;
+  }
+  for (let slot = 0; slot < 4; slot++) {
+    teamSpawnPoint(world, slot, spot);
     if (!boxBlocked(world, spot.x, spot.y, r)) {
       placePlayer(p, spot.x, spot.y);
+      relocated.leftInFire++;
       return true;
     }
   }
@@ -129,25 +145,27 @@ function relocateZombie(world: World, id: number): number {
   return 0;
 }
 
-/** Step 3 result (tests and logs). */
-export const relocated = { players: 0, zombies: 0, zombiesRemoved: 0, playersStuck: 0, outOfFire: 0 };
+/**
+ * Step 3 result (tests and logs). Story 4.8 re-review L1: `leftInFire` = players this build start had
+ * to leave in (or put into) a burning fire because every fire-free candidate was blocked (like
+ * `playersStuck`; never on Downtown: the fuzz asserts no standing player in a fire after a build start).
+ */
+export const relocated = { players: 0, zombies: 0, zombiesRemoved: 0, playersStuck: 0, outOfFire: 0, leftInFire: 0 };
 
 /** Directions tried round a fire when moving a player out of it (16: every 22.5°). */
 const FIRE_EXIT_DIRECTIONS = 16;
 /** Past the touching distance, so the body is strictly outside the zone. */
 const FIRE_EXIT_EPS_M = 1e-6;
 
-function spotFreeOfFire(world: World, p: PlayerState, x: number, y: number): boolean {
-  return !spotBlocked(world, x, y, p.radiusM, p) && !circleInFire(world.decay.fires, x, y, p.radiusM);
-}
-
 /**
  * Story 4.8 review M1 (step 3, after `relocateBodies`): every standing player inside a fire lit at
  * this build start is moved just outside it, to fire radius + body radius from its centre: first
  * straight out along its own direction, then the other 15 directions round the zone (alternating
- * sides), each clear of boxes, bodies and every burning zone; else the free-spot rings round it;
- * else the team starts. Downed players stay (fire spares them, D4); out players are off the map.
- * Returns how many moved.
+ * sides), each clear of boxes, bodies and every burning zone; else the first fire-free spot of the
+ * free-spot rings round it (re-review L1: the fire filter is inside the search, so it tries the next
+ * spot instead of giving up on the first); else the team starts. If all fail the player stays and is
+ * counted (`relocated.leftInFire`). Downed players stay (fire spares them, D4); out players are off
+ * the map. Returns how many moved.
  */
 export function moveOutOfNewFires(world: World, lit: readonly FireRecord[]): number {
   relocated.outOfFire = 0;
@@ -165,24 +183,24 @@ export function moveOutOfNewFires(world: World, lit: readonly FireRecord[]): num
       const a = a0 + (step * 2 * Math.PI) / FIRE_EXIT_DIRECTIONS;
       const x = f.x + Math.cos(a) * d;
       const y = f.y + Math.sin(a) * d;
-      if (spotFreeOfFire(world, p, x, y)) {
+      if (!spotBlocked(world, x, y, p.radiusM, p)) {
         placePlayer(p, x, y);
         done = true;
       }
     }
-    const rings = world.balance.decay.relocateSearchRings;
-    if (!done && findFreeSpotNear(world, f.x, f.y, p, spot, rings) && !circleInFire(world.decay.fires, spot.x, spot.y, p.radiusM)) {
+    if (!done && findFreeSpotNear(world, f.x, f.y, p, spot, world.balance.decay.relocateSearchRings)) {
       placePlayer(p, spot.x, spot.y);
       done = true;
     }
     for (let slot = 0; slot < 4 && !done; slot++) {
       teamSpawnPoint(world, slot, spot);
-      if (spotFreeOfFire(world, p, spot.x, spot.y)) {
+      if (!spotBlocked(world, spot.x, spot.y, p.radiusM, p)) {
         placePlayer(p, spot.x, spot.y);
         done = true;
       }
     }
     if (done) relocated.outOfFire++;
+    else relocated.leftInFire++;
   }
   return relocated.outOfFire;
 }
@@ -193,6 +211,7 @@ export function relocateBodies(world: World): void {
   relocated.zombies = 0;
   relocated.zombiesRemoved = 0;
   relocated.playersStuck = 0;
+  relocated.leftInFire = 0;
   for (const p of world.players.values()) {
     if (p.status === "out" || !circleHitsBuilding(world, p.x, p.y, p.radiusM)) continue;
     if (relocatePlayer(world, p)) relocated.players++;
@@ -211,9 +230,10 @@ export function relocateBodies(world: World): void {
 /**
  * Steps 1–3 for `stage` (the variants stay the run's) at the build start before wave
  * `waves.number + 1`. Story 4.8: also when only fires go out (the stage unchanged). Returns false
- * when nothing changes (then nothing happens at all).
+ * when nothing changes (then nothing else happens: only the burn clocks restart, re-review L2).
  */
 export function decayMutate(world: World, stage: number): boolean {
+  resetBurnClocks(world); // re-review L2: every build start (also when nothing else changes)
   const coming = world.waves.number + 1;
   const changed = applyDecayStage(world, stage, world.decay.variants, fireExpiry(world, stage, coming));
   const lit = newlyLitFires(world); // Story 4.8 review M1/M2: before they get their end wave

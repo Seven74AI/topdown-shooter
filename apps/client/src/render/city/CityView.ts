@@ -9,7 +9,7 @@ import { ATLAS_FX, FX_GLOW, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type
 import { hash } from "./spriteArt";
 import { addCanvasTexture, releaseCanvas } from "./canvasTexture";
 import { staticKey } from "./stageFilter";
-import { FIRE_EMBERS, FIRE_EMBER_FLICKER_HZ, FIRE_EMBER_M, FIRE_RING_ALPHA, FIRE_RING_COLOR, emberSpot, fireRingRadiusM, fireRingWidthM } from "./fireRing";
+import { FIRE_EMBERS, FIRE_EMBER_FLICKER_HZ, FIRE_EMBER_M, FIRE_RING_ALPHA, FIRE_RING_COLOR, emberSpot, fireRingWidthM, strokeFireRings } from "./fireRing";
 
 /**
  * Story 4.9: the Dead City look of the district (look B). Static layers (ground, shadows, buildings,
@@ -246,10 +246,7 @@ export class CityView {
       const g = this.fireRing;
       g.clear();
       g.lineStyle(fireRingWidthM(zoom), FIRE_RING_COLOR, FIRE_RING_ALPHA);
-      for (let i = 0; i < fires.length && i < FIRE_LIGHTS; i++) {
-        const f = fires[i] as FireRecord;
-        g.strokeCircle(f.x, f.y, fireRingRadiusM(f));
-      }
+      strokeFireRings(g, fires, FIRE_LIGHTS);
     }
     for (let i = 0; i < this.embers.length; i++) {
       const img = this.embers[i] as Phaser.GameObjects.Image;

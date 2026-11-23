@@ -148,3 +148,4 @@ Gates after the fixes (merged with 3574701): typecheck, lint, test (171 files, 1
 
 - 2026-11-22: Story created (gds-create-story) and built: spawn kinds and stages on Downtown, stage accessor, 6 m skip with hold-then-farthest, side-first spread, stage-aware placement clearance, dev collision/grid view. Status review.
 - 2026-11-22: Merged the work branch with Story 4.2 (single stage accessor, one stage cheat); review fixes M, L1–L4. Status done.
+- Re-review 2026-11-23: L1 spawn penning → designer decision pending; L2 fire-vs-spawn test added in 4.8 rr (`decay/panic.test.ts`: every `ignite` vs every spawn's whole jitter segment, largest zombie radius; mutation: fire radius 3.2 m fails it).

@@ -9,7 +9,9 @@ import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { skipWave, startBuild, startWave } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import { downPlayer, returnOutPlayers } from "./downed";
-import { spotBlocked } from "./freeSpot";
+import { boxBlocked, spotBlocked } from "./freeSpot";
+import { teamSpawnPoint } from "./spawn";
+import { circleInFire } from "../decay/decayState";
 import { addPlayer, removePlayer, type PlayerState } from "./player";
 import { spectateTarget } from "./spectate";
 
@@ -325,6 +327,59 @@ describe("out and return", () => {
     expect(a2.x).toBeCloseTo(b2.x + off * (balance.player.returnSearchRings + 1), 9);
     expect(a2.y).toBe(b2.y);
     expect(spotBlocked(w2.world, a2.x, a2.y, a2.radiusM, a2)).toBe(false);
+  });
+
+  /** Story 4.1/4.8 re-review: every spot of the wide rings round (x, y) taken by a zombie. */
+  const blockWideRings = (world: World, x: number, y: number) => {
+    const off = balance.player.spawnOffsetM;
+    for (let k = 1; k <= balance.player.returnWideSearchRings; k++) {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, Math.SQRT1_2], [Math.SQRT1_2, -Math.SQRT1_2], [-Math.SQRT1_2, -Math.SQRT1_2]] as const) {
+        const zx = x + dx * off * k;
+        const zy = y + dy * off * k;
+        if (zx > 0 && zx < world.map.widthM && zy > 0 && zy < world.map.heightM) spawnZombie(world, "walker", zx, zy);
+      }
+    }
+  };
+  /** A synthetic burning zone (the return rules read `world.decay.fires` only). */
+  const fireAt = (world: World, x: number, y: number, radiusM: number) => {
+    world.decay.fires.push(Object.freeze({ name: "test_fire", target: "", x, y, radiusM, stage: 3, index: 0 }));
+  };
+
+  it("re-review (4.1 L1 / 4.8 H1): every ring taken → the team starts, skipping one a zombie holds and one in a fire", () => {
+    const { world, players } = setup(["p0", "p1"]);
+    const [a, b] = players as [PlayerState, PlayerState];
+    b.x = b.prevX = 8;
+    b.y = b.prevY = 8;
+    goOut(world, a);
+    blockWideRings(world, b.x, b.y);
+    const at = { x: 0, y: 0 };
+    teamSpawnPoint(world, 0, at);
+    spawnZombie(world, "walker", at.x, at.y); // slot 0 held by a body
+    teamSpawnPoint(world, 1, at);
+    fireAt(world, at.x, at.y, 0.5); // slot 1 burning
+    returnOutPlayers(world);
+    expect(a.status).toBe("alive");
+    teamSpawnPoint(world, 2, at);
+    expect([a.x, a.y]).toEqual([at.x, at.y]);
+    expect(spotBlocked(world, a.x, a.y, a.radiusM, a)).toBe(false);
+  });
+
+  it("re-review (4.1 L1 / 4.8 H1): every ring and every team start taken → the wide rings ignoring bodies, outside boxes and fires (not the teammate's own spot)", () => {
+    const { world, players } = setup(["p0", "p1"]);
+    const [a, b] = players as [PlayerState, PlayerState];
+    b.x = b.prevX = 8;
+    b.y = b.prevY = 8;
+    goOut(world, a);
+    blockWideRings(world, b.x, b.y);
+    const at = { x: 0, y: 0 };
+    for (let slot = 0; slot < 4; slot++) spawnZombie(world, "walker", teamSpawnPoint(world, slot, at).x, at.y);
+    const off = balance.player.spawnOffsetM;
+    fireAt(world, b.x + off, b.y, 0.3); // the first candidate (+x, ring 1) burns
+    returnOutPlayers(world);
+    expect(a.status).toBe("alive");
+    expect([a.x, a.y]).toEqual([b.x - off, b.y]); // the next one, −x (bodies ignored)
+    expect(circleInFire(world.decay.fires, a.x, a.y, a.radiusM)).toBe(false);
+    expect(boxBlocked(world, a.x, a.y, a.radiusM)).toBe(false);
   });
 
   it("with the real run state machine: out in wave 1, back when the build after it starts", () => {

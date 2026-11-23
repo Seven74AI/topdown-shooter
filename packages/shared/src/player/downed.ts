@@ -111,7 +111,10 @@ const healStanding = (p: PlayerState): void => {
  * in `returnSearchRings` rings round the teammate; in `returnWideSearchRings` rings; the team starts
  * (slots 0–3); the first spot in the wide rings clear of the map edge, map boxes and buildings
  * (overlapping bodies, which the push-outs separate); and, as a last resort, the teammate's own
- * spot (a standing body is outside every box). Never inside a map box or a building.
+ * spot (a standing body is outside every box). Never inside a map box or a building. Story 4.8
+ * re-review H1: every step but the last also stays out of every burning fire zone (`spotBlocked` /
+ * `findFreeSpotNear` are fire-aware), so a player returned beside a teammate M1 pushed to a fire's
+ * ring is not put back into the fire.
  */
 function returnSpot(world: World, p: PlayerState, tx: number, ty: number): void {
   const stats = world.balance.player;
