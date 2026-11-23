@@ -1,0 +1,510 @@
+<title>Survivor Editor Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one dark "night street" workbench. Close-up + parts on top, game-size street below. Single dark theme on purpose (the game's look). */
+:root {
+  color-scheme: dark;
+  --asphalt: #121417;
+  --panel: #1b1e22;
+  --panel-2: #23272c;
+  --line: #333840;
+  --fg: #d9d4c7;
+  --muted: #8d8a80;
+  --sodium: #e0a646;      /* streetlight amber: the one accent */
+  --hint: #e07b5a;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+html, body { background: var(--asphalt); color: var(--fg); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 20px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
+header h1 { font-family: var(--display); font-weight: 700; font-size: 2rem; letter-spacing: .02em; margin: 0; text-transform: uppercase; text-wrap: balance; }
+header h1 span { color: var(--sodium); }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+.top { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 760px) { .top { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; min-width: 0; }
+.label { font-family: var(--display); text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; color: var(--muted); }
+#closeup { width: 100%; max-width: 312px; aspect-ratio: 1; display: block; margin: 6px auto 0; border-radius: 4px; touch-action: none; cursor: grab; }
+.code { font-family: var(--mono); font-size: 11.5px; color: var(--muted); word-break: break-all; background: var(--asphalt); border: 1px solid var(--line); padding: 6px 8px; border-radius: 4px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button, select { font: inherit; color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 6px 11px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, select:focus-visible, input:focus-visible, .opt:focus-visible { outline: 2px solid var(--sodium); outline-offset: 2px; }
+button.primary { background: var(--sodium); color: #1a1408; border-color: var(--sodium); font-weight: 600; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.tabs button { font-family: var(--display); text-transform: uppercase; letter-spacing: .06em; font-size: .95rem; background: none; border-color: transparent; }
+.tabs button[aria-selected="true"] { border-color: var(--sodium); color: var(--sodium); }
+.opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; margin-top: 12px; }
+.opt { position: relative; background: var(--asphalt); border: 1px solid var(--line); border-radius: 4px; padding: 4px 2px 5px; text-align: center; font-size: 11.5px; color: var(--muted); cursor: pointer; }
+.opt canvas { width: 64px; height: 64px; display: block; margin: 0 auto; }
+.opt[aria-pressed="true"] { border-color: var(--sodium); color: var(--fg); }
+.opt.locked { cursor: not-allowed; }
+.opt.locked canvas { opacity: .35; }
+.opt .tag { position: absolute; top: 3px; right: 4px; font-size: 10px; font-family: var(--display); letter-spacing: .05em; text-transform: uppercase; }
+.tag.m { color: var(--sodium); } .tag.l { color: #b9a4e0; }
+.colors { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; }
+.color { display: grid; grid-template-columns: auto auto auto; gap: 6px; align-items: center; font-size: 13px; }
+.color input { width: 38px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; }
+.sw { width: 24px; height: 24px; border-radius: 3px; border: 1px solid var(--line); }
+.hintline { color: var(--hint); font-size: 13px; min-height: 1.3em; margin-top: 8px; }
+.skins { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.skins button { width: 34px; height: 34px; border-radius: 50%; padding: 0; }
+.skins button[aria-pressed="true"] { outline: 2px solid var(--sodium); outline-offset: 2px; }
+.lockinfo { font-size: 13px; color: var(--muted); margin-top: 10px; min-height: 1.3em; }
+#scene { width: 100%; height: 320px; display: block; border-radius: 4px; touch-action: manipulation; cursor: crosshair; }
+.scenebar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 10px; }
+.slotdots { display: flex; gap: 6px; }
+.slotdots button { width: 26px; height: 26px; border-radius: 50%; padding: 0; border: 2px solid transparent; }
+.slotdots button[aria-pressed="true"] { border-color: var(--fg); }
+#findmsg { font-family: var(--display); font-size: 1.05rem; letter-spacing: .03em; color: var(--sodium); min-height: 1.4em; }
+.note { color: var(--muted); font-size: 13px; max-width: 75ch; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Survivor <span>editor</span></h1>
+    <p>Mockup for the customization idea. Every part is drawn in code, the way the game draws its survivor. Pick parts and colours. The street below shows your survivor at real game size (35 px per metre, as on a phone in landscape), among teammates and zombies.</p>
+  </header>
+
+  <div class="top">
+    <section class="card" aria-label="Close-up preview">
+      <div class="row" style="justify-content:space-between"><span class="label">Close-up (drag to turn)</span><span class="label" id="lightlbl">editor light</span></div>
+      <canvas id="closeup" width="312" height="312"></canvas>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="random" type="button">Random</button>
+        <button id="reset" type="button">Default</button>
+        <button id="save" type="button">Done</button>
+        <select id="weapon" aria-label="Held weapon">
+          <option value="pistol">Pistol</option><option value="smg">SMG</option><option value="shotgun">Shotgun</option><option value="rifle">Hunting Rifle</option>
+        </select>
+      </div>
+      <div style="margin-top:10px" class="label">Look code (sent once on join)</div>
+      <div class="code" id="code"></div>
+      <div class="note" id="savemsg" style="margin-top:6px"></div>
+    </section>
+
+    <section class="card" aria-label="Parts">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div id="panel"></div>
+      <div class="lockinfo" id="lockinfo"></div>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="unlockall"> Preview locked items (milestone and loot)</label>
+    </section>
+  </div>
+
+  <section class="card" aria-label="Game-size street">
+    <div class="scenebar">
+      <span class="label">In game</span>
+      <span class="row" style="gap:6px"><span class="note">Your slot</span><span class="slotdots" id="slots"></span></span>
+      <label class="note">Decay stage <select id="stage"><option value="1">1 Evening</option><option value="2" selected>2 Panic</option><option value="3">3 Breakdown</option></select></label>
+      <button id="find" type="button">Find-me test</button>
+      <span id="findmsg" aria-live="polite"></span>
+    </div>
+    <canvas id="scene"></canvas>
+    <p class="note" style="margin-top:10px">Find-me test: the four survivors jump to new places. Tap yours as fast as you can. On a desktop screen everything looks bigger than on a phone; open this page on your phone for the true size. The glinting sack is the very rare loot bag (shown here every few seconds so you can see it; in the game about 1 run in 5 has one).</p>
+  </section>
+</div>
+
+<script>
+"use strict";
+const TAU = Math.PI * 2;
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+const PPM = 35;              // CSS px per metre on a phone in landscape (24 m across)
+const BODY_R_M = 0.4;        // balance player.radiusM
+const SLOT = ["#3d8bff", "#ff8a1f", "#34c759", "#b05cff"];
+const SLOT_NAMES = ["blue", "orange", "green", "purple"];
+const RUNNER_REDS = ["#6e2a24", "#5e2a2e"];
+const OUT = "rgba(6,6,6,0.7)";
+
+// ---------- colour helpers ----------
+function rgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function hex(c) { return "#" + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join(""); }
+function shade(h, t) { const f = t < 0 ? 0 : 255, a = Math.abs(t); return hex(rgb(h).map(v => v + (f - v) * a)); }
+function hsl(h) { let [r, g, b] = rgb(h).map(v => v / 255); const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let H = 0, S = 0; const L = (mx + mn) / 2; if (mx !== mn) { const d = mx - mn; S = L > .5 ? d / (2 - mx - mn) : d / (mx + mn); H = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; H *= 60; } return [H, S, L]; }
+/** Night light on a chosen colour: desaturate, darken, cool slightly; stronger per decay stage. */
+function nightMute(h, stage) {
+  const c = rgb(h); const grey = c[0] * .3 + c[1] * .59 + c[2] * .11;
+  const ds = .22 + .08 * (stage - 1), k = .74 - .07 * (stage - 1);
+  return hex(c.map((v, i) => (v + (grey - v) * ds) * k * .9 + [27, 34, 48][i] * .1));
+}
+function hash(n) { const s = Math.sin(n) * 43758.5453; return s - Math.floor(s); }
+
+// ---------- path helpers (same style as spriteArt.ts) ----------
+function circle(c, x, y, r) { c.beginPath(); c.arc(x, y, r, 0, TAU); }
+function ell(c, x, y, rx, ry, a = 0) { c.beginPath(); c.ellipse(x, y, Math.max(.01, rx), Math.max(.01, ry), a, 0, TAU); }
+function rrect(c, x, y, w, h, r) { const q = Math.max(0, Math.min(r, w / 2, h / 2)); c.beginPath(); c.moveTo(x + q, y); c.arcTo(x + w, y, x + w, y + h, q); c.arcTo(x + w, y + h, x, y + h, q); c.arcTo(x, y + h, x, y, q); c.arcTo(x, y, x + w, y, q); c.closePath(); }
+function fs(c, col) { c.fillStyle = col; c.fill(); c.stroke(); }
+
+// ---------- catalogue (mirrors proposal §3 and §6) ----------
+// unlock: "s" starter, "m:<how>" milestone, "l" loot
+const CAT = {
+  top: [
+    { id: "jacket", name: "Jacket", u: "s" }, { id: "hoodie", name: "Hoodie", u: "s" }, { id: "coat", name: "Long coat", u: "s" },
+    { id: "track", name: "Tracksuit", u: "s" }, { id: "puffer", name: "Puffer", u: "s" },
+    { id: "leather", name: "Leather jacket", u: "m:Revive 25 teammates" }, { id: "camo", name: "Camo coat", u: "m:1,000 zombie kills" },
+    { id: "floral", name: "Floral shirt", u: "l" }, { id: "robe", name: "Bathrobe", u: "l" },
+  ],
+  head: [
+    { id: "none", name: "None", u: "s" }, { id: "cap", name: "Cap", u: "s" }, { id: "capb", name: "Cap, backwards", u: "s" }, { id: "beanie", name: "Beanie", u: "s" },
+    { id: "hood", name: "Hood up", u: "s" }, { id: "bandana", name: "Bandana", u: "s" }, { id: "bike", name: "Bike helmet", u: "s" }, { id: "hard", name: "Hard hat", u: "s" },
+    { id: "fire", name: "Firefighter helmet", u: "m:Survive wave 5" }, { id: "riot", name: "Riot helmet", u: "m:Extract from Downtown once" },
+    { id: "gas", name: "Gas mask", u: "m:Kill the Behemoth" }, { id: "hockey", name: "Hockey mask", u: "m:Reach endless wave 15" },
+    { id: "cone", name: "Traffic cone", u: "l" }, { id: "chef", name: "Chef's hat", u: "l" }, { id: "pot", name: "Cooking pot", u: "l" },
+    { id: "party", name: "Party hat", u: "l" }, { id: "bunny", name: "Bunny beanie", u: "l" },
+  ],
+  hair: [
+    { id: "short", name: "Short", u: "s" }, { id: "buzz", name: "Buzz cut", u: "s" }, { id: "tied", name: "Tied back", u: "s" },
+    { id: "curly", name: "Curly", u: "s" }, { id: "bald", name: "Bald", u: "s" },
+  ],
+  pack: [
+    { id: "backpack", name: "Backpack", u: "s" }, { id: "duffel", name: "Duffel", u: "s" }, { id: "frame", name: "Hiking pack", u: "s" },
+    { id: "sling", name: "Sling bag", u: "s" }, { id: "none", name: "None", u: "s" },
+    { id: "guitar", name: "Guitar case", u: "m:Play 20 runs" }, { id: "ammo", name: "Ammo rig", u: "m:Reach wave 10 without going down" },
+    { id: "teddy", name: "Teddy bear", u: "l" }, { id: "cooler", name: "Cooler box", u: "l" },
+  ],
+  acc: [
+    { id: "none", name: "None", u: "s" }, { id: "scarf", name: "Scarf", u: "s" }, { id: "stripes", name: "Reflective stripes", u: "s" }, { id: "patch", name: "Shoulder patch", u: "s" },
+    { id: "harness", name: "Work harness", u: "m:Build 100 barricades" }, { id: "team", name: "Team patch", u: "m:Extract with all 4 players alive" },
+    { id: "cape", name: "Cape", u: "l" },
+  ],
+};
+const SKINS = ["#e2c3ab", "#d3ab8e", "#c49a7c", "#ab8062", "#93684b", "#7a5239", "#5f3e2b", "#4a2f21"];
+const TABS = [["top", "Top"], ["head", "Head"], ["hair", "Hair"], ["pack", "Pack"], ["acc", "Accent"], ["skin", "Skin"]];
+// Default = today's survivor (jacket #3c5670 in game, dark cap, dark pack).
+const DEFAULT = { top: "jacket", head: "cap", hair: "short", pack: "backpack", acc: "none", skin: 2, cTop: "#56799b", cHair: "#2b2421", cAcc: "#2c3238" };
+
+// ---------- the survivor, part by part (facing +x, body at 0,0, r = body radius px) ----------
+// col(k) returns the colour to draw with: raw in the editor light, night-muted in game.
+function drawGun(c, r, w) {
+  c.fillStyle = "#17181a";
+  if (w === "pistol") { rrect(c, r * .3, -r * .13, r * 1.05, r * .26, 1); c.fill(); }
+  else if (w === "smg") { rrect(c, r * .3, -r * .14, r * 1.5, r * .28, 1); c.fill(); c.fillStyle = "#2a2b2e"; c.fillRect(r * .95, r * .12, r * .22, r * .3); }
+  else if (w === "shotgun") { rrect(c, r * .3, -r * .17, r * 1.7, r * .34, 2); c.fill(); c.fillStyle = "#5b3d22"; rrect(c, r * 1.15, -r * .2, r * .45, r * .4, 2); c.fill(); }
+  else { c.fillStyle = "#5b3d22"; rrect(c, r * .2, -r * .12, r * .7, r * .24, 2); c.fill(); c.fillStyle = "#17181a"; rrect(c, r * .85, -r * .08, r * 1.35, r * .16, 1); c.fill(); }
+}
+function drawSurvivor(c, r, L, col, weapon, silhouette) {
+  c.lineJoin = "round"; c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08);
+  const top = col("cTop"), hair = col("cHair"), acc = col("cAcc"), skin = SKINS[L.skin];
+  // 1. behind everything: cape, scarf tail
+  if (L.acc === "cape") { c.beginPath(); c.moveTo(-r * .2, -r * .85); c.quadraticCurveTo(-r * 1.5, -r * 1.05, -r * 1.75, -r * .1); c.quadraticCurveTo(-r * 1.6, r * .2, -r * 1.75, r * .35); c.quadraticCurveTo(-r * 1.4, r * 1.05, -r * .2, r * .85); c.closePath(); fs(c, acc); }
+  if (L.acc === "scarf") { c.strokeStyle = acc; c.lineCap = "round"; c.lineWidth = r * .2; c.beginPath(); c.moveTo(-r * .25, r * .15); c.quadraticCurveTo(-r * .8, r * .35, -r * 1.25, r * .2); c.stroke(); c.lineCap = "butt"; c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  // 2. gun (its own layer, under the arms)
+  drawGun(c, r, weapon);
+  // 3. arms in the top colour, hands in skin
+  const sleeve = L.top === "leather" ? "#2e221b" : L.top === "camo" ? "#4a4e35" : top;
+  c.strokeStyle = sleeve; c.lineCap = "round"; c.lineWidth = r * .3;
+  c.beginPath(); c.moveTo(0, -r * .6); c.lineTo(r * .85, -r * .1); c.moveTo(0, r * .6); c.lineTo(r * .55, r * .12); c.stroke();
+  if (L.top === "track") { c.strokeStyle = shade(top, .55); c.lineWidth = r * .06; c.beginPath(); c.moveTo(0, -r * .68); c.lineTo(r * .8, -r * .2); c.moveTo(0, r * .68); c.lineTo(r * .5, r * .22); c.stroke(); }
+  c.lineCap = "butt"; c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08);
+  c.fillStyle = skin; circle(c, r * .88, -r * .1, r * .13); c.fill(); circle(c, r * .58, r * .12, r * .13); c.fill();
+  // 4. pack
+  drawPack(c, r, L.pack);
+  // 5. torso
+  drawTop(c, r, L, top, acc);
+  // 6. on-torso accents
+  if (L.acc === "stripes") { c.strokeStyle = shade(acc, .45); c.lineWidth = r * .09; c.beginPath(); c.moveTo(-r * .3, -r * .8); c.lineTo(-r * .3, r * .8); c.moveTo(-r * .48, -r * .55); c.lineTo(-r * .48, r * .55); c.stroke(); c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  if (L.acc === "patch") { c.fillStyle = acc; circle(c, r * .02, -r * .66, r * .16); fs(c, acc); }
+  if (L.acc === "harness") { c.strokeStyle = acc; c.lineWidth = r * .1; c.beginPath(); c.moveTo(-r * .45, -r * .7); c.lineTo(r * .3, r * .65); c.moveTo(-r * .45, r * .7); c.lineTo(r * .3, -r * .65); c.stroke(); c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); c.fillStyle = shade(acc, -.3); rrect(c, -r * .15, -r * .98, r * .3, r * .2, 2); fs(c, shade(acc, -.3)); rrect(c, -r * .15, r * .78, r * .3, r * .2, 2); fs(c, shade(acc, -.3)); }
+  if (L.acc === "team" && L.pack !== "none") { c.fillStyle = acc; for (let i = 0; i < 4; i++) { circle(c, -r * .82 + (i % 2) * r * .14, -r * .07 + (i >> 1) * r * .14, r * .055); c.fill(); } }
+  if (L.acc === "scarf") { c.strokeStyle = acc; c.lineWidth = r * .22; ell(c, r * .1, 0, r * .4, r * .45); c.stroke(); c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  // 7. head, hair, headgear
+  c.fillStyle = skin; circle(c, r * .12, 0, r * .4); fs(c, skin);
+  const coversHair = ["hood", "bike", "hard", "fire", "riot", "cone", "chef", "pot", "beanie", "bunny"].includes(L.head);
+  if (!coversHair) drawHair(c, r, L.hair, hair, L.head === "none");
+  drawHead(c, r, L.head, top, acc);
+  if (silhouette) { c.globalCompositeOperation = "source-atop"; c.fillStyle = "#3d4046"; c.fillRect(-r * 3, -r * 3, r * 6, r * 6); c.globalCompositeOperation = "source-over"; }
+}
+function drawTop(c, r, L, top, acc) {
+  const t = L.top;
+  if (t === "coat" || t === "camo") {
+    const base = t === "camo" ? "#4a4e35" : top;
+    c.beginPath(); c.moveTo(-r * .5, -r * .5); c.lineTo(-r * 1.0, -r * .35); c.lineTo(-r * 1.0, r * .35); c.lineTo(-r * .5, r * .5); c.closePath(); fs(c, shade(base, -.12));
+    ell(c, -r * .08, 0, r * .58, r * .94); fs(c, base);
+    if (t === "camo") { const blots = ["#363a27", "#5f5a3c", "#2b2d22"]; for (let i = 0; i < 9; i++) { c.fillStyle = blots[i % 3]; ell(c, -r * .45 + hash(i + 3) * r * .8, -r * .7 + hash(i * 7 + 1) * r * 1.4, r * .16, r * .1, hash(i) * 3); c.fill(); } ell(c, -r * .08, 0, r * .58, r * .94); c.stroke(); }
+    c.fillStyle = shade(base, -.25); c.beginPath(); c.moveTo(r * .05, -r * .5); c.lineTo(r * .4, -r * .28); c.lineTo(r * .05, -r * .2); c.closePath(); c.fill(); c.beginPath(); c.moveTo(r * .05, r * .5); c.lineTo(r * .4, r * .28); c.lineTo(r * .05, r * .2); c.closePath(); c.fill();
+    return;
+  }
+  if (t === "leather") {
+    ell(c, -r * .05, 0, r * .53, r * .9); fs(c, "#2e221b");
+    c.strokeStyle = "rgba(255,240,220,0.18)"; c.lineWidth = r * .08; c.beginPath(); c.ellipse(-r * .05, 0, r * .38, r * .72, 0, -2.3, -.9); c.stroke();
+    c.strokeStyle = "#8c8576"; c.lineWidth = r * .04; c.beginPath(); c.moveTo(r * .2, -r * .55); c.lineTo(r * .42, -r * .1); c.stroke();
+    c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); return;
+  }
+  if (t === "robe") {
+    ell(c, -r * .08, 0, r * .6, r * .96); fs(c, top);
+    c.strokeStyle = shade(top, .35); c.lineWidth = r * .14; ell(c, -r * .08, 0, r * .52, r * .88); c.stroke();
+    c.strokeStyle = shade(top, -.3); c.lineWidth = r * .1; c.beginPath(); c.moveTo(-r * .1, -r * .9); c.lineTo(-r * .1, r * .9); c.stroke();
+    c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); return;
+  }
+  ell(c, -r * .05, 0, r * .52, r * .9); fs(c, top);
+  if (t === "hoodie" && L.head !== "hood") { ell(c, -r * .34, 0, r * .24, r * .36); fs(c, shade(top, -.15)); c.strokeStyle = shade(top, .5); c.lineWidth = r * .04; c.beginPath(); c.moveTo(r * .38, -r * .14); c.lineTo(r * .5, -r * .2); c.moveTo(r * .38, r * .14); c.lineTo(r * .5, r * .2); c.stroke(); c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  if (t === "puffer") { c.strokeStyle = shade(top, -.32); c.lineWidth = r * .05; for (const x of [-.38, -.12, .14]) { c.beginPath(); c.ellipse(x * r, 0, r * .07, r * .86 - Math.abs(x) * r * .4, 0, -Math.PI / 2, Math.PI / 2); c.stroke(); } c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  if (t === "track") { c.strokeStyle = shade(top, .55); c.lineWidth = r * .06; c.beginPath(); c.ellipse(-r * .05, 0, r * .44, r * .8, 0, -2.2, -1.0); c.stroke(); c.beginPath(); c.ellipse(-r * .05, 0, r * .44, r * .8, 0, 1.0, 2.2); c.stroke(); c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  if (t === "floral") { const fl = ["#e8d27a", "#f1efe6", "#e58f8f"]; for (let i = 0; i < 10; i++) { c.fillStyle = fl[i % 3]; circle(c, -r * .45 + hash(i * 3 + 9) * r * .8, -r * .72 + hash(i * 5 + 2) * r * 1.44, r * .07); c.fill(); } }
+  if (t === "jacket") { c.fillStyle = shade(top, -.2); ell(c, -r * .12, 0, r * .16, r * .44); c.fill(); }
+}
+function drawPack(c, r, p) {
+  if (p === "none") return;
+  if (p === "backpack") { rrect(c, -r * .98, -r * .48, r * .5, r * .96, r * .15); fs(c, "#26251f"); c.strokeStyle = "#3a382f"; c.lineWidth = r * .05; c.beginPath(); c.moveTo(-r * .85, -r * .4); c.lineTo(-r * .85, r * .4); c.stroke(); c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  else if (p === "duffel") { rrect(c, -r * .92, -r * .82, r * .42, r * 1.64, r * .2); fs(c, "#3b3f2f"); c.strokeStyle = "#20221a"; c.lineWidth = r * .05; for (const y of [-.4, .4]) { c.beginPath(); c.moveTo(-r * .92, y * r); c.lineTo(-r * .5, y * r); c.stroke(); } c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  else if (p === "frame") { rrect(c, -r * 1.12, -r * .55, r * .66, r * 1.1, r * .12); fs(c, "#3a3326"); rrect(c, -r * 1.22, -r * .7, r * .28, r * 1.4, r * .14); fs(c, "#4d5a3a"); c.strokeStyle = "#2f3824"; c.lineWidth = r * .04; for (const y of [-.35, 0, .35]) { c.beginPath(); c.moveTo(-r * 1.22, y * r); c.lineTo(-r * .94, y * r); c.stroke(); } c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  else if (p === "sling") { c.save(); c.translate(-r * .62, r * .45); c.rotate(.5); rrect(c, -r * .25, -r * .17, r * .5, r * .34, r * .1); fs(c, "#2c2a27"); c.restore(); c.strokeStyle = "#1a1917"; c.lineWidth = r * .08; c.beginPath(); c.moveTo(-r * .5, r * .55); c.lineTo(r * .25, -r * .62); c.stroke(); c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+  else if (p === "guitar") { c.save(); c.translate(-r * .85, 0); c.rotate(.35); ell(c, 0, r * .45, r * .32, r * .38); fs(c, "#141416"); ell(c, 0, -r * .2, r * .24, r * .3); fs(c, "#141416"); rrect(c, -r * .09, -r * 1.1, r * .18, r * .7, r * .06); fs(c, "#141416"); c.restore(); }
+  else if (p === "ammo") { rrect(c, -r * 1.0, -r * .52, r * .52, r * 1.04, r * .1); fs(c, "#3d4230"); for (const y of [-.36, -.04, .28]) { rrect(c, -r * 1.12, y * r, r * .2, r * .26, r * .04); fs(c, "#4b5139"); } }
+  else if (p === "teddy") { const b = "#7a5634"; circle(c, -r * .82, -r * .32, r * .14); fs(c, b); circle(c, -r * .82, r * .32, r * .14); fs(c, b); circle(c, -r * .8, 0, r * .36); fs(c, b); c.fillStyle = "#b08860"; ell(c, -r * 1.06, 0, r * .12, r * .14); c.fill(); c.fillStyle = "#0d0b09"; circle(c, -r * .95, -r * .12, r * .04); c.fill(); circle(c, -r * .95, r * .12, r * .04); c.fill(); }
+  else if (p === "cooler") { rrect(c, -r * 1.06, -r * .55, r * .58, r * 1.1, r * .08); fs(c, "#c9cdc6"); c.fillStyle = "#3a6b98"; c.fillRect(-r * 1.06, -r * .55, r * .14, r * 1.1); c.strokeStyle = "#6f746d"; c.lineWidth = r * .06; c.beginPath(); c.moveTo(-r * .78, -r * .3); c.lineTo(-r * .78, r * .3); c.stroke(); c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .08); }
+}
+function drawHair(c, r, h, col, full) {
+  if (h === "bald") { c.fillStyle = "rgba(255,255,255,0.16)"; ell(c, r * .02, -r * .12, r * .12, r * .07, .4); c.fill(); return; }
+  c.fillStyle = col;
+  if (h === "buzz") { c.globalAlpha = .6; ell(c, r * .02, 0, r * .34, r * .38); c.fill(); c.globalAlpha = 1; return; }
+  if (h === "curly") { for (let i = 0; i < 9; i++) { const a = Math.PI * .55 + i / 8 * Math.PI * .9; circle(c, r * .02 + Math.cos(a) * r * .26, Math.sin(a) * r * .28, r * .14); c.fill(); } ell(c, r * .0, 0, r * .28, r * .32); c.fill(); return; }
+  ell(c, r * .02, 0, r * .34, r * .39); c.fill();
+  if (h === "tied") { ell(c, -r * .46, 0, r * .2, r * .1); fs(c, col); c.fillStyle = "#151515"; c.fillRect(-r * .3, -r * .06, r * .06, r * .12); }
+}
+function drawHead(c, r, h, top, acc) {
+  const lw = Math.max(1, r * .08);
+  switch (h) {
+    case "none": return;
+    case "cap": c.fillStyle = acc; ell(c, r * .02, 0, r * .36, r * .4); c.fill(); c.beginPath(); c.ellipse(r * .38, 0, r * .16, r * .3, 0, -Math.PI / 2, Math.PI / 2); c.fill(); return;
+    case "capb": c.fillStyle = acc; ell(c, r * .08, 0, r * .36, r * .4); c.fill(); c.beginPath(); c.ellipse(-r * .26, 0, r * .16, r * .3, 0, Math.PI / 2, Math.PI * 1.5); c.fill(); return;
+    case "beanie": ell(c, r * .04, 0, r * .4, r * .42); fs(c, acc); c.strokeStyle = shade(acc, .25); c.lineWidth = r * .07; ell(c, r * .04, 0, r * .3, r * .33); c.stroke(); c.fillStyle = shade(acc, .25); circle(c, r * .0, 0, r * .1); c.fill(); c.strokeStyle = OUT; c.lineWidth = lw; return;
+    case "bunny": ell(c, r * .04, 0, r * .4, r * .42); fs(c, "#d9c9c4"); for (const s of [-1, 1]) { ell(c, -r * .45, s * r * .2, r * .34, r * .1, s * .25); fs(c, "#d9c9c4"); c.fillStyle = "#c98d97"; ell(c, -r * .45, s * r * .2, r * .24, r * .045, s * .25); c.fill(); } return;
+    case "hood": ell(c, r * .0, 0, r * .46, r * .48); fs(c, shade(top, -.12)); c.fillStyle = "rgba(0,0,0,0.35)"; ell(c, r * .3, 0, r * .12, r * .26); c.fill(); return;
+    case "bandana": c.strokeStyle = acc; c.lineWidth = r * .14; c.beginPath(); c.ellipse(r * .06, 0, r * .3, r * .38, 0, Math.PI * .6, Math.PI * 1.4, true); c.stroke(); c.fillStyle = acc; c.beginPath(); c.moveTo(-r * .3, 0); c.lineTo(-r * .62, -r * .14); c.lineTo(-r * .58, r * .12); c.closePath(); c.fill(); c.strokeStyle = OUT; c.lineWidth = lw; return;
+    case "bike": ell(c, r * .04, 0, r * .46, r * .4); fs(c, "#5f6a76"); c.fillStyle = "#1c2026"; for (const y of [-.2, 0, .2]) { rrect(c, -r * .2, y * r - r * .035, r * .34, r * .07, r * .03); c.fill(); } return;
+    case "hard": ell(c, r * .1, 0, r * .5, r * .48); fs(c, "#9a7a2c"); ell(c, r * .08, 0, r * .38, r * .36); fs(c, "#b38f37"); c.strokeStyle = "#7c6224"; c.lineWidth = r * .07; c.beginPath(); c.moveTo(-r * .28, 0); c.lineTo(r * .44, 0); c.stroke(); c.strokeStyle = OUT; c.lineWidth = lw; return;
+    case "fire": c.beginPath(); c.moveTo(r * .4, -r * .3); c.quadraticCurveTo(-r * .9, -r * .5, -r * .7, 0); c.quadraticCurveTo(-r * .9, r * .5, r * .4, r * .3); c.closePath(); fs(c, "#1e1f22"); ell(c, r * .08, 0, r * .38, r * .38); fs(c, "#26272b"); c.strokeStyle = "#a6913a"; c.lineWidth = r * .08; ell(c, r * .08, 0, r * .3, r * .3); c.stroke(); c.strokeStyle = OUT; c.lineWidth = lw; return;
+    case "riot": ell(c, r * .06, 0, r * .46, r * .46); fs(c, "#16181b"); c.fillStyle = "rgba(120,150,175,0.55)"; c.beginPath(); c.ellipse(r * .1, 0, r * .46, r * .4, 0, -1.0, 1.0); c.lineTo(r * .25, 0); c.closePath(); c.fill(); return;
+    case "gas": c.strokeStyle = "#111"; c.lineWidth = r * .07; ell(c, r * .1, 0, r * .36, r * .4); c.stroke(); c.strokeStyle = OUT; c.lineWidth = lw; ell(c, r * .42, 0, r * .14, r * .2); fs(c, "#2c2f2b"); for (const s of [-1, 1]) { ell(c, r * .5, s * r * .26, r * .12, r * .12); fs(c, "#55594f"); } return;
+    case "hockey": ell(c, r * .34, 0, r * .16, r * .32); fs(c, "#d8d4c8"); c.fillStyle = "#222"; for (const y of [-.14, .14]) { ell(c, r * .42, y * r, r * .04, r * .06); c.fill(); } c.strokeStyle = "#8b2b26"; c.lineWidth = r * .03; c.beginPath(); c.moveTo(r * .3, -r * .28); c.lineTo(r * .36, -r * .02); c.stroke(); c.strokeStyle = OUT; c.lineWidth = lw; return;
+    case "cone": c.save(); c.rotate(.785); rrect(c, -r * .42, -r * .42, r * .84, r * .84, r * .08); fs(c, "#b45a1e"); c.restore(); circle(c, r * .02, 0, r * .34); fs(c, "#c8692a"); c.strokeStyle = "#e3ddd0"; c.lineWidth = r * .08; circle(c, r * .02, 0, r * .22); c.stroke(); c.fillStyle = "#c8692a"; circle(c, r * .02, 0, r * .1); c.fill(); c.strokeStyle = OUT; c.lineWidth = lw; return;
+    case "chef": for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; circle(c, r * .04 + Math.cos(a) * r * .28, Math.sin(a) * r * .28, r * .22); fs(c, "#e4e1d8"); } circle(c, r * .04, 0, r * .3); c.fillStyle = "#e4e1d8"; c.fill(); return;
+    case "pot": rrect(c, -r * .1, r * .3, r * .16, r * .58, r * .06); fs(c, "#1d1d1f"); circle(c, r * .04, 0, r * .44); fs(c, "#7d8186"); c.strokeStyle = "#5c6065"; c.lineWidth = r * .06; circle(c, r * .04, 0, r * .32); c.stroke(); c.strokeStyle = OUT; c.lineWidth = lw; return;
+    case "party": circle(c, r * .04, 0, r * .26); fs(c, "#3c7ab8"); c.strokeStyle = "#e0c447"; c.lineWidth = r * .07; circle(c, r * .04, 0, r * .15); c.stroke(); c.fillStyle = "#e05a7a"; circle(c, r * .04, 0, r * .08); c.fill(); c.strokeStyle = OUT; c.lineWidth = lw; return;
+  }
+}
+
+// ---------- state ----------
+let look = loadLook();
+let tab = "top", slot = 0, stage = 2, unlockAll = false, angle = -0.4;
+function loadLook() { try { const s = JSON.parse(localStorage.getItem("tds.look.mockup") || "null"); if (s && s.top) return Object.assign({}, DEFAULT, s); } catch (e) { /* storage blocked: defaults */ } return Object.assign({}, DEFAULT); }
+function item(slotKey, id) { return CAT[slotKey].find(o => o.id === id); }
+function owned(o) { return o.u === "s" || unlockAll; }
+const rawCol = L => k => L[k];
+const gameCol = (L, st) => k => nightMute(L[k], st);
+function lookCode(L) { return `v1|top:${L.top}|head:${L.head}|hair:${L.hair}|pack:${L.pack}|acc:${L.acc}|skin:${L.skin}|c:${[L.cTop, L.cHair, L.cAcc].map(h => h.slice(1)).join(",")}`; }
+
+// ---------- close-up ----------
+const cu = document.getElementById("closeup");
+function sizeCanvas(cv, w, h) { cv.width = Math.round(w * DPR); cv.height = Math.round(h * DPR); }
+function drawCloseup() {
+  const w = cu.clientWidth || 312; sizeCanvas(cu, w, w);
+  const c = cu.getContext("2d"); c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const g = c.createRadialGradient(w / 2, w / 2, 10, w / 2, w / 2, w * .7); g.addColorStop(0, "#2b2a27"); g.addColorStop(1, "#121417");
+  c.fillStyle = g; c.fillRect(0, 0, w, w);
+  const r = w * .2;
+  c.save(); c.translate(w / 2 + r * .2, w / 2); c.rotate(angle);
+  c.strokeStyle = SLOT[slot]; c.globalAlpha = .9; c.lineWidth = r * .1; circle(c, 0, 0, r * 1.37); c.stroke(); c.globalAlpha = 1;
+  drawSurvivor(c, r, look, rawCol(look), document.getElementById("weapon").value, false);
+  c.restore();
+}
+let drag = null;
+cu.addEventListener("pointerdown", e => { drag = { x: e.clientX, a: angle }; cu.setPointerCapture(e.pointerId); });
+cu.addEventListener("pointermove", e => { if (drag) { angle = drag.a + (e.clientX - drag.x) / 60; drawCloseup(); } });
+cu.addEventListener("pointerup", () => { drag = null; });
+
+// ---------- option thumbnails ----------
+function thumb(cv, L, silhouette) {
+  sizeCanvas(cv, 64, 64); const c = cv.getContext("2d"); c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.clearRect(0, 0, 64, 64);
+  const z = tab === "head" || tab === "hair" ? 40 : 19; c.save(); c.translate(32, tab === "head" || tab === "hair" ? 38 : 40); c.rotate(-Math.PI / 2); if (z === 40) c.translate(-z * .12, 0); drawSurvivor(c, z, L, rawCol(L), "pistol", silhouette); c.restore(); c.globalCompositeOperation = "destination-over"; c.fillStyle = "#16181b"; c.fillRect(0, 0, 64, 64); c.globalCompositeOperation = "source-over";
+}
+const tabsEl = document.getElementById("tabs"), panel = document.getElementById("panel"), lockinfo = document.getElementById("lockinfo");
+function renderTabs() {
+  tabsEl.innerHTML = "";
+  for (const [k, n] of TABS) { const b = document.createElement("button"); b.type = "button"; b.role = "tab"; b.id = "tab-" + k; b.textContent = n; b.setAttribute("aria-selected", String(k === tab)); b.onclick = () => { tab = k; renderTabs(); renderPanel(); }; tabsEl.appendChild(b); }
+}
+function colorRow(key, label) {
+  const wrap = document.createElement("div"); wrap.className = "color";
+  const id = "col-" + key;
+  wrap.innerHTML = `<label for="${id}">${label}</label><input type="color" id="${id}" value="${look[key]}"><span class="sw" title="In game, stage ${stage}" style="background:${nightMute(look[key], stage)}"></span>`;
+  wrap.querySelector("input").addEventListener("input", e => { look[key] = e.target.value; wrap.querySelector(".sw").style.background = nightMute(look[key], stage); changed(false); });
+  return wrap;
+}
+function renderPanel() {
+  panel.innerHTML = ""; lockinfo.textContent = "";
+  if (tab === "skin") {
+    const s = document.createElement("div"); s.className = "skins";
+    SKINS.forEach((h, i) => { const b = document.createElement("button"); b.type = "button"; b.style.background = h; b.setAttribute("aria-label", "Skin tone " + (i + 1)); b.setAttribute("aria-pressed", String(look.skin === i)); b.onclick = () => { look.skin = i; changed(true); }; s.appendChild(b); });
+    panel.appendChild(s); return;
+  }
+  const grid = document.createElement("div"); grid.className = "opts";
+  for (const o of CAT[tab]) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "opt" + (owned(o) ? "" : " locked");
+    b.setAttribute("aria-pressed", String(look[tab] === o.id));
+    const cv = document.createElement("canvas");
+    const L = Object.assign({}, look, { [tab]: o.id });
+    const isLoot = o.u === "l", isMile = o.u.startsWith("m:");
+    b.appendChild(cv);
+    const nm = document.createElement("div"); nm.textContent = isLoot && !unlockAll ? "???" : o.name; b.appendChild(nm);
+    if (isMile || isLoot) { const t = document.createElement("span"); t.className = "tag " + (isMile ? "m" : "l"); t.textContent = isMile ? "Milestone" : "Loot"; b.appendChild(t); }
+    b.onclick = () => {
+      if (!owned(o)) { lockinfo.textContent = isMile ? "Locked. " + o.u.slice(2) + " to get it." : "Locked. Found during waves, very rarely."; return; }
+      look[tab] = o.id; changed(true);
+    };
+    grid.appendChild(b);
+    thumb(cv, L, isLoot && !unlockAll);
+  }
+  panel.appendChild(grid);
+  const cols = document.createElement("div"); cols.className = "colors";
+  if (tab === "top") cols.appendChild(colorRow("cTop", "Top colour"));
+  if (tab === "hair") cols.appendChild(colorRow("cHair", "Hair colour"));
+  if (tab === "acc" || tab === "head") cols.appendChild(colorRow("cAcc", tab === "head" ? "Cap, beanie, bandana colour" : "Accent colour"));
+  if (cols.children.length) panel.appendChild(cols);
+  const hint = document.createElement("div"); hint.className = "hintline"; hint.id = "hint"; panel.appendChild(hint); updateHint();
+}
+/** Soft hint (proposal §4): never blocks. */
+function updateHint() {
+  const el = document.getElementById("hint"); if (!el) return;
+  const [h, s] = hsl(look.cTop); let msg = "";
+  SLOT.forEach((sc, i) => { if (i === slot) return; const [h2] = hsl(sc); const d = Math.min(Math.abs(h - h2), 360 - Math.abs(h - h2)); if (s > .45 && d < 16) msg = `Close to the ${SLOT_NAMES[i]} team ring: teammates may mix you up. You can keep it.`; });
+  const m = rgb(nightMute(look.cTop, stage));
+  for (const rr of RUNNER_REDS) { const q = rgb(rr); if (Math.hypot(m[0] - q[0], m[1] - q[1], m[2] - q[2]) < 34) msg = "At night this looks like a Runner's dark-red shirt. You can keep it."; }
+  el.textContent = tab === "top" ? msg : "";
+}
+
+// ---------- the street at game size ----------
+const sc = document.getElementById("scene");
+let sw = 0, sh = 0; const bakes = new Map();
+function bake(L, weapon, st, key) {
+  const k = key + "|" + lookCode(L) + weapon + st; if (bakes.has(k)) return bakes.get(k);
+  const r = BODY_R_M * PPM, side = Math.ceil(r * 2 * 2.3);
+  const cv = document.createElement("canvas"); cv.width = side * DPR; cv.height = side * DPR;
+  const c = cv.getContext("2d"); c.scale(DPR, DPR); c.translate(side / 2, side / 2);
+  drawSurvivor(c, r, L, gameCol(L, st), weapon, false);
+  const out = { cv, side }; bakes.set(k, out); if (bakes.size > 40) bakes.delete(bakes.keys().next().value); return out;
+}
+const ZSHIRTS = ["#454c5a", "#574636", "#3b4636", "#625849"];
+const zbakes = [];
+function bakeZombies() {
+  const r = BODY_R_M * PPM, side = Math.ceil(r * 2 * 1.6);
+  for (let v = 0; v < 4; v++) {
+    const cv = document.createElement("canvas"); cv.width = side * DPR; cv.height = side * DPR;
+    const c = cv.getContext("2d"); c.scale(DPR, DPR); c.translate(side / 2, side / 2);
+    c.lineJoin = "round"; c.strokeStyle = OUT; c.lineWidth = Math.max(1, r * .1);
+    for (const s of [-1, 1]) { c.fillStyle = "#7c8676"; rrect(c, 0, s * r * .62 - r * .15, r * 1.25 + s * r * .08, r * .3, r * .15); c.fill(); c.stroke(); }
+    ell(c, -r * .15, 0, r * .5, r * .95); c.fillStyle = ZSHIRTS[v]; c.fill(); c.stroke();
+    c.fillStyle = "#5a0c0a"; circle(c, -r * .2 + (hash(v) - .5) * r * .5, (hash(v * 3) - .5) * r, r * .16); c.fill();
+    circle(c, r * .14, 0, r * .46); c.fillStyle = "#7c8676"; c.fill(); c.stroke();
+    c.fillStyle = "#231f1c"; ell(c, -r * .04, 0, r * .3, r * .38); c.fill();
+    zbakes.push({ cv, side });
+  }
+}
+function randomLook(seed) {
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  const pick = k => { const own = CAT[k].filter(o => o.u === "s"); return own[Math.floor(rnd() * own.length)].id; };
+  const hc = () => hex([rnd() * 255, rnd() * 255, rnd() * 255]);
+  return { top: pick("top"), head: pick("head"), hair: pick("hair"), pack: pick("pack"), acc: pick("acc"), skin: Math.floor(rnd() * 8), cTop: hc(), cHair: ["#2b2421", "#5a3a22", "#c2a46a", "#7d7a74", "#1a1a1a"][Math.floor(rnd() * 5)], cAcc: hc() };
+}
+const mates = [randomLook(11), randomLook(37), randomLook(73)];
+const mateWeapons = ["smg", "shotgun", "rifle"];
+let players = [], zombies = [], splats = [], drops = [], bag = null, nextBag = 4, finding = null;
+function placePlayers(shuffle) {
+  const W = sw / PPM, H = sh / PPM;
+  const spots = shuffle ? [0, 1, 2, 3].map(() => ({ x: 2 + Math.random() * (W - 4), y: 1.5 + Math.random() * (H - 3) })) : [{ x: W * .42, y: H * .55 }, { x: W * .5, y: H * .35 }, { x: W * .56, y: H * .68 }, { x: W * .36, y: H * .32 }];
+  players = spots.map((p, i) => ({ x: p.x, y: p.y, a: 0, t: Math.random() * 10, i }));
+}
+function spawnZombie() {
+  const W = sw / PPM, H = sh / PPM, side = Math.floor(Math.random() * 4);
+  const x = side === 0 ? -0.6 : side === 1 ? W + .6 : Math.random() * W, y = side === 2 ? -0.6 : side === 3 ? H + .6 : Math.random() * H;
+  zombies.push({ x, y, v: Math.floor(Math.random() * 4), sp: .9 + Math.random() * .5, a: 0, w: Math.random() * 6 });
+}
+function sizeScene() { sw = sc.clientWidth; sh = sc.clientHeight; sizeCanvas(sc, sw, sh); if (!players.length) placePlayers(false); }
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  const c = sc.getContext("2d"); c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const W = sw / PPM, H = sh / PPM;
+  // wet asphalt
+  c.fillStyle = "#1a1c1f"; c.fillRect(0, 0, sw, sh);
+  c.fillStyle = "rgba(255,255,255,0.025)"; for (let i = 0; i < 70; i++) { c.fillRect(hash(i) * sw, hash(i * 7) * sh, 40 + hash(i * 3) * 80, 1); }
+  c.strokeStyle = "rgba(210,190,120,0.18)"; c.lineWidth = .12 * PPM; c.setLineDash([2 * PPM, 1.6 * PPM]); c.beginPath(); c.moveTo(0, sh * .5); c.lineTo(sw, sh * .5); c.stroke(); c.setLineDash([]);
+  const pool = c.createRadialGradient(sw * .45, sh * .45, 10, sw * .45, sh * .45, 6 * PPM); pool.addColorStop(0, "rgba(224,166,70,0.16)"); pool.addColorStop(1, "rgba(224,166,70,0)"); c.fillStyle = pool; c.fillRect(0, 0, sw, sh);
+  for (const s of splats) { c.fillStyle = `rgba(90,12,10,${.5 * s.life})`; circle(c, s.x * PPM, s.y * PPM, .3 * PPM); c.fill(); s.life -= dt * .15; }
+  splats = splats.filter(s => s.life > 0);
+  // players move a little and aim at the nearest zombie
+  while (zombies.length < 26) spawnZombie();
+  for (const p of players) {
+    p.t += dt; if (!finding) { p.x += Math.cos(p.t * .7 + p.i) * .4 * dt; p.y += Math.sin(p.t * .5 + p.i * 2) * .3 * dt; }
+    let best = null, bd = 1e9; for (const z of zombies) { const d = Math.hypot(z.x - p.x, z.y - p.y); if (d < bd) { bd = d; best = z; } }
+    if (best) { const ta = Math.atan2(best.y - p.y, best.x - p.x); let da = ta - p.a; while (da > Math.PI) da -= TAU; while (da < -Math.PI) da += TAU; p.a += da * Math.min(1, dt * 5); }
+    if (best && bd < 6 && Math.random() < dt * 1.2) { drops.push({ x1: p.x, y1: p.y, x2: best.x, y2: best.y, life: .08 }); best.hp = (best.hp || 3) - 1; if (best.hp <= 0) { splats.push({ x: best.x, y: best.y, life: 1 }); nextBag--; if (nextBag <= 0 && !bag) { bag = { x: best.x, y: best.y, t: 20 }; nextBag = 30; } zombies.splice(zombies.indexOf(best), 1); } }
+  }
+  for (const z of zombies) {
+    let best = players[0], bd = 1e9; for (const p of players) { const d = Math.hypot(z.x - p.x, z.y - p.y); if (d < bd) { bd = d; best = p; } }
+    z.a = Math.atan2(best.y - z.y, best.x - z.x); z.w += dt * 4;
+    if (bd > 1.1) { z.x += Math.cos(z.a) * z.sp * dt; z.y += Math.sin(z.a) * z.sp * dt; } else { z.x -= Math.cos(z.a) * 3; z.y -= Math.sin(z.a) * 3; }
+  }
+  // loot bag
+  if (bag) {
+    bag.t -= dt; const bx = bag.x * PPM, by = bag.y * PPM, gl = .5 + .5 * Math.sin(now / 180);
+    c.fillStyle = "rgba(0,0,0,0.35)"; ell(c, bx + 2, by + 3, .28 * PPM, .2 * PPM); c.fill();
+    c.fillStyle = "#6b5a3c"; c.strokeStyle = OUT; c.lineWidth = 1; circle(c, bx, by, .24 * PPM); c.fill(); c.stroke();
+    c.fillStyle = "#4e412b"; circle(c, bx - .02 * PPM, by - .16 * PPM, .08 * PPM); c.fill();
+    c.fillStyle = `rgba(255,236,170,${.55 * gl})`; c.beginPath(); c.moveTo(bx + 5, by - 9 - 4 * gl); c.lineTo(bx + 6.5, by - 7.5); c.lineTo(bx + 10 + 3 * gl, by - 6); c.lineTo(bx + 6.5, by - 4.5); c.lineTo(bx + 5, by - 1 + 2 * gl); c.lineTo(bx + 3.5, by - 4.5); c.lineTo(bx - 0 - 3 * gl, by - 6); c.lineTo(bx + 3.5, by - 7.5); c.closePath(); c.fill();
+    for (const p of players) if (Math.hypot(p.x - bag.x, p.y - bag.y) < .6) { flash(p.i === 0 ? "You found a loot bag!" : `The ${SLOT_NAMES[(slot + p.i) % 4]} survivor found a loot bag.`); bag = null; break; }
+    if (bag && bag.t <= 0) bag = null;
+  }
+  // zombies
+  for (const z of zombies) { const b = zbakes[z.v]; c.save(); c.translate(z.x * PPM, z.y * PPM); c.rotate(z.a + Math.sin(z.w) * .08); c.drawImage(b.cv, -b.side / 2, -b.side / 2, b.side, b.side); c.restore(); }
+  // shots
+  c.strokeStyle = "rgba(255,220,150,0.8)"; c.lineWidth = 1.2; for (const d of drops) { c.beginPath(); c.moveTo(d.x1 * PPM, d.y1 * PPM); c.lineTo(d.x2 * PPM, d.y2 * PPM); c.stroke(); d.life -= dt; } drops = drops.filter(d => d.life > 0);
+  // survivors: ring (slot colour) + baked body
+  const weapon = document.getElementById("weapon").value;
+  for (const p of players) {
+    const s = (slot + p.i) % 4; const L = p.i === 0 ? look : mates[p.i - 1];
+    c.strokeStyle = SLOT[s]; c.globalAlpha = .9; c.lineWidth = .08 * PPM; circle(c, p.x * PPM, p.y * PPM, (BODY_R_M + .15) * PPM); c.stroke(); c.globalAlpha = 1;
+    const b = bake(L, p.i === 0 ? weapon : mateWeapons[p.i - 1], stage, p.i);
+    c.save(); c.translate(p.x * PPM, p.y * PPM); c.rotate(p.a); c.drawImage(b.cv, -b.side / 2, -b.side / 2, b.side, b.side); c.restore();
+  }
+  // night, rain, vignette
+  c.fillStyle = `rgba(6,10,20,${[0, .12, .26, .36][stage]})`; c.fillRect(0, 0, sw, sh);
+  c.strokeStyle = "rgba(170,190,220,0.22)"; c.lineWidth = 1; c.beginPath();
+  const drops2 = stage === 3 ? 110 : 45; for (let i = 0; i < drops2; i++) { const x = (hash(i * 13) * sw + now * .05 * (1 + hash(i))) % sw, y = (hash(i * 29) * sh + now * .4 * (1 + hash(i * 2))) % sh; c.moveTo(x, y); c.lineTo(x - 2, y + 9); } c.stroke();
+  const vg = c.createRadialGradient(sw / 2, sh / 2, sh * .3, sw / 2, sh / 2, sw * .7); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.55)"); c.fillStyle = vg; c.fillRect(0, 0, sw, sh);
+  requestAnimationFrame(frame);
+}
+const findmsg = document.getElementById("findmsg");
+let flashT = 0; function flash(m) { findmsg.textContent = m; clearTimeout(flashT); flashT = setTimeout(() => { if (!finding) findmsg.textContent = ""; }, 3000); }
+document.getElementById("find").onclick = () => { placePlayers(true); finding = performance.now(); findmsg.textContent = "Tap your survivor!"; };
+sc.addEventListener("pointerdown", e => {
+  if (!finding) return; const rc = sc.getBoundingClientRect(); const x = (e.clientX - rc.left) / PPM, y = (e.clientY - rc.top) / PPM;
+  const hit = players.find(p => Math.hypot(p.x - x, p.y - y) < .7); if (!hit) return;
+  if (hit.i === 0) { flash(`Found yourself in ${((performance.now() - finding) / 1000).toFixed(2)} s`); finding = null; } else findmsg.textContent = "That's a teammate. Keep looking.";
+});
+
+// ---------- wiring ----------
+function changed(rerenderPanel) {
+  document.getElementById("code").textContent = lookCode(look);
+  drawCloseup(); if (rerenderPanel) renderPanel(); else updateHint();
+}
+function slotsUI() {
+  const el = document.getElementById("slots"); el.innerHTML = "";
+  SLOT.forEach((h, i) => { const b = document.createElement("button"); b.type = "button"; b.style.background = h; b.setAttribute("aria-label", SLOT_NAMES[i] + " slot"); b.setAttribute("aria-pressed", String(i === slot)); b.onclick = () => { slot = i; slotsUI(); drawCloseup(); updateHint(); }; el.appendChild(b); });
+}
+document.getElementById("random").onclick = () => { const r = randomLook(Math.floor(Math.random() * 1e5)); if (unlockAll) { for (const k of ["top", "head", "pack", "acc"]) { const all = CAT[k]; r[k] = all[Math.floor(Math.random() * all.length)].id; } } look = r; changed(true); };
+document.getElementById("reset").onclick = () => { look = Object.assign({}, DEFAULT); changed(true); };
+document.getElementById("save").onclick = () => { let ok = true; try { localStorage.setItem("tds.look.mockup", JSON.stringify(look)); } catch (e) { ok = false; } document.getElementById("savemsg").textContent = ok ? "Saved on this device (mockup). In the game it saves to your progress." : "Couldn't save on this device. In the game it saves to your progress."; };
+document.getElementById("weapon").onchange = () => drawCloseup();
+document.getElementById("stage").onchange = e => { stage = +e.target.value; document.getElementById("lightlbl").textContent = "editor light"; renderPanel(); };
+document.getElementById("unlockall").onchange = e => { unlockAll = e.target.checked; renderPanel(); };
+window.addEventListener("resize", () => { sizeScene(); drawCloseup(); });
+bakeZombies(); renderTabs(); renderPanel(); slotsUI(); sizeScene(); changed(false);
+requestAnimationFrame(t => { last = t; frame(t); });
+</script>
