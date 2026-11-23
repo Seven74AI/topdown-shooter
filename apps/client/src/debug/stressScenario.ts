@@ -1,4 +1,4 @@
-import { spawnZombie, type DistrictMap, type World, type ZombieTypeId } from "@topdown/shared";
+import { spawnZombie, type DistrictMap, type PlayerInput, type World, type ZombieTypeId } from "@topdown/shared";
 import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, perf, type PerfSummaryResult } from "./perfStats";
 
 /**
@@ -72,6 +72,40 @@ export function setupStressWorld(world: World, walkers: number, view: ViewRect, 
   world.debug.godMode = true;
   world.waves.paused = true;
   return spawnInView(world, "walker", walkers, view, playerX, playerY);
+}
+
+/**
+ * Story 5.3 `?stressfire=1`: aims `input` (mouse aim: no assist) at the zombie nearest to player
+ * `playerId` and holds fire; no zombie → fire released. Allocation-free (runs every frame).
+ * Returns whether it aimed at one.
+ */
+export function stressFireInput(world: World, playerId: string, input: PlayerInput): boolean {
+  const p = world.players.get(playerId);
+  const z = world.zombies;
+  let best = -1;
+  let bestD2 = Infinity;
+  if (p) {
+    for (let i = 0; i < z.aliveCount; i++) {
+      const id = z.aliveIds[i] as number;
+      const dx = (z.x[id] as number) - p.x;
+      const dy = (z.y[id] as number) - p.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        best = id;
+      }
+    }
+  }
+  if (!p || best < 0 || bestD2 === 0) {
+    input.fire = false;
+    return false;
+  }
+  const d = Math.sqrt(bestD2);
+  input.aimX = ((z.x[best] as number) - p.x) / d;
+  input.aimY = ((z.y[best] as number) - p.y) / d;
+  input.fire = true;
+  input.isMouse = true;
+  return true;
 }
 
 export type StressPhase = "idle" | "warmup" | "running" | "done" | "interrupted";

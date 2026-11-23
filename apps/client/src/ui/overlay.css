@@ -593,6 +593,26 @@ p.in-run-menu__title {
   cursor: pointer;
 }
 
+/* Story 5.3: an item with a weapon icon: icon left of the name and price. */
+.shop__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.shop__item--icon {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.shop__icon {
+  width: 64px;
+  height: 29px;
+  flex: none;
+}
+
 .shop__item:active {
   background: #333;
 }

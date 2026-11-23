@@ -70,6 +70,8 @@ export interface HeadlessRunLog {
   earnedBy: { kill: number; assist: number; revive: number; wave: number; refund: number };
   /** Turrets' kills (they pay the owner `buildingKillShare`; included in `earnedBy.kill`). */
   turretKills: number;
+  /** Story 5.3: players' kills by weapon id (liveness of a new weapon in the sims). */
+  killsByWeapon: Record<string, number>;
   waves: HeadlessWaveLog[];
 }
 
@@ -104,6 +106,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     spent: ids.map(() => 0),
     earnedBy: { kill: 0, assist: 0, revive: 0, wave: 0, refund: 0 },
     turretKills: 0,
+    killsByWeapon: {},
     waves: [],
   };
   let current: HeadlessWaveLog | null = null;
@@ -139,7 +142,10 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
       case "zombie.killed": {
         if (e.buildingId !== undefined) log.turretKills++;
         const k = e.killerId === null || e.buildingId !== undefined ? -1 : ids.indexOf(e.killerId);
-        if (k >= 0) log.kills[k] = (log.kills[k] as number) + 1;
+        if (k >= 0) {
+          log.kills[k] = (log.kills[k] as number) + 1;
+          log.killsByWeapon[e.weapon] = (log.killsByWeapon[e.weapon] ?? 0) + 1;
+        }
         break;
       }
       case "team.wiped":

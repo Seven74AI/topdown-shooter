@@ -192,14 +192,23 @@ export function drawZombie(c: G, type: ZombieTypeId, r: number, variant: number)
   c.fill();
 }
 
-/** The survivor, top-down, facing +x (gun forward), at (0, 0). The slot ring is PlayerView's. */
-export function drawSurvivor(c: G, r: number): void {
+/**
+ * The survivor, top-down, facing +x (gun forward), at (0, 0). The slot ring is PlayerView's.
+ * Story 5.3: `heldGun` draws a weapon's own top-down art in place of the plain gun (under the arms).
+ */
+export function drawSurvivor(c: G, r: number, heldGun?: (c: G, r: number) => void): void {
   c.lineJoin = "round";
   c.strokeStyle = CHAR.outline;
   c.lineWidth = Math.max(1, r * 0.08);
-  c.fillStyle = CHAR.gun;
-  rrect(c, r * 0.3, -r * 0.13, r * 1.75, r * 0.26, 1);
-  c.fill();
+  if (heldGun) {
+    c.save();
+    heldGun(c, r);
+    c.restore();
+  } else {
+    c.fillStyle = CHAR.gun;
+    rrect(c, r * 0.3, -r * 0.13, r * 1.75, r * 0.26, 1);
+    c.fill();
+  }
   c.strokeStyle = CHAR.jacket;
   c.lineCap = "round";
   c.lineWidth = r * 0.3;

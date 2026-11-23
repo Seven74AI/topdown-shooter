@@ -122,6 +122,20 @@ describe("netEvents", () => {
     expect(e).toMatchObject({ x: 1.23, y: 2, damage: 3.3 });
   });
 
+  it("Story 5.3: weapon.fired with a pellet seq round-trips as a 7th field (≤ 19 B); without it stays 6 fields", () => {
+    const e = { type: "weapon.fired" as const, playerId: "p2", weapon: "shotgun", x: 12.5, y: 3.25, ...dir(90), seq: 65_535 };
+    const t = encodeNetEvent(e, enc) as NetEvent;
+    expect(t.length).toBe(7);
+    expect(t[6]).toBe(65_535);
+    expect(msgpackTupleBytes(t)).toBeLessThanOrEqual(19);
+    const back = decodeNetEvent(t, dec);
+    expect(back).toMatchObject({ type: "weapon.fired", weapon: "shotgun", seq: 65_535 });
+    expect(encodeNetEvent({ ...e, seq: 70_000 }, enc)?.[6]).toBe(70_000 & 0xffff);
+    const t6 = encodeNetEvent({ type: "weapon.fired", playerId: "p2", weapon: "assault_rifle", x: 12.5, y: 3.25, ...dir(90) }, enc) as NetEvent;
+    expect(t6.length).toBe(6);
+    expect(decodeNetEvent(t6, dec)).not.toHaveProperty("seq");
+  });
+
   it("keeps a typical weapon.fired at or under 16 bytes as msgpack", () => {
     const t = encodeNetEvent({ type: "weapon.fired", playerId: "p3", weapon: "hunting_rifle", x: 47.99, y: 31.99, ...dir(200) }, enc) as NetEvent;
     expect(t.length).toBe(6);

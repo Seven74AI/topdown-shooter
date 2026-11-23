@@ -412,7 +412,8 @@ export class RunController {
   private watchSpread(s: PlayerSlot, p: PlayerState): void {
     const cur = s.current;
     const stats = weaponStats(this.world.balance, activeSlot(p.loadout).weapon);
-    const spread = isGun(stats) ? stats.spreadDeg : 0;
+    // Story 5.3: a pellet gun's stratified fan has no single roll to cancel (F1): nothing to watch.
+    const spread = isGun(stats) && stats.pellets === 1 ? stats.spreadDeg : 0;
     const flagged = s.spreadWatch.observe(cur.seq, cur.aimX, cur.aimY, cur.fire, spread, this.world.waves.number);
     if (flagged) this.onSpreadCancelSuspect?.(flagged);
   }

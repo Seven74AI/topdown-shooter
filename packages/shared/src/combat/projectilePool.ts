@@ -32,6 +32,13 @@ export interface ProjectilePool {
    */
   readonly building: Int32Array;
   readonly pushbackM: Float32Array;
+  /**
+   * Story 5.3: the trigger pull this projectile belongs to (every pellet of one Shotgun shot shares
+   * it; > 0 only for weapons with `knockbackM` > 0): a zombie is knocked back once per shot id.
+   */
+  readonly shotId: Uint32Array;
+  /** Story 5.3: the last shot id handed out (`nextShotId`); counts up from 1, wraps past 2³² − 1 to 1. */
+  lastShotId: number;
   /** Player id of the shooter, or of the turret's owner (references, preallocated). */
   readonly owner: (string | null)[];
   /** Zombie ids already hit by each projectile (MAX_PIERCE per projectile). */
@@ -64,6 +71,8 @@ export function createProjectilePool(capacity: number): ProjectilePool {
     weapon: new Uint8Array(capacity),
     building: new Int32Array(capacity),
     pushbackM: new Float32Array(capacity),
+    shotId: new Uint32Array(capacity),
+    lastShotId: 0,
     owner: new Array<string | null>(capacity).fill(null),
     hitIds: new Int32Array(capacity * MAX_PIERCE),
     hitCount: new Uint8Array(capacity),
@@ -93,6 +102,8 @@ export interface ProjectileSpawn {
   advanceM: number;
   /** Story 2.12: the shooter's rewind in ticks (absent / 0: live positions). */
   rewindTicks?: number;
+  /** Story 5.3: the shot id for once-per-shot knockback (absent / 0: no knockback). */
+  shotId?: number;
 }
 
 /** Returns the projectile id, or -1 if the pool is full. */
@@ -114,6 +125,7 @@ export function spawnProjectile(pool: ProjectilePool, s: ProjectileSpawn): numbe
   pool.weapon[id] = s.weaponIndex;
   pool.building[id] = s.building ?? 0;
   pool.pushbackM[id] = s.pushbackM ?? 0;
+  pool.shotId[id] = s.shotId ?? 0;
   pool.owner[id] = s.owner;
   pool.hitCount[id] = 0;
   pool.alivePos[id] = pool.aliveCount;
@@ -144,4 +156,10 @@ export function recordProjectileHit(pool: ProjectilePool, id: number, zombieId: 
   if (n >= MAX_PIERCE) return;
   pool.hitIds[id * MAX_PIERCE + n] = zombieId;
   pool.hitCount[id] = n + 1;
+}
+
+/** Story 5.3: a new shot id (> 0) for one trigger pull's projectiles. */
+export function nextShotId(pool: ProjectilePool): number {
+  pool.lastShotId = pool.lastShotId >= 0xffffffff ? 1 : pool.lastShotId + 1;
+  return pool.lastShotId;
 }

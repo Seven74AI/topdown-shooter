@@ -28,6 +28,7 @@ function snapshotZombies(world: World) {
       waveZombie: z.waveZombie[id],
       attackCooldownTicks: z.attackCooldownTicks[id],
       fireTicks: z.fireTicks[id], // Story 4.8 review L4
+      knockShot: z.knockShot[id], // Story 5.3
     })),
     nextUnused: z.nextUnused,
     freed: Array.from({ length: z.freedCount }, (_, k) => {
@@ -56,6 +57,7 @@ function snapshotProjectiles(world: World) {
     weapon: p.weapon[id],
     building: p.building[id], // Story 3.6
     pushbackM: p.pushbackM[id],
+    shotId: p.shotId[id], // Story 5.3
     owner: p.owner[id],
     hits: Array.from(p.hitIds.subarray(id * MAX_PIERCE, id * MAX_PIERCE + (p.hitCount[id] ?? 0))),
   }));
@@ -118,6 +120,7 @@ export function snapshotWorld(world: World) {
         ] as const,
     ),
     projectiles: snapshotProjectiles(world),
+    lastShotId: world.projectiles.lastShotId, // Story 5.3: the shot counter
     zombies: snapshotZombies(world),
     waves: {
       ...world.waves,
