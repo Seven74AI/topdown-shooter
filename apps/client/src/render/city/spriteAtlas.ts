@@ -6,6 +6,8 @@ import { addGeneratedTexture } from "./canvasTexture";
 import { drawObjectInFrame, drawSandbags } from "./objectArt";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
 import { TIER_PLATE_H, WEAPON_ART, drawChainsawRunning, drawTierPlate, tierPlateWidth } from "./weaponArt";
+import { BLOATER_SWELL_STAGES, drawBloater } from "./bloaterArt";
+import { drawBileSplat, drawBurstFlash, drawClothScrap, drawGasDisc } from "./bloaterFxArt";
 import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawCharredCar, drawDumpster, drawPump, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
@@ -21,7 +23,7 @@ export const ATLAS_FX = "atlas_fx";
 /** Collision radius in frame px (characters are drawn in radius units, so the frame fits every balance radius). */
 export const CHAR_R_PX = 34;
 /** Walker/runner/crawler variants (clothes); the survivor has one. */
-export const ZOMBIE_VARIANTS: Readonly<Record<ZombieTypeId, number>> = { walker: 4, runner: 2, crawler: 2, spitter: 2, brute: 5 }; // Story 5.7: BR1–BR5
+export const ZOMBIE_VARIANTS: Readonly<Record<ZombieTypeId, number>> = { walker: 4, runner: 2, crawler: 2, spitter: 2, brute: 5, bloater: 5 }; // Story 5.7: BR1–BR5; Story 5.8: BL1–BL5
 
 /** Frame names per zombie type (built once: views never build strings per frame). */
 export const ZOMBIE_FRAMES: Readonly<Record<ZombieTypeId, readonly string[]>> = Object.fromEntries(
@@ -32,6 +34,14 @@ export const SURVIVOR_FRAME = frameName("survivor", "body", "a");
 export const SPITTER_WINDUP_FRAMES: readonly string[] = Array.from({ length: ZOMBIE_VARIANTS.spitter }, (_, i) => `${frameName("zombie", "spitter", "windup")}_${variantLetter(i)}`);
 /** Story 5.7: the Brute's windup pose (arms raised under the clothes), one per look (BR1–BR5). */
 export const BRUTE_WINDUP_FRAMES: readonly string[] = Array.from({ length: ZOMBIE_VARIANTS.brute }, (_, i) => `${frameName("zombie", "brute", "windup")}_${variantLetter(i)}`);
+/**
+ * Story 5.8: the Bloater's swell frames per look: `BLOATER_SWELL_FRAMES[stage][look]` =
+ * `zombie_bloater_swell<k>_<look>` for k = 1–3 (swell s = k / 3; the view steps through them over the
+ * 1 s fuse: the growth is in the art, the frame keeps its size).
+ */
+export const BLOATER_SWELL_FRAMES: readonly (readonly string[])[] = Array.from({ length: BLOATER_SWELL_STAGES }, (_, k) =>
+  Array.from({ length: ZOMBIE_VARIANTS.bloater }, (_, i) => `${frameName("zombie", "bloater", `swell${k + 1}`)}_${variantLetter(i)}`),
+);
 /**
  * Story 5.3: the survivor holding a weapon with its own art (`weaponArt.ts`), by weapon id:
  * `survivor_shotgun_a`, `survivor_assault_rifle_a`. Other weapons use `SURVIVOR_FRAME`.
@@ -82,6 +92,14 @@ export const FX_ACID_PUDDLES: readonly string[] = ["01", "02"].map((v) => `${fra
  */
 export const FX_TIER_MARKS: readonly string[] = ["", "", frameName("fx", "tiermark", "b"), frameName("fx", "tiermark", "c"), frameName("fx", "tiermark", "d")];
 export const FX_TIER_SCALE = 3;
+/**
+ * Story 5.8: the Bloater burst: two gas discs (the frame's edge is the cloud's edge: drawn 2 ×
+ * `gasRadiusM` wide), the green flash, four bile splats, a cloth scrap (tinted per look).
+ */
+export const FX_GAS_CLOUDS: readonly string[] = ["a", "b"].map((v) => frameName("fx", "gascloud", v));
+export const FX_EXPLOSION_BLOATER = frameName("fx", "explosionbloater", "a");
+export const FX_BILE_SPLATS: readonly string[] = ["a", "b", "c", "d"].map((v) => frameName("fx", "bilesplat", v));
+export const FX_CLOTH_SCRAP = frameName("fx", "clothscrap", "a");
 const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_RAIN]: [4, 28],
   [FX_SPLASH]: [40, 20],
@@ -90,6 +108,10 @@ const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_EDGE]: [8, 64],
   [FX_SPIT_GLOB]: [48, 48],
   ...Object.fromEntries(FX_ACID_PUDDLES.map((n) => [n, [128, 128] as const])),
+  ...Object.fromEntries(FX_GAS_CLOUDS.map((n) => [n, [160, 160] as const])), // Story 5.8
+  [FX_EXPLOSION_BLOATER]: [96, 96],
+  ...Object.fromEntries(FX_BILE_SPLATS.map((n) => [n, [40, 40] as const])),
+  [FX_CLOTH_SCRAP]: [16, 10],
   ...Object.fromEntries([2, 3, 4].map((lv) => [FX_TIER_MARKS[lv] as string, [Math.ceil(tierPlateWidth(lv) * FX_TIER_SCALE), TIER_PLATE_H * FX_TIER_SCALE] as const])),
 };
 
@@ -109,6 +131,8 @@ export function characterSpecs(): FrameSpec[] {
   for (const name of SPITTER_WINDUP_FRAMES) out.push({ name, w: sp, h: sp });
   const br = Math.ceil(2 * CHAR_EXTENT_R.brute * CHAR_R_PX);
   for (const name of BRUTE_WINDUP_FRAMES) out.push({ name, w: br, h: br });
+  const bl = Math.ceil(2 * CHAR_EXTENT_R.bloater * CHAR_R_PX);
+  for (const stage of BLOATER_SWELL_FRAMES) for (const name of stage) out.push({ name, w: bl, h: bl });
   const s = Math.ceil(2 * CHAR_EXTENT_R.survivor * CHAR_R_PX);
   out.push({ name: SURVIVOR_FRAME, w: s, h: s });
   for (const name of Object.values(SURVIVOR_WEAPON_FRAMES)) out.push({ name, w: s, h: s });
@@ -180,6 +204,10 @@ function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   if (w >= 0) drawZombie(g, "spitter", CHAR_R_PX, w, true);
   const bw = BRUTE_WINDUP_FRAMES.indexOf(f.name);
   if (bw >= 0) drawZombie(g, "brute", CHAR_R_PX, bw, true);
+  for (let k = 0; k < BLOATER_SWELL_FRAMES.length; k++) {
+    const look = (BLOATER_SWELL_FRAMES[k] as readonly string[]).indexOf(f.name);
+    if (look >= 0) drawBloater(g, CHAR_R_PX, look, (k + 1) / BLOATER_SWELL_FRAMES.length); // Story 5.8
+  }
 }
 
 function drawDowntownFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
@@ -238,6 +266,17 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   } else if (FX_ACID_PUDDLES.includes(f.name)) {
     g.translate(x + w / 2, y + h / 2);
     drawAcidPuddle(g, w, 131 + FX_ACID_PUDDLES.indexOf(f.name) * 70);
+  } else if (FX_GAS_CLOUDS.includes(f.name)) {
+    drawGasDisc(g, x, y, w, FX_GAS_CLOUDS.indexOf(f.name) * 9); // Story 5.8 (pixel data: device space)
+  } else if (f.name === FX_EXPLOSION_BLOATER) {
+    g.translate(x + w / 2, y + h / 2);
+    drawBurstFlash(g, w);
+  } else if (FX_BILE_SPLATS.includes(f.name)) {
+    g.translate(x + w / 2, y + h / 2);
+    drawBileSplat(g, w, FX_BILE_SPLATS.indexOf(f.name));
+  } else if (f.name === FX_CLOTH_SCRAP) {
+    g.translate(x + w / 2, y + h / 2);
+    drawClothScrap(g, w, h);
   } else if (FX_TIER_MARKS.indexOf(f.name) >= 2) {
     g.translate(x, y);
     g.scale(FX_TIER_SCALE, FX_TIER_SCALE);

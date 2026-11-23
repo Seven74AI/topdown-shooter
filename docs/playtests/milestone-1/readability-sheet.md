@@ -34,6 +34,9 @@ Player:
 24 what is the survivor holding?
 25 what is the survivor holding?
 26 what:            what does it do?
+27 what:            what does it do?
+28 what is about to happen? where is it safe?
+29 what is the green cloud? what does it do to you?
 ```
 
 ## 1
@@ -100,3 +103,12 @@ Player:
 
 ## 26 (Story 5.7)
 ![26](objects/27_brute.png)
+
+## 27 (Story 5.8)
+![27](objects/28_bloater.png)
+
+## 28 (Story 5.8)
+![28](objects/29_bloater_swell.png)
+
+## 29 (Story 5.8)
+![29](objects/30_bloater_gas.png)

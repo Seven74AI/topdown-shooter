@@ -7,6 +7,7 @@ import {
   inRect,
   turretStats,
   viewRect,
+  BLOATER_BLAST_WEAPON,
   type NetEvent,
   type NetEventContext,
   type Rect,
@@ -27,6 +28,8 @@ import {
  *   turret-style building hits (above). `building.upgraded` stays global (money / HUD).
  * Story 5.6 adds two more local kinds: `spitter.spat` (its mouth point or its flight's end) and
  * `acid.splashed` (the puddle's centre). Acid damage (`player.damaged`, source −3) stays global.
+ * Story 5.8: `bloater.swell_started`, `bloater.burst` and a Bloater blast's non-killing `zombie.hit`
+ * are local (their point); the blast damage, kills and the gas slow stay server truth for everyone.
  *
  * A client gets a local event only if one of its two points lies in that client's horde view rect
  * (Story 2.5 `viewRect` around `viewTargetFor`, + `HORDE_VIEW_MARGIN_M`). Everything else (kills,
@@ -73,6 +76,13 @@ export class EventInterest {
         this.setLocal(k, e.x, e.y, e.toX, e.toY);
       } else if (e.type === "acid.splashed") {
         this.setLocal(k, e.x, e.y, e.x, e.y); // the puddle (radius ≤ the view margin)
+      } else if (e.type === "bloater.swell_started" || e.type === "bloater.burst") {
+        this.setLocal(k, e.x, e.y, e.x, e.y); // Story 5.8: the swell cue, the burst + gas FX (the slow and damage are global)
+      } else if (e.type === "zombie.hit" && e.weapon === BLOATER_BLAST_WEAPON) {
+        // Story 5.8: a blast's non-killing hits (up to ~40 per blast, 8 blasts a tick in a chain) are
+        // local hit flashes; the killing one stays global (it is right before its `zombie.killed`).
+        const next = events[i + 1];
+        if (!(next !== undefined && next.type === "zombie.killed" && next.zombieId === e.zombieId)) this.setLocal(k, e.x, e.y, e.x, e.y);
       } else if (e.type === "zombie.hit" && e.buildingId !== undefined) {
         const next = events[i + 1];
         const kills = next !== undefined && next.type === "zombie.killed" && next.zombieId === e.zombieId;

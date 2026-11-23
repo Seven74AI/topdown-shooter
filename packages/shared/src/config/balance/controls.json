@@ -8,6 +8,8 @@
     "chainsawSparksPerHit": 4,
     "chainsawSparksPerMiss": 1,
     "chainsawSparkMs": 180,
-    "chainsawRevHoldMs": 150
+    "chainsawRevHoldMs": 150,
+    "maxBloaterParticles": 240,
+    "maxFuseRings": 16
   }
 }

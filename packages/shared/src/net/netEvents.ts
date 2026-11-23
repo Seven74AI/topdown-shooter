@@ -50,6 +50,9 @@ export const NET_EVENT_KIND = {
   ACID_SPLASHED: 30, // Story 5.6
   WEAPON_UPGRADED: 31, // Story 5.1 (renumber at merge if taken; never reuse)
   BRUTE_SPAWNED: 32, // Story 5.7 (31 is 5.1's WEAPON_UPGRADED; renumber at merge if taken, never reuse)
+  // Story 5.8 (next free numbers when built; 5.4/5.5 are built in parallel: renumber at merge if taken, never reuse)
+  BLOATER_SWELL_STARTED: 33,
+  BLOATER_BURST: 34,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -203,6 +206,12 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "weapon.upgraded":
       // Story 5.1: one per upgrade (the level itself comes from schema level0/level1).
       return [K.WEAPON_UPGRADED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), e.slot, e.level];
+    case "bloater.swell_started":
+      // Story 5.8: the swell cue and the fuse ring (the swell itself is the streamed SWELL state).
+      return [K.BLOATER_SWELL_STARTED, zid(ctx, e.zombieId), cm(e.x), cm(e.y)];
+    case "bloater.burst":
+      // Story 5.8: the burst FX and the gas cloud (no cloud state on the wire; hits and kills are their own events).
+      return [K.BLOATER_BURST, cm(e.x), cm(e.y), e.chain ? 1 : 0];
     case "test.ping":
       return null;
   }
@@ -350,6 +359,10 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "zombie.brute_spawned", zombieId: zombieSlotOfNetId(n(t, 1)), x: n(t, 2) / 100, y: n(t, 3) / 100, first: n(t, 4) === 1 };
     case K.WEAPON_UPGRADED:
       return { type: "weapon.upgraded", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)), slot: n(t, 3) === 1 ? 1 : 0, level: n(t, 4) };
+    case K.BLOATER_SWELL_STARTED:
+      return { type: "bloater.swell_started", zombieId: zombieSlotOfNetId(n(t, 1)), x: n(t, 2) / 100, y: n(t, 3) / 100 };
+    case K.BLOATER_BURST:
+      return { type: "bloater.burst", x: n(t, 1) / 100, y: n(t, 2) / 100, chain: n(t, 3) === 1 };
     default:
       return null;
   }

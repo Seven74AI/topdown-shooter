@@ -4,7 +4,9 @@ import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { downPlayer } from "../player/downed";
 import { shotLineClear } from "./cover";
-import { applyZombieDamage } from "./damage";
+import { applyKnockback, applyZombieDamage } from "./damage";
+import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
+import { distanceToBox } from "../buildings/collision";
 import { DAMAGE_SOURCE_EXPLOSION } from "../core/simEvents";
 
 /**
@@ -27,9 +29,25 @@ import { DAMAGE_SOURCE_EXPLOSION } from "../core/simEvents";
 
 /** Review L2: the blast's own target list (never the shared combat candidate buffer). */
 const blastTargets = new Int32Array(ZOMBIE_POOL_CAPACITY);
+/** Story 5.8: the buildings a blast reaches (ids; collected first: a destroyed one leaves the list). */
+const MAX_BLAST_BUILDINGS = 64;
+const blastBuildings = new Int32Array(MAX_BLAST_BUILDINGS);
 
 /** What the last `explode` did (tests, sims, liveness asserts). */
-export const blastResult = { zombiesHit: 0, zombiesKilled: 0, playersHit: 0 };
+export const blastResult = { zombiesHit: 0, zombiesKilled: 0, playersHit: 0, buildingsHit: 0 };
+
+/**
+ * Story 5.8: what a blast does beyond the 5.9 mine (defaults: nothing). `buildingDamage` > 0: every
+ * player WALL building (`solid`: barricades, turrets; floor traps and mines are not hit) whose
+ * footprint overlaps the circle, with a clear shot line from the centre to its nearest point, takes
+ * it (D3). `pushM` > 0: every zombie it hit and didn't kill is knocked that far straight out
+ * (`applyKnockback`: swept, stops at faces, × the type's `knockbackTakenPct`).
+ * (5.5 owns `explode`: at the merge these fold into its spec object, see the 5.8 merge notes.)
+ */
+export interface BlastExtra {
+  buildingDamage: number;
+  pushM: number;
+}
 
 /** Module-level state of the player pass (no closure per call). */
 const pass = { world: null as World | null, x: 0, y: 0, r: 0, amount: 0 };
@@ -71,10 +89,12 @@ export function explode(
   killerId: string | null,
   weapon: string,
   buildingId = 0,
+  extra: Readonly<BlastExtra> | null = null,
 ): number {
   blastResult.zombiesHit = 0;
   blastResult.zombiesKilled = 0;
   blastResult.playersHit = 0;
+  blastResult.buildingsHit = 0;
   const z = world.zombies;
   let n = 0;
   for (let k = 0; k < z.aliveCount; k++) {
@@ -96,8 +116,12 @@ export function explode(
     const dy = (z.y[id] as number) - y;
     const d = Math.sqrt(dx * dx + dy * dy);
     blastResult.zombiesHit++;
-    if (applyZombieDamage(world, id, zombieDamage, d > 1e-6 ? dx / d : 1, d > 1e-6 ? dy / d : 0, 0, killerId, weapon, buildingId)) blastResult.zombiesKilled++;
+    const ux = d > 1e-6 ? dx / d : 1;
+    const uy = d > 1e-6 ? dy / d : 0;
+    if (applyZombieDamage(world, id, zombieDamage, ux, uy, 0, killerId, weapon, buildingId)) blastResult.zombiesKilled++;
+    else if (extra && extra.pushM > 0) applyKnockback(world, id, ux, uy, extra.pushM); // Story 5.8
   }
+  if (extra && extra.buildingDamage > 0) blastWalls(world, x, y, radiusM, extra.buildingDamage);
   pass.world = world;
   pass.x = x;
   pass.y = y;
@@ -106,4 +130,25 @@ export function explode(
   world.players.forEach(blastPlayer);
   pass.world = null;
   return blastResult.zombiesHit;
+}
+
+/** Story 5.8 (D3): `amount` to every wall building the blast circle overlaps with a clear line (see `BlastExtra`). */
+function blastWalls(world: World, x: number, y: number, radiusM: number, amount: number): void {
+  const list = world.buildings.list;
+  let n = 0;
+  for (let i = 0; i < list.length && n < MAX_BLAST_BUILDINGS; i++) {
+    const b = list[i] as Building;
+    if (!b.solid || distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) >= radiusM) continue;
+    const nx = Math.min(b.maxX, Math.max(b.minX, x));
+    const ny = Math.min(b.maxY, Math.max(b.minY, y));
+    if (!shotLineClear(world, x, y, nx, ny)) continue; // a car or a wall between: shielded (FR-D)
+    blastBuildings[n++] = b.id;
+  }
+  for (let k = 0; k < n; k++) {
+    const id = blastBuildings[k] as number;
+    const b = buildingById(world, id);
+    if (!b) continue;
+    blastResult.buildingsHit++;
+    damageBuilding(world, b, amount);
+  }
 }

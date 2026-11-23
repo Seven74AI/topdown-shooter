@@ -216,37 +216,41 @@ describe("wave director (FR28, FR30)", () => {
 });
 
 /** Story 3.10: the 5-wave curve, its composition and the player-count scale (FR28, FR29, FR31). */
-describe("five-wave curve and composition (Story 3.10)", () => {
+describe("six-wave curve and composition (Story 3.10; Story 5.8: 6 waves)", () => {
   const real = loadBalance();
   const typeOf = (world: World, id: number) => ZOMBIE_TYPES[world.zombies.type[id] as number];
 
-  it("4 players: 40 / 80 / 120 / 160 / 200; 3 players × 0.8; 2 players × 0.6; solo × 0.4", () => {
-    const sizes = (players: number) => [1, 2, 3, 4, 5].map((n) => waveSize(real, n, players));
-    expect(sizes(4)).toEqual([40, 80, 120, 160, 200]);
-    expect(sizes(3)).toEqual([32, 64, 96, 128, 160]);
-    expect(sizes(2)).toEqual([24, 48, 72, 96, 120]);
-    expect(sizes(1)).toEqual([16, 32, 48, 64, 80]);
+  it("4 players: 40 / 80 / 120 / 160 / 200 / 240; 3 players × 0.8; 2 players × 0.6; solo × 0.4", () => {
+    const sizes = (players: number) => [1, 2, 3, 4, 5, 6].map((n) => waveSize(real, n, players));
+    expect(sizes(4)).toEqual([40, 80, 120, 160, 200, 240]);
+    expect(sizes(3)).toEqual([32, 64, 96, 128, 160, 192]);
+    expect(sizes(2)).toEqual([24, 48, 72, 96, 120, 144]);
+    expect(sizes(1)).toEqual([16, 32, 48, 64, 80, 96]);
     expect(waveSize(real, 1, 9)).toBe(40); // clamped to the last entry
-    expect(real.waves.runWaves).toBe(5);
+    expect(real.waves.runWaves).toBe(6); // Story 5.8 (FR29: "the temporary run grows to 6 waves")
   });
 
-  it("W1 Walkers only, W2 adds Runners, W3 adds Crawlers, W4–W5 add Spitters (Story 5.6: 8 %), exact counts", () => {
+  it("W1 Walkers only, W2 adds Runners, W3 adds Crawlers, W4–W5 add Spitters (Story 5.6: 8 %), W6 adds Bloaters (Story 5.8: 15 %), exact counts", () => {
     const out = new Uint16Array(ZOMBIE_TYPES.length);
     const counts = (n: number, players = 4) => {
       waveTypeCounts(waveMixOf(real, n), waveSize(real, n, players), out);
       return Object.fromEntries(ZOMBIE_TYPES.map((t, i) => [t, out[i]]));
     };
-    expect(counts(1)).toEqual({ walker: 40, crawler: 0, runner: 0, spitter: 0, brute: 0 });
-    expect(counts(2)).toEqual({ walker: 64, crawler: 0, runner: 16, spitter: 0, brute: 0 });
-    expect(counts(3)).toEqual({ walker: 78, crawler: 18, runner: 24, spitter: 0, brute: 0 });
+    expect(counts(1)).toEqual({ walker: 40, crawler: 0, runner: 0, spitter: 0, brute: 0, bloater: 0 });
+    expect(counts(2)).toEqual({ walker: 64, crawler: 0, runner: 16, spitter: 0, brute: 0, bloater: 0 });
+    expect(counts(3)).toEqual({ walker: 78, crawler: 18, runner: 24, spitter: 0, brute: 0, bloater: 0 });
     // Story 5.6 (DD3): 160 × {50, 25, 17, 8} % = 80 / 40 / 27.2 / 12.8 → floors + the leftover one to the Walkers.
-    expect(counts(4)).toEqual({ walker: 81, crawler: 27, runner: 40, spitter: 12, brute: 0 });
+    expect(counts(4)).toEqual({ walker: 81, crawler: 27, runner: 40, spitter: 12, brute: 0, bloater: 0 });
     // The mix share alone (Story 5.7's fixed Brute is folded in by `applyFixedCounts`: below).
-    expect(counts(5)).toEqual({ walker: 90, crawler: 44, runner: 50, spitter: 16, brute: 0 });
+    expect(counts(5)).toEqual({ walker: 90, crawler: 44, runner: 50, spitter: 16, brute: 0, bloater: 0 });
     // Solo: wave 4 is 64 → 32 / 16 / 10.88 / 5.12 → 32 + 1, 10, 16, 5.
-    expect(counts(4, 1)).toEqual({ walker: 33, crawler: 10, runner: 16, spitter: 5, brute: 0 });
+    expect(counts(4, 1)).toEqual({ walker: 33, crawler: 10, runner: 16, spitter: 5, brute: 0, bloater: 0 });
     // Leftovers go one by one in type order: 32 × 80 % = 25.6 → 26 Walkers, 6 Runners.
-    expect(counts(2, 1)).toEqual({ walker: 26, crawler: 0, runner: 6, spitter: 0, brute: 0 });
+    expect(counts(2, 1)).toEqual({ walker: 26, crawler: 0, runner: 6, spitter: 0, brute: 0, bloater: 0 });
+    // Story 5.8 (D9): 240 × {40, 20, 15, 10, 15} % = 96 / 48 / 36 / 24 / 36 exactly.
+    expect(counts(6)).toEqual({ walker: 96, crawler: 36, runner: 48, spitter: 24, brute: 0, bloater: 36 });
+    // Solo: 96 → 38.4 / 19.2 / 14.4 / 9.6 / 14.4 → floors 38, 14, 19, 9, 14 + the 2 leftovers in type order.
+    expect(counts(6, 1)).toEqual({ walker: 39, crawler: 15, runner: 19, spitter: 9, brute: 0, bloater: 14 });
     // Waves past the list use the last entry.
     expect(waveMixOf(real, 9)).toBe(real.waves.mix[real.waves.mix.length - 1]);
   });
@@ -333,8 +337,8 @@ describe("five-wave curve and composition (Story 3.10)", () => {
     }
     expect(maxAlive).toBe(150);
     expect(rushedWithQueue).toBe(false);
-    expect(world.run.phase).toBe("results"); // the last wave of the run
-    expect(world.run.heldOut).toBe(true);
+    expect(world.run.phase).toBe("build"); // Story 5.8: wave 6 is the run's last now
+    expect(world.run.heldOut).toBe(false);
   });
 
   it("the last-zombies rush waits until the whole wave has spawned (3.10 review)", () => {
@@ -440,13 +444,13 @@ describe("Story 5.7: the Brute in the waves (AC 3, 4; F6, F8)", () => {
     const bal = balanceWith({}, true);
     const target = new Uint16Array(ZOMBIE_TYPES.length);
     const fixed = new Uint16Array(ZOMBIE_TYPES.length);
-    target.set([0, 3, 5, 1, 0]);
+    target.set([0, 3, 5, 1, 0, 0]);
     applyFixedCounts(bal, 5, 9, target, fixed);
-    expect(Array.from(target)).toEqual([0, 3, 4, 1, 1]); // no Walkers: the Runners (largest) give it
-    expect(Array.from(fixed)).toEqual([0, 0, 0, 0, 1]);
-    target.set([10, 0, 0, 0, 0]);
+    expect(Array.from(target)).toEqual([0, 3, 4, 1, 1, 0]); // no Walkers: the Runners (largest) give it
+    expect(Array.from(fixed)).toEqual([0, 0, 0, 0, 1, 0]);
+    target.set([10, 0, 0, 0, 0, 0]);
     applyFixedCounts(bal, 7, 10, target, fixed);
-    expect(Array.from(target)).toEqual([10, 0, 0, 0, 0]); // wave 7: no entry
-    expect(Array.from(fixed)).toEqual([0, 0, 0, 0, 0]);
+    expect(Array.from(target)).toEqual([10, 0, 0, 0, 0, 0]); // wave 7: no entry
+    expect(Array.from(fixed)).toEqual([0, 0, 0, 0, 0, 0]);
   });
 });

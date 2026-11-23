@@ -1,5 +1,5 @@
 /**
- * Story 3.10 balance sweep: seeded headless 5-wave runs with bots (`runHeadless`, the same run as
+ * Story 3.10 balance sweep (Story 5.8: `runWaves` waves, 6 now; the file keeps its name): seeded headless runs with bots (`runHeadless`, the same run as
  * `economy/fiveWaveSim.test.ts`), printed one line per run plus a summary per team size.
  *
  *   npx tsx tools/sims/fiveWave.ts --players 2,3,4 --seeds 1-6
@@ -40,12 +40,12 @@ const list = listArg === undefined ? undefined : listArg === "" ? [] : listArg.s
 console.log(`overrides: ${overrides.map((o) => o.join(" ")).join("; ") || "none"}; list: ${(list ?? balance.bots.shoppingList).join(",") || "(empty)"}`);
 for (const players of teamSizes) {
   const runs = seeds.map((seed) => runHeadless({ balance, seed, players, ...(list ? { list } : {}) }));
-  for (const r of runs) console.log(formatRunLine(r));
+  for (const r of runs) console.log(`${formatRunLine(r)} | Bloater bursts by wave ${r.bloaters.burstsInWave.join("/") || "-"}, chains ${r.bloaters.chains}, blast hits on players ${r.bloaters.playerHits}`);
   const held = runs.filter((r) => r.heldOut).length;
   const cleared = runs.map((r) => r.wavesCleared);
   const earned = runs.flatMap((r) => r.earned);
   const mean = earned.reduce((a, b) => a + b, 0) / Math.max(1, earned.length);
-  const byWave = [1, 2, 3, 4, 5].map((w) => runs.filter((r) => r.wavesCleared >= w).length);
+  const byWave = Array.from({ length: balance.waves.runWaves }, (_, i) => runs.filter((r) => r.wavesCleared >= i + 1).length);
   console.log(
     `== ${players}p: held out ${held}/${runs.length}; cleared by wave ${byWave.join("/")}; waves cleared ${cleared.join(",")}; ` +
       `earned mean ${mean.toFixed(0)} (min ${Math.min(...earned)}, max ${Math.max(...earned)})`,
