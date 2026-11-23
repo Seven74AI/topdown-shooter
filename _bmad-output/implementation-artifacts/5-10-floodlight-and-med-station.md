@@ -168,7 +168,7 @@ Builder in its own cloud session (container), branch `story-5-10` from the work 
 
 ### Debug Log References
 
-- **Gate** (`npm run typecheck && npm run lint && npm test && npm run build`): (running at commit time; result in the next commit)
+- **Gate** (`npm run typecheck && npm run lint && npm test && npm run build`): green on `story-5-10` (work branch `6d563bc` + this story; MS10 docs from `d526464`): **258 files passed (1 skipped), 2,078 tests passed (3 skipped)**, build OK. Load 2.32 before, 3.99 after (this container only).
 - **Tick cost** (`tickCostDowntown.test.ts › Story 5.10`, `PERF_ASSERT=1`, 4 players + 150 Walkers on Downtown, each case twice interleaved, lower p99 kept): Downtown p99 1.094 ms (mean 0.667) → + 6 med stations healing (every player held at 50 HP: worst case) + 6 floodlights p99 1.213 ms (mean 0.726): **added p99 0.120 ms, mean 0.059 ms** (budget 0.2 ms); 250.8 HP healed, 6 lights; load 0.29.
 - **Bandwidth** (`medStationBandwidth.test.ts`, 4 clients, 15 s, everything to everyone): baseline 100 B/s; **4 floodlights +0 B/s**; 4 idle med stations +0 B/s; **1 player healing +35 B/s** (the story estimated 15–25: `ceil(hp)` changes 5×/s and each HP patch costs ~7 B with the player's patch header); 4 players healing +110 B/s. No new event (the heal cue comes from state). Totals stay far below the 30 KB/s budget.
 - **Headless FPS, `?stress=150`, 844 × 390 DPR 2, SwiftShader, own container** (no other builders here; load from `os.loadavg()`, a 12 s rAF count after 8 s warm-up):
