@@ -113,13 +113,13 @@ development_status:
 
   # Epic 5: Full arsenal and bestiary
   epic-5: in-progress  # all 13 story files written 2026-11-23; decisions: docs/epic-5-decisions.md
-  5-1-weapon-upgrades-i-iv: ready-for-dev
-  5-2-fire-axe-and-chainsaw: ready-for-dev
+  5-1-weapon-upgrades-i-iv: in-progress
+  5-2-fire-axe-and-chainsaw: in-progress
   5-3-shotgun-and-assault-rifle: done
   5-4-flamethrower-and-fire-friendly-fire: ready-for-dev
   5-5-grenade-launcher: ready-for-dev
   5-6-spitters: done
-  5-7-the-first-brute: ready-for-dev
+  5-7-the-first-brute: in-progress
   5-8-bloaters: ready-for-dev
   5-9-metal-barricade-spike-trap-and-mine: done
   5-10-floodlight-and-med-station: ready-for-dev
