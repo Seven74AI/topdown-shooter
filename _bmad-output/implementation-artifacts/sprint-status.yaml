@@ -128,6 +128,17 @@ development_status:
   5-12-consumables: ready-for-dev
   5-13-roguelike-card-shop: ready-for-dev
   5-14-bear-trap: backlog  # designer 2026-11-23: second trap type; after round A (needs 5.9's non-solid buildings)
+  5-15-carry-the-ghost-and-keep-moving: backlog  # building UX BX-1
+  5-16-build-bar-replaces-the-shop-for-buildings: backlog  # building UX BX-2
+  5-17-why-it-s-red: backlog  # building UX BX-3
+  5-18-place-place-place-chain-and-pending-under-lag: backlog  # building UX BX-4
+  5-19-thumb-drag-to-nudge-and-pin: backlog  # building UX BX-5
+  5-20-take-back-sell-and-undo: backlog  # building UX BX-6
+  5-21-building-action-bar: backlog  # building UX BX-7
+  5-22-move-a-building: backlog  # building UX BX-8
+  5-23-placement-feel-and-owner-marks: backlog  # building UX BX-9
+  5-24-teammates-ghosts: backlog  # building UX BX-10
+  5-25-mouse-and-keys-parity-optional: backlog  # building UX BX-11
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless

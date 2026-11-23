@@ -118,4 +118,4 @@ Page: claude.ai/artifact/NasqdNNAhnHQEkbHVcamFZ (code drawings in `docs/art/epic
 
 - **Offline play (Bluetooth / local Wi-Fi): dropped.** The research on branch `claude/idea-offline-play` stays there for reference; nothing is scheduled.
 - **Survivor customization: scheduled** as Stories 7.8–7.12 (Epic 7, with accounts; `docs/ideas/customization/`).
-- **Building-system UX rework:** a design session (party + UX spec + prototypes) on branch `claude/idea-building-ux`; its stories get added with gds-correct-course when it's done.
+- **Building-system UX rework: scheduled** as Stories 5.15–5.25 (designer picked "B · Carry + drag"; `docs/ideas/building-ux/`). 5.15–5.19 client-only, can start any time; 5.20, 5.22, 5.24 after 5.10 and 5.14.
