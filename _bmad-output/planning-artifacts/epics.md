@@ -1986,6 +1986,14 @@ As a desktop player, I want the same building flow with mouse and keys.
 
 **Acceptance criteria:** the ghost follows the cursor (absolute) when a mouse moved last; `1`–`7` pick from the build bar; `R` / wheel rotates; left click / `Space` places; right click / `Esc` puts away; `Z` undoes; `M` picks up the selected building. Keys added to `keyMap.ts`.
 
+### Story 5.26: Build-bar icons
+
+(Added 2026-11-23: the designer decided in the 5.16 session that buildings get their own build-bar icons, separate from the top-down world art. Picks in `docs/epic-5-decisions.md` › Build-bar icons; code drawings in `docs/art/5-16/icons/index.html`, claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3.)
+
+As a player, I want each building tile in the build bar to show a clear, recognisable icon, so that I pick the right building at a glance.
+
+**Acceptance criteria:** the build bar (5.16) draws code-drawn icons in style **I1** (low three-quarter tilted objects): wood barricade I1, spike trap I1, auto-turret **T1** sentry gun (T2 armoured dome drawn and kept for a later turret tier/skin), mine **M1** pressure mine. Icons are baked once through `addGeneratedTexture` into a HUD atlas (`icon_build_<type>_a`, ≤ 2048²), crisp at 56 CSS px tiles on dpr 2–3; any building type without an icon falls back to its world art (med station, floodlight, bear trap get I1 icons when their stories ask). Affordable / unaffordable / cap states unchanged. Browser screenshots at 800 × 360 and 568 × 320.
+
 ---
 
 ## Epic 6: The full run: decay, boss, events, endless
