@@ -4,7 +4,7 @@ baseline_commit: b84caa3501de1e548dae55180d51f0155e2b0add
 
 # Story 5.5: Grenade Launcher
 
-Status: review
+Status: done
 
 ## Story
 
@@ -275,3 +275,7 @@ Merged the work branch at `3cfb501` first (5.4 flamethrowers with its `damagePla
 - 2026-11-23: Merged the work branch with Story 5.8 (Bloaters): one `explode(world, spec)` API (5.8's options folded in; `friendlyFire` and `announce` spec fields), my events renumbered to 35/36 after 5.8's 33/34, readability entries renumbered 30–33; gate re-run green.
 
 - 2026-11-23: Story 5.5 built (Grenade Launcher: launcher weapon kind, lobbed round pool, shared cover-checked `explode()` with the 5.9 mine moved onto it, events 33/34, client rounds/landing ring/EX1+EX2 explosions, bots, tests incl. fuzz/netsim/mutations). Status → review.
+
+### Re-review of the fixes (2026-11-23, fresh agent)
+
+No high or medium findings. M1: each nested explode() has its own buffer slice (capacity × MAX_BLAST_DEPTH 8; deeper nesting throws, unreachable), the spec is copied at entry, offsets restored in `finally`, deterministic hit order; mines, grenades and Bloaters all use explode(world, spec), player damage only via damagePlayerBy. L1: the seq rides the launch event (≤ 3 bytes, survives 65535 wrap); skipped/starved inputs never launch under another seq, so an unfired local round just times out; at 300 ms RTT the echo arrives within the local round's life and the re-timed landing matches the drawn blast. L2 and the counters correct; `damagePlayerByExplosion` has no callers. 7 of 8 mutations caught. Gate green (2,015 tests). Low **accepted**: no end-to-end test pins that the local round carries the server's seq (`NetSimHost.ts:640`; the line is correct by reading). Status: done.
