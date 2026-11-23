@@ -87,7 +87,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 4. **Epic 5** (Full arsenal and bestiary): stories from the real code with `gds-create-story`; every builder and reviewer prompt starts with the **EPIC 5 BRIEF** (§11 of `epic-4-retro-2026-11-23.md`). **Gate: every medium/high fix gets a fresh-agent re-review before `master`** (Epic 4 skipped it and a high slipped through).
 5. Small known leftovers: see `epic-4-retro-2026-11-23.md` §6.
 
-**Session 5 notes:** the Agent tool's `isolation: "worktree"` was not used; worktrees made by hand under `.claude/worktrees/` with a `node_modules` symlink (excluded via `.git/info/exclude`). Reviewers can run read-only in the main checkout (they mutate and revert files; don't commit while one runs: check `git status`).
+**Session 5 notes:** the Agent tool's `isolation: "worktree"` was not used; worktrees made by hand under `.claude/worktrees/`. **Don't symlink the whole `node_modules`:** its `@topdown/*` entries are relative links, so a worktree would test against the MAIN checkout's packages (false greens). Make `node_modules` a real directory linking every entry of the main one except `@topdown`, plus absolute `@topdown/{client,server,shared}` links into the worktree (`node_modules` is excluded via `.git/info/exclude`). The main checkout's gate after each merge is the real check. Reviewers can run read-only in the main checkout (they mutate and revert files; don't commit while one runs: check `git status`).
 
 ## 8. How the designer likes to work
 
