@@ -9,7 +9,9 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false, lowFx: false });
+    expect(parseUrlOptions("?fx=low").lowFx).toBe(true); // Story 4.12
+    expect(parseUrlOptions("?fx=high").lowFx).toBe(false);
     expect(parseUrlOptions("?stress=150&stressbuild=traps").stressBuild).toBe(true); // Story 5.9
     expect(parseUrlOptions("?stressbuild=walls").stressBuild).toBe(false);
     expect(parseUrlOptions("?zdmg=0.1").zombieDamageScale).toBe(0.1); // retro A5
@@ -49,6 +51,11 @@ describe("parseUrlOptions: Story 1.12 options", () => {
     expect(parseUrlOptions("?loadout=SMG, Hunting_Rifle").loadout).toEqual(["smg", "hunting_rifle"]);
     expect(parseUrlOptions("?loadout=smg").loadout).toEqual(["smg", null]);
     expect(parseUrlOptions("?loadout=smg,smg").loadout).toEqual(["smg", null]);
+    // Story 5.1: id:level entries pass through (levels are checked by validLoadout).
+    expect(parseUrlOptions("?loadout=smg:3,machete:2").loadout).toEqual(["smg:3", "machete:2"]);
+    expect(parseUrlOptions("?loadout=smg:3,smg:2").loadout).toEqual(["smg:3", null]);
+    expect(parseUrlOptions("?loadout=smg:x").loadout).toEqual(["smg:x", null]);
+    expect(parseUrlOptions("?loadout=smg:<b>").loadout).toBeNull();
     expect(parseUrlOptions("?loadout=<script>").loadout).toBeNull();
     expect(parseUrlOptions("").loadout).toBeNull();
   });

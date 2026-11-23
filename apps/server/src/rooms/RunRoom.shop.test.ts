@@ -14,6 +14,8 @@ import {
   type RunStateView,
   type ShopBought,
   type ShopRefused,
+  type ShopUpgraded,
+  type ShopUpgradeRefused,
 } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
 import { RunRoom, serverBalance } from "./RunRoom";
@@ -46,10 +48,14 @@ const options = (intent: "create" | "join", name: string) => ({
 interface Answers {
   bought: ShopBought[];
   refused: ShopRefused[];
+  upgraded: ShopUpgraded[];
+  upgradeRefused: ShopUpgradeRefused[];
 }
 
 function listen(client: RunSdkRoom): Answers {
-  const a: Answers = { bought: [], refused: [] };
+  const a: Answers = { bought: [], refused: [], upgraded: [], upgradeRefused: [] };
+  client.onMessage(S2C.SHOP_UPGRADED, (m: ShopUpgraded) => a.upgraded.push(m));
+  client.onMessage(S2C.SHOP_UPGRADE_REFUSED, (m: ShopUpgradeRefused) => a.upgradeRefused.push(m));
   client.onMessage(S2C.RUN_JOINED, () => {});
   client.onMessage(BYTES.HORDE_FRAME, () => {});
   client.onMessage(S2C.SIM_EVENTS_FLUSHED, () => {});
@@ -151,5 +157,62 @@ describe("RunRoom shop (Story 3.3)", () => {
     expect(player(room, "p0").wallet).toBeGreaterThanOrEqual(0);
     expect(hostAnswers.refused.every((r) => r.error === "already_owned" || r.error === "insufficient_funds")).toBe(true);
     expect(room.clients.length).toBe(2);
+  });
+});
+
+describe("RunRoom weapon upgrades (Story 5.1)", () => {
+  it("upgrade round trip: wallet, level0, answer to the sender only", async () => {
+    const { host, guest, room, hostAnswers, guestAnswers } = await startTwo();
+    player(room, "p0").wallet = 200;
+    host.send(C2S.SHOP_UPGRADE, { weapon: "pistol" });
+    await vi.waitFor(() => expect(hostAnswers.upgraded).toEqual([{ weapon: "pistol", slot: 0, level: 2 }]));
+    for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.players.get("p0")).toMatchObject({ wallet: 140, weapon0: "pistol", level0: 2, level1: 0 }));
+    expect(player(room, "p0").loadout.slots[0].level).toBe(2);
+    expect(guestAnswers.upgraded).toEqual([]);
+    expect(guestAnswers.upgradeRefused).toEqual([]);
+    expect(player(room, "p1").wallet).toBe(100);
+    expect(guest.state.players.get("p1")?.level0).toBe(1);
+    // Someone else's weapon can't be upgraded or paid for: the guest asking for "smg" upgrades nothing.
+    player(room, "p0").wallet = 1000;
+    setLoadout(serverBalance, player(room, "p0").loadout, ["pistol", "smg"]);
+    guest.send(C2S.SHOP_UPGRADE, { weapon: "smg" });
+    await vi.waitFor(() => expect(guestAnswers.upgradeRefused).toEqual([{ weapon: "smg", error: "not_owned" }]));
+    expect(player(room, "p0").loadout.slots[1]?.level).toBe(1);
+    expect(player(room, "p0").wallet).toBe(1000);
+  });
+
+  it("upgrade refused in a wave; malformed ids dropped; max level refused", async () => {
+    const { host, room, hostAnswers } = await startTwo();
+    const w = room.controller?.world;
+    if (!w) throw new Error("no run");
+    const p = player(room, "p0");
+    p.wallet = 1000;
+    host.send(C2S.SHOP_UPGRADE, { weapon: "PISTOL" });
+    host.send(C2S.SHOP_UPGRADE, { weapon: "pistol", level: 4 });
+    p.loadout.slots[0].level = 4;
+    host.send(C2S.SHOP_UPGRADE, { weapon: "pistol" });
+    await vi.waitFor(() => expect(hostAnswers.upgradeRefused).toEqual([{ weapon: "pistol", error: "max_level" }]));
+    p.loadout.slots[0].level = 1;
+    startWave(w);
+    host.send(C2S.SHOP_UPGRADE, { weapon: "pistol" });
+    await vi.waitFor(() => expect(hostAnswers.upgradeRefused.at(-1)).toEqual({ weapon: "pistol", error: "not_build" }));
+    expect(hostAnswers.upgraded).toEqual([]);
+    expect(p.wallet).toBe(1000);
+    expect(p.loadout.slots[0].level).toBe(1);
+    expect(room.clients.length).toBe(2);
+  });
+
+  it("10 rapid taps cannot overspend: each is checked against the wallet and level as they are by then", async () => {
+    const { host, room, hostAnswers } = await startTwo();
+    const p = player(room, "p0");
+    p.wallet = 150; // two Pistol upgrades (60 each), not three
+    for (let i = 0; i < 10; i++) host.send(C2S.SHOP_UPGRADE, { weapon: "pistol" });
+    await vi.waitFor(() => expect(hostAnswers.upgraded.length + hostAnswers.upgradeRefused.length).toBeGreaterThanOrEqual(3));
+    await new Promise((r) => setTimeout(r, 300));
+    expect(hostAnswers.upgraded.map((u) => u.level)).toEqual([2, 3]); // one level per paid tap, none skipped
+    expect(p.wallet).toBe(30);
+    expect(p.loadout.slots[0].level).toBe(3);
+    expect(hostAnswers.upgradeRefused.every((r) => r.error === "insufficient_funds")).toBe(true);
+    await vi.waitFor(() => expect(host.state.players.get("p0")).toMatchObject({ wallet: 30, level0: 3 }));
   });
 });

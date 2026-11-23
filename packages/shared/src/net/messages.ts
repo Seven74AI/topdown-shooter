@@ -3,7 +3,7 @@ import { TEST_SCENARIOS } from "./testScenarios";
 import type { PlaceError } from "../buildings/buildings";
 import type { RepairError } from "../buildings/repair";
 import type { UpgradeError } from "../buildings/upgrade";
-import type { ShopError } from "../economy/shop";
+import type { ShopError, WeaponUpgradeError } from "../economy/shop";
 
 /**
  * The client/server net contract (Story 2.1). Later stories extend it, never rename it.
@@ -34,6 +34,8 @@ export const C2S = {
   BUILDING_REPAIR: "building.repair",
   /** `{ id }` in a build phase (Story 5.9, owner only); a refusal comes back as `building.upgrade_refused`. */
   BUILDING_UPGRADE: "building.upgrade",
+  /** `{ weapon }` in a build phase (Story 5.1); answered with `shop.upgraded` or `shop.upgrade_refused`. */
+  SHOP_UPGRADE: "shop.upgrade",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -59,6 +61,10 @@ export const S2C = {
   BUILDING_REPAIR_REFUSED: "building.repair_refused",
   /** `{ id, reason: UpgradeError }` to the sender of a refused `building.upgrade` (Story 5.9). */
   BUILDING_UPGRADE_REFUSED: "building.upgrade_refused",
+  /** `{ weapon, slot, level }` to the sender only (Story 5.1); wallet and level follow in the state. */
+  SHOP_UPGRADED: "shop.upgraded",
+  /** `{ weapon, error: WeaponUpgradeError }` to the sender only (Story 5.1); nothing changed. */
+  SHOP_UPGRADE_REFUSED: "shop.upgrade_refused",
 } as const;
 export type S2CType = (typeof S2C)[keyof typeof S2C];
 
@@ -73,8 +79,12 @@ export type JoinRefusal = "invalid_options" | "balance_mismatch" | "run_started"
 
 /** Players per run (architecture › Run Room Rules); slots are 0 to MAX_PLAYERS − 1. */
 export const MAX_PLAYERS = 4;
-/** Players needed before the host can start (dev builds may start alone, Story 2.3). */
-export const MIN_PLAYERS_TO_START = 2;
+/**
+ * Players needed before the host can start. Designer, 2026-11-23: 1 — a real online run can be
+ * played alone (sized × 0.4 by the wave tables). Story 2.3 needed 2 and let only dev builds start
+ * alone (`allowSoloStart`), which now changes nothing.
+ */
+export const MIN_PLAYERS_TO_START = 1;
 
 /** A guest token: 16 random bytes as lowercase hex (Story 2.3). Not a secret in Epic 2. */
 export const guestTokenSchema = z.string().regex(/^[0-9a-f]{32}$/);
@@ -217,6 +227,30 @@ export interface ShopBought {
 export interface ShopRefused {
   weapon: string;
   error: ShopError;
+}
+
+/**
+ * `shop.upgrade` (Story 5.1): upgrade one of the sender's own weapons by one level. Only the shape
+ * is checked here; `upgradeWeapon` validates phase, ownership, level and wallet on the server's World.
+ */
+export const shopUpgradeSchema = z
+  .object({
+    weapon: z.string().regex(/^[a-z][a-z0-9_]*$/).max(32),
+  })
+  .strict();
+export type ShopUpgrade = z.infer<typeof shopUpgradeSchema>;
+
+/** `shop.upgraded` payload (Story 5.1). */
+export interface ShopUpgraded {
+  weapon: string;
+  slot: 0 | 1;
+  level: number;
+}
+
+/** `shop.upgrade_refused` payload (Story 5.1): the `Result` error of `upgradeWeapon`. */
+export interface ShopUpgradeRefused {
+  weapon: string;
+  error: WeaponUpgradeError;
 }
 
 /** `lobby.return` (Story 2.8): `{}`, any member, phase "results" only. */

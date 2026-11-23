@@ -19,7 +19,7 @@ export function startBlocker(players: readonly ReadyFlag[], isHost: boolean, all
   return null;
 }
 
-/** True when the host may start: everyone Ready and at least 2 players (1 with `allowSolo`). */
+/** True when the host may start: everyone Ready and at least `MIN_PLAYERS_TO_START` (1) players. */
 export function canStart(players: readonly ReadyFlag[], isHost: boolean, allowSolo: boolean): boolean {
   return startBlocker(players, isHost, allowSolo) === null;
 }

@@ -27,12 +27,15 @@ const MIN_DIST = 1e-6;
  * the first face; once per zombie per swing: each candidate is visited once). A `quietHits` weapon
  * (the Chainsaw, 10 swings/s) sends no `zombie.hit` per zombie (`applyZombieDamageQuiet`), and its
  * `melee.swung` (emitted after the hits) carries the hit count for the client's sparks.
+ * Story 5.1: `damage` per zombie hit is the caller's `weaponDamage(balance, weapon, slot.level)`
+ * (an axe swing and every Chainsaw tick).
  */
 export function swingMelee(
   world: World,
   p: PlayerState,
   weapon: WeaponId,
   stats: MeleeStats,
+  damage: number,
   dirX: number,
   dirY: number,
   view: ZombieView | null = null,
@@ -46,7 +49,6 @@ export function swingMelee(
   const quiet = stats.quietHits;
   if (!quiet) world.events.emit({ type: "melee.swung", playerId: p.id, weapon, x: ox, y: oy, dirX, dirY, arcDeg: stats.arcDeg, rangeM: reach });
   const knock = stats.knockbackM;
-  const damage = meleeDamage(stats);
 
   const z = world.zombies;
   const xs = view ? view.x : z.x;
@@ -79,10 +81,3 @@ export function swingMelee(
   return hits;
 }
 
-/**
- * Story 5.2: the damage of one swing or Chainsaw tick. The one place melee damage is read, so
- * Story 5.1's `weaponDamage(balance, weapon, level)` is a one-line change here.
- */
-export function meleeDamage(stats: MeleeStats): number {
-  return stats.damage;
-}

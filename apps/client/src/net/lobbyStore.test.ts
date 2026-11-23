@@ -56,8 +56,11 @@ describe("lobbyView", () => {
     const notReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true }, { playerId: "p1", slot: 1, name: "Bo", ready: false }] });
     expect(lobbyView(notReady, false)).toMatchObject({ canStart: false, startHint: START_HINT.notReady });
     const alone = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: true }] });
-    expect(lobbyView(alone, false)).toMatchObject({ canStart: false, startHint: START_HINT.tooFew });
+    // Designer 2026-11-23: a host alone may start a real online run in every build.
+    expect(lobbyView(alone, false)).toMatchObject({ canStart: true, startHint: null });
     expect(lobbyView(alone, true)).toMatchObject({ canStart: true, startHint: null });
+    const aloneNotReady = snap({ players: [{ playerId: "p0", slot: 0, name: "Ana", ready: false }] });
+    expect(lobbyView(aloneNotReady, false)).toMatchObject({ canStart: false, startHint: START_HINT.notReady });
   });
 
   it("never lets a guest start, and shows no hint", () => {

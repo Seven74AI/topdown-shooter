@@ -4,7 +4,7 @@ import { createWorld, setInput, step, type World } from "../core/world";
 import type { PlayerInput } from "../net/input";
 import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
-import { buyWeapon } from "../economy/shop";
+import { buyWeapon, upgradeWeapon } from "../economy/shop";
 import { placeBuilding } from "../buildings/buildings";
 import type { DistrictMap } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
@@ -12,7 +12,7 @@ import { setBuildReady, startBuild } from "../run/runStateMachine";
 
 /**
  * Story 4.4 (NFR10): headless replay. A run is its seed plus an input log: every player input and
- * every build action (buy, place, Ready), each stamped with the World tick before whose `step()` it
+ * every build action (buy, place, Ready; Story 5.1: upgrade), each stamped with the World tick before whose `step()` it
  * was applied. `replayRun` rebuilds the World from the seed and applies the log in order; with the
  * named seed streams (`core/seedStreams.ts`) it reaches the same `worldDigest`. Tests and tools only
  * (allocates freely).
@@ -20,7 +20,9 @@ import { setBuildReady, startBuild } from "../run/runStateMachine";
 export type BuildCommand =
   | { kind: "buy"; playerId: string; weapon: string; slot: 0 | 1 | null }
   | { kind: "place"; playerId: string; type: string; gx: number; gy: number; rot: number }
-  | { kind: "ready"; playerId: string; ready: boolean };
+  | { kind: "ready"; playerId: string; ready: boolean }
+  /** Story 5.1: a weapon upgrade (`upgradeWeapon`). */
+  | { kind: "upgrade"; playerId: string; weapon: string };
 
 export type ReplayCommand = ({ kind: "input"; playerId: string; input: PlayerInput } | BuildCommand) & { tick: number };
 
@@ -69,6 +71,9 @@ export function applyCommand(world: World, cmd: ReplayCommand): void {
       break;
     case "ready":
       setBuildReady(world, cmd.playerId, cmd.ready);
+      break;
+    case "upgrade":
+      upgradeWeapon(world, cmd.playerId, cmd.weapon);
       break;
   }
 }

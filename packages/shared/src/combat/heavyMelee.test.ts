@@ -211,7 +211,7 @@ describe("Fire Axe knockback in the swing (F2, F3)", () => {
     rebuildGrid(grid, s.world.zombies.aliveIds, s.world.zombies.aliveCount, vx, vy);
     s.world.zombies.y[z] = PY + 1.0;
     rebuildGrid(s.world.zombieGrid, s.world.zombies.aliveIds, s.world.zombies.aliveCount, s.world.zombies.x, s.world.zombies.y);
-    expect(swingMelee(s.world, s.p as PlayerState, "fire_axe", AXE, 1, 0, { x: vx, y: vy, grid })).toBe(1);
+    expect(swingMelee(s.world, s.p as PlayerState, "fire_axe", AXE, AXE.damage, 1, 0, { x: vx, y: vy, grid })).toBe(1);
     expect(s.world.zombies.x[z]).toBeCloseTo(PX + 2.5, 5); // +1.5 east (the rewound direction)
     expect(s.world.zombies.y[z]).toBeCloseTo(PY + 1.0, 5); // from the present position
   });
@@ -221,3 +221,21 @@ describe("Fire Axe knockback in the swing (F2, F3)", () => {
     expect(SAW.screenShake).toBe(false);
   });
 });
+
+describe("Story 5.1 × 5.2: axe swings and chainsaw ticks deal weaponDamage(level)", () => {
+  it("Chainsaw IV cuts 10.5 per tick (a Walker dies in one tick), Fire Axe III swings 45", () => {
+    const s = setup("chainsaw");
+    s.p.loadout.slots[0].level = 4;
+    const walker = at(s.world, 0, 1.0, 10);
+    const tough = at(s.world, 15, 1.1);
+    s.tick();
+    expect(isZombieAlive(s.world.zombies, walker)).toBe(false);
+    expect(hpLost(s.world, tough)).toBeCloseTo(10.5, 9);
+    const a = setup("fire_axe");
+    a.p.loadout.slots[0].level = 3;
+    const z = at(a.world, 0, 1.0);
+    a.tick();
+    expect(hpLost(a.world, z)).toBeCloseTo(45, 9);
+  });
+});
+

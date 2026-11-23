@@ -62,7 +62,7 @@ export interface HeadlessRunLog {
   earned: number[];
   wallet: number[];
   kills: number[];
-  /** Weapons bought by each bot, with the wave whose build phase it was, e.g. "smg@W2". */
+  /** Weapons bought by each bot, with the wave whose build phase it was, e.g. "smg@W2" (Story 5.1: "upgrade:smg@W3"). */
   purchases: string[][];
   buildingsPlaced: number[];
   spent: number[];
@@ -72,6 +72,10 @@ export interface HeadlessRunLog {
   turretKills: number;
   /** Story 5.3: players' kills by weapon id (liveness of a new weapon in the sims). */
   killsByWeapon: Record<string, number>;
+  /** Story 5.1: weapon upgrades bought by each bot. */
+  upgrades: number[];
+  /** Story 5.1: players' kills with a weapon above level I (liveness of upgrades in the sims). */
+  upgradedKills: number;
   waves: HeadlessWaveLog[];
 }
 
@@ -107,6 +111,8 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     earnedBy: { kill: 0, assist: 0, revive: 0, wave: 0, refund: 0 },
     turretKills: 0,
     killsByWeapon: {},
+    upgrades: ids.map(() => 0),
+    upgradedKills: 0,
     waves: [],
   };
   let current: HeadlessWaveLog | null = null;
@@ -145,6 +151,9 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         if (k >= 0) {
           log.kills[k] = (log.kills[k] as number) + 1;
           log.killsByWeapon[e.weapon] = (log.killsByWeapon[e.weapon] ?? 0) + 1;
+          const lo = world.players.get(e.killerId as string)?.loadout;
+          const slot = lo ? (lo.slots[0].weapon === e.weapon ? lo.slots[0] : lo.slots[1]?.weapon === e.weapon ? lo.slots[1] : null) : null;
+          if (slot && slot.level > 1) log.upgradedKills++;
         }
         break;
       }
@@ -165,6 +174,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
         for (const w of shop.bought) (log.purchases[i] as string[]).push(`${w}@W${wave}`);
         log.buildingsPlaced[i] = (log.buildingsPlaced[i] as number) + shop.buildings;
         log.spent[i] = (log.spent[i] as number) + shop.spent;
+        log.upgrades[i] = (log.upgrades[i] as number) + shop.upgrades;
         if (shop.swap) swapNext[i] = true;
       });
     }

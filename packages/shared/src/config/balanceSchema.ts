@@ -14,6 +14,11 @@ const common = {
   price: z.number().int().min(0),
   /** Story 3.3: the display name (shop); the id in Title Case when absent. Not a gameplay number. */
   name: z.string().min(1).max(24).optional(),
+  /**
+   * Story 5.1: the price an upgrade level is a share of (`shop.json › upgrades.priceShare`) when
+   * it differs from `price` (the free Pistol: 100). Absent = `price`.
+   */
+  upgradeBasePrice: z.number().int().min(0).optional(),
 };
 
 const gunSchema = z
@@ -339,9 +344,13 @@ export const botsSchema = z
     /**
      * Story 3.10: shop item ids (weapons and building types) bought in this order in every build
      * phase (`bots/botShop.ts`): stop at the first one the wallet can't pay (save up); a building
-     * type listed k times means "own k".
+     * type listed k times means "own k". Story 5.1: `upgrade:<weapon>` upgrades a held weapon (listed
+     * k times: "at level ≥ k + 1").
      */
-    shoppingList: z.array(balanceId).max(31).default([]),
+    shoppingList: z
+      .array(z.union([balanceId, z.string().regex(/^upgrade:[a-z][a-z0-9_]*$/, "an upgrade entry is upgrade:<weapon id>")]))
+      .max(31)
+      .default([]),
     /** Story 3.10: a bot tries to place a building at these distances (m) around itself, 8 directions each. */
     buildRadiiM: z.array(z.number().positive().max(8)).min(1).max(4).default([2.5]),
   })
@@ -453,6 +462,19 @@ export const shopSchema = z
       .array(balanceId)
       .min(1)
       .refine((ids) => new Set(ids).size === ids.length, "duplicate weapon id"),
+    /**
+     * Story 5.1: weapon upgrades I–IV (GDD › Weapon Systems › Upgrades). Level L deals
+     * `damage × (1 + damagePerLevel × (L − 1))`; every level costs `round(priceShare × upgrade base)`
+     * (`upgradeBasePrice`, else `price`). `maxLevel` ≤ 4: levels I–IV are the design (the HUD/shop
+     * marks and the atlas frames cover II–IV only; 5.1 review L1).
+     */
+    upgrades: z
+      .object({
+        maxLevel: z.number().int().min(1).max(4),
+        damagePerLevel: z.number().min(0),
+        priceShare: z.number().positive(),
+      })
+      .strict(),
   })
   .strict();
 

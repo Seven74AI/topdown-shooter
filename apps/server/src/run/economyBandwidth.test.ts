@@ -11,6 +11,7 @@ import {
   encodeNetEvent,
   loadBalance,
   setBuildReady,
+  upgradeWeapon,
   NEUTRAL_INPUT,
   type NetEvent,
   type NetEventContext,
@@ -140,5 +141,77 @@ describe("economy and build-timer bandwidth (Story 3.10, NFR4)", () => {
     expect(buildTicks).toBe(599); // the 600th went with the first tick (every field sent once)
     expect(buildBps).toBeGreaterThan(0);
     expect(buildBps).toBeLessThan(100);
+  }, 60_000);
+
+  it("Story 5.1: weapon levels add ≈ 0 B/s (a few bytes per upgrade, nothing per tick) and one small event per upgrade", () => {
+    const ids = ["p0", "p1", "p2", "p3"];
+    const c = new RunController({ balance, seed: 21, players: ids.map((playerId, slot) => ({ playerId, slot })) });
+    const world = c.world;
+    world.debug.godMode = true;
+    const LevelPlayer = schema({ level0: st.uint8().default(0), level1: st.uint8().default(0) }, "LevelPlayer");
+    const LevelState = schema({ players: st.map(LevelPlayer) }, "LevelState");
+    const full = newState(ids);
+    const levels = new LevelState();
+    for (const id of ids) levels.players.set(id, new LevelPlayer());
+    const enc = new Encoder(levels);
+    const ctx: NetEventContext = { balance, zombieNetId: (id) => id };
+    const cfg = botConfigOf(balance);
+    const views = ids.map(() => createBotView());
+    const input: PlayerInput = { ...NEUTRAL_INPUT };
+    let seq = 0;
+    let upgradeEventBytes = 0;
+    let upgradeEvents = 0;
+    const tick = (): number => {
+      seq++;
+      ids.forEach((id, i) => {
+        botViewFromWorld(world, id, views[i] as (typeof views)[number]);
+        botInput(views[i] as (typeof views)[number], cfg, seq, input);
+        c.queueInput(id, input);
+      });
+      for (const e of c.tick()) {
+        const t = encodeNetEvent(e, ctx);
+        if (t && t[0] === NET_EVENT_KIND.WEAPON_UPGRADED) {
+          upgradeEvents++;
+          upgradeEventBytes += pack(t).length;
+        }
+      }
+      syncState(full, c);
+      for (const id of ids) {
+        const src = full.players.get(id);
+        const dst = levels.players.get(id);
+        if (!src || !dst) continue;
+        if (dst.level0 !== src.level0) dst.level0 = src.level0;
+        if (dst.level1 !== src.level1) dst.level1 = src.level1;
+      }
+      const bytes = enc.hasChanges ? enc.encode().length : 0;
+      enc.discardChanges();
+      return bytes;
+    };
+    tick(); // the first patch carries every field once
+    // Each player upgrades the Pistol twice in the build phase, then everyone is Ready.
+    for (const id of ids) {
+      const p = world.players.get(id);
+      if (p) p.wallet = 1000;
+      expect(upgradeWeapon(world, id, "pistol").ok).toBe(true);
+      expect(upgradeWeapon(world, id, "pistol").ok).toBe(true);
+    }
+    const upgradeTickBytes = tick();
+    for (const id of ids) setBuildReady(world, id, true);
+    let waveBytes = 0;
+    let ticks = 0;
+    const phase = (): string => world.run.phase;
+    while (phase() === "build" && ticks < 100) tick();
+    for (ticks = 0; ticks < 40 / TICK_DT_S && phase() === "wave"; ticks++) waveBytes += tick();
+    const seconds = ticks * TICK_DT_S;
+    console.log(
+      `[upgrade bandwidth] 8 upgrades (4 players × 2): level0/level1 patch ${upgradeTickBytes} B once, ${upgradeEvents} weapon.upgraded events ${upgradeEventBytes} B (msgpack tuples); ` +
+        `in the next ${seconds} s of wave: ${(waveBytes / seconds).toFixed(1)} B/s`,
+    );
+    expect(upgradeEvents).toBe(8); // liveness: the upgrades really happened and went on the wire
+    expect(upgradeTickBytes).toBeGreaterThan(0);
+    expect(upgradeTickBytes).toBeLessThan(40);
+    expect(upgradeEventBytes / upgradeEvents).toBeLessThanOrEqual(8);
+    expect(seconds).toBeGreaterThan(10);
+    expect(waveBytes).toBe(0); // nothing per tick
   }, 60_000);
 });

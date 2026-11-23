@@ -190,7 +190,7 @@ Claude Opus 5.5 (builder, worktree `story-5-2`, ports 4527 / 5527).
 - Fuzz finding 1 (axe): the 5.3 fuzz checked the whole-tick chord pre-tick → post-tick; with 1.5 m knocks a zombie knocked along a face and then slid round the corner by the zombie system made a chord across the box corner that no leg crossed (false positive). Fuzz finding 2: four axes hitting one zombie in one tick = three legal legs whose chord cut a barricade corner (false positive). Fix: `combat/damage.ts › knockbackTrace` (test-only probe, null in the game) checks every knockback leg; the zombie system's leg is checked from the post-combat position.
 - Mutation finding: "knockback not swept" was NOT caught by the axe fuzz at first (players at the team spawn never knocked anything into a map box: 0 of 4,811 face stops were map boxes). Fix: `nearCover` layouts (players 1–2.5 m off a random map box) and an assert that ≥ 20 knocks stop at a map box; now caught.
 - Netsim: one start-up correction when the client attacks before the first snapshot names its weapons (LocalFire can't know them). Same for one RTT after buying the Chainsaw. Accepted; the netsim attacks from 0.6 s on.
-- Full `npm test` at load 11.7–13.4 (4 cores; other builders running): 7 timing/timeout failures (replay ×3, waveDirector ×1, predictionCircle LAN ×1, tickCostFlowField ×2); all 40 pass when re-run on their own (`vitest run` of those 4 files). Not caused by this story (none touch melee).
+- Before the merge, full `npm test` at load 11.7–13.4 had 7 timeouts at vitest's 5 s default (replay ×3, waveDirector, predictionCircle LAN, tickCostFlowField ×2); all pass on their own and the merged gate with `--testTimeout=30000` (the work branch's new default) is green.
 
 ### Completion Notes List
 
@@ -211,6 +211,8 @@ Claude Opus 5.5 (builder, worktree `story-5-2`, ports 4527 / 5527).
 - Browser (Playwright, solo dev build, DPR 2, 844 × 390): axe knock of a Walker 0.6 m in front of a barricade → stopped at the face (26.15 = minX − r, then walked back 0.06 the same tick), camera shake on with the setting on, none with it off; Chainsaw attacking 3.60 m/s vs 4.50 released (sim speed), running frame `survivor_chainsaw_b`, rev loop on, sparks 8–12 live (cap 32). Online with `?wallet=2000&lag=150&jitter=20` (2 clients): bought the Chainsaw, swapped, walked attacking 2.5 s: corrections 0 → 0, snaps 0; the guest sees the host's Chainsaw after a 2 s hidden-tab sleep. Screenshots: `docs/art/epic-5/round-b/ingame/5-2-axe-swing.png`, `5-2-axe-swing-noshake.png`, `5-2-axe-knockback-barricade.png`, `5-2-chainsaw-cutting.png`, `5-2-shop-icons.png`.
 - Headless FPS `?stress=150&stressfire=1` (tough crowd, 20 s each, two rounds): Machete 16.6 / 8.0, Chainsaw 14.0 / 8.9, Fire Axe 9.9 / 9.7 fps at load 5.2 → 9.6 (4 cores). The spread is the machine load (other builders), not the effects; no difference measurable. Before (Pistol, crowd dying): 9.2 / 10.4 at load 12.8 → 8.7.
 
+**Merged with the work branch** (`claude/gracious-turing-0db3j6` at e378702, with 5.1 and 4.12): conflicts in `melee.ts` (5.1's `damage` parameter kept; my `meleeDamage` removed, so axe swings and Chainsaw ticks = `weaponDamage(balance, weapon, slot.level)` via `tryFire`), `shop.json` (5.1's `upgrades` + my two ids), `fiveWaveSim.test.ts` (both describes), `weaponArt.ts` (both art blocks; icon origin table + 5.1's tier icon), `spriteAtlas.ts` (imports), `GameScene.ts` (my running-frame arg + 4.12's burn view). New test: Chainsaw IV 10.5/tick kills a Walker in one tick, Fire Axe III 45 (mutation "stats.damage instead of weaponDamage" caught). Gate on the merged branch: `npm run typecheck && npm run lint && npx vitest run --testTimeout=30000 && npm run build` all green (1,701 passed, 3 skipped; 222 files); `uptime` load 8.30 → 8.37 (4 cores) at 16:16–16:19.
+
 **Mutations (each once; all caught)**
 knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before: see Debug Log), fuzz leg check off (2), slow without the fire check (1), chainsaw rate 20 (3), arc half-angle halved (1), Predictor ignores the wield state (4 incl. netsim), quiet path emits `zombie.hit` (2 incl. bandwidth), `knockbackTakenPct` ignored (1), killed zombies knocked (1), quiet path records no assist (1), slows "stronger only" (1), LocalFire `moveWeapon` from the snapshot slot (1), `countInArc` ignores the radius (1), rev hold ignored (3), axe knockback skipped (13).
 
@@ -224,7 +226,7 @@ knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before:
 7. Brute 20 %: 0.3 m (test with a stand-in type; 5.7 sets the value).
 8. `?lag=150&jitter=20`: 0 corrections (netsim, browser).
 9. Into a car fire: allowed, it burns there (test); out of the map: impossible (test); onto a spawn point: allowed (spawns are not solids).
-10. Chainsaw IV vs Runner: depends on 5.1's helper (not merged here): 6 × 1.75 = 10.5 ≥ 10 → yes once routed.
+10. Chainsaw IV: 6 × 1.75 = 10.5 per tick: a Walker (10) dies in one tick (test, after merging 5.1).
 
 ### Notes for the merge (builder)
 
@@ -232,7 +234,7 @@ knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before:
 | --- | --- | --- |
 | `config/balance/weapons.json`, `shop.json` | `fire_axe`, `chainsaw` appended after `assault_rifle` | 5.4/5.5/5.12 append too: keep append order (wire index) |
 | `config/balanceSchema.ts` | `meleeSchema.wielderSlowPct`, `meleeSchema.quietHits`, `zombieTypeSchema.knockbackTakenPct`, `fxSchema` in `controlsSchema.fx` | 5.7 adds `knockbackTakenPct` too: keep ONE (int 0–100, default 100) |
-| `combat/melee.ts` | knockback after damage, quiet path, `meleeDamage(stats)` the one damage read | **5.1 adds `damage` as `swingMelee`'s 5th parameter**: delete `meleeDamage` and use that parameter (`const damage = <param>`); then the Chainsaw tick = `weaponDamage(balance, "chainsaw", level)` automatically. One-line change. |
+| `combat/melee.ts` | knockback after damage, quiet path; damage = 5.1's `damage` parameter (already merged here) | 5.7 (Brute) if it touches the swing |
 | `combat/damage.ts` | `knockbacks` counters moved here (re-exported from `firing.ts`), `knockbackShare`, `applyZombieDamageQuiet`, `knockbackTrace`, pushback × share | 5.4 (its own quiet flame path: consider reusing `applyZombieDamageQuiet`), 5.7 (Brute: no second scale) |
 | `combat/firing.ts` | `MIN_AIM_LEN` constant, `knockbacks` import | 5.1 / 5.4 / 5.5 |
 | `config/constants.ts` | `MIN_AIM_LEN` | append |
@@ -247,17 +249,16 @@ knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before:
 ### Not verified
 
 - Real phones (FPS, the rev loop's sound, touch aim with the Chainsaw); headless Chromium ran at 8–17 fps under load 5–13, so the running-frame/rev timing was seen working but not at 60 fps.
-- 5.1 damage routing (`weaponDamage`) and 5.7's Brute (not merged into this branch: knockback × 20 % tested with a stand-in type).
+- 5.7's Brute (not merged into this branch: knockback × 20 % tested with a stand-in type).
 - A late Game-scene start with the Chainsaw already in hand (the start-up correction is measured only in the netsim).
 - No Meshy art step (skipped as instructed); no `docs/art/5-2/README.md`.
-- Full `npm test` green only file-by-file for the 7 load timeouts listed in the Debug Log.
 
 ### File List
 
 - `packages/shared/src/config/balance/weapons.json`, `shop.json`, `controls.json`
 - `packages/shared/src/config/balanceSchema.ts`, `constants.ts`, `balance.test.ts`
 - `packages/shared/src/combat/damage.ts`, `melee.ts`, `firing.ts`
-- `packages/shared/src/combat/heavyMelee.test.ts` (new), `knockback.test.ts` (new), `knockback.fuzz.test.ts`
+- `packages/shared/src/combat/heavyMelee.test.ts` (new; + 5.1 level test after the merge), `knockback.test.ts` (new), `knockback.fuzz.test.ts`
 - `packages/shared/src/core/simEvents.ts`, `net/netEvents.ts`
 - `packages/shared/src/player/slow.ts`, `movement.ts`, `slow.test.ts`
 - `packages/shared/src/economy/shop.test.ts`, `fiveWaveSim.test.ts`
@@ -275,3 +276,4 @@ knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before:
 ## Change Log
 
 - 2026-11-23: Story 5.2 built (Fire Axe with swept 1.5 m knockback through 5.3's helper, Chainsaw with quiet hits and a predicted 20 % wielder slow, AX1/CS1 art in game code, sparks/arc/rev effects, fuzz near cover, bandwidth and tick-cost tests, netsim); status → review.
+- 2026-11-23: merged the work branch (5.1 upgrades, 4.12); axe/Chainsaw damage through `weaponDamage`; gate green.

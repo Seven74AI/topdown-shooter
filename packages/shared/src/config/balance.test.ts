@@ -188,3 +188,40 @@ describe("Story 5.9: building tiers, traps and mines", () => {
     bad((t) => ((t.mine as { mine: { blastRadiusM: number } }).mine.blastRadiusM = 0.5), /at least triggerRadiusM/);
   });
 });
+
+describe("Story 5.1: weapon upgrades", () => {
+  it("upgrades block is validated", () => {
+    expect(loadBalance().shop.upgrades).toEqual({ maxLevel: 4, damagePerLevel: 0.25, priceShare: 0.6 });
+    const bad = (patch: Record<string, unknown>, re: RegExp): void => {
+      const files = raw();
+      Object.assign((files.shop as { upgrades: Record<string, unknown> }).upgrades, patch);
+      expect(() => loadBalance(files)).toThrow(re);
+    };
+    bad({ maxLevel: 0 }, /shop\.json: upgrades\.maxLevel/);
+    bad({ maxLevel: 5 }, /shop\.json: upgrades\.maxLevel/); // review L1: I–IV is the design
+    bad({ maxLevel: 16 }, /shop\.json: upgrades\.maxLevel/);
+    bad({ maxLevel: 2.5 }, /shop\.json: upgrades\.maxLevel/);
+    bad({ damagePerLevel: -0.1 }, /shop\.json: upgrades\.damagePerLevel/);
+    bad({ priceShare: 0 }, /shop\.json: upgrades\.priceShare/);
+    bad({ extra: 1 }, /shop\.json: upgrades/);
+    const files = raw();
+    delete (files.shop as { upgrades?: unknown }).upgrades;
+    expect(() => loadBalance(files)).toThrow(/shop\.json: upgrades/);
+  });
+
+  it("pistol upgrade base is 100", () => {
+    const b = loadBalance();
+    expect(b.weapons.pistol?.upgradeBasePrice).toBe(100);
+    expect(b.weapons.pistol?.price).toBe(0);
+    for (const id of Object.keys(b.weapons)) if (id !== "pistol") expect(b.weapons[id]?.upgradeBasePrice).toBeUndefined();
+  });
+
+  it("every weapon has a non-zero upgrade price", () => {
+    const files = raw();
+    delete (files.weapons as { pistol: { upgradeBasePrice?: number } }).pistol.upgradeBasePrice;
+    expect(() => loadBalance(files)).toThrow(/weapons\.json: pistol: its upgrade price is 0/);
+    const neg = raw();
+    (neg.weapons as { pistol: { upgradeBasePrice: number } }).pistol.upgradeBasePrice = -1;
+    expect(() => loadBalance(neg)).toThrow(/weapons\.json: pistol\.upgradeBasePrice/);
+  });
+});

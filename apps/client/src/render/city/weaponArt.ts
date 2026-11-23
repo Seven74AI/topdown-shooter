@@ -6,7 +6,8 @@
  * replacing that function:
  *
  * - `"icon"`: the side-view shop icon, ported from `docs/art/epic-5/round-a/code-drawings.html`
- *   (G1 pump-action shotgun, R2 classic assault rifle; G3/R1 are the alternates there), units in
+ *   (G1 pump-action shotgun, R2 classic assault rifle; Story 5.1: G3/R1 are their upgrade-tier
+ *   looks at levels III–IV, icon only, `WEAPON_TIER_ICON`), units in
  *   metres centred on the gun, scaled by `size` px per metre;
  * - `"held"`: the top-down gun in the survivor's hands (the survivor frames `survivor_shotgun_a`,
  *   `survivor_assault_rifle_a`), facing +x from the body centre, `size` = the collision radius in px
@@ -98,9 +99,17 @@ function lightDir(c: G): [number, number] {
   const l = Math.hypot(v[0], v[1]);
   return [v[0] / l, v[1] / l];
 }
-function rivet(c: G, x: number, y: number, r: number, base: string): void {
+function rivet(c: G, x: number, y: number, r: number, base: string, hex = false): void {
   c.beginPath();
-  E(c, x, y, r, r);
+  if (hex) {
+    // Story 5.1 (G3/R1): a hex bolt head
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU + 0.3;
+      if (i) c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+      else c.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+    }
+    c.closePath();
+  } else E(c, x, y, r, r);
   const L = lightDir(c);
   const g = c.createRadialGradient(x + L[0] * r * 0.45, y + L[1] * r * 0.45, 0, x, y, r * 1.05);
   g.addColorStop(0, shade(base, 0.55));
@@ -122,6 +131,10 @@ interface PartOpts {
   rim?: number;
   inner?: number;
   line?: number;
+  /** Story 5.1 (U1 plate): "top" = a light gradient along the screen light, not the part's vertical. */
+  lit?: "top";
+  /** Outline colour (default near-black). */
+  stroke?: string;
 }
 /** One shaded part: fill, texture, light gradient, rim light upper-left, inner shade lower-right, outline. */
 function part(c: G, path: PathFn, o: PartOpts): void {
@@ -137,12 +150,24 @@ function part(c: G, path: PathFn, o: PartOpts): void {
   if (o.tex) o.tex(c, x0, y0, x1, y1);
   const hi = o.hi ?? 0.22;
   const lo = o.lo ?? 0.4;
-  const g = c.createLinearGradient(0, y0, 0, y1);
-  g.addColorStop(0, `rgba(215,225,242,${hi})`);
-  g.addColorStop(0.2, `rgba(215,225,242,${hi * 0.3})`);
-  g.addColorStop(0.5, "rgba(0,0,0,0.04)");
-  g.addColorStop(0.85, `rgba(0,0,0,${lo})`);
-  g.addColorStop(1, `rgba(60,72,90,${lo * 0.35})`);
+  let g: CanvasGradient;
+  if (o.lit === "top") {
+    const L = lightDir(c);
+    const s = Math.hypot(w, h) / 2;
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+    g = c.createLinearGradient(cx + L[0] * s, cy + L[1] * s, cx - L[0] * s, cy - L[1] * s);
+    g.addColorStop(0, `rgba(200,215,240,${hi})`);
+    g.addColorStop(0.5, "rgba(0,0,0,0)");
+    g.addColorStop(1, `rgba(0,0,0,${lo})`);
+  } else {
+    g = c.createLinearGradient(0, y0, 0, y1);
+    g.addColorStop(0, `rgba(215,225,242,${hi})`);
+    g.addColorStop(0.2, `rgba(215,225,242,${hi * 0.3})`);
+    g.addColorStop(0.5, "rgba(0,0,0,0.04)");
+    g.addColorStop(0.85, `rgba(0,0,0,${lo})`);
+    g.addColorStop(1, `rgba(60,72,90,${lo * 0.35})`);
+  }
   c.fillStyle = g;
   c.fillRect(x0 - w, y0 - h, w * 3, h * 3);
   const rim = o.rim ?? 0.42;
@@ -174,7 +199,7 @@ function part(c: G, path: PathFn, o: PartOpts): void {
     c.beginPath();
     path(c);
     c.lineJoin = "round";
-    c.strokeStyle = "rgba(4,4,6,0.95)";
+    c.strokeStyle = o.stroke ?? "rgba(4,4,6,0.95)";
     c.lineWidth = (o.line ?? 1.3) * P;
     c.stroke();
   }
@@ -259,7 +284,7 @@ function steelTex(seed: number, wear = 0.5): Tex {
     }
   };
 }
-function polyTex(seed: number): Tex {
+function polyTex(seed: number, check = false): Tex {
   return (c, x0, y0, x1, y1) => {
     const r = mulberry(seed);
     const w = x1 - x0;
@@ -268,6 +293,20 @@ function polyTex(seed: number): Tex {
     for (let i = 0; i < n; i++) {
       c.fillStyle = r() < 0.5 ? `rgba(255,255,255,${0.025 + r() * 0.05})` : `rgba(0,0,0,${0.08 + r() * 0.12})`;
       c.fillRect(x0 + r() * w, y0 + r() * h, P * (0.8 + r()), P * (0.8 + r()));
+    }
+    if (check) {
+      // Story 5.1 (R1 grip): checkering
+      c.strokeStyle = "rgba(0,0,0,0.4)";
+      c.lineWidth = 0.7 * P;
+      c.beginPath();
+      const s = 3 * P;
+      for (let k = -h; k < w + h; k += s) {
+        c.moveTo(x0 + k, y0);
+        c.lineTo(x0 + k + h, y1);
+        c.moveTo(x0 + k + h, y0);
+        c.lineTo(x0 + k, y1);
+      }
+      c.stroke();
     }
   };
 }
@@ -827,6 +866,278 @@ export function drawChainsaw(c: G, view: WeaponArtView, size: number, run = fals
 /** The Chainsaw's running-blade view (the survivor frame `survivor_chainsaw_b`, shown while it cuts). */
 export const drawChainsawRunning = (c: G, view: WeaponArtView, size: number): void => drawChainsaw(c, view, size, true, 0.37);
 
+// ================= Story 5.1: upgrade-tier looks (levels III–IV) and the U1 tier plate =================
+
+/** A red shotgun shell with a brass base (G3's side strap), object units. */
+function shell(c: G, x: number, y: number, w: number, h: number): void {
+  const bh = 0.013;
+  const red: PathFn = (q) => R(q, x, y, w, h - bh, 0.0025);
+  c.beginPath();
+  red(c);
+  let g = c.createLinearGradient(x, 0, x + w, 0);
+  g.addColorStop(0, "#3a0a07");
+  g.addColorStop(0.25, "#9a1d16");
+  g.addColorStop(0.42, "#e2594b");
+  g.addColorStop(0.6, "#a41f17");
+  g.addColorStop(1, "#320806");
+  c.fillStyle = g;
+  c.fill();
+  c.lineWidth = 1 * P;
+  c.strokeStyle = "rgba(8,2,2,0.9)";
+  c.stroke();
+  for (let k = 1; k < 4; k++) strokeP(c, (q) => { q.moveTo(x + (w * k) / 4, y + 0.0005); q.lineTo(x + (w * k) / 4, y + 0.005); }, "rgba(30,5,4,0.6)", 0.7 * P);
+  const b: PathFn = (q) => R(q, x - 0.0006, y + h - bh, w + 0.0012, bh, 0.001);
+  c.beginPath();
+  b(c);
+  g = c.createLinearGradient(x, 0, x + w, 0);
+  g.addColorStop(0, "#3e2b0c");
+  g.addColorStop(0.3, "#b88b3a");
+  g.addColorStop(0.45, "#f3d68c");
+  g.addColorStop(0.65, "#a77a2c");
+  g.addColorStop(1, "#3a280b");
+  c.fillStyle = g;
+  c.fill();
+  c.stroke();
+  strokeP(c, (q) => { q.moveTo(x, y + h - 0.003); q.lineTo(x + w, y + h - 0.003); }, "rgba(60,40,10,0.7)", 0.8 * P);
+}
+
+function bez(p: readonly number[], t: number): [number, number] {
+  const u = 1 - t;
+  const n = (i: number): number => p[i] as number;
+  return [u * u * u * n(0) + 3 * u * u * t * n(2) + 3 * u * t * t * n(4) + t * t * t * n(6), u * u * u * n(1) + 3 * u * u * t * n(3) + 3 * u * t * t * n(5) + t * t * t * n(7)];
+}
+
+/**
+ * Story 5.1: G3 tactical pump shotgun (black, pistol-grip stock, sling, red shells on the side),
+ * the Shotgun's look at upgrade levels III–IV. Side-view icon only (ported from
+ * `docs/art/epic-5/round-b/looks.html › drawG3`), `size` px per metre, centred, muzzle +x.
+ */
+export function drawShotgunTactical(c: G, size: number): void {
+  P = 1 / size;
+  c.save();
+  c.scale(size, size);
+  const sp = [0.447, 0.03, 0.28, 0.21, -0.22, 0.27, -0.43, 0.078] as const;
+  const sl: PathFn = (q) => { q.moveTo(sp[0], sp[1]); q.bezierCurveTo(sp[2], sp[3], sp[4], sp[5], sp[6], sp[7]); };
+  strokeP(c, sl, "#050506", 0.016 + 2 * P);
+  strokeP(c, sl, "#1f2023", 0.016);
+  c.save();
+  c.translate(0, -0.0035);
+  strokeP(c, sl, "rgba(150,160,175,0.16)", 0.004);
+  c.restore();
+  c.setLineDash([3 * P, 2.5 * P]);
+  for (const dy of [-0.0055, 0.0055]) {
+    c.save();
+    c.translate(0, dy);
+    strokeP(c, sl, "rgba(125,128,132,0.4)", 0.7 * P, "butt");
+    c.restore();
+  }
+  c.setLineDash([]);
+  for (const t of [0.22, 0.8]) {
+    const [a, b] = bez(sp, t);
+    const [a2, b2] = bez(sp, t + 0.01);
+    c.save();
+    c.translate(a, b);
+    c.rotate(Math.atan2(b2 - b, a2 - a));
+    part(c, (q) => R(q, -0.012, -0.0115, 0.024, 0.023, 0.002), { base: "#3b3e43", box: [-0.012, -0.0115, 0.012, 0.0115], hi: 0.4, tex: steelTex(t * 99, 0.6) });
+    fillP(c, (q) => R(q, -0.007, -0.006, 0.014, 0.012, 0.001), "#121214");
+    c.restore();
+  }
+  part(c, (q) => R(q, 0.03, -0.007, 0.4, 0.023, 0.004), { base: "#1d1e21", box: [0.03, -0.007, 0.43, 0.016], tex: steelTex(31, 0.3), hi: 0.3 });
+  part(c, (q) => R(q, 0.425, -0.009, 0.035, 0.027, 0.004), { base: "#222327", box: [0.425, -0.009, 0.46, 0.018], hi: 0.35 });
+  for (let x = 0.43; x < 0.456; x += 0.004) strokeP(c, (q) => { q.moveTo(x, -0.007); q.lineTo(x, 0.016); }, "rgba(0,0,0,0.5)", 0.7 * P, "butt");
+  part(c, (q) => R(q, 0.03, -0.031, 0.465, 0.02, 0.003), { base: "#1b1c1f", box: [0.03, -0.031, 0.495, -0.011], tex: steelTex(32, 0.3), hi: 0.48 });
+  part(c, (q) => Pg(q, [0.468, -0.031, 0.49, -0.031, 0.486, -0.042, 0.475, -0.042]), { base: "#1b1c1f", box: [0.468, -0.042, 0.49, -0.031], hi: 0.4 });
+  part(c, (q) => R(q, 0.385, -0.033, 0.016, 0.052, 0.002), { base: "#26282b", box: [0.385, -0.033, 0.401, 0.019], hi: 0.3 });
+  part(c, (q) => R(q, 0.1, 0.013, 0.03, 0.025, 0.002), { base: "#202125", box: [0.1, 0.013, 0.13, 0.038], hi: 0.3 });
+  part(c, (q) => R(q, 0.065, 0.036, 0.115, 0.022, 0.004), { base: "#1a1b1e", box: [0.065, 0.036, 0.18, 0.058], tex: steelTex(33, 0.2), hi: 0.45 });
+  for (let x = 0.072; x < 0.1; x += 0.0035) strokeP(c, (q) => { q.moveTo(x, 0.038); q.lineTo(x, 0.056); }, "rgba(0,0,0,0.55)", 0.8 * P, "butt");
+  part(c, (q) => R(q, 0.178, 0.031, 0.024, 0.032, 0.004), { base: "#1e1f22", box: [0.178, 0.031, 0.202, 0.063], hi: 0.45 });
+  c.beginPath();
+  R(c, 0.2, 0.034, 0.004, 0.026, 0.001);
+  const lens = c.createLinearGradient(0, 0.034, 0, 0.06);
+  lens.addColorStop(0, "#e8f2ff");
+  lens.addColorStop(0.5, "#8aa0b8");
+  lens.addColorStop(1, "#2a3440");
+  c.fillStyle = lens;
+  c.fill();
+  part(c, (q) => R(q, 0.065, -0.016, 0.2, 0.046, 0.009), { base: "#1c1d20", box: [0.065, -0.016, 0.265, 0.03], tex: polyTex(34), hi: 0.32 });
+  for (const y of [-0.005, 0.004, 0.013, 0.022]) {
+    strokeP(c, (q) => { q.moveTo(0.078, y); q.lineTo(0.252, y); }, "rgba(0,0,0,0.7)", 1.6 * P);
+    strokeP(c, (q) => { q.moveTo(0.078, y + 1.6 * P); q.lineTo(0.252, y + 1.6 * P); }, "rgba(170,180,195,0.14)", 0.8 * P);
+  }
+  const rc: PathFn = (q) => {
+    q.moveTo(-0.185, -0.036);
+    q.lineTo(0.03, -0.036);
+    q.quadraticCurveTo(0.036, -0.036, 0.036, -0.03);
+    q.lineTo(0.036, 0.012);
+    q.lineTo(0.02, 0.027);
+    q.lineTo(-0.185, 0.027);
+    q.closePath();
+  };
+  part(c, rc, { base: "#202226", box: [-0.185, -0.036, 0.036, 0.027], tex: steelTex(35, 0.6), hi: 0.4 });
+  fillP(c, (q) => R(q, -0.01, -0.003, 0.04, 0.012, 0.002), "#08090a");
+  part(c, (q) => R(q, 0.0, -0.046, 0.03, 0.011, 0.002), { base: "#1d1e21", box: [0, -0.046, 0.03, -0.035], hi: 0.35 });
+  part(c, (q) => { Pg(q, [0.002, -0.046, 0.009, -0.046, 0.008, -0.056, 0.003, -0.056]); Pg(q, [0.021, -0.046, 0.028, -0.046, 0.027, -0.056, 0.022, -0.056]); }, { base: "#1d1e21", box: [0, -0.056, 0.03, -0.046], hi: 0.4 });
+  part(c, (q) => R(q, -0.162, -0.042, 0.136, 0.042, 0.003), { base: "#18191b", box: [-0.162, -0.042, -0.026, 0], tex: polyTex(36), hi: 0.25 });
+  for (let i = 0; i < 5; i++) shell(c, -0.154 + i * 0.0247, -0.06, 0.0198, 0.056);
+  for (const x of [-0.152, -0.036]) rivet(c, x, -0.006, 0.0028, "#3a3c40", true);
+  trigger(
+    c,
+    (q) => { q.moveTo(-0.15, 0.025); q.quadraticCurveTo(-0.153, 0.058, -0.118, 0.058); q.lineTo(-0.095, 0.057); q.quadraticCurveTo(-0.075, 0.052, -0.072, 0.025); },
+    (q) => { q.moveTo(-0.11, 0.025); q.quadraticCurveTo(-0.108, 0.04, -0.12, 0.047); },
+  );
+  const st: PathFn = (q) => {
+    q.moveTo(-0.183, -0.03);
+    q.lineTo(-0.49, -0.042);
+    q.lineTo(-0.5, -0.04);
+    q.lineTo(-0.5, 0.08);
+    q.lineTo(-0.47, 0.082);
+    q.quadraticCurveTo(-0.33, 0.05, -0.25, 0.034);
+    q.lineTo(-0.185, 0.027);
+    q.closePath();
+  };
+  part(c, st, { base: "#202124", box: [-0.5, -0.042, -0.183, 0.082], tex: polyTex(37), hi: 0.3 });
+  fillP(c, (q) => R(q, -0.455, 0.0, 0.042, 0.026, 0.004), "#0b0b0c");
+  strokeP(c, (q) => { q.moveTo(-0.452, 0.0255); q.lineTo(-0.416, 0.0255); }, "rgba(160,170,185,0.3)", 0.9 * P);
+  strokeP(c, (q) => { q.moveTo(-0.33, -0.034); q.lineTo(-0.2, -0.029); }, "rgba(0,0,0,0.5)", 0.9 * P);
+  c.restore();
+}
+
+/**
+ * Story 5.1: R1 modern assault rifle (black, short scope, vertical grip, curved magazine), the
+ * Assault Rifle's look at upgrade levels III–IV. Side-view icon only (ported from
+ * `docs/art/epic-5/round-a/code-drawings.html › drawR1`), `size` px per metre, centred, muzzle +x.
+ */
+export function drawAssaultRifleModern(c: G, size: number): void {
+  P = 1 / size;
+  c.save();
+  c.scale(size, size);
+  const B = "#232427";
+  part(c, (q) => Pg(q, [-0.45, -0.042, -0.345, -0.036, -0.33, -0.022, -0.33, 0.006, -0.38, 0.03, -0.432, 0.072, -0.45, 0.076]), { base: "#2a2b2e", box: [-0.45, -0.042, -0.33, 0.076], tex: polyTex(61), hi: 0.3 });
+  fillP(c, (q) => R(q, -0.43, -0.025, 0.05, 0.02, 0.004), "#0d0d0e");
+  part(c, (q) => R(q, -0.464, -0.044, 0.016, 0.124, 0.004), { base: "#151517", box: [-0.464, -0.044, -0.448, 0.08], tex: polyTex(62), hi: 0.2 });
+  part(c, (q) => R(q, -0.345, -0.028, 0.15, 0.022, 0.004), { base: "#1d1e21", box: [-0.345, -0.028, -0.195, -0.006], tex: steelTex(63, 0.3), hi: 0.42 });
+  for (let x = -0.31; x < -0.22; x += 0.013) fillP(c, (q) => E(q, x, -0.0085, 0.003, 0.0015), "#0a0a0b");
+  part(c, (q) => R(q, 0.255, -0.0235, 0.165, 0.0125, 0.002), { base: "#1b1c1f", box: [0.255, -0.0235, 0.42, -0.011], tex: steelTex(64, 0.3), hi: 0.5 });
+  part(c, (q) => R(q, 0.415, -0.027, 0.036, 0.019, 0.003), { base: "#1d1e21", box: [0.415, -0.027, 0.451, -0.008], hi: 0.45 });
+  for (let x = 0.424; x < 0.448; x += 0.006) strokeP(c, (q) => { q.moveTo(x, -0.022); q.lineTo(x, -0.013); }, "#060606", 1.5 * P, "butt");
+  part(c, (q) => { R(q, 0.266, -0.031, 0.026, 0.026, 0.002); Pg(q, [0.27, -0.031, 0.289, -0.031, 0.283, -0.074, 0.275, -0.074]); }, { base: "#1e1f22", box: [0.266, -0.074, 0.292, -0.005], tex: polyTex(65), hi: 0.35 });
+  fillP(c, (q) => E(q, 0.279, -0.05, 0.003, 0.006), "#0b0b0c");
+  part(c, (q) => R(q, 0.06, -0.043, 0.2, 0.062, 0.004), { base: B, box: [0.06, -0.043, 0.26, 0.019], tex: polyTex(66), hi: 0.3 });
+  for (let x = 0.068; x < 0.255; x += 0.0105) {
+    fillP(c, (q) => R(q, x, -0.02, 0.006, 0.016, 0.001), "#0c0c0d");
+    fillP(c, (q) => R(q, x + 0.0005, 0.012, 0.006, 0.006, 0), "#0c0c0d");
+  }
+  strokeP(c, (q) => { q.moveTo(0.062, -0.024); q.lineTo(0.258, -0.024); }, "rgba(160,170,185,0.18)", 0.8 * P);
+  part(c, (q) => R(q, 0.142, 0.016, 0.042, 0.012, 0.002), { base: "#1e1f22", box: [0.142, 0.016, 0.184, 0.028], hi: 0.3 });
+  part(c, (q) => { q.moveTo(0.149, 0.026); q.lineTo(0.178, 0.026); q.lineTo(0.176, 0.1); q.quadraticCurveTo(0.164, 0.108, 0.152, 0.1); q.closePath(); }, { base: "#202124", box: [0.149, 0.026, 0.178, 0.108], tex: polyTex(67), hi: 0.32 });
+  for (let y = 0.036; y < 0.098; y += 0.007) strokeP(c, (q) => { q.moveTo(0.151, y); q.lineTo(0.176, y); }, "rgba(0,0,0,0.55)", 1.1 * P, "butt");
+  part(c, (q) => { q.moveTo(-0.205, -0.04); q.lineTo(0.062, -0.04); q.lineTo(0.062, -0.004); q.lineTo(-0.205, -0.004); q.closePath(); }, { base: "#26272a", box: [-0.205, -0.04, 0.062, -0.004], tex: polyTex(68), hi: 0.36 });
+  part(c, (q) => R(q, -0.205, -0.051, 0.465, 0.011, 0.001), { base: "#202124", box: [-0.205, -0.051, 0.26, -0.04], hi: 0.35 });
+  for (let x = -0.2; x < 0.255; x += 0.0098) fillP(c, (q) => R(q, x, -0.0508, 0.004, 0.005, 0), "#0b0b0c");
+  fillP(c, (q) => R(q, -0.09, -0.027, 0.068, 0.017, 0.001), "#131416");
+  strokeP(c, (q) => { q.moveTo(-0.088, -0.019); q.lineTo(-0.024, -0.019); }, "rgba(150,160,175,0.2)", 0.8 * P);
+  part(c, (q) => E(q, -0.038, -0.032, 0.009, 0.007), { base: "#2b2c30", box: [-0.047, -0.039, -0.029, -0.025], hi: 0.5 });
+  part(c, (q) => R(q, -0.222, -0.043, 0.024, 0.009, 0.002), { base: "#2b2c2f", box: [-0.222, -0.043, -0.198, -0.034], hi: 0.4, line: 0.9 });
+  part(c, (q) => Pg(q, [-0.205, -0.005, 0.035, -0.005, 0.035, 0.012, -0.008, 0.022, -0.008, 0.06, -0.062, 0.06, -0.062, 0.028, -0.15, 0.028, -0.205, 0.018]), { base: "#25262a", box: [-0.205, -0.005, 0.035, 0.06], tex: polyTex(69), hi: 0.32 });
+  part(c, (q) => { q.moveTo(-0.058, 0.058); q.lineTo(-0.012, 0.058); q.quadraticCurveTo(-0.004, 0.12, 0.03, 0.172); q.lineTo(-0.012, 0.186); q.quadraticCurveTo(-0.044, 0.125, -0.058, 0.058); q.closePath(); }, { base: "#1e1f22", box: [-0.058, 0.058, 0.03, 0.186], tex: steelTex(70, 0.5), hi: 0.4 });
+  for (const k of [0.35, 0.65]) strokeP(c, (q) => { q.moveTo(-0.058 + 0.046 * k, 0.062); q.quadraticCurveTo(-0.044 + 0.04 * k, 0.125, -0.012 + 0.04 * k, 0.183 - 0.012 * k); }, "rgba(0,0,0,0.55)", 1.6 * P);
+  part(c, (q) => Pg(q, [-0.014, 0.182, 0.032, 0.169, 0.035, 0.178, -0.011, 0.193]), { base: "#18191b", box: [-0.014, 0.169, 0.035, 0.193], hi: 0.3 });
+  trigger(
+    c,
+    (q) => { q.moveTo(-0.138, 0.027); q.lineTo(-0.138, 0.045); q.lineTo(-0.07, 0.045); q.lineTo(-0.066, 0.027); },
+    (q) => { q.moveTo(-0.1, 0.027); q.quadraticCurveTo(-0.097, 0.036, -0.106, 0.041); },
+  );
+  part(c, (q) => { q.moveTo(-0.172, 0.026); q.lineTo(-0.14, 0.026); q.bezierCurveTo(-0.142, 0.05, -0.152, 0.06, -0.15, 0.07); q.lineTo(-0.168, 0.103); q.quadraticCurveTo(-0.18, 0.108, -0.19, 0.1); q.closePath(); }, { base: "#202124", box: [-0.19, 0.026, -0.14, 0.108], tex: polyTex(71, true), hi: 0.3 });
+  part(c, (q) => { E(q, -0.125, 0.008, 0.006, 0.006); R(q, -0.125, 0.006, 0.016, 0.004, 0.001); }, { base: "#34363a", box: [-0.131, 0.002, -0.109, 0.014], hi: 0.4, line: 0.8 });
+  for (const [x, y] of [[-0.19, 0.004], [-0.03, 0.004], [0.02, -0.02], [-0.18, -0.02]] as const) rivet(c, x, y, 0.0026, "#3a3c40");
+  // scope
+  part(c, (q) => R(q, -0.122, -0.064, 0.072, 0.014, 0.002), { base: "#202124", box: [-0.122, -0.064, -0.05, -0.05], hi: 0.35 });
+  rivet(c, -0.105, -0.057, 0.0035, "#3a3c40", true);
+  rivet(c, -0.068, -0.057, 0.0035, "#3a3c40", true);
+  part(c, (q) => { q.moveTo(-0.125, -0.098); q.lineTo(-0.042, -0.098); q.lineTo(-0.042, -0.068); q.lineTo(-0.125, -0.068); q.closePath(); }, { base: "#2a2b2e", box: [-0.125, -0.098, -0.042, -0.068], tex: polyTex(72), hi: 0.45 });
+  part(c, (q) => Pg(q, [-0.045, -0.1, -0.03, -0.108, 0.0, -0.108, 0.0, -0.06, -0.03, -0.06, -0.045, -0.066]), { base: "#2a2b2e", box: [-0.045, -0.108, 0, -0.06], tex: polyTex(73), hi: 0.45 });
+  c.beginPath();
+  R(c, -0.0025, -0.106, 0.004, 0.044, 0.001);
+  const g = c.createLinearGradient(0, -0.106, 0, -0.062);
+  g.addColorStop(0, "#9fc4e6");
+  g.addColorStop(0.4, "#24384c");
+  g.addColorStop(1, "#0b1016");
+  c.fillStyle = g;
+  c.fill();
+  part(c, (q) => R(q, -0.152, -0.1, 0.03, 0.034, 0.004), { base: "#26272a", box: [-0.152, -0.1, -0.122, -0.066], hi: 0.4 });
+  part(c, (q) => R(q, -0.092, -0.114, 0.022, 0.017, 0.002), { base: "#2d2e31", box: [-0.092, -0.114, -0.07, -0.097], hi: 0.45 });
+  part(c, (q) => E(q, -0.081, -0.083, 0.009, 0.009), { base: "#2d2e31", box: [-0.09, -0.092, -0.072, -0.074], hi: 0.45 });
+  strokeP(c, (q) => { q.moveTo(-0.12, -0.0975); q.lineTo(-0.045, -0.0975); }, "rgba(60,200,90,0.5)", 1 * P);
+  c.restore();
+}
+
+/**
+ * Story 5.1 (designer decision: "when a weapon has a second look it is its III–IV look"): the
+ * level from which the shop/HUD icon shows the upgrade-tier look. Presentation only (not balance).
+ */
+export const UPGRADE_LOOK_LEVEL = 3;
+/** The upgrade-tier icon drawings (G1 → G3, R2 → R1), by weapon id. */
+export const WEAPON_TIER_ICON: Readonly<Record<string, (c: G, size: number) => void>> = {
+  shotgun: drawShotgunTactical,
+  assault_rifle: drawAssaultRifleModern,
+};
+
+/** The U1 plate's width (CSS px) per level (the numeral's width); height is `TIER_PLATE_H`. */
+const TIER_PLATE_W: readonly number[] = [0, 13, 17, 21, 19];
+export const TIER_PLATE_H = 12;
+const ROMAN_NUMERALS = ["", "I", "II", "III", "IV"] as const;
+
+/** U1 plate width in CSS px for a level (1–4; others: 0, no plate). */
+export function tierPlateWidth(level: number): number {
+  return TIER_PLATE_W[level] ?? 0;
+}
+
+/**
+ * Story 5.1 (designer pick U1): the upgrade tier mark, a roman numeral stamped into a riveted steel
+ * plate (ported from `docs/art/epic-5/round-b/looks.html › plateU1`). Drawn with its top-left at
+ * (0, 0), `tierPlateWidth(level)` × `TIER_PLATE_H` CSS px; the caller scales for the device. Drawn
+ * once into the FX atlas / an icon canvas, never per frame.
+ */
+export function drawTierPlate(c: G, level: number): void {
+  const w = tierPlateWidth(level);
+  if (w === 0) return;
+  const h = TIER_PLATE_H;
+  P = 1;
+  part(c, (q) => R(q, 0, 0, w, h, 2), { base: "#7c8086", lit: "top", box: [0, 0, w, h], tex: steelTex(91, 1.2), hi: 0.45, lo: 0.35, rim: 0.55, inner: 0.3, line: 1.1 });
+  for (const rx of [2.3, w - 2.3]) fillP(c, (q) => E(q, rx, h / 2, 0.9, 0.9), "rgba(20,22,25,0.7)");
+  c.save();
+  c.font = '700 9px Oswald, "Arial Narrow", sans-serif';
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  const txt = ROMAN_NUMERALS[level] ?? "";
+  c.fillStyle = "rgba(255,255,255,0.35)";
+  c.fillText(txt, w / 2 + 0.5, h / 2 + 1.5);
+  c.fillStyle = "#16181b";
+  c.fillText(txt, w / 2, h / 2 + 0.8);
+  c.restore();
+}
+
+const plateUrls = new Map<number, string>();
+
+/** The U1 plate for `level` as a PNG data URL (shop rows; drawn once per level, cached), or null. */
+export function tierMarkUrl(level: number): string | null {
+  const w = tierPlateWidth(level);
+  if (w === 0 || typeof document === "undefined") return null;
+  const cached = plateUrls.get(level);
+  if (cached) return cached;
+  const cv = document.createElement("canvas");
+  cv.width = w * DPR;
+  cv.height = TIER_PLATE_H * DPR;
+  const g = cv.getContext("2d");
+  if (!g) return null;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  drawTierPlate(g, level);
+  const url = cv.toDataURL("image/png");
+  plateUrls.set(level, url);
+  return url;
+}
+
 /** Weapons with their own art, by balance id (the rest keep the survivor's plain gun and a text-only shop row). */
 export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, size: number) => void>> = {
   shotgun: drawShotgun,
@@ -844,13 +1155,16 @@ const ICON_Y: Readonly<Record<string, number>> = { assault_rifle: 0.36, fire_axe
 const ICON_X_SHIFT: Readonly<Record<string, number>> = { chainsaw: -2 };
 
 /**
- * The side-view icon of `weapon` as a PNG data URL (drawn once on first use, then cached), or null
+ * The side-view icon of `weapon` (Story 5.1: at upgrade `level`) as a PNG data URL (drawn once on first use, then cached), or null
  * for a weapon without art. Browser only (a canvas).
  */
-export function weaponIconUrl(weapon: string): string | null {
+export function weaponIconUrl(weapon: string, level = 1): string | null {
   const draw = WEAPON_ART[weapon];
   if (!draw || typeof document === "undefined") return null;
-  const cached = iconUrls.get(weapon);
+  // Story 5.1: from level III the weapon's upgrade-tier look (G3, R1), when it has one.
+  const tier = level >= UPGRADE_LOOK_LEVEL ? WEAPON_TIER_ICON[weapon] : undefined;
+  const key = tier ? `${weapon}:tier` : weapon;
+  const cached = iconUrls.get(key);
   if (cached) return cached;
   const cv = document.createElement("canvas");
   cv.width = ICON_W * DPR;
@@ -858,9 +1172,10 @@ export function weaponIconUrl(weapon: string): string | null {
   const g = cv.getContext("2d");
   if (!g) return null;
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  g.translate(ICON_W / 2 + (ICON_X_SHIFT[weapon] ?? 0), ICON_H * (ICON_Y[weapon] ?? 0.42));
-  draw(g, "icon", ICON_W * 0.92);
+  g.translate(ICON_W / 2 + (ICON_X_SHIFT[weapon] ?? 0), ICON_H * (weapon === "assault_rifle" && tier ? 0.4 : (ICON_Y[weapon] ?? 0.42)));
+  if (tier) tier(g, ICON_W * 0.92);
+  else draw(g, "icon", ICON_W * 0.92);
   const url = cv.toDataURL("image/png");
-  iconUrls.set(weapon, url);
+  iconUrls.set(key, url);
   return url;
 }

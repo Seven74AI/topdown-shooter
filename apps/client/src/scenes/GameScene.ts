@@ -11,6 +11,7 @@ import {
   setLoadout,
   shopBuildings,
   shopWeapons,
+  upgradePriceTable,
   spectateTarget,
   weaponName,
   ticksFor,
@@ -157,8 +158,8 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.set(id, view);
     }
     view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
-    // Story 4.11: flames, smoke and embers on every survivor the server reports burning.
-    if (p.status === "alive" && this.fireCue.burning(id, this.time.now)) this.burnView?.draw(view.x, view.y, this.playerRadiusM, this.time.now / 1000);
+    // Story 4.11 / 4.12: flames, smoke and embers on every survivor the server reports burning (dying down after).
+    this.burnView?.draw(id, view.x, view.y, this.playerRadiusM, p.status === "alive" && this.fireCue.burning(id, this.time.now));
   };
   /** Story 4.11: the burning cues on survivors (pooled). */
   private burnView: BurnView | null = null;
@@ -331,10 +332,11 @@ export class GameScene extends Phaser.Scene {
     });
     // ?loadout=a,b (release-safe): start with those weapons; unknown ids are ignored. Solo only.
     // Story 3.3: every other run starts with the Pistol (the dev loadout is a dev cheat now).
-    const urlLoadout = opts.loadout && !session ? validLoadout(opts.loadout, weaponIds(balance)) : null;
+    // Story 5.1: `?loadout=smg:3` also sets the upgrade level (solo only, like the weapons).
+    const urlLoadout = opts.loadout && !session ? validLoadout(opts.loadout, weaponIds(balance), balance.shop.upgrades.maxLevel) : null;
     if (urlLoadout && (stress === null || this.stressFire)) { // Story 5.3: ?stressfire benchmarks the ?loadout weapon
       const p = world.players.get(localId);
-      if (p) setLoadout(balance, p.loadout, urlLoadout);
+      if (p) setLoadout(balance, p.loadout, urlLoadout.weapons, urlLoadout.levels);
     }
     this.running = true;
     // Online, the run may already be over when this scene starts late (hidden tab): keep Results up.
@@ -362,7 +364,7 @@ export class GameScene extends Phaser.Scene {
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.fireCue.clear(); // Story 4.8
-    this.burnView = new BurnView(this); // Story 4.11
+    this.burnView = new BurnView(this, urlOptions().lowFx); // Story 4.11 / 4.12 (?fx=low: half the particles)
     // Story 5.6: pools sized by the balance caps (created once per scene start).
     this.acidCue.clear();
     this.acidClockS = 0;
@@ -380,14 +382,14 @@ export class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, world.map.widthM, world.map.heightM);
     this.applyZoom();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
-    this.cityView = new CityView(this, world.map, cam.zoom);
+    this.cityView = new CityView(this, world.map, cam.zoom, urlOptions().lowFx);
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
       if (opts.stressBuild) placeStressFloor(world, localId, cx, cy); // Story 5.9: before the Walkers
       setupStressWorld(world, stress, view, cx, cy, parseWaveMix(opts.waveMix, balance)); // Story 5.6: ?wavemix=walker,spitter
       // Story 5.2: a melee ?stressfire benchmark (?loadout=chainsaw) keeps its crowd: the zombies can't die.
-      const meleeFire = this.stressFire && urlLoadout !== null && balance.weapons[urlLoadout[0]]?.kind === "melee";
+      const meleeFire = this.stressFire && urlLoadout !== null && balance.weapons[urlLoadout.weapons[0]]?.kind === "melee";
       if (opts.stressBuild || meleeFire) toughenStressZombies(world);
       stressRun.start(performance.now(), stress);
     }
@@ -789,7 +791,7 @@ export class GameScene extends Phaser.Scene {
       const balance = host.world.balance;
       this.router?.releaseAll(); // nothing stays held under the shop (as for the menu)
       host.clearEdges();
-      this.shopInput({ type: "open", weapons: shopWeapons(balance), buildings: shopBuildings(balance) });
+      this.shopInput({ type: "open", weapons: shopWeapons(balance), buildings: shopBuildings(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel });
     }
     // Answers: shown while open, dropped while closed (the World already has the result).
     for (let a = host.takeShopAnswer(); a !== null; a = host.takeShopAnswer()) this.shopInput({ type: "answer", answer: a });
@@ -799,7 +801,12 @@ export class GameScene extends Phaser.Scene {
       if (me) {
         const w0 = me.loadout.slots[0].weapon;
         const w1 = me.loadout.slots[1]?.weapon ?? null;
-        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1]) this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1] });
+        // Story 5.1: levels from the World (online: the state mirror), so the shop shows server truth.
+        const l0 = me.loadout.slots[0].level;
+        const l1 = me.loadout.slots[1]?.level ?? 0;
+        if (me.wallet !== s.wallet || w0 !== s.slots[0] || w1 !== s.slots[1] || l0 !== s.levels[0] || l1 !== s.levels[1]) {
+          this.shopInput({ type: "sync", wallet: me.wallet, slots: [w0, w1], levels: [l0, l1] });
+        }
       }
       if (s.pending !== null) {
         shopTime.nowMs = this.time.now;
@@ -820,6 +827,7 @@ export class GameScene extends Phaser.Scene {
     const e = r.effect;
     if (e === null) return;
     if (e.type === "buy") this.host?.buyWeapon(e.weapon, e.slot);
+    else if (e.type === "upgrade") this.host?.upgradeWeapon(e.weapon); // Story 5.1
     else uiStore.request("startPlacement", e.id); // Story 3.4: placement mode
   }
 
@@ -852,9 +860,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Adds, updates and removes player views to match `world.players` (no allocation per frame). */
-  private syncPlayerViews(world: Readonly<World>): void {
+  private syncPlayerViews(world: Readonly<World>, dtS: number): void {
     this.playerViews.forEach(this.dropPlayerView); // deleting inside forEach is safe for a Map
-    this.burnView?.begin();
+    this.burnView?.begin(dtS, this.time.now / 1000);
     world.players.forEach(this.syncPlayerView);
     this.burnView?.end();
   }
@@ -985,7 +993,7 @@ export class GameScene extends Phaser.Scene {
     if (this.localHost?.paused !== true) this.acidClockS += deltaMs / 1000;
     this.acidView?.update(this.acidClockS);
     this.projectileView?.update(host.world.projectiles, host.alpha);
-    this.syncPlayerViews(host.world);
+    this.syncPlayerViews(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.downedView?.update(host.world, this.time.now);
     this.ambience?.update(host.world.decay.stage);
     this.buildingView?.update(host.world, this.placement);
@@ -1022,6 +1030,7 @@ export class GameScene extends Phaser.Scene {
         this.hudWeaponId = slot.weapon; // rebuild the label only when the weapon changes
         this.hudModel.weaponName = slot.weapon.replace(/_/g, " ").toUpperCase();
       }
+      this.hudModel.weaponLevel = slot.level; // Story 5.1 (online: the state's level0/level1 via the mirror)
       if (isGun(stats)) {
         this.hudModel.ammo = slot.ammo;
         this.hudModel.magazine = stats.magazine;
@@ -1040,10 +1049,12 @@ export class GameScene extends Phaser.Scene {
         }
         const otherStats = weaponStats(host.world.balance, other.weapon);
         this.hudModel.otherAmmo = isGun(otherStats) ? other.ammo : -1;
+        this.hudModel.otherWeaponLevel = other.level;
         this.hudModel.otherMag = isGun(otherStats) ? otherStats.magazine : 0;
       } else {
         this.hudOtherId = "";
         this.hudModel.otherWeaponName = "";
+        this.hudModel.otherWeaponLevel = 1;
       }
       const swapTicks = ticksFor(host.world.balance.player.swapS);
       this.hudModel.swapFrac = player.loadout.swapTicks > 0 ? (swapTicks - player.loadout.swapTicks + 1) / swapTicks : -1;

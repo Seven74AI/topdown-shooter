@@ -48,6 +48,7 @@ export const NET_EVENT_KIND = {
   MINE_EXPLODED: 28,
   SPITTER_SPAT: 29, // Story 5.6 (renumbered at the 5.9 merge; never reuse)
   ACID_SPLASHED: 30, // Story 5.6
+  WEAPON_UPGRADED: 31, // Story 5.1 (renumber at merge if taken; never reuse)
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -195,6 +196,9 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.SPITTER_SPAT, zid(ctx, e.zombieId), e.spitId, cm(e.x), cm(e.y), cm(e.toX), cm(e.toY)];
     case "acid.splashed":
       return [K.ACID_SPLASHED, e.puddleId, cm(e.x), cm(e.y), playerSlotOf(e.hitPlayerId)];
+    case "weapon.upgraded":
+      // Story 5.1: one per upgrade (the level itself comes from schema level0/level1).
+      return [K.WEAPON_UPGRADED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), e.slot, e.level];
     case "test.ping":
       return null;
   }
@@ -338,6 +342,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "spitter.spat", zombieId: zombieSlotOfNetId(n(t, 1)), spitId: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, toX: n(t, 5) / 100, toY: n(t, 6) / 100 };
     case K.ACID_SPLASHED:
       return { type: "acid.splashed", puddleId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100, hitPlayerId: playerIdOfSlot(n(t, 4)) };
+    case K.WEAPON_UPGRADED:
+      return { type: "weapon.upgraded", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)), slot: n(t, 3) === 1 ? 1 : 0, level: n(t, 4) };
     default:
       return null;
   }

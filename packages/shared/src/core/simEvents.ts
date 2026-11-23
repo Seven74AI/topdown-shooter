@@ -112,6 +112,8 @@ export type SimEvent =
    * lifetime from balance).
    */
   | { type: "acid.splashed"; puddleId: number; x: number; y: number; hitPlayerId: string | null; /** Review M1: client only, as above. */ ageS?: number }
+  /** Story 5.1: `playerId` upgraded the weapon in `slot` to `level` (2–maxLevel; build phase only). */
+  | { type: "weapon.upgraded"; playerId: string; weapon: string; slot: 0 | 1; level: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];
