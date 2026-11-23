@@ -251,8 +251,13 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
       if (s.pending === null) return same(s);
       if (s.pendingAtMs === 0) return same({ ...s, pendingAtMs: input.nowMs }); // the clock starts with the first frame after the send
       return input.nowMs - s.pendingAtMs >= SHOP_PENDING_TIMEOUT_MS ? same({ ...s, pending: null, pendingAtMs: 0, awaitLevel: null }) : same(s);
-    default:
-      return same(s); // Story 5.16: an unknown action (e.g. the old "building") changes nothing
+    default: {
+      // Exhaustive (review L6): a new ShopInput type fails to compile here. At run time an unknown
+      // action (e.g. an old client's "building") changes nothing.
+      const unknown: never = input;
+      void unknown;
+      return same(s);
+    }
   }
 }
 

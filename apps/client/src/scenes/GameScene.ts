@@ -827,8 +827,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Story 3.3: the shop. The Shop button shows when Ready does (a build phase, a run on screen, menu
-   * closed); the shop closes by itself as soon as that no longer holds (the wave started, Results,
+   * Story 3.3: the shop. Story 5.16: it opens from the build bar's Shop tile (only while the bar is on
+   * screen); the shop closes by itself as soon as that no longer holds (the wave started, Results,
    * the menu opened, leaving). While open it gets my wallet and weapons when they change, the
    * purchase answers, and the clock for the pending timeout. Returns whether it is open.
    */

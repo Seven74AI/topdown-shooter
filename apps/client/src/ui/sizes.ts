@@ -40,7 +40,7 @@ export const BUILD_COUNT_TEXT_CSS_PX = 15;
 export const BUILD_COUNT_GAP_CSS_PX = 4;
 /** Ready keeps at least this far left of the build bar (it slides further left on narrow screens). */
 export const READY_BAR_GAP_CSS_PX = 12;
-/** Story 3.7: the repair panel's row (Repair + ✕), one row above Ready / Shop (CSS px). */
+/** Story 3.7: the repair panel's row (Repair + ✕), one row above Ready (CSS px). */
 export const REPAIR_BUTTON_W_CSS_PX = 168;
 export const REPAIR_CLOSE_CSS_PX = 52;
 export const REPAIR_ROW_GAP_CSS_PX = 12;

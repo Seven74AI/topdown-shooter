@@ -456,7 +456,7 @@ export class HudScene extends Phaser.Scene {
     this.buttons.set({ id: "menu", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.menuPressed = true;
     });
-    // Story 3.1: Ready, bottom centre (a touch on it never starts a stick). Story 3.3 adds Shop beside it.
+    // Story 3.1: Ready, bottom centre (a touch on it never starts a stick). Story 5.16: Shop is a build-bar tile.
     this.readyBtn = this.add.graphics().setDepth(1001).setVisible(false);
     this.readyLabel = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
     this.buttons.set({ id: "ready", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
@@ -493,7 +493,7 @@ export class HudScene extends Phaser.Scene {
       this.buttons.set({ id: TILE_IDS[s] as string, x: 0, y: 0, w: 0, h: 0, visible: false }, () => this.pressTile(s));
     }
     this.barCount = this.add.text(0, 0, "", { ...this.outlinedStyle(BUILD_COUNT_TEXT_CSS_PX), fontStyle: "bold" }).setOrigin(1, 1).setDepth(1002).setVisible(false);
-    // Story 3.7: the repair panel (one row above Ready / Shop; a touch on its buttons never starts a stick).
+    // Story 3.7: the repair panel (one row above Ready; a touch on its buttons never starts a stick).
     this.repairBtn = this.add.graphics().setDepth(1001).setVisible(false);
     this.repairText = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
     this.repairCloseBtn = this.add.graphics().setDepth(1001).setVisible(false);
@@ -783,7 +783,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   /**
-   * Story 3.7: Repair and ✕ in a row centred one row above Ready / Shop; the info (two lines) right
+   * Story 3.7: Repair and ✕ in a row centred one row above Ready; the info (two lines) right
    * of ✕ and the reason above it, so the texts stay clear of the survivor at the screen centre.
    */
   private layoutRepairPanel(): void {
@@ -1038,8 +1038,10 @@ export class HudScene extends Phaser.Scene {
     const slot = this.barSlots[s] as number;
     if (slot >= 0) {
       const item = this.model.buildItems[slot];
-      if (item) this.model.buildPick = item.id;
-    } else if (slot === SLOT_SHOP) this.model.shopPressed = true;
+      if (item && this.model.buildPick === "") this.model.buildPick = item.id; // review L3: two taps in one frame: the first wins
+    } else if (slot === SLOT_SHOP) {
+      if (this.model.buildPick === "") this.model.shopPressed = true; // review L3: a building picked this frame wins
+    }
     else if (slot === SLOT_MORE) {
       this.barPage++;
       this.barSlotsDirty = true;
@@ -1060,6 +1062,10 @@ export class HudScene extends Phaser.Scene {
       this.barSlotsDirty = true;
     }
     if (v !== this.shownBarVisible || this.barSlotsDirty) {
+      if (!v && this.shownBarVisible === true && this.barPage !== 0) {
+        this.barPage = 0; // review L4: the bar reopens on its first page
+        this.barSlotsDirty = true;
+      }
       if (this.barSlotsDirty) this.placeBarSlots();
       this.shownBarVisible = v;
       for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
@@ -1096,6 +1102,7 @@ export class HudScene extends Phaser.Scene {
       g.fillStyle(READY_BG, slot === SLOT_SHOP ? READY_BG_ALPHA : TILE_BG_ALPHA).fillRoundedRect(0, 0, t, t, TILE_RADIUS_PX * k);
       g.lineStyle(TILE_BORDER_PX * k, slot === SLOT_SHOP ? SHOP_BORDER : READY_BORDER, TILE_BORDER_ALPHA).strokeRoundedRect(0, 0, t, t, TILE_RADIUS_PX * k);
       g.setAlpha(a);
+      (this.barPrices[s] as Phaser.GameObjects.Text).setAlpha(a); // review L1: the whole tile dims, its price too
       (this.barIcons[s] as Phaser.GameObjects.Image).setAlpha(a);
       (this.barIconGfx[s] as Phaser.GameObjects.Graphics).setAlpha(a);
       if (slot >= 0) (this.barPrices[s] as Phaser.GameObjects.Text).setColor(st & TILE_SHORT ? TILE_PRICE_SHORT : TILE_PRICE);
