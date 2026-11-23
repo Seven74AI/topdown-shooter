@@ -797,9 +797,9 @@ So that I join my friends' game in seconds.
 **And** a wrong or expired code shows "Game not found"
 
 **Given** the lobby
-**When** every joined player is Ready and there are at least 2 players
+**When** every joined player is Ready and there is at least 1 player
 **Then** the host's Start button is enabled; tapping it starts the run for everyone
-**And** in development builds the host can start alone (for testing)
+**And** (designer, 2026-11-23) the host can start a real online run alone in every build; waves are sized for one player (× 0.4)
 
 **Given** players in the lobby
 **When** each joins

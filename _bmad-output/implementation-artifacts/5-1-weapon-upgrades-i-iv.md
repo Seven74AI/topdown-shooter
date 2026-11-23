@@ -3,7 +3,7 @@ baseline_commit: 26bab2b35529f809ccc2f4ea27e00412bee05c31
 ---
 # Story 5.1: Weapon upgrades I–IV
 
-Status: review
+Status: done
 
 ## Story
 
@@ -327,3 +327,7 @@ M1 `damagePerLevel` applied to the fire rate → `nothing but damage changes`. M
 
 - 2026-11-23: Story 5.1 built: weapon upgrades I–IV (shared rule, damage helper, balance, schema/mirror copies, shop Upgrades section, U1 HUD/shop marks, G3/R1 tier icons, bots, replay, `?loadout=id:level`), tests and mutations, browser check, sims, bandwidth. Status → review.
 - 2026-11-23: Review fixes: upgrade stays pending until the state shows the level (MEDIUM); maxLevel capped at 4 (LOW 1); LOW 2 noted.
+
+### Re-review of the fixes (2026-11-23, fresh agent)
+
+No high or medium findings at e378702. Pending can't get stuck (refusal clears at once; 3 s frame-counted timeout clears pending and awaitLevel; closing the shop, wave start, Results and scene restart reset it); double taps and a second upgrade are held until the sync shows the new level. 4 mutations, all caught. Gate green (1,648 tests). Lows **accepted**: an answer arriving after close-and-reopen within one RTT is taken as the answer to a new tap (every tap is still a real, paid purchase; same pattern as 3.3 buys); the unlock doesn't re-check the slot's weapon (can't swap while the shop is open). Status: done once on master.
