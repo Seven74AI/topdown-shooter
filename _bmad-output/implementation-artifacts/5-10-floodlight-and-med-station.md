@@ -220,7 +220,7 @@ Builder in its own cloud session (container), branch `story-5-10` from the work 
 
 ### Open questions for the designer
 
-1. **Floodlight pools vs phone FPS:** with 8 lamps on screen the pools still cost ~20 % headless (target 10 %). Options: (a) keep 4 pools + merging (now); (b) 2 pools on screen (≈ −10 % headless, lamps beyond the nearest two look unlit); (c) smaller pools; (d) leave it until 6.3, which redoes the lighting for the blackout anyway (darkness layer with cut-outs). The cap and the merge distance are balance values (`controls.json › fx`), so any of these is a one-line change.
+1. **Floodlight pools vs phone FPS — ACCEPTED AS IS (designer via the main session, 2026-11-23):** 4 pools + sharing stays; the floodlight stays out of the shop until 6.3, which re-measures on phones. Original question: with 8 lamps on screen the pools still cost ~20 % headless (target 10 %). Options: (a) keep 4 pools + merging (now); (b) 2 pools on screen (≈ −10 % headless, lamps beyond the nearest two look unlit); (c) smaller pools; (d) leave it until 6.3, which redoes the lighting for the blackout anyway (darkness layer with cut-outs). The cap and the merge distance are balance values (`controls.json › fx`), so any of these is a one-line change.
 
 ## Notes for the merge (builder)
 
@@ -236,6 +236,23 @@ Builder in its own cloud session (container), branch `story-5-10` from the work 
 - `RunRoom.ts`: `DEV_SHOP_ALL` next to `DEV_WAVE_MIX` (dev only). `RunController` option `shopAll`.
 - `PlayerView.ts`: `healCue(on)` + a small Graphics per player. `GameScene.ts`: two views, the heal cue in `syncPlayerView`, `?shopall` for solo and the shop list, `?stressbuild=lights`.
 - `docs/epic-5-decisions.md` and `docs/art/epic-5/round-d/looks.html` were checked out from the work branch tip `d526464` (MS10 pick) unchanged, so they merge cleanly.
+
+## Senior Developer Review (AI)
+
+Fresh-agent review by the main session (2026-11-23): **no high, 2 medium (both only after merging master), 5 low, 1 nit.** First, `origin/master` (`4258175`: 5.15 carry, 5.16 build bar, PR #5 grenade lob-over / camera / downed alert; barricades stop bullets) merged into `story-5-10`; conflicts: `GameScene.ts` shop `open` line (took master's: buildings now come from the build bar), `buildings.test.ts` (both `stopsBullets` and `inShop`), `balance.ts` cross-check (both the five-block exclusivity and master's `stopsBullets` checks). The floodlight and med station default `stopsBullets: false` (bullets pass, AC 1/10).
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| M1 | master's `buildBar.test.ts` pinned the old building list | `med_station` added (`["med_station","Med station",400,false,1,1]`, before `bear_trap` in the extra-types case); the "today's four types" test renamed. |
+| M2 | after the merge `?shopall` / `DEV_SHOP_ALL` could not show the floodlight anywhere (the build bar dropped `inShop: false` unconditionally) | `buildBarItems(balance, shopAll = false)` lists through `shopBuildings(balance, shopAll)` with a second cache; the extra filter is gone; `GameScene.updateBuildBar` passes `urlOptions().shopAll`. Test: with the switch the floodlight is a tile between mine and med station, cached per flag; without it, not. Browser: `?shopall=1` build bar = wood, turret, spikes, mine, floodlight, med station. |
+| L1 | heal cap untested | `medStation.test.ts`: maxHp − 0.1 → exactly maxHp after one tick, for 100 and an armored 125; mutation "no cap" fails it. |
+| L2 | `updateLightState` calls in `mirrorBuildings` / `applyDecayStage` untested (the test read through `lightsOf`, which refreshes) | `NetSimHost.lights.test.ts` now reads `host.world.lights.list` directly after the state is applied; removing either call fails it (mutations run). `lightState.ts` notes that 6.3 must read through `lightsOf` (the server's list lags one tick after a combat-tick destroy). |
+| L3 | client `?shopall` not gated to dev builds; server production guard untested | `parseUrlOptions(search, dev = import.meta.env.DEV)` ignores `?shopall` in a release build (tested with `dev = false`); the server reads the switch through a pure `pickDevShopAll(env)` (`run/devShopAll.ts`, production → ignored + `dev_shop_all_ignored` log; tested). |
+| L4 | `floodLightMergeM` schema default 2 vs `controls.json` 4 | default 4. |
+| L5 | no test that placing a floodlight / med station leaves the city bake alone | `floodlightLook.test.ts`: CityView's bake key (`staticKey(stage, obstacles.version, fires)`) unchanged through placing both, 20 ticks of healing and a destroy. Browser: `CityView.bakeCount` 1 → 1 after placing both → 1 after removing the floodlight. |
+| nit | `inHealReach` at exactly d = r + r_body | exact-in-binary case (0.5 m body, 2.5 m) is outside; 2⁻²⁰ inside is in. |
+
+Floodlight FPS (≈ −20 % headless): accepted as is by the designer (see open question 1).
 
 ## Change from the Epic 6 design session (designer, 2026-11-23)
 
