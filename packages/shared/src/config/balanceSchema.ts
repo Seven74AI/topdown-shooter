@@ -471,6 +471,18 @@ export const fxSchema = z
   })
   .strict();
 
+/** Story 5.15: carrying a building ghost in a build phase (client presentation; the server judges with placementError). */
+export const buildControlsSchema = z
+  .object({
+    /** The ghost's near edge sits this far beyond the survivor's body along the carry facing (m). */
+    carryGapM: z.number().min(0).max(4),
+    /** A lattice index changes only once the continuous corner is this far past the half-cell boundary (m; < half a cell). */
+    snapHysteresisM: z.number().min(0).max(0.24),
+    /** Auto-rotate switches N/S ↔ E/W only when the facing is this many degrees past a 45° diagonal. */
+    autoRotateHysteresisDeg: z.number().min(0).max(44),
+  })
+  .strict();
+
 export const controlsSchema = z
   .object({
     moveDeadZone: z.number().min(0).max(0.9),
@@ -478,6 +490,7 @@ export const controlsSchema = z
     aimAssistDeg: z.number().min(0).max(45),
     /** Story 5.2: client effect caps (no new balance file: every test fixture lists the files). */
     fx: fxSchema,
+    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10 }),
   })
   .strict();
 

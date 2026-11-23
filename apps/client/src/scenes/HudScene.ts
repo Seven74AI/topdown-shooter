@@ -9,8 +9,7 @@ import {
   READY_BUTTON_BOTTOM_CSS_PX,
   READY_BUTTON_H_CSS_PX,
   READY_BUTTON_W_CSS_PX,
-  PLACE_BUTTON_CSS_PX,
-  PLACE_BUTTON_GAP_CSS_PX,
+  READY_SHIFT_LEFT_CSS_PX,
   REPAIR_BUTTON_W_CSS_PX,
   REPAIR_CLOSE_CSS_PX,
   REPAIR_ROW_GAP_CSS_PX,
@@ -21,6 +20,7 @@ import { unlockAudio } from "../audio/placeholderSfx";
 import { TAP_SLOP_CSS_PX, TapDetector } from "../input/tapDetector";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
+import { layoutHandCluster, newHandLayout, type HandRect } from "./handCluster";
 import type { InputRouter } from "../input/InputRouter";
 import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
@@ -95,6 +95,8 @@ const COUNTDOWN_TEXT_PX = 16;
 const STATUS_TEXT_PX = 18;
 const TEXT_STROKE = "#000000";
 const TEXT_STROKE_PX = 4;
+/** The same stroke as a number (Graphics outlines). */
+const TEXT_STROKE_COLOR = 0x000000;
 /** Story 2.9: teammate name tags (CSS px × dpr) and edge arrows. */
 const NAME_TEXT_PX = 14;
 const NAME_STROKE_PX = 3;
@@ -128,14 +130,21 @@ const READY_BG_ALPHA = 0.5;
 const READY_ON = 0x2e7d32;
 const READY_BORDER = 0xffffff;
 const READY_BORDER_PX = 2;
-/** Story 3.4: placement buttons (⟳ ✓ ✕), the hint line above ⟳ ✓ ✕. */
+/** Story 3.4 / 5.15: the hand cluster (⟳, Place, ✕: round, bottom right) and the hint line. */
 const PLACE_IDS = ["rotate", "confirm", "cancel"] as const;
-const PLACE_GLYPHS = ["⟳", "✓", "✕"] as const;
-const PLACE_GLYPH_PX = 30;
+const PLACE_GLYPHS = ["⟳", "Place", "✕"] as const;
+const PLACE_GLYPH_PX = [30, 18, 22] as const;
 const PLACE_CONFIRM = 0x2e7d32;
+/** Place when the shared check says no: grey with a red ring (a press still sends: the server judges). */
+const PLACE_BLOCKED = 0x5a5a5a;
+const PLACE_BLOCKED_RING = 0xe53935;
 const PLACE_CANCEL = 0x8e2a2a;
+/** The 🔒 badge on ⟳ (auto-rotate off): a padlock drawn in Graphics, CSS px. */
+const LOCK_BODY_W_PX = 12;
+const LOCK_BODY_H_PX = 9;
+const LOCK_SHACKLE_R_PX = 4;
+const LOCK_COLOR = 0xf5c542;
 const HINT_TEXT_PX = 18;
-const HINT_GAP_PX = 10;
 const HINT_VALID = "#ffffff";
 const HINT_BLOCKED = "#ff8a80";
 /** Story 3.7: the repair panel (Repair's border when it would be accepted, its look when not). */
@@ -229,14 +238,20 @@ export class HudScene extends Phaser.Scene {
   private shownShopVisible: boolean | null = null;
   private shownBuildSecs = -2;
   private buttons = new HudButtons();
-  /** Story 3.4: placement mode's ⟳ ✓ ✕ and the hint line. */
+  /** Story 3.4: placement mode's ⟳ ✓ ✕ and the hint line; Story 5.15: the hand cluster, the 🔒 badge. */
   private readonly placeBtns: Phaser.GameObjects.Graphics[] = [];
   private readonly placeGlyphs: Phaser.GameObjects.Text[] = [];
   private placeHint!: Phaser.GameObjects.Text;
+  private placeLock!: Phaser.GameObjects.Graphics;
+  private readonly hand = newHandLayout();
   private shownPlacement: boolean | null = null;
+  private shownPlaceValid: boolean | null = null;
+  private shownLocked: boolean | null = null;
+  /** Story 5.15: the weapon lines are hidden while holding (they sit under the hand cluster). */
+  private shownWeaponHidden = false;
   private shownHint = "";
   private shownHintValid: boolean | null = null;
-  /** The pointer moving the preview (touch or mouse), or -1. */
+  /** Story 5.15: a right-half touch (or a mouse press) while holding that missed the buttons: claimed, does nothing yet (BX-5 drags with it), or -1. */
   private placePointer = -1;
   /** Story 3.7: the repair panel (info line, reason line, Repair, ✕) and the tap detector. */
   private repairBtn!: Phaser.GameObjects.Graphics;
@@ -335,6 +350,9 @@ export class HudScene extends Phaser.Scene {
     this.shownMoney = -1;
     this.nextMoneyPop = 0;
     this.shownPlacement = null;
+    this.shownPlaceValid = null;
+    this.shownLocked = null;
+    this.shownWeaponHidden = false;
     this.shownHint = "";
     this.shownHintValid = null;
     this.placePointer = -1;
@@ -403,19 +421,20 @@ export class HudScene extends Phaser.Scene {
     this.buttons.set({ id: "ready", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.readyPressed = true;
     });
-    // Story 3.4: placement mode's ⟳ ✓ ✕ (where Ready and Shop are, hidden while placing) and its hint line.
+    // Story 3.4: placement mode's buttons and its hint line; Story 5.15: the hand cluster at the bottom right.
     this.placeBtns.length = 0;
     this.placeGlyphs.length = 0;
     PLACE_IDS.forEach((id, i) => {
       this.placeBtns.push(this.add.graphics().setDepth(1001).setVisible(false));
-      this.placeGlyphs.push(this.add.text(0, 0, PLACE_GLYPHS[i] ?? "", this.outlinedStyle(PLACE_GLYPH_PX)).setOrigin(0.5).setDepth(1002).setVisible(false));
+      this.placeGlyphs.push(this.add.text(0, 0, PLACE_GLYPHS[i] ?? "", this.outlinedStyle(PLACE_GLYPH_PX[i] ?? 30)).setOrigin(0.5).setDepth(1002).setVisible(false));
       this.buttons.set({ id, x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
         if (id === "rotate") this.model.rotatePressed = true;
         else if (id === "confirm") this.model.confirmPressed = true;
         else this.model.cancelPressed = true;
       });
     });
-    this.placeHint = this.add.text(0, 0, "", this.outlinedStyle(HINT_TEXT_PX)).setOrigin(0.5, 1).setDepth(1002).setVisible(false);
+    this.placeHint = this.add.text(0, 0, "", this.outlinedStyle(HINT_TEXT_PX)).setOrigin(1, 1).setDepth(1002).setVisible(false);
+    this.placeLock = this.add.graphics().setDepth(1003).setVisible(false);
     // Story 3.3: Shop, right of Ready (a touch on it never starts a stick either).
     this.shopBtn = this.add.graphics().setDepth(1001).setVisible(false);
     this.shopLabel = this.add.text(0, 0, "Shop", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
@@ -529,15 +548,14 @@ export class HudScene extends Phaser.Scene {
     }
 
     // Buttons first (readiness fix U1): a touch that starts on a HUD button never spawns a stick.
-    // Story 3.4: in placement mode a touch or click that misses the HUD buttons moves the preview
-    // (down and drag) and never reaches the sticks or the mouse fire.
+    // Story 5.15: while I hold a building, a left-half touch is the move stick as usual (I keep
+    // walking); a right-half touch or a mouse press that misses the HUD buttons is claimed and does
+    // nothing (no aim stick, no fire: the right half belongs to the build cluster; BX-5 drags with it).
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
       if (this.model.placementActive) {
-        if (this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width).kind !== "button") {
-          this.placePointer = p.id;
-          this.placeTap(p.x, p.y);
-        }
+        if (p.wasTouch && p.x < this.scale.width / 2) hudPointerDown(this.buttons, this.router, p, this.scale.width);
+        else if (this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width).kind !== "button") this.placePointer = p.id;
         return;
       }
       hudPointerDown(this.buttons, this.router, p, this.scale.width);
@@ -545,7 +563,6 @@ export class HudScene extends Phaser.Scene {
       this.taps.down(p.id, p.x, p.y, this.time.now, !this.buttons.owns(p.id));
     };
     const move = (p: Phaser.Input.Pointer) => {
-      if (this.model.placementActive && p.id === this.placePointer) this.placeTap(p.x, p.y);
       this.taps.move(p.id, p.x, p.y, TAP_SLOP_CSS_PX * dpr());
       hudPointerMove(this.buttons, this.router, p);
     };
@@ -832,51 +849,66 @@ export class HudScene extends Phaser.Scene {
     this.repairText.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
   }
 
-  /** Story 3.4: a placement touch at canvas (x, y) for the GameScene (it converts through the camera). */
-  private placeTap(x: number, y: number): void {
-    const m = this.model;
-    m.placeTap = true;
-    m.placeTapX = x;
-    m.placeTapY = y;
-  }
-
   /**
-   * Story 3.4: ⟳ ✓ ✕ in a row centred where Ready and Shop are (bottom centre, inside the safe area,
-   * 64 CSS px each; those two are hidden while placing), with the hint line above them.
+   * Story 5.15: the hand cluster where the right thumb rests (`layoutHandCluster`, ux-spec §4):
+   * round Place, ⟳ and ✕, the 🔒 badge on ⟳ and the hint line right-aligned above them.
    */
   private layoutPlacementButtons(): void {
     const k = dpr();
-    const bottom = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k;
-    const size = PLACE_BUTTON_CSS_PX * k;
-    const gap = PLACE_BUTTON_GAP_CSS_PX * k;
-    const rowW = size * PLACE_IDS.length + gap * (PLACE_IDS.length - 1);
-    const y = bottom - size;
+    const l = layoutHandCluster(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, k, this.hand);
+    const rects = [l.rotate, l.place, l.cancel];
     for (let i = 0; i < PLACE_IDS.length; i++) {
-      const x = (this.scale.width - rowW) / 2 + i * (size + gap);
+      const r = rects[i] as HandRect;
       const rect = this.buttons.get(PLACE_IDS[i] as string);
-      if (rect) Object.assign(rect, { x, y, w: size, h: size });
-      const g = (this.placeBtns[i] as Phaser.GameObjects.Graphics).clear().setPosition(x, y);
-      const fill = i === 1 ? PLACE_CONFIRM : i === 2 ? PLACE_CANCEL : READY_BG;
-      g.fillStyle(fill, i === 0 ? READY_BG_ALPHA : 0.85).fillRoundedRect(0, 0, size, size, READY_RADIUS_PX * k);
-      g.lineStyle(READY_BORDER_PX * k, READY_BORDER, 0.9).strokeRoundedRect(0, 0, size, size, READY_RADIUS_PX * k);
+      if (rect) Object.assign(rect, { x: r.x, y: r.y, w: r.size, h: r.size });
       (this.placeGlyphs[i] as Phaser.GameObjects.Text)
-        .setFontSize(Math.round(PLACE_GLYPH_PX * k))
+        .setFontSize(Math.round((PLACE_GLYPH_PX[i] ?? 30) * k))
         .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
-        .setPosition(x + size / 2, y + size / 2);
+        .setPosition(r.x + r.size / 2, r.y + r.size / 2);
     }
+    this.shownPlaceValid = null; // redraw the circles at the new size
+    this.drawHandButtons(this.model.placementValid);
+    const rot = l.rotate;
+    const g = this.placeLock.clear();
+    const bw = LOCK_BODY_W_PX * k;
+    const bh = LOCK_BODY_H_PX * k;
+    const sr = LOCK_SHACKLE_R_PX * k;
+    g.lineStyle(2 * k, LOCK_COLOR, 1).beginPath().arc(0, 0, sr, Math.PI, 0).strokePath();
+    g.fillStyle(LOCK_COLOR, 1).fillRect(-bw / 2, 0, bw, bh);
+    g.lineStyle(1.5 * k, TEXT_STROKE_COLOR, 1).strokeRect(-bw / 2, 0, bw, bh);
+    g.setPosition(rot.x + rot.size - bw / 2, rot.y + sr + k);
     this.placeHint
       .setFontSize(Math.round(HINT_TEXT_PX * k))
       .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
-      .setPosition(this.scale.width / 2, y - HINT_GAP_PX * k);
+      .setPosition(l.hintX, l.hintY);
   }
 
-  /** Story 3.4: shows or hides placement mode's buttons and hint (on change only). */
+  /** Story 5.15: the three round buttons; Place green when the shared check passes, grey with a red ring when not. */
+  private drawHandButtons(valid: boolean): void {
+    if (valid === this.shownPlaceValid) return;
+    this.shownPlaceValid = valid;
+    const k = dpr();
+    const rects = [this.hand.rotate, this.hand.place, this.hand.cancel];
+    for (let i = 0; i < PLACE_IDS.length; i++) {
+      const r = rects[i] as HandRect;
+      const rad = r.size / 2;
+      const g = (this.placeBtns[i] as Phaser.GameObjects.Graphics).clear().setPosition(r.x + rad, r.y + rad);
+      const place = i === 1;
+      const fill = place ? (valid ? PLACE_CONFIRM : PLACE_BLOCKED) : i === 2 ? PLACE_CANCEL : READY_BG;
+      g.fillStyle(fill, i === 0 ? READY_BG_ALPHA : 0.85).fillCircle(0, 0, rad);
+      const ring = place && !valid ? PLACE_BLOCKED_RING : READY_BORDER;
+      g.lineStyle((place && !valid ? 2 : 1) * READY_BORDER_PX * k, ring, 0.95).strokeCircle(0, 0, rad);
+    }
+    (this.placeGlyphs[1] as Phaser.GameObjects.Text).setAlpha(valid ? 1 : 0.7);
+  }
+
+  /** Story 3.4: shows or hides placement mode's buttons and hint (on change only); Story 5.15: Place's colour and the 🔒 badge. */
   private drawPlacement(): void {
     const m = this.model;
     const placing = m.placementActive;
     if (placing !== this.shownPlacement) {
       this.shownPlacement = placing;
-      if (placing) hudPointerReset(this.buttons, this.router); // the sticks are off: let go of every held stick
+      if (placing) this.router.releaseAim(); // Story 5.15: the move thumb keeps steering; only the aim stick lets go
       this.placePointer = -1;
       for (let i = 0; i < PLACE_IDS.length; i++) {
         this.buttons.setVisible(PLACE_IDS[i] as string, placing);
@@ -884,8 +916,15 @@ export class HudScene extends Phaser.Scene {
         (this.placeGlyphs[i] as Phaser.GameObjects.Text).setVisible(placing);
       }
       this.placeHint.setVisible(placing);
+      this.shownLocked = null;
+    }
+    const locked = placing && m.placementLocked;
+    if (locked !== this.shownLocked) {
+      this.shownLocked = locked;
+      this.placeLock.setVisible(locked);
     }
     if (!placing) return;
+    this.drawHandButtons(m.placementValid);
     if (m.placementHint !== this.shownHint) {
       this.shownHint = m.placementHint;
       this.placeHint.setText(m.placementHint);
@@ -906,7 +945,7 @@ export class HudScene extends Phaser.Scene {
     const h = READY_BUTTON_H_CSS_PX * k;
     const sw = SHOP_BUTTON_W_CSS_PX * k;
     const gap = SHOP_BUTTON_GAP_CSS_PX * k;
-    const x = (this.scale.width - (w + gap + sw)) / 2;
+    const x = (this.scale.width - (w + gap + sw)) / 2 - READY_SHIFT_LEFT_CSS_PX * k; // Story 5.15: clear of the hand cluster
     const y = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k - h;
     const rect = this.buttons.get("ready");
     if (rect) Object.assign(rect, { x, y, w, h });
@@ -1285,7 +1324,19 @@ export class HudScene extends Phaser.Scene {
   /** Magazine count bottom-right and a reload bar under it (redrawn only on change). */
   private drawWeapon(): void {
     const m = this.model;
-    const hasOther = m.otherWeaponName !== "";
+    const hidden = m.placementActive; // Story 5.15: under the hand cluster while holding (and nothing fires)
+    if (hidden !== this.shownWeaponHidden) {
+      this.shownWeaponHidden = hidden;
+      const a = hidden ? 0 : 1;
+      this.ammoText.setAlpha(a);
+      this.ammoNameText.setAlpha(a);
+      this.ammoMark.setAlpha(a);
+      this.otherText.setAlpha(a);
+      this.otherNameText.setAlpha(a);
+      this.otherMark.setAlpha(a);
+      this.reloadBar.setAlpha(a);
+    }
+    const hasOther = m.otherWeaponName !== "" && !hidden;
     if (hasOther !== this.shownSwapVisible) {
       this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
       this.buttons.setVisible("swap", hasOther);

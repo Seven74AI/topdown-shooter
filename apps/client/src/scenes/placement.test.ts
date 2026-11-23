@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { addPlayer, createWorld, loadBalance, placeBuilding, startBuild, startWave } from "@topdown/shared";
-import { PREVIEW_AHEAD_M, Placement, placeRefusalText } from "./placement";
+import { addPlayer, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave } from "@topdown/shared";
+import { Placement, autoRot, carryDistance, placeRefusalText, snapAxis } from "./placement";
 
-/** Story 3.4: placement mode on the device (snap, rotate, confirm/cancel, the shared check). */
+/** Story 3.4: placement mode on the device; Story 5.15: carried ghost (offset, auto-rotate, hysteresis, lock), confirm/cancel, the shared check. */
 const balance = loadBalance();
 const WOOD = "wood_barricade";
 
@@ -13,52 +13,166 @@ function world() {
   return w;
 }
 
-describe("Placement (review H2: centred on the finger, corner on the 0.5 m lattice)", () => {
-  it("starts centred ahead of the survivor; an unknown type does nothing", () => {
+const BODY = balance.player.radiusM;
+const GAP = balance.controls.build.carryGapM;
+
+/** The snapped ghost's box in metres. */
+function box(p: Placement) {
+  const s = buildingStats(balance, p.type);
+  if (!s) throw new Error("type");
+  return footprint(s, p.gx, p.gy, p.rot, { minX: 0, minY: 0, maxX: 0, maxY: 0 });
+}
+
+/** Distance from (x, y) to the nearest point of the ghost's box. */
+function gapTo(p: Placement, x: number, y: number): number {
+  const b = box(p);
+  const dx = Math.max(b.minX - x, 0, x - b.maxX);
+  const dy = Math.max(b.minY - y, 0, y - b.maxY);
+  return Math.hypot(dx, dy);
+}
+
+describe("Story 5.15: carry the ghost (AC 3–7, 11)", () => {
+  it("carry distance: barricade across the path 1.65 m, turret 1.9 m, spike trap 2.4 m, mine 1.65 m", () => {
+    const d = (type: string, rot: number) => {
+      const s = buildingStats(balance, type);
+      if (!s) throw new Error(type);
+      return carryDistance(0, -1, footprintW(s, rot), footprintH(s, rot), BODY, GAP);
+    };
+    expect(d(WOOD, 2)).toBeCloseTo(1.65, 9);
+    expect(d("auto_turret", 0)).toBeCloseTo(1.9, 9);
+    expect(d("spike_trap", 0)).toBeCloseTo(2.4, 9);
+    expect(d("mine", 0)).toBeCloseTo(1.65, 9);
+    // diagonal: the box's support along the facing, so a 1 × 1 turret at 45° is 0.4 + 1 + 0.707
+    expect(carryDistance(Math.SQRT1_2, Math.SQRT1_2, 1, 1, BODY, GAP)).toBeCloseTo(1.4 + Math.SQRT1_2, 9);
+  });
+
+  it("starts ahead of the survivor along its facing, snapped to the lattice; an unknown type does nothing", () => {
     const p = new Placement();
     expect(p.start(balance, "castle", 20, 16, 1, 0)).toBe(false);
     expect(p.active).toBe(false);
     expect(p.start(balance, WOOD, 20, 16, 0, -1, 3)).toBe(true);
-    // centre (20, 14): [19, 21] × [13.75 → 14, 14.5] → corner (19, 13.75 rounded to 14) = lattice (38, 28 or 27.5 → 28)
-    expect([p.active, p.gx, p.gy, p.rot, p.wave]).toEqual([true, 38, Math.round((16 - PREVIEW_AHEAD_M - 0.25) / 0.5), 0, 3]);
-  });
-
-  it("snaps a tap to the lattice corner that centres the box on it, and clamps to the wire's 0–255", () => {
-    const p = new Placement();
-    p.start(balance, WOOD, 20, 16, 1, 0);
-    p.moveTo(11, 5.25);
-    expect([p.gx, p.gy]).toEqual([20, 10]); // [10, 12] × [5, 5.5]
-    p.moveTo(11.2, 5.4);
-    expect([p.gx, p.gy]).toEqual([20, 10]); // the same lattice point
-    p.moveTo(11.3, 5.6);
-    expect([p.gx, p.gy]).toEqual([21, 11]);
-    p.moveTo(-3, 999);
-    expect([p.gx, p.gy]).toEqual([0, 255]);
-    p.moveTo(Number.NaN, 2);
-    expect([p.gx, p.gy]).toEqual([0, 255]);
-  });
-
-  it("rotates in 90° steps around the anchor point (0 → 1 → 2 → 3 → 0)", () => {
-    const p = new Placement();
-    p.start(balance, WOOD, 20, 16, 1, 0);
-    p.moveTo(11, 6);
-    const seen: number[][] = [[p.rot, p.gx, p.gy]];
-    for (let i = 0; i < 4; i++) {
-      p.rotate();
-      seen.push([p.rot, p.gx, p.gy]);
+    // facing north: rot 2 (struts toward me), centre (20, 14.35) → corner (19, 14.1) → lattice (38, 28)
+    expect([p.active, p.gx, p.gy, p.rot, p.wave, p.locked]).toEqual([true, 38, 28, 2, 3, false]);
+    expect(gapTo(p, 20, 16) - BODY).toBeCloseTo(1.1, 9); // near edge 14.5: 1.1 m past my body (snap +0.1)
+    for (const [type, dist] of [["auto_turret", 1.9], ["spike_trap", 2.4], ["mine", 1.65]] as const) {
+      p.start(balance, type, 20, 16, 1, 0);
+      const b = box(p);
+      expect(Math.abs((b.minX + b.maxX) / 2 - (20 + dist))).toBeLessThanOrEqual(0.25);
+      expect(Math.abs((b.minY + b.maxY) / 2 - 16)).toBeLessThanOrEqual(0.25); // a 0.5 m mine sits half a cell off
+      expect(p.rot).toBe(0); // square footprints never auto-rotate
     }
-    // rot 0: [10, 12] × [5.5 or 6 …]; rot 1: [10.75 → 11, 11.5] × [5, 7]: both centred on (11, 6)
-    expect(seen.map((r) => r[0])).toEqual([0, 1, 2, 3, 0]);
-    expect(seen[1]).toEqual([1, 22, 10]);
-    expect(seen[4]).toEqual(seen[0]);
   });
 
-  it("✓ ends placement and returns the request once; ✕ ends it with nothing", () => {
+  it("follows my survivor as it walks; at rest the last facing stays", () => {
     const p = new Placement();
-    p.start(balance, WOOD, 20, 16, 1, 0);
-    p.moveTo(31, 10.25);
+    p.start(balance, WOOD, 20, 16, 0, -1);
+    p.carry(20, 12, 0, -1); // walked 4 m north
+    expect([p.gx, p.gy, p.rot]).toEqual([38, 20, 2]);
+    p.carry(22, 12, 1, 0); // turned east: across the path, struts west
+    expect(p.rot).toBe(3);
+    expect([p.facingX, p.facingY]).toEqual([1, 0]);
+    const at = [p.gx, p.gy];
+    p.carry(22, 12, 0, 0); // let go of the stick
+    expect([p.gx, p.gy, p.rot]).toEqual([...at, 3]);
+    expect([p.facingX, p.facingY]).toEqual([1, 0]);
+  });
+
+  it("auto-rotate: long side across the facing, struts on my side (N → 2, S → 0, E → 3, W → 1)", () => {
+    const p = new Placement();
+    const rots = ([[0, -1], [0, 1], [1, 0], [-1, 0]] as const).map(([fx, fy]) => {
+      p.start(balance, WOOD, 20, 16, fx, fy);
+      return p.rot;
+    });
+    expect(rots).toEqual([2, 0, 3, 1]);
+  });
+
+  it("auto-rotate switches axis only 10° past a diagonal (35° / 55° from east-west)", () => {
+    const at = (deg: number) => [Math.cos(deg * (Math.PI / 180)), -Math.sin(deg * (Math.PI / 180))] as const;
+    const p = new Placement();
+    p.start(balance, WOOD, 20, 16, 0, -1); // north/south
+    p.carry(20, 16, ...at(36));
+    expect(p.rot).toBe(2);
+    p.carry(20, 16, ...at(34));
+    expect(p.rot).toBe(3); // now east/west (facing east, struts west)
+    p.carry(20, 16, ...at(54));
+    expect(p.rot).toBe(3);
+    p.carry(20, 16, ...at(56));
+    expect(p.rot).toBe(2);
+    expect(autoRot(1, -1, null, 10) & 3).toBe(2); // exactly diagonal, fresh: north/south
+  });
+
+  it("snap hysteresis: the index changes only 0.1 m past the half-cell boundary", () => {
+    expect(snapAxis(5.34, 10, 0.1)).toBe(10); // 0.09 past 5.25
+    expect(snapAxis(5.36, 10, 0.1)).toBe(11); // 0.11 past
+    expect(snapAxis(5.16, 11, 0.1)).toBe(11);
+    expect(snapAxis(5.14, 11, 0.1)).toBe(10);
+    expect(snapAxis(5.3, -1, 0.1)).toBe(11); // fresh: nearest
+    const p = new Placement();
+    p.start(balance, "auto_turret", 20, 16, 1, 0); // centre x 21.9 → corner 21.4 → 43
+    expect(p.gx).toBe(43);
+    p.carry(20.2, 16, 1, 0); // corner 21.6: 0.1 past 21.5 → kept... at exactly the edge
+    expect(p.gx).toBe(43);
+    p.carry(20.3, 16, 1, 0); // corner 21.7: 0.2 past → 43.4 rounds to 43 (no change needed)
+    expect(p.gx).toBe(43);
+    p.carry(20.46, 16, 1, 0); // corner 21.86: 0.11 past 21.75 → 44
+    expect(p.gx).toBe(44);
+    p.carry(20.3, 16, 1, 0); // corner 21.7: only 0.05 back past the boundary → kept
+    expect(p.gx).toBe(44);
+    p.carry(20.2, 16, 1, 0); // corner 21.6: 0.15 back → 43
+    expect(p.gx).toBe(43);
+  });
+
+  it("⟳ turns 90° clockwise, locks auto-rotate for this hold, and keeps the carry gap; a new hold is unlocked", () => {
+    const p = new Placement();
+    p.start(balance, WOOD, 20, 16, 0, -1);
+    expect(p.rot).toBe(2);
     p.rotate();
-    expect(p.confirm()).toEqual({ type: WOOD, gx: 62, gy: 19, rot: 1 });
+    expect([p.rot, p.locked]).toEqual([3, true]);
+    expect(gapTo(p, 20, 16) - BODY).toBeGreaterThanOrEqual(GAP - 0.35);
+    p.carry(20, 16, 1, 0); // facing east would want 3 anyway; then north would want 2
+    p.carry(20, 16, 0, -1);
+    expect(p.rot).toBe(3);
+    p.rotate();
+    expect(p.rot).toBe(0);
+    p.start(balance, WOOD, 20, 16, 0, -1);
+    expect([p.rot, p.locked]).toEqual([2, false]);
+  });
+
+  it("fuzz: my own body never overlaps the carried ghost (every type, facing, position, lock)", () => {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    const types = ["wood_barricade", "auto_turret", "spike_trap", "mine"];
+    const p = new Placement();
+    let checked = 0;
+    for (let i = 0; i < 4000; i++) {
+      const x = 4 + rnd() * 40;
+      const y = 4 + rnd() * 24;
+      const a = rnd() * Math.PI * 2;
+      if (i % 50 === 0) p.start(balance, types[(i / 50) % 4] as string, x, y, Math.cos(a), Math.sin(a));
+      if (rnd() < 0.02) p.rotate();
+      p.carry(x, y, Math.cos(a), Math.sin(a));
+      expect(gapTo(p, x, y)).toBeGreaterThan(BODY + 0.5);
+      checked++;
+    }
+    expect(checked).toBe(4000);
+  });
+
+  it("clamps to the wire's 0–255 lattice indices", () => {
+    const p = new Placement();
+    p.start(balance, WOOD, 0.5, 0.5, -1, -1);
+    expect([p.gx, p.gy]).toEqual([0, 0]);
+    p.carry(Number.NaN, 2, 1, 0); // ignored
+    expect([p.gx, p.gy]).toEqual([0, 0]);
+    p.carry(200, 200, 1, 1);
+    expect([p.gx, p.gy]).toEqual([255, 255]);
+  });
+
+  it("Place returns the spot shown now, once; ✕ ends it with nothing", () => {
+    const p = new Placement();
+    p.start(balance, WOOD, 20, 16, 0, -1);
+    p.carry(30, 10, 1, 0);
+    const shown = { type: WOOD, gx: p.gx, gy: p.gy, rot: p.rot };
+    expect(p.confirm()).toEqual(shown);
     expect(p.active).toBe(false);
     expect(p.confirm()).toBeNull();
     p.start(balance, WOOD, 20, 16, 1, 0);
@@ -67,28 +181,18 @@ describe("Placement (review H2: centred on the finger, corner on the 0.5 m latti
     expect(p.confirm()).toBeNull();
   });
 
-  it("green exactly when the shared rules accept it: on me, on a building, at the edge, cap, money, wave", () => {
+  it("green exactly when the shared rules accept it: open street, a building, a teammate, money, wave", () => {
     const w = world();
+    addPlayer(w, "p1", 30, 10);
     const p = new Placement();
-    p.start(balance, WOOD, 20, 16, 1, 0);
-    expect(p.check(w, "p0")).toBe(true);
-    p.moveTo(20, 16);
+    p.start(balance, WOOD, 20, 16, 0, -1);
+    expect(p.check(w, "p0")).toBe(true); // my own body never blocks it
+    placeBuilding(w, "p0", { type: WOOD, gx: p.gx, gy: p.gy, rot: p.rot }); // the spot is taken
     expect(p.check(w, "p0")).toBe(false);
     expect(p.error).toBe("blocked");
-    p.moveTo(1, 10.5); // next to the left edge's spawn point (0.5, 10.67): review L5
+    p.carry(30, 12, 0, -1); // carried onto the teammate at (30, 10)
     expect(p.check(w, "p0")).toBe(false);
-    p.moveTo(47.9, 26); // pressed against the right edge: clamped into the map, valid (H2: buildings touch edges)
-    p.rotate();
-    expect(p.check(w, "p0")).toBe(true);
-    expect(p.gx).toBe(95);
-    p.rotate();
-    p.rotate();
-    p.rotate();
-    placeBuilding(w, "p0", { type: WOOD, gx: 58, gy: 10, rot: 0 }); // [29, 31] × [5, 5.5]
-    p.moveTo(30, 5.25);
-    p.rotate();
-    expect(p.check(w, "p0")).toBe(false);
-    p.moveTo(30, 10);
+    p.carry(36, 20, 0, -1);
     expect(p.check(w, "p0")).toBe(true);
     const me = w.players.get("p0");
     if (me) me.wallet = 10;

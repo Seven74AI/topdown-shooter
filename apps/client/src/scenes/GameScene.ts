@@ -67,7 +67,7 @@ import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPane
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
-import { neutralizeInput } from "../input/menuInput";
+import { holdBuildingInput, neutralizeInput } from "../input/menuInput";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
 import {
@@ -244,7 +244,7 @@ export class GameScene extends Phaser.Scene {
   ambience: AmbiencePlayer | null = null;
   /** Story 3.6: turret plates and heads (aim from the World / `turret.fired`). */
   private turretView: TurretView | null = null;
-  /** Story 3.4: placement mode on this device (sticks off while active). */
+  /** Story 3.4: placement mode on this device; Story 5.15: the ghost is carried while I walk. */
   private readonly placement = new Placement();
   /** "Wood barricade · $40" for the type being placed, and the refusal texts (built once each). */
   private placingLabel = "";
@@ -722,8 +722,8 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Story 3.4: `startPlacement` (Story 3.3's shop calls it when a building is tapped). Ignored
-   * outside a build phase, under the menu, on Results or for an unknown type. Every held stick, key
-   * and button lets go (the sticks are off while placing).
+   * outside a build phase, under the menu, on Results or for an unknown type. Story 5.15: I keep
+   * walking: only the aim stick and the mouse button let go (a held move stick or key keeps steering).
    */
   private startPlacement(type: string): void {
     const host = this.host;
@@ -733,53 +733,65 @@ export class GameScene extends Phaser.Scene {
     const me = host.world.players.get(host.localPlayerId);
     const stats = buildingStats(host.world.balance, type);
     if (!me || !stats) return;
-    if (!this.placement.start(host.world.balance, type, me.x, me.y, me.facingX, me.facingY, host.world.waves.number)) return;
+    const pv = this.playerViews.get(host.localPlayerId);
+    if (!this.placement.start(host.world.balance, type, pv?.x ?? me.x, pv?.y ?? me.y, me.facingX, me.facingY, host.world.waves.number)) return;
     this.placingLabel = `${stats.name} · $${stats.price}`;
-    this.router?.releaseAll();
+    this.router?.releaseAim();
     host.clearEdges();
   }
 
   /**
-   * Story 3.4: placement mode, once per frame before the input goes to the host. Taps (canvas px)
-   * move the preview (through the camera that drew the frame), ⟳ rotates, ✕ cancels, ✓ sends the
-   * request (solo: applied at once) and ends placement mode; the phase leaving the build, the menu or
-   * game over cancel it. While active the input is neutral: the survivor stands still and holds fire.
+   * Story 3.4: placement mode, once per frame before the input goes to the host: rotate, put away,
+   * Place sends the request (solo: applied at once) and ends placement mode; the phase leaving the
+   * build, the menu, the shop or game over cancel it. Story 5.15: while holding I keep walking
+   * (`holdBuildingInput`: the move is sent, aim and fire are not). Place sends the spot drawn in the
+   * last frame (AC 10: it is handled before this frame's carry, `carryPlacement`).
    */
   private updatePlacement(host: SceneHost, menuOpen: boolean): void {
     const m = this.hudModel;
     const p = this.placement;
     const can = this.canPlace(host, menuOpen);
     if (p.active && (!can || host.world.waves.number !== p.wave)) p.cancel(); // review L3: a new wave/build ends it
-    const tap = m.placeTap;
     const rotate = m.rotatePressed;
     const confirm = m.confirmPressed;
     const cancel = m.cancelPressed;
-    m.placeTap = m.rotatePressed = m.confirmPressed = m.cancelPressed = false;
+    m.rotatePressed = m.confirmPressed = m.cancelPressed = false;
     if (!p.active) {
       m.placementActive = false;
       return;
     }
-    if (tap) {
-      const w = this.cameras.main.getWorldPoint(m.placeTapX, m.placeTapY, this.cursorWorld);
-      p.moveTo(w.x, w.y);
-    }
-    if (rotate) p.rotate();
+    holdBuildingInput(this.input_);
     if (cancel) {
       p.cancel();
       m.placementActive = false;
       return;
     }
-    p.check(host.world, host.localPlayerId);
     if (confirm) {
       const req = p.confirm();
       if (req) host.placeBuilding(req);
       m.placementActive = false;
       return;
     }
+    if (rotate) p.rotate();
+  }
+
+  /**
+   * Story 5.15: the carried ghost follows my survivor as drawn this frame (after `syncPlayerViews`,
+   * before the ghost is drawn), turned by this frame's move input; then the shared check colours it.
+   */
+  private carryPlacement(host: SceneHost): void {
+    const m = this.hudModel;
+    const p = this.placement;
+    if (!p.active) return;
+    const me = host.world.players.get(host.localPlayerId);
+    const pv = this.playerViews.get(host.localPlayerId);
+    if (!me) return;
+    p.carry(pv?.x ?? me.x, pv?.y ?? me.y, this.input_.moveX, this.input_.moveY);
+    p.check(host.world, host.localPlayerId);
     m.placementActive = true;
     m.placementValid = p.error === null;
+    m.placementLocked = p.locked;
     m.placementHint = p.error === null ? this.placingLabel : this.refusalText(p.error);
-    neutralizeInput(this.input_);
   }
 
   /**
@@ -1014,7 +1026,7 @@ export class GameScene extends Phaser.Scene {
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     const shopOpen = this.updateShop(host, menuOpen);
     if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
-    this.updatePlacement(host, menuOpen || shopOpen); // Story 3.4: placement mode turns the sticks off (neutral input)
+    this.updatePlacement(host, menuOpen || shopOpen); // Story 3.4 / 5.15: holding keeps the move, drops aim and fire
     this.updateRepair(host, menuOpen, shopOpen); // Story 3.7: tap a building → Repair
     this.updateReady(host, menuOpen || shopOpen);
     if (this.localHost) {
@@ -1122,6 +1134,7 @@ export class GameScene extends Phaser.Scene {
     this.syncPlayerViews(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.downedView?.update(host.world, this.time.now);
     this.ambience?.update(host.world.decay.stage);
+    this.carryPlacement(host); // Story 5.15: after my survivor is drawn, before the ghost is
     this.buildingView?.update(host.world, this.placement);
     this.mineView?.update(host.world, this.time.now);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);

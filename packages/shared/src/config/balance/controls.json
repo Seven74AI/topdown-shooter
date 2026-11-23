@@ -11,5 +11,10 @@
     "chainsawRevHoldMs": 150,
     "maxBloaterParticles": 240,
     "maxFuseRings": 16
+  },
+  "build": {
+    "carryGapM": 1.0,
+    "snapHysteresisM": 0.1,
+    "autoRotateHysteresisDeg": 10
   }
 }
