@@ -41,7 +41,7 @@ const WARMUP_TICKS = 100;
 const MEASURED_TICKS = 600;
 const PERF_ASSERT = process.env.PERF_ASSERT === "1";
 
-function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, weapon: string | null = null, floor = false, spitters = 0) {
+function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, weapon: string | null = null, floor = false, spitters = 0, lights = false) {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
   // Story 4.8 (review L6: fire respects `waves.paused`): the fire cases hold the waves with a no-op
   // wave system instead of the dev pause, so the fires burn.
@@ -73,6 +73,27 @@ function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, we
       if (addBuildingAt(world, { id: world.buildings.nextId, type, ownerId: `p${floorPlaced % 4}`, gx, gy, rot: 0, hp: stats.hp })) floorPlaced++;
     }
   }
+  // Story 5.10: 6 med stations + 6 floodlights on free spots round the intersection.
+  let lightsPlaced = 0;
+  if (lights) {
+    const box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    for (let k = 0; k < 400 && lightsPlaced < 12; k++) {
+      const type = lightsPlaced % 2 === 0 ? "med_station" : "floodlight";
+      const stats = buildingStats(balance, type);
+      if (!stats) break;
+      const a = k * 2.399;
+      const r = 2 + (k % 7);
+      const gx = Math.round((24 + Math.cos(a) * r) / BUILD_GRID_M);
+      const gy = Math.round((16 + Math.sin(a) * r * 0.7) / BUILD_GRID_M);
+      if (footprintBlocked(world, footprint(stats, gx, gy, 0, box))) continue;
+      const b = addBuildingAt(world, { id: world.buildings.nextId, type, ownerId: `p${lightsPlaced % 4}`, gx, gy, rot: 0, hp: stats.hp });
+      if (b) {
+        b.hp = b.maxHp = 1e9; // the measurement keeps all 12 standing
+        lightsPlaced++;
+      }
+    }
+  }
+  let healed = 0;
   const trap0 = trapCounters.pulses;
   const mine0 = mineCounters.exploded;
   if (world.run.phase === "build") startWave(world);
@@ -101,9 +122,12 @@ function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, we
       const a = t * 0.05 + i * 1.6;
       c.queueInput(`p${i}`, { ...NEUTRAL_INPUT, seq: t, moveX: Math.cos(a) * 0.7, moveY: Math.sin(a) * 0.7, aimX: -Math.sin(a), aimY: Math.cos(a), fire: true });
     }
+    // Story 5.10: god mode keeps HP full; hold every player at 50 so stations in reach really heal (worst case).
+    if (lights) for (const p of world.players.values()) p.hp = 50;
     const t0 = performance.now();
     c.tick();
     const ms = performance.now() - t0;
+    if (lights) for (const p of world.players.values()) healed += p.hp - 50;
     if (t > WARMUP_TICKS) {
       times.push(ms);
       if (world.pathing.chase.sourceTick >= 0 && world.tick - world.pathing.chase.sourceTick <= 6) fieldTicks++;
@@ -122,6 +146,9 @@ function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, we
     minesExploded: mineCounters.exploded - mine0,
     pulses: firePulse.players + firePulse.zombies + firePulse.buildings - hits0,
     spits,
+    lightsPlaced,
+    healed,
+    lightCount: world.lights.list.length,
   };
 }
 
@@ -356,4 +383,22 @@ describe("tick cost of the Grenade Launcher (Story 5.5, AC 10, brief line 16)", 
     expect(gl.kills).toBeGreaterThan(0); // liveness: the rounds really burst and killed
     if (PERF_ASSERT) expect(gl.p99 - pistol.p99).toBeLessThanOrEqual(2);
   }, 180_000);
+});
+
+describe("tick cost of med stations and floodlights (Story 5.10)", () => {
+  it("4 players + 150 Walkers: 6 med stations healing + 6 floodlights (derived light list) add ≤ 0.2 ms to the tick p99", () => {
+    const runs = [measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, null, false, 0, true), measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, null, false, 0, true)];
+    const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
+    const without = pick(runs[0] as ReturnType<typeof measure>, runs[2] as ReturnType<typeof measure>);
+    const withLights = pick(runs[1] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
+    console.log(
+      `[tick cost 5.10] Downtown p99 ${without.p99.toFixed(3)} ms (mean ${without.mean.toFixed(3)}); + 6 med stations + 6 floodlights p99 ${withLights.p99.toFixed(3)} ms (mean ${withLights.mean.toFixed(3)}); ` +
+        `added p99 ${(withLights.p99 - without.p99).toFixed(3)} ms, mean ${(withLights.mean - without.mean).toFixed(3)} ms; ${withLights.lightsPlaced} placed, ${withLights.healed.toFixed(1)} HP healed, ${withLights.lightCount} lights; load ${loadavg()[0]?.toFixed(2)}`,
+    );
+    expect(withLights.lightsPlaced).toBe(12); // liveness: the buildings stood, healed and lit
+    expect(withLights.healed).toBeGreaterThan(0);
+    expect(withLights.lightCount).toBe(6);
+    expect(withLights.kills).toBeGreaterThan(0);
+    if (PERF_ASSERT) expect(withLights.p99 - without.p99).toBeLessThanOrEqual(0.2);
+  }, 120_000);
 });

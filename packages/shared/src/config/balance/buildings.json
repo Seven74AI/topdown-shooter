@@ -80,6 +80,29 @@
         "damage": 80,
         "playerShare": 0.5
       }
+    },
+    "floodlight": {
+      "name": "Floodlight",
+      "price": 100,
+      "widthM": 1,
+      "depthM": 1,
+      "hp": 150,
+      "inShop": false,
+      "light": {
+        "radiusM": 4,
+        "blackoutRadiusM": 6
+      }
+    },
+    "med_station": {
+      "name": "Med station",
+      "price": 400,
+      "widthM": 1,
+      "depthM": 1,
+      "hp": 300,
+      "heal": {
+        "radiusM": 2,
+        "hpPerS": 5
+      }
     }
   }
 }

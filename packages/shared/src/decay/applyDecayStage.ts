@@ -1,3 +1,4 @@
+import { updateLightState } from "./lightState";
 import type { World } from "../core/world";
 import { MAP_STAGE_COUNT, type MapBox } from "../map/districtMap";
 import { FIRST_DECAY_STAGE } from "../map/decayStage";
@@ -56,5 +57,6 @@ export function applyDecayStage(world: World, stage: number, variants: number, f
   d.stage = s;
   d.variants = v;
   d.firesOut = out;
+  updateLightState(world); // Story 5.10: fires lit / out change the derived light list (every copy)
   return true;
 }

@@ -14,7 +14,8 @@ export interface RangeRing {
   readonly radiusM: number;
 }
 
-const isRingField = (f: string): boolean => f === "rangeM" || f === "radiusM" || f.endsWith("RadiusM");
+/** Story 5.10 review: `blackoutRadiusM` (the floodlight's Epic 6 blackout pool) is not shown while building today. */
+const isRingField = (f: string): boolean => f !== "blackoutRadiusM" && (f === "rangeM" || f === "radiusM" || f.endsWith("RadiusM"));
 
 const cache = new WeakMap<object, readonly RangeRing[]>();
 const NONE: readonly RangeRing[] = Object.freeze([]);

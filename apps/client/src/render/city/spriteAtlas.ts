@@ -81,6 +81,11 @@ export const FX_RAIN = frameName("fx", "rain", "a");
 export const FX_SPLASH = frameName("fx", "splash", "a");
 export const FX_GLOW = frameName("fx", "glow", "a");
 export const FX_VIGNETTE = frameName("fx", "vignette", "a");
+/**
+ * Story 5.10: the floodlight's light pool (round D FL1 card: a flat warm disc that holds its strength
+ * out to ~3/4 of the radius and fades to 0 AT the frame edge = the 4 m light radius). White: tinted.
+ */
+export const FX_FLOOD_POOL = frameName("fx", "floodpool", "a");
 /** Story 4.11: a white edge band (opaque at its top, clear at its bottom), tinted for the burning screen-edge glow. */
 export const FX_EDGE = frameName("fx", "edge", "a");
 /** Story 5.6: the spit glob in flight and the acid puddle (two shapes); the puddle frame's edge is the damage edge. */
@@ -104,6 +109,7 @@ const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_RAIN]: [4, 28],
   [FX_SPLASH]: [40, 20],
   [FX_GLOW]: [64, 64],
+  [FX_FLOOD_POOL]: [64, 64],
   [FX_VIGNETTE]: [8, 64],
   [FX_EDGE]: [8, 64],
   [FX_SPIT_GLOB]: [48, 48],
@@ -246,6 +252,16 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
     g.beginPath();
     g.ellipse(x + w / 2, y + h / 2, w / 2 - 2, h / 2 - 2, 0, 0, Math.PI * 2);
     g.stroke();
+  } else if (f.name === FX_FLOOD_POOL) {
+    // The reference's pool stops (looks.html › buildRD › poolSpr), alpha only.
+    const gr = g.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, w / 2);
+    gr.addColorStop(0, "rgba(255,255,255,1)");
+    gr.addColorStop(0.45, "rgba(255,255,255,0.74)");
+    gr.addColorStop(0.75, "rgba(255,255,255,0.44)");
+    gr.addColorStop(0.92, "rgba(255,255,255,0.2)");
+    gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr;
+    g.fillRect(x, y, w, h);
   } else if (f.name === FX_GLOW) {
     const gr = g.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, w / 2);
     gr.addColorStop(0, "rgba(255,255,255,1)");

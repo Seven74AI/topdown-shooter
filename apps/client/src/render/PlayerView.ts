@@ -20,6 +20,11 @@ const RING_DEPTH = 8.5;
 /** Story 5.4: the friendly-fire ring flash (fire orange, brighter than the orange slot colour). */
 const FF_FLASH_COLOR = 0xffb020;
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+/** Story 5.10 (D6): the heal cue, a small green "+" beside the body (m). */
+const HEAL_PLUS_COLOR = 0x8dff9a;
+const HEAL_PLUS_M = 0.32;
+const HEAL_PLUS_BAR_M = 0.1;
+const HEAL_PLUS_DEPTH = 11;
 
 /** Survivor seen from above (Story 4.9 sprite, facing its aim) on a slot-coloured ground ring. Units are meters. */
 export class PlayerView {
@@ -32,6 +37,10 @@ export class PlayerView {
   private slot = -1;
   /** Story 5.4: the ring shows the friendly-fire flash (orange) instead of the slot colour. */
   private flashing = false;
+  /** Story 5.10: the heal cue ("+", drawn once, only moved and shown while healing). */
+  private readonly plus: Phaser.GameObjects.Graphics;
+  private healing = false;
+  private readonly plusOffM: number;
   /** Story 5.3: the frame shown (the active weapon's survivor frame); changed only on a swap or buy. */
   private shownFrame = SURVIVOR_FRAME;
 
@@ -44,6 +53,21 @@ export class PlayerView {
     ensureAtlases(scene);
     const side = 2 * radiusM * CHAR_EXTENT_R.survivor;
     this.body = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_FRAME).setDisplaySize(side, side).setDepth(10);
+    const h = HEAL_PLUS_M / 2;
+    const t = HEAL_PLUS_BAR_M / 2;
+    this.plus = scene.add.graphics().setDepth(HEAL_PLUS_DEPTH).setVisible(false);
+    this.plus.fillStyle(0x0b1a10, 0.8).fillRect(-h - 0.03, -t - 0.03, 2 * h + 0.06, 2 * t + 0.06).fillRect(-t - 0.03, -h - 0.03, 2 * t + 0.06, 2 * h + 0.06);
+    this.plus.fillStyle(HEAL_PLUS_COLOR, 1).fillRect(-h, -t, 2 * h, 2 * t).fillRect(-t, -h, 2 * t, 2 * h);
+    this.plusOffM = radiusM + RING_GAP_M + h;
+  }
+
+  /** Story 5.10 (AC 9, D6): while `on` (my HP from state rose inside a ring), a green "+" by the body. */
+  healCue(on: boolean): void {
+    if (on !== this.healing) {
+      this.healing = on;
+      this.plus.setVisible(on);
+    }
+    if (on) this.plus.setPosition(this.x + this.plusOffM, this.y - this.plusOffM);
   }
 
   /** Ring colour by lobby slot (0–3; solo is 0, blue). */
@@ -95,5 +119,6 @@ export class PlayerView {
   destroy(): void {
     this.ring.destroy();
     this.body.destroy();
+    this.plus.destroy();
   }
 }

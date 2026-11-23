@@ -28,9 +28,13 @@ export function mineBlinkOn(ms: number, id: number): boolean {
   return t >= 0 && t < MINE_BLINK_ON_MS;
 }
 
-/** Story 5.9: the cast-shadow height of a building (walls `wallM`; a spike trap a few cm; a mine none). */
+/** Story 5.9: the cast-shadow height of a building (walls `wallM`; a spike trap a few cm; a mine none; 5.10: a floodlight none, a med station a crate). */
 export const TRAP_SHADOW_M = 0.05;
+/** Story 5.10: the med station (MS10, a stack of cases on a crate) casts a low box's shadow. */
+export const MED_STATION_SHADOW_M = 0.9;
 export function buildingShadowHeightM(stats: Readonly<BuildingTypeStats> | undefined, wallM: number): number {
+  if (stats?.light) return 0; // Story 5.10: a tripod's shadow is not a box: the FL1 art carries its own soft leg shadow
+  if (stats?.heal) return MED_STATION_SHADOW_M;
   if (!stats || stats.solid) return wallM;
   return stats.mine ? 0 : TRAP_SHADOW_M;
 }
