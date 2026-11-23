@@ -1,6 +1,6 @@
 # Handoff: topdown-shooter
 
-Session handoff, updated 2026-11-23 (end of the sixth session: Epic 4 retro; Stories 4.11–4.13 (readability, all art in game code with particle fire D, Android graphics-loss fix); Epic 5 rounds A–B on `master`, round C (5.4, 5.5, 5.8) finishing review — DRAFT, updated when round C lands: 5.1–5.9 (upgrades, Axe/Chainsaw, Shotgun/AR, Flamethrower + Gas torch, Grenade Launcher, Spitters, Brute, Bloaters + 6-wave run, metal barricade/traps/mine); solo online runs; solo `?wallet` in release; idea sessions folded in (customization 7.8–7.12, building UX 5.15–5.25, Epic 6 revised). Next: round D (5.10–5.12) + building UX 5.15–5.19 in parallel, using CLOUD SESSIONS for builders). **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom.
+Session handoff, updated 2026-11-23 (end of the sixth session: Epic 4 retro; Stories 4.11–4.13 (readability, all art in game code with particle fire D, Android graphics-loss fix); Epic 5 rounds A–C built, reviewed and on `master`: 5.1–5.9 (upgrades, Axe/Chainsaw, Shotgun/AR, Flamethrower + Gas torch, Grenade Launcher, Spitters, Brute, Bloaters + 6-wave run, metal barricade/traps/mine); solo online runs; solo `?wallet` in release; idea sessions folded in (customization 7.8–7.12, building UX 5.15–5.25, Epic 6 revised). Next: round D (5.10–5.12) + building UX 5.15–5.19 in parallel, using CLOUD SESSIONS for builders). **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom.
 
 ## 1. The project in one paragraph
 
@@ -16,7 +16,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | **Epic 2, online co-op** | ✅ coding done and reviewed: 2.1, 2.3–2.9, 2.11, **2.12 rewound hit testing** (added: Runners made reversed hits obvious). 2.2 ✅ **live at https://hordes.sevend.io** (Hermes, 2026-11-22: `docs/hermes-go-live-report-2026-11-22.md`); 2.10 dev parts done, **the 4-phone 4G test is the designer's**. Retro: `epic-2-retro-2026-11-22.md` | `2-*.md` |
 | **Epic 3, build phase, shop, economy** | ✅ 3.1–3.10 done (each reviewed by a fresh agent, big fixes re-reviewed). Retro accepted: `epic-3-retro-2026-11-22.md` (§11 = **EPIC 4 BRIEF**) | `3-*.md` |
 | **Epic 4, Downtown and city decay (Milestone 1)** | ✅ 4.1–4.9, 4.11 readability pass, 4.12 all 4.11 objects in game code (particle fire D), 4.13 Android graphics-loss fix. **4.10 playtest parked** (designer: "way later"; plan ready in `docs/playtests/milestone-1.md`). Retro: `epic-4-retro-2026-11-23.md` (§11 = **EPIC 5 BRIEF**, line 20 added) | `4-*.md` |
-| **Epic 5, full arsenal and bestiary** | ✅ round A (5.3, 5.6, 5.9), B (5.1, 5.2, 5.7); 🔍 round C (5.4, 5.5, 5.8) in review + solo online runs + solo `?wallet`. Open: round D 5.10–5.12, round E 5.13, 5.14 Bear trap, building UX rework 5.15–5.25. **All designer decisions: `docs/epic-5-decisions.md`** | `5-*.md` |
+| **Epic 5, full arsenal and bestiary** | ✅ round A (5.3, 5.6, 5.9), B (5.1, 5.2, 5.7), C (5.4, 5.5, 5.8) + solo online runs + solo `?wallet`. Open: round D 5.10–5.12, round E 5.13, 5.14 Bear trap, building UX rework 5.15–5.25. **All designer decisions: `docs/epic-5-decisions.md`** | `5-*.md` |
 | Epics 6–10 | backlog. **Epic 6 stories revised** from the Epic 6 idea session (`docs/ideas/epic-6/`); **Epic 7 gained customization 7.8–7.12** (`docs/ideas/customization/`) | `epics.md` |
 
 `_bmad-output/implementation-artifacts/sprint-status.yaml` is the source of truth for story status.
@@ -79,7 +79,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## 5. Open items for the designer (human steps)
 
-1. **Releases:** after a reviewed push to `master`, ask Hermes to run `deploy/deploy.sh` (`docs/hermes-go-live.md` › Every later release).
+1. **Releases:** after a reviewed push to `master`, ask Hermes to run `deploy/deploy.sh` (`docs/hermes-go-live.md` › Every later release). **Deploy now** (end of session 6: rounds A–C, 4.12, 4.13). Test links: `https://hordes.sevend.io/?loadout=flamethrower,gas_torch`, `?loadout=grenade_launcher,chainsaw`, `?loadout=fire_axe,shotgun:4`, `?wavemix=bloater`, `?wallet=5000` (solo).
 2. **Android check of Story 4.13:** after the deploy, a friend with Android switches apps several times (solo and online) with `?debug=1` and reports the renderer line, phone model and Chrome version.
 3. **Human playtests parked** (4.10 Milestone 1, which folds in 1.11 phone speed, 1.12 controls, 2.10 4-phone 4G): "way later"; plan and forms ready in `docs/playtests/milestone-1.md` and `docs/perf/milestone-1.md`.
 4. **Name:** working title still "topdown-shooter"; a name idea session prompt exists (branch `claude/idea-name` if run).
