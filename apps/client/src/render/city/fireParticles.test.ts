@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { circleInFire, loadBalance, type FireRecord } from "@topdown/shared";
+import { DOWNTOWN_MAP, circleInFire, fireRecordOf, loadBalance, type FireRecord } from "@topdown/shared";
 import {
   BODY_EMBERS_MAX,
   BODY_FLAMES_MAX,
@@ -13,9 +13,11 @@ import {
   FX_MAX_DT_S,
   LOW_FX_SIZE,
   EDGE_SLOTS_MAX,
+  FIRE_RADIUS_MAX_M,
   edgeFlameDraw,
   emberDraw,
   fireInView,
+  markHiddenEdges,
   flameDraw,
   freeFlameFitR,
   smokeDraw,
@@ -162,16 +164,15 @@ describe("Story 4.12: the code fire keeps 4.11's edge rule (your body touches th
     for (let v = 0; v < FLAME_VARIANTS; v++) expect(flameReachUpOf(v)).toBeGreaterThan(0.3);
   });
 
-  it("review M1: a body touching R stands in visible flame — within 0.1 m inside R, ≥ 90 % of directions are bright (summed alpha × mask ≥ 0.5) in EVERY frame, both qualities; and nothing that bright past R + 0.02 m", () => {
+  it("review M1: a body touching R stands in visible flame — within 0.1 m inside R, ≥ 90 % of directions are bright (summed alpha × mask ≥ 0.5) in EVERY frame, both qualities", () => {
     const fl: Drawn[] = [];
     const RAYS = 120;
     for (const low of [false, true])
-      for (const r of [R, 3.5]) {
+      for (const r of [R, 3.2, FIRE_RADIUS_MAX_M]) {
         const fire = new CarFire(17, low);
         fire.setCar(0.3);
         let frames = 0;
         let worstShare = 1;
-        let worstOut = 0;
         run(fire, r, 150, (t) => {
           if (t < 1 || Math.round(t / DT) % 10 !== 0) return;
           drawnFlames(fire, t, r, fl);
@@ -185,24 +186,98 @@ describe("Story 4.12: the code fire keeps 4.11's edge rule (your body touches th
                 ok++;
                 break;
               }
-            for (let q = r + 0.02; q <= r + 0.25; q += 0.03) worstOut = Math.max(worstOut, field(fl, cs * q, sn * q));
           }
           worstShare = Math.min(worstShare, ok / RAYS);
           frames++;
         });
         expect(frames).toBeGreaterThan(5);
         expect(worstShare, `low ${low} R ${r}`).toBeGreaterThanOrEqual(0.9);
-        expect(worstOut, `low ${low} R ${r}`).toBeLessThan(0.5); // your body touches visible flame = you burn
       }
   });
 
-  it("the edge ring has the same slots in ?fx=low (never halved) and one per ≤ 0.3 m of circumference at R = 2 m", () => {
+  it("re-review L1: nothing summed that bright (alpha × mask ≥ 0.5) past R + 0.02 m — dense: 360 rays, every 2nd frame, 3 seeds, 1 cm steps, both qualities", () => {
+    const fl: Drawn[] = [];
+    const RAYS = 360;
+    let worst = 0;
+    let frames = 0;
+    for (const low of [false, true])
+      for (const seed of [3, 17, 99]) {
+        const fire = new CarFire(seed, low);
+        fire.setCar(seed);
+        run(fire, R, 105, (t) => {
+          if (t < 1 || Math.round(t / DT) % 2 !== 0) return;
+          drawnFlames(fire, t, R, fl);
+          frames++;
+          for (let j = 0; j < RAYS; j++) {
+            const an = ((j + 0.5) / RAYS) * 2 * Math.PI;
+            const cs = Math.cos(an);
+            const sn = Math.sin(an);
+            for (let q = R + 0.02; q <= R + 0.15; q += 0.01) worst = Math.max(worst, field(fl, cs * q, sn * q));
+          }
+        });
+      }
+    expect(frames).toBeGreaterThan(100);
+    expect(worst).toBeGreaterThan(0.05); // the faint halo is there (the check sees the ring)
+    expect(worst).toBeLessThan(0.5); // your body touches visible flame = you burn
+  });
+
+  it("re-review M: two zones overlapping — edge slots strictly inside the OTHER zone are hidden (the union's edge burns); alone, none", () => {
+    const a = { x: 10, y: 8, radiusM: R };
+    const b = { x: 10 + 3, y: 8, radiusM: R };
+    const fire = new CarFire(1);
+    markHiddenEdges(fire, [a, b], 0);
+    let hidden = 0;
+    for (let i = 0; i < fire.edgeN; i++) {
+      const an = fire.edgeAngle[i] as number;
+      const inB = Math.hypot(a.x + Math.cos(an) * R - b.x, a.y + Math.sin(an) * R - b.y) < b.radiusM;
+      expect(fire.edgeHidden[i] === 1, `slot ${i}`).toBe(inB);
+      expect(edgeFlameDraw(fire, i, 0.5, R, d)).toBe(!inB);
+      if (inB) hidden++;
+    }
+    expect(hidden).toBeGreaterThan(0);
+    expect(hidden).toBeLessThan(fire.edgeN);
+    markHiddenEdges(fire, [a], 0);
+    for (let i = 0; i < fire.edgeN; i++) expect(fire.edgeHidden[i]).toBe(0);
+  });
+
+  it("re-review M: the real Downtown pair (parked_car_1 and parked_car_2, 3 m apart) draws no edge flame inside the other's zone", () => {
+    const zones = DOWNTOWN_MAP.decay
+      .filter((m) => m.action === "ignite" && (m.target === "parked_car_1" || m.target === "parked_car_2"))
+      .map((m, i) => fireRecordOf(m, i, R));
+    expect(zones).toHaveLength(2);
+    const [za, zb] = zones as [FireRecord, FireRecord];
+    expect(Math.hypot(za.x - zb.x, za.y - zb.y)).toBeLessThan(za.radiusM + zb.radiusM); // they overlap
+    let drawn = 0;
+    for (const self of [0, 1]) {
+      const z = zones[self] as FireRecord;
+      const o = zones[1 - self] as FireRecord;
+      const fire = new CarFire(7 + self);
+      markHiddenEdges(fire, zones, self);
+      run(fire, z.radiusM, 60, (t) => {
+        for (let i = 0; i < fire.edgeN; i++) {
+          if (!edgeFlameDraw(fire, i, t, z.radiusM, d)) continue;
+          drawn++;
+          const an = Math.atan2(d.y, d.x);
+          const ex = z.x + Math.cos(an) * z.radiusM; // where this flame marks the edge
+          const ey = z.y + Math.sin(an) * z.radiusM;
+          expect(Math.hypot(ex - o.x, ey - o.y)).toBeGreaterThan(o.radiusM - 0.11); // ≤ its sway (0.05 rad) from the union's edge
+        }
+      });
+    }
+    expect(drawn).toBeGreaterThan(1000);
+  });
+
+  it("the edge ring has the same slots in ?fx=low (never halved) and one per ≤ 0.3 m of circumference at R = 2 m, and up to the largest zone the balance allows", () => {
     const a = new CarFire(1);
     const b = new CarFire(1, true);
     a.update(DT, 0, R);
     b.update(DT, 0, R);
     expect(a.edgeN).toBe(b.edgeN);
     expect((2 * Math.PI * R) / a.edgeN).toBeLessThanOrEqual(0.3);
+    const big = new CarFire(2);
+    big.layEdge(FIRE_RADIUS_MAX_M);
+    expect((2 * Math.PI * FIRE_RADIUS_MAX_M) / big.edgeN).toBeLessThanOrEqual(0.3); // re-review L2: no cap squeeze up to 8 m
+    expect(FIRE_RADIUS_MAX_M).toBeGreaterThanOrEqual(balance.decay.fire.radiusM);
     const zone: FireRecord = { name: "f", target: "car", x: 10, y: 8, radiusM: fireRingRadiusM({ x: 0, y: 0, radiusM: R }), stage: 3, index: 0 };
     // a body whose edge just reaches R burns; 2 cm out it does not (the sim's rule the ring marks)
     for (const pr of [balance.player.radiusM, ...Object.values(balance.zombies.types).map((z) => z.radiusM)]) {

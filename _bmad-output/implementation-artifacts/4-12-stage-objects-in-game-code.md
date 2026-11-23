@@ -205,8 +205,23 @@ Screenshots re-taken: `docs/art/4-12/ingame/burning-car.png` and `survivor-burni
 
 **Gate** (`--testTimeout=30000`): typecheck, lint, test (215 files passed, 1 skipped; 1,610 tests passed, 3 skipped), build green; load 4.66 before, 8.69 after.
 
+### Re-review of the fixes (2026-11-23, fresh agent) and its fixes
+
+| # | Sev | Finding | Fix |
+| --- | --- | --- | --- |
+| M | M | Regression: overlapping fires drew a false edge. `parked_car_1` and `parked_car_2` burn 3 m apart with R = 2 m (about 1 run in 3). 4.11's `ringFlameMarksEdge` and its test were deleted, so ~9 of fire A's edge flames showed inside zone B. | Restored for the edge slots: `markHiddenEdges(fire, zones, self)` marks a slot hidden when its point on the ring lies strictly inside ANOTHER burning zone; `edgeFlameDraw` skips hidden slots. `FireView.setFires` calls it at each bake (no per-frame work or allocation). Tests: the two-zone rule (hidden ⇔ strictly inside the other; alone, none hidden), and the real Downtown pair (`DOWNTOWN_MAP` ignites of `parked_car_1`/`_2`: no drawn edge flame marks a point inside the other zone beyond its 0.05 rad sway; > 1,000 flames checked). Browser (dev server, the pair burning): 11 and 12 of each fire's 49 slots hidden, the rest drawn. |
+| L1 | L | The outside half of the edge test was too sparse: moving edge flames 3 cm outward passed. | Separate dense test: 360 rays, every 2nd frame from 1 to 1.75 s, 3 seeds, both qualities, 1 cm steps from R + 0.02 to R + 0.15 m. Summed alpha × mask past R + 0.02 m stays < 0.5 (today max 0.35; a 3 cm shift gives ~0.58 and fails). |
+| L2 | L | Coverage dropped above R ≈ 3.8 m because of the 80-slot cap. | Cap derived from the schema's largest fire radius (`decay.json › fire.radiusM` ≤ 8 m: `FIRE_RADIUS_MAX_M`): `ceil(2π·8 / EDGE_SPACING_M)` = 194. Spacing 0.3 → 0.26 m (R = 2 m: 49 slots). Edge flames grow × (R/2)^0.3 above 2 m: a flatter ring overlaps its neighbours less. Coverage within 0.1 m inside R, worst frame / mean: R = 2 m 99.4 % / 100 % (low the same), 3.2 m 98.3 % / 99.8 %, 6 m 93.3 % / 97.6 %, 8 m 91.7 % / 95.9 %; summed past R + 0.02 m ≤ 0.47 at 8 m and 0.35 at 2 m. The coverage test now runs R = 2, 3.2 and 8 m (not on a threshold), and a test pins ≤ 0.3 m spacing at 8 m. A map override above 8 m would space its flames wider (documented; none today). |
+
+**Mutations (each restored):** R1 never hide, R2 draw ignores hidden (both 2 fail), R3 edge flames 3 cm out, R4 slot cap 80 (2), R5 a zone hides its own slots, R6 no growth on big zones (survived with an R = 6 m case → test moved to R = 8 m → killed). **All 6 killed.**
+
+Per fire at R = 2 m: 110 free flames + 49 edge + 26 smoke + 24 embers = 209 images. FPS not re-measured (7 more additive edge images per fire than the fixed version measured above).
+
+**Gate** (`--testTimeout=30000`): typecheck, lint, test (215 files passed, 1 skipped; 1,613 tests passed, 3 skipped), build green; load 5.05 before, 3.13 after.
+
 ## Change Log
 
 - 2026-11-23: Story written (gds-create-story, non-interactive, designer decisions recorded).
 - 2026-11-23: Built (gds-dev-story): fire-lab D particle fire + charred car, burning-survivor particles, B6 and S2 in code, Meshy objects atlas/loader/fallback/tools removed, `?fx=low`, culling; tests + 16 mutations; browser screenshots; FPS before/after with load. Status review.
 - 2026-11-23: Review fixes: fixed edge-flame slots so a body touching R stands in visible flame (M1); body die-down and low spawn-rate tests (L1, L2); smoke cap/size/cull and no enlarged low particles (L3); fire-lab reference image added (L4); 9 mutations; FPS and two screenshots re-taken. Status review.
+- 2026-11-23: Re-review fixes: overlapping fires hide edge slots inside the other zone (M, with the real Downtown pair test); dense outside test (L1); slot cap from the 8 m schema maximum, 0.26 m spacing, edge flames grow on big zones (L2); 6 mutations. Status review.

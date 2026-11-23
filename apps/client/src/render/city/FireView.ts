@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import type { FireRecord } from "@topdown/shared";
 import { ATLAS_FIREFX, FIRE_FLAME_FRAMES, FIRE_SMOKE_FRAMES, FX_FIRE_EMBER, FX_FIRE_LIGHT, ensureFireFxAtlas } from "./fireFxAtlas";
-import { CarFire, EDGE_SLOTS_MAX, fireInView, FIRE_EMBERS_MAX, FIRE_FLAMES_MAX, FIRE_SMOKE_MAX, edgeFlameDraw, emberDraw, fireFlicker, flameDraw, freeFlameFitR, smokeDraw, type ParticleDraw } from "./fireParticles";
+import { CarFire, EDGE_SLOTS_MAX, fireInView, FIRE_EMBERS_MAX, FIRE_FLAMES_MAX, FIRE_SMOKE_MAX, edgeFlameDraw, emberDraw, fireFlicker, flameDraw, freeFlameFitR, markHiddenEdges, smokeDraw, type ParticleDraw } from "./fireParticles";
 import { fireRingRadiusM } from "./fireRing";
 import { flameCoreFracOf, flameReachUpOf } from "./fireSprites";
 
@@ -51,6 +51,8 @@ export class FireView {
   private readonly slots: Slot[] = [];
   private readonly d: ParticleDraw = { x: 0, y: 0, w: 0, h: 0, rot: 0, alpha: 0, tint: 0, frame: 0 };
 
+  private readonly img: (frame: string, depth: number, add: boolean) => Phaser.GameObjects.Image;
+
   constructor(scene: Phaser.Scene, maxFires: number, low: boolean) {
     ensureFireFxAtlas(scene);
     const img = (frame: string, depth: number, add: boolean): Phaser.GameObjects.Image => {
@@ -58,6 +60,7 @@ export class FireView {
       if (add) i.setBlendMode(Phaser.BlendModes.ADD);
       return i;
     };
+    this.img = img;
     for (let s = 0; s < maxFires; s++) {
       const slot: Slot = {
         name: null,
@@ -76,7 +79,6 @@ export class FireView {
         shown: false,
       };
       for (let i = 0; i < FIRE_FLAMES_MAX; i++) slot.flames.push(img(FIRE_FLAME_FRAMES[0] as string, FLAME_DEPTH, true));
-      for (let i = 0; i < EDGE_SLOTS_MAX; i++) slot.edge.push(img(FIRE_FLAME_FRAMES[0] as string, FLAME_DEPTH, true));
       for (let i = 0; i < FIRE_SMOKE_MAX; i++) slot.smoke.push(img(FIRE_SMOKE_FRAMES[0] as string, SMOKE_DEPTH, false));
       for (let i = 0; i < FIRE_EMBERS_MAX; i++) slot.embers.push(img(FX_FIRE_EMBER, EMBER_DEPTH, true));
       this.slots.push(slot);
@@ -105,6 +107,10 @@ export class FireView {
         this.hide(slot);
       }
       slot.fire.setCar(carAngle(f));
+      // re-review M: edge slots inside another burning zone are hidden (the union's edge burns)
+      markHiddenEdges(slot.fire, fires, s);
+      // edge images grow with the zone's slots, at a bake only (never per frame)
+      while (slot.edge.length < slot.fire.edgeN) slot.edge.push(this.img(FIRE_FLAME_FRAMES[0] as string, FLAME_DEPTH, true));
       slot.x = f.x;
       slot.y = f.y;
       slot.r = fireRingRadiusM(f);
@@ -177,7 +183,7 @@ export class FireView {
         img.setPosition(slot.x + d.x, slot.y + d.y).setDisplaySize(d.w, d.h).setRotation(d.rot).setAlpha(d.alpha).setTint(d.tint);
         if (!img.visible) img.setVisible(true);
       }
-      for (let i = 0; i < EDGE_SLOTS_MAX; i++) {
+      for (let i = 0; i < slot.edge.length; i++) {
         const img = slot.edge[i] as Phaser.GameObjects.Image;
         if (!edgeFlameDraw(fire, i, tS, slot.r, d)) {
           if (img.visible) img.setVisible(false);
