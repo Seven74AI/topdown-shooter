@@ -181,6 +181,7 @@ export interface BoughtGear {
 
 /**
  * Buys gear `item` for `playerId` (Story 5.11). Checks, in order: a build phase, a known player,
+ * standing (`not_alive` while downed or out: review M1),
  * a known item that is in the shop (`not_for_sale`), not owned (an armor tier ≤ the owned one also
  * counts as owned: armor II covers I), then `spendMoney`. On success the bit is set (a higher armor
  * clears the lower armor bits), `maxHp` becomes `effectiveMaxHp` and the current HP rises by the
@@ -190,6 +191,8 @@ export function buyGear(world: World, playerId: string, item: string): Result<Bo
   if (world.run.phase !== "build") return err("not_build");
   const p = world.players.get(playerId);
   if (!p) return err("unknown_player");
+  // Review M1 (G6): only a standing player shops (a fire can down someone in a build phase).
+  if (p.status !== "alive") return err("not_alive");
   const t = table(world.balance);
   const bit = t.bitOf.get(item);
   if (bit === undefined) return err("not_for_sale");

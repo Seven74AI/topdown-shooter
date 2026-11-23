@@ -613,6 +613,13 @@ p.in-run-menu__title {
   flex: none;
 }
 
+/* Story 5.11: a gear row's note ("Replaces Body armor I"): neutral grey (designer: an upgrade, nothing is lost). */
+.shop__gear-note {
+  font-size: 13px;
+  font-weight: 400;
+  color: #bbb;
+}
+
 /* Story 5.11: gear icons are square (24 CSS px, D7). */
 .shop__icon--gear {
   width: 24px;

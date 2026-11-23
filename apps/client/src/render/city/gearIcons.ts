@@ -21,8 +21,8 @@ export const GEAR_ICON_TEXTURE = "hud_gear";
 export const GEAR_ICON_FRAME_PX = 96;
 /** Empty texture pixels between frames (no filtering bleed when scaled down). */
 const FRAME_GAP_PX = 4;
-/** GR6 bake: on the steel tag, line widths designed for 32 CSS px. */
-const GR6: BakeOptions = { tag: true, designPx: 32 };
+/** GR6 bake: on the steel tag, line widths designed for the 24 CSS px they are shown at (review L3: ≥ 1 CSS px). */
+const GR6: BakeOptions = { tag: true, designPx: 24 };
 /** Shown size on the HUD and in the shop (D7: 24 CSS px). */
 export const GEAR_ICON_CSS_PX = 24;
 

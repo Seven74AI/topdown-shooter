@@ -32,7 +32,8 @@ export interface ShopBuilding {
   readonly price: number;
 }
 
-export type ShopError = "not_build" | "unknown_player" | "not_for_sale" | "already_owned" | "slot_required" | SpendError;
+/** Story 5.11 review M1: `not_alive` = a downed or out player (fire still hurts in a build phase) can't buy. */
+export type ShopError = "not_build" | "unknown_player" | "not_alive" | "not_for_sale" | "already_owned" | "slot_required" | SpendError;
 
 /** Where a bought weapon went. */
 export interface Bought {
@@ -110,7 +111,8 @@ export function owns(loadout: Loadout, weapon: WeaponId): boolean {
 }
 
 /**
- * Buys `weapon` for `playerId` (Story 3.3). Checks, in order: a build phase, a known player, sold by
+ * Buys `weapon` for `playerId` (Story 3.3). Checks, in order: a build phase, a known player, standing
+ * (Story 5.11 review M1: `not_alive` while downed or out), sold by
  * the shop, not already in a slot, a slot (the empty second slot first; with both full `slot` must
  * say which one is replaced), then the wallet (`spendMoney`). On success the weapon is in that slot
  * with a full magazine; the replaced weapon is lost and the active slot index is unchanged.
@@ -122,6 +124,7 @@ export function buyWeapon(world: World, playerId: string, weapon: WeaponId, slot
   if (world.run.phase !== "build") return err("not_build");
   const p = world.players.get(playerId);
   if (!p) return err("unknown_player");
+  if (p.status !== "alive") return err("not_alive"); // Story 5.11 review M1
   const price = shopPrice(world.balance, weapon);
   if (price === null) return err("not_for_sale");
   const lo = p.loadout;
@@ -246,6 +249,8 @@ export function buyItem(world: World, playerId: string, item: string): Result<Bo
   if (gearBit(world.balance, item) !== 0) return buyGear(world, playerId, item);
   // Story 5.12: if (isConsumable(world.balance, item)) return buyConsumable(world, playerId, item);
   if (world.run.phase !== "build") return err("not_build");
-  if (!world.players.has(playerId)) return err("unknown_player");
+  const p = world.players.get(playerId);
+  if (!p) return err("unknown_player");
+  if (p.status !== "alive") return err("not_alive");
   return err("not_for_sale");
 }

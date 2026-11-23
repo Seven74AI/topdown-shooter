@@ -183,7 +183,7 @@ function GearSection({ s, busy }: { s: ShopState; busy: boolean }) {
               <span class="shop__text">
                 <span class="shop__name">{r.name}</span>
                 <span class="shop__price">{r.owned ? SHOP_TEXT.owned : price(r.price)}</span>
-                {r.note ? <span class="shop__lost">{r.note}</span> : null}
+                {r.note ? <span class="shop__gear-note">{r.note}</span> : null}
               </span>
             </button>
           );

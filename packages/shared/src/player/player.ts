@@ -40,6 +40,11 @@ export interface PlayerState {
   reviveTicks: number;
   /** The teammate reviving this tick, or null. */
   reviverId: string | null;
+  /**
+   * Story 5.11: ticks this revive needs (the fastest revive kit among the revivers in reach, else
+   * `ticksFor(player.reviveS)`); 0 while no one revives. On the wire, so the client's ring matches.
+   */
+  reviveNeedTicks: number;
   /** Story 3.1: this player tapped Ready in the current build phase (cleared at every build and wave start). */
   buildReady: boolean;
   /**
@@ -112,6 +117,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     downedTicksLeft: 0,
     reviveTicks: 0,
     reviverId: null,
+    reviveNeedTicks: 0, // Story 5.11
     buildReady: false,
     wallet: world.balance.economy.startingWallet,
     earned: 0,

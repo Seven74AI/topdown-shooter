@@ -293,7 +293,13 @@ describe("syncState", () => {
     p1.y = p0.y;
     for (let i = 0; i < 15; i++) controller.tick();
     syncState(state, controller);
-    expect(state.players.get("p0")?.reviveProgress).toBe(128);
+    expect(state.players.get("p0")).toMatchObject({ reviveProgress: 128, reviveNeed: 30 }); // review L2: the need is synced
+    p1.x = p0.x + 30; // the reviver walks away: no revive, need 0
+    controller.tick();
+    syncState(state, controller);
+    expect(state.players.get("p0")).toMatchObject({ reviveProgress: 0, reviveNeed: 0 });
+    resetRunFields(state);
+    expect(state.players.get("p0")?.reviveNeed).toBe(0);
   });
 
   it("resetRunFields puts every fight field and Ready back, keeping slot and name", () => {

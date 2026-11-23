@@ -156,7 +156,7 @@ describe("NetSimHost gear (Story 5.11)", () => {
     expect(parseShopBoughtItem(null)).toBeNull();
   });
 
-  it("mirror gear/maxHp from state (never the answer); revive progress uses the reviver's kit", () => {
+  it("mirror gear/maxHp from state (never the answer); revive progress uses the synced need (review L2)", () => {
     const room = new FakeRoom({
       ...fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 11, y: 10 })]),
       phase: "wave",
@@ -174,14 +174,15 @@ describe("NetSimHost gear (Story 5.11)", () => {
     s0.maxHp = 125;
     s0.hp = 125;
     s0.status = "downed";
-    s0.reviveProgress = 128; // half of the reviver's need
-    s1.gear = 8; // the reviver owns the kit: 30 ticks
+    s0.reviveProgress = 128; // half of the server's need …
+    s0.reviveNeed = 30; // … 30 ticks (a kit in reach), synced
+    s1.gear = 0; // the nearest mirrored teammate has no kit: the ring must still use the server's need
     room.state.tick++;
     host.update(1 / 60);
     const me = host.world.players.get("p0");
     expect(me).toMatchObject({ gear: 1, maxHp: 125, hp: 125 });
     expect(me?.reviverId).toBe("p1");
     expect(me?.reviveTicks).toBe(15);
-    expect(host.world.players.get("p1")?.gear).toBe(8);
+    expect(me?.reviveNeedTicks).toBe(30);
   });
 });

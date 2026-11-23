@@ -17,6 +17,8 @@ private ports, `?lag=150&jitter=20&wallet=1000`, dpr 1.
 | `5-11-hud-800x360.png`, `5-11-hud-crop.png` | HUD: `HP 125 / 125` (armor I raised max and current HP by 25) and the three owned icons beside the HP text, in `gear.json` order. |
 | `5-11-hud-armor2-crop.png` | After buying armor II: `HP 150 / 150`, the armor II icon replaces armor I's. |
 | `5-11-hud-all-dpr3-crop.png` | dpr 3, `?shopall=1`: all four owned icons incl. the tactical flashlight (armor I, shoes, kit, torch), `gear 29`. |
+| `5-11-hud-24px-dpr2-crop.png` | Review L3: line widths designed for 24 CSS px, shown at dpr 2 with all four owned icons. |
+| `5-11-shop-owned-note-grey-800x360.png` | Designer: armor II's "Replaces Body armor I" note in neutral grey; the flashlight row shows with `?shopall=1`. |
 | `5-11-online-hud-lag150-800x360.png` | Online under `?lag=150&jitter=20` after buying shoes and armor I and walking a square for 6 s: HUD from the server's state (gear 5, HP 125/125). |
 
 Measured in the same run (online, `?lag=150&jitter=20`): the tap showed "Buying…", then "Bought Running

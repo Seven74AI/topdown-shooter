@@ -46,7 +46,7 @@ so that my build is more than my weapons.
 3. **HUD icons.** The HUD shows one small icon per owned gear item (fixed order, beside the HP text), from the server's state online. The shop marks owned gear "Owned" (disabled).
 4. **Fairness rule: body armor.** Body armor I gives **+25 max HP**; Body armor II gives **+50 max HP and replaces armor I** (buying II while owning I clears bit I; II owned ⇒ I is refused `already_owned`: "armor II covers it"). Max HP = `player.maxHp + bonus of the best armor owned` (never both). On purchase the player's **current HP rises by the max-HP increase** (100/100 → 125/125; I → II: +25); never above the new max. Every heal cap (build heal, revive HP fraction, Story 5.10 med station, Story 5.12 medkit) uses this max. Revive HP = `ceil(maxHp × reviveHpFrac)` of the new max.
 5. **Fairness rule: running shoes.** **+10 % move speed**, integer percent, applied in `movePlayers` (server **and** the client Predictor) as `base × (100 + bonusPct) / 100`, then the slow (`× (100 − slowPct) / 100`, 3.9) — bonus and slows **multiply**, never add: a Crawler-slowed shoe wearer moves at 4.5 × 1.1 × 0.7 m/s. Story 5.2's Chainsaw −20 % and 5.8's gas −30 % are slows and follow the same rule. Prediction stays bit-identical to the server (same integer expression on both sides).
-6. **Fairness rule: revive kit (D1).** The kit belongs to the **reviver**: a teammate who owns it revives a downed player in **1.5 s** instead of 3 s (`gear.json › revive_kit.reviveS`). The time needed each tick is that of the current reviver (the nearest standing teammate in reach, 2.8's rule); progress ticks are kept when the reviver changes, so a kit owner taking over a half-done revive finishes as soon as progress ≥ their 30 ticks. Two revivers still count as one (no stacking). A downed kit owner gains nothing from their own kit.
+6. **Fairness rule: revive kit (D1).** The kit belongs to the **reviver**: a teammate who owns it revives a downed player in **1.5 s** instead of 3 s (`gear.json › revive_kit.reviveS`). The time needed each tick is the **fastest need among all standing teammates in reach** (review L1, main session decision, "Better together": a kit owner in the 2 m zone counts even when a plain teammate stands nearer; the nearest is still the reviver shown); progress ticks are kept when revivers change, so a kit owner stepping in to a half-done revive finishes as soon as progress ≥ their 30 ticks. Two revivers still count as one (no stacking: two kits = 30 ticks). A downed kit owner gains nothing from their own kit.
 7. **Tactical flashlight** is only recorded (the bit, synced) for 6.3's blackout cone; no gameplay effect and not for sale yet (AC 1).
 8. **Server truth and pending.** Online the shop sends `shop.buy_item { item }` (new message, contract shared with Story 5.12) and shows "Waiting…" until `shop.bought_item` / `shop.refused_item` arrives or the state shows the bit (3.3's pending + 3 s timeout); HUD icons, max HP and speed follow the synced `gear` field, never the tap.
 9. **Network.** New player schema field `gear` (uint8), in `PlayerStateView`/`PLAYER_STATE_FIELDS`, written on change only; `maxHp` already synced. The Predictor reads `gear` from each state (rebase on `ackSeq` like `slowTicks`). Bandwidth: one 2–3 B patch per purchase; 0 B/s otherwise.
@@ -61,7 +61,7 @@ so that my build is more than my weapons.
 | G3 | Buy armor at 10 HP to "heal" | HP +25 (the bonus only); build heal already ran at build start |
 | G4 | Spam `shop.buy_item` under `?lag=150&jitter=20` (double tap) | One purchase; the second is `already_owned` (or not sent while pending) |
 | G5 | Craft `shop.buy_item {item:"tactical_flashlight"}` | `not_for_sale` (unless `DEV_SHOP_ALL=1`) |
-| G6 | Buy gear in a wave / while downed / out | `not_build` (only in build phases; everyone stands at a build start) |
+| G6 | Buy gear in a wave / while downed / out | Wave: `not_build`. Downed / out in a build phase (a fire can down someone after the build start): `not_alive` (review M1; weapons too) |
 | G7 | Shoes + Crawler bite + Chainsaw | Speed = base × 1.1 × 0.7 (strongest slow only, 3.9) — never faster than base × 1.1 |
 | G8 | Make prediction drift with shoes (lag, slept tab, late join) | Predictor rebases with `gear` at `ackSeq`: no snap after the first state |
 | G9 | Two kit owners reviving together | 1.5 s, not faster |
@@ -257,6 +257,21 @@ Claude (builder session, story-5-11)
 - `docs/art/5-11/` (README + 8 screenshots, new)
 - `_bmad-output/implementation-artifacts/5-11-gear.md`, `sprint-status.yaml`
 
+### Senior Developer Review (AI)
+
+Fresh-agent review (main session), 2026-11-23: **1 medium, 3 low, 2 mutation survivors**; gate passed. All fixed on `story-5-11`:
+
+- [x] **M1 (medium) — G6 beatable:** a downed or out player could buy in a build phase (fire hurts in build: `decay/fire.ts`), e.g. armor raised HP 0 → 25 while downed. Fix: new `ShopError` **`not_alive`**, checked right after `unknown_player` in `buyGear`, `buyItem` (so 5.12 inherits it) and `buyWeapon` (the same pre-existing gap). Client: error list + text "You can't shop while down". Tests: downed-in-build and out-in-build for gear, `buyItem` and weapons (`gear.test.ts`), round trip `RunRoom.shop.test.ts`. Story G6 row corrected. *(Needs the fresh re-review.)* Not changed: `upgradeWeapon` (a downed player can still upgrade a weapon in a build phase; harmless, no HP/position effect — say if it should refuse too).
+- [x] **L1 — kit ignored behind a nearer plain teammate:** the need is now the fastest kit among all revivers in reach (`findReviver` ORs every in-reach reviver's gear; `reviveTicksFor` of that). AC 6 text updated; test "kit owner in reach counts when a plain teammate stands nearer".
+- [x] **L2 — client ring re-derived the denominator from interpolated positions:** new `PlayerState.reviveNeedTicks` (World truth), synced as schema `reviveNeed` (uint8, appended, written on change only: at most a byte per revive start/stop), `PlayerStateView`/`PLAYER_STATE_FIELDS`/`fakeRoom`/`resetRunFields`; `syncState` progress = `reviveTicks / reviveNeedTicks`; the mirror and `DownedView` divide by the synced need. Tests in `syncState.test.ts` and `NetSimHost.shop.test.ts` (the nearest mirrored teammate has no kit, the ring still uses the server's 30).
+- [x] **L3 — line widths designed for 32 px, shown at 24:** `designPx: 24` (bake still 96 px for dpr 3). Fresh dpr-2 shot `docs/art/5-11/5-11-hud-24px-dpr2-crop.png`.
+- [x] **Mutation survivors:** `botShop.test.ts` "skips armor I when II is owned"; `gear.test.ts` "buy shoes twice → already_owned".
+- [x] **Designer:** armor II's "Replaces Body armor I" note is neutral grey (`.shop__gear-note`, #bbb), shot `5-11-shop-owned-note-grey-800x360.png`.
+- [x] **5.12 hook:** the shop store's unlock-on-state test is one function, `itemArrived` (`ui/shopStore.ts`), with a comment saying where 5.12's consumable count goes.
+
+Mutation check of the fixes: 8/8 killed (M1 gear, M1 weapon ×2 incl. the room test, L1, L2 sync, L2 mirror, bot covered armor, shoes twice).
+
 ### Change Log
 
+- 2026-11-23: Review fixes (M1 not_alive, L1 fastest kit in reach, L2 synced revive need, L3 24 px lines, 2 survivor tests, grey note, 5.12 hook).
 - 2026-11-23: Story 5.11 built (gear: shared rules, network, shop, HUD with GR6 icons, bots, sims); status review.

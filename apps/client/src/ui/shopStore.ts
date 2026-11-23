@@ -232,6 +232,8 @@ export function shopErrorText(error: ShopError): string {
       return "The shop is closed";
     case "slot_required":
       return "Choose a slot to replace";
+    case "not_alive":
+      return "You can't shop while down"; // Story 5.11 review M1
     default:
       return "Can't buy that";
   }
@@ -241,6 +243,18 @@ const ownsWeapon = (s: ShopState, id: string): boolean => s.slots[0] === id || s
 
 const NONE: ShopEffect = null;
 const same = (state: ShopState): ShopStepResult => ({ state, effect: NONE });
+
+/**
+ * Story 5.11: does the World's new state show the pending item `key` (`itemKey(id)`) as bought?
+ * Gear: its bit is set in the new mask and wasn't before. **Story 5.12 hook:** consumables have no
+ * bit — add a count (e.g. `consumables` in the sync input and an `awaitCount` like `awaitGear`) and
+ * answer here when the synced count rose above the count at the tap; until then a consumable
+ * purchase unlocks on its answer or the timeout.
+ */
+function itemArrived(s: ShopState, key: string, newMask: number): boolean {
+  const bit = s.awaitGear !== 0 ? s.awaitGear : (s.gear.find((g) => itemKey(g.id) === key)?.bit ?? 0);
+  return bit !== 0 && (newMask & bit) !== 0 && (s.gearMask & bit) === 0;
+}
 
 /** The shop's state machine (pure). `nameOf` gives a weapon's display name for the "Bought" text. */
 export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) => string = (id) => id): ShopStepResult {
@@ -271,12 +285,9 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
       if (s.awaitLevel !== null && levels[s.awaitLevel.slot] >= s.awaitLevel.level) {
         return same({ ...s, wallet: input.wallet, slots: input.slots, levels, gearMask, pending: null, pendingAtMs: 0, awaitLevel: null });
       }
-      // Story 5.11 (AC 8): the state shows the bought gear (answer first or not): unlock.
-      if (s.pending !== null && s.pending.startsWith("item:")) {
-        const bit = s.awaitGear !== 0 ? s.awaitGear : (s.gear.find((g) => itemKey(g.id) === s.pending)?.bit ?? 0);
-        if (bit !== 0 && (gearMask & bit) !== 0 && (s.gearMask & bit) === 0) {
-          return same({ ...s, wallet: input.wallet, slots: input.slots, levels, gearMask, pending: null, pendingAtMs: 0, awaitGear: 0 });
-        }
+      // Story 5.11 (AC 8): the state shows the bought item (answer first or not): unlock.
+      if (s.pending !== null && s.pending.startsWith("item:") && itemArrived(s, s.pending, gearMask)) {
+        return same({ ...s, wallet: input.wallet, slots: input.slots, levels, gearMask, pending: null, pendingAtMs: 0, awaitGear: 0 });
       }
       return same({ ...s, wallet: input.wallet, slots: input.slots, levels, gearMask });
     }

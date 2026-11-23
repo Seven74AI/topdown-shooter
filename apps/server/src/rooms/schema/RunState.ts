@@ -72,6 +72,8 @@ const playerFields = {
   knockStepMm: t.uint16().default(0),
   // Story 5.11: owned gear (bit i = the i-th `gear.json` item). Changes only on a purchase. Appended last.
   gear: t.uint8().default(0),
+  // Story 5.11 review L2: ticks the current revive needs (fastest kit in reach; 0 = no revive): the ring's denominator.
+  reviveNeed: t.uint8().default(0),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;

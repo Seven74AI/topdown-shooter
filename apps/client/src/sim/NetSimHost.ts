@@ -28,7 +28,6 @@ import {
   removePlayer,
   rotateBySeqSpread,
   ticksFor,
-  reviveTicksFor,
   type Balance,
   type DistrictMap,
   type PlaceError,
@@ -246,14 +245,7 @@ export class NetSimHost implements SimHost {
   // Story 2.8: downed fields from state; the reviver is found from the mirrored positions.
   private readonly reviveTicksTotal: number;
   private readonly writeReviver = (p: PlayerState): void => {
-    const reviver = p.status === "downed" && p.reviveTicks > 0 ? findReviver(this.world, p) : null;
-    p.reviverId = reviver?.id ?? null;
-    // Story 5.11: progress (0–255) is of the current reviver's need (a revive kit: 30 ticks), as the
-    // server's syncState writes it; every player's gear is mirrored by now.
-    if (reviver) {
-      const s = this.session.room.state.players.get(p.id);
-      if (s) p.reviveTicks = Math.round((s.reviveProgress / 255) * reviveTicksFor(this.world.balance, reviver.gear));
-    }
+    p.reviverId = p.status === "downed" && p.reviveTicks > 0 ? (findReviver(this.world, p)?.id ?? null) : null;
   };
 
   /** Story 5.6 review M1: an acid puddle's life (s); older splashes in a drained backlog are dropped. */
@@ -792,7 +784,9 @@ export class NetSimHost implements SimHost {
   /** Story 2.8: countdown and revive progress (0–255 → ticks) from the latest state. */
   private applyDowned(p: PlayerState, s: PlayerStateView): void {
     p.downedTicksLeft = s.downedTicksLeft;
-    p.reviveTicks = Math.round((s.reviveProgress / 255) * this.reviveTicksTotal);
+    // Story 5.11 review L2: progress is of the server's synced need (fastest kit in reach), never re-derived here.
+    p.reviveNeedTicks = s.reviveNeed;
+    p.reviveTicks = Math.round((s.reviveProgress / 255) * (s.reviveNeed > 0 ? s.reviveNeed : this.reviveTicksTotal));
   }
 
   /** Reuses the slot object unless the weapon changed ("" = empty). */

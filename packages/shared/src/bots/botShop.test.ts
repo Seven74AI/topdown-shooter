@@ -154,3 +154,14 @@ describe("Story 5.1: upgrade:<weapon> shopping entries", () => {
     expect(() => loadBalance(files)).toThrow(/bots\.json: shoppingList\.0/);
   });
 });
+
+describe("botShopNext gear (Story 5.11)", () => {
+  it("skips owned gear and armor a higher tier covers (II owned → I skipped); stops at gear it can't pay", () => {
+    const list = ["body_armor_1", "running_shoes"];
+    expect(botShopNext(balance, { ...self(500), gear: 0 }, none, list)).toBe(0);
+    expect(botShopNext(balance, { ...self(500), gear: 2 }, none, list)).toBe(1); // armor II covers armor I
+    expect(botShopNext(balance, { ...self(500), gear: 1 }, none, list)).toBe(1);
+    expect(botShopNext(balance, { ...self(500), gear: 1 | 4 }, none, list)).toBe(-1);
+    expect(botShopNext(balance, { ...self(100), gear: 0 }, none, list)).toBe(-1); // saves up for armor I
+  });
+});

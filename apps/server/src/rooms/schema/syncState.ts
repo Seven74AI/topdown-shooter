@@ -1,4 +1,4 @@
-import { quantizeHeading, reviveTicksFor, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
+import { quantizeHeading, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
 import type { RunController } from "../../run/RunController";
 import { BuildingState, type PlayerState, type RunState } from "./RunState";
 
@@ -106,13 +106,10 @@ function syncWallet(s: PlayerState, p: SimPlayer): void {
 /** Story 2.8: countdown, revive progress (0–255) and kills; Story 3.1: build-phase Ready. */
 function syncDowned(s: PlayerState, p: SimPlayer, kills: number): void {
   if (s.downedTicksLeft !== p.downedTicksLeft) s.downedTicksLeft = p.downedTicksLeft;
-  // Story 5.11: the denominator is the CURRENT reviver's need (a revive kit owner: 30 ticks, else 60).
-  let progress = 0;
-  if (p.reviveTicks > 0 && pass.controller) {
-    const world = pass.controller.world;
-    const reviver = p.reviverId === null ? undefined : world.players.get(p.reviverId);
-    progress = Math.min(255, Math.round((p.reviveTicks / reviveTicksFor(world.balance, reviver ? reviver.gear : 0)) * 255));
-  }
+  // Story 5.11 (review L1/L2): the denominator is this revive's need (fastest kit in reach), synced
+  // as `reviveNeed` (on change only), so the client's ring divides by the same number.
+  const progress = p.reviveTicks > 0 && p.reviveNeedTicks > 0 ? Math.min(255, Math.round((p.reviveTicks / p.reviveNeedTicks) * 255)) : 0;
+  if (s.reviveNeed !== p.reviveNeedTicks) s.reviveNeed = p.reviveNeedTicks;
   if (s.reviveProgress !== progress) s.reviveProgress = progress;
   if (s.kills !== kills) s.kills = kills;
   if (s.buildReady !== p.buildReady) s.buildReady = p.buildReady;
@@ -209,4 +206,5 @@ function resetPlayer(s: PlayerState): void {
   s.knockDy = 0;
   s.knockStepMm = 0;
   s.gear = 0; // Story 5.11: the next run starts with none
+  s.reviveNeed = 0;
 }

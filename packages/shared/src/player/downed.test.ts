@@ -238,6 +238,23 @@ describe("revive", () => {
       expect(a.status).toBe("alive");
     });
 
+    it("review L1: a kit owner in reach counts even when a plain teammate stands nearer (fastest need, no stacking)", () => {
+      const { world, players } = setup(["p0", "p1", "p2"]);
+      const [a, b, c] = players as [PlayerState, PlayerState, PlayerState];
+      c.gear = KIT;
+      downPlayer(world, a);
+      placeNear(b, a, 0.5); // nearer: the reviver shown
+      placeNear(c, a, -1.5); // the kit owner, also in the 2 m zone
+      run(world, 1);
+      expect(a.reviverId).toBe("p1");
+      expect(a.reviveNeedTicks).toBe(KIT_TICKS);
+      run(world, KIT_TICKS - 2);
+      expect(a.status).toBe("downed");
+      run(world, 1);
+      expect(a.status).toBe("alive");
+      expect(a.reviveNeedTicks).toBe(0);
+    });
+
     it("G11: a downed kit owner gains nothing: revived in 60 ticks by a plain teammate", () => {
       const { world, players } = setup();
       const [a, b] = players as [PlayerState, PlayerState];

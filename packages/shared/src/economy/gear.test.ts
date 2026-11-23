@@ -6,7 +6,7 @@ import { addPlayer, type PlayerState } from "../player/player";
 import { startBuild, startWave } from "../run/runStateMachine";
 import { downPlayer, returnOutPlayers } from "../player/downed";
 import { allGear, armorBonus, buyGear, effectiveMaxHp, gearBit, gearIds, ownsGear, reviveTicksFor, shopGear, speedBonusPct } from "./gear";
-import { buyItem } from "./shop";
+import { buyItem, buyWeapon } from "./shop";
 
 const balance = loadBalance();
 const NO_WAVES = { waves: () => {} };
@@ -91,6 +91,33 @@ describe("buyGear refusals, in order (Story 5.11)", () => {
     expect(p.gear).toBe(16);
     expect(p.maxHp).toBe(100);
     expect(p.wallet).toBe(0);
+  });
+});
+
+describe("review M1 (G6): only a standing player shops", () => {
+  it("downed or out in a build phase → not_alive (before the item checks); nothing changes; gear and weapons alike", () => {
+    for (const status of ["downed", "out"] as const) {
+      const { world, p } = setup(1000);
+      p.status = status;
+      p.hp = 0;
+      expect(buyGear(world, "p0", "body_armor_1")).toEqual({ ok: false, error: "not_alive" });
+      expect(buyGear(world, "p0", "jetpack")).toEqual({ ok: false, error: "not_alive" });
+      expect(buyItem(world, "p0", "medkit_xl")).toEqual({ ok: false, error: "not_alive" });
+      expect(buyWeapon(world, "p0", "smg", null)).toEqual({ ok: false, error: "not_alive" });
+      expect([p.hp, p.maxHp, p.gear, p.wallet, p.loadout.slots[1]]).toEqual([0, 100, 0, 1000, null]);
+      p.status = "alive";
+      expect(buyGear(world, "p0", "body_armor_1").ok).toBe(true);
+    }
+  });
+});
+
+describe("mutation survivor: owning a non-armor item refuses it again", () => {
+  it("buy shoes twice → already_owned, charged once", () => {
+    const { world, p } = setup(400);
+    expect(buyGear(world, "p0", "running_shoes").ok).toBe(true);
+    expect(buyGear(world, "p0", "running_shoes")).toEqual({ ok: false, error: "already_owned" });
+    expect(p.wallet).toBe(250);
+    expect(p.gear).toBe(4);
   });
 });
 

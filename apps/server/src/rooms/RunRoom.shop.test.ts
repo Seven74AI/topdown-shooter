@@ -265,4 +265,17 @@ describe("RunRoom gear (Story 5.11)", () => {
     expect(p.wallet).toBe(1000);
     expect(room.clients.length).toBe(2);
   });
+
+  it("review M1: a downed player in a build phase is refused not_alive (gear and weapons); nothing changes", async () => {
+    const { host, room, hostAnswers } = await startTwo();
+    const p = player(room, "p0");
+    p.wallet = 1000;
+    p.status = "downed";
+    p.hp = 0;
+    host.send(C2S.SHOP_BUY_ITEM, { item: "body_armor_1" });
+    host.send(C2S.SHOP_BUY, { weapon: "smg" });
+    await vi.waitFor(() => expect(hostAnswers.refusedItem).toEqual([{ item: "body_armor_1", error: "not_alive" }]));
+    await vi.waitFor(() => expect(hostAnswers.refused).toEqual([{ weapon: "smg", error: "not_alive" }]));
+    expect([p.hp, p.maxHp, p.gear, p.wallet]).toEqual([0, 100, 0, 1000]);
+  });
 });

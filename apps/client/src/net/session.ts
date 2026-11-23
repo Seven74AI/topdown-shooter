@@ -23,6 +23,7 @@ import type { ShopAnswer } from "../sim/SimHost";
 const SHOP_ERRORS: readonly ShopError[] = [
   "not_build",
   "unknown_player",
+  "not_alive", // Story 5.11 review M1
   "not_for_sale",
   "already_owned",
   "slot_required",

@@ -58,6 +58,8 @@ export interface PlayerStateView {
   readonly level1: number;
   /** Story 5.11: owned gear as a bitmask (bit i = the i-th `gear.json` item); the Predictor reads the shoes. */
   readonly gear: number;
+  /** Story 5.11 review L2: ticks this downed player's revive needs (0 = none in progress); `reviveProgress` is of this. */
+  readonly reviveNeed: number;
 }
 
 /** The parts of a schema MapSchema the client reads. Keys are player ids (`p0`–`p3`). */
@@ -163,6 +165,7 @@ export const PLAYER_STATE_FIELDS = {
   knockDy: true,
   knockStepMm: true,
   gear: true, // Story 5.11
+  reviveNeed: true,
 } as const satisfies Record<keyof PlayerStateView, true>;
 
 /** Story 3.4: `BuildingStateView`'s fields (the server schema and the `?lag` copy check against it). */

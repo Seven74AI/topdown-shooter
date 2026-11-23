@@ -14,8 +14,8 @@ const ZONE_DEPTH = 4.4;
 
 /**
  * Story 2.8: a revive progress ring around each downed player: a dark track, and an arc that fills
- * clockwise from 12 o'clock with `reviveTicks / ` the current reviver's need (Story 5.11: a revive
- * kit owner's 30 ticks, else `ticksFor(reviveS)`). Moving away resets it (the
+ * clockwise from 12 o'clock with `reviveTicks / reviveNeedTicks` (Story 5.11: the fastest revive kit
+ * among the revivers in reach, 30 ticks, else `ticksFor(reviveS)`). Moving away resets it (the
  * World does; this only draws). One Graphics object, redrawn only while someone is downed.
  * The countdown text is drawn by the HUD in screen space (crisp at any zoom).
  * Story 4.9: also the revive zone (radius `player.reviveRadiusM`, see `reviveZone.ts`) on the ground.
@@ -38,9 +38,9 @@ export class DownedView {
     const r = p.radiusM + RING_GAP_M;
     const g = this.g;
     g.lineStyle(RING_WIDTH_M, TRACK_COLOR, TRACK_ALPHA).strokeCircle(p.x, p.y, r);
-    const w = this.world as Readonly<World>;
-    const reviver = p.reviverId === null ? undefined : w.players.get(p.reviverId);
-    const frac = Math.min(1, p.reviveTicks / reviveTicksFor(w.balance, reviver ? reviver.gear : 0));
+    // Story 5.11 (review L2): the revive's own need (server truth online, synced as `reviveNeed`).
+    const need = p.reviveNeedTicks > 0 ? p.reviveNeedTicks : reviveTicksFor((this.world as Readonly<World>).balance, 0);
+    const frac = Math.min(1, p.reviveTicks / need);
     if (frac <= 0) return;
     g.lineStyle(RING_WIDTH_M, FILL_COLOR, 1)
       .beginPath()
