@@ -165,3 +165,4 @@ Claude (builder cloud session, 2026-11-23). Baseline commit `4c30563`.
 ### Change Log
 
 - 2026-11-23: Story written (gds-create-story) and built (gds-dev-story): carry + keep moving, hand cluster, controls.build numbers. Status → review.
+- 2026-11-23: Open questions settled (designer: "go with your recommendation"). Q1: the reason line stays where it is (right side, 250 px up), and the readability check over busy city art goes on the phone playtest list; 5.16/5.18 move it above the item chip anyway. Q2: Ready keeps the 40 px left shift now (no effect while holding; it matters once 5.16's build bar shares the corner). Q3: whichever of 5.12 and 5.15 merges second makes 5.12's consumable button hide while holding, like the swap button (`HudScene.drawWeapon`'s `hidden` flag); the reviewer checks it after the merge.
