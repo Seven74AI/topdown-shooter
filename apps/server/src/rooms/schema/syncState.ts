@@ -59,12 +59,13 @@ function syncBuildings(state: RunState, world: World): void {
       keep.add(b.id);
       const had = sync.entries.get(b.id);
       if (!had) {
-        const s = new BuildingState({ type: b.type, owner: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, hp: Math.ceil(b.hp) });
+        const s = new BuildingState({ type: b.type, owner: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, hp: Math.ceil(b.hp), trap: b.trapState });
         state.buildings.set(String(b.id), s);
         sync.entries.set(b.id, s);
       } else if (had.type !== b.type) {
         had.type = b.type; // Story 5.9: an upgrade (same id and footprint; its new HP follows below)
       }
+      if (had && had.trap !== b.trapState) had.trap = b.trapState; // Story 5.14: the jaws (every change bumps version)
     }
     for (const id of [...sync.entries.keys()]) {
       if (keep.has(id)) continue;

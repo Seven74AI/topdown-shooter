@@ -98,12 +98,12 @@ const STRESS_FLOOR_RINGS_M: readonly number[] = [3, 5, 7, 9, 11];
  * mines alternately, on free lattice spots (the shared `footprintBlocked`, without the cap or money:
  * a benchmark, not a placement). Call before the Walkers spawn. Returns how many were laid.
  */
-export function placeStressFloor(world: World, ownerId: string, cx: number, cy: number, count = STRESS_FLOOR_BUILDINGS): number {
+export function placeStressFloor(world: World, ownerId: string, cx: number, cy: number, count = STRESS_FLOOR_BUILDINGS, types: readonly string[] = ["spike_trap", "mine"]): number {
   const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   let laid = 0;
   for (const r of STRESS_FLOOR_RINGS_M) {
     for (let k = 0; k < 16 && laid < count; k++) {
-      const type = laid % 2 === 0 ? "spike_trap" : "mine";
+      const type = types[laid % types.length] as string; // Story 5.14: `?stressbuild=bear` lays bear traps only
       const stats = buildingStats(world.balance, type);
       if (!stats) return laid;
       const a = (k / 16) * Math.PI * 2;

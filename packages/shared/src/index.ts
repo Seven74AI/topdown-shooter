@@ -38,7 +38,7 @@ export {
   MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
-export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
+export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, BearTrapStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, worldDigest, type WorldSnapshot } from "./core/worldSnapshot";
@@ -400,6 +400,8 @@ export { setBuildingType } from "./buildings/buildings";
 export { UPGRADE_ERRORS, upgradeBuilding, upgradeError, upgradeStep, type UpgradeError, type Upgraded } from "./buildings/upgrade";
 export { trapCounters, updateTraps } from "./buildings/trap";
 export { mineCounters, updateMines } from "./buildings/mine";
+export { BEAR_TRAP_STATE } from "./buildings/buildings";
+export { bearTrapCounters, resetBearTrapCounters, updateBearTraps, catchOnBearTraps, resetBearTraps, holdTicksFor, bearTrapPlateRadius } from "./buildings/bearTrap"; // Story 5.14
 export {
   clearGrenades,
   createGrenadePool,

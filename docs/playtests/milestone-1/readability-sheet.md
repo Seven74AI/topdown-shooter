@@ -133,3 +133,9 @@ Player:
 
 ## 38: what is this, and what happens inside the green ring? (Story 5.10)
 ![38](objects/39_med_station.png)
+
+## 39: what is this, and can you walk on it? (Story 5.14)
+![39](objects/40_bear_trap_open.png)
+
+## 40: the same thing a moment later: what happened? (Story 5.14)
+![40](objects/41_bear_trap_closed.png)

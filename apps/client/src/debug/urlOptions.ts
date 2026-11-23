@@ -64,6 +64,8 @@ export interface UrlOptions {
   stressBuild: boolean;
   /** `?stressbuild=lights` (Story 5.10, only with `?stress`): 8 floodlights and 4 med stations round the survivor. */
   stressLights: boolean;
+  /** `?stressbuild=bear` (Story 5.14, only with `?stress`): 24 bear traps round the survivor (they catch the crowd). */
+  stressBear: boolean;
   /**
    * `?fx=low` (Story 4.12, release-safe): the low-quality fire — half the particles of every burning
    * car and survivor (caps and spawn rates halved). false otherwise.
@@ -111,6 +113,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     stressLights: q.get("stressbuild")?.trim().toLowerCase() === "lights",
+    stressBear: q.get("stressbuild")?.trim().toLowerCase() === "bear",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
     shopAll: dev && parseDevShopAll(q.get("shopall")?.trim().toLowerCase()), // dev builds only (review L3); one switch for hidden buildings and gear
   };

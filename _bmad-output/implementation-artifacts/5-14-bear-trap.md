@@ -1,6 +1,10 @@
+---
+baseline_commit: c8d4cd19941e2492805daea15388128d37a0284f
+---
+
 # Story 5.14: Bear trap
 
-Status: ready-for-dev (designer decisions D1–D12 to confirm before coding)
+Status: review
 
 ## Story
 
@@ -90,21 +94,21 @@ so that I can stop a dangerous zombie at a choke point.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Balance (AC 1, D1–D6)** — `config/balanceSchema.ts`: `bearTrapSchema = z.object({ plateRadiusM, holdS, snapDamage, wearPerCatch (int), rearmS }).strict()` with 4.8's whole-tick refines; `buildingTypeSchema.bearTrap` optional; `crossCheckBuildingTypes`: `bearTrap` exclusive with `turret/trap/mine/light/heal`, floor only (`solid: false`), no `upgradesTo`, `plateRadiusM ≤ half footprint`. `zombies.json › brute.trapHoldPct: 50` (`zombieTypeSchema.trapHoldPct` int 1–100, default 100). `buildings.json` appends `bear_trap`. Tests in `config/balance.test.ts`.
-- [ ] **T2 Sim (AC 2–6, F1–F9)** — new `buildings/bearTrap.ts › updateBearTraps(world)` in `buildingSystem.ts` after `updateTraps` (before `updateMines`), waves only: per armed trap, the lowest-id alive zombie with centre in the plate → `snap` (damage via the spike trap's direct `hp -=` + `killZombie` credit path, `trapState = HOLDING`, `Building.heldZombie = id`, zombie `holdTicks = ticksFor(...)`, emit `bear_trap.snapped`). Per holding trap: release when the held zombie died/freed (check `generation`) or `holdTicks` hit 0 → `SPRUNG`, `damageBuilding(wearPerCatch)`. Per sprung trap: per-trap re-arm clock + player slot (any standing player whose body overlaps the plate circle; continuous). Build start (`resetBurnClocks` site): all traps `ARMED`, clocks 0, zombie `holdTicks` 0.
-  - [ ] `Building` gets `trapState`, `heldZombie`, `heldGen`, `rearmTicks`, `rearmSlot` (0 for other types); `BuildingState.version` +1 on every trap-state change (renderers + `syncBuildings`); `wallVersion` never.
-  - [ ] `zombies/zombiePool.ts`: `holdTicks: Uint16Array` (0 on spawn); `zombieAi.ts`: pass 1 a held zombie gets `vx = vy = 0` like the windup branch (but still runs attacks in pass 4); pass 2 skip; pass 3 `resolveOverlaps`: a held zombie is immovable (the other body takes the full push); pass 4 players/buildings push-out: unchanged (it's on floor). `holdTicks--` in pass 4.
-  - [ ] Knockback: `combat/damage.ts › applyKnockback` (+ melee/explosion/Bloater push) skips `holdTicks > 0`.
-  - [ ] Tests `buildings/bearTrap.test.ts`: snap at the plate edge (0.349 yes / 0.35 no), 5 damage + kill credit, held 3 s exactly = 60 ticks (and 30 for a Brute), no movement while held under a pushing crowd + shotgun knockback, still bites a player in reach, Spitter still spits, Bloater swells on touch, release → sprung + 25 wear, 4 catches → removed, one zombie per trap, lowest id on ties, two adjacent traps catch two, re-arm 1 s continuous (on/off resets), downed player can't, no re-arm while holding, build start re-arms, players never caught, build phase never catches, fire wears it, mine blast doesn't, `wallVersion` constant.
-- [ ] **T3 Network (AC 17, F10)** — `RunState.ts buildingFields.trap: t.uint8()`, `syncState.ts › syncBuildings` (write on change), `stateView` `BuildingStateView.trap` + key lists, `net/mirrorBuildings.ts` (copy `trapState`), `snapshotWorld` (new fields), `net/netEvents.ts` next free kind `BEAR_TRAP_SNAPPED` (+ round trip), `eventInterest.ts` local. Tests: `syncState.test.ts`, `NetSimHost.buildings.test.ts`, bandwidth (`buildingBandwidth.test.ts` + 6 bear traps: B/s reported).
-- [ ] **T4 Client (AC 17–20)** — `buildingArt.ts › drawBearTrap(c, closed)` (port B-T1), `buildingsAtlas.ts` two frames, `BuildingView` frame by `trapState`, plate ring in build phase + placement preview, local re-arm progress ring, `FxView` snap FX + `placeholderSfx` `building_bear_trap_snap`; readability sheet row.
-- [ ] **T5 Fuzz, sims, perf, browser (brief 7, 9, 15, 16, 18)** — extend `buildings/floor.fuzz.test.ts` with bear traps (incl. in 1 m gaps and next to spike traps): no body in a wall, no stall, zombies reach players, nav only on wall changes; liveness ≥ 1 catch/release/re-arm/Brute catch/wear-out. `fiveWaveSim` test-local list with bear traps (waves ended). `tickCostDowntown` with 24 bear traps (PERF_ASSERT). `?stressbuild=bear` (12 traps) headless FPS before/after. Playwright solo: place, catch, closed look, re-arm by standing; screenshots into `docs/art/5-14/`.
-- [ ] **T6 Mutations (brief 9)** — "catch by body overlap instead of centre", "hold counted on a shared clock", "held zombie pushed by crowd", "knockback moves a held zombie", "held zombie can't attack", "two zombies per trap", "players trigger", "re-arm while holding", "re-arm clock not reset on leaving", "Brute held full time", "no wear per catch", "wallVersion bumped", "build phase catches" — each must fail a listed test.
-- [ ] **T7 Gates** — typecheck, lint, test, build on the branch merged with master (after 5.10 lands); Dev Agent Record; Notes for the merge.
+- [x] **T1 Balance (AC 1, D1–D6)** — `config/balanceSchema.ts`: `bearTrapSchema = z.object({ plateRadiusM, holdS, snapDamage, wearPerCatch (int), rearmS }).strict()` with 4.8's whole-tick refines; `buildingTypeSchema.bearTrap` optional; `crossCheckBuildingTypes`: `bearTrap` exclusive with `turret/trap/mine/light/heal`, floor only (`solid: false`), no `upgradesTo`, `plateRadiusM ≤ half footprint`. `zombies.json › brute.trapHoldPct: 50` (`zombieTypeSchema.trapHoldPct` int 1–100, default 100). `buildings.json` appends `bear_trap`. Tests in `config/balance.test.ts`.
+- [x] **T2 Sim (AC 2–6, F1–F9)** — new `buildings/bearTrap.ts › updateBearTraps(world)` in `buildingSystem.ts` after `updateTraps` (before `updateMines`), waves only: per armed trap, the lowest-id alive zombie with centre in the plate → `snap` (damage via the spike trap's direct `hp -=` + `killZombie` credit path, `trapState = HOLDING`, `Building.heldZombie = id`, zombie `holdTicks = ticksFor(...)`, emit `bear_trap.snapped`). Per holding trap: release when the held zombie died/freed (check `generation`) or `holdTicks` hit 0 → `SPRUNG`, `damageBuilding(wearPerCatch)`. Per sprung trap: per-trap re-arm clock + player slot (any standing player whose body overlaps the plate circle; continuous). Build start (`resetBurnClocks` site): all traps `ARMED`, clocks 0, zombie `holdTicks` 0.
+  - [x] `Building` gets `trapState`, `heldZombie`, `heldGen`, `rearmTicks`, `rearmSlot` (0 for other types); `BuildingState.version` +1 on every trap-state change (renderers + `syncBuildings`); `wallVersion` never.
+  - [x] `zombies/zombiePool.ts`: `holdTicks: Uint16Array` (0 on spawn); `zombieAi.ts`: pass 1 a held zombie gets `vx = vy = 0` like the windup branch (but still runs attacks in pass 4); pass 2 skip; pass 3 `resolveOverlaps`: a held zombie is immovable (the other body takes the full push); pass 4 players/buildings push-out: unchanged (it's on floor). `holdTicks--` in pass 4.
+  - [x] Knockback: `combat/damage.ts › applyKnockback` (+ melee/explosion/Bloater push) skips `holdTicks > 0`.
+  - [x] Tests `buildings/bearTrap.test.ts`: snap at the plate edge (0.349 yes / 0.35 no), 5 damage + kill credit, held 3 s exactly = 60 ticks (and 30 for a Brute), no movement while held under a pushing crowd + shotgun knockback, still bites a player in reach, Spitter still spits, Bloater swells on touch, release → sprung + 25 wear, 4 catches → removed, one zombie per trap, lowest id on ties, two adjacent traps catch two, re-arm 1 s continuous (on/off resets), downed player can't, no re-arm while holding, build start re-arms, players never caught, build phase never catches, fire wears it, mine blast doesn't, `wallVersion` constant.
+- [x] **T3 Network (AC 17, F10)** — `RunState.ts buildingFields.trap: t.uint8()`, `syncState.ts › syncBuildings` (write on change), `stateView` `BuildingStateView.trap` + key lists, `net/mirrorBuildings.ts` (copy `trapState`), `snapshotWorld` (new fields), `net/netEvents.ts` next free kind `BEAR_TRAP_SNAPPED` (+ round trip), `eventInterest.ts` local. Tests: `syncState.test.ts`, `NetSimHost.buildings.test.ts`, bandwidth (`buildingBandwidth.test.ts` + 6 bear traps: B/s reported).
+- [x] **T4 Client (AC 17–20)** — `buildingArt.ts › drawBearTrap(c, closed)` (port B-T1), `buildingsAtlas.ts` two frames, `BuildingView` frame by `trapState`, plate ring in build phase + placement preview, local re-arm progress ring, `FxView` snap FX + `placeholderSfx` `building_bear_trap_snap`; readability sheet row.
+- [x] **T5 Fuzz, sims, perf, browser (brief 7, 9, 15, 16, 18)** — extend `buildings/floor.fuzz.test.ts` with bear traps (incl. in 1 m gaps and next to spike traps): no body in a wall, no stall, zombies reach players, nav only on wall changes; liveness ≥ 1 catch/release/re-arm/Brute catch/wear-out. `fiveWaveSim` test-local list with bear traps (waves ended). `tickCostDowntown` with 24 bear traps (PERF_ASSERT). `?stressbuild=bear` (12 traps) headless FPS before/after. Playwright solo: place, catch, closed look, re-arm by standing; screenshots into `docs/art/5-14/`.
+- [x] **T6 Mutations (brief 9)** — "catch by body overlap instead of centre", "hold counted on a shared clock", "held zombie pushed by crowd", "knockback moves a held zombie", "held zombie can't attack", "two zombies per trap", "players trigger", "re-arm while holding", "re-arm clock not reset on leaving", "Brute held full time", "no wear per catch", "wallVersion bumped", "build phase catches" — each must fail a listed test.
+- [x] **T7 Gates** — typecheck, lint, test, build on the branch merged with master (after 5.10 lands); Dev Agent Record; Notes for the merge.
 
 ## Dev Notes
 
-### Designer decisions to confirm (RECOMMENDED values; the build waits for these)
+### Designer decisions (confirmed 2026-11-23: designer "Okay with everything" — every recommended value D1–D12 accepted as written)
 
 | # | Question | Recommended | Alternatives |
 | --- | --- | --- | --- |
@@ -164,10 +168,120 @@ World (`Building.trapState/heldZombie/rearm*`, zombie `holdTicks`) → schema `B
 
 ### Agent Model Used
 
+Claude Code (builder session for Story 5.14, orchestrated by the main session).
+
 ### Debug Log References
+
+- Gate (typecheck, lint, test, build) on `story-5-14` (branched from `story-5-10` at c8d4cd1): **265 files passed (1 skipped), 2,205 tests passed (3 skipped)**, build green; load 2.07 → 4.26 during the run (other builders). An earlier gate run caught 4 list-expectation tests (shop list, build bar ×2, url options) that needed the new type / switch: fixed, then this one run green.
+- `[bear trap fuzz] 16 layouts: 56 waves started, 40 ended; 229 catches (34 Brutes), 224 releases, 109 stand-on re-arms, 39 worn out, 64 snap kills, 6722 held body-ticks` (~17 s).
+- `[tick cost 5.14] Downtown p99 0.824 ms (mean 0.578); + 24 bear traps p99 1.216 ms (mean 0.665); added p99 0.392 ms, mean 0.087 ms; 189 catches; load 0.55` (PERF_ASSERT=1, traps re-armed every tick: worst case).
+- `[bear trap bandwidth] 24 traps: 216 catches, 216 releases in 30 s; patches 100 → 179 B/s; per client added 101 / 106 / 101 / 106 B/s (estimate 300 B/s)`; schema: one snap = a 1-field `trap` patch < 12 B, 0 B per tick while holding.
+- `[wave sim 5.14] runWaves 6, list smg,bear_trap×3,wood_barricade,bear_trap: 54 buildings placed, 43 catches, 42 releases, 5 snap kills` (4/4 runs ended: 2p/4p seeds 1–2, all reached wave 6; no Brute walked into a bot's trap in these runs — the fuzz covers Brute catches).
+- Headless FPS (`?stress=150`, 844 × 390 DPR 2, SwiftShader, load 0.5 → 4): bare 10.4 / 11.0 avg (render 0.84 / 0.77 ms); `&stressbuild=bear` (24 bear traps) 9.6 / 10.0 / 10.2 avg (render 1.93 / 1.78 / 1.82 ms); 5.9's `&stressbuild=traps` (24 spike traps + mines) 10.0 avg (render 1.85 ms) in the same session: the same cost class as 5.9's floor buildings (static sprites + one ring Graphics).
 
 ### Completion Notes List
 
-- Story context created 2026-11-23 from the real code on `story-5-10`; designer decisions D1–D12 pending.
+- Story context created 2026-11-23 from the real code on `story-5-10`; designer accepted D1–D12 (recommended values) the same day.
+- **Balance (T1):** `bearTrapSchema {plateRadiusM, holdS, snapDamage (int), wearPerCatch (int), rearmS}` (whole ticks), `buildingTypeSchema.bearTrap`, `zombieTypeSchema.trapHoldPct` (int 1–100, default 100; Brute 50). Cross-checks: bearTrap excludes turret/trap/mine/light/heal, floor only, the plate fits in the footprint. `buildings.json` appends `bear_trap` (50, 1 × 1, 100 HP, `solid: false`, plate 0.35, hold 3 s, snap 5, 25 per catch, re-arm 1 s) after 5.10's med station.
+- **Sim (T2, `buildings/bearTrap.ts`):** `updateBearTraps` in the buildings slot after the spike traps (hold/release, stand-on re-arm, catch of bodies already on a plate) and `catchOnBearTraps` at the end of `updateZombies` (the 5.9 review L1 rule: a centre reaching the plate is caught that tick). Catch = lowest-id alive, not-held zombie whose centre is strictly within the plate; snap damage (a kill credits the owner + trap id; then sprung and worn at once); `zombies.holdTicks` = `ticksFor(holdS × trapHoldPct / 100)` counted down in pass 4 of `updateZombies` (exactly 60 movement ticks, a Brute 30; the hold starts at the catch, never on a shared pulse). Held: pass 1 zero velocity after `spitterStep` (a Spitter still spits), pass 3 treats it as immovable like a swelling Bloater (two pinned bodies: neither moves), pass 4 keeps it in contact with a player without moving it and skips the building push-out (it still bites / swings / swells), `knockbackShare` = 0 (no knockback, no hit pushback). Release when the hold is used up or the held zombie is dead / its slot reused (generation) → SPRUNG, `damageBuilding(25)` (removed at 0 with `building.destroyed`; `wallVersion` never moves). Re-arm: one standing ("alive") player's body overlapping the plate circle for 20 ticks without a break (another player starts their own count; a downed player or a team wipe never re-arms; never while holding); `resetBearTraps` (called from `resetBurnClocks`, the build-start hook) re-arms every trap and clears every hold. Every state change bumps `buildings.version`. No allocation per tick.
+- **Network (T3):** schema `BuildingState.trap` (uint8, on change), `BuildingStateView.trap` + `BUILDING_STATE_FIELDS` (devThrottle copies it), `syncBuildings` writes it on a version change, `mirrorBuildings` copies it (version +1 so renderers redraw; a late join / slept tab sees the right jaws, F10). Event `bear_trap.snapped {buildingId, x, y}` = net kind **39** (next free on this branch), local in `EventInterest`. `snapshotWorld`: `holdTicks` per zombie (building copies carry the new fields).
+- **Client (T4):** `drawBearTrap(g, w, h, closed)` ports B-T1 (jaws, 14 teeth, plate with rust and embossed rings, leaf springs, hinge rivets, chain to a stake); closed = both jaws stood up into one bar with meshed teeth. Two atlas frames `building_beartrap_open/closed`; `buildingFrame(type, trapState)` picks the closed one for HOLDING/SPRUNG (BuildingView), the build bar keeps the open one (AC 20). `MineView` draws the plate ring at the sim radius in every build phase, a yellow ring on sprung traps during waves, and my re-arm arc (cosmetic, from my drawn position; the trap shows armed only from state). `FxView` snap ring + `building_bear_trap_snap` sfx (rate-limited). No box shadow (round art: the first screenshots showed a dark square). Readability sheet #39/#40 + key.
+- **Dev switch:** `?stress=150&stressbuild=bear` lays 24 bear traps round the survivor (release-safe, Walkers made unkillable like the other stress builds).
+- **Tests:** `bearTrap.test.ts` (21: numbers, plate edge 0.349/0.35, catch on the walking tick, one per trap + lowest id, two adjacent traps, holding/sprung catch nothing, players and build phase never catch, snap kill credit + sprung + worn, exact hold walker/Bloater/Brute, hold independent of the world tick and of shots, never moved under crowd + overlap + player body + knockback + pushback, still bites, Spitter spits, Bloater swells, death releases, 4 catches wear out with wallVersion constant, re-arm 1 s continuous with a break, plate edge / downed player / build phase, no re-arm while holding, build start re-arms, fire wears it / mine and Bloater blasts don't, inactive outside build/wave); `bearTrap.fuzz.test.ts`; `bearTrapArt.test.ts` (5: footprint, open ring with 14 teeth vs closed bar, frames, the drawn plate radius catches like the sim, re-arm fill); `balance.test.ts` (bear trap block refusals); `syncState.test.ts` (trap patch on change only); `NetSimHost.buildings.test.ts` (mirror); `buildingBandwidth.test.ts`; `tickCostDowntown.test.ts`; `fiveWaveSim.test.ts` (6 waves); `tools/netsim/barricade.test.ts` (walking over two bear traps at 150 ms RTT ± 20: 0 snaps, 0 corrections); `netEvents.test.ts` round trip.
+- **Mutations (brief 9), each applied once and reverted by a script — all 21 caught:** M1 catch by body overlap instead of centre; M2 hold on a shared world-tick clock (survived at first: the catch landed on tick 0 → new test catching at ticks 7 and 13); M3 held zombie pushed by the crowd; M4 knockback moves a held zombie; M5 held zombie can't attack (bite + spit tests); M6 a holding trap catches again; M7 build phase catches; M8 re-arm while holding; M9 re-arm clock never resets (the first version of this mutation was equivalent: replaced); M10 Brute held the full time; M11 no wear per catch; M12 trap state bumps wallVersion; M13 build start doesn't re-arm; M14 snap kill leaves the trap holding; M15 client ignores the closed frame; M16 mirror ignores the jaws; M17 server sync ignores a jaw change; M18 snap does no damage; M19 a downed player re-arms (survived at first: a lone downed player wipes the team, which stops re-arms anyway → test adds a standing teammate); fuzz-only F1 held zombie pushed by the crowd, F2 a holding trap catches again.
+- **Beat the rule (builder's own attempts, story table B1–B14):** B1 a row of traps in a choke: each holds 3 s then is sprung; the fuzz's bot p0 walks into the choke to re-arm (109 re-arms, 0 bodies in walls, 0 stalls). B2 re-arm next to a held zombie: refused while holding (test). B3 on/off the plate: the count restarts (test, M9). B4 two zombies at once: lowest id caught, the other walks on (test). B5 knockback a held zombie out: it stays (test, M4). B6 Brute held 1.5 s, still swings (fuzz: 34 Brute catches; hold bound checked every tick). B7 held Bloater touching a player swells (test). B8 spawn clearance: normal placement rules (`placementError`, unchanged). B9 players never caught / hurt (test; netsim 0 corrections). B10 held wide Brute in a gap: no stall in 16 layouts. B11 slept tab / late join: closed/open from schema (mirror test); `?lag` browser run not done (see Not verified). B12 repair restores HP only (repair code unchanged; a sprung trap stays sprung). B13 held zombie dies: sprung + worn at once (test). B14 placement on a spike trap: `footprintBlocked` (unchanged).
+- **Decision corrections found while building (main session: please tell the designer):** (1) D12 said "fire and Bloater blasts wear it (as the spike trap)": in the real code Bloater blasts only damage WALL buildings, so spike traps are not worn by them either. Kept "as the spike trap": **fire wears a bear trap; mine and Bloater blasts don't** (tested). (2) AC 3 said players "can't walk through" a held zombie: players are never blocked by zombie bodies in this game (zombies yield to players); a held zombie simply doesn't yield, so bodies overlap while it keeps biting. (3) Event kind 39 may clash with 5.12/5.13 at merge: renumber the later one.
+- **Pre-existing test weakness spotted (not changed):** `buildings/floor.fuzz.test.ts` (5.9) passes ONE input object to every bot's `setInput`, so all bots get the last bot's aim; its nav check also flags the legitimate one-tick catch-up after a wall breaks late in a tick (it passes today by luck of its seeds). The new bear-trap fuzz uses one input per bot and the corrected nav check.
+
+### Not verified
+
+- No phone FPS (headless SwiftShader only; numbers above, same cost class as 5.9's floor buildings). The stress scene pauses waves, so the FPS run measured 24 static traps, not snapping ones (the tick-cost test covers the snapping sim).
+- No online browser run under `?lag=150&jitter=20` (the dev proxy targets port 2567, shared with other builders); covered by the netsim walk-over test, the mirror test and the schema test. Hidden tab across a build start and a late Game-scene start: not exercised in a browser (state-driven by design).
+- The closed look (D11) is the builder's drawing: designer review pending (`docs/art/5-14/5-14-bear-trap-open-closed.png`). Bots don't buy bear traps (`bots.json` untouched).
+
+### Notes for the merge
+
+| Shared file | What 5.14 changes | Merge hint |
+| --- | --- | --- |
+| `config/balance/buildings.json` | appends `bear_trap` after `med_station` | type index is on the wire: keep balance order = merge order |
+| `config/balance/zombies.json`, `balanceSchema.ts` | `brute.trapHoldPct`; `bearTrapSchema`, `buildingTypeSchema.bearTrap`, `zombieTypeSchema.trapHoldPct`, `BearTrapStats` | 5.7 fields nearby |
+| `config/balance.ts` | `buildingKind` + exclusivity include `bearTrap`; plate-fits check | 5.10 touched the same function |
+| `buildings/buildings.ts` | `Building.trapState/heldZombie/heldGen/rearmTicks/rearmPlayer`, `BEAR_TRAP_STATE`, `BuildingSpec.trapState?` | BX stories (5.20/5.22/5.24) touch placement next |
+| `buildings/buildingSystem.ts` | `updateBearTraps` after `updateTraps` | keep order |
+| `zombies/zombieAi.ts`, `zombiePool.ts`, `combat/damage.ts` | held branch (pass 1/3/4), `catchOnBearTraps` at the end, `holdTicks`, `knockbackShare` 0 while held | 5.2–5.8 code nearby |
+| `decay/fire.ts` | `resetBurnClocks` calls `resetBearTraps` | |
+| `core/simEvents.ts`, `net/netEvents.ts` | `bear_trap.snapped`, kind **39** | renumber the later-merged story if taken (never reuse) |
+| `net/stateView.ts`, server `RunState.ts`, `syncState.ts`, `eventInterest.ts` | `trap` field; local snap event | any story adding building fields |
+| `core/worldSnapshot.ts`, `index.ts` | `holdTicks`; exports | union |
+| client `mirrorBuildings.ts`, `BuildingView.ts`, `MineView.ts`, `mineLook.ts`, `buildingArt.ts`, `buildingsAtlas.ts`, `FxView.ts`, `placeholderSfx.ts`, `GameScene.ts`, `urlOptions.ts`, `stressScenario.ts` | closed frame by state, plate/sprung/re-arm rings, snap FX/sfx, `?stressbuild=bear` | 5.16 icons follow-up (bear trap I1 icon later) |
+| tests touched for the new type/field: `shop.test.ts`, `buildBar.test.ts`, `buildings.test.ts`, `balance.test.ts` (5.10's append check now expects `bear_trap` last), client fake-building fixtures, `tools/netsim/brute.test.ts` | | |
 
 ### File List
+
+- _bmad-output/implementation-artifacts/5-14-bear-trap.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- apps/client/src/audio/placeholderSfx.ts
+- apps/client/src/debug/stressScenario.ts
+- apps/client/src/debug/urlOptions.test.ts
+- apps/client/src/debug/urlOptions.ts
+- apps/client/src/net/mirrorBuildings.ts
+- apps/client/src/net/prediction.test.ts
+- apps/client/src/render/BuildingView.ts
+- apps/client/src/render/FxView.ts
+- apps/client/src/render/MineView.ts
+- apps/client/src/render/city/bearTrapArt.test.ts
+- apps/client/src/render/city/buildingArt.ts
+- apps/client/src/render/city/buildingsAtlas.ts
+- apps/client/src/render/mineLook.ts
+- apps/client/src/scenes/GameScene.ts
+- apps/client/src/scenes/buildBar.test.ts
+- apps/client/src/sim/NetSimHost.buildings.test.ts
+- apps/client/src/sim/NetSimHost.lights.test.ts
+- apps/client/src/sim/NetSimHost.repair.test.ts
+- apps/client/src/sim/NetSimHost.turret.test.ts
+- apps/server/src/net/eventInterest.ts
+- apps/server/src/rooms/schema/RunState.ts
+- apps/server/src/rooms/schema/syncState.test.ts
+- apps/server/src/rooms/schema/syncState.ts
+- apps/server/src/run/buildingBandwidth.test.ts
+- apps/server/src/run/tickCostDowntown.test.ts
+- docs/art/5-14/5-14-bear-trap-open-closed.png
+- docs/art/5-14/5-14-build-phase.png
+- docs/art/5-14/5-14-caught.png
+- docs/art/5-14/5-14-rearm.png
+- docs/art/5-14/README.md
+- docs/epic-5-decisions.md
+- docs/playtests/milestone-1/objects/40_bear_trap_open.png
+- docs/playtests/milestone-1/objects/41_bear_trap_closed.png
+- docs/playtests/milestone-1/readability-key.md
+- docs/playtests/milestone-1/readability-sheet.md
+- packages/shared/src/buildings/bearTrap.fuzz.test.ts
+- packages/shared/src/buildings/bearTrap.test.ts
+- packages/shared/src/buildings/bearTrap.ts
+- packages/shared/src/buildings/buildingSystem.ts
+- packages/shared/src/buildings/buildings.test.ts
+- packages/shared/src/buildings/buildings.ts
+- packages/shared/src/combat/damage.ts
+- packages/shared/src/config/balance.test.ts
+- packages/shared/src/config/balance.ts
+- packages/shared/src/config/balance/buildings.json
+- packages/shared/src/config/balance/zombies.json
+- packages/shared/src/config/balanceSchema.ts
+- packages/shared/src/core/simEvents.ts
+- packages/shared/src/core/worldSnapshot.ts
+- packages/shared/src/decay/fire.ts
+- packages/shared/src/economy/fiveWaveSim.test.ts
+- packages/shared/src/economy/shop.test.ts
+- packages/shared/src/index.ts
+- packages/shared/src/net/netEvents.test.ts
+- packages/shared/src/net/netEvents.ts
+- packages/shared/src/net/stateView.ts
+- packages/shared/src/zombies/zombieAi.ts
+- packages/shared/src/zombies/zombiePool.ts
+- tools/netsim/barricade.test.ts
+- tools/netsim/brute.test.ts
+
+### Change Log
+
+- 2026-11-23: Story file created; designer accepted D1–D12 as recommended.
+- 2026-11-23: Story 5.14 built (bear trap: balance, shared sim, schema `trap` field + snap event, B-T1 art open/closed, plate/re-arm rings, snap FX/sfx, `?stressbuild=bear`, tests incl. fuzz, bandwidth, tick cost, 6-wave sim, netsim, 21 mutations, screenshots, readability rows). Status → review.

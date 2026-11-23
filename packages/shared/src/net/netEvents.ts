@@ -59,6 +59,7 @@ export const NET_EVENT_KIND = {
   EXPLOSION_HAPPENED: 36,
   FLAME_STARTED: 37, // Story 5.4 (27–32 taken, 33/34 = 5.8 Bloaters, 35/36 = 5.5 Grenade Launcher; never reuse)
   FLAME_STOPPED: 38, // Story 5.4
+  BEAR_TRAP_SNAPPED: 39, // Story 5.14 (next free number when built; renumber at merge if taken, never reuse)
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -213,6 +214,9 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "mine.exploded":
       // Story 5.9: the blast FX (the removal comes from schema; hits and kills are their own events).
       return [K.MINE_EXPLODED, e.buildingId, cm(e.x), cm(e.y)];
+    case "bear_trap.snapped":
+      // Story 5.14: the clang + snap FX (closed/open and the held zombie come from schema state).
+      return [K.BEAR_TRAP_SNAPPED, e.buildingId, cm(e.x), cm(e.y)];
     case "spitter.spat":
       // Story 5.6: the glob's flight (cosmetic on the client; damage is server truth).
       return [K.SPITTER_SPAT, zid(ctx, e.zombieId), e.spitId, cm(e.x), cm(e.y), cm(e.toX), cm(e.toY)];
@@ -398,6 +402,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.MINE_EXPLODED:
       return { type: "mine.exploded", buildingId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
+    case K.BEAR_TRAP_SNAPPED:
+      return { type: "bear_trap.snapped", buildingId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
     case K.SPITTER_SPAT:
       return { type: "spitter.spat", zombieId: zombieSlotOfNetId(n(t, 1)), spitId: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, toX: n(t, 5) / 100, toY: n(t, 6) / 100 };
     case K.ACID_SPLASHED:

@@ -141,3 +141,7 @@ Page: claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3 (code drawings in `docs/art/5-16
 - Auto-turret: **T1 sentry gun** (base) and **T2 armoured dome** kept (by the two-pick rule: T2 for a later turret upgrade tier or skin).
 - Mine: **M1 pressure mine** (thick olive disc, raised plate, red light).
 - Later buildings (med station, floodlight, bear trap) get an I1-style icon when built; until then the tile falls back to the world art.
+
+## Bear trap (5.14) (designer, 2026-11-23: "Okay with everything")
+
+All recommended values in `_bmad-output/implementation-artifacts/5-14-bear-trap.md` › Designer decisions accepted: 1 × 1 m floor trap, plate = zombie centre within 0.35 m; snap 5 damage, holds 3 s (a Brute 1.5 s, trap wears normally; Bloater full 3 s); a held zombie can't move or be pushed but still bites/spits/swells in reach; one zombie per catch; never catches players or in a build phase; afterwards it is closed and harmless until any player stands on it 1 s (free, any phase), and every trap re-arms at build start; $50, 100 HP, 25 HP per catch (4 catches), repairable; fire and Bloater blasts wear it, mines don't; closed look = B-T1 with jaws shut, drawn in code, designer reviews the screenshot.

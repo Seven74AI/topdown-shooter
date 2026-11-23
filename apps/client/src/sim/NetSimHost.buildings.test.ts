@@ -8,7 +8,7 @@ import { LOCAL_PLAYER_ID, LocalSimHost } from "./LocalSimHost";
 
 /** Story 3.4: buildings in the mirror and the predictor; placement requests and refusals. */
 const balance = loadBalance();
-const wood = (over: Partial<FakeBuilding> = {}): FakeBuilding => ({ type: "wood_barricade", owner: "p0", gx: 10, gy: 8, rot: 0, hp: 200, ...over });
+const wood = (over: Partial<FakeBuilding> = {}): FakeBuilding => ({ type: "wood_barricade", owner: "p0", gx: 10, gy: 8, rot: 0, hp: 200, trap: 0, ...over });
 
 function setup() {
   const room = new FakeRoom(fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 10, y: 12, ackSeq: 0 })]));
@@ -37,6 +37,23 @@ describe("NetSimHost buildings (Story 3.4)", () => {
     room.state.buildings.delete("3");
     host.update(1 / 60);
     expect(host.world.buildings.list.map((b) => [b.id, b.hp])).toEqual([[7, 150]]);
+  });
+
+  it("Story 5.14: a bear trap's jaws follow the state (open/closed from schema, version +1 for the renderers)", () => {
+    const { room, host } = setup();
+    room.state.buildings.set("5", { type: "bear_trap", owner: "p0", gx: 20, gy: 20, rot: 0, hp: 100, trap: 2 });
+    room.patch();
+    host.update(1 / 60);
+    const b = host.world.buildings.list.find((x) => x.id === 5);
+    expect(b?.trapState).toBe(2); // a late join / slept tab sees the sprung trap (F10)
+    const v = host.world.buildings.version;
+    const s = room.state.buildings.get("5");
+    if (s) s.trap = 0;
+    host.update(1 / 60);
+    expect(b?.trapState).toBe(0);
+    expect(host.world.buildings.version).toBe(v + 1);
+    host.update(1 / 60);
+    expect(host.world.buildings.version).toBe(v + 1); // no churn
   });
 
   it("the predictor gets the buildings of each snapshot before it replays (my survivor stops at them)", () => {

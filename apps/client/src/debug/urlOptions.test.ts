@@ -9,7 +9,7 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false, stressLights: false, lowFx: false, shopAll: false });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false, stressLights: false, stressBear: false, lowFx: false, shopAll: false });
     expect(parseUrlOptions("?fx=low").lowFx).toBe(true); // Story 4.12
     expect(parseUrlOptions("?fx=high").lowFx).toBe(false);
     expect(parseUrlOptions("?stress=150&stressbuild=traps").stressBuild).toBe(true); // Story 5.9
@@ -120,5 +120,6 @@ describe("parseUrlOptions: Story 3.9 wave mix", () => {
     expect(parseUrlOptions("?shopall=1", false).shopAll).toBe(false); // review L3: a release build ignores it
     expect(parseUrlOptions("?stress=150&stressbuild=lights")).toMatchObject({ stressLights: true, stressBuild: false });
     expect(parseUrlOptions("?stress=150&stressbuild=traps")).toMatchObject({ stressLights: false, stressBuild: true });
+    expect(parseUrlOptions("?stress=150&stressbuild=bear")).toMatchObject({ stressBear: true, stressBuild: false, stressLights: false }); // Story 5.14
   });
 });

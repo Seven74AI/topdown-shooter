@@ -1,7 +1,7 @@
 import type * as Phaser from "phaser";
 import { frameName, packAtlas, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { addGeneratedTexture } from "./canvasTexture";
-import { drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "./buildingArt";
+import { drawBearTrap, drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "./buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "./objectArt";
 import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "./propArt";
 
@@ -26,6 +26,9 @@ export const FRAME_FLOODLIGHT = frameName("prop", "floodlight", "a");
 export const FRAME_FLOODLIGHT_B = frameName("prop", "floodlight", "b");
 /** Story 5.10: the med station (designer's pick MS10: `propArt.ts › drawMedStation`). */
 export const FRAME_MED_STATION = frameName("prop", "medstation", "a");
+/** Story 5.14: the bear trap (designer's pick B-T1), open (armed) and closed (holding or sprung). */
+export const FRAME_BEAR_TRAP_OPEN = frameName("building", "beartrap", "open");
+export const FRAME_BEAR_TRAP_CLOSED = frameName("building", "beartrap", "closed");
 
 interface ArtSpec {
   readonly frame: string;
@@ -46,6 +49,8 @@ const ART: readonly ArtSpec[] = [
   { frame: FRAME_FLOODLIGHT, wM: 1, hM: 1, draw: drawFloodlightFL1, inFrame: drawPropInFrame },
   { frame: FRAME_FLOODLIGHT_B, wM: 1, hM: 1, draw: drawFloodlightFL5, inFrame: drawPropInFrame },
   { frame: FRAME_MED_STATION, wM: 1, hM: 1, draw: drawMedStation, inFrame: drawPropInFrame },
+  { frame: FRAME_BEAR_TRAP_OPEN, wM: 1, hM: 1, draw: (g, w, h) => drawBearTrap(g, w, h, false) },
+  { frame: FRAME_BEAR_TRAP_CLOSED, wM: 1, hM: 1, draw: (g, w, h) => drawBearTrap(g, w, h, true) },
 ];
 
 /** The atlas's frame specs (pure: tests check names and the ≤ 2048 rule). */
@@ -66,8 +71,15 @@ const FRAMES: Readonly<Record<string, BuildingFrame>> = {
   mine: { texture: ATLAS_BUILDINGS, frame: FRAME_MINE },
   floodlight: { texture: ATLAS_BUILDINGS, frame: FRAME_FLOODLIGHT },
   med_station: { texture: ATLAS_BUILDINGS, frame: FRAME_MED_STATION },
+  bear_trap: { texture: ATLAS_BUILDINGS, frame: FRAME_BEAR_TRAP_OPEN },
 };
-export function buildingFrame(type: string): BuildingFrame | null {
+const BEAR_TRAP_CLOSED: BuildingFrame = { texture: ATLAS_BUILDINGS, frame: FRAME_BEAR_TRAP_CLOSED };
+/**
+ * Story 5.14: `trapState` (the synced `trap`, 0 = armed) picks a bear trap's closed frame when it is
+ * holding or sprung; every other type (and the build bar's icon, no state) gets its one frame.
+ */
+export function buildingFrame(type: string, trapState = 0): BuildingFrame | null {
+  if (type === "bear_trap" && trapState !== 0) return BEAR_TRAP_CLOSED;
   return Object.prototype.hasOwnProperty.call(FRAMES, type) ? (FRAMES[type] as BuildingFrame) : null;
 }
 

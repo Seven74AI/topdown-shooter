@@ -153,7 +153,7 @@ export class BuildingView {
       const w = b.maxX - b.minX;
       const h = b.maxY - b.minY;
       const frac = barFraction(b);
-      const art = buildingFrame(b.type);
+      const art = buildingFrame(b.type, b.trapState); // Story 5.14: a bear trap's closed frame (state changes bump version)
       if (art && used < this.sprites.length) {
         // Story 4.11: the B6 palisade, turned with the placement; damage = darker tint + cracks.
         // Story 5.9: every tier, the spike trap and the mine the same way (floor below the walls, no cracks).

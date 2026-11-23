@@ -39,6 +39,7 @@ describe("buildBarItems (Story 5.16 AC 2)", () => {
       ["spike_trap", "Spike trap", 80, false, 2, 2],
       ["mine", "Mine", 60, false, 0.5, 0.5],
       ["med_station", "Med station", 400, false, 1, 1],
+      ["bear_trap", "Bear trap", 50, false, 1, 1], // Story 5.14: appears without UI work (AC 20: world-art tile)
     ]);
   });
 
@@ -54,7 +55,7 @@ describe("buildBarItems (Story 5.16 AC 2)", () => {
   it("Story 5.10 review M2: with the dev shop-all balance (?shopall / DEV_SHOP_ALL) the hidden floodlight is a tile (between mine and med station, balance order)", () => {
     const devBal = loadDevBalance({ zombieDamageScale: null, shopAll: true });
     const all = buildBarItems(devBal);
-    expect(all.map((t) => t.id)).toEqual(["wood_barricade", "auto_turret", "spike_trap", "mine", "floodlight", "med_station"]);
+    expect(all.map((t) => t.id)).toEqual(["wood_barricade", "auto_turret", "spike_trap", "mine", "floodlight", "med_station", "bear_trap"]);
     expect(all.find((t) => t.id === "floodlight")).toMatchObject({ name: "Floodlight", price: 100, turret: false, widthM: 1, depthM: 1 });
     expect(buildBarItems(devBal)).toBe(all);
     expect(buildBarItems(balance).map((t) => t.id)).not.toContain("floodlight");

@@ -7,7 +7,7 @@ import { LOCAL_PLAYER_ID, LocalSimHost } from "./LocalSimHost";
 
 /** Story 3.7: online a repair only asks (the state brings HP and wallet); solo applies it at once. */
 const balance = loadBalance();
-const wood = (over: Partial<FakeBuilding> = {}): FakeBuilding => ({ type: "wood_barricade", owner: "p0", gx: 10, gy: 8, rot: 0, hp: 200, ...over });
+const wood = (over: Partial<FakeBuilding> = {}): FakeBuilding => ({ type: "wood_barricade", owner: "p0", gx: 10, gy: 8, rot: 0, hp: 200, trap: 0, ...over });
 
 function setup() {
   const room = new FakeRoom(fakeState([fakePlayer(0, { x: 10, y: 10 }), fakePlayer(1, { x: 10, y: 12, wallet: 100 })]));

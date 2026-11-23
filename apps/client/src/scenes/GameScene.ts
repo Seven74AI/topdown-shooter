@@ -101,7 +101,7 @@ import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
-import { placeStressFloor, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { STRESS_FLOOR_BUILDINGS, placeStressFloor, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
@@ -247,6 +247,8 @@ export class GameScene extends Phaser.Scene {
   private buildingView: BuildingView | null = null;
   /** Story 5.9: mine rings (build phase) and blinking lights (waves). */
   private mineView: MineView | null = null;
+  /** Story 5.14: one reused record for the re-arm ring (no allocation per frame). */
+  private readonly mineRearmMe = { x: 0, y: 0, radiusM: 0, alive: false };
   /**
    * Story 4.9: the Dead City look (static city baked per stage, light, rain, vignette). Its stage
    * entry point is `showStage`; it also redraws by itself when the obstacles change stage/version.
@@ -473,13 +475,14 @@ export class GameScene extends Phaser.Scene {
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
       if (opts.stressBuild) placeStressFloor(world, localId, cx, cy); // Story 5.9: before the Walkers
       if (opts.stressLights) placeStressLights(world, localId, cx, cy); // Story 5.10: 8 floodlights + 4 med stations
+      if (opts.stressBear) placeStressFloor(world, localId, cx, cy, STRESS_FLOOR_BUILDINGS, ["bear_trap"]); // Story 5.14
       setupStressWorld(world, stress, view, cx, cy, parseWaveMix(opts.waveMix, balance)); // Story 5.6: ?wavemix=walker,spitter
       // Story 5.2: a melee ?stressfire benchmark (?loadout=chainsaw) keeps its crowd: the zombies can't die.
       // Story 5.4: so does a flame one (?loadout=flamethrower): the whole crowd keeps burning (the worst case).
       const firstKind = urlLoadout !== null ? balance.weapons[urlLoadout.weapons[0]]?.kind : undefined;
       // Story 5.5: a launcher benchmark keeps its crowd too (explosions keep coming on screen).
       const meleeFire = this.stressFire && (firstKind === "melee" || firstKind === "flame" || firstKind === "launcher");
-      if (opts.stressBuild || opts.stressLights || meleeFire) toughenStressZombies(world);
+      if (opts.stressBuild || opts.stressLights || opts.stressBear || meleeFire) toughenStressZombies(world);
       stressRun.start(performance.now(), stress);
     }
 
@@ -1190,7 +1193,16 @@ export class GameScene extends Phaser.Scene {
     this.downedView?.update(host.world, this.time.now);
     this.ambience?.update(host.world.decay.stage);
     this.buildingView?.update(host.world, this.placement);
-    this.mineView?.update(host.world, this.time.now);
+    // Story 5.14: my survivor as drawn (predicted online) fills the re-arm ring on a sprung bear trap.
+    const meNow = host.world.players.get(localId);
+    const meView = this.playerViews.get(localId);
+    if (meNow) {
+      this.mineRearmMe.x = meView?.x ?? meNow.x;
+      this.mineRearmMe.y = meView?.y ?? meNow.y;
+      this.mineRearmMe.radiusM = meNow.radiusM;
+      this.mineRearmMe.alive = meNow.status === "alive";
+    }
+    this.mineView?.update(host.world, this.time.now, meNow ? this.mineRearmMe : undefined, this.localHost?.paused === true ? 0 : deltaMs);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.medStationView?.update(host.world, this.cameras.main.zoom); // Story 5.10
     this.selectView?.update(host.world, this.repairPanel.id);

@@ -315,7 +315,7 @@ describe("Predictor", () => {
     });
 
     it("against a barricade: the replay stops at it like the server, 0 corrections after the reveal", () => {
-      const view: BuildingStateView = { type: "wood_barricade", owner: "p0", gx: 42, gy: 30, rot: 1, hp: 200 }; // x [21, 21.5], y [15, 17]
+      const view: BuildingStateView = { type: "wood_barricade", owner: "p0", gx: 42, gy: 30, rot: 1, hp: 200, trap: 0 }; // x [21, 21.5], y [15, 17]
       const r = knockCase(
         PLACEHOLDER_MAP,
         20,

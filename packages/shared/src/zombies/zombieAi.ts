@@ -17,6 +17,7 @@ import { meleeLineClear } from "../combat/cover";
 import { segmentHitsFire } from "../decay/fire";
 import { collectStanding, spitterStep } from "./spit";
 import { updateMines } from "../buildings/mine";
+import { catchOnBearTraps } from "../buildings/bearTrap";
 import { BLOATER_SWELL_WEAPON, burstBurntSwells, startSwell, tickSwell } from "./bloater";
 import { killZombie } from "./zombiePool";
 
@@ -192,6 +193,12 @@ export const updateZombies: SystemFn = (world, dtS) => {
       continue;
     }
     const holds = stats.spit !== undefined && spitterStep(world, id, stats.radiusM, stats.spit);
+    // Story 5.14 (AC 3): held in a bear trap's jaws: no walking, no soft push (a Spitter still spits: above).
+    if ((pool.holdTicks[id] as number) > 0) {
+      pool.vx[id] = 0;
+      pool.vy[id] = 0;
+      continue;
+    }
     const target = holds ? null : nearestAlivePlayer(x, y);
     if (target) {
       let dx = target.x - x;
@@ -307,13 +314,19 @@ export const updateZombies: SystemFn = (world, dtS) => {
     const swelling = ex !== undefined && pool.state[id] === ZOMBIE_STATE.SWELL;
     if (swelling && tickSwell(world, id)) swellDone[swellDoneCount++] = id;
 
+    // Story 5.14 (AC 3): a held zombie isn't moved by a player body or a push-out; its hold burns
+    // one tick per movement tick (it still attacks below).
+    const held = (pool.holdTicks[id] as number) > 0;
+    if (held) pool.holdTicks[id] = (pool.holdTicks[id] as number) - 1;
     const target = nearestAlivePlayer(x, y);
     if (target) {
       const contact = rz + target.radiusM;
       let dx = x - target.x;
       let dy = y - target.y;
       let d = Math.sqrt(dx * dx + dy * dy);
-      if (d < contact) {
+      if (d < contact && held) {
+        d = contact; // in contact for the attack, but the jaws keep it where it is
+      } else if (d < contact) {
         if (d < COINCIDENT_M) {
           dx = 1;
           dy = 0;
@@ -343,7 +356,9 @@ export const updateZombies: SystemFn = (world, dtS) => {
       }
     }
     let pushStuck = false;
-    if (hasBuildings) {
+    if (held) {
+      // Story 5.14: pinned where it was caught (a legal spot: floor; nothing solid is placed mid-wave).
+    } else if (hasBuildings) {
       // Story 3.4: buildings (and the map edge) have the last word: they slide along, never pass a
       // slot narrower than their body, and a zombie shoved into a box by a player leaves on the side
       // it came from (its position at the start of the tick, outside every box; review H1, M1).
@@ -390,6 +405,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
   // positions, so a zombie that walks into a trigger circle sets the mine off this tick (the
   // buildings-slot pass before combat catches bodies that were already there: never twice).
   updateMines(world);
+  catchOnBearTraps(world); // Story 5.14: the same rule for bear-trap plates (catch on the new positions)
 };
 
 /** Story 5.7: a zombie of a windup type touches a standing player with its attack ready: it winds up (state + its own clock). */
@@ -532,9 +548,13 @@ function resolveOverlaps(world: World): void {
       let hi = overlap / 2;
       let hj = hi;
       // Story 5.8 (FR-A): a swelling Bloater is not pushed by the crowd: the other body moves it all.
-      const fi = pool.state[id] === ZOMBIE_STATE.SWELL;
-      const fj = pool.state[j] === ZOMBIE_STATE.SWELL;
-      if (fi !== fj) {
+      // Story 5.14 (AC 3): nor is a zombie held in a bear trap (two pinned bodies: neither moves).
+      const fi = pool.state[id] === ZOMBIE_STATE.SWELL || (pool.holdTicks[id] as number) > 0;
+      const fj = pool.state[j] === ZOMBIE_STATE.SWELL || (pool.holdTicks[j] as number) > 0;
+      if (fi && fj) {
+        hi = 0;
+        hj = 0;
+      } else if (fi !== fj) {
         hi = fi ? 0 : overlap;
         hj = overlap - hi;
       } else if (ri !== rj) {

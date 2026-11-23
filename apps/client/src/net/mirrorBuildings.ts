@@ -27,8 +27,14 @@ const visit = (s: BuildingStateView, key: string): void => {
   }
   if (!b) {
     const rot = (s.rot & 3) as BuildingRotation;
-    addBuildingAt(world, { id, type: s.type, ownerId: s.owner, gx: s.gx, gy: s.gy, rot, hp: s.hp });
+    addBuildingAt(world, { id, type: s.type, ownerId: s.owner, gx: s.gx, gy: s.gy, rot, hp: s.hp, trapState: s.trap ?? 0 });
     return;
+  }
+  // Story 5.14: a bear trap's jaws (server truth; `version` +1 so the renderers redraw open/closed).
+  const trap = s.trap ?? 0;
+  if (b.trapState !== trap) {
+    b.trapState = trap;
+    world.buildings.version++;
   }
   // Story 5.9: an upgrade changes the type in place (same id and footprint: collision is unchanged).
   if (b.type !== s.type) setBuildingType(world, b, s.type, s.hp);
