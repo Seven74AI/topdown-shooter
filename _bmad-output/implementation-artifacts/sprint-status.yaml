@@ -125,6 +125,7 @@ development_status:
   5-11-gear: ready-for-dev
   5-12-consumables: ready-for-dev
   5-13-roguelike-card-shop: ready-for-dev
+  5-14-bear-trap: backlog  # designer 2026-11-23: second trap type; after round A (needs 5.9's non-solid buildings)
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless
