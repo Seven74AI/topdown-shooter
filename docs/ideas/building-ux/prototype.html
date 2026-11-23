@@ -68,10 +68,8 @@ canvas#c { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dv
       <label for="o-lag">Server lag <select id="o-lag"><option value="0">0 ms</option><option value="150">150 ms (?lag=150)</option><option value="300">300 ms</option></select></label>
       <label for="o-gap">Carry gap <select id="o-gap"><option value="0.5">0.5 m</option><option value="1">1.0 m</option><option value="1.5">1.5 m</option></select></label>
       <label for="o-gain">Drag gain <select id="o-gain"><option value="0.75">0.75</option><option value="1">1.0</option><option value="1.5">1.5</option></select></label>
-      <label for="o-lead">Camera lead <select id="o-lead"><option value="0">Off</option><option value="1">On (35 %, max 3 m)</option></select></label>
       <label for="o-bo">Teammate Bo <select id="o-bo"><option value="1">On (builds too)</option><option value="0">Off</option></select></label>
       <label for="o-timer">Build timer <select id="o-timer"><option value="1">30 s, then a wave</option><option value="0">Paused</option></select></label>
-      <label for="o-prox">Walk-up select <select id="o-prox"><option value="0">Off</option><option value="1">On (damaged, 0.8 m)</option></select></label>
       <div class="metrics" id="metrics"></div>
     </div>
     <div class="row">
@@ -87,7 +85,7 @@ canvas#c { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dv
 'use strict';
 /* ---------- constants (metres unless noted; HUD sizes in CSS px) ---------- */
 const MAP_W = 48, MAP_H = 32, GRID = 0.5, BODY_R = 0.4, SPEED = 4.5, SPAWN_CLEAR = 2, CAP = 6;
-const TAP_MS = 300, TAP_PX = 12, HOLD_MS = 450, DRAG_PX = 8, UNDO_MS = 5000, PENDING_TIMEOUT_MS = 2000;
+const TAP_MS = 300, TAP_PX = 12, HOLD_MS = 450, DRAG_PX = 8, UNDO_MS = 10000, PENDING_TIMEOUT_MS = 2000;
 const STICK_R = 56;
 const TYPES = {
   wood_barricade: { name: 'Wood barricade', short: 'Barricade', price: 40, w: 2, d: 0.5, hp: 200, solid: true, up: 'reinforced_barricade', upPrice: 50 },
@@ -142,6 +140,8 @@ try {
   if (q.get('scale')) S.scale = q.get('scale');
 } catch (e) { /* no query string inside the viewer */ }
 try { const saved = JSON.parse(localStorage.getItem('bpl-settings') || 'null'); if (saved) Object.assign(S, saved); } catch (e) { /* storage blocked */ }
+// Designer 2026-11-23: no camera lead, no walk-up select (a building's menu opens by tapping it).
+S.lead = false; S.prox = false;
 function saveSettings() { try { localStorage.setItem('bpl-settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
 
 /* ---------- geometry ---------- */
@@ -595,6 +595,8 @@ cv.addEventListener('pointerdown', (e) => {
   const x = e.clientX, y = e.clientY;
   const p = { id: e.pointerId, x0: x, y0: y, x, y, lx: x, ly: y, t0: now(), moved: false, kind: 'none', hold: 0, dragging: false };
   const btn = hitButton(x, y);
+  // Designer: menus open only by tapping a building, so a building under Ready wins over Ready.
+  if (btn && btn.id === 'ready' && !hand && phase === 'build' && S.mode !== 'today') { const w = s2w(x, y); const b = buildingAt(w.x, w.y, 0.4); if (b) { selId = b.id; click(); p.kind = 'button'; ptrs.set(e.pointerId, p); return; } }
   if (btn) { p.kind = 'button'; ptrs.set(e.pointerId, p); btn.fn(); return; }
   if (shopOpen) { shopOpen = false; ptrs.set(e.pointerId, p); return; }
   if (S.mode === 'today' && hand) { p.kind = 'todayGhost'; todayAnchor(x, y); ptrs.set(e.pointerId, p); return; }
@@ -1059,7 +1061,7 @@ function drawNewHUD(L, R, T, B) {
     label(`${myCount()}/${CAP}`, R - 16, gy0 - 12, 15, myCount() >= CAP ? '#ff8a80' : '#fff', 600, 'right');
     label('Build', gx0, gy0 - 12, 15, '#fff', 600, 'left');
   }
-  // undo chip (5 s), left of Rotate
+  // undo chip (10 s), left of Rotate
   if (undo && !sel) {
     const uc = { x: hand ? R - 270 : R - 300, y: B - 64 }, k = clamp((undo.until - t) / UNDO_MS, 0, 1);
     circle(uc.x, uc.y, 24, 'rgba(0,0,0,0.6)', 'rgba(255,255,255,0.35)');
@@ -1082,14 +1084,14 @@ const panel = document.getElementById('panel');
 const panelHidden = () => panel.hidden;
 const HELP = {
   today: ['Tap <b>Shop</b>, pick a building. Your survivor freezes.', 'Tap or drag anywhere to move the preview (it sits under your finger).', '⟳ rotates, ✓ places and ends placing, ✕ cancels.', 'Tap a building for Repair / Upgrade.'],
-  carry: ['Tap a tile in the <b>build bar</b> (bottom right). The ghost is carried 1 m in front of you.', 'Walk it into place with the left stick. Barricades turn across the way you face.', '<b>Place</b> places and keeps the next one in hand. ⟳ locks the rotation. ✕ puts it away. ↶ undoes.', 'Tap a building: Move, Upgrade, Repair, Take back / Sell. Long-press your own to pick it up.'],
-  hybrid: ['Tap a tile in the <b>build bar</b>. The ghost is carried 1 m in front of you.', 'Walk close, then <b>drag on the right half</b> to nudge it (it stays pinned; tap the chip to carry it again).', '<b>Place</b> places; the next ghost jumps end-to-end: Place, Place, Place = a wall. ↶ undoes.', 'Tap a building: Move, Upgrade, Repair, Take back / Sell. Long-press your own to pick it up.'],
+  carry: ['Tap a tile in the <b>build bar</b> (bottom right). The ghost is carried 1 m in front of you.', 'Walk it into place with the left stick. Barricades turn across the way you face.', '<b>Place</b> places and keeps the next one in hand. ⟳ locks the rotation. ✕ puts it away. ↶ undoes (10 s).', 'Tap a building: Move, Upgrade, Repair, Take back / Sell. Long-press your own to pick it up.'],
+  hybrid: ['Tap a tile in the <b>build bar</b>. The ghost is carried 1 m in front of you.', 'Walk close, then <b>drag on the right half</b> to nudge it (it stays pinned; tap the chip to carry it again).', '<b>Place</b> places; the next ghost jumps end-to-end: Place, Place, Place = a wall. ↶ undoes (10 s).', 'Tap a building: Move, Upgrade, Repair, Take back / Sell. Long-press your own to pick it up.'],
 };
 function syncPanel() {
   for (const m of ['today', 'carry', 'hybrid']) document.getElementById('m-' + m).setAttribute('aria-pressed', String(S.mode === m));
   document.getElementById('help').innerHTML = HELP[S.mode].map((x) => `<li>${x}</li>`).join('');
   const set = (id, v) => { document.getElementById(id).value = String(v); };
-  set('o-scale', S.scale); set('o-lag', S.lag); set('o-gap', S.gap); set('o-gain', S.gain); set('o-lead', S.lead ? 1 : 0); set('o-bo', S.bo ? 1 : 0); set('o-timer', S.timer ? 1 : 0); set('o-prox', S.prox ? 1 : 0);
+  set('o-scale', S.scale); set('o-lag', S.lag); set('o-gap', S.gap); set('o-gain', S.gain); set('o-bo', S.bo ? 1 : 0); set('o-timer', S.timer ? 1 : 0);
   const avg = metrics.pickToPlace.length ? (metrics.pickToPlace.reduce((a, b) => a + b, 0) / metrics.pickToPlace.length).toFixed(1) + ' s' : '–';
   document.getElementById('metrics').innerHTML = `This run: ${metrics.placed} placed · ${metrics.refused} refused · ${metrics.undos} undos · ${metrics.rotates} rotates · ${metrics.moves} moves · ${metrics.sold} sold<br>Pick → first place: ${avg} (avg of ${metrics.pickToPlace.length})`;
 }
@@ -1097,7 +1099,7 @@ function openPanel() { hand = null; shopOpen = false; stick = null; ptrs.clear()
 for (const m of ['today', 'carry', 'hybrid']) document.getElementById('m-' + m).addEventListener('click', () => { S.mode = m; hand = null; selId = 0; saveSettings(); syncPanel(); });
 const bind = (id, fn) => document.getElementById(id).addEventListener('change', (e) => { fn(e.target.value); saveSettings(); });
 bind('o-scale', (v) => { S.scale = v; }); bind('o-lag', (v) => { S.lag = +v; }); bind('o-gap', (v) => { S.gap = +v; }); bind('o-gain', (v) => { S.gain = +v; });
-bind('o-lead', (v) => { S.lead = v === '1'; }); bind('o-bo', (v) => { S.bo = v === '1'; }); bind('o-timer', (v) => { S.timer = v === '1'; }); bind('o-prox', (v) => { S.prox = v === '1'; });
+bind('o-bo', (v) => { S.bo = v === '1'; }); bind('o-timer', (v) => { S.timer = v === '1'; });
 document.getElementById('b-go').addEventListener('click', () => { panel.hidden = true; last = now(); audio(); });
 document.getElementById('b-reset').addEventListener('click', () => { resetRun(); syncPanel(); });
 document.getElementById('b-full').addEventListener('click', () => {

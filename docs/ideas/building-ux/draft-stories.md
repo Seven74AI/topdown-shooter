@@ -1,6 +1,6 @@
 # Building UX rework: draft stories
 
-**Status:** draft for the main session's `gds-correct-course` → `gds-create-story` → its usual build/review loop.
+**Status:** designer decisions applied 2026-11-23 (carry + drag, tap-only menu, no camera lead, no hold-to-paint, sell 50 %, undo 10 s). Draft for the main session's `gds-correct-course` → `gds-create-story` → its usual build/review loop.
 **Source:** `ux-spec.md` (numbers, flows), `party-notes.md` (why), `prototype.html` (feel; live copy: claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR).
 **Numbering:** `BX-1`… are placeholders. Correct-course picks the real numbers (e.g. a short "Epic 5b: Building UX" after round C, or slots in Epic 5).
 
@@ -98,12 +98,13 @@ As a player, I want to know why I can't build somewhere and what's in the way, s
 As a player, I want to place several of the same building in a row and trust it under lag, so that I can build a wall in seconds.
 
 **Acceptance criteria**
-1. **Given** I place and can still afford another and I'm under the cap (counting pending), **then** the same building stays in my hands. Otherwise the hand empties with a toast ("Not enough money for another" / "Building limit reached (6)").
-2. **Chain jump:** the next ghost appears **pinned one footprint further along its long side** (barricades end to end; square types one footprint toward the right of my facing; mines 1.0 m), toward the side of my last drag (BX-5) if any. If that spot is blocked, the ghost goes back to carry.
-3. **Pending:** a sent placement is drawn as a dashed outline with a spinner tick; it counts as occupied for my next ghost; its price comes off the **shown** wallet (HUD, tiles, chip) until the answer.
-4. On `building.placed` the pending box becomes the building. On `building.refused` (or no answer within **2 s**) it shakes 3 × 150 ms, fades in 300 ms, the reason toasts and the shown wallet goes back.
-5. No more than `maxPerPlayer − owned − pending` placements are ever in flight; at most 4 sends per second from one client.
-6. **Under `?lag=150&jitter=20`:** three quick Places give three buildings, no double charge, the HUD wallet never shows less than the server's final wallet for more than one round trip.
+1. One Place = one building (designer: no hold-to-paint).
+2. **Given** I place and can still afford another and I'm under the cap (counting pending), **then** the same building stays in my hands. Otherwise the hand empties with a toast ("Not enough money for another" / "Building limit reached (6)").
+3. **Chain jump:** the next ghost appears **pinned one footprint further along its long side** (barricades end to end; square types one footprint toward the right of my facing; mines 1.0 m), toward the side of my last drag (BX-5) if any. If that spot is blocked, the ghost goes back to carry.
+4. **Pending:** a sent placement is drawn as a dashed outline with a spinner tick; it counts as occupied for my next ghost; its price comes off the **shown** wallet (HUD, tiles, chip) until the answer.
+5. On `building.placed` the pending box becomes the building. On `building.refused` (or no answer within **2 s**) it shakes 3 × 150 ms, fades in 300 ms, the reason toasts and the shown wallet goes back.
+6. No more than `maxPerPlayer − owned − pending` placements are ever in flight; at most 4 sends per second from one client.
+7. **Under `?lag=150&jitter=20`:** three quick Places give three buildings, no double charge, the HUD wallet never shows less than the server's final wallet for more than one round trip.
 
 **Fairness / beat the rule (F1, F6):** reviewers try 10 taps in 1 s with $100 (only 2 barricades accepted, 2 charged), tapping Place at the build→wave edge (refused `not_build_phase`, nothing charged), a hidden tab across a build start with pending boxes (cleared on the new phase).
 
@@ -121,7 +122,7 @@ As a player, I want to nudge the ghost with my right thumb without covering it, 
 3. Pinned = the ghost stays in the world while I walk. The item chip shows "↩ carry" (orange border); tapping it carries it again. A pinned ghost that leaves the view returns to carry by itself.
 4. The ghost is clamped to the view, 1 m in from the edges.
 5. `controls.json` holds `buildDragGain`, `buildDragStartPx`; `?tune=1` exposes them (as the stick radius today).
-6. Optional switch (default **off**): the camera leads toward a pinned ghost by 35 % of the offset, max 3 m, 200 ms ease.
+6. The camera does **not** lead toward a pinned ghost (designer): it stays on the survivor as today.
 
 **Tests:** placement unit tests for relative drag, pin/unpin; a browser check that a right-half drag doesn't fire or aim.
 
@@ -134,7 +135,7 @@ As a player, I want to undo a misplaced building and sell old ones, so that a mi
 **Acceptance criteria**
 1. **Server:** C2S `building.sell { id }` (int 1–65535, strict, `this.net.guard`). Shared `sellBuilding(world, playerId, id)` checks in order: unknown player → not build phase → gone → not owner; refunds per F2, removes the building (`version++`, `wallVersion++` if solid), emits `building.sold { buildingId, ownerId, refund, x, y }` (new net event kind). Refusal S2C `building.sell_refused { id, reason }`.
 2. **Server bookkeeping:** each building keeps `paid` (price + upgrades) and `paidThisBuild` (reset to 0 at every build start). Server-only: not synced, not in `snapshotWorld`'s client view; in `snapshotWorld` for determinism.
-3. **Undo chip ↶** (48 px at (270, 64), or (300, 64) with empty hands) for **5 s** after each placement, with a draining ring; pressing it sells that building (100 % refund). If the placement is still pending, the undo is sent as soon as it's placed.
+3. **Undo chip ↶** (48 px at (270, 64), or (300, 64) with empty hands) for **10 s** (designer) after each placement, with a draining ring; pressing it sells that building (100 % refund). If the placement is still pending, the undo is sent as soon as it's placed.
 4. The label reads **"Take back +$40"** for a building placed this build phase and **"Sell +$20"** otherwise (BX-7 shows it).
 5. FX: the building lifts and fades in 200 ms, "+$40" floats up; coins sound; 12 ms haptic.
 
@@ -153,8 +154,8 @@ As a player, I want the actions for a building under my right thumb, so that rep
 2. A teammate's building shows only Repair and ✕, with "Only Bo can move, upgrade or sell it".
 3. This replaces 3.7's bottom-centre repair panel; `RepairPanel` keeps its logic (pending upgrade, wave-close rules).
 4. **Long-press** (450 ms, ≤ 12 px) on my own building picks it up (BX-8); a ring fills from 150 ms.
-5. Optional switch (default off): with empty hands, standing with my body edge within 0.8 m of a damaged building for 0.3 s selects it.
-6. A tap on a building drawn under a HUD button presses the button (unchanged). Playtest whether the long-press / walk-up routes are enough.
+5. The menu opens **only by tapping** a building (designer): no walk-up select.
+6. A tap that lands on Ready **and** within a building's tap area selects the building instead of starting the wave (the menu has no other route). Other HUD buttons keep priority.
 
 **Tests:** RepairPanel tests extended for the owner/teammate button sets; browser screenshots of both.
 
@@ -214,4 +215,4 @@ As a desktop player, I want the same building flow with mouse and keys.
 
 - **Retires:** 3.4's ⟳ ✓ ✕ layout and the frozen survivor; 3.3's buildings section of the shop; 3.7's bottom-centre repair panel. Their server rules all stay.
 - **Docs to touch when it's adopted:** the GDD's building section (sell/move are new mechanics), the UX doc's HUD section, `epics.md` (new stories), and `sprint-status.yaml`. This branch doesn't touch any of them.
-- **Open designer decisions** (ux-spec §15): carry-only vs carry + drag, hold-to-paint walls, walk-up select, camera lead, the 50 % sell refund, teammate ghosts now or later.
+- **Designer decisions** (ux-spec §15): carry + drag; no hold-to-paint; tap-only menu; no camera lead; sell 50 %; undo 10 s. **Still open:** BX-10 teammate ghosts (keep, defer or drop).

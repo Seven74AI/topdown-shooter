@@ -10,4 +10,4 @@ Ideas branch `claude/idea-building-ux`. No game code changed.
 | [draft-stories.md](draft-stories.md) | BX-1 to BX-11 with acceptance criteria, fairness rules and "beat the rule" lists, ready for `gds-correct-course` |
 | [screens/](screens/) | Headless screenshots at 800 × 360 (2×) |
 
-Recommendation: **B · Carry + drag**. Build BX-1 to BX-5 first: they're client-only and don't collide with Epic 5's server work.
+Designer picked **B · Carry + drag** (2026-11-23; decisions in ux-spec §15). Build BX-1 to BX-5 first: they're client-only and don't collide with Epic 5's server work.

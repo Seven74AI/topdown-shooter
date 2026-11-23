@@ -1,6 +1,6 @@
 ---
 title: Building UX rework: placing, moving, selling, repairing
-status: draft (for the designer's pick; then gds-correct-course)
+status: designer decisions applied 2026-11-23 (ready for gds-correct-course)
 updated: 2026-11-23
 scope: build phase only (placement, building actions, their HUD); weapons/gear shop and the wave HUD unchanged
 sources:
@@ -13,6 +13,8 @@ prototype: docs/ideas/building-ux/prototype.html
 
 # Building UX rework: spec
 
+> **Designer decisions (2026-11-23):** carry + drag (mode B) is the design. No hold-to-paint walls. A building's menu opens only by tapping it (no walk-up select). No camera lead toward a pinned ghost. Sell refund 50 % is OK. Undo window doubled to **10 s**. Teammate ghosts: explained, decision pending.
+>
 > **Spine-wins rule:** where this spec and the prototype disagree, this spec wins. The prototype is there to feel the numbers on a phone. Values tagged `[ASSUMPTION]` are first guesses for the playtest to tune.
 
 ## 1. Foundation
@@ -56,7 +58,7 @@ In a build phase the bottom-right quadrant holds **one cluster with three states
 | State | When | Contents (right-thumb cluster) |
 | --- | --- | --- |
 | **Build bar** | Build phase, hands empty, nothing selected | 4 × 2 tiles: barricade, turret, spike trap, mine, bear trap, med station, floodlight*, **🛒 Shop** (weapons/gear/cards) |
-| **Hand** | Holding a ghost (new or picked up) | **Place**, **Rotate**, **Put away ✕**, **Undo ↶** (5 s after a place), item chip (name · price · "↩ carry" when pinned), reason line |
+| **Hand** | Holding a ghost (new or picked up) | **Place**, **Rotate**, **Put away ✕**, **Undo ↶** (10 s after a place), item chip (name · price · "↩ carry" when pinned), reason line |
 | **Action bar** | A building is selected | **Move ✥**, **Upgrade $Y**, **Repair $X**, **Sell +$Z / Take back +$Z**, **✕**, info line |
 
 \* only when the type's `inShop` is true (5.10 keeps the floodlight hidden until blackout). Tiles come from `shopBuildings(balance)`, so 5.14's bear trap appears without UI work. If a later epic needs more than 7 types, the 7th tile becomes "More ▸" and opens a second page. `[ASSUMPTION]`
@@ -72,7 +74,7 @@ Positions are the button **centres**, measured as (from right, from bottom).
 | Place | 76 circle | (92, 92) | Primary. Green when valid, grey + red ring when blocked (still sends: the server judges) |
 | Rotate ⟳ | 60 circle | (190, 80) | 🔒 badge once pressed (auto-rotate off for this held item) |
 | Put away ✕ | 48 circle | (80, 196) | Reach up on purpose: rare |
-| Undo ↶ | 48 circle | (270, 64) holding; (300, 64) with empty hands (left of the build bar) | Shown 5 s after each placement; a 5 s ring drains around it |
+| Undo ↶ | 48 circle | (270, 64) holding; (300, 64) with empty hands (left of the build bar) | Shown 10 s after each placement; a 10 s ring drains around it |
 | Item chip | 160 × 32 | right edge at 16, bottom 250 | "Turret · $250 · ×1 left". Tap = ↩ carry when pinned |
 | Reason line | text 17 px | right-aligned at 16, just above the item chip (bottom ≈ 280) | White when valid ("Place Wood barricade · $40"), red with the reason when blocked. Must clear the wallet / count lines at the top-right on a 360 px-tall screen |
 | Build bar tiles | 56 × 56, 8 gap | grid 248 × 120, inset 16 | Icon + price (14 px). Unaffordable: 40 % opacity, red price. Count "4/6" top-right of the grid |
@@ -90,7 +92,7 @@ Minimums: every target ≥ **48 px** (the 44 px floor in `sizes.ts` stays the ha
 | Drag gain | **1.0**: the ghost moves 1 m per 48 px of finger at 48 px/m (in-game: 1 m per ≈ 33 px) | new `[ASSUMPTION]` |
 | Snap | 0.5 m lattice (`BUILD_GRID_M`), min corner (`cornerForCentre`); **0.1 m hysteresis** so the ghost doesn't jitter on a boundary | 3.4 + new |
 | Building tap tolerance | footprint + **0.4 m** each side, nearest centre wins | 3.7 (unchanged) |
-| Undo window | **5 s** chip; take-back stays possible in the action bar for the whole build phase | new |
+| Undo window | **10 s** chip (designer); take-back stays possible in the action bar for the whole build phase | new |
 | Pending timeout | **2 s** without `building.placed` / `refused` → treated as refused ("No answer from the server") | new `[ASSUMPTION]` |
 | Chain rate | ≤ **4** placements/s from one client (the guard allows 10/s) | new |
 
@@ -111,7 +113,7 @@ Minimums: every target ≥ **48 px** (the 44 px floor in `sizes.ts` stays the ha
 - Pinned = stays put in the world while you walk. The chip shows "↩ carry": tap it to carry again. A pinned ghost that leaves the screen (inset 1 m) returns to carry by itself.
 - The left stick keeps working while the right thumb drags: walk and nudge at once.
 - The ghost is clamped to the view, 1 m in from the edges.
-- **Camera lead** (switch, default off `[ASSUMPTION]`): the camera eases toward a pinned ghost by 35 % of the survivor→ghost offset, max 3 m, over 200 ms.
+- **No camera lead** (designer): the camera stays on the survivor (today's camera); a pinned ghost is clamped to the view instead.
 
 ### 6.3 Place
 
@@ -183,7 +185,8 @@ Map object names come from the Tiled objects (`city_bus`, `parked_car_1`, `sandb
 
 - Picking up draws the original as a **dashed outline** (it still stands and blocks for everyone until the move is accepted). ✕ while carrying a picked-up building puts it back (sends nothing).
 - Teammates' buildings show Repair only (+ the info line). Move/Upgrade/Sell are absent, not greyed: less to read.
-- **Proximity select** (stretch, switch `[ASSUMPTION]`): with empty hands, standing with the body edge within 0.8 m of a **damaged** building for 0.3 s selects it.
+- **Tap only** (designer): the action bar opens only by tapping a building. No walk-up select.
+- **No hold-to-paint** (designer): Place places one building per tap; walls come from the chain jump (§6.3).
 
 ### Fairness rules (write these into the stories' ACs)
 
@@ -255,7 +258,7 @@ Owner pips: during a build phase every building shows a 0.18 m dot in its owner'
 
 ## 13. What the prototype taught us (headless run, 800 × 360)
 
-- **A building under a HUD button can't be tapped**: a spike trap below the survivor sat under Ready, and the tap pressed Ready. The camera keeps the survivor centred, so with buildings near the bottom edge this will happen. Mitigation: the action bar can also be reached by long-pressing (own buildings) and by proximity select; Ready asks "Start the wave now?" only if a building tap was ambiguous. `[ASSUMPTION]` (needs a phone playtest).
+- **A building under a HUD button can't be tapped**: a spike trap below the survivor sat under Ready, and the tap pressed Ready. The camera keeps the survivor centred, so with buildings near the bottom edge this will happen. Since the menu opens only by tapping (designer), the fix has to be in the HUD: a tap that lands on Ready **and** within a building's tap area selects the building instead of pressing Ready (Ready is the one big bottom button; starting the wave by accident is costly). `[ASSUMPTION]`, to confirm in a phone playtest.
 - **The 8 m turret ring is bigger than the 48 px/m view's height** (13.5 m at most in the real camera). It reads as two arcs. It's still useful, but a filled 15 % disc may read better than a line. Playtest.
 - **Auto-rotate + end-to-end chain** made a 6 m wall in 3 taps without touching ⟳ once.
 - **Teammate collision while carrying:** a ghost carried past a teammate flickers red ("Bo is standing there") for a frame. That's correct, but the reason line should hold a reason for ≥ 250 ms before switching back to valid, so it doesn't flash. `[ASSUMPTION]`
@@ -265,11 +268,14 @@ Owner pips: during a build phase every building shows a 0.18 m dot in its owner'
 - **Do:** carry-to-place (survival builders), relative-drag precision (mobile RTS cursor), "why it's blocked" with the culprit lit up, instant place + undo instead of confirm dialogs.
 - **Don't:** freeze the survivor; put the ghost under the finger; confirm dialogs for a $40 plank; a modal shop between every building; colour-only validity; hide prices until after the purchase.
 
-## 15. Open questions for the designer
+## 15. Designer decisions
 
-1. **Carry only, or carry + drag?** (the prototype's mode switch; the room recommends carry + drag)
-2. **Hold-to-paint walls** (hold Place and walk, ≤ 4/s)? Recommended: not in v1.
-3. **Proximity select** for repairs? Recommended: stretch, after the action bar.
-4. **Camera lead** toward a pinned ghost? Recommended: off, try it in the prototype.
-5. **Sell refund 50 %**: OK, or would you rather have no sell (only take-back this phase)?
-6. **Teammate ghosts**: worth a story now, or after the other stories?
+| # | Question | Decision (2026-11-23) |
+| --- | --- | --- |
+| 1 | Carry only, or carry + drag? | **Carry + drag** (mode B) |
+| 2 | Hold Place and walk to paint walls? | **No.** One building per Place; the chain jump makes walls |
+| 3 | Walk-up select for repairs? | **No.** Tap a building to open its menu |
+| 4 | Camera lead toward a pinned ghost? | **No** |
+| 5 | Sell refund 50 %? | **Yes** (take-back in the same build phase stays 100 %) |
+| 6 | Undo window | **10 s** (was 5 s) |
+| 7 | Teammate ghosts (BX-10) | Pending: explained to the designer (a faint outline of what a teammate is holding, before they place it) |
