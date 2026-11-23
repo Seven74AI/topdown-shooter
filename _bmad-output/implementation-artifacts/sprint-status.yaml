@@ -111,20 +111,20 @@ development_status:
   epic-4-retrospective: done  # partial retro 2026-11-23 (4.10 deferred); 4.11 re-added by the designer the same day (sandbags, barricade, fire)
 
   # Epic 5: Full arsenal and bestiary
-  epic-5: backlog
-  5-1-weapon-upgrades-i-iv: backlog
-  5-2-fire-axe-and-chainsaw: backlog
-  5-3-shotgun-and-assault-rifle: backlog
-  5-4-flamethrower-and-fire-friendly-fire: backlog
-  5-5-grenade-launcher: backlog
-  5-6-spitters: backlog
-  5-7-the-first-brute: backlog
-  5-8-bloaters: backlog
-  5-9-metal-barricade-spike-trap-and-mine: backlog
-  5-10-floodlight-and-med-station: backlog
-  5-11-gear: backlog
-  5-12-consumables: backlog
-  5-13-roguelike-card-shop: backlog
+  epic-5: in-progress  # all 13 story files written 2026-11-23; decisions: docs/epic-5-decisions.md
+  5-1-weapon-upgrades-i-iv: ready-for-dev
+  5-2-fire-axe-and-chainsaw: ready-for-dev
+  5-3-shotgun-and-assault-rifle: ready-for-dev
+  5-4-flamethrower-and-fire-friendly-fire: ready-for-dev
+  5-5-grenade-launcher: ready-for-dev
+  5-6-spitters: ready-for-dev
+  5-7-the-first-brute: ready-for-dev
+  5-8-bloaters: ready-for-dev
+  5-9-metal-barricade-spike-trap-and-mine: ready-for-dev
+  5-10-floodlight-and-med-station: ready-for-dev
+  5-11-gear: ready-for-dev
+  5-12-consumables: ready-for-dev
+  5-13-roguelike-card-shop: ready-for-dev
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless
