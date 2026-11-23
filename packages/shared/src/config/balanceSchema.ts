@@ -427,11 +427,12 @@ export const shopSchema = z
     /**
      * Story 5.1: weapon upgrades I–IV (GDD › Weapon Systems › Upgrades). Level L deals
      * `damage × (1 + damagePerLevel × (L − 1))`; every level costs `round(priceShare × upgrade base)`
-     * (`upgradeBasePrice`, else `price`). `maxLevel` fits the uint8 schema fields and a nibble.
+     * (`upgradeBasePrice`, else `price`). `maxLevel` ≤ 4: levels I–IV are the design (the HUD/shop
+     * marks and the atlas frames cover II–IV only; 5.1 review L1).
      */
     upgrades: z
       .object({
-        maxLevel: z.number().int().min(1).max(15),
+        maxLevel: z.number().int().min(1).max(4),
         damagePerLevel: z.number().min(0),
         priceShare: z.number().positive(),
       })

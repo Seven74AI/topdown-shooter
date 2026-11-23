@@ -314,6 +314,16 @@ M1 `damagePerLevel` applied to the fire rate → `nothing but damage changes`. M
 - `tools/bots/botClient.ts`
 - `docs/art/epic-5/round-b/ingame/5-1-shop-upgrades.png`, `5-1-hud-mark.png`, `5-1-shop-tier-looks.png` (new)
 
+### Review fixes (2026-11-23)
+
+- **MEDIUM (F1, brief 12/14) fixed:** an accepted upgrade answer could arrive before the state patch, so `pending` cleared while the row still showed the old level and wallet; a quick second tap bought a second upgrade from a stale "I → II" row. `shopStore` now keeps an accepted upgrade pending (`awaitLevel { slot, level }`) until a `sync` shows `levels[slot] >= level` (as `botClient` does); the 3 s timeout stays as the fallback and clears it too. Solo is unaffected (the answer and the sync land in the same frame). Tests: `shopStore.test › upgrade pending until the answer…` now asserts the answer alone keeps it pending and a wallet-only sync too; new `› review probe: open → upgrade → ok answer → upgrade with no sync between sends ONE effect` (plus the honest next tap after the sync, and the timeout fallback). This explains the browser observation in the Debug Log ("one tap seemed to upgrade twice") as the same race, not only a script artefact.
+- **LOW 1 fixed:** `shop.json › upgrades.maxLevel` is capped at 4 in the schema (levels I–IV are the design; the HUD marks and `fx_tiermark_b/c/d` cover II–IV). `balance.test › upgrades block is validated` refuses 5.
+- **LOW 2 accepted (no change):** the shop's "I → II" row shows a U1 plate with "I" for the current level (the HUD shows no mark at I).
+- Mutations of the new/changed tests, all killed: R1 ok answer unlocks at once (the old bug) → both pending tests; R2 sync never unlocks → both; R3 any sync unlocks → the pending test; R4 timeout keeps `awaitLevel` → the probe; R5 `maxLevel` up to 15 → the schema test.
+- Files: `apps/client/src/ui/shopStore.ts`, `apps/client/src/ui/shopStore.test.ts`, `packages/shared/src/config/balanceSchema.ts`, `packages/shared/src/config/balance.test.ts`, this story file.
+- Gate (load 4 → 16, other builders running): typecheck, lint and build green; `npm test` 7 tests in `replay.test`, `tickCostFlowField.test` and `waveDirector.test` hit the 5 s default timeout at load 15.9 (TestTimeoutError, no assertion failed; the work branch raised the replay timeout to 30 s); re-run with `--testTimeout=60000` at load 16: those 3 files, 33/33 passed. All other files passed.
+
 ### Change Log
 
 - 2026-11-23: Story 5.1 built: weapon upgrades I–IV (shared rule, damage helper, balance, schema/mirror copies, shop Upgrades section, U1 HUD/shop marks, G3/R1 tier icons, bots, replay, `?loadout=id:level`), tests and mutations, browser check, sims, bandwidth. Status → review.
+- 2026-11-23: Review fixes: upgrade stays pending until the state shows the level (MEDIUM); maxLevel capped at 4 (LOW 1); LOW 2 noted.

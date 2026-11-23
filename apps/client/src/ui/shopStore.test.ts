@@ -153,10 +153,33 @@ describe("shopStep upgrades (Story 5.1, F1)", () => {
     // A buy answer for something else doesn't unlock it; the upgrade answer does, with its text.
     const late = run(s, { type: "answer", answer: { ok: true, weapon: "smg", slot: 1 } }).s;
     expect(late.pending).toBe(upgradeKey("smg"));
-    const done = run(s, { type: "answer", answer: { kind: "upgrade", ok: true, weapon: "smg", slot: 1, level: 2 } }, { type: "sync", wallet: 380, slots: ["pistol", "smg"], levels: [1, 2] });
-    expect(done.s).toMatchObject({ pending: null, message: "smg upgraded to II", refused: false, wallet: 380, levels: [1, 2] });
+    // The ok answer alone keeps it pending (review fix): the state hasn't shown the new level yet.
+    const answered = run(s, { type: "answer", answer: { kind: "upgrade", ok: true, weapon: "smg", slot: 1, level: 2 } }).s;
+    expect(answered).toMatchObject({ pending: upgradeKey("smg"), message: "smg upgraded to II", refused: false, levels: [1, 1] });
+    // A sync without the new level (e.g. the wallet first) still keeps it; the one with it unlocks.
+    const walletOnly = run(answered, { type: "sync", wallet: 380, slots: ["pistol", "smg"], levels: [1, 1] }).s;
+    expect(walletOnly.pending).toBe(upgradeKey("smg"));
+    const done = run(walletOnly, { type: "sync", wallet: 380, slots: ["pistol", "smg"], levels: [1, 2] });
+    expect(done.s).toMatchObject({ pending: null, awaitLevel: null, message: "smg upgraded to II", refused: false, wallet: 380, levels: [1, 2] });
     const refused = run(s, { type: "answer", answer: { kind: "upgrade", ok: false, weapon: "smg", error: "insufficient_funds" } }).s;
     expect(refused).toMatchObject({ pending: null, message: "Not enough money", refused: true });
+  });
+
+  it("review probe: open → upgrade → ok answer → upgrade with no sync between sends ONE effect (no double buy from a stale row)", () => {
+    const { s, effects } = run(
+      openUp(["pistol", "smg"], [1, 1]),
+      { type: "upgrade", weapon: "smg" },
+      { type: "answer", answer: { kind: "upgrade", ok: true, weapon: "smg", slot: 1, level: 2 } },
+      { type: "upgrade", weapon: "smg" },
+    );
+    expect(effects).toEqual([{ type: "upgrade", weapon: "smg" }]);
+    expect(s.pending).toBe(upgradeKey("smg"));
+    // After the state agrees, the next tap is a new, honest upgrade (II → III at the shown price).
+    const next = run(s, { type: "sync", wallet: 380, slots: ["pistol", "smg"], levels: [1, 2] }, { type: "upgrade", weapon: "smg" });
+    expect(next.effects).toEqual([{ type: "upgrade", weapon: "smg" }]);
+    // No state ever (lost patch): the 3 s timeout still gives the buttons back.
+    const t = run(s, { type: "time", nowMs: 1000 }, { type: "time", nowMs: 1000 + SHOP_PENDING_TIMEOUT_MS });
+    expect(t.s).toMatchObject({ pending: null, awaitLevel: null });
   });
 
   it("the shown level is the World's (sync), never the answer's", () => {
