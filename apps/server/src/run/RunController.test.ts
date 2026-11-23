@@ -171,6 +171,26 @@ describe("RunController", () => {
     expect(seq - c.ackSeq("p0")).toBeLessThanOrEqual(INPUT_QUEUE_TARGET);
   });
 
+  it("Story 5.7 review L2: skipped seqs count the knockback down like the slow (the client predicted those ticks)", () => {
+    const c = newController();
+    const p = c.world.players.get("p0");
+    if (!p) throw new Error("no p0");
+    c.queueInput("p0", input(1));
+    c.tick(); // acked
+    for (let i = 0; i < 3; i++) c.tick(); // starved: weapon debt (skipped seqs then get their ticks)
+    p.knockTicks = 20;
+    p.knockDx = 127;
+    p.knockDy = 0;
+    p.knockStepMm = 0; // no slide: only the count matters here
+    p.slowTicksLeft = 20;
+    p.slowPct = 30;
+    for (let seq = 2; seq <= INPUT_QUEUE_MAX + 5; seq++) c.queueInput("p0", input(seq)); // overflow: the oldest are skipped
+    expect(c.drops("p0").overflow).toBeGreaterThan(0);
+    c.tick();
+    expect(p.slowTicksLeft).toBeLessThan(19); // skipped seqs counted (+ the applied one)
+    expect(p.knockTicks).toBe(p.slowTicksLeft); // the same count as the slow
+  });
+
   it("a drained input's swap still happens", () => {
     const c = newController();
     const p = c.world.players.get("p0");

@@ -44,7 +44,7 @@ const spats = (ev: SimEvent[]) => ev.filter((e) => e.type === "spitter.spat");
 describe("Spitter balance (Story 5.6 AC 1, 5)", () => {
   it("spitter matches the GDD (FR23) and the designer's numbers (DD1–DD6)", () => {
     expect(spitter).toMatchObject({ hp: 12, speedMps: 1.5, damage: 5, attackIntervalS: 1, radiusM: 0.35, reward: 5 });
-    expect(spit).toEqual({ rangeM: 6, windupS: 0.6, intervalS: 3, speedMps: 9, radiusM: 0.2, damage: 15, puddleRadiusM: 1, puddleS: 3, puddleDamagePerS: 5, puddlePulseS: 0.4 });
+    expect(spit).toEqual({ rangeM: 6, windupS: 0.6, intervalS: 3, speedMps: 9, radiusM: 0.2, damage: 15, puddleRadiusM: 1, puddleS: 3, puddleDamagePerS: 5, puddlePulseS: 0.4, acidFaceToleranceM: 0.02 }); // Story 5.7 review L4: the acid-vs-cover tolerance
     expect(balance.zombies.spitCaps).toEqual({ maxLiveSpits: 24, maxLivePuddles: 32 });
     expect(ZOMBIE_TYPES.indexOf("spitter")).toBe(3); // appended: the index goes on the wire
     expect([ZOMBIE_STATE.WINDUP, ZOMBIE_STATE.RUSH_WINDUP]).toEqual([3, 4]); // fits the horde nibble

@@ -20,6 +20,8 @@ import { bruteStats } from "./zombieAi";
 import { spawnZombie } from "./zombiePool";
 import { ZOMBIE_STATE, isWindupState } from "./zombieTypes";
 import { bruteLookIndex, BRUTE_LOOKS } from "./brute";
+import { wideGapRing } from "./flowField";
+import { meleeLineClear } from "../combat/cover";
 
 /**
  * Story 5.7: the Brute (fairness rules F1–F5, F7 of the story file). One mechanic per test: no wave
@@ -107,10 +109,12 @@ describe("Story 5.7 F1: you always see the Brute's hit coming", () => {
     expect(world.zombies.attackCooldownTicks[id]).toBe(INTERVAL);
   });
 
-  it("stepping exactly 0.3 m out of contact on the last tick dodges it; 0.29 m does not (the rule, exactly)", () => {
+  it("stepping 0.3 m (or anything ≥ 0.29 m: the 1 cm swingToleranceM) out of contact on the last tick dodges it; 0.285 m does not (review L1: deterministic)", () => {
     for (const [gap, hit] of [
       [0.3, false],
-      [0.29, true],
+      [0.292, false],
+      [0.285, true],
+      [0.2, true],
     ] as const) {
       const { world, events } = setup();
       const p = addPlayer(world, "p0", 24, 16);
@@ -455,6 +459,129 @@ describe("Story 5.7 F7: its body is what you shoot", () => {
       spawnProjectile(world.projectiles, { x: 10, y: 16, dirX: 1, dirY: 0, speedMps: 60, rangeM: 20, damage: 1, pierce: 1, weaponIndex: 0, owner: "p0", advanceM: 0 });
       tick(world, 12);
       expect(events.some((e) => e.type === "zombie.hit"), `offset ${off}`).toBe(hit);
+    }
+  });
+});
+
+describe("Story 5.7 review M1 (designer): long reach into gaps", () => {
+  const SLOT_BALANCE = balance;
+  const GAP = B.gapReachM;
+  /** The five Downtown slots narrower than a Brute: [a, b, stage, mask, slot centre line, mouth point, inward unit, Brute start]. */
+  type Slot = { name: string; stage: number; mask: number | null; mouth: [number, number]; inward: [number, number]; start: [number, number] };
+  const SLOTS: Slot[] = [
+    { name: "parking_wall ↔ parked_car_1", stage: 1, mask: null, mouth: [11, 26], inward: [0, 1], start: [4, 22] },
+    { name: "parked_car_1 ↔ parked_car_2", stage: 1, mask: null, mouth: [14, 26], inward: [0, 1], start: [20, 21] },
+    { name: "parked_car_2 ↔ parked_car_3", stage: 1, mask: null, mouth: [17, 26], inward: [0, 1], start: [23, 21] },
+    { name: "curb_car_south_in_road ↔ se_offices", stage: 2, mask: 215, mouth: [29.5, 25.5], inward: [0, 1], start: [24, 20] },
+    { name: "street_car_west ↔ curb_car_west_far_in_road", stage: 2, mask: 207, mouth: [7, 15.5], inward: [-1, 0], start: [12, 22] },
+  ];
+  function slotWorld(s: Slot, depth: number) {
+    const world = createWorld({ balance: SLOT_BALANCE, seed: 3, map: DOWNTOWN_MAP, systems: NO_WAVES });
+    applyDecayStage(world, s.stage, s.mask ?? world.decay.variants);
+    const events: SimEvent[] = [];
+    world.events.subscribe((e) => events.push(e));
+    const p = addPlayer(world, "p0", s.mouth[0] + s.inward[0] * depth, s.mouth[1] + s.inward[1] * depth);
+    p.hp = 1e9;
+    p.maxHp = 1e9;
+    const id = spawnZombie(world, "brute", s.start[0], s.start[1]);
+    world.zombies.hp[id] = 1e9;
+    return { world, events, p, id };
+  }
+
+  it("a player 0.5 m and 1 m deep in each of the five slots is hit (from the mouth, with a clear line)", () => {
+    expect(GAP).toBe(1.8);
+    for (const s of SLOTS) {
+      for (const depth of [0.5, 1]) {
+        const { world, events, p, id } = slotWorld(s, depth);
+        expect(wideGapRing(world, p.x, p.y), `${s.name} ${depth}: a slot the Brute can't enter`).toBeGreaterThanOrEqual(2);
+        let hitAt = -1;
+        let clear = true;
+        for (let t = 0; t < 20 * 40 && hitAt < 0; t++) {
+          const n = events.length;
+          step(world, TICK_DT_S);
+          for (let k = n; k < events.length; k++) {
+            const e = events[k] as SimEvent;
+            if (e.type === "player.damaged" && e.sourceZombieId === id) {
+              hitAt = t;
+              clear = meleeLineClear(world, world.zombies.x[id] as number, world.zombies.y[id] as number, p.prevX, p.prevY);
+            }
+          }
+        }
+        expect(hitAt, `${s.name} ${depth} m deep`).toBeGreaterThan(0);
+        expect(clear, `${s.name}: hit with a clear line`).toBe(true);
+      }
+    }
+  });
+
+  it("the long swing needs a clear line: never through the parking wall (a Brute 1.55 m away behind it misses; at the mouth it hits)", () => {
+    for (const [bx, by, hit] of [
+      [9.4, 27, false], // west of the 0.5 m wall, inside 1.8 m
+      [11, 25.4, true], // at the slot's mouth
+    ] as const) {
+      const world = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP, systems: { ...NO_WAVES, player: () => {} } });
+      applyDecayStage(world, 1, world.decay.variants);
+      const events: SimEvent[] = [];
+      world.events.subscribe((e) => events.push(e));
+      const p = addPlayer(world, "p0", 11, 26.9);
+      p.hp = 1e9;
+      const id = spawnZombie(world, "brute", bx, by);
+      expect(Math.hypot(p.x - bx, p.y - by)).toBeLessThan(GAP - B.swingToleranceM);
+      world.zombies.state[id] = ZOMBIE_STATE.WINDUP; // its windup ends this tick
+      world.zombies.spitTicks[id] = 1;
+      tick(world);
+      expect(hitsOn(events, "p0").length > 0, `Brute at ${bx},${by}`).toBe(hit);
+    }
+  });
+
+  it("a player 2.25 m deep in a long slot is out of reach (> 1.8 m from every cell a Brute can stand on)", () => {
+    for (const s of SLOTS.slice(0, 3)) {
+      const { world, events, id } = slotWorld(s, 2.25);
+      for (let t = 0; t < 20 * 40; t++) step(world, TICK_DT_S);
+      expect(events.filter((e) => e.type === "player.damaged" && e.sourceZombieId === id), s.name).toHaveLength(0);
+    }
+  });
+
+  it("the long reach only into a gap: a player pressed against a car in the open is reached at contact + 0.3 m as always", () => {
+    const world = createWorld({ balance, seed: 3, map: DOWNTOWN_MAP, systems: NO_WAVES });
+    applyDecayStage(world, 1, world.decay.variants);
+    const car = world.obstacles.solids.find((b) => b.name === "street_car_west") as MapBox; // [4, 13, 8.5, 15]
+    const p = addPlayer(world, "p0", 6, car.minY - PR - 0.05);
+    expect(wideGapRing(world, p.x, p.y)).toBeLessThanOrEqual(1);
+    const id = spawnZombie(world, "brute", 6 - CONTACT, p.y - 0.3);
+    untilWindup(world, id);
+    tick(world, WINDUP - 1);
+    const bx = world.zombies.x[id] as number;
+    const by = world.zombies.y[id] as number;
+    // Stepped along the car's face (still pressed against it) to 1.4 m: inside 1.8, outside 1.3.
+    const dy = p.y - by;
+    p.x = p.prevX = bx + Math.sqrt((CONTACT + 0.4) ** 2 - dy * dy);
+    expect(wideGapRing(world, p.x, p.y)).toBeLessThanOrEqual(1);
+    const hp = p.hp;
+    tick(world);
+    expect(Math.hypot(p.x - bx, p.y - by)).toBeGreaterThan(CONTACT + B.swingReachM);
+    expect(p.hp).toBe(hp); // dodged: no 1.8 m reach in the open
+  });
+});
+
+describe("Story 5.7 review L1: a knock during the windup is decided deterministically", () => {
+  it("the axe's 0.3 m knock (1.5 m × 20 %) during the windup always makes it miss; a 0.25 m one never does (24 angles)", () => {
+    for (const [knock, hit] of [
+      [1.5, false],
+      [1.25, true],
+    ] as const) {
+      let hits = 0;
+      for (let deg = 0; deg < 360; deg += 15) {
+        const a = (deg * Math.PI) / 180;
+        const { world, events } = setup();
+        addPlayer(world, "p0", 24, 16).hp = 1e9;
+        const id = spawnZombie(world, "brute", 24 + Math.cos(a) * CONTACT, 16 + Math.sin(a) * CONTACT);
+        untilWindup(world, id);
+        tick(world, 3);
+        expect(applyKnockback(world, id, Math.cos(a), Math.sin(a), knock)).toBeCloseTo((knock * B.knockbackTakenPct) / 100, 6);
+        tick(world, WINDUP);
+        if (hitsOn(events, "p0").length > 0) hits++;
+      }
+      expect(hits, `knock ${knock}`).toBe(hit ? 24 : 0);
     }
   });
 });

@@ -35,6 +35,10 @@ export function applyDecayStage(world: World, stage: number, variants: number, f
   o.version++;
   setNavWalls(world.pathing.nav, o.solids);
   setNavWalls(world.pathing.wide, o.solids); // Story 5.7: grown on the wide grid
+  // Story 5.7 review L3: the wide field (idle while no Brute lives, so not rebuilt at this build
+  // start) describes the old walls: drop it, so the next Brute walks straight until a fresh one swaps in.
+  world.pathing.wideChase.sourceTick = -1;
+  world.pathing.wideChase.building = false;
   d.fires.length = 0;
   let fi = 0;
   for (const m of world.map.decay) {

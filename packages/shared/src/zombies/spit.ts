@@ -306,10 +306,7 @@ export function clearAcid(world: World): void {
  * wall: `shotBlockT`, the spit-vs-cover rule of F3) more than this far before the puddle centre. A
  * spit stopped at a face leaves its puddle centre ON that face (float rounding: a hair inside; the
  * client's copy: within ½ cm), which must not block the body on that side.
- */
-export const ACID_FACE_TOLERANCE_M = 0.02;
-
-/**
+ *
  * The circle (x, y, r) is inside a live acid puddle (strict overlap: the ring the client draws) AND
  * no shot blocker stands between it and the puddle's centre (barricades, sandbags, turrets, traps
  * don't count: 4.2). Allocation-free.
@@ -317,6 +314,7 @@ export const ACID_FACE_TOLERANCE_M = 0.02;
 export function circleInAcid(world: Readonly<World>, x: number, y: number, r: number): boolean {
   const pool = world.areas;
   if (pool.count === 0) return false;
+  const faceTol = acidSpit(world)?.acidFaceToleranceM ?? 0; // review L4: balance
   for (let i = 0; i < pool.capacity; i++) {
     if (pool.active[i] !== 1 || pool.kind[i] !== AREA_KIND.ACID) continue;
     const cx = pool.x[i] as number;
@@ -327,7 +325,7 @@ export function circleInAcid(world: Readonly<World>, x: number, y: number, r: nu
     const d2 = dx * dx + dy * dy;
     if (d2 >= rr * rr) continue;
     const t = shotBlockT(world, x, y, cx, cy);
-    if (t < 0 || (1 - t) * Math.sqrt(d2) <= ACID_FACE_TOLERANCE_M) return true;
+    if (t < 0 || (1 - t) * Math.sqrt(d2) <= faceTol) return true;
   }
   return false;
 }
