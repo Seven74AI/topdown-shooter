@@ -175,6 +175,7 @@ describe("Story 5.1: weapon upgrades", () => {
       expect(() => loadBalance(files)).toThrow(re);
     };
     bad({ maxLevel: 0 }, /shop\.json: upgrades\.maxLevel/);
+    bad({ maxLevel: 5 }, /shop\.json: upgrades\.maxLevel/); // review L1: I–IV is the design
     bad({ maxLevel: 16 }, /shop\.json: upgrades\.maxLevel/);
     bad({ maxLevel: 2.5 }, /shop\.json: upgrades\.maxLevel/);
     bad({ damagePerLevel: -0.1 }, /shop\.json: upgrades\.damagePerLevel/);

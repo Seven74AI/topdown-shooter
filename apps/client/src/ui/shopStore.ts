@@ -24,6 +24,11 @@ export interface ShopState {
    * id for a buy, `upgradeKey(weapon)` for a Story 5.1 upgrade.
    */
   readonly pending: string | null;
+  /**
+   * Story 5.1 review (F1): an accepted upgrade stays pending until a sync shows `levels[slot] >=
+   * level` (the answer can arrive before the state patch); null otherwise. The timeout still applies.
+   */
+  readonly awaitLevel: { readonly slot: 0 | 1; readonly level: number } | null;
   /** When `pending` was sent (ms, the scene's clock), for the timeout. */
   readonly pendingAtMs: number;
   /** Both slots full: the weapon waiting for "Replace which?". */
@@ -43,6 +48,7 @@ export const CLOSED_SHOP: ShopState = Object.freeze({
   upgradePrices: {},
   maxLevel: 1,
   pending: null,
+  awaitLevel: null,
   pendingAtMs: 0,
   choosing: null,
   message: "",
@@ -201,6 +207,10 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
     case "sync": {
       const levels = input.levels ?? s.levels;
       if (s.wallet === input.wallet && s.slots[0] === input.slots[0] && s.slots[1] === input.slots[1] && s.levels[0] === levels[0] && s.levels[1] === levels[1]) return same(s);
+      // Story 5.1 review: the state now shows the accepted upgrade: the rows are current, unlock them.
+      if (s.awaitLevel !== null && levels[s.awaitLevel.slot] >= s.awaitLevel.level) {
+        return same({ ...s, wallet: input.wallet, slots: input.slots, levels, pending: null, pendingAtMs: 0, awaitLevel: null });
+      }
       return same({ ...s, wallet: input.wallet, slots: input.slots, levels });
     }
     case "upgrade": {
@@ -240,12 +250,17 @@ export function shopStep(s: ShopState, input: ShopInput, nameOf: (id: string) =>
       }
       // A late answer for an earlier purchase shows its text but doesn't unlock a newer one (3.3 review).
       if (s.pending !== null && key !== s.pending) return same({ ...s, message, refused: !a.ok });
-      return same({ ...s, pending: null, pendingAtMs: 0, message, refused: !a.ok });
+      // Story 5.1 review (F1): an accepted upgrade unlocks only once the World shows its level, so a
+      // second tap can't buy from a row still showing the old level and wallet.
+      if (a.kind === "upgrade" && a.ok && s.pending !== null && s.levels[a.slot] < a.level) {
+        return same({ ...s, awaitLevel: { slot: a.slot, level: a.level }, message, refused: false });
+      }
+      return same({ ...s, pending: null, pendingAtMs: 0, awaitLevel: null, message, refused: !a.ok });
     }
     case "time":
       if (s.pending === null) return same(s);
       if (s.pendingAtMs === 0) return same({ ...s, pendingAtMs: input.nowMs }); // the clock starts with the first frame after the send
-      return input.nowMs - s.pendingAtMs >= SHOP_PENDING_TIMEOUT_MS ? same({ ...s, pending: null, pendingAtMs: 0 }) : same(s);
+      return input.nowMs - s.pendingAtMs >= SHOP_PENDING_TIMEOUT_MS ? same({ ...s, pending: null, pendingAtMs: 0, awaitLevel: null }) : same(s);
   }
 }
 
