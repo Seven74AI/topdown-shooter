@@ -25,6 +25,7 @@ import {
   acidSpitOf,
   type Balance,
   type SimEvent,
+  type BlockReason,
   type PlaceError,
   type PlaceRequest,
   type RepairError,
@@ -59,6 +60,7 @@ import { ProjectileView } from "../render/ProjectileView";
 import { streakScales } from "../render/weaponLook";
 import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
+import { BlockReasonView } from "../render/BlockReasonView";
 import { MineView } from "../render/MineView";
 import { MINE_SHAKE_MS, mineShakeIntensity } from "../render/mineBlast";
 import { GrenadeView } from "../render/GrenadeView";
@@ -70,6 +72,7 @@ import { FloodlightView } from "../render/FloodlightView";
 import { MedStationView } from "../render/MedStationView";
 import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
+import { placementHintText, type HintContext } from "./blockText";
 import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
@@ -278,7 +281,15 @@ export class GameScene extends Phaser.Scene {
     refusal: (e) => this.refusalText(e),
     send: this.sendPlace,
     toast: (text) => this.toasts.push(text),
+    nowMs: 0,
+    hintText: (e, r) => this.hintText(e, r),
   };
+  /** Story 5.17: the reason line's last text and what it was built from (rebuilt only when one changes: no string per frame). */
+  private hint = { e: "" as PlaceError | "", cause: "", index: 0, id: 0, playerId: "", name: "", wallet: -1, type: "", text: "" };
+  private readonly hintCtx: HintContext = { price: 0, wallet: 0, nameOf: (id) => this.ownerName(id), refusal: (e) => this.refusalText(e) };
+  /** Story 5.17: the shown reason's culprit and the spawn no-build circles. */
+  private blockReasonView: BlockReasonView | null = null;
+  private readonly drawnAt = (id: string): { x: number; y: number } | undefined => this.playerViews.get(id);
   private readonly refusalTexts = new Map<PlaceError, string>();
   /** Story 5.16: the build bar's per-frame context and answer (one object each, refilled every frame). */
   private readonly barFrame: BuildBarFrame = { can: false, holding: false, selected: false, owned: 0, cap: 0, wallet: 0 };
@@ -434,6 +445,7 @@ export class GameScene extends Phaser.Scene {
     this.fxView.world = host.world;
     this.downedView = new DownedView(this, world);
     this.buildingView = new BuildingView(this, balance);
+    this.blockReasonView = new BlockReasonView(this);
     this.mineView = new MineView(this, balance);
     this.turretView = new TurretView(this);
     this.floodlightView = new FloodlightView(this, balance); // Story 5.10
@@ -509,6 +521,8 @@ export class GameScene extends Phaser.Scene {
       this.placement.cancel();
       this.buildingView?.destroy();
       this.buildingView = null;
+      this.blockReasonView?.destroy();
+      this.blockReasonView = null;
       this.mineView?.destroy();
       this.mineView = null;
       this.cityView?.destroy();
@@ -755,6 +769,29 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  /**
+   * Story 5.17 (AC 3): the reason line for the shown error and reason (`placementHintText`), cached:
+   * rebuilt only when the error, the cause, the culprit (and a teammate's name), my wallet or the held type changes.
+   */
+  private hintText(e: PlaceError, r: Readonly<BlockReason> | null): string {
+    const host = this.host;
+    if (!host) return "";
+    const wallet = host.world.players.get(host.localPlayerId)?.wallet ?? 0;
+    const h = this.hint;
+    const type = this.placement.type;
+    const cause = r ? r.cause : "";
+    const index = r ? r.index : 0;
+    const id = r ? r.id : 0;
+    const playerId = r ? r.playerId : "";
+    const name = cause === "teammate" ? this.ownerName(playerId) : ""; // review L3: a name that arrives later updates the line
+    if (h.e === e && h.cause === cause && h.index === index && h.id === id && h.playerId === playerId && h.name === name && h.wallet === wallet && h.type === type) return h.text;
+    const c = this.hintCtx;
+    c.price = buildingStats(host.world.balance, type)?.price ?? 0;
+    c.wallet = wallet;
+    this.hint = { e, cause, index, id, playerId, name, wallet, type, text: placementHintText(host.world, e, r, c) };
+    return this.hint.text;
+  }
+
   private refusalText(e: PlaceError): string {
     let t = this.refusalTexts.get(e);
     if (t === undefined) {
@@ -800,6 +837,7 @@ export class GameScene extends Phaser.Scene {
     f.ownerId = host.localPlayerId;
     f.label = this.placingLabel;
     f.send = this.sendPlace;
+    f.nowMs = this.time.now;
     stepPlacement(this.placement, this.hudModel, this.input_, host.world, f);
   }
 
@@ -1193,6 +1231,7 @@ export class GameScene extends Phaser.Scene {
     this.downedView?.update(host.world, this.time.now);
     this.ambience?.update(host.world.decay.stage);
     this.buildingView?.update(host.world, this.placement);
+    this.blockReasonView?.update(host.world, this.placement, this.drawnAt);
     // Story 5.14: my survivor as drawn (predicted online) fills the re-arm ring on a sprung bear trap.
     const meNow = host.world.players.get(localId);
     const meView = this.playerViews.get(localId);

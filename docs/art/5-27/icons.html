@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build Icons Round 3</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;600;700&display=swap">
+<style>
+/* One dark look on purpose: it matches the game's night HUD (same as the 5-16 icons page). */
+:root {
+  --bg: #12151a;
+  --panel: #1b2027;
+  --line: #2c333d;
+  --fg: #e8eaed;
+  --muted: #9aa3ad;
+  --pick: #f5c542;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Inter", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.5; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 28px 16px 56px; display: grid; gap: 24px; }
+h1 { font-family: var(--display); font-size: 2.4rem; letter-spacing: 0.02em; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--display); font-size: 1.6rem; margin: 0; letter-spacing: 0.02em; }
+p { margin: 0; max-width: 68ch; color: var(--muted); }
+.lede { color: var(--fg); }
+b { color: var(--fg); font-weight: 600; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 16px; min-width: 0; }
+.panel header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.code { font-family: var(--display); font-weight: 700; font-size: 1.6rem; color: var(--pick); }
+.label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+.big { display: flex; flex-wrap: wrap; gap: 12px; }
+.big figure { margin: 0; display: grid; gap: 4px; justify-items: center; }
+.big figcaption { font-size: 0.78rem; color: var(--muted); text-align: center; }
+.big figure.new figcaption { color: var(--pick); font-weight: 600; }
+.shots { display: grid; gap: 18px; }
+.shot { display: grid; gap: 6px; min-width: 0; }
+.shot canvas { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); }
+.shot.s568 canvas { max-width: 568px; }
+.shot.s800 canvas { max-width: 800px; }
+.pair { display: grid; gap: 18px; grid-template-columns: minmax(0, 800fr) minmax(0, 568fr); align-items: start; }
+@media (max-width: 900px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+canvas { display: block; }
+.notes { display: grid; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>Build bar icons, round 3</h1>
+    <p class="lede">Three new I1-style icons for the buildings that still show their top-down world art in the bar: <b>floodlight</b> (from FL1), <b>med station</b> (from MS10) and <b>bear trap</b> (from B-T1). Same 44 × 30 box in a 48 × 36 frame, light from the top left, same outlines and palette as the four shipped icons.</p>
+  </div>
+
+  <section class="panel">
+    <header><span class="code">New</span><h2>FL1 floodlight · MS10 med station · B-T1 bear trap</h2></header>
+    <p><b>Floodlight</b>: the yellow tripod work light with rubber feet, the halogen head with its grille and lit glass facing you, cable trailing off to the left. <b>Med station</b>: the blue-grey crate with an orange first-aid case (handle, big white cross) and the grey case whose LED panel shows the glowing green cross. <b>Bear trap</b>: round steel jaws lying open with the teeth up, leaf springs to both sides, the round plate in the middle and the chain to a stake.</p>
+    <div><div class="label">Enlarged ×3 (new icons in yellow, shipped ones for comparison)</div><div class="big" id="big"></div></div>
+  </section>
+
+  <section class="panel">
+    <header><span class="code">Bar</span><h2>Affordable</h2></header>
+    <p>All seven building types plus Shop, at real phone size (56 px tiles, dpr 2). Wallet $5000, 2 of 6 placed: every tile at full strength, yellow prices.</p>
+    <div class="pair" data-state="ok"></div>
+  </section>
+
+  <section class="panel">
+    <header><span class="code">Bar</span><h2>Unaffordable</h2></header>
+    <p>Wallet $100: the auto-turret ($250), med station ($400) and bear trap ($120) tiles drop to 40 % with a red price; the floodlight at exactly $100 stays lit.</p>
+    <div class="pair" data-state="short"></div>
+  </section>
+
+  <section class="panel">
+    <header><span class="code">Bar</span><h2>At the cap</h2></header>
+    <p>Six of six placed: "6/6" in red and every building tile at 40 % (Shop stays lit).</p>
+    <div class="pair" data-state="cap"></div>
+  </section>
+
+  <section class="panel notes">
+    <h2>Notes</h2>
+    <p>Each frame is drawn exactly as the HUD does it: tile 56 px, black at 58 % with a white 1.5 px border, icon frame 48 × 36 centred 22 px down, price bold 14 px at 45 px, count line bold 15 px 4 px above the grid, Ready slid left of the grid. The icons are baked once at 2× (96 × 72) like the game's <code>hud_build</code> atlas, then drawn 1:1.</p>
+    <p>The bear trap's price is not set yet (Story 5.14 balance); <b>$120</b> here is a placeholder for the picture only. The floodlight is hidden from the shop until Epic 6 (<code>?shopall=1</code> shows it); it is in the bar here to judge the icon.</p>
+    <p>Drawing code: <code>floodlightFL1</code>, <code>medStationMS10</code>, <code>bearTrapBT1</code> in this page's script, written in the same form as <code>apps/client/src/render/city/buildIcons.ts</code> so they port as-is.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const TAU = Math.PI * 2;
+  // Palette (buildIcons.ts constants).
+  const WOOD = "#7a5028", WOOD_HI = "#9a6a3a", WOOD_DK = "#4f3218", OUT = "#1a1008";
+  const METAL = "#4a5560", METAL_HI = "#7d8a96", METAL_DK = "#22282e";
+  const NAIL = "#c9ced4", RED = "#ff3b2f", BLACK = "#11151a";
+
+  function shadow(g, cx, cy, rx, ry, a = 0.38) { g.fillStyle = `rgba(0,0,0,${a})`; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, TAU); g.fill(); }
+  function dot(g, x, y, r, style) { g.fillStyle = style; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
+  function roundRectPath(g, x, y, w, h, r) {
+    const q = Math.min(r, w / 2, h / 2);
+    g.beginPath(); g.moveTo(x + q, y); g.arcTo(x + w, y, x + w, y + h, q); g.arcTo(x + w, y + h, x, y + h, q); g.arcTo(x, y + h, x, y, q); g.arcTo(x, y, x + w, y, q); g.closePath();
+  }
+
+  // ===== Shipped icons (copied from buildIcons.ts, unchanged) =====
+  const barricadeI1 = (g, w, h) => {
+    const base = h * 0.86, top = h * 0.12, n = 5, sw = w * 0.13, gap = (w * 0.84 - n * sw) / (n - 1);
+    shadow(g, w / 2, base + h * 0.04, w * 0.46, h * 0.07, 0.35);
+    for (let i = 0; i < n; i++) {
+      const x = w * 0.08 + i * (sw + gap), t = top + (i % 2) * h * 0.06;
+      g.fillStyle = i % 2 ? WOOD : WOOD_HI; g.strokeStyle = OUT; g.lineWidth = w * 0.02;
+      g.beginPath(); g.moveTo(x, base); g.lineTo(x, t + sw * 0.6); g.lineTo(x + sw / 2, t); g.lineTo(x + sw, t + sw * 0.6); g.lineTo(x + sw, base); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = WOOD_DK; g.fillRect(x + sw * 0.62, t + sw * 0.6, sw * 0.38, base - t - sw * 0.6);
+    }
+    for (const y of [0.4, 0.66]) { g.fillStyle = WOOD_DK; g.strokeStyle = OUT; g.fillRect(w * 0.04, h * y, w * 0.92, h * 0.09); g.strokeRect(w * 0.04, h * y, w * 0.92, h * 0.09); }
+  };
+  const spikesI1 = (g, w, h) => {
+    shadow(g, w / 2, h * 0.86, w * 0.46, h * 0.08, 0.35);
+    g.fillStyle = WOOD; g.strokeStyle = OUT; g.lineWidth = w * 0.02;
+    g.beginPath(); g.moveTo(w * 0.16, h * 0.5); g.lineTo(w * 0.84, h * 0.5); g.lineTo(w * 0.96, h * 0.82); g.lineTo(w * 0.04, h * 0.82); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = WOOD_DK; g.fillRect(w * 0.04, h * 0.82, w * 0.92, h * 0.06);
+    g.strokeStyle = WOOD_DK; g.lineWidth = w * 0.012;
+    for (const t of [0.33, 0.66]) { g.beginPath(); g.moveTo(w * (0.1 + 0.06 * (1 - t)), h * (0.5 + 0.32 * t)); g.lineTo(w * (0.9 - 0.06 * (1 - t)), h * (0.5 + 0.32 * t)); g.stroke(); }
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) {
+      const y = h * (0.58 + r * 0.1), spread = 0.66 + r * 0.08, x = w * (0.5 - spread / 2 + ((c + 0.5) * spread) / 5);
+      g.strokeStyle = NAIL; g.lineWidth = w * 0.025; g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - h * 0.2); g.stroke();
+      dot(g, x, y - h * 0.2, w * 0.012, "#fff");
+    }
+  };
+  const turretT1 = (g, w, h) => {
+    const cx = w * 0.46;
+    shadow(g, cx, h * 0.9, w * 0.34, h * 0.07);
+    g.strokeStyle = METAL_DK; g.lineWidth = w * 0.04; g.lineCap = "round";
+    for (const [x, y] of [[-0.22, 0.92], [0.22, 0.92], [0.02, 0.97]]) { g.beginPath(); g.moveTo(cx, h * 0.52); g.lineTo(cx + w * x, h * y); g.stroke(); }
+    g.lineCap = "butt";
+    g.fillStyle = METAL_DK; g.fillRect(cx - w * 0.03, h * 0.46, w * 0.06, h * 0.12);
+    g.fillStyle = "#56603f"; g.strokeStyle = OUT; g.lineWidth = w * 0.018;
+    g.fillRect(cx - w * 0.3, h * 0.3, w * 0.13, h * 0.2); g.strokeRect(cx - w * 0.3, h * 0.3, w * 0.13, h * 0.2);
+    g.fillStyle = METAL; roundRectPath(g, cx - w * 0.17, h * 0.2, w * 0.34, h * 0.3, w * 0.03); g.fill(); g.stroke();
+    g.fillStyle = METAL_HI; g.fillRect(cx - w * 0.15, h * 0.22, w * 0.3, h * 0.06);
+    g.fillStyle = BLACK; g.fillRect(cx - w * 0.04, h * 0.12, w * 0.08, h * 0.09);
+    g.fillStyle = METAL_DK; g.fillRect(cx + w * 0.17, h * 0.3, w * 0.3, h * 0.1); g.strokeRect(cx + w * 0.17, h * 0.3, w * 0.3, h * 0.1);
+    g.fillStyle = BLACK; g.fillRect(cx + w * 0.44, h * 0.27, w * 0.08, h * 0.16);
+  };
+  const mineM1 = (g, w, h) => {
+    const cx = w / 2, top = h * 0.48, rx = w * 0.34, ry = h * 0.15, side = h * 0.2;
+    shadow(g, cx, top + side + h * 0.08, rx * 1.05, ry);
+    g.fillStyle = "#3a4529"; g.strokeStyle = "#151a0e"; g.lineWidth = w * 0.018;
+    g.beginPath(); g.moveTo(cx - rx, top); g.lineTo(cx - rx, top + side); g.ellipse(cx, top + side, rx, ry, 0, Math.PI, 0, true); g.lineTo(cx + rx, top); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = "#2c3520"; g.fillRect(cx - rx, top + side * 0.45, rx * 2, side * 0.18);
+    g.fillStyle = "#5f6e45"; g.beginPath(); g.ellipse(cx, top, rx, ry, 0, 0, TAU); g.fill(); g.stroke();
+    for (let i = 0; i < 8; i++) { const a = (i * Math.PI) / 4; dot(g, cx + Math.cos(a) * rx * 0.86, top + Math.sin(a) * ry * 0.82, w * 0.012, "#9aa3ad"); }
+    g.fillStyle = "#7d8a5c"; g.beginPath(); g.ellipse(cx, top - h * 0.05, rx * 0.5, ry * 0.5, 0, 0, TAU); g.fill(); g.stroke();
+    g.fillStyle = "#4a5636"; g.fillRect(cx - rx * 0.5, top - h * 0.05, rx, h * 0.05);
+    dot(g, cx, top - h * 0.07, w * 0.09, "rgba(255,59,47,0.45)");
+    dot(g, cx, top - h * 0.07, w * 0.04, RED);
+    dot(g, cx - w * 0.012, top - h * 0.085, w * 0.012, "#ffd0cc");
+  };
+
+  // ===== New icons (round 3) =====
+
+  // FL1 colours (round-d looks.html drawFL1): safety yellow steel, rubber, warm halogen glass.
+  const FL_Y = "#c9a227", FL_Y_HI = "#e6c24a", FL_Y_DK = "#8a6e14", RUBBER = "#1b1c1e";
+  const LAMP = "#fff3d6", LAMP_GLOW = "255,238,205";
+
+  /** FL1 floodlight: a yellow tripod work light, halogen head with a grille, its lit glass toward you, cable off to the left. */
+  const floodlightFL1 = (g, w, h) => {
+    const cx = w * 0.5;
+    const hub = h * 0.58; // where the legs meet the mast
+    shadow(g, cx, h * 0.9, w * 0.32, h * 0.07);
+    // cable: from the head's back down the mast and off to the left along the ground
+    g.strokeStyle = "#18191b"; g.lineWidth = w * 0.022; g.lineCap = "round";
+    g.beginPath(); g.moveTo(cx - w * 0.02, hub + h * 0.06); g.bezierCurveTo(cx - w * 0.06, h * 0.84, cx - w * 0.2, h * 0.78, cx - w * 0.3, h * 0.9); g.lineTo(w * 0.04, h * 0.92); g.stroke();
+    // tripod legs (back leg first, then the two front legs), rubber feet
+    const legs = [[0.03, 0.8], [-0.24, 0.92], [0.22, 0.94]];
+    for (const [x, y] of legs) {
+      g.strokeStyle = OUT; g.lineWidth = w * 0.062;
+      g.beginPath(); g.moveTo(cx, hub); g.lineTo(cx + w * x, h * y); g.stroke();
+      g.strokeStyle = x < 0 ? FL_Y_HI : FL_Y; g.lineWidth = w * 0.038;
+      g.beginPath(); g.moveTo(cx, hub); g.lineTo(cx + w * x, h * y); g.stroke();
+      dot(g, cx + w * x, h * y, w * 0.03, RUBBER);
+    }
+    g.lineCap = "butt";
+    // mast
+    g.fillStyle = FL_Y_DK; g.strokeStyle = OUT; g.lineWidth = w * 0.018;
+    g.fillRect(cx - w * 0.025, h * 0.36, w * 0.05, hub - h * 0.36 + h * 0.04); g.strokeRect(cx - w * 0.025, h * 0.36, w * 0.05, hub - h * 0.36 + h * 0.04);
+    dot(g, cx, hub, w * 0.035, "#8f8a7a");
+    // yoke (dark U bar) holding the head
+    g.fillStyle = "#2a2c30";
+    g.fillRect(cx - w * 0.24, h * 0.34, w * 0.48, h * 0.06); g.strokeRect(cx - w * 0.24, h * 0.34, w * 0.48, h * 0.06);
+    // head: a box tilted toward you — yellow top face with a grille, the lit glass as the front face
+    const hx = cx - w * 0.2, hw = w * 0.4;
+    g.fillStyle = FL_Y; g.lineWidth = w * 0.02;
+    g.beginPath(); g.moveTo(hx + w * 0.03, h * 0.06); g.lineTo(hx + hw - w * 0.03, h * 0.06); g.lineTo(hx + hw, h * 0.2); g.lineTo(hx, h * 0.2); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = FL_Y_HI; g.fillRect(hx + w * 0.05, h * 0.075, hw * 0.4, h * 0.03);
+    g.strokeStyle = "rgba(24,18,4,0.7)"; g.lineWidth = w * 0.012;
+    for (let i = 1; i < 6; i++) { const t = i / 6; g.beginPath(); g.moveTo(hx + w * 0.03 + (hw - w * 0.06) * t, h * 0.09); g.lineTo(hx + hw * t, h * 0.185); g.stroke(); }
+    // front: yellow bezel and the glowing glass
+    g.fillStyle = FL_Y_DK; g.strokeStyle = OUT; g.lineWidth = w * 0.02;
+    roundRectPath(g, hx, h * 0.2, hw, h * 0.22, w * 0.015); g.fill(); g.stroke();
+    dot(g, cx, h * 0.33, w * 0.24, `rgba(${LAMP_GLOW},0.12)`);
+    dot(g, cx, h * 0.33, w * 0.16, `rgba(${LAMP_GLOW},0.2)`);
+    g.fillStyle = LAMP; g.fillRect(hx + w * 0.03, h * 0.235, hw - w * 0.06, h * 0.15);
+    g.strokeStyle = "rgba(60,45,15,0.55)"; g.lineWidth = w * 0.01;
+    for (let i = 1; i < 4; i++) { const x = hx + w * 0.03 + ((hw - w * 0.06) * i) / 4; g.beginPath(); g.moveTo(x, h * 0.235); g.lineTo(x, h * 0.385); g.stroke(); }
+    dot(g, cx - w * 0.06, h * 0.28, w * 0.035, "rgba(255,255,255,0.9)");
+    // yoke bolts
+    dot(g, cx - w * 0.22, h * 0.37, w * 0.016, "#3a3c40"); dot(g, cx + w * 0.22, h * 0.37, w * 0.016, "#3a3c40");
+  };
+
+  // MS10 colours (round-d looks.html drawMS10).
+  const CRATE = "#3b4652", CRATE_HI = "#56636f", CRATE_DK = "#262e37";
+  const ORANGE = "#c8641e", ORANGE_HI = "#e07e34", ORANGE_DK = "#8f4410";
+  const GREY = "#59616b", GREY_HI = "#7a838d", GREY_DK = "#3a4048";
+  const CROSS_W = "#f2eee4";
+  const LED = "#5dff8a", LED_GLOW = "90,255,140", PANEL = "#121417";
+
+  /** A box in the I1 view: a lighter top face over a front face, outlined. */
+  function box3(g, x, y, bw, top, front, cTop, cFront, lw) {
+    g.strokeStyle = OUT; g.lineWidth = lw;
+    g.fillStyle = cFront; g.fillRect(x, y + top, bw, front); g.strokeRect(x, y + top, bw, front);
+    g.fillStyle = cTop; g.fillRect(x, y, bw, top); g.strokeRect(x, y, bw, top);
+  }
+  function cross(g, x, y, s, t, style) { g.fillStyle = style; g.fillRect(x - s / 2, y - t / 2, s, t); g.fillRect(x - t / 2, y - s / 2, t, s); }
+
+  /** MS10 med station: a blue-grey crate with an orange first-aid case and a grey case whose LED panel glows a green cross. */
+  const medStationMS10 = (g, w, h) => {
+    const lw = w * 0.018;
+    shadow(g, w / 2, h * 0.9, w * 0.46, h * 0.07);
+    // bottom crate, wide
+    box3(g, w * 0.06, h * 0.52, w * 0.88, h * 0.1, h * 0.26, CRATE_HI, CRATE, lw);
+    g.fillStyle = CRATE_DK; g.fillRect(w * 0.06, h * 0.7, w * 0.88, h * 0.04);
+    for (const x of [0.22, 0.78]) { g.fillStyle = "#1d2126"; g.fillRect(w * x - w * 0.05, h * 0.64, w * 0.1, h * 0.04); }
+    // orange first-aid case, left: carry handle on top, a big white cross on its front
+    g.strokeStyle = OUT; g.lineWidth = w * 0.03; g.lineCap = "round";
+    g.beginPath(); g.moveTo(w * 0.22, h * 0.26); g.lineTo(w * 0.22, h * 0.18); g.lineTo(w * 0.36, h * 0.18); g.lineTo(w * 0.36, h * 0.26); g.stroke();
+    g.strokeStyle = "#2a2c30"; g.lineWidth = w * 0.016;
+    g.beginPath(); g.moveTo(w * 0.22, h * 0.26); g.lineTo(w * 0.22, h * 0.18); g.lineTo(w * 0.36, h * 0.18); g.lineTo(w * 0.36, h * 0.26); g.stroke();
+    g.lineCap = "butt";
+    box3(g, w * 0.09, h * 0.24, w * 0.4, h * 0.08, h * 0.3, ORANGE_HI, ORANGE, lw);
+    g.fillStyle = ORANGE_DK; g.fillRect(w * 0.09, h * 0.32, w * 0.4, h * 0.03);
+    g.fillStyle = "#2a2c30"; for (const x of [0.13, 0.42]) g.fillRect(w * x, h * 0.31, w * 0.03, h * 0.06);
+    cross(g, w * 0.29, h * 0.45, w * 0.17, w * 0.06, CROSS_W);
+    // grey case, right, tall: the LED panel on its front
+    box3(g, w * 0.5, h * 0.08, w * 0.42, h * 0.08, h * 0.48, GREY_HI, GREY, lw);
+    g.fillStyle = GREY_DK; g.fillRect(w * 0.88, h * 0.16, w * 0.04, h * 0.48);
+    g.fillStyle = "#2a2c30"; g.fillRect(w * 0.64, h * 0.04, w * 0.14, h * 0.04);
+    // glow first (spills over the case), then the panel and the cross
+    dot(g, w * 0.71, h * 0.4, w * 0.24, `rgba(${LED_GLOW},0.12)`);
+    dot(g, w * 0.71, h * 0.4, w * 0.18, `rgba(${LED_GLOW},0.18)`);
+    g.fillStyle = PANEL; g.strokeStyle = OUT; g.lineWidth = lw;
+    roundRectPath(g, w * 0.56, h * 0.21, w * 0.3, h * 0.38, w * 0.02); g.fill(); g.stroke();
+    cross(g, w * 0.71, h * 0.4, w * 0.2, w * 0.07, LED);
+    cross(g, w * 0.71, h * 0.4, w * 0.12, w * 0.025, "rgba(220,255,228,0.9)");
+  };
+
+  // B-T1 colours (round-a code-drawings.html bearTrap defaults).
+  const JAW = "#7d8389", JAW_HI = "#aab0b6", JAW_DK = "#50555a", TOOTH = "#c9ced3";
+  const PAN = "#7d8186", CHAIN = "#62666b", STAKE = "#5a5650";
+
+  /** B-T1 bear trap: round steel jaws lying open with the teeth up, leaf springs both sides, round plate, chain to a stake. */
+  const bearTrapBT1 = (g, w, h) => {
+    const cx = w * 0.45, cy = h * 0.64, rx = w * 0.32, ry = h * 0.24, bw = h * 0.08;
+    const lw = w * 0.018;
+    shadow(g, w * 0.5, h * 0.86, w * 0.47, h * 0.1, 0.35);
+    // leaf springs: flat U bars out to both sides, along the jaw's hinge line
+    for (const s of [-1, 1]) {
+      const x0 = cx + s * rx * 0.8, x1 = cx + s * (rx + w * 0.1);
+      g.strokeStyle = OUT; g.lineWidth = h * 0.11; g.lineCap = "round";
+      g.beginPath(); g.moveTo(x0, cy); g.lineTo(x1, cy); g.stroke();
+      g.strokeStyle = JAW; g.lineWidth = h * 0.07;
+      g.beginPath(); g.moveTo(x0, cy); g.lineTo(x1, cy); g.stroke();
+      g.strokeStyle = JAW_HI; g.lineWidth = h * 0.02;
+      g.beginPath(); g.moveTo(x0, cy - h * 0.018); g.lineTo(x1, cy - h * 0.018); g.stroke();
+      g.lineCap = "butt";
+    }
+    // chain from the right spring to a stake front right
+    const sx = w * 0.95, sy = h * 0.9;
+    const ax = cx + rx + w * 0.1, ay = cy;
+    for (let i = 0; i < 5; i++) {
+      const t = (i + 0.5) / 5, x = ax + (sx - ax) * t, y = ay + (sy - ay) * t + Math.sin(t * Math.PI) * h * 0.04;
+      g.strokeStyle = OUT; g.lineWidth = w * 0.022; g.beginPath(); g.ellipse(x, y, w * 0.022, h * 0.03, i % 2 ? 0.9 : -0.4, 0, TAU); g.stroke();
+      g.strokeStyle = CHAIN; g.lineWidth = w * 0.012; g.beginPath(); g.ellipse(x, y, w * 0.022, h * 0.03, i % 2 ? 0.9 : -0.4, 0, TAU); g.stroke();
+    }
+    g.fillStyle = STAKE; g.strokeStyle = OUT; g.lineWidth = lw;
+    g.fillRect(sx - w * 0.02, sy - h * 0.12, w * 0.04, h * 0.12); g.strokeRect(sx - w * 0.02, sy - h * 0.12, w * 0.04, h * 0.12);
+    g.beginPath(); g.ellipse(sx, sy - h * 0.12, w * 0.03, h * 0.035, 0, 0, TAU); g.fill(); g.stroke();
+    // the jaw ring: back half, then the plate, then teeth, then the front half
+    const ring = (a0, a1) => {
+      g.beginPath();
+      g.ellipse(cx, cy, rx, ry, 0, a0, a1);
+      g.ellipse(cx, cy, rx - bw * 1.4, ry - bw, 0, a1, a0, true);
+      g.closePath();
+    };
+    g.strokeStyle = OUT; g.lineWidth = lw;
+    g.fillStyle = JAW_DK; ring(Math.PI, TAU); g.fill(); g.stroke();
+    // pressure plate on its trigger arm
+    g.fillStyle = JAW_DK; g.fillRect(cx - w * 0.015, cy - ry + bw * 0.5, w * 0.03, ry - bw * 0.5);
+    g.fillStyle = PAN; g.beginPath(); g.ellipse(cx, cy, rx * 0.36, ry * 0.36, 0, 0, TAU); g.fill(); g.stroke();
+    g.strokeStyle = "rgba(0,0,0,0.35)"; g.lineWidth = w * 0.01; g.beginPath(); g.ellipse(cx, cy, rx * 0.22, ry * 0.22, 0, 0, TAU); g.stroke();
+    dot(g, cx - rx * 0.12, cy - ry * 0.14, w * 0.02, "rgba(255,255,255,0.35)");
+    // teeth: steel triangles standing up from the ring, leaning inward; back row first
+    const teeth = (a0, a1, n) => {
+      for (let i = 0; i < n; i++) {
+        const a = a0 + ((i + 0.5) * (a1 - a0)) / n;
+        const bx = cx + Math.cos(a) * (rx - bw * 0.7), by = cy + Math.sin(a) * (ry - bw * 0.5);
+        const ix = -Math.cos(a), tw = w * 0.024, th = h * 0.2;
+        const tx = bx + ix * w * 0.025, ty = by - th;
+        g.fillStyle = TOOTH; g.strokeStyle = OUT; g.lineWidth = w * 0.012;
+        g.beginPath(); g.moveTo(bx - tw, by); g.lineTo(tx, ty); g.lineTo(bx + tw, by); g.closePath(); g.fill(); g.stroke();
+        g.fillStyle = "#8d9399"; g.beginPath(); g.moveTo(tx, ty); g.lineTo(bx + tw, by); g.lineTo(bx + tw * 0.2, by); g.closePath(); g.fill();
+        dot(g, tx, ty + h * 0.01, w * 0.008, "#fff");
+      }
+    };
+    teeth(Math.PI + 0.25, TAU - 0.25, 6);
+    g.strokeStyle = OUT; g.lineWidth = lw;
+    g.fillStyle = JAW; ring(0, Math.PI); g.fill(); g.stroke();
+    g.strokeStyle = JAW_HI; g.lineWidth = h * 0.02;
+    g.beginPath(); g.ellipse(cx, cy, rx - bw * 0.5, ry - bw * 0.35, 0, Math.PI * 0.55, Math.PI * 0.95); g.stroke();
+    teeth(0.3, Math.PI - 0.3, 5);
+    // hinge pivots where the jaws meet the springs
+    for (const s of [-1, 1]) { dot(g, cx + s * (rx - bw * 0.6), cy, w * 0.032, OUT); dot(g, cx + s * (rx - bw * 0.6), cy, w * 0.022, JAW_HI); }
+  };
+
+  // ===== Bake (as buildIcons.ts paintBuildIcon: 44×30 box in a 48×36 frame, at 2×) =====
+  const BOX_W = 44, BOX_H = 30, PAD_X = 2, PAD_TOP = 4, PAD_BOTTOM = 2;
+  const FRAME_W = BOX_W + 2 * PAD_X, FRAME_H = BOX_H + PAD_TOP + PAD_BOTTOM;
+  const ORIGIN_X = (PAD_X + BOX_W / 2) / FRAME_W, ORIGIN_Y = (PAD_TOP + BOX_H / 2) / FRAME_H;
+  const BAKE = 2;
+  function bake(draw, s = BAKE) {
+    const c = document.createElement("canvas");
+    c.width = FRAME_W * s; c.height = FRAME_H * s;
+    const g = c.getContext("2d");
+    g.save(); g.beginPath(); g.rect(0, 0, c.width, c.height); g.clip();
+    g.translate(PAD_X * s, PAD_TOP * s); g.scale(s, s); draw(g, BOX_W, BOX_H); g.restore();
+    return c;
+  }
+
+  const ITEMS = [
+    { id: "wood_barricade", name: "Wood barricade", price: 40, draw: barricadeI1 },
+    { id: "auto_turret", name: "Auto-turret", price: 250, draw: turretT1 },
+    { id: "spike_trap", name: "Spike trap", price: 80, draw: spikesI1 },
+    { id: "mine", name: "Mine", price: 60, draw: mineM1 },
+    { id: "floodlight", name: "Floodlight FL1", price: 100, draw: floodlightFL1, isNew: true },
+    { id: "med_station", name: "Med station MS10", price: 400, draw: medStationMS10, isNew: true },
+    { id: "bear_trap", name: "Bear trap B-T1", price: 120, draw: bearTrapBT1, isNew: true },
+  ];
+  for (const it of ITEMS) it.bake = bake(it.draw);
+
+  // ===== Enlarged ×3 tiles =====
+  function bigTile(it) {
+    const S = 3, T = 56 * S, dpr = Math.max(2, Math.min(3, window.devicePixelRatio || 1));
+    const c = document.createElement("canvas");
+    c.width = T * dpr; c.height = T * dpr; c.style.width = c.style.height = T + "px";
+    const g = c.getContext("2d"); g.scale(dpr, dpr);
+    g.fillStyle = "rgba(0,0,0,0.58)"; roundRectPath(g, 1, 1, T - 2, T - 2, 10 * S); g.fill();
+    g.strokeStyle = "rgba(255,255,255,0.85)"; g.lineWidth = 1.5 * S; g.stroke();
+    g.save(); g.translate(T / 2 - ORIGIN_X * FRAME_W * S, 22 * S - ORIGIN_Y * FRAME_H * S);
+    g.beginPath(); g.rect(0, 0, FRAME_W * S, FRAME_H * S); g.clip();
+    g.translate(PAD_X * S, PAD_TOP * S); g.scale(S, S); it.draw(g, BOX_W, BOX_H); g.restore();
+    const f = document.createElement("figure"); if (it.isNew) f.className = "new";
+    f.appendChild(c);
+    const cap = document.createElement("figcaption"); cap.textContent = it.name; f.appendChild(cap);
+    return f;
+  }
+  const big = document.getElementById("big");
+  for (const id of ["floodlight", "med_station", "bear_trap", "wood_barricade", "auto_turret", "spike_trap", "mine"]) big.appendChild(bigTile(ITEMS.find((i) => i.id === id)));
+
+  // ===== Phone screens (dpr 2, the HUD's layout) =====
+  const K = 2; // dpr
+  const TILE = 56, GAP = 8, INSET = 16, COLS = 4, ROWS = 2;
+  function street(g, W, H) {
+    g.fillStyle = "#24272d"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#2d3138"; g.fillRect(0, 0, W, H * 0.24);
+    g.fillStyle = "#3a3f47"; g.fillRect(0, H * 0.24, W, 4);
+    g.fillStyle = "rgba(200,170,60,0.55)"; for (let x = 0; x < W; x += 116) g.fillRect(x, H * 0.66, 66, 5);
+    g.fillStyle = "rgba(220,220,220,0.5)"; for (let i = 0; i < 8; i++) g.fillRect(W * 0.52 + i * 24, H * 0.28, 12, 46);
+    // a lamp pool and the player
+    const pool = g.createRadialGradient(W * 0.3, H * 0.3, 2, W * 0.3, H * 0.3, 60); pool.addColorStop(0, "rgba(255,220,150,0.35)"); pool.addColorStop(1, "rgba(255,220,150,0)");
+    g.fillStyle = pool; g.fillRect(0, 0, W, H);
+    g.strokeStyle = "#3d8bff"; g.lineWidth = 2; g.beginPath(); g.arc(W * 0.42, H * 0.5, 18, 0, TAU); g.stroke();
+    dot(g, W * 0.42, H * 0.5, 9, "#3b4b5e");
+    // HUD top-left
+    g.fillStyle = "#4caf50"; g.fillRect(16, 16, 200, 14); g.strokeStyle = "#1b1b1b"; g.lineWidth = 1; g.strokeRect(16, 16, 200, 14);
+  }
+  function text(g, s, x, y, px, color, align = "center", base = "middle") {
+    g.font = `700 ${px}px Inter, system-ui, sans-serif`; g.textAlign = align; g.textBaseline = base;
+    g.lineJoin = "round"; g.lineWidth = 3; g.strokeStyle = "#000"; g.strokeText(s, x, y); g.fillStyle = color; g.fillText(s, x, y);
+  }
+  function screen(W, H, state) {
+    const c = document.createElement("canvas");
+    c.width = W * K; c.height = H * K; c.style.aspectRatio = `${W} / ${H}`;
+    const g = c.getContext("2d"); g.scale(K, K);
+    street(g, W, H);
+    const wallet = state === "short" ? 100 : 5000, owned = state === "cap" ? 6 : 2, cap = 6;
+    text(g, "HP 100 / 100", 16, 44, 14, "#fff", "left");
+    text(g, "$" + wallet, 16, 66, 16, "#ffd54a", "left");
+    text(g, "Wave 3 in 21 s", W / 2, 22, 16, "#fff");
+    const right = W - INSET, bottom = H - INSET;
+    const left = right - COLS * TILE - (COLS - 1) * GAP, top = bottom - ROWS * TILE - (ROWS - 1) * GAP;
+    // Ready: centred 40 px left of centre, or slid left of the grid with a 12 px gap
+    const rw = 168, rh = 52, rx = Math.min((W - rw) / 2 - 40, left - 12 - rw), ry = H - 24 - rh;
+    g.fillStyle = "rgba(0,0,0,0.5)"; roundRectPath(g, rx, ry, rw, rh, 12); g.fill();
+    g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 2; g.stroke();
+    text(g, "Ready", rx + rw / 2, ry + rh / 2, 20, "#fff");
+    const slots = [0, 1, 2, 3, 4, 5, 6, "shop"];
+    slots.forEach((slot, s) => {
+      const x = left + (s % COLS) * (TILE + GAP), y = top + Math.floor(s / COLS) * (TILE + GAP);
+      const it = slot === "shop" ? null : ITEMS[slot];
+      const limit = it && owned >= cap, short = it && !limit && wallet < it.price;
+      const a = limit || short ? 0.4 : 1;
+      g.save(); g.globalAlpha = a;
+      g.fillStyle = `rgba(0,0,0,${it ? 0.58 : 0.5})`; roundRectPath(g, x, y, TILE, TILE, 10); g.fill();
+      g.strokeStyle = it ? "rgba(255,255,255,0.85)" : "rgba(245,197,66,0.85)"; g.lineWidth = 1.5; g.stroke();
+      if (it) {
+        g.drawImage(it.bake, x + TILE / 2 - ORIGIN_X * FRAME_W, y + 22 - ORIGIN_Y * FRAME_H, FRAME_W, FRAME_H);
+        text(g, "$" + it.price, x + TILE / 2, y + 45, 14, short ? "#ff8a80" : "#ffe082");
+      } else {
+        g.font = "20px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#fff"; g.fillText("🛒", x + TILE / 2, y + 22);
+        text(g, "Shop", x + TILE / 2, y + 45, 14, "#fff");
+      }
+      g.restore();
+    });
+    text(g, `${owned}/${cap}`, right, top - 4, 15, owned >= cap ? "#ff8a80" : "#fff", "right", "bottom");
+    return c;
+  }
+  for (const pair of document.querySelectorAll(".pair")) {
+    for (const [W, H] of [[800, 360], [568, 320]]) {
+      const d = document.createElement("div"); d.className = `shot s${W}`;
+      const l = document.createElement("div"); l.className = "label"; l.textContent = `${W} × ${H} · dpr 2`;
+      d.appendChild(l); d.appendChild(screen(W, H, pair.dataset.state)); pair.appendChild(d);
+    }
+  }
+})();
+</script>
+</body>
+</html>

@@ -219,6 +219,83 @@ export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>): bo
 }
 
 /**
+ * Story 5.17: why a footprint is blocked (the first cause, in this order) — `blockReason`'s answer.
+ * `off_map` (index −1) → `spawn` (index into `world.map.spawnPoints`) → `solid` (index into
+ * `world.obstacles.solids`: a map box or active cover) → `building` (`id`: the building's id) → `me`
+ * (`playerId` = the owner) → `teammate` (`playerId`) → `zombie` (`id`: the zombie's slot id).
+ */
+export type BlockCause = "off_map" | "spawn" | "solid" | "building" | "me" | "teammate" | "zombie";
+
+export interface BlockReason {
+  cause: BlockCause;
+  /** Spawn point / solid index; −1 for the other causes. */
+  index: number;
+  /** Building id / zombie slot id; 0 for the other causes. */
+  id: number;
+  /** Player id for `me` / `teammate`; "" otherwise. */
+  playerId: string;
+}
+
+export function createBlockReason(): BlockReason {
+  return { cause: "off_map", index: -1, id: 0, playerId: "" };
+}
+
+const reasonScratch: BlockReason = createBlockReason();
+
+function setReason(out: BlockReason, cause: BlockCause, index: number, id: number, playerId: string): BlockReason {
+  out.cause = cause;
+  out.index = index;
+  out.id = id;
+  out.playerId = playerId;
+  return out;
+}
+
+/**
+ * Story 5.17 (BX-3): the **client's** explanation of `footprintBlocked` — the same tests, in the
+ * order the reason line explains them, with what caused it (so the culprit can be outlined).
+ * `blockReason(w, o, box) !== null ⇔ footprintBlocked(w, box)` for every World and box (fuzz-tested
+ * in `blockReason.test.ts`); `footprintBlocked` stays the server's check. `exceptId` (a building id;
+ * 0 = none) leaves one building out (Story 5.24's move: the building being moved never blocks itself).
+ * Returns `out` filled (default: one module scratch object, valid until the next call) or null when
+ * the spot is clear. No allocation.
+ */
+export function blockReason(world: Readonly<World>, ownerId: string, box: Readonly<Box>, exceptId = 0, out: BlockReason = reasonScratch): BlockReason | null {
+  const { widthM, heightM, spawnPoints } = world.map;
+  if (box.minX < 0 || box.minY < 0 || box.maxX > widthM || box.maxY > heightM) return setReason(out, "off_map", -1, 0, "");
+  const clear = world.balance.buildings.spawnClearM;
+  for (let i = 0; i < spawnPoints.length; i++) {
+    const sp = spawnPoints[i] as { x: number; y: number };
+    if (circleOverlapsBox(sp.x, sp.y, clear, box.minX, box.minY, box.maxX, box.maxY)) return setReason(out, "spawn", i, 0, "");
+  }
+  const solids = world.obstacles.solids;
+  for (let i = 0; i < solids.length; i++) {
+    const b = solids[i] as Box;
+    if (box.minX < b.maxX && box.maxX > b.minX && box.minY < b.maxY && box.maxY > b.minY) return setReason(out, "solid", i, 0, "");
+  }
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    if (b.id === exceptId && exceptId !== 0) continue;
+    if (box.minX < b.maxX && box.maxX > b.minX && box.minY < b.maxY && box.maxY > b.minY) return setReason(out, "building", -1, b.id, "");
+  }
+  const me = world.players.get(ownerId);
+  if (me && me.status !== "out" && circleOverlapsBox(me.x, me.y, me.radiusM, box.minX, box.minY, box.maxX, box.maxY)) return setReason(out, "me", -1, 0, ownerId);
+  for (const p of world.players.values()) {
+    if (p.status === "out" || p === me) continue;
+    if (circleOverlapsBox(p.x, p.y, p.radiusM, box.minX, box.minY, box.maxX, box.maxY)) return setReason(out, "teammate", -1, 0, p.id);
+  }
+  const z = world.zombies;
+  if (z.aliveCount > 0) {
+    const rz = maxZombieRadius(world.balance);
+    for (let i = 0; i < z.aliveCount; i++) {
+      const id = z.aliveIds[i] as number;
+      if (circleOverlapsBox(z.x[id] as number, z.y[id] as number, rz, box.minX, box.minY, box.maxX, box.maxY)) return setReason(out, "zombie", -1, id, "");
+    }
+  }
+  return null;
+}
+
+/**
  * The whole placement check, in this order: unknown player → not a build phase → unknown type or a
  * bad grid point/rotation → (Story 5.10) not for sale → the owner's cap → money → the spot. null = the server would accept it.
  * The client's preview runs the same check on its mirror World (the server's answer may still differ:

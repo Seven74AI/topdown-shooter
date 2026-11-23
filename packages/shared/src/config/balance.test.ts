@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BalanceError, bundledBalanceFiles, loadBalance, withOverrides, type RawBalanceFiles } from "./balance";
+import { fxSchema } from "./balanceSchema";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
@@ -160,16 +161,29 @@ describe("loadBalance", () => {
   });
 
   it("Story 5.15: controls.build (carry gap, snap and auto-rotate hysteresis) loads, defaults and is bounded", () => {
-    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10 });
+    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250 });
     const d = raw();
     delete (d.controls as { build?: unknown }).build;
-    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10 });
+    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250 });
     const h = raw();
     (h.controls as { build: { snapHysteresisM: number } }).build.snapHysteresisM = 0.25; // half a cell: the index would never settle
     expect(() => loadBalance(h)).toThrow(/controls\.json: build\.snapHysteresisM: /);
     const r = raw();
     (r.controls as { build: { autoRotateHysteresisDeg: number } }).build.autoRotateHysteresisDeg = 45;
     expect(() => loadBalance(r)).toThrow(/controls\.json: build\.autoRotateHysteresisDeg: /);
+  });
+
+  it("Story 5.17: controls.build.reasonHoldMs is 250, defaults when missing and is bounded", () => {
+    expect(loadBalance().controls.build.reasonHoldMs).toBe(250);
+    const d = raw();
+    delete (d.controls as { build: { reasonHoldMs?: number } }).build.reasonHoldMs;
+    expect(loadBalance(d).controls.build.reasonHoldMs).toBe(250);
+    const h = raw();
+    (h.controls as { build: { reasonHoldMs: number } }).build.reasonHoldMs = -1;
+    expect(() => loadBalance(h)).toThrow(/controls\.json: build\.reasonHoldMs: /);
+    const l = raw();
+    (l.controls as { build: { reasonHoldMs: number } }).build.reasonHoldMs = 2001;
+    expect(() => loadBalance(l)).toThrow(/controls\.json: build\.reasonHoldMs: /);
   });
 
   it("rejects a run whose last wave overflows the per-type counts (3.10 review)", () => {
@@ -268,8 +282,12 @@ describe("Story 5.9: building tiers, traps and mines", () => {
 
   it("Story 5.10 building blocks: light/heal validate; two behaviour blocks refused; inShop defaults true", () => {
     const t = loadBalance().buildings.types;
-    expect(t.floodlight).toMatchObject({ inShop: false, forSale: true, solid: true, light: { radiusM: 4, blackoutRadiusM: 6 } });
-    expect(t.med_station).toMatchObject({ inShop: true, solid: true, heal: { radiusM: 2, hpPerS: 5 } });
+    expect(t.floodlight).toMatchObject({ inShop: false, forSale: true, solid: true, stopsBullets: false, light: { radiusM: 4, blackoutRadiusM: 6 } });
+    expect(t.med_station).toMatchObject({ inShop: true, solid: true, stopsBullets: false, heal: { radiusM: 2, hpPerS: 5 } });
+    // 5.10 review: the schema default of the pool-sharing distance matches controls.json (4 m).
+    const fxWithout: Record<string, unknown> = { ...controls.fx };
+    delete fxWithout.floodLightMergeM;
+    expect(fxSchema.parse(fxWithout).floodLightMergeM).toBe(4);
     for (const id of ["wood_barricade", "auto_turret", "spike_trap", "mine"]) expect(t[id]?.inShop, id).toBe(true);
     // The new types are appended (the wire index of every older type stays).
     expect(Object.keys(t).slice(-3)).toEqual(["floodlight", "med_station", "bear_trap"]); // Story 5.14 appends after 5.10

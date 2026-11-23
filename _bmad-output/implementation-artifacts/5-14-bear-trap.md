@@ -285,3 +285,4 @@ Claude Code (builder session for Story 5.14, orchestrated by the main session).
 
 - 2026-11-23: Story file created; designer accepted D1–D12 as recommended.
 - 2026-11-23: Story 5.14 built (bear trap: balance, shared sim, schema `trap` field + snap event, B-T1 art open/closed, plate/re-arm rings, snap FX/sfx, `?stressbuild=bear`, tests incl. fuzz, bandwidth, tick cost, 6-wave sim, netsim, 21 mutations, screenshots, readability rows). Status → review.
+- 2026-11-23: Merged origin/master (3dab0ac: 5.10 on master, 5.17 "why it's red", 5.26 build-bar icons, 5.27 story). One conflict (`GameScene.ts`: 5.17's `blockReasonView.update` + 5.14's re-arm `mineView.update`, both kept). 5.17's generic ghost range rings show `bearTrap.plateRadiusM` with no change (asserted in `bearTrapArt.test.ts`). Gate on the merged tree: typecheck, lint, test (271 files passed, 1 skipped; 2,241 tests passed, 3 skipped), build — green (load 0.56 → 3.56).

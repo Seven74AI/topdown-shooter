@@ -18,6 +18,7 @@
   "build": {
     "carryGapM": 1.0,
     "snapHysteresisM": 0.1,
-    "autoRotateHysteresisDeg": 10
+    "autoRotateHysteresisDeg": 10,
+    "reasonHoldMs": 250
   }
 }

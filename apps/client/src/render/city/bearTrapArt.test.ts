@@ -5,6 +5,7 @@ import { ATLAS_BUILDINGS, BUILDINGS_PX_PER_M, FRAME_BEAR_TRAP_CLOSED, FRAME_BEAR
 import { RecordCanvas, asContext, type PaintOp } from "./recordCanvas";
 import { bearTrapPlateRadius, buildingShadowHeightM, TRAP_SHADOW_M, rearmFraction } from "../mineLook";
 import { isFrameName } from "./atlasLayout";
+import { rangeRings } from "../rangeRings";
 
 /** Story 5.14: the bear trap B-T1 drawn in game code, open and closed; the plate ring and re-arm ring helpers. */
 const balance = loadBalance();
@@ -63,6 +64,7 @@ describe("Story 5.14 F2: the plate ring is the sim's radius", () => {
     const r = bearTrapPlateRadius(buildingStats(balance, "bear_trap"));
     expect(r).toBe(balance.buildings.types.bear_trap?.bearTrap?.plateRadiusM);
     expect(bearTrapPlateRadius(buildingStats(balance, "mine"))).toBeNull();
+    expect(rangeRings(buildingStats(balance, "bear_trap"))).toEqual([{ key: "bearTrap.plateRadiusM", radiusM: r }]); // 5.17's placement ghost shows the same ring
     const caught = (d: number): boolean => {
       const noop = (): void => {};
       const world = createWorld({ balance, seed: 1, systems: { waves: noop, zombies: noop } });

@@ -1,6 +1,6 @@
 # Story 5.10: Floodlight and med station
 
-Status: review
+Status: done
 
 ## Story
 
@@ -256,9 +256,20 @@ Floodlight FPS (≈ −20 % headless): accepted as is by the designer (see open 
 
 **Merge of Story 5.11 (master `71b73fd`) — ONE shop-all switch.** 5.11 had added a minimal `?shopall` / `DEV_SHOP_ALL` that builds a dev balance with every gear `inShop` true (changes `balance.version`). The two switches are now one, on 5.11's mechanism: `loadDevBalance({ shopAll: true })` sets `inShop: true` on gear AND building types, so the floodlight and the tactical flashlight unhide together. Removed this story's parallel path: `world.debug.shopAll`, `RunController({ shopAll })`, the per-run room pick, and the `shopAll` parameters of `shopBuildings` / `buildBarItems` (they read `inShop` from the balance, so M2 now holds by construction: the dev balance lists the floodlight in the build bar). Guards kept: client `parseUrlOptions(…, dev = import.meta.env.DEV)` ignores `?shopall` in a release build; the server computes the switch with the tested `pickDevShopAll(env)` (production → ignored, logged by `dev_balance_override_ignored`). Deviation from AC 3's "outside balance": the version now changes, so a client with `?shopall` against a server without `DEV_SHOP_ALL` is refused at join (visible) instead of per placement (B10). Heal-cap tests now use real body armor I (`buyGear` → maxHp 125). PR #6's `stopsBullets`: the floodlight and med station stay `false` (obstacles, not cover).
 
+**Gate on the merged tree** (master `71b73fd` + this story + fixes): green, **262 files passed (1 skipped), 2,171 tests passed (3 skipped)**, build OK; load 0.96 before, 4.10 after.
+
 
 **Gate after the merge + fixes** (`typecheck && lint && test && build` on `story-5-10` = master `4258175` + this story): green, **260 files passed (1 skipped), 2,129 tests passed (3 skipped)**, build OK; load 0.16 before, 4.48 after. Story 5.11 not merged yet at that point (see below).
 
 ## Change from the Epic 6 design session (designer, 2026-11-23)
 
 Decision D5 (`docs/ideas/epic-6/proposal.md`): the floodlight's light radius is **6 m during blackout waves** (Epic 6, Story 6.3), 4 m otherwise. Put both radii in balance JSON (e.g. `floodlight.lightRadiusM` 4 and `floodlight.blackoutLightRadiusM` 6) so 6.3 only switches between them.
+
+### Re-review of the fixes (fresh agent, 2026-11-23) — clean of high/medium
+
+Re-review of f679f61/5b5861c: M1, M2 (now by construction via `loadDevBalance({ shopAll })`), the single shop-all switch, release guards and L1–L5 hold; merged with master 3bbb955 (5.17) without conflicts, full gate green (2,199 tests). Lows fixed by the main session at merge:
+- No test pinned "floodlight and med station don't stop bullets" (PR #6) → `stopsBullets: false` added to both balance assertions.
+- 5.17's generic range rings drew the floodlight's Epic 6 `blackoutRadiusM` (6 m) as a second ghost ring → `rangeRings` skips `blackoutRadiusM`; test against the real balance (one ring each).
+- `floodLightMergeM` schema default unprotected → test parses fx without the field and expects 4 (the default-2 mutation now fails).
+- Nit: `inShop` doc comment now names `loadDevBalance({ shopAll })` (world.debug.shopAll was removed).
+Accepted: the `?tune` solo path (`tunedBalance()`) ignores `?shopall` (dev-only convenience).
