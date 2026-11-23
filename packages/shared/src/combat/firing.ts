@@ -29,7 +29,7 @@ import { flameTick, updateIgnites } from "./flame";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
 import { pelletDirection, rotateBySeqSpread, seqPelletRoll } from "./spread";
-import { shotBlockT } from "./cover";
+import { bulletBlockT } from "./cover";
 
 
 /** Story 5.3 counters (they live in `damage.ts` since Story 5.2; re-exported for the old imports). */
@@ -303,7 +303,7 @@ function updateProjectiles(world: World, dtS: number): void {
     const count = queryRadius(view ? view.grid : world.zombieGrid, xs, ys, (x0 + x1) / 2, (y0 + y1) / 2, qr, candidates);
     // Story 4.2: the shot stops where this sweep first enters a car, the bus or a map box (-1: none);
     // zombies past that point are behind cover and not hit.
-    const blockT = shotBlockT(world, x0, y0, x1, y1);
+    const blockT = bulletBlockT(world, x0, y0, x1, y1); // barricades stop bullets too (designer 2026-11-23)
     let hits = 0;
     for (let k = 0; k < count; k++) {
       const zid = candidates[k] as number;

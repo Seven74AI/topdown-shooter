@@ -321,8 +321,8 @@ describe("friendly-fire table (5.4's rule): the explosion row through a real gre
 });
 
 describe("liveness sim (AC 14): a player shells a crowd for a wave", () => {
-  it("≥ 1 explosion, ≥ 10 kills by the Grenade Launcher, ≥ 1 self-hit firing at a car 2 m away", () => {
-    const map = mapWith("car", { minX: 9.5, minY: 3, maxX: 11.5, maxY: 7 });
+  it("≥ 1 explosion, ≥ 10 kills by the Grenade Launcher, ≥ 1 self-hit firing onto a car 1.5 m away", () => {
+    const map = mapWith("car", { minX: 9.5, minY: 3, maxX: 14, maxY: 7 });
     const world = createWorld({ balance, seed: 11, map });
     applyDecayStage(world, 1, 0);
     const p = addPlayer(world, "p0", 30, 16);
@@ -359,7 +359,8 @@ describe("liveness sim (AC 14): a player shells a crowd for a wave", () => {
     expect(explosionCounters.happened).toBeGreaterThanOrEqual(1);
     expect(kills).toBeGreaterThanOrEqual(10);
 
-    // A car 2 m away (its face 1.6 m from the muzzle): the round bursts at the face, and the shooter takes 20.
+    // A car 1.5 m away (x 9.5–14): aimed onto its roof (3 m from the muzzle, inside the car), the round
+    // lands at its near face (FR-B2), and the shooter takes 20.
     p.x = p.prevX = 8;
     p.y = p.prevY = 5;
     const hp = p.hp;
@@ -368,7 +369,7 @@ describe("liveness sim (AC 14): a player shells a crowd for a wave", () => {
     if (world.run.phase !== "wave") {
       if (world.run.phase === "build") startWave(world);
     }
-    setInput(world, "p0", { ...NEUTRAL_INPUT, seq: 99999, aimX: lobAimLength(GL, 6), aimY: 0, fire: true, isMouse: true });
+    setInput(world, "p0", { ...NEUTRAL_INPUT, seq: 99999, aimX: lobAimLength(GL, 3), aimY: 0, fire: true, isMouse: true });
     for (let t = 0; t < 30 && hp === p.hp; t++) step(world, TICK_DT_S);
     expect(hp - p.hp).toBe(20);
     expect(explosionCounters.playersHit).toBeGreaterThan(before);

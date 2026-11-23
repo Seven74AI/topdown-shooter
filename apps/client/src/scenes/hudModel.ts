@@ -118,6 +118,8 @@ export interface HudModel {
   readonly teammates: Float32Array;
   readonly teammateSlot: Int8Array;
   readonly teammateFlags: Uint8Array;
+  /** Seconds left on a downed teammate's countdown (same index as `teammateSlot`; 0 when not downed). */
+  readonly teammateSecs: Int16Array;
   teammateCount: number;
   /** Name per slot (index = slot), assigned only when it changes. */
   readonly teammateNames: string[];
@@ -232,6 +234,7 @@ export const createHudModel = (): HudModel => ({
   teammates: new Float32Array(MAX_PLAYERS * 2),
   teammateSlot: new Int8Array(MAX_PLAYERS),
   teammateFlags: new Uint8Array(MAX_PLAYERS),
+  teammateSecs: new Int16Array(MAX_PLAYERS),
   teammateCount: 0,
   teammateNames: new Array<string>(MAX_PLAYERS).fill(""),
   money: 0,

@@ -61,4 +61,13 @@ describe("teammateMarkers (Story 2.9)", () => {
   it("no teammates (solo) gives no markers", () => {
     expect(teammateMarkers(model(), W, H, MARGIN, out)).toBe(0);
   });
+
+  it("an off-screen downed teammate's marker carries their countdown seconds; a standing one 0", () => {
+    const m = model([90, 10, 1, TEAMMATE_DOWNED], [-30, 10, 2]);
+    m.teammateSecs[0] = 14;
+    m.teammateSecs[1] = 9; // stale value on a standing teammate: ignored
+    expect(teammateMarkers(m, W, H, MARGIN, out)).toBe(2);
+    expect(out[0]).toMatchObject({ visible: true, slot: 1, downed: true, secs: 14 });
+    expect(out[1]).toMatchObject({ visible: true, slot: 2, downed: false, secs: 0 });
+  });
 });

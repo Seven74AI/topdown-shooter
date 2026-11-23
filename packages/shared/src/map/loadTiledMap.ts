@@ -184,7 +184,10 @@ export function loadTiledMap(raw: unknown, name: string): DistrictMap {
     uniqueNames(collision.name, collision.objects);
     for (const o of collision.objects) {
       const b = boxOf(collision.name, o, true);
-      if (b) solids.push(b);
+      if (!b) continue;
+      const building = propsOf(o.properties).get("building") ?? false;
+      if (typeof building !== "boolean") fail(`${collision.name}: ${o.name || `#${o.id}`}: building must be a bool, got ${String(building)}`);
+      solids.push(building === true ? { ...b, building: true } : b);
     }
   }
 

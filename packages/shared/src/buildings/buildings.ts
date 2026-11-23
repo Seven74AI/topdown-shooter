@@ -45,6 +45,8 @@ export interface Building {
    * keeps it (same footprint, same kind).
    */
   readonly solid: boolean;
+  /** Bullets stop on it (the type's `stopsBullets`; cached like `solid`, an upgrade keeps it). */
+  readonly stopsBullets: boolean;
   /** The footprint in metres (cached at creation; buildings never move). */
   readonly minX: number;
   readonly minY: number;
@@ -328,6 +330,7 @@ export function addBuildingAt(world: World, spec: BuildingSpec): Building | null
     hp: spec.hp,
     maxHp: stats.hp,
     solid: stats.solid,
+    stopsBullets: stats.stopsBullets,
     minX: box.minX,
     minY: box.minY,
     maxX: box.maxX,
@@ -411,7 +414,7 @@ export function damageBuilding(world: World, b: Building, amount: number): boole
  */
 export function setBuildingType(world: World, b: Building, type: string, hp?: number): boolean {
   const stats = buildingStats(world.balance, type);
-  if (!stats || stats.solid !== b.solid) return false;
+  if (!stats || stats.solid !== b.solid || stats.stopsBullets !== b.stopsBullets) return false;
   const box = footprint(stats, b.gx, b.gy, b.rot, scratch);
   if (box.maxX !== b.maxX || box.maxY !== b.maxY) return false;
   b.type = type;

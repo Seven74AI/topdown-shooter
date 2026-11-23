@@ -7,6 +7,7 @@ import { MAX_PLAYERS } from "../net/messages";
 import { MUZZLE_OFFSET_M } from "../config/constants";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { isRushState } from "../zombies/zombieTypes";
+import { bulletLineClear } from "../combat/cover";
 
 /**
  * A simple bot (Story 2.10, AC 5) for load tests (2.10), economy runs (3.10, 6.1) and balance
@@ -22,7 +23,12 @@ import { isRushState } from "../zombies/zombieTypes";
  * 3. farther than `regroupDistM` from the centre of the alive team: move toward it;
  * 4. otherwise stand still.
  *
- * Always: aim at the nearest zombie and fire while it is within the weapon's range. `isMouse` is
+ * 2c. (barricades stop bullets, designer 2026-11-23) the nearest zombie is in range but every zombie
+ *    in range is behind cover: strafe sideways (90° left of it) to open a line.
+ *
+ * Always: aim at the nearest zombie I can hit (`shotZombie`: a clear bullet line, or any for a
+ * launcher, whose lob flies over barricades) and fire while it is within the weapon's range.
+ * A view that doesn't know cover (`knowsCover` false: `tools/bots` over the wire) aims at the nearest. `isMouse` is
  * false, so the bot gets aim assist like a phone player. It never swaps. Ready is tapped by the
  * client (`lobby.set_ready`), not here. Story 3.10: `shoppingList` is bought in each build phase
  * by `bots/botShop.ts` (headless `botBuildPhase`, and `tools/bots` over the wire), not here.
@@ -67,6 +73,12 @@ export interface BotView {
   nearestZombie: BotZombie | null;
   /** Storage for the nearest zombie. */
   readonly zombie: BotZombie;
+  /** True when `shotZombie` is filled (a World view); false: aim at `nearestZombie` (net view). */
+  knowsCover: boolean;
+  /** The nearest zombie within my range with a clear bullet line (any, for a launcher), else null. */
+  shotZombie: BotZombie | null;
+  /** Storage for `shotZombie`. */
+  readonly shot: BotZombie;
 }
 
 export interface BotConfig {
@@ -92,6 +104,9 @@ export function createBotView(): BotView {
     teammateCount: 0,
     nearestZombie: null,
     zombie: { x: 0, y: 0, distM: 0, holdsSpot: false },
+    knowsCover: false,
+    shotZombie: null,
+    shot: { x: 0, y: 0, distM: 0, holdsSpot: false },
   };
 }
 
@@ -122,16 +137,18 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
   if (me.status !== "alive") return; // downed or out: nothing to do
 
   const z = view.nearestZombie;
-  if (z) {
-    const dx = z.x - me.x;
-    const dy = z.y - me.y;
+  // Aim at one I can hit; with none, keep facing the nearest (no fire: it's out of range or behind cover).
+  const target = view.knowsCover ? (view.shotZombie ?? z) : z;
+  if (target) {
+    const dx = target.x - me.x;
+    const dy = target.y - me.y;
     const d = Math.hypot(dx, dy);
     if (d > 0) {
       // Story 5.5: a launcher lobs to the target's distance (from the muzzle, clamped to its lob range).
       const len = me.lobRangeM > 0 ? Math.min(1, Math.max(me.minLobM / me.lobRangeM, (d - me.muzzleM) / me.lobRangeM)) : 1;
       out.aimX = (dx / d) * len;
       out.aimY = (dy / d) * len;
-      out.fire = z.distM <= me.rangeM;
+      out.fire = target.distM <= me.rangeM && (!view.knowsCover || target === view.shotZombie);
     }
   }
 
@@ -178,6 +195,13 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
     return;
   }
 
+  // 2c. Every zombie in range is behind cover (a barricade stops my bullets): strafe 90° left of the
+  // nearest to open a line.
+  if (z && view.knowsCover && view.shotZombie === null && z.distM <= me.rangeM) {
+    moveToward(out, -(z.y - me.y), z.x - me.x);
+    return;
+  }
+
   // 3. Regroup toward the centre of the alive team (me included).
   cx /= alive;
   cy /= alive;
@@ -203,6 +227,8 @@ function visitMate(p: PlayerState): void {
 export function botViewFromWorld(world: World, playerId: string, out: BotView): void {
   out.teammateCount = 0;
   out.nearestZombie = null;
+  out.knowsCover = true;
+  out.shotZombie = null;
   const p = world.players.get(playerId);
   const self = out.self;
   if (!p) {
@@ -226,16 +252,28 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
   let bx = 0;
   let by = 0;
   let bid = -1;
+  const lobs = self.lobRangeM > 0; // a lob flies over barricades: every target is clear
+  const range2 = self.rangeM * self.rangeM;
+  let shotD2 = Infinity;
   for (let i = 0; i < zs.aliveCount; i++) {
     const id = zs.aliveIds[i] as number;
-    const dx = (zs.x[id] as number) - p.x;
-    const dy = (zs.y[id] as number) - p.y;
+    const zx = zs.x[id] as number;
+    const zy = zs.y[id] as number;
+    const dx = zx - p.x;
+    const dy = zy - p.y;
     const d2 = dx * dx + dy * dy;
     if (d2 < bestD2) {
       bestD2 = d2;
-      bx = zs.x[id] as number;
-      by = zs.y[id] as number;
+      bx = zx;
+      by = zy;
       bid = id;
+    }
+    if (d2 < shotD2 && d2 <= range2 && (lobs || bulletLineClear(world, p.x, p.y, zx, zy))) {
+      shotD2 = d2;
+      out.shot.x = zx;
+      out.shot.y = zy;
+      out.shot.distM = Math.sqrt(d2);
+      out.shotZombie = out.shot;
     }
   }
   if (bestD2 < Infinity) {

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
-import { TICK_DT_S } from "../config/constants";
+import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { addPlayer } from "../player/player";
 import { downPlayer } from "../player/downed";
 import { teamSpawnPoint } from "../player/spawn";
 import { spawnZombie } from "../zombies/zombiePool";
+import { addBuildingAt } from "../buildings/buildings";
 import { setLoadout } from "../combat/loadout";
 import { ZOMBIE_STATE } from "../zombies/zombieTypes";
 import { setBuildReady, startBuild } from "../run/runStateMachine";
@@ -114,6 +115,27 @@ describe("bot policy (Story 2.10)", () => {
     expect(out.isMouse).toBe(false);
     expect(out.swap).toBe(false);
     expect(out.seq).toBe(2);
+  });
+
+  it("holds fire at a zombie behind a barricade and strafes to open a line; fires at a clear one instead", () => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+    addPlayer(world, "p0", 10, 10);
+    expect(addBuildingAt(world, { id: 1, type: "wood_barricade", ownerId: "p0", gx: 9 / BUILD_GRID_M, gy: 11.5 / BUILD_GRID_M, rot: 0, hp: 200 })).not.toBeNull(); // [9, 11] × [11.5, 12]
+    const view = createBotView();
+    const out: PlayerInput = { ...NEUTRAL_INPUT };
+    spawnZombie(world, "walker", 10, 13); // 3 m, behind the barricade
+    botViewFromWorld(world, "p0", view);
+    botInput(view, cfg, 1, out);
+    expect(view.shotZombie).toBeNull();
+    expect(out.fire).toBe(false);
+    expect(out.aimY).toBeCloseTo(1); // still facing it
+    expect(Math.hypot(out.moveX, out.moveY)).toBeCloseTo(1); // strafing…
+    expect(out.moveY).toBeCloseTo(0); // …sideways
+    spawnZombie(world, "walker", 14, 10); // 4 m, in the open
+    botViewFromWorld(world, "p0", view);
+    botInput(view, cfg, 2, out);
+    expect(out.fire).toBe(true);
+    expect(out.aimX).toBeCloseTo(1);
   });
 
   it("backs away from a zombie closer than keepDistanceM", () => {

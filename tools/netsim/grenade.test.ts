@@ -41,7 +41,7 @@ const TICK_MS = TICK_DT_S * 1000;
 const FRAME_MS = 1000 / 60;
 const ID = "p0";
 const lostS = balance.combat.explosion.fx.lostEventTicks * TICK_DT_S;
-/** A car 2.4 m east of the shooter: its face 2 m from the body's centre (a self-hit at every shot). */
+/** A car east of the shooter, its face 2 m from the body's centre: rounds aimed onto its roof land at that face (FR-B2), a self-hit at every shot. */
 const MAP: DistrictMap = { ...PLACEHOLDER_MAP, name: "grenade-netsim", cover: [{ name: "car", kind: "car", minStage: 1, minX: 26.4, minY: 14, maxX: 28.4, maxY: 18 }] };
 
 interface Snap {
@@ -71,7 +71,7 @@ class Link<T> {
 
 interface Opts {
   seconds: number;
-  /** Aim west into the crowd (false: east at the car, self-hits). */
+  /** Aim west into the crowd (false: east onto the car's roof, self-hits). */
   crowd: boolean;
   /** Drop each explosion event with this probability on the way down. */
   dropExplosions?: number;
@@ -174,7 +174,7 @@ function simulate(seed: number, o: Opts) {
         accMs -= TICK_MS;
         seq++;
         const ax = o.crowd ? -1 : 1;
-        up.send(t, { ...NEUTRAL_INPUT, seq, aimX: ax * lobAimLength(GL, o.crowd ? 6 : 8), aimY: 0, fire: !built, isMouse: true });
+        up.send(t, { ...NEUTRAL_INPUT, seq, aimX: ax * lobAimLength(GL, o.crowd ? 6 : 3), aimY: 0, fire: !built, isMouse: true });
       }
     }
   }
@@ -186,7 +186,7 @@ describe("Grenade Launcher netsim (Story 5.5, ?lag=150&jitter=20)", () => {
     for (const seed of [1, 2, 3]) {
       const r = simulate(seed, { seconds: 8, crowd: false });
       expect(r.serverBlasts.length).toBeGreaterThanOrEqual(4); // liveness
-      expect(r.selfHits).toBeGreaterThanOrEqual(4); // the car stops every round 2 m out: 20 to me each time
+      expect(r.selfHits).toBeGreaterThanOrEqual(4); // every round aimed onto the car lands at its face 2 m out: 20 to me each time
       expect(r.shown).toBe(r.clientBlasts.length); // one explosion drawn per arrived event
       expect(r.clientBlasts.length).toBeLessThanOrEqual(r.serverBlasts.length); // never one the server didn't have
       // all but the last ~2 ticks' explosions have arrived by the end
