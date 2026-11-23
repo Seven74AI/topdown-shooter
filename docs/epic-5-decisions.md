@@ -55,3 +55,9 @@ Every story also starts with an **art pick**: the designer chooses the look from
 - 5.3, 5.2 and 5.7 share one knockback helper that stops at a barricade's face.
 - 5.4 adds a quiet zombie-hit path (no event per flame tick); 5.4 owns the 50 % friendly-fire function, 5.5 owns `explode()`, 5.8 and 5.9 reuse them.
 - 5.1 and 5.2 in the same round: the second to merge routes axe/chainsaw damage through the upgrade damage helper.
+
+## Art method (designer, 2026-11-23)
+
+**All new Epic 5 art is drawn in game code** (Canvas 2D, like the bus, cars and zombies today), not shipped as AI images. Reasons: easiest to edit, variants/damage/animation for free, one consistent style, no credits, and it makes later **weapon customization** possible (guns built from parts). Meshy and Claude's vector illustrations are used only as **references to aim for**. At build time all art is baked into a ready-made atlas so phones don't draw art at start-up. Story 4.11's Meshy sprites stay for now (reviewed and live); redraw them in code later only if they look out of place.
+
+Round A shortlist (comparison page: claude.ai/artifact/G9RtYwhjfS9oujAQphB8VU): Shotgun G1/G3, Assault Rifle R2/R1, Spitter P1/P2/P4, metal barricade M1/M2, spike trap T1/T3, mine N1/N4. Round 2 code redraws requested: Spitter woman P2, gaunt Spitter P4, metal barricades, wire-and-glass trap T3, landmines.
