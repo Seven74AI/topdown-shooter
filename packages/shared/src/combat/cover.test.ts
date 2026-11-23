@@ -185,7 +185,7 @@ describe("cover vs projectiles, per kind (Story 4.2 AC 3)", () => {
     expect(hiddenHits).toBe(0);
   });
 
-  it("melee ignores cover: a machete swing hits a zombie on the far side of a thin car within reach", () => {
+  it("Story 5.2 (replaces 1.9's \"melee ignores cover\"): a machete swing does NOT hit a zombie on the far side of a thin car within reach", () => {
     const world = createWorld({ balance, seed: 1, map: mapWith("car", { minX: 10.5, minY: 15, maxX: 11, maxY: 17 }), systems: STILL });
     addPlayer(world, "p0", 10, 16);
     const p = world.players.get("p0");
@@ -199,7 +199,8 @@ describe("cover vs projectiles, per kind (Story 4.2 AC 3)", () => {
     expect(shotBlockT(world, 10, 16, 11.5, 16)).toBeGreaterThanOrEqual(0); // the car really is in between
     setInput(world, "p0", fireInput(1, 1, 0));
     step(world, TICK_DT_S);
-    expect(hits).toBe(1);
+    expect(hits).toBe(0);
+    expect(world.zombies.hp[zid]).toBe(balance.zombies.types.walker?.hp); // no damage either (quiet or not)
   });
 });
 

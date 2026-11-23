@@ -299,9 +299,10 @@ const REV_FADE_S = 0.08;
  * Starts the looping rev (a buzzing sawtooth chopped at 22 Hz through a low-pass, with a little
  * hiss). Called once when my Chainsaw starts cutting (`SawClock.revStep`), never per swing or frame.
  */
-export function startChainsawRev(): void {
+export function startChainsawRev(): boolean {
+  if (rev) return true;
   const c = context();
-  if (!c || c.state !== "running" || rev || !master || !noise) return;
+  if (!c || c.state !== "running" || !master || !noise) return false; // review L3: not started (the caller retries)
   const t = c.currentTime;
   const out = c.createGain();
   out.gain.setValueAtTime(0.001, t);
@@ -337,6 +338,7 @@ export function startChainsawRev(): void {
       for (const n of [o, lfo, src]) n.stop(at + REV_FADE_S);
     },
   };
+  return true;
 }
 
 /** Stops the rev loop (a short fade). */

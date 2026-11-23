@@ -221,12 +221,31 @@ knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before:
 2. Crowd axed into corners by 4 axes next to cover: no body in a box after combat or after the tick, no nav rebuild (fuzz).
 3. Aim stick released on alternate ticks: the slow follows the aim exactly per tick, and so does the swing (no swing → no slow; test "aim released → full speed next tick"). Holding fire with aim inside the dead zone: no swing, no slow.
 4. Swap spam: during a swap no slow and no damage (cooldown idle); slow/damage only while the Chainsaw is in hand (tests).
-5. Chainsaw through cover: melee ignores cover (1.9 rule), the drawn wedge is the sim sector (F1 test, `countInArc` test).
+5. Chainsaw through cover: superseded by the designer's F7 (see Review fixes): melee doesn't hit through walls, cars or barricades; it does over sandbags and barriers.
 6. Two axes on one zombie in one tick: two pushes, each once, each swept (fuzz has 4 axes; per-leg checks).
 7. Brute 20 %: 0.3 m (test with a stand-in type; 5.7 sets the value).
 8. `?lag=150&jitter=20`: 0 corrections (netsim, browser).
 9. Into a car fire: allowed, it burns there (test); out of the map: impossible (test); onto a spawn point: allowed (spawns are not solids).
 10. Chainsaw IV: 6 × 1.75 = 10.5 per tick: a Walker (10) dies in one tick (test, after merging 5.1).
+
+### Review fixes (2026-11-23)
+
+- **M1 fixed (Chainsaw cuts had no hit feedback):** `render/meleeFx.ts › ChainsawCutFx` (Phaser-free, preallocated id buffer, callbacks bound once). Each Chainsaw tick with a cut (the server's `hits` > 0, or for my own local swing online the drawn zombies in the arc) flashes every drawn zombie in the arc (`ZombieView.flash`) and plays `zombie_hit` once (rate-limited inside `playSfx`), on every client including the shooter. A tick with `hits` 0 flashes nothing. `FxView` takes the drawn World (`fxView.world`) instead of the old `cutCount` callback. Tests in `meleeFx.test.ts`. Browser (solo, 3 tough Walkers in the arc, 3 s): 16 flashes, 0 `zombie.hit` events.
+- **M2 fixed (rev loop kept playing in a hidden tab):** `SawClock` now owns the loop through a `RevSink` (`startChainsawRev` / `stopChainsawRev`). A `visibilitychange` → hidden listener stops it at once (no frame runs while hidden), and `revUpdate` never starts it while hidden. `dispose()` on scene shutdown stops it and removes the listener (`FxView.destroy`, plus the old `stopChainsawRev` in the shutdown). Browser: hiding the tab while holding the trigger → `revving` false.
+- **L3 fixed:** `startChainsawRev` returns whether the loop really started. `revving` is set only then, so the loop starts on a later frame once the audio unlocks, with no release needed.
+- **L4 accepted:** at swap edges under jitter, the predicted slow can differ from the server's by one tick (one small correction).
+- **L5 accepted:** the Chainsaw's 0.05 m hit pushback is unswept; the zombie push-out corrects it the same tick (as for every small pushback since 1.9).
+- **Designer decision F7, "Melee can't hit through walls"** (replaces Story 1.9's "melee ignores cover"; all melee: Machete, Fire Axe, Chainsaw):
+  - A zombie whose body touches the drawn arc is hit only if the straight line from the wielder's centre to the zombie's centre enters no shot blocker (map collision boxes = buildings, cars, the bus) and no wall building (`solid`: wood / reinforced / metal barricades, turrets).
+  - Low cover that bullets pass (police barriers, sandbags) and floor buildings (spike traps, mines) don't block.
+  - Grazing a face or a corner is clear. Around a car's corner: hit if the centre line passes the corner, no hit if it runs through the car, even when part of the body pokes out.
+  - Deterministic: one function, `combat/cover.ts › meleeLineClear`, used by `swingMelee`. Rewound swings test the line against the rewound positions they test the arc on. The client's cut feedback (`zombiesInArc`) uses the same function on the drawn world.
+  - Knockback rules unchanged.
+  - Tests: Machete, Fire Axe and Chainsaw each checked through wood / reinforced / metal barricades and a turret (no damage); over sandbags, a barrier or a spike trap (damage); behind a car and around its corner (per the rule). Plus a client agreement test. The 1.9 test in `cover.test.ts` is inverted: no damage through a thin car.
+- **Mutations (each once):**
+  - New review tests, all caught except one: flash removed (2 fail), sound removed (2), no visibility listener (2), hidden ignored in `revUpdate` (1), revving set though the audio refused (1), dispose keeps the listener (1). The exception, "hits 0 not short-circuited", passed: it is an equivalent mutation (the count is 0 either way; the early return only skips the arc scan).
+  - F7, all caught: swing ignores the rule (10), walls don't block (7), floor blocks (3), map cover doesn't block (4), client feedback ignores walls (1).
+- **Gate** (no merge, branch on e4a3002): typecheck, lint, `vitest --testTimeout=30000` (1,724 passed, 3 skipped; 222 files), build all green. `uptime` load 3.18 → 3.75 at 16:39–16:41.
 
 ### Notes for the merge (builder)
 
@@ -235,6 +254,7 @@ knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before:
 | `config/balance/weapons.json`, `shop.json` | `fire_axe`, `chainsaw` appended after `assault_rifle` | 5.4/5.5/5.12 append too: keep append order (wire index) |
 | `config/balanceSchema.ts` | `meleeSchema.wielderSlowPct`, `meleeSchema.quietHits`, `zombieTypeSchema.knockbackTakenPct`, `fxSchema` in `controlsSchema.fx` | 5.7 adds `knockbackTakenPct` too: keep ONE (int 0–100, default 100) |
 | `combat/melee.ts` | knockback after damage, quiet path; damage = 5.1's `damage` parameter (already merged here) | 5.7 (Brute) if it touches the swing |
+| `combat/cover.ts` | `meleeLineClear` (F7) | 5.4 flames / 5.5 blasts may add their own line rules: reuse `shotBlockT` |
 | `combat/damage.ts` | `knockbacks` counters moved here (re-exported from `firing.ts`), `knockbackShare`, `applyZombieDamageQuiet`, `knockbackTrace`, pushback × share | 5.4 (its own quiet flame path: consider reusing `applyZombieDamageQuiet`), 5.7 (Brute: no second scale) |
 | `combat/firing.ts` | `MIN_AIM_LEN` constant, `knockbacks` import | 5.1 / 5.4 / 5.5 |
 | `config/constants.ts` | `MIN_AIM_LEN` | append |
@@ -277,3 +297,4 @@ knockback not swept (unit: 6 fail; fuzz: fails since `nearCover`, missed before:
 
 - 2026-11-23: Story 5.2 built (Fire Axe with swept 1.5 m knockback through 5.3's helper, Chainsaw with quiet hits and a predicted 20 % wielder slow, AX1/CS1 art in game code, sparks/arc/rev effects, fuzz near cover, bandwidth and tick-cost tests, netsim); status → review.
 - 2026-11-23: merged the work branch (5.1 upgrades, 4.12); axe/Chainsaw damage through `weaponDamage`; gate green.
+- 2026-11-23: review fixes M1 (cut flash + sound), M2 (rev stops in a hidden tab / on shutdown), L3 (rev retries until audio runs); designer rule F7: melee blocked by walls, cars and wall buildings.

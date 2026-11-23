@@ -9,16 +9,17 @@
  *   apart) and stops otherwise.
  */
 
-import { circleOverlapsSector, zombieTypeOf, type World } from "@topdown/shared";
+import { circleOverlapsSector, meleeLineClear, zombieTypeOf, type World } from "@topdown/shared";
 
 const DEG = Math.PI / 180;
 
 /**
  * Zombies of `world` (the drawn mirror online) whose body touches the swing's sector: the sim's own
- * test (`circleOverlapsSector` to the zombie's edge), for the sparks of my own Chainsaw swings online
- * (local events carry no server hit count). Cosmetic only; no allocation.
+ * test (`circleOverlapsSector` to the zombie's edge) and the same wall rule (`meleeLineClear`, Story 5.2
+ * designer decision: nothing behind a wall, car or barricade is cut). Writes up to `out.length` slot ids into `out`
+ * (when given) and returns how many touch it. Cosmetic only; no allocation.
  */
-export function countInArc(world: Readonly<World>, x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number): number {
+export function zombiesInArc(world: Readonly<World>, x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number, out: Int32Array | null = null): number {
   const z = world.zombies;
   const half = (arcDeg / 2) * DEG;
   const cosH = Math.cos(half);
@@ -27,9 +28,47 @@ export function countInArc(world: Readonly<World>, x: number, y: number, dirX: n
   for (let i = 0; i < z.aliveCount; i++) {
     const id = z.aliveIds[i] as number;
     const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
-    if (circleOverlapsSector(z.x[id] as number, z.y[id] as number, r, x, y, dirX, dirY, rangeM, cosH, sinH)) n++;
+    if (!circleOverlapsSector(z.x[id] as number, z.y[id] as number, r, x, y, dirX, dirY, rangeM, cosH, sinH)) continue;
+    if (!meleeLineClear(world, x, y, z.x[id] as number, z.y[id] as number)) continue;
+    if (out && n < out.length) out[n] = id;
+    n++;
   }
   return n;
+}
+
+/** How many zombies' bodies touch the drawn sector (my own Chainsaw swings online carry no server hit count). */
+export const countInArc = (world: Readonly<World>, x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number): number =>
+  zombiesInArc(world, x, y, dirX, dirY, arcDeg, rangeM);
+
+/**
+ * Story 5.2 review M1: the hit feedback of one Chainsaw tick (its hits send no `zombie.hit`). The
+ * cut count is the server's (`hits` on the swing event) or, for my own local swing online, the drawn
+ * zombies in the arc. When it cut someone: every drawn zombie in the arc flashes (`flash`) and the hit
+ * sound plays once (`sound`; `playSfx` rate-limits it). Same on every client, the shooter included.
+ * Returns the cut count (sparks). No allocation (a preallocated id buffer, callbacks bound once).
+ */
+export class ChainsawCutFx {
+  private readonly ids: Int32Array;
+
+  constructor(
+    capacity: number,
+    private readonly flash: (zombieId: number) => void,
+    private readonly sound: () => void,
+  ) {
+    this.ids = new Int32Array(capacity);
+  }
+
+  cut(world: Readonly<World> | null, hits: number | undefined, x: number, y: number, dirX: number, dirY: number, arcDeg: number, rangeM: number): number {
+    if (hits === 0 || !world) {
+      return hits ?? 0;
+    }
+    const inArc = Math.min(this.ids.length, zombiesInArc(world, x, y, dirX, dirY, arcDeg, rangeM, this.ids));
+    const n = hits ?? inArc;
+    if (n <= 0) return 0;
+    for (let k = 0; k < inArc; k++) this.flash(this.ids[k] as number);
+    this.sound();
+    return n;
+  }
 }
 
 /** Spark kinds: steel sparks (always) and blood (when the blade cuts a zombie). */
@@ -121,17 +160,35 @@ export class SparkPool {
 }
 
 /** When each player's Chainsaw last cut (ms, the scene clock), and my rev loop's state. */
+/** Story 5.2 review: the rev loop's audio side (`placeholderSfx`); `start` says whether it really started. */
+export interface RevSink {
+  start(): boolean;
+  stop(): void;
+}
+
+type VisibilityDoc = Pick<Document, "addEventListener" | "removeEventListener" | "hidden">;
+
 export class SawClock {
   private readonly last = new Map<string, number>();
-  /** My rev loop is playing. */
+  /** My rev loop is playing (only once `RevSink.start` really started it: review L3). */
   revving = false;
+  /** Review M2: a hidden tab stops the loop at once (`update` doesn't run while hidden). */
+  private readonly onVisibility = (): void => {
+    if (this.doc?.hidden) this.stopRev();
+  };
   /**
    * The last frame's length (ms, set by GameScene each frame): a slow frame (a busy phone, a
    * headless browser) stamps all its swings at once, so the hold stretches by one frame.
    */
   frameMs = 0;
 
-  constructor(private readonly holdMs: number) {}
+  constructor(
+    private readonly holdMs: number,
+    private readonly sink: RevSink | null = null,
+    private readonly doc: VisibilityDoc | null = null,
+  ) {
+    this.doc?.addEventListener("visibilitychange", this.onVisibility);
+  }
 
   /** A Chainsaw `melee.swung` of `playerId` at `nowMs`. */
   swung(playerId: string, nowMs: number): void {
@@ -145,24 +202,30 @@ export class SawClock {
   }
 
   /**
-   * Once per frame for my player: "start" when my Chainsaw runs and the loop doesn't, "stop" when
-   * the loop plays but no swing came within `holdMs`, else "none" (never a start or stop per swing).
+   * Once per frame for my player: starts the loop when my Chainsaw runs and it doesn't play (retried
+   * every frame until the audio really starts, e.g. once unlocked: review L3), stops it when no swing
+   * came within `holdMs` or the tab is hidden; never a start or stop per swing.
    */
-  revStep(localId: string, nowMs: number): "start" | "stop" | "none" {
-    const run = this.running(localId, nowMs);
-    if (run && !this.revving) {
-      this.revving = true;
-      return "start";
-    }
-    if (!run && this.revving) {
-      this.revving = false;
-      return "stop";
-    }
-    return "none";
+  revUpdate(localId: string, nowMs: number): void {
+    const run = this.running(localId, nowMs) && this.doc?.hidden !== true;
+    if (run && !this.revving) this.revving = this.sink?.start() ?? false;
+    else if (!run && this.revving) this.stopRev();
+  }
+
+  private stopRev(): void {
+    if (this.revving) this.sink?.stop();
+    this.revving = false;
   }
 
   clear(): void {
     this.last.clear();
-    this.revving = false;
+    this.stopRev();
+  }
+
+  /** Scene shutdown: stops the loop and drops the visibility listener. */
+  dispose(): void {
+    this.clear();
+    this.sink?.stop();
+    this.doc?.removeEventListener("visibilitychange", this.onVisibility);
   }
 }
