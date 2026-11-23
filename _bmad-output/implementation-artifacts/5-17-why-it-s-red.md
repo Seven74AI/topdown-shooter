@@ -133,6 +133,8 @@ None of the sim copies. `blockReason` is a new shared function read only by the 
 | L5 | Low | `ghostHatch.ts` comment said "left edge" where the code uses the right edge; the 64-segment buffer wasn't pinned. | Comment fixed; `HATCH_MAX_SEGMENTS` / `HATCH_SPACING_M` moved to `ghostHatch.ts`; a test pins the largest footprint in balance (whole hatch, nothing cut off). |
 | + | Test | Surviving mutants M9 (start keeps the shown state), M10 (explain's exceptId), M12 (spawn text literal), M17 (dashed circle minimum). | Tests: `start()` without `cancel()` resets the shown state; a building under the ghost is the reason; the spawn text follows `spawnClearM` (3 m override); a 0.1 m circle gets 8 slots / 4 dashes. |
 
+Gate after the fixes on the tree merged with master (`a312abc`, includes `4258175`): `npm run typecheck && npm run lint && npm test && npm run build` → exit 0; **257 files passed / 1 skipped, 2,107 tests passed / 3 skipped**; build OK. Load 0.7 at the start, 3.6 at the end (4-core container, this builder alone). Master's map change (a `building` flag on wall boxes for lobbed rounds) leaves `solids`, the names and `footprintBlocked` unchanged.
+
 Mutations after the fixes, one each, all **killed**: sameAsShown ignores playerId; ignores culprit (index/id); start keeps shown; explain passes exceptId 1; hold from first appearance; spawn "2 m" literal; dashed minimum 2; `zombieAlive` without the back-check; hatch buffer 12.
 
 ## Dev Agent Record
