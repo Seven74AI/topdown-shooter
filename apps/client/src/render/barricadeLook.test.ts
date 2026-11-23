@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildingStats, footprint, loadBalance, type Box } from "@topdown/shared";
-import { BARRICADE_DAMAGE_DARKEN, BARRICADE_NIGHT_DARKEN, DEFAULT_BARRICADE_SPRITES, barricadePoolSize, barricadeTint, barricadeTransform, framePointToWorld } from "./barricadeLook";
+import { BARRICADE_DAMAGE_DARKEN, BARRICADE_NIGHT_DARKEN, DEFAULT_BARRICADE_SPRITES, barricadePoolSize, barricadeTint, barricadeTransform, frameBandBox, framePointToWorld } from "./barricadeLook";
+import { B6_ROW_Y0, B6_ROW_Y1 } from "./city/objectArt";
 import { darken } from "./buildingLook";
 
 const balance = loadBalance();
@@ -75,5 +76,33 @@ describe("Story 4.11 review fix L1: the barricade pool is sized from balance", (
     expect(barricadePoolSize(7, 4)).toBe(28);
     expect(barricadePoolSize(64, 4)).toBe(256);
     expect(barricadePoolSize(undefined, 4)).toBe(DEFAULT_BARRICADE_SPRITES);
+  });
+});
+
+describe("Story 4.12: the B6 palisade casts its tall shadow from its plank row", () => {
+  it("at every rot the row band lies inside the footprint, across its whole length, on the side away from the struts", () => {
+    if (!stats) throw new Error("no wood_barricade");
+    const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    const band = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    const t = { x: 0, y: 0, angle: 0, w: 0, h: 0 };
+    const strut = { x: 0, y: 0 };
+    for (const rot of [0, 1, 2, 3]) {
+      footprint(stats, 6, 9, rot, box);
+      frameBandBox({ ...box, rot }, B6_ROW_Y0, B6_ROW_Y1, band);
+      expect(band.minX).toBeGreaterThanOrEqual(box.minX - 1e-9);
+      expect(band.minY).toBeGreaterThanOrEqual(box.minY - 1e-9);
+      expect(band.maxX).toBeLessThanOrEqual(box.maxX + 1e-9);
+      expect(band.maxY).toBeLessThanOrEqual(box.maxY + 1e-9);
+      const long = Math.max(band.maxX - band.minX, band.maxY - band.minY);
+      const thin = Math.min(band.maxX - band.minX, band.maxY - band.minY);
+      expect(long).toBeCloseTo(stats.widthM, 9);
+      expect(thin).toBeCloseTo((B6_ROW_Y1 - B6_ROW_Y0) * (stats.depthM / 0.5), 9);
+      barricadeTransform({ ...box, rot }, t);
+      framePointToWorld(t, 0, -stats.depthM / 2, strut); // the struts' side
+      const cx = (band.minX + band.maxX) / 2;
+      const cy = (band.minY + band.maxY) / 2;
+      // the band's centre is on the far side of the footprint centre from the struts
+      expect((cx - t.x) * (strut.x - t.x) + (cy - t.y) * (strut.y - t.y)).toBeLessThan(0);
+    }
   });
 });

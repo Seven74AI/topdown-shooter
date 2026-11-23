@@ -3,10 +3,10 @@ import { ZOMBIE_TYPES, type ZombieTypeId } from "@topdown/shared";
 import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { CAR_COLORS } from "./dressing";
 import { addCanvasTexture } from "./canvasTexture";
-import { OBJ_SANDBAGS, ensureObjectsAtlas, objectsFrameSource, type FrameSource } from "./objectsAtlas";
+import { drawObjectInFrame, drawSandbags } from "./objectArt";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
 import { WEAPON_ART } from "./weaponArt";
-import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawDumpster, drawPump, drawSandbags, drawSurvivor, drawZombie } from "./spriteArt";
+import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawCharredCar, drawDumpster, drawPump, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
  * Story 4.9: the placeholder atlases, drawn procedurally into canvases and registered as Phaser
@@ -41,6 +41,8 @@ export const survivorFrameFor = (weapon: string): string => SURVIVOR_WEAPON_FRAM
 /** Downtown vehicles and props: frame name → native size in map px (32 px = 1 m). */
 export const VEHICLE_BUS = frameName("vehicle", "bus", "a");
 export const CAR_FRAMES: readonly string[] = CAR_COLORS.map((_, i) => frameName("vehicle", "car", variantLetter(i)));
+/** Story 4.12: each car variant burnt (fire-lab panel D): drawn for a car that is a fire's target. */
+export const CAR_BURNT_FRAMES: readonly string[] = CAR_COLORS.map((_, i) => frameName("vehicle", "carburnt", variantLetter(i)));
 export const PROP_PUMP = frameName("prop", "pump", "a");
 export const PROP_BARRIER = frameName("prop", "barrier", "a");
 export const PROP_SANDBAGS = frameName("prop", "sandbags", "a");
@@ -50,6 +52,7 @@ export const PROP_BLOCK = frameName("prop", "block", "a");
 const PROP_NATIVE: Readonly<Record<string, readonly [number, number]>> = {
   [VEHICLE_BUS]: [320, 80],
   ...Object.fromEntries(CAR_FRAMES.map((n) => [n, [144, 64] as const])),
+  ...Object.fromEntries(CAR_BURNT_FRAMES.map((n) => [n, [144, 64] as const])),
   [PROP_PUMP]: [64, 32],
   [PROP_BARRIER]: [192, 16],
   [PROP_SANDBAGS]: [96, 32],
@@ -149,29 +152,24 @@ function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   if (w >= 0) drawZombie(g, "spitter", CHAR_R_PX, w, true);
 }
 
-/** Story 4.11: loaded frames that replace a procedural downtown frame (the sandbags). */
-let downtownSources: ReadonlyMap<string, FrameSource> = new Map();
-
 function drawDowntownFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
-  const src = downtownSources.get(f.name);
-  if (src) {
-    g.drawImage(src.image, src.x, src.y, src.w, src.h, f.x, f.y, f.w, f.h);
-    return;
-  }
   const [w, h] = nativeSize(f.name);
+  // Story 4.12: the S2 sandbags drawn in code, in metres (3 × 1 m at 64 px/m)
+  if (f.name === PROP_SANDBAGS) return drawObjectInFrame(g, f.x, f.y, f.w, f.h, f.w / (w / 32), (c) => drawSandbags(c, w / 32, h / 32));
   g.translate(f.x, f.y);
   g.scale(DOWNTOWN_ATLAS_SCALE, DOWNTOWN_ATLAS_SCALE);
   if (f.name === VEHICLE_BUS) drawBus(g, w, h);
   else if (f.name === PROP_PUMP) drawPump(g, w, h);
   else if (f.name === PROP_BARRIER) drawBarrier(g, w, h);
-  else if (f.name === PROP_SANDBAGS) drawSandbags(g, w, h);
   else if (f.name === PROP_DUMPSTER) drawDumpster(g, w, h);
   else if (f.name === PROP_BLOCK) drawBlock(g, w, h);
   else {
     const v = CAR_FRAMES.indexOf(f.name);
-    if (v >= 0) {
+    const b = CAR_BURNT_FRAMES.indexOf(f.name);
+    if (v >= 0 || b >= 0) {
       g.translate(w / 2, h / 2);
-      drawCar(g, w, h, v);
+      if (v >= 0) drawCar(g, w, h, v);
+      else drawCharredCar(g, w, h, b);
     }
   }
 }
@@ -234,12 +232,6 @@ function register(scene: Phaser.Scene, key: string, make: () => AtlasCanvas): At
 
 /** Creates the three atlases (idempotent) and returns the downtown one (the static bake draws from it). */
 export function ensureAtlases(scene: Phaser.Scene): AtlasCanvas {
-  // Story 4.11: the loaded stage-object atlas (or its stand-ins) first: the downtown atlas copies its sandbags.
-  ensureObjectsAtlas(scene);
-  if (!scene.textures.exists(ATLAS_DOWNTOWN)) {
-    const sandbags = objectsFrameSource(scene, OBJ_SANDBAGS);
-    downtownSources = sandbags ? new Map([[PROP_SANDBAGS, sandbags]]) : new Map();
-  }
   register(scene, ATLAS_CHARACTERS, () => build(characterSpecs(), drawCharacterFrame));
   register(scene, ATLAS_FX, () => build(fxSpecs(), drawFxFrame));
   const d = register(scene, ATLAS_DOWNTOWN, () => build(downtownSpecs(), drawDowntownFrame));

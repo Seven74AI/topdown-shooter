@@ -123,22 +123,5 @@ export class PopPool {
   }
 }
 
-/** Body flames on a burning survivor: how many, how big (× body radius), how fast they flicker. */
-export const BODY_FLAMES = 3;
-export const BODY_FLAME_R = 1.15;
-export const BODY_FLAME_FLICKER_HZ = 9;
-/** Smoke puffs and rising embers per burning survivor, and their loop lengths (s). */
-export const BODY_SMOKE = 3;
-export const BODY_SMOKE_S = 1.4;
-export const BODY_EMBERS = 5;
-export const BODY_EMBER_S = 0.9;
 /** At most this many survivors show the burning effects at once (the lobby's player cap). */
 export const MAX_BURNING_PLAYERS = 4;
-
-/** Flame `i` on a body of radius `r` at time `t` (s): a small orbit about the centre, into `out`. */
-export function bodyFlameSpot(i: number, n: number, tS: number, r: number, out: { x: number; y: number }): void {
-  const a = (i / n) * 2 * Math.PI + tS * 1.7;
-  const k = 0.45 * r;
-  out.x = Math.cos(a) * k;
-  out.y = Math.sin(a) * k;
-}

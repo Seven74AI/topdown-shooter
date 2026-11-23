@@ -3,9 +3,9 @@ import { BUILD_GRID_M, MAX_PLAYERS, buildingStats, buildingTypeIds, footprint, t
 import type { Placement } from "../scenes/placement";
 import { barFraction, boxDrawKey, buildingDrawKey, damageStage, darken } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
-import { barricadePoolSize, barricadeTint, barricadeTransform, type SpriteTransform } from "./barricadeLook";
-import { ATLAS_OBJECTS, OBJ_BARRICADE, ensureObjectsAtlas } from "./city/objectsAtlas";
-import { buildingFrame, ensureBuildingsAtlas } from "./city/buildingsAtlas";
+import { barricadePoolSize, barricadeTint, barricadeTransform, frameBandBox, type BoxOut, type SpriteTransform } from "./barricadeLook";
+import { B6_ROW_Y0, B6_ROW_Y1 } from "./city/objectArt";
+import { ATLAS_BUILDINGS, FRAME_WOOD, buildingFrame, ensureBuildingsAtlas } from "./city/buildingsAtlas";
 import { buildingShadowHeightM, mineRingRadii } from "./mineLook";
 
 /** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline; night-darkened (Story 4.9). */
@@ -82,15 +82,15 @@ export class BuildingView {
   /** gx, gy, rot, validity and type folded into one number (no string per frame). */
   private shownPreviewKey = -1;
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  private readonly band: BoxOut = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
   constructor(scene: Phaser.Scene, balance?: Readonly<Balance>) {
-    ensureObjectsAtlas(scene);
-    ensureBuildingsAtlas(scene); // Story 5.9: the new tiers, the trap and the mine (code-drawn, once per game)
+    ensureBuildingsAtlas(scene); // Story 5.9 / 4.12: every tier (B6 too), the trap and the mine (code-drawn, once per game)
     const pool = barricadePoolSize(balance?.buildings.maxPerPlayer, MAX_PLAYERS); // review fix L1: sized from balance, never throws
     this.placed = scene.add.graphics().setDepth(BUILDING_DEPTH);
-    for (let i = 0; i < pool; i++) this.sprites.push(scene.add.image(0, 0, ATLAS_OBJECTS, OBJ_BARRICADE).setDepth(BUILDING_DEPTH).setVisible(false));
+    for (let i = 0; i < pool; i++) this.sprites.push(scene.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(BUILDING_DEPTH).setVisible(false));
     this.cracks = scene.add.graphics().setDepth(CRACK_DEPTH);
-    this.ghost = scene.add.image(0, 0, ATLAS_OBJECTS, OBJ_BARRICADE).setDepth(PREVIEW_DEPTH).setAlpha(GHOST_ALPHA).setVisible(false);
+    this.ghost = scene.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(PREVIEW_DEPTH).setAlpha(GHOST_ALPHA).setVisible(false);
     this.bars = scene.add.graphics().setDepth(BAR_DEPTH);
     this.preview = scene.add.graphics().setDepth(PREVIEW_DEPTH).setVisible(false);
   }
@@ -130,7 +130,8 @@ export class BuildingView {
       for (let i = 0; i < list.length; i++) {
         const b = list[i] as Building;
         const hM = buildingShadowHeightM(buildingStats(world.balance, b.type), BARRICADE_HEIGHT_M);
-        if (hM > 0) castShadow(g, b, hM);
+        // Story 4.12: the B6 palisade's tall shadow falls from its plank row (the struts behind are low).
+        if (hM > 0) castShadow(g, b.type === "wood_barricade" ? frameBandBox(b, B6_ROW_Y0, B6_ROW_Y1, this.band) : b, hM);
       }
     }
     let used = 0;
