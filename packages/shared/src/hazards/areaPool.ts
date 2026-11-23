@@ -8,8 +8,8 @@
  * of a kind (areas of one kind never stack), see `zombies/spit.ts › updateAcid`.
  */
 
-/** Area kinds (append only; Story 5.6 adds acid). */
-export const AREA_KIND = { ACID: 1 } as const;
+/** Area kinds (append only; Story 5.6 adds acid; Story 5.8 the Bloater gas, in its own pool `world.gas`). */
+export const AREA_KIND = { ACID: 1, GAS: 2 } as const;
 
 export interface AreaPool {
   readonly capacity: number;

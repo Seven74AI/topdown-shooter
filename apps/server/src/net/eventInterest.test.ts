@@ -103,4 +103,22 @@ describe("Story 5.7: zombie.brute_spawned", () => {
     console.info(`[bandwidth 5.7] brute_spawned: ${bytes} B per Brute spawn`);
     expect(bytes).toBeLessThanOrEqual(12);
   });
+
+  it("Story 5.8: the swell, the burst and a blast's non-killing hits are local; a killing blast hit stays global with its kill", () => {
+    const { world, interest } = setup();
+    interest.prepare(
+      world,
+      [
+        { type: "bloater.swell_started", zombieId: 3, x: 6, y: 3 },
+        { type: "bloater.burst", x: 6, y: 3, chain: false },
+        { type: "zombie.hit", zombieId: 5, x: 7, y: 3, dirX: 1, dirY: 0, damage: 40, weapon: "bloater_blast", sourceId: "p0" },
+        { type: "zombie.hit", zombieId: 6, x: 5, y: 3, dirX: -1, dirY: 0, damage: 40, weapon: "bloater_blast", sourceId: "p0" },
+        { type: "zombie.killed", zombieId: 6, killerId: "p0", x: 5, y: 3, weapon: "bloater_blast" },
+      ],
+      ctx,
+    );
+    expect(interest.localCount).toBe(3);
+    expect(kinds(interest.eventsFor(world, 12, 8))).toHaveLength(5);
+    expect(kinds(interest.eventsFor(world, 36, 24))).toEqual([NET_EVENT_KIND.ZOMBIE_HIT, NET_EVENT_KIND.ZOMBIE_KILLED]);
+  });
 });

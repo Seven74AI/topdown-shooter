@@ -58,6 +58,10 @@ const EVENTS: SimEvent[] = [
   // Story 5.7: the Brute's roar / banner (first of the run, then a later one).
   { type: "zombie.brute_spawned", zombieId: 9, x: 0.6, y: 31.4, first: true },
   { type: "zombie.brute_spawned", zombieId: 200, x: 47.4, y: 16, first: false },
+  // Story 5.8
+  { type: "bloater.swell_started", zombieId: 17, x: 12.34, y: 5.6 },
+  { type: "bloater.burst", x: 0.5, y: 31.5, chain: false },
+  { type: "bloater.burst", x: 47.5, y: 0.5, chain: true },
 ];
 
 /** Story 3.6: a turret shot (its muzzle is not sent). */

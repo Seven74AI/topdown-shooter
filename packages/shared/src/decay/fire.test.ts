@@ -472,7 +472,7 @@ describe("Story 4.8 flow field: fire cells are very costly, not walls", () => {
           }
           // Story 5.7: a zombie that reached us leaves (killed), so the crowd round the team never fills the 3 m
           // circle: with a 1.2 m Brute per spawn the bodies no longer fit, and late arrivals would stay outside it.
-          for (const id of reached) if (z.alivePos[id] !== -1) killZombie(w, id, null, "pistol");
+          for (const id of reached) if (z.alivePos[id] !== -1) killZombie(w, id, null, "cheat"); // Story 5.8: removed, not killed (a Bloater would burst)
         }
         expect(spawned.length).toBe(DT.spawnPoints.length * batch.length);
         expect(reached.size, `seed ${seed}: ${spawned.filter((id) => !reached.has(id)).map((id) => `${w.zombies.type[id]}@${(w.zombies.x[id] as number).toFixed(2)},${(w.zombies.y[id] as number).toFixed(2)} alive ${w.zombies.alivePos[id]}`).join(" ")}`).toBe(spawned.length);

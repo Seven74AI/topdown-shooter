@@ -17,6 +17,8 @@ import { meleeLineClear } from "../combat/cover";
 import { segmentHitsFire } from "../decay/fire";
 import { collectStanding, spitterStep } from "./spit";
 import { updateMines } from "../buildings/mine";
+import { BLOATER_SWELL_WEAPON, startSwell, tickSwell } from "./bloater";
+import { killZombie } from "./zombiePool";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
 const MAX_NEIGHBOURS = 64;
@@ -38,6 +40,8 @@ const LOS_MARGIN_M = 0.05;
 const targetBuilding = new Int32Array(ZOMBIE_POOL_CAPACITY);
 /** Story 3.5 review H1: 1 when the zombie followed the field this tick (pass 1 → pass 4). */
 const fieldMode = new Uint8Array(ZOMBIE_POOL_CAPACITY);
+/** Story 5.8: Bloaters whose swell burnt out in pass 4 (they burst after the pass, in this order). */
+const swellDone = new Int32Array(ZOMBIE_POOL_CAPACITY);
 /** `steerByField` result (synchronous, one record). */
 const steer = { x: 0, y: 0 };
 /** Alive players this tick, rebuilt at the top of the system (no iterator allocation per zombie). */
@@ -182,7 +186,8 @@ export const updateZombies: SystemFn = (world, dtS) => {
     // Story 5.7 (F1): a Brute winding up a swing stands still (no walking, no soft push; the hard
     // overlap pass can still shove it). Story 5.6: a Spitter in range with a clear line stands
     // (winds up / cools down); else it walks.
-    if (stats.windupS > 0 && isWindupState(pool.state[id] as number)) {
+    // Story 5.8 (FR-A, D8): a swelling Bloater stands still too.
+    if ((stats.windupS > 0 && isWindupState(pool.state[id] as number)) || pool.state[id] === ZOMBIE_STATE.SWELL) {
       pool.vx[id] = 0;
       pool.vy[id] = 0;
       continue;
@@ -279,6 +284,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
 
   // Pass 4: keep out of players (last, so the crowd wraps around them) and attack; then out of
   // buildings, and hit the target building when touching it (Story 3.5).
+  let swellDoneCount = 0;
   for (let i = 0; i < n; i++) {
     const id = ids[i] as number;
     const stats = world.balance.zombies.types[zombieTypeOf(pool, id)];
@@ -296,6 +302,11 @@ export const updateZombies: SystemFn = (world, dtS) => {
       pool.spitTicks[id] = Math.max(0, left);
       if (left <= 0) resolveSwing(world, id, x, y, stats);
     }
+
+    // Story 5.8 (FR-A): a swelling Bloater's fuse burns on its own clock (not on the tick it started).
+    const ex = stats.explodes;
+    const swelling = ex !== undefined && pool.state[id] === ZOMBIE_STATE.SWELL;
+    if (swelling && tickSwell(world, id)) swellDone[swellDoneCount++] = id;
 
     const target = nearestAlivePlayer(x, y);
     if (target) {
@@ -318,7 +329,10 @@ export const updateZombies: SystemFn = (world, dtS) => {
       const gapSwing =
         stats.gapReachM > 0 && d > contact + CONTACT_EPS_M && d < stats.gapReachM - stats.swingToleranceM && pool.attackCooldownTicks[id] === 0 && !windup && swingReachFor(world, stats, target) === stats.gapReachM && meleeLineClear(world, x, y, target.x, target.y);
       if (gapSwing && !isWindupState(pool.state[id] as number)) startWindup(world, id, stats);
-      if (d <= contact + CONTACT_EPS_M && pool.attackCooldownTicks[id] === 0 && !windup) {
+      if (ex !== undefined) {
+        // Story 5.8 (FR-A): a Bloater never bites: touching a standing player starts its swell.
+        if (!swelling && d <= contact + CONTACT_EPS_M) startSwell(world, id, ex);
+      } else if (d <= contact + CONTACT_EPS_M && pool.attackCooldownTicks[id] === 0 && !windup) {
         if (stats.windupS > 0) {
           // Story 5.7 (F1): touch → stand and wind up; the hit is decided at its end (`resolveSwing`).
           if (!isWindupState(pool.state[id] as number)) startWindup(world, id, stats);
@@ -355,7 +369,11 @@ export const updateZombies: SystemFn = (world, dtS) => {
     if (bid === 0 && fieldMode[id] === 1 && hasBuildings && pushStuck) {
       bid = touchingBuilding(world, x, y, rz + CONTACT_EPS_M);
     }
-    if (bid !== 0 && pool.attackCooldownTicks[id] === 0 && !(stats.windupS > 0 && isWindupState(pool.state[id] as number))) {
+    if (bid !== 0 && ex !== undefined) {
+      // Story 5.8: a Bloater blocked by a building it touches swells there (its blast hits the wall: D3).
+      const b = buildingById(world, bid);
+      if (b && pool.state[id] !== ZOMBIE_STATE.SWELL && distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) <= rz + CONTACT_EPS_M) startSwell(world, id, ex);
+    } else if (bid !== 0 && pool.attackCooldownTicks[id] === 0 && !(stats.windupS > 0 && isWindupState(pool.state[id] as number))) {
       const b = buildingById(world, bid);
       if (b && distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY) <= rz + CONTACT_EPS_M) {
         pool.attackCooldownTicks[id] = ticksFor(stats.attackIntervalS);
@@ -365,6 +383,9 @@ export const updateZombies: SystemFn = (world, dtS) => {
       }
     }
   }
+  // Story 5.8 (FR-A, D6): burnt-out swells burst now, exactly `swellS` after they started, in pass
+  // order (after the loop: a blast's kills must not disturb the alive list mid-pass).
+  for (let k = 0; k < swellDoneCount; k++) killZombie(world, swellDone[k] as number, null, BLOATER_SWELL_WEAPON);
   // Story 5.9 review L1 (F7 "same tick"): mines check their trigger again on the bodies' new
   // positions, so a zombie that walks into a trigger circle sets the mine off this tick (the
   // buildings-slot pass before combat catches bodies that were already there: never twice).
@@ -510,7 +531,13 @@ function resolveOverlaps(world: World): void {
       // Story 5.7 (F4): split by body area — i moves rj² / (ri² + rj²) of the overlap (equal radii: ½ each, as before).
       let hi = overlap / 2;
       let hj = hi;
-      if (ri !== rj) {
+      // Story 5.8 (FR-A): a swelling Bloater is not pushed by the crowd: the other body moves it all.
+      const fi = pool.state[id] === ZOMBIE_STATE.SWELL;
+      const fj = pool.state[j] === ZOMBIE_STATE.SWELL;
+      if (fi !== fj) {
+        hi = fi ? 0 : overlap;
+        hj = overlap - hi;
+      } else if (ri !== rj) {
         const ai = ri * ri;
         const aj = rj * rj;
         hi = (overlap * aj) / (ai + aj);
