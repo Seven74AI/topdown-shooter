@@ -1,6 +1,6 @@
 # Story 5.26: Build-bar icons
 
-Status: review
+Status: done
 
 (Added 2026-11-23 from the 5.16 session. Designer picks: `docs/epic-5-decisions.md` › Build-bar icons. Code drawings: `docs/art/5-16/icons/index.html`, claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3. Builds on Story 5.16 (`scenes/buildBar.ts`, `HudScene` build bar) and the icon-bake pattern of Story 5.11 (`render/city/gearIcons.ts` / `itemIcons.ts`).)
 
@@ -72,3 +72,10 @@ Claude (builder cloud session, 2026-11-23). Baseline: `3bbb955` (master with 5.1
 ### Change Log
 
 - 2026-11-23: Story created and built (I1/T1/T2/M1 icons, `hud_build` atlas, HUD lookup with world-art fallback). Status → review.
+
+## Senior Developer Review (AI) — fresh agent, 2026-11-23
+
+Drawings match the picks line by line; dpr-2 bake confirmed 1:1 (main.ts caps the canvas at dpr 2); fallback with 5.10's real types, dimmed states, atlas (496×72), context-loss rebuild and no per-frame allocation verified; 9/9 mutations killed.
+- **HIGH (merge only), fixed by the main session at merge:** "every shop building has its picked icon" failed once master's 5.10 med station is in the shop (no icon by design). The test now pins the four picked frames and asserts every other shop building has world art to fall back on (icon OR world art, never only Graphics).
+- Low, accepted: fallback world-art tiles (floodlight, med station) draw at 28×28 vs the icons' 48×36 — goes away when those types get I1 icons (backlog note for a later icon story).
+- Nit, accepted: icon centre 1 CSS px lower than the mockup (5.16 anchor).

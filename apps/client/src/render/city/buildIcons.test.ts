@@ -20,12 +20,15 @@ import {
   paintBuildIcon,
 } from "./buildIcons";
 import { RecordCanvas, asContext } from "./recordCanvas";
+import { buildingFrame } from "./buildingsAtlas";
 
 describe("build-bar icons (Story 5.26)", () => {
-  it("every shop building today has its picked icon (I1 barricade, I1 spikes, T1 turret, M1 mine)", () => {
+  it("the picked icons (I1 barricade, I1 spikes, T1 turret, M1 mine); every other shop building has world art to fall back on", () => {
     const ids = shopBuildings(loadBalance()).map((b) => b.id);
     expect(ids.length).toBeGreaterThanOrEqual(4);
-    for (const id of ids) expect(buildIconFrame(id), id).not.toBeNull();
+    // 5.26 review: 5.10's med station (and later types) have no icon yet by design; each tile must still
+    // have an icon OR world art, never only the Graphics fallback.
+    for (const id of ids) expect(buildIconFrame(id) !== null || buildingFrame(id) !== null, id).toBe(true);
     expect(buildIconFrame("wood_barricade")).toBe("icon_build_barricade_a");
     expect(buildIconFrame("spike_trap")).toBe("icon_build_spiketrap_a");
     expect(buildIconFrame("auto_turret")).toBe("icon_build_turret_a");
