@@ -1,5 +1,7 @@
 # Epic 5: designer decisions to confirm
 
+**Designer: "ok" on 2026-11-23: every recommended value below is accepted.**
+
 Written 2026-11-23 from the 13 story files (`_bmad-output/implementation-artifacts/5-*.md`). Each line is the story writer's **recommended value**. "ok" accepts all of them; change any line by its code (e.g. "5.8 D1: halve it").
 
 Every story also starts with an **art pick**: the designer chooses the look from ~5 Meshy proposals before it's built (like 4.11).
