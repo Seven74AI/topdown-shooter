@@ -26,8 +26,29 @@
       "radiusM": 0.35,
       "reward": 3,
       "flanks": true
+    },
+    "spitter": {
+      "hp": 12,
+      "speedMps": 1.5,
+      "damage": 5,
+      "attackIntervalS": 1.0,
+      "radiusM": 0.35,
+      "reward": 5,
+      "spit": {
+        "rangeM": 6,
+        "windupS": 0.6,
+        "intervalS": 3,
+        "speedMps": 9,
+        "radiusM": 0.2,
+        "damage": 15,
+        "puddleRadiusM": 1.0,
+        "puddleS": 3,
+        "puddleDamagePerS": 5,
+        "puddlePulseS": 0.4
+      }
     }
   },
+  "spitCaps": { "maxLiveSpits": 24, "maxLivePuddles": 32 },
   "crowd": {
     "separationRadiusM": 0.9,
     "separationStrength": 10.0,

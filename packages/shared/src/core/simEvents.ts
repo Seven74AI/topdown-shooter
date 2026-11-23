@@ -6,6 +6,13 @@ export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund"] as c
 export type MoneyReason = (typeof MONEY_REASONS)[number];
 
 /**
+ * `player.damaged.sourceZombieId` for damage that no zombie dealt (Story 5.6). Fire (Story 4.8) is
+ * −1; acid (Spitter spit and puddles) is −2. On the wire both stay apart (`net/netEvents.ts`).
+ */
+export const DAMAGE_SOURCE_FIRE = -1;
+export const DAMAGE_SOURCE_ACID = -2;
+
+/**
  * Every event the simulation can emit (architecture › Event System).
  * Naming: domain.past_tense in snake case. Each story adds its own variants.
  */
@@ -72,6 +79,18 @@ export type SimEvent =
    * shows the stage's name as a banner (the map itself follows the room state).
    */
   | { type: "decay.stage_changed"; stage: number; from: number }
+  /**
+   * Story 5.6: Spitter `zombieId` released glob `spitId` from its mouth (x, y) toward (toX, toY), the
+   * end of its flight (the target's position at release, or the range end). It flies straight at the
+   * type's `spit.speedMps`; `acid.splashed` with the same id ends it.
+   */
+  | { type: "spitter.spat"; zombieId: number; spitId: number; x: number; y: number; toX: number; toY: number }
+  /**
+   * Story 5.6: glob `puddleId` (= its `spitId`) ended at (x, y) — on a player (`hitPlayerId`), at a
+   * car / bus / building face, or at its aim point — and left an acid puddle there (radius and
+   * lifetime from balance).
+   */
+  | { type: "acid.splashed"; puddleId: number; x: number; y: number; hitPlayerId: string | null }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

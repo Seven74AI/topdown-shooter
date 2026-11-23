@@ -52,6 +52,9 @@ const HP_HIGH = 0x4caf50;
 const HP_LOW = 0xe53935;
 /** Story 4.8: the HP line's colour while burning. */
 const BURNING_TEXT = "#ffa060";
+/** Story 5.6: the HP line's colour and the screen-edge glow while in acid (green, never the fire orange). */
+const ACID_TEXT = "#b6ff5a";
+const ACID_GLOW_COLOR = 0x7cff28;
 /**
  * Story 4.11: my "-N" fire-damage pops (small, orange, left of my survivor: the money "+N" pops sit
  * right of it) and the orange screen-edge glow while I burn (four bands, each this fraction of the
@@ -186,6 +189,7 @@ export class HudScene extends Phaser.Scene {
   private shownHp = -1;
   private shownMaxHp = -1;
   private shownBurning = false;
+  private shownAcid = false;
   private moveBase!: Phaser.GameObjects.Arc;
   private moveKnob!: Phaser.GameObjects.Arc;
   private aimBase!: Phaser.GameObjects.Arc;
@@ -290,6 +294,7 @@ export class HudScene extends Phaser.Scene {
     this.shownHp = -1;
     this.shownMaxHp = -1;
     this.shownBurning = false;
+    this.shownAcid = false;
     this.shownWeapon = "";
     this.shownWave = -1;
     this.shownBanner = "";
@@ -592,7 +597,8 @@ export class HudScene extends Phaser.Scene {
       const p = this.firePool.progress(i, now);
       t.setPosition(sx, sy - p * FIRE_POP_RISE_PX * k).setAlpha(1 - p * p).setVisible(true);
     }
-    const a = m.burnGlow;
+    const acid = m.acidGlow > m.burnGlow; // Story 5.6: green for acid, orange for fire
+    const a = acid ? m.acidGlow : m.burnGlow;
     // review fix L2: indexed access (no array destructuring / iterator per frame)
     const glow = this.edgeGlow;
     const top = glow[0] as Phaser.GameObjects.Image;
@@ -610,7 +616,8 @@ export class HudScene extends Phaser.Scene {
     bottom.setPosition(w / 2, h - band / 2).setDisplaySize(w, band);
     left.setPosition(band / 2, h / 2).setDisplaySize(h, band);
     right.setPosition(w - band / 2, h / 2).setDisplaySize(h, band);
-    for (let i = 0; i < glow.length; i++) (glow[i] as Phaser.GameObjects.Image).setAlpha(a).setVisible(true);
+    const tint = acid ? ACID_GLOW_COLOR : EDGE_GLOW_COLOR;
+    for (let i = 0; i < glow.length; i++) (glow[i] as Phaser.GameObjects.Image).setAlpha(a).setTint(tint).setVisible(true);
   }
 
   /** Story 2.9: bold white name tag with a dark stroke. */
@@ -918,11 +925,12 @@ export class HudScene extends Phaser.Scene {
 
   /** Redraws the health bar only when HP changes (top-left, inside the safe area from Story 1.8 on). */
   private drawHealth(): void {
-    const { hp, maxHp, burning } = this.model;
-    if (hp === this.shownHp && maxHp === this.shownMaxHp && burning === this.shownBurning) return;
+    const { hp, maxHp, burning, inAcid } = this.model;
+    if (hp === this.shownHp && maxHp === this.shownMaxHp && burning === this.shownBurning && inAcid === this.shownAcid) return;
     this.shownHp = hp;
     this.shownMaxHp = maxHp;
     this.shownBurning = burning;
+    this.shownAcid = inAcid;
     const k = dpr();
     const safe = this.insets;
     const x = (HP_MARGIN + safe.left) * k;
@@ -935,8 +943,8 @@ export class HudScene extends Phaser.Scene {
     this.hpBar.fillStyle(mixColor(HP_LOW, HP_HIGH, frac), 1).fillRect(x, y, w * frac, h);
     // Story 4.8: "Burning" while the server's fire damage keeps arriving (HP stays the server's, ceil).
     this.hpText
-      .setText(burning ? `HP ${Math.ceil(hp)} / ${maxHp}   Burning` : `HP ${Math.ceil(hp)} / ${maxHp}`)
-      .setColor(burning ? BURNING_TEXT : "#ffffff")
+      .setText(burning ? `HP ${Math.ceil(hp)} / ${maxHp}   Burning` : inAcid ? `HP ${Math.ceil(hp)} / ${maxHp}   Acid` : `HP ${Math.ceil(hp)} / ${maxHp}`)
+      .setColor(burning ? BURNING_TEXT : inAcid ? ACID_TEXT : "#ffffff")
       .setPosition(x, y + h + 4 * k);
   }
 

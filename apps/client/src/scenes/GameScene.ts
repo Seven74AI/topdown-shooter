@@ -17,8 +17,10 @@ import {
   weaponIds,
   weaponStats,
   parseWaveMix,
-  ZOMBIE_STATE,
+  isRushState,
+  acidSpitOf,
   type Balance,
+  type SimEvent,
   type PlaceError,
   type RepairError,
   type PlayerInput,
@@ -32,9 +34,12 @@ import { InputRouter } from "../input/InputRouter";
 import { attachDesktopInput } from "../input/desktopInput";
 import { pixelsPerMeter } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
-import { FireCue } from "../render/fireCue";
+import { ACID_CUE_MS, FireCue } from "../render/fireCue";
+import { AcidFx } from "../render/acidFx";
+import { AcidView } from "../render/AcidView";
+import { playSfx } from "../audio/placeholderSfx";
 import { BurnView } from "../render/BurnView";
-import { edgeGlowAlpha, routeFireHit } from "../render/burnCue";
+import { edgeGlowAlpha, routeAcidHit, routeFireHit } from "../render/burnCue";
 import { ZombieView } from "../render/ZombieView";
 import { BloodTrailView } from "../render/BloodTrailView";
 import { FxView } from "../render/FxView";
@@ -173,6 +178,11 @@ export class GameScene extends Phaser.Scene {
   private zombieView: ZombieView | null = null;
   /** Story 3.9: blood trails behind Crawlers. */
   private trailView: BloodTrailView | null = null;
+  /** Story 5.6: the cosmetic spits and puddles (from events, both modes), their view, my acid cue and their clock (s; frozen by the solo pause). */
+  private acidFx: AcidFx | null = null;
+  private acidView: AcidView | null = null;
+  private readonly acidCue = new FireCue(ACID_CUE_MS);
+  private acidClockS = 0;
   private projectileView: ProjectileView | null = null;
   private fxView: FxView | null = null;
   private downedView: DownedView | null = null;
@@ -340,6 +350,12 @@ export class GameScene extends Phaser.Scene {
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.fireCue.clear(); // Story 4.8
     this.burnView = new BurnView(this); // Story 4.11
+    // Story 5.6: pools sized by the balance caps (created once per scene start).
+    this.acidCue.clear();
+    this.acidClockS = 0;
+    const spitBal = acidSpitOf(balance);
+    this.acidFx = new AcidFx(balance.zombies.spitCaps.maxLiveSpits, balance.zombies.spitCaps.maxLivePuddles, spitBal?.speedMps ?? 1, spitBal?.puddleS ?? 0);
+    this.acidView = new AcidView(this, this.acidFx, spitBal?.puddleRadiusM ?? 1);
     this.chevrons.length = 0;
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
       const c = CHEVRON_M;
@@ -355,7 +371,7 @@ export class GameScene extends Phaser.Scene {
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
-      setupStressWorld(world, stress, view, cx, cy);
+      setupStressWorld(world, stress, view, cx, cy, parseWaveMix(opts.waveMix, balance)); // Story 5.6: ?wavemix=walker,spitter
       stressRun.start(performance.now(), stress);
     }
 
@@ -407,6 +423,9 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.clear();
       this.burnView?.destroy();
       this.burnView = null;
+      this.acidView?.destroy();
+      this.acidView = null;
+      this.acidFx = null;
       perf.hits = null;
       perf.net = null;
       perf.soloSeed = null;
@@ -526,7 +545,7 @@ export class GameScene extends Phaser.Scene {
     let n = 0;
     for (let i = 0; i < z.aliveCount && n < MAX_RUSH_MARKERS; i++) {
       const id = z.aliveIds[i] as number;
-      if (z.state[id] !== ZOMBIE_STATE.RUSH) continue;
+      if (!isRushState(z.state[id] as number)) continue; // Story 5.6: a rushing Spitter in its windup too
       const x = (z.prevX[id] as number) + ((z.x[id] as number) - (z.prevX[id] as number)) * alpha;
       const y = (z.prevY[id] as number) + ((z.y[id] as number) - (z.prevY[id] as number)) * alpha;
       (this.chevrons[n] as Phaser.GameObjects.Triangle).setPosition(x, y - CHEVRON_LIFT_M).setVisible(true);
@@ -811,6 +830,15 @@ export class GameScene extends Phaser.Scene {
     this.burnView?.end();
   }
 
+  /** Story 5.6: the spit's "ptoo" and the splash's hiss, only when on screen (panned by screen position). */
+  private acidSound(e: SimEvent): void {
+    if (e.type !== "spitter.spat" && e.type !== "acid.splashed") return;
+    const v = this.cameras.main.worldView;
+    if (e.x < v.x || e.y < v.y || e.x > v.x + v.width || e.y > v.y + v.height) return;
+    const pan = Math.max(-1, Math.min(1, (e.x - (v.x + v.width / 2)) / Math.max(1e-6, v.width / 2)));
+    playSfx(e.type === "spitter.spat" ? "zombie_spitter_spit" : "fx_acid_hiss", pan);
+  }
+
   private applyZoom(): void {
     this.cameras.main.setZoom(pixelsPerMeter(this.scale.width, this.scale.height));
   }
@@ -871,8 +899,14 @@ export class GameScene extends Phaser.Scene {
       this.fxView?.handle(e);
       // Story 4.8 hurt cue; Story 4.11: my hits also queue a "-N" for the HUD.
       routeFireHit(e, localId, this.time.now, this.fireCue, this.hudModel);
+      // Story 5.6: acid has its own hurt cue (never "Burning"); spits and puddles are drawn from events.
+      routeAcidHit(e, localId, this.time.now, this.acidCue, this.hudModel);
+      if (this.acidFx?.handle(e, this.acidClockS)) this.acidSound(e);
       // Story 4.11: a build or wave start (a fire may have gone out) closes every burning cue; a real hit relights it.
-      if (e.type === "build.started" || e.type === "wave.started") this.fireCue.clear();
+      if (e.type === "build.started" || e.type === "wave.started") {
+        this.fireCue.clear();
+        this.acidCue.clear();
+      }
       if ((e.type === "team.wiped" || e.type === "run.held_out") && !host.online && !this.gameOver) {
         this.showSoloResults(host, e.wave, e.type === "run.held_out");
       } else if (e.type === "zombie.killed" && e.killerId === localId && e.buildingId === undefined) {
@@ -899,6 +933,8 @@ export class GameScene extends Phaser.Scene {
 
     this.zombieView?.update(host.world, host.alpha);
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
+    if (this.localHost?.paused !== true) this.acidClockS += deltaMs / 1000;
+    this.acidView?.update(this.acidClockS);
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world);
     this.downedView?.update(host.world, this.time.now);
@@ -923,6 +959,9 @@ export class GameScene extends Phaser.Scene {
       this.hudModel.burning = this.fireCue.burning(localId, this.time.now); // Story 4.8
       // Story 4.11: my screen-edge glow, pulsing with the fire's damage tick.
       this.hudModel.burnGlow = edgeGlowAlpha(this.hudModel.burning && player.status === "alive", this.fireCue.sinceLastHit(localId, this.time.now), host.world.balance.decay.fire.pulseS * 1000);
+      // Story 5.6: my acid cue (green edge glow, "Acid"), pulsing with the puddle's 0.4 s damage tick.
+      this.hudModel.inAcid = this.acidCue.burning(localId, this.time.now);
+      this.hudModel.acidGlow = edgeGlowAlpha(this.hudModel.inAcid && player.status === "alive", this.acidCue.sinceLastHit(localId, this.time.now), (acidSpitOf(host.world.balance)?.puddlePulseS ?? 0.4) * 1000);
       this.hudModel.maxHp = player.maxHp;
       this.hudModel.money = player.wallet;
       this.hudModel.localX = viewOf.x;

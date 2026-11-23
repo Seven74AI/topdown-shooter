@@ -96,6 +96,26 @@ describe("HordeEncoder", () => {
     expect(r.x).toBeCloseTo(45, 2);
   });
 
+  it("Story 5.6: a Spitter's windup goes out as-is in the state nibble (0 B extra); a rushing one in its windup is still sent from anywhere", () => {
+    const { world, enc, client } = setup(2, 16);
+    const near = spawnZombie(world, "spitter", 5, 16);
+    const far = spawnZombie(world, "spitter", 45, 30);
+    world.zombies.state[near] = ZOMBIE_STATE.WINDUP;
+    world.zombies.state[far] = ZOMBIE_STATE.RUSH_WINDUP;
+    enc.prepare(world);
+    enc.send(world, client, newHordeStats(), 2, 16);
+    const recs = decode(client.frames[0] as Uint8Array).recs;
+    expect(slots(recs)).toEqual([near, far].sort((a, b) => a - b));
+    for (const [id, st] of [
+      [near, ZOMBIE_STATE.WINDUP],
+      [far, ZOMBIE_STATE.RUSH_WINDUP],
+    ] as const) {
+      const r = recs.find((x) => (x.netId & 0xff) === id) as Rec;
+      expect(stateOfTypeState(r.typeState)).toBe(st);
+      expect(r.typeState & 0x0f).toBe(3); // spitter = type 3
+    }
+  });
+
   it("skips (never queues) frames while the socket holds more than 64 KB", () => {
     const { world, enc, client } = setup();
     spawnZombie(world, "walker", 25, 16);

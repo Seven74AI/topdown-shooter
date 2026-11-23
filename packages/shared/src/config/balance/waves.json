@@ -14,7 +14,7 @@
     { "walker": 100 },
     { "walker": 80, "runner": 20 },
     { "walker": 65, "runner": 20, "crawler": 15 },
-    { "walker": 55, "runner": 25, "crawler": 20 },
-    { "walker": 50, "runner": 25, "crawler": 25 }
+    { "walker": 50, "runner": 25, "crawler": 17, "spitter": 8 },
+    { "walker": 45, "runner": 25, "crawler": 22, "spitter": 8 }
   ]
 }

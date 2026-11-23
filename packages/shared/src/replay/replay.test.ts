@@ -72,6 +72,23 @@ describe("headless replay (Story 4.4, NFR10)", () => {
     expect(w.buildings.list.length).toBeGreaterThan(0);
   });
 
+  it("Story 5.6: the replay has Spitters spitting and acid hurting (liveness), and the same digest covers them", () => {
+    const c = { spits: 0, splashes: 0, acidHits: 0 };
+    const w = replayRun(balance, rec.log, {
+      afterStart: (world) =>
+        void world.events.subscribe((e: SimEvent) => {
+          if (e.type === "spitter.spat") c.spits++;
+          else if (e.type === "acid.splashed") c.splashes++;
+          else if (e.type === "player.damaged" && e.sourceZombieId === -2) c.acidHits++;
+        }),
+    });
+    expect(worldDigest(w)).toBe(rec.digest);
+    expect(rec.run.reached).toBeGreaterThanOrEqual(4); // Spitters join in wave 4
+    expect(c.spits).toBeGreaterThanOrEqual(1);
+    expect(c.splashes).toBeGreaterThanOrEqual(1);
+    expect(c.acidHits).toBeGreaterThanOrEqual(1);
+  });
+
   it("draws from the decay and shop streams change nothing but those streams", () => {
     let decayDraws = 0;
     const w = replayRun(balance, rec.log, {

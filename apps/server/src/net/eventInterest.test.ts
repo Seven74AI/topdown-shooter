@@ -56,4 +56,18 @@ describe("EventInterest (Story 3.6 review M2)", () => {
     expect(interest.eventsFor(world, 36, 24)).toBe(interest.all);
     expect(kinds(interest.all)).toEqual([NET_EVENT_KIND.ZOMBIE_HIT, NET_EVENT_KIND.ZOMBIE_KILLED]);
   });
+
+  it("Story 5.6: spits and splashes are local (start or end in view); acid damage stays global", () => {
+    const { world, interest } = setup();
+    const events: SimEvent[] = [
+      { type: "spitter.spat", zombieId: 3, spitId: 1, x: 3, y: 3, toX: 8, toY: 3 }, // top-left only
+      { type: "spitter.spat", zombieId: 4, spitId: 2, x: 15, y: 20, toX: 21, toY: 20 }, // ends inside the far view
+      { type: "acid.splashed", puddleId: 1, x: 8, y: 3, hitPlayerId: null },
+      { type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: -2 },
+    ];
+    interest.prepare(world, events, ctx);
+    expect(interest.localCount).toBe(3);
+    expect(kinds(interest.eventsFor(world, 12, 8))).toEqual([NET_EVENT_KIND.SPITTER_SPAT, NET_EVENT_KIND.ACID_SPLASHED, NET_EVENT_KIND.PLAYER_DAMAGED]); // the second spit (y 20) is below this view
+    expect(kinds(interest.eventsFor(world, 36, 24))).toEqual([NET_EVENT_KIND.SPITTER_SPAT, NET_EVENT_KIND.PLAYER_DAMAGED]);
+  });
 });

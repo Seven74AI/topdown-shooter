@@ -1,7 +1,8 @@
 import * as Phaser from "phaser";
-import { ATLAS_CHARACTERS, ZOMBIE_FRAMES, ensureAtlases } from "./city/spriteAtlas";
+import { ATLAS_CHARACTERS, SPITTER_WINDUP_FRAMES, ZOMBIE_FRAMES, ensureAtlases } from "./city/spriteAtlas";
+import { GurgleCues, windupScale } from "./spitCue";
 import { CHAR_EXTENT_R } from "./city/spriteArt";
-import { ZOMBIE_TYPES, headingToRad, type Balance, type World, type ZombieTypeId } from "@topdown/shared";
+import { ZOMBIE_TYPES, headingToRad, isWindupState, type PlayerState, type Balance, type World, type ZombieTypeId } from "@topdown/shared";
 import { playSfx, type SfxName } from "../audio/placeholderSfx";
 import { ShriekCues } from "./shriekCue";
 
@@ -29,6 +30,8 @@ const LOOKS = {
   walker: { depth: 5, cue: null },
   crawler: { depth: 4.5, cue: null },
   runner: { depth: 5.5, cue: "zombie_runner_shriek" },
+  // Story 5.6: hunched woman, distended jaw glowing green; its cue is the windup gurgle (below).
+  spitter: { depth: 5.2, cue: null },
 } as const satisfies Record<ZombieTypeId, ZombieLook>;
 
 const lookOf = (type: ZombieTypeId): ZombieLook => LOOKS[type];
@@ -57,6 +60,23 @@ export class ZombieView {
   private readonly flashUntil: Float64Array;
   /** Story 3.8: signature sounds when a Runner first enters my view. */
   private readonly cues: ShriekCues;
+  /** Story 5.6: per slot, the windup start (scene ms) while it shows the windup pose; 0 = normal pose. */
+  private readonly windupSince: Float64Array;
+  private readonly side: Float32Array;
+  private readonly gurgles = new GurgleCues();
+  /** Scratch for `nearestPlayer` (module-free callback, no closure per frame). */
+  private readonly near = { x: 0, y: 0, px: 0, py: 0, d2: Infinity };
+  private readonly nearestPlayer = (p: PlayerState): void => {
+    if (p.status !== "alive") return;
+    const dx = p.x - this.near.x;
+    const dy = p.y - this.near.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < this.near.d2) {
+      this.near.d2 = d2;
+      this.near.px = p.x;
+      this.near.py = p.y;
+    }
+  };
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -71,6 +91,8 @@ export class ZombieView {
     this.lastAngle = new Float32Array(capacity);
     this.flashUntil = new Float64Array(capacity);
     this.cues = new ShriekCues(capacity);
+    this.windupSince = new Float64Array(capacity);
+    this.side = new Float32Array(capacity);
   }
 
   /** White hit flash for a zombie (FR19). */
@@ -97,6 +119,8 @@ export class ZombieView {
         const r = this.balance.zombies.types[type]?.radiusM ?? DEFAULT_RADIUS_M;
         const look = lookOf(type);
         const side = 2 * r * CHAR_EXTENT_R[type];
+        this.side[id] = side;
+        this.windupSince[id] = 0;
         img.setTexture(ATLAS_CHARACTERS, variantOf(type, id, gen)).setDisplaySize(side, side).setDepth(look.depth).setVisible(true);
         this.flashUntil[id] = 0; // a new zombie in this slot never inherits a flash
         img.clearTint().setTintMode(Phaser.TintModes.MULTIPLY);
@@ -111,11 +135,35 @@ export class ZombieView {
       else if (mx * mx + my * my > MIN_TURN_MOVE_M * MIN_TURN_MOVE_M) this.lastAngle[id] = Math.atan2(my, mx);
       const drawX = lerp(px, cx, alpha);
       const drawY = lerp(py, cy, alpha);
+      // Story 5.6: a winding-up Spitter stands still (no movement heading): it faces the nearest standing player.
+      if (isWindupState(z.state[id] as number)) {
+        this.near.d2 = Infinity;
+        this.near.x = drawX;
+        this.near.y = drawY;
+        world.players.forEach(this.nearestPlayer);
+        if (this.near.d2 < Infinity) this.lastAngle[id] = Math.atan2(this.near.py - drawY, this.near.px - drawX);
+      }
       img.setPosition(drawX, drawY).setRotation(this.lastAngle[id] as number);
       const cue = lookOf(type).cue;
       if (cue) {
         const pan = this.cues.check(id, gen, drawX, drawY, this.scene.cameras.main.worldView, this.scene.time.now / 1000);
         if (!Number.isNaN(pan)) playSfx(cue, pan);
+      }
+      // Story 5.6: the windup telegraph — the rearing-back frame, pulsing, and the gurgle once per windup.
+      const winding = isWindupState(z.state[id] as number);
+      const since = this.windupSince[id] as number;
+      if (winding && since === 0) {
+        this.windupSince[id] = this.scene.time.now || 1;
+        img.setFrame(SPITTER_WINDUP_FRAMES[(id * 7 + gen) % SPITTER_WINDUP_FRAMES.length] as string);
+        const pan = this.gurgles.windupStarted(drawX, drawY, this.scene.cameras.main.worldView, this.scene.time.now / 1000);
+        if (!Number.isNaN(pan)) playSfx("zombie_spitter_gurgle", pan);
+      } else if (!winding && since !== 0) {
+        this.windupSince[id] = 0;
+        img.setFrame(variantOf(type, id, gen)).setDisplaySize(this.side[id] as number, this.side[id] as number);
+      }
+      if (winding) {
+        const s = (this.side[id] as number) * windupScale((this.scene.time.now - (this.windupSince[id] as number)) / 1000);
+        img.setDisplaySize(s, s);
       }
       const until = this.flashUntil[id] as number;
       if (until > 0 && this.scene.time.now >= until) {

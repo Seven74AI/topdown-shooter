@@ -6,6 +6,7 @@ import { returnOutPlayers } from "../player/downed";
 import { beginWave, clearWave, updateWaves } from "../waves/waveDirector";
 import { killZombie } from "../zombies/zombiePool";
 import { decayFinish, decayMutate, stageForComingWave } from "../decay/decaySystem";
+import { clearAcid } from "../zombies/spit";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
@@ -62,6 +63,7 @@ export function startBuild(world: World): void {
   world.players.forEach(clearReady);
   const from = world.decay.stage;
   const decayed = decayMutate(world, stageForComingWave(world));
+  clearAcid(world); // Story 5.6 DD4: no spits, no puddles in a build phase; acid clocks restart
   returnOutPlayers(world);
   if (decayed) decayFinish(world, from);
   world.events.emit({ type: "build.started", wave: world.waves.number + 1 });

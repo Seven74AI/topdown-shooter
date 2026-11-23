@@ -20,6 +20,8 @@ import { createDecayState, pickDecayVariants, type DecayState } from "../decay/d
 import { createSeedStreams, type SeedStreams } from "./seedStreams";
 import { createRewoundView, createZombieHistory, recordZombieHistory, type RewoundView, type ZombieHistory } from "../combat/rewind";
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
+import { createSpitPool, type SpitPool } from "../zombies/spitPool";
+import { createAreaPool, type AreaPool } from "../hazards/areaPool";
 
 /** The whole simulation state. A plain object so it can be snapshotted (Story 8.4). */
 export interface World {
@@ -91,6 +93,10 @@ export interface World {
   readonly zombieHistory: ZombieHistory;
   /** Story 2.12: scratch for the rewound zombie view (not simulation state; never snapshotted). */
   readonly rewoundView: RewoundView;
+  /** Story 5.6: Spitter globs in flight (pool sized by `zombies.json › spitCaps.maxLiveSpits`). */
+  readonly spits: SpitPool;
+  /** Story 5.6 (D5): ground damage areas — acid puddles (pool sized by `spitCaps.maxLivePuddles`). */
+  readonly areas: AreaPool;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -160,6 +166,8 @@ export function createWorld(opts: CreateWorldOptions): World {
     pathing: createPathingState({ widthM: map.widthM, heightM: map.heightM, solids: obstacles.solids }, ZOMBIE_POOL_CAPACITY, (opts.systems?.buildings ?? DEFAULT_SYSTEMS.buildings) === DEFAULT_SYSTEMS.buildings),
     zombieHistory: createZombieHistory(),
     rewoundView: createRewoundView(map),
+    spits: createSpitPool(opts.balance.zombies.spitCaps.maxLiveSpits), // Story 5.6
+    areas: createAreaPool(opts.balance.zombies.spitCaps.maxLivePuddles),
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

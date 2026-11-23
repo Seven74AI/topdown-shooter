@@ -4,7 +4,7 @@ import type { Building } from "../buildings/buildings";
 import type { DistrictBounds, MapBox } from "../map/districtMap";
 import { fillCollisionCells, mapCollisionCells } from "../map/collisionCells";
 import type { PlayerState } from "../player/player";
-import { ZOMBIE_STATE, ZOMBIE_TYPES } from "./zombieTypes";
+import { ZOMBIE_TYPES, isRushState } from "./zombieTypes";
 
 /**
  * Story 3.5: flow-field pathfinding (architecture › Zombie Pathfinding; FR26, FR53).
@@ -706,7 +706,7 @@ function flankerAlive(world: Readonly<World>): boolean {
   for (let i = 0; i < pool.aliveCount; i++) {
     const id = pool.aliveIds[i] as number;
     // 3.8 review L4: a rushing flanker (FR30) goes straight in: it needs no flank field.
-    if ((mask >> (pool.type[id] as number)) & 1 && pool.state[id] !== ZOMBIE_STATE.RUSH) return true;
+    if ((mask >> (pool.type[id] as number)) & 1 && !isRushState(pool.state[id] as number)) return true;
   }
   return false;
 }

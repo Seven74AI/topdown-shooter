@@ -1,6 +1,6 @@
 import type { Balance } from "../config/balance";
 import { weaponIds, type WeaponId } from "../combat/weapons";
-import { MONEY_REASONS, type SimEvent } from "../core/simEvents";
+import { DAMAGE_SOURCE_ACID, DAMAGE_SOURCE_FIRE, MONEY_REASONS, type SimEvent } from "../core/simEvents";
 import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
 import { buildingTypeIds } from "../buildings/buildings";
@@ -43,6 +43,8 @@ export const NET_EVENT_KIND = {
   BUILDING_REPAIRED: 24, // Story 3.7
   RUN_HELD_OUT: 25, // Story 3.10
   DECAY_STAGE_CHANGED: 26, // Story 4.5
+  SPITTER_SPAT: 27, // Story 5.6 (merge: take the next free numbers; never reuse)
+  ACID_SPLASHED: 28, // Story 5.6
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -127,7 +129,8 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       // Arc and range come from the weapon's balance on decode (melee.ts emits exactly those).
       return [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
     case "player.damaged":
-      return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? -1 : zid(ctx, e.sourceZombieId)];
+      // Story 5.6: −1 fire and −2 acid stay apart (any other negative source goes as fire, as before).
+      return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? (e.sourceZombieId === DAMAGE_SOURCE_ACID ? DAMAGE_SOURCE_ACID : DAMAGE_SOURCE_FIRE) : zid(ctx, e.sourceZombieId)];
     case "player.downed":
       return [K.PLAYER_DOWNED, playerSlotOf(e.playerId)];
     case "player.revived":
@@ -170,6 +173,11 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "decay.stage_changed":
       // Story 4.5: the banner (the map itself follows the room state's decayStage / decayVariants).
       return [K.DECAY_STAGE_CHANGED, e.stage, e.from];
+    case "spitter.spat":
+      // Story 5.6: the glob's flight (cosmetic on the client; damage is server truth).
+      return [K.SPITTER_SPAT, zid(ctx, e.zombieId), e.spitId, cm(e.x), cm(e.y), cm(e.toX), cm(e.toY)];
+    case "acid.splashed":
+      return [K.ACID_SPLASHED, e.puddleId, cm(e.x), cm(e.y), playerSlotOf(e.hitPlayerId)];
     case "test.ping":
       return null;
   }
@@ -253,7 +261,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.PLAYER_DAMAGED: {
       const src = n(t, 3);
-      return { type: "player.damaged", playerId: pid(t, 1), amount: n(t, 2) / 10, sourceZombieId: src < 0 ? -1 : zombieSlotOfNetId(src) };
+      const source = src < 0 ? (src === DAMAGE_SOURCE_ACID ? DAMAGE_SOURCE_ACID : DAMAGE_SOURCE_FIRE) : zombieSlotOfNetId(src);
+      return { type: "player.damaged", playerId: pid(t, 1), amount: n(t, 2) / 10, sourceZombieId: source };
     }
     case K.PLAYER_DOWNED:
       return { type: "player.downed", playerId: pid(t, 1) };
@@ -298,6 +307,10 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "building.repaired", buildingId: n(t, 1), playerId: pid(t, 2), cost: n(t, 3), x: n(t, 4) / 100, y: n(t, 5) / 100 };
     case K.DECAY_STAGE_CHANGED:
       return { type: "decay.stage_changed", stage: n(t, 1), from: n(t, 2) };
+    case K.SPITTER_SPAT:
+      return { type: "spitter.spat", zombieId: zombieSlotOfNetId(n(t, 1)), spitId: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, toX: n(t, 5) / 100, toY: n(t, 6) / 100 };
+    case K.ACID_SPLASHED:
+      return { type: "acid.splashed", puddleId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100, hitPlayerId: playerIdOfSlot(n(t, 4)) };
     default:
       return null;
   }

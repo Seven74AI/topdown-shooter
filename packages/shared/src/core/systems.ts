@@ -6,6 +6,18 @@ import { updateRun } from "../run/runStateMachine";
 import { updateEconomy } from "../economy/economy";
 import { updateBuildings } from "../buildings/buildingSystem";
 import { updateFires } from "../decay/fire";
+import { updateAcid, updateSpits } from "../zombies/spit";
+
+/**
+ * Story 5.6: the `zombies` slot: the AI (Spitters wind up and release spits in pass 1), then the
+ * globs in flight (`updateSpits`), then the acid puddles' damage and lifetime (`updateAcid`).
+ * Server and solo only (never predicted: HP is server truth).
+ */
+export const updateZombieSlot: SystemFn = (world, dtS) => {
+  updateZombies(world, dtS);
+  updateSpits(world);
+  updateAcid(world);
+};
 
 /** Fixed system order per tick (architecture › Communication Patterns). Never reorder. */
 export const SYSTEM_ORDER = [
@@ -58,7 +70,7 @@ export const DEFAULT_SYSTEMS: Systems = {
   // system, after the push-out); Story 3.6 adds turrets.
   buildings: updateBuildings,
   combat: updateCombat,
-  zombies: updateZombies,
+  zombies: updateZombieSlot, // Story 5.6: + spits and acid puddles
   boss: noop,
   waves: updateRun, // Story 3.1: the run state machine (build countdown, then the wave director)
   specialEvents: noop,

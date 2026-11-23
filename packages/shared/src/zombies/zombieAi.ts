@@ -11,8 +11,9 @@ import { PUSH_STUCK, distanceToBox, hasObstacles, pushOutOfBuildings, pushed, se
 import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, type FlowField } from "./flowField";
-import { ZOMBIE_STATE } from "./zombieTypes";
+import { isRushState } from "./zombieTypes";
 import { segmentHitsFire } from "../decay/fire";
+import { collectStanding, spitterStep } from "./spit";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
 const MAX_NEIGHBOURS = 64;
@@ -133,6 +134,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
   }
   rebuildGrid(world.zombieGrid, ids, n, pool.x, pool.y);
   collectAlivePlayers(world);
+  collectStanding(world); // Story 5.6: the Spitters' target list
   // Story 4.1: map solids count like buildings for the line of sight and the push-out (never attacked).
   const hasBuildings = hasObstacles(world);
   const hasFires = world.decay.fires.length > 0; // Story 4.8
@@ -152,7 +154,9 @@ export const updateZombies: SystemFn = (world, dtS) => {
 
     targetBuilding[id] = 0;
     fieldMode[id] = 0;
-    const target = nearestAlivePlayer(x, y);
+    // Story 5.6: a Spitter in range with a clear line stands (winds up / cools down); else it walks.
+    const holds = stats.spit !== undefined && spitterStep(world, id, stats.radiusM, stats.spit);
+    const target = holds ? null : nearestAlivePlayer(x, y);
     if (target) {
       let dx = target.x - x;
       let dy = target.y - y;
@@ -169,7 +173,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
         // Review H1: flanking is time-limited: after `flank.maxFlankS` spent not closing in, it commits.
         if (
           stats.flanks &&
-          pool.state[id] !== ZOMBIE_STATE.RUSH &&
+          !isRushState(pool.state[id] as number) &&
           d > flank.directWithinM &&
           !flankTimeSpent(world, id, d, stats.speedMps * dtS * flank.closingSpeedFrac, maxFlankTicks) &&
           (blocked || inFlankCone(world, target, x, y))

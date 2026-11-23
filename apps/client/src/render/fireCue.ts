@@ -1,4 +1,4 @@
-import type { SimEvent } from "@topdown/shared";
+import { DAMAGE_SOURCE_ACID, DAMAGE_SOURCE_FIRE, type SimEvent } from "@topdown/shared";
 
 /**
  * Story 4.8: how long after the server's last fire hit (`player.damaged` with no zombie source) a
@@ -7,10 +7,18 @@ import type { SimEvent } from "@topdown/shared";
  */
 export const FIRE_CUE_MS = 700;
 
-/** A `player.damaged` event that came from fire (Story 4.8: the only zombie-less damage source). */
+/** A `player.damaged` event that came from fire (Story 4.8; Story 5.6: source −1 exactly, acid is −2). */
 export function isFireHit(e: SimEvent): e is Extract<SimEvent, { type: "player.damaged" }> {
-  return e.type === "player.damaged" && e.sourceZombieId < 0;
+  return e.type === "player.damaged" && e.sourceZombieId === DAMAGE_SOURCE_FIRE;
 }
+
+/** Story 5.6: a `player.damaged` event from acid (a Spitter's spit or puddle: source −2). */
+export function isAcidHit(e: SimEvent): e is Extract<SimEvent, { type: "player.damaged" }> {
+  return e.type === "player.damaged" && e.sourceZombieId === DAMAGE_SOURCE_ACID;
+}
+
+/** Story 5.6: how long after the last acid hit the acid cue stays (puddle pulse 0.4 s: no gap while standing in it). */
+export const ACID_CUE_MS = 600;
 
 /**
  * Story 4.8: the hurt cue for players in fire, driven only by the server's damage events (brief
@@ -20,13 +28,16 @@ export function isFireHit(e: SimEvent): e is Extract<SimEvent, { type: "player.d
 export class FireCue {
   private readonly lastHitMs = new Map<string, number>();
 
+  /** Story 5.6: the same cue clock serves acid (`new FireCue(ACID_CUE_MS)`). */
+  constructor(private readonly cueMs = FIRE_CUE_MS) {}
+
   hit(playerId: string, nowMs: number): void {
     this.lastHitMs.set(playerId, nowMs);
   }
 
   burning(playerId: string, nowMs: number): boolean {
     const t = this.lastHitMs.get(playerId);
-    return t !== undefined && nowMs - t < FIRE_CUE_MS;
+    return t !== undefined && nowMs - t < this.cueMs;
   }
 
   /** Story 4.11: ms since the player's last fire hit (Infinity when never hit). */

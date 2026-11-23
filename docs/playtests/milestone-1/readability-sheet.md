@@ -23,6 +23,8 @@ Player:
 11 what:            bullets:
 12 what:            bullets:
 13-15 are these three different? what does each one do?
+16 what:            what does it do?
+17 what:            bullets:   + when does it hurt you?
 ```
 
 ## 1
@@ -63,3 +65,9 @@ Player:
 
 ## 13, 14, 15
 ![13](objects/14_walker.png) ![14](objects/15_runner.png) ![15](objects/16_crawler.png)
+
+## 16 (Story 5.6)
+![16](objects/17_spitter.png)
+
+## 17: the green patch (Story 5.6)
+![17](objects/18_acid_puddle.png)

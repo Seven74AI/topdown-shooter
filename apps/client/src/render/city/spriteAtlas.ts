@@ -4,6 +4,7 @@ import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame }
 import { CAR_COLORS } from "./dressing";
 import { addCanvasTexture } from "./canvasTexture";
 import { OBJ_SANDBAGS, ensureObjectsAtlas, objectsFrameSource, type FrameSource } from "./objectsAtlas";
+import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
 import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawDumpster, drawPump, drawSandbags, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
@@ -19,13 +20,15 @@ export const ATLAS_FX = "atlas_fx";
 /** Collision radius in frame px (characters are drawn in radius units, so the frame fits every balance radius). */
 export const CHAR_R_PX = 34;
 /** Walker/runner/crawler variants (clothes); the survivor has one. */
-export const ZOMBIE_VARIANTS: Readonly<Record<ZombieTypeId, number>> = { walker: 4, runner: 2, crawler: 2 };
+export const ZOMBIE_VARIANTS: Readonly<Record<ZombieTypeId, number>> = { walker: 4, runner: 2, crawler: 2, spitter: 2 };
 
 /** Frame names per zombie type (built once: views never build strings per frame). */
 export const ZOMBIE_FRAMES: Readonly<Record<ZombieTypeId, readonly string[]>> = Object.fromEntries(
   ZOMBIE_TYPES.map((t) => [t, Array.from({ length: ZOMBIE_VARIANTS[t] }, (_, i) => frameName("zombie", t, variantLetter(i)))]),
 ) as unknown as Record<ZombieTypeId, readonly string[]>;
 export const SURVIVOR_FRAME = frameName("survivor", "body", "a");
+/** Story 5.6: the Spitter's windup pose (rearing back, mouth blazing), one per clothes variant. */
+export const SPITTER_WINDUP_FRAMES: readonly string[] = Array.from({ length: ZOMBIE_VARIANTS.spitter }, (_, i) => `${frameName("zombie", "spitter", "windup")}_${variantLetter(i)}`);
 
 /** Downtown vehicles and props: frame name → native size in map px (32 px = 1 m). */
 export const VEHICLE_BUS = frameName("vehicle", "bus", "a");
@@ -54,12 +57,17 @@ export const FX_GLOW = frameName("fx", "glow", "a");
 export const FX_VIGNETTE = frameName("fx", "vignette", "a");
 /** Story 4.11: a white edge band (opaque at its top, clear at its bottom), tinted for the burning screen-edge glow. */
 export const FX_EDGE = frameName("fx", "edge", "a");
+/** Story 5.6: the spit glob in flight and the acid puddle (two shapes); the puddle frame's edge is the damage edge. */
+export const FX_SPIT_GLOB = `${frameName("fx", "spit", "glob")}_01`;
+export const FX_ACID_PUDDLES: readonly string[] = ["01", "02"].map((v) => `${frameName("fx", "acid", "puddle")}_${v}`);
 const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_RAIN]: [4, 28],
   [FX_SPLASH]: [40, 20],
   [FX_GLOW]: [64, 64],
   [FX_VIGNETTE]: [8, 64],
   [FX_EDGE]: [8, 64],
+  [FX_SPIT_GLOB]: [48, 48],
+  ...Object.fromEntries(FX_ACID_PUDDLES.map((n) => [n, [128, 128] as const])),
 };
 
 export interface AtlasCanvas {
@@ -74,6 +82,8 @@ export function characterSpecs(): FrameSpec[] {
     const side = Math.ceil(2 * CHAR_EXTENT_R[t] * CHAR_R_PX);
     for (const name of ZOMBIE_FRAMES[t]) out.push({ name, w: side, h: side });
   }
+  const sp = Math.ceil(2 * CHAR_EXTENT_R.spitter * CHAR_R_PX);
+  for (const name of SPITTER_WINDUP_FRAMES) out.push({ name, w: sp, h: sp });
   const s = Math.ceil(2 * CHAR_EXTENT_R.survivor * CHAR_R_PX);
   out.push({ name: SURVIVOR_FRAME, w: s, h: s });
   return out;
@@ -122,6 +132,8 @@ function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   if (f.name === SURVIVOR_FRAME) return drawSurvivor(g, CHAR_R_PX);
   const z = zombieOf(f.name);
   if (z) drawZombie(g, z.type, CHAR_R_PX, z.variant);
+  const w = SPITTER_WINDUP_FRAMES.indexOf(f.name);
+  if (w >= 0) drawZombie(g, "spitter", CHAR_R_PX, w, true);
 }
 
 /** Story 4.11: loaded frames that replace a procedural downtown frame (the sandbags). */
@@ -179,6 +191,12 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
     gr.addColorStop(1, "rgba(255,255,255,0)");
     g.fillStyle = gr;
     g.fillRect(x, y, w, h);
+  } else if (f.name === FX_SPIT_GLOB) {
+    g.translate(x + w / 2, y + h / 2);
+    drawSpitGlob(g, w);
+  } else if (FX_ACID_PUDDLES.includes(f.name)) {
+    g.translate(x + w / 2, y + h / 2);
+    drawAcidPuddle(g, w, 131 + FX_ACID_PUDDLES.indexOf(f.name) * 70);
   } else if (f.name === FX_VIGNETTE) {
     // one edge band (dark at the top, clear at the bottom); the view lays four around the screen
     const gr = g.createLinearGradient(0, y, 0, y + h);

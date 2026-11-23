@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
+import { spitStats } from "../zombies/spit";
 
 /**
  * Story 3.10 (AC 5, 7, 8): the seeded 5-wave run with 2/3/4 bots, the real balance (waves.json
@@ -21,6 +22,7 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
   it("every run really runs to Results; logs survival by wave and each player's earnings", () => {
     const lines: string[] = [];
     const runs: HeadlessRunLog[] = [];
+    const spits0 = { spits: spitStats.spits, hits: spitStats.spitHits, acid: spitStats.acidHits };
     for (const players of TEAM_SIZES) {
       let weapons = 0;
       let buildings = 0;
@@ -45,6 +47,15 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
       expect(weapons).toBeGreaterThan(0); // the bots really shopped …
       expect(buildings).toBeGreaterThan(0); // … and built
     }
+    // Story 5.6 (liveness): Spitters (waves 4–5) really spat and hit in the runs that got there; every such wave ended (held-out runs above).
+    const spits = spitStats.spits - spits0.spits;
+    const spitHits = spitStats.spitHits - spits0.hits;
+    const acidHits = spitStats.acidHits - spits0.acid;
+    const reached4 = runs.filter((r) => r.reached >= 4).length;
+    expect(reached4).toBeGreaterThan(0);
+    expect(spits).toBeGreaterThan(reached4);
+    expect(spitHits).toBeGreaterThanOrEqual(1);
+    lines.push(`Story 5.6: ${reached4} runs reached wave 4; ${spits} spits, ${spitHits} spit hits, ${acidHits} acid puddle hits`);
     // AC 5: at least one full 5-wave run with 4 bots (its earnings are the comparison with the GDD).
     expect(runs.some((r) => r.players === 4 && r.heldOut)).toBe(true);
     const summary = TEAM_SIZES.map((n) => {

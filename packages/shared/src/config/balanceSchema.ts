@@ -39,6 +39,43 @@ const meleeSchema = z
 export const weaponSchema = z.discriminatedUnion("kind", [gunSchema, meleeSchema]);
 export const weaponsSchema = z.record(balanceId, weaponSchema);
 
+/** Story 5.6 helper: `s` seconds is a whole number of ticks. */
+const wholeTicks = (s: number): boolean => Math.abs(s * TICK_RATE_HZ - Math.round(s * TICK_RATE_HZ)) < 1e-9;
+
+/**
+ * Story 5.6: a ranged spit (Spitters). The Spitter stops within `rangeM` of a player it has a clear
+ * shot line to, winds up for `windupS` (the telegraph), spits a glob at `speedMps` (body `radiusM`)
+ * that deals `damage` to the first standing player it touches and leaves an acid puddle of
+ * `puddleRadiusM` for `puddleS`; standing inside costs `puddleDamagePerS × puddlePulseS` every
+ * `puddlePulseS` (per-body clock, the 4.8 rule). `intervalS` runs from spit to spit (windup included).
+ */
+export const spitSchema = z
+  .object({
+    rangeM: z.number().positive().max(20),
+    windupS: z.number().positive().max(5),
+    intervalS: z.number().positive().max(30),
+    speedMps: z.number().positive().max(40),
+    radiusM: z.number().positive().max(1),
+    damage: z.number().positive(),
+    puddleRadiusM: z.number().positive().max(5),
+    puddleS: z.number().positive().max(30),
+    puddleDamagePerS: z.number().positive(),
+    puddlePulseS: z.number().positive().max(5),
+  })
+  .strict()
+  .refine((f) => wholeTicks(f.windupS) && wholeTicks(f.intervalS) && wholeTicks(f.puddleS), "spit windupS, intervalS and puddleS must be whole numbers of ticks")
+  .refine((f) => f.intervalS > f.windupS, "spit intervalS (spit to spit) must be longer than windupS")
+  .refine((f) => Math.abs(f.puddleDamagePerS * f.puddlePulseS - Math.round(f.puddleDamagePerS * f.puddlePulseS)) < 1e-9 && Math.round(f.puddleDamagePerS * f.puddlePulseS) >= 1, "puddleDamagePerS × puddlePulseS must be a whole number ≥ 1")
+  .refine((f) => wholeTicks(f.puddlePulseS), "puddlePulseS must be a whole number of ticks");
+
+/** Story 5.6: caps on live spits and puddles (pools are this size; brief line 12). */
+export const spitCapsSchema = z
+  .object({
+    maxLiveSpits: z.number().int().min(1).max(256),
+    maxLivePuddles: z.number().int().min(1).max(256),
+  })
+  .strict();
+
 export const zombieTypeSchema = z
   .object({
     hp: z.number().positive(),
@@ -57,6 +94,8 @@ export const zombieTypeSchema = z
     biteSlowS: z.number().min(0).max(10).default(0),
     /** Story 3.8: follows the flank field (Runners) instead of the chase field. */
     flanks: z.boolean().default(false),
+    /** Story 5.6: a ranged spit (Spitters); absent = no ranged attack. */
+    spit: spitSchema.optional(),
   })
   .strict();
 
@@ -121,7 +160,7 @@ export const flankSchema = z
   .strict();
 
 export const zombiesSchema = z
-  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema, pathing: pathingSchema, flank: flankSchema })
+  .object({ types: z.record(balanceId, zombieTypeSchema), crowd: crowdSchema, pathing: pathingSchema, flank: flankSchema, spitCaps: spitCapsSchema })
   .strict();
 
 export const wavesSchema = z
@@ -382,5 +421,6 @@ export type GunStats = z.output<typeof gunSchema>;
 export type MeleeStats = z.output<typeof meleeSchema>;
 export type WeaponStats = z.output<typeof weaponSchema>;
 export type ZombieTypeStats = z.output<typeof zombieTypeSchema>;
+export type SpitStats = z.output<typeof spitSchema>;
 export type BuildingTypeStats = z.output<typeof buildingTypeSchema>;
 export type TurretStats = z.output<typeof turretSchema>;

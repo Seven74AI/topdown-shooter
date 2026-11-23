@@ -17,7 +17,7 @@ import { teamSpawnPoint } from "../player/spawn";
 import { skipWave, startBuild, startWave } from "../run/runStateMachine";
 import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { FLOW_UNREACHED, flowCellAt, rebuildFlowFieldNow } from "../zombies/flowField";
-import { ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
+import { ZOMBIE_TYPES, isWindupState, type ZombieTypeId } from "../zombies/zombieTypes";
 import { jitteredSpawn } from "../waves/waveDirector";
 import { runHeadless } from "../bots/headlessRun";
 import { createInputLog, replayRun } from "../replay/inputLog";
@@ -579,6 +579,7 @@ describe("Story 4.5 player-visible properties", () => {
       const z = w.zombies;
       for (const id of spawned) {
         if (z.alivePos[id] === -1) continue;
+        if (isWindupState(z.state[id] as number)) reached.add(id); // Story 5.6: a Spitter "reaches" us when it winds up (in range, clear line)
         for (const p of w.players.values()) {
           if (Math.hypot(p.x - (z.x[id] as number), p.y - (z.y[id] as number)) <= 3 && !segmentHitsBuildings(w, z.x[id] as number, z.y[id] as number, p.x, p.y, 0)) reached.add(id);
         }

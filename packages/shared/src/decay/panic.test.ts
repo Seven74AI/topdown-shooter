@@ -15,7 +15,7 @@ import { teamSpawnPoint } from "../player/spawn";
 import { skipWave, startBuild, startWave } from "../run/runStateMachine";
 import { jitteredSpawn } from "../waves/waveDirector";
 import { FLOW_UNREACHED, flowCellAt, rebuildFlowFieldNow } from "../zombies/flowField";
-import { maxZombieRadius, ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
+import { maxZombieRadius, ZOMBIE_TYPES, isWindupState, type ZombieTypeId } from "../zombies/zombieTypes";
 import { spawnZombie } from "../zombies/zombiePool";
 import { applyDecayStage } from "./applyDecayStage";
 import { circleInFire, fireRecordOf, legalDecayMasks } from "./decayState";
@@ -272,6 +272,7 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
         const z = w.zombies;
         for (const id of spawned) {
           if (reached.has(id) || z.alivePos[id] === -1) continue;
+          if (isWindupState(z.state[id] as number)) reached.add(id); // Story 5.6: a Spitter "reaches" us when it winds up (in range, clear line)
           for (const p of w.players.values()) {
             if (Math.hypot(p.x - (z.x[id] as number), p.y - (z.y[id] as number)) <= 3 && !segmentHitsBuildings(w, z.x[id] as number, z.y[id] as number, p.x, p.y, 0)) reached.add(id);
           }

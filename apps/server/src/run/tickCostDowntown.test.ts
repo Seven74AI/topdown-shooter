@@ -32,7 +32,7 @@ const WARMUP_TICKS = 100;
 const MEASURED_TICKS = 600;
 const PERF_ASSERT = process.env.PERF_ASSERT === "1";
 
-function measure(map: DistrictMap, stage = 1, firesOut: number | null = null) {
+function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, spitters = 0) {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
   // Story 4.8 (review L6: fire respects `waves.paused`): the fire cases hold the waves with a no-op
   // wave system instead of the dev pause, so the fires burn.
@@ -51,10 +51,22 @@ function measure(map: DistrictMap, stage = 1, firesOut: number | null = null) {
   let spawnAt = 0;
   let fieldTicks = 0;
   const times: number[] = [];
+  let spits = 0;
+  world.events.subscribe((e) => {
+    if (e.type === "spitter.spat") spits++;
+  });
+  const spitterCount = (): number => {
+    let n = 0;
+    for (let i = 0; i < world.zombies.aliveCount; i++) if (world.zombies.type[world.zombies.aliveIds[i] as number] === 3) n++;
+    return n;
+  };
   for (let t = 1; t <= WARMUP_TICKS + MEASURED_TICKS; t++) {
+    // Story 5.6: `spitters` of the crowd are Spitters (kept topped up like the Walkers).
+    let needSpit = spitters > 0 ? spitters - spitterCount() : 0;
     while (world.zombies.aliveCount < WALKERS) {
       const sp = points[spawnAt++ % points.length];
-      if (!sp || spawnZombie(world, "walker", sp.x, sp.y, true) < 0) break;
+      if (!sp || spawnZombie(world, needSpit > 0 ? "spitter" : "walker", sp.x, sp.y, true) < 0) break;
+      needSpit--;
     }
     for (let i = 0; i < 4; i++) {
       const a = t * 0.05 + i * 1.6;
@@ -77,6 +89,7 @@ function measure(map: DistrictMap, stage = 1, firesOut: number | null = null) {
     seconds: MEASURED_TICKS * TICK_DT_S,
     fires: world.decay.fires.length,
     pulses: firePulse.players + firePulse.zombies + firePulse.buildings - hits0,
+    spits,
   };
 }
 
@@ -151,6 +164,22 @@ describe("tick cost of car fires (Story 4.8)", () => {
     expect(burning.pulses).toBeGreaterThan(0);
     expect(burning.kills).toBeGreaterThan(0);
     if (PERF_ASSERT) expect(burning.p99 - out.p99).toBeLessThanOrEqual(2);
+  }, 120_000);
+});
+
+describe("tick cost of Spitters (Story 5.6, brief line 16)", () => {
+  it("4 players + 130 Walkers + 20 Spitters on Downtown (spits flying, puddles hurting nobody: god mode) add ≤ 2 ms to the tick p99 over 150 Walkers", () => {
+    const runs = [measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, 20), measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, 20)];
+    const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
+    const walkers = pick(runs[0] as ReturnType<typeof measure>, runs[2] as ReturnType<typeof measure>);
+    const mixed = pick(runs[1] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
+    console.log(
+      `[tick cost 5.6] 150 Walkers p99 ${walkers.p99.toFixed(3)} ms (mean ${walkers.mean.toFixed(3)}); 130 + 20 Spitters p99 ${mixed.p99.toFixed(3)} ms (mean ${mixed.mean.toFixed(3)}); ` +
+        `added p99 ${(mixed.p99 - walkers.p99).toFixed(3)} ms, mean ${(mixed.mean - walkers.mean).toFixed(3)} ms; ${mixed.spits} spits; kills ${walkers.kills} / ${mixed.kills}`,
+    );
+    expect(mixed.spits).toBeGreaterThan(10); // liveness: the Spitters really spat
+    expect(mixed.kills).toBeGreaterThan(0);
+    if (PERF_ASSERT) expect(mixed.p99 - walkers.p99).toBeLessThanOrEqual(2);
   }, 120_000);
 });
 

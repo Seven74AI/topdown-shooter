@@ -42,6 +42,12 @@ const EVENTS: SimEvent[] = [
   { type: "building.repaired", buildingId: 3, playerId: "p2", cost: 20, x: 47.25, y: 31.5 },
   // Story 3.6: a turret's kill (the building type is no weapon: decodes to "").
   { type: "zombie.killed", zombieId: 7, killerId: "p1", x: 3, y: 4, weapon: "", buildingId: 12 },
+  // Story 5.6: spits, puddles and acid damage (source −2, apart from fire's −1).
+  { type: "spitter.spat", zombieId: 7, spitId: 65535, x: 12.34, y: 5.67, toX: 17.5, toY: 0.01 },
+  { type: "acid.splashed", puddleId: 3, x: 47.99, y: 31.99, hitPlayerId: "p2" },
+  { type: "acid.splashed", puddleId: 4, x: 0, y: 0, hitPlayerId: null },
+  { type: "player.damaged", playerId: "p1", amount: 2, sourceZombieId: -2 },
+  { type: "player.damaged", playerId: "p1", amount: 5, sourceZombieId: -1 },
 ];
 
 /** Story 3.6: a turret shot (its muzzle is not sent). */
@@ -101,6 +107,20 @@ describe("netEvents", () => {
     expect(decodeNetEvent(hit(null), dec)).toMatchObject({ sourceId: null });
     // A tuple without the field (a server older than 2.7) decodes with no source.
     expect(decodeNetEvent(hit("p1").slice(0, 7), dec)).toMatchObject({ sourceId: null });
+  });
+
+  it("Story 5.6: acid (−2) and fire (−1) damage stay apart on the wire; spit events are small", () => {
+    const dmg = (src: number) => decodeNetEvent(encodeNetEvent({ type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: src }, enc) as NetEvent, dec);
+    expect(dmg(-2)).toMatchObject({ sourceZombieId: -2 });
+    expect(dmg(-1)).toMatchObject({ sourceZombieId: -1 });
+    expect(dmg(-7)).toMatchObject({ sourceZombieId: -1 }); // any other negative stays "fire", as before 5.6
+    expect(dmg(7)).toMatchObject({ sourceZombieId: 7 });
+    const spat = encodeNetEvent({ type: "spitter.spat", zombieId: 7, spitId: 300, x: 47.99, y: 31.99, toX: 42.01, toY: 26.5 }, enc) as NetEvent;
+    expect(spat).toEqual([NET_EVENT_KIND.SPITTER_SPAT, 7 | (3 << 8), 300, 4799, 3199, 4201, 2650]);
+    expect(msgpackTupleBytes(spat)).toBeLessThanOrEqual(20); // worst case (4 B over the story estimate of ~14)
+    const splash = encodeNetEvent({ type: "acid.splashed", puddleId: 300, x: 47.99, y: 31.99, hitPlayerId: null }, enc) as NetEvent;
+    expect(splash).toEqual([NET_EVENT_KIND.ACID_SPLASHED, 300, 4799, 3199, NET_NONE]);
+    expect(msgpackTupleBytes(splash)).toBeLessThanOrEqual(13);
   });
 
   it("does not forward test.ping", () => {

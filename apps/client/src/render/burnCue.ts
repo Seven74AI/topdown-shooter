@@ -1,5 +1,5 @@
 import type { SimEvent } from "@topdown/shared";
-import { FIRE_CUE_MS, isFireHit, type FireCue } from "./fireCue";
+import { FIRE_CUE_MS, isAcidHit, isFireHit, type FireCue } from "./fireCue";
 
 /**
  * Story 4.11: the burning-survivor cues (designer: all four), pure parts. Everything is driven by
@@ -53,6 +53,17 @@ export interface FireHitQueue {
  */
 export function routeFireHit(e: SimEvent, localId: string, nowMs: number, cue: FireCue, q: FireHitQueue): boolean {
   if (!isFireHit(e)) return false;
+  cue.hit(e.playerId, nowMs);
+  if (e.playerId === localId && q.fireHitCount < q.fireHitAmounts.length) q.fireHitAmounts[q.fireHitCount++] = e.amount;
+  return true;
+}
+
+/**
+ * Story 5.6: the acid hurt cue — an acid hit marks that player "in acid" (`acid` cue clock); a hit
+ * on MY survivor queues a "-N" like fire's (the same pop pool). Returns true for an acid hit.
+ */
+export function routeAcidHit(e: SimEvent, localId: string, nowMs: number, cue: FireCue, q: FireHitQueue): boolean {
+  if (!isAcidHit(e)) return false;
   cue.hit(e.playerId, nowMs);
   if (e.playerId === localId && q.fireHitCount < q.fireHitAmounts.length) q.fireHitAmounts[q.fireHitCount++] = e.amount;
   return true;

@@ -15,7 +15,7 @@ import { teamSpawnPoint } from "../player/spawn";
 import { endRun, skipWave, startBuild, startWave } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import { FLOW_UNITS_PER_M, rebuildFlowFieldNow } from "../zombies/flowField";
-import { ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
+import { ZOMBIE_TYPES, isWindupState, type ZombieTypeId } from "../zombies/zombieTypes";
 import { jitteredSpawn } from "../waves/waveDirector";
 import { runHeadless } from "../bots/headlessRun";
 import { createInputLog, replayRun } from "../replay/inputLog";
@@ -460,6 +460,7 @@ describe("Story 4.8 flow field: fire cells are very costly, not walls", () => {
           const x = z.x[id] as number;
           const y = z.y[id] as number;
           zombieTicks++;
+          if (isWindupState(z.state[id] as number)) reached.add(id); // Story 5.6: a Spitter "reaches" us when it winds up (in range, clear line)
           if (circleInFire(w.decay.fires, x, y, 0.35)) fireTicks++;
           for (const p of w.players.values()) if (Math.hypot(p.x - x, p.y - y) <= 3 && !segmentHitsBuildings(w, x, y, p.x, p.y, 0)) reached.add(id);
         }

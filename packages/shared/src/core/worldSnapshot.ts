@@ -28,6 +28,8 @@ function snapshotZombies(world: World) {
       waveZombie: z.waveZombie[id],
       attackCooldownTicks: z.attackCooldownTicks[id],
       fireTicks: z.fireTicks[id], // Story 4.8 review L4
+      spitTicks: z.spitTicks[id], // Story 5.6
+      spitTarget: z.spitTarget[id] ?? null,
     })),
     nextUnused: z.nextUnused,
     freed: Array.from({ length: z.freedCount }, (_, k) => {
@@ -70,6 +72,24 @@ function snapshotEconomy(world: World) {
     if (n > 0) damagers.push([id, ...e.damagers.slice(id * MAX_DAMAGERS, id * MAX_DAMAGERS + n)]);
   }
   return { damagers };
+}
+
+function snapshotSpits(world: World) {
+  const s = world.spits;
+  const out = [];
+  for (let i = 0; i < s.count; i++) {
+    out.push({ id: s.id[i], x: s.x[i], y: s.y[i], dirX: s.dirX[i], dirY: s.dirY[i], rangeLeftM: s.rangeLeftM[i], damage: s.damage[i], owner: s.owner[i] });
+  }
+  return { list: out, nextId: s.nextId };
+}
+
+function snapshotAreas(world: World) {
+  const a = world.areas;
+  const out = [];
+  for (let i = 0; i < a.capacity; i++) {
+    if (a.active[i] === 1) out.push({ slot: i, id: a.id[i], kind: a.kind[i], x: a.x[i], y: a.y[i], radiusM: a.radiusM[i], ticksLeft: a.ticksLeft[i], bornTick: a.bornTick[i] });
+  }
+  return out;
 }
 
 export function snapshotWorld(world: World) {
@@ -138,6 +158,9 @@ export function snapshotWorld(world: World) {
     },
     // Story 3.5: the flow field's counters and hashes of its buffers (it is evolved state, not synced).
     pathing: snapshotPathing(world.pathing),
+    // Story 5.6: globs in flight (dense order) and the acid puddles (live slots). Players' `acidTicks` ride in `players`.
+    spits: snapshotSpits(world),
+    areas: snapshotAreas(world),
     // Story 2.12: the zombie position history (evolved state: switch, row labels, hash of the rows).
     zombieHistory: snapshotZombieHistory(world.zombieHistory),
   };

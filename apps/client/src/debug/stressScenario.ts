@@ -67,11 +67,22 @@ export function spawnInView(
   return spawned;
 }
 
-/** Sets the World up for the stress scenario: god mode, no waves, `walkers` Walkers in view. */
-export function setupStressWorld(world: World, walkers: number, view: ViewRect, playerX: number, playerY: number): number {
+/**
+ * Sets the World up for the stress scenario: god mode, no waves, `walkers` zombies in view —
+ * Walkers, or (Story 5.6, `?stress=150&wavemix=walker,spitter`) the given types in turn, so spits
+ * fly at the god-mode survivor and puddles pile up (the FPS check with the new effects).
+ */
+export function setupStressWorld(world: World, walkers: number, view: ViewRect, playerX: number, playerY: number, mix: readonly ZombieTypeId[] | null = null): number {
   world.debug.godMode = true;
   world.waves.paused = true;
-  return spawnInView(world, "walker", walkers, view, playerX, playerY);
+  if (!mix || mix.length === 0) return spawnInView(world, "walker", walkers, view, playerX, playerY);
+  let spawned = 0;
+  for (let i = 0; i < walkers; i++) {
+    const n = spawnInView(world, mix[i % mix.length] as ZombieTypeId, 1, view, playerX, playerY);
+    if (n === 0) break;
+    spawned += n;
+  }
+  return spawned;
 }
 
 export type StressPhase = "idle" | "warmup" | "running" | "done" | "interrupted";

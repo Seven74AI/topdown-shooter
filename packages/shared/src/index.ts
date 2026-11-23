@@ -17,7 +17,7 @@ export {
 export { err, ok, type Result } from "./core/result";
 export { createRng, createRngFromState, type Rng, type RngState } from "./core/rng";
 export { EventBus, type EventHandler } from "./core/eventBus";
-export { MONEY_REASONS, type MoneyReason, type SimEvent, type SimEventType } from "./core/simEvents";
+export { DAMAGE_SOURCE_ACID, DAMAGE_SOURCE_FIRE, MONEY_REASONS, type MoneyReason, type SimEvent, type SimEventType } from "./core/simEvents";
 export { canonicalJson, fnv1a32 } from "./core/hash";
 export {
   BalanceError,
@@ -110,7 +110,7 @@ export {
   type SimEventsFlushed,
 } from "./net/netEvents";
 export { movePlayers, updatePlayers } from "./player/movement";
-export { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "./zombies/zombieTypes";
+export { ZOMBIE_STATE, ZOMBIE_TYPES, isRushState, isWindupState, type ZombieTypeId } from "./zombies/zombieTypes";
 export { isZombieAlive, killZombie, spawnZombie, zombieTypeOf, type ZombiePool } from "./zombies/zombiePool";
 export { spawnRing } from "./zombies/spawnRing";
 export { createSpatialGrid, queryRadius, queryRect, rebuildGrid, type SpatialGrid } from "./core/spatialGrid";
@@ -363,3 +363,8 @@ export {
   type ShopError,
   type ShopWeapon,
 } from "./economy/shop";
+// Story 5.6: Spitters, spits and acid puddles.
+export { acidSpit, acidSpitOf, circleInAcid, clearAcid, spawnSpit, spitStats, spitterStep, updateAcid, updateSpits } from "./zombies/spit";
+export { createSpitPool, type SpitPool } from "./zombies/spitPool";
+export { AREA_KIND, circleInArea, createAreaPool, type AreaPool } from "./hazards/areaPool";
+export { type SpitStats } from "./config/balanceSchema";

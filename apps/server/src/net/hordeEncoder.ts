@@ -4,7 +4,7 @@ import {
   HORDE_MAX_FRAME_BYTES,
   HORDE_VIEW_MARGIN_M,
   ZOMBIE_POOL_CAPACITY,
-  ZOMBIE_STATE,
+  isRushState,
   hordeFrameBytes,
   inRect,
   packTypeState,
@@ -103,7 +103,7 @@ export class HordeEncoder {
       const dx = (z.x[id] as number) - (z.prevX[id] as number);
       const dy = (z.y[id] as number) - (z.prevY[id] as number);
       if (dx * dx + dy * dy > HEADING_MIN_MOVE_M * HEADING_MIN_MOVE_M) this.heading[id] = quantizeHeading(dx, dy);
-      if (z.state[id] === ZOMBIE_STATE.RUSH) this.rushers[this.rusherCount++] = id;
+      if (isRushState(z.state[id] as number)) this.rushers[this.rusherCount++] = id;
     }
   }
 

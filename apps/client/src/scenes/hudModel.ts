@@ -7,6 +7,8 @@ export interface HudModel {
   maxHp: number;
   /** Story 4.8: the server reports my survivor burning (the HP text adds "Burning"). */
   burning: boolean;
+  /** Story 5.6: the server reports my survivor in acid (the HP text adds "Acid", the edge glow turns green). */
+  inAcid: boolean;
   /** Active weapon's display name. */
   weaponName: string;
   /** Rounds in the magazine; -1 for melee (no magazine). */
@@ -109,6 +111,8 @@ export interface HudModel {
   localY: number;
   /** Story 4.11: my screen-edge glow alpha (0 = off), from the server's fire hits. */
   burnGlow: number;
+  /** Story 5.6: my green screen-edge glow alpha while in acid (0 = off); the larger of the two glows shows. */
+  acidGlow: number;
   /** Story 4.11: fire hits on MY survivor this frame (amounts); the HUD pops "-N" for each and sets the count to 0. */
   readonly fireHitAmounts: Float32Array;
   fireHitCount: number;
@@ -130,6 +134,7 @@ export const createHudModel = (): HudModel => ({
   hp: 0,
   maxHp: 1,
   burning: false,
+  inAcid: false,
   weaponName: "",
   ammo: 0,
   magazine: 0,
@@ -192,6 +197,7 @@ export const createHudModel = (): HudModel => ({
   localX: 0,
   localY: 0,
   burnGlow: 0,
+  acidGlow: 0,
   fireHitAmounts: new Float32Array(FIRE_HIT_QUEUE),
   fireHitCount: 0,
 });

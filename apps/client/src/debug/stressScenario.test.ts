@@ -66,6 +66,29 @@ describe("setupStressWorld", () => {
     expect(world.waves.number).toBe(0);
     expect(world.zombies.aliveCount).toBe(150);
   });
+
+  it("Story 5.6: ?wavemix=walker,spitter puts Spitters in the stress crowd; spits fly and puddles pile up (capped), god mode holds", () => {
+    const world = createWorld({ balance, seed: 3 });
+    const p = addPlayer(world, "local", PLACEHOLDER_MAP.widthM / 2, PLACEHOLDER_MAP.heightM / 2);
+    const view = viewAround(world.map, p.x, p.y, 24, 11, { x: 0, y: 0, w: 0, h: 0 });
+    expect(setupStressWorld(world, 150, view, p.x, p.y, ["walker", "spitter"])).toBe(150);
+    let spits = 0;
+    let maxPuddles = 0;
+    world.events.subscribe((e) => {
+      if (e.type === "spitter.spat") spits++;
+    });
+    for (let i = 0; i < 20 * 20; i++) {
+      step(world, TICK_DT_S);
+      maxPuddles = Math.max(maxPuddles, world.areas.count);
+    }
+    let spitters = 0;
+    for (let i = 0; i < world.zombies.aliveCount; i++) if (world.zombies.type[world.zombies.aliveIds[i] as number] === 3) spitters++;
+    expect(spitters).toBe(75);
+    expect(spits).toBeGreaterThan(20); // liveness
+    expect(maxPuddles).toBeLessThanOrEqual(balance.zombies.spitCaps.maxLivePuddles);
+    expect(maxPuddles).toBeGreaterThan(0);
+    expect(p.hp).toBe(p.maxHp);
+  });
 });
 
 describe("StressRun", () => {

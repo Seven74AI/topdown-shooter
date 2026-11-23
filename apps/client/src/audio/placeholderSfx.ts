@@ -11,7 +11,11 @@ export type SfxName =
   | "zombie_hit"
   | "building_repaired"
   | "turret_fire"
-  | "zombie_runner_shriek";
+  | "zombie_runner_shriek"
+  // Story 5.6: the Spitter's windup gurgle (positional), its spit, and the acid's hiss.
+  | "zombie_spitter_gurgle"
+  | "zombie_spitter_spit"
+  | "fx_acid_hiss";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -163,6 +167,46 @@ function shriek(c: AudioContext, at: number, pan: number): void {
   src.stop(at + dur);
 }
 
+/**
+ * Story 5.6: the Spitter's windup gurgle (FR84): a low wet bubbling — a square voice wobbling at
+ * ~14 Hz through a low band-pass, swelling over the 0.6 s windup, with a little noise on top.
+ */
+function gurgle(c: AudioContext, at: number, pan: number): void {
+  const out = outputFor(c, pan);
+  if (!out || !noise) return;
+  const dur = 0.6;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.001, at);
+  g.gain.exponentialRampToValueAtTime(0.3, at + dur * 0.8);
+  g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 3;
+  bp.frequency.setValueAtTime(260, at);
+  bp.frequency.exponentialRampToValueAtTime(520, at + dur);
+  bp.connect(g).connect(out);
+  const o = c.createOscillator();
+  o.type = "square";
+  o.frequency.setValueAtTime(90, at);
+  o.frequency.exponentialRampToValueAtTime(150, at + dur);
+  const wob = c.createOscillator();
+  wob.frequency.value = 14;
+  const wobGain = c.createGain();
+  wobGain.gain.value = 40;
+  wob.connect(wobGain).connect(o.frequency);
+  o.connect(bp);
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  src.loop = true;
+  const hiss = c.createGain();
+  hiss.gain.value = 0.2;
+  src.connect(hiss).connect(bp);
+  for (const n of [o, wob, src]) {
+    n.start(at);
+    n.stop(at + dur);
+  }
+}
+
 /** `pan` (-1 left … +1 right) is used by positional cues (the Runner's shriek); the others ignore it. */
 export function playSfx(name: SfxName, pan = 0): void {
   const c = context();
@@ -195,6 +239,16 @@ export function playSfx(name: SfxName, pan = 0): void {
       lastTurretAt = t;
       burst(c, t, 0.03, 0.35, 5000);
       click(c, t, 1400, 0.15);
+      break;
+    case "zombie_spitter_gurgle":
+      gurgle(c, t, pan);
+      break;
+    case "zombie_spitter_spit": // a wet "ptoo": a short low burst and a falling band
+      burst(c, t, 0.08, 0.5, 700);
+      sweep(c, t, 0.15, 0.3, 1400, 400);
+      break;
+    case "fx_acid_hiss":
+      sweep(c, t, 0.35, 0.25, 5000, 2500);
       break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;

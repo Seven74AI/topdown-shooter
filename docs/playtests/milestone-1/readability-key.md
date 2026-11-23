@@ -16,6 +16,8 @@ Scoring for the 4.10 decision rule: an object is **readable** when ≥ 3 of 4 pl
 | 10 | `10_burning_car_with_fire_ring.png` | burning car (stage 3) | **stop** | hurts when your body touches the ring (2 m from the car's centre) |
 | 11 | `13_turret.png` | turret (player-built) | through | |
 | 12 | `11_rain_overall.png` | rain / puddles (night, stage 3) | n/a | mood check, not an object |
+| 16 | `17_spitter.png` | Spitter (Story 5.6): hunched woman in a gown, huge jaw glowing acid green | n/a | right if "spitter / acid zombie / the green-mouth one"; it stands off ~6 m, rears back (mouth blazes, gurgle) and spits; bullets kill it like any zombie |
+| 17 | `18_acid_puddle.png` | acid puddle (Story 5.6) | through (a ground hazard) | hurts (2 every 0.4 s) while your body touches the bright ring (1 m round its centre); gone after 3 s and at every build start |
 | 13–15 | `14_walker.png`, `15_runner.png`, `16_crawler.png` | Walker (pale, slow), Runner (red, fast, flanks), Crawler (green, low, slows on bite) | n/a | Epic 3 check: can they tell them apart? |
 
 Pictures: Playwright, solo dev build, 844×390 at 2×, HUD and survivor hidden, normal zoom (2026-11-23). The helper noted: shop fronts other than the diner and kiosk barely glow; the streetlight is a small dot; rain is faint in a still frame; zombies are ~0.7 m across and differ mainly by colour; barricade and sandbags are both low and brownish; the turret reads as a box with a stub; a moved car looks like any parked car.

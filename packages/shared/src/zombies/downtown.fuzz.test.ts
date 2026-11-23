@@ -22,7 +22,8 @@ import { jitteredSpawn } from "../waves/waveDirector";
 import { SPAWN_STATE, spawnPointStates } from "../waves/spawnPick";
 import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { setInput } from "../core/world";
-import { ZOMBIE_TYPES, maxZombieRadius, type ZombieTypeId } from "./zombieTypes";
+import { ZOMBIE_TYPES, isWindupState, maxZombieRadius, type ZombieTypeId } from "./zombieTypes";
+import { spawnSpit, spitStats } from "./spit";
 
 /**
  * Story 4.1 (brief line 3): random legal layouts on the Downtown map × many ticks.
@@ -180,7 +181,31 @@ function layout(seed: number) {
   applyDecayStage(world, fromStage, world.decay.variants);
   let damaged = 0;
   const decayLog = { changing: false, destroyed: 0, refunds: 0, refunded: 0 };
+  // Story 5.6: every spit's path, checked on its splash by an independent sampled segment test: it
+  // never crosses the interior of a shot blocker (car, bus, map box) active for its whole flight.
+  const spit = { spits: 0, puddles: 0, hits: 0, crossed: null as string | null };
+  const spitFrom = new Map<number, { x: number; y: number; version: number }>();
   world.events.subscribe((e) => {
+    if (e.type === "spitter.spat") {
+      spit.spits++;
+      spitFrom.set(e.spitId, { x: e.x, y: e.y, version: world.obstacles.version });
+    } else if (e.type === "acid.splashed") {
+      spit.puddles++;
+      if (e.hitPlayerId !== null) spit.hits++;
+      const from = spitFrom.get(e.puddleId);
+      spitFrom.delete(e.puddleId);
+      if (from && from.version === world.obstacles.version) {
+        const len = Math.hypot(e.x - from.x, e.y - from.y);
+        const n = Math.max(1, Math.ceil(len / 0.02));
+        for (let k = 0; k <= n; k++) {
+          const x = from.x + ((e.x - from.x) * k) / n;
+          const y = from.y + ((e.y - from.y) * k) / n;
+          for (const b of world.obstacles.shotBlockers) {
+            if (x > b.minX + 0.005 && x < b.maxX - 0.005 && y > b.minY + 0.005 && y < b.maxY - 0.005) spit.crossed ??= `seed ${seed}: spit ${e.puddleId} crossed ${b.name} at (${x.toFixed(2)}, ${y.toFixed(2)})`;
+          }
+        }
+      }
+    }
     if (e.type === "building.destroyed" && !decayLog.changing) damaged++;
     if (e.type === "money.earned" && e.reason === "refund") {
       decayLog.refunds++;
@@ -262,7 +287,7 @@ function layout(seed: number) {
       }
     }
   }
-  return { world, rng, spawned, players, buildings: world.buildings.list.length, destroyed: () => damaged, blocked, jitterHits, fromStage, toStage, future, onFuture, onMoved, decayLog };
+  return { world, rng, spawned, players, buildings: world.buildings.list.length, destroyed: () => damaged, blocked, jitterHits, fromStage, toStage, future, onFuture, onMoved, decayLog, spit };
 }
 
 /** Review L3: each player's walk target (a point on a map box's face) and ticks left pressing on it. */
@@ -313,6 +338,7 @@ function steer(world: World, rng: Rng, walks: Walk[], seq: number): void {
 function run(seed: number) {
   const l = layout(seed);
   const { world, spawned, rng } = l;
+  const strayRng: Rng | null = createRng(seed * 7 + 5); // Story 5.6: stray globs only
   const walks: Walk[] = [];
   let pressed = 0;
   let coverStops = 0;
@@ -418,6 +444,25 @@ function run(seed: number) {
     const pool = world.projectiles;
     before.fill(0);
     for (let k = 0; k < pool.aliveCount; k++) before[pool.aliveIds[k] as number] = 1;
+    // Story 5.6: every 2 s a stray glob from a random spot toward a random player (its own seed
+    // stream: the layout's draws are unchanged), so spits really meet cars, the bus and map boxes.
+    if (ticks % 40 === 20 && strayRng) {
+      const ps = [...world.players.values()];
+      const tp = ps[strayRng.int(0, ps.length - 1)];
+      const spitStats0 = world.balance.zombies.types.spitter?.spit;
+      // From open street (a Spitter's mouth is never inside a box), at most 8 draws.
+      let sx = -1;
+      let sy = -1;
+      for (let k = 0; k < 8 && sx < 0; k++) {
+        const x = strayRng.range(1, world.map.widthM - 1);
+        const y = strayRng.range(1, world.map.heightM - 1);
+        if (!overlapsAnyBox(world, x, y, 0.5, 0) && !world.obstacles.shotBlockers.some((b) => circleOverlapsBox(x, y, 0.5, b.minX, b.minY, b.maxX, b.maxY))) {
+          sx = x;
+          sy = y;
+        }
+      }
+      if (tp && spitStats0 && sx >= 0) spawnSpit(world, -1, sx, sy, tp.x, tp.y, 0, spitStats0); // radius 0: the mouth is 0.1 m from (sx, sy), inside the clear 0.5 m
+    }
     step(world, TICK_DT_S);
     // Story 4.2: no live shot inside a shot blocker; count shots that ended on one (liveness).
     for (let k = 0; k < pool.aliveCount; k++) {
@@ -449,6 +494,7 @@ function run(seed: number) {
       if (circleInFire(world.decay.fires, x, y, r)) fire.zombieTicksInFire++;
       const inBox = overlapsAnyBox(world, x, y, r, ZOMBIE_EPS_M);
       if (inBox) violation = `seed ${seed} tick ${ticks}: zombie ${id} at (${x.toFixed(3)}, ${y.toFixed(3)}) inside ${inBox}`;
+      if (isWindupState(z.state[id] as number)) reached.add(id); // Story 5.6: a Spitter "reaches" us when it winds up (in range, clear line)
       for (const p of world.players.values()) {
         if (Math.hypot(p.x - x, p.y - y) <= REACH_M && !segmentHitsBuildings(world, x, y, p.x, p.y, 0)) reached.add(id);
       }
@@ -481,7 +527,8 @@ function run(seed: number) {
   fire.zombieHits = firePulse.zombies - pulse0.zombies;
   fire.buildingHits = firePulse.buildings - pulse0.buildings;
   fire.kills = firePulse.zombiesKilled - pulse0.zombiesKilled;
-  return { ...l, ticks, violation, missing, reached: reached.size, alive, pressed, coverStops, pushedOut, stage: world.obstacles.stage, fire };
+  if (l.spit.crossed) violation ??= l.spit.crossed;
+  return { ...l, ticks, violation, missing, reached: reached.size, alive, pressed, coverStops, pushedOut, stage: world.obstacles.stage, fire, spit: l.spit };
 }
 
 describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cover + 4.5 stage changes, brief line 3)", () => {
@@ -503,6 +550,8 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
     const variantsSeen = new Set<number>();
     const stages = new Set<number>();
     const failures: string[] = [];
+    const spits = { spits: 0, puddles: 0, hits: 0, layouts: 0 };
+    const coverStops0 = spitStats.coverStops;
     for (let seed = 1; seed <= LAYOUTS; seed++) {
       const r = run(4100 + seed);
       buildings += r.buildings;
@@ -521,6 +570,15 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
       movedOnto += r.onMoved;
       pushedOut += r.pushedOut;
       if (r.fire.lit > 0) fires.layouts++;
+      // Story 5.6 liveness: every layout had Spitters that spat and left puddles.
+      spits.spits += r.spit.spits;
+      spits.puddles += r.spit.puddles;
+      spits.hits += r.spit.hits;
+      // A layout whose Spitters all died early (a stage-3 car fire) may not spit; one with a Spitter alive at the end must have.
+      const z5 = r.world.zombies;
+      const spitters = r.spawned.filter((id) => id >= 0 && (z5.alivePos[id] as number) >= 0 && ZOMBIE_TYPES[z5.type[id] as number] === "spitter").length;
+      spits.layouts += r.spit.spits > 0 ? 1 : 0;
+      if (spitters > 0 && (r.spit.spits === 0 || r.spit.puddles === 0)) failures.push(`seed ${4100 + seed}: no spit / puddle (${r.spit.spits} / ${r.spit.puddles})`);
       fires.zombieHits += r.fire.zombieHits;
       fires.buildingHits += r.fire.buildingHits;
       fires.ignitionDestroyed += r.fire.ignitionDestroyed;
@@ -540,7 +598,12 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
       }
     }
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box, ${coverStops} shots ended on cover, stages ${[...stages].sort().join("/")}, ${spawnedTotal} zombies spawned, ${blocked} spawns closed by a building; Story 4.5: ${onFuture} barricades on coming mutation boxes (Story 4.7: ${movedOnto} on moved cars / police lines), ${decayDestroyed} destroyed + ${decayRefunded} refunds by the stage change, ${pushedOut} layouts with bodies pushed out, variant masks: ${variantsSeen.size}; Story 4.8: ${fires.layouts} layouts with 2 fires, ${fires.zombieHits} zombie pulses (${fires.kills} fire kills), ${fires.buildingHits} building pulses, ${fires.ignitionDestroyed} buildings destroyed + refunded at ignition, ${fires.zombieTicksInFire} zombie-ticks in fire, ${fires.wentOut} expiries, re-review H1: ${fires.returned} returns at the stage-3 build start (${fires.returnedByFire} to a teammate in a new fire)`);
+    const spitCoverStops = spitStats.coverStops - coverStops0;
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] Story 5.6: ${spitCoverStops} spits stopped on cover, ${spits.layouts} layouts with spits, ${spits.spits} spits, ${spits.puddles} puddles, ${spits.hits} spit hits; none crossed a car, the bus or a map box`);
     expect(failures).toEqual([]);
+    expect(spits.hits).toBeGreaterThan(LAYOUTS); // Story 5.6: Spitters really hit the god-mode players
+    expect(spits.layouts).toBeGreaterThan(LAYOUTS * 0.9);
+    expect(spitCoverStops).toBeGreaterThan(LAYOUTS); // the stray globs really met cars, the bus and map boxes
     // Liveness (brief line 9): the layouts were real and the zombies really came.
     expect(buildings).toBeGreaterThan(LAYOUTS * 3);
     expect(bare).toBe(LAYOUTS / 4);

@@ -57,6 +57,11 @@ export interface PlayerState {
    * (kept while outside, so stepping out on the pulse tick doesn't dodge it). Server / solo only.
    */
   fireTicks: number;
+  /**
+   * Story 5.6 (F4): this body's acid clock — ticks spent inside any acid puddle since its last acid
+   * hit (kept while outside, reset at every build start; the 4.8 D3 rule). Server / solo only.
+   */
+  acidTicks: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -87,6 +92,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     earned: 0,
     slowTicksLeft: 0,
     fireTicks: 0,
+    acidTicks: 0, // Story 5.6
     slowPct: 0,
   };
   world.players.set(id, player);

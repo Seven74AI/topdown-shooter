@@ -230,19 +230,22 @@ describe("five-wave curve and composition (Story 3.10)", () => {
     expect(real.waves.runWaves).toBe(5);
   });
 
-  it("W1 Walkers only, W2 adds Runners, W3 adds Crawlers, W4–W5 mix all three, exact counts", () => {
+  it("W1 Walkers only, W2 adds Runners, W3 adds Crawlers, W4–W5 add Spitters (Story 5.6: 8 %), exact counts", () => {
     const out = new Uint16Array(ZOMBIE_TYPES.length);
     const counts = (n: number, players = 4) => {
       waveTypeCounts(waveMixOf(real, n), waveSize(real, n, players), out);
       return Object.fromEntries(ZOMBIE_TYPES.map((t, i) => [t, out[i]]));
     };
-    expect(counts(1)).toEqual({ walker: 40, crawler: 0, runner: 0 });
-    expect(counts(2)).toEqual({ walker: 64, crawler: 0, runner: 16 });
-    expect(counts(3)).toEqual({ walker: 78, crawler: 18, runner: 24 });
-    expect(counts(4)).toEqual({ walker: 88, crawler: 32, runner: 40 });
-    expect(counts(5)).toEqual({ walker: 100, crawler: 50, runner: 50 });
+    expect(counts(1)).toEqual({ walker: 40, crawler: 0, runner: 0, spitter: 0 });
+    expect(counts(2)).toEqual({ walker: 64, crawler: 0, runner: 16, spitter: 0 });
+    expect(counts(3)).toEqual({ walker: 78, crawler: 18, runner: 24, spitter: 0 });
+    // Story 5.6 (DD3): 160 × {50, 25, 17, 8} % = 80 / 40 / 27.2 / 12.8 → floors + the leftover one to the Walkers.
+    expect(counts(4)).toEqual({ walker: 81, crawler: 27, runner: 40, spitter: 12 });
+    expect(counts(5)).toEqual({ walker: 90, crawler: 44, runner: 50, spitter: 16 });
+    // Solo: wave 4 is 64 → 32 / 16 / 10.88 / 5.12 → 32 + 1, 10, 16, 5.
+    expect(counts(4, 1)).toEqual({ walker: 33, crawler: 10, runner: 16, spitter: 5 });
     // Leftovers go one by one in type order: 32 × 80 % = 25.6 → 26 Walkers, 6 Runners.
-    expect(counts(2, 1)).toEqual({ walker: 26, crawler: 0, runner: 6 });
+    expect(counts(2, 1)).toEqual({ walker: 26, crawler: 0, runner: 6, spitter: 0 });
     // Waves past the list use the last entry.
     expect(waveMixOf(real, 9)).toBe(real.waves.mix[real.waves.mix.length - 1]);
   });
@@ -276,14 +279,15 @@ describe("five-wave curve and composition (Story 3.10)", () => {
   }
 
   it("spreads the types through the wave (no block of Runners at the end) and spawns the exact composition", () => {
-    const order = spawnOrder(5); // solo W5: 80 = 40 Walkers, 20 Crawlers, 20 Runners
+    const order = spawnOrder(5); // solo W5: 80 = 37 Walkers, 17 Crawlers, 20 Runners, 6 Spitters (Story 5.6)
     expect(order).toHaveLength(80);
     const count = (t: string, from = 0, to = order.length) => order.slice(from, to).filter((x) => x === t).length;
-    expect([count("walker"), count("crawler"), count("runner")]).toEqual([40, 20, 20]);
+    expect([count("walker"), count("crawler"), count("runner"), count("spitter")]).toEqual([37, 17, 20, 6]);
     for (let q = 0; q < 4; q++) {
       // every quarter of the wave holds a quarter of each type (± 1)
       expect(Math.abs(count("runner", q * 20, (q + 1) * 20) - 5)).toBeLessThanOrEqual(1);
-      expect(Math.abs(count("crawler", q * 20, (q + 1) * 20) - 5)).toBeLessThanOrEqual(1);
+      expect(Math.abs(count("crawler", q * 20, (q + 1) * 20) - 17 / 4)).toBeLessThanOrEqual(1);
+      expect(Math.abs(count("spitter", q * 20, (q + 1) * 20) - 6 / 4)).toBeLessThanOrEqual(1);
     }
   });
 

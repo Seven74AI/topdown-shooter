@@ -5,6 +5,7 @@
  */
 import type { ZombieTypeId } from "@topdown/shared";
 import { CAR_COLORS, CAR_WRECK } from "./dressing";
+import { drawSpitter } from "./spitterArt";
 
 type G = CanvasRenderingContext2D;
 
@@ -90,6 +91,7 @@ export const CHAR_EXTENT_R: Readonly<Record<ZombieTypeId | "survivor", number>> 
   walker: 1.55,
   runner: 1.5,
   crawler: 1.75,
+  spitter: 1.9, // Story 5.6: arms and the hanging jaw (drawn × SPITTER_ART_SCALE) reach ~1.8 r
   survivor: 2.15,
 };
 
@@ -102,7 +104,9 @@ function wounds(c: G, r: number, seed: number, n: number): void {
 }
 
 /** One zombie, top-down, facing +x, at (0, 0). */
-export function drawZombie(c: G, type: ZombieTypeId, r: number, variant: number): void {
+export function drawZombie(c: G, type: ZombieTypeId, r: number, variant: number, windup = false): void {
+  // Story 5.6: the Spitter's whole look is one function (the designer's pick drops in there).
+  if (type === "spitter") return drawSpitter(c, r, variant, windup);
   const seed = 5 + variant * 13 + (type === "runner" ? 100 : type === "crawler" ? 200 : 0);
   c.lineJoin = "round";
   c.strokeStyle = CHAR.outline;

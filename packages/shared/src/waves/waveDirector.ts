@@ -243,7 +243,7 @@ export function updateWaves(world: World): boolean {
     const z = world.zombies;
     for (let i = 0; i < z.aliveCount; i++) {
       const id = z.aliveIds[i] as number;
-      if (z.waveZombie[id] === 1) z.state[id] = ZOMBIE_STATE.RUSH;
+      if (z.waveZombie[id] === 1) z.state[id] = z.state[id] === ZOMBIE_STATE.WINDUP ? ZOMBIE_STATE.RUSH_WINDUP : ZOMBIE_STATE.RUSH; // Story 5.6: a winding-up Spitter keeps its windup
     }
     world.events.emit({ type: "wave.rush_started", count: w.remaining });
   }
