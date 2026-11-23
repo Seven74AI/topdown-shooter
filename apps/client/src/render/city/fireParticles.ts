@@ -17,7 +17,7 @@ import { FLAME_STEPS, FLAME_TINTS, FLAME_VARIANTS, SMOKE_PALETTES, SMOKE_TONES, 
 /**
  * Caps per burning car (lab panel D: 130 + 44 + 24 = 198 ≈ 200). Review L3 (fill): smoke 44 → 26;
  * review M1: the edge ring is its own fixed set of slots (`EDGE_SLOTS_MAX`, never halved), so the
- * free flames drop to 110: at R = 2 m 110 + 42 edge + 26 + 24 = 202 (the edge slots scale with R, ≤ 80).
+ * free flames drop to 110: at R = 2 m 110 + 49 edge + 26 + 24 = 209 (the edge slots scale with R).
  */
 export const FIRE_FLAMES_MAX = 110;
 export const FIRE_SMOKE_MAX = 26;
@@ -28,8 +28,14 @@ export const FIRE_EMBERS_MAX = 24;
  * same in `?fx=low`. They never rise (no buoyancy: a little tangential sway only), flicker in size,
  * shape and colour, and each sits so its OWN shape's bright edge (direction-aware) ends on R.
  */
-export const EDGE_SPACING_M = 0.3;
-export const EDGE_SLOTS_MAX = 80;
+export const EDGE_SPACING_M = 0.26;
+/**
+ * Re-review L2: the largest zone the balance schema allows (`decay.json › fire.radiusM` ≤ 8 m): the
+ * slot cap keeps the spacing up to it (194 slots; R = 2 m uses 49). A map radius override above 8 m would space
+ * its edge flames wider (none today: Downtown uses the 2 m balance radius).
+ */
+export const FIRE_RADIUS_MAX_M = 8;
+export const EDGE_SLOTS_MAX = Math.ceil((2 * Math.PI * FIRE_RADIUS_MAX_M) / EDGE_SPACING_M);
 export const EDGE_FLAME_M = 0.7;
 /** Smaller zones get smaller, closer edge flames (a 1.4 m flame would wrap a 1 m ring): × min(1, R / this). */
 const EDGE_REF_R = 2;
@@ -240,6 +246,8 @@ export class CarFire {
   edgeN = 0;
   readonly edgeAngle = new Float32Array(EDGE_SLOTS_MAX);
   readonly edgePhase = new Float32Array(EDGE_SLOTS_MAX);
+  /** Re-review M: 1 = the slot's edge point lies strictly inside ANOTHER burning zone (not an edge of the union): not drawn. */
+  readonly edgeHidden = new Uint8Array(EDGE_SLOTS_MAX);
   private edgeR = -1;
 
   constructor(
@@ -267,7 +275,7 @@ export class CarFire {
   }
 
   /** Lays the edge slots for a zone of radius `R` (evenly round the ring, one per `EDGE_SPACING_M`). */
-  private layEdge(R: number): void {
+  layEdge(R: number): void {
     if (R === this.edgeR) return;
     this.edgeR = R;
     const n = Math.max(8, Math.min(EDGE_SLOTS_MAX, Math.ceil((2 * Math.PI * R) / (EDGE_SPACING_M * edgeScale(R)))));
@@ -449,8 +457,49 @@ export function flameDraw(P: ParticlePool, i: number, fitR: number, out: Particl
   return true;
 }
 
+/** A zone (centre and radius, m): `FireRecord` fits. */
+export interface ZoneLike {
+  readonly x: number;
+  readonly y: number;
+  readonly radiusM: number;
+}
+
+/**
+ * Re-review M (4.11's `ringFlameMarksEdge`, restored for the edge slots): two cars burning side by
+ * side — the edge of the UNION is what burns, so an edge slot of zone `self` whose point on the ring
+ * lies strictly inside another zone is hidden. Lays the slots for `self`'s radius first. Call when
+ * the set of fires changes (a bake), never per frame; no allocation.
+ */
+export function markHiddenEdges(fire: CarFire, zones: readonly ZoneLike[], self: number): void {
+  const z = zones[self] as ZoneLike;
+  fire.layEdge(z.radiusM);
+  for (let i = 0; i < fire.edgeN; i++) {
+    const a = fire.edgeAngle[i] as number;
+    const x = z.x + Math.cos(a) * z.radiusM;
+    const y = z.y + Math.sin(a) * z.radiusM;
+    let inside = 0;
+    for (let j = 0; j < zones.length; j++) {
+      if (j === self) continue;
+      const o = zones[j] as ZoneLike;
+      const dx = x - o.x;
+      const dy = y - o.y;
+      if (dx * dx + dy * dy < o.radiusM * o.radiusM) inside = 1;
+    }
+    fire.edgeHidden[i] = inside;
+  }
+}
+
 function edgeScale(R: number): number {
   return Math.min(1, R / EDGE_REF_R);
+}
+
+/**
+ * Re-review L2: edge flames grow a little on large zones (a flatter ring overlaps its neighbours'
+ * bright parts less): × (R / 2)^EDGE_GROW above 2 m, × R / 2 below.
+ */
+export const EDGE_GROW = 0.3;
+function edgeSizeScale(R: number): number {
+  return R < EDGE_REF_R ? R / EDGE_REF_R : Math.pow(R / EDGE_REF_R, EDGE_GROW);
 }
 
 /**
@@ -460,11 +509,11 @@ function edgeScale(R: number): number {
  * allocation; pure function of the slot and the clock (no buoyancy, no drift away from the edge).
  */
 export function edgeFlameDraw(fire: CarFire, i: number, T: number, R: number, out: ParticleDraw): boolean {
-  if (i >= fire.edgeN) return false;
+  if (i >= fire.edgeN || fire.edgeHidden[i]) return false;
   const ph = fire.edgePhase[i] as number;
   const fr = Math.floor(T * EDGE_FRAME_HZ + ph) % FLAME_VARIANTS;
   const flick = 0.5 + 0.3 * Math.sin(T * 9.1 + ph * 7) + 0.2 * Math.sin(T * 23.3 + ph * 3);
-  const h = EDGE_FLAME_M * edgeScale(R) * (0.85 + 0.15 * flick);
+  const h = EDGE_FLAME_M * edgeSizeScale(R) * (0.85 + 0.15 * flick);
   const a = (fire.edgeAngle[i] as number) + EDGE_SWAY_RAD * Math.sin(T * 2.3 + ph);
   const r = R - (flameReachUpOf(fr) * h) / 2;
   out.x = Math.cos(a) * r;
