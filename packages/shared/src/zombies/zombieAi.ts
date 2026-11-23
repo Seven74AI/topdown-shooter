@@ -17,7 +17,7 @@ import { meleeLineClear } from "../combat/cover";
 import { segmentHitsFire } from "../decay/fire";
 import { collectStanding, spitterStep } from "./spit";
 import { updateMines } from "../buildings/mine";
-import { BLOATER_SWELL_WEAPON, startSwell, tickSwell } from "./bloater";
+import { BLOATER_SWELL_WEAPON, burstBurntSwells, startSwell, tickSwell } from "./bloater";
 import { killZombie } from "./zombiePool";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
@@ -386,6 +386,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
   // Story 5.8 (FR-A, D6): burnt-out swells burst now, exactly `swellS` after they started, in pass
   // order (after the loop: a blast's kills must not disturb the alive list mid-pass).
   for (let k = 0; k < swellDoneCount; k++) killZombie(world, swellDone[k] as number, null, BLOATER_SWELL_WEAPON);
+  if (swellDoneCount > 0) burstBurntSwells(world); // review L2: swells killed by an earlier swell's blast this tick
   // Story 5.9 review L1 (F7 "same tick"): mines check their trigger again on the bodies' new
   // positions, so a zombie that walks into a trigger circle sets the mine off this tick (the
   // buildings-slot pass before combat catches bodies that were already there: never twice).

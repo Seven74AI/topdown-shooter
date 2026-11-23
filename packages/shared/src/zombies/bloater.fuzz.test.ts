@@ -142,6 +142,7 @@ describe("Story 5.8 Bloater fuzz (AC 9): random Downtown layouts × stages × 4 
     let totalSwells = 0;
     let totalChains = 0;
     let totalPlayerHits = 0;
+    let totalProbes = 0;
     const lines: string[] = [];
     for (let seed = 1; seed <= LAYOUTS; seed++) {
       const { world, rng, players, spawn, stage } = layout(seed);
@@ -157,12 +158,15 @@ describe("Story 5.8 Bloater fuzz (AC 9): random Downtown layouts × stages × 4 
       const swellAt = new Map<number, number>();
       let expectedPlayers = new Set<string>();
       let expectedZombieHits = 0;
+      let blastsThisTick = 0;
       blastTrace.fn = (x, y) => {
+        blastsThisTick++;
         const e = expectedHits(world, x, y);
         for (const p of e.players) expectedPlayers.add(p);
         expectedZombieHits += e.zombies;
       };
       let bursts = 0;
+      let coverProbes = 0;
       for (let t = 0; t < TICKS; t++) {
         // Random deaths between ticks (as the combat system would cause them).
         if (rng.int(0, 49) === 0) {
@@ -174,23 +178,45 @@ describe("Story 5.8 Bloater fuzz (AC 9): random Downtown layouts × stages × 4 
             else if (how < 6) explode(world, { ...createExplosionSpec(), x: z.x[id] as number, y: z.y[id] as number, radiusM: 1.5, zombieDamage: 100, playerDamage: 0, sourcePlayerId: "p0", weapon: "grenade_launcher", buildingId: 0, kind: "grenade" });
             else if (how < 8) killZombie(world, id, null, "fire");
             else {
-              if (z.type[id] === BLOATER) removed.add(id);
+              if (z.type[id] === BLOATER) removed.add(id | ((z.generation[id] as number) << 16));
               killZombie(world, id, null, "cheat");
             }
+          }
+        }
+        // Review L3: a cover probe every 100 ticks: a Bloater lit right behind cover from a player (a
+        // car, the bus, a building between them, within the blast's reach), so the cover rule is exercised.
+        if (t % 100 === 50) {
+          const p = players[rng.int(0, players.length - 1)] as PlayerState;
+          for (let tries = 0; tries < 60; tries++) {
+            const a = rng.range(0, Math.PI * 2);
+            const d = rng.range(1.2, EX.blastRadiusM + p.radiusM - 0.1);
+            const bx = p.x + Math.cos(a) * d;
+            const by = p.y + Math.sin(a) * d;
+            if (bx < 1 || by < 1 || bx > map.widthM - 1 || by > map.heightM - 1) continue;
+            if (insideBox(world, bx, by, 0.5) !== null || shotLineClear(world, bx, by, p.x, p.y)) continue;
+            const id = spawnZombie(world, "bloater", bx, by);
+            if (id < 0) break;
+            bloaters.add(id);
+            world.zombies.state[id] = 5; // SWELL, fuse almost out: it bursts in pass 4 of the next tick
+            world.zombies.swellTicks[id] = 1;
+            coverProbes++;
+            break;
           }
         }
         // Death bookkeeping for (i)/(ii): everything emitted so far (between ticks and the last tick).
         expectedPlayers = new Set();
         expectedZombieHits = 0;
+        blastsThisTick = 0;
         events.length = 0;
         step(world, TICK_DT_S);
         for (const e of events) {
           if (e.type === "zombie.killed" && world.zombies.type[e.zombieId] === BLOATER && e.weapon !== "cheat" && e.weapon !== "decay") {
-            expect(died.has(e.zombieId), `slot ${e.zombieId} died twice`).toBe(false);
-            died.set(e.zombieId, world.tick);
+            const key = e.zombieId | ((world.zombies.generation[e.zombieId] as number) << 16);
+            expect(died.has(key), `slot ${e.zombieId} died twice`).toBe(false);
+            died.set(key, world.tick);
           }
           if (e.type === "bloater.swell_started") {
-            swellAt.set(e.zombieId, world.tick);
+            swellAt.set(e.zombieId | ((world.zombies.generation[e.zombieId] as number) << 16), world.tick);
             totalSwells++;
           }
           if (e.type === "bloater.burst") bursts++;
@@ -198,16 +224,18 @@ describe("Story 5.8 Bloater fuzz (AC 9): random Downtown layouts × stages × 4 
         // (iii) the blasts of this tick hit exactly the bodies the rule says.
         const hitPlayers = new Set(events.filter((e) => e.type === "player.damaged" && e.sourceZombieId === DAMAGE_SOURCE_EXPLOSION).map((e) => (e as { playerId: string }).playerId));
         const hitZombies = events.filter((e) => e.type === "zombie.hit" && e.weapon === BLOATER_BLAST_WEAPON).length;
-        // Grenade-like test blasts between ticks also hit players: only compare ticks with Bloater blasts.
-        if (expectedZombieHits > 0 || expectedPlayers.size > 0) {
+        // Review L3: compare on every tick a Bloater blast fired (the test grenades between ticks have no player damage).
+        if (blastsThisTick > 0) {
           expect([...hitPlayers].sort(), `seed ${seed} tick ${t}`).toEqual([...expectedPlayers].sort());
           expect(hitZombies, `seed ${seed} tick ${t}`).toBe(expectedZombieHits);
         }
         totalPlayerHits += hitPlayers.size;
         // (ii) a swell ends in a blast within swellTicks + 1.
-        for (const [zid, at] of swellAt) {
-          if (world.tick - at > SWELL + 1) expect(isZombieAlive(world.zombies, zid), `seed ${seed}: the swell of ${zid} never ended`).toBe(false);
-          if (!isZombieAlive(world.zombies, zid)) swellAt.delete(zid);
+        for (const [key, at] of swellAt) {
+          const zid = key & 0xffff;
+          const same = isZombieAlive(world.zombies, zid) && world.zombies.generation[zid] === key >>> 16;
+          if (world.tick - at > SWELL + 1) expect(same, `seed ${seed}: the swell of ${zid} never ended`).toBe(false);
+          if (!same) swellAt.delete(key);
         }
         // (iv) no body inside a box.
         const z = world.zombies;
@@ -236,17 +264,18 @@ describe("Story 5.8 Bloater fuzz (AC 9): random Downtown layouts × stages × 4 
         expectedZombieHits = 0;
         step(world, TICK_DT_S);
         for (const e of events) {
-          if (e.type === "zombie.killed" && world.zombies.type[e.zombieId] === BLOATER && e.weapon !== "cheat" && e.weapon !== "decay") died.set(e.zombieId, world.tick);
+          if (e.type === "zombie.killed" && world.zombies.type[e.zombieId] === BLOATER && e.weapon !== "cheat" && e.weapon !== "decay") died.set(e.zombieId | ((world.zombies.generation[e.zombieId] as number) << 16), world.tick);
           if (e.type === "bloater.burst") bursts++;
         }
       }
-      // (i) bursts = deaths (no slot is reused: every zombie spawns at the start).
+      // (i) bursts = deaths (keyed by slot and generation: the cover probes reuse slots).
       expect(world.blasts.count).toBe(0);
       const deaths = [...died.keys()].length;
       expect(bursts, `seed ${seed}`).toBe(deaths);
       for (const id of removed) expect(died.has(id), `removed ${id} burst`).toBe(false);
       expect(bloaterStats.overflow).toBe(0); // (vii)
       totalBursts += bursts;
+      totalProbes += coverProbes;
       totalChains = bloaterStats.chainBlasts;
       lines.push(`seed ${seed} stage ${stage}: ${players.length} players, ${bursts} bursts, ${deaths} Bloater deaths, ${removed.size} removed, swells so far ${totalSwells}`);
     }
@@ -256,5 +285,6 @@ describe("Story 5.8 Bloater fuzz (AC 9): random Downtown layouts × stages × 4 
     expect(totalBursts).toBeGreaterThan(LAYOUTS * 10);
     expect(totalChains).toBeGreaterThan(0);
     expect(totalPlayerHits).toBeGreaterThan(0);
+    expect(totalProbes).toBeGreaterThan(LAYOUTS * 5); // review L3: blasts behind cover really happened
   }, 600_000);
 });

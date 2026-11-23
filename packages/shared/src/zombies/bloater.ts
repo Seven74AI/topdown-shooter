@@ -8,6 +8,7 @@ import { slowPlayer } from "../player/slow";
 import { AREA_KIND, clearAreas, spawnArea, type AreaPool } from "../hazards/areaPool";
 import { ZOMBIE_STATE, ZOMBIE_TYPES } from "./zombieTypes";
 import { streamSeed } from "../core/seedStreams";
+import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 
 /**
  * Story 5.8: Bloaters (FR24). Their rules, in one place:
@@ -54,11 +55,27 @@ export interface BlastQueue {
   readonly creditBuilding: Int32Array;
   /** 1: killed by another blast (a chain link). */
   readonly chain: Uint8Array;
+  /** Review L2: 1 = a burnt-out swell killed by another swell's blast this tick: it bursts this tick (`burstBurntSwells`). */
+  readonly swell: Uint8Array;
+  /**
+   * Review L2 (per zombie slot): 1 from the tick a swell's fuse burns out until that Bloater dies the
+   * same tick (its own swell blast, or another swell's blast first). Never outlives the tick.
+   */
+  readonly burnt: Uint8Array;
   head: number;
   count: number;
 }
 
-export function createBlastQueue(capacity: number): BlastQueue {
+/**
+ * Review M (2026-11-23): the queue never fills, so a death never has to run a blast from inside
+ * another `explode()` (whose target list is being walked). A queued entry is a dead Bloater whose
+ * blast has not run; at most the pool's capacity die in one blast and the queue drains 8 a tick,
+ * so twice the pool covers any backlog (`blasts.queueCapacity` in balance is only a lower bound now).
+ */
+export const BLAST_QUEUE_MIN = 2 * ZOMBIE_POOL_CAPACITY;
+
+export function createBlastQueue(requested: number): BlastQueue {
+  const capacity = Math.max(requested, BLAST_QUEUE_MIN);
   return {
     capacity,
     x: new Float64Array(capacity),
@@ -67,6 +84,8 @@ export function createBlastQueue(capacity: number): BlastQueue {
     credit: new Array<string | null>(capacity).fill(null),
     creditBuilding: new Int32Array(capacity),
     chain: new Uint8Array(capacity),
+    swell: new Uint8Array(capacity),
+    burnt: new Uint8Array(ZOMBIE_POOL_CAPACITY),
     head: 0,
     count: 0,
   };
@@ -135,7 +154,65 @@ function runOldest(world: World): void {
   q.count--;
   const credit = q.credit[i] ?? null;
   q.credit[i] = null;
+  if (q.swell[i] === 1) {
+    q.swell[i] = 0;
+    bloaterStats.swellBlasts++;
+    runBlast(world, q.type[i] as number, q.x[i] as number, q.y[i] as number, null, 0, false); // a swell blast: credits nobody
+    return;
+  }
   runBlast(world, q.type[i] as number, q.x[i] as number, q.y[i] as number, credit, q.creditBuilding[i] as number, q.chain[i] === 1);
+}
+
+/**
+ * Review L2: after pass 4's swell bursts, the burnt-out swells that another swell's blast killed
+ * first (queued with the `swell` flag) burst now, on their own tick (D6), oldest first; the others
+ * keep their queue order. Repeats while a burst kills another burnt swell.
+ */
+export function burstBurntSwells(world: World): void {
+  const q = world.blasts;
+  for (let guard = 0; guard < q.capacity; guard++) {
+    let found = -1;
+    for (let k = 0; k < q.count; k++) {
+      if (q.swell[(q.head + k) % q.capacity] === 1) {
+        found = k;
+        break;
+      }
+    }
+    if (found < 0) return;
+    // Rotate the entry to the head (shift the ones before it back one), then run it.
+    const at = (q.head + found) % q.capacity;
+    const x = q.x[at] as number;
+    const y = q.y[at] as number;
+    const type = q.type[at] as number;
+    for (let k = found; k > 0; k--) {
+      const to = (q.head + k) % q.capacity;
+      const from = (q.head + k - 1) % q.capacity;
+      q.x[to] = q.x[from] as number;
+      q.y[to] = q.y[from] as number;
+      q.type[to] = q.type[from] as number;
+      q.credit[to] = q.credit[from] ?? null;
+      q.creditBuilding[to] = q.creditBuilding[from] as number;
+      q.chain[to] = q.chain[from] as number;
+      q.swell[to] = q.swell[from] as number;
+    }
+    q.x[q.head] = x;
+    q.y[q.head] = y;
+    q.type[q.head] = type;
+    q.credit[q.head] = null;
+    q.creditBuilding[q.head] = 0;
+    q.chain[q.head] = 0;
+    q.swell[q.head] = 1;
+    runOldest(world);
+  }
+}
+
+/**
+ * Review L1: at a build start, the blasts still queued (a Bloater killed on the wave's last tick)
+ * go off before the queue is cleared (their chain links too), so every death bursts.
+ */
+export function drainBlasts(world: World): void {
+  const q = world.blasts;
+  for (let guard = 0; q.count > 0 && guard < q.capacity * 2; guard++) runOldest(world);
 }
 
 /**
@@ -147,17 +224,20 @@ export function onZombieKilled(world: World, id: number, x: number, y: number, k
   const typeIndex = pool.type[id] as number;
   if (!explodesOf(world, typeIndex)) return;
   pool.swellTicks[id] = 0;
+  const q = world.blasts;
+  const burnt = q.burnt[id] === 1;
+  q.burnt[id] = 0;
   if (NO_BURST_WEAPONS.includes(weapon)) return;
   if (weapon === BLOATER_SWELL_WEAPON) {
     bloaterStats.swellBlasts++;
     runBlast(world, typeIndex, x, y, null, 0, false);
     return;
   }
-  const q = world.blasts;
-  if (q.capacity === 0) return;
   if (q.count >= q.capacity) {
+    // Unreachable (BLAST_QUEUE_MIN): counted, asserted 0 by the tests and the fuzz. Never run a blast
+    // here: this kill may be inside another explode() (review M).
     bloaterStats.overflow++;
-    runOldest(world); // never drop a blast: the oldest goes off now
+    return;
   }
   const i = (q.head + q.count) % q.capacity;
   q.x[i] = x;
@@ -165,7 +245,8 @@ export function onZombieKilled(world: World, id: number, x: number, y: number, k
   q.type[i] = typeIndex;
   q.credit[i] = killerId;
   q.creditBuilding[i] = buildingId;
-  q.chain[i] = inBlast ? 1 : 0;
+  q.chain[i] = inBlast && !burnt ? 1 : 0;
+  q.swell[i] = burnt ? 1 : 0;
   q.count++;
   bloaterStats.queued++;
   if (q.count > bloaterStats.maxQueued) bloaterStats.maxQueued = q.count;
@@ -198,6 +279,7 @@ export function tickSwell(world: World, id: number): boolean {
   const pool = world.zombies;
   const left = (pool.swellTicks[id] as number) - 1;
   pool.swellTicks[id] = Math.max(0, left);
+  if (left <= 0) world.blasts.burnt[id] = 1; // review L2: it bursts this tick, whoever kills it first
   return left <= 0;
 }
 
@@ -277,6 +359,8 @@ export function circleInGas(world: Readonly<World>, x: number, y: number, r: num
 export function clearBlasts(world: World): void {
   const q = world.blasts;
   for (let k = 0; k < q.capacity; k++) q.credit[k] = null;
+  q.swell.fill(0);
+  q.burnt.fill(0);
   q.head = 0;
   q.count = 0;
   clearAreas(world.gas);

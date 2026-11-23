@@ -115,7 +115,7 @@ function snapshotBlasts(world: World) {
   const queue = [];
   for (let k = 0; k < q.count; k++) {
     const i = (q.head + k) % q.capacity;
-    queue.push({ x: q.x[i], y: q.y[i], type: q.type[i], credit: q.credit[i] ?? null, creditBuilding: q.creditBuilding[i], chain: q.chain[i] });
+    queue.push({ x: q.x[i], y: q.y[i], type: q.type[i], credit: q.credit[i] ?? null, creditBuilding: q.creditBuilding[i], chain: q.chain[i], swell: q.swell[i] });
   }
   const g = world.gas;
   const gas = [];
