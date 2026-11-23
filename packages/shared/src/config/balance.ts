@@ -143,6 +143,8 @@ function crossCheckBuildingTypes(buildings: { types: Record<string, BuildingType
   for (const [id, t] of Object.entries(types)) {
     const kinds = (t.turret ? 1 : 0) + (t.trap ? 1 : 0) + (t.mine ? 1 : 0) + (t.light ? 1 : 0) + (t.heal ? 1 : 0);
     if (kinds > 1) issues.push(`buildings.json: types.${id}: turret, trap, mine, light and heal exclude each other`);
+    if (t.stopsBullets && !t.solid) issues.push(`buildings.json: types.${id}: stopsBullets needs a wall (solid: true)`);
+    if (t.upgradesTo && types[t.upgradesTo.type] && types[t.upgradesTo.type]?.stopsBullets !== t.stopsBullets) issues.push(`buildings.json: types.${id}: an upgrade must keep stopsBullets`);
     if ((t.trap || t.mine) && t.solid) issues.push(`buildings.json: types.${id}: a trap or mine must be floor (solid: false)`);
     const up = t.upgradesTo;
     if (!up) continue;

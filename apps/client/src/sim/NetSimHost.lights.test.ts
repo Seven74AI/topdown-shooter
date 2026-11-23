@@ -52,6 +52,12 @@ function client(s: World, tick: number) {
   return { room, host, setNow: (t: number) => (now = t) };
 }
 const plain = (w: World) => lightsOf(w).map((l) => ({ ...l }));
+/**
+ * Review L2: the mirror's list as it stands right after the state was applied — read straight from
+ * `world.lights.list`, NOT through `lightsOf` (which would refresh it), so this checks that
+ * `mirrorBuildings` / `applyDecayStage` really updated it themselves.
+ */
+const raw = (w: World) => w.lights.list.map((l) => ({ ...l }));
 
 describe("NetSimHost light list (Story 5.10)", () => {
   it("equals the server's after a place, a destroy, fires lit and fires out", () => {
@@ -61,7 +67,7 @@ describe("NetSimHost light list (Story 5.10)", () => {
     const { room, host } = client(s, 1);
     room.patch();
     host.update(1 / 60);
-    expect(plain(host.world)).toEqual(plain(s));
+    expect(raw(host.world)).toEqual(plain(s));
     expect(lightsOf(host.world).filter((l) => l.kind === "floodlight")).toHaveLength(2); // liveness
     // destroy one
     damageBuilding(s, s.buildings.list[0] as never, 10_000);
@@ -69,7 +75,7 @@ describe("NetSimHost light list (Story 5.10)", () => {
     copyState(s, room, 2);
     room.patch();
     host.update(1 / 60);
-    expect(plain(host.world)).toEqual(plain(s));
+    expect(raw(host.world)).toEqual(plain(s));
     expect(lightsOf(host.world)).toHaveLength(1);
     // the build start before wave 2: stage 3, the car fires are lights too
     nextBuild(s);
@@ -77,7 +83,7 @@ describe("NetSimHost light list (Story 5.10)", () => {
     copyState(s, room, 3);
     room.patch();
     host.update(1 / 60);
-    expect(plain(host.world)).toEqual(plain(s));
+    expect(raw(host.world)).toEqual(plain(s));
     expect(lightsOf(host.world).filter((l) => l.kind === "fire").length).toBe(s.decay.fires.length);
     // two waves later they go out
     nextBuild(s);
@@ -86,7 +92,7 @@ describe("NetSimHost light list (Story 5.10)", () => {
     copyState(s, room, 4);
     room.patch();
     host.update(1 / 60);
-    expect(plain(host.world)).toEqual(plain(s));
+    expect(raw(host.world)).toEqual(plain(s));
     expect(lightsOf(host.world).every((l) => l.kind === "floodlight")).toBe(true);
   });
 
@@ -96,7 +102,7 @@ describe("NetSimHost light list (Story 5.10)", () => {
     const { room, host, setNow } = client(s, 10);
     room.patch();
     host.update(1 / 60);
-    expect(plain(host.world)).toEqual(plain(s));
+    expect(raw(host.world)).toEqual(plain(s));
     nextBuild(s);
     placeFlood(s, at.x - 3, at.y);
     for (let t = 11; t <= 200; t++) {
@@ -107,7 +113,7 @@ describe("NetSimHost light list (Story 5.10)", () => {
     setNow(10_000);
     host.update(10);
     host.update(0.05);
-    expect(plain(host.world)).toEqual(plain(s));
+    expect(raw(host.world)).toEqual(plain(s));
     expect(lightsOf(host.world).length).toBeGreaterThan(2);
   });
 
@@ -119,7 +125,7 @@ describe("NetSimHost light list (Story 5.10)", () => {
     const { room, host } = client(s, 50);
     room.patch();
     host.update(1 / 60);
-    expect(plain(host.world)).toEqual(plain(s));
+    expect(raw(host.world)).toEqual(plain(s));
     expect(lightsOf(host.world).length).toBe(s.decay.fires.length + 2);
   });
 });

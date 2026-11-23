@@ -67,6 +67,19 @@ describe("Story 5.10 med station (AC 4–8)", () => {
     expect(p.hp).toBe(p.maxHp);
   });
 
+  it("review L1: the cap is exact: maxHp − 0.1 reaches exactly maxHp in one tick (100 and an armored 125), never above", () => {
+    for (const max of [100, 125]) {
+      const { world, place } = setup();
+      place(20, 16);
+      const p = player(world, "p0", 21.5, 16.5, max - 0.1);
+      p.maxHp = max;
+      run(world, 1);
+      expect(p.hp).toBe(max);
+      run(world, 5);
+      expect(p.hp).toBe(max);
+    }
+  });
+
   it("the ring is the edge: a body touching it (d < 2 + r) heals, d = 2 + r does not (strict)", () => {
     const inside = setup();
     const b = inside.place(20, 16);
@@ -83,6 +96,13 @@ describe("Story 5.10 med station (AC 4–8)", () => {
     run(edge.world, 40);
     expect(pOut.hp).toBe(50);
     expect(inHealReach(edge.world, pOut.x, pOut.y, R)).toBe(false);
+    // Review nit: exactly d = r + r_body (a distance that is exact in binary) is outside (strict).
+    const exact = setup();
+    exact.place(20, 16); // centre (20.5, 16.5)
+    const reach = HEAL.radiusM + 0.5; // a 0.5 m body: 2.5 m, exact
+    expect(inHealReach(exact.world, 20.5 + reach, 16.5, 0.5)).toBe(false);
+    expect(inHealReach(exact.world, 20.5, 16.5 - reach, 0.5)).toBe(false);
+    expect(inHealReach(exact.world, 20.5 + reach - 2 ** -20, 16.5, 0.5)).toBe(true);
   });
 
   it("downed and out players are never healed; their countdown runs as without a station (B2); a revive then heals from the next tick (B3)", () => {

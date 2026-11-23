@@ -5,6 +5,7 @@
   "types": {
     "wood_barricade": {
       "name": "Wood barricade",
+      "stopsBullets": true,
       "price": 40,
       "widthM": 2,
       "depthM": 0.5,
@@ -32,6 +33,7 @@
     },
     "reinforced_barricade": {
       "name": "Reinforced barricade",
+      "stopsBullets": true,
       "price": 90,
       "widthM": 2,
       "depthM": 0.5,
@@ -44,6 +46,7 @@
     },
     "metal_barricade": {
       "name": "Metal barricade",
+      "stopsBullets": true,
       "price": 160,
       "widthM": 2,
       "depthM": 0.5,

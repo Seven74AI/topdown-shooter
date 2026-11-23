@@ -41,7 +41,7 @@ describe("buildings.json (Story 3.4)", () => {
   it("has the Wood barricade: 40, 2 × 0.5 m, 200 HP, cap 6", () => {
     expect(balance.buildings.maxPerPlayer).toBe(6);
     expect(balance.buildings.spawnClearM).toBe(2);
-    expect(balance.buildings.types[WOOD]).toEqual({ name: "Wood barricade", price: 40, widthM: 2, depthM: 0.5, hp: 200, solid: true, forSale: true, inShop: true, upgradesTo: { type: "reinforced_barricade", price: 50 } });
+    expect(balance.buildings.types[WOOD]).toEqual({ name: "Wood barricade", price: 40, widthM: 2, depthM: 0.5, hp: 200, solid: true, stopsBullets: true, forSale: true, inShop: true, upgradesTo: { type: "reinforced_barricade", price: 50 } });
     // Story 5.9 appends the tiers, the trap and the mine (the index is on the wire: append only).
     expect(buildingTypeIds(balance)).toEqual([WOOD, "auto_turret", "reinforced_barricade", "metal_barricade", "spike_trap", "mine", "floodlight", "med_station"]);
   });

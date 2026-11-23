@@ -180,12 +180,13 @@ describe("floor buildings (Story 5.9 F1)", () => {
     expect(world.zombies.x[z]).toBeGreaterThan(w.minX - r - 1e-3);
   });
 
-  it("merge with 5.3: Shotgun pellets fly over a spike trap, a mine and a barricade (buildings never stop shots)", () => {
+  for (const withBarricade of [false, true]) {
+  it(`merge with 5.3: Shotgun pellets fly over a spike trap and a mine (floor never stops shots)${withBarricade ? "; a barricade behind them stops them (designer 2026-11-23)" : ""}`, () => {
     const { world, events, place } = setup(balance, { waves: noop, zombies: noop });
     startWave(world);
     place(10.5, 15, "spike_trap"); // [10.5, 12.5]: the Shotgun reaches 5 m
     place(12.5, 15.75, "mine");
-    place(13, 15, "wood_barricade", 1); // [13, 13.5]
+    if (withBarricade) place(13, 15, "wood_barricade", 1); // [13, 13.5]
     const p = world.players.get("p0");
     if (!p) throw new Error("p0");
     p.x = p.prevX = 10;
@@ -195,6 +196,9 @@ describe("floor buildings (Story 5.9 F1)", () => {
     world.zombies.hp[z] = 1e6;
     setInput(world, "p0", { ...NEUTRAL_INPUT, seq: 1, aimX: 1, aimY: 0, fire: true, isMouse: true });
     run(world, 10);
-    expect(events.filter((e) => e.type === "zombie.hit" && e.zombieId === z && e.weapon === "shotgun").length).toBeGreaterThan(0);
+    const hits = events.filter((e) => e.type === "zombie.hit" && e.zombieId === z && e.weapon === "shotgun").length;
+    if (withBarricade) expect(hits).toBe(0);
+    else expect(hits).toBeGreaterThan(0);
   });
+  }
 });

@@ -70,7 +70,7 @@ export interface UrlOptions {
    */
   lowFx: boolean;
   /**
-   * `?shopall=1` (Story 5.10, dev switch): the shop lists `inShop: false` types (the floodlight until
+   * `?shopall=1` (Story 5.10, dev builds only: a release build ignores it): the shop lists `inShop: false` types (the floodlight until
    * 6.3) and solo's World places them; online the server must run with `DEV_SHOP_ALL=1` or it refuses
    * them `not_for_sale`. false otherwise.
    */
@@ -88,7 +88,7 @@ export const MAX_STRESS_WALKERS = 200;
 
 const TRUE_VALUES = new Set(["", "1", "true", "on", "yes"]);
 
-export function parseUrlOptions(search: string): UrlOptions {
+export function parseUrlOptions(search: string, dev: boolean = import.meta.env.DEV): UrlOptions {
   const q = new URLSearchParams(search);
   const debugRaw = q.get("debug");
   const debug = debugRaw !== null && TRUE_VALUES.has(debugRaw.trim().toLowerCase());
@@ -111,7 +111,7 @@ export function parseUrlOptions(search: string): UrlOptions {
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     stressLights: q.get("stressbuild")?.trim().toLowerCase() === "lights",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
-    shopAll: TRUE_VALUES.has(q.get("shopall")?.trim().toLowerCase() ?? "-"),
+    shopAll: dev && TRUE_VALUES.has(q.get("shopall")?.trim().toLowerCase() ?? "-"), // review L3: dev builds only
   };
 }
 

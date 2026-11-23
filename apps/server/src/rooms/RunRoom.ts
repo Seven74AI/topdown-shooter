@@ -69,6 +69,7 @@ import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
 import { pickDevDecayStages } from "../run/devDecayStages";
+import { pickDevShopAll } from "../run/devShopAll";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
@@ -526,6 +527,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 4.5 (dev only, read per run like DEV_NO_WAVES): DEV_DECAY_STAGES=2,3 = the decay stage of waves 1, 2, ….
     const decayPick = pickDevDecayStages(process.env); // review L4: production ignores it (tested)
     const devDecayStages = decayPick.stages;
+    const shopAllPick = pickDevShopAll(process.env); // Story 5.10 review L3: production ignores it (tested)
+    if (shopAllPick.ignored) this.log.warn({ reason: shopAllPick.ignored }, "dev_shop_all_ignored");
+    else if (shopAllPick.shopAll) this.log.warn({}, "dev_shop_all");
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
@@ -534,7 +538,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Story 3.9 dev hook, kept by 3.10 as an override: DEV_WAVE_MIX=walker,crawler replaces the waves.json mix.
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
       // Story 5.10 (dev only, read per run): DEV_SHOP_ALL=1 lets inShop: false types (the floodlight) be placed.
-      shopAll: devAllowed && process.env.DEV_SHOP_ALL === "1",
+      shopAll: shopAllPick.shopAll,
       decayStageByWave: devDecayStages,
       scenario: this.scenario,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.

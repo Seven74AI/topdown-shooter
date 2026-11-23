@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LightSource } from "@topdown/shared";
 import { pickDrawnLights } from "./floodlightLook";
+import { staticKey } from "./city/stageFilter";
 
 /** Story 5.10 (AC 11, B13): at most 8 floodlight pools drawn, nearest the camera centre, culled to the view + margin. */
 const L = (x: number, y: number, id: number, kind: LightSource["kind"] = "floodlight"): LightSource => ({ kind, x, y, radiusM: 4, blackoutRadiusM: 6, buildingId: id });
@@ -61,5 +62,29 @@ describe("pickDrawnLights", () => {
   it("none in view → 0", () => {
     expect(pickDrawnLights([L(100, 100, 1)], ...VIEW, 2, 8, out, d2)).toBe(0);
     expect(pickDrawnLights([], ...VIEW, 2, 8, out, d2)).toBe(0);
+  });
+});
+
+describe("Story 5.10 review L5: no re-bake of the city when a floodlight or med station is placed or destroyed", () => {
+  it("CityView's bake key (stage, obstacles.version, fire count) stays the same through placements, healing and a destroy", async () => {
+    const { DOWNTOWN_MAP, TICK_DT_S, addPlayer, createWorld, damageBuilding, loadBalance, placeBuilding, startBuild, step } = await import("@topdown/shared");
+    const world = createWorld({ balance: loadBalance(), seed: 3, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
+    world.debug.shopAll = true;
+    addPlayer(world, "p0", 24, 16);
+    startBuild(world);
+    const key = () => staticKey(world.obstacles.stage, world.obstacles.version, world.decay.fires.length);
+    const k0 = key();
+    const p = world.players.get("p0");
+    if (p) p.wallet = 5000;
+    expect(placeBuilding(world, "p0", { type: "floodlight", gx: 54, gy: 32, rot: 0 }).ok).toBe(true);
+    expect(placeBuilding(world, "p0", { type: "med_station", gx: 42, gy: 32, rot: 0 }).ok).toBe(true);
+    for (let i = 0; i < 20; i++) step(world, TICK_DT_S);
+    expect(world.buildings.list).toHaveLength(2); // liveness: both stood
+    expect(world.lights.list).toHaveLength(1);
+    expect(key()).toBe(k0);
+    damageBuilding(world, world.buildings.list[0] as never, 1e6);
+    step(world, TICK_DT_S);
+    expect(world.lights.list).toHaveLength(0);
+    expect(key()).toBe(k0);
   });
 });

@@ -10,7 +10,7 @@ import {
   isFlame,
   hasMagazine,
   setLoadout,
-  shopBuildings,
+  ownedCount,
   shopWeapons,
   upgradePriceTable,
   spectateTarget,
@@ -37,7 +37,7 @@ import { dpr } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
 import { InputRouter } from "../input/InputRouter";
 import { attachDesktopInput } from "../input/desktopInput";
-import { pixelsPerMeter } from "../render/camera";
+import { pixelsPerMeter, shakeIntensityFor } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
 import { ACID_CUE_MS, FireCue } from "../render/fireCue";
 import { ACID_SOUND_MAX_AGE_S, AcidFx } from "../render/acidFx";
@@ -72,7 +72,8 @@ import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPane
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
-import { neutralizeInput } from "../input/menuInput";
+import { holdBuildingInput, neutralizeInput } from "../input/menuInput";
+import { buildBarItems, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
 import {
@@ -215,6 +216,7 @@ export class GameScene extends Phaser.Scene {
     m.teammates[i * 2 + 1] = view ? view.y : p.y;
     m.teammateSlot[i] = info.slot;
     m.teammateFlags[i] = (p.status === "downed" ? TEAMMATE_DOWNED : 0) | (p.status === "out" ? TEAMMATE_OUT : 0);
+    m.teammateSecs[i] = p.status === "downed" ? Math.ceil(p.downedTicksLeft / TICK_RATE_HZ) : 0;
     if (m.teammateNames[info.slot] !== info.name) m.teammateNames[info.slot] = info.name;
   };
   private readonly dropPlayerView = (view: PlayerView, id: string): void => {
@@ -274,6 +276,11 @@ export class GameScene extends Phaser.Scene {
     toast: (text) => this.toasts.push(text),
   };
   private readonly refusalTexts = new Map<PlaceError, string>();
+  /** Story 5.16: the build bar's per-frame context and answer (one object each, refilled every frame). */
+  private readonly barFrame: BuildBarFrame = { can: false, holding: false, selected: false, owned: 0, cap: 0, wallet: 0 };
+  private readonly barStep: BuildBarStep = { show: false, pick: "", toast: "" };
+  /** Story 5.16: the bar's last refusal toast ("" = none), withdrawn once a pick succeeds. */
+  private barToast = "";
   /** Story 3.7: the repair panel on this device, the selected building's outline. */
   private readonly repairPanel = new RepairPanel();
   private selectView: BuildingSelectView | null = null;
@@ -350,6 +357,7 @@ export class GameScene extends Phaser.Scene {
     this.localHost = localHost;
     this.leaving = false;
     this.toasts.clear();
+    this.barToast = "";
     perf.hits = netHost ? netHost.netStats : null;
     perf.net = netHost; // Story 2.10: the overlay's network lines
     perf.soloSeed = localHost ? localHost.world.seed : null; // Story 4.4: online the overlay reads the server's
@@ -390,7 +398,6 @@ export class GameScene extends Phaser.Scene {
       uiStore.handle("restart", () => this.scene.restart({} satisfies GameSceneData)); // {}: a new random seed
     }
     uiStore.handle("menu", (action) => this.onMenu(action)); // Story 2.11: the in-run menu's buttons
-    uiStore.handle("startPlacement", (type) => this.startPlacement(type)); // Story 3.4 (Story 3.3's shop calls it)
     // Story 2.11: teammates who leave get a toast; their ring, name and arrow go with their state entry.
     const offLeft = session?.onPlayerLeft((m) => {
       if (m.playerId !== localId) this.toasts.push(playerLeftText(m.name, m.reason));
@@ -495,7 +502,6 @@ export class GameScene extends Phaser.Scene {
       uiStore.handle("leaveRun", undefined);
       uiStore.handle("backToLobby", undefined);
       uiStore.handle("menu", undefined);
-      uiStore.handle("startPlacement", undefined);
       this.placement.cancel();
       this.buildingView?.destroy();
       this.buildingView = null;
@@ -755,7 +761,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Story 3.4: `startPlacement` (Story 3.3's shop calls it when a building is tapped). Ignored
+   * Story 3.4: `startPlacement` (Story 5.16: the build bar calls it when a tile is picked). Ignored
    * outside a build phase, under the menu, on Results or for an unknown type. Story 5.15: I keep
    * walking: only the aim stick and the mouse button let go (a held move stick or key keeps steering).
    */
@@ -842,8 +848,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Story 3.3: the shop. The Shop button shows when Ready does (a build phase, a run on screen, menu
-   * closed); the shop closes by itself as soon as that no longer holds (the wave started, Results,
+   * Story 3.3: the shop. Story 5.16: it opens from the build bar's Shop tile (only while the bar is on
+   * screen); the shop closes by itself as soon as that no longer holds (the wave started, Results,
    * the menu opened, leaving). While open it gets my wallet and weapons when they change, the
    * purchase answers, and the clock for the pending timeout. Returns whether it is open.
    */
@@ -860,11 +866,12 @@ export class GameScene extends Phaser.Scene {
     if (shopStore.get().open && !can) this.shopInput(SHOP_CLOSE);
     const pressed = m.shopPressed;
     m.shopPressed = false;
-    if (pressed && can && !shopStore.get().open) {
+    // Story 5.16: the Shop tile of the build bar, only if the bar was on screen when it was tapped.
+    if (pressed && m.buildBar && can && !shopStore.get().open) {
       const balance = host.world.balance;
       this.router?.releaseAll(); // nothing stays held under the shop (as for the menu)
       host.clearEdges();
-      this.shopInput({ type: "open", weapons: shopWeapons(balance), buildings: shopBuildings(balance, urlOptions().shopAll), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel });
+      this.shopInput({ type: "open", weapons: shopWeapons(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel });
     }
     // Answers: shown while open, dropped while closed (the World already has the result).
     for (let a = host.takeShopAnswer(); a !== null; a = host.takeShopAnswer()) this.shopInput({ type: "answer", answer: a });
@@ -886,22 +893,56 @@ export class GameScene extends Phaser.Scene {
         this.shopInput(shopTime);
       }
     }
-    m.shopButton = can && !shopStore.get().open && !this.placement.active; // Story 3.4: hidden while placing
     return shopStore.get().open;
   }
 
   /** Story 3.3: a weapon's display name for the shop's "Bought …" text (module-level style: no closure per call). */
   private readonly shopName = (id: string): string => (this.host ? weaponName(this.host.world.balance, id) : id);
 
-  /** Story 3.3: one step of the shop's state machine, and its effect (a purchase, or 3.4's placement). */
+  /** Story 3.3: one step of the shop's state machine, and its effect (a purchase or an upgrade). */
   private shopInput(input: ShopInput): void {
     const r = shopStep(shopStore.get(), input, this.shopName);
     shopStore.set(r.state);
     const e = r.effect;
     if (e === null) return;
     if (e.type === "buy") this.host?.buyWeapon(e.weapon, e.slot);
-    else if (e.type === "upgrade") this.host?.upgradeWeapon(e.weapon); // Story 5.1
-    else uiStore.request("startPlacement", e.id); // Story 3.4: placement mode
+    else this.host?.upgradeWeapon(e.weapon); // Story 5.1
+  }
+
+  /**
+   * Story 5.16: the build bar (the right-thumb cluster with empty hands). Shown when placement is
+   * possible (a build phase, a run on screen, menu and shop closed, my survivor standing), I hold
+   * nothing and no building is selected. A tile tapped while it was on screen picks that building:
+   * the cap, then money (as `placementError`), from this frame's World (server truth online) →
+   * toast; otherwise the 5.15 hold starts this frame (carry, hand cluster) and this frame's input
+   * already drops aim and fire. Nothing is sent or charged by a pick (only Place sends).
+   */
+  private updateBuildBar(host: SceneHost, menuOpen: boolean, shopOpen: boolean): void {
+    const m = this.hudModel;
+    const world = host.world;
+    const f = this.barFrame;
+    f.can = this.canPlace(host, menuOpen || shopOpen);
+    f.holding = this.placement.active;
+    f.selected = this.repairPanel.open;
+    f.owned = ownedCount(world, host.localPlayerId);
+    f.cap = world.balance.buildings.maxPerPlayer;
+    f.wallet = world.players.get(host.localPlayerId)?.wallet ?? 0;
+    m.buildItems = buildBarItems(world.balance, urlOptions().shopAll); // Story 5.10 review M2: ?shopall shows the floodlight
+    const r = stepBuildBar(m, f, this.barStep);
+    if (r.toast !== "") {
+      this.toasts.pushUnique(r.toast); // tapping a refused tile again doesn't queue the same line again
+      this.barToast = r.toast;
+    }
+    if (r.pick !== "") {
+      this.startPlacement(r.pick);
+      if (this.placement.active) {
+        if (this.barToast !== "") this.toasts.withdraw(this.barToast); // an old refusal off the screen
+        this.barToast = "";
+        holdBuildingInput(this.input_); // the hold starts now: no aim or fire in this frame's input either
+        r.show = false;
+      }
+    }
+    m.buildBar = r.show;
   }
 
   /** Countdowns of downed players for the HUD, and the local status line (Story 2.8). */
@@ -944,6 +985,12 @@ export class GameScene extends Phaser.Scene {
     this.flameView?.end();
   }
 
+  /** A camera shake of `fraction` of the view (see `shakeIntensityFor`: Phaser's own shake scales by zoom²). */
+  private shake(ms: number, fraction: number): void {
+    const cam = this.cameras.main;
+    cam.shake(ms, shakeIntensityFor(fraction, cam.zoom));
+  }
+
   /** Story 5.8: a burst's wet pop (on screen, fresh only) and a short shake when my survivor is near it (the mine's rule). */
   private bloaterBurst(host: SimHost, e: Extract<SimEvent, { type: "bloater.burst" }>): void {
     if ((e.ageS ?? 0) > ACID_SOUND_MAX_AGE_S) return; // a woken tab's backlog: silent
@@ -953,7 +1000,7 @@ export class GameScene extends Phaser.Scene {
     }
     const me = host.world.players.get(host.localPlayerId);
     const k = me ? mineShakeIntensity(Math.hypot(me.x - e.x, me.y - e.y)) : 0;
-    if (k > 0 && getSettings().screenShake) this.cameras.main.shake(MINE_SHAKE_MS, k);
+    if (k > 0 && getSettings().screenShake) this.shake(MINE_SHAKE_MS, k);
   }
 
   /** Story 5.6: the spit's "ptoo" and the splash's hiss, only when on screen (panned by screen position). */
@@ -1027,6 +1074,7 @@ export class GameScene extends Phaser.Scene {
     if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
     this.updatePlacement(host, menuOpen || shopOpen); // Story 3.4 / 5.15: holding keeps the move, drops aim and fire
     this.updateRepair(host, menuOpen, shopOpen); // Story 3.7: tap a building → Repair
+    this.updateBuildBar(host, menuOpen, shopOpen); // Story 5.16: tap a tile → the building is in my hands
     this.updateReady(host, menuOpen || shopOpen);
     if (this.localHost) {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
@@ -1071,6 +1119,11 @@ export class GameScene extends Phaser.Scene {
       }
       if ((e.type === "team.wiped" || e.type === "run.held_out") && !host.online && !this.gameOver) {
         this.showSoloResults(host, e.wave, e.type === "run.held_out");
+      } else if (e.type === "player.downed" && e.playerId !== localId && !host.world.teamWiped && host.world.players.get(e.playerId)?.status === "downed") {
+        // A teammate went down (and still is: a woken tab's backlog stays quiet once revived): say who,
+        // with an alert; the pulsing edge arrow shows where and how long they have.
+        this.stackBanner(`${host.playerInfo(e.playerId).name || "A teammate"} is down!`);
+        playSfx("player_teammate_downed");
       } else if (e.type === "zombie.killed" && e.killerId === localId && e.buildingId === undefined) {
         // Story 3.6: my turret's kills pay me (money.earned) but are not my kills.
         this.kills++;
@@ -1086,7 +1139,7 @@ export class GameScene extends Phaser.Scene {
         // within `fx.shakeWithinM` of it, a blast sound panned to its side (none for a woken tab's backlog).
         const me = host.world.players.get(localId);
         const k = me ? mineShakeIntensity(Math.hypot(me.x - e.x, me.y - e.y), host.world.balance.combat.explosion.fx.shakeWithinM) : 0;
-        if (k > 0 && getSettings().screenShake) this.cameras.main.shake(MINE_SHAKE_MS, k);
+        if (k > 0 && getSettings().screenShake) this.shake(MINE_SHAKE_MS, k);
         const v = this.cameras.main.worldView;
         const pan = Math.max(-1, Math.min(1, (e.x - (v.x + v.width / 2)) / Math.max(1e-6, v.width / 2)));
         playSfx(blastLookFor(e.kind) === "fireball" ? "fx_explosion" : "building_mine_blast", pan);
@@ -1094,7 +1147,7 @@ export class GameScene extends Phaser.Scene {
         // Story 5.2: my own swing of a screenShake melee weapon (the Fire Axe) shakes too. Online it is
         // the local swing (NetSimHost drops my server echo), so it shakes once and without a round trip.
         const stats = host.world.balance.weapons[e.weapon];
-        if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
+        if (stats?.screenShake && getSettings().screenShake) this.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "build.started") {
         if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
       } else if (e.type === "wave.started") {

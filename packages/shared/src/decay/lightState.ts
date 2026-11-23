@@ -12,6 +12,11 @@ import type { FireRecord } from "./decayState";
  * or the burning-fire set changes (one compare per tick, reusing the entry objects; no allocation
  * after the list first reaches its size). Order: fires first (map order), then floodlights in
  * building-id order. No blackout flag yet: Story 6.3 adds it and reads this list.
+ *
+ * Review L2 — READ IT THROUGH `lightsOf(world)` (Story 6.3 too): the server's World refreshes the
+ * list at the end of the `buildings` system, so after a floodlight is destroyed later in the same tick
+ * (combat, a zombie hit, a fire pulse) `world.lights.list` lags one tick; `lightsOf` brings it up to
+ * date first (one compare when nothing changed).
  */
 export type LightKind = "floodlight" | "fire";
 

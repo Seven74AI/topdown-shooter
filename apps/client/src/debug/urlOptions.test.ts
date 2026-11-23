@@ -117,6 +117,7 @@ describe("parseUrlOptions: Story 3.9 wave mix", () => {
     expect(parseUrlOptions("?shopall=1").shopAll).toBe(true);
     expect(parseUrlOptions("?shopall").shopAll).toBe(true);
     expect(parseUrlOptions("?shopall=0").shopAll).toBe(false);
+    expect(parseUrlOptions("?shopall=1", false).shopAll).toBe(false); // review L3: a release build ignores it
     expect(parseUrlOptions("?stress=150&stressbuild=lights")).toMatchObject({ stressLights: true, stressBuild: false });
     expect(parseUrlOptions("?stress=150&stressbuild=traps")).toMatchObject({ stressLights: false, stressBuild: true });
   });

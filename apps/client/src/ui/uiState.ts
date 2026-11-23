@@ -70,13 +70,11 @@ export function resultsTitle(screen: { wave: number; heldOut: boolean }): string
 
 export interface UiRequests {
   restart: () => void;
-  /** Story 3.3: the shop's buttons (Close, a weapon, "Replace which?", a building); the Game scene runs `shopStep`. */
-  shop: (action: ShopAction) => void;
   /**
-   * Story 3.4 contract: a building tapped in the shop starts placement mode for that building type
-   * (the shop has closed). The Game scene registers it and ignores it outside a build phase.
+   * Story 3.3: the shop's buttons (Close, a weapon, an upgrade, "Replace which?"); the Game scene runs
+   * `shopStep`. Story 5.16: buildings are picked from the HUD's build bar, not the shop.
    */
-  startPlacement: (buildingTypeId: string) => void;
+  shop: (action: ShopAction) => void;
   /** Start screen: create an online run with this (already validated) name. */
   createGame: (name: string) => void;
   /** Start screen: join the run with this (well-formed) code and (validated) name (Story 2.3). */

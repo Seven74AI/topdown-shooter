@@ -125,56 +125,97 @@ describe("Grenade Launcher: where the round lands (FR-A)", () => {
   });
 });
 
-describe("Grenade Launcher: cover on the track (FR-B)", () => {
-  for (const kind of ["car", "bus"] as const) {
-    it(`a ${kind} on the track stops the round at its face (pulled back ${BACKOFF} m)`, () => {
-      const { world, events } = setup({ map: mapWith(kind, { minX: 16, minY: 8, maxX: 18, maxY: 12 }) });
-      setInput(world, "p0", lobRight(10));
-      run(world, 1);
-      const l = of(events, "grenade.launched")[0];
-      expect(l?.tx).toBeCloseTo(16 - BACKOFF, 9);
-      expect(grenadeCounters.coverStops).toBe(1);
-      setInput(world, "p0", { ...NEUTRAL_INPUT });
-      run(world, 10);
-      expect(of(events, "explosion.happened")[0]?.x).toBeCloseTo(16 - BACKOFF, 9);
-    });
-  }
+describe("Grenade Launcher: obstacles on the track (FR-B, designer 2026-11-23: only buildings stop it)", () => {
+  const FAR = 10 + OFFSET + 10; // the aim point 10 m out along +x from (10, 10)
+  const FULL = 10 + OFFSET + GL.lobRangeM; // aim length 1: the full range
+  const building = (box: { minX: number; minY: number; maxX: number; maxY: number }): DistrictMap => ({ ...PLACEHOLDER_MAP, name: "grenade-building", solids: [{ name: "apartments", building: true, ...box }] });
 
-  it("a map box stops it too", () => {
-    const map: DistrictMap = { ...PLACEHOLDER_MAP, name: "grenade-solid", solids: [{ name: "wall", minX: 16, minY: 8, maxX: 18, maxY: 12 }] };
-    const world = createWorld({ balance, seed: 1, map });
-    const t = lobTarget(world, GL, 10, 10, R, 1, 0, 1, createLobTarget());
-    expect(t.blocked).toBe(true);
-    expect(t.x).toBeCloseTo(16 - BACKOFF, 9);
-  });
-
-  for (const kind of ["barrier", "sandbags"] as const) {
-    it(`${kind} don't stop it (they only stop bodies)`, () => {
-      const { world, events } = setup({ map: mapWith(kind, { minX: 16, minY: 8, maxX: 18, maxY: 12 }) });
-      setInput(world, "p0", lobRight(10));
-      run(world, 1);
-      expect(of(events, "grenade.launched")[0]?.tx).toBeCloseTo(10 + OFFSET + 10, 9);
-      expect(grenadeCounters.coverStops).toBe(0);
-    });
-  }
-
-  it("a player barricade doesn't stop it", () => {
-    const { world, events } = setup();
-    addBuildingAt(world, { id: 1, type: "wood_barricade", ownerId: "p0", gx: 15 / BUILD_GRID_M, gy: 9 / BUILD_GRID_M, rot: 1, hp: 100 }) as Building;
+  it("a building on the track stops the round at its face (pulled back BACKOFF m), and the blast is there", () => {
+    const { world, events } = setup({ map: building({ minX: 16, minY: 8, maxX: 18, maxY: 12 }) });
     setInput(world, "p0", lobRight(10));
     run(world, 1);
-    expect(of(events, "grenade.launched")[0]?.tx).toBeCloseTo(10 + OFFSET + 10, 9);
+    expect(of(events, "grenade.launched")[0]?.tx).toBeCloseTo(16 - BACKOFF, 9);
+    expect(grenadeCounters.coverStops).toBe(1);
+    setInput(world, "p0", { ...NEUTRAL_INPUT });
+    run(world, 10);
+    expect(of(events, "explosion.happened")[0]?.x).toBeCloseTo(16 - BACKOFF, 9);
   });
 
-  it("a car pressed against the muzzle stops it right in front of you (never behind your centre)", () => {
-    const world = createWorld({ balance, seed: 1, map: mapWith("car", { minX: 10.3, minY: 8, maxX: 12, maxY: 12 }) });
-    applyDecayStage(world, 1, 0);
+  it("a building pressed against the muzzle stops it right in front of you (never behind your centre)", () => {
+    const world = createWorld({ balance, seed: 1, map: building({ minX: 10.3, minY: 8, maxX: 12, maxY: 12 }) });
     const t = lobTarget(world, GL, 10, 10, R, 1, 0, 1, createLobTarget());
     expect(t.blocked).toBe(true);
     expect(t.x).toBeCloseTo(10.3 - BACKOFF, 9);
     expect(t.distM).toBe(0);
-    const inside = lobTarget(world, GL, 10.31, 10, R, 1, 0, 1, createLobTarget()); // a centre in the box: bursts on the centre
-    expect(inside.x).toBeCloseTo(10.31, 9);
+  });
+
+  for (const kind of ["car", "bus", "barrier", "sandbags"] as const) {
+    it(`it flies over a ${kind} and lands at the aim point (and the blast is there)`, () => {
+      const { world, events } = setup({ map: mapWith(kind, { minX: 16, minY: 8, maxX: 18, maxY: 12 }) });
+      setInput(world, "p0", lobRight(10));
+      run(world, 1);
+      expect(of(events, "grenade.launched")[0]?.tx).toBe(FAR);
+      expect(grenadeCounters.coverStops).toBe(0);
+      setInput(world, "p0", { ...NEUTRAL_INPUT });
+      run(world, 12);
+      expect(of(events, "explosion.happened")[0]?.x).toBe(FAR);
+    });
+  }
+
+  it("it flies over a non-building map wall (a gas pump, the bus hull, a low wall)", () => {
+    const map: DistrictMap = { ...PLACEHOLDER_MAP, name: "grenade-pump", solids: [{ name: "gas_pump", minX: 16, minY: 8, maxX: 18, maxY: 12 }] };
+    const world = createWorld({ balance, seed: 1, map });
+    const t = lobTarget(world, GL, 10, 10, R, 1, 0, 1, createLobTarget());
+    expect(t.blocked).toBe(false);
+    expect(t.x).toBe(FULL);
+  });
+
+  it("it flies over a car pressed against the muzzle", () => {
+    const world = createWorld({ balance, seed: 1, map: mapWith("car", { minX: 10.3, minY: 8, maxX: 12, maxY: 12 }) });
+    applyDecayStage(world, 1, 0);
+    const t = lobTarget(world, GL, 10, 10, R, 1, 0, 1, createLobTarget());
+    expect(t.blocked).toBe(false);
+    expect(t.x).toBe(FULL);
+  });
+
+  it("player barricades and turrets don't stop it", () => {
+    const { world, events } = setup();
+    addBuildingAt(world, { id: 1, type: "wood_barricade", ownerId: "p0", gx: 15 / BUILD_GRID_M, gy: 9 / BUILD_GRID_M, rot: 1, hp: 100 }) as Building;
+    setInput(world, "p0", lobRight(10));
+    run(world, 1);
+    expect(of(events, "grenade.launched")[0]?.tx).toBeCloseTo(FAR, 9);
+  });
+
+  it("FR-B2: aimed onto a car roof, it lands at the car's near face, and the blast still hits a zombie beside the car", () => {
+    // car x 19–21; the aim point (20.5) is inside it
+    const { world, events } = setup({ map: mapWith("car", { minX: 19, minY: 8, maxX: 21, maxY: 12 }) });
+    expect(spawnZombie(world, "walker", 18.4, 11)).toBeGreaterThanOrEqual(0);
+    const hit0 = explosionCounters.zombiesHit;
+    setInput(world, "p0", lobRight(10));
+    run(world, 1);
+    expect(of(events, "grenade.launched")[0]?.tx).toBeCloseTo(19 - BACKOFF, 9);
+    expect(grenadeCounters.coverStops).toBe(1);
+    setInput(world, "p0", { ...NEUTRAL_INPUT });
+    run(world, 12);
+    expect(explosionCounters.happened).toBe(1);
+    expect(of(events, "explosion.happened")[0]?.x).toBeCloseTo(19 - BACKOFF, 9);
+    expect(explosionCounters.zombiesHit - hit0).toBe(1); // a centre inside the car would have seen nobody
+  });
+
+  it("FR-B2: two cars bumper to bumper, aimed into the far one: it lands before the near one", () => {
+    const map: DistrictMap = {
+      ...PLACEHOLDER_MAP,
+      name: "grenade-cars",
+      cover: [
+        { name: "car_a", kind: "car", minStage: 1, minX: 19, minY: 8, maxX: 21, maxY: 12 },
+        { name: "car_b", kind: "car", minStage: 1, minX: 21, minY: 8, maxX: 23, maxY: 12 },
+      ],
+    };
+    const world = createWorld({ balance, seed: 1, map });
+    applyDecayStage(world, 1, 0);
+    const t = lobTarget(world, GL, 10, 10, R, 1, 0, 1, createLobTarget());
+    expect(t.blocked).toBe(true);
+    expect(t.x).toBeCloseTo(19 - BACKOFF, 9); // full range = 22.5, inside car_b
   });
 });
 

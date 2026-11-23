@@ -9,18 +9,21 @@ import {
   READY_BUTTON_BOTTOM_CSS_PX,
   READY_BUTTON_H_CSS_PX,
   READY_BUTTON_W_CSS_PX,
-  READY_SHIFT_LEFT_CSS_PX,
   REPAIR_BUTTON_W_CSS_PX,
   REPAIR_CLOSE_CSS_PX,
   REPAIR_ROW_GAP_CSS_PX,
-  SHOP_BUTTON_GAP_CSS_PX,
-  SHOP_BUTTON_W_CSS_PX,
+  BUILD_COUNT_TEXT_CSS_PX,
+  BUILD_PRICE_TEXT_CSS_PX,
 } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { TAP_SLOP_CSS_PX, TapDetector } from "../input/tapDetector";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
 import { layoutHandCluster, newHandLayout, type HandRect } from "./handCluster";
+import { BUILD_BAR_SLOTS, SLOT_EMPTY, SLOT_MORE, SLOT_SHOP, TILE_SHORT, buildBarSlots, layoutBuildBar, newBuildBarLayout, readyLeftX, tileState, type BuildTile } from "./buildBar";
+import { ATLAS_BUILDINGS, FRAME_WOOD, buildingFrame, ensureBuildingsAtlas } from "../render/city/buildingsAtlas";
+import { drawPlankIcon } from "../render/BuildingView";
+import { drawTurretIcon } from "../render/TurretView";
 import type { InputRouter } from "../input/InputRouter";
 import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
@@ -113,6 +116,12 @@ const CROSS_PX = 6;
 const CROSS_THICK_PX = 2.5;
 const CROSS_INSET_PX = 20;
 const CROSS_COLOR = 0xffffff;
+/** An off-screen DOWNED teammate's arrow is this much bigger (before the pulse), so it can't be missed. */
+const MATE_DOWNED_SCALE = 1.5;
+/** Their "Bo · 14 s" label: centred this far inward from the arrow tip (CSS px), in this colour. */
+const MATE_LABEL_INSET_PX = 62;
+const MATE_DOWNED_COLOR = "#ff6b6b";
+const NAME_COLOR = "#ffffff";
 /** Story 2.11: ☰ (three white bars on a dark square), and the toast line under the status line. */
 const MENU_BAR_W_FRAC = 0.5;
 const MENU_BAR_H_PX = 3;
@@ -155,8 +164,29 @@ const REPAIR_REASON = "#ff8a80";
 /** Story 5.9: the Upgrade button when it would be accepted (steel blue: a stronger wall). */
 const UPGRADE_FILL = 0x37587a;
 const UPGRADE_BORDER = 0x90caf9;
-/** Story 3.3: the Shop button's border (the money colour). */
+/** Story 3.3: the Shop button's border (the money colour); Story 5.16: the build bar's Shop tile. */
 const SHOP_BORDER = 0xf5c542;
+/**
+ * Story 5.16 (ux-spec §4, prototype): the build bar's tiles. Dark rounded square, white border; the
+ * icon centred 22 px from the tile's top in a 42 × 28 px box, the price centred 45 px down; a tile I
+ * can't pick (too expensive, or at the cap) at 40 % with a red price when it's the money.
+ */
+const TILE_IDS = ["tile0", "tile1", "tile2", "tile3", "tile4", "tile5", "tile6", "tile7"] as const;
+const TILE_BG_ALPHA = 0.58;
+const TILE_BORDER_ALPHA = 0.85;
+const TILE_RADIUS_PX = 10;
+const TILE_BORDER_PX = 1.5;
+const TILE_DIM_ALPHA = 0.4;
+const TILE_ICON_Y_PX = 22;
+const TILE_ICON_W_PX = 42;
+const TILE_ICON_H_PX = 28;
+const TILE_PRICE_Y_PX = 45;
+const TILE_GLYPH_PX = 20;
+const TILE_PRICE = "#ffe082";
+const TILE_PRICE_SHORT = "#ff8a80";
+const TILE_LABEL = "#ffffff";
+const COUNT_OK = "#ffffff";
+const COUNT_FULL = "#ff8a80";
 /** Wave text → status line → toast line, CSS px from the top inset. */
 const WAVE_TOP_PX = 12;
 const LINE_GAP_PX = 12;
@@ -232,10 +262,23 @@ export class HudScene extends Phaser.Scene {
   private shownReadyVisible: boolean | null = null;
   /** `readyOn`, count and total folded into one key (redraw only when it changes). */
   private shownReadyKey = -1;
-  /** Story 3.3: the Shop button beside Ready (drawn on layout only; shown and hidden on change). */
-  private shopBtn!: Phaser.GameObjects.Graphics;
-  private shopLabel!: Phaser.GameObjects.Text;
-  private shownShopVisible: boolean | null = null;
+  /**
+   * Story 5.16: the build bar (8 tiles: background, icon image or Graphics, price/label, glyph) and
+   * its count line. Slots and looks are redrawn only when the items, the page or the state key change.
+   */
+  private barTiles: Phaser.GameObjects.Graphics[] = [];
+  private barIcons: Phaser.GameObjects.Image[] = [];
+  private barIconGfx: Phaser.GameObjects.Graphics[] = [];
+  private barPrices: Phaser.GameObjects.Text[] = [];
+  private barGlyphs: Phaser.GameObjects.Text[] = [];
+  private barCount!: Phaser.GameObjects.Text;
+  private readonly bar = newBuildBarLayout();
+  private readonly barSlots = new Int16Array(BUILD_BAR_SLOTS);
+  private barPage = 0;
+  private barSlotsDirty = true;
+  private shownBarVisible: boolean | null = null;
+  private shownBarItems: readonly BuildTile[] | null = null;
+  private shownBarKey = -1;
   private shownBuildSecs = -2;
   private buttons = new HudButtons();
   /** Story 3.4: placement mode's ⟳ ✓ ✕ and the hint line; Story 5.15: the hand cluster, the 🔒 badge. */
@@ -306,6 +349,8 @@ export class HudScene extends Phaser.Scene {
   /** Story 2.9, all indexed by slot: name tags, edge arrows and downed crosses, created once. */
   private readonly names: Phaser.GameObjects.Text[] = [];
   private readonly shownNames: string[] = new Array<string>(MAX_PLAYERS).fill("");
+  /** Name tags currently in the downed colour (the off-screen "Bo · 14 s" label), by slot. */
+  private readonly redNames: boolean[] = new Array<boolean>(MAX_PLAYERS).fill(false);
   private readonly mateArrows: Phaser.GameObjects.Triangle[] = [];
   private readonly crosses: Phaser.GameObjects.Graphics[] = [];
   /** Preallocated `teammateMarkers` output. */
@@ -345,7 +390,11 @@ export class HudScene extends Phaser.Scene {
     this.shownToast = "";
     this.shownReadyVisible = null;
     this.shownReadyKey = -1;
-    this.shownShopVisible = null;
+    this.shownBarVisible = null; // Story 5.16
+    this.shownBarItems = null;
+    this.shownBarKey = -1;
+    this.barSlotsDirty = true;
+    this.barPage = 0;
     this.shownBuildSecs = -2;
     this.shownMoney = -1;
     this.nextMoneyPop = 0;
@@ -415,7 +464,7 @@ export class HudScene extends Phaser.Scene {
     this.buttons.set({ id: "menu", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.menuPressed = true;
     });
-    // Story 3.1: Ready, bottom centre (a touch on it never starts a stick). Story 3.3 adds Shop beside it.
+    // Story 3.1: Ready, bottom centre (a touch on it never starts a stick). Story 5.16: Shop is a build-bar tile.
     this.readyBtn = this.add.graphics().setDepth(1001).setVisible(false);
     this.readyLabel = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
     this.buttons.set({ id: "ready", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
@@ -435,13 +484,24 @@ export class HudScene extends Phaser.Scene {
     });
     this.placeHint = this.add.text(0, 0, "", this.outlinedStyle(HINT_TEXT_PX)).setOrigin(1, 1).setDepth(1002).setVisible(false);
     this.placeLock = this.add.graphics().setDepth(1003).setVisible(false);
-    // Story 3.3: Shop, right of Ready (a touch on it never starts a stick either).
-    this.shopBtn = this.add.graphics().setDepth(1001).setVisible(false);
-    this.shopLabel = this.add.text(0, 0, "Shop", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
-    this.buttons.set({ id: "shop", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
-      this.model.shopPressed = true;
-    });
-    // Story 3.7: the repair panel (one row above Ready / Shop; a touch on its buttons never starts a stick).
+    // Story 5.16: the build bar (bottom right, hands empty in a build phase; a touch on a tile never
+    // starts a stick). The icons reuse the buildings atlas (registered through addGeneratedTexture).
+    ensureBuildingsAtlas(this);
+    this.barTiles.length = 0;
+    this.barIcons.length = 0;
+    this.barIconGfx.length = 0;
+    this.barPrices.length = 0;
+    this.barGlyphs.length = 0;
+    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
+      this.barTiles.push(this.add.graphics().setDepth(1001).setVisible(false));
+      this.barIcons.push(this.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(1002).setVisible(false));
+      this.barIconGfx.push(this.add.graphics().setDepth(1002).setVisible(false));
+      this.barGlyphs.push(this.add.text(0, 0, "", this.outlinedStyle(TILE_GLYPH_PX)).setOrigin(0.5).setDepth(1002).setVisible(false));
+      this.barPrices.push(this.add.text(0, 0, "", { ...this.outlinedStyle(BUILD_PRICE_TEXT_CSS_PX), fontStyle: "bold" }).setOrigin(0.5).setDepth(1002).setVisible(false));
+      this.buttons.set({ id: TILE_IDS[s] as string, x: 0, y: 0, w: 0, h: 0, visible: false }, () => this.pressTile(s));
+    }
+    this.barCount = this.add.text(0, 0, "", { ...this.outlinedStyle(BUILD_COUNT_TEXT_CSS_PX), fontStyle: "bold" }).setOrigin(1, 1).setDepth(1002).setVisible(false);
+    // Story 3.7: the repair panel (one row above Ready; a touch on its buttons never starts a stick).
     this.repairBtn = this.add.graphics().setDepth(1001).setVisible(false);
     this.repairText = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
     this.repairCloseBtn = this.add.graphics().setDepth(1001).setVisible(false);
@@ -724,13 +784,14 @@ export class HudScene extends Phaser.Scene {
     this.swapBtn.setRadius(size / 2).setPosition(x + size / 2, y + size / 2);
     this.swapLabel.setFontSize(Math.round(28 * k)).setPosition(x + size / 2, y + size / 2);
     this.layoutMenuButton();
+    this.layoutBuildBar(); // Story 5.16: before Ready (Ready keeps clear of the grid)
     this.layoutReadyButton();
     this.layoutPlacementButtons();
     this.layoutRepairPanel();
   }
 
   /**
-   * Story 3.7: Repair and ✕ in a row centred one row above Ready / Shop; the info (two lines) right
+   * Story 3.7: Repair and ✕ in a row centred one row above Ready; the info (two lines) right
    * of ✕ and the reason above it, so the texts stay clear of the survivor at the screen centre.
    */
   private layoutRepairPanel(): void {
@@ -936,41 +997,166 @@ export class HudScene extends Phaser.Scene {
   }
 
   /**
-   * Story 3.1: the Ready button's hit rect and position (bottom, inside the safe area). Story 3.3:
-   * Ready and Shop side by side, the pair centred.
+   * Story 3.1: the Ready button's hit rect and position (bottom, inside the safe area). Story 5.15:
+   * 40 px left of centre; Story 5.16: Shop moved into the build bar, and Ready slides further left
+   * when it would come within 12 px of the grid (`readyLeftX`).
    */
   private layoutReadyButton(): void {
     const k = dpr();
     const w = READY_BUTTON_W_CSS_PX * k;
     const h = READY_BUTTON_H_CSS_PX * k;
-    const sw = SHOP_BUTTON_W_CSS_PX * k;
-    const gap = SHOP_BUTTON_GAP_CSS_PX * k;
-    const x = (this.scale.width - (w + gap + sw)) / 2 - READY_SHIFT_LEFT_CSS_PX * k; // Story 5.15: clear of the hand cluster
+    const x = readyLeftX(this.scale.width, w, this.bar.left, k);
     const y = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k - h;
     const rect = this.buttons.get("ready");
     if (rect) Object.assign(rect, { x, y, w, h });
     this.readyBtn.setPosition(x, y);
     this.readyLabel.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, y + h / 2);
     this.shownReadyKey = -1; // redraw at the new size
-    const sx = x + w + gap;
-    const shop = this.buttons.get("shop");
-    if (shop) Object.assign(shop, { x: sx, y, w: sw, h });
-    const g = this.shopBtn;
-    g.clear();
-    g.fillStyle(READY_BG, READY_BG_ALPHA).fillRoundedRect(0, 0, sw, h, READY_RADIUS_PX * k);
-    g.lineStyle(READY_BORDER_PX * k, SHOP_BORDER, 0.9).strokeRoundedRect(0, 0, sw, h, READY_RADIUS_PX * k);
-    g.setPosition(sx, y);
-    this.shopLabel.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(sx + sw / 2, y + h / 2);
   }
 
-  /** Story 3.3: shows or hides the Shop button (only when that changes). */
-  private drawShop(): void {
-    const v = this.model.shopButton;
-    if (v === this.shownShopVisible) return;
-    this.shownShopVisible = v;
-    this.buttons.setVisible("shop", v);
-    this.shopBtn.setVisible(v);
-    this.shopLabel.setVisible(v);
+  /** Story 5.16: the build bar's tiles and count line, from the bottom-right safe-area corner (`layoutBuildBar`). */
+  private layoutBuildBar(): void {
+    const k = dpr();
+    const l = layoutBuildBar(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, k, this.bar);
+    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
+      const x = l.x[s] as number;
+      const y = l.y[s] as number;
+      const rect = this.buttons.get(TILE_IDS[s] as string);
+      if (rect) Object.assign(rect, { x, y, w: l.tile, h: l.tile });
+      (this.barTiles[s] as Phaser.GameObjects.Graphics).setPosition(x, y);
+      (this.barGlyphs[s] as Phaser.GameObjects.Text)
+        .setFontSize(Math.round(TILE_GLYPH_PX * k))
+        .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
+        .setPosition(x + l.tile / 2, y + TILE_ICON_Y_PX * k);
+      (this.barPrices[s] as Phaser.GameObjects.Text)
+        .setFontSize(Math.round(BUILD_PRICE_TEXT_CSS_PX * k))
+        .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k * 0.75))
+        .setPosition(x + l.tile / 2, y + TILE_PRICE_Y_PX * k);
+    }
+    this.barCount
+      .setFontSize(Math.round(BUILD_COUNT_TEXT_CSS_PX * k))
+      .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k * 0.75))
+      .setPosition(l.countX, l.countY);
+    this.barSlotsDirty = true; // icons re-fitted at the new size
+    this.shownBarKey = -1;
+  }
+
+  /** Story 5.16: a tile tap (HudButtons handler): a building → `buildPick`, Shop → `shopPressed`, More ▸ → the next page. */
+  private pressTile(s: number): void {
+    const slot = this.barSlots[s] as number;
+    if (slot >= 0) {
+      const item = this.model.buildItems[slot];
+      if (item && this.model.buildPick === "") this.model.buildPick = item.id; // review L3: two taps in one frame: the first wins
+    } else if (slot === SLOT_SHOP) {
+      if (this.model.buildPick === "") this.model.shopPressed = true; // review L3: a building picked this frame wins
+    }
+    else if (slot === SLOT_MORE) {
+      this.barPage++;
+      this.barSlotsDirty = true;
+    }
+  }
+
+  /**
+   * Story 5.16: shows, hides and redraws the build bar, only when something it shows changes: the
+   * slots (items, page, layout) re-place the icons and labels; the state key (each tile's short/cap
+   * bits, my count, the cap) redraws the tiles' looks and the count line. No allocation otherwise.
+   */
+  private drawBuildBar(): void {
+    const m = this.model;
+    const v = m.buildBar;
+    if (m.buildItems !== this.shownBarItems) {
+      this.shownBarItems = m.buildItems;
+      this.barPage = 0;
+      this.barSlotsDirty = true;
+    }
+    if (v !== this.shownBarVisible || this.barSlotsDirty) {
+      if (!v && this.shownBarVisible === true && this.barPage !== 0) {
+        this.barPage = 0; // review L4: the bar reopens on its first page
+        this.barSlotsDirty = true;
+      }
+      if (this.barSlotsDirty) this.placeBarSlots();
+      this.shownBarVisible = v;
+      for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
+        const slot = this.barSlots[s] as number;
+        const on = v && slot !== SLOT_EMPTY;
+        this.buttons.setVisible(TILE_IDS[s] as string, on);
+        (this.barTiles[s] as Phaser.GameObjects.Graphics).setVisible(on);
+        (this.barPrices[s] as Phaser.GameObjects.Text).setVisible(on);
+        (this.barGlyphs[s] as Phaser.GameObjects.Text).setVisible(on && slot < 0);
+        const framed = slot >= 0 && buildingFrame((m.buildItems[slot] as BuildTile).id) !== null;
+        (this.barIcons[s] as Phaser.GameObjects.Image).setVisible(on && framed);
+        (this.barIconGfx[s] as Phaser.GameObjects.Graphics).setVisible(on && slot >= 0 && !framed);
+      }
+      this.barCount.setVisible(v);
+      this.shownBarKey = -1;
+    }
+    if (!v) return;
+    let bits = 0;
+    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
+      const slot = this.barSlots[s] as number;
+      if (slot >= 0) bits |= tileState(m.buildOwned, m.buildCap, m.money, (m.buildItems[slot] as BuildTile).price) << (2 * s);
+    }
+    const key = bits + m.buildOwned * 65536 + m.buildCap * 65536 * 256;
+    if (key === this.shownBarKey) return;
+    this.shownBarKey = key;
+    const k = dpr();
+    const t = this.bar.tile;
+    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
+      const slot = this.barSlots[s] as number;
+      if (slot === SLOT_EMPTY) continue;
+      const st = slot >= 0 ? (bits >> (2 * s)) & 3 : 0;
+      const a = st !== 0 ? TILE_DIM_ALPHA : 1;
+      const g = (this.barTiles[s] as Phaser.GameObjects.Graphics).clear();
+      g.fillStyle(READY_BG, slot === SLOT_SHOP ? READY_BG_ALPHA : TILE_BG_ALPHA).fillRoundedRect(0, 0, t, t, TILE_RADIUS_PX * k);
+      g.lineStyle(TILE_BORDER_PX * k, slot === SLOT_SHOP ? SHOP_BORDER : READY_BORDER, TILE_BORDER_ALPHA).strokeRoundedRect(0, 0, t, t, TILE_RADIUS_PX * k);
+      g.setAlpha(a);
+      (this.barPrices[s] as Phaser.GameObjects.Text).setAlpha(a); // review L1: the whole tile dims, its price too
+      (this.barIcons[s] as Phaser.GameObjects.Image).setAlpha(a);
+      (this.barIconGfx[s] as Phaser.GameObjects.Graphics).setAlpha(a);
+      if (slot >= 0) (this.barPrices[s] as Phaser.GameObjects.Text).setColor(st & TILE_SHORT ? TILE_PRICE_SHORT : TILE_PRICE);
+    }
+    this.barCount.setText(`${m.buildOwned}/${m.buildCap}`).setColor(m.buildOwned >= m.buildCap ? COUNT_FULL : COUNT_OK);
+  }
+
+  /** Story 5.16: which item each slot shows (page, Shop last) and their icons and labels (on change only). */
+  private placeBarSlots(): void {
+    this.barSlotsDirty = false;
+    const items = this.model.buildItems;
+    buildBarSlots(items.length, this.barPage, this.barSlots);
+    const k = dpr();
+    const t = this.bar.tile;
+    const boxW = TILE_ICON_W_PX * k;
+    const boxH = TILE_ICON_H_PX * k;
+    for (let s = 0; s < BUILD_BAR_SLOTS; s++) {
+      const slot = this.barSlots[s] as number;
+      const cx = (this.bar.x[s] as number) + t / 2;
+      const cy = (this.bar.y[s] as number) + TILE_ICON_Y_PX * k;
+      const price = this.barPrices[s] as Phaser.GameObjects.Text;
+      const glyph = this.barGlyphs[s] as Phaser.GameObjects.Text;
+      const gfx = (this.barIconGfx[s] as Phaser.GameObjects.Graphics).clear();
+      if (slot === SLOT_SHOP || slot === SLOT_MORE) {
+        glyph.setText(slot === SLOT_SHOP ? "🛒" : "▸");
+        price.setText(slot === SLOT_SHOP ? "Shop" : "More").setColor(TILE_LABEL);
+        continue;
+      }
+      if (slot < 0) continue;
+      const item = items[slot] as BuildTile;
+      price.setText(`$${item.price}`);
+      const art = buildingFrame(item.id);
+      if (art) {
+        // The same code-drawn frame as in the world (rot 0), fitted into the icon box.
+        const img = (this.barIcons[s] as Phaser.GameObjects.Image).setTexture(art.texture, art.frame);
+        const aspect = img.frame.width / Math.max(1, img.frame.height);
+        const w = aspect >= boxW / boxH ? boxW : boxH * aspect;
+        img.setPosition(cx, cy).setDisplaySize(w, w / aspect);
+      } else if (item.turret) drawTurretIcon(gfx, cx, cy, boxH);
+      else {
+        const aspect = item.widthM / Math.max(0.01, item.depthM);
+        const w = aspect >= boxW / boxH ? boxW : boxH * aspect;
+        const h = w / aspect;
+        drawPlankIcon(gfx, cx - w / 2, cy - h / 2, w, h, w / Math.max(0.01, item.widthM));
+      }
+    }
   }
 
   /** Story 3.1: shows, hides and redraws the Ready button (only when what it shows changes). */
@@ -1140,7 +1326,7 @@ export class HudScene extends Phaser.Scene {
     this.drawMenu();
     this.drawReady();
     this.drawPlacement();
-    this.drawShop();
+    this.drawBuildBar(); // Story 5.16
     this.drawRepair();
     this.drawUpgrade(); // Story 5.9
     this.perfOverlay?.update();
@@ -1205,6 +1391,7 @@ export class HudScene extends Phaser.Scene {
   /**
    * Story 2.9: a name tag over each on-screen teammate, and an edge arrow in their slot colour for
    * each off-screen one (with a "+" when downed). Downed markers pulse. Out teammates: nothing.
+   * An off-screen downed teammate's arrow is 1.5× bigger and carries a red "Bo · 14 s" label.
    */
   private drawTeammates(): void {
     const m = this.model;
@@ -1222,9 +1409,16 @@ export class HudScene extends Phaser.Scene {
       const arrow = this.mateArrows[slot] as Phaser.GameObjects.Triangle;
       const cross = this.crosses[slot] as Phaser.GameObjects.Graphics;
       const label = m.teammateNames[slot] ?? "";
-      if (label !== this.shownNames[slot]) {
-        this.shownNames[slot] = label;
-        name.setText(label);
+      const offDowned = mk.visible && mk.downed;
+      // Off screen and down: who, and how long they have ("Bo · 14 s"), in red beside the arrow.
+      const text = offDowned ? `${label || "Teammate"} · ${mk.secs} s` : label;
+      if (text !== this.shownNames[slot]) {
+        this.shownNames[slot] = text;
+        name.setText(text);
+      }
+      if (offDowned !== this.redNames[slot]) {
+        this.redNames[slot] = offDowned;
+        name.setColor(offDowned ? MATE_DOWNED_COLOR : NAME_COLOR);
       }
       if (!mk.visible) {
         if (arrow.visible) arrow.setVisible(false);
@@ -1238,8 +1432,16 @@ export class HudScene extends Phaser.Scene {
         name.setPosition(mk.sx, ny).setVisible(label !== "");
         continue;
       }
-      if (name.visible) name.setVisible(false);
-      const pulse = mk.downed ? pulseScale(now) : 1;
+      const pulse = mk.downed ? pulseScale(now) * MATE_DOWNED_SCALE : 1;
+      if (offDowned) {
+        // Inward from the arrow, kept fully on screen.
+        const inset = MATE_LABEL_INSET_PX * k * MATE_DOWNED_SCALE;
+        const hw = name.width / 2 + 4 * k;
+        const hh = name.height / 2 + 4 * k;
+        const lx = Math.min(this.scale.width - hw, Math.max(hw, mk.x - Math.cos(mk.angle) * inset));
+        const ly = Math.min(this.scale.height - hh, Math.max(hh, mk.y - Math.sin(mk.angle) * inset));
+        name.setPosition(lx, ly).setVisible(true);
+      } else if (name.visible) name.setVisible(false);
       arrow
         .setPosition(mk.x, mk.y)
         .setRotation(mk.angle)
@@ -1324,7 +1526,8 @@ export class HudScene extends Phaser.Scene {
   /** Magazine count bottom-right and a reload bar under it (redrawn only on change). */
   private drawWeapon(): void {
     const m = this.model;
-    const hidden = m.placementActive; // Story 5.15: under the hand cluster while holding (and nothing fires)
+    // Story 5.15: under the hand cluster while holding (and nothing fires); Story 5.16: under the build bar (D3).
+    const hidden = m.placementActive || m.buildBar;
     if (hidden !== this.shownWeaponHidden) {
       this.shownWeaponHidden = hidden;
       const a = hidden ? 0 : 1;

@@ -6,7 +6,7 @@ import { zombieCandidates as candidates } from "./scratch";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import type { ZombieView } from "./rewind";
-import { shotBlockT, shotLineClear } from "./cover";
+import { bulletBlockT, bulletLineClear } from "./cover";
 
 const MIN_DIST_SQ = 1e-6;
 
@@ -45,7 +45,7 @@ export function assistAim(
   const ex = ox + dirX * rangeM;
   const ey = oy + dirY * rangeM;
   // Story 4.2: the raw aim "already hits" only a zombie before the first car / bus / map box on it.
-  const blockT = shotBlockT(world, ox, oy, ex, ey);
+  const blockT = bulletBlockT(world, ox, oy, ex, ey);
   let best = -1;
   let bestD2 = Infinity;
   let bestVx = 0;
@@ -68,7 +68,7 @@ export function assistAim(
     const d = Math.sqrt(d2);
     if ((vx * dirX + vy * dirY) / d < cosLimit) continue;
     if (d2 < bestD2) {
-      if (!shotLineClear(world, ox, oy, zx, zy)) continue; // Story 4.2: never bend a shot into cover
+      if (!bulletLineClear(world, ox, oy, zx, zy)) continue; // Story 4.2: never bend a shot into cover
       best = id;
       bestD2 = d2;
       bestVx = vx / d;
