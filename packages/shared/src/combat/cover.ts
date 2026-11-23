@@ -1,5 +1,6 @@
 import type { World } from "../core/world";
 import type { MapBox } from "../map/districtMap";
+import type { Building } from "../buildings/buildings";
 
 /**
  * Story 4.2: shots against cover (FR56, brief line 6).
@@ -78,4 +79,31 @@ export function shotBlockT(world: Readonly<World>, x0: number, y0: number, x1: n
 /** No shot blocker between (x0, y0) and (x1, y1) (aim assist and turret targets: a shot there could land). */
 export function shotLineClear(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number): boolean {
   return shotBlockT(world, x0, y0, x1, y1) < 0;
+}
+
+/**
+ * Story 5.2 (designer decision, review round): melee can't hit through walls. True when the segment
+ * from the wielder's centre (x0, y0) to the zombie's centre (x1, y1) enters no shot blocker (map
+ * collision boxes, cars, the bus) and no WALL building (`solid`: barricades of every tier, turrets).
+ * Low cover that bullets pass (barriers, sandbags) and floor buildings (spike traps, mines) don't
+ * block. Grazing a face or a corner is clear (`segmentBoxEntryT`). Server, solo, and the client's
+ * cosmetic cut feedback all call this one function. No allocation.
+ */
+export function meleeLineClear(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number): boolean {
+  if (shotBlockT(world, x0, y0, x1, y1) >= 0) return false;
+  const list = world.buildings.list;
+  if (list.length === 0) return true;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const loX = Math.min(x0, x1);
+  const hiX = Math.max(x0, x1);
+  const loY = Math.min(y0, y1);
+  const hiY = Math.max(y0, y1);
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    if (!b.solid) continue;
+    if (hiX < b.minX || loX > b.maxX || hiY < b.minY || loY > b.maxY) continue;
+    if (segmentBoxEntryT(x0, y0, dx, dy, b.minX, b.minY, b.maxX, b.maxY) >= 0) return false;
+  }
+  return true;
 }

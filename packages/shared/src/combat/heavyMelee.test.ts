@@ -15,6 +15,10 @@ import { knockbacks } from "./damage";
 import { setLoadout } from "./loadout";
 import { swingMelee } from "./melee";
 import { weaponStats } from "./weapons";
+import { meleeLineClear } from "./cover";
+import { addBuildingAt } from "../buildings/buildings";
+import { PLACEHOLDER_MAP } from "../map/placeholderMap";
+import type { CoverKind, DistrictMap } from "../map/districtMap";
 
 /**
  * Story 5.2: the Fire Axe (30 dmg, 1.1/s, 2.2 m, 140°, knockback 1.5 m) and the Chainsaw (6 dmg,
@@ -236,6 +240,58 @@ describe("Story 5.1 × 5.2: axe swings and chainsaw ticks deal weaponDamage(leve
     const z = at(a.world, 0, 1.0);
     a.tick();
     expect(hpLost(a.world, z)).toBeCloseTo(45, 9);
+  });
+});
+
+describe("Story 5.2 designer rule F7: melee can't hit through walls (the line wielder centre → zombie centre)", () => {
+  const MELEE = ["machete", "fire_axe", "chainsaw"] as const;
+  const coverMap = (kind: CoverKind, box: { minX: number; minY: number; maxX: number; maxY: number }): DistrictMap => ({ ...PLACEHOLDER_MAP, name: "melee-cover", cover: [{ name: `t_${kind}`, kind, minStage: 1, ...box }] });
+  const run = (weapon: string, map: DistrictMap, zx: number, zy: number, aimX = 1, aimY = 0, prepare?: (w: World) => void) => {
+    const world = createWorld({ balance, seed: 1, map, systems: STILL });
+    const p = addPlayer(world, "p0", PX, PY);
+    p.hp = 1e9;
+    setLoadout(balance, p.loadout, [weapon, null]);
+    prepare?.(world);
+    const z = spawnZombie(world, "walker", zx, zy);
+    world.zombies.hp[z] = 1e6;
+    setInput(world, "p0", { ...NEUTRAL_INPUT, seq: 1, aimX, aimY, fire: true });
+    step(world, TICK_DT_S);
+    return 1e6 - (world.zombies.hp[z] as number);
+  };
+  const barricade = (w: World) => addBuildingAt(w, { id: 1, type: "wood_barricade", ownerId: "p0", gx: 21, gy: 30, rot: 1, hp: 200 }); // x 10.5–11, y 15–17
+  for (const weapon of MELEE) {
+    const dmg = (weaponStats(balance, weapon) as MeleeStats).damage;
+    it(`${weapon}: through a wood barricade = no damage; with no barricade = damage`, () => {
+      expect(run(weapon, PLACEHOLDER_MAP, PX + 1.2, PY, 1, 0, barricade)).toBe(0);
+      expect(run(weapon, PLACEHOLDER_MAP, PX + 1.2, PY)).toBe(dmg);
+    });
+    it(`${weapon}: through a reinforced / metal barricade and a turret = no damage`, () => {
+      for (const type of ["reinforced_barricade", "metal_barricade"]) {
+        expect(run(weapon, PLACEHOLDER_MAP, PX + 1.2, PY, 1, 0, (w) => addBuildingAt(w, { id: 1, type, ownerId: "p0", gx: 21, gy: 30, rot: 1, hp: 300 })), type).toBe(0);
+      }
+      expect(run(weapon, PLACEHOLDER_MAP, PX + 1.35, PY, 1, 0, (w) => addBuildingAt(w, { id: 1, type: "auto_turret", ownerId: "p0", gx: 21, gy: 31, rot: 0, hp: 300 }))).toBe(0); // x 10.5–11.5
+    });
+    it(`${weapon}: over sandbags and a police barrier = damage (low cover bullets pass)`, () => {
+      expect(run(weapon, coverMap("sandbags", { minX: 10.5, minY: 15, maxX: 10.8, maxY: 17 }), PX + 1.2, PY)).toBe(dmg);
+      expect(run(weapon, coverMap("barrier", { minX: 10.5, minY: 15, maxX: 10.7, maxY: 17 }), PX + 1.2, PY)).toBe(dmg);
+    });
+    it(`${weapon}: across a spike trap or a mine (floor) = damage`, () => {
+      expect(run(weapon, PLACEHOLDER_MAP, PX + 1.2, PY, 1, 0, (w) => addBuildingAt(w, { id: 1, type: "spike_trap", ownerId: "p0", gx: 21, gy: 31, rot: 0, hp: 60 }))).toBe(dmg);
+    });
+    it(`${weapon}: behind a car = no damage; around the car's corner: hit iff the centre line clears the corner`, () => {
+      const car = coverMap("car", { minX: 10.5, minY: 14, maxX: 11, maxY: 16 }); // car ends at y = 16 (the player's row)
+      expect(run(weapon, car, PX + 1.2, PY - 0.5)).toBe(0); // centre line inside the car
+      // Body below the car's corner: the line (10,16) → (11.2,16.3) passes under the corner (y > 16 at x 10.5–11): hit.
+      expect(run(weapon, car, PX + 1.2, PY + 0.3, 1, 0.25)).toBe(dmg);
+      // Body partly behind the corner, centre line through the car (11.2, 15.8): no hit, even though the body pokes out.
+      expect(run(weapon, car, PX + 1.2, PY - 0.2, 1, -0.17)).toBe(0);
+    });
+  }
+  it("the client's cut feedback uses the same rule (meleeLineClear on the drawn world)", () => {
+    const world = createWorld({ balance, seed: 1, systems: STILL });
+    barricade(world);
+    expect(meleeLineClear(world, PX, PY, PX + 1.2, PY)).toBe(false);
+    expect(meleeLineClear(world, PX, PY, PX + 0.4, PY + 1.2)).toBe(true);
   });
 });
 
