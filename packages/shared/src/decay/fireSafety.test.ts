@@ -15,7 +15,7 @@ import { startBuild, startWave } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import { applyDecayStage } from "./applyDecayStage";
 import { legalDecayMasks, type FireRecord } from "./decayState";
-import { moveOutOfNewFires, relocateBodies, relocated } from "./decaySystem";
+import { decayMutate, moveOutOfNewFires, relocateBodies, relocated } from "./decaySystem";
 import { circleInFire } from "./fire";
 
 /**
@@ -182,6 +182,44 @@ describe("Story 4.8 re-review: relocation and run-start placement avoid fires", 
       checked++;
     }
     expect(checked).toBe(45);
+  });
+});
+
+describe("Fix re-review (2026-11-23): relocation's team-start step and the counts", () => {
+  /** A player at street_car_west's centre (inside the car box and its new fire), ring 1 only. */
+  function stuckInCar() {
+    const b = { ...balance, player: { ...balance.player, returnSearchRings: 1 }, decay: { ...balance.decay, relocateSearchRings: 1 } };
+    const w = createWorld({ balance: b, seed: 5, map: DT, systems: QUIET });
+    const p = addPlayer(w, "p", 1, 1);
+    startBuild(w);
+    applyDecayStage(w, 3, maskOf(DT, "fire_street_car_west"));
+    const f = w.decay.fires[0] as FireRecord;
+    place(p, f.x, f.y); // ring 1 (1.5 m) lies inside the 2 m zone in every direction
+    return { w, p, f };
+  }
+
+  it("L1: with every ring spot in the fire, relocation skips a team start that is in a fire and takes the next one", () => {
+    const { w, p } = stuckInCar();
+    const at = { x: 0, y: 0 };
+    const s0 = { ...teamSpawnPoint(w, 0, at) };
+    const s1 = { ...teamSpawnPoint(w, 1, at) };
+    // A (test-only) fire on team start 0.
+    (w.decay.fires as FireRecord[]).push({ name: "test_fire", target: "none", x: s0.x, y: s0.y, radiusM: 1, stage: 3, index: 31 });
+    relocateBodies(w);
+    expect(relocated.players).toBe(1);
+    expect(relocated.leftInFire).toBe(0);
+    expect([p.x, p.y]).toEqual([s1.x, s1.y]); // liveness: the team-start step was reached, slot 0 skipped
+    expect(inFire(w, p)).toBe(false);
+  });
+
+  it("L2: a build start that changes nothing leaves no stale relocation counts", () => {
+    const { w } = stuckInCar();
+    relocateBodies(w);
+    expect(relocated.players).toBe(1);
+    relocated.leftInFire = 3; // as if an earlier build start had counted some
+    expect(decayMutate(w, 3)).toBe(false); // stage 3 again: nothing changes
+    expect(relocated.players).toBe(0);
+    expect(relocated.leftInFire).toBe(0);
   });
 });
 

@@ -152,6 +152,16 @@ function relocateZombie(world: World, id: number): number {
  */
 export const relocated = { players: 0, zombies: 0, zombiesRemoved: 0, playersStuck: 0, outOfFire: 0, leftInFire: 0 };
 
+/** Zeroes every `relocated` count (each build start; the steps below then count from 0). */
+function resetRelocated(): void {
+  relocated.players = 0;
+  relocated.zombies = 0;
+  relocated.zombiesRemoved = 0;
+  relocated.playersStuck = 0;
+  relocated.outOfFire = 0;
+  relocated.leftInFire = 0;
+}
+
 /** Directions tried round a fire when moving a player out of it (16: every 22.5°). */
 const FIRE_EXIT_DIRECTIONS = 16;
 /** Past the touching distance, so the body is strictly outside the zone. */
@@ -234,6 +244,7 @@ export function relocateBodies(world: World): void {
  */
 export function decayMutate(world: World, stage: number): boolean {
   resetBurnClocks(world); // re-review L2: every build start (also when nothing else changes)
+  resetRelocated(); // fix re-review L2: no stale counts after a build start that changes nothing
   const coming = world.waves.number + 1;
   const changed = applyDecayStage(world, stage, world.decay.variants, fireExpiry(world, stage, coming));
   const lit = newlyLitFires(world); // Story 4.8 review M1/M2: before they get their end wave

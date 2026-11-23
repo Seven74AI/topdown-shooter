@@ -214,3 +214,9 @@ Fresh re-review of c97dbfd (plus the coordinator's two extra items from the 4.3 
 - 2026-11-22: Story file written (gds-create-story) and built: car fires (2 of 3 cars, 10 dmg/s, 2 waves, flow cost, sync on change, hurt cue), tests and mutations; merged 4.6/4.7 (9009877), map regenerated, 45 combinations re-checked. Status review.
 - 2026-11-22: Review fixes M1–M3, L4–L7 and the zombie-order test; Status done.
 - 2026-11-23: Re-review fixes H1 (fire-aware placement, D18), L1, L2 (D19), L3; 4.3 L2 and 4.1 L1 tests.
+
+### Fresh review of the re-review fixes (2026-11-23, main session)
+
+A fresh agent reviewed `53ae55b..47ad6c1+` (this branch's 99b19ef and the 4.9 re-review branch's d136945), mutation-tested 13 changes and ran a browser check (stages 1→2→3→1, fire rings drawn at stage 3, three restarts, one city texture each, no page errors). No high or medium findings. Two lows were fixed by the main session:
+- **L1:** relocation's fire-aware team-start step was untested (mutation `boxOrFireBlocked` → `boxBlocked` survived). New test in `fireSafety.test.ts`: every ring spot in the fire, a fire on team start 0 → the player lands on team start 1; the mutation now fails it.
+- **L2:** `relocated.*` went stale after a build start that changed nothing. `decayMutate` now zeroes every count first (`resetRelocated`); new test; removing the reset fails it.
