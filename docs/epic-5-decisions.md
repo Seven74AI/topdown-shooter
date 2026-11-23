@@ -4,7 +4,7 @@
 
 Written 2026-11-23 from the 13 story files (`_bmad-output/implementation-artifacts/5-*.md`). Each line is the story writer's **recommended value**. "ok" accepts all of them; change any line by its code (e.g. "5.8 D1: halve it").
 
-Every story also starts with an **art pick**: the designer chooses the look from ~5 Meshy proposals before it's built (like 4.11).
+Every story also starts with an **art pick**: the designer chooses the look from ~5 code-drawn proposals (Meshy/vector images only as references; see "Art method" below) before it's built.
 
 ## The ones worth a look (game feel)
 
@@ -144,4 +144,31 @@ Page: claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3 (code drawings in `docs/art/5-16
 
 ## Bear trap (5.14) (designer, 2026-11-23: "Okay with everything")
 
-All recommended values in `_bmad-output/implementation-artifacts/5-14-bear-trap.md` › Designer decisions accepted: 1 × 1 m floor trap, plate = zombie centre within 0.35 m; snap 5 damage, holds 3 s (a Brute 1.5 s, trap wears normally; Bloater full 3 s); a held zombie can't move or be pushed but still bites/spits/swells in reach; one zombie per catch; never catches players or in a build phase; afterwards it is closed and harmless until any player stands on it 1 s (free, any phase), and every trap re-arms at build start; $50, 100 HP, 25 HP per catch (4 catches), repairable; fire and Bloater blasts wear it, mines don't; closed look = B-T1 with jaws shut, drawn in code, designer reviews the screenshot.
+All recommended values in `_bmad-output/implementation-artifacts/5-14-bear-trap.md` › Designer decisions accepted: 1 × 1 m floor trap, plate = zombie centre within 0.35 m; snap 5 damage, holds 3 s (a Brute 1.5 s, trap wears normally; Bloater full 3 s); a held zombie can't move or be pushed but still bites/spits/swells in reach; one zombie per catch; never catches players or in a build phase; afterwards it is closed and harmless until any player stands on it 1 s (free, any phase), and every trap re-arms at build start; $50, 100 HP, 25 HP per catch (4 catches), repairable; fire wears it, mine and Bloater blasts don't (as the spike trap: blasts only damage walls; builder's correction, accepted by the main session 2026-11-23); closed look = B-T1 with jaws shut, drawn in code, designer reviews the screenshot.
+
+## Alignment answers (designer, 2026-11-23)
+
+Answers to the 16 open questions in `docs/alignment/alignment-check-2026-11-23.md`. Designer: "everything okay", so the report's recommendation stands for every question, except Q2 and Q15. Q1, Q5, Q6 and Q7 were settled earlier the same day.
+
+| Q | Topic | Answer |
+| --- | --- | --- |
+| Q1 | Medkit in build phases vs. hidden buttons | In build phases the **consumable and swap buttons move above the build bar's top-left** instead of hiding. Built by 5.12. |
+| Q2 | Epic 9 art | **No hiring at all** ("we won't hire anybody"). Epic 9 is a polish pass of the code-drawn art **and** audio, made without hiring: code/procedural, or licensed/free libraries. No hired artist, no hired sound designer. |
+| Q3 | Supplies unlock prices | Gas torch 350, Bear trap 100, one "Barricade upgrades" unlock (reinforced + metal) 150. |
+| Q4 | Small-phone layout | The 5.20 undo chip sits above the build bar's top-left; the 5.21 action bar keeps 78 × 56 at bottom 112; ACs checked at 568 × 320 and 800 × 360 with ≥ 12 px gaps. |
+| Q5 | Who builds the item chip | **5.19** builds it (not 5.18). |
+| Q6 | Molotov fire across walls and cars | Same rule as acid: a fire zone hurts only with a clear line from the zone centre (plus a test). Built by 5.12. |
+| Q7 | Bear trap | As the designer's 5.14 decisions D1–D12 (section "Bear trap (5.14)" on the 5.14 branch): a Brute is held 1.5 s; any standing player re-arms a closed trap by standing on it 1 s; every trap re-arms at build start; worn out after 4 catches; held zombies don't block players. Bloater blasts: see the open point below. |
+| Q8 | Boss and event cover | Behemoth slam and throw ignore cover ("the drawn zone is the promise"). The gas-leak blast uses the normal blast line of sight. Ruins rubble stops melee and blasts; lobs fly over it (it is not `building: true`). |
+| Q9 | Downed players and event pickups | Standing players only take the supply crate or lead the survivor NPC. |
+| Q10 | Earnings decision owner | The Epic 5 balance pass after round E (4.10 is deferred); recorded in the GDD Economy section. |
+| Q11 | Building cap | Keep 6 per player; review it in the Epic 5 balance pass. |
+| Q12 | Solo status | "Solo is allowed, not balance-tuned"; solo runs at × 0.4. |
+| Q13 | Card pool exhaustion | Show fewer cards; Reroll is disabled when no new draw exists. |
+| Q14 | Ping button | Top-right or by the minimap, hidden while holding a building; pings draw above the blackout darkness. |
+| Q15 | Reference phones | The Honor 10 is **not** a test phone. The low-end floor is the **Xiaomi Mi 11** (designer wrote "Xiaomi i11"; confirm the exact model). It replaces the Honor 10 everywhere (7.9 budgets, NFR1, 10.2). |
+| Q16 | Turret kill pay during the 120 s reconnect hold | Turret kills keep paying into the held wallet during the 120 s, then stop. |
+
+**Open point for the designer (Q7):** the 5.14 story's accepted text says "fire and Bloater blasts wear it, mines don't", but the answer passed on for this pass says "Bloater blasts don't wear floor traps". Which one holds?
+
+Applied by the course correction in `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-23.md`.

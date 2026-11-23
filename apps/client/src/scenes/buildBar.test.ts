@@ -194,6 +194,16 @@ describe("stepBuildBar (AC 6–10)", () => {
     expect(stepBuildBar(m, frame(), out()).pick).toBe(""); // consumed: a second frame picks nothing
   });
 
+  it("Story 5.18 (Q2): within the quiet window after the hand empties a tap picks nothing and toasts nothing (it was meant for Place); the bar still shows and the tap is consumed", () => {
+    const m = model();
+    m.buildPick = "spike_trap";
+    expect(stepBuildBar(m, frame({ wallet: 20, quiet: true }), out())).toEqual({ show: true, pick: "", toast: "" });
+    expect(m.buildPick).toBe("");
+    m.buildPick = "wood_barricade";
+    expect(stepBuildBar(m, frame({ quiet: false }), out()).pick).toBe("wood_barricade");
+    expect(balance.controls.build.barQuietMs).toBe(300);
+  });
+
   it("too expensive → the money toast, nothing picked; at the cap → the limit toast first", () => {
     const m = model();
     m.buildPick = "auto_turret";

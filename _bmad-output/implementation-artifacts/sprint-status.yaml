@@ -131,7 +131,7 @@ development_status:
   5-15-carry-the-ghost-and-keep-moving: done  # building UX BX-1
   5-16-build-bar-replaces-the-shop-for-buildings: done  # building UX BX-2
   5-17-why-it-s-red: done  # building UX BX-3
-  5-18-place-place-place-chain-and-pending-under-lag: backlog  # building UX BX-4
+  5-18-place-place-place-chain-and-pending-under-lag: done  # building UX BX-4
   5-19-thumb-drag-to-nudge-and-pin: backlog  # building UX BX-5
   5-20-take-back-sell-and-undo: backlog  # building UX BX-6
   5-21-building-action-bar: backlog  # building UX BX-7
@@ -140,7 +140,7 @@ development_status:
   5-24-teammates-ghosts: backlog  # building UX BX-10
   5-25-mouse-and-keys-parity-optional: backlog  # building UX BX-11
   5-26-build-bar-icons: done  # designer 2026-11-23: I1 tilted icons, T1 turret (T2 kept), M1 mine; after 5.16
-  5-27-build-bar-icons-floodlight-med-station-bear-trap: backlog  # designer approved round 3 icons 2026-11-23
+  5-27-build-bar-icons-floodlight-med-station-bear-trap: done  # designer approved round 3 icons 2026-11-23
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless

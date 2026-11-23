@@ -170,6 +170,8 @@ export interface BuildBarFrame {
   owned: number;
   cap: number;
   wallet: number;
+  /** Story 5.18 (Q2): the hand emptied less than `controls.build.barQuietMs` ago: a tap picks nothing (it was meant for Place). */
+  quiet?: boolean;
 }
 
 /** `stepBuildBar`'s answer (one reused object): show the bar, pick this type ("" = none), toast this ("" = none). */
@@ -199,7 +201,7 @@ export function stepBuildBar(
   out.toast = "";
   m.buildOwned = f.owned;
   m.buildCap = f.cap;
-  if (pick === "" || !wasShown || !out.show) return out;
+  if (pick === "" || !wasShown || !out.show || f.quiet === true) return out;
   const items = m.buildItems;
   for (let i = 0; i < items.length; i++) {
     const item = items[i] as BuildTile;

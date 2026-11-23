@@ -146,6 +146,9 @@ export interface NetSimHostOptions {
  * 3. every other server event once the render tick reaches its tick. My own server
  * `weapon.fired` / `melee.swung` are dropped: the local ones already played.
  */
+/** Story 5.18: refusals waiting for their next patch (≥ the placements one client has in flight: 6). */
+const REFUSAL_RING = 8;
+
 export class NetSimHost implements SimHost {
   readonly world: World;
   readonly localPlayerId: string;
@@ -229,8 +232,18 @@ export class NetSimHost implements SimHost {
   /** Story 2.9: reused `playerInfo` answer. */
   private readonly info: { slot: number; name: string } = { slot: 0, name: "" };
   private latest: RunStateView | null = null;
-  /** Story 3.4: the latest `building.refused`, until the scene takes it. */
-  private refusal: PlaceError | null = null;
+  /**
+   * Story 3.4: `building.refused` answers, until the scene takes them. Story 5.18 (AC 8): a ring in
+   * arrival order, each with the room state's tick when it came; one is handed on only once the
+   * mirror World shows a newer patch, so every building the server accepted before it is drawn
+   * (the scene matches its pending boxes in that order: refusals carry no request id).
+   */
+  private readonly refusals: (PlaceError | null)[] = new Array<PlaceError | null>(REFUSAL_RING).fill(null);
+  private readonly refusalTicks = new Float64Array(REFUSAL_RING);
+  private refusalHead = 0;
+  private refusalCount = 0;
+  /** Story 5.18 (review L1): refusals the full ring had to drop. */
+  placeRefusalsDropped = 0;
   /** Story 3.7: the latest `building.repair_refused`, until the scene takes it. */
   private repairRefusal: RepairError | null = null;
   /** Story 5.9: the last upgrade refusal, until the scene takes it. */
@@ -277,9 +290,7 @@ export class NetSimHost implements SimHost {
     this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
     this.offs.push(opts.session.onHorde((b) => this.hordeStats.receive(b)));
     this.offs.push(
-      opts.session.onBuildingRefused((reason) => {
-        this.refusal = reason;
-      }),
+      opts.session.onBuildingRefused((reason) => this.queueRefusal(reason)),
     );
     this.offs.push(opts.session.onShopAnswer((a) => this.shopAnswers.push(a)));
     this.offs.push(
@@ -391,10 +402,28 @@ export class NetSimHost implements SimHost {
     if (!this.disposed) this.session.room.send(C2S.BUILDING_PLACE, { type: req.type, gx: req.gx, gy: req.gy, rot: req.rot });
   }
 
+  /** Story 5.18: the oldest refusal once the mirror World holds a patch newer than the one it came after (AC 8), else null. */
   takePlaceRefusal(): PlaceError | null {
-    const r = this.refusal;
-    this.refusal = null;
+    if (this.refusalCount === 0 || !(this.world.tick > (this.refusalTicks[this.refusalHead] as number))) return null;
+    const r = this.refusals[this.refusalHead] ?? null;
+    this.refusals[this.refusalHead] = null;
+    this.refusalHead = (this.refusalHead + 1) % REFUSAL_RING;
+    this.refusalCount--;
     return r;
+  }
+
+  private queueRefusal(reason: PlaceError): void {
+    if (this.disposed) return;
+    if (this.refusalCount === REFUSAL_RING) {
+      // full (≤ 4 sends/s make this a broken link): the oldest goes; its box times out instead
+      this.refusalHead = (this.refusalHead + 1) % REFUSAL_RING;
+      this.refusalCount--;
+      this.placeRefusalsDropped++;
+    }
+    const i = (this.refusalHead + this.refusalCount) % REFUSAL_RING;
+    this.refusals[i] = reason;
+    this.refusalTicks[i] = this.session.room.state?.tick ?? 0;
+    this.refusalCount++;
   }
 
   /** Story 3.7: `building.repair`; HP and wallet come back in the state, a refusal as `building.repair_refused`. */

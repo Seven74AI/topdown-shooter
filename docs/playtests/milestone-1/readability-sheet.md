@@ -37,6 +37,15 @@ Player:
 27 what:            what does it do?
 28 what is about to happen? where is it safe?
 29 what is the green cloud? what does it do to you?
+30 what is the small thing in the air? what does the ring show?
+31 why is the ring orange here?
+32 what:            what does it do?
+33 what:            what does it do?
+34 what is the survivor holding? what does it do?
+35 what is the survivor holding? what does it do?
+36 what is happening to these zombies?
+37 what:            bullets:
+38 what:            what happens inside the green ring?
 ```
 
 ## 1
@@ -116,7 +125,7 @@ Player:
 ## 30: the small thing in the air, and the ring ahead (Story 5.5)
 ![30](objects/31_grenade_round.png)
 
-## 31: the orange ring at the car (Story 5.5)
+## 31: the orange ring at the car, aimed onto the car's roof (Story 5.5)
 ![31](objects/32_landing_ring_car.png)
 
 ## 32, 33: two blasts (Story 5.5)

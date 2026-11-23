@@ -53,6 +53,8 @@ export interface SimHost {
   placeBuilding(req: PlaceRequest): void;
   /** The oldest placement refusal not taken yet, or null. */
   takePlaceRefusal(): PlaceError | null;
+  /** Story 5.18 (review L1): placement refusals dropped before the scene took them (a full queue), since the host started. */
+  readonly placeRefusalsDropped: number;
   /**
    * Story 3.7: ask to repair building `id` (anyone's) to full HP, paid from my wallet (the server
    * validates; solo runs the same rules now). A refusal comes back through `takeRepairRefusal`.

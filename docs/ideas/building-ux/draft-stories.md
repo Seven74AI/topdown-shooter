@@ -19,6 +19,7 @@
 - **F5 Moving keeps everything:** HP, wear (5.9 spike trap), tier, owner and kill credit. It never repairs.
 - **F6 Cap:** placed + pending ≤ `maxPerPlayer`; a move doesn't change the count.
 - **F7 Cosmetic is cosmetic:** teammate ghosts never block, never leave the build phase.
+- **F8 Standing only:** every place / move / sell / repair / upgrade is refused while I'm downed or out (`not_alive`, 5.11 M1; Story 5.20 adds it to place, repair and upgrade).
 
 **Suggested order and size** (S ≈ 1 build/review loop, M ≈ 2):
 
@@ -66,10 +67,10 @@ As a player, I want my buildings under my right thumb, so that I don't open a me
 
 **Acceptance criteria**
 1. **Given** a build phase with empty hands and nothing selected, **then** the bottom-right shows a **4 × 2 grid of 56 px tiles** (8 px gaps, 16 px inset): every building where `forSale && inShop` (5.10's flag) in balance order, and **🛒 Shop** as the last tile. 5.14's bear trap appears without UI changes.
-2. Each tile shows the building's icon (the same code-drawn art as in the world) and price. **When** I can't afford it, **then** the tile is at 40 % opacity with a red price; **when** I'm at the cap, the count above the grid reads "6/6" in red.
+2. Each tile shows the building's own I1 build-bar icon (5.26/5.27; the world art is only the fallback) and price. **When** I can't afford it, **then** the tile is at 40 % opacity with a red price; **when** I'm at the cap, the count above the grid reads "6/6" in red.
 3. **When** I tap an affordable tile, **then** that building is in my hands (BX-1) at once. **When** I tap an unaffordable tile or I'm at the cap, **then** nothing is picked and the reason toasts ("Need $250 (you have $180)", "Building limit reached (6)").
 4. The Shop tile opens today's shop (weapons, upgrades, 5.13 cards). The shop no longer lists buildings, and the separate Shop button next to Ready is gone.
-5. The grid is hidden while holding (hand cluster) and while a building is selected (BX-7).
+5. The grid is hidden while holding (hand cluster), while a building is selected (BX-7) and while I'm downed/out. In build phases the swap and consumable buttons sit above the grid's top-left (designer, 2026-11-23; built by 5.12).
 6. More than 7 building types: the 7th tile becomes "More ▸" and pages. (Not needed today.)
 
 **Tests:** tile list from balance (with `inShop: false` hidden), affordability and cap states, shop no longer lists buildings, a browser screenshot at 800 × 360 and 1024 × 768.
@@ -87,7 +88,7 @@ As a player, I want to know why I can't build somewhere and what's in the way, s
 4. While I hold anything, every spawn's 2 m no-build circle in view is drawn faint (red 12 % fill, dashed edge).
 5. Blocked ghosts get a 45° hatch and a ✕ glyph as well as the red colour (colour-blind safe). Place turns grey with a red ring but still sends (the server judges, as today).
 6. Range rings from balance: turret `rangeM`, mine trigger/blast (today), med station `heal.radiusM`, floodlight `light.radiusM`, bear trap plate.
-7. A reason stays on screen ≥ 250 ms before switching back to valid (no flicker while walking past a teammate).
+7. Blocked turns red at once; the look goes back to valid only after 250 ms of continuous clear (every blocked frame restarts the clock; as built in 5.17, review L1).
 
 **Fairness / beat the rule:** the client explanation never disagrees with the server's accept/refuse for the same World (the fuzz test). Reviewers try a spot that's off-map *and* near a spawn (first cause wins, matching the order).
 
@@ -133,9 +134,9 @@ As a player, I want to nudge the ghost with my right thumb without covering it, 
 As a player, I want to undo a misplaced building and sell old ones, so that a mistake costs nothing and I can rebuild my defence.
 
 **Acceptance criteria**
-1. **Server:** C2S `building.sell { id }` (int 1–65535, strict, `this.net.guard`). Shared `sellBuilding(world, playerId, id)` checks in order: unknown player → not build phase → gone → not owner; refunds per F2, removes the building (`version++`, `wallVersion++` if solid), emits `building.sold { buildingId, ownerId, refund, x, y }` (new net event kind). Refusal S2C `building.sell_refused { id, reason }`.
+1. **Server:** C2S `building.sell { id }` (int 1–65535, strict, `this.net.guard`). Shared `sellBuilding(world, playerId, id)` checks in order: unknown player → `not_alive` → not build phase → gone → not owner; refunds per F2, removes the building (`version++`, `wallVersion++` if solid), emits `building.sold { buildingId, ownerId, refund, x, y }` (new net event kind). Refusal S2C `building.sell_refused { id, reason }`.
 2. **Server bookkeeping:** each building keeps `paid` (price + upgrades) and `paidThisBuild` (reset to 0 at every build start). Server-only: not synced, not in `snapshotWorld`'s client view; in `snapshotWorld` for determinism.
-3. **Undo chip ↶** (48 px at (270, 64), or (300, 64) with empty hands) for **10 s** (designer) after each placement, with a draining ring; pressing it sells that building (100 % refund). If the placement is still pending, the undo is sent as soon as it's placed.
+3. **Undo chip ↶** (48 px at (270, 64) while holding, or above the build bar's top-left with empty hands; designer 2026-11-23, checked at 568 × 320 and 800 × 360 with ≥ 12 px gaps) for **10 s** (designer) after each placement, with a draining ring; pressing it sells that building (100 % refund). If the placement is still pending, the undo is sent as soon as it's placed.
 4. The label reads **"Take back +$40"** for a building placed this build phase and **"Sell +$20"** otherwise (BX-7 shows it).
 5. FX: the building lifts and fades in 200 ms, "+$40" floats up; coins sound; 12 ms haptic.
 
@@ -166,7 +167,7 @@ As a player, I want the actions for a building under my right thumb, so that rep
 As a player, I want to pick up my building and put it somewhere else for free, so that I can fix a bad spot without losing money.
 
 **Acceptance criteria**
-1. **Server:** C2S `building.move { id, gx, gy, rot }` (strict, guard). Shared `moveBuilding(world, playerId, req)` checks: unknown player → not build phase → gone → not owner → the new footprint with the building itself ignored (`footprintBlocked(world, box, exceptId)`, the existing rules otherwise). On success it updates gx/gy/rot and the footprint, `version++` (`wallVersion++` if solid), emits `building.moved { buildingId, gx, gy, rot }`. Refused → nothing changes, `building.move_refused { id, reason }`.
+1. **Server:** C2S `building.move { id, gx, gy, rot }` (strict, guard). Shared `moveBuilding(world, playerId, req)` checks: unknown player → `not_alive` → not build phase → gone → not owner → the new footprint with the building itself ignored (`footprintBlocked(world, box, exceptId)`, the existing rules otherwise). On success it updates gx/gy/rot and the footprint, `version++` (`wallVersion++` if solid), emits `building.moved { buildingId, gx, gy, rot }`. Refused → nothing changes, `building.move_refused { id, reason }`.
 2. **Client:** Move ✥ or a long-press puts it in my hands: pinned at its current spot (carry mode: in front of me), its old spot drawn dashed (it still stands and blocks for everyone until the move is accepted). Place sends the move; ✕ puts it back (sends nothing). The Place label reads "MOVE", the reason line "Move Spike trap · free".
 3. Pending move: dashed at the new spot until `building.moved`; refusal shakes it there and the building stays where it was.
 

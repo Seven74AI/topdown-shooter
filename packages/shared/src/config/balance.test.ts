@@ -16,6 +16,9 @@ import economy from "./balance/economy.json" with { type: "json" };
 
 const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear })) as RawBalanceFiles;
 
+/** Story 5.18: the chain and pending numbers in controls.build. */
+const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, chainUnpinWalkM: 2, barQuietMs: 300 } as const;
+
 describe("loadBalance", () => {
   it("loads the bundled files into a typed object", () => {
     const b = loadBalance();
@@ -161,10 +164,10 @@ describe("loadBalance", () => {
   });
 
   it("Story 5.15: controls.build (carry gap, snap and auto-rotate hysteresis) loads, defaults and is bounded", () => {
-    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250 });
+    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN });
     const d = raw();
     delete (d.controls as { build?: unknown }).build;
-    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250 });
+    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN });
     const h = raw();
     (h.controls as { build: { snapHysteresisM: number } }).build.snapHysteresisM = 0.25; // half a cell: the index would never settle
     expect(() => loadBalance(h)).toThrow(/controls\.json: build\.snapHysteresisM: /);
@@ -184,6 +187,20 @@ describe("loadBalance", () => {
     const l = raw();
     (l.controls as { build: { reasonHoldMs: number } }).build.reasonHoldMs = 2001;
     expect(() => loadBalance(l)).toThrow(/controls\.json: build\.reasonHoldMs: /);
+  });
+
+  it("Story 5.18: controls.build chain/pending numbers (timeout 2 s, send gap 250 ms, step 1 m, unpin walk 2 m) default each and are bounded", () => {
+    expect(loadBalance().controls.build).toMatchObject(CHAIN);
+    for (const k of Object.keys(CHAIN) as (keyof typeof CHAIN)[]) {
+      const d = raw();
+      delete (d.controls as { build: Record<string, unknown> }).build[k];
+      expect(loadBalance(d).controls.build[k]).toBe(CHAIN[k]);
+    }
+    for (const [k, bad] of [["pendingTimeoutMs", 100], ["pendingTimeoutMs", 10001], ["chainSendGapMs", 149], ["barQuietMs", 2001], ["chainMinStepM", 0.4], ["chainUnpinWalkM", -1]] as const) {
+      const d = raw();
+      (d.controls as { build: Record<string, unknown> }).build[k] = bad;
+      expect(() => loadBalance(d)).toThrow(new RegExp(`controls\\.json: build\\.${k}: `));
+    }
   });
 
   it("rejects a run whose last wave overflows the per-type counts (3.10 review)", () => {
