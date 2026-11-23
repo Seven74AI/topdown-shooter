@@ -1,9 +1,8 @@
 /**
  * Story 5.6: the Spitter, drawn in game code (designer's art method, `docs/epic-5-decisions.md`).
- * Ported from the round-2 code drawing P2 "Spitter, thin woman" (`docs/art/epic-5/round-a/
- * code-drawings.html`): hunched in a hospital gown, an enormous distended jaw glowing acid green,
- * glowing chest slits, long stringy hair falling back, drool. The designer's final pick (P2 / P4) is
- * still open: the whole look lives in `drawSpitter`, so another drawing drops in here alone.
+ * Designer's pick (2026-11-23): **P4 "gaunt"**, ported from the round-2 code drawing
+ * (`docs/art/epic-5/round-a/code-drawings.html`): pustules on back and shoulders, an open mouth
+ * dripping acid, a trail of acid drops. The whole look lives in `drawSpitter`.
  *
  * The reference draws in metres, facing +y, ~0.8 m tall; the atlas wants px, facing +x, centred on
  * the body (`r` px = the 0.35 m collision radius). The cast shadows of the reference are left out
@@ -19,13 +18,13 @@ const TAU = Math.PI * 2;
 /** Body radius (m) the reference is drawn around. */
 const REF_BODY_R_M = 0.35;
 /**
- * The reference is drawn small for its 0.35 m body (back 0.37 m wide); in game it stood half the
- * width of a Walker's shoulders and read as a dot. Drawn this much larger so it matches a Walker's
- * bulk (back ~0.6 m, jaw reaching ~0.45 m ahead): a distinct, readable silhouette (AC 17).
+ * The reference is drawn small for its 0.35 m body (back 0.27 m wide); at that size it read as a dot
+ * next to a Walker. Drawn this much larger so it matches a Walker's bulk (back ~0.46 m, arms
+ * ~0.8 m across, mouth ~0.55 m ahead): a distinct, readable silhouette at ~0.8 m (AC 17).
  */
-export const SPITTER_ART_SCALE = 1.6;
+export const SPITTER_ART_SCALE = 1.7;
 /** The reference's body centre (m): the frame centre. */
-const REF_CENTRE_Y_M = 0.09;
+const REF_CENTRE_Y_M = 0.02;
 /** One device px in reference units (set per drawing). */
 let P = 1;
 
@@ -342,12 +341,29 @@ function acidDrop(c: G, x: number, y: number, r: number, pu: number, gl = 1, glo
   fillP(c, (c) => E(c, x - r * 0.35, y - r * 0.35, r * 0.28, r * 0.2), "rgba(255,255,255,0.7)");
 }
 
-/** Gown colours per variant (a crowd of Spitters is not all one gown). */
-export const SPITTER_GOWNS = ["#4f5d5b", "#5a524a"] as const; // darker than the reference: the bright jaw carries the silhouette at night
+/** Skin tones per variant (a crowd of Spitters is not all one colour). */
+export const SPITTER_SKINS = ["#7f806c", "#7a7466"] as const;
+
+function foot(c: G, x: number, y: number, a: number, col: string, s: number): void {
+  c.save();
+  c.translate(x, y);
+  c.rotate(a);
+  c.scale(s, s);
+  part(c, (c) => E(c, 0, 0, 0.038, 0.068), { base: col, lit: "radial", box: [-0.038, -0.068, 0.038, 0.068], hi: 0.3, lo: 0.45, rim: 0.25 });
+  for (let i = 0; i < 5; i++) {
+    const tx = -0.026 + i * 0.013;
+    const ty = 0.066 - Math.abs(i - 1.5) * 0.004;
+    fillP(c, (c) => E(c, tx, ty, 0.0075, 0.009), col);
+  }
+  c.restore();
+}
 
 /**
- * The Spitter, top-down, facing +x, centred on its body, `r` = collision radius in px. `windup`:
- * the rearing-back pose (jaw wider, mouth and chest blazing) shown while it winds up (the telegraph).
+ * The Spitter (designer's pick: P4 "gaunt", round 2), top-down, facing +x, centred on its body, `r` =
+ * collision radius in px: a bony bare back and shoulders covered in glowing green pustules, ribs and
+ * spine showing, torn trousers, long clawed arms reaching forward, a small head with an open mouth
+ * dripping acid, a short trail of acid drops behind. `windup`: the rearing-back pose (mouth gaping
+ * and blazing, pustules flaring, arms pulled back) shown while it winds up (the telegraph).
  */
 export function drawSpitter(c: G, r: number, variant: number, windup: boolean): void {
   const ppm = (r / REF_BODY_R_M) * SPITTER_ART_SCALE;
@@ -356,162 +372,192 @@ export function drawSpitter(c: G, r: number, variant: number, windup: boolean): 
   c.scale(ppm, ppm);
   c.translate(0, -REF_CENTRE_Y_M);
   P = 1 / ppm;
-  const pu = windup ? 1.6 : 0.85;
-  const SK = "#8e938a";
-  const GOWN = SPITTER_GOWNS[variant % SPITTER_GOWNS.length] as string;
-  const back: Path = (c) => {
-    c.moveTo(-0.185, 0.055);
-    c.bezierCurveTo(-0.2, 0.12, -0.13, 0.15, -0.07, 0.145);
-    c.quadraticCurveTo(0, 0.158, 0.07, 0.145);
-    c.bezierCurveTo(0.13, 0.15, 0.2, 0.12, 0.185, 0.055);
-    c.bezierCurveTo(0.18, -0.01, 0.16, -0.08, 0.12, -0.12);
-    for (const [x, y] of [
-      [0.09, -0.138],
-      [0.06, -0.13],
-      [0.03, -0.146],
-      [0.0, -0.136],
-      [-0.03, -0.148],
-      [-0.06, -0.132],
-      [-0.09, -0.14],
-      [-0.12, -0.12],
-    ] as const)
-      c.lineTo(x, y);
-    c.bezierCurveTo(-0.16, -0.08, -0.18, -0.01, -0.185, 0.055);
+  const pu = windup ? 1.7 : 0.9;
+  const SK = SPITTER_SKINS[variant % SPITTER_SKINS.length] as string;
+  const PANTS = "#363b44";
+  const tor: Path = (c) => {
+    c.moveTo(0, 0.175);
+    c.bezierCurveTo(0.1, 0.175, 0.15, 0.11, 0.135, 0.02);
+    c.bezierCurveTo(0.125, -0.07, 0.09, -0.15, 0, -0.165);
+    c.bezierCurveTo(-0.09, -0.15, -0.125, -0.07, -0.135, 0.02);
+    c.bezierCurveTo(-0.15, 0.11, -0.1, 0.175, 0, 0.175);
     c.closePath();
   };
-  // Windup: the arms pull back and the jaw drops further (rearing back).
-  const pull = windup ? -0.03 : 0;
-  const armL = [-0.16, 0.08, -0.215, 0.17 + pull, -0.195, 0.268 + pull * 2];
-  const armR = [0.16, 0.085, 0.218, 0.175 + pull, 0.2, 0.272 + pull * 2];
-  const jy = windup ? 1.12 : 1; // jaw length factor
-  const jaw: Path = (c) => {
-    c.moveTo(-0.05, 0.19);
-    c.bezierCurveTo(-0.07 * jy, 0.19 + 0.11 * jy, -0.042, 0.19 + 0.185 * jy, 0, 0.19 + 0.192 * jy);
-    c.bezierCurveTo(0.042, 0.19 + 0.185 * jy, 0.07 * jy, 0.19 + 0.11 * jy, 0.05, 0.19);
-    c.closePath();
-  };
-  const hd: Path = (c) => E(c, 0, 0.165, 0.082, 0.09);
-  const rnd = mulberry(77);
-  for (let i = 0; i < 6; i++) acidDrop(c, (rnd() - 0.5) * 0.14, 0.4 + rnd() * 0.08, 0.008 + rnd() * 0.01, pu, 0.6);
-  drawLimb(c, armL, [0.064, 0.05, 0.04], SK, 221);
-  hand(c, armL[4] as number, armL[5] as number, 1.7, 0.03, SK, 230);
-  drawLimb(c, armR, [0.064, 0.05, 0.04], SK, 222);
-  hand(c, armR[4] as number, armR[5] as number, 1.45, 0.03, SK, 240);
-  for (const s of [-1, 1]) part(c, (c) => blobPath(c, s * 0.172, 0.085, 0.056, 0.05, 210 + s, 0.18), { base: GOWN, lit: "radial", box: [s * 0.172 - 0.056, 0.035, s * 0.172 + 0.056, 0.135], hi: 0.28, lo: 0.45, tex: clothTex(211) });
-  part(c, back, { base: GOWN, lit: "radial", box: [-0.2, -0.21, 0.2, 0.16], hi: 0.32, lo: 0.58, tex: clothTex(212, "70,90,30") });
+  const thighL = [-0.07, -0.12, -0.185, -0.2];
+  const shinL = [-0.185, -0.2, -0.13, -0.3];
+  const thighR = [0.07, -0.12, 0.19, -0.195];
+  const shinR = [0.19, -0.195, 0.138, -0.298];
+  const pull = windup ? -0.035 : 0; // rearing back: hands come in toward the chest
+  const armL = [-0.11, 0.12, -0.235, 0.16 + pull, -0.215, 0.29 + pull * 2];
+  const armR = [0.11, 0.12, 0.24, 0.165 + pull, 0.205, 0.298 + pull * 2];
+  // a short acid trail behind (kept inside the frame)
+  const tr = mulberry(402);
+  for (let i = 0; i < 7; i++) {
+    const k = i / 6;
+    const x = 0.02 - 0.06 * k * k + Math.sin(k * 5) * 0.025 + (tr() - 0.5) * 0.02;
+    const y = -0.32 - k * 0.08;
+    acidDrop(c, x, y, 0.007 + tr() * 0.009 * (1 - k * 0.5), pu, 0.6, 2.5);
+  }
+  drawLimb(c, shinL, [0.058, 0.044], SK, 449);
+  drawLimb(c, shinR, [0.058, 0.044], SK, 451);
+  foot(c, -0.125, -0.32, Math.PI - 0.3, "#5d5e50", 0.72);
+  foot(c, 0.135, -0.318, Math.PI + 0.3, "#5d5e50", 0.72);
+  for (const [th, s] of [
+    [thighL, -1],
+    [thighR, 1],
+  ] as const) {
+    drawLimb(c, th, [0.09, 0.072], PANTS, 460 + s, { tex: clothTex(461), hi: 0.18 });
+  }
+  drawLimb(c, armL, [0.072, 0.056, 0.044], SK, 480);
+  drawLimb(c, armR, [0.072, 0.056, 0.044], SK, 481);
+  hand(c, armL[4] as number, armL[5] as number, 1.75, 0.033, SK, 490);
+  hand(c, armR[4] as number, armR[5] as number, 1.35, 0.033, SK, 495);
+  part(
+    c,
+    (c) => {
+      const rr = mulberry(403);
+      c.moveTo(-0.11, -0.11);
+      for (let i = 0; i <= 10; i++) c.lineTo(-0.11 + i * 0.022, -0.11 + (rr() - 0.5) * 0.022);
+      c.lineTo(0.1, -0.175);
+      c.lineTo(-0.1, -0.175);
+      c.closePath();
+    },
+    { base: "#2c3038", lit: "radial", box: [-0.11, -0.175, 0.11, -0.1], hi: 0.2, lo: 0.5, tex: clothTex(404) },
+  );
+  part(c, tor, { base: SK, lit: "radial", box: [-0.14, -0.17, 0.14, 0.18], hi: 0.36, lo: 0.62, tex: skinTex(405, 1.6) });
   c.save();
   c.beginPath();
-  back(c);
+  tor(c);
   c.clip();
-  const gap: Path = (c) => {
-    c.moveTo(-0.022, 0.14);
-    c.quadraticCurveTo(-0.042, 0.02, -0.018, -0.135);
-    c.lineTo(0.02, -0.135);
-    c.quadraticCurveTo(0.044, 0.02, 0.026, 0.14);
-    c.closePath();
-  };
-  part(c, gap, { base: SK, lit: "radial", box: [-0.044, -0.11, 0.044, 0.14], hi: 0.25, lo: 0.45, tex: skinTex(213), inner: 0.6, rim: 0 });
-  for (let y = -0.09; y < 0.13; y += 0.022) fillP(c, (c) => E(c, 0.003, y, 0.009, 0.0065), "#979c92");
-  for (const y of [0.085, -0.025])
-    strokeP(
-      c,
-      (c) => {
-        c.moveTo(-0.04, y);
-        c.quadraticCurveTo(0, y + 0.012, 0.042, y - 0.004);
-      },
-      "#b4beba",
-      1.8 * P,
-    );
-  fillP(c, (c) => blobPath(c, -0.09, -0.12, 0.05, 0.034, 214, 0.4), "rgba(70,40,25,0.42)");
-  // glowing chest slits (acid inside)
-  for (const s of [-1, 1]) {
-    glow(c, s * 0.13, 0.14, 0.08, "140,255,60", 0.38 * pu);
-    for (let i = 0; i < 3; i++)
+  // ribs and spine
+  for (let i = 0; i < 7; i++) {
+    const y = -0.11 + i * 0.029;
+    for (const s of [-1, 1]) {
       strokeP(
         c,
         (c) => {
-          c.moveTo(s * (0.11 + i * 0.022), 0.14);
-          c.lineTo(s * (0.11 + i * 0.022), 0.085 - i * 0.018);
+          c.moveTo(s * 0.02, y);
+          c.quadraticCurveTo(s * 0.075, y - 0.018, s * 0.14, y + 0.02);
         },
-        "rgba(160,240,60,0.75)",
-        2.2 * P,
+        "rgba(20,18,12,0.5)",
+        2.4 * P,
       );
+    }
+  }
+  for (const s of [-1, 1]) part(c, (c) => blobPath(c, s * 0.06, 0.09, 0.052, 0.06, 406 + s, 0.15, 40, s * 0.3), { base: "#878873", lit: "radial", box: [s * 0.06 - 0.052, 0.03, s * 0.06 + 0.052, 0.15], hi: 0.3, lo: 0.35, rim: 0.25, inner: 0.2, line: 0 });
+  for (let i = 0; i < 11; i++) {
+    const y = -0.15 + i * 0.03;
+    part(c, (c) => E(c, 0, y, 0.015, 0.011), { base: "#8e8f7a", lit: "radial", box: [-0.015, y - 0.011, 0.015, y + 0.011], hi: 0.45, lo: 0.5, rim: 0.25, line: 0.8, stroke: "rgba(20,18,12,0.6)" });
   }
   c.restore();
   c.beginPath();
-  back(c);
+  tor(c);
   c.strokeStyle = "rgba(6,6,7,0.9)";
   c.lineWidth = 1.4 * P;
   c.stroke();
-  // the distended jaw hanging forward, mouth glowing acid green
-  part(c, jaw, { base: "#858a81", lit: "radial", box: [-0.07, 0.19, 0.07, 0.19 + 0.192 * jy], hi: 0.32, lo: 0.5, tex: skinTex(215) });
-  const mo: Path = (c) => {
-    c.moveTo(-0.037, 0.205);
-    c.bezierCurveTo(-0.05 * jy, 0.205 + 0.095 * jy, -0.032, 0.205 + 0.152 * jy, 0, 0.205 + 0.155 * jy);
-    c.bezierCurveTo(0.032, 0.205 + 0.152 * jy, 0.05 * jy, 0.205 + 0.095 * jy, 0.037, 0.205);
-    c.closePath();
-  };
-  c.beginPath();
-  mo(c);
-  const g = c.createRadialGradient(0, 0.255, 0, 0, 0.28, 0.085 * jy);
-  g.addColorStop(0, `rgba(200,255,90,${Math.min(1, 0.95 * pu)})`);
-  g.addColorStop(windup ? 0.5 : 0.3, "rgba(80,150,25,0.95)");
-  g.addColorStop(windup ? 0.8 : 0.62, "#2e0c08");
-  g.addColorStop(1, "#150403");
-  c.fillStyle = g;
-  c.fill();
-  c.save();
-  c.beginPath();
-  mo(c);
-  c.clip();
-  const tr = mulberry(216);
-  for (let i = 0; i < 11; i++) {
-    const a = Math.PI * (0.1 + i * 0.08);
-    const x = Math.cos(a) * 0.036;
-    const y = 0.3 + Math.sin(a) * 0.056 * jy;
-    fillP(c, (c) => Pg(c, [x - 0.0042, y + 0.002, x + 0.0042, y + 0.002, x * 0.9, y - 0.011 - tr() * 0.007]), "#d6ccac");
+  // pustules on back and shoulders (glowing acid green: the Spitter's mark at a glance)
+  const pr = mulberry(410);
+  const pus: [number, number, number, boolean][] = [];
+  for (let i = 0; i < 24; i++) {
+    let x: number;
+    let y: number;
+    if (i < 13) {
+      const s = i % 2 ? 1 : -1;
+      x = s * (0.035 + pr() * 0.09);
+      y = 0.04 + pr() * 0.11;
+    } else {
+      x = (pr() - 0.5) * 0.2;
+      y = -0.12 + pr() * 0.17;
+    }
+    pus.push([x, y, 0.01 + pr() * (i < 13 ? 0.02 : 0.014), pr() < 0.2]);
   }
-  for (let i = 0; i < 6; i++) {
-    const x = -0.028 + i * 0.0112;
-    fillP(c, (c) => Pg(c, [x - 0.004, 0.206, x + 0.004, 0.206, x, 0.22 + tr() * 0.006]), "#cbbf9e");
+  for (const s of [-1, 1]) pus.push([s * 0.15, 0.13, 0.019, false], [s * 0.19, 0.15, 0.013, false], [s * 0.215, 0.19, 0.01, true]);
+  for (const [x, y, rr, burst] of pus) {
+    fillP(c, (c) => E(c, x, y, rr * 1.5, rr * 1.38), "rgba(125,55,40,0.5)");
+    if (burst) {
+      fillP(c, (c) => E(c, x, y, rr, rr * 0.9), "#1c270c");
+      glow(c, x, y, rr * 1.8, "120,255,40", 0.32 * pu);
+      const d = x > 0 ? 1 : -1;
+      strokeP(
+        c,
+        (c) => {
+          c.moveTo(x, y);
+          c.quadraticCurveTo(x + d * rr * 1.5, y + rr, x + d * rr * 2.4, y + rr * 2.6);
+        },
+        "rgba(165,242,60,0.85)",
+        rr * 0.35,
+      );
+      continue;
+    }
+    glow(c, x, y, rr * 2.3, "130,255,50", 0.24 * pu);
+    c.beginPath();
+    E(c, x, y, rr, rr * 0.92);
+    const g = c.createRadialGradient(x - rr * 0.35, y - rr * 0.4, 0, x, y, rr);
+    g.addColorStop(0, "#f4ffb8");
+    g.addColorStop(0.35, "#bdf24c");
+    g.addColorStop(0.8, "#5b9c1f");
+    g.addColorStop(1, "#2a4c0f");
+    c.fillStyle = g;
+    c.fill();
+    c.lineWidth = 0.9 * P;
+    c.strokeStyle = "rgba(28,38,10,0.9)";
+    c.stroke();
+    fillP(c, (c) => E(c, x - rr * 0.4, y - rr * 0.42, rr * 0.26, rr * 0.17, -0.6), "rgba(255,255,255,0.85)");
   }
-  c.restore();
-  c.beginPath();
-  mo(c);
-  c.strokeStyle = "rgba(20,5,4,0.9)";
-  c.lineWidth = 1.2 * P;
-  c.stroke();
-  // Readability (AC 17): the glowing mouth is the Spitter's mark at a glance (kept inside the frame: no clipped square).
-  glow(c, 0, 0.28, windup ? 0.2 : 0.14, "150,255,60", 0.7 * pu);
-  // head with long stringy hair falling back over the shoulders
-  part(c, hd, { base: "#30271f", lit: "radial", box: [-0.082, 0.075, 0.082, 0.255], hi: 0.32, lo: 0.6, rim: 0.35 });
-  const hr = mulberry(220);
-  for (let i = 0; i < 60; i++) {
-    const side = hr() < 0.5 ? -1 : 1;
-    const a = side * (0.15 + hr() * 1.25);
-    const x0 = Math.sin(a) * 0.014;
-    const y0 = 0.21;
-    const len = 0.07 + hr() * 0.11;
-    const x1 = Math.sin(a) * (0.08 + hr() * 0.06);
-    const y1 = 0.18 - len;
-    const end = x1 + (hr() - 0.5) * 0.02;
+  // head: ears, skull, thin hair, a wound, two small pustules
+  fillP(c, (c) => E(c, -0.074, 0.245, 0.014, 0.023), "#73735f");
+  fillP(c, (c) => E(c, 0.074, 0.245, 0.014, 0.023), "#73735f");
+  part(c, (c) => E(c, 0, 0.25, 0.075, 0.084), { base: "#8b8c78", lit: "radial", box: [-0.075, 0.166, 0.075, 0.334], hi: 0.48, lo: 0.58, tex: skinTex(420) });
+  const hr2 = mulberry(421);
+  for (let i = 0; i < 12; i++) {
+    const x = (hr2() - 0.5) * 0.08;
+    const y = 0.21 + hr2() * 0.07;
+    const ex = x + (hr2() - 0.5) * 0.02;
     strokeP(
       c,
       (c) => {
-        c.moveTo(x0, y0);
-        c.bezierCurveTo(Math.sin(a) * 0.075, 0.19, x1 * 1.1, y1 + 0.09, end, y1);
+        c.moveTo(x, y);
+        c.lineTo(ex, y - 0.026);
       },
-      i % 3 ? "rgba(30,23,18,0.9)" : "rgba(105,86,66,0.55)",
-      (0.8 + hr() * 1.5) * P,
+      "rgba(25,22,18,0.6)",
+      0.9 * P,
     );
   }
-  const dr: Path = (c) => {
-    c.moveTo(0, 0.19 + 0.188 * jy);
-    c.quadraticCurveTo(0.004, 0.4 * jy, 0.002, 0.425 * jy);
-  };
-  strokeP(c, dr, "rgba(30,70,8,0.8)", 0.008 + 1.4 * P);
-  strokeP(c, dr, "rgba(180,250,80,0.95)", 0.008);
-  acidDrop(c, 0.003, 0.43 * jy, 0.008, pu);
+  fillP(c, (c) => blobPath(c, 0.016, 0.245, 0.019, 0.012, 422, 0.4), "rgba(85,20,15,0.65)");
+  for (const [px, py, pr2] of [
+    [-0.03, 0.22, 0.008],
+    [0.025, 0.29, 0.006],
+  ] as const) {
+    glow(c, px, py, pr2 * 2.5, "130,255,50", 0.25 * pu);
+    fillP(c, (c) => E(c, px, py, pr2, pr2), "#a6e044");
+  }
+  // the open mouth, dripping acid (wider and blazing in the windup)
+  const mw = windup ? 0.042 : 0.032;
+  const mh = windup ? 0.024 : 0.015;
+  glow(c, 0, 0.33, windup ? 0.16 : 0.1, "140,255,60", 0.55 * pu);
+  c.beginPath();
+  E(c, 0, 0.33, mw, mh);
+  const mg = c.createRadialGradient(0, 0.33, 0, 0, 0.33, mw);
+  mg.addColorStop(0, windup ? "rgba(210,255,110,1)" : "rgba(120,200,40,0.9)");
+  mg.addColorStop(0.6, "#1a0806");
+  mg.addColorStop(1, "#1a0806");
+  c.fillStyle = mg;
+  c.fill();
+  c.strokeStyle = "rgba(6,6,7,0.9)";
+  c.lineWidth = P;
+  c.stroke();
+  for (let i = 0; i < 5; i++) fillP(c, (c) => Pg(c, [-0.022 + i * 0.011, 0.33 - mh + 0.005, -0.016 + i * 0.011, 0.33 - mh + 0.005, -0.019 + i * 0.011, 0.33 - mh + 0.015]), "#cdc4a4");
+  strokeP(
+    c,
+    (c) => {
+      c.moveTo(0.006, 0.33 + mh);
+      c.lineTo(0.01, 0.366);
+    },
+    "rgba(175,250,75,0.95)",
+    0.006,
+  );
+  acidDrop(c, 0.012, 0.378, 0.009, pu, 1, 2.5);
+  acidDrop(c, -0.012, 0.395, 0.006, pu, 1, 2.5);
   c.restore();
 }
 

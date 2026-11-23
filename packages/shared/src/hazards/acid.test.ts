@@ -139,20 +139,24 @@ describe("acid puddles (Story 5.6 F4: standing in acid always hurts at 5/s)", ()
     expect(w.buildings.list.map((b) => b.hp)).toEqual([200, 300]);
   });
 
-  it("a puddle ends after 3 s (60 ticks)", () => {
+  it("review L3: a puddle hurts on exactly 60 ticks (3.00 s: what the client draws), then is gone", () => {
     const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
-    addPlayer(w, "p0", 40, 16).hp = 1e9;
-    const ev: SimEvent[] = [];
-    w.events.subscribe((e) => ev.push(e));
-    spawnSpit(w, 0, 10, 16, 12, 16, 0.35, spit); // lands at once-ish (1.55 m)
-    let born = -1;
-    let gone = -1;
-    for (let t = 0; t < 200; t++) {
+    const p = addPlayer(w, "p0", 12, 16);
+    p.hp = 1e9;
+    const hits = acidHits(w);
+    spawnSpit(w, 0, 10, 16, 12, 16, 0.35, spit); // hits p0 on the first step: the puddle is born on it
+    let eligible = 0;
+    let prev = 0;
+    let alive = 0;
+    for (let t = 0; t < 120; t++) {
       tick(w);
-      if (born < 0 && w.areas.count > 0) born = w.tick;
-      if (born >= 0 && gone < 0 && w.areas.count === 0) gone = w.tick;
+      if (w.areas.count > 0) alive++;
+      if (p.acidTicks > prev || (p.acidTicks === 0 && prev === PULSE - 1)) eligible++;
+      prev = p.acidTicks;
     }
-    expect(gone - born).toBe(ticksFor(spit.puddleS));
+    expect(eligible).toBe(ticksFor(spit.puddleS));
+    expect(hits.filter((e) => e.type === "player.damaged" && e.amount === PER_PULSE)).toHaveLength(Math.floor(ticksFor(spit.puddleS) / PULSE));
+    expect(alive).toBe(ticksFor(spit.puddleS) - 1); // seen after 59 steps; freed at the end of its 60th damage tick
   });
 
   it("a build start clears puddles and spits and resets every acid clock (DD4)", () => {

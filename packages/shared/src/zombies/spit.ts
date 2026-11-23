@@ -276,7 +276,9 @@ export function updateAcid(world: World): void {
     acidPass.world = null;
   }
   for (let i = 0; i < a.capacity; i++) {
-    if (a.active[i] !== 1 || a.kind[i] !== AREA_KIND.ACID || a.bornTick[i] === world.tick) continue; // a new puddle lives puddleS full ticks
+    // Review L3: every live puddle (a new one too) counts down after the damage pass, so it is
+    // damage-eligible on exactly puddleS worth of ticks (60) — the 3.00 s the client draws.
+    if (a.active[i] !== 1 || a.kind[i] !== AREA_KIND.ACID) continue;
     const t = (a.ticksLeft[i] as number) - 1;
     a.ticksLeft[i] = t;
     if (t <= 0) {

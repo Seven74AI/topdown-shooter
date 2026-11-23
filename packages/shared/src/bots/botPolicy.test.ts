@@ -7,6 +7,8 @@ import { addPlayer } from "../player/player";
 import { downPlayer } from "../player/downed";
 import { teamSpawnPoint } from "../player/spawn";
 import { spawnZombie } from "../zombies/zombiePool";
+import { setLoadout } from "../combat/loadout";
+import { ZOMBIE_STATE } from "../zombies/zombieTypes";
 import { setBuildReady, startBuild } from "../run/runStateMachine";
 import { botConfigOf, botInput, botViewFromWorld, createBotView, type BotView } from "./botPolicy";
 
@@ -124,6 +126,28 @@ describe("bot policy (Story 2.10)", () => {
     botInput(view, cfg, 1, out);
     expect(out.moveX).toBeCloseTo(-1);
     expect(out.moveY).toBeCloseTo(0);
+  });
+
+  it("Story 5.6 review M2: closes in only on a Spitter holding its spot just out of range, never on a walking zombie", () => {
+    const move = (type: "walker" | "spitter", dist: number, weapon: string, rush = false) => {
+      const world = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+      const p = addPlayer(world, "p0", 10, 10);
+      setLoadout(balance, p.loadout, [weapon, null]);
+      const id = spawnZombie(world, type, 10 + dist, 10);
+      if (rush) world.zombies.state[id] = ZOMBIE_STATE.RUSH;
+      const view = createBotView();
+      const out: PlayerInput = { ...NEUTRAL_INPUT };
+      botViewFromWorld(world, "p0", view);
+      botInput(view, cfg, 1, out);
+      return out.moveX;
+    };
+    const shotgun = balance.weapons.shotgun?.rangeM ?? 0; // 5 m
+    expect(move("spitter", shotgun + 1, "shotgun")).toBeCloseTo(1); // a Spitter at 6 m: step in
+    expect(move("walker", shotgun + 1, "shotgun")).toBeCloseTo(0); // a Walker at 6 m comes by itself
+    expect(move("spitter", shotgun + 1, "shotgun", true)).toBeCloseTo(0); // a rushing Spitter walks in
+    expect(move("spitter", shotgun + 1 + (cfg.closeInExtraM ?? 0), "shotgun")).toBeCloseTo(0); // too far: no chase
+    const pistol = balance.weapons.pistol?.rangeM ?? 0;
+    expect(move("walker", pistol + 1, "pistol")).toBeCloseTo(0); // review M2: Pistol bots never chase Walkers
   });
 
   it("regroups toward the team centre and stands still inside regroupDistM", () => {

@@ -6,6 +6,7 @@ import {
   NET_NONE,
   NO_SYSTEMS,
   TICK_DT_S,
+  acidSpitOf,
   addPlayer,
   assistAim,
   buildingById,
@@ -233,6 +234,9 @@ export class NetSimHost implements SimHost {
     p.reviverId = p.status === "downed" && p.reviveTicks > 0 ? (findReviver(this.world, p)?.id ?? null) : null;
   };
 
+  /** Story 5.6 review M1: an acid puddle's life (s); older splashes in a drained backlog are dropped. */
+  private readonly puddleS: number;
+
   constructor(opts: NetSimHostOptions) {
     this.session = opts.session;
     this.localPlayerId = opts.session.playerId;
@@ -240,6 +244,7 @@ export class NetSimHost implements SimHost {
     // Story 4.1: the mirror and the Predictor use the server's map (same bundled data; the join sends `mapVersion`).
     this.world = createWorld({ balance: opts.balance, seed: 0, map: opts.map ?? DOWNTOWN_MAP, systems: NO_SYSTEMS });
     this.ctx = { balance: opts.balance };
+    this.puddleS = acidSpitOf(opts.balance)?.puddleS ?? 0; // Story 5.6 review M1
     this.predictor = new Predictor(opts.balance, this.world.map, this.localPlayerId);
     this.measureHits = opts.measureHits ?? (() => true);
     this.localSlot = playerSlotOf(this.localPlayerId);
@@ -438,6 +443,14 @@ export class NetSimHost implements SimHost {
           continue;
         }
         this.turretShot(e);
+      } else if (e.type === "spitter.spat" || e.type === "acid.splashed") {
+        // Story 5.6 review M1: a woken tab's backlog. A stale glob is dropped (it landed long ago); a
+        // puddle is back-dated by its age (`ageS`: AcidFx starts it that much earlier, no sound) and
+        // dropped once older than its life, so the client shows exactly the server's live puddles.
+        const ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
+        if (e.type === "spitter.spat" && stale) continue;
+        if (e.type === "acid.splashed" && ageS >= this.puddleS) continue;
+        e.ageS = ageS;
       }
       out[w++] = e;
     }

@@ -145,6 +145,35 @@ describe("spits (Story 5.6 AC 3)", () => {
     expect(ev.some((e) => e.type === "player.damaged")).toBe(false);
   });
 
+  it("review L5: a player pressed against the far face of a car is not hit by a spit from the other side", () => {
+    // A real car is 2 m deep (the puddle at its near face can't reach past it either); a 0.3 m slab
+    // still stops the glob, though its 1 m puddle is an area on the ground (it reaches round thin cover).
+    for (const thick of [2, 0.3]) {
+      const w = createWorld({ balance, seed: 1, map: mapWith("car", { minX: 22, minY: 14, maxX: 22 + thick, maxY: 18 }), systems: NO_WAVES });
+      const p = addPlayer(w, "p0", 22 + thick + balance.player.radiusM, 16); // body touching the far face
+      p.hp = 1e9;
+      const ev = record(w);
+      spawnSpit(w, 0, 18, 16, p.x, p.y, spitter.radiusM, spit);
+      run(w, 20);
+      const splash = ev.find((e) => e.type === "acid.splashed");
+      expect(splash, `car ${thick} m`).toMatchObject({ hitPlayerId: null });
+      if (splash?.type === "acid.splashed") expect(splash.x).toBeCloseTo(22, 9); // stopped at the near face
+      expect(ev.some((e) => e.type === "player.damaged" && e.amount === spit.damage)).toBe(false); // no direct hit
+      if (thick >= 2) expect(ev.some((e) => e.type === "player.damaged")).toBe(false); // and no acid behind a real car
+    }
+  });
+
+  it("review L5: within one step, the car face comes before a body just behind it (first contact wins)", () => {
+    const w = createWorld({ balance, seed: 1, map: mapWith("car", { minX: 22, minY: 14, maxX: 22.3, maxY: 18 }), systems: NO_WAVES });
+    const p = addPlayer(w, "p0", 22.8, 16); // its circle grown by the glob reaches back to x 22.2
+    p.hp = 1e9;
+    const ev = record(w);
+    spawnSpit(w, 0, 21.35, 16, p.x, p.y, spitter.radiusM, spit); // mouth at x 21.8: one 0.45 m step crosses both
+    run(w, 3);
+    expect(ev.find((e) => e.type === "acid.splashed")).toMatchObject({ hitPlayerId: null });
+    expect(ev.some((e) => e.type === "player.damaged" && e.amount === spit.damage)).toBe(false);
+  });
+
   it("stops at the bus and at a building face too, but passes a barricade, a turret and sandbags (F3)", () => {
     const cases: [string, DistrictMap, (w: World) => void, boolean][] = [
       ["bus", mapWith("bus", { minX: 22, minY: 14, maxX: 23, maxY: 18 }), () => {}, false],

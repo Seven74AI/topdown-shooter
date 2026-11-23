@@ -292,6 +292,27 @@ Claude Opus 5.5 (claude-opus-5-5), builder in worktree `.claude/worktrees/story-
 - **Readability sheet:** 5.3 has rows 16–17 and 5.9 has 18–21; Spitter and puddle are now rows **22–23** (`objects/23_spitter.png`, `24_acid_puddle.png`).
 - **Zombie pool and snapshot:** all fields kept. 5.3 `knockShot`/`knockHead`, 5.9 `trapTicks`/`slowPct`, 5.6 `spitTicks`/`spitTarget`.
 
+### Review fixes (2026-11-23)
+
+Merged the work branch at `1614402` first (5.9 review fixes + M1c art): it merged cleanly.
+
+- **M1 (hidden tab mid-wave, AC 18):** `NetSimHost.drainEvents` now drops stale `spitter.spat` (older than the render tick − `STALE_COSMETIC_TICKS`, like other shots). Each spit and splash gets a client-only `ageS`, the seconds since its server tick. A splash older than a puddle's life is dropped; a younger one starts `ageS` earlier in `AcidFx`, so it ends with the server's puddle. `GameScene` plays no spit/hiss sound for events older than `ACID_SOUND_MAX_AGE_S` (0.25 s). Test `apps/client/src/sim/NetSimHost.acid.test.ts`: a 9.5 s sleep mid-wave → the client's puddles are exactly the server's live ones (puddle 2), the puddle ends at the server's tick, no stale glob, only the fresh spit may sound.
+- **M2 (bots):** `closeInExtraM` now applies only when the nearest zombie is a Spitter holding its spot (`BotZombie.holdsSpot`: has a `spit` block and is not rushing) just beyond my weapon's range. Pistol/SMG bots no longer chase Walkers. Over the wire (`tools/bots`), `holdsSpot` stays false (the horde frame carries no type here), so wire bots never close in. Five-wave bot sims, 4 seeds each, held out:
+
+  | players | before 5.6 (`8ff325e`) | after (this fix) |
+  | --- | --- | --- |
+  | 1 | 4/4 | 2/4 |
+  | 2 | 4/4 | 2/4 |
+  | 3 | 4/4 | 4/4 |
+  | 4 | 4/4 | 4/4 |
+
+  The bots stand in acid and don't dodge spits. Bot survival is not difficulty evidence (brief line 15): for the playtest.
+- **L3:** a puddle is damage-eligible on exactly 60 ticks (3.00 s, what the client draws). A new puddle now counts down from its first tick. Test "a puddle hurts on exactly 60 ticks".
+- **L4 (accepted):** the client's puddle pool counts only the puddles it has seen (local events). When the server replaces its oldest puddle at the 32 cap it sends no event, so a client may draw a puddle the server already dropped for up to 3 s (an over-warning, never an under-warning).
+- **L5:** tests "a player pressed against the far face of a car is not hit" (2 m and 0.3 m cars) and "within one step, the car face comes before a body just behind it". Found while writing them: a puddle at the near face of a very thin blocker (≤ 0.4 m) can reach a body pressed on the far side. Puddles are ground areas, and no Downtown shot blocker is that thin (cars are 2 m deep).
+- **Art (designer):** the Spitter is now **P4 "gaunt"** (round 2), ported into `drawSpitter`. Strictly top-down: bony grey back with glowing green pustules, ribs and spine, torn trousers, clawed arms, open mouth dripping acid, a short acid trail. In the windup the mouth gapes and blazes, the pustules flare and the arms pull in. `SPITTER_ART_SCALE` 1.7, `CHAR_EXTENT_R.spitter` 2.35. Re-took `docs/art/epic-5/round-a/ingame/5-6-spitters-stress.png` and the readability crop `objects/23_spitter.png` (key updated).
+- **Mutations of the new tests (each once):** killed: stale spat kept, splash not back-dated, old splash not dropped (after adding the host-level assertion; the first version did not kill it), bots close in on any zombie, newborn puddle skips its countdown, body tested before the car within a step (after adding the one-step test; the far-face test alone did not kill it).
+
 ### Not verified
 
 - **Phone FPS** (only headless SwiftShader on a busy box, load 3–7; the numbers are noise-level). The 4.10 phone floor must be rechecked with `?stress=150&wavemix=walker,spitter`.
