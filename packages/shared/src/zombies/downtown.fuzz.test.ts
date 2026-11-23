@@ -24,6 +24,8 @@ import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { setInput } from "../core/world";
 import { ZOMBIE_TYPES, isWindupState, maxZombieRadius, type ZombieTypeId } from "./zombieTypes";
 import { spawnSpit, spitStats } from "./spit";
+import { lightsOf } from "../decay/lightState";
+import { inHealReach } from "../buildings/medStation";
 
 /**
  * Story 4.1 (brief line 3): random legal layouts on the Downtown map × many ticks.
@@ -100,6 +102,8 @@ const REACH_M = 3;
 /** The soft separation holds crowd neighbours a little apart (seen: 0.81 m for two 0.35 m bodies). */
 const CROWD_GAP_M = 0.3;
 const TYPES = ["wood_barricade", "auto_turret"] as const;
+/** Story 5.10: the two new 1 × 1 m footprints join the random layouts (a draw of 1 / 2 out of 0–9). */
+const NEW_TYPES = ["floodlight", "med_station"] as const;
 const map = DOWNTOWN_MAP;
 
 const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
@@ -227,7 +231,8 @@ function layout(seed: number) {
   const want = seed % 4 === 0 ? 0 : rng.int(6, 24);
   let nextId = 1;
   for (let tries = 0; tries < 2000 && world.buildings.list.length < want; tries++) {
-    const type = TYPES[rng.int(0, 9) === 0 ? 1 : 0] as string;
+    const pick = rng.int(0, 9);
+    const type = (pick === 0 ? TYPES[1] : pick === 1 || pick === 2 ? NEW_TYPES[pick - 1] : TYPES[0]) as string;
     const stats = buildingStats(balance, type);
     if (!stats) throw new Error(type);
     const rot = rng.int(0, 3) as BuildingRotation;
@@ -355,6 +360,9 @@ function run(seed: number) {
   let pushedOut = 0;
   // Story 4.8: fire liveness per layout (pulses that hit zombies / buildings, zombie-ticks in fire).
   const fire = { lit: 0, zombieHits: 0, buildingHits: 0, kills: 0, zombieTicksInFire: 0, wentOut: false, ignitionDestroyed: 0, returned: 0, returnedByFire: 0 };
+  // Story 5.10: heals seen (exactly 0.25 HP on a tick in reach), light-list checks, stations placed at the change.
+  const med = { heals: 0, lightChecks: 0, stationsAtChange: 0 };
+  const hpBefore = new Map<string, number>();
   const outTick = changeTick + ticksFor(FIRE_OUT_S);
   const pulse0 = { ...firePulse };
   // Story 4.8: stage-3 layouts also run until their fires have gone out.
@@ -429,6 +437,18 @@ function run(seed: number) {
       // pushed out of a box or returned) is in any burning fire.
       for (const p of world.players.values()) if (p.status === "alive" && circleInFire(world.decay.fires, p.x, p.y, p.radiusM)) violation = `seed ${seed}: player ${p.id} in a fire right after the build start (${p.x}, ${p.y})`;
       if (relocated.leftInFire !== 0) violation = `seed ${seed}: ${relocated.leftInFire} players left in a fire`;
+      // Story 5.10: a med station beside p0 at this build start (stage-3 layouts fight a wave next), so
+      // the heal really happens in the fuzz (liveness); on a free lattice spot only.
+      const med0 = buildingStats(balance, "med_station");
+      if (l.toStage === 3 && p0 && med0 && p0.status === "alive") {
+        for (let k = 0; k < 16 && med.stationsAtChange === 0; k++) {
+          const a = (k / 16) * Math.PI * 2;
+          const gx = Math.round((p0.x + Math.cos(a) * 1.4 - 0.5) / BUILD_GRID_M);
+          const gy = Math.round((p0.y + Math.sin(a) * 1.4 - 0.5) / BUILD_GRID_M);
+          if (footprintBlocked(world, footprint(med0, gx, gy, 0, box))) continue;
+          if (addBuildingAt(world, { id: world.buildings.nextId, type: "med_station", ownerId: "p0", gx, gy, rot: 0, hp: med0.hp })) med.stationsAtChange++;
+        }
+      }
       if (l.toStage === 3) world.run.phase = "wave";
     }
     if (ticks === outTick && fire.lit > 0) {
@@ -464,7 +484,35 @@ function run(seed: number) {
       }
       if (tp && spitStats0 && sx >= 0) spawnSpit(world, -1, sx, sy, tp.x, tp.y, 0, spitStats0); // radius 0: the mouth is 0.1 m from (sx, sy), inside the clear 0.5 m
     }
+    // Story 5.10: god mode keeps HP full; hurt every standing player in reach a little so the heal shows.
+    hpBefore.clear();
+    for (const p of world.players.values()) {
+      if (p.status === "alive" && (world.run.phase === "wave" || world.run.phase === "build") && inHealReach(world, p.x, p.y, p.radiusM)) {
+        p.hp = p.maxHp - 5;
+        hpBefore.set(p.id, p.hp);
+      }
+    }
     step(world, TICK_DT_S);
+    for (const p of world.players.values()) {
+      const h0 = hpBefore.get(p.id);
+      if (h0 === undefined) continue;
+      // Moved out of reach this tick (the check runs on the new position): no claim either way.
+      if (!inHealReach(world, p.x, p.y, p.radiusM) || p.status !== "alive") continue;
+      if (Math.abs(p.hp - (h0 + 5 * TICK_DT_S)) > 1e-9) violation = `seed ${seed} tick ${ticks}: ${p.id} healed ${p.hp - h0}, not 0.25`;
+      else med.heals++;
+    }
+    // Story 5.10 (AC 2): the derived light list = the standing floodlights (id order) after the burning fires.
+    {
+      const lights = lightsOf(world);
+      const floods = world.buildings.list.filter((b) => b.type === "floodlight");
+      const fires = world.decay.fires;
+      const ok =
+        lights.length === fires.length + floods.length &&
+        fires.every((f, i) => lights[i]?.kind === "fire" && lights[i]?.x === f.x && lights[i]?.y === f.y) &&
+        floods.every((b, i) => lights[fires.length + i]?.buildingId === b.id && lights[fires.length + i]?.kind === "floodlight");
+      if (!ok) violation = `seed ${seed} tick ${ticks}: light list (${lights.length}) ≠ ${fires.length} fires + ${floods.length} floodlights`;
+      med.lightChecks++;
+    }
     // Story 4.2: no live shot inside a shot blocker; count shots that ended on one (liveness).
     for (let k = 0; k < pool.aliveCount; k++) {
       const id = pool.aliveIds[k] as number;
@@ -529,7 +577,8 @@ function run(seed: number) {
   fire.buildingHits = firePulse.buildings - pulse0.buildings;
   fire.kills = firePulse.zombiesKilled - pulse0.zombiesKilled;
   if (l.spit.crossed) violation ??= l.spit.crossed;
-  return { ...l, ticks, violation, missing, reached: reached.size, alive, pressed, coverStops, pushedOut, stage: world.obstacles.stage, fire, spit: l.spit };
+  const floodlights = world.buildings.list.filter((b) => b.type === "floodlight").length;
+  return { ...l, ticks, violation, missing, reached: reached.size, alive, pressed, coverStops, pushedOut, stage: world.obstacles.stage, fire, spit: l.spit, med, floodlights };
 }
 
 describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cover + 4.5 stage changes, brief line 3)", () => {
@@ -552,10 +601,16 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
     const stages = new Set<number>();
     const failures: string[] = [];
     const spits = { spits: 0, puddles: 0, hits: 0, layouts: 0 };
+    const med = { heals: 0, healLayouts: 0, lightChecks: 0, floodlights: 0, stations: 0 };
     const coverStops0 = spitStats.coverStops;
     for (let seed = 1; seed <= LAYOUTS; seed++) {
       const r = run(4100 + seed);
       buildings += r.buildings;
+      med.heals += r.med.heals;
+      if (r.med.heals > 0) med.healLayouts++;
+      med.lightChecks += r.med.lightChecks;
+      med.floodlights += r.floodlights;
+      med.stations += r.world.buildings.list.filter((b) => b.type === "med_station").length;
       reached += r.reached;
       if (r.destroyed() > 0) breaking++;
       pressed += r.pressed;
@@ -601,7 +656,14 @@ describe("Downtown fuzz: random legal layouts × many ticks (Story 4.1 + 4.2 cov
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] downtown: ${LAYOUTS} layouts, ${buildings} buildings, ${reached} zombies reached a player, ${breaking} layouts broke a building, ${bare} layouts without buildings, ${pressed} player-ticks pressed on a box, ${coverStops} shots ended on cover, stages ${[...stages].sort().join("/")}, ${spawnedTotal} zombies spawned, ${blocked} spawns closed by a building; Story 4.5: ${onFuture} barricades on coming mutation boxes (Story 4.7: ${movedOnto} on moved cars / police lines), ${decayDestroyed} destroyed + ${decayRefunded} refunds by the stage change, ${pushedOut} layouts with bodies pushed out, variant masks: ${variantsSeen.size}; Story 4.8: ${fires.layouts} layouts with 2 fires, ${fires.zombieHits} zombie pulses (${fires.kills} fire kills), ${fires.buildingHits} building pulses, ${fires.ignitionDestroyed} buildings destroyed + refunded at ignition, ${fires.zombieTicksInFire} zombie-ticks in fire, ${fires.wentOut} expiries, re-review H1: ${fires.returned} returns at the stage-3 build start (${fires.returnedByFire} to a teammate in a new fire)`);
     const spitCoverStops = spitStats.coverStops - coverStops0;
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] Story 5.6: ${spitCoverStops} spits stopped on cover, ${spits.layouts} layouts with spits, ${spits.spits} spits, ${spits.puddles} puddles, ${spits.hits} spit hits; none crossed a car, the bus or a map box`);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[fuzz] Story 5.10: ${med.floodlights} floodlights and ${med.stations} med stations standing at the end, ${med.heals} heal ticks in ${med.healLayouts} layouts, ${med.lightChecks} light-list checks`);
     expect(failures).toEqual([]);
+    // Story 5.10 liveness: the new footprints were really in the layouts, heals really happened, every tick's light list checked.
+    expect(med.floodlights).toBeGreaterThan(LAYOUTS / 2);
+    expect(med.stations).toBeGreaterThan(LAYOUTS / 2);
+    expect(med.heals).toBeGreaterThan(LAYOUTS);
+    expect(med.healLayouts).toBeGreaterThan(LAYOUTS / 8);
+    expect(med.lightChecks).toBeGreaterThan(LAYOUTS * 100);
     expect(spits.hits).toBeGreaterThan(LAYOUTS); // Story 5.6: Spitters really hit the god-mode players
     expect(spits.layouts).toBeGreaterThan(LAYOUTS * 0.9);
     expect(spitCoverStops).toBeGreaterThan(LAYOUTS); // the stray globs really met cars, the bus and map boxes

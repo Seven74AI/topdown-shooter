@@ -190,6 +190,8 @@ export interface RunControllerOptions {
   waveMix?: readonly ZombieTypeId[] | null;
   /** Tests only: replace systems by name (Epic 1 lesson: isolate mechanics). */
   systems?: Partial<Systems>;
+  /** Story 5.10 dev (`DEV_SHOP_ALL=1`): `inShop: false` types (the floodlight) can be placed. */
+  shopAll?: boolean;
   /** Story 4.5 dev (`DEV_DECAY_STAGES=2,3`): the decay stage per wave instead of `decay.json`. null = the real table. */
   decayStageByWave?: readonly number[] | null;
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map; tests may pass the open `PLACEHOLDER_MAP`). */
@@ -253,6 +255,7 @@ export class RunController {
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, map: opts.map ?? DOWNTOWN_MAP, ...(opts.systems ? { systems: opts.systems } : {}) });
     this.world.waves.paused = opts.pauseWaves === true;
     this.world.debug.waveMix = opts.waveMix ?? null;
+    this.world.debug.shopAll = opts.shopAll === true; // Story 5.10
     this.world.debug.decayStageByWave = opts.decayStageByWave ?? null; // before the first build start
     if (opts.scenario) applyTestScenario(this.world, opts.scenario);
     const lagComp = opts.lagCompensation !== false;

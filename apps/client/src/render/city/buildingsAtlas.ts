@@ -3,6 +3,7 @@ import { frameName, packAtlas, type FrameSpec, type PlacedFrame } from "./atlasL
 import { addGeneratedTexture } from "./canvasTexture";
 import { drawInFrame, drawMetalBarricade, drawMine, drawReinforcedBarricade, drawSpikeTrap, type Ctx } from "./buildingArt";
 import { drawObjectInFrame, drawWoodBarricade } from "./objectArt";
+import { drawFloodlightFL1, drawFloodlightFL5, drawMedStation, drawPropInFrame } from "./propArt";
 
 /**
  * Story 5.9: the canvas atlas of the new buildings (`atlas_buildings`), drawn ONCE per game from the
@@ -20,6 +21,11 @@ export const FRAME_REINFORCED = frameName("building", "barricade", "reinforced")
 export const FRAME_METAL = frameName("building", "barricade", "metal");
 export const FRAME_SPIKE_TRAP = frameName("building", "spiketrap", "a");
 export const FRAME_MINE = frameName("building", "mine", "a");
+/** Story 5.10: FL1 tripod work light (base look) and FL5 stadium lamp (upgrade/skin look, unused for now). */
+export const FRAME_FLOODLIGHT = frameName("prop", "floodlight", "a");
+export const FRAME_FLOODLIGHT_B = frameName("prop", "floodlight", "b");
+/** Story 5.10: the med station (designer's pick MS10: `propArt.ts › drawMedStation`). */
+export const FRAME_MED_STATION = frameName("prop", "medstation", "a");
 
 interface ArtSpec {
   readonly frame: string;
@@ -37,6 +43,9 @@ const ART: readonly ArtSpec[] = [
   { frame: FRAME_METAL, wM: 2, hM: 0.5, draw: drawMetalBarricade },
   { frame: FRAME_SPIKE_TRAP, wM: 2, hM: 2, draw: drawSpikeTrap },
   { frame: FRAME_MINE, wM: 0.5, hM: 0.5, draw: drawMine },
+  { frame: FRAME_FLOODLIGHT, wM: 1, hM: 1, draw: drawFloodlightFL1, inFrame: drawPropInFrame },
+  { frame: FRAME_FLOODLIGHT_B, wM: 1, hM: 1, draw: drawFloodlightFL5, inFrame: drawPropInFrame },
+  { frame: FRAME_MED_STATION, wM: 1, hM: 1, draw: drawMedStation, inFrame: drawPropInFrame },
 ];
 
 /** The atlas's frame specs (pure: tests check names and the ≤ 2048 rule). */
@@ -55,6 +64,8 @@ const FRAMES: Readonly<Record<string, BuildingFrame>> = {
   metal_barricade: { texture: ATLAS_BUILDINGS, frame: FRAME_METAL },
   spike_trap: { texture: ATLAS_BUILDINGS, frame: FRAME_SPIKE_TRAP },
   mine: { texture: ATLAS_BUILDINGS, frame: FRAME_MINE },
+  floodlight: { texture: ATLAS_BUILDINGS, frame: FRAME_FLOODLIGHT },
+  med_station: { texture: ATLAS_BUILDINGS, frame: FRAME_MED_STATION },
 };
 export function buildingFrame(type: string): BuildingFrame | null {
   return Object.prototype.hasOwnProperty.call(FRAMES, type) ? (FRAMES[type] as BuildingFrame) : null;

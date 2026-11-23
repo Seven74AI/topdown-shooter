@@ -67,7 +67,17 @@ describe("shop list (Story 3.3)", () => {
       { id: "auto_turret", name: "Auto-turret", price: 250 },
       { id: "spike_trap", name: "Spike trap", price: 80 },
       { id: "mine", name: "Mine", price: 60 },
+      { id: "med_station", name: "Med station", price: 400 },
     ]);
+  });
+
+  it("Story 5.10: the floodlight is not listed (inShop: false); listed with shopAll; upgrade-only tiers never", () => {
+    expect(shopBuildings(balance).map((b) => b.id)).not.toContain("floodlight");
+    const all = shopBuildings(balance, true);
+    expect(all.find((b) => b.id === "floodlight")).toEqual({ id: "floodlight", name: "Floodlight", price: 100 });
+    expect(all.map((b) => b.id)).not.toContain("metal_barricade");
+    expect(shopBuildings(balance, true)).toBe(all); // cached per balance and flag
+    expect(shopBuildings(balance)).not.toBe(all);
   });
 
   it("Story 5.9: upgrade-only types are not in the shop; spike_trap 80 and mine 60 are", () => {

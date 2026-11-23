@@ -533,6 +533,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       pauseWaves: process.env.DEV_NO_WAVES === "1",
       // Story 3.9 dev hook, kept by 3.10 as an override: DEV_WAVE_MIX=walker,crawler replaces the waves.json mix.
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
+      // Story 5.10 (dev only, read per run): DEV_SHOP_ALL=1 lets inShop: false types (the floodlight) be placed.
+      shopAll: devAllowed && process.env.DEV_SHOP_ALL === "1",
       decayStageByWave: devDecayStages,
       scenario: this.scenario,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.

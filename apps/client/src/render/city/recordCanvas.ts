@@ -139,6 +139,12 @@ export class RecordCanvas {
     this.pt(cx, cy);
     this.pt(x, y);
   }
+  /** Story 5.10: the curve's hull (control points) bounds it. */
+  bezierCurveTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): void {
+    this.pt(c1x, c1y);
+    this.pt(c2x, c2y);
+    this.pt(x, y);
+  }
   arcTo(x1: number, y1: number, x2: number, y2: number): void {
     this.pt(x1, y1);
     this.pt(x2, y2);

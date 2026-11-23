@@ -32,6 +32,8 @@ export function placeRefusalText(e: PlaceError, balance: Balance): string {
       return "Not enough money";
     case "not_build_phase":
       return "Only during the build phase";
+    case "not_for_sale":
+      return "Not for sale yet";
     case "unknown_type":
     case "unknown_player":
       return "Can't build that";

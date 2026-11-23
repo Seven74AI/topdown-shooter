@@ -31,6 +31,7 @@ import {
   type LauncherStats,
   type World,
   buildingById,
+  inHealReach,
 } from "@topdown/shared";
 import { dpr } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
@@ -63,6 +64,9 @@ import { ExplosionView } from "../render/ExplosionView";
 import { STALE_EXPLOSION_S, blastLookFor } from "../render/grenadeFx";
 import { CityView } from "../render/city/CityView";
 import { TurretView } from "../render/TurretView";
+import { FloodlightView } from "../render/FloodlightView";
+import { MedStationView } from "../render/MedStationView";
+import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
 import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
 import { BuildingSelectView } from "../render/BuildingSelectView";
@@ -94,7 +98,7 @@ import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
-import { placeStressFloor, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { placeStressFloor, placeStressLights, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
@@ -177,6 +181,9 @@ export class GameScene extends Phaser.Scene {
     view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
     // Story 5.4 (AC 7f): my fire hurt this teammate just now: their ring flashes orange.
     view.flashRing(this.time.now - (this.ffFlashMs.get(id) ?? -1e9) < FF_FLASH_MS);
+    // Story 5.10 (D6): the heal cue — HP from state rose while the body touches a station's ring here.
+    const w = this.host?.world;
+    view.healCue(w !== undefined && this.healCue.update(id, p.hp, p.status === "alive" && inHealReach(w, p.x, p.y, p.radiusM), this.time.now));
     // Story 5.4: the flame cone of every flamer (mine online: the fire clock's aim, at once).
     const host = this.host;
     const flaming = host && p.status === "alive" ? host.flames.flaming(id) : "";
@@ -245,6 +252,10 @@ export class GameScene extends Phaser.Scene {
   ambience: AmbiencePlayer | null = null;
   /** Story 3.6: turret plates and heads (aim from the World / `turret.fired`). */
   private turretView: TurretView | null = null;
+  /** Story 5.10: floodlight pools (pooled glow images) and med station rings; the heal cue from state. */
+  private floodlightView: FloodlightView | null = null;
+  private medStationView: MedStationView | null = null;
+  private readonly healCue = new HealCue();
   /** Story 3.4: placement mode on this device; Story 5.15: the ghost is carried while I walk. */
   private readonly placement = new Placement();
   /** "Wood barricade · $40" for the type being placed, and the refusal texts (built once each). */
@@ -354,6 +365,7 @@ export class GameScene extends Phaser.Scene {
     if (!session) addPlayer(world, localId, cx, cy); // online, players come from the server
     // Story 3.9 dev hook, kept by 3.10 as an override: ?wavemix=walker,crawler replaces the waves.json mix (solo).
     if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
+    if (!session) world.debug.shopAll = opts.shopAll; // Story 5.10 (?shopall=1): solo's World; online the server's DEV_SHOP_ALL decides
     this.gameOver = false;
     this.kills = 0;
     this.placement.cancel(); // Phaser reuses this scene object: no placement from the last run
@@ -414,6 +426,9 @@ export class GameScene extends Phaser.Scene {
     this.buildingView = new BuildingView(this, balance);
     this.mineView = new MineView(this, balance);
     this.turretView = new TurretView(this);
+    this.floodlightView = new FloodlightView(this, balance); // Story 5.10
+    this.medStationView = new MedStationView(this, balance);
+    this.healCue.clear(); // Phaser reuses this scene object
     this.selectView = new BuildingSelectView(this);
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
@@ -449,13 +464,14 @@ export class GameScene extends Phaser.Scene {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
       if (opts.stressBuild) placeStressFloor(world, localId, cx, cy); // Story 5.9: before the Walkers
+      if (opts.stressLights) placeStressLights(world, localId, cx, cy); // Story 5.10: 8 floodlights + 4 med stations
       setupStressWorld(world, stress, view, cx, cy, parseWaveMix(opts.waveMix, balance)); // Story 5.6: ?wavemix=walker,spitter
       // Story 5.2: a melee ?stressfire benchmark (?loadout=chainsaw) keeps its crowd: the zombies can't die.
       // Story 5.4: so does a flame one (?loadout=flamethrower): the whole crowd keeps burning (the worst case).
       const firstKind = urlLoadout !== null ? balance.weapons[urlLoadout.weapons[0]]?.kind : undefined;
       // Story 5.5: a launcher benchmark keeps its crowd too (explosions keep coming on screen).
       const meleeFire = this.stressFire && (firstKind === "melee" || firstKind === "flame" || firstKind === "launcher");
-      if (opts.stressBuild || meleeFire) toughenStressZombies(world);
+      if (opts.stressBuild || opts.stressLights || meleeFire) toughenStressZombies(world);
       stressRun.start(performance.now(), stress);
     }
 
@@ -491,6 +507,10 @@ export class GameScene extends Phaser.Scene {
       this.ambience = null;
       this.turretView?.destroy();
       this.turretView = null;
+      this.floodlightView?.destroy();
+      this.floodlightView = null;
+      this.medStationView?.destroy();
+      this.medStationView = null;
       this.repairPanel.close();
       this.selectView?.destroy();
       this.selectView = null;
@@ -844,7 +864,7 @@ export class GameScene extends Phaser.Scene {
       const balance = host.world.balance;
       this.router?.releaseAll(); // nothing stays held under the shop (as for the menu)
       host.clearEdges();
-      this.shopInput({ type: "open", weapons: shopWeapons(balance), buildings: shopBuildings(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel });
+      this.shopInput({ type: "open", weapons: shopWeapons(balance), buildings: shopBuildings(balance, urlOptions().shopAll), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel });
     }
     // Answers: shown while open, dropped while closed (the World already has the result).
     for (let a = host.takeShopAnswer(); a !== null; a = host.takeShopAnswer()) this.shopInput({ type: "answer", answer: a });
@@ -1116,6 +1136,7 @@ export class GameScene extends Phaser.Scene {
     this.buildingView?.update(host.world, this.placement);
     this.mineView?.update(host.world, this.time.now);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
+    this.medStationView?.update(host.world, this.cameras.main.zoom); // Story 5.10
     this.selectView?.update(host.world, this.repairPanel.id);
     const player = host.world.players.get(localId);
     const playerView = this.playerViews.get(localId);
@@ -1130,6 +1151,7 @@ export class GameScene extends Phaser.Scene {
       this.updateTeammates(host.world);
       const m = this.hudModel;
       recordSimFrame(host.stats, host.world.zombies, m.camX, m.camY, this.scale.width / m.camZoom, this.scale.height / m.camZoom);
+      this.floodlightView?.update(host.world, m.camX, m.camY, this.scale.width / m.camZoom, this.scale.height / m.camZoom); // Story 5.10
       this.hudModel.hp = player.hp;
       this.hudModel.burning = this.fireCue.burning(localId, this.time.now); // Story 4.8
       // Story 4.11: my screen-edge glow, pulsing with the fire's damage tick.

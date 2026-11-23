@@ -43,3 +43,10 @@ Story 5.5 additions (pictures: Playwright, solo dev build, 844×390 at 2×, HUD 
 | 34 | `35_flamethrower_cone.png` | survivor with the Flamethrower (Story 5.4, FT1: olive twin tanks on the back, long wand) and its fuel jet | **stopped by** cars, the bus, buildings (the fire ends at their face); goes over barricades and sandbags | right if "flamethrower"; 6 m long, 20° narrow: zombies in it burn (5 every 0.25 s + 3 s of burning); a teammate in it loses 5 every 0.5 s (friendly fire) |
 | 35 | `36_gas_torch_cone.png` | survivor with the Gas torch (Story 5.4, FT2: red propane bottle under a pipe, blue pilot) and its cone | as 34 | right if "torch / gas burner / flamethrower"; 3 m short, 60° wide, blue at the nozzle |
 | 36 | `37_burning_zombies.png` | burning zombies (Story 5.4: small flames on the body for 3 s after a flame hit) | n/a | right if "on fire / burning"; they keep chasing; the burn credits whoever lit them |
+
+Story 5.10 additions (pictures: Playwright, solo dev build `?shopall=1`, 844×390 at 2×, 2026-11-23):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 37 | `38_floodlight.png` | a floodlight (FL1: a yellow tripod work light, its glass along the front edge) and its warm-white light pool (4 m radius) on the street | **pass** (bullets fly over it; it stops bodies: an obstacle, not cover) | right if "lamp / light / work light / floodlight"; 150 HP, zombies break it; not in the shop until the blackout story (6.3) |
+| 38 | `39_med_station.png` | a med station (MS10: hard med cases stacked on a crate, a glowing green-cross LED panel on top) and its soft green ring at the 2 m heal edge | **pass** (an obstacle, not cover) | right if "medkit / healing / first aid"; touch the ring = +5 HP/s while standing (never for downed survivors), two stations don't stack, walls don't block it; a green "+" shows by a survivor being healed |

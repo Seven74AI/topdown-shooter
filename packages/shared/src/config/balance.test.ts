@@ -264,6 +264,29 @@ describe("Story 5.9: building tiers, traps and mines", () => {
     bad((t) => ((t.spike_trap as { trap: { pulseS: number } }).trap.pulseS = 0.33), /whole number/);
     bad((t) => ((t.mine as { mine: { blastRadiusM: number } }).mine.blastRadiusM = 0.5), /at least triggerRadiusM/);
   });
+
+  it("Story 5.10 building blocks: light/heal validate; two behaviour blocks refused; inShop defaults true", () => {
+    const t = loadBalance().buildings.types;
+    expect(t.floodlight).toMatchObject({ inShop: false, forSale: true, solid: true, light: { radiusM: 4, blackoutRadiusM: 6 } });
+    expect(t.med_station).toMatchObject({ inShop: true, solid: true, heal: { radiusM: 2, hpPerS: 5 } });
+    for (const id of ["wood_barricade", "auto_turret", "spike_trap", "mine"]) expect(t[id]?.inShop, id).toBe(true);
+    // The new types are appended (the wire index of every older type stays).
+    expect(Object.keys(t).slice(-2)).toEqual(["floodlight", "med_station"]);
+    const bad = (edit: (t: T) => void, re: RegExp): void => {
+      const files = raw();
+      edit(types(files));
+      expect(() => loadBalance(files)).toThrow(re);
+    };
+    bad((t) => ((t.floodlight as Record<string, unknown>).heal = { radiusM: 2, hpPerS: 5 }), /exclude each other/);
+    bad((t) => ((t.med_station as Record<string, unknown>).turret = { ...(t.auto_turret as { turret: object }).turret }), /exclude each other/);
+    bad((t) => ((t.floodlight as { light: { radiusM: number } }).light.radiusM = 0), /radiusM/);
+    bad((t) => ((t.floodlight as { light: { radiusM: number } }).light.radiusM = 17), /radiusM/);
+    bad((t) => ((t.floodlight as { light: { blackoutRadiusM: number } }).light.blackoutRadiusM = 3), /blackoutRadiusM must be at least radiusM/);
+    bad((t) => ((t.floodlight as { light: Record<string, unknown> }).light.extra = 1), /extra|Unrecognized/i);
+    bad((t) => ((t.med_station as { heal: { hpPerS: number } }).heal.hpPerS = 0), /hpPerS/);
+    bad((t) => ((t.med_station as { heal: { radiusM: number } }).heal.radiusM = 9), /radiusM/);
+    bad((t) => ((t.med_station as Record<string, unknown>).inShop = "yes"), /inShop/);
+  });
 });
 
 describe("Story 5.1: weapon upgrades", () => {

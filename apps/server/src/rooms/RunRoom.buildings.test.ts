@@ -131,6 +131,30 @@ describe("RunRoom buildings (Story 3.4)", () => {
     expect(world(room).buildings.list).toHaveLength(6);
   });
 
+  it("Story 5.10 (B9): a crafted floodlight place → building.refused not_for_sale, wallet unchanged; a med station places (300 HP)", async () => {
+    const { host, room, hostRec } = await startTwo();
+    host.send(C2S.BUILDING_PLACE, { type: "floodlight", gx: 12, gy: 30, rot: 0 });
+    await vi.waitFor(() => expect(hostRec.refused).toEqual(["not_for_sale"]));
+    expect(world(room).buildings.list).toHaveLength(0);
+    expect(world(room).players.get("p0")?.wallet).toBe(serverBalance.economy.startingWallet);
+    world(room).players.get("p0")!.wallet = 1000;
+    host.send(C2S.BUILDING_PLACE, { type: "med_station", gx: 12, gy: 30, rot: 0 });
+    await vi.waitFor(() => expect(host.state.buildings.size).toBe(1));
+    expect(host.state.buildings.get("1")).toMatchObject({ type: "med_station", hp: 300 });
+    expect(world(room).players.get("p0")?.wallet).toBe(600);
+  });
+
+  it("Story 5.10 (B10): with the dev switch DEV_SHOP_ALL=1 the server places a floodlight (and it becomes a light on the server's World)", async () => {
+    vi.stubEnv("DEV_SHOP_ALL", "1");
+    const { host, room, hostRec } = await startTwo();
+    expect(world(room).debug.shopAll).toBe(true);
+    host.send(C2S.BUILDING_PLACE, { type: "floodlight", gx: 12, gy: 30, rot: 0 });
+    await vi.waitFor(() => expect(host.state.buildings.size).toBe(1));
+    expect(hostRec.refused).toEqual([]);
+    await vi.waitFor(() => expect(world(room).lights.list.filter((l) => l.kind === "floodlight")).toHaveLength(1));
+    expect(world(room).lights.list.find((l) => l.kind === "floodlight")).toMatchObject({ x: 6.5, y: 15.5, radiusM: 4 });
+  });
+
   it("a malformed message is dropped by the guard (no reply), the room keeps running", async () => {
     const { host, room, hostRec } = await startTwo();
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 1.5, gy: 3, rot: 0 });

@@ -40,6 +40,8 @@ export interface Bought {
 
 const weaponCache = new WeakMap<Balance, readonly ShopWeapon[]>();
 const buildingCache = new WeakMap<Balance, readonly ShopBuilding[]>();
+/** Story 5.10: the list with `inShop: false` types too (dev switch `shopAll`). */
+const buildingCacheAll = new WeakMap<Balance, readonly ShopBuilding[]>();
 
 /** The weapons the shop offers, in shop order (cached per balance). */
 export function shopWeapons(balance: Balance): readonly ShopWeapon[] {
@@ -68,10 +70,12 @@ export function titleCase(id: string): string {
 /**
  * The building types the shop lists (Story 3.4 adds `balance.buildings`; until then: none). Read
  * generically: any entry with a numeric `price` is listed, named by its string `name` if it has one;
- * Story 5.9: except upgrade-only tiers (`forSale: false`).
+ * Story 5.9: except upgrade-only tiers (`forSale: false`). Story 5.10: and types not offered yet
+ * (`inShop: false`, the floodlight until 6.3) unless `shopAll` (the dev switch `world.debug.shopAll`).
  */
-export function shopBuildings(balance: Balance): readonly ShopBuilding[] {
-  let list = buildingCache.get(balance);
+export function shopBuildings(balance: Balance, shopAll = false): readonly ShopBuilding[] {
+  const cache = shopAll ? buildingCacheAll : buildingCache;
+  let list = cache.get(balance);
   if (!list) {
     const out: ShopBuilding[] = [];
     const block = (balance as unknown as { buildings?: unknown }).buildings;
@@ -81,12 +85,13 @@ export function shopBuildings(balance: Balance): readonly ShopBuilding[] {
         const price = (t as { price?: unknown } | null)?.price;
         if (typeof price !== "number") continue;
         if ((t as { forSale?: unknown }).forSale === false) continue; // Story 5.9: upgrade-only tiers
+        if (!shopAll && (t as { inShop?: unknown }).inShop === false) continue; // Story 5.10: not offered yet (dev: shopAll)
         const name = (t as { name?: unknown }).name;
         out.push(Object.freeze({ id, price, name: typeof name === "string" && name.length > 0 ? name : titleCase(id) }));
       }
     }
     list = Object.freeze(out);
-    buildingCache.set(balance, list);
+    cache.set(balance, list);
   }
   return list;
 }

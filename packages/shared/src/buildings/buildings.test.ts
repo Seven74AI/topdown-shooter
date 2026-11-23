@@ -41,9 +41,9 @@ describe("buildings.json (Story 3.4)", () => {
   it("has the Wood barricade: 40, 2 × 0.5 m, 200 HP, cap 6", () => {
     expect(balance.buildings.maxPerPlayer).toBe(6);
     expect(balance.buildings.spawnClearM).toBe(2);
-    expect(balance.buildings.types[WOOD]).toEqual({ name: "Wood barricade", price: 40, widthM: 2, depthM: 0.5, hp: 200, solid: true, forSale: true, upgradesTo: { type: "reinforced_barricade", price: 50 } });
+    expect(balance.buildings.types[WOOD]).toEqual({ name: "Wood barricade", price: 40, widthM: 2, depthM: 0.5, hp: 200, solid: true, forSale: true, inShop: true, upgradesTo: { type: "reinforced_barricade", price: 50 } });
     // Story 5.9 appends the tiers, the trap and the mine (the index is on the wire: append only).
-    expect(buildingTypeIds(balance)).toEqual([WOOD, "auto_turret", "reinforced_barricade", "metal_barricade", "spike_trap", "mine"]);
+    expect(buildingTypeIds(balance)).toEqual([WOOD, "auto_turret", "reinforced_barricade", "metal_barricade", "spike_trap", "mine", "floodlight", "med_station"]);
   });
 
   it("Story 3.6: has the Auto-turret: 250, 1 × 1 m, 300 HP, 8 m, 5/s, 3 damage; the barricade has no turret block", () => {
@@ -125,6 +125,26 @@ describe("placeBuilding", () => {
     expect(placementError(world, "p0", { type: "toString", gx: 40, gy: 40, rot: 0 })).toBe("unknown_type");
     expect(placementError(world, "p0", { type: WOOD, gx: 40, gy: 40, rot: 4 })).toBe("unknown_type");
     expect(placementError(world, "p0", { type: WOOD, gx: 40.5, gy: 40, rot: 0 })).toBe("blocked");
+  });
+
+  it("Story 5.10: a floodlight (inShop: false) is refused not_for_sale, wallet unchanged; accepted with debug.shopAll; a med station is placeable", () => {
+    const { world } = setup();
+    const wallet = world.players.get("p0")?.wallet;
+    expect(placeBuilding(world, "p0", { type: "floodlight", gx: 40, gy: 40, rot: 0 })).toEqual({ ok: false, error: "not_for_sale" });
+    expect(world.buildings.list).toHaveLength(0);
+    expect(world.players.get("p0")?.wallet).toBe(wallet);
+    world.debug.shopAll = true;
+    const r = placeBuilding(world, "p0", { type: "floodlight", gx: 40, gy: 40, rot: 0 });
+    expect(r.ok).toBe(true);
+    expect(world.players.get("p0")?.wallet).toBe((wallet ?? 0) - 100);
+    expect(world.buildings.list[0]).toMatchObject({ type: "floodlight", hp: 150, solid: true, minX: 20, maxX: 21, minY: 20, maxY: 21 });
+    world.debug.shopAll = false;
+    world.players.get("p0")!.wallet = 1000;
+    expect(placeBuilding(world, "p0", { type: "med_station", gx: 44, gy: 40, rot: 0 }).ok).toBe(true);
+    expect(world.buildings.list[1]).toMatchObject({ type: "med_station", hp: 300, solid: true });
+    // Upgrade-only tiers stay unknown_type even with the switch (forSale is a different flag).
+    world.debug.shopAll = true;
+    expect(placementError(world, "p0", { type: "metal_barricade", gx: 50, gy: 50, rot: 0 })).toBe("unknown_type");
   });
 
   it("the footprint must lie inside the map; it may touch every edge, in both orientations (H2)", () => {

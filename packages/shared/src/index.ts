@@ -37,7 +37,7 @@ export {
   MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
-export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
+export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, worldDigest, type WorldSnapshot } from "./core/worldSnapshot";
@@ -83,6 +83,9 @@ export { createObstacles, fillObstacles, mutationApplies, type ObstacleState } f
 // Story 4.5: the decay stage engine.
 export { createDecayState, fireRecordOf, legalDecayMasks, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
 export { applyDecayStage } from "./decay/applyDecayStage";
+// Story 5.10: the derived light-source list; med station healing.
+export { createLightState, lightsOf, updateLightState, type LightKind, type LightSource, type LightState } from "./decay/lightState";
+export { inHealReach, updateMedStations } from "./buildings/medStation";
 // Story 4.8: car fires.
 export { circleInFire, fireExpiry, firePulse, firePulseDamage, lightNewFires, segmentHitsFire, updateFires } from "./decay/fire";
 export { changeDecayStage, decayFinish, decayMutate, destroyBlockedBuildings, moveOutOfNewFires, relocateBodies, relocated, stageForComingWave } from "./decay/decaySystem";

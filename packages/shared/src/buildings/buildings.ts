@@ -82,7 +82,7 @@ export function createBuildingState(): BuildingState {
 }
 
 /** Why a placement is refused. The client maps it to text (`placeRefusalText`). */
-export type PlaceError = "unknown_player" | "not_build_phase" | "unknown_type" | "limit" | "money" | "blocked";
+export type PlaceError = "unknown_player" | "not_build_phase" | "unknown_type" | "not_for_sale" | "limit" | "money" | "blocked";
 
 /** A footprint box in metres. */
 export interface Box {
@@ -205,7 +205,7 @@ export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>): bo
 
 /**
  * The whole placement check, in this order: unknown player → not a build phase → unknown type or a
- * bad grid point/rotation → the owner's cap → money → the spot. null = the server would accept it.
+ * bad grid point/rotation → (Story 5.10) not for sale → the owner's cap → money → the spot. null = the server would accept it.
  * The client's preview runs the same check on its mirror World (the server's answer may still differ:
  * others' positions there are interpolated).
  */
@@ -215,6 +215,7 @@ export function placementError(world: Readonly<World>, ownerId: string, req: Pla
   if (world.run.phase !== "build") return "not_build_phase";
   const stats = buildingStats(world.balance, req.type);
   if (!stats || !stats.forSale || !isRotation(req.rot)) return "unknown_type"; // Story 5.9: upgrade-only tiers are never placed
+  if (!stats.inShop && !world.debug.shopAll) return "not_for_sale"; // Story 5.10: not offered yet (the floodlight until 6.3)
   if (!Number.isInteger(req.gx) || !Number.isInteger(req.gy)) return "blocked";
   if (ownedCount(world, ownerId) >= world.balance.buildings.maxPerPlayer) return "limit";
   if (p.wallet < stats.price) return "money";

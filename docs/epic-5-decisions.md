@@ -125,8 +125,17 @@ Page: claude.ai/artifact/NasqdNNAhnHQEkbHVcamFZ (code drawings in `docs/art/epic
 
 Page: claude.ai/artifact/9VXjyGj7JTSgVDJKUcD3xQ (code drawings in `docs/art/epic-5/round-d/looks.html`).
 - **Floodlight (5.10): FL1 tripod work light = base look; FL5 stadium lamp on sandbags = upgrade/skin look.** FL2–FL4 not used.
-- **Med station (5.10): all five (MS1–MS5) rejected** → new iteration MS6–MS10 requested.
-- **Gear icons (5.11): open.** Requested two more mockups: realistic icon (GR4) on an embossed metal tag (GR2) = GR6, realistic icon on a sticker (GR5) = GR7.
+- **Med station (5.10): all five (MS1–MS5) rejected**; iteration 2 → **MS10 case stack with a glowing green-cross LED panel** (designer, 2026-11-23).
+- **Gear icons (5.11): GR6** = the realistic painted objects (GR4) on embossed metal tags (GR2).
 - **Consumable icons (5.12): CI4** (realistic painted objects).
 - **Hand grenade (5.12): all three kept** (HG1 pineapple base; HG2 smooth M67, HG3 can-shaped as variants/upgrade looks). The thrown grenade uses these, not 5.5's 40 mm round.
-- Molotov bottle/fire (MB1–MB3): not picked yet.
+- **Molotov (5.12): all three kept** (like the grenade): MB1 wine bottle / even spread = base; MB2 beer bottle / forward splash and MB3 flask / joining puddles as random variants.
+
+## Build-bar icons (designer, 2026-11-23, Story 5.16 follow-up)
+
+Page: claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3 (code drawings in `docs/art/5-16/icons/index.html`).
+- **Buildings get their own build-bar icons**, separate from the top-down world art (like weapons have their own shop icons). 5.16 ships with the world art in the tiles; the icons come in a small follow-up story.
+- Style **I1 tilted objects** (a low three-quarter view with height). Wood barricade **I1**, spike trap **I1**.
+- Auto-turret: **T1 sentry gun** (base) and **T2 armoured dome** kept (by the two-pick rule: T2 for a later turret upgrade tier or skin).
+- Mine: **M1 pressure mine** (thick olive disc, raised plate, red light).
+- Later buildings (med station, floodlight, bear trap) get an I1-style icon when built; until then the tile falls back to the world art.
