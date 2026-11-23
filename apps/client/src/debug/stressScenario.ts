@@ -1,4 +1,4 @@
-import { BUILD_GRID_M, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
+import { BUILD_GRID_M, MUZZLE_OFFSET_M, activeSlot, lobAimLength, addBuildingAt, buildingStats, footprint, footprintBlocked, spawnZombie, type Box, type DistrictMap, type PlayerInput, type World, type ZombieTypeId, announceSpawn } from "@topdown/shared";
 import { PerfSummary, TARGET_AVG_FPS, TARGET_MIN_FPS, perf, type PerfSummaryResult } from "./perfStats";
 import { gfxStatus } from "../render/gfx/gfxStatus";
 
@@ -149,8 +149,11 @@ export function stressFireInput(world: World, playerId: string, input: PlayerInp
     return false;
   }
   const d = Math.sqrt(bestD2);
-  input.aimX = ((z.x[best] as number) - p.x) / d;
-  input.aimY = ((z.y[best] as number) - p.y) / d;
+  // Story 5.5: a launcher lobs to the nearest zombie's distance (the aim length; FR-A).
+  const w = world.balance.weapons[activeSlot(p.loadout).weapon];
+  const len = w?.kind === "launcher" ? lobAimLength(w, d - p.radiusM - MUZZLE_OFFSET_M) : 1;
+  input.aimX = (((z.x[best] as number) - p.x) / d) * len;
+  input.aimY = (((z.y[best] as number) - p.y) / d) * len;
   input.fire = true;
   input.isMouse = true;
   return true;

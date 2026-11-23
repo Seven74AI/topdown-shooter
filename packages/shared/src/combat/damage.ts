@@ -5,6 +5,43 @@ import { segmentBoxEntryT } from "./cover";
 import { isZombieAlive, killZombie, zombieTypeOf } from "../zombies/zombiePool";
 import type { WeaponId } from "./weapons";
 import { recordDamager } from "../economy/economy";
+import type { PlayerState } from "../player/player";
+import { downPlayer } from "../player/downed";
+import { DAMAGE_SOURCE_EXPLOSION, DAMAGE_SOURCE_FIRE } from "../core/simEvents";
+
+/**
+ * Round C interface contract (owner **5.4**; Story 5.5 builds on this stub with the exact signature
+ * and takes 5.4's at the merge): what hurt a player. Append only (the index goes on the wire in 5.4).
+ */
+export const DAMAGE_TAGS = ["zombie", "bullet", "melee", "fire", "explosion"] as const;
+export type DamageTag = (typeof DAMAGE_TAGS)[number];
+
+/**
+ * Story 5.4 FR-D (stub until 5.4 merges): `amount` damage of kind `tag` to `target`. With a
+ * `sourcePlayerId` (a player's weapon): `bullet` / `melee` deal 0; `fire` / `explosion` deal
+ * `round(amount × combat.friendlyFire.pct / 100)`, the source's own body included. Then the one
+ * player-damage path: alive only, god mode spares, `player.damaged`, `downPlayer` at 0 HP (with
+ * `friendlyFire.canDown` false a player's source stops at 1 HP). Returns the HP actually taken.
+ * The stub's `player.damaged` keeps today's shape (`sourceZombieId` -2 for a blast, -1 for fire);
+ * 5.4 adds `tag` and `sourcePlayerId`.
+ */
+export function damagePlayerBy(world: World, target: PlayerState, amount: number, tag: DamageTag, sourcePlayerId: string | null, sourceZombieId = -1): number {
+  if (target.status !== "alive" || world.debug.godMode || amount <= 0) return 0;
+  let dmg = amount;
+  const ff = world.balance.combat.friendlyFire;
+  if (sourcePlayerId !== null) {
+    if (tag === "bullet" || tag === "melee") return 0;
+    dmg = Math.round((amount * ff.pct) / 100);
+    if (!ff.canDown) dmg = Math.min(dmg, target.hp - 1);
+  }
+  if (dmg <= 0) return 0;
+  const taken = Math.min(target.hp, dmg);
+  target.hp = Math.max(0, target.hp - dmg);
+  const src = tag === "explosion" ? DAMAGE_SOURCE_EXPLOSION : tag === "fire" ? DAMAGE_SOURCE_FIRE : sourceZombieId;
+  world.events.emit({ type: "player.damaged", playerId: target.id, amount: dmg, sourceZombieId: src });
+  if (target.hp <= 0) downPlayer(world, target);
+  return taken;
+}
 
 /**
  * Story 5.3: knockbacks applied by shots and swings, and how many stopped short at a face

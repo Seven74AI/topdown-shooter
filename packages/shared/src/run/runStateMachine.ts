@@ -7,6 +7,7 @@ import { beginWave, clearWave, updateWaves } from "../waves/waveDirector";
 import { killZombie } from "../zombies/zombiePool";
 import { decayFinish, decayMutate, stageForComingWave } from "../decay/decaySystem";
 import { clearAcid } from "../zombies/spit";
+import { clearGrenades } from "../combat/grenades";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
@@ -64,6 +65,7 @@ export function startBuild(world: World): void {
   const from = world.decay.stage;
   const decayed = decayMutate(world, stageForComingWave(world));
   clearAcid(world); // Story 5.6 DD4: no spits, no puddles in a build phase; acid clocks restart
+  clearGrenades(world.grenades); // Story 5.5: no round bursts in a build phase (no ghost blasts)
   returnOutPlayers(world);
   if (decayed) decayFinish(world, from);
   world.events.emit({ type: "build.started", wave: world.waves.number + 1 });
@@ -103,6 +105,7 @@ export function endRun(world: World): void {
   expectPhase(world, "endRun", "build", "wave");
   world.run.phase = "results";
   world.run.buildTicksLeft = 0;
+  clearGrenades(world.grenades); // Story 5.5: Results clears the rounds in flight
 }
 
 /**

@@ -59,7 +59,38 @@ const meleeSchema = z
   })
   .strict();
 
-export const weaponSchema = z.discriminatedUnion("kind", [gunSchema, meleeSchema]);
+/**
+ * Story 5.5: a launcher (the Grenade Launcher). One trigger pull lobs one round along the raw aim
+ * (no spread, no aim assist) to the aim point at `minLobM`–`lobRangeM` from the muzzle (the aim
+ * vector's length encodes the distance: `combat/grenades.ts`). It flies a straight ground track at
+ * `lobSpeedMps` (at least `minFlightS`); cars, the bus and buildings stop it at their face (4.2).
+ * On landing it bursts (`combat/explosion.ts`): `damage` (× the 5.1 level) to every body the blast
+ * of `blastRadiusM` reaches with a clear line, zombies pushed `blastPushM` straight out (swept, 5.3),
+ * players through the friendly-fire rule (`combat.json › friendlyFire`), buildings `blastBuildingDamage`.
+ * Magazine and reload follow the gun rules. `rangeM` is the lob range too (it must equal `lobRangeM`).
+ */
+const launcherSchema = z
+  .object({
+    kind: z.literal("launcher"),
+    ...common,
+    spreadDeg: z.literal(0),
+    magazine: z.number().int().positive(),
+    reloadS: z.number().positive(),
+    lobRangeM: z.number().positive().max(30),
+    minLobM: z.number().positive(),
+    lobSpeedMps: z.number().positive(),
+    minFlightS: z.number().positive().max(2),
+    blastRadiusM: z.number().positive().max(6),
+    blastPushM: z.number().min(0).max(3),
+    blastBuildingDamage: z.number().min(0),
+  })
+  .strict()
+  .refine((l) => l.minLobM < l.lobRangeM, { message: "minLobM must be below lobRangeM", path: ["minLobM"] })
+  .refine((l) => l.rangeM === l.lobRangeM, { message: "a launcher's rangeM is its lob range: it must equal lobRangeM", path: ["rangeM"] })
+  // The landing tick goes on the wire as `landTick − tick` in a u8.
+  .refine((l) => Math.round(Math.max(l.minFlightS, l.lobRangeM / l.lobSpeedMps) * TICK_RATE_HZ) <= 255, { message: "the longest flight must fit 255 ticks (lobRangeM / lobSpeedMps)", path: ["lobSpeedMps"] });
+
+export const weaponSchema = z.discriminatedUnion("kind", [gunSchema, meleeSchema, launcherSchema]);
 export const weaponsSchema = z.record(balanceId, weaponSchema);
 
 /** Story 5.6 helper: `s` seconds is a whole number of ticks. */
@@ -570,6 +601,44 @@ export const decaySchema = z
   })
   .strict();
 
+/**
+ * Story 5.5 (shared with 5.4, 5.8, 5.12): `combat.json`. `friendlyFire` (owner 5.4): a player's fire
+ * or explosion that hits a player (a teammate or the shooter) deals `pct` % of its damage; it can
+ * down them when `canDown`. `explosion` (owner 5.5): the grenade pool size (`maxLiveRounds`, a u8 id
+ * on the wire), how far a round stopped by cover bursts in front of the face, and the client's
+ * effect caps (pools: brief line 12).
+ */
+export const combatSchema = z
+  .object({
+    friendlyFire: z
+      .object({
+        pct: z.number().int().min(0).max(100),
+        canDown: z.boolean(),
+      })
+      .strict(),
+    explosion: z
+      .object({
+        maxLiveRounds: z.number().int().min(1).max(255),
+        faceBackoffM: z.number().min(0.001).max(0.5),
+        fx: z
+          .object({
+            /** The cosmetic round's arc height (scale + shadow offset; never changes the track). */
+            lobArcM: z.number().min(0).max(5),
+            /** Camera shake for every player within this of a blast (settings toggle respected). */
+            shakeWithinM: z.number().min(0).max(20),
+            maxExplosionParticles: z.number().int().min(8).max(512),
+            maxScorchDecals: z.number().int().min(1).max(64),
+            /** Explosions drawn at once (flash + rings each; the oldest is reused). */
+            maxLiveExplosions: z.number().int().min(1).max(32),
+            /** A cosmetic round whose `explosion.happened` never came is hidden this many ticks after its landing tick. */
+            lostEventTicks: z.number().int().min(1).max(100),
+          })
+          .strict(),
+      })
+      .strict(),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -582,11 +651,13 @@ export const balanceFileSchemas = {
   buildings: buildingsSchema,
   shop: shopSchema,
   decay: decaySchema,
+  combat: combatSchema, // Story 5.5 (5.4 owns friendlyFire)
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;
 export type GunStats = z.output<typeof gunSchema>;
 export type MeleeStats = z.output<typeof meleeSchema>;
+export type LauncherStats = z.output<typeof launcherSchema>;
 export type WeaponStats = z.output<typeof weaponSchema>;
 export type ZombieTypeStats = z.output<typeof zombieTypeSchema>;
 export type SpitStats = z.output<typeof spitSchema>;

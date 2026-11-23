@@ -1,0 +1,15 @@
+{
+  "friendlyFire": { "pct": 50, "canDown": true },
+  "explosion": {
+    "maxLiveRounds": 32,
+    "faceBackoffM": 0.05,
+    "fx": {
+      "lobArcM": 1.5,
+      "shakeWithinM": 6,
+      "maxExplosionParticles": 96,
+      "maxScorchDecals": 16,
+      "maxLiveExplosions": 8,
+      "lostEventTicks": 10
+    }
+  }
+}

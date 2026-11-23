@@ -24,7 +24,10 @@ export type SfxName =
   | "zombie_spitter_spit"
   | "fx_acid_hiss"
   // Story 5.7: the Brute's roar (positional; on every Brute's spawn).
-  | "zombie_brute_roar";
+  | "zombie_brute_roar"
+  // Story 5.5: the Grenade Launcher's hollow "thoonk" and a blast (positional, rate-limited).
+  | "weapon_grenade_launch"
+  | "fx_explosion";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -308,6 +311,16 @@ export function playSfx(name: SfxName, pan = 0): void {
       lastBlastAt = t;
       burst(c, t, 0.35, 1, 180);
       burst(c, t + 0.02, 0.2, 0.6, 900);
+      break;
+    case "weapon_grenade_launch": // Story 5.5: a hollow low pop with a short tube ring
+      click(c, t, 220, 0.5);
+      burst(c, t, 0.06, 0.5, 600);
+      break;
+    case "fx_explosion": // Story 5.5: a big low boom with a noisy crackle (shares the blast rate limit)
+      if (t - lastBlastAt < BLAST_MIN_INTERVAL_S) return;
+      lastBlastAt = t;
+      burst(c, t, 0.5, 1, 140);
+      burst(c, t + 0.03, 0.3, 0.7, 1100);
       break;
     case "building_upgraded": // Story 5.9: a metallic clank
       click(c, t, 1800, 0.4);

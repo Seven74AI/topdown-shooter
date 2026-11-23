@@ -323,3 +323,17 @@ describe("tick cost of the Shotgun (Story 5.3, brief line 16)", () => {
     if (PERF_ASSERT) expect(shotgun.p99 - pistol.p99).toBeLessThanOrEqual(2);
   }, 120_000);
 });
+
+describe("tick cost of the Grenade Launcher (Story 5.5, AC 10, brief line 16)", () => {
+  it("4 launchers (12 m lobs, blasts with swept pushes) + 150 Walkers on Downtown: ≤ 2 ms added to the tick p99 over 4 Pistols", () => {
+    const runs = [measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, "grenade_launcher"), measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, "grenade_launcher")];
+    const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
+    const pistol = pick(runs[0] as ReturnType<typeof measure>, runs[2] as ReturnType<typeof measure>);
+    const gl = pick(runs[1] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
+    console.log(
+      `[tick cost 5.5] Pistols p99 ${pistol.p99.toFixed(3)} ms (mean ${pistol.mean.toFixed(3)}); Grenade Launchers p99 ${gl.p99.toFixed(3)} ms (mean ${gl.mean.toFixed(3)}), added p99 ${(gl.p99 - pistol.p99).toFixed(3)} ms; kills ${pistol.kills} / ${gl.kills}; load ${loadavg()[0]?.toFixed(2)}`,
+    );
+    expect(gl.kills).toBeGreaterThan(0); // liveness: the rounds really burst and killed
+    if (PERF_ASSERT) expect(gl.p99 - pistol.p99).toBeLessThanOrEqual(2);
+  }, 180_000);
+});

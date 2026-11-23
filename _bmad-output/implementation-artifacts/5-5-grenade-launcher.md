@@ -1,6 +1,10 @@
+---
+baseline_commit: b84caa3501de1e548dae55180d51f0155e2b0add
+---
+
 # Story 5.5: Grenade Launcher
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -97,17 +101,17 @@ so that I can blow apart packed crowds at a distance.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art pick first:** ~5 Meshy proposals (`nano-banana-pro`, the 4.11 style line) for (a) the survivor holding the Grenade Launcher (stubby drum launcher), (b) the grenade round in flight (with its shadow), (c) the explosion (flash, fire ball, debris ring, smoke) and its scorch decal on wet asphalt. Publish a private proposal page and **wait for the designer's pick**. Record the picks + prompts in `docs/art/5-5/README.md` (the 4.11 format). Frames: `weapon_launcher_held_a`, `fx_grenade_round_a`, `fx_explosion_a…`, `fx_scorch_a…` in `ATLAS_FX`.
-- [ ] **T1 Balance + schema (AC 1):** the `launcher` kind in the weapon union, `isLauncher()`, `combat.json › explosion` (+ fx caps), `shop.json`. Tests `balance.test.ts` (refusals: `minLobM ≥ lobRangeM`, pool > 255).
-- [ ] **T2 Explosion module (AC 5, 12):** `combat/explosion.ts` per the interface contract; `EXPLOSION_KINDS = ["grenade"]` (5.8 appends `bloater`; 5.9's mine moves onto it as `mine`). `SimEvent` `explosion.happened`.
-- [ ] **T3 Grenade pool + firing (AC 2, 3, 4, 11):** `combat/grenades.ts` (`createGrenadePool`, `launchGrenade`, `updateGrenades`, `clipTrack` via `shotBlockT`); the `firing.ts` launcher branch; `world.grenades` in `core/world.ts`; clear on wipe/Results/build start.
-- [ ] **T4 Input aim length (AC 4):** `apps/client/src/input/InputRouter.ts` (the mouse distance from `KeyboardMouse.aimAt` before normalising; touch deflection from `TouchSticks.aimVector`), only with the launcher active (the router needs the active weapon kind: pass it in `build()`). Tests `selectSource.test.ts` / `stick.test.ts` rows.
-- [ ] **T5 Copies (brief 2):** World (`grenades`) → schema (none) → `syncState` (none) → key lists (none) → mirror (`NetSimHost` keeps a cosmetic grenade list from events) → Predictor (none) → devThrottle (none) → `snapshotWorld` (`grenades` pool). `netEvents.ts` 2 kinds.
-- [ ] **T6 Client (AC 7):** `render/GrenadeView.ts` (pooled rounds, landing marker), `render/ExplosionView.ts` (shared with 5.8 and later mines: flash, ring, particles, scorch pool), `GameScene` event wiring + proximity shake, `localFire.ts` launcher branch, sounds.
-- [ ] **T7 Tests (AC 11–15):** files as listed; NetSimHost `NetSimHost.grenade.test.ts`; `tools/netsim/grenade.test.ts`.
-- [ ] **T8 Fuzz (AC 9, 16):** `combat/explosion.fuzz.test.ts` with an independent line-of-sight rewrite.
-- [ ] **T9 Bandwidth + perf + phone FPS (AC 10):** extend `apps/server/src/run/weaponBandwidth.test.ts` (5.4's) and `tickCostDowntown.test.ts`; `?stress=150` with stress bots firing launchers (explosions every ~0.3 s on screen): headless FPS before/after, load recorded.
-- [ ] **T10 Readability + browser + gates + merge notes:** add the round, the landing marker and the explosion to the readability sheet. Playwright: solo `?loadout=grenade_launcher,pistol` (mouse distance, car face stop, self-hit at a car), online 2 players under lag.
+- [x] **T0 Art pick first:** *(skipped by instruction: the designer already picked round C in code — GL1 base, GL2/GL3 as III/IV looks, EX1 fireball, EX2 shockwave for the mine; `docs/epic-5-decisions.md` › Round C looks)* ~5 Meshy proposals (`nano-banana-pro`, the 4.11 style line) for (a) the survivor holding the Grenade Launcher (stubby drum launcher), (b) the grenade round in flight (with its shadow), (c) the explosion (flash, fire ball, debris ring, smoke) and its scorch decal on wet asphalt. Publish a private proposal page and **wait for the designer's pick**. Record the picks + prompts in `docs/art/5-5/README.md` (the 4.11 format). Frames: `weapon_launcher_held_a`, `fx_grenade_round_a`, `fx_explosion_a…`, `fx_scorch_a…` in `ATLAS_FX`.
+- [x] **T1 Balance + schema (AC 1):** the `launcher` kind in the weapon union, `isLauncher()`, `combat.json › explosion` (+ fx caps), `shop.json`. Tests `balance.test.ts` (refusals: `minLobM ≥ lobRangeM`, pool > 255).
+- [x] **T2 Explosion module (AC 5, 12):** `combat/explosion.ts` per the interface contract; `EXPLOSION_KINDS = ["grenade"]` (5.8 appends `bloater`; 5.9's mine moves onto it as `mine`). `SimEvent` `explosion.happened`.
+- [x] **T3 Grenade pool + firing (AC 2, 3, 4, 11):** `combat/grenades.ts` (`createGrenadePool`, `launchGrenade`, `updateGrenades`, `clipTrack` via `shotBlockT`); the `firing.ts` launcher branch; `world.grenades` in `core/world.ts`; clear on wipe/Results/build start.
+- [x] **T4 Input aim length (AC 4):** `apps/client/src/input/InputRouter.ts` (the mouse distance from `KeyboardMouse.aimAt` before normalising; touch deflection from `TouchSticks.aimVector`), only with the launcher active (the router needs the active weapon kind: pass it in `build()`). Tests `selectSource.test.ts` / `stick.test.ts` rows.
+- [x] **T5 Copies (brief 2):** World (`grenades`) → schema (none) → `syncState` (none) → key lists (none) → mirror (`NetSimHost` keeps a cosmetic grenade list from events) → Predictor (none) → devThrottle (none) → `snapshotWorld` (`grenades` pool). `netEvents.ts` 2 kinds.
+- [x] **T6 Client (AC 7):** `render/GrenadeView.ts` (pooled rounds, landing marker), `render/ExplosionView.ts` (shared with 5.8 and later mines: flash, ring, particles, scorch pool), `GameScene` event wiring + proximity shake, `localFire.ts` launcher branch, sounds.
+- [x] **T7 Tests (AC 11–15):** files as listed; NetSimHost `NetSimHost.grenade.test.ts`; `tools/netsim/grenade.test.ts`.
+- [x] **T8 Fuzz (AC 9, 16):** `combat/explosion.fuzz.test.ts` with an independent line-of-sight rewrite.
+- [x] **T9 Bandwidth + perf + phone FPS (AC 10):** extend `apps/server/src/run/weaponBandwidth.test.ts` (5.4's) and `tickCostDowntown.test.ts`; `?stress=150` with stress bots firing launchers (explosions every ~0.3 s on screen): headless FPS before/after, load recorded.
+- [x] **T10 Readability + browser + gates + merge notes:** add the round, the landing marker and the explosion to the readability sheet. Playwright: solo `?loadout=grenade_launcher,pistol` (mouse distance, car face stop, self-hit at a car), online 2 players under lag.
 
 ## Dev Notes
 
@@ -169,10 +173,91 @@ One flash `Image` + one ring `Graphics` per explosion (pooled, ≤ 8 live), debr
 
 ### Agent Model Used
 
+Claude Opus 5.5 (claude-opus-5-5), `gds-dev-story`, worktree `.claude/worktrees/story-5-5` (branch `story-5-5`), ports client 5557 / server 4557 (no game server was needed: online was checked headless through the netsim harness).
+
 ### Debug Log References
+
+- Gate (load avg 7.5 at the end, shared box with other builders): `npm run typecheck && npm run lint && npm test && npm run build` green — 238 files / 1879 tests passed (3 skipped), build ok. `uptime`: 18:12:46 up 3:07, load average 7.54, 7.43, 6.17. Then +2 balance refusal tests (26/26 in `balance.test.ts`), typecheck/lint re-run green.
+- One full-suite run under load 9+ had `spitBandwidth.test.ts` time out; it passes alone and passed in the gate (load-related, pre-existing test).
+- Bandwidth (`weaponBandwidth.test.ts`, 150-zombie crowd, 30 s, per client, no interest filter): 1 launcher 0.63 shots/s, `weapon.fired` 7 B/s + `grenade.launched`/`explosion.happened` 19 B/s = **25.5 B/s per launcher** (estimate 20–40), zombie.hit 0 B/s (quiet blast hits); all events 353 B/s incl. ~17 kills/s. 4 launchers: 102 B/s for fire+lob, 1,044 B/s all events (kills dominate). Far under 30 KB/s.
+- Tick cost (`tickCostDowntown.test.ts`, `PERF_ASSERT=1`, 4 launchers × 150 Walkers on Downtown, load 0.29): Pistols p99 0.654 ms, Grenade Launchers p99 0.553 ms → added p99 −0.10 ms (within noise; ≤ 2 ms budget).
+- Headless FPS `?stress=150` (844×390 DPR 2, 20 s each, load 8.9–10.3 — other builders running; numbers are noise-dominated): before (Pistol) 4.6 / 7.1 fps; after (`?stressfire=1&loadout=grenade_launcher`, blasts on screen, max 80 live particles ≤ the 96 cap) 5.7 / 6.5 fps. No measurable loss; the 4.10 phone numbers were not re-measured (no phone here).
+- Six-wave bot sim (2 and 4 bots, test-only list with the launcher, start money 800): every run ended (3 wiped in W3, one 4p run held out 6 waves); 779 blasts, 54 player hits, **self damage 216, friendly damage 846** (bots fire at the nearest zombie regardless of teammates: logged, not difficulty evidence).
+- Fuzz (`explosion.fuzz.test.ts`): A) 24 Downtown layouts × stages 1–3 × 25 blasts (face 116, shadow 134, spawn 121, barricade 111, open 118): 2,824 bodies checked "must hit" and 3,290 "must not" against an independent 2 mm-sampled LOS (30 ambiguous within tolerance), 1,061 bodies in range behind cover, 323 lob tracks (141 stopped by cover) — all pass. B) 8 layouts × 1,200 ticks, 3 launcher players, real waves: 726 rounds, 723 blasts, 338 GL kills; no body in a box after combat or the zombie pass, zombies reach players in every tough layout, 0 stray nav rebuilds.
+- Mutation testing (each mutation run against the 5 new test files): M1 track ignores cover — killed (grenades, explosion liveness, fuzz, netsim); M2 blast ignores cover — killed (explosion, fuzz); M3 FF 100 % — killed (explosion, netsim); M4 shooter exempt — killed (explosion, fuzz, netsim); M5 blast hits twice — killed (explosion, fuzz); M6 no minLobM clamp — killed (grenades, fuzz); M7 explosion event dropped — killed (grenades, explosion, netsim); M8 aim length ignored — killed (grenades, explosion, netsim). Also: the M8 guard "other weapons keep unit aim" is a row in `lobAim.test.ts`.
+- Browser (Playwright headless Chromium, solo dev build `?loadout=grenade_launcher,pistol`, script in the session scratchpad, written with the Write tool): mouse distance → landing ring at the aim point (cursor 8.4 m from the centre → ring at 7.9 m from the muzzle); car `street_car_west`: ring pulled back to its face − 0.05 m and amber, round burst there, **self-hit 600 → 580 (20)** at 2 m; EX1 fireball; a Walker on a mine → EX2 shockwave; explosions counted once per burst; no page errors. Screenshots `docs/art/epic-5/round-c/ingame/5-5-*.png` (landing ring, round in flight, fireball ×2, car-face ring + blast, mine shockwave ×2). The flash lasts 0.1 s and headless runs at ~5–10 fps, so the blast/flight pictures were frame-stepped: the loop sleeps, the view replays the burst at its own point and steps 60 fps to the shown age (the in-flight picture stretches the cosmetic flight round the clock); the code paths are the game's.
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Sim (shared, engine-free):** new weapon kind `launcher` (`balanceSchema.ts`, refines: minLob < range, rangeM = lobRangeM, flight ≤ 255 ticks, spread 0) and `weapons.json › grenade_launcher` (GDD numbers, price 800), in the fixed shop list. New `combat.json` (`friendlyFire` 50 %/canDown — 5.4's block, built here as the contract stub — and `explosion`: pool 32, face backoff 0.05 m, fx caps). `hasMagazine()`/`isLauncher()`: the gun ammo/reload rules now cover launchers (firing, swap reload, loadout, client fire clock, HUD).
+- `combat/grenades.ts`: SoA pool `world.grenades`, `lobTarget` (FR-A clamp 3–12 m from the muzzle via the aim length; FR-B track from the body centre, stopped at the first shot blocker minus the backoff — shared by sim, client marker, own-shot copy, bots), `launchGrenade` (full pool → nothing spent, documented), `updateGrenades` (bursts at `landTick` after the projectiles; a round of a player who left bursts with no credit and the FF share applied). Cleared at build start and Results. `grenade.launched` + `explosion.happened` events only (no schema state).
+- `combat/explosion.ts` (5.9's `explode()` extended, not duplicated): spec API (`ExplosionSpec` per the round C contract + `buildingId`, `quiet`, `grenadeId`), `EXPLOSION_KINDS = ["grenade", "mine"]`, cover-checked overlap per body, one hit per body (own scratch buffer kept), players through `damagePlayerBy(tag "explosion")`, swept 0.6 m push via 5.3's `applyKnockback` (Brute 20 %), optional building damage (for 5.8), one `explosion.happened`, counters (incl. self/friendly damage). The 5.9 mine now calls it with kind `mine` (80 damage, players 40 through the FF rule; a balance cross-check ties `mine.playerShare` to `friendlyFire.pct`); all 5.9 mine tests pass unchanged except the one direct `explode` call moved to the spec API.
+- `combat/damage.ts`: `DAMAGE_TAGS` + `damagePlayerBy` **stub with 5.4's exact signature** (take 5.4's at merge).
+- Network: kinds 33 `GRENADE_LAUNCHED` `[k, slot, id, x, y, tx, ty, flightTicks]`, 34 `EXPLOSION_HAPPENED` `[k, kind, x, y, r, srcSlot, grenadeId]`; the decoder rebuilds the absolute landing tick from the flush tick (`NetEventContext.tick`). Explosions are global events (not interest-filtered).
+- Client: aim length for the launcher only (`input/lobAim.ts`; mouse = cursor distance from the muzzle, touch D1 = deflection past the fire dead zone → 3–12 m); `GrenadeView` (pooled rounds on the 1.5 m arc with shadow, the landing ring at the exact blast radius from `lobTarget`, amber when cover stops it); `grenadeFx.ts` (pure: `GrenadeFlights` — own instant copy adopted/snapped by the server echo, hidden by its explosion or `lostEventTicks` after landing, cleared at build start; `BlastParticles` ring pool capped at 96; `Explosions` + scorch pool 16); `ExplosionView` (EX1 fireball and EX2 shockwave+debris from round C, flash/glow/edge ring at the exact radius, scorch fading by the build start); `blastFxAtlas.ts` registered through `addGeneratedTexture`. The 5.9 mine's old tween blast in `FxView` is replaced by EX2 from `explosion.happened`; every blast shakes within `fx.shakeWithinM` (settings toggle) and plays `fx_explosion` / `building_mine_blast`; `weapon_grenade_launch` sound. NetSimHost: own launch instant (2.7), `ageS` on new events (woken tab: no stale blast), predicted ammo for launchers. GL1 held + icon, GL2 icon at level III, GL3 at IV (`WEAPON_TOP_TIER_ICON`).
+- Bots: `botPolicy`/`botClient` lob to the target's distance. `?stressfire` with the launcher lobs at the nearest zombie and keeps its crowd.
+- Readability sheet: entries 27–30 (round + ring, the amber ring at a car, EX1, EX2).
+
+#### Beat the rule (builder attempts)
+
+1. Grenade through/over a car — the track stops at the near face (tests + browser: ring and blast at face − 0.05 m); a zombie behind the car is safe (FR-C test, fuzz).
+2. Hiding behind a car from your own blast — safe when the centre line crosses it (explosion test "car shields player").
+3. Blast through sandbags/barricades — hits (tests); readability sheet line 29 says so.
+4. Point-blank self-damage — aiming at your feet lands 3 m out (2 m + 0.4 m < 3 m + muzzle: unharmed); a car 2 m away: 20 each time (liveness sim, netsim, browser); repeated → downed (test "a blast can down a player").
+5. Teammate griefing — 20 per blast, ≤ 0.8/s (16 HP/s); logged in the bot sim (friendly 846 over 4 runs).
+6. Spawn camping — allowed (fuzz includes blast points on spawn jitter segments; no special rule). Kills per blast at spawns vs open not separately measured (left for the designer's playtest).
+7. Swap to dodge the reload — gun rules unchanged (swap cancels the reload; it restarts on return with an empty magazine): same code path (`hasMagazine`).
+8. Lag — no rewind for blasts (FR-F); netsim at 150 ms: the blast is drawn at the server's point once, HP = server HP. "Reversed visual hits" against Runners at 300 ms not measured.
+9. Event loss / hidden tab — netsim + NetSimHost tests: dropped explosions leave no round on screen; a tab asleep across a build start wakes with no round and no blast.
+10. Bloater chains — 5.8's; `explosion.happened` carries the source and `explode` takes a `sourcePlayerId` for the credit hand-down.
+
+#### Notes for the merge (shared files)
+
+- `packages/shared/src/combat/damage.ts`: **take 5.4's** `DAMAGE_TAGS` / `damagePlayerBy` (my stub has the same signature; it emits `player.damaged` without `tag`/`sourcePlayerId` and maps tag explosion → `sourceZombieId` −2). 5.4's quiet `applyZombieDamage(…, { quiet })` can replace my use of `applyZombieDamageQuiet` in `explode`.
+- `packages/shared/src/config/balance/combat.json`, `balanceSchema.ts › combatSchema`, `balance.ts` (loader + BUNDLED): both 5.4 and 5.5 create them — merge into one file/schema: 5.4's `friendlyFire` (+ its fx caps) and my `explosion` block. The cross-check "mine.playerShare = friendlyFire.pct / 100" is mine. Every hand-built balance object in tests needs `combat` (I added it to 7 test files).
+- `balanceSchema.ts`: the weapon union gains `launcher` (5.4 adds `flame`): keep both. `combat/weapons.ts`: `hasMagazine` must also include 5.4's fuel weapon if it reloads like a gun.
+- `net/netEvents.ts`: kinds 33/34 taken here; 5.4 and 5.8 also want "next free" numbers — renumber at merge (never reuse), and update `netEvents.test.ts` fixtures.
+- `core/simEvents.ts`: `grenade.launched`, `explosion.happened` (5.8 adds its own; `EXPLOSION_KINDS` append-only: 5.8 appends `bloater` after `mine`).
+- `combat/explosion.ts`: 5.8 adds the Bloater blast through `explode(world, spec)` with kind `bloater`, `sourcePlayerId` = popper, `buildingDamage` 40 (supported), `playerDamage` 30 with no FF (pass `sourcePlayerId` only for credit — note: with `sourcePlayerId` set, the FF rule halves player damage; 5.8 D1 wants full 30, so 5.8 needs either a `friendlyFire: false` spec flag or credit via a separate field). Client: add the Bloater look in `blastLookFor`.
+- `combat/firing.ts`: launcher branch before aim assist; `hasMagazine` in swap/reload. `core/world.ts`: `grenades`. `core/worldSnapshot.ts`: `grenades`. `run/runStateMachine.ts`: `clearGrenades` at build start and Results. `index.ts`: new exports.
+- `bots/botPolicy.ts` (`BotSelf` gains `lobRangeM`, `minLobM`, `muzzleM`), `tools/bots/botClient.ts`.
+- Client: `scenes/GameScene.ts` (views, marker, router lob arg, explosion shake/sound replacing the mine shake), `sim/NetSimHost.ts` (own launch, `ageS`, ctx tick, launcher ammo), `render/FxView.ts` (mine blast removed), `render/city/weaponArt.ts` (GL1–3, `WEAPON_TOP_TIER_ICON`; 5.4 adds flamethrower art to `WEAPON_ART`), `render/weaponLook.ts`, `audio/placeholderSfx.ts`, `input/InputRouter.ts` + `TouchSticks.ts` (`deflection`), `net/localFire.ts`, `debug/stressScenario.ts`.
+- Server tests: `weaponBandwidth.test.ts` (measure gained a `firing` count and lob bytes), `tickCostDowntown.test.ts`.
+
+#### Not verified
+
+- No real phone; headless FPS on a loaded box (load 9–10) is noise-dominated; the 4.10 phone floor was not re-measured.
+- Online with 2 real browser clients under `?lag=150&jitter=20` and a real game server was **not** run; online behaviour is covered by the netsim harness (real server controller + real wire codec) and the NetSimHost tests (fake room). Touch aim distance (D1) is unit-tested only (no touch device).
+- Late Game scene start tested in the netsim harness only; reversed "visual hits" at `?lag=300` and spawn-camping kill rates not measured.
+- Sounds are placeholders (synthesized) and not listened to.
+- Meshy art step skipped by instruction; GL2/GL3 icons only (held art is GL1 at every level).
 
 ### File List
+
+New:
+- `packages/shared/src/combat/grenades.ts`, `grenades.test.ts`, `explosion.test.ts`, `explosion.fuzz.test.ts`
+- `packages/shared/src/config/balance/combat.json`
+- `apps/client/src/input/lobAim.ts`, `lobAim.test.ts`
+- `apps/client/src/render/grenadeFx.ts`, `grenadeFx.test.ts`, `GrenadeView.ts`, `ExplosionView.ts`, `render/city/blastFxAtlas.ts`
+- `apps/client/src/sim/NetSimHost.grenade.test.ts`
+- `tools/netsim/grenade.test.ts`
+- `docs/art/epic-5/round-c/ingame/5-5-landing-ring.png`, `5-5-round-in-flight.png`, `5-5-fireball.png`, `5-5-fireball-late.png`, `5-5-car-face-ring.png`, `5-5-car-face-blast.png`, `5-5-mine-shockwave.png`, `5-5-mine-shockwave-late.png`
+- `docs/playtests/milestone-1/objects/28_grenade_round.png`, `29_landing_ring_car.png`, `30_explosion_fireball.png`, `31_explosion_shockwave.png`
+
+Modified:
+- `packages/shared/src/combat/explosion.ts`, `damage.ts`, `firing.ts`, `loadout.ts`, `weapons.ts`
+- `packages/shared/src/buildings/mine.ts`, `mine.test.ts`
+- `packages/shared/src/config/balanceSchema.ts`, `balance.ts`, `balance.test.ts`, `balance/weapons.json`, `balance/shop.json`
+- `packages/shared/src/core/simEvents.ts`, `world.ts`, `worldSnapshot.ts`
+- `packages/shared/src/net/netEvents.ts`, `netEvents.test.ts`
+- `packages/shared/src/run/runStateMachine.ts`, `bots/botPolicy.ts`, `index.ts`
+- `packages/shared/src/economy/fiveWaveSim.test.ts`, `economy/shop.test.ts`, `combat/aimAssist.test.ts`, `combat/firing.test.ts`, `combat/melee.test.ts`, `combat/swap.test.ts`, `waves/spawnPoints.test.ts`, `waves/waveDirector.test.ts`, `zombies/zombieAi.test.ts`
+- `apps/client/src/scenes/GameScene.ts`, `sim/NetSimHost.ts`, `net/localFire.ts`, `input/InputRouter.ts`, `input/TouchSticks.ts`, `input/TouchSticks.test.ts`, `render/FxView.ts`, `render/mineBlast.ts`, `render/weaponLook.ts`, `render/city/weaponArt.ts`, `render/city/atlasLayout.test.ts`, `audio/placeholderSfx.ts`, `debug/stressScenario.ts`, `ui/shopStore.test.ts`
+- `apps/server/src/run/weaponBandwidth.test.ts`, `tickCostDowntown.test.ts`
+- `tools/bots/botClient.ts`
+- `docs/playtests/milestone-1/readability-sheet.md`, `readability-key.md`
+- `_bmad-output/implementation-artifacts/5-5-grenade-launcher.md`
+
+### Change Log
+
+- 2026-11-23: Story 5.5 built (Grenade Launcher: launcher weapon kind, lobbed round pool, shared cover-checked `explode()` with the 5.9 mine moved onto it, events 33/34, client rounds/landing ring/EX1+EX2 explosions, bots, tests incl. fuzz/netsim/mutations). Status → review.

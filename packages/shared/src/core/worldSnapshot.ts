@@ -89,6 +89,16 @@ function snapshotSpits(world: World) {
   return { list: out, nextId: s.nextId };
 }
 
+/** Story 5.5: rounds in flight (dense order) and the id counter. */
+function snapshotGrenades(world: World) {
+  const g = world.grenades;
+  const out = [];
+  for (let i = 0; i < g.count; i++) {
+    out.push({ id: g.id[i], x0: g.x0[i], y0: g.y0[i], tx: g.tx[i], ty: g.ty[i], landTick: g.landTick[i], owner: g.owner[i] ?? null, weapon: g.weapon[i], level: g.level[i] });
+  }
+  return { list: out, nextId: g.nextId };
+}
+
 function snapshotAreas(world: World) {
   const a = world.areas;
   const out = [];
@@ -169,6 +179,7 @@ export function snapshotWorld(world: World) {
     // Story 5.6: globs in flight (dense order) and the acid puddles (live slots). Players' `acidTicks` ride in `players`.
     spits: snapshotSpits(world),
     areas: snapshotAreas(world),
+    grenades: snapshotGrenades(world), // Story 5.5
     // Story 2.12: the zombie position history (evolved state: switch, row labels, hash of the rows).
     zombieHistory: snapshotZombieHistory(world.zombieHistory),
   };

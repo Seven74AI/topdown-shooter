@@ -10,6 +10,7 @@ import bots from "../config/balance/bots.json" with { type: "json" };
 import buildings from "../config/balance/buildings.json" with { type: "json" };
 import shop from "../config/balance/shop.json" with { type: "json" };
 import decay from "../config/balance/decay.json" with { type: "json" };
+import combat from "../config/balance/combat.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { createWorld, setInput, step, type World } from "../core/world";
@@ -24,7 +25,7 @@ const NO_WAVES = { waves: () => {} };
 function exactBalance() {
   const w = JSON.parse(JSON.stringify(weapons));
   for (const k of Object.keys(w)) if (w[k].kind === "gun") w[k].spreadDeg = 0;
-  return loadBalance({ weapons: w, zombies, waves, player, controls, economy, bots, buildings, shop, decay } as RawBalanceFiles);
+  return loadBalance({ weapons: w, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat } as RawBalanceFiles);
 }
 
 let seq = 0;

@@ -4,7 +4,7 @@ import {
   cooldownReady,
   cooldownTickEnd,
   cooldownTickStart,
-  isGun,
+  hasMagazine,
   ticksFor,
   type Balance,
   type PlayerInput,
@@ -31,6 +31,10 @@ export interface LocalAttack {
   /** Unit raw aim (the server's direction before assist and spread). */
   dirX: number;
   dirY: number;
+  /** Story 5.5: a launcher's lob (no projectile: a cosmetic round to the lob target). */
+  launcher: boolean;
+  /** Story 5.5: the raw aim's length (a launcher's lob distance, FR-A). */
+  aimLen: number;
 }
 
 /**
@@ -57,7 +61,7 @@ export interface LocalAttack {
  * Phaser-free and SDK-free (the `tools/netsim` hits harness runs it). No allocation per step.
  */
 export class LocalFireClock {
-  readonly attack: LocalAttack = { weapon: "", melee: false, dirX: 1, dirY: 0 };
+  readonly attack: LocalAttack = { weapon: "", melee: false, dirX: 1, dirY: 0, launcher: false, aimLen: 1 };
   private readonly cooldown = new Float64Array(2);
   private readonly cooldownWeapon: string[] = ["", ""];
   private readonly shotSeq = new Float64Array(LOCAL_SHOT_HISTORY).fill(-1);
@@ -122,7 +126,7 @@ export class LocalFireClock {
     const weapon = slot === 1 ? me.weapon1 : me.weapon0;
     const stats = this.balance.weapons[weapon];
     const end = this.reloadEndSeq(me, slot as 0 | 1);
-    if (end > 0 && this.lastSeq + 1 > end && stats && isGun(stats)) return stats.magazine - this.shotsAfter(end, slot);
+    if (end > 0 && this.lastSeq + 1 > end && stats && hasMagazine(stats)) return stats.magazine - this.shotsAfter(end, slot);
     return (slot === 1 ? me.ammo1 : me.ammo0) - this.shotsAfter(me.ackSeq, slot);
   }
 
@@ -148,7 +152,7 @@ export class LocalFireClock {
       return false; // no attack during a swap (FR5)
     }
     const c = cooldownTickStart(this.cooldown[active] as number, TICK_DT_S);
-    const gun = isGun(stats);
+    const gun = hasMagazine(stats);
     const reloadEnd = gun ? this.reloadEndSeq(me, active) : 0;
     const reloading = reloadEnd > 0 && seq <= reloadEnd;
     let ammo = 1;
@@ -165,6 +169,8 @@ export class LocalFireClock {
       a.melee = !gun;
       a.dirX = input.aimX / aimLen;
       a.dirY = input.aimY / aimLen;
+      a.launcher = stats.kind === "launcher";
+      a.aimLen = aimLen;
     }
     return attacked;
   }
@@ -220,7 +226,7 @@ export class LocalFireClock {
     const s = this.emptySeq[slot] as number;
     if (s > 0 && me.ackSeq < s) {
       const stats = this.balance.weapons[slot === 1 ? me.weapon1 : me.weapon0];
-      return stats && isGun(stats) ? s + ticksFor(stats.reloadS) : 0;
+      return stats && hasMagazine(stats) ? s + ticksFor(stats.reloadS) : 0;
     }
     this.emptySeq[slot] = 0;
     return 0;

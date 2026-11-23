@@ -26,13 +26,15 @@ export interface AimState {
   y: number;
   /** Past the aim dead zone: the weapon fires (GDD: fires automatically while aiming). */
   fire: boolean;
+  /** Story 5.5: the raw deflection (0–1; the launcher's lob distance, D1). */
+  deflection: number;
 }
 
 export class TouchSticks {
   move: StickTouch | null = null;
   aim: StickTouch | null = null;
   private readonly moveVec: StickVector = { x: 0, y: 0, magnitude: 0 };
-  private readonly aimState: AimState = { x: 0, y: 0, fire: false };
+  private readonly aimState: AimState = { x: 0, y: 0, fire: false, deflection: 0 };
 
   constructor(
     private radiusPx: number,
@@ -46,6 +48,11 @@ export class TouchSticks {
 
   get radius(): number {
     return this.radiusPx;
+  }
+
+  /** Story 5.5: the aim stick's fire dead zone (fraction of the radius). */
+  get aimDeadZoneFrac(): number {
+    return this.aimDeadZone;
   }
 
   pointerDown(pointerId: number, x: number, y: number, screenWidth: number): void {
@@ -86,8 +93,10 @@ export class TouchSticks {
     out.x = 0;
     out.y = 0;
     out.fire = false;
+    out.deflection = 0;
     if (!a) return out;
     const deflection = stickDeflection(a.originX, a.originY, a.x, a.y, this.radiusPx);
+    out.deflection = deflection;
     if (deflection < AIM_MIN_DEFLECTION) return out;
     const dx = a.x - a.originX;
     const dy = a.y - a.originY;

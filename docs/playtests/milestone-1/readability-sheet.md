@@ -100,3 +100,12 @@ Player:
 
 ## 26 (Story 5.7)
 ![26](objects/27_brute.png)
+
+## 27: the small thing in the air, and the ring ahead (Story 5.5)
+![27](objects/28_grenade_round.png)
+
+## 28: the orange ring at the car (Story 5.5)
+![28](objects/29_landing_ring_car.png)
+
+## 29, 30: two blasts (Story 5.5)
+![29](objects/30_explosion_fireball.png) ![30](objects/31_explosion_shockwave.png)

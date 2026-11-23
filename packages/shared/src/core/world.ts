@@ -22,6 +22,7 @@ import { createRewoundView, createZombieHistory, recordZombieHistory, type Rewou
 import { DEFAULT_SYSTEMS, SYSTEM_ORDER, type Systems } from "./systems";
 import { createSpitPool, type SpitPool } from "../zombies/spitPool";
 import { createAreaPool, type AreaPool } from "../hazards/areaPool";
+import { createGrenadePool, type GrenadePool } from "../combat/grenades";
 
 /** The whole simulation state. A plain object so it can be snapshotted (Story 8.4). */
 export interface World {
@@ -97,6 +98,8 @@ export interface World {
   readonly spits: SpitPool;
   /** Story 5.6 (D5): ground damage areas — acid puddles (pool sized by `spitCaps.maxLivePuddles`). */
   readonly areas: AreaPool;
+  /** Story 5.5: lobbed rounds in flight (pool sized by `combat.json › explosion.maxLiveRounds`). */
+  readonly grenades: GrenadePool;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -168,6 +171,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     rewoundView: createRewoundView(map),
     spits: createSpitPool(opts.balance.zombies.spitCaps.maxLiveSpits), // Story 5.6
     areas: createAreaPool(opts.balance.zombies.spitCaps.maxLivePuddles),
+    grenades: createGrenadePool(opts.balance.combat.explosion.maxLiveRounds), // Story 5.5
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

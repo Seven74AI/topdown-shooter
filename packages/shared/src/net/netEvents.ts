@@ -4,6 +4,7 @@ import { MONEY_REASONS, type SimEvent } from "../core/simEvents";
 import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
 import { buildingTypeIds } from "../buildings/buildings";
+import { EXPLOSION_KINDS } from "../combat/explosion";
 
 /**
  * Sim events on the wire (Story 2.4). Each forwarded event is a short tuple `[kind, …fields]`
@@ -50,6 +51,9 @@ export const NET_EVENT_KIND = {
   ACID_SPLASHED: 30, // Story 5.6
   WEAPON_UPGRADED: 31, // Story 5.1 (renumber at merge if taken; never reuse)
   BRUTE_SPAWNED: 32, // Story 5.7 (31 is 5.1's WEAPON_UPGRADED; renumber at merge if taken, never reuse)
+  // Story 5.5 (next free numbers; 5.4 and 5.8 run in parallel: renumber at merge if taken, never reuse):
+  GRENADE_LAUNCHED: 33,
+  EXPLOSION_HAPPENED: 34,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -69,6 +73,12 @@ export interface NetEventContext {
   readonly balance: Balance;
   /** Encode only: the net id of a zombie pool slot (`slot | generation << 8`). */
   readonly zombieNetId?: (zombieId: number) => number;
+  /**
+   * Decode only (Story 5.5): the tick of the `sim.events_flushed` being decoded (the server's
+   * `world.tick` after the step, i.e. emit tick + 1): `grenade.launched` rebuilds its absolute
+   * landing tick from it. Absent = 0.
+   */
+  tick?: number;
 }
 
 const PLAYER_IDS: readonly string[] = Array.from({ length: MAX_PLAYERS }, (_, i) => `p${i}`);
@@ -203,6 +213,12 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "weapon.upgraded":
       // Story 5.1: one per upgrade (the level itself comes from schema level0/level1).
       return [K.WEAPON_UPGRADED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), e.slot, e.level];
+    case "grenade.launched":
+      // Story 5.5: the round's flight (cosmetic on the client); the landing tick as ticks from the launch (u8).
+      return [K.GRENADE_LAUNCHED, playerSlotOf(e.playerId), e.grenadeId & 0xff, cm(e.x), cm(e.y), cm(e.tx), cm(e.ty), Math.min(255, Math.max(0, e.flightTicks))];
+    case "explosion.happened":
+      // Story 5.5: the visual (hits, kills and player damage are their own events); the round's id appended (index 6).
+      return [K.EXPLOSION_HAPPENED, e.kind, cm(e.x), cm(e.y), cm(e.radiusM), playerSlotOf(e.sourcePlayerId), e.grenadeId & 0xff];
     case "test.ping":
       return null;
   }
@@ -350,6 +366,25 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "zombie.brute_spawned", zombieId: zombieSlotOfNetId(n(t, 1)), x: n(t, 2) / 100, y: n(t, 3) / 100, first: n(t, 4) === 1 };
     case K.WEAPON_UPGRADED:
       return { type: "weapon.upgraded", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)), slot: n(t, 3) === 1 ? 1 : 0, level: n(t, 4) };
+    case K.GRENADE_LAUNCHED: {
+      const flightTicks = n(t, 7);
+      return {
+        type: "grenade.launched",
+        playerId: pid(t, 1),
+        grenadeId: n(t, 2),
+        x: n(t, 3) / 100,
+        y: n(t, 4) / 100,
+        tx: n(t, 5) / 100,
+        ty: n(t, 6) / 100,
+        landTick: (ctx.tick ?? 1) - 1 + flightTicks,
+        flightTicks,
+      };
+    }
+    case K.EXPLOSION_HAPPENED: {
+      const kind = n(t, 1);
+      if (kind >= EXPLOSION_KINDS.length) return null;
+      return { type: "explosion.happened", kind, x: n(t, 2) / 100, y: n(t, 3) / 100, radiusM: n(t, 4) / 100, sourcePlayerId: playerIdOfSlot(n(t, 5)), grenadeId: n(t, 6) };
+    }
     default:
       return null;
   }

@@ -1,5 +1,5 @@
 import type { Balance } from "../config/balance";
-import { isGun, weaponStats, type WeaponId } from "./weapons";
+import { hasMagazine, weaponStats, type WeaponId } from "./weapons";
 
 export interface WeaponSlot {
   weapon: WeaponId;
@@ -29,7 +29,7 @@ export interface Loadout {
 
 export function createSlot(balance: Balance, weapon: WeaponId): WeaponSlot {
   const stats = weaponStats(balance, weapon);
-  return { weapon, ammo: isGun(stats) ? stats.magazine : 0, reloadTicks: 0, cooldownS: 0, level: 1 };
+  return { weapon, ammo: hasMagazine(stats) ? stats.magazine : 0, reloadTicks: 0, cooldownS: 0, level: 1 };
 }
 
 /** Every run starts with the Pistol and an empty second slot (GDD: start of run). */

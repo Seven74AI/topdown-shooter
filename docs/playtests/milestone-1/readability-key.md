@@ -28,3 +28,12 @@ Scoring for the 4.10 decision rule: an object is **readable** when ≥ 3 of 4 pl
 | 26 | `27_brute.png` | two Brutes (Story 5.7; here BR3 bloated butcher and BR5 prisoner in orange with a chain; the other looks: riot cop, hi-vis worker, bodybuilder) | n/a | right if "brute / big one / tank / mini-boss"; ~1.2 m wide (twice a Walker); before each hit it stops and spreads its arms for 0.5 s (step 0.3 m back to dodge); a hit knocks you 1.5 m; 120 HP, hurts buildings 3× |
 
 Pictures: Playwright, solo dev build, 844×390 at 2×, HUD and survivor hidden, normal zoom (2026-11-23). The helper noted: shop fronts other than the diner and kiosk barely glow; the streetlight is a small dot; rain is faint in a still frame; zombies are ~0.7 m across and differ mainly by colour; barricade and sandbags are both low and brownish; the turret reads as a box with a stub; a moved car looks like any parked car.
+
+Story 5.5 additions (pictures: Playwright, solo dev build, 844×390 at 2×, HUD shown, 2026-11-23):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 27 | `28_grenade_round.png` | a Grenade Launcher round in flight (brass and olive 40 mm, drawn 3 × size, raised on its arc with a shadow) and the landing ring (white = it lands at the aim point; the ring is the exact 2 m blast) | n/a | right if "grenade / shell / rocket"; the ring shows where it bursts and how big the blast is |
+| 28 | `29_landing_ring_car.png` | the landing ring pulled back to a car's face (amber): cars, the bus and buildings stop the round | cars **stop** it | a round never flies over a car; standing 2 m from that face you take 20 of your own blast |
+| 29 | `30_explosion_fireball.png` | grenade explosion (EX1 fireball): fills the circle and stops at its thin ring = the 2 m damage edge | blasts are **stopped** by cars/bus/buildings, **not** by barricades/sandbags | 40 to zombies, 20 to every survivor in it (the shooter too); zombies pushed 0.6 m |
+| 30 | `31_explosion_shockwave.png` | mine explosion (EX2 shockwave + debris): white flash, a ring rolling out to the 2.5 m edge, chunks | as 29 | Story 5.9's mine now uses the shared blast look |

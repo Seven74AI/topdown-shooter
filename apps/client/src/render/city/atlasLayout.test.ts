@@ -3,6 +3,7 @@ import { MAX_ATLAS_PX, frameName, isFrameName, layoutIsValid, packAtlas, tileRec
 import { BRUTE_WINDUP_FRAMES, characterSpecs, downtownSpecs, fxSpecs, ZOMBIE_FRAMES, SURVIVOR_FRAME } from "./spriteAtlas";
 import { buildingsAtlasSpecs } from "./buildingsAtlas";
 import { fireFxSpecs } from "./fireFxAtlas";
+import { blastFxSpecs } from "./blastFxAtlas";
 import { ZOMBIE_TYPES } from "@topdown/shared";
 
 describe("atlas frame names (category_name_variant)", () => {
@@ -21,7 +22,7 @@ describe("atlas frame names (category_name_variant)", () => {
 });
 
 describe("placeholder atlases follow the final layout", () => {
-  const sets = { characters: characterSpecs(), downtown: downtownSpecs(), fx: fxSpecs(), buildings: buildingsAtlasSpecs(), firefx: fireFxSpecs() };
+  const sets = { characters: characterSpecs(), downtown: downtownSpecs(), fx: fxSpecs(), buildings: buildingsAtlasSpecs(), firefx: fireFxSpecs(), blastfx: blastFxSpecs() };
   for (const [name, specs] of Object.entries(sets)) {
     it(`${name}: every frame is category_name_variant, packed without overlap, ≤ ${MAX_ATLAS_PX}²`, () => {
       expect(specs.length).toBeGreaterThan(0);

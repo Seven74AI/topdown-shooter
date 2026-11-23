@@ -37,7 +37,7 @@ export {
   MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
-export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
+export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, GunStats, LauncherStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, worldDigest, type WorldSnapshot } from "./core/worldSnapshot";
@@ -142,7 +142,7 @@ export {
 } from "./net/hordeFormat";
 export { inRect, viewRect, type Rect } from "./net/interest";
 export { activeSlot, createLoadout, createSlot, setLoadout, validLevel, type Loadout, type WeaponSlot } from "./combat/loadout";
-export { isGun, isMelee, upgradePrice, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
+export { hasMagazine, isGun, isLauncher, isMelee, upgradePrice, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
 export type { ProjectilePool } from "./combat/projectilePool";
 // Story 2.7: cosmetic projectiles in the client mirror, the shared cooldown rule, the swept test.
 export {
@@ -168,7 +168,7 @@ export { pelletDirection, rotateBySeqSpread, seqPelletRoll, seqSpreadRoll } from
 export { segmentCircleT } from "./math/sweep";
 export { rotate } from "./math/vec";
 export { maxZombieRadius, zombieTypeIndex } from "./zombies/zombieTypes";
-export { applyKnockback, applyZombieDamage } from "./combat/damage";
+export { DAMAGE_TAGS, applyKnockback, applyZombieDamage, damagePlayerBy, type DamageTag } from "./combat/damage";
 export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
 export { swingMelee } from "./combat/melee";
@@ -367,7 +367,20 @@ export { setBuildingType } from "./buildings/buildings";
 export { UPGRADE_ERRORS, upgradeBuilding, upgradeError, upgradeStep, type UpgradeError, type Upgraded } from "./buildings/upgrade";
 export { trapCounters, updateTraps } from "./buildings/trap";
 export { mineCounters, updateMines } from "./buildings/mine";
-export { blastResult, damagePlayerByExplosion, explode } from "./combat/explosion";
+export {
+  clearGrenades,
+  createGrenadePool,
+  createLobTarget,
+  grenadeCounters,
+  launchGrenade,
+  lobAimLength,
+  lobFlightTicks,
+  lobTarget,
+  updateGrenades,
+  type GrenadePool,
+  type LobTarget,
+} from "./combat/grenades";
+export { EXPLOSION_KINDS, blastResult, createExplosionSpec, damagePlayerByExplosion, explode, explosionCounters, type ExplosionKind, type ExplosionSpec } from "./combat/explosion";
 export { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,

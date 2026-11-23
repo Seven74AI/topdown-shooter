@@ -4,6 +4,7 @@ import { activeSlot } from "../combat/loadout";
 import type { PlayerInput } from "../net/input";
 import type { PlayerState, PlayerStatus } from "../player/player";
 import { MAX_PLAYERS } from "../net/messages";
+import { MUZZLE_OFFSET_M } from "../config/constants";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { isRushState } from "../zombies/zombieTypes";
 
@@ -33,6 +34,13 @@ export interface BotSelf {
   status: PlayerStatus;
   /** Range of the active weapon (m). */
   rangeM: number;
+  /**
+   * Story 5.5: with a launcher in hand, its lob range and shortest lob (m) and the muzzle offset
+   * (body radius + muzzle): the aim's length then carries the target's distance (FR-A). 0 = not a launcher.
+   */
+  lobRangeM: number;
+  minLobM: number;
+  muzzleM: number;
 }
 
 export interface BotMate {
@@ -79,7 +87,7 @@ export function createBotView(): BotView {
   const teammates: BotMate[] = [];
   for (let i = 0; i < MAX_PLAYERS - 1; i++) teammates.push({ x: 0, y: 0, status: "alive" });
   return {
-    self: { x: 0, y: 0, status: "alive", rangeM: 0 },
+    self: { x: 0, y: 0, status: "alive", rangeM: 0, lobRangeM: 0, minLobM: 0, muzzleM: 0 },
     teammates,
     teammateCount: 0,
     nearestZombie: null,
@@ -119,8 +127,10 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
     const dy = z.y - me.y;
     const d = Math.hypot(dx, dy);
     if (d > 0) {
-      out.aimX = dx / d;
-      out.aimY = dy / d;
+      // Story 5.5: a launcher lobs to the target's distance (from the muzzle, clamped to its lob range).
+      const len = me.lobRangeM > 0 ? Math.min(1, Math.max(me.minLobM / me.lobRangeM, (d - me.muzzleM) / me.lobRangeM)) : 1;
+      out.aimX = (dx / d) * len;
+      out.aimY = (dy / d) * len;
       out.fire = z.distM <= me.rangeM;
     }
   }
@@ -204,6 +214,9 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
   self.status = p.status;
   const stats = world.balance.weapons[activeSlot(p.loadout).weapon];
   self.rangeM = stats?.rangeM ?? 0;
+  self.lobRangeM = stats?.kind === "launcher" ? stats.lobRangeM : 0; // Story 5.5
+  self.minLobM = stats?.kind === "launcher" ? stats.minLobM : 0;
+  self.muzzleM = p.radiusM + MUZZLE_OFFSET_M;
   fill.view = out;
   fill.selfId = playerId;
   world.players.forEach(visitMate);

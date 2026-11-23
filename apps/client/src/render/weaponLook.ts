@@ -8,9 +8,10 @@ import type { SfxName } from "../audio/placeholderSfx";
 const FIRE_SFX: Readonly<Record<string, SfxName>> = {
   shotgun: "weapon_shotgun_fire",
   assault_rifle: "weapon_assault_rifle_fire",
+  grenade_launcher: "weapon_grenade_launch", // Story 5.5
 };
 /** Muzzle flash size (× the plain flash): the Shotgun's blast is big, the rifle's a little bigger than a pistol's. */
-const MUZZLE_SCALE: Readonly<Record<string, number>> = { shotgun: 1.6, assault_rifle: 1.25 };
+const MUZZLE_SCALE: Readonly<Record<string, number>> = { shotgun: 1.6, assault_rifle: 1.25, grenade_launcher: 1.4 };
 /**
  * A pellet gun's blast: a short-lived warm cone over its spread (pellets live ~2 ticks at 5 m, too
  * briefly to read as a spray alone). Length in metres; 0 = none.

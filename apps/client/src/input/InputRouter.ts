@@ -1,4 +1,5 @@
-import type { PlayerInput } from "@topdown/shared";
+import type { LauncherStats, PlayerInput } from "@topdown/shared";
+import { applyLobLength, mouseLobDistance, touchLobDistance } from "./lobAim";
 import { KeyboardMouse } from "./KeyboardMouse";
 import { keyAction } from "./keyMap";
 import { selectSource, type InputSource, type SourceEvent } from "./selectSource";
@@ -111,9 +112,11 @@ export class InputRouter {
   /**
    * Fills `out` (reused, no allocation) for this frame. `hudSwap` is the swap button's edge;
    * origin and cursor are world meters (the survivor's interpolated position, the cursor through
-   * the zoomed camera); they are only read in mouse mode.
+   * the zoomed camera); they are only read in mouse mode. Story 5.5: `lob` = the launcher in hand
+   * (null otherwise): the aim's length then carries the lob distance (FR-A; `lobAim.ts`), with
+   * `bodyRadiusM` for the mouse's muzzle offset. Every other weapon keeps a unit aim.
    */
-  build(out: MutablePlayerInput, hudSwap: boolean, originX: number, originY: number, cursorWorldX: number, cursorWorldY: number): MutablePlayerInput {
+  build(out: MutablePlayerInput, hudSwap: boolean, originX: number, originY: number, cursorWorldX: number, cursorWorldY: number, lob: Readonly<LauncherStats> | null = null, bodyRadiusM = 0): MutablePlayerInput {
     const keySwap = this.kbm.takeSwap();
     out.swap = hudSwap || keySwap; // edge flag: LocalSimHost latches it for one step
     if (this.source === "mouse") {
@@ -127,6 +130,7 @@ export class InputRouter {
         const aim = this.kbm.aimAt(originX, originY, cursorWorldX, cursorWorldY);
         out.aimX = aim.x;
         out.aimY = aim.y;
+        if (lob) applyLobLength(out, lob, mouseLobDistance(originX, originY, cursorWorldX, cursorWorldY, bodyRadiusM));
       }
       out.fire = this.kbm.leftButton;
       out.isMouse = true;
@@ -138,6 +142,7 @@ export class InputRouter {
     const aim = this.sticks.aimVector();
     out.aimX = aim.x;
     out.aimY = aim.y;
+    if (lob) applyLobLength(out, lob, touchLobDistance(lob, aim.deflection, this.sticks.aimDeadZoneFrac));
     out.fire = aim.fire;
     out.isMouse = false;
     return out;
