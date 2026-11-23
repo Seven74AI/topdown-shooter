@@ -34,40 +34,39 @@ p { margin: 0; max-width: 65ch; color: var(--muted); }
 canvas { display: block; }
 .today img { border-radius: 8px; width: 260px; max-width: 100%; }
 .notes { display: grid; gap: 6px; }
+.options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.opt { display: grid; gap: 8px; justify-items: start; }
+.opt .code { font-size: 1.3rem; }
+b { color: var(--fg); font-weight: 600; }
 </style>
 
 <div class="wrap">
   <div>
     <h1>Build bar icons</h1>
-    <p class="lede">Today the tiles reuse the top-down world art, so the 2 m barricade turns into a thin strip and the mine into a dark dot. Below are three icon styles drawn in code for the four buildings we have. Each is shown at real phone size in the tile (left) and enlarged (right). The world art stays as it is in the game.</p>
+    <p class="lede">Round 2. Each icon is drawn in game code and shown at real phone size inside the 56 px tile (with the rest of the bar around it) and enlarged. The world art stays as it is in the game; these are only for the build bar.</p>
   </div>
 
-  <section class="style today">
-    <header><span class="code">Today</span><h2>World art in the tile</h2></header>
-    <img src="today.png" alt="The current build bar: barricade as a thin strip, turret, spike trap, mine, Shop tile">
+  <section class="style">
+    <header><span class="code">Picked</span><h2>I1 tilted objects</h2></header>
+    <p>Designer, round 1: the I1 barricade and spike trap are kept. The turret looked like a frying pan and the mine like a flat green disc, so both are redrawn below, three versions each.</p>
+    <div class="rows"><div><div class="label">Phone size</div><div class="bar" data-set="barricade:I1,turret:I1,spikes:I1,mine:I1"></div></div><div><div class="label">Enlarged ×3</div><div class="big" data-set="barricade:I1,spikes:I1"></div></div></div>
   </section>
 
-  <section class="style" data-style="1">
-    <header><span class="code">I1</span><h2>Tilted object</h2></header>
-    <p>The same objects as in the world, seen from a low three-quarter angle so they have height. The palisade stands up with its posts, the turret shows its barrel, nails stick up from the board, and the mine shows its red light. Closest to the game's look.</p>
-    <div class="rows"><div><div class="label">Phone size</div><div class="bar"></div></div><div><div class="label">Enlarged ×3</div><div class="big"></div></div></div>
+  <section class="style">
+    <header><span class="code">Turret</span><h2>Pick one: T1, T2 or T3</h2></header>
+    <p><b>T1 sentry gun</b>: a boxy gun on a tripod with an ammo box, barrel toward you. <b>T2 armoured dome</b>: a domed head with twin barrels and a red sensor on a striped steel base. <b>T3 game turret</b>: the plank crate the turret stands on in the game, with a square gun head and a long barrel (closest to what you see on the street).</p>
+    <div class="options" data-kind="turret" data-opts="T1,T2,T3"></div>
   </section>
 
-  <section class="style" data-style="2">
-    <header><span class="code">I2</span><h2>Bold pictogram</h2></header>
-    <p>Flat light silhouettes with one accent colour each, like road signs. The easiest to read at a glance and at small sizes; less like the game's painted look.</p>
-    <div class="rows"><div><div class="label">Phone size</div><div class="bar"></div></div><div><div class="label">Enlarged ×3</div><div class="big"></div></div></div>
-  </section>
-
-  <section class="style" data-style="3">
-    <header><span class="code">I3</span><h2>Close-up top view</h2></header>
-    <p>The top-down world art, zoomed in and cropped so it fills the tile: you see the middle of the barricade, not all of it. The smallest change from today, and it matches exactly what appears on the street.</p>
-    <div class="rows"><div><div class="label">Phone size</div><div class="bar"></div></div><div><div class="label">Enlarged ×3</div><div class="big"></div></div></div>
+  <section class="style">
+    <header><span class="code">Mine</span><h2>Pick one: M1, M2 or M3</h2></header>
+    <p><b>M1 pressure mine</b>: a thick steel-olive disc with a raised pressure plate and a glowing red light. <b>M2 half buried</b>: the mine's top in a dirt mound with three trigger prongs. <b>M3 warning band</b>: an olive canister with a yellow and black band and a big red light.</p>
+    <div class="options" data-kind="mine" data-opts="M1,M2,M3"></div>
   </section>
 
   <section class="style notes">
     <h2>How to choose</h2>
-    <p>Reply with a style code (for example "I1"), or mix them per building ("I1, but the I2 mine"). Later buildings (med station, floodlight, bear trap) get an icon in the chosen style when they're built. Until then they fall back to their world art.</p>
+    <p>Reply with one turret and one mine, for example "T1, M2". Later buildings (med station, floodlight, bear trap) get an icon in the same tilted style when they're built; until then they fall back to their world art.</p>
   </section>
 </div>
 
@@ -203,6 +202,93 @@ canvas { display: block; }
     },
   };
 
+
+  // ---- Round 2: turret and mine redraws (I1 style) ----
+  const SHADOW = (g, cx, cy, rx, ry) => { g.fillStyle = "rgba(0,0,0,0.38)"; g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+  const R2 = {
+    T1(g, w, h) { // sentry gun on a tripod
+      const cx = w * 0.46;
+      SHADOW(g, cx, h * 0.9, w * 0.34, h * 0.07);
+      g.strokeStyle = METAL_DK; g.lineWidth = w * 0.04; g.lineCap = "round";
+      for (const [x, y] of [[-0.22, 0.92], [0.22, 0.92], [0.02, 0.97]]) { g.beginPath(); g.moveTo(cx, h * 0.52); g.lineTo(cx + w * x, h * y); g.stroke(); }
+      g.fillStyle = METAL_DK; g.fillRect(cx - w * 0.03, h * 0.46, w * 0.06, h * 0.12);
+      g.fillStyle = "#56603f"; g.strokeStyle = OUT; g.lineWidth = w * 0.018; g.fillRect(cx - w * 0.3, h * 0.3, w * 0.13, h * 0.2); g.strokeRect(cx - w * 0.3, h * 0.3, w * 0.13, h * 0.2);
+      g.fillStyle = METAL; g.beginPath(); g.roundRect(cx - w * 0.17, h * 0.2, w * 0.34, h * 0.3, w * 0.03); g.fill(); g.stroke();
+      g.fillStyle = METAL_HI; g.fillRect(cx - w * 0.15, h * 0.22, w * 0.3, h * 0.06);
+      g.fillStyle = "#11151a"; g.fillRect(cx - w * 0.04, h * 0.12, w * 0.08, h * 0.09);
+      g.fillStyle = METAL_DK; g.fillRect(cx + w * 0.17, h * 0.3, w * 0.3, h * 0.1); g.strokeRect(cx + w * 0.17, h * 0.3, w * 0.3, h * 0.1);
+      g.fillStyle = "#11151a"; g.fillRect(cx + w * 0.44, h * 0.27, w * 0.08, h * 0.16);
+    },
+    T2(g, w, h) { // armoured dome on a striped base
+      const cx = w / 2;
+      SHADOW(g, cx, h * 0.9, w * 0.32, h * 0.07);
+      g.fillStyle = METAL_DK; g.strokeStyle = OUT; g.lineWidth = w * 0.018;
+      g.fillRect(cx - w * 0.24, h * 0.6, w * 0.48, h * 0.26); g.strokeRect(cx - w * 0.24, h * 0.6, w * 0.48, h * 0.26);
+      g.save(); g.beginPath(); g.rect(cx - w * 0.24, h * 0.68, w * 0.48, h * 0.1); g.clip();
+      g.fillStyle = "#f5c542"; g.fillRect(cx - w * 0.24, h * 0.68, w * 0.48, h * 0.1);
+      g.fillStyle = "#111"; for (let x = -0.3; x < 0.3; x += 0.1) { g.beginPath(); g.moveTo(cx + w * x, h * 0.78); g.lineTo(cx + w * (x + 0.05), h * 0.68); g.lineTo(cx + w * (x + 0.1), h * 0.68); g.lineTo(cx + w * (x + 0.05), h * 0.78); g.fill(); }
+      g.restore();
+      g.fillStyle = METAL; g.beginPath(); g.ellipse(cx, h * 0.6, w * 0.26, h * 0.42, 0, Math.PI, 0); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = METAL_HI; g.beginPath(); g.ellipse(cx - w * 0.08, h * 0.36, w * 0.08, h * 0.1, -0.5, 0, Math.PI * 2); g.fill();
+      g.fillStyle = METAL_DK; for (const y of [0.42, 0.54]) { g.fillRect(cx + w * 0.16, h * y - h * 0.035, w * 0.32, h * 0.07); }
+      g.fillStyle = "#11151a"; for (const y of [0.42, 0.54]) g.fillRect(cx + w * 0.45, h * y - h * 0.045, w * 0.05, h * 0.09);
+      g.fillStyle = "rgba(255,59,47,0.4)"; g.beginPath(); g.arc(cx + w * 0.04, h * 0.44, w * 0.07, 0, Math.PI * 2); g.fill();
+      g.fillStyle = RED; g.beginPath(); g.arc(cx + w * 0.04, h * 0.44, w * 0.035, 0, Math.PI * 2); g.fill();
+    },
+    T3(g, w, h) { // the game's plank crate with a square gun head
+      const cx = w * 0.44;
+      SHADOW(g, cx, h * 0.9, w * 0.34, h * 0.07);
+      g.strokeStyle = OUT; g.lineWidth = w * 0.018;
+      g.fillStyle = WOOD; g.fillRect(cx - w * 0.28, h * 0.62, w * 0.56, h * 0.26); g.strokeRect(cx - w * 0.28, h * 0.62, w * 0.56, h * 0.26);
+      g.strokeStyle = WOOD_DK; for (let x = -0.14; x < 0.28; x += 0.14) { g.beginPath(); g.moveTo(cx + w * x, h * 0.63); g.lineTo(cx + w * x, h * 0.87); g.stroke(); }
+      g.fillStyle = WOOD_HI; g.strokeStyle = OUT; g.fillRect(cx - w * 0.28, h * 0.54, w * 0.56, h * 0.09); g.strokeRect(cx - w * 0.28, h * 0.54, w * 0.56, h * 0.09);
+      g.fillStyle = METAL_DK; g.fillRect(cx - w * 0.04, h * 0.44, w * 0.08, h * 0.11);
+      g.fillStyle = METAL; g.beginPath(); g.roundRect(cx - w * 0.18, h * 0.16, w * 0.36, h * 0.3, w * 0.04); g.fill(); g.stroke();
+      g.fillStyle = METAL_HI; g.fillRect(cx - w * 0.15, h * 0.19, w * 0.3, h * 0.05);
+      g.fillStyle = METAL_DK; g.fillRect(cx + w * 0.18, h * 0.26, w * 0.34, h * 0.1); g.strokeRect(cx + w * 0.18, h * 0.26, w * 0.34, h * 0.1);
+      g.fillStyle = "#c9ced4"; g.fillRect(cx + w * 0.5, h * 0.24, w * 0.04, h * 0.14);
+    },
+    M1(g, w, h) { // thick pressure mine with a raised plate
+      const cx = w / 2, top = h * 0.48, rx = w * 0.34, ry = h * 0.15, side = h * 0.2;
+      SHADOW(g, cx, top + side + h * 0.08, rx * 1.05, ry);
+      g.fillStyle = "#3a4529"; g.strokeStyle = "#151a0e"; g.lineWidth = w * 0.018;
+      g.beginPath(); g.moveTo(cx - rx, top); g.lineTo(cx - rx, top + side); g.ellipse(cx, top + side, rx, ry, 0, Math.PI, 0, true); g.lineTo(cx + rx, top); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = "#2c3520"; g.fillRect(cx - rx, top + side * 0.45, rx * 2, side * 0.18);
+      g.fillStyle = "#5f6e45"; g.beginPath(); g.ellipse(cx, top, rx, ry, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = "#9aa3ad"; for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.beginPath(); g.arc(cx + Math.cos(a) * rx * 0.86, top + Math.sin(a) * ry * 0.82, w * 0.012, 0, Math.PI * 2); g.fill(); }
+      g.fillStyle = "#7d8a5c"; g.beginPath(); g.ellipse(cx, top - h * 0.05, rx * 0.5, ry * 0.5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = "#4a5636"; g.fillRect(cx - rx * 0.5, top - h * 0.05, rx, h * 0.05);
+      g.fillStyle = "rgba(255,59,47,0.45)"; g.beginPath(); g.arc(cx, top - h * 0.07, w * 0.09, 0, Math.PI * 2); g.fill();
+      g.fillStyle = RED; g.beginPath(); g.arc(cx, top - h * 0.07, w * 0.04, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#ffd0cc"; g.beginPath(); g.arc(cx - w * 0.012, top - h * 0.085, w * 0.012, 0, Math.PI * 2); g.fill();
+    },
+    M2(g, w, h) { // half buried in a dirt mound with prongs
+      const cx = w / 2;
+      g.fillStyle = "#4a3a28"; g.beginPath(); g.ellipse(cx, h * 0.74, w * 0.46, h * 0.2, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#5d4a33"; g.beginPath(); g.ellipse(cx, h * 0.7, w * 0.38, h * 0.15, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#3a2c1d"; for (const [x, y] of [[-0.36, 0.78], [0.3, 0.82], [-0.1, 0.86], [0.38, 0.7], [-0.4, 0.66]]) { g.beginPath(); g.arc(cx + w * x, h * y, w * 0.02, 0, Math.PI * 2); g.fill(); }
+      g.fillStyle = "#5f6e45"; g.strokeStyle = "#151a0e"; g.lineWidth = w * 0.018;
+      g.beginPath(); g.ellipse(cx, h * 0.64, w * 0.24, h * 0.1, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.strokeStyle = "#c9ced4"; g.lineWidth = w * 0.025; g.lineCap = "round";
+      for (const x of [-0.09, 0, 0.09]) { g.beginPath(); g.moveTo(cx + w * x, h * 0.62); g.lineTo(cx + w * x * 1.4, h * 0.3); g.stroke(); }
+      g.fillStyle = "rgba(255,59,47,0.45)"; g.beginPath(); g.arc(cx + w * 0.14, h * 0.64, w * 0.06, 0, Math.PI * 2); g.fill();
+      g.fillStyle = RED; g.beginPath(); g.arc(cx + w * 0.14, h * 0.64, w * 0.03, 0, Math.PI * 2); g.fill();
+    },
+    M3(g, w, h) { // canister with a warning band
+      const cx = w / 2, top = h * 0.36, rx = w * 0.26, ry = h * 0.12, side = h * 0.38;
+      SHADOW(g, cx, top + side + h * 0.08, rx * 1.15, ry);
+      g.fillStyle = "#3d4a2e"; g.strokeStyle = "#151a0e"; g.lineWidth = w * 0.018;
+      g.beginPath(); g.moveTo(cx - rx, top); g.lineTo(cx - rx, top + side); g.ellipse(cx, top + side, rx, ry, 0, Math.PI, 0, true); g.lineTo(cx + rx, top); g.closePath(); g.fill(); g.stroke();
+      g.save(); g.beginPath(); g.rect(cx - rx, top + side * 0.38, rx * 2, side * 0.3); g.clip();
+      g.fillStyle = "#f5c542"; g.fillRect(cx - rx, top + side * 0.38, rx * 2, side * 0.3);
+      g.fillStyle = "#111"; for (let x = -0.4; x < 0.4; x += 0.12) { g.beginPath(); g.moveTo(cx + w * x, top + side * 0.68); g.lineTo(cx + w * (x + 0.06), top + side * 0.38); g.lineTo(cx + w * (x + 0.12), top + side * 0.38); g.lineTo(cx + w * (x + 0.06), top + side * 0.68); g.fill(); }
+      g.restore();
+      g.fillStyle = "#56603f"; g.beginPath(); g.ellipse(cx, top, rx, ry, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = "rgba(255,59,47,0.45)"; g.beginPath(); g.arc(cx, top - h * 0.02, w * 0.11, 0, Math.PI * 2); g.fill();
+      g.fillStyle = RED; g.beginPath(); g.arc(cx, top - h * 0.02, w * 0.055, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#ffd0cc"; g.beginPath(); g.arc(cx - w * 0.015, top - h * 0.04, w * 0.015, 0, Math.PI * 2); g.fill();
+    },
+  };
   const STYLES = { 1: I1, 2: I2, 3: I3 };
   const DPR = Math.min(3, window.devicePixelRatio || 1);
   // Icon box inside the 56 px tile (the build bar's layout): 44 × 30 px centred 21 px from the top.
@@ -226,15 +312,27 @@ canvas { display: block; }
     return c;
   }
 
-  for (const section of document.querySelectorAll("[data-style]")) {
-    const style = STYLES[section.dataset.style];
-    const bar = section.querySelector(".bar"), big = section.querySelector(".big");
-    for (const item of ITEMS) {
-      bar.appendChild(tile(style[item.id], 1, item, true));
-      const fig = document.createElement("figure");
-      fig.appendChild(tile(style[item.id], 3, item, false));
-      const cap = document.createElement("figcaption"); cap.textContent = item.name; fig.appendChild(cap);
-      big.appendChild(fig);
+  const byId = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
+  const drawOf = (style, id) => (style === "I1" ? I1[id] : R2[style]);
+  const fig = (draw, item) => {
+    const f = document.createElement("figure");
+    f.appendChild(tile(draw, 3, item, false));
+    const cap = document.createElement("figcaption"); cap.textContent = item.name; f.appendChild(cap);
+    return f;
+  };
+  const parse = (set) => set.split(",").map((p) => p.split(":"));
+  for (const bar of document.querySelectorAll(".bar[data-set]")) for (const [id, st] of parse(bar.dataset.set)) bar.appendChild(tile(drawOf(st, id), 1, byId[id], true));
+  for (const big of document.querySelectorAll(".big[data-set]")) for (const [id, st] of parse(big.dataset.set)) big.appendChild(fig(drawOf(st, id), byId[id]));
+  for (const box of document.querySelectorAll(".options")) {
+    const kind = box.dataset.kind;
+    for (const code of box.dataset.opts.split(",")) {
+      const o = document.createElement("div"); o.className = "opt";
+      const c = document.createElement("span"); c.className = "code"; c.textContent = code; o.appendChild(c);
+      const bar = document.createElement("div"); bar.className = "bar";
+      for (const id of ["barricade", "turret", "spikes", "mine"]) bar.appendChild(tile(id === kind ? R2[code] : I1[id], 1, byId[id], true));
+      o.appendChild(bar);
+      o.appendChild(fig(R2[code], byId[kind]));
+      box.appendChild(o);
     }
   }
 })();
