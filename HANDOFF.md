@@ -1,6 +1,6 @@
 # Handoff: topdown-shooter
 
-Session handoff, updated 2026-11-23 (fifth session: Epic 4 retro done with the designer, retroactive re-review of Epic 4 fixes done and on `master` (`cf31cea`), 4.10 Milestone 1 playtest plan + forms ready; 4.11 dropped. Next: Hermes deploys `master`, the designer runs 4.10, then go / fix-first → Epic 5). **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom.
+Session handoff, updated 2026-11-23 (end of the sixth session: Epic 4 retro; Stories 4.11–4.13 (readability, all art in game code with particle fire D, Android graphics-loss fix); Epic 5 rounds A–B on `master`, round C (5.4, 5.5, 5.8) finishing review — DRAFT, updated when round C lands: 5.1–5.9 (upgrades, Axe/Chainsaw, Shotgun/AR, Flamethrower + Gas torch, Grenade Launcher, Spitters, Brute, Bloaters + 6-wave run, metal barricade/traps/mine); solo online runs; solo `?wallet` in release; idea sessions folded in (customization 7.8–7.12, building UX 5.15–5.25, Epic 6 revised). Next: round D (5.10–5.12) + building UX 5.15–5.19 in parallel, using CLOUD SESSIONS for builders). **The project is on GitHub** (`Seven74AI/topdown-shooter`, branch `master`). Start a new Claude Code session with that repository selected and paste the **"Prompt for the new session"** block at the bottom.
 
 ## 1. The project in one paragraph
 
@@ -15,8 +15,9 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 | **Epic 1, core combat on one phone** | ✅ code done and reviewed (1.1–1.11 done); two **human** steps open (see §5) | story files `_bmad-output/implementation-artifacts/1-*.md` |
 | **Epic 2, online co-op** | ✅ coding done and reviewed: 2.1, 2.3–2.9, 2.11, **2.12 rewound hit testing** (added: Runners made reversed hits obvious). 2.2 ✅ **live at https://hordes.sevend.io** (Hermes, 2026-11-22: `docs/hermes-go-live-report-2026-11-22.md`); 2.10 dev parts done, **the 4-phone 4G test is the designer's**. Retro: `epic-2-retro-2026-11-22.md` | `2-*.md` |
 | **Epic 3, build phase, shop, economy** | ✅ 3.1–3.10 done (each reviewed by a fresh agent, big fixes re-reviewed). Retro accepted: `epic-3-retro-2026-11-22.md` (§11 = **EPIC 4 BRIEF**) | `3-*.md` |
-| **Epic 4, Downtown and city decay (Milestone 1)** | 🔨 4.1–4.9 ✅ done, re-reviewed 2026-11-23 (a second review found a high: returns into fire; fixed). Retro: `epic-4-retro-2026-11-23.md` (partial, §11 = **EPIC 5 BRIEF**). 4.11 not created (readability checked in 4.10). Open: **4.10 = the Milestone 1 playtest (human)**: plan `docs/playtests/milestone-1.md` | `4-*.md` |
-| Epics 5–10 | backlog (stories written at the start of each epic, from the real code) | `epics.md` |
+| **Epic 4, Downtown and city decay (Milestone 1)** | ✅ 4.1–4.9, 4.11 readability pass, 4.12 all 4.11 objects in game code (particle fire D), 4.13 Android graphics-loss fix. **4.10 playtest parked** (designer: "way later"; plan ready in `docs/playtests/milestone-1.md`). Retro: `epic-4-retro-2026-11-23.md` (§11 = **EPIC 5 BRIEF**, line 20 added) | `4-*.md` |
+| **Epic 5, full arsenal and bestiary** | ✅ round A (5.3, 5.6, 5.9), B (5.1, 5.2, 5.7); 🔍 round C (5.4, 5.5, 5.8) in review + solo online runs + solo `?wallet`. Open: round D 5.10–5.12, round E 5.13, 5.14 Bear trap, building UX rework 5.15–5.25. **All designer decisions: `docs/epic-5-decisions.md`** | `5-*.md` |
+| Epics 6–10 | backlog. **Epic 6 stories revised** from the Epic 6 idea session (`docs/ideas/epic-6/`); **Epic 7 gained customization 7.8–7.12** (`docs/ideas/customization/`) | `epics.md` |
 
 `_bmad-output/implementation-artifacts/sprint-status.yaml` is the source of truth for story status.
 
@@ -31,10 +32,19 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 - **Epic 4 (Downtown, decay, look):** a hand-made 48 × 32 m Downtown (`tools/maps/buildDowntown.ts` generates the Tiled `.tmx`/`.tmj`; once the designer edits in Tiled, the `.tmx` becomes the source and the generator test is retired). Cover: cars, the bus and buildings stop bullets; barriers and sandbags only stop bodies (4.2). 19 spawn points opening by stage, never within 6 m of a player, barricades kept 2 m clear of every spawn (4.3). One run seed with named streams; a recorded input log replays to the same digest (4.4). Decay engine: `applyDecayStage` is the single path (server, solo, mirror, Predictor); at a build start: mutations → destroy buildings on new solids (50 % refund) → push out bodies → return downed → rebuild flow fields → banner (4.5). Stages: 1 Evening (curb cars, lit shop fronts, traffic loop), 2 Panic (4 of 6 curb cars move into the road, police lines, dumpster, sirens loop), 3 Breakdown (2 of 3 cars burn: 2 m fire zones, 10 dmg/s, 2 waves, zombies avoid fire; sandbags; heavy rain) (4.6–4.8). Dead City look drawn in code (`apps/client/src/render/city/*`, atlases with `category_name_variant` frames), night darkens per stage (`NIGHT_BY_STAGE`) (4.9). Dev: build-phase-only "Decay stage" cheat; server `DEV_DECAY_STAGES=2,3`; `DEV_ALLOW_RUN_SEED=1` + host `?seed=`.
 
+- **Epic 5 (arsenal and bestiary):** 11 weapons (Pistol, SMG, Hunting Rifle, Machete, Shotgun, Assault Rifle, Fire Axe, Chainsaw, Flamethrower (fuel jet 6 m × 20°), Gas torch (3 m × 60°), Grenade Launcher) with upgrades I–IV (damage only; U1 marks; second looks at III–IV); melee can't hit through barricades/walls; Spitters (acid puddles, blocked by walls), the Brute (one in waves 5–6, wind-up, knockback, 1.8 m reach into narrow gaps, five looks), Bloaters (swell 20 ticks, 30 full-damage blast, chains, gas; five looks); metal barricade ladder (wood → reinforced → metal), spike trap, mine; friendly fire 50 % (Bloater blast full); one `explode(world, spec)` for every blast; the run is **6 waves** until Epic 6. All art is drawn in game code; every generated texture goes through `addGeneratedTexture` (Android redraw, Story 4.13). Dev/test: `?loadout=a:3,b:4` (release-safe, levels), `?wallet=5000` (release: solo only), `?wavemix=spitter|bloater`, `?fx=low`.
+
 ## 3. How we work (keep doing this)
 
+**Session 6 rules (designer, 2026-11-23) — the default from now on:**
+1. **Builders run in their own CLOUD SESSIONS** (`create_session` tool, one container each; same repo, branch `story-x-y`; give each the story file, the EPIC 5 BRIEF and docs/epic-5-decisions.md). The main session creates them, waits for their pushed branches, merges, runs the gate, dispatches the fresh-agent review (in a local review worktree or another cloud session) and pushes to `master`. Session 6 ran 3–5 agents in ONE 4-core container: load 8–16, everything 2–3× slower, tests timed out. At most **2 heavy jobs** (builder/reviewer running tests or a browser) in the main container.
+2. **Run in parallel only stories that touch different code** (round C's 5.4/5.5/5.8 all hit `explode()`/damage and had to merge one after another). Next good pair: round D + building UX 5.15–5.19 (client-only).
+3. **Cheaper checks per story:** while building, run only the tests of touched areas; ONE full gate at the end (and the main session's gate after the merge); browser checks only for visual stories; a re-review looks only at the fix.
+4. **Each story goes to `master` as soon as its review (and re-review of medium/high fixes) is clean** — don't wait for the round.
+5. Keep: every medium/high fix gets a fresh-agent re-review; designer picks every new look from code-drawn proposals before the build (art method: game code, `docs/epic-5-decisions.md`).
+
 - **BMAD loop per story:** `gds-create-story` (rich story file from the real code) → build → **independent review by a fresh agent** → fix every finding → mark done → push to `master`. Review findings and fixes are recorded in each story file ("Senior Developer Review (AI)").
-- **Parallel agents** (the designer asked for this; up to 10 at once): builders run in their own git worktrees (`isolation: "worktree"`) on branches `story-x-y`, push, and the main session merges into the work branch, resolves conflicts, runs `npm run typecheck && npm run lint && npm test && npm run build`, browser-checks with Playwright, dispatches a reviewer, fixes, then pushes to `master`. Pick parallel work by file overlap (stories touching different files run together; dependent stories wait).
+- **Parallel agents** (superseded by the Session 6 rules above: cloud sessions, ≤ 2 heavy jobs here): builders run in their own git worktrees (`isolation: "worktree"`) on branches `story-x-y`, push, and the main session merges into the work branch, resolves conflicts, runs `npm run typecheck && npm run lint && npm test && npm run build`, browser-checks with Playwright, dispatches a reviewer, fixes, then pushes to `master`. Pick parallel work by file overlap (stories touching different files run together; dependent stories wait).
 - **Pushing:** the designer allowed pushing to `master` ("you can push"). Work happens on the session's `claude/...` branch; reviewed work is fast-forwarded to `master`.
 - `.claude/worktrees/` is gitignored (agent worktrees live there).
 - Verify in a real browser (Playwright + preinstalled Chromium) for anything visual; say plainly what wasn't verified.
@@ -48,6 +58,8 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 **Lessons the reviews keep finding (tell builders up front):** every texture drawn in code goes through `addGeneratedTexture` (Story 4.13: Android Chrome wipes canvases in the background; unregistered textures vanish after an app switch); simulation timers count ticks (no float seconds); fire cooldown rule in `combat/firing.ts`; no per-frame / per-tick allocation; edge flags (swap/consumable) fire once per input seq and `LocalSimHost` latches them; Phaser 4 ≠ Phaser 3 (verify in `node_modules/phaser/types`; e.g. `setTint` + `setTintMode`); Phaser reuses scene objects on restart (reset state in `create`, pass restart data); tests of one mechanic pass `systems: { waves: () => {} }`; Colyseus: never pass zod to `onMessage` (use `this.net.guard`), join refusals are `ServerError(526, reason)`, use `bootTestServer()`; exact version pins (`.npmrc save-exact`); no gameplay numbers inline (balance JSON).
 
 ## 4. Key decisions (details in the docs and decision logs)
+
+- **Epic 5 and later: every designer decision is in `docs/epic-5-decisions.md`** (accepted story values, art method = game code, round A–C art picks, melee can't hit through barricades/walls, Brute 1.8 m gap reach, Bloater blast full damage, acid blocked by walls, solo online runs, solo `?wallet`, offline play dropped, idea sessions scheduled). Read it before writing or building any Epic 5+ story.
 
 - **Design:** 4 pillars (Horde chaos, Build your stand, A city that falls, Better together). Twin-stick, landscape, auto-fire while aiming, 8° aim assist (only when the raw aim would miss).
 - **Tech:** Phaser 4.2 · Colyseus 0.18 (`@colyseus/core` + `ws-transport` + `schema` 5; client `@colyseus/sdk`) · TypeScript 6.0 · Vite 8 · Preact · npm workspaces (`apps/client`, `apps/server`, `packages/shared`). Server-authoritative 20 Hz, shared engine-free simulation.
@@ -67,11 +79,11 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## 5. Open items for the designer (human steps)
 
-1. **Releases:** after a reviewed push to `master`, ask Hermes to run `deploy/deploy.sh` at a quiet moment (`docs/hermes-go-live.md` › Every later release). Optional: OK Hermes to prepare the static fallback (deploy.md step 2). Switch off GitHub Pages in the repo settings.
-2. **Epic 1 controls playtest (Story 1.12):** designer + ≥ 2 friends, form in `docs/playtests/epic-1-controls.md`. Links: `https://hordes.sevend.io/?loadout=pistol,machete&tune=1` and `...?loadout=smg,hunting_rifle&tune=1`.
-3. **Speed test (Story 1.11):** done on iPhone 15 Pro (target met) and Honor 10 (58 FPS avg, rare hitches; 2018 phone). Still nice to have: a 2020–2021 mid-range Android (Pixel 5 / Galaxy A52). Results in `docs/perf/epic-1-stress.md`.
-4. **Story 4.10 (Milestone 1 playtest)** is planned as ONE combined session covering the Epic 1 controls playtest (1.12), the 2.10 4-phone 4G test, the mid-range Android speed test, Epic 3 touch checks, the earnings decision and the Epic 4 readability check. **Plan ready: `docs/playtests/milestone-1.md`.**
-5. Working title still "topdown-shooter". Order of future districts later.
+1. **Releases:** after a reviewed push to `master`, ask Hermes to run `deploy/deploy.sh` (`docs/hermes-go-live.md` › Every later release).
+2. **Android check of Story 4.13:** after the deploy, a friend with Android switches apps several times (solo and online) with `?debug=1` and reports the renderer line, phone model and Chrome version.
+3. **Human playtests parked** (4.10 Milestone 1, which folds in 1.11 phone speed, 1.12 controls, 2.10 4-phone 4G): "way later"; plan and forms ready in `docs/playtests/milestone-1.md` and `docs/perf/milestone-1.md`.
+4. **Name:** working title still "topdown-shooter"; a name idea session prompt exists (branch `claude/idea-name` if run).
+5. **Balance watch:** solo is hard since Spitters/Brute/Bloaters (bot sims: solo 2/4 runs held out); the Epic 5 balance pass comes after round E (bots never dodge, so bot survival isn't difficulty evidence).
 
 ## 6. Message for Hermes (VPS go-live, after `master` has the Story 2.2 review fixes)
 
@@ -81,13 +93,16 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## 7. Next steps for the new session
 
-1. **Designer:** ask Hermes to deploy `master` (`cf31cea` or later), then run the **4.10 Milestone 1 playtest** from `docs/playtests/milestone-1.md` (about 75 min, 2–4 friends on 4G; readability sheet `docs/playtests/milestone-1/readability-sheet.md`, answer key `readability-key.md`; numbers into `docs/perf/milestone-1.md`). Decision rules are written in the plan.
-2. **Open designer decision:** spawn penning (4.3 re-review L1): players can cage a zombie entry with 3–4 barricades (~20 s kill box). A allow (recommended, watch in 4.10) / B forbid at placement.
-3. **After 4.10:** fill the results, apply the earnings decision (keep, or wave bonus 15 × N), turn every fix-first row into a story (`gds-correct-course`), build + review them, mark `4-10` and `epic-4` done.
-4. **Epic 5** (Full arsenal and bestiary): stories from the real code with `gds-create-story`; every builder and reviewer prompt starts with the **EPIC 5 BRIEF** (§11 of `epic-4-retro-2026-11-23.md`). **Gate: every medium/high fix gets a fresh-agent re-review before `master`** (Epic 4 skipped it and a high slipped through).
-5. Small known leftovers: see `epic-4-retro-2026-11-23.md` §6.
+1. **Round D looks:** code-drawn proposals (like rounds A–C) for 5.10 Floodlight + med station, 5.11 Gear icons, 5.12 Consumables; designer picks. Floodlight: 4 m light, **6 m in blackout** (Epic 6 D5).
+2. **Build round D (5.10, 5.11, 5.12) in cloud sessions, in parallel with building UX 5.15–5.19** (client-only; design: `docs/ideas/building-ux/ux-spec.md`, designer picked "B · Carry + drag"). Then 5.20–5.25 (5.20, 5.22, 5.24 after 5.10 and 5.14).
+3. **5.14 Bear trap** (B-T1 look): write the story file with `gds-create-story`, build.
+4. **Round E: 5.13 Roguelike card shop** (needs every item; card-frame look pick first).
+5. **Epic 5 balance pass + retro** (`gds-retrospective`), then **Epic 6** from its revised stories (Behemoth prototype claude.ai/artifact/16PKRmcKLyK4qfoG9ghASM).
+6. Known leftovers: `epic-4-retro-2026-11-23.md` §6 and each story file's accepted lows; dead `allowSoloStart` config (a suggested task exists).
 
 **Session 5 notes:** the Agent tool's `isolation: "worktree"` was not used; worktrees made by hand under `.claude/worktrees/`. **Don't symlink the whole `node_modules`:** its `@topdown/*` entries are relative links, so a worktree would test against the MAIN checkout's packages (false greens). Make `node_modules` a real directory linking every entry of the main one except `@topdown`, plus absolute `@topdown/{client,server,shared}` links into the worktree, and its own real `.vitest-cache`, `.vite` and `.vite-temp` directories (shared caches give stale modules) (`node_modules` is excluded via `.git/info/exclude`). The main checkout's gate after each merge is the real check. Reviewers can run read-only in the main checkout (they mutate and revert files; don't commit while one runs: check `git status`).
+
+**Session 6 notes:** a helper script made correct worktrees (real `node_modules` dir linking the main one except `@topdown`, absolute `@topdown/*` links, own caches); recreate it if needed (see Session 5 notes). Never use `npm run dev` in a builder (fixed ports 5173/2567 clash); give each agent its own client/server ports and stop processes by PID only (one builder's `pkill` killed others' servers). `vitest.config.ts` has `testTimeout: 30_000` (sims/replays timed out at 5 s under load). `tools/checks/noUnregisteredTextures.test.ts` fails if client code creates a texture outside `addGeneratedTexture`. Meshy (api.meshy.ai) is connected but credits are low (~180 at last check): art is game code; Meshy only for references, if at all.
 
 ## 8. How the designer likes to work
 
@@ -107,4 +122,4 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## Prompt for the new session
 
-> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it, using the BMAD skills it names. Epics 1–3 are done; Epic 4 (4.1–4.9) is built, re-reviewed and on master; the Epic 4 retro is done. I ran the Milestone 1 playtest (4.10): here are the results [paste]. Fill in `docs/playtests/milestone-1.md` and `docs/perf/milestone-1.md` with me, apply the decision rules, turn fix-first items into stories, then start Epic 5 with the EPIC 5 BRIEF. Use parallel agents in worktrees and a fresh-agent review (and re-review of medium/high fixes) of every story before pushing to master. Keep working in facilitative mode as described in the handoff.
+> I'm continuing my game project topdown-shooter. Read `HANDOFF.md` at the repo root and follow it, using the BMAD skills it names, and `docs/epic-5-decisions.md` for my design decisions. Epics 1–4 are done (4.10 playtest parked) and Epic 5 rounds A–C are on master. Next: show me code-drawn look proposals for round D (5.10 Floodlight + med station, 5.11 Gear, 5.12 Consumables) so I can pick, then build round D and the building-UX stories 5.15–5.19 in parallel — each builder in its own cloud session (separate container), at most 2 heavy jobs in this one, only non-overlapping stories in parallel, one full gate per builder, and push each story to master as soon as its fresh-agent review (and re-review of medium/high fixes) is clean. Keep working in facilitative mode as described in the handoff.
