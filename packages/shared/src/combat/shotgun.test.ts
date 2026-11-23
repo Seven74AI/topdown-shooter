@@ -345,6 +345,72 @@ describe("Shotgun knockback (F4, F5)", () => {
     expect(s.world.zombies.y[z]).toBeGreaterThan(17.6);
   });
 
+  it("review M1: two co-op Shotguns firing at one Walker in the same tick knock it twice, not 4 times (F5)", () => {
+    let seen = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      for (const d of [2.6, 3.1, 3.6, 4.1]) {
+        const s = setup("shotgun", { seed });
+        const b = addPlayer(s.world, "p1", 10, 17.2);
+        b.hp = 1e9;
+        setLoadout(balance, b.loadout, ["shotgun", null]);
+        const zx = 10.5 + d;
+        const z = spawnZombie(s.world, "walker", zx, 16.6);
+        s.world.zombies.hp[z] = 1e6;
+        const before = knockbacks.applied;
+        const aimAt = (p: PlayerState) => {
+          const l = Math.hypot(zx - p.x, 16.6 - p.y);
+          return { aimX: (zx - p.x) / l, aimY: (16.6 - p.y) / l };
+        };
+        setInput(s.world, "p0", fire(1, aimAt(s.p)));
+        setInput(s.world, "p1", fire(1, aimAt(b)));
+        step(s.world, TICK_DT_S);
+        for (let t = 0; t < 6; t++) {
+          setInput(s.world, "p0", idle(2 + t));
+          setInput(s.world, "p1", idle(2 + t));
+          step(s.world, TICK_DT_S);
+        }
+        const n = knockbacks.applied - before;
+        expect(n, `seed ${seed} d ${d}`).toBeLessThanOrEqual(2);
+        expect(Math.hypot((s.world.zombies.x[z] as number) - zx, (s.world.zombies.y[z] as number) - 16.6)).toBeLessThanOrEqual(1 + 1e-4);
+        if (n === 2) seen++;
+      }
+    }
+    expect(seen).toBeGreaterThan(50); // liveness: both shots really knocked in many cases
+  });
+
+  it("review M2: a 1.5 m knock (Fire Axe / Brute range) of a body pressed into a barricade never crosses it", () => {
+    for (const press of [1e-5, 1e-3, 0.05, 0.2]) {
+      const s = setup("shotgun");
+      addBuildingAt(s.world, { id: 1, type: "wood_barricade", ownerId: "p0", gx: 26, gy: 30, rot: 1, hp: 200 }); // x 13–13.5, y 15–17
+      const zx = 13 - 0.35 + press;
+      const z = spawnZombie(s.world, "walker", zx, 16);
+      applyKnockback(s.world, z, 1, 0, 1.5);
+      expect(s.world.zombies.x[z], `press ${press}`).toBeLessThanOrEqual(zx + 1e-6);
+      for (const [dx, dy] of [[0.8, 0.6], [0.6, -0.8], [1, 0.1]] as const) {
+        const l = Math.hypot(dx, dy);
+        const z2 = spawnZombie(s.world, "walker", zx, 16);
+        applyKnockback(s.world, z2, dx / l, dy / l, 1.5);
+        expect(s.world.zombies.x[z2] as number, `press ${press} dir ${dx},${dy}`).toBeLessThan(13.5); // never past the far side
+      }
+      // away from it is free
+      const z3 = spawnZombie(s.world, "walker", zx, 16);
+      expect(applyKnockback(s.world, z3, -1, 0, 1.5)).toBeCloseTo(1.5, 6);
+    }
+  });
+
+  it("review L4: a diagonal knock at the map edge stops at the edge, never sliding along it into a box", () => {
+    // a car against the east edge (x 46–48, y 12–14.3); the Walker below it, the knock heads mostly east
+    const s = setup("shotgun", { map: mapWithCover({ minX: 46, minY: 12, maxX: 48, maxY: 14.3 }) });
+    const z = spawnZombie(s.world, "walker", 47.3, 15);
+    const l = Math.hypot(0.95, -0.312);
+    applyKnockback(s.world, z, 0.95 / l, -0.312 / l, 1.5);
+    const x = s.world.zombies.x[z] as number;
+    const y = s.world.zombies.y[z] as number;
+    expect(x).toBeLessThanOrEqual(48 - 0.35 + 1e-5);
+    expect(circleOverlapsBox(x, y, 0.35 - 1e-5, 46, 12, 48, 14.3)).toBe(false);
+    expect(y).toBeLessThan(15); // it did move
+  });
+
   it("never off the map", () => {
     const s = setup("shotgun");
     s.p.x = 46;

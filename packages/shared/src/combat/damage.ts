@@ -49,13 +49,6 @@ export function applyZombieDamage(
 /** Story 5.3: a knocked-back body stops this far short of the face it would touch (float safety). */
 const KNOCK_FACE_GAP_M = 1e-4;
 
-/** Squared distance from (x, y) to the box (0 inside). */
-function boxDist2(x: number, y: number, b: Pick<MapBox, "minX" | "minY" | "maxX" | "maxY">): number {
-  const dx = x - Math.min(b.maxX, Math.max(b.minX, x));
-  const dy = y - Math.min(b.maxY, Math.max(b.minY, y));
-  return dx * dx + dy * dy;
-}
-
 /**
  * The share t ∈ [0, 1] of the move (x, y) → (x + mx, y + my) a circle of radius r can make before
  * its body touches the box (the box grown by r; corners count square: a little early, never late).
@@ -68,8 +61,13 @@ function knockT(x: number, y: number, mx: number, my: number, r: number, b: Pick
   const maxY = b.maxY + r;
   if (Math.max(x, x + mx) < minX || Math.min(x, x + mx) > maxX || Math.max(y, y + my) < minY || Math.min(y, y + my) > maxY) return t;
   if (x > minX && x < maxX && y > minY && y < maxY) {
-    // Already inside the grown box (pressed against a face): only a move that gets no closer is free.
-    return boxDist2(x + mx, y + my, b) >= boxDist2(x, y, b) ? t : 0;
+    // Already inside the grown box (pressed against a face): free only if the move heads away from
+    // the box's nearest point at the start (review M2: the distance along a line to a convex box is
+    // convex, so it then never shrinks and the move can't cross the box); a centre inside the box stays.
+    const ox = x - Math.min(b.maxX, Math.max(b.minX, x));
+    const oy = y - Math.min(b.maxY, Math.max(b.minY, y));
+    if (ox === 0 && oy === 0) return 0;
+    return ox * mx + oy * my >= 0 ? t : 0;
   }
   const e = segmentBoxEntryT(x, y, mx, my, minX, minY, maxX, maxY);
   return e >= 0 && e < t ? e : t;
@@ -89,13 +87,20 @@ export function applyKnockback(world: World, id: number, dirX: number, dirY: num
   const y = z.y[id] as number;
   const mx = dirX * distM;
   const my = dirY * distM;
+  // Review L4: the map edge cuts the move first (clamping after the sweep could slide the body
+  // along the edge into a box the swept line missed).
+  const { widthM, heightM } = world.map;
   let t = 1;
+  if (mx > 0) t = Math.min(t, (widthM - r - x) / mx);
+  else if (mx < 0) t = Math.min(t, (r - x) / mx);
+  if (my > 0) t = Math.min(t, (heightM - r - y) / my);
+  else if (my < 0) t = Math.min(t, (r - y) / my);
+  t = Math.max(0, t);
   const solids = world.obstacles.solids;
   for (let i = 0; i < solids.length && t > 0; i++) t = knockT(x, y, mx, my, r, solids[i] as MapBox, t);
   const list = world.buildings.list;
   for (let i = 0; i < list.length && t > 0; i++) t = knockT(x, y, mx, my, r, list[i] as Building, t);
   const d = t < 1 ? Math.max(0, t * distM - KNOCK_FACE_GAP_M) : distM;
-  const { widthM, heightM } = world.map;
   z.x[id] = Math.min(widthM - r, Math.max(r, x + dirX * d));
   z.y[id] = Math.min(heightM - r, Math.max(r, y + dirY * d));
   return d;

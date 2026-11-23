@@ -5,7 +5,7 @@ import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import { DEG_TO_RAD, len, rotate } from "../math/vec";
 import { segmentCircleT } from "../math/sweep";
-import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
+import { isZombieAlive, knockedBy, rememberKnock, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { MUZZLE_OFFSET_M, TICK_DT_S, ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { viewTickOfInput, type PlayerInput } from "../net/input";
@@ -292,8 +292,8 @@ function updateProjectiles(world: World, dtS: number): void {
       // Story 5.3 (F5): the first projectile of a shot to hit a zombie queues its knockback, once
       // per shot, along that projectile; applied after every projectile of this tick has swept, so
       // the rest of a point-blank fan still meets the body where it was (F1).
-      if (shotId > 0 && wStats && z.knockShot[zid] !== shotId && knockCount < ZOMBIE_POOL_CAPACITY) {
-        z.knockShot[zid] = shotId;
+      if (shotId > 0 && wStats && !knockedBy(z, zid, shotId) && knockCount < ZOMBIE_POOL_CAPACITY) {
+        rememberKnock(z, zid, shotId);
         knockZid[knockCount] = zid;
         knockDirX[knockCount] = dx;
         knockDirY[knockCount] = dy;

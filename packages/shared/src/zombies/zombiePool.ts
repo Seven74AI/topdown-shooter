@@ -43,11 +43,38 @@ export interface ZombiePool {
   freedCount: number;
   /** Story 4.8 review L4: ticks spent inside a fire since the last fire hit (the burn clock; 0 on spawn). */
   readonly fireTicks: Uint16Array;
-  /** Story 5.3: the last shot id (`ProjectilePool.shotId`) that knocked this zombie back (once per shot, F5); 0 on spawn. */
+  /**
+   * Story 5.3: the last `KNOCK_MEMORY` shot ids (`ProjectilePool.shotId`) that knocked this zombie
+   * back, a ring per slot at `[id × KNOCK_MEMORY, …)` written at `knockHead[id]` (once per shot, F5;
+   * review M1: several players' shots can be in flight at once, so one remembered id is not enough).
+   * All 0 on spawn.
+   */
   readonly knockShot: Uint32Array;
+  readonly knockHead: Uint8Array;
   /** Scratch velocities for the AI (computed for all zombies first, then applied). */
   readonly vx: Float32Array;
   readonly vy: Float32Array;
+}
+
+/**
+ * Story 5.3 review M1: knocking shots remembered per zombie. A knockback shot's pellets live ≤ 2
+ * ticks and one player fires at most one such shot at a time, so at most one shot per player (4)
+ * can still be in flight when another hits: 4 ids always cover them.
+ */
+export const KNOCK_MEMORY = 4;
+
+/** Story 5.3: shot `shotId` already knocked zombie `id` back. */
+export function knockedBy(pool: ZombiePool, id: number, shotId: number): boolean {
+  const base = id * KNOCK_MEMORY;
+  for (let k = 0; k < KNOCK_MEMORY; k++) if (pool.knockShot[base + k] === shotId) return true;
+  return false;
+}
+
+/** Story 5.3: remembers that shot `shotId` knocked zombie `id` back (the oldest of the ring is forgotten). */
+export function rememberKnock(pool: ZombiePool, id: number, shotId: number): void {
+  const h = pool.knockHead[id] as number;
+  pool.knockShot[id * KNOCK_MEMORY + h] = shotId;
+  pool.knockHead[id] = (h + 1) % KNOCK_MEMORY;
 }
 
 export function createZombiePool(capacity: number): ZombiePool {
@@ -60,7 +87,8 @@ export function createZombiePool(capacity: number): ZombiePool {
     hp: new Float32Array(capacity),
     attackCooldownTicks: new Uint16Array(capacity),
     fireTicks: new Uint16Array(capacity),
-    knockShot: new Uint32Array(capacity), // Story 5.3
+    knockShot: new Uint32Array(capacity * KNOCK_MEMORY), // Story 5.3
+    knockHead: new Uint8Array(capacity),
     type: new Uint8Array(capacity),
     state: new Uint8Array(capacity),
     generation: new Uint8Array(capacity),
@@ -108,7 +136,8 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.hp[id] = stats.hp;
   pool.attackCooldownTicks[id] = 0;
   pool.fireTicks[id] = 0; // Story 4.8: a reused slot starts with a cold burn clock
-  pool.knockShot[id] = 0; // Story 5.3: no shot has knocked a new zombie yet
+  pool.knockShot.fill(0, id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY); // Story 5.3: no shot has knocked a new zombie yet
+  pool.knockHead[id] = 0;
   pool.type[id] = zombieTypeIndex(type);
   pool.state[id] = ZOMBIE_STATE.CHASE;
   pool.waveZombie[id] = waveZombie ? 1 : 0;
