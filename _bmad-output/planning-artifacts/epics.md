@@ -1790,7 +1790,9 @@ So that I can stop a dangerous zombie at a choke point.
 
 **Given** a Brute or other heavy zombie
 **When** it steps in
-**Then** the designer-chosen rule applies (held shorter, or breaks the trap), written as a fairness rule before the build
+**Then** it is held half as long (1.5 s instead of 3 s) and the trap wears normally
+
+**Designer decisions D1–D12 (2026-11-23, "okay with everything"; details in `5-14-bear-trap.md` and `docs/epic-5-decisions.md` › Bear trap):** $50, 1 × 1 m floor building, 0.35 m plate, 5 snap damage, holds 3 s ("caught by the leg": no movement or push, still bites/spits/swells), one zombie per trap, never catches in a build phase, players are never caught or blocked (a held zombie doesn't block players), any standing player re-arms it by standing on it 1 s, all traps re-arm at each build start, worn after 4 catches (25 of 100 HP each), repairable; fire wears it, mine and Bloater blasts don't. Non-solid: stops no bullets and no melee (like the 5.9 traps). World look B-T1 drawn in code (open and closed jaws); I1 build-bar icon (Story 5.27).
 
 ### Building UX rework (Stories 5.15–5.25)
 
