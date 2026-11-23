@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { buildingById, maxZombieRadius, type MapSpawn, type World } from "@topdown/shared";
 import type { Placement } from "../scenes/placement";
-import { dashedCircle } from "./dashes";
+import { dashedCircle, zombieAlive } from "./dashes";
 
 /**
  * Story 5.17 (AC 4, 5; ux-spec §7.2): what the reason line points at, in world metres.
@@ -83,18 +83,27 @@ export class BlockReasonView {
     let x = Number.NaN;
     let y = Number.NaN;
     let radius = 0;
+    let gone = false;
     if (r.cause === "me" || r.cause === "teammate") {
       const pl = world.players.get(r.playerId);
       const at = drawnAt(r.playerId) ?? pl;
-      if (at && pl) {
+      if (at && pl && pl.status !== "out") {
         x = at.x;
         y = at.y;
         radius = pl.radiusM + BODY_RING_GAP_M;
-      }
+      } else gone = true; // review L4: left, or out, during the hold
     } else if (r.cause === "zombie") {
-      x = world.zombies.x[r.id] as number;
-      y = world.zombies.y[r.id] as number;
-      radius = maxZombieRadius(world.balance);
+      const z = world.zombies;
+      if (zombieAlive(z.aliveIds, z.alivePos, z.aliveCount, r.id)) {
+        x = z.x[r.id] as number;
+        y = z.y[r.id] as number;
+        radius = maxZombieRadius(world.balance);
+      } else gone = true; // review L4: died (or its slot was reused) during the hold
+    }
+    if (gone) {
+      if (g.visible) g.clear().setVisible(false);
+      this.shownVersion = -1;
+      return;
     }
     const moved = Number.isFinite(x) && !(Math.abs(x - this.shownX) <= MOVE_EPS_M && Math.abs(y - this.shownY) <= MOVE_EPS_M);
     if (p.shownVersion === this.shownVersion && !moved) return;

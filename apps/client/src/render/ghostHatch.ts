@@ -1,3 +1,8 @@
+/** The hatch buffer's segment count (BuildingView): enough for every footprint in balance (a test pins it). */
+export const HATCH_MAX_SEGMENTS = 64;
+/** The hatch lines' spacing (ux-spec §7.1: 0.25 m). */
+export const HATCH_SPACING_M = 0.25;
+
 /**
  * Story 5.17 (AC 6, ux-spec §7.1/§7.3): the blocked ghost's colour-blind-safe marks, as pure maths
  * (no Phaser): 45° hatch lines clipped to the box, `spacingM` apart (measured along the box's
@@ -10,14 +15,14 @@ export function hatchSegments(minX: number, minY: number, maxX: number, maxY: nu
   const c0 = minX + minY;
   const c1 = maxX + maxY;
   for (let c = c0 + spacingM; c < c1 - 1e-9 && n * 4 + 3 < out.length; c += spacingM) {
-    // Entry: on the top edge (y = minY) or the left edge (x = minX).
+    // Start: on the top edge (y = minY), or on the right edge (x = maxX) once c − minY is past it.
     let xa = c - minY;
     let ya = minY;
     if (xa > maxX) {
       xa = maxX;
       ya = c - maxX;
     }
-    // Exit: on the left edge (x = minX) or the bottom edge (y = maxY).
+    // End: on the left edge (x = minX), or on the bottom edge (y = maxY) once c − minX is past it.
     let xb = minX;
     let yb = c - minX;
     if (yb > maxY) {

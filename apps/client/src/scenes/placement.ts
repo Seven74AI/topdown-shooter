@@ -124,7 +124,7 @@ export class Placement {
   shownError: PlaceError | null = null;
   readonly shownReason: BlockReason = createBlockReason();
   shownHasReason = false;
-  /** Scene clock (ms) when the shown error/reason last changed. */
+  /** Scene clock (ms) of the last frame the preview was blocked (review L1: valid needs `reasonHoldMs` of continuous clear). */
   shownSinceMs = 0;
   /** +1 whenever the shown error/reason changes (views redraw on it; no string per frame). */
   shownVersion = 0;
@@ -259,8 +259,8 @@ export class Placement {
 
   /**
    * Story 5.17: after `check`, the first cause of a `blocked` preview (`blockReason` on the same World
-   * and box as `placementError`), then the hold (AC 8): a new error or reason is shown at once and
-   * restarts the clock; valid is shown only once the shown reason has been up `reasonHoldMs`.
+   * and box as `placementError`), then the hold (AC 8): a new error or reason shows at once; valid is shown only after `reasonHoldMs` of continuous clear (review L1: every
+   * blocked frame restarts the clock, so a one-frame clear never flashes green).
    */
   explain(world: Readonly<World>, ownerId: string, nowMs: number): void {
     const stats = this.stats;
@@ -279,9 +279,9 @@ export class Placement {
         s.index = r.index;
         s.id = r.id;
         s.playerId = r.playerId;
-        this.shownSinceMs = nowMs;
         this.shownVersion++;
       }
+      this.shownSinceMs = nowMs; // review L1: every blocked frame restarts the hold
     } else if (this.shownError !== null && nowMs - this.shownSinceMs >= this.holdMs) {
       this.shownError = null;
       this.shownHasReason = false;

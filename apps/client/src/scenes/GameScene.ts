@@ -269,7 +269,7 @@ export class GameScene extends Phaser.Scene {
     hintText: (e, r) => this.hintText(e, r),
   };
   /** Story 5.17: the reason line's last text and what it was built from (rebuilt only when one changes: no string per frame). */
-  private hint = { e: "" as PlaceError | "", cause: "", index: 0, id: 0, playerId: "", wallet: -1, type: "", text: "" };
+  private hint = { e: "" as PlaceError | "", cause: "", index: 0, id: 0, playerId: "", name: "", wallet: -1, type: "", text: "" };
   private readonly hintCtx: HintContext = { price: 0, wallet: 0, nameOf: (id) => this.ownerName(id), refusal: (e) => this.refusalText(e) };
   /** Story 5.17: the shown reason's culprit and the spawn no-build circles. */
   private blockReasonView: BlockReasonView | null = null;
@@ -746,7 +746,7 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Story 5.17 (AC 3): the reason line for the shown error and reason (`placementHintText`), cached:
-   * rebuilt only when the error, the cause, the culprit, my wallet or the held type changes.
+   * rebuilt only when the error, the cause, the culprit (and a teammate's name), my wallet or the held type changes.
    */
   private hintText(e: PlaceError, r: Readonly<BlockReason> | null): string {
     const host = this.host;
@@ -758,11 +758,12 @@ export class GameScene extends Phaser.Scene {
     const index = r ? r.index : 0;
     const id = r ? r.id : 0;
     const playerId = r ? r.playerId : "";
-    if (h.e === e && h.cause === cause && h.index === index && h.id === id && h.playerId === playerId && h.wallet === wallet && h.type === type) return h.text;
+    const name = cause === "teammate" ? this.ownerName(playerId) : ""; // review L3: a name that arrives later updates the line
+    if (h.e === e && h.cause === cause && h.index === index && h.id === id && h.playerId === playerId && h.name === name && h.wallet === wallet && h.type === type) return h.text;
     const c = this.hintCtx;
     c.price = buildingStats(host.world.balance, type)?.price ?? 0;
     c.wallet = wallet;
-    this.hint = { e, cause, index, id, playerId, wallet, type, text: placementHintText(host.world, e, r, c) };
+    this.hint = { e, cause, index, id, playerId, name, wallet, type, text: placementHintText(host.world, e, r, c) };
     return this.hint.text;
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEUTRAL_INPUT, addPlayer, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave, type PlaceError, type PlaceRequest } from "@topdown/shared";
+import { NEUTRAL_INPUT, addPlayer, spawnZombie, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave, type PlaceError, type PlaceRequest } from "@topdown/shared";
 import { Placement, autoRot, carryDistance, placeRefusalText, snapAxis, stepPlacement, type PlacementFrame, type PlacementHud } from "./placement";
 import type { MutablePlayerInput } from "../input/InputRouter";
 
@@ -406,22 +406,29 @@ describe("Story 5.17: why it's red — the reason and its 250 ms hold", () => {
     expect(s.m.placementValid).toBe(false);
   });
 
-  it("a long red goes back to valid at once once it has been up 250 ms; a new hold starts clean", () => {
+  it("review L1: valid needs 250 ms of continuous clear, even after a long red; a one-frame clear never flashes green; a new hold starts clean", () => {
     const s = setup();
     s.onGhost();
     s.step(1016);
-    s.step(2000);
+    s.step(2000); // still blocked: the clock restarts here
     s.away();
     s.step(2016);
+    expect(s.m.placementValid).toBe(false); // one clear frame after a long red: no green flash
+    s.onGhost();
+    s.step(2032); // blocked again
+    s.away();
+    s.step(2032 + HOLD - 1);
+    expect(s.m.placementValid).toBe(false);
+    s.step(2032 + HOLD);
     expect(s.m.placementValid).toBe(true);
     s.onGhost();
-    s.step(2032);
+    s.step(2400);
     expect(s.p.shownError).toBe("blocked");
     s.p.cancel();
     expect([s.p.shownError, s.p.shownHasReason, s.p.hasReason]).toEqual([null, false, false]);
     s.away();
     s.p.start(balance, WOOD, 20, 16, 0, -1);
-    s.step(2040);
+    s.step(2410);
     expect([s.m.placementValid, s.m.placementHint]).toEqual([true, "Wood barricade · $40"]);
   });
 
@@ -431,5 +438,98 @@ describe("Story 5.17: why it's red — the reason and its 250 ms hold", () => {
     s.p.start(balance, WOOD, 0.5, 16, -1, 0);
     stepPlacement(s.p, s.m, { ...NEUTRAL_INPUT, moveX: -1 }, s.w, s.f);
     expect([s.m.placementValid, s.p.reason.cause, s.m.placementHint]).toEqual([false, "off_map", "blocked:off_map:"]);
+  });
+});
+
+describe("Story 5.17 review: the culprit changing while blocked; start resets; a building under the ghost", () => {
+  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false });
+  function setup() {
+    const w = world();
+    const p1 = addPlayer(w, "p1", 40, 16);
+    const p2 = addPlayer(w, "p2", 42, 16);
+    const p = new Placement();
+    const m = hud();
+    const f: PlacementFrame = {
+      can: true,
+      wave: 0,
+      x: 20,
+      y: 16,
+      ownerId: "p0",
+      label: "Wood barricade · $40",
+      refusal: (e: PlaceError) => placeRefusalText(e, balance),
+      send: () => {},
+      toast: () => {},
+      nowMs: 1000,
+      hintText: (e, r) => (r ? `${e}:${r.cause}:${r.playerId}:${r.id}` : e),
+    };
+    p.start(balance, WOOD, 20, 16, 0, -1);
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    const b = box(p);
+    const cx = (b.minX + b.maxX) / 2;
+    const cy = (b.minY + b.maxY) / 2;
+    const put = (pl: { x: number; y: number }, x: number, y: number): void => {
+      pl.x = x;
+      pl.y = y;
+    };
+    return { w, p, m, f, p1, p2, cx, cy, put, step: (ms: number) => ((f.nowMs = ms), stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f)) };
+  }
+
+  it("teammate p1 → p2 on the ghost: the hint, shownReason and version change that frame", () => {
+    const s = setup();
+    s.put(s.p1, s.cx, s.cy);
+    s.step(1016);
+    expect([s.m.placementHint, s.p.shownReason.playerId]).toEqual(["blocked:teammate:p1:0", "p1"]);
+    const v = s.p.shownVersion;
+    s.put(s.p1, 40, 16);
+    s.put(s.p2, s.cx, s.cy);
+    s.step(1032);
+    expect([s.m.placementHint, s.p.shownReason.playerId, s.p.shownSinceMs]).toEqual(["blocked:teammate:p2:0", "p2", 1032]);
+    expect(s.p.shownVersion).toBe(v + 1);
+  });
+
+  it("teammate → zombie: the cause and culprit change that frame", () => {
+    const s = setup();
+    s.put(s.p1, s.cx, s.cy);
+    s.step(1016);
+    s.put(s.p1, 40, 16);
+    const zid = spawnZombie(s.w, "walker", s.cx, s.cy);
+    s.step(1032);
+    expect([s.m.placementHint, s.p.shownReason.cause, s.p.shownReason.id, s.p.shownReason.playerId]).toEqual([`blocked:zombie::${zid}`, "zombie", zid, ""]);
+  });
+
+  it("zombie A → zombie B on the ghost (same cause, another culprit): the culprit changes that frame", () => {
+    const s = setup();
+    const a = spawnZombie(s.w, "walker", s.cx, s.cy);
+    s.step(1016);
+    expect(s.p.shownReason.id).toBe(a);
+    const v = s.p.shownVersion;
+    s.w.zombies.x[a] = 40;
+    s.w.zombies.y[a] = 16;
+    const b = spawnZombie(s.w, "walker", s.cx, s.cy);
+    s.step(1032);
+    expect([s.p.shownReason.cause, s.p.shownReason.id, s.m.placementHint, s.p.shownVersion]).toEqual(["zombie", b, `blocked:zombie::${b}`, v + 1]);
+  });
+
+  it("start() resets the shown state (no cancel in between)", () => {
+    const s = setup();
+    s.put(s.p1, s.cx, s.cy);
+    s.step(1016);
+    expect(s.p.shownError).toBe("blocked");
+    s.put(s.p1, 40, 16);
+    s.p.start(balance, WOOD, 20, 16, 0, -1);
+    expect([s.p.shownError, s.p.shownHasReason, s.p.hasReason]).toEqual([null, false, false]);
+    s.step(1020);
+    expect(s.m.placementValid).toBe(true);
+  });
+
+  it("a building under the ghost is the reason (every building counts: no exceptId while placing)", () => {
+    const s = setup();
+    const b = box(s.p);
+    const gx = Math.round(b.minX / 0.5);
+    const gy = Math.round(b.minY / 0.5);
+    const ok = placeBuilding(s.w, "p1", { type: "mine", gx, gy, rot: 0 });
+    expect(ok.ok).toBe(true);
+    s.step(1016);
+    expect([s.p.reason.cause, s.p.hasReason, s.m.placementHint]).toEqual(["building", true, `blocked:building::${s.w.buildings.list[0]?.id}`]);
   });
 });

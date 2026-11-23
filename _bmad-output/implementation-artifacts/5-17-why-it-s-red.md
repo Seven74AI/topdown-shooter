@@ -1,6 +1,6 @@
 # Story 5.17: Why it's red
 
-Status: review
+Status: done
 
 (Building UX rework BX-3. Design: `docs/ideas/building-ux/ux-spec.md` §7 (7.1 ghost, 7.2 reason + culprit, 7.3 accessibility) and §15 (designer: **B · Carry + drag**), `draft-stories.md` › BX-3, feel: `prototype.html` / claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR. Spine-wins rule: where the spec and the prototype disagree, the spec wins. Builds on Story 5.15 (`stepPlacement`, the hand cluster, the hint line 6 px above ✕) and 5.16 (build bar, `pickRefusalText`, toasts).)
 
@@ -47,7 +47,7 @@ so that I fix it in one move.
 5. **Spawn no-build circles.** While I hold anything, every spawn's `spawnClearM` circle is drawn faint (red 12 % fill, dashed edge). Drawn once per map into one Graphics (the camera culls what's out of view), shown/hidden with holding.
 6. **Colour-blind safe ghost (ux-spec §7.1, §7.3).** A blocked ghost gets a **45° hatch** (white 25 %, 0.25 m spacing, clipped to the box) and a **✕ glyph** (0.4 m, centred, capped to the box) on top of the red; a valid ghost has neither. **Place** turns grey with a red ring but still sends (5.15; the server judges).
 7. **Range rings from balance (generic).** The ghost draws a ring at every radius its type's balance blocks declare: any nested block field named `rangeM` or ending in `RadiusM` / `radiusM` (today: turret `rangeM` 8 m; mine `triggerRadiusM` 1 m + `blastRadiusM` 2.5 m, 5.9's colours kept). After 5.10 / 5.14 merge, the med station's `heal.radiusM`, the floodlight's `light.radiusM` and a bear-trap radius get rings with **no UI change** (read generically; their data is not added here). Rings are dimmed (half alpha) while blocked.
-8. **No flicker (hold).** A reason stays on screen ≥ **`controls.build.reasonHoldMs` = 250 ms** before the look switches back to valid (reason line, red ghost + hatch + ✕, Place's colour, culprit outline). A new reason replaces a shown one at once (and restarts the hold); a hold that ends while still blocked shows the current reason. The hold is presentation only: Place always sends the spot shown (5.15 AC 10).
+8. **No flicker (hold).** The look goes back to valid only after **`controls.build.reasonHoldMs` = 250 ms of continuous clear** (review L1: every blocked frame restarts the clock, so a one-frame clear never flashes green, even after a long red) — reason line, red ghost + hatch + ✕, Place's colour, culprit outline. A new reason or culprit replaces the shown one at once; a culprit that dies or leaves during the hold loses its outline (review L4). The hold is presentation only: Place always sends the spot shown (5.15 AC 10).
 9. **Fairness: walking past isn't a way round the check.** The hold never makes a blocked ghost look valid: blocked → red at once (the frame it becomes blocked); only blocked → valid waits.
 10. **Fairness: same World.** The reason is computed from the World this device sees, in the same frame as `placementError` (same box); the reason line never says "valid" while `placementError` says blocked and vice versa (except during the 250 ms hold of AC 8, which only keeps red longer).
 11. **Holding ends** under 5.15's rules; the spawn circles, culprit outline and held reason vanish with it (and reset for the next hold).
@@ -60,7 +60,7 @@ so that I fix it in one move.
 | --- | --- | --- |
 | B1 | A spot off the map **and** on a spawn circle | "Off the street" (first cause wins, AC 1 order; unit test) |
 | B2 | A spot on a spawn circle and a car | "Too close to a zombie spawn (2 m)" |
-| B3 | Walk the ghost past a teammate | Red at once with "Bo is standing there"; back to green ≥ 250 ms after Bo has left the box, no flicker |
+| B3 | Walk the ghost past a teammate | Red at once with "Bo is standing there"; back to green 250 ms after Bo has left the box (continuous clear), no flicker |
 | B4 | Find a spot the line says is fine but the server refuses (or the other way round) | None in the fuzz (60,000 boxes incl. map edges); online, only interpolated bodies can differ (5.15 L7, accepted) |
 | B5 | Press Place during the 250 ms hold after the spot became valid | Sends (presentation only); the server accepts it |
 | B6 | Colour-blind: tell blocked from valid without colour | Hatch + ✕ on the ghost, "Place" grey with a ring, the reason text |
@@ -120,6 +120,21 @@ None of the sim copies. `blockReason` is a new shared function read only by the 
 - `render/BuildingView.ts`: rings now come from `rangeRings(stats)` (5.10's med-station/floodlight rings appear in the ghost automatically; 5.10's own placed-building rings are separate).
 - `scenes/placement.ts`: `PlacementFrame` gains `nowMs` and `hintText`; `Placement` gains `reason`, `shownError`, `shownReason`.
 
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh agent dispatched by the main session, 2026-11-23. **Outcome:** no high, no medium; the `blockReason ⇔ footprintBlocked` rule held against every attack; the zombie screenshot is correct. Lows fixed on `story-5-17` (no re-review needed, main session).
+
+| # | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| L1 | Low | The hold counted from when the reason appeared, so after a long red a one-frame clear flashed green. | Decision (main session): every blocked frame restarts the clock (`shownSinceMs` = the last blocked frame); valid needs 250 ms of continuous clear, red stays instant. AC 8 / B3 updated; the "long red" test now asserts no green after one clear frame and green exactly 250 ms after the last blocked frame. |
+| L2 | Low | `sameAsShown` had no test for a culprit change while still blocked ("ignore playerId" / "ignore culprit" mutants survived). | Tests: teammate p1 → p2, teammate → zombie, zombie A → zombie B: hint, `shownReason`, `shownSinceMs` and `shownVersion` change on that frame. Both mutants killed. |
+| L3 | Low | The GameScene hint cache key lacked the teammate's name (a name arriving later never updated the line). | The key includes `ownerName(playerId)` for the teammate cause. |
+| L4 | Low | A zombie that died / a teammate that left or went out during the hold kept a stale outline. | `BlockReasonView` hides the culprit unless the zombie is alive (`zombieAlive`: its alive-list slot points back at it, pure + tested) or the teammate is still present and not out. |
+| L5 | Low | `ghostHatch.ts` comment said "left edge" where the code uses the right edge; the 64-segment buffer wasn't pinned. | Comment fixed; `HATCH_MAX_SEGMENTS` / `HATCH_SPACING_M` moved to `ghostHatch.ts`; a test pins the largest footprint in balance (whole hatch, nothing cut off). |
+| + | Test | Surviving mutants M9 (start keeps the shown state), M10 (explain's exceptId), M12 (spawn text literal), M17 (dashed circle minimum). | Tests: `start()` without `cancel()` resets the shown state; a building under the ghost is the reason; the spawn text follows `spawnClearM` (3 m override); a 0.1 m circle gets 8 slots / 4 dashes. |
+
+Mutations after the fixes, one each, all **killed**: sameAsShown ignores playerId; ignores culprit (index/id); start keeps shown; explain passes exceptId 1; hold from first appearance; spawn "2 m" literal; dashed minimum 2; `zombieAlive` without the back-check; hatch buffer 12.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -129,7 +144,7 @@ Claude (builder cloud session, 2026-11-23). Baseline: master `d526464` (5.15 + 5
 ### Debug Log References
 
 - Browser check (`require('playwright')`, headless Chromium, `isMobile`, `hasTouch`, dpr 2; Vite on its own port 5417, stopped by PID; solo practice `?wallet=5000`): at 800 × 360 and 568 × 320 each cause was set up by teleporting the survivor / adding a culprit in the solo World. HUD state read from the scene: spawn → "Too close to a zombie spawn (2 m)", off map → "Off the street", bus → "Blocked by the bus", car → "Blocked by a car", own turret → "Overlaps a building", teammate → first run "` is standing there`" (a test teammate with no name: fixed, D9) then "A teammate is standing there", zombie → "A zombie is in the way". Shots in `docs/art/5-17/` (README lists them).
-- Hold: teammate on the ghost for two frames then off → red look stayed **267 ms / 283 ms** (≥ 250). A long red (900 ms) went valid on the first valid frame (AC 8: the hold counts from when the reason appeared).
+- Hold: teammate on the ghost for two frames then off → red look stayed **267 ms / 283 ms** (≥ 250). (Built first with the hold counted from when the reason appeared: a long red went valid on the first valid frame; review L1 changed it to 250 ms of continuous clear.)
 - Consistency: every frame for 1.5–4 s with a pinned and with a walking zombie, `placement.shownError`, `hudModel.placementValid`, the ghost's colour bit and the culprit's visibility agreed (0 mismatches in 246 frames). An early zombie screenshot showed a green ghost under a red reason while the zombie walked off; the per-frame check found no mismatch, so that was the capture landing on a transition (re-shot with the zombie pinned).
 - Culprit redraws: fixed culprits redraw once per change (`redraws` +1 per scenario); a walking zombie / teammate redraws when it moves > 1 cm (Graphics clear + a few lines; no objects created).
 - No console or page errors.
@@ -160,3 +175,4 @@ Claude (builder cloud session, 2026-11-23). Baseline: master `d526464` (5.15 + 5
 
 - 2026-11-23: Story written (gds-create-story) from the code on master `d526464`. Status → in-progress.
 - 2026-11-23: Built (gds-dev-story): shared `blockReason` + fuzz, reason line, culprit outlines, spawn circles, hatch + ✕, generic range rings, 250 ms hold. Status → review.
+- 2026-11-23: Review lows L1–L5 + four surviving mutants fixed; merged master; status → done.

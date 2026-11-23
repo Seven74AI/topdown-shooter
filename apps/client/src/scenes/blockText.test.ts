@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP, addBuildingAt, addPlayer, applyDecayStage, blockReason, buildingStats, createWorld, footprint, loadBalance, spawnZombie, type BlockReason, type Box, type MapBox } from "@topdown/shared";
+import { DOWNTOWN_MAP, bundledBalanceFiles, withOverrides, addBuildingAt, addPlayer, applyDecayStage, blockReason, buildingStats, createWorld, footprint, loadBalance, spawnZombie, type BlockReason, type Box, type MapBox } from "@topdown/shared";
 import { COVER_WORDS, SOLID_NAMES, blockText, placementHintText, solidWord } from "./blockText";
 import { placeRefusalText } from "./placement";
 
@@ -32,6 +32,9 @@ describe("blockText (Story 5.17, AC 3)", () => {
     expect(blockText(w, reason({ cause: "teammate", playerId: "p1" }), names)).toBe("Bo is standing there");
     expect(blockText(w, reason({ cause: "zombie", id: 7 }), names)).toBe("A zombie is in the way");
     expect(blockText(w, reason({ cause: "teammate", playerId: "p2" }), () => "")).toBe("A teammate is standing there");
+    // Review M12: the distance comes from balance (buildings.spawnClearM), not a literal.
+    const w3 = createWorld({ balance: loadBalance(withOverrides(bundledBalanceFiles(), [["buildings", "spawnClearM", 3]])), seed: 1, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
+    expect(blockText(w3, reason({ cause: "spawn", index: 0 }), names)).toBe("Too close to a zombie spawn (3 m)");
   });
 
   it("names Downtown's objects: the bus, a car, the sandbags, the police barrier, a wall", () => {

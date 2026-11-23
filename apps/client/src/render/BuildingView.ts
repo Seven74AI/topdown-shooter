@@ -7,7 +7,7 @@ import { barricadePoolSize, barricadeTint, barricadeTransform, frameBandBox, typ
 import { B6_ROW_Y0, B6_ROW_Y1 } from "./city/objectArt";
 import { ATLAS_BUILDINGS, FRAME_WOOD, buildingFrame, ensureBuildingsAtlas } from "./city/buildingsAtlas";
 import { buildingShadowHeightM } from "./mineLook";
-import { crossHalf, hatchSegments } from "./ghostHatch";
+import { HATCH_MAX_SEGMENTS, HATCH_SPACING_M, crossHalf, hatchSegments } from "./ghostHatch";
 import { rangeRings } from "./rangeRings";
 
 /** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline; night-darkened (Story 4.9). */
@@ -54,13 +54,10 @@ const BLOCKED = 0xe53935;
 const PREVIEW_FILL_ALPHA = 0.45;
 const PREVIEW_LINE_M = 0.08;
 /** Story 5.17 (AC 6, ux-spec §7.1): a blocked ghost's 45° hatch (white 25 %, 0.25 m apart) and ✕ (0.4 m). */
-const HATCH_SPACING_M = 0.25;
 const HATCH_ALPHA = 0.25;
 const HATCH_LINE_M = 0.04;
 const CROSS_M = 0.4;
 const CROSS_LINE_M = 0.09;
-/** Enough for the largest footprint (a 2 × 2 trap needs 15; 64 covers 8 m of box sides). */
-const HATCH_MAX_SEGMENTS = 64;
 /** Story 5.17 (AC 7): range rings other than the mine's two (turret, and 5.10/5.14 types) and their dimming while blocked. */
 const RING_OTHER = 0xffffff;
 const RING_OTHER_ALPHA = 0.6;

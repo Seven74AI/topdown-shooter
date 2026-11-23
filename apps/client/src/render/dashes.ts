@@ -19,3 +19,9 @@ export function dashedCircle(g: LineSink, cx: number, cy: number, r: number, das
   }
   return dashes;
 }
+
+/** Story 5.17 review L4: zombie slot `id` is alive (its place in the alive list points back at it), so a dead zombie's culprit circle hides. */
+export function zombieAlive(aliveIds: ArrayLike<number>, alivePos: ArrayLike<number>, aliveCount: number, id: number): boolean {
+  const pos = alivePos[id];
+  return pos !== undefined && pos >= 0 && pos < aliveCount && aliveIds[pos] === id;
+}

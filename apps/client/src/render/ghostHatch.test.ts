@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { crossHalf, hatchSegments } from "./ghostHatch";
+import { buildingStats, buildingTypeIds, loadBalance } from "@topdown/shared";
+import { HATCH_MAX_SEGMENTS, HATCH_SPACING_M, crossHalf, hatchSegments } from "./ghostHatch";
 
 /** Story 5.17 (AC 6): the blocked ghost's hatch and ✕. */
 describe("ghostHatch", () => {
@@ -28,5 +29,17 @@ describe("ghostHatch", () => {
     expect(crossHalf(2, 0.5, 0.4)).toBeCloseTo(0.2);
     expect(crossHalf(0.5, 0.5, 0.4)).toBeCloseTo(0.2);
     expect(crossHalf(0.3, 0.5, 0.4)).toBeCloseTo(0.12);
+  });
+  it("review L5: the largest footprint in balance gets its whole hatch from the 64-segment buffer", () => {
+    const balance = loadBalance();
+    let largest = 0;
+    for (const t of buildingTypeIds(balance)) {
+      const st = buildingStats(balance, t);
+      if (st) largest = Math.max(largest, st.widthM + st.depthM);
+    }
+    const buf = new Float64Array(HATCH_MAX_SEGMENTS * 4);
+    const n = hatchSegments(0, 0, largest / 2, largest / 2, HATCH_SPACING_M, buf);
+    expect(n).toBe(Math.round(largest / HATCH_SPACING_M) - 1); // nothing cut off
+    expect(n).toBeLessThan(HATCH_MAX_SEGMENTS);
   });
 });
