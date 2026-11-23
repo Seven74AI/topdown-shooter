@@ -469,6 +469,12 @@ export const fxSchema = z
     maxBloaterParticles: z.number().int().min(16).max(1024).default(240),
     /** Story 5.8: fuse rings drawn at once (one per swelling Bloater on screen). */
     maxFuseRings: z.number().int().min(1).max(64).default(16),
+    /** Story 5.10 (D4 fallback, measured): floodlight pools drawn at once (nearest the camera centre; phone FPS cap). */
+    maxFloodLights: z.number().int().min(1).max(32).default(4),
+    /** Story 5.10: floodlights are drawn when within this margin (m) of the view (their pool reaches in). */
+    floodLightViewMarginM: z.number().min(0).max(16).default(2),
+    /** Story 5.10 (D4 fallback): a floodlight within this distance (m) of a drawn one shares its pool. */
+    floodLightMergeM: z.number().min(0).max(16).default(4),
   })
   .strict();
 
@@ -600,6 +606,31 @@ export const mineSchema = z
   .refine((m) => m.blastRadiusM >= m.triggerRadiusM, "blastRadiusM must be at least triggerRadiusM");
 
 /**
+ * Story 5.10: a building that lights the street (floodlight). Gameplay effect only from Story 6.3
+ * (blackout reads `world.lights`): `radiusM` normally, `blackoutRadiusM` during a blackout wave
+ * (Epic 6 D5). The client draws a glow pool of `radiusM`.
+ */
+export const lightSchema = z
+  .object({
+    radiusM: z.number().positive().max(16),
+    /** Epic 6 D5: the radius during a blackout wave (Story 6.3 switches to it). */
+    blackoutRadiusM: z.number().positive().max(16),
+  })
+  .strict()
+  .refine((l) => l.blackoutRadiusM >= l.radiusM, "blackoutRadiusM must be at least radiusM");
+
+/**
+ * Story 5.10: a med station. An alive player whose body circle overlaps the `radiusM` circle round
+ * its centre (strict) gains `hpPerS × TICK_DT_S` per tick, capped at their maxHp; stations never stack.
+ */
+export const healSchema = z
+  .object({
+    radiusM: z.number().positive().max(8),
+    hpPerS: z.number().positive().max(100),
+  })
+  .strict();
+
+/**
  * Story 3.4: one building type (GDD › Buildings and Defenses). The footprint is `widthM` along x and
  * `depthM` along y at rotation 0 (rotations 1 and 3 swap them), both multiples of the 0.5 m build
  * lattice; its min corner sits on a lattice point. Story 3.6 adds turret fields (with defaults).
@@ -633,6 +664,17 @@ export const buildingTypeSchema = z
     trap: trapSchema.optional(),
     /** Story 5.9: a mine (floor, single use): a zombie touching the trigger circle sets off the blast. */
     mine: mineSchema.optional(),
+    // ---- Story 5.10 (floodlight, med station) ----
+    /**
+     * Story 5.10: false = placeable but not offered yet (the floodlight until Story 6.3): not listed
+     * by the shop, refused `not_for_sale` by placement unless the dev switch `debug.shopAll` is on.
+     * Different from `forSale: false` (upgrade-only tiers, never placed at all).
+     */
+    inShop: z.boolean().default(true),
+    /** Story 5.10: lights the street (a light source in `world.lights`). */
+    light: lightSchema.optional(),
+    /** Story 5.10: heals alive players touching the ring. */
+    heal: healSchema.optional(),
   })
   .strict();
 
@@ -823,4 +865,6 @@ export type BuildingTypeStats = z.output<typeof buildingTypeSchema>;
 export type TurretStats = z.output<typeof turretSchema>;
 export type TrapStats = z.output<typeof trapSchema>;
 export type MineStats = z.output<typeof mineSchema>;
+export type LightStats = z.output<typeof lightSchema>;
+export type HealStats = z.output<typeof healSchema>;
 export type GearItemStats = z.output<typeof gearItemSchema>;

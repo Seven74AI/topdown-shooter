@@ -24,6 +24,7 @@ import { createSpitPool, type SpitPool } from "../zombies/spitPool";
 import { createAreaPool, type AreaPool } from "../hazards/areaPool";
 import { createGrenadePool, type GrenadePool } from "../combat/grenades";
 import { createBlastQueue, type BlastQueue } from "../zombies/bloater";
+import { createLightState, type LightState } from "../decay/lightState";
 
 /** The whole simulation state. A plain object so it can be snapshotted (Story 8.4). */
 export interface World {
@@ -111,6 +112,11 @@ export interface World {
   readonly blasts: BlastQueue;
   /** Story 5.8: Bloater gas clouds (an area pool of kind GAS, `blasts.maxGasClouds`). */
   readonly gas: AreaPool;
+  /**
+   * Story 5.10: the light sources (floodlights + burning fires, `decay/lightState.ts`). DERIVED on
+   * every copy from the buildings and `decay.fires` (never synced, never snapshotted).
+   */
+  readonly lights: LightState;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -186,6 +192,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     grenades: createGrenadePool(opts.balance.combat.explosion.maxLiveRounds), // Story 5.5
     blasts: createBlastQueue(opts.balance.zombies.blasts.queueCapacity), // Story 5.8
     gas: createAreaPool(opts.balance.zombies.blasts.maxGasClouds),
+    lights: createLightState(), // Story 5.10 (derived)
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

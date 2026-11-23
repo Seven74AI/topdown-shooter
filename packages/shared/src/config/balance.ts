@@ -132,18 +132,18 @@ function crossCheckFlames(parsed: Record<string, unknown>, issues: string[]): vo
  * Story 5.9: the upgrade ladder and the floor types. An `upgradesTo` names an existing upgrade-only
  * type (`forSale: false`) with the same footprint whose `price` is this price + the step (the
  * "total paid" rule: repairs and refunds use it, F9); no cycles; floor types (`solid: false`) never
- * upgrade; `turret`, `trap` and `mine` exclude each other; traps and mines are floor.
+ * upgrade; `turret`, `trap`, `mine` (Story 5.10: `light`, `heal`) exclude each other; traps and mines are floor.
  */
 /** Review L4: what a building type is, by its blocks (a type with none is a plain wall: a barricade). */
-function buildingKind(t: BuildingTypeStats): "turret" | "trap" | "mine" | "barricade" {
-  return t.turret ? "turret" : t.trap ? "trap" : t.mine ? "mine" : "barricade";
+function buildingKind(t: BuildingTypeStats): "turret" | "trap" | "mine" | "light" | "heal" | "barricade" {
+  return t.turret ? "turret" : t.trap ? "trap" : t.mine ? "mine" : t.light ? "light" : t.heal ? "heal" : "barricade";
 }
 
 function crossCheckBuildingTypes(buildings: { types: Record<string, BuildingTypeStats> }, issues: string[]): void {
   const types = buildings.types;
   for (const [id, t] of Object.entries(types)) {
-    const kinds = (t.turret ? 1 : 0) + (t.trap ? 1 : 0) + (t.mine ? 1 : 0);
-    if (kinds > 1) issues.push(`buildings.json: types.${id}: turret, trap and mine exclude each other`);
+    const kinds = (t.turret ? 1 : 0) + (t.trap ? 1 : 0) + (t.mine ? 1 : 0) + (t.light ? 1 : 0) + (t.heal ? 1 : 0);
+    if (kinds > 1) issues.push(`buildings.json: types.${id}: turret, trap, mine, light and heal exclude each other`);
     if (t.stopsBullets && !t.solid) issues.push(`buildings.json: types.${id}: stopsBullets needs a wall (solid: true)`);
     if (t.upgradesTo && types[t.upgradesTo.type] && types[t.upgradesTo.type]?.stopsBullets !== t.stopsBullets) issues.push(`buildings.json: types.${id}: an upgrade must keep stopsBullets`);
     if ((t.trap || t.mine) && t.solid) issues.push(`buildings.json: types.${id}: a trap or mine must be floor (solid: false)`);

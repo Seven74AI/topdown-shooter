@@ -25,7 +25,6 @@ import {
   joinOptionsSchema,
   loadDevBalance,
   parseDevScale,
-  parseDevShopAll,
   parseDevWallet,
   lobbyReturnSchema,
   lobbySetReadySchema,
@@ -73,6 +72,7 @@ import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
 import { pickDevDecayStages } from "../run/devDecayStages";
+import { pickDevShopAll } from "../run/devShopAll";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
 import { PlayerState, RunState } from "./schema/RunState";
@@ -87,8 +87,11 @@ import { PlayerState, RunState } from "./schema/RunState";
 const devAllowed = process.env.NODE_ENV !== "production";
 const devZombieDamageScale = devAllowed ? parseDevScale(process.env.DEV_ZOMBIE_DAMAGE_SCALE) : null;
 const devStartingWallet = devAllowed ? parseDevWallet(process.env.DEV_STARTING_WALLET) : null;
-/** Story 5.11 (Story 5.10's switch, minimal form): `DEV_SHOP_ALL=1` (client `?shopall=1`) sells `inShop: false` items. */
-const devShopAll = devAllowed && parseDevShopAll(process.env.DEV_SHOP_ALL);
+/**
+ * Stories 5.10 + 5.11, ONE switch: `DEV_SHOP_ALL=1` (client `?shopall=1`) lists, places and sells
+ * every `inShop: false` item (floodlight, tactical flashlight). Production ignores it (`pickDevShopAll`, tested).
+ */
+const devShopAll = pickDevShopAll(process.env).shopAll;
 export const serverBalance = loadDevBalance({ zombieDamageScale: devZombieDamageScale, startingWallet: devStartingWallet, shopAll: devShopAll });
 if (devZombieDamageScale !== null || devStartingWallet !== null || devShopAll) {
   log.warn({ scale: devZombieDamageScale, wallet: devStartingWallet, shopAll: devShopAll, version: serverBalance.version }, "dev_balance_override");

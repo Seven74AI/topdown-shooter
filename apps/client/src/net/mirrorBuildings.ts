@@ -1,4 +1,4 @@
-import { addBuildingAt, removeBuilding, setBuildingType, type Building, type BuildingRotation, type BuildingStateView, type ReadonlyMapView, type World } from "@topdown/shared";
+import { addBuildingAt, removeBuilding, setBuildingType, updateLightState, type Building, type BuildingRotation, type BuildingStateView, type ReadonlyMapView, type World } from "@topdown/shared";
 
 /**
  * Story 3.4: the room state's buildings → a client World (the NetSimHost mirror, which draws them and
@@ -49,4 +49,5 @@ export function mirrorBuildings(buildings: ReadonlyMapView<BuildingStateView> | 
     }
   }
   target = null;
+  updateLightState(world); // Story 5.10: the derived light list follows the mirrored buildings (one compare when unchanged)
 }

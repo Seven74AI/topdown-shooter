@@ -127,3 +127,9 @@ Player:
 
 ## 36: what is happening to these zombies? (Story 5.4)
 ![36](objects/37_burning_zombies.png)
+
+## 37: what is this, and does it stop bullets? (Story 5.10)
+![37](objects/38_floodlight.png)
+
+## 38: what is this, and what happens inside the green ring? (Story 5.10)
+![38](objects/39_med_station.png)

@@ -41,9 +41,10 @@ export interface BuildTile {
 const itemCache = new WeakMap<Balance, readonly BuildTile[]>();
 
 /**
- * The building tiles, in balance order: `shopBuildings` (every priced type except upgrade-only
- * tiers), minus any type whose `inShop` is `false` (Story 5.10's flag, read generically so this
- * works before and after 5.10 merges: D7). Cached per balance (no allocation per call).
+ * The building tiles, in balance order: `shopBuildings` (every priced type except upgrade-only tiers
+ * and, Story 5.10, `inShop: false` types — the floodlight until 6.3; the dev switch `?shopall=1`
+ * builds a balance with every `inShop` true, so the floodlight shows then). Cached per balance (no
+ * allocation per call).
  */
 export function buildBarItems(balance: Balance): readonly BuildTile[] {
   let list = itemCache.get(balance);
@@ -51,7 +52,6 @@ export function buildBarItems(balance: Balance): readonly BuildTile[] {
     const out: BuildTile[] = [];
     for (const b of shopBuildings(balance)) {
       const stats = buildingStats(balance, b.id);
-      if ((stats as { inShop?: unknown } | undefined)?.inShop === false) continue;
       out.push(Object.freeze({ id: b.id, name: b.name, price: b.price, turret: turretStats(balance, b.id) !== undefined, widthM: stats?.widthM ?? 1, depthM: stats?.depthM ?? 1 }));
     }
     list = Object.freeze(out);

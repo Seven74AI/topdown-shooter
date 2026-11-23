@@ -9,9 +9,7 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false, lowFx: false, shopAll: false });
-    expect(parseUrlOptions("?shopall=1").shopAll).toBe(true); // Story 5.11
-    expect(parseUrlOptions("?shopall=0").shopAll).toBe(false);
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, runSeed: null, stressBuild: false, stressLights: false, lowFx: false, shopAll: false });
     expect(parseUrlOptions("?fx=low").lowFx).toBe(true); // Story 4.12
     expect(parseUrlOptions("?fx=high").lowFx).toBe(false);
     expect(parseUrlOptions("?stress=150&stressbuild=traps").stressBuild).toBe(true); // Story 5.9
@@ -114,5 +112,13 @@ describe("parseUrlOptions: Story 3.9 wave mix", () => {
   it("passes ?wavemix through raw (parseWaveMix validates it against balance)", () => {
     expect(parseUrlOptions("?solo&wavemix=walker,crawler").waveMix).toBe("walker,crawler");
     expect(parseUrlOptions("?solo").waveMix).toBeNull();
+  });
+  it("Story 5.10: ?shopall=1 (the shop-all dev switch) and ?stressbuild=lights", () => {
+    expect(parseUrlOptions("?shopall=1").shopAll).toBe(true);
+    expect(parseUrlOptions("?shopall=true").shopAll).toBe(true); // 5.11's parser: "1" / "true"
+    expect(parseUrlOptions("?shopall=0").shopAll).toBe(false);
+    expect(parseUrlOptions("?shopall=1", false).shopAll).toBe(false); // review L3: a release build ignores it
+    expect(parseUrlOptions("?stress=150&stressbuild=lights")).toMatchObject({ stressLights: true, stressBuild: false });
+    expect(parseUrlOptions("?stress=150&stressbuild=traps")).toMatchObject({ stressLights: false, stressBuild: true });
   });
 });

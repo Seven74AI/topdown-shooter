@@ -10,7 +10,10 @@
     "chainsawSparkMs": 180,
     "chainsawRevHoldMs": 150,
     "maxBloaterParticles": 240,
-    "maxFuseRings": 16
+    "maxFuseRings": 16,
+    "maxFloodLights": 4,
+    "floodLightViewMarginM": 2,
+    "floodLightMergeM": 4
   },
   "build": {
     "carryGapM": 1.0,
