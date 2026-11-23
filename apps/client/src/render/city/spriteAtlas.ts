@@ -3,6 +3,7 @@ import { ZOMBIE_TYPES, type ZombieTypeId } from "@topdown/shared";
 import { frameName, packAtlas, variantLetter, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { CAR_COLORS } from "./dressing";
 import { addCanvasTexture } from "./canvasTexture";
+import { OBJ_SANDBAGS, ensureObjectsAtlas, objectsFrameSource, type FrameSource } from "./objectsAtlas";
 import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawDumpster, drawPump, drawSandbags, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
@@ -51,11 +52,14 @@ export const FX_RAIN = frameName("fx", "rain", "a");
 export const FX_SPLASH = frameName("fx", "splash", "a");
 export const FX_GLOW = frameName("fx", "glow", "a");
 export const FX_VIGNETTE = frameName("fx", "vignette", "a");
+/** Story 4.11: a white edge band (opaque at its top, clear at its bottom), tinted for the burning screen-edge glow. */
+export const FX_EDGE = frameName("fx", "edge", "a");
 const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_RAIN]: [4, 28],
   [FX_SPLASH]: [40, 20],
   [FX_GLOW]: [64, 64],
   [FX_VIGNETTE]: [8, 64],
+  [FX_EDGE]: [8, 64],
 };
 
 export interface AtlasCanvas {
@@ -120,7 +124,15 @@ function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   if (z) drawZombie(g, z.type, CHAR_R_PX, z.variant);
 }
 
+/** Story 4.11: loaded frames that replace a procedural downtown frame (the sandbags). */
+let downtownSources: ReadonlyMap<string, FrameSource> = new Map();
+
 function drawDowntownFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
+  const src = downtownSources.get(f.name);
+  if (src) {
+    g.drawImage(src.image, src.x, src.y, src.w, src.h, f.x, f.y, f.w, f.h);
+    return;
+  }
   const [w, h] = nativeSize(f.name);
   g.translate(f.x, f.y);
   g.scale(DOWNTOWN_ATLAS_SCALE, DOWNTOWN_ATLAS_SCALE);
@@ -160,6 +172,13 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
     gr.addColorStop(1, "rgba(255,255,255,0)");
     g.fillStyle = gr;
     g.fillRect(x, y, w, h);
+  } else if (f.name === FX_EDGE) {
+    const gr = g.createLinearGradient(0, y, 0, y + h);
+    gr.addColorStop(0, "rgba(255,255,255,1)");
+    gr.addColorStop(0.45, "rgba(255,255,255,0.35)");
+    gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr;
+    g.fillRect(x, y, w, h);
   } else if (f.name === FX_VIGNETTE) {
     // one edge band (dark at the top, clear at the bottom); the view lays four around the screen
     const gr = g.createLinearGradient(0, y, 0, y + h);
@@ -184,6 +203,12 @@ function register(scene: Phaser.Scene, key: string, make: () => AtlasCanvas): At
 
 /** Creates the three atlases (idempotent) and returns the downtown one (the static bake draws from it). */
 export function ensureAtlases(scene: Phaser.Scene): AtlasCanvas {
+  // Story 4.11: the loaded stage-object atlas (or its stand-ins) first: the downtown atlas copies its sandbags.
+  ensureObjectsAtlas(scene);
+  if (!scene.textures.exists(ATLAS_DOWNTOWN)) {
+    const sandbags = objectsFrameSource(scene, OBJ_SANDBAGS);
+    downtownSources = sandbags ? new Map([[PROP_SANDBAGS, sandbags]]) : new Map();
+  }
   register(scene, ATLAS_CHARACTERS, () => build(characterSpecs(), drawCharacterFrame));
   register(scene, ATLAS_FX, () => build(fxSpecs(), drawFxFrame));
   const d = register(scene, ATLAS_DOWNTOWN, () => build(downtownSpecs(), drawDowntownFrame));

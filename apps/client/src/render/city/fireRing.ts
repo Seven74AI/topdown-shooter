@@ -50,3 +50,54 @@ export function strokeFireRings(g: { strokeCircle(x: number, y: number, r: numbe
     g.strokeCircle(f.x, f.y, fireRingRadiusM(f));
   }
 }
+
+/**
+ * Story 4.11 (designer pick F6): a circle of small flames marks the danger zone. Each flame is
+ * centred EXACTLY on the ring (`fireRingRadiusM`: your body touches the flames = you burn), evenly
+ * spaced about `RING_FLAME_SPACING_M` apart, at most `RING_FLAMES_MAX` per fire.
+ */
+export const RING_FLAME_SPACING_M = 0.75;
+export const RING_FLAMES_MAX = 24;
+/** A ring flame's drawn size (m) and its flicker. */
+export const RING_FLAME_M = 1.0;
+export const RING_FLAME_FLICKER_HZ = 8;
+
+/** How many flames ring fire `f` (≥ 6, ≤ `RING_FLAMES_MAX`). */
+export function ringFlameCount(f: FireZone): number {
+  const n = Math.round((2 * Math.PI * fireRingRadiusM(f)) / RING_FLAME_SPACING_M);
+  return Math.max(6, Math.min(RING_FLAMES_MAX, n));
+}
+
+/** Flame `i` of `n` on fire `f`'s ring, into `out` (no allocation): exactly on the zone radius. */
+export function ringFlameSpot(f: FireZone, i: number, n: number, out: { x: number; y: number }): void {
+  const a = ((i + 0.5) / n) * 2 * Math.PI;
+  const r = fireRingRadiusM(f);
+  out.x = f.x + Math.cos(a) * r;
+  out.y = f.y + Math.sin(a) * r;
+}
+
+/**
+ * The damage-tick pulse (0..1): a kick at each `pulseS` boundary of the view's clock that fades
+ * over the pulse (cosmetic: the server's per-body burn clocks are not synced; the rhythm matches).
+ */
+export function damageTickPulse(tS: number, pulseS: number): number {
+  if (!(pulseS > 0)) return 0;
+  const ph = (tS % pulseS) / pulseS;
+  return Math.exp(-ph * 5);
+}
+
+/**
+ * A ring flame of fire `self` at (x, y) marks the danger edge unless it lies strictly inside another
+ * burning zone (two cars burning side by side: the edge of the union is what burns).
+ */
+export function ringFlameMarksEdge(fires: readonly FireZone[], self: number, x: number, y: number): boolean {
+  for (let j = 0; j < fires.length; j++) {
+    if (j === self) continue;
+    const f = fires[j] as FireZone;
+    const dx = x - f.x;
+    const dy = y - f.y;
+    const r = fireRingRadiusM(f);
+    if (dx * dx + dy * dy < r * r) return false;
+  }
+  return true;
+}

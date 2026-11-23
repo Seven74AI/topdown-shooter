@@ -1,0 +1,133 @@
+import type { SimEvent } from "@topdown/shared";
+import { FIRE_CUE_MS, isFireHit, type FireCue } from "./fireCue";
+
+/**
+ * Story 4.11: the burning-survivor cues (designer: all four), pure parts. Everything is driven by
+ * the server's fire-damage events (`player.damaged` with no zombie source; solo: the same events):
+ * every player's survivor shows flames, smoke and embers while `FireCue.burning`; MY survivor also
+ * gets an orange pulsing screen-edge glow and a "-N" per fire hit (N = the event's amount, rounded
+ * up like the HP display, Story 3.7's ceil rule).
+ */
+
+/** "-N" pops: at most this many at once (the oldest is reused), their life and rise. */
+export const FIRE_POP_POOL = 6;
+export const FIRE_POP_MS = 900;
+export const FIRE_POP_RISE_PX = 28;
+/** Most fire hits queued for the HUD in one frame (more in one frame — a woken tab — are dropped). */
+export const FIRE_HIT_QUEUE = 4;
+/** Screen-edge glow alpha: low point and peak of the pulse while burning. */
+export const EDGE_GLOW_MIN = 0.22;
+export const EDGE_GLOW_MAX = 0.55;
+
+const labels = new Map<number, string>();
+
+/** "-5" for an amount of 5 (4.2 → "-5": ceil, like the HP text). Cached: no string per hit. */
+export function fireDamageLabel(amount: number): string {
+  const n = Math.max(0, Math.ceil(amount - 1e-9));
+  let s = labels.get(n);
+  if (s === undefined) {
+    s = `-${n}`;
+    if (labels.size < 256) labels.set(n, s);
+  }
+  return s;
+}
+
+/** The glow's alpha this frame: 0 when not burning, else pulsing with the damage tick (`pulseMs`). */
+export function edgeGlowAlpha(burning: boolean, sinceLastHitMs: number, pulseMs: number): number {
+  if (!burning) return 0;
+  const ph = pulseMs > 0 ? (sinceLastHitMs % pulseMs) / pulseMs : 0;
+  const kick = Math.exp(-ph * 4); // brightest right after a hit
+  const fade = Math.max(0, 1 - sinceLastHitMs / FIRE_CUE_MS) * 0.3 + 0.7; // dims in the last moments
+  return (EDGE_GLOW_MIN + (EDGE_GLOW_MAX - EDGE_GLOW_MIN) * kick) * fade;
+}
+
+/** The HUD's fixed queue of fire hits on MY survivor this frame (in `hudModel`). */
+export interface FireHitQueue {
+  readonly fireHitAmounts: Float32Array;
+  fireHitCount: number;
+}
+
+/**
+ * One drained event: a fire hit marks that player burning (everyone's survivor shows it); a hit on
+ * MY survivor also queues a "-N" for the HUD. Returns true for a fire hit.
+ */
+export function routeFireHit(e: SimEvent, localId: string, nowMs: number, cue: FireCue, q: FireHitQueue): boolean {
+  if (!isFireHit(e)) return false;
+  cue.hit(e.playerId, nowMs);
+  if (e.playerId === localId && q.fireHitCount < q.fireHitAmounts.length) q.fireHitAmounts[q.fireHitCount++] = e.amount;
+  return true;
+}
+
+/** A fixed pool of pops (screen-space "-N"): `spawn` takes a free slot, or the oldest one. */
+export class PopPool {
+  readonly startMs: Float64Array;
+  readonly amount: Float32Array;
+  private next = 0;
+
+  constructor(readonly capacity: number) {
+    this.startMs = new Float64Array(capacity).fill(-Infinity);
+    this.amount = new Float32Array(capacity);
+  }
+
+  /** Starts a pop; returns its slot. */
+  spawn(nowMs: number, amount: number): number {
+    let slot = -1;
+    for (let i = 0; i < this.capacity; i++) {
+      if (!this.alive(i, nowMs)) {
+        slot = i;
+        break;
+      }
+    }
+    if (slot < 0) {
+      // all busy: reuse the oldest
+      slot = this.next;
+      let oldest = Infinity;
+      for (let i = 0; i < this.capacity; i++) {
+        const t = this.startMs[i] as number;
+        if (t < oldest) {
+          oldest = t;
+          slot = i;
+        }
+      }
+    }
+    this.startMs[slot] = nowMs;
+    this.amount[slot] = amount;
+    this.next = (slot + 1) % this.capacity;
+    return slot;
+  }
+
+  alive(i: number, nowMs: number): boolean {
+    const t = nowMs - (this.startMs[i] as number);
+    return t >= 0 && t < FIRE_POP_MS;
+  }
+
+  /** 0 → 1 over the pop's life (≥ 1 when gone). */
+  progress(i: number, nowMs: number): number {
+    return (nowMs - (this.startMs[i] as number)) / FIRE_POP_MS;
+  }
+
+  clear(): void {
+    this.startMs.fill(-Infinity);
+    this.next = 0;
+  }
+}
+
+/** Body flames on a burning survivor: how many, how big (× body radius), how fast they flicker. */
+export const BODY_FLAMES = 3;
+export const BODY_FLAME_R = 1.15;
+export const BODY_FLAME_FLICKER_HZ = 9;
+/** Smoke puffs and rising embers per burning survivor, and their loop lengths (s). */
+export const BODY_SMOKE = 3;
+export const BODY_SMOKE_S = 1.4;
+export const BODY_EMBERS = 5;
+export const BODY_EMBER_S = 0.9;
+/** At most this many survivors show the burning effects at once (the lobby's player cap). */
+export const MAX_BURNING_PLAYERS = 4;
+
+/** Flame `i` on a body of radius `r` at time `t` (s): a small orbit about the centre, into `out`. */
+export function bodyFlameSpot(i: number, n: number, tS: number, r: number, out: { x: number; y: number }): void {
+  const a = (i / n) * 2 * Math.PI + tS * 1.7;
+  const k = 0.45 * r;
+  out.x = Math.cos(a) * k;
+  out.y = Math.sin(a) * k;
+}

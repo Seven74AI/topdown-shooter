@@ -30,6 +30,8 @@ import { SLOT_COLORS } from "../render/playerColors";
 import { createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
 import { pulseAlpha, pulseScale } from "../render/pulse";
 import { PerfOverlay } from "../debug/PerfOverlay";
+import { FIRE_POP_POOL, FIRE_POP_RISE_PX, PopPool, fireDamageLabel } from "../render/burnCue";
+import { ATLAS_FX, FX_EDGE, ensureAtlases } from "../render/city/spriteAtlas";
 
 export interface HudSceneData {
   sticks: TouchSticks;
@@ -50,6 +52,18 @@ const HP_HIGH = 0x4caf50;
 const HP_LOW = 0xe53935;
 /** Story 4.8: the HP line's colour while burning. */
 const BURNING_TEXT = "#ffa060";
+/**
+ * Story 4.11: my "-N" fire-damage pops (small, orange, left of my survivor: the money "+N" pops sit
+ * right of it) and the orange screen-edge glow while I burn (four bands, each this fraction of the
+ * screen's short side, additive, under every HUD control).
+ */
+const FIRE_POP_TEXT_PX = 15;
+const FIRE_POP_COLOR = "#ff9a3c";
+const FIRE_POP_LEFT_M = 0.55;
+const FIRE_POP_LIFT_M = 0.35;
+const EDGE_GLOW_COLOR = 0xff5a14;
+const EDGE_GLOW_BAND = 0.16;
+const EDGE_GLOW_DEPTH = -1;
 /** Weapon panel (bottom-right), CSS px × dpr. */
 const AMMO_TEXT_PX = 18;
 const OTHER_TEXT_PX = MIN_TEXT_CSS_PX;
@@ -259,6 +273,10 @@ export class HudScene extends Phaser.Scene {
   private shownMoney = -1;
   private readonly moneyPops: MoneyPop[] = [];
   private nextMoneyPop = 0;
+  /** Story 4.11: "-N" pops (pooled texts + their clocks) and the edge-glow bands (top, bottom, left, right). */
+  private readonly firePops: Phaser.GameObjects.Text[] = [];
+  private readonly firePool = new PopPool(FIRE_POP_POOL);
+  private readonly edgeGlow: Phaser.GameObjects.Image[] = [];
 
   constructor() {
     super("Hud");
@@ -438,6 +456,24 @@ export class HudScene extends Phaser.Scene {
       this.moneyPops.push({ text, rise: 0, alpha: 0, active: false });
     }
     this.model.moneyGain = 0;
+    // Story 4.11: fire pops and the burning edge glow (Phaser reuses this scene: rebuilt here).
+    this.firePops.length = 0;
+    this.firePool.clear();
+    for (let i = 0; i < FIRE_POP_POOL; i++) this.firePops.push(this.add.text(0, 0, "", this.firePopStyle()).setOrigin(1, 1).setVisible(false));
+    this.model.fireHitCount = 0;
+    ensureAtlases(this);
+    this.edgeGlow.length = 0;
+    for (let i = 0; i < 4; i++) {
+      this.edgeGlow.push(
+        this.add
+          .image(0, 0, ATLAS_FX, FX_EDGE)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setTint(EDGE_GLOW_COLOR)
+          .setRotation([0, Math.PI, -Math.PI / 2, Math.PI / 2][i] as number)
+          .setDepth(EDGE_GLOW_DEPTH)
+          .setVisible(false),
+      );
+    }
 
     // Buttons first (readiness fix U1): a touch that starts on a HUD button never spawns a stick.
     // Story 3.4: in placement mode a touch or click that misses the HUD buttons moves the preview
@@ -517,6 +553,59 @@ export class HudScene extends Phaser.Scene {
       stroke: TEXT_STROKE,
       strokeThickness: Math.round(TEXT_STROKE_PX * k * 0.75),
     };
+  }
+
+  /** Story 4.11: the small orange "-N" (bold, dark stroke). */
+  private firePopStyle(): Phaser.Types.GameObjects.Text.TextStyle {
+    const k = dpr();
+    return {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: `${Math.round(FIRE_POP_TEXT_PX * k)}px`,
+      color: FIRE_POP_COLOR,
+      fontStyle: "bold",
+      stroke: TEXT_STROKE,
+      strokeThickness: Math.round(TEXT_STROKE_PX * k * 0.75),
+    };
+  }
+
+  /**
+   * Story 4.11: my burning cues on the HUD — a "-N" per fire hit the GameScene queued (server events
+   * only), rising and fading beside my survivor, and the pulsing orange screen-edge glow.
+   */
+  private drawBurn(): void {
+    const m = this.model;
+    const now = this.time.now;
+    for (let i = 0; i < m.fireHitCount; i++) {
+      const slot = this.firePool.spawn(now, m.fireHitAmounts[i] as number);
+      (this.firePops[slot] as Phaser.GameObjects.Text).setText(fireDamageLabel(m.fireHitAmounts[i] as number));
+    }
+    m.fireHitCount = 0;
+    const k = dpr();
+    const sx = (m.localX - FIRE_POP_LEFT_M - m.camX) * m.camZoom;
+    const sy = (m.localY - FIRE_POP_LIFT_M - m.camY) * m.camZoom;
+    for (let i = 0; i < this.firePops.length; i++) {
+      const t = this.firePops[i] as Phaser.GameObjects.Text;
+      if (!this.firePool.alive(i, now)) {
+        if (t.visible) t.setVisible(false);
+        continue;
+      }
+      const p = this.firePool.progress(i, now);
+      t.setPosition(sx, sy - p * FIRE_POP_RISE_PX * k).setAlpha(1 - p * p).setVisible(true);
+    }
+    const a = m.burnGlow;
+    const [top, bottom, left, right] = this.edgeGlow as [Phaser.GameObjects.Image, Phaser.GameObjects.Image, Phaser.GameObjects.Image, Phaser.GameObjects.Image];
+    if (a <= 0) {
+      if (top.visible) for (const g of this.edgeGlow) g.setVisible(false);
+      return;
+    }
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const band = Math.min(w, h) * EDGE_GLOW_BAND;
+    top.setPosition(w / 2, band / 2).setDisplaySize(w, band);
+    bottom.setPosition(w / 2, h - band / 2).setDisplaySize(w, band);
+    left.setPosition(band / 2, h / 2).setDisplaySize(h, band);
+    right.setPosition(w - band / 2, h / 2).setDisplaySize(h, band);
+    for (const g of this.edgeGlow) g.setAlpha(a).setVisible(true);
   }
 
   /** Story 2.9: bold white name tag with a dark stroke. */
@@ -814,6 +903,7 @@ export class HudScene extends Phaser.Scene {
     for (const pop of this.moneyPops) {
       pop.text.setFontSize(Math.round(MONEY_POP_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr() * 0.75));
     }
+    for (const t of this.firePops) t.setFontSize(Math.round(FIRE_POP_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr() * 0.75));
     for (const t of this.countdowns) t.setFontSize(Math.round(COUNTDOWN_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr()));
     this.statusText.setFontSize(Math.round(STATUS_TEXT_PX * dpr())).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * dpr()));
     this.shownStatus = "\u0000"; // re-place the status line
@@ -893,6 +983,7 @@ export class HudScene extends Phaser.Scene {
     this.drawStick(touch ? this.sticks.aim : null, this.aimBase, this.aimKnob);
     this.drawHealth();
     this.drawMoney();
+    this.drawBurn();
     this.drawWeapon();
     this.drawWave();
     this.drawRushArrows();
