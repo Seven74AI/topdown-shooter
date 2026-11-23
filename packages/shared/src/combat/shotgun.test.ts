@@ -275,12 +275,12 @@ describe("Shotgun cover (F3)", () => {
     return damageTo(s.events, z);
   };
 
-  it("pellets pass over sandbags, barriers and player barricades (they stop bodies only)", () => {
+  it("pellets pass over sandbags and barriers (they stop bodies only); a car and a player barricade stop them", () => {
     for (let seed = 1; seed <= 20; seed++) {
       const open = behind(seed);
       expect(open).toBeGreaterThan(0);
       for (const kind of ["sandbags", "barrier"] as const) expect(behind(seed, mapWithCover({ minX: 11, minY: 15, maxX: 11.5, maxY: 17 }, kind))).toBe(open);
-      expect(behind(seed, undefined, true)).toBe(open);
+      expect(behind(seed, undefined, true)).toBe(0); // designer 2026-11-23: barricades stop bullets
       expect(behind(seed, mapWithCover({ minX: 11, minY: 15, maxX: 11.5, maxY: 17 }, "car"))).toBe(0);
     }
   });

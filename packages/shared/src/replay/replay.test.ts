@@ -13,7 +13,12 @@ import { createInputLog, replayRun, type InputLog } from "./inputLog";
  * cleared waves, killed zombies, bought and built.
  */
 const balance = loadBalance();
-const SEED = 1;
+/**
+ * Seed 3: its recorded run reaches wave 6 with Spitters spitting and acid hurting under both the old
+ * and the new bullet rule (2026-11-23: barricades stop bullets; at seed 1 the bots now kill every
+ * Spitter before it spits, so the 5.6 liveness check had nothing to see).
+ */
+const SEED = 3;
 const PLAYERS = 2;
 
 function record(): { log: InputLog; run: HeadlessRunLog; digest: number; kills: number } {

@@ -11,7 +11,7 @@ import {
   recordProjectileHit,
   segmentCircleT,
   seqPelletRoll,
-  shotBlockT,
+  bulletBlockT,
   spawnProjectile,
   weaponIds,
   zombieNetId,
@@ -35,7 +35,7 @@ const hitId = new Int32Array(ZOMBIE_POOL_CAPACITY);
  * Each frame they move `speed × frameDtS` (frame time: they are visual only), with `prevX = x`
  * so the view's lerp is a no-op. A projectile is freed at its range, outside the map, or once its
  * segment has crossed `pierce` mirror zombies, or (Story 4.2) where it first enters a car, the bus or a
- * map box, exactly as the server's shot does (`shotBlockT` on the mirror World's obstacles, which
+ * map box, exactly as the server's shot does (`bulletBlockT` on the mirror World's obstacles, which
  * `createWorld` builds from the same map and stage). They never damage, flash or push anything: only
  * the server's `zombie.hit` does. No allocation per frame.
  */
@@ -156,7 +156,7 @@ export class CosmeticProjectiles {
       const y1 = y0 + dy * step;
       const count = queryRadius(this.world.zombieGrid, z.x, z.y, (x0 + x1) / 2, (y0 + y1) / 2, step / 2 + maxR, candidates);
       // Story 4.2: the server's rule on the mirror's obstacles: stop at the first car / bus / map box.
-      const blockT = shotBlockT(this.world, x0, y0, x1, y1);
+      const blockT = bulletBlockT(this.world, x0, y0, x1, y1);
       let hits = 0;
       for (let k = 0; k < count; k++) {
         const zid = candidates[k] as number;
