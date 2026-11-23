@@ -24,27 +24,27 @@ This document provides the complete epic and story breakdown for topdown-shooter
 FR1: The game runs in landscape only; in portrait a "rotate your phone" overlay is shown.
 FR2: A floating move joystick appears where the thumb lands on the left half of the screen (dead zone 10%, full speed at 100% deflection).
 FR3: A floating aim joystick on the right half aims past a 30% dead zone; the equipped weapon fires automatically while aiming.
-FR4: On touch, projectiles bend up to 8° toward the nearest zombie inside the aim cone; aim assist is off for mouse aim.
+FR4: On touch, projectiles bend up to 8° toward the nearest zombie inside the aim cone, only when the raw aim would miss, never toward a zombie behind a barricade; aim assist is off for mouse aim.
 FR5: A swap button near the right thumb switches between the 2 weapon slots in 0.3 s.
 FR6: Guns reload automatically when the magazine is empty; reserve ammo is unlimited.
 FR7: Desktop fallback: WASD to move, mouse to aim, hold left click to fire, Q to swap.
-FR8: A consumable button uses the single quick-use slot (medkit, grenades, molotovs).
+FR8: A consumable button uses the single quick-use slot (medkit, grenades, molotovs); in build phases it and the swap button sit above the build bar's top-left (Story 5.12).
 
 **Player**
 
 FR9: A player has 100 HP, radius 0.4 m and move speed 4.5 m/s; zombies in contact hit once per second; no regeneration during a wave; each build phase heals 50% of max HP.
-FR10: At 0 HP a player is downed; a teammate standing next to them for 3 s revives them; after 20 s without revive they are out until the next build phase, when they return automatically.
+FR10: At 0 HP a player is downed; a standing teammate within 2.0 m (centre to centre) for 3 s revives them, the downed countdown pauses while someone revives, and the downed player's gun keeps reloading; after 20 s without revive they are out until the next build phase, when they return automatically.
 FR11: The run is lost when no player is standing (everyone downed or out).
 FR12: Each player carries 2 weapon slots in any combination; a run starts with a Pistol and 100 currency.
 
 **Weapons and combat**
 
-FR13: The 10 weapons (Pistol, Machete, Fire Axe, Chainsaw, Shotgun, Flamethrower, SMG, Assault Rifle, Hunting Rifle, Grenade Launcher) behave per the GDD weapon table (damage, rate, range/arc, magazine, reload, price).
-FR14: Shots are visible travelling projectiles (bullets ~60 m/s, grenades lobbed); melee hits every zombie inside its arc instantly.
+FR13: The 11 weapons (Pistol, Machete, Fire Axe, Chainsaw, Shotgun, Flamethrower, Gas torch, SMG, Assault Rifle, Hunting Rifle, Grenade Launcher) behave per the GDD weapon table (damage, rate, range/arc, magazine, reload, price).
+FR14: Shots are visible travelling projectiles (bullets ~60 m/s, grenades lobbed); melee hits every zombie inside its arc instantly, except through barricades and shot-blocking map cover (walls, cars, bus, buildings); low cover (sandbags, barriers, traps, mines) doesn't block it. All melee weapons.
 FR15: Each gun has a fixed spread; there is no recoil climb, no movement penalty, and no critical hits or weak points.
-FR16: Weapon specials work: knockback (Fire Axe 1.5 m, Shotgun 0.5 m), Hunting Rifle pierces 5 zombies, Flamethrower ignites (+3 dmg/s for 3 s), Chainsaw slows its wielder 20%, Grenade Launcher hurts the shooter at 50%.
+FR16: Weapon specials work: knockback (Fire Axe 1.5 m, Shotgun 0.5 m), Hunting Rifle pierces 5 zombies, Flamethrower and Gas torch ignite (+3 dmg/s for 3 s), Chainsaw slows its wielder 20%, Grenade Launcher hurts the shooter at 50%.
 FR17: Weapons upgrade from level I to IV in the shop; each level adds +25% damage; each level costs 60% of the weapon's base price.
-FR18: Friendly fire is off for bullets and melee and on at 50% for explosions and fire (grenade launcher, flamethrower burn, Bloater gas, molotovs).
+FR18: Friendly fire is off for bullets and melee and on at 50% for grenades, mines, molotovs and Flamethrower/Gas torch fire. Exception: a Bloater's blast does its full 30 to every player in range, whoever popped it. Bloater gas only slows.
 FR19: Every hit flashes the zombie and pushes it back; heavy weapons (axe, hunting rifle, grenade launcher) add a short screen shake.
 
 **Zombies**
@@ -52,66 +52,66 @@ FR19: Every hit flashes the zombie and pushes it back; heavy weapons (axe, hunti
 FR20: Walker: 10 HP, 1.2 m/s, 10 per hit, walks straight at the nearest player, reward 2.
 FR21: Runner: 6 HP, 4.0 m/s, 8 per hit, takes a flanking path around the front line, reward 3.
 FR22: Crawler: 8 HP, 0.7 m/s, 12 per hit, low silhouette, bite slows the player 30% for 1 s, leaves a blood trail, reward 3.
-FR23: Spitter: 12 HP, 1.5 m/s, stops at 6 m, spits every 3 s for 15 after a 0.6 s glowing-mouth telegraph, leaves an acid puddle (3 s, 5 dmg/s), reward 5.
-FR24: Bloater: 25 HP, 0.9 m/s, explodes on death or after a 1 s swell when touching a player; 2.5 m blast, 30 damage to players, 40 to zombies; gas cloud slows for 4 s; reward 6.
-FR25: Brute: 120 HP, 1.0 m/s, 35 per hit + 1.5 m knockback, 3× damage to buildings, barely affected by knockback, reward 25.
+FR23: Spitter: 12 HP, 1.5 m/s, stops at 6 m, spits every 3 s for 15 after a 0.6 s glowing-mouth telegraph, leaves an acid puddle (3 s, 5 dmg/s), reward 5. Spit flies over barricades and sandbags and is stopped by cars, the bus and buildings; acid doesn't hurt across walls, cars or buildings.
+FR24: Bloater: 25 HP, 0.9 m/s, explodes on death or after a 1 s swell when touching a player; 2.5 m blast, 30 to every player in range (full, never halved), 40 to zombies; gas cloud slows for 4 s; reward 6.
+FR25: Brute: 120 HP, 1.0 m/s, 35 per hit after a 0.5 s wind-up + 1.5 m knockback, reach 1.3 m (1.8 m into gaps it can't enter), 3× damage to buildings, barely affected by knockback, reward 25.
 FR26: Zombies chase the nearest player, route around cover and obstacles, keep crowd separation, and attack any building blocking their path.
-FR27: Zombie stats never change with waves; only counts, mix and spawn pressure grow.
+FR27: Zombie stats never change with waves; only counts, mix and spawn pressure grow (exception: endless beyond wave 15, +6% HP per wave).
 
 **Waves and spawns**
 
-FR28: Wave size (4 players) grows from ≈ 40 zombies in wave 1 by ≈ 40 per wave to ≈ 400 in wave 10, with at most 150 alive at once; the rest queue at spawn points.
-FR29: Zombie types are introduced in order: W1 Walkers · W2 +Runners · W3 +Crawlers · W4 +Spitters · W5 first Brute · W6 +Bloaters · W7–9 full mix · W10 finale.
+FR28: Wave size (4 players) grows from ≈ 40 zombies in wave 1 by ≈ 40 per wave to ≈ 400 in wave 10, with at most 150 alive at once (110 while the Behemoth lives); the rest queue at spawn points.
+FR29: Zombie types are introduced in order: W1 Walkers · W2 +Runners · W3 +Crawlers · W4 +Spitters · W5 first Brute · W6 +Bloaters · W7–9 full mix · W10 finale. Brutes are fixed, not scaled: 1 in W5–W6, 2 in W7–10.
 FR30: A wave ends when all its zombies are dead; when 5 remain they are marked on screen and rush the players.
-FR31: Zombie count and boss HP scale by player count: × 0.6 (2 players), × 0.8 (3), × 1.0 (4); a mid-run join rescales from the next wave.
+FR31: Zombie count and boss HP scale by player count: × 0.4 (solo), × 0.6 (2 players), × 0.8 (3), × 1.0 (4); a mid-run join rescales from the next wave. Solo is allowed, not balance-tuned.
 FR32: Zombies spawn at district edges (alleys, manholes, broken shop windows); decay opens more spawn points.
 
 **The Behemoth (wave 10 boss)**
 
-FR33: The Behemoth arrives mid-wave 10 with the horde still active: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP at 4 players (scaled by player count).
-FR34: Behemoth attacks with telegraphs: ground slam (1.2 s, 4 m radius, 40 dmg), charge (1.0 s, 10 m line, 30 dmg, destroys buildings in its path), throw (1 s, picks up a wreck or rubble, 3 m impact, 35 dmg).
-FR35: At 50% HP the Behemoth enrages: +30% speed, attack cooldowns −30%, a Crawler drops off its back every 4 s.
+FR33: The Behemoth arrives when 50% of wave 10's zombies have spawned, with the horde still active: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP at 4 players (× 0.4 / 0.6 / 0.8 / 1.0); the alive cap is 110 while it lives.
+FR34: Behemoth attacks with telegraphs: ground slam (picked when a standing player is within 4 m; 1.2 s, 4.5 m ring, 40 dmg), charge (1.0 s, 10 m line, 30 dmg, destroys buildings in its path), throw (1 s, picks up a wreck or rubble, 3 m impact, 35 dmg). Slam and throw ignore cover (the drawn zone is the promise). Crash stun: a charge that ends on hard cover (car, bus, building wall, rubble, map edge) stuns it 2 s and it takes ×1.5 damage.
+FR35: At 50% HP the Behemoth enrages: +30% speed, attack cooldowns −30%, a Crawler drops off its back every 8 / 6 / 5 / 4 s (1–4 players); telegraph lengths never change.
 FR36: The Behemoth's death calls the evacuation helicopter.
 
 **Special events**
 
-FR37: 1–2 random special events happen per run in waves 3–9, never in the same wave as the first Brute.
-FR38: Car alarm: draws all zombies within 15 m toward the car for 15 s.
-FR39: Gas leak: a tank hisses for 10 s then explodes (6 m radius, kills zombies, 60 damage to players).
-FR40: Supply drop: a crate lands at a random spot; the first player to reach it gets a rare weapon.
+FR37: Always 2 special events per run, in two different waves of 3–8, never wave 5, never back-to-back, never the same event twice.
+FR38: Car alarm: a parked car is armed for 20 s; when shot (or by itself after 20 s) its alarm draws all zombies within 15 m toward the car for 15 s.
+FR39: Gas leak: a tank hisses for 10 s then explodes (6 m radius, kills zombies, the full 60 to every player in range, 150 to buildings; normal blast line-of-sight); shooting the tank after its first 3 s sets it off early.
+FR40: Supply drop: a crate lands ≥ 12 m from the team and shows its weapon (Flamethrower, Gas torch, Grenade Launcher, Chainsaw or Assault Rifle); the first standing player to stand on it 1 s gets it at level II.
 FR41: Stampede: a mass of Runners crosses the map in one direction for 10 s.
-FR42: Power failure: the current wave becomes a blackout wave.
-FR43: Survivor: an NPC appears and must be escorted to a safe point for a big reward.
+FR42: Power failure (waves 6–8 only): the current wave becomes a blackout wave.
+FR43: Survivor: an NPC appears and must be escorted to a safe point for a big reward; it follows standing players only.
 
 **Build phase, economy and shop**
 
 FR44: A 30 s build phase opens the run and follows every wave; it ends early when every player taps Ready.
 FR45: Each player has a personal wallet, earning kill rewards per zombie type, 50% of the reward for an assist, +25 per revive, 50% of the reward for kills by their own buildings, and a wave-clear bonus of 10 × wave number paid to every player (including downed and out players).
-FR46: The shop always offers all unlocked buildings and consumables, repairs, and upgrades for weapons the player owns.
-FR47: Each build phase, each player sees their own 6 random weapon and gear cards drawn from their unlocked pool, with at least 1 weapon and 1 gear card; reroll costs 20.
-FR48: Gear lasts the run: Body armor I/II (+25/+50 max HP, 150/350), Running shoes (+10% speed, 150), Revive kit (revive 3 s → 1.5 s, 150), Tactical flashlight (wider, longer cone in blackout, 120).
-FR49: Consumables use one slot: Medkit (heals 50, 60), Grenades ×3 (40 dmg, 2.5 m, 80), Molotovs ×2 (3 m fire zone for 4 s, 8 dmg/s, 100).
+FR46: The shop offers consumables and upgrades for weapons the player owns, plus the 6 cards (FR47). Buildings come from the build bar (Story 5.16). A downed or out player can't buy.
+FR47: Each build phase, each player sees their own 6 random weapon and gear cards drawn from their unlocked pool, with at least 1 weapon and 1 gear card; reroll costs 20. No locking, no upgrade cards, no Pistol card, items with `inShop:false` never drawn; rarity by price (≤ 250 common ×3, ≤ 500 rare ×2, epic ×1); no per-wave price scaling; card look C3. When the pool can't fill 6, fewer cards show and Reroll is disabled when no new draw exists.
+FR48: Gear lasts the run: Body armor I/II (+25/+50 max HP, 150/350), Running shoes (+10% speed, 150), Revive kit (its owner revives teammates in 1.5 s instead of 3 s; the fastest standing reviver in the zone counts, no stacking, no effect on the owner's own revive; 150), Tactical flashlight (wider, longer cone in blackout, 120).
+FR49: Consumables use one slot: Medkit (heals 50, 60), Grenades ×3 (40 dmg, 2.5 m, 80), Molotovs ×2 (3 m fire zone for 4 s, 8 dmg/s, 100). Grenades and molotovs are thrown 2–8 m on the Grenade Launcher's lob (over everything but buildings) and used in waves only; molotov fire needs a clear line from the zone centre, like acid.
 
 **Buildings**
 
-FR50: In a build phase, a player taps a building in the shop, then taps the ground to place it on a 1 m grid and drags to rotate; placement is refused where blocked.
-FR51: Buildings persist until destroyed, can be repaired in a build phase for 50% of their price, and are capped at 6 per player.
-FR52: Building behaviors per the GDD table: Wood barricade (2 m wall, 200 HP, 40), Metal barricade upgrade (600 HP, +120), Auto-turret (nearest zombie within 8 m, 3 dmg × 5/s, 300 HP, 250), Spike trap (2 × 2 m, 4 dmg/s and −40% speed, 300 HP, 80), Mine (proximity, 80 dmg in 2.5 m, single use, 60), Floodlight (8 m light circle, 150 HP, 100), Med station (heals players within 2 m by 5 HP/s, 300 HP, 400).
-FR53: Barricades block zombies and players but not bullets; zombies attack buildings blocking their path; fires damage buildings inside them; rubble blocks placement; the Behemoth's charge destroys buildings.
+FR50: In a build phase, a player picks a building in the build bar, carries its ghost and drags to place it on a 0.5 m lattice (Stories 5.15–5.25, "B · Carry + drag"); the ghost turns red at once when blocked and green only after 250 ms clear; placement is refused where blocked.
+FR51: Buildings persist until destroyed, can be repaired in a build phase for 50% of their price, and are capped at 6 per player (cap reviewed in the Epic 5 balance pass).
+FR52: Building behaviors per the GDD table: Wood barricade (2 m wall, 200 HP, 40), Reinforced barricade upgrade (350 HP, +50), Metal barricade upgrade (600 HP, +70), Auto-turret (nearest zombie within 8 m, 3 dmg × 5/s, 300 HP, 250), Spike trap (2 × 2 m, 4 dmg/s and −40% speed, 300 HP, 80), Mine (proximity, 80 dmg in 2.5 m, single use, 60), Floodlight (4 m radius light, 6 m in blackout waves, 150 HP, 100; sold once Story 6.3 lands), Bear trap (Story 5.14), Med station (heals players within 2 m by 5 HP/s, 300 HP, 400).
+FR53: Every barricade tier (wood/reinforced/metal) blocks zombies, players and every bullet (own, teammates', turrets'); aim assist and turret targeting skip zombies behind one. Turrets, sandbags, police barriers and floor buildings stop no bullets. Explosions, flames, melee, acid and gas keep their own rules; zombies attack buildings blocking their path; fires damage buildings inside them; rubble blocks placement; the Behemoth's charge destroys buildings.
 
 **District, camera and cover**
 
 FR54: Downtown (~48 × 32 m) is hand-made: central intersection, 2–3 alleys, gas station corner, crashed city bus, small parking lot, spawn points at the edges.
 FR55: Each player's camera follows them, showing about 24 × 13.5 m; teammates off screen are shown by edge arrows; each player has a colored ground ring (blue, orange, green, purple).
-FR56: Cars, bus, barriers and sandbags block movement for players and zombies; bullets pass over barriers and sandbags but not cars or the bus.
+FR56: Cars, bus, barriers and sandbags block movement for players and zombies; bullets pass over barriers and sandbags but not cars or the bus; buildings, gas pumps, the parking wall and the dumpster also stop bullets; player barricades stop bullets.
 FR57: Hazards damage or slow what is inside them: fire zones (10 dmg/s to everything), acid puddles, gas leak, Bloater gas.
 
 **City decay**
 
 FR58: The district advances one decay stage every 2 waves; stage changes apply only at the start of a build phase, and buildings on newly blocked cells are destroyed with a 50% refund.
-FR59: Stage 1 Evening (waves 1–2): open map, full lighting, parked cars along curbs, lit shops.
+FR59: Stage 1 Evening (waves 1–2): dusk, open map, the brightest stage (it darkens each stage), parked cars along curbs, lit shops.
 FR60: Stage 2 Panic (waves 3–4): 4 cars move into the road (new cover and choke points); police barriers block some paths.
-FR61: Stage 3 Breakdown (waves 5–6): 2 car fires (2 m fire zones lasting 2 waves); free sandbag cover appears; rain begins.
+FR61: Stage 3 Breakdown (waves 5–6): 2 car fires (2 m fire zones lasting 2 waves); free sandbag cover appears; heavy rain (drizzle since stage 1).
 FR62: Stage 4 Ruins (waves 7–8): rubble closes one alley and blocks paths; streetlights flicker; collapsed walls open new spawn points.
 FR63: Stage 5 Collapse (waves 9–10): power out; wave 9 is a blackout wave; fog limits vision to 10 m; wave 10 is lit only by fires and floodlights.
 FR64: In blackout, darkness covers the map except flashlight cones (aim direction), floodlights, fires and muzzle flashes; zombie eyes show through the dark.
@@ -120,8 +120,8 @@ FR65: Each run has a seed that drives its random choices (which cars burn, which
 **Win, evacuation and endless**
 
 FR66: After the Behemoth dies, the team votes for 15 s: majority wins; a tie or no votes means extract.
-FR67: Extract wins the run and keeps all rewards; Stay starts endless waves in the collapsed city.
-FR68: Endless: blackout every other wave, +40 zombies per wave (still max 150 alive), +1 Brute per wave, a Behemoth every 5th wave before each evacuation vote (15, 20, 25…); a wipe before extracting loses rewards earned after wave 10.
+FR67: Extract wins the run and keeps all rewards (the helicopter lifts off into 4 s of dawn, then Results); Stay starts endless waves in the collapsed city.
+FR68: Endless: blackout on odd waves, +40 zombies per wave up to 600 at wave 15 (still max 150 alive), then +6% zombie HP per wave; +1 Brute per wave (max 6 alive); a Behemoth every 5th wave before each evacuation vote (15, 20, 25…) with +25% HP each time; one event on each even endless wave without a Behemoth; a wipe before extracting loses rewards earned after wave 10.
 
 **Multiplayer**
 
@@ -144,17 +144,17 @@ FR81: District 2 unlocks after the first extraction from Downtown (rule only; di
 
 **Presentation, audio and settings**
 
-FR82: Dead City art: gritty, realistic, rainy night city; zombies read as people from above; each zombie type has a distinct silhouette; the district has 5 visual decay states.
+FR82: Dead City art, drawn in game code: gritty, realistic, rainy night city; zombies read as people from above; each zombie type has a distinct silhouette; the district has 5 visual decay states.
 FR83: Gore: heavy hits (axe, chainsaw, shotgun, explosions) dismember zombies, explosive kills burst them apart, and blood stays on the ground for the wave; a gore toggle switches to blood only.
 FR84: Every special attack has a readable visual and audio warning; each special zombie has a signature sound (Spitter gurgle, Bloater swelling, Brute roar, Runner shriek).
 FR85: Ambience follows the decay stage (5 loops); music intensity follows the number of zombies alive; a calmer build-phase track and a dedicated Behemoth track.
-FR86: Each weapon has distinct firing and reload sounds; reloads are clearly audible.
+FR86: Each weapon has distinct firing and reload sounds; reloads are clearly audible. Sounds are procedural or from licensed/free libraries (no hired sound designer).
 FR87: Quality settings can lower or turn off rain, fog visuals, screen shake, film grain and light glow, plus the gore toggle; blackout darkness and the 10 m fog vision limit cannot be turned off.
 FR88: The game records simple run stats (district, wave reached, extracted, loadouts per player) for the success metrics.
 
 ### NonFunctional Requirements
 
-NFR1: Frame rate 60 FPS target, never below 30 FPS sustained, on 2021 mid-range phones (iPhone 12, Pixel 5, Galaxy A52), measured over a full wave 9 blackout with all 150 alive zombies in one player's view.
+NFR1: Frame rate 60 FPS target, never below 30 FPS sustained, on 2021 mid-range phones (iPhone 12, Pixel 5, Galaxy A52) and on the low-end floor, the Xiaomi Mi 11 (designer wrote 'Xiaomi i11'; confirm the exact model), measured over a full wave 9 blackout with all 150 alive zombies in one player's view.
 NFR2: Memory under 300 MB per browser tab on iPhone 12.
 NFR3: Fully playable on 4G at up to 150 ms latency, with no visible disagreement between players about what happened.
 NFR4: Each phone receives at most ~30 KB/s with 150 zombies alive (≈ 40 MB per 20-minute run); proving this is Milestone 1's first goal.
@@ -174,7 +174,7 @@ NFR14: Balance is data-driven: every gameplay number can be changed without code
 From the architecture document:
 
 - **No starter template (Epic 1 Story 1):** the project is a hand-scaffolded TypeScript npm-workspaces monorepo (`apps/client`, `apps/server`, `packages/shared`) using Phaser 4.2, @colyseus/sdk 0.18, Preact 11, Vite 8, Colyseus 0.18, @colyseus/schema 5, TypeScript 6.0 (pinned, not 7.0), tsx, Node.js 26 LTS. Scripts `dev`, `test` (Vitest 5), `lint` (ESLint + typescript-eslint), `typecheck`, `build`; CI on GitHub Actions runs typecheck, lint, tests and build.
-- **Shared simulation package (ADR-03):** engine-free TypeScript (no Phaser, Colyseus, DOM or Node imports); fixed 50 ms step (20 Hz); fixed system order per tick; struct-of-arrays pools for zombies and projectiles with generation-bit ids; uniform spatial hash grid (2 m cells); swept segment-vs-circle projectile collision; times in seconds, distances in meters; no `Math.random()` or `Date.now()`.
+- **Shared simulation package (ADR-03):** engine-free TypeScript (no Phaser, Colyseus, DOM or Node imports); fixed 50 ms step (20 Hz); fixed system order per tick; struct-of-arrays pools for zombies and projectiles with generation-bit ids; uniform spatial hash grid (2 m cells); swept segment-vs-circle projectile collision; simulation timers count ticks, rates in SI units (meters, per second); no `Math.random()` or `Date.now()`.
 - **Balance data:** typed JSON files in `packages/shared/src/config/balance/` (weapons, zombies, buildings, items, waves, economy, decay, events, boss) validated with zod into one `Balance` object; server sends the balance version on join and refuses mismatched clients ("Please refresh").
 - **Seeded PRNG** per run with named sub-streams (events, decay, shop per player slot + build phase index).
 - **Typed synchronous event bus** (`domain.past_tense` names, one `SimEvent` union), drained once per tick; the server forwards the events clients need as reliable messages.
@@ -183,36 +183,36 @@ From the architecture document:
 - **Networking (ADR-01):** server-authoritative; client input sampled per 50 ms step with sequence numbers; local player predicted with shared movement code and reconciled; remote entities interpolated with an adaptive 100–150 ms delay; timers count ticks inside the World.
 - **Horde stream (ADR-02):** per-client binary message per tick with zombies in the client's view + 4 m margin; 8-byte records (id u16, x u16, y u16 at 1 cm, heading u8, type+state u8) + header; freed ids held 1 s; client removes zombies missing from 3 snapshots; backpressure skips frames when `bufferedAmount` > 64 KB; budget horde ≤ 24 KB/s + schema/events ≤ 6 KB/s.
 - **Colyseus schema** for low-frequency state (players, wallets, loadouts, buildings, phase, timers, decay stage, votes, Behemoth, hazards, mines, Survivor, crate, aliveCount); personal shop offers sent only to their owner (`@view()` or direct message); purchases validated against the stored offer.
-- **Hit validation:** server simulates all projectiles and melee; shots spawn at the shooter's position advanced by half RTT (capped 150 ms); projectiles are cosmetic on clients from `weapon.fired` events; upgrade path keeps 300 ms of zombie position history for rewind if > 1 in 20 hits are reversed.
+- **Hit validation:** server simulates all projectiles and melee; shots spawn at the shooter's position advanced by half RTT (capped 150 ms); projectiles are cosmetic on clients from `weapon.fired` events; the server rewinds zombies to what the shooter saw (≤ 6 ticks / 300 ms, Story 2.12; spread keyed to the input seq); boss hits are not rewound.
 - **Pathfinding:** flow fields on a 0.5 m grid toward players, rebuilt (amortized) when buildings or decay change; Runners use a flanking field; separation forces on top.
-- **Maps (ADR-05):** districts authored in Tiled (JSON export); layers `stage1_evening` … `stage5_collapse`, `collision`, `cover`, `spawns`, `hazards`; per-stage mutation sets (`add | remove | ignite | block`); `DecayTimeline` + `DecaySystem` in shared, `DecayView` on the client; client prediction applies decay to its own map; on resume, stages are re-applied without side effects.
+- **Maps (ADR-05):** districts authored in Tiled (JSON export); layers `stage1_evening` … `stage5_collapse`, `collision`, `cover`, `spawns`, `hazards`; per-stage mutation sets (`add | remove | ignite | block`); `DecayTimeline` + `DecaySystem` in shared (`applyDecayStage` is the single path); the map is generated by `tools/maps/buildDowntown.ts`, and visuals are drawn by `apps/client/src/render/city/*` (`DecayView` is gone); client prediction applies decay to its own map; on resume, stages are re-applied without side effects.
 - **Lighting:** darkness render texture at half resolution with lights cut out, rendered only when blackout is on; light state owned by the server.
 - **UI:** in-combat HUD drawn by Phaser; menus (lobby, shop, evac vote, results, unlocks, settings) as Preact HTML overlays with `pointer-events: none` except on active screens.
 - **Persistence (ADR-04):** PostgreSQL 18 + Drizzle ORM 0.45 + Drizzle Kit migrations; tables `accounts`, `progress`, `saved_runs`, `run_results`; DB accessed only from `apps/server/src/db` repositories.
 - **Saved runs:** versioned JSON snapshot (including every PRNG state) autosaved at each Build phase for crash recovery; explicit Save and quit makes it resumable for 7 days by the host only; graceful shutdown autosaves every room.
 - **Reconnect:** Colyseus `allowReconnection` 120 s; slot, wallet and gear held in room state.
 - **Accounts:** guest = random device token in localStorage → server session (stored hashed); upgrade to username + password (Argon2id via @node-rs/argon2).
-- **Hosting:** Docker Compose on the designer's European VPS: Caddy 2.11 (HTTPS/WSS + static client, no-cache `index.html`, long-cache hashed assets), game server, PostgreSQL; subdomain on `sevend.io`; WebSocket origin check; nightly `pg_dump` kept 14 days and copied off the VPS, restore tested once per milestone.
+- **Hosting:** Docker Compose on the designer's European VPS: HTTPS/WSS at the existing Cloudflare Tunnel, Caddy 2.11 behind it on plain HTTP at 127.0.0.1:8080 (static client, no-cache `index.html`, long-cache hashed assets), game server, PostgreSQL; the game is at https://hordes.sevend.io; Hermes deploys; WebSocket origin check; nightly `pg_dump` kept 14 days and copied off the VPS, restore tested once per milestone.
 - **Security limits:** inbound message ≤ 1 KB, input rate cap 25/s per client, ping rate 1/s per player, login 5/min per IP, room creation 10/min per IP; zod validation on every client message.
 - **Error handling:** `Result<T, E>` for expected failures; exceptions only for programmer errors; one global handler per room (saves the last Build snapshot if the simulation is corrupted); short player-facing messages.
 - **Logging:** pino JSON to stdout with `roomId`/`runSeed`/`wave`/`playerId`; no logging in hot loops; client ring buffer of 200 lines attached by "Report a problem".
-- **Debug tools:** performance overlay (FPS, ping, bandwidth, zombies alive/in view, tick time) also in release via Settings → Show performance; dev-only cheats (spawn, skip wave, give currency, set decay stage, trigger event, force blackout, set seed, god mode); collision/grid view; headless replay from seed + input log.
+- **Debug tools:** performance overlay (FPS, ping, bandwidth, zombies alive/in view, tick time) also in release via Settings → Show performance; dev-only cheats (spawn, skip wave, give currency, set decay stage, trigger event, force blackout, set seed, god mode); release-safe switches: `?debug`, `?loadout`, `?lag`, and `?wallet` (solo only); collision/grid view; headless replay from seed + input log.
 - **Testing:** Vitest unit tests with fixed seeds for every GDD mechanic in `shared`; headless bot clients in `tools/bots` for load tests.
 - **Client platform budgets:** devicePixelRatio capped at 2; texture atlases ≤ 2048 × 2048; no per-frame allocation in render loops (Phaser object pools); stop rendering and audio on `visibilitychange`; web app manifest (fullscreen, landscape), `viewport-fit=cover`.
-- **Assets:** texture atlases per district and character set, SFX audio sprites, streamed music and ambience; placeholder/AI art uses the final atlas layout and naming (`category_name_variant`) so Epic 9 swaps files without code changes.
+- **Assets:** art is drawn in game code (`render/city/*`) into atlases with `category_name_variant` frames, each registered through `addGeneratedTexture`; AI/vector images are references only. SFX audio sprites, streamed music and ambience (procedural or licensed/free libraries).
 - **Audio:** three buses (music, SFX, ambience); positional volume/pan for zombie cues.
 - **Tooling:** Context7 MCP for current Phaser/Colyseus/Vite docs.
 
 From the GDD epics outline (sequencing constraints):
 
 - Epic 3 ships a fixed-list shop; the 6-card roguelike shop arrives in Epic 5 once the item pool is big enough.
-- Milestone 1 = Epics 1–4: 2–4 players online in Downtown, 4 weapons (Pistol, SMG, Machete, Hunting Rifle), 3 zombie types, turret + barricade, shop, 5 waves, 3 decay stages.
+- Milestone 1 = Epics 1–4: 2–4 players online in Downtown, 4 weapons (Pistol, SMG, Machete, Hunting Rifle), 3 zombie types, turret + barricade, shop, 5 waves (now 6 waves; 6.1 makes 10), 3 decay stages.
 - Melee under twin-stick must be playtested on real phones in Epic 1 (open risk).
-- Placeholder/AI art and free sound libraries for Epics 1–8; hired artist and sound designer for Epic 9.
+- All art is drawn in game code; sounds are procedural or from licensed/free libraries. Nobody is hired: Epic 9 is a polish pass of the code-drawn art and the audio (designer, 2026-11-23).
 
 ### UX Design Requirements
 
-No UX design document exists yet. Menu, HUD and touch-control needs are covered by the functional requirements above (FR1–FR8, FR30, FR55, FR76, FR87) and the UI architecture notes. Touch zones, placement input, the in-run menu and minimum sizes are defined in Stories 1.8, 3.4 and 2.11 (readiness review fixes). A `gds-ux` pass remains optional before Epic 9.
+The building UX spec exists: `docs/ideas/building-ux/ux-spec.md` (designer picked "B · Carry + drag"), built as Stories 5.15–5.25; it replaces Story 3.4's placement input. Other menu, HUD and touch-control needs are covered by the functional requirements above (FR1–FR8, FR30, FR55, FR76, FR87) and the UI architecture notes. Touch zones, the in-run menu and minimum sizes are defined in Stories 1.8 and 2.11 (readiness review fixes). A `gds-ux` pass remains optional before Epic 9.
 
 ### FR Coverage Map
 
@@ -228,7 +228,7 @@ FR9: Epic 1 - Player HP, speed, contact damage (build-phase heal in Epic 3)
 FR10: Epic 2 - Downed, revive, out
 FR11: Epic 2 - Team wipe loss (Epic 1: solo death ends the game)
 FR12: Epic 1 - Two slots, Pistol start (100 currency start in Epic 3)
-FR13: Epic 1 (Pistol, SMG, Machete, Hunting Rifle) · Epic 5 (other 6 weapons)
+FR13: Epic 1 (Pistol, SMG, Machete, Hunting Rifle) · Epic 5 (other 7 weapons)
 FR14: Epic 1 - Visible projectiles, instant melee arcs (lobbed grenades in Epic 5)
 FR15: Epic 1 - Fixed spread, no recoil, no crits
 FR16: Epic 1 (Hunting Rifle pierce) · Epic 5 (other weapon specials)
@@ -243,7 +243,7 @@ FR24: Epic 5 - Bloater
 FR25: Epic 5 - Brute
 FR26: Epic 1 (chase, separation) · Epic 3 (attack buildings, flow fields) · Epic 4 (route around cover)
 FR27: Epic 1 - Fixed zombie stats
-FR28: Epic 1 (simple growing waves) · Epic 3 (5-wave curve) · Epic 6 (full 10-wave curve)
+FR28: Epic 1 (simple growing waves) · Epic 3 (5-wave curve; now 6 waves, 6.1 makes 10) · Epic 6 (full 10-wave curve)
 FR29: Epic 3 (W1–W3 order) · Epic 6 (full introduction order)
 FR30: Epic 1 - Last 5 marked and rushing
 FR31: Epic 3 - Player-count scaling (boss HP scaling in Epic 6)
@@ -261,13 +261,13 @@ FR42: Epic 6 - Power failure
 FR43: Epic 6 - Survivor escort
 FR44: Epic 3 - 30 s build phase with Ready
 FR45: Epic 3 - Personal wallets and rewards
-FR46: Epic 3 - Always-available shop items (fixed list)
+FR46: Epic 3 - Always-available shop items (fixed list) · Epic 5 (build bar takes the buildings, 5.16)
 FR47: Epic 5 - 6-card roguelike shop with reroll and floor
 FR48: Epic 5 - Gear
 FR49: Epic 5 - Consumables
-FR50: Epic 3 - Grid placement and rotation
+FR50: Epic 3 - Grid placement and rotation · Epic 5 (carry + drag, 5.15–5.25)
 FR51: Epic 3 - Persistence, repairs, 6-building cap
-FR52: Epic 3 (Wood barricade, Auto-turret) · Epic 5 (other 5 buildings)
+FR52: Epic 3 (Wood barricade, Auto-turret) · Epic 5 (other buildings and barricade tiers)
 FR53: Epic 3 (blocking, zombie attacks) · Epic 4 (fire damage) · Epic 6 (rubble, Behemoth charge)
 FR54: Epic 4 - Downtown layout
 FR55: Epic 1 (camera follow) · Epic 2 (player rings, teammate edge arrows)
@@ -297,11 +297,11 @@ FR78: Epic 7 - Supplies earning
 FR79: Epic 7 - Starter pool, unlocks, unlock screen
 FR80: Epic 7 - Training boosts
 FR81: Epic 7 - District 2 unlock rule
-FR82: Epic 4 (placeholder Dead City art) · Epic 9 (final art)
+FR82: Epic 4 (code-drawn Dead City art) · Epic 9 (polish pass, no hiring)
 FR83: Epic 9 - Gore and dismemberment with toggle
-FR84: Epic 5–6 (visual telegraphs, placeholder sounds) · Epic 9 (final signature sounds)
+FR84: Epic 5–6 (visual telegraphs, placeholder sounds) · Epic 9 (polished signature sounds)
 FR85: Epic 9 - Ambience and adaptive music
-FR86: Epic 9 - Weapon sounds (placeholder sounds from Epic 1)
+FR86: Epic 9 - Weapon sounds (placeholder sounds from Epic 1; polished from procedural or licensed/free libraries)
 FR87: Epic 10 - Quality settings
 FR88: Epic 10 - Run stats
 
@@ -320,19 +320,19 @@ One player fights growing waves of Walkers on their phone with touch twin-stick 
 **FRs covered:** FR10, FR11, FR55 (rings, edge arrows), FR69, FR70, FR71
 
 ### Epic 3: Build phase and economy
-A team plays 5 waves with build phases: earning into personal wallets, buying from a fixed-list shop, and placing Auto-turrets and Wood barricades on a grid. Runners and Crawlers join the horde; zombie count scales with player count.
+A team plays 5 waves (now 6 waves; 6.1 makes 10) with build phases: earning into personal wallets, buying from a fixed-list shop, and placing Auto-turrets and Wood barricades on a grid. Runners and Crawlers join the horde; zombie count scales with player count.
 **FRs covered:** FR9 (build heal), FR12 (start currency), FR21, FR22, FR26 (attack buildings, flow fields), FR28 (5-wave curve), FR29 (W1–W3), FR31, FR44, FR45, FR46, FR50, FR51, FR52 (2 buildings), FR53 (blocking)
 
 ### Epic 4: Downtown and city decay (Milestone 1)
-2–4 players online in Downtown play 5 waves through Evening → Panic → Breakdown: cars move into the road, barriers block paths, fires burn. Placeholder Dead City art, cover rules, spawn points and the run seed.
+2–4 players online in Downtown play 5 waves (now 6; 6.1 makes 10) through Evening → Panic → Breakdown: cars move into the road, barriers block paths, fires burn. Dead City art drawn in code, cover rules, spawn points and the run seed.
 **FRs covered:** FR26 (route around cover), FR32, FR53 (fire damage), FR54, FR56, FR57 (fire), FR58, FR59, FR60, FR61, FR65, FR82 (placeholder)
 
 ## Epic 5: Full arsenal and bestiary
 Every weapon, upgrade, zombie, building, gear item and consumable from the GDD, plus the 6-card roguelike shop; every zombie type demands its own answer.
-**FRs covered:** FR8, FR13 (6 weapons), FR14 (lobbed), FR16, FR17, FR18, FR23, FR24, FR25, FR47, FR48, FR49, FR52 (5 buildings), FR53, FR57 (acid, gas), FR84 (telegraphs)
+**FRs covered:** FR8, FR13 (7 weapons), FR14 (lobbed), FR16, FR17, FR18, FR23, FR24, FR25, FR47, FR48, FR49, FR52 (5 buildings), FR53, FR57 (acid, gas), FR84 (telegraphs)
 
 ## Epic 6: The full run: decay, boss, events, endless
-A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets the special events, votes to extract or stay, and can go endless.
+A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets two special events, votes to extract or stay, and can go endless.
 **FRs covered:** FR28 (full curve), FR29, FR31 (boss HP), FR33–FR43, FR53 (rubble, charge), FR57 (gas leak), FR62, FR63, FR64, FR66, FR67, FR68, FR84 (boss telegraphs)
 
 ### Epic 7: Accounts and meta-progression
@@ -344,8 +344,8 @@ Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-
 **FRs covered:** FR72, FR73, FR74, FR75, FR76
 
 ### Epic 9: Dead City art and audio
-The game looks and sounds like Dead City: final district art in 5 decay states, animations, gore and dismemberment, effects, UI art, ambience per stage, adaptive music, weapon and zombie sounds. Non-code checklist item: hire the artist and sound designer.
-**FRs covered:** FR82, FR83, FR84 (final sounds), FR85, FR86
+The game looks and sounds like Dead City: a polish pass of the code-drawn art (district in 5 decay states, animations, gore and dismemberment, effects, UI art) and of the audio (ambience per stage, adaptive music, weapon and zombie sounds). Nobody is hired: art stays drawn in game code, sounds are procedural or from licensed/free libraries (designer, 2026-11-23).
+**FRs covered:** FR82, FR83, FR84 (polished sounds), FR85, FR86
 
 ### Epic 10: Performance and polish
 Every technical target is met on the reference phones; quality settings, home-screen install and safe areas, run stats, a balance pass and friend-group playtests deliver v1.
@@ -1575,13 +1575,13 @@ So that I can hold a choke point, while being careful of my friends.
 
 **Acceptance Criteria:**
 
-**Given** the Flamethrower (20 damage/s, 4 m, 35° cone, 6 s of fuel, 3.0 s reload, 700)
+**Given** the Flamethrower (20 damage/s, 6 m FS1 fuel jet, 20° cone, 6 s of fuel, 3.0 s reload, 700) and the Gas torch (3 m FS2 cone, 60°, same burn and fuel rules, 550; designer, round C)
 **When** I aim past the dead zone
 **Then** it damages everything in the cone continuously and ignites zombies for +3 damage/s for 3 s (re-ignition refreshes the timer) (FR16)
 
 **Given** a damage source tagged `fire` or `explosion`
 **When** it hits a teammate or the shooter
-**Then** they take 50% of its damage; bullets and melee never hurt players (FR18)
+**Then** they take 50% of its damage; bullets and melee never hurt players (FR18); the one exception is the Bloater blast, which does full damage to every player (5.8 D1)
 **And** this rule lives in the combat damage system and applies to every later fire and explosion source
 
 **Given** the friendly-fire rule
@@ -1676,8 +1676,8 @@ So that my defenses can grow with the waves.
 **Acceptance Criteria:**
 
 **Given** one of my wood barricades in a build phase
-**When** I tap it and choose Upgrade (+120)
-**Then** it becomes a metal barricade with 600 HP (FR52)
+**When** I tap it and choose Upgrade (+50)
+**Then** it becomes a reinforced barricade with 350 HP; upgrading again (+70) makes it a metal barricade with 600 HP (FR52)
 
 **Given** a spike trap (2 × 2 m floor, 300 HP, 80)
 **When** zombies walk on it
@@ -1698,7 +1698,7 @@ So that we have a safe spot to fall back to.
 
 **Given** a floodlight (150 HP, 100)
 **When** placed
-**Then** it lights an 8 m circle and is recorded as a light source in the server's light state (used by blackout waves in Epic 6)
+**Then** it lights a 4 m radius (8 m across; 6 m in blackout waves, `light.blackoutRadiusM`) and is recorded as a light source in the server's light state (used by blackout waves in Epic 6)
 **And** it stays out of the shop until Story 6.3 adds blackout (balance flag), so nobody pays for a light with no use
 
 **Given** a med station (300 HP, 400)
@@ -1719,7 +1719,7 @@ So that my build is more than my weapons.
 
 **Given** each gear item
 **When** owned
-**Then** Body armor I gives +25 max HP (150), Body armor II +50 (350, replaces armor I), Running shoes +10% speed (150), Revive kit cuts my revive time from 3 s to 1.5 s (150), Tactical flashlight is recorded for the blackout light cone in Epic 6 (120; kept out of the shop by a balance flag until Story 6.3)
+**Then** Body armor I gives +25 max HP (150), Body armor II +50 (350, replaces armor I), Running shoes +10% speed (150), Revive kit: I revive teammates in 1.5 s (the fastest reviver in the zone counts; no stacking; no effect on my own revive) (150), Tactical flashlight is recorded for the blackout light cone in Epic 6 (120; kept out of the shop by a balance flag until Story 6.3)
 **And** each item can be owned once
 
 ### Story 5.12: Consumables
@@ -1753,8 +1753,9 @@ So that every build phase is a different choice.
 
 **Given** a build phase
 **When** I open the shop
-**Then** I see an always-available section (buildings, consumables, repairs, upgrades for weapons I own) and 6 cards of weapons and gear drawn from my pool (FR46, FR47)
-**And** the offer always contains at least 1 weapon and 1 gear card; weapons and gear I already own are not drawn
+**Then** I see an always-available section (consumables, upgrades for weapons I own; buildings are in the build bar, 5.16) and 6 cards of weapons and gear drawn from my pool (FR46, FR47)
+**And** the offer always contains at least 1 weapon and 1 gear card; weapons and gear I already own are not drawn; items with `inShop:false` are never drawn; the Pistol is never a card
+**And** when my pool can't fill 6 cards, fewer cards show, and Reroll is disabled when no new draw exists
 
 **Given** the draw
 **When** it is made
@@ -1825,10 +1826,10 @@ As a player, I want my buildings under my right thumb, so that I don't open a me
 
 **Acceptance criteria**
 1. **Given** a build phase with empty hands and nothing selected, **then** the bottom-right shows a **4 × 2 grid of 56 px tiles** (8 px gaps, 16 px inset): every building where `forSale && inShop` (5.10's flag) in balance order, and **🛒 Shop** as the last tile. 5.14's bear trap appears without UI changes.
-2. Each tile shows the building's icon (the same code-drawn art as in the world) and price. **When** I can't afford it, **then** the tile is at 40 % opacity with a red price; **when** I'm at the cap, the count above the grid reads "6/6" in red.
+2. Each tile shows the building's I1 build-bar icon (Stories 5.26/5.27; the world art is the fallback) and price. **When** I can't afford it, **then** the tile is at 40 % opacity with a red price; **when** I'm at the cap, the count above the grid reads "6/6" in red.
 3. **When** I tap an affordable tile, **then** that building is in my hands (BX-1) at once. **When** I tap an unaffordable tile or I'm at the cap, **then** nothing is picked and the reason toasts ("Need $250 (you have $180)", "Building limit reached (6)").
 4. The Shop tile opens today's shop (weapons, upgrades, 5.13 cards). The shop no longer lists buildings, and the separate Shop button next to Ready is gone.
-5. The grid is hidden while holding (hand cluster) and while a building is selected (BX-7).
+5. The grid is hidden while holding (hand cluster), while a building is selected (BX-7) and while I'm downed/out. While the grid shows, the swap and ammo buttons are hidden (5.16 D3); Story 5.12 moves the swap and consumable buttons above the grid's top-left in build phases.
 6. More than 7 building types: the 7th tile becomes "More ▸" and pages. (Not needed today.)
 
 **Tests:** tile list from balance (with `inShop: false` hidden), affordability and cap states, shop no longer lists buildings, a browser screenshot at 800 × 360 and 1024 × 768.
@@ -1848,7 +1849,7 @@ As a player, I want to know why I can't build somewhere and what's in the way, s
 4. While I hold anything, every spawn's 2 m no-build circle in view is drawn faint (red 12 % fill, dashed edge).
 5. Blocked ghosts get a 45° hatch and a ✕ glyph as well as the red colour (colour-blind safe). Place turns grey with a red ring but still sends (the server judges, as today).
 6. Range rings from balance: turret `rangeM`, mine trigger/blast (today), med station `heal.radiusM`, floodlight `light.radiusM`, bear trap plate.
-7. A reason stays on screen ≥ 250 ms before switching back to valid (no flicker while walking past a teammate).
+7. Red is instant; the ghost turns valid only after 250 ms of continuous clear, and every blocked frame restarts the clock (no flicker while walking past a teammate; 5.17 review L1).
 
 **Fairness / beat the rule:** the client explanation never disagrees with the server's accept/refuse for the same World (the fuzz test). Reviewers try a spot that's off-map *and* near a spawn (first cause wins, matching the order).
 
@@ -1900,9 +1901,9 @@ As a player, I want to nudge the ghost with my right thumb without covering it, 
 As a player, I want to undo a misplaced building and sell old ones, so that a mistake costs nothing and I can rebuild my defence.
 
 **Acceptance criteria**
-1. **Server:** C2S `building.sell { id }` (int 1–65535, strict, `this.net.guard`). Shared `sellBuilding(world, playerId, id)` checks in order: unknown player → not build phase → gone → not owner; refunds per F2, removes the building (`version++`, `wallVersion++` if solid), emits `building.sold { buildingId, ownerId, refund, x, y }` (new net event kind). Refusal S2C `building.sell_refused { id, reason }`.
+1. **Server:** C2S `building.sell { id }` (int 1–65535, strict, `this.net.guard`). Shared `sellBuilding(world, playerId, id)` checks in order: unknown player → `not_alive` → not build phase → gone → not owner; refunds per F2, removes the building (`version++`, `wallVersion++` if solid), emits `building.sold { buildingId, ownerId, refund, x, y }` (new net event kind). Refusal S2C `building.sell_refused { id, reason }`. 5.20 also adds the same standing check (`not_alive`) to place, repair and upgrade (5.11 re-review R2), with tests for a downed and an out player in each.
 2. **Server bookkeeping:** each building keeps `paid` (price + upgrades) and `paidThisBuild` (reset to 0 at every build start). Server-only: not synced, not in `snapshotWorld`'s client view; in `snapshotWorld` for determinism.
-3. **Undo chip ↶** (48 px at (270, 64), or (300, 64) with empty hands) for **10 s** (designer) after each placement, with a draining ring; pressing it sells that building (100 % refund). If the placement is still pending, the undo is sent as soon as it's placed.
+3. **Undo chip ↶** (48 px, above the build bar's top-left, so it never overlaps the slid Ready button; checked at 568 × 320 and 800 × 360 with ≥ 12 px gaps) for **10 s** (designer) after each placement, with a draining ring; pressing it sells that building (100 % refund). If the placement is still pending, the undo is sent as soon as it's placed.
 4. The label reads **"Take back +$40"** for a building placed this build phase and **"Sell +$20"** otherwise (BX-7 shows it).
 5. FX: the building lifts and fades in 200 ms, "+$40" floats up; coins sound; 12 ms haptic.
 
@@ -1919,7 +1920,7 @@ As a player, I want to undo a misplaced building and sell old ones, so that a mi
 As a player, I want the actions for a building under my right thumb, so that repairing, upgrading and selling are one tap away.
 
 **Acceptance criteria**
-1. **Given** a build phase with empty hands, **when** I tap a building (3.7's tap rule and 0.4 m tolerance, unchanged), **then** the bottom-right shows the action bar (buttons 78 × 56, 8 gap, right-aligned at 16, centre bottom 112): **✥ Move** (owner), **Upgrade $Y** (owner, has a next tier: 5.9), **Repair $X** (anyone; "full HP" and dimmed when full), **Take back / Sell +$Z** (owner), **✕**. Info line above: "Spike trap · Yours · HP 93/300".
+1. **Given** a build phase with empty hands, **when** I tap a building (3.7's tap rule and 0.4 m tolerance, unchanged), **then** the bottom-right shows the action bar (buttons 78 × 56, 8 gap, right-aligned at 16, centre bottom 112): **✥ Move** (owner), **Upgrade $Y** (owner, has a next tier: 5.9), **Repair $X** (anyone; "full HP" and dimmed when full), **Take back / Sell +$Z** (owner), **✕**. Info line above: "Spike trap · Yours · HP 93/300". The bar is hidden while I'm downed/out. Sizes stay 78 × 56 at centre bottom 112 (not the spec's 64 × 56 @ 92); checked at 568 × 320 and 800 × 360 with ≥ 12 px gaps.
 2. A teammate's building shows only Repair and ✕, with "Only Bo can move, upgrade or sell it".
 3. This replaces 3.7's bottom-centre repair panel; `RepairPanel` keeps its logic (pending upgrade, wave-close rules).
 4. **Long-press** (450 ms, ≤ 12 px) on my own building picks it up (BX-8); a ring fills from 150 ms.
@@ -1937,7 +1938,7 @@ As a player, I want the actions for a building under my right thumb, so that rep
 As a player, I want to pick up my building and put it somewhere else for free, so that I can fix a bad spot without losing money.
 
 **Acceptance criteria**
-1. **Server:** C2S `building.move { id, gx, gy, rot }` (strict, guard). Shared `moveBuilding(world, playerId, req)` checks: unknown player → not build phase → gone → not owner → the new footprint with the building itself ignored (`footprintBlocked(world, box, exceptId)`, the existing rules otherwise). On success it updates gx/gy/rot and the footprint, `version++` (`wallVersion++` if solid), emits `building.moved { buildingId, gx, gy, rot }`. Refused → nothing changes, `building.move_refused { id, reason }`.
+1. **Server:** C2S `building.move { id, gx, gy, rot }` (strict, guard). Shared `moveBuilding(world, playerId, req)` checks: unknown player → `not_alive` → not build phase → gone → not owner → the new footprint with the building itself ignored (`footprintBlocked(world, box, exceptId)`, the existing rules otherwise). On success it updates gx/gy/rot and the footprint, `version++` (`wallVersion++` if solid), emits `building.moved { buildingId, gx, gy, rot }`. Refused → nothing changes, `building.move_refused { id, reason }`.
 2. **Client:** Move ✥ or a long-press puts it in my hands: pinned at its current spot (carry mode: in front of me), its old spot drawn dashed (it still stands and blocks for everyone until the move is accepted). Place sends the move; ✕ puts it back (sends nothing). The Place label reads "MOVE", the reason line "Move Spike trap · free".
 3. Pending move: dashed at the new spot until `building.moved`; refusal shakes it there and the building stays where it was.
 
@@ -2044,6 +2045,7 @@ So that the map squeezes us as the city breaks.
 **When** stage 4 is applied
 **Then** rubble closes one of alleys 1–3 (a decay variant picked by the `decay` stream), 3 rubble piles (≈ 2 × 1.5 m) appear in the streets as hard cover (they stop bullets and bodies), and 2 breach spawn points with `minStage: 4` open in building walls facing the intersection (FR62)
 **And** cells covered by rubble refuse building placement ("Can't build here"), and buildings already there are destroyed with the usual 50 % refund (FR53)
+**And** rubble also stops melee and shields blasts (like cars); lobbed rounds (launcher, grenade, molotov) fly over it, because rubble is not `building: true`
 **And** the "no area is ever enclosed" and spawn-clearance tests pass on every stage × variant combination
 
 **Given** stage 4
@@ -2062,15 +2064,15 @@ So that light becomes something we fight for.
 **Given** the server's light state
 **When** the blackout flag is on
 **Then** the client draws a half-resolution darkness texture leaving unlit ground at 10 % light, and cuts out: each player's flashlight cone along their aim (60°, 8 m; Tactical flashlight 80°, 12 m), a 1.6 m glow round every survivor, floodlights (6 m radius in blackout: designer, D5), fire zones (4 m) and muzzle flashes (3 m for 100 ms) (FR64)
-**And** teammates (with rings), zombie eyes within 14 m, event markers and anything Stories 6.5–6.10 mark "above the darkness" are drawn above it
+**And** teammates (with rings), zombie eyes within 14 m, event markers, pings (8.7) and anything Stories 6.5–6.10 mark "above the darkness" are drawn above it
 
 **Given** the blackout flag is off
 **When** the game renders
 **Then** no darkness texture is drawn (no cost)
 
 **Given** this story is done
-**When** the shop is built
-**Then** the Floodlight and Tactical flashlight are in the shop from wave 1 (balance flag from Stories 5.10 and 5.11)
+**When** the build phase opens
+**Then** `inShop` is true for both from wave 1 (balance flag from Stories 5.10 and 5.11): the Floodlight shows as a build-bar tile (5.16) and the Tactical flashlight can appear as a gear card (5.13)
 
 **Given** quality settings
 **When** a player looks for a way to turn darkness off
@@ -2118,6 +2120,8 @@ So that the run ends with a fight we'll talk about.
 **When** half of the wave's zombies have spawned
 **Then** a 4 s warning plays (rumble, red edge marker, "Something big is coming"), then the Behemoth walks in from the street edge farthest from the team and at least 14 m from every player: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP × 0.4 / 0.6 / 0.8 / 1.0 by player count (FR33, FR31)
 **And** while it lives at most 110 zombies are alive (150 again after it dies), a boss bar with a 50 % notch shows at the top of the screen, and placeholder boss music starts
+**And** it moves on its own flow field at boss size (inflated by 2 m) toward its target, rebuilt every 0.5 s; barricades and turrets are costed, not walls, and a building it walks into takes 100 damage per second (it pushes through slowly)
+**And** its look is drawn in game code like the Brute, baked through `addGeneratedTexture` into a boss atlas with 5 poses (walk, slam, charge/rush, throw, stun/roar); in blackout its outline and eyes draw above the darkness (eyes red when enraged)
 
 **Given** the Behemoth
 **When** it picks a target
@@ -2126,6 +2130,7 @@ So that the run ends with a fight we'll talk about.
 **Given** a standing player within 4.0 m of its centre and the slam ready
 **When** it slams
 **Then** it raises its arms for 1.2 s while a red hatched ring of 4.5 m from its centre fills, then players whose centre is inside 4.25 m (0.25 m edge grace) take 40 damage and are pushed 2 m out; 0.8 s recovery, cooldown 4 s (FR34, FR84)
+**And** the slam ignores cover: walls, cars and barricades inside the ring don't shield anyone (the drawn zone is the promise)
 
 **Given** any boss attack
 **When** it is telegraphed
@@ -2157,6 +2162,7 @@ So that we have to keep moving, and can bait it into a wall.
 **Given** a standing player more than 8 m away and the throw ready
 **When** the Behemoth throws
 **Then** it aims at the farthest such player's position at the telegraph start, lifts a chunk for 1 s (from the nearest rubble pile or burnt car within 6 m, else the road; visual only) while a 3 m ring shows at the landing spot, and the chunk flies 0.8 s: 35 damage within 3 m (0.25 m grace), a crater decal, no collision change; 0.6 s recovery, cooldown 6 s
+**And** the throw ignores cover, like the slam (the drawn zone is the promise)
 
 **Given** its attacks
 **When** the gap ends
@@ -2218,13 +2224,15 @@ So that we have to choose between risk and reward.
 
 **Given** the gas leak
 **When** it triggers
-**Then** the gas station tank hisses for 10 s with a visible 6 m ring, then explodes: zombies within 6 m die, players within 6 m take 60 damage (friendly fire, as with Bloaters), buildings take 150 (FR39)
+**Then** the gas station tank hisses for 10 s with a visible 6 m ring, then explodes: zombies within 6 m die, every player within 6 m takes the full 60, even when a teammate shot the tank early (same rule as the Bloater blast), buildings take 150 (FR39)
+**And** the blast uses the normal blast line-of-sight (cars, the bus and buildings shield it)
 **And** after the first 3 s any player can shoot the tank to set it off at once (designer, D7); kills credit whoever set it off
 
 **Given** the supply drop
 **When** it triggers
 **Then** a smoke flare marks a reachable spot at least 12 m from the team's centre (from the `events` stream), and 5 s later a crate lands there with a marker for all players showing the weapon inside (FR40, designer D7)
-**And** the first player to stand on it for 1 s gets that weapon at level II (Flamethrower, Gas torch, Grenade Launcher, Chainsaw or Assault Rifle) in an empty slot, otherwise in place of the active weapon (a warning shows before the 1 s completes); the crate stays until the wave ends
+**And** the crate and its marker draw above the darkness
+**And** the first standing player (downed and out players can't take it) to stand on it for 1 s gets that weapon at level II (Flamethrower, Gas torch, Grenade Launcher, Chainsaw or Assault Rifle) in an empty slot, otherwise in place of the active weapon (a warning shows before the 1 s completes); the crate stays until the wave ends
 
 
 ### Story 6.10: Power failure and survivor
@@ -2241,7 +2249,7 @@ So that the run keeps asking for teamwork.
 
 **Given** the survivor
 **When** it triggers
-**Then** an NPC with 50 HP appears at least 15 m from the team with a marker, and a safe-point marker appears at least 20 m from it; it follows the nearest player within 3 m at 4.0 m/s, crouches when nobody is near, and zombies target it like a player; both markers and the NPC draw above the darkness (FR43)
+**Then** an NPC with 50 HP appears at least 15 m from the team with a marker, and a safe-point marker appears at least 20 m from it; it follows the nearest standing player within 3 m at 4.0 m/s (downed and out players can't lead it), crouches when nobody is near, and zombies target it like a player; both markers and the NPC draw above the darkness (FR43)
 
 **Given** the survivor reaches the safe point before the wave ends
 **When** escorted
@@ -2300,7 +2308,7 @@ So that we can push our luck for more rewards.
 
 ## Epic 7: Accounts and meta-progression
 
-Players keep progress between runs: Supplies earned every run, unlocks that add cards to their own shop, capped Training boosts, and an optional account so progress follows them to another device. The database arrives here, with only the tables each story needs.
+Players keep progress between runs: Supplies earned every run, unlocks that add cards to their own shop and tiles to their build bar, capped Training boosts, and an optional account so progress follows them to another device. The database arrives here, with only the tables each story needs.
 
 ### Story 7.1: Progress saved on the server
 
@@ -2366,7 +2374,7 @@ So that my options grow over time.
 
 **Given** the Unlocks screen (from the start screen)
 **When** I open it
-**Then** I see every locked item with its Supplies price: Fire Axe 150, Assault Rifle 200, Chainsaw 300, Flamethrower 400, Grenade Launcher 500; Spike trap 100, Mine 100, Floodlight 120, Metal barricade 150, Med station 300; Revive kit 100, Tactical flashlight 100, Body armor II 250; Molotovs 150
+**Then** I see every locked item with its Supplies price: Fire Axe 150, Assault Rifle 200, Chainsaw 300, Gas torch 350, Flamethrower 400, Grenade Launcher 500; Spike trap 100, Bear trap 100, Mine 100, Floodlight 120, Barricade upgrades (reinforced + metal tiers, one unlock) 150, Med station 300; Revive kit 100, Tactical flashlight 100, Body armor II 250; Molotovs 150
 
 **Given** I tap Unlock with enough Supplies
 **When** the server validates it
@@ -2383,7 +2391,8 @@ So that unlocks change which choices I get.
 **Given** a run
 **When** my 6 cards are drawn
 **Then** they come only from my unlocked weapons and gear (FR47, FR79)
-**And** the always-available section shows only my unlocked buildings and consumables
+**And** the build bar shows only my unlocked buildings, and the shop's always-available section only my unlocked consumables
+**And** the Epic 5 card rules stay: no Pistol card, `inShop:false` items never drawn, no upgrade cards, no locking
 
 **Given** teammates with different unlocks
 **When** we play together
@@ -2395,13 +2404,15 @@ So that unlocks change which choices I get.
 
 **Given** a player whose pool can't fill the card floor (no gear unlocked beyond what they own)
 **When** cards are drawn
-**Then** the floor is filled as far as possible and the rest are weapon cards
+**Then** the floor is filled as far as possible and the rest are weapon cards; when fewer than 6 new items exist, fewer cards show, and Reroll is disabled when no new draw exists
 
 ### Story 7.5: Training boosts
 
 As a player,
 I want small, capped boosts I can train between runs,
 So that I get a bit stronger without leaving new friends behind.
+
+(Revisit before building: Training may be absorbed by the customization level-system idea, `docs/ideas/customization/`.)
 
 **Acceptance Criteria:**
 
@@ -2505,7 +2516,7 @@ So that I can find myself and they can recognise me.
 
 **Given** a player's look
 **When** the Game scene creates their survivor
-**Then** the body is drawn once into a per-player canvas texture (≤ 4 per run, ≤ ~2 ms total on the Honor 10), the gun image is drawn under it, and the downed view uses the same body
+**Then** the body is drawn once into a per-player canvas texture (≤ 4 per run, ≤ ~2 ms total on the Xiaomi Mi 11, the low-end floor (designer wrote 'Xiaomi i11'; confirm the exact model)), the gun image is drawn under it, and the downed view uses the same body
 **And** the slot ring, name and edge arrows keep the slot colour (Story 2.9)
 
 **Given** the lobby
@@ -2514,7 +2525,7 @@ So that I can find myself and they can recognise me.
 
 **Given** `?stress=150`
 **When** 4 custom survivors are on screen
-**Then** phone FPS matches the 4.10 numbers (the floor)
+**Then** phone FPS stays within 2 FPS of the latest recorded `?stress=150` baseline in `docs/perf/` and meets NFR1 (4.10 is deferred, so its numbers may not exist)
 
 ### Story 7.10: Survivor editor
 
@@ -2638,7 +2649,7 @@ So that a bad signal doesn't end my night.
 
 **Given** a player who left or was dropped
 **When** the run goes on
-**Then** their buildings stay until destroyed, can still be repaired by teammates, and no longer pay kill rewards to anyone
+**Then** their buildings stay until destroyed and can still be repaired by teammates; during the 120 s reconnect hold their turret kills keep paying into the held wallet, and once the slot is freed (or they left on purpose) their buildings no longer pay kill rewards to anyone
 
 **Given** the tab is hidden (`visibilitychange`)
 **When** the player switches apps
@@ -2696,7 +2707,7 @@ So that a server crash or update doesn't lose our run.
 
 **Given** a build phase starts
 **When** the snapshot is taken
-**Then** a versioned JSON snapshot of the run (players by slot with wallets, loadouts, upgrades, gear; buildings; wave; decay stage and plan; event schedule; every PRNG stream state) is saved for that room
+**Then** a versioned JSON snapshot of the run (players by slot with wallets, loadouts, upgrades, gear, consumable slot and count, current card offer (5.13); buildings with type, barricade tier, rotation, owner, HP, wear and `paid`; wave; decay stage and plan; light and blackout state; event schedule; boss state; endless counters; loot bag and pending item (7.12); the rewards-after-wave-10 flag (6.12); every PRNG stream state) is saved for that room
 
 **Given** a server shutdown or a programmer error that corrupts the simulation
 **When** the room closes
@@ -2716,7 +2727,8 @@ So that we can finish it another night.
 
 **Given** a build phase
 **When** the host taps Save and quit in the in-run menu (Story 2.11) and confirms
-**Then** the run is saved with `expires` = now + 7 days, every player sees "Run saved, the host can resume it for 7 days", and the room closes (FR75)
+**Then** held ghosts are put away, pending placements resolve first, and the undo/take-back window closes (on resume, buildings count as placed in an earlier phase)
+**And** the run is saved with `expires` = now + 7 days, every player sees "Run saved, the host can resume it for 7 days", and the room closes (FR75)
 
 **Given** a wave in progress
 **When** the host looks for Save and quit
@@ -2755,31 +2767,29 @@ So that we can coordinate without voice chat.
 
 **Acceptance Criteria:**
 
-**Given** the ping button
+**Given** the ping button (top-right or by the minimap, clear of the build bar and hand cluster; hidden while I hold a building)
 **When** I tap it
 **Then** a small wheel offers Help! · Over here · Brute! · Ready (FR76); on desktop the F key opens it
 
 **Given** I choose a ping
 **When** it is sent (`ping.send`, max 1 per second per player)
-**Then** every teammate sees its icon and my color at my position for 4 s, with an edge arrow when off screen, and a short sound
+**Then** every teammate sees its icon and my color at my position for 4 s, with an edge arrow when off screen, and a short sound; pings draw above the blackout darkness
 
 ## Epic 9: Dead City art and audio
 
-The game looks and sounds like Dead City. Can start after Epic 4 and runs alongside later epics. Final assets replace placeholders in the same atlas layout and names, so swaps need no gameplay code changes.
-
-**Prerequisite checklist (designer, not a code story):** hire an artist and a sound designer; agree scope, budget and delivery format using the asset spec from Story 9.1.
+The game looks and sounds like Dead City. Can start after Epic 4 and runs alongside later epics. **No hiring (designer, 2026-11-23: "we won't hire anybody"):** this epic is a polish pass of the art already drawn in game code (`render/city/*`, baked atlases with `category_name_variant` frames, every texture through `addGeneratedTexture`) and of the audio, made from code/procedural sound or licensed/free libraries. No hired artist or sound designer. Polish keeps every look the designer picked and the two-pick rule (first = base look, second = upgrade/skin look); Meshy and vector images are only references. Changes stay in the drawing and audio code and the same frame names, so they need no gameplay code changes.
 
 ### Story 9.1: Art and audio asset spec
 
 As the designer,
-I want a complete list of every image and sound the game needs, with sizes and names,
-So that I can brief and pay the artist and sound designer for exactly the right work.
+I want a complete list of every image and sound the game has, with its generator, names and picked look,
+So that the polish pass knows exactly what exists and what to improve.
 
 **Acceptance Criteria:**
 
-**Given** the current placeholder atlases, maps and sound files
+**Given** the code-drawn atlases, maps and sound files
 **When** the spec is written to `docs/art/asset-spec.md` and `docs/audio/asset-spec.md`
-**Then** it lists every atlas and frame (`category_name_variant`), frame sizes, animation names and frame counts, Tiled tile sets and decay layer groups, the Dead City palette and mood references (style labs), and every sound with its trigger, length and loop flag
+**Then** it lists every generator (`render/city/*`), atlas and frame (`category_name_variant`), frame sizes, poses and frame counts, decay layer groups, every picked look id (Spitter P4, Brute BR1–BR5, Bloater BL1–BL5, floodlight FL1/FL5, med station MS10, gear GR6, consumables CI4, hand grenade HG1, molotov MB1, cards C3, build-bar icons I1/T1/M1, fire-lab D, explosions EX1/EX2, flame streams FS1/FS2), the Dead City palette and mood references (style labs), and every sound with its trigger, length, loop flag and source (procedural, or the licensed/free library and its licence)
 
 **Given** the platform budgets
 **When** the spec is reviewed
@@ -2793,9 +2803,9 @@ So that the decay tells the story of the run.
 
 **Acceptance Criteria:**
 
-**Given** the final district art
-**When** it replaces the placeholders
-**Then** Downtown has 5 visual states (Evening, Panic, Breakdown, Ruins, Collapse) in the `stageN_*` layer groups, with decay props: cars in 3 conditions, barriers, sandbags, rubble, fires and vegetation (FR82)
+**Given** the polished code-drawn district art
+**When** it is drawn
+**Then** Downtown has 5 visual states, one per decay stage (Evening, Panic, Breakdown, Ruins, Collapse; one night: dusk at stage 1, darker each stage, dawn only on Extract), with decay props: cars in 3 conditions, barriers, sandbags, rubble, fires and vegetation (FR82)
 **And** collision, cover and spawn layers are unchanged, and all map tests still pass
 
 **Given** a full run
@@ -2810,9 +2820,9 @@ So that I can read my teammates' roles at a glance.
 
 **Acceptance Criteria:**
 
-**Given** the survivor atlas
-**When** it is loaded
-**Then** it has 4 color variants (blue, orange, green, purple) and, per weapon type (pistol, two-handed gun, melee, chainsaw, flamethrower, launcher), walk, fire or swing, reload and downed animations (FR82)
+**Given** a survivor
+**When** it is drawn
+**Then** the body comes from the player's look (Stories 7.8/7.9, drawn in code into a per-player texture at join); the slot colour shows only on the ring, name and edge arrows; holding poses exist per weapon family (pistol, two-handed gun, melee, chainsaw, flamethrower/gas torch, launcher) with walk, fire or swing, reload and downed, within 7.9's budget (FR82)
 
 **Given** a player swaps or buys a weapon
 **When** the active weapon changes
@@ -2826,9 +2836,9 @@ So that I can spot the dangerous ones in the crowd and the dark.
 
 **Acceptance Criteria:**
 
-**Given** the zombie atlas
+**Given** the zombie atlas (drawn in code)
 **When** it is loaded
-**Then** Walker, Runner, Crawler, Spitter, Bloater, Brute and the Behemoth each have walk, attack and death animations, plus telegraph poses (Spitter rear-back with glowing mouth, Bloater swell, Behemoth arms raised, head lowered and pick-up) (FR82, FR84)
+**Then** Walker, Runner, Crawler, Spitter, Bloater, Brute and the Behemoth each have walk, attack and death animations, keeping the picked looks and variants (Spitter P4; Brute BR1–BR5 and Bloater BL1–BL5 as random per-zombie variants), plus telegraph poses (Spitter rear-back with glowing mouth, Bloater swell, the Brute's 0.5 s wind-up with the arms under the clothes, the Behemoth's walk, slam, charge, throw and stun/roar) (FR82, FR84)
 **And** silhouettes follow the readability rules: Brute wide, Bloater round, Crawler long and low, Runner thin and leaning, Spitter glowing mouth (NFR11)
 
 **Given** 150 animated zombies in view
@@ -2845,7 +2855,7 @@ So that the fight feels as brutal as Dead City should.
 
 **Given** a `zombie.killed` event with its weapon and damage type
 **When** the killing hit was heavy (Fire Axe, Chainsaw, Shotgun) or an explosion
-**Then** the client spawns dismemberment pieces (arms, heads, torso halves) for heavy hits, or bursts the zombie apart for explosive kills (FR83)
+**Then** the client spawns code-drawn dismemberment pieces (arms, heads, torso halves, through `addGeneratedTexture`) for heavy hits, or bursts the zombie apart for explosive kills (FR83)
 **And** gore is client-only and never affects the simulation
 
 **Given** blood
@@ -2866,7 +2876,8 @@ So that the screen reads clearly even in chaos.
 
 **Given** the effects atlas
 **When** effects play
-**Then** muzzle flashes, blood, fire, acid, gas, explosions, rain, fog, flashlight and floodlight light textures use final art
+**Then** muzzle flashes, blood, fire, acid, gas, explosions, rain, fog, flashlight and floodlight light textures are polished in code, keeping the picked looks: fire-lab D (4.12), EX1 (launcher) and EX2 (mine, hand grenade), the FS1 / FS2 flame streams
+**And** rain follows decay (drizzle from stage 1, heavy rain at stage 3) and fog comes at stage 5
 
 **Given** effects
 **When** they play
@@ -2882,7 +2893,7 @@ So that the game feels finished.
 
 **Given** the UI art
 **When** applied
-**Then** the HUD, shop cards, lobby, evacuation vote, ping icons, unlock and training screens use it
+**Then** the HUD, build bar, action bar and I1 build-bar icons (5.16/5.21/5.26/5.27), C3 shop cards, GR6 gear and CI4 consumable icons, lobby, survivor editor (7.10), evacuation vote, ping icons, unlock and training screens use code-drawn UI art, keeping the picked looks
 **And** the size rules from Story 1.8 still hold: text at least 14 px at devicePixelRatio 1 and every button at least 44 × 44 px
 
 ### Story 9.8: Ambience and audio buses
@@ -2899,7 +2910,8 @@ So that I can hear the run getting worse.
 
 **Given** each decay stage
 **When** it becomes active
-**Then** its ambience loop crossfades in over 3 s: Evening (traffic, distant music, voices), Panic (sirens, car alarms, shouting), Breakdown (rain, crackling fire), Ruins (wind, falling debris), Collapse (near silence, growls, rain) (FR85)
+**Then** its ambience loop crossfades in over 3 s: Evening (traffic, distant music, voices), Panic (sirens, car alarms, shouting), Breakdown (rain, crackling fire), Ruins (wind, falling debris), Collapse (near silence, growls, rain) (FR85); light drizzle is audible from stage 1 and heavy rain from stage 3
+**And** loops are procedural or from licensed/free libraries (credits listed in the audio spec)
 
 ### Story 9.9: Adaptive music
 
@@ -2915,7 +2927,7 @@ So that I feel the tension build.
 
 **Given** a build phase
 **When** it starts
-**Then** the calmer build track plays
+**Then** the calmer build track plays (all music procedural or from licensed/free libraries, no hired composer)
 
 **Given** the Behemoth
 **When** it appears
@@ -2933,13 +2945,13 @@ So that I can fight by ear in the dark.
 
 **Acceptance Criteria:**
 
-**Given** about 30 weapon sounds
+**Given** about 30 weapon sounds (procedural or from licensed/free libraries)
 **When** weapons fire or reload
-**Then** each weapon has a distinct fire and reload sound, and reloads are clearly audible over the music (FR86)
+**Then** each of the 11 weapons has a distinct fire and reload sound (the Gas torch distinct from the Flamethrower), grenades and molotovs have throw sounds, and reloads are clearly audible over the music (FR86)
 
 **Given** about 20 zombie sounds
 **When** special zombies act
-**Then** each has a signature cue that also warns: Spitter gurgle (windup), Bloater swelling, Brute roar, Runner shriek (FR84)
+**Then** each has a signature cue that also warns: Spitter gurgle (windup), Bloater swelling, Brute roar and its 0.5 s wind-up, Runner shriek, plus the Behemoth's telegraphs and the special-event cues (FR84)
 **And** zombie sounds use positional volume and stereo pan relative to the listening player
 
 **Given** many zombies at once
@@ -2966,6 +2978,7 @@ So that the game runs and feels right on my phone.
 **Given** I change a setting
 **When** it is saved
 **Then** it applies immediately, is stored in localStorage (wrapped in try/catch, with defaults if storage fails), and is synced to my account when I'm logged in
+**And** account sync uses its own `settings` field in `progress`, added by this story's own migration (Story 7.1 doesn't create it)
 
 ### Story 10.2: Frame-rate pass on reference phones
 
@@ -2975,7 +2988,7 @@ So that nothing stutters when it matters.
 
 **Acceptance Criteria:**
 
-**Given** an iPhone 12, a Pixel 5 and a Galaxy A52 (or equivalents)
+**Given** an iPhone 12, a Pixel 5 and a Galaxy A52 (or equivalents), and the low-end floor, the Xiaomi Mi 11 (designer wrote 'Xiaomi i11'; confirm the exact model)
 **When** a full wave 9 blackout is played with all 150 alive zombies in one player's view at default settings
 **Then** FPS averages 60 and never stays below 30 (NFR1)
 **And** the measurements and every optimization made are recorded in `docs/perf/epic-10-fps.md`
@@ -3084,7 +3097,8 @@ So that the run feels like the GDD's curve.
 
 **Given** run stats, bot runs and playtest notes
 **When** the balance is reviewed
-**Then** earnings per player over a full run are 2,500–3,000 at 2, 3 and 4 players, and the difficulty curve matches the GDD table (relaxed W1–2 … climax W10)
+**Then** it settles what 4.10 and the Epic 5 balance pass (after round E, which owns the earnings decision) left open: the earnings model (fallback wave bonus 15 × N), solo Behemoth HP (× 0.4 or × 0.3), `loot.runChance` and the 6-building cap
+**And** earnings per player over a full run are 2,500–3,000 at 2, 3 and 4 players, and the difficulty curve matches the GDD table (relaxed W1–2 … climax W10)
 
 **Given** balance changes
 **When** they are made
@@ -3102,6 +3116,7 @@ So that we know it's ready for every week.
 **When** the friend group plays at least 3 game nights
 **Then** at least one full 4-player run reaches wave 10 with no disconnect caused by the game and no disagreement between screens (NFR9, NFR3)
 **And** feedback is written to `docs/playtests/v1.md`, with blocking issues fixed before release
+**And** if the 4.10 Milestone 1 playtest never ran, its checks (`docs/playtests/milestone-1.md`) run in the first game night
 
 **Given** every NFR
 **When** the v1 checklist in `docs/qa/v1-checklist.md` is filled in
