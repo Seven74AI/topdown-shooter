@@ -7,12 +7,12 @@ import { DAMAGE_SOURCE_ACID, DAMAGE_SOURCE_FIRE, type SimEvent } from "@topdown/
  */
 export const FIRE_CUE_MS = 700;
 
-/** A `player.damaged` event that came from fire (Story 4.8; Story 5.6: source −1 exactly, acid is −2). */
+/** A `player.damaged` event that came from fire (Story 4.8: source −1 exactly; 5.9 blasts are −2, 5.6 acid −3). */
 export function isFireHit(e: SimEvent): e is Extract<SimEvent, { type: "player.damaged" }> {
   return e.type === "player.damaged" && e.sourceZombieId === DAMAGE_SOURCE_FIRE;
 }
 
-/** Story 5.6: a `player.damaged` event from acid (a Spitter's spit or puddle: source −2). */
+/** Story 5.6: a `player.damaged` event from acid (a Spitter's spit or puddle: source −3). */
 export function isAcidHit(e: SimEvent): e is Extract<SimEvent, { type: "player.damaged" }> {
   return e.type === "player.damaged" && e.sourceZombieId === DAMAGE_SOURCE_ACID;
 }

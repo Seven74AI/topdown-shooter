@@ -29,6 +29,7 @@ import {
   type PlaceError,
   type PlaceRequest,
   type RepairError,
+  type UpgradeError,
   type PlayerInput,
   type PlayerState,
   type PlayerStateView,
@@ -217,6 +218,8 @@ export class NetSimHost implements SimHost {
   private refusal: PlaceError | null = null;
   /** Story 3.7: the latest `building.repair_refused`, until the scene takes it. */
   private repairRefusal: RepairError | null = null;
+  /** Story 5.9: the last upgrade refusal, until the scene takes it. */
+  private upgradeRefusal: UpgradeError | null = null;
   private readonly dropMissing = (_p: PlayerState, id: string): void => {
     if (!this.latest?.players.has(id)) removePlayer(this.world, id);
   };
@@ -261,6 +264,11 @@ export class NetSimHost implements SimHost {
     this.offs.push(
       opts.session.onRepairRefused((reason) => {
         this.repairRefusal = reason;
+      }),
+    );
+    this.offs.push(
+      opts.session.onUpgradeRefused((reason) => {
+        this.upgradeRefusal = reason;
       }),
     );
     room.onStateChange(this.onState);
@@ -373,6 +381,17 @@ export class NetSimHost implements SimHost {
     if (!this.disposed) this.session.room.send(C2S.BUILDING_REPAIR, { id });
   }
 
+  /** Story 5.9: `building.upgrade`; the new type, HP and wallet come back in the state, a refusal as `building.upgrade_refused`. */
+  upgradeBuilding(id: number): void {
+    if (!this.disposed) this.session.room.send(C2S.BUILDING_UPGRADE, { id });
+  }
+
+  takeUpgradeRefusal(): UpgradeError | null {
+    const r = this.upgradeRefusal;
+    this.upgradeRefusal = null;
+    return r;
+  }
+
   takeRepairRefusal(): RepairError | null {
     const r = this.repairRefusal;
     this.repairRefusal = null;
@@ -412,7 +431,7 @@ export class NetSimHost implements SimHost {
       const stale = (ticks[i - from] as number) < staleBefore;
       if (e.type === "weapon.fired") {
         if (stale) continue;
-        this.cosmetics.spawn(e.playerId, e.weapon, e.x, e.y, e.dirX, e.dirY);
+        this.cosmetics.spawn(e.playerId, e.weapon, e.x, e.y, e.dirX, e.dirY, e.seq ?? -1); // Story 5.3: a pellet gun's seq
       } else if (e.type === "turret.fired") {
         if (stale) {
           this.turretAim(e);
@@ -555,7 +574,8 @@ export class NetSimHost implements SimHost {
       assistAim(this.world, mx, my, a.dirX, a.dirY, stats.rangeM, dir);
     }
     // Story 2.12: the seq's roll, the one the server (with lag compensation) gives its shot too.
-    if (stats.spreadDeg > 0) rotateBySeqSpread(dir.x, dir.y, this.localPlayerId, seq, stats.spreadDeg, dir);
+    // Story 5.3: a pellet gun's centre aim has no roll (its fan does: `cosmetics.spawn` with the seq).
+    if (stats.spreadDeg > 0 && stats.pellets === 1) rotateBySeqSpread(dir.x, dir.y, this.localPlayerId, seq, stats.spreadDeg, dir);
     const e = this.localFired[k] as FiredEvent;
     e.weapon = a.weapon;
     e.x = mx;
@@ -563,7 +583,7 @@ export class NetSimHost implements SimHost {
     e.dirX = dir.x;
     e.dirY = dir.y;
     this.immediate.push(e);
-    this.cosmetics.spawn(this.localPlayerId, a.weapon, mx, my, dir.x, dir.y);
+    this.cosmetics.spawn(this.localPlayerId, a.weapon, mx, my, dir.x, dir.y, seq & 0xffff);
   }
 
   /** Expectation window of an apparent hit: RTT + render delay + slack (Story 2.7). */

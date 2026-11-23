@@ -27,6 +27,31 @@ describe("loadBalance", () => {
     expect(loadBalance().weapons.pistol?.knockbackM).toBe(0);
   });
 
+  it("shotgun and assault rifle match the GDD table (Story 5.3)", () => {
+    const b = loadBalance();
+    expect(b.weapons.shotgun).toMatchObject({ kind: "gun", damage: 4, pellets: 8, rateHz: 1.2, rangeM: 5, spreadDeg: 30, knockbackM: 0.5, hitPushbackM: 0, magazine: 6, reloadS: 2.5, price: 250, pierce: 1, projectileSpeedMps: 60 });
+    expect(b.weapons.assault_rifle).toMatchObject({ kind: "gun", damage: 7, pellets: 1, rateHz: 8, rangeM: 11, spreadDeg: 4, magazine: 30, reloadS: 2.0, price: 450, pierce: 1, projectileSpeedMps: 60, hitPushbackM: 0.15, knockbackM: 0 });
+    // Appended at the end: the wire's weapon indices of the older weapons never move.
+    expect(Object.keys(b.weapons).slice(0, 4)).toEqual(["pistol", "smg", "hunting_rifle", "machete"]);
+  });
+
+  it("pellets defaults to 1 for the old guns (Story 5.3)", () => {
+    const b = loadBalance();
+    for (const id of ["pistol", "smg", "hunting_rifle"]) expect((b.weapons[id] as { pellets: number }).pellets).toBe(1);
+  });
+
+  it("refuses pellets 0, pellets 17, and pellets 8 with hitPushbackM > 0 (Story 5.3)", () => {
+    const set = (patch: Record<string, number>) => {
+      const files = raw();
+      Object.assign((files.weapons as Record<string, Record<string, number>>).shotgun as Record<string, number>, patch);
+      return files;
+    };
+    expect(() => loadBalance(set({ pellets: 0 }))).toThrow(/weapons\.json: shotgun\.pellets/);
+    expect(() => loadBalance(set({ pellets: 17 }))).toThrow(/weapons\.json: shotgun\.pellets/);
+    expect(() => loadBalance(set({ hitPushbackM: 0.15 }))).toThrow(/weapons\.json: shotgun\.hitPushbackM: a pellet gun/);
+    expect(() => loadBalance(set({ pellets: 1, hitPushbackM: 0.15 }))).not.toThrow();
+  });
+
   it("names the file and key when a value is invalid", () => {
     const files = raw();
     (files.weapons as { pistol: { damage: number } }).pistol.damage = -5;
@@ -90,3 +115,51 @@ describe("loadBalance", () => {
   });
 });
 
+
+describe("Story 5.9: building tiers, traps and mines", () => {
+  type T = Record<string, Record<string, unknown>>;
+  const types = (files: RawBalanceFiles): T => (files.buildings as { types: T }).types;
+
+  it("the ladder 40 → 90 → 160, 200 → 350 → 600", () => {
+    const t = loadBalance().buildings.types;
+    expect([t.wood_barricade?.price, t.reinforced_barricade?.price, t.metal_barricade?.price]).toEqual([40, 90, 160]);
+    expect([t.wood_barricade?.hp, t.reinforced_barricade?.hp, t.metal_barricade?.hp]).toEqual([200, 350, 600]);
+    expect(t.wood_barricade?.upgradesTo).toEqual({ type: "reinforced_barricade", price: 50 });
+    expect(t.reinforced_barricade?.upgradesTo).toEqual({ type: "metal_barricade", price: 70 });
+    expect(t.metal_barricade?.upgradesTo).toBeUndefined();
+    expect(t.spike_trap?.trap).toEqual({ damagePerS: 4, pulseS: 0.5, slowPct: 40, wearPerHit: 1 });
+    expect(t.mine?.mine).toEqual({ triggerRadiusM: 1, blastRadiusM: 2.5, damage: 80, playerShare: 0.5 });
+    expect([t.spike_trap?.solid, t.mine?.solid]).toEqual([false, false]);
+  });
+
+  it("old types: solid, for sale, no trap/mine", () => {
+    const t = loadBalance().buildings.types;
+    for (const id of ["wood_barricade", "auto_turret"]) {
+      expect(t[id]?.solid).toBe(true);
+      expect(t[id]?.forSale).toBe(true);
+      expect(t[id]?.trap).toBeUndefined();
+      expect(t[id]?.mine).toBeUndefined();
+    }
+  });
+
+  it("refuses an upgrade to an unknown/for-sale type, a footprint change, a cycle, a price that isn't the sum", () => {
+    const bad = (edit: (t: T) => void, re: RegExp): void => {
+      const files = raw();
+      edit(types(files));
+      expect(() => loadBalance(files)).toThrow(re);
+    };
+    bad((t) => ((t.wood_barricade as { upgradesTo: { type: string } }).upgradesTo.type = "nope"), /upgradesTo: unknown type nope/);
+    bad((t) => ((t.wood_barricade as { upgradesTo: { type: string } }).upgradesTo.type = "auto_turret"), /auto_turret must be upgrade-only/);
+    bad((t) => ((t.reinforced_barricade as { widthM: number }).widthM = 2.5), /must have the same footprint/);
+    bad((t) => ((t.reinforced_barricade as { price: number }).price = 80), /price must be 40 \+ 50 = 90/);
+    bad((t) => {
+      (t.metal_barricade as Record<string, unknown>).upgradesTo = { type: "reinforced_barricade", price: 1 };
+      (t.reinforced_barricade as { price: number }).price = 161; // keep the sums consistent-ish: the loop is what fails
+    }, /upgrade ladder loops/);
+    bad((t) => ((t.spike_trap as Record<string, unknown>).solid = true), /a trap or mine must be floor/);
+    bad((t) => ((t.spike_trap as Record<string, unknown>).mine = { triggerRadiusM: 1, blastRadiusM: 2, damage: 1, playerShare: 0 }), /exclude each other/);
+    bad((t) => ((t.mine as Record<string, unknown>).upgradesTo = { type: "metal_barricade", price: 100 }), /a floor type can't upgrade/);
+    bad((t) => ((t.spike_trap as { trap: { pulseS: number } }).trap.pulseS = 0.33), /whole number/);
+    bad((t) => ((t.mine as { mine: { blastRadiusM: number } }).mine.blastRadiusM = 0.5), /at least triggerRadiusM/);
+  });
+});

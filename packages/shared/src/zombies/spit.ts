@@ -30,7 +30,7 @@ import { DAMAGE_SOURCE_ACID } from "../core/simEvents";
  *   kept while outside; puddles don't stack. Downed/out players, zombies and buildings take none.
  * - `clearAcid` (every build start): no spits, no puddles, every acid clock at 0 (DD4).
  *
- * Damage events use `sourceZombieId` = `DAMAGE_SOURCE_ACID` (−2), never −1 (fire). No randomness,
+ * Damage events use `sourceZombieId` = `DAMAGE_SOURCE_ACID` (−3), never −1 (fire) or −2 (5.9 blasts). No randomness,
  * no allocation per tick (module scratch only).
  */
 
@@ -113,7 +113,11 @@ export function spitterStep(world: World, id: number, radiusM: number, spit: Rea
     z.spitTicks[id] = ticksFor(spit.windupS);
     z.spitTarget[id] = target.id;
   }
-  return true; // winding up, or holding its spot while it cools down (target in range and sight)
+  // Holding its spot while it cools down (target in range and sight) — except in the wave's last rush
+  // (FR30, F6): a rushing Spitter walks in between spits, so a short-range camper (the 5 m Shotgun)
+  // still gets to it and the wave always ends.
+  if (isWindupState(z.state[id] as number)) return true; // a windup just started
+  return !isRushState(state);
 }
 
 /** Spawns a glob from the Spitter at (x, y) toward (tx, ty). False when the live cap is reached. */
@@ -167,7 +171,7 @@ function splash(world: World, i: number, x: number, y: number, hitPlayerId: stri
   freeSpit(s, i);
 }
 
-/** Acid damage to a standing player (spit or puddle): HP, `player.damaged` (source −2), down at 0. */
+/** Acid damage to a standing player (spit or puddle): HP, `player.damaged` (source −3), down at 0. */
 function acidDamage(world: World, p: PlayerState, amount: number): void {
   if (p.status !== "alive" || world.debug.godMode) return; // F5; god mode: dev cheat / ?stress
   p.hp = Math.max(0, p.hp - amount);

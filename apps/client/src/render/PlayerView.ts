@@ -2,7 +2,7 @@ import * as Phaser from "phaser";
 import type { PlayerState } from "@topdown/shared";
 import { SLOT_COLORS } from "./playerColors";
 import { pulseAlpha, pulseScale } from "./pulse";
-import { ATLAS_CHARACTERS, SURVIVOR_FRAME, ensureAtlases } from "./city/spriteAtlas";
+import { ATLAS_CHARACTERS, SURVIVOR_FRAME, ensureAtlases, survivorFrameFor } from "./city/spriteAtlas";
 import { CHAR_EXTENT_R } from "./city/spriteArt";
 
 /** Story 4.9: the survivor sprite (`survivor_body_a`), tinted for states (MULTIPLY). */
@@ -28,6 +28,8 @@ export class PlayerView {
   private shownStatus: PlayerState["status"] | null = null;
   private shownSlowed = false;
   private slot = -1;
+  /** Story 5.3: the frame shown (the active weapon's survivor frame); changed only on a swap or buy. */
+  private shownFrame = SURVIVOR_FRAME;
 
   constructor(scene: Phaser.Scene, radiusM: number) {
     // A stroked Arc with no fill, created once and only moved (no Graphics redraw).
@@ -53,6 +55,11 @@ export class PlayerView {
     this.y = lerp(p.prevY, p.y, alpha);
     this.ring.setPosition(this.x, this.y);
     this.body.setPosition(this.x, this.y).setRotation(Math.atan2(p.facingY, p.facingX));
+    const frame = survivorFrameFor(p.loadout.slots[p.loadout.active]?.weapon ?? "");
+    if (frame !== this.shownFrame) {
+      this.shownFrame = frame;
+      this.body.setFrame(frame);
+    }
     const slowed = p.slowTicksLeft > 0 && p.status === "alive";
     // Story 4.11: no burning tint any more (4.8's ember tint): BurnView draws flames, smoke and embers on the body.
     if (p.status !== this.shownStatus || slowed !== this.shownSlowed) {

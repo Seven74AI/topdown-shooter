@@ -44,12 +44,15 @@ import { ZombieView } from "../render/ZombieView";
 import { BloodTrailView } from "../render/BloodTrailView";
 import { FxView } from "../render/FxView";
 import { ProjectileView } from "../render/ProjectileView";
+import { streakScales } from "../render/weaponLook";
 import { DownedView } from "../render/DownedView";
 import { BuildingView } from "../render/BuildingView";
+import { MineView } from "../render/MineView";
+import { MINE_SHAKE_MS, mineShakeIntensity } from "../render/mineBlast";
 import { CityView } from "../render/city/CityView";
 import { TurretView } from "../render/TurretView";
 import { Placement, placeRefusalText } from "./placement";
-import { RepairPanel, repairRefusalText } from "./repairPanel";
+import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
@@ -78,7 +81,7 @@ import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
 import { recordSimFrame } from "../debug/perfProbe";
 import { perf } from "../debug/perfStats";
-import { setupStressWorld, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
+import { placeStressFloor, setupStressWorld, stressFireInput, toughenStressZombies, stressRun, viewAround, type ViewRect } from "../debug/stressScenario";
 import { netSummary } from "../debug/netSummary";
 import { netMeter } from "../net/netMeter";
 import { AmbiencePlayer } from "../audio/ambience";
@@ -124,6 +127,8 @@ export class GameScene extends Phaser.Scene {
   private host: SceneHost | null = null;
   /** `?stress` benchmark run (no in-run menu). */
   private stressMode = false;
+  /** Story 5.3 `?stressfire=1`: under `?stress`, my survivor holds fire at the nearest zombie. */
+  private stressFire = false;
   /** When the solo pause started (scene time), to shift the HUD's banner clock on resume. */
   private pausedAtMs = 0;
   /** The same host when solo (the in-run menu pauses it, Story 2.11); null online. */
@@ -188,6 +193,8 @@ export class GameScene extends Phaser.Scene {
   private downedView: DownedView | null = null;
   /** Story 3.4: placed buildings and the placement preview. */
   private buildingView: BuildingView | null = null;
+  /** Story 5.9: mine rings (build phase) and blinking lights (waves). */
+  private mineView: MineView | null = null;
   /**
    * Story 4.9: the Dead City look (static city baked per stage, light, rain, vignette). Its stage
    * entry point is `showStage`; it also redraws by itself when the obstacles change stage/version.
@@ -282,6 +289,7 @@ export class GameScene extends Phaser.Scene {
     perf.soloSeed = localHost ? localHost.world.seed : null; // Story 4.4: online the overlay reads the server's
     const stress = session ? null : opts.stress;
     this.stressMode = stress !== null;
+    this.stressFire = stress !== null && opts.stressFire;
     this.pausedAtMs = 0;
     this.host = host;
     const world = host.world;
@@ -323,7 +331,7 @@ export class GameScene extends Phaser.Scene {
     // ?loadout=a,b (release-safe): start with those weapons; unknown ids are ignored. Solo only.
     // Story 3.3: every other run starts with the Pistol (the dev loadout is a dev cheat now).
     const urlLoadout = opts.loadout && !session ? validLoadout(opts.loadout, weaponIds(balance)) : null;
-    if (urlLoadout && stress === null) {
+    if (urlLoadout && (stress === null || this.stressFire)) { // Story 5.3: ?stressfire benchmarks the ?loadout weapon
       const p = world.players.get(localId);
       if (p) setLoadout(balance, p.loadout, urlLoadout);
     }
@@ -339,11 +347,12 @@ export class GameScene extends Phaser.Scene {
     this.ambience = new AmbiencePlayer();
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online);
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
-    this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY);
+    this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
     this.fxView.balance = balance; // Story 3.5: building footprints for the debris
     this.downedView = new DownedView(this, world);
     this.buildingView = new BuildingView(this, balance);
+    this.mineView = new MineView(this, balance);
     this.turretView = new TurretView(this);
     this.selectView = new BuildingSelectView(this);
     this.playerRadiusM = balance.player.radiusM;
@@ -371,7 +380,9 @@ export class GameScene extends Phaser.Scene {
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
+      if (opts.stressBuild) placeStressFloor(world, localId, cx, cy); // Story 5.9: before the Walkers
       setupStressWorld(world, stress, view, cx, cy, parseWaveMix(opts.waveMix, balance)); // Story 5.6: ?wavemix=walker,spitter
+      if (opts.stressBuild) toughenStressZombies(world);
       stressRun.start(performance.now(), stress);
     }
 
@@ -399,6 +410,8 @@ export class GameScene extends Phaser.Scene {
       this.placement.cancel();
       this.buildingView?.destroy();
       this.buildingView = null;
+      this.mineView?.destroy();
+      this.mineView = null;
       this.cityView?.destroy();
       this.cityView = null;
       this.ambience?.dispose();
@@ -712,18 +725,27 @@ export class GameScene extends Phaser.Scene {
     const tap = m.worldTap;
     const press = m.repairPressed;
     const close = m.repairClosePressed;
-    m.worldTap = m.repairPressed = m.repairClosePressed = false;
+    const upgrade = m.upgradePressed; // Story 5.9
+    m.worldTap = m.repairPressed = m.repairClosePressed = m.upgradePressed = false;
     if (allowed && tap) {
       const w = this.cameras.main.getWorldPoint(m.worldTapX, m.worldTapY, this.cursorWorld);
       p.tap(host.world, w.x, w.y);
     }
     if (close) p.close();
     if (press && allowed && p.open) host.repairBuilding(p.press());
+    if (upgrade && allowed && p.open && p.upgradeErrorNow === null) {
+      // Story 5.9: the panel stays open, "Upgrading…" until the World (online: the state) shows the new tier.
+      const id = p.pressUpgrade(host.world);
+      if (id !== 0) host.upgradeBuilding(id);
+    }
     m.repairOpen = p.update(host.world, host.localPlayerId, allowed, this.ownerName);
     if (m.repairOpen) {
       m.repairInfo = p.info;
       m.repairReason = p.reason;
       m.repairLabel = p.label;
+      m.upgradeShown = p.upgradeShown;
+      m.upgradeLabel = p.upgradeLabel;
+      m.upgradeReason = p.upgradeReason;
     }
   }
 
@@ -883,6 +905,7 @@ export class GameScene extends Phaser.Scene {
       if (menuOpen !== this.localHost.paused) this.setPresentationPaused(menuOpen);
       this.localHost.paused = menuOpen;
     }
+    if (this.stressFire) stressFireInput(host.world, host.localPlayerId, this.input_);
     host.setLocalInput(this.input_);
     this.hudModel.toastText = this.toasts.current(this.time.now);
 
@@ -892,6 +915,11 @@ export class GameScene extends Phaser.Scene {
     if (refused) this.toasts.push(this.refusalText(refused));
     const repairRefused = host.takeRepairRefusal(); // Story 3.7
     if (repairRefused) this.toasts.push(this.repairText(repairRefused));
+    const upgradeRefused = host.takeUpgradeRefusal(); // Story 5.9
+    if (upgradeRefused) {
+      this.repairPanel.upgradeRefused();
+      this.toasts.push(upgradeRefusalText(upgradeRefused));
+    }
     const events = host.drainEvents();
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
@@ -914,6 +942,11 @@ export class GameScene extends Phaser.Scene {
         this.kills++;
       } else if (e.type === "money.earned" && e.playerId === localId) {
         this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame
+      } else if (e.type === "mine.exploded") {
+        // Story 5.9: a short shake when my survivor is within 6 m of the blast (`mineShakeIntensity`).
+        const me = host.world.players.get(localId);
+        const k = me ? mineShakeIntensity(Math.hypot(me.x - e.x, me.y - e.y)) : 0;
+        if (k > 0 && getSettings().screenShake) this.cameras.main.shake(MINE_SHAKE_MS, k);
       } else if (e.type === "weapon.fired" && e.playerId === localId) {
         const stats = host.world.balance.weapons[e.weapon];
         if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
@@ -940,6 +973,7 @@ export class GameScene extends Phaser.Scene {
     this.downedView?.update(host.world, this.time.now);
     this.ambience?.update(host.world.decay.stage);
     this.buildingView?.update(host.world, this.placement);
+    this.mineView?.update(host.world, this.time.now);
     this.turretView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.selectView?.update(host.world, this.repairPanel.id);
     const player = host.world.players.get(localId);

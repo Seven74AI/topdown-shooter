@@ -1,6 +1,6 @@
 import type { Balance } from "../config/balance";
 import { weaponIds, type WeaponId } from "../combat/weapons";
-import { DAMAGE_SOURCE_ACID, DAMAGE_SOURCE_FIRE, MONEY_REASONS, type SimEvent } from "../core/simEvents";
+import { MONEY_REASONS, type SimEvent } from "../core/simEvents";
 import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
 import { buildingTypeIds } from "../buildings/buildings";
@@ -43,8 +43,11 @@ export const NET_EVENT_KIND = {
   BUILDING_REPAIRED: 24, // Story 3.7
   RUN_HELD_OUT: 25, // Story 3.10
   DECAY_STAGE_CHANGED: 26, // Story 4.5
-  SPITTER_SPAT: 27, // Story 5.6 (merge: take the next free numbers; never reuse)
-  ACID_SPLASHED: 28, // Story 5.6
+  // Story 5.9 (next free numbers at merge; never reuse):
+  BUILDING_UPGRADED: 27,
+  MINE_EXPLODED: 28,
+  SPITTER_SPAT: 29, // Story 5.6 (renumbered at the 5.9 merge; never reuse)
+  ACID_SPLASHED: 30, // Story 5.6
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -116,7 +119,10 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
         playerSlotOf(e.sourceId), // Story 2.7 (appended: index 7)
       ];
     case "weapon.fired":
-      return [K.WEAPON_FIRED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
+      // Story 5.3: a pellet gun's shot appends its 16-bit input seq (index 6): remote clients rebuild the fan from it.
+      return e.seq !== undefined
+        ? [K.WEAPON_FIRED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY), e.seq & 0xffff]
+        : [K.WEAPON_FIRED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
     case "weapon.reload_started":
       return [K.WEAPON_RELOAD_STARTED, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), Math.round(e.reloadS * 1000)];
     case "weapon.reloaded":
@@ -129,8 +135,8 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       // Arc and range come from the weapon's balance on decode (melee.ts emits exactly those).
       return [K.MELEE_SWUNG, playerSlotOf(e.playerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), quantizeHeading(e.dirX, e.dirY)];
     case "player.damaged":
-      // Story 5.6: −1 fire and −2 acid stay apart (any other negative source goes as fire, as before).
-      return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? (e.sourceZombieId === DAMAGE_SOURCE_ACID ? DAMAGE_SOURCE_ACID : DAMAGE_SOURCE_FIRE) : zid(ctx, e.sourceZombieId)];
+      // Story 5.9: a negative source (fire -1, blast -2) travels as is.
+      return [K.PLAYER_DAMAGED, playerSlotOf(e.playerId), tenths(e.amount), e.sourceZombieId < 0 ? e.sourceZombieId : zid(ctx, e.sourceZombieId)];
     case "player.downed":
       return [K.PLAYER_DOWNED, playerSlotOf(e.playerId)];
     case "player.revived":
@@ -173,6 +179,14 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "decay.stage_changed":
       // Story 4.5: the banner (the map itself follows the room state's decayStage / decayVariants).
       return [K.DECAY_STAGE_CHANGED, e.stage, e.from];
+    case "building.upgraded": {
+      // Story 5.9: FX + toast (the new type, HP and wallet come from schema).
+      const t = buildingTypeIds(b).indexOf(e.toType);
+      return [K.BUILDING_UPGRADED, e.buildingId, playerSlotOf(e.playerId), e.cost, t < 0 ? NET_NONE : t, cm(e.x), cm(e.y)];
+    }
+    case "mine.exploded":
+      // Story 5.9: the blast FX (the removal comes from schema; hits and kills are their own events).
+      return [K.MINE_EXPLODED, e.buildingId, cm(e.x), cm(e.y)];
     case "spitter.spat":
       // Story 5.6: the glob's flight (cosmetic on the client; damage is server truth).
       return [K.SPITTER_SPAT, zid(ctx, e.zombieId), e.spitId, cm(e.x), cm(e.y), cm(e.toX), cm(e.toY)];
@@ -224,7 +238,7 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.WEAPON_FIRED: {
       const a = headingToRad(n(t, 5));
-      return {
+      const fired: Extract<SimEvent, { type: "weapon.fired" }> = {
         type: "weapon.fired",
         playerId: pid(t, 1),
         weapon: weaponOf(b, n(t, 2)),
@@ -233,6 +247,8 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
         dirX: Math.cos(a),
         dirY: Math.sin(a),
       };
+      if (t.length > 6) fired.seq = n(t, 6) & 0xffff; // Story 5.3: a pellet gun's seq
+      return fired;
     }
     case K.WEAPON_RELOAD_STARTED:
       return { type: "weapon.reload_started", playerId: pid(t, 1), weapon: weaponOf(b, n(t, 2)), reloadS: n(t, 3) / 1000 };
@@ -261,8 +277,7 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     }
     case K.PLAYER_DAMAGED: {
       const src = n(t, 3);
-      const source = src < 0 ? (src === DAMAGE_SOURCE_ACID ? DAMAGE_SOURCE_ACID : DAMAGE_SOURCE_FIRE) : zombieSlotOfNetId(src);
-      return { type: "player.damaged", playerId: pid(t, 1), amount: n(t, 2) / 10, sourceZombieId: source };
+      return { type: "player.damaged", playerId: pid(t, 1), amount: n(t, 2) / 10, sourceZombieId: src < 0 ? src : zombieSlotOfNetId(src) };
     }
     case K.PLAYER_DOWNED:
       return { type: "player.downed", playerId: pid(t, 1) };
@@ -307,6 +322,13 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "building.repaired", buildingId: n(t, 1), playerId: pid(t, 2), cost: n(t, 3), x: n(t, 4) / 100, y: n(t, 5) / 100 };
     case K.DECAY_STAGE_CHANGED:
       return { type: "decay.stage_changed", stage: n(t, 1), from: n(t, 2) };
+    case K.BUILDING_UPGRADED: {
+      const toType = buildingTypeIds(b)[n(t, 4)];
+      if (toType === undefined) return null;
+      return { type: "building.upgraded", buildingId: n(t, 1), playerId: pid(t, 2), cost: n(t, 3), toType, x: n(t, 5) / 100, y: n(t, 6) / 100 };
+    }
+    case K.MINE_EXPLODED:
+      return { type: "mine.exploded", buildingId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
     case K.SPITTER_SPAT:
       return { type: "spitter.spat", zombieId: zombieSlotOfNetId(n(t, 1)), spitId: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, toX: n(t, 5) / 100, toY: n(t, 6) / 100 };
     case K.ACID_SPLASHED:

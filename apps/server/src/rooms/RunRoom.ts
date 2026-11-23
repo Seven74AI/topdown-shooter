@@ -20,6 +20,7 @@ import {
   DOWNTOWN_MAP,
   buildingPlaceSchema,
   buildingRepairSchema,
+  buildingUpgradeSchema,
   isTestScenario,
   joinOptionsSchema,
   loadDevBalance,
@@ -38,6 +39,7 @@ import {
   type BuildingPlace,
   type BuildingRefused,
   type BuildingRepairRefused,
+  type BuildingUpgradeRefused,
   type JoinRefusal,
   type NetEvent,
   type NetEventContext,
@@ -261,6 +263,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.BUILDING_PLACE, this.net.guard(buildingPlaceSchema, (c, m) => this.onPlaceBuilding(c, m)));
     this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.weapon, m.slot ?? null)));
     this.onMessage(C2S.BUILDING_REPAIR, this.net.guard(buildingRepairSchema, (c, m) => this.onRepairBuilding(c, m.id)));
+    this.onMessage(C2S.BUILDING_UPGRADE, this.net.guard(buildingUpgradeSchema, (c, m) => this.onUpgradeBuilding(c, m.id))); // Story 5.9
     this.onMessage("*", (client) => this.net.unknown(client));
   }
 
@@ -423,6 +426,26 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const reason = r ? r.error : "not_build_phase";
     this.log.debug({ playerId: member.playerId, id, reason }, "building_repair_refused"); // debug: a flood must not flood the log
     client.send(S2C.BUILDING_REPAIR_REFUSED, { id, reason } satisfies BuildingRepairRefused);
+  }
+
+  /**
+   * `building.upgrade` (Story 5.9, shape-checked and rate-limited by the shared "other" bucket): the
+   * shared `upgradeBuilding` validates phase, owner, tier and the sender's wallet on the server's
+   * World and charges the step price. A refusal goes back to the sender only, as
+   * `building.upgrade_refused { id, reason }`; the new type, HP and wallet arrive in the next patch.
+   */
+  onUpgradeBuilding(client: RunClient, id: number): void {
+    const member = this.members.get(client.sessionId);
+    if (!member) return;
+    const controller = this.controller;
+    const r = controller ? controller.upgradeBuilding(member.playerId, id) : null;
+    if (r?.ok) {
+      this.log.info({ playerId: member.playerId, id, from: r.value.fromType, to: r.value.building.type, cost: r.value.cost }, "building_upgraded");
+      return;
+    }
+    const reason = r ? r.error : "not_build_phase";
+    this.log.debug({ playerId: member.playerId, id, reason }, "building_upgrade_refused");
+    client.send(S2C.BUILDING_UPGRADE_REFUSED, { id, reason } satisfies BuildingUpgradeRefused);
   }
 
   /**

@@ -23,8 +23,14 @@ Player:
 11 what:            bullets:
 12 what:            bullets:
 13-15 are these three different? what does each one do?
-16 what:            what does it do?
-17 what:            bullets:   + when does it hurt you?
+16 what is the survivor holding?
+17 what is the survivor holding?
+18 what:            bullets:            can you walk on it?
+19 what:            bullets:            can you walk on it?
+20 what:            bullets:            can you walk on it?
+21 what:            bullets:            can you walk on it?   + what do the two circles mean?
+22 what:            what does it do?
+23 what:            bullets:   + when does it hurt you?
 ```
 
 ## 1
@@ -66,8 +72,22 @@ Player:
 ## 13, 14, 15
 ![13](objects/14_walker.png) ![14](objects/15_runner.png) ![15](objects/16_crawler.png)
 
-## 16 (Story 5.6)
-![16](objects/17_spitter.png)
+## 16, 17: what is the survivor holding? (Story 5.3: Shotgun, Assault Rifle)
+![16](objects/17_survivor_shotgun.png) ![17](objects/18_survivor_assault_rifle.png)
+## 18 (Epic 5)
+![18](objects/19_reinforced_barricade.png)
 
-## 17: the green patch (Story 5.6)
-![17](objects/18_acid_puddle.png)
+## 19 (Epic 5)
+![19](objects/20_metal_barricade.png)
+
+## 20 (Epic 5)
+![20](objects/21_spike_trap.png)
+
+## 21 (Epic 5): the small round thing
+![21](objects/22_mine.png)
+
+## 22 (Story 5.6)
+![22](objects/23_spitter.png)
+
+## 23: the green patch (Story 5.6)
+![23](objects/24_acid_puddle.png)

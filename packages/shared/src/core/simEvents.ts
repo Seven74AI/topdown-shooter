@@ -6,11 +6,13 @@ export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund"] as c
 export type MoneyReason = (typeof MONEY_REASONS)[number];
 
 /**
- * `player.damaged.sourceZombieId` for damage that no zombie dealt (Story 5.6). Fire (Story 4.8) is
- * −1; acid (Spitter spit and puddles) is −2. On the wire both stay apart (`net/netEvents.ts`).
+ * `player.damaged.sourceZombieId` below 0: not a zombie's bite. Story 4.8: -1 = a fire pulse (the
+ * client's burn cue); Story 5.9: -2 = a blast (mines; 5.5/5.8/5.12 reuse it: no burn cue);
+ * Story 5.6: -3 = acid (Spitter spit and puddles: its own hurt cue). All travel as is on the wire.
  */
 export const DAMAGE_SOURCE_FIRE = -1;
-export const DAMAGE_SOURCE_ACID = -2;
+export const DAMAGE_SOURCE_EXPLOSION = -2;
+export const DAMAGE_SOURCE_ACID = -3;
 
 /**
  * Every event the simulation can emit (architecture › Event System).
@@ -41,7 +43,8 @@ export type SimEvent =
       /** Story 3.6 review M2: the turret whose shot it was (server only, not on the wire: interest filtering). */
       buildingId?: number;
     }
-  | { type: "weapon.fired"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number }
+  /** Story 5.3: `seq` (16-bit input seq) only for pellet guns: remote clients rebuild the fan from it. */
+  | { type: "weapon.fired"; playerId: string; weapon: string; x: number; y: number; dirX: number; dirY: number; seq?: number }
   | { type: "weapon.reload_started"; playerId: string; weapon: string; reloadS: number }
   | { type: "weapon.reloaded"; playerId: string; weapon: string }
   | { type: "weapon.swap_started"; playerId: string }
@@ -79,6 +82,13 @@ export type SimEvent =
    * shows the stage's name as a banner (the map itself follows the room state).
    */
   | { type: "decay.stage_changed"; stage: number; from: number }
+  /**
+   * Story 5.9: `playerId` upgraded their building `buildingId` to `toType` for `cost` (the step
+   * price); (x, y) = its footprint's centre. FX + HUD only (type, HP and wallet come from schema).
+   */
+  | { type: "building.upgraded"; buildingId: number; playerId: string; cost: number; toType: string; x: number; y: number }
+  /** Story 5.9: mine `buildingId` went off at (x, y) (already removed; its hits/kills follow as events). */
+  | { type: "mine.exploded"; buildingId: number; x: number; y: number }
   /**
    * Story 5.6: Spitter `zombieId` released glob `spitId` from its mouth (x, y) toward (toX, toY), the
    * end of its flight (the target's position at release, or the range end). It flies straight at the

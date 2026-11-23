@@ -15,6 +15,7 @@ import { MAX_PLAYERS } from "../net/messages";
  * 1. a downed teammate within `reviveSearchM`: move to them, stop within `reviveStopM` (standing
  *    there revives them, Story 2.8);
  * 2. a zombie closer than `keepDistanceM`: back away from it;
+ * 2b. (Story 5.6) the nearest zombie just beyond my weapon's range (≤ `closeInExtraM` more): step toward it;
  * 3. farther than `regroupDistM` from the centre of the alive team: move toward it;
  * 4. otherwise stand still.
  *
@@ -58,6 +59,8 @@ export interface BotView {
 
 export interface BotConfig {
   keepDistanceM: number;
+  /** Story 5.6: close in on a nearest zombie up to this far beyond my range (0: never). */
+  closeInExtraM?: number;
   regroupDistM: number;
   reviveSearchM: number;
   reviveStopM: number;
@@ -150,6 +153,14 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
   // 2. Back away from a zombie that is too close.
   if (z && z.distM < cfg.keepDistanceM) {
     moveToward(out, me.x - z.x, me.y - z.y);
+    return;
+  }
+
+  // 2b. Story 5.6: the nearest zombie stands just out of my range (a Spitter at 6 m vs the 5 m
+  // Shotgun): step toward it so I can shoot back.
+  const extra = cfg.closeInExtraM ?? 0;
+  if (z && extra > 0 && z.distM > me.rangeM && z.distM <= me.rangeM + extra) {
+    moveToward(out, z.x - me.x, z.y - me.y);
     return;
   }
 

@@ -25,8 +25,15 @@ const gunSchema = z
     reloadS: z.number().positive(),
     pierce: z.number().int().min(1),
     projectileSpeedMps: z.number().positive(),
+    /**
+     * Story 5.3: projectiles per trigger pull (the Shotgun's 8 pellets; 1 = a single bullet). One pull
+     * spends one round and one cooldown; pellets fill the spread cone evenly (`pelletDirection`).
+     */
+    pellets: z.number().int().min(1).max(16).default(1),
   })
-  .strict();
+  .strict()
+  // Story 5.3: a pellet gun knocks back once per shot (`knockbackM`), never per pellet.
+  .refine((g) => g.pellets === 1 || g.hitPushbackM === 0, { message: "a pellet gun (pellets > 1) needs hitPushbackM 0 (knockback is per shot: knockbackM)", path: ["hitPushbackM"] });
 
 const meleeSchema = z
   .object({
@@ -280,6 +287,11 @@ export const botsSchema = z
   .object({
     /** A zombie closer than this (centre to centre): back away from it. */
     keepDistanceM: z.number().min(0),
+    /**
+     * Story 5.6 (merge with 5.3): the nearest zombie stands beyond my weapon's range but within range
+     * + this (a Spitter holding 6 m against the 5 m Shotgun): step toward it. 0 = never close in.
+     */
+    closeInExtraM: z.number().min(0).default(0),
     /** Farther than this from the centre of the alive team: move toward it. */
     regroupDistM: z.number().min(0),
     /** A downed teammate within this: go and revive them. */
@@ -319,6 +331,37 @@ export const turretSchema = z
   .strict();
 
 /**
+ * Story 5.9: a spike trap. A zombie whose body overlaps the trap square fills its own spike clock;
+ * every `pulseS` of time on a trap it takes `damagePerS × pulseS` (whole) and the trap loses
+ * `wearPerHit` HP; while on it, it moves `slowPct` % slower (never stacked).
+ */
+export const trapSchema = z
+  .object({
+    damagePerS: z.number().positive(),
+    pulseS: z.number().positive().max(5),
+    slowPct: z.number().int().min(0).max(100),
+    wearPerHit: z.number().int().min(0),
+  })
+  .strict()
+  .refine((t) => Math.abs(t.damagePerS * t.pulseS - Math.round(t.damagePerS * t.pulseS)) < 1e-9 && Math.round(t.damagePerS * t.pulseS) >= 1, "damagePerS × pulseS must be a whole number ≥ 1")
+  .refine((t) => Math.abs(t.pulseS * TICK_RATE_HZ - Math.round(t.pulseS * TICK_RATE_HZ)) < 1e-9, "pulseS must be a whole number of ticks");
+
+/**
+ * Story 5.9: a mine. A zombie body overlapping the `triggerRadiusM` circle round its centre sets it
+ * off (same tick); every zombie body overlapping the `blastRadiusM` circle with a clear shot line
+ * takes `damage`, standing players `damage × playerShare`.
+ */
+export const mineSchema = z
+  .object({
+    triggerRadiusM: z.number().positive().max(8),
+    blastRadiusM: z.number().positive().max(8),
+    damage: z.number().positive(),
+    playerShare: z.number().min(0).max(1),
+  })
+  .strict()
+  .refine((m) => m.blastRadiusM >= m.triggerRadiusM, "blastRadiusM must be at least triggerRadiusM");
+
+/**
  * Story 3.4: one building type (GDD › Buildings and Defenses). The footprint is `widthM` along x and
  * `depthM` along y at rotation 0 (rotations 1 and 3 swap them), both multiples of the 0.5 m build
  * lattice; its min corner sits on a lattice point. Story 3.6 adds turret fields (with defaults).
@@ -335,6 +378,17 @@ export const buildingTypeSchema = z
     hp: z.number().int().positive().max(65535),
     /** Story 3.6: present on buildings that shoot (default: none, the building never fires). */
     turret: turretSchema.optional(),
+    // ---- Story 5.9 (walls vs floor, upgrades, traps, mines) ----
+    /** Story 5.9: true = a wall (blocks bodies and the flow field, zombies attack it); false = floor (traps, mines). */
+    solid: z.boolean().default(true),
+    /** Story 5.9: false = only reached by an upgrade (never in the shop, refused by placement). */
+    forSale: z.boolean().default(true),
+    /** Story 5.9: the next tier and what the step costs (the target's `price` is the total paid: F9). */
+    upgradesTo: z.object({ type: balanceId, price: z.number().int().positive() }).strict().optional(),
+    /** Story 5.9: a spike trap (floor): damages and slows zombies standing on it, per body. */
+    trap: trapSchema.optional(),
+    /** Story 5.9: a mine (floor, single use): a zombie touching the trigger circle sets off the blast. */
+    mine: mineSchema.optional(),
   })
   .strict();
 
@@ -424,3 +478,5 @@ export type ZombieTypeStats = z.output<typeof zombieTypeSchema>;
 export type SpitStats = z.output<typeof spitSchema>;
 export type BuildingTypeStats = z.output<typeof buildingTypeSchema>;
 export type TurretStats = z.output<typeof turretSchema>;
+export type TrapStats = z.output<typeof trapSchema>;
+export type MineStats = z.output<typeof mineSchema>;

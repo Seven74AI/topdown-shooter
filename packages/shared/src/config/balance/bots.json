@@ -1,5 +1,6 @@
 {
   "keepDistanceM": 2.5,
+  "closeInExtraM": 2,
   "regroupDistM": 4,
   "reviveSearchM": 6,
   "reviveStopM": 1,

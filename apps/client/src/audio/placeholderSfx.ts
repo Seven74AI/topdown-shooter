@@ -5,6 +5,8 @@
  */
 export type SfxName =
   | "weapon_pistol_fire"
+  | "weapon_shotgun_fire"
+  | "weapon_assault_rifle_fire"
   | "weapon_machete_swing"
   | "weapon_reload_start"
   | "weapon_reloaded"
@@ -12,6 +14,9 @@ export type SfxName =
   | "building_repaired"
   | "turret_fire"
   | "zombie_runner_shriek"
+  | "building_mine_blast"
+  | "building_upgraded"
+
   // Story 5.6: the Spitter's windup gurgle (positional), its spit, and the acid's hiss.
   | "zombie_spitter_gurgle"
   | "zombie_spitter_spit"
@@ -19,6 +24,9 @@ export type SfxName =
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
+/** Story 5.9: mines going off in the same instant make one blast sound. */
+const BLAST_MIN_INTERVAL_S = 0.08;
+let lastBlastAt = -1;
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -217,6 +225,14 @@ export function playSfx(name: SfxName, pan = 0): void {
       burst(c, t, 0.06, 0.9, 3500);
       click(c, t, 200, 0.5);
       break;
+    case "weapon_shotgun_fire": // Story 5.3: a deep, long boom
+      burst(c, t, 0.16, 1, 1400);
+      click(c, t, 90, 0.8);
+      break;
+    case "weapon_assault_rifle_fire": // Story 5.3: a sharp crack, shorter than the pistol's (8/s)
+      burst(c, t, 0.045, 0.8, 4200);
+      click(c, t, 260, 0.4);
+      break;
     case "weapon_machete_swing":
       sweep(c, t, 0.12, 0.5, 900, 3200); // whoosh: noise through a rising band-pass
       break;
@@ -233,6 +249,16 @@ export function playSfx(name: SfxName, pan = 0): void {
       break;
     case "zombie_runner_shriek":
       shriek(c, t, pan);
+      break;
+    case "building_mine_blast": // Story 5.9: a deep thump with a noisy tail (rate-limited: a field of mines)
+      if (t - lastBlastAt < BLAST_MIN_INTERVAL_S) return;
+      lastBlastAt = t;
+      burst(c, t, 0.35, 1, 180);
+      burst(c, t + 0.02, 0.2, 0.6, 900);
+      break;
+    case "building_upgraded": // Story 5.9: a metallic clank
+      click(c, t, 1800, 0.4);
+      burst(c, t + 0.05, 0.08, 0.5, 2600);
       break;
     case "turret_fire": // Story 3.6: a soft, high, short tick (quieter than a gun)
       if (t - lastTurretAt < TURRET_MIN_INTERVAL_S) return;

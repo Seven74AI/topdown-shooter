@@ -281,6 +281,17 @@ Claude Opus 5.5 (claude-opus-5-5), builder in worktree `.claude/worktrees/story-
 | `render/fireCue.ts`, `burnCue.ts` | `isFireHit === -1`, `isAcidHit`, `ACID_CUE_MS`, `FireCue(cueMs)`, `routeAcidHit` | |
 | tests touched for the 4th type | `decay.test`, `fire.test`, `panic.test`, `downtown.fuzz.test` (windup = reached; spit checks + stray globs), `slow.test` | 5.7/5.8 new types need the same "reached" rule if they stand off |
 
+### Merge with the work branch (5.3 + 5.9), 2026-11-23
+
+- **Event kinds renumbered:** 5.9 owns 27 (`building.upgraded`) and 28 (`mine.exploded`); Spitters now use **`SPITTER_SPAT 29`, `ACID_SPLASHED 30`**.
+- **Damage source:** 5.9 took −2 for blasts (`DAMAGE_SOURCE_EXPLOSION`) and sends every negative source as-is. **Acid is now `DAMAGE_SOURCE_ACID = −3`**: fire is −1, blasts −2, acid −3; each has its own client cue (fire burns, acid shows "Acid" in green, blasts show no cue).
+- **5.9 floor buildings:** spits fly over spike traps and mines like over barricades. Spits only test map shot blockers and standing players (test added). The windup's line check ignores player buildings too.
+- **5.3 knockback during a windup (rule):** a knock moves the Spitter's body and cancels nothing. The windup plays out, and the release re-checks range and line from where the Spitter now stands. Knocked out of range or behind a car → no spit (F1); otherwise it spits from the new spot (test: pushed 0.5 m → spits, 2.5 m → none).
+- **F6 with the 5 m Shotgun (new rule):** the 5.3 knockback fuzz (one Shotgun player standing still from wave 4) stalled. Spitters held 6 m, out of the Shotgun's 5 m range. Rule now: in the wave's last rush (FR30) a Spitter still winds up and spits, but **walks in between spits** instead of holding its spot, so the wave always ends (test added). Outside the rush it still holds 6 m.
+- **Bots (merge):** `bots.json › closeInExtraM` 2 (new, schema default 0). A bot whose nearest zombie stands just beyond its weapon's range (≤ 2 m more) steps toward it. Without it, Shotgun bots never shot back at Spitters. The 5.3 gun sim now starts its bots with 500 (`economy.startingWallet` override in that test only): Spitters wipe the pistol bots in wave 4 before they can save 450 for the Assault Rifle. That test checks that the guns kill, not survival.
+- **Readability sheet:** 5.3 has rows 16–17 and 5.9 has 18–21; Spitter and puddle are now rows **22–23** (`objects/23_spitter.png`, `24_acid_puddle.png`).
+- **Zombie pool and snapshot:** all fields kept. 5.3 `knockShot`/`knockHead`, 5.9 `trapTicks`/`slowPct`, 5.6 `spitTicks`/`spitTarget`.
+
 ### Not verified
 
 - **Phone FPS** (only headless SwiftShader on a busy box, load 3–7; the numbers are noise-level). The 4.10 phone floor must be rechecked with `?stress=150&wavemix=walker,spitter`.

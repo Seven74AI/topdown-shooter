@@ -34,7 +34,7 @@ describe("repairCost (Story 3.7)", () => {
   });
 
   it("rounds up (a repair is never free): price 41 → 21, share 0.01 of 40 → 1", () => {
-    const odd = loadBalance(withOverrides(bundledBalanceFiles(), [["buildings", "types.wood_barricade.price", 41]]));
+    const odd = loadBalance(withOverrides(bundledBalanceFiles(), [["buildings", "types.wood_barricade.price", 41], ["buildings", "types.reinforced_barricade.price", 91], ["buildings", "types.metal_barricade.price", 161]]));
     expect(repairCost(odd, WOOD)).toBe(21);
     const tiny = loadBalance(withOverrides(bundledBalanceFiles(), [["buildings", "repairShare", 0.01]]));
     expect(repairCost(tiny, WOOD)).toBe(1);

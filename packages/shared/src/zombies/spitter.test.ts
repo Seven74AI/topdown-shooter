@@ -137,7 +137,7 @@ describe("Spitter AI (Story 5.6 AC 2, F1, F3, F5, F6)", () => {
       const ev = record(w);
       run(w, 40);
       expect(spats(ev).length, name).toBe(1);
-      const hits = ev.filter((e) => e.type === "player.damaged" && e.sourceZombieId === -2);
+      const hits = ev.filter((e) => e.type === "player.damaged" && e.sourceZombieId === -3);
       expect(hits.length, `${name}: the spit hits the camper`).toBeGreaterThanOrEqual(1);
       expect(ev.find((e) => e.type === "acid.splashed")).toMatchObject({ hitPlayerId: "p0" });
     }
@@ -170,6 +170,25 @@ describe("Spitter AI (Story 5.6 AC 2, F1, F3, F5, F6)", () => {
     p.x = 32; // 12 m away
     run(w, 7);
     expect(spats(ev)).toHaveLength(0);
+  });
+
+  it("merge with 5.3: a knockback during the windup cancels nothing; the release re-checks from where it now stands", () => {
+    for (const [pushM, spits] of [
+      [0.5, 1], // knocked 0.5 m back: still in range → spits
+      [2.5, 0], // knocked out of range (7.5 m) → no spit (F1)
+    ] as const) {
+      const w = createWorld({ balance, seed: 1, systems: NO_WAVES });
+      addPlayer(w, "p0", 25, 16).hp = 1e9;
+      const id = spawnZombie(w, "spitter", 20, 16);
+      const ev = record(w);
+      run(w, 6);
+      w.zombies.x[id] = 20 - pushM; // what 5.3's knockback does: it moves the body, nothing else
+      w.zombies.prevX[id] = 20 - pushM;
+      run(w, 1);
+      expect(isWindupState(w.zombies.state[id] as number), `push ${pushM}`).toBe(true);
+      run(w, 6);
+      expect(spats(ev).length, `push ${pushM}`).toBe(spits);
+    }
   });
 
   it("a Spitter killed during its windup spits nothing", () => {
@@ -222,6 +241,10 @@ describe("Spitter AI (Story 5.6 AC 2, F1, F3, F5, F6)", () => {
     expect(states[0]).toBe(ZOMBIE_STATE.RUSH_WINDUP);
     expect(states[12]).toBe(ZOMBIE_STATE.RUSH);
     expect(spats(ev)).toHaveLength(1);
+    // F6 (merge with 5.3, the 5 m Shotgun): between spits a rushing Spitter walks in instead of holding its spot.
+    const x0 = w.zombies.x[id] as number;
+    run(w, 20);
+    expect(w.zombies.x[id] as number).toBeGreaterThan(x0 + 0.5);
   });
 
   it("F6: a Spitter with no line keeps walking toward the players and bites up close (5 dmg)", () => {

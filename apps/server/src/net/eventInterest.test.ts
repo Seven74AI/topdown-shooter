@@ -57,13 +57,28 @@ describe("EventInterest (Story 3.6 review M2)", () => {
     expect(kinds(interest.all)).toEqual([NET_EVENT_KIND.ZOMBIE_HIT, NET_EVENT_KIND.ZOMBIE_KILLED]);
   });
 
+  it("Story 5.9: mine.exploded is local (its centre); building.upgraded is global", () => {
+    const { world, interest } = setup();
+    interest.prepare(
+      world,
+      [
+        { type: "mine.exploded", buildingId: 9, x: 3, y: 3 },
+        { type: "building.upgraded", buildingId: 5, playerId: "p0", cost: 50, toType: "reinforced_barricade", x: 40, y: 25 },
+      ],
+      ctx,
+    );
+    expect(interest.localCount).toBe(1);
+    expect(kinds(interest.eventsFor(world, 12, 8))).toEqual([NET_EVENT_KIND.MINE_EXPLODED, NET_EVENT_KIND.BUILDING_UPGRADED]);
+    expect(kinds(interest.eventsFor(world, 36, 24))).toEqual([NET_EVENT_KIND.BUILDING_UPGRADED]);
+  });
+
   it("Story 5.6: spits and splashes are local (start or end in view); acid damage stays global", () => {
     const { world, interest } = setup();
     const events: SimEvent[] = [
       { type: "spitter.spat", zombieId: 3, spitId: 1, x: 3, y: 3, toX: 8, toY: 3 }, // top-left only
       { type: "spitter.spat", zombieId: 4, spitId: 2, x: 15, y: 20, toX: 21, toY: 20 }, // ends inside the far view
       { type: "acid.splashed", puddleId: 1, x: 8, y: 3, hitPlayerId: null },
-      { type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: -2 },
+      { type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: -3 },
     ];
     interest.prepare(world, events, ctx);
     expect(interest.localCount).toBe(3);

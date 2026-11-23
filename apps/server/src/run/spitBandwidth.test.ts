@@ -7,7 +7,7 @@ import { EventInterest } from "../net/eventInterest";
 /**
  * Story 5.6 (brief line 11, AC 14): what Spitters add to each client's `sim.events_flushed`. The
  * windup rides in the horde stream's state nibble (0 B); `spitter.spat` and `acid.splashed` are
- * local events (`EventInterest`), the acid `player.damaged` (source −2) is global. Measured per
+ * local events (`EventInterest`), the acid `player.damaged` (source −3) is global. Measured per
  * client as the bytes of its tick message with everything minus the same message without the
  * Spitter-caused tuples (spat, splashed, acid damage).
  */
@@ -42,7 +42,7 @@ function measure(c: RunController, views: () => readonly (readonly [number, numb
     for (const e of events as readonly SimEvent[]) {
       if (e.type === "spitter.spat") spits++;
       else if (e.type === "acid.splashed" && e.hitPlayerId !== null) hits++;
-      else if (e.type === "player.damaged" && e.sourceZombieId === -2) acidHits++;
+      else if (e.type === "player.damaged" && e.sourceZombieId === -3) acidHits++;
     }
     interest.prepare(world, events, ctx);
     const vs = views();
@@ -51,7 +51,7 @@ function measure(c: RunController, views: () => readonly (readonly [number, numb
       const mine = interest.eventsFor(world, vx, vy);
       if (mine.length === 0) continue;
       without.length = 0;
-      for (const tu of mine) if (!SPIT_KINDS.has(tu[0] as number) && !(tu[0] === NET_EVENT_KIND.PLAYER_DAMAGED && tu[3] === -2)) without.push(tu);
+      for (const tu of mine) if (!SPIT_KINDS.has(tu[0] as number) && !(tu[0] === NET_EVENT_KIND.PLAYER_DAMAGED && tu[3] === -3)) without.push(tu);
       const all = pack({ tick: world.tick, events: mine }).length;
       const rest = without.length > 0 ? pack({ tick: world.tick, events: without }).length : 0;
       added[i] = (added[i] as number) + all - rest;

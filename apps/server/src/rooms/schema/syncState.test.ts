@@ -159,6 +159,28 @@ describe("syncState", () => {
     expect([...state.buildings.keys()]).toEqual(["2"]);
   });
 
+  it("Story 5.9: an upgrade retypes the same schema entry (a type + HP patch, ~20 B), no remove/add", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    w.run.phase = "build";
+    const me = w.players.get("p0");
+    if (me) me.wallet = 500;
+    expect(controller.placeBuilding("p0", { type: "wood_barricade", gx: 18, gy: 28, rot: 1 }).ok).toBe(true);
+    controller.tick();
+    syncState(state, controller);
+    const entry = state.buildings.get("1");
+    encoder.encode();
+    encoder.discardChanges();
+    expect(controller.upgradeBuilding("p0", 1).ok).toBe(true);
+    syncState(state, controller);
+    expect(state.buildings.get("1")).toBe(entry); // the same entry
+    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "reinforced_barricade", owner: "p0", gx: 18, gy: 28, rot: 1, hp: 350 });
+    const bytes = encoder.encode().length;
+    encoder.discardChanges();
+    console.info(`[bandwidth] building upgraded: ${bytes} B patch (incl. wallet)`);
+    expect(bytes).toBeLessThan(40);
+  });
+
   it("copies the bite slow (Story 3.9), counted down by the World", () => {
     const { controller, state } = setup();
     const p0 = controller.world.players.get("p0");

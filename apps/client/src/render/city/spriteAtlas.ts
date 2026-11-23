@@ -5,6 +5,7 @@ import { CAR_COLORS } from "./dressing";
 import { addCanvasTexture } from "./canvasTexture";
 import { OBJ_SANDBAGS, ensureObjectsAtlas, objectsFrameSource, type FrameSource } from "./objectsAtlas";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
+import { WEAPON_ART } from "./weaponArt";
 import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawDumpster, drawPump, drawSandbags, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
@@ -29,6 +30,13 @@ export const ZOMBIE_FRAMES: Readonly<Record<ZombieTypeId, readonly string[]>> = 
 export const SURVIVOR_FRAME = frameName("survivor", "body", "a");
 /** Story 5.6: the Spitter's windup pose (rearing back, mouth blazing), one per clothes variant. */
 export const SPITTER_WINDUP_FRAMES: readonly string[] = Array.from({ length: ZOMBIE_VARIANTS.spitter }, (_, i) => `${frameName("zombie", "spitter", "windup")}_${variantLetter(i)}`);
+/**
+ * Story 5.3: the survivor holding a weapon with its own art (`weaponArt.ts`), by weapon id:
+ * `survivor_shotgun_a`, `survivor_assault_rifle_a`. Other weapons use `SURVIVOR_FRAME`.
+ */
+export const SURVIVOR_WEAPON_FRAMES: Readonly<Record<string, string>> = Object.fromEntries(Object.keys(WEAPON_ART).map((w) => [w, frameName("survivor", w, "a")]));
+/** The survivor frame for the active weapon (no string building per frame). */
+export const survivorFrameFor = (weapon: string): string => SURVIVOR_WEAPON_FRAMES[weapon] ?? SURVIVOR_FRAME;
 
 /** Downtown vehicles and props: frame name → native size in map px (32 px = 1 m). */
 export const VEHICLE_BUS = frameName("vehicle", "bus", "a");
@@ -86,6 +94,7 @@ export function characterSpecs(): FrameSpec[] {
   for (const name of SPITTER_WINDUP_FRAMES) out.push({ name, w: sp, h: sp });
   const s = Math.ceil(2 * CHAR_EXTENT_R.survivor * CHAR_R_PX);
   out.push({ name: SURVIVOR_FRAME, w: s, h: s });
+  for (const name of Object.values(SURVIVOR_WEAPON_FRAMES)) out.push({ name, w: s, h: s });
   return out;
 }
 export function downtownSpecs(): FrameSpec[] {
@@ -130,6 +139,10 @@ function zombieOf(name: string): { type: ZombieTypeId; variant: number } | null 
 function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   g.translate(f.x + f.w / 2, f.y + f.h / 2);
   if (f.name === SURVIVOR_FRAME) return drawSurvivor(g, CHAR_R_PX);
+  for (const [weapon, name] of Object.entries(SURVIVOR_WEAPON_FRAMES)) {
+    const art = WEAPON_ART[weapon];
+    if (name === f.name && art) return drawSurvivor(g, CHAR_R_PX, (c, r) => art(c, "held", r));
+  }
   const z = zombieOf(f.name);
   if (z) drawZombie(g, z.type, CHAR_R_PX, z.variant);
   const w = SPITTER_WINDUP_FRAMES.indexOf(f.name);

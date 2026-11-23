@@ -79,7 +79,7 @@ describe("headless replay (Story 4.4, NFR10)", () => {
         void world.events.subscribe((e: SimEvent) => {
           if (e.type === "spitter.spat") c.spits++;
           else if (e.type === "acid.splashed") c.splashes++;
-          else if (e.type === "player.damaged" && e.sourceZombieId === -2) c.acidHits++;
+          else if (e.type === "player.damaged" && e.sourceZombieId === -3) c.acidHits++;
         }),
     });
     expect(worldDigest(w)).toBe(rec.digest);

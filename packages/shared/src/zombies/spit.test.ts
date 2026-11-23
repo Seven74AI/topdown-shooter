@@ -112,7 +112,7 @@ describe("spits (Story 5.6 AC 3)", () => {
     const ev = record(w);
     run(w, 30);
     const hits = ev.filter((e) => e.type === "player.damaged");
-    expect(hits[0]).toMatchObject({ playerId: "p0", amount: 15, sourceZombieId: -2 });
+    expect(hits[0]).toMatchObject({ playerId: "p0", amount: 15, sourceZombieId: -3 });
     expect(p.hp).toBeLessThanOrEqual(balance.player.maxHp - 15);
   });
 
@@ -153,6 +153,9 @@ describe("spits (Story 5.6 AC 3)", () => {
       ["barrier", mapWith("barrier", { minX: 22, minY: 14, maxX: 22.5, maxY: 18 }), () => {}, true],
       ["barricade", PLACEHOLDER_MAP, (w) => addBuildingAt(w, { id: 1, type: "wood_barricade", ownerId: "p0", gx: 44, gy: 28, rot: 1, hp: 200 }), true],
       ["turret", PLACEHOLDER_MAP, (w) => addBuildingAt(w, { id: 1, type: "auto_turret", ownerId: "p0", gx: 44, gy: 31, rot: 0, hp: 300 }), true],
+      // Merge with 5.9: floor buildings (spike trap, mine) never stop a spit either.
+      ["spike trap", PLACEHOLDER_MAP, (w) => addBuildingAt(w, { id: 1, type: "spike_trap", ownerId: "p0", gx: 44, gy: 31, rot: 0, hp: 100 }), true],
+      ["mine", PLACEHOLDER_MAP, (w) => addBuildingAt(w, { id: 1, type: "mine", ownerId: "p0", gx: 44, gy: 32, rot: 0, hp: 1 }), true],
     ];
     for (const [name, map, place, passes] of cases) {
       const w = createWorld({ balance, seed: 1, map, systems: NO_WAVES });

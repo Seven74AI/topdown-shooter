@@ -9,6 +9,7 @@ import {
   applyTestScenario,
   placeBuilding,
   repairBuilding,
+  upgradeBuilding,
   buyWeapon,
   createWorld,
   DOWNTOWN_MAP,
@@ -29,6 +30,8 @@ import {
   type PlayerState,
   type RepairError,
   type Repaired,
+  type UpgradeError,
+  type Upgraded,
   type Bought,
   type PlayerInput,
   type Result,
@@ -287,6 +290,11 @@ export class RunController {
     return repairBuilding(this.world, playerId, buildingId);
   }
 
+  /** Story 5.9: `building.upgrade`, between ticks (the shared `upgradeBuilding`'s rules). */
+  upgradeBuilding(playerId: string, buildingId: number): Result<Upgraded, UpgradeError> {
+    return upgradeBuilding(this.world, playerId, buildingId);
+  }
+
   /**
    * Story 3.3: buys a weapon of the fixed shop for a player (the shared rules: build phase, price,
    * wallet, slot). Applied at once, between ticks, like Ready; the next `syncState` sends the
@@ -412,7 +420,8 @@ export class RunController {
   private watchSpread(s: PlayerSlot, p: PlayerState): void {
     const cur = s.current;
     const stats = weaponStats(this.world.balance, activeSlot(p.loadout).weapon);
-    const spread = isGun(stats) ? stats.spreadDeg : 0;
+    // Story 5.3: a pellet gun's stratified fan has no single roll to cancel (F1): nothing to watch.
+    const spread = isGun(stats) && stats.pellets === 1 ? stats.spreadDeg : 0;
     const flagged = s.spreadWatch.observe(cur.seq, cur.aimX, cur.aimY, cur.fire, spread, this.world.waves.number);
     if (flagged) this.onSpreadCancelSuspect?.(flagged);
   }

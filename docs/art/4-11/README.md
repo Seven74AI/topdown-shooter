@@ -6,7 +6,7 @@ AI-generated with Meshy (`nano-banana-pro`, text to image) as **references**; th
 | --- | --- | --- |
 | `sandbags_s2.jpg` | stage 3 sandbags (map cover, `kind: sandbags`) | 3 × 1 m |
 | `barricade_b6.jpg` | the player-built **wood barricade** (sharpened palisade on struts); turns with placement (rot 0/1) | 2 × 0.5 m |
-| `barricade_upgrade_b8.jpg` | **not now**: kept for a later barricade upgrade (Epic 5) | 2 × 0.5 m |
+| `barricade_upgrade_b8.jpg` | **now used by Story 5.9**: the reinforced barricade (wood tier 2), drawn in code from this reference (`apps/client/src/render/city/buildingArt.ts › drawReinforcedBarricade`) | 2 × 0.5 m |
 | `car_fire_f6.jpg` | burning car look: smoke, burning debris, orange glow, small fires in a circle at the damage edge | car 4.5 × 2 m, fire zone radius 2 m |
 
 Prompts: the picks above came from these descriptions (each + a shared style line: strict top-down orthographic, gritty realistic, night, wet asphalt, cool streetlight from the upper left, muted, crisp silhouette, no text):

@@ -94,8 +94,8 @@ describe("the drawn acid ring is the sim's rule (4.8 D16)", () => {
 });
 
 describe("acid has its own hurt cue (D4: never 'Burning')", () => {
-  it("source −2 is acid, −1 is fire; each routes to its own cue", () => {
-    const acid: SimEvent = { type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: -2 };
+  it("source −3 is acid, −1 is fire; each routes to its own cue", () => {
+    const acid: SimEvent = { type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: -3 };
     const fire: SimEvent = { type: "player.damaged", playerId: "p0", amount: 5, sourceZombieId: -1 };
     expect([isAcidHit(acid), isFireHit(acid), isAcidHit(fire), isFireHit(fire)]).toEqual([true, false, false, true]);
     const fc = new FireCue();

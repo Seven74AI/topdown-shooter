@@ -61,3 +61,27 @@ Every story also starts with an **art pick**: the designer chooses the look from
 **All new Epic 5 art is drawn in game code** (Canvas 2D, like the bus, cars and zombies today), not shipped as AI images. Reasons: easiest to edit, variants/damage/animation for free, one consistent style, no credits, and it makes later **weapon customization** possible (guns built from parts). Meshy and Claude's vector illustrations are used only as **references to aim for**. At build time all art is baked into a ready-made atlas so phones don't draw art at start-up. Story 4.11's Meshy sprites stay for now (reviewed and live); redraw them in code later only if they look out of place.
 
 Round A shortlist (comparison page: claude.ai/artifact/G9RtYwhjfS9oujAQphB8VU): Shotgun G1/G3, Assault Rifle R2/R1, Spitter P1/P2/P4, metal barricade M1/M2, spike trap T1/T3, mine N1/N4. Round 2 code redraws requested: Spitter woman P2, gaunt Spitter P4, metal barricades, wire-and-glass trap T3, landmines.
+
+## Art feedback, round 2 (designer, 2026-11-23)
+
+- Spike trap = nailboard **T1**. Wire-and-glass T3 dropped (not recognisable without its name).
+- **M1** metal barricade: perspective/feet look wrong → redraw strictly top-down (round 3). **M2** corrugated: good up close, too small to read in game → bolder game-size version (round 3).
+- Mines: neither design liked → 5 new **round mines with a red dot** (round 3).
+- New: **bear trap** as a second trap type → Story 5.14 (after round A).
+
+## Final art picks, round A (designer, 2026-11-23)
+
+Code drawings in `docs/art/epic-5/round-a/code-drawings.html` (round 3 badges for the newest).
+
+| Object | Base look (now) | Upgrade-tier look (later) |
+| --- | --- | --- |
+| Shotgun (5.3) | G1 pump-action | G3 tactical (upgrades III–IV, Story 5.1) |
+| Assault Rifle (5.3) | R2 wooden-furniture | R1 modern black (upgrades III–IV, Story 5.1) |
+| Wood barricade ladder (5.9) | wood B6 → reinforced B8 → metal **M1c** | — |
+| Spike trap (5.9) | T1 nailboard | — |
+| Mine (5.9) | **N6** round pressure-plate mine, red dot | N9 (yellow-ring disc) for an improved mine |
+| Bear trap (5.14) | **B-T1** | — |
+
+Corrugated barricade (M2) dropped. Spitter (5.6): pick still open (P1/P2/P4; P2 needs more iteration). Rule: when the designer picks two, the first is the base look and the second the upgrade-tier look.
+
+5.3 fairness rule: "point blank, all 8 pellets hit" holds within **1.35 m** (designer OK).

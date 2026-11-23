@@ -119,7 +119,7 @@ function simulate(seed: number, o: Opts) {
       for (const e of evs) {
         if (e.type === "spitter.spat") serverSpits++;
         if (e.type === "acid.splashed") serverSplash.push({ x: e.x, y: e.y });
-        if (e.type === "player.damaged" && e.playerId === ID && e.sourceZombieId === -2) serverHitsOnMe++;
+        if (e.type === "player.damaged" && e.playerId === ID && e.sourceZombieId === -3) serverHitsOnMe++;
         const tu = encodeNetEvent(e, ctx);
         if (tu) tuples.push(tu);
       }

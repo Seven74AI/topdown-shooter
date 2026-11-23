@@ -151,6 +151,8 @@ export const updateZombies: SystemFn = (world, dtS) => {
     const y = pool.y[id] as number;
     let vx = 0;
     let vy = 0;
+    // Story 5.9: a spike trap's slow this tick (written by `updateTraps` in the buildings slot; 0 off traps).
+    const speedMps = (stats.speedMps * (100 - (pool.slowPct[id] as number))) / 100;
 
     targetBuilding[id] = 0;
     fieldMode[id] = 0;
@@ -175,7 +177,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
           stats.flanks &&
           !isRushState(pool.state[id] as number) &&
           d > flank.directWithinM &&
-          !flankTimeSpent(world, id, d, stats.speedMps * dtS * flank.closingSpeedFrac, maxFlankTicks) &&
+          !flankTimeSpent(world, id, d, speedMps * dtS * flank.closingSpeedFrac, maxFlankTicks) &&
           (blocked || inFlankCone(world, target, x, y))
         ) {
           const f = world.pathing.flank;
@@ -190,8 +192,8 @@ export const updateZombies: SystemFn = (world, dtS) => {
           d = Math.sqrt(dx * dx + dy * dy);
         }
         if (d > COINCIDENT_M) {
-          vx = (dx / d) * stats.speedMps;
-          vy = (dy / d) * stats.speedMps;
+          vx = (dx / d) * speedMps;
+          vy = (dy / d) * speedMps;
         }
       }
     }
@@ -220,7 +222,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
     vx += px * crowd.separationStrength;
     vy += py * crowd.separationStrength;
 
-    const maxSpeed = stats.speedMps * crowd.maxSpeedFactor;
+    const maxSpeed = speedMps * crowd.maxSpeedFactor;
     const speed = Math.sqrt(vx * vx + vy * vy);
     if (speed > maxSpeed) {
       vx = (vx / speed) * maxSpeed;
@@ -311,13 +313,17 @@ export const updateZombies: SystemFn = (world, dtS) => {
   }
 };
 
-/** Id of the nearest building within `reach` of (x, y) (ties: the lower id), or 0. */
-function touchingBuilding(world: World, x: number, y: number, reach: number): number {
+/**
+ * Id of the nearest WALL building within `reach` of (x, y) (ties: the lower id), or 0: the stuck
+ * safety net's target. Exported for Story 5.9's floor test (zombies never attack a trap or a mine).
+ */
+export function touchingBuilding(world: World, x: number, y: number, reach: number): number {
   const list = world.buildings.list;
   let best = 0;
   let bestD = reach;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
+    if (!b.solid) continue; // Story 5.9: zombies never attack floor (traps, mines)
     const d = distanceToBox(x, y, b.minX, b.minY, b.maxX, b.maxY);
     if (d <= bestD && (best === 0 || d < bestD)) {
       best = b.id;

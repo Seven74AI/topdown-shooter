@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, step } from "@topdown/shared";
+import { NEUTRAL_INPUT, PLACEHOLDER_MAP, TICK_DT_S, addPlayer, createWorld, loadBalance, setInput, setLoadout, step, type SimEvent } from "@topdown/shared";
 import { perf } from "./perfStats";
 import {
   STRESS_DURATION_MS,
   STRESS_WARMUP_MS,
   StressRun,
+  STRESS_FLOOR_BUILDINGS,
   formatStressReport,
+  placeStressFloor,
   setupStressWorld,
+  toughenStressZombies,
   spawnInView,
+  stressFireInput,
   viewAround,
   type ViewRect,
 } from "./stressScenario";
@@ -18,6 +22,39 @@ const env = () => ({ userAgent: "TestUA", viewport: "844×390", dpr: 2 });
 // The global `perf` singleton is shared by every test in this file; reset it so a test can never
 // observe the overlay/summary/ring-buffer state left behind by an earlier one.
 beforeEach(() => perf.reset());
+
+describe("stressFireInput (Story 5.3 ?stressfire)", () => {
+  it("aims at the nearest zombie and holds fire; the stress survivor's Shotgun really kills", () => {
+    const world = createWorld({ balance, seed: 4, map: PLACEHOLDER_MAP });
+    const p = addPlayer(world, "local", 24, 16);
+    setLoadout(balance, p.loadout, ["shotgun", null]);
+    const view: ViewRect = { x: 0, y: 0, w: 0, h: 0 };
+    setupStressWorld(world, 150, viewAround(world.map, 24, 16, 20, 10, view), 24, 16);
+    const input = { ...NEUTRAL_INPUT };
+    let kills = 0;
+    let fired = 0;
+    world.events.subscribe((e: SimEvent) => {
+      if (e.type === "zombie.killed" && e.weapon === "shotgun") kills++;
+      if (e.type === "weapon.fired") fired++;
+    });
+    for (let t = 0; t < 200; t++) {
+      expect(stressFireInput(world, "local", input)).toBe(true);
+      expect(Math.hypot(input.aimX, input.aimY)).toBeCloseTo(1, 6);
+      setInput(world, "local", { ...input, seq: t + 1 });
+      step(world, TICK_DT_S);
+    }
+    expect(fired).toBeGreaterThan(5);
+    expect(kills).toBeGreaterThan(5);
+  });
+
+  it("releases fire with no zombie", () => {
+    const world = createWorld({ balance, seed: 4, map: PLACEHOLDER_MAP });
+    addPlayer(world, "local", 24, 16);
+    const input = { ...NEUTRAL_INPUT, fire: true };
+    expect(stressFireInput(world, "local", input)).toBe(false);
+    expect(input.fire).toBe(false);
+  });
+});
 
 describe("viewAround", () => {
   it("centers the view on the target and clamps it inside the map", () => {
@@ -164,3 +201,25 @@ describe("StressRun interruption", () => {
   });
 });
 
+
+describe("Story 5.9: ?stressbuild=traps", () => {
+  it("lays 24 non-overlapping spike traps and mines round the survivor; the crowd can't die on them", () => {
+    const world = createWorld({ balance, seed: 3, map: PLACEHOLDER_MAP });
+    addPlayer(world, "local", 24, 16);
+    expect(placeStressFloor(world, "local", 24, 16)).toBe(STRESS_FLOOR_BUILDINGS);
+    const types = world.buildings.list.map((b) => b.type);
+    expect(types.filter((t) => t === "spike_trap").length).toBe(12);
+    expect(types.filter((t) => t === "mine").length).toBe(12);
+    const list = world.buildings.list;
+    for (let i = 0; i < list.length; i++)
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]!;
+        const b = list[j]!;
+        expect(a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY).toBe(false);
+      }
+    setupStressWorld(world, 50, viewAround(world.map, 24, 16, 20, 10, { x: 0, y: 0, w: 0, h: 0 }), 24, 16);
+    toughenStressZombies(world);
+    for (let i = 0; i < 100; i++) step(world, TICK_DT_S);
+    expect(world.zombies.aliveCount).toBe(50);
+  });
+});

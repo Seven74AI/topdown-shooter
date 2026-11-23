@@ -42,12 +42,16 @@ const EVENTS: SimEvent[] = [
   { type: "building.repaired", buildingId: 3, playerId: "p2", cost: 20, x: 47.25, y: 31.5 },
   // Story 3.6: a turret's kill (the building type is no weapon: decodes to "").
   { type: "zombie.killed", zombieId: 7, killerId: "p1", x: 3, y: 4, weapon: "", buildingId: 12 },
-  // Story 5.6: spits, puddles and acid damage (source −2, apart from fire's −1).
+  // Story 5.9: an upgrade, a mine blast, a blast's player damage (source -2, not fire).
+  { type: "building.upgraded", buildingId: 5, playerId: "p3", cost: 70, toType: "metal_barricade", x: 12.25, y: 7.5 },
+  { type: "mine.exploded", buildingId: 9, x: 20.25, y: 11.75 },
+  { type: "player.damaged", playerId: "p1", amount: 40, sourceZombieId: -2 },
+  { type: "player.damaged", playerId: "p2", amount: 5, sourceZombieId: -1 },
+  // Story 5.6: spits, puddles and acid damage (source −3, apart from fire −1 and blast −2).
   { type: "spitter.spat", zombieId: 7, spitId: 65535, x: 12.34, y: 5.67, toX: 17.5, toY: 0.01 },
   { type: "acid.splashed", puddleId: 3, x: 47.99, y: 31.99, hitPlayerId: "p2" },
   { type: "acid.splashed", puddleId: 4, x: 0, y: 0, hitPlayerId: null },
-  { type: "player.damaged", playerId: "p1", amount: 2, sourceZombieId: -2 },
-  { type: "player.damaged", playerId: "p1", amount: 5, sourceZombieId: -1 },
+  { type: "player.damaged", playerId: "p1", amount: 2, sourceZombieId: -3 },
 ];
 
 /** Story 3.6: a turret shot (its muzzle is not sent). */
@@ -109,11 +113,11 @@ describe("netEvents", () => {
     expect(decodeNetEvent(hit("p1").slice(0, 7), dec)).toMatchObject({ sourceId: null });
   });
 
-  it("Story 5.6: acid (−2) and fire (−1) damage stay apart on the wire; spit events are small", () => {
+  it("Story 5.6: acid (−3), blast (−2) and fire (−1) damage stay apart on the wire; spit events are small", () => {
     const dmg = (src: number) => decodeNetEvent(encodeNetEvent({ type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: src }, enc) as NetEvent, dec);
+    expect(dmg(-3)).toMatchObject({ sourceZombieId: -3 });
     expect(dmg(-2)).toMatchObject({ sourceZombieId: -2 });
     expect(dmg(-1)).toMatchObject({ sourceZombieId: -1 });
-    expect(dmg(-7)).toMatchObject({ sourceZombieId: -1 }); // any other negative stays "fire", as before 5.6
     expect(dmg(7)).toMatchObject({ sourceZombieId: 7 });
     const spat = encodeNetEvent({ type: "spitter.spat", zombieId: 7, spitId: 300, x: 47.99, y: 31.99, toX: 42.01, toY: 26.5 }, enc) as NetEvent;
     expect(spat).toEqual([NET_EVENT_KIND.SPITTER_SPAT, 7 | (3 << 8), 300, 4799, 3199, 4201, 2650]);
@@ -140,6 +144,20 @@ describe("netEvents", () => {
     const t = encodeNetEvent({ type: "zombie.hit", zombieId: 1, x: 1.23456, y: 2.0049, ...dir(45), damage: 3.333, weapon: "smg", sourceId: null }, enc) as NetEvent;
     const e = decodeNetEvent(t, dec);
     expect(e).toMatchObject({ x: 1.23, y: 2, damage: 3.3 });
+  });
+
+  it("Story 5.3: weapon.fired with a pellet seq round-trips as a 7th field (≤ 19 B); without it stays 6 fields", () => {
+    const e = { type: "weapon.fired" as const, playerId: "p2", weapon: "shotgun", x: 12.5, y: 3.25, ...dir(90), seq: 65_535 };
+    const t = encodeNetEvent(e, enc) as NetEvent;
+    expect(t.length).toBe(7);
+    expect(t[6]).toBe(65_535);
+    expect(msgpackTupleBytes(t)).toBeLessThanOrEqual(19);
+    const back = decodeNetEvent(t, dec);
+    expect(back).toMatchObject({ type: "weapon.fired", weapon: "shotgun", seq: 65_535 });
+    expect(encodeNetEvent({ ...e, seq: 70_000 }, enc)?.[6]).toBe(70_000 & 0xffff);
+    const t6 = encodeNetEvent({ type: "weapon.fired", playerId: "p2", weapon: "assault_rifle", x: 12.5, y: 3.25, ...dir(90) }, enc) as NetEvent;
+    expect(t6.length).toBe(6);
+    expect(decodeNetEvent(t6, dec)).not.toHaveProperty("seq");
   });
 
   it("keeps a typical weapon.fired at or under 16 bytes as msgpack", () => {

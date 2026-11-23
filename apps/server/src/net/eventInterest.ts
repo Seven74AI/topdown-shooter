@@ -23,8 +23,10 @@ import {
  *   flight (muzzle + direction × `projectileRangeM`);
  * - a turret's non-killing `zombie.hit` (the hit flash): the zombie's position or the turret's centre.
  *
+ * - Story 5.9: `mine.exploded` (the blast FX): the mine's centre. A mine's non-killing hits are
+ *   turret-style building hits (above). `building.upgraded` stays global (money / HUD).
  * Story 5.6 adds two more local kinds: `spitter.spat` (its mouth point or its flight's end) and
- * `acid.splashed` (the puddle's centre). Acid damage (`player.damaged`, source −2) stays global.
+ * `acid.splashed` (the puddle's centre). Acid damage (`player.damaged`, source −3) stays global.
  *
  * A client gets a local event only if one of its two points lies in that client's horde view rect
  * (Story 2.5 `viewRect` around `viewTargetFor`, + `HORDE_VIEW_MARGIN_M`). Everything else (kills,
@@ -64,6 +66,8 @@ export class EventInterest {
         const b = buildingById(world, e.buildingId);
         const range = b ? (turretStats(world.balance, b.type)?.projectileRangeM ?? 0) : 0;
         this.setLocal(k, b ? buildingCentreX(b) : e.x, b ? buildingCentreY(b) : e.y, e.x + e.dirX * range, e.y + e.dirY * range);
+      } else if (e.type === "mine.exploded") {
+        this.setLocal(k, e.x, e.y, e.x, e.y); // Story 5.9: the blast FX is local (the removal is schema, for everyone)
       } else if (e.type === "spitter.spat") {
         // Story 5.6: local: the glob is seen where it starts or ends (damage is global: player.damaged).
         this.setLocal(k, e.x, e.y, e.toX, e.toY);

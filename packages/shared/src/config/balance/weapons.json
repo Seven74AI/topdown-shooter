@@ -54,5 +54,37 @@
     "hitPushbackM": 0.25,
     "screenShake": false,
     "price": 150
+  },
+  "shotgun": {
+    "name": "Shotgun",
+    "kind": "gun",
+    "damage": 4,
+    "pellets": 8,
+    "rateHz": 1.2,
+    "rangeM": 5,
+    "spreadDeg": 30,
+    "magazine": 6,
+    "reloadS": 2.5,
+    "pierce": 1,
+    "projectileSpeedMps": 60,
+    "knockbackM": 0.5,
+    "hitPushbackM": 0,
+    "screenShake": false,
+    "price": 250
+  },
+  "assault_rifle": {
+    "name": "Assault Rifle",
+    "kind": "gun",
+    "damage": 7,
+    "rateHz": 8,
+    "rangeM": 11,
+    "spreadDeg": 4,
+    "magazine": 30,
+    "reloadS": 2.0,
+    "pierce": 1,
+    "projectileSpeedMps": 60,
+    "hitPushbackM": 0.15,
+    "screenShake": false,
+    "price": 450
   }
 }

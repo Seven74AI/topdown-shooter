@@ -60,6 +60,8 @@ interface Place {
   gx: number;
   gy: number;
   rot: number;
+  /** Story 5.9: the type (default the wood barricade). */
+  type?: string;
 }
 
 interface Options {
@@ -79,6 +81,8 @@ interface Options {
   predictorMap?: DistrictMap;
   /** Story 4.2: where the survivor starts (default: the team start). */
   start?: { x: number; y: number };
+  /** Story 5.9: at these times the owner upgrades the building at (gx, gy) (between ticks, as the message handler does). */
+  upgrades?: { atMs: number; gx: number; gy: number }[];
 }
 
 function buildingsView(ctrl: RunController): Map<string, BuildingStateView> {
@@ -111,11 +115,26 @@ function simulate(o: Options) {
   let placed = 0;
   let broken = 0;
   const breaks = [...(o.breaks ?? [])];
+  const upgrades = [...(o.upgrades ?? [])];
+  let upgraded = 0;
+  let upgradedAtMs = -1;
+  /** Story 5.9: when the predictor's World first showed a non-wood tier (frame time), and frames the survivor stood on floor. */
+  let predictorTierAtMs = -1;
+  let onFloorTicks = 0;
+  const predWorld = (predictor as unknown as { world: { buildings: { list: { type: string; solid: boolean; minX: number; minY: number; maxX: number; maxY: number }[] } } }).world;
   let minWallGapM = Infinity;
   for (let t = 0; t <= o.seconds * 1000; t++) {
     while (pending.length > 0 && (pending[0] as Place).atMs <= t) {
       const p = pending.shift() as Place;
-      if (ctrl.placeBuilding(ID, { type: WOOD, gx: p.gx, gy: p.gy, rot: p.rot }).ok) placed++;
+      if (ctrl.placeBuilding(ID, { type: p.type ?? WOOD, gx: p.gx, gy: p.gy, rot: p.rot }).ok) placed++;
+    }
+    while (upgrades.length > 0 && (upgrades[0] as { atMs: number }).atMs <= t) {
+      const u = upgrades.shift() as { atMs: number; gx: number; gy: number };
+      const b = ctrl.world.buildings.list.find((x) => x.gx === u.gx && x.gy === u.gy);
+      if (b && ctrl.upgradeBuilding(ID, b.id).ok) {
+        upgraded++;
+        upgradedAtMs = t;
+      }
     }
     while (breaks.length > 0 && (breaks[0] as { atMs: number }).atMs <= t) {
       const k = breaks.shift() as { gx: number; gy: number };
@@ -130,7 +149,12 @@ function simulate(o: Options) {
       const p = ctrl.world.players.get(ID);
       if (p) {
         down.send(t, { x: Math.fround(p.x), y: Math.fround(p.y), ackSeq: ctrl.ackSeq(ID), buildings: buildingsView(ctrl) });
-        for (const b of [...ctrl.world.buildings.list, ...ctrl.world.obstacles.solids]) { // Story 4.2: + active cover
+        for (const b of ctrl.world.buildings.list) {
+          const cx = Math.min(b.maxX, Math.max(b.minX, p.x));
+          const cy = Math.min(b.maxY, Math.max(b.minY, p.y));
+          if (!b.solid && Math.hypot(p.x - cx, p.y - cy) < p.radiusM) onFloorTicks++; // Story 5.9: standing on a trap or mine
+        }
+        for (const b of [...ctrl.world.buildings.list.filter((x) => x.solid), ...ctrl.world.obstacles.solids]) { // Story 4.2: + active cover; Story 5.9: walls only
           const cx = Math.min(b.maxX, Math.max(b.minX, p.x));
           const cy = Math.min(b.maxY, Math.max(b.minY, p.y));
           minWallGapM = Math.min(minWallGapM, Math.hypot(p.x - cx, p.y - cy) - p.radiusM);
@@ -147,6 +171,7 @@ function simulate(o: Options) {
         predictor.reconcile(s.ackSeq, s.x, s.y, "alive");
         errors.push(predictor.stats.lastErrorM);
       }
+      if (predictorTierAtMs < 0 && predWorld.buildings.list.some((b) => b.type !== WOOD && b.solid)) predictorTierAtMs = t;
       accMs += dtMs;
       let steps = 0;
       while (accMs >= TICK_MS && steps < MAX_STEPS_PER_FRAME) {
@@ -171,6 +196,10 @@ function simulate(o: Options) {
     minWallGapM,
     finalErrorM: Math.hypot(predictor.x - (sp?.x ?? 0), predictor.y - (sp?.y ?? 0)),
     predictorBuildings: predictor.buildingCount,
+    upgraded,
+    upgradedAtMs,
+    predictorTierAtMs,
+    onFloorTicks,
   };
 }
 
@@ -330,5 +359,36 @@ describe("netsim: walking into barricades (Story 3.4, brief line 4)", () => {
     const r = simulate({ seed: 31, oneWayMs: 75, jitterHalfMs: 10, places: WALL, path: zigzag, seconds: 10, ignoreBuildings: true });
     report("wall, buildings ignored", r);
     expect(r.snaps + r.visibleErrors).toBeGreaterThan(5);
+  });
+
+  it("Story 5.9: walking straight across a spike trap and a mine: 0 snaps, 0 corrections (floor never blocks the predicted survivor)", () => {
+    // From the spawn (22.5, 14.5) straight up: a 2 × 2 trap at [21.5, 23.5] × [11, 13] and a mine at [22, 22.5] × [9, 9.5].
+    const FLOOR: Place[] = [
+      { atMs: 0, gx: 43, gy: 22, rot: 0, type: "spike_trap" },
+      { atMs: 0, gx: 44, gy: 18, rot: 0, type: "mine" },
+    ];
+    for (const seed of [51, 52]) {
+      const r = simulate({ seed, oneWayMs: 75, jitterHalfMs: 10, places: FLOOR, path: (t) => (t < 2500 ? { x: 0, y: -1 } : { x: 0, y: 0 }), seconds: 3 });
+      report(`across a trap and a mine 75±10 ms seed ${seed}`, r);
+      expect(r.placed).toBe(2);
+      expect(r.predictorBuildings).toBe(2);
+      expect(r.onFloorTicks).toBeGreaterThan(10); // liveness: it really walked over them
+      expect(r.snaps).toBe(0);
+      expect(r.corrections).toBe(0);
+      expect(r.visibleErrors).toBe(0);
+    }
+  });
+
+  it("Story 5.9: an upgrade of the wall I press on under 150 ms RTT: the predictor shows the new tier only when a snapshot carries it, 0 snaps", () => {
+    for (const seed of [53, 54]) {
+      const r = simulate({ seed, oneWayMs: 75, jitterHalfMs: 10, places: WALL, upgrades: [{ atMs: 1500, gx: 42, gy: 21 }, { atMs: 2500, gx: 42, gy: 21 }], path: (t) => (t < 4000 ? { x: 0, y: -1 } : { x: 0, y: 0 }), seconds: 5 });
+      report(`upgrade under me 75±10 ms seed ${seed}`, r);
+      expect(r.upgraded).toBe(2);
+      expect(r.predictorTierAtMs).toBeGreaterThanOrEqual(1500 + 75 - 10); // pending until the state agrees (never predicted)
+      expect(r.predictorTierAtMs).toBeLessThan(1500 + 75 + 10 + TICK_MS + FRAME_MS + 1);
+      expect(r.minWallGapM).toBeLessThan(1e-6);
+      expect(r.snaps).toBe(0);
+      expect(r.visibleErrors).toBe(0);
+    }
   });
 });

@@ -30,7 +30,7 @@ function puddle(w: World, x: number, y: number, id = 1): number {
 function acidHits(w: World): SimEvent[] {
   const out: SimEvent[] = [];
   w.events.subscribe((e) => {
-    if (e.type === "player.damaged" && e.sourceZombieId === -2) out.push(e);
+    if (e.type === "player.damaged" && e.sourceZombieId === -3) out.push(e);
   });
   return out;
 }
