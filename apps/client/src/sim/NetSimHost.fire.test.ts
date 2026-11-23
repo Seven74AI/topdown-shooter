@@ -118,7 +118,7 @@ describe("NetSimHost fires (Story 4.8)", () => {
     expect(host.world.players.get("p1")?.hp).toBe(95);
     const evs = host.drainEvents();
     const hit = evs.find(isFireHit);
-    expect(hit).toMatchObject({ type: "player.damaged", playerId: "p1", amount: 5, sourceZombieId: -1 });
+    expect(hit).toMatchObject({ type: "player.damaged", playerId: "p1", amount: 5, sourceZombieId: -1, tag: "fire", sourcePlayerId: null });
     const cue = new FireCue();
     for (const e of evs) if (isFireHit(e)) cue.hit(e.playerId, 1000);
     expect(cue.burning("p1", 1000 + FIRE_CUE_MS - 1)).toBe(true);
@@ -129,8 +129,8 @@ describe("NetSimHost fires (Story 4.8)", () => {
 
 describe("Story 4.8 fire cue (pure)", () => {
   it("only zombie-less damage is a fire hit; a zombie bite is not", () => {
-    expect(isFireHit({ type: "player.damaged", playerId: "a", amount: 5, sourceZombieId: -1 })).toBe(true);
-    expect(isFireHit({ type: "player.damaged", playerId: "a", amount: 10, sourceZombieId: 3 })).toBe(false);
+    expect(isFireHit({ type: "player.damaged", playerId: "a", amount: 5, sourceZombieId: -1, tag: "fire", sourcePlayerId: null })).toBe(true);
+    expect(isFireHit({ type: "player.damaged", playerId: "a", amount: 10, sourceZombieId: 3, tag: "zombie", sourcePlayerId: null })).toBe(false);
     expect(isFireHit({ type: "build.started", wave: 1 })).toBe(false);
   });
 });

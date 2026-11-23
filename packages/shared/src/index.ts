@@ -17,7 +17,7 @@ export {
 export { err, ok, type Result } from "./core/result";
 export { createRng, createRngFromState, type Rng, type RngState } from "./core/rng";
 export { EventBus, type EventHandler } from "./core/eventBus";
-export { DAMAGE_SOURCE_ACID, DAMAGE_SOURCE_EXPLOSION, DAMAGE_SOURCE_FIRE, MONEY_REASONS, type MoneyReason, type SimEvent, type SimEventType } from "./core/simEvents";
+export { DAMAGE_SOURCE_ACID, DAMAGE_SOURCE_EXPLOSION, DAMAGE_SOURCE_FIRE, DAMAGE_TAGS, MONEY_REASONS, type DamageTag, type MoneyReason, type SimEvent, type SimEventType } from "./core/simEvents";
 export { canonicalJson, fnv1a32 } from "./core/hash";
 export {
   BalanceError,
@@ -37,7 +37,7 @@ export {
   MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
-export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, GunStats, MeleeStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
+export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, GunStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
 export { snapshotWorld, worldDigest, type WorldSnapshot } from "./core/worldSnapshot";
@@ -133,6 +133,10 @@ export {
   quantizePos,
   readHordeFrame,
   stateOfTypeState,
+  burningOfTypeState,
+  wireState,
+  BURNING_STATE_BIT,
+  MAX_WIRE_ZOMBIE_STATE,
   typeOfTypeState,
   writeHordeHeader,
   writeHordeRecord,
@@ -142,7 +146,10 @@ export {
 } from "./net/hordeFormat";
 export { inRect, viewRect, type Rect } from "./net/interest";
 export { activeSlot, createLoadout, createSlot, setLoadout, validLevel, type Loadout, type WeaponSlot } from "./combat/loadout";
-export { isGun, isMelee, upgradePrice, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
+export { fuelTicksOf, isFlame, isGun, isMelee, magazineOf, upgradePrice, usesAmmo, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
+// Story 5.4: flames, ignites and the friendly-fire rule
+export { FLAME_SLOTS, NO_FLAME_SLOT, flameStats, flameTick, resetFlameClocks, updateIgnites } from "./combat/flame";
+export { damagePlayerBy, friendlyFireStats } from "./combat/damage";
 export type { ProjectilePool } from "./combat/projectilePool";
 // Story 2.7: cosmetic projectiles in the client mirror, the shared cooldown rule, the swept test.
 export {
@@ -367,7 +374,7 @@ export { setBuildingType } from "./buildings/buildings";
 export { UPGRADE_ERRORS, upgradeBuilding, upgradeError, upgradeStep, type UpgradeError, type Upgraded } from "./buildings/upgrade";
 export { trapCounters, updateTraps } from "./buildings/trap";
 export { mineCounters, updateMines } from "./buildings/mine";
-export { blastResult, damagePlayerByExplosion, explode } from "./combat/explosion";
+export { blastResult, explode } from "./combat/explosion";
 export { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
 export {
   botShopPick,

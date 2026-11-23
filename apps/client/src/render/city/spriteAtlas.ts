@@ -5,7 +5,7 @@ import { CAR_COLORS } from "./dressing";
 import { addGeneratedTexture } from "./canvasTexture";
 import { drawObjectInFrame, drawSandbags } from "./objectArt";
 import { drawAcidPuddle, drawSpitGlob } from "./spitterArt";
-import { TIER_PLATE_H, WEAPON_ART, drawChainsawRunning, drawTierPlate, tierPlateWidth } from "./weaponArt";
+import { TIER_PLATE_H, WEAPON_ART, WEAPON_BACK_ART, drawChainsawRunning, drawTierPlate, tierPlateWidth } from "./weaponArt";
 import { CHAR_EXTENT_R, drawBarrier, drawBlock, drawBus, drawCar, drawCharredCar, drawDumpster, drawPump, drawSurvivor, drawZombie } from "./spriteArt";
 
 /**
@@ -172,7 +172,7 @@ function drawCharacterFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   if (f.name === SURVIVOR_CHAINSAW_RUNNING) return drawSurvivor(g, CHAR_R_PX, (c, r) => drawChainsawRunning(c, "held", r));
   for (const [weapon, name] of Object.entries(SURVIVOR_WEAPON_FRAMES)) {
     const art = WEAPON_ART[weapon];
-    if (name === f.name && art) return drawSurvivor(g, CHAR_R_PX, (c, r) => art(c, "held", r));
+    if (name === f.name && art) return drawSurvivor(g, CHAR_R_PX, (c, r) => art(c, "held", r), WEAPON_BACK_ART[weapon]); // Story 5.4: FT1's tanks
   }
   const z = zombieOf(f.name);
   if (z) drawZombie(g, z.type, CHAR_R_PX, z.variant);

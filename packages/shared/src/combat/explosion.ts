@@ -2,9 +2,8 @@ import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { zombieTypeOf } from "../zombies/zombiePool";
-import { downPlayer } from "../player/downed";
 import { shotLineClear } from "./cover";
-import { applyZombieDamage } from "./damage";
+import { applyZombieDamage, damagePlayerBy } from "./damage";
 import { DAMAGE_SOURCE_EXPLOSION } from "../core/simEvents";
 
 /**
@@ -16,8 +15,9 @@ import { DAMAGE_SOURCE_EXPLOSION } from "../core/simEvents";
  * blast centre (Story 4.2 shot blockers: cars, the bus, buildings of the map stop it; barricades,
  * turrets, sandbags and barriers don't: they only stop bodies, F5). Buildings take no blast damage
  * (DD6). Zombies take `zombieDamage` (no knockback, DD9; a `zombie.hit` per body so kills and
- * assists work as for any weapon); standing players take `zombieDamage × playerShare` (F6: the
- * GDD's 50 % explosion rule, the owner too); downed and out players none. God mode spares players.
+ * assists work as for any weapon); standing players take the friendly-fire share through Story 5.4's
+ * `damagePlayerBy` (F6: the GDD's 50 % explosion rule, the owner too); downed and out players none.
+ * God mode spares players.
  *
  * Every alive zombie is checked on its current position (a linear pass, once per blast: the spatial
  * grid may be a tick old where a blast happens). The bodies in range are collected first (into the
@@ -32,7 +32,7 @@ const blastTargets = new Int32Array(ZOMBIE_POOL_CAPACITY);
 export const blastResult = { zombiesHit: 0, zombiesKilled: 0, playersHit: 0 };
 
 /** Module-level state of the player pass (no closure per call). */
-const pass = { world: null as World | null, x: 0, y: 0, r: 0, amount: 0 };
+const pass = { world: null as World | null, x: 0, y: 0, r: 0, amount: 0, source: null as string | null };
 
 const blastPlayer = (p: PlayerState): void => {
   const world = pass.world as World;
@@ -41,21 +41,9 @@ const blastPlayer = (p: PlayerState): void => {
   const reach = pass.r + p.radiusM;
   if (dx * dx + dy * dy >= reach * reach) return;
   if (!shotLineClear(world, pass.x, pass.y, p.x, p.y)) return; // F5: cover shields
-  if (damagePlayerByExplosion(world, p, pass.amount)) blastResult.playersHit++;
+  // Story 5.4: the one friendly-fire rule (a player's blast: `friendlyFire.pct`, the owner too).
+  if (damagePlayerBy(world, p, pass.amount, "explosion", pass.source, DAMAGE_SOURCE_EXPLOSION) > 0) blastResult.playersHit++;
 };
-
-/**
- * Story 5.9 (5.4 owns the final friendly-fire function; until it merges this is it): `amount`
- * explosion damage to a standing player. Emits `player.damaged` with `sourceZombieId =
- * DAMAGE_SOURCE_EXPLOSION` (not a fire hit: no burn cue). Returns whether it hurt.
- */
-export function damagePlayerByExplosion(world: World, p: PlayerState, amount: number): boolean {
-  if (p.status !== "alive" || world.debug.godMode || amount <= 0) return false;
-  p.hp = Math.max(0, p.hp - amount);
-  world.events.emit({ type: "player.damaged", playerId: p.id, amount, sourceZombieId: DAMAGE_SOURCE_EXPLOSION });
-  if (p.hp <= 0) downPlayer(world, p);
-  return true;
-}
 
 /**
  * A blast of `radiusM` at (x, y). `killerId` / `weapon` / `buildingId` credit the zombie damage like
@@ -102,7 +90,11 @@ export function explode(
   pass.x = x;
   pass.y = y;
   pass.r = radiusM;
-  pass.amount = zombieDamage * playerShare;
+  // Story 5.4: a player's blast (`killerId`, a mine's owner) hurts players through the friendly-fire
+  // rule (`combat.json › friendlyFire.pct`, which `loadBalance` keeps equal to a mine's
+  // `playerShare`); an owner-less blast deals `zombieDamage × playerShare` in full.
+  pass.amount = killerId !== null ? zombieDamage : zombieDamage * playerShare;
+  pass.source = killerId;
   world.players.forEach(blastPlayer);
   pass.world = null;
   return blastResult.zombiesHit;

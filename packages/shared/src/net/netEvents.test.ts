@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
-import type { SimEvent } from "../core/simEvents";
+import { DAMAGE_TAGS, type DamageTag, type SimEvent } from "../core/simEvents";
 import { NET_EVENT_KIND, NET_NONE, decodeNetEvent, encodeNetEvent, playerSlotOf, type NetEvent, type NetEventContext } from "./netEvents";
 
 const balance = loadBalance();
@@ -22,7 +22,7 @@ const EVENTS: SimEvent[] = [
   { type: "weapon.swap_started", playerId: "p1" },
   { type: "weapon.swapped", playerId: "p1", active: 1, weapon: "machete" },
   { type: "melee.swung", playerId: "p2", weapon: "machete", x: 3, y: 4, ...dir(270), arcDeg: 110, rangeM: 1.8 },
-  { type: "player.damaged", playerId: "p0", amount: 10, sourceZombieId: 7 },
+  { type: "player.damaged", playerId: "p0", amount: 10, sourceZombieId: 7, tag: "zombie", sourcePlayerId: null },
   { type: "player.downed", playerId: "p0" },
   { type: "player.revived", playerId: "p1", reviverId: "p3" },
   { type: "player.out", playerId: "p2" },
@@ -45,13 +45,18 @@ const EVENTS: SimEvent[] = [
   // Story 5.9: an upgrade, a mine blast, a blast's player damage (source -2, not fire).
   { type: "building.upgraded", buildingId: 5, playerId: "p3", cost: 70, toType: "metal_barricade", x: 12.25, y: 7.5 },
   { type: "mine.exploded", buildingId: 9, x: 20.25, y: 11.75 },
-  { type: "player.damaged", playerId: "p1", amount: 40, sourceZombieId: -2 },
-  { type: "player.damaged", playerId: "p2", amount: 5, sourceZombieId: -1 },
+  { type: "player.damaged", playerId: "p1", amount: 40, sourceZombieId: -2, tag: "explosion", sourcePlayerId: "p3" },
+  { type: "player.damaged", playerId: "p2", amount: 5, sourceZombieId: -1, tag: "fire", sourcePlayerId: null },
+  // Story 5.4: flame friendly fire (fire, source player p0) and a burst's edges.
+  { type: "player.damaged", playerId: "p3", amount: 5, sourceZombieId: -1, tag: "fire", sourcePlayerId: "p0" },
+  { type: "weapon.flame_started", playerId: "p0", weapon: "flamethrower" },
+  { type: "weapon.flame_started", playerId: "p1", weapon: "gas_torch" },
+  { type: "weapon.flame_stopped", playerId: "p0" },
   // Story 5.6: spits, puddles and acid damage (source −3, apart from fire −1 and blast −2).
   { type: "spitter.spat", zombieId: 7, spitId: 65535, x: 12.34, y: 5.67, toX: 17.5, toY: 0.01 },
   { type: "acid.splashed", puddleId: 3, x: 47.99, y: 31.99, hitPlayerId: "p2" },
   { type: "acid.splashed", puddleId: 4, x: 0, y: 0, hitPlayerId: null },
-  { type: "player.damaged", playerId: "p1", amount: 2, sourceZombieId: -3 },
+  { type: "player.damaged", playerId: "p1", amount: 2, sourceZombieId: -3, tag: "acid", sourcePlayerId: null },
   // Story 5.1: a weapon upgrade.
   { type: "weapon.upgraded", playerId: "p2", weapon: "smg", slot: 1, level: 3 },
   { type: "weapon.upgraded", playerId: "p0", weapon: "pistol", slot: 0, level: 4 },
@@ -119,8 +124,23 @@ describe("netEvents", () => {
     expect(decodeNetEvent(hit("p1").slice(0, 7), dec)).toMatchObject({ sourceId: null });
   });
 
+  it("Story 5.4: player.damaged appends tag + source slot only for a player's fire/blast (friendly fire); every other cause keeps 4 fields", () => {
+    const dmg = (src: number, tag: DamageTag, from: string | null) => encodeNetEvent({ type: "player.damaged", playerId: "p0", amount: 5, sourceZombieId: src, tag, sourcePlayerId: from }, enc) as NetEvent;
+    expect(dmg(7, "zombie", null)).toHaveLength(4);
+    expect(dmg(-1, "fire", null)).toHaveLength(4);
+    expect(dmg(-2, "explosion", null)).toHaveLength(4);
+    expect(dmg(-3, "acid", null)).toHaveLength(4);
+    const ff = dmg(-1, "fire", "p2");
+    expect(ff).toEqual([NET_EVENT_KIND.PLAYER_DAMAGED, 0, 50, -1, DAMAGE_TAGS.indexOf("fire"), 2]);
+    expect(decodeNetEvent(ff, dec)).toEqual({ type: "player.damaged", playerId: "p0", amount: 5, sourceZombieId: -1, tag: "fire", sourcePlayerId: "p2" });
+    expect(msgpackTupleBytes(ff)).toBeLessThanOrEqual(8);
+    // a 4-field tuple decodes with the tag its source implies and no source player
+    expect(decodeNetEvent(dmg(-3, "acid", null), dec)).toMatchObject({ tag: "acid", sourcePlayerId: null });
+    expect(decodeNetEvent(dmg(4, "zombie", null), dec)).toMatchObject({ tag: "zombie", sourcePlayerId: null });
+  });
+
   it("Story 5.6: acid (−3), blast (−2) and fire (−1) damage stay apart on the wire; spit events are small", () => {
-    const dmg = (src: number) => decodeNetEvent(encodeNetEvent({ type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: src }, enc) as NetEvent, dec);
+    const dmg = (src: number) => decodeNetEvent(encodeNetEvent({ type: "player.damaged", playerId: "p0", amount: 2, sourceZombieId: src, tag: "zombie", sourcePlayerId: null }, enc) as NetEvent, dec);
     expect(dmg(-3)).toMatchObject({ sourceZombieId: -3 });
     expect(dmg(-2)).toMatchObject({ sourceZombieId: -2 });
     expect(dmg(-1)).toMatchObject({ sourceZombieId: -1 });

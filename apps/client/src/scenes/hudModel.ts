@@ -123,7 +123,12 @@ export interface HudModel {
   acidGlow: number;
   /** Story 4.11: fire hits on MY survivor this frame (amounts); the HUD pops "-N" for each and sets the count to 0. */
   readonly fireHitAmounts: Float32Array;
+  /** Story 5.4: per hit, the friendly-fire source's slot (its ring colour) or -1. */
+  readonly fireHitSource: Int8Array;
   fireHitCount: number;
+  /** Story 5.4: the active weapon is a flame weapon (the ammo bar shows fuel); the other slot's too. */
+  fuel: boolean;
+  otherFuel: boolean;
 }
 
 /** Most rush markers shown (the last-5 rule marks 5). */
@@ -221,5 +226,14 @@ export const createHudModel = (): HudModel => ({
   burnGlow: 0,
   acidGlow: 0,
   fireHitAmounts: new Float32Array(FIRE_HIT_QUEUE),
+  fireHitSource: new Int8Array(FIRE_HIT_QUEUE).fill(-1),
   fireHitCount: 0,
+  fuel: false,
+  otherFuel: false,
 });
+
+/** Story 5.4: a flame weapon's fuel as a whole percent (the HUD text changes at most 100 times per tank). */
+export function fuelPercent(fuelTicks: number, stats: { readonly fuelS: number }): number {
+  const full = Math.round(stats.fuelS * 20);
+  return full > 0 ? Math.max(0, Math.min(100, Math.ceil((fuelTicks / full) * 100))) : 0;
+}

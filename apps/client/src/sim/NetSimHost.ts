@@ -1,3 +1,4 @@
+import { FlameCues } from "../render/flameCues";
 import {
   C2S,
   NET_EVENT_KIND,
@@ -146,6 +147,12 @@ export class NetSimHost implements SimHost {
   readonly world: World;
   readonly localPlayerId: string;
   readonly online = true;
+  /** Story 5.4: the cones (my predicted one, the others' from events + the patch fallback). */
+  readonly flames = new FlameCues();
+  private readonly patchFlame = (s: PlayerStateView, id: string): void => {
+    const ammo = s.active === 1 ? s.ammo1 : s.ammo0;
+    this.flames.patch(id, ammo, s.status === "alive");
+  };
   /** Positions are written already interpolated: alpha never matters. */
   readonly alpha = 0;
   readonly stats: SimStepStats = { lastUpdateSteps: 0, stepMs: new Float64Array(MAX_CATCHUP_STEPS), totalSteps: 0 };
@@ -240,6 +247,7 @@ export class NetSimHost implements SimHost {
   constructor(opts: NetSimHostOptions) {
     this.session = opts.session;
     this.localPlayerId = opts.session.playerId;
+    this.flames.predictLocal(this.localPlayerId); // Story 5.4
     this.now = opts.now ?? (() => performance.now());
     // Story 4.1: the mirror and the Predictor use the server's map (same bundled data; the join sends `mapVersion`).
     this.world = createWorld({ balance: opts.balance, seed: 0, map: opts.map ?? DOWNTOWN_MAP, systems: NO_SYSTEMS });
@@ -528,7 +536,11 @@ export class NetSimHost implements SimHost {
       // server's movement sees on this seq (the fire clock's, from the seq before: the Chainsaw slow).
       this.predictor.applyLocal(buf, this.fireClock.moveWeapon, this.fireClock.moveSwapping);
       // Story 2.7: my weapon fires now too (cosmetic; the server fires its own shot from this input).
-      if (this.fireClock.step(buf, room.state?.players?.get(this.localPlayerId))) this.localAttack(buf.isMouse, buf.seq);
+      const attacked = this.fireClock.step(buf, room.state?.players?.get(this.localPlayerId));
+      if (attacked) this.localAttack(buf.isMouse, buf.seq);
+      // Story 5.4: my cone shows at once (2.7), from the fire clock's fuel prediction.
+      const a = this.fireClock.attack;
+      this.flames.setLocal(attacked && a.flame, a.weapon, a.dirX, a.dirY);
       this.accumulatorS -= TICK_DT_S;
       steps++;
     }
@@ -570,7 +582,7 @@ export class NetSimHost implements SimHost {
     const a = this.fireClock.attack;
     const balance = this.world.balance;
     const stats = balance.weapons[a.weapon];
-    if (!stats) return;
+    if (!stats || stats.kind === "flame") return; // Story 5.4: a flame has no shot (its cone is the flame cues')
     const px = this.predictor.x;
     const py = this.predictor.y;
     const k = this.localNext;
@@ -688,7 +700,8 @@ export class NetSimHost implements SimHost {
    * RTT behind the instant muzzle flashes).
    */
   private predictAmmo(slot: WeaponSlot | null, s: PlayerStateView, i: 0 | 1): this {
-    if (slot && this.world.balance.weapons[slot.weapon]?.kind === "gun") {
+    const kind = slot ? this.world.balance.weapons[slot.weapon]?.kind : undefined;
+    if (slot && (kind === "gun" || kind === "flame")) { // Story 5.4: my fuel follows the fire clock too
       slot.ammo = Math.max(0, this.fireClock.predictedAmmo(s, i));
       slot.reloadTicks = this.fireClock.predictedReloadTicks(s, i);
     }
@@ -750,6 +763,7 @@ export class NetSimHost implements SimHost {
   /** Others go into the interpolation ring; my own player reconciles the prediction (Story 2.6). */
   private takeSnapshot(state: RunStateView): void {
     this.snapshots.push(state);
+    state.players.forEach(this.patchFlame); // Story 5.4: the lost-flame_stopped fallback (fuel stopped falling)
     // Story 3.4: the buildings of this very patch, before the replay (the server moved me with them).
     this.predictor.syncBuildings(state.buildings);
     this.predictor.syncDecay(state.decayStage, state.decayVariants, state.decayFiresOut); // Story 4.5: the same patch's map

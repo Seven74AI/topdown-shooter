@@ -12,6 +12,9 @@ import {
   packTypeState,
   readHordeFrame,
   stateOfTypeState,
+  burningOfTypeState,
+  wireState,
+  MAX_WIRE_ZOMBIE_STATE,
   typeOfTypeState,
   writeHordeHeader,
   writeHordeRecord,
@@ -139,9 +142,29 @@ describe("horde frame format", () => {
         expect(stateOfTypeState(ts)).toBe(state);
       }
     }
-    for (let v = 0; v < 16; v++) expect(stateOfTypeState(packTypeState(15 - v, v))).toBe(v);
+    for (let v = 0; v < 8; v++) expect(stateOfTypeState(packTypeState(15 - v, v))).toBe(v);
     expect(() => packTypeState(16, 0)).toThrow();
     expect(() => packTypeState(0, 16)).toThrow();
+  });
+
+  it("Story 5.4: bit 3 of the state nibble is 'burning' (0 added bytes); every ZOMBIE_STATE stays ≤ 7", () => {
+    for (const state of Object.values(ZOMBIE_STATE)) expect(state).toBeLessThanOrEqual(MAX_WIRE_ZOMBIE_STATE);
+    for (let type = 0; type < ZOMBIE_TYPES.length; type++) {
+      for (const state of Object.values(ZOMBIE_STATE)) {
+        for (const burning of [false, true]) {
+          const ts = packTypeState(type, wireState(state, burning));
+          expect(typeOfTypeState(ts)).toBe(type);
+          expect(stateOfTypeState(ts)).toBe(state);
+          expect(burningOfTypeState(ts)).toBe(burning);
+        }
+      }
+    }
+    // through a real frame
+    const bytes = encode(3, [{ netId: 7, x: 1, y: 2, heading: 9, typeState: packTypeState(1, wireState(ZOMBIE_STATE.RUSH, true)) }]);
+    const got: number[] = [];
+    readHordeFrame(bytes, { begin: () => {}, record: (_i, _n, _x, _y, _h, ts) => got.push(ts), end: () => {} });
+    expect(burningOfTypeState(got[0] as number)).toBe(true);
+    expect(stateOfTypeState(got[0] as number)).toBe(ZOMBIE_STATE.RUSH);
   });
 
   it("an empty frame is exactly 6 bytes", () => {

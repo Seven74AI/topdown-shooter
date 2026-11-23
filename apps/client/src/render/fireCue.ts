@@ -1,4 +1,4 @@
-import { DAMAGE_SOURCE_ACID, DAMAGE_SOURCE_FIRE, type SimEvent } from "@topdown/shared";
+import type { SimEvent } from "@topdown/shared";
 
 /**
  * Story 4.8: how long after the server's last fire hit (`player.damaged` with no zombie source) a
@@ -7,14 +7,17 @@ import { DAMAGE_SOURCE_ACID, DAMAGE_SOURCE_FIRE, type SimEvent } from "@topdown/
  */
 export const FIRE_CUE_MS = 700;
 
-/** A `player.damaged` event that came from fire (Story 4.8: source −1 exactly; 5.9 blasts are −2, 5.6 acid −3). */
+/**
+ * A `player.damaged` event that came from fire. Story 5.4: by its tag (`fire`): the 4.8 car fires
+ * and a teammate's flames alike (5.9 blasts are `explosion`, 5.6 acid `acid`).
+ */
 export function isFireHit(e: SimEvent): e is Extract<SimEvent, { type: "player.damaged" }> {
-  return e.type === "player.damaged" && e.sourceZombieId === DAMAGE_SOURCE_FIRE;
+  return e.type === "player.damaged" && e.tag === "fire";
 }
 
-/** Story 5.6: a `player.damaged` event from acid (a Spitter's spit or puddle: source −3). */
+/** Story 5.6: a `player.damaged` event from acid (a Spitter's spit or puddle). Story 5.4: by its tag. */
 export function isAcidHit(e: SimEvent): e is Extract<SimEvent, { type: "player.damaged" }> {
-  return e.type === "player.damaged" && e.sourceZombieId === DAMAGE_SOURCE_ACID;
+  return e.type === "player.damaged" && e.tag === "acid";
 }
 
 /** Story 5.6: how long after the last acid hit the acid cue stays (puddle pulse 0.4 s: no gap while standing in it). */

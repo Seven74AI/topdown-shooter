@@ -1,5 +1,6 @@
 import {
   ZOMBIE_STATE,
+  burningOfTypeState,
   stateOfTypeState,
   typeOfTypeState,
   zombieGenerationOfNetId,
@@ -11,7 +12,8 @@ import type { HordeSample } from "./hordeBuffer";
 /**
  * Writes the sampled horde into the mirror World's zombie pool (Story 2.5), so `ZombieView` and
  * `GameScene`'s rush markers read it unchanged: per slot `x = prevX`, `y = prevY` (already
- * interpolated: any alpha draws the same point), type, state, generation and heading; `aliveIds`,
+ * interpolated: any alpha draws the same point), type, state, generation and heading (Story 5.4:
+ * and the horde record's burning bit as `igniteTicks` 1/0, read only by `ZombieView`); `aliveIds`,
  * `alivePos` and `aliveCount` rebuilt; slots not shown get `alivePos = −1` and `state = FREE`.
  * Only typed arrays are written: nothing is allocated.
  */
@@ -35,6 +37,7 @@ export function mirrorZombies(sample: HordeSample, pool: ZombiePool): void {
     pool.prevY[slot] = y;
     pool.type[slot] = typeOfTypeState(ts);
     pool.state[slot] = stateOfTypeState(ts);
+    pool.igniteTicks[slot] = burningOfTypeState(ts) ? 1 : 0; // Story 5.4: client-only burning flag (never feeds a sim)
     pool.generation[slot] = zombieGenerationOfNetId(netId);
     pool.heading[slot] = sample.heading[k] as number;
     pool.alivePos[slot] = pool.aliveCount;

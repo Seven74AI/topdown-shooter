@@ -100,3 +100,10 @@ Player:
 
 ## 26 (Story 5.7)
 ![26](objects/27_brute.png)
+
+## 27, 28: what is the survivor holding, and what does it do? (Story 5.4)
+![27](objects/28_flamethrower_cone.png) ![28](objects/29_gas_torch_cone.png)
+
+## 29: what is happening to these zombies? (Story 5.4)
+![29](objects/30_burning_zombies.png)
+

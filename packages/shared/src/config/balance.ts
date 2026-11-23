@@ -12,6 +12,7 @@ import bots from "./balance/bots.json" with { type: "json" };
 import buildings from "./balance/buildings.json" with { type: "json" };
 import shop from "./balance/shop.json" with { type: "json" };
 import decay from "./balance/decay.json" with { type: "json" };
+import combat from "./balance/combat.json" with { type: "json" };
 
 type Schemas = typeof balanceFileSchemas;
 
@@ -33,7 +34,7 @@ export class BalanceError extends Error {
   }
 }
 
-const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay };
+const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat };
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -106,6 +107,24 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
     issues.push(`buildings.json: spawnClearM ${buildings.spawnClearM} must exceed waves.spawnJitterM + the largest zombie radius (${waves.spawnJitterM + maxRz})`);
   }
   crossCheckBuildingTypes(parsed.buildings as { types: Record<string, BuildingTypeStats> }, issues);
+  crossCheckFlames(parsed, issues);
+}
+
+/**
+ * Story 5.4: a flame weapon's friendly-fire pulse at level I (`damage × playerPulseS × pct / 100`)
+ * is whole (player HP stays whole; higher levels round per pulse in `damagePlayerBy`), and a mine's
+ * `playerShare` equals the friendly-fire share (an owned mine's blast goes through the one rule).
+ */
+function crossCheckFlames(parsed: Record<string, unknown>, issues: string[]): void {
+  const pct = (parsed.combat as { friendlyFire: { pct: number } }).friendlyFire.pct;
+  for (const [id, w] of Object.entries(parsed.weapons as Record<string, { kind: string; damage: number; playerPulseS?: number }>)) {
+    if (w.kind !== "flame") continue;
+    const v = (w.damage * (w.playerPulseS ?? 0) * pct) / 100;
+    if (Math.abs(v - Math.round(v)) > 1e-9) issues.push(`weapons.json: ${id}: damage × playerPulseS × friendlyFire.pct / 100 = ${v} must be a whole number (player HP is whole)`);
+  }
+  for (const [id, t] of Object.entries((parsed.buildings as { types: Record<string, BuildingTypeStats> }).types)) {
+    if (t.mine && Math.abs(t.mine.playerShare * 100 - pct) > 1e-9) issues.push(`buildings.json: types.${id}.mine.playerShare ${t.mine.playerShare} must equal combat.json friendlyFire.pct / 100 (${pct / 100})`);
+  }
 }
 
 /**

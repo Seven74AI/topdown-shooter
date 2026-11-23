@@ -204,10 +204,16 @@ export function drawZombie(c: G, type: ZombieTypeId, r: number, variant: number,
  * The survivor, top-down, facing +x (gun forward), at (0, 0). The slot ring is PlayerView's.
  * Story 5.3: `heldGun` draws a weapon's own top-down art in place of the plain gun (under the arms).
  */
-export function drawSurvivor(c: G, r: number, heldGun?: (c: G, r: number) => void): void {
+export function drawSurvivor(c: G, r: number, heldGun?: (c: G, r: number) => void, back?: (c: G, r: number) => void): void {
   c.lineJoin = "round";
   c.strokeStyle = CHAR.outline;
   c.lineWidth = Math.max(1, r * 0.08);
+  // Story 5.4: a weapon's back piece (FT1's twin tanks) replaces the backpack, under everything.
+  if (back) {
+    c.save();
+    back(c, r);
+    c.restore();
+  }
   if (heldGun) {
     c.save();
     heldGun(c, r);
@@ -229,9 +235,11 @@ export function drawSurvivor(c: G, r: number, heldGun?: (c: G, r: number) => voi
   c.lineCap = "butt";
   c.strokeStyle = CHAR.outline;
   c.lineWidth = Math.max(1, r * 0.08);
-  c.fillStyle = CHAR.pack;
-  rrect(c, -r * 0.98, -r * 0.48, r * 0.5, r * 0.96, r * 0.15);
-  c.fill();
+  if (!back) {
+    c.fillStyle = CHAR.pack;
+    rrect(c, -r * 0.98, -r * 0.48, r * 0.5, r * 0.96, r * 0.15);
+    c.fill();
+  }
   c.fillStyle = CHAR.jacket;
   ell(c, -r * 0.05, 0, r * 0.52, r * 0.9);
   c.fill();

@@ -8,6 +8,7 @@ import {
   hordeFrameBytes,
   inRect,
   packTypeState,
+  wireState,
   quantizeHeading,
   queryRect,
   rebuildGrid,
@@ -129,7 +130,7 @@ export class HordeEncoder {
         z.x[id] as number,
         z.y[id] as number,
         this.heading[id] as number,
-        packTypeState(z.type[id] as number, z.state[id] as number),
+        packTypeState(z.type[id] as number, wireState(z.state[id] as number, (z.igniteTicks[id] as number) > 0)), // Story 5.4: the burning bit
       );
     }
     writeHordeHeader(view, this.tick, n);

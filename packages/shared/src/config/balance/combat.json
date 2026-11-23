@@ -1,0 +1,4 @@
+{
+  "friendlyFire": { "pct": 50, "canDown": true },
+  "fx": { "maxFlameParticles": 96, "flameParticlesPerS": 90, "maxBurningZombieFx": 40 }
+}

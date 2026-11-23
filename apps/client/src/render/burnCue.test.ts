@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SimEvent } from "@topdown/shared";
 import { FIRE_CUE_MS, FireCue } from "./fireCue";
-import { EDGE_GLOW_MAX, EDGE_GLOW_MIN, FIRE_HIT_QUEUE, FIRE_POP_MS, FIRE_POP_POOL, PopPool, edgeGlowAlpha, fireDamageLabel, routeFireHit } from "./burnCue";
+import { EDGE_GLOW_MAX, EDGE_GLOW_MIN, FIRE_HIT_QUEUE, FIRE_POP_MS, FIRE_POP_POOL, PopPool, edgeGlowAlpha, fireDamageLabel, friendlyFireVictim, routeFireHit } from "./burnCue";
 
-const fireHit = (playerId: string, amount = 5): SimEvent => ({ type: "player.damaged", playerId, amount, sourceZombieId: -1 });
-const bite = (playerId: string): SimEvent => ({ type: "player.damaged", playerId, amount: 10, sourceZombieId: 3 });
-const queue = () => ({ fireHitAmounts: new Float32Array(FIRE_HIT_QUEUE), fireHitCount: 0 });
+const fireHit = (playerId: string, amount = 5, sourcePlayerId: string | null = null): SimEvent => ({ type: "player.damaged", playerId, amount, sourceZombieId: -1, tag: "fire", sourcePlayerId });
+const bite = (playerId: string): SimEvent => ({ type: "player.damaged", playerId, amount: 10, sourceZombieId: 3, tag: "zombie", sourcePlayerId: null });
+const queue = () => ({ fireHitAmounts: new Float32Array(FIRE_HIT_QUEUE), fireHitSource: new Int8Array(FIRE_HIT_QUEUE), fireHitCount: 0 });
 
 describe("Story 4.11: burning cues from the server's fire events", () => {
   it("the number is the event's amount, rounded up like the HP display; labels are cached", () => {
@@ -28,6 +28,21 @@ describe("Story 4.11: burning cues from the server's fire events", () => {
     expect(routeFireHit(bite("p0"), "p0", 1100, cue, q)).toBe(false);
     expect(q.fireHitCount).toBe(1);
     expect(routeFireHit({ type: "wave.started", number: 2 } as SimEvent, "p0", 1100, cue, q)).toBe(false);
+  });
+
+  it("Story 5.4: a teammate's flame on me burns me (the 4.11 cues) and its '-N' carries their slot; car fire and my own carry none", () => {
+    const cue = new FireCue();
+    const q = queue();
+    const slotOf = (id: string) => Number(id.slice(1));
+    routeFireHit(fireHit("p0", 5, "p2"), "p0", 1000, cue, q, slotOf);
+    routeFireHit(fireHit("p0", 5, null), "p0", 1000, cue, q, slotOf);
+    routeFireHit(fireHit("p0", 5, "p0"), "p0", 1000, cue, q, slotOf);
+    expect(cue.burning("p0", 1000)).toBe(true);
+    expect(Array.from(q.fireHitSource.subarray(0, 3))).toEqual([2, -1, -1]);
+    // the flamer's cue: my fire on a teammate names the victim (their ring flashes)
+    expect(friendlyFireVictim(fireHit("p1", 5, "p0"), "p0")).toBe("p1");
+    expect(friendlyFireVictim(fireHit("p1", 5, "p3"), "p0")).toBeNull();
+    expect(friendlyFireVictim(fireHit("p1", 5, null), "p0")).toBeNull();
   });
 
   it("a burst (a woken tab) never overflows the HUD queue", () => {

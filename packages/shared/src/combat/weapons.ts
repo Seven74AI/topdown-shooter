@@ -1,5 +1,6 @@
 import type { Balance } from "../config/balance";
-import type { GunStats, MeleeStats, WeaponStats } from "../config/balanceSchema";
+import type { FlameStats, GunStats, MeleeStats, WeaponStats } from "../config/balanceSchema";
+import { TICK_RATE_HZ } from "../config/constants";
 
 /** A balance weapon id ("pistol", "smg", …). Validated against balance at use. */
 export type WeaponId = string;
@@ -24,6 +25,22 @@ export function weaponStats(balance: Balance, id: WeaponId): WeaponStats {
 
 export const isGun = (w: WeaponStats): w is GunStats => w.kind === "gun";
 export const isMelee = (w: WeaponStats): w is MeleeStats => w.kind === "melee";
+/** Story 5.4: the Flamethrower and the Gas torch (a cone every tick, fuel in the slot's `ammo`). */
+export const isFlame = (w: WeaponStats): w is FlameStats => w.kind === "flame";
+
+/** Story 5.4: a flame weapon's full tank in ticks (its `ammo` when full). */
+export const fuelTicksOf = (w: FlameStats): number => Math.round(w.fuelS * TICK_RATE_HZ);
+
+/**
+ * Story 5.4: what a full slot holds: a gun's magazine, a flame weapon's fuel ticks, 0 for melee.
+ * Every "full magazine" (createSlot, reload end, the HUD, the client's fire clock) uses this.
+ */
+export function magazineOf(w: WeaponStats): number {
+  return w.kind === "gun" ? w.magazine : w.kind === "flame" ? fuelTicksOf(w) : 0;
+}
+
+/** Story 5.4: the weapon uses ammo (and reloads at 0): guns and flame weapons. */
+export const usesAmmo = (w: WeaponStats): w is GunStats | FlameStats => w.kind !== "melee";
 
 /**
  * Story 5.1 (F2, F5): the ONE damage source for player weapons. Level L deals

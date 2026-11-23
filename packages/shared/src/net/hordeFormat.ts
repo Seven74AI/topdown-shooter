@@ -11,7 +11,7 @@
  * | +2 | u16 | x in cm from the map's top-left origin, clamped to 0…65535 |
  * | +4 | u16 | y, same |
  * | +6 | u8 | heading (`quantizeHeading`: 0 = +x, increasing toward +y) |
- * | +7 | u8 | typeState: low nibble `ZOMBIE_TYPES` index, high nibble `ZOMBIE_STATE` |
+ * | +7 | u8 | typeState: low nibble `ZOMBIE_TYPES` index, high nibble: bits 4–6 `ZOMBIE_STATE`, bit 7 burning (Story 5.4) |
  *
  * Sent as `BYTES.HORDE_FRAME` (1 byte of type on the wire). Empty frames (6 bytes) are still
  * sent: the client counts misses with them.
@@ -48,7 +48,16 @@ export function packTypeState(type: number, state: number): number {
   return type | (state << 4);
 }
 export const typeOfTypeState = (ts: number): number => ts & NIBBLE;
-export const stateOfTypeState = (ts: number): number => (ts >> 4) & NIBBLE;
+/**
+ * Story 5.4: bit 3 of the state nibble is "burning" (an ignited zombie: 0 added bytes), so a
+ * `ZOMBIE_STATE` value must stay ≤ 7 (`MAX_WIRE_ZOMBIE_STATE`, a test enforces it).
+ */
+export const BURNING_STATE_BIT = 0x8;
+export const MAX_WIRE_ZOMBIE_STATE = 7;
+export const stateOfTypeState = (ts: number): number => (ts >> 4) & (NIBBLE & ~BURNING_STATE_BIT);
+export const burningOfTypeState = (ts: number): boolean => ((ts >> 4) & BURNING_STATE_BIT) !== 0;
+/** Story 5.4: the state nibble with the burning bit (state ≤ 7). */
+export const wireState = (state: number, burning: boolean): number => (burning ? state | BURNING_STATE_BIT : state);
 
 /** Metres → clamped centimetres. */
 export function quantizePos(m: number): number {

@@ -8,6 +8,7 @@ import {
   addPlayer,
   buildingStats,
   isGun,
+  isFlame,
   setLoadout,
   shopBuildings,
   shopWeapons,
@@ -39,10 +40,11 @@ import { ACID_CUE_MS, FireCue } from "../render/fireCue";
 import { ACID_SOUND_MAX_AGE_S, AcidFx } from "../render/acidFx";
 import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
-import { playSfx, startChainsawRev, stopChainsawRev } from "../audio/placeholderSfx";
+import { playSfx, startChainsawRev, startFlameLoop, stopChainsawRev, stopFlameLoop } from "../audio/placeholderSfx";
 import { SawClock } from "../render/meleeFx";
 import { BurnView } from "../render/BurnView";
-import { edgeGlowAlpha, routeAcidHit, routeFireHit } from "../render/burnCue";
+import { FlameView } from "../render/FlameView";
+import { edgeGlowAlpha, friendlyFireVictim, routeAcidHit, routeFireHit } from "../render/burnCue";
 import { ZombieView } from "../render/ZombieView";
 import { BloodTrailView } from "../render/BloodTrailView";
 import { FxView } from "../render/FxView";
@@ -69,6 +71,7 @@ import {
   TEAMMATE_DOWNED,
   TEAMMATE_OUT,
   createHudModel,
+  fuelPercent,
 } from "./hudModel";
 import { LocalSimHost, type SimStepStats } from "../sim/LocalSimHost";
 import { NetSimHost } from "../sim/NetSimHost";
@@ -109,6 +112,8 @@ export function newRunSeed(): number {
 }
 
 /** The fight: runs the World through a SimHost, draws it, and feeds it the local input. */
+/** Story 5.4: how long a teammate's ring flashes orange after my fire hurt them (ms). */
+const FF_FLASH_MS = 250;
 const RUSH_COLOR = 0xff3b30;
 /** Short screen shake for heavy weapons (FR19); intensity is a fraction of the view size. */
 const SHAKE_MS = 80;
@@ -161,11 +166,27 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.set(id, view);
     }
     view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
+    // Story 5.4 (AC 7f): my fire hurt this teammate just now: their ring flashes orange.
+    view.flashRing(this.time.now - (this.ffFlashMs.get(id) ?? -1e9) < FF_FLASH_MS);
+    // Story 5.4: the flame cone of every flamer (mine online: the fire clock's aim, at once).
+    const host = this.host;
+    const flaming = host && p.status === "alive" ? host.flames.flaming(id) : "";
+    if (flaming && host && this.flameView) {
+      const own = host.online && id === host.localPlayerId;
+      const dx = own ? host.flames.localDir.x : p.facingX;
+      const dy = own ? host.flames.localDir.y : p.facingY;
+      this.flameView.flamer(host.world.balance, flaming, view.x, view.y, this.playerRadiusM, dx, dy);
+    }
     // Story 4.11 / 4.12: flames, smoke and embers on every survivor the server reports burning (dying down after).
     this.burnView?.draw(id, view.x, view.y, this.playerRadiusM, p.status === "alive" && this.fireCue.burning(id, this.time.now));
   };
   /** Story 4.11: the burning cues on survivors (pooled). */
   private burnView: BurnView | null = null;
+  /** Story 5.4: flame streams and burning zombies (pooled), and when my fire last hurt each teammate (their ring flash). */
+  private flameView: FlameView | null = null;
+  private readonly ffFlashMs = new Map<string, number>();
+  private flameLooping = false;
+  private readonly slotOfPlayer = (id: string): number => this.host?.playerInfo(id).slot ?? -1;
   /** Story 2.9: every other player for the HUD's names and edge arrows (drawn position, slot, flags). */
   private readonly collectTeammate = (p: PlayerState, id: string): void => {
     const host = this.host;
@@ -370,6 +391,8 @@ export class GameScene extends Phaser.Scene {
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
     this.fireCue.clear(); // Story 4.8
     this.burnView = new BurnView(this, urlOptions().lowFx); // Story 4.11 / 4.12 (?fx=low: half the particles)
+    this.flameView = new FlameView(this, balance, urlOptions().lowFx); // Story 5.4
+    this.ffFlashMs.clear();
     // Story 5.6: pools sized by the balance caps (created once per scene start).
     this.acidCue.clear();
     this.acidClockS = 0;
@@ -394,7 +417,9 @@ export class GameScene extends Phaser.Scene {
       if (opts.stressBuild) placeStressFloor(world, localId, cx, cy); // Story 5.9: before the Walkers
       setupStressWorld(world, stress, view, cx, cy, parseWaveMix(opts.waveMix, balance)); // Story 5.6: ?wavemix=walker,spitter
       // Story 5.2: a melee ?stressfire benchmark (?loadout=chainsaw) keeps its crowd: the zombies can't die.
-      const meleeFire = this.stressFire && urlLoadout !== null && balance.weapons[urlLoadout.weapons[0]]?.kind === "melee";
+      // Story 5.4: so does a flame one (?loadout=flamethrower): the whole crowd keeps burning (the worst case).
+      const firstKind = urlLoadout !== null ? balance.weapons[urlLoadout.weapons[0]]?.kind : undefined;
+      const meleeFire = this.stressFire && (firstKind === "melee" || firstKind === "flame");
       if (opts.stressBuild || meleeFire) toughenStressZombies(world);
       stressRun.start(performance.now(), stress);
     }
@@ -450,6 +475,10 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.clear();
       this.burnView?.destroy();
       this.burnView = null;
+      this.flameView?.destroy(); // Story 5.4
+      this.flameView = null;
+      stopFlameLoop();
+      this.flameLooping = false;
       this.acidView?.destroy();
       this.acidView = null;
       this.acidFx = null;
@@ -868,8 +897,12 @@ export class GameScene extends Phaser.Scene {
   private syncPlayerViews(world: Readonly<World>, dtS: number): void {
     this.playerViews.forEach(this.dropPlayerView); // deleting inside forEach is safe for a Map
     this.burnView?.begin(dtS, this.time.now / 1000);
+    this.flameView?.begin(dtS, this.time.now / 1000, world);
     world.players.forEach(this.syncPlayerView);
     this.burnView?.end();
+    const cam = this.cameras.main;
+    this.flameView?.zombies(world, this.host?.online ? 1 : (this.host?.alpha ?? 0), cam.midPoint.x, cam.midPoint.y);
+    this.flameView?.end();
   }
 
   /** Story 5.6: the spit's "ptoo" and the splash's hiss, only when on screen (panned by screen position). */
@@ -947,7 +980,11 @@ export class GameScene extends Phaser.Scene {
       if (!e) continue;
       this.fxView?.handle(e);
       // Story 4.8 hurt cue; Story 4.11: my hits also queue a "-N" for the HUD.
-      routeFireHit(e, localId, this.time.now, this.fireCue, this.hudModel);
+      routeFireHit(e, localId, this.time.now, this.fireCue, this.hudModel, this.slotOfPlayer);
+      // Story 5.4: the flame cones (burst edges) and the flamer's own friendly-fire cue.
+      host.flames.handle(e);
+      const victim = friendlyFireVictim(e, localId);
+      if (victim) this.ffFlashMs.set(victim, this.time.now);
       // Story 5.6: acid has its own hurt cue (never "Burning"); spits and puddles are drawn from events.
       routeAcidHit(e, localId, this.time.now, this.acidCue, this.hudModel);
       if (this.acidFx?.handle(e, this.acidClockS)) this.acidSound(e);
@@ -996,6 +1033,13 @@ export class GameScene extends Phaser.Scene {
     this.fxView?.update(this.localHost?.paused === true ? 0 : deltaMs);
     if (this.fxView?.saw) this.fxView.saw.frameMs = deltaMs;
     this.fxView?.saw?.revUpdate(localId, this.time.now);
+    // Story 5.4: my flame's roar loop, on the burst edges (stops in a hidden tab).
+    const myFlame = host.flames.flaming(localId) !== "" && host.world.players.get(localId)?.status === "alive" && document.hidden !== true;
+    if (myFlame && !this.flameLooping) this.flameLooping = startFlameLoop();
+    else if (!myFlame && this.flameLooping) {
+      stopFlameLoop();
+      this.flameLooping = false;
+    }
     this.zombieView?.update(host.world, host.alpha);
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     if (this.localHost?.paused !== true) this.acidClockS += deltaMs / 1000;
@@ -1039,9 +1083,10 @@ export class GameScene extends Phaser.Scene {
         this.hudModel.weaponName = slot.weapon.replace(/_/g, " ").toUpperCase();
       }
       this.hudModel.weaponLevel = slot.level; // Story 5.1 (online: the state's level0/level1 via the mirror)
-      if (isGun(stats)) {
-        this.hudModel.ammo = slot.ammo;
-        this.hudModel.magazine = stats.magazine;
+      this.hudModel.fuel = isFlame(stats); // Story 5.4: a fuel bar instead of a round count
+      if (isGun(stats) || isFlame(stats)) {
+        this.hudModel.ammo = isFlame(stats) ? fuelPercent(slot.ammo, stats) : slot.ammo;
+        this.hudModel.magazine = isFlame(stats) ? 100 : stats.magazine;
         const totalTicks = ticksFor(stats.reloadS);
         this.hudModel.reloadFrac = slot.reloadTicks > 0 ? 1 - slot.reloadTicks / totalTicks : -1;
       } else {
@@ -1056,9 +1101,10 @@ export class GameScene extends Phaser.Scene {
           this.hudModel.otherWeaponName = other.weapon.replace(/_/g, " ").toUpperCase();
         }
         const otherStats = weaponStats(host.world.balance, other.weapon);
-        this.hudModel.otherAmmo = isGun(otherStats) ? other.ammo : -1;
+        this.hudModel.otherAmmo = isGun(otherStats) ? other.ammo : isFlame(otherStats) ? fuelPercent(other.ammo, otherStats) : -1;
         this.hudModel.otherWeaponLevel = other.level;
-        this.hudModel.otherMag = isGun(otherStats) ? otherStats.magazine : 0;
+        this.hudModel.otherMag = isGun(otherStats) ? otherStats.magazine : isFlame(otherStats) ? 100 : 0;
+        this.hudModel.otherFuel = isFlame(otherStats);
       } else {
         this.hudOtherId = "";
         this.hudModel.otherWeaponName = "";

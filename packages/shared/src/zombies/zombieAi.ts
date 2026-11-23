@@ -3,7 +3,7 @@ import { queryRadius, rebuildGrid } from "../core/spatialGrid";
 import type { SystemFn } from "../core/systems";
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
-import { downPlayer } from "../player/downed";
+import { damagePlayerBy } from "../combat/damage";
 import { slowPlayer } from "../player/slow";
 import type { ZombieTypeStats } from "../config/balanceSchema";
 import { zombieTypeOf } from "./zombiePool";
@@ -71,12 +71,11 @@ function nearestAlivePlayer(x: number, y: number): PlayerState | null {
 /** One zombie hit: damage, and the type's bite slow (Story 3.9: Crawlers). Story 5.7: the knockback (Brutes; never when the hit downs, F3). */
 function damagePlayer(world: World, p: PlayerState, stats: Readonly<ZombieTypeStats>, sourceZombieId: number): void {
   if (p.status !== "alive" || world.debug.godMode) return; // god mode: dev cheat / ?stress (Story 1.11)
-  const amount = stats.damage;
   if (stats.biteSlowPct > 0) slowPlayer(p, stats.biteSlowPct, ticksFor(stats.biteSlowS));
-  p.hp = Math.max(0, p.hp - amount);
-  world.events.emit({ type: "player.damaged", playerId: p.id, amount, sourceZombieId });
-  if (p.hp <= 0) downPlayer(world, p); // Story 2.8: down, not dead; zombies then ignore them
-  else if (stats.hitKnockbackM > 0) {
+  // Story 5.4: the one player-damage path (full damage: a zombie is no player's source). At 0 HP it
+  // downs the player (Story 2.8: down, not dead; zombies then ignore them).
+  damagePlayerBy(world, p, stats.damage, "zombie", null, sourceZombieId);
+  if (p.status === "alive" && stats.hitKnockbackM > 0) {
     knockPlayer(p, world.zombies.x[sourceZombieId] as number, world.zombies.y[sourceZombieId] as number, stats);
     bruteStats.knocks++;
   }

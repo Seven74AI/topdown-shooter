@@ -4,8 +4,10 @@ import {
   cooldownReady,
   cooldownTickEnd,
   cooldownTickStart,
-  isGun,
+  isFlame,
+  magazineOf,
   ticksFor,
+  usesAmmo,
   type Balance,
   type PlayerInput,
   type PlayerStateView,
@@ -28,6 +30,8 @@ const SWAP_TAPS_MAX = 8;
 export interface LocalAttack {
   weapon: WeaponId;
   melee: boolean;
+  /** Story 5.4: a flame weapon's tick (no projectile: the cone is drawn from the flame cues). */
+  flame: boolean;
   /** Unit raw aim (the server's direction before assist and spread). */
   dirX: number;
   dirY: number;
@@ -57,12 +61,14 @@ export interface LocalAttack {
  * Phaser-free and SDK-free (the `tools/netsim` hits harness runs it). No allocation per step.
  */
 export class LocalFireClock {
-  readonly attack: LocalAttack = { weapon: "", melee: false, dirX: 1, dirY: 0 };
+  readonly attack: LocalAttack = { weapon: "", melee: false, flame: false, dirX: 1, dirY: 0 };
   private readonly cooldown = new Float64Array(2);
   private readonly cooldownWeapon: string[] = ["", ""];
   private readonly shotSeq = new Float64Array(LOCAL_SHOT_HISTORY).fill(-1);
   private readonly shotCount = new Uint8Array(LOCAL_SHOT_HISTORY);
   private readonly shotSlot = new Uint8Array(LOCAL_SHOT_HISTORY);
+  /** Story 5.4: 1 when the seq's ammo use was a gun shot (a flame tick spends fuel but fires no `weapon.fired`). */
+  private readonly shotGun = new Uint8Array(LOCAL_SHOT_HISTORY);
   private lastSeq = 0;
   /** Gun shots this clock has fired so far (NetSimHost's safety net compares the server's). */
   shotsFired = 0;
@@ -97,7 +103,9 @@ export class LocalFireClock {
     this.shotSeq[i] = input.seq;
     this.shotCount[i] = attacked && !this.attack.melee ? 1 : 0;
     this.shotSlot[i] = this.attackSlot;
-    if (attacked && !this.attack.melee) this.shotsFired++;
+    const gunShot = attacked && !this.attack.melee && !this.attack.flame;
+    this.shotGun[i] = gunShot ? 1 : 0;
+    if (gunShot) this.shotsFired++;
     this.lastSeq = input.seq;
     return attacked;
   }
@@ -108,7 +116,7 @@ export class LocalFireClock {
     const from = Math.max(this.ackedSeq + 1, ackSeq - LOCAL_SHOT_HISTORY + 1);
     for (let seq = from; seq <= ackSeq; seq++) {
       const i = seq % LOCAL_SHOT_HISTORY;
-      if (this.shotSeq[i] === seq) this.shotsAcked += this.shotCount[i] as number;
+      if (this.shotSeq[i] === seq) this.shotsAcked += this.shotGun[i] as number;
     }
     this.ackedSeq = ackSeq;
   }
@@ -122,7 +130,7 @@ export class LocalFireClock {
     const weapon = slot === 1 ? me.weapon1 : me.weapon0;
     const stats = this.balance.weapons[weapon];
     const end = this.reloadEndSeq(me, slot as 0 | 1);
-    if (end > 0 && this.lastSeq + 1 > end && stats && isGun(stats)) return stats.magazine - this.shotsAfter(end, slot);
+    if (end > 0 && this.lastSeq + 1 > end && stats && usesAmmo(stats)) return magazineOf(stats) - this.shotsAfter(end, slot);
     return (slot === 1 ? me.ammo1 : me.ammo0) - this.shotsAfter(me.ackSeq, slot);
   }
 
@@ -148,21 +156,24 @@ export class LocalFireClock {
       return false; // no attack during a swap (FR5)
     }
     const c = cooldownTickStart(this.cooldown[active] as number, TICK_DT_S);
-    const gun = isGun(stats);
-    const reloadEnd = gun ? this.reloadEndSeq(me, active) : 0;
+    // Story 5.4: a flame weapon spends one fuel tick per flaming step, with no cooldown (`firing.ts`).
+    const ammoW = usesAmmo(stats);
+    const flame = isFlame(stats);
+    const reloadEnd = ammoW ? this.reloadEndSeq(me, active) : 0;
     const reloading = reloadEnd > 0 && seq <= reloadEnd;
     let ammo = 1;
-    if (gun) {
-      ammo = reloadEnd > 0 ? stats.magazine - this.shotsAfter(reloadEnd, active) : (active === 1 ? me.ammo1 : me.ammo0) - this.shotsAfter(me.ackSeq, active);
+    if (ammoW) {
+      ammo = reloadEnd > 0 ? magazineOf(stats) - this.shotsAfter(reloadEnd, active) : (active === 1 ? me.ammo1 : me.ammo0) - this.shotsAfter(me.ackSeq, active);
     }
     const aimLen = Math.sqrt(input.aimX * input.aimX + input.aimY * input.aimY);
-    const attacked = !reloading && me.status === "alive" && input.fire && aimLen >= MIN_AIM && cooldownReady(c) && ammo > 0;
-    this.cooldown[active] = cooldownTickEnd(c, attacked, stats.rateHz);
+    const attacked = !reloading && me.status === "alive" && input.fire && aimLen >= MIN_AIM && (flame || cooldownReady(c)) && ammo > 0;
+    this.cooldown[active] = flame ? cooldownTickEnd(c, false, stats.rateHz) : cooldownTickEnd(c, attacked, stats.rateHz);
     if (attacked) {
-      if (gun && ammo === 1) this.emptySeq[active] = seq; // the server starts its reload on this tick
+      if (ammoW && ammo === 1) this.emptySeq[active] = seq; // the server starts its reload on this tick
       const a = this.attack;
       a.weapon = weapon;
-      a.melee = !gun;
+      a.melee = !ammoW;
+      a.flame = flame;
       a.dirX = input.aimX / aimLen;
       a.dirY = input.aimY / aimLen;
     }
@@ -220,7 +231,7 @@ export class LocalFireClock {
     const s = this.emptySeq[slot] as number;
     if (s > 0 && me.ackSeq < s) {
       const stats = this.balance.weapons[slot === 1 ? me.weapon1 : me.weapon0];
-      return stats && isGun(stats) ? s + ticksFor(stats.reloadS) : 0;
+      return stats && usesAmmo(stats) ? s + ticksFor(stats.reloadS) : 0;
     }
     this.emptySeq[slot] = 0;
     return 0;

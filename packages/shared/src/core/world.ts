@@ -97,6 +97,12 @@ export interface World {
   readonly spits: SpitPool;
   /** Story 5.6 (D5): ground damage areas — acid puddles (pool sized by `spitCaps.maxLivePuddles`). */
   readonly areas: AreaPool;
+  /**
+   * Story 5.4: the flame slot table — slot `s` (0–3) → the id of the player holding it (null: free).
+   * A player's flame slot indexes the per-(body, flamer) flame clocks and a zombie's igniter
+   * (`combat/flame.ts`); assigned in `addPlayer` (the wire slot when it is free), freed in `removePlayer`.
+   */
+  readonly flameSlots: (string | null)[];
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -168,6 +174,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     rewoundView: createRewoundView(map),
     spits: createSpitPool(opts.balance.zombies.spitCaps.maxLiveSpits), // Story 5.6
     areas: createAreaPool(opts.balance.zombies.spitCaps.maxLivePuddles),
+    flameSlots: [null, null, null, null], // Story 5.4 (FLAME_SLOTS = MAX_PLAYERS)
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

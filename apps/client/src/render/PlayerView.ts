@@ -17,6 +17,8 @@ const RING_WIDTH_M = 0.08;
 const RING_ALPHA = 0.9;
 /** Under the body (10) and Story 2.8's revive ring (9), above the street, blood, zombies and shots. */
 const RING_DEPTH = 8.5;
+/** Story 5.4: the friendly-fire ring flash (fire orange, brighter than the orange slot colour). */
+const FF_FLASH_COLOR = 0xffb020;
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /** Survivor seen from above (Story 4.9 sprite, facing its aim) on a slot-coloured ground ring. Units are meters. */
@@ -28,6 +30,8 @@ export class PlayerView {
   private shownStatus: PlayerState["status"] | null = null;
   private shownSlowed = false;
   private slot = -1;
+  /** Story 5.4: the ring shows the friendly-fire flash (orange) instead of the slot colour. */
+  private flashing = false;
   /** Story 5.3: the frame shown (the active weapon's survivor frame); changed only on a swap or buy. */
   private shownFrame = SURVIVOR_FRAME;
 
@@ -47,6 +51,17 @@ export class PlayerView {
     if (slot === this.slot) return;
     this.slot = slot;
     this.ring.setStrokeStyle(RING_WIDTH_M, SLOT_COLORS[slot] ?? SLOT_COLORS[0], RING_ALPHA);
+  }
+
+  /**
+   * Story 5.4 (AC 7f): while `on`, the ring is orange and thicker: MY fire is hurting this teammate.
+   * Only touches the ring when the state changes.
+   */
+  flashRing(on: boolean): void {
+    if (on === this.flashing) return;
+    this.flashing = on;
+    if (on) this.ring.setStrokeStyle(RING_WIDTH_M * 2.2, FF_FLASH_COLOR, 1);
+    else this.ring.setStrokeStyle(RING_WIDTH_M, SLOT_COLORS[this.slot] ?? SLOT_COLORS[0], RING_ALPHA);
   }
 
   /** Reads the player (never writes it) and draws it at the interpolated position; `timeMs` drives the downed pulse. */

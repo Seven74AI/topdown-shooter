@@ -5,6 +5,54 @@ import { segmentBoxEntryT } from "./cover";
 import { isZombieAlive, killZombie, zombieTypeOf } from "../zombies/zombiePool";
 import type { WeaponId } from "./weapons";
 import { recordDamager } from "../economy/economy";
+import type { PlayerState } from "../player/player";
+import { downPlayer } from "../player/downed";
+import { DAMAGE_TAGS, type DamageTag } from "../core/simEvents";
+
+export { DAMAGE_TAGS, type DamageTag };
+
+/** Story 5.4: friendly-fire hits so far, per source player and target (tests, sims, logs; not sim state). */
+export const friendlyFireStats = { hits: 0, damage: 0, downs: 0 };
+
+/**
+ * Story 5.4 (FR18, fairness rules FR-D/FR-E): THE way a player loses HP. Every source goes through
+ * here: zombie bites (`zombieAi.ts`), car fire (`decay/fire.ts`), acid (`zombies/spit.ts`), blasts
+ * (`combat/explosion.ts`: 5.9 mines, 5.5 grenades, 5.8 Bloaters) and flames (`combat/flame.ts`).
+ *
+ * - With a `sourcePlayerId` (a player caused it, the target's teammate OR the target themself):
+ *   `bullet` and `melee` deal 0 (no event, nothing happens); `fire` and `explosion` deal
+ *   `round(amount × combat.friendlyFire.pct / 100)`; with `friendlyFire.canDown` false a friendly
+ *   hit never takes a player below 1 HP.
+ * - Without one (zombies, car fire, acid, an owner-less blast): the full `amount`.
+ * - Then the one existing path: only a standing ("alive") player is hurt, god mode spares everyone,
+ *   `player.damaged { tag, sourcePlayerId, sourceZombieId }` is emitted, and 0 HP downs the player
+ *   (Story 2.8; never "dead").
+ *
+ * Returns the HP actually taken (0: nothing happened, no event). Allocation-free.
+ */
+export function damagePlayerBy(world: World, target: PlayerState, amount: number, tag: DamageTag, sourcePlayerId: string | null, sourceZombieId = -1): number {
+  if (target.status !== "alive" || world.debug.godMode || !(amount > 0)) return 0;
+  let dmg = amount;
+  if (sourcePlayerId !== null) {
+    if (tag === "bullet" || tag === "melee") return 0; // bullets and melee never hurt players
+    const ff = world.balance.combat.friendlyFire;
+    dmg = Math.round((amount * ff.pct) / 100);
+    if (!ff.canDown) dmg = Math.min(dmg, target.hp - 1);
+    if (dmg <= 0) return 0;
+  }
+  const taken = Math.min(dmg, target.hp);
+  target.hp = Math.max(0, target.hp - dmg);
+  world.events.emit({ type: "player.damaged", playerId: target.id, amount: dmg, sourceZombieId, tag, sourcePlayerId });
+  if (sourcePlayerId !== null) {
+    friendlyFireStats.hits++;
+    friendlyFireStats.damage += taken;
+  }
+  if (target.hp <= 0) {
+    if (sourcePlayerId !== null) friendlyFireStats.downs++;
+    downPlayer(world, target);
+  }
+  return taken;
+}
 
 /**
  * Story 5.3: knockbacks applied by shots and swings, and how many stopped short at a face
@@ -75,11 +123,11 @@ function hurt(world: World, id: number, amount: number, dirX: number, dirY: numb
  * (`zombie.killed` as usual); the assist credit the economy would take from the hit event is
  * recorded directly. Returns true if the zombie died.
  */
-export function applyZombieDamageQuiet(world: World, id: number, amount: number, dirX: number, dirY: number, pushbackM: number, killerId: string, weapon: WeaponId): boolean {
+export function applyZombieDamageQuiet(world: World, id: number, amount: number, dirX: number, dirY: number, pushbackM: number, killerId: string | null, weapon: WeaponId): boolean {
   const z = world.zombies;
   if (!isZombieAlive(z, id)) return false;
   hurt(world, id, amount, dirX, dirY, pushbackM);
-  recordDamager(world, id, killerId);
+  if (killerId !== null) recordDamager(world, id, killerId); // Story 5.4: an ignite whose igniter left credits nobody
   if ((z.hp[id] as number) <= 0) {
     killZombie(world, id, killerId, weapon, 0);
     return true;

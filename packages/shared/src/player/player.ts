@@ -1,5 +1,6 @@
 import type { World } from "../core/world";
 import { createLoadout, type Loadout } from "../combat/loadout";
+import { claimFlameSlot, releaseFlameSlot } from "../combat/flame";
 
 /**
  * Story 2.8: at 0 HP a player is "downed" (can't move or fire; a teammate can revive them), and
@@ -71,6 +72,16 @@ export interface PlayerState {
   knockDx: number;
   knockDy: number;
   knockStepMm: number;
+  /** Story 5.4: this player's flame slot (`world.flameSlots`; 255 = none: their flames hurt nothing). */
+  flameSlot: number;
+  /** Story 5.4: flamed on the last weapon tick (burst edges: `weapon.flame_started` / `_stopped`). */
+  flaming: boolean;
+  /**
+   * Story 5.4 (FR-C): this body's flame clock per flamer slot: ticks spent in that teammate's cone
+   * since its last friendly-fire pulse (kept while outside, reset at every build start). Fixed
+   * length FLAME_SLOTS (preallocated). Server / solo only.
+   */
+  flameClock: number[];
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -107,8 +118,12 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     knockDx: 0,
     knockDy: 0,
     knockStepMm: 0,
+    flameSlot: 255, // Story 5.4: set by claimFlameSlot below
+    flaming: false,
+    flameClock: [0, 0, 0, 0],
   };
   world.players.set(id, player);
+  claimFlameSlot(world, player);
   return player;
 }
 
@@ -117,6 +132,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
  * next-nearest player on the next tick. A no-op for an unknown id.
  */
 export function removePlayer(world: World, id: string): void {
+  releaseFlameSlot(world, id); // Story 5.4
   world.players.delete(id);
   world.pendingInputs.delete(id);
   world.inputs.delete(id);

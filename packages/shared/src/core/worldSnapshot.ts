@@ -5,7 +5,7 @@ import { snapshotPathing } from "../zombies/flowField";
 import { snapshotZombieHistory } from "../combat/rewind";
 import { snapshotSeedStreams } from "./seedStreams";
 import { canonicalJson, fnv1a32 } from "./hash";
-import { KNOCK_MEMORY } from "../zombies/zombiePool";
+import { FLAME_SLOTS, KNOCK_MEMORY } from "../zombies/zombiePool";
 
 const sortedEntries = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -35,6 +35,13 @@ function snapshotZombies(world: World) {
       slowPct: z.slowPct[id],
       knockShot: Array.from(z.knockShot.subarray(id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY)), // Story 5.3
       knockHead: z.knockHead[id],
+      // Story 5.4: flame clocks per flamer slot and the burn
+      flameClock: Array.from(z.flameClock.subarray(id * FLAME_SLOTS, id * FLAME_SLOTS + FLAME_SLOTS)),
+      igniteTicks: z.igniteTicks[id],
+      igniteClock: z.igniteClock[id],
+      igniterSlot: z.igniterSlot[id],
+      igniteWeapon: z.igniteWeapon[id],
+      igniteDamage: z.igniteDamage[id],
     })),
     nextUnused: z.nextUnused,
     freed: Array.from({ length: z.freedCount }, (_, k) => {
@@ -171,6 +178,8 @@ export function snapshotWorld(world: World) {
     areas: snapshotAreas(world),
     // Story 2.12: the zombie position history (evolved state: switch, row labels, hash of the rows).
     zombieHistory: snapshotZombieHistory(world.zombieHistory),
+    // Story 5.4: the flame slot table (players' `flameSlot`, `flaming` and `flameClock` ride in `players`).
+    flameSlots: [...world.flameSlots],
   };
 }
 

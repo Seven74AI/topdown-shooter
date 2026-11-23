@@ -253,6 +253,26 @@ describe("tick cost of the Fire Axe and the Chainsaw (Story 5.2, brief line 16)"
   }, 180_000);
 });
 
+describe("tick cost of the flame weapons (Story 5.4, AC 10, brief line 16)", () => {
+  it("4 Flamethrowers / 4 Gas torches (cone + cover per candidate, friendly fire, ignites) + 150 Walkers on Downtown add ≤ 2 ms to the tick p99 over Pistols", () => {
+    const runs = [measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, "flamethrower"), measure(DOWNTOWN_MAP, 1, null, "gas_torch"), measure(DOWNTOWN_MAP), measure(DOWNTOWN_MAP, 1, null, "flamethrower"), measure(DOWNTOWN_MAP, 1, null, "gas_torch")];
+    const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
+    const pistol = pick(runs[0] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
+    const ft = pick(runs[1] as ReturnType<typeof measure>, runs[4] as ReturnType<typeof measure>);
+    const gt = pick(runs[2] as ReturnType<typeof measure>, runs[5] as ReturnType<typeof measure>);
+    console.log(
+      `[tick cost 5.4] Pistols p99 ${pistol.p99.toFixed(3)} ms (mean ${pistol.mean.toFixed(3)}); Flamethrowers p99 ${ft.p99.toFixed(3)} ms (mean ${ft.mean.toFixed(3)}), added p99 ${(ft.p99 - pistol.p99).toFixed(3)} ms; ` +
+        `Gas torches p99 ${gt.p99.toFixed(3)} ms (mean ${gt.mean.toFixed(3)}), added p99 ${(gt.p99 - pistol.p99).toFixed(3)} ms; kills ${pistol.kills} / ${ft.kills} / ${gt.kills}; load ${loadavg()[0]?.toFixed(2)}`,
+    );
+    expect(ft.kills).toBeGreaterThan(0); // liveness: the flames really burned
+    expect(gt.kills).toBeGreaterThan(0);
+    if (PERF_ASSERT) {
+      expect(ft.p99 - pistol.p99).toBeLessThanOrEqual(2);
+      expect(gt.p99 - pistol.p99).toBeLessThanOrEqual(2);
+    }
+  }, 180_000);
+});
+
 describe("build-start spike of a decay stage change (Story 4.5)", () => {
   it("4 players + 150 Walkers + 24 buildings: mutations + building refunds + push-outs + both flow fields rebuilt stay well inside one 50 ms tick", () => {
     const REPEATS = 12;
