@@ -57,6 +57,19 @@ const GRID_ALPHA = 0.18;
 const GRID_LINE_M = 0.03;
 
 /**
+ * Story 5.16: the plank-box look of a building without an atlas frame (the turret's base, a future
+ * type), as a HUD icon in canvas px: `pxPerM` canvas px per metre. Graphics only (no texture).
+ */
+export function drawPlankIcon(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, pxPerM: number): void {
+  g.fillStyle(WOOD, 1).fillRect(x, y, w, h);
+  g.lineStyle(Math.max(1, (OUTLINE_M / 2) * pxPerM), PLANK_LINE, 1);
+  const step = PLANK_M * pxPerM;
+  if (w >= h) for (let px = x + step; px < x + w - 1e-6; px += step) g.lineBetween(px, y, px, y + h);
+  else for (let py = y + step; py < y + h - 1e-6; py += step) g.lineBetween(x, py, x + w, py);
+  g.lineStyle(Math.max(1, OUTLINE_M * pxPerM), OUTLINE, 1).strokeRect(x, y, w, h);
+}
+
+/**
  * Story 3.4: placed buildings and the placement preview, in world metres. The buildings layer is
  * redrawn only when the World's building list changes (`version`, or an HP change); the preview
  * only when its spot, rotation or validity changes. Story 3.5: a damaged building is darker, cracks

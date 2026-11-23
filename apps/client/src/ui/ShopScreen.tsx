@@ -16,8 +16,8 @@ const price = (n: number) => (n === 0 ? SHOP_TEXT.free : `$${n}`);
 
 /**
  * The fixed-list shop (Story 3.3), over the live game in a build phase. Weapons (from balance, with
- * prices) and, once Story 3.4 adds them, buildings. Every button goes through the `shop` request;
- * the Game scene runs the purchase (server-validated online) and feeds the answer back. Nothing of
+ * prices) and upgrades; Story 5.16: no buildings (they are picked from the build bar). Every button
+ * goes through the `shop` request; the Game scene runs the purchase (server-validated online) and feeds the answer back. Nothing of
  * it is in the DOM while closed, so the touch zones underneath stay usable (#ui is pointer-events: none).
  */
 export function ShopScreen() {
@@ -129,25 +129,6 @@ export function ShopScreen() {
                 );
               })}
             </div>
-            {s.buildings.length > 0 && (
-              <>
-                <h3 class="shop__section">{SHOP_TEXT.buildings}</h3>
-                <div class="shop__items">
-                  {s.buildings.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      class={`shop__item${b.price > s.wallet ? " shop__item--short" : ""}`}
-                      disabled={busy}
-                      onClick={() => send({ type: "building", id: b.id })}
-                    >
-                      <span class="shop__name">{b.name}</span>
-                      <span class="shop__price">{price(b.price)}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </>
         )}
       </div>

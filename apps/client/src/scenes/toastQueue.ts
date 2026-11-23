@@ -25,6 +25,23 @@ export class ToastQueue {
     this.queue.push(text);
   }
 
+  /** Story 5.16: push unless the same text is already showing or waiting (a refused tile tapped again). */
+  pushUnique(text: string): void {
+    if (!this.queue.includes(text)) this.push(text);
+  }
+
+  /**
+   * Story 5.16: removes every copy of `text` (a build-bar refusal once a pick succeeds, so it doesn't
+   * sit over the hand's hint line). The next toast, if any, starts in full. Taps only.
+   */
+  withdraw(text: string): void {
+    for (let i = this.queue.length - 1; i >= 0; i--) {
+      if (this.queue[i] !== text) continue;
+      this.queue.splice(i, 1);
+      if (i === 0) this.shownAtMs = Number.NaN;
+    }
+  }
+
   /** The text to show now ("" when none); moves on to the next toast when the front one is done. */
   current(nowMs: number): string {
     while (this.queue.length > 0) {
