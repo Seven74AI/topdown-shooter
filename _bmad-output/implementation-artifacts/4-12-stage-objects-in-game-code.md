@@ -1,6 +1,6 @@
 # Story 4.12: Story 4.11 objects redrawn in game code
 
-Status: review
+Status: done
 
 ## Story
 
@@ -225,3 +225,7 @@ Per fire at R = 2 m: 110 free flames + 49 edge + 26 smoke + 24 embers = 209 imag
 - 2026-11-23: Built (gds-dev-story): fire-lab D particle fire + charred car, burning-survivor particles, B6 and S2 in code, Meshy objects atlas/loader/fallback/tools removed, `?fx=low`, culling; tests + 16 mutations; browser screenshots; FPS before/after with load. Status review.
 - 2026-11-23: Review fixes: fixed edge-flame slots so a body touching R stands in visible flame (M1); body die-down and low spawn-rate tests (L1, L2); smoke cap/size/cull and no enlarged low particles (L3); fire-lab reference image added (L4); 9 mutations; FPS and two screenshots re-taken. Status review.
 - 2026-11-23: Re-review fixes: overlapping fires hide edge slots inside the other zone (M, with the real Downtown pair test); dense outside test (L1); slot cap from the 8 m schema maximum, 0.26 m spacing, edge flames grow on big zones (L2); 6 mutations. Status review.
+
+### Re-review of the latest fixes (2026-11-23, fresh agent)
+
+No high or medium findings at c63caaf. Hidden-edge rule correct (strictly inside another zone, recomputed at every bake; every fire change goes through applyDecayStage → re-bake). Coverage worst frame within 0.1 m inside R / max brightness past R + 0.02 m: R 2: 0.994 / 0.37; R 3.2: 0.983 / 0.388; R 8: 0.906 / 0.461; overlapping Downtown pair (union edge): 0.989 / 0.34 (full and low alike). 5 of 6 mutations caught. Gate green (1,804 tests). Lows **accepted** by the main session (Downtown fires are 2 m): the dense outside check runs only at R = 2, so the big-zone size growth (`EDGE_GROW`) isn't pinned (0.6 instead of 0.3 would pass tests but exceed the limit at R = 8; today's margin there 0.04); the FireView wiring of `markHiddenEdges` has no direct test. Status: done once on master.
