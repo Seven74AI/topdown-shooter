@@ -1,6 +1,6 @@
 # Story 4.11: Stage-object readability pass
 
-Status: review
+Status: done
 
 ## Story
 
@@ -165,3 +165,7 @@ Fresh reviewer, 2026-11-23, on 6cc4716: one medium, three lows (L3 a design deci
 
 - 2026-11-23: Story written (gds-create-story, designer decisions recorded) and built: Meshy sprites + `atlas_objects` (sandbags S2, barricade B6, flames, smoke), turned barricade sprites, F6 fire ring/flames/smoke/sparks, burning-survivor cues (flames, smoke, embers, my edge glow and "-N"), BURNING_TINT removed; tests + 12 mutations; browser screenshots; FPS before/after. Status review.
 - 2026-11-23: Review fixes: ring flames inset so their visible core ends at R (M), barricade pool from balance (L1), no per-frame destructuring in the HUD (L2), smoke under the characters and lighter (L3); tests + 5 mutations; screenshots and FPS re-taken.
+
+### Re-review of the fixes (2026-11-23, fresh agent)
+
+No high or medium findings. Checked from the atlas and placement code: every flame frame's alpha > 50 % core ends at R even at max swell (code 0.45 ≥ measured 0.368–0.440); the ring stays closed (core gaps 0.18 m at R = 2); smoke depth 4.38 is above lights/car flames and below zombies (4.5+) and survivors (10); pool sizing covers 1–64. 4 mutations, all killed. Gate green (1,418 tests). Two lows **accepted** by the main session: L-a the faint glow (alpha 25 %) reaches ~7.5 cm past R (light, not flame; the rule is about visible flames); L-b no test ties the drawn size to `ringFlameSizeM`. Not verified in a browser by the re-reviewer (the builder's screenshots are). Status: done.
