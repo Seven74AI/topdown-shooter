@@ -13,7 +13,7 @@ prototype: docs/ideas/building-ux/prototype.html
 
 # Building UX rework: spec
 
-> **Designer decisions (2026-11-23):** carry + drag (mode B) is the design. No hold-to-paint walls. A building's menu opens only by tapping it (no walk-up select). No camera lead toward a pinned ghost. Sell refund 50 % is OK. Undo window doubled to **10 s**. Teammate ghosts: explained, decision pending.
+> **Designer decisions (2026-11-23):** carry + drag (mode B) is the design. No hold-to-paint walls. A building's menu opens only by tapping it (no walk-up select). No camera lead toward a pinned ghost. Sell refund 50 % is OK. Undo window doubled to **10 s**. Teammate ghosts (BX-10): **kept**.
 >
 > **Spine-wins rule:** where this spec and the prototype disagree, this spec wins. The prototype is there to feel the numbers on a phone. Values tagged `[ASSUMPTION]` are first guesses for the playtest to tune.
 
@@ -231,7 +231,7 @@ Owner pips: during a build phase every building shows a 0.18 m dot in its owner'
 ## 11. What teammates see (network)
 
 - Placed / moved / sold buildings: through the existing `buildings` map + events (`building.placed`, new `building.moved`, `building.sold`), with FX at the spot.
-- **Teammate ghosts** (last story): `building.ghost {type, gx, gy, rot}` or `{type: ""}`, sent **only on change**, at most **4 Hz**, build phase only, relayed to the others; drawn as a **dashed outline in the owner's colour + their name**, 50 % alpha, never coloured valid/blocked (we don't know their wallet). Budget: ≤ 4 × 4 Hz × ~8 B × 3 ≈ **0.4 KB/s for 30 s**, 0 B/s in waves.
+- **Teammate ghosts** (designer: keep; last story in the order): `building.ghost {type, gx, gy, rot}` or `{type: ""}`, sent **only on change**, at most **4 Hz**, build phase only, relayed to the others; drawn as a **dashed outline in the owner's colour + their name**, 50 % alpha, never coloured valid/blocked (we don't know their wallet). Budget: ≤ 4 × 4 Hz × ~8 B × 3 ≈ **0.4 KB/s for 30 s**, 0 B/s in waves.
 
 ## 12. Key flows
 
@@ -278,4 +278,4 @@ Owner pips: during a build phase every building shows a 0.18 m dot in its owner'
 | 4 | Camera lead toward a pinned ghost? | **No** |
 | 5 | Sell refund 50 %? | **Yes** (take-back in the same build phase stays 100 %) |
 | 6 | Undo window | **10 s** (was 5 s) |
-| 7 | Teammate ghosts (BX-10) | Pending: explained to the designer (a faint outline of what a teammate is holding, before they place it) |
+| 7 | Teammate ghosts (BX-10): a faint outline of what a teammate is holding, before they place it | **Keep** |

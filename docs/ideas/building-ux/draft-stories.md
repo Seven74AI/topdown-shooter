@@ -1,6 +1,6 @@
 # Building UX rework: draft stories
 
-**Status:** designer decisions applied 2026-11-23 (carry + drag, tap-only menu, no camera lead, no hold-to-paint, sell 50 %, undo 10 s). Draft for the main session's `gds-correct-course` → `gds-create-story` → its usual build/review loop.
+**Status:** designer decisions applied 2026-11-23 (carry + drag, tap-only menu, no camera lead, no hold-to-paint, sell 50 %, undo 10 s, teammate ghosts kept). Draft for the main session's `gds-correct-course` → `gds-create-story` → its usual build/review loop.
 **Source:** `ux-spec.md` (numbers, flows), `party-notes.md` (why), `prototype.html` (feel; live copy: claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR).
 **Numbering:** `BX-1`… are placeholders. Correct-course picks the real numbers (e.g. a short "Epic 5b: Building UX" after round C, or slots in Epic 5).
 
@@ -215,4 +215,4 @@ As a desktop player, I want the same building flow with mouse and keys.
 
 - **Retires:** 3.4's ⟳ ✓ ✕ layout and the frozen survivor; 3.3's buildings section of the shop; 3.7's bottom-centre repair panel. Their server rules all stay.
 - **Docs to touch when it's adopted:** the GDD's building section (sell/move are new mechanics), the UX doc's HUD section, `epics.md` (new stories), and `sprint-status.yaml`. This branch doesn't touch any of them.
-- **Designer decisions** (ux-spec §15): carry + drag; no hold-to-paint; tap-only menu; no camera lead; sell 50 %; undo 10 s. **Still open:** BX-10 teammate ghosts (keep, defer or drop).
+- **Designer decisions** (ux-spec §15): carry + drag; no hold-to-paint; tap-only menu; no camera lead; sell 50 %; undo 10 s; BX-10 teammate ghosts kept. Nothing left open.
