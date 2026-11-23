@@ -3,7 +3,7 @@ baseline_commit: cef3f1e4e8e29acaff939decc0109ba67793b58f
 ---
 # Story 4.13: Survive losing the graphics (bug)
 
-Status: review
+Status: done
 
 <!-- Created by gds-create-story (non-interactive) on 2026-11-23 from epics.md › Story 4.13. -->
 
@@ -171,3 +171,8 @@ Claude Opus 5.5 (claude-opus-5-5), gds-create-story + gds-dev-story, non-interac
 - 2026-11-23: Implemented — texture registry + rebuild on WebGL restore / 2D canvas restore / emptied-canvas probe; city re-bake; Text redraw; reload notice if never restored; Canvas-mode banner; renderer in debug overlay and Copy results; tests; Playwright evidence. Status → review.
 - 2026-11-23: Merged `claude/gracious-turing-0db3j6` (5.1 tier marks, 5.2 Fire Axe / Chainsaw, 5.7 Brute, 4.12 review fixes): no conflicts. Every new art goes through the existing atlases (characters / fx / buildings / firefx), already registered; no new `addCanvasTexture` / `addCanvas` / `generateTexture` / render texture; the shop weapon and tier icons are DOM data-URL images (untouched by a GL loss). Re-ran the reproduction on the merged dev build (`reproduce-merged.cjs`: stage 3 with both car fires, a Brute, chainsaw III + fire axe III; all 51 source canvases wiped, lost / restored): 8/8 entries rebuilt, screen as before; shop with the III → IV upgrade icons after the restore (`merged-*.png`).
 - 2026-11-23: Merged the work branch again at `b4f36c0` (5.2 review fixes: chainsaw flash / sparks, rev sound, melee line of sight): no conflicts, no new texture (the flash reuses the zombie views, sparks the existing pool).
+
+### Review (2026-11-23, fresh agent) and main-session follow-up
+
+No high or medium findings at 3829ab6. Phaser 4.2.1's `dispatchContextRestored` re-uploads every texture from its source canvas, rebuilds GL state, clears `contextLost` and only then emits `RESTORE_WEBGL`, so the registry repaint runs after Phaser's own upload and nothing overwrites it. Every runtime texture is registered (character/fx/downtown/buildings/fire-particle atlases, blood-trail mark, city bake tiles re-baked as a whole, Phaser Text redrawn); weapon/tier icons are DOM images. Reproduction: two wipe + lose/restore cycles in a row: 8/8 entries rebuilt each time, screenshots match; control without the rebuild reproduces the bug. 6 mutations, all caught. Gate green (1,801 tests).
+Lows: **L2 done by the main session** — `tools/checks/noUnregisteredTextures.test.ts` fails if client code creates a texture outside `addGeneratedTexture` (canvasTexture.ts / CityView.ts allowed); a temporary `textures.addCanvas` in BloodTrailView made it fail. **Accepted:** L1 the city tile `base` canvases have no own probe (the atlas probe re-bakes everything first); L3 probe `getImageData` triggers Chrome's willReadFrequently warning (never per frame); L4 browser-only code covered by Playwright only; L5 a phone restoring after > 5 s sees the reload overlay (a late restore removes it). **Not verified: real Android phones** — the designer's friend tests after deploy. Status: done once on master.
