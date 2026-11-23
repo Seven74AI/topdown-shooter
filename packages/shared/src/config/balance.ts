@@ -87,6 +87,11 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
  * "total paid" rule: repairs and refunds use it, F9); no cycles; floor types (`solid: false`) never
  * upgrade; `turret`, `trap` and `mine` exclude each other; traps and mines are floor.
  */
+/** Review L4: what a building type is, by its blocks (a type with none is a plain wall: a barricade). */
+function buildingKind(t: BuildingTypeStats): "turret" | "trap" | "mine" | "barricade" {
+  return t.turret ? "turret" : t.trap ? "trap" : t.mine ? "mine" : "barricade";
+}
+
 function crossCheckBuildingTypes(buildings: { types: Record<string, BuildingTypeStats> }, issues: string[]): void {
   const types = buildings.types;
   for (const [id, t] of Object.entries(types)) {
@@ -103,6 +108,8 @@ function crossCheckBuildingTypes(buildings: { types: Record<string, BuildingType
     }
     if (next.forSale) issues.push(`buildings.json: types.${id}.upgradesTo: ${up.type} must be upgrade-only (forSale: false)`);
     if (next.widthM !== t.widthM || next.depthM !== t.depthM || next.solid !== t.solid) issues.push(`buildings.json: types.${id}.upgradesTo: ${up.type} must have the same footprint`);
+    // Review L4: the same kind of building (a barricade stays a barricade: no turret, trap or mine block appears or goes).
+    if (buildingKind(next) !== buildingKind(t)) issues.push(`buildings.json: types.${id}.upgradesTo: ${up.type} must be the same kind of building (${buildingKind(t)}, not ${buildingKind(next)})`);
     if (next.price !== t.price + up.price) issues.push(`buildings.json: types.${id}.upgradesTo: ${up.type}'s price must be ${t.price} + ${up.price} = ${t.price + up.price} (the total paid)`);
   }
   // No cycles: following upgradesTo from any type ends within the number of types.

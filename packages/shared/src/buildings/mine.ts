@@ -6,8 +6,9 @@ import { buildingStats, removeBuilding, type Building } from "./buildings";
 /**
  * Story 5.9: mines (GDD › Buildings and Defenses: single use, 80 damage in 2.5 m).
  *
- * Runs in the `buildings` slot after the traps, during waves only (a build phase never sets one
- * off). Fairness rules:
+ * Runs in the `buildings` slot after the traps AND (review L1) at the end of the zombies system, on
+ * the positions the zombies just moved to, during waves only (a build phase never sets one off).
+ * Fairness rules:
  *
  * - **F7 one trigger, one blast, same tick:** on the tick an alive zombie's body first overlaps the
  *   trigger circle (`triggerRadiusM` round the mine's centre, strict) the mine explodes (no fuse,

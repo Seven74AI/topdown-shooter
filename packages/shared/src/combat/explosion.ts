@@ -1,6 +1,6 @@
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
-import { zombieCandidates as candidates } from "./scratch";
+import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { downPlayer } from "../player/downed";
 import { shotLineClear } from "./cover";
@@ -20,9 +20,13 @@ import { DAMAGE_SOURCE_EXPLOSION } from "../core/simEvents";
  * GDD's 50 % explosion rule, the owner too); downed and out players none. God mode spares players.
  *
  * Every alive zombie is checked on its current position (a linear pass, once per blast: the spatial
- * grid may be a tick old where a blast happens). The bodies in range are collected first (the shared
- * candidate buffer), then damaged, so kills during the pass never skip anyone. Allocation-free.
+ * grid may be a tick old where a blast happens). The bodies in range are collected first (into the
+ * blast's OWN scratch buffer: review L2, callers may be iterating the shared `zombieCandidates`),
+ * then damaged, so kills during the pass never skip anyone. Allocation-free.
  */
+
+/** Review L2: the blast's own target list (never the shared combat candidate buffer). */
+const blastTargets = new Int32Array(ZOMBIE_POOL_CAPACITY);
 
 /** What the last `explode` did (tests, sims, liveness asserts). */
 export const blastResult = { zombiesHit: 0, zombiesKilled: 0, playersHit: 0 };
@@ -84,10 +88,10 @@ export function explode(
     const d2 = dx * dx + dy * dy;
     if (d2 >= reach * reach) continue;
     if (!shotLineClear(world, x, y, zx, zy)) continue; // F5
-    candidates[n++] = id;
+    blastTargets[n++] = id;
   }
   for (let k = 0; k < n; k++) {
-    const id = candidates[k] as number;
+    const id = blastTargets[k] as number;
     const dx = (z.x[id] as number) - x;
     const dy = (z.y[id] as number) - y;
     const d = Math.sqrt(dx * dx + dy * dy);

@@ -56,3 +56,19 @@ export function buildingDrawKey(list: readonly Building[]): number {
   }
   return h >>> 0;
 }
+
+/**
+ * Story 5.9 review M1: the redraw key of the buildings drawn as plank boxes (no art frame: turrets),
+ * whose wear is drawn into the shadow layer. Only their bar steps: traps and walls wearing never
+ * change it, so a crowd on the spikes next to a turret never re-lays the layer.
+ */
+export function boxDrawKey(list: readonly Building[], isBox: (type: string) => boolean): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    if (!isBox(b.type)) continue;
+    h = Math.imul(h ^ b.id, 0x01000193);
+    h = Math.imul(h ^ Math.round(barFraction(b) * BAR_STEPS), 0x01000193);
+  }
+  return h >>> 0;
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BUILD_GRID_M, TICK_DT_S, addBuildingAt, addPlayer, buildingStats, createWorld, loadBalance, mineCounters, spawnZombie, startBuild, startWave, step, type Building } from "@topdown/shared";
 import { MINE_BLINK_ON_MS, MINE_BLINK_PERIOD_MS, TRAP_SHADOW_M, buildingShadowHeightM, mineBlinkOn, mineRingRadii } from "./mineLook";
-import { BAR_STEPS, barFraction, buildingDrawKey } from "./buildingLook";
+import { BAR_STEPS, barFraction, boxDrawKey, buildingDrawKey } from "./buildingLook";
 import { MINE_SHAKE_MAX, MINE_SHAKE_RADIUS_M, mineShakeIntensity } from "./mineBlast";
 import { ATLAS_BUILDINGS, buildingFrame, buildingsAtlasSpecs, BUILDINGS_PX_PER_M } from "./city/buildingsAtlas";
 import { MAX_ATLAS_PX, isFrameName, packAtlas } from "./city/atlasLayout";
@@ -94,5 +94,22 @@ describe("Story 5.9: the buildings atlas", () => {
     }
     expect(buildingFrame("auto_turret")).toBeNull(); // keeps its plank box + turret plate
     expect(buildingFrame("wood_barricade")?.texture).not.toBe(ATLAS_BUILDINGS); // 4.11's B6 sprite
+  });
+
+  it("review M1: a turret next to wearing traps never changes the re-lay key; the turret's own wear does", () => {
+    const isBox = (type: string) => buildingFrame(type) === null;
+    const turret = { id: 1, type: "auto_turret", hp: 300, maxHp: 300 } as Building;
+    const traps = Array.from({ length: 12 }, (_, i) => ({ id: 2 + i, type: "spike_trap", hp: 300, maxHp: 300 }) as Building);
+    const list = [turret, ...traps];
+    const box0 = boxDrawKey(list, isBox);
+    const draws = new Set<number>();
+    for (let hp = 300; hp > 0; hp -= 3) {
+      for (const t of traps) t.hp = hp;
+      draws.add(buildingDrawKey(list));
+      expect(boxDrawKey(list, isBox)).toBe(box0); // no re-lay while only traps wear
+    }
+    expect(draws.size).toBeGreaterThan(5); // liveness: the wear itself still redraws bars
+    turret.hp = 200;
+    expect(boxDrawKey(list, isBox)).not.toBe(box0);
   });
 });

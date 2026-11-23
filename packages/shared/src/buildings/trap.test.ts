@@ -177,4 +177,25 @@ describe("spike trap (Story 5.9)", () => {
     expect(buildingById(world, m.id)).toBeDefined();
     expect(m.hp).toBe(m.maxHp);
   });
+
+  it("review L3: a trap that wears out this tick stops hurting and slowing for the rest of the tick", () => {
+    const { world, place } = setup();
+    const t = place(10, 10);
+    t.hp = 1; // the next spike hit wears it out
+    const a = spawnZombie(world, "walker", 10.6, 11);
+    const b = spawnZombie(world, "walker", 11.4, 11);
+    for (const z of [a, b]) {
+      world.zombies.hp[z] = 1000;
+      world.zombies.trapTicks[z] = PULSE_TICKS - 1; // both due a pulse this tick
+    }
+    updateTraps(world);
+    expect(buildingById(world, t.id)).toBeUndefined();
+    const hit = [a, b].filter((z) => world.zombies.hp[z] === 1000 - HIT);
+    const spared = [a, b].filter((z) => world.zombies.hp[z] === 1000);
+    expect(hit).toHaveLength(1); // the one processed first wore it out
+    expect(spared).toHaveLength(1); // the other: no hit, no slow from a trap that is gone
+    expect(world.zombies.slowPct[spared[0] as number]).toBe(0);
+    expect(world.zombies.slowPct[hit[0] as number]).toBe(TRAP.slowPct);
+    expect(trapCounters.wornOut).toBe(1);
+  });
 });

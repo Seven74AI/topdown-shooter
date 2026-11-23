@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { BUILD_GRID_M, MAX_PLAYERS, buildingStats, buildingTypeIds, footprint, type Balance, type Box, type Building, type World } from "@topdown/shared";
 import type { Placement } from "../scenes/placement";
-import { barFraction, buildingDrawKey, damageStage, darken } from "./buildingLook";
+import { barFraction, boxDrawKey, buildingDrawKey, damageStage, darken } from "./buildingLook";
 import { NIGHT_DARKEN, castShadow, raisedBevel } from "./city/raisedLook";
 import { barricadePoolSize, barricadeTint, barricadeTransform, type SpriteTransform } from "./barricadeLook";
 import { ATLAS_OBJECTS, OBJ_BARRICADE, ensureObjectsAtlas } from "./city/objectsAtlas";
@@ -15,6 +15,8 @@ const OUTLINE = 0x1a1008;
 const OUTLINE_M = 0.06;
 /** Story 4.9: barricade height (m), for its cast shadow (Dead City look). Story 4.11: a tall palisade (B6). */
 const BARRICADE_HEIGHT_M = 1.6;
+/** Story 5.9 review M1: drawn as a plank box (no art frame: turrets), so its wear is in the shadow layer. */
+const isBoxType = (type: string): boolean => buildingFrame(type) === null;
 /** Story 5.9: floor art (traps, mines) sits just under the walls' shadows and every body. */
 const FLOOR_DEPTH = 2.95;
 /** Story 5.9 (F4): the mine's trigger and blast rings in the placement preview. */
@@ -73,8 +75,10 @@ export class BuildingView {
   private shownVersion = -1;
   /** Story 5.9 (AC 16): per-building damage stage / bar step, not raw HP (a worn trap must not redraw every tick). */
   private shownDrawKey = -1;
-  /** Story 5.9: plank-box buildings (turrets) on screen: their wear is drawn into the shadow layer, so it re-lays. */
-  private boxCount = 0;
+  /** Story 5.9 review M1: the plank-box buildings' (turrets') bar steps last laid out (`boxDrawKey`). */
+  private shownBoxKey = -1;
+  /** Full re-lays so far (browser checks read it). */
+  relayouts = 0;
   /** gx, gy, rot, validity and type folded into one number (no string per frame). */
   private shownPreviewKey = -1;
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
@@ -105,10 +109,14 @@ export class BuildingView {
   private drawPlaced(world: Readonly<World>): void {
     const list = world.buildings.list;
     const key = buildingDrawKey(list);
-    const relayout = world.buildings.version !== this.shownVersion || (key !== this.shownDrawKey && this.boxCount > 0);
+    // Review M1: a re-lay only when the list changed or a plank-box building's (turret's) bar step did.
+    const boxKey = boxDrawKey(list, isBoxType);
+    const relayout = world.buildings.version !== this.shownVersion || boxKey !== this.shownBoxKey;
     if (!relayout && key === this.shownDrawKey) return;
     this.shownVersion = world.buildings.version;
     this.shownDrawKey = key;
+    this.shownBoxKey = boxKey;
+    if (relayout) this.relayouts++;
     const g = this.placed;
     const bars = this.bars;
     const cracks = this.cracks;
@@ -116,7 +124,6 @@ export class BuildingView {
     cracks.clear();
     if (relayout) {
       g.clear();
-      this.boxCount = 0;
       // Story 4.9: every shadow first (one light direction, length by height), then the tops. Story 4.11:
       // the shadow is the game's (never baked into the art), so a turned barricade's falls the same way.
       // Story 5.9: by kind (walls tall, a trap a few centimetres, a mine none).
@@ -145,7 +152,6 @@ export class BuildingView {
         img.setTint(barricadeTint(frac));
         if (frac < 1 && b.solid) drawCracks(cracks, b, damageStage(frac) * CRACKS_PER_STAGE);
       } else if (relayout) {
-        this.boxCount++;
         g.fillStyle(darken(WOOD, (1 - frac) * DAMAGE_DARKEN), 1).fillRect(b.minX, b.minY, w, h);
         g.lineStyle(OUTLINE_M / 2, PLANK_LINE, 1);
         if (w >= h) for (let x = b.minX + PLANK_M; x < b.maxX - 1e-6; x += PLANK_M) g.lineBetween(x, b.minY, x, b.maxY);

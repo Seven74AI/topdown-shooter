@@ -13,7 +13,8 @@ import { startBuild, startWave } from "../run/runStateMachine";
 import { isZombieAlive, spawnZombie } from "../zombies/zombiePool";
 import { addBuildingAt, buildingById, ownedCount, placementError, type Building } from "./buildings";
 import { mineCounters } from "./mine";
-import { blastResult } from "../combat/explosion";
+import { blastResult, explode } from "../combat/explosion";
+import { zombieCandidates } from "../combat/scratch";
 
 /**
  * Story 5.9: mines (AC 3, F4–F8). One mechanic per test (no wave director; zombies stand still).
@@ -226,5 +227,63 @@ describe("mine (Story 5.9)", () => {
     expect(placementError(world, "p0", { type: "mine", gx: gx(sp.x + clear + 0.75), gy: gx(sp.y), rot: 0 })).toBeNull();
     expect(placementError(world, "p0", { type: "spike_trap", gx: Math.round((sp.x + 0.5) / BUILD_GRID_M), gy: Math.round((sp.y - 1) / BUILD_GRID_M), rot: 0 })).toBe("blocked");
     expect(placementError(world, "p0", { type: "metal_barricade", gx: 40, gy: 40, rot: 0 })).toBe("unknown_type"); // upgrade-only
+  });
+
+  it("review L1 (F7): a walking zombie sets the mine off on the very tick its body first overlaps the trigger circle", () => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: noop } }); // zombies walk
+    addPlayer(world, "p0", 30, 10.25);
+    const events: SimEvent[] = [];
+    world.events.subscribe((e) => events.push(e));
+    startBuild(world);
+    startWave(world);
+    addBuildingAt(world, { id: 1, type: "mine", ownerId: "p0", gx: 40, gy: 20, rot: 0, hp: 1 }); // centre (20.25, 10.25)
+    const z = spawnZombie(world, "walker", 10, 10.25); // walks east toward the player, straight through
+    world.zombies.hp[z] = 1e6;
+    const reach = MINE.triggerRadiusM + RZ;
+    let overlapTick = -1;
+    let blastTick = -1;
+    for (let t = 0; t < 400 && blastTick < 0; t++) {
+      step(world, TICK_DT_S);
+      if (overlapTick < 0 && Math.hypot((world.zombies.x[z] as number) - 20.25, (world.zombies.y[z] as number) - 10.25) < reach) overlapTick = world.tick;
+      if (events.some((e) => e.type === "mine.exploded")) blastTick = world.tick;
+    }
+    expect(overlapTick).toBeGreaterThan(0); // liveness: it really walked in
+    expect(blastTick).toBe(overlapTick);
+    expect(events.filter((e) => e.type === "mine.exploded")).toHaveLength(1);
+  });
+
+  it("review L3: a player whose body EDGE (not centre) is inside the blast circle takes 40; one just beyond takes nothing", () => {
+    for (const [d, hurt] of [
+      [MINE.blastRadiusM + balance.player.radiusM - 0.01, true],
+      [MINE.blastRadiusM + balance.player.radiusM + 0.01, false],
+    ] as const) {
+      const { world, mine } = setup();
+      mine(20.25, 16.25);
+      const p = world.players.get("p1");
+      if (!p) throw new Error("p1");
+      p.x = p.prevX = 20.25 - d;
+      p.y = p.prevY = 16.25;
+      const hp = p.hp;
+      tough(world, spawnZombie(world, "walker", 20.25, 16.25 + 0.8));
+      step(world, TICK_DT_S);
+      expect(mineCounters.exploded).toBeGreaterThan(0);
+      expect(hp - p.hp, `d ${d}`).toBe(hurt ? MINE.damage * MINE.playerShare : 0);
+      expect(d - balance.player.radiusM).toBeLessThan(MINE.blastRadiusM + 0.02); // the centre itself is outside the circle
+      expect(d).toBeGreaterThan(MINE.blastRadiusM);
+    }
+  });
+
+  it("review L2: explode() never touches the shared combat candidate buffer (callers may be iterating it)", () => {
+    const { world } = setup();
+    for (let i = 0; i < 5; i++) tough(world, spawnZombie(world, "walker", 20 + i * 0.3, 16));
+    for (let i = 0; i < 16; i++) zombieCandidates[i] = 1000 + i; // a caller's in-progress list
+    let visited = 0;
+    for (let k = 0; k < 16; k++) {
+      expect(zombieCandidates[k]).toBe(1000 + k);
+      visited++;
+      if (k === 3) explode(world, 20.5, 16, 2.5, 1, 0.5, "p0", "mine", 0); // re-entrant blast mid-iteration
+    }
+    expect(visited).toBe(16);
+    expect(blastResult.zombiesHit).toBe(5); // liveness: the blast really hit
   });
 });
