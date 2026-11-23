@@ -35,7 +35,7 @@ import { dpr } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
 import { InputRouter } from "../input/InputRouter";
 import { attachDesktopInput } from "../input/desktopInput";
-import { pixelsPerMeter } from "../render/camera";
+import { pixelsPerMeter, shakeIntensityFor } from "../render/camera";
 import { PlayerView } from "../render/PlayerView";
 import { ACID_CUE_MS, FireCue } from "../render/fireCue";
 import { ACID_SOUND_MAX_AGE_S, AcidFx } from "../render/acidFx";
@@ -933,6 +933,12 @@ export class GameScene extends Phaser.Scene {
     this.flameView?.end();
   }
 
+  /** A camera shake of `fraction` of the view (see `shakeIntensityFor`: Phaser's own shake scales by zoom²). */
+  private shake(ms: number, fraction: number): void {
+    const cam = this.cameras.main;
+    cam.shake(ms, shakeIntensityFor(fraction, cam.zoom));
+  }
+
   /** Story 5.8: a burst's wet pop (on screen, fresh only) and a short shake when my survivor is near it (the mine's rule). */
   private bloaterBurst(host: SimHost, e: Extract<SimEvent, { type: "bloater.burst" }>): void {
     if ((e.ageS ?? 0) > ACID_SOUND_MAX_AGE_S) return; // a woken tab's backlog: silent
@@ -942,7 +948,7 @@ export class GameScene extends Phaser.Scene {
     }
     const me = host.world.players.get(host.localPlayerId);
     const k = me ? mineShakeIntensity(Math.hypot(me.x - e.x, me.y - e.y)) : 0;
-    if (k > 0 && getSettings().screenShake) this.cameras.main.shake(MINE_SHAKE_MS, k);
+    if (k > 0 && getSettings().screenShake) this.shake(MINE_SHAKE_MS, k);
   }
 
   /** Story 5.6: the spit's "ptoo" and the splash's hiss, only when on screen (panned by screen position). */
@@ -1075,7 +1081,7 @@ export class GameScene extends Phaser.Scene {
         // within `fx.shakeWithinM` of it, a blast sound panned to its side (none for a woken tab's backlog).
         const me = host.world.players.get(localId);
         const k = me ? mineShakeIntensity(Math.hypot(me.x - e.x, me.y - e.y), host.world.balance.combat.explosion.fx.shakeWithinM) : 0;
-        if (k > 0 && getSettings().screenShake) this.cameras.main.shake(MINE_SHAKE_MS, k);
+        if (k > 0 && getSettings().screenShake) this.shake(MINE_SHAKE_MS, k);
         const v = this.cameras.main.worldView;
         const pan = Math.max(-1, Math.min(1, (e.x - (v.x + v.width / 2)) / Math.max(1e-6, v.width / 2)));
         playSfx(blastLookFor(e.kind) === "fireball" ? "fx_explosion" : "building_mine_blast", pan);
@@ -1083,7 +1089,7 @@ export class GameScene extends Phaser.Scene {
         // Story 5.2: my own swing of a screenShake melee weapon (the Fire Axe) shakes too. Online it is
         // the local swing (NetSimHost drops my server echo), so it shakes once and without a round trip.
         const stats = host.world.balance.weapons[e.weapon];
-        if (stats?.screenShake && getSettings().screenShake) this.cameras.main.shake(SHAKE_MS, SHAKE_INTENSITY);
+        if (stats?.screenShake && getSettings().screenShake) this.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "build.started") {
         if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
       } else if (e.type === "wave.started") {
