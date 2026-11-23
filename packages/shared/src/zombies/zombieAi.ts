@@ -10,9 +10,10 @@ import { zombieTypeOf } from "./zombiePool";
 import { PUSH_STUCK, distanceToBox, hasObstacles, pushOutOfBuildings, pushed, segmentHitsBuildings } from "../buildings/collision";
 import { buildingById, damageBuilding, type Building } from "../buildings/buildings";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
-import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, isWideType, type FlowField, type NavGrid } from "./flowField";
+import { flowCellAt, flowCellCenterX, flowCellCenterY, flowNearestReachedCell, flowNextCell, flowSharedMaxAgeTicks, flowStepBuilding, inFlankCone, isWideType, wideGapRing, type FlowField, type NavGrid } from "./flowField";
 import { ZOMBIE_STATE, isRushState, isWindupState } from "./zombieTypes";
 import { knockPlayer } from "../player/knockback";
+import { meleeLineClear } from "../combat/cover";
 import { segmentHitsFire } from "../decay/fire";
 import { collectStanding, spitterStep } from "./spit";
 import { updateMines } from "../buildings/mine";
@@ -97,7 +98,7 @@ function steerByField(world: World, field: FlowField, nav: NavGrid, x: number, y
   if (nav.inflateM > 0) {
     // Story 5.7: a wide body standing in a grown wall cell (no field there) steers from the best
     // reached cell next to it.
-    const near = flowNearestReachedCell(field, nav, here, 2);
+    const near = flowNearestReachedCell(field, nav, here, world.balance.zombies.pathing.wideSteerRings); // review L4
     if (near < 0) return false;
     if (near !== here) {
       const next = flowNextCell(field, nav, near);
@@ -312,6 +313,11 @@ export const updateZombies: SystemFn = (world, dtS) => {
         y = target.y + (dy / d) * contact;
         d = contact;
       }
+      // Story 5.7 review M1: a target in a slot narrower than the Brute is wound up on from the
+      // slot's mouth, inside the long gap reach, with a clear line.
+      const gapSwing =
+        stats.gapReachM > 0 && d > contact + CONTACT_EPS_M && d < stats.gapReachM - stats.swingToleranceM && pool.attackCooldownTicks[id] === 0 && !windup && swingReachFor(world, stats, target) === stats.gapReachM && meleeLineClear(world, x, y, target.x, target.y);
+      if (gapSwing && !isWindupState(pool.state[id] as number)) startWindup(world, id, stats);
       if (d <= contact + CONTACT_EPS_M && pool.attackCooldownTicks[id] === 0 && !windup) {
         if (stats.windupS > 0) {
           // Story 5.7 (F1): touch → stand and wind up; the hit is decided at its end (`resolveSwing`).
@@ -374,9 +380,22 @@ function startWindup(world: World, id: number, stats: Readonly<ZombieTypeStats>)
 }
 
 /**
+ * Story 5.7: the swing's reach (centre to centre) on player p: contact + `swingReachM`, or, when p
+ * stands in a slot narrower than the Brute (review M1: the wide field is seeded from the slot's
+ * mouth, `wideGapRing` ≥ 2), the long `gapReachM`.
+ */
+function swingReachFor(world: World, stats: Readonly<ZombieTypeStats>, p: PlayerState): number {
+  const normal = stats.radiusM + p.radiusM + stats.swingReachM;
+  if (stats.gapReachM <= normal || !stats.wideBody) return normal;
+  return wideGapRing(world, p.x, p.y) >= 2 ? stats.gapReachM : normal;
+}
+
+/**
  * Story 5.7 (F1): the end of a windup. The swing lands on the nearest standing player whose centre
- * is closer than contact + `swingReachM` (strictly: a player who stepped `swingReachM` away is
- * missed); the attack interval runs either way.
+ * is closer than its reach (`swingReachFor`) minus `swingToleranceM` (review L1: a body exactly
+ * `swingReachM` out — a step back, or the axe's 0.3 m knock during the windup — is always missed),
+ * with a clear line (`meleeLineClear`: never through a wall, car or barricade); the attack interval
+ * runs either way.
  */
 function resolveSwing(world: World, id: number, x: number, y: number, stats: Readonly<ZombieTypeStats>): void {
   const pool = world.zombies;
@@ -386,8 +405,8 @@ function resolveSwing(world: World, id: number, x: number, y: number, stats: Rea
   if (p) {
     const dx = p.x - x;
     const dy = p.y - y;
-    const reach = stats.radiusM + p.radiusM + stats.swingReachM;
-    if (dx * dx + dy * dy < reach * reach) {
+    const reach = swingReachFor(world, stats, p) - stats.swingToleranceM;
+    if (dx * dx + dy * dy < reach * reach && meleeLineClear(world, x, y, p.x, p.y)) {
       bruteStats.hits++;
       damagePlayer(world, p, stats, id);
       return;

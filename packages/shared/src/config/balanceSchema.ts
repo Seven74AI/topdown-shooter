@@ -84,6 +84,11 @@ export const spitSchema = z
     puddleS: z.number().positive().max(30),
     puddleDamagePerS: z.number().positive(),
     puddlePulseS: z.number().positive().max(5),
+    /**
+     * 5.6 re-review / 5.7 review L4: a puddle is blocked by a shot blocker that the body → centre
+     * line enters more than this before the centre (a spit stopped at a face leaves its centre on it).
+     */
+    acidFaceToleranceM: z.number().min(0).max(0.2).default(0.02),
   })
   .strict()
   .refine((f) => wholeTicks(f.windupS) && wholeTicks(f.intervalS) && wholeTicks(f.puddleS), "spit windupS, intervalS and puddleS must be whole numbers of ticks")
@@ -138,6 +143,19 @@ export const zombieTypeSchema = z
     windupS: z.number().min(0).max(5).default(0),
     swingReachM: z.number().min(0).max(2).default(0),
     /**
+     * Story 5.7 review L1: the swing lands only when the body is closer than the reach minus this
+     * (a float margin: a body exactly `swingReachM` out — a step, or the axe's 0.3 m knock during
+     * the windup — is always missed, never a coin flip).
+     */
+    swingToleranceM: z.number().min(0).max(0.1).default(0.01),
+    /**
+     * Story 5.7 review M1 (designer: "long reach into gaps"): when the target stands in a slot
+     * narrower than this body (the wide field is seeded from the slot's mouth), the swing reaches
+     * this far, centre to centre (0 = never). Same windup, still dodged by stepping out of it, still
+     * needs a clear line (`meleeLineClear`).
+     */
+    gapReachM: z.number().min(0).max(4).default(0),
+    /**
      * Story 5.7 (D1): wider than the flow field's clearance rule allows (0.35 m): paths on the wide
      * grid (every box grown by `pathing.wideInflateM`) and follows the wide chase field.
      */
@@ -178,6 +196,10 @@ export const pathingSchema = z
      * At most one 0.5 m cell (the rasterizer grows a box by whole cells).
      */
     wideInflateM: z.number().min(0).max(0.5).default(0.25),
+    /** Story 5.7 (review L4): rings of cells searched for free cells round a player in a grown wall cell (the field's seeds). */
+    wideSeedRings: z.number().int().min(1).max(12).default(6),
+    /** Story 5.7 (review L4): rings searched for a reached cell round a wide body standing in a grown wall cell. */
+    wideSteerRings: z.number().int().min(1).max(6).default(2),
   })
   .strict();
 

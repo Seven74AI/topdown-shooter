@@ -576,9 +576,38 @@ const seedPlayer = (p: PlayerState): void => {
  * first ring of cells round it that has one, and the ring after it; cost two units per ring), so a
  * Brute still comes as close as its body allows and breaks the barricades round such a player. A
  * player in a slot narrower than a Brute (the 1 m between the bus and a car) is seeded from the
- * slot's mouths (up to `SEED_AROUND_RINGS` cells away): the Brute waits there.
+ * slot's mouths (up to `pathing.wideSeedRings` cells away): the Brute waits there, and its swing
+ * reaches `gapReachM` into the slot (review M1, `wideGapRing`).
  */
-const SEED_AROUND_RINGS = 6;
+
+/**
+ * Story 5.7 review M1: how far (in rings of cells) the nearest free wide-grid cell is from a player
+ * at (x, y): 0 when the player's own cell is free, 1 for a player pressed against a box (a Brute can
+ * reach its body), ≥ 2 for a player in a slot narrower than a Brute (the field is seeded from the
+ * slot's mouths: the long "gap" reach applies), -1 when none is within `wideSeedRings`. Never across
+ * a map solid (the seeding rule). No allocation.
+ */
+export function wideGapRing(world: Readonly<World>, x: number, y: number): number {
+  const nav = world.pathing.wide;
+  if (nav.cells <= 1) return 0;
+  const { cols, rows, wallAt, cellM } = nav;
+  const c = flowCellAt(nav, x, y);
+  if (wallAt[c] === 0) return 0;
+  const cx = c % cols;
+  const cy = (c - cx) / cols;
+  const rings = world.balance.zombies.pathing.wideSeedRings;
+  for (let ring = 1; ring <= rings; ring++) {
+    for (let ny = Math.max(0, cy - ring); ny <= Math.min(rows - 1, cy + ring); ny++) {
+      for (let nx = Math.max(0, cx - ring); nx <= Math.min(cols - 1, cx + ring); nx++) {
+        if (Math.max(Math.abs(nx - cx), Math.abs(ny - cy)) !== ring) continue;
+        if (wallAt[ny * cols + nx] !== 0) continue;
+        if (lineCrossesSolid(world, x, y, (nx + 0.5) * cellM, (ny + 0.5) * cellM)) continue;
+        return ring;
+      }
+    }
+  }
+  return -1;
+}
 
 /** The segment crosses the interior of a map solid (active cover included). */
 function lineCrossesSolid(world: Readonly<World>, x0: number, y0: number, x1: number, y1: number): boolean {
@@ -594,7 +623,8 @@ function seedAround(f: FlowField, nav: NavGrid, c: number, px: number, py: numbe
   const cx = c % cols;
   const cy = (c - cx) / cols;
   let found = 0;
-  for (let ring = 1; ring <= SEED_AROUND_RINGS && (found === 0 || ring <= found + 1); ring++) {
+  const rings = world.balance.zombies.pathing.wideSeedRings;
+  for (let ring = 1; ring <= rings && (found === 0 || ring <= found + 1); ring++) {
     for (let ny = Math.max(0, cy - ring); ny <= Math.min(rows - 1, cy + ring); ny++) {
       for (let nx = Math.max(0, cx - ring); nx <= Math.min(cols - 1, cx + ring); nx++) {
         if (Math.max(Math.abs(nx - cx), Math.abs(ny - cy)) !== ring) continue;

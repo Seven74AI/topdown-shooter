@@ -24,7 +24,7 @@ export function announceSpawn(world: World, id: number): void {
   world.events.emit({ type: "zombie.brute_spawned", zombieId: id, x: world.zombies.x[id] as number, y: world.zombies.y[id] as number, first });
 }
 
-/** The Brute's five looks (BR1 riot cop, BR2 construction worker, BR3 butcher, BR4 bouncer, BR5 firefighter). */
+/** The Brute's five looks (BR1 riot cop, BR2 construction worker, BR3 bloated butcher, BR4 bodybuilder, BR5 prisoner). */
 export const BRUTE_LOOKS = 5;
 
 /**

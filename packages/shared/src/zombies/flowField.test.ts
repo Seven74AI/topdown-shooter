@@ -4,7 +4,7 @@ import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, removeBuilding, type BuildingRotation } from "../buildings/buildings";
 import { createWorld, step, type World } from "../core/world";
 import { addPlayer } from "../player/player";
-import { spawnZombie } from "./zombiePool";
+import { killZombie, spawnZombie } from "./zombiePool";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { applyDecayStage } from "../decay/applyDecayStage";
 import {
@@ -371,3 +371,21 @@ describe("Story 5.7 (D1): the wide grid and the wide chase field", () => {
 function run(w: World, n: number): void {
   for (let i = 0; i < n; i++) step(w, TICK_DT_S);
 }
+
+describe("Story 5.7 review L3: the idle wide field is dropped at a decay change", () => {
+  it("a stage change with no Brute alive invalidates the wide field; the next Brute gets a fresh one (built after the change)", () => {
+    const w = createWorld({ balance, seed: 1, map: DOWNTOWN_MAP, systems: NO_WAVES });
+    addPlayer(w, "a", 24, 14.5).hp = 1e9;
+    const b = spawnZombie(w, "brute", 40, 28);
+    run(w, 30);
+    expect(w.pathing.wideChase.sourceTick).toBeGreaterThan(0);
+    killZombie(w, b, null, "pistol");
+    run(w, 5);
+    applyDecayStage(w, 2, w.decay.variants); // a build start's walls (no Brute alive: the wide field is not rebuilt)
+    const changedAt = w.tick;
+    expect(w.pathing.wideChase.sourceTick).toBe(-1);
+    spawnZombie(w, "brute", 40, 28);
+    run(w, 6 * flowRefreshTicks(w));
+    expect(w.pathing.wideChase.sourceTick).toBeGreaterThanOrEqual(changedAt);
+  });
+});

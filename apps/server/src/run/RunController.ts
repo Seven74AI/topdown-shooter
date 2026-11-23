@@ -454,7 +454,10 @@ export class RunController {
       const sp = s.skippedCount > 0 ? this.world.players.get(s.playerId) : undefined;
       for (let k = 0; k < s.skippedCount; k++) {
         skippedInputWeaponTick(this.world, s.playerId, s.skipped[k] as MutableInput);
-        if (sp) tickSlow(sp); // the skipped seq's slow tick, as the client predicted it (3.9 review)
+        if (sp) {
+          tickSlow(sp); // the skipped seq's slow tick, as the client predicted it (3.9 review)
+          if (sp.knockTicks > 0) sp.knockTicks--; // Story 5.7 review L2: its knock tick too (the prediction counted it; the slide itself is lost with the seq)
+        }
       }
       s.skippedCount = 0;
       const p = this.world.players.get(s.playerId);

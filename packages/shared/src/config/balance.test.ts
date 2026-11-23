@@ -77,7 +77,7 @@ describe("loadBalance", () => {
 
   it("Story 5.7: the Brute matches the GDD; other types keep the new fields' defaults", () => {
     const b = loadBalance();
-    expect(b.zombies.types.brute).toMatchObject({ hp: 120, speedMps: 1.0, damage: 35, attackIntervalS: 1.5, radiusM: 0.6, reward: 25, buildingDamageMult: 3, knockbackTakenPct: 20, hitKnockbackM: 1.5, knockbackS: 0.2, windupS: 0.5, swingReachM: 0.3, wideBody: true });
+    expect(b.zombies.types.brute).toMatchObject({ hp: 120, speedMps: 1.0, damage: 35, attackIntervalS: 1.5, radiusM: 0.6, reward: 25, buildingDamageMult: 3, knockbackTakenPct: 20, hitKnockbackM: 1.5, knockbackS: 0.2, windupS: 0.5, swingReachM: 0.3, wideBody: true, gapReachM: 1.8, swingToleranceM: 0.01 });
     for (const id of ["walker", "crawler", "runner", "spitter"]) {
       expect(b.zombies.types[id], id).toMatchObject({ buildingDamageMult: 1, knockbackTakenPct: 100, hitKnockbackM: 0, windupS: 0, swingReachM: 0, wideBody: false });
     }

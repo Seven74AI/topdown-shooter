@@ -47,6 +47,7 @@ so that we learn to focus fire and protect our buildings.
 - **F5 "A Brute hurts buildings 3× as much."** 35 × 3 = **105** per hit on a building (wood barricade 200 HP: 2 hits; metal 600: 6 hits; turret 300: 3 hits), at its attack interval; no windup on buildings (it is not dodgeable anyway). It attacks a building only when that building blocks its path (the 3.5 rule).
 - **F6 "A Brute never appears on top of you."** It spawns at a spawn point by the 4.3 rules (≥ `spawnMinPlayerDistanceM` + jitter from every standing player), never inside a box, and the first one of the run is announced by a roar + a "Brute!" banner the moment it spawns.
 - **F7 "Its body is what you shoot."** Its hit radius for bullets, pellets and melee is its body radius **0.6 m** (the drawn silhouette fits the body: the 4.9 `CHAR_EXTENT_R` rule).
+- **F9 "No hiding in a gap the Brute can't enter" (designer, review M1: "long reach into gaps").** A standing player in a slot narrower than the Brute (the 1 m gaps between the parked cars, parking wall ↔ parked_car_1, curb car ↔ se_offices, street_car_west ↔ curb car) is swung at from the slot's mouth with a reach of `gapReachM` **1.8 m** (centre to centre) instead of contact + 0.3 m: the same 0.5 s windup, dodged by stepping beyond 1.8 m (deeper into a long slot, ~2.25 m), never through a wall, car or barricade (the swing needs `meleeLineClear`), knockback as usual. In the open (a player pressed against a car) the reach stays contact + 0.3 m. Every swing lands only closer than its reach minus `swingToleranceM` (1 cm): a body exactly 0.3 m out (a step, or the axe's 0.3 m knock during the windup) is always missed.
 - **F8 "Same Brute for everyone."** HP, damage and speed never change with waves or player count (FR27); only how many appear (`waves.json`).
 
 ### Behaviour
@@ -259,12 +260,24 @@ Also: `flowField.test` (+5: 1.0 m closed / 1.5 m open, growth + ids, idles witho
 8. Downed next to the Brute: not pushed, not hit again (test). **Holds.**
 9. Hidden tab across the Brute spawn: decided **once, or skipped if stale** — no roar after 1 s, no banner after 3 s; `first` is true on exactly one event per run (test). **Holds.**
 10. Solo wave 5 (80): exactly 1 Brute, the 21st spawn (test). **Holds.**
-11. *Found:* a player in a slot narrower than 1.2 m (the 1 m between the bus and the street car, the 1 m between the parking wall and parked_car_1) is out of the Brute's reach; it waits at the slot's mouth. Walkers still come in. Designer to judge (option: Brute breaks nothing there by design, it cannot break cars).
+11. *Found:* a player in a slot narrower than 1.2 m was out of the Brute's reach (it waited at the mouth). **Fixed by the designer's rule F9** (long reach into gaps, review M1); only a player more than 1.8 m deep in a long slot is safe.
 12. *Found:* a Brute shoves slower zombies ahead of it (it takes only ~25 % of an overlap); once it pushed a Crawler into a fire (fire test seed 12). Emergent, harmless.
+
+### Review fixes (2026-11-23)
+
+Merged `claude/gracious-turing-0db3j6` first (5.2 with its review fixes and the melee line-of-sight rule, 4.12 fixes, 4.13's texture registry: the Brute frames live in the characters atlas, no texture of their own).
+
+- **M1 (designer: long reach into gaps) → F9.** `flowField.ts › wideGapRing(world, x, y)`: rings to the nearest free wide-grid cell from a player (0: own cell free; 1: pressed against a box; ≥ 2: in a slot narrower than the Brute, the field seeded from its mouth), never across a map solid. `zombieAi.ts › swingReachFor`: `gapReachM` (1.8 m, `zombies.json`) when the ring is ≥ 2, else contact + `swingReachM`; the windup also starts from the mouth (attack ready, inside the gap reach, clear line); `resolveSwing` needs `meleeLineClear` (no hits through walls, cars, barricades). Measured: a player 0.5 m / 1 m deep in each of the five Downtown slots is hit from the mouth (the knock then pushes them ~1.5 m deeper, out of reach); 2.25 m deep in the 4.5 m slots: never hit in 40 s. Tests: `brute.test.ts › long reach into gaps` (five slots × two depths with clear-line check; long slot safe; the parking wall between → miss, the mouth → hit; a player pressed against a car in the open keeps the short reach). Fuzz tightened: a Brute counts only by landing a hit (player or building); excuses only "every player > `gapReachM` + ½ cell diagonal from every free wide cell" or "another Brute that is landing hits holds it off within 1.3 m" (seed 2: two Brutes round one cornered player). 16 layouts: 1,517 knockbacks, 36/38 Brutes hit a player, the other two hit buildings or were held off.
+- **L1:** `swingToleranceM` 0.01 (balance): hit iff closer than reach − 1 cm. The axe's 0.3 m knock during the windup now always makes it miss, a 0.25 m one never (24 angles each, test); the step-out test: 0.3 / 0.292 m dodge, 0.285 / 0.2 m are hit.
+- **L2:** `RunController` counts `knockTicks` down for skipped seqs like `tickSlow` (test with weapon debt + overflow; mutant killed).
+- **L3:** `applyDecayStage` drops the wide field (`sourceTick` −1, rebuild restarted) when it rewrites the walls, so the next Brute after a build start never steers by an old-stage field (walks straight ≤ 3P ticks until a fresh one swaps in). Test in `flowField.test.ts`; mutant killed.
+- **L4:** `pathing.wideSeedRings` (6), `pathing.wideSteerRings` (2) and `spit.acidFaceToleranceM` (0.02) moved to `zombies.json` (schema defaults).
+- **L5:** `brute.ts` look names fixed (BR3 bloated butcher, BR4 bodybuilder, BR5 prisoner).
+- **Mutations of the new tests:** gap reach ignored, gap reach in the open too, swing ignores the line (survived first; killed after the parking-wall test was added), `seedAround` early return, tolerance ignored, L3 invalidation removed, seed rings 1, L2 count removed: all killed.
 
 ### Gate
 
-On the branch merged with `claude/gracious-turing-0db3j6` (5.1, 5.2, 4.12, 4.13; conflicts resolved in `damage.ts`, `movement.ts`, `netEvents.ts`, `simEvents.ts`, `balanceSchema.ts`, `spriteArt.ts`, tests and the readability sheet): `npm run typecheck && npm run lint && npm test && npm run build` green — **227 test files passed, 1 skipped; 1,760 tests passed, 3 skipped**. `uptime` during the test run: load 6.7 → 9.5 (4 cores); during typecheck/lint/build: 6.1–7.7.
+After the review fixes, on the branch merged with `claude/gracious-turing-0db3j6` again: `npm run typecheck && npm run lint && npm test -- --testTimeout=30000 && npm run build` green — **229 test files passed, 1 skipped; 1,811 tests passed, 3 skipped** (`spitter.test` updated for the new `acidFaceToleranceM` default). `uptime` during the run: load 1.2 → 4.3 (4 cores). (First build: 227 files / 1,760 tests at load 6.7–9.5.)
 
 ### Not verified
 
@@ -316,4 +329,5 @@ Modified:
 
 ## Change Log
 
+- 2026-11-23: Review fixes (M1 → F9 long reach into gaps, L1 swing tolerance, L2 skipped-seq knock count, L3 wide field dropped at decay changes, L4 constants to balance, L5 look names); merged the work branch again. Status → review.
 - 2026-11-23: Story 5.7 built (Brute: balance, wide-body pathing, windup, knockback with prediction, fixed wave counts, spawn event/banner/roar, five code looks with the arms-under-clothes fix, tests, fuzz, reachability, six-wave sim, netsim, bandwidth, tick cost, FPS, mutations). Also the 5.6 acid-vs-cover fix. Merged `claude/gracious-turing-0db3j6` (5.1, 5.2, 4.12, 4.13). Status → review.

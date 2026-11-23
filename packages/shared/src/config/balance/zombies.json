@@ -44,7 +44,8 @@
         "puddleRadiusM": 1.0,
         "puddleS": 3,
         "puddleDamagePerS": 5,
-        "puddlePulseS": 0.4
+        "puddlePulseS": 0.4,
+        "acidFaceToleranceM": 0.02
       }
     },
     "brute": {
@@ -60,6 +61,8 @@
       "knockbackS": 0.2,
       "windupS": 0.5,
       "swingReachM": 0.3,
+      "swingToleranceM": 0.01,
+      "gapReachM": 1.8,
       "wideBody": true
     }
   },
@@ -74,7 +77,9 @@
     "buildingCostM": 12,
     "nearWallCostM": 0.5,
     "lookaheadCells": 2,
-    "wideInflateM": 0.25
+    "wideInflateM": 0.25,
+    "wideSeedRings": 6,
+    "wideSteerRings": 2
   },
   "flank": {
     "coneHalfAngleDeg": 45,

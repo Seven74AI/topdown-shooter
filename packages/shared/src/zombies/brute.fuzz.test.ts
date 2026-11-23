@@ -140,6 +140,19 @@ function layout(seed: number) {
   return { world, rng, players, brutes, stage };
 }
 
+/** Review M1: no cell a Brute can stand on is within `gapReachM` of p (+ half a cell's diagonal: it may stand anywhere in it). */
+function safeFromBrutes(world: World, p: PlayerState): boolean {
+  const nav = world.pathing.wide;
+  const reach = (balance.zombies.types.brute?.gapReachM ?? 0) + nav.cellM * Math.SQRT1_2;
+  for (let c = 0; c < nav.cells; c++) {
+    if (nav.wallAt[c] !== 0) continue;
+    const cx = ((c % nav.cols) + 0.5) * nav.cellM;
+    const cy = (Math.floor(c / nav.cols) + 0.5) * nav.cellM;
+    if (Math.hypot(cx - p.x, cy - p.y) <= reach) return false;
+  }
+  return true;
+}
+
 function killNearestCrowd(world: World, p: PlayerState): void {
   const z = world.zombies;
   let best = -1;
@@ -199,13 +212,16 @@ function run(seed: number) {
       if (bk > 0 && world.decay.fires.length > 0 && circleInFire(world.decay.fires, p.x, p.y, p.radiusM) && !circleInFire(world.decay.fires, bx, by, p.radiusM)) violations.push(`seed ${seed} t ${t}: ${p.id} knocked into fire`);
       if (bk > 0 && Math.hypot(p.x - bx, p.y - by) < 0.37) stoppedKnocks++; // a knock tick that slid or stopped at something
     });
-    // The Downtown fuzz's reach rule too: within 3 m of a player with a clear line (a crowd of
-    // Walkers round a cornered player can hold a Brute off its body: that is the crowd, not a stall).
+    // Review M1 (tightened): a Brute counts only by landing a hit (player or building); the one
+    // excuse is that every standing player is out of its reach: deeper than `gapReachM` (+ half a
+    // cell) from every free wide-grid cell it could stand on (`safeFromBrutes`).
+    if (players.every((p) => p.status !== "alive" || safeFromBrutes(world, p))) for (const id of brutes) reached.add(id);
+    // … or another Brute that is landing hits holds it off (two 1.2 m bodies round one cornered player).
     for (const id of brutes) {
-      if (z.alivePos[id] === -1 || reached.has(id)) continue;
-      const x = z.x[id] as number;
-      const y = z.y[id] as number;
-      for (const p of players) if (Math.hypot(p.x - x, p.y - y) <= 3 && !segmentHitsBuildings(world, x, y, p.x, p.y, 0)) reached.add(id);
+      if (z.alivePos[id] === -1 || reached.has(id) || hitPlayer.has(id)) continue;
+      for (const o of brutes) {
+        if (o !== id && hitPlayer.has(o) && z.alivePos[o] !== -1 && Math.hypot((z.x[o] as number) - (z.x[id] as number), (z.y[o] as number) - (z.y[id] as number)) <= 1.3) reached.add(id);
+      }
     }
     for (const b of world.buildings.list) {
       const was = hp.get(b.id);
