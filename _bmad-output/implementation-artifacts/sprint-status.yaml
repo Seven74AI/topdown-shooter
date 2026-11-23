@@ -140,6 +140,7 @@ development_status:
   5-24-teammates-ghosts: backlog  # building UX BX-10
   5-25-mouse-and-keys-parity-optional: backlog  # building UX BX-11
   5-26-build-bar-icons: done  # designer 2026-11-23: I1 tilted icons, T1 turret (T2 kept), M1 mine; after 5.16
+  5-27-build-bar-icons-floodlight-med-station-bear-trap: backlog  # designer approved round 3 icons 2026-11-23
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless
