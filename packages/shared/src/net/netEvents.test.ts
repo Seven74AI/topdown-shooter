@@ -12,6 +12,15 @@ const dec: NetEventContext = { balance };
 /** One of every forwarded kind, with values already on the wire grid (cm, tenths, ms). */
 const dir = (deg: number) => ({ dirX: Math.cos((deg * Math.PI) / 180), dirY: Math.sin((deg * Math.PI) / 180) });
 const EVENTS: SimEvent[] = [
+  // Story 6.5: the Behemoth (absolute ticks: the client draws from the server's start tick)
+  { type: "boss.warning", x: 1.5, y: 31.25, hitTick: 123456 },
+  { type: "boss.arrived", x: 2, y: 30, maxHp: 4800, look: 3 },
+  { type: "boss.telegraph", attackId: 65535, kind: 1, startTick: 100000, hitTick: 100024, cx: 12.34, cy: 5.67, radiusM: 4.5 },
+  { type: "boss.slammed", attackId: 7, x: 12.34, y: 5.67 },
+  { type: "boss.target_changed", playerId: "p3" },
+  { type: "boss.target_changed", playerId: null },
+  { type: "boss.hit", amount: 12.5, weapon: "smg", sourceId: "p1" },
+  { type: "boss.hit", amount: 40, weapon: "", sourceId: null },
   { type: "zombie.killed", zombieId: 7, killerId: "p2", x: 12.34, y: 5.67, weapon: "smg" },
   { type: "zombie.killed", zombieId: 3, killerId: null, x: 0, y: 31.5, weapon: "pistol" },
   { type: "zombie.hit", zombieId: 7, x: 47.99, y: 0.01, ...dir(90), damage: 4.5, weapon: "hunting_rifle", sourceId: "p1" },

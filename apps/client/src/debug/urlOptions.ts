@@ -59,6 +59,13 @@ export interface UrlOptions {
    */
   shopCards: string | null;
   /**
+   * Story 6.5 (dev builds only, solo; online the server's `DEV_BOSS_WAVES`): `?bosswave=3` brings the
+   * Behemoth in wave 3 (world.debug, never the JSON); `?bosshp=0.1` scales its HP (tests only). null
+   * when absent, invalid or in a release build.
+   */
+  bossWaves: string | null;
+  bossHpScale: number | null;
+  /**
    * `?seed=<uint32>` (Story 4.4, dev builds only, like `?zdmg`): the host's Create asks the server
    * for this run seed; honoured only by a dev server with `DEV_ALLOW_RUN_SEED=1`. null when absent.
    */
@@ -150,6 +157,8 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     scenario: parseScenario(q.get("scenario")),
     waveMix: q.get("wavemix"),
     shopCards: dev ? q.get("shopcards") : null, // Story 5.13: dev builds only
+    bossWaves: dev ? q.get("bosswave") : null, // Story 6.5: dev builds only
+    bossHpScale: dev ? parseBossHpScale(q.get("bosshp")) : null,
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     stressMolotovs: parseStressMolotovs(q.get("stressbuild")),
@@ -214,4 +223,20 @@ let cached: UrlOptions | null = null;
 export function urlOptions(): UrlOptions {
   if (!cached) cached = parseUrlOptions(typeof location === "undefined" ? "" : location.search);
   return cached;
+}
+
+/** Story 6.5: `?bosshp=0.1` → 0.1 (0 < scale ≤ 10), else null. */
+export function parseBossHpScale(raw: string | null | undefined): number | null {
+  if (raw === null || raw === undefined || !/^\d+(\.\d+)?$/.test(raw.trim())) return null;
+  const n = Number(raw.trim());
+  return n > 0 && n <= 10 ? n : null;
+}
+
+/** Story 6.5: `?bosswave=3` / `1,4` → the wave list (1–255 each), else null. */
+export function parseBossWaves(raw: string | null | undefined): readonly number[] | null {
+  if (raw === null || raw === undefined || raw.trim() === "") return null;
+  const parts = raw.split(",").map((t) => t.trim());
+  if (parts.length > 10 || !parts.every((t) => /^\d{1,3}$/.test(t))) return null;
+  const waves = parts.map(Number);
+  return waves.every((w) => w >= 1 && w <= 255) ? waves : null;
 }

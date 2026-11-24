@@ -440,3 +440,47 @@ describe("Predictor: running shoes (Story 5.11, AC 5 / G8)", () => {
     expect(p.stats.corrections).toBeGreaterThan(10);
   });
 });
+
+describe("Story 6.5 (D1, DD6): walking into the Behemoth", () => {
+  async function walkInto(creepMps: number) {
+    const { BOSS_STATE } = await import("@topdown/shared");
+    const { fakeBoss } = await import("./fakeRoom");
+    const server = createWorld({ balance, seed: 1, systems: { waves: () => {}, boss: () => {} } });
+    addPlayer(server, "p0", 10, 10);
+    server.boss.state = BOSS_STATE.WALK;
+    server.boss.x = 15;
+    server.boss.y = 10.3;
+    const p = predictor();
+    const sent: PlayerInput[] = [];
+    const bossAt: number[] = [];
+    for (let s = 1; s <= 80; s++) {
+      server.boss.x -= creepMps * TICK_DT_S;
+      bossAt[s] = server.boss.x;
+      // The client knows the boss of the newest patch it has (the server is two inputs behind).
+      p.syncBoss(fakeBoss({ state: BOSS_STATE.WALK, x: bossAt[Math.max(1, s - 2)] as number, y: server.boss.y }));
+      const input = move(s, 1, 0);
+      sent.push(input);
+      p.applyLocal(input);
+      if (s > 2) {
+        setInput(server, "p0", sent[s - 3] as PlayerInput);
+        step(server, TICK_DT_S);
+        const sp = server.players.get("p0");
+        p.reconcile(s - 2, Math.fround(sp?.x ?? 0), Math.fround(sp?.y ?? 0), "alive");
+      }
+    }
+    const sp = server.players.get("p0");
+    expect(Math.hypot((sp?.x ?? 0) - server.boss.x, (sp?.y ?? 0) - server.boss.y)).toBeGreaterThanOrEqual(balance.boss.radiusM + balance.player.radiusM - 1e-6);
+    return p.stats;
+  }
+
+  it("0 corrections against a standing boss: the Predictor pushes the body out exactly like the server", async () => {
+    const st = await walkInto(0);
+    expect(st.corrections + st.snaps).toBe(0);
+  });
+
+  it("a walking boss (1.3 m/s): only small smoothed corrections, never a snap", async () => {
+    const st = await walkInto(balance.boss.speedMps);
+    expect(st.snaps).toBe(0);
+    expect(st.maxErrorM).toBeLessThan(0.25);
+  });
+});

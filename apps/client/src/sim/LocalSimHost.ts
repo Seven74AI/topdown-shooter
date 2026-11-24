@@ -246,6 +246,26 @@ export class LocalSimHost implements SimHost {
     return a;
   }
 
+  /** Story 6.5: the solo server tick (the World steps here). */
+  get serverTick(): number {
+    return this.world.tick - 1 + this.alpha;
+  }
+
+  /** Story 6.5: the boss between its last two recorded positions (`world.boss.hist*`). */
+  bossDrawPos(out: { x: number; y: number }): void {
+    const b = this.world.boss;
+    const rows = b.histTick.length;
+    const prev = (this.world.tick - 1 + rows) % rows;
+    const a = this.alpha;
+    if (b.histTick[prev] === this.world.tick - 1) {
+      out.x = (b.histX[prev] as number) + (b.x - (b.histX[prev] as number)) * a;
+      out.y = (b.histY[prev] as number) + (b.y - (b.histY[prev] as number)) * a;
+    } else {
+      out.x = b.x;
+      out.y = b.y;
+    }
+  }
+
   get alpha(): number {
     return this.accumulatorS / TICK_DT_S;
   }

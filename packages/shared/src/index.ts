@@ -293,6 +293,8 @@ export {
 export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
 export {
+  BOSS_STATE_FIELDS,
+  type BossStateView,
   BUILDING_STATE_FIELDS,
   PLAYER_STATE_FIELDS,
   RUN_STATE_FIELDS,
@@ -534,5 +536,31 @@ export { acidSpit, acidSpitOf, circleInAcid, clearAcid, spawnSpit, spitStats, sp
 export { createSpitPool, type SpitPool } from "./zombies/spitPool";
 export { AREA_KIND, circleInArea, clearAreas, createAreaPool, spawnArea, type AreaPool } from "./hazards/areaPool";
 export { type SpitStats } from "./config/balanceSchema";
+// Story 6.5: the Behemoth
+export {
+  BOSS_ATTACK,
+  BOSS_STATE,
+  THREAT_BUCKETS,
+  bossActive,
+  bossBodyOn,
+  bossMaxHp,
+  createBossState,
+  isBossWave,
+  pushPlayerOutOfBoss,
+  resetBoss,
+  rewoundBossPos,
+  snapshotBoss,
+  type BossAttack,
+  type BossAttackKind,
+  type BossState,
+  type BossStateId,
+} from "./boss/bossState";
+export { BEHEMOTH_LOOKS, behemothLookIndex, bossEntry, bossEntryOpen, bossPending, pickBossAttack, pickBossEntry, startBossWarning, updateBoss } from "./boss/behemoth";
+export { applyBossDamage, bossCircleHitBySegment, bossDamageStats, bossInArc, bossInCircle, killBoss, zombieUnderBoss, zombiesUnderBoss } from "./boss/bossDamage";
+export { bossGapTicks, bossStats, inSlamZone, startBossAttack, telegraphTicks } from "./boss/telegraph";
+export { bossSlotOf, clearBossThreatSlot, pickBossTarget, recordBossThreat, threatOf } from "./boss/target";
+export { maxAliveNow } from "./waves/waveDirector";
+export { knockPlayerBy } from "./player/knockback";
+export { type BossStats } from "./config/balanceSchema";
 // Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
 export { applyStartWave, parseStartWave } from "./run/devStartWave";

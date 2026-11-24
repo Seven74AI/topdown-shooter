@@ -13,6 +13,7 @@ import decay from "../config/balance/decay.json" with { type: "json" };
 import combat from "../config/balance/combat.json" with { type: "json" };
 import gear from "../config/balance/gear.json" with { type: "json" };
 import consumables from "../config/balance/consumables.json" with { type: "json" };
+import boss from "../config/balance/boss.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { createWorld, step, type World } from "../core/world";
@@ -30,7 +31,7 @@ import { snapshotWorld } from "../core/worldSnapshot";
  */
 function balanceWith(waves: Partial<typeof wavesJson> = {}, realScale = false) {
   const scale = realScale ? {} : { playerCountScale: [1, 1, 1, 1] };
-  return loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 3, ...scale, ...waves }, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables } as RawBalanceFiles);
+  return loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 3, ...scale, ...waves }, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss } as RawBalanceFiles);
 }
 
 /** Zombies frozen in place (tests drive kills by hand), invulnerable player; the run is in its first build phase. */
@@ -475,6 +476,7 @@ describe("Story 6.1: the full 10-wave curve", () => {
   /** A real-balance (real player scale) run with frozen zombies killed as they appear; per wave the spawn order. */
   function runOrders(players: number, opts: { runWaves?: number; startWave?: number; seed?: number } = {}) {
     const world = createWorld({ balance: balanceWith({ runWaves: opts.runWaves ?? 10 }, true), seed: opts.seed ?? 3, systems: { zombies: () => {} } });
+    world.debug.bossWaves = []; // Story 6.5: the spawn order only (the Behemoth's wave-10 rules: boss/behemoth.test.ts)
     for (let i = 0; i < players; i++) addPlayer(world, `p${i}`, 24 + i, 16).hp = 1e9;
     if (opts.startWave) world.waves.number = opts.startWave - 1;
     startBuild(world);

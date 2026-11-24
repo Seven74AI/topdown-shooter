@@ -1,3 +1,4 @@
+import { bossBodyOn } from "../boss/bossState";
 import type { Balance } from "../config/balance";
 import type { TurretStats } from "../config/balanceSchema";
 import type { World } from "../core/world";
@@ -86,6 +87,26 @@ export function nearestZombieInRange(world: Readonly<World>, x: number, y: numbe
   return best;
 }
 
+/** Story 6.5: "the target is the Behemoth" in `updateTurret`. */
+const BOSS_TARGET = -2;
+
+/** Story 6.5 (D6): the boss's centre is in range with a clear shot line and nearer than zombie `zombie` (-1: none). */
+function turretSeesBoss(world: Readonly<World>, x: number, y: number, rangeM: number, zombie: number): boolean {
+  const b = world.boss;
+  if (!bossBodyOn(b)) return false;
+  const dx = b.x - x;
+  const dy = b.y - y;
+  const d2 = dx * dx + dy * dy;
+  if (d2 > rangeM * rangeM) return false;
+  if (zombie >= 0) {
+    const z = world.zombies;
+    const zx = (z.x[zombie] as number) - x;
+    const zy = (z.y[zombie] as number) - y;
+    if (zx * zx + zy * zy <= d2) return false;
+  }
+  return bulletLineClear(world, x, y, b.x, b.y);
+}
+
 /** One turret's tick. Returns true if it fired. */
 function updateTurret(world: World, b: Building, t: Readonly<TurretStats>, typeIndex: number, dtS: number): boolean {
   b.fireCooldownS = cooldownTickStart(b.fireCooldownS, dtS);
@@ -93,16 +114,21 @@ function updateTurret(world: World, b: Building, t: Readonly<TurretStats>, typeI
   if (cooldownReady(b.fireCooldownS)) {
     const cx = buildingCentreX(b);
     const cy = buildingCentreY(b);
-    const target = nearestZombieInRange(world, cx, cy, t.rangeM);
-    if (target >= 0) {
+    let target = nearestZombieInRange(world, cx, cy, t.rangeM);
+    // Story 6.5 (D6): the Behemoth is shot when it is the nearest target in range (its centre, clear line).
+    const boss = turretSeesBoss(world, cx, cy, t.rangeM, target);
+    if (boss) target = BOSS_TARGET;
+    if (target >= 0 || boss) {
       const z = world.zombies;
-      const zx = z.x[target] as number;
-      const zy = z.y[target] as number;
+      const zx = boss ? world.boss.x : (z.x[target] as number);
+      const zy = boss ? world.boss.y : (z.y[target] as number);
+      const pzx = boss ? zx : (z.prevX[target] as number);
+      const pzy = boss ? zy : (z.prevY[target] as number);
       // First-order lead: where the zombie will be after the flight, at its last-tick velocity.
       const dist = Math.sqrt((zx - cx) * (zx - cx) + (zy - cy) * (zy - cy));
       const flightTicks = Math.max(0, dist - t.muzzleM) / (t.projectileSpeedMps * dtS);
-      let ax = zx + ((zx - (z.prevX[target] as number)) * flightTicks) - cx;
-      let ay = zy + ((zy - (z.prevY[target] as number)) * flightTicks) - cy;
+      let ax = zx + ((zx - pzx) * flightTicks) - cx;
+      let ay = zy + ((zy - pzy) * flightTicks) - cy;
       let al = Math.sqrt(ax * ax + ay * ay);
       if (al < MIN_AIM) {
         ax = zx - cx;

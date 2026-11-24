@@ -1,0 +1,22 @@
+{
+  "bossWaves": [10],
+  "arriveAtFraction": 0.5,
+  "warningS": 4,
+  "radiusM": 2.0,
+  "speedMps": 1.3,
+  "hp": 6000,
+  "soloHpScale": 0.4,
+  "aliveCap": 110,
+  "entryMinPlayerDistanceM": 14,
+  "entryPoints": ["street_west", "street_east", "street_north", "street_south"],
+  "buildingDps": 100,
+  "edgeGraceM": 0.25,
+  "gapS": [2.8, 2.2, 1.8, 1.5],
+  "firstGapS": 1.0,
+  "target": { "threatWindowS": 5, "switchMinS": 4 },
+  "slam": { "triggerM": 4.0, "telegraphS": 1.2, "radiusM": 4.5, "damage": 40, "pushM": 2.0, "pushS": 0.2, "recoverS": 0.8, "cooldownS": 4, "zombieDamage": 40 },
+  "bodyPushPlayers": true,
+  "bodyPushZombies": false,
+  "pathing": { "inflateM": 1.65, "rebuildEveryS": 0.5, "buildingSlowPct": 25, "seedRings": 24, "fallbackSeedM": 40, "fallbackRetryS": 2, "fallbackMoveM": 1 },
+  "caps": { "maxDecals": 8 }
+}

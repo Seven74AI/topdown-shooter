@@ -231,3 +231,30 @@ describe("bot policy (Story 2.10)", () => {
     expect(fingerprint(a.world)).toBe(fingerprint(b.world));
   });
 });
+
+describe("Story 6.5: bots fight the Behemoth", () => {
+  it("the boss is a target measured to its body's edge; in range with a clear line it is shot; out of range the bot walks to it; never backs off its body", async () => {
+    const { BOSS_STATE } = await import("../boss/bossState");
+    const balance = loadBalance();
+    const w = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+    addPlayer(w, "p0", 10, 16);
+    w.run.phase = "wave";
+    w.boss.state = BOSS_STATE.WALK;
+    w.boss.x = 10 + balance.boss.radiusM + 5;
+    w.boss.y = 16;
+    const v = createBotView();
+    botViewFromWorld(w, "p0", v);
+    expect(v.nearestZombie).toMatchObject({ boss: true, rushing: true });
+    expect(v.nearestZombie?.distM).toBeCloseTo(5, 6);
+    expect(v.shotZombie).not.toBeNull(); // pistol 9 m ≥ 5 m to its edge
+    w.boss.x = 10 + balance.boss.radiusM + 1; // inside keepDistanceM of its edge: no back-off
+    botViewFromWorld(w, "p0", v);
+    const out = { ...NEUTRAL_INPUT };
+    botInput(v, botConfigOf(balance), 1, out);
+    expect(out.moveX).toBeGreaterThanOrEqual(0);
+    w.boss.x = 40; // out of range: walk to it
+    botViewFromWorld(w, "p0", v);
+    botInput(v, botConfigOf(balance), 2, out);
+    expect(out.moveX).toBeGreaterThan(0);
+  });
+});

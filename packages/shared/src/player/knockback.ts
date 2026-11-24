@@ -25,8 +25,17 @@ export const KNOCK_DIR_SCALE = 127;
 
 /** Knocks standing player `p` away from (fromX, fromY) with the hitting type's stats. Never a downed or out player (F3). */
 export function knockPlayer(p: PlayerState, fromX: number, fromY: number, stats: Readonly<ZombieTypeStats>): void {
-  if (p.status !== "alive" || stats.hitKnockbackM <= 0) return;
-  const ticks = ticksFor(stats.knockbackS);
+  knockPlayerBy(p, fromX, fromY, stats.hitKnockbackM, stats.knockbackS);
+}
+
+/**
+ * Story 6.5 (DD5): the knock generalised — `distM` straight away from (fromX, fromY) over `durS`
+ * (whole ticks). The Brute calls it with its stats, the Behemoth's slam with `slam.pushM / pushS`
+ * (2 m / 4 ticks = 500 mm per tick). Never a downed or out player.
+ */
+export function knockPlayerBy(p: PlayerState, fromX: number, fromY: number, distM: number, durS: number): void {
+  if (p.status !== "alive" || distM <= 0) return;
+  const ticks = ticksFor(durS);
   if (ticks <= 0) return;
   let dx = p.x - fromX;
   let dy = p.y - fromY;
@@ -41,7 +50,7 @@ export function knockPlayer(p: PlayerState, fromX: number, fromY: number, stats:
   p.knockTicks = ticks;
   p.knockDx = Math.round(dx * KNOCK_DIR_SCALE);
   p.knockDy = Math.round(dy * KNOCK_DIR_SCALE);
-  p.knockStepMm = Math.round((stats.hitKnockbackM * 1000) / ticks);
+  p.knockStepMm = Math.round((distM * 1000) / ticks);
 }
 
 /**

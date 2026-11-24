@@ -65,6 +65,13 @@ export const NET_EVENT_KIND = {
   BEAR_TRAP_SNAPPED: 41, // Story 5.14 (39/40 are Story 5.12's consumable.used / molotov.ignited; never reuse)
   BUILDING_SOLD: 42, // Story 5.20 (39/40 = 5.12, 41 = 5.14; renumber at merge if taken, never reuse)
   BUILDING_MOVED: 43, // Story 5.22 (in 5.21; renumber at merge if 5.23 took 43, never reuse)
+  // Story 6.5 (next free numbers when built; 6.8–6.11 add theirs: renumber at merge if taken, never reuse)
+  BOSS_WARNING: 44,
+  BOSS_ARRIVED: 45,
+  BOSS_TELEGRAPH: 46,
+  BOSS_SLAMMED: 47,
+  BOSS_TARGET_CHANGED: 48,
+  BOSS_HIT: 49,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -269,6 +276,19 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "molotov.ignited":
       // Story 5.12: the zone (radius and lifetime from balance; no zone state on the wire).
       return [K.MOLOTOV_IGNITED, e.zoneId & 0xffff, e.item & 0xff, cm(e.x), cm(e.y), playerSlotOf(e.playerId)];
+    // Story 6.5: ticks absolute (the client draws a telegraph from the server's start tick, F3).
+    case "boss.warning":
+      return [K.BOSS_WARNING, cm(e.x), cm(e.y), e.hitTick];
+    case "boss.arrived":
+      return [K.BOSS_ARRIVED, cm(e.x), cm(e.y), e.maxHp, e.look & 0xff];
+    case "boss.telegraph":
+      return [K.BOSS_TELEGRAPH, e.attackId & 0xffff, e.kind & 0xff, e.startTick, e.hitTick, cm(e.cx), cm(e.cy), cm(e.radiusM)];
+    case "boss.slammed":
+      return [K.BOSS_SLAMMED, e.attackId & 0xffff, cm(e.x), cm(e.y)];
+    case "boss.target_changed":
+      return [K.BOSS_TARGET_CHANGED, playerSlotOf(e.playerId)];
+    case "boss.hit":
+      return [K.BOSS_HIT, tenths(e.amount), weaponIndex(b, e.weapon), playerSlotOf(e.sourceId)];
     case "test.ping":
       return null;
   }
@@ -476,6 +496,18 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "bloater.swell_started", zombieId: zombieSlotOfNetId(n(t, 1)), x: n(t, 2) / 100, y: n(t, 3) / 100 };
     case K.BLOATER_BURST:
       return { type: "bloater.burst", x: n(t, 1) / 100, y: n(t, 2) / 100, chain: n(t, 3) === 1 };
+    case K.BOSS_WARNING:
+      return { type: "boss.warning", x: n(t, 1) / 100, y: n(t, 2) / 100, hitTick: n(t, 3) };
+    case K.BOSS_ARRIVED:
+      return { type: "boss.arrived", x: n(t, 1) / 100, y: n(t, 2) / 100, maxHp: n(t, 3), look: n(t, 4) };
+    case K.BOSS_TELEGRAPH:
+      return { type: "boss.telegraph", attackId: n(t, 1), kind: n(t, 2), startTick: n(t, 3), hitTick: n(t, 4), cx: n(t, 5) / 100, cy: n(t, 6) / 100, radiusM: n(t, 7) / 100 };
+    case K.BOSS_SLAMMED:
+      return { type: "boss.slammed", attackId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
+    case K.BOSS_TARGET_CHANGED:
+      return { type: "boss.target_changed", playerId: playerIdOfSlot(n(t, 1)) };
+    case K.BOSS_HIT:
+      return { type: "boss.hit", amount: n(t, 1) / 10, weapon: weaponOf(b, n(t, 2)), sourceId: playerIdOfSlot(n(t, 3)) };
     default:
       return null;
   }

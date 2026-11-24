@@ -1,4 +1,5 @@
 import {
+  BOSS_STATE_FIELDS,
   BUILDING_STATE_FIELDS,
   C2S,
   NEUTRAL_INPUT,
@@ -29,6 +30,7 @@ export interface DevThrottleOptions {
 const PLAYER_KEYS = Object.keys(PLAYER_STATE_FIELDS);
 const STATE_KEYS = Object.keys(RUN_STATE_FIELDS);
 const BUILDING_KEYS = Object.keys(BUILDING_STATE_FIELDS);
+const BOSS_KEYS = Object.keys(BOSS_STATE_FIELDS); // Story 6.5
 
 type Fields = Record<string, unknown>;
 
@@ -37,7 +39,9 @@ class StateCopy {
   readonly players = new Map<string, Fields>();
   /** Story 3.4: buildings by id, copied like players (objects persist per id). */
   readonly buildings = new Map<string, Fields>();
-  readonly view: Fields = { players: this.players, buildings: this.buildings };
+  /** Story 6.5: the boss record (one nested object, copied field by field). */
+  readonly boss: Fields = {};
+  readonly view: Fields = { players: this.players, buildings: this.buildings, boss: this.boss };
   private gen = 0;
   private readonly seen = new Map<string, number>();
   private readonly copyPlayer = (p: PlayerStateView, id: string): void => {
@@ -89,6 +93,8 @@ class StateCopy {
     this.players.forEach(this.sweep);
     src.buildings?.forEach(this.copyBuilding);
     this.buildings.forEach(this.sweepBuildings);
+    const boss = (src as { boss?: unknown }).boss as Fields | undefined;
+    if (boss) for (let i = 0; i < BOSS_KEYS.length; i++) this.boss[BOSS_KEYS[i] as string] = boss[BOSS_KEYS[i] as string];
   }
 
   get asState(): RunStateView {

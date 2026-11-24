@@ -4,6 +4,7 @@ import { BUILD_BAR_SLOTS, layoutBuildBar, newBuildBarLayout, readyLeftX } from "
 import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
+import { layoutBossBar } from "./bossBar";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
@@ -42,6 +43,12 @@ function menu(w: number): Box {
   return { id: "menu", x: w - (MENU_BUTTON_INSET_CSS_PX + INSET.right) * K - s, y: (MENU_BUTTON_INSET_CSS_PX + INSET.top) * K, w: s, h: s };
 }
 
+/** Story 6.5: the boss bar block (name + HP bar), HudScene › BossHud via `layoutBossBar`. */
+function bossBar(w: number): Box {
+  const l = layoutBossBar(w, INSET.left, INSET.top, INSET.right, K, { x: 0, y: 0, w: 0, h: 0, barY: 0, barH: 0 });
+  return { id: "boss_bar", x: l.x, y: l.y, w: l.w, h: l.h };
+}
+
 /** Every mode's pressable controls. */
 function modes(w: number, h: number): Record<string, Box[]> {
   const bar = layoutBuildBar(w, h, INSET.right, INSET.bottom, K, newBuildBarLayout());
@@ -57,7 +64,8 @@ function modes(w: number, h: number): Record<string, Box[]> {
   const act = layoutActionBar(w, h, INSET.right, INSET.bottom, K, ACTION_IDS.map(() => true), newActionBarLayout());
   const sq = (id: string, x: number, y: number, s: number): Box => ({ id, x, y, w: s, h: s });
   return {
-    wave: [menu(w), sq("swap", wave.swapX, wave.swapY, wave.size), sq("consumable", wave.consX, wave.consY, wave.size)],
+    // Story 6.5: the boss bar (top centre, shown in a wave while the Behemoth walks).
+    wave: [menu(w), sq("swap", wave.swapX, wave.swapY, wave.size), sq("consumable", wave.consX, wave.consY, wave.size), bossBar(w)],
     build: [menu(w), ...tiles, ready, sq("consumable", row.consX, row.consY, row.size), sq("swap", row.swapX, row.swapY, row.size), sq("undo", undoBar.x, undoBar.y, undoBar.size)],
     holding: [
       menu(w),

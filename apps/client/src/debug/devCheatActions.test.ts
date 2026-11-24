@@ -60,6 +60,20 @@ describe("damageNearestBuilding (Story 3.7)", () => {
   });
 });
 
+describe("Story 6.5 Spawn Behemoth cheat", () => {
+  it("starts the warning in a wave (any wave), never twice, never outside a wave", async () => {
+    const { addPlayer, createWorld, loadBalance, BOSS_STATE } = await import("@topdown/shared");
+    const { spawnBehemothCheat } = await import("./devCheatActions");
+    const w = createWorld({ balance: loadBalance(), seed: 1, systems: { waves: () => {} } });
+    addPlayer(w, "local", 24, 16);
+    expect(spawnBehemothCheat(w)).toBe(false); // lobby
+    w.run.phase = "wave";
+    expect(spawnBehemothCheat(w)).toBe(true);
+    expect(w.boss.state).toBe(BOSS_STATE.WARNING);
+    expect(spawnBehemothCheat(w)).toBe(false);
+  });
+});
+
 describe("Story 6.3 force blackout cheat (AC 13)", () => {
   it("solo, any phase: 20 / 10 / 5 % through setForcedBlackout; off goes back to the real rule", async () => {
     const { createWorld, loadBalance, startBuild, startWave, addPlayer } = await import("@topdown/shared");

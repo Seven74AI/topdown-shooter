@@ -966,3 +966,12 @@ export function drawBrute(c: G, r: number, variant: number, windup: boolean): vo
   brute(c, look, windup ? POSE.wind : POSE.idle);
   c.restore();
 }
+
+/**
+ * Story 6.5: the shared drawing helpers, reused by the Behemoth (`behemothArt.ts`, the same looks
+ * page style). `setArtPixel` sets the one-device-pixel size (reference units) their outlines use.
+ */
+export const artKit = { lerp, mulberry, shade, R, E, blobPath, fillP, strokeP, rivet, part, polyTex, skinTex, clothTex, drawLimb, wound, fist };
+export function setArtPixel(p: number): void {
+  P = p;
+}

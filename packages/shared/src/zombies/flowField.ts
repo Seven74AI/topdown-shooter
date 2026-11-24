@@ -1,4 +1,6 @@
 import { FLOW_CELL_M } from "../config/constants";
+import { bossBodyOn } from "../boss/bossState";
+import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import type { Building } from "../buildings/buildings";
 import { segmentHitsBox } from "../buildings/collision";
@@ -142,6 +144,24 @@ export interface FlowField {
   sourceTick: number;
   /** Completed rebuilds (tests, benchmark). */
   rebuilds: number;
+  /**
+   * Story 6.5 (DD2): a single-source field (the Behemoth's `bossChase`): seeded from this player only
+   * (null: every standing player, the zombies' fields). Seeds within `seedRings` free cells round a
+   * player standing in a grown wall cell.
+   */
+  seedOnly: string | null;
+  seedRings: number;
+  /**
+   * Story 6.5 (review H1): the target can't be reached (it hides where the boss's body can't go): this
+   * build seeds every boss-grid free cell by its WALKING distance from the target (a BFS over the
+   * normal, uninflated nav grid, up to `boss.json › pathing.fallbackSeedM`), so the boss walks to the
+   * reachable spot nearest it by the paths a survivor takes. Set and cleared per build by the boss
+   * system (never latched for the fight).
+   */
+  seedFar: boolean;
+  /** Review H1: the build in progress / the front were seeded in the fallback. */
+  buildingFar: boolean;
+  frontFar: boolean;
 }
 
 /**
@@ -179,8 +199,16 @@ export interface PathingState {
   readonly wideChase: FlowField;
   /** Story 5.7: a wide-body zombie was alive this tick (its field takes a share of the ticks). */
   wideActive: boolean;
-  /** Story 5.7: fields that shared the ticks this tick (1–3; the max-age rule scales with it). */
+  /** Story 5.7: fields that shared the ticks this tick (1–4; the max-age rule scales with it). */
   activeFields: number;
+  /** Story 6.5 (DD2): the boss grid (boxes grown by `boss.json › pathing.inflateM`) and its single-target field. */
+  readonly boss: NavGrid;
+  readonly bossChase: FlowField;
+  /** Story 6.5: the boss's body was on the map this tick (its field took a share of the ticks). */
+  bossActive: boolean;
+  /** Story 6.5 (review H1): scratch for the fallback's walking-distance BFS (normal-grid cells). */
+  readonly farDist: Int32Array;
+  readonly farQueue: Int32Array;
 }
 
 export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly MapBox[] }, inflateM = 0): NavGrid {
@@ -260,6 +288,11 @@ export function createFlowField(nav: NavGrid, fillPenalty: FlowField["fillPenalt
     buildSourceTick: -1,
     sourceTick: -1,
     rebuilds: 0,
+    seedOnly: null,
+    seedRings: 0,
+    seedFar: false,
+    buildingFar: false,
+    frontFar: false,
   };
 }
 
@@ -284,9 +317,10 @@ const NO_PATHING_MAP: DistrictBounds = { widthM: FLOW_CELL_M, heightM: FLOW_CELL
  * prediction Worlds, which never run the buildings or zombie systems) gives a one-cell placeholder
  * instead of ~150 KB of grids (3.5 review L5).
  */
-export function createPathingState(map: DistrictBounds & { readonly solids?: readonly MapBox[] }, zombieCapacity: number, enabled = true, wideInflateM = 0.25): PathingState {
+export function createPathingState(map: DistrictBounds & { readonly solids?: readonly MapBox[] }, zombieCapacity: number, enabled = true, wideInflateM = 0.25, bossInflateM = 1.65): PathingState {
   const nav = createNavGrid(enabled ? map : NO_PATHING_MAP);
   const wide = enabled ? createNavGrid(map, wideInflateM) : createNavGrid(NO_PATHING_MAP); // Story 5.7
+  const boss = enabled ? createNavGrid(map, bossInflateM) : createNavGrid(NO_PATHING_MAP); // Story 6.5
   return {
     nav,
     chase: createFlowField(nav),
@@ -297,7 +331,17 @@ export function createPathingState(map: DistrictBounds & { readonly solids?: rea
     wideChase: createFlowField(wide),
     wideActive: false,
     activeFields: 1,
+    boss,
+    bossChase: createFlowField(boss),
+    bossActive: false,
+    farDist: new Int32Array(nav.cells),
+    farQueue: new Int32Array(nav.cells),
   };
+}
+
+/** Story 6.5: ticks between the starts of two boss field rebuilds (`boss.json › pathing.rebuildEveryS`: 10). */
+function bossRebuildTicks(world: Readonly<World>): number {
+  return ticksFor(world.balance.boss.pathing.rebuildEveryS);
 }
 
 /** The cell index of a point (clamped to the grid). */
@@ -561,6 +605,10 @@ const seedPlayer = (p: PlayerState): void => {
   const f = seed.field as FlowField;
   const nav = seed.nav as NavGrid;
   const c = flowCellAt(nav, p.x, p.y);
+  if (f.seedFar) {
+    seedByWalkingDistance(f, nav, p.x, p.y, seed.world as Readonly<World>); // Story 6.5 (review H1)
+    return;
+  }
   if (nav.inflateM > 0 && nav.wallAt[c] !== 0) {
     seedAround(f, nav, c, p.x, p.y, seed.world as Readonly<World>);
     return;
@@ -623,7 +671,7 @@ function seedAround(f: FlowField, nav: NavGrid, c: number, px: number, py: numbe
   const cx = c % cols;
   const cy = (c - cx) / cols;
   let found = 0;
-  const rings = world.balance.zombies.pathing.wideSeedRings;
+  const rings = f.seedRings > 0 ? f.seedRings : world.balance.zombies.pathing.wideSeedRings; // Story 6.5: the boss field's own
   for (let ring = 1; ring <= rings && (found === 0 || ring <= found + 1); ring++) {
     for (let ny = Math.max(0, cy - ring); ny <= Math.min(rows - 1, cy + ring); ny++) {
       for (let nx = Math.max(0, cx - ring); nx <= Math.min(cols - 1, cx + ring); nx++) {
@@ -644,6 +692,59 @@ function seedAround(f: FlowField, nav: NavGrid, c: number, px: number, py: numbe
   }
 }
 
+/**
+ * Story 6.5 (review H1): the boss's fallback seeding. A BFS from the target over the normal nav grid
+ * (map walls only: buildings don't stop it, the boss pushes through them) gives each cell its walking
+ * distance; every cell free on the boss grid within `pathing.fallbackSeedM` is seeded with that cost.
+ * The field then leads the boss to the reachable cell with the least (walking distance + its path).
+ * Allocation-free (the scratch lives on `world.pathing`).
+ */
+function seedByWalkingDistance(f: FlowField, bossNav: NavGrid, px: number, py: number, world: Readonly<World>): void {
+  const nav = world.pathing.nav;
+  if (nav.cells !== bossNav.cells || nav.cells <= 1) return;
+  const cap = Math.round(world.balance.boss.pathing.fallbackSeedM / nav.cellM);
+  // Review L-c: nothing free for its body within the cap (a target walled in deep): seed uncapped.
+  if (walkingSeedPass(f, bossNav, nav, px, py, world, cap) === 0) walkingSeedPass(f, bossNav, nav, px, py, world, nav.cells);
+}
+
+/** One BFS pass of `seedByWalkingDistance` up to `cap` cells of walking; returns the cells seeded. */
+function walkingSeedPass(f: FlowField, bossNav: NavGrid, nav: NavGrid, px: number, py: number, world: Readonly<World>, cap: number): number {
+  const { cols, rows, wallAt } = nav;
+  const dist = world.pathing.farDist;
+  const q = world.pathing.farQueue;
+  dist.fill(-1);
+  const start = flowCellAt(nav, px, py);
+  let head = 0;
+  let tail = 0;
+  let seeded = 0;
+  q[tail++] = start;
+  dist[start] = 0;
+  while (head < tail) {
+    const c = q[head++] as number;
+    const d = dist[c] as number;
+    if (bossNav.wallAt[c] === 0 && (f.back[c] as number) > STEP_ORTHO * d) {
+      const queued = f.heapPos[c] !== NOT_QUEUED;
+      f.back[c] = STEP_ORTHO * d;
+      if (queued) siftUp(f, f.heapPos[c] as number);
+      else push(f, c);
+      seeded++;
+    }
+    if (d >= cap) continue;
+    const cx = c % cols;
+    const cy = (c - cx) / cols;
+    for (let k = 0; k < 4; k++) {
+      const nx = cx + (NDX[k] as number);
+      const ny = cy + (NDY[k] as number);
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      const n = ny * cols + nx;
+      if (dist[n] !== -1 || wallAt[n] !== 0 || flowEdgeClosed(nav, c, n)) continue;
+      dist[n] = d + 1;
+      q[tail++] = n;
+    }
+  }
+  return seeded;
+}
+
 function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void {
   f.back.fill(FLOW_UNREACHED);
   f.heapPos.fill(NOT_QUEUED);
@@ -652,11 +753,15 @@ function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void 
   seed.field = f;
   seed.nav = nav;
   seed.world = world;
-  world.players.forEach(seedPlayer); // Map insertion order: the same on every run
+  if (f.seedOnly !== null) {
+    const p = world.players.get(f.seedOnly); // Story 6.5: the boss's target only
+    if (p) seedPlayer(p);
+  } else world.players.forEach(seedPlayer); // Map insertion order: the same on every run
   seed.field = null;
   seed.nav = null;
   seed.world = null;
   f.buildSourceTick = world.tick;
+  f.buildingFar = f.seedFar;
   f.building = true;
 }
 
@@ -716,6 +821,7 @@ export function advanceFlowField(f: FlowField, nav: NavGrid, world: Readonly<Wor
     f.frontPenalty = f.penalty;
     f.penalty = tp;
     f.sourceTick = f.buildSourceTick;
+    f.frontFar = f.buildingFar;
     f.building = false;
     f.rebuilds++;
   }
@@ -869,17 +975,28 @@ export function updatePathing(world: World): void {
   const flankOn = flankerAlive(world);
   const wideOn = wideBodyAlive(world); // Story 5.7
   if (wideOn && wide.version !== world.buildings.wallVersion) rasterizeBuildings(wide, world);
+  // Story 6.5 (DD2): the boss field joins the round-robin only while its body is on the map.
+  const bossOn = bossBodyOn(world.boss) && world.boss.targetId !== null;
+  const bossNav = pathing.boss;
+  if (bossOn && bossNav.version !== world.buildings.wallVersion) rasterizeBuildings(bossNav, world);
+  if (bossOn && !pathing.bossActive) pathing.bossChase.building = false;
+  pathing.bossActive = bossOn;
   if (flankOn && !pathing.flankActive) flank.building = false; // drop a rebuild seeded before the pause: the next one starts now
   if (wideOn && !pathing.wideActive) wideChase.building = false; // Story 5.7: the same for the wide field
   pathing.flankActive = flankOn;
   pathing.wideActive = wideOn;
   // The active fields take the ticks in turn (chase, flank, wide): one field's budget per tick.
   // Chase + flank alone: even ticks chase, odd ticks flank (Story 3.8, unchanged).
-  const count = 1 + (flankOn ? 1 : 0) + (wideOn ? 1 : 0);
+  const count = 1 + (flankOn ? 1 : 0) + (wideOn ? 1 : 0) + (bossOn ? 1 : 0);
   pathing.activeFields = count;
   const slot = count === 1 ? 0 : world.tick % count;
   if (slot === 0) advanceFlowField(chase, nav, world, budget);
   else if (slot === 1 && flankOn) advanceFlowField(flank, nav, world, budget);
+  else if (slot === count - 1 && bossOn) {
+    // Story 6.5 (DD2): last in the turn; a finished field starts again from scratch once `rebuildEveryS` has passed.
+    const f = pathing.bossChase;
+    if (f.building || world.tick - f.buildSourceTick >= bossRebuildTicks(world)) advanceFlowField(f, bossNav, world, budget);
+  }
   else advanceFlowField(wideChase, wide, world, budget);
 }
 
@@ -1016,5 +1133,10 @@ export function snapshotPathing(p: PathingState) {
     wideNavVersion: p.wide.version,
     wideNavHash: hashInts(p.wide.buildingAt) ^ hashInts(p.wide.enterCost) ^ hashInts(p.wide.pinchE) ^ hashInts(p.wide.pinchS) ^ hashBytes(p.wide.closedE) ^ hashBytes(p.wide.closedS) ^ hashBytes(p.wide.wallAt),
     wideChase: snapshotField(p.wideChase),
+    // Story 6.5: the boss grid and its field
+    bossActive: p.bossActive,
+    bossNavVersion: p.boss.version,
+    bossNavHash: hashInts(p.boss.buildingAt) ^ hashInts(p.boss.enterCost) ^ hashBytes(p.boss.wallAt),
+    bossChase: { ...snapshotField(p.bossChase), seedOnly: p.bossChase.seedOnly, seedFar: p.bossChase.seedFar, buildingFar: p.bossChase.buildingFar, frontFar: p.bossChase.frontFar },
   };
 }

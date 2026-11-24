@@ -34,6 +34,8 @@ import {
   parseWaveMix,
   parseStartWave,
   isRushState,
+  BOSS_STATE,
+  darknessAlpha,
   acidSpitOf,
   type Balance,
   type SimEvent,
@@ -65,7 +67,9 @@ import { ACID_CUE_MS, FireCue } from "../render/fireCue";
 import { ACID_SOUND_MAX_AGE_S, AcidFx } from "../render/acidFx";
 import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
-import { playSfx, startChainsawRev, startFlameLoop, stopChainsawRev, stopFlameLoop } from "../audio/placeholderSfx";
+import { playSfx, startBossLoop, startChainsawRev, startFlameLoop, stopBossLoop, stopChainsawRev, stopFlameLoop } from "../audio/placeholderSfx";
+import { BossView } from "../render/BossView";
+import { BOSS_TARGET_BUZZ, bossCue, type BossCue } from "../render/bossCue";
 import { BloaterFx } from "../render/bloaterFx";
 import { BloaterView } from "../render/BloaterView";
 import { SawClock } from "../render/meleeFx";
@@ -140,7 +144,7 @@ import { activeRun } from "../net/activeRun";
 import type { NetSession } from "../net/session";
 import type { HudSceneData } from "./HudScene";
 import type { BootSceneData } from "./BootScene";
-import { urlOptions } from "../debug/urlOptions";
+import { parseBossWaves, urlOptions } from "../debug/urlOptions";
 import { clientBalance, soloBalance } from "../debug/clientBalance";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
@@ -279,6 +283,11 @@ export class GameScene extends Phaser.Scene {
     this.playerViews.delete(id);
   };
   private zombieView: ZombieView | null = null;
+  /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
+  private bossView: BossView | null = null;
+  private bossMusic = false;
+  private readonly bossCueOut: BossCue = { banner: "", sound: "", shake: false, buzz: false, music: "" };
+  private readonly bossAt = { x: 0, y: 0 };
   /** Story 3.9: blood trails behind Crawlers. */
   private trailView: BloodTrailView | null = null;
   /** Story 5.6: the cosmetic spits and puddles (from events, both modes), their view, my acid cue and their clock (s; frozen by the solo pause). */
@@ -533,6 +542,11 @@ export class GameScene extends Phaser.Scene {
     if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
     // Story 5.13 dev (?shopcards=, dev builds, solo): set before my first offer is drawn (lazily, on first read).
     if (!session && opts.shopCards !== null) world.debug.shopCards = parseDevShopCards(opts.shopCards, balance);
+    // Story 6.5 dev (?bosswave=3, ?bosshp=0.1; dev builds, solo): the Behemoth's waves and an HP scale.
+    if (!session) {
+      world.debug.bossWaves = parseBossWaves(opts.bossWaves);
+      world.debug.bossHpScale = opts.bossHpScale ?? 1;
+    }
     this.gameOver = false;
     this.kills = 0;
     this.consumablePending.active = false; // Story 5.12: Phaser reuses the scene: no pending use from the last run
@@ -589,6 +603,7 @@ export class GameScene extends Phaser.Scene {
     this.ambience?.dispose(); // Phaser reuses this scene object: never two players
     this.ambience = new AmbiencePlayer();
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
+    this.bossView = new BossView(this, host.world); // Story 6.5
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
@@ -742,6 +757,9 @@ export class GameScene extends Phaser.Scene {
       this.downedView = null;
       this.projectileView?.destroy();
       this.zombieView?.destroy();
+      this.bossView = null; // Story 6.5: its objects go with the scene
+      if (this.bossMusic) stopBossLoop();
+      this.bossMusic = false;
       this.trailView?.destroy();
       this.trailView = null;
       for (const v of this.playerViews.values()) v.destroy();
@@ -1580,6 +1598,45 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** A camera shake of `fraction` of the view (see `shakeIntensityFor`: Phaser's own shake scales by zoom²). */
+  /** Story 6.5: a boss event's banner, sound, shake, buzz and music (none for a woken tab's backlog). */
+  private bossEvent(host: SceneHost, e: SimEvent, localId: string): void {
+    const me = host.world.players.get(localId);
+    const cue = bossCue(e, localId, me?.x ?? 0, me?.y ?? 0, this.bossCueOut);
+    if (cue.banner) this.stackBanner(cue.banner);
+    if (cue.sound) playSfx(cue.sound);
+    if (cue.shake && getSettings().screenShake) this.shake(MINE_SHAKE_MS, 1);
+    if (cue.buzz) vibrate(BOSS_TARGET_BUZZ); // D10: off with vibration off (the haptics setting)
+    if (e.type === "boss.slammed") this.bossView?.onSlammed(e.x, e.y, (e.attackId * 2.39996) % (Math.PI * 2));
+  }
+
+  /**
+   * Story 6.5: the boss each frame — its view (at the host's draw position, telegraphs from the
+   * estimated server tick), the HUD's bar and marker, and the music (follows the state: playing while
+   * it walks, stopped when it dies, a build starts or the run ends).
+   */
+  private updateBoss(host: SceneHost, dtS: number): void {
+    const b = host.world.boss;
+    host.bossDrawPos(this.bossAt);
+    this.bossView?.setDark(darknessAlpha(host.world as World) > 0); // Story 6.3: the outline + eyes above the darkness
+    const target = b.targetId !== null ? this.playerViews.get(b.targetId) : undefined;
+    this.bossView?.update(this.localHost?.paused === true ? 0 : dtS, host.serverTick, this.bossAt.x, this.bossAt.y, target, this.zombieView?.drawn);
+    const m = this.hudModel;
+    const walking = b.state >= BOSS_STATE.WALK && b.state <= BOSS_STATE.ROAR;
+    m.bossVisible = walking;
+    m.bossHpFrac = b.maxHp > 0 ? b.hp / b.maxHp : 0;
+    m.bossEnraged = b.enraged;
+    m.bossState = b.state;
+    m.bossAtkKind = b.attack.kind;
+    m.bossX = walking ? this.bossAt.x : b.x;
+    m.bossY = walking ? this.bossAt.y : b.y;
+    const music = walking && host.world.run.phase === "wave" && document.hidden !== true;
+    if (music && !this.bossMusic) this.bossMusic = startBossLoop();
+    else if (!music && this.bossMusic) {
+      stopBossLoop();
+      this.bossMusic = false;
+    }
+  }
+
   private shake(ms: number, fraction: number): void {
     const cam = this.cameras.main;
     cam.shake(ms, shakeIntensityFor(fraction, cam.zoom));
@@ -1800,6 +1857,13 @@ export class GameScene extends Phaser.Scene {
         if (stats?.screenShake && getSettings().screenShake) this.shake(SHAKE_MS, SHAKE_INTENSITY);
       } else if (e.type === "build.started") {
         if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
+        this.bossView?.clearDecals(); // Story 6.5: no cracks carried into the next wave
+      } else if (e.type === "boss.warning" || e.type === "boss.arrived" || e.type === "boss.slammed" || e.type === "boss.target_changed") {
+        this.bossEvent(host, e, localId); // Story 6.5
+      } else if (e.type === "boss.telegraph") {
+        this.bossView?.onTelegraph(e.attackId, e.kind, e.startTick, e.hitTick, e.cx, e.cy, e.radiusM);
+      } else if (e.type === "boss.hit") {
+        this.bossView?.onHit();
       } else if (e.type === "wave.started") {
         this.showBanner(`Wave ${e.number}`);
         // Story 2.10: measured only with the overlay on (the 1.11 rule: no measuring cost otherwise).
@@ -1826,6 +1890,7 @@ export class GameScene extends Phaser.Scene {
       this.flameLooping = false;
     }
     this.zombieView?.update(host.world, host.alpha);
+    this.updateBoss(host, deltaMs / 1000); // Story 6.5
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
     this.acidClockS += fxDtS;

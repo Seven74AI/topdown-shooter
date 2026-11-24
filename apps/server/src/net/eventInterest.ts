@@ -29,6 +29,8 @@ import {
  *   Story 5.14: `bear_trap.snapped` (clang + snap FX) is local at the trap's centre.
  * Story 5.6 adds two more local kinds: `spitter.spat` (its mouth point or its flight's end) and
  * `acid.splashed` (the puddle's centre). Acid damage (`player.damaged`, source −3) stays global.
+ * Story 6.5: `boss.hit` (the hit flash) is local at the boss's position; warning, arrival, telegraph,
+ * slam and target change are global (the team cue).
  * Story 5.8: `bloater.swell_started`, `bloater.burst` and a Bloater blast's non-killing `zombie.hit`
  * are local (their point); the blast damage, kills and the gas slow stay server truth for everyone.
  *
@@ -79,6 +81,8 @@ export class EventInterest {
         this.setLocal(k, e.x, e.y, e.x, e.y); // the puddle (radius ≤ the view margin)
       } else if (e.type === "bloater.swell_started" || e.type === "bloater.burst") {
         this.setLocal(k, e.x, e.y, e.x, e.y); // Story 5.8: the swell cue, the burst + gas FX (the slow and damage are global)
+      } else if (e.type === "boss.hit") {
+        this.setLocal(k, world.boss.x, world.boss.y, world.boss.x, world.boss.y); // Story 6.5: the hit flash (hp is schema); every other boss event is global
       } else if (e.type === "zombie.hit" && e.weapon === BLOATER_BLAST_WEAPON) {
         // Story 5.8: a blast's non-killing hits (up to ~40 per blast, 8 blasts a tick in a chain) are
         // local hit flashes; the killing one stays global (it is right before its `zombie.killed`).

@@ -11,6 +11,8 @@ import { zombieCandidates as candidates } from "./scratch";
 import { meleeLineClear } from "./cover";
 import type { WeaponId } from "./weapons";
 import type { ZombieView } from "./rewind";
+import { bossBodyOn } from "../boss/bossState";
+import { applyBossDamage, bossInArc } from "../boss/bossDamage";
 
 const MIN_DIST = 1e-6;
 
@@ -81,6 +83,11 @@ export function swingMelee(
       if (applyKnockback(world, id, px, py, knock) < knock * knockbackShare(world, id) - 1e-9) knockbacks.stopped++;
     }
     hits++;
+  }
+  // Story 6.5 (D4): the Behemoth's body in the arc (its 2 m circle), through the same line rule (no hit
+  // through a wall or barricade to its centre). The present body (melee hits are instant); no pushback.
+  if (bossBodyOn(world.boss) && bossInArc(world, ox, oy, dirX, dirY, reach, cosH, sinH) && meleeLineClear(world, ox, oy, world.boss.x, world.boss.y)) {
+    if (applyBossDamage(world, damage, p.id, weapon) > 0) hits++;
   }
   if (quiet) world.events.emit({ type: "melee.swung", playerId: p.id, weapon, x: ox, y: oy, dirX, dirY, arcDeg: stats.arcDeg, rangeM: reach, hits });
   return hits;
