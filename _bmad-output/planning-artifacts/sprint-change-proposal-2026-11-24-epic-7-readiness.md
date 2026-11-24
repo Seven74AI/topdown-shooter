@@ -36,7 +36,7 @@ Direct adjustment of backlog text. Story files are written from these texts (7.8
 
 **Decision to confirm (technical, Q11):** the session ticket in join options was picked because an HttpOnly cookie can't be read by the client and Colyseus join options are the existing path for the display name. Change it in Story 7.1 if the builder finds a simpler way.
 
-**Not changed (designer to check):** FR72 "100 + 60 % of the team's average earned" for mid-run joiners (Epic 8 D7) still uses 100, maybe on purpose; FR45 says a 10 × N wave bonus while the GDD says 15 × N (Epic 5 balance pass).
+**Designer decisions (2026-11-24, after this proposal):** late joiners get **200 + 60 %** of the team's average earnings (base raised from 100 to the run's start money; FR72, Story 8.2, GDD, Epic 8 D7 note); FR45 corrected to the **15 × N** wave bonus already in `economy.json` and the GDD. Story 3.2's done text (10 × N) is left as history.
 
 **Still open (before Stories 7.3 and 7.6):** U2 Progress hub layout and U3 Run rewards panel layout on a landscape phone.
 

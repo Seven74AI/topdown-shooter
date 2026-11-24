@@ -152,7 +152,7 @@ Numbers for each are in the sections below.
 - **Mode:** online co-op, 2–4 players, each on their own device. No local split-screen.
 - **Lobby:** the host picks a district and gets a **share link** and a **4-letter code**; players join, tap Ready, the host starts.
 - **Accounts:** play immediately as a **guest** (name only); upgrade to an account later to keep progress.
-- **Join mid-run:** allowed during build phases only (endless too); the newcomer starts with a Pistol and 100 + 60 % of the team's average earnings so far, and the build timer gains +15 s once per phase; the next wave rescales (Epic 8 decisions, 2026-11-24: `docs/ideas/epic-8/decisions.md`).
+- **Join mid-run:** allowed during build phases only (endless too); the newcomer starts with a Pistol and 200 + 60 % of the team's average earnings so far, and the build timer gains +15 s once per phase; the next wave rescales (Epic 8 decisions, 2026-11-24: `docs/ideas/epic-8/decisions.md`).
 - **Disconnects:** a disconnected player's character is removed safely; they can rejoin within **2 minutes** with wallet and gear intact. Their turrets' kills keep paying into the held wallet during those 2 minutes, then stop. A player who drops while downed is out for that wave. After 2 minutes their seat is still remembered for the rest of the run. If nobody is connected, the fight freezes for up to 2 minutes. Host (Start, Save and quit, Remove player) moves at once to the longest-connected player when the host leaves or drops.
 - **Pause and resume:** during a build phase the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any account that was in the run (at most 3 saves per account). Everyone leaving mid-wave loses the run; a server restart or everyone leaving in a build phase keeps it.
 - **Communication:** a ping button with 4 quick messages (Help! · Over here · Big one! · Ready), each showing an icon on teammates' screens and edge arrows. No voice or text chat in v1.
@@ -260,7 +260,7 @@ Unlocks are bought in any order and add cards to the player's shop deck and tile
 Build phases are the breathers between waves. Difficulty grows through zombie count, mix, map changes and darkness, never through zombie stats (pillar 1; only endless beyond wave 15 adds HP).
 ### Economy and Resources
 - **Personal wallets.** Each player earns and spends their own currency.
-- **Anti-snowball rules:** an assist (damaging a zombie a teammate kills) pays 50% of the kill reward; a revive pays +25; kills by your buildings pay **50%** of the kill reward to your wallet; a player joining mid-run starts with the team's average currency.
+- **Anti-snowball rules:** an assist (damaging a zombie a teammate kills) pays 50% of the kill reward; a revive pays +25; kills by your buildings pay **50%** of the kill reward to your wallet; a player joining mid-run starts with 200 + 60 % of the team's average earnings so far (Epic 8 D7).
 - **Start of run:** pistol + 200 currency (designer 2026-11-24, with the card shop).
 - **Earning:** kill rewards per zombie type (see Enemy table) + a **wave-clear bonus of 15 × wave number** (Epic 5 balance pass; was 10 × N) to every player in the run, including downed and out players.
 - **Target:** ≈ **2,500–3,000 currency per player** over a full 10-wave run at any player count (bot sims, 10 waves: kill + assist money ≈ 1,470 (4p) to 1,910 (2p) per player + 825 wave bonus + 200 start; human assists add more): enough for one premium weapon, a few upgrades and some buildings, never everything (pillar 2).

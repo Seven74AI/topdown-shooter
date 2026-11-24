@@ -41,7 +41,7 @@ Teammates see a grey chip "Theo · reconnecting 1:43" in the team list and a toa
 - C Only up to wave 5.
 
 **D7. What a late joiner starts with.**
-- **A (rec.) Pistol + 100 + 60 % of what the team has earned on average so far.** About 640 at wave 5, about 1,400 at wave 9 (at the GDD target of ≈ 2,750 per full run). Enough for one good weapon and a building, still behind the others.
+- **A (rec.) Pistol + 100 + 60 % of what the team has earned on average so far.** *(Designer 2026-11-24, after the Epic 7 readiness check: base is now 200, the run's start money, so about 740 at wave 5 and 1,500 at wave 9.)* About 640 at wave 5, about 1,400 at wave 9 (at the GDD target of ≈ 2,750 per full run). Enough for one good weapon and a building, still behind the others.
 - B The team's **average wallet** (GDD as written). Right after a shopping phase that can be ~50 at wave 7.
 - C A fixed table per wave (wave 3: 400, wave 6: 900, wave 9: 1,400).
 

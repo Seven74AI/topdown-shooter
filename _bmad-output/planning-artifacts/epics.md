@@ -86,7 +86,7 @@ FR43: Survivor: an NPC appears and must be escorted to a safe point for a big re
 **Build phase, economy and shop**
 
 FR44: A 30 s build phase opens the run and follows every wave; it ends early when every player taps Ready.
-FR45: Each player has a personal wallet, earning kill rewards per zombie type, 50% of the reward for an assist, +25 per revive, 50% of the reward for kills by their own buildings, and a wave-clear bonus of 10 × wave number paid to every player (including downed and out players).
+FR45: Each player has a personal wallet, earning kill rewards per zombie type, 50% of the reward for an assist, +25 per revive, 50% of the reward for kills by their own buildings, and a wave-clear bonus of 15 × wave number (Epic 5 balance pass, 2026-11-24; was 10 × N) paid to every player (including downed and out players).
 FR46: The shop offers consumables and upgrades for weapons the player owns, plus the 6 cards (FR47). Buildings come from the build bar (Story 5.16). A downed or out player can't buy.
 FR47: Each build phase, each player sees their own 6 random weapon and gear cards drawn from their unlocked pool, with at least 1 weapon and 1 gear card; reroll costs 20. No locking, no upgrade cards, no Pistol card, items with `inShop:false` never drawn; rarity by price (≤ 250 common ×3, ≤ 500 rare ×2, epic ×1); no per-wave price scaling; card look C3. When the pool can't fill 6, fewer cards show and Reroll is disabled when no new draw exists.
 FR48: Gear lasts the run: Body armor I/II (+25/+50 max HP, 150/350), Running shoes (+10% speed, 150), Revive kit (its owner revives teammates in 1.5 s instead of 3 s; the fastest standing reviver in the zone counts, no stacking, no effect on the owner's own revive; 150), Tactical flashlight (wider, longer cone in blackout, 120).
@@ -128,7 +128,7 @@ FR68: Endless: blackout on odd waves, +40 zombies per wave up to 600 at wave 15 
 FR69: The host picks a district and gets a share link and a 4-letter code; 2–4 players join, tap Ready, and the host starts.
 FR70: Players can play immediately as a guest with only a name.
 FR71: All players see the same horde and the server decides hits; your own movement, aiming and muzzle flash respond instantly on your device.
-FR72: Players can join mid-run during build phases only, starting with a Pistol and 100 + 60 % of the team's average earnings so far (designer D7, 2026-11-24; replaces "the team's average currency").
+FR72: Players can join mid-run during build phases only, starting with a Pistol and 200 + 60 % of the team's average earnings so far (designer D7, 2026-11-24, base raised from 100 to match the 200 start; replaces "the team's average currency").
 FR73: A disconnected player's character is removed safely; they can rejoin within 2 minutes with wallet and gear intact, and their seat is remembered for the rest of the run (D4).
 FR74: If the host leaves or drops, host (Start, Save and quit, Remove player) moves at once to the longest-connected player (D8, D9).
 FR75: During a build phase the host can Save and quit; the server keeps the run 7 days, and any account that was in the run can resume it (D13).
@@ -2754,7 +2754,7 @@ So that I don't have to wait for the next one.
 
 **Given** a run in any build phase (endless included) with fewer than 4 players
 **When** I open the link and I have no remembered seat in this run
-**Then** I join with a Pistol and 100 + 60 % of the team's average `earned` so far, rounded down (about 640 at wave 5, about 1,400 at wave 9) (FR72, D7)
+**Then** I join with a Pistol and `startingWallet` (200) + 60 % of the team's average `earned` so far, rounded down (about 740 at wave 5, about 1,500 at wave 9) (FR72, D7)
 **And** my shop uses my own seed stream starting at the current build phase
 **And** the build timer gains +15 s (at most once per build phase) (D6)
 
