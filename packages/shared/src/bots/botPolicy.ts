@@ -435,7 +435,6 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
     }
     huntStep(world, p.x, p.y, out);
     if (d2 < shotD2 && d2 <= range2 && (lobs || bulletLineClear(world, p.x, p.y, boss.x, boss.y))) {
-      shotD2 = d2;
       out.shot.x = boss.x;
       out.shot.y = boss.y;
       out.shot.distM = edge;
