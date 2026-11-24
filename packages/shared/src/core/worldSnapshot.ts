@@ -1,5 +1,6 @@
 import type { World } from "./world";
 import { snapshotShop } from "../economy/shopCards";
+import { snapshotBoss } from "../boss/bossState";
 import { MAX_PIERCE } from "../combat/projectilePool";
 import { MAX_DAMAGERS } from "../economy/economy";
 import { snapshotPathing } from "../zombies/flowField";
@@ -227,6 +228,8 @@ export function snapshotWorld(world: World) {
     zombieHistory: snapshotZombieHistory(world.zombieHistory),
     // Story 5.4: the flame slot table (players' `flameSlot`, `flaming` and `flameClock` ride in `players`).
     flameSlots: [...world.flameSlots],
+    // Story 6.5: the Behemoth (all of it, incl. threat, attack and history; its grid/field ride in `pathing`).
+    boss: snapshotBoss(world.boss),
   };
 }
 

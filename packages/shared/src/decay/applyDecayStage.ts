@@ -40,6 +40,9 @@ export function applyDecayStage(world: World, stage: number, variants: number, f
   // start) describes the old walls: drop it, so the next Brute walks straight until a fresh one swaps in.
   world.pathing.wideChase.sourceTick = -1;
   world.pathing.wideChase.building = false;
+  setNavWalls(world.pathing.boss, o.solids); // Story 6.5 (DD2): the boss grid's walls, only here (build starts)
+  world.pathing.bossChase.sourceTick = -1;
+  world.pathing.bossChase.building = false;
   d.fires.length = 0;
   let fi = 0;
   for (const m of world.map.decay) {

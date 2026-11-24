@@ -29,6 +29,8 @@ import { useConsumables } from "./consumables";
 import { flameTick, updateIgnites } from "./flame";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
+import { bossBodyOn } from "../boss/bossState";
+import { applyBossDamage, bossCircleHitBySegment } from "../boss/bossDamage";
 import { pelletDirection, rotateBySeqSpread, seqPelletRoll } from "./spread";
 import { bulletBlockT } from "./cover";
 
@@ -304,7 +306,12 @@ function updateProjectiles(world: World, dtS: number): void {
     const count = queryRadius(view ? view.grid : world.zombieGrid, xs, ys, (x0 + x1) / 2, (y0 + y1) / 2, qr, candidates);
     // Story 4.2: the shot stops where this sweep first enters a car, the bus or a map box (-1: none);
     // zombies past that point are behind cover and not hit.
-    const blockT = bulletBlockT(world, x0, y0, x1, y1); // barricades stop bullets too (designer 2026-11-23)
+    const coverT = bulletBlockT(world, x0, y0, x1, y1); // barricades stop bullets too (designer 2026-11-23)
+    // Story 6.5 (D3, AC 11): the Behemoth's body stops the shot (no pierce through it); a player's
+    // shot meets it where the shooter saw it (rewound like the zombies), a turret's where it is.
+    const bossT = bossBodyOn(world.boss) ? bossCircleHitBySegment(world, x0, y0, x1, y1, rewind > 0 ? world.tick - rewind + REWIND_SWEEP_MID_TICKS : -1) : -1;
+    const bossFirst = bossT >= 0 && (coverT < 0 || bossT <= coverT);
+    const blockT = bossFirst ? bossT : coverT;
     let hits = 0;
     for (let k = 0; k < count; k++) {
       const zid = candidates[k] as number;
@@ -352,6 +359,7 @@ function updateProjectiles(world: World, dtS: number): void {
       }
     }
 
+    if (stoppedAt < 0 && bossFirst) applyBossDamage(world, pool.damage[id] as number, building > 0 ? null : (pool.owner[id] ?? null), weapon); // Story 6.5
     if (stoppedAt < 0 && blockT >= 0) stoppedAt = blockT; // Story 4.2: into the cover's face
     if (stoppedAt >= 0) {
       pool.x[id] = x0 + dx * step * stoppedAt;

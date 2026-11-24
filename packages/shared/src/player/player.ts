@@ -1,5 +1,6 @@
 import type { World } from "../core/world";
 import { createLoadout, type Loadout } from "../combat/loadout";
+import { bossSlotOf, clearBossThreatSlot } from "../boss/target";
 import { claimFlameSlot, releaseFlameSlot } from "../combat/flame";
 
 /**
@@ -171,6 +172,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
  * next-nearest player on the next tick. A no-op for an unknown id.
  */
 export function removePlayer(world: World, id: string): void {
+  clearBossThreatSlot(world, bossSlotOf(world, id)); // Story 6.5 (F7): a player who left has no threat (the target switches at once)
   releaseFlameSlot(world, id); // Story 5.4
   world.players.delete(id);
   world.pendingInputs.delete(id);

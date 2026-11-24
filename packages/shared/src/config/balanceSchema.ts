@@ -998,6 +998,74 @@ export const consumablesSchema = z
   })
   .strict();
 
+/**
+ * Story 6.5: the Behemoth (`boss.json`; FR33, FR34, FR84). Every boss number lives here (brief line
+ * 10); 6.6 adds `charge` / `throw`, 6.7 `enrage` / `killPay`. Telegraph lengths are read at the
+ * telegraph's start and never scaled (F6). Times are whole ticks.
+ */
+export const bossSchema = z
+  .object({
+    /** Waves the Behemoth comes in (6.12 extends this for endless through `isBossWave`). */
+    bossWaves: z.array(z.number().int().min(1).max(255)).min(1),
+    /** It warns once this share of the wave's zombies has spawned (counts spawns, never alive zombies). */
+    arriveAtFraction: z.number().min(0).max(1),
+    warningS: z.number().positive().max(30).refine(wholeTickS, "warningS must be a whole number of ticks"),
+    radiusM: z.number().positive().max(4),
+    speedMps: z.number().positive().max(10),
+    /** HP at 4 players; × `waves.playerCountScale` of the run's player count when it arrives (solo × 0.4 is the boss's own, F10). */
+    hp: z.number().int().positive().max(1_000_000),
+    /** Solo HP scale (designer 2026-11-24: × 0.4; the wave size uses `waves.playerCountScale[0]`). */
+    soloHpScale: z.number().gt(0).max(1).default(0.4),
+    /** Zombies alive at most while the boss warns or lives (D6, brief line 22). */
+    aliveCap: z.number().int().positive(),
+    entryMinPlayerDistanceM: z.number().min(0),
+    /** Map spawn point names it can enter from (D2: the four street ends). */
+    entryPoints: z.array(z.string().min(1)).min(1).max(8),
+    /** HP per second to a player building its body overlaps (D8). */
+    buildingDps: z.number().positive(),
+    /** A hit lands only when the player's centre is this far inside the drawn edge (brief 21c). */
+    edgeGraceM: z.number().min(0).max(1),
+    /** Gap after each attack's recovery, by player count (index 0 = solo). */
+    gapS: z.array(z.number().positive().refine(wholeTickS, "gapS must be whole ticks")).length(4),
+    firstGapS: z.number().positive().refine(wholeTickS, "firstGapS must be whole ticks"),
+    target: z
+      .object({
+        /** Threat window (10 half-second buckets per player slot). */
+        threatWindowS: z.literal(5),
+        switchMinS: z.number().positive().refine(wholeTickS, "switchMinS must be whole ticks"),
+      })
+      .strict(),
+    slam: z
+      .object({
+        triggerM: z.number().positive(),
+        telegraphS: z.number().positive().refine(wholeTickS, "slam.telegraphS must be whole ticks"),
+        radiusM: z.number().positive().max(12),
+        damage: z.number().int().positive(),
+        pushM: z.number().min(0).max(8),
+        pushS: z.number().positive().refine(wholeTickS, "slam.pushS must be whole ticks"),
+        recoverS: z.number().positive().refine(wholeTickS, "slam.recoverS must be whole ticks"),
+        cooldownS: z.number().positive().refine(wholeTickS, "slam.cooldownS must be whole ticks"),
+        zombieDamage: z.number().int().min(0),
+      })
+      .strict()
+      .refine((s) => (s.pushM * 1000) / Math.round(s.pushS * TICK_RATE_HZ) <= 65535, "slam push per tick must fit knockStepMm (u16)"),
+    /** D1: its body pushes players out. */
+    bodyPushPlayers: z.boolean(),
+    pathing: z
+      .object({
+        /** Map boxes are grown by this on the boss grid (radiusM − the 0.35 m pathing limit). */
+        inflateM: z.number().positive().max(4),
+        rebuildEveryS: z.number().positive().refine(wholeTickS, "pathing.rebuildEveryS must be whole ticks"),
+        /** Speed % while its body overlaps a player building (D8). */
+        buildingSlowPct: z.number().int().min(1).max(100),
+        /** Rings of cells searched round a target it cannot stand next to (an alley narrower than its body). */
+        seedRings: z.number().int().min(1).max(32),
+      })
+      .strict(),
+    caps: z.object({ maxDecals: z.number().int().min(1).max(32) }).strict(),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -1013,6 +1081,7 @@ export const balanceFileSchemas = {
   combat: combatSchema, // Story 5.5 (5.4 owns friendlyFire)
   gear: gearSchema, // Story 5.11
   consumables: consumablesSchema, // Story 5.12
+  boss: bossSchema, // Story 6.5
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;
@@ -1033,4 +1102,5 @@ export type BearTrapStats = z.output<typeof bearTrapSchema>;
 export type LightStats = z.output<typeof lightSchema>;
 export type HealStats = z.output<typeof healSchema>;
 export type GearItemStats = z.output<typeof gearItemSchema>;
+export type BossStats = z.output<typeof bossSchema>;
 export type ConsumableItemStats = z.output<typeof consumableItemSchema>;

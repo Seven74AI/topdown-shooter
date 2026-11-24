@@ -3,6 +3,8 @@ import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import { spawnZombie } from "../zombies/zombiePool";
 import { announceSpawn } from "../zombies/brute";
+import { bossActive } from "../boss/bossState";
+import { bossPending } from "../boss/behemoth";
 import { createSpawnPickState, pickSpawnPoint, type SpawnPickState } from "./spawnPick";
 import { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
 
@@ -303,7 +305,7 @@ export function updateWaves(world: World): boolean {
   w.spawnTimerTicks--;
   if (w.spawnTimerTicks <= 0 && w.queued > 0) {
     w.spawnTimerTicks = ticksFor(b.spawnIntervalS);
-    const room = b.maxAlive - world.zombies.aliveCount;
+    const room = maxAliveNow(world) - world.zombies.aliveCount; // Story 6.5 (D6): 110 while the Behemoth warns or lives
     const batch = Math.min(b.spawnPerInterval, w.queued, Math.max(0, room));
     if (batch === 0) w.spawnHeldSinceTick = -1; // review L2: no pick this interval (pool full): the hold starts over
     for (let i = 0; i < batch; i++) {
@@ -323,5 +325,16 @@ export function updateWaves(world: World): boolean {
     }
     world.events.emit({ type: "wave.rush_started", count: w.remaining });
   }
-  return w.remaining === 0 && w.queued === 0;
+  // Story 6.5 (F11): a boss wave never ends while its Behemoth warns or lives, nor before it came.
+  return w.remaining === 0 && w.queued === 0 && !bossActive(world.boss) && !bossPending(world);
+}
+
+/**
+ * Story 6.5 (D6, D11, brief line 22): the base alive cap — `boss.aliveCap` (110) while the Behemoth
+ * warns or lives (WARNING…ROAR), else `waves.maxAlive` (150), back the tick it dies. The boss is not
+ * in the zombie pool and never counts. THE single place the base cap is decided: 6.8's stampede
+ * reads it as the base of its +30 allowance (never included here).
+ */
+export function maxAliveNow(world: Readonly<World>): number {
+  return bossActive(world.boss) ? world.balance.boss.aliveCap : world.balance.waves.maxAlive;
 }

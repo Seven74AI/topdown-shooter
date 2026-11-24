@@ -20,7 +20,7 @@ export const DAMAGE_SOURCE_ACID = -3;
  * `melee` never hurt players; their `fire` and `explosion` deal `combat.json › friendlyFire.pct`.
  * `zombie` = bites (and other zombie-caused damage), `acid` = Spitter spit and puddles (5.6).
  */
-export const DAMAGE_TAGS = ["zombie", "bullet", "melee", "fire", "explosion", "acid"] as const;
+export const DAMAGE_TAGS = ["zombie", "bullet", "melee", "fire", "explosion", "acid", "boss"] as const; // Story 6.5: + "boss" (append only: the wire sends the index)
 export type DamageTag = (typeof DAMAGE_TAGS)[number];
 
 /**
@@ -183,6 +183,13 @@ export type SimEvent =
    * zone from this (no zone state on the wire) and applies the same cap rule.
    */
   | { type: "molotov.ignited"; zoneId: number; item: number; x: number; y: number; playerId: string | null; /** Client only: seconds since it happened. */ ageS?: number }
+  // Story 6.5: the Behemoth (all global on the wire except boss.hit, local to its position).
+  | { type: "boss.warning"; x: number; y: number; /** The tick it walks in (the warning's end). */ hitTick: number; /** Client only: seconds since it happened. */ ageS?: number }
+  | { type: "boss.arrived"; x: number; y: number; maxHp: number; look: number; /** Client only. */ ageS?: number }
+  | { type: "boss.telegraph"; attackId: number; kind: number; startTick: number; hitTick: number; cx: number; cy: number; radiusM: number; /** Client only. */ ageS?: number }
+  | { type: "boss.slammed"; attackId: number; x: number; y: number; /** Client only. */ ageS?: number }
+  | { type: "boss.target_changed"; playerId: string | null }
+  | { type: "boss.hit"; amount: number; weapon: string; sourceId: string | null }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

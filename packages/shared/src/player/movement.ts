@@ -4,6 +4,9 @@ import { playerSpeed, tickSlow, wielderSlowPct } from "./slow";
 import { hasObstacles, pushOutOfBuildings, pushed } from "../buildings/collision";
 import { stepKnock } from "./knockback";
 import { speedBonusPct } from "../economy/gear";
+import { pushPlayerOutOfBoss } from "../boss/bossState";
+import type { World } from "../core/world";
+import type { PlayerState } from "./player";
 
 const MIN_VEC_LEN = 1e-6;
 
@@ -39,7 +42,10 @@ export const movePlayers: SystemFn = (world, dtS) => {
     // Story 5.7 (F2): a Brute's knockback slides the body instead of the input move (no steering;
     // the aim below still follows the input). Counts applied seqs only, like the slow.
     const knocked = !p.weaponsPaused && stepKnock(world, p);
-    if (!input) continue;
+    if (!input) {
+      bossPush(world, p); // Story 6.5: an idle survivor is pushed too
+      continue;
+    }
 
     let mx = input.moveX;
     let my = input.moveY;
@@ -61,6 +67,7 @@ export const movePlayers: SystemFn = (world, dtS) => {
       p.x = Math.min(widthM - r, Math.max(r, nx));
       p.y = Math.min(heightM - r, Math.max(r, ny));
     }
+    bossPush(world, p); // Story 6.5 (D1, DD6)
 
     const aimLen = Math.sqrt(input.aimX * input.aimX + input.aimY * input.aimY);
     if (aimLen > MIN_VEC_LEN) {
@@ -78,3 +85,21 @@ export const updatePlayers: SystemFn = (world, dtS) => {
   movePlayers(world, dtS);
   updateDowned(world);
 };
+
+/**
+ * Story 6.5 (D1, DD6): the Behemoth's body pushes the survivor out along the centre line, then the
+ * obstacles again, so the body never ends inside a box. The Predictor runs this too (its World
+ * mirrors the boss). Only + − × ÷ and sqrt (the prediction rule).
+ */
+function bossPush(world: World, p: PlayerState): void {
+  if (!pushPlayerOutOfBoss(world, p)) return;
+  const r = p.radiusM;
+  if (hasObstacles(world)) {
+    pushOutOfBuildings(world, p.x, p.y, r, p.prevX, p.prevY);
+    p.x = pushed.x;
+    p.y = pushed.y;
+  } else {
+    p.x = Math.min(world.map.widthM - r, Math.max(r, p.x));
+    p.y = Math.min(world.map.heightM - r, Math.max(r, p.y));
+  }
+}

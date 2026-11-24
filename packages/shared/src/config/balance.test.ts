@@ -13,9 +13,10 @@ import decay from "./balance/decay.json" with { type: "json" };
 import combat from "./balance/combat.json" with { type: "json" };
 import gear from "./balance/gear.json" with { type: "json" };
 import consumables from "./balance/consumables.json" with { type: "json" };
+import boss from "./balance/boss.json" with { type: "json" };
 import economy from "./balance/economy.json" with { type: "json" };
 
-const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables })) as RawBalanceFiles;
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss })) as RawBalanceFiles;
 
 /** Story 5.18: the chain and pending numbers in controls.build. */
 const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300 } as const;

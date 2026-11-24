@@ -131,8 +131,10 @@ export function pushOutOfBuildings(
   r: number,
   fromX: number,
   fromY: number,
+  /** Story 6.5: false = map solids and the edge only (player buildings are not solid to the Behemoth). */
+  withBuildings = true,
 ): PushResult {
-  const full = settle(world, x, y, r, fromX, fromY);
+  const full = settle(world, x, y, r, fromX, fromY, withBuildings);
   if (full !== PUSH_STUCK) return full;
   // Not settled (3.4 re-review: a diagonal press into a pocket stopped ~13 cm short): try the move
   // along one axis at a time and keep the one that gets further from the start; only if neither
@@ -140,12 +142,12 @@ export function pushOutOfBuildings(
   let bestX = fromX;
   let bestY = fromY;
   let bestD = -1;
-  if (settle(world, x, fromY, r, fromX, fromY) !== PUSH_STUCK) {
+  if (settle(world, x, fromY, r, fromX, fromY, withBuildings) !== PUSH_STUCK) {
     bestX = pushed.x;
     bestY = pushed.y;
     bestD = (bestX - fromX) * (bestX - fromX) + (bestY - fromY) * (bestY - fromY);
   }
-  if (settle(world, fromX, y, r, fromX, fromY) !== PUSH_STUCK) {
+  if (settle(world, fromX, y, r, fromX, fromY, withBuildings) !== PUSH_STUCK) {
     const d = (pushed.x - fromX) * (pushed.x - fromX) + (pushed.y - fromY) * (pushed.y - fromY);
     if (d > bestD) {
       bestX = pushed.x;
@@ -158,9 +160,11 @@ export function pushOutOfBuildings(
   return bestD > 0 ? PUSH_MOVED : PUSH_STUCK;
 }
 
+const NO_BUILDINGS: readonly Building[] = [];
+
 /** One push-out attempt for the target (x, y): passes until stable, or PUSH_STUCK (then `pushed` = from). */
-function settle(world: Readonly<World>, x: number, y: number, r: number, fromX: number, fromY: number): PushResult {
-  const list = world.buildings.list;
+function settle(world: Readonly<World>, x: number, y: number, r: number, fromX: number, fromY: number, withBuildings: boolean): PushResult {
+  const list = withBuildings ? world.buildings.list : NO_BUILDINGS;
   const solids = world.obstacles.solids;
   const { widthM, heightM } = world.map;
   let px = x;

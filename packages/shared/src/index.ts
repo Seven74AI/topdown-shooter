@@ -520,3 +520,29 @@ export { acidSpit, acidSpitOf, circleInAcid, clearAcid, spawnSpit, spitStats, sp
 export { createSpitPool, type SpitPool } from "./zombies/spitPool";
 export { AREA_KIND, circleInArea, clearAreas, createAreaPool, spawnArea, type AreaPool } from "./hazards/areaPool";
 export { type SpitStats } from "./config/balanceSchema";
+// Story 6.5: the Behemoth
+export {
+  BOSS_ATTACK,
+  BOSS_STATE,
+  THREAT_BUCKETS,
+  bossActive,
+  bossBodyOn,
+  bossMaxHp,
+  createBossState,
+  isBossWave,
+  pushPlayerOutOfBoss,
+  resetBoss,
+  rewoundBossPos,
+  snapshotBoss,
+  type BossAttack,
+  type BossAttackKind,
+  type BossState,
+  type BossStateId,
+} from "./boss/bossState";
+export { BEHEMOTH_LOOKS, behemothLookIndex, bossPending, pickBossAttack, pickBossEntry, startBossWarning, updateBoss } from "./boss/behemoth";
+export { applyBossDamage, bossCircleHitBySegment, bossDamageStats, bossInArc, bossInCircle, killBoss } from "./boss/bossDamage";
+export { bossGapTicks, bossStats, inSlamZone, startBossAttack, telegraphTicks } from "./boss/telegraph";
+export { bossSlotOf, clearBossThreatSlot, pickBossTarget, recordBossThreat, threatOf } from "./boss/target";
+export { maxAliveNow } from "./waves/waveDirector";
+export { knockPlayerBy } from "./player/knockback";
+export { type BossStats } from "./config/balanceSchema";
