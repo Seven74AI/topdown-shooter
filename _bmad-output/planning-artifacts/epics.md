@@ -1917,6 +1917,8 @@ As a player, I want to undo a misplaced building and sell old ones, so that a mi
 
 ### Story 5.21: Building action bar
 
+(**Merged with Story 5.22** by the designer on 2026-11-24: one story, "Building action bar and move".)
+
 (BX-7 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
 
 As a player, I want the actions for a building under my right thumb, so that repairing, upgrading and selling are one tap away.
@@ -1935,6 +1937,8 @@ As a player, I want the actions for a building under my right thumb, so that rep
 
 ### Story 5.22: Move a building
 
+(**Merged into Story 5.21** by the designer on 2026-11-24: built and reviewed together as "Building action bar and move".)
+
 (BX-8 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
 
 As a player, I want to pick up my building and put it somewhere else for free, so that I can fix a bad spot without losing money.
@@ -1951,6 +1955,8 @@ As a player, I want to pick up my building and put it somewhere else for free, s
 ---
 
 ### Story 5.23: Placement feel and owner marks
+
+(**Merged with Story 5.25** by the designer on 2026-11-24: one story incl. mouse and keys parity.)
 
 (BX-9 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
 
@@ -1982,6 +1988,8 @@ As a player, I want to see what my teammates are about to build, so that we don'
 ---
 
 ### Story 5.25: Mouse and keys parity (optional)
+
+(**Merged into Story 5.23** by the designer on 2026-11-24: built and reviewed together with placement feel and owner marks.)
 
 (BX-11 in `docs/ideas/building-ux/draft-stories.md`; design: `ux-spec.md`, prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR.)
 
