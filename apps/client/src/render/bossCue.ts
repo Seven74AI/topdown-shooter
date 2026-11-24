@@ -5,8 +5,12 @@ import type { SimEvent } from "@topdown/shared";
  * (`ageS` past `BOSS_STALE_S`) plays no banner and no sound; the state (bar, telegraph, marker) shows
  * the truth anyway. Pure (tested).
  */
-export const BOSS_WARNING_BANNER = "Something big is coming";
-export const BOSS_ARRIVED_BANNER = "THE BEHEMOTH";
+/**
+ * Asset fixes round 5 (P1): the warning and the arrival show the HUD's THE BEHEMOTH warning banner
+ * (`BossHud`, from the boss state: a woken tab shows the truth too), so neither plays a text banner any more.
+ */
+export const BOSS_WARNING_BANNER = "";
+export const BOSS_ARRIVED_BANNER = "";
 export const BOSS_STALE_S = 1.0;
 /** The slam shakes the camera of a survivor within this distance of it (m). */
 export const BOSS_SLAM_SHAKE_M = 12;

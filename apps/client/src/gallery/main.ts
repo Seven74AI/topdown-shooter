@@ -1,5 +1,7 @@
 import { collectAssets, type Asset } from "./collect";
 import "./gallery.css";
+import "@fontsource/oswald/600.css";
+import "@fontsource/oswald/700.css";
 
 /**
  * Asset gallery (dev page, `/gallery.html`): every picture the game draws in code, cut into its

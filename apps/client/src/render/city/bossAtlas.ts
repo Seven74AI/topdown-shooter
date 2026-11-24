@@ -6,8 +6,8 @@ import { drawGroundDamage } from "./groundDamageArt";
 
 /**
  * Story 6.5 (T0, brief 12 / 20): the Behemoth's atlas (`boss_<look>_<pose>_<variant>`: 4 looks × 13
- * frames ≤ 2048²) and its small FX textures (the baked telegraph disc `boss_tele_disc` with its white hatching, the
- * target skull, the edge-marker disc and its three attack icons, the slam's crack decal). Every one
+ * frames ≤ 2048²) and its FX textures (the baked glowing slam telegraph `boss_tele_disc`, the slam's ground
+ * damage decal). Every one
  * is drawn in code through `addGeneratedTexture` with its redraw callback (Android Chrome wipes
  * canvases in the background; `noUnregisteredTextures.test.ts`).
  */
@@ -50,8 +50,9 @@ export function bossSpecs(): FrameSpec[] {
 }
 
 /** FX frames (one texture). */
-export const BOSS_FX_FRAMES = { skull: "boss_fx_skull_a", disc: "boss_fx_disc_a", slam: "boss_icon_slam_a", charge: "boss_icon_charge_a", throw: "boss_icon_throw_a", crack: "boss_decal_crack_a" } as const;
-const FX_PX: Record<string, number> = { boss_fx_skull_a: 64, boss_fx_disc_a: 72, boss_icon_slam_a: 48, boss_icon_charge_a: 48, boss_icon_throw_a: 48, boss_decal_crack_a: 256 };
+/** FX frames (one texture). Asset fixes round 5: the skull, edge disc and icons became the P1 warning display (`hudWarnArt.ts`). */
+export const BOSS_FX_FRAMES = { crack: "boss_decal_crack_a" } as const;
+const FX_PX: Record<string, number> = { boss_decal_crack_a: 256 };
 /** The crack decal's px per metre (it covers the 4.5 m ring: 256 px = 9 m). */
 export const BOSS_CRACK_PX_PER_M = 256 / 9;
 
@@ -70,82 +71,11 @@ function drawBossFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   }
 }
 
-/** The target skull (prototype `skull`): white bone, dark eye holes, a red rim (red = boss danger only). */
-export function drawSkull(g: CanvasRenderingContext2D, s: number, col = "#f2f2f2"): void {
-  g.save();
-  g.scale(s, s);
-  g.fillStyle = "#c81e24";
-  g.beginPath();
-  g.arc(0, -0.04, 0.44, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = col;
-  g.beginPath();
-  g.arc(0, -0.08, 0.32, 0, Math.PI * 2);
-  g.fill();
-  g.fillRect(-0.18, 0.1, 0.36, 0.2);
-  g.fillStyle = "#16090a";
-  g.beginPath();
-  g.arc(-0.12, -0.08, 0.09, 0, Math.PI * 2);
-  g.arc(0.12, -0.08, 0.09, 0, Math.PI * 2);
-  g.fill();
-  g.fillRect(-0.03, 0.04, 0.06, 0.08);
-  g.restore();
-}
-
 function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
   const cx = f.x + f.w / 2;
   const cy = f.y + f.h / 2;
   g.translate(cx, cy);
-  const s = f.w / 2;
-  g.lineCap = "round";
-  g.lineJoin = "round";
   switch (f.name) {
-    case BOSS_FX_FRAMES.skull:
-      drawSkull(g, s);
-      break;
-    case BOSS_FX_FRAMES.disc:
-      g.fillStyle = "#b4161c";
-      g.beginPath();
-      g.arc(0, 0, s * 0.92, 0, Math.PI * 2);
-      g.fill();
-      g.lineWidth = s * 0.08;
-      g.strokeStyle = "#ffffff";
-      g.stroke();
-      drawSkull(g, s * 0.8);
-      break;
-    case BOSS_FX_FRAMES.slam:
-      g.strokeStyle = "#ffffff";
-      g.lineWidth = s * 0.14;
-      for (const r of [0.35, 0.7]) {
-        g.beginPath();
-        g.arc(0, 0, s * r, 0, Math.PI * 2);
-        g.stroke();
-      }
-      break;
-    case BOSS_FX_FRAMES.charge:
-      g.fillStyle = "#ffffff";
-      g.beginPath();
-      g.moveTo(s * 0.8, 0);
-      g.lineTo(-s * 0.2, -s * 0.6);
-      g.lineTo(-s * 0.2, -s * 0.22);
-      g.lineTo(-s * 0.8, -s * 0.22);
-      g.lineTo(-s * 0.8, s * 0.22);
-      g.lineTo(-s * 0.2, s * 0.22);
-      g.lineTo(-s * 0.2, s * 0.6);
-      g.closePath();
-      g.fill();
-      break;
-    case BOSS_FX_FRAMES.throw:
-      g.fillStyle = "#ffffff";
-      g.beginPath();
-      g.moveTo(-s * 0.6, -s * 0.3);
-      g.lineTo(s * 0.4, -s * 0.6);
-      g.lineTo(s * 0.7, s * 0.2);
-      g.lineTo(0, s * 0.65);
-      g.lineTo(-s * 0.7, s * 0.25);
-      g.closePath();
-      g.fill();
-      break;
     case BOSS_FX_FRAMES.crack:
       // Asset fixes (designer): the realistic ground damage, R1 + R2 + R3 combined (`groundDamageArt.ts`)
       drawGroundDamage(g, -f.w / 2, -f.h / 2, f.w);

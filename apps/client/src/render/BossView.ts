@@ -17,6 +17,7 @@ import {
   ensureBossTextures,
 } from "./city/bossAtlas";
 import { aboveDarkness } from "./darkness/aboveDark";
+import { BOSS_HUD, HUD_FRAMES, HUD_RED, ensureHudWarnTextures, hudFlicker, hudFrameCssSize } from "./city/hudWarnArt";
 import { slamFrameIndex, telegraphProgress, type TelegraphLook } from "./bossTelegraph";
 
 /**
@@ -34,7 +35,9 @@ import { slamFrameIndex, telegraphProgress, type TelegraphLook } from "./bossTel
  *   thicker toward the hit. Driven by the SERVER's start tick (`telegraphProgress` with the host's
  *   estimated server tick), above the zombies and the darkness (`ABOVE_DARK.telegraph`). Pooled: 2
  *   slots (the current one and the fading one).
- * - A red skull over its target (everyone sees it; `ABOVE_DARK.marker`).
+ * - Its target's lock (asset fixes round 5, P1): red HUD corner brackets round the hunted survivor, closing in
+ *   as a slam winds up, a turning tick ring, a scrolling hazard bar and a TARGET tag; flickering like a
+ *   failing display (everyone sees it; `ABOVE_DARK.marker`).
  * - The slam's crack decals: a pool of `boss.json › caps.maxDecals` (oldest reused), cleared at a build start.
  */
 const BODY_DEPTH = 6.2;
@@ -57,8 +60,10 @@ const SPARKS_MAX = 100;
 const SPARK_DRIFT = 0.55;
 /** Seconds of spark drift time per spark lifetime (randomised per spark ×1–2.5). */
 const SPARK_LIFE_S = 1;
-const SKULL_M = 0.9;
-const SKULL_LIFT_M = 1.1;
+/** The target lock (P1), in metres: bracket box half-size, the tag's display size (88 × 44 CSS px at 47 CSS px per metre). */
+const LOCK_R_M = 0.8;
+const LOCK_CSS_PER_M = 47;
+const LOCK_LINE_M = 2 / LOCK_CSS_PER_M;
 /** Review M2: the body's opacity while zombies walk under it (they read through it; no new colour). */
 export const BOSS_DIM_ALPHA = 0.55;
 /** Review L-b: seconds the body takes to dim or come back (no flicker as a zombie crosses its rim). */
@@ -89,7 +94,10 @@ interface TeleSlot {
 export class BossView {
   private readonly body: Phaser.GameObjects.Image;
   private readonly outline: Phaser.GameObjects.Image;
-  private readonly skull: Phaser.GameObjects.Image;
+  private readonly tag: Phaser.GameObjects.Image;
+  private readonly lock: Phaser.GameObjects.Graphics;
+  /** The slam windup (0–1) the brackets close in with (0: none). */
+  private lockP = 0;
   private readonly tele: TeleSlot[] = [];
   private readonly decals: Phaser.GameObjects.Image[] = [];
   private nextDecal = 0;
@@ -113,7 +121,10 @@ export class BossView {
     const side = BOSS_FRAME_PX / BOSS_PX_PER_M; // 7 m: the frame's metres
     this.body = scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[0]).setDisplaySize(side, side).setDepth(BODY_DEPTH).setVisible(false);
     this.outline = aboveDarkness(scene.add.image(0, 0, BOSS_ATLAS, BOSS_FRAMES[0]?.[BOSS_FRAME.outline]).setDisplaySize(side, side).setVisible(false), "boss");
-    this.skull = aboveDarkness(scene.add.image(0, 0, BOSS_FX, BOSS_FX_FRAMES.skull).setDisplaySize(SKULL_M, SKULL_M).setVisible(false), "marker");
+    ensureHudWarnTextures(scene);
+    const tagSize = hudFrameCssSize("tag");
+    this.tag = aboveDarkness(scene.add.image(0, 0, BOSS_HUD, HUD_FRAMES.tag).setDisplaySize(tagSize.w / LOCK_CSS_PER_M, tagSize.h / LOCK_CSS_PER_M).setVisible(false), "marker");
+    this.lock = aboveDarkness(scene.add.graphics().setVisible(false), "marker");
     for (let i = 0; i < 2; i++) {
       this.tele.push({
         disc: aboveDarkness(scene.add.image(0, 0, BOSS_TELE).setBlendMode(BLEND_ADD).setVisible(false), "telegraph"),
@@ -201,7 +212,8 @@ export class BossView {
       if (this.body.visible) {
         this.body.setVisible(false);
         this.outline.setVisible(false);
-        this.skull.setVisible(false);
+        this.tag.setVisible(false);
+        this.lock.setVisible(false);
       }
       this.lastX = Number.NaN;
       return;
@@ -236,11 +248,15 @@ export class BossView {
       if (this.outline.frame.name !== o) this.outline.setFrame(o);
       this.outline.setPosition(drawX, drawY).setRotation(b.facing).setVisible(true);
     } else if (this.outline.visible) this.outline.setVisible(false);
-    if (targetAt) this.skull.setPosition(targetAt.x, targetAt.y - SKULL_LIFT_M).setVisible(true);
-    else if (this.skull.visible) this.skull.setVisible(false);
+    if (targetAt) this.drawLock(targetAt.x, targetAt.y);
+    else if (this.tag.visible) {
+      this.tag.setVisible(false);
+      this.lock.clear().setVisible(false);
+    }
   }
 
   private drawTelegraphs(serverTick: number): void {
+    this.lockP = 0;
     for (const s of this.tele) {
       if (s.attackId < 0 || Number.isNaN(serverTick)) {
         if (s.disc.visible) {
@@ -257,10 +273,67 @@ export class BossView {
         continue;
       }
       const p = look.progress;
+      if (look.alpha >= 1) this.lockP = Math.max(this.lockP, p);
       s.disc.setAlpha(look.alpha * (0.45 + 0.55 * p)).setVisible(true); // the glow gathers over the windup
       this.drawCountdown(s.fill.clear(), s, p, look.alpha);
       s.fill.setVisible(true);
     }
+  }
+
+  /**
+   * The target lock at (x, y) (P1): corner brackets (breathing while it walks, closing in over a slam's
+   * windup), a turning ring of ticks, a scrolling hazard bar under them and the TARGET tag above, all with
+   * the display flicker. Graphics in metres; no allocation.
+   */
+  private drawLock(x: number, y: number): void {
+    const t = this.clockS;
+    const fl = hudFlicker(t);
+    const r = LOCK_R_M;
+    const lock = this.lockP > 0 ? this.lockP : 0.4 + 0.2 * Math.sin(t * 2);
+    const gap = r * (1.25 - 0.35 * lock);
+    const len = r * 0.55;
+    const g = this.lock.clear();
+    for (let pass = 0; pass < 2; pass++) {
+      g.lineStyle(pass === 0 ? LOCK_LINE_M * 4 : LOCK_LINE_M, HUD_RED, (pass === 0 ? 0.25 : 1) * fl);
+      for (let c = 0; c < 4; c++) {
+        const sx = c & 1 ? 1 : -1;
+        const sy = c & 2 ? 1 : -1;
+        const cx = x + sx * gap;
+        const cy = y + sy * gap;
+        g.lineBetween(cx, cy, cx - sx * len, cy);
+        g.lineBetween(cx, cy, cx, cy - sy * len);
+      }
+    }
+    // the turning tick ring
+    g.lineStyle(LOCK_LINE_M, HUD_RED, 0.7 * fl);
+    for (let i = 0; i < 24; i++) {
+      if (i % 6 === 0) continue;
+      const a = (i / 24) * Math.PI * 2 + t * 0.8;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      g.lineBetween(x + ca * r * 0.95, y + sa * r * 0.95, x + ca * r * 1.08, y + sa * r * 1.08);
+    }
+    // the hazard bar under the brackets, its stripes scrolling
+    const by = y + gap + 0.08;
+    const bh = 0.08;
+    const step = 0.08;
+    const off = (t * 0.4) % (step * 2);
+    g.fillStyle(HUD_RED, fl);
+    for (let sx = x - r - step * 2 + off; sx < x + r; sx += step * 2) {
+      const x0 = Math.max(x - r, sx);
+      const x1 = Math.min(x + r, sx + step);
+      if (x1 <= x0) continue;
+      // one slanted stripe: a parallelogram as two triangles, kept inside the bar
+      const tx0 = Math.min(x + r, x0 + bh);
+      const tx1 = Math.min(x + r, x1 + bh);
+      g.fillTriangle(x0, by + bh, x1, by + bh, tx1, by);
+      g.fillTriangle(x0, by + bh, tx1, by, tx0, by);
+    }
+    g.setVisible(true);
+    this.tag
+      .setPosition(x, y - gap - r * 0.65)
+      .setAlpha(fl)
+      .setVisible(true);
   }
 
   /**

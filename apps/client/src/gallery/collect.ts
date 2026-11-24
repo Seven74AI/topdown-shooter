@@ -8,6 +8,7 @@ import { ensureConsumableIcons, CONSUMABLE_ICON_FRAMES, consumableIconUrl } from
 import { ensureFireFxAtlas } from "../render/city/fireFxAtlas";
 import { ensureGearIcons, GEAR_ICON_FRAMES, gearIconUrl } from "../render/city/gearIcons";
 import { ensureThrowFxAtlas } from "../render/city/throwArt";
+import { ensureHudWarnTextures } from "../render/city/hudWarnArt";
 import { SurvivorLayerPool } from "../render/SurvivorLayerPool";
 import { WEAPON_ART, WEAPON_ICON_ART, tierMarkUrl, weaponIconUrl } from "../render/city/weaponArt";
 
@@ -25,7 +26,9 @@ export interface Asset {
 const PHASER_KEYS = new Set(["__DEFAULT", "__MISSING", "__WHITE", "__NORMAL"]);
 
 /** Every texture the game draws in code, made the same way the game makes it, then cut into its named frames. */
-export function collectAssets(): Promise<Asset[]> {
+export async function collectAssets(): Promise<Asset[]> {
+  // the HUD plates paint their labels in the bundled face: wait for it so the export shows the real look
+  await Promise.all([document.fonts.load('700 20px Oswald'), document.fonts.load('600 20px Oswald')]).catch(() => undefined);
   return new Promise((resolve, reject) => {
     class Collect extends Phaser.Scene {
       create(): void {
@@ -39,6 +42,7 @@ export function collectAssets(): Promise<Asset[]> {
           ensureFireFxAtlas(this);
           ensureGearIcons(this);
           ensureThrowFxAtlas(this);
+          ensureHudWarnTextures(this);
           new SurvivorLayerPool(this);
           const art = textureAssets(this); // before the game (and its textures) is destroyed below
           void shopAssets().then((shop) => resolve([...art, ...shop]), reject);
