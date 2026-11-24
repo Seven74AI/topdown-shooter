@@ -1,6 +1,9 @@
+---
+baseline_commit: 8e226d1610ad352b988ed99eaddd29b28d4f268e
+---
 # Story 7.8: Survivor parts in game code
 
-Status: ready-for-dev
+Status: in-progress
 
 (Created 2026-11-24 after the Epic 7 readiness check, `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-24-epic-7.md`, and its fixes, `sprint-change-proposal-2026-11-24-epic-7-readiness.md`. Source design: `docs/ideas/customization/proposal.md` D1–D7, O1–O6; prototype `docs/ideas/customization/avatar-editor.html`. FR89.)
 
@@ -28,21 +31,21 @@ so that customization is possible without new image files.
 ## Tasks / Subtasks
 
 - [ ] **T1 Pick page** (AC 1)
-  - [ ] Build `docs/art/7-8/parts.html` from `avatar-editor.html`: one card per part (big + game size + night-muted swatch), grouped by slot; starter, milestone and loot marked; a "gameplay signal?" note on the candidates listed in Dev Notes.
+  - [x] Build `docs/art/7-8/parts.html` from `avatar-editor.html`: one card per part (big + game size + night-muted swatch), grouped by slot; starter, milestone and loot marked; a "gameplay signal?" note on the candidates listed in Dev Notes.
   - [ ] Publish it for the designer; wait for the picks; record them in `docs/epic-7-decisions.md`. T2–T4 can start on the prototype's shapes meanwhile; T5 ports the picked shapes.
-- [ ] **T2 Catalogue** (AC 4, 7)
-  - [ ] `packages/shared/src/config/cosmetics.json` + `cosmetics.ts` (zod schema, typed `Cosmetics`, `STARTER_PARTS`, `DEFAULT_LOOK`), exported from `packages/shared/src/index.ts`.
-  - [ ] Tests `cosmetics.test.ts`.
-- [ ] **T3 Night mute** (AC 5)
-  - [ ] `apps/client/src/render/city/survivorLook.ts`: `ResolvedLook` (part ids + final colours), `resolveLook(look, stage)`, `nightMute(hex)`, `stageDim(hex, stage)`. Pure, no Phaser.
-  - [ ] Tests `survivorLook.test.ts`.
-- [ ] **T4 Split `drawSurvivor`** (AC 2, 3)
-  - [ ] New `apps/client/src/render/city/survivorParts.ts`: `drawTop`, `drawHead`, `drawHair`, `drawPack`, `drawAccent`, `drawSkin`, each `(c, r, partId, colour)`; the default parts reproduce today's shapes exactly.
-  - [ ] `drawSurvivor(c, r, heldGun?, back?, look = DEFAULT_RESOLVED_LOOK)`: same first four parameters, so `spriteAtlas.ts` needs no change.
-  - [ ] Copy today's `drawSurvivor` into the test as `legacyDrawSurvivor` (frozen reference).
+- [x] **T2 Catalogue** (AC 4, 7)
+  - [x] `packages/shared/src/config/cosmetics.json` + `cosmetics.ts` (zod schema, typed `Cosmetics`, `STARTER_PARTS`, `DEFAULT_LOOK`), exported from `packages/shared/src/index.ts`.
+  - [x] Tests `cosmetics.test.ts`.
+- [x] **T3 Night mute** (AC 5)
+  - [x] `apps/client/src/render/city/survivorLook.ts`: `ResolvedLook` (part ids + final colours), `resolveLook(look, stage)`, `nightMute(hex)`, `stageDim(hex, stage)`. Pure, no Phaser.
+  - [x] Tests `survivorLook.test.ts`.
+- [x] **T4 Split `drawSurvivor`** (AC 2, 3)
+  - [x] New `apps/client/src/render/city/survivorParts.ts`: `drawTop`, `drawHead`, `drawHair`, `drawPack`, `drawAccent`, `drawSkin`, each `(c, r, partId, colour)`; the default parts reproduce today's shapes exactly.
+  - [x] `drawSurvivor(c, r, heldGun?, back?, look = DEFAULT_RESOLVED_LOOK)`: same first four parameters, so `spriteAtlas.ts` needs no change.
+  - [x] Copy today's `drawSurvivor` into the test as `legacyDrawSurvivor` (frozen reference).
 - [ ] **T5 Port the picked parts** (AC 1, 2, 6): all 55, built only from the existing helpers (`circle`, `ell`, `rrect`, `shade`, `outline`).
 - [ ] **T6 Raster tests** (AC 3, 6, 8)
-  - [ ] Add `@napi-rs/canvas` as a root devDependency, pinned to **1.1.0** (released 2026-10-30; 1.2.0 is under two weeks old). Tests only; never imported by app code.
+  - [x] Add `@napi-rs/canvas` as a root devDependency, pinned to **1.1.0** (released 2026-10-30; 1.2.0 is under two weeks old). Tests only; never imported by app code.
   - [ ] `survivorParts.raster.test.ts`: AC 3 identity for every survivor frame; AC 6 per-part area at `r` = 14 px.
 - [ ] **T7 Gate and notes**: typecheck, lint, test, build on the branch merged with current master; "Notes for the merge"; list what was not verified.
 
