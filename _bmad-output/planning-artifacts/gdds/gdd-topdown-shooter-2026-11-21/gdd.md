@@ -276,7 +276,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 | 3–4 | Panic | 4 cars move into the road (new cover and choke points); police barriers block some paths |
 | 5–6 | Breakdown | 2 car fires (fire zones, 2 m radius, last 2 waves); free sandbag cover appears; heavy rain (drizzle since stage 1; visual) |
 | 7–8 | Ruins | Rubble closes one alley and blocks paths (rubble stops bullets, bodies, melee and blasts; lobbed rounds fly over it); streetlights flicker as a warning of the coming blackout; collapsed walls open new spawn points |
-| 9–10 | Collapse | Power out. **Wave 9 is a blackout wave**; fog limits vision to 10 m; wave 10 (boss) lit only by fires and floodlights |
+| 9–10 | Collapse | Power out. **Wave 9 is a blackout wave**; fog limits vision to 10 m; wave 10 (boss) dark too, lit only by fires, floodlights, flashlights and muzzle flashes |
 | 11+ | Collapse (endless) | Blackout on odd waves; +40 zombies per wave up to 600 at wave 15 (still max 150 alive), then +6% zombie HP per wave; +1 Brute per wave (max 6 alive); a Behemoth every 5th wave, before each evacuation, with +25% HP each time; one event on each even wave without a Behemoth |
 
 **Run-to-run variety:** which cars burn, which alley collapses, the special events and the shop cards are random per run. Each run has a **seed** so a run can be reproduced for testing.

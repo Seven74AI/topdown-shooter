@@ -1,6 +1,6 @@
 # Story 6.10: Power failure and survivor
 
-Status: drafted (ready-for-dev once the designer confirms docs/epic-6-decisions.md › Story decisions to confirm)
+Status: ready-for-dev
 
 ## Story
 
@@ -199,3 +199,4 @@ Power failure: no new art (2 s flicker with the Ruins lamp flicker, then 6.3's b
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
+- 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.

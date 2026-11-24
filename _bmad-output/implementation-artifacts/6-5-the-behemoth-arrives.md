@@ -1,6 +1,6 @@
 # Story 6.5: The Behemoth arrives
 
-Status: drafted (ready-for-dev once the designer confirms docs/epic-6-decisions.md › Story decisions to confirm)
+Status: ready-for-dev
 
 ## Story
 
@@ -235,3 +235,4 @@ From `docs/epic-6-decisions.md` › Epic 6 looks, section 4 Behemoth: **all four
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
+- 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.

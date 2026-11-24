@@ -1,6 +1,6 @@
 # Story 6.3: Blackout lighting
 
-Status: drafted (ready-for-dev once the designer confirms docs/epic-6-decisions.md › Story decisions to confirm)
+Status: ready-for-dev
 
 ## Story
 
@@ -233,3 +233,4 @@ From `docs/epic-6-decisions.md` › 3 Blackout: **BL3 pitch 5 %** with **BL2 moo
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
+- 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.

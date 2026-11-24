@@ -113,7 +113,7 @@ FR59: Stage 1 Evening (waves 1–2): dusk, open map, the brightest stage (it dar
 FR60: Stage 2 Panic (waves 3–4): 4 cars move into the road (new cover and choke points); police barriers block some paths.
 FR61: Stage 3 Breakdown (waves 5–6): 2 car fires (2 m fire zones lasting 2 waves); free sandbag cover appears; heavy rain (drizzle since stage 1).
 FR62: Stage 4 Ruins (waves 7–8): rubble closes one alley and blocks paths; streetlights flicker; collapsed walls open new spawn points.
-FR63: Stage 5 Collapse (waves 9–10): power out; wave 9 is a blackout wave; fog limits vision to 10 m; wave 10 is lit only by fires and floodlights.
+FR63: Stage 5 Collapse (waves 9–10): power out; wave 9 is a blackout wave; fog limits vision to 10 m; wave 10 is dark too, lit only by fires, floodlights, flashlights and muzzle flashes.
 FR64: In blackout, darkness covers the map except flashlight cones (aim direction), floodlights, fires and muzzle flashes; zombie eyes show through the dark.
 FR65: Each run has a seed that drives its random choices (which cars burn, which alley collapses, events, shop cards), so a run can be reproduced.
 
@@ -2009,7 +2009,7 @@ As a player, I want every building tile in the build bar to show the same kind o
 
 ## Epic 6: The full run: decay, boss, events, endless
 
-(Epic 6 stories revised 2026-11-23 from the Epic 6 idea session: `docs/ideas/epic-6/proposal.md`, designer decisions D1–D7; Behemoth prototype claude.ai/artifact/16PKRmcKLyK4qfoG9ghASM.)
+(Epic 6 stories revised 2026-11-23 from the Epic 6 idea session: `docs/ideas/epic-6/proposal.md`, designer decisions D1–D7; Behemoth prototype claude.ai/artifact/16PKRmcKLyK4qfoG9ghASM. Updated 2026-11-24 with the 110 story decisions the designer accepted (`docs/epic-6-decisions.md`); story files `_bmad-output/implementation-artifacts/6-*.md` hold the full detail.)
 
 A team plays the full 10 waves from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets two special events, votes to extract or stay, and can go endless.
 
@@ -2046,7 +2046,7 @@ So that the map squeezes us as the city breaks.
 **Given** the build phase before wave 7
 **When** stage 4 is applied
 **Then** rubble closes one of alleys 1–3 (a decay variant picked by the `decay` stream), 3 rubble piles (≈ 2 × 1.5 m) appear in the streets as hard cover (they stop bullets and bodies), and 2 breach spawn points with `minStage: 4` open in building walls facing the intersection (FR62)
-**And** cells covered by rubble refuse building placement ("Can't build here"), and buildings already there are destroyed with the usual 50 % refund (FR53)
+**And** cells covered by rubble refuse building placement ("Blocked by rubble", the 5.17 reason line; 6.2 D5), and buildings already there are destroyed with the usual 50 % refund (FR53)
 **And** rubble also stops melee and shields blasts (like cars); lobbed rounds (launcher, grenade, molotov) fly over it, because rubble is not `building: true`
 **And** the "no area is ever enclosed" and spawn-clearance tests pass on every stage × variant combination
 
@@ -2065,7 +2065,7 @@ So that light becomes something we fight for.
 
 **Given** the server's light state
 **When** the blackout flag is on
-**Then** the client draws a half-resolution darkness texture leaving unlit ground at 10 % light, and cuts out: each player's flashlight cone along their aim (60°, 8 m; Tactical flashlight 80°, 12 m), a 1.6 m glow round every survivor, floodlights (6 m radius in blackout: designer, D5), fire zones (4 m) and muzzle flashes (3 m for 100 ms) (FR64)
+**Then** the client draws a half-resolution darkness texture leaving unlit ground at 20 % light in a power-failure wave (waves 6–8), 10 % in wave 9 and 5 % in wave 10 and every endless blackout (designer look pick, 6.3 D1), and cuts out: each player's flashlight cone along their aim (60°, 8 m; Tactical flashlight 80°, 12 m), a 1.6 m glow round every survivor, floodlights (6 m radius in blackout: designer, D5), fire zones (4 m) and muzzle flashes (3 m for 100 ms) (FR64)
 **And** teammates (with rings), zombie eyes within 14 m, event markers, pings (8.7) and anything Stories 6.5–6.10 mark "above the darkness" are drawn above it
 
 **Given** the blackout flag is off
@@ -2099,7 +2099,7 @@ So that the run hits its tension peak.
 
 **Given** a wave at stage 5
 **When** a zombie is more than 10 m from the local player
-**Then** it is hidden on that player's screen unless it is inside that player's flashlight beam (which sees to its full length); fog vision cannot be turned off (only its visual quality can)
+**Then** it is hidden on that player's screen unless it is inside a standing survivor's flashlight beam (which sees to its full length; 6.4 D2); zombies within 9 m are always shown and fade out by 10 m (6.4 D1), and aim assist never locks a zombie the fog hides (6.4 D4); fog vision cannot be turned off (only its visual quality can)
 
 **Given** a build phase at stage 5
 **When** it plays
@@ -2120,7 +2120,7 @@ So that the run ends with a fight we'll talk about.
 
 **Given** wave 10
 **When** half of the wave's zombies have spawned
-**Then** a 4 s warning plays (rumble, red edge marker, "Something big is coming"), then the Behemoth walks in from the street edge farthest from the team and at least 14 m from every player: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP × 0.4 / 0.6 / 0.8 / 1.0 by player count (FR33, FR31)
+**Then** a 4 s warning plays (rumble, red edge marker, "Something big is coming"), then the Behemoth walks in from the main street end (west, east, north or south) farthest from the team (6.5 D2) and at least 14 m from every player: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP × 0.4 / 0.6 / 0.8 / 1.0 by player count (FR33, FR31)
 **And** while it lives at most 110 zombies are alive (150 again after it dies), a boss bar with a 50 % notch shows at the top of the screen, and placeholder boss music starts
 **And** it moves on its own flow field at boss size (inflated by 2 m) toward its target, rebuilt every 0.5 s; barricades and turrets are costed, not walls, and a building it walks into takes 100 damage per second (it pushes through slowly)
 **And** its look is drawn in game code like the Brute, baked through `addGeneratedTexture` into a boss atlas with 5 poses (walk, slam, charge/rush, throw, stun/roar); in blackout its outline and eyes draw above the darkness (eyes red when enraged)
@@ -2155,13 +2155,13 @@ So that we have to keep moving, and can bait it into a wall.
 **Given** its target 5–12 m away with at least 4 m of clear lane
 **When** the Behemoth charges
 **Then** it lowers its head for 1.0 s while a lane as wide as its body plus a survivor (4.8 m) is drawn to where it will stop, then rushes up to 10 m at 12 m/s; players it touches (0.25 m grace) take 30 damage and are shoved 2.5 m sideways, once per charge; every building in its path is destroyed; zombies in its path are trampled (FR34, FR53)
-**And** the stop point is found at telegraph start by sweeping its body against static cover; if the lane ends on hard cover (car, bus, building, rubble, map edge) the lane shows a CRASH mark
+**And** the stop point is found at telegraph start by sweeping its body against static cover; if the lane ends on hard cover (car, bus, building, rubble, pumps, low walls, dumpster, sandbags, police barriers (6.6 D1), map edge) the lane shows a CRASH mark
 
 **Given** a charge that ends on hard cover
 **When** it crashes
 **Then** it is stunned for 2 s and takes × 1.5 damage meanwhile (designer, D1); otherwise 1.0 s recovery; cooldown 7 s
 
-**Given** a standing player more than 8 m away and the throw ready
+**Given** a standing player more than 8 m away (4.5 m when the boss can't walk to that player: 6.6 D5) and the throw ready
 **When** the Behemoth throws
 **Then** it aims at the farthest such player's position at the telegraph start, lifts a chunk for 1 s (from the nearest rubble pile or burnt car within 6 m, else the road; visual only) while a 3 m ring shows at the landing spot, and the chunk flies 0.8 s: 35 damage within 3 m (0.25 m grace), a crater decal, no collision change; 0.6 s recovery, cooldown 6 s
 **And** the throw ignores cover, like the slam (the drawn zone is the promise)
@@ -2204,7 +2204,7 @@ So that no two runs play the same.
 
 **Given** the car alarm
 **When** it triggers
-**Then** a parked car blinks "armed" for 20 s; when a player shoots it, or when the 20 s run out, its alarm sounds for 15 s and every zombie within 15 m heads to that car (FR38, designer D7)
+**Then** a parked car blinks "armed" for 20 s; when a player's bullet reaches it (not turrets, melee, flames or blasts: 6.8 D2), or when the 20 s run out, its alarm sounds for 15 s and every zombie within 15 m heads to that car (FR38, designer D7)
 
 **Given** the stampede
 **When** it triggers
@@ -2228,7 +2228,7 @@ So that we have to choose between risk and reward.
 **When** it triggers
 **Then** the gas station tank hisses for 10 s with a visible 6 m ring, then explodes: zombies within 6 m die, every player within 6 m takes the full 60, even when a teammate shot the tank early (same rule as the Bloater blast), buildings take 150 (FR39)
 **And** the blast uses the normal blast line-of-sight (cars, the bus and buildings shield it)
-**And** after the first 3 s any player can shoot the tank to set it off at once (designer, D7); kills credit whoever set it off
+**And** after the first 3 s any player's bullet can set the tank off at once (designer, D7); kills credit whoever set it off
 
 **Given** the supply drop
 **When** it triggers
@@ -2271,8 +2271,8 @@ So that we choose together how much to risk.
 **Then** every player, downed and out players included, sees Extract and Stay buttons and a 15 s countdown, and every vote shows live in its slot colour; nothing else moves during the vote (FR66)
 
 **Given** the votes
-**When** the countdown ends or everyone has voted
-**Then** the majority wins; a tie or no votes means Extract
+**When** the countdown ends, or 1 s after everyone has voted (6.11 D3)
+**Then** Stay wins only if more than half of the whole team voted Stay; silent players count as Extract, so a tie or no votes means Extract (6.11 D1)
 
 **Given** Extract
 **When** chosen
@@ -2294,7 +2294,7 @@ So that we can push our luck for more rewards.
 **Given** Stay
 **When** wave 11 and later run
 **Then** each wave has 40 more zombies than the last at 4 players until 600 (wave 15), then stays at 600 and zombies get +6 % HP per wave after 15; still max 150 alive; × the player-count table (FR68, designer D3)
-**And** each wave has 1 more Brute than the last (wave 11 = 3), at most 6 alive; blackout on odd waves (11, 13, 15…); the map stays at stage 5 with fog
+**And** each wave has 1 more Brute than the last (wave 11 = 3), at most 6 alive; blackout on odd waves (11, 13, 15…), even waves half dark (6.12 D3); odd waves use wave 9's mix, even waves wave 10's (6.12 D5); the map stays at stage 5 with fog
 
 **Given** every 5th wave (15, 20, 25…)
 **When** it runs
