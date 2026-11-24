@@ -1,6 +1,6 @@
 # Story 6.6: Behemoth charge and throw
 
-Status: review
+Status: done
 
 ## Story
 
@@ -258,6 +258,7 @@ Full gate on `story-6-6` at `f46e0cb` (merged with origin/master `eb3b991`, afte
 - `render/BossView.ts`, `bossTelegraph.ts`, `bossCue.ts`, `city/bossAtlas.ts` (frame indices `outline` 14 / `outlineEnraged` 15 now), `city/behemothArt.ts` (`dead` pose), `audio/placeholderSfx.ts` (8 keys).
 - `bots/headlessRun.ts`: `earnedBy.boss`. `economy/tenWaveSim.test.ts` sums it and asserts 150 × 4. `waves/waveDirector.test.ts` (6.1's wave-10 rush test) sets `bossWaves = []`.
 - 6.5 tests that assume a walking-only boss use `slamOnly(world)` (`boss/testBoss.ts`).
+- (new) `docs/perf/epic-6-boss.md` (review M1)
 - `docs/playtests/milestone-1/readability-sheet.md`: items **60–64** (the main session's split: 49 is 7.8's, 6.2+6.4 use 50–59, 6.6+6.7 use 60–69).
 - **6.2:** rubble boxes named `rubble_*` in `obstacles.solids` crash the charge (no code here needed) and are the throw's "rubble" source by name prefix.
 
@@ -290,6 +291,7 @@ Full gate on `story-6-6` at `f46e0cb` (merged with origin/master `eb3b991`, afte
 - `apps/server/src/rooms/schema/syncState.test.ts`
 - `apps/server/src/rooms/schema/syncState.ts`
 - `apps/server/src/run/RunController.ts`
+- `apps/server/src/run/RunController.test.ts` (review L3)
 - `apps/server/src/run/tickCostBoss.test.ts`
 - (new) `docs/art/6-6/6-6-568x320-charge-telegraph.png`
 - (new) `docs/art/6-6/6-6-568x320-crash-stun.png`
@@ -344,6 +346,7 @@ Full gate on `story-6-6` at `f46e0cb` (merged with origin/master `eb3b991`, afte
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: review fixes M1, L1–L4, N1, N2 (see Review fixes).
 - 2026-11-24: merged with 6.7 (designer); built as one story (gds-dev-story, builder session `story-6-6`): charge, throw, stun, enrage, Crawler drops, death and pay; network, prediction, client drawing and HUD; fuzz, netsim, run sim, tick cost, mutations, browser check; merged master `eb3b991`; status → review.
 
 ## Senior Developer Review (AI)
@@ -429,3 +432,44 @@ Survived (bad, see L3): M19 roar takes 10 hp directly (the tests only look for d
 ### Not verified by this review
 
 Real phones, browser FPS, sound by ear, a real hidden tab, and an online two-tab run (same as the builder's list).
+
+### Review fixes (builder, 2026-11-24)
+
+All findings fixed on `story-6-6`. **Behaviour changes: L1, L2, L4** (and N2, trample only); for the re-reviewer.
+
+| # | Fix | Behaviour change? | Test (mutation proof) |
+| --- | --- | --- | --- |
+| M1 | `?stress=150` headless FPS before (master `eb3b991`) / after, with the boss walking, charging back to back and throwing back to back, plus probes: `docs/perf/epic-6-boss.md`. Charges / throws cost −4 % / −8 % when they kill nothing (17.7 / 16.9 vs 18.4 fps); the ~20 % seen with kills on is the 528 zombie deaths per 20 s the forced attacks cause in the packed stress crowd (probes rule out the lane/ring drawing, sounds and the sim: 0.5 ms steps). | no | — |
+| L1 | `charge.ts › hitPlayer`: a survivor without a slot gets a hit-mask bit after the `MAX_PLAYERS` slot bits, by its order in the World (`CHARGE_HIT_BITS` 31); past 31 it is never hit (the safe side). `crossCheckBoss`: `MAX_PLAYERS ≤ 31`. | yes (slot-less survivors: once per charge instead of every tick) | `charge.test.ts` "review L1: a survivor without a player slot … at most once per charge" (the old `bit = 0` path fails it: 1 failed) |
+| L2 | `knockback.ts › knockStepMmOf` / `chargeKnockStepMm` (uses `ticksFor`, no literal 20); the Predictor calls it. `crossCheckBoss`: the charge shove's mm per tick must differ from the slam push, the roar push and every zombie type's knockback. | yes (only if balance changes: a clashing step is now refused at load) | `config/balance.test.ts`: slam `pushM` 2.5 (625 mm/tick) is refused (removing the rule fails it) |
+| L3 | Four asserts: M19 the roar leaves every player's hp and the boss's hp unchanged; M21 a woken tab after a crash plays no late CRASH!/sound (`NetSimHost.boss.test.ts`); M22 `RunController` gives the finisher +1 kill, a killer-less death none (`RunController.test.ts`); M24 two worlds differing only in `crawlerTicks` have different digests (`death.test.ts`). | no | each of the four mutations now fails its test |
+| L4 | `telegraph.ts`: a throw's RECOVER lasts until **impact + `throw.recoverS`** (the boss stands while the chunk flies), then the gap; `attack.live` still blocks. Story AC 5 and DD4 updated to say so. | yes (after a throw the next attack is up to 0.8 s later) | `throw.test.ts` "review L4 (brief 21f): … never before impact + recovery + gap (1–4 players, enraged or not)" + "recovers 0.6 s from the IMPACT" (the old timing fails both) |
+| N1 | `pickThrowTarget`: a module callback through `players.forEach` (no iterator per WALK tick). | no | existing throw tests |
+| N2 | Trample once per zombie per charge by a per-slot mark (`boss.trampleId` = attack id, `trampleGen` = the slot's generation; snapshotted, reset with the boss) against the swept capsule, so a zombie that walks in under the body between two steps is trampled too. Cheap: two typed arrays of 256. | yes (more zombies trampled; still once each) | `charge.test.ts` "review N2: a zombie that walks in under the body between two rush steps is trampled too — once per charge" (ignoring the mark fails 2 tests) |
+
+### Re-review (AI)
+
+Fresh-agent narrow re-review of the review-fix commits only (`96777a8` code, `f91058c` story text, `fd84265` perf doc), 2026-11-24. **Reviewed commit `c0646ec`.** No code changed; scratch probe tests deleted, every mutation reverted. Ran `npm run typecheck` (clean) and only the probed test files (`charge`, `throw`, `enrage`, `death`, `config/balance`, `NetSimHost.boss`, `RunController`).
+
+**Outcome: Approve.** No high or medium findings. Two low, two nits. Brief 21 (a)–(g) and 22 not beaten through the changed code.
+
+| # | Sev | Title | Where | Scenario | Fix |
+| --- | --- | --- | --- | --- | --- |
+| R1 | low | A slot-less survivor's hit bit moves when an earlier player leaves mid-charge, so it can be hit twice | `packages/shared/src/boss/charge.ts:146` (`MAX_PLAYERS + order`) | **Reproduced:** 4 slotted + 1 slot-less player in the lane; after its hit, slotted player `a` leaves: its order drops 4 → 3, the bit changes, and the second hit lands (**2 hits in one charge**). Not reachable on the server: slot-less needs a fifth player, and the room caps at 4. The opposite case (a slotted player hit, leaves, and a newcomer takes the slot mid-charge) is the safe side: the newcomer is never hit by that charge. | Accept (room cap). Or key slot-less players by a stable per-attack list of ids. |
+| R2 | low (test gap) | The generation half of the N2 trample mark is untested | `charge.ts:226` | Mutating to `trampleId[id] === a.id` alone passes every test. In shipped balance it can't matter: the rush is 10 m at 12 m/s ≈ 17 ticks, shorter than `ZOMBIE_SLOT_HOLD_TICKS` 20, so a trampled slot can't be reused within the same charge. A balance edit (longer `distM` or slower rush) would make it reachable. My probe (generation bumped mid-rush) gets the second trample correctly. | Add a test that bumps a slot's generation mid-rush and expects a second trample. |
+| R3 | nit | `crossCheckBoss` computes ticks as `round(s·20)`, but runtime uses `ticksFor` (`round(s / (1/20))`) | `packages/shared/src/config/balance.ts:286-289` | The two differ at x.x75 s (for example 0.175 s → 4 vs 3 ticks), so the check could miss a clash or refuse a safe step. **Not reachable:** the schema already refuses durations that aren't whole ticks (`charge.shoveS must be whole ticks`). | Call `knockStepMmOf` in the cross-check (one source). |
+| R4 | nit (equivalent mutant) | `a.live \|\|` in the throw RECOVER condition is redundant | `telegraph.ts:273` | Removing it passes every test, because `updateThrowFlight` runs first and always lands the chunk at `hitTick`. Kept as a defensive guard; fine. | None. |
+
+**Exploit attempts (each a scratch test):**
+
+- L1: index shift after a leave → 2 hits (R1). Slot handed over mid-charge → newcomer 0 hits (safe). Can a player dodge every charge by being slot-less? Only at order ≥ 27 (31-bit mask), which needs 31+ players: unreachable.
+- L2: shipped steps are charge 625, slam 500, roar 375, Brute 375 mm per tick. The shipped balance loads. The Brute keeps the 2.5 m knock limit (its step ≠ 625). A runtime clash at 0.175 s is refused by the whole-ticks schema before the cross-check runs (R3).
+- L4, no stall: the target leaves while the chunk flies → WALK after impact + recovery. Boss killed in flight → DEAD, 0 impacts. Every player downed in flight → WALK. Charge recovery is unchanged (20 ticks; RECOVER uses `stateTicks` for slam and charge). The builder's 1–4 players × enraged test holds the throw at ≥ impact + recover + gap. `attack.live` still blocks picks and the roar (the roar needs WALK).
+- N2: a Brute held under the body for the whole rush is trampled once (30). A recycled slot (generation +1) mid-rush is trampled again (+30). Attack id `& 0xffff` would need 65,536 attacks with the same slot generation to alias; `resetBoss` clears the marks. The marks are in `snapshotBoss`, so `worldDigest` changes when one mark changes (probed). No allocation per tick (typed arrays; `hitPlayer` and `pickOne` are module callbacks).
+
+**Mutations (each reverted):** L3: M19 roar −10 hp → killed (enrage.test). M21 `boss.crashed` out of the `ageS` list → killed (NetSimHost.boss). M22 killer +1 kill removed → killed (RunController). M24 `crawlerTicks` out of the snapshot → killed (death.test). Behaviour fixes: L4 old `stateTicks` timing → killed (2 tests). L1 slot-less pushed past 31 bits → killed. L2 cross-check rule off → killed. N2 without the generation check → **survived** (R2). L4 without `a.live` → survived (equivalent, R4).
+
+### Main session close-out (2026-11-24)
+
+- Re-review R1 (slot-less bit shifts when an earlier player leaves mid-charge → 2 hits): **accepted**, unreachable on the server (room cap 4 = MAX_PLAYERS, every player has a slot). R2 (trampleGen test gap, unreachable in shipped balance), R3/R4 nits: left as follow-ups.
+- Main-session full gate on c0646ec + docs: typecheck, lint, 352 files / 3,314 tests passed (3 skipped), build OK; load 0.24 → 4.18 (4 cores). Story done.

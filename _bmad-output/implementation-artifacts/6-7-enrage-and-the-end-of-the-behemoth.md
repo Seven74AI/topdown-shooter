@@ -1,6 +1,6 @@
 # Story 6.7: Enrage and the end of the Behemoth
 
-Status: review
+Status: done
 
 ## Story
 
