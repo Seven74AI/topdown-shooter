@@ -113,7 +113,7 @@ FR59: Stage 1 Evening (waves 1–2): dusk, open map, the brightest stage (it dar
 FR60: Stage 2 Panic (waves 3–4): 4 cars move into the road (new cover and choke points); police barriers block some paths.
 FR61: Stage 3 Breakdown (waves 5–6): 2 car fires (2 m fire zones lasting 2 waves); free sandbag cover appears; heavy rain (drizzle since stage 1).
 FR62: Stage 4 Ruins (waves 7–8): rubble closes one alley and blocks paths; streetlights flicker; collapsed walls open new spawn points.
-FR63: Stage 5 Collapse (waves 9–10): power out; wave 9 is a blackout wave; fog limits vision to 10 m; wave 10 is lit only by fires and floodlights.
+FR63: Stage 5 Collapse (waves 9–10): power out; wave 9 is a blackout wave; fog limits vision to 10 m; wave 10 is dark too, lit only by fires, floodlights, flashlights and muzzle flashes.
 FR64: In blackout, darkness covers the map except flashlight cones (aim direction), floodlights, fires and muzzle flashes; zombie eyes show through the dark.
 FR65: Each run has a seed that drives its random choices (which cars burn, which alley collapses, events, shop cards), so a run can be reproduced.
 
@@ -137,10 +137,10 @@ FR76: A ping button offers 4 quick messages (Help! · Over here · Big one! · R
 **Meta-progression**
 
 FR77: A guest can upgrade to an account later and keep their progress.
-FR78: Supplies are earned per run, even on a loss: +10 per wave survived, +50 for killing the Behemoth, +100 for extracting, +20 per endless wave (kept only if the team extracts).
-FR79: New players start with the starter pool (Pistol, Machete, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Wood barricade, Auto-turret, Medkit, Grenades); other items are unlocked with Supplies on an unlock screen at the GDD prices, and unlocks add cards to that player's shop deck.
+FR78: Supplies are earned per run, even on a loss: +10 per wave survived (counted only for waves the player was in: every player in the run when the wave ends, downed or out, but not waves before a late join or after leaving), +50 for killing the Behemoth, +100 for extracting, +20 per endless wave (kept only if the team extracts); a player's Supplies are doubled while their lifetime Supplies are below 300 (rookie lift).
+FR79: New players start with the starter pool (Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades); other items are unlocked with Supplies on an unlock screen at the GDD prices, in any order, and unlocks add cards to that player's shop deck; one card per offer may be borrowed from a teammate's unlocks the player lacks.
 FR80: Training offers 4 capped boosts with 5 levels each (max HP up to +10%, damage up to +5%, starting currency 100 → 150, reload speed up to +5%), each level costing 50 × level Supplies.
-FR81: District 2 unlocks after the first extraction from Downtown (rule only; district 2 content is out of v1).
+FR81: District 2 unlocks for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has unlocked it (rule only; district 2 content is out of v1).
 
 **Presentation, audio and settings**
 
@@ -336,7 +336,7 @@ A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, 
 **FRs covered:** FR28 (full curve), FR29, FR31 (boss HP), FR33–FR43, FR53 (rubble, charge), FR57 (gas leak), FR62, FR63, FR64, FR66, FR67, FR68, FR84 (boss telegraphs)
 
 ### Epic 7: Accounts and meta-progression
-Players keep progress between runs: a guest upgrades to an account, earns Supplies, unlocks items that then appear in their shop, and buys capped Training boosts.
+Players keep progress between runs: a guest upgrades to an account, earns Supplies, unlocks items that then appear in their shop (plus one card borrowed from a teammate), and buys capped Training boosts; new friends catch up with a rookie lift and a bigger starter pool.
 **FRs covered:** FR77, FR78, FR79, FR80, FR81
 
 ### Epic 8: Real-life resilience
@@ -2017,7 +2017,7 @@ As a player, I want every building tile in the build bar to show the same kind o
 
 ## Epic 6: The full run: decay, boss, events, endless
 
-(Epic 6 stories revised 2026-11-23 from the Epic 6 idea session: `docs/ideas/epic-6/proposal.md`, designer decisions D1–D7; Behemoth prototype claude.ai/artifact/16PKRmcKLyK4qfoG9ghASM.)
+(Epic 6 stories revised 2026-11-23 from the Epic 6 idea session: `docs/ideas/epic-6/proposal.md`, designer decisions D1–D7; Behemoth prototype claude.ai/artifact/16PKRmcKLyK4qfoG9ghASM. Updated 2026-11-24 with the 110 story decisions the designer accepted (`docs/epic-6-decisions.md`); story files `_bmad-output/implementation-artifacts/6-*.md` hold the full detail.)
 
 A team plays the full 10 waves from Evening to the Behemoth through Ruins and Collapse (blackout, fog), meets two special events, votes to extract or stay, and can go endless.
 
@@ -2045,6 +2045,8 @@ So that a run builds to a real climax.
 
 ### Story 6.2: Ruins
 
+(**Merged with Story 6.4** by the designer on 2026-11-24: one story, "Ruins and Collapse".)
+
 As a player,
 I want rubble to close an alley and new holes to open in the walls,
 So that the map squeezes us as the city breaks.
@@ -2054,7 +2056,7 @@ So that the map squeezes us as the city breaks.
 **Given** the build phase before wave 7
 **When** stage 4 is applied
 **Then** rubble closes one of alleys 1–3 (a decay variant picked by the `decay` stream), 3 rubble piles (≈ 2 × 1.5 m) appear in the streets as hard cover (they stop bullets and bodies), and 2 breach spawn points with `minStage: 4` open in building walls facing the intersection (FR62)
-**And** cells covered by rubble refuse building placement ("Can't build here"), and buildings already there are destroyed with the usual 50 % refund (FR53)
+**And** cells covered by rubble refuse building placement ("Blocked by rubble", the 5.17 reason line; 6.2 D5), and buildings already there are destroyed with the usual 50 % refund (FR53)
 **And** rubble also stops melee and shields blasts (like cars); lobbed rounds (launcher, grenade, molotov) fly over it, because rubble is not `building: true`
 **And** the "no area is ever enclosed" and spawn-clearance tests pass on every stage × variant combination
 
@@ -2073,7 +2075,7 @@ So that light becomes something we fight for.
 
 **Given** the server's light state
 **When** the blackout flag is on
-**Then** the client draws a half-resolution darkness texture leaving unlit ground at 10 % light, and cuts out: each player's flashlight cone along their aim (60°, 8 m; Tactical flashlight 80°, 12 m), a 1.6 m glow round every survivor, floodlights (6 m radius in blackout: designer, D5), fire zones (4 m) and muzzle flashes (3 m for 100 ms) (FR64)
+**Then** the client draws a half-resolution darkness texture leaving unlit ground at 20 % light in a power-failure wave (waves 6–8), 10 % in wave 9 and 5 % in wave 10 and every endless blackout (designer look pick, 6.3 D1), and cuts out: each player's flashlight cone along their aim (60°, 8 m; Tactical flashlight 80°, 12 m), a 1.6 m glow round every survivor, floodlights (6 m radius in blackout: designer, D5), fire zones (4 m) and muzzle flashes (3 m for 100 ms) (FR64)
 **And** teammates (with rings), zombie eyes within 14 m, event markers, pings (8.7) and anything Stories 6.5–6.10 mark "above the darkness" are drawn above it
 
 **Given** the blackout flag is off
@@ -2095,6 +2097,8 @@ So that light becomes something we fight for.
 
 ### Story 6.4: Collapse
 
+(**Merged into Story 6.2** by the designer on 2026-11-24.)
+
 As a player,
 I want the power to die, fog to roll in, and the last two waves to be fought in the dark,
 So that the run hits its tension peak.
@@ -2107,7 +2111,7 @@ So that the run hits its tension peak.
 
 **Given** a wave at stage 5
 **When** a zombie is more than 10 m from the local player
-**Then** it is hidden on that player's screen unless it is inside that player's flashlight beam (which sees to its full length); fog vision cannot be turned off (only its visual quality can)
+**Then** it is hidden on that player's screen unless it is inside a standing survivor's flashlight beam (which sees to its full length; 6.4 D2); zombies within 9 m are always shown and fade out by 10 m (6.4 D1), and aim assist never locks a zombie the fog hides (6.4 D4); fog vision cannot be turned off (only its visual quality can)
 
 **Given** a build phase at stage 5
 **When** it plays
@@ -2128,7 +2132,7 @@ So that the run ends with a fight we'll talk about.
 
 **Given** wave 10
 **When** half of the wave's zombies have spawned
-**Then** a 4 s warning plays (rumble, red edge marker, "Something big is coming"), then the Behemoth walks in from the street edge farthest from the team and at least 14 m from every player: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP × 0.4 / 0.6 / 0.8 / 1.0 by player count (FR33, FR31)
+**Then** a 4 s warning plays (rumble, red edge marker, "Something big is coming"), then the Behemoth walks in from the main street end (west, east, north or south) farthest from the team (6.5 D2) and at least 14 m from every player: radius 2 m, 1.3 m/s, immune to knockback, 6,000 HP × 0.4 / 0.6 / 0.8 / 1.0 by player count (FR33, FR31)
 **And** while it lives at most 110 zombies are alive (150 again after it dies), a boss bar with a 50 % notch shows at the top of the screen, and placeholder boss music starts
 **And** it moves on its own flow field at boss size (inflated by 2 m) toward its target, rebuilt every 0.5 s; barricades and turrets are costed, not walls, and a building it walks into takes 100 damage per second (it pushes through slowly)
 **And** its look is drawn in game code like the Brute, baked through `addGeneratedTexture` into a boss atlas with 5 poses (walk, slam, charge/rush, throw, stun/roar); in blackout its outline and eyes draw above the darkness (eyes red when enraged)
@@ -2154,6 +2158,8 @@ So that the run ends with a fight we'll talk about.
 
 ### Story 6.6: Behemoth charge and throw
 
+(**Merged with Story 6.7** by the designer on 2026-11-24: one story, "Behemoth charge, throw, enrage and end".)
+
 As a team,
 I want the Behemoth to charge through our defenses and throw wrecks at us,
 So that we have to keep moving, and can bait it into a wall.
@@ -2163,13 +2169,13 @@ So that we have to keep moving, and can bait it into a wall.
 **Given** its target 5–12 m away with at least 4 m of clear lane
 **When** the Behemoth charges
 **Then** it lowers its head for 1.0 s while a lane as wide as its body plus a survivor (4.8 m) is drawn to where it will stop, then rushes up to 10 m at 12 m/s; players it touches (0.25 m grace) take 30 damage and are shoved 2.5 m sideways, once per charge; every building in its path is destroyed; zombies in its path are trampled (FR34, FR53)
-**And** the stop point is found at telegraph start by sweeping its body against static cover; if the lane ends on hard cover (car, bus, building, rubble, map edge) the lane shows a CRASH mark
+**And** the stop point is found at telegraph start by sweeping its body against static cover; if the lane ends on hard cover (car, bus, building, rubble, pumps, low walls, dumpster, sandbags, police barriers (6.6 D1), map edge) the lane shows a CRASH mark
 
 **Given** a charge that ends on hard cover
 **When** it crashes
 **Then** it is stunned for 2 s and takes × 1.5 damage meanwhile (designer, D1); otherwise 1.0 s recovery; cooldown 7 s
 
-**Given** a standing player more than 8 m away and the throw ready
+**Given** a standing player more than 8 m away (4.5 m when the boss can't walk to that player: 6.6 D5) and the throw ready
 **When** the Behemoth throws
 **Then** it aims at the farthest such player's position at the telegraph start, lifts a chunk for 1 s (from the nearest rubble pile or burnt car within 6 m, else the road; visual only) while a 3 m ring shows at the landing spot, and the chunk flies 0.8 s: 35 damage within 3 m (0.25 m grace), a crater decal, no collision change; 0.6 s recovery, cooldown 6 s
 **And** the throw ignores cover, like the slam (the drawn zone is the promise)
@@ -2180,6 +2186,8 @@ So that we have to keep moving, and can bait it into a wall.
 
 
 ### Story 6.7: Enrage and the end of the Behemoth
+
+(**Merged into Story 6.6** by the designer on 2026-11-24.)
 
 As a team,
 I want the Behemoth to get angrier when it's hurt, and its death to call the helicopter,
@@ -2212,7 +2220,7 @@ So that no two runs play the same.
 
 **Given** the car alarm
 **When** it triggers
-**Then** a parked car blinks "armed" for 20 s; when a player shoots it, or when the 20 s run out, its alarm sounds for 15 s and every zombie within 15 m heads to that car (FR38, designer D7)
+**Then** a parked car blinks "armed" for 20 s; when a player's bullet reaches it (not turrets, melee, flames or blasts: 6.8 D2), or when the 20 s run out, its alarm sounds for 15 s and every zombie within 15 m heads to that car (FR38, designer D7)
 
 **Given** the stampede
 **When** it triggers
@@ -2226,6 +2234,8 @@ So that no two runs play the same.
 
 ### Story 6.9: Gas leak and supply drop
 
+(**Merged with Story 6.10** by the designer on 2026-11-24: one story covering both event pairs.)
+
 As a team,
 I want a gas tank that explodes and a supply crate worth fighting for,
 So that we have to choose between risk and reward.
@@ -2236,7 +2246,7 @@ So that we have to choose between risk and reward.
 **When** it triggers
 **Then** the gas station tank hisses for 10 s with a visible 6 m ring, then explodes: zombies within 6 m die, every player within 6 m takes the full 60, even when a teammate shot the tank early (same rule as the Bloater blast), buildings take 150 (FR39)
 **And** the blast uses the normal blast line-of-sight (cars, the bus and buildings shield it)
-**And** after the first 3 s any player can shoot the tank to set it off at once (designer, D7); kills credit whoever set it off
+**And** after the first 3 s any player's bullet can set the tank off at once (designer, D7); kills credit whoever set it off
 
 **Given** the supply drop
 **When** it triggers
@@ -2246,6 +2256,8 @@ So that we have to choose between risk and reward.
 
 
 ### Story 6.10: Power failure and survivor
+
+(**Merged into Story 6.9** by the designer on 2026-11-24.)
 
 As a team,
 I want the lights to fail without warning and a survivor to need our help,
@@ -2268,6 +2280,8 @@ So that the run keeps asking for teamwork.
 
 ### Story 6.11: Evacuation vote
 
+(**Merged with Story 6.12** by the designer on 2026-11-24: one story, "Evacuation vote and endless mode".)
+
 As a team,
 I want to vote to get out or stay after beating the Behemoth,
 So that we choose together how much to risk.
@@ -2279,8 +2293,8 @@ So that we choose together how much to risk.
 **Then** every player, downed and out players included, sees Extract and Stay buttons and a 15 s countdown, and every vote shows live in its slot colour; nothing else moves during the vote (FR66)
 
 **Given** the votes
-**When** the countdown ends or everyone has voted
-**Then** the majority wins; a tie or no votes means Extract
+**When** the countdown ends, or 1 s after everyone has voted (6.11 D3)
+**Then** Stay wins only if more than half of the whole team voted Stay; silent players count as Extract, so a tie or no votes means Extract (6.11 D1)
 
 **Given** Extract
 **When** chosen
@@ -2293,6 +2307,8 @@ So that we choose together how much to risk.
 
 ### Story 6.12: Endless mode
 
+(**Merged into Story 6.11** by the designer on 2026-11-24.)
+
 As a team,
 I want to keep fighting in the collapsed city after wave 10,
 So that we can push our luck for more rewards.
@@ -2302,7 +2318,7 @@ So that we can push our luck for more rewards.
 **Given** Stay
 **When** wave 11 and later run
 **Then** each wave has 40 more zombies than the last at 4 players until 600 (wave 15), then stays at 600 and zombies get +6 % HP per wave after 15; still max 150 alive; × the player-count table (FR68, designer D3)
-**And** each wave has 1 more Brute than the last (wave 11 = 3), at most 6 alive; blackout on odd waves (11, 13, 15…); the map stays at stage 5 with fog
+**And** each wave has 1 more Brute than the last (wave 11 = 3), at most 6 alive; blackout on odd waves (11, 13, 15…), even waves half dark (6.12 D3); odd waves use wave 9's mix, even waves wave 10's (6.12 D5); the map stays at stage 5 with fog
 
 **Given** every 5th wave (15, 20, 25…)
 **When** it runs
@@ -2318,7 +2334,7 @@ So that we can push our luck for more rewards.
 
 ## Epic 7: Accounts and meta-progression
 
-Players keep progress between runs: Supplies earned every run, unlocks that add cards to their own shop and tiles to their build bar, capped Training boosts, and an optional account so progress follows them to another device. The database arrives here, with only the tables each story needs.
+Players keep progress between runs: Supplies earned every run, unlocks that add cards to their own shop and tiles to their build bar, capped Training boosts, and an optional account so progress follows them to another device. New friends catch up fast (rookie lift, a bigger starter pool, borrowed cards). The database arrives here, with only the tables each story needs. All progression numbers live in `packages/shared` `progression.json` (balance JSON).
 
 ### Story 7.1: Progress saved on the server
 
@@ -2334,11 +2350,15 @@ So that my progress is kept from my very first run.
 
 **Given** this story's migration
 **When** it runs
-**Then** it creates only the `accounts` table (id, username nullable, password hash nullable, guest token hash, display name, created) and the `progress` table (account id, supplies, unlocks, training levels, districts)
+**Then** it creates only the `accounts` table (id, username nullable, password hash nullable, recovery code hash nullable, guest token hash, display name, created) and the `progress` table (account id, supplies, lifetime supplies, unlocks, training levels, districts)
 
-**Given** a guest token sent on join (Story 2.3)
+**Given** a first visit
+**When** the client has no guest token
+**Then** the server issues a random 32-byte token, sets it as a first-party HttpOnly, Secure, SameSite=Lax cookie for 1 year (renewed on each visit), and the client also keeps a copy in `localStorage` (try/catch); either one is enough to find the account (designer D9: Safari clears script storage after 7 days without a visit)
+
+**Given** a guest token on join (Story 2.3)
 **When** no account matches its hash
-**Then** a guest account and an empty progress row are created; otherwise the existing account is loaded and its display name prefilled
+**Then** a guest account and an empty progress row (starter pool only) are created; otherwise the existing account is loaded and its display name prefilled
 **And** the database is reached only through repositories in `apps/server/src/db`
 
 **Given** the VPS
@@ -2354,21 +2374,33 @@ So that every run moves me forward.
 **Acceptance Criteria:**
 
 **Given** a run ends (extract, wipe or quit)
-**When** Supplies are computed for each player
-**Then** they get +10 per wave survived while in the run, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78)
+**When** Supplies are computed for each player (server only, from the run result)
+**Then** they get +10 per wave survived, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78; `progression.json`)
+**And** a wave counts only for players who were in it: in the run when it ends (playing, downed, out, or held during a short drop, Epic 8 D1); waves before a late joiner arrived, or after a player left or lost their seat, don't count; a player who quits banks the waves ended before they left (designer D2; Epic 8 note: no farming by joining at wave 9)
+**And** the Behemoth and extract bonuses go to players in the run when the boss dies / the team extracts; in a run resumed on another night (Epic 8), each player's waves from every night they played are counted once, at the run's end
 **And** after a wipe in endless, only waves 1–10 and the boss count
+
+**Given** a player whose lifetime Supplies are below 300 before this run
+**When** their Supplies are computed
+**Then** the run's total is doubled (rookie lift, D3), and Results shows "Rookie bonus × 2"
+
+**Given** the extract-or-stay vote (Story 6.11)
+**When** it shows
+**Then** it shows "Extract now: +100 · Stay: +20 a wave, lost if you wipe"
 
 **Given** the Results screen
 **When** it shows
-**Then** each player sees "+N Supplies" with the breakdown and their new total
+**Then** each player sees a "Run rewards" panel: "+N Supplies" with the breakdown, their new total, and (added by later stories) a new milestone item, a loot item and the district unlock
+**And** after the first run that banks ≥ 200 Supplies for a guest, it shows "Save my progress" once (opens Story 7.6)
+**And** if the player used a supply-drop weapon they haven't unlocked, it shows "You used the <weapon>: unlock it for <price>"
 
 **Given** the server
 **When** Supplies are banked
-**Then** they are written to `progress` in one transaction per run; a failed write is logged at `error` and retried once
+**Then** they are written to `progress` (supplies and lifetime supplies) in one transaction per run; a failed write is logged at `error` and retried once
 
 **Given** the Supplies rules
 **When** Vitest runs
-**Then** tests cover loss, extract, endless extract and endless wipe
+**Then** tests cover loss, extract, endless extract, endless wipe, a downed/out player at wave end, a quitter, the rookie lift crossing 300, and a solo run
 
 ### Story 7.3: Unlock screen
 
@@ -2380,41 +2412,53 @@ So that my options grow over time.
 
 **Given** a new account
 **When** its progress is created
-**Then** its pool contains the starter items: Pistol, Machete, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Wood barricade, Auto-turret, Medkit, Grenades (FR79)
+**Then** its pool contains the starter items: Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades (FR79, D4)
 
-**Given** the Unlocks screen (from the start screen)
+**Given** the start screen
+**When** I tap "Progress"
+**Then** a hub opens with three tabs: Unlocks · Training (7.5) · Survivor (7.10), with my Supplies total at the top
+
+**Given** the Unlocks tab
 **When** I open it
-**Then** I see every locked item with its Supplies price: Fire Axe 150, Assault Rifle 200, Chainsaw 300, Gas torch 350, Flamethrower 400, Grenade Launcher 500; Spike trap 100, Bear trap 100, Mine 100, Floodlight 120, Barricade upgrades (reinforced + metal tiers, one unlock) 150, Med station 300; Revive kit 100, Tactical flashlight 100, Body armor II 250; Molotovs 150
+**Then** I see every item by category, unlocked ones marked, locked ones with their Supplies price and one plain line of what they do: Assault Rifle 200, Chainsaw 300, Gas torch 350, Flamethrower 400, Grenade Launcher 500; Spike trap 100, Bear trap 100, Mine 100, Floodlight 120, Barricade upgrades (reinforced + metal tiers, one unlock) 150, Med station 300; Tactical flashlight 100, Body armor II 250; Molotovs 150
+**And** any locked item can be bought in any order (D5); one is marked "Good next pick": the cheapest locked item in the category where I own the fewest
+**And** the header says "Unlocks add cards to your shop, not power"
 
 **Given** I tap Unlock with enough Supplies
 **When** the server validates it
-**Then** the item joins my pool and the Supplies are spent; otherwise "Not enough Supplies"
+**Then** the item joins my pool and the Supplies are spent in one transaction; otherwise "Not enough Supplies" and nothing changes; a double tap never charges twice
 
 ### Story 7.4: Shop deck from my unlocks
 
 As a player,
-I want my shop to offer only what I've unlocked,
-So that unlocks change which choices I get.
+I want my shop to offer only what I've unlocked, plus a chance to try a friend's,
+So that unlocks change which choices I get and new friends can try the good stuff.
 
 **Acceptance Criteria:**
 
 **Given** a run
-**When** my 6 cards are drawn
-**Then** they come only from my unlocked weapons and gear (FR47, FR79)
+**When** my 6 cards are drawn (Story 5.13's `cardPool`, replaced here)
+**Then** they come from my unlocked weapons and gear (FR47, FR79)
 **And** the build bar shows only my unlocked buildings, and the shop's always-available section only my unlocked consumables
-**And** the Epic 5 card rules stay: no Pistol card, `inShop:false` items never drawn, no upgrade cards, no locking
+**And** the Epic 5 card rules stay: no Pistol card, `inShop:false` items never drawn, owned items never drawn, no upgrade cards, no locking
 
-**Given** teammates with different unlocks
-**When** we play together
-**Then** each of us sees our own pool; a teammate's unlocks never appear in my shop
+**Given** teammates in the room at build start who have unlocked weapons or gear I haven't
+**When** my offer is drawn
+**Then** one of my 6 slots is drawn from that "borrow list" and shows "Borrowed from <name>" (designer D7); I buy it with run money like any card; it counts toward the weapon/gear floor; my unlocks don't change
+**And** the draw still uses only `shop:<slot>:<build>` with exactly 6 draws; a reroll redraws the borrowed slot the same way; a teammate joining or leaving mid-build changes nothing until the next draw (5.13 F1, F2)
+**And** buildings and consumables are never borrowed
 
 **Given** the supply drop event
 **When** I grab the crate
 **Then** its rare weapon is given even if I haven't unlocked it
 
-**Given** a player whose pool can't fill the card floor (no gear unlocked beyond what they own)
+**Given** a player whose pool can't fill the card floor
 **When** cards are drawn
-**Then** the floor is filled as far as possible and the rest are weapon cards; when fewer than 6 new items exist, fewer cards show, and Reroll is disabled when no new draw exists
+**Then** the floor is filled as far as possible and the rest are weapon cards; when fewer than 6 new items exist, fewer cards show, and Reroll is disabled when no new draw exists (alignment Q13)
+
+**Given** the deck rules
+**When** Vitest runs
+**Then** tests cover: a new player's offer shows ≥ 2 different sets across rerolls (8-item starter pool), a borrowed card appears only when a teammate has something I lack, same seed + same room → same cards, a solo player never gets a borrowed card, a teammate's leave mid-build doesn't change my offer
 
 ### Story 7.5: Training boosts
 
@@ -2422,21 +2466,19 @@ As a player,
 I want small, capped boosts I can train between runs,
 So that I get a bit stronger without leaving new friends behind.
 
-(Revisit before building: Training may be absorbed by the customization level-system idea, `docs/ideas/customization/`.)
-
 **Acceptance Criteria:**
 
-**Given** the Training screen
+**Given** the Training tab of the Progress hub
 **When** I open it
-**Then** I see 4 boosts with 5 levels each: max HP +2% per level (max +10%), damage +1% per level (max +5%), starting currency +10 per level (100 → 150), reload speed +1% per level (max +5%) (FR80)
+**Then** I see 4 boosts with 5 levels each: max HP +2 % per level (max +10 %), damage +1 % per level (max +5 %), starting currency +10 per level (100 → 150), reload speed +1 % per level (max +5 %) (FR80)
 
 **Given** I buy the next level
 **When** I have enough Supplies
-**Then** it costs 50 × level (50, 100, 150, 200, 250) and is saved to `progress`
+**Then** it costs 50 × level (50, 100, 150, 200, 250; 750 per boost, 3,000 for all) and is saved to `progress`
 
-**Given** a run starts
+**Given** a run starts (solo or online)
 **When** my survivor is created
-**Then** my Training levels are applied and visible on the Results screen
+**Then** my own Training levels are applied in full, never scaled to the team (D6), and they are listed on the Results screen
 
 ### Story 7.6: Upgrade to an account
 
@@ -2449,18 +2491,24 @@ So that I keep my progress on a new phone.
 **Given** a guest
 **When** I choose "Save my progress" and enter a username (3–20 characters, unique) and a password (at least 8 characters)
 **Then** my guest account becomes a full account, with the password hashed with Argon2id and all progress kept (FR77)
+**And** I am shown a 12-character recovery code once (4-4-4, "Screenshot this: it's the only way back in if you forget your password"); only its hash is stored (D10)
+
+**Given** "Forgot password"
+**When** I enter my username, my recovery code and a new password
+**Then** the password is replaced, the old code stops working and a new code is shown once
 
 **Given** another device
 **When** I log in with my username and password
-**Then** that device's guest token is linked to my account and my progress loads
+**Then** that device's guest token (cookie and `localStorage`) is linked to my account and my progress loads
+**And** if that device's guest had its own progress, it is merged in: unlocks and cosmetics joined, Supplies and lifetime Supplies added, the higher level of each Training boost, stats added; the guest account is then retired (D11)
 
-**Given** login attempts
+**Given** login and recovery attempts
 **When** one IP makes more than 5 per minute
 **Then** further attempts are refused with "Too many attempts, try again in a minute" (NFR12)
 
-**Given** wrong credentials
-**When** I log in
-**Then** I see "Wrong username or password" with no hint which one is wrong
+**Given** wrong credentials or a wrong recovery code
+**When** I submit
+**Then** I see "Wrong username or password" (or "Wrong username or code") with no hint which one is wrong
 
 ### Story 7.7: District unlock rule
 
@@ -2472,11 +2520,13 @@ So that I have a goal beyond one map.
 
 **Given** the host's district picker in the lobby
 **When** it shows
-**Then** Downtown is selectable and district 2 shows as locked with "Extract from Downtown to unlock"
+**Then** Downtown is selectable, and district 2 is selectable when **any player in the lobby** has unlocked it (D12); otherwise it shows as locked with "Extract from Downtown to unlock"
 
 **Given** a player's first extraction from Downtown
-**When** progress is saved
-**Then** district 2 is recorded as unlocked for that player and its card shows "Unlocked: coming soon" (FR81)
+**When** progress is saved (Story 7.2's transaction)
+**Then** district 2 is recorded as unlocked for that player, Results shows "Unlocked: district 2", and its card shows "Unlocked: coming soon" (FR81)
+
+(Stories 7.1–7.7 revised 2026-11-24 from the Epic 7 idea session: `docs/ideas/epic-7/proposal.md`, designer decisions D1–D12.)
 
 (Stories 7.8–7.12 added 2026-11-23 from the customization idea session: `docs/ideas/customization/proposal.md`, decisions D1–D7 and O1–O6 by the designer; cosmetic only, no bonuses; built with accounts.)
 
@@ -2546,7 +2596,7 @@ So that customizing is fun, not a chore.
 **Acceptance Criteria:**
 
 **Given** the start screen
-**When** I tap "Survivor" (or my own card in the lobby)
+**When** I tap "Survivor" (the Survivor tab of the Progress hub, Story 7.3) or my own card in the lobby
 **Then** a Preact screen opens with tabs Top / Head / Hair / Pack / Accent / Skin, a big rotating preview, and a **game-size preview** (35 px per metre on wet asphalt, slot ring, a few zombies and teammates around)
 
 **Given** the tabs

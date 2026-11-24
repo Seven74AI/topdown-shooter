@@ -42,7 +42,7 @@
 # - Story 9.2-9.10 depend on the hired artist and sound designer.
 
 generated: 11-21-2026 18:20
-last_updated: 11-24-2026 01:40
+last_updated: 2026-11-24
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -144,19 +144,19 @@ development_status:
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless
-  epic-6: backlog
-  6-1-the-full-10-wave-curve: backlog
-  6-2-ruins: backlog
-  6-3-blackout-lighting: backlog
-  6-4-collapse: backlog
-  6-5-the-behemoth-arrives: backlog
-  6-6-behemoth-charge-and-throw: backlog
-  6-7-enrage-and-the-end-of-the-behemoth: backlog
-  6-8-special-events-car-alarm-and-stampede: backlog
-  6-9-gas-leak-and-supply-drop: backlog
-  6-10-power-failure-and-survivor: backlog
-  6-11-evacuation-vote: backlog
-  6-12-endless-mode: backlog
+  epic-6: in-progress  # story files 6.1–6.12 ready-for-dev 2026-11-24 (designer accepted all 110 decisions: docs/epic-6-decisions.md; brief docs/epic-6-brief.md; build rounds in the decisions doc)
+  6-1-the-full-10-wave-curve: ready-for-dev
+  6-2-ruins: ready-for-dev  # merged with 6.4 (designer 2026-11-24): one story 'Ruins and Collapse'
+  6-3-blackout-lighting: ready-for-dev
+  6-4-collapse: ready-for-dev  # merged into 6.2 (designer 2026-11-24)
+  6-5-the-behemoth-arrives: ready-for-dev
+  6-6-behemoth-charge-and-throw: ready-for-dev  # merged with 6.7 (designer 2026-11-24): one story 'Behemoth charge, throw, enrage and end'
+  6-7-enrage-and-the-end-of-the-behemoth: ready-for-dev  # merged into 6.6 (designer 2026-11-24)
+  6-8-special-events-car-alarm-and-stampede: ready-for-dev
+  6-9-gas-leak-and-supply-drop: ready-for-dev  # merged with 6.10 (designer 2026-11-24): one story 'Gas leak, supply drop, power failure and survivor'
+  6-10-power-failure-and-survivor: ready-for-dev  # merged into 6.9 (designer 2026-11-24)
+  6-11-evacuation-vote: ready-for-dev  # merged with 6.12 (designer 2026-11-24): one story 'Evacuation vote and endless mode'
+  6-12-endless-mode: ready-for-dev  # merged into 6.11 (designer 2026-11-24)
   epic-6-retrospective: optional
 
   # Epic 7: Accounts and meta-progression

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Epic 7 Forge Report</title>
+<style>
+:root{--bg:#0e1215;--panel:#161c21;--fg:#dfe5e8;--dim:#8b989f;--amber:#f0b43c;--red:#d9573f;--green:#7cc47f;color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif;padding:24px max(16px,env(safe-area-inset-left))}
+main{max-width:860px;margin:0 auto;display:grid;gap:20px}
+h1{font:700 2rem "Arial Narrow",sans-serif;text-transform:uppercase;margin:0}
+h2{font:700 1.2rem "Arial Narrow",sans-serif;text-transform:uppercase;color:var(--amber);margin:0 0 8px}
+section{background:var(--panel);border-radius:6px;padding:16px}
+ul{margin:0;padding-left:20px}li{margin:4px 0}
+.top{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.who{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.who div{background:#1d252b;border-radius:4px;padding:10px}.who b{display:block}
+.dim{color:var(--dim)}
+</style></head><body><main>
+<div class="top">
+<svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Seal: hardened">
+<circle cx="70" cy="70" r="62" fill="#8a2a1c"/><circle cx="70" cy="70" r="50" fill="none" stroke="#e7b9a8" stroke-width="2" stroke-dasharray="4 3"/>
+<text x="70" y="66" text-anchor="middle" fill="#f4e2d8" font-family="Arial Narrow,sans-serif" font-weight="700" font-size="20">HARDENED</text>
+<text x="70" y="86" text-anchor="middle" fill="#e7b9a8" font-family="monospace" font-size="10">EPIC 7 · 2026-11-24</text></svg>
+<div><h1>Epic 7: progression and unlocks</h1><p class="dim">Supplies, unlocks, card deck, Training, accounts, districts. Outcome: hardened. The designer accepted the proposal after changing its goal.</p></div>
+</div>
+<section><h2>Locked</h2><ul>
+<li>Unlocking everything is not the goal. GDD earnings stay (+10 per wave, +50 Behemoth, +100 extract, +20 per endless wave on extract). Target: first wanted weapon by about run 3, a few favourites by about run 10.</li>
+<li>Rookie lift: double Supplies until 300 lifetime. A wave counts for downed and out players too.</li>
+<li>Starter pool gains the Fire Axe and Revive kit. Free unlock order with a "Good next pick". Unlocks can't be turned off.</li>
+<li>Borrowed card: 1 of 6 cards from a teammate's unlocks you lack, fixed at the draw.</li>
+<li>Training stays 50 × level, full strength, never scaled to the team.</li>
+<li>Guest token also in a server cookie, recovery code, merge on login. The host can pick a district anyone in the lobby has.</li>
+</ul></section>
+<section><h2>Rejected, and why</h2><ul>
+<li>+20 per wave and Training at 25 × level: aimed at "everything in about 21 runs", a goal the designer doesn't want.</li>
+<li>Training scaled down to the team's lowest: the veteran feels robbed.</li>
+<li>An unlock tree: 14 items is too few to need one.</li>
+<li>Email password recovery: collects data and needs new infrastructure.</li>
+<li>Teammates' unlocks never mixing: new friends would never get to try the good weapons.</li>
+</ul></section>
+<section><h2>Cracks that held up under scrutiny</h2><ul>
+<li>The 6-item starter pool froze a new player's shop. Fixed by D4.</li>
+<li>Safari wipes a site's script storage after 7 days without a visit. Fixed by the server cookie (D9).</li>
+<li>Unlocking everything is still a long-term goal (about 40 runs). Accepted on purpose; wave pay is the lever if the playtest says it's too slow.</li>
+</ul></section>
+<section><h2>Who pressure-tested it</h2><div class="who">
+<div><b>🎲 Samus Shepard</b><span class="dim">Designer. "More options, not more power."</span></div>
+<div><b>🏛️ Cloud Dragonborn</b><span class="dim">Architect. Found the Safari wipe.</span></div>
+<div><b>🕹️ Link Freeman</b><span class="dim">Developer. Found the frozen 6-card shop.</span></div>
+<div><b>📱 Mo</b><span class="dim">Player voice. Spoke up for Kai, the every-third-Friday friend.</span></div>
+</div></section>
+</main></body></html>
