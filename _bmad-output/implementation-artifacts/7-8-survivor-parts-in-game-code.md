@@ -3,7 +3,7 @@ baseline_commit: 8e226d1610ad352b988ed99eaddd29b28d4f268e
 ---
 # Story 7.8: Survivor parts in game code
 
-Status: in-progress
+Status: review
 
 (Created 2026-11-24 after the Epic 7 readiness check, `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-24-epic-7.md`, and its fixes, `sprint-change-proposal-2026-11-24-epic-7-readiness.md`. Source design: `docs/ideas/customization/proposal.md` D1–D7, O1–O6; prototype `docs/ideas/customization/avatar-editor.html`. FR89.)
 
@@ -30,9 +30,9 @@ so that customization is possible without new image files.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Pick page** (AC 1)
+- [x] **T1 Pick page** (AC 1)
   - [x] Build `docs/art/7-8/parts.html` from `avatar-editor.html`: one card per part (big + game size + night-muted swatch), grouped by slot; starter, milestone and loot marked; a "gameplay signal?" note on the candidates listed in Dev Notes.
-  - [ ] Publish it for the designer; wait for the picks; record them in `docs/epic-7-decisions.md`. T2–T4 can start on the prototype's shapes meanwhile; T5 ports the picked shapes.
+  - [x] Publish it for the designer; wait for the picks; record them in `docs/epic-7-decisions.md`. T2–T4 can start on the prototype's shapes meanwhile; T5 ports the picked shapes.
 - [x] **T2 Catalogue** (AC 4, 7)
   - [x] `packages/shared/src/config/cosmetics.json` + `cosmetics.ts` (zod schema, typed `Cosmetics`, `STARTER_PARTS`, `DEFAULT_LOOK`), exported from `packages/shared/src/index.ts`.
   - [x] Tests `cosmetics.test.ts`.
@@ -43,11 +43,11 @@ so that customization is possible without new image files.
   - [x] New `apps/client/src/render/city/survivorParts.ts`: `drawTop`, `drawHead`, `drawHair`, `drawPack`, `drawAccent`, `drawSkin`, each `(c, r, partId, colour)`; the default parts reproduce today's shapes exactly.
   - [x] `drawSurvivor(c, r, heldGun?, back?, look = DEFAULT_RESOLVED_LOOK)`: same first four parameters, so `spriteAtlas.ts` needs no change.
   - [x] Copy today's `drawSurvivor` into the test as `legacyDrawSurvivor` (frozen reference).
-- [ ] **T5 Port the picked parts** (AC 1, 2, 6): all 55, built only from the existing helpers (`circle`, `ell`, `rrect`, `shade`, `outline`).
-- [ ] **T6 Raster tests** (AC 3, 6, 8)
+- [x] **T5 Port the picked parts** (AC 1, 2, 6): all 55, built only from the existing helpers (`circle`, `ell`, `rrect`, `shade`, `outline`).
+- [x] **T6 Raster tests** (AC 3, 6, 8)
   - [x] Add `@napi-rs/canvas` as a root devDependency, pinned to **1.1.0** (released 2026-10-30; 1.2.0 is under two weeks old). Tests only; never imported by app code.
-  - [ ] `survivorParts.raster.test.ts`: AC 3 identity for every survivor frame; AC 6 per-part area at `r` = 14 px.
-- [ ] **T7 Gate and notes**: typecheck, lint, test, build on the branch merged with current master; "Notes for the merge"; list what was not verified.
+  - [x] `survivorParts.raster.test.ts`: AC 3 identity for every survivor frame; AC 6 per-part area at `r` = 14 px.
+- [x] **T7 Gate and notes**: typecheck, lint, test, build on the branch merged with current master; "Notes for the merge"; list what was not verified.
 
 ## Dev Notes
 
@@ -139,6 +139,7 @@ Ask the designer to check these: **riot**, **bike** and **hard** helmets (could 
 ### Debug Log References
 
 - Mutation checks (brief 9), one per new test, all killed: M1 item made loot (3 failed); part schema not `.strict()` (gameplay field accepted, 1 failed); duplicate-id check off (1); `STARTER_PARTS` includes milestones (1); no night mute (1); default colours muted again (2); stage dim off by one (4); mute keeps saturation (1); arms leave a round line cap (AC 3, 9 frames failed); backpack drawn under the flamethrower tanks (AC 3, 1 frame failed). Earlier: head radius 0.4 → 0.41 r failed 9 of 9 frames (≈ 590 bytes each).
+- Mutation checks after the port (raster tests): headphone cups not drawn → killed (AC 6); cap logo shade changed → killed (digest pin; AC 3 alone could not see it, so the pin was added); hair drawn under every headgear → killed (10 failed); default backpack outlined → killed (9 frames); flat top draws nothing → **survived** AC 6, so the pairwise "told apart" test was added → killed (flattop vs bald); camo sleeves in the top colour → **survived** (a sleeve colour change is not something the size rules can see; accepted, the contact sheet shows it).
 - Local Node is 22.23 (`.nvmrc` says 26); `@napi-rs/canvas` 1.1.0 installed from prebuilt binaries and ran under 22.
 
 ### Completion Notes List
@@ -148,13 +149,45 @@ Ask the designer to check these: **riot**, **bike** and **hard** helmets (could 
 - T2: `cosmetics.json` (55 parts, look factors, default look), `cosmetics.ts` (strict zod schema + cross checks, `COSMETICS`, `DEFAULT_LOOK`, `STARTER_PARTS`, `cosmeticPart`), exported from shared. Not in `Balance`, not in the balance version (test).
 - T3: `survivorLook.ts`: HSL night mute (L × 0.62, S × 0.8), stage dim (stage 1 returns the same string), `resolveLook` (unknown ids fall back to the default part; picker colours equal to the default colour are not muted), `DEFAULT_RESOLVED_LOOK` = the `CHAR` colours.
 - T4: `survivorParts.ts` (`drawArms` + `drawTop` for the top slot, because the backpack sits between arms and body; `drawPack`, `drawAccent`, `drawSkin`, `drawHair`, `drawHead`); `drawSurvivor` gains `look = DEFAULT_RESOLVED_LOOK`, `spriteAtlas.ts` unchanged. AC 3 raster test green for all 9 survivor frames (0 differing bytes).
+- **Designer picks, three rounds** (`docs/epic-7-decisions.md` › Survivor parts (7.8); pages `docs/art/7-8/parts.html`, `round-2.html`, `round-3.html`, published claude.ai/artifact/3nHH149x7jJhYBfFeqi7Ym, …/LVWByCqRkA3vF5DLrHaK9j, …/Rw1Uys1tS9NB6d824JvJr9). Outcome: **51 parts in 5 slots, 31 starter / 10 milestone / 10 loot**; the accent slot is dropped (its picker colour stays for hats and bags); the default cap is a new drawing (round 3 B); round-2 rule "top view with a slight lean" (tall headgear shows its front face).
+- **AC changes from the designer's decisions** (the story text above is unchanged; these supersede it, to be folded into the story by the main session): AC 1 picks in three rounds; AC 2 five slots, order back piece → gun → arms → pack → top body → head → hair → headgear (no accent); AC 3 every survivor frame is today's body with only the cap redrawn; AC 4 51 parts, 31/10/10, M1 fire, M2 riot, M3 gas, M4 hockey, M5 headband, M6 camo, M7 planks, M8 laurel, M9 welding mask, M10 golf bag; AC 6 unchanged.
+- T5: `survivorParts.ts` draws every picked part with `circle`, `ell`, `rrect`, `shade` plus three local compositions (`wall` for the lean, `seg`, `poly`); fixed colours in `PART_COLOURS` (night colours, through `stageDim`, identity at stage 1; `rgba(…)` colours keep their alpha). Two small changes against the pick page so AC 6 holds in the default colours: puffer ridges 0.07 r and shade −0.4 (page: 0.05, −0.32); tied ponytail 0.33 × 0.15 r (page 0.3 × 0.14). Contact sheet of every part from the game code: `docs/art/7-8/ingame/parts-sheet.png` (`npx tsx docs/art/7-8/sheet.ts`).
+- T6: raster tests (369): AC 3 for all 9 survivor frames (0 differing bytes against today's body + `drawHead("cap")`, and > 100 bytes against today's cap); a digest pin of the default `survivor_body_a` (the picked cap); AC 6 for the 46 non-baseline parts; every pair of parts in a slot differs ≥ 40 px² or the outline at 14 px (the designer's "buzz is the same as short").
+- Readability (brief 13): item 47 in `docs/playtests/milestone-1/readability-sheet.md` + key (four survivors with the most gear-like looks; right answer "nothing, just looks").
+- In-game check: solo dev build on port 5478 (stopped by PID), headless Chromium, dpr 2: the atlas frame `survivor_body_a` (184 × 184, unchanged size) shows the new cap; no page errors (`docs/art/7-8/ingame/`, `shots.cjs`).
+- T7 gate on `story-7-8` merged with master 603099b (Story 6.3): typecheck 0, lint 0, test 332 files / 3094 passed / 3 skipped (285 s), build OK (the > 1600 kB chunk warning was there before). `@napi-rs/canvas` is not in the client bundle.
+
+### Notes for the merge
+
+- `packages/shared/src/index.ts`: one new export block (cosmetics), next to devBalance; master's 6.3 exports merged cleanly.
+- `apps/client/src/render/city/spriteArt.ts`: `drawSurvivor` gains a 5th parameter `look` (default = the default survivor) and delegates to `survivorParts.ts`; the first four parameters are unchanged, so `spriteAtlas.ts` is untouched. The default survivor's cap changes in game (designer's pick) — every other pixel is today's.
+- `package.json` / `package-lock.json`: devDependency `@napi-rs/canvas` 1.1.0 (tests only).
+- `docs/playtests/milestone-1/readability-sheet.md` / `readability-key.md`: conflicted with 6.3's item 46; mine is **47**.
+- `docs/epic-7-decisions.md`: new section "Survivor parts (7.8)" at the end.
+- For **7.9**: the look code drops `acc` (5 slots + 3 colours); `resolveLook(look, stage)` and `DEFAULT_RESOLVED_LOOK` are ready; open question from the designer: animated parts (a spinning propeller) as an extra small sprite.
+- For **7.10**: no shop by design (D3); the editor tiles are drawn from these parts (each round-2/3 card shows a 64 px tile). The designer asked whether a "shop view" is planned; dedicated item art would be a course correction.
+
+### Not verified
+
+- A real phone (only headless Chromium; the pages and the solo shot were not opened on a device).
+- CI on Node 26: everything here ran on Node 22.23; `@napi-rs/canvas` 1.1.0's prebuilt binary and the frame digest pin are only proven on this Linux x64 container. If CI's raster differs, the digest test fails first (update the value from the CI log after looking at the picture).
+- `?stress=150` FPS (brief 12): not run; the atlas frames keep their names and sizes and no texture was added, so no FPS change is expected, but it was not measured.
+- The look in a networked game: 7.8 draws only the default look in game (7.9 adds per-player looks).
+- Picks were read from the designer's chat replies; the pages' stores were empty when checked (the designer pasted text instead).
+- No fresh-agent review yet (brief 19): the story goes to code review next.
 
 ### File List
 
-- `docs/art/7-8/parts.html` (new), `docs/art/7-8/README.md` (new)
+- `docs/art/7-8/parts.html`, `round-2.html`, `round-3.html`, `README.md`, `sheet.ts`, `shots.cjs`, `ingame/parts-sheet.png`, `ingame/7-8-solo-800x360-dpr2.png`, `ingame/7-8-atlas-survivor_body_a-x3.png` (new)
+- `docs/epic-7-decisions.md` (Survivor parts (7.8) section)
+- `docs/playtests/milestone-1/readability-sheet.md`, `readability-key.md` (item 47), `objects/47_survivor_looks.png` (new)
 - `packages/shared/src/config/cosmetics.json`, `cosmetics.ts`, `cosmetics.test.ts` (new)
 - `packages/shared/src/index.ts` (exports)
 - `apps/client/src/render/city/survivorLook.ts`, `survivorLook.test.ts`, `survivorParts.ts`, `survivorParts.raster.test.ts` (new)
 - `apps/client/src/render/city/spriteArt.ts` (`drawSurvivor` delegates to the parts)
 - `package.json`, `package-lock.json` (`@napi-rs/canvas` 1.1.0, dev)
-- `_bmad-output/implementation-artifacts/sprint-status.yaml` (7-8 in-progress)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (7-8 → review)
+
+## Change Log
+
+- 2026-11-24: Story 7.8 implemented: pick page + three designer rounds, catalogue (51 parts, 5 slots), night mute and stage dim, `drawSurvivor` split into per-slot parts with the picked drawings (new default cap), raster tests (AC 3, AC 6, pairwise), readability item 47; merged master 603099b; full gate green. Status → review.
