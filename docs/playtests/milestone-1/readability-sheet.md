@@ -160,3 +160,6 @@ Player:
 
 ## 45: which card is the rarest, and which one is too dear? Read it at arm's length (Story 5.13)
 ![45](../../art/5-13/5-13-shop-sold-800x360.png)
+
+## 46: a blackout wave. Where are the zombies, which light is whose, and what is the warm glow? (Story 6.3)
+![46](../../art/6-3/6-3-blackout-10-800x360.png)

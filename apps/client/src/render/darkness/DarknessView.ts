@@ -11,8 +11,9 @@ import { STAMP_PX, coneStampFor, lightStamps, type LightStampSet } from "./light
 export const DARKNESS_KEY = "fx_darkness";
 /**
  * DD2: the darkness canvas resolution as a share of the game canvas (device px, DPR ≤ `MAX_DPR`):
- * half (architecture › Performance). T6 measured the half size inside the 15 % budget (see
- * `docs/perf/epic-6-blackout.md`), so the quarter fallback did not ship.
+ * half (architecture › Performance). T6 tried the quarter-size fallback: headless it gained nothing
+ * (the headless cost is SwiftShader filling one more full-screen layer, not the canvas paint or the
+ * upload), so half shipped (`docs/perf/epic-6-blackout.md`).
  */
 export const DARKNESS_RES = 0.5;
 

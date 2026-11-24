@@ -85,11 +85,17 @@ export interface UrlOptions {
   lowFx: boolean;
   /**
    * `?shopall=1` (Stories 5.10 + 5.11, ONE switch, dev builds only: a release build ignores it):
-   * every `inShop: false` item — the floodlight and the tactical flashlight until 6.3 — is listed,
+   * every `inShop: false` item (none in the bundled balance since Story 6.3) is listed,
    * placed and sold, through the dev balance (`loadDevBalance({ shopAll })`, same as the server's
    * `DEV_SHOP_ALL=1`; it changes `balance.version`, so both sides must have it on). false otherwise.
    */
   shopAll: boolean;
+  /**
+   * `?blackout=20|10|5` (Story 6.3, release-safe like `?fx=low`; solo only): the run is drawn at that
+   * forced blackout level (the dev `forcedPct`), so `?stress=150&blackout=5` measures the darkness's
+   * cost. null otherwise (any other value too).
+   */
+  blackoutPct: number | null;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -102,6 +108,15 @@ export const DEFAULT_STRESS_WALKERS = 150;
 export const MAX_STRESS_WALKERS = 200;
 
 const TRUE_VALUES = new Set(["", "1", "true", "on", "yes"]);
+
+/** Story 6.3: the forced blackout levels the URL and the cheat panel offer (the three looks). */
+export const BLACKOUT_LEVELS = [20, 10, 5] as const;
+
+/** `?blackout=` → 20 / 10 / 5, anything else null. */
+export function parseBlackoutPct(raw: string | null): number | null {
+  const n = Number(raw?.trim() ?? "");
+  return (BLACKOUT_LEVELS as readonly number[]).includes(n) ? n : null;
+}
 
 /** Story 5.12: `molotov` → 8, `molotov:N` → N (1–8), anything else → 0. */
 export function parseStressMolotovs(raw: string | null): number {
@@ -136,6 +151,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     stressBear: q.get("stressbuild")?.trim().toLowerCase() === "bear",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
     shopAll: dev && parseDevShopAll(q.get("shopall")?.trim().toLowerCase()), // dev builds only (review L3); one switch for hidden buildings and gear
+    blackoutPct: parseBlackoutPct(q.get("blackout")), // Story 6.3
   };
 }
 

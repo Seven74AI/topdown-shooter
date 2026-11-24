@@ -6,7 +6,8 @@ import type { GameScene } from "../scenes/GameScene";
 import { LOCAL_PLAYER_ID } from "../sim/LocalSimHost";
 import { perf } from "./perfStats";
 import { spawnInView, type ViewRect } from "./stressScenario";
-import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, parseSeed, decayCheatAllowed, setDecayStageCheat } from "./devCheatActions";
+import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, parseSeed, decayCheatAllowed, setDecayStageCheat, setForcedBlackoutCheat } from "./devCheatActions";
+import { BLACKOUT_LEVELS } from "./urlOptions";
 import { CollisionGridView } from "./collisionGridView";
 import "./DevCheats.css";
 
@@ -223,6 +224,26 @@ function DevCheats({ game }: { game: Phaser.Game }) {
             <p class="dev-cheats__info">Solo: runs the build-start decay for that stage (map mutations, cover, spawns, refunds, push-outs, flow fields, banner).</p>
             {online && <p class="dev-cheats__info">Online: the server owns the decay stage (DEV_DECAY_STAGES=2,3 on a dev server).</p>}
             {!online && w && !decayCheatAllowed(w) && <p class="dev-cheats__info">Build phase only (decay never changes mid-wave).</p>}
+          </fieldset>
+          <fieldset>
+            <legend>Force blackout</legend>
+            <div class="dev-cheats__row">
+              <select
+                value={String(w && w.lights.forcedPct >= 0 ? w.lights.forcedPct : -1)}
+                aria-label="Force blackout"
+                disabled={online || !w}
+                onChange={(e) => {
+                  if (w && !online) setForcedBlackoutCheat(w, Number((e.target as HTMLSelectElement).value));
+                  refresh();
+                }}
+              >
+                <option value="-1">off</option>
+                {BLACKOUT_LEVELS.map((p) => (
+                  <option value={String(p)}>{p} %</option>
+                ))}
+              </select>
+            </div>
+            <p class="dev-cheats__info">Solo, any phase: the darkness at that level (Story 6.3). Online: DEV_FORCE_BLACKOUT=5 on a dev server.</p>
           </fieldset>
           <fieldset>
             <legend>Run seed</legend>
