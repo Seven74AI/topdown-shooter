@@ -1,6 +1,6 @@
 # Story 6.8: Special events, car alarm and stampede
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -79,15 +79,15 @@ Most relevant here: 2 (the event record and the survivor/crate later live in sch
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art (picks fixed; no new pick).** From `docs/epic-6-decisions.md` › section 5: **CA3** car alarm = a pulsing amber bell marker over the car (no sound rings; the 15 m pull is not drawn), plus the car's own hazard blink; **ST1** stampede = a dust cloud at the map edge + amber chevrons down the lane. Port `pin`, `IC.bell`, the chevron and the dust code from `docs/art/epic-6/looks.html` (`makeAlarmCard`, `makeStampedeCard`) into `render/city/eventArt.ts` (pin disc, bell, chevron frames in one small atlas `event_<name>_<variant>`) and `render/EventView.ts`; every texture through `addGeneratedTexture` with a redraw callback (brief 20). Colour rule: amber `#ffb648` for both. Add both to `docs/playtests/milestone-1/readability-sheet.md` (brief 13).
-- [ ] **T1 Balance + schema** (AC 1, 7, 9, 10): `config/balance/events.json` (below); `balanceSchema.ts › eventsSchema`; `balance.ts` loads it (`balance.events`) and cross-checks (waves list ⊂ 1..`runWaves`, excluded 5, fractions 0–1 min ≤ max, `countByPlayers` length 4, `overCap` + `maxAlive` ≤ `ZOMBIE_POOL_CAPACITY`); `config/balance.test.ts` cases.
-- [ ] **T2 Map layer** (AC 11): generator objects + `.tmx/.tmj` regenerated (`tools/maps/downtownFiles.test.ts`), loader + schema, `DistrictMap.eventSpots` / `stampedeLanes`, `PLACEHOLDER_MAP` gets empty lists; reachability + clearance tests (`map/downtown.test.ts`, new `events/spots.test.ts`).
-- [ ] **T3 Framework** (AC 1–6): `events/registry.ts`, `events/eventState.ts`, `events/schedule.ts` (`scheduleRunEvents`, `scheduleEndlessEvent`, `eventFits`), `events/specialEvents.ts` (`updateSpecialEvents`, `eventHoldsWave`, `forceEvent`), World field + `createWorld`, `DEFAULT_SYSTEMS.specialEvents`, `run/runStateMachine.ts › updateRun` hold, `skipWave`; `core/simEvents.ts` + `net/netEvents.ts` kinds; schema fields, `syncState` (+ reset), `RUN_STATE_FIELDS`, `RunStateView`, `fakeRoom`, devThrottle; `snapshotWorld`. Tests `events/schedule.test.ts` (F2 over 10,000 seeds: always 2, different, allowed pairs only, gates; 1 solo player and 4), `events/specialEvents.test.ts` (F3 start fraction; one active event; holds the wave; `skipWave`), `net/netEvents.test.ts` round trips, `syncState.test.ts` (fields + reset).
-- [ ] **T4 Car alarm** (AC 7, 8; F4, F5): `events/carAlarm.ts`, lure fields in `zombies/flowField.ts` (`PathingState.lure` + `lureWide`, seeded from the car's ring cells, built while armed, idle otherwise), `zombieAi.ts` pass 1 lure steering (+ `pool.lureTicks` in `zombiePool.ts`), the shot hook in `combat/firing.ts`. Tests `events/carAlarm.test.ts`: candidate filter per stage × mask (never a moved, removed or burning car; ≥ 1 at waves 3–8 on Downtown), 8–25 m pick, shot by pistol / shotgun pellet / AR starts it and credits the shooter, turret / melee / flame / grenade don't, a bullet stopped by a zombie or barricade before the car doesn't, the 20 s timer starts it, zombies within 15 m reach the car (around the bus), a player within 2 m of a lured zombie is bitten, rushing zombies ignore it, lure ends after 15 s.
-- [ ] **T5 Stampede** (AC 9, 10; F6–F8): `events/stampede.ts`, `ZOMBIE_STATE.STAMPEDE`, lane movement in `zombieAi.ts` (a branch before the target pick), per-Runner contact mask, conversion, over-cap in `waves/waveDirector.ts › updateWaves`. Tests `events/stampede.test.ts`: 12/18/24/30 by players; nothing spawns in the 3 s warning; contact = 8 once per Runner per player; no building damage; conversion at 10 s and when stuck; converted Runners counted in `remaining` and rushed in the last 5; a wave whose last normal zombie dies mid-crossing waits; never above cap + 30; stampede Runners don't flank.
-- [ ] **T6 Client** (AC 12): `EventView.ts`, `eventArt.ts`, `GameScene` (banners, handlers for the four event kinds, sounds), `NetSimHost` (decode, `ageS`, schema → view), `LocalSimHost` (solo runs the system), HUD nothing else. Tests: pure-function tests for the marker/countdown model (`eventMarkers.test.ts`), atlas ≤ 2048² (`atlasLayout.test.ts`), redraw after context loss.
-- [ ] **T7 Fuzz, sims, bandwidth, perf** (brief 7, 9, 11, 16): `zombies/downtown.fuzz.test.ts` + random layouts × stages 2–4 × masks with a forced alarm and a forced stampede each: no body in a box, no stall, lured zombies reach the car, stampede converts; 10-wave sim (6.1's, or `runWaves` override) asserts 2 events triggered per run over 8 seeds, both kinds of this story seen; bandwidth test (`decayBandwidth.test.ts` pattern); tick cost with 180 alive + 2 lure fields (`PERF_ASSERT=1`, record load).
-- [ ] **T8 Gates.** Mutations (e.g. wave 5 allowed → schedule test; back-to-back allowed; contact damage per tick → F7 test; lure through cover (straight line) → fuzz; conversion skipped → F8 wave-hold test; turret shot counted → F4 test) and which tests failed. Browser check (Playwright): solo `?events=car_alarm@1` and `?events=stampede@1` (+ `?wallet=` for a quick run), online two tabs with `?lag=150&jitter=20`: banner once, pin + edge arrow, shooting the car starts the alarm on both phones, chevrons for 3 s, a late tab (sleep/wake across the event start) still shows the marker without a late banner. `typecheck && lint && test && build`. Merge notes.
+- [x] **T0 Art (picks fixed; no new pick).** From `docs/epic-6-decisions.md` › section 5: **CA3** car alarm = a pulsing amber bell marker over the car (no sound rings; the 15 m pull is not drawn), plus the car's own hazard blink; **ST1** stampede = a dust cloud at the map edge + amber chevrons down the lane. Port `pin`, `IC.bell`, the chevron and the dust code from `docs/art/epic-6/looks.html` (`makeAlarmCard`, `makeStampedeCard`) into `render/city/eventArt.ts` (pin disc, bell, chevron frames in one small atlas `event_<name>_<variant>`) and `render/EventView.ts`; every texture through `addGeneratedTexture` with a redraw callback (brief 20). Colour rule: amber `#ffb648` for both. Add both to `docs/playtests/milestone-1/readability-sheet.md` (brief 13).
+- [x] **T1 Balance + schema** (AC 1, 7, 9, 10): `config/balance/events.json` (below); `balanceSchema.ts › eventsSchema`; `balance.ts` loads it (`balance.events`) and cross-checks (waves list ⊂ 1..`runWaves`, excluded 5, fractions 0–1 min ≤ max, `countByPlayers` length 4, `overCap` + `maxAlive` ≤ `ZOMBIE_POOL_CAPACITY`); `config/balance.test.ts` cases.
+- [x] **T2 Map layer** (AC 11): generator objects + `.tmx/.tmj` regenerated (`tools/maps/downtownFiles.test.ts`), loader + schema, `DistrictMap.eventSpots` / `stampedeLanes`, `PLACEHOLDER_MAP` gets empty lists; reachability + clearance tests (`map/downtown.test.ts`, new `events/spots.test.ts`).
+- [x] **T3 Framework** (AC 1–6): `events/registry.ts`, `events/eventState.ts`, `events/schedule.ts` (`scheduleRunEvents`, `scheduleEndlessEvent`, `eventFits`), `events/specialEvents.ts` (`updateSpecialEvents`, `eventHoldsWave`, `forceEvent`), World field + `createWorld`, `DEFAULT_SYSTEMS.specialEvents`, `run/runStateMachine.ts › updateRun` hold, `skipWave`; `core/simEvents.ts` + `net/netEvents.ts` kinds; schema fields, `syncState` (+ reset), `RUN_STATE_FIELDS`, `RunStateView`, `fakeRoom`, devThrottle; `snapshotWorld`. Tests `events/schedule.test.ts` (F2 over 10,000 seeds: always 2, different, allowed pairs only, gates; 1 solo player and 4), `events/specialEvents.test.ts` (F3 start fraction; one active event; holds the wave; `skipWave`), `net/netEvents.test.ts` round trips, `syncState.test.ts` (fields + reset).
+- [x] **T4 Car alarm** (AC 7, 8; F4, F5): `events/carAlarm.ts`, lure fields in `zombies/flowField.ts` (`PathingState.lure` + `lureWide`, seeded from the car's ring cells, built while armed, idle otherwise), `zombieAi.ts` pass 1 lure steering (+ `pool.lureTicks` in `zombiePool.ts`), the shot hook in `combat/firing.ts`. Tests `events/carAlarm.test.ts`: candidate filter per stage × mask (never a moved, removed or burning car; ≥ 1 at waves 3–8 on Downtown), 8–25 m pick, shot by pistol / shotgun pellet / AR starts it and credits the shooter, turret / melee / flame / grenade don't, a bullet stopped by a zombie or barricade before the car doesn't, the 20 s timer starts it, zombies within 15 m reach the car (around the bus), a player within 2 m of a lured zombie is bitten, rushing zombies ignore it, lure ends after 15 s.
+- [x] **T5 Stampede** (AC 9, 10; F6–F8): `events/stampede.ts`, `ZOMBIE_STATE.STAMPEDE`, lane movement in `zombieAi.ts` (a branch before the target pick), per-Runner contact mask, conversion, over-cap in `waves/waveDirector.ts › updateWaves`. Tests `events/stampede.test.ts`: 12/18/24/30 by players; nothing spawns in the 3 s warning; contact = 8 once per Runner per player; no building damage; conversion at 10 s and when stuck; converted Runners counted in `remaining` and rushed in the last 5; a wave whose last normal zombie dies mid-crossing waits; never above cap + 30; stampede Runners don't flank.
+- [x] **T6 Client** (AC 12): `EventView.ts`, `eventArt.ts`, `GameScene` (banners, handlers for the four event kinds, sounds), `NetSimHost` (decode, `ageS`, schema → view), `LocalSimHost` (solo runs the system), HUD nothing else. Tests: pure-function tests for the marker/countdown model (`eventMarkers.test.ts`), atlas ≤ 2048² (`atlasLayout.test.ts`), redraw after context loss.
+- [x] **T7 Fuzz, sims, bandwidth, perf** (brief 7, 9, 11, 16): `zombies/downtown.fuzz.test.ts` + random layouts × stages 2–4 × masks with a forced alarm and a forced stampede each: no body in a box, no stall, lured zombies reach the car, stampede converts; 10-wave sim (6.1's, or `runWaves` override) asserts 2 events triggered per run over 8 seeds, both kinds of this story seen; bandwidth test (`decayBandwidth.test.ts` pattern); tick cost with 180 alive + 2 lure fields (`PERF_ASSERT=1`, record load).
+- [x] **T8 Gates.** Mutations (e.g. wave 5 allowed → schedule test; back-to-back allowed; contact damage per tick → F7 test; lure through cover (straight line) → fuzz; conversion skipped → F8 wave-hold test; turret shot counted → F4 test) and which tests failed. Browser check (Playwright): solo `?events=car_alarm@1` and `?events=stampede@1` (+ `?wallet=` for a quick run), online two tabs with `?lag=150&jitter=20`: banner once, pin + edge arrow, shooting the car starts the alarm on both phones, chevrons for 3 s, a late tab (sleep/wake across the event start) still shows the marker without a late banner. `typecheck && lint && test && build`. Merge notes.
 
 `events.json` (starting values):
 
@@ -213,13 +213,168 @@ CA3 (pulsing amber bell pin over the car + the car's own hazard blink; no rings,
 
 ### Agent Model Used
 
+Claude (Claude Code cloud builder session, branch `story-6-8`).
+
 ### Debug Log References
+
+- Headless screenshots: `docs/art/6-8/`. Perf: `docs/perf/epic-6-events.md`. Gate result with load: the hand-back message.
 
 ### Completion Notes List
 
+**What was built (all shared sim code; server, solo, mirror):**
+
+- **Framework (AC 1–6, `packages/shared/src/events/`).** `eventState.ts` (`EVENT_KINDS` append-only, `EVENT_PHASE` NONE/ARMED/ALARM/WARNING/RUNNING, `EVENT_OUTCOMES`, `world.special`: schedule, one active slot, an `extra` entry for forced/endless, the car and stampede records, a log), `common.ts` (`EventModule`, team centre, phase change, player slot index), `registry.ts` (car alarm + stampede; the four 6.9/6.10 kinds are stubs whose `fits` is false; built lazily because the modules sit in an import cycle with the wave director and firing), `schedule.ts` (`scheduleRunEvents` from the `events` stream only, `eventFits`, `scheduleEndlessEvent` for 6.12), `specialEvents.ts` (`updateSpecialEvents` in the `specialEvents` slot; F3 trigger at `size − queued ≥ round(size × startFraction)`; skipped entries; `endSpecialEvent`; `eventHoldsWave`; `forceEvent`; the shot hook), `devEvents.ts` (`DEV_EVENTS` / `?events=` parser).
+- **Car alarm (AC 7–8, D1–D3).** Candidates = map cover cars active at the stage with no applied `remove`/`ignite` on them (never moved, burning or a wreck); pick 8–25 m from the team (`events` stream), else the nearest beyond 8 m, else the farthest. ARMED 20 s → ALARM 15 s on the first PLAYER projectile step that enters the car's box no later than where the shot stopped (`combat/firing.ts`, one hook line; turrets, melee, flames and grenades never reach it), or the timer. Lure: every zombie within 15 m at any alarm tick (not rushing, not a stampede Runner) gets `pool.lureTicks` and walks by the two **lure fields** (`zombies/flowField.ts`: `PathingState.lure` + `lureWide`, seeded from the free cells within 0.75 m of the car box, built once while armed in a round-robin turn before the boss field, idle after); a standing player within 2 m breaks the lure for that zombie; a Spitter's windup still finishes.
+- **Stampede (AC 9–10, D4, D5, D7, D11).** Lane pick among open lanes whose centre line is within 10 m of the team (else the nearest). WARNING 3 s (nothing spawns) → RUNNING 10 s: 12/18/24/30 Runners (players in the run, downed and out count) in rows of 6 every 0.3 s across the start edge, `ZOMBIE_STATE.STAMPEDE` (6), not wave zombies, 5 m/s along the lane with the normal separation and push-out; cover ahead (every box in a 4 m band, merged) is side-stepped to its nearer end that stays in the lane. Contact: 8 damage once per Runner per player (a per-zombie slot mask, `stampedeContact` in pass 4; no bites, no building hits). Far edge → removed (`removeZombie`: no `zombie.killed`, no reward). < 0.5 m progress in 1 s, or the 10 s end → a normal Runner of the wave (`waveZombie = 1`, CHASE, or RUSH when the last-5 rush already runs). Normal spawns pause while Runners run; the stampede may go 30 over `maxAliveNow` (150, or 110 while the Behemoth lives).
+- **Run flow (D6, F8, brief 28).** `updateRun` ends a cleared wave only when `!eventHoldsWave` (a stampede warning or crossing); `skipWave` ends the active event first and removes its Runners; a wipe → Results ends it with `wave_end`. Each is a tested transition.
+- **Wire (AC 5–6).** SimEvents `event.triggered` (kind, wave, x, y, startTick, phase, lane), `event.phase_changed` (kind, phase, tick, playerId), `event.ended` (kind, outcome), `event.skipped`; `NET_EVENT_KIND` 55–58 (global interest). Room state: `eventKind` (255 none), `eventPhase`, `eventStartTick`, `eventPhaseTick`, `eventX`/`eventY` (cm), `eventLane` (255 none) — on change only, never the schedule (D8). Copies: World → schema → `syncState` (+ reset) → `RunStateView`/`RUN_STATE_FIELDS` (compile-time key check) → `fakeRoom` → devThrottle (iterates the key list) → mirror (`net/mirrorEvent.ts`, which also finds the armed car's box from the map) → Predictor (nothing) → `snapshotWorld` (`special`, the pool's lure/stampede arrays, the lure fields in `snapshotPathing`).
+- **Map (AC 11).** `events` layer (generator + loader + `DistrictMap.eventSpots`/`stampedeLanes`; `PLACEHOLDER_MAP` empty): 4 lanes (main street e/w at every stage; cross street s/n at **stages 1–3**: from stage 4, 6.2's `rubble_pile_2` seals the cross street's north end, so per the story's "set its maxStage 3"), crate ×10, survivor ×8, safe ×6 (picked by a clearance search: ≥ 1.2 m from every box any stage, variant or 6.2 rubble can put there, out of fire zones, ≥ 1.5 m from spawns).
+- **Client (AC 12–13).** `render/city/eventArt.ts` (`event_atlas`: CA3 bell pin, ST1 "!" pin, pulse ring, edge-arrow discs + tip, amber chevron, 3 dust puffs, hazard glow; through `addGeneratedTexture`), `render/eventMarkers.ts` (pure marker/cue model, countdown from the server tick, late-banner rule), `render/EventView.ts` (pin + pulse ring + countdown arc, edge arrow, 4 hazard glows blinking 2/6 Hz, ≤ 12 chevrons spread down the lane, ≤ 64 pooled dust puffs; all in `ABOVE_DARK.marker`; the car-alarm loop follows the state), `GameScene` (3 small hooks; the banner in amber through 6.6's `showBanner(text, color)`), sounds (`event_car_alarm_armed`, `event_stampede_rumble`, the positional `startCarAlarmLoop`), `?events=` (dev builds, solo), cheats "Force car alarm" / "Force stampede".
+- **Bots (AC 14).** Bots step out of an active stampede's lane (`laneOut`); they never shoot the car (the timer sets it off).
+
+**Found while building (outside the story, fixed minimally — please review):**
+
+- `bots/botPolicy.ts` rule 2c: "everything in range is behind cover → strafe left" now flips side every 64 input seqs. The 10-wave sim (3 bots, seed 1) stalled in wave 9 forever: all three bots pinned against the bus by their own left strafe, a Bloater behind a barricade, nobody could shoot. The events changed the run's path, which exposed it. Bots only (not the game).
+
+**Fairness rules → tests (brief 3):** F1 `specialEvents.test.ts` / `stampede.test.ts` (the warning first, nothing spawns before it), `eventMarkers.test.ts` (banner + sound; none for a stale start); F2 `schedule.test.ts` (10,000 seeds × 1 and 4 players); F3 `specialEvents.test.ts`; F4 `carAlarm.test.ts` (pistol / shotgun / AR credit the shooter, two shooters → one credit, turret / melee / axe / flame / launcher don't, a zombie in the way doesn't, the timer at exactly 20 s); F5 `carAlarm.test.ts` (round the bus, never inside it; 15.6 m not lured; bitten within 2 m; rushers ignore it; 15 s end) + `events.fuzz.test.ts`; F6 `stampede.test.ts` (in the lane, 5 m/s, from the start edge); F7 `stampede.test.ts` (8 once per Runner per player, barricade untouched); F8 `stampede.test.ts` + `specialEvents.test.ts` (hold, conversion, remaining, rush, `skipWave`); F9 `schedule.test.ts` (candidates per stage × seed masks) + `eventRunSim.test.ts` (never skipped on Downtown, 8 seeds).
+
+**Beat the rule (my attempts):** 1 the schedule in a build phase — not in the schema, events or HUD (only the active event). 2 shooting through a zombie: no; turret / melee / flame / grenade: no; at the car through the bus: the bus stops the shot first → no. 3 two shooters on one tick: one alarm, one credit. 4 inside 15 m but > 2 m from a lured zombie: not bitten (it walks to the car); within 2 m: bitten. 5 luring the last zombies: the rush ignores the alarm and its 15 s end it. 6 standing in the lane: one 8-damage hit per Runner; a barricade wall across the lane: Runners stall, convert after 1 s, the barricade keeps its HP. 7 killing every normal zombie mid-crossing: the wave waits; the converted Runners then count and rush. 8 a stampede at 150 / 170 alive: ≤ 180; with the Behemoth alive: ≤ 140. 9 a woken tab: marker from the state, no late banner (browser, online). 10 replay: same digest through both events. 11 solo (12 Runners, small waves): triggers mid-wave (the tests use solo sizes).
+
+**Mutations (brief 9; each applied, its tests run, reverted):** killed — wave 5 allowed, back-to-back allowed, contact every tick (mask ignored), lure as a straight line (no field), conversion skipped, turret shot counted, wave hold removed, late banner shown, Runners during the warning, a stopped bullet counts, rushers lured, pull radius ignored, mirror drops the lane. Survived first, then killed by new tests: over-cap ignored and "cap ignores the boss" (150 + 30 was exactly the cap: added 170-alive and Behemoth-alive cases with 4 players), event phase not synced (added the `syncState` event-record test).
+
+**Bandwidth (brief 11):** events + record ≤ 3 B/s per client. Worst stampede horde frame (180 in one view) = 28.2 KB/s > 24 KB/s: **open designer question A/B** (built A: accepted until Story 8.10; 150 in view = 23.6 KB/s).
+
+**Perf (brief 12, 16):** headless `?stress=150` 16.0 fps → 15.4 with the stampede warning drawn (−3 %, run noise ±0.5), car alarm ≈ 0; server p99 +0.17 ms (stampede, 174 alive), ≈ 0 (alarm) at load 0.82 (`PERF_ASSERT=1` passes).
+
+**Design observation (no change made):** the main-street lanes are 48 m; at 5 m/s a Runner needs 9.6 s, plus up to 1.5 s of row spawning, so with `runS` 10 most main-street Runners join the wave near the far end instead of leaving the map (on the 32 m cross street ~85 % cross). Keep (they join the wave), or `runS` 12 if the designer wants them gone.
+
+### Notes for the merge (brief 19; every shared file touched)
+
+- `core/world.ts`: `special` (after `boss`), `debug.events` (dev schedule). `core/systems.ts`: `specialEvents: updateSpecialEvents` (NO_SYSTEMS / PREDICTION keep the no-op). `core/worldSnapshot.ts`: `special` + 4 pool arrays.
+- `run/runStateMachine.ts`: `updateRun` → `if (updateWaves(world) && !eventHoldsWave(world)) endWave(world)`; `skipWave` → `endSpecialEvent(world, "wave_end")` first. **6.11/6.12:** keep the hold on the wave-end line when adding the vote / endless branches; 6.12 calls `scheduleEndlessEvent(world, wave)` (writes `special.extra`; the trigger reads it like a scheduled entry).
+- `waves/waveDirector.ts › updateWaves`: `room = stampedeRunnersAlive(world) > 0 ? 0 : maxAliveNow(world) − aliveCount` (one line).
+- `zombies/zombieAi.ts` pass 1: the stampede branch (`stampedeSteer`) and lure steering (`lureSteer`, `standingWithin`) before the target pick; pass 4: `stampedeContact`, no swing / bite / building hit for STAMPEDE. **6.10's survivor** adds itself to the target list in `collectAlivePlayers` / `nearestAlivePlayer` — whether lured zombies go for it within 2 m is 6.10's call.
+- `zombies/flowField.ts`: `FlowField.seedBox/seedBoxM`, `PathingState.lure/lureWide/lureBuild`, `requestLureFields` / `dropLureFields`, `updatePathing`'s turn order written as a list (chase, flank, wide, lure, boss — unchanged without the lure; the boss keeps its own clock); `snapshotPathing` + the lure fields.
+- `zombies/zombiePool.ts`: `lureTicks`, `stampedeHit`, `stampedeAnchor`, `stampedeTick` (reset on spawn), `removeZombie` (no event, no reward). `zombies/zombieTypes.ts`: `ZOMBIE_STATE.STAMPEDE = 6` (horde nibble; the client draws it as a plain zombie).
+- `combat/firing.ts`: one line after `stoppedAt` (`onSpecialShot` for `building === 0`). **6.9** adds the gas tank in `specialShotTarget` / `onSpecialShot` (`events/specialEvents.ts`), no edit here.
+- `core/simEvents.ts`: four `event.*` events (after 6.6's). `net/netEvents.ts`: kinds **55–58** (6.8's block is 55–64: 59–64 free for 6.9/6.10). No money reason added.
+- `net/stateView.ts`, `apps/server/src/rooms/schema/RunState.ts` (flat fields after `boss`), `syncState.ts` (+ reset), `apps/client/src/net/fakeRoom.ts`, `lobbyStore.test.ts`: the 7 `event*` fields. **6.9/6.10** append crate / survivor fields after `eventLane`.
+- `config/balance.ts` (`EVENT_FORBIDDEN_WAVE`, `crossCheckEvents`), `balanceSchema.ts` (`eventsSchema`), `config/balance/events.json` (new; `deflectLookM` 4 and `lureSeedM` 0.75 added to the story's starting values). Tests that list the balance files by hand gained `events: eventsJson` (aimAssist, melee, firing, swap, balance, zombieAi, waveDirector, spawnPoints tests).
+- `map/districtMap.ts` (`StampedeLane`, `EventSpot`, `LANE_DIRS`, `EVENT_SPOT_KINDS`), `loadTiledMap.ts` (optional `events` layer), `placeholderMap.ts`, `tools/maps/buildDowntown.ts` (`eventLanes`, `eventSpots`, the `events` top layer) + regenerated `.tmx` / `.tmj` / shared copy. **Regenerate, never hand-merge.** 6.11's evac pad joins this layer as a new spot kind (append to `EVENT_SPOT_KINDS`).
+- `bots/botPolicy.ts`: `laneOut` (rule 1b) and the strafe side flip (rule 2c, see "Found while building").
+- `waves/spawnPoints.test.ts`: its sims set `debug.events = []` (they test the wave director alone).
+- `apps/server`: `RunController` (`events` option), `RunRoom` (`DEV_EVENTS`, ignored in production), `eventInterest.ts` (comment: `event.*` global). New tests `eventBandwidth.test.ts`, `tickCostEvents.test.ts`.
+- `apps/client`: `GameScene.ts` (EventView create / update / destroy, the `event.*` branch, `?events=`), `NetSimHost.ts` (`ageS` for `event.triggered` / `phase_changed`, `mirrorSpecialEvent`), `audio/placeholderSfx.ts` (2 keys + the alarm loop), `debug/urlOptions.ts` (`events`), `debug/DevCheats.tsx` (2 buttons).
+- `docs/playtests/milestone-1/readability-sheet.md`: items **70–74**.
+- `render/darkness/aboveDark.ts` unchanged (the markers use the existing `ABOVE_DARK.marker`).
+
+### Not verified
+
+- A real phone (Mi 11i) FPS and readability; sound by ear (the alarm loop, chirp and rumble are placeholders).
+- Online, the ARMED → ALARM change seen on both phones in a browser: the two-tab run (`?lag=150&jitter=20`) showed the marker on both, the woken tab without a late banner, and the end on both, but the idle team wiped before the 20 s timer; the phase change itself is covered by the `syncState` / `eventMarkers` / mirror tests.
+- Shooting the car from a real browser (covered by `carAlarm.test.ts` through the real firing path).
+- The brief-31 HUD layout test: the event edge arrow is drawn in world space at the view's edge (not a HUD control, nothing pressable), so it is not in that test; the event banner reuses the existing banner line.
+- A late Game scene start mid-event in a browser (the marker comes from the room state, like the boss's).
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/6-8-special-events-car-alarm-and-stampede.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `apps/client/public/assets/maps/downtown.tmj`
+- `apps/client/src/audio/placeholderSfx.ts`
+- `apps/client/src/debug/DevCheats.tsx`
+- `apps/client/src/debug/urlOptions.test.ts`
+- `apps/client/src/debug/urlOptions.ts`
+- `apps/client/src/net/fakeRoom.ts`
+- `apps/client/src/net/lobbyStore.test.ts`
+- `apps/client/src/net/mirrorEvent.ts`
+- `apps/client/src/render/EventView.ts`
+- `apps/client/src/render/city/atlasLayout.test.ts`
+- `apps/client/src/render/city/eventArt.ts`
+- `apps/client/src/render/eventMarkers.test.ts`
+- `apps/client/src/render/eventMarkers.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/server/src/net/eventInterest.ts`
+- `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/rooms/schema/RunState.ts`
+- `apps/server/src/rooms/schema/syncState.test.ts`
+- `apps/server/src/rooms/schema/syncState.ts`
+- `apps/server/src/run/RunController.ts`
+- `apps/server/src/run/eventBandwidth.test.ts`
+- `apps/server/src/run/tickCostEvents.test.ts`
+- `docs/art/6-8/6-8-568x320-blackout5-car_alarm-armed.png`
+- `docs/art/6-8/6-8-568x320-blackout5-stampede-warning.png`
+- `docs/art/6-8/6-8-568x320-car_alarm-armed.png`
+- `docs/art/6-8/6-8-568x320-car_alarm-edge-arrow.png`
+- `docs/art/6-8/6-8-568x320-car_alarm-sounding.png`
+- `docs/art/6-8/6-8-568x320-stampede-warning.png`
+- `docs/art/6-8/6-8-800x360-blackout5-car_alarm-armed.png`
+- `docs/art/6-8/6-8-800x360-blackout5-car_alarm-edge-arrow.png`
+- `docs/art/6-8/6-8-800x360-blackout5-car_alarm-sounding.png`
+- `docs/art/6-8/6-8-800x360-blackout5-stampede-running.png`
+- `docs/art/6-8/6-8-800x360-blackout5-stampede-warning.png`
+- `docs/art/6-8/6-8-800x360-car_alarm-armed.png`
+- `docs/art/6-8/6-8-800x360-car_alarm-edge-arrow.png`
+- `docs/art/6-8/6-8-800x360-car_alarm-sounding.png`
+- `docs/art/6-8/6-8-800x360-stampede-running.png`
+- `docs/art/6-8/6-8-800x360-stampede-warning.png`
+- `docs/perf/epic-6-events.md`
+- `docs/playtests/milestone-1/readability-sheet.md`
+- `packages/shared/src/bots/botPolicy.ts`
+- `packages/shared/src/combat/aimAssist.test.ts`
+- `packages/shared/src/combat/firing.test.ts`
+- `packages/shared/src/combat/firing.ts`
+- `packages/shared/src/combat/melee.test.ts`
+- `packages/shared/src/combat/swap.test.ts`
+- `packages/shared/src/config/balance.test.ts`
+- `packages/shared/src/config/balance.ts`
+- `packages/shared/src/config/balance/events.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/core/simEvents.ts`
+- `packages/shared/src/core/systems.ts`
+- `packages/shared/src/core/world.ts`
+- `packages/shared/src/core/worldSnapshot.ts`
+- `packages/shared/src/events/carAlarm.test.ts`
+- `packages/shared/src/events/carAlarm.ts`
+- `packages/shared/src/events/common.ts`
+- `packages/shared/src/events/devEvents.test.ts`
+- `packages/shared/src/events/devEvents.ts`
+- `packages/shared/src/events/eventRunSim.test.ts`
+- `packages/shared/src/events/eventState.ts`
+- `packages/shared/src/events/events.fuzz.test.ts`
+- `packages/shared/src/events/registry.ts`
+- `packages/shared/src/events/schedule.test.ts`
+- `packages/shared/src/events/schedule.ts`
+- `packages/shared/src/events/specialEvents.test.ts`
+- `packages/shared/src/events/specialEvents.ts`
+- `packages/shared/src/events/spots.test.ts`
+- `packages/shared/src/events/stampede.test.ts`
+- `packages/shared/src/events/stampede.ts`
+- `packages/shared/src/events/testEvents.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/map/data/downtown.tmj.json`
+- `packages/shared/src/map/districtMap.ts`
+- `packages/shared/src/map/loadTiledMap.test.ts`
+- `packages/shared/src/map/loadTiledMap.ts`
+- `packages/shared/src/map/placeholderMap.ts`
+- `packages/shared/src/net/netEvents.test.ts`
+- `packages/shared/src/net/netEvents.ts`
+- `packages/shared/src/net/stateView.ts`
+- `packages/shared/src/run/runStateMachine.ts`
+- `packages/shared/src/waves/spawnPoints.test.ts`
+- `packages/shared/src/waves/waveDirector.test.ts`
+- `packages/shared/src/waves/waveDirector.ts`
+- `packages/shared/src/zombies/flowField.ts`
+- `packages/shared/src/zombies/zombieAi.test.ts`
+- `packages/shared/src/zombies/zombieAi.ts`
+- `packages/shared/src/zombies/zombiePool.ts`
+- `packages/shared/src/zombies/zombieTypes.ts`
+- `tools/maps/buildDowntown.ts`
+- `tools/maps/downtown.tmx`
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: built (gds-dev-story): framework, car alarm, stampede, events map layer, wire, client; merged 6.6+6.7 and 6.2+6.4 from master; status review.
