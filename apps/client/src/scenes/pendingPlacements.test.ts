@@ -348,3 +348,24 @@ describe("Story 5.18: PendingPlacements", () => {
     expect(p.count).toBe(0);
   });
 });
+
+describe("Story 5.20: the undo chip follows a box to its building", () => {
+  it("lastOrder names each added box; builtId(order) is the building it became; waiting until answered; a refused box is neither", () => {
+    const w = world();
+    const p = new PendingPlacements();
+    add(p, w, req(10));
+    const a = p.lastOrder;
+    add(p, w, req(14));
+    const b = p.lastOrder;
+    expect(b).toBeGreaterThan(a);
+    expect([p.waiting(a), p.waiting(b), p.builtId(a), p.builtId(b)]).toEqual([true, true, 0, 0]);
+    const t = sendAll(p, w, 0);
+    build(w, req(10), 7);
+    p.update(w, "p0", t, true);
+    expect([p.waiting(a), p.builtId(a)]).toEqual([false, 7]);
+    expect(p.refuse("blocked", t)).toBe("shown"); // b refused
+    expect([p.waiting(b), p.builtId(b)]).toEqual([false, 0]);
+    p.reset();
+    expect([p.lastOrder, p.builtId(a)]).toEqual([0, 0]);
+  });
+});

@@ -21,6 +21,7 @@ import {
   buildingPlaceSchema,
   buildingRepairSchema,
   buildingUpgradeSchema,
+  buildingSellSchema,
   isTestScenario,
   joinOptionsSchema,
   loadDevBalance,
@@ -42,6 +43,7 @@ import {
   type BuildingRefused,
   type BuildingRepairRefused,
   type BuildingUpgradeRefused,
+  type BuildingSellRefused,
   type JoinRefusal,
   type NetEvent,
   type NetEventContext,
@@ -276,6 +278,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.weapon, m.slot ?? null)));
     this.onMessage(C2S.BUILDING_REPAIR, this.net.guard(buildingRepairSchema, (c, m) => this.onRepairBuilding(c, m.id)));
     this.onMessage(C2S.BUILDING_UPGRADE, this.net.guard(buildingUpgradeSchema, (c, m) => this.onUpgradeBuilding(c, m.id))); // Story 5.9
+    this.onMessage(C2S.BUILDING_SELL, this.net.guard(buildingSellSchema, (c, m) => this.onSellBuilding(c, m.id))); // Story 5.20
     this.onMessage(C2S.SHOP_UPGRADE, this.net.guard(shopUpgradeSchema, (c, m) => this.onShopUpgrade(c, m.weapon))); // Story 5.1
     this.onMessage(C2S.SHOP_BUY_ITEM, this.net.guard(shopBuyItemSchema, (c, m) => this.onShopBuyItem(c, m.item))); // Story 5.11
     this.onMessage("*", (client) => this.net.unknown(client));
@@ -460,6 +463,27 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const reason = r ? r.error : "not_build_phase";
     this.log.debug({ playerId: member.playerId, id, reason }, "building_upgrade_refused");
     client.send(S2C.BUILDING_UPGRADE_REFUSED, { id, reason } satisfies BuildingUpgradeRefused);
+  }
+
+  /**
+   * `building.sell` (Story 5.20, shape-checked and rate-limited by the shared "other" bucket): the
+   * shared `sellBuilding` validates standing, phase, building and owner on the server's World,
+   * refunds (100 % of this phase's spend, 50 % of the rest) and removes it. A refusal goes back to
+   * the sender only, as `building.sell_refused { id, reason }`; the removal and wallet arrive in the
+   * next patch, `building.sold` with the tick's events.
+   */
+  onSellBuilding(client: RunClient, id: number): void {
+    const member = this.members.get(client.sessionId);
+    if (!member) return;
+    const controller = this.controller;
+    const r = controller ? controller.sellBuilding(member.playerId, id) : null;
+    if (r?.ok) {
+      this.log.info({ playerId: member.playerId, id, type: r.value.type, refund: r.value.refund }, "building_sold");
+      return;
+    }
+    const reason = r ? r.error : "not_build_phase";
+    this.log.debug({ playerId: member.playerId, id, reason }, "building_sell_refused"); // debug: a flood must not flood the log
+    client.send(S2C.BUILDING_SELL_REFUSED, { id, reason } satisfies BuildingSellRefused);
   }
 
   /**

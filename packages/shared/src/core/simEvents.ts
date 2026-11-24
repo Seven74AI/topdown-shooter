@@ -102,6 +102,11 @@ export type SimEvent =
    * price); (x, y) = its footprint's centre. FX + HUD only (type, HP and wallet come from schema).
    */
   | { type: "building.upgraded"; buildingId: number; playerId: string; cost: number; toType: string; x: number; y: number }
+  /**
+   * Story 5.20: `ownerId` sold (or took back) building `buildingId` (its type and rotation, for the
+   * lift-and-fade footprint) for `refund` (already removed and refunded); (x, y) = its footprint's centre in metres. FX only (removal and wallet come from schema).
+   */
+  | { type: "building.sold"; buildingId: number; buildingType: string; ownerId: string; rot: number; refund: number; x: number; y: number }
   /** Story 5.9: mine `buildingId` went off at (x, y) (already removed; its hits/kills follow as events). */
   | { type: "mine.exploded"; buildingId: number; x: number; y: number }
   /** Story 5.14: a bear trap's jaws closed on a zombie (clang + snap FX; open/closed itself is schema state). */

@@ -7,6 +7,7 @@ import {
   RUN_ROOM_NAME,
   S2C,
   buildingRepairSchema,
+  buildingSellSchema,
   joinOptionsSchema,
   lobbySetReadySchema,
   playerNameSchema,
@@ -104,5 +105,17 @@ describe("shop.buy_item (Story 5.11; shared with 5.12)", () => {
     for (const bad of [{}, { item: "" }, { item: "Running" }, { item: "a".repeat(33) }, { item: 3 }, { item: "body_armor_1", extra: 1 }, { item: "x-y" }]) {
       expect(shopBuyItemSchema.safeParse(bad).success).toBe(false);
     }
+  });
+});
+
+describe("building.sell (Story 5.20)", () => {
+  it("accepts only { id } with an integer id 1–65535 (strict: no refund or owner fields)", () => {
+    expect(buildingSellSchema.safeParse({ id: 1 }).success).toBe(true);
+    expect(buildingSellSchema.safeParse({ id: 65535 }).success).toBe(true);
+    for (const bad of [{}, { id: 0 }, { id: -1 }, { id: 1.5 }, { id: 65536 }, { id: "1" }, { id: 1, refund: 999 }, { id: 1, owner: "p0" }, null]) {
+      expect(buildingSellSchema.safeParse(bad).success).toBe(false);
+    }
+    expect(C2S.BUILDING_SELL).toBe("building.sell");
+    expect(S2C.BUILDING_SELL_REFUSED).toBe("building.sell_refused");
   });
 });
