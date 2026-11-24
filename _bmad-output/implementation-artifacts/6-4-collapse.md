@@ -1,6 +1,6 @@
 # Story 6.4: Collapse
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -78,29 +78,29 @@ so that the run hits its tension peak.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art (from the picks; no new pick).** `docs/epic-6-decisions.md` › section 2 Collapse: **all four**: CO1's dead grid always; the fog/weather style CO1 haze / CO2 fog bank / CO3 ash / CO4 flood one per run from the `decay` stream, rotating in endless. Port `buildFogTex`, `deadLampHead`, `fallenLamp`, `collapseExtra`, `fogLayer`, `ashFall`, `floodPuddles` from `docs/art/epic-6/src/main2.js` (and `dressingFor(power: "off")` from `cityEntry.ts`) into game code: `apps/client/src/render/city/collapseArt.ts` (bake painters) and `apps/client/src/render/FogView.ts` (the runtime ring). The fog-bank noise and the ash flake are textures made through `addGeneratedTexture` (FX atlas frames or their own registered key) with a redraw test (Story 4.13). Screenshots of the four styles at 1240 and 390 px (like `docs/art/epic-6/ingame/co-*.png`) for the designer's review.
-- [ ] **T1 Balance + shared rule** (AC 1–3, 8)
-  - [ ] `decay.json › collapse` + `balanceSchema.ts` (strict; `clearM < radiusM`; `fromStage` 1–5); `blackout.lightPctByWave` 9 → 10, 10 → 5; `blackout.halfDarkInBuild: true` (6.3's block).
-  - [ ] `decay/collapse.ts` (new, exported from `index.ts`): `isPowerOut`, `fogRadiiOf`, `fogVisibility`, `collapseStyleAt`.
-  - [ ] `refreshBlackout` (6.3's `decay/lightState.ts`): the "build before a blackout wave → `halfDark`" case if 6.3 didn't ship it (one writer).
-  - [ ] Tests `decay/collapse.test.ts` (new): AC 9's tables; `run/runStateMachine` integration: a run forced through waves 8 → 9 → 10 (`decayStageByWave` override or 6.1's 10 waves) shows `blackoutPct` 0 → (build 9: halfDark) → 10 → (build 10: halfDark) → 5.
-- [ ] **T2 Map data** (AC 6)
-  - [ ] `tools/maps/buildDowntown.ts`: the `collapse_style` group (4 `look` objects, stage 5) appended after 6.2's objects; `stage5_props`: the fallen streetlight, two debris spills, the stage-4 loose debris repeated (swap model: stage 5 shows only `stage5_*`); regenerate the three map files. Variant bits: 15 + 4 = 19 ≤ 32.
-  - [ ] Tests: `downtown.test.ts` (+ 4 collapse styles, one picked per run; old seeds keep bits 0–8 and 6.2's bits), `legalDecayMasks(…, { gameplayOnly })` count unchanged (looks excluded).
-- [ ] **T3 Aim assist** (AC 4; F4)
-  - [ ] `combat/aimAssist.ts`: fog filter (shooter's own beam; `fogRadiiOf` once per call, not per candidate).
-  - [ ] Tests `aimAssist.test.ts` (+ stage 5 hidden zombie not assisted; inside own Tactical beam assisted; stage 4 unchanged), `net/prediction.test.ts` or the firing replay (+ server and Predictor give the same assisted aim at stage 5).
-- [ ] **T4 Client: power out, hiding, fog look** (AC 1, 5, 6)
-  - [ ] `dressing.ts › powerOff`, `drawCity.ts` (lightmap/glow without lamps, spill, neon, canopy, headlights at stage 5; dead lamp heads; fallen lamp; Collapse bake painters; CO4 puddles, CO3 sky glow); `stageFilter.ts › staticKey` includes the collapse style (endless rotation rebakes once per build start).
-  - [ ] `ZombieView.ts`: fog alpha; eye glints (6.3's `ABOVE_DARK.eyes` objects) follow it; spit view hidden beyond the fog.
-  - [ ] `FogView.ts` (new): reads `fogRadiiOf` + `collapseStyleAt` each frame; paints into 6.3's darkness texture when it is active (a hook in 6.3's darkness view: `paintFog(ctx, …)`), else ring geometry beyond `clearM`; ash flakes swap the rain frame in `CityView`'s rain pool; `?fx=low` path.
-  - [ ] `GameScene.ts`: create/update `FogView`; the viewer is the camera's survivor (`spectateTarget` when out).
-  - [ ] Tests (pure): fog alpha per zombie for the viewer/spectator; `powerOff` keeps floodlights and fires; staticKey changes with the style; `?fx=low` keeps visibility.
-- [ ] **T5 Ambience** (AC 7): `collapse` loop synth + `ambienceLoopForStage(5)`; ash style mutes the rain bed; `ambience.test.ts` (+ stage 5 → collapse; crossfade from ruins).
-- [ ] **T6 Perf + lifecycle** (brief 12, 14, 25)
-  - [ ] FPS: `?stress=150` at stage 5 in a blackout wave (decay cheat 5 + 6.3's force-blackout) with each style (haze, bank, ash, flood) and `?fx=low`; headless FPS before/after with load; add the stage-5 rows to `docs/perf/epic-6-blackout.md` (6.3 creates it). Bank and flood must not drop below haze by more than the budget; if they do, say so (the designer's fallback is CO1 haze on phones).
-  - [ ] Late join / hidden tab: wake after the wave-9 build start → power off, half dark, fog on, the run's style; join mid-wave 10 → 5 % light and fog immediately (browser check).
-  - [ ] Readability sheet: "a zombie fading at the fog edge", "the fallen streetlight (no cover)", CO4 puddles (no effect).
+- [x] **T0 Art (from the picks; no new pick).** `docs/epic-6-decisions.md` › section 2 Collapse: **all four**: CO1's dead grid always; the fog/weather style CO1 haze / CO2 fog bank / CO3 ash / CO4 flood one per run from the `decay` stream, rotating in endless. Port `buildFogTex`, `deadLampHead`, `fallenLamp`, `collapseExtra`, `fogLayer`, `ashFall`, `floodPuddles` from `docs/art/epic-6/src/main2.js` (and `dressingFor(power: "off")` from `cityEntry.ts`) into game code: `apps/client/src/render/city/collapseArt.ts` (bake painters) and `apps/client/src/render/FogView.ts` (the runtime ring). The fog-bank noise and the ash flake are textures made through `addGeneratedTexture` (FX atlas frames or their own registered key) with a redraw test (Story 4.13). Screenshots of the four styles at 1240 and 390 px (like `docs/art/epic-6/ingame/co-*.png`) for the designer's review.
+- [x] **T1 Balance + shared rule** (AC 1–3, 8)
+  - [x] `decay.json › collapse` + `balanceSchema.ts` (strict; `clearM < radiusM`; `fromStage` 1–5); `blackout.lightPctByWave` 9 → 10, 10 → 5; `blackout.halfDarkInBuild: true` (6.3's block).
+  - [x] `decay/collapse.ts` (new, exported from `index.ts`): `isPowerOut`, `fogRadiiOf`, `fogVisibility`, `collapseStyleAt`.
+  - [x] `refreshBlackout` (6.3's `decay/lightState.ts`): the "build before a blackout wave → `halfDark`" case if 6.3 didn't ship it (one writer).
+  - [x] Tests `decay/collapse.test.ts` (new): AC 9's tables; `run/runStateMachine` integration: a run forced through waves 8 → 9 → 10 (`decayStageByWave` override or 6.1's 10 waves) shows `blackoutPct` 0 → (build 9: halfDark) → 10 → (build 10: halfDark) → 5.
+- [x] **T2 Map data** (AC 6)
+  - [x] `tools/maps/buildDowntown.ts`: the `collapse_style` group (4 `look` objects, stage 5) appended after 6.2's objects; `stage5_props`: the fallen streetlight, two debris spills, the stage-4 loose debris repeated (swap model: stage 5 shows only `stage5_*`); regenerate the three map files. Variant bits: 15 + 4 = 19 ≤ 32.
+  - [x] Tests: `downtown.test.ts` (+ 4 collapse styles, one picked per run; old seeds keep bits 0–8 and 6.2's bits), `legalDecayMasks(…, { gameplayOnly })` count unchanged (looks excluded).
+- [x] **T3 Aim assist** (AC 4; F4)
+  - [x] `combat/aimAssist.ts`: fog filter (shooter's own beam; `fogRadiiOf` once per call, not per candidate).
+  - [x] Tests `aimAssist.test.ts` (+ stage 5 hidden zombie not assisted; inside own Tactical beam assisted; stage 4 unchanged), `net/prediction.test.ts` or the firing replay (+ server and Predictor give the same assisted aim at stage 5).
+- [x] **T4 Client: power out, hiding, fog look** (AC 1, 5, 6)
+  - [x] `dressing.ts › powerOff`, `drawCity.ts` (lightmap/glow without lamps, spill, neon, canopy, headlights at stage 5; dead lamp heads; fallen lamp; Collapse bake painters; CO4 puddles, CO3 sky glow); `stageFilter.ts › staticKey` includes the collapse style (endless rotation rebakes once per build start).
+  - [x] `ZombieView.ts`: fog alpha; eye glints (6.3's `ABOVE_DARK.eyes` objects) follow it; spit view hidden beyond the fog.
+  - [x] `FogView.ts` (new): reads `fogRadiiOf` + `collapseStyleAt` each frame; paints into 6.3's darkness texture when it is active (a hook in 6.3's darkness view: `paintFog(ctx, …)`), else ring geometry beyond `clearM`; ash flakes swap the rain frame in `CityView`'s rain pool; `?fx=low` path.
+  - [x] `GameScene.ts`: create/update `FogView`; the viewer is the camera's survivor (`spectateTarget` when out).
+  - [x] Tests (pure): fog alpha per zombie for the viewer/spectator; `powerOff` keeps floodlights and fires; staticKey changes with the style; `?fx=low` keeps visibility.
+- [x] **T5 Ambience** (AC 7): `collapse` loop synth + `ambienceLoopForStage(5)`; ash style mutes the rain bed; `ambience.test.ts` (+ stage 5 → collapse; crossfade from ruins).
+- [x] **T6 Perf + lifecycle** (brief 12, 14, 25)
+  - [x] FPS: `?stress=150` at stage 5 in a blackout wave (decay cheat 5 + 6.3's force-blackout) with each style (haze, bank, ash, flood) and `?fx=low`; headless FPS before/after with load; add the stage-5 rows to `docs/perf/epic-6-blackout.md` (6.3 creates it). Bank and flood must not drop below haze by more than the budget; if they do, say so (the designer's fallback is CO1 haze on phones).
+  - [x] Late join / hidden tab: wake after the wave-9 build start → power off, half dark, fog on, the run's style; join mid-wave 10 → 5 % light and fog immediately (browser check).
+  - [x] Readability sheet: "a zombie fading at the fog edge", "the fallen streetlight (no cover)", CO4 puddles (no effect).
 - [ ] **T7 Gates.** Mutations (e.g. fog clear radius 9 → 10 → fade test; teammates' beams ignored → beam test; aim-assist filter removed → aim test; `halfDarkInBuild` false → blackout test; power-out from stage 4 → dressing test; full-screen fog quad while darkness is on → a draw-count test in `FogView`) and which tests failed. Browser check (Playwright): solo decay cheat 5 + `?wavemix=walker,runner` in waves (fog edge, beam reveal, Tactical flashlight via `?loadout`/gear cheat), online two tabs with `DEV_DECAY_STAGES=5`, `?lag=150&jitter=20`: same darkness, same style, a zombie in a teammate's beam visible on both. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
@@ -201,15 +201,10 @@ From `docs/epic-6-decisions.md` § 2 Collapse (designer, 2026-11-24): all four, 
 
 ## Dev Agent Record
 
-### Agent Model Used
-
-### Debug Log References
-
-### Completion Notes List
-
-### File List
+Merged story "Ruins and Collapse" (designer 2026-11-24): built together with 6.2 on branch `story-6-2`. The one Dev Agent Record (completion notes, Notes for the merge, Not verified, File List) is in `6-2-ruins.md`.
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: built together with 6.2 as the merged story "Ruins and Collapse" (branch story-6-2); status review. T7's online browser checks are listed under "Not verified" in 6-2-ruins.md.

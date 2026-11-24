@@ -1,6 +1,9 @@
+---
+baseline_commit: d41add544890af0caad56a6ad0217eab6255ee83
+---
 # Story 6.2: Ruins
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -80,36 +83,36 @@ so that the map squeezes us as the city breaks.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art (from the picks; no new pick).** `docs/epic-6-decisions.md` › section 1 Ruins: **all four** RU1–RU4, one material per run (decay stream), RU4 the endless look. Port `rubblePile`, `chunk`, `brick`, `rebarStick`, `beamPiece`, `dustSkirt`, `gravel`, `brokenRoof`, `breach`, `soot`, `dustFx`/`stepDust`/`drawDust`, `lampDark` and the `MATS` table from `docs/art/epic-6/src/main1.js` (+ helpers from `lib.js`) into game code: `apps/client/src/render/city/ruinsArt.ts` (pure canvas painters, seeded by object name hash: same pile looks the same every bake). Bake-time drawing goes into the city bake (registered as `city_static_*`, Story 4.13: covered by `invalidateBake`); the dust and lamp-out sprites are frames in the FX atlas (`ATLAS_FX`, `addGeneratedTexture` via `ensureAtlases`). Screenshot all four materials at 1240 and 390 px (like `docs/art/epic-6/ingame/ru-*.png`) for the designer's review.
-- [ ] **T1 Map data + loader** (AC 1–3)
-  - [ ] `map/districtMap.ts`: `DECAY_ACTIONS` += `"look"`; `SPAWN_KINDS` += `"breach"`.
-  - [ ] `map/loadTiledMap.ts`: `look` = a point with `variant`/`group`/`pick` (fail without), no target, no box; `breach` spawns need a `jitterAxis` (like windows).
-  - [ ] `map/obstacles.ts › fillObstacles`: skip `look` (it never adds/removes anything); `rubblePiles(o, out)` helper (AC 6).
-  - [ ] `tools/maps/buildDowntown.ts`: the objects of AC 1 appended after the 4.8 fires; update the header diagrams and the "Stages 4–5: none yet" comment; regenerate the three map files.
-  - [ ] `decay/decayState.ts`: `legalDecayMasks(map, { gameplayOnly })` (skip groups whose objects are all `look`), so the enclosure tests walk 45 × 3 = 135 gameplay combinations, not × 3 looks more.
-  - [ ] Tests: `loadTiledMap.test.ts` (+ `look` parsed, `look` without variant refused, `breach` kind), `downtown.test.ts` (+ the generated files agree; 2 breaches at `minStage` 4; 3 alley candidates, 1 picked), `decay.test.ts` DecayTimeline (+ **every old seed keeps its car and fire bits** (bits 0–8 equal before/after for seeds 1–256), exactly 1 alley and 1 look per run, each candidate occurs).
-- [ ] **T2 Buried spawns + breaches** (AC 3, 4; F5)
-  - [ ] `waves/spawnPick.ts`: buried cache keyed by `obstacles.version`; CLOSED for a buried point; `SPAWN_STATE` unchanged (CLOSED reused).
-  - [ ] Tests `spawnPick.test.ts` (+ `the collapsed alley's mouth is CLOSED at stages 4–5 and OPEN at 1–3`, `both breaches OPEN at 4, CLOSED at 1–3`, `breach sides W and S`, `no allocation per pick` (the 4.3 pattern)); `panic.test.ts` / `decay.test.ts` jitter-area and "nothing appears within spawnClearM of a spawn" tests exempt only a spawn that the appearing box buries (assert that exemption list is exactly the 3 alley mouths).
-- [ ] **T3 Rubble rules** (AC 5; F1–F4)
-  - [ ] Tests `decay/ruins.test.ts` (new): per pile and the alley: `bullet stops at the face`, `melee blocked`, `blast shielded` (`explode` behind a pile), `acid puddle and fire zone don't hurt across it`, `a Walker, a Runner and a Brute path round it` (flow field reaches the far side), `a grenade-launcher round flies over a pile`, `placement refused with cause solid`, `barricade / spike trap / mine / turret on the spot destroyed at the build start with 50 % refund (money.earned reason refund)`, `a player and a zombie standing in the alley at the build start are relocated, nobody left inside a box`.
-  - [ ] Extend the enclosure test (`decay.test.ts` "no enclosed area" and `panic.test.ts` "keeps the map fun") to stages 1–3 × the 45 old masks and stages 4–5 × the 135 gameplay masks (405 Worlds; record the run time with load; `testTimeout` 30 s).
-  - [ ] `apps/client/src/scenes/blockText.ts`: `rubble_*` → "rubble" (+ `blockText.test.ts`).
-- [ ] **T4 Flicker + shop glow** (AC 7, 8; F6)
-  - [ ] `decay.json › ruins` + `balanceSchema.ts` (strict object; min ≤ max; gaps > durations).
-  - [ ] `render/city/lampFlicker.ts › lampOutAt` (pure, no allocation) + test (windows, gaps 4–10 s, durations 0.15–0.6 s over 10 min of ticks, same seed → same pattern, two lamps differ).
-  - [ ] `CityView`: a pool of 11 `lampDark` images (MULTIPLY blend, depth `DYN_LIGHT_DEPTH`, below characters; check the Phaser 4 blend-mode constant in `node_modules/phaser/types`), positioned at `dressing.lamps`, visible only while `lampOutAt` is true at stage 4 with the power on and `!isBlackout(world)`. Tick source: the World's tick (the mirror follows the server's), so phones agree.
-  - [ ] `palette.ts`: stage-4 `spillK` 0.3; neon × 0.3 at stage 4 (`drawGlow`); `palette.test.ts` contrast test still passes for every stage.
-- [ ] **T5 Ruins look + ambience** (AC 9–11; T0)
-  - [ ] `shared`: `ruinsLookAt(world)` (`decay/ruinsLook.ts`, exported; pure).
-  - [ ] `drawCity.ts`: `blocks` branch draws rubble with the run's material (alley heap, piles); `PROP_DUMPSTER` stays for the dumpster; breaches from `breach` spawn points; diner roof corner at stage ≥ 4 (a dressing entry `ruinedRoofs`); RU4 soot/embers. `stageFilter.ts › staticKey` gains the look id, so the wave-11 switch to RU4 rebakes once.
-  - [ ] `CityView` / a small `DustView`: the pooled dust puffs + the stage-4 collapse burst (AC 11).
-  - [ ] `audio/ambience.ts`: `ruins` loop (synth placeholder) + `ambienceLoopForStage`; `placeholderSfx.ts`: `ruins_rumble`, `debris_fall`. Tests `ambience.test.ts` (+ stage 4 → ruins, crossfade from panic).
-  - [ ] Readability sheet (`docs/playtests/milestone-1/readability-sheet.md`): rubble pile ("does it stop bullets?" yes), collapsed alley, breach hole.
-- [ ] **T6 Fuzz, sims, perf** (brief 7, 9, 12, 16)
-  - [ ] `zombies/downtown.fuzz.test.ts` (extend): stages 4–5 × random gameplay masks × random barricade layouts × ≥ 3,000 ticks with Brutes: no body inside a box (rubble included), no stall, zombies from both breaches reach a player, flow fields rebuild walls only at build starts; liveness: ≥ 1 zombie from each breach, ≥ 1 building destroyed by rubble with a refund.
-  - [ ] Sim: the 10-wave sim (6.1) or `decayStageByWave` override reaches stage 4: assert the alley closed, a breach used.
-  - [ ] Bake time at stage 4 (record `CityView.bakeMs` before/after, headless + load) and `?stress=150` FPS with stage 4 forced (decay cheat), flicker and dust on.
+- [x] **T0 Art (from the picks; no new pick).** `docs/epic-6-decisions.md` › section 1 Ruins: **all four** RU1–RU4, one material per run (decay stream), RU4 the endless look. Port `rubblePile`, `chunk`, `brick`, `rebarStick`, `beamPiece`, `dustSkirt`, `gravel`, `brokenRoof`, `breach`, `soot`, `dustFx`/`stepDust`/`drawDust`, `lampDark` and the `MATS` table from `docs/art/epic-6/src/main1.js` (+ helpers from `lib.js`) into game code: `apps/client/src/render/city/ruinsArt.ts` (pure canvas painters, seeded by object name hash: same pile looks the same every bake). Bake-time drawing goes into the city bake (registered as `city_static_*`, Story 4.13: covered by `invalidateBake`); the dust and lamp-out sprites are frames in the FX atlas (`ATLAS_FX`, `addGeneratedTexture` via `ensureAtlases`). Screenshot all four materials at 1240 and 390 px (like `docs/art/epic-6/ingame/ru-*.png`) for the designer's review.
+- [x] **T1 Map data + loader** (AC 1–3)
+  - [x] `map/districtMap.ts`: `DECAY_ACTIONS` += `"look"`; `SPAWN_KINDS` += `"breach"`.
+  - [x] `map/loadTiledMap.ts`: `look` = a point with `variant`/`group`/`pick` (fail without), no target, no box; `breach` spawns need a `jitterAxis` (like windows).
+  - [x] `map/obstacles.ts › fillObstacles`: skip `look` (it never adds/removes anything); `rubblePiles(o, out)` helper (AC 6).
+  - [x] `tools/maps/buildDowntown.ts`: the objects of AC 1 appended after the 4.8 fires; update the header diagrams and the "Stages 4–5: none yet" comment; regenerate the three map files.
+  - [x] `decay/decayState.ts`: `legalDecayMasks(map, { gameplayOnly })` (skip groups whose objects are all `look`), so the enclosure tests walk 45 × 3 = 135 gameplay combinations, not × 3 looks more.
+  - [x] Tests: `loadTiledMap.test.ts` (+ `look` parsed, `look` without variant refused, `breach` kind), `downtown.test.ts` (+ the generated files agree; 2 breaches at `minStage` 4; 3 alley candidates, 1 picked), `decay.test.ts` DecayTimeline (+ **every old seed keeps its car and fire bits** (bits 0–8 equal before/after for seeds 1–256), exactly 1 alley and 1 look per run, each candidate occurs).
+- [x] **T2 Buried spawns + breaches** (AC 3, 4; F5)
+  - [x] `waves/spawnPick.ts`: buried cache keyed by `obstacles.version`; CLOSED for a buried point; `SPAWN_STATE` unchanged (CLOSED reused).
+  - [x] Tests `spawnPick.test.ts` (+ `the collapsed alley's mouth is CLOSED at stages 4–5 and OPEN at 1–3`, `both breaches OPEN at 4, CLOSED at 1–3`, `breach sides W and S`, `no allocation per pick` (the 4.3 pattern)); `panic.test.ts` / `decay.test.ts` jitter-area and "nothing appears within spawnClearM of a spawn" tests exempt only a spawn that the appearing box buries (assert that exemption list is exactly the 3 alley mouths).
+- [x] **T3 Rubble rules** (AC 5; F1–F4)
+  - [x] Tests `decay/ruins.test.ts` (new): per pile and the alley: `bullet stops at the face`, `melee blocked`, `blast shielded` (`explode` behind a pile), `acid puddle and fire zone don't hurt across it`, `a Walker, a Runner and a Brute path round it` (flow field reaches the far side), `a grenade-launcher round flies over a pile`, `placement refused with cause solid`, `barricade / spike trap / mine / turret on the spot destroyed at the build start with 50 % refund (money.earned reason refund)`, `a player and a zombie standing in the alley at the build start are relocated, nobody left inside a box`.
+  - [x] Extend the enclosure test (`decay.test.ts` "no enclosed area" and `panic.test.ts` "keeps the map fun") to stages 1–3 × the 45 old masks and stages 4–5 × the 135 gameplay masks (405 Worlds; record the run time with load; `testTimeout` 30 s).
+  - [x] `apps/client/src/scenes/blockText.ts`: `rubble_*` → "rubble" (+ `blockText.test.ts`).
+- [x] **T4 Flicker + shop glow** (AC 7, 8; F6)
+  - [x] `decay.json › ruins` + `balanceSchema.ts` (strict object; min ≤ max; gaps > durations).
+  - [x] `render/city/lampFlicker.ts › lampOutAt` (pure, no allocation) + test (windows, gaps 4–10 s, durations 0.15–0.6 s over 10 min of ticks, same seed → same pattern, two lamps differ).
+  - [x] `CityView`: a pool of 11 `lampDark` images (MULTIPLY blend, depth `DYN_LIGHT_DEPTH`, below characters; check the Phaser 4 blend-mode constant in `node_modules/phaser/types`), positioned at `dressing.lamps`, visible only while `lampOutAt` is true at stage 4 with the power on and `!isBlackout(world)`. Tick source: the World's tick (the mirror follows the server's), so phones agree.
+  - [x] `palette.ts`: stage-4 `spillK` 0.3; neon × 0.3 at stage 4 (`drawGlow`); `palette.test.ts` contrast test still passes for every stage.
+- [x] **T5 Ruins look + ambience** (AC 9–11; T0)
+  - [x] `shared`: `ruinsLookAt(world)` (`decay/ruinsLook.ts`, exported; pure).
+  - [x] `drawCity.ts`: `blocks` branch draws rubble with the run's material (alley heap, piles); `PROP_DUMPSTER` stays for the dumpster; breaches from `breach` spawn points; diner roof corner at stage ≥ 4 (a dressing entry `ruinedRoofs`); RU4 soot/embers. `stageFilter.ts › staticKey` gains the look id, so the wave-11 switch to RU4 rebakes once.
+  - [x] `CityView` / a small `DustView`: the pooled dust puffs + the stage-4 collapse burst (AC 11).
+  - [x] `audio/ambience.ts`: `ruins` loop (synth placeholder) + `ambienceLoopForStage`; `placeholderSfx.ts`: `ruins_rumble`, `debris_fall`. Tests `ambience.test.ts` (+ stage 4 → ruins, crossfade from panic).
+  - [x] Readability sheet (`docs/playtests/milestone-1/readability-sheet.md`): rubble pile ("does it stop bullets?" yes), collapsed alley, breach hole.
+- [x] **T6 Fuzz, sims, perf** (brief 7, 9, 12, 16)
+  - [x] `zombies/downtown.fuzz.test.ts` (extend): stages 4–5 × random gameplay masks × random barricade layouts × ≥ 3,000 ticks with Brutes: no body inside a box (rubble included), no stall, zombies from both breaches reach a player, flow fields rebuild walls only at build starts; liveness: ≥ 1 zombie from each breach, ≥ 1 building destroyed by rubble with a refund.
+  - [x] Sim: the 10-wave sim (6.1) or `decayStageByWave` override reaches stage 4: assert the alley closed, a breach used.
+  - [x] Bake time at stage 4 (record `CityView.bakeMs` before/after, headless + load) and `?stress=150` FPS with stage 4 forced (decay cheat), flicker and dust on.
 - [ ] **T7 Gates.** Mutations (e.g. buried rule removed → spawn test; alley box 0.5 m short of a wall → closed-edge/enclosure test; rubble given `building: true` → lob test; flicker gap max 12 s → flicker test; `look` not skipped in `fillObstacles` → obstacle count test) and which tests failed. Browser check (Playwright): solo with the decay-stage cheat at 4 (each alley via `?seed=`), online two tabs with `DEV_DECAY_STAGES=4` and `?lag=150&jitter=20`: same alley, same look, lamps flicker in step on both, "Blocked by rubble", a hidden tab across the build start converges. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
@@ -215,15 +218,156 @@ From `docs/epic-6-decisions.md` § 1 Ruins (designer, 2026-11-24): all four RU1�
 
 ## Dev Agent Record
 
+Merged story **"Ruins and Collapse"** (designer 2026-11-24): Stories 6.2 and 6.4 built as one; this is the one record for both (6-4-collapse.md points here).
+
 ### Agent Model Used
+
+Claude (cloud builder session, branch `story-6-2`).
 
 ### Debug Log References
 
+- Whole-run sims (`sixWaveSim`, `tenWaveSim`, `bossRunSim`) stalled at wave 10 with the first pile layout: `rubble_pile_3` in the east street (33–35 × 12–13.5) left 1 m to the bus and closed the Behemoth's only ≥ 4 m way past the bus; the boss stood at (37, 12.5) at full HP, unreachable. Fix: P3 moved into the gas forecourt (37–39 × 3–4.5). Sims and the Downtown fuzz green after.
+- The decay writer emitted rects before points, so appended stage-4 `block` rects would have taken variant bits 6–8 from the fires. Fix: the decay layer is written in declared order (`Layer.items`); verified: bits 0–8 of seeds 1–256 equal the pre-6.2 picks (pinned in `decay/ruins.test.ts`).
+- Breach positions moved from the story's suggestion: `breach_apartments` (16.0, 10.6) → **(14.0, 10.6)** (at 16.0 `spawnSide` said N, and the 9 m team-start rule failed at 15.5); `breach_offices` (29.4, 26.0) → **(29.4, 29.5)** (at 26.0 the moved `curb_car_south` lands within `spawnClearM` and over its jitter area). Both still on the walls the designer picked (D3), sides W and S, ≥ 9 m from the team start.
+- Alley 2 needed a second box `rubble_alley_2_corner` (10–10.5 × 22–24): the 0.5 m pocket between the heap, the parking wall and the lot's police line was a closed nav edge (an unreachable cell).
+
 ### Completion Notes List
 
+**6.2 Ruins (stage 4)**
+- Map (`tools/maps/buildDowntown.ts`, regenerated): the `ruins_alley` group (3 candidates, wall to wall; alley 3 removes the dumpster), 3 street piles (P1 west street 10–12 × 12–13.5 flush with the north curb car, P2 north street 26.5–28 × 2–4 flush with the forecourt police line, P3 gas forecourt 37–39 × 3–4.5), the `ruins_look` group (3 `look` points), breach spawns (kind `breach`, `minStage` 4), stage-4/5 visual props (loose debris, flat spills, the fallen streetlight).
+- Loader: `look` action (a point that must carry variant/group/pick; box = the point), `breach` spawn kind (needs `jitterAxis`).
+- `legalDecayMasks(map, { gameplayOnly })`: **default true** (look groups skipped: 135 Downtown masks), `{ gameplayOnly: false }` = every full mask; `gameplayVariantMask(map)`. Test-only `decay/masks.testkit.ts › masksForStage` walks 45 masks at stages 1–3 and 135 at 4–5.
+- Buried rule (`waves/spawnPick.ts`): a spawn point inside an active solid is CLOSED; cached per obstacle list + `version` (`spawnPickCounters.buriedRebuilds` proves one rebuild per stage change, none per pick); `isSpawnBuried` exported.
+- Rubble rules come from `block` (walls): `solids` + `shotBlockers`, never `lobBlockers`; `isRubble`, `rubblePiles(o, out)` (no allocation) exported for 6.6.
+- `decay/ruinsLook.ts › ruinsLookAt` (RU1–RU3 from the bit, RU4 in endless = waves past `stageByWave`), `lookPick`, `isEndlessWave`.
+- Client: bake painters ported from the picks (`render/city/ruinsArt.ts`: rubble pile, alley heap, flat spill, broken roof, breach hole, soot, loose debris; dead lamp head, fallen lamp, flood puddle), drawn in `drawCity.ts › drawOverlay` with the run's material; `staticKey` gains `lookKey` (material + style: one rebake per switch, verified in the browser: `bakeCount` 1 → 2); lamp flicker (`render/city/lampFlicker.ts › lampOutAt`, keyed to run seed + lamp + World tick; 11 MULTIPLY `FX_LAMP_DARK` discs in `CityView`, stage 4, power on, no blackout); shop glow `spillK` 0.3 and `neonK` 0.3 at stage 4; dust puffs + collapse burst (`render/city/DustView.ts`, pooled, `decay.json › ruins` caps, halved with `?fx=low`; the burst only on a live `decay.stage_changed` to 4: a frame > 250 ms or a hidden document skips it); ambience `ruins` loop; SFX `ruins_rumble`, `debris_fall`; "Blocked by rubble" (`blockText.ts`, prefix rule).
+
+**6.4 Collapse (stage 5)**
+- `decay.json`: `blackout.lightPctByWave` waves 9/10 = 10/5, `halfDarkInBuild: true` (6.3's `refreshBlackout` already handled the build case: no code change there), new `collapse` block (`powerOutFromStage`, `fog` radii, growl gap, ash cap) and `ruins` block; strict schemas with defaults.
+- `decay/collapse.ts`: `isPowerOut`, `fogRadiiOf` (wave 9/10, build 13/14, Infinity below stage 5 and outside build/wave), `fogVisibility` (beams via `inFlashlightCone`), `collapseStyleAt` (run pick ≤ wave 10, endless rotation), `createFogRadii/createFogBeam`.
+- Aim assist (`combat/aimAssist.ts`): optional `shooter` argument (x, y, gear); a candidate with `fogVisibility` 0 from the shooter (own beam along the aim) is skipped; the Behemoth is never fogged. Passed by `combat/firing.ts` (server/solo) and `NetSimHost.localAttack` (my prediction).
+- Client: `render/fog/screenFog.ts` (my screen's fog: viewer = camera's survivor, spectated teammate when out; every STANDING survivor's beam at its drawn pose), `ZombieView` (alpha × visibility, hidden at 0 → no eyes, BossView's dim rule sees it as not drawn), `EyesView` (eye alpha follows), `AcidView` (spit globs hidden in fog; puddles never), `render/fog/FogView.ts` (painted into 6.3's darkness canvas via `DarknessView.fog` after the stamps, before the tints, beams cut out; CO2 noise thins the mask; geometry bands beyond `clearM` only when no darkness is drawn), power-out bake (`dressing.ts › powerOff`, dead lamp heads, broken lamp hidden), CO3 ash in the rain pool, CO4 heavier rain + baked puddles, CO3 orange sky glow; ambience `collapse` / `collapse_ash`.
+
+**Tests added**: `decay/ruins.test.ts` (F1–F5 + old seeds + looks are no-ops), `decay/collapse.test.ts` (F1–F4, D7, blackout run 8→9→10), `zombies/ruins.fuzz.test.ts` (12 layouts × 3,000 ticks, stages 4–5, both breaches, rubble refunds), loader cases in `decay/decay.test.ts`; client `lampFlicker.test.ts`, `ruinsLook.test.ts`, `render/fog/fog.test.ts`, ambience and blockText cases. Updated for the new map: decay, panic, fireSafety, obstacles, evening, downtown, loadTiledMap, spawnPoints, lightState, downtown.fuzz (stages 1–3: 45 masks), palette, NetSimHost move/repair/sell (their barricade spot sat within the new breach's 2 m clearance).
+
+**Browser (Playwright, headless Chromium, solo dev build on port 5391)**: stage 4 via `?startwave=7` (no console errors; rubble, breach holes, caved diner roof, all four materials RU1–RU4 by bake dump; lamps out counted 2; collapse burst puffs), stage 5 via `?startwave=9` (power out, fallen lamp, half dark in the build, wave 9 fog edge at 9–10 m with ~40–55 zombies hidden, all four styles; a style switch rebaked once). Screenshots: `docs/art/epic-6/ingame/build/` (ru1–ru4 bake at 1240, ru build 844 × 390, co1–co4 wave 9 at 1240, co2 at 844 × 390).
+
+**Perf**: `docs/perf/epic-6-blackout.md` › "Stories 6.2 + 6.4": stage 4 ≈ baseline (16.1 vs 16.5 fps), fog −7 % on top of the blackout (12.1 → 11.2 fps), load 0.8–2.2; stage-4 bake 180–220 ms headless.
+
+**Mutations** (brief 9): all 11 caught (each mutation applied alone, its tests run, restored): buried rule removed → ruins.test (2 failing); rubble in `lobBlockers` → ruins.test (2); flicker gap max 12 s → lampFlicker.test (1); `look` treated as `block` → ruins/decay tests (2); fog wave clear 9 → 9.5 → collapse.test (2); teammates' beams ignored → fog.test (1); aim-assist fog filter removed → collapse.test (2); `halfDarkInBuild` false → collapse.test (1); power out from stage 4 → collapse.test (1); fog geometry drawn while the darkness is on → fog.test (1); alley-2 corner box removed (map regenerated) → decay + panic enclosure tests (2); Not mutated: alley box 0.5 m short of a wall (the corner-box mutation covers the closed-edge test the same way).
+
+**Gate** (branch merged with `origin/master` eb3b991, after `npm ci` for master's new `@napi-rs/canvas`): `npm run typecheck && npm run lint && npm test && npm run build` green — 354 test files passed (1 skipped), 3,266 tests passed (3 skipped), 399 s; build OK. Load 0.74 at the start, 4.39 at the end (1-min; this builder only, the test run itself).
+
+### Notes for the merge (every shared file touched)
+
+- `tools/maps/buildDowntown.ts` + the three generated maps (`tools/maps/downtown.tmx`, `apps/client/public/assets/maps/downtown.tmj`, `packages/shared/src/map/data/downtown.tmj.json`): regenerate (`npx tsx tools/maps/buildDowntown.ts`), never hand-merge. The decay layer is now written in **declared order** (`Layer.items`); new decay objects must be appended at the end of `decay`. Map version hash changed (any fixture pinning it or a stage-4+ digest changes).
+- **Rubble for 6.6 (charge crash, D1):** rubble boxes are `block` walls named `rubble_*`. They are already in `world.obstacles.solids` (bodies, the nav / wide / boss grids via `applyDecayStage`), `world.obstacles.walls` and `world.obstacles.shotBlockers`; NOT in `lobBlockers`, no `building` flag. A charge that tests `world.obstacles.solids` (or walls) crashes into rubble with no special case. `isRubble(box)` and `rubblePiles(world.obstacles, out)` (from `@topdown/shared`, no allocation) give the active rubble for the throw's chunk. Rubble appears only at the stage-4 build start, never mid-wave.
+- **Behemoth corridor:** P3 was moved out of the east street because it closed the boss's only ≥ 4 m way past the bus (whole-run sims stalled). If 6.6 changes the boss body or paths, re-run `bossRunSim`, `tenWaveSim`, `sixWaveSim` at stages 4–5.
+- `map/districtMap.ts`: `DECAY_ACTIONS` += `look`, `SPAWN_KINDS` += `breach` (append-only). `map/loadTiledMap.ts`: `look` parsing, breach needs `jitterAxis`; `loadDecayLayer` takes `mPerPx`.
+- `map/obstacles.ts`: `RUBBLE_PREFIX`, `isRubble`, `rubblePiles` appended; `fillObstacles` unchanged (looks are never read).
+- `decay/decayState.ts`: **`legalDecayMasks` now defaults to gameplay-only** (looks skipped) — callers that wanted every full mask pass `{ gameplayOnly: false }`; `gameplayVariantMask` added.
+- `waves/spawnPick.ts`: buried rule in `classify` (CLOSED reused), `isSpawnBuried`, `spawnPickCounters`. 6.5/6.8 side readers unaffected.
+- `combat/aimAssist.ts`: new optional last argument `shooter: AimShooter | null` (fog filter); `combat/firing.ts` passes the player. 6.6 needn't change it (the boss branch is untouched and never fogged).
+- `config/balance/decay.json` + `config/balanceSchema.ts`: `blackout.lightPctByWave` [.., 10, 5], `blackout.halfDarkInBuild: true`; new `ruins` and `collapse` blocks (strict, defaults). 6.10 / 6.12 add their own keys/blocks.
+- `decay/lightState.ts`: **not touched** (refreshBlackout already did the build half-dark case); `lightState.test.ts` updated for the new values.
+- `index.ts` (shared): exports appended (ruinsLook, collapse, obstacles helpers, `gameplayVariantMask`, `isSpawnBuried`).
+- Client `render/city/CityView.ts` (constructor gains `runSeed`; lamp-dark pool; ash; looks into the bake), `drawCity.ts` (`CityScene` optional `ruinsLook`, `collapseStyle`, `powerOut`, `lowFx`; overlay rubble/props/breaches/roofs; lightmap/glow via `powerOff`; neonK), `dressing.ts` (`ruinedRoofs`, `floodPuddles`, `powerOff`), `palette.ts` (`neonK`; stage-4 `spillK` 0.3), `stageFilter.ts` (`staticKey` 4th arg, `lookKey`), `spriteAtlas.ts` (FX frames `lampdark`, `dust`, `grit`, `ash` appended).
+- Client `render/darkness/DarknessView.ts`: a `fog` hook called inside `paint` after the stamps, before the tints (6.10 / 6.12 / 6.11 dawn: keep it). `EyesView.ts`: eye alpha × the zombie's alpha. `fakeScene.testkit.ts`: `createImageData`, `putImageData`, `createPattern` added.
+- Client `render/ZombieView.ts` (`fog` field, `fogHidden`), `render/AcidView.ts` (`fog` field), `scenes/GameScene.ts` (ScreenFog/FogView/DustView create/destroy, `updateScreenFog` before the zombie view, fog before the darkness paint, collapse burst on `decay.stage_changed`, ambience style), `sim/NetSimHost.ts` (aim-assist shooter), `scenes/blockText.ts` (rubble word), `audio/ambience.ts` (`AMBIENCE_LOOPS` append-only: ruins, collapse, collapse_ash; `ambienceLoopForStage(stage, style)`, `update(stage, style)`), `audio/placeholderSfx.ts` (`ruins_rumble`, `debris_fall`).
+- Docs: `docs/perf/epic-6-blackout.md` (new section), `docs/playtests/milestone-1/readability-sheet.md` (#50–54, renumbered after master's #49), screenshots in `docs/art/epic-6/ingame/build/`.
+
+### Not verified
+
+- Online: two tabs with `DEV_DECAY_STAGES=4/5`, `?lag=150&jitter=20` (same alley / look / style / darkness, lamps flickering in step, a teammate's beam revealing on both), a hidden tab across the wave-7 / wave-9 build start, a late join mid-wave 10 — not run (no server session in this container run); the design makes them follow server truth (stage, variants, wave, tick, blackoutPct are synced; flicker keys on the server's tick and run seed), but this is unproven in a browser.
+- The collapse-burst skip on a woken tab is a heuristic (frame > 250 ms or `document.hidden`), not browser-tested.
+- Aim-assist parity server = Predictor at stage 5 has no dedicated client test (the shared rule is tested on the server path; `NetSimHost.localAttack` passes the same shooter shape).
+- `?fx=low` fog look and CO4 reflections off: not screenshotted (the visibility-equality test covers the rule).
+- Phone FPS (Mi 11i) not measured; headless only. 568 × 320 / 800 × 360 readability shots of fog not taken (844 × 390 and 1240 wide were).
+- Designer review of the ported looks (rubble reads darker/browner under the stage-4 light than the lab cards; the alley heap is a chain of mounds).
+
 ### File List
+
+- M `_bmad-output/implementation-artifacts/6-2-ruins.md`
+- M `_bmad-output/implementation-artifacts/6-4-collapse.md`
+- M `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- M `apps/client/public/assets/maps/downtown.tmj`
+- M `apps/client/src/audio/ambience.test.ts`
+- M `apps/client/src/audio/ambience.ts`
+- M `apps/client/src/audio/placeholderSfx.ts`
+- M `apps/client/src/render/AcidView.ts`
+- M `apps/client/src/render/ZombieView.ts`
+- M `apps/client/src/render/city/CityView.ts`
+- A `apps/client/src/render/city/DustView.ts`
+- M `apps/client/src/render/city/drawCity.ts`
+- M `apps/client/src/render/city/dressing.ts`
+- A `apps/client/src/render/city/lampFlicker.test.ts`
+- A `apps/client/src/render/city/lampFlicker.ts`
+- M `apps/client/src/render/city/palette.test.ts`
+- M `apps/client/src/render/city/palette.ts`
+- A `apps/client/src/render/city/ruinsArt.ts`
+- A `apps/client/src/render/city/ruinsLook.test.ts`
+- M `apps/client/src/render/city/spriteAtlas.ts`
+- M `apps/client/src/render/city/stageFilter.test.ts`
+- M `apps/client/src/render/city/stageFilter.ts`
+- M `apps/client/src/render/darkness/DarknessView.ts`
+- M `apps/client/src/render/darkness/EyesView.ts`
+- M `apps/client/src/render/darkness/fakeScene.testkit.ts`
+- A `apps/client/src/render/fog/FogView.ts`
+- A `apps/client/src/render/fog/fog.test.ts`
+- A `apps/client/src/render/fog/screenFog.ts`
+- M `apps/client/src/scenes/GameScene.ts`
+- M `apps/client/src/scenes/blockText.test.ts`
+- M `apps/client/src/scenes/blockText.ts`
+- M `apps/client/src/sim/NetSimHost.move.test.ts`
+- M `apps/client/src/sim/NetSimHost.repair.test.ts`
+- M `apps/client/src/sim/NetSimHost.sell.test.ts`
+- M `apps/client/src/sim/NetSimHost.ts`
+- M `apps/server/src/rooms/RunRoom.buildings.test.ts`
+- M `apps/server/src/run/devStartWave.test.ts`
+- A `docs/art/epic-6/ingame/build/co1-wave9-1240.png`
+- A `docs/art/epic-6/ingame/build/co2-wave9-1240.png`
+- A `docs/art/epic-6/ingame/build/co2-wave9-390.png`
+- A `docs/art/epic-6/ingame/build/co3-wave9-1240.png`
+- A `docs/art/epic-6/ingame/build/co4-wave9-1240.png`
+- A `docs/art/epic-6/ingame/build/ru-build7-390.png`
+- A `docs/art/epic-6/ingame/build/ru1-bake-1240.png`
+- A `docs/art/epic-6/ingame/build/ru2-bake-1240.png`
+- A `docs/art/epic-6/ingame/build/ru3-bake-1240.png`
+- A `docs/art/epic-6/ingame/build/ru4-bake-1240.png`
+- M `docs/perf/epic-6-blackout.md`
+- M `docs/playtests/milestone-1/readability-sheet.md`
+- M `packages/shared/src/combat/aimAssist.ts`
+- M `packages/shared/src/combat/firing.ts`
+- M `packages/shared/src/config/balance/decay.json`
+- M `packages/shared/src/config/balanceSchema.ts`
+- A `packages/shared/src/decay/collapse.test.ts`
+- A `packages/shared/src/decay/collapse.ts`
+- M `packages/shared/src/decay/decay.test.ts`
+- M `packages/shared/src/decay/decayState.ts`
+- M `packages/shared/src/decay/fireSafety.test.ts`
+- M `packages/shared/src/decay/lightState.test.ts`
+- A `packages/shared/src/decay/masks.testkit.ts`
+- M `packages/shared/src/decay/panic.test.ts`
+- A `packages/shared/src/decay/ruins.test.ts`
+- A `packages/shared/src/decay/ruinsLook.ts`
+- M `packages/shared/src/index.ts`
+- M `packages/shared/src/map/data/downtown.tmj.json`
+- M `packages/shared/src/map/districtMap.ts`
+- M `packages/shared/src/map/downtown.test.ts`
+- M `packages/shared/src/map/evening.test.ts`
+- M `packages/shared/src/map/loadTiledMap.test.ts`
+- M `packages/shared/src/map/loadTiledMap.ts`
+- M `packages/shared/src/map/obstacles.test.ts`
+- M `packages/shared/src/map/obstacles.ts`
+- M `packages/shared/src/waves/spawnPick.ts`
+- M `packages/shared/src/waves/spawnPoints.test.ts`
+- M `packages/shared/src/zombies/downtown.fuzz.test.ts`
+- A `packages/shared/src/zombies/ruins.fuzz.test.ts`
+- M `tools/maps/buildDowntown.ts`
+- M `tools/maps/downtown.tmx`
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: built together with 6.4 as the merged story "Ruins and Collapse" (branch story-6-2); status review.
