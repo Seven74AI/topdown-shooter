@@ -1,0 +1,52 @@
+# NETWORK PASS BRIEF
+
+Written 2026-11-24 for the Network pass (Stories **8.8, 8.9, 8.1, 8.10, 8.11**; designer 2026-11-24: built right after Epic 6 and before Epic 7; `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-24-network-pass.md`, audit `docs/perf/network-audit-2026-11.md`). It replaces the EPIC 6 BRIEF for these five stories. Lines 1–12 carry the relevant EPIC 6 BRIEF lines over (`docs/epic-6-brief.md`, numbers in brackets); lines 13–24 are new for the Network pass.
+
+Paste the block below verbatim into every Network pass builder and reviewer prompt, together with the story file, `docs/network-pass-decisions.md` and `docs/perf/network-audit-2026-11.md`.
+
+```
+NETWORK PASS BRIEF (Epic 6 brief lines that still apply + network specifics; reviewers: check each line)
+1. [E6 1] Builders run in their own CLOUD SESSION (branch story-8-x, one container each; HANDOFF §3). Never `npm run dev` with fixed ports; assigned ports only; stop processes by PID (the lag proxy, the server and the bots too). Before "done": git status clean; typecheck && lint && test && build on your branch merged with the current master. While building run only the touched areas' tests; ONE full gate at the end.
+2. [E6 2] Every copy of a state field is listed and touched: World → schema (RunState.ts) → syncState → stateView key lists → fakeRoom → mirror → Predictor → devThrottle StateCopy → snapshotWorld → bots (tools/bots/botClient.ts). A wire-format change also lists: hordeFormat → hordeEncoder → hordeDecoder → hordeBuffer → devThrottle (THROTTLE_BYTES_MAX) → botClient → tools/netaudit/hordeEncodings.ts.
+3. [E6 3] FAIRNESS RULE FIRST: each story's player-visible rule ("Fairness / player-visible rule" list) is written before building, and each rule is a test.
+4. [E6 4] Reviewers: BEAT THE RULE. Try to exploit each change as a player (and as a cheater with a modified client) would; the story's "Beat the rule" list is the start, not the end; list every attempt and its result.
+5. [E6 8] Same seed + input log → same snapshotWorld digest. Netcode changes never change the simulation: replays (Story 4.4) and every sim test stay green without new golden files, unless the story says so (8.1's hold/freeze changes the World and says how).
+6. [E6 9] Liveness: every netsim / bot / replay test asserts something really happened (shots fired and hits counted, stalls injected and counted, frames decoded, a bot dropped AND came back, keyframes sent). Reviewers mutate each new test once and list which mutations failed.
+7. [E6 10] Timers count ticks on the server and in shared code; client timing (render delay, playback rate, watchdog) counts ms of the frame clock. No per-tick/per-frame allocation (encoders, decoders, the throttle, the clock and the delay are preallocated). Netcode numbers live in netConfig.ts / limits.ts / constants.ts with a comment saying which story and measurement set them, never inline; gameplay numbers stay in balance JSON.
+8. [E6 11] Bandwidth: report added or saved B/s per phone with the method; total ≤ 30 KB/s per phone (NFR4), horde ≤ 24 KB/s (8.10 lowers the horde budget to the measured new worst case).
+9. [E6 14] Lag/lifecycle: test under ?lag=150&jitter=20 AND the lossy line (&loss=1 from 8.8), after a hidden tab slept across a build start, across a boss telegraph / event start / vote, on a late Game scene start, and (from 8.1) across a reconnect.
+10. [E6 16] Perf: tick asserts behind PERF_ASSERT=1, at load < 1, record the load; server p99 added by the pass ≤ 1 ms total (rewind rows, encoder delta state, hold bookkeeping).
+11. [E6 17, 18] Phaser 4 ≠ 3 (check node_modules/phaser/types); Colyseus 0.18.29: check every API in node_modules (server: @colyseus/core/build/Room.d.ts; client: @colyseus/sdk/build/Room.d.ts, Reconnection.d.ts), this.net.guard for messages, ServerError(526) for join refusals only; the per-client guard drops > ~10 non-input msgs/s silently. Dev switches, never hand-edited config; say plainly what you did not verify (real phones, real 4G, iOS Safari).
+12. [E6 19, 29, 32] Write "Notes for the merge" for each shared file. Every medium/high fix gets a re-review by a fresh agent before master. HAND-BACK: when your branch is pushed and the gate is green, send_message to "@parent" with branch, commit, the master commit you merged, gate result with load, the before/after measurement table, "Notes for the merge" and "Not verified"; then stop. Before you build and before you review, read decision-log lines newer than the story file (git log docs/network-pass-decisions.md docs/epic-6-decisions.md).
+
+NETWORK PASS SPECIFICS
+13. MEASURE BEFORE AND AFTER, SAME LINE, SAME SEEDS. Every story's ACs carry harness/bot numbers. Run the "before" on the master you branched from and the "after" on your branch with the same seeds, line (150 ms ± 10 ms; lossy = 1 % × 200 ms stalls, and 2 %) and load; put both in the story's measurement table and in docs/perf/network-pass-2026-11.md (one section per story). A number without its "before" is not evidence.
+14. THE LOSSY LINE IS THE TEST LINE. After 8.8, every network AC is checked on the clean line AND the lossy line (`?lag=150&jitter=20&loss=1`, `npm run bots -- --lag 150 --jitter 20 --loss 1`, harness `loss: { pct: 1, stallMs: 200 }`). The loss model is TCP-like: an ordered head-of-line stall, never a reorder, never a lost message (the socket is reliable).
+15. ZOMBIES ARE THE ONLY REWOUND TARGETS. Players' shots, swings and touch aim assist rewind zombie (and Behemoth) positions only; teammates, buildings and turret shots are never rewound; boss attacks on players always use the player's newest server position (E6 21d). A longer rewind window may never let a shot pass through cover the shooter saw (cover is static) or hit a zombie that was already dead on the server.
+16. NOTHING DRAWN EVER GOES BACKWARDS. The render tick and the server-tick estimate are monotonic on screen; speed changes are bounded (playback 0.9–1.1× unless the story's decision says otherwise); the boss telegraph fill (drawn from the server's start tick, E6 21b) must still end exactly on the hit.
+17. CLEAN LINES DON'T PAY. On a clean 150 ms ± 10 ms line nothing gets worse: render delay stays 100–150 ms, reversed hits ≤ 0.5 %, bytes not higher, no new freezes. A change that only helps the lossy line must be measured on the clean line too.
+18. THE SERVER STAYS THE TRUTH. No client report (queue depth, lateness, "I reconnected", "I hit it") changes the World except through the existing validated input path. A client that lies can only hurt its own picture, never another player's run; anything new a client sends is guarded, rate-limited and logged like inputs.
+19. WIRE FORMATS ARE VERSIONED. A changed binary format (8.10 horde, 8.11 input) carries a version the server checks at join (refused as `ServerError(526, "update_required")` with "Please reload" text), so a tab left open across a deploy never decodes garbage. Round-trip and fuzz tests for every encoder/decoder pair; decoding a bad frame drops it and counts it, never throws.
+20. SAME CLIENT EVERYWHERE. The dev throttle (?lag/&loss), the bots and the netsim harness use the same decoder, the same clock, the same delay and the same step pacing as the real NetSimHost (import them, never copy); `tools/netaudit/hitsLossSim.ts` is merged back and deleted by 8.8.
+21. A DROP IS NOT A LEAVE. Only a consented Leave (☰ → Leave, close code 4000) frees a seat at once; every other close is a drop and goes through 8.1's hold (from 8.1 on). Stale inputs recorded while offline are dropped, never replayed; nothing a phone sent while offline (shop, place, ready) is applied late.
+22. EPIC 6 IS STILL LANDING. Events 6.8–6.10 (car alarm, stampede, gas leak, supply drop, power failure, survivor NPC) and the vote / endless 6.11–6.12 may add state fields, netEvents kinds, horde states and run phases after these story files were written. At build time, grep master for them (stateView key lists, netEvents kinds, RunRoom.onTick's phase gate, hordeFormat states, 6.8's bandwidth test) and include them; do not assume the list in the story file is complete.
+23. iPHONE IS THE HARD CASE, AND WE CAN'T TEST IT HERE. Anything about Safari (WebKit 308073 hung reconnects, 247943 no onclose, background tabs) is built from the bug reports, unit-tested with fakes, and listed under "Not verified" for the designer's 4-phone test (Story 2.10 plan).
+24. TELL THE PLAYER WHAT THE LINE IS DOING, NEVER BLAME THEM. Player-facing text is plain and short ("Connection lost, reconnecting…", "<name> · reconnecting 1:43", "Please reload"); the `?debug=1` overlay gains the new numbers (delay, lateness, playback rate, freezes, keyframes, reconnects); nothing else on the HUD changes.
+```
+
+## Why each new line is there
+
+| Line | Reason |
+| --- | --- |
+| 13 | The audit's numbers are the pass's ACs; "before" on the same seeds and line is the only way to show a change helped (the audit's one-off 500 ms test is the model). |
+| 14 | The dev throttle and bots today model no loss (audit F10); everything that broke in the audit broke only on the lossy line. |
+| 15 | The longer rewind is safe only because zombies are the targets (audit F1); this keeps it that way. |
+| 16 | Audit F5: the clock can step backwards today and rewind the whole picture; a time-stretch must not create a new jump. |
+| 17 | The game is fine on a clean line today (audit §1); the pass must not trade that away. |
+| 18 | 8.9 (queue-depth feedback) and 8.1 (reconnect) add new client→server signals; they must not become cheats. |
+| 19 | 8.10 and 8.11 change binary formats; a stale tab after a deploy is common with share links. |
+| 20 | Audit §3: the harness copy (hitsLossSim) and the bots' missing throttle made measurements diverge from the game. |
+| 21 | Story 8.1 and `docs/ideas/epic-8/decisions.md` D1–D5. |
+| 22 | Epic 6 rounds 2–3 land while these files wait (HANDOFF §2). |
+| 23 | The cloud session has no iPhone; the audit's iOS facts are research only (§8). |
+| 24 | HANDOFF §8: the designer and friends are not technical; the overlay is where the numbers belong. |
