@@ -144,7 +144,7 @@ development_status:
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless
-  epic-6: backlog
+  epic-6: backlog  # story files 6.1–6.12 drafted 2026-11-24 (brief: docs/epic-6-brief.md); stay backlog until the designer confirms docs/epic-6-decisions.md › Story decisions to confirm, then ready-for-dev
   6-1-the-full-10-wave-curve: backlog
   6-2-ruins: backlog
   6-3-blackout-lighting: backlog
