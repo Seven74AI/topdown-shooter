@@ -45,6 +45,10 @@ interface Relief {
   /** Glossiness at a pixel (0 dry … 1 glass / wet paint). */
   spec(x: number, y: number, s: Sample): number;
   readonly seed: number;
+  /** Supersampling: drawn at `ss` × the size, then shrunk (crisper edges, finer detail). Default 1. */
+  readonly ss?: number;
+  /** Darkening along the footprint's inner edge (contact shadow / ambient occlusion), 0–1. */
+  readonly edgeAO?: number;
 }
 
 interface Sample {
@@ -75,33 +79,42 @@ function maskOf(w: number, h: number, draw: (g: G) => void, blur = 0): Float32Ar
 }
 
 function render(o: Relief): HTMLCanvasElement {
-  const { w, h } = o;
-  const foot = maskOf(w, h, (o.layers[0] as Layer).draw);
-  const layers = o.layers.map((l) => ({ m: maskOf(w, h, l.draw, l.blur), a: l.amount }));
-  const eng = o.engrave ? maskOf(w, h, o.engrave, 0.6) : null;
-  const engW = o.engrave ? maskOf(w, h, o.engrave, 2.5) : null;
+  const ss = o.ss ?? 1;
+  const w = o.w * ss;
+  const h = o.h * ss;
+  const up = (f: (g: G) => void) => (g: G): void => {
+    g.scale(ss, ss);
+    f(g);
+  };
+  const foot = maskOf(w, h, up((o.layers[0] as Layer).draw));
+  const footSoft = o.edgeAO ? maskOf(w, h, up((o.layers[0] as Layer).draw), 3 * ss) : null;
+  const layers = o.layers.map((l) => ({ m: maskOf(w, h, up(l.draw), l.blur * ss), a: l.amount }));
+  const eng = o.engrave ? maskOf(w, h, up(o.engrave), 0.6 * ss) : null;
+  const engW = o.engrave ? maskOf(w, h, up(o.engrave), 2.5 * ss) : null;
   const regions: Record<string, Float32Array> = {};
-  for (const [k, f] of Object.entries(o.regions ?? {})) regions[k] = maskOf(w, h, f, 0.6);
+  for (const [k, f] of Object.entries(o.regions ?? {})) regions[k] = maskOf(w, h, up(f), 0.6 * ss);
   const H = new Float32Array(w * h);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
+      const fx = x / ss;
+      const fy = y / ss;
       let v = 0;
       for (const l of layers) v += (l.m[i] as number) * l.a;
-      v += (fbm(x / o.grain, y / o.grain, o.seed, 4) - 0.5) * o.detail;
-      if (o.heightAt) v += o.heightAt(x, y);
+      v += (fbm(fx / o.grain, fy / o.grain, o.seed, 4) - 0.5) * o.detail;
+      if (o.heightAt) v += o.heightAt(fx, fy);
       if (eng) v -= (eng[i] as number) * (o.engraveDepth ?? 0.35);
       H[i] = v * (foot[i] as number);
     }
   }
-  const out = canvas(w, h);
-  const og = ctx(out);
-  const img = og.createImageData(w, h);
+  const hi = canvas(w, h);
+  const hg = ctx(hi);
+  const img = hg.createImageData(w, h);
   const d = img.data;
   const L = [-0.5, -0.72, 0.48];
   const ll = Math.hypot(L[0] as number, L[1] as number, L[2] as number);
   const [lx, ly, lz] = [(L[0] as number) / ll, (L[1] as number) / ll, (L[2] as number) / ll];
-  const K = 7;
+  const K = 7 * ss;
   const r: Record<string, number> = {};
   const keys = Object.keys(regions);
   for (let y = 1; y < h - 1; y++) {
@@ -109,6 +122,8 @@ function render(o: Relief): HTMLCanvasElement {
       const i = y * w + x;
       const a = foot[i] as number;
       if (a <= 0.01) continue;
+      const fx = x / ss;
+      const fy = y / ss;
       const dx = ((H[i + 1] as number) - (H[i - 1] as number)) * K;
       const dy = ((H[i + w] as number) - (H[i - w] as number)) * K;
       const nl = Math.hypot(dx, dy, 1);
@@ -120,12 +135,13 @@ function render(o: Relief): HTMLCanvasElement {
       const rz = 2 * nd * nz - lz;
       for (const k of keys) r[k] = (regions[k] as Float32Array)[i] as number;
       const cav = Math.min(1, (engW ? (engW[i] as number) * 1.1 : 0) + Math.max(0, -nz + 0.92) * 0.4);
-      const s: Sample = { h: H[i] as number, cav, r };
-      const [cr, cg, cb] = o.albedo(x, y, s);
-      const sp = Math.pow(Math.max(0, rz), 22) * o.spec(x, y, s);
-      // a soft sky reflection on glossy, upward faces (night city glow)
-      const sky = o.spec(x, y, s) * 0.18 * nz;
-      const lit = 0.32 + 0.9 * diff;
+      const sm: Sample = { h: H[i] as number, cav, r };
+      const [cr, cg, cb] = o.albedo(fx, fy, sm);
+      const gl = o.spec(fx, fy, sm);
+      const sp = Math.pow(Math.max(0, rz), 22) * gl;
+      const sky = gl * 0.18 * nz; // a soft night-sky reflection on glossy, upward faces
+      const ao = footSoft ? 1 - (o.edgeAO ?? 0) * (1 - (footSoft[i] as number)) * 2 : 1;
+      const lit = (0.32 + 0.9 * diff) * Math.max(0.3, ao);
       const k = i * 4;
       d[k] = Math.min(255, cr * lit + sp * 255 + sky * 90);
       d[k + 1] = Math.min(255, cg * lit + sp * 248 + sky * 100);
@@ -133,7 +149,12 @@ function render(o: Relief): HTMLCanvasElement {
       d[k + 3] = Math.round(a * 255);
     }
   }
-  og.putImageData(img, 0, 0);
+  hg.putImageData(img, 0, 0);
+  if (ss === 1) return hi;
+  const out = canvas(o.w, o.h);
+  const og = ctx(out);
+  og.imageSmoothingQuality = "high";
+  og.drawImage(hi, 0, 0, o.w, o.h);
   return out;
 }
 
@@ -317,63 +338,6 @@ function car(variant: number): HTMLCanvasElement {
   return c;
 }
 
-function burntCar(variant: number): HTMLCanvasElement {
-  const L = CAR_L;
-  const W = CAR_W;
-  const P = carParts(L, W);
-  const seed = 300 + variant * 11;
-  const rims = render({
-    w: L,
-    h: W,
-    layers: [{ draw: P.wheels, blur: 2, amount: 0.25 }],
-    detail: 0.3,
-    grain: 2,
-    albedo: (x, y) => mix([40, 34, 30], [96, 70, 50], fbm(x / 4, y / 4, seed, 2)),
-    spec: () => 0.05,
-    seed,
-  });
-  const body = render({
-    w: L,
-    h: W,
-    layers: [
-      { draw: P.body, blur: 12, amount: 0.5 },
-      { draw: P.cabin, blur: 9, amount: 0.3 },
-      { draw: P.roof, blur: 4, amount: 0.1 },
-    ],
-    engrave: (g) => {
-      P.seams(g);
-      P.glass(g); // the glass is gone: holes into the burnt cabin
-    },
-    engraveDepth: 0.55,
-    regions: { glass: P.glass },
-    detail: 0.35,
-    grain: 10,
-    heightAt: (x, y) => -Math.max(0, fbm(x / 18, y / 18, seed + 3, 3) - 0.55) * 1.1,
-    albedo: (x, y, s) => {
-      if (s.r.glass! > 0.5) {
-        // the burnt-out cabin: ash, seat springs
-        let c: Rgb = mix([12, 10, 9], [46, 40, 36], fbm(x / 5, y / 5, seed + 1, 3));
-        if (Math.sin(x * 0.9) > 0.92 || Math.sin(y * 0.9) > 0.94) c = [70, 50, 36];
-        return c;
-      }
-      const n = fbm(x / 10, y / 10, seed + 2, 5);
-      let c: Rgb = mix([20, 17, 15], [58, 50, 44], n);
-      const rust = fbm(x / 7, y / 7, seed + 5, 4);
-      if (rust > 0.55) c = mix(c, [118, 56, 26], cl((rust - 0.55) * 3.5));
-      const ash = fbm(x / 4, y / 4, seed + 8, 3);
-      if (ash > 0.62) c = mix(c, [130, 126, 120], cl((ash - 0.62) * 3));
-      return mix(c, [8, 6, 5], cl(s.cav));
-    },
-    spec: () => 0.06,
-    seed,
-  });
-  const c = canvas(L, W);
-  const g = ctx(c);
-  g.drawImage(rims, 0, 0);
-  g.drawImage(body, 0, 0);
-  return c;
-}
-
 // ─────────────────────────────── the bus ───────────────────────────────
 
 function bus(): HTMLCanvasElement {
@@ -440,168 +404,462 @@ function bus(): HTMLCanvasElement {
   return tex;
 }
 
-// ─────────────────────────────── props ───────────────────────────────
+// ─────────────────────────────── props (round 2: sharper, more detail) ───────────────────────────────
+// Designer: the burnt car, dumpster, pump, rubble and sandbags "look low resolution, not enough details"
+// next to the sawhorses. So: drawn at 3× and shrunk, parts shaded one by one (no blurred blob that melts
+// them together), hard edges with a contact shadow, fine textures, more small parts.
+
+const SS = 3;
+
+/** Point in polygon (flat array x0,y0,x1,y1…). */
+function inPoly(px: number, py: number, pts: readonly number[]): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 2; i < pts.length; j = i, i += 2) {
+    const xi = pts[i] as number;
+    const yi = pts[i + 1] as number;
+    const xj = pts[j] as number;
+    const yj = pts[j + 1] as number;
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function burntCar(variant: number): HTMLCanvasElement {
+  const L = CAR_L;
+  const W = CAR_W;
+  const P = carParts(L, W);
+  const seed = 300 + variant * 11;
+  const cab = P.cabin_;
+  // rims with spokes (the tyres burnt away)
+  const rims = render({
+    w: L,
+    h: W,
+    ss: SS,
+    layers: [{ draw: P.wheels, blur: 0.6, amount: 0.25 }],
+    engrave: (g) => {
+      g.lineWidth = 1.2;
+      for (const wx of [-L * 0.3, L * 0.29]) {
+        for (const s of [-1, 1]) {
+          const cy = s > 0 ? W / 2 - 8 : -W / 2 + 8;
+          for (let k = -18; k <= 18; k += 6) {
+            g.beginPath();
+            g.moveTo(wx + k, cy - 5);
+            g.lineTo(wx + k, cy + 5);
+            g.stroke();
+          }
+        }
+      }
+    },
+    detail: 0.2,
+    grain: 1.5,
+    albedo: (x, y, s) => mix(mix([44, 38, 34], [110, 80, 56], fbm(x / 2, y / 2, seed, 3)), [10, 8, 7], cl(s.cav)),
+    spec: () => 0.15,
+    seed,
+  });
+  const body = render({
+    w: L,
+    h: W,
+    ss: SS,
+    edgeAO: 0.35,
+    layers: [
+      { draw: P.body, blur: 3, amount: 0.5 },
+      { draw: P.cabin, blur: 2.5, amount: 0.28 },
+      { draw: P.roof, blur: 1.5, amount: 0.06 }, // the roof sagged in the heat
+    ],
+    engrave: (g) => {
+      P.seams(g);
+      P.glass(g); // the glass is gone: holes into the burnt cabin
+      g.lineWidth = 1;
+      // buckled panels: short creases
+      const r = rng(seed + 1);
+      for (let i = 0; i < 14; i++) {
+        const x = (r() - 0.5) * L * 0.85;
+        const y = (r() - 0.5) * W * 0.6;
+        const a = r() * TAU;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + Math.cos(a) * 10, y + Math.sin(a) * 10);
+        g.stroke();
+      }
+    },
+    engraveDepth: 0.6,
+    regions: { glass: P.glass, lights: (g) => (P.lights.front(g), P.lights.rear(g)) },
+    detail: 0.12,
+    grain: 4,
+    heightAt: (x, y) => -Math.max(0, fbm(x / 20, y / 20, seed + 3, 3) - 0.58) * 0.7,
+    albedo: (x, y, s) => {
+      if (s.r.glass! > 0.5) {
+        // inside: ash, the seat frames' springs, a steering wheel ring
+        let c: Rgb = mix([10, 9, 8], [40, 36, 32], fbm(x / 3, y / 3, seed + 1, 3));
+        const sx = ((x - L / 2) % 7 + 7) % 7;
+        const sy = ((y - W / 2) % 7 + 7) % 7;
+        if (sx < 1.1 || sy < 1.1) c = mix(c, [96, 62, 40], 0.8);
+        const d = Math.hypot(x - (L / 2 + cab.x + cab.w * 0.72), y - (W / 2 - W * 0.14));
+        if (Math.abs(d - 9) < 1.2) c = [80, 60, 44];
+        return c;
+      }
+      if (s.r.lights! > 0.5) return [30, 26, 24]; // melted light housings
+      // charred paint: black flakes over scorched metal, rust blooms, white ash, a band of surviving paint low on the sides
+      const n = fbm(x / 6, y / 6, seed + 2, 5);
+      let c: Rgb = mix([16, 14, 13], [52, 46, 42], n);
+      const flake = fbm(x / 1.8, y / 1.8, seed + 7, 2);
+      if (flake > 0.62) c = mix(c, [74, 68, 62], 0.6);
+      const rust = fbm(x / 5, y / 5, seed + 5, 4);
+      if (rust > 0.52) c = mix(c, [128, 60, 26], cl((rust - 0.52) * 3.2));
+      const ash = fbm(x / 3, y / 3, seed + 8, 3);
+      if (ash > 0.64) c = mix(c, [150, 146, 140], cl((ash - 0.64) * 3.5));
+      const side = Math.abs(y - W / 2) / (W / 2);
+      if (side > 0.78) c = mix(c, hex(CAR_COLORS[variant % CAR_COLORS.length] as string), cl((side - 0.78) * 3) * 0.5 * (fbm(x / 9, y / 3, seed + 9, 3) > 0.5 ? 1 : 0.2));
+      return mix(c, [6, 5, 4], cl(s.cav));
+    },
+    spec: (x, y) => 0.08 + 0.12 * (fbm(x / 6, y / 6, seed + 6, 2) > 0.6 ? 1 : 0),
+    seed,
+  });
+  const c = canvas(L, W);
+  const g = ctx(c);
+  g.drawImage(rims, 0, 0);
+  g.drawImage(body, 0, 0);
+  // broken glass glinting around the car body
+  const r = rng(seed + 12);
+  for (let i = 0; i < 60; i++) {
+    const x = L / 2 + (r() - 0.5) * L * 0.95;
+    const y = r() < 0.5 ? 6 + r() * 6 : W - 12 + r() * 6;
+    g.fillStyle = `rgba(200,215,225,${0.35 + r() * 0.4})`;
+    g.fillRect(x, y, 1, 1);
+  }
+  return c;
+}
 
 function dumpster(): HTMLCanvasElement {
   const N = 96;
   const seed = 600;
+  const lid1 = { x: -41, y: -42, w: 82, h: 40 };
+  const lid2 = { x: -41, y: 3, w: 82, h: 39 };
   return render({
     w: N,
     h: N,
+    ss: SS,
+    edgeAO: 0.4,
     layers: [
-      { draw: rect(-44, -44, 88, 88, 6), blur: 4, amount: 0.5 },
-      { draw: rect(-40, -40, 80, 38, 3), blur: 2, amount: 0.12 }, // lid 1
-      { draw: rect(-40, 4, 80, 36, 3), blur: 2, amount: 0.05 }, // lid 2 (slightly open: lower)
+      { draw: rect(-45, -45, 90, 90, 3), blur: 1.5, amount: 0.5 },
+      { draw: rect(lid1.x, lid1.y, lid1.w, lid1.h, 2), blur: 1, amount: 0.1 },
+      { draw: rect(lid2.x, lid2.y + 3, lid2.w, lid2.h - 3, 2), blur: 1, amount: 0.16 }, // propped open a little: higher at the far edge
+      {
+        // raised ribs pressed into the lids
+        draw: (g) => {
+          for (let x = -33; x <= 33; x += 11) {
+            rect(x - 2, lid1.y + 4, 4, lid1.h - 8, 2)(g);
+            rect(x - 2, lid2.y + 6, 4, lid2.h - 10, 2)(g);
+          }
+        },
+        blur: 0.8,
+        amount: 0.08,
+      },
+      { draw: (g) => [-1, 1].forEach((sx) => rect(sx * 45 - (sx > 0 ? 6 : 0), -30, 6, 60, 1)(g)), blur: 0.8, amount: 0.12 }, // lifting pockets on the sides
     ],
     engrave: (g) => {
-      g.lineWidth = 3;
-      g.beginPath();
-      g.moveTo(-44, 0);
-      g.lineTo(44, 0);
+      g.lineWidth = 2.6;
+      g.beginPath(); // the gap between the lids (dark: the lid stands open)
+      g.moveTo(-44, 0.5);
+      g.lineTo(44, 0.5);
       g.stroke();
-      g.lineWidth = 1;
-      for (let x = -32; x <= 32; x += 16) {
-        g.beginPath(); // lid ribs
-        g.moveTo(x, -38);
-        g.lineTo(x, -6);
-        g.moveTo(x, 6);
-        g.lineTo(x, 38);
-        g.stroke();
+      g.lineWidth = 0.9;
+      g.strokeRect(lid1.x, lid1.y, lid1.w, lid1.h);
+      g.strokeRect(lid2.x, lid2.y, lid2.w, lid2.h);
+      for (const hx of [-30, 0, 30]) {
+        g.beginPath(); // hinges
+        g.arc(hx, -44, 2, 0, TAU);
+        g.fill();
       }
+      // dents
+      g.beginPath();
+      g.ellipse(18, 24, 7, 4, 0.4, 0, TAU);
+      g.stroke();
     },
-    regions: { caps: (g) => [-1, 1].forEach((sx) => [-1, 1].forEach((sy) => rect(sx * 40 - 5, sy * 40 - 5, 10, 10, 2)(g))) },
-    detail: 0.15,
-    grain: 8,
+    engraveDepth: 0.3,
+    regions: {
+      caps: (g) => [-1, 1].forEach((sx) => [-1, 1].forEach((sy) => rect(sx * 41 - 4, sy * 41 - 4, 8, 8, 1.5)(g))),
+      label: rect(-20, 14, 40, 9),
+      graffiti: (g) => {
+        g.lineWidth = 2.2;
+        g.lineCap = "round";
+        g.beginPath();
+        g.moveTo(-34, -30);
+        g.bezierCurveTo(-22, -40, -12, -14, 0, -26);
+        g.bezierCurveTo(8, -34, 14, -18, 26, -28);
+        g.stroke();
+      },
+    },
+    detail: 0.04,
+    grain: 2,
     albedo: (x, y, s) => {
-      if (s.r.caps! > 0.5) return [70, 72, 74];
-      let c: Rgb = mix([34, 62, 44], [54, 88, 62], fbm(x / 12, y / 12, seed, 4));
-      const rust = fbm(x / 5, y / 5, seed + 2, 4);
-      if (rust > 0.6) c = mix(c, [112, 56, 28], cl((rust - 0.6) * 4));
-      return mix(c, [14, 16, 14], cl(s.cav));
+      if (s.r.caps! > 0.5) return mix([56, 58, 60], [96, 98, 100], fbm(x, y, seed, 2));
+      if (s.r.label! > 0.5) return mix([200, 196, 184], [120, 116, 104], cl(fbm(x / 2, y / 2, seed + 4, 2) - 0.3)); // a peeling sticker
+      let c: Rgb = mix([30, 56, 40], [56, 92, 64], fbm(x / 7, y / 7, seed, 4));
+      if (s.r.graffiti! > 0.5) c = mix(c, [210, 210, 214], 0.75);
+      // chipped paint showing bare steel, rust streaks running down from the edges and chips
+      const chip = fbm(x / 2.2, y / 2.2, seed + 2, 3);
+      if (chip > 0.68) c = mix(c, [118, 112, 104], 0.7);
+      const streak = fbm(x / 1.6, y / 14, seed + 3, 3);
+      if (streak > 0.6) c = mix(c, [118, 58, 28], cl((streak - 0.6) * 3));
+      c = mix(c, [60, 50, 36], cl(fbm(x / 10, y / 10, seed + 5, 3) - 0.55) * 1.2); // grime
+      return mix(c, [10, 12, 10], cl(s.cav));
     },
-    spec: () => 0.3,
+    spec: (x, y, s) => (s.r.label! > 0.5 ? 0.2 : 0.3 + 0.2 * fbm(x / 4, y / 4, seed + 6, 2)),
     seed,
   });
 }
 
 function pump(): HTMLCanvasElement {
   const seed = 700;
+  const island = rect(-62, -30, 124, 60, 5);
+  const housing = rect(-24, -17, 48, 34, 3);
   return render({
     w: 128,
     h: 64,
+    ss: SS,
+    edgeAO: 0.35,
     layers: [
-      { draw: rect(-62, -30, 124, 60, 6), blur: 3, amount: 0.15 }, // concrete island
-      { draw: rect(-26, -18, 52, 36, 4), blur: 3, amount: 0.55 }, // pump housing
-      { draw: (g) => [-1, 1].forEach((s) => rect(s * 46 - 5, -5, 10, 10, 5)(g)), blur: 2, amount: 0.4 }, // bollards
+      { draw: island, blur: 1, amount: 0.15 },
+      { draw: housing, blur: 1.5, amount: 0.5 },
+      { draw: rect(-21, -14, 42, 12, 2), blur: 0.6, amount: 0.04 }, // display bezel
+      { draw: (g) => [-1, 1].forEach((s) => (g.beginPath(), g.arc(s * 48, 0, 5.5, 0, TAU), g.fill())), blur: 1.5, amount: 0.45 }, // bollards
+      {
+        // the hose: from the housing round to the nozzle in its holster
+        draw: (g) => {
+          g.lineWidth = 3.2;
+          g.lineCap = "round";
+          g.beginPath();
+          g.moveTo(20, 12);
+          g.bezierCurveTo(36, 26, 44, 4, 30, -6);
+          g.stroke();
+        },
+        blur: 0.8,
+        amount: 0.32,
+      },
+      { draw: rect(24, -12, 10, 6, 1.5), blur: 0.6, amount: 0.38 }, // the nozzle
     ],
     engrave: (g) => {
-      g.lineWidth = 1.2;
-      g.strokeRect(-20, -12, 40, 10); // display
-      g.beginPath();
-      g.arc(14, 10, 4, 0, TAU); // nozzle holster
+      g.lineWidth = 0.8;
+      g.strokeRect(-24, -17, 48, 34);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) g.strokeRect(-18 + j * 6, 3 + i * 4.5, 4, 3); // keypad
+      g.beginPath(); // drain in the island
+      g.arc(-44, 18, 3, 0, TAU);
       g.stroke();
     },
-    regions: { housing: rect(-26, -18, 52, 36, 4), display: rect(-20, -12, 40, 10), bollard: (g) => [-1, 1].forEach((s) => rect(s * 46 - 5, -5, 10, 10, 5)(g)) },
-    detail: 0.12,
-    grain: 6,
-    albedo: (x, y, s) => {
-      if (s.r.display! > 0.5) return [60, 110, 70];
-      if (s.r.bollard! > 0.5) return mix([200, 160, 40], [60, 50, 30], cl(fbm(x / 3, y / 3, seed, 2) - 0.4));
-      if (s.r.housing! > 0.5) return mix(mix([150, 30, 30], [190, 50, 44], fbm(x / 10, y / 10, seed + 1, 3)), [30, 20, 18], cl(s.cav));
-      const c = mix([110, 108, 102], [150, 146, 138], fbm(x / 6, y / 6, seed + 2, 4)); // stained concrete
-      return mix(mix(c, [40, 34, 28], cl(fbm(x / 14, y / 14, seed + 3, 3) - 0.5) * 1.6), [30, 28, 26], cl(s.cav));
+    engraveDepth: 0.2,
+    regions: {
+      housing,
+      display: rect(-19, -12, 38, 8),
+      digits: (g) => {
+        g.font = "bold 7px monospace";
+        g.textBaseline = "middle";
+        g.fillText("1.89 9", -17, -8);
+      },
+      bollard: (g) => [-1, 1].forEach((s) => (g.beginPath(), g.arc(s * 48, 0, 5.5, 0, TAU), g.fill())),
+      hose: (g) => {
+        g.lineWidth = 3.2;
+        g.lineCap = "round";
+        g.beginPath();
+        g.moveTo(20, 12);
+        g.bezierCurveTo(36, 26, 44, 4, 30, -6);
+        g.stroke();
+        rect(24, -12, 10, 6, 1.5)(g);
+      },
+      edge: (g) => {
+        g.lineWidth = 3;
+        roundRect(g, -60.5, -28.5, 121, 57, 4);
+        g.stroke();
+      },
     },
-    spec: (_x, _y, s) => (s.r.display! > 0.5 ? 0.9 : s.r.housing! > 0.5 ? 0.45 : 0.08),
+    detail: 0.05,
+    grain: 2,
+    albedo: (x, y, s) => {
+      if (s.r.digits! > 0.5 && s.r.display! > 0.5) return [150, 255, 160];
+      if (s.r.display! > 0.5) return [20, 40, 26];
+      if (s.r.hose! > 0.5) return [18, 18, 20];
+      if (s.r.bollard! > 0.5) {
+        const band = Math.floor((x + y) / 3) % 2 === 0;
+        return mix(band ? [214, 170, 30] : [24, 22, 20], [70, 60, 40], cl(fbm(x, y, seed, 2) - 0.5));
+      }
+      if (s.r.housing! > 0.5) {
+        let c: Rgb = mix([150, 26, 28], [196, 46, 40], fbm(x / 6, y / 6, seed + 1, 3));
+        if (fbm(x / 1.5, y / 1.5, seed + 8, 2) > 0.7) c = mix(c, [210, 200, 190], 0.5); // scratches
+        return mix(c, [30, 16, 14], cl(s.cav));
+      }
+      // concrete island: stained, oil spots, a chipped yellow painted edge
+      let c: Rgb = mix([104, 102, 96], [152, 148, 140], fbm(x / 3, y / 3, seed + 2, 4));
+      c = mix(c, [30, 26, 22], cl(fbm(x / 9, y / 9, seed + 3, 3) - 0.56) * 2.2);
+      if (s.r.edge! > 0.5 && fbm(x / 2, y / 2, seed + 4, 2) < 0.62) c = mix(c, [210, 168, 40], 0.85);
+      if (hash2(Math.floor(x * 2), Math.floor(y * 2), seed) < 0.03) c = mix(c, [60, 58, 54], 0.5); // aggregate
+      return mix(c, [24, 22, 20], cl(s.cav));
+    },
+    spec: (_x, _y, s) => (s.r.display! > 0.5 ? 0.9 : s.r.hose! > 0.5 ? 0.5 : s.r.housing! > 0.5 ? 0.5 : 0.06),
     seed,
   });
 }
 
-/** A heap of broken concrete, bricks and rebar (the generic blockage). */
+/** A heap of broken concrete slabs, bricks and rebar, each chunk lit as flat faces (crisp edges). */
 function block(): HTMLCanvasElement {
   const N = 96;
   const seed = 800;
   const r = rng(seed);
-  const chunks: [number, number, number, number][] = [];
-  for (let i = 0; i < 26; i++) chunks.push([(r() - 0.5) * 70, (r() - 0.5) * 70, 8 + r() * 13, r() * TAU]);
-  const chunkPath = (g: G, [x, y, s, a]: [number, number, number, number]): void => {
-    g.beginPath();
-    for (let k = 0; k < 6; k++) {
-      const t = a + (k / 6) * TAU;
-      const q = s * (0.7 + hash2(k, Math.round(x), seed) * 0.5);
-      if (k) g.lineTo(x + Math.cos(t) * q, y + Math.sin(t) * q);
-      else g.moveTo(x + Math.cos(t) * q, y + Math.sin(t) * q);
+  type Chunk = { pts: number[]; cx: number; cy: number; a: number; b: number; z: number; brick: boolean };
+  const chunks: Chunk[] = [];
+  for (let i = 0; i < 34; i++) {
+    const big = i < 10;
+    const cx = (r() - 0.5) * (big ? 50 : 78);
+    const cy = (r() - 0.5) * (big ? 50 : 78);
+    const s = big ? 12 + r() * 9 : 4 + r() * 7;
+    const brick = !big && r() < 0.35;
+    const pts: number[] = [];
+    const n = brick ? 4 : 5 + Math.floor(r() * 3);
+    const rot = r() * TAU;
+    for (let k = 0; k < n; k++) {
+      const t = rot + (k / n) * TAU + (brick ? 0 : (r() - 0.5) * 0.5);
+      const q = brick ? s * (k % 2 ? 0.55 : 1) : s * (0.65 + r() * 0.45);
+      pts.push(cx + Math.cos(t) * q, cy + Math.sin(t) * q);
     }
+    // each chunk is a tilted plane: height = z + a·dx + b·dy (big ones sit higher, on top of the heap)
+    chunks.push({ pts, cx, cy, a: (r() - 0.5) * 0.05, b: (r() - 0.5) * 0.05, z: (big ? 0.4 : 0.15) + r() * 0.15 + Math.max(0, 0.3 - Math.hypot(cx, cy) / 120), brick });
+  }
+  chunks.sort((p, q) => p.z - q.z); // higher chunks drawn last (on top)
+  const top = (x: number, y: number): Chunk | null => {
+    let best: Chunk | null = null;
+    for (const c of chunks) if (inPoly(x, y, c.pts)) best = c;
+    return best;
+  };
+  const path = (g: G, c: Chunk): void => {
+    g.beginPath();
+    for (let k = 0; k < c.pts.length; k += 2) (k ? g.lineTo : g.moveTo).call(g, c.pts[k] as number, c.pts[k + 1] as number);
     g.closePath();
     g.fill();
   };
   return render({
     w: N,
     h: N,
-    layers: [
-      { draw: (g) => chunks.forEach((c) => chunkPath(g, c)), blur: 3, amount: 0.25 },
-      { draw: (g) => chunks.slice(0, 8).forEach((c) => chunkPath(g, c)), blur: 2, amount: 0.3 },
-    ],
+    ss: SS,
+    edgeAO: 0.45,
+    layers: [{ draw: (g) => chunks.forEach((c) => path(g, c)), blur: 0, amount: 0 }],
     engrave: (g) => {
-      g.lineWidth = 1;
-      for (const [x, y, s] of chunks) {
+      // rebar sticking out of the slabs
+      g.lineWidth = 1.4;
+      for (const c of chunks.slice(-6)) {
         g.beginPath();
-        g.moveTo(x - s * 0.4, y);
-        g.lineTo(x + s * 0.3, y + s * 0.2);
+        g.moveTo(c.cx, c.cy);
+        g.lineTo(c.cx + 9, c.cy - 7);
         g.stroke();
       }
     },
-    regions: { brick: (g) => chunks.slice(20).forEach((c) => chunkPath(g, c)) },
-    detail: 0.4,
-    grain: 3,
+    engraveDepth: -0.25, // rebar stands proud
+    regions: {
+      rebar: (g) => {
+        g.lineWidth = 1.4;
+        for (const c of chunks.slice(-6)) {
+          g.beginPath();
+          g.moveTo(c.cx, c.cy);
+          g.lineTo(c.cx + 9, c.cy - 7);
+          g.stroke();
+        }
+      },
+    },
+    detail: 0.06,
+    grain: 1.2,
+    heightAt: (x, y) => {
+      const c = top(x - N / 2, y - N / 2);
+      if (!c) return 0;
+      return c.z + c.a * (x - N / 2 - c.cx) + c.b * (y - N / 2 - c.cy);
+    },
     albedo: (x, y, s) => {
-      let c: Rgb = s.r.brick! > 0.5 ? mix([92, 58, 46], [126, 82, 64], fbm(x / 4, y / 4, seed, 3)) : mix([104, 100, 92], [156, 150, 140], fbm(x / 5, y / 5, seed + 1, 4));
-      c = mix(c, [70, 66, 60], cl(fbm(x / 12, y / 12, seed + 6, 3) - 0.4) * 0.6); // dust over everything
-      if (fbm(x / 2.5, y / 2.5, seed + 4, 2) > 0.66) c = mix(c, [64, 60, 56], 0.6); // aggregate
-      return mix(c, [18, 16, 14], cl(s.cav * 1.2));
+      if (s.r.rebar! > 0.5) return [104, 56, 30];
+      const c = top(x - N / 2, y - N / 2);
+      let col: Rgb = c?.brick ? mix([104, 56, 42], [146, 78, 58], fbm(x / 2, y / 2, seed, 3)) : mix([112, 108, 100], [170, 164, 154], fbm(x / 3, y / 3, seed + 1, 4));
+      if (!c?.brick && fbm(x / 1.1, y / 1.1, seed + 4, 2) > 0.66) col = mix(col, [70, 66, 60], 0.65); // aggregate in the broken faces
+      col = mix(col, [120, 116, 108], cl(fbm(x / 8, y / 8, seed + 6, 3) - 0.55) * 1.2); // dust settled on top
+      return mix(col, [16, 14, 12], cl(s.cav * 1.2));
     },
     spec: () => 0.05,
     seed,
   });
 }
 
-/** Sandbags: two rows of burlap sacks, tied, with a woven texture. */
+/** Sandbags: two rows of burlap sacks, each its own rounded volume with a seam, a tied end and a coarse weave. */
 function sandbags(): HTMLCanvasElement {
   const w = 192;
   const h = 64;
   const seed = 900;
-  const sacks: [number, number, number][] = [];
-  for (let row = 0; row < 2; row++) for (let i = 0; i < 5; i++) sacks.push([-w / 2 + 24 + i * (row ? 34 : 36) + (row ? 12 : 0), row ? 12 : -12, row]);
-  const sackPath = (g: G, [x, y]: [number, number, number]): void => {
-    g.beginPath();
-    g.ellipse(x, y, 21, 13, 0, 0, TAU);
-    g.fill();
+  type Sack = { x: number; y: number; rx: number; ry: number; z: number; a: number };
+  const sacks: Sack[] = [];
+  const r = rng(seed);
+  for (let row = 0; row < 2; row++) {
+    const n = row ? 5 : 5;
+    for (let i = 0; i < n; i++) {
+      sacks.push({ x: -w / 2 + 22 + i * 36 + (row ? 15 : 0) + (r() - 0.5) * 3, y: row ? 13 : -13, rx: 19 + r() * 2, ry: 12.5, z: row ? 0.42 : 0.55, a: (r() - 0.5) * 0.12 });
+    }
+  }
+  const local = (s: Sack, x: number, y: number): [number, number] => {
+    const dx = x - s.x;
+    const dy = y - s.y;
+    const ca = Math.cos(-s.a);
+    const sa = Math.sin(-s.a);
+    return [(dx * ca - dy * sa) / s.rx, (dx * sa + dy * ca) / s.ry];
+  };
+  /** The sack on top at a point, and its dome height there (pillow-shaped: flat-ish top, round edges). */
+  const at = (x: number, y: number): [Sack | null, number] => {
+    let best: Sack | null = null;
+    let hb = -1;
+    for (const s of sacks) {
+      const [u, v] = local(s, x, y);
+      const d = u ** 4 + v ** 2; // squarer ends than an ellipse
+      if (d >= 1) continue;
+      const hh = s.z * Math.sqrt(1 - d);
+      if (hh > hb) {
+        hb = hh;
+        best = s;
+      }
+    }
+    return [best, Math.max(0, hb)];
   };
   return render({
     w,
     h,
-    layers: [
-      { draw: (g) => sacks.forEach((s) => sackPath(g, s)), blur: 7, amount: 0.55 },
-      { draw: (g) => sacks.filter((s) => s[2] === 0).forEach((s) => sackPath(g, s)), blur: 6, amount: 0.2 },
-    ],
-    engrave: (g) => {
-      g.lineWidth = 1.6;
-      for (const [x, y] of sacks) {
-        g.beginPath(); // the tied end
-        g.moveTo(x + 15, y - 7);
-        g.lineTo(x + 15, y + 7);
-        g.stroke();
+    ss: SS,
+    edgeAO: 0.3,
+    layers: [{ draw: (g) => sacks.forEach((s) => (g.save(), g.translate(s.x, s.y), g.rotate(s.a), g.beginPath(), g.ellipse(0, 0, s.rx, s.ry, 0, 0, TAU), g.fill(), g.restore())), blur: 0, amount: 0 }],
+    detail: 0.03,
+    grain: 2,
+    heightAt: (x, y) => {
+      const px = x - w / 2;
+      const py = y - h / 2;
+      const [s, hh] = at(px, py);
+      if (!s) return 0;
+      const [u, v] = local(s, px, py);
+      // sagging wrinkles across the sack, a seam along it, the tied end squeezed
+      const wrinkle = Math.sin(u * 9 + v * 2 + s.x) * 0.012 * (1 - Math.abs(v));
+      const seam = Math.abs(v + 0.15) < 0.05 ? -0.02 : 0;
+      const tie = u > 0.78 ? -0.06 * (u - 0.78) * 5 : 0;
+      const weave = (Math.sin(px * 3.1) + Math.sin(py * 3.1)) * 0.0035;
+      return hh + wrinkle + seam + tie + weave;
+    },
+    albedo: (x, y, sm) => {
+      const px = x - w / 2;
+      const py = y - h / 2;
+      const [s] = at(px, py);
+      const tone = s ? hash2(Math.round(s.x), Math.round(s.y), seed) : 0.5;
+      let c: Rgb = mix([112, 94, 64], [158, 136, 98], cl(fbm(x / 4, y / 4, seed, 4) * 0.8 + tone * 0.3));
+      // burlap: crisp crossing threads
+      const tx = (px * 2.2) % 2;
+      const ty = (py * 2.2) % 2;
+      if ((tx < 0.5 && ty > 1) || (ty < 0.5 && tx > 1)) c = mix(c, [86, 70, 46], 0.4);
+      if (s) {
+        const [u, v] = local(s, px, py);
+        if (Math.abs(v + 0.15) < 0.05) c = mix(c, [70, 56, 36], 0.7); // the stitched seam
+        if (u > 0.82 && Math.abs(v) < 0.35) c = mix(c, [64, 52, 34], 0.5); // the tied end
       }
+      c = mix(c, [74, 64, 48], cl(fbm(x / 9, y / 9, seed + 2, 3) - 0.55) * 1.4); // damp patches, mud
+      return mix(c, [22, 18, 12], cl(sm.cav * 1.4));
     },
-    detail: 0.12,
-    grain: 5,
-    heightAt: (x, y) => (Math.sin(x * 1.6) * Math.sin(y * 1.6)) * 0.015, // the weave
-    albedo: (x, y, s) => {
-      let c: Rgb = mix([118, 100, 70], [160, 140, 104], fbm(x / 9, y / 9, seed, 4));
-      if ((Math.floor(x) + Math.floor(y)) % 3 === 0) c = mix(c, [90, 76, 52], 0.25);
-      c = mix(c, [70, 60, 46], cl(fbm(x / 16, y / 16, seed + 2, 3) - 0.5) * 1.2); // wet patches
-      return mix(c, [26, 22, 16], cl(s.cav));
-    },
-    spec: () => 0.08,
+    spec: (x, y) => 0.06 + 0.06 * (fbm(x / 9, y / 9, seed + 2, 3) > 0.6 ? 1 : 0),
     seed,
   });
 }
