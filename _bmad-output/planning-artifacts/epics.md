@@ -305,11 +305,11 @@ FR86: Epic 9 - Weapon sounds (placeholder sounds from Epic 1; polished from proc
 FR87: Epic 10 - Quality settings
 FR88: Epic 10 - Run stats
 
-**NFRs:** NFR1 measured from Epic 1, met in Epic 10 · NFR2 Epic 10 · NFR3–NFR5 Epic 2 · NFR6–NFR8 Epic 10 · NFR9 Epics 2, 6, 10 · NFR10 from Epic 1 · NFR11 Epics 2 and 5 · NFR12 Epic 2 (transport, input validation), Epic 7 (passwords) · NFR13 Epics 7 and 8 · NFR14 from Epic 1.
+**NFRs:** NFR1 measured from Epic 1, met in Epic 10 · NFR2 Epic 10 · NFR3–NFR5 Epic 2, hardened for lossy 4G by the Network pass (Stories 8.8–8.11) · NFR6–NFR8 Epic 10 · NFR9 Epics 2, 6, 8 (Story 8.1, built in the Network pass), 10 · NFR10 from Epic 1 · NFR11 Epics 2 and 5 · NFR12 Epic 2 (transport, input validation), Epic 7 (passwords) · NFR13 Epics 7 and 8 · NFR14 from Epic 1.
 
 ## Epic List
 
-Ten epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 8 → 10. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
+Ten epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → 7 → rest of 8 → 10. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
 
 ### Epic 1: Core combat on one phone
 One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones.
@@ -340,7 +340,7 @@ Players keep progress between runs: a guest upgrades to an account, earns Suppli
 **FRs covered:** FR77, FR78, FR79, FR80, FR81
 
 ### Epic 8: Real-life resilience
-Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, a light host role with Remove player, Save and quit with 7-day resume by anyone from the run, and quick pings (decisions: `docs/ideas/epic-8/decisions.md`).
+Real life doesn't break a run: a bad 4G line doesn't spoil hits or the picture (Network pass, built first, right after Epic 6: `docs/perf/network-audit-2026-11.md`), rejoin within 2 minutes with your gear, join mid-run at a build phase, a light host role with Remove player, Save and quit with 7-day resume by anyone from the run, and quick pings (decisions: `docs/ideas/epic-8/decisions.md`).
 **FRs covered:** FR72, FR73, FR74, FR75, FR76
 
 ### Epic 9: Dead City art and audio
@@ -2691,7 +2691,88 @@ So that some runs end with a surprise.
 
 ## Epic 8: Real-life resilience
 
-Real life doesn't break a run: rejoin within 2 minutes with your gear (your seat is kept for the whole run), join mid-run at a build phase, a light host role, autosave, Save and quit with 7-day resume by anyone from the run, and quick pings. Designer decisions D1–D15: `docs/ideas/epic-8/decisions.md` (accepted 2026-11-24). Depends on Epic 4 (named seed streams and decay engine) and on Story 7.1 (accounts and database: saved runs belong to the accounts that played them), so it comes after Epic 7. Rule for every later epic: any new run state (gear, events, boss, endless) must be added to the snapshot, and the round-trip test in Story 8.4 enforces it.
+Real life doesn't break a run: rejoin within 2 minutes with your gear (your seat is kept for the whole run), join mid-run at a build phase, a light host role, autosave, Save and quit with 7-day resume by anyone from the run, and quick pings. Designer decisions D1–D15: `docs/ideas/epic-8/decisions.md` (accepted 2026-11-24). Depends on Epic 4 (named seed streams and decay engine) and on Story 7.1 (accounts and database: saved runs belong to the accounts that played them), so it comes after Epic 7 — **except the Network pass** (Stories 8.8–8.11 and 8.1), which is built right after Epic 6 and needs no accounts: 8.1 matches a returning phone by its guest token (Story 2.3) and gains account matching when Story 7.1 lands. Rule for every later epic: any new run state (gear, events, boss, endless) must be added to the snapshot, and the round-trip test in Story 8.4 enforces it.
+
+### Network pass (built first, right after Epic 6)
+
+Designer decision 2026-11-24 (`sprint-change-proposal-2026-11-24-network-pass.md`), from the network audit `docs/perf/network-audit-2026-11.md` (measured: hits and picture break on a lossy 4G line; a dropped phone is out for the run). Build order: **8.8 ∥ 8.9** (different files) → **8.1** (below, extended) → **8.10** → **8.11** (optional). Numbered 8.8–8.11 so the existing 8.1–8.7 references stay valid. Then the designer's 4-phone 4G test (Story 2.10 plan) is the check, Wi-Fi phones with `&loss=1`.
+
+### Story 8.8: My shots count on a bad 4G line
+
+As a player on a phone with a poor signal,
+I want my hits to count even when the connection hiccups,
+So that I'm not cheated out of kills I clearly made.
+
+**Acceptance Criteria:**
+
+**Given** a dev/test "lossy line" switch
+**When** the client is opened with `?lag=150&jitter=20&loss=1`, the bots run with `--lag 150 --jitter 20 --loss 1`, or the hits harness gets `loss: { pct: 1, stallMs: 200 }`
+**Then** 1 % of messages (each direction) and every message behind them are held an extra 200 ms, in order (a TCP retransmit stall), like `tools/netaudit/lagProxy.ts`; release-safe like `?lag`; `tools/netaudit/hitsLossSim.ts` is merged back into `tools/netsim/hitsSim.ts` and the copy deleted
+
+**Given** a player shoots at a zombie after a hiccup
+**When** the server tests the shot
+**Then** it rewinds zombies up to **500 ms** (`REWIND_MAX_TICKS` 6 → 10, `REWIND_CAP_MS` 300 → 500; zombies only, teammates are never rewound; boss hits stay unrewound)
+**And** the hits harness at 150 ms ± 10 ms shows reversed hits **< 5 %** for kiting Runners at 1 % and 2 % loss (audit: 7.6 % and 11.9 % today, 2.0 % and 1.3 % with this change) and **≤ 0.5 %** on a clean line (no regression)
+**And** the tick-cost and rewind tests still pass within budget, and `spread_cancel_suspect` / `seq_gap_suspect` telemetry is unchanged
+
+### Story 8.9: Smooth through hiccups
+
+As a player,
+I want zombies and friends to keep moving smoothly when my connection stutters,
+So that I never see things freeze and jump.
+
+**Acceptance Criteria:**
+
+**Given** the render delay (others and the horde are drawn this far behind)
+**When** frames arrive late
+**Then** it adapts between 100 and **250 ms** from how *late* frames arrive against the server clock (not from gaps alone, and not capped at 100 ms per sample), and a clean line still sits at 100–150 ms
+
+**Given** a stall ends and several frames land at once
+**When** the client catches up
+**Then** it plays slightly faster (at most 1.1×) until back on its delay, instead of jumping; the server-clock estimate moves in small steps and **never backwards**
+**And** a zombie missing from frames is removed after **150 ms** of missing time, not after 3 frames (a burst can't drop it early)
+
+**Given** inputs piled up on the server after a stall
+**When** the queue is above its target
+**Then** the client runs its own steps slightly slower (at least 0.9×) for a moment so the queue empties without skipped inputs; the server's skip rule stays as the safety net (a 0.5 s skip delay was rejected in Story 2.4: +35 % starved ticks)
+**And** on the lossy line (8.8): at most 1 visible freeze (render tick past the newest frame) per 30 s (audit: about one every 2 s), predicted shots that never fire on the server < 1 % (audit: 1.5–5.7 %), starved ticks no worse than today, and reversed hits still < 5 % with the longer delay (re-check the rewind window: 75 ms one-way + queue + 250 ms delay can pass 500 ms; raise it to 600 ms / 12 ticks if the harness says so)
+
+### Story 8.10: Half-size horde stream
+
+As a player on mobile data,
+I want the zombie stream to use half the data,
+So that big hordes, the stampede and the boss all fit on 4G.
+
+**Acceptance Criteria:**
+
+**Given** the horde frame sent to one phone each tick
+**When** it is encoded
+**Then** a zombie that was in this phone's previous frame is sent only if it moved or changed (slot + change mask + int8 cm move, full position if the move is over 1.27 m); one that left or died costs its slot; a new one costs a full record; heading is worked out on the phone from movement (kept when standing still)
+**And** zombies farther than 8 m from the phone's player are refreshed every 2nd tick
+**And** a full frame goes out on join, after a skipped frame (backpressure) and once a second, so a decoding mistake can never last longer than 1 s
+
+**Given** the audit's replay (`tools/netaudit/hordeEncodings.ts`, 150 alive, ~118 in view)
+**When** it runs
+**Then** the horde stream is **≤ 10 KB/s** (today 18.6) and the worst case of 180 in one view is **≤ 15 KB/s** (today 28.2, over the 24 KB/s budget)
+**And** a fuzz test decodes every frame of a long replay to exactly the positions a full frame would give (within 1 cm), bots and the `?lag` throttle decode the new format, and the overlay's `horde N/s` still counts frames
+
+**Given** the horde backpressure rule (skip at 64 KB unsent)
+**When** a capped-bandwidth line is simulated
+**Then** `framesSkipped` is logged against stall length and the result recorded in the story (change the rule only if stale frames really pile up)
+
+### Story 8.11: One packet per tick (optional)
+
+As a player on mobile data,
+I want each server tick to arrive as one packet,
+So that less of my data and battery goes on packet overhead.
+
+**Acceptance Criteria:**
+
+**Given** a server tick
+**When** it ends
+**Then** the state patch is sent from the tick itself (not its own 50 ms timer), so every patch carries exactly one tick, and the tick's horde frame, events and patch leave in one write
+**And** the input message is a compact binary form (~14 B instead of ~116 B)
+**And** with 4 bots through the lossy-line proxy, down writes per phone are **≤ 25/s** (today 44–49) and input upload **≤ 0.6 KB/s** payload (today 2.1–2.5); nothing else changes (same tests green)
 
 ### Story 8.1: Reconnect within 2 minutes
 
@@ -2728,6 +2809,23 @@ So that a bad signal doesn't end my night.
 **Given** the tab is hidden (`visibilitychange`)
 **When** the player switches apps
 **Then** the client stops rendering and audio; the server keeps the player inside the reconnect window
+
+**Given** the Network pass builds this story before Epic 7 (designer 2026-11-24)
+**When** a returning phone is matched
+**Then** it is matched by its guest token (Story 2.3); Story 7.1 adds account matching later
+
+**Given** the phone has had no data from the server for **3 s** (even if the socket never reported a close)
+**When** the watchdog notices
+**Then** it shows "Connection lost, reconnecting…" and starts reconnecting itself; stale inputs queued while offline are dropped, not replayed
+
+**Given** iOS Safari after the page was in the background for more than 10 s (WebKit bug 308073: a new WebSocket can hang in CONNECTING)
+**When** a reconnect attempt hasn't opened within **5 s**
+**Then** the page reloads straight back into the held seat
+
+**Given** a short 4G dead spot
+**When** the server's transport misses pongs
+**Then** it waits about **12–15 s** before calling the socket dropped (Colyseus `pingInterval` 3 s × `pingMaxRetries` 4; today 2 retries ≈ 6–9 s), and the 120 s reconnect window covers anything longer
+**And** a test cuts one bot's connection for 8 s mid-wave (lossy-line proxy) and the bot is back in its seat with its gear
 
 ### Story 8.2: Join mid-run at a build phase
 

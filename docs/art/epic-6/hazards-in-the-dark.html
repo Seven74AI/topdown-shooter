@@ -1,0 +1,323 @@
+<title>Hazards in the Dark</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap">
+<style>
+/* Layout: one big stage on top (the choice you're judging), a grid of every option below. Single dark look on purpose: it's a night game. */
+:root {
+  --bg: #0d1014;
+  --panel: #161b21;
+  --line: #2a323b;
+  --fg: #e4e8ec;
+  --muted: #94a0ab;
+  --amber: #f0b54a;
+  --gas: #cde178;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+main { max-width: 1180px; margin: 0 auto; display: grid; gap: 28px; }
+h1 { font-family: var(--display); font-size: clamp(1.6rem, 3.5vw, 2.3rem); margin: 0; text-wrap: balance; }
+h2 { font-family: var(--display); font-size: 1.15rem; margin: 0; }
+p { margin: 0; max-width: 68ch; color: var(--muted); }
+p strong { color: var(--fg); }
+header { display: grid; gap: 10px; }
+.controls { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: center; }
+.group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.label { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+button.seg {
+  font: 600 0.9rem var(--body); color: var(--fg); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer;
+}
+button.seg[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
+button.seg:focus-visible, .tile:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+label.check { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; cursor: pointer; }
+.stage { display: grid; gap: 10px; }
+.stage canvas { width: 100%; max-width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; border: 1px solid var(--line); background: #000; display: block; }
+.stage-bar { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; }
+.stage-title { font-family: var(--display); font-weight: 700; font-size: 1.05rem; }
+.slider { display: flex; gap: 10px; align-items: center; flex: 1 1 280px; max-width: 520px; }
+.slider input { flex: 1; accent-color: var(--amber); }
+.slider output { font-variant-numeric: tabular-nums; min-width: 9ch; text-align: right; font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.tile { display: grid; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; text-align: left; color: var(--fg); font: inherit; }
+.tile[aria-pressed="true"] { border-color: var(--amber); }
+.tile canvas { width: 100%; aspect-ratio: 16 / 9; border-radius: 4px; display: block; background: #000; }
+.tile-name { display: flex; justify-content: space-between; gap: 8px; font-size: 0.88rem; font-weight: 600; }
+.tag { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); }
+.tag.now { color: var(--muted); }
+.notes { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 18px; }
+.notes ul { margin: 0; padding-left: 1.1rem; color: var(--muted); max-width: 72ch; display: grid; gap: 4px; }
+.notes li strong { color: var(--fg); }
+</style>
+
+<main>
+  <header>
+    <h1>Acid and gas in a blackout</h1>
+    <p>One street at night, drawn from the game's own acid puddle and Bloater gas looks. Your survivor stands in the centre with a flashlight pointing right. There is acid in the beam and acid in the dark on the left; a gas cloud sits in the dark just below you. <strong>"Under the dark"</strong> is how 6.3 is built today. The other options draw acid and gas <strong>above the darkness</strong> at that strength. Inside the light, they always look the same.</p>
+  </header>
+
+  <div class="controls">
+    <div class="group" role="group" aria-label="How dark">
+      <span class="label">How dark</span>
+      <button class="seg" data-dark="5" aria-pressed="true">5 % pitch (wave 10)</button>
+      <button class="seg" data-dark="10" aria-pressed="false">10 % (wave 9)</button>
+      <button class="seg" data-dark="20" aria-pressed="false">20 % moonlit (power failure)</button>
+    </div>
+    <label class="check"><input type="checkbox" id="labels" checked> Show labels</label>
+  </div>
+
+  <section class="stage" aria-label="Selected option, large">
+    <div class="stage-bar">
+      <span class="stage-title" id="stageTitle">60 % above the dark</span>
+      <div class="slider">
+        <span class="label">Strength</span>
+        <input type="range" id="strength" min="0" max="10" step="1" value="6" aria-label="Strength above the dark (0 = under the dark)">
+        <output id="strengthOut" for="strength">60 %</output>
+      </div>
+    </div>
+    <canvas id="stage" width="1280" height="720"></canvas>
+  </section>
+
+  <section class="grid" id="grid" aria-label="All options"></section>
+
+  <section class="notes">
+    <h2>What to look for</h2>
+    <ul>
+      <li><strong>Under the dark:</strong> the gas below you and the acid on the left are invisible until a beam touches them. Only the acid in the flashlight shows.</li>
+      <li><strong>Low strengths (10–30 %):</strong> you can just make out where the danger is, but the dark still feels dark.</li>
+      <li><strong>My pick, 60 %:</strong> clearly readable on a phone and still clearly "in the dark" next to the lit acid in the beam.</li>
+      <li><strong>100 %:</strong> acid and gas look exactly as they do in daylight, glowing in a pitch-black street.</li>
+      <li>Zombie eyes, your survivor and its ring are above the dark in every option (6.3 as built).</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+(() => {
+  const W = 1280, H = 720;                 // stage canvas (16:9); tiles are drawn at half size
+  const VIEW_W_M = 24, PX = W / VIEW_W_M;  // the game's view: 24 m across
+  const TAU = Math.PI * 2;
+  const DARK = {                            // light % → darkness alpha + colour (6.3 look picks)
+    5:  { a: 0.95, rgb: [4, 6, 10] },
+    10: { a: 0.90, rgb: [6, 8, 13] },
+    20: { a: 0.80, rgb: [10, 16, 32] },    // BL2 moonlit, blue cast
+  };
+  const P = { x: 12, y: 6.75 };            // survivor (m)
+  const HEADING = 0.18;                    // flashlight heading (rad), a little down-right
+  const CONE_HALF = Math.PI / 6, CONE_M = 8, GLOW_M = 1.6;
+  const ACID = [{ x: 4.6, y: 4.2, r: 1.0, seed: 3 }, { x: 17.4, y: 7.9, r: 1.0, seed: 7 }];
+  const GAS = { x: 8.6, y: 10.4, r: 2.5, seed: 2 };
+  const ZOMBIES = [[3.2, 6.4], [6.2, 2.4], [20.5, 3.2], [19.8, 10.8], [15.2, 11.9], [1.6, 11.6], [10.4, 1.6], [22.4, 7.0]];
+
+  // value noise + fbm (as in the game's gas art)
+  function hash(x, y, s) { let h = (x * 374761393 + y * 668265263 + s * 982451653) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+  function noise(x, y, s) {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x, y, s) { let t = 0, amp = 0.5, f = 1; for (let i = 0; i < 4; i++) { t += amp * noise(x * f, y * f, s + i * 17); f *= 2; amp *= 0.5; } return t; }
+  function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const mk = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
+
+  // ---- static layers, built once at stage size ----
+  function drawStreet(c) {
+    c.fillStyle = "#23262b"; c.fillRect(0, 0, W, H);
+    // sidewalk + curb along the top, building roofs above it
+    c.fillStyle = "#2f3236"; c.fillRect(0, 0, W, 1.6 * PX);
+    c.fillStyle = "#1b1d20"; c.fillRect(0, 0, W, 0.7 * PX);
+    c.fillStyle = "#4a4d50"; c.fillRect(0, 1.6 * PX, W, 0.12 * PX);
+    // wet asphalt grain
+    const im = c.getImageData(0, 1.72 * PX, W, H - 1.72 * PX), d = im.data, w = im.width;
+    for (let i = 0; i < d.length; i += 4) {
+      const p = i / 4, x = p % w, y = (p / w) | 0;
+      const n = fbm(x / 90, y / 90, 5) * 0.6 + hash(x, y, 9) * 0.4;
+      const k = (n - 0.5) * 22;
+      d[i] += k; d[i + 1] += k; d[i + 2] += k + 2;
+    }
+    c.putImageData(im, 0, 1.72 * PX);
+    // wet sheen patches
+    for (let i = 0; i < 7; i++) {
+      const r = rng(40 + i), x = r() * W, y = 2.2 * PX + r() * (H - 2.4 * PX), s = (1 + r() * 2.5) * PX;
+      const g = c.createRadialGradient(x, y, 0, x, y, s); g.addColorStop(0, "rgba(120,140,160,0.10)"); g.addColorStop(1, "rgba(120,140,160,0)");
+      c.fillStyle = g; c.fillRect(x - s, y - s, s * 2, s * 2);
+    }
+    // lane dashes
+    c.fillStyle = "rgba(214,206,170,0.55)";
+    for (let x = 0.6; x < VIEW_W_M; x += 3.2) c.fillRect(x * PX, 8.9 * PX, 1.6 * PX, 0.14 * PX);
+    // a parked car silhouette (cover) top right
+    c.fillStyle = "#3a4150"; roundRect(c, 15.2 * PX, 2.0 * PX, 4.2 * PX, 1.9 * PX, 0.4 * PX); c.fill();
+    c.fillStyle = "#262b35"; roundRect(c, 16.3 * PX, 2.25 * PX, 2.0 * PX, 1.4 * PX, 0.25 * PX); c.fill();
+  }
+  function roundRect(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+
+  function blobPath(c, cx, cy, rx, ry, seed, amp, n) {
+    c.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * TAU, k = 1 + amp * (fbm(Math.cos(a) * 1.6 + seed, Math.sin(a) * 1.6, seed) - 0.5) * 2;
+      const X = cx + Math.cos(a) * rx * k, Y = cy + Math.sin(a) * ry * k;
+      i ? c.lineTo(X, Y) : c.moveTo(X, Y);
+    }
+    c.closePath();
+  }
+  function drawAcid(c, a) {   // after spitterArt.drawAcidPuddle
+    const x = a.x * PX, y = a.y * PX, R = a.r * PX, ring = 5, inner = R - ring;
+    const gl = c.createRadialGradient(x, y, 0, x, y, R); gl.addColorStop(0, "rgba(110,255,40,0.16)"); gl.addColorStop(1, "rgba(110,255,40,0.05)");
+    c.fillStyle = gl; c.beginPath(); c.arc(x, y, R, 0, TAU); c.fill();
+    blobPath(c, x, y, inner * 0.86, inner * 0.8, a.seed, 0.16, 56);
+    const g = c.createRadialGradient(x - inner * 0.2, y - inner * 0.2, 0, x, y, inner);
+    g.addColorStop(0, "rgba(232,255,135,0.9)"); g.addColorStop(0.35, "rgba(155,238,55,0.85)"); g.addColorStop(0.8, "rgba(72,150,22,0.8)"); g.addColorStop(1, "rgba(38,88,10,0.7)");
+    c.fillStyle = g; c.fill(); c.strokeStyle = "rgba(210,255,130,0.55)"; c.lineWidth = 2; c.stroke();
+    const r = rng(a.seed + 3);
+    for (let i = 0; i < 9; i++) { const ang = r() * TAU, d = r() * inner * 0.6, br = inner * (0.04 + r() * 0.07); c.beginPath(); c.arc(x + Math.cos(ang) * d, y + Math.sin(ang) * d, br, 0, TAU); c.strokeStyle = "rgba(235,255,170,0.6)"; c.lineWidth = 1.5; c.stroke(); }
+    c.beginPath(); c.ellipse(x - inner * 0.3, y - inner * 0.3, inner * 0.22, inner * 0.13, -0.3, 0, TAU); c.fillStyle = "rgba(255,255,255,0.35)"; c.fill();
+    c.beginPath(); c.arc(x, y, R - ring / 2, 0, TAU); c.strokeStyle = "rgba(190,255,90,0.95)"; c.lineWidth = ring; c.stroke();
+  }
+  function drawGas(c, g) {    // after bloaterFxArt.drawGasDisc + BloaterView's edge ring
+    const S = Math.floor(g.r * 2 * PX), im = c.createImageData(S, S), d = im.data;
+    for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
+      const dx = ((px + 0.5) / S) * 2 - 1, dy = ((py + 0.5) / S) * 2 - 1, r = Math.hypot(dx, dy), i = (py * S + px) * 4;
+      if (r >= 1) continue;
+      const n = fbm(dx * 3.2 + 4 + g.seed, dy * 3.2, 21 + g.seed), m = fbm(dx * 7, dy * 7 + g.seed, 33);
+      let a = (0.32 + 0.5 * n * n + 0.12 * m) * (0.75 + 0.25 * r);
+      const edge = clamp((1 - r) / 0.035, 0, 1);
+      a = a * edge + 0.28 * clamp(1 - Math.abs(r - 0.975) / 0.025, 0, 1);
+      d[i] = 150 + 60 * n; d[i + 1] = 168 + 50 * n; d[i + 2] = 62 + 30 * m; d[i + 3] = clamp(a, 0, 1) * 255;
+    }
+    const t = mk(S, S); t.getContext("2d").putImageData(im, 0, 0);
+    c.drawImage(t, g.x * PX - S / 2, g.y * PX - S / 2);
+    c.beginPath(); c.arc(g.x * PX, g.y * PX, g.r * PX, 0, TAU); c.strokeStyle = "rgba(205,225,120,0.45)"; c.lineWidth = 3; c.stroke();
+  }
+  function drawZombie(c, x, y, i) {
+    const r = rng(90 + i), X = x * PX, Y = y * PX, s = 0.42 * PX, f = Math.atan2(P.y - y, P.x - x);
+    c.save(); c.translate(X, Y); c.rotate(f);
+    c.fillStyle = "rgba(0,0,0,0.35)"; c.beginPath(); c.ellipse(4, 5, s * 1.1, s * 0.9, 0, 0, TAU); c.fill();
+    c.fillStyle = ["#5d6b55", "#6b5d55", "#55606b"][i % 3]; c.beginPath(); c.ellipse(0, 0, s * 0.8, s * 1.05, 0, 0, TAU); c.fill();
+    c.fillStyle = "#8a9a7a"; c.beginPath(); c.arc(s * 0.35, 0, s * 0.5, 0, TAU); c.fill();
+    c.strokeStyle = "#4c5945"; c.lineWidth = s * 0.32; c.lineCap = "round";
+    c.beginPath(); c.moveTo(s * 0.2, -s * 0.8); c.lineTo(s * (1.2 + r() * 0.3), -s * 0.55); c.moveTo(s * 0.2, s * 0.8); c.lineTo(s * (1.2 + r() * 0.3), s * 0.6); c.stroke();
+    c.restore();
+  }
+  function drawEyes(c, x, y) {  // above the dark (6.3 D5)
+    const f = Math.atan2(P.y - y, P.x - x), X = x * PX + Math.cos(f) * 0.32 * PX, Y = y * PX + Math.sin(f) * 0.32 * PX;
+    const nx = -Math.sin(f) * 0.12 * PX, ny = Math.cos(f) * 0.12 * PX;
+    c.fillStyle = "rgba(240,232,150,0.95)";
+    c.beginPath(); c.arc(X + nx, Y + ny, 2.6, 0, TAU); c.arc(X - nx, Y - ny, 2.6, 0, TAU); c.fill();
+  }
+  function drawSurvivor(c) {
+    const X = P.x * PX, Y = P.y * PX, s = 0.45 * PX;
+    c.beginPath(); c.arc(X, Y, s * 1.55, 0, TAU); c.strokeStyle = "rgba(90,170,255,0.9)"; c.lineWidth = 4; c.stroke();
+    c.save(); c.translate(X, Y); c.rotate(HEADING);
+    c.fillStyle = "#33404f"; c.beginPath(); c.ellipse(0, 0, s * 0.8, s, 0, 0, TAU); c.fill();
+    c.fillStyle = "#d9b38c"; c.beginPath(); c.arc(s * 0.2, 0, s * 0.5, 0, TAU); c.fill();
+    c.fillStyle = "#1c1f24"; c.fillRect(s * 0.4, s * 0.25, s * 1.3, s * 0.28);
+    c.restore();
+  }
+
+  // light mask: white where light is (soft glow + crisp-ish cone), at stage size
+  function drawLight(c, dark) {
+    const X = P.x * PX, Y = P.y * PX;
+    const g = c.createRadialGradient(X, Y, 0, X, Y, GLOW_M * PX);
+    g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.55, "rgba(255,255,255,0.85)"); g.addColorStop(1, "rgba(255,255,255,0)");
+    c.fillStyle = g; c.beginPath(); c.arc(X, Y, GLOW_M * PX, 0, TAU); c.fill();
+    const L = CONE_M * PX, crisp = dark === 5;   // BL3 5 %: crisp beam edges
+    const steps = 10;
+    for (let i = 0; i < steps; i++) {             // soften the edges by stacking narrowing wedges
+      const k = i / steps, half = CONE_HALF * (crisp ? 1 - k * 0.06 : 1 - k * 0.22);
+      const cg = c.createRadialGradient(X, Y, 0, X, Y, L * (crisp ? 1 : 1 - k * 0.1));
+      cg.addColorStop(0, "rgba(255,255,255,0.22)"); cg.addColorStop(0.85, "rgba(255,255,255,0.2)"); cg.addColorStop(1, "rgba(255,255,255,0)");
+      c.fillStyle = cg; c.beginPath(); c.moveTo(X, Y); c.arc(X, Y, L, HEADING - half, HEADING + half); c.closePath(); c.fill();
+    }
+  }
+  function drawSparkles(c, dark) {   // rain sparkling inside the beam (BL4), no hot core
+    const r = rng(77), X = P.x * PX, Y = P.y * PX;
+    c.strokeStyle = "rgba(220,235,255,0.55)"; c.lineWidth = 1.4;
+    for (let i = 0; i < 70; i++) {
+      const d = (0.8 + r() * (CONE_M - 1)) * PX, a = HEADING + (r() * 2 - 1) * CONE_HALF * 0.95;
+      const x = X + Math.cos(a) * d, y = Y + Math.sin(a) * d;
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x - 3, y + 9); c.stroke();
+    }
+  }
+
+  const street = mk(W, H), hazards = mk(W, H), zombies = mk(W, H);
+  drawStreet(street.getContext("2d"));
+  { const c = hazards.getContext("2d"); drawGas(c, GAS); ACID.forEach((a) => drawAcid(c, a)); }
+  { const c = zombies.getContext("2d"); ZOMBIES.forEach(([x, y], i) => drawZombie(c, x, y, i)); }
+
+  const tmpDark = mk(W, H), tmpLight = mk(W, H), tmpHaz = mk(W, H);
+
+  // strength: null = lit reference (no blackout), 0 = under the dark (as built), 0.1..1 = above the dark
+  function render(out, strength, dark, labels) {
+    const c = out.getContext("2d"), s = out.width / W;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, out.width, out.height); c.setTransform(s, 0, 0, s, 0, 0);
+    c.drawImage(street, 0, 0); c.drawImage(hazards, 0, 0); c.drawImage(zombies, 0, 0);
+    if (strength !== null) {
+      const D = DARK[dark];
+      const lc = tmpLight.getContext("2d"); lc.clearRect(0, 0, W, H); drawLight(lc, dark);
+      const dc = tmpDark.getContext("2d"); dc.globalCompositeOperation = "source-over"; dc.clearRect(0, 0, W, H);
+      dc.fillStyle = `rgba(${D.rgb.join(",")},${D.a})`; dc.fillRect(0, 0, W, H);
+      dc.globalCompositeOperation = "destination-out"; dc.drawImage(tmpLight, 0, 0); dc.globalCompositeOperation = "source-over";
+      c.drawImage(tmpDark, 0, 0);
+      if (strength > 0) {
+        // hazards above the dark at `strength` where it's dark; the lit copy below already shows inside the light
+        const hc = tmpHaz.getContext("2d"); hc.globalCompositeOperation = "source-over"; hc.clearRect(0, 0, W, H);
+        hc.drawImage(hazards, 0, 0);
+        hc.globalCompositeOperation = "destination-out"; hc.drawImage(tmpLight, 0, 0); hc.globalCompositeOperation = "source-over";
+        c.globalAlpha = strength; c.drawImage(tmpHaz, 0, 0); c.globalAlpha = 1;
+      }
+      drawSparkles(c, dark);
+      ZOMBIES.forEach(([x, y]) => { if (Math.hypot(x - P.x, y - P.y) <= 14) drawEyes(c, x, y); });
+    }
+    drawSurvivor(c);
+    if (labels) {
+      c.font = "600 22px Inter, system-ui, sans-serif"; c.textBaseline = "middle";
+      const tag = (t, x, y, col) => { const w = c.measureText(t).width + 18; c.fillStyle = "rgba(10,12,16,0.78)"; roundRect(c, x, y - 16, w, 32, 6); c.fill(); c.fillStyle = col; c.fillText(t, x + 9, y); };
+      tag("acid in the dark", ACID[0].x * PX - 90, (ACID[0].y - 1.6) * PX, "#c9f27a");
+      tag("acid in your beam", ACID[1].x * PX - 80, (ACID[1].y + 1.6) * PX, "#c9f27a");
+      tag("Bloater gas in the dark", (GAS.x + 2.7) * PX, (GAS.y + 0.6) * PX, "#cde178");
+      tag("you", P.x * PX - 24, (P.y - 1.35) * PX, "#9cc8ff");
+    }
+  }
+
+  // ---- UI ----
+  const OPTIONS = [{ v: null, name: "No blackout", tag: "reference" }, { v: 0, name: "Under the dark", tag: "as built" }]
+    .concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((k) => ({ v: k / 10, name: `${k * 10} % above the dark`, tag: k === 6 ? "my pick" : "" })));
+  let dark = 5, sel = 7, labels = true; // sel indexes OPTIONS (7 = 60 %)
+  const grid = document.getElementById("grid"), stage = document.getElementById("stage");
+  const slider = document.getElementById("strength"), out = document.getElementById("strengthOut"), title = document.getElementById("stageTitle");
+  const tiles = OPTIONS.map((o, i) => {
+    const b = document.createElement("button"); b.className = "tile"; b.type = "button";
+    const cv = document.createElement("canvas"); cv.width = 640; cv.height = 360;
+    const nm = document.createElement("span"); nm.className = "tile-name";
+    nm.innerHTML = `<span>${o.name}</span>` + (o.tag ? `<span class="tag ${o.tag === "my pick" ? "" : "now"}">${o.tag}</span>` : "");
+    b.append(cv, nm); b.addEventListener("click", () => { select(i); stage.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" }); });
+    grid.append(b); return { b, cv, o };
+  });
+  function drawAll() { tiles.forEach((t) => render(t.cv, t.o.v, dark, false)); drawStage(); }
+  function drawStage() {
+    const o = OPTIONS[sel]; render(stage, o.v, dark, labels);
+    title.textContent = o.name + (o.tag ? ` (${o.tag})` : "");
+    tiles.forEach((t, i) => t.b.setAttribute("aria-pressed", String(i === sel)));
+    if (sel >= 1) { slider.value = String(sel - 1); out.textContent = sel === 1 ? "under" : `${(sel - 1) * 10} %`; }
+  }
+  function select(i) { sel = i; drawStage(); }
+  slider.addEventListener("input", () => select(Number(slider.value) + 1));
+  document.getElementById("labels").addEventListener("change", (e) => { labels = e.target.checked; drawStage(); });
+  document.querySelectorAll("button.seg").forEach((b) => b.addEventListener("click", () => {
+    dark = Number(b.dataset.dark);
+    document.querySelectorAll("button.seg").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    drawAll();
+  }));
+  drawAll();
+})();
+</script>
