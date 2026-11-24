@@ -2045,6 +2045,8 @@ So that a run builds to a real climax.
 
 ### Story 6.2: Ruins
 
+(**Merged with Story 6.4** by the designer on 2026-11-24: one story, "Ruins and Collapse".)
+
 As a player,
 I want rubble to close an alley and new holes to open in the walls,
 So that the map squeezes us as the city breaks.
@@ -2094,6 +2096,8 @@ So that light becomes something we fight for.
 
 
 ### Story 6.4: Collapse
+
+(**Merged into Story 6.2** by the designer on 2026-11-24.)
 
 As a player,
 I want the power to die, fog to roll in, and the last two waves to be fought in the dark,
@@ -2154,6 +2158,8 @@ So that the run ends with a fight we'll talk about.
 
 ### Story 6.6: Behemoth charge and throw
 
+(**Merged with Story 6.7** by the designer on 2026-11-24: one story, "Behemoth charge, throw, enrage and end".)
+
 As a team,
 I want the Behemoth to charge through our defenses and throw wrecks at us,
 So that we have to keep moving, and can bait it into a wall.
@@ -2180,6 +2186,8 @@ So that we have to keep moving, and can bait it into a wall.
 
 
 ### Story 6.7: Enrage and the end of the Behemoth
+
+(**Merged into Story 6.6** by the designer on 2026-11-24.)
 
 As a team,
 I want the Behemoth to get angrier when it's hurt, and its death to call the helicopter,
@@ -2226,6 +2234,8 @@ So that no two runs play the same.
 
 ### Story 6.9: Gas leak and supply drop
 
+(**Merged with Story 6.10** by the designer on 2026-11-24: one story covering both event pairs.)
+
 As a team,
 I want a gas tank that explodes and a supply crate worth fighting for,
 So that we have to choose between risk and reward.
@@ -2247,6 +2257,8 @@ So that we have to choose between risk and reward.
 
 ### Story 6.10: Power failure and survivor
 
+(**Merged into Story 6.9** by the designer on 2026-11-24.)
+
 As a team,
 I want the lights to fail without warning and a survivor to need our help,
 So that the run keeps asking for teamwork.
@@ -2267,6 +2279,8 @@ So that the run keeps asking for teamwork.
 
 
 ### Story 6.11: Evacuation vote
+
+(**Merged with Story 6.12** by the designer on 2026-11-24: one story, "Evacuation vote and endless mode".)
 
 As a team,
 I want to vote to get out or stay after beating the Behemoth,
@@ -2292,6 +2306,8 @@ So that we choose together how much to risk.
 
 
 ### Story 6.12: Endless mode
+
+(**Merged into Story 6.11** by the designer on 2026-11-24.)
 
 As a team,
 I want to keep fighting in the collapsed city after wave 10,

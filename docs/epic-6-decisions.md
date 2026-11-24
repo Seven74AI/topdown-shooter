@@ -197,7 +197,17 @@ Also worth a glance: **6.1 D1** the two Brutes of waves 7–10 come at 25 % and 
 - **Supply crate mid-wave:** the first time a weapon changes during a wave (until now only in build phases); 6.9 handles it.
 - **Behemoth "+50"** in the GDD is a Supplies reward (Epic 7), separate from the in-run 150 (6.7).
 
-### Build rounds (by file overlap)
+### Merged stories and new build rounds (designer, 2026-11-24)
+
+Four pairs are built and reviewed as ONE story each (12 stories → 8, 4 rounds → 3). The story files stay separate; the builder of a merged story reads both files and writes one Dev Agent Record / review section in the first one.
+
+| Round | Stories (parallel) | Notes |
+| --- | --- | --- |
+| 1 | **6.1**, **6.3**, **6.5** | 6.3's `aboveDark.ts` lands early; 6.5 builds on `?bosswave=`. |
+| 2 | **6.2 + 6.4** Ruins and Collapse, **6.6 + 6.7** Behemoth charge, throw, enrage and end, **6.8** events framework | 6.2+6.4 after 6.3; 6.6+6.7 after 6.5 (fresh review + re-review of every medium/high fix — the riskiest); 6.6+6.7 and 6.8 both touch `zombieAi.ts`/`flowField.ts`: merge one after the other. |
+| 3 | **6.9 + 6.10** gas leak, supply drop, power failure and survivor, **6.11 + 6.12** evacuation vote and endless mode | 6.9+6.10 after 6.8 and 6.2+6.4 (`refreshBlackout`); 6.11+6.12 after 6.1 and 6.6+6.7. |
+
+### Build rounds (by file overlap) — original plan, superseded by the merges above
 
 | Round | Stories (parallel) | Why together / what they wait for |
 | --- | --- | --- |
