@@ -137,7 +137,7 @@ describe("Story 6.8 events fuzz (brief 7)", () => {
         expect(left).toBe(0);
       }
     }
-    console.info(`[events fuzz] ${runs} alarms: ${reached}/${lured} lured zombies within 2.5 m of the car at the end`);
+    (globalThis as unknown as { console: { info(m: string): void } }).console.info(`[events fuzz] ${runs} alarms: ${reached}/${lured} lured zombies within 2.5 m of the car at the end`);
     expect(lured).toBeGreaterThan(runs * 8); // liveness
     expect(reached / lured).toBeGreaterThan(0.9);
   }, 300_000);

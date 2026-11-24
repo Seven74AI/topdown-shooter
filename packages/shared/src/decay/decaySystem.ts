@@ -22,7 +22,8 @@ import { buildingInFires, circleInFire, fireExpiry, lightNewFires, newlyLitFires
  *   1. the mutations (`applyDecayStage`: obstacle lists, nav walls, fires); Story 4.8: fires whose
  *      `durationWaves` are over go out here too (`fireExpiry`), and newly lit ones get their end wave;
  *   2. every building that overlaps a solid is destroyed (`building.destroyed`) and its owner gets
- *      `floor(price × decay.buildingRefundShare)` back (`money.earned`, reason `refund`);
+ *      `floor(paid × decay.buildingRefundShare)` back (`money.earned`, reason `refund`; Story 6.2
+ *      review L4: `paid` = the price plus every upgrade step, 5.20's bookkeeping);
  *      (Story 4.8 review M2: also every building a fire lit now overlaps, same refund);
  *   3. every player or zombie that overlaps a solid is moved out (`relocateBodies`); Story 4.8
  *      review M1: then every standing player inside a fire lit now is moved just outside it
@@ -60,8 +61,10 @@ export function destroyBlockedBuildings(world: World, newFires: readonly FireRec
     if (!removeBuilding(world, b.id)) continue;
     n++;
     world.events.emit({ type: "building.destroyed", buildingId: b.id, buildingType: b.type, ownerId: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot });
-    const price = buildingStats(world.balance, b.type)?.price ?? 0;
-    refundMoney(world, b.ownerId, Math.floor(price * share));
+    // Story 6.2 review L4 (designer intent "50 % back"): half of what the player PAID for it — its
+    // price and every upgrade step (5.20 bookkeeping, `paid`) — not the base price.
+    const paid = Number.isFinite(b.paid) && b.paid > 0 ? b.paid : (buildingStats(world.balance, b.type)?.price ?? 0);
+    refundMoney(world, b.ownerId, Math.floor(paid * share));
   }
   return n;
 }

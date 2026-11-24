@@ -224,6 +224,7 @@ export function simulate(o: Options): Result {
   const windowMs = () => 2 * o.oneWayMs + delay.delayMs + REVERSED_HIT_SLACK_MS;
   const cosmetics = new CosmeticProjectiles(mirror, ID, (netId) => hits.apparent(netId, nowMs, windowMs()));
   const dir = { x: 1, y: 0 };
+  const aimShooter = { x: 0, y: 0, gear: 0 }; // Story 6.4: the aim-assist fog filter's shooter
   let serverHitsByMe = 0;
   let killCount = 0;
   let shots = 0;
@@ -421,7 +422,11 @@ export function simulate(o: Options): Result {
         const mx = predictor.x + a.dirX * off;
         const my = predictor.y + a.dirY * off;
         cosmetics.ensureGrid();
-        assistAim(mirror, mx, my, a.dirX, a.dirY, stats.rangeM, dir);
+        // Story 6.4 (F4): the same fog filter as NetSimHost (my predicted centre, my gear, own beam).
+        aimShooter.x = predictor.x;
+        aimShooter.y = predictor.y;
+        aimShooter.gear = mirror.players.get(ID)?.gear ?? 0;
+        assistAim(mirror, mx, my, a.dirX, a.dirY, stats.rangeM, dir, null, aimShooter);
         if (stats.spreadDeg > 0 && stats.pellets === 1) rotateBySeqSpread(dir.x, dir.y, ID, input.seq, stats.spreadDeg, dir); // 2.12: the shared helper, as NetSimHost
         cosmetics.spawn(ID, a.weapon, mx, my, dir.x, dir.y, input.seq & 0xffff); // Story 5.3: a pellet fan from the seq, as NetSimHost
         if (stats.pellets > 1) clientFan.set(input.seq & 0xffff, { x: dir.x, y: dir.y });

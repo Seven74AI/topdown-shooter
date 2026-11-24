@@ -1079,7 +1079,7 @@ export function updatePathing(world: World): void {
     advanceFlowField(wideChase, wide, world, budget);
     return;
   }
-  if (lureOn && slot-- === 0) {
+  if (lureOn && slot === 0) {
     advanceLure(world, budget);
     return;
   }

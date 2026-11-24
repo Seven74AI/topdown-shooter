@@ -146,6 +146,16 @@ export class FakeCtx {
   createLinearGradient(): { addColorStop(): void } {
     return { addColorStop: () => {} };
   }
+  /** Story 6.4: the fog noise and the CO2 pattern. */
+  createImageData(w: number, h: number): { data: Uint8ClampedArray; width: number; height: number } {
+    return { data: new Uint8ClampedArray(w * h * 4), width: w, height: h };
+  }
+  putImageData(): void {
+    this.rec("putImageData", []);
+  }
+  createPattern(): object {
+    return { pattern: true };
+  }
   /** Ops of one kind. */
   count(op: string): number {
     return this.ops.filter((o) => o.op === op).length;

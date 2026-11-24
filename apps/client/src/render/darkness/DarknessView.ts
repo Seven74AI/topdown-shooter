@@ -71,6 +71,11 @@ export class DarknessView {
   /** Paints and uploads so far (tests, the perf overlay). */
   paints = 0;
   uploads = 0;
+  /**
+   * Story 6.4 (AC 6): the Collapse fog painted into THIS canvas after the light stamps, before the
+   * warm tints (fires still glow through it), so a blackout + fog frame is one full-screen layer.
+   */
+  fog: { paintInto(g: CanvasRenderingContext2D, w: number, h: number, k: number, vx: number, vy: number): void } | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -159,6 +164,10 @@ export class DarknessView {
       } else this.drawDisc(g, plan.kind[i] === STAMP_GLOW ? st.glow : st.disc, i);
     }
     g.globalCompositeOperation = "source-over";
+    if (this.fog) {
+      this.fog.paintInto(g, this.w, this.h, this.k, this.vx, this.vy);
+      g.globalCompositeOperation = "source-over";
+    }
     for (let i = 0; i < plan.count; i++) {
       const t = plan.tint[i] as number;
       if (t === TINT_BEAM) {

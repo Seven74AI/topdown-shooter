@@ -14,7 +14,8 @@ import { teamSpawnPoint } from "../player/spawn";
 import { startBuild, startWave } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import { applyDecayStage } from "./applyDecayStage";
-import { legalDecayMasks, type FireRecord } from "./decayState";
+import { masksForStage } from "./masks.testkit";
+import { type FireRecord } from "./decayState";
 import { decayMutate, moveOutOfNewFires, relocateBodies, relocated } from "./decaySystem";
 import { circleInFire } from "./fire";
 
@@ -160,7 +161,7 @@ describe("Story 4.8 re-review: relocation and run-start placement avoid fires", 
   it("run-start placement (no mid-run join exists: players join at the team starts): with stage 3 from the first build start, nobody stands in a fire, for every combination", () => {
     const at = { x: 0, y: 0 };
     let checked = 0;
-    for (const mask of legalDecayMasks(DT)) {
+    for (const mask of masksForStage(DT, 3)) {
       const w = createWorld({ balance, seed: 5, map: DT, systems: QUIET });
       w.debug.decayStageByWave = [3, 3, 3, 3, 3];
       w.decay.variants = mask;

@@ -1,4 +1,4 @@
-import type { BlockReason, CoverKind, MapBox, PlaceError, World } from "@topdown/shared";
+import { isRubble, type BlockReason, type CoverKind, type MapBox, type PlaceError, type World } from "@topdown/shared";
 import { pickRefusalText } from "./buildBar";
 
 /**
@@ -24,12 +24,15 @@ export const COVER_WORDS: Readonly<Record<CoverKind, string>> = Object.freeze({
 });
 
 const WALL = "a wall";
+/** Story 6.2 (F3): every `rubble_*` box (the collapsed alley, the street piles): one prefix rule. */
+export const RUBBLE_WORD = "rubble";
 
 /** What blocks: "the bus", "a car", "the sandbags", "a wall"… for an entry of `world.obstacles.solids`. */
 export function solidWord(box: Readonly<MapBox> | undefined): string {
   if (!box) return WALL;
   const kind = (box as { kind?: string }).kind;
   if (kind !== undefined && Object.prototype.hasOwnProperty.call(COVER_WORDS, kind)) return COVER_WORDS[kind as CoverKind];
+  if (isRubble(box)) return RUBBLE_WORD;
   return Object.prototype.hasOwnProperty.call(SOLID_NAMES, box.name) ? (SOLID_NAMES[box.name] as string) : WALL;
 }
 

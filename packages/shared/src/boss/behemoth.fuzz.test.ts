@@ -6,7 +6,7 @@ import { circleOverlapsBox } from "../buildings/collision";
 import { createRng } from "../core/rng";
 import { createWorld, type World } from "../core/world";
 import { changeDecayStage } from "../decay/decaySystem";
-import { legalDecayMasks } from "../decay/decayState";
+import { masksForStage } from "../decay/masks.testkit";
 import { applyDecayStage } from "../decay/applyDecayStage";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { addPlayer } from "../player/player";
@@ -19,8 +19,8 @@ import { tickN } from "./testBoss";
 import { applyBossDamage } from "./bossDamage";
 
 /**
- * Story 6.5 (brief line 7): the Behemoth in random Downtown layouts × decay stages (1–3: the stages
- * the map has today; 6.2 adds 4–5 and re-runs this) × variant masks × ≥ 3,000 ticks, with 110
+ * Story 6.5 (brief line 7): the Behemoth in random Downtown layouts × decay stages 1–5 (Story 6.2 review M2:
+ * stages 4–5 with Ruins rubble, every collapsed alley) × variant masks × ≥ 3,000 ticks, with 110
  * zombies and 1–4 players (1e9 HP, not god mode: the slams really hit and push them) next to random
  * barricades and turrets. Every tick: the boss's centre never inside a map box (its true radius), no
  * player inside a box after a push, the boss grid's walls untouched mid-wave. Per layout: it reaches a
@@ -30,7 +30,7 @@ import { applyBossDamage } from "./bossDamage";
 const balance = loadBalance();
 const map = DOWNTOWN_MAP;
 const R = balance.boss.radiusM;
-const LAYOUTS = 9;
+const LAYOUTS = 15; // Story 6.2 review M2: 3 per stage (stages 4–5: masks 21, 28, 56, 63, 91, 98 = every collapsed alley)
 const TICKS = 3000;
 const NO_STALL_TICKS = 30 * 20;
 
@@ -82,11 +82,16 @@ function reachable(world: World, x: number, y: number): number[] {
 }
 
 /** One random layout: the boss at an open entry, 1–4 survivors (1e9 HP) round random barricades / turrets / traps / mines, 110 zombies. */
+/** Story 6.2 review M2: the collapsed alleys the stage-4/5 layouts ran (every one must). */
+const alleys = new Set<number>();
+
 function layoutWorld(layout: number, rng: ReturnType<typeof createRng>, withFloor = false): { w: World; nPlayers: number; walls0: string } {
-  const masks = legalDecayMasks(map);
-  const stage = 1 + (layout % 3);
+  // Story 6.2 review M2: stages 1–5, each stage's gameplay masks (stages 4–5: × the 3 collapsed alleys).
+  const stage = 1 + (layout % 5);
+  const masks = masksForStage(map, stage);
   const w = createWorld({ balance, seed: 100 + layout, map, systems: { waves: () => {} } });
-  applyDecayStage(w, 1, masks[layout % masks.length] as number);
+  applyDecayStage(w, 1, masks[(layout * 7) % masks.length] as number);
+  if (stage >= 4) alleys.add([9, 10, 11].findIndex((b) => (w.decay.variants >>> b) & 1));
   if (stage > 1) changeDecayStage(w, stage);
   pickBossEntry(w);
   const ex = bossEntry.x;
@@ -145,7 +150,7 @@ function spatialChecks(w: World, layout: number, t: number, every: number): void
 }
 
 describe("Story 6.5 Behemoth fuzz (brief 7)", () => {
-  it(`${LAYOUTS} layouts × stages 1–3 × variant masks × ${TICKS} ticks: no box overlap, no stall, walls only at build starts`, () => {
+  it(`${LAYOUTS} layouts × stages 1–5 × variant masks × ${TICKS} ticks: no box overlap, no stall, walls only at build starts`, () => {
     const rng = createRng(6505);
     let slamHits = 0;
     let broken = 0;
@@ -184,6 +189,7 @@ describe("Story 6.5 Behemoth fuzz (brief 7)", () => {
     expect(slamHits).toBeGreaterThan(0);
     expect(broken).toBeGreaterThan(0);
     expect(switches).toBeGreaterThan(LAYOUTS);
+    expect([...alleys].sort()).toEqual([0, 1, 2]); // Story 6.2 review M2: every collapsed alley ran at stages 4–5
   }, 240_000);
 });
 

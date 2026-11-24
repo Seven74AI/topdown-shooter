@@ -119,3 +119,25 @@ export function createObstacles(map: DistrictMap, stage: number, variants = 0): 
   fillObstacles(o, map, stage, variants);
   return o;
 }
+
+/** Story 6.2: the name prefix of every rubble box (`rubble_alley_*`, `rubble_pile_*`). */
+export const RUBBLE_PREFIX = "rubble_";
+
+/** Story 6.2: the box is Ruins rubble (a `block` wall; not `building`, so lobs fly over it). */
+export function isRubble(b: { readonly name: string }): boolean {
+  return b.name.startsWith(RUBBLE_PREFIX);
+}
+
+/**
+ * Story 6.2 (AC 6): fills `out` with the ACTIVE rubble boxes (the collapsed alley's heap and the
+ * street piles) from `o.walls`, in wall order; returns `out` (cleared first, no allocation). Rubble
+ * needs no special query: it is in `solids` (bodies, flow fields, the boss grid) and `shotBlockers`
+ * (bullets, melee, blasts, spit, flames, gas, acid) like any wall. 6.6's throw reads this list for
+ * its chunk (visual only); its charge crashes into rubble through the normal `solids` test.
+ */
+export function rubblePiles(o: Readonly<ObstacleState>, out: MapBox[]): MapBox[] {
+  out.length = 0;
+  const walls = o.walls;
+  for (let i = 0; i < walls.length; i++) if (isRubble(walls[i] as MapBox)) out.push(walls[i] as MapBox);
+  return out;
+}

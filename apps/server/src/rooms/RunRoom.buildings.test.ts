@@ -113,7 +113,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     // socket delivers queued messages in a burst, the arrivals bunch up, the final placement is
     // silently rate-dropped and no refusal ever comes (a longer wait could not help). Now the host
     // sends 8 messages in all, inside the bucket's capacity whatever the timing.
-    for (let i = 0; i < 6; i++) expect(room.controller?.placeBuilding("p0", { type: WOOD, gx: 14 + i * 6, gy: 20, rot: 0 }).ok).toBe(true); // Story 4.3: x ≥ 7 m, clear of window_corner_shop (4, 10.6)
+    for (let i = 0; i < 6; i++) expect(room.controller?.placeBuilding("p0", { type: WOOD, gx: 14 + i * 6, gy: 41, rot: 0 }).ok).toBe(true); // Story 4.3: x ≥ 7 m, clear of window_diner (3.5, 21.4); Story 6.2: the south sidewalk (the north one is within 2 m of breach_apartments)
     expect(world(room).buildings.list).toHaveLength(6);
     host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 5, gy: 28, rot: 0 });
     await vi.waitFor(() => expect(hostRec.refused).toEqual(["blocked", "money", "limit"]));
@@ -179,7 +179,7 @@ describe("RunRoom buildings (Story 3.4)", () => {
     const me = world(room).players.get("p0");
     if (!me) throw new Error("no p0");
     me.wallet = 10_000;
-    for (let i = 0; i < 40; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 14 + (i % 8) * 6, gy: 20 + Math.floor(i / 8) * 4, rot: 0 });
+    for (let i = 0; i < 40; i++) host.send(C2S.BUILDING_PLACE, { type: WOOD, gx: 14 + (i % 8) * 6, gy: 41 + Math.floor(i / 8) * 4, rot: 0 }); // Story 6.2: clear of breach_apartments
     await vi.waitFor(() => expect(world(room).buildings.list).toHaveLength(6));
     const tick = world(room).tick;
     await vi.waitFor(() => expect(world(room).tick).toBeGreaterThan(tick + 4));

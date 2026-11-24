@@ -50,9 +50,13 @@ export class AcidView {
   darkGhost = 0;
   private readonly ghosts: Phaser.GameObjects.Image[] = [];
 
+  /** Story 6.4 (D3): my screen's fog hides spit in flight beyond its edge (puddles stay: they are not fogged). */
+  fog: { visibility(x: number, y: number): number } | null = null;
+
   update(nowS: number): void {
     const fx = this.fx;
     fx.update(nowS);
+    const fog = this.fog;
     for (let i = 0; i < fx.maxGlobs; i++) {
       const g = this.globs[i] as Phaser.GameObjects.Image;
       const sh = this.shadows[i] as Phaser.GameObjects.Image;
@@ -69,8 +73,16 @@ export class AcidView {
       const arc = 4 * f * (1 - f);
       const s = GLOB_M * (1 + LOB_GROW * arc);
       const dir = Math.atan2((fx.globY1[i] as number) - (fx.globY0[i] as number), (fx.globX1[i] as number) - (fx.globX0[i] as number));
-      g.setPosition(x, y - LOB_LIFT_M * arc).setDisplaySize(s, s).setRotation(dir).setVisible(true);
-      sh.setPosition(x, y).setVisible(true);
+      const vis = fog ? fog.visibility(x, y) : 1;
+      if (vis <= 0) {
+        if (g.visible) {
+          g.setVisible(false);
+          sh.setVisible(false);
+        }
+        continue;
+      }
+      g.setPosition(x, y - LOB_LIFT_M * arc).setDisplaySize(s, s).setRotation(dir).setAlpha(vis).setVisible(true);
+      sh.setPosition(x, y).setAlpha(SHADOW_ALPHA * vis).setVisible(true);
     }
     for (let i = 0; i < fx.maxPuddles; i++) {
       const p = this.puddles[i] as Phaser.GameObjects.Image;
