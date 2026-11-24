@@ -283,9 +283,20 @@ const SEDAN = {
   roofBack: -40, // roof → rear window
   boot: -70, // rear window → boot
   rear: -139,
-  hw: 57, // body half width
-  roofHw: 41, // roof half width
+  hw: 54, // body half width (1.7 m: room in the 2 m frame for the mirrors)
+  roofHw: 39, // roof half width
 };
+
+/** The door mirrors (frame px): housing centre, radii; kept inside the 128 px frame (its edge is at ±64). */
+const MIRROR = { x: SEDAN.bonnet - 5, y: SEDAN.hw + 5, rx: 7.5, ry: 4 };
+
+/** Mirror housing height at (x, y) from the centre (0 outside). */
+function mirrorHeight(x: number, y: number): number {
+  const u = (x - (MIRROR.x - 1)) / MIRROR.rx;
+  const v = (Math.abs(y) - MIRROR.y) / MIRROR.ry;
+  const d = u * u + v * v;
+  return d < 1 ? 0.34 * Math.sqrt(1 - d) + 0.08 : 0;
+}
 
 function sedanOutline(g: G): void {
   const { front: f, rear: r, hw } = SEDAN;
@@ -303,10 +314,11 @@ function sedanOutline(g: G): void {
   g.bezierCurveTo(f - 60, -hw, f - 40, -nose, f - 22, -nose);
   g.closePath();
   g.fill();
-  // mirrors at the windscreen's foot
+  // mirrors at the windscreen's foot: a short arm and the housing
   for (const s of [-1, 1]) {
+    g.fillRect(MIRROR.x - 2, s > 0 ? hw - 2 : -hw - 2, 4, 4);
     g.beginPath();
-    g.ellipse(SEDAN.bonnet - 4, s * (hw + 3), 6, 4, 0, 0, TAU);
+    g.ellipse(MIRROR.x - 1, s * MIRROR.y, MIRROR.rx, MIRROR.ry, s * 0.15, 0, TAU);
     g.fill();
   }
 }
@@ -331,7 +343,7 @@ function sedanHeight(x: number, y: number): number {
   }
   const cabSide = 1 - smooth(roofHw - 4, roofHw + 9, ay);
   h += 0.4 * cab * cabSide * (1 + 0.04 * (1 - (ay / roofHw) ** 2));
-  return h;
+  return Math.max(h, mirrorHeight(x, y));
 }
 
 function car(variant: number): HTMLCanvasElement {
@@ -391,7 +403,7 @@ function car(variant: number): HTMLCanvasElement {
   const mirrorGlass = (g: G): void => {
     for (const s of [-1, 1]) {
       g.beginPath();
-      g.ellipse(S.bonnet - 6, s * (S.hw + 4.5), 2.2, 1.4, 0, 0, TAU);
+      g.ellipse(MIRROR.x - 2.5, s * (MIRROR.y + 2.4), 4.5, 1.1, 0, 0, TAU);
       g.fill();
     }
   };
@@ -585,8 +597,8 @@ function inPoly(px: number, py: number, pts: readonly number[]): boolean {
 
 /**
  * Burnt cars, round 3 (designer: "remake the burnt version too", after the real-sedan cars): the same sedan
- * body, burnt out. The glass is gone (holes into a charred cabin: bare seat frames and springs, the steering
- * wheel's ring, ash), the paint scorched black and blistered, bare grey steel where it burnt off, white ash
+ * body, burnt out. The glass is gone (holes into a charred cabin: bare seat frames and springs,
+ * ash), the paint scorched black and blistered, bare grey steel where it burnt off, white ash
  * (no rust: designer, "the car has burned, not rust"), a strip of the
  * original colour surviving low on the sides, the roof and bonnet sagging and buckled from the heat, melted
  * lamps. Front at +x. Drawn at 3× and shrunk.
@@ -625,9 +637,6 @@ function burntCar(variant: number): HTMLCanvasElement {
       g.fill();
     }
   };
-  // seen through the windscreen: the steering wheel ring (driver on the left of the travel direction: −y)
-  const wheelX = S.roofFront + 10;
-  const wheelY = -S.roofHw * 0.45;
   const body = render({
     w: L,
     h: W,
@@ -694,7 +703,6 @@ function burntCar(variant: number): HTMLCanvasElement {
           const sy = ((py % 5) + 5) % 5;
           if (sx < 0.7 || sy < 0.7) c = mix(c, [84, 80, 76], 0.4 + 0.3 * fbm(x, y, seed + 13, 2)); // springs, half buried in ash
         }
-        if (Math.abs(Math.hypot(px - wheelX, py - wheelY) - 8) < 1.1) c = [78, 74, 70];
         if (fbm(x / 2, y / 2, seed + 11, 2) > 0.68) c = mix(c, [130, 126, 120], 0.6); // ash heaps
         return c;
       }
