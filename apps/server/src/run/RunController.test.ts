@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  BOSS_STATE,
+  killBoss,
   NEUTRAL_INPUT,
   TICK_DT_S,
   playerInputSchema,
@@ -677,6 +679,24 @@ describe("RunController", () => {
     expect(c.kills("p0")).toBe(2);
     expect(c.kills("p1")).toBe(1);
     expect(c.kills("p9")).toBe(0);
+  });
+
+  it("Story 6.7 D5 (review L3): who finished the Behemoth gets +1 kill on Results; a killer-less death gives nobody one", () => {
+    const c = newController();
+    c.tick();
+    const b = c.world.boss;
+    b.state = BOSS_STATE.WALK;
+    b.hp = b.maxHp = 100;
+    b.number = 1;
+    c.world.run.phase = "wave";
+    killBoss(c.world, "p1", "smg");
+    c.tick();
+    expect(c.kills("p1")).toBe(1);
+    expect(c.kills("p0")).toBe(0);
+    b.state = BOSS_STATE.WALK;
+    killBoss(c.world, null, "auto_turret");
+    c.tick();
+    expect(c.kills("p0") + c.kills("p1")).toBe(1);
   });
 
   it("ignores kills with no player killer (cheats)", () => {

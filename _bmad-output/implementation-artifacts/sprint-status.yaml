@@ -151,8 +151,8 @@ development_status:
   6-3-blackout-lighting: done  # 2026-11-24: review H1+2M fixed, re-review clean, lows fixed; B1–B3 decisions
   6-4-collapse: ready-for-dev  # merged into 6.2 (designer 2026-11-24)
   6-5-the-behemoth-arrives: done  # 2026-11-24: review H1+2M fixed, re-review found M-new-1 (fixed), re-review 2 clean, lows fixed; decisions 6.5 B1–B3
-  6-6-behemoth-charge-and-throw: ready-for-dev  # merged with 6.7 (designer 2026-11-24): one story 'Behemoth charge, throw, enrage and end'
-  6-7-enrage-and-the-end-of-the-behemoth: ready-for-dev  # merged into 6.6 (designer 2026-11-24)
+  6-6-behemoth-charge-and-throw: done  # 2026-11-24: review (1M perf + 4L) fixed, narrow re-review clean (R1 accepted: unreachable with room cap 4; R2 trampleGen test gap = follow-up); merged with 6.7: 'Behemoth charge, throw, enrage and end'
+  6-7-enrage-and-the-end-of-the-behemoth: done  # merged into 6.6 (designer 2026-11-24)
   6-8-special-events-car-alarm-and-stampede: ready-for-dev
   6-9-gas-leak-and-supply-drop: ready-for-dev  # merged with 6.10 (designer 2026-11-24): one story 'Gas leak, supply drop, power failure and survivor'
   6-10-power-failure-and-survivor: ready-for-dev  # merged into 6.9 (designer 2026-11-24)

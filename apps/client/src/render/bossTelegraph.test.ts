@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { TICK_DT_S } from "@topdown/shared";
-import { slamFrameIndex, telegraphProgress, TELEGRAPH_FADE_S, type TelegraphLook } from "./bossTelegraph";
+import { loadBalance, sweepChargeLane, createWorld } from "@topdown/shared";
+import {
+  chargeLaneLook,
+  chargeLaneProgress,
+  chargeStopTick,
+  deathFrameIndex,
+  slamFrameIndex,
+  telegraphProgress,
+  throwChunkAt,
+  throwInnerRadius,
+  TELEGRAPH_FADE_S,
+  type ChunkLook,
+  type LaneLook,
+  type TelegraphLook,
+} from "./bossTelegraph";
 
 const out: TelegraphLook = { progress: 0, visible: false, alpha: 0 };
 
@@ -56,5 +70,70 @@ describe("Story 6.5 review L-b: the body's dim fades (no flicker at the rim)", (
     a = bossBodyAlpha(a, false, 1 / 60);
     expect(a).toBeGreaterThan(BOSS_DIM_ALPHA);
     expect(a).toBeLessThan(0.6);
+  });
+});
+
+describe("Story 6.6 the charge lane as drawn (F1, F2, AC 8)", () => {
+  const balance = loadBalance();
+  const R = balance.boss.radiusM;
+  const C = balance.boss.charge;
+  const lane: LaneLook = { x0: 0, y0: 0, lengthM: 0, angle: 0, frontX: 0, frontY: 0 };
+
+  it("from the body's back at the start to its front at the stop, along the fixed direction; the sim's swept lane exactly", () => {
+    const w = createWorld({ balance, seed: 1 });
+    for (const deg of [0, 37, 90, 200, 315]) {
+      const a = (deg * Math.PI) / 180;
+      const dx = Math.cos(a);
+      const dy = Math.sin(a);
+      const sweep = sweepChargeLane(w, 24, 16, dx, dy, { lenM: 0, crash: false });
+      chargeLaneLook(24, 16, dx, dy, sweep.lenM, R, lane);
+      expect(lane.lengthM).toBeCloseTo(sweep.lenM + 2 * R, 9);
+      expect(lane.x0).toBeCloseTo(24 - dx * R, 9);
+      expect(lane.frontX).toBeCloseTo(24 + dx * (sweep.lenM + R), 9);
+      expect(lane.frontY).toBeCloseTo(16 + dy * (sweep.lenM + R), 9);
+      expect(lane.angle).toBeCloseTo(Math.atan2(dy, dx), 9);
+    }
+    expect(C.laneWidthM).toBe(4.8);
+  });
+
+  it("the fill grows from the start tick, is full on the hit tick, stays full through the rush, fades 0.3 s after the stop", () => {
+    const out: TelegraphLook = { progress: 0, visible: false, alpha: 0 };
+    const stop = chargeStopTick(120, 10, C.speedMps);
+    expect(stop).toBe(120 + 17 - 1);
+    expect(chargeStopTick(120, 6, C.speedMps)).toBe(120 + 10 - 1);
+    expect(chargeLaneProgress(110, 100, 120, stop, out).progress).toBeCloseTo(0.5, 9);
+    expect(chargeLaneProgress(120, 100, 120, stop, out).progress).toBe(1);
+    expect(chargeLaneProgress(130, 100, 120, stop, out)).toMatchObject({ progress: 1, visible: true, alpha: 1 });
+    const fade = TELEGRAPH_FADE_S / TICK_DT_S;
+    expect(chargeLaneProgress(stop + fade / 2, 100, 120, stop, out).alpha).toBeCloseTo(0.5, 9);
+    expect(chargeLaneProgress(stop + fade + 0.01, 100, 120, stop, out).visible).toBe(false); // a woken tab after the stop: nothing
+  });
+});
+
+describe("Story 6.6 the throw as drawn (F7, AC 8)", () => {
+  it("the inner ring shrinks from 3 m to 0 over lift + flight (start → impact)", () => {
+    const out: TelegraphLook = { progress: 0, visible: false, alpha: 0 };
+    expect(throwInnerRadius(telegraphProgress(100, 100, 136, out).progress, 3)).toBe(3);
+    expect(throwInnerRadius(telegraphProgress(118, 100, 136, out).progress, 3)).toBeCloseTo(1.5, 9);
+    expect(throwInnerRadius(telegraphProgress(136, 100, 136, out).progress, 3)).toBe(0);
+  });
+
+  it("the chunk flies only between the release and the impact, on an arc from the boss to the spot", () => {
+    const c: ChunkLook = { visible: false, x: 0, y: 0, heightM: 0, f: 0 };
+    expect(throwChunkAt(119, 120, 136, 0, 0, 16, 0, c).visible).toBe(false); // still in its hands (the lift)
+    throwChunkAt(128, 120, 136, 0, 0, 16, 0, c);
+    expect(c).toMatchObject({ visible: true, x: 8, y: 0, f: 0.5 });
+    expect(c.heightM).toBeCloseTo(3, 9);
+    expect(throwChunkAt(136, 120, 136, 0, 0, 16, 0, c)).toMatchObject({ x: 16, heightM: 0 });
+    expect(throwChunkAt(136.5, 120, 136, 0, 0, 16, 0, c).visible).toBe(false); // landed: the crater
+  });
+});
+
+describe("Story 6.7 the collapse (D6)", () => {
+  it("three frames over collapseS, then the last one", () => {
+    expect(deathFrameIndex(0, 1.5)).toBe(0);
+    expect(deathFrameIndex(0.6, 1.5)).toBe(1);
+    expect(deathFrameIndex(1.2, 1.5)).toBe(2);
+    expect(deathFrameIndex(60, 1.5)).toBe(2);
   });
 });

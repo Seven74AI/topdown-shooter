@@ -23,7 +23,15 @@ const EVENTS: SimEvent[] = [
   // Story 6.5: the Behemoth (absolute ticks: the client draws from the server's start tick)
   { type: "boss.warning", x: 1.5, y: 31.25, hitTick: 123456 },
   { type: "boss.arrived", x: 2, y: 30, maxHp: 4800, look: 3 },
-  { type: "boss.telegraph", attackId: 65535, kind: 1, startTick: 100000, hitTick: 100024, cx: 12.34, cy: 5.67, radiusM: 4.5 },
+  { type: "boss.telegraph", attackId: 65535, kind: 1, startTick: 100000, hitTick: 100024, cx: 12.34, cy: 5.67, radiusM: 4.5, endX: 12.34, endY: 5.67, crash: false, src: 0, srcX: 12.34, srcY: 5.67 },
+  { type: "boss.telegraph", attackId: 9, kind: 2, startTick: 200, hitTick: 220, cx: 10, cy: 20, radiusM: 0, endX: 19.5, endY: 21.25, crash: true, src: 0, srcX: 0, srcY: 0 },
+  { type: "boss.telegraph", attackId: 10, kind: 3, startTick: 300, hitTick: 336, cx: 30.5, cy: 8.25, radiusM: 3, endX: 30.5, endY: 8.25, crash: false, src: 2, srcX: 4.5, srcY: 6.75 },
+  { type: "boss.crashed", attackId: 9, x: 19.5, y: 21.25 },
+  { type: "boss.thrown_impact", attackId: 10, x: 30.5, y: 8.25 },
+  { type: "boss.enraged", x: 3.5, y: 4.25 },
+  { type: "boss.crawler_dropped", x: 1.5, y: 2.75 },
+  { type: "boss.killed", killerId: "p2", weapon: "smg", x: 5, y: 6, number: 1 },
+  { type: "boss.killed", killerId: null, weapon: "", x: 5, y: 6, number: 2 },
   { type: "boss.slammed", attackId: 7, x: 12.34, y: 5.67 },
   { type: "boss.target_changed", playerId: "p3" },
   { type: "boss.target_changed", playerId: null },
@@ -48,6 +56,7 @@ const EVENTS: SimEvent[] = [
   { type: "run.held_out", wave: 5 }, // Story 3.10
   { type: "decay.stage_changed", stage: 2, from: 1 }, // Story 4.5
   { type: "money.earned", playerId: "p1", amount: 12, reason: "refund" }, // Story 4.5
+  { type: "money.earned", playerId: "p3", amount: 150, reason: "boss" }, // Story 6.7
   { type: "wave.started", number: 3, size: 24 },
   { type: "wave.ended", number: 3 },
   { type: "wave.rush_started", count: 5 },

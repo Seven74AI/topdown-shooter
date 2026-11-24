@@ -173,3 +173,18 @@ Player:
 
 ## 49: do these four survivors carry anything that does something in the game? (Story 7.8)
 ![49](objects/49_survivor_looks.png)
+
+## 60: where will it run, and where will it stop? Is the yellow bar good or bad for you? (Story 6.6: the charge lane and its CRASH mark)
+![60](../../art/6-6/6-6-800x360-charge-telegraph.png)
+
+## 61: it hit the bus. What now? (Story 6.6: the stun — the amber bar and "CRASH!" mean hit it now, it takes ×1.5)
+![61](../../art/6-6/6-6-800x360-crash-stun.png)
+
+## 62: something is flying at you. Where does it land, and when? Do you move? (Story 6.6: the throw ring, the shrinking white ring, the chunk)
+![62](../../art/6-6/6-6-800x360-throw-flight.png)
+
+## 63: what changed? Is it more dangerous now? (Story 6.7: the roar, the red bar, ENRAGED)
+![63](../../art/6-6/6-6-800x360-roar.png)
+
+## 64: is it over? Is the wave over? Is that body still dangerous? (Story 6.7: EVAC INBOUND, the dark collapsed body)
+![64](../../art/6-6/6-6-800x360-death.png)

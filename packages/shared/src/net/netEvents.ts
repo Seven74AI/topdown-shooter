@@ -73,6 +73,12 @@ export const NET_EVENT_KIND = {
   BOSS_SLAMMED: 47,
   BOSS_TARGET_CHANGED: 48,
   BOSS_HIT: 49,
+  // Stories 6.6 + 6.7 (next free numbers when built; 6.8–6.11 add theirs: renumber at merge if taken, never reuse)
+  BOSS_CRASHED: 50,
+  BOSS_THROWN_IMPACT: 51,
+  BOSS_ENRAGED: 52,
+  BOSS_CRAWLER_DROPPED: 53,
+  BOSS_KILLED: 54,
   // Story 6.8 (55–64 are 6.8's; 50–54 are 6.6's boss kinds; never reuse)
   EVENT_TRIGGERED: 55,
   EVENT_PHASE_CHANGED: 56,
@@ -288,13 +294,23 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
     case "boss.arrived":
       return [K.BOSS_ARRIVED, cm(e.x), cm(e.y), e.maxHp, e.look & 0xff];
     case "boss.telegraph":
-      return [K.BOSS_TELEGRAPH, e.attackId & 0xffff, e.kind & 0xff, e.startTick, e.hitTick, cm(e.cx), cm(e.cy), cm(e.radiusM)];
+      return [K.BOSS_TELEGRAPH, e.attackId & 0xffff, e.kind & 0xff, e.startTick, e.hitTick, cm(e.cx), cm(e.cy), cm(e.radiusM), cm(e.endX), cm(e.endY), e.crash ? 1 : 0, e.src & 0xff, cm(e.srcX), cm(e.srcY)];
     case "boss.slammed":
       return [K.BOSS_SLAMMED, e.attackId & 0xffff, cm(e.x), cm(e.y)];
     case "boss.target_changed":
       return [K.BOSS_TARGET_CHANGED, playerSlotOf(e.playerId)];
     case "boss.hit":
       return [K.BOSS_HIT, tenths(e.amount), weaponIndex(b, e.weapon), playerSlotOf(e.sourceId)];
+    case "boss.crashed":
+      return [K.BOSS_CRASHED, e.attackId & 0xffff, cm(e.x), cm(e.y)];
+    case "boss.thrown_impact":
+      return [K.BOSS_THROWN_IMPACT, e.attackId & 0xffff, cm(e.x), cm(e.y)];
+    case "boss.enraged":
+      return [K.BOSS_ENRAGED, cm(e.x), cm(e.y)];
+    case "boss.crawler_dropped":
+      return [K.BOSS_CRAWLER_DROPPED, cm(e.x), cm(e.y)];
+    case "boss.killed":
+      return [K.BOSS_KILLED, playerSlotOf(e.killerId), weaponIndex(b, e.weapon), cm(e.x), cm(e.y), e.number & 0xff];
     // Story 6.8: kinds and outcomes as indices; ticks absolute (the client draws countdowns from the server's ticks).
     case "event.triggered":
       return [K.EVENT_TRIGGERED, EVENT_KINDS.indexOf(e.kind), e.wave, cm(e.x), cm(e.y), e.startTick, e.phase, e.lane < 0 ? NET_NONE : e.lane];
@@ -516,13 +532,38 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
     case K.BOSS_ARRIVED:
       return { type: "boss.arrived", x: n(t, 1) / 100, y: n(t, 2) / 100, maxHp: n(t, 3), look: n(t, 4) };
     case K.BOSS_TELEGRAPH:
-      return { type: "boss.telegraph", attackId: n(t, 1), kind: n(t, 2), startTick: n(t, 3), hitTick: n(t, 4), cx: n(t, 5) / 100, cy: n(t, 6) / 100, radiusM: n(t, 7) / 100 };
+      return {
+        type: "boss.telegraph",
+        attackId: n(t, 1),
+        kind: n(t, 2),
+        startTick: n(t, 3),
+        hitTick: n(t, 4),
+        cx: n(t, 5) / 100,
+        cy: n(t, 6) / 100,
+        radiusM: n(t, 7) / 100,
+        endX: n(t, 8) / 100,
+        endY: n(t, 9) / 100,
+        crash: n(t, 10) === 1,
+        src: n(t, 11),
+        srcX: n(t, 12) / 100,
+        srcY: n(t, 13) / 100,
+      };
     case K.BOSS_SLAMMED:
       return { type: "boss.slammed", attackId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
     case K.BOSS_TARGET_CHANGED:
       return { type: "boss.target_changed", playerId: playerIdOfSlot(n(t, 1)) };
     case K.BOSS_HIT:
       return { type: "boss.hit", amount: n(t, 1) / 10, weapon: weaponOf(b, n(t, 2)), sourceId: playerIdOfSlot(n(t, 3)) };
+    case K.BOSS_CRASHED:
+      return { type: "boss.crashed", attackId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
+    case K.BOSS_THROWN_IMPACT:
+      return { type: "boss.thrown_impact", attackId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };
+    case K.BOSS_ENRAGED:
+      return { type: "boss.enraged", x: n(t, 1) / 100, y: n(t, 2) / 100 };
+    case K.BOSS_CRAWLER_DROPPED:
+      return { type: "boss.crawler_dropped", x: n(t, 1) / 100, y: n(t, 2) / 100 };
+    case K.BOSS_KILLED:
+      return { type: "boss.killed", killerId: playerIdOfSlot(n(t, 1)), weapon: weaponOf(b, n(t, 2)), x: n(t, 3) / 100, y: n(t, 4) / 100, number: n(t, 5) };
     case K.EVENT_TRIGGERED: {
       const kind = EVENT_KINDS[n(t, 1)];
       if (kind === undefined) return null;

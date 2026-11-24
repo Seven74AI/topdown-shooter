@@ -1,6 +1,6 @@
 # Story 6.6: Behemoth charge and throw
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -67,7 +67,7 @@ so that we have to keep moving, and can bait it into a wall.
 2. **The lane sweep** (`boss/charge.ts › sweepChargeLane(world, x, y, dirX, dirY, out)`): from the centre in `sweepStepM` steps up to `distM`, the first step whose 2 m circle overlaps a box of `world.obstacles.solids` or crosses the map edge ends the lane at the previous step: `lenM`, `crash = true`; reaching `distM` clean: `lenM = 10`, `crash = false`. Player buildings (`world.buildings`) are ignored by the sweep (F2, F6). Allocation-free (writes `out`).
 3. **Charge** (`telegraph.ts` kind CHARGE): picked when the gap is over, its cooldown is 0, no one is in slam range (6.5's first branch), the target's centre is **5–12 m** from the boss's centre and the sweep toward it gives `lenM ≥ 4`. Telegraph **1.0 s = 20 ticks** (boss stands, faces the lane, head down): `boss.telegraph { kind: CHARGE, startTick, hitTick, cx, cy, dirX, dirY, lenM, widthM, crash }`. At `hitTick` → `RUSH`: each tick it moves `min(speedMps × dt, lenM − travelled)` = 0.6 m along the lane (no push-out needed: the sweep guarantees a clear path for its body against map boxes); every player building overlapping its body is destroyed (`damageBuilding(world, b, b.hp)`: `building.destroyed`, no refund; mines and traps are destroyed without going off); every zombie overlapping its body takes `zombieDamage` 30 (killer null); every standing player not yet hit this charge whose centre is within `laneWidthM / 2 − edgeGraceM` = 2.15 m of this tick's travel segment takes 30 (`damagePlayerBy(…, "boss", null)`) and is shoved (`knockPlayerBy` with the sideways direction, 2.5 m / 4 ticks). At the stop: `crash` → `STUN` for 40 ticks, emitting `boss.crashed { attackId, x, y }`; else `RECOVER` 1.0 s. Cooldown 7 s from the hit tick. The rush takes `ceil(lenM / 0.6)` ticks (10 m: 17 ticks).
 4. **Stun.** While `STUN`: no move, no turn, no attack, no gap countdown; `applyBossDamage` multiplies every source by `stunDamageMult` 1.5 (6.5 AC 11 reads `boss.state === STUN`). After 40 ticks: `gapTicks = gapS[n − 1]` (× 0.7 enraged, 6.7), then WALK.
-5. **Throw** (`boss/throw.ts`, kind THROW): picked when slam and charge were not, its cooldown is 0 and a standing player's centre is **more than 8 m** from the boss (or more than `unreachableMinM` 4.5 m when the boss's field cannot reach that player: 6.5 T3, D5). The farthest such player's position at the start is the landing spot (fixed). The **source** (visual only, D7): the nearest 6.2 rubble pile or burnt car (a `decay.fireSlots` record, burning or out) whose box is within `sourceRangeM` 6 m of the boss's body edge, else the road; sent as `src` (0 road, 1 rubble, 2 burnt car) + `srcX, srcY`. Lift 1.0 s = 20 ticks (boss stands, arms raised with the chunk), then the attack record moves to `FLIGHT` for 0.8 s = 16 ticks while the boss is in `RECOVER` (0.6 s) and then its gap; **a new attack cannot start until the impact** (6.5 F5: one attack at a time). At impact (`hitTick` = start + 36): every standing player with centre within 2.75 m takes 35 (`"boss"`, through cover), every zombie centre within 3 m takes `zombieDamage` 35 (killer null), `boss.thrown_impact { attackId, x, y }` (crater decal + dust + shake within 8 m). No change to `world.obstacles`, `world.buildings` or the nav grids (F8, asserted by a version check in the test). Cooldown 6 s from the release (an explicit exception to 6.5's "cooldown starts at the hit tick": a throw's hit tick is its impact, 0.8 s after the release).
+5. **Throw** (`boss/throw.ts`, kind THROW): picked when slam and charge were not, its cooldown is 0 and a standing player's centre is **more than 8 m** from the boss (or more than `unreachableMinM` 4.5 m when the boss's field cannot reach that player: 6.5 T3, D5). The farthest such player's position at the start is the landing spot (fixed). The **source** (visual only, D7): the nearest 6.2 rubble pile or burnt car (a `decay.fireSlots` record, burning or out) whose box is within `sourceRangeM` 6 m of the boss's body edge, else the road; sent as `src` (0 road, 1 rubble, 2 burnt car) + `srcX, srcY`. Lift 1.0 s = 20 ticks (boss stands, arms raised with the chunk), then the attack record moves to `FLIGHT` for 0.8 s = 16 ticks while the boss stands in `RECOVER`; **its 0.6 s recovery counts from the impact and its gap follows that** (review L4, brief 21f: one attack, then recovery, then gap), and **a new attack cannot start until the impact** (6.5 F5: one attack at a time). At impact (`hitTick` = start + 36): every standing player with centre within 2.75 m takes 35 (`"boss"`, through cover), every zombie centre within 3 m takes `zombieDamage` 35 (killer null), `boss.thrown_impact { attackId, x, y }` (crater decal + dust + shake within 8 m). No change to `world.obstacles`, `world.buildings` or the nav grids (F8, asserted by a version check in the test). Cooldown 6 s from the release (an explicit exception to 6.5's "cooldown starts at the hit tick": a throw's hit tick is its impact, 0.8 s after the release).
 6. **Pick order** (`behemoth.ts › pickBossAttack`, completes 6.5's stub): when `state === WALK`, `gapTicks === 0` and no attack record is live: (1) slam if its cooldown is 0 and any standing player is within 4 m; (2) charge if its cooldown is 0, the target is 5–12 m away and the lane is ≥ 4 m; (3) throw if its cooldown is 0 and a player qualifies (AC 5); (4) otherwise walk (and try again next tick). Initial cooldowns at arrival: charge 2 s, throw 3 s (slam 0).
 7. **Network.** The boss schema (6.5) gains the lane/landing fields of the current attack: `atkDirX i8, atkDirY i8` (unit × 127, like the knock fields), `atkLen u16` (cm), `atkCrash bool`, `atkSrc u8, atkSrcX f32, atkSrcY f32` — so a late or woken client draws the running telegraph. New events (next free numbers at merge): `boss.crashed`, `boss.thrown_impact`; `boss.telegraph` carries the charge/throw fields (round-trip tests). All global.
 8. **Client.**
@@ -79,15 +79,15 @@ so that we have to keep moving, and can bait it into a wall.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art (from the picks; no new pick).** Poses `charge` (head down, arms back), `rush`, `throw` (chunk overhead), `stun` (from the 6.5 atlas, all four looks BH1–BH4); the chunk sprites (concrete/rebar, burnt-car panel, torn asphalt: 3 frames, from `docs/art/epic-6/looks.html` tells and the prototype's chunk polygon) and the crater decal, through `addGeneratedTexture`. The CRASH mark and lane arrows are drawn as in the tells section. (AC 8)
-- [ ] **T1 Balance** (AC 1): `charge` and `throw` blocks in `boss.json` + `bossSchema`, `crossCheck`, `config/balance.test.ts`.
-- [ ] **T2 Lane sweep + charge** (AC 2, 3; F1–F4, F6): `boss/charge.ts` (`sweepChargeLane`, `resolveRush` per tick, `chargeHitsPlayer` segment-distance test), building smash, zombie trample, shove via `knockPlayerBy` (6.5). Tests `boss/charge.test.ts`.
-- [ ] **T3 Stun** (AC 4; F5): `STUN` state in `updateBoss`, the × 1.5 in `applyBossDamage`, `boss.crashed`. Tests in `charge.test.ts` + the 6.5 damage table (× 1.5 rows).
-- [ ] **T4 Throw** (AC 5; F7, F8): `boss/throw.ts` (`pickThrowTarget`, `throwSource`, the FLIGHT record, `resolveThrowImpact`), the "unreachable" rule reading 6.5's boss field (`bossChase.front[flowCellAt(bossNav, x, y)] === FLOW_UNREACHED`). Tests `boss/throw.test.ts` (+ `obstacles.version`, `buildings.version` and nav hashes unchanged by a throw).
-- [ ] **T5 Pick order** (AC 6; F9): complete `pickBossAttack`; table test `boss/pickOrder.test.ts` (positions × cooldowns → expected kind).
-- [ ] **T6 Network + client** (AC 7, 8): schema fields, `syncState`, `BossStateView` / `BOSS_STATE_FIELDS`, `fakeRoom`, devThrottle, mirror, `netEvents` (+ round trips), `BossTelegraphView` lane/throw drawing, chunk flight, crater decals, CRASH mark, stun pose + banner, sounds. Tests: `bossTelegraph.test.ts` (+ lane geometry, CRASH only when `crash`, throw inner ring radius by progress), `NetSimHost.boss.test.ts` (+ a woken tab during the flight draws the ring but no lift).
-- [ ] **T7 Fuzz, netsim, perf** (brief 7, 9, 14, 16): `boss/behemoth.fuzz.test.ts` (extend 6.5's): random layouts × stages 3–5 × variants × ≥ 3,000 ticks with charges forced every cooldown: the boss centre never inside a map box (true radius) after a rush, never off the map, players never inside a box after a shove, no stall; liveness ≥ 1 crash, ≥ 1 clean charge, ≥ 1 throw hit, ≥ 1 building smashed. `tools/netsim/boss.test.ts` (extend): `?lag=150&jitter=20`, 10 charges and 10 throws at the bot: hits only inside the grace by the server position; shove predicted (0 corrections ≥ 1 m). Tick cost: a rush tick with 110 zombies + 24 buildings ≤ the 6.5 budget.
-- [ ] **T8 Gates.** Mutations (sweep ignores sandbags → crash table; segment test replaced by point test → tunnelling test; hit set not cleared per charge → once-per-charge test; throw aims at the live position → fixed-landing test; throw edits obstacles → F8 test; stun multiplier skipped for explosions → table) and which failed. Browser check: solo `?bosswave=1`, bait a charge into the bus (CRASH mark, stun, amber bar), get thrown at from 9 m and step out; online `?lag=150&jitter=20` two tabs. Screenshots at 568 × 320 and 800 × 360. `typecheck && lint && test && build`. Merge notes.
+- [x] **T0 Art (from the picks; no new pick).** Poses `charge` (head down, arms back), `rush`, `throw` (chunk overhead), `stun` (from the 6.5 atlas, all four looks BH1–BH4); the chunk sprites (concrete/rebar, burnt-car panel, torn asphalt: 3 frames, from `docs/art/epic-6/looks.html` tells and the prototype's chunk polygon) and the crater decal, through `addGeneratedTexture`. The CRASH mark and lane arrows are drawn as in the tells section. (AC 8)
+- [x] **T1 Balance** (AC 1): `charge` and `throw` blocks in `boss.json` + `bossSchema`, `crossCheck`, `config/balance.test.ts`.
+- [x] **T2 Lane sweep + charge** (AC 2, 3; F1–F4, F6): `boss/charge.ts` (`sweepChargeLane`, `resolveRush` per tick, `chargeHitsPlayer` segment-distance test), building smash, zombie trample, shove via `knockPlayerBy` (6.5). Tests `boss/charge.test.ts`.
+- [x] **T3 Stun** (AC 4; F5): `STUN` state in `updateBoss`, the × 1.5 in `applyBossDamage`, `boss.crashed`. Tests in `charge.test.ts` + the 6.5 damage table (× 1.5 rows).
+- [x] **T4 Throw** (AC 5; F7, F8): `boss/throw.ts` (`pickThrowTarget`, `throwSource`, the FLIGHT record, `resolveThrowImpact`), the "unreachable" rule reading 6.5's boss field (`bossChase.front[flowCellAt(bossNav, x, y)] === FLOW_UNREACHED`). Tests `boss/throw.test.ts` (+ `obstacles.version`, `buildings.version` and nav hashes unchanged by a throw).
+- [x] **T5 Pick order** (AC 6; F9): complete `pickBossAttack`; table test `boss/pickOrder.test.ts` (positions × cooldowns → expected kind).
+- [x] **T6 Network + client** (AC 7, 8): schema fields, `syncState`, `BossStateView` / `BOSS_STATE_FIELDS`, `fakeRoom`, devThrottle, mirror, `netEvents` (+ round trips), `BossTelegraphView` lane/throw drawing, chunk flight, crater decals, CRASH mark, stun pose + banner, sounds. Tests: `bossTelegraph.test.ts` (+ lane geometry, CRASH only when `crash`, throw inner ring radius by progress), `NetSimHost.boss.test.ts` (+ a woken tab during the flight draws the ring but no lift).
+- [x] **T7 Fuzz, netsim, perf** (brief 7, 9, 14, 16): `boss/behemoth.fuzz.test.ts` (extend 6.5's): random layouts × stages 3–5 × variants × ≥ 3,000 ticks with charges forced every cooldown: the boss centre never inside a map box (true radius) after a rush, never off the map, players never inside a box after a shove, no stall; liveness ≥ 1 crash, ≥ 1 clean charge, ≥ 1 throw hit, ≥ 1 building smashed. `tools/netsim/boss.test.ts` (extend): `?lag=150&jitter=20`, 10 charges and 10 throws at the bot: hits only inside the grace by the server position; shove predicted (0 corrections ≥ 1 m). Tick cost: a rush tick with 110 zombies + 24 buildings ≤ the 6.5 budget.
+- [x] **T8 Gates.** Mutations (sweep ignores sandbags → crash table; segment test replaced by point test → tunnelling test; hit set not cleared per charge → once-per-charge test; throw aims at the live position → fixed-landing test; throw edits obstacles → F8 test; stun multiplier skipped for explosions → table) and which failed. Browser check: solo `?bosswave=1`, bait a charge into the bus (CRASH mark, stun, amber bar), get thrown at from 9 m and step out; online `?lag=150&jitter=20` two tabs. Screenshots at 568 × 320 and 800 × 360. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
 
@@ -108,7 +108,7 @@ so that we have to keep moving, and can bait it into a wall.
 - **DD1 The sweep uses `world.obstacles.solids` + the map edge only**, the same list bodies collide with; player buildings are not in it (smashed, F6). With the lane clear by construction, the rush moves the body without push-out (assert in the fuzz).
 - **DD2 Sideways direction:** `perp = −(px − cx)·dirY + (py − cy)·dirX`; shove along `(−dirY, dirX) × sign(perp)`, `sign(0) = +1` (deterministic). Use `knockPlayerBy(p, p.x − sx, p.y − sy, shoveM, shoveS)` with a source point on the far side, or add a `knockPlayerDir(p, dx, dy, distM, durS)` variant (no trig either way).
 - **DD3 Tunnelling:** test each player's centre against the segment from the boss's previous to its current centre this tick (distance to segment ≤ 2.15 m), plus the "inside drawn length" check.
-- **DD4 FLIGHT is a field of the attack record, not a boss state**: the boss can be in RECOVER / WALK while the chunk flies, but `pickBossAttack` requires `attack.kind === NONE` (cleared at impact).
+- **DD4 FLIGHT is a field of the attack record, not a boss state**: the boss stands in RECOVER while the chunk flies (review L4: the recovery ends at impact + `throw.recoverS`, then the gap), and `pickBossAttack` requires no live attack (`attack.live`, cleared at impact).
 - **DD5 Burnt cars**: `decay.fireSlots` (every ignite record, burning or out, at its target car's centre) — no new map data. Rubble boxes come from 6.2's accessor `map/obstacles.ts › rubblePiles(o, out)` (the active `rubble_pile_*` and `rubble_alley_*` boxes, allocation-free).
 - **DD6 Lane on the wire:** direction as int8 × 127 (the knock pattern), length in cm. The client rebuilds the same rectangle.
 
@@ -186,15 +186,290 @@ No new pools beyond 6.5's (decals shared, ≤ 8; one chunk sprite; ≤ 2 telegra
 
 ## Dev Agent Record
 
+Merged story (designer 2026-11-24): **6.6 + 6.7 "Behemoth charge, throw, enrage and end"**, built and recorded as one story here; `6-7-enrage-and-the-end-of-the-behemoth.md` points to this record.
+
 ### Agent Model Used
+
+Claude (claude-code builder session for Stories 6.6 + 6.7, cloud session; branch `story-6-6`).
 
 ### Debug Log References
 
+- Full gate: see "Gate" below (branch merged with origin/master `eb3b991`).
+- `PERF_ASSERT=1 tickCostBoss` (load 0.90): 6.5's walk/slam case base p99 0.689 ms → 0.541 ms with the boss; **rush ticks** (charges every cooldown, 110 zombies + 24 player buildings re-placed as smashed) p99 **0.796 ms** over 142 rush ticks / 9 charges vs 0.982 ms base (added ≤ 0: the charge sweep runs once per telegraph start; a rush tick tests ≤ 24 buildings and the zombie grid round its 0.6 m step).
+- `bossBandwidth`: record ≤ 181 B/s, events 356 B/s (incl. `boss.thrown_impact`, the telegraph's 6 extra fields), total **≤ 538 B/s per client** (6.5: 557 B/s; the story estimate was < 50 B/s on top).
+- Boss run sim (real 10-wave run, 4 god-mode bots, seeds 1–3): arrived 3/3, died 3/3, **52 throws, 3 roars, 27 Crawlers dropped, 3 killed, 150 × 4 paid in 3/3 runs**. The bots never stood 5–12 m in a clear lane, so 0 charges there; the charge liveness is the fuzz's (below).
+- Fuzz (`boss/behemoth.fuzz.test.ts`, new block): 18 Downtown layouts × stages 1–3 × variant masks × 3,000 ticks, traps and mines added, slam parked so it charges and throws every cooldown, half the layouts start at 40 % HP (enraged), every third killed at t 2,000. Every tick: boss never in a map box (true radius) or off the map, no player in a box, ≤ 110 alive while it lives, every Crawler drop clear of boxes and > 1.5 m from standing players, no boss damage/attack after its death, boss grid walls unchanged; no 30 s without an attack. Liveness asserted: crashes, clean charges, charge hits, throw hits, buildings smashed, ≥ 9 roars, ≥ 3 drops, deaths. 6.5's own fuzz block now also accepts RUSH/STUN/ROAR and counts charge/throw hits as "reached".
+- Netsim (`tools/netsim/boss.test.ts`, new block, `?lag=150&jitter=20` = 75 ± 10 ms each way, real `RunController` + client `Predictor`): **12 charges (6 hit / 6 missed), 12 throws (3 hit / 9 missed)**, every one decided by the newest server position (a charge hit only inside the 2.15 m band, and always when the boss passed the bot inside it; a throw hit exactly when the server centre was inside 2.75 m at the impact); **prediction snaps 0, 6 knock slides** (see Completion Notes: charge slide limit).
+- Mutations (brief 9 / 6.6 T8 / 6.7 T7), each applied, the target test file run, reverted (script in the session scratchpad):
+  - sweep ignores sandbags → `charge.test.ts` 1 failed (the solids table);
+  - segment test → point test → **survived**: the body-reach rule (below) covers the same band — a point within 2.15 m of a 0.6 m segment is always within 2.4 m (body + survivor) of its end, so the overlap rule hits it the same tick. Kept both (belt and braces); the grace sweep fails when the body-reach rule is removed;
+  - hit set not cleared per charge → 1 failed (new "next charge hits again");
+  - throw aims at the live position → `throw.test.ts` 2 failed;
+  - throw edits obstacles → 1 failed (F8);
+  - stun multiplier skipped for explosions → 1 failed (× 1.5 table);
+  - downed hit by the charge (`status === "out"` only) → **survived**: `damagePlayerBy` and `knockPlayerDir` refuse a non-alive player too (enforced twice, as 6.5's slam);
+  - throw grace removed → 1 failed; a chunk in flight not blocking (live cleared at release) → 5 failed;
+  - telegraph through `bossTicks` → `enrage.test.ts` F2 failed; enrage during an attack → F1 "never mid-attack" failed;
+  - pay only standing players → `death.test.ts` F6 failed; attack not cancelled on death → F5 failed; cap stays 110 after death → 2 failed;
+  - drops ignore the cap → F4 failed; drops ignore the 1.5 m clearance → F4 failed;
+  - body-reach in the lane removed → the 2.14/2.16 m grace sweep failed.
+- Browser check (headless Chromium, Vite on port 5791, stopped by PID; solo `?solo=1&bosswave=1`, scenes set up through the page's own `@topdown/shared` module): charge telegraph into the bus with the CRASH mark, the rush, the stun (amber bar flashing, amber "CRASH!" 1.2 s, survivor shoved sideways), throw lift / flight / crater, roar ("ENRAGED" red, bar red), a Crawler off its back, death ("EVAC INBOUND / +150 to everyone" amber, the bar empty and fading, the collapsed dark body staying). At 800 × 360, 568 × 320, and 800 × 360 `?blackout=5` (lane, CRASH mark and throw ring above the darkness, the boss outline + eyes over the lane). Screenshots: `docs/art/6-6/` (DPR 2, palette-quantised). Found and fixed while checking: the lane (above the darkness) covered the boss's own body — the body is redrawn above its lane/ring in the light (in the dark the outline frame is already above); the ENRAGED subtitle ran off a 800 px screen — banners are now short lines with a word-wrap guard.
+
 ### Completion Notes List
 
+- **Shared sim (6.6 AC 1–6, 6.7 AC 1–6).** `boss.json` gains `charge`, `throw`, `enrage`, `killPay`, `death` (strict schema, `crossCheckBoss`: lane half-width > grace, `minLaneM ≤ distM`, `unreachableMinM ≤ minM`, one Crawler interval per player count; every `*S` whole ticks). New modules: `boss/charge.ts` (`sweepChargeLane` over `world.obstacles.solids` + the map edge — the generic solids list, so 6.2's rubble crashes it with no change; `rushStep`, `chargeHitsPoint`, building smash, zombie trample, sideways shove), `boss/throw.ts` (`pickThrowTarget`, `bossCantReach` (D5), `throwSource` (D7: `rubble*`-named solids or a lit/burned-out fire slot, else road), `releaseThrow`, `updateThrowFlight`), `boss/enrage.ts` (`checkEnrage`, `updateRoar`, `crawlerDropSpot`, `updateCrawlerDrops`), `boss/death.ts` (`killBoss`). `telegraph.ts`: `telegraphTicks` for all three kinds (throw = lift + flight: `hitTick` is the impact), `windupTicks`, `recoverTicks`, **`bossTicks`** (the only place the enraged × 0.7 applies, rounded once when a cooldown/gap is set), RUSH / STUN branches, `attack.live` (DD4: a chunk in flight blocks every other attack and the roar). `behemoth.ts`: the full pick order (slam → charge → throw → walk), initial cooldowns at arrival, the roar check first in WALK, enraged walk × 1.3. `bossDamage.ts`: × 1.5 in STUN; the death moved to `death.ts`. `mine.ts`: a rushing boss never sets a mine off (D2). `player/knockback.ts`: `knockPlayerDir` (DD2, sideways). `MONEY_REASONS` + `"boss"`.
+- **Found while building (fairness, 6.6 F3):** with the body push-out (D1), a survivor 2.14 m from the line was pushed aside by the body a tick BEFORE this tick's travel segment came within 2.15 m of them — so they escaped a hit the drawn lane promised (the 15°-step grace sweep caught it). Rule added: a standing survivor the body overlaps while their centre is inside the 2.15 m band and the drawn length is hit at that moment (`bodyReachesInLane`). The rule as drawn is unchanged; the edge still never hits (2.16 m: pushed aside, no damage).
+- **Lane geometry:** the drawn lane runs from the body's back at the start to its front at the stop (`lenM + 2 × radius`), 4.8 m wide; hits need the centre inside it less the 0.25 m grace at both ends. On the wire the stop point is sent exactly (`endX/endY` f32 in the event and schema) instead of the story's int8 direction + cm length (an int8 direction is up to 8 cm off at 10 m; +6 B per attack).
+- **Throw source on the wire:** `src` (0 road, 1 rubble, 2 burnt car) + `srcX/srcY`; the chunk's look only.
+- **6.7 behaviour:** roar only from WALK with no live attack (DD1), push 1.5 m within 5 m via the knockback, no damage, once; Crawlers every 8/6/5/4 s from 1 s after the roar in every state but DEAD, wave zombies (D1: in `remaining`, pay 3), skipped on a box/building/edge/standing player ≤ 1.5 m/110 alive; death cancels the live attack (telegraph, rush, chunk in flight), pays 150 to every player through `earn` (`"boss"`), emits `boss.killed { killerId, weapon, x, y, number }`; the cap is 150 again that tick (DEAD is not `bossActive`); the wave still has to be cleared (F7); the body stays (not solid) until the build start (6.5's reset in the boss system). Killer +1 kill: `RunController` (online Results) and `GameScene` (solo).
+- **Network:** boss schema + `atkEndX, atkEndY, atkCrash, atkSrc, atkSrcX, atkSrcY` (stateView key list, fakeRoom, devThrottle via the key list, mirror). Events 50–54: `boss.crashed`, `boss.thrown_impact`, `boss.enraged`, `boss.crawler_dropped` (local at its spot), `boss.killed`; `boss.telegraph` carries the lane/landing/source fields. NetSimHost stamps `ageS` on the new events (a woken tab plays no late CRASH!/ENRAGED/sounds; EVAC INBOUND still shows once per Behemoth).
+- **Predictor (6.6 brief 14 "shove predicted"):** the charge shove (2.5 m) plus the body's sideways push-out (up to 2.4 m) can put the server 3 m from the prediction by the time the client sees the knock; the 5.7 slide limit (2.5 m, sized for the Brute) snapped it. A knock with the charge's step (625 mm/tick) now slides in up to `PREDICTION_CHARGE_SNAP_M` 6 m, and while a seen knock is still sliding (`knockTicks > 0`) the running-offset limit is the knock's (it was 1 m, so a 0.15 m correction on top of a decaying 2 m slide snapped). Netsim: 0 snaps, 6 slides. Brute knocks keep 2.5 m.
+- **Client:** `BossView` — the lane (baked hatched strip with arrows, cropped to the lane's length, red fill from the start tick, full through the rush, fading 0.3 s after the stop tick `chargeStopTick`), the CRASH mark (amber bar + word, at the stop's front), the throw ring (hatched disc without the body hole) + shrinking white inner ring + the chunk on a cosmetic arc (3 looks), craters in the shared decal pool (max 8, cleared at build start), the body redrawn above its own lane in the light, transient rings (roar 5 m, Crawler puff, crash dust), the collapse (3 frames over 1.5 s, dark tint, no eyes). `bossTelegraph.ts` pure helpers (tested): `chargeLaneLook`, `chargeStopTick`, `chargeLaneProgress`, `throwInnerRadius`, `throwChunkAt`, `deathFrameIndex`. `bossAtlas.ts`: 3 `dead_*` frames per look (4 × 16 frames ≤ 2048²), FX frames for 3 chunks, the crater, the CRASH mark; new textures `boss_tele_ring`, `boss_tele_lane` — all through `addGeneratedTexture`. `BossHud`: bar flashes amber while stunned, empties and fades over 2 s after the death. Banners: colour + duration on `hudModel` (`bannerColor`, `bannerShowMs`), word-wrap guard. Sounds: 8 placeholders. Rush sound on the state change.
+- **No new look:** every drawing follows the picked tells (red + white hatching, dashed edge, CRASH mark in amber, skull, gold-notch bar, red when enraged); the collapse frames and chunks are built from the BH1–BH4 art and the prototype's chunk polygon. No designer question raised.
+- **zombieAi.ts / flowField.ts untouched** (6.8 builds on them freely).
+- **Edge marker (F9):** shows the attack's icon during its telegraph (6.5's marker; arrow = charge, rock = throw). Cooldowns aren't synced, so the client does not predict the *next* pick before it starts; `nextBossAttack` (shared, unused by the client yet) is there if the designer wants an earlier hint.
+
+#### Gate
+
+Full gate on `story-6-6` at `f46e0cb` (merged with origin/master `eb3b991`, after `npm ci`): `npm run typecheck` 0 errors, `npm run lint` clean, `npm test` **352 files / 3,309 tests passed** (3 skipped, 1 file skipped as before), `npm run build` OK. Load (`uptime`, 4 cores): 1.37 at the start, 1.50 when the tests started, 2.76 at the end. (The first two gate runs after the merge stopped at typecheck — test-file type errors — and at lint; both fixed, nothing else changed.)
+
+#### Not verified
+
+- Real phones (Mi 11i) and their FPS with the lane / ring / chunk (no device; headless only, not measured against `?stress=150` here: the new objects are 1 lane image + 2 graphics, 1 ring image + 1 graphics, 1 chunk, ≤ 8 decals shared with 6.5).
+- An online two-tab browser run under `?lag=150&jitter=20` (no server run in a browser): covered by `tools/netsim/boss.test.ts` (charges, throws, predicted shove) and `NetSimHost.boss.test.ts` (late scene / woken tab mid-rush, after the stop, during the flight, across the roar and the death).
+- A real hidden tab in a browser across a rush or the death (unit-tested only).
+- Sounds by ear (placeholders; headless has no audio); the camera shake on the crash/impact/roar (code path only).
+- A crash into 6.2's rubble in the browser (6.2 not on master; the sweep reads the generic solids list — unit-tested with a `rubble_*` box) and the rubble chunk look at a real pile.
+- Bots never charge-baited in the 10-wave sim (0 charges there; charges are covered by the fuzz and unit tests).
+
+#### Notes for the merge (brief 19)
+
+- `boss/*` (6.5's files): `telegraph.ts` (kinds, `bossTicks`, `attack.live`, RUSH/STUN), `behemoth.ts` (pick order, roar check, initial cooldowns, enraged speed), `bossDamage.ts` (× 1.5, death moved out), `bossState.ts` (attack fields `crash/src/srcX/srcY/live/travelled/hitMask`, `crawlerTicks`, `BOSS_THROW_SRC`; snapshot includes them). New `charge.ts`, `throw.ts`, `enrage.ts`, `death.ts`. **6.11/6.12:** key the helicopter on "wave 10 cleared with the boss DEAD"; `resetBoss` keeps `number`; endless HP growth must not touch timers (`bossTicks` is the only multiplier).
+- `config/balance/boss.json` / `balanceSchema.ts` / `balance.ts`: `charge`, `throw`, `enrage`, `killPay`, `death` appended; cross-checks appended.
+- `core/simEvents.ts`: `MONEY_REASONS` + `"boss"` (index 5; **6.10 appends `"event"` after it**); five boss events; `boss.telegraph` gained `endX, endY, crash, src, srcX, srcY` (required fields).
+- `net/netEvents.ts`: kinds **50–54** (`BOSS_CRASHED … BOSS_KILLED`); **6.8–6.11 take 55+** (renumber at merge if 6.8 took 50+ first — never reuse).
+- `net/stateView.ts` / server `RunState.ts` / `syncState.ts` / client `fakeRoom.ts` / `mirrorBoss.ts`: six `atk*` fields appended to the boss record.
+- `apps/server/src/net/eventInterest.ts`: `boss.crawler_dropped` local; the rest global.
+- `apps/server/src/run/RunController.ts`: `boss.killed` +1 kill for the finisher (before the zombie-kill line).
+- `player/knockback.ts`: `knockPlayerDir` beside `knockPlayerBy`. `buildings/mine.ts`: one line (no trigger by a rushing boss).
+- `apps/client/src/net/prediction.ts` + `netConfig.ts`: `PREDICTION_CHARGE_SNAP_M` and the "keep the knock's limit while it slides" rule (affects the Brute's knock too: its running-offset limit is 2.5 m while `knockTicks > 0`).
+- `NetSimHost.ts`: `ageS` for the five new events (one `else if` list).
+- `GameScene.ts` / `HudScene.ts` / `hudModel.ts` / `BossHud.ts`: boss event list, `showBanner(text, color, ms)`, `bannerColor` / `bannerShowMs` / `bossStunned` / `bossBarAlpha` appended; the banner text gets `setWordWrapWidth(92 %)`. 6.8–6.11 can use the coloured banner (amber for events).
+- `render/BossView.ts`, `bossTelegraph.ts`, `bossCue.ts`, `city/bossAtlas.ts` (frame indices `outline` 14 / `outlineEnraged` 15 now), `city/behemothArt.ts` (`dead` pose), `audio/placeholderSfx.ts` (8 keys).
+- `bots/headlessRun.ts`: `earnedBy.boss`. `economy/tenWaveSim.test.ts` sums it and asserts 150 × 4. `waves/waveDirector.test.ts` (6.1's wave-10 rush test) sets `bossWaves = []`.
+- 6.5 tests that assume a walking-only boss use `slamOnly(world)` (`boss/testBoss.ts`).
+- (new) `docs/perf/epic-6-boss.md` (review M1)
+- `docs/playtests/milestone-1/readability-sheet.md`: items **60–64** (the main session's split: 49 is 7.8's, 6.2+6.4 use 50–59, 6.6+6.7 use 60–69).
+- **6.2:** rubble boxes named `rubble_*` in `obstacles.solids` crash the charge (no code here needed) and are the throw's "rubble" source by name prefix.
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/6-6-behemoth-charge-and-throw.md`
+- `_bmad-output/implementation-artifacts/6-7-enrage-and-the-end-of-the-behemoth.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `apps/client/src/audio/placeholderSfx.ts`
+- `apps/client/src/net/fakeRoom.ts`
+- `apps/client/src/net/mirrorBoss.ts`
+- `apps/client/src/net/netConfig.ts`
+- `apps/client/src/net/prediction.ts`
+- `apps/client/src/render/BossView.ts`
+- `apps/client/src/render/bossCue.test.ts`
+- `apps/client/src/render/bossCue.ts`
+- `apps/client/src/render/bossTelegraph.test.ts`
+- `apps/client/src/render/bossTelegraph.ts`
+- `apps/client/src/render/city/atlasLayout.test.ts`
+- `apps/client/src/render/city/behemothArt.ts`
+- `apps/client/src/render/city/bossAtlas.ts`
+- `apps/client/src/scenes/BossHud.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/scenes/HudScene.ts`
+- `apps/client/src/scenes/hudModel.ts`
+- `apps/client/src/sim/NetSimHost.boss.test.ts`
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/server/src/net/eventInterest.ts`
+- `apps/server/src/rooms/schema/RunState.ts`
+- `apps/server/src/rooms/schema/syncState.test.ts`
+- `apps/server/src/rooms/schema/syncState.ts`
+- `apps/server/src/run/RunController.ts`
+- `apps/server/src/run/RunController.test.ts` (review L3)
+- `apps/server/src/run/tickCostBoss.test.ts`
+- (new) `docs/art/6-6/6-6-568x320-charge-telegraph.png`
+- (new) `docs/art/6-6/6-6-568x320-crash-stun.png`
+- (new) `docs/art/6-6/6-6-568x320-death.png`
+- (new) `docs/art/6-6/6-6-568x320-throw-flight.png`
+- (new) `docs/art/6-6/6-6-800x360-blackout5-charge-telegraph.png`
+- (new) `docs/art/6-6/6-6-800x360-blackout5-corpse.png`
+- (new) `docs/art/6-6/6-6-800x360-blackout5-throw-flight.png`
+- (new) `docs/art/6-6/6-6-800x360-charge-telegraph.png`
+- (new) `docs/art/6-6/6-6-800x360-corpse.png`
+- (new) `docs/art/6-6/6-6-800x360-crash-stun.png`
+- (new) `docs/art/6-6/6-6-800x360-death.png`
+- (new) `docs/art/6-6/6-6-800x360-roar.png`
+- (new) `docs/art/6-6/6-6-800x360-throw-crater.png`
+- (new) `docs/art/6-6/6-6-800x360-throw-flight.png`
+- (new) `docs/art/6-6/6-6-800x360-throw-lift.png`
+- `docs/playtests/milestone-1/readability-sheet.md`
+- `packages/shared/src/boss/behemoth.fuzz.test.ts`
+- `packages/shared/src/boss/behemoth.test.ts`
+- `packages/shared/src/boss/behemoth.ts`
+- `packages/shared/src/boss/bossDamage.ts`
+- `packages/shared/src/boss/bossPathing.test.ts`
+- `packages/shared/src/boss/bossRunSim.test.ts`
+- `packages/shared/src/boss/bossState.ts`
+- (new) `packages/shared/src/boss/charge.test.ts`
+- (new) `packages/shared/src/boss/charge.ts`
+- (new) `packages/shared/src/boss/death.test.ts`
+- (new) `packages/shared/src/boss/death.ts`
+- (new) `packages/shared/src/boss/enrage.test.ts`
+- (new) `packages/shared/src/boss/enrage.ts`
+- `packages/shared/src/boss/telegraph.ts`
+- `packages/shared/src/boss/testBoss.ts`
+- (new) `packages/shared/src/boss/throw.test.ts`
+- (new) `packages/shared/src/boss/throw.ts`
+- `packages/shared/src/bots/headlessRun.ts`
+- `packages/shared/src/buildings/mine.ts`
+- `packages/shared/src/config/balance.test.ts`
+- `packages/shared/src/config/balance.ts`
+- `packages/shared/src/config/balance/boss.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/core/simEvents.ts`
+- `packages/shared/src/economy/tenWaveSim.test.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/net/netEvents.test.ts`
+- `packages/shared/src/net/netEvents.ts`
+- `packages/shared/src/net/stateView.ts`
+- `packages/shared/src/player/knockback.ts`
+- `packages/shared/src/waves/waveDirector.test.ts`
+- `tools/netsim/boss.test.ts`
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: review fixes M1, L1–L4, N1, N2 (see Review fixes).
+- 2026-11-24: merged with 6.7 (designer); built as one story (gds-dev-story, builder session `story-6-6`): charge, throw, stun, enrage, Crawler drops, death and pay; network, prediction, client drawing and HUD; fuzz, netsim, run sim, tick cost, mutations, browser check; merged master `eb3b991`; status → review.
+
+## Senior Developer Review (AI)
+
+Fresh-agent review (cloud session, branch `review-6-6`), 2026-11-24. **Reviewed commit `194d1d8`** (story-6-6 merged with master `eb3b991`), diff `eb3b991...194d1d8`. Method: gds-code-review layers (Blind Hunter, Edge Case Hunter, Acceptance Auditor) done inline, plus beat-the-rule exploit tests and mutations. No code was changed; the scratch exploit tests were deleted.
+
+**Outcome: Approve with low findings.** No high findings. One medium, a process gap (brief 12). I found no exploit of brief 21 (a)–(g) or line 22.
+
+### Gate (brief 1, 16)
+
+`npm ci`, then `npm run typecheck && npm run lint && npm test && npm run build` at `194d1d8`: all green. Tests: **352 files / 3,309 passed** (3 skipped, 1 file skipped as before). Build OK. Load (`uptime`, 4 cores): **0.26 at the start → 2.99 at the end**. PERF_ASSERT was not re-run; the builder recorded load 0.90 (rush p99 0.796 ms).
+
+### Findings
+
+| # | Sev | Title | Where | Failure scenario | Suggested fix |
+| --- | --- | --- | --- | --- | --- |
+| M1 | medium (process) | Brief 12 `?stress=150` FPS before/after not measured | Dev Agent Record › Not verified | The lane strip, throw ring, chunk and shared decals were never run against the latest `docs/perf/` `?stress=150` floor. A phone regression from the lane's masked hatch above the darkness would go unseen until Mi 11i testing. | Run `?stress=150&bosswave=1` headless with a charge telegraph and a throw live. Record FPS before/after with load in `docs/perf/`. |
+| L1 | low | Once-per-charge is skipped for a player without a slot | `packages/shared/src/boss/charge.ts:136-138` | `bossSlotOf` returns −1 for a player with no flame slot (more than 4 players, a dev room, or a slot claim that failed), so `bit = 0` and the mask check is skipped. **Reproduced:** a slot-less survivor held in the lane took **16 hits in one charge**. Not reachable with the room's 4-player cap. | `if (slot < 0) return;` (a player the boss can't track is never hit), or a cross-check `MAX_PLAYERS ≤ 31` plus a per-attack id list. |
+| L2 | low | The Predictor tells a charge knock apart only by its step size; 20 Hz is a literal | `apps/client/src/net/prediction.ts:258-262` | `knockStepMm === round(shoveM·1000 / round(shoveS·20))`. Today: slam 500, Brute and roar 375, charge 625, so no clash. A balance edit (for example slam `pushM` 2.5) would quietly give that knock the 6 m slide limit. The literal `20` breaks brief 10 (use `ticksFor`). **Not exploitable:** the larger limit is client-side visual smoothing only. The server takes inputs, not positions, so a speed hack or teleport gains nothing. The Brute path is unchanged for new knocks (2.5 m); only its running total is now 2.5 m (was 1 m) for the 4 knock ticks, which is visual and acceptable. | Use `ticksFor(c.shoveS)`. Add a `crossCheckBoss` rule that the charge step differs from every other knock step, or send a knock-kind bit. |
+| L3 | low | Four test gaps (mutations survived) | `enrage.test.ts`, `NetSimHost.boss.test.ts`, `RunController`, `bossState.ts:294` | See "Mutations" below: M19 roar hp drop, M21 crash `ageS`, M22 killer +1 kill, M24 `crawlerTicks` in the snapshot. Each survived, so a regression there would not be caught. | Assert `hp` unchanged after the roar. Assert that a woken tab after a crash plays no late CRASH!. Add a RunController test for `boss.killed` +1 kill (D5). Add a test that changing `crawlerTicks` changes the snapshot digest. |
+| L4 | low (design note) | A throw's recovery and part of its gap run during the flight | `telegraph.ts:224-229`, `behemoth.ts` pick | The lift ends, then RECOVER 0.6 s, then the gap, all while the chunk flies 0.8 s. After the impact the next telegraph can start after gap − 0.2 s (enraged, 4 players: 1.05 → 0.85 s). Allowed by AC 5 and DD4, but brief 21(f) reads "attack, then recovery, then gap". Never two hits at once (`attack.live` blocks), and the next attack still has its full telegraph. | Ask the designer to confirm the AC 5 reading, or start the gap at the impact. |
+| N1 | nit | Iterator allocation per WALK tick | `throw.ts:45` (`for … of world.players.values()`) | `pickThrowTarget` runs every WALK tick with the throw cooldown at 0. Same pattern as 6.5's `behemoth.ts:54/221`. | `forEach` with a module callback, as `rushStep` does. |
+| N2 | nit | A zombie that slides under the body between rush ticks is never trampled | `charge.ts:210-215` | The "new overlap" test skips any zombie already inside the previous step's circle, including one that walked in sideways since (B1: zombies walk under it). This loses 30 trample damage; no fairness impact. | Keep a per-charge hit bit per zombie, or accept. |
+
+### Beat the rule (brief 4): attempts and results
+
+The story's list (each confirmed by a test that a mutation proved live):
+
+1. 2.2 m off the line: no hit. 2.1 m: hit (grace sweep 0°–345°; M1 and M2 killed it).
+2. Running ahead of the rush: hit once, shoved sideways, never carried (M17 killed it).
+3. Baited into the bus: always a crash with the mark. Barricade line: never stops it, smashed (solids table; M16 killed it).
+4. Behind the CRASH bar (far side of the bus): never hit (test "beyond the lane's end").
+5. Shoved into a car fire: stops at the edge (knockback 5.7 F2, shove tested at a barricade face).
+6. Behind a building from the throw: not shielded. Walking 1 m/s during the lift: hit only inside 2.75 m (M4 and M18 killed it).
+7. Chunk in flight with a survivor in its face: no slam until the impact (M8 killed it).
+8. Alley 6 m away: thrown at (M3 killed it).
+9. Five baited crashes: the stun never overlaps an attack (only WALK picks; fuzz).
+10. Hidden tab across a charge: covered by `NetSimHost.boss.test.ts` woken mid-rush and after the stop. A late CRASH! is not asserted (L3, M21).
+11. Charge through mines and traps: none goes off, all destroyed, no refund (M15 killed it).
+
+Mine (scratch tests, deleted):
+
+- **X1 `bodyReachesInLane` outside the drawn lane?** 400 random lanes × 3 survivors anywhere in ±2.8 m × −1…12 m. Every hit had its pre-tick centre inside |perp| ≤ 2.15 m and inside the drawn length less the grace; never two hits per charge; many hits and many misses. **Not beaten.**
+- **X1b hit twice / hit downed:** no for every slotted player (mask). Downed and out are refused in `hitPlayer`, `damagePlayerBy` and `knockPlayerDir`. **Beaten only without a slot (L1).**
+- **X2 slot-less player:** 16 hits in one charge (L1).
+- **X3 killed mid-rush:** the rush stops where it is, no later hits, cap 110 → 150 the same tick, 150 to both players. **Holds.**
+- **X4 killed while the chunk flies:** no impact, no damage. **Holds.**
+- **X5 Crawler drops at 109 alive for 400 ticks:** reached exactly 110, never more. **Holds** (brief 22).
+- **X6 enraged charge telegraph:** same 20 ticks. **Holds** (21e; enrage.test F2 covers every kind).
+- **X7 squeezed between the crashing boss and the bus face** (5 offsets): hit once, ends outside the body (4.2–4.6 m from its centre) and outside every box. **Holds.**
+- **Predictor 6 m slide as a cheat:** not possible; the server is authoritative and the predictor only smooths the drawn offset (L2).
+
+### Brief 21 / 22 (each checked)
+
+- (a) The lane (`planCharge` and the sweep at the start), the stop point and the throw spot are all fixed in `startBossAttack`. `rushStep` moves from the fixed start, never accumulated. Holds.
+- (b) `chargeLaneProgress` and `throwInnerRadius` are keyed on the server start/hit ticks. The ring reaches 0 at the impact; the lane is full at the hit and through the rush. The lane and ring are cleared on DEAD. Holds.
+- (c) Grace of 0.25 m on lane width, both lane ends and the throw ring. Holds (X1, M1, M2, M4).
+- (d) The newest server position; no rewind in charge.ts or throw.ts. Holds.
+- (e) `telegraphTicks`, `windupTicks`, `recoverTicks` and the stun never call `bossTicks`. Holds (M5 killed).
+- (f) `attack.live` blocks every pick and the roar until the impact or stop. Recovery, then gap (see L4 for the throw).
+- (g) Every resolver, the throw pick and the charge target check `status === "alive"`. Holds.
+- 22: `maxAliveNow` is 110 for WARNING…ROAR and 150 from DEAD on the same tick. Drops are capped at `aliveCap` and are wave zombies in `remaining` (M6 and M20 killed; X3, X5). The stampede +30 belongs to 6.8 (not merged; n/a).
+
+### Acceptance and decisions audit
+
+- 6.6 F1–F10 and AC 1–9: met. Wire change: the exact stop point (`atkEndX/Y` f32) replaces the int8 direction + cm length (documented; more exact, +6 B). Accepted.
+- 6.7 F1–F7 and AC 1–8: met. AC 3's `"speed"` kind was not added to `bossTicks`; speed is multiplied in `walk` instead. That is fine, because telegraphs still never scale.
+- D1–D9 (6.6): met. The CRASH mark is amber (colour rule). D5 reads the boss field (`bossCantReach`).
+- D1–D8 (6.7): met. D4 pays every player in `world.players`; a player who has left the room is not paid, which is right.
+- 6.5 B1–B3: unchanged. Zombies still walk under the body. The throw is B3's answer.
+- Charge vs map solids is generic (`world.obstacles.solids`), so 6.2's rubble crashes it with no code. The throw's rubble look depends on the `rubble_*` names that 6.2's story uses; check this at the 6.2 merge.
+
+### Brief lines 1–32
+
+1 ✓ (gate green, git clean). 2 ✓ (copies listed: schema, syncState, stateView, fakeRoom, mirror, snapshot; Predictor knock limit). 3 ✓. 4 ✓ (above). 5 ✓ (slam and throw ignore cover; the charge stops at solids). 6 ✓ (resolve once; per-body hit mask). 7 ✓ (fuzz extended with liveness). 8 ✓ (no new RNG; digest test through charge, throw, roar, drops and death; L3 for `crawlerTicks`). 9 ✓ (24 mutations here, 20 killed). 10 ✓ apart from L2's literal 20. 11 ✓ (events, not per-tick state; ≤ 538 B/s boss total reported). 12 ✗ (M1: no `?stress=150` FPS). Atlas 4 × 16 frames ≤ 2048². 13 ✓ (readability items 60–64). 14 partial (netsim `?lag=150&jitter=20`; hidden tab unit-tested only, no browser). 15 ✓ (10-wave sim, 150 × 4). 16 ✓ (builder p99 at load 0.90). 17 ✓. 18 ✓ (`?bosswave`; not-verified list given). 19 ✓ (Notes for the merge). 20 ✓ (new textures through `addGeneratedTexture`; `noUnregisteredTextures` green). 21 ✓. 22 ✓. 23 n/a. 24 ✓ (lane, ring, chunk and crater above the darkness; screenshots at 568 and 800). 25 ✓ (craters ≤ 8; drops capped). 26 n/a. 27 ✓ (banner extended via hooks). 28 ✓ (death does not end the wave). 29 ✓. 30 n/a (no new edge input). 31 ✓ (no new pressable HUD; the banner wraps). 32 ✓ (decision log through 6.5 B1–B3 read; merged-tree commit reviewed).
+
+### Mutations (brief 9; one per new test area, each reverted)
+
+Killed (good): M1 charge grace removed · M2 `bodyReachesInLane` perp check removed · M3 D5 off · M4 throw grace removed · M5 `bossTicks` ignores enrage · M6 drops ignore the 110 cap · M7 pay only standing · M8 death leaves the attack live · M9 drawn lane `lenM + R` · M10 rush body push-out skipped · M11 `PREDICTION_CHARGE_SNAP_M` 2.5 (netsim) · M12 running-total limit back to snapM (netsim) · M13 `atkCrash` not synced · M14 stun × 1.5 off · M15 rush sets off mines · M16 sweep ignores the map edge · M17 hit mask ignored · M18 throw at the nearest · M20 drops not wave zombies · M23 rubble prefix wrong.
+
+Survived (bad, see L3): M19 roar takes 10 hp directly (the tests only look for damage events) · M21 `boss.crashed` dropped from NetSimHost's `ageS` list · M22 RunController killer +1 kill removed (all `apps/server/src` tests pass) · M24 `crawlerTicks` dropped from `snapshotBoss` (the digest test compares two equal runs).
+
+### Not verified by this review
+
+Real phones, browser FPS, sound by ear, a real hidden tab, and an online two-tab run (same as the builder's list).
+
+### Review fixes (builder, 2026-11-24)
+
+All findings fixed on `story-6-6`. **Behaviour changes: L1, L2, L4** (and N2, trample only); for the re-reviewer.
+
+| # | Fix | Behaviour change? | Test (mutation proof) |
+| --- | --- | --- | --- |
+| M1 | `?stress=150` headless FPS before (master `eb3b991`) / after, with the boss walking, charging back to back and throwing back to back, plus probes: `docs/perf/epic-6-boss.md`. Charges / throws cost −4 % / −8 % when they kill nothing (17.7 / 16.9 vs 18.4 fps); the ~20 % seen with kills on is the 528 zombie deaths per 20 s the forced attacks cause in the packed stress crowd (probes rule out the lane/ring drawing, sounds and the sim: 0.5 ms steps). | no | — |
+| L1 | `charge.ts › hitPlayer`: a survivor without a slot gets a hit-mask bit after the `MAX_PLAYERS` slot bits, by its order in the World (`CHARGE_HIT_BITS` 31); past 31 it is never hit (the safe side). `crossCheckBoss`: `MAX_PLAYERS ≤ 31`. | yes (slot-less survivors: once per charge instead of every tick) | `charge.test.ts` "review L1: a survivor without a player slot … at most once per charge" (the old `bit = 0` path fails it: 1 failed) |
+| L2 | `knockback.ts › knockStepMmOf` / `chargeKnockStepMm` (uses `ticksFor`, no literal 20); the Predictor calls it. `crossCheckBoss`: the charge shove's mm per tick must differ from the slam push, the roar push and every zombie type's knockback. | yes (only if balance changes: a clashing step is now refused at load) | `config/balance.test.ts`: slam `pushM` 2.5 (625 mm/tick) is refused (removing the rule fails it) |
+| L3 | Four asserts: M19 the roar leaves every player's hp and the boss's hp unchanged; M21 a woken tab after a crash plays no late CRASH!/sound (`NetSimHost.boss.test.ts`); M22 `RunController` gives the finisher +1 kill, a killer-less death none (`RunController.test.ts`); M24 two worlds differing only in `crawlerTicks` have different digests (`death.test.ts`). | no | each of the four mutations now fails its test |
+| L4 | `telegraph.ts`: a throw's RECOVER lasts until **impact + `throw.recoverS`** (the boss stands while the chunk flies), then the gap; `attack.live` still blocks. Story AC 5 and DD4 updated to say so. | yes (after a throw the next attack is up to 0.8 s later) | `throw.test.ts` "review L4 (brief 21f): … never before impact + recovery + gap (1–4 players, enraged or not)" + "recovers 0.6 s from the IMPACT" (the old timing fails both) |
+| N1 | `pickThrowTarget`: a module callback through `players.forEach` (no iterator per WALK tick). | no | existing throw tests |
+| N2 | Trample once per zombie per charge by a per-slot mark (`boss.trampleId` = attack id, `trampleGen` = the slot's generation; snapshotted, reset with the boss) against the swept capsule, so a zombie that walks in under the body between two steps is trampled too. Cheap: two typed arrays of 256. | yes (more zombies trampled; still once each) | `charge.test.ts` "review N2: a zombie that walks in under the body between two rush steps is trampled too — once per charge" (ignoring the mark fails 2 tests) |
+
+### Re-review (AI)
+
+Fresh-agent narrow re-review of the review-fix commits only (`96777a8` code, `f91058c` story text, `fd84265` perf doc), 2026-11-24. **Reviewed commit `c0646ec`.** No code changed; scratch probe tests deleted, every mutation reverted. Ran `npm run typecheck` (clean) and only the probed test files (`charge`, `throw`, `enrage`, `death`, `config/balance`, `NetSimHost.boss`, `RunController`).
+
+**Outcome: Approve.** No high or medium findings. Two low, two nits. Brief 21 (a)–(g) and 22 not beaten through the changed code.
+
+| # | Sev | Title | Where | Scenario | Fix |
+| --- | --- | --- | --- | --- | --- |
+| R1 | low | A slot-less survivor's hit bit moves when an earlier player leaves mid-charge, so it can be hit twice | `packages/shared/src/boss/charge.ts:146` (`MAX_PLAYERS + order`) | **Reproduced:** 4 slotted + 1 slot-less player in the lane; after its hit, slotted player `a` leaves: its order drops 4 → 3, the bit changes, and the second hit lands (**2 hits in one charge**). Not reachable on the server: slot-less needs a fifth player, and the room caps at 4. The opposite case (a slotted player hit, leaves, and a newcomer takes the slot mid-charge) is the safe side: the newcomer is never hit by that charge. | Accept (room cap). Or key slot-less players by a stable per-attack list of ids. |
+| R2 | low (test gap) | The generation half of the N2 trample mark is untested | `charge.ts:226` | Mutating to `trampleId[id] === a.id` alone passes every test. In shipped balance it can't matter: the rush is 10 m at 12 m/s ≈ 17 ticks, shorter than `ZOMBIE_SLOT_HOLD_TICKS` 20, so a trampled slot can't be reused within the same charge. A balance edit (longer `distM` or slower rush) would make it reachable. My probe (generation bumped mid-rush) gets the second trample correctly. | Add a test that bumps a slot's generation mid-rush and expects a second trample. |
+| R3 | nit | `crossCheckBoss` computes ticks as `round(s·20)`, but runtime uses `ticksFor` (`round(s / (1/20))`) | `packages/shared/src/config/balance.ts:286-289` | The two differ at x.x75 s (for example 0.175 s → 4 vs 3 ticks), so the check could miss a clash or refuse a safe step. **Not reachable:** the schema already refuses durations that aren't whole ticks (`charge.shoveS must be whole ticks`). | Call `knockStepMmOf` in the cross-check (one source). |
+| R4 | nit (equivalent mutant) | `a.live \|\|` in the throw RECOVER condition is redundant | `telegraph.ts:273` | Removing it passes every test, because `updateThrowFlight` runs first and always lands the chunk at `hitTick`. Kept as a defensive guard; fine. | None. |
+
+**Exploit attempts (each a scratch test):**
+
+- L1: index shift after a leave → 2 hits (R1). Slot handed over mid-charge → newcomer 0 hits (safe). Can a player dodge every charge by being slot-less? Only at order ≥ 27 (31-bit mask), which needs 31+ players: unreachable.
+- L2: shipped steps are charge 625, slam 500, roar 375, Brute 375 mm per tick. The shipped balance loads. The Brute keeps the 2.5 m knock limit (its step ≠ 625). A runtime clash at 0.175 s is refused by the whole-ticks schema before the cross-check runs (R3).
+- L4, no stall: the target leaves while the chunk flies → WALK after impact + recovery. Boss killed in flight → DEAD, 0 impacts. Every player downed in flight → WALK. Charge recovery is unchanged (20 ticks; RECOVER uses `stateTicks` for slam and charge). The builder's 1–4 players × enraged test holds the throw at ≥ impact + recover + gap. `attack.live` still blocks picks and the roar (the roar needs WALK).
+- N2: a Brute held under the body for the whole rush is trampled once (30). A recycled slot (generation +1) mid-rush is trampled again (+30). Attack id `& 0xffff` would need 65,536 attacks with the same slot generation to alias; `resetBoss` clears the marks. The marks are in `snapshotBoss`, so `worldDigest` changes when one mark changes (probed). No allocation per tick (typed arrays; `hitPlayer` and `pickOne` are module callbacks).
+
+**Mutations (each reverted):** L3: M19 roar −10 hp → killed (enrage.test). M21 `boss.crashed` out of the `ageS` list → killed (NetSimHost.boss). M22 killer +1 kill removed → killed (RunController). M24 `crawlerTicks` out of the snapshot → killed (death.test). Behaviour fixes: L4 old `stateTicks` timing → killed (2 tests). L1 slot-less pushed past 31 bits → killed. L2 cross-check rule off → killed. N2 without the generation check → **survived** (R2). L4 without `a.live` → survived (equivalent, R4).
+
+### Main session close-out (2026-11-24)
+
+- Re-review R1 (slot-less bit shifts when an earlier player leaves mid-charge → 2 hits): **accepted**, unreachable on the server (room cap 4 = MAX_PLAYERS, every player has a slot). R2 (trampleGen test gap, unreachable in shipped balance), R3/R4 nits: left as follow-ups.
+- Main-session full gate on c0646ec + docs: typecheck, lint, 352 files / 3,314 tests passed (3 skipped), build OK; load 0.24 → 4.18 (4 cores). Story done.
