@@ -234,7 +234,7 @@ District-specific events are planned per district later (e.g. hospital quarantin
 | Extract (run won) | +100 |
 | Each endless wave | +20, kept only if the team extracts |
 
-A wave counts for every player still in the run when it ends, downed or out; a quitter keeps what they earned. **Rookie lift:** a player's Supplies are doubled while their lifetime Supplies are below 300 (about the first 3 runs).
+A wave counts for every player still in the run when it ends, downed or out, and only waves the player was in (none before a late join or after leaving); a quitter keeps what they earned. **Rookie lift:** a player's Supplies are doubled while their lifetime Supplies are below 300 (about the first 3 runs).
 
 **Starter pool:** Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades.
 **Unlocks (Supplies):**
