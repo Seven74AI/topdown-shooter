@@ -1,6 +1,6 @@
 # Story 6.4: Collapse
 
-Status: review
+Status: done
 
 ## Story
 

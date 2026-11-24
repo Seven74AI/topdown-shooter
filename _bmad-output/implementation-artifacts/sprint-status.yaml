@@ -147,9 +147,9 @@ development_status:
   # Epic 6: The full run: decay, boss, events, endless
   epic-6: in-progress  # story files 6.1–6.12 ready-for-dev 2026-11-24 (designer accepted all 110 decisions: docs/epic-6-decisions.md; brief docs/epic-6-brief.md; build rounds in the decisions doc)
   6-1-the-full-10-wave-curve: done  # 2026-11-24: fresh review clean (4 lows fixed)
-  6-2-ruins: review  # merged with 6.4 (designer 2026-11-24): one story 'Ruins and Collapse'
+  6-2-ruins: done  # 2026-11-24: review 3M+6L fixed, narrow re-review clean (R1 GameScene fog wiring test + R2 nit = follow-ups); decisions 6.2 B1-B3; merged with 6.4: 'Ruins and Collapse'
   6-3-blackout-lighting: done  # 2026-11-24: review H1+2M fixed, re-review clean, lows fixed; B1–B3 decisions
-  6-4-collapse: review  # merged into 6.2 (designer 2026-11-24)
+  6-4-collapse: done  # merged into 6.2 (designer 2026-11-24)
   6-5-the-behemoth-arrives: done  # 2026-11-24: review H1+2M fixed, re-review found M-new-1 (fixed), re-review 2 clean, lows fixed; decisions 6.5 B1–B3
   6-6-behemoth-charge-and-throw: done  # 2026-11-24: review (1M perf + 4L) fixed, narrow re-review clean (R1 accepted: unreachable with room cap 4; R2 trampleGen test gap = follow-up); merged with 6.7: 'Behemoth charge, throw, enrage and end'
   6-7-enrage-and-the-end-of-the-behemoth: done  # merged into 6.6 (designer 2026-11-24)

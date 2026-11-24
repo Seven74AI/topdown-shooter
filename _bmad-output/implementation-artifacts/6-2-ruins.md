@@ -480,3 +480,9 @@ Survived: GameScene drops `this.zombieView.fog = this.screenFog` (R1).
 | R2 | nit | The M3 ring reading assumes fewer than `recentPicks` (6) picks per tick | `packages/shared/src/economy/tenWaveSim.test.ts:41-44` | If one tick picks ≥ 6 spawns, the head comes back to `prevHead` and the loop reads 0 picks, so "the buried mouth is never picked" checks nothing. Shipped balance: `spawnPerInterval` 2 every 0.25 s, so it cannot happen today. | Count picks with a counter or a spawn event, or assert `spawnPerInterval < recentPicks` in the test. |
 
 **Reviewed commit:** `1e1f037`. Branch `rereview-6-2` (this note only; no code changed).
+
+### Main session close-out (2026-11-24)
+
+- Re-review approved (0 high/medium). R1 (GameScene fog hookups untested; deleting the zombieView.fog line passes every test) and R2 (tenWaveSim ring-read nit) are follow-ups, to be picked up by the next story that touches GameScene fog (6.9+6.10 power failure) or the Epic 6 retro.
+- Designer decisions 6.2 B1–B3 (look kept, P3 on the forecourt, breach spots) in `docs/epic-6-decisions.md`.
+- Main-session full gate on story-6-2 1e1f037 + master efbe4ad + decisions: typecheck, lint, 360 files / 3,363 tests passed (3 skipped), build OK; load → 2.26 (4 cores). Story done.
