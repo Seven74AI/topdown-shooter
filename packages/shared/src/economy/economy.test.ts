@@ -223,7 +223,7 @@ describe("revive", () => {
 });
 
 describe("wave-clear bonus", () => {
-  it("wave N ends: 10 × N to every player, downed and out included", () => {
+  it("wave N ends: 15 × N to every player, downed and out included (Epic 5 balance pass B1)", () => {
     const { world, events } = setup();
     const [p0, p1, p2] = ["p0", "p1", "p2"].map((id) => world.players.get(id));
     if (!p0 || !p1 || !p2) throw new Error("players");
@@ -233,15 +233,15 @@ describe("wave-clear bonus", () => {
     world.run.phase = "wave"; // Story 3.1: the run state machine owns the phase
     endWave(world);
     run(world, 1);
-    for (const id of ["p0", "p1", "p2"]) expect(wallet(world, id)).toBe(130);
+    for (const id of ["p0", "p1", "p2"]) expect(wallet(world, id)).toBe(145);
     expect(money(events)).toEqual([
-      ["p0", 30, "wave"],
-      ["p1", 30, "wave"],
-      ["p2", 30, "wave"],
+      ["p0", 45, "wave"],
+      ["p1", 45, "wave"],
+      ["p2", 45, "wave"],
     ]);
   });
 
-  it("the real wave director clearing wave 1 pays +10 (and the kills)", () => {
+  it("the real wave director clearing wave 1 pays +15 (and the kills)", () => {
     const b = loadBalance(withOverrides(bundledBalanceFiles(), [
       ["economy", "startingWallet", 100],
       ["waves", "zombiesPerWave", 3],
@@ -258,11 +258,11 @@ describe("wave-clear bonus", () => {
       run(world, 1);
     }
     expect(world.run.phase).toBe("build");
-    expect(wallet(world, "p0")).toBe(100 + 3 * 2 + 10);
-    expect(wallet(world, "p1")).toBe(110);
+    expect(wallet(world, "p0")).toBe(100 + 3 * 2 + 15);
+    expect(wallet(world, "p1")).toBe(115);
     expect(money(events).filter((m) => m[2] === "wave")).toEqual([
-      ["p0", 10, "wave"],
-      ["p1", 10, "wave"],
+      ["p0", 15, "wave"],
+      ["p1", 15, "wave"],
     ]);
   });
 
@@ -274,8 +274,8 @@ describe("wave-clear bonus", () => {
     skipWave(world);
     expect(wallet(world, "p0")).toBe(100);
     run(world, 3);
-    expect(wallet(world, "p0")).toBe(120);
-    expect(money(events)).toEqual([["p0", 20, "wave"]]);
+    expect(wallet(world, "p0")).toBe(130);
+    expect(money(events)).toEqual([["p0", 30, "wave"]]);
   });
 });
 

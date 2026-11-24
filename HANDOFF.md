@@ -90,7 +90,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 1. **Deploy:** ask Hermes to run `deploy/deploy.sh` (`docs/hermes-go-live.md` › Every later release) — master has all of Epic 5 (3e566e6 or later), not yet deployed.
 2. **Phone checks after the deploy:** Story 4.13 Android app-switch check (`?debug=1`, report renderer line, model, Chrome version); **Xiaomi Mi 11i FPS check** with floodlights (5.10) and molotov fire (5.12) on screen (retro A7). Target phone: Xiaomi Mi 11i.
-3. **Balance pass answers:** session "Epic 5 balance pass" (branch `claude/epic-5-balance`, wallet planner claude.ai/artifact/UQcr75ZrboG6PdYX57z9K5) waits for the designer's reply to proposals **B1–B9** ("ok" = all). Needed before the 6.1 earnings check (retro A8). Then merge that branch (full gate first).
+3. **Balance pass: answered and applied** (designer "ok" 2026-11-24, all of B1–B9; `docs/epic-5-decisions.md` › Epic 5 balance pass). Branch `claude/epic-5-balance` passed the full gate and is merged to master (wallet planner claude.ai/artifact/UQcr75ZrboG6PdYX57z9K5).
 4. Decided 2026-11-24: early weapon tier looks (SMG S1→S2→S3, Rifle H2→H1→H3, Machete M2→M1→M3; built) and small-phone action bar A (as built).
 5. **Human playtests parked** (4.10 Milestone 1, with 1.11, 1.12, 2.10): "way later"; plans in `docs/playtests/milestone-1.md`, `docs/perf/milestone-1.md`.
 6. **Name:** working title still "topdown-shooter".
@@ -105,7 +105,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 ## 7. Next steps for the new session
 
 1. Read `docs/epic-6-brief.md` and `docs/epic-6-decisions.md` (look picks, 110 accepted decisions, merged rounds).
-2. If the balance pass (§5.3) has answers, merge `claude/epic-5-balance` after a full gate.
+2. Balance pass is merged (B1–B9); Story 6.1's 10-wave sim re-checks its watch items (`docs/epic-5-decisions.md` › Epic 5 balance pass).
 3. **Epic 6 round 1: 6.1, 6.3, 6.5** in parallel cloud sessions (check they touch different code first), then round 2 (6.2+6.4, 6.6+6.7, 6.8), then round 3 (6.9+6.10, 6.11+6.12). Push each to master once its review is clean. Behemoth prototype: claude.ai/artifact/16PKRmcKLyK4qfoG9ghASM.
 4. Any new look → code-drawn proposals first, designer picks.
 5. After Epic 6: retro (`gds-retrospective`), then Epic 7 from `docs/epic-7-decisions.md`.

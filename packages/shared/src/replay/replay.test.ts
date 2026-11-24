@@ -18,7 +18,11 @@ const balance = loadBalance();
  * and the new bullet rule (2026-11-23: barricades stop bullets; at seed 1 the bots now kill every
  * Spitter before it spits, so the 5.6 liveness check had nothing to see).
  */
-const SEED = 3;
+/**
+ * Epic 5 balance pass: 3 → 7, a seed where p0 still rerolls with the new numbers (the reroll replay
+ * below needs one) and p1 doesn't (the stream test perturbs p1's shop stream only in build phases).
+ */
+const SEED = 7;
 const PLAYERS = 2;
 
 function record(): { log: InputLog; run: HeadlessRunLog; digest: number; kills: number } {

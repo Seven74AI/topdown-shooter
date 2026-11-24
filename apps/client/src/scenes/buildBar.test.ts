@@ -37,7 +37,7 @@ describe("buildBarItems (Story 5.16 AC 2)", () => {
       ["wood_barricade", "Wood barricade", 40, false, 2, 0.5],
       ["auto_turret", "Auto-turret", 250, true, 1, 1],
       ["spike_trap", "Spike trap", 80, false, 2, 2],
-      ["mine", "Mine", 60, false, 0.5, 0.5],
+      ["mine", "Mine", 35, false, 0.5, 0.5],
       ["med_station", "Med station", 400, false, 1, 1],
       ["bear_trap", "Bear trap", 50, false, 1, 1], // Story 5.14: appears without UI work (AC 20: world-art tile)
     ]);

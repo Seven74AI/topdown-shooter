@@ -33,7 +33,7 @@ describe("shop lists (Story 3.3 buildings; weapons are cards since 5.13)", () =>
       { id: "wood_barricade", name: "Wood barricade", price: 40 },
       { id: "auto_turret", name: "Auto-turret", price: 250 },
       { id: "spike_trap", name: "Spike trap", price: 80 },
-      { id: "mine", name: "Mine", price: 60 },
+      { id: "mine", name: "Mine", price: 35 },
       { id: "med_station", name: "Med station", price: 400 },
       { id: "bear_trap", name: "Bear trap", price: 50 }, // Story 5.14
     ]);

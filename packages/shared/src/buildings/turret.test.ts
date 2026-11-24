@@ -248,7 +248,7 @@ describe("auto-turret (Story 3.6)", () => {
     const b = place(20, 16);
     const z = spawnZombie(world, "walker", buildingCentreX(b) + 3, buildingCentreY(b));
     pistolHit(world, "p0", z);
-    expect(world.zombies.hp[z]).toBe(5); // the pistol did not kill it
+    expect(world.zombies.hp[z]).toBe(4); // the pistol (6, balance pass B3) did not kill it
     const before = world.players.get("p0")?.wallet ?? 0;
     run(world, 40);
     expect(world.zombies.aliveCount).toBe(0);

@@ -106,18 +106,18 @@ describe("Shotgun fire (Story 5.3 AC 2)", () => {
     expect(count(s2.events, "weapon.fired")).toBe(12); // exact 1.2/s with no reload
   });
 
-  it("Assault Rifle: 8 shots/s, 30 rounds, 2.0 s reload, pellets 1; 1 bullet kills a Runner, 2 a Walker", () => {
+  it("Assault Rifle: 6 shots/s, 30 rounds, 2.0 s reload, pellets 1; 1 bullet kills a Runner or a Walker, 2 a Spitter (balance pass B4)", () => {
     const s = setup("assault_rifle");
     activeSlot(s.p.loadout).ammo = 1000;
     let seq = 0;
     run(s.world, 200, () => fire(++seq));
-    expect(count(s.events, "weapon.fired")).toBe(80);
+    expect(count(s.events, "weapon.fired")).toBe(60);
     const r = setup("assault_rifle");
     let seqR = 0;
     run(r.world, 120, () => fire(++seqR));
     expect(r.events.find((e) => e.type === "weapon.reload_started")).toMatchObject({ reloadS: 2 });
     expect(r.events.slice(0, r.events.findIndex((e) => e.type === "weapon.reload_started")).filter((e) => e.type === "weapon.fired").length).toBe(30);
-    for (const [type, shots] of [["runner", 1], ["walker", 2]] as const) {
+    for (const [type, shots] of [["runner", 1], ["walker", 1], ["spitter", 2]] as const) {
       const k = setup("assault_rifle", { seed: 3 });
       const zid = spawnZombie(k.world, type, 13, 16);
       let sq = 0;
@@ -127,7 +127,7 @@ describe("Shotgun fire (Story 5.3 AC 2)", () => {
     }
   });
 
-  it("point-blank Walker takes all 8 pellets (32) and dies, for 1,000 seeds offline and 1,000 seqs online (F1)", () => {
+  it("point-blank Walker takes all 8 pellets (40) and dies, for 1,000 seeds offline and 1,000 seqs online (F1)", () => {
     let shots = 0;
     for (let seed = 1; seed <= 1000; seed++) {
       const online = seed % 2 === 0;
@@ -293,7 +293,7 @@ describe("Shotgun knockback (F4, F5)", () => {
     s.world.zombies.hp[z] = 1000;
     const before = knockbacks.applied;
     onePull(s);
-    expect(damageTo(s.events, z)).toBe(32); // all 8 hit…
+    expect(damageTo(s.events, z)).toBe(40); // all 8 hit (5 each, balance pass B5)…
     // …one 0.5 m push along the first pellet (away from the muzzle, inside the fan)
     expect(Math.hypot((s.world.zombies.x[z] as number) - 11.5, (s.world.zombies.y[z] as number) - 16)).toBeCloseTo(0.5, 4);
     expect(s.world.zombies.x[z]).toBeGreaterThan(11.5 + 0.5 * Math.cos(15 * DEG_TO_RAD) - 1e-4);
@@ -328,7 +328,7 @@ describe("Shotgun knockback (F4, F5)", () => {
       const z = spawnZombie(s.world, "walker", zx, 16);
       s.world.zombies.hp[z] = 1000;
       onePull(s);
-      expect(damageTo(s.events, z)).toBe(32);
+      expect(damageTo(s.events, z)).toBe(40);
       const x = s.world.zombies.x[z] as number;
       expect(x).toBeLessThanOrEqual(13 - 0.35 + 1e-5);
       expect(x).toBeGreaterThanOrEqual(zx - 1e-5);

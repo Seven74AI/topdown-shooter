@@ -2,6 +2,6 @@
   "startingWallet": 200,
   "assistShare": 0.5,
   "reviveReward": 25,
-  "waveClearBonusPerWave": 10,
+  "waveClearBonusPerWave": 15,
   "buildingKillShare": 0.5
 }

@@ -31,7 +31,7 @@ describe("gear table (Story 5.11)", () => {
     expect(gearBit(balance, "jetpack")).toBe(0);
     expect(shopGear(balance).map((g) => [g.id, g.price])).toEqual([
       [A1, 150],
-      [A2, 350],
+      [A2, 300],
       ["running_shoes", 150],
       ["revive_kit", 150],
     ]);
@@ -139,11 +139,11 @@ describe("body armor (Story 5.11, AC 4)", () => {
     expect([p.hp, p.maxHp]).toEqual([35, 125]);
   });
 
-  it("G2: II while owning I → max 150 (+50 total), HP +25, bit I cleared; full price 350 (D3)", () => {
+  it("G2: II while owning I → max 150 (+50 total), HP +25, bit I cleared; full price 300 (D3; balance pass B9)", () => {
     const { world, p } = setup(500);
     buyGear(world, "p0", A1);
-    expect(buyGear(world, "p0", A2)).toEqual({ ok: true, value: { item: A2, price: 350 } });
-    expect([p.hp, p.maxHp, p.wallet, p.gear]).toEqual([150, 150, 0, 2]);
+    expect(buyGear(world, "p0", A2)).toEqual({ ok: true, value: { item: A2, price: 300 } });
+    expect([p.hp, p.maxHp, p.wallet, p.gear]).toEqual([150, 150, 50, 2]);
   });
 
   it("G1: II owned → I is already_owned, wallet unchanged", () => {
@@ -151,7 +151,7 @@ describe("body armor (Story 5.11, AC 4)", () => {
     buyGear(world, "p0", A2);
     expect([p.hp, p.maxHp]).toEqual([150, 150]);
     expect(buyGear(world, "p0", A1)).toEqual({ ok: false, error: "already_owned" });
-    expect(p.wallet).toBe(150);
+    expect(p.wallet).toBe(200);
     expect(p.gear).toBe(2);
   });
 

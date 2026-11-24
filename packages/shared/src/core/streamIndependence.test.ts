@@ -51,7 +51,7 @@ describe("named streams in a real run (Story 4.4 review M1)", () => {
     const firing = spawnsOf(true);
     expect(quiet.shots).toBe(0);
     expect(firing.shots).toBeGreaterThan(20); // liveness: the spread really drew
-    expect(quiet.spawns.length).toBe(16); // liveness: the whole of wave 1 spawned
-    expect(firing.spawns.slice(0, 16)).toEqual(quiet.spawns);
+    expect(quiet.spawns.length).toBe(14); // liveness: the whole of wave 1 spawned (40 × 0.35 solo)
+    expect(firing.spawns.slice(0, 14)).toEqual(quiet.spawns);
   });
 });

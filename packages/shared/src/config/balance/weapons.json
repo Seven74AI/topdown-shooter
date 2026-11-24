@@ -2,7 +2,7 @@
   "pistol": {
     "name": "Pistol",
     "kind": "gun",
-    "damage": 5,
+    "damage": 6,
     "rateHz": 3,
     "rangeM": 9,
     "spreadDeg": 2,
@@ -59,7 +59,7 @@
   "shotgun": {
     "name": "Shotgun",
     "kind": "gun",
-    "damage": 4,
+    "damage": 5,
     "pellets": 8,
     "rateHz": 1.2,
     "rangeM": 5,
@@ -76,8 +76,8 @@
   "assault_rifle": {
     "name": "Assault Rifle",
     "kind": "gun",
-    "damage": 7,
-    "rateHz": 8,
+    "damage": 10,
+    "rateHz": 6,
     "rangeM": 11,
     "spreadDeg": 4,
     "magazine": 30,
@@ -92,7 +92,7 @@
     "name": "Fire Axe",
     "kind": "melee",
     "damage": 30,
-    "rateHz": 1.1,
+    "rateHz": 1.4,
     "rangeM": 2.2,
     "arcDeg": 140,
     "knockbackM": 1.5,
@@ -123,7 +123,7 @@
     "minLobM": 3,
     "lobSpeedMps": 20,
     "minFlightS": 0.25,
-    "blastRadiusM": 2,
+    "blastRadiusM": 2.5,
     "blastPushM": 0.6,
     "blastBuildingDamage": 0,
     "magazine": 4,
@@ -131,7 +131,7 @@
     "spreadDeg": 0,
     "hitPushbackM": 0,
     "screenShake": true,
-    "price": 800
+    "price": 700
   },
   "flamethrower": {
     "name": "Flamethrower",

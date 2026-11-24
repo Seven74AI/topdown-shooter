@@ -223,12 +223,12 @@ describe("six-wave curve and composition (Story 3.10; Story 5.8: 6 waves)", () =
   const real = loadBalance();
   const typeOf = (world: World, id: number) => ZOMBIE_TYPES[world.zombies.type[id] as number];
 
-  it("4 players: 40 / 80 / 120 / 160 / 200 / 240; 3 players × 0.8; 2 players × 0.6; solo × 0.4", () => {
+  it("4 players: 40 / 80 / 120 / 160 / 200 / 240; 3 players × 0.8; 2 players × 0.6; solo × 0.35 (Epic 5 balance pass B2)", () => {
     const sizes = (players: number) => [1, 2, 3, 4, 5, 6].map((n) => waveSize(real, n, players));
     expect(sizes(4)).toEqual([40, 80, 120, 160, 200, 240]);
     expect(sizes(3)).toEqual([32, 64, 96, 128, 160, 192]);
     expect(sizes(2)).toEqual([24, 48, 72, 96, 120, 144]);
-    expect(sizes(1)).toEqual([16, 32, 48, 64, 80, 96]);
+    expect(sizes(1)).toEqual([14, 28, 42, 56, 70, 84]);
     expect(waveSize(real, 1, 9)).toBe(40); // clamped to the last entry
     expect(real.waves.runWaves).toBe(6); // Story 5.8 (FR29: "the temporary run grows to 6 waves")
   });
@@ -246,14 +246,14 @@ describe("six-wave curve and composition (Story 3.10; Story 5.8: 6 waves)", () =
     expect(counts(4)).toEqual({ walker: 81, crawler: 27, runner: 40, spitter: 12, brute: 0, bloater: 0 });
     // The mix share alone (Story 5.7's fixed Brute is folded in by `applyFixedCounts`: below).
     expect(counts(5)).toEqual({ walker: 90, crawler: 44, runner: 50, spitter: 16, brute: 0, bloater: 0 });
-    // Solo: wave 4 is 64 → 32 / 16 / 10.88 / 5.12 → 32 + 1, 10, 16, 5.
-    expect(counts(4, 1)).toEqual({ walker: 33, crawler: 10, runner: 16, spitter: 5, brute: 0, bloater: 0 });
-    // Leftovers go one by one in type order: 32 × 80 % = 25.6 → 26 Walkers, 6 Runners.
-    expect(counts(2, 1)).toEqual({ walker: 26, crawler: 0, runner: 6, spitter: 0, brute: 0, bloater: 0 });
+    // Solo (× 0.35): wave 4 is 56 → 28 / 14 / 9.52 / 4.48 → 28 + 1, 9, 14, 4.
+    expect(counts(4, 1)).toEqual({ walker: 29, crawler: 9, runner: 14, spitter: 4, brute: 0, bloater: 0 });
+    // Leftovers go one by one in type order: 28 × 80 % = 22.4 → 23 Walkers, 5 Runners.
+    expect(counts(2, 1)).toEqual({ walker: 23, crawler: 0, runner: 5, spitter: 0, brute: 0, bloater: 0 });
     // Story 5.8 (D9): 240 × {40, 20, 15, 10, 15} % = 96 / 48 / 36 / 24 / 36 exactly.
     expect(counts(6)).toEqual({ walker: 96, crawler: 36, runner: 48, spitter: 24, brute: 0, bloater: 36 });
-    // Solo: 96 → 38.4 / 19.2 / 14.4 / 9.6 / 14.4 → floors 38, 14, 19, 9, 14 + the 2 leftovers in type order.
-    expect(counts(6, 1)).toEqual({ walker: 39, crawler: 15, runner: 19, spitter: 9, brute: 0, bloater: 14 });
+    // Solo: 84 → 33.6 / 16.8 / 12.6 / 8.4 / 12.6 → floors 33, 12, 16, 8, 12 + the 3 leftovers in type order.
+    expect(counts(6, 1)).toEqual({ walker: 34, crawler: 13, runner: 17, spitter: 8, brute: 0, bloater: 12 });
     // Waves past the list use the last entry.
     expect(waveMixOf(real, 9)).toBe(real.waves.mix[real.waves.mix.length - 1]);
   });
@@ -287,22 +287,24 @@ describe("six-wave curve and composition (Story 3.10; Story 5.8: 6 waves)", () =
   }
 
   it("spreads the types through the wave (no block of Runners at the end) and spawns the exact composition", () => {
-    // solo W5: 80 = 37 Walkers, 17 Crawlers, 20 Runners, 6 Spitters (Story 5.6); Story 5.7: one Walker's slot is the Brute.
+    // solo W5: 70 = 32 Walkers, 16 Crawlers, 17 Runners, 5 Spitters (Story 5.6; × 0.35); Story 5.7: one Walker's slot is the Brute.
     const order = spawnOrder(5);
-    expect(order).toHaveLength(80);
+    expect(order).toHaveLength(70);
     const count = (t: string, from = 0, to = order.length) => order.slice(from, to).filter((x) => x === t).length;
-    expect([count("walker"), count("crawler"), count("runner"), count("spitter"), count("brute")]).toEqual([36, 17, 20, 6, 1]);
+    expect([count("walker"), count("crawler"), count("runner"), count("spitter"), count("brute")]).toEqual([31, 16, 17, 5, 1]);
     for (let q = 0; q < 4; q++) {
       // every quarter of the wave holds a quarter of each type (± 1)
-      expect(Math.abs(count("runner", q * 20, (q + 1) * 20) - 5)).toBeLessThanOrEqual(1);
-      expect(Math.abs(count("crawler", q * 20, (q + 1) * 20) - 17 / 4)).toBeLessThanOrEqual(1);
-      expect(Math.abs(count("spitter", q * 20, (q + 1) * 20) - 6 / 4)).toBeLessThanOrEqual(1);
+      const a = Math.round((q * 70) / 4);
+      const z = Math.round(((q + 1) * 70) / 4);
+      expect(Math.abs(count("runner", a, z) - ((z - a) * 17) / 70)).toBeLessThanOrEqual(1);
+      expect(Math.abs(count("crawler", a, z) - ((z - a) * 16) / 70)).toBeLessThanOrEqual(1);
+      expect(Math.abs(count("spitter", a, z) - ((z - a) * 5) / 70)).toBeLessThanOrEqual(1);
     }
   });
 
   it("the dev wave mix (?wavemix, DEV_WAVE_MIX) overrides the composition", () => {
     const order = spawnOrder(1, 1, ["crawler"]);
-    expect(order).toHaveLength(16);
+    expect(order).toHaveLength(14);
     expect(new Set(order)).toEqual(new Set(["crawler"]));
   });
 
@@ -408,12 +410,12 @@ describe("Story 5.7: the Brute in the waves (AC 3, 4; F6, F8)", () => {
     }
   }, 120_000);
 
-  it("solo wave 5 (80 zombies, × 0.4): the Brute is the 21st spawn (after 25 %), it takes a Walker's slot", () => {
+  it("solo wave 5 (70 zombies, × 0.35): the Brute is the 19th spawn (after 25 %), it takes a Walker's slot", () => {
     const { orders } = runOrders(1);
     const order = orders.get(5) as string[];
-    expect(order).toHaveLength(80);
-    expect(order.indexOf("brute")).toBe(20);
-    expect(order.filter((t) => t === "walker")).toHaveLength(36); // 37 by the mix, one slot to the Brute
+    expect(order).toHaveLength(70);
+    expect(order.indexOf("brute")).toBe(18); // round(70 × 0.25)
+    expect(order.filter((t) => t === "walker")).toHaveLength(31); // 32 by the mix, one slot to the Brute
   }, 60_000);
 
   it("zombie.brute_spawned for every Brute; first = true only for the run's first; brutesSpawned counts them", () => {

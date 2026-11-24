@@ -166,10 +166,29 @@ describe("bot policy (Story 2.10)", () => {
     const shotgun = balance.weapons.shotgun?.rangeM ?? 0; // 5 m
     expect(move("spitter", shotgun + 1, "shotgun")).toBeCloseTo(1); // a Spitter at 6 m: step in
     expect(move("walker", shotgun + 1, "shotgun")).toBeCloseTo(0); // a Walker at 6 m comes by itself
-    expect(move("spitter", shotgun + 1, "shotgun", true)).toBeCloseTo(0); // a rushing Spitter walks in
+    expect(move("spitter", shotgun + 1, "shotgun", true)).toBeCloseTo(1); // a rushing (marked) Spitter out of range: hunted (rule 4)
     expect(move("spitter", shotgun + 1 + (cfg.closeInExtraM ?? 0), "shotgun")).toBeCloseTo(0); // too far: no chase
     const pistol = balance.weapons.pistol?.rangeM ?? 0;
     expect(move("walker", pistol + 1, "pistol")).toBeCloseTo(0); // review M2: Pistol bots never chase Walkers
+  });
+
+  it("Epic 5 balance pass: hunts a marked last-rush zombie out of range (players see the marks), never one in range", () => {
+    const move = (dist: number, rush: boolean) => {
+      const world = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+      const p = addPlayer(world, "p0", 10, 10);
+      setLoadout(balance, p.loadout, ["pistol", null]);
+      const id = spawnZombie(world, "walker", 10 + dist, 10);
+      if (rush) world.zombies.state[id] = ZOMBIE_STATE.RUSH;
+      const view = createBotView();
+      const out: PlayerInput = { ...NEUTRAL_INPUT };
+      botViewFromWorld(world, "p0", view);
+      botInput(view, cfg, 1, out);
+      return out.moveX;
+    };
+    const pistol = balance.weapons.pistol?.rangeM ?? 0;
+    expect(move(pistol + 6, true)).toBeCloseTo(1); // a marked rusher 15 m away: walk to it
+    expect(move(pistol + 6, false)).toBeCloseTo(0); // an ordinary Walker: wait for it
+    expect(move(pistol - 1, true)).toBeCloseTo(0); // in range: stand and shoot
   });
 
   it("regroups toward the team centre and stands still inside regroupDistM", () => {

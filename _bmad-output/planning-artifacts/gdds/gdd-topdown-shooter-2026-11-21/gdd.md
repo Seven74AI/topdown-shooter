@@ -97,17 +97,17 @@ Numbers for each are in the sections below.
 
 | Weapon | Role | Damage | Rate | Range / area | Special | Mag / reload | Price |
 |---|---|---|---|---|---|---|---|
-| Pistol | Mid | 5 | 3 /s | 9 m | Starter weapon | 12 / 1.0 s | free |
+| Pistol | Mid | 6 | 3 /s | 9 m | Starter weapon | 12 / 1.0 s | free |
 | Machete | Melee | 12 | 2.5 /s | 1.8 m, 110° arc | Hits every zombie in the arc | — | 150 |
-| Fire Axe | Melee | 30 | 1.1 /s | 2.2 m, 140° arc | Knockback 1.5 m | — | 300 |
+| Fire Axe | Melee | 30 | 1.4 /s | 2.2 m, 140° arc | Knockback 1.5 m | — | 300 |
 | Chainsaw | Melee | 6 per tick | 10 ticks/s | 1.5 m, 60° arc | Continuous; wielder moves 20% slower | — | 600 |
-| Shotgun | Short | 8 pellets × 4 | 1.2 /s | 5 m, 30° spread | Knockback 0.5 m | 6 / 2.5 s | 250 |
+| Shotgun | Short | 8 pellets × 5 | 1.2 /s | 5 m, 30° spread | Knockback 0.5 m | 6 / 2.5 s | 250 |
 | Flamethrower | Short | 20 /s | continuous | 6 m fuel jet, 20° cone | Ignites: +3 dmg/s for 3 s | 6 s of fuel / 3.0 s | 700 |
 | Gas torch | Short | 20 /s | continuous | 3 m, 60° cone | Same burn and fuel rules as the Flamethrower | 6 s of fuel / 3.0 s | 550 |
 | SMG | Mid | 4 | 12 /s | 8.5 m, 8° spread | — | 40 / 1.6 s | 200 |
-| Assault Rifle | Mid-long | 7 | 8 /s | 11 m, 4° spread | — | 30 / 2.0 s | 450 |
+| Assault Rifle | Mid-long | 10 | 6 /s | 11 m, 4° spread | — | 30 / 2.0 s | 450 |
 | Hunting Rifle | Long | 35 | 1.2 /s | 17 m | Pierces 5 zombies | 5 / 2.5 s | 350 |
-| Grenade Launcher | Long | 40 | 0.8 /s | 3–12 m lob with a landing ring, 2 m blast | Area damage; also hurts the shooter at 50%. Flies over cars, the bus, pumps, low walls, barriers, sandbags, barricades and turrets; only buildings stop it, at their face. Aimed onto a car roof it lands at the car's near face. The blast is still shielded by cars and the bus | 4 / 3.0 s | 800 |
+| Grenade Launcher | Long | 40 | 0.8 /s | 3–12 m lob with a landing ring, 2.5 m blast | Area damage; also hurts the shooter at 50%. Flies over cars, the bus, pumps, low walls, barriers, sandbags, barricades and turrets; only buildings stop it, at their face. Aimed onto a car roof it lands at the car's near face. The blast is still shielded by cars and the bus | 4 / 3.0 s | 700 |
 
 **Feel:** every hit flashes the zombie and pushes it back; heavy weapons (axe, hunting rifle, grenade launcher) add a short screen shake; each weapon has its own firing sound. *(Screen shake is optional in settings.)*
 **Balance intent:** melee has the best damage against a crowd (its arc hits many zombies) but puts you in the crowd; long range is safe and the Hunting Rifle punches lines of zombies, but it fires slowly and struggles against Runners and swarms coming from several sides; area weapons are expensive and can hurt teammates and yourself. The Hunting Rifle's 17 m range reaches beyond the screen edge (12 m) on purpose: it hits zombies before you see them.
@@ -174,7 +174,7 @@ Numbers for each are in the sections below.
 **Gear (permanent for the run):**
 | Item | Effect | Price |
 |---|---|---|
-| Body armor I / II | +25 / +50 max HP | 150 / 350 |
+| Body armor I / II | +25 / +50 max HP | 150 / 300 |
 | Running shoes | +10% move speed | 150 |
 | Revive kit | The owner revives teammates in 1.5 s instead of 3 s (the fastest reviver in the 2 m zone counts; no stacking; no effect on the owner's own revive) | 150 |
 | Tactical flashlight | Wider, longer light cone in blackout | 120 |
@@ -191,14 +191,14 @@ Placed during build phases on a 0.5 m lattice (anchored by the building's min co
 | Auto-turret | Shoots the nearest zombie within 8 m, 3 dmg × 5/s | 300 | 250 |
 | Spike trap | 2 × 2 m floor; 4 dmg/s and −40% speed to zombies on it | 300 | 80 |
 | Bear trap | 1 × 1 m floor trap; holds one zombie 3 s (a Brute 1.5 s); closed after a catch until any player stands on it 1 s, and every trap re-arms at build start; worn out after 4 catches; stops no bullets and no melee | 100 | 50 |
-| Mine | Proximity, 80 damage in 2.5 m, single use | — | 60 |
+| Mine | Proximity, 80 damage in 2.5 m, single use | — | 35 |
 | Floodlight | 4 m radius light (6 m in blackout waves); key in blackout waves; sold once Story 6.3 lands | 150 | 100 |
 | Med station | Heals players within 2 m by 5 HP/s | 300 | 400 |
 
 **Decay interaction:** fires damage buildings inside them; rubble blocks placement; the Behemoth's charge destroys buildings. Brutes deal 3× damage to buildings.
 ### Enemy Wave Design
 **Wave size (4 players):** wave 1 ≈ 40 zombies, growing by ≈ 40 per wave to ≈ 400 in wave 10; at most ≈ 150 alive at once (110 while the Behemoth lives; the rest queue at spawn points).
-**Player-count scaling:** zombie count and boss HP × **0.6** (2 players), **0.8** (3), **1.0** (4). A mid-run join rescales from the next wave. **Solo (1 player) online runs are allowed** (designer, 2026-11-23): × **0.4**; going down alone ends the run (team wipe). Balance targets stay tuned for 2–4.
+**Player-count scaling:** zombie count and boss HP × **0.6** (2 players), **0.8** (3), **1.0** (4). A mid-run join rescales from the next wave. **Solo (1 player) online runs are allowed** (designer, 2026-11-23): × **0.35** (Epic 5 balance pass, 2026-11-24; was 0.4); going down alone ends the run (team wipe). Balance targets stay tuned for 2–4.
 
 **Wave 10 boss: The Behemoth.** Arrives when 50% of wave 10's zombies have spawned, with the horde still active.
 - Size 5× a walker (radius 2 m); speed 1.3 m/s; immune to knockback. HP **6,000** at 4 players (≈ 40 s of focused team fire; scaled by player count).
@@ -244,7 +244,7 @@ A wave counts for every player still in the run when it ends, downed or out, and
 - Consumables: Molotovs 150
 
 Unlocks are bought in any order and add cards to the player's shop deck and tiles to their build bar: more options, not more power. **Borrowed card:** when a teammate in the room has unlocked weapons or gear the player hasn't, one of the player's 6 cards is drawn from those and marked "Borrowed from <name>" (bought with run money, gone after the run).
-**Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency 100 → 150 · reload speed up to +5%. Each level costs **50 × level** Supplies (50, 100, 150, 200, 250). Caps keep a new friend viable next to a veteran (pillar 4); Training always applies in full and is never scaled to the team.
+**Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency +50 (200 → 250) · reload speed up to +5%. Each level costs **50 × level** Supplies (50, 100, 150, 200, 250). Caps keep a new friend viable next to a veteran (pillar 4); Training always applies in full and is never scaled to the team.
 **Pacing:** the first weapon a player wants (≈ 300) after ≈ 3 runs, a few favourites (≈ 1,000) after ≈ 10. Unlocking everything is a long-term goal, not the target: not everyone wants every weapon (designer, 2026-11-24). **District 2 unlocks** for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has it.
 ### Difficulty Curve
 | Waves | Feel | Why |
@@ -260,10 +260,10 @@ Build phases are the breathers between waves. Difficulty grows through zombie co
 ### Economy and Resources
 - **Personal wallets.** Each player earns and spends their own currency.
 - **Anti-snowball rules:** an assist (damaging a zombie a teammate kills) pays 50% of the kill reward; a revive pays +25; kills by your buildings pay **50%** of the kill reward to your wallet; a player joining mid-run starts with the team's average currency.
-- **Start of run:** pistol + 100 currency.
-- **Earning:** kill rewards per zombie type (see Enemy table) + a **wave-clear bonus of 10 × wave number** to every player in the run, including downed and out players.
-- **Target:** ≈ **2,500–3,000 currency per player** over a full 10-wave run at any player count (4 players: ≈ 1,500 kills + ≈ 750 assists + 550 wave bonus + 100 start): enough for one premium weapon, a few upgrades and some buildings, never everything (pillar 2).
-- **Earnings decision:** the earnings stay as built (4–19% below the target above; fallback: wave bonus 15 × N). Story 4.10's playtest is deferred, so the **Epic 5 balance pass after round E** owns this decision and records it here.
+- **Start of run:** pistol + 200 currency (designer 2026-11-24, with the card shop).
+- **Earning:** kill rewards per zombie type (see Enemy table) + a **wave-clear bonus of 15 × wave number** (Epic 5 balance pass; was 10 × N) to every player in the run, including downed and out players.
+- **Target:** ≈ **2,500–3,000 currency per player** over a full 10-wave run at any player count (bot sims, 10 waves: kill + assist money ≈ 1,470 (4p) to 1,910 (2p) per player + 825 wave bonus + 200 start; human assists add more): enough for one premium weapon, a few upgrades and some buildings, never everything (pillar 2).
+- **Earnings decision (Epic 5 balance pass, designer 2026-11-24):** wave bonus **15 × N** (the long-standing fallback), start money stays 200. Seeded 10-wave bot runs then give ≈ 2,500 (4p), 2,710 (3p), 2,930 (2p) per player, inside the target; before, 3–4 players were 2–11 % short. Re-check with Story 6.1's 10-wave sim. Details: `docs/balance/epic-5-balance-pass.md`.
 - **Spending:** weapons 150–800, upgrades 60% of base price per level, gear 120–350, buildings 40–400, consumables 60–100, reroll 20.
 
 ## Level Design Framework
@@ -350,7 +350,7 @@ This is a game for a group of friends, so success is simple and honest.
 - Players talk about decay moments ("the alley collapsed on us"). *(Pillar 3)*
 
 ## Out of Scope
-**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · cosmetics · matchmaking with strangers · voice and text chat · native apps. **Solo** online runs are allowed (× 0.4) but not balance-tuned.
+**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · cosmetics · matchmaking with strangers · voice and text chat · native apps. **Solo** online runs are allowed (× 0.35) but not balance-tuned.
 **Not planned:** monetization (it is a game for friends) · story campaign · controller support.
 
 ## Assumptions and Dependencies
@@ -361,6 +361,6 @@ This is a game for a group of friends, so success is simple and honest.
 
 ## Open Items Index
 - [ASSUMPTION] Server hosting cost is acceptable given the budget (Assumptions and Dependencies).
-- ~~[NOTE FOR DESIGNER] Solo testing could use × 0.4 zombie scaling~~ Decided 2026-11-23: solo online runs at × 0.4, allowed, not balance-tuned (Enemy Wave Design). Solo Behemoth HP = × 0.4 like every other solo scaling (designer 2026-11-24).
+- ~~[NOTE FOR DESIGNER] Solo testing could use × 0.4 zombie scaling~~ Decided 2026-11-23: solo online runs at × 0.4, allowed, not balance-tuned (Enemy Wave Design). Solo Behemoth HP = × 0.4 (designer 2026-11-24); the solo zombie count became × 0.35 in the Epic 5 balance pass, the Behemoth's number stays its own.
 - [NOTE FOR DESIGNER] Pick order of future districts (Level Types).
 - Working title.
