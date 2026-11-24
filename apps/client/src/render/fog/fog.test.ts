@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DOWNTOWN_MAP, addPlayer, applyDecayStage, createWorld, gearBit, legalDecayMasks, loadBalance, setForcedBlackout, startBuild, startWave, type World } from "@topdown/shared";
+import { DOWNTOWN_MAP, addPlayer, applyDecayStage, createWorld, gearBit, gameplayDecayMasks, loadBalance, setForcedBlackout, startBuild, startWave, type World } from "@topdown/shared";
 
 vi.mock("phaser", () => ({ BlendModes: { ADD: 1, NORMAL: 0, MULTIPLY: 2 }, TintModes: { MULTIPLY: 0 } }));
 vi.mock("../city/spriteAtlas", async (orig) => ({ ...(await orig<typeof import("../city/spriteAtlas")>()), ensureAtlases: () => ({}) }));
@@ -23,7 +23,7 @@ function world(stage: number, phase: "wave" | "build" = "wave"): World {
   addPlayer(w, "me", 20, 16);
   startBuild(w);
   if (phase === "wave") startWave(w);
-  applyDecayStage(w, stage, legalDecayMasks(DOWNTOWN_MAP)[0] as number);
+  applyDecayStage(w, stage, gameplayDecayMasks(DOWNTOWN_MAP)[0] as number);
   return w;
 }
 

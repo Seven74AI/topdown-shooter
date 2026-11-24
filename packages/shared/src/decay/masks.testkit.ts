@@ -1,14 +1,14 @@
 import type { DistrictMap } from "../map/districtMap";
-import { gameplayVariantMask, legalDecayMasks } from "./decayState";
+import { gameplayVariantMask, gameplayDecayMasks } from "./decayState";
 
 /**
  * Story 6.2 (tests only): the gameplay masks worth walking at `stage`. A stage-4+ variant group
  * (6.2's collapsed alley) changes nothing before its stage, so stages below it walk one candidate
  * of it only: Downtown stages 1–3 = the 45 old masks (cars × fires),
- * stages 4–5 = all 135 (× 3 alleys). Looks are never walked (`legalDecayMasks` default).
+ * stages 4–5 = all 135 (× 3 alleys). Looks are never walked (`gameplayDecayMasks`).
  */
 export function masksForStage(map: DistrictMap, stage: number): number[] {
-  const all = legalDecayMasks(map);
+  const all = gameplayDecayMasks(map);
   // Bits of groups whose stage is above `stage`, and the lowest bit of each such group.
   let later = 0;
   let keep = 0;

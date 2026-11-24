@@ -266,10 +266,13 @@ Claude (cloud builder session, branch `story-6-2`).
 - **Behemoth corridor:** P3 was moved out of the east street because it closed the boss's only ≥ 4 m way past the bus (whole-run sims stalled). If 6.6 changes the boss body or paths, re-run `bossRunSim`, `tenWaveSim`, `sixWaveSim` at stages 4–5.
 - `map/districtMap.ts`: `DECAY_ACTIONS` += `look`, `SPAWN_KINDS` += `breach` (append-only). `map/loadTiledMap.ts`: `look` parsing, breach needs `jitterAxis`; `loadDecayLayer` takes `mPerPx`.
 - `map/obstacles.ts`: `RUBBLE_PREFIX`, `isRubble`, `rubblePiles` appended; `fillObstacles` unchanged (looks are never read).
-- `decay/decayState.ts`: **`legalDecayMasks` now defaults to gameplay-only** (looks skipped) — callers that wanted every full mask pass `{ gameplayOnly: false }`; `gameplayVariantMask` added.
+- `decay/decayState.ts` (after review L3): `legalDecayMasks(map)` = every run mask, looks included (default `gameplayOnly: false`); NEW `gameplayDecayMasks(map)` = the 135 gameplay layouts (what fuzzes and spatial tests walk; every existing caller renamed); `gameplayVariantMask` added. A branch that still calls `legalDecayMasks` in a fuzz now gets 1,620 masks: switch it to `gameplayDecayMasks` (6.6's charge/throw fuzzes probably need this on merge).
 - `waves/spawnPick.ts`: buried rule in `classify` (CLOSED reused), `isSpawnBuried`, `spawnPickCounters`. 6.5/6.8 side readers unaffected.
 - `combat/aimAssist.ts`: new optional last argument `shooter: AimShooter | null` (fog filter); `combat/firing.ts` passes the player. 6.6 needn't change it (the boss branch is untouched and never fogged).
 - `config/balance/decay.json` + `config/balanceSchema.ts`: `blackout.lightPctByWave` [.., 10, 5], `blackout.halfDarkInBuild: true`; new `ruins` and `collapse` blocks (strict, defaults). 6.10 / 6.12 add their own keys/blocks.
+- `decay/decaySystem.ts` (review L4): decay refunds = `floor(paid × buildingRefundShare)` (same numbers with the shipped balance: tier price = total paid).
+- `render/BloodTrailView.ts` (review L5): `fog` field; GameScene sets it.
+- `boss/behemoth.fuzz.test.ts` (review M2): stages 1–5, 15 layouts — 6.6 edits this file too: keep both (6.6's checks inside the 1–5 loop).
 - `decay/lightState.ts`: **not touched** (refreshBlackout already did the build half-dark case); `lightState.test.ts` updated for the new values.
 - `index.ts` (shared): exports appended (ruinsLook, collapse, obstacles helpers, `gameplayVariantMask`, `isSpawnBuried`).
 - Client `render/city/CityView.ts` (constructor gains `runSeed`; lamp-dark pool; ash; looks into the bake), `drawCity.ts` (`CityScene` optional `ruinsLook`, `collapseStyle`, `powerOut`, `lowFx`; overlay rubble/props/breaches/roofs; lightmap/glow via `powerOff`; neonK), `dressing.ts` (`ruinedRoofs`, `floodPuddles`, `powerOff`), `palette.ts` (`neonK`; stage-4 `spillK` 0.3), `stageFilter.ts` (`staticKey` 4th arg, `lookKey`), `spriteAtlas.ts` (FX frames `lampdark`, `dust`, `grit`, `ash` appended).
@@ -427,7 +430,21 @@ Survived (bad): M7 `isEndlessWave` `>=` (L2) · M16 ZombieView ignores fog · M1
 
 ### Action items
 
-- [ ] [Medium] M1: Predictor/server aim-assist parity test at stage 5; shooter passed in `tools/netsim/hitsSim.ts`, `tools/netaudit/hitsLossSim.ts`.
-- [ ] [Medium] M2: `behemoth.fuzz.test.ts` walks stages 4–5 with `masksForStage` (keep 6.6's charge fuzz in the same loop after merge).
-- [ ] [Medium] M3: ten-wave sim asserts alley buried + ≥ 1 breach spawn from wave 7.
-- [ ] [Low] L1–L6 as in the table.
+- [x] [Medium] M1: Predictor/server aim-assist parity test at stage 5; shooter passed in `tools/netsim/hitsSim.ts`, `tools/netaudit/hitsLossSim.ts`.
+- [x] [Medium] M2: `behemoth.fuzz.test.ts` walks stages 4–5 with `masksForStage` (keep 6.6's charge fuzz in the same loop after merge).
+- [x] [Medium] M3: ten-wave sim asserts alley buried + ≥ 1 breach spawn from wave 7.
+- [x] [Low] L1–L6 as in the table.
+
+### Review fixes (builder, 2026-11-24)
+
+Every finding fixed; each fix is checked by the mutation the reviewer named (applied alone, test run, restored).
+
+- **M1** — new `apps/client/src/sim/NetSimHost.fog.test.ts`: Downtown at stage 5, wave 9, 10 % blackout, a touch Hunting Rifle (spread 0) and a zombie streamed through the horde stream 11.5 m west, 4° off. Without a Tactical flashlight both sides keep the raw aim; with it both bend (≈ 4.18°; within 0.05°, the horde stream's position quantization). Mutations "NetSimHost passes `null` instead of `aimShooter`" (M19) and "shooter gear forced to 0" → caught. `tools/netsim/hitsSim.ts` and `tools/netaudit/hitsLossSim.ts` pass `{ x, y, gear }` (predicted centre, the mirror's gear).
+- **M2** — `boss/behemoth.fuzz.test.ts` walks stages 1–5 with `masksForStage(map, stage)`; 15 layouts (3 per stage), and it asserts that all three collapsed alleys ran at stages 4–5. Green in 27 s.
+- **M3** — `economy/tenWaveSim.test.ts` (a): from stage 4, exactly one `alley_k_mouth` is `isSpawnBuried`, the buried mouth is never picked, and ≥ 1 `breach_*` is picked. It reads the wave director's recent-pick ring, only the picks made since the last tick. Mutations "buried rule removed" and "breaches never picked" → caught.
+- **L1** — new `apps/client/src/render/fog/fogViews.test.ts` (fake scene): ZombieView draws at 1, half alpha at 0.5, and gives no `drawnImage` at 0; EyesView puts no eyes on the hidden zombie, and the fading zombie's eyes are at 0.9 × 0.5; AcidView hides the fogged glob. Mutations M16, M17, M18 → caught.
+- **L2** — `decay/collapse.test.ts`: wave 10 keeps the run's material and style, `isEndlessWave(10)` is false and `(11)` is true. Mutation M7 (`>=`) → caught.
+- **L3** — `legalDecayMasks(map)` now really is every mask a run can pick (default `gameplayOnly: false`; Downtown 1,620). The new `gameplayDecayMasks(map)` returns the 135 gameplay layouts (looks at 0; its doc says these are not run masks). Every gameplay caller was renamed. `decay.test` asserts that every mask picked over 256 seeds is in `legalDecayMasks`, and checks the sizes 1,620 and 135. The client look tests (palette, windowSpill, blockText, fog) bake no look-dependent output from the mask bits (material and style reach the bake through `CityScene`, not the mask), so they use `gameplayDecayMasks`.
+- **L4 [behaviour, same numbers today]** — `decaySystem.ts › destroyBlockedBuildings` refunds `floor(b.paid × buildingRefundShare)` (5.20's `paid`: price + every upgrade step) for every decay-destroyed building (rubble, cars, police lines, fires), not the tier's base price. **Finding:** the balance cross-check already forces an upgraded tier's price to equal everything paid to reach it ("reinforced_barricade's price must be 40 + 50 = 90"), so with the shipped balance both rules give the same refund. The upgrade money was never lost, and the change only matters if a building's `paid` ever differs from its tier price (for example a future discount). Test in `decay/ruins.test.ts`: a really upgraded barricade on P1 refunds `floor(90 × 0.5)`, and a building with `paid` 30 (tier price 80) refunds 15. Mutation "back to the tier price" → caught.
+- **L5 [behaviour]** — `BloodTrailView` gets a `fog` field (set by GameScene to the ScreenFog): a fog-hidden Crawler drops no new mark. Test in `fogViews.test.ts`; mutation → caught.
+- **L6** — `zombies/ruins.fuzz.test.ts`: 1–2 extra players start on a random spot of the coming rubble (one of them downed now and then). After the stage change nobody is inside a box, and the test asserts `relocated.players` ≥ the layout count.

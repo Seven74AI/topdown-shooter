@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP, bundledBalanceFiles, withOverrides, addBuildingAt, addPlayer, applyDecayStage, legalDecayMasks, blockReason, buildingStats, createWorld, footprint, loadBalance, spawnZombie, type BlockReason, type Box, type MapBox } from "@topdown/shared";
+import { DOWNTOWN_MAP, bundledBalanceFiles, withOverrides, addBuildingAt, addPlayer, applyDecayStage, gameplayDecayMasks, blockReason, buildingStats, createWorld, footprint, loadBalance, spawnZombie, type BlockReason, type Box, type MapBox } from "@topdown/shared";
 import { COVER_WORDS, SOLID_NAMES, blockText, placementHintText, solidWord } from "./blockText";
 import { placeRefusalText } from "./placement";
 
@@ -54,7 +54,7 @@ describe("blockText (Story 5.17, AC 3)", () => {
 
   it("Story 6.2 (F3): every rubble box at stage 4 reads \"Blocked by rubble\" (one prefix rule)", () => {
     const w = downtown();
-    applyDecayStage(w, 4, legalDecayMasks(DOWNTOWN_MAP)[0] as number);
+    applyDecayStage(w, 4, gameplayDecayMasks(DOWNTOWN_MAP)[0] as number);
     const rubble = w.obstacles.solids.map((s, i) => ({ s, i })).filter(({ s }) => s.name.startsWith("rubble_"));
     expect(rubble.length).toBeGreaterThanOrEqual(4); // 3 piles + the alley (liveness)
     for (const { i } of rubble) expect(blockText(w, reason({ cause: "solid", index: i }), names)).toBe("Blocked by rubble");

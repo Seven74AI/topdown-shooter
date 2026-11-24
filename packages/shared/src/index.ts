@@ -102,7 +102,7 @@ export { fillCollisionCells, mapCollisionCells } from "./map/collisionCells";
 export { FIRST_DECAY_STAGE, currentDecayStage } from "./map/decayStage";
 export { createObstacles, fillObstacles, isRubble, mutationApplies, RUBBLE_PREFIX, rubblePiles, type ObstacleState } from "./map/obstacles";
 // Story 4.5: the decay stage engine.
-export { createDecayState, fireRecordOf, gameplayVariantMask, legalDecayMasks, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
+export { createDecayState, fireRecordOf, gameplayVariantMask, gameplayDecayMasks, legalDecayMasks, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
 export { applyDecayStage } from "./decay/applyDecayStage";
 // Story 5.10: the derived light-source list; med station healing.
 export {

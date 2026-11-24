@@ -4,7 +4,7 @@ import type { FlameStats } from "../config/balanceSchema";
 import { TICK_DT_S } from "../config/constants";
 import { circleOverlapsBox } from "../buildings/collision";
 import { applyDecayStage } from "../decay/applyDecayStage";
-import { legalDecayMasks } from "../decay/decayState";
+import { gameplayDecayMasks } from "../decay/decayState";
 import { createRng, type Rng } from "../core/rng";
 import type { SimEvent } from "../core/simEvents";
 import type { SystemFn } from "../core/systems";
@@ -39,7 +39,7 @@ import { weaponStats } from "./weapons";
  */
 const balance = loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "runWaves", 20]]));
 const map = DOWNTOWN_MAP;
-const MASKS = legalDecayMasks(map);
+const MASKS = gameplayDecayMasks(map);
 const LAYOUTS = 12;
 const TICKS = 2000;
 const LOADOUTS = [["flamethrower", null], ["gas_torch", null]] as const;

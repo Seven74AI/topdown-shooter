@@ -17,7 +17,7 @@ import { COLLAPSE_STYLES, collapseStyleAt, createFogBeam, createFogRadii, fogRad
 import { applyDecayStage } from "./applyDecayStage";
 import { legalDecayMasks } from "./decayState";
 import { variantBit } from "./masks.testkit";
-import { RUINS_LOOKS, RUINS_LOOK_GUTTED, ruinsLookAt } from "./ruinsLook";
+import { RUINS_LOOKS, RUINS_LOOK_GUTTED, isEndlessWave, ruinsLookAt } from "./ruinsLook";
 
 /**
  * Story 6.4 (Collapse, stage 5) and the shared look picks of 6.2: every fairness rule is a test.
@@ -162,12 +162,14 @@ describe("Story 6.4 F2: waves 9 and 10 are fought in the dark (6.3's refreshBlac
 });
 
 describe("Story 6.4 D7 / 6.2 D6: the run's weather style and Ruins material", () => {
-  const MASK = legalDecayMasks(DT, { gameplayOnly: false });
+  const MASK = legalDecayMasks(DT);
   it("collapseStyleAt: -1 below stage 5; the run's pick in waves ≤ 10; endless rotates one step per wave in order", () => {
     for (const [k, style] of COLLAPSE_STYLES.entries()) {
       const bit = variantBit(DT, `collapse_${style}`);
       const mask = MASK.find((m) => (m >>> bit) & 1) as number;
       const w = at(5, "wave", mask);
+      expect(collapseStyleAt(w)).toBe(k);
+      w.waves.number = 10; // review L2: wave 10 is the last of the run, not endless
       expect(collapseStyleAt(w)).toBe(k);
       w.waves.number = 11;
       expect(collapseStyleAt(w)).toBe((k + 1) % 4);
@@ -182,6 +184,10 @@ describe("Story 6.4 D7 / 6.2 D6: the run's weather style and Ruins material", ()
       const mask = MASK.find((m) => (m >>> variantBit(DT, `ruins_look_${look}`)) & 1) as number;
       const w = at(4, "wave", mask);
       expect(ruinsLookAt(w)).toBe(k);
+      w.waves.number = 10; // review L2: still the run's pick at wave 10 (RU4 only from wave 11)
+      expect(ruinsLookAt(w)).toBe(k);
+      expect(isEndlessWave(w, 10)).toBe(false);
+      expect(isEndlessWave(w, 11)).toBe(true);
       w.waves.number = 11;
       expect(ruinsLookAt(w)).toBe(RUINS_LOOK_GUTTED);
     }

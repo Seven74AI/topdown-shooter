@@ -18,7 +18,7 @@ import { FLOW_UNREACHED, flowCellAt, rebuildFlowFieldNow } from "../zombies/flow
 import { ZOMBIE_TYPES, isWindupState, type ZombieTypeId } from "../zombies/zombieTypes";
 import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { applyDecayStage } from "./applyDecayStage";
-import { circleInFire, fireRecordOf, legalDecayMasks } from "./decayState";
+import { circleInFire, fireRecordOf, gameplayDecayMasks } from "./decayState";
 import { masksForStage } from "./masks.testkit";
 import { isSpawnBuried } from "../waves/spawnPick";
 import { changeDecayStage, relocated } from "./decaySystem";
@@ -31,7 +31,7 @@ import { changeDecayStage, relocated } from "./decaySystem";
  */
 const balance = loadBalance();
 const DT = DOWNTOWN_MAP;
-const MASKS = legalDecayMasks(DT);
+const MASKS = gameplayDecayMasks(DT);
 const MOVERS = DT.decayVariants.filter((v) => v.group === "panic_cars_moved");
 const moverBit = (name: string) => DT.decayVariants.findIndex((v) => v.name === name);
 const mutation = (name: string) => DT.decay.find((m) => m.name === name) as DecayMutation;

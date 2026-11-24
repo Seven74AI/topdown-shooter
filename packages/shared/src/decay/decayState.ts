@@ -122,16 +122,15 @@ export function gameplayVariantMask(map: DistrictMap): number {
 
 /**
  * Story 4.7: every variant mask `pickDecayVariants` can return for `map` (each group: every `pick`-
- * subset of its candidates; the product over groups), ascending. Tests and the fuzz walk them all.
- * Not for the sim (allocates).
+ * subset of its candidates; the product over groups), ascending: the masks a run can really pick,
+ * look groups included (Downtown: 135 gameplay × 3 materials × 4 weather styles = 1,620). Tests and
+ * the fuzz walk them. Not for the sim (allocates).
  *
- * Story 6.2: `gameplayOnly` (default TRUE) skips the look groups (`gameplayVariantMask`), whose
- * objects are all `look`s: they never change obstacles, spawns or fires, so the gameplay tests walk
- * Downtown's C(6,4) × C(3,2) × 3 alleys = 135 masks, not × 3 materials × 4 weather styles more.
- * `{ gameplayOnly: false }` gives every full mask a run can pick.
+ * Story 6.2 (review L3): `{ gameplayOnly: true }` skips the look groups (`gameplayVariantMask`); see
+ * `gameplayDecayMasks`.
  */
 export function legalDecayMasks(map: DistrictMap, opts: { gameplayOnly?: boolean } = {}): number[] {
-  const gameplayOnly = opts.gameplayOnly ?? true;
+  const gameplayOnly = opts.gameplayOnly ?? false;
   const keep = gameplayOnly ? gameplayVariantMask(map) : 0xffffffff;
   const groups = new Map<string, { pick: number; bits: number[] }>();
   map.decayVariants.forEach((v, i) => {
@@ -158,6 +157,16 @@ export function legalDecayMasks(map: DistrictMap, opts: { gameplayOnly?: boolean
     masks = next;
   }
   return masks.sort((a, b) => a - b);
+}
+
+/**
+ * Story 6.2: the GAMEPLAY masks only (look groups left at 0): every distinct obstacle / fire / spawn
+ * layout a run can have (Downtown: C(6,4) movers × C(3,2) fires × 3 collapsed alleys = 135). These
+ * are not run masks (a run always has one material and one style bit set); the looks never change
+ * the sim (`look` objects are skipped by `fillObstacles` / `applyDecayStage`), so gameplay tests walk these.
+ */
+export function gameplayDecayMasks(map: DistrictMap): number[] {
+  return legalDecayMasks(map, { gameplayOnly: true });
 }
 
 /**

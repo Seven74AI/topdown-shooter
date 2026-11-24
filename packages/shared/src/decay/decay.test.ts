@@ -22,7 +22,7 @@ import { jitteredSpawn } from "../waves/waveDirector";
 import { runHeadless } from "../bots/headlessRun";
 import { createInputLog, replayRun } from "../replay/inputLog";
 import { applyDecayStage } from "./applyDecayStage";
-import { gameplayVariantMask, legalDecayMasks, pickDecayVariants, stageForWave } from "./decayState";
+import { gameplayVariantMask, gameplayDecayMasks, legalDecayMasks, pickDecayVariants, stageForWave } from "./decayState";
 import { masksForStage } from "./masks.testkit";
 import { changeDecayStage, relocated } from "./decaySystem";
 
@@ -490,7 +490,7 @@ describe("Story 4.5 review fixes", () => {
   it("note for 4.6–4.8: at every stage and every variant combination, every walkable cell is reachable from the team start (no enclosed area)", () => {
     let checked = 0;
     // Story 4.7: the combinations a run can pick (C(6,4) × C(3,2); Story 4.8); Story 6.2: × 3 alleys from stage 4.
-    expect(legalDecayMasks(DT)).toHaveLength(135);
+    expect(gameplayDecayMasks(DT)).toHaveLength(135);
     for (let stage = 1; stage <= 5; stage++) {
       const masks = masksForStage(DT, stage);
       expect(masks).toHaveLength(stage < 4 ? 45 : 135);
@@ -536,6 +536,11 @@ describe("Story 4.5 DecayTimeline: variations from the decay stream", () => {
     // Every car × fire combination appears (45 in 256 seeds); Story 6.2: the alleys and looks are checked in ruins.test.ts.
     expect([...new Set([...seen.keys()].map((k) => (k & 0x1ff) >>> 0))].sort((x, y) => x - y)).toEqual(masksForStage(DT, 3).map((k) => (k & 0x1ff) >>> 0));
     expect(gameplayVariantMask(DT)).toBe(0xfff); // cars, fires, alleys; the 7 look bits are not gameplay
+    // Story 6.2 review L3: `legalDecayMasks` = the masks a run can pick (looks included); every picked mask is one.
+    const legal = new Set(legalDecayMasks(DT));
+    expect(legal.size).toBe(135 * 3 * 4);
+    for (const m of seen.keys()) expect(legal.has(m), `mask ${m}`).toBe(true);
+    expect(gameplayDecayMasks(DT)).toHaveLength(135);
   });
 
   it("pickDecayVariants draws `pick` per group (partial Fisher–Yates): pick 2 of 3", () => {

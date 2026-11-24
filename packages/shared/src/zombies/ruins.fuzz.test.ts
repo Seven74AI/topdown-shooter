@@ -3,7 +3,7 @@ import { loadBalance } from "../config/balance";
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, type BuildingRotation } from "../buildings/buildings";
 import { circleOverlapsBox, segmentHitsBuildings } from "../buildings/collision";
-import { changeDecayStage } from "../decay/decaySystem";
+import { changeDecayStage, relocated } from "../decay/decaySystem";
 import { masksForStage } from "../decay/masks.testkit";
 import { createRng } from "../core/rng";
 import { createWorld, step, type World } from "../core/world";
@@ -45,10 +45,12 @@ interface LayoutResult {
   refunds: number;
   stage: number;
   versionChanged: boolean;
+  movedOff: number;
 }
 
 function layout(seed: number): LayoutResult {
   const rng = createRng(seed);
+  let relocFail: string | null = null;
   const w: World = createWorld({ balance, seed, map: DT, systems: { waves: () => {} } });
   w.debug.godMode = true;
   const stage = 4 + (seed % 2);
@@ -70,12 +72,24 @@ function layout(seed: number): LayoutResult {
     if (!stats) continue;
     addBuildingAt(w, { id: id++, type, ownerId: "p0", gx: Math.floor(x / BUILD_GRID_M), gy: Math.floor(y / BUILD_GRID_M), rot: rng.int(0, 1) as BuildingRotation, hp: 100 });
   }
+  // Review L6: 1–2 players standing on a random spot of the coming rubble (one downed now and then).
+  const onRubble = 1 + (seed % 2);
+  for (let k = 0; k < onRubble; k++) {
+    const r = rubble[rng.int(0, rubble.length - 1)] as MapBox;
+    const p = addPlayer(w, `r${k}`, r.minX + rng.range(0, r.maxX - r.minX), r.minY + rng.range(0, r.maxY - r.minY));
+    if (k === 1 && seed % 3 === 0) p.status = "downed";
+  }
   const events: SimEvent[] = [];
   const off = w.events.subscribe((e) => events.push(e));
   w.debug.decayStageByWave = Array(10).fill(stage);
   changeDecayStage(w, stage);
+  const movedOff = relocated.players;
   startWave(w);
   step(w, TICK_DT_S);
+  // Nobody is left inside a box after the stage change (relocation off the new rubble).
+  for (const p of w.players.values()) {
+    for (const b of w.obstacles.solids) if (circleOverlapsBox(p.x, p.y, p.radiusM - 0.06, b.minX, b.minY, b.maxX, b.maxY)) relocFail ??= `seed ${seed}: ${p.id} (${p.status}) left inside ${b.name} after the stage change`;
+  }
   const destroyed = events.filter((e) => e.type === "building.destroyed").length;
   const refunds = events.filter((e) => e.type === "money.earned" && e.reason === "refund").length;
   off();
@@ -95,7 +109,7 @@ function layout(seed: number): LayoutResult {
       if (zid >= 0) spawned.push({ id: zid, gen: w.zombies.generation[zid] as number, breach, at: sp.name });
     }
   }
-  let violation: string | null = null;
+  let violation: string | null = relocFail;
   const reached = new Set<number>();
   const breachReached: [number, number] = [0, 0];
   for (let t = 0; t < TICKS && reached.size < spawned.length; t++) {
@@ -123,13 +137,13 @@ function layout(seed: number): LayoutResult {
     }
   }
   const missing = spawned.filter((s) => !reached.has(s.id) && isZombieAlive(w.zombies, s.id)).map((s) => `${s.at}@(${(w.zombies.x[s.id] as number).toFixed(1)},${(w.zombies.y[s.id] as number).toFixed(1)})`);
-  return { violation, spawned: spawned.length, reached: reached.size, missing, breachReached, destroyed, refunds, stage, versionChanged: w.obstacles.version !== version };
+  return { violation, spawned: spawned.length, reached: reached.size, missing, breachReached, destroyed, refunds, stage, versionChanged: w.obstacles.version !== version, movedOff };
 }
 
 describe("Story 6.2 / 6.4 Ruins fuzz: random masks × buildings × stages 4–5 × 3,000 ticks (brief line 7)", () => {
   it(`${LAYOUTS} layouts: no body inside a box, no stall, both breaches reach a player, rubble destroys + refunds, walls only at the build start`, () => {
     const failures: string[] = [];
-    const total = { spawned: 0, reached: 0, destroyed: 0, refunds: 0, breach: [0, 0] as [number, number], stages: new Set<number>(), alleys: new Set<number>() };
+    const total = { movedOff: 0, spawned: 0, reached: 0, destroyed: 0, refunds: 0, breach: [0, 0] as [number, number], stages: new Set<number>(), alleys: new Set<number>() };
     for (let seed = 1; seed <= LAYOUTS; seed++) {
       const r = layout(6200 + seed);
       if (r.violation) failures.push(r.violation);
@@ -137,6 +151,7 @@ describe("Story 6.2 / 6.4 Ruins fuzz: random masks × buildings × stages 4–5 
       if (r.versionChanged) failures.push(`seed ${6200 + seed}: the walls changed mid-wave`);
       if (r.refunds !== r.destroyed) failures.push(`seed ${6200 + seed}: ${r.destroyed} destroyed, ${r.refunds} refunds`);
       total.spawned += r.spawned;
+      total.movedOff += r.movedOff;
       total.reached += r.reached;
       total.destroyed += r.destroyed;
       total.refunds += r.refunds;
@@ -155,6 +170,7 @@ describe("Story 6.2 / 6.4 Ruins fuzz: random masks × buildings × stages 4–5 
     expect(total.breach[0]).toBeGreaterThanOrEqual(LAYOUTS);
     expect(total.breach[1]).toBeGreaterThanOrEqual(LAYOUTS);
     expect(total.destroyed).toBeGreaterThan(0);
+    expect(total.movedOff).toBeGreaterThanOrEqual(LAYOUTS); // review L6: the players on the rubble really were moved off
     expect([...total.stages].sort()).toEqual([4, 5]);
     expect(total.alleys.size).toBe(3);
   }, 240_000);

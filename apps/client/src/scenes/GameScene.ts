@@ -658,6 +658,7 @@ export class GameScene extends Phaser.Scene {
     this.fogView = new FogView(this, this.screenFog, opts.lowFx);
     this.darknessView.fog = this.fogView;
     if (this.zombieView) this.zombieView.fog = this.screenFog;
+    if (this.trailView) this.trailView.fog = this.screenFog; // review L5: no trail marks from fog-hidden Crawlers
     // Story 6.2: Ruins dust (pools sized by decay.json › ruins; halved with ?fx=low).
     this.dustView = new DustView(this, balance.decay.ruins.maxDustSmoke, balance.decay.ruins.maxDustGrit, opts.lowFx);
     // Story 6.3 (AC 13): ?blackout=20|10|5 (solo, release-safe) forces the level for the whole run.

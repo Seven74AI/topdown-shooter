@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
-import { addBuildingAt, blockReason, buildingStats, footprint, placementError, type Box, type Building } from "../buildings/buildings";
+import { addBuildingAt, blockReason, buildingStats, footprint, placeBuilding, placementError, type Box, type Building } from "../buildings/buildings";
+import { upgradeBuilding } from "../buildings/upgrade";
 import { circleOverlapsBox } from "../buildings/collision";
 import { lobBlockT, meleeLineClear, shotBlockT, shotLineClear } from "../combat/cover";
 import { createExplosionSpec, explode } from "../combat/explosion";
@@ -16,7 +17,7 @@ import { startBuild, startWave } from "../run/runStateMachine";
 import { SPAWN_STATE, pickSpawnPoint, spawnPickCounters, spawnPointStates } from "../waves/spawnPick";
 import { spawnZombie, isZombieAlive } from "../zombies/zombiePool";
 import { applyDecayStage } from "./applyDecayStage";
-import { legalDecayMasks } from "./decayState";
+import { gameplayDecayMasks } from "./decayState";
 import { changeDecayStage, relocated } from "./decaySystem";
 import { variantBit } from "./masks.testkit";
 
@@ -27,7 +28,7 @@ import { variantBit } from "./masks.testkit";
  */
 const balance = loadBalance();
 const DT = DOWNTOWN_MAP;
-const MASK_ALLEY = [1, 2, 3].map((k) => (legalDecayMasks(DT).find((m) => (m >>> variantBit(DT, `ruins_alley_${k}`)) & 1) as number) >>> 0);
+const MASK_ALLEY = [1, 2, 3].map((k) => (gameplayDecayMasks(DT).find((m) => (m >>> variantBit(DT, `ruins_alley_${k}`)) & 1) as number) >>> 0);
 const box = (name: string): MapBox => DT.decay.find((m) => m.name === name) as MapBox;
 const P3 = box("rubble_pile_3"); // 37–39 × 3–4.5 in the open gas forecourt
 const MID_Y = (P3.minY + P3.maxY) / 2;
@@ -156,6 +157,41 @@ describe("Story 6.2 F3: you can't build on rubble; a building it lands on is des
     expect(refunds.sort()).toEqual(expected.sort());
     expect(p0.wallet - before).toBe(expected.reduce((a, b) => a + b, 0));
     expect(of(events, "building.destroyed")).toHaveLength(4);
+  });
+});
+
+describe("Story 6.2 review L4: the refund is half of what the player PAID (upgrades included)", () => {
+  it("an upgraded barricade (wood → reinforced) on a pile spot refunds floor(paid × 0.5); the refund reads `paid`, not the tier's price", () => {
+    const w = ruins(MASK_ALLEY[0] as number, { stage: 3 });
+    startBuild(w);
+    const pile = box("rubble_pile_1");
+    const wood = buildingStats(balance, "wood_barricade");
+    if (!wood) throw new Error("wood");
+    // Placed and upgraded through the real paths (they keep 5.20's `paid`).
+    const gx = Math.floor(((pile.minX + pile.maxX) / 2 - wood.widthM / 2) / BUILD_GRID_M);
+    const gy = Math.floor(((pile.minY + pile.maxY) / 2 - wood.depthM / 2) / BUILD_GRID_M);
+    const placed = placeBuilding(w, "p0", { type: "wood_barricade", gx, gy, rot: 0 });
+    if (!placed.ok) throw new Error(placed.error);
+    const up = upgradeBuilding(w, "p0", placed.value.id);
+    if (!up.ok) throw new Error(up.error);
+    const b = w.buildings.list.find((x) => x.id === placed.value.id) as Building;
+    expect(b.type).toBe("reinforced_barricade");
+    expect(b.paid).toBe(wood.price + (wood.upgradesTo?.price ?? 0)); // liveness: the upgrade was paid (40 + 50)
+    // The balance cross-check makes a tier's price = everything paid to reach it, so today both rules give 45.
+    // A building whose `paid` differs from its tier price (any future discount) proves which one is read:
+    const other = addBuildingAt(w, { id: 900, type: "spike_trap", ownerId: "p0", gx: Math.floor(box("rubble_pile_2").minX / BUILD_GRID_M), gy: Math.floor(box("rubble_pile_2").minY / BUILD_GRID_M), rot: 0, hp: 50 }) as Building;
+    other.paid = 30; // the spike trap's tier price is 80
+    const p0 = w.players.get("p0") as { wallet: number };
+    const before = p0.wallet;
+    const events: SimEvent[] = [];
+    const off = w.events.subscribe((e) => events.push(e));
+    expect(changeDecayStage(w, 4)).toBe(true);
+    step(w, TICK_DT_S);
+    off();
+    const share = balance.decay.buildingRefundShare;
+    const refunds = of(events, "money.earned").filter((e) => e.reason === "refund").map((e) => e.amount).sort((x, y) => x - y);
+    expect(refunds).toEqual([Math.floor(30 * share), Math.floor(b.paid * share)].sort((x, y) => x - y));
+    expect(p0.wallet - before).toBe(Math.floor(30 * share) + Math.floor(b.paid * share));
   });
 });
 
