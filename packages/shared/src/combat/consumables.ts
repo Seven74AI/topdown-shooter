@@ -1,11 +1,11 @@
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import type { PlayerInput } from "../net/input";
-import { MIN_AIM_LEN } from "../config/constants";
+import { MIN_AIM_LEN, MUZZLE_OFFSET_M } from "../config/constants";
 import { activeSlot } from "./loadout";
 import { weaponStats } from "./weapons";
 import { throwConsumable } from "./grenades";
-import { consumableCooldownTicks, consumableIndex, consumableStats, throwStatsOf, type ThrowStats } from "../economy/consumables";
+import { aimMemoryTicks, consumableCooldownTicks, consumableIndex, consumableStats, throwStatsOf, type ThrowStats } from "../economy/consumables";
 
 /**
  * Story 5.12: using the quick-use slot (FR8). Fairness rules (tests in `consumables.test.ts`):
@@ -22,10 +22,11 @@ import { consumableCooldownTicks, consumableIndex, consumableStats, throwStatsOf
  *   build and wave phases.
  * - **C-D throwables (grenades, molotovs): wave phase only (D3).** Thrown by 5.5's lob
  *   (`throwConsumable`): the landing point is the aim distance clamped to [`minThrowM`,
- *   `throwRangeM`]; with no aim (touch with the aim stick released) the facing direction at full
- *   range. The aim length carries the distance like the launcher's (D11): a fraction of the
- *   throw range, or — while a launcher is in hand, whose encoding the client then sends — of the
- *   launcher's range (`throwAimLength`, the one decoding the client's landing ring uses too).
+ *   `throwRangeM`]. The aim length carries the distance (D11): a fraction of the throw range; on the
+ *   flagged input the client always encodes the throw's own range and drops `fire` (review L5), so
+ *   a swap to or from the launcher never changes how a throw decodes. With no aim (touch, the aim
+ *   stick released): the last aim direction (kept `aimMemoryS`), else the nearest zombie within
+ *   reach, else facing (review M1: `throwDirection`).
  *   Only real buildings stop the throw (designer 2026-11-23, PR #5: it flies over cars, the bus,
  *   barricades, turrets; aimed onto a car roof it lands at the car's near face). A full round pool
  *   spends nothing.
@@ -47,6 +48,7 @@ const usePlayer = (p: PlayerState): void => {
   if (p.weaponsPaused) return;
   if (p.consumableCooldownTicks > 0) p.consumableCooldownTicks--;
   const input = world.inputs.get(p.id);
+  rememberAim(world, p, input);
   if (!input?.consumable) return;
   tryUseConsumable(world, p, input);
 };
@@ -58,6 +60,88 @@ export function useConsumables(world: World): void {
   pass = null;
 }
 
+/**
+ * Review M1: the last aim input, kept `aimMemoryS` worth of applied ticks. Written only from aim
+ * input (never from movement), counted down on applied ticks without aim.
+ */
+export function rememberAim(world: Readonly<World>, p: PlayerState, input: Readonly<PlayerInput> | undefined): void {
+  const len = input ? Math.hypot(input.aimX, input.aimY) : 0;
+  if (input && len >= MIN_AIM_LEN) {
+    p.lastAimX = input.aimX / len;
+    p.lastAimY = input.aimY / len;
+    p.lastAimLen = Math.min(1, len);
+    p.lastAimTicks = aimMemoryTicks(world.balance);
+  } else if (p.lastAimTicks > 0) p.lastAimTicks--;
+}
+
+/** Where a throw goes (`throwDirection`'s output; reuse one). */
+export interface ThrowAim {
+  dx: number;
+  dy: number;
+  /** The aim length handed to `lobTarget` (a fraction of the throw range). */
+  len: number;
+  /** Which rule picked it (tests, logs). */
+  source: "aim" | "memory" | "zombie" | "facing";
+}
+
+export const createThrowAim = (): ThrowAim => ({ dx: 1, dy: 0, len: 1, source: "facing" });
+
+/**
+ * C-D + review M1 (deterministic, shared; server and solo): the throw's direction and length. The
+ * input's aim when it has one (L5: on the flagged input the client always encodes the THROW's
+ * range, so the length is a fraction of `throwRangeM` whatever is in hand); else the last aim
+ * direction while remembered (`aimMemoryS`); else the nearest alive zombie within reach (muzzle +
+ * throw range; the first in pool order on a tie), at its distance; else the facing direction at full
+ * range. Never the move direction by itself (a kiting touch player doesn't throw onto their own path).
+ */
+export function throwDirection(world: Readonly<World>, p: Readonly<PlayerState>, input: Readonly<PlayerInput>, stats: Readonly<ThrowStats>, out: ThrowAim): ThrowAim {
+  const aimLen = Math.hypot(input.aimX, input.aimY);
+  if (aimLen >= MIN_AIM_LEN) {
+    out.dx = input.aimX / aimLen;
+    out.dy = input.aimY / aimLen;
+    out.len = Math.min(1, aimLen);
+    out.source = "aim";
+    return out;
+  }
+  if (p.lastAimTicks > 0) {
+    out.dx = p.lastAimX;
+    out.dy = p.lastAimY;
+    out.len = p.lastAimLen;
+    out.source = "memory";
+    return out;
+  }
+  const offset = p.radiusM + MUZZLE_OFFSET_M;
+  const reach = offset + stats.lobRangeM;
+  const z = world.zombies;
+  let best = -1;
+  let bestD2 = reach * reach;
+  for (let k = 0; k < z.aliveCount; k++) {
+    const id = z.aliveIds[k] as number;
+    const dx = (z.x[id] as number) - p.x;
+    const dy = (z.y[id] as number) - p.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2 && d2 > 1e-9) {
+      bestD2 = d2;
+      best = id;
+    }
+  }
+  if (best >= 0) {
+    const d = Math.sqrt(bestD2);
+    out.dx = ((z.x[best] as number) - p.x) / d;
+    out.dy = ((z.y[best] as number) - p.y) / d;
+    out.len = Math.min(1, Math.max(0, (d - offset) / stats.lobRangeM));
+    out.source = "zombie";
+    return out;
+  }
+  out.dx = p.facingX;
+  out.dy = p.facingY;
+  out.len = 1;
+  out.source = "facing";
+  return out;
+}
+
+const aim = createThrowAim();
+
 /** A launcher in `p`'s hands right now (alive, not swapping): its range scales the aim length. */
 export function launcherRangeInHand(world: Readonly<World>, p: Readonly<PlayerState>): number {
   if (p.status !== "alive" || p.loadout.swapTicks > 0) return 0;
@@ -66,9 +150,9 @@ export function launcherRangeInHand(world: Readonly<World>, p: Readonly<PlayerSt
 }
 
 /**
- * The aim length to hand `lobTarget` for a throw with `stats`, from the input's aim length: the
- * client encodes the distance as `aimLen × range`, where range is the launcher's while one is in
- * hand (`launcherRangeM` > 0) and the throw's own otherwise. No aim → 1 (full range).
+ * The CLIENT's landing ring with a launcher in hand: the current (non-throw) input carries the
+ * launcher's encoding, so the ring converts it to the throw's (same metres). The flagged input itself
+ * always carries the throw's own range (review L5), which the server reads as is. No aim → 1.
  */
 export function throwAimLength(stats: Readonly<ThrowStats>, aimLen: number, launcherRangeM: number): number {
   if (!(aimLen >= MIN_AIM_LEN)) return 1;
@@ -102,17 +186,8 @@ export function tryUseConsumable(world: World, p: PlayerState, input: Readonly<P
       consumableCounters.refusedRule++;
       return false;
     }
-    const aimLen = Math.hypot(input.aimX, input.aimY);
-    let dx: number;
-    let dy: number;
-    if (aimLen >= MIN_AIM_LEN) {
-      dx = input.aimX / aimLen;
-      dy = input.aimY / aimLen;
-    } else {
-      dx = p.facingX;
-      dy = p.facingY;
-    }
-    if (!throwConsumable(world, p, index, stats, dx, dy, throwAimLength(stats, aimLen, launcherRangeInHand(world, p)), input.seq)) return false;
+    throwDirection(world, p, input, stats, aim);
+    if (!throwConsumable(world, p, index, stats, aim.dx, aim.dy, aim.len, input.seq)) return false;
     consumableCounters.throws++;
   }
   p.consumableCount--;

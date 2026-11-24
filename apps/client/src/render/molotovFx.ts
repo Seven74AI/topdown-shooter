@@ -29,6 +29,9 @@ export interface MolotovZoneDraw {
   dir: number;
 }
 
+/** Recent throws remembered for their splash direction (more than ever fly at once: 4 players × the round pool). */
+const LAUNCH_RING = 64;
+
 /** looks.html `molEnv`: the fire fades over its last 0.6 s. */
 export const MOLOTOV_FADE_S = 0.6;
 
@@ -41,8 +44,17 @@ export class MolotovFires {
   /** Bumped on every change of the live set (the view re-lays hidden edges). */
   version = 0;
   private born = 0;
-  /** The start point of each thrown item in flight, by its landing point (MB2's splash direction; cosmetic). */
-  private readonly lastLaunch = new Map<string, { x: number; y: number }>();
+  /**
+   * The start point of recent throws by their landing point in whole centimetres (MB2's splash
+   * direction; cosmetic). A fixed ring (review L7): no string keys, no allocation per event; a hand
+   * grenade's entry (never matched by a fire) is simply overwritten later.
+   */
+  private readonly launchTx = new Int32Array(LAUNCH_RING);
+  private readonly launchTy = new Int32Array(LAUNCH_RING);
+  private readonly launchX = new Float64Array(LAUNCH_RING);
+  private readonly launchY = new Float64Array(LAUNCH_RING);
+  private readonly launchOn = new Uint8Array(LAUNCH_RING);
+  private launchNext = 0;
 
   constructor(
     private readonly balance: Balance,
@@ -54,12 +66,13 @@ export class MolotovFires {
 
   handle(e: SimEvent, nowS: number): boolean {
     if (e.type === "grenade.launched" && (e.item ?? 0) > 0) {
-      // the throw's start point: a forward splash runs along it (cosmetic)
-      const l = this.lastLaunch.get(`${e.tx.toFixed(2)},${e.ty.toFixed(2)}`);
-      if (l) {
-        l.x = e.x;
-        l.y = e.y;
-      } else if (this.lastLaunch.size < 64) this.lastLaunch.set(`${e.tx.toFixed(2)},${e.ty.toFixed(2)}`, { x: e.x, y: e.y });
+      const k = this.launchNext;
+      this.launchNext = (k + 1) % LAUNCH_RING;
+      this.launchTx[k] = Math.round(e.tx * 100);
+      this.launchTy[k] = Math.round(e.ty * 100);
+      this.launchX[k] = e.x;
+      this.launchY[k] = e.y;
+      this.launchOn[k] = 1;
       return false;
     }
     if (e.type === "build.started") {
@@ -83,10 +96,15 @@ export class MolotovFires {
     z.startS = startS;
     z.endS = startS + durS;
     z.spread = throwVariant(e.x, e.y);
-    const key = `${e.x.toFixed(2)},${e.y.toFixed(2)}`;
-    const from = this.lastLaunch.get(key);
-    z.dir = from ? Math.atan2(e.y - from.y, e.x - from.x) : 0;
-    this.lastLaunch.delete(key);
+    const cx = Math.round(e.x * 100);
+    const cy = Math.round(e.y * 100);
+    z.dir = 0;
+    for (let k = 0; k < LAUNCH_RING; k++) {
+      if (this.launchOn[k] !== 1 || this.launchTx[k] !== cx || this.launchTy[k] !== cy) continue;
+      z.dir = Math.atan2(e.y - (this.launchY[k] as number), e.x - (this.launchX[k] as number));
+      this.launchOn[k] = 0;
+      break;
+    }
     if (nowS >= z.endS) {
       this.pool.active[slot] = 0; // older than its life (a woken tab): never drawn
       this.pool.count--;
@@ -114,7 +132,7 @@ export class MolotovFires {
   clear(): void {
     clearAreas(this.pool);
     for (const z of this.slots) z.id = -1;
-    this.lastLaunch.clear();
+    this.launchOn.fill(0);
     this.relist();
   }
 

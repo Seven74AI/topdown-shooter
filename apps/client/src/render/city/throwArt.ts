@@ -18,6 +18,17 @@ import { addGeneratedTexture } from "./canvasTexture";
 export const ATLAS_THROWFX = "atlas_throwfx";
 export const HAND_GRENADE_FRAMES: readonly string[] = [0, 1, 2].map((i) => frameName("fx", "handgrenade", variantLetter(i)));
 export const MOLOTOV_FRAMES: readonly string[] = [0, 1, 2].map((i) => frameName("fx", "molotov", variantLetter(i)));
+/**
+ * Review (FPS): the molotov zone's thin ring line as a baked white ring (tinted by the view), drawn
+ * with one pooled image per zone — a Phaser Graphics circle was re-tessellated every frame.
+ */
+export const FX_MOLOTOV_RING = frameName("fx", "molotovring", "a");
+export const RING_FRAME_PX = 256;
+/** The ring's centre line sits this many px inside the frame edge (its stroke never clipped). */
+export const RING_INSET_PX = 3;
+export const RING_STROKE_PX = 2.5;
+/** Display size of the ring frame for a zone of radius `r` (m): its centre line lands exactly on `r`. */
+export const ringDisplayM = (r: number): number => (2 * r * (RING_FRAME_PX / 2)) / (RING_FRAME_PX / 2 - RING_INSET_PX);
 /** Texture pixels per metre of the drawings. */
 export const THROW_PX_PER_M = 400;
 /** Each frame's extent in metres (x from −half to +half; the objects are drawn in looks.html metres). */
@@ -316,10 +327,20 @@ export function throwFxSpecs(): FrameSpec[] {
   const gh = Math.ceil(GRENADE_FRAME_M.h * THROW_PX_PER_M);
   const mw = Math.ceil(MOLOTOV_FRAME_M.w * THROW_PX_PER_M);
   const mh = Math.ceil(MOLOTOV_FRAME_M.h * THROW_PX_PER_M);
-  return [...HAND_GRENADE_FRAMES.map((name) => ({ name, w: gw, h: gh })), ...MOLOTOV_FRAMES.map((name) => ({ name, w: mw, h: mh }))];
+  return [...HAND_GRENADE_FRAMES.map((name) => ({ name, w: gw, h: gh })), ...MOLOTOV_FRAMES.map((name) => ({ name, w: mw, h: mh })), { name: FX_MOLOTOV_RING, w: RING_FRAME_PX, h: RING_FRAME_PX }];
 }
 
 function drawFrame(g: G, f: PlacedFrame): void {
+  if (f.name === FX_MOLOTOV_RING) {
+    g.save();
+    g.strokeStyle = "#ffffff";
+    g.lineWidth = RING_STROKE_PX;
+    g.beginPath();
+    g.arc(f.x + f.w / 2, f.y + f.h / 2, f.w / 2 - RING_INSET_PX, 0, Math.PI * 2);
+    g.stroke();
+    g.restore();
+    return;
+  }
   g.save();
   g.beginPath();
   g.rect(f.x, f.y, f.w, f.h);

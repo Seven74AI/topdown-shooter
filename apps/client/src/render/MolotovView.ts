@@ -2,7 +2,8 @@ import type * as Phaser from "phaser";
 import type { Balance, SimEvent } from "@topdown/shared";
 import { FireView } from "./city/FireView";
 import { FIRE_EMBERS_MAX, FIRE_FLAMES_MAX, FIRE_SMOKE_MAX } from "./city/fireParticles";
-import { FIRE_RING_ALPHA, FIRE_RING_COLOR, fireRingWidthM } from "./city/fireRing";
+import { FIRE_RING_ALPHA, FIRE_RING_COLOR } from "./city/fireRing";
+import { ATLAS_THROWFX, FX_MOLOTOV_RING, ensureThrowFxAtlas, ringDisplayM } from "./city/throwArt";
 import { MolotovFires } from "./molotovFx";
 
 /** A low-quality car fire's particle caps (flames + smoke + embers at half: `halfCap`), the share's base. */
@@ -22,25 +23,26 @@ const RING_DEPTH = 4.34;
 export class MolotovView {
   readonly fires: MolotovFires;
   private readonly fx: FireView;
-  private readonly ring: Phaser.GameObjects.Graphics;
+  /** One pooled ring image per zone slot (the 4.8 D16 ring at exactly the damage edge). */
+  private readonly rings: Phaser.GameObjects.Image[] = [];
   private ringVersion = -1;
   private readonly budget: Balance["consumables"]["fx"];
   private budgetLive = -1;
-  private ringZoom = 0;
 
   constructor(scene: Phaser.Scene, balance: Balance) {
     this.fires = new MolotovFires(balance);
     this.fx = new FireView(scene, this.fires.capacity, true);
     this.budget = balance.consumables.fx;
-    this.ring = scene.add.graphics().setDepth(RING_DEPTH);
+    ensureThrowFxAtlas(scene);
+    for (let i = 0; i < this.fires.capacity; i++) this.rings.push(scene.add.image(0, 0, ATLAS_THROWFX, FX_MOLOTOV_RING).setDepth(RING_DEPTH).setTint(FIRE_RING_COLOR).setAlpha(FIRE_RING_ALPHA).setVisible(false));
   }
 
   handle(e: SimEvent, nowS: number): void {
     this.fires.handle(e, nowS);
   }
 
-  /** One frame: `dtS` 0 while paused; `nowS` the events' clock; the camera view (m) and zoom (px per m). */
-  update(dtS: number, nowS: number, vx: number, vy: number, vw: number, vh: number, zoom: number): void {
+  /** One frame: `dtS` 0 while paused; `nowS` the events' clock; the camera view (m). */
+  update(dtS: number, nowS: number, vx: number, vy: number, vw: number, vh: number): void {
     const f = this.fires;
     f.update(nowS);
     const live = f.live;
@@ -52,7 +54,7 @@ export class MolotovView {
       const share = Math.min(b.particleShare, b.maxParticles / (n * POOL_FULL_PARTICLES));
       const r = live[0]?.radiusM ?? 3;
       const spacing = Math.max(b.edgeSpacingM, (2 * Math.PI * r * n) / b.maxEdgeFlames);
-      this.fx.setPoolBudget(share, Math.min(b.smokeShare, share), spacing);
+      this.fx.setPoolBudget(share, Math.min(b.smokeShare, share), spacing, live.length <= b.maxLights);
     }
     for (let s = 0; s < this.fx.capacity; s++) {
       const z = live[s];
@@ -63,13 +65,18 @@ export class MolotovView {
       this.fx.setPoolSlot(s, z.id, z.x, z.y, z.radiusM, z.spread, z.dir, nowS - z.startS, MolotovFires.envelope(z, nowS), live, s, f.version);
     }
     this.fx.update(dtS, nowS, vx, vy, vw, vh);
-    if (f.version !== this.ringVersion || zoom !== this.ringZoom) {
+    if (f.version !== this.ringVersion) {
       this.ringVersion = f.version;
-      this.ringZoom = zoom;
-      const g = this.ring;
-      g.clear();
-      g.lineStyle(fireRingWidthM(zoom), FIRE_RING_COLOR, FIRE_RING_ALPHA);
-      for (const z of live) g.strokeCircle(z.x, z.y, z.radiusM);
+      for (let i = 0; i < this.rings.length; i++) {
+        const img = this.rings[i] as Phaser.GameObjects.Image;
+        const z = live[i];
+        if (!z) {
+          if (img.visible) img.setVisible(false);
+          continue;
+        }
+        const d = ringDisplayM(z.radiusM);
+        img.setPosition(z.x, z.y).setDisplaySize(d, d).setVisible(true);
+      }
     }
   }
 
@@ -84,6 +91,7 @@ export class MolotovView {
 
   destroy(): void {
     this.fx.destroy();
-    this.ring.destroy();
+    for (const r of this.rings) r.destroy();
+    this.rings.length = 0;
   }
 }

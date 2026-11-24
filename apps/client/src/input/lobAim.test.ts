@@ -57,4 +57,19 @@ describe("lob aim (Story 5.5)", () => {
     r.build(out, false, 0, 0, Number.NaN, Number.NaN, null, R);
     expect(Math.hypot(out.aimX, out.aimY)).toBeCloseTo(1, 12);
   });
+
+  it("Story 5.12 review L5: the input carrying a throw encodes the THROW's range (not the launcher's) and fires nothing", () => {
+    const THROW = { minLobM: 2, lobRangeM: 8 };
+    const r = new InputRouter(new TouchSticks(100, 0.1, 0.3));
+    r.pointerDown(1, 500, 300, false, 0, false, 1000);
+    r.kbm.leftButton = true;
+    const out = { ...NEUTRAL_INPUT } as MutablePlayerInput;
+    r.build(out, false, 10, 10, 16, 10, GL, R, false, THROW); // no tap: the launcher's encoding, firing
+    expect(Math.hypot(out.aimX, out.aimY)).toBeCloseTo(lobAimLength(GL, 6 - R - MUZZLE_OFFSET_M), 12);
+    expect(out.fire).toBe(true);
+    r.build(out, false, 10, 10, 16, 10, GL, R, true, THROW); // the tap's input
+    expect(out.consumable).toBe(true);
+    expect(Math.hypot(out.aimX, out.aimY)).toBeCloseTo(lobAimLength(THROW, 6 - R - MUZZLE_OFFSET_M), 12);
+    expect(out.fire).toBe(false);
+  });
 });

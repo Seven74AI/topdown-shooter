@@ -171,15 +171,14 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
   }
 
   // Story 5.12: the quick-use slot (deterministic: no randomness). A medkit below the HP share; a
-  // throwable at the densest cluster (the aim length carries the distance: the launcher's encoding
-  // while one is in hand, else the throw's).
+  // throwable at the densest cluster (the aim length carries the distance as a fraction of the throw's range).
   if (me.consumableKind === "heal" && me.hp < me.maxHp * (cfg.medkitBelowHpFrac ?? 0.4)) out.consumable = true;
   else if (me.consumableKind !== null && me.consumableKind !== "heal" && view.throwTarget) {
     const t = view.throwTarget;
     const dx = t.x - me.x;
     const dy = t.y - me.y;
     const d = Math.hypot(dx, dy);
-    const range = me.lobRangeM > 0 ? me.lobRangeM : me.throwRangeM;
+    const range = me.throwRangeM; // review L5: the flagged input always carries the throw's own range
     if (d > 0 && range > 0) {
       const len = Math.min(1, Math.max(1e-3, (d - me.muzzleM) / range));
       out.aimX = (dx / d) * len;

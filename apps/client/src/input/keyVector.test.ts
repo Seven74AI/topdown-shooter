@@ -74,6 +74,18 @@ describe("KeyboardMouse", () => {
     expect(k.takeConsumable()).toBe(false);
   });
 
+  it("Story 5.12 (review L3): an auto-repeat after the press was taken adds no edge", () => {
+    const k = new KeyboardMouse();
+    k.keyDown("KeyE");
+    expect(k.takeConsumable()).toBe(true); // the press, taken first
+    k.keyDown("KeyE", true); // OS auto-repeat while held
+    k.keyDown("KeyE", true);
+    expect(k.takeConsumable()).toBe(false);
+    k.keyUp("KeyE");
+    k.keyDown("KeyE", true); // a repeat for a key not held (focus came back): held again, never an edge
+    expect(k.takeConsumable()).toBe(false);
+  });
+
   it("Q gives one swap edge per press; auto-repeat adds none", () => {
     const k = new KeyboardMouse();
     k.keyDown("KeyQ");

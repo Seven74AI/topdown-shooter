@@ -207,7 +207,7 @@ describe("C-C medkit (AC 4)", () => {
 });
 
 describe("C-D grenades (AC 5)", () => {
-  it("aim length 1 lands 8 m out; 0.0625 (0.5 m) lands at the 2 m minimum; no aim → facing at 8 m", () => {
+  it("aim length 1 lands 8 m out; 0.0625 (0.5 m) lands at the 2 m minimum", () => {
     const { world, events, p } = setup();
     give(p, "grenades", 3);
     setInput(world, "p0", input(true, 1));
@@ -216,19 +216,48 @@ describe("C-D grenades (AC 5)", () => {
     run(world, 10, () => input(false));
     setInput(world, "p0", input(true, 0.5 / 8));
     run(world, 1);
-    expect(of(events, "grenade.launched")[1]?.tx).toBeCloseTo(10 + OFFSET + 2, 9);
-    run(world, 10, () => input(false));
-    p.facingX = 0;
-    p.facingY = 1;
-    setInput(world, "p0", { ...input(true), aimX: 0, aimY: 0 });
-    run(world, 1);
-    const l = of(events, "grenade.launched")[2];
-    expect(l?.tx).toBeCloseTo(10, 9);
-    expect(l?.ty).toBeCloseTo(10 + OFFSET + 8, 9);
+    const l = of(events, "grenade.launched")[1];
+    expect(l?.tx).toBeCloseTo(10 + OFFSET + 2, 9);
     expect(l?.item).toBe(2);
   });
 
-  it("D11: with the launcher in hand the aim length is the launcher's encoding (same metres)", () => {
+  it("review M1: no aim → the last aim direction (kept 1.5 s, never the move), then the nearest zombie in reach, then facing", () => {
+    const { world, events, p } = setup();
+    const MEM = Math.round(balance.consumables.aimMemoryS / TICK_DT_S);
+    const noAim = (tap: boolean, moveY = 0): PlayerInput => ({ ...input(tap), aimX: 0, aimY: 0, moveY });
+    give(p, "grenades", 3);
+    // aim up-left at 6 m, then release the stick and walk DOWN (facing turns down)
+    setInput(world, "p0", { ...input(false), aimX: -0.6 * (6 / 8), aimY: -0.8 * (6 / 8) });
+    run(world, 1);
+    run(world, 5, () => noAim(false, 1));
+    expect(p.facingY).toBeGreaterThan(0.99); // the move turned the facing
+    setInput(world, "p0", noAim(true, 1));
+    run(world, 1);
+    const a = of(events, "grenade.launched")[0]!;
+    expect(Math.atan2(a.ty - a.y, a.tx - a.x)).toBeCloseTo(Math.atan2(-0.8, -0.6), 9); // the remembered aim, not the escape route
+    expect(Math.hypot(a.tx - a.x, a.ty - a.y)).toBeCloseTo(6, 6);
+    // memory expires after aimMemoryS: the nearest zombie within reach is the target (at its distance)
+    run(world, MEM + 2, () => noAim(false, 0));
+    const z = tank(world, p.x + 3, p.y - 4); // 5 m away
+    tank(world, p.x - 9, p.y); // 9 m: out of reach (muzzle 0.65 m + 8 m)
+    setInput(world, "p0", noAim(true));
+    run(world, 1);
+    const b = of(events, "grenade.launched")[1]!;
+    expect(Math.atan2(b.ty - p.y, b.tx - p.x)).toBeCloseTo(Math.atan2(-4, 3), 6);
+    expect(Math.hypot(b.tx - p.x, b.ty - p.y)).toBeCloseTo(5, 6);
+    // no zombie in reach: facing at 8 m
+    world.zombies.x[z] = p.x + 30;
+    run(world, 12, () => noAim(false));
+    p.facingX = 0;
+    p.facingY = 1;
+    setInput(world, "p0", noAim(true));
+    run(world, 1);
+    const c = of(events, "grenade.launched")[2]!;
+    expect(c.tx).toBeCloseTo(p.x, 9);
+    expect(c.ty).toBeCloseTo(p.y + OFFSET + 8, 9);
+  });
+
+  it("review L5: with the launcher in hand the flagged input still carries the throw's own range; the client ring converts the launcher's encoding", () => {
     const GL = balance.weapons.grenade_launcher as { lobRangeM: number };
     expect(throwAimLength(GREN, 6 / GL.lobRangeM, GL.lobRangeM)).toBeCloseTo(6 / 8, 12);
     expect(throwAimLength(GREN, 0.5, 0)).toBe(0.5);
@@ -236,7 +265,7 @@ describe("C-D grenades (AC 5)", () => {
     const { world, events, p } = setup();
     setLoadout(balance, p.loadout, ["grenade_launcher", "pistol"]);
     give(p, "grenades", 3);
-    setInput(world, "p0", input(true, 6 / GL.lobRangeM));
+    setInput(world, "p0", input(true, 6 / 8));
     run(world, 1);
     expect(of(events, "grenade.launched")[0]?.tx).toBeCloseTo(10 + OFFSET + 6, 9);
   });

@@ -64,9 +64,12 @@ export class FireView {
   private poolShare = 1;
   private poolSmokeShare = 1;
   private poolEdgeM = 0.26;
+  /** Story 5.12: pool fires draw their ground light (off when many burn: the light is the biggest fill). */
+  private poolLights = true;
 
   /** Story 5.12: the particle share and ring spacing of this view's molotov pool fires (`consumables.json › fx`). */
-  setPoolBudget(share: number, smokeShare: number, edgeSpacingM: number): void {
+  setPoolBudget(share: number, smokeShare: number, edgeSpacingM: number, lights = true): void {
+    this.poolLights = lights;
     this.poolShare = share;
     this.poolSmokeShare = smokeShare;
     this.poolEdgeM = edgeSpacingM;
@@ -177,7 +180,7 @@ export class FireView {
     }
     slot.fire.setPool(spread, dir, ageS, env);
     slot.fire.setPoolBudget(this.poolShare, this.poolSmokeShare, this.poolEdgeM);
-    slot.lightK = env;
+    slot.lightK = this.poolLights ? env : 0;
     if (slot.x !== x || slot.y !== y || slot.r !== r || slot.zonesKey !== zonesVersion) {
       slot.zonesKey = zonesVersion;
       markHiddenEdges(slot.fire, zones, self);
@@ -228,11 +231,12 @@ export class FireView {
       }
       if (!slot.shown) {
         slot.shown = true;
-        slot.light.setVisible(true);
+        slot.light.setVisible(slot.lightK > 0);
       }
       const fire = slot.fire;
       fire.update(dtS, tS, slot.r);
-      slot.light.setAlpha(LIGHT_ALPHA * slot.lightK * fireFlicker(tS, 0.7 + s));
+      if (slot.lightK > 0) slot.light.setVisible(true).setAlpha(LIGHT_ALPHA * slot.lightK * fireFlicker(tS, 0.7 + s));
+      else if (slot.light.visible) slot.light.setVisible(false);
       const fp = fire.flames;
       for (let i = 0; i < fp.cap; i++) {
         const img = slot.flames[i] as Phaser.GameObjects.Image;

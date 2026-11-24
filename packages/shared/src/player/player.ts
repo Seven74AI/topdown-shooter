@@ -101,6 +101,15 @@ export interface PlayerState {
   consumableCount: number;
   /** Story 5.12 (D1, D7): applied-input ticks until the next use is allowed (0 = ready). Server / solo only. */
   consumableCooldownTicks: number;
+  /**
+   * Story 5.12 review M1: the last AIM input (unit direction and its length), written only from aim
+   * input and kept `consumables.json › aimMemoryS` worth of applied ticks (`lastAimTicks` > 0), so a
+   * throw with the aim stick released goes where the player last aimed, not where they walk. Server / solo only.
+   */
+  lastAimX: number;
+  lastAimY: number;
+  lastAimLen: number;
+  lastAimTicks: number;
 }
 
 /** Adds a player at (x, y) with stats from `balance.player`. Returns the new state. */
@@ -145,6 +154,10 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     consumable: null, // Story 5.12
     consumableCount: 0,
     consumableCooldownTicks: 0,
+    lastAimX: 1, // Story 5.12 review M1
+    lastAimY: 0,
+    lastAimLen: 1,
+    lastAimTicks: 0,
   };
   world.players.set(id, player);
   claimFlameSlot(world, player);

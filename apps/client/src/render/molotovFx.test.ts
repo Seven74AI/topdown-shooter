@@ -109,3 +109,13 @@ describe("MolotovFires: the client holds the server's zones (Story 5.12)", () =>
     expect(MolotovFires.envelope(z, 4)).toBe(0);
   });
 });
+
+describe("MolotovFires: splash direction (Story 5.12 review L7)", () => {
+  it("a molotov's spread direction is its throw's, even after 100 hand grenades filled the memory", () => {
+    const fires = new MolotovFires(balance);
+    for (let i = 0; i < 100; i++) fires.handle({ type: "grenade.launched", playerId: "p0", grenadeId: (i % 250) + 1, x: 0, y: 0, tx: 5 + i * 0.1, ty: 5, landTick: 10, flightTicks: 10, seq: i, item: 2 }, 0);
+    fires.handle({ type: "grenade.launched", playerId: "p1", grenadeId: 9, x: 10, y: 10, tx: 13, ty: 14, landTick: 10, flightTicks: 10, seq: 1, item: 3 }, 0);
+    fires.handle({ type: "molotov.ignited", zoneId: 1, item: 2, x: 13, y: 14, playerId: "p1" }, 0.5);
+    expect(fires.live[0]?.dir).toBeCloseTo(Math.atan2(4, 3), 9);
+  });
+});

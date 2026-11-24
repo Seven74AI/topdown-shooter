@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ABOVE_BAR_GAP_CSS_PX, consumableUsable, consumableVisible, createConsumablePending, layoutRightButtons, newRightButtonsLayout, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
+import { ABOVE_BAR_GAP_CSS_PX, CENTRE_CLEAR_CSS_PX, rectCentreGap, consumableUsable, consumableVisible, createConsumablePending, layoutRightButtons, newRightButtonsLayout, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
 import { layoutBuildBar, newBuildBarLayout, readyLeftX } from "./buildBar";
 import { BUILD_COUNT_TEXT_CSS_PX, MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
@@ -43,6 +43,12 @@ describe("consumable button (Story 5.12, AC 1, 7)", () => {
 });
 
 
+/** The ⚙ button left of ☰ (same size, 12 px apart: HudScene's layout). */
+const ms_ = (w: number, k: number) => {
+  const s = MENU_BUTTON_CSS_PX * k;
+  return { s, x: w - MENU_BUTTON_INSET_CSS_PX * k - 2 * s - MENU_BUTTON_INSET_CSS_PX * k, y: MENU_BUTTON_INSET_CSS_PX * k };
+};
+
 describe("swap + consumable above the build bar (Story 5.12, main-session decision; 5.16 D3)", () => {
   type Rect = { name: string; x: number; y: number; w: number; h: number };
   const gapOf = (a: Rect, b: Rect): number => Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
@@ -56,13 +62,15 @@ describe("swap + consumable above the build bar (Story 5.12, main-session decisi
         const w = W * k;
         const h = H * k;
         const bar = layoutBuildBar(w, h, 0, 0, k, newBuildBarLayout());
-        const l = layoutRightButtons(w, h, 0, 0, k, true, bar.left, bar.top, newRightButtonsLayout());
+        const l = layoutRightButtons(w, h, 0, 0, k, true, bar.left, bar.top, newRightButtonsLayout(), bar.countX);
         const cons: Rect = { name: "consumable", x: l.consX, y: l.consY, w: l.size, h: l.size };
         const swap: Rect = { name: "swap", x: l.swapX, y: l.swapY, w: l.size, h: l.size };
         const others: Rect[] = [];
         for (let s = 0; s < bar.x.length; s++) others.push({ name: `tile ${s}`, x: bar.x[s] as number, y: bar.y[s] as number, w: bar.tile, h: bar.tile });
         const countH = BUILD_COUNT_TEXT_CSS_PX * k * 1.3;
         others.push({ name: "count", x: bar.countX - 48 * k, y: bar.countY - countH, w: 48 * k, h: countH }); // "10/12" right-aligned
+        const set = ms_(w, k);
+        others.push({ name: "settings", x: set.x, y: set.y, w: set.s, h: set.s });
         const rw = READY_BUTTON_W_CSS_PX * k;
         const rh = READY_BUTTON_H_CSS_PX * k;
         others.push({ name: "ready", x: readyLeftX(w, rw, bar.left, k), y: h - READY_BUTTON_BOTTOM_CSS_PX * k - rh, w: rw, h: rh });
@@ -75,6 +83,8 @@ describe("swap + consumable above the build bar (Story 5.12, main-session decisi
           for (const o of others) expect(gapOf(b, o), `${b.name} vs ${o.name}`).toBeGreaterThanOrEqual(ABOVE_BAR_GAP_CSS_PX * k - 1e-6);
         }
         expect(gapOf(cons, swap)).toBeGreaterThanOrEqual(ABOVE_BAR_GAP_CSS_PX * k - 1e-6);
+        // review L6: clear of the survivor at the screen centre
+        for (const b of [cons, swap]) expect(rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2), `${b.name} vs the screen centre`).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX * k);
       });
     }
   }

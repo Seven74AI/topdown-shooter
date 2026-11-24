@@ -1,3 +1,4 @@
+import { BUILD_COUNT_GAP_CSS_PX, BUILD_COUNT_TEXT_CSS_PX } from "../ui/sizes";
 /**
  * Story 5.12 (AC 1, 7): the consumable button's rules, pure (unit-tested; the HUD and GameScene only
  * call these).
@@ -92,7 +93,7 @@ export const newRightButtonsLayout = (): RightButtonsLayout => ({ size: 0, swapX
  * above the tiles, so the medkit (and the swap) stay reachable on touch in a build phase. Pure: the
  * layout test checks 568×320 / 800×360 / 1024×768.
  */
-export function layoutRightButtons(width: number, height: number, insetRight: number, insetBottom: number, k: number, buildBar: boolean, gridLeft: number, gridTop: number, out: RightButtonsLayout): RightButtonsLayout {
+export function layoutRightButtons(width: number, height: number, insetRight: number, insetBottom: number, k: number, buildBar: boolean, gridLeft: number, gridTop: number, out: RightButtonsLayout, gridRight = width - 16 * k): RightButtonsLayout {
   const size = RIGHT_BUTTON_CSS_PX * k;
   out.size = size;
   if (buildBar) {
@@ -101,6 +102,15 @@ export function layoutRightButtons(width: number, height: number, insetRight: nu
     out.consY = gridTop - gap - size;
     out.swapX = gridLeft + size + gap;
     out.swapY = out.consY;
+    // Review L6: on a narrow screen the row would crowd the survivor at the screen centre: right-align
+    // it to the grid instead, above the build count line.
+    const cx = width / 2;
+    const cy = height / 2;
+    if (rectCentreGap(out.consX, out.consY, out.swapX + size - out.consX, size, cx, cy) < CENTRE_CLEAR_CSS_PX * k) {
+      out.swapX = gridRight - size;
+      out.consX = out.swapX - gap - size;
+      out.consY = out.swapY = gridTop - (BUILD_COUNT_GAP_CSS_PX + BUILD_COUNT_TEXT_CSS_PX * COUNT_LINE_HEIGHT) * k - gap - size;
+    }
     return out;
   }
   out.swapX = width - (SWAP_RIGHT_CSS_PX + insetRight) * k - size;
@@ -108,4 +118,16 @@ export function layoutRightButtons(width: number, height: number, insetRight: nu
   out.consX = out.swapX - CONSUMABLE_GAP_CSS_PX * k - size;
   out.consY = out.swapY;
   return out;
+}
+
+/** Review L6: the round buttons keep at least this far from the screen centre (the survivor stands there). */
+export const CENTRE_CLEAR_CSS_PX = 48;
+/** The build count's text box height per CSS px of font size. */
+const COUNT_LINE_HEIGHT = 1.3;
+
+/** The distance from (cx, cy) to the rectangle (0 inside it). */
+export function rectCentreGap(x: number, y: number, w: number, h: number, cx: number, cy: number): number {
+  const dx = Math.max(x - cx, 0, cx - (x + w));
+  const dy = Math.max(y - cy, 0, cy - (y + h));
+  return Math.hypot(dx, dy);
 }

@@ -57,6 +57,8 @@ interface ConsumableTable {
   readonly shop: readonly ShopConsumable[];
   readonly all: readonly ShopConsumable[];
   readonly cooldownTicks: number;
+  /** Review M1: `ticksFor(aimMemoryS)`. */
+  readonly aimMemoryTicks: number;
 }
 
 const tables = new WeakMap<Balance, ConsumableTable>();
@@ -98,6 +100,7 @@ function table(balance: Balance): ConsumableTable {
       shop: Object.freeze(shop),
       all: Object.freeze(all),
       cooldownTicks: ticksFor(c.useCooldownS),
+      aimMemoryTicks: ticksFor(c.aimMemoryS),
     });
     tables.set(balance, t);
   }
@@ -158,6 +161,11 @@ const scratchTicks = { durationTicks: 0, pulseTicks: 0 };
 /** `ticksFor(useCooldownS)` (D1). */
 export function consumableCooldownTicks(balance: Balance): number {
   return table(balance).cooldownTicks;
+}
+
+/** Review M1: `ticksFor(aimMemoryS)`. */
+export function aimMemoryTicks(balance: Balance): number {
+  return table(balance).aimMemoryTicks;
 }
 
 /** The consumables the shop lists (`inShop`), in index order. */

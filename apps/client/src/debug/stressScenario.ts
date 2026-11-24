@@ -340,9 +340,9 @@ const STRESS_MOLOTOV_RING_M = 5;
  * `STRESS_MOLOTOVS` burn (call every frame; nothing is allocated while they burn). Returns how many
  * were lit now.
  */
-export function keepStressMolotovs(world: World, playerId: string, cx: number, cy: number): number {
+export function keepStressMolotovs(world: World, playerId: string, cx: number, cy: number, count = STRESS_MOLOTOVS): number {
   const item = consumableIndex(world.balance, "molotovs");
-  const cap = Math.min(STRESS_MOLOTOVS, world.balance.consumables.maxLiveMolotovZones);
+  const cap = Math.min(count, world.balance.consumables.maxLiveMolotovZones);
   // `?stress` holds the waves (and so the fire pass that ages the zones): end them here on their life in ticks.
   const a0 = world.molotovs.areas;
   const life = molotovTicksAt(world.balance, item).durationTicks;

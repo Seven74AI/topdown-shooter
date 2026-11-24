@@ -898,6 +898,8 @@ export const consumablesSchema = z
     useCooldownS: z.number().positive().refine(wholeTicks, "useCooldownS must be a whole number of ticks"),
     /** Live molotov fire zones at most (a new one replaces the oldest; brief 10/12). */
     maxLiveMolotovZones: z.number().int().min(1).max(32),
+    /** Review M1: how long the last aim input steers a throw made with no aim (whole ticks). */
+    aimMemoryS: z.number().positive().max(10).refine(wholeTicks, "aimMemoryS must be a whole number of ticks"),
     /** M-D: blocker entries this close to a molotov zone's centre don't shield (a zone lit at a face burns that side). */
     fireFaceToleranceM: z.number().min(0).max(0.2),
     /**
@@ -913,6 +915,8 @@ export const consumablesSchema = z
         /** Caps over ALL live zones (the 8-zone worst case, C14): particles, and ring flames (their spacing grows to fit). */
         maxParticles: z.number().int().min(8).max(2000),
         maxEdgeFlames: z.number().int().min(8).max(2000),
+        /** With more live zones than this, no zone draws its ground light (the costliest layer to fill). */
+        maxLights: z.number().int().min(0).max(32),
       })
       .strict(),
     items: z.record(balanceId, consumableItemSchema).refine((r) => Object.keys(r).length >= 1 && Object.keys(r).length <= 8, "1–8 consumables (the slot is a uint8 index)"),

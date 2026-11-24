@@ -423,6 +423,7 @@ export {
 // Story 5.12: consumables (slot, shop, use, molotov fire zones).
 export {
   CONSUMABLE_NONE,
+  aimMemoryTicks,
   allConsumables,
   buyConsumable,
   consumableAt,
@@ -442,7 +443,7 @@ export {
   type ShopConsumable,
   type ThrowStats,
 } from "./economy/consumables";
-export { consumableCounters, launcherRangeInHand, throwAimLength, throwVariant, tryUseConsumable, useConsumables } from "./combat/consumables";
+export { consumableCounters, createThrowAim, launcherRangeInHand, rememberAim, throwAimLength, throwDirection, throwVariant, tryUseConsumable, useConsumables, type ThrowAim } from "./combat/consumables";
 export { clearMolotovZones, createMolotovZones, igniteMolotov, molotovStats, molotovZoneAt, type MolotovZones } from "./hazards/molotov";
 export { type ConsumableItemStats } from "./config/balanceSchema";
 export { EXPLOSION_KINDS, blastResult, createExplosionSpec, explode, explosionCounters, type ExplosionKind, type ExplosionSpec } from "./combat/explosion";

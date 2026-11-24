@@ -264,7 +264,10 @@ export class HudScene extends Phaser.Scene {
   private consBtn!: Phaser.GameObjects.Arc;
   private consIcon!: Phaser.GameObjects.Image;
   private consCount!: Phaser.GameObjects.Text;
-  private shownConsKey = "";
+  /** Story 5.12 review L7: what the button shows (compared field by field: no string built per frame). */
+  private shownConsFrame = "";
+  private shownConsCount = -1;
+  private shownConsLook = -1;
   /** The build bar was up at the last layout (the button then sits above the grid). */
   private consAboveBar = false;
   private menuBtn!: Phaser.GameObjects.Graphics;
@@ -486,7 +489,9 @@ export class HudScene extends Phaser.Scene {
       .setVisible(false);
     this.consIcon = this.add.image(0, 0, CONSUMABLE_ICON_TEXTURE, CONSUMABLE_ICON_FRAMES.medkit).setVisible(false);
     this.consCount = this.add.text(0, 0, "", this.outlinedStyle(CONS_COUNT_PX)).setOrigin(1, 1).setVisible(false);
-    this.shownConsKey = "";
+    this.shownConsFrame = "";
+    this.shownConsCount = -1;
+    this.shownConsLook = -1;
     this.consAboveBar = false;
     this.buttons.set({ id: "consumable", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.consumablePressed = true;
@@ -816,7 +821,7 @@ export class HudScene extends Phaser.Scene {
     const k = dpr();
     const safe = this.insets;
     const bl = layoutBuildBar(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consBar);
-    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns);
+    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns, bl.countX);
     const size = l.size;
     const x = l.swapX;
     const y = l.swapY;
@@ -840,7 +845,7 @@ export class HudScene extends Phaser.Scene {
     const k = dpr();
     const safe = this.insets;
     const bl = layoutBuildBar(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consBar);
-    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns);
+    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns, bl.countX);
     const size = l.size;
     const x = l.consX;
     const y = l.consY;
@@ -862,9 +867,12 @@ export class HudScene extends Phaser.Scene {
     const frame = m.consumableItem !== null ? CONSUMABLE_ICON_FRAMES[m.consumableItem] : undefined;
     const show = m.consumableVisible && frame !== undefined;
     const look = !show ? 0 : m.consumablePending ? 2 : m.consumableUsable ? 1 : 3;
-    const key = show ? `${frame}|${m.consumableCount}|${look}` : "";
-    if (key === this.shownConsKey) return;
-    this.shownConsKey = key;
+    const f = show ? (frame as string) : "";
+    const count = show ? m.consumableCount : -1;
+    if (f === this.shownConsFrame && count === this.shownConsCount && look === this.shownConsLook) return;
+    this.shownConsFrame = f;
+    this.shownConsCount = count;
+    this.shownConsLook = look;
     this.buttons.setVisible("consumable", show);
     this.consBtn.setVisible(show);
     this.consIcon.setVisible(show);

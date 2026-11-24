@@ -167,7 +167,7 @@ export class GameScene extends Phaser.Scene {
   /** `?stress` benchmark run (no in-run menu). */
   private stressMode = false;
   /** Story 5.12: `?stressbuild=molotov` with `?stress`. */
-  private stressMolotov = false;
+  private stressMolotovs = 0;
   /** Story 5.3 `?stressfire=1`: under `?stress`, my survivor holds fire at the nearest zombie. */
   private stressFire = false;
   /** When the solo pause started (scene time), to shift the HUD's banner clock on resume. */
@@ -403,7 +403,7 @@ export class GameScene extends Phaser.Scene {
     perf.soloSeed = localHost ? localHost.world.seed : null; // Story 4.4: online the overlay reads the server's
     const stress = session ? null : opts.stress;
     this.stressMode = stress !== null;
-    this.stressMolotov = stress !== null && urlOptions().stressMolotov;
+    this.stressMolotovs = stress !== null ? urlOptions().stressMolotovs : 0;
     this.stressFire = stress !== null && opts.stressFire;
     this.pausedAtMs = 0;
     this.host = host;
@@ -933,10 +933,10 @@ export class GameScene extends Phaser.Scene {
       this.localHost.paused = menuOpen;
     }
     if (this.stressFire) stressFireInput(host.world, host.localPlayerId, this.input_);
-    if (this.stressMolotov && this.localHost) {
+    if (this.stressMolotovs > 0 && this.localHost) {
       // Story 5.12 (`?stressbuild=molotov`): 8 molotov zones kept burning round my survivor (the visual cap).
       const me = host.world.players.get(host.localPlayerId);
-      if (me) keepStressMolotovs(host.world, host.localPlayerId, me.x, me.y);
+      if (me) keepStressMolotovs(host.world, host.localPlayerId, me.x, me.y, this.stressMolotovs);
     }
     host.setLocalInput(this.input_);
     this.hudModel.toastText = this.toasts.current(this.time.now);
@@ -1255,7 +1255,7 @@ export class GameScene extends Phaser.Scene {
     if (router.isMouse && pv && !Number.isNaN(router.cursorX)) this.cameras.main.getWorldPoint(router.cursorX, router.cursorY, cw);
     // Story 5.5: with the launcher in hand the aim's length carries the lob distance (FR-A, D1).
     // Story 5.12 (D11): with no launcher in hand, a throwable in my slot sets the aim length (its throw range).
-    router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y, this.localLauncher(host) ?? this.localThrow(host), this.playerRadiusM, this.hudModel.consumablePressed);
+    router.build(this.input_, this.hudModel.swapPressed, pv?.x ?? 0, pv?.y ?? 0, cw.x, cw.y, this.localLauncher(host) ?? this.localThrow(host), this.playerRadiusM, this.hudModel.consumablePressed, this.localThrow(host));
     this.hudModel.swapPressed = false;
     this.hudModel.consumablePressed = false;
     if (!this.running) this.input_.swap = false; // nothing swaps before the run is on screen
@@ -1385,7 +1385,7 @@ export class GameScene extends Phaser.Scene {
       const cam = this.cameras.main;
       const vw = this.scale.width / cam.zoom;
       const vh = this.scale.height / cam.zoom;
-      this.molotovView.update(fxDtS, this.acidClockS, cam.midPoint.x - vw / 2, cam.midPoint.y - vh / 2, vw, vh, cam.zoom);
+      this.molotovView.update(fxDtS, this.acidClockS, cam.midPoint.x - vw / 2, cam.midPoint.y - vh / 2, vw, vh);
     }
     this.updateLobMarker(host);
     this.bloaterView?.update(host.world, this.acidClockS); // Story 5.8 (the same paused-aware clock)

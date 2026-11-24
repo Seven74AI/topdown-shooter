@@ -43,8 +43,20 @@ Measured in the same runs:
 - Online, `?lag=150&jitter=20`: 5 taps in 200 ms → **1** `consumable.used`, **1** throw; the state's count 3 → 2; the
   HUD count never showed less than the state (0 frames below). After the loop slept 3 s and woke: still grenades 2.
   Not verified: a sleep across a build start (the run was mid-wave), a late Game scene start.
-- `?stress=150` headless (preview build, dpr 1, 15 s of rAF after a 6 s warm-up): **34.5 / 35.1 fps** before,
-  **23.2 / 24.8 fps** with `?stressbuild=molotov` (8 zones kept burning round the survivor: the visual cap) — load
-  1.8–2.7 during the runs (the browser itself). Each fire layer costs a few fps in headless software GL (edge
-  flames, light, smoke, flames, embers ≈ 2–4 fps each); the caps over all live zones are in `consumables.json › fx`.
-  The 8-zone case is the worst case (C14); real phones not measured (Chromium headless runs ~8–26 fps).
+- `?stress=150` headless (preview build, dpr 1, 15 s of rAF after a 6 s warm-up; **medians of 5 interleaved rounds**,
+  load 3.0–4.2 on 4 cores — the browser itself; single runs vary ±5 %), with the review budget (8 zones ≤ −30 %,
+  1–2 zones ≤ −10 %) and the final `consumables.json › fx` (particle share 0.25, smoke 0.1, ring flames every 1.2 m,
+  caps over all zones 80 particles / 64 ring flames, ground light only while 1 zone burns; the ring line is now a
+  pooled baked image — a Phaser Graphics circle was re-tessellated every frame and cost ~3 fps on its own):
+
+  | Case | fps (median) | vs baseline |
+  | --- | --- | --- |
+  | `?stress=150` | 39.6 | — |
+  | `&stressbuild=molotov:1` | 35.7 | −10 % |
+  | `&stressbuild=molotov:2` | 36.6 | −8 % |
+  | `&stressbuild=molotov` (8 zones) | 30.4 | −23 % |
+  | `&fx=low` | 40.7 | — |
+  | `&fx=low&stressbuild=molotov` (8 zones) | 30.7 | −25 % |
+
+  Even near-zero particles cost ~−8 % for 2 zones (the rings, the 8 minimum ring flames per zone, the per-zone
+  update): that is the floor of this look in headless software GL. Real phones not measured.

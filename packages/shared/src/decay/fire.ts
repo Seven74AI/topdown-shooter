@@ -170,7 +170,7 @@ export function updateFires(world: World): void {
       const credit = owner !== null && world.players.has(owner) ? owner : null;
       const dmg = Math.max(car ? amount : 0, molotovPulseDamage(world, mol));
       molotovStats.zombieHits++;
-      if (applyZombieDamageQuiet(world, id, dmg, 0, 0, 0, credit, consumableAt(world.balance, world.molotovs.item[mol] as number) ?? "molotov")) {
+      if (applyZombieDamageQuiet(world, id, dmg, 0, 0, 0, credit, consumableAt(world.balance, world.molotovs.item[mol] as number) ?? "")) {
         // D9: paid here (the economy system ran earlier this tick and never sees this kill's event).
         payKill(world, id, credit, 1);
         firePulse.zombiesKilled++;
