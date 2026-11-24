@@ -1866,7 +1866,7 @@ export function drawSmgDrum(c: G, size: number): void {
  * trigger, seen almost edge-on: a tall narrow ellipse. Its rim (the drum's thickness) shows as a
  * dark band at the back, the narrow front face carries the winding key. x = drum centre, top = receiver bottom.
  */
-function drumTall(c: G, x: number, top: number, shadeY: number): void {
+function drumTall(c: G, x: number, top: number, shadeY?: number): void {
   const ry = 0.142, rx = 0.03, th = 0.03, cy = top + ry - 0.004, xb = x - th / 2, xf = x + th / 2;
   // rim band: back ellipse + the hull to the front face
   const rim = (q: G) => { q.moveTo(xb, cy - ry); q.lineTo(xf, cy - ry); q.ellipse(xf, cy, rx, ry, 0, -Math.PI / 2, Math.PI / 2); q.lineTo(xb, cy + ry); q.ellipse(xb, cy, rx, ry, 0, Math.PI / 2, Math.PI * 1.5); q.closePath(); };
@@ -2061,9 +2061,9 @@ export const ICON_W = 96;
 export const ICON_H = 44;
 const iconUrls = new Map<string, string>();
 /** Where the side view's origin sits in the icon (share of the height; px right): the art is not centred on 0. */
-const ICON_Y: Readonly<Record<string, number>> = { smg: 0.44, hunting_rifle: 0.5, machete: 0.5, assault_rifle: 0.36, fire_axe: 0.5, chainsaw: 0.62, flamethrower: 0.58, gas_torch: 0.62 };
+const ICON_Y: Readonly<Record<string, number>> = { smg: 0.44, hunting_rifle: 0.52, machete: 0.5, assault_rifle: 0.36, fire_axe: 0.5, chainsaw: 0.62, flamethrower: 0.58, gas_torch: 0.62 };
 /** Per-look origin height for looks that sit differently from their weapon's base (key = weapon, `weapon:tier`, `weapon:top`). */
-const ICON_Y_LOOK: Readonly<Record<string, number>> = { "assault_rifle:tier": 0.4, "assault_rifle:top": 0.4, hunting_rifle: 0.52, "smg:top": 0.4 };
+const ICON_Y_LOOK: Readonly<Record<string, number>> = { "assault_rifle:tier": 0.4, "hunting_rifle:tier": 0.5, "hunting_rifle:top": 0.5, "smg:top": 0.4 };
 const ICON_X_SHIFT: Readonly<Record<string, number>> = { chainsaw: -2, flamethrower: -2, gas_torch: 0 };
 
 /**

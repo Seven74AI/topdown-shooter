@@ -102,4 +102,28 @@ describe("early weapon card art (Story 5.28)", () => {
       expect(new Set(urls).size, id).toBe(3);
     }
   });
+
+  it("each look sits at its own origin height (assault rifle unchanged: 0.36 at I, 0.4 at III–IV)", async () => {
+    vi.resetModules(); // a fresh module: an empty icon cache, so every level is drawn here
+    const fresh = await import("./weaponArt");
+    const ys: number[] = [];
+    const ctx = () => {
+      const r = recordingContext().ctx as unknown as Record<string, unknown>;
+      r.translate = (_x: number, y: number) => ys.push(y);
+      return r;
+    };
+    vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: ctx, toDataURL: () => "data:x" }) });
+    const want: Record<string, number[]> = { smg: [0.44, 0.44, 0.4], hunting_rifle: [0.52, 0.5, 0.5], machete: [0.5, 0.5, 0.5], assault_rifle: [0.36, 0.4, 0.4] };
+    for (const [id, exp] of Object.entries(want)) {
+      const got = [1, 3, 4].map((lvl) => {
+        ys.length = 0;
+        fresh.weaponIconUrl(id, lvl);
+        return ys[0];
+      });
+      // assault_rifle III and IV share one cached icon, so IV draws nothing: it reuses III's
+      expect(got.map((g) => (g === undefined ? undefined : g / fresh.ICON_H)), id).toEqual(
+        exp.map((v, k) => (id === "assault_rifle" && k === 2 ? undefined : expect.closeTo(v, 5))),
+      );
+    }
+  });
 });
