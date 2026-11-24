@@ -85,8 +85,11 @@ export interface BuildingStateView {
   readonly rot: number;
   /** `Math.ceil` of the World's HP. */
   readonly hp: number;
-  /** Story 5.14: a bear trap's jaws (`BEAR_TRAP_STATE`: 0 armed, 1 holding, 2 sprung); 0 on every other type. */
-  readonly trap: number;
+  /**
+   * Story 5.14: a bear trap's jaws (`BEAR_TRAP_STATE`: 0 armed, 1 holding, 2 sprung); 0 on every other type.
+   * Optional in the view (the server always sends it): fixtures and older copies without it read as armed.
+   */
+  readonly trap?: number;
 }
 
 export interface RunStateView {

@@ -196,20 +196,24 @@ export function catchOnBearTraps(world: World): void {
 
 /**
  * At each build start (with the burn clocks, 4.8 D19): every bear trap re-arms (D4) and no zombie is
- * held. No zombie is alive then (the wave ended); this only makes sure nothing carries over.
+ * held. Review M1: a trap still HOLDING (its zombie was the wave's last kill, so the wave ended
+ * before the trap pass could see it go) is released first — the catch costs its wear like any
+ * other (it may wear the trap out: from the end of the list).
  */
 export function resetBearTraps(world: World): void {
-  world.zombies.holdTicks.fill(0);
   const list = world.buildings.list;
-  for (let i = 0; i < list.length; i++) {
+  for (let i = list.length - 1; i >= 0; i--) {
     const b = list[i] as Building;
-    if (!bearStats(world, b)) continue;
+    const t = bearStats(world, b);
+    if (!t) continue;
+    if (b.trapState === BEAR_TRAP_STATE.HOLDING && release(world, b, t)) continue; // worn out: removed
     b.heldZombie = -1;
     b.heldGen = 0;
     b.rearmTicks = 0;
     b.rearmPlayer = "";
     setState(world, b, BEAR_TRAP_STATE.ARMED);
   }
+  world.zombies.holdTicks.fill(0);
 }
 
 /** Story 5.14: the plate ring the client draws (exactly the sim radius; F2). */

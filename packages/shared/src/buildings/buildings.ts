@@ -380,6 +380,9 @@ export function removeBuilding(world: World, id: number): boolean {
     list.splice(i, 1);
     world.buildings.version++;
     if (b.solid) world.buildings.wallVersion++; // Story 5.9
+    // Review L2 (5.14): a bear trap destroyed while holding (fire, a decay solid, …) lets its zombie go.
+    const z = world.zombies;
+    if (b.trapState === BEAR_TRAP_STATE.HOLDING && b.heldZombie >= 0 && z.generation[b.heldZombie] === b.heldGen) z.holdTicks[b.heldZombie] = 0;
     return true;
   }
   return false;

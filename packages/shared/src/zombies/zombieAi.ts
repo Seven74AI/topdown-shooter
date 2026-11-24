@@ -375,6 +375,9 @@ export const updateZombies: SystemFn = (world, dtS) => {
     // Story 3.5: blocked by a building and touching it → hit it (a player in contact went first:
     // that hit set the cooldown). At 0 HP `damageBuilding` removes it and emits building.destroyed.
     let bid = targetBuilding[id] as number;
+    // Review L1 (5.14, "caught by the leg, not stunned"): a held zombie hits a wall building it touches
+    // (a barricade or turret in reach) at its normal rate (a Brute ×3); floor buildings are never hit.
+    if (held && bid === 0 && hasBuildings) bid = touchingBuilding(world, x, y, rz + CONTACT_EPS_M);
     // Review H1 safety net: following the field but the push-out can't place it (wedged against
     // buildings) → the building it touches is the target, whatever the field says. Re-review: the
     // "no progress for stuckTicks" trigger was dropped — in a crowd, zombies held back by other

@@ -4,13 +4,15 @@ import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import type { SystemFn } from "../core/systems";
 import { createWorld, step, type World } from "../core/world";
-import { applyKnockback, applyZombieDamage } from "../combat/damage";
+import { applyKnockback, applyZombieDamage, knockbacks } from "../combat/damage";
 import { resetBurnClocks } from "../decay/fire";
 import { downPlayer } from "../player/downed";
 import { addPlayer } from "../player/player";
-import { startBuild, startWave } from "../run/runStateMachine";
+import { endWave, startBuild, startWave } from "../run/runStateMachine";
+import { bundledBalanceFiles, withOverrides } from "../config/balance";
+import { ZOMBIE_STATE } from "../zombies/zombieTypes";
 import { isZombieAlive, killZombie, spawnZombie } from "../zombies/zombiePool";
-import { addBuildingAt, BEAR_TRAP_STATE, buildingById, type Building } from "./buildings";
+import { addBuildingAt, BEAR_TRAP_STATE, buildingById, removeBuilding, type Building } from "./buildings";
 import { bearTrapCounters, bearTrapPlateRadius, holdTicksFor, resetBearTrapCounters, updateBearTraps } from "./bearTrap";
 import { createExplosionSpec, explode } from "../combat/explosion";
 
@@ -399,5 +401,110 @@ describe("bear trap release, wear, re-arm (Story 5.14, AC 4, 5, F7, F9)", () => 
     world.run.phase = "lobby" as typeof world.run.phase;
     updateBearTraps(world);
     expect(t.trapState).toBe(ARMED);
+  });
+});
+
+describe("Story 5.14 review fixes", () => {
+  it("M1: the last catch of a wave still costs its wear (the held zombie is the last kill: the build start releases, then re-arms); at 25 HP it wears out", () => {
+    for (const [hp0, expected] of [
+      [100, 75],
+      [25, null],
+    ] as const) {
+      const { world, events, place } = setup();
+      const t = place(10, 10);
+      t.hp = hp0;
+      const z = tough(world, spawnZombie(world, "walker", 10.5, 10.5));
+      step(world, TICK_DT_S);
+      expect(t.trapState).toBe(HOLDING);
+      killZombie(world, z, "p0", "pistol"); // the wave's last kill…
+      endWave(world); // …ends it in the same tick: the build start comes before any trap pass
+      expect(world.run.phase).toBe("build");
+      if (expected === null) {
+        expect(buildingById(world, t.id)).toBeUndefined();
+        world.events.flush();
+        expect(events.filter((e) => e.type === "building.destroyed")).toHaveLength(1);
+      } else {
+        expect(t.hp).toBe(expected);
+        expect(t.trapState).toBe(ARMED);
+      }
+    }
+  });
+
+  it("L1: a held zombie hits a wall building it touches at its normal rate (a Brute ×3), never a floor building", () => {
+    for (const type of ["walker", "brute"] as const) {
+      const { world, place } = setup({ waves: noop }, [10.5, 30]);
+      const t = place(10, 10); // plate centre (10.5, 10.5)
+      const stats = balance.zombies.types[type] as NonNullable<typeof balance.zombies.types.walker>;
+      const wall = addBuildingAt(world, { id: 99, type: "wood_barricade", ownerId: "p0", gx: 19, gy: 19, rot: 0, hp: 200 }) as Building; // y [9.5, 10]: its face touches the held body
+      const z = tough(world, spawnZombie(world, type, 10.5, wall.maxY + stats.radiusM + 0.005)); // centre inside the plate
+      const ticks = holdTicksFor(world, BT, z) - 2; // inside the hold (a Brute's is 1.5 s)
+      run(world, ticks);
+      expect(t.trapState).toBe(HOLDING);
+      expect(world.zombies.holdTicks[z]).toBeGreaterThan(0);
+      const every = Math.round(stats.attackIntervalS / TICK_DT_S);
+      const hits = 1 + Math.floor((ticks - 1) / every); // the first lands at once
+      expect(hits).toBeGreaterThanOrEqual(type === "walker" ? 3 : 1);
+      expect(wall.hp).toBe(Math.max(0, 200 - hits * stats.damage * stats.buildingDamageMult));
+      expect(t.hp).toBe(t.maxHp); // the trap under it is never attacked
+    }
+  });
+
+  it("L2: a trap destroyed while holding lets its zombie go at once", () => {
+    const { world, place } = setup({ waves: noop }, [10.5, 30]);
+    const t = place(10, 10);
+    const z = tough(world, spawnZombie(world, "walker", 10.5, 10.5));
+    step(world, TICK_DT_S);
+    expect(world.zombies.holdTicks[z]).toBeGreaterThan(0);
+    removeBuilding(world, t.id); // fire / a decay solid / any destroy path ends in removeBuilding
+    expect(world.zombies.holdTicks[z]).toBe(0);
+    step(world, TICK_DT_S);
+    expect(world.zombies.y[z]).toBeGreaterThan(10.5); // walks on at once
+  });
+
+  it("L3: two pinned bodies overlapping (a held Walker and a swelling Bloater): neither moves", () => {
+    const { world, place } = setup({ waves: noop }, [10.5, 30]);
+    place(10, 10);
+    const w = tough(world, spawnZombie(world, "walker", 10.5, 10.5));
+    step(world, TICK_DT_S);
+    expect(world.zombies.holdTicks[w]).toBeGreaterThan(0);
+    const b = tough(world, spawnZombie(world, "bloater", 10.5 + 0.5, 10.5)); // overlaps the Walker (0.35 + 0.5 > 0.5)
+    world.zombies.state[b] = ZOMBIE_STATE.SWELL;
+    world.zombies.swellTicks[b] = 200;
+    const bx = world.zombies.x[b];
+    step(world, TICK_DT_S);
+    expect([world.zombies.x[w], world.zombies.y[w]]).toEqual([Math.fround(10.5), Math.fround(10.5)]);
+    expect(world.zombies.x[b]).toBe(bx);
+  });
+
+  it("L4: the plate is strict at an exactly representable distance (plate 0.375 m: a centre at exactly 0.375 is not caught)", () => {
+    const b4 = loadBalance(withOverrides(bundledBalanceFiles(), [["buildings", "types.bear_trap.bearTrap.plateRadiusM", 0.375]]));
+    const caught = (d: number): boolean => {
+      const world = createWorld({ balance: b4, seed: 1, systems: STILL });
+      addPlayer(world, "p0", 40, 28);
+      startBuild(world);
+      startWave(world);
+      const t = addBuildingAt(world, { id: 1, type: "bear_trap", ownerId: "p0", gx: 20, gy: 20, rot: 0, hp: 100 }) as Building; // centre (10.5, 10.5)
+      const z = spawnZombie(world, "walker", 10.5 + d, 10.5);
+      expect((world.zombies.x[z] as number) - 10.5).toBe(d); // exact in float32
+      step(world, TICK_DT_S);
+      return t.trapState === HOLDING;
+    };
+    expect(caught(0.375)).toBe(false);
+    expect(caught(0.375 - 1 / 1024)).toBe(true);
+  });
+
+  it("N1: a blast's push on a held zombie is not counted as 'stopped at a face' (its share is 0)", () => {
+    const { world, place } = setup();
+    place(10, 10);
+    const z = tough(world, spawnZombie(world, "walker", 10.5, 10.5));
+    step(world, TICK_DT_S);
+    expect(world.zombies.holdTicks[z]).toBeGreaterThan(0);
+    knockbacks.applied = knockbacks.stopped = 0;
+    const spec = createExplosionSpec();
+    Object.assign(spec, { x: 9, y: 10.5, radiusM: 2.5, zombieDamage: 1, playerDamage: 0, pushM: 0.5, kind: "bloater" });
+    explode(world, spec);
+    expect(knockbacks.applied).toBe(1);
+    expect(knockbacks.stopped).toBe(0);
+    expect(world.zombies.x[z]).toBe(Math.fround(10.5));
   });
 });

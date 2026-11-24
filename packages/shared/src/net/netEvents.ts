@@ -59,7 +59,7 @@ export const NET_EVENT_KIND = {
   EXPLOSION_HAPPENED: 36,
   FLAME_STARTED: 37, // Story 5.4 (27–32 taken, 33/34 = 5.8 Bloaters, 35/36 = 5.5 Grenade Launcher; never reuse)
   FLAME_STOPPED: 38, // Story 5.4
-  BEAR_TRAP_SNAPPED: 39, // Story 5.14 (next free number when built; renumber at merge if taken, never reuse)
+  BEAR_TRAP_SNAPPED: 41, // Story 5.14 (39/40 are Story 5.12's consumable.used / molotov.ignited; never reuse)
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
