@@ -113,6 +113,28 @@ describe("Story 5.23: desktop wiring — Ctrl/Cmd+Z on every layout (D15)", () =
     expect([r.router.kbm.takeUndo(), r.router.kbm.takeRotate()]).toEqual([false, false]);
   });
 
+  it("review M1: a focused DOM button keeps Space / R / digits (no game action, no preventDefault); walking still works", () => {
+    const r = rig();
+    const button = { tagName: "BUTTON", getAttribute: () => null };
+    expect(r.key({ code: "Space", key: " ", target: button })).toBe(false);
+    expect(r.key({ code: "KeyR", key: "r", target: { tagName: "A", getAttribute: () => null } })).toBe(false);
+    expect(r.key({ code: "Digit1", key: "1", target: { tagName: "DIV", getAttribute: (n: string) => (n === "role" ? "button" : null) } })).toBe(false);
+    expect(r.key({ code: "Digit2", key: "2", target: { tagName: "SELECT", getAttribute: () => null } })).toBe(false);
+    expect([r.router.kbm.takePlace(), r.router.kbm.takeRotate(), r.router.kbm.takeBuild()]).toEqual([false, false, -1]);
+    expect(r.key({ code: "KeyW", key: "w", target: button })).toBe(true); // movement is still game input
+    expect(r.router.kbm.moveVector().y).toBe(-1);
+    expect(r.key({ code: "Space", key: " ", target: { tagName: "CANVAS", getAttribute: () => null } })).toBe(true); // on the game: places
+    expect(r.router.kbm.takePlace()).toBe(true);
+  });
+
+  it("review L10: a non-Latin layout (Russian: KeyZ sends я) still undoes with Ctrl+Z by the key's US letter", () => {
+    const r = rig();
+    expect(r.key({ code: "KeyZ", key: "я", ctrlKey: true })).toBe(true);
+    expect(r.router.kbm.takeUndo()).toBe(true);
+    expect(r.key({ code: "KeyM", key: "ь" })).toBe(true); // plain: M by the US letter too
+    expect(r.router.kbm.takePickUp()).toBe(true);
+  });
+
   it("a plain press passes the layout letter: AZERTY's M (Semicolon) picks up; Space prevents the page scroll", () => {
     const r = rig();
     expect(r.key({ code: "Semicolon", key: "m" })).toBe(true);

@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { buildingStats, footprint, type Box, type World } from "@topdown/shared";
+import { buildingById, buildingStats, footprint, type Box, type World } from "@topdown/shared";
 import { DustPool, TabPool, DOT_RADIUS_M } from "./placeFxPools";
 import { DOT_INSET_M, DOT_OUTLINE_M, DUST_COLOR, TAB_ARM_M, TAB_THICK_M, ownerColor } from "./placeFeel";
 import { SLOT_COLORS } from "./playerColors";
@@ -30,6 +30,9 @@ export class PlaceFxView {
   private tabsDrawn = false;
   private dotsKey = Number.NaN;
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  private tabsVersion = -1;
+  private tabWorld: Readonly<World> | null = null;
+  private readonly hasBuilding = (id: number): boolean => this.tabWorld !== null && buildingById(this.tabWorld, id) !== undefined;
 
   constructor(
     scene: Phaser.Scene,
@@ -71,6 +74,12 @@ export class PlaceFxView {
   update(world: Readonly<World>, dtS: number, nowMs: number): void {
     const wave = world.run.phase === "wave";
     if (wave) this.tabs.clear(); // AC 4: hidden during waves (a tab running at the wave start is cleared)
+    else if (world.buildings.version !== this.tabsVersion) {
+      // review L3: a sold / taken-back / destroyed building drops its tab (checked when the list changes)
+      this.tabsVersion = world.buildings.version;
+      this.tabWorld = world;
+      this.tabs.dropMissing(this.hasBuilding);
+    }
     this.drawDust(dtS);
     this.drawTabs(nowMs);
     this.drawDots(world, !wave && world.run.phase === "build");

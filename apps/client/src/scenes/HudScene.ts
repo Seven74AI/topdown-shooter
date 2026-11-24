@@ -1413,7 +1413,10 @@ export class HudScene extends Phaser.Scene {
       this.shownLocked = locked;
       this.placeLock.setVisible(locked);
     }
-    if (!placing) return;
+    if (!placing) {
+      this.wheelRotate.reset(); // Story 5.23 (review L6): a partial notch never carries into the next hold
+      return;
+    }
     this.drawHandButtons(m.placementValid || m.placementResting); // Story 5.23 (AC 7): no red ring while resting
     this.drawChip();
     if (m.placementHint !== this.shownHint) {

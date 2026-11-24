@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "@topdown/shared";
-import { DROP_FROM_M, DROP_MS, FAR_VOLUME, OWNER_LEFT_COLOR, PICK_POP_FROM, PICK_POP_MS, STALE_PLACE_S, TAB_FADE_MS, TAB_LIFE_MS, dropOffsetM, freshPlace, ownerColor, pickPopScale, placeSoundKind, placeVolume, tabAlpha } from "./placeFeel";
+import { PlacedSoundPicker, DROP_FROM_M, DROP_MS, FAR_VOLUME, OWNER_LEFT_COLOR, PICK_POP_FROM, PICK_POP_MS, STALE_PLACE_S, TAB_FADE_MS, TAB_LIFE_MS, dropOffsetM, freshPlace, ownerColor, pickPopScale, placeSoundKind, placeVolume, tabAlpha } from "./placeFeel";
 import { SLOT_COLORS } from "./playerColors";
 
 const balance = loadBalance();
@@ -67,5 +67,26 @@ describe("Story 5.23: placement feel rules (AC 1, 2, 4, 6)", () => {
     expect(ownerColor(1, SLOT_COLORS)).toBe(SLOT_COLORS[1]);
     expect(ownerColor(-1, SLOT_COLORS)).toBe(OWNER_LEFT_COLOR);
     expect(ownerColor(9, SLOT_COLORS)).toBe(OWNER_LEFT_COLOR);
+  });
+});
+
+describe("Story 5.23 (review L2): one placed sound per kind per frame, mine first", () => {
+  it("my own wins over a teammate's of the same kind, whatever the order; else the loudest; kinds are independent", () => {
+    const p = new PlacedSoundPicker();
+    const played: string[] = [];
+    const play = (k: string, pan: number, vol: number) => played.push(`${k}:${pan}:${vol}`);
+    p.offer("thunk", false, -1, 1);
+    p.offer("thunk", true, 0, 1);
+    p.offer("thunk", false, 1, 1);
+    p.offer("clank", false, 0.5, FAR_VOLUME);
+    p.offer("clank", false, -0.5, 1);
+    p.flush(play);
+    expect(played).toEqual(["thunk:0:1", "clank:-0.5:1"]);
+    p.flush(play);
+    expect(played).toHaveLength(2); // cleared
+  });
+  it("no survivor drawn: a teammate's placement is quiet (never full volume by default)", () => {
+    expect(placeVolume(false, 0, 0, false)).toBe(FAR_VOLUME);
+    expect(placeVolume(true, 0, 0, false)).toBe(1);
   });
 });

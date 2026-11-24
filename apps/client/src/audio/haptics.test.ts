@@ -29,3 +29,4 @@ describe("Story 5.23: haptics (AC 5, D9)", () => {
     expect(calls).toEqual([]);
   });
 });
+

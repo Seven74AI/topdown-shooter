@@ -197,6 +197,9 @@ export class Placement {
    * for the rest of the hold the first frame it is clear or blocked by anything else (`check`).
    */
   resting = false;
+  /** Story 5.23 (review M2): the footprint of the Place the resting ghost sits on (its building, or my pending box there). */
+  private readonly restBox: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  private readonly restReason: BlockReason = createBlockReason();
   /** Story 5.23 (AC 1): a fresh pick (the bar or a key) — the scene starts the pick pop; a chain re-pin isn't one. */
   picks = 0;
   /** Story 5.23 (D12): Places sent this hold (the scene keeps the chain's spot until the mouse moves after one). */
@@ -561,6 +564,7 @@ export class Placement {
     const w = footprintW(stats, this.rot);
     const h = footprintH(stats, this.rot);
     const o = chainOffset(w, h, this.facingX, this.facingY, this.minStepM, this.step, this.lastDragX, this.lastDragY); // Story 5.19: toward the last drag
+    footprint(stats, this.gx, this.gy, this.rot, this.restBox); // Story 5.23 (review M2): the spot just sent
     this.gx += o.dgx;
     this.gy += o.dgy;
     this.pinned = true;
@@ -663,8 +667,10 @@ export class Placement {
         this.hasReason = true;
       }
     }
-    // Story 5.23 (AC 7, D10): the resting look lasts while only a building (or my pending box) blocks it
-    if (this.resting && !(this.error === "blocked" && (this.pendingOverlap || (this.hasReason && this.reason.cause === "building")))) this.resting = false;
+    // Story 5.23 (AC 7, D10; review M2): the resting look lasts only while the Place just made (its
+    // building, or my pending box there) is the one thing in the way: a teammate, a zombie or any
+    // other building in the ghost ends it (normal red) for the rest of the hold.
+    if (this.resting && !this.stillResting(world, ownerId)) this.resting = false;
     const e = this.active ? this.error : null;
     if (e !== null) {
       if (!this.sameAsShown(e)) {
@@ -684,6 +690,27 @@ export class Placement {
       this.shownHasReason = false;
       this.shownVersion++;
     }
+  }
+
+  /** Story 5.23 (review M2): blocked, on the spot just placed, and nothing else in the way (`blockReason` with that building excepted). */
+  private stillResting(world: Readonly<World>, ownerId: string): boolean {
+    const stats = this.stats;
+    if (!this.active || !stats || this.error !== "blocked") return false;
+    const g = footprint(stats, this.gx, this.gy, this.rot, this.box);
+    const r = this.restBox;
+    if (!(g.minX < r.maxX && g.maxX > r.minX && g.minY < r.maxY && g.maxY > r.minY)) return false;
+    // the building on the spot just placed (0 while it is still my pending box)
+    let restId = 0;
+    const list = world.buildings.list;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (b && b.ownerId === ownerId && b.minX === r.minX && b.minY === r.minY && b.maxX === r.maxX && b.maxY === r.maxY) {
+        restId = b.id;
+        break;
+      }
+    }
+    if (restId === 0 && !this.pendingOverlap) return false; // neither built nor my pending box: something else blocks it
+    return blockReason(world, ownerId, footprint(stats, this.gx, this.gy, this.rot, this.box), restId, this.restReason) === null;
   }
 
   private sameAsShown(e: PlaceError): boolean {

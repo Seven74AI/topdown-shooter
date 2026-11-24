@@ -72,10 +72,45 @@ export function tabAlpha(ms: number): number {
   return ms <= fadeAt ? 1 : 1 - (ms - fadeAt) / TAB_FADE_MS;
 }
 
-/** AC 2 (D4): the volume of a placement's sound: mine 1; a teammate's beyond `FAR_PLACE_M` of my survivor `FAR_VOLUME`. */
-export function placeVolume(mine: boolean, dx: number, dy: number): number {
+/**
+ * AC 2 (D4): the volume of a placement's sound: mine 1; a teammate's beyond `FAR_PLACE_M` of my
+ * survivor `FAR_VOLUME`. Review L2: with my survivor not drawn (`known` false) a teammate's is quiet too.
+ */
+export function placeVolume(mine: boolean, dx: number, dy: number, known = true): number {
   if (mine) return 1;
+  if (!known) return FAR_VOLUME;
   return dx * dx + dy * dy > FAR_PLACE_M * FAR_PLACE_M ? FAR_VOLUME : 1;
+}
+
+const KINDS: readonly PlaceSoundKind[] = ["thunk", "clank", "click"];
+
+/**
+ * AC 2 (D4; review L2): at most one placed sound per kind per frame — my own wins over a
+ * teammate's, else the loudest. `offer` during the event loop, `flush` once after it (no allocation).
+ */
+export class PlacedSoundPicker {
+  private readonly set = [false, false, false];
+  private readonly mine = [false, false, false];
+  private readonly pan = [0, 0, 0];
+  private readonly vol = [0, 0, 0];
+
+  offer(kind: PlaceSoundKind, mine: boolean, pan: number, vol: number): void {
+    const i = KINDS.indexOf(kind);
+    if (this.set[i] && (this.mine[i] || (!mine && vol <= (this.vol[i] as number)))) return;
+    this.set[i] = true;
+    this.mine[i] = mine;
+    this.pan[i] = pan;
+    this.vol[i] = vol;
+  }
+
+  /** Plays the chosen sound of each kind and clears. */
+  flush(play: (kind: PlaceSoundKind, pan: number, vol: number) => void): void {
+    for (let i = 0; i < KINDS.length; i++) {
+      if (!this.set[i]) continue;
+      this.set[i] = false;
+      play(KINDS[i] as PlaceSoundKind, this.pan[i] as number, this.vol[i] as number);
+    }
+  }
 }
 
 /** AC 6: whether a placed event is fresh enough for sound, haptic and dust (`ageS` absent = solo / now). */

@@ -73,3 +73,19 @@ describe("Story 5.23: owner tabs and drops (AC 2, 4)", () => {
     expect([t.indexOf(200), t.indexOf(999), t.prune(0)]).toEqual([0, -1, t.cap]);
   });
 });
+
+describe("Story 5.23 (review L3): a removed building drops its tab", () => {
+  it("dropped once seen and gone; a tab whose building hasn't arrived yet (online) stays", () => {
+    const t = new TabPool(fx.maxOwnerTabs);
+    t.add(1, 0, 0, 1, 0, 0, true);
+    t.add(2, 0, 0, 1, 0, 0, true);
+    const world = new Set([1]);
+    t.dropMissing((id) => world.has(id));
+    expect([t.indexOf(1), t.indexOf(2) >= 0]).toEqual([0, true]); // 2 not seen yet: kept
+    world.add(2);
+    t.dropMissing((id) => world.has(id));
+    world.delete(1); // sold / destroyed
+    t.dropMissing((id) => world.has(id));
+    expect([t.indexOf(1), t.indexOf(2) >= 0]).toEqual([-1, true]);
+  });
+});

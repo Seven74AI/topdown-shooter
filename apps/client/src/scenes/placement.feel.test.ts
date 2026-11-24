@@ -179,6 +179,69 @@ describe("Story 5.23: the resting ghost after a blocked chain (AC 7, D10; 5.18 Q
     expect([r.p.error, r.p.resting, r.p.shownReason.cause]).toEqual(["blocked", false, "teammate"]);
   });
 
+  it("review M2: a teammate standing in the resting ghost → normal red at once (the faded look never hides a body)", () => {
+    const r = rig();
+    expect(placeBuilding(r.w, "p0", { type: "mine", gx: 43, gy: 28, rot: 0 }).ok).toBe(true);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    r.step();
+    r.m.confirmPressed = true;
+    r.step();
+    expect(r.p.resting).toBe(true); // on the box just placed (my pending box)
+    addPlayer(r.w, "p1", 20, 14.25); // a teammate walks into the ghost
+    r.step();
+    expect([r.p.error, r.p.resting, r.m.placementResting, r.m.placementHint]).toEqual(["blocked", false, false, "why:blocked"]);
+  });
+
+  it("review M2: resting only on the spot just placed — carried onto an older building it is red", () => {
+    const r = rig();
+    expect(placeBuilding(r.w, "p0", { type: "mine", gx: 43, gy: 28, rot: 0 }).ok).toBe(true); // blocks the chain
+    expect(placeBuilding(r.w, "p0", { type: "wood_barricade", gx: 46, gy: 28, rot: 2 }).ok).toBe(true); // an older wall where the carry lands after 4 m east
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    r.step();
+    r.m.confirmPressed = true;
+    r.step();
+    expect(r.p.resting).toBe(true);
+    r.f.x = 24; // walk east: the carried ghost lands on the older wall (not the spot just placed)
+    r.step({ ...NEUTRAL_INPUT, moveY: -1 });
+    expect([r.p.error, r.p.resting]).toEqual(["blocked", false]);
+  });
+
+  it("review M2: solo / once built — the spot just placed is a real building (excepted): still resting", () => {
+    const r = rig();
+    expect(placeBuilding(r.w, "p0", { type: "mine", gx: 43, gy: 28, rot: 0 }).ok).toBe(true);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    r.step();
+    r.m.confirmPressed = true;
+    r.step();
+    const q = r.sent[0] as PlaceRequest;
+    r.pending.pump(0, () => {}); // sent…
+    expect(placeBuilding(r.w, "p0", q).ok).toBe(true); // …the server built it…
+    r.pending.update(r.w, "p0", 10, false); // …and the pending box became that building
+    r.step();
+    expect([r.pending.count, r.p.error, r.p.resting]).toEqual([0, "blocked", true]);
+    addPlayer(r.w, "p1", 20, 14.25); // now a teammate steps into the ghost on that built barricade
+    r.step();
+    expect([r.p.error, r.p.resting]).toEqual(["blocked", false]);
+  });
+
+  it("review M2: on ANOTHER of my pending boxes (not the spot just placed) it is red", () => {
+    const r = rig();
+    expect(placeBuilding(r.w, "p0", { type: "mine", gx: 43, gy: 28, rot: 0 }).ok).toBe(true);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    r.step();
+    r.m.confirmPressed = true;
+    r.step();
+    expect(r.p.resting).toBe(true);
+    // an older pending box of mine, where the carry lands after walking 4 m east
+    const s = buildingStats(balance, WOOD);
+    if (!s) throw new Error("type");
+    const req = { type: WOOD, gx: 46, gy: 28, rot: 2 as const };
+    r.pending.add(req, 0, footprint(s, req.gx, req.gy, req.rot, { minX: 0, minY: 0, maxX: 0, maxY: 0 }), newestBuildingId(r.w), r.w.run.phase, r.w.waves.number);
+    r.f.x = 24;
+    r.step({ ...NEUTRAL_INPUT, moveY: -1 });
+    expect([r.p.error, r.p.pendingOverlap, r.p.resting]).toEqual(["blocked", true, false]);
+  });
+
   it("a new hold is never resting", () => {
     const r = rig();
     r.p.resting = true;

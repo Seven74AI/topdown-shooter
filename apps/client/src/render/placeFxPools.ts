@@ -108,6 +108,8 @@ export class TabPool {
   readonly at: Float64Array;
   /** Whether this entry still drops its art (a stale event shows a tab but no drop). */
   readonly drops: Uint8Array;
+  /** Review L3: the building has been seen in the World (online the event can come before the schema). */
+  private readonly seen: Uint8Array;
   private next = 0;
 
   constructor(cap: number) {
@@ -118,6 +120,7 @@ export class TabPool {
     this.color = new Uint32Array(this.cap);
     this.at = new Float64Array(this.cap);
     this.drops = new Uint8Array(this.cap);
+    this.seen = new Uint8Array(this.cap);
   }
 
   /** A building placed `ageMs` before `nowMs` (its tab runs only for what is left of 3 s; a stale one doesn't drop). */
@@ -134,6 +137,20 @@ export class TabPool {
     this.color[i] = color;
     this.at[i] = nowMs - Math.max(0, ageMs);
     this.drops[i] = drop ? 1 : 0;
+    this.seen[i] = 0;
+  }
+
+  /**
+   * Review L3: frees the tab of a building that was in the World and is gone (sold, taken back,
+   * destroyed); a tab whose building hasn't arrived yet (online: the event before the schema) stays.
+   */
+  dropMissing(has: (id: number) => boolean): void {
+    for (let i = 0; i < this.cap; i++) {
+      const id = this.id[i] as number;
+      if (id < 0) continue;
+      if (has(id)) this.seen[i] = 1;
+      else if (this.seen[i] === 1) this.id[i] = -1;
+    }
   }
 
   indexOf(id: number): number {

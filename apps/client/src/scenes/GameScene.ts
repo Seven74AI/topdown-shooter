@@ -87,14 +87,13 @@ import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
 import { PlaceFxView } from "../render/PlaceFxView";
 import { routeBuildKeys, type BuildKeysOut } from "./buildKeys";
-import { PLACED_HAPTIC_MS, REFUSED_HAPTIC, freshPlace, pickPopScale, placeSoundKind, placeVolume, type PlaceSoundKind } from "../render/placeFeel";
+import { PLACED_HAPTIC_MS, PlacedSoundPicker, REFUSED_HAPTIC, freshPlace, pickPopScale, placeSoundKind, placeVolume, type PlaceSoundKind } from "../render/placeFeel";
 import { vibrate } from "../audio/haptics";
 import { placementHintText, type HintContext } from "./blockText";
 import { ChipText, chipLeft } from "./chipText";
 import { RepairPanel, repairRefusalText, sellRefusalText, upgradeRefusalText } from "./repairPanel";
 import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
-import { haptic } from "../input/haptic";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
@@ -313,11 +312,14 @@ export class GameScene extends Phaser.Scene {
   private cursorAnchorMoves = 0;
   private anchorPicks = 0;
   private seenPlaces = 0;
-  /** Story 5.23 (D4): placed sounds already played this frame, by kind (at most one each). */
+  private wasMouse = false;
   /** Story 5.23: the building keys' reused answer. */
   private readonly buildKeysOut: BuildKeysOut = { slot: -1, pickUp: false };
   private readonly feelBox: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-  private readonly placedSoundsThisFrame: Record<PlaceSoundKind, boolean> = { thunk: false, clank: false, click: false };
+  /** Story 5.23 (D4, review L2): the placed sounds of this frame's events, one per kind (mine wins). */
+  private readonly placedSounds = new PlacedSoundPicker();
+  private readonly playPlaced = (kind: PlaceSoundKind, pan: number, vol: number): void =>
+    playSfx(kind === "thunk" ? "building_placed_thunk" : kind === "clank" ? "building_placed_clank" : "building_placed_click", pan, vol);
   /** Story 5.23 (AC 3, D8): a refusal of my placement: a dull buzz + 30-40-30 ms (the visual twin: the shaking box / the toast). */
   private readonly buzzRefused = (): void => {
     playSfx("building_place_refused");
@@ -956,7 +958,10 @@ export class GameScene extends Phaser.Scene {
     // Story 5.23 (AC 9, D12): in mouse mode the ghost follows the cursor once the mouse moved after the pick / the last Place
     const r = this.router;
     const p0 = this.placement;
-    if (r && (p0.picks !== this.anchorPicks || p0.places !== this.seenPlaces)) {
+    // review L1 / L9: the chip's "↩ carry" and a switch to the mouse also wait for the next mouse move
+    const toMouse = r !== null && r.isMouse && !this.wasMouse;
+    this.wasMouse = r !== null && r.isMouse;
+    if (r && (p0.picks !== this.anchorPicks || p0.places !== this.seenPlaces || m.chipPressed || toMouse)) {
       this.anchorPicks = p0.picks;
       this.seenPlaces = p0.places;
       this.cursorAnchorMoves = r.mouseMoves;
@@ -1062,18 +1067,14 @@ export class GameScene extends Phaser.Scene {
     const mine = e.ownerId === host.localPlayerId;
     const stats = buildingStats(world.balance, e.buildingType);
     const kind = placeSoundKind(e.buildingType, stats);
-    const ps = this.placedSoundsThisFrame;
-    if (!ps[kind]) {
-      ps[kind] = true;
-      const me = this.playerViews.get(host.localPlayerId);
-      const fb = stats ? footprint(stats, e.gx, e.gy, (e.rot & 3) as BuildingRotation, this.feelBox) : null;
-      const bx = fb ? (fb.minX + fb.maxX) / 2 : 0;
-      const by = fb ? (fb.minY + fb.maxY) / 2 : 0;
-      const v = this.cameras.main.worldView;
-      const pan = mine ? 0 : Math.max(-1, Math.min(1, (bx - (v.x + v.width / 2)) / Math.max(1e-6, v.width / 2)));
-      const vol = placeVolume(mine, me ? bx - me.x : 0, me ? by - me.y : 0);
-      playSfx(kind === "thunk" ? "building_placed_thunk" : kind === "clank" ? "building_placed_clank" : "building_placed_click", pan, vol);
-    }
+    const me = this.playerViews.get(host.localPlayerId);
+    const fb = stats ? footprint(stats, e.gx, e.gy, (e.rot & 3) as BuildingRotation, this.feelBox) : null;
+    const bx = fb ? (fb.minX + fb.maxX) / 2 : 0;
+    const by = fb ? (fb.minY + fb.maxY) / 2 : 0;
+    const v = this.cameras.main.worldView;
+    const pan = mine ? 0 : Math.max(-1, Math.min(1, (bx - (v.x + v.width / 2)) / Math.max(1e-6, v.width / 2)));
+    // review L2: offered, played once per kind after the event loop (mine wins); no survivor drawn → a teammate's is quiet
+    this.placedSounds.offer(kind, mine, pan, placeVolume(mine, me ? bx - me.x : 0, me ? by - me.y : 0, me !== undefined));
     if (mine) vibrate(PLACED_HAPTIC_MS);
   }
 
@@ -1081,7 +1082,7 @@ export class GameScene extends Phaser.Scene {
   private buildKeys(host: SceneHost, router: InputRouter, blocked: boolean): void {
     const k = routeBuildKeys(router.kbm, this.hudModel, this.placement.active, blocked, this.buildKeysOut);
     if (k.slot >= 0) this.keyPick(host, k.slot, blocked);
-    if (k.pickUp) this.onPickUpKey();
+    if (k.pickUp && this.canPlace(host, blocked)) this.onPickUpKey(); // review L5: only while building is possible (5.21: also needs a selection)
   }
 
   /**
@@ -1107,6 +1108,7 @@ export class GameScene extends Phaser.Scene {
       const same = p.type === item.id;
       p.cancel();
       this.hudModel.placementActive = false;
+      this.hudModel.confirmPressed = this.hudModel.rotatePressed = false; // review L8: a Space / R of the same frame was for the old item
       this.handEmptiedMs = this.time.now;
       if (same) return;
     }
@@ -1210,7 +1212,7 @@ export class GameScene extends Phaser.Scene {
       m.soldPopAmount[m.soldPopCount] = e.refund;
       m.soldPopCount++;
     }
-    haptic(SOLD_HAPTIC_MS);
+    vibrate(SOLD_HAPTIC_MS); // Story 5.23 (review M3): follows the haptics setting like every haptic
   }
   /** Story 5.12: the consumable button's inputs (reused every frame) and its pending use. */
   private readonly consumableIn: ConsumableButtonInput = { item: null, count: 0, kind: null, alive: false, running: false, placement: false, shopOpen: false, menuOpen: false, phase: "lobby", hp: 0, maxHp: 1 };
@@ -1525,8 +1527,6 @@ export class GameScene extends Phaser.Scene {
     this.buildSpend.watchUsed(host.world, localId); // Story 5.20 review M1: a med station that healed sells at the normal share
     this.updateUndo(host, menuOpen, shopOpen); // Story 5.20: after the boxes were matched (an armed undo sends here)
     const events = host.drainEvents();
-    const ps = this.placedSoundsThisFrame;
-    ps.thunk = ps.clank = ps.click = false;
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
       if (!e) continue;
@@ -1597,6 +1597,8 @@ export class GameScene extends Phaser.Scene {
         if (perf.net) netSummary.end(performance.now(), e.number, perf.net, netMeter, perf.overlayOn);
       }
     }
+
+    this.placedSounds.flush(this.playPlaced); // Story 5.23 (review L2): one placed sound per kind, mine first
 
     // Story 5.2: Chainsaw sparks (one Graphics), and my rev loop starts/stops with my cuts (not per swing).
     this.fxView?.update(this.localHost?.paused === true ? 0 : deltaMs);

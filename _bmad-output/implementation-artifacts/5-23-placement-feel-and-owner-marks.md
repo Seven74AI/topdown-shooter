@@ -92,7 +92,7 @@ so that building with friends is readable and quick on any device.
 - **D15 Undo keys**: Ctrl/Cmd + letter z (any code) → undo; plain letter z → undo only if its `code` isn't bound in `KEY_MAP`. `desktopInput` lets Ctrl/Cmd+Z through (every other Ctrl/Cmd/Alt shortcut stays the browser's).
 - **D16 `M`**: letter m with an unbound code → pick-up latch → `onPickUpKey()` no-op (TODO 5.21: pick up the selected building as the action bar's Move ✥).
 - **D17 `E` stays the consumable** (code `KeyE`; AZERTY and QWERTZ have E there too). The new keys use `KeyR`, `Space`, `Digit1–7`, `Numpad1–7` and the letters z/m; none is E or Q; the table test proves it for three layouts.
-- **D18 Wheel**: accumulate `deltaY` (pixel mode; line mode × 33), one step per 100 accumulated, ≤ 1 step / 150 ms, the remainder dropped after a step (a flick = one turn); reset when holding ends.
+- **D18 Wheel**: accumulate `deltaY` (pixel mode; line mode × 40: Firefox's 3 lines per notch make one step), one step per 100 accumulated, ≤ 1 step / 150 ms, the remainder dropped after a step (a flick = one turn); reset when holding ends.
 
 ### Current state (read before changing)
 
@@ -123,6 +123,29 @@ None of the sim copies. `controls.json › fx` gains two client-only caps. `SimE
 - `scenes/placement.ts`: `Placement.pointAt`, `rotate(ccw)`, `resting`; `PlacementHud.rotateCcwPressed?`; `PlacementFrame.cursorX?/cursorY?/refused?`.
 - `input/keyMap.ts`: new actions `rotate`, `place`, `build`, `undo`, `pickUp`; `buildSlot(code)`; `letterAction(key, code)`.
 
+## Senior Developer Review (AI)
+
+Fresh-agent review by the main session on `36fd9dc` (2026-11-24): **3 medium, 11 low, no high**. Verified sound: feel on server truth (`building.placed`, never the press), pools and caps, key map / layouts, stale-event rules. Fixed on `story-5-23` after merging master.
+
+| # | Sev | Finding | Fix |
+| --- | --- | --- | --- |
+| M1 | Medium | `Space` (and `R`, `1`–`7`) were prevented on focused DOM buttons (in-run menu, shop, results), so Space couldn't press them. | `desktopInput`: when the target is a `BUTTON`, `SELECT`, `A` or `[role=button]`, the building keys (place, rotate, build) neither act nor prevent the default; movement, Q, E, Esc unchanged. Test (`keyMap.test.ts`: four control kinds, WASD still walks, Space on the canvas still places). |
+| M2 | Medium | The resting (faded) ghost could hide a teammate / zombie in it and rested on any building. | `Placement` remembers the footprint just sent (`restBox`); `resting` lasts only while the ghost overlaps it, the spot is my pending box or my building there, and `blockReason` with that building excepted finds nothing else (a body, another building, a spawn…). Tests: teammate in the ghost (pending and built), carried onto an older building, onto another of my pending boxes; the built spot still rests. |
+| M3 | Medium | 5.20's sell / undo haptic (`input/haptic.ts`) ignored the haptics setting. | The sell haptic goes through `audio/haptics.ts › vibrate`; the old helper and its test are deleted; `tools/checks/oneHapticsDoor.test.ts` fails if any client file calls the vibration API elsewhere. |
+| L1 | Low | Mouse: "↩ carry" was overridden by the cursor follow at once. | The chip re-anchors the follow (it waits for the next mouse move). |
+| L2 | Low | A teammate's placed sound could take the frame's slot from mine; a missing survivor view meant full volume. | `PlacedSoundPicker`: one sound per kind per frame, mine wins, else the loudest, played after the event loop; no view → a teammate's is quiet. Tests. |
+| L3 | Low | Owner tabs outlived a sold / destroyed building. | `TabPool.dropMissing` on a building-list change frees a tab whose building was seen and is gone (an online tab whose building hasn't arrived yet stays). Test. |
+| L4 | Low | Pause timing of cosmetic effects. | Accepted (cosmetic). |
+| L5 | Low | `M` wasn't gated. | `onPickUpKey()` only runs when placing is possible (`canPlace`). **5.21**: also require a selected building of mine. |
+| L6 | Low | The wheel's partial notch survived the end of a hold; story said × 33. | The HUD resets the wheel whenever it isn't placing; story text fixed (× 40). |
+| L7 | Low | `1`–`7` ignore build-bar paging. | Accepted while ≤ 7 types (today 7); a paged bar must map digits to the shown page (note for the story that adds an 8th type). |
+| L8 | Low | A Space / R in the same frame as a number-key swap pressed the new item. | `keyPick` clears `confirmPressed` / `rotatePressed` when it puts the old item away. |
+| L9 | Low | Switching from touch to mouse snapped the ghost to the cursor at once. | A source change to the mouse re-anchors the follow. |
+| L10 | Low | Non-Latin layouts (Russian, Greek) send a non-ASCII `key`: no Ctrl+Z / M. | `desktopInput` falls back to the US letter of `code` (`KeyZ` → z) when `key` is a single non-ASCII character. Test. |
+| L11 | Low | (main session) | Accepted. |
+
+Mutations of the fix tests: **10/10 killed** (control-keeps rule, `role=button`, Latin fallback, M2 other-blocker check, M2 rest-box overlap, M2 built-id exception, direct vibrate in GameScene, mine-wins rule, unknown-view volume, `seen` guard). Two M2 mutations first survived; the built-spot + teammate and other-pending-box tests were added for them.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -136,6 +159,8 @@ Claude (builder cloud session, 2026-11-24).
 - Browser check (own Vite :5323, solo `?wallet=5000`): touch (CDP) at 800 × 360 and 568 × 320, mouse + keys at 1280 × 720; numbers and screenshots in `docs/art/5-23/README.md`; no console or page errors.
 
 - After merging master `ddcb1cf` (5.20) and wiring undo: full gate exit 0, **301 test files passed, 1 skipped; 2494 tests passed, 3 skipped**, build OK (load 2.7 → 3.6); `buildKeys.test.ts` mutation (undo while blocked) killed (22/22); browser: Z and Ctrl+Z each took back the building just placed (1 → 0).
+
+- Review fixes (M1–M3, L1–L3, L5, L6, L8–L10) after merging master `4159b78`: full gate exit 0, **301 test files passed, 1 skipped; 2504 tests passed, 3 skipped**, build OK (load 1.0 → 3.3); fix-test mutations 10/10 killed.
 
 ### Completion Notes List
 
@@ -162,5 +187,6 @@ Claude (builder cloud session, 2026-11-24).
 ### Change Log
 
 - 2026-11-24: Story file written (5.23 + 5.25 merged), ready-for-dev.
+- 2026-11-24: Review fixes M1–M3 and lows (L4, L7, L11 accepted); merged master `4159b78`; gate green; status stays review (the mediums get a re-review).
 - 2026-11-24: Merged master `ddcb1cf` (5.20 take back / sell / undo, Epic 8 docs); Z / Ctrl+Z wired to 5.20's undo chip via `scenes/buildKeys.ts` (+test; mutation killed); full gate re-run on the merged tree (see Debug Log).
 - 2026-11-24: Built (feel, owner marks, resting chain ghost, chip side reset, mouse + keys, undo / pick-up hooks); gate green; 21/21 mutations killed; browser check at 800 × 360, 568 × 320, 1280 × 720. Status → review.
