@@ -1,0 +1,177 @@
+<title>Horde Wallet Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a field ledger. Controls column left, the money-per-build chart and the target ledger right; stacks on phones. */
+:root {
+  --bg: #f3f2ee; --panel: #fbfaf7; --fg: #1f2124; --muted: #5d6168; --line: #d7d5cf;
+  --now: #6f7782; --prop: #b8452a; --band: rgba(74, 132, 92, 0.16); --bandline: #4a845c; --price: #9a8f73;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15171a; --panel: #1c1f23; --fg: #e6e4df; --muted: #9ba0a8; --line: #2f343a;
+  --now: #8d96a2; --prop: #e8704f; --band: rgba(110, 180, 130, 0.14); --bandline: #6eb482; --price: #8b8270; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15171a; --panel: #1c1f23; --fg: #e6e4df; --muted: #9ba0a8; --line: #2f343a;
+  --now: #8d96a2; --prop: #e8704f; --band: rgba(110, 180, 130, 0.14); --bandline: #6eb482; --price: #8b8270; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 2.4rem; letter-spacing: 0.01em; margin: 0; line-height: 1.05; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 68ch; margin: 6px 0 0; }
+.grid { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+@media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; min-width: 0; }
+.ctl { display: grid; gap: 4px; margin-bottom: 14px; }
+.ctl label { display: flex; justify-content: space-between; font-size: 0.86rem; font-weight: 500; }
+.ctl output { font-family: var(--mono); color: var(--prop); }
+.ctl small { color: var(--muted); font-size: 0.76rem; }
+input[type=range] { width: 100%; accent-color: var(--prop); }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button { font: 500 0.85rem var(--body); padding: 5px 11px; border: 1px solid var(--line); background: transparent; color: var(--fg); border-radius: 4px; cursor: pointer; }
+.seg button[aria-pressed=true] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.seg button:focus-visible, input:focus-visible, .reset:focus-visible { outline: 2px solid var(--prop); outline-offset: 2px; }
+.reset { font: 500 0.8rem var(--body); background: none; border: 0; color: var(--prop); cursor: pointer; padding: 0; text-decoration: underline; }
+.eyebrow { font-family: var(--display); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem; color: var(--muted); margin: 0 0 8px; }
+.chart { width: 100%; overflow-x: auto; }
+svg text { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+.sw { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.88rem; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 600; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.pill { font-size: 0.72rem; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+.ok { background: var(--band); color: var(--bandline); }
+.lo { background: rgba(184, 69, 42, 0.14); color: var(--prop); }
+.hi { background: rgba(154, 143, 115, 0.2); color: var(--price); }
+.tablewrap { overflow-x: auto; }
+.note { color: var(--muted); font-size: 0.8rem; max-width: 72ch; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Horde Wallet Planner</h1>
+    <p class="lede">Money one player has had in total before each build phase, from seeded bot runs (Downtown, 10-wave shape, start money included). Move the sliders to test the balance pass proposals. The grey line is today's balance; the red line is your settings.</p>
+  </header>
+  <div class="grid">
+    <aside class="panel" aria-label="Settings">
+      <p class="eyebrow">Team</p>
+      <div class="ctl"><div class="seg" id="players" role="group" aria-label="Players">
+        <button data-n="1">Solo</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="4" aria-pressed="true">4</button>
+      </div></div>
+      <p class="eyebrow">Economy</p>
+      <div class="ctl"><label for="start">Start money <output id="startO"></output></label><input type="range" id="start" min="100" max="400" step="25" value="200"><small>Today 200 (raised from 100 on 2026-11-24)</small></div>
+      <div class="ctl"><label for="bonus">Wave bonus per wave number <output id="bonusO"></output></label><input type="range" id="bonus" min="5" max="25" step="1" value="15"><small>Today 10 × N · B1 proposes 15 × N</small></div>
+      <div class="ctl"><label for="kill">Kill money <output id="killO"></output></label><input type="range" id="kill" min="70" max="150" step="5" value="100"><small>All zombie rewards scaled together (100 % = today)</small></div>
+      <div class="ctl"><label for="assist">Extra human assists <output id="assistO"></output></label><input type="range" id="assist" min="0" max="40" step="5" value="0"><small>Bots assist ~14 % of kill money, the GDD assumed ~50 %. Adds this share of kill money (co-op only).</small></div>
+      <div class="ctl"><label for="solo">Solo zombie count <output id="soloO"></output></label><input type="range" id="solo" min="0.25" max="0.4" step="0.05" value="0.35"><small>Today × 0.4 · B2 proposes × 0.35 (solo only)</small></div>
+      <div class="ctl"><label for="waves">Waves in the run <output id="wavesO"></output></label><input type="range" id="waves" min="6" max="10" step="1" value="10"><small>Today 6 · Epic 6 makes it 10</small></div>
+      <button class="reset" id="toToday" type="button">Set every slider to today's balance</button> ·
+      <button class="reset" id="toProp" type="button">Set to the proposals</button>
+    </aside>
+    <section class="panel" aria-label="Money by build">
+      <p class="eyebrow">Money had by build phase, one player</p>
+      <div class="chart"><svg id="chart" viewBox="0 0 760 360" role="img" aria-label="Cumulative money per build phase"></svg></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--now)"></i>Today</span>
+        <span><i class="sw" style="background:var(--prop)"></i>Your settings</span>
+        <span><i class="sw" style="background:var(--price);height:1px"></i>Prices</span>
+      </div>
+      <p class="note" id="afford"></p>
+    </section>
+  </div>
+  <section class="panel">
+    <p class="eyebrow">Run total per player vs the GDD target 2,500–3,000 (10 waves)</p>
+    <div class="tablewrap"><table id="ledger"><thead><tr><th>Team</th><th>Kill + assist</th><th>Wave bonus</th><th>Start</th><th>Total, today</th><th>Total, your settings</th><th></th></tr></thead><tbody></tbody></table></div>
+    <p class="note">Kill and assist money: mean per player per wave from 18 seeded 10-wave bot runs per team size (god mode, so every run plays all waves; Story 6.1's planned mix for waves 7–10). Solo kill money scales with the solo zombie count. Bots never dodge: use this for money, not difficulty. Source: <code>tools/sims/balancePass.ts</code>, report <code>docs/balance/epic-5-balance-pass.md</code>.</p>
+  </section>
+</div>
+
+<script>
+// Kill + assist (+ revive) money per player per wave, today's balance (pooled sims, solo at × 0.4).
+const KA = {
+  1: [32, 70, 112, 165.8, 222.6, 278.9, 329.6, 367.4, 441.6, 462.9],
+  2: [26.8, 56.0, 96.4, 138.1, 184.2, 221.9, 242.4, 275.7, 299.0, 366.1],
+  3: [22.8, 52.0, 84.2, 132.7, 180.5, 198.0, 217.0, 233.5, 253.7, 312.9],
+  4: [23.6, 53.3, 88.1, 135.7, 166.3, 165.0, 176.1, 194.0, 219.7, 252.4],
+};
+// Bot assist share of kill money in these runs (for the "extra human assists" slider: only co-op).
+const PRICES = [
+  [150, "Machete, Armor I, shoes, revive kit"], [200, "SMG"], [250, "Shotgun, turret"], [320, "SMG + SMG II"],
+  [450, "Assault Rifle"], [700, "Flamethrower"], [800, "Grenade Launcher"],
+];
+const TODAY = { start: 200, bonus: 10, kill: 100, assist: 0, solo: 0.4, waves: 10 };
+const PROP = { start: 200, bonus: 15, kill: 100, assist: 0, solo: 0.35, waves: 10 };
+let players = 4;
+const $ = (id) => document.getElementById(id);
+const ids = ["start", "bonus", "kill", "assist", "solo", "waves"];
+const read = () => Object.fromEntries(ids.map((k) => [k, Number($(k).value)]));
+
+function perWave(s, n) {
+  const ka = KA[n].slice(0, s.waves);
+  const scale = (n === 1 ? s.solo / 0.4 : 1) * (s.kill / 100) * (n === 1 ? 1 : 1 + s.assist / 100);
+  return ka.map((v, i) => v * scale + s.bonus * (i + 1));
+}
+function cumulative(s, n) {
+  const w = perWave(s, n);
+  const out = [s.start];
+  for (const x of w) out.push(out[out.length - 1] + x);
+  return out; // index b = money had before build b (b = waves: the run's end)
+}
+function total(s, n) { return cumulative(s, n).at(-1); }
+
+function draw() {
+  const s = read();
+  $("startO").textContent = s.start;
+  $("bonusO").textContent = `${s.bonus} × N`;
+  $("killO").textContent = `${s.kill} %`;
+  $("assistO").textContent = `+${s.assist} %`;
+  $("soloO").textContent = `× ${s.solo.toFixed(2)}`;
+  $("wavesO").textContent = s.waves;
+  const now = cumulative({ ...TODAY, waves: s.waves }, players);
+  const mine = cumulative(s, players);
+  const svg = $("chart");
+  const W = 760, H = 360, L = 56, R = 200, T = 14, B = 34;
+  const maxY = Math.max(1000, Math.ceil(Math.max(...now, ...mine) / 500) * 500);
+  const xs = (i) => L + (i * (W - L - R)) / s.waves;
+  const ys = (v) => T + (H - T - B) * (1 - v / maxY);
+  let g = "";
+  for (let v = 0; v <= maxY; v += 500) g += `<line x1="${L}" x2="${W - R}" y1="${ys(v)}" y2="${ys(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 8}" y="${ys(v) + 4}" text-anchor="end">${v.toLocaleString("en")}</text>`;
+  for (let i = 0; i <= s.waves; i++) g += `<text x="${xs(i)}" y="${H - 12}" text-anchor="middle">${i === s.waves ? "end" : "B" + i}</text>`;
+  // price lines (only those inside the chart)
+  for (const [p, name] of PRICES) if (p <= maxY) g += `<line x1="${L}" x2="${W - R}" y1="${ys(p)}" y2="${ys(p)}" stroke="var(--price)" stroke-dasharray="3 4" stroke-width="1"/><text x="${W - R + 6}" y="${ys(p) + 4}" style="fill:var(--price)">${p} ${name}</text>`;
+  const path = (arr) => arr.map((v, i) => `${i ? "L" : "M"}${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join("");
+  g += `<path d="${path(now)}" fill="none" stroke="var(--now)" stroke-width="2"/>`;
+  g += `<path d="${path(mine)}" fill="none" stroke="var(--prop)" stroke-width="2.5"/>`;
+  mine.forEach((v, i) => { g += `<circle cx="${xs(i)}" cy="${ys(v)}" r="3" fill="var(--prop)"/>`; });
+  g += `<text x="${xs(s.waves) - 4}" y="${ys(mine.at(-1)) - 8}" text-anchor="end" style="fill:var(--prop);font-weight:500">${Math.round(mine.at(-1)).toLocaleString("en")}</text>`;
+  svg.innerHTML = g;
+  // affordability sentence
+  const firstAt = (p) => mine.findIndex((v) => v >= p);
+  const b = (i) => (i < 0 || i >= s.waves ? "never in this run" : i === 0 ? "build 0" : `build ${i}`);
+  $("afford").textContent = `Saving everything (${players === 1 ? "solo" : players + " players"}): a 150 card by ${b(firstAt(150))}, the SMG + SMG II (320) by ${b(firstAt(320))}, the Assault Rifle (450) by ${b(firstAt(450))}, the Flamethrower (700) by ${b(firstAt(700))}, the Grenade Launcher (800) by ${b(firstAt(800))}. Earned in wave 1: ${Math.round(mine[1] - mine[0])}, wave 2: ${Math.round(mine[2] - mine[1])} (cheapest card 150).`;
+  // ledger (10 waves)
+  const s10 = { ...s, waves: 10 }, t10 = { ...TODAY, waves: 10 };
+  let rows = "";
+  for (const n of [1, 2, 3, 4]) {
+    const ka = perWave({ ...s10, bonus: 0 }, n).reduce((a, x) => a + x, 0);
+    const wb = s10.bonus * 55;
+    const tot = total(s10, n), was = total(t10, n);
+    const cls = tot < 2500 ? ["lo", "below"] : tot > 3000 ? ["hi", "above"] : ["ok", "in band"];
+    rows += `<tr${n === players ? ' style="font-weight:600"' : ""}><td>${n === 1 ? "Solo" : n + " players"}</td><td>${Math.round(ka).toLocaleString("en")}</td><td>${wb}</td><td>${s10.start}</td><td>${Math.round(was).toLocaleString("en")}</td><td>${Math.round(tot).toLocaleString("en")}</td><td><span class="pill ${cls[0]}">${cls[1]}</span></td></tr>`;
+  }
+  document.querySelector("#ledger tbody").innerHTML = rows;
+}
+function set(v) { for (const k of ids) $(k).value = v[k]; draw(); }
+for (const k of ids) $(k).addEventListener("input", draw);
+document.querySelectorAll("#players button").forEach((btn) => btn.addEventListener("click", () => {
+  players = Number(btn.dataset.n);
+  document.querySelectorAll("#players button").forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
+  draw();
+}));
+$("toToday").addEventListener("click", () => set(TODAY));
+$("toProp").addEventListener("click", () => set(PROP));
+draw();
+</script>
