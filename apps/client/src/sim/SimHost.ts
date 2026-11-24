@@ -1,5 +1,5 @@
 import type { FlameCues } from "../render/flameCues";
-import type { PlaceError, PlaceRequest, PlayerInput, RepairError, ShopError, ShopOfferView, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
+import type { PlaceError, PlaceRequest, PlayerInput, RepairError, SellError, ShopError, ShopOfferView, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
 
 /**
  * Story 3.3: how a purchase ended (solo at once, online the server's `shop.bought` / `shop.refused`).
@@ -73,6 +73,14 @@ export interface SimHost {
   upgradeBuilding(id: number): void;
   /** The latest upgrade refusal not taken yet, or null. */
   takeUpgradeRefusal(): UpgradeError | null;
+  /**
+   * Story 5.20: take back / sell my building `id` (the server validates: standing, build phase,
+   * owner; solo runs the same rules now). The building goes and the refund arrives only when the
+   * World says so (online: the state). A refusal comes back through `takeSellRefusal`.
+   */
+  sellBuilding(id: number): void;
+  /** The latest sell refusal not taken yet, or null. */
+  takeSellRefusal(): SellError | null;
   /**
    * Story 5.13: buy card `card` (showing `item`) of my current offer (`slot`: which weapon a weapon
    * card replaces when both are full). Solo the shared `buyCard` runs at once; online it is sent as

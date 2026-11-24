@@ -3,6 +3,7 @@ import { TEST_SCENARIOS } from "./testScenarios";
 import type { PlaceError } from "../buildings/buildings";
 import type { RepairError } from "../buildings/repair";
 import type { UpgradeError } from "../buildings/upgrade";
+import type { SellError } from "../buildings/sell";
 import type { ShopError, WeaponUpgradeError } from "../economy/shop";
 
 /**
@@ -39,6 +40,8 @@ export const C2S = {
   BUILDING_REPAIR: "building.repair",
   /** `{ id }` in a build phase (Story 5.9, owner only); a refusal comes back as `building.upgrade_refused`. */
   BUILDING_UPGRADE: "building.upgrade",
+  /** `{ id }` in a build phase (Story 5.20, owner only: take back / sell); a refusal comes back as `building.sell_refused`. */
+  BUILDING_SELL: "building.sell",
   /** `{ weapon }` in a build phase (Story 5.1); answered with `shop.upgraded` or `shop.upgrade_refused`. */
   SHOP_UPGRADE: "shop.upgrade",
   /**
@@ -76,6 +79,8 @@ export const S2C = {
   BUILDING_REPAIR_REFUSED: "building.repair_refused",
   /** `{ id, reason: UpgradeError }` to the sender of a refused `building.upgrade` (Story 5.9). */
   BUILDING_UPGRADE_REFUSED: "building.upgrade_refused",
+  /** `{ id, reason: SellError }` to the sender of a refused `building.sell` (Story 5.20). */
+  BUILDING_SELL_REFUSED: "building.sell_refused",
   /** `{ weapon, slot, level }` to the sender only (Story 5.1); wallet and level follow in the state. */
   SHOP_UPGRADED: "shop.upgraded",
   /** `{ weapon, error: WeaponUpgradeError }` to the sender only (Story 5.1); nothing changed. */
@@ -211,6 +216,23 @@ export const buildingUpgradeSchema = z
   })
   .strict();
 export type BuildingUpgrade = z.infer<typeof buildingUpgradeSchema>;
+
+/**
+ * `building.sell` (Story 5.20): the id of one of the sender's own buildings (take back / sell). Only
+ * the shape is checked here; `sellBuilding` validates standing, phase, building and owner.
+ */
+export const buildingSellSchema = z
+  .object({
+    id: z.number().int().min(1).max(65535),
+  })
+  .strict();
+export type BuildingSell = z.infer<typeof buildingSellSchema>;
+
+/** `building.sell_refused` payload (Story 5.20), to the sender only. */
+export interface BuildingSellRefused {
+  id: number;
+  reason: SellError;
+}
 
 /** `building.upgrade_refused` payload (Story 5.9), to the sender only. */
 export interface BuildingUpgradeRefused {

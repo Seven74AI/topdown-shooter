@@ -139,3 +139,37 @@ describe("RepairPanel upgrade line (Story 5.9)", () => {
     for (const e of UPGRADE_ERRORS) expect(upgradeRefusalText(e).length).toBeGreaterThan(0);
   });
 });
+
+describe("Story 5.20: Sell / Take back in the panel (AC 8)", () => {
+  it("my building: 'Take back +$40' when all of it was paid this phase, 'Sell +$20' otherwise; a teammate's has no Sell", () => {
+    const { world, b } = setup();
+    const p = new RepairPanel();
+    p.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+    p.update(world, "p1", true, names, (id) => (id === b.id ? 40 : 0));
+    expect([p.sellShown, p.sellLabelText, p.sellReason]).toEqual([true, "Take back +$40", ""]);
+    p.update(world, "p1", true, names, () => 0);
+    expect(p.sellLabelText).toBe("Sell +$20");
+    setBuildingType(world, b, "metal_barricade");
+    p.update(world, "p1", true, names, () => 70); // old wood → reinforced last phase, metal now
+    expect(p.sellLabelText).toBe("Sell +$115"); // 70 + floor(0.5 × 90)
+    p.update(world, "p0", true, names);
+    expect(p.sellShown).toBe(false);
+    expect(p.pressSell()).toBe(0);
+  });
+
+  it("pressSell sends my building's id and closes; downed: the reason shows and nothing is sent", () => {
+    const { world, b } = setup();
+    const p = new RepairPanel();
+    p.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+    const me = world.players.get("p1");
+    if (!me) throw new Error("p1");
+    me.status = "downed";
+    p.update(world, "p1", true, names);
+    expect(p.sellReason).toBe("Not while you're down");
+    expect(p.pressSell()).toBe(0);
+    me.status = "alive";
+    p.update(world, "p1", true, names);
+    expect(p.pressSell()).toBe(b.id);
+    expect(p.open).toBe(false);
+  });
+});

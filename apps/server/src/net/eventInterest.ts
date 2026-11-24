@@ -25,7 +25,7 @@ import {
  * - a turret's non-killing `zombie.hit` (the hit flash): the zombie's position or the turret's centre.
  *
  * - Story 5.9: `mine.exploded` (the blast FX): the mine's centre. A mine's non-killing hits are
- *   turret-style building hits (above). `building.upgraded` stays global (money / HUD).
+ *   turret-style building hits (above). `building.upgraded` stays global (money / HUD), as does Story 5.20's `building.sold`.
  *   Story 5.14: `bear_trap.snapped` (clang + snap FX) is local at the trap's centre.
  * Story 5.6 adds two more local kinds: `spitter.spat` (its mouth point or its flight's end) and
  * `acid.splashed` (the puddle's centre). Acid damage (`player.damaged`, source −3) stays global.

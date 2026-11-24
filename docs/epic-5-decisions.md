@@ -180,3 +180,5 @@ Applied by the course correction in `_bmad-output/planning-artifacts/sprint-chan
 
 All Epic 6 look picks (Ruins, Collapse, blackout, Behemoth, events, vote and dawn) are in **`docs/epic-6-decisions.md`** (page claude.ai/artifact/7ikXRSUD7ZURpADLAtEPSJ, `docs/art/epic-6/looks.html`).
 - **Take-back after use (5.20 review, designer "everything okay", 2026-11-24):** option B — once a building has done its job in the current build phase (a med station healed someone), taking it back refunds only the normal 50 % sell share; med stations keep healing in build phases. Sell refunds stay based on what was paid (not HP): a fresh rebuy costs exactly a repair, so selling a worn building earns nothing extra.
+- **Start money 100 → 200** (designer, 2026-11-24, option A; applied with Story 5.13): the card shop was out of reach until about build 3 (cheapest cards 150). The Epic 5 balance pass may fine-tune the amount.
+- **Early weapon card art** (SMG, Hunting Rifle, Machete): code-drawn proposals requested (session "Card art: SMG, Hunting Rifle, Machete").

@@ -13,6 +13,7 @@ import {
   buyCard,
   offerFor,
   reroll,
+  sellBuilding,
   upgradeWeapon,
   buyItem,
   type BoughtItem,
@@ -40,6 +41,8 @@ import {
   type CardBought,
   type Rerolled,
   type ShopOfferView,
+  type SellError,
+  type Sold,
   type PlayerInput,
   type Result,
   type ShopError,
@@ -317,6 +320,11 @@ export class RunController {
   /** Story 5.9: `building.upgrade`, between ticks (the shared `upgradeBuilding`'s rules). */
   upgradeBuilding(playerId: string, buildingId: number): Result<Upgraded, UpgradeError> {
     return upgradeBuilding(this.world, playerId, buildingId);
+  }
+
+  /** Story 5.20: `building.sell`, between ticks (the shared `sellBuilding`'s rules: take back 100 %, sell 50 %). */
+  sellBuilding(playerId: string, buildingId: number): Result<Sold, SellError> {
+    return sellBuilding(this.world, playerId, buildingId);
   }
 
   /**

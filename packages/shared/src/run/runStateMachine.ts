@@ -11,6 +11,7 @@ import { clearAcid } from "../zombies/spit";
 import { clearGrenades } from "../combat/grenades";
 import { clearMolotovZones } from "../hazards/molotov";
 import { clearBlasts, drainBlasts } from "../zombies/bloater";
+import { resetBuildSpend } from "../buildings/buildings";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
@@ -65,6 +66,7 @@ export function startBuild(world: World): void {
   world.run.phase = "build";
   world.run.buildTicksLeft = ticksFor(world.balance.waves.buildPhaseS);
   world.players.forEach(clearReady);
+  resetBuildSpend(world); // Story 5.20 (F2): a new build phase: nothing paid this phase yet (take-back = 100 % only for this phase's spend)
   const from = world.decay.stage;
   const decayed = decayMutate(world, stageForComingWave(world));
   clearAcid(world); // Story 5.6 DD4: no spits, no puddles in a build phase; acid clocks restart

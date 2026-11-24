@@ -12,6 +12,7 @@ import {
   placeBuilding,
   repairBuilding,
   upgradeBuilding,
+  sellBuilding,
   setBuildReady,
   setInput,
   startBuild,
@@ -22,6 +23,7 @@ import {
   type PlaceRequest,
   type RepairError,
   type UpgradeError,
+  type SellError,
   type PlayerInput,
   type SimEvent,
   type ShopOfferView,
@@ -137,6 +139,21 @@ export class LocalSimHost implements SimHost {
   takeUpgradeRefusal(): UpgradeError | null {
     const r = this.upgradeRefusal;
     this.upgradeRefusal = null;
+    return r;
+  }
+
+  /** Story 5.20: the last sell refusal, until the scene takes it. */
+  private sellRefusal: SellError | null = null;
+
+  /** Story 5.20: solo applies the sell at once (between steps, like the server's message handler). */
+  sellBuilding(id: number): void {
+    const r = sellBuilding(this.world, LOCAL_PLAYER_ID, id);
+    if (!r.ok) this.sellRefusal = r.error;
+  }
+
+  takeSellRefusal(): SellError | null {
+    const r = this.sellRefusal;
+    this.sellRefusal = null;
     return r;
   }
 

@@ -58,6 +58,13 @@ export const READY_BAR_GAP_CSS_PX = 12;
 export const REPAIR_BUTTON_W_CSS_PX = 168;
 export const REPAIR_CLOSE_CSS_PX = 52;
 export const REPAIR_ROW_GAP_CSS_PX = 12;
+/** Story 5.20 (ux-spec §4): the undo chip ↶ (48 px round); with the bar up it sits left of Story 5.12's consumable button (`undoChip.ts`). */
+export const UNDO_CHIP_CSS_PX = 48;
+/** Story 5.20 (ux-spec §4): while holding, ↶ centre from the bottom-right safe-area corner (Ready is hidden then). */
+export const UNDO_HAND = { rightCss: 270, bottomCss: 64 } as const;
+/** Story 5.20: the undo glyph and the ring's stroke (CSS px). */
+export const UNDO_GLYPH_CSS_PX = 26;
+export const UNDO_RING_CSS_PX = 4;
 /** Story 5.13 (D9): a shop card's minimum size and the grid gap (CSS px); 3 × 2 cards fit 568 × 320. */
 export const CARD_MIN_W_CSS_PX = 96;
 export const CARD_MIN_H_CSS_PX = 112;
