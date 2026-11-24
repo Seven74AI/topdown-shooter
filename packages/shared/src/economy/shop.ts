@@ -1,31 +1,17 @@
 import type { Balance } from "../config/balance";
 import { err, ok, type Result } from "../core/result";
 import type { World } from "../core/world";
-import { createSlot, type Loadout, type WeaponSlot } from "../combat/loadout";
+import type { Loadout, WeaponSlot } from "../combat/loadout";
 import { upgradePrice, type WeaponId } from "../combat/weapons";
 import { spendMoney, type SpendError } from "./economy";
-import { buyGear, gearBit } from "./gear";
 import { buyConsumable, isConsumable } from "./consumables";
 
 /**
- * Story 3.3: the fixed-list shop (Epic 5 replaces it with the roguelike card shop).
- *
- * - Weapons: the ids in `shop.json › weapons`, in that order, at their `weapons.json › price`.
- *   Bought with `buyWeapon`, which the server runs for a `shop.buy` message (solo: the local World).
- * - Buildings (Story 3.4): every type of `balance.buildings` if that block exists, with its `price`
- *   and display name. The shop never buys a building: tapping one starts placement (3.4), which
- *   charges on a valid placement.
- *
- * Only `buyWeapon` changes anything, and only in a build phase; every refusal is a `Result` error
- * and leaves the World untouched.
+ * The shop's shared helpers. Story 5.13 replaced Story 3.3's fixed weapon list with the card shop
+ * (`economy/shopCards.ts`: weapon and gear cards); what stays here is always available: weapon
+ * upgrades (Story 5.1) and consumables (`buyItem`, Story 5.12), plus `shopBuildings` (the build bar,
+ * Story 5.16) and the name helpers. Every refusal is a `Result` error and leaves the World untouched.
  */
-
-export interface ShopWeapon {
-  readonly id: WeaponId;
-  /** Display name (`weapons.json › name`, else the id in Title Case). */
-  readonly name: string;
-  readonly price: number;
-}
 
 export interface ShopBuilding {
   readonly id: string;
@@ -35,30 +21,25 @@ export interface ShopBuilding {
 
 /** Story 5.11 review M1: `not_alive` = a downed or out player (fire still hurts in a build phase) can't buy. */
 /** Story 5.12: `already_full` = a consumable slot already full of that item (no money taken). */
-export type ShopError = "not_build" | "unknown_player" | "not_alive" | "not_for_sale" | "already_owned" | "already_full" | "slot_required" | SpendError;
+/**
+ * Story 5.13 (card shop): `stale_offer` = the buy/reroll names another build or rev than the stored
+ * offer; `not_in_offer` = that card doesn't hold that item (sold, wrong item, bad index);
+ * `no_new_cards` = a reroll could show nothing new (the pool is spent).
+ */
+export type ShopError =
+  | "not_build"
+  | "unknown_player"
+  | "not_alive"
+  | "not_for_sale"
+  | "already_owned"
+  | "already_full"
+  | "slot_required"
+  | "stale_offer"
+  | "not_in_offer"
+  | "no_new_cards"
+  | SpendError;
 
-/** Where a bought weapon went. */
-export interface Bought {
-  readonly slot: 0 | 1;
-}
-
-const weaponCache = new WeakMap<Balance, readonly ShopWeapon[]>();
 const buildingCache = new WeakMap<Balance, readonly ShopBuilding[]>();
-
-/** The weapons the shop offers, in shop order (cached per balance). */
-export function shopWeapons(balance: Balance): readonly ShopWeapon[] {
-  let list = weaponCache.get(balance);
-  if (!list) {
-    const out: ShopWeapon[] = [];
-    for (const id of balance.shop.weapons) {
-      const stats = balance.weapons[id];
-      if (stats) out.push(Object.freeze({ id, name: stats.name ?? titleCase(id), price: stats.price })); // loadBalance refused unknown ids
-    }
-    list = Object.freeze(out);
-    weaponCache.set(balance, list);
-  }
-  return list;
-}
 
 /** "hunting_rifle" → "Hunting Rifle". */
 export function titleCase(id: string): string {
@@ -102,55 +83,9 @@ export function weaponName(balance: Balance, weapon: WeaponId): string {
   return balance.weapons[weapon]?.name ?? titleCase(weapon);
 }
 
-/** The shop's price of a weapon, or null if the shop doesn't sell it. */
-export function shopPrice(balance: Balance, weapon: WeaponId): number | null {
-  const list = shopWeapons(balance);
-  for (let i = 0; i < list.length; i++) if ((list[i] as ShopWeapon).id === weapon) return (list[i] as ShopWeapon).price;
-  return null;
-}
-
 /** The weapon is in one of the loadout's slots. */
 export function owns(loadout: Loadout, weapon: WeaponId): boolean {
   return loadout.slots[0].weapon === weapon || loadout.slots[1]?.weapon === weapon;
-}
-
-/**
- * Buys `weapon` for `playerId` (Story 3.3). Checks, in order: a build phase, a known player, standing
- * (Story 5.11 review M1: `not_alive` while downed or out), sold by
- * the shop, not already in a slot, a slot (the empty second slot first; with both full `slot` must
- * say which one is replaced), then the wallet (`spendMoney`). On success the weapon is in that slot
- * with a full magazine; the replaced weapon is lost and the active slot index is unchanged.
- * Story 5.1: the new slot starts at level I (a replaced weapon's upgrades are lost; buying it again
- * later starts at I too).
- * On an error nothing changes.
- */
-export function buyWeapon(world: World, playerId: string, weapon: WeaponId, slot: 0 | 1 | null): Result<Bought, ShopError> {
-  if (world.run.phase !== "build") return err("not_build");
-  const p = world.players.get(playerId);
-  if (!p) return err("unknown_player");
-  if (p.status !== "alive") return err("not_alive"); // Story 5.11 review M1
-  const price = shopPrice(world.balance, weapon);
-  if (price === null) return err("not_for_sale");
-  const lo = p.loadout;
-  if (owns(lo, weapon)) return err("already_owned");
-  const target: 0 | 1 | null = lo.slots[1] === null ? 1 : slot;
-  if (target === null) return err("slot_required");
-  const paid = spendMoney(world, playerId, price);
-  if (!paid.ok) return paid;
-  lo.slots[target] = createSlot(world.balance, weapon);
-  return ok({ slot: target });
-}
-
-/**
- * Bot hook (Epic 2 retro A10; used by the 3.3 shop sim; Story 3.10 bots use `bots/botShop.ts`): the first weapon of `list` the shop
- * sells, that the loadout doesn't hold and that `wallet` affords, or null.
- */
-export function botShopPick(balance: Balance, wallet: number, loadout: Loadout, list: readonly string[]): WeaponId | null {
-  for (const id of list) {
-    const price = shopPrice(balance, id);
-    if (price !== null && price <= wallet && !owns(loadout, id)) return id;
-  }
-  return null;
 }
 
 /**
@@ -204,7 +139,7 @@ export interface ShopUpgradeRow {
 
 /**
  * Story 5.1: the shop's upgrade rows for a loadout, slot 0 first (one per weapon held). Allocates
- * (UI and bots, once per change; never per tick). Independent of the fixed weapon list (5.13).
+ * (UI and bots, once per change; never per tick). Independent of the card shop (5.13).
  */
 export function shopUpgrades(balance: Balance, loadout: Loadout): ShopUpgradeRow[] {
   const rows: ShopUpgradeRow[] = [];
@@ -248,11 +183,12 @@ export interface BoughtItem {
 
 /**
  * Story 5.11: the one dispatcher of `shop.buy_item` (server for the message, solo on the local
- * World, bots): a gear id → `buyGear`; Story 5.12: a consumable id → `buyConsumable`. Anything else is `not_for_sale` — after the build-phase and player checks, so
+ * World, bots): Story 5.12: a consumable id → `buyConsumable`; Story 5.13: gear is a card now
+ * (`buyCard`), so a gear id is `not_for_sale` here. Anything else is `not_for_sale` — after the build-phase and player checks, so
  * the refusal order matches `buyGear`'s.
  */
 export function buyItem(world: World, playerId: string, item: string): Result<BoughtItem, ShopError> {
-  if (gearBit(world.balance, item) !== 0) return buyGear(world, playerId, item);
+  // Story 5.13: gear is sold only as cards (`buyCard`); `shop.buy_item` keeps the consumables.
   if (isConsumable(world.balance, item)) return buyConsumable(world, playerId, item);
   if (world.run.phase !== "build") return err("not_build");
   const p = world.players.get(playerId);

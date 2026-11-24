@@ -198,10 +198,24 @@ export function buyGear(world: World, playerId: string, item: string): Result<Bo
   if (bit === undefined) return err("not_for_sale");
   const index = 31 - Math.clz32(bit);
   if (!t.inShop[index]) return err("not_for_sale");
+  return buyGearAt(world, playerId, item, world.balance.gear.items[item]?.price ?? 0);
+}
+
+/**
+ * Story 5.13: the gear purchase itself at `price` (a card's `cardPrice`), after the caller checked
+ * phase, player, standing and that the item is offered: not owned (an armor tier ≤ the owned one
+ * also counts), then `spendMoney`, then the 5.11 effects. On an error nothing changes.
+ */
+export function buyGearAt(world: World, playerId: string, item: string, price: number): Result<BoughtGear, ShopError> {
+  const p = world.players.get(playerId);
+  if (!p) return err("unknown_player");
+  const t = table(world.balance);
+  const bit = t.bitOf.get(item);
+  if (bit === undefined) return err("not_for_sale");
+  const index = 31 - Math.clz32(bit);
   if ((p.gear & bit) !== 0) return err("already_owned");
   const tier = t.tier[index] as number;
   if (tier > 0 && armorTier(world.balance, p.gear) >= tier) return err("already_owned");
-  const price = world.balance.gear.items[item]?.price ?? 0;
   const paid = spendMoney(world, playerId, price);
   if (!paid.ok) return paid;
   let mask = p.gear | bit;

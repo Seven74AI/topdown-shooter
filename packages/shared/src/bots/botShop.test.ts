@@ -4,11 +4,15 @@ import { createWorld } from "../core/world";
 import { addPlayer } from "../player/player";
 import { startBuild, startWave } from "../run/runStateMachine";
 import { buildingStats, footprint, type Box } from "../buildings/buildings";
-import { botBuildPhase, botPlaceCandidate, botPlaceTries, botShopNext, botWeaponSlot, createBotShopResult, type BotShopSelf } from "./botShop";
+import { BOT_LIST_DONE, botBuildPhase, botPlaceCandidate, botPlaceTries, botShopNext as botShopNextRaw, botWeaponSlot, createBotShopResult, type BotShopSelf } from "./botShop";
+import { cardCatalog, readOffer, type ShopOfferView } from "../economy/shopCards";
 
 const balance = loadBalance();
 const none = () => 0;
 const self = (wallet: number, weapon1 = "", active = 0, weapon0 = "pistol"): BotShopSelf => ({ wallet, weapon0, weapon1, active });
+/** Story 5.13: an offer showing every card item (the list-walk rules apart from the draw). */
+const ALL: ShopOfferView = { build: 0, rev: 0, cards: cardCatalog(balance).map((c) => c.id), sold: 0, rerollPrice: 20, canReroll: true };
+const botShopNext = (b: typeof balance, me: BotShopSelf, owned: (t: string) => number, list: readonly string[], skip = 0, offer: ShopOfferView | null = ALL) => botShopNextRaw(b, me, owned, list, skip, offer);
 
 describe("botShopNext (Story 3.10): the shopping list in order", () => {
   const list = ["smg", "wood_barricade", "wood_barricade", "auto_turret"];
@@ -24,7 +28,14 @@ describe("botShopNext (Story 3.10): the shopping list in order", () => {
     expect(botShopNext(balance, self(100, "smg"), owned(1), list)).toBe(2);
     expect(botShopNext(balance, self(100, "smg"), owned(2), list)).toBe(-1); // turret 250: saving up
     expect(botShopNext(balance, self(300, "smg"), owned(2), list)).toBe(3);
-    expect(botShopNext(balance, self(300, "smg", 1, "pistol"), (t) => (t === "auto_turret" ? 1 : 2), list)).toBe(-1); // all done
+    expect(botShopNext(balance, self(300, "smg", 1, "pistol"), (t) => (t === "auto_turret" ? 1 : 2), list)).toBe(BOT_LIST_DONE); // all done
+  });
+
+  it("Story 5.13: a weapon or gear entry not on my offer (or sold there) → next, never a stop", () => {
+    const offer: ShopOfferView = { ...ALL, cards: ["machete", "running_shoes"], sold: 0b10 };
+    expect(botShopNext(balance, self(500), none, ["smg", "running_shoes", "machete"], 0, offer)).toBe(2);
+    expect(botShopNext(balance, self(500), none, ["smg", "wood_barricade"], 0, null)).toBe(1);
+    expect(botShopNext(balance, self(500), none, ["pistol"], 0, ALL)).toBe(BOT_LIST_DONE); // never a card
   });
 
   it("skips entries tried and failed this build (skip mask) and ids the shop doesn't sell", () => {
@@ -67,6 +78,7 @@ describe("botBuildPhase (headless bots)", () => {
     const w = createWorld({ balance, seed: 1 });
     const p = addPlayer(w, "p0", 24, 16);
     p.wallet = wallet;
+    w.debug.shopCards = ["smg", "hunting_rifle"]; // Story 5.13: the weapons these tests buy are on the offer
     startBuild(w);
     return { w, p };
   }
@@ -106,8 +118,9 @@ describe("botBuildPhase (headless bots)", () => {
     const list = [...Array.from({ length: 7 }, () => "wood_barricade"), "smg"];
     const r = botBuildPhase(w, "p0", list, createBotShopResult());
     expect(r.buildings).toBe(balance.buildings.maxPerPlayer);
-    expect(r.bought).toEqual(["smg"]); // the 7th barricade was skipped, the SMG after it bought
-    expect(p.wallet).toBe(1000 - 6 * 40 - 200);
+    expect(r.bought[0]).toBe("smg"); // the 7th barricade was skipped, the SMG after it bought
+    expect(p.wallet).toBe(1000 - r.spent);
+    expect(r.bought.slice(1).every((id) => balance.gear.items[id] !== undefined)).toBe(true);
   });
 });
 
@@ -116,6 +129,7 @@ describe("Story 5.1: upgrade:<weapon> shopping entries", () => {
     const w = createWorld({ balance, seed: 1 });
     const p = addPlayer(w, "p0", 24, 16);
     p.wallet = wallet;
+    w.debug.shopCards = ["smg", "hunting_rifle"]; // Story 5.13: the weapons these tests buy are on the offer
     startBuild(w);
     return { w, p };
   }
@@ -130,11 +144,12 @@ describe("Story 5.1: upgrade:<weapon> shopping entries", () => {
     expect(p.loadout.slots[0].level).toBe(1); // Pistol 60 > the 50 left: saving up
     expect(p.wallet).toBe(50);
     expect(r.spent).toBe(440);
-    expect(log).toEqual(["buy", "upgrade", "upgrade", "ready"]);
+    expect(log).toEqual(["buyCard", "upgrade", "upgrade", "ready"]);
     // Next build phase with money: the list is already satisfied for the SMG (level 3 = two entries).
     p.wallet = 1000;
     const r2 = botBuildPhase(w, "p0", ["smg", "upgrade:smg", "upgrade:smg", "upgrade:pistol"], createBotShopResult());
-    expect(r2.bought).toEqual(["upgrade:pistol"]);
+    expect(r2.bought[0]).toBe("upgrade:pistol"); // then (list done) Story 5.13's cheapest usable cards
+    expect(r2.bought).not.toContain("upgrade:smg");
     expect(p.loadout.slots[1]?.level).toBe(3);
   });
 
@@ -161,7 +176,48 @@ describe("botShopNext gear (Story 5.11)", () => {
     expect(botShopNext(balance, { ...self(500), gear: 0 }, none, list)).toBe(0);
     expect(botShopNext(balance, { ...self(500), gear: 2 }, none, list)).toBe(1); // armor II covers armor I
     expect(botShopNext(balance, { ...self(500), gear: 1 }, none, list)).toBe(1);
-    expect(botShopNext(balance, { ...self(500), gear: 1 | 4 }, none, list)).toBe(-1);
+    expect(botShopNext(balance, { ...self(500), gear: 1 | 4 }, none, list)).toBe(BOT_LIST_DONE);
     expect(botShopNext(balance, { ...self(100), gear: 0 }, none, list)).toBe(-1); // saves up for armor I
+  });
+});
+
+describe("Story 5.13: bots buy from their cards", () => {
+  function world(wallet: number, forced: string[] | null = null, seed = 1) {
+    const w = createWorld({ balance, seed });
+    const p = addPlayer(w, "p0", 24, 16);
+    p.wallet = wallet;
+    w.debug.shopCards = forced;
+    startBuild(w);
+    return { w, p };
+  }
+
+  it("list done: buys the cheapest usable card (gear; a weapon only into an empty slot) through the real buyCard", () => {
+    const { w, p } = world(400, ["machete", "running_shoes"]);
+    const log: string[] = [];
+    const r = botBuildPhase(w, "p0", [], createBotShopResult(), true, (c) => void log.push(c.kind));
+    expect(r.cards).toBeGreaterThanOrEqual(1);
+    expect(r.bought[0]).toBe("machete"); // 150, empty slot (tie with the shoes: offer order)
+    expect(p.loadout.slots[1]?.weapon).toBe("machete");
+    expect(log.filter((k) => k === "buyCard").length).toBe(r.cards);
+    expect(p.wallet).toBe(400 - r.spent);
+  });
+
+  it("rerolls (at most bots.maxRerollsPerBuild) when nothing it wants is on offer; records each", () => {
+    // Wants only the Grenade Launcher (800); a rich bot rerolls up to the cap looking for it.
+    const { w, p } = world(5000, null, 3);
+    const log: string[] = [];
+    const r = botBuildPhase(w, "p0", ["grenade_launcher"], createBotShopResult(), true, (c) => void log.push(c.kind));
+    expect(r.rerolls).toBeGreaterThanOrEqual(1);
+    expect(r.rerolls).toBeLessThanOrEqual(balance.bots.maxRerollsPerBuild);
+    expect(r.rerollSpent).toBe(20 * r.rerolls);
+    expect(log.filter((k) => k === "reroll").length).toBe(r.rerolls);
+    expect(readOffer(w, "p0")?.rev).toBe(r.rerolls);
+    expect(p.wallet).toBe(5000 - r.spent);
+  });
+
+  it("a saving bot (a list entry too dear) spends nothing on cards or rerolls", () => {
+    const { w, p } = world(100, ["machete"]);
+    const r = botBuildPhase(w, "p0", ["auto_turret"], createBotShopResult());
+    expect([r.cards, r.rerolls, p.wallet]).toEqual([0, 0, 100]);
   });
 });

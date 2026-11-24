@@ -2,7 +2,9 @@ import { FlameCues } from "../render/flameCues";
 import {
   NEUTRAL_INPUT,
   TICK_DT_S,
-  buyWeapon,
+  buyCard,
+  offerFor,
+  reroll,
   upgradeWeapon,
   buyItem,
   createWorld,
@@ -24,6 +26,7 @@ import {
   type SellError,
   type PlayerInput,
   type SimEvent,
+  type ShopOfferView,
   type World,
 } from "@topdown/shared";
 import type { PlayerInfo, ShopAnswer, SimHost } from "./SimHost";
@@ -162,11 +165,43 @@ export class LocalSimHost implements SimHost {
 
   private shopAnswer: ShopAnswer | null = null;
 
-  /** Story 3.3: the shared rules, at once (between steps, like Ready); the answer waits for `takeShopAnswer`. */
-  buyWeapon(weapon: string, slot: 0 | 1 | null): void {
-    const r = buyWeapon(this.world, LOCAL_PLAYER_ID, weapon, slot);
-    this.shopAnswer = r.ok ? { ok: true, weapon, slot: r.value.slot } : { ok: false, weapon, error: r.error };
+  /** Story 5.13: the shared `buyCard` on my stored offer, at once (between steps); the answer waits for `takeShopAnswer`. */
+  buyCard(card: number, item: string, slot: 0 | 1 | null): void {
+    const o = this.shopOffer();
+    const r = buyCard(this.world, LOCAL_PLAYER_ID, o?.build ?? -1, o?.rev ?? 0, card, item, slot);
+    this.shopAnswer = r.ok ? { ok: true, item, card, slot: r.value.slot } : { ok: false, item, card, error: r.error };
   }
+
+  /** Story 5.13: the shared `reroll` on my stored offer (solo is slot 0, `shop:0:<build>`). */
+  reroll(): void {
+    const o = this.shopOffer();
+    const r = reroll(this.world, LOCAL_PLAYER_ID, o?.build ?? -1, o?.rev ?? 0);
+    if (!r.ok) this.shopAnswer = { kind: "reroll", ok: false, error: r.error };
+  }
+
+  /** Story 5.13: the cached view of `world.shop` (rebuilt only when the offer or what I own changes). */
+  private offerView: ShopOfferView | null = null;
+
+  shopOffer(): ShopOfferView | null {
+    const w = this.world;
+    const p = w.players.get(LOCAL_PLAYER_ID);
+    if (w.run.phase !== "build" || !p) return null;
+    const s = w.shop;
+    // Cheap change key: the offer slot 0 and what decides "Owned" / canReroll (no string work per frame while unchanged).
+    const k0 = s.build[0] as number;
+    const k1 = s.rev[0] as number;
+    const k2 = s.sold[0] as number;
+    if (this.offerView && this.offerView.build === k0 && this.offerView.rev === k1 && this.offerView.sold === k2 && this.offerGear === p.gear && this.offerW0 === p.loadout.slots[0].weapon && this.offerW1 === (p.loadout.slots[1]?.weapon ?? "")) return this.offerView;
+    this.offerView = offerFor(w, LOCAL_PLAYER_ID);
+    this.offerGear = p.gear;
+    this.offerW0 = p.loadout.slots[0].weapon;
+    this.offerW1 = p.loadout.slots[1]?.weapon ?? "";
+    return this.offerView;
+  }
+
+  private offerGear = -1;
+  private offerW0 = "";
+  private offerW1 = "";
 
   /** Story 5.1: the shared rule, at once (between steps); the answer waits for `takeShopAnswer`. */
   upgradeWeapon(weapon: string): void {

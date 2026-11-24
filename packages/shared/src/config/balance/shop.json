@@ -1,4 +1,13 @@
 {
-  "weapons": ["pistol", "machete", "smg", "hunting_rifle", "shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher", "gas_torch", "flamethrower"],
-  "upgrades": { "maxLevel": 4, "damagePerLevel": 0.25, "priceShare": 0.6 }
+  "upgrades": { "maxLevel": 4, "damagePerLevel": 0.25, "priceShare": 0.6 },
+  "cards": 6,
+  "floor": { "weapon": 1, "gear": 1 },
+  "reroll": { "price": 20, "stepPerReroll": 0 },
+  "priceScalePerBuild": 0,
+  "rarity": [
+    { "id": "common", "maxPrice": 250, "weight": 3 },
+    { "id": "rare", "maxPrice": 500, "weight": 2 },
+    { "id": "epic", "maxPrice": null, "weight": 1 }
+  ],
+  "excludeFromCards": ["pistol"]
 }

@@ -7,6 +7,7 @@ import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { createHeadlessWorld, type BuildCommand, type InputLog } from "../replay/inputLog";
 import { botConfigOf, botInput, botViewFromWorld, createBotView, type BotView } from "./botPolicy";
 import { botBuildPhase, botGearPrice, createBotShopResult } from "./botShop";
+import { readOffer } from "../economy/shopCards";
 import { zombieTypeIndex } from "../zombies/zombieTypes";
 
 /**
@@ -83,6 +84,13 @@ export interface HeadlessRunLog {
   /** Story 5.11: gear items bought by each bot, and what they spent on gear. */
   gear: number[];
   gearSpent: number[];
+  /** Story 5.13: cards bought by the whole team per build phase (index = build phase index, 0 before wave 1). */
+  cardsByBuild: number[];
+  /** Story 5.13: each bot's paid rerolls and what they cost. */
+  rerolls: number[];
+  rerollSpent: number[];
+  /** Story 5.13: each bot's build-0 offer (the item ids; "" = an empty slot). */
+  firstOffers: string[][];
   /** Story 5.11: each bot's owned-gear mask and max HP at the end of the run. */
   gearMask: number[];
   maxHp: number[];
@@ -128,6 +136,10 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     upgrades: ids.map(() => 0),
     upgradedKills: 0,
     gear: ids.map(() => 0),
+    cardsByBuild: [],
+    rerolls: ids.map(() => 0),
+    rerollSpent: ids.map(() => 0),
+    firstOffers: ids.map(() => []),
     gearSpent: ids.map(() => 0),
     gearMask: [],
     maxHp: [],
@@ -214,8 +226,13 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
   while (world.tick < maxTicks && world.run.phase !== "results") {
     if (world.run.phase === "build" && lastPhase !== "build") {
       const wave = world.waves.number + 1;
+      const build = world.waves.number;
       ids.forEach((id, i) => {
+        if (build === 0) log.firstOffers[i] = [...(readOffer(world, id)?.cards ?? [])]; // Story 5.13: before any buy
         botBuildPhase(world, id, list, shop, true, recordBuild);
+        log.cardsByBuild[build] = (log.cardsByBuild[build] ?? 0) + shop.cards; // Story 5.13
+        log.rerolls[i] = (log.rerolls[i] as number) + shop.rerolls;
+        log.rerollSpent[i] = (log.rerollSpent[i] as number) + shop.rerollSpent;
         for (const w of shop.bought) (log.purchases[i] as string[]).push(`${w}@W${wave}`);
         log.buildingsPlaced[i] = (log.buildingsPlaced[i] as number) + shop.buildings;
         log.spent[i] = (log.spent[i] as number) + shop.spent;
@@ -264,6 +281,7 @@ export function formatRunLine(r: HeadlessRunLog): string {
     `${r.players}p seed ${r.seed}: ${end} (cleared ${r.wavesCleared}); earned ${r.earned.join("/")}; kills ${r.kills.join("/")}; ` +
     `wallet ${r.wallet.join("/")}; weapons ${buys}; buildings ${r.buildingsPlaced.join("/")}; ` +
     `downs/revives by wave ${r.waves.map((w) => `${w.downs}/${w.revives}`).join(" ")}; ` +
+    `cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")} (spent ${r.rerollSpent.reduce((a, b) => a + b, 0)}); ` +
     `team money kill/assist/revive/wave ${r.earnedBy.kill}/${r.earnedBy.assist}/${r.earnedBy.revive}/${r.earnedBy.wave} (refunds ${r.earnedBy.refund}); turret kills ${r.turretKills}`
   );
 }

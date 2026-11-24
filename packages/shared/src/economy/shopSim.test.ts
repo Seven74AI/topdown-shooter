@@ -8,13 +8,15 @@ import { NEUTRAL_INPUT, type PlayerInput } from "../net/input";
 import { addPlayer, type PlayerState } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
 import { startBuild } from "../run/runStateMachine";
-import { botShopPick, buyWeapon, owns, shopPrice } from "./shop";
+import { owns } from "./shop";
+import { buyCard, cardItem, offerFor } from "./shopCards";
 
 /**
- * Epic 2 retro A10 (with Story 3.3): a seeded headless 5-wave run with the real balance and every
- * real system, 2/3/4 bots on the Story 2.10 bot policy, Pistol starts. On the first tick of every
- * build phase each bot buys from a fixed list through the real `buyWeapon` (SMG, then the Hunting
- * Rifle replacing the Pistol) and swaps to what it bought. Logs survival by wave, earnings and the
+ * Epic 2 retro A10 (with Story 3.3; Story 5.13: from cards): a seeded headless 5-wave run with the
+ * real balance and every real system, 2/3/4 bots on the Story 2.10 bot policy, Pistol starts. On the
+ * first tick of every build phase each bot buys the first affordable weapon card of its own offer
+ * whose item is on a list (SMG, then the Hunting Rifle replacing the Pistol) through the real
+ * `buyCard` and swaps to what it bought. Logs survival by wave, earnings and the
  * first purchase per player. Assertions are invariants only; the numbers go to the log (3.10 tunes).
  */
 const balance = loadBalance();
@@ -52,16 +54,28 @@ function run(seed: number, players: number): RunLog {
   const firstBuy: Record<string, string> = {};
   const swapNext = new Set<string>();
   const shop = (p: PlayerState, wave: number) => {
-    const pick = botShopPick(balance, p.wallet, p.loadout, LIST);
-    if (pick === null) return;
+    const offer = offerFor(world, p.id);
+    if (!offer) return;
+    let card = -1;
+    for (const id of LIST) {
+      const c = offer.cards.indexOf(id);
+      if (c >= 0 && !owns(p.loadout, id) && (cardItem(balance, id)?.basePrice ?? Infinity) <= p.wallet) {
+        card = c;
+        break;
+      }
+    }
+    if (card < 0) return;
+    const pick = offer.cards[card] as string;
     const inHands = p.loadout.active;
     const replace = (inHands === 0 ? 1 : 0) as 0 | 1; // two weapons: replace the one not in hands … then swap to it
-    const r = buyWeapon(world, p.id, pick, p.loadout.slots[1] === null ? null : replace);
+    const before = p.wallet;
+    const r = buyCard(world, p.id, offer.build, offer.rev, card, pick, p.loadout.slots[1] === null ? null : replace);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    spent[p.id] = (spent[p.id] ?? 0) + (shopPrice(balance, pick) ?? 0);
+    expect(before - p.wallet).toBe(r.value.price); // the card's price, charged once
+    spent[p.id] = (spent[p.id] ?? 0) + r.value.price;
     firstBuy[p.id] ??= `${pick}@W${wave}`;
-    if (r.value.slot !== p.loadout.active) swapNext.add(p.id);
+    if (r.value.slot !== null && r.value.slot !== p.loadout.active) swapNext.add(p.id);
   };
   startBuild(world); // lobby → the first build phase, like the server's startRun
   let seq = 0;
@@ -106,7 +120,7 @@ function run(seed: number, players: number): RunLog {
   };
 }
 
-describe("shop bot sim (A10: 2/3/4 bots, Pistol starts, buying from the fixed list, seeded)", () => {
+describe("shop bot sim (A10: 2/3/4 bots, Pistol starts, buying from their cards, seeded)", () => {
   it("logs survival by wave, earnings and the first purchase; money adds up", () => {
     const lines: string[] = [];
     let anyBought = false;

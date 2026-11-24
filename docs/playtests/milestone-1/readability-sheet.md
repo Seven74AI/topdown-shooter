@@ -157,3 +157,6 @@ Player:
 
 ## 44: what just happened by the bus? (Story 5.12)
 ![44](../../art/5-12/5-12-grenade-flight-800x360.png)
+
+## 45: which card is the rarest, and which one is too dear? Read it at arm's length (Story 5.13)
+![45](../../art/5-13/5-13-shop-sold-800x360.png)

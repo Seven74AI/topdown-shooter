@@ -1,4 +1,5 @@
 import type { SystemFn } from "../core/systems";
+import { drawAllOffers } from "../economy/shopCards";
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
@@ -75,6 +76,7 @@ export function startBuild(world: World): void {
   clearBlasts(world); // Story 5.8: no queued blasts, no gas clouds in a build phase
   returnOutPlayers(world);
   if (decayed) decayFinish(world, from);
+  drawAllOffers(world); // Story 5.13: each player's card offer, after the decay steps (loadouts final)
   world.events.emit({ type: "build.started", wave: world.waves.number + 1 });
 }
 

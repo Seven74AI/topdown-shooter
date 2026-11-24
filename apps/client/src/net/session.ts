@@ -18,6 +18,8 @@ import {
   type RunJoined,
   type RunStateView,
   type ShopError,
+  type ShopOfferView,
+  MAX_CARDS,
   type SimEventsFlushed,
   type WeaponUpgradeError,
 } from "@topdown/shared";
@@ -31,23 +33,51 @@ const SHOP_ERRORS: readonly ShopError[] = [
   "already_owned",
   "already_full", // Story 5.12
   "slot_required",
+  "stale_offer", // Story 5.13
+  "not_in_offer",
+  "no_new_cards",
   "invalid_amount",
   "insufficient_funds",
 ];
 
-/** A well-formed `shop.bought` (Story 3.3) as an answer, or null. */
+/** A well-formed `shop.bought` (Story 3.3; 5.13: a card) as an answer, or null. */
 export function parseShopBought(m: unknown): ShopAnswer | null {
-  const o = m as { weapon?: unknown; slot?: unknown } | null;
-  if (!o || typeof o.weapon !== "string" || (o.slot !== 0 && o.slot !== 1)) return null;
-  return { ok: true, weapon: o.weapon, slot: o.slot };
+  const o = m as { item?: unknown; card?: unknown; slot?: unknown } | null;
+  if (!o || typeof o.item !== "string" || typeof o.card !== "number" || !Number.isInteger(o.card)) return null;
+  if (o.slot !== undefined && o.slot !== 0 && o.slot !== 1) return null;
+  return { ok: true, item: o.item, card: o.card, slot: o.slot === undefined ? null : o.slot };
 }
 
-/** A well-formed `shop.refused` (Story 3.3) as an answer, or null (an unknown error reads as `not_for_sale`). */
+/**
+ * A well-formed `shop.refused` (Story 3.3; 5.13: `item: "reroll"` is a reroll's refusal) as an
+ * answer, or null (an unknown error reads as `not_for_sale`).
+ */
 export function parseShopRefused(m: unknown): ShopAnswer | null {
-  const o = m as { weapon?: unknown; error?: unknown } | null;
-  if (!o || typeof o.weapon !== "string" || typeof o.error !== "string") return null;
+  const o = m as { item?: unknown; card?: unknown; error?: unknown } | null;
+  if (!o || typeof o.item !== "string" || typeof o.error !== "string" || typeof o.card !== "number") return null;
   const error = (SHOP_ERRORS as readonly string[]).includes(o.error) ? (o.error as ShopError) : "not_for_sale";
-  return { ok: false, weapon: o.weapon, error };
+  if (o.item === "reroll") return { kind: "reroll", ok: false, error };
+  return { ok: false, item: o.item, card: o.card, error };
+}
+
+/** Story 5.13: a well-formed `shop.offered` as an offer view, or null (malformed: dropped). */
+export function parseShopOffered(m: unknown): ShopOfferView | null {
+  const o = m as { build?: unknown; rev?: unknown; cards?: unknown; sold?: unknown; rerollPrice?: unknown; canReroll?: unknown } | null;
+  const int = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0;
+  if (!o || !int(o.build) || !int(o.rev) || !int(o.sold) || !int(o.rerollPrice) || typeof o.canReroll !== "boolean") return null;
+  if (!Array.isArray(o.cards) || o.cards.length > MAX_CARDS || !o.cards.every((c) => typeof c === "string" && c.length <= 32)) return null;
+  return { build: o.build, rev: o.rev, cards: [...(o.cards as string[])], sold: o.sold, rerollPrice: o.rerollPrice, canReroll: o.canReroll };
+}
+
+/**
+ * Story 5.13: is `next` at least as new as `cur` (higher build, else higher rev, else the same offer
+ * with every sold card still sold)? An older offer arriving after a newer one is ignored.
+ */
+export function offerIsNewer(cur: ShopOfferView | null, next: ShopOfferView): boolean {
+  if (!cur) return true;
+  if (next.build !== cur.build) return next.build > cur.build;
+  if (next.rev !== cur.rev) return next.rev > cur.rev;
+  return (next.sold & cur.sold) === cur.sold;
 }
 
 /** Story 5.1: `upgradeWeapon`'s errors (an unknown one reads as `not_owned`). */
@@ -173,6 +203,8 @@ export class RunInbox {
   private leftSink: ((m: PlayerLeft) => void) | null = null;
   private refusedSink: ((reason: PlaceError) => void) | null = null;
   private shopSink: ((a: ShopAnswer) => void) | null = null;
+  /** Story 5.13: my latest `shop.offered` (highest build, rev); kept for a late Game scene start or a woken tab. */
+  private offer: ShopOfferView | null = null;
   private repairSink: ((reason: RepairError) => void) | null = null;
   private upgradeSink: ((reason: UpgradeError) => void) | null = null;
   private sellSink: ((reason: SellError) => void) | null = null;
@@ -185,6 +217,7 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.BUILDING_REFUSED, (m: unknown) => this.receiveRefused(m)));
     this.offs.push(room.onMessage(S2C.SHOP_BOUGHT, (m: unknown) => this.receiveShop(parseShopBought(m))));
     this.offs.push(room.onMessage(S2C.SHOP_REFUSED, (m: unknown) => this.receiveShop(parseShopRefused(m))));
+    this.offs.push(room.onMessage(S2C.SHOP_OFFERED, (m: unknown) => this.receiveOffer(parseShopOffered(m)))); // Story 5.13
     this.offs.push(room.onMessage(S2C.SHOP_UPGRADED, (m: unknown) => this.receiveShop(parseShopUpgraded(m)))); // Story 5.1
     this.offs.push(room.onMessage(S2C.SHOP_UPGRADE_REFUSED, (m: unknown) => this.receiveShop(parseShopUpgradeRefused(m))));
     this.offs.push(room.onMessage(S2C.SHOP_BOUGHT_ITEM, (m: unknown) => this.receiveShop(parseShopBoughtItem(m)))); // Story 5.11
@@ -252,6 +285,16 @@ export class RunInbox {
     };
   }
 
+  /** Story 5.13: my latest offer (kept from the join, whoever listens), or null before the first. */
+  latestOffer(): ShopOfferView | null {
+    return this.offer;
+  }
+
+  private receiveOffer(o: ShopOfferView | null): void {
+    if (this.closed || !o || !offerIsNewer(this.offer, o)) return;
+    this.offer = o;
+  }
+
   private receiveShop(a: ShopAnswer | null): void {
     if (this.closed || !this.shopSink || !a) return;
     this.shopSink(a);
@@ -289,6 +332,7 @@ export class RunInbox {
    * server sends nothing in the lobby, so anything here is from that run) and the early counters.
    */
   reset(): void {
+    this.offer = null; // Story 5.13: the next run draws from build 0 again
     this.early.length = 0;
     this.earlyDropped = 0;
     this.earlyHordeDropped = 0;
@@ -416,6 +460,11 @@ export class NetSession {
   /** See `RunInbox.onShopAnswer`. */
   onShopAnswer(sink: (a: ShopAnswer) => void): () => void {
     return this.inbox.onShopAnswer(sink);
+  }
+
+  /** See `RunInbox.latestOffer` (Story 5.13). */
+  latestOffer(): ShopOfferView | null {
+    return this.inbox.latestOffer();
   }
 
   /**

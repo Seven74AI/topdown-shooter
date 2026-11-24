@@ -83,41 +83,44 @@ const player = (room: RunRoom, id: string) => world(room).players.get(id) as Pla
 const moneyEvents = (events: SimEventsFlushed[]) =>
   events.flatMap((b) => b.events.filter((t) => t[0] === NET_EVENT_KIND.MONEY_EARNED).map((t) => t.slice(1)));
 
+/** The start money (Story 5.13: 200). */
+const S = serverBalance.economy.startingWallet;
+
 describe("RunRoom wallets (Story 3.2)", () => {
-  it("every player starts with 100; kill, assist and wave bonus reach every client's state and events", async () => {
+  it("every player starts with the start money (S; 200 since 5.13); kill, assist and wave bonus reach every client's state and events", async () => {
     const { host, guest, room, guestEvents } = await startTwo();
     for (const c of [host, guest]) {
-      for (const id of ["p0", "p1"]) expect(c.state.players.get(id)).toMatchObject({ wallet: 100, earned: 0 });
+      for (const id of ["p0", "p1"]) expect(c.state.players.get(id)).toMatchObject({ wallet: S, earned: 0 });
     }
     const w = world(room);
     const id = spawnZombie(w, "walker", 44, 30);
     applyZombieDamage(w, id, 1, 1, 0, 0, "p0", "pistol");
     applyZombieDamage(w, id, 100, 1, 0, 0, "p1", "pistol");
-    await vi.waitFor(() => expect(guest.state.players.get("p1")?.wallet).toBe(102));
-    expect(guest.state.players.get("p0")).toMatchObject({ wallet: 101, earned: 1 });
+    await vi.waitFor(() => expect(guest.state.players.get("p1")?.wallet).toBe(S + 2));
+    expect(guest.state.players.get("p0")).toMatchObject({ wallet: S + 1, earned: 1 });
     await vi.waitFor(() => expect(moneyEvents(guestEvents)).toEqual([[1, 2, 0], [0, 1, 1]])); // [slot, amount, reason]
     w.waves.number = 2;
     w.run.phase = "wave"; // Story 3.1: the run state machine owns the phase
     downPlayer(w, player(room, "p0")); // downed players get the wave bonus too
     endWave(w);
-    await vi.waitFor(() => expect(host.state.players.get("p0")?.wallet).toBe(121));
-    expect(host.state.players.get("p1")).toMatchObject({ wallet: 122, earned: 22 });
+    await vi.waitFor(() => expect(host.state.players.get("p0")?.wallet).toBe(S + 21));
+    expect(host.state.players.get("p1")).toMatchObject({ wallet: S + 22, earned: 22 });
   });
 
-  it("a client cannot change its wallet; Back to lobby resets it and the next run starts at 100 again", async () => {
+  it("a client cannot change its wallet; Back to lobby resets it and the next run starts at S again", async () => {
     const { host, guest, room } = await startTwo();
     guest.send("wallet.set" as never, { wallet: 9999 }); // no such message: dropped
     const w = world(room);
     const id = spawnZombie(w, "walker", 44, 30);
     applyZombieDamage(w, id, 100, 1, 0, 0, "p1", "pistol");
-    await vi.waitFor(() => expect(guest.state.players.get("p1")?.wallet).toBe(102));
+    await vi.waitFor(() => expect(guest.state.players.get("p1")?.wallet).toBe(S + 2));
     w.players.forEach((p) => downPlayer(w, p));
     await vi.waitFor(() => expect(room.state.phase).toBe("results"));
     host.send(C2S.LOBBY_RETURN, {});
     await vi.waitFor(() => expect(guest.state.phase).toBe("lobby"));
     expect(guest.state.players.get("p1")).toMatchObject({ wallet: 0, earned: 0 });
     await readyAndStart([host, guest], room);
-    await vi.waitFor(() => expect(guest.state.players.get("p1")?.wallet).toBe(100));
+    await vi.waitFor(() => expect(guest.state.players.get("p1")?.wallet).toBe(S));
     expect(guest.state.players.get("p1")?.earned).toBe(0);
   });
 });

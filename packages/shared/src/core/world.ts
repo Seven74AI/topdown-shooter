@@ -26,6 +26,7 @@ import { createGrenadePool, type GrenadePool } from "../combat/grenades";
 import { createBlastQueue, type BlastQueue } from "../zombies/bloater";
 import { createMolotovZones, type MolotovZones } from "../hazards/molotov";
 import { createLightState, type LightState } from "../decay/lightState";
+import { createShopOffers, type ShopOffers } from "../economy/shopOffers";
 
 /** The whole simulation state. A plain object so it can be snapshotted (Story 8.4). */
 export interface World {
@@ -120,6 +121,11 @@ export interface World {
    * every copy from the buildings and `decay.fires` (never synced, never snapshotted).
    */
   readonly lights: LightState;
+  /**
+   * Story 5.13: every player slot's stored card offer (`economy/shopCards.ts`), drawn at each build
+   * start from `streams.shop`; changed only by a buy (sold) or a paid reroll. In `snapshotWorld`.
+   */
+  readonly shop: ShopOffers;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -138,6 +144,12 @@ export interface WorldDebug {
    * the solo cheat now changes the real stage through the DecaySystem.)
    */
   decayStageByWave: readonly number[] | null;
+  /**
+   * Story 5.13 dev override (server `DEV_SHOP_CARDS=flamethrower,revive_kit`, solo `?shopcards=`; dev
+   * builds only): the build-start offer of every build starts with these items (the rest from the
+   * stream). null = the real draw.
+   */
+  shopCards: readonly string[] | null;
 }
 
 export interface CreateWorldOptions {
@@ -180,7 +192,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(),
     run: createRunState(),
-    debug: { godMode: false, waveMix: null, decayStageByWave: null },
+    debug: { godMode: false, waveMix: null, decayStageByWave: null, shopCards: null },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),
@@ -197,6 +209,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     gas: createAreaPool(opts.balance.zombies.blasts.maxGasClouds),
     molotovs: createMolotovZones(opts.balance.consumables.maxLiveMolotovZones), // Story 5.12
     lights: createLightState(), // Story 5.10 (derived)
+    shop: createShopOffers(), // Story 5.13
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;

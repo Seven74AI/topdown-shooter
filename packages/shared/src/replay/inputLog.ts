@@ -4,7 +4,8 @@ import { createWorld, setInput, step, type World } from "../core/world";
 import type { PlayerInput } from "../net/input";
 import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
-import { buyItem, buyWeapon, upgradeWeapon } from "../economy/shop";
+import { buyItem, upgradeWeapon } from "../economy/shop";
+import { buyCard, reroll } from "../economy/shopCards";
 import { placeBuilding } from "../buildings/buildings";
 import type { DistrictMap } from "../map/districtMap";
 import { DOWNTOWN_MAP } from "../map/downtown";
@@ -12,13 +13,16 @@ import { setBuildReady, startBuild } from "../run/runStateMachine";
 
 /**
  * Story 4.4 (NFR10): headless replay. A run is its seed plus an input log: every player input and
- * every build action (buy, place, Ready; Story 5.1: upgrade), each stamped with the World tick before whose `step()` it
+ * every build action (Story 5.13: card buy and reroll; place, Ready; Story 5.1: upgrade), each stamped with the World tick before whose `step()` it
  * was applied. `replayRun` rebuilds the World from the seed and applies the log in order; with the
  * named seed streams (`core/seedStreams.ts`) it reaches the same `worldDigest`. Tests and tools only
  * (allocates freely).
  */
 export type BuildCommand =
-  | { kind: "buy"; playerId: string; weapon: string; slot: 0 | 1 | null }
+  /** Story 5.13: a card purchase (`buyCard`; replaced 3.3's fixed-list `buy`). */
+  | { kind: "buyCard"; playerId: string; build: number; rev: number; card: number; item: string; slot: 0 | 1 | null }
+  /** Story 5.13: a paid reroll (`reroll`). */
+  | { kind: "reroll"; playerId: string; build: number; rev: number }
   | { kind: "place"; playerId: string; type: string; gx: number; gy: number; rot: number }
   | { kind: "ready"; playerId: string; ready: boolean }
   /** Story 5.1: a weapon upgrade (`upgradeWeapon`). */
@@ -65,8 +69,11 @@ export function applyCommand(world: World, cmd: ReplayCommand): void {
     case "input":
       setInput(world, cmd.playerId, { ...cmd.input });
       break;
-    case "buy":
-      buyWeapon(world, cmd.playerId, cmd.weapon, cmd.slot);
+    case "buyCard":
+      buyCard(world, cmd.playerId, cmd.build, cmd.rev, cmd.card, cmd.item, cmd.slot);
+      break;
+    case "reroll":
+      reroll(world, cmd.playerId, cmd.build, cmd.rev);
       break;
     case "place":
       placeBuilding(world, cmd.playerId, { type: cmd.type, gx: cmd.gx, gy: cmd.gy, rot: cmd.rot });

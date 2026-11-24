@@ -231,29 +231,44 @@ describe("LocalSimHost", () => {
   });
 });
 
-describe("LocalSimHost shop (Story 3.3)", () => {
-  it("buyWeapon runs the shared rules at once and leaves one answer", () => {
+describe("LocalSimHost card shop (Story 5.13)", () => {
+  it("solo draws from slot 0 (shop:0:<build>); buyCard runs the shared rules at once; rerolls charge", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
+    host.world.debug.shopCards = ["smg"];
     const me = host.world.players.get(LOCAL_PLAYER_ID);
     if (!me) throw new Error("no player");
-    host.buyWeapon("smg", null); // 100 < 200
-    expect(host.takeShopAnswer()).toEqual({ ok: false, weapon: "smg", error: "insufficient_funds" });
+    const o = host.shopOffer();
+    expect(o).toMatchObject({ build: 0, rev: 0, sold: 0, rerollPrice: 20 });
+    expect(host.shopOffer()).toBe(o); // cached while unchanged
+    expect(host.world.streams.shop[0]?.buildPhaseIndex).toBe(0); // slot 0's stream
+    const card = o?.cards.indexOf("smg") ?? -1;
+    me.wallet = 100;
+    host.buyCard(card, "smg", null); // 100 < 200
+    expect(host.takeShopAnswer()).toEqual({ ok: false, item: "smg", card, error: "insufficient_funds" });
     expect(host.takeShopAnswer()).toBeNull();
     me.wallet = 300;
-    host.buyWeapon("smg", null);
-    expect(host.takeShopAnswer()).toEqual({ ok: true, weapon: "smg", slot: 1 });
+    host.buyCard(card, "smg", null);
+    expect(host.takeShopAnswer()).toEqual({ ok: true, item: "smg", card, slot: 1 });
     expect(me.wallet).toBe(100);
     expect(me.loadout.slots[1]?.weapon).toBe("smg");
+    expect((host.shopOffer()?.sold ?? 0) & (1 << card)).not.toBe(0); // a new view: sold
+    host.reroll();
+    expect(host.takeShopAnswer()).toBeNull(); // a successful reroll answers with the new offer
+    expect(me.wallet).toBe(80);
+    expect(host.shopOffer()?.rev).toBe(1);
   });
 
-  it("refused once the wave started", () => {
+  it("refused once the wave started; no offer in a wave", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
     host.setBuildReady(true);
     host.update(0.05);
     expect(host.world.run.phase).toBe("wave");
-    host.buyWeapon("pistol", 1);
+    host.buyCard(0, "smg", 1);
     expect(host.takeShopAnswer()).toMatchObject({ ok: false, error: "not_build" });
+    host.reroll();
+    expect(host.takeShopAnswer()).toMatchObject({ kind: "reroll", ok: false, error: "not_build" });
+    expect(host.shopOffer()).toBeNull();
   });
 });

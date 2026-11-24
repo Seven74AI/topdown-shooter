@@ -63,7 +63,8 @@ describe("headless replay (Story 4.4, NFR10)", { timeout: REPLAY_TIMEOUT_MS }, (
     expect(rec.run.timedOut).toBe(false);
     expect(rec.kills).toBeGreaterThan(100);
     const kinds = new Set(rec.log.commands.map((c) => c.kind));
-    expect([...kinds].sort()).toEqual(["buy", "input", "place", "ready"]);
+    // Story 5.13: weapons are bought as cards.
+    expect([...kinds].sort()).toEqual(["buyCard", "input", "place", "ready", "reroll"]); // 5.13 start 200: bots reroll too
     expect(rec.log.endTick).toBe(rec.run.ticks);
   });
 
@@ -175,14 +176,30 @@ describe("headless replay (Story 4.4, NFR10)", { timeout: REPLAY_TIMEOUT_MS }, (
         masks = [...w.players.values()].map((p) => p.gear);
       },
     });
-    const items = log.commands.filter((c) => c.kind === "item");
+    // Story 5.13: gear is bought as cards.
+    const items = log.commands.filter((c) => c.kind === "buyCard" && balance.gear.items[c.item] !== undefined);
     expect(items.length).toBeGreaterThanOrEqual(2); // liveness: gear was bought and logged
     expect(masks.some((m) => m !== 0)).toBe(true);
     const w = replayRun(balance, log);
     expect(worldDigest(w)).toBe(digest);
     expect([...w.players.values()].map((p) => p.gear)).toEqual(masks);
     expect(snapshotWorld(w).players.some(([, p]) => (p as { gear: number }).gear !== 0)).toBe(true);
-    const w2 = replayRun(balance, { ...log, commands: log.commands.filter((c) => c.kind !== "item") });
+    const w2 = replayRun(balance, { ...log, commands: log.commands.filter((c) => c.kind !== "buyCard") });
     expect(worldDigest(w2)).not.toBe(digest);
+  });
+
+  it("Story 5.13 (F8): same seed + a log with card buys and rerolls → same digest; without the rerolls it diverges", () => {
+    const LIST = ["smg", "wood_barricade", "running_shoes", "wood_barricade", "body_armor_1", "auto_turret", "shotgun", "revive_kit", "body_armor_2", "assault_rifle"];
+    const log = createInputLog(SEED, PLAYERS);
+    let digest = 0;
+    const run = runHeadless({ balance, seed: SEED, players: PLAYERS, list: LIST, record: log, onEnd: (w) => void (digest = worldDigest(w)) });
+    const cards = log.commands.filter((c) => c.kind === "buyCard");
+    const rerolls = log.commands.filter((c) => c.kind === "reroll");
+    expect(cards.length).toBeGreaterThanOrEqual(2); // liveness: cards were bought …
+    expect(rerolls.length).toBeGreaterThanOrEqual(1); // … and paid rerolls happened
+    expect(run.rerolls.reduce((a, b) => a + b, 0)).toBe(rerolls.length);
+    expect(worldDigest(replayRun(balance, log))).toBe(digest);
+    const w = replayRun(balance, { ...log, commands: log.commands.filter((c) => c.kind !== "reroll") });
+    expect(worldDigest(w)).not.toBe(digest);
   });
 });
