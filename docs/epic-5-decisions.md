@@ -199,3 +199,5 @@ Mockup: `docs/art/5-28/upgrade-tiers.html`. Order = base (I–II) → III → IV
 - **Machete:** **M2 panga (new base)** → M1 classic → M3 rusty kukri.
 - **Shotgun:** G1 → G3 as built.
 Built in `apps/client/src/render/city/weaponArt.ts` (`WEAPON_ICON_ART`, `WEAPON_TIER_ICON`, `WEAPON_TOP_TIER_ICON`).
+
+**Small-phone action bar (designer, 2026-11-24):** option A as built — no ✕ below 700 px wide, slight spill accepted; no two-row layout.
