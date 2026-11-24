@@ -141,6 +141,7 @@ development_status:
   5-25-mouse-and-keys-parity-optional: backlog  # merged into 5.23 (designer 2026-11-24): built and tracked as 5.23
   5-26-build-bar-icons: done  # designer 2026-11-23: I1 tilted icons, T1 turret (T2 kept), M1 mine; after 5.16
   5-27-build-bar-icons-floodlight-med-station-bear-trap: done  # designer approved round 3 icons 2026-11-23
+  5-28-early-weapon-card-art: review  # designer 2026-11-24: S1 SMG, H1 Hunting Rifle, M1 Machete on the 5.13 cards (variants kept)
   epic-5-retrospective: optional
 
   # Epic 6: The full run: decay, boss, events, endless

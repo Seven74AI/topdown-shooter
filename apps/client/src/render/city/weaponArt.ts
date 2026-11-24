@@ -73,7 +73,7 @@ function Pg(c: G, p: readonly number[]): void {
   for (let i = 2; i < p.length; i += 2) c.lineTo(p[i] as number, p[i + 1] as number);
   c.closePath();
 }
-function fillP(c: G, fn: PathFn, style: string): void {
+function fillP(c: G, fn: PathFn, style: string | CanvasGradient): void {
   c.beginPath();
   fn(c);
   c.fillStyle = style;
@@ -1625,7 +1625,154 @@ export function drawGasTorch(c: G, view: WeaponArtView, size: number): void {
 }
 
 
-/** Weapons with their own art, by balance id (the rest keep the survivor's plain gun and a text-only shop row). */
+// ---------- Story 5.28: the Epic 1 weapons' side-view shop icons (designer picks S1 / H1 / M1, `docs/epic-5-decisions.md` › "Early weapon card art"), ported from the `EARLY` block of `docs/art/5-13/early-weapons.html`. Icon only: the held (top-down) art stays the survivor's plain gun. ----------
+
+/** A steel rod (wire stock, lever loop, bolt handle): dark outline, body, a light line on top. */
+function rod(c: G, path: PathFn, w: number, col: string): void {
+  strokeP(c, path, "#050506", w + 2 * P);
+  strokeP(c, path, col, w);
+  c.save();
+  c.translate(0, -w * 0.28);
+  strokeP(c, path, "rgba(200,210,225,0.35)", Math.max(0.8 * P, w * 0.25));
+  c.restore();
+}
+/** A bright ground edge along `edge`, clipped to the blade `blade`, shifted `dy` into the blade. */
+function bladeEdge(c: G, blade: PathFn, edge: PathFn, dy: number, w: number, col = "#c9ccd0"): void {
+  c.save();
+  c.beginPath();
+  blade(c);
+  c.clip();
+  c.save();
+  c.translate(0, dy);
+  strokeP(c, edge, col, w, "butt");
+  c.restore();
+  strokeP(c, edge, "rgba(255,255,255,0.55)", 1.6 * P, "butt");
+  c.restore();
+}
+/** A dark recess (vent hole, slot, lightening cut). */
+const hole = (c: G, path: PathFn): void => { fillP(c, path, "#08090a"); c.save(); c.translate(0.8 * P, 0.9 * P); c.globalAlpha = 0.35; strokeP(c, path, "#7d848c", 0.7 * P); c.restore(); };
+/** A riflescope along x (eyepiece bell, tube, turret, objective bell, lens glint). */
+function scope(c: G, x0: number, x1: number, y: number, d: number, base: string, o: { eye?: number; obj?: number; bell?: number; shade?: number } = {}): void {
+  const eb = o.eye ?? 0.07, ob = o.obj ?? 0.1, D = o.bell ?? d * 1.55;
+  const body = (q: G) => {
+    q.moveTo(x0, y - D * 0.42); q.lineTo(x0 + eb * 0.55, y - D * 0.42); q.lineTo(x0 + eb, y - d / 2);
+    q.lineTo(x1 - ob, y - d / 2); q.lineTo(x1 - ob * 0.35, y - D / 2); q.lineTo(x1, y - D / 2);
+    q.lineTo(x1, y + D / 2); q.lineTo(x1 - ob * 0.35, y + D / 2); q.lineTo(x1 - ob, y + d / 2);
+    q.lineTo(x0 + eb, y + d / 2); q.lineTo(x0 + eb * 0.55, y + D * 0.42); q.lineTo(x0, y + D * 0.42); q.closePath();
+  };
+  const tx = (x0 + x1) / 2 - 0.01;
+  part(c, (q) => R(q, tx - 0.016, y - d / 2 - 0.022, 0.032, 0.024, 0.004), { base, box: [tx - 0.016, y - d / 2 - 0.022, tx + 0.016, y - d / 2 + 0.002], tex: steelTex(301, 0.4), hi: 0.45 });
+  part(c, (q) => R(q, tx - 0.012, y + d / 2 - 0.002, 0.024, 0.016, 0.004), { base, box: [tx - 0.012, y + d / 2 - 0.002, tx + 0.012, y + d / 2 + 0.014], hi: 0.35 });
+  part(c, body, { base, lit: "top", box: [x0, y - D / 2, x1, y + D / 2], tex: steelTex(302, 0.35), hi: 0.55, lo: 0.55, rim: 0.45 });
+  for (const x of [x0 + eb, x1 - ob]) strokeP(c, (q) => { q.moveTo(x, y - d / 2); q.lineTo(x, y + d / 2); }, "rgba(0,0,0,0.6)", 1 * P, "butt");
+  const sh = o.shade;
+  if (sh) part(c, (q) => R(q, x1, y - D / 2 + 0.002, sh, D - 0.004, 0.004), { base, box: [x1, y - D / 2, x1 + sh, y + D / 2], tex: steelTex(303, 0.4), hi: 0.4 });
+  const lx = x1 + (o.shade ?? 0) - 0.003;
+  const g = c.createLinearGradient(0, y - D / 2, 0, y + D / 2);
+  g.addColorStop(0, "#9fd0ff"); g.addColorStop(0.45, "#2b4a78"); g.addColorStop(1, "#0d1424");
+  fillP(c, (q) => E(q, lx, y, 0.006, D * 0.42), g);
+  fillP(c, (q) => E(q, lx - 0.001, y - D * 0.18, 0.0025, D * 0.12), "rgba(255,255,255,0.8)");
+}
+
+// ---------------------------------- SMG ----------------------------------
+
+
+/** S1 compact stamped-steel SMG: perforated barrel jacket, straight stick magazine, folding wire stock. */
+export function drawSmg(c: G, size: number): void {
+  P = 1 / size; c.save(); c.scale(size, size);
+  // folding wire stock (behind everything)
+  rod(c, (q) => { q.moveTo(-0.19, -0.045); q.lineTo(-0.47, -0.04); }, 0.014, "#34373b");
+  rod(c, (q) => { q.moveTo(-0.19, -0.01); q.lineTo(-0.47, 0.065); }, 0.014, "#34373b");
+  part(c, (q) => R(q, -0.5, -0.06, 0.034, 0.145, 0.01), { base: "#2b2d31", box: [-0.5, -0.06, -0.466, 0.085], tex: steelTex(311, 0.9), hi: 0.4 });
+  // barrel + perforated jacket
+  part(c, (q) => R(q, 0.4, -0.04, 0.075, 0.018, 0.003), { base: "#1f2124", box: [0.4, -0.04, 0.475, -0.022], tex: steelTex(312, 0.5), hi: 0.45 });
+  part(c, (q) => R(q, 0.455, -0.072, 0.012, 0.034, 0.002), { base: "#2a2c30", box: [0.455, -0.072, 0.467, -0.038], hi: 0.4 });
+  const jk = (q: G) => R(q, 0.19, -0.056, 0.22, 0.05, 0.012);
+  part(c, jk, { base: "#2c2e32", lit: "top", box: [0.19, -0.056, 0.41, -0.006], tex: steelTex(313, 0.9), hi: 0.5, lo: 0.5 });
+  for (let x = 0.22; x < 0.39; x += 0.034) hole(c, (q) => R(q, x, -0.042, 0.02, 0.022, 0.009));
+  // receiver tube
+  const rc = (q: G) => { q.moveTo(-0.2, -0.066); q.lineTo(0.2, -0.066); q.lineTo(0.2, 0.004); q.lineTo(-0.17, 0.004); q.quadraticCurveTo(-0.2, 0.004, -0.2, -0.02); q.closePath(); };
+  part(c, rc, { base: "#33363a", box: [-0.2, -0.066, 0.2, 0.004], tex: steelTex(314, 1.1), hi: 0.5 });
+  hole(c, (q) => R(q, -0.13, -0.044, 0.17, 0.009, 0.004)); // cocking slot
+  part(c, (q) => { E(q, 0.03, -0.04, 0.012, 0.011); }, { base: "#4a4d52", box: [0.018, -0.051, 0.042, -0.029], hi: 0.6, line: 1 });
+  part(c, (q) => Pg(q, [-0.17, -0.066, -0.16, -0.084, -0.13, -0.084, -0.12, -0.066]), { base: "#2b2d31", box: [-0.17, -0.084, -0.12, -0.066], hi: 0.4 });
+  for (const [x, y] of [[-0.185, -0.01], [0.18, -0.01], [0.1, -0.055], [-0.06, -0.055]] as const) rivet(c, x, y, 0.0045, "#55585c");
+  // stick magazine + well
+  const mg = (q: G) => { q.moveTo(0.072, 0.0); q.lineTo(0.128, 0.0); q.lineTo(0.134, 0.215); q.lineTo(0.08, 0.215); q.closePath(); };
+  part(c, mg, { base: "#2e3033", box: [0.072, 0, 0.134, 0.215], tex: steelTex(315, 1.2), hi: 0.45 });
+  for (const k of [0.07, 0.12, 0.17]) strokeP(c, (q) => { q.moveTo(0.08, k); q.lineTo(0.128, k); }, "rgba(0,0,0,0.45)", 1.3 * P, "butt");
+  part(c, (q) => R(q, 0.06, -0.004, 0.08, 0.04, 0.006), { base: "#26282c", box: [0.06, -0.004, 0.14, 0.036], tex: steelTex(316, 1), hi: 0.45 });
+  part(c, (q) => R(q, 0.076, 0.208, 0.062, 0.016, 0.004), { base: "#1d1e21", box: [0.076, 0.208, 0.138, 0.224], hi: 0.35 });
+  // trigger + pistol grip (brown bakelite)
+  trigger(c, (q) => { q.moveTo(-0.09, 0.004); q.quadraticCurveTo(-0.094, 0.056, -0.05, 0.056); q.lineTo(-0.02, 0.054); q.quadraticCurveTo(0.0, 0.045, 0.0, 0.004); }, (q) => { q.moveTo(-0.045, 0.004); q.quadraticCurveTo(-0.042, 0.024, -0.054, 0.034); });
+  const gp = (q: G) => { q.moveTo(-0.096, 0.0); q.lineTo(-0.15, 0.0); q.lineTo(-0.19, 0.13); q.quadraticCurveTo(-0.185, 0.148, -0.165, 0.146); q.lineTo(-0.14, 0.142); q.quadraticCurveTo(-0.12, 0.06, -0.096, 0.0); q.closePath(); };
+  part(c, gp, { base: "#3a2a20", box: [-0.19, 0, -0.096, 0.148], tex: polyTex(317, true), hi: 0.3 });
+  c.restore();
+}
+
+
+/** H1 bolt-action hunting rifle: walnut stock with cheek comb, blued barrel, big scope, bolt knob. */
+export function drawHuntingRifle(c: G, size: number): void {
+  P = 1 / size; c.save(); c.scale(size, size);
+  part(c, (q) => R(q, -0.02, -0.034, 0.5, 0.017, 0.004), { base: "#1f2226", box: [-0.02, -0.034, 0.48, -0.017], tex: steelTex(341, 0.4), hi: 0.5 });
+  part(c, (q) => R(q, 0.466, -0.046, 0.01, 0.014, 0.002), { base: "#2a2c30", box: [0.466, -0.046, 0.476, -0.032], hi: 0.4 });
+  // stock (designer reference: a classic walnut bolt-action): straight comb, a pistol grip that
+  // sweeps down behind the trigger, straight belly to a tall butt, thick black recoil pad, long
+  // forend with a rounded tip; black floorplate under the action
+  const st = (q: G) => {
+    q.moveTo(-0.482, -0.024); q.lineTo(-0.25, -0.03); q.quadraticCurveTo(-0.215, -0.033, -0.195, -0.042); q.lineTo(0.2, -0.026);
+    q.quadraticCurveTo(0.236, -0.022, 0.232, 0.0); q.quadraticCurveTo(0.224, 0.016, 0.192, 0.016); q.lineTo(-0.03, 0.02);
+    q.lineTo(-0.112, 0.022); q.quadraticCurveTo(-0.13, 0.03, -0.134, 0.058); q.lineTo(-0.14, 0.088);
+    q.quadraticCurveTo(-0.162, 0.1, -0.184, 0.09); q.quadraticCurveTo(-0.198, 0.06, -0.24, 0.056); q.lineTo(-0.482, 0.112); q.closePath();
+  };
+  part(c, st, { base: "#6a4222", box: [-0.482, -0.042, 0.236, 0.112], tex: woodTex(342, -0.04), hi: 0.32 });
+  c.save(); c.beginPath(); st(c); c.clip();
+  for (const [x0, x1, y0, y1] of [[-0.18, -0.13, 0.03, 0.08], [0.07, 0.17, -0.02, 0.01]] as const) {
+    for (let k = x0 - 0.05; k < x1; k += 0.006) {
+      strokeP(c, (q) => { q.moveTo(k, y1); q.lineTo(k + (y1 - y0), y0); }, "rgba(20,10,4,0.35)", 0.7 * P, "butt");
+      strokeP(c, (q) => { q.moveTo(k, y0); q.lineTo(k + (y1 - y0), y1); }, "rgba(20,10,4,0.35)", 0.7 * P, "butt");
+    }
+  }
+  strokeP(c, (q) => { q.moveTo(-0.48, -0.02); q.lineTo(-0.25, -0.026); q.quadraticCurveTo(-0.215, -0.029, -0.195, -0.038); }, "rgba(240,200,150,0.25)", 1.3 * P); // comb highlight
+  c.restore();
+  part(c, (q) => Pg(q, [-0.141, 0.084, -0.14, 0.088, -0.162, 0.1, -0.184, 0.09, -0.181, 0.083, -0.162, 0.091]), { base: "#151517", box: [-0.184, 0.083, -0.14, 0.1], hi: 0.3, line: 0.9 }); // grip cap
+  part(c, (q) => Pg(q, [-0.482, -0.024, -0.506, -0.026, -0.51, 0.044, -0.506, 0.116, -0.482, 0.112, -0.488, 0.044]), { base: "#18191b", box: [-0.51, -0.026, -0.482, 0.116], tex: polyTex(343), hi: 0.2 }); // recoil pad
+  part(c, (q) => R(q, -0.05, 0.014, 0.1, 0.012, 0.003), { base: "#1d1f22", box: [-0.05, 0.014, 0.05, 0.026], hi: 0.35 }); // floorplate
+  rivet(c, -0.4, 0.09, 0.0035, "#77797c");
+  part(c, (q) => R(q, -0.21, -0.042, 0.2, 0.026, 0.006), { base: "#26282c", box: [-0.21, -0.042, -0.01, -0.016], tex: steelTex(344, 0.6), hi: 0.5 });
+  // bolt handle + knob
+  rod(c, (q) => { q.moveTo(-0.17, -0.028); q.quadraticCurveTo(-0.18, -0.005, -0.19, 0.012); }, 0.008, "#3a3d42");
+  part(c, (q) => E(q, -0.192, 0.016, 0.012, 0.012), { base: "#3e4146", box: [-0.204, 0.004, -0.18, 0.028], hi: 0.6, line: 1 });
+  trigger(c, (q) => { q.moveTo(-0.098, 0.018); q.quadraticCurveTo(-0.1, 0.052, -0.07, 0.052); q.lineTo(-0.05, 0.05); q.quadraticCurveTo(-0.034, 0.044, -0.034, 0.018); }, (q) => { q.moveTo(-0.066, 0.018); q.quadraticCurveTo(-0.064, 0.032, -0.074, 0.04); });
+  // scope rings + scope
+  for (const x of [-0.14, 0.03]) part(c, (q) => R(q, x, -0.074, 0.026, 0.034, 0.003), { base: "#222428", box: [x, -0.074, x + 0.026, -0.04], hi: 0.4 });
+  scope(c, -0.235, 0.15, -0.092, 0.034, "#1b1d20", { eye: 0.07, obj: 0.11, bell: 0.056 });
+  rivet(c, 0.17, 0.018, 0.0035, "#77797c"); // forend sling swivel
+  c.restore();
+}
+
+
+/** M1 classic machete: long black-coated blade with a clipped tip and a bright ground edge, black riveted grip. */
+export function drawMachete(c: G, size: number): void {
+  P = 1 / size; c.save(); c.scale(size, size);
+  const bl = (q: G) => { q.moveTo(-0.24, -0.03); q.lineTo(0.35, -0.038); q.quadraticCurveTo(0.44, -0.034, 0.49, -0.004); q.quadraticCurveTo(0.475, 0.05, 0.4, 0.064); q.quadraticCurveTo(0.08, 0.062, -0.24, 0.032); q.closePath(); };
+  const edge = (q: G) => { q.moveTo(0.49, -0.004); q.quadraticCurveTo(0.475, 0.05, 0.4, 0.064); q.quadraticCurveTo(0.08, 0.062, -0.22, 0.034); };
+  part(c, bl, { base: "#2b2e32", box: [-0.24, -0.038, 0.49, 0.064], tex: steelTex(371, 1.2), hi: 0.45, lo: 0.45 });
+  bladeEdge(c, bl, edge, -0.011, 0.024);
+  strokeP(c, (q) => { q.moveTo(-0.2, -0.026); q.lineTo(0.34, -0.033); }, "rgba(210,220,235,0.3)", 1.2 * P); // spine glint
+  const hd = (q: G) => {
+    q.moveTo(-0.22, -0.036); q.lineTo(-0.47, -0.032); q.quadraticCurveTo(-0.5, -0.03, -0.5, -0.004); q.quadraticCurveTo(-0.5, 0.03, -0.47, 0.06);
+    q.quadraticCurveTo(-0.45, 0.07, -0.44, 0.048); q.quadraticCurveTo(-0.4, 0.034, -0.37, 0.044); q.quadraticCurveTo(-0.33, 0.052, -0.3, 0.04); q.quadraticCurveTo(-0.26, 0.036, -0.22, 0.042); q.closePath();
+  };
+  part(c, hd, { base: "#1b1c1e", box: [-0.5, -0.036, -0.22, 0.07], tex: polyTex(372, true), hi: 0.32 });
+  for (const x of [-0.27, -0.34, -0.41]) rivet(c, x, 0.004, 0.007, "#8d9196");
+  hole(c, (q) => E(q, -0.475, 0.0, 0.008, 0.008)); // lanyard hole
+  c.restore();
+}
+
+
+
+/** Weapons with their own art (shop icon + held view), by balance id (the rest keep the survivor's plain gun; Story 5.28: their shop icon is in `WEAPON_ICON_ART`). */
 export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, size: number) => void>> = {
   shotgun: drawShotgun,
   assault_rifle: drawAssaultRifle,
@@ -1635,6 +1782,17 @@ export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, siz
   flamethrower: drawFlamethrower, // Story 5.4: FT1
   gas_torch: drawGasTorch, // Story 5.4: FT2
 };
+/**
+ * Story 5.28: weapons with a side-view shop icon only (no held view: in the hands they keep the
+ * survivor's plain gun, so they make no `survivor_<weapon>_a` frame): S1, H1, M1.
+ */
+export const WEAPON_ICON_ART: Readonly<Record<string, (c: G, size: number) => void>> = {
+  smg: drawSmg,
+  hunting_rifle: drawHuntingRifle,
+  machete: drawMachete,
+};
+/** Whether `weapon` has a side-view shop icon (`weaponIconUrl` returns art, not null). */
+export const hasWeaponIcon = (weapon: string): boolean => weapon in WEAPON_ART || weapon in WEAPON_ICON_ART;
 /** Story 5.4: what a weapon puts on the survivor's back instead of the backpack (FT1's twin tanks). */
 export const WEAPON_BACK_ART: Readonly<Record<string, (c: G, r: number) => void>> = {
   flamethrower: drawFlamethrowerBack,
@@ -1646,7 +1804,7 @@ export const ICON_W = 96;
 export const ICON_H = 44;
 const iconUrls = new Map<string, string>();
 /** Where the side view's origin sits in the icon (share of the height; px right): the art is not centred on 0. */
-const ICON_Y: Readonly<Record<string, number>> = { assault_rifle: 0.36, fire_axe: 0.5, chainsaw: 0.62, flamethrower: 0.58, gas_torch: 0.62 };
+const ICON_Y: Readonly<Record<string, number>> = { smg: 0.44, hunting_rifle: 0.5, machete: 0.5, assault_rifle: 0.36, fire_axe: 0.5, chainsaw: 0.62, flamethrower: 0.58, gas_torch: 0.62 };
 const ICON_X_SHIFT: Readonly<Record<string, number>> = { chainsaw: -2, flamethrower: -2, gas_torch: 0 };
 
 /**
@@ -1654,8 +1812,10 @@ const ICON_X_SHIFT: Readonly<Record<string, number>> = { chainsaw: -2, flamethro
  * for a weapon without art. Browser only (a canvas).
  */
 export function weaponIconUrl(weapon: string, level = 1): string | null {
-  const draw = WEAPON_ART[weapon];
-  if (!draw || typeof document === "undefined") return null;
+  const held = WEAPON_ART[weapon];
+  const iconOnly = WEAPON_ICON_ART[weapon];
+  if ((!held && !iconOnly) || typeof document === "undefined") return null;
+  const draw = iconOnly ?? ((c: G, size: number) => held?.(c, "icon", size));
   // Story 5.1: from level III the weapon's upgrade-tier look (G3, R1), when it has one.
   const top = level >= 4 ? WEAPON_TOP_TIER_ICON[weapon] : undefined;
   const tier = top ?? (level >= UPGRADE_LOOK_LEVEL ? WEAPON_TIER_ICON[weapon] : undefined);
@@ -1670,7 +1830,7 @@ export function weaponIconUrl(weapon: string, level = 1): string | null {
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
   g.translate(ICON_W / 2 + (ICON_X_SHIFT[weapon] ?? 0), ICON_H * (weapon === "assault_rifle" && tier ? 0.4 : (ICON_Y[weapon] ?? 0.42)));
   if (tier) tier(g, ICON_W * 0.92);
-  else draw(g, "icon", ICON_W * 0.92);
+  else draw(g, ICON_W * 0.92);
   const url = cv.toDataURL("image/png");
   iconUrls.set(key, url);
   return url;

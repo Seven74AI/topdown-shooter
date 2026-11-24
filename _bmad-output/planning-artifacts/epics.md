@@ -2013,6 +2013,14 @@ As a player, I want every building tile in the build bar to show the same kind o
 
 **Acceptance criteria:** the three drawings are ported into `render/city/buildIcons.ts` (same `(g, w, h)` form, 44×30 box, I1 palette) and mapped in `BUILD_ICONS` / `TYPE_FRAMES` (`floodlight`, `med_station`, `bear_trap`; the bear trap maps harmlessly until Story 5.14 adds the type); the 5.26 test asserts every shop building now has an icon; screenshots with `?shopall=1` at 800 × 360 and 568 × 320.
 
+### Story 5.28: Early weapon card art
+
+(Added 2026-11-24: the designer picked code-drawn shop art for the three Epic 1 weapons in the 5.13 follow-up session; picks in `docs/epic-5-decisions.md` › Early weapon card art, code in `docs/art/5-13/early-weapons.html` › `EARLY`.)
+
+As a player, I want the SMG, Hunting Rifle and Machete cards to show the weapon like every other card, so that the shop reads as one set.
+
+**Acceptance criteria:** `smgS1`, `rifleH1`, `macheteM1` are ported into `render/city/weaponArt.ts` (icon view only; ICON_Y 0.44 / 0.5 / 0.5) and the 5.13 card shop shows them in place of the generic `KindGlyph` pictogram (no shop weapon falls back to a pictogram; the in-hand art is unchanged); the kept variants S2/S3, H2/H3, M2/M3 wait for upgrade tiers or skins; screenshots at 800 × 360 and 568 × 320.
+
 ---
 
 ## Epic 6: The full run: decay, boss, events, endless

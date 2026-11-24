@@ -170,23 +170,6 @@ function CardGrid({ s, busy }: { s: ShopState; busy: boolean }) {
   );
 }
 
-/**
- * Story 5.13: the category pictogram for an item without its own side-view art yet (SMG, Hunting
- * Rifle, Machete: 4.11 sprites only): a black evidence-sticker glyph (weapon: a gun; gear: a vest),
- * inline SVG (no canvas, so nothing to redraw after a context loss).
- */
-function KindGlyph({ kind }: { kind: string }) {
-  return kind === "gear" ? (
-    <svg class="shop-card__glyph" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M8 3h2l2 2 2-2h2l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6z" fill="#17191c" />
-    </svg>
-  ) : (
-    <svg class="shop-card__glyph shop-card__glyph--weapon" viewBox="0 0 48 20" aria-hidden="true">
-      <path d="M2 6h30l2-2h8v4h4v3H30l-2 2h-6l-3 6h-6l2-6H8l-2 3H2z" fill="#17191c" />
-    </svg>
-  );
-}
-
 /** Story 5.13 (D10, C3): one evidence-tag card: rarity tape, number, category icon, name, price, one stat line. */
 function Card({ c, busy }: { c: CardView; busy: boolean }) {
   if (c.item === "") {
@@ -196,6 +179,7 @@ function Card({ c, busy }: { c: CardView; busy: boolean }) {
       </div>
     );
   }
+  // Story 5.28: every card item has side-view art (the 5.13 pictogram is gone); null only without a canvas.
   const icon = c.kind === "weapon" ? weaponIconUrl(c.item) : gearIconUrl(c.item);
   const state = c.sold ? "sold" : c.owned ? "owned" : c.short ? "short" : "ok";
   const priceText = c.sold ? SHOP_TEXT.sold : c.owned ? SHOP_TEXT.owned : c.selected ? SHOP_TEXT.buyFor(c.price) : price(c.price);
@@ -217,7 +201,7 @@ function Card({ c, busy }: { c: CardView; busy: boolean }) {
         <span class="shop-card__kind">{c.kind === "weapon" ? "WPN" : "GEAR"}</span>
       </span>
       <span class="shop-card__art" aria-hidden="true">
-        {icon ? <img class={c.kind === "weapon" ? "shop-card__icon" : "shop-card__icon shop-card__icon--gear"} src={icon} alt="" /> : <KindGlyph kind={c.kind} />}
+        {icon && <img class={c.kind === "weapon" ? "shop-card__icon" : "shop-card__icon shop-card__icon--gear"} src={icon} alt="" />}
       </span>
       <span class="shop-card__name">{c.name}</span>
       <span class="shop-card__price">{priceText}</span>
