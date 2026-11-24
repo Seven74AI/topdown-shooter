@@ -31,10 +31,10 @@ export interface Building {
   type: string;
   /** Player id of the builder ("p0"–"p3" online, "local" solo); Story 3.6 credits kills to it. */
   readonly ownerId: string;
-  /** Min corner as 0.5 m lattice indices (x = gx × BUILD_GRID_M m). */
-  readonly gx: number;
-  readonly gy: number;
-  readonly rot: BuildingRotation;
+  /** Min corner as 0.5 m lattice indices (x = gx × BUILD_GRID_M m). Story 5.22: changed only by `relocateBuilding` (a move). */
+  gx: number;
+  gy: number;
+  rot: BuildingRotation;
   /** Story 3.5 damages it; Story 3.7 repairs it to `maxHp`. */
   hp: number;
   /** Story 5.9: follows `type` (`setBuildingType`). */
@@ -47,11 +47,11 @@ export interface Building {
   readonly solid: boolean;
   /** Bullets stop on it (the type's `stopsBullets`; cached like `solid`, an upgrade keeps it). */
   readonly stopsBullets: boolean;
-  /** The footprint in metres (cached at creation; buildings never move). */
-  readonly minX: number;
-  readonly minY: number;
-  readonly maxX: number;
-  readonly maxY: number;
+  /** The footprint in metres (cached at creation; Story 5.22: `relocateBuilding` recomputes it on a move). */
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
   /**
    * Story 3.6 (turrets; 0 / (1, 0) on other types): the fire cooldown in seconds (the shared rule in
    * `combat/cooldown.ts`) and the unit aim of the last shot. The server's World writes the aim on
@@ -195,9 +195,10 @@ const scratch: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 /**
  * The box is off the map, within `buildings.spawnClearM` of a spawn point of any decay stage (review
  * L5: spawns can't be boxed in; Story 4.3 review M: not even the ones that open later), overlaps a map collision box (Story 4.1) or another building (touching edges are fine: barricades form walls and
- * corners), a placed player (out players are off the map) or an alive zombie.
+ * corners), a placed player (out players are off the map) or an alive zombie. Story 5.22: `exceptId` (a
+ * building id; 0 = none) leaves that building out (a move: the building never blocks itself).
  */
-export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>): boolean {
+export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>, exceptId = 0): boolean {
   const { widthM, heightM, spawnPoints } = world.map;
   if (box.minX < 0 || box.minY < 0 || box.maxX > widthM || box.maxY > heightM) return true;
   const clear = world.balance.buildings.spawnClearM;
@@ -215,6 +216,7 @@ export function footprintBlocked(world: Readonly<World>, box: Readonly<Box>): bo
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
+    if (b.id === exceptId && exceptId !== 0) continue; // Story 5.22: a moved building never blocks its own new spot
     if (box.minX < b.maxX && box.maxX > b.minX && box.minY < b.maxY && box.maxY > b.minY) return true;
   }
   for (const p of world.players.values()) {
@@ -465,6 +467,40 @@ export function setBuildingType(world: World, b: Building, type: string, hp?: nu
   b.maxHp = stats.hp;
   b.hp = hp ?? stats.hp;
   world.buildings.version++;
+  return true;
+}
+
+/**
+ * Story 5.22 (F5): moves `b` to lattice corner (gx, gy) at `rot` — the only way a building's spot
+ * changes. Everything else stays (id, type, owner, HP, wear, money bookkeeping, burn clock, turret
+ * aim, trap jaws); a bear trap's re-arm clock restarts (whoever stood on the old spot isn't on the
+ * new one) and a trap holding a zombie (never in a build phase) lets it go, shut. `version` +1 (the
+ * schema sync, renderers, the light list follow it); `wallVersion` +1 for a wall (the flow field).
+ * No checks: `moveBuilding` validates; the client mirror copies the server's. Returns false (and
+ * changes nothing) for an unknown type or when the spot is the same.
+ */
+export function relocateBuilding(world: World, b: Building, gx: number, gy: number, rot: BuildingRotation): boolean {
+  const stats = buildingStats(world.balance, b.type);
+  if (!stats || (b.gx === gx && b.gy === gy && b.rot === rot)) return false;
+  const box = footprint(stats, gx, gy, rot, scratch);
+  b.gx = gx;
+  b.gy = gy;
+  b.rot = rot;
+  b.minX = box.minX;
+  b.minY = box.minY;
+  b.maxX = box.maxX;
+  b.maxY = box.maxY;
+  b.rearmTicks = 0;
+  b.rearmPlayer = "";
+  if (b.trapState === BEAR_TRAP_STATE.HOLDING) {
+    const z = world.zombies;
+    if (b.heldZombie >= 0 && z.generation[b.heldZombie] === b.heldGen) z.holdTicks[b.heldZombie] = 0;
+    b.trapState = BEAR_TRAP_STATE.SPRUNG;
+    b.heldZombie = -1;
+    b.heldGen = 0;
+  }
+  world.buildings.version++;
+  if (b.solid) world.buildings.wallVersion++;
   return true;
 }
 

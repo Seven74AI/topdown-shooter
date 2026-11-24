@@ -64,6 +64,7 @@ export const NET_EVENT_KIND = {
   MOLOTOV_IGNITED: 40,
   BEAR_TRAP_SNAPPED: 41, // Story 5.14 (39/40 are Story 5.12's consumable.used / molotov.ignited; never reuse)
   BUILDING_SOLD: 42, // Story 5.20 (39/40 = 5.12, 41 = 5.14; renumber at merge if taken, never reuse)
+  BUILDING_MOVED: 43, // Story 5.22 (in 5.21; renumber at merge if 5.23 took 43, never reuse)
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -219,6 +220,11 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       // Story 5.20: the lift-and-fade and "+$N" (the removal and wallet come from schema).
       const t = buildingTypeIds(b).indexOf(e.buildingType);
       return [K.BUILDING_SOLD, e.buildingId, playerSlotOf(e.ownerId), e.refund, cm(e.x), cm(e.y), t < 0 ? NET_NONE : t, e.rot];
+    }
+    case "building.moved": {
+      // Story 5.22: FX (the new spot itself comes from schema, on the same patch).
+      const t = buildingTypeIds(b).indexOf(e.buildingType);
+      return [K.BUILDING_MOVED, e.buildingId, playerSlotOf(e.ownerId), e.gx, e.gy, e.rot, t < 0 ? NET_NONE : t];
     }
     case "mine.exploded":
       // Story 5.9: the blast FX (the removal comes from schema; hits and kills are their own events).
@@ -422,6 +428,11 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       const buildingType = buildingTypeIds(b)[n(t, 6)];
       if (buildingType === undefined) return null;
       return { type: "building.sold", buildingId: n(t, 1), buildingType, ownerId: pid(t, 2), rot: n(t, 7), refund: n(t, 3), x: n(t, 4) / 100, y: n(t, 5) / 100 };
+    }
+    case K.BUILDING_MOVED: {
+      const buildingType = buildingTypeIds(b)[n(t, 6)];
+      if (buildingType === undefined) return null;
+      return { type: "building.moved", buildingId: n(t, 1), buildingType, ownerId: pid(t, 2), gx: n(t, 3), gy: n(t, 4), rot: n(t, 5) };
     }
     case K.MINE_EXPLODED:
       return { type: "mine.exploded", buildingId: n(t, 1), x: n(t, 2) / 100, y: n(t, 3) / 100 };

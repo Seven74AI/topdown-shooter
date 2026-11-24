@@ -23,7 +23,7 @@ export function newPendingLook(): PendingLookOut {
 /** Spinner turns per second. */
 export const SPIN_PER_S = 1;
 
-export function pendingLook(e: Readonly<PendingEntry>, nowMs: number, out: PendingLookOut): PendingLookOut {
+export function pendingLook(e: Readonly<Pick<PendingEntry, "live" | "counted" | "refusedMs">>, nowMs: number, out: PendingLookOut): PendingLookOut {
   out.visible = false;
   out.red = false;
   out.dx = 0;

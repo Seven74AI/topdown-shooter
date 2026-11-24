@@ -7,6 +7,7 @@ import {
   footprint,
   footprintH,
   footprintW,
+  moveError,
   ownedCount,
   placementError,
   type Balance,
@@ -14,6 +15,7 @@ import {
   type BlockReason,
   type Box,
   type BuildingTypeStats,
+  type MoveRequest,
   type PlaceError,
   type PlaceRequest,
   type World,
@@ -192,6 +194,17 @@ export class Placement {
   /** Story 5.18: the last check failed only because it overlaps one of my pending boxes. */
   pendingOverlap = false;
   /**
+   * Story 5.22 (in 5.21): the id of MY building being moved (0 = a new building from the build bar).
+   * Place then sends `building.move` (free, no chain); ✕ puts it back. `moveFromGx/Gy/Rot` = where
+   * it stands (a Place there sends nothing). `moveLost`: the last check found it gone or not mine
+   * any more (the hand empties).
+   */
+  moveId = 0;
+  moveFromGx = 0;
+  moveFromGy = 0;
+  moveFromRot: BuildingRotation = 0;
+  moveLost = false;
+  /**
    * Story 5.23 (AC 7, D10; 5.18 Q1): a blocked chain jump sent the ghost back to carry: it is drawn
    * faded (not red) while only a building (my pending box or the one just built) blocks it; cleared
    * for the rest of the hold the first frame it is clear or blocked by anything else (`check`).
@@ -231,6 +244,8 @@ export class Placement {
   shownVersion = 0;
   /** One request object, filled by `confirm` (valid until the next call). */
   private readonly req: { type: string; gx: number; gy: number; rot: number } = { type: "", gx: 0, gy: 0, rot: 0 };
+  /** Story 5.22: one move request object (valid until the next call). */
+  private readonly moveReq: { id: number; gx: number; gy: number; rot: number } = { id: 0, gx: 0, gy: 0, rot: 0 };
   private stats: Readonly<BuildingTypeStats> | null = null;
   private square = false;
   /** Auto-rotate's axis (true = north/south), null until the first carry of a hold. */
@@ -282,6 +297,8 @@ export class Placement {
     this.netX = 0;
     this.netY = 0;
     this.pendingOverlap = false;
+    this.moveId = 0;
+    this.moveLost = false;
     this.resting = false;
     this.picks++;
     this.ns = null;
@@ -299,6 +316,44 @@ export class Placement {
     }
     this.carry(x, y, 0, 0);
     return true;
+  }
+
+  /**
+   * Story 5.22 (AC 11): picks MY building `b` up (✥ Move, a long-press, 5.23's `M`): the ghost is
+   * pinned where the building stands, at its rotation ("↩ carry" brings it in front of me, D10).
+   * Returns false for an unknown type.
+   */
+  startMove(balance: Balance, b: { readonly id: number; readonly type: string; readonly gx: number; readonly gy: number; readonly rot: BuildingRotation }, x: number, y: number, facingX: number, facingY: number, wave = 0): boolean {
+    if (!this.start(balance, b.type, x, y, facingX, facingY, wave)) return false;
+    const stats = this.stats as Readonly<BuildingTypeStats>;
+    this.moveId = b.id;
+    this.moveFromGx = b.gx;
+    this.moveFromGy = b.gy;
+    this.moveFromRot = b.rot;
+    this.gx = b.gx;
+    this.gy = b.gy;
+    this.rot = b.rot;
+    this.pinned = true;
+    this.snapped = true;
+    this.dragCx = b.gx * BUILD_GRID_M + footprintW(stats, b.rot) / 2;
+    this.dragCy = b.gy * BUILD_GRID_M + footprintH(stats, b.rot) / 2;
+    return true;
+  }
+
+  /** Story 5.22: the move request for the spot shown now (null when not moving or off the wire). Valid until the next call. */
+  moveRequest(): MoveRequest | null {
+    if (!this.active || this.moveId === 0 || !this.onWire()) return null;
+    const r = this.moveReq;
+    r.id = this.moveId;
+    r.gx = this.gx;
+    r.gy = this.gy;
+    r.rot = this.rot;
+    return r;
+  }
+
+  /** Story 5.22: the ghost is where the moved building already stands (a Place there sends nothing). */
+  get atMoveOrigin(): boolean {
+    return this.moveId !== 0 && this.gx === this.moveFromGx && this.gy === this.moveFromGy && this.rot === this.moveFromRot;
   }
 
   /**
@@ -597,9 +652,9 @@ export class Placement {
     return r;
   }
 
-  /** The held type's price (0 when not holding). */
+  /** The held type's price (0 when not holding; Story 5.22: 0 for a move, it's free). */
   get price(): number {
-    return this.stats?.price ?? 0;
+    return this.moveId !== 0 ? 0 : (this.stats?.price ?? 0);
   }
 
   /** The ghost's footprint now (m), into a scratch box valid until the next call. */
@@ -636,6 +691,8 @@ export class Placement {
     this.following = false;
     this.resting = false;
     this.pendingOverlap = false;
+    this.moveId = 0;
+    this.moveLost = false;
     this.error = null;
     this.resetShown();
   }
@@ -656,7 +713,7 @@ export class Placement {
     const stats = this.stats;
     this.hasReason = false;
     if (this.active && stats && this.error === "blocked") {
-      this.hasReason = blockReason(world, ownerId, footprint(stats, this.gx, this.gy, this.rot, this.box), 0, this.reason) !== null;
+      this.hasReason = blockReason(world, ownerId, footprint(stats, this.gx, this.gy, this.rot, this.box), this.moveId, this.reason) !== null; // Story 5.22: a moved building never blocks itself
       if (!this.hasReason && this.pendingOverlap) {
         // Story 5.18 (AC 5): only one of my pending boxes is there: "Overlaps a building" (id 0: no culprit outline; the box itself shows).
         const r = this.reason;
@@ -734,8 +791,25 @@ export class Placement {
     r.gy = this.gy;
     r.rot = this.rot;
     this.pendingOverlap = false;
-    let e = this.active ? placementError(world, ownerId, r) : null;
     const stats = this.stats;
+    if (this.active && this.moveId !== 0) {
+      // Story 5.22: a move — the shared `moveError` (free: no cap or money), my pending boxes as occupied ground.
+      const mr = this.moveReq;
+      mr.id = this.moveId;
+      mr.gx = this.gx;
+      mr.gy = this.gy;
+      mr.rot = this.rot;
+      const me = moveError(world, ownerId, mr);
+      this.moveLost = me === "gone" || me === "not_owner";
+      let pe: PlaceError | null = me === null || me === "gone" || me === "not_owner" ? null : me;
+      if (pe === null && !this.moveLost && stats && pending && pending.count > 0 && pending.overlaps(footprint(stats, this.gx, this.gy, this.rot, this.box))) {
+        pe = "blocked";
+        this.pendingOverlap = true;
+      }
+      this.error = this.moveLost ? "blocked" : pe;
+      return this.error === null;
+    }
+    let e = this.active ? placementError(world, ownerId, r) : null;
     if (this.active && stats && pending && pending.count > 0 && (e === null || e === "money" || e === "blocked")) {
       const cap = world.balance.buildings.maxPerPlayer;
       const wallet = world.players.get(ownerId)?.wallet ?? 0;
@@ -778,6 +852,8 @@ export interface PlacementHud {
   dragBegan?: boolean;
   /** Story 5.19 review L1: a drag pointer is held (no view unpin meanwhile). */
   dragHeld?: boolean;
+  /** Story 5.22: the hand holds one of my buildings being moved (Place reads "MOVE"). */
+  placementMoving?: boolean;
   /** Story 5.23 (AC 10): the mouse wheel turned it counter-clockwise (wheel up). */
   rotateCcwPressed?: boolean;
   /** Story 5.23 (AC 7): the ghost rests faded (the reason line shows the label; Place has no red ring). */
@@ -822,6 +898,20 @@ export interface PlacementFrame {
   cursorY?: number;
   /** Story 5.23 (AC 3, D8): a Place this device turns down because the answer is certain (buzz + haptic). */
   refused?: () => void;
+  /** Story 5.22: sends a move (solo: applied at once; the server judges). Missing: a move Place only empties the hand. */
+  sendMove?: (req: MoveRequest) => void;
+}
+
+/** Story 5.22: the toast when the building being moved is gone or no longer mine (the hand empties). */
+export const MOVE_LOST_TEXT = "That building is gone";
+
+/** Ends holding and clears the HUD's hand state. */
+function endHold(p: Placement, m: PlacementHud): void {
+  p.cancel();
+  m.placementActive = false;
+  m.placementPinned = false;
+  m.placementMoving = false;
+  if (m.placementResting !== undefined) m.placementResting = false;
 }
 
 /**
@@ -850,6 +940,7 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
   if (!p.active) {
     m.placementActive = false;
     m.placementPinned = false;
+    m.placementMoving = false;
     if (m.placementResting !== undefined) m.placementResting = false;
     return;
   }
@@ -861,6 +952,14 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
     return;
   }
   const pending = f.pending ?? null;
+  if (confirm && p.moveId !== 0) {
+    // Story 5.22 (AC 12): Place sends the move (free, no chain, no undo); at its own spot nothing is sent.
+    const req = p.moveRequest();
+    if (!req) f.toast(f.refusal("blocked"));
+    else if (!p.atMoveOrigin) f.sendMove?.(req);
+    endHold(p, m);
+    return;
+  }
   let placedNow = false; // Story 5.23 (D12): the chain's spot holds this frame (the mouse follow waits for a move)
   if (confirm) {
     // Story 5.18: one Place = one building (AC 1); the item stays in hand while I can pay and build another (AC 2).
@@ -905,8 +1004,15 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
   // Story 5.19: pins where it is shown, then nudges (review L2: not in the frame the chip carried it again)
   if (dragged && !chip && ppm > 0) p.drag(dragX / ppm, dragY / ppm, vMinX, vMinY, vMaxX, vMaxY, began, f.avoid ?? null, f.avoidCount ?? 0);
   p.check(world, f.ownerId, pending);
+  if (p.moveLost) {
+    // Story 5.22: the building I'm moving is gone (destroyed, sold elsewhere) or not mine: put the hand down.
+    f.toast(MOVE_LOST_TEXT);
+    endHold(p, m);
+    return;
+  }
   p.explain(world, f.ownerId, f.nowMs); // Story 5.17: why it's red, held ≥ reasonHoldMs before valid
   m.placementActive = true;
+  m.placementMoving = p.moveId !== 0;
   m.placementLocked = p.locked;
   m.placementPinned = p.pinned;
   const shown = p.shownError;

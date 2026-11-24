@@ -35,7 +35,7 @@ export function syncState(state: RunState, controller: RunController): void {
 
 /**
  * Story 3.4: the World's buildings → `state.buildings`. When `buildings.version` changed (a
- * placement, 3.5's destruction; Story 5.9: an upgrade's type change) entries are added, removed or retyped (allocation is fine then: rare); every
+ * placement, 3.5's destruction; Story 5.9: an upgrade's type change; Story 5.22: a move's new spot) entries are added, removed or retyped (allocation is fine then: rare); every
  * tick only HP is compared, and assigned when it changed. The schema entry per building id is kept
  * here, per room state, so the per-tick pass needs no string keys.
  */
@@ -66,6 +66,12 @@ function syncBuildings(state: RunState, world: World): void {
         had.type = b.type; // Story 5.9: an upgrade (same id and footprint; its new HP follows below)
       }
       if (had && had.trap !== b.trapState) had.trap = b.trapState; // Story 5.14: the jaws (every change bumps version)
+      if (had) {
+        // Story 5.22: a move changes the spot in place (same id; `relocateBuilding` bumps version).
+        if (had.gx !== b.gx) had.gx = b.gx;
+        if (had.gy !== b.gy) had.gy = b.gy;
+        if (had.rot !== b.rot) had.rot = b.rot;
+      }
     }
     for (const id of [...sync.entries.keys()]) {
       if (keep.has(id)) continue;

@@ -230,6 +230,7 @@ export {
   buildingRepairSchema,
   buildingUpgradeSchema,
   buildingSellSchema,
+  buildingMoveSchema,
   shopBuySchema,
   shopRerollSchema,
   type ShopReroll,
@@ -254,6 +255,8 @@ export {
   type BuildingUpgradeRefused,
   type BuildingSell,
   type BuildingSellRefused,
+  type BuildingMove,
+  type BuildingMoveRefused,
   type C2SType,
   type JoinOptions,
   type JoinRefusal,
@@ -350,6 +353,7 @@ export {
   placeBuilding,
   placementError,
   removeBuilding,
+  relocateBuilding,
   damageBuilding,
   type Box,
   type BlockCause,
@@ -409,6 +413,7 @@ export { buildingCentreX, buildingCentreY, nearestZombieInRange, turretStats, up
 export { REPAIR_ERRORS, buildingAtPoint, isDamaged, repairBuilding, repairCost, repairError, type RepairError, type Repaired } from "./buildings/repair";
 // Story 5.9: walls vs floor, upgrades, spike traps, mines, the shared blast.
 export { setBuildingType, resetBuildSpend } from "./buildings/buildings";
+export { MOVE_ERRORS, moveBuilding, moveError, type MoveError, type MoveRequest } from "./buildings/move"; // Story 5.22
 export { SELL_ERRORS, sellBuilding, sellError, sellRefund, sellRefundFor, type SellError, type Sold } from "./buildings/sell"; // Story 5.20
 export { UPGRADE_ERRORS, upgradeBuilding, upgradeError, upgradeStep, type UpgradeError, type Upgraded } from "./buildings/upgrade";
 export { trapCounters, updateTraps } from "./buildings/trap";

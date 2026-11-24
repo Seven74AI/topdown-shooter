@@ -36,6 +36,7 @@ import {
   type RepairError,
   type UpgradeError,
   type SellError,
+  type MoveRequest,
   type PlayerInput,
   type PlayerState,
   type PlayerStateView,
@@ -47,9 +48,9 @@ import {
   type World,
 } from "@topdown/shared";
 import { viewTickOf } from "../net/viewTick";
-import type { PlayerInfo, ShopAnswer, SimHost } from "./SimHost";
+import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } from "./SimHost";
 import { MAX_CATCHUP_STEPS, type SimStepStats } from "./LocalSimHost";
-import type { NetSession } from "../net/session";
+import type { MoveRefusal, NetSession } from "../net/session";
 import { ServerClock } from "../net/serverClock";
 import { SnapshotRing, type SampledPose } from "../net/snapshots";
 import { EventQueue } from "../net/eventQueue";
@@ -258,6 +259,8 @@ export class NetSimHost implements SimHost {
   private upgradeRefusal: UpgradeError | null = null;
   /** Story 5.20: the last sell refusal, until the scene takes it. */
   private sellRefusal: SellError | null = null;
+  /** Story 5.22: move refusals until the scene takes them (oldest first; a few at most). */
+  private readonly moveRefusals: MoveRefusal[] = [];
   private readonly dropMissing = (_p: PlayerState, id: string): void => {
     if (!this.latest?.players.has(id)) removePlayer(this.world, id);
   };
@@ -316,6 +319,11 @@ export class NetSimHost implements SimHost {
     this.offs.push(
       opts.session.onSellRefused((reason) => {
         this.sellRefusal = reason;
+      }),
+    );
+    this.offs.push(
+      opts.session.onMoveRefused((r) => {
+        if (this.moveRefusals.length < MOVE_REFUSALS_MAX) this.moveRefusals.push(r);
       }),
     );
     room.onStateChange(this.onState);
@@ -471,6 +479,15 @@ export class NetSimHost implements SimHost {
     const r = this.sellRefusal;
     this.sellRefusal = null;
     return r;
+  }
+
+  /** Story 5.22: `building.move`; the new spot comes back in the state, a refusal as `building.move_refused`. */
+  moveBuilding(req: MoveRequest, seq: number): void {
+    if (!this.disposed) this.session.room.send(C2S.BUILDING_MOVE, { id: req.id, gx: req.gx, gy: req.gy, rot: req.rot, seq });
+  }
+
+  takeMoveRefusal(): MoveRefusal | null {
+    return this.moveRefusals.shift() ?? null;
   }
 
   takeRepairRefusal(): RepairError | null {

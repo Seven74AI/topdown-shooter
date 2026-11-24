@@ -142,6 +142,33 @@ export interface HudModel {
   sellLabel: string;
   sellReason: string;
   sellPressed: boolean;
+  /**
+   * Story 5.21 / 5.22: the action bar's ✥ Move (my building), its label ("Move" / "Moving…") and
+   * whether a press picks it up; Repair at full HP ("full HP", dimmed); the one red reason line; its tap.
+   */
+  moveShown: boolean;
+  moveLabel: string;
+  moveValid: boolean;
+  movePressed: boolean;
+  repairFull: boolean;
+  barReason: string;
+  /** Story 5.22: holding one of my buildings being moved (Place reads "MOVE"). */
+  placementMoving: boolean;
+  /**
+   * Story 5.21 (AC 7, 11): the long-press on the game view — the HUD's detector writes how long the
+   * followed press is held (−1 none) and where, and fires once (`longPressFired` at X/Y); the scene
+   * writes the threshold and the ring's fill (−1 = no ring: not on my building).
+   */
+  pressHeldMs: number;
+  pressX: number;
+  pressY: number;
+  longPressFired: boolean;
+  longPressX: number;
+  longPressY: number;
+  longPressMs: number;
+  pressRing: number;
+  /** Story 5.21 (AC 7, D8): is a building's tap area under canvas (x, y)? (Ready yields to it.) Set by the scene. */
+  buildingAt: ((x: number, y: number) => boolean) | null;
   /** Story 5.20: the undo chip ↶ (shown, ring 1 → 0, armed while its placement is pending, holding = the hand cluster's spot); its tap. */
   undoVisible: boolean;
   undoProgress: number;
@@ -306,6 +333,22 @@ export const createHudModel = (): HudModel => ({
   sellLabel: "",
   sellReason: "",
   sellPressed: false,
+  moveShown: false,
+  moveLabel: "Move",
+  moveValid: false,
+  movePressed: false,
+  repairFull: false,
+  barReason: "",
+  placementMoving: false,
+  pressHeldMs: -1,
+  pressX: 0,
+  pressY: 0,
+  longPressFired: false,
+  longPressX: 0,
+  longPressY: 0,
+  longPressMs: 450,
+  pressRing: -1,
+  buildingAt: null,
   undoVisible: false,
   undoProgress: 0,
   undoArmed: false,

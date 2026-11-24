@@ -13,6 +13,7 @@ import {
   repairBuilding,
   upgradeBuilding,
   sellBuilding,
+  moveBuilding,
   setBuildReady,
   setInput,
   startBuild,
@@ -24,12 +25,14 @@ import {
   type RepairError,
   type UpgradeError,
   type SellError,
+  type MoveRequest,
   type PlayerInput,
   type SimEvent,
   type ShopOfferView,
   type World,
 } from "@topdown/shared";
-import type { PlayerInfo, ShopAnswer, SimHost } from "./SimHost";
+import type { MoveRefusal } from "../net/session";
+import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } from "./SimHost";
 
 /** Most steps run in one frame; leftover time is dropped (avoids a catch-up spiral after a hidden tab). */
 export const MAX_CATCHUP_STEPS = 5;
@@ -155,6 +158,19 @@ export class LocalSimHost implements SimHost {
     const r = this.sellRefusal;
     this.sellRefusal = null;
     return r;
+  }
+
+  /** Story 5.22: move refusals until the scene takes them (oldest first; a few at most). */
+  private readonly moveRefusals: MoveRefusal[] = [];
+
+  /** Story 5.22: solo applies the move at once (between steps, like the server's message handler). */
+  moveBuilding(req: MoveRequest, seq: number): void {
+    const r = moveBuilding(this.world, LOCAL_PLAYER_ID, req);
+    if (!r.ok && this.moveRefusals.length < MOVE_REFUSALS_MAX) this.moveRefusals.push({ id: req.id, reason: r.error, seq });
+  }
+
+  takeMoveRefusal(): MoveRefusal | null {
+    return this.moveRefusals.shift() ?? null;
   }
 
   takeRepairRefusal(): RepairError | null {
