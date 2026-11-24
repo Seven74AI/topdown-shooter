@@ -156,7 +156,7 @@ development_status:
   6-8-special-events-car-alarm-and-stampede: ready-for-dev
   6-9-gas-leak-and-supply-drop: ready-for-dev  # merged with 6.10 (designer 2026-11-24): one story 'Gas leak, supply drop, power failure and survivor'
   6-10-power-failure-and-survivor: ready-for-dev  # merged into 6.9 (designer 2026-11-24)
-  6-11-evacuation-vote: ready-for-dev  # merged with 6.12 (designer 2026-11-24): one story 'Evacuation vote and endless mode'
+  6-11-evacuation-vote: ready-for-dev  # merged with 6.12 (designer 2026-11-24): one story 'Evacuation vote and endless mode'. Pad = map point evac_pad, not waves.json (random-city CCP 2026-11-24)
   6-12-endless-mode: ready-for-dev  # merged into 6.11 (designer 2026-11-24)
   epic-6-retrospective: optional
 
@@ -168,7 +168,7 @@ development_status:
   7-4-shop-deck-from-my-unlocks: backlog
   7-5-training-boosts: backlog
   7-6-upgrade-to-an-account: backlog
-  7-7-district-unlock-rule: backlog
+  7-7-district-unlock-rule: backlog  # Epic 11 adds the Random city card (open from the start; random-city CCP 2026-11-24)
   7-8-survivor-parts-in-game-code: done  # 2026-11-24: 51 parts, spinning propeller (first animated layer); no fresh-agent review (designer); correct-course 7.8–7.12
   7-9-my-look-in-the-game: backlog  # customization (docs/ideas/customization)
   7-10-survivor-editor: backlog  # customization (docs/ideas/customization)
@@ -219,3 +219,15 @@ development_status:
   10-8-balance-pass: backlog
   10-9-friend-group-playtests-and-v1: backlog  # human: playtest/spec, not a dev-agent story
   epic-10-retrospective: optional
+
+  # Epic 11: Random city (post-v1; sprint-change-proposal-2026-11-24-random-city.md)
+  # Build order: 11.1 -> 11.2 -> (11.3 || 11.4) -> 11.5 -> (11.6 || 11.7)
+  epic-11: backlog
+  11-1-a-new-city-from-a-seed: backlog
+  11-2-every-city-is-fair-checks-a-g-and-anchors: backlog
+  11-3-the-city-falls-apart-by-rules: backlog
+  11-4-landmark-recipes-the-gas-station: backlog
+  11-5-spawns-and-balance-for-70-by-70: backlog
+  11-6-art-drawn-by-type: backlog
+  11-7-pick-random-city-share-its-code: backlog
+  epic-11-retrospective: optional
