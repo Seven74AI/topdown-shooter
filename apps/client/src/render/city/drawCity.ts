@@ -1,8 +1,8 @@
 import { shopfrontsOf, type CoverObject, type DistrictMap, type FireRecord, type MapBox } from "@topdown/shared";
 import { SCORCH_FULL_FRAC } from "./fireRing";
 import type { AtlasCanvas } from "./spriteAtlas";
-import { CAR_BURNT_FRAMES, CAR_FRAMES, PROP_BARRIER, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
-import { HEIGHT_BY_KIND, MAP_PX_PER_M, carStyle, nameHash, type Dressing, type Front } from "./dressing";
+import { CAR_BURNT_FRAMES, CAR_FRAMES, PROP_BLOCK, PROP_DUMPSTER, PROP_PUMP, PROP_SANDBAGS, VEHICLE_BUS } from "./spriteAtlas";
+import { HEIGHT_BY_KIND, MAP_PX_PER_M, barrierStyle, carStyle, nameHash, type Dressing, type Front } from "./dressing";
 import {
   GROUND,
   LAMP,
@@ -23,7 +23,7 @@ import {
   nightAt,
   shadowLenPx,
 } from "./palette";
-import { bevel, circle, ell, outline, rrect, shade } from "./spriteArt";
+import { bevel, circle, drawBarrier, ell, outline, rrect, shade } from "./spriteArt";
 import { blockNames, drawnWalls, hazardsAt, stageGroupAt } from "./stageFilter";
 
 /**
@@ -683,7 +683,17 @@ function coverPiece(g: G, cs: CityScene, b: Box): void {
     // Story 4.12: a burning car is the same car, charred (fire-lab panel D)
     const frames = cs.fires.some((f) => f.target === b.name) ? CAR_BURNT_FRAMES : CAR_FRAMES;
     drawFrame(g, cs.atlas, frames[st.variant % frames.length] as string, b, st.front);
-  } else if (b.kind === "barrier") drawFrame(g, cs.atlas, PROP_BARRIER, b, horiz ? "right" : "down");
+  } else if (b.kind === "barrier") {
+    // Drawn at its real length (sawhorses / blocks repeat; a stretched picture smeared them), +x along the line.
+    g.save();
+    g.translate(b.x + b.w / 2, b.y + b.h / 2);
+    if (!horiz) g.rotate(Math.PI / 2);
+    const L = horiz ? b.w : b.h;
+    const D = horiz ? b.h : b.w;
+    g.translate(-L / 2, -D / 2);
+    drawBarrier(g, L, D, barrierStyle(b.name));
+    g.restore();
+  }
   else if (b.kind === "sandbags") drawFrame(g, cs.atlas, PROP_SANDBAGS, b, horiz ? "right" : "down");
 }
 
