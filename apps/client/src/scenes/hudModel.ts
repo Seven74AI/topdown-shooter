@@ -186,6 +186,19 @@ export interface HudModel {
   /** World positions of rushing zombies (x0, y0, x1, y1, …) and how many are valid. */
   readonly rushers: Float32Array;
   rusherCount: number;
+  /**
+   * Story 6.5 (D9, AC 13): the boss bar and the boss's edge marker. `bossVisible` while it walks
+   * (WALK…ROAR); the marker also shows the warning's entry point. `bossState` = `BOSS_STATE`,
+   * `bossX/Y` its world position (the entry during WARNING), `bossAtkKind` the telegraph's kind.
+   */
+  bossVisible: boolean;
+  bossHpFrac: number;
+  bossEnraged: boolean;
+  bossName: string;
+  bossState: number;
+  bossX: number;
+  bossY: number;
+  bossAtkKind: number;
   /** Main camera's visible world rectangle and zoom, to turn world positions into screen positions. */
   camX: number;
   camY: number;
@@ -369,6 +382,14 @@ export const createHudModel = (): HudModel => ({
   bannerAtMs: 0,
   rushers: new Float32Array(MAX_RUSH_MARKERS * 2),
   rusherCount: 0,
+  bossVisible: false, // Story 6.5
+  bossHpFrac: 0,
+  bossEnraged: false,
+  bossName: "THE BEHEMOTH",
+  bossState: 0,
+  bossX: 0,
+  bossY: 0,
+  bossAtkKind: 0,
   camX: 0,
   camY: 0,
   camZoom: 1,

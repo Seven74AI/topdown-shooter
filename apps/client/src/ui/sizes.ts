@@ -88,3 +88,13 @@ export const LONG_PRESS_RING_LINE_CSS_PX = 5;
 export const CARD_MIN_W_CSS_PX = 96;
 export const CARD_MIN_H_CSS_PX = 112;
 export const CARD_GAP_CSS_PX = 8;
+
+// Story 6.5 (D9): the boss bar, top centre under the wave line ("THE BEHEMOTH", HP fill, gold 50 % notch).
+export const BOSS_BAR_MAX_W_CSS_PX = 300;
+export const BOSS_BAR_MIN_W_CSS_PX = 220;
+export const BOSS_BAR_H_CSS_PX = 10;
+/** Top of the bar below the safe area: the wave line (12 px + a 16 px line) + its gap. */
+export const BOSS_BAR_TOP_CSS_PX = 46;
+export const BOSS_BAR_NAME_CSS_PX = 11;
+/** Clearance to the ☰ button, the wave label and any other control (alignment Q4 / Q14). */
+export const BOSS_BAR_GAP_CSS_PX = 12;

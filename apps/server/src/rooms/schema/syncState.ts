@@ -1,6 +1,6 @@
-import { CONSUMABLE_NONE, consumableIndex, quantizeHeading, type Balance, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
+import { CONSUMABLE_NONE, bossSlotOf, consumableIndex, quantizeHeading, type Balance, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
 import type { RunController } from "../../run/RunController";
-import { BuildingState, type PlayerState, type RunState } from "./RunState";
+import { BossState, BuildingState, type PlayerState, type RunState } from "./RunState";
 
 /**
  * Copies the World into room state once per tick (Story 2.4), right after `controller.tick()`.
@@ -31,6 +31,36 @@ export function syncState(state: RunState, controller: RunController): void {
   if (state.decayStage !== world.decay.stage) state.decayStage = world.decay.stage;
   if (state.decayFiresOut !== world.decay.firesOut) state.decayFiresOut = world.decay.firesOut; // Story 4.8
   syncBuildings(state, world);
+  syncBoss(state, world); // Story 6.5
+}
+
+/** Story 6.5: the boss record, field by field on change only (an idle record costs no bytes). */
+function syncBoss(state: RunState, world: World): void {
+  if (!state.boss) state.boss = new BossState();
+  const s = state.boss;
+  const b = world.boss;
+  if (s.state !== b.state) s.state = b.state;
+  if (s.x !== Math.fround(b.x)) s.x = b.x;
+  if (s.y !== Math.fround(b.y)) s.y = b.y;
+  const heading = quantizeHeading(Math.cos(b.facing), Math.sin(b.facing));
+  if (s.heading !== heading) s.heading = heading;
+  const hp = Math.max(0, Math.ceil(b.hp));
+  if (s.hp !== hp) s.hp = hp;
+  if (s.maxHp !== b.maxHp) s.maxHp = b.maxHp;
+  if (s.number !== b.number) s.number = b.number;
+  if (s.look !== b.look) s.look = b.look;
+  const slot = bossSlotOf(world, b.targetId);
+  const target = slot < 0 ? 255 : slot;
+  if (s.target !== target) s.target = target;
+  if (s.enraged !== b.enraged) s.enraged = b.enraged;
+  const a = b.attack;
+  if (s.atkId !== a.id) s.atkId = a.id;
+  if (s.atkKind !== a.kind) s.atkKind = a.kind;
+  if (s.atkStart !== a.startTick) s.atkStart = a.startTick;
+  if (s.atkHit !== a.hitTick) s.atkHit = a.hitTick;
+  if (s.atkX !== Math.fround(a.cx)) s.atkX = a.cx;
+  if (s.atkY !== Math.fround(a.cy)) s.atkY = a.cy;
+  if (s.atkR !== Math.fround(a.radiusM)) s.atkR = a.radiusM;
 }
 
 /**
@@ -187,6 +217,7 @@ export function resetRunFields(state: RunState): void {
   state.decayFiresOut = 0; // Story 4.8
   state.buildings.clear(); // Story 3.4: the next run starts with none
   buildingSyncs.delete(state);
+  state.boss = new BossState(); // Story 6.5: no boss before the next run's wave 10
 }
 
 function resetPlayer(s: PlayerState): void {

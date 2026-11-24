@@ -83,6 +83,7 @@ import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
 import { pickDevDecayStages } from "../run/devDecayStages";
+import { pickDevBossWaves } from "../run/devBossWaves";
 import { pickDevShopCards } from "../run/devShopCards";
 import { pickDevShopAll } from "../run/devShopAll";
 import { resetRunFields, syncState } from "./schema/syncState";
@@ -680,6 +681,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const devDecayStages = decayPick.stages;
     // Story 5.13 (dev only, read per run): DEV_SHOP_CARDS=flamethrower,revive_kit starts every build-start offer with them.
     const shopPick = pickDevShopCards(process.env, serverBalance);
+    // Story 6.5 (dev only, read per run): DEV_BOSS_WAVES=3 brings the Behemoth in wave 3.
+    const bossPick = pickDevBossWaves(process.env);
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
@@ -689,6 +692,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
       decayStageByWave: devDecayStages,
       shopCards: shopPick.cards,
+      bossWaves: bossPick.waves,
       scenario: this.scenario,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
       devPlacedHpFraction: devPlacedHp,
@@ -702,6 +706,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!controller.world.zombieHistory.enabled) this.log.warn("dev_no_rewind");
     if (devDecayStages !== null) this.log.warn({ stages: devDecayStages }, "dev_decay_stages");
     else if (decayPick.ignored !== null) this.log.warn({ value: process.env.DEV_DECAY_STAGES, reason: decayPick.ignored }, "dev_decay_stages_ignored");
+    if (bossPick.waves !== null) this.log.warn({ waves: bossPick.waves }, "dev_boss_waves");
+    else if (bossPick.ignored !== null) this.log.warn({ value: process.env.DEV_BOSS_WAVES, reason: bossPick.ignored }, "dev_boss_waves_ignored");
     if (shopPick.cards !== null) this.log.warn({ cards: shopPick.cards }, "dev_shop_cards");
     else if (shopPick.ignored !== null) this.log.warn({ value: process.env.DEV_SHOP_CARDS, reason: shopPick.ignored }, "dev_shop_cards_ignored");
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");

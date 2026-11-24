@@ -7,6 +7,7 @@ import {
   setInput,
   step,
   type Balance,
+  type BossStateView,
   type BuildingStateView,
   type DistrictMap,
   type PlayerInput,
@@ -17,6 +18,7 @@ import {
 } from "@topdown/shared";
 import { mirrorBuildings } from "./mirrorBuildings";
 import { mirrorDecay } from "./mirrorDecay";
+import { mirrorBoss } from "./mirrorBoss";
 import {
   PREDICTION_ERROR_BUCKETS,
   PREDICTION_ERROR_BUCKET_STEPS,
@@ -144,6 +146,11 @@ export class Predictor {
    */
   syncDecay(stage: number | undefined, variants: number | undefined, firesOut?: number): void {
     mirrorDecay(this.world, stage, variants, firesOut); // Story 4.8: the fires that burned out
+  }
+
+  /** Story 6.5 (D1, DD6): the boss's newest server position, so `movePlayers`' body push matches the server's. */
+  syncBoss(boss: BossStateView | undefined): void {
+    mirrorBoss(this.world, boss);
   }
 
   /** Story 4.5: the decay stage the prediction collides with (tests). */

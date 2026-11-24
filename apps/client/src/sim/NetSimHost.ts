@@ -60,6 +60,7 @@ import { HordeDecoder } from "../net/hordeDecoder";
 import { mirrorZombies } from "../net/mirrorZombies";
 import { mirrorBuildings } from "../net/mirrorBuildings";
 import { mirrorDecay } from "../net/mirrorDecay";
+import { bossDrawAt, bossRenderPos, createBossTrack, mirrorBoss, trackBoss, type BossTrack } from "../net/mirrorBoss";
 import { Predictor } from "../net/prediction";
 import { AdaptiveDelay } from "../net/adaptiveDelay";
 import { RENDER_DELAY_MIN_MS, STALE_COSMETIC_TICKS } from "../net/netConfig";
@@ -169,6 +170,8 @@ export class NetSimHost implements SimHost {
   readonly stats: SimStepStats = { lastUpdateSteps: 0, stepMs: new Float64Array(MAX_CATCHUP_STEPS), totalSteps: 0 };
   /** The local survivor's prediction (Story 2.6); it keeps the sent inputs for replay. */
   readonly predictor: Predictor;
+  /** Story 6.5: the boss's last two server positions (`bossRenderPos` draws it at the render tick). */
+  readonly bossTrack: BossTrack = createBossTrack();
   readonly netStats: NetStats = {
     rttMs: 0,
     delayMs: 0,
@@ -237,6 +240,8 @@ export class NetSimHost implements SimHost {
   /** Server tick of each event drained from the queue this frame (review L1; reused). */
   private readonly drainedTicks: number[] = [];
   private renderTickNow = Number.NaN;
+  /** Story 6.5: `clock.estimateTick` this frame (the telegraph fill). */
+  private serverTickNow = Number.NaN;
   private disposed = false;
   private readonly pose: SampledPose = { x: 0, y: 0, heading: 0 };
   /** Story 2.9: reused `playerInfo` answer. */
@@ -375,6 +380,23 @@ export class NetSimHost implements SimHost {
   }
 
   /** The (fractional) tick others are drawn at: server estimate − adaptive delay. NaN before the first snapshot. */
+  /** Story 6.5 (F3): the estimated server tick of this frame (NaN before the clock is ready). */
+  get serverTick(): number {
+    return this.serverTickNow;
+  }
+
+  /** Story 6.5: the boss at the render tick, between its last two patches. */
+  bossDrawPos(out: { x: number; y: number }): void {
+    if (Number.isNaN(this.renderTickNow)) {
+      out.x = this.world.boss.x;
+      out.y = this.world.boss.y;
+      return;
+    }
+    bossRenderPos(this.bossTrack, this.renderTickNow);
+    out.x = bossDrawAt.x;
+    out.y = bossDrawAt.y;
+  }
+
   get renderTick(): number {
     return this.renderTickNow;
   }
@@ -390,7 +412,8 @@ export class NetSimHost implements SimHost {
     if (this.disposed) return;
     // Story 2.6: ONE render tick per frame, read by players, events and the horde (2.5) alike.
     this.delay.frame(frameDtS);
-    this.renderTickNow = this.clock.ready ? this.delay.renderTick(this.clock.estimateTick(t0)) : Number.NaN;
+    this.serverTickNow = this.clock.ready ? this.clock.estimateTick(t0) : Number.NaN;
+    this.renderTickNow = this.clock.ready ? this.delay.renderTick(this.serverTickNow) : Number.NaN;
     // Story 2.7: the horde first, so my shots this frame assist toward and stop at what is drawn.
     this.applyHorde(this.renderTickNow);
     this.cosmetics.update(frameDtS);
@@ -592,6 +615,9 @@ export class NetSimHost implements SimHost {
         if (e.type === "spitter.spat" && stale) continue;
         if (e.type === "acid.splashed" && ageS >= this.puddleS) continue;
         e.ageS = ageS;
+      } else if (e.type === "boss.warning" || e.type === "boss.arrived" || e.type === "boss.telegraph" || e.type === "boss.slammed") {
+        // Story 6.5 (brief 14): a woken tab's backlog plays no late banner or sound (the telegraph draws from its own ticks).
+        e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       } else if (e.type === "molotov.ignited") {
         // Story 5.12: back-dated by its age (MolotovFires starts it that much earlier and drops one
         // older than its life): a woken tab shows exactly the server's live zones, no ghost fire.
@@ -718,6 +744,9 @@ export class NetSimHost implements SimHost {
     this.world.waves.remaining = state.remaining;
     mirrorBuildings(state.buildings, this.world); // Story 3.4: drawn, and the placement preview's check
     mirrorDecay(this.world, state.decayStage, state.decayVariants, state.decayFiresOut); // Story 4.5: drawn, the preview's check, cosmetic shots
+    // Story 6.5: the Behemoth (server truth) and its last two positions (drawn at the render tick).
+    mirrorBoss(this.world, state.boss);
+    if (state.boss) trackBoss(this.bossTrack, state.boss.x, state.boss.y, state.tick);
   }
 
   /**
@@ -944,6 +973,7 @@ export class NetSimHost implements SimHost {
     // Story 3.4: the buildings of this very patch, before the replay (the server moved me with them).
     this.predictor.syncBuildings(state.buildings);
     this.predictor.syncDecay(state.decayStage, state.decayVariants, state.decayFiresOut); // Story 4.5: the same patch's map
+    this.predictor.syncBoss(state.boss); // Story 6.5 (DD6): the boss's body for the push-out
     const me = state.players.get(this.localPlayerId);
     if (!me) return;
     this.predictor.reconcile(me.ackSeq, me.x, me.y, me.status, me.slowTicks, me.slowPct, me.knockTicks, me.knockDx, me.knockDy, me.knockStepMm, me.gear);

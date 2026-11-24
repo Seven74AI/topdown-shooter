@@ -43,6 +43,7 @@ import { drawTurretIcon } from "../render/TurretView";
 import type { InputRouter } from "../input/InputRouter";
 import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
+import { BossHud } from "./BossHud";
 import { MAX_PLAYERS } from "@topdown/shared";
 import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, SOLD_POP_QUEUE, hudTierMark } from "./hudModel";
 import { SLOT_COLORS, SLOT_COLOR_CSS } from "../render/playerColors";
@@ -420,6 +421,8 @@ export class HudScene extends Phaser.Scene {
   private readonly taps = new TapDetector();
   /** Safe-area insets (CSS px), measured on create and resize only (getComputedStyle is costly). */
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  /** Story 6.5: the boss bar and edge marker. */
+  private bossHud: BossHud | null = null;
   private shownSwapVisible: boolean | null = null;
   private shownOther = "";
   private shownOtherAmmo = Number.NaN;
@@ -664,6 +667,7 @@ export class HudScene extends Phaser.Scene {
       .text(0, 0, "", { fontFamily: "system-ui, sans-serif", fontSize: `${Math.round(BANNER_TEXT_PX * dpr())}px`, color: "#ffffff", fontStyle: "bold", align: "center" }) // Story 4.5: a second line (the decay stage)
       .setOrigin(0.5)
       .setVisible(false);
+    this.bossHud = new BossHud(this); // Story 6.5 (objects made once per create)
     this.arrows.length = 0;
     this.arrowDpr = dpr();
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
@@ -1824,6 +1828,7 @@ export class HudScene extends Phaser.Scene {
     this.drawConsumable(); // Story 5.12
     this.drawWave();
     this.drawRushArrows();
+    this.bossHud?.draw(this.model, dpr(), this.insets, this.time.now); // Story 6.5
     this.drawDowned();
     this.drawTeammates();
     this.drawGhostLabels(); // Story 5.24

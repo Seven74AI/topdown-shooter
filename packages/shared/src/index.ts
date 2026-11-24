@@ -279,6 +279,8 @@ export {
 export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
 export {
+  BOSS_STATE_FIELDS,
+  type BossStateView,
   BUILDING_STATE_FIELDS,
   PLAYER_STATE_FIELDS,
   RUN_STATE_FIELDS,

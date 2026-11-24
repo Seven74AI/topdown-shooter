@@ -1,5 +1,7 @@
 import { schema, t, type SchemaType } from "@colyseus/schema";
 import type {
+  BOSS_STATE_FIELDS,
+  BossStateView,
   BUILDING_STATE_FIELDS,
   BuildingStateView,
   PLAYER_STATE_FIELDS,
@@ -98,6 +100,33 @@ const buildingFields = {
 export const BuildingState = schema(buildingFields, "BuildingState");
 export type BuildingState = SchemaType<typeof BuildingState>;
 
+/**
+ * Story 6.5: the Behemoth's record (one nested schema; brief line 11). `syncState` writes each field
+ * on change only: position + heading while it walks, hp on hits, the attack fields once per attack.
+ */
+const bossFields = {
+  state: t.uint8().default(0),
+  x: t.float32().default(0),
+  y: t.float32().default(0),
+  heading: t.uint8().default(0),
+  hp: t.uint32().default(0),
+  maxHp: t.uint32().default(0),
+  number: t.uint8().default(0),
+  look: t.uint8().default(0),
+  /** The target's player slot (255 = none). */
+  target: t.uint8().default(255),
+  enraged: t.boolean().default(false),
+  atkId: t.uint16().default(0),
+  atkKind: t.uint8().default(0),
+  atkStart: t.uint32().default(0),
+  atkHit: t.uint32().default(0),
+  atkX: t.float32().default(0),
+  atkY: t.float32().default(0),
+  atkR: t.float32().default(0),
+};
+export const BossState = schema(bossFields, "BossState");
+export type BossState = SchemaType<typeof BossState>;
+
 const runFields = {
   phase: t.string<RunPhase>().default("lobby"),
   hostSlot: t.uint8().default(0),
@@ -125,6 +154,8 @@ const runFields = {
   decayVariants: t.uint32().default(0),
   /** Story 4.8: bit i = the map's i-th ignite has burned out (on change only: a build start). */
   decayFiresOut: t.uint32().default(0),
+  /** Story 6.5: the Behemoth (state NONE outside a boss fight). Appended last. */
+  boss: BossState,
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;
@@ -148,6 +179,8 @@ export type PlayerFieldsMatchKeyList = Assert<
   SameKeys<typeof playerFields, typeof PLAYER_STATE_FIELDS>
 >;
 export type RunFieldsMatchKeyList = Assert<
-  SameKeys<Omit<typeof runFields, "players" | "buildings">, typeof RUN_STATE_FIELDS>
+  SameKeys<Omit<typeof runFields, "players" | "buildings" | "boss">, typeof RUN_STATE_FIELDS>
 >;
 export type BuildingFieldsMatchKeyList = Assert<SameKeys<typeof buildingFields, typeof BUILDING_STATE_FIELDS>>;
+export type BossStateMatchesView = Assert<Assignable<BossState, BossStateView>>;
+export type BossFieldsMatchKeyList = Assert<SameKeys<typeof bossFields, typeof BOSS_STATE_FIELDS>>;

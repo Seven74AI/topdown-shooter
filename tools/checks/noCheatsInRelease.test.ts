@@ -30,6 +30,7 @@ export const CHEAT_STRINGS = [
   "__game",
   "Collision / grid view", // Story 4.3
   "Decay stage (whole map)", // Stories 4.2 + 4.3 solo stage cheat; Story 4.5: the decay engine's path
+  "Spawn Behemoth", // Story 6.5
 ];
 
 function builtFiles(dir: string): string[] {

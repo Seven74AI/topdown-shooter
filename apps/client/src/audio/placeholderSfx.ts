@@ -43,7 +43,11 @@ export type SfxName =
   | "building_placed_thunk"
   | "building_placed_clank"
   | "building_placed_click"
-  | "building_place_refused";
+  | "building_place_refused"
+  // Story 6.5: the Behemoth's warning rumble, arrival roar and slam (not positional: team cues).
+  | "boss_rumble"
+  | "boss_roar"
+  | "boss_slam";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -509,6 +513,21 @@ export function playSfx(name: SfxName, pan = 0, volume = 1): void {
     case "zombie_brute_roar": // Story 5.7
       roar(c, t, pan);
       break;
+    case "boss_rumble": // Story 6.5: the 4 s warning (a long low rumble swelling up)
+      burst(c, t, 1.2, 0.9, 90);
+      burst(c, t + 1.0, 1.4, 1, 70);
+      burst(c, t + 2.2, 1.6, 1, 60);
+      break;
+    case "boss_roar": // Story 6.5: the arrival (the Brute's roar, lower and longer, twice)
+      roar(c, t, pan);
+      roar(c, t + 0.25, pan);
+      burst(c, t, 0.9, 0.8, 120);
+      break;
+    case "boss_slam": // Story 6.5: a huge ground thump with a cracking tail
+      burst(c, t, 0.45, 1, 110);
+      burst(c, t + 0.03, 0.3, 0.7, 700);
+      click(c, t + 0.05, 70, 0.9);
+      break;
     case "zombie_bloater_gurgle": // Story 5.8: a Bloater first in view (a low, slow gurgle)
       gurgle(c, t, pan);
       break;
@@ -663,4 +682,62 @@ export function stopFlameLoop(): void {
   }
   flameLoop.stop(c.currentTime);
   flameLoop = null;
+}
+
+/**
+ * Story 6.5 (AC 14): the placeholder boss loop on the music bus: a low drone with a slow drum pulse,
+ * from `boss.arrived` until the boss dies or the run ends (6.7 owns the death; D8 of 6.7: it stops).
+ * Idempotent; `stopBossLoop` fades it out.
+ */
+let bossLoop: { stop(at: number): void } | null = null;
+const BOSS_LOOP_GAIN = 0.35;
+const BOSS_LOOP_FADE_S = 0.8;
+
+export function startBossLoop(): boolean {
+  if (bossLoop) return true;
+  const c = context();
+  if (!c || c.state !== "running" || !master) return false;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.setValueAtTime(0.001, t);
+  out.gain.exponentialRampToValueAtTime(BOSS_LOOP_GAIN, t + BOSS_LOOP_FADE_S);
+  out.connect(master);
+  const drone = c.createOscillator();
+  drone.type = "sawtooth";
+  drone.frequency.value = 41;
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 180;
+  const pulse = c.createGain();
+  pulse.gain.value = 0.6;
+  const lfo = c.createOscillator();
+  lfo.type = "square";
+  lfo.frequency.value = 1.6; // the drum: ~96 bpm
+  const lfoGain = c.createGain();
+  lfoGain.gain.value = 0.4;
+  lfo.connect(lfoGain).connect(pulse.gain);
+  drone.connect(lp).connect(pulse).connect(out);
+  drone.start(t);
+  lfo.start(t);
+  bossLoop = {
+    stop(at: number) {
+      out.gain.cancelScheduledValues(at);
+      out.gain.setValueAtTime(Math.max(0.001, out.gain.value), at);
+      out.gain.exponentialRampToValueAtTime(0.001, at + BOSS_LOOP_FADE_S);
+      drone.stop(at + BOSS_LOOP_FADE_S + 0.05);
+      lfo.stop(at + BOSS_LOOP_FADE_S + 0.05);
+    },
+  };
+  return true;
+}
+
+export function stopBossLoop(): void {
+  if (!bossLoop) return;
+  const c = context();
+  bossLoop.stop(c ? c.currentTime : 0);
+  bossLoop = null;
+}
+
+export function bossLoopPlaying(): boolean {
+  return bossLoop !== null;
 }

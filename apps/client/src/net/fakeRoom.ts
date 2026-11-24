@@ -1,4 +1,4 @@
-import type { BuildingStateView, PlayerStateView, RunPhase, RunStateView } from "@topdown/shared";
+import type { BossStateView, BuildingStateView, PlayerStateView, RunPhase, RunStateView } from "@topdown/shared";
 import type { NetRoomLike } from "./session";
 
 /** Test helpers (Story 2.4): a plain room state and a fake room behind `NetRoomLike`. */
@@ -69,6 +69,15 @@ export interface FakeState {
   decayVariants: number;
   /** Story 4.8. */
   decayFiresOut: number;
+  /** Story 6.5: the boss record. */
+  boss: FakeBoss;
+}
+
+export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] };
+
+/** Story 6.5: a boss record with every field at the schema default (state NONE). */
+export function fakeBoss(over: Partial<FakeBoss> = {}): FakeBoss {
+  return { state: 0, x: 0, y: 0, heading: 0, hp: 0, maxHp: 0, number: 0, look: 0, target: 255, enraged: false, atkId: 0, atkKind: 0, atkStart: 0, atkHit: 0, atkX: 0, atkY: 0, atkR: 0, ...over };
 }
 
 export function fakeState(players: FakePlayer[] = []): FakeState {
@@ -89,6 +98,7 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     decayStage: 1,
     decayVariants: 0,
     decayFiresOut: 0,
+    boss: fakeBoss(),
   };
 }
 

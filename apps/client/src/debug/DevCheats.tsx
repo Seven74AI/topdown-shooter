@@ -6,7 +6,7 @@ import type { GameScene } from "../scenes/GameScene";
 import { LOCAL_PLAYER_ID } from "../sim/LocalSimHost";
 import { perf } from "./perfStats";
 import { spawnInView, type ViewRect } from "./stressScenario";
-import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, parseSeed, decayCheatAllowed, setDecayStageCheat } from "./devCheatActions";
+import { MAX_SPAWN, MIN_SPAWN, clampSpawnCount, damageNearestBuilding, leaveLast, spawnBehemothCheat, parseSeed, decayCheatAllowed, setDecayStageCheat } from "./devCheatActions";
 import { CollisionGridView } from "./collisionGridView";
 import "./DevCheats.css";
 
@@ -126,6 +126,9 @@ function DevCheats({ game }: { game: Phaser.Game }) {
             </button>
             <button type="button" onClick={() => w && (leaveLast(w, LEAVE_COUNT), refresh())}>
               Leave last 5
+            </button>
+            <button type="button" onClick={() => w && (spawnBehemothCheat(w), refresh())}>
+              Spawn Behemoth
             </button>
           </div>
           <fieldset>

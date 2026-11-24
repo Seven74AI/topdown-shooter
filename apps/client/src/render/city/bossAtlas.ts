@@ -1,0 +1,273 @@
+import type * as Phaser from "phaser";
+import { addGeneratedTexture } from "./canvasTexture";
+import { packAtlas, type FrameSpec, type PlacedFrame } from "./atlasLayout";
+import { BEHEMOTH_LOOK_IDS, BH_FRAME_HALF_M, drawBehemoth, type BehemothPose } from "./behemothArt";
+
+/**
+ * Story 6.5 (T0, brief 12 / 20): the Behemoth's atlas (`boss_<look>_<pose>_<variant>`: 4 looks × 13
+ * frames ≤ 2048²) and its small FX textures (the baked telegraph disc `boss_tele_disc` with its white hatching, the
+ * target skull, the edge-marker disc and its three attack icons, the slam's crack decal). Every one
+ * is drawn in code through `addGeneratedTexture` with its redraw callback (Android Chrome wipes
+ * canvases in the background; `noUnregisteredTextures.test.ts`).
+ */
+export const BOSS_ATLAS = "boss_atlas";
+export const BOSS_FX = "boss_fx";
+/** The slam ring's baked look: red + white hatching, solid red edge, dashed white inner edge, a hole for the body. */
+export const BOSS_TELE = "boss_tele_disc";
+export const BOSS_TELE_PX = 512;
+
+/** Frame size (px) of one boss pose: 252 px over 7 m = 36 px per metre. Frames pack 8 × 8 in 2048². */
+export const BOSS_FRAME_PX = 252;
+export const BOSS_PX_PER_M = BOSS_FRAME_PX / (2 * BH_FRAME_HALF_M);
+/** The hatch's stripe spacing (px in the 512 px disc): the prototype's 0.55 m at 4.5 m. */
+const HATCH_STEP_PX = 31;
+
+/** The frames of one look, in order: [pose, progress k, walk phase, frame variant]. */
+const POSE_FRAMES: readonly (readonly [BehemothPose | "outline", number, number, string, boolean])[] = [
+  ["walk", 0, 0, "walk_a", false],
+  ["walk", 0, 0.5, "walk_b", false],
+  ["slam", 0.15, 0, "slam_a", false],
+  ["slam", 0.5, 0, "slam_b", false],
+  ["slam", 1, 0, "slam_c", false],
+  ["slamHit", 0, 0, "slamhit_a", false],
+  ["charge", 1, 0, "charge_a", false],
+  ["rush", 1, 0, "rush_a", false],
+  ["throw", 1, 0, "throw_a", false],
+  ["stun", 0, 0, "stun_a", false],
+  ["roar", 0, 0, "roar_a", false],
+  ["outline", 0, 0, "outline_a", false], // the overlay above the darkness: normal eyes
+  ["outline", 0, 0, "outline_b", true], // enraged (red eyes, 6.7 sets the flag)
+];
+
+const lookKey = (look: number): string => (BEHEMOTH_LOOK_IDS[look] ?? "BH1").toLowerCase();
+
+/** Frame names per look (built once: the view never builds strings per frame). */
+export const BOSS_FRAMES: readonly (readonly string[])[] = BEHEMOTH_LOOK_IDS.map((_, l) => POSE_FRAMES.map((f) => `boss_${lookKey(l)}_${f[3]}`));
+/** Index of each pose frame in `BOSS_FRAMES[look]`. */
+export const BOSS_FRAME = { walkA: 0, walkB: 1, slamA: 2, slamB: 3, slamC: 4, slamHit: 5, charge: 6, rush: 7, throw: 8, stun: 9, roar: 10, outline: 11, outlineEnraged: 12 } as const;
+
+export function bossSpecs(): FrameSpec[] {
+  return BOSS_FRAMES.flat().map((name) => ({ name, w: BOSS_FRAME_PX, h: BOSS_FRAME_PX }));
+}
+
+/** FX frames (one texture). */
+export const BOSS_FX_FRAMES = { skull: "boss_fx_skull_a", disc: "boss_fx_disc_a", slam: "boss_icon_slam_a", charge: "boss_icon_charge_a", throw: "boss_icon_throw_a", crack: "boss_decal_crack_a" } as const;
+const FX_PX: Record<string, number> = { boss_fx_skull_a: 64, boss_fx_disc_a: 72, boss_icon_slam_a: 48, boss_icon_charge_a: 48, boss_icon_throw_a: 48, boss_decal_crack_a: 256 };
+/** The crack decal's px per metre (it covers the 4.5 m ring: 256 px = 9 m). */
+export const BOSS_CRACK_PX_PER_M = 256 / 9;
+
+export function bossFxSpecs(): FrameSpec[] {
+  return Object.values(BOSS_FX_FRAMES).map((name) => ({ name, w: FX_PX[name] as number, h: FX_PX[name] as number }));
+}
+
+function drawBossFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
+  for (let l = 0; l < BOSS_FRAMES.length; l++) {
+    const i = (BOSS_FRAMES[l] as readonly string[]).indexOf(f.name);
+    if (i < 0) continue;
+    const [pose, k, ph, , enraged] = POSE_FRAMES[i] as (typeof POSE_FRAMES)[number];
+    g.translate(f.x + f.w / 2, f.y + f.h / 2);
+    drawBehemoth(g, BOSS_PX_PER_M, l, pose, k, enraged, ph);
+    return;
+  }
+}
+
+/** The target skull (prototype `skull`): white bone, dark eye holes, a red rim (red = boss danger only). */
+export function drawSkull(g: CanvasRenderingContext2D, s: number, col = "#f2f2f2"): void {
+  g.save();
+  g.scale(s, s);
+  g.fillStyle = "#c81e24";
+  g.beginPath();
+  g.arc(0, -0.04, 0.44, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = col;
+  g.beginPath();
+  g.arc(0, -0.08, 0.32, 0, Math.PI * 2);
+  g.fill();
+  g.fillRect(-0.18, 0.1, 0.36, 0.2);
+  g.fillStyle = "#16090a";
+  g.beginPath();
+  g.arc(-0.12, -0.08, 0.09, 0, Math.PI * 2);
+  g.arc(0.12, -0.08, 0.09, 0, Math.PI * 2);
+  g.fill();
+  g.fillRect(-0.03, 0.04, 0.06, 0.08);
+  g.restore();
+}
+
+function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
+  const cx = f.x + f.w / 2;
+  const cy = f.y + f.h / 2;
+  g.translate(cx, cy);
+  const s = f.w / 2;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  switch (f.name) {
+    case BOSS_FX_FRAMES.skull:
+      drawSkull(g, s);
+      break;
+    case BOSS_FX_FRAMES.disc:
+      g.fillStyle = "#b4161c";
+      g.beginPath();
+      g.arc(0, 0, s * 0.92, 0, Math.PI * 2);
+      g.fill();
+      g.lineWidth = s * 0.08;
+      g.strokeStyle = "#ffffff";
+      g.stroke();
+      drawSkull(g, s * 0.8);
+      break;
+    case BOSS_FX_FRAMES.slam:
+      g.strokeStyle = "#ffffff";
+      g.lineWidth = s * 0.14;
+      for (const r of [0.35, 0.7]) {
+        g.beginPath();
+        g.arc(0, 0, s * r, 0, Math.PI * 2);
+        g.stroke();
+      }
+      break;
+    case BOSS_FX_FRAMES.charge:
+      g.fillStyle = "#ffffff";
+      g.beginPath();
+      g.moveTo(s * 0.8, 0);
+      g.lineTo(-s * 0.2, -s * 0.6);
+      g.lineTo(-s * 0.2, -s * 0.22);
+      g.lineTo(-s * 0.8, -s * 0.22);
+      g.lineTo(-s * 0.8, s * 0.22);
+      g.lineTo(-s * 0.2, s * 0.22);
+      g.lineTo(-s * 0.2, s * 0.6);
+      g.closePath();
+      g.fill();
+      break;
+    case BOSS_FX_FRAMES.throw:
+      g.fillStyle = "#ffffff";
+      g.beginPath();
+      g.moveTo(-s * 0.6, -s * 0.3);
+      g.lineTo(s * 0.4, -s * 0.6);
+      g.lineTo(s * 0.7, s * 0.2);
+      g.lineTo(0, s * 0.65);
+      g.lineTo(-s * 0.7, s * 0.25);
+      g.closePath();
+      g.fill();
+      break;
+    case BOSS_FX_FRAMES.crack: {
+      // A starburst of dark cracks with a dusty ring (no collision change; the decal pool caps it).
+      let seed = 7;
+      const rnd = (): number => {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647;
+      };
+      g.fillStyle = "rgba(40,36,32,0.35)";
+      g.beginPath();
+      g.arc(0, 0, s * 0.3, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = "rgba(14,12,10,0.85)";
+      for (let i = 0; i < 14; i++) {
+        let a = (i / 14) * Math.PI * 2 + rnd() * 0.3;
+        let x = Math.cos(a) * s * 0.12;
+        let y = Math.sin(a) * s * 0.12;
+        g.lineWidth = 2.4 + rnd() * 2;
+        g.beginPath();
+        g.moveTo(x, y);
+        const len = s * (0.55 + rnd() * 0.4);
+        for (let d = 0; d < len; d += s * 0.12) {
+          a += (rnd() - 0.5) * 0.5;
+          x += Math.cos(a) * s * 0.12;
+          y += Math.sin(a) * s * 0.12;
+          g.lineTo(x, y);
+        }
+        g.stroke();
+      }
+      break;
+    }
+  }
+}
+
+/**
+ * The telegraph disc (prototype `teleRing` + `hatch`): a faint red fill with white diagonal hatching,
+ * the solid red edge and the dashed white inner edge, and a transparent hole of `holeFrac` × the
+ * radius (the boss's body: its pose stays visible). Drawn once; the live fill is a ring drawn over it.
+ */
+function drawTeleDisc(g: CanvasRenderingContext2D, holeFrac: number): void {
+  const n = BOSS_TELE_PX;
+  const R = n / 2 - 4;
+  g.clearRect(0, 0, n, n);
+  g.save();
+  g.translate(n / 2, n / 2);
+  g.beginPath();
+  g.arc(0, 0, R, 0, Math.PI * 2);
+  g.clip();
+  g.fillStyle = "rgba(255,40,48,0.16)";
+  g.fillRect(-R, -R, 2 * R, 2 * R);
+  g.strokeStyle = "rgba(255,255,255,0.22)";
+  g.lineWidth = 5;
+  g.beginPath();
+  for (let i = -2 * R; i <= 2 * R; i += HATCH_STEP_PX) {
+    g.moveTo(i - R, R);
+    g.lineTo(i + R, -R);
+  }
+  g.stroke();
+  g.restore();
+  g.save();
+  g.translate(n / 2, n / 2);
+  g.lineWidth = 7;
+  g.strokeStyle = "#ff3b3b";
+  g.beginPath();
+  g.arc(0, 0, R - 3.5, 0, Math.PI * 2);
+  g.stroke();
+  g.setLineDash([22, 17]);
+  g.lineWidth = 3;
+  g.strokeStyle = "rgba(255,255,255,0.9)";
+  g.beginPath();
+  g.arc(0, 0, R - 10, 0, Math.PI * 2);
+  g.stroke();
+  g.setLineDash([]);
+  if (holeFrac > 0) {
+    g.globalCompositeOperation = "destination-out";
+    g.beginPath();
+    g.arc(0, 0, R * holeFrac, 0, Math.PI * 2);
+    g.fill();
+    g.globalCompositeOperation = "source-over";
+  }
+  g.restore();
+}
+
+/** Radius of the disc in its texture (px): the frame is drawn so this maps to the zone's radius. */
+export const BOSS_TELE_RADIUS_PX = BOSS_TELE_PX / 2 - 4;
+
+function paint(g: CanvasRenderingContext2D, frames: readonly PlacedFrame[], draw: (g: CanvasRenderingContext2D, f: PlacedFrame) => void): void {
+  for (const f of frames) {
+    g.save();
+    g.beginPath();
+    g.rect(f.x, f.y, f.w, f.h);
+    g.clip();
+    draw(g, f);
+    g.restore();
+  }
+}
+
+function register(scene: Phaser.Scene, key: string, specs: FrameSpec[], draw: (g: CanvasRenderingContext2D, f: PlacedFrame) => void): void {
+  if (scene.textures.exists(key)) return;
+  const layout = packAtlas(specs);
+  const canvas = document.createElement("canvas");
+  canvas.width = layout.width;
+  canvas.height = layout.height;
+  addGeneratedTexture(
+    scene,
+    key,
+    canvas,
+    (g) => paint(g, layout.frames, draw),
+    (tex) => {
+      for (const f of layout.frames) tex.add(f.name, 0, f.x, f.y, f.w, f.h);
+    },
+  );
+}
+
+/** Creates the boss textures once per game (idempotent; textures outlive scene restarts). `holeFrac` = body radius / slam radius. */
+export function ensureBossTextures(scene: Phaser.Scene, holeFrac = 2 / 4.5): void {
+  register(scene, BOSS_ATLAS, bossSpecs(), drawBossFrame);
+  register(scene, BOSS_FX, bossFxSpecs(), drawFxFrame);
+  if (!scene.textures.exists(BOSS_TELE)) {
+    const canvas = document.createElement("canvas");
+    canvas.width = BOSS_TELE_PX;
+    canvas.height = BOSS_TELE_PX;
+    addGeneratedTexture(scene, BOSS_TELE, canvas, (g) => drawTeleDisc(g, holeFrac));
+  }
+}
