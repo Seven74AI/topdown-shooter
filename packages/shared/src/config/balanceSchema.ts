@@ -446,6 +446,11 @@ export const playerSchema = z
     reviveRadiusM: z.number().positive(),
     /** HP after a revive, as a fraction of max HP. */
     reviveHpFrac: z.number().gt(0).max(1),
+    /** Story 6.3 (F3): the free flashlight every standing survivor has in a blackout (full cone angle in degrees, range m). */
+    flashlight: z
+      .object({ coneDeg: z.number().positive().max(179), rangeM: z.number().positive().max(30) })
+      .strict()
+      .default({ coneDeg: 60, rangeM: 8 }),
     /**
      * Story 3.1: each build phase heals every player by this fraction of max HP (capped at max);
      * downed and out players return standing with this much (FR9).
@@ -820,6 +825,67 @@ export const shopSchema = z
     });
   });
 
+/** Story 6.3: the shipped blackout values (every `lightPctByWave` entry 0: 6.4 fills waves 9–10). */
+export const BLACKOUT_DEFAULTS = {
+  lightPctByWave: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  powerFailureLightPct: 20,
+  endlessLightPct: 5,
+  halfDarkK: 0.5,
+  halfDarkInBuild: false,
+  glowM: 1.6,
+  fireLightM: 4,
+  muzzleLightM: 3,
+  muzzleLightS: 0.1,
+  turretMuzzleLight: true,
+  flameLightM: 3,
+  explosionLightM: 5,
+  explosionLightS: 0.15,
+  molotovLight: true,
+  eyesM: 14,
+  maxStamps: 48,
+  maxEyes: 150,
+  maxSparkles: 160,
+  rainK: 0.35,
+  hazardAboveDarkPct: 10,
+};
+
+/**
+ * Story 6.3: blackout lighting (FR64, FR87). `lightPctByWave[n − 1]` is the light (percent of
+ * normal) unlit ground keeps in wave n (0 = no blackout; waves past the table: 0, 6.12 adds the
+ * endless rule); a power failure (6.10) gives `powerFailureLightPct`; build phases are drawn at
+ * `halfDarkK` of the darkness when `halfDarkInBuild` (6.4). The rest are light-source radii (m),
+ * flash lengths (s) and client caps. The sim reads none of it for gameplay (F8).
+ */
+export const blackoutSchema = z
+  .object({
+    lightPctByWave: z.array(z.number().int().min(0).max(100)).min(1).max(64).default(BLACKOUT_DEFAULTS.lightPctByWave),
+    powerFailureLightPct: z.number().int().min(1).max(100).default(BLACKOUT_DEFAULTS.powerFailureLightPct),
+    endlessLightPct: z.number().int().min(1).max(100).default(BLACKOUT_DEFAULTS.endlessLightPct),
+    halfDarkK: z.number().gt(0).max(1).default(BLACKOUT_DEFAULTS.halfDarkK),
+    halfDarkInBuild: z.boolean().default(BLACKOUT_DEFAULTS.halfDarkInBuild),
+    /** F2: the glow round every standing/downed survivor (crossCheck: > every zombie radius + the player's). */
+    glowM: z.number().positive().max(4).default(BLACKOUT_DEFAULTS.glowM),
+    fireLightM: z.number().positive().max(16).default(BLACKOUT_DEFAULTS.fireLightM),
+    muzzleLightM: z.number().positive().max(8).default(BLACKOUT_DEFAULTS.muzzleLightM),
+    muzzleLightS: z.number().positive().max(1).default(BLACKOUT_DEFAULTS.muzzleLightS),
+    turretMuzzleLight: z.boolean().default(BLACKOUT_DEFAULTS.turretMuzzleLight),
+    flameLightM: z.number().positive().max(8).default(BLACKOUT_DEFAULTS.flameLightM),
+    explosionLightM: z.number().positive().max(16).default(BLACKOUT_DEFAULTS.explosionLightM),
+    explosionLightS: z.number().positive().max(1).default(BLACKOUT_DEFAULTS.explosionLightS),
+    molotovLight: z.boolean().default(BLACKOUT_DEFAULTS.molotovLight),
+    /** F4: zombies within this of the local survivor show eyes above the darkness. */
+    eyesM: z.number().positive().max(40).default(BLACKOUT_DEFAULTS.eyesM),
+    /** Client caps (brief 12): light stamps per frame, eye images, beam sparkles. */
+    maxStamps: z.number().int().min(4).max(256).default(BLACKOUT_DEFAULTS.maxStamps),
+    maxEyes: z.number().int().min(0).max(512).default(BLACKOUT_DEFAULTS.maxEyes),
+    maxSparkles: z.number().int().min(0).max(1024).default(BLACKOUT_DEFAULTS.maxSparkles),
+    /** D7: the normal rain's alpha × this in a blackout (faint over the dark; beams sparkle instead). */
+    rainK: z.number().min(0).max(1).default(BLACKOUT_DEFAULTS.rainK),
+    /** Designer 6.3 B3: acid puddles and Bloater gas show above the darkness at this % of their look (full inside light). */
+    hazardAboveDarkPct: z.number().min(0).max(100).default(BLACKOUT_DEFAULTS.hazardAboveDarkPct),
+  })
+  .strict();
+
 /**
  * Story 4.5: the decay timeline (GDD › Level Progression; FR58). `stageByWave[n - 1]` is the decay
  * stage of wave n (waves past the table keep its last stage); it is applied at the start of the
@@ -855,6 +921,8 @@ export const decaySchema = z
       .strict()
       .refine((f) => Math.abs(f.damagePerS * f.pulseS - Math.round(f.damagePerS * f.pulseS)) < 1e-9 && Math.round(f.damagePerS * f.pulseS) >= 1, "damagePerS × pulseS must be a whole number ≥ 1 (building HP is whole)")
       .refine((f) => Math.abs(f.pulseS * TICK_RATE_HZ - Math.round(f.pulseS * TICK_RATE_HZ)) < 1e-9, "pulseS must be a whole number of ticks"),
+    /** Story 6.3: blackout lighting (defaults = the shipped values; 6.4/6.10/6.12 switch blackouts on). */
+    blackout: blackoutSchema.default(BLACKOUT_DEFAULTS),
   })
   .strict();
 
@@ -912,7 +980,7 @@ export const combatSchema = z
 /**
  * Story 5.11: one gear item (FR48). Every number is an integer: max HP bonus, armor tier, speed
  * bonus in integer percent (prediction stays bit-identical). `inShop: false` hides and refuses an
- * item (the tactical flashlight until Story 6.3; dev: `DEV_SHOP_ALL=1` / `?shopall=1`).
+ * item (none ships hidden since Story 6.3; dev: `DEV_SHOP_ALL=1` / `?shopall=1`).
  */
 export const gearItemSchema = z
   .object({
@@ -927,6 +995,9 @@ export const gearItemSchema = z
     speedBonusPct: z.number().int().min(0).max(50).optional(),
     /** Seconds the owner needs to revive a downed teammate (instead of `player.reviveS`). */
     reviveS: z.number().positive().refine((s) => Math.round(s * TICK_RATE_HZ) <= 255, "reviveS × 20 must fit the uint8 reviveNeed").optional(),
+    /** Story 6.3: a flashlight item's blackout cone (full angle, degrees) and range (m); the widest owned wins. */
+    coneDeg: z.number().min(0).max(179).optional(),
+    rangeM: z.number().min(0).max(30).optional(),
   })
   .strict()
   .refine((g) => (g.maxHpBonus === undefined) === (g.armorTier === undefined), "maxHpBonus and armorTier go together (armor)");

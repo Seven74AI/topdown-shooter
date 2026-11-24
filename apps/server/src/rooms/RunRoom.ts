@@ -83,6 +83,7 @@ import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
 import { pickDevDecayStages } from "../run/devDecayStages";
+import { pickDevForceBlackout } from "../run/devForceBlackout";
 import { pickDevBossWaves } from "../run/devBossWaves";
 import { pickDevStartWave } from "../run/devStartWave";
 import { pickDevShopCards } from "../run/devShopCards";
@@ -682,6 +683,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const devDecayStages = decayPick.stages;
     // Story 5.13 (dev only, read per run): DEV_SHOP_CARDS=flamethrower,revive_kit starts every build-start offer with them.
     const shopPick = pickDevShopCards(process.env, serverBalance);
+    // Story 6.3 (dev only, read per run): DEV_FORCE_BLACKOUT=5 draws every phase at that blackout level.
+    const blackoutPick = pickDevForceBlackout(process.env);
     // Story 6.5 (dev only, read per run): DEV_BOSS_WAVES=3 brings the Behemoth in wave 3.
     const bossPick = pickDevBossWaves(process.env);
     // Story 6.1 (dev only, read per run): DEV_START_WAVE=7 starts the run at wave 7 (its decay stage applied at the first build).
@@ -695,6 +698,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
       decayStageByWave: devDecayStages,
       shopCards: shopPick.cards,
+      forceBlackoutPct: blackoutPick.pct,
       bossWaves: bossPick.waves,
       scenario: this.scenario,
       startWave: startWavePick.wave,
@@ -716,6 +720,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     else if (startWavePick.ignored !== null) this.log.warn({ value: process.env.DEV_START_WAVE, reason: startWavePick.ignored }, "dev_start_wave_ignored");
     if (shopPick.cards !== null) this.log.warn({ cards: shopPick.cards }, "dev_shop_cards");
     else if (shopPick.ignored !== null) this.log.warn({ value: process.env.DEV_SHOP_CARDS, reason: shopPick.ignored }, "dev_shop_cards_ignored");
+    if (blackoutPick.pct !== null) this.log.warn({ pct: blackoutPick.pct }, "dev_force_blackout");
+    else if (blackoutPick.ignored !== null) this.log.warn({ value: process.env.DEV_FORCE_BLACKOUT, reason: blackoutPick.ignored }, "dev_force_blackout_ignored");
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;

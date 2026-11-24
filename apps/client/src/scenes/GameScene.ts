@@ -35,6 +35,7 @@ import {
   parseStartWave,
   isRushState,
   BOSS_STATE,
+  darknessAlpha,
   acidSpitOf,
   type Balance,
   type SimEvent,
@@ -53,6 +54,8 @@ import {
   inHealReach,
   playerIdOfSlot,
   type ShopOfferView,
+  isBlackout as isBlackoutNow,
+  setForcedBlackout,
 } from "@topdown/shared";
 import { dpr } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
@@ -92,6 +95,12 @@ import { STALE_EXPLOSION_S, blastLookFor } from "../render/grenadeFx";
 import { CityView } from "../render/city/CityView";
 import { TurretView } from "../render/TurretView";
 import { FloodlightView } from "../render/FloodlightView";
+import { DarknessView, padDarknessView } from "../render/darkness/DarknessView";
+import { hazardGhostFor } from "../render/city/rainLook";
+import { ABOVE_DARK } from "../render/darkness/aboveDark";
+import { EyesView } from "../render/darkness/EyesView";
+import { BeamSparkleView } from "../render/darkness/BeamSparkleView";
+import { DarknessPlan, FlashLights, planDarkness, type DarknessInputs } from "../render/darkness/darknessPlan";
 import { MedStationView } from "../render/MedStationView";
 import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
@@ -228,6 +237,7 @@ export class GameScene extends Phaser.Scene {
       this.playerViews.set(id, view);
     }
     view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
+    view.setAboveDark(this.blackoutNow); // Story 6.3 (F5): one depth change when a blackout starts or ends
     // Story 5.4 (AC 7f): my fire hurt this teammate just now: their ring flashes orange.
     view.flashRing(this.time.now - (this.ffFlashMs.get(id) ?? -1e9) < FF_FLASH_MS);
     // Story 5.10 (D6): the heal cue — HP from state rose while the body touches a station's ring here.
@@ -313,6 +323,26 @@ export class GameScene extends Phaser.Scene {
   private turretView: TurretView | null = null;
   /** Story 5.10: floodlight pools (pooled glow images) and med station rings; the heal cue from state. */
   private floodlightView: FloodlightView | null = null;
+  /** Story 6.3: the blackout darkness, the zombie eyes and the beam sparkles above it (all idle while no blackout). */
+  private darknessView: DarknessView | null = null;
+  private eyesView: EyesView | null = null;
+  private sparkleView: BeamSparkleView | null = null;
+  private darknessPlan: DarknessPlan | null = null;
+  private flashLights: FlashLights | null = null;
+  /** Story 6.3: a blackout is on this frame (survivors above the darkness; flashes recorded). */
+  private blackoutNow = false;
+  private readonly darkInputs: DarknessInputs = {
+    localId: "",
+    drawnOf: (id) => this.playerViews.get(id),
+    flamingOf: (id) => this.host?.flames.flaming(id) ?? "",
+    molotovs: [],
+    flashes: new FlashLights(1),
+    nowS: 0,
+    viewX: 0,
+    viewY: 0,
+    viewW: 0,
+    viewH: 0,
+  };
   private medStationView: MedStationView | null = null;
   private readonly healCue = new HealCue();
   /** Story 3.4: placement mode on this device; Story 5.15: the ghost is carried while I walk. */
@@ -597,6 +627,18 @@ export class GameScene extends Phaser.Scene {
     this.mineView = new MineView(this, balance);
     this.turretView = new TurretView(this);
     this.floodlightView = new FloodlightView(this, balance); // Story 5.10
+    // Story 6.3: the darkness layer and what reads above it (pools sized by decay.json › blackout).
+    this.darknessView = new DarknessView(this);
+    this.eyesView = new EyesView(this, balance);
+    this.sparkleView = new BeamSparkleView(this, balance, opts.lowFx);
+    this.darknessPlan = new DarknessPlan(balance.decay.blackout.maxStamps);
+    this.flashLights = new FlashLights(balance.decay.blackout.maxStamps);
+    this.darkInputs.localId = localId;
+    this.darkInputs.flashes = this.flashLights;
+    this.darkInputs.molotovs = [];
+    this.blackoutNow = false;
+    // Story 6.3 (AC 13): ?blackout=20|10|5 (solo, release-safe) forces the level for the whole run.
+    if (!session && opts.blackoutPct !== null) setForcedBlackout(world, opts.blackoutPct);
     this.medStationView = new MedStationView(this, balance);
     this.healCue.clear(); // Phaser reuses this scene object
     this.selectView = new BuildingSelectView(this);
@@ -622,7 +664,7 @@ export class GameScene extends Phaser.Scene {
     this.chevrons.length = 0;
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
       const c = CHEVRON_M;
-      this.chevrons.push(this.add.triangle(0, 0, -c, -c * 0.6, c, -c * 0.6, 0, c * 0.6, RUSH_COLOR).setDisplayOrigin(0, 0).setDepth(12).setVisible(false)); // Phaser 4: points are drawn from the display origin (2.9 review)
+      this.chevrons.push(this.add.triangle(0, 0, -c, -c * 0.6, c, -c * 0.6, 0, c * 0.6, RUSH_COLOR).setDisplayOrigin(0, 0).setDepth(ABOVE_DARK.rush).setVisible(false)); // Story 6.3 review L4: above the darkness (FR30). Phaser 4: points are drawn from the display origin (2.9 review)
     }
 
     const cam = this.cameras.main;
@@ -691,6 +733,14 @@ export class GameScene extends Phaser.Scene {
       this.turretView = null;
       this.floodlightView?.destroy();
       this.floodlightView = null;
+      this.darknessView?.destroy(); // Story 6.3
+      this.darknessView = null;
+      this.eyesView?.destroy();
+      this.eyesView = null;
+      this.sparkleView?.destroy();
+      this.sparkleView = null;
+      this.darknessPlan = null;
+      this.flashLights = null;
       this.medStationView?.destroy();
       this.medStationView = null;
       this.repairPanel.close();
@@ -1567,6 +1617,7 @@ export class GameScene extends Phaser.Scene {
   private updateBoss(host: SceneHost, dtS: number): void {
     const b = host.world.boss;
     host.bossDrawPos(this.bossAt);
+    this.bossView?.setDark(darknessAlpha(host.world as World) > 0); // Story 6.3: the outline + eyes above the darkness
     const target = b.targetId !== null ? this.playerViews.get(b.targetId) : undefined;
     this.bossView?.update(this.localHost?.paused === true ? 0 : dtS, host.serverTick, this.bossAt.x, this.bossAt.y, target);
     const m = this.hudModel;
@@ -1764,6 +1815,7 @@ export class GameScene extends Phaser.Scene {
       this.grenadeView?.handle(e, this.acidClockS); // Story 5.5: rounds in flight
       this.explosionView?.handle(e, this.acidClockS);
       this.molotovView?.handle(e, this.acidClockS); // Story 5.12: fire zones and their throws' direction
+      if (this.blackoutNow) this.blackoutFlash(e); // Story 6.3 (AC 4, D4): muzzle and explosion flashes light the dark
       if (this.bloaterFx?.handle(e, this.acidClockS) && e.type === "bloater.burst") this.bloaterBurst(host, e);
       // Story 4.11: a build or wave start (a fire may have gone out) closes every burning cue; a real hit relights it.
       if (e.type === "build.started" || e.type === "wave.started") {
@@ -1842,6 +1894,10 @@ export class GameScene extends Phaser.Scene {
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
     this.acidClockS += fxDtS;
+    // Story 6.3 (designer B3): acid puddles and Bloater gas show above the darkness at 10 % (blackout only).
+    const hazardGhost = hazardGhostFor(host.world);
+    if (this.acidView) this.acidView.darkGhost = hazardGhost;
+    if (this.bloaterView) this.bloaterView.darkGhost = hazardGhost;
     this.acidView?.update(this.acidClockS);
     this.grenadeView?.update(this.acidClockS);
     this.explosionView?.update(fxDtS, this.acidClockS);
@@ -1956,5 +2012,52 @@ export class GameScene extends Phaser.Scene {
     // stage-1 bake followed by a second one a moment later on a late join).
     const synced = !(host instanceof NetSimHost) || host.decaySynced;
     this.cityView?.update(host.world, this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000, synced);
+    this.updateDarkness(host, zoom);
+  }
+
+  /**
+   * Story 6.3 (AC 5–9): after every view has its drawn pose (players, zombies) and the camera view
+   * is known: the stamp plan, the darkness, the eyes within `eyesM` of my (or my spectated) survivor
+   * and the beam sparkles. All hidden and idle while no blackout (F9).
+   */
+  private updateDarkness(host: SceneHost, zoom: number): void {
+    const world = host.world;
+    const on = isBlackoutNow(world);
+    if (on !== this.blackoutNow) {
+      this.blackoutNow = on;
+      for (const v of this.playerViews.values()) v.setAboveDark(on);
+      if (!on) this.flashLights?.clear();
+    }
+    const plan = this.darknessPlan;
+    if (!plan) return;
+    const m = this.hudModel;
+    const vw = this.scale.width / zoom;
+    const vh = this.scale.height / zoom;
+    if (on) {
+      const inp = this.darkInputs;
+      inp.molotovs = this.molotovView?.fires.live ?? [];
+      inp.nowS = this.acidClockS;
+      padDarknessView(m.camX, m.camY, vw, vh, inp); // review M1: the padded darkness (camera shake)
+      planDarkness(plan, world, inp);
+    }
+    this.darknessView?.update(world, plan, m.camX, m.camY, vw, vh, zoom, this.scale.width, this.scale.height);
+    if (this.zombieView) this.eyesView?.update(world, this.zombieView, m.localX, m.localY, world.balance.decay.blackout.eyesM);
+    this.sparkleView?.update(world, plan, this.acidClockS);
+  }
+
+  /** Story 6.3 (AC 4, D4): a shot or a blast lights the dark for a moment (only while a blackout is on). */
+  private blackoutFlash(e: SimEvent): void {
+    const f = this.flashLights;
+    if (!f) return;
+    const b = this.host?.world.balance.decay.blackout;
+    if (!b) return;
+    if (e.type === "weapon.fired" || (e.type === "turret.fired" && b.turretMuzzleLight)) {
+      f.add(e.x + e.dirX * MUZZLE_LIGHT_AHEAD_M, e.y + e.dirY * MUZZLE_LIGHT_AHEAD_M, b.muzzleLightM, b.muzzleLightS, this.acidClockS);
+    } else if (e.type === "explosion.happened" && (e.ageS ?? 0) <= b.explosionLightS) {
+      f.add(e.x, e.y, b.explosionLightM, b.explosionLightS - (e.ageS ?? 0), this.acidClockS);
+    }
   }
 }
+
+/** Story 6.3: a muzzle flash lights round a point this far ahead of the shooter (looks.html: 0.8 m). */
+const MUZZLE_LIGHT_AHEAD_M = 0.8;

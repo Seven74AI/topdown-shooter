@@ -57,6 +57,7 @@ import {
   type TestScenario,
   type World,
   type ZombieTypeId,
+  setForcedBlackout,
 } from "@topdown/shared";
 import { INPUT_SEQ_RESYNC_AFTER, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS } from "../net/limits";
 import { SpreadCancelWatch, type SpreadCancelSuspect } from "../net/spreadCancel";
@@ -219,6 +220,8 @@ export interface RunControllerOptions {
   decayStageByWave?: readonly number[] | null;
   /** Story 5.13 dev (`DEV_SHOP_CARDS=flamethrower,revive_kit`): every build-start offer starts with these items. null = the real draw. */
   shopCards?: readonly string[] | null;
+  /** Story 6.3 dev (`DEV_FORCE_BLACKOUT=5`): every phase at this blackout level. null = the real rule. */
+  forceBlackoutPct?: number | null;
   /** Story 6.5 dev (`DEV_BOSS_WAVES=3`): the Behemoth's waves instead of `boss.json`. null = the real list. */
   bossWaves?: readonly number[] | null;
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map; tests may pass the open `PLACEHOLDER_MAP`). */
@@ -301,6 +304,7 @@ export class RunController {
     }
     this.world.events.subscribe((e) => this.events.push(e));
     startBuild(this.world); // Story 3.1: Lobby → Build; `build.started` goes out with the first tick
+    if (opts.forceBlackoutPct !== undefined && opts.forceBlackoutPct !== null) setForcedBlackout(this.world, opts.forceBlackoutPct); // Story 6.3 dev
   }
 
   /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */

@@ -66,3 +66,9 @@ Story 5.12 additions (pictures: Playwright, solo dev build, 800×360 at 2×, HUD
 | 42 | `5-12-molotov-flight-800x360.png` | a molotov in flight (a bottle with a burning rag; HG1–3 / MB1–3 looks vary per throw) | flies **over** cars, the bus, barricades; only buildings stop it | right if "molotov / fire bottle" |
 | 43 | `5-12-molotov-fire-800x360.png` | molotov fire: the 4.12 fire on the asphalt with a ring of flames at the 3 m edge = the damage edge | fire goes through barricades and sandbags (a ground area) | 8/s to zombies, 4/s to survivors (teammates and you), never stacks with a car fire, 4 s, burns no building, no path change |
 | 44 | `5-12-grenade-flight-800x360.png` | a hand grenade blast (EX2 shockwave + debris) at the bus's near face, its ring = the 2.5 m damage edge | the blast is **stopped by** cars/bus/buildings, **not** by barricades/sandbags | 44 to zombies, 20 to every survivor in it (you too) |
+
+Story 6.3 additions (pictures: Playwright, solo dev build `?blackout=10&stress=…&stressbuild=lights`, 800×360 at 2×, 2026-11-24; files in `docs/art/6-3/`):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 46 | `6-3-blackout-10-800x360.png` | a blackout wave (10 % light): the pale yellow dot pairs are zombie **eyes** (every zombie within 14 m, lit or not); the cone is your **flashlight** (60°, 8 m; 80°, 12 m with the Tactical flashlight; a teammate's cone is drawn the same way); the round warm pools are **floodlights** (6 m in a blackout), a burning car glows orange (4 m); rain sparkles inside every beam and pool | darkness changes nothing: cover and bullets work as in the light | right if "eyes / zombies in the dark" and "my torch"; the dark can't be turned off (no setting lightens it) |

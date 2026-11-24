@@ -30,6 +30,9 @@ export function syncState(state: RunState, controller: RunController): void {
   if (state.decayVariants !== world.decay.variants) state.decayVariants = world.decay.variants;
   if (state.decayStage !== world.decay.stage) state.decayStage = world.decay.stage;
   if (state.decayFiresOut !== world.decay.firesOut) state.decayFiresOut = world.decay.firesOut; // Story 4.8
+  // Story 6.3: the light state's two synced flags (on change only: a blackout starting or ending).
+  if (state.blackoutPct !== world.lights.blackoutPct) state.blackoutPct = world.lights.blackoutPct;
+  if (state.halfDark !== world.lights.halfDark) state.halfDark = world.lights.halfDark;
   syncBuildings(state, world);
   syncBoss(state, world); // Story 6.5
 }
@@ -215,6 +218,8 @@ export function resetRunFields(state: RunState): void {
   state.decayStage = 0; // Story 4.5
   state.decayVariants = 0;
   state.decayFiresOut = 0; // Story 4.8
+  state.blackoutPct = 0; // Story 6.3
+  state.halfDark = false;
   state.buildings.clear(); // Story 3.4: the next run starts with none
   buildingSyncs.delete(state);
   state.boss = new BossState(); // Story 6.5: no boss before the next run's wave 10

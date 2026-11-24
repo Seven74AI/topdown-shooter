@@ -69,6 +69,9 @@ export interface FakeState {
   decayVariants: number;
   /** Story 4.8. */
   decayFiresOut: number;
+  /** Story 6.3. */
+  blackoutPct: number;
+  halfDark: boolean;
   /** Story 6.5: the boss record. */
   boss: FakeBoss;
 }
@@ -98,6 +101,8 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     decayStage: 1,
     decayVariants: 0,
     decayFiresOut: 0,
+    blackoutPct: 0,
+    halfDark: false,
     boss: fakeBoss(),
   };
 }

@@ -4,6 +4,7 @@ import { SLOT_COLORS } from "./playerColors";
 import { pulseAlpha, pulseScale } from "./pulse";
 import { ATLAS_CHARACTERS, SURVIVOR_FRAME, ensureAtlases, survivorFrameFor } from "./city/spriteAtlas";
 import { CHAR_EXTENT_R } from "./city/spriteArt";
+import { ABOVE_DARK } from "./darkness/aboveDark";
 
 /** Story 4.9: the survivor sprite (`survivor_body_a`), tinted for states (MULTIPLY). */
 const BODY_TINT = 0xffffff;
@@ -25,6 +26,11 @@ const HEAL_PLUS_COLOR = 0x8dff9a;
 const HEAL_PLUS_M = 0.32;
 const HEAL_PLUS_BAR_M = 0.1;
 const HEAL_PLUS_DEPTH = 11;
+/** Story 6.3 (D6, F5): in a blackout the survivor's body (and "+") sit in the teammate slot above the darkness, the ring just under it. */
+export const BODY_DEPTH = 10;
+export const DARK_BODY_DEPTH = ABOVE_DARK.teammate;
+export const DARK_RING_DEPTH = ABOVE_DARK.teammate - 0.001;
+export const DARK_PLUS_DEPTH = ABOVE_DARK.teammate + 0.001;
 
 /** Survivor seen from above (Story 4.9 sprite, facing its aim) on a slot-coloured ground ring. Units are meters. */
 export class PlayerView {
@@ -32,6 +38,11 @@ export class PlayerView {
   private readonly body: Phaser.GameObjects.Image;
   x = 0;
   y = 0;
+  /** Story 6.3 (DD5): the drawn facing (the flashlight cone follows it). */
+  facingX = 1;
+  facingY = 0;
+  /** Story 6.3: drawn above the darkness (one depth change per blackout start/end, not per frame). */
+  private aboveDark = false;
   private shownStatus: PlayerState["status"] | null = null;
   private shownSlowed = false;
   private slot = -1;
@@ -52,7 +63,7 @@ export class PlayerView {
       .setDepth(RING_DEPTH);
     ensureAtlases(scene);
     const side = 2 * radiusM * CHAR_EXTENT_R.survivor;
-    this.body = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_FRAME).setDisplaySize(side, side).setDepth(10);
+    this.body = scene.add.image(0, 0, ATLAS_CHARACTERS, SURVIVOR_FRAME).setDisplaySize(side, side).setDepth(BODY_DEPTH);
     const h = HEAL_PLUS_M / 2;
     const t = HEAL_PLUS_BAR_M / 2;
     this.plus = scene.add.graphics().setDepth(HEAL_PLUS_DEPTH).setVisible(false);
@@ -68,6 +79,23 @@ export class PlayerView {
       this.plus.setVisible(on);
     }
     if (on) this.plus.setPosition(this.x + this.plusOffM, this.y - this.plusOffM);
+  }
+
+  /**
+   * Story 6.3 (AC 9, F5): while `on` (a blackout), the body, ring and heal "+" are drawn above the
+   * darkness (`ABOVE_DARK.teammate`); back to their normal depths when it ends. Only acts on a change.
+   */
+  setAboveDark(on: boolean): void {
+    if (on === this.aboveDark) return;
+    this.aboveDark = on;
+    this.ring.setDepth(on ? DARK_RING_DEPTH : RING_DEPTH);
+    this.body.setDepth(on ? DARK_BODY_DEPTH : BODY_DEPTH);
+    this.plus.setDepth(on ? DARK_PLUS_DEPTH : HEAL_PLUS_DEPTH);
+  }
+
+  /** Story 6.3 (tests): the body's and the ring's depths now. */
+  get depths(): { body: number; ring: number } {
+    return { body: this.body.depth, ring: this.ring.depth };
   }
 
   /** Ring colour by lobby slot (0–3; solo is 0, blue). */
@@ -93,6 +121,8 @@ export class PlayerView {
     this.x = lerp(p.prevX, p.x, alpha);
     this.y = lerp(p.prevY, p.y, alpha);
     this.ring.setPosition(this.x, this.y);
+    this.facingX = p.facingX;
+    this.facingY = p.facingY;
     this.body.setPosition(this.x, this.y).setRotation(Math.atan2(p.facingY, p.facingX));
     // Story 5.2: a Chainsaw that is cutting shows its running (blurred chain) frame.
     const frame = survivorFrameFor(p.loadout.slots[p.loadout.active]?.weapon ?? "", sawRunning && p.status === "alive");

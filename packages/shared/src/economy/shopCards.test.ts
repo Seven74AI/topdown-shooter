@@ -44,13 +44,14 @@ describe("card catalog and prices (Story 5.13 T2; D2, D7, F9)", () => {
       "body_armor_2",
       "running_shoes",
       "revive_kit",
+      "tactical_flashlight", // Story 6.3 (D8): in the shop from wave 1
     ]);
     const tier = (id: string) => cardItem(balance, id)?.rarity;
     for (const id of ["machete", "smg", "shotgun", "body_armor_1", "running_shoes", "revive_kit"]) expect(tier(id), id).toBe("common");
     for (const id of ["fire_axe", "hunting_rifle", "assault_rifle", "body_armor_2"]) expect(tier(id), id).toBe("rare");
     for (const id of ["chainsaw", "gas_torch", "flamethrower", "grenade_launcher"]) expect(tier(id), id).toBe("epic");
     expect(cardItem(balance, "pistol")).toBeUndefined();
-    expect(cardItem(balance, "tactical_flashlight")).toBeUndefined();
+    expect(cardItem(balance, "tactical_flashlight")?.kind).toBe("gear"); // Story 6.3 (D8): a card from wave 1
     expect(cardCatalog(balance)).toBe(cat); // cached
   });
 
@@ -117,7 +118,7 @@ describe("the draw (Story 5.13 AC 2; F2, F6, F7, F8)", () => {
       return loadBalance(files);
     };
     const oneWeapon = small(["hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher", "flamethrower", "gas_torch"]);
-    const oneGear = small(["body_armor_1", "body_armor_2", "running_shoes"]);
+    const oneGear = small(["body_armor_1", "body_armor_2", "running_shoes", "tactical_flashlight"]);
     for (let seed = 1; seed <= 300; seed++) {
       const a = setup(1, seed, oneWeapon);
       expect(readOffer(a.world, "p0")?.cards, `seed ${seed}`).toContain("smg");
@@ -141,14 +142,14 @@ describe("the draw (Story 5.13 AC 2; F2, F6, F7, F8)", () => {
   it("floor filled as far as possible when all gear is owned; the rest weapons; empty slots show none (7.4 fallback)", () => {
     const { world, ps } = setup();
     const p = ps[0] as PlayerState;
-    p.gear = gearBit(balance, "body_armor_2") | gearBit(balance, "running_shoes") | gearBit(balance, "revive_kit");
+    p.gear = gearBit(balance, "body_armor_2") | gearBit(balance, "running_shoes") | gearBit(balance, "revive_kit") | gearBit(balance, "tactical_flashlight");
     drawOffer(world, "p0");
     let o = readOffer(world, "p0") as ShopOfferView;
     expect(o.cards.every((id) => kindOf(id) === "weapon")).toBe(true);
     expect(o.canReroll).toBe(true);
     // A pool of only 3 card items (the rest excluded by balance): 3 cards + 3 "—".
     const files = bundledBalanceFiles();
-    (files.shop as { excludeFromCards: string[] }).excludeFromCards = ["pistol", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher", "flamethrower", "gas_torch", "body_armor_1", "body_armor_2", "running_shoes"];
+    (files.shop as { excludeFromCards: string[] }).excludeFromCards = ["pistol", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher", "flamethrower", "gas_torch", "body_armor_1", "body_armor_2", "running_shoes", "tactical_flashlight"];
     const small = loadBalance(files);
     const s2 = setup(1, 3, small);
     drawOffer(s2.world, "p0");

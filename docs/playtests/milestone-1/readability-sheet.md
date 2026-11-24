@@ -161,8 +161,11 @@ Player:
 ## 45: which card is the rarest, and which one is too dear? Read it at arm's length (Story 5.13)
 ![45](../../art/5-13/5-13-shop-sold-800x360.png)
 
-## 46: what is coming, and from where? (Story 6.5: the Behemoth's warning and its red edge marker)
-![46](../../art/6-5/6-5-800x360-warning.png)
+## 46: a blackout wave. Where are the zombies, which light is whose, and what is the warm glow? (Story 6.3)
+![46](../../art/6-3/6-3-blackout-10-800x360.png)
 
-## 47: what is this, and is it safe to stand in the red ring? When does it hit? (Story 6.5: the slam telegraph; the skull marks its target)
-![47](../../art/6-5/6-5-800x360-telegraph.png)
+## 47: what is coming, and from where? (Story 6.5: the Behemoth's warning and its red edge marker)
+![47](../../art/6-5/6-5-800x360-warning.png)
+
+## 48: what is this, and is it safe to stand in the red ring? When does it hit? (Story 6.5: the slam telegraph; the skull marks its target)
+![48](../../art/6-5/6-5-800x360-telegraph.png)

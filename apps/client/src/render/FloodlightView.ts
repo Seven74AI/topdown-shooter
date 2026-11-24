@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { lightsOf, type Balance, type World } from "@topdown/shared";
+import { lightRadiusOf, lightsOf, type Balance, type World } from "@topdown/shared";
 import { ATLAS_FX, FX_FLOOD_POOL } from "./city/spriteAtlas";
 import { nightAt } from "./city/palette";
 import { pickDrawnLights } from "./floodlightLook";
@@ -14,7 +14,7 @@ export const FLOOD_LIGHT_COLOR = 0xffeecd;
  * (`FX_FLOOD_POOL`, the FX atlas's glow family: the FL1 card's flat 4 m disc) per floodlight in view
  * (+ `controls.fx.floodLightViewMarginM`), at most `controls.fx.maxFloodLights` drawn (nearest the
  * camera centre; lamps within `floodLightMergeM` of a drawn one share its pool: `pickDrawnLights`),
- * display size 2 × the light radius, strength
+ * display size 2 × the light radius (Story 6.3: `lightRadiusOf`, the blackout radius in a blackout), strength
  * `NightLight.floodA` of the decay stage. Positions come from the DERIVED `world.lights` (every copy
  * agrees). No re-bake of the city or its lightmap, no render texture, no full-screen layer; per
  * frame only position/size/alpha of ≤ 8 images (no allocation). The lamp itself is the FL1 sprite
@@ -52,7 +52,7 @@ export class FloodlightView {
       const l = lights[this.picked[i] as number];
       const img = this.pool[i] as Phaser.GameObjects.Image;
       if (!l) continue;
-      const size = 2 * l.radiusM;
+      const size = 2 * lightRadiusOf(world, l); // Story 6.3 (F7, AC 10): 6 m in a blackout (12 m across)
       if (img.x !== l.x || img.y !== l.y) img.setPosition(l.x, l.y);
       if (img.displayWidth !== size) img.setDisplaySize(size, size);
       if (img.alpha !== a) img.setAlpha(a);

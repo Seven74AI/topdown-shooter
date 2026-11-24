@@ -266,6 +266,15 @@ export class ZombieView {
     if ((this.flashUntil[id] as number) === 0) img.setTint(swellTint(swellPulse(tS, p))).setTintMode(Phaser.TintModes.MULTIPLY);
   }
 
+  /**
+   * Story 6.3 (EyesView): the image of zombie slot `id` if it was drawn this frame (its position and
+   * rotation are the drawn pose), else undefined.
+   */
+  drawnImage(id: number): Phaser.GameObjects.Image | undefined {
+    const img = this.images[id];
+    return img && img.visible && this.shownFrame[id] === this.frame ? img : undefined;
+  }
+
   destroy(): void {
     for (const img of this.images) img?.destroy();
     this.images.length = 0;

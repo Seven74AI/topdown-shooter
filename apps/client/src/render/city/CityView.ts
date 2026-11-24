@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
 import type { DistrictMap, FireRecord, World } from "@topdown/shared";
+import { rainAlphaFor } from "./rainLook";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, carStyle, dressingFor, type Dressing } from "./dressing";
 import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, resetPatternTiles, type CityScene } from "./drawCity";
@@ -50,6 +51,7 @@ const LIGHT_PX_PER_M = 8;
 const RAIN_POOL = 128;
 const RAIN_PER_M2 = 0.4;
 const RAIN_ALPHA = 0.28;
+
 const RAIN_LEN_M = 0.45;
 const RAIN_W_M = 0.035;
 /** Fall speed range (m/s) and the slant (x per y). */
@@ -318,6 +320,7 @@ export class CityView {
     this.fireView.update(dtS, t, viewX, viewY, viewW, viewH);
 
     const level = nightAt(this.stage).rain;
+    const rainA = rainAlphaFor(world, RAIN_ALPHA); // Story 6.3 (D7): dimmed in a blackout; one compare per frame
     const spanY = viewH + 2 * RAIN_MARGIN_M;
     const spanX = viewW + 2 * RAIN_MARGIN_M;
     const n = Math.min(RAIN_POOL, Math.round(viewW * viewH * RAIN_PER_M2 * level));
@@ -329,7 +332,7 @@ export class CityView {
       }
       const yOff = ((this.dropPhaseY[i] as number) * spanY + t * (this.dropSpeed[i] as number)) % spanY;
       const xOff = ((this.dropPhaseX[i] as number) * spanX + yOff * RAIN_SLANT) % spanX;
-      img.setPosition(viewX - RAIN_MARGIN_M + xOff, viewY - RAIN_MARGIN_M + yOff).setAlpha(RAIN_ALPHA);
+      img.setPosition(viewX - RAIN_MARGIN_M + xOff, viewY - RAIN_MARGIN_M + yOff).setAlpha(rainA);
       if (!img.visible) img.setVisible(true);
     }
     const splashes = Math.round(SPLASH_POOL * level);

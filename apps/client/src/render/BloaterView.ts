@@ -3,6 +3,7 @@ import type { World } from "@topdown/shared";
 import { ATLAS_FX, FX_BILE_SPLATS, FX_CLOTH_SCRAP, FX_EXPLOSION_BLOATER, FX_GAS_CLOUDS, FX_GLOW, ensureAtlases } from "./city/spriteAtlas";
 import { BURST_DROP, BURST_FLASH_S, BURST_PUFF, BURST_RING_FADE_S, BURST_RING_S, BURST_SCRAP, BURST_SPLAT, type BloaterFx } from "./bloaterFx";
 import type { ZombieView } from "./ZombieView";
+import { aboveDarkness } from "./darkness/aboveDark";
 
 /** Splats on the street (above blood trails, below puddles and bodies); the fog over the bodies (translucent); flying bits above all. */
 const SPLAT_DEPTH = 1.58;
@@ -43,6 +44,12 @@ export class BloaterView {
   private readonly shownKind: Int8Array;
   private readonly shownTone: Int8Array;
   private readonly rings: Phaser.GameObjects.Graphics;
+  /** Story 6.3 (B3): gas ghosts above the darkness — 0 = none (no blackout), else their share of the look (0.1). */
+  darkGhost = 0;
+  private readonly ghosts: Phaser.GameObjects.Image[] = [];
+  private readonly ghosts2: Phaser.GameObjects.Image[] = [];
+  private readonly ghostRings: Phaser.GameObjects.Graphics;
+  private ghostRingsDrawn = false;
   private ringsDrawn = false;
   private fuseCount = 0;
   private readonly drawFuse = (x: number, y: number, p: number): void => {
@@ -70,12 +77,16 @@ export class BloaterView {
     for (let i = 0; i < fx.maxClouds; i++) {
       this.clouds.push(scene.add.image(0, 0, ATLAS_FX, FX_GAS_CLOUDS[0] as string).setDisplaySize(d, d).setDepth(CLOUD_DEPTH).setVisible(false));
       this.clouds2.push(scene.add.image(0, 0, ATLAS_FX, FX_GAS_CLOUDS[1] as string).setDisplaySize(d, d).setDepth(CLOUD_DEPTH).setVisible(false));
+      // Story 6.3 (designer B3): both cloud layers again above the darkness at `darkGhost` strength (blackout only).
+      this.ghosts.push(aboveDarkness(scene.add.image(0, 0, ATLAS_FX, FX_GAS_CLOUDS[0] as string).setDisplaySize(d, d).setVisible(false), "hazard"));
+      this.ghosts2.push(aboveDarkness(scene.add.image(0, 0, ATLAS_FX, FX_GAS_CLOUDS[1] as string).setDisplaySize(d, d).setVisible(false), "hazard"));
       this.flashes.push(scene.add.image(0, 0, ATLAS_FX, FX_EXPLOSION_BLOATER).setDisplaySize(d * 0.9, d * 0.9).setDepth(AIR_DEPTH).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
     }
     for (let i = 0; i < fx.maxParticles; i++) this.bits.push(scene.add.image(0, 0, ATLAS_FX, FX_GLOW).setVisible(false));
     this.shownKind = new Int8Array(fx.maxParticles).fill(-1);
     this.shownTone = new Int8Array(fx.maxParticles).fill(-1);
     this.rings = scene.add.graphics().setDepth(RING_DEPTH);
+    this.ghostRings = aboveDarkness(scene.add.graphics(), "hazard");
   }
 
   update(world: Readonly<World>, nowS: number): void {
@@ -87,6 +98,11 @@ export class BloaterView {
       g.clear();
       this.ringsDrawn = false;
     }
+    if (this.ghostRingsDrawn) {
+      this.ghostRings.clear();
+      this.ghostRingsDrawn = false;
+    }
+    const k = this.darkGhost;
     this.fuseCount = 0;
     this.zombies.forEachSwell(world, this.drawFuse);
     if (this.fuseCount > 0) this.ringsDrawn = true;
@@ -95,6 +111,14 @@ export class BloaterView {
       const cl2 = this.clouds2[c] as Phaser.GameObjects.Image;
       const fl = this.flashes[c] as Phaser.GameObjects.Image;
       const a = fx.cloudAlpha(c, nowS);
+      const gh = this.ghosts[c] as Phaser.GameObjects.Image;
+      const gh2 = this.ghosts2[c] as Phaser.GameObjects.Image;
+      if (a <= 0 || k <= 0) {
+        if (gh.visible) {
+          gh.setVisible(false);
+          gh2.setVisible(false);
+        }
+      }
       if (a <= 0) {
         if (cl.visible) {
           cl.setVisible(false);
@@ -113,6 +137,12 @@ export class BloaterView {
         fl.setPosition(x, y).setAlpha(f * f).setVisible(true);
       } else if (fl.visible) fl.setVisible(false);
       g.lineStyle(LINE_M, GAS_EDGE, GAS_EDGE_ALPHA * a).strokeCircle(x, y, fx.gasRadiusM);
+      if (k > 0) {
+        gh.setPosition(x, y).setRotation(cl.rotation).setAlpha(CLOUD_ALPHA * a * k).setVisible(true);
+        gh2.setPosition(x, y).setRotation(cl2.rotation).setAlpha(CLOUD2_ALPHA * a * k).setVisible(true);
+        this.ghostRings.lineStyle(LINE_M, GAS_EDGE, GAS_EDGE_ALPHA * a * k).strokeCircle(x, y, fx.gasRadiusM);
+        this.ghostRingsDrawn = true;
+      }
       const ra = t < BURST_RING_S ? 0.85 : Math.max(0, 0.85 - (t - BURST_RING_S) / BURST_RING_FADE_S);
       if (ra > 0) g.lineStyle(ARC_LINE_M, SHOCK, ra).strokeCircle(x, y, this.blastRadiusM * Math.min(1, t / BURST_RING_S));
       this.ringsDrawn = true;
@@ -155,6 +185,9 @@ export class BloaterView {
   }
 
   destroy(): void {
+    for (const g of this.ghosts) g.destroy();
+    for (const g of this.ghosts2) g.destroy();
+    this.ghostRings.destroy();
     for (const img of [...this.clouds, ...this.clouds2, ...this.flashes, ...this.bits]) img.destroy();
     this.clouds.length = 0;
     this.clouds2.length = 0;

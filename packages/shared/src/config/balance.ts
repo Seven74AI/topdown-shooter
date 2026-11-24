@@ -119,20 +119,19 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   }
   crossCheckBuildingTypes(parsed.buildings as { types: Record<string, BuildingTypeStats> }, issues);
   crossCheckFlames(parsed, issues);
+  crossCheckBlackout(parsed, issues);
   crossCheckBoss(parsed, issues);
 }
 
 /**
- * Story 6.5: the boss fits the run. Its alive cap is at most the normal one, its body paths on its
- * own grid (boxes grown so 0.35 m + inflateM covers its radius). The entry names are checked against
- * the Downtown map in `boss/behemoth.test.ts` (the balance knows no map).
+ * Story 6.3 (F2): a zombie touching a survivor is always inside their glow (`glowM` > every zombie
+ * radius + the player's radius). The lightPctByWave range (0–100) is the schema's.
  */
-function crossCheckBoss(parsed: Record<string, unknown>, issues: string[]): void {
-  const boss = parsed.boss as { aliveCap: number; radiusM: number; pathing: { inflateM: number } };
-  const maxAlive = (parsed.waves as { maxAlive: number }).maxAlive;
-  if (boss.aliveCap > maxAlive) issues.push(`boss.json: aliveCap ${boss.aliveCap} exceeds waves.maxAlive ${maxAlive}`);
-  if (MAX_PATHING_ZOMBIE_RADIUS_M + boss.pathing.inflateM + 1e-9 < boss.radiusM) {
-    issues.push(`boss.json: pathing.inflateM ${boss.pathing.inflateM} + ${MAX_PATHING_ZOMBIE_RADIUS_M} m is less than radiusM ${boss.radiusM}`);
+function crossCheckBlackout(parsed: Record<string, unknown>, issues: string[]): void {
+  const glowM = (parsed.decay as { blackout: { glowM: number } }).blackout.glowM;
+  const pr = (parsed.player as { radiusM: number }).radiusM;
+  for (const [id, t] of Object.entries((parsed.zombies as { types: Record<string, { radiusM: number }> }).types)) {
+    if (t.radiusM + pr >= glowM) issues.push(`decay.json: blackout.glowM ${glowM} m must exceed zombies.json types.${id}.radiusM ${t.radiusM} + player.radiusM ${pr} (F2: a zombie touching you is always lit)`);
   }
 }
 
@@ -256,4 +255,18 @@ export function withOverrides(raw: RawBalanceFiles, overrides: readonly BalanceO
     if (node && typeof node === "object" && last in node) node[last] = value;
   }
   return out as RawBalanceFiles;
+}
+
+/**
+ * Story 6.5: the boss fits the run. Its alive cap is at most the normal one, its body paths on its
+ * own grid (boxes grown so 0.35 m + inflateM covers its radius). The entry names are checked against
+ * the Downtown map in `boss/behemoth.test.ts` (the balance knows no map).
+ */
+function crossCheckBoss(parsed: Record<string, unknown>, issues: string[]): void {
+  const boss = parsed.boss as { aliveCap: number; radiusM: number; pathing: { inflateM: number } };
+  const maxAlive = (parsed.waves as { maxAlive: number }).maxAlive;
+  if (boss.aliveCap > maxAlive) issues.push(`boss.json: aliveCap ${boss.aliveCap} exceeds waves.maxAlive ${maxAlive}`);
+  if (MAX_PATHING_ZOMBIE_RADIUS_M + boss.pathing.inflateM + 1e-9 < boss.radiusM) {
+    issues.push(`boss.json: pathing.inflateM ${boss.pathing.inflateM} + ${MAX_PATHING_ZOMBIE_RADIUS_M} m is less than radiusM ${boss.radiusM}`);
+  }
 }

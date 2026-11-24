@@ -384,7 +384,7 @@ describe("Story 5.9: building tiers, traps and mines", () => {
 
   it("Story 5.10 building blocks: light/heal validate; two behaviour blocks refused; inShop defaults true", () => {
     const t = loadBalance().buildings.types;
-    expect(t.floodlight).toMatchObject({ inShop: false, forSale: true, solid: true, stopsBullets: false, light: { radiusM: 4, blackoutRadiusM: 6 } });
+    expect(t.floodlight).toMatchObject({ inShop: true, forSale: true, solid: true, stopsBullets: false, light: { radiusM: 4, blackoutRadiusM: 6 } });
     expect(t.med_station).toMatchObject({ inShop: true, solid: true, stopsBullets: false, heal: { radiusM: 2, hpPerS: 5 } });
     // 5.10 review: the schema default of the pool-sharing distance matches controls.json (4 m).
     const fxWithout: Record<string, unknown> = { ...controls.fx };
@@ -491,7 +491,7 @@ describe("gear.json (Story 5.11)", () => {
   it("gear validates; > 8 items refused; unknown fields refused; armor needs both numbers", () => {
     const b = loadBalance(raw());
     expect(Object.keys(b.gear.items)).toHaveLength(5);
-    expect(b.gear.items.tactical_flashlight?.inShop).toBe(false);
+    expect(b.gear.items.tactical_flashlight).toMatchObject({ inShop: true, coneDeg: 80, rangeM: 12 }); // Story 6.3 (D8)
     expect(b.gear.items.body_armor_1?.inShop).toBe(true);
     const many = raw();
     const items = (many.gear as { items: Record<string, unknown> }).items;

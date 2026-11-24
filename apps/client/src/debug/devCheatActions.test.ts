@@ -73,3 +73,19 @@ describe("Story 6.5 Spawn Behemoth cheat", () => {
     expect(spawnBehemothCheat(w)).toBe(false);
   });
 });
+
+describe("Story 6.3 force blackout cheat (AC 13)", () => {
+  it("solo, any phase: 20 / 10 / 5 % through setForcedBlackout; off goes back to the real rule", async () => {
+    const { createWorld, loadBalance, startBuild, startWave, addPlayer } = await import("@topdown/shared");
+    const { setForcedBlackoutCheat } = await import("./devCheatActions");
+    const w = createWorld({ balance: loadBalance(), seed: 2, systems: { waves: () => {} } });
+    addPlayer(w, "p0", 10, 10);
+    expect(setForcedBlackoutCheat(w, 20)).toBe(20); // lobby
+    startBuild(w);
+    expect(w.lights.blackoutPct).toBe(20); // forced survives the build start's refresh
+    startWave(w);
+    expect(setForcedBlackoutCheat(w, 5)).toBe(5);
+    expect(setForcedBlackoutCheat(w, -1)).toBe(0); // table entry 0: lit
+    expect(w.lights.forcedPct).toBe(-1);
+  });
+});

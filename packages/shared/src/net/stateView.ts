@@ -131,6 +131,13 @@ export interface RunStateView {
    * the mirror and the Predictor pass it to `applyDecayStage` with the stage.
    */
   readonly decayFiresOut: number;
+  /**
+   * Story 6.3 (brief 26): the light state's two synced flags (`world.lights.blackoutPct`, `halfDark`),
+   * written on change only; the mirror copies them on every patch, so a late join or a woken tab draws
+   * the server's darkness on the next frame.
+   */
+  readonly blackoutPct: number;
+  readonly halfDark: boolean;
   /** Story 6.5: the Behemoth's record (one nested schema; `boss/bossState.ts` is the sim side). */
   readonly boss?: BossStateView; // absent before the first fight patch (a lobby state)
 }
@@ -237,6 +244,8 @@ export const RUN_STATE_FIELDS = {
   decayStage: true,
   decayVariants: true,
   decayFiresOut: true,
+  blackoutPct: true, // Story 6.3
+  halfDark: true, // Story 6.3
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

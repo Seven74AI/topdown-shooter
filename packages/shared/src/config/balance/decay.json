@@ -3,5 +3,27 @@
   "stageNames": ["Evening", "Panic", "Breakdown", "Ruins", "Collapse"],
   "buildingRefundShare": 0.5,
   "relocateSearchRings": 12,
-  "fire": { "radiusM": 2, "damagePerS": 10, "pulseS": 0.5, "durationWaves": 2, "navCostM": 10 }
+  "fire": { "radiusM": 2, "damagePerS": 10, "pulseS": 0.5, "durationWaves": 2, "navCostM": 10 },
+  "blackout": {
+    "lightPctByWave": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "powerFailureLightPct": 20,
+    "endlessLightPct": 5,
+    "halfDarkK": 0.5,
+    "halfDarkInBuild": false,
+    "glowM": 1.6,
+    "fireLightM": 4,
+    "muzzleLightM": 3,
+    "muzzleLightS": 0.1,
+    "turretMuzzleLight": true,
+    "flameLightM": 3,
+    "explosionLightM": 5,
+    "explosionLightS": 0.15,
+    "molotovLight": true,
+    "eyesM": 14,
+    "maxStamps": 48,
+    "maxEyes": 150,
+    "maxSparkles": 160,
+    "rainK": 0.35,
+    "hazardAboveDarkPct": 10
+  }
 }

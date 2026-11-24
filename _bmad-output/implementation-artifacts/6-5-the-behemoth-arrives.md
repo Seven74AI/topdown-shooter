@@ -258,9 +258,9 @@ Claude (claude-code builder session for Story 6.5, cloud session; branch `story-
 - **Client (AC 13–14, T0).** `behemothArt.ts` ports `drawBehemothG` and all four looks (BH1–BH4) onto the Brute's helpers (`bruteArt.ts` now exports them as `artKit` + `setArtPixel`, append-only); `bossAtlas.ts`: 4 looks × 13 frames (walk ×2, slam ×3, slamHit, charge, rush, throw, stun, roar, outline+eyes normal/enraged) in one ≤ 2048² atlas, the FX texture (skull, marker disc, 3 icons, crack decal) and the baked telegraph disc (red + white hatching, red edge, dashed inner edge, body hole) — all through `addGeneratedTexture`. `BossView` (body above zombies, outline above the darkness when `setDark(true)`, telegraph pool of 2, target skull, 8 pooled crack decals cleared at build start, hit flash), `BossHud` (boss bar top centre with the gold 50 % notch, red when enraged; edge marker disc with pulsing and the attack icon), banners "Something big is coming" / "THE BEHEMOTH", sounds `boss_rumble` / `boss_roar` / `boss_slam`, a placeholder boss loop (`startBossLoop` / `stopBossLoop`, follows the state), the target buzz 3 × 40 ms through the haptics door. A woken tab's backlog plays no late banner or sound (`ageS`, `bossCue`).
 - **Telegraph texture.** The story suggested a 64 px `boss_hatch` tile drawn through a mask; Phaser 4 masks are filters, so the hatch is baked once into the 512 px disc texture instead (no per-frame path; the live fill is one stroked ring). Same look as `teleRing`/`hatch`.
 - **Dev switches (AC 15).** Server `DEV_BOSS_WAVES` (dev only, `pickDevBossWaves`, logged), solo `?bosswave=` / `?bosshp=` (dev builds only), cheat "Spawn Behemoth" (release-stripped, in `noCheatsInRelease` strings). `runHeadless` gained an append-only `setup(world)` hook.
-- **6.3 shim.** `render/darkness/aboveDark.ts` is a byte-for-byte copy of 6.3's file from `origin/story-6-3` (4d5abfa), so the merge has nothing to resolve. `BossView.setDark` is the hook 6.3 wires to `isBlackout(world) || darknessAlpha(world) > 0`.
-- **HUD layout test (brief 31).** Master has no single HUD layout test yet (6.3 creates it); `scenes/bossBar.test.ts` checks the bar at 568 × 320, 640 × 360 and 800 × 360 with insets 44/21: ≥ 220 px, ≥ 12 px from ☰, the wave line and the health bar, upper third only. Merge note: move into 6.3's test.
-- **Readability (brief 13).** Sheet entries 46 (warning + edge marker) and 47 (telegraph + target skull) with screenshots in `docs/art/6-5/`.
+- **6.3 (merged, master 603099b).** The shim is gone: 6.3's real `render/darkness/aboveDark.ts` is used. `GameScene.updateBoss` sets `BossView.setDark(darknessAlpha(world) > 0)`, so the outline + eyes frame draws above the darkness in a blackout. The boss record sits after 6.3's `blackoutPct`/`halfDark` in RunState / RunStateView / fakeRoom.
+- **HUD layout test (brief 31).** The boss bar is a normal checked control in 6.3's `scenes/hudLayout.test.ts` (wave mode; not in `KNOWN_LIST`). `scenes/bossBar.test.ts` keeps only the bar's own numbers (≥ 220 px, ≥ 12 px from ☰, the wave line and the health bar, at 568 × 320, 640 × 360 and 800 × 360).
+- **Readability (brief 13).** Sheet entries 47 (warning + edge marker) and 48 (telegraph + target skull; 46 is 6.3's) with screenshots in `docs/art/6-5/`.
 
 #### OPEN FOR DESIGNER
 
@@ -273,7 +273,7 @@ Claude (claude-code builder session for Story 6.5, cloud session; branch `story-
 - Real phones (Mi 11i): no device here; FPS above is headless Chromium only.
 - Online two-tab browser check under `?lag=150&jitter=20` (no server run in this session): covered by `NetSimHost.boss.test.ts` (late event, woken tab, late scene start, Predictor body) and `tools/netsim/boss.test.ts` (slams under 75 ± 10 ms each way: 17 hits / 1 miss, every one decided by the server position at the hit tick); not seen in a browser.
 - A hidden tab woken mid-telegraph in a real browser (unit-tested only).
-- The boss outline + eyes above real darkness (6.3 not merged: `setDark` is never true yet).
+- The boss outline + eyes above real darkness in a browser (wired to 6.3's `darknessAlpha`; not seen in a blackout screenshot).
 - Sounds and the boss loop by ear (placeholders; headless has no audio).
 - Haptic buzz on a phone.
 - The look of the enraged body (6.7 sets `enraged`; only the red-eyes overlay frame exists here).
@@ -291,14 +291,14 @@ Claude (claude-code builder session for Story 6.5, cloud session; branch `story-
 - `combat/firing.ts`, `melee.ts`, `flame.ts`, `explosion.ts`, `buildings/turret.ts`, `buildings/mine.ts`, `combat/aimAssist.ts`: one boss branch each behind `bossBodyOn` (no cost without a boss). 6.9's gas-leak blast through `explode()` hurts the boss (intended).
 - `net/netEvents.ts`: kinds **44–49** (`BOSS_WARNING … BOSS_HIT`); 6.8–6.11 take the next free numbers. `simEvents.ts › DAMAGE_TAGS` + `"boss"` (appended: the wire sends the index).
 - `apps/server/src/net/eventInterest.ts`: `boss.hit` local at the boss's position.
-- Schema / stateView / fakeRoom / devThrottle: the `boss` nested schema is new (`RunStateView.boss` optional: absent in a lobby state); `RUN_STATE_FIELDS` excludes `boss` like `players`/`buildings`. 6.3 appends `blackoutPct`/`halfDark` to the run fields: no overlap.
+- Schema / stateView / fakeRoom / devThrottle: the `boss` nested schema is new (`RunStateView.boss` optional: absent in a lobby state); `RUN_STATE_FIELDS` excludes `boss` like `players`/`buildings`. The boss record sits after 6.3's `blackoutPct`/`halfDark` (merged).
 - `RunRoom.ts` / `RunController.ts`: `DEV_BOSS_WAVES` next to 6.1's `DEV_START_WAVE` (merged here).
 - `bots/botPolicy.ts` / `headlessRun.ts`: the bots fight the boss (target, hunt path, no back-off) and `setup(world)`; 6.1's `god` option kept.
-- `render/darkness/aboveDark.ts`: identical to 6.3's (`origin/story-6-3` 4d5abfa): **6.3's file wins**; 6.3 wires `BossView.setDark(isBlackout(world) || darknessAlpha(world) > 0)` in `GameScene.updateBoss`.
+- `render/darkness/aboveDark.ts`: 6.3's file (merged); `GameScene.updateBoss` calls `BossView.setDark(darknessAlpha(world) > 0)`.
 - `GameScene.ts` / `HudScene.ts` / `hudModel.ts`: `BossView` made with the zombie view, `updateBoss` each frame, the boss events in the event switch, `bossHud` drawn after the rush arrows, `boss*` model fields appended. 6.8–6.11 add their banners in the same switch.
 - `audio/placeholderSfx.ts`: three keys + the boss loop appended. `ui/sizes.ts`: `BOSS_BAR_*` appended.
 - `render/city/bruteArt.ts`: append-only export of its helpers (`artKit`, `setArtPixel`).
-- `scenes/bossBar.test.ts`: move into 6.3's single HUD layout test when it lands.
+- `scenes/hudLayout.test.ts` (6.3): the boss bar added to the wave mode as a checked control.
 - **6.2:** keep `boss.entryPoints` 4 m clear at every stage (spawn-clearance test with the boss radius); the boss grid gets rubble through `applyDecayStage`.
 - **6.6:** throw is what reaches a camp the boss can't walk to (the fallback only brings it to the nearest spot); `pickBossAttack` has the charge/throw branches marked; `telegraphTicks` / `updateBossAttack` take new kinds.
 
@@ -413,3 +413,4 @@ Claude (claude-code builder session for Story 6.5, cloud session; branch `story-
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
 - 2026-11-24: built (gds-dev-story, Story 6.5 builder session): shared sim, pathing, network, client, dev switches, tests (fairness F1–F11, fuzz, tick cost, bandwidth, run sim, netsim); merged with Story 6.1 (the real wave 10: unreachable-target fallback, zombies walk under it behind a flag, bots fight it); status → review.
+- 2026-11-24: merged master 603099b (Story 6.3): 6.3's aboveDark.ts replaces the shim, the boss outline follows `darknessAlpha`, the boss bar is in the HUD layout test.

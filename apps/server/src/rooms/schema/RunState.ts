@@ -154,6 +154,10 @@ const runFields = {
   decayVariants: t.uint32().default(0),
   /** Story 4.8: bit i = the map's i-th ignite has burned out (on change only: a build start). */
   decayFiresOut: t.uint32().default(0),
+  /** Story 6.3: the blackout level (0 = off; 1–100 = % light unlit ground keeps), on change only. */
+  blackoutPct: t.uint8().default(0),
+  /** Story 6.3: the darkness is drawn at half strength (6.4: build phases at stage 5), on change only. */
+  halfDark: t.boolean().default(false),
   /** Story 6.5: the Behemoth (state NONE outside a boss fight). Appended last. */
   boss: BossState,
 };

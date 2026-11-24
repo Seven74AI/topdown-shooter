@@ -11,6 +11,11 @@ export const DARKNESS_DEPTH = 11.7;
 export const ABOVE_DARK = {
   /** Rain sparkles inside beams and floodlight pools (6.3). */
   sparkle: 11.705,
+  /**
+   * Acid puddles and Bloater gas (cloud + edge ring) at `blackout.hazardAboveDarkPct` (10 %) strength
+   * (designer 6.3 B3): a faint copy above the dark; inside light the full look shows under it.
+   */
+  hazard: 11.707,
   /** Zombie eyes within 14 m (6.3; the Behemoth's eyes: 6.5). */
   eyes: 11.71,
   /** The Behemoth's outline and eyes (6.5). */
@@ -23,6 +28,8 @@ export const ABOVE_DARK = {
   pickup: 11.75,
   /** Event map markers and the safe point (6.8–6.10). */
   marker: 11.76,
+  /** The red rush chevrons over the wave's last zombies (FR30; review L4: kept above the dark). */
+  rush: 11.765,
   /** Pings (Epic 8.7). */
   ping: 11.77,
 } as const;
