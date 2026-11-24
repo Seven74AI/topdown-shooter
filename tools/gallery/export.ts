@@ -28,15 +28,22 @@ const url = server.resolvedUrls?.local[0];
 if (!url) throw new Error("vite did not start");
 
 // The preinstalled Playwright (not a project dependency) resolves through NODE_PATH.
-const { chromium } = createRequire(import.meta.url)("playwright") as typeof import("playwright");
+type Page = {
+  on(ev: "pageerror", fn: (e: Error) => void): void;
+  goto(url: string): Promise<unknown>;
+  waitForFunction(fn: () => boolean, arg: null, opts: { timeout: number }): Promise<unknown>;
+  evaluate<T>(fn: () => T): Promise<T>;
+};
+type Browser = { newPage(): Promise<Page>; close(): Promise<void> };
+const { chromium } = createRequire(import.meta.url)("playwright") as { chromium: { launch(): Promise<Browser> } };
 const browser = await chromium.launch();
 let assets: Asset[];
 try {
   const page = await browser.newPage();
   page.on("pageerror", (e) => console.error("gallery error:", e.message));
   await page.goto(`${url}gallery.html`);
-  await page.waitForFunction(() => "__assets" in window, null, { timeout: 120_000 });
-  assets = await page.evaluate(() => (window as unknown as { __assets: Asset[] }).__assets);
+  await page.waitForFunction(() => "__assets" in globalThis, null, { timeout: 120_000 });
+  assets = await page.evaluate(() => (globalThis as unknown as { __assets: Asset[] }).__assets);
 } finally {
   await browser.close();
   await server.close();
