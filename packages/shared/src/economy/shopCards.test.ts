@@ -224,6 +224,18 @@ describe("the draw (Story 5.13 AC 2; F2, F6, F7, F8)", () => {
     expect(streamState(world)).toBe(st);
   });
 
+  it("review: the snapshotWorld digest differs when only world.shop.sold or rev differ", () => {
+    const { world } = setup();
+    const d0 = worldDigest(world);
+    world.shop.sold[0] = 1;
+    const d1 = worldDigest(world);
+    expect(d1).not.toBe(d0);
+    world.shop.sold[0] = 0;
+    expect(worldDigest(world)).toBe(d0);
+    world.shop.rev[0] = 1;
+    expect(worldDigest(world)).not.toBe(d0);
+  });
+
   it("a new build draws a new offer from shop:<slot>:<build>", () => {
     const { world } = setup();
     const b0 = offer(world);
@@ -417,6 +429,37 @@ describe("buying and rerolling (Story 5.13 AC 5–6; F3–F5, B3, B5, B6, B10, B
     // B1: a repeat with the old rev is stale, no charge.
     expect(reroll(world, "p0", o.build, o.rev)).toEqual({ ok: false, error: "stale_offer" });
     expect(p.wallet).toBe(w - 20);
+  });
+
+  it("review: a reroll naming the previous build (b − 1, rev 0) in build b is stale_offer, no charge", () => {
+    const { world, ps } = setup();
+    const p = ps[0] as PlayerState;
+    p.wallet = 1000;
+    startWave(world);
+    world.waves.number = 1;
+    world.run.phase = "wave";
+    startBuild(world);
+    expect(offer(world).build).toBe(1);
+    expect(reroll(world, "p0", 0, 0)).toEqual({ ok: false, error: "stale_offer" });
+    expect(p.wallet).toBe(1000);
+    expect(offer(world).rev).toBe(0);
+  });
+
+  it("review: DEV_SHOP_CARDS forces only the build-start offer; rerolls draw from the stream", () => {
+    const forced = ["grenade_launcher", "flamethrower", "chainsaw", "gas_torch", "body_armor_2", "revive_kit"];
+    let rerolledWithAll = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const { world, ps } = setup(1, seed);
+      world.debug.shopCards = forced;
+      world.streams.shop[0]!.buildPhaseIndex = -1;
+      drawOffer(world, "p0");
+      expect([...offer(world).cards].sort()).toEqual([...forced].sort());
+      (ps[0] as PlayerState).wallet = 1000;
+      const o = offer(world);
+      expect(reroll(world, "p0", o.build, o.rev).ok).toBe(true);
+      if (forced.every((id) => offer(world).cards.includes(id))) rerolledWithAll++;
+    }
+    expect(rerolledWithAll).toBe(0); // the rerolled offers are real draws, never the forced set again
   });
 
   it("reroll with too little money: insufficient_funds, the offer stays", () => {
