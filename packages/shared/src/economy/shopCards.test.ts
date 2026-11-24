@@ -108,6 +108,24 @@ describe("the draw (Story 5.13 AC 2; F2, F6, F7, F8)", () => {
     expect(offers).toBe(500 * 6 * 4);
   });
 
+  it("the floor itself, not the pool's mix, guarantees each category (a 2-card offer from 1 weapon + 4 gear, and from 9 weapons + 1 gear)", () => {
+    const small = (exclude: string[]) => {
+      const files = bundledBalanceFiles();
+      const shop = files.shop as Record<string, unknown>;
+      shop.cards = 2;
+      shop.excludeFromCards = ["pistol", ...exclude];
+      return loadBalance(files);
+    };
+    const oneWeapon = small(["hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw", "grenade_launcher", "flamethrower", "gas_torch"]);
+    const oneGear = small(["body_armor_1", "body_armor_2", "running_shoes"]);
+    for (let seed = 1; seed <= 300; seed++) {
+      const a = setup(1, seed, oneWeapon);
+      expect(readOffer(a.world, "p0")?.cards, `seed ${seed}`).toContain("smg");
+      const b = setup(1, seed, oneGear);
+      expect(readOffer(b.world, "p0")?.cards, `seed ${seed}`).toContain("revive_kit");
+    }
+  });
+
   it("never an owned weapon, owned gear or armor I after II", () => {
     for (let seed = 1; seed <= 200; seed++) {
       const { world, ps } = setup(1, seed);

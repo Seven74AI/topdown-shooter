@@ -228,7 +228,7 @@ Claude (cloud builder session, branch `story-5-13`).
 
 ### Debug Log References
 
-- Gate: `npm run typecheck && npm run lint && npm test && npm run build` on `story-5-13` (see Completion Notes for the result).
+- Gate: `npm run typecheck && npm run lint && npm test && npm run build` on `story-5-13` (base `ad80e47`): **green** — 290 test files passed (1 skipped), 2437 tests passed (3 skipped), build OK. One test added after the gate (the floor test, from mutation M1); it and its file were re-run green and linted.
 - Browser: `docs/art/5-13/README.md` (solo 800 × 360 / 568 × 320 / 1024 × 768; online two pages under `?lag=150&jitter=20`).
 
 ### Completion Notes List
@@ -252,7 +252,21 @@ Claude (cloud builder session, branch `story-5-13`).
 
 ### Mutations
 
-MUTATIONS_PLACEHOLDER
+Each mutation was applied once, the named test file run, and the mutation reverted (`git status` clean afterwards).
+
+| # | Mutation | Test that failed |
+| --- | --- | --- |
+| M1 | weapon floor removed in `drawOffer` | first **survived** (10 weapons in the pool fill offers anyway) → added `shopCards.test.ts` "the floor itself, not the pool's mix, guarantees each category"; now fails there |
+| M1b | gear floor removed | "every offer has ≥ 1 weapon and ≥ 1 gear …" and the floor test |
+| M2 | `buyCard` ignores the sold bit | "double buy of one card (B5)", "a sold card never comes back (B10)" |
+| M3 | `reroll` ignores `rev` | room "a burst of 40 rerolls charges once (B1)" |
+| M4 | inbox accepts any (older) offer | `NetSimHost.shop.test.ts` "late subscribe … an older offer after a newer one is ignored" |
+| M5 | first card tap buys (no select) | `shopStore.test.ts` "first tap selects, second tap buys", "tapping another card moves the selection", "a refusal … selection kept" |
+| M6 | bots never reroll | `sixWaveSim.test.ts` "seeds 1–6 × 2/3/4 bots … rerolls paid" |
+| M7 | no `shop.offered` at a build start | room "each client gets only its own offer", "the next build start sends a new offer", "buy a card …" |
+| M8 | offer size doubled in the measure | `shopBandwidth.test.ts` "≤ 200 B per message" |
+| M9 | replay drops `reroll` commands | `replay.test.ts` "same seed + a log with card buys and rerolls → same digest" |
+| M10 | `DEV_SHOP_CARDS` honoured in production | `devShopCards.test.ts` "production ignores it" |
 
 ### Notes for the merge (brief line 19)
 
