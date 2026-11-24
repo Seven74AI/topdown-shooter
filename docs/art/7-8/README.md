@@ -27,3 +27,10 @@ redraws (2–3 drawings each: coat, leather, camo, floral, robe, cap, capb, fire
 cape) and replacement candidates for the dropped parts (groups with "pick N"). Round 2 rule from the designer: top
 view with a slight lean (tall headgear shows its front face; a darker side wall under a top shifted back 0.08 r).
 Each drawing also shows the 64 px tile the Story 7.10 editor would use. Picks save to `picks2/<slot>_<id>`.
+
+## Round 3
+
+`round-3.html` (claude.ai/artifact/Rw1Uys1tS9NB6d824JvJr9): round 2's page with cap and backwards cap again (long
+brim, logo badge, strong lean; "Default colours" shows today's dark cap grey), viking horns out to the sides,
+the guitar case behind the back (two placements), the lean on the headgear kept from round 1 (A as picked, B with
+the lean), and one candidate pair each for milestones M5, M7, M8. The accent slot is gone. Picks: `picks3/<slot>_<id>`.
