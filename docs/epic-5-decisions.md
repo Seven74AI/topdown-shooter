@@ -181,4 +181,12 @@ Applied by the course correction in `_bmad-output/planning-artifacts/sprint-chan
 All Epic 6 look picks (Ruins, Collapse, blackout, Behemoth, events, vote and dawn) are in **`docs/epic-6-decisions.md`** (page claude.ai/artifact/7ikXRSUD7ZURpADLAtEPSJ, `docs/art/epic-6/looks.html`).
 - **Take-back after use (5.20 review, designer "everything okay", 2026-11-24):** option B — once a building has done its job in the current build phase (a med station healed someone), taking it back refunds only the normal 50 % sell share; med stations keep healing in build phases. Sell refunds stay based on what was paid (not HP): a fresh rebuy costs exactly a repair, so selling a worn building earns nothing extra.
 - **Start money 100 → 200** (designer, 2026-11-24, option A; applied with Story 5.13): the card shop was out of reach until about build 3 (cheapest cards 150). The Epic 5 balance pass may fine-tune the amount.
-- **Early weapon card art** (SMG, Hunting Rifle, Machete): code-drawn proposals requested (session "Card art: SMG, Hunting Rifle, Machete").
+
+## Early weapon card art (designer, 2026-11-24, Story 5.13 follow-up)
+
+Page: claude.ai/artifact/7MPKNLcAPBgPjiATVK4Cok (code drawings in `docs/art/5-13/early-weapons.html`, `EARLY` script block; screenshots in `docs/art/5-13/early-weapons/`).
+- The three Epic 1 weapons get side-view shop art in place of the generic SVG pictogram on the 5.13 cards (`KindGlyph` in `ShopScreen.tsx`). **All nine drawings are kept**; by the two-pick rule the first is the base look, the others upgrade-tier or skin looks later.
+- **SMG: S1** compact stamped-steel (wire stock, straight stick magazine) = base; S2 boxy suppressed and S3 wooden-stock with drum kept. S3's drum seen almost edge-on (designer reference photo), seated in a magazine housing.
+- **Hunting Rifle: H1** walnut bolt-action with scope = base; H2 lever-action (brass receiver) and H3 olive-camo synthetic with scope and bipod kept. All three stocks redrawn from the designer's reference photos (H1 swept pistol grip and recoil pad; H2 curved wrist and dropped butt; H3 broad swept-back grip, box magazine).
+- **Machete: M1** classic black-handle = base; M2 panga and M3 rusty kukri-style kept.
+- Build: port `smgS1` / `rifleH1` / `macheteM1` (signature `(ctx, size)`, metres, centred, same helpers) into `apps/client/src/render/city/weaponArt.ts` as `smg`, `hunting_rifle`, `machete` icon views in `WEAPON_ART`, with `ICON_Y` 0.44 / 0.5 / 0.5; icon only (the top-down in-hand art is unchanged). The kept variants (S2, S3, H2, H3, M2, M3) can go in `WEAPON_TIER_ICON` / `WEAPON_TOP_TIER_ICON` for upgrades III / IV, or wait for skins.
