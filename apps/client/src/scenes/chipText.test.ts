@@ -9,6 +9,13 @@ describe("Story 5.19: the item chip's text (AC 7, D8)", () => {
     expect(c.get("Auto-turret", 250, 1, false)).toBe("Auto-turret · $250 · ×1 left");
   });
 
+  it("the short-screen chip (120 px): \"↩ carry\" / \"{name} ×{n}\"", () => {
+    const c = new ChipText();
+    expect(c.get("Wood barricade", 40, 6, false, true)).toBe("Wood barricade ×6");
+    expect(c.get("Wood barricade", 40, 6, true, true)).toBe("↩ carry");
+    expect(c.get("Wood barricade", 40, 6, true, false)).toBe("↩ carry · Wood barricade");
+  });
+
   it("is rebuilt only when a part changes", () => {
     const c = new ChipText();
     const a = c.get("Mine", 60, 3, false);

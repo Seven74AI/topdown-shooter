@@ -19,7 +19,8 @@ import {
 } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { TAP_SLOP_CSS_PX, TapDetector } from "../input/tapDetector";
-import { ThumbDrag } from "../input/thumbDrag";
+import { ThumbDrag, onChipRect } from "../input/thumbDrag";
+import { BUTTON_TOLERANCE_PX } from "../input/routePointer";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
 import { layoutHandCluster, newHandLayout, type HandRect } from "./handCluster";
@@ -160,7 +161,6 @@ const LOCK_SHACKLE_R_PX = 4;
 const LOCK_COLOR = 0xf5c542;
 const HINT_TEXT_PX = 18;
 /** Story 5.19: the item chip (ux-spec §4): dark panel, faint white border; orange border when pinned ("↩ carry"). */
-const CHIP_ID = "placeChip";
 const CHIP_BG = 0x000000;
 const CHIP_BG_ALPHA = 0.55;
 const CHIP_BORDER = 0xffffff;
@@ -316,7 +316,7 @@ export class HudScene extends Phaser.Scene {
    * claimed; Story 5.19: it drags (pins and nudges) the ghost once it travels past `dragStartPx`.
    */
   private readonly drag = new ThumbDrag();
-  private readonly dragOut = { dx: 0, dy: 0 };
+  private readonly dragOut = { dx: 0, dy: 0, began: false };
   /** Story 5.19: the item chip (panel, text) and what it last showed. */
   private placeChip!: Phaser.GameObjects.Graphics;
   private placeChipText!: Phaser.GameObjects.Text;
@@ -515,9 +515,6 @@ export class HudScene extends Phaser.Scene {
     // Story 5.19: the item chip (tap = carry a pinned ghost again).
     this.placeChip = this.add.graphics().setDepth(1001).setVisible(false);
     this.placeChipText = this.add.text(0, 0, "", this.outlinedStyle(HAND_CHIP_TEXT_CSS_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
-    this.buttons.set({ id: CHIP_ID, x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
-      this.model.chipPressed = true;
-    });
     // Story 5.16: the build bar (bottom right, hands empty in a build phase; a touch on a tile never
     // starts a stick). Story 5.26: the icons come from the build icon atlas; a type without one falls
     // back to the buildings atlas (world art). Both are registered through addGeneratedTexture.
@@ -655,8 +652,12 @@ export class HudScene extends Phaser.Scene {
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
       if (this.model.placementActive) {
-        if (p.wasTouch && p.x < this.scale.width / 2) hudPointerDown(this.buttons, this.router, p, this.scale.width);
+        // Story 5.19 review M1: the chip is hit-tested first and is no HudButton (those press on
+        // touch-down): a chip touch is claimed by the drag, a tap only if it lifts within dragStartPx.
+        if (onChipRect(p.x, p.y, this.hand.chip, BUTTON_TOLERANCE_PX)) this.drag.down(p.id, p.x, p.y, true);
+        else if (p.wasTouch && p.x < this.scale.width / 2) hudPointerDown(this.buttons, this.router, p, this.scale.width);
         else if (this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width).kind !== "button") this.drag.down(p.id, p.x, p.y); // Story 5.19
+        this.model.dragHeld = this.drag.pointerId !== -1;
         return;
       }
       hudPointerDown(this.buttons, this.router, p, this.scale.width);
@@ -672,7 +673,8 @@ export class HudScene extends Phaser.Scene {
       unlockAudio(); // touchend is the activation event on iOS/Chrome; touchstart alone may not unlock
       if (p.id === this.drag.pointerId) {
         this.dragMove(p.id, p.x, p.y); // the last bit of movement before the lift
-        this.drag.up(p.id);
+        if (this.drag.up(p.id)) this.model.chipPressed = true; // review M1: a chip tap = lifted within dragStartPx
+        this.model.dragHeld = false;
       }
       if (this.taps.up(p.id, p.x, p.y, this.time.now, TAP_SLOP_CSS_PX * dpr()) && this.model.tapsEnabled) {
         const m = this.model;
@@ -686,6 +688,7 @@ export class HudScene extends Phaser.Scene {
       hudPointerReset(this.buttons, this.router);
       this.taps.reset();
       this.drag.reset();
+      this.model.dragHeld = false;
     };
     this.input.on(Phaser.Input.Events.POINTER_DOWN, down);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, move);
@@ -713,6 +716,7 @@ export class HudScene extends Phaser.Scene {
     m.dragDxPx += this.dragOut.dx;
     m.dragDyPx += this.dragOut.dy;
     m.dragged = true;
+    if (this.dragOut.began) m.dragBegan = true; // review M2: a new gesture
   }
 
   /** White text with a dark outline, readable over the street at any zoom (Story 2.8). */
@@ -998,10 +1002,23 @@ export class HudScene extends Phaser.Scene {
       .setFontSize(Math.round(HINT_TEXT_PX * k))
       .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
       .setPosition(l.hintX, l.hintY);
-    // Story 5.19: the item chip (and its hit rect)
+    // Story 5.19: the item chip (hit-tested in `down`, review M1); the short-screen chip's text (main-session decision)
     const c = l.chip;
-    const chip = this.buttons.get(CHIP_ID);
-    if (chip) Object.assign(chip, { x: c.x, y: c.y, w: c.w, h: c.h });
+    this.model.placementChipShort = l.chipRow;
+    // review L4: the cluster's rects (canvas px) the dragged ghost keeps out from under
+    const av = this.model.handAvoid;
+    const sq = [l.place, l.rotate, l.cancel];
+    for (let i = 0; i < 3; i++) {
+      const r = sq[i] as HandRect;
+      av[i * 4] = r.x;
+      av[i * 4 + 1] = r.y;
+      av[i * 4 + 2] = r.x + r.size;
+      av[i * 4 + 3] = r.y + r.size;
+    }
+    av[12] = c.x;
+    av[13] = c.y;
+    av[14] = c.x + c.w;
+    av[15] = c.y + c.h;
     this.placeChipText
       .setFontSize(Math.round(HAND_CHIP_TEXT_CSS_PX * k))
       .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
@@ -1059,7 +1076,7 @@ export class HudScene extends Phaser.Scene {
       this.shownPlacement = placing;
       if (placing) this.router.releaseAim(); // Story 5.15: the move thumb keeps steering; only the aim stick lets go
       this.drag.reset(); // Story 5.19
-      this.buttons.setVisible(CHIP_ID, placing);
+      this.model.dragHeld = false;
       this.placeChip.setVisible(placing);
       this.placeChipText.setVisible(placing);
       for (let i = 0; i < PLACE_IDS.length; i++) {

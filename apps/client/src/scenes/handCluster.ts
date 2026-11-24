@@ -2,6 +2,7 @@ import {
   HAND_CANCEL,
   HAND_CHIP,
   HAND_CHIP_ROW_GAP_CSS_PX,
+  HAND_CHIP_SHORT_W_CSS_PX,
   HAND_HINT_GAP_CSS_PX,
   HAND_HINT_LINE_CSS_PX,
   HAND_HINT_RIGHT_CSS_PX,
@@ -63,7 +64,7 @@ function at(spec: { sizeCss: number; rightCss: number; bottomCss: number }, widt
  * bottom-right safe-area corner (insets in CSS px, `k` = dpr()), and the hint line's anchor. Story
  * 5.19 (D7): the item chip right-aligned just above ✕ with the reason line above it; when that
  * would bring the reason line within 4 px of ☰ (`insetTop` = the top safe-area inset), the chip
- * moves left of ✕ on its row and the reason line stays just above ✕ (5.17's spot). Pure, written
+ * moves left of ✕ on its row (120 px wide) and the reason line stays just above ✕ (5.17's spot). Pure, written
  * into `out` (layout only, no allocation).
  */
 export function layoutHandCluster(width: number, height: number, insetRight: number, insetBottom: number, k: number, out: HandLayout, insetTop = 0): HandLayout {
@@ -80,6 +81,7 @@ export function layoutHandCluster(width: number, height: number, insetRight: num
   const menuBottom = (MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + insetTop) * k;
   out.chipRow = out.hintY - HAND_HINT_LINE_CSS_PX * k < menuBottom + HAND_MENU_CLEAR_CSS_PX * k;
   if (out.chipRow) {
+    chip.w = HAND_CHIP_SHORT_W_CSS_PX * k; // main-session decision: 120 px with short text, further from the screen centre
     chip.x = out.cancel.x - HAND_CHIP_ROW_GAP_CSS_PX * k - chip.w;
     chip.y = out.cancel.y + out.cancel.size / 2 - chip.h / 2;
     out.hintY = out.cancel.y - HAND_HINT_GAP_CSS_PX * k; // just above ✕, the cluster's top

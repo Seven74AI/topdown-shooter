@@ -779,8 +779,9 @@ describe("Story 5.19: thumb drag to nudge and pin", () => {
       pxPerM: PPM,
     };
     /** One frame with a right-thumb drag of (dx, dy) metres on screen (as canvas px at PPM). */
-    const drag = (dxM: number, dyM: number, input: MutablePlayerInput = still()) => {
+    const drag = (dxM: number, dyM: number, input: MutablePlayerInput = still(), began = false) => {
       m.dragged = true;
+      m.dragBegan = began;
       m.dragDxPx = dxM * PPM;
       m.dragDyPx = dyM * PPM;
       stepPlacement(p, m, input, w, f);
@@ -934,5 +935,75 @@ describe("Story 5.19: thumb drag to nudge and pin", () => {
     const [nx, ny] = r.centre() as [number, number];
     expect(nx).toBeCloseTo(cx, 9);
     expect(Math.abs(ny - (cy + 1))).toBeLessThanOrEqual(0.25);
+  });
+
+  it("review M2: the chain side comes from the gesture's net displacement: a vertical drag with x jitter keeps the right of facing", () => {
+    const r = rig();
+    for (let i = 0; i < 20; i++) r.drag(i % 2 ? 0.01 : -0.012, 0.05, still(), i === 0); // net (−0.01, 1 m); the last delta is −x
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([0, 1]);
+    r.m.confirmPressed = true;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.gx - (r.sent[0] as PlaceRequest).gx).toBe(4); // east = right of north, not the jitter's west
+  });
+
+  it("review M2: a side needs ≥ 0.25 m net that dominates the other axis; a new gesture starts its net again, an old side stays until replaced", () => {
+    const r = rig();
+    r.drag(-0.2, 0, still(), true);
+    expect(r.p.lastDragX).toBe(0); // 0.2 m: too short
+    r.drag(-0.1, 0);
+    expect(r.p.lastDragX).toBe(-1); // 0.3 m net
+    r.drag(0.4, 0.6, still(), true); // a new gesture: net (0.4, 0.6): x 0.4 ≥ 0.5 × 0.6 → east; y too
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([1, 1]);
+    r.drag(-0.3, 2, still(), true); // net (−0.3, 2): x doesn't dominate → x side kept
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([1, 1]);
+  });
+
+  it("review L1: while the thumb holds the drag, walking the view off the ghost doesn't unpin it; once lifted, the view rule does", () => {
+    const r = rig();
+    r.f.viewMinX = 10;
+    r.f.viewMinY = 5;
+    r.f.viewMaxX = 30;
+    r.f.viewMaxY = 25;
+    r.m.dragHeld = true;
+    r.drag(100, 0, still(), true); // to the right edge
+    expect(r.p.pinned).toBe(true);
+    r.f.viewMinX = 12; // walked 2 m west: the ghost's centre now within 1 m of the right edge
+    r.f.viewMaxX = 28.5;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.pinned).toBe(true);
+    r.m.dragHeld = false;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.pinned).toBe(false);
+  });
+
+  it("review L2: a chip tap and a drag in the same frame: carried again, the drag is dropped", () => {
+    const r = rig();
+    r.drag(2, 0);
+    r.m.chipPressed = true;
+    r.drag(1, 0);
+    expect([r.p.pinned, r.p.gx, r.p.gy]).toEqual([false, 38, 28]);
+  });
+
+  it("review L4: the dragged ghost's centre stays 0.5 m outside the hand cluster's rects, pushed to the nearest side inside the view", () => {
+    const r = rig();
+    r.f.viewMinX = 10;
+    r.f.viewMinY = 5;
+    r.f.viewMaxX = 30;
+    r.f.viewMaxY = 25;
+    // a "Place" square in the bottom-right corner (27–29.6, 22–24.6) and the chip (22–28, 15–16)
+    r.f.avoid = [27, 22, 29.6, 24.6, 22, 15, 28, 16, 0, 0, 0, 0, 0, 0, 0, 0];
+    r.f.avoidCount = 2;
+    r.drag(100, 100, still(), true); // into the corner: the clamped (29, 24) is under Place; its right and bottom sides are off the view
+    const [cx, cy] = r.centre() as [number, number];
+    const inside = (x0: number, y0: number, x1: number, y1: number) => cx > x0 && cx < x1 && cy > y0 && cy < y1;
+    expect(inside(27, 22, 29.6, 24.6)).toBe(false);
+    expect(inside(22, 15, 28, 16)).toBe(false);
+    expect([cx <= 29 + 1e-9, cy <= 24 + 1e-9]).toEqual([true, true]); // still inside the view inset
+    // dragged onto the chip from the left: pushed out, never left under it
+    r.drag(-100, -100, still(), true);
+    r.drag(13, 9.5); // from (11, 6) the continuous centre aims at (24, 15.5): under the chip
+    const [ax, ay] = r.centre() as [number, number];
+    expect(ax > 22 && ax < 28 && ay > 15 && ay < 16).toBe(false);
+    expect(Math.abs(ay - 15.5)).toBeGreaterThanOrEqual(0.5 + 0.5 - 0.35); // margin minus the snap
   });
 });

@@ -34,6 +34,15 @@ const DIAGONAL_DEG = 45;
 export const PIN_VIEW_INSET_M = 1;
 /** Story 5.19 (D3): at most this many lattice steps back inside the view after rounding (a cell is 0.5 m; the inset is 1 m). */
 const CLAMP_MAX_STEPS = 4;
+/**
+ * Story 5.19 review M2 (D6): a drag gesture sets the chain side on an axis only once its net
+ * displacement there is at least this long (m) and dominates the other axis by this ratio
+ * (|net axis| ≥ ratio × |net other|): finger jitter never flips the side. Presentation constants.
+ */
+export const DRAG_SIDE_MIN_M = 0.25;
+export const DRAG_SIDE_DOMINANCE = 0.5;
+/** Story 5.19 review L4: the dragged ghost's centre keeps this far (m) outside the hand cluster's buttons and chip. */
+export const HAND_AVOID_MARGIN_M = 0.5;
 /** Story 5.18 (AC 2): the toast when the hand empties after a Place because the shown wallet can't pay another. */
 export const CHAIN_MONEY_TEXT = "Not enough money for another";
 
@@ -220,6 +229,9 @@ export class Placement {
   /** Story 5.19 (D4): the pinned ghost's continuous centre (m); the lattice spot is snapped from it with hysteresis. */
   private dragCx = 0;
   private dragCy = 0;
+  /** Story 5.19 review M2: the current drag gesture's net displacement (m), reset when a drag begins. */
+  private netX = 0;
+  private netY = 0;
   private readonly step = { dgx: 0, dgy: 0 };
   private readonly corner = { gx: 0, gy: 0 };
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
@@ -245,6 +257,8 @@ export class Placement {
     this.pinned = false;
     this.lastDragX = 0;
     this.lastDragY = 0;
+    this.netX = 0;
+    this.netY = 0;
     this.pendingOverlap = false;
     this.ns = null;
     this.snapped = false;
@@ -328,8 +342,12 @@ export class Placement {
    * camera's px per metre). Pins the ghost where it is shown now (D4: its continuous centre starts at
    * the snapped centre), moves it by the delta × `dragGain`, keeps its centre `PIN_VIEW_INSET_M`
    * inside the view (NaN bounds: no clamp) and snaps its min corner with the carry's hysteresis.
+   * Review M2: `began` = a new drag gesture (its net displacement sets the chain side, D6). Review
+   * L4: `avoid` holds `avoidCount` rects (minX, minY, maxX, maxY in m: the hand cluster's buttons and
+   * chip); the centre is pushed `HAND_AVOID_MARGIN_M` outside each, toward the nearest side that
+   * stays inside the view.
    */
-  drag(dxM: number, dyM: number, minX: number, minY: number, maxX: number, maxY: number): void {
+  drag(dxM: number, dyM: number, minX: number, minY: number, maxX: number, maxY: number, began = false, avoid: ArrayLike<number> | null = null, avoidCount = 0): void {
     const stats = this.stats;
     if (!this.active || !stats || !Number.isFinite(dxM) || !Number.isFinite(dyM)) return;
     if (!this.pinned) {
@@ -338,16 +356,31 @@ export class Placement {
       this.dragCy = (b.minY + b.maxY) / 2;
       this.pinned = true;
     }
-    if (dxM !== 0) this.lastDragX = dxM < 0 ? -1 : 1;
-    if (dyM !== 0) this.lastDragY = dyM < 0 ? -1 : 1;
-    this.dragCx += dxM * this.dragGain;
-    this.dragCy += dyM * this.dragGain;
+    const mx = dxM * this.dragGain;
+    const my = dyM * this.dragGain;
+    if (began) {
+      this.netX = 0;
+      this.netY = 0;
+    }
+    this.netX += mx;
+    this.netY += my;
+    const ax = Math.abs(this.netX);
+    const ay = Math.abs(this.netY);
+    if (ax >= DRAG_SIDE_MIN_M && ax >= DRAG_SIDE_DOMINANCE * ay) this.lastDragX = this.netX < 0 ? -1 : 1;
+    if (ay >= DRAG_SIDE_MIN_M && ay >= DRAG_SIDE_DOMINANCE * ax) this.lastDragY = this.netY < 0 ? -1 : 1;
+    this.dragCx += mx;
+    this.dragCy += my;
     const w = footprintW(stats, this.rot);
     const h = footprintH(stats, this.rot);
     const inX = maxX - minX > 2 * PIN_VIEW_INSET_M;
     const inY = maxY - minY > 2 * PIN_VIEW_INSET_M;
-    if (inX) this.dragCx = Math.min(Math.max(this.dragCx, minX + PIN_VIEW_INSET_M), maxX - PIN_VIEW_INSET_M);
-    if (inY) this.dragCy = Math.min(Math.max(this.dragCy, minY + PIN_VIEW_INSET_M), maxY - PIN_VIEW_INSET_M);
+    const loX = inX ? minX + PIN_VIEW_INSET_M : Number.NEGATIVE_INFINITY;
+    const hiX = inX ? maxX - PIN_VIEW_INSET_M : Number.POSITIVE_INFINITY;
+    const loY = inY ? minY + PIN_VIEW_INSET_M : Number.NEGATIVE_INFINITY;
+    const hiY = inY ? maxY - PIN_VIEW_INSET_M : Number.POSITIVE_INFINITY;
+    this.dragCx = Math.min(Math.max(this.dragCx, loX), hiX);
+    this.dragCy = Math.min(Math.max(this.dragCy, loY), hiY);
+    if (avoid) this.avoidRects(avoid, avoidCount, loX, hiX, loY, hiY);
     this.gx = snapAxis(this.dragCx - w / 2, this.gx, this.hysteresisM);
     this.gy = snapAxis(this.dragCy - h / 2, this.gy, this.hysteresisM);
     // D3: rounding / hysteresis may leave the snapped centre just outside the inset: step it back in
@@ -355,6 +388,46 @@ export class Placement {
     for (let i = 0; inX && i < CLAMP_MAX_STEPS && this.gx * BUILD_GRID_M + w / 2 > maxX - PIN_VIEW_INSET_M; i++) this.gx--;
     for (let i = 0; inY && i < CLAMP_MAX_STEPS && this.gy * BUILD_GRID_M + h / 2 < minY + PIN_VIEW_INSET_M; i++) this.gy++;
     for (let i = 0; inY && i < CLAMP_MAX_STEPS && this.gy * BUILD_GRID_M + h / 2 > maxY - PIN_VIEW_INSET_M; i++) this.gy--;
+  }
+
+  /** Review L4: pushes the continuous centre out of each avoided rect (+ margin), to its nearest side inside [lo, hi]; two passes for neighbours. */
+  private avoidRects(r: ArrayLike<number>, n: number, loX: number, hiX: number, loY: number, hiY: number): void {
+    const mg = HAND_AVOID_MARGIN_M;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < n; i++) {
+        const x0 = (r[i * 4] as number) - mg;
+        const y0 = (r[i * 4 + 1] as number) - mg;
+        const x1 = (r[i * 4 + 2] as number) + mg;
+        const y1 = (r[i * 4 + 3] as number) + mg;
+        const cx = this.dragCx;
+        const cy = this.dragCy;
+        if (!(cx > x0 && cx < x1 && cy > y0 && cy < y1)) continue;
+        let best = Number.POSITIVE_INFINITY;
+        let nx = cx;
+        let ny = cy;
+        if (x0 >= loX && cx - x0 < best) {
+          best = cx - x0;
+          nx = x0;
+          ny = cy;
+        }
+        if (x1 <= hiX && x1 - cx < best) {
+          best = x1 - cx;
+          nx = x1;
+          ny = cy;
+        }
+        if (y0 >= loY && cy - y0 < best) {
+          best = cy - y0;
+          nx = cx;
+          ny = y0;
+        }
+        if (y1 <= hiY && y1 - cy < best) {
+          nx = cx;
+          ny = y1;
+        }
+        this.dragCx = nx;
+        this.dragCy = ny;
+      }
+    }
   }
 
   /** Story 5.18: back to carry (the next `carry` puts the ghost ahead of me again, snapped fresh). */
@@ -565,6 +638,10 @@ export interface PlacementHud {
   dragged: boolean;
   /** Story 5.19: the item chip was tapped (pinned: carry again). */
   chipPressed: boolean;
+  /** Story 5.19 review M2: a drag gesture began since the last frame. */
+  dragBegan?: boolean;
+  /** Story 5.19 review L1: a drag pointer is held (no view unpin meanwhile). */
+  dragHeld?: boolean;
 }
 
 /** One frame's context for `stepPlacement` (the scene reuses one object: no allocation per frame). */
@@ -597,6 +674,9 @@ export interface PlacementFrame {
   viewMaxY?: number;
   /** Story 5.19: the main camera's canvas px per metre (the drag's px → m); missing / ≤ 0: drags do nothing. */
   pxPerM?: number;
+  /** Story 5.19 review L4: the hand cluster's rects in world metres (4 numbers each) and how many; the dragged ghost stays out from under them. */
+  avoid?: ArrayLike<number> | null;
+  avoidCount?: number;
 }
 
 /**
@@ -616,7 +696,9 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
   const dragged = m.dragged;
   const dragX = m.dragDxPx;
   const dragY = m.dragDyPx;
+  const began = m.dragBegan === true;
   m.rotatePressed = m.confirmPressed = m.cancelPressed = m.chipPressed = m.dragged = false;
+  if (m.dragBegan !== undefined) m.dragBegan = false;
   m.dragDxPx = m.dragDyPx = 0;
   if (!p.active) {
     m.placementActive = false;
@@ -659,11 +741,12 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
   const vMaxX = f.viewMaxX ?? Number.NaN;
   const vMaxY = f.viewMaxY ?? Number.NaN;
   if (chip) p.unpin(); // Story 5.19 (AC 5): "↩ carry"
-  if (p.pinned && p.outsideView(vMinX, vMinY, vMaxX, vMaxY)) p.unpin(); // 5.18 AC 4
+  if (p.pinned && m.dragHeld !== true && p.outsideView(vMinX, vMinY, vMaxX, vMaxY)) p.unpin(); // 5.18 AC 4; review L1: not while the thumb holds it
   if (rotate) p.rotate();
   p.carry(f.x, f.y, input.moveX, input.moveY);
   const ppm = f.pxPerM ?? 0;
-  if (dragged && ppm > 0) p.drag(dragX / ppm, dragY / ppm, vMinX, vMinY, vMaxX, vMaxY); // Story 5.19: pins where it is shown, then nudges
+  // Story 5.19: pins where it is shown, then nudges (review L2: not in the frame the chip carried it again)
+  if (dragged && !chip && ppm > 0) p.drag(dragX / ppm, dragY / ppm, vMinX, vMinY, vMaxX, vMaxY, began, f.avoid ?? null, f.avoidCount ?? 0);
   p.check(world, f.ownerId, pending);
   p.explain(world, f.ownerId, f.nowMs); // Story 5.17: why it's red, held ≥ reasonHoldMs before valid
   m.placementActive = true;

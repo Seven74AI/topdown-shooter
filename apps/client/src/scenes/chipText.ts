@@ -7,15 +7,19 @@ export class ChipText {
   private price = -1;
   private left = -1;
   private pinned = false;
+  private short = false;
   private text = "";
 
-  get(name: string, price: number, left: number, pinned: boolean): string {
-    if (name !== this.name || price !== this.price || left !== this.left || pinned !== this.pinned || this.text === "") {
+  /** `short` (main-session decision, the 120 px short-screen chip): "↩ carry" / "{name} ×{n}". */
+  get(name: string, price: number, left: number, pinned: boolean, short = false): string {
+    if (name !== this.name || price !== this.price || left !== this.left || pinned !== this.pinned || short !== this.short || this.text === "") {
       this.name = name;
       this.price = price;
       this.left = left;
       this.pinned = pinned;
-      this.text = pinned ? `↩ carry · ${name}` : `${name} · $${price} · ×${left} left`;
+      this.short = short;
+      if (short) this.text = pinned ? "↩ carry" : `${name} ×${left}`;
+      else this.text = pinned ? `↩ carry · ${name}` : `${name} · $${price} · ×${left} left`;
     }
     return this.text;
   }

@@ -32,6 +32,8 @@ export const HAND_HINT_LINE_CSS_PX = 26;
  * far below ☰ (`HAND_MENU_CLEAR_CSS_PX`).
  */
 export const HAND_CHIP = { wCss: 160, hCss: 32, rightCss: 16, gapAboveCancelCss: 8 } as const;
+/** Story 5.19 (main-session decision after review M1): the short-screen chip is narrower (short text: "↩ carry" / "{name} ×{n}"). */
+export const HAND_CHIP_SHORT_W_CSS_PX = 120;
 export const HAND_CHIP_ROW_GAP_CSS_PX = 12;
 export const HAND_MENU_CLEAR_CSS_PX = 4;
 /** The chip's text size and inner padding (CSS px; the text shrinks to fit the rest). */

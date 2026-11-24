@@ -66,10 +66,10 @@ describe("Story 5.19: the item chip (ux-spec §4, D7)", () => {
     expect(l.hintY - HAND_HINT_LINE_CSS_PX).toBeGreaterThanOrEqual(MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + 4);
   });
 
-  it("568 × 320 (and a notch's top inset at 360): the chip moves left of ✕ on its row, 12 px away; the reason line stays above ✕", () => {
+  it("568 × 320 (and a notch's top inset at 360): the chip, 120 px wide, moves left of ✕ on its row, 12 px away; the reason line stays above ✕", () => {
     const l = layoutHandCluster(568, 320, 0, 0, 1, newHandLayout());
     expect(l.chipRow).toBe(true);
-    expect(l.chip).toEqual({ x: l.cancel.x - 12 - 160, y: l.cancel.y + 24 - 16, w: 160, h: 32 });
+    expect(l.chip).toEqual({ x: l.cancel.x - 12 - 120, y: l.cancel.y + 24 - 16, w: 120, h: 32 });
     expect(l.hintY).toBe(l.cancel.y - 6);
     expect(layoutHandCluster(800, 360, 0, 0, 1, newHandLayout(), 20).chipRow).toBe(true);
   });
@@ -78,7 +78,7 @@ describe("Story 5.19: the item chip (ux-spec §4, D7)", () => {
     for (const [W, H, k, r, b, t] of [[800, 360, 1, 0, 0, 0], [800, 360, 2, 0, 0, 0], [568, 320, 2, 0, 0, 0], [844, 390, 3, 44, 21, 0], [1024, 768, 1, 0, 0, 0], [640, 360, 2, 0, 0, 0]] as const) {
       const l = layoutHandCluster(W * k, H * k, r, b, k, newHandLayout(), t);
       const c = l.chip;
-      expect([c.w, c.h]).toEqual([160 * k, 32 * k]);
+      expect([c.w, c.h]).toEqual([(l.chipRow ? 120 : 160) * k, 32 * k]);
       for (const btn of [l.place, l.rotate, l.cancel]) expect(rectOverlap(c, btn), `${W}x${H}`).toBe(false);
       const menuBottom = (MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + t) * k;
       expect(c.y).toBeGreaterThanOrEqual(menuBottom);

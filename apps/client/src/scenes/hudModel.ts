@@ -82,6 +82,14 @@ export interface HudModel {
   chipPressed: boolean;
   /** Story 5.19: `controls.build.dragStartPx` (CSS px), set by the GameScene for the HUD's drag tracker. */
   dragStartPx: number;
+  /** Story 5.19 review M2: a drag gesture began since the last frame (the chain side's net displacement restarts). */
+  dragBegan: boolean;
+  /** Story 5.19 review L1: a drag pointer is held (a pinned ghost then doesn't unpin by leaving the view). */
+  dragHeld: boolean;
+  /** Story 5.19 (main-session decision): the short-screen chip (120 px, short text); set by the HUD's layout. */
+  placementChipShort: boolean;
+  /** Story 5.19 review L4: Place, ⟳, ✕ and the chip as 4 rects (minX, minY, maxX, maxY in canvas px), set by the HUD's layout. */
+  handAvoid: number[];
   /**
    * Story 5.16: the build bar is shown (a build phase, hands empty, nothing selected, shop and menu
    * closed, my survivor standing): its building tiles (balance order, from `buildBarItems`), my
@@ -228,6 +236,10 @@ export const createHudModel = (): HudModel => ({
   dragged: false,
   chipPressed: false,
   dragStartPx: 8,
+  dragBegan: false,
+  dragHeld: false,
+  placementChipShort: false,
+  handAvoid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   buildBar: false,
   buildItems: [],
   buildOwned: 0,

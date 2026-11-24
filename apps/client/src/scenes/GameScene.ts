@@ -304,7 +304,11 @@ export class GameScene extends Phaser.Scene {
     viewMaxX: Number.NaN,
     viewMaxY: Number.NaN,
     pxPerM: 0,
+    avoid: null,
+    avoidCount: 0,
   };
+  /** Story 5.19 review L4: the hand cluster's rects in world metres (refilled every frame from `hudModel.handAvoid`). */
+  private readonly handAvoidM = new Float64Array(16);
   /** Story 5.17: the reason line's last text and what it was built from (rebuilt only when one changes: no string per frame). */
   private hint = { e: "" as PlaceError | "", cause: "", index: 0, id: 0, playerId: "", name: "", wallet: -1, type: "", text: "" };
   private readonly hintCtx: HintContext = { price: 0, wallet: 0, nameOf: (id) => this.ownerName(id), refusal: (e) => this.refusalText(e) };
@@ -873,15 +877,25 @@ export class GameScene extends Phaser.Scene {
     f.viewMinY = v.y;
     f.viewMaxX = v.x + v.width;
     f.viewMaxY = v.y + v.height;
-    f.pxPerM = this.cameras.main.zoom; // Story 5.19: the drag's canvas px → metres (gain 1.0 = 1:1 on screen)
+    const zoom = this.cameras.main.zoom;
+    f.pxPerM = zoom; // Story 5.19: the drag's canvas px → metres (gain 1.0 = 1:1 on screen)
     const m = this.hudModel;
+    // review L4: the HUD's cluster rects (canvas px, unzoomed) → world metres through this camera
+    const av = m.handAvoid;
+    const am = this.handAvoidM;
+    for (let i = 0; i < 16; i += 2) {
+      am[i] = v.x + (av[i] as number) / zoom;
+      am[i + 1] = v.y + (av[i + 1] as number) / zoom;
+    }
+    f.avoid = am;
+    f.avoidCount = (av[2] as number) > 0 ? 4 : 0; // 0 until the HUD laid the cluster out
     m.dragStartPx = host.world.balance.controls.build.dragStartPx;
     stepPlacement(this.placement, m, this.input_, host.world, f);
     const p = this.placement;
     if (p.active) {
       // Story 5.19 (AC 7): the item chip (cached: a new string only when a part changes)
       const left = chipLeft(host.world.balance.buildings.maxPerPlayer, ownedCount(host.world, host.localPlayerId), this.pending.count, this.shownWallet(host), p.price);
-      m.placementChip = this.chipText.get(this.placingName, p.price, left, p.pinned);
+      m.placementChip = this.chipText.get(this.placingName, p.price, left, p.pinned, m.placementChipShort);
     }
   }
 
