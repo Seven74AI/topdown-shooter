@@ -1,6 +1,6 @@
 # Story 6.5: The Behemoth arrives
 
-Status: review
+Status: done
 
 ## Story
 

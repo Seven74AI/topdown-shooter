@@ -150,7 +150,7 @@ development_status:
   6-2-ruins: ready-for-dev  # merged with 6.4 (designer 2026-11-24): one story 'Ruins and Collapse'
   6-3-blackout-lighting: done  # 2026-11-24: review H1+2M fixed, re-review clean, lows fixed; B1–B3 decisions
   6-4-collapse: ready-for-dev  # merged into 6.2 (designer 2026-11-24)
-  6-5-the-behemoth-arrives: review  # built 2026-11-24 (branch story-6-5); fresh-agent review next
+  6-5-the-behemoth-arrives: done  # 2026-11-24: review H1+2M fixed, re-review found M-new-1 (fixed), re-review 2 clean, lows fixed; decisions 6.5 B1–B3
   6-6-behemoth-charge-and-throw: ready-for-dev  # merged with 6.7 (designer 2026-11-24): one story 'Behemoth charge, throw, enrage and end'
   6-7-enrage-and-the-end-of-the-behemoth: ready-for-dev  # merged into 6.6 (designer 2026-11-24)
   6-8-special-events-car-alarm-and-stampede: ready-for-dev
