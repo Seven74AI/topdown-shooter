@@ -47,7 +47,7 @@ Every story also starts with an **art pick**: the designer chooses the look from
 
 **5.12 Consumables:** 0.5 s between uses; medkit also in build phases, not at full HP; button 64 px left of swap; using one doesn't stop firing/reload/swap; refill = full price; throw 2–8 m with a landing ring.
 
-**5.13 Card shop:** rarity by price (≤ 250 common ×3, ≤ 500 rare ×2, epic ×1); reroll flat 20; no upgrade cards (upgrades stay always available); no price scaling per wave; no Pistol card; tap to select, tap again to buy; cards ≥ 96 × 112 px in a 3 × 2 grid; no extra gating of expensive cards early; seed-predicting cards accepted; start money stays 100.
+**5.13 Card shop:** rarity by price (≤ 250 common ×3, ≤ 500 rare ×2, epic ×1); reroll flat 20; no upgrade cards (upgrades stay always available); no price scaling per wave; no Pistol card; tap to select, tap again to buy; cards ≥ 96 × 112 px in a 3 × 2 grid; no extra gating of expensive cards early; seed-predicting cards accepted; start money stays 100 (raised to 200 on 2026-11-24, see below).
 
 ## Notes for the builders (from the writers)
 
@@ -190,3 +190,26 @@ Page: claude.ai/artifact/7MPKNLcAPBgPjiATVK4Cok (code drawings in `docs/art/5-13
 - **Hunting Rifle: H1** walnut bolt-action with scope = base; H2 lever-action (brass receiver) and H3 olive-camo synthetic with scope and bipod kept. All three stocks redrawn from the designer's reference photos (H1 swept pistol grip and recoil pad; H2 curved wrist and dropped butt; H3 broad swept-back grip, box magazine).
 - **Machete: M1** classic black-handle = base; M2 panga and M3 rusty kukri-style kept.
 - Build: port `smgS1` / `rifleH1` / `macheteM1` (signature `(ctx, size)`, metres, centred, same helpers) into `apps/client/src/render/city/weaponArt.ts` as `smg`, `hunting_rifle`, `machete` icon views in `WEAPON_ART`, with `ICON_Y` 0.44 / 0.5 / 0.5; icon only (the top-down in-hand art is unchanged). The kept variants (S2, S3, H2, H3, M2, M3) can go in `WEAPON_TIER_ICON` / `WEAPON_TOP_TIER_ICON` for upgrades III / IV, or wait for skins.
+
+## Epic 5 balance pass (designer, 2026-11-24: "ok" = every recommendation)
+
+Analysis, numbers and the pre-mortem: `docs/balance/epic-5-balance-pass.md`. Interactive wallet planner: claude.ai/artifact/UQcr75ZrboG6PdYX57z9K5 (`docs/balance/epic-5-economy.html`). Seeded bot sims (`tools/sims/balancePass.ts`, `tools/sims/weaponTable.ts`); bots never dodge, so survival is a weak signal.
+
+| Code | Decision | Value |
+|---|---|---|
+| B1 | **Earnings (Q10)**: wave-clear bonus | 10 × N → **15 × N** (10-wave sims: ≈ 2,500 / 2,710 / 2,930 per player at 4 / 3 / 2 players, inside 2,500–3,000) |
+| B2 | Solo zombie count | × 0.4 → **× 0.35** (solo bots held out 1/12 before, 7/12 after). The Behemoth's solo HP stays × 0.4 |
+| B3 | Pistol damage | 5 → **6** (IV = 10.5 one-shots Walkers; **replaces 5.1's "Pistol IV = 8.75"**) |
+| B4 | Assault Rifle | damage 7 → **10**, rate 8 → **6**/s (one-shots Walkers) |
+| B5 | Shotgun pellet damage | 4 → **5** (point blank 40; **replaces 5.3's "point blank always 32"**) |
+| B6 | Fire Axe swing rate | 1.1 → **1.4**/s; price stays 300 (pre-mortem: at 250 it would become a common card and crowd the SMG out of early offers) |
+| B7 | Grenade Launcher | blast 2 → **2.5 m**, price 800 → **700** |
+| B8 | Mine price | 60 → **35** |
+| B9 | Body armor II price | 350 → **300** |
+| B10 | Start money | **stays 200** (250 not taken) |
+| B11 | **Building cap (Q11)** | **stays 6 per player** (money runs out first today; re-check in Story 6.1's 10-wave sim) |
+| B12 | Turret, med station, traps, consumables, Flamethrower, card-shop rules | unchanged |
+
+- Watch items for Story 6.1's 10-wave sim: 2-player earnings above 3,000 once humans assist, turrets near the cap, Flamethrower dominance, solo too easy at × 0.35.
+- Bots (test tool only) now walk to a marked last-rush zombie that is out of their range, as players do. A wave-5 run stalled with two rushers wedged in a 1 m gap between a car and a barricade (a pathing edge case, left for its own story).
+- GDD updated: weapon table, mine, Armor II, solo × 0.35, start money 200, wave bonus 15 × N, the earnings decision, Training's start-money step (+50: 200 → 250).

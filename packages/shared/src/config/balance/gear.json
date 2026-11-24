@@ -1,7 +1,7 @@
 {
   "items": {
     "body_armor_1": { "name": "Body armor I", "price": 150, "maxHpBonus": 25, "armorTier": 1 },
-    "body_armor_2": { "name": "Body armor II", "price": 350, "maxHpBonus": 50, "armorTier": 2 },
+    "body_armor_2": { "name": "Body armor II", "price": 300, "maxHpBonus": 50, "armorTier": 2 },
     "running_shoes": { "name": "Running shoes", "price": 150, "speedBonusPct": 10 },
     "revive_kit": { "name": "Revive kit", "price": 150, "reviveS": 1.5 },
     "tactical_flashlight": { "name": "Tactical flashlight", "price": 120, "inShop": false }

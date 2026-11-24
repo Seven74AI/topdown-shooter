@@ -90,7 +90,7 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 1. **Deploy:** ask Hermes to run `deploy/deploy.sh` (`docs/hermes-go-live.md` › Every later release) — master has all of Epic 5 (3e566e6 or later), not yet deployed.
 2. **Phone checks after the deploy:** Story 4.13 Android app-switch check (`?debug=1`, report renderer line, model, Chrome version); **Xiaomi Mi 11i FPS check** with floodlights (5.10) and molotov fire (5.12) on screen (retro A7). Target phone: Xiaomi Mi 11i.
-3. **Balance pass answers:** session "Epic 5 balance pass" (branch `claude/epic-5-balance`, wallet planner claude.ai/artifact/UQcr75ZrboG6PdYX57z9K5) waits for the designer's reply to proposals **B1–B9** ("ok" = all). Needed before the 6.1 earnings check (retro A8). Then merge that branch (full gate first).
+3. **Balance pass: answered and applied** (designer "ok" 2026-11-24, all of B1–B9; `docs/epic-5-decisions.md` › Epic 5 balance pass). Branch `claude/epic-5-balance` passed the full gate and is ready to merge (wallet planner claude.ai/artifact/UQcr75ZrboG6PdYX57z9K5).
 4. **Small open picks:** upgrade-tier looks for SMG / Hunting Rifle / Machete (A use · **B skip, keep as skins** (recommended) · C show elsewhere; mockup claude.ai/artifact/9yaSZZrMm7HYbYBGtpfwP1); small-phone action bar (**A as built: no ✕ below 700 px** · B two rows).
 5. **Human playtests parked** (4.10 Milestone 1, with 1.11, 1.12, 2.10): "way later"; plans in `docs/playtests/milestone-1.md`, `docs/perf/milestone-1.md`.
 6. **Name:** working title still "topdown-shooter".

@@ -331,7 +331,7 @@ describe("RunRoom gear (Story 5.11; Story 5.13: gear cards)", () => {
     await vi.waitFor(() => expect(hostAnswers.bought.map((b) => b.item)).toEqual(["running_shoes", "body_armor_2"]));
     buy(host, hostAnswers, "body_armor_1");
     await vi.waitFor(() => expect(hostAnswers.refused.at(-1)).toMatchObject({ item: "body_armor_1", error: "already_owned" }));
-    expect(p.wallet).toBe(650);
+    expect(p.wallet).toBe(700); // Armor II 300 (balance pass B9)
     expect(room.clients.length).toBe(2);
   });
 });

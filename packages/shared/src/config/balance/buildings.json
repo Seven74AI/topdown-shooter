@@ -70,7 +70,7 @@
     },
     "mine": {
       "name": "Mine",
-      "price": 60,
+      "price": 35,
       "widthM": 0.5,
       "depthM": 0.5,
       "hp": 1,

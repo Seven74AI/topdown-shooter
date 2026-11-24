@@ -103,8 +103,8 @@ describe("RunRoom wallets (Story 3.2)", () => {
     w.run.phase = "wave"; // Story 3.1: the run state machine owns the phase
     downPlayer(w, player(room, "p0")); // downed players get the wave bonus too
     endWave(w);
-    await vi.waitFor(() => expect(host.state.players.get("p0")?.wallet).toBe(S + 21));
-    expect(host.state.players.get("p1")).toMatchObject({ wallet: S + 22, earned: 22 });
+    await vi.waitFor(() => expect(host.state.players.get("p0")?.wallet).toBe(S + 31)); // wave 2 bonus 2 × 15 (balance pass B1)
+    expect(host.state.players.get("p1")).toMatchObject({ wallet: S + 32, earned: 32 });
   });
 
   it("a client cannot change its wallet; Back to lobby resets it and the next run starts at S again", async () => {

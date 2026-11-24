@@ -332,8 +332,8 @@ describe("the run ends after wave runWaves (Story 3.10)", () => {
     expect(tail.slice(-4)).toEqual([
       { type: "wave.ended", number: 6 },
       { type: "run.held_out", wave: 6 },
-      { type: "money.earned", playerId: "p0", amount: 60, reason: "wave" },
-      { type: "money.earned", playerId: "p1", amount: 60, reason: "wave" },
+      { type: "money.earned", playerId: "p0", amount: 90, reason: "wave" }, // 6 × 15 (balance pass B1)
+      { type: "money.earned", playerId: "p1", amount: 90, reason: "wave" },
     ]);
     run(world, BUILD_TICKS + 5);
     expect(world.run.phase).toBe("results");

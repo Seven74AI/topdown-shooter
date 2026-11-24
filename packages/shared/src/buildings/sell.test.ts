@@ -161,7 +161,7 @@ describe("take back and sell (Story 5.20)", () => {
     const w = p0.wallet;
     expect(sellBuilding(world, "p0", b.id).ok).toBe(true);
     expect(sellBuilding(world, "p0", b.id)).toEqual({ ok: false, error: "gone" });
-    expect(p0.wallet - w).toBe(60);
+    expect(p0.wallet - w).toBe(35); // the mine's price (balance pass B8)
   });
 
   it("a mine sold with a zombie standing on it in the build phase: removed, no blast; floor sells keep wallVersion", () => {

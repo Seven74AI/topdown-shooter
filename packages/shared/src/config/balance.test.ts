@@ -27,7 +27,7 @@ describe("loadBalance", () => {
     const b = loadBalance();
     const pistol = b.weapons.pistol;
     expect(pistol?.kind).toBe("gun");
-    expect(pistol?.damage).toBe(5);
+    expect(pistol?.damage).toBe(6); // Epic 5 balance pass B3
     expect(b.zombies.types.walker?.hp).toBe(10);
     expect(b.waves.maxAlive).toBe(150);
   });
@@ -38,15 +38,15 @@ describe("loadBalance", () => {
 
   it("shotgun and assault rifle match the GDD table (Story 5.3)", () => {
     const b = loadBalance();
-    expect(b.weapons.shotgun).toMatchObject({ kind: "gun", damage: 4, pellets: 8, rateHz: 1.2, rangeM: 5, spreadDeg: 30, knockbackM: 0.5, hitPushbackM: 0, magazine: 6, reloadS: 2.5, price: 250, pierce: 1, projectileSpeedMps: 60 });
-    expect(b.weapons.assault_rifle).toMatchObject({ kind: "gun", damage: 7, pellets: 1, rateHz: 8, rangeM: 11, spreadDeg: 4, magazine: 30, reloadS: 2.0, price: 450, pierce: 1, projectileSpeedMps: 60, hitPushbackM: 0.15, knockbackM: 0 });
+    expect(b.weapons.shotgun).toMatchObject({ kind: "gun", damage: 5, pellets: 8, rateHz: 1.2, rangeM: 5, spreadDeg: 30, knockbackM: 0.5, hitPushbackM: 0, magazine: 6, reloadS: 2.5, price: 250, pierce: 1, projectileSpeedMps: 60 });
+    expect(b.weapons.assault_rifle).toMatchObject({ kind: "gun", damage: 10, pellets: 1, rateHz: 6, rangeM: 11, spreadDeg: 4, magazine: 30, reloadS: 2.0, price: 450, pierce: 1, projectileSpeedMps: 60, hitPushbackM: 0.15, knockbackM: 0 });
     // Appended at the end: the wire's weapon indices of the older weapons never move.
     expect(Object.keys(b.weapons).slice(0, 4)).toEqual(["pistol", "smg", "hunting_rifle", "machete"]);
   });
 
   it("fire axe and chainsaw match the GDD table (Story 5.2)", () => {
     const b = loadBalance();
-    expect(b.weapons.fire_axe).toMatchObject({ kind: "melee", name: "Fire Axe", damage: 30, rateHz: 1.1, rangeM: 2.2, arcDeg: 140, knockbackM: 1.5, hitPushbackM: 0, screenShake: true, price: 300, wielderSlowPct: 0, quietHits: false });
+    expect(b.weapons.fire_axe).toMatchObject({ kind: "melee", name: "Fire Axe", damage: 30, rateHz: 1.4, rangeM: 2.2, arcDeg: 140, knockbackM: 1.5, hitPushbackM: 0, screenShake: true, price: 300, wielderSlowPct: 0, quietHits: false });
     expect(b.weapons.chainsaw).toMatchObject({ kind: "melee", name: "Chainsaw", damage: 6, rateHz: 10, rangeM: 1.5, arcDeg: 60, knockbackM: 0, hitPushbackM: 0.05, screenShake: false, price: 600, wielderSlowPct: 20, quietHits: true });
     expect(b.weapons.machete).toMatchObject({ knockbackM: 0, wielderSlowPct: 0, quietHits: false }); // unchanged
     // Appended after Round A's ids: the wire's weapon index of every older weapon stays.
@@ -128,9 +128,9 @@ describe("loadBalance", () => {
       return files;
     };
     expect(() => loadBalance(set([{ behemoth: 1 }]))).toThrow(/waves\.json: fixed\.0: unknown zombie type behemoth/);
-    // Wave 1 solo = 40 × 0.4 = 16 zombies.
-    expect(() => loadBalance(set([{ brute: 17 }]))).toThrow(/waves\.json: fixed\.0: 17 fixed zombies exceed the smallest wave 1 \(16 solo\)/);
-    expect(() => loadBalance(set([{ brute: 16 }]))).not.toThrow();
+    // Wave 1 solo = 40 × 0.35 = 14 zombies (Epic 5 balance pass B2).
+    expect(() => loadBalance(set([{ brute: 15 }]))).toThrow(/waves\.json: fixed\.0: 15 fixed zombies exceed the smallest wave 1 \(14 solo\)/);
+    expect(() => loadBalance(set([{ brute: 14 }]))).not.toThrow();
     expect(() => loadBalance(set([{ brute: -1 }]))).toThrow(/waves\.json: fixed\.0\.brute/);
   });
 
@@ -441,7 +441,7 @@ describe("Story 5.5: the Grenade Launcher and combat.json", () => {
   };
   it("loads the launcher (GDD numbers) and the explosion block", () => {
     const b = loadBalance();
-    expect(b.weapons.grenade_launcher).toMatchObject({ kind: "launcher", damage: 40, rateHz: 0.8, lobRangeM: 12, minLobM: 3, lobSpeedMps: 20, blastRadiusM: 2, blastPushM: 0.6, blastBuildingDamage: 0, magazine: 4, reloadS: 3, price: 800 });
+    expect(b.weapons.grenade_launcher).toMatchObject({ kind: "launcher", damage: 40, rateHz: 0.8, lobRangeM: 12, minLobM: 3, lobSpeedMps: 20, blastRadiusM: 2.5, blastPushM: 0.6, blastBuildingDamage: 0, magazine: 4, reloadS: 3, price: 700 });
     expect(b.combat).toMatchObject({ friendlyFire: { pct: 50, canDown: true }, explosion: { maxLiveRounds: 32, faceBackoffM: 0.05 } });
   });
   it("refuses minLobM ≥ lobRangeM, rangeM ≠ lobRangeM, a flight over 255 ticks, a pool over 255, a mine share apart from the friendly-fire rule", () => {

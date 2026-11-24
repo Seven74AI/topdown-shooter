@@ -82,11 +82,11 @@ describe("RunRoom six-wave run (Story 3.10; Story 5.8: runWaves 6)", () => {
       await vi.waitFor(() => expect(c.state.phase).toBe("results"));
       expect(c.state.resultHeldOut).toBe(true);
       expect(c.state.resultWave).toBe(6);
-      // the wave-clear bonuses 10 + 20 + 30 + 40 + 50 + 60 (skipped waves pay no kills) reached the clients
-      for (const id of ["p0", "p1"]) expect(c.state.players.get(id)?.earned).toBe(210);
+      // the wave-clear bonuses 15 + 30 + 45 + 60 + 75 + 90 (balance pass B1; skipped waves pay no kills) reached the clients
+      for (const id of ["p0", "p1"]) expect(c.state.players.get(id)?.earned).toBe(315);
     }
     await vi.waitFor(() => expect(guestEvents.some((b) => b.events.some((t) => t[0] === NET_EVENT_KIND.RUN_HELD_OUT && t[1] === 6))).toBe(true));
-    expect(info).toHaveBeenCalledWith(expect.objectContaining({ wave: 6, heldOut: true, earned: { p0: 210, p1: 210 } }), "run_ended");
+    expect(info).toHaveBeenCalledWith(expect.objectContaining({ wave: 6, heldOut: true, earned: { p0: 315, p1: 315 } }), "run_ended");
     // No more ticks after Results: the World stays put, no build phase for a wave 7.
     const tick = w.tick;
     await new Promise((r) => setTimeout(r, 200));

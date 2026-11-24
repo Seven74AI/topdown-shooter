@@ -52,13 +52,13 @@ describe("weaponDamage (Story 5.1 F2)", () => {
       const base = weaponStats(balance, id).damage;
       expect([1, 2, 3, 4].map((l) => weaponDamage(balance, id, l))).toEqual([base, base * 1.25, base * 1.5, base * 1.75]);
     }
-    // Spot values from the GDD table: exact, no rounding (Pistol IV = 8.75).
-    expect(weaponDamage(balance, "pistol", 4)).toBe(8.75);
+    // Spot values from the GDD table: exact, no rounding (Pistol IV = 10.5 since the Epic 5 balance pass B3).
+    expect(weaponDamage(balance, "pistol", 4)).toBe(10.5);
     expect(weaponDamage(balance, "smg", 3)).toBe(6);
     expect(weaponDamage(balance, "hunting_rifle", 4)).toBe(61.25);
     expect(weaponDamage(balance, "machete", 2)).toBe(15);
-    expect(weaponDamage(balance, "shotgun", 4)).toBe(7);
-    expect(weaponDamage(balance, "assault_rifle", 3)).toBe(10.5);
+    expect(weaponDamage(balance, "shotgun", 4)).toBe(8.75); // balance pass B5: 5 per pellet
+    expect(weaponDamage(balance, "assault_rifle", 3)).toBe(15); // balance pass B4: base 10
   });
 
   it("prices per level for every weapon (Pistol 60)", () => {
@@ -137,7 +137,7 @@ describe("upgraded weapons in the real sim (Story 5.1 AC 4, 11)", () => {
     }
     const hits = s.events.filter((e) => e.type === "zombie.hit") as { damage: number }[];
     expect(hits.length).toBeGreaterThan(0);
-    for (const h of hits) expect(h.damage).toBe(7);
+    for (const h of hits) expect(h.damage).toBe(8.75); // 5 × 1.75
   });
 
   it("nothing but damage changes (rate, ammo, reload, cooldown, spread rolls) between I and IV over 200 ticks", () => {

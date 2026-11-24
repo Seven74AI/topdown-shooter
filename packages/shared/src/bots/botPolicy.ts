@@ -22,7 +22,10 @@ import { consumableStats } from "../economy/consumables";
  * 2. a zombie closer than `keepDistanceM`: back away from it;
  * 2b. (Story 5.6) the nearest zombie is a Spitter holding its spot just beyond my weapon's range (≤ `closeInExtraM` more): step toward it;
  * 3. farther than `regroupDistM` from the centre of the alive team: move toward it;
- * 4. otherwise stand still.
+ * 4. (Epic 5 balance pass) the nearest zombie is one of the wave's last, marked rushers and out of my
+ *    range: walk toward it (players see the marks and hunt them; a rusher wedged in a gap would
+ *    otherwise never end the wave);
+ * 5. otherwise stand still.
  *
  * 2c. (barricades stop bullets, designer 2026-11-23) the nearest zombie is in range but every zombie
  *    in range is behind cover: strafe sideways (90° left of it) to open a line.
@@ -68,6 +71,8 @@ export interface BotZombie {
   distM: number;
   /** Story 5.6 review M2: a stand-off zombie holding its spot (a Spitter, not rushing); false otherwise / unknown. */
   holdsSpot?: boolean;
+  /** Epic 5 balance pass: one of the wave's last, marked zombies (FR30 rush); false otherwise / unknown. */
+  rushing?: boolean;
 }
 
 /** What a bot can know. Preallocated by `createBotView`; filled in place each tick. */
@@ -119,7 +124,7 @@ export function createBotView(): BotView {
     teammates,
     teammateCount: 0,
     nearestZombie: null,
-    zombie: { x: 0, y: 0, distM: 0, holdsSpot: false },
+    zombie: { x: 0, y: 0, distM: 0, holdsSpot: false, rushing: false },
     knowsCover: false,
     shotZombie: null,
     shot: { x: 0, y: 0, distM: 0, holdsSpot: false },
@@ -243,8 +248,13 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
   cy /= alive;
   const gx = cx - me.x;
   const gy = cy - me.y;
-  if (gx * gx + gy * gy > cfg.regroupDistM * cfg.regroupDistM) moveToward(out, gx, gy);
-  // 4. Otherwise stand still.
+  if (gx * gx + gy * gy > cfg.regroupDistM * cfg.regroupDistM) {
+    moveToward(out, gx, gy);
+    return;
+  }
+  // 4. Hunt a marked rusher out of my range.
+  if (z && z.rushing === true && z.distM > me.rangeM) moveToward(out, z.x - me.x, z.y - me.y);
+  // 5. Otherwise stand still.
 }
 
 /** The fill in progress (synchronous, so one shared record is enough: no closure per call). */
@@ -325,6 +335,7 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
     out.zombie.distM = Math.sqrt(bestD2);
     // Review M2: a Spitter holds its spot unless it rushes (FR30: then it walks in between spits).
     out.zombie.holdsSpot = world.balance.zombies.types[zombieTypeOf(zs, bid)]?.spit !== undefined && !isRushState(zs.state[bid] as number);
+    out.zombie.rushing = isRushState(zs.state[bid] as number);
     out.nearestZombie = out.zombie;
   }
   // Story 5.12: the densest cluster within throw range (waves only; at most CLUSTER_CANDIDATES tried).

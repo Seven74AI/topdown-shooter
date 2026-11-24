@@ -226,7 +226,7 @@ describe("damage and kills (FR19)", () => {
     setInput(world, "local", aimRight());
     step(world, TICK_DT_S);
     const firstHit = events.find((e) => e.type === "zombie.hit");
-    expect(firstHit).toMatchObject({ zombieId: id, damage: 5, weapon: "pistol" });
+    expect(firstHit).toMatchObject({ zombieId: id, damage: 6, weapon: "pistol" }); // balance pass B3
     run(world, 10);
     const kill = events.find((e) => e.type === "zombie.killed");
     expect(kill).toMatchObject({ zombieId: id, killerId: "local", weapon: "pistol" });
