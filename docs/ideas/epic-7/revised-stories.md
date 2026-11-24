@@ -52,7 +52,8 @@ So that every run moves me forward.
 **Given** a run ends (extract, wipe or quit)
 **When** Supplies are computed for each player (server only, from the run result)
 **Then** they get +10 per wave survived, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78; `progression.json`)
-**And** a wave counts for every player still in the run when it ends, downed or out; a player who quits banks the waves ended before they left (designer D2)
+**And** a wave counts only for players who were in it: in the run when it ends (playing, downed, out, or held during a short drop, Epic 8 D1); waves before a late joiner arrived, or after a player left or lost their seat, don't count; a player who quits banks the waves ended before they left (designer D2; Epic 8 note: no farming by joining at wave 9)
+**And** the Behemoth and extract bonuses go to players in the run when the boss dies / the team extracts; in a run resumed on another night (Epic 8), each player's waves from every night they played are counted once, at the run's end
 **And** after a wipe in endless, only waves 1–10 and the boss count
 
 **Given** a player whose lifetime Supplies are below 300 before this run

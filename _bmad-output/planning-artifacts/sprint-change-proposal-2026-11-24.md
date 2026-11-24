@@ -35,7 +35,7 @@ Designer decisions (`docs/ideas/epic-7/proposal.md` §0):
 | # | Decision |
 | --- | --- |
 | D1 | Earnings stay: +10 per wave, +50 Behemoth, +100 extract, +20 per endless wave (kept only on extract) |
-| D2 | A wave counts for everyone still in the run when it ends (downed/out too); a quitter banks what they had |
+| D2 | A wave counts for everyone still in the run when it ends (downed/out too); only waves a player was in (late join, leaving, Epic 8 drops and resumed runs: see 7.2); a quitter banks what they had |
 | D3 | Rookie lift: × 2 until 300 lifetime Supplies |
 | D4 | Fire Axe and Revive kit join the starter pool (leave the unlock list) |
 | D5 | Free unlock order; "Good next pick" marker |

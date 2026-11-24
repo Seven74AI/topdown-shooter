@@ -137,7 +137,7 @@ FR76: A ping button offers 4 quick messages (Help! · Over here · Big one! · R
 **Meta-progression**
 
 FR77: A guest can upgrade to an account later and keep their progress.
-FR78: Supplies are earned per run, even on a loss: +10 per wave survived (counted for every player still in the run when the wave ends, downed or out), +50 for killing the Behemoth, +100 for extracting, +20 per endless wave (kept only if the team extracts); a player's Supplies are doubled while their lifetime Supplies are below 300 (rookie lift).
+FR78: Supplies are earned per run, even on a loss: +10 per wave survived (counted only for waves the player was in: every player in the run when the wave ends, downed or out, but not waves before a late join or after leaving), +50 for killing the Behemoth, +100 for extracting, +20 per endless wave (kept only if the team extracts); a player's Supplies are doubled while their lifetime Supplies are below 300 (rookie lift).
 FR79: New players start with the starter pool (Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades); other items are unlocked with Supplies on an unlock screen at the GDD prices, in any order, and unlocks add cards to that player's shop deck; one card per offer may be borrowed from a teammate's unlocks the player lacks.
 FR80: Training offers 4 capped boosts with 5 levels each (max HP up to +10%, damage up to +5%, starting currency 100 → 150, reload speed up to +5%), each level costing 50 × level Supplies.
 FR81: District 2 unlocks for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has unlocked it (rule only; district 2 content is out of v1).
@@ -2360,7 +2360,8 @@ So that every run moves me forward.
 **Given** a run ends (extract, wipe or quit)
 **When** Supplies are computed for each player (server only, from the run result)
 **Then** they get +10 per wave survived, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78; `progression.json`)
-**And** a wave counts for every player still in the run when it ends, downed or out; a player who quits banks the waves ended before they left (designer D2)
+**And** a wave counts only for players who were in it: in the run when it ends (playing, downed, out, or held during a short drop, Epic 8 D1); waves before a late joiner arrived, or after a player left or lost their seat, don't count; a player who quits banks the waves ended before they left (designer D2; Epic 8 note: no farming by joining at wave 9)
+**And** the Behemoth and extract bonuses go to players in the run when the boss dies / the team extracts; in a run resumed on another night (Epic 8), each player's waves from every night they played are counted once, at the run's end
 **And** after a wipe in endless, only waves 1–10 and the boss count
 
 **Given** a player whose lifetime Supplies are below 300 before this run
