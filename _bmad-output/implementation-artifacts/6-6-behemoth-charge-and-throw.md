@@ -1,6 +1,6 @@
 # Story 6.6: Behemoth charge and throw
 
-Status: review
+Status: done
 
 ## Story
 
