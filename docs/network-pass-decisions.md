@@ -4,7 +4,7 @@ Written 2026-11-24 from the five story files of the Network pass (`_bmad-output/
 
 Each line is the story writer's **recommended value** (first, in bold), with the alternative after it. **"ok" accepts all 29.** Change any line by its code (e.g. "8.9 D1: 200 ms"). The Epic 8 decisions D1–D15 (`docs/ideas/epic-8/decisions.md`, accepted 2026-11-24) are already rules in Story 8.1 and are not asked again. No story in the pass needs a new look; the only new screens are the "reconnecting" ones (plain text in the existing overlay style).
 
-**Status: pending** (designer's answer goes here).
+**Status: accepted.** Designer 2026-11-24: "I'm okay with everything" — all 29 recommended values (first, in bold) accepted.
 
 ## The ones worth a look (how the game feels)
 
