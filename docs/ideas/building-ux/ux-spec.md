@@ -63,7 +63,7 @@ In a build phase the bottom-right quadrant holds **one cluster with three states
 
 \* only when the type's `inShop` is true (5.10 keeps the floodlight hidden until blackout). Tiles come from `shopBuildings(balance)`, so 5.14's bear trap appears without UI work. If a later epic needs more than 7 types, the 7th tile becomes "More ▸" and opens a second page. `[ASSUMPTION]`
 
-Outside these: **Ready** stays at the bottom (168 × 52), shifted **40 px left of centre** so its right edge never meets the cluster on an 800 px screen. The old **Shop** button next to Ready moves into the build bar's 8th tile. The shop screen loses its buildings section.
+Outside these: **Ready** stays at the bottom (168 × 52), shifted **40 px left of centre** so its right edge never meets the cluster on an 800 px screen. The old **Shop** button next to Ready moves into the build bar's 8th tile (fixed at the bottom-right slot, 5.16 D1). The shop screen loses its buildings section. The build bar is hidden while I hold a ghost and while I'm downed/out (5.16 D5). In build phases the **swap** and **consumable** buttons sit above the build bar's top-left edge instead of hiding (designer, 2026-11-23, alignment Q1; built by 5.12).
 
 ## 4. Sizes and positions (CSS px, from the bottom-right safe-area corner)
 
@@ -74,13 +74,13 @@ Positions are the button **centres**, measured as (from right, from bottom).
 | Place | 76 circle | (92, 92) | Primary. Green when valid, grey + red ring when blocked (still sends: the server judges) |
 | Rotate ⟳ | 60 circle | (190, 80) | 🔒 badge once pressed (auto-rotate off for this held item) |
 | Put away ✕ | 48 circle | (80, 196) | Reach up on purpose: rare |
-| Undo ↶ | 48 circle | (270, 64) holding; (300, 64) with empty hands (left of the build bar) | Shown 10 s after each placement; a 10 s ring drains around it |
-| Item chip | 160 × 32 | right edge at 16, bottom 250 | "Turret · $250 · ×1 left". Tap = ↩ carry when pinned |
-| Reason line | text 17 px | right-aligned at 16, just above the item chip (bottom ≈ 280) | White when valid ("Place Wood barricade · $40"), red with the reason when blocked. Must clear the wallet / count lines at the top-right on a 360 px-tall screen |
-| Build bar tiles | 56 × 56, 8 gap | grid 248 × 120, inset 16 | Icon + price (14 px). Unaffordable: 40 % opacity, red price. Count "4/6" top-right of the grid |
-| Action bar buttons | 64 × 56, 8 gap | one row, right-aligned at 16, bottom 92 | Info line above: "Auto-turret · Bo's · HP 210/300" |
+| Undo ↶ | 48 circle | (270, 64) holding; with empty hands **above the build bar's top-left** (designer, 2026-11-23, alignment Q4: clears the slid Ready button at 568 × 320) | Shown 10 s after each placement; a 10 s ring drains around it |
+| Item chip | 160 × 32 | right edge at 16, just above ✕ | "Turret · $250 · ×1 left". Tap = ↩ carry when pinned. **Built by 5.19** (designer, 2026-11-23, alignment Q5); 5.16 didn't build it |
+| Reason line | text 18 px | right-aligned at 16, its bottom 6 px above ✕'s top edge (5.15 D3, review L5); once 5.19 adds the item chip, just above the chip | White when valid ("Place Wood barricade · $40"), red with the reason when blocked. Must clear the wallet / count lines at the top-right on a 360 px-tall screen |
+| Build bar tiles | 56 × 56, 8 gap | grid 248 × 120, inset 16 | Icon (the building's own I1 build-bar icon, 5.26/5.27; world art is only the fallback) + price (14 px). Unaffordable: 40 % opacity, red price. Count "4/6" top-right of the grid |
+| Action bar buttons | **78 × 56**, 8 gap | one row, right-aligned at 16, bottom **112** (designer, 2026-11-23, alignment Q4: the epics' size kept; was 64 × 56 @ 92) | Info line above: "Auto-turret · Bo's · HP 210/300" |
 
-Minimums: every target ≥ **48 px** (the 44 px floor in `sizes.ts` stays the hard floor), ≥ **12 px** between targets, ≥ **16 px** inside the safe-area inset (Android back-swipe and case lips).
+Check every layout at **568 × 320 and 800 × 360** with ≥ 12 px gaps (alignment Q4). Minimums: every target ≥ **48 px** (the 44 px floor in `sizes.ts` stays the hard floor), ≥ **12 px** between targets, ≥ **16 px** inside the safe-area inset (Android back-swipe and case lips).
 
 ## 5. Interaction primitives (numbers)
 
@@ -153,15 +153,15 @@ The server's code stays one `blocked`. A **client-only** `blockReason(world, own
 | 2 | money | "Need $250 (you have $180)" | price on the chip red |
 | 3 | off map | "Off the street" | ghost edge past the map edge |
 | 4 | spawn clearance | "Too close to a zombie spawn (2 m)" | that spawn's **2 m circle** red, 2 px dashed |
-| 5 | map solid / cover | "Blocked by the car" / "the bus" / "a wall" / "the sandbags" | that box's outline red, 0.06 m |
+| 5 | map solid / cover | "Blocked by a car" / "the bus" / "a wall" / "the sandbags" (5.17 D3 name table) | that box's outline red, 0.06 m |
 | 6 | building | "Overlaps a building" | that building's outline red |
 | 7 | me | "You're standing there" | my ring red |
 | 8 | teammate | "Bo is standing there" | Bo's ring red |
-| 9 | zombie | "A zombie is in the way" | its body red-tinted |
+| 9 | zombie | "A zombie is in the way" | a red circle round it (5.17 D5) |
 
 Map object names come from the Tiled objects (`city_bus`, `parked_car_1`, `sandbags_south`…) through a small name → word table. `[ASSUMPTION]`
 
-- While holding anything, **every spawn's no-build circle** in view is drawn faint (red 12 % fill, dashed edge), so players learn the no-go zones.
+- While holding anything, **every spawn's no-build circle**, of every decay stage (5.17 D7), is drawn faint (red 12 % fill, dashed edge), so players learn the no-go zones.
 - **Build-bar tiles** show money and cap before you pick: you can't be surprised by "Not enough money" after carrying a turret across the street.
 
 ### 7.3 Accessibility floor
@@ -198,6 +198,7 @@ Map object names come from the Tiled objects (`city_bus`, `parked_car_1`, `sandb
 6. **Mines and traps** move like any building (same rules); a mine can't be moved onto a spawn's clearance (same `footprintBlocked`).
 7. **Cosmetic is cosmetic:** teammate ghosts never block anything and are never sent outside a build phase.
 8. **Cap:** placed + pending never exceed `maxPerPlayer`; a move doesn't change the count.
+9. **Standing only:** every place / move / sell / repair / upgrade is refused while I'm downed or out (`not_alive`, 5.11 M1; 5.20 adds the check to place, repair and upgrade).
 
 ## 9. Input schemes
 
@@ -219,7 +220,7 @@ Map object names come from the Tiled objects (`city_bus`, `parked_car_1`, `sandb
 | --- | --- | --- | --- |
 | Pick an item | ghost scales 0.8 → 1.0 in 120 ms | soft click | — |
 | Snap to a new lattice point | — (no tick: walking would spam it) | — | — |
-| Turn valid ↔ blocked | colour cross-fade 80 ms | — | — |
+| Turn valid ↔ blocked | blocked → red at once; → valid only after 250 ms of continuous clear (5.17) | — | — |
 | Place accepted | dust puff (8 particles, 0.4 s), building drops 0.15 m → 0 in 120 ms, owner-colour corner tab for 3 s | "thunk" (wood), "clank" (metal/turret), "click" (mine/trap) | 12 ms |
 | Place refused | dashed box shakes 3 × 150 ms, fades | dull buzz | 30-40-30 ms |
 | Take back / sell | building lifts and fades 200 ms, "+$40" floats up 0.6 m in 600 ms | coins | 12 ms |
@@ -242,7 +243,7 @@ Owner pips: during a build phase every building shows a 0.18 m dot in its owner'
 4. It's red: *"Too close to a zombie spawn (2 m)"*, and the spawn's circle lights up. He steps back one stride: green.
 5. He nudges it 0.5 m right with a tiny right-thumb drag so it's flush with the dumpster.
 6. **Place, Place, Place.** Each next ghost jumps end-to-end. 6 m of wall, $120, about 4 s.
-7. The 4th would overlap the wall: *"Blocked by a wall"*, red outline on the building. He puts the barricade away with a tap on its tile.
+7. The 4th would overlap the wall: *"Blocked by a wall"*, red outline on the building. He puts the barricade away with ✕ (the build bar is hidden while he holds it).
 
 ### Ana's turret (precision under lag, ?lag=150)
 1. Ana taps **Turret** ($250 of her $300). The 8 m range ring shows.
@@ -261,7 +262,7 @@ Owner pips: during a build phase every building shows a 0.18 m dot in its owner'
 - **A building under a HUD button can't be tapped**: a spike trap below the survivor sat under Ready, and the tap pressed Ready. The camera keeps the survivor centred, so with buildings near the bottom edge this will happen. Since the menu opens only by tapping (designer), the fix has to be in the HUD: a tap that lands on Ready **and** within a building's tap area selects the building instead of pressing Ready (Ready is the one big bottom button; starting the wave by accident is costly). `[ASSUMPTION]`, to confirm in a phone playtest.
 - **The 8 m turret ring is bigger than the 48 px/m view's height** (13.5 m at most in the real camera). It reads as two arcs. It's still useful, but a filled 15 % disc may read better than a line. Playtest.
 - **Auto-rotate + end-to-end chain** made a 6 m wall in 3 taps without touching ⟳ once.
-- **Teammate collision while carrying:** a ghost carried past a teammate flickers red ("Bo is standing there") for a frame. That's correct, but the reason line should hold a reason for ≥ 250 ms before switching back to valid, so it doesn't flash. `[ASSUMPTION]`
+- **Teammate collision while carrying:** a ghost carried past a teammate flickers red ("Bo is standing there") for a frame. That's correct, so blocked turns red at once, and the look goes back to valid only after 250 ms of continuous clear (every blocked frame restarts the clock; 5.17 AC 8, review L1).
 
 ## 14. Inspiration and anti-patterns
 

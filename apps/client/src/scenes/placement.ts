@@ -2,10 +2,12 @@ import {
   BUILD_GRID_M,
   blockReason,
   buildingStats,
+  cornerForCentre,
   createBlockReason,
   footprint,
   footprintH,
   footprintW,
+  ownedCount,
   placementError,
   type Balance,
   type BuildingRotation,
@@ -25,6 +27,55 @@ const MAX_GRID_INDEX = 255;
 const MIN_FACING_LEN = 1e-6;
 const DEG = Math.PI / 180;
 const DIAGONAL_DEG = 45;
+/** Story 5.18 (ux-spec §6.2): a pinned ghost whose centre leaves the view shrunk by this much (m) goes back to carry. */
+export const PIN_VIEW_INSET_M = 1;
+/** Story 5.18 (AC 2): the toast when the hand empties after a Place because the shown wallet can't pay another. */
+export const CHAIN_MONEY_TEXT = "Not enough money for another";
+
+/**
+ * Story 5.18: what the placement step needs to know about this device's pending placements
+ * (`PendingPlacements`): how many are counted, their total price, whether a box is on that ground.
+ */
+export interface PendingSet {
+  readonly count: number;
+  readonly money: number;
+  overlaps(box: Readonly<Box>): boolean;
+}
+
+/**
+ * Story 5.18 (AC 6, D2): a Place this device turns down without sending, because the pending boxes
+ * make the server's answer certain: at the cap counting pending (`limit`), or — with a box pending —
+ * a shown wallet below the price (`money`). With nothing pending a predicted refusal still sends
+ * (5.15: the server judges). Cap before money, as `placementError`.
+ */
+export function placeGate(world: Readonly<World>, ownerId: string, price: number, pending: PendingSet | null): "limit" | "money" | null {
+  const count = pending ? pending.count : 0;
+  if (ownedCount(world, ownerId) + count >= world.balance.buildings.maxPerPlayer) return "limit";
+  const wallet = world.players.get(ownerId)?.wallet ?? 0;
+  if (count > 0 && wallet - (pending as PendingSet).money < price) return "money";
+  return null;
+}
+
+/**
+ * Story 5.18 (AC 3, D4): the chain jump for a footprint W × H at `rot`, as lattice steps into `out`.
+ * A non-square footprint jumps along its long side by its length; a square one along the axis nearest
+ * to the right of the facing (fx, fy) by its width; at least `minStepM`. The direction is the right of
+ * the facing (screen y down: right of (fx, fy) is (−fy, fx)), +x / +y when the facing is square to it.
+ */
+export function chainOffset(w: number, h: number, fx: number, fy: number, minStepM: number, out: { dgx: number; dgy: number }): { dgx: number; dgy: number } {
+  const rx = -fy;
+  const ry = fx;
+  let alongX: boolean;
+  if (Math.abs(w - h) > 1e-9) alongX = w > h;
+  else alongX = Math.abs(rx) >= Math.abs(ry);
+  const proj = alongX ? rx : ry;
+  const sign = proj < -1e-6 ? -1 : 1;
+  const len = Math.max(alongX ? w : h, minStepM);
+  const cells = Math.ceil(len / BUILD_GRID_M - 1e-9); // review L4: never shorter than the footprint (a 0.75 m step is 2 cells)
+  out.dgx = alongX ? sign * cells : 0;
+  out.dgy = alongX ? 0 : sign * cells;
+  return out;
+}
 
 /** Player text for a refused placement (Story 3.4; Story 3.3's contract). */
 export function placeRefusalText(e: PlaceError, balance: Balance): string {
@@ -105,6 +156,13 @@ export class Placement {
   rot: BuildingRotation = 0;
   /** ⟳ was pressed for this held item: auto-rotate is off (🔒 on the button). */
   locked = false;
+  /**
+   * Story 5.18 (AC 4): the chain jump pinned the ghost: it stays put in the world while I walk, until
+   * it leaves the view, I walk `chainUnpinWalkM` from where I placed, or (BX-5) the "↩ carry" chip.
+   */
+  pinned = false;
+  /** Story 5.18: the last check failed only because it overlaps one of my pending boxes. */
+  pendingOverlap = false;
   /** The unit carry facing: my last move direction (the survivor's facing at the start). */
   facingX = 1;
   facingY = 0;
@@ -145,6 +203,13 @@ export class Placement {
   private lastX = 0;
   private lastY = 0;
   private holdMs = 250;
+  private minStepM = 1;
+  private unpinWalkM = 2;
+  /** Where my survivor stood when the ghost was pinned (m). */
+  private pinMeX = 0;
+  private pinMeY = 0;
+  private readonly step = { dgx: 0, dgy: 0 };
+  private readonly corner = { gx: 0, gy: 0 };
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
   /** Starts placing `type` during wave number `wave`'s build (an unknown type does nothing and returns false). */
@@ -156,6 +221,8 @@ export class Placement {
     this.hysteresisM = b.snapHysteresisM;
     this.rotHysteresisDeg = b.autoRotateHysteresisDeg;
     this.holdMs = b.reasonHoldMs;
+    this.minStepM = b.chainMinStepM;
+    this.unpinWalkM = b.chainUnpinWalkM;
     this.bodyM = balance.player.radiusM;
     this.stats = stats;
     this.square = stats.widthM === stats.depthM;
@@ -163,6 +230,8 @@ export class Placement {
     this.type = type;
     this.rot = 0;
     this.locked = false;
+    this.pinned = false;
+    this.pendingOverlap = false;
     this.ns = null;
     this.snapped = false;
     this.wave = wave;
@@ -194,6 +263,13 @@ export class Placement {
       this.facingX = moveX / len;
       this.facingY = moveY / len;
     }
+    if (this.pinned) {
+      // Story 5.18 (AC 4, D3): walked away from the chain → back in my hands.
+      const dx = x - this.pinMeX;
+      const dy = y - this.pinMeY;
+      if (this.unpinWalkM <= 0 || dx * dx + dy * dy <= this.unpinWalkM * this.unpinWalkM) return;
+      this.unpin();
+    }
     const fx = this.facingX;
     const fy = this.facingY;
     if (!this.square && !this.locked) {
@@ -217,11 +293,91 @@ export class Placement {
 
   /** ⟳: the next 90° step clockwise; auto-rotate is off for this held item; the carry gap is kept for the new footprint. */
   rotate(): void {
-    if (!this.active) return;
+    const stats = this.stats;
+    if (!this.active || !stats) return;
+    if (this.pinned) {
+      // Story 5.18 (AC 4): a pinned ghost turns around its own centre and stays pinned.
+      const b = footprint(stats, this.gx, this.gy, this.rot, this.box);
+      const cx = (b.minX + b.maxX) / 2;
+      const cy = (b.minY + b.maxY) / 2;
+      this.rot = ((this.rot + 1) & 3) as BuildingRotation;
+      this.locked = true;
+      cornerForCentre(stats, this.rot, cx, cy, this.corner);
+      this.gx = this.corner.gx;
+      this.gy = this.corner.gy;
+      return;
+    }
     this.rot = ((this.rot + 1) & 3) as BuildingRotation;
     this.locked = true;
     this.snapped = false;
     this.carry(this.lastX, this.lastY, 0, 0);
+  }
+
+  /** Story 5.18: back to carry (the next `carry` puts the ghost ahead of me again, snapped fresh). */
+  unpin(): void {
+    if (!this.pinned) return;
+    this.pinned = false;
+    this.snapped = false;
+  }
+
+  /** Story 5.18 (AC 4): the ghost's centre is outside the view (m) shrunk by `PIN_VIEW_INSET_M`. NaN bounds: never. */
+  outsideView(minX: number, minY: number, maxX: number, maxY: number): boolean {
+    const stats = this.stats;
+    if (!stats || !(maxX - minX > 2 * PIN_VIEW_INSET_M) || !(maxY - minY > 2 * PIN_VIEW_INSET_M)) return false;
+    const b = footprint(stats, this.gx, this.gy, this.rot, this.box);
+    const cx = (b.minX + b.maxX) / 2;
+    const cy = (b.minY + b.maxY) / 2;
+    return cx < minX + PIN_VIEW_INSET_M || cx > maxX - PIN_VIEW_INSET_M || cy < minY + PIN_VIEW_INSET_M || cy > maxY - PIN_VIEW_INSET_M;
+  }
+
+  /**
+   * Story 5.18 (AC 3): after a Place, the next ghost jumps one footprint along (`chainOffset`) and is
+   * pinned there, with my survivor at (x, y); if that spot is blocked (the pending-aware check) it
+   * goes back to carry at once. Returns whether it stayed pinned.
+   */
+  chain(world: Readonly<World>, ownerId: string, pending: PendingSet | null, x: number, y: number): boolean {
+    const stats = this.stats;
+    if (!this.active || !stats) return false;
+    const o = chainOffset(footprintW(stats, this.rot), footprintH(stats, this.rot), this.facingX, this.facingY, this.minStepM, this.step);
+    this.gx += o.dgx;
+    this.gy += o.dgy;
+    this.pinned = true;
+    this.pinMeX = x;
+    this.pinMeY = y;
+    this.lastX = x;
+    this.lastY = y;
+    this.check(world, ownerId, pending);
+    if (this.error === "blocked") {
+      this.unpin();
+      this.carry(x, y, 0, 0);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Story 5.18: the request for the spot shown now, without ending holding (the chain keeps the item),
+   * or null when inactive or off the wire (`onWire`). Valid until the next call.
+   */
+  request(): PlaceRequest | null {
+    if (!this.active || !this.onWire()) return null;
+    const r = this.req;
+    r.type = this.type;
+    r.gx = this.gx;
+    r.gy = this.gy;
+    r.rot = this.rot;
+    return r;
+  }
+
+  /** The held type's price (0 when not holding). */
+  get price(): number {
+    return this.stats?.price ?? 0;
+  }
+
+  /** The ghost's footprint now (m), into a scratch box valid until the next call. */
+  ghostBox(): Readonly<Box> | null {
+    const stats = this.stats;
+    return stats ? footprint(stats, this.gx, this.gy, this.rot, this.box) : null;
   }
 
   /** Review L4: the shown spot fits the wire's 0–255 lattice indices (an off-map ghost may not). */
@@ -248,6 +404,8 @@ export class Placement {
   /** ✕, the wave starting, the menu opening, game over. */
   cancel(): void {
     this.active = false;
+    this.pinned = false;
+    this.pendingOverlap = false;
     this.error = null;
     this.resetShown();
   }
@@ -269,6 +427,15 @@ export class Placement {
     this.hasReason = false;
     if (this.active && stats && this.error === "blocked") {
       this.hasReason = blockReason(world, ownerId, footprint(stats, this.gx, this.gy, this.rot, this.box), 0, this.reason) !== null;
+      if (!this.hasReason && this.pendingOverlap) {
+        // Story 5.18 (AC 5): only one of my pending boxes is there: "Overlaps a building" (id 0: no culprit outline; the box itself shows).
+        const r = this.reason;
+        r.cause = "building";
+        r.index = -1;
+        r.id = 0;
+        r.playerId = "";
+        this.hasReason = true;
+      }
     }
     const e = this.active ? this.error : null;
     if (e !== null) {
@@ -299,16 +466,40 @@ export class Placement {
     return r.cause === s.cause && r.index === s.index && r.id === s.id && r.playerId === s.playerId;
   }
 
-  /** The shared placement check for the current preview (`error`); returns whether it is valid. */
-  check(world: Readonly<World>, ownerId: string): boolean {
+  /**
+   * The shared placement check for the current preview (`error`); returns whether it is valid.
+   * Story 5.18 (AC 5): with `pending`, my pending boxes count as built: owned + pending against the
+   * cap, the shown wallet (wallet − their prices) against the price, their ground as occupied. Same
+   * order as `placementError` (… → limit → money → blocked).
+   */
+  check(world: Readonly<World>, ownerId: string, pending: PendingSet | null = null): boolean {
     const r = this.req;
     r.type = this.type;
     r.gx = this.gx;
     r.gy = this.gy;
     r.rot = this.rot;
-    this.error = this.active ? placementError(world, ownerId, r) : null;
+    this.pendingOverlap = false;
+    let e = this.active ? placementError(world, ownerId, r) : null;
+    const stats = this.stats;
+    if (this.active && stats && pending && pending.count > 0 && (e === null || e === "money" || e === "blocked")) {
+      const cap = world.balance.buildings.maxPerPlayer;
+      const wallet = world.players.get(ownerId)?.wallet ?? 0;
+      if (ownedCount(world, ownerId) + pending.count >= cap) e = "limit";
+      else if (e !== "money" && wallet - pending.money < stats.price) e = "money";
+      else if (e === null && pending.overlaps(footprint(stats, this.gx, this.gy, this.rot, this.box))) {
+        e = "blocked";
+        this.pendingOverlap = true;
+      }
+    }
+    this.error = e;
     return this.error === null;
   }
+}
+
+/** Without a pending tracker (tests): whether the World alone says another can't be placed (cap, then money). */
+function placementCapOrMoney(world: Readonly<World>, ownerId: string, price: number): "limit" | "money" | null {
+  if (ownedCount(world, ownerId) >= world.balance.buildings.maxPerPlayer) return "limit";
+  return (world.players.get(ownerId)?.wallet ?? 0) < price ? "money" : null;
 }
 
 /** The HUD fields the placement step reads and writes (`HudModel` has them all). */
@@ -343,6 +534,13 @@ export interface PlacementFrame {
   nowMs: number;
   /** Story 5.17: the reason line for a shown error (and its blocked reason, or null); called every blocked frame, so it caches its string by key (no allocation per frame). */
   hintText: (e: PlaceError, reason: Readonly<BlockReason> | null) => string;
+  /** Story 5.18: my pending placements (null: none tracked; `send` then goes straight out). `send` adds to it. */
+  pending?: PendingSet | null;
+  /** Story 5.18: the camera's view (m); NaN: unknown (a pinned ghost then never leaves it). */
+  viewMinX?: number;
+  viewMinY?: number;
+  viewMaxX?: number;
+  viewMaxY?: number;
 }
 
 /**
@@ -368,16 +566,32 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
     m.placementActive = false;
     return;
   }
+  const pending = f.pending ?? null;
   if (confirm) {
-    const req = p.confirm();
-    if (req) f.send(req);
-    else f.toast(f.refusal("blocked")); // off the map: nothing the wire can carry, the shared rule says "blocked"
-    m.placementActive = false;
-    return;
+    // Story 5.18: one Place = one building (AC 1); the item stays in hand while I can pay and build another (AC 2).
+    const req = p.request();
+    const gate = req ? placeGate(world, f.ownerId, p.price, pending) : null;
+    if (!req || gate !== null) {
+      // off the map: nothing the wire can carry, the shared rule says "blocked"; at the cap / short counting pending: certain refusals (D2)
+      f.toast(f.refusal(req ? (gate as PlaceError) : "blocked"));
+      p.cancel();
+      m.placementActive = false;
+      return;
+    }
+    f.send(req);
+    const next = placeGate(world, f.ownerId, p.price, pending) ?? (pending ? null : placementCapOrMoney(world, f.ownerId, p.price));
+    if (next !== null) {
+      f.toast(next === "limit" ? f.refusal("limit") : CHAIN_MONEY_TEXT);
+      p.cancel();
+      m.placementActive = false;
+      return;
+    }
+    p.chain(world, f.ownerId, pending, f.x, f.y); // the next ghost, pinned one footprint along (AC 3)
   }
+  if (p.pinned && p.outsideView(f.viewMinX ?? Number.NaN, f.viewMinY ?? Number.NaN, f.viewMaxX ?? Number.NaN, f.viewMaxY ?? Number.NaN)) p.unpin(); // AC 4
   if (rotate) p.rotate();
   p.carry(f.x, f.y, input.moveX, input.moveY);
-  p.check(world, f.ownerId);
+  p.check(world, f.ownerId, pending);
   p.explain(world, f.ownerId, f.nowMs); // Story 5.17: why it's red, held ≥ reasonHoldMs before valid
   m.placementActive = true;
   m.placementLocked = p.locked;

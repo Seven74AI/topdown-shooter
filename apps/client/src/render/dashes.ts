@@ -25,3 +25,27 @@ export function zombieAlive(aliveIds: ArrayLike<number>, alivePos: ArrayLike<num
   const pos = alivePos[id];
   return pos !== undefined && pos >= 0 && pos < aliveCount && aliveIds[pos] === id;
 }
+
+/**
+ * Story 5.18: a dashed rectangle (w × h, centred on the origin) as straight dashes about `dashM` long
+ * with equal gaps along each edge, in the sink's current line style. Returns the dash count. No allocation.
+ */
+export function dashedRect(g: LineSink, w: number, h: number, dashM: number): number {
+  const hx = w / 2;
+  const hy = h / 2;
+  return dashedLine(g, -hx, -hy, hx, -hy, dashM) + dashedLine(g, hx, -hy, hx, hy, dashM) + dashedLine(g, hx, hy, -hx, hy, dashM) + dashedLine(g, -hx, hy, -hx, -hy, dashM);
+}
+
+/** One edge: an odd number of slots (≥ 1) so both ends are dashes (the corners read clearly). */
+function dashedLine(g: LineSink, x0: number, y0: number, x1: number, y1: number, dashM: number): number {
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const n = Math.max(1, 2 * Math.floor(len / (2 * dashM)) + 1);
+  let dashes = 0;
+  for (let i = 0; i < n; i += 2) {
+    const t0 = i / n;
+    const t1 = (i + 1) / n;
+    g.lineBetween(x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0, x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1);
+    dashes++;
+  }
+  return dashes;
+}
