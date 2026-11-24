@@ -35,7 +35,7 @@ FR8: A consumable button uses the single quick-use slot (medkit, grenades, molot
 FR9: A player has 100 HP, radius 0.4 m and move speed 4.5 m/s; zombies in contact hit once per second; no regeneration during a wave; each build phase heals 50% of max HP.
 FR10: At 0 HP a player is downed; a standing teammate within 2.0 m (centre to centre) for 3 s revives them, the downed countdown pauses while someone revives, and the downed player's gun keeps reloading; after 20 s without revive they are out until the next build phase, when they return automatically.
 FR11: The run is lost when no player is standing (everyone downed or out).
-FR12: Each player carries 2 weapon slots in any combination; a run starts with a Pistol and 100 currency.
+FR12: Each player carries 2 weapon slots in any combination; a run starts with a Pistol and 200 currency (designer 2026-11-24).
 
 **Weapons and combat**
 
@@ -139,7 +139,7 @@ FR76: A ping button offers 4 quick messages (Help! · Over here · Big one! · R
 FR77: A guest can upgrade to an account later and keep their progress.
 FR78: Supplies are earned per run, even on a loss: +10 per wave survived (counted only for waves the player was in: every player in the run when the wave ends, downed or out, but not waves before a late join or after leaving), +50 for killing the Behemoth, +100 for extracting, +20 per endless wave (kept only if the team extracts); a player's Supplies are doubled while their lifetime Supplies are below 300 (rookie lift).
 FR79: New players start with the starter pool (Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades); other items are unlocked with Supplies on an unlock screen at the GDD prices, in any order, and unlocks add cards to that player's shop deck; one card per offer may be borrowed from a teammate's unlocks the player lacks.
-FR80: Training offers 4 capped boosts with 5 levels each (max HP up to +10%, damage up to +5%, starting currency 100 → 150, reload speed up to +5%), each level costing 50 × level Supplies.
+FR80: Training offers 4 capped boosts with 5 levels each (max HP up to +10%, damage up to +5%, starting currency 200 → 250, reload speed up to +5%), each level costing 50 × level Supplies.
 FR81: District 2 unlocks for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has unlocked it (rule only; district 2 content is out of v1).
 
 **Presentation, audio and settings**
@@ -151,6 +151,7 @@ FR85: Ambience follows the decay stage (5 loops); music intensity follows the nu
 FR86: Each weapon has distinct firing and reload sounds; reloads are clearly audible. Sounds are procedural or from licensed/free libraries (no hired sound designer).
 FR87: Quality settings can lower or turn off rain, fog visuals, screen shake, film grain and light glow, plus the gore toggle; blackout darkness and the 10 m fog vision limit cannot be turned off.
 FR88: The game records simple run stats (district, wave reached, extracted, loadouts per player) for the success metrics.
+FR89: Each player's survivor is built from code-drawn parts and free colours they choose (cosmetic only, no gameplay effect) and is seen by the whole team; extra parts come from milestones earned once and from a rare per-run loot bag, never from Supplies (customization proposal D1–D7, O1–O6).
 
 ### NonFunctional Requirements
 
@@ -227,7 +228,7 @@ FR8: Epic 5 - Consumable button
 FR9: Epic 1 - Player HP, speed, contact damage (build-phase heal in Epic 3)
 FR10: Epic 2 - Downed, revive, out
 FR11: Epic 2 - Team wipe loss (Epic 1: solo death ends the game)
-FR12: Epic 1 - Two slots, Pistol start (100 currency start in Epic 3)
+FR12: Epic 1 - Two slots, Pistol start (200 currency start in Epic 3; was 100 until 2026-11-24)
 FR13: Epic 1 (Pistol, SMG, Machete, Hunting Rifle) · Epic 5 (other 7 weapons)
 FR14: Epic 1 - Visible projectiles, instant melee arcs (lobbed grenades in Epic 5)
 FR15: Epic 1 - Fixed spread, no recoil, no crits
@@ -304,6 +305,7 @@ FR85: Epic 9 - Ambience and adaptive music
 FR86: Epic 9 - Weapon sounds (placeholder sounds from Epic 1; polished from procedural or licensed/free libraries)
 FR87: Epic 10 - Quality settings
 FR88: Epic 10 - Run stats
+FR89: Epic 7 - Survivor customization, milestone items, loot bag (Stories 7.8–7.12)
 
 **NFRs:** NFR1 measured from Epic 1, met in Epic 10 · NFR2 Epic 10 · NFR3–NFR5 Epic 2 · NFR6–NFR8 Epic 10 · NFR9 Epics 2, 6, 10 · NFR10 from Epic 1 · NFR11 Epics 2 and 5 · NFR12 Epic 2 (transport, input validation), Epic 7 (passwords) · NFR13 Epics 7 and 8 · NFR14 from Epic 1.
 
@@ -336,8 +338,8 @@ A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, 
 **FRs covered:** FR28 (full curve), FR29, FR31 (boss HP), FR33–FR43, FR53 (rubble, charge), FR57 (gas leak), FR62, FR63, FR64, FR66, FR67, FR68, FR84 (boss telegraphs)
 
 ### Epic 7: Accounts and meta-progression
-Players keep progress between runs: a guest upgrades to an account, earns Supplies, unlocks items that then appear in their shop (plus one card borrowed from a teammate), and buys capped Training boosts; new friends catch up with a rookie lift and a bigger starter pool.
-**FRs covered:** FR77, FR78, FR79, FR80, FR81
+Players keep progress between runs: a guest upgrades to an account, earns Supplies, unlocks items that then appear in their shop (plus one card borrowed from a teammate), and buys capped Training boosts; new friends catch up with a rookie lift and a bigger starter pool; each player makes their own survivor look, with milestone and loot parts.
+**FRs covered:** FR77, FR78, FR79, FR80, FR81, FR89 · NFR12 (passwords), NFR13
 
 ### Epic 8: Real-life resilience
 Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, a light host role with Remove player, Save and quit with 7-day resume by anyone from the run, and quick pings (decisions: `docs/ideas/epic-8/decisions.md`).
@@ -2385,7 +2387,8 @@ So that every run moves me forward.
 **When** Supplies are computed for each player (server only, from the run result)
 **Then** they get +10 per wave survived, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78; `progression.json`)
 **And** a wave counts only for players who were in it: in the run when it ends (playing, downed, out, or held during a short drop, Epic 8 D1); waves before a late joiner arrived, or after a player left or lost their seat, don't count; a player who quits banks the waves ended before they left (designer D2; Epic 8 note: no farming by joining at wave 9)
-**And** the Behemoth and extract bonuses go to players in the run when the boss dies / the team extracts; in a run resumed on another night (Epic 8), each player's waves from every night they played are counted once, at the run's end
+**And** the Behemoth and extract bonuses go to players in the run when the boss dies / the team extracts
+**And** the waves each player was in are kept per seat in run state, so Epic 8 can carry them in its snapshot (note: in a run resumed on another night, Story 8.4/8.6 count each player's waves from every night once, at the run's end)
 **And** after a wipe in endless, only waves 1–10 and the boss count
 
 **Given** a player whose lifetime Supplies are below 300 before this run
@@ -2399,7 +2402,7 @@ So that every run moves me forward.
 **Given** the Results screen
 **When** it shows
 **Then** each player sees a "Run rewards" panel: "+N Supplies" with the breakdown, their new total, and (added by later stories) a new milestone item, a loot item and the district unlock
-**And** after the first run that banks ≥ 200 Supplies for a guest, it shows "Save my progress" once (opens Story 7.6)
+**And** (added by Story 7.6) after the first run that banks ≥ 200 Supplies for a guest, it shows "Save my progress" once
 **And** if the player used a supply-drop weapon they haven't unlocked, it shows "You used the <weapon>: unlock it for <price>"
 
 **Given** the server
@@ -2424,7 +2427,7 @@ So that my options grow over time.
 
 **Given** the start screen
 **When** I tap "Progress"
-**Then** a hub opens with three tabs: Unlocks · Training (7.5) · Survivor (7.10), with my Supplies total at the top
+**Then** a hub opens with my Supplies total at the top and an Unlocks tab; the Training (7.5) and Survivor (7.10) tabs are added by their stories
 
 **Given** the Unlocks tab
 **When** I open it
@@ -2478,7 +2481,7 @@ So that I get a bit stronger without leaving new friends behind.
 
 **Given** the Training tab of the Progress hub
 **When** I open it
-**Then** I see 4 boosts with 5 levels each: max HP +2 % per level (max +10 %), damage +1 % per level (max +5 %), starting currency +10 per level (100 → 150), reload speed +1 % per level (max +5 %) (FR80)
+**Then** I see 4 boosts with 5 levels each: max HP +2 % per level (max +10 %), damage +1 % per level (max +5 %), starting currency +10 per level (200 → 250, from `economy.json` `startingWallet`), reload speed +1 % per level (max +5 %) (FR80)
 
 **Given** I buy the next level
 **When** I have enough Supplies
@@ -2505,10 +2508,15 @@ So that I keep my progress on a new phone.
 **When** I enter my username, my recovery code and a new password
 **Then** the password is replaced, the old code stops working and a new code is shown once
 
+**Given** the start screen
+**When** it shows
+**Then** a guest sees "Save my progress" and "Log in" (the Progress hub header has the same two), and the login form has "Forgot password"; a logged-in player sees their username and "Log out" instead
+**And** after the first run that banks ≥ 200 Supplies for a guest, Results shows "Save my progress" once (the line Story 7.2 leaves for this story)
+
 **Given** another device
 **When** I log in with my username and password
 **Then** that device's guest token (cookie and `localStorage`) is linked to my account and my progress loads
-**And** if that device's guest had its own progress, it is merged in: unlocks and cosmetics joined, Supplies and lifetime Supplies added, the higher level of each Training boost, stats added; the guest account is then retired (D11)
+**And** if that device's guest had its own progress, it is merged in: unlocks joined, Supplies and lifetime Supplies added, the higher level of each Training boost, and every later progress field merged by the rule its story gives (7.11: cosmetics joined, stats added; 7.10: the account's look kept unless it is the default); the guest account is then retired (D11)
 
 **Given** login and recovery attempts
 **When** one IP makes more than 5 per minute
@@ -2574,9 +2582,13 @@ So that I can find myself and they can recognise me.
 
 **Acceptance Criteria:**
 
+**Given** this story's migration
+**When** it runs
+**Then** `progress` gets `look` (text, nullable = default look); Story 7.10 writes it
+
 **Given** a join (Story 2.3)
 **When** the client sends its join options
-**Then** it includes the look code (≤ 96 characters, `v1|…` format) from the player's progress; the server checks each part exists and is owned by the account, replaces any bad part with the default, and **never refuses a join because of a look**
+**Then** it includes the look code (≤ 96 characters, `v1|…` format) from the player's progress; the server checks each part exists and is owned by the account (until Story 7.11, owned = unlock rule `starter`), replaces any bad part with the default, and **never refuses a join because of a look**
 
 **Given** the room state
 **When** a player joins
@@ -2605,7 +2617,7 @@ So that customizing is fun, not a chore.
 
 **Given** the start screen
 **When** I tap "Survivor" (the Survivor tab of the Progress hub, Story 7.3) or my own card in the lobby
-**Then** a Preact screen opens with tabs Top / Head / Hair / Pack / Accent / Skin, a big rotating preview, and a **game-size preview** (35 px per metre on wet asphalt, slot ring, a few zombies and teammates around)
+**Then** a Preact screen opens (the Survivor tab is added to the hub here) with tabs Top / Head / Hair / Pack / Accent / Skin, a big rotating preview, and a **game-size preview** (35 px per metre on wet asphalt, slot ring, a few zombies and teammates around)
 
 **Given** the tabs
 **When** I pick a part or a colour
@@ -2625,7 +2637,11 @@ So that customizing is fun, not a chore.
 
 **Given** I tap Done
 **When** the server saves it
-**Then** the look is written to my `progress` row (new `look` field, this story's migration) and cached on the device (try/catch); it is used from my next join
+**Then** the look is written to my `progress` row (the `look` field from Story 7.9) and cached on the device (try/catch); it is used from my next join
+
+**Given** the 30-second goal
+**When** the designer's playtest runs
+**Then** a first-time player makes and saves a look in under 30 s (timed, noted in `docs/playtests/`)
 
 ### Story 7.11: Milestone items
 
@@ -2638,6 +2654,7 @@ So that my survivor shows what I've done.
 **Given** this story's migration
 **When** it runs
 **Then** `progress` gets `cosmetics` (owned item ids) and `stats` (lifetime counters: revives, kills, barricades built, runs played)
+**And** Story 7.9's ownership check now also accepts parts in `cosmetics`; Story 7.6's merge joins `cosmetics` and adds `stats`
 
 **Given** a run ends (Story 7.2's transaction)
 **When** Supplies are banked
@@ -2660,7 +2677,7 @@ So that some runs end with a surprise.
 **Acceptance Criteria:**
 
 **Given** a run starts
-**When** the `loot` seed stream is read (Story 4.4)
+**When** the `loot` seed stream is read (added to `STREAM_NAMES` by this story, alongside Story 4.4's streams; other streams don't change)
 **Then** with chance `loot.runChance` = 0.2 (balance JSON) the run has one bag, at a chosen wave 3–10 and kill index in that wave; the rate doesn't depend on zombie or player count; solo runs too; endless adds none
 
 **Given** that kill
@@ -2679,9 +2696,7 @@ So that some runs end with a surprise.
 **When** Results show
 **Then** the finder sees "Found in wave N: <item>" and the item is banked in Story 7.2's transaction, even after a wipe or a quit
 
-**Given** Epic 8's snapshot rule
-**When** a run is saved or a player rejoins
-**Then** the bag (position, ticks left) and a pending found item are in the snapshot (round-trip test)
+(Note for Epic 8: Story 8.4's snapshot carries the bag (position, ticks left) and a pending found item; its round-trip test covers them.)
 
 **Given** the loot rules
 **When** Vitest runs
@@ -2787,7 +2802,7 @@ So that a server crash or update doesn't lose our run.
 
 **Given** a build phase
 **When** it starts, and again on its last tick (the wave is about to begin) (D10)
-**Then** a versioned JSON snapshot replaces the room's previous one: every seat by account (connected, held or remembered) with wallet, earned, loadout, upgrades, gear, consumable slot and count, current card offer (5.13); buildings with type, barricade tier, rotation, owner, HP, wear and `paid`; wave; decay stage, plan and variations; light and blackout state; event schedule; boss state; endless counters; loot bag and pending item (7.12); the rewards-after-wave-10 flag (6.12); every PRNG stream state. Never zombies, shots, puddles or fires. About 50 KB
+**Then** a versioned JSON snapshot replaces the room's previous one: every seat by account (connected, held or remembered) with wallet, earned, loadout, upgrades, gear, consumable slot and count, current card offer (5.13); buildings with type, barricade tier, rotation, owner, HP, wear and `paid`; wave; decay stage, plan and variations; light and blackout state; event schedule; boss state; endless counters; loot bag and pending item (7.12); the waves each seat was in (7.2); the rewards-after-wave-10 flag (6.12); every PRNG stream state. Never zombies, shots, puddles or fires. About 50 KB
 
 **Given** the room ends
 **When** the cause is a server shutdown, a deploy or a programmer error that corrupts the simulation
