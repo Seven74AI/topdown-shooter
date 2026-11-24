@@ -30,4 +30,20 @@ Follow-up answers (designer, 2026-11-24):
 - **Dropped parts:** offer replacements in round 2 so the catalogue keeps **35 starter / 10 milestone / 10 loot**, including new items for **M7** (100 barricades), **M8** (extract with all 4 alive) and **M10** (wave 10 without going down).
 - **Accent slot:** keep it, with new bolder candidates that read at 14 px, plus the redrawn cape.
 
-Round 2 (redraws + replacement candidates): see below once picked.
+Round 2 page: claude.ai/artifact/LVWByCqRkA3vF5DLrHaK9j (`docs/art/7-8/round-2.html`). Designer's picks 2026-11-24:
+
+| Slot | Picked | Redraw again (designer's note) | Dropped / not picked |
+| --- | --- | --- | --- |
+| Top | camo **A** (bold woodland), floral **A** (big white hibiscus) | – | coat, leather, robe |
+| Head | fire **A** (black, long back brim, brass badge), riot **B** (visor down), gas **A** (filter in front); new: headphones, bucket hat, wide-brim hat (starter), viking helmet, propeller cap (loot) | cap, capb; viking: "the horns are weirdly placed, why are they pointing in front?" | trapper |
+| Hair | all three buzz cuts kept: stubble, flat top, mohawk ("we can keep the three") | – | – |
+| Pack | guitar **B** ("improve the position, it's weirdly positioned on the player"); new: school backpack (starter), golf bag (M10), cat in the backpack, potted plant (loot) | – | frame, crate, mat; skateboard ("could be a good idea, but the placement and the perspective are wrong") |
+| Accent | – | – | cape and every accent candidate |
+
+Follow-up answers (designer, 2026-11-24):
+- **Accent slot removed.** The look has 5 slots: top, head, hair, pack, skin. The accent picker colour stays as the colour of hats and bags (caps, beanie, headphones, bucket, wide-brim, propeller, school backpack). Story 7.9's look code drops `acc`.
+- **Counts:** round 3 offers candidates for **M5, M7, M8** in any slot. Starters stay at what was picked (AC 4 changes to the real counts).
+- **Animated parts** (designer's idea: a spinning propeller): not in 7.8; open question for Story 7.9 (an extra small sprite rotated each frame, no new texture per frame), through a course correction.
+- **Lean on kept headgear:** round 3 shows each kept round-1 headgear with and without the lean.
+
+Round 3: see below once picked.
