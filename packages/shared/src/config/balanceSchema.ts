@@ -846,6 +846,7 @@ export const BLACKOUT_DEFAULTS = {
   maxEyes: 150,
   maxSparkles: 160,
   rainK: 0.35,
+  hazardAboveDarkPct: 10,
 };
 
 /**
@@ -880,6 +881,8 @@ export const blackoutSchema = z
     maxSparkles: z.number().int().min(0).max(1024).default(BLACKOUT_DEFAULTS.maxSparkles),
     /** D7: the normal rain's alpha × this in a blackout (faint over the dark; beams sparkle instead). */
     rainK: z.number().min(0).max(1).default(BLACKOUT_DEFAULTS.rainK),
+    /** Designer 6.3 B3: acid puddles and Bloater gas show above the darkness at this % of their look (full inside light). */
+    hazardAboveDarkPct: z.number().min(0).max(100).default(BLACKOUT_DEFAULTS.hazardAboveDarkPct),
   })
   .strict();
 

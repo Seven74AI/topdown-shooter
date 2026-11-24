@@ -11,6 +11,11 @@ export const DARKNESS_DEPTH = 11.7;
 export const ABOVE_DARK = {
   /** Rain sparkles inside beams and floodlight pools (6.3). */
   sparkle: 11.705,
+  /**
+   * Acid puddles and Bloater gas (cloud + edge ring) at `blackout.hazardAboveDarkPct` (10 %) strength
+   * (designer 6.3 B3): a faint copy above the dark; inside light the full look shows under it.
+   */
+  hazard: 11.707,
   /** Zombie eyes within 14 m (6.3; the Behemoth's eyes: 6.5). */
   eyes: 11.71,
   /** The Behemoth's outline and eyes (6.5). */

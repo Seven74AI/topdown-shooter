@@ -262,3 +262,52 @@ describe("Story 6.3 FloodlightView (AC 10)", () => {
     expect(pool().displayWidth).toBe(12);
   });
 });
+
+describe("Story 6.3 designer B3: acid puddles and Bloater gas above the darkness at 10 %", () => {
+  it("a blackout adds a faint copy (alpha × hazardAboveDarkPct / 100) in the hazard slot; none without a blackout", async () => {
+    const { AcidView } = await import("../AcidView");
+    const { AcidFx } = await import("../acidFx");
+    const { BloaterView } = await import("../BloaterView");
+    const { BloaterFx } = await import("../bloaterFx");
+    expect(B.hazardAboveDarkPct).toBe(10);
+    const k = B.hazardAboveDarkPct / 100;
+    const fs = fakeScene();
+    const acid = new AcidFx(4, 4, 10, 6);
+    acid.puddleId[0] = 7;
+    acid.puddleX[0] = 12;
+    acid.puddleY[0] = 9;
+    acid.puddleStartS[0] = 9;
+    const av = new AcidView(fs.scene, acid, 1);
+    const gas = new BloaterFx(2, 8, 2.5, 4);
+    gas.cloudOn[0] = 1;
+    gas.cloudX[0] = 20;
+    gas.cloudY[0] = 10;
+    gas.cloudStartS[0] = 9;
+    const bv = new BloaterView(fs.scene, gas, { forEachSwell: () => {} } as never, 2.5, 4);
+    const w = world(null);
+    const ghosts = () => fs.objects.filter((o) => o.depth === ABOVE_DARK.hazard);
+    const ghostImgs = () => ghosts().filter((o) => o.texture !== "");
+    av.update(10);
+    bv.update(w, 10);
+    expect(ghostImgs().filter((o) => o.visible)).toHaveLength(0); // no blackout: nothing above the dark
+    av.darkGhost = k;
+    bv.darkGhost = k;
+    av.update(10);
+    bv.update(w, 10);
+    const shown = ghostImgs().filter((o) => o.visible);
+    expect(shown.length).toBe(3); // the puddle + both gas layers
+    const puddle = fs.objects.find((o) => o.depth !== ABOVE_DARK.hazard && o.visible && o.x === 12 && o.y === 9) as FakeObject;
+    const pg = shown.find((o) => o.x === 12) as FakeObject;
+    expect(pg.alpha).toBeCloseTo(puddle.alpha * k, 9);
+    expect(shown.filter((o) => o.x === 20)).toHaveLength(2);
+    const ring = ghosts().find((o) => o.strokes > 0) as FakeObject; // the gas edge ring's copy
+    expect(ring).toBeDefined();
+    expect(ring.lineAlpha).toBeLessThanOrEqual(0.45 * k + 1e-9);
+    av.darkGhost = 0;
+    bv.darkGhost = 0;
+    av.update(10.1);
+    bv.update(w, 10.1);
+    expect(ghostImgs().filter((o) => o.visible)).toHaveLength(0);
+    expect(ghosts().find((o) => o.strokes > 0)).toBeUndefined();
+  });
+});

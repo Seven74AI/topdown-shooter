@@ -23,6 +23,7 @@
     "maxStamps": 48,
     "maxEyes": 150,
     "maxSparkles": 160,
-    "rainK": 0.35
+    "rainK": 0.35,
+    "hazardAboveDarkPct": 10
   }
 }

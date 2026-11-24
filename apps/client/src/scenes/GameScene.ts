@@ -1828,6 +1828,10 @@ export class GameScene extends Phaser.Scene {
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
     this.acidClockS += fxDtS;
+    // Story 6.3 (designer B3): acid puddles and Bloater gas show above the darkness at 10 % (blackout only).
+    const hazardGhost = isBlackoutNow(host.world) ? host.world.balance.decay.blackout.hazardAboveDarkPct / 100 : 0;
+    if (this.acidView) this.acidView.darkGhost = hazardGhost;
+    if (this.bloaterView) this.bloaterView.darkGhost = hazardGhost;
     this.acidView?.update(this.acidClockS);
     this.grenadeView?.update(this.acidClockS);
     this.explosionView?.update(fxDtS, this.acidClockS);

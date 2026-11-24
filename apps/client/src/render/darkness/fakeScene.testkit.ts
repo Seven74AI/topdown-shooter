@@ -81,6 +81,20 @@ export class FakeObject {
   fillRect(): this {
     return this;
   }
+  strokes = 0;
+  lineAlpha = 0;
+  lineStyle(_w: number, _c: number, a = 1): this {
+    this.lineAlpha = a;
+    return this;
+  }
+  strokeCircle(): this {
+    this.strokes++;
+    return this;
+  }
+  clear(): this {
+    this.strokes = 0;
+    return this;
+  }
   destroy(): void {
     this.destroyed = true;
   }

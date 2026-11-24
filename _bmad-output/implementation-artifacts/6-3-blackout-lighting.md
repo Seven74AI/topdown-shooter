@@ -271,7 +271,7 @@ Claude (Claude Code, cloud builder session for Story 6.3)
 - `apps/server/src/rooms/schema/RunState.ts`, `rooms/schema/syncState.ts`, `rooms/schema/syncState.test.ts`, `rooms/RunRoom.ts`
 - `apps/server/src/run/RunController.ts`, `run/devForceBlackout.ts` (new), `run/devForceBlackout.test.ts` (new)
 - `apps/client/src/render/darkness/aboveDark.ts`, `darknessPlan.ts`, `lightStamps.ts`, `DarknessView.ts`, `EyesView.ts`, `BeamSparkleView.ts`, `fakeScene.testkit.ts`, `darknessPlan.test.ts`, `darknessView.test.ts` (all new)
-- `apps/client/src/render/PlayerView.ts`, `render/ZombieView.ts`, `render/FloodlightView.ts`, `render/city/rainLook.ts` (new), `render/city/rainLook.test.ts` (new), `render/city/CityView.ts`, `render/city/palette.ts`, `render/city/spriteAtlas.ts`
+- `apps/client/src/render/AcidView.ts`, `render/BloaterView.ts`, `render/PlayerView.ts`, `render/ZombieView.ts`, `render/FloodlightView.ts`, `render/city/rainLook.ts` (new), `render/city/rainLook.test.ts` (new), `render/city/CityView.ts`, `render/city/palette.ts`, `render/city/spriteAtlas.ts`
 - `apps/client/src/scenes/GameScene.ts`, `scenes/hudLayout.test.ts` (new), `scenes/buildBar.test.ts`, `apps/server/src/rooms/RunRoom.buildings.test.ts`, `tools/checks/darknessNoOffSwitch.test.ts` (new)
 - `apps/client/src/sim/NetSimHost.ts`, `sim/NetSimHost.blackout.test.ts` (new), `net/fakeRoom.ts`, `net/lobbyStore.test.ts`
 - `apps/client/src/debug/urlOptions.ts`, `debug/urlOptions.test.ts`, `debug/devCheatActions.ts`, `debug/devCheatActions.test.ts`, `debug/DevCheats.tsx`
@@ -281,6 +281,7 @@ Claude (Claude Code, cloud builder session for Story 6.3)
 ### Notes for the merge (builder)
 
 - Review fixes (2026-11-24): `ABOVE_DARK` gained `rush: 11.765` (the rush chevrons; 6.5's shim may lack it, this file wins); `decay.json › blackout.rainK` new; `STAMP_GLOW` (plan kind 2) + `fx_darkstamp_glow` stamp; `DARKNESS_PAD` (the darkness reaches 3 % past each view edge, GameScene passes the padded view to `planDarkness`).
+- Designer B3: `AcidView` / `BloaterView` gained `darkGhost` (ghost images + one ghost Graphics in `ABOVE_DARK.hazard`), set by GameScene each frame before their update; `ABOVE_DARK.hazard` 11.707 and `decay.json › blackout.hazardAboveDarkPct` new.
 - Review L3 (not this story): aim assist can lock a zombie beyond 14 m that the dark hides; 6.4 owns it with the fog (6.4 D4: aim assist never locks a target your screen hides).
 
 - `RunState.ts` / `syncState.ts` / `stateView.ts › RUN_STATE_FIELDS + RunStateView` / `fakeRoom.ts` / `net/lobbyStore.test.ts` literal: `blackoutPct`, `halfDark` appended last; 6.5's `boss` record goes beside them (order free).
@@ -312,11 +313,12 @@ Claude (Claude Code, cloud builder session for Story 6.3)
 - [x] [AI-Review][Low] L8: Results are always lit (`refreshBlackout` ignores `forcedPct` in Results); the comment matches.
 - [x] [AI-Review][Low] Two surviving mutations now killed: BL3 5 % uses the hard cone stamps (20 % / 10 % the soft ones) in `darknessView.test.ts`; the rain dims in a blackout in `rainLook.test.ts`. Re-run: H1, M1, L1 mutations killed too.
 - [ ] [AI-Review][Low] L3 (aim assist beyond 14 m in the dark): deferred to 6.4 (fog, 6.4 D4); merge note added.
-- [ ] [AI-Review][Low] L5 (acid / gas / traps under the dark): waiting on the designer.
+- [x] [AI-Review][Low] L5 → designer decision 6.3 B3: acid puddles and Bloater gas (both cloud layers + the gas edge ring) get a second copy above the darkness (`ABOVE_DARK.hazard` 11.707) at `decay.json › blackout.hazardAboveDarkPct` (10 %) of their alpha, only in a blackout; inside light the full look shows under it (the faint same-colour copy changes it ≈ nothing: the "simplest equivalent" of max(lit, 10 %)). Own mines and traps stay under the dark. Test in `darknessView.test.ts` (mutation: ghost at full alpha → killed). Not seen in a browser.
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: designer decision 6.3 B3 (review L5) built: hazards above the dark at 10 %.
 - 2026-11-24: addressed code review findings — 10 items resolved (H1, M1, M2, L1, L2, L4, L6, L7, L8, two mutations); L3 deferred to 6.4, L5 with the designer.
 - 2026-11-24: implemented (gds-dev-story): light state + rule, flashlight cone, wire fields, darkness layer, eyes, sparkles, teammates above the dark, floodlight 6 m, shop flags, dev switches, HUD layout test, perf doc; status review.
