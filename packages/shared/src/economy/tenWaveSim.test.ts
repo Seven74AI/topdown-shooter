@@ -11,7 +11,7 @@ import { isSpawnBuried } from "../waves/spawnPick";
  * (a) Economy run (D2): 4 bots that can't die (`god`), seeds 1–3, so every run really plays all 10
  *     waves; each player's earnings are logged next to the GDD target (2,500–3,000 per player) with
  *     the gap in %. Earnings are logged only (D3: the Epic 5 balance pass owns the numbers).
- * (b) Survival run: 1–4 bots × seeds 1–3, mortal: every run ends on Results (held out or wiped,
+ * (b) Survival run: 1–4 bots × seeds 1–3, mortal: every run ends on Results (extracted or wiped,
  *     never the tick limit); survival by wave is logged. Bot survival is not difficulty evidence.
  */
 const balance = loadBalance();
@@ -24,7 +24,7 @@ const info = (msg: string): void => (globalThis as unknown as { console: { info(
 const gapPct = (v: number): number => (v < GDD_MIN ? ((v - GDD_MIN) / GDD_MIN) * 100 : v > GDD_MAX ? ((v - GDD_MAX) / GDD_MAX) * 100 : 0);
 
 describe("Story 6.1: ten-wave sim", () => {
-  it("(a) god-mode bots, 4 players, seeds 1–3: all 10 waves played and held out; money adds up; Brutes in waves 7–10; Bloaters burst in wave 10; earnings vs the GDD", () => {
+  it("(a) god-mode bots, 4 players, seeds 1–3: all 10 waves played and extracted; money adds up; Brutes in waves 7–10; Bloaters burst in wave 10; earnings vs the GDD", () => {
     expect(balance.waves.runWaves).toBe(10);
     const lines: string[] = [];
     const runs: HeadlessRunLog[] = [];
@@ -99,7 +99,7 @@ describe("Story 6.1: ten-wave sim", () => {
       }
       const byWave = Array.from({ length: 10 }, (_, i) => rs.filter((r) => r.wavesCleared >= i + 1).length);
       const earned = rs.flatMap((r) => r.earned);
-      summary.push(`${players}p: held out ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${Math.round(earned.reduce((a, b) => a + b, 0) / earned.length)}`);
+      summary.push(`${players}p: extracted ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${Math.round(earned.reduce((a, b) => a + b, 0) / earned.length)}`);
     }
     info(`[ten-wave sim (b)] mortal bots (not difficulty evidence)\n${lines.join("\n")}\n${summary.join("\n")}`);
     expect(reachedLate).toBeGreaterThan(0); // liveness: some mortal runs really reach the new waves 7–10

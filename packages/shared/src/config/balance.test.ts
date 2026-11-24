@@ -621,3 +621,11 @@ describe("Stories 6.6 + 6.7: boss.json charge, throw, enrage, killPay (AC 1)", (
     expect(() => loadBalance(f)).toThrow(/charge shove step 625 mm\/tick equals the slam push step/);
   });
 });
+
+describe("Story 6.11/6.12 review L5", () => {
+  it("evac.everyWaves must equal endless.bossEveryWaves (a vote after every endless Behemoth wave)", () => {
+    const files = bundledBalanceFiles();
+    (files.waves as { evac: { everyWaves: number } }).evac.everyWaves = 4;
+    expect(() => loadBalance(files)).toThrow(/evac.everyWaves 4 must equal endless.bossEveryWaves 5/);
+  });
+});

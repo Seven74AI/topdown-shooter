@@ -202,6 +202,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Story 2.10: when the current wave started (or the run, before the first wave), and its most zombies alive. */
   private waveStartMs = 0;
   private peakZombiesAlive = 0;
+  /** Review L11: the last wave whose `wave.ended` fired this run (the run_ended log's endlessWaves). */
+  private lastClearedWave = 0;
   /** The fight (Story 2.4): set when the run starts; the room is its only writer. */
   controller: RunController | null = null;
   /** Tick durations; logs `slow_tick` (AC 5). */
@@ -748,6 +750,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.pingTimer?.clear();
     this.pingTimer = this.clock.setInterval(() => this.ping(), PING_INTERVAL_MS);
     this.waveStartMs = performance.now();
+    this.lastClearedWave = 0;
     this.peakZombiesAlive = 0;
     this.log.info({ runSeed, players: players.length }, "run_started");
     if (this.scenario) {
@@ -777,7 +780,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
       if (e.type === "wave.started") this.startWaveStats();
-      else if (e.type === "wave.ended") this.logWaveStats(e.number);
+      else if (e.type === "wave.ended") {
+        this.lastClearedWave = e.number;
+        this.logWaveStats(e.number);
+      }
       else if (e.type === "team.wiped") this.endRun(controller, e.wave);
       else if (e.type === "run.extracted") this.endRun(controller, e.wave); // Story 6.11
       else if (e.type === "run.vote_resolved") this.log.info({ wave: controller.world.waves.number, extract: e.extract, stay: e.stay, silent: e.silent, choice: e.choice }, "vote_resolved"); // Story 6.11 (run stats)
@@ -810,7 +816,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       earnedBeforeEndless[playerId] = run.endless ? p.earnedAtEvac : p.earned;
       earnedAfter10Lost[playerId] = run.ending === "lost" ? p.earned - p.earnedAtEvac : 0;
     }
-    const endlessWaves = run.endless ? Math.max(0, (run.ending === "extracted" ? wave : wave - 1) - controller.world.balance.waves.runWaves) : 0;
+    const endlessWaves = run.endless ? Math.max(0, this.lastClearedWave - controller.world.balance.waves.runWaves) : 0; // review L11: waves really cleared (a wipe in a build phase too)
     this.log.info({ runSeed: this.runSeed, wave, ending: run.ending, endless: run.endless, endlessWaves, kills, earned, earnedBeforeEndless, earnedAfter10Lost }, "run_ended");
   }
 

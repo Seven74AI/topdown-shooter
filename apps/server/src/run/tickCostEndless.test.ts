@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP, NEUTRAL_INPUT, TICK_DT_S, loadBalance, zombieTypeIndex } from "@topdown/shared";
+import { DOWNTOWN_MAP, NEUTRAL_INPUT, TICK_DT_S, killZombie, loadBalance, zombieTypeIndex } from "@topdown/shared";
 import { loadavg } from "node:os";
 import { RunController } from "./RunController";
 
@@ -44,6 +44,21 @@ function measure(startWave: number) {
     if (measuring) times.push(ms);
     else if (z.aliveCount >= balance.waves.maxAlive) warm = t;
   }
+  // Review L4: after the timing, thin the non-Brutes so the queue reaches the Brutes (late in the wave):
+  // the 6-alive cap must be REACHED and held (the owed ones wait).
+  if (startWave > balance.waves.runWaves) {
+    for (let t = 0; t < 6000 && world.run.phase === "wave" && world.waves.fixedServed < world.waves.fixedTotal; t++) {
+      c.tick();
+      const z = world.zombies;
+      let b = 0;
+      for (let i = z.aliveCount - 1; i >= 0; i--) {
+        const id = z.aliveIds[i] as number;
+        if (z.type[id] === BRUTE) b++;
+        else if (t % 5 === 0 && z.waveZombie[id] === 1) killZombie(world, id, null, "cheat");
+      }
+      peakBrutes = Math.max(peakBrutes, b);
+    }
+  }
   times.sort((a, b) => a - b);
   return { p99: times[Math.floor(times.length * 0.99)] ?? 0, mean: times.reduce((s, v) => s + v, 0) / Math.max(1, times.length), peakAlive, peakBrutes, wave: world.waves.number, endless: world.run.endless, size: world.waves.size, hpMult: world.waves.hpMult, measured: times.length };
 }
@@ -62,7 +77,7 @@ describe("tick cost of an endless wave (Story 6.12, brief 16 / 25)", () => {
     expect(w19.size).toBe(600);
     expect(w19.measured).toBe(MEASURED_TICKS);
     expect(w19.peakAlive).toBe(balance.waves.maxAlive);
-    expect(w19.peakBrutes).toBeLessThanOrEqual(balance.waves.endless.brutesMaxAlive);
+    expect(w19.peakBrutes).toBe(balance.waves.endless.brutesMaxAlive); // review L4: reached, never passed
     if (PERF_ASSERT) expect(w19.p99).toBeLessThan(TICK_MS / 2);
   }, 240_000);
 });

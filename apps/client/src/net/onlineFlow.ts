@@ -1,5 +1,7 @@
-import { RUN_ENDINGS, type RunEnding, type RunPhase, type RunStateView } from "@topdown/shared";
+import { RUN_ENDINGS, TICK_DT_S, type RunEnding, type RunPhase, type RunStateView } from "@topdown/shared";
 import { dawnEndsAt } from "../ui/dawnModel";
+
+const TICK_MS = TICK_DT_S * 1000;
 import type { ResultRow, UiRequests, UiScreen } from "../ui/uiState";
 import type { NetSession, RunInbox } from "./session";
 import { activeRun } from "./activeRun";
@@ -60,9 +62,16 @@ export function resultsFromState(state: RunStateView): { wave: number; ending: R
 export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase) => void {
   let session: NetSession | null = null;
   let prev: RunPhase = "lobby";
+  // Review M2: the smallest (arrival ms − server tick × tick ms) seen on this run's phase patches. A
+  // patch delivered late (a frozen tab's backlog) has a larger value, so the minimum keeps a live
+  // sample; estimated server tick now = (now − minOffset) / tick ms.
+  let minOffsetMs = Number.POSITIVE_INFINITY;
   return (phase) => {
     const last = prev;
     prev = phase;
+    const now = deps.nowMs ? deps.nowMs() : performance.now();
+    if (phase === "lobby") minOffsetMs = Number.POSITIVE_INFINITY;
+    else minOffsetMs = Math.min(minOffsetMs, now - deps.state().tick * TICK_MS);
     if (phase === "build" || phase === "wave" || phase === "vote") {
       if (session && (last === "build" || last === "wave" || last === "vote")) return; // build ↔ wave ↔ vote inside the same run
       session?.release(); // a new run seen without its lobby patch (e.g. under `?lag`): drop the old one
@@ -70,9 +79,13 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
       activeRun.set(session);
       if (session) deps.ui.request("startOnline", session);
     } else if (phase === "results") {
-      const r = resultsFromState(deps.state());
-      const now = deps.nowMs ? deps.nowMs() : performance.now();
-      deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, last === "vote", now, deps.dawnS) });
+      const st = deps.state();
+      const r = resultsFromState(st);
+      // Review M2 (AC 10): the dawn runs from the EXTRACT tick (the Results patch's tick, the same
+      // server tick), never from when the patch was processed: a page that slept past it gets the card.
+      const ageMs = Math.max(0, now - minOffsetMs - st.tick * TICK_MS);
+      const live = last === "vote" && ageMs < deps.dawnS * 1000;
+      deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, live, live ? now - ageMs : now, deps.dawnS) });
     } else if (phase === "lobby") {
       session?.release();
       session = null;

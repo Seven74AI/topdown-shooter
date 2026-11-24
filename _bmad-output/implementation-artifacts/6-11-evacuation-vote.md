@@ -359,9 +359,32 @@ Killed (good): tie → Stay (evacVote: 3 failed) · freeze removed (1) · all-vo
 
 Survived (bad): `clearGrenades` removed from `openEvacVote` (L3) · light-list leak (endlessSim, M3) · Brute cap off (tickCostEndless, L4) · vote buttons touching, `half = 0` (hudLayout, L1) · RunRoom's own phase check removed (equivalent mutant: `castVote` checks the phase; fine).
 
+### Review fixes (builder, 2026-11-24, on story-6-11 merged with `origin/review-6-11` + `origin/master` 9c540b3)
+
+Merged master 9c540b3 (6.2+6.4 Ruins/Collapse): two conflicts resolved — `index.ts` exports (both sets kept: `MAX_START_WAVE` + 6.2's ruinsLook/collapse exports) and `decay.json › blackout` (6.4's `halfDarkInBuild: true` + this story's `endlessOddWaves` / `endlessEvenHalfDark`). With 6.4's values in, the browser check now shows the real darkness: the wave-10 vote keeps the 5 % blackout, Results are lit, endless wave 12 = 5 % half dark, wave 13 = 5 % full, endless builds half dark.
+
+- **M1 [BEHAVIOUR] fixed** — `ui/voteModel.ts › VoteSender`: the client sends `evac.vote` only when the latched choice differs from the last one sent, at most one per `VOTE_SEND_GAP_MS` (334 ms ≈ 3/s) with a trailing send of the newest choice, and resends after `VOTE_PENDING_MS` if the server still shows another vote. `GameScene` latches on the tap (brief 30) and polls the sender each frame. Tests: `voteModel.test.ts` (20 taps at 60 fps → ≤ 3 sends, ≥ 334 ms apart, last = Stay; dedupe; resend; new vote clean) and `tools/netsim/vote.test.ts` (a REAL room: bucket drained to 2 tokens, the teammate already voted so the 1 s hold runs, 20 taps ending on Stay through `VoteSender` → ≤ 4 sends and the vote resolves Stay).
+- **M2 [BEHAVIOUR] fixed** — `net/onlineFlow.ts`: "live" now comes from server time. The handler keeps the smallest (arrival ms − tick × 50) over the run's phase patches (a late backlog can't lower it), estimates the server tick now, and plays the dawn only if the extract tick (the Results patch's tick) is less than `dawnS` old; the dawn ends at extract tick + `dawnS` (a 1 s late wake plays the remaining 3 s). Test `onlineFlow.test.ts`: frozen across the extract, vote → results delivered 5 s late → no dawn; 1 s late → ends 4 s after the extract.
+- **M3 fixed** — `economy/endlessSim.test.ts`: every growable list/pool count read UNMASKED at the same phase point (each wave's first tick): lights list + pool, fires, grenades, spits, acid, gas, molotov zones, blasts, buildings, event handlers + pending events, inputs, players… — wave 30 ≤ wave 11 for every key (fires may burn out), light pool equal; a floodlight placed every build phase and removed at the wave start forces ≥ 38 light-list rebuilds; waves 16–17 run up to the 150-alive cap (peak 150 asserted); p99 of waves 26–30 ≤ waves 11–15 × 1.5 + 0.2 ms and the heap check behind `PERF_ASSERT`. Run: p99 0.543 → 0.414 ms, heap 38.2 → 42.3 MB. **The light-list-leak mutation (no `list.length = 0`) now fails.**
+- **L1 fixed** — `voteModel.ts › layoutEvacVote` returns the ring too; `hudLayout.test.ts`: vote row at 568×320 / 640×360 / 800×360 / 844×390 — extract → ring → stay with ≥ 12 px gaps, 56 px tall, inside the safe area, ≥ 48 px from the survivor, clear of ☰; `tools/checks/evacVoteCss.test.ts` cross-checks `overlay.css` (140 × 56, gap 24, bottom max(14px, safe area), centred) and the 48 px ring in `EvacVote.tsx` (vitest empties CSS imports in the client, so the check lives in tools). **`half = 0` now fails.**
+- **L2 done** — the EXTRACT exemption is gone from the rule code; the two breaks are in `KNOWN_LIST` (`vote vote_extract: in the move-stick half`, 118 px) with the comment "pending designer line 6.11 B1".
+- **L3 fixed** — `evacVote.test.ts`: a grenade in flight, molotov fire and an acid puddle on the clearing tick → all gone at the vote; no damage, no explosion in 120 vote ticks. **Removing `clearGrenades` from `openEvacVote` now fails.**
+- **L4 fixed** — `tickCostEndless.test.ts`: after the timing, the non-Brutes are thinned until every Brute of wave 19 has spawned; asserts the 6-alive cap is REACHED and never passed. **Brute cap off now fails.**
+- **L5 fixed** — `balance.ts › crossCheck`: `evac.everyWaves === endless.bossEveryWaves`; test in `balance.test.ts`.
+- **L6 fixed** — `tools/netsim/vote.test.ts`: the bot runs into the vote under 75 ± 10 ms each way on the real `RunController` with the client `Predictor` (offset decayed per frame), neutral moves once the client sees the vote: largest correction 0.225 m, no snap (< 1 m), 138 reconciles in the vote.
+- **L7 [BEHAVIOUR, dev only] fixed** — `bossState.ts › isBossWave`: a dev override (`DEV_BOSS_WAVES` / `?bosswave=`) is the whole list, endless included (`[]` = no Behemoth at all). Test in `waveDirector.endless.test.ts`.
+- **L8 fixed** — `GameScene.updateVote` fills four reused voter records through a callback made once; `voteFrameKey` (scalars only) decides whether anything visible changed, and only then `voteView` builds the panel (the only allocation, a few times per second). Test `voteFrameKey` in `voteModel.test.ts`.
+- **L9 fixed** — `6-12-endless-mode.md` F1 and Beat-the-rule 5: × 0.35 (B2), solo wave 15+ = 210.
+- **L10** — no change (6.5 AC 4 as accepted).
+- **L11 fixed** — `RunRoom` counts `endlessWaves` from the last `wave.ended` it saw (right for a wipe in a build phase too); `RunController`'s `setBuildReady` doc comment back above its method.
+- **L12 fixed** — "held out" comments in `headlessRun.ts`, `tools/bots/run.ts`, the 5/6/10-wave sims and `bossRunSim.test.ts` now say "extracted".
+
+Behaviour changes in these fixes: **M1** (client vote pacing), **M2** (when the online dawn plays), **L7** (dev boss override governs endless). The rest are tests, docs and comments.
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
 - 2026-11-24: built together with 6.12 (merged story) on `story-6-11`; status review.
 - 2026-11-24: Senior Developer Review (AI) on `132c90d`: changes requested (0 high, 3 medium, 12 low).
+- 2026-11-24: review fixes M1–M3, L1–L9, L11, L12 (L10 no change); merged master 9c540b3.

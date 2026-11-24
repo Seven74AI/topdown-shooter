@@ -309,12 +309,12 @@ export class RunController {
     if (opts.forceBlackoutPct !== undefined && opts.forceBlackoutPct !== null) setForcedBlackout(this.world, opts.forceBlackoutPct); // Story 6.3 dev
   }
 
-  /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */
   /** Story 6.11: an evacuation vote (the World ignores it outside phase "vote"). */
   castVote(playerId: string, choice: EvacChoice): void {
     castVote(this.world, playerId, choice);
   }
 
+  /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */
   setBuildReady(playerId: string, ready: boolean): void {
     setBuildReady(this.world, playerId, ready);
   }

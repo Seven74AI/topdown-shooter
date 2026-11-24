@@ -50,7 +50,7 @@ Most relevant here: **25 (endless performance: nothing grows without a cap over 
 
 ### Fairness rules (player-visible; brief line 3; each is tested)
 
-- **F1 "Endless grows by numbers you can count."** Wave N ≥ 11 has `min(N × 40, 600)` zombies at 4 players (wave 11 = 440, wave 15 = 600, wave 16+ = 600), × 0.4 / 0.6 / 0.8 / 1.0 for 1–4 players (solo wave 15+ = 240). Never more than 150 alive (110 while a Behemoth lives).
+- **F1 "Endless grows by numbers you can count."** Wave N ≥ 11 has `min(N × 40, 600)` zombies at 4 players (wave 11 = 440, wave 15 = 600, wave 16+ = 600), × 0.35 / 0.6 / 0.8 / 1.0 for 1–4 players (balance pass B2; solo wave 15+ = 210). Never more than 150 alive (110 while a Behemoth lives).
 - **F2 "Past wave 15 zombies get tougher by a fixed step, nothing else does."** From wave 16, every zombie that spawns in wave N has `1 + 0.06 × (N − 15)` times its normal HP (wave 16 = +6 %, wave 20 = +30 %, wave 25 = +60 %). Speed, damage and money per kill never change (FR68, designer D3). The Behemoth uses its own growth (F4), not this one.
 - **F3 "One more Brute each wave, never more than 6 at once."** Wave N ≥ 11 has `N − 8` Brutes (wave 11 = 3, wave 14 = 6, wave 20 = 12), not scaled by party size; at most **6 Brutes alive at once** — the next one waits until one dies (6.12 D2). They are spread through the wave (between 25 % and 90 % of it), never in the opening burst.
 - **F4 "Every 5th wave brings a Behemoth that is tougher each time, but fights the same."** Waves 15, 20, 25… each have one Behemoth (Story 6.5's arrival at 50 % of the wave) with `6,000 × (1 + 0.25 × k)` HP × the party-size table, k = 1, 2, 3… (wave 15 ×1.25, wave 20 ×1.5, wave 25 ×1.75). Its telegraph lengths, zone sizes, damage and gaps are exactly the wave-10 ones (brief 21e; test). After that wave is cleared, a new evacuation vote opens (Story 6.11).
@@ -147,7 +147,7 @@ World (`waves.hpMult`, owed-Brute state, `brutesAlive`, `run.endless` (6.11), `r
 2. Kill Brutes only one at a time to keep the alive count low: is the owed Brute still delivered?
 3. Extract at 15 versus wipe at 16: are the "before / after wave 10" earnings exactly split?
 4. Wave 25 Behemoth: same telegraph lengths and grace as wave 10 (measure in ticks)?
-5. Solo wave 20 (240 zombies, 12 Brutes, ×1.3 HP): still playable in principle (no type or count bug); solo is "allowed, not tuned".
+5. Solo wave 20 (210 zombies at B2's × 0.35, 12 Brutes, ×1.3 HP): still playable in principle (no type or count bug); solo is "allowed, not tuned".
 6. Hidden tab across an endless build start with an event scheduled: the event banner and marker are right on wake.
 7. Reconnect / late Game scene start in wave 21: HUD "Endless", the right darkness for an odd wave.
 8. Is any event ever scheduled on a Behemoth wave (20, 30) or twice in a row the same?
@@ -191,7 +191,7 @@ None new (T0). Uses 6.3 (5 % blackout), 6.4 (Collapse weather rotating per run i
 
 Built together with Story 6.11 as ONE merged story (designer 2026-11-24) on branch `story-6-11`. The Dev Agent Record, Completion Notes, Notes for the merge, Not verified list and File List are in **`6-11-evacuation-vote.md`**.
 
-6.12-specific open items (see there): endless events are wired to a hook that schedules nothing until Story 6.8's events framework lands (`run/endlessEvents.ts › endlessEventCandidates`); the endless FPS rerun at wave 25 is not measured (headless only; Mi 11i pending). Solo endless sizes follow the balance pass's 0.35 solo scale (wave 15+ solo = 210, not the story text's 240 at × 0.4).
+6.12-specific open items (see there): endless events are wired to a hook that schedules nothing until Story 6.8's events framework lands (`run/endlessEvents.ts › endlessEventCandidates`); the endless FPS rerun at wave 25 is not measured (headless only; Mi 11i pending). Solo endless sizes follow the balance pass's 0.35 solo scale (wave 15+ solo = 210; story text updated in the review fixes, L9).
 
 ## Change Log
 

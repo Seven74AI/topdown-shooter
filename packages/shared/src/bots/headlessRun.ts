@@ -17,7 +17,7 @@ import { castVote, type RunEnding } from "../run/runStateMachine";
  * tick of every build phase each bot shops from `list` (default `bots.json › shoppingList`) through
  * the real shop and placement rules (`botBuildPhase`) and taps Ready, so a build phase lasts one
  * tick (nothing moves in a build anyway; the heal and returns happen at its start). The run goes
- * until Results (held out or wiped) or `maxTicks`. For sims and balance sweeps (tests,
+ * until Results (extracted or wiped) or `maxTicks`. For sims and balance sweeps (tests,
  * `tools/sims`); not used by the game.
  */
 /** Story 5.7: the Brute's type index (the sims log its spawns and kills). */
@@ -75,7 +75,7 @@ export interface HeadlessRunLog {
   /** Story 6.11: the votes resolved in the run, in order. */
   votes: ("extract" | "stay")[];
   wiped: boolean;
-  /** The tick limit stopped it (neither held out nor wiped). */
+  /** The tick limit stopped it (neither extracted nor wiped). */
   timedOut: boolean;
   /** Waves whose `wave.ended` fired. */
   wavesCleared: number;

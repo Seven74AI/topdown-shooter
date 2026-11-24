@@ -87,8 +87,11 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   // Story 6.12: the endless size cap and Brute cap fit.
   const wx = parsed.waves as {
     mix: readonly unknown[];
-    endless: { maxZombiesPerWave: number; oddWaveMix: number; evenWaveMix: number };
+    evac: { everyWaves: number };
+    endless: { maxZombiesPerWave: number; oddWaveMix: number; evenWaveMix: number; bossEveryWaves: number };
   };
+  // Review L5: a vote after every endless Behemoth wave (6.11 F6 / 6.12 F4): the two cadences are one.
+  if (wx.evac.everyWaves !== wx.endless.bossEveryWaves) issues.push(`waves.json: evac.everyWaves ${wx.evac.everyWaves} must equal endless.bossEveryWaves ${wx.endless.bossEveryWaves} (a vote opens after every endless Behemoth wave)`);
   // (No "≥ wave 10's size" check: tests shorten or lengthen the run with `runWaves` overrides; the cap only applies past runWaves.)
   if (Math.round(wx.endless.maxZombiesPerWave * Math.max(1, ...wv.playerCountScale)) > 65535) issues.push(`waves.json: endless.maxZombiesPerWave would hold more than the 65,535 a wave can count`);
   for (const k of ["oddWaveMix", "evenWaveMix"] as const) {

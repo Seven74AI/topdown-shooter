@@ -126,7 +126,7 @@ import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
-import { CLOSED_VOTE, VoteRequest, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
+import { CLOSED_VOTE, VoteRequest, VoteSender, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
 import { dawnEndsAt } from "../ui/dawnModel";
 import { HeliView } from "../render/HeliView";
 import { cardStatLines } from "../ui/cardStats";
@@ -304,7 +304,21 @@ export class GameScene extends Phaser.Scene {
   /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */
   private heliView: HeliView | null = null;
   private readonly voteReq = new VoteRequest();
-  private readonly votePlayers: VotePlayerIn[] = [];
+  private readonly voteSend = new VoteSender();
+  /** Review L8: four reused voter records, filled by a callback made once; the panel is rebuilt only when its key changes. */
+  private readonly votePlayers: VotePlayerIn[] = [0, 1, 2, 3].map(() => ({ slot: 0, vote: 0, standing: true, mine: false }));
+  private voteCount = 0;
+  private voteKey = -1;
+  private voteCollectHost: SceneHost | null = null;
+  private readonly collectVoter = (p: PlayerState, id: string): void => {
+    const h = this.voteCollectHost;
+    if (!h || this.voteCount >= this.votePlayers.length) return;
+    const o = this.votePlayers[this.voteCount++] as VotePlayerIn;
+    o.slot = h.playerInfo(id).slot;
+    o.vote = p.vote;
+    o.standing = p.status === "alive";
+    o.mine = id === h.localPlayerId;
+  };
   private bossMusic = false;
   private readonly bossCueOut: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
   /** Story 6.7: the Behemoth number whose EVAC INBOUND was shown (once each, a woken tab too). */
@@ -639,12 +653,14 @@ export class GameScene extends Phaser.Scene {
     this.bossView = new BossView(this, host.world); // Story 6.5
     this.heliView = new HeliView(this, host.world.map, balance.waves.evac.padRadiusM); // Story 6.11
     this.voteReq.reset();
+    this.voteSend.reset();
+    this.voteKey = -1;
     voteStore.set(CLOSED_VOTE);
     voteStore.handle((choice) => {
       // Story 6.11 (brief 30): the choice is latched on the tap and sent at once (solo: castVote before the next step).
       const h = this.host;
       if (!h || h.world.run.phase !== "vote" || this.gameOver) return;
-      h.castVote(this.voteReq.tap(choice, this.time.now));
+      this.voteSend.want(this.voteReq.tap(choice, this.time.now)); // review M1: paced in updateVote
     });
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
@@ -1024,15 +1040,24 @@ export class GameScene extends Phaser.Scene {
     if (!open && run.phase === "build" && this.heliView && this.heliView.phase === "landed") this.heliView.reset(); // a backlog that skipped the lift-off
     this.heliView?.update(nowS);
     if (!open) {
-      voteStore.set(CLOSED_VOTE);
+      if (this.voteKey !== -1) voteStore.set(CLOSED_VOTE);
+      this.voteKey = -1;
       return;
     }
     const me = host.world.players.get(host.localPlayerId);
+    const send = this.voteSend.poll(host.world.waves.number, me?.vote ?? 0, this.time.now); // review M1: ≤ 3/s, newest choice last
+    if (send) host.castVote(send);
     const shown = this.voteReq.update(host.world.waves.number, me?.vote ?? 0, this.time.now);
-    const list = this.votePlayers;
-    list.length = 0;
-    host.world.players.forEach((p, id) => list.push({ slot: host.playerInfo(id).slot, vote: p.vote, standing: p.status === "alive", mine: id === host.localPlayerId }));
-    voteStore.set(voteView(true, run.voteTicksLeft, ticksFor(host.world.balance.waves.evac.voteS), TICK_RATE_HZ, list, shown, this.voteReq.isPending()));
+    this.voteCount = 0;
+    this.voteCollectHost = host;
+    host.world.players.forEach(this.collectVoter);
+    this.voteCollectHost = null;
+    const total = ticksFor(host.world.balance.waves.evac.voteS);
+    const pending = this.voteReq.isPending();
+    const key = voteFrameKey(run.voteTicksLeft, total, TICK_RATE_HZ, this.votePlayers, this.voteCount, shown, pending);
+    if (key === this.voteKey) return; // review L8: nothing visible changed, nothing built
+    this.voteKey = key;
+    voteStore.set(voteView(true, run.voteTicksLeft, total, TICK_RATE_HZ, this.votePlayers.slice(0, this.voteCount), shown, pending));
   }
 
   /**

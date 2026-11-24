@@ -215,3 +215,12 @@ describe("Story 6.12 F4: a Behemoth every 5th endless wave, tougher each time, f
     }
   });
 });
+
+describe("Story 6.12 review fixes", () => {
+  it("L7: a dev boss-wave override is the whole list (endless included); [] = no Behemoth", () => {
+    expect(isBossWave(balance, 15, true, [])).toBe(false);
+    expect(isBossWave(balance, 20, true, [12])).toBe(false);
+    expect(isBossWave(balance, 12, true, [12])).toBe(true);
+    expect(isBossWave(balance, 15, true, null)).toBe(true);
+  });
+});

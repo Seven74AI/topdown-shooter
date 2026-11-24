@@ -6,7 +6,7 @@ import { cardItem } from "./shopCards";
 /**
  * Story 5.13 (T7; brief lines 9 and 15): the seeded six-wave run with 2/3/4 bots buying from their
  * own card offers (`botBuildPhase` → real `buyCard` / `reroll`). Liveness: every run reaches Results
- * (held out or wiped) after ≥ 1 wave, cards are bought and rerolls paid, the build-0 offers respect
+ * (extracted or wiped) after ≥ 1 wave, cards are bought and rerolls paid, the build-0 offers respect
  * the floor. Bot survival is not difficulty evidence.
  *
  * Designer 2026-11-24: start money 200 (was 100), so build 0 buys a card. With earnings as built
@@ -57,10 +57,10 @@ describe("six-wave card sim (Story 5.13: bots buy from their cards; seeded)", ()
         const r = runHeadless({ balance, seed, players, list: LIST });
         checkRun(balance, r);
         expect(sum(r.cardsByBuild)).toBeGreaterThanOrEqual(3);
-        // Build phases reached: 0 … reached − 1 (a held-out run ends in Results after the last wave).
+        // Build phases reached: 0 … reached − 1 (an extracted run ends in Results after the vote after the last wave).
         for (const build of CARD_BUILDS) if (build < r.reached) expect(r.cardsByBuild[build] ?? 0, `${players}p seed ${seed} build ${build}`).toBeGreaterThanOrEqual(1);
         rerolls += sum(r.rerolls);
-        lines.push(`${players}p seed ${seed}: ${(r.ending === "extracted") ? "held out" : `wiped in W${r.reached}`}; cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")} (spent ${sum(r.rerollSpent)})`);
+        lines.push(`${players}p seed ${seed}: ${(r.ending === "extracted") ? "extracted" : `wiped in W${r.reached}`}; cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")} (spent ${sum(r.rerollSpent)})`);
       }
       expect(rerolls, `${players} bots`).toBeGreaterThanOrEqual(1); // rerolls really happen
     }

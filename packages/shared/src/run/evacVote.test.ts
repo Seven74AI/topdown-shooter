@@ -9,6 +9,10 @@ import { NEUTRAL_INPUT } from "../net/input";
 import { downPlayer } from "../player/downed";
 import { addPlayer, removePlayer } from "../player/player";
 import { spawnZombie } from "../zombies/zombiePool";
+import { throwConsumable } from "../combat/grenades";
+import { consumableIndex, throwStatsOf } from "../economy/consumables";
+import { igniteMolotov } from "../hazards/molotov";
+import { AREA_KIND, spawnArea } from "../hazards/areaPool";
 import {
   castVote,
   endRun,
@@ -229,6 +233,34 @@ describe("Story 6.11: live, changeable votes and the 15 s server clock (F2, F4, 
 });
 
 describe("Story 6.11: nothing can hurt you during the vote (F5, D4)", () => {
+  it("review L3 (beat the rule 6): a grenade in flight, molotov fire and an acid puddle on the clearing tick are gone at the vote; nothing bursts or burns in it", () => {
+    const { world, players, events } = setup(["p0"]);
+    startBuild(world);
+    while (world.waves.number < 9) {
+      startWave(world);
+      skipWave(world);
+    }
+    startWave(world);
+    const p = players[0]!;
+    const throws = throwStatsOf(balance, "grenades");
+    if (!throws) throw new Error("no grenade stats");
+    expect(throwConsumable(world, p, consumableIndex(balance, "grenades"), throws, 1, 0, 1)).toBe(true);
+    igniteMolotov(world, consumableIndex(balance, "molotovs"), p.x + 3, p.y, "p0");
+    spawnArea(world.areas, balance.zombies.spitCaps.maxLivePuddles, AREA_KIND.ACID, 1, p.x - 3, p.y, 1.5, 200, world.tick);
+    expect(world.grenades.count).toBe(1);
+    expect(world.molotovs.areas.count).toBe(1);
+    expect(world.areas.count).toBe(1);
+    skipWave(world); // the wave is cleared on this tick: the vote opens
+    expect(world.run.phase).toBe("vote");
+    expect(world.grenades.count).toBe(0);
+    expect(world.molotovs.areas.count).toBe(0);
+    expect(world.areas.count).toBe(0);
+    const hp = p.hp;
+    run(world, 120);
+    expect(p.hp).toBe(hp);
+    expect(ofType(events, "explosion.happened")).toEqual([]);
+  });
+
   it("zombies, downed timers, movement and shots are frozen; the tick still advances", () => {
     const world = createWorld({ balance, seed: 7 }); // real zombie AI
     world.debug.bossWaves = [];

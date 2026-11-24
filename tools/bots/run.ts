@@ -17,7 +17,7 @@
  *                         150-alive cap (the worst case for bandwidth; default 0)
  *
  * Prints one JSON line per bot per wave (`bot_wave`) and, at the end, a `bots_summary` line and
- * (Story 3.10) a `bots_economy` line: the run's end (held out / wiped, wave) and per bot its kills,
+ * (Story 3.10) a `bots_economy` line: the run's end (extracted / wiped, wave) and per bot its kills,
  * money earned (to compare with the GDD target), wallet, weapons bought and buildings placed. The bots
  * shop from `bots.json › shoppingList` in every build phase.
  */

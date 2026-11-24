@@ -87,6 +87,7 @@ describe("Story 6.11: the vote in the run cycle", () => {
     t.room.state.resultWave = 15;
     t.room.state.resultEnding = "extracted";
     t.room.state.endless = true;
+    t.room.state.tick = 80; // the extract tick: 4 s of server time after the phases above (tick 0 at clock 1000)
     clock = 5000;
     t.phase("results");
     expect(t.screens.at(-1)).toMatchObject({ kind: "results", ending: "extracted", endless: true, wave: 15, dawnEndsAtMs: 9000 });
@@ -95,6 +96,30 @@ describe("Story 6.11: the vote in the run cycle", () => {
     u.room.state.resultEnding = "extracted";
     u.phase("results");
     expect(u.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock });
+  });
+
+  it("review M2: a page frozen across the extract (the backlog delivers vote → results 5 s late) gets no dawn; 1 s late plays the rest", () => {
+    clock = 1000;
+    const t = setup();
+    t.room.state.tick = 1180;
+    t.phase("wave");
+    t.room.state.tick = 1200;
+    clock = 2000;
+    t.phase("vote"); // seen live: offset = 2000 − 1200 × 50
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 1300; // extracted 5 s of server time later
+    clock = 2000 + 5000 + 5000; // the tab slept: the vote → results backlog arrives 5 s after the extract
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock }); // straight to the card
+    const u = setup();
+    clock = 1000;
+    u.room.state.tick = 1200;
+    u.phase("vote");
+    u.room.state.resultEnding = "extracted";
+    u.room.state.tick = 1300;
+    clock = 1000 + 5000 + 1000; // 1 s late: 3 s of dawn left, ending on the extract tick + 4 s
+    u.phase("results");
+    expect(u.screens.at(-1)).toMatchObject({ dawnEndsAtMs: 1000 + 5000 + 4000 });
   });
 
   it("a vote seen first (a late join / reload during the vote) starts the session", () => {

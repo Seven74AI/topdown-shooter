@@ -15,7 +15,7 @@ import { mineCounters } from "../buildings/mine";
  * 650–790 per player). `tools/sims/fiveWave.ts` runs the same with more seeds and balance overrides.
  *
  * The sims of 3.2/3.3 once stopped running without failing, so this one must prove it ran: every
- * run ends in Results (held out or wiped, never the tick limit), clears at least one wave, and the
+ * run ends in Results (extracted or wiped, never the tick limit), clears at least one wave, and the
  * bots buy weapons and place buildings; money adds up for every player.
  */
 /** Story 6.1: the run is 10 waves now; these checks keep the 6-wave run (`runWaves` 6) inside the 180 s budget. `tenWaveSim.test.ts` plays all 10. */
@@ -55,7 +55,7 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
       expect(weapons).toBeGreaterThan(0); // the bots really shopped …
       expect(buildings).toBeGreaterThan(0); // … and built
     }
-    // Story 5.6 (liveness): Spitters (waves 4–5) really spat and hit in the runs that got there; every such wave ended (held-out runs above).
+    // Story 5.6 (liveness): Spitters (waves 4–5) really spat and hit in the runs that got there; every such wave ended (extracted runs above).
     const spits = spitStats.spits - spits0.spits;
     const spitHits = spitStats.spitHits - spits0.hits;
     const acidHits = spitStats.acidHits - spits0.acid;
@@ -71,7 +71,7 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
       const earned = rs.flatMap((r) => r.earned);
       const mean = Math.round(earned.reduce((a, b) => a + b, 0) / earned.length);
       const byWave = [1, 2, 3, 4, 5, 6].map((w) => rs.filter((r) => r.wavesCleared >= w).length);
-      return `${n}p: held out ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${mean} (${Math.min(...earned)}–${Math.max(...earned)})`;
+      return `${n}p: extracted ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${mean} (${Math.min(...earned)}–${Math.max(...earned)})`;
     });
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
       `[five-wave sim] GDD target cut to 5 waves: earned ≈ 650–790 per player\n${lines.join("\n")}\n${summary.join("\n")}`,
@@ -82,7 +82,7 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
 describe("five-wave bot sim with spike traps and mines (Story 5.9, task 8.2)", () => {
   /** A test-local shopping list (bots.json stays untouched): the SMG, then traps and mines, then barricades. */
   const LIST = ["smg", "spike_trap", "mine", "spike_trap", "mine", "wood_barricade", "wood_barricade"];
-  it("every run ends (held out or wiped, never the tick limit); traps and mines really fired; earnings vs spend logged", () => {
+  it("every run ends (extracted or wiped, never the tick limit); traps and mines really fired; earnings vs spend logged", () => {
     trapCounters.pulses = trapCounters.kills = trapCounters.wornOut = 0;
     mineCounters.exploded = 0;
     const lines: string[] = [];
@@ -111,7 +111,7 @@ describe("five-wave bot sim with spike traps and mines (Story 5.9, task 8.2)", (
 describe("six-wave bot sim with bear traps (Story 5.14, brief lines 9 and 15)", () => {
   /** A test-local shopping list (bots.json stays untouched): the SMG, then bear traps, then barricades. */
   const LIST = ["smg", "bear_trap", "bear_trap", "bear_trap", "wood_barricade", "bear_trap"];
-  it("every run ends (held out or wiped, never the tick limit); bear traps really caught zombies; earnings vs spend logged", () => {
+  it("every run ends (extracted or wiped, never the tick limit); bear traps really caught zombies; earnings vs spend logged", () => {
     resetBearTrapCounters();
     const lines: string[] = [];
     let placed = 0;
@@ -275,7 +275,7 @@ describe("six-wave bot sim with the Grenade Launcher (Story 5.5, brief lines 9 a
 });
 
 describe("six-wave bot sim with Bloaters (Story 5.8, brief lines 9 and 15)", () => {
-  it("1–4 bots × seeds 1–4: every run reaches Results (held out or wiped); wave 6 really brings Bloaters that swell and burst", () => {
+  it("1–4 bots × seeds 1–4: every run reaches Results (extracted or wiped); wave 6 really brings Bloaters that swell and burst", () => {
     const lines: string[] = [];
     let reached6 = 0;
     let bursts6 = 0;

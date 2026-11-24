@@ -207,11 +207,13 @@ export function resetBoss(b: BossState): void {
 
 /**
  * The one helper that says whether wave `wave` is a boss wave (`boss.json › bossWaves`, or the dev
- * override `DEV_BOSS_WAVES` / `?bosswave=`). 6.12 extends it for endless (`endless` = true).
+ * override `DEV_BOSS_WAVES` / `?bosswave=`, which replaces every rule). Story 6.12: in endless also every
+ * `endless.bossEveryWaves`-th wave past the run.
  */
 export function isBossWave(balance: Balance, wave: number, endless = false, override: readonly number[] | null = null): boolean {
-  const list = override ?? balance.boss.bossWaves;
-  if (list.includes(wave)) return true;
+  // Review L7: a dev override (`DEV_BOSS_WAVES` / `?bosswave=`) is the whole list, endless included ([] = no Behemoth at all).
+  if (override) return override.includes(wave);
+  if (balance.boss.bossWaves.includes(wave)) return true;
   // Story 6.12 (F4): in endless, every `endless.bossEveryWaves`-th wave past the run (15, 20, 25…).
   const runWaves = balance.waves.runWaves;
   return endless && wave > runWaves && (wave - runWaves) % balance.waves.endless.bossEveryWaves === 0;
