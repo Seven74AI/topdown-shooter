@@ -8,7 +8,7 @@
   "spawnMinPlayerDistanceM": 6,
   "spawnJitterM": 1,
   "spawnPick": { "recentPicks": 6, "baseWeight": 12, "sidePenalty": 2, "pointPenalty": 4, "minWeight": 1, "allNearMaxWaitS": 2 },
-  "runWaves": 6,
+  "runWaves": 10,
   "playerCountScale": [0.35, 0.6, 0.8, 1.0],
   "mix": [
     { "walker": 100 },
@@ -16,8 +16,13 @@
     { "walker": 65, "runner": 20, "crawler": 15 },
     { "walker": 50, "runner": 25, "crawler": 17, "spitter": 8 },
     { "walker": 45, "runner": 25, "crawler": 22, "spitter": 8 },
-    { "walker": 40, "runner": 20, "crawler": 15, "spitter": 10, "bloater": 15 }
+    { "walker": 40, "runner": 20, "crawler": 15, "spitter": 10, "bloater": 15 },
+    { "walker": 38, "runner": 22, "crawler": 15, "spitter": 10, "bloater": 15 },
+    { "walker": 35, "runner": 24, "crawler": 15, "spitter": 11, "bloater": 15 },
+    { "walker": 40, "runner": 18, "crawler": 17, "spitter": 10, "bloater": 15 },
+    { "walker": 38, "runner": 22, "crawler": 15, "spitter": 10, "bloater": 15 }
   ],
-  "fixed": [{}, {}, {}, {}, { "brute": 1 }, { "brute": 1 }],
-  "fixedAtFraction": 0.25
+  "fixed": [{}, {}, {}, {}, { "brute": 1 }, { "brute": 1 }, { "brute": 2 }, { "brute": 2 }, { "brute": 2 }, { "brute": 2 }],
+  "fixedAtFraction": 0.25,
+  "fixedAtFractions": [0.25, 0.65]
 }

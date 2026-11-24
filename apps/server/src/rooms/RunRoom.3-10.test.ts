@@ -60,34 +60,35 @@ const world = (room: RunRoom) => {
   return w;
 };
 
-describe("RunRoom six-wave run (Story 3.10; Story 5.8: runWaves 6)", () => {
-  it("2 players: wave 1 is 24 Walkers (× 0.6); clearing wave 6 → Results with resultHeldOut, wave 6 and earnings on every client", async () => {
+describe("RunRoom ten-wave run (Story 3.10; Story 6.1: runWaves 10)", () => {
+  it("2 players: wave 1 is 24 Walkers (× 0.6); clearing wave 10 → Results with resultHeldOut, wave 10 and earnings on every client", async () => {
     const { host, guest, room, guestEvents } = await startTwo();
     const info = vi.spyOn(room.log, "info");
     const w = world(room);
     for (const c of [host, guest]) c.send(C2S.BUILD_SET_READY, { ready: true });
     await vi.waitFor(() => expect(host.state.phase).toBe("wave"));
     expect(w.waves.size).toBe(24); // 40 × 0.6 (FR31)
-    // Jump to wave 6 (dev skips between ticks, as the cheat does), then clear it.
-    for (let n = 1; n <= 5; n++) {
+    expect(serverBalance.waves.runWaves).toBe(10); // Story 6.1: the real balance (no override)
+    // Jump to wave 10 (dev skips between ticks, as the cheat does), then clear it.
+    for (let n = 1; n <= 9; n++) {
       await vi.waitFor(() => expect(w.run.phase).toBe("wave"));
       skipWave(w);
       await vi.waitFor(() => expect(w.run.phase).toBe("build"));
       for (const c of [host, guest]) c.send(C2S.BUILD_SET_READY, { ready: true });
     }
-    await vi.waitFor(() => expect(w.waves.number).toBe(6));
-    expect(w.waves.size).toBe(144); // 240 × 0.6
+    await vi.waitFor(() => expect(w.waves.number).toBe(10));
+    expect(w.waves.size).toBe(240); // 400 × 0.6
     skipWave(w);
     for (const c of [host, guest]) {
       await vi.waitFor(() => expect(c.state.phase).toBe("results"));
       expect(c.state.resultHeldOut).toBe(true);
-      expect(c.state.resultWave).toBe(6);
-      // the wave-clear bonuses 15 + 30 + 45 + 60 + 75 + 90 (balance pass B1; skipped waves pay no kills) reached the clients
-      for (const id of ["p0", "p1"]) expect(c.state.players.get(id)?.earned).toBe(315);
+      expect(c.state.resultWave).toBe(10);
+      // the wave-clear bonuses 15 × (1 + … + 10) (balance pass B1; skipped waves pay no kills) reached the clients
+      for (const id of ["p0", "p1"]) expect(c.state.players.get(id)?.earned).toBe(825);
     }
-    await vi.waitFor(() => expect(guestEvents.some((b) => b.events.some((t) => t[0] === NET_EVENT_KIND.RUN_HELD_OUT && t[1] === 6))).toBe(true));
-    expect(info).toHaveBeenCalledWith(expect.objectContaining({ wave: 6, heldOut: true, earned: { p0: 315, p1: 315 } }), "run_ended");
-    // No more ticks after Results: the World stays put, no build phase for a wave 7.
+    await vi.waitFor(() => expect(guestEvents.some((b) => b.events.some((t) => t[0] === NET_EVENT_KIND.RUN_HELD_OUT && t[1] === 10))).toBe(true));
+    expect(info).toHaveBeenCalledWith(expect.objectContaining({ wave: 10, heldOut: true, earned: { p0: 825, p1: 825 } }), "run_ended");
+    // No more ticks after Results: the World stays put, no build phase for a wave 11.
     const tick = w.tick;
     await new Promise((r) => setTimeout(r, 200));
     expect(w.tick).toBe(tick);
