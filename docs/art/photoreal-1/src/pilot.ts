@@ -583,111 +583,169 @@ function inPoly(px: number, py: number, pts: readonly number[]): boolean {
   return inside;
 }
 
+/**
+ * Burnt cars, round 3 (designer: "remake the burnt version too", after the real-sedan cars): the same sedan
+ * body, burnt out. The glass is gone (holes into a charred cabin: bare seat frames and springs, the steering
+ * wheel's ring, ash), the paint scorched black and blistered, bare grey steel where it burnt off, white ash
+ * (no rust: designer, "the car has burned, not rust"), a strip of the
+ * original colour surviving low on the sides, the roof and bonnet sagging and buckled from the heat, melted
+ * lamps, broken glass on the ground. Front at +x. Drawn at 3× and shrunk.
+ */
 function burntCar(variant: number): HTMLCanvasElement {
   const L = CAR_L;
   const W = CAR_W;
-  const P = carParts(L, W);
+  const S = SEDAN;
+  const paint = hex(CAR_COLORS[variant % CAR_COLORS.length] as string);
   const seed = 300 + variant * 11;
-  const cab = P.cabin_;
-  // rims with spokes (the tyres burnt away)
-  const rims = render({
-    w: L,
-    h: W,
-    ss: SS,
-    layers: [{ draw: P.wheels, blur: 0.6, amount: 0.25 }],
-    engrave: (g) => {
-      g.lineWidth = 1.2;
-      for (const wx of [-L * 0.3, L * 0.29]) {
-        for (const s of [-1, 1]) {
-          const cy = s > 0 ? W / 2 - 8 : -W / 2 + 8;
-          for (let k = -18; k <= 18; k += 6) {
-            g.beginPath();
-            g.moveTo(wx + k, cy - 5);
-            g.lineTo(wx + k, cy + 5);
-            g.stroke();
-          }
-        }
-      }
-    },
-    detail: 0.2,
-    grain: 1.5,
-    albedo: (x, y, s) => mix(mix([44, 38, 34], [110, 80, 56], fbm(x / 2, y / 2, seed, 3)), [10, 8, 7], cl(s.cav)),
-    spec: () => 0.15,
-    seed,
-  });
+  // the glass openings (the same shapes as the clean car's glass)
+  const openings = (g: G): void => {
+    g.beginPath();
+    g.moveTo(S.bonnet - 2, -S.roofHw - 7);
+    g.lineTo(S.roofFront + 2, -S.roofHw + 1);
+    g.lineTo(S.roofFront + 2, S.roofHw - 1);
+    g.lineTo(S.bonnet - 2, S.roofHw + 7);
+    g.quadraticCurveTo(S.bonnet + 2, 0, S.bonnet - 2, -S.roofHw - 7);
+    g.fill();
+    g.beginPath();
+    g.moveTo(S.boot + 3, -S.roofHw - 4);
+    g.lineTo(S.roofBack - 2, -S.roofHw + 1);
+    g.lineTo(S.roofBack - 2, S.roofHw - 1);
+    g.lineTo(S.boot + 3, S.roofHw + 4);
+    g.quadraticCurveTo(S.boot, 0, S.boot + 3, -S.roofHw - 4);
+    g.fill();
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.moveTo(S.bonnet - 6, s * (S.roofHw + 6));
+      g.lineTo(S.roofFront, s * (S.roofHw + 1));
+      g.lineTo(S.roofBack, s * (S.roofHw + 1));
+      g.lineTo(S.boot + 6, s * (S.roofHw + 4));
+      g.lineTo(S.boot + 8, s * (S.roofHw + 8));
+      g.lineTo(S.bonnet - 10, s * (S.roofHw + 10));
+      g.closePath();
+      g.fill();
+    }
+  };
+  // seen through the windscreen: the steering wheel ring (driver on the left of the travel direction: −y)
+  const wheelX = S.roofFront + 10;
+  const wheelY = -S.roofHw * 0.45;
   const body = render({
     w: L,
     h: W,
     ss: SS,
-    edgeAO: 0.35,
-    layers: [
-      { draw: P.body, blur: 3, amount: 0.5 },
-      { draw: P.cabin, blur: 2.5, amount: 0.28 },
-      { draw: P.roof, blur: 1.5, amount: 0.06 }, // the roof sagged in the heat
-    ],
+    edgeAO: 0.3,
+    layers: [{ draw: sedanOutline, blur: 0, amount: 0 }],
     engrave: (g) => {
-      P.seams(g);
-      P.glass(g); // the glass is gone: holes into the burnt cabin
-      g.lineWidth = 1;
-      // buckled panels: short creases
+      openings(g);
+      g.lineWidth = 0.9;
+      g.beginPath(); // shut lines, opened up by the heat
+      g.moveTo(S.bonnet + 4, -S.hw + 6);
+      g.quadraticCurveTo(S.bonnet + 8, 0, S.bonnet + 4, S.hw - 6);
+      g.moveTo(S.boot - 4, -S.hw + 7);
+      g.quadraticCurveTo(S.boot - 7, 0, S.boot - 4, S.hw - 7);
+      for (const s of [-1, 1]) for (const x of [S.bonnet - 8, -12, S.boot + 6]) {
+        g.moveTo(x, s * (S.hw - 9));
+        g.lineTo(x - 2, s * (S.hw - 1));
+      }
+      g.stroke();
+      // buckles in the bonnet, roof and boot
       const r = rng(seed + 1);
-      for (let i = 0; i < 14; i++) {
+      g.lineWidth = 0.5;
+      for (let i = 0; i < 5; i++) {
         const x = (r() - 0.5) * L * 0.85;
         const y = (r() - 0.5) * W * 0.6;
-        const a = r() * TAU;
+        const a = (r() - 0.5) * 1.2 + Math.PI / 2;
         g.beginPath();
         g.moveTo(x, y);
-        g.lineTo(x + Math.cos(a) * 10, y + Math.sin(a) * 10);
+        g.lineTo(x + Math.cos(a) * 9, y + Math.sin(a) * 9);
         g.stroke();
       }
     },
-    engraveDepth: 0.6,
-    regions: { glass: P.glass, lights: (g) => (P.lights.front(g), P.lights.rear(g)) },
-    detail: 0.12,
-    grain: 4,
-    heightAt: (x, y) => -Math.max(0, fbm(x / 20, y / 20, seed + 3, 3) - 0.58) * 0.7,
+    engraveDepth: 0.5,
+    regions: {
+      hole: openings,
+      lamps: (g) => {
+        for (const s of [-1, 1]) {
+          g.beginPath();
+          g.ellipse(S.front - 9, s * (S.hw - 16), 5, 10, s * -0.35, 0, TAU);
+          g.fill();
+          rect(S.rear + 3, s > 0 ? S.hw - 26 : -S.hw + 8, 5, 18, 2)(g);
+        }
+      },
+    },
+    detail: 0.02,
+    grain: 10,
+    heightAt: (x, y) => {
+      const px = x - L / 2;
+      const py = y - W / 2;
+      let h = sedanHeight(px, py) * 0.94; // it sits lower: the tyres burnt away
+      // the roof sags in the middle, the bonnet and boot warp
+      const roof = px < S.roofFront && px > S.roofBack ? 0.07 * (1 - (py / S.roofHw) ** 2) * Math.sin(((px - S.roofBack) / (S.roofFront - S.roofBack)) * Math.PI) : 0;
+      h -= Math.max(0, roof);
+      h -= Math.max(0, fbm(x / 18, y / 18, seed + 3, 3) - 0.58) * 0.25;
+      // blistered paint: tiny bubbles
+      h += Math.max(0, fbm(x / 1.6, y / 1.6, seed + 4, 2) - 0.66) * 0.025;
+      return h;
+    },
     albedo: (x, y, s) => {
-      if (s.r.glass! > 0.5) {
-        // inside: ash, the seat frames' springs, a steering wheel ring
-        let c: Rgb = mix([10, 9, 8], [40, 36, 32], fbm(x / 3, y / 3, seed + 1, 3));
-        const sx = ((x - L / 2) % 7 + 7) % 7;
-        const sy = ((y - W / 2) % 7 + 7) % 7;
-        if (sx < 1.1 || sy < 1.1) c = mix(c, [96, 62, 40], 0.8);
-        const d = Math.hypot(x - (L / 2 + cab.x + cab.w * 0.72), y - (W / 2 - W * 0.14));
-        if (Math.abs(d - 9) < 1.2) c = [80, 60, 44];
+      const px = x - L / 2;
+      const py = y - W / 2;
+      if (s.r.hole! > 0.5) {
+        // the burnt-out cabin: ash and soot, bare seat frames with their springs, the wheel's ring
+        let c: Rgb = mix([8, 7, 6], [38, 34, 30], fbm(x / 3, y / 3, seed + 1, 3));
+        const inFront = px > S.roofBack + 6 && px < S.roofFront + 4;
+        const inRear = px > S.boot + 6 && px < S.roofBack - 4;
+        const seat = inFront ? Math.abs(Math.abs(py) - S.roofHw * 0.5) < S.roofHw * 0.32 : inRear && Math.abs(py) < S.roofHw - 6;
+        if (seat) {
+          const sx = ((px % 5) + 5) % 5;
+          const sy = ((py % 5) + 5) % 5;
+          if (sx < 0.7 || sy < 0.7) c = mix(c, [84, 80, 76], 0.4 + 0.3 * fbm(x, y, seed + 13, 2)); // springs, half buried in ash
+        }
+        if (Math.abs(Math.hypot(px - wheelX, py - wheelY) - 8) < 1.1) c = [78, 74, 70];
+        if (fbm(x / 2, y / 2, seed + 11, 2) > 0.68) c = mix(c, [130, 126, 120], 0.6); // ash heaps
         return c;
       }
-      if (s.r.lights! > 0.5) return [30, 26, 24]; // melted light housings
-      // charred paint: black flakes over scorched metal, rust blooms, white ash, a band of surviving paint low on the sides
-      const n = fbm(x / 6, y / 6, seed + 2, 5);
-      let c: Rgb = mix([16, 14, 13], [52, 46, 42], n);
-      const flake = fbm(x / 1.8, y / 1.8, seed + 7, 2);
-      if (flake > 0.62) c = mix(c, [74, 68, 62], 0.6);
-      const rust = fbm(x / 5, y / 5, seed + 5, 4);
-      if (rust > 0.52) c = mix(c, [128, 60, 26], cl((rust - 0.52) * 3.2));
-      const ash = fbm(x / 3, y / 3, seed + 8, 3);
-      if (ash > 0.64) c = mix(c, [150, 146, 140], cl((ash - 0.64) * 3.5));
-      const side = Math.abs(y - W / 2) / (W / 2);
-      if (side > 0.78) c = mix(c, hex(CAR_COLORS[variant % CAR_COLORS.length] as string), cl((side - 0.78) * 3) * 0.5 * (fbm(x / 9, y / 3, seed + 9, 3) > 0.5 ? 1 : 0.2));
+      if (s.r.lamps! > 0.5) return mix([24, 20, 18], [70, 64, 58], fbm(x, y, seed + 12, 2)); // melted housings
+      // burnt paint: the flat tops (roof, bonnet, boot) burnt to pale ash-grey bare metal; black soot gathered
+      // toward the edges and round the openings; a strip of the original colour low on the sides
+      const top = cl(1 - Math.abs(py) / (S.hw - 12));
+      const nearHole = cl(1 - s.cav * 0.5) ; // (cav is 0 away from the openings' rims)
+      let c: Rgb = mix([30, 27, 25], [124, 120, 114], cl(top * 1.1 - 0.15 + (fbm(x / 14, y / 14, seed + 2, 4) - 0.5) * 0.8));
+      c = mix(c, [146, 142, 136], cl(fbm(x / 5, y / 5, seed + 8, 3) - 0.6) * 1.6); // powdery white ash
+      const soot = cl((fbm(x / 8, y / 8, seed + 5, 4) - 0.45) * 2) * (1 - top * 0.6);
+      c = mix(c, [14, 12, 11], soot * 0.8 * nearHole);
+      if (fbm(x / 1.8, y / 1.8, seed + 7, 2) > 0.66) c = mix(c, [60, 56, 52], 0.35); // flaking
+      const side = cl((Math.abs(py) - (S.hw - 9)) / 7);
+      if (side > 0 && fbm(x / 9, y / 3, seed + 9, 3) > 0.5) c = mix(c, mix(paint, [40, 34, 30], 0.4), side * 0.75);
+      // heat tint: faint straw-blue temper colours round the cabin
+      const heat = cl(1 - Math.abs(px - (S.roofFront + S.roofBack) / 2) / 90) * 0.14;
+      c = mix(c, [110, 96, 120], heat * fbm(x / 7, y / 7, seed + 10, 2));
       return mix(c, [6, 5, 4], cl(s.cav));
     },
-    spec: (x, y) => 0.08 + 0.12 * (fbm(x / 6, y / 6, seed + 6, 2) > 0.6 ? 1 : 0),
+    spec: (x, y) => 0.06 + 0.1 * (fbm(x / 6, y / 6, seed + 6, 2) > 0.62 ? 1 : 0),
     seed,
   });
   const c = canvas(L, W);
   const g = ctx(c);
-  g.drawImage(rims, 0, 0);
+  // soot scorched onto the street around it, under the car
+  const soot = g.createRadialGradient(L / 2, W / 2, 20, L / 2, W / 2, L * 0.55);
+  soot.addColorStop(0, "rgba(10,8,6,0.55)");
+  soot.addColorStop(1, "rgba(10,8,6,0)");
+  g.fillStyle = soot;
+  g.beginPath();
+  g.ellipse(L / 2, W / 2, L * 0.52, W * 0.5, 0, 0, TAU);
+  g.fill();
   g.drawImage(body, 0, 0);
-  // broken glass glinting around the car body
+  // broken glass glinting on the ground along the sides
   const r = rng(seed + 12);
-  for (let i = 0; i < 60; i++) {
-    const x = L / 2 + (r() - 0.5) * L * 0.95;
-    const y = r() < 0.5 ? 6 + r() * 6 : W - 12 + r() * 6;
-    g.fillStyle = `rgba(200,215,225,${0.35 + r() * 0.4})`;
+  for (let i = 0; i < 70; i++) {
+    const x = L / 2 + (r() - 0.5) * L * 0.8;
+    const y = r() < 0.5 ? 2 + r() * 5 : W - 7 + r() * 5;
+    g.fillStyle = `rgba(200,215,225,${0.3 + r() * 0.45})`;
     g.fillRect(x, y, 1, 1);
   }
   return c;
 }
+
 
 function dumpster(): HTMLCanvasElement {
   const N = 96;
