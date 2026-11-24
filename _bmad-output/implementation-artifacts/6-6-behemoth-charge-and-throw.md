@@ -468,3 +468,8 @@ Fresh-agent narrow re-review of the review-fix commits only (`96777a8` code, `f9
 - N2: a Brute held under the body for the whole rush is trampled once (30). A recycled slot (generation +1) mid-rush is trampled again (+30). Attack id `& 0xffff` would need 65,536 attacks with the same slot generation to alias; `resetBoss` clears the marks. The marks are in `snapshotBoss`, so `worldDigest` changes when one mark changes (probed). No allocation per tick (typed arrays; `hitPlayer` and `pickOne` are module callbacks).
 
 **Mutations (each reverted):** L3: M19 roar −10 hp → killed (enrage.test). M21 `boss.crashed` out of the `ageS` list → killed (NetSimHost.boss). M22 killer +1 kill removed → killed (RunController). M24 `crawlerTicks` out of the snapshot → killed (death.test). Behaviour fixes: L4 old `stateTicks` timing → killed (2 tests). L1 slot-less pushed past 31 bits → killed. L2 cross-check rule off → killed. N2 without the generation check → **survived** (R2). L4 without `a.live` → survived (equivalent, R4).
+
+### Main session close-out (2026-11-24)
+
+- Re-review R1 (slot-less bit shifts when an earlier player leaves mid-charge → 2 hits): **accepted**, unreachable on the server (room cap 4 = MAX_PLAYERS, every player has a slot). R2 (trampleGen test gap, unreachable in shipped balance), R3/R4 nits: left as follow-ups.
+- Main-session full gate on c0646ec + docs: typecheck, lint, 352 files / 3,314 tests passed (3 skipped), build OK; load 0.24 → 4.18 (4 cores). Story done.
