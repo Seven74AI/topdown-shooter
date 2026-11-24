@@ -1,5 +1,6 @@
 import { buildingById, type World } from "@topdown/shared";
-import { UNDO_ABOVE_BAR_GAP_CSS_PX, UNDO_CHIP_CSS_PX, UNDO_HAND, UNDO_ROW_BUTTON_CSS_PX, UNDO_ROW_SLOT } from "../ui/sizes";
+import { UNDO_CHIP_CSS_PX, UNDO_HAND } from "../ui/sizes";
+import { ABOVE_BAR_GAP_CSS_PX, layoutRightButtons, newRightButtonsLayout } from "./rightButtons512"; // review M2: 5.12's row (a copy until 5.12 lands)
 
 /**
  * Story 5.20 (BX-6, ux-spec §4/§5): the undo chip ↶ (Phaser-free, unit-tested). Shown for
@@ -30,6 +31,13 @@ export class UndoChip {
   visible = false;
   /** The ring: 1 = the whole window left, 0 = none (armed: 0). */
   progress = 0;
+  /**
+   * Review L3: a sell went out for `id` at `sentMs` (hidden meanwhile). The chip goes when the
+   * building does; if it still stands after `retryMs` (the guard dropped the message, or a refusal),
+   * the chip comes back with a fresh window, so a take-back is never silently lost.
+   */
+  sent = false;
+  private sentMs = 0;
   private startMs = 0;
   private wave = -1;
 
@@ -39,6 +47,7 @@ export class UndoChip {
     this.order = order;
     this.id = 0;
     this.armed = false;
+    this.sent = false;
     this.startMs = nowMs;
     this.wave = wave;
   }
@@ -47,6 +56,7 @@ export class UndoChip {
     this.order = 0;
     this.id = 0;
     this.armed = false;
+    this.sent = false;
     this.visible = false;
     this.progress = 0;
   }
@@ -54,9 +64,10 @@ export class UndoChip {
   /**
    * Once per frame, after the pending boxes were matched (`runPendingFrame`). `standing`: my survivor
    * is alive and the run is on screen; `shown`: no menu/shop/selection hides it now. `send` gets the
-   * id of an armed undo whose building just appeared. Returns whether it is visible.
+   * id of an armed undo whose building just appeared. `retryMs` (review L3; `controls.build.pendingTimeoutMs`):
+   * how long a sent sell may go unanswered before the chip comes back. Returns whether it is visible.
    */
-  update(world: Readonly<World>, ownerId: string, pending: UndoPendingView, nowMs: number, windowMs: number, standing: boolean, shown: boolean, send: (id: number) => void): boolean {
+  update(world: Readonly<World>, ownerId: string, pending: UndoPendingView, nowMs: number, windowMs: number, retryMs: number, standing: boolean, shown: boolean, send: (id: number) => void): boolean {
     if (this.order === 0) return (this.visible = false);
     if (world.run.phase !== "build" || world.waves.number !== this.wave || !standing) {
       this.clear();
@@ -72,14 +83,19 @@ export class UndoChip {
     if (this.id !== 0) {
       const b = buildingById(world, this.id);
       if (!b || b.ownerId !== ownerId) {
-        this.clear(); // destroyed, already sold
+        this.clear(); // destroyed, sold (the World shows the server's removal)
         return false;
       }
       if (this.armed) {
-        const id = this.id;
-        this.clear();
-        send(id);
-        return false;
+        this.armed = false;
+        this.markSent(nowMs);
+        send(this.id);
+        return (this.visible = false);
+      }
+      if (this.sent) {
+        if (nowMs - this.sentMs < retryMs) return (this.visible = false);
+        this.sent = false; // no removal in time: offer it again
+        this.startMs = nowMs;
       }
     }
     const left = this.armed ? 0 : 1 - (nowMs - this.startMs) / windowMs;
@@ -92,36 +108,46 @@ export class UndoChip {
     return this.visible;
   }
 
-  /** A tap on ↶ (or Z): the building id to sell now, or 0 (armed while pending, or nothing shown). */
-  press(): number {
-    if (!this.visible || this.armed || this.order === 0) return 0;
+  /** A tap on ↶: the building id to sell now, or 0 (armed while pending, or nothing shown). */
+  press(nowMs: number): number {
+    if (!this.visible || this.armed || this.sent || this.order === 0) return 0;
     if (this.id !== 0) {
-      const id = this.id;
-      this.clear();
-      return id;
+      this.markSent(nowMs);
+      return this.id;
     }
     this.armed = true;
     this.progress = 0;
     return 0;
   }
+
+  private markSent(nowMs: number): void {
+    this.sent = true;
+    this.sentMs = nowMs;
+    this.visible = false;
+    this.progress = 0;
+  }
 }
 
+/** Scratch for 5.12's row (no allocation per layout). */
+const rowScratch = newRightButtonsLayout();
+
 /**
- * Story 5.20 (D4; ux-spec §4 + alignment Q4): where ↶ goes (canvas px, top-left + size; insets in
- * CSS px, `k` = dpr):
+ * Story 5.20 (D4; ux-spec §4 + alignment Q4; review M2): where ↶ goes (canvas px, top-left + size;
+ * insets in CSS px, `k` = dpr):
  *
- * - **build bar up** (empty hands; Ready is shown, slid left): above the bar's top-left, in Story
- *   5.12's consumable/swap row (64 px buttons 12 px above the tiles, 12 px apart) at its third slot,
- *   `gridLeft + 2 × (64 + 12)`, centred on the row: it never meets the slid Ready, 5.12's buttons or
- *   the tiles;
+ * - **build bar up** (empty hands; Ready shown, slid left): above the bar, in Story 5.12's
+ *   consumable/swap row as 5.12's own `layoutRightButtons` places it (its review L6 fallback included:
+ *   on a narrow screen the row is right-aligned above the count line, clear of the screen centre):
+ *   **left of the consumable button**, 12 px apart, centred on the row;
  * - **holding** (Ready, the bar and 5.12's row are hidden): the spec's hand-cluster spot, centre
- *   (270, 64) from the bottom-right safe-area corner, left of ⟳ under the right thumb — away from the
- *   survivor and the ghost (a spot above the grid covered the just-placed building at 568 × 320).
+ *   (270, 64) from the bottom-right safe-area corner, left of ⟳ — away from the survivor and the
+ *   ghost (a spot above the grid covered the just-placed building at 568 × 320).
  *
- * Pure (`undoChip.test.ts` checks 568 × 320, 800 × 360 and 1024 × 768 against 5.12's row, Ready, the
- * hand cluster, the item chip and ☰).
+ * `gridRight` = the build bar's right edge (5.12 passes the count line's x). Pure (`undoChip.test.ts`
+ * checks 568 × 320, 800 × 360 and 1024 × 768 against the real row, Ready, the hand cluster, the item
+ * chip, the count line, ☰ and the screen centre).
  */
-export function layoutUndoChip(width: number, height: number, insetRight: number, insetBottom: number, gridLeft: number, gridTop: number, k: number, holding: boolean, out: { x: number; y: number; size: number }): { x: number; y: number; size: number } {
+export function layoutUndoChip(width: number, height: number, insetRight: number, insetBottom: number, gridLeft: number, gridTop: number, gridRight: number, k: number, holding: boolean, out: { x: number; y: number; size: number }): { x: number; y: number; size: number } {
   const size = UNDO_CHIP_CSS_PX * k;
   out.size = size;
   if (holding) {
@@ -129,9 +155,8 @@ export function layoutUndoChip(width: number, height: number, insetRight: number
     out.y = height - (UNDO_HAND.bottomCss + insetBottom) * k - size / 2;
     return out;
   }
-  const gap = UNDO_ABOVE_BAR_GAP_CSS_PX * k;
-  const row = UNDO_ROW_BUTTON_CSS_PX * k;
-  out.x = gridLeft + UNDO_ROW_SLOT * (row + gap);
-  out.y = gridTop - gap - row / 2 - size / 2;
+  const row = layoutRightButtons(width, height, insetRight, insetBottom, k, true, gridLeft, gridTop, rowScratch, gridRight);
+  out.x = row.consX - ABOVE_BAR_GAP_CSS_PX * k - size;
+  out.y = row.consY + row.size / 2 - size / 2;
   return out;
 }

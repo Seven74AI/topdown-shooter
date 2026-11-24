@@ -924,7 +924,7 @@ export class HudScene extends Phaser.Scene {
   /** Story 5.20 (D4): ↶ above the build bar's top-left (`layoutUndoChip`), the bar's or the hand's spot. */
   private layoutUndo(): void {
     const k = dpr();
-    const l = layoutUndoChip(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, this.bar.left, this.bar.top, k, this.model.undoHolding, this.undoRect);
+    const l = layoutUndoChip(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, this.bar.left, this.bar.top, this.bar.countX, k, this.model.undoHolding, this.undoRect);
     const rect = this.buttons.get("undo");
     if (rect) Object.assign(rect, { x: l.x, y: l.y, w: l.size, h: l.size });
     const g = this.undoBg;

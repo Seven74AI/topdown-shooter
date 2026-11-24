@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance } from "@topdown/shared";
+import { addPlayer, createWorld, loadBalance, placeBuilding, startBuild } from "@topdown/shared";
 import { BuildSpend } from "./buildSpend";
 
 const balance = loadBalance();
@@ -17,5 +17,23 @@ describe("Story 5.20: BuildSpend (my spend per building this build phase, from e
     expect(s.spentOn(4)).toBe(70);
     s.handle({ type: "building.sold", buildingId: 4, buildingType: "metal_barricade", ownerId: "p0", rot: 0, refund: 115, x: 0, y: 0 }, "p0", balance);
     expect(s.spentOn(4)).toBe(0);
+  });
+
+  it("review M1: my med station bought this phase that heals someone (on the World I see) is marked used: label 'Sell'", () => {
+    const world = createWorld({ balance, seed: 1, systems: { waves: () => {} } });
+    addPlayer(world, "p0", 30, 16);
+    startBuild(world);
+    const me = world.players.get("p0");
+    if (!me) throw new Error("p0");
+    me.wallet = 1000;
+    const r = placeBuilding(world, "p0", { type: "med_station", gx: 61, gy: 31, rot: 0 });
+    if (!r.ok) throw new Error(r.error);
+    const s = new BuildSpend();
+    s.handle({ type: "building.placed", buildingId: r.value.id, buildingType: "med_station", ownerId: "p0", gx: 61, gy: 31, rot: 0 }, "p0", balance);
+    s.watchUsed(world, "p0");
+    expect(s.spentOn(r.value.id)).toBe(400); // full HP: no use yet
+    me.hp = 40;
+    s.watchUsed(world, "p0");
+    expect(s.spentOn(r.value.id)).toBe(0); // healing me now: the take-back falls to the sell share
   });
 });

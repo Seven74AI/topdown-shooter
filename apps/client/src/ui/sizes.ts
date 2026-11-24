@@ -58,16 +58,8 @@ export const READY_BAR_GAP_CSS_PX = 12;
 export const REPAIR_BUTTON_W_CSS_PX = 168;
 export const REPAIR_CLOSE_CSS_PX = 52;
 export const REPAIR_ROW_GAP_CSS_PX = 12;
-/**
- * Story 5.20 (ux-spec §4, alignment Q4): the undo chip ↶ (48 px round), row-aligned with Story 5.12's
- * consumable/swap row above the build bar (5.12 `consumableButton.ts`: 64 px buttons, 12 px above the
- * tiles and apart: `RIGHT_BUTTON_CSS_PX` / `ABOVE_BAR_GAP_CSS_PX`); with the bar up it takes the
- * row's slot `UNDO_ROW_SLOT` (0 = consumable, 1 = swap). At the 5.12 merge, import 5.12's two numbers.
- */
+/** Story 5.20 (ux-spec §4): the undo chip ↶ (48 px round); with the bar up it sits left of Story 5.12's consumable button (`undoChip.ts`). */
 export const UNDO_CHIP_CSS_PX = 48;
-export const UNDO_ROW_BUTTON_CSS_PX = 64;
-export const UNDO_ABOVE_BAR_GAP_CSS_PX = 12;
-export const UNDO_ROW_SLOT = 2;
 /** Story 5.20 (ux-spec §4): while holding, ↶ centre from the bottom-right safe-area corner (Ready is hidden then). */
 export const UNDO_HAND = { rightCss: 270, bottomCss: 64 } as const;
 /** Story 5.20: the undo glyph and the ring's stroke (CSS px). */

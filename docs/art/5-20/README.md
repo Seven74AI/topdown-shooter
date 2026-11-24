@@ -7,7 +7,7 @@ Own server (port 25620) and Vite client (port 5320), not `npm run dev`; both sto
 | `5-20-undo-holding-*` | Right after a Place (still holding, 5.18's chain ghost in hand): ↶ at the hand-cluster spot, centre (270, 64) from the bottom-right (ux-spec §4; Ready is hidden while holding), ring full. |
 | `5-20-undo-draining-*` | 3 s later: the gold ring has drained to ~58 %. |
 | `5-20-sold-pop-*` | ↶ pressed: the barricade is gone, "+$40" rises above where it stood (the lift-and-fade is 200 ms, mostly over in the shot), wallet back to $5000. |
-| `5-20-undo-bar-*` | After ✕ (hands empty, build bar up, Ready shown and slid): ↶ above the bar's top-left, in the third slot of Story 5.12's consumable/swap row (empty on master), 12 px above the tiles. |
+| `5-20-undo-bar-*` | After ✕ (hands empty, build bar up, Ready shown and slid): ↶ on Story 5.12's consumable/swap row, left of where 5.12's consumable button goes (empty on master; review M2: placed from 5.12's `layoutRightButtons`, whose L6 branch right-aligns the row at 568 × 320). |
 | `5-20-panel-take-back-*` | Tapping my barricade placed this build phase: the 3.7 panel with **Take back +$40** (one row above Upgrade). |
 | `5-20-panel-sell-*` | The same building treated as "placed last phase" (dev: this phase's spend zeroed in the solo World and the label tracker): **Sell +$20**; pressing it paid $20. |
 
@@ -19,7 +19,7 @@ Measured (page state; no console or page errors at either size):
 | Ring after 3 s | 0.57 | 0.59 |
 | ↶ → wallet / buildings / chip | 5000 / 0 / hidden | same |
 | "+$40" pop at the building | yes | yes |
-| Bar-state ↶ rect | 688, 156 (grid at 536, 224; Ready 276–444) | 456, 116 (grid 304, 184; Ready 124–292) |
+| Bar-state ↶ rect | 476, 156 (5.12's row from 536; grid at 536, 224; Ready 276–444) | 352, 92.5 (5.12's L6 row from 412; grid 304, 184; Ready 124–292) |
 | Panel label (this phase / older) | Take back +$40 / Sell +$20 | same |
 | Sell +$20 → wallet | 4980 | 4980 |
 

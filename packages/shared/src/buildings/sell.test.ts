@@ -200,6 +200,35 @@ describe("take back and sell (Story 5.20)", () => {
   });
 });
 
+describe("review M1: no free healing by taking a med station back", () => {
+  it("a med station that healed someone this build phase sells at the normal share (200 of 400), not 100 %; reset at the next build start", () => {
+    const { world, p0, place, nextBuild } = setup(1000);
+    const m = place("med_station", 61, 31); // centre (31, 16): p0 (30, 16) stands in its 2 m reach
+    expect(m.usedThisBuild).toBe(false);
+    expect(sellRefund(world, m)).toBe(400); // bought now, not used yet: take back 100 %
+    p0.hp = 50;
+    for (let i = 0; i < 10; i++) step(world, TICK_DT_S);
+    expect(p0.hp).toBeGreaterThan(50); // it healed
+    expect(m.usedThisBuild).toBe(true);
+    const w = p0.wallet;
+    expect(sellBuilding(world, "p0", m.id)).toMatchObject({ ok: true, value: { refund: 200 } });
+    expect(p0.wallet - w).toBe(200);
+    const again = place("med_station", 61, 31);
+    p0.hp = 50;
+    for (let i = 0; i < 4; i++) step(world, TICK_DT_S);
+    expect(again.usedThisBuild).toBe(true);
+    nextBuild();
+    expect([again.usedThisBuild, again.paidThisBuild]).toEqual([false, 0]);
+  });
+
+  it("standing in reach at full HP is no use: still a 100 % take-back", () => {
+    const { world, p0, place } = setup(1000);
+    const m = place("med_station", 61, 31);
+    for (let i = 0; i < 10; i++) step(world, TICK_DT_S);
+    expect([p0.hp, m.usedThisBuild, sellRefund(world, m)]).toEqual([p0.maxHp, false, 400]);
+  });
+});
+
 describe("standing only (Story 5.20, 5.11 R2): place, repair, upgrade refuse a downed or out player", () => {
   for (const status of ["downed", "out"] as const) {
     it(`${status}: not_alive, nothing charged`, () => {

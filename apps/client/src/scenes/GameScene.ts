@@ -1039,11 +1039,12 @@ export class GameScene extends Phaser.Scene {
     const standing = this.canPlace(host, false);
     const shown = !menuOpen && !shopOpen && !this.repairPanel.open;
     const u = this.undo;
-    u.update(host.world, host.localPlayerId, this.pending, this.time.now, host.world.balance.controls.build.undoWindowMs, standing, shown, this.sellNow);
+    const build = host.world.balance.controls.build;
+    u.update(host.world, host.localPlayerId, this.pending, this.time.now, build.undoWindowMs, build.pendingTimeoutMs, standing, shown, this.sellNow);
     if (press) {
-      const id = u.press();
+      const id = u.press(this.time.now);
       if (id !== 0) host.sellBuilding(id);
-      u.update(host.world, host.localPlayerId, this.pending, this.time.now, host.world.balance.controls.build.undoWindowMs, standing, shown, this.sellNow);
+      u.update(host.world, host.localPlayerId, this.pending, this.time.now, build.undoWindowMs, build.pendingTimeoutMs, standing, shown, this.sellNow);
     }
     m.undoVisible = u.visible;
     m.undoProgress = u.progress;
@@ -1323,6 +1324,7 @@ export class GameScene extends Phaser.Scene {
     }
     const sellRefused = host.takeSellRefusal(); // Story 5.20
     if (sellRefused) this.toasts.push(sellRefusalText(sellRefused));
+    this.buildSpend.watchUsed(host.world, localId); // Story 5.20 review M1: a med station that healed sells at the normal share
     this.updateUndo(host, menuOpen, shopOpen); // Story 5.20: after the boxes were matched (an armed undo sends here)
     const events = host.drainEvents();
     for (let i = 0; i < events.length; i++) {

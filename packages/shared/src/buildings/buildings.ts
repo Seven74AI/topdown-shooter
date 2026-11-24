@@ -80,6 +80,12 @@ export interface Building {
    */
   paid: number;
   paidThisBuild: number;
+  /**
+   * Story 5.20 review M1 (server bookkeeping, like `paidThisBuild`): the building has done its job
+   * in this build phase (a med station healed someone), so taking it back no longer refunds 100 %
+   * (`sellRefund`: the normal sell share). Reset at every build start (`resetBuildSpend`).
+   */
+  usedThisBuild: boolean;
 }
 
 /** Story 5.14: a bear trap's jaws (the schema's `trap` field: 0 for every other building). */
@@ -371,6 +377,7 @@ export function addBuildingAt(world: World, spec: BuildingSpec): Building | null
     rearmPlayer: "",
     paid: stats.price, // Story 5.20: `placeBuilding` / `upgradeBuilding` keep it (the mirror's stays the tier price)
     paidThisBuild: 0,
+    usedThisBuild: false,
   };
   const s = world.buildings;
   let i = s.list.length;
@@ -464,5 +471,9 @@ export function setBuildingType(world: World, b: Building, type: string, hp?: nu
 /** Story 5.20: at every build start, nothing has been paid for any building in the new phase yet. */
 export function resetBuildSpend(world: World): void {
   const list = world.buildings.list;
-  for (let i = 0; i < list.length; i++) (list[i] as Building).paidThisBuild = 0;
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i] as Building;
+    b.paidThisBuild = 0;
+    b.usedThisBuild = false; // review M1
+  }
 }

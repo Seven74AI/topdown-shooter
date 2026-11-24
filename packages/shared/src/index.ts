@@ -86,7 +86,7 @@ export { createDecayState, fireRecordOf, legalDecayMasks, pickDecayVariants, sta
 export { applyDecayStage } from "./decay/applyDecayStage";
 // Story 5.10: the derived light-source list; med station healing.
 export { createLightState, lightsOf, updateLightState, type LightKind, type LightSource, type LightState } from "./decay/lightState";
-export { inHealReach, updateMedStations } from "./buildings/medStation";
+export { healsSomeoneNow, inHealReach, updateMedStations } from "./buildings/medStation";
 // Story 4.8: car fires.
 export { circleInFire, fireExpiry, firePulse, firePulseDamage, lightNewFires, segmentHitsFire, updateFires } from "./decay/fire";
 export { changeDecayStage, decayFinish, decayMutate, destroyBlockedBuildings, moveOutOfNewFires, relocateBodies, relocated, stageForComingWave } from "./decay/decaySystem";

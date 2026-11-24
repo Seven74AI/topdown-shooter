@@ -29,9 +29,13 @@ export function sellRefundFor(sellShare: number, paid: number, paidThisBuild: nu
   return now + Math.floor(sellShare * (paid - now));
 }
 
-/** F2: what selling `b` now gives back (server / solo truth). */
+/**
+ * F2: what selling `b` now gives back (server / solo truth). Review M1: a building that has done its
+ * job this build phase (`usedThisBuild`: a med station healed someone) sells at the normal share even
+ * if it was bought this phase — no free healing by taking it back before Ready.
+ */
 export function sellRefund(world: Readonly<World>, b: Readonly<Building>): number {
-  return sellRefundFor(world.balance.buildings.sellShare, b.paid, b.paidThisBuild);
+  return sellRefundFor(world.balance.buildings.sellShare, b.paid, b.usedThisBuild ? 0 : b.paidThisBuild);
 }
 
 /**

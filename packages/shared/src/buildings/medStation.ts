@@ -25,6 +25,7 @@ function healPlayer(p: PlayerState): void {
   const types = world.balance.buildings.types;
   const list = world.buildings.list;
   let best = 0;
+  let healer: Building | null = null;
   for (let i = 0; i < list.length; i++) {
     const b = list[i] as Building;
     const heal = Object.prototype.hasOwnProperty.call(types, b.type) ? types[b.type]?.heal : undefined;
@@ -32,9 +33,15 @@ function healPlayer(p: PlayerState): void {
     const dx = p.x - (b.minX + b.maxX) / 2;
     const dy = p.y - (b.minY + b.maxY) / 2;
     const reach = heal.radiusM + p.radiusM;
-    if (dx * dx + dy * dy < reach * reach) best = heal.hpPerS;
+    if (dx * dx + dy * dy < reach * reach) {
+      best = heal.hpPerS;
+      healer = b;
+    }
   }
-  if (best > 0) p.hp = Math.min(p.maxHp, p.hp + best * pass.dtS);
+  if (best > 0 && healer) {
+    p.hp = Math.min(p.maxHp, p.hp + best * pass.dtS);
+    healer.usedThisBuild = true; // Story 5.20 review M1: it did its job: no 100 % take-back this build phase
+  }
 }
 
 export function updateMedStations(world: World, dtS: number): void {
@@ -58,6 +65,27 @@ export function inHealReach(world: Readonly<World>, x: number, y: number, bodyRa
     const dx = x - (b.minX + b.maxX) / 2;
     const dy = y - (b.minY + b.maxY) / 2;
     const reach = heal.radiusM + bodyRadiusM;
+    if (dx * dx + dy * dy < reach * reach) return true;
+  }
+  return false;
+}
+
+/**
+ * Story 5.20 review M1 (the client's label prediction): med station `b` would heal someone now — a
+ * standing player below max HP in its reach. The server marks the one that actually heals
+ * (`usedThisBuild`); the client, which never runs the heal, uses this on its mirror to show "Sell".
+ */
+export function healsSomeoneNow(world: Readonly<World>, b: Readonly<Building>): boolean {
+  const types = world.balance.buildings.types;
+  const heal = Object.prototype.hasOwnProperty.call(types, b.type) ? types[b.type]?.heal : undefined;
+  if (!heal) return false;
+  const cx = (b.minX + b.maxX) / 2;
+  const cy = (b.minY + b.maxY) / 2;
+  for (const p of world.players.values()) {
+    if (p.status !== "alive" || p.hp >= p.maxHp) continue;
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const reach = heal.radiusM + p.radiusM;
     if (dx * dx + dy * dy < reach * reach) return true;
   }
   return false;

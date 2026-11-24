@@ -1,4 +1,4 @@
-import { buildingStats, type Balance, type SimEvent } from "@topdown/shared";
+import { buildingStats, healsSomeoneNow, type Balance, type Building, type SimEvent, type World } from "@topdown/shared";
 
 /**
  * Story 5.20 (D7): what I paid for each of my buildings in the current build phase, from the events
@@ -31,6 +31,19 @@ export class BuildSpend {
         break;
       default:
         break;
+    }
+  }
+
+  /**
+   * Review M1, once per frame in a build phase: every one of my med stations bought this phase that
+   * would heal someone now (`healsSomeoneNow` on the World this device sees) is marked used.
+   */
+  watchUsed(world: Readonly<World>, localId: string): void {
+    if (world.run.phase !== "build" || this.spent.size === 0) return;
+    const list = world.buildings.list;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i] as Building;
+      if (b.ownerId === localId && (this.spent.get(b.id) ?? 0) > 0 && healsSomeoneNow(world, b)) this.spent.set(b.id, 0);
     }
   }
 

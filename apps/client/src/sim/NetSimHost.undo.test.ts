@@ -22,6 +22,7 @@ const FRAME_MS = 16;
 const TICK_MS = 50;
 const WALLET = 500;
 const WINDOW = balance.controls.build.undoWindowMs;
+const RETRY = balance.controls.build.pendingTimeoutMs;
 
 function lcg(seed: number): () => number {
   let s = seed >>> 0;
@@ -108,9 +109,9 @@ function rig(seed = 11) {
     }
     runPendingFrame(pending, host, now, scene, (r) => host.placeBuilding(r), dropped);
     while (host.takeSellRefusal() !== null);
-    undo.update(w(), "p1", pending, now, WINDOW, w().run.phase === "build", true, sendSell);
+    undo.update(w(), "p1", pending, now, WINDOW, RETRY, w().run.phase === "build", true, sendSell);
     if (pressUndo) {
-      const id = undo.press();
+      const id = undo.press(now);
       if (id !== 0) host.sellBuilding(id);
     }
   };
