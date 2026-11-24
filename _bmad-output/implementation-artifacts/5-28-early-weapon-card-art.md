@@ -1,6 +1,6 @@
 # Story 5.28: Early weapon card art
 
-Status: review
+Status: done
 
 (Added 2026-11-24: designer picks in `docs/epic-5-decisions.md` › "Early weapon card art"; page claude.ai/artifact/7MPKNLcAPBgPjiATVK4Cok, code `docs/art/5-13/early-weapons.html` › `EARLY`. Follows Story 5.13, the card shop.)
 
@@ -17,12 +17,12 @@ so that the shop reads as one set.
 1. `smgS1`, `rifleH1`, `macheteM1` (with their helpers `rod`, `bladeEdge`, `hole`, `scope`) are ported into `render/city/weaponArt.ts` as `drawSmg`, `drawHuntingRifle`, `drawMachete`: same shapes, colours and proportions, built only from the existing helpers; `ICON_Y` 0.44 / 0.5 / 0.5.
 2. Icon view only: the survivor still holds the plain gun for these weapons (no new `survivor_<weapon>_a` frame).
 3. The 5.13 card shop shows them; the `KindGlyph` pictogram is removed (every shop weapon and gear item has art).
-4. Tests: every weapon in the card catalog has side-view art; the three are icon-only; each icon draws and leaves the context balanced. Each new test mutated once.
+4. Tests: `weaponIconUrl` returns art for every weapon in the card catalog (drawn once, then cached); the three are icon-only; each icon draws and leaves the context balanced. Each new test mutated once.
 5. Screenshots of the card shop with the three cards at 800 × 360 and 568 × 320 in `docs/art/5-28/`.
 
 ## Tasks / Subtasks
 
-- [x] **T1 Port** the three drawings + 4 helpers into `weaponArt.ts` (TS types only; two `as const` tuple lists); `WEAPON_ICON_ART` map, `hasWeaponIcon`, `ICON_Y` entries; `weaponIconUrl` draws from either map. (AC 1–2)
+- [x] **T1 Port** the three drawings + 4 helpers into `weaponArt.ts` (TS types only; two `as const` tuple lists); `WEAPON_ICON_ART` map, `ICON_Y` entries; `weaponIconUrl` draws from either map. (AC 1–2)
 - [x] **T2 Shop**: `ShopScreen.tsx` drops `KindGlyph`. (AC 3)
 - [x] **T3 Tests** `render/city/weaponArt.test.ts` (3 tests, recording-context mock). (AC 4)
 - [x] **T4 Shots** `docs/art/5-28/shots.cjs`, `README.md`, 2 PNGs; gate. (AC 5)
@@ -43,7 +43,7 @@ so that the shop reads as one set.
 ### Completion Notes
 
 - Gate (one full run, `npm run typecheck && npm run lint && npm test && npm run build`): green: 306 test files, 2546 tests (3 skipped), build OK. A first run stopped at typecheck (implicit `any` on the ported path lambdas, a closure-narrowed `o.shade`, `fillP` taking a gradient): typed, `fillP` widened to `string | CanvasGradient`; no drawing change.
-- Mutations (each caught, file restored): M1 drop `machete` from `WEAPON_ICON_ART` → catalog test + icon-only test fail; M2 add `smg` to `WEAPON_ART` → icon-only test fails; M3 drop `drawMachete`'s final `restore` → balance test fails.
+- Mutations (each caught, file restored): M1 (re-run after review: still caught by the `weaponIconUrl` test) drop `machete` from `WEAPON_ICON_ART` → catalog test + icon-only test fail; M2 add `smg` to `WEAPON_ART` → icon-only test fails; M3 drop `drawMachete`'s final `restore` → balance test fails.
 - Shots: both sizes, 3 early cards with `<img>` art, no pictogram, no page errors.
 
 ### File List
@@ -53,3 +53,9 @@ so that the shop reads as one set.
 - `apps/client/src/ui/ShopScreen.tsx` (modified)
 - `docs/art/5-28/` (new: `shots.cjs`, `README.md`, 2 PNGs)
 - `_bmad-output/implementation-artifacts/5-28-early-weapon-card-art.md`, `sprint-status.yaml`, `_bmad-output/planning-artifacts/epics.md`
+
+## Review (main session, 2026-11-24)
+
+- Fresh review: ports match `EARLY` line by line; `WEAPON_ICON_ART` (not `WEAPON_ART`) accepted; held frames unchanged; caching and context loss fine.
+- **Fixed:** the catalog test checked `hasWeaponIcon` (used only by the test) instead of `weaponIconUrl`, so the mutant "`weaponIconUrl` ignores `WEAPON_ICON_ART`" survived while the three cards would render blank. The test now calls `weaponIconUrl` with a stubbed `document.createElement` (recording canvas, fixed `toDataURL`): every catalog weapon returns the data URL, and a second call creates no new canvas. `hasWeaponIcon` removed. Mutants now caught: `iconOnly` forced undefined → "smg: expected null"; cache never stored → canvas count 2 ≠ 1.
+- Re-checked: touched tests, typecheck, lint. Left for after 5.21: the dead `.shop-card__glyph*` CSS.

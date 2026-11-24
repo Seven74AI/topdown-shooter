@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cardCatalog, loadBalance } from "@topdown/shared";
 import { SURVIVOR_WEAPON_FRAMES } from "./spriteAtlas";
-import { WEAPON_ART, WEAPON_ICON_ART, hasWeaponIcon } from "./weaponArt";
+import { WEAPON_ART, WEAPON_ICON_ART, weaponIconUrl } from "./weaponArt";
 
 /** A 2D context that records the drawing calls (no canvas in the test environment). */
 function recordingContext(): { ctx: CanvasRenderingContext2D; calls: string[] } {
@@ -25,10 +25,19 @@ function recordingContext(): { ctx: CanvasRenderingContext2D; calls: string[] } 
 }
 
 describe("early weapon card art (Story 5.28)", () => {
-  it("every weapon the card shop can offer has side-view art (no pictogram fallback)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("weaponIconUrl returns art for every weapon the card shop can offer (no pictogram fallback), drawn once then cached", () => {
+    const createElement = vi.fn(() => ({ width: 0, height: 0, getContext: () => recordingContext().ctx, toDataURL: () => "data:image/png;base64,AA" }));
+    vi.stubGlobal("document", { createElement });
     const weapons = cardCatalog(loadBalance()).filter((c) => c.kind === "weapon");
     expect(weapons.map((w) => w.id)).toEqual(expect.arrayContaining(["smg", "hunting_rifle", "machete"]));
-    for (const w of weapons) expect(hasWeaponIcon(w.id), w.id).toBe(true);
+    for (const w of weapons) {
+      const before = createElement.mock.calls.length;
+      expect(weaponIconUrl(w.id), w.id).toBe("data:image/png;base64,AA");
+      expect(weaponIconUrl(w.id), w.id).toBe("data:image/png;base64,AA");
+      expect(createElement.mock.calls.length - before, w.id).toBe(1); // the second call is cached: no new canvas
+    }
   });
 
   it("SMG, Hunting Rifle and Machete are icon-only: no held view, so no survivor frame of their own", () => {

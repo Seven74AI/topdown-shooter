@@ -1791,8 +1791,6 @@ export const WEAPON_ICON_ART: Readonly<Record<string, (c: G, size: number) => vo
   hunting_rifle: drawHuntingRifle,
   machete: drawMachete,
 };
-/** Whether `weapon` has a side-view shop icon (`weaponIconUrl` returns art, not null). */
-export const hasWeaponIcon = (weapon: string): boolean => weapon in WEAPON_ART || weapon in WEAPON_ICON_ART;
 /** Story 5.4: what a weapon puts on the survivor's back instead of the backpack (FT1's twin tanks). */
 export const WEAPON_BACK_ART: Readonly<Record<string, (c: G, r: number) => void>> = {
   flamethrower: drawFlamethrowerBack,
