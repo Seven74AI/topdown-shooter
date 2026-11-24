@@ -23,6 +23,11 @@ const DEBRIS_MS = 450;
 const REPAIR_COLOR = 0x7cff8a;
 const REPAIR_RING_M = 0.6;
 const REPAIR_MS = 450;
+/** Story 5.20 (ux-spec §10): a sold building's footprint lifts 0.15 m and fades in 200 ms. */
+const SOLD_FILL = 0xe8dcc0;
+const SOLD_ALPHA = 0.55;
+const SOLD_LIFT_M = 0.15;
+const SOLD_MS = 200;
 /** Story 5.14: the snap ring (m) and its time. */
 const SNAP_RING_M = 0.45;
 const SNAP_MS = 180;
@@ -63,6 +68,8 @@ export class FxView {
   private readonly repairs: Phaser.GameObjects.Arc[] = [];
   /** Story 5.9: the upgrade ring. (Story 5.5: the mine blast is drawn by `ExplosionView` from `explosion.happened`, EX2.) */
   private readonly upgrades: Phaser.GameObjects.Arc[] = [];
+  /** Story 5.20: lifting, fading footprints of sold buildings (pooled). */
+  private readonly solds: Phaser.GameObjects.Rectangle[] = [];
   /** Story 5.14: bear-trap snap rings (pooled). */
   private readonly snaps: Phaser.GameObjects.Arc[] = [];
   /** Story 5.2: next swing Graphics to reuse once the pool is at `fx.maxSwingArcs` (oldest first). */
@@ -134,6 +141,10 @@ export class FxView {
         this.snapped(e.x, e.y);
         playSfx("building_bear_trap_snap");
         break;
+      case "building.sold": // Story 5.20: lift and fade for everyone; coins for the seller (the "+$N" is the HUD's)
+        this.sold(e.buildingType, e.rot, e.x, e.y);
+        if (e.ownerId === this.localPlayerId) playSfx("building_sold");
+        break;
       case "building.repaired":
         this.repaired(e.x, e.y);
         if (e.playerId === this.localPlayerId) playSfx("building_repaired");
@@ -183,6 +194,21 @@ export class FxView {
       p.setPosition(x + Math.cos(a) * 0.5, y + Math.sin(a) * 0.3).setScale(0.6).setAlpha(0.9).setVisible(true);
       this.scene.tweens.add({ targets: p, x: x + Math.cos(a) * 1.3, y: y + Math.sin(a) * 0.9, scale: 1.3, alpha: 0, duration: DEBRIS_MS, onComplete: () => p.setVisible(false) });
     }
+  }
+
+  /** Story 5.20: the sold footprint (centre x, y; size from its type and rotation) rises and fades (pooled). */
+  private sold(type: string, rot: number, x: number, y: number): void {
+    const stats = this.balance ? buildingStats(this.balance, type) : undefined;
+    if (!stats) return;
+    const b = footprint(stats, 0, 0, rot, this.box);
+    let r = this.solds.find((o) => !o.visible);
+    if (!r) {
+      r = this.scene.add.rectangle(0, 0, 1, 1, SOLD_FILL).setDepth(6).setVisible(false);
+      this.solds.push(r);
+    }
+    const rect = r;
+    rect.setSize(b.maxX - b.minX, b.maxY - b.minY).setPosition(x, y).setAlpha(SOLD_ALPHA).setVisible(true);
+    this.scene.tweens.add({ targets: rect, y: y - SOLD_LIFT_M, alpha: 0, duration: SOLD_MS, onComplete: () => rect.setVisible(false) });
   }
 
   private muzzle(x: number, y: number, scale = 1): void {

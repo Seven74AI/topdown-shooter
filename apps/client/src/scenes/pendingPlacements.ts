@@ -25,6 +25,9 @@ import type { Box, Building, PlaceError, PlaceRequest, World } from "@topdown/sh
  * (`money`). The World is never changed: the server decides (F1). No allocation per frame.
  */
 
+/** Story 5.20: how many matched boxes (order → building id) are remembered for the undo chip. */
+export const BUILT_RING = 8;
+
 /** Least pool size; `configure` grows it to fit `maxPerPlayer` counted boxes plus as many fading/ghost ones (review L2). */
 export const PENDING_POOL = 16;
 /** D6 (review L2): a timed-out box waits this long (running time, from its timeout) for a late answer, then is forgotten. */
@@ -120,6 +123,12 @@ export class PendingPlacements {
   matching = true;
   /** Running time (ms): the sum of frame gaps, each capped at `MAX_FRAME_GAP_MS` (review M1). */
   clockMs = 0;
+  /** Story 5.20: the order of the box the last successful `add` made (the undo chip's target; 0 = none). */
+  lastOrder = 0;
+  /** Story 5.20: the last few boxes that became buildings: their order and the building id (a ring). */
+  private readonly builtOrders = new Float64Array(BUILT_RING);
+  private readonly builtIds = new Int32Array(BUILT_RING);
+  private builtHead = 0;
   private lastNowMs = Number.NaN;
   private nextOrder = 1;
   private lastSendMs = Number.NEGATIVE_INFINITY;
@@ -151,6 +160,9 @@ export class PendingPlacements {
     this.lastSendMs = Number.NEGATIVE_INFINITY;
     this.lastMatchedId = 0;
     this.lastNowMs = Number.NaN;
+    this.lastOrder = 0;
+    this.builtOrders.fill(0);
+    this.builtIds.fill(0);
   }
 
   /** Every box goes (queued ones are never sent). */
@@ -206,7 +218,21 @@ export class PendingPlacements {
     this.count++;
     this.money += price;
     this.version++;
+    this.lastOrder = e.order;
     return true;
+  }
+
+  /** Story 5.20: the building id the box `order` became (0 = not (yet) a building, or forgotten). */
+  builtId(order: number): number {
+    if (order <= 0) return 0;
+    for (let i = 0; i < BUILT_RING; i++) if (this.builtOrders[i] === order) return this.builtIds[i] as number;
+    return 0;
+  }
+
+  /** Story 5.20: the box `order` may still become a building (queued, sent, or a timed-out ghost awaiting its late answer). */
+  waiting(order: number): boolean {
+    for (const e of this.entries) if (e.live && e.order === order && (e.counted || e.awaiting)) return true;
+    return false;
   }
 
   /** Sends the oldest queued box if `chainSendGapMs` (real time) has passed since the last send (at most one per call). */
@@ -317,6 +343,9 @@ export class PendingPlacements {
       }
       if (!best) return;
       this.lastMatchedId = bestId;
+      this.builtOrders[this.builtHead] = best.order; // Story 5.20: the undo chip follows its box to the building
+      this.builtIds[this.builtHead] = bestId;
+      this.builtHead = (this.builtHead + 1) % BUILT_RING;
       this.free(best);
     }
   }

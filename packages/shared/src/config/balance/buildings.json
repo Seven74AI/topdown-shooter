@@ -2,6 +2,7 @@
   "maxPerPlayer": 6,
   "spawnClearM": 2,
   "repairShare": 0.5,
+  "sellShare": 0.5,
   "types": {
     "wood_barricade": {
       "name": "Wood barricade",

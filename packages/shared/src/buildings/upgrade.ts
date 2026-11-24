@@ -16,10 +16,10 @@ import { buildingById, buildingStats, setBuildingType, type Building } from "./b
  */
 
 /** Why an upgrade is refused. The client maps it to text (`upgradeRefusalText`). */
-export type UpgradeError = "unknown_player" | "not_build_phase" | "gone" | "not_owner" | "not_upgradable" | "money";
+export type UpgradeError = "unknown_player" | "not_alive" | "not_build_phase" | "gone" | "not_owner" | "not_upgradable" | "money";
 
 /** Every `UpgradeError`, for parsing what the server sent. */
-export const UPGRADE_ERRORS: readonly UpgradeError[] = Object.freeze(["unknown_player", "not_build_phase", "gone", "not_owner", "not_upgradable", "money"]);
+export const UPGRADE_ERRORS: readonly UpgradeError[] = Object.freeze(["unknown_player", "not_alive", "not_build_phase", "gone", "not_owner", "not_upgradable", "money"]);
 
 /** The next tier of `type` and the step's price, or null at the top of the ladder / for an unknown type. */
 export function upgradeStep(world: Readonly<World>, type: string): { readonly type: string; readonly price: number } | null {
@@ -27,12 +27,13 @@ export function upgradeStep(world: Readonly<World>, type: string): { readonly ty
 }
 
 /**
- * The whole upgrade check, in this order: unknown player → not a build phase → the building is gone
+ * The whole upgrade check, in this order: unknown player → (Story 5.20) not standing → not a build phase → the building is gone
  * → not the owner → no next tier → money. null = the server would accept it.
  */
 export function upgradeError(world: Readonly<World>, playerId: string, buildingId: number): UpgradeError | null {
   const p = world.players.get(playerId);
   if (!p) return "unknown_player";
+  if (p.status !== "alive") return "not_alive"; // Story 5.20 (5.11 R2)
   if (world.run.phase !== "build") return "not_build_phase";
   const b = buildingById(world, buildingId);
   if (!b) return "gone";
@@ -64,6 +65,8 @@ export function upgradeBuilding(world: World, playerId: string, buildingId: numb
   const paid = spendMoney(world, playerId, step.price);
   if (!paid.ok) return err("money"); // unreachable: the wallet was checked
   if (!setBuildingType(world, b, step.type)) return err("not_upgradable"); // unreachable: the balance cross-check
+  b.paid += step.price; // Story 5.20 (F2): the step is part of what a sell refunds
+  b.paidThisBuild += step.price;
   world.events.emit({ type: "building.upgraded", buildingId: b.id, playerId, cost: step.price, toType: b.type, x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 });
   return ok({ building: b, cost: step.price, fromType });
 }

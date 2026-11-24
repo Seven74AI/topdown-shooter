@@ -128,11 +128,11 @@ FR68: Endless: blackout on odd waves, +40 zombies per wave up to 600 at wave 15 
 FR69: The host picks a district and gets a share link and a 4-letter code; 2–4 players join, tap Ready, and the host starts.
 FR70: Players can play immediately as a guest with only a name.
 FR71: All players see the same horde and the server decides hits; your own movement, aiming and muzzle flash respond instantly on your device.
-FR72: Players can join mid-run during build phases only, starting with the team's average currency.
-FR73: A disconnected player's character is removed safely; they can rejoin within 2 minutes with wallet and gear intact.
-FR74: If the host leaves, host migrates to another player (the longest-connected).
-FR75: During a build phase the host can Save and quit; the server keeps the run 7 days, and any group that includes the host can resume it.
-FR76: A ping button offers 4 quick messages (Help! · Over here · Brute! · Ready), each showing an icon on teammates' screens and edge arrows.
+FR72: Players can join mid-run during build phases only, starting with a Pistol and 100 + 60 % of the team's average earnings so far (designer D7, 2026-11-24; replaces "the team's average currency").
+FR73: A disconnected player's character is removed safely; they can rejoin within 2 minutes with wallet and gear intact, and their seat is remembered for the rest of the run (D4).
+FR74: If the host leaves or drops, host (Start, Save and quit, Remove player) moves at once to the longest-connected player (D8, D9).
+FR75: During a build phase the host can Save and quit; the server keeps the run 7 days, and any account that was in the run can resume it (D13).
+FR76: A ping button offers 4 quick messages (Help! · Over here · Big one! · Ready), each showing an icon on teammates' screens and edge arrows.
 
 **Meta-progression**
 
@@ -289,8 +289,8 @@ FR70: Epic 2 - Guest play with a name
 FR71: Epic 2 - Shared horde, server hits, instant own feel
 FR72: Epic 8 - Join mid-run at build phases
 FR73: Epic 8 - 2-minute reconnect
-FR74: Epic 8 - Host migration
-FR75: Epic 8 - Save and quit, 7-day resume with host
+FR74: Epic 8 - Host role and Remove player
+FR75: Epic 8 - Save and quit, 7-day resume by anyone from the run
 FR76: Epic 8 - Pings
 FR77: Epic 7 - Guest-to-account upgrade
 FR78: Epic 7 - Supplies earning
@@ -340,7 +340,7 @@ Players keep progress between runs: a guest upgrades to an account, earns Suppli
 **FRs covered:** FR77, FR78, FR79, FR80, FR81
 
 ### Epic 8: Real-life resilience
-Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, host migration, Save and quit with 7-day resume, and quick pings.
+Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, a light host role with Remove player, Save and quit with 7-day resume by anyone from the run, and quick pings (decisions: `docs/ideas/epic-8/decisions.md`).
 **FRs covered:** FR72, FR73, FR74, FR75, FR76
 
 ### Epic 9: Dead City art and audio
@@ -2666,7 +2666,7 @@ So that some runs end with a surprise.
 
 ## Epic 8: Real-life resilience
 
-Real life doesn't break a run: rejoin within 2 minutes with your gear, join mid-run at a build phase, host migration, autosave, Save and quit with 7-day resume, and quick pings. Depends on Epic 4 (named seed streams and decay engine) and on Story 7.1 (accounts and database: saved runs belong to the host's account), so it comes after Epic 7. Rule for every later epic: any new run state (gear, events, boss, endless) must be added to the snapshot, and the round-trip test in Story 8.4 enforces it.
+Real life doesn't break a run: rejoin within 2 minutes with your gear (your seat is kept for the whole run), join mid-run at a build phase, a light host role, autosave, Save and quit with 7-day resume by anyone from the run, and quick pings. Designer decisions D1–D15: `docs/ideas/epic-8/decisions.md` (accepted 2026-11-24). Depends on Epic 4 (named seed streams and decay engine) and on Story 7.1 (accounts and database: saved runs belong to the accounts that played them), so it comes after Epic 7. Rule for every later epic: any new run state (gear, events, boss, endless) must be added to the snapshot, and the round-trip test in Story 8.4 enforces it.
 
 ### Story 8.1: Reconnect within 2 minutes
 
@@ -2676,23 +2676,29 @@ So that a bad signal doesn't end my night.
 
 **Acceptance Criteria:**
 
-**Given** a player's connection drops
+**Given** a player's connection drops (not a deliberate Leave)
 **When** the server notices
-**Then** their character is removed from the World safely (no longer targeted, not counted for a team wipe), and their slot, wallet, loadout, upgrades and gear are held for 120 s (Colyseus `allowReconnection`) (FR73)
-**And** teammates see "<name> reconnecting…"
+**Then** their survivor vanishes safely from the World (not targeted, can't be hurt, not counted for a team wipe) and their seat is held for 120 s (Colyseus `allowReconnection`) (FR73, D1, D2)
+**And** a player who was **downed** when they dropped counts as **out** for the rest of this wave (back at the next build phase, like any out player)
+**And** teammates see a grey chip "<name> · reconnecting 1:43" in the team list, a toast when they're back, and no body on the map
 
 **Given** the player's phone reconnects within 120 s
-**When** it rejoins
-**Then** they return with everything held: mid-wave next to a standing teammate with the HP they had, or at their position in a build phase
+**When** it rejoins (matched by account / guest token)
+**Then** everything is exactly as held: HP, wallet, earned, weapons, upgrades, gear, consumable count, ammo in the magazine (a reload in progress starts over), the current card offer and rerolls; a building they were carrying goes back to their hand (D3)
+**And** mid-wave they appear next to a standing teammate; in a build phase where they were
 **And** the client shows "Connection lost, reconnecting…" while it retries
 
 **Given** 120 s pass
 **When** the player hasn't returned
-**Then** their slot is freed and a later return counts as a new join
+**Then** their slot is freed but their **seat is remembered for the whole run**: their stuff stays frozen and, if they come back at a later build phase with a slot free, they get it back (never the late-joiner money) (D4)
 
-**Given** a player who left or was dropped
+**Given** a player who dropped or left
 **When** the run goes on
-**Then** their buildings stay until destroyed and can still be repaired by teammates; during the 120 s reconnect hold their turret kills keep paying into the held wallet, and once the slot is freed (or they left on purpose) their buildings no longer pay kill rewards to anyone
+**Then** their buildings stay until destroyed and can be repaired by teammates; during the 120 s hold their turret kills keep paying into the held wallet, after that (or after a deliberate Leave) their buildings pay nobody
+
+**Given** no player is connected (everyone dropped, or a solo player in a tunnel)
+**When** the server notices
+**Then** the whole World freezes (zombies, timers, everything) for up to 120 s; the first player back unfreezes it after a 3-2-1 count; after 120 s the room closes and the run follows Story 8.4's rules (lost mid-wave, saved in a build phase) (D5)
 
 **Given** the tab is hidden (`visibilitychange`)
 **When** the player switches apps
@@ -2706,35 +2712,41 @@ So that I don't have to wait for the next one.
 
 **Acceptance Criteria:**
 
-**Given** a run in a build phase with fewer than 4 players
-**When** I open the link
-**Then** I join with a Pistol and currency equal to the team's average wallet (rounded down) (FR72)
+**Given** a run in any build phase (endless included) with fewer than 4 players
+**When** I open the link and I have no remembered seat in this run
+**Then** I join with a Pistol and 100 + 60 % of the team's average `earned` so far, rounded down (about 640 at wave 5, about 1,400 at wave 9) (FR72, D7)
 **And** my shop uses my own seed stream starting at the current build phase
+**And** the build timer gains +15 s (at most once per build phase) (D6)
+
+**Given** I have a remembered seat in this run (Story 8.1)
+**When** I join at a build phase
+**Then** I get my own seat back instead
 
 **Given** a run in a wave
 **When** I open the link
-**Then** I see "Wave in progress, you'll join at the next build phase" and wait in a spectator view
+**Then** I see "Wave in progress, you'll join at the next build phase" and watch the fight
 
 **Given** a mid-run join
 **When** the next wave starts
 **Then** its size uses the new player count multiplier (FR31)
+**And** Supplies (Epic 7) count only the waves I was in
 
-### Story 8.3: Host migration
+### Story 8.3: Host role and removing a player
 
 As a team,
-I want someone else to become host if the host leaves,
-So that the run goes on without them.
+I want someone else to take over Start and Save if the host goes, and a way to remove a stranger,
+So that the run goes on and a leaked link can't ruin it.
 
 **Acceptance Criteria:**
 
-**Given** the host disconnects or leaves
-**When** their reconnect window ends or they leave on purpose
-**Then** `hostSlot` moves to the longest-connected remaining player, who sees "You are now the host" (FR74)
-**And** host-only actions (start, Save and quit) move with it
+**Given** the server runs the game, so "host" only means who may Start, Save and quit and Remove player
+**When** the host drops or leaves
+**Then** `hostSlot` moves **at once** to the longest-connected connected player, who sees "You are now the host" (FR74, D8); this already happens on leave today, this story adds drops and the toast
+**And** it does not move back when the old host returns
 
-**Given** the host reconnects within 120 s
-**When** they return
-**Then** they get host back only if it hasn't migrated yet
+**Given** the lobby or a build phase
+**When** the host taps Remove on a player and confirms
+**Then** that player is removed, sees "You were removed from this run", and can't rejoin this run (their seat is dropped) (D9)
 
 ### Story 8.4: Autosave at every build phase
 
@@ -2746,15 +2758,17 @@ So that a server crash or update doesn't lose our run.
 
 **Given** the database from Story 7.1
 **When** this story's migration runs
-**Then** it creates only the `saved_runs` table (id, host account id, district, seed, snapshot JSON, schema version, created, expires)
+**Then** it creates only the `saved_runs` table (id, district, seed, snapshot JSON, schema version, created, expires, status) and a `saved_run_players` table (saved run id, account id)
 
-**Given** a build phase starts
-**When** the snapshot is taken
-**Then** a versioned JSON snapshot of the run (players by slot with wallets, loadouts, upgrades, gear, consumable slot and count, current card offer (5.13); buildings with type, barricade tier, rotation, owner, HP, wear and `paid`; wave; decay stage and plan; light and blackout state; event schedule; boss state; endless counters; loot bag and pending item (7.12); the rewards-after-wave-10 flag (6.12); every PRNG stream state) is saved for that room
+**Given** a build phase
+**When** it starts, and again on its last tick (the wave is about to begin) (D10)
+**Then** a versioned JSON snapshot replaces the room's previous one: every seat by account (connected, held or remembered) with wallet, earned, loadout, upgrades, gear, consumable slot and count, current card offer (5.13); buildings with type, barricade tier, rotation, owner, HP, wear and `paid`; wave; decay stage, plan and variations; light and blackout state; event schedule; boss state; endless counters; loot bag and pending item (7.12); the rewards-after-wave-10 flag (6.12); every PRNG stream state. Never zombies, shots, puddles or fires. About 50 KB
 
-**Given** a server shutdown or a programmer error that corrupts the simulation
-**When** the room closes
-**Then** the last build snapshot is kept and becomes resumable like a Save and quit, and players see "Server restarting, your run is saved"
+**Given** the room ends
+**When** the cause is a server shutdown, a deploy or a programmer error that corrupts the simulation
+**Then** the last snapshot becomes resumable like a Save and quit, and players see "Server restarting, your run is saved" (D11)
+**And** when everyone leaves during a **build phase**, it counts as Save and quit
+**And** when everyone leaves or times out **mid-wave**, the run is **lost** (Results "Lost in the city") and its snapshot is deleted: no retrying a wave by quitting before a wipe
 
 **Given** snapshots
 **When** Vitest runs
@@ -2771,7 +2785,11 @@ So that we can finish it another night.
 **Given** a build phase
 **When** the host taps Save and quit in the in-run menu (Story 2.11) and confirms
 **Then** held ghosts are put away, pending placements resolve first, and the undo/take-back window closes (on resume, buildings count as placed in an earlier phase)
-**And** the run is saved with `expires` = now + 7 days, every player sees "Run saved, the host can resume it for 7 days", and the room closes (FR75)
+**And** the run is saved with `expires` = now + 7 days, every player sees "Run saved. Anyone from this run can resume it for 7 days.", and the room closes (FR75, D12)
+
+**Given** a player who is not the host
+**When** they open the in-run menu
+**Then** they can Leave on their own at any time, but not Save and quit
 
 **Given** a wave in progress
 **When** the host looks for Save and quit
@@ -2779,28 +2797,34 @@ So that we can finish it another night.
 
 ### Story 8.6: Resume a saved run
 
-As a host,
+As a player,
 I want to pick up a saved run with whoever is around,
 So that we finish what we started.
 
 **Acceptance Criteria:**
 
-**Given** the host's account has saved runs that haven't expired
-**When** the host opens the start screen
-**Then** a "Saved games" list shows each with district, wave and save date
+**Given** my account was in saved runs that haven't expired (at most 3 per account; a 4th drops the oldest)
+**When** I open the start screen
+**Then** a "Saved games" list shows each with district, wave, players and save date (D13)
 
-**Given** the host taps Resume
+**Given** I tap Resume
 **When** the room is created
-**Then** a new lobby with a new code opens; any friends can join; only the host's account can start it (FR75)
+**Then** a new lobby with a new code opens, I am its host, any friends can join, and I start it (FR75)
+**And** a run can be open in only one room at a time (a second Resume says "This run is already being played")
 
 **Given** the resumed run starts
 **When** the World is rebuilt
-**Then** decay stages 1…N are re-applied to the map without side effects (no destruction, refunds or events), then buildings and players are restored from the snapshot, and the run continues at the saved build phase
-**And** returning players get their saved slot back by account; new players join with the team's average currency; wave size uses the new player count
+**Then** decay stages 1…N are re-applied to the map without side effects (no destruction, refunds or events), then buildings and seats are restored from the snapshot, and the run continues at the saved build phase with a fresh build timer
+**And** returning accounts get their own seat back; newcomers join with Story 8.2's money; wave size uses the new player count (solo × 0.4) (D14)
+**And** missing players' seats wait in the save for a later night; their buildings stay and are repairable, but their turrets pay nobody
 
-**Given** a snapshot whose schema version is older than the server's
+**Given** a snapshot from an older game version
 **When** it is resumed
-**Then** it is migrated if a migration exists, or the host sees "This save is from an older version and can't be resumed"
+**Then** balance changes never block it; a snapshot whose schema version is older is migrated, and a test fails if the schema version is bumped without a migration
+
+**Given** a run that ends (won, extracted, wiped)
+**When** Results show
+**Then** its save is deleted
 
 ### Story 8.7: Pings
 
@@ -2812,11 +2836,11 @@ So that we can coordinate without voice chat.
 
 **Given** the ping button (top-right or by the minimap, clear of the build bar and hand cluster; hidden while I hold a building)
 **When** I tap it
-**Then** a small wheel offers Help! · Over here · Brute! · Ready (FR76); on desktop the F key opens it
+**Then** a small wheel offers Help! · Over here · Big one! · Ready (FR76, D15; "Big one!" covers the Brute and the Behemoth); on desktop the F key opens it; downed players can ping
 
 **Given** I choose a ping
 **When** it is sent (`ping.send`, max 1 per second per player)
-**Then** every teammate sees its icon and my color at my position for 4 s, with an edge arrow when off screen, and a short sound; pings draw above the blackout darkness
+**Then** every teammate sees its icon in my color pinned where I sent it for 4 s, with an edge arrow when off screen, and a short sound; a new ping replaces my previous one; pings draw above the blackout darkness
 
 ## Epic 9: Dead City art and audio
 

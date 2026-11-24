@@ -98,7 +98,11 @@ export class PopPool {
   readonly amount: Float32Array;
   private next = 0;
 
-  constructor(readonly capacity: number) {
+  /** Story 5.20: `lifeMs` (default the fire pop's 900 ms) lets the sold "+$N" use the same pool. */
+  constructor(
+    readonly capacity: number,
+    readonly lifeMs: number = FIRE_POP_MS,
+  ) {
     this.startMs = new Float64Array(capacity).fill(-Infinity);
     this.amount = new Float32Array(capacity);
   }
@@ -132,12 +136,12 @@ export class PopPool {
 
   alive(i: number, nowMs: number): boolean {
     const t = nowMs - (this.startMs[i] as number);
-    return t >= 0 && t < FIRE_POP_MS;
+    return t >= 0 && t < this.lifeMs;
   }
 
   /** 0 → 1 over the pop's life (≥ 1 when gone). */
   progress(i: number, nowMs: number): number {
-    return (nowMs - (this.startMs[i] as number)) / FIRE_POP_MS;
+    return (nowMs - (this.startMs[i] as number)) / this.lifeMs;
   }
 
   clear(): void {

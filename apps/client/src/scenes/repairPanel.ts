@@ -1,4 +1,5 @@
-import { buildingAtPoint, buildingById, buildingStats, repairCost, repairError, upgradeError, upgradeStep, type RepairError, type UpgradeError, type World } from "@topdown/shared";
+import { buildingAtPoint, buildingById, buildingStats, repairCost, repairError, sellError, sellRefundFor, upgradeError, upgradeStep, type RepairError, type SellError, type UpgradeError, type World } from "@topdown/shared";
+import { NOT_ALIVE_TEXT } from "./placement";
 
 /** A tap this close to a building (m, each side of its footprint) selects it: a 0.5 m barricade is thin under a finger. */
 export const BUILDING_TAP_TOLERANCE_M = 0.4;
@@ -14,6 +15,8 @@ export function repairRefusalText(e: RepairError): string {
       return "Only during the build phase";
     case "gone":
       return "That building is gone";
+    case "not_alive":
+      return NOT_ALIVE_TEXT;
     case "unknown_player":
       return "Can't repair that";
   }
@@ -32,9 +35,35 @@ export function upgradeRefusalText(e: UpgradeError): string {
       return "Only during the build phase";
     case "gone":
       return "That building is gone";
+    case "not_alive":
+      return NOT_ALIVE_TEXT;
     case "unknown_player":
       return "Can't upgrade that";
   }
+}
+
+/** Player text for a refused (or predicted-refused) take back / sell (Story 5.20). */
+export function sellRefusalText(e: SellError): string {
+  switch (e) {
+    case "not_owner":
+      return "Only its builder can sell it";
+    case "not_build_phase":
+      return "Only during the build phase";
+    case "gone":
+      return "That building is gone";
+    case "not_alive":
+      return NOT_ALIVE_TEXT;
+    case "unknown_player":
+      return "Can't sell that";
+  }
+}
+
+/**
+ * Story 5.20 (AC 8, for 5.21's action bar too): "Take back +$40" for a building I paid for in this
+ * build phase only, else "Sell +$20" (the predicted refund; the server's answer is what lands).
+ */
+export function sellLabel(refund: number, takeBack: boolean): string {
+  return `${takeBack ? "Take back" : "Sell"} +$${refund}`;
 }
 
 /**
@@ -75,6 +104,17 @@ export class RepairPanel {
   private shownPending = false;
   private shownType = "";
   private shownUpgradeError: UpgradeError | null | undefined = undefined;
+  /**
+   * Story 5.20 (AC 8): the Sell button, only on MY buildings (F3: absent on a teammate's). `sellLabel`
+   * "Take back +$40" (all of it paid this build phase) or "Sell +$20" (the predicted refund);
+   * `sellReason` why it would be refused now ("" = it would be accepted).
+   */
+  sellShown = false;
+  sellLabelText = "";
+  sellReason = "";
+  sellErrorNow: SellError | null = null;
+  private shownRefund = -1;
+  private shownTakeBack: boolean | null = null;
   /** `world.waves.number` when the panel opened (a new wave closes it, even one a hidden tab slept through). */
   private openedAtWave = -1;
 
@@ -114,6 +154,14 @@ export class RepairPanel {
     return this.pendingFrom !== null;
   }
 
+  /** Story 5.20: Sell / Take back: the id to send (0 = nothing: closed, not mine, or refused now); the panel closes when it sends. */
+  pressSell(): number {
+    if (this.id === 0 || !this.sellShown || this.sellErrorNow !== null) return 0;
+    const id = this.id;
+    this.id = 0;
+    return id;
+  }
+
   /** Repair: the id to send (0 when closed); the panel closes either way. */
   press(): number {
     const id = this.id;
@@ -125,7 +173,7 @@ export class RepairPanel {
    * Once per frame. `allowed`: a build phase, a run on screen, no placement, shop or menu. `ownerName`
    * gives a teammate's display name (only called when the texts change). Returns whether it is open.
    */
-  update(world: Readonly<World>, playerId: string, allowed: boolean, ownerName: (ownerId: string) => string): boolean {
+  update(world: Readonly<World>, playerId: string, allowed: boolean, ownerName: (ownerId: string) => string, spentOn: (id: number) => number = () => 0): boolean {
     if (this.id === 0) return false;
     // A hidden tab can sleep through a whole wave (3.7 review): the panel belongs to one build phase.
     if (world.waves.number !== this.openedAtWave) {
@@ -143,6 +191,21 @@ export class RepairPanel {
     this.upgradeErrorNow = step ? upgradeError(world, playerId, b.id) : null;
     this.upgradeShown = pending || step !== null;
     this.error = repairError(world, playerId, b.id);
+    // Story 5.20: Sell on my own buildings; the refund the server will give (F2: the tier price is
+    // everything paid, 5.9's ladder rule; what I paid this phase comes back whole).
+    const mine = b.ownerId === playerId;
+    this.sellShown = mine;
+    this.sellErrorNow = mine ? sellError(world, playerId, b.id) : null;
+    const paid = buildingStats(world.balance, b.type)?.price ?? 0;
+    const spent = mine ? Math.min(paid, spentOn(b.id)) : 0;
+    const refund = sellRefundFor(world.balance.buildings.sellShare, paid, spent);
+    const takeBack = spent >= paid && paid > 0;
+    if (refund !== this.shownRefund || takeBack !== this.shownTakeBack) {
+      this.shownRefund = refund;
+      this.shownTakeBack = takeBack;
+      this.sellLabelText = sellLabel(refund, takeBack);
+    }
+    this.sellReason = this.sellErrorNow === null ? "" : sellRefusalText(this.sellErrorNow);
     const cost = repairCost(world.balance, b.type);
     const hp = Math.ceil(b.hp);
     if (
@@ -163,7 +226,6 @@ export class RepairPanel {
       this.shownMaxHp = b.maxHp;
       this.shownCost = cost;
       this.shownError = this.error;
-      const mine = b.ownerId === playerId;
       const name = buildingStats(world.balance, b.type)?.name ?? b.type;
       this.info = `${name}${mine ? "" : ` · ${ownerName(b.ownerId)}'s`}\nHP ${hp} / ${b.maxHp}`;
       this.label = `Repair $${cost}`;
