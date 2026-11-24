@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Random City Forge</title>
+<style>
+  :root {
+    --bg: #f4efe6; --card: #fffaf2; --ink: #2a2420; --muted: #6b6159; --line: #ddd2c2;
+    --seal: #8e1f1f; --seal-dark: #5e1212; --accent: #b5651d; --ok: #2f6b3a; --warn: #9a5b00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17130f; --card: #221c17; --ink: #efe6da; --muted: #a89c8f; --line: #3a3029;
+      --seal: #b23434; --seal-dark: #7a1d1d; --accent: #e0954a; --ok: #6fbf7d; --warn: #e0a84a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17130f; --card: #221c17; --ink: #efe6da; --muted: #a89c8f; --line: #3a3029;
+    --seal: #b23434; --seal-dark: #7a1d1d; --accent: #e0954a; --ok: #6fbf7d; --warn: #e0a84a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 Georgia, "Iowan Old Style", "Times New Roman", serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; margin-bottom: 28px; }
+  header .t { flex: 1 1 300px; min-width: 0; }
+  h1 { font-size: 2rem; margin: 0 0 6px; line-height: 1.15; }
+  .sub { color: var(--muted); margin: 0; }
+  h2 { font-size: 1.15rem; letter-spacing: .04em; text-transform: uppercase; color: var(--accent);
+    margin: 36px 0 12px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+  ol, ul { margin: 0; padding-left: 1.3em; }
+  li { margin: 6px 0; }
+  li b { color: var(--ink); }
+  .rej li::marker { content: "✕  "; color: var(--seal); }
+  .risk li::marker { content: "⚠  "; color: var(--warn); }
+  .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+  .chk { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: .93rem; }
+  .chk span { display: inline-block; width: 1.6em; font-weight: bold; color: var(--ok); }
+  .cast { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .p { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .p .n { font-weight: bold; } .p .r { color: var(--muted); font-size: .85rem; }
+  .p q { display: block; margin-top: 8px; font-style: italic; font-size: .93rem; }
+  .ic { font-size: 1.4rem; margin-right: 6px; }
+  footer { margin-top: 40px; color: var(--muted); font-size: .85rem; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
+  svg.seal { flex: 0 0 auto; width: 170px; height: 170px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg class="seal" viewBox="0 0 200 200" role="img" aria-label="Wax seal: Hardened">
+      <defs>
+        <radialGradient id="wax" cx="40%" cy="35%" r="70%">
+          <stop offset="0%" stop-color="var(--seal)"/>
+          <stop offset="100%" stop-color="var(--seal-dark)"/>
+        </radialGradient>
+        <path id="ring" d="M100,100 m-64,0 a64,64 0 1,1 128,0 a64,64 0 1,1 -128,0"/>
+      </defs>
+      <path fill="url(#wax)" d="M100 8 C122 10 128 22 146 26 C166 30 176 46 182 64 C190 84 186 98 192 116 C196 136 180 150 168 164 C154 180 136 186 116 190 C96 194 80 188 62 182 C42 176 30 160 20 142 C10 124 8 106 12 88 C16 68 26 52 42 38 C58 22 78 6 100 8Z"/>
+      <circle cx="100" cy="100" r="74" fill="none" stroke="#f3d9c2" stroke-opacity=".45" stroke-width="2"/>
+      <circle cx="100" cy="100" r="52" fill="none" stroke="#f3d9c2" stroke-opacity=".45" stroke-width="1.5"/>
+      <text font-family="Georgia, serif" font-size="13" letter-spacing="3" fill="#f7e6d6" fill-opacity=".85">
+        <textPath href="#ring" startOffset="0">RANDOM CITY · FORGED 2026-11-24 ·</textPath>
+      </text>
+      <text x="100" y="98" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="21" fill="#fbeee2" letter-spacing="1">HARDENED</text>
+      <path d="M78 110 L100 124 L122 110" fill="none" stroke="#fbeee2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="t">
+      <h1>Random City: a map generator</h1>
+      <p class="sub">Forge session, topdown-shooter · 12 questions · outcome: <b>hardened</b>. A fully generated 70 × 70 m city each run, alongside Downtown.</p>
+    </div>
+  </header>
+
+  <h2>Locked decisions</h2>
+  <div class="card">
+    <ol>
+      <li><b>A fully generated city every run.</b> Street plan, block sizes and building footprints all come from rules. No hand-made blocks.</li>
+      <li><b>Same map format as Downtown</b> (<code>DistrictMap</code> with decay groups and <code>pick N</code>), so the engine, server, prediction and replays don't change.</li>
+      <li><b>Built from the run seed</b> in the shared code. Every phone builds the identical city, with no download.</li>
+      <li><b>70 × 70 m</b> to make room for avenues, T-junctions and dead ends. Waves get rebalanced so fights stay as dense as Downtown's.</li>
+      <li><b>Decay = generic rules + landmark recipes.</b> Cars move, cars burn, police lines, manholes and windows open; recipes add set pieces.</li>
+      <li><b>Spawns, a mix:</b> stage 1 from the city edges; from stage 2, spawns near the group open (about 15–35 m away, never within 6 m).</li>
+      <li><b>Lobby:</b> Downtown or Random city. Results shows a <b>city code</b> to replay or share.</li>
+      <li><b>Open from the start</b>, no unlock. The District 2 rule is unchanged.</li>
+      <li><b>First version:</b> generic city + <b>one recipe, the gas station</b> (kiosk, pumps, stage-2 gas leak). Art drawn by type and any size.</li>
+    </ol>
+  </div>
+
+  <h2>Every city must pass</h2>
+  <div class="checks">
+    <div class="chk"><span>A</span>Never seal off an area, at any stage or variant</div>
+    <div class="chk"><span>B</span>Every spawn can reach the players</div>
+    <div class="chk"><span>C</span>Open start area near the middle, buildable in wave 1, never hit by decay</div>
+    <div class="chk"><span>D</span>Cover spread out, with no empty 15 × 15 m square</div>
+    <div class="chk"><span>E</span>At least 2–3 choke points</div>
+    <div class="chk"><span>F</span>No spawn path that traps zombies</div>
+    <div class="chk"><span>G</span>Every street at least 3 m wide</div>
+  </div>
+  <p class="sub" style="margin-top:8px">A city that fails any check is thrown away, and the generator tries the next seed. A and B already exist as Downtown tests.</p>
+
+  <h2>Rejected</h2>
+  <div class="card rej">
+    <ul>
+      <li><b>Downtown variants only</b> and <b>cities assembled from hand-made blocks</b>: you want a fully rule-generated city.</li>
+      <li><b>Hybrid with hand-made blocks in generated lots</b>, and <b>two separate modes</b>: dropped in favour of one rule-based generator.</li>
+      <li><b>City preview with reroll</b>: extra UI, and it spoils the discovery.</li>
+      <li><b>Check H</b> (cover visible on the first screen): dropped.</li>
+    </ul>
+  </div>
+
+  <h2>Weak points that survived</h2>
+  <div class="card risk">
+    <ul>
+      <li>Waves 1–2 may feel thin on 70 × 70 while spawns are edge-only.</li>
+      <li>Retuning for 3.2× the area: the 150-alive cap gives a third of the density, and pathfinding rebuilds 19,600 cells instead of 6,144.</li>
+      <li>New players may skip Downtown, the hand-made first city.</li>
+      <li>Downtown's art looks up specific objects by name; the generated city needs everything drawn by type and any size.</li>
+    </ul>
+  </div>
+
+  <h2>Who pressure-tested it</h2>
+  <div class="cast">
+    <div class="p"><span class="ic">🏗️</span><span class="n">Winston</span> <span class="r">· System Architect (BMad)</span>
+      <q>Keep the contract. If the generator outputs the same DistrictMap, the risk is in the generator, not the engine.</q></div>
+    <div class="p"><span class="ic">📋</span><span class="n">John</span> <span class="r">· Product Manager (BMad)</span>
+      <q>Change the shape, keep the area. Density isn't the zombie count, it's how far they spawn.</q></div>
+    <div class="p"><span class="ic">🎨</span><span class="n">Sally</span> <span class="r">· UX Designer (BMad)</span>
+      <q>"There's a gas station, it's going to leak" is knowledge players can reuse across runs.</q></div>
+    <div class="p"><span class="ic">🧟</span><span class="n">Dario</span> <span class="r">· player, 15 extractions</span>
+      <q>I don't need a new city, I need to not know where the safe corner is. And let me replay the good one on Friday.</q></div>
+    <div class="p"><span class="ic">🗺️</span><span class="n">Inès</span> <span class="r">· roguelite level designer</span>
+      <q>Generic decay turns your five stages into a countdown timer. Cities pass every check and still play like an empty car park.</q></div>
+    <div class="p"><span class="ic">🧱</span><span class="n">Teo</span> <span class="r">· procedural-tools engineer</span>
+      <q>Spawns near the players mean spawn points everywhere, all reachable and fair. The generator has to guarantee it.</q></div>
+  </div>
+
+  <footer>Source files: <code>forged-idea.md</code> and <code>.memlog.md</code> in <code>_bmad-output/forge/random-map-generator/</code>. Next step: give <code>forged-idea.md</code> to <code>bmad-spec</code> or <code>gds-create-epics-and-stories</code>.</footer>
+</main>
+</body>
+</html>
