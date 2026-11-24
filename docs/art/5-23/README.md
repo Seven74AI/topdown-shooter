@@ -28,6 +28,8 @@ Measured (page state; no console or page errors in any run):
 | Right click: holding | — | — | no (put away) |
 | `2` → turret in hand; `2` again | — | — | held → put away |
 | Esc while holding → put away, menu closed; Esc again | — | — | put away, closed → menu open |
-| Ctrl+Z, `M` (no-op hooks until 5.20 / 5.21) | — | — | no error |
+| Ctrl+Z, `M` (before the 5.20 merge; Z / Ctrl+Z → 5.20's undo chip is unit-tested in `buildKeys.test.ts`; `M` stays a hook until 5.21) | — | — | no error |
+
+After merging 5.20 (master `a94f15e`), 1280 × 720: `1`, `Space`, `Esc` → 1 building; `Z` → 0 (taken back by 5.20's undo); again, then `Ctrl+Z` → 0. No page errors.
 
 Not verified: a real phone (haptics need Android Chrome and a user gesture; headless has no `navigator.vibrate` effect to observe), the sounds by ear (Web Audio placeholders run, unit-tested with a fake context), a teammate's placement online (the event path is shared and unit-tested; NetSimHost's `ageS` on `building.placed` is tested), AZERTY / QWERTZ in a real browser (the layout table is unit-tested with the `code` / `key` pairs those layouts send).

@@ -31,7 +31,7 @@ so that building with friends is readable and quick on any device.
 
 9. **Cursor follow.** In mouse mode, once the mouse has moved since the pick or the last Place, the ghost's **centre follows the cursor** (absolute, the cursor's world point; min corner snapped with the 0.1 m hysteresis; kept 1 m inside the view). Picked by a key, the ghost is carried (5.15) until the mouse moves; after a Place the chain's spot holds until the mouse moves. The chip shows the carry text while following (it isn't "pinned").
 10. **Keys.** `1`–`7` (top row or numpad) pick build-bar tile 1–7 (same cap / money rules and toasts as a tap; no 300 ms quiet window for keys); the **same number again puts it away**, another number swaps to that item. `R` rotates 90° clockwise; the **mouse wheel** rotates one step per notch (down clockwise, up counter-clockwise; ≤ 1 step / 150 ms). **Left click** (not on a HUD button) or **`Space`** places; **right click** or **`Esc`** puts away (Esc while holding never opens the menu; the next Esc does). Keys only act in a build phase while placing is possible.
-11. **Undo.** **`Ctrl+Z` / `Cmd+Z`** (by the layout's letter Z, so AZERTY works) and a **plain `Z`** where that key isn't already a game key (QWERTY `KeyZ`, QWERTZ `KeyY`; on AZERTY the Z key is `KeyW` = walk up, so plain Z walks there and Ctrl+Z undoes) trigger undo. 5.20 isn't on master: the key reaches a no-op hook `GameScene.onUndoKey()` (merge note: set 5.20's `hudModel.undoPressed`).
+11. **Undo.** **`Ctrl+Z` / `Cmd+Z`** (by the layout's letter Z, so AZERTY works) and a **plain `Z`** where that key isn't already a game key (QWERTY `KeyZ`, QWERTZ `KeyY`; on AZERTY the Z key is `KeyW` = walk up, so plain Z walks there and Ctrl+Z undoes) press **5.20's undo chip ↶** (`hudModel.undoPressed`; the chip ignores it when nothing can be undone). (Main session 2026-11-24: 5.20 landed on master `a94f15e` during the build; merged, the first no-op hook replaced.)
 12. **`M`** (by the layout's letter M) picks up the selected building: 5.21 isn't merged, so it reaches a no-op hook `GameScene.onPickUpKey()` with a TODO for 5.21.
 13. **Key map.** Every new binding is in `keyMap.ts` (by `event.code`, plus the letter bindings by `event.key` for Z and M); no binding collides with WASD/arrows, `Q` swap, **`E` consumable (5.12)** or `Esc` menu on QWERTY, AZERTY or QWERTZ (table test). `Space` and digits prevent the browser default (page scroll) only when bound.
 
@@ -117,7 +117,7 @@ None of the sim copies. `controls.json › fx` gains two client-only caps. `SimE
 
 ## Notes for the merge (brief line 19)
 
-- **5.20**: `GameScene.onUndoKey()` → set `this.hudModel.undoPressed = true` (the undo chip's own path then runs). The undo chip's layout isn't touched here.
+- **5.20** (merged, master `a94f15e`): Z / Ctrl+Z set `hudModel.undoPressed` through `scenes/buildKeys.ts › routeBuildKeys` (the undo chip's own path runs). The undo chip's layout isn't touched here.
 - **5.21/5.22**: `GameScene.onPickUpKey()` → the action bar's Move ✥ for the selected building. A picked-up building may reuse `Placement.pointAt` for the mouse.
 - `controls.json › fx`: `maxPlaceDust`, `maxOwnerTabs` appended (5.20 edits `controls.json › build`: different block).
 - `scenes/placement.ts`: `Placement.pointAt`, `rotate(ccw)`, `resting`; `PlacementHud.rotateCcwPressed?`; `PlacementFrame.cursorX?/cursorY?/refused?`.
@@ -135,6 +135,8 @@ Claude (builder cloud session, 2026-11-24).
 - Mutations (brief 9), one per new test / hook, each run against its test file: **21/21 killed** (`placeSoundKind` floor rule, pick-pop curve, puff count, a stale tab taking a slot*, haptics setting, wheel gap, code-before-letter precedence, auto-repeat edge, Ctrl+Shift+Z, `mouseMoves` on the same spot, `pointAt` continuous clamp*, `resting` set, `resting` clear rule, chip side reset, follow skipped in the Place frame, the local refusal hook, ccw turn, timeout buzz, NetSimHost `ageS`, placed-sound rate limit, `maxPlaceDust` schema default). *First survived (a second mechanism covered them); a test reaching each was added: a full tab pool keeps its live tabs; a cursor far outside the view still lands 1 m inside.
 - Browser check (own Vite :5323, solo `?wallet=5000`): touch (CDP) at 800 × 360 and 568 × 320, mouse + keys at 1280 × 720; numbers and screenshots in `docs/art/5-23/README.md`; no console or page errors.
 
+- After merging master `ddcb1cf` (5.20) and wiring undo: full gate exit 0, **301 test files passed, 1 skipped; 2494 tests passed, 3 skipped**, build OK (load 2.7 → 3.6); `buildKeys.test.ts` mutation (undo while blocked) killed (22/22); browser: Z and Ctrl+Z each took back the building just placed (1 → 0).
+
 ### Completion Notes List
 
 - **Feel (BX-9):** `render/placeFeel.ts` (rules and curves), `render/placeFxPools.ts` (dust 64 / tabs 12, typed arrays, oldest reused), `render/PlaceFxView.ts` (dust, 3 s owner tabs, build-phase owner dots; one Graphics each, redrawn only while live / on change). `BuildingView` lifts a placed sprite 0.15 m → 0 in 120 ms (shadow stays; turret plate doesn't drop, D5), scales the preview 0.8 → 1 in 120 ms on a pick, and draws the resting ghost. Feel plays on `building.placed` (server / sim), never on the press; a teammate's beyond 12 m at × 0.4, panned; at most one placed sound per kind per frame (and per 50 ms in the audio module). New placeholder sounds through the one audio module: pick click, thunk, clank, click, buzz (`playSfx` gained a `volume`).
@@ -142,7 +144,7 @@ Claude (builder cloud session, 2026-11-24).
 - **Stale events:** NetSimHost sets the client-only `ageS` on `building.placed` (type-only addition in `simEvents.ts`; never encoded). > 1 s or a hidden tab: no sound / haptic / dust; the tab shows for what is left of its 3 s.
 - **5.18 Q1 (D10):** `Placement.resting` — after a blocked chain the carried ghost is faded white while only a building / my pending box blocks it (no red, hatch, ✕, culprit; label on the reason line; Place's ring stays normal); first clear or other-cause frame ends it for the hold.
 - **5.19 L5 (D11):** "↩ carry" resets the drag side; automatic returns keep it.
-- **Mouse + keys (BX-11):** `keyMap.ts` (R, Space, Digit/Numpad 1–7; letters z/m by `event.key` only when the code is free), `KeyboardMouse` latches, `desktopInput` lets Ctrl/Cmd+Z through (not Shift), `wheelRotate.ts`, HudScene (left press off the buttons = Place, right = put away, wheel), GameScene (`buildKeys`, `keyPick` with same-key put-away / swap, Esc puts away first, cursor follow via `InputRouter.mouseMoves` + `Placement.pointAt`). `onUndoKey()` / `onPickUpKey()` are no-op hooks (5.20 / 5.21 not on master; see Notes for the merge). E stays the consumable (layout table test: QWERTY, AZERTY, QWERTZ).
+- **Mouse + keys (BX-11):** `keyMap.ts` (R, Space, Digit/Numpad 1–7; letters z/m by `event.key` only when the code is free), `KeyboardMouse` latches, `desktopInput` lets Ctrl/Cmd+Z through (not Shift), `wheelRotate.ts`, HudScene (left press off the buttons = Place, right = put away, wheel), GameScene (`buildKeys`, `keyPick` with same-key put-away / swap, Esc puts away first, cursor follow via `InputRouter.mouseMoves` + `Placement.pointAt`). Z / Ctrl+Z press 5.20's undo chip (`routeBuildKeys` → `hudModel.undoPressed`; merged master `a94f15e`); `onPickUpKey()` stays a no-op hook (5.21 not merged). E stays the consumable (layout table test: QWERTY, AZERTY, QWERTZ).
 - **Copies (brief 2):** no sim copy touched; 0 B/s added (brief 11). Brief 12: pools capped from `controls.json › fx`; no per-frame allocation (typed arrays, reused scratch). Brief 20: no new texture.
 - Not verified: a real phone (haptics, finger feel), sounds by ear, an online teammate's placement (shared event path, unit-tested), real AZERTY/QWERTZ keyboards (unit-tested with their code/key pairs). The `building.placed` age test sits in `NetSimHost.brute.test.ts` (it reuses that file's room rig).
 
@@ -153,11 +155,12 @@ Claude (builder cloud session, 2026-11-24).
 - `apps/client/src/render/placeFeel.ts` (+test), `placeFxPools.ts` (+test), `PlaceFxView.ts` (new); `BuildingView.ts`, `BlockReasonView.ts`
 - `apps/client/src/audio/haptics.ts` (+test), `placeSfx.test.ts` (new), `placeholderSfx.ts`; `settings/settings.ts`
 - `apps/client/src/input/keyMap.ts` (+`keyMap.test.ts` new), `KeyboardMouse.ts`, `InputRouter.ts`, `desktopInput.ts`, `wheelRotate.ts` (+test)
-- `apps/client/src/scenes/placement.ts`, `placement.feel.test.ts` (new), `pendingFlow.ts` (+test), `GameScene.ts`, `HudScene.ts`, `hudModel.ts`
+- `apps/client/src/scenes/buildKeys.ts` (+test, new), `placement.ts`, `placement.feel.test.ts` (new), `pendingFlow.ts` (+test), `GameScene.ts`, `HudScene.ts`, `hudModel.ts`
 - `apps/client/src/sim/NetSimHost.ts`, `NetSimHost.brute.test.ts`
 - `docs/art/5-23/` (README + 11 screenshots)
 
 ### Change Log
 
 - 2026-11-24: Story file written (5.23 + 5.25 merged), ready-for-dev.
+- 2026-11-24: Merged master `ddcb1cf` (5.20 take back / sell / undo, Epic 8 docs); Z / Ctrl+Z wired to 5.20's undo chip via `scenes/buildKeys.ts` (+test; mutation killed); full gate re-run on the merged tree (see Debug Log).
 - 2026-11-24: Built (feel, owner marks, resting chain ghost, chip side reset, mouse + keys, undo / pick-up hooks); gate green; 21/21 mutations killed; browser check at 800 × 360, 568 × 320, 1280 × 720. Status → review.

@@ -86,6 +86,7 @@ import { MedStationView } from "../render/MedStationView";
 import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
 import { PlaceFxView } from "../render/PlaceFxView";
+import { routeBuildKeys, type BuildKeysOut } from "./buildKeys";
 import { PLACED_HAPTIC_MS, REFUSED_HAPTIC, freshPlace, pickPopScale, placeSoundKind, placeVolume, type PlaceSoundKind } from "../render/placeFeel";
 import { vibrate } from "../audio/haptics";
 import { placementHintText, type HintContext } from "./blockText";
@@ -313,6 +314,8 @@ export class GameScene extends Phaser.Scene {
   private anchorPicks = 0;
   private seenPlaces = 0;
   /** Story 5.23 (D4): placed sounds already played this frame, by kind (at most one each). */
+  /** Story 5.23: the building keys' reused answer. */
+  private readonly buildKeysOut: BuildKeysOut = { slot: -1, pickUp: false };
   private readonly feelBox: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   private readonly placedSoundsThisFrame: Record<PlaceSoundKind, boolean> = { thunk: false, clank: false, click: false };
   /** Story 5.23 (AC 3, D8): a refusal of my placement: a dull buzz + 30-40-30 ms (the visual twin: the shaking box / the toast). */
@@ -1074,34 +1077,11 @@ export class GameScene extends Phaser.Scene {
     if (mine) vibrate(PLACED_HAPTIC_MS);
   }
 
-  /**
-   * Story 5.23 (AC 10–12): the building keys, once per frame before the placement step. Every latch
-   * is taken each frame, so a press in a wave or under the menu never fires later. R and Space act
-   * only while holding (⟳ and Place); `1`–`7` pick a tile (`keyPick`); Z and M reach their hooks.
-   */
+  /** Story 5.23 (AC 10–12): the building keys, once per frame before the placement step (`routeBuildKeys`). */
   private buildKeys(host: SceneHost, router: InputRouter, blocked: boolean): void {
-    const kb = router.kbm;
-    const rotate = kb.takeRotate();
-    const place = kb.takePlace();
-    const slot = kb.takeBuild();
-    const undo = kb.takeUndo();
-    const pickUp = kb.takePickUp();
-    const m = this.hudModel;
-    if (this.placement.active && !blocked) {
-      if (rotate) m.rotatePressed = true;
-      if (place) m.confirmPressed = true;
-    }
-    if (slot >= 0) this.keyPick(host, slot, blocked);
-    if (undo && !blocked) this.onUndoKey();
-    if (pickUp && !blocked) this.onPickUpKey();
-  }
-
-  /**
-   * Story 5.23 (AC 11, D15): Z / Ctrl+Z. Story 5.20 (the undo chip) isn't on master yet.
-   * TODO(5.20 merge): `this.hudModel.undoPressed = true;` (the undo chip's own path then runs).
-   */
-  private onUndoKey(): void {
-    // no-op until 5.20 lands
+    const k = routeBuildKeys(router.kbm, this.hudModel, this.placement.active, blocked, this.buildKeysOut);
+    if (k.slot >= 0) this.keyPick(host, k.slot, blocked);
+    if (k.pickUp) this.onPickUpKey();
   }
 
   /**
