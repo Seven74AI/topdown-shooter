@@ -41,11 +41,12 @@ describe("ghostError (Story 5.24)", () => {
     p0.status = "alive";
     expect(ghostError(world, "p0", { type: "nope", gx: at(2), gy, rot: 0 })).toBe("unknown_type");
     // B4: the far side of the map (the view is 24 × 13.5 m wide at most, + 1 m)
-    expect(ghostError(world, "p0", { type: "wood_barricade", gx: at(14), gy, rot: 0 })).toBe("out_of_view");
+    expect(ghostError(world, "p0", { type: "wood_barricade", gx: at(16), gy, rot: 0 })).toBe("out_of_view");
     expect(ghostError(world, "p0", { type: "wood_barricade", gx: at(-20), gy, rot: 0 })).toBe("out_of_view"); // the view is clamped at the map edge: it sees farther left
-    expect(ghostError(world, "p0", { type: "wood_barricade", gx: at(2), gy: gy + Math.round(9 / BUILD_GRID_M), rot: 0 })).toBe("out_of_view");
-    // a pinned ghost near my view's edge still goes (12 m: the half width)
+    expect(ghostError(world, "p0", { type: "wood_barricade", gx: at(2), gy: gy + Math.round(10 / BUILD_GRID_M), rot: 0 })).toBe("out_of_view");
+    // a pinned ghost near my view's edge still goes (12 m: the half width), also 1.4 m past it (review L1: prediction lead)
     expect(ghostError(world, "p0", { type: "wood_barricade", gx: at(11), gy, rot: 0 })).toBeNull();
+    expect(ghostError(world, "p0", { type: "wood_barricade", gx: at(12.4), gy, rot: 0 })).toBeNull();
     // B3: never in a wave
     startWave(world);
     expect(ghostError(world, "p0", { type: "wood_barricade", gx: at(2), gy, rot: 0 })).toBe("not_build_phase");

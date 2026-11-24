@@ -14,9 +14,11 @@ export type GhostError = "unknown_player" | "not_alive" | "not_build_phase" | "u
 
 /**
  * D4: the footprint centre must be inside the sender's own view (the widest camera view, clamped like
- * the camera: `viewRect`) plus this margin (m): a carried or pinned ghost is never farther.
+ * the camera: `viewRect`) plus this margin (m): a carried or pinned ghost is never farther. Review L1:
+ * 2 m, because the server checks against its own (older) position of the sender while the client
+ * predicts ahead (0.7–1.4 m at `?lag=150`), so an honest pinned ghost at the view's edge still passes.
  */
-export const GHOST_VIEW_MARGIN_M = 1;
+export const GHOST_VIEW_MARGIN_M = 2;
 
 /** A ghost as sent (`type: ""` = the sender's hand is empty). */
 export interface GhostRequest {

@@ -63,6 +63,20 @@ export class TeammateGhosts {
 }
 
 /**
+ * Story 5.24 (review L3): the receiver's rule for one slot this frame. Outside a build phase every
+ * ghost is cleared (F7b: never outside build) and none is shown; my own slot is never shown; else the
+ * slot's live entry (or null). Call once per slot per frame.
+ */
+export function teammateGhostFor(ghosts: TeammateGhosts | null, build: boolean, slot: number, localSlot: number): Readonly<GhostEntry> | null {
+  if (!ghosts) return null;
+  if (!build) {
+    ghosts.clearAll();
+    return null;
+  }
+  return slot === localSlot ? null : ghosts.live(slot);
+}
+
+/**
  * Story 5.24 (AC 2, D2): when my client sends `building.ghost`. A change goes out at most every
  * `GHOST_MIN_INTERVAL_MS` (a change inside the gap goes when it ends, so the last spot arrives), an
  * unchanged held ghost every `GHOST_KEEPALIVE_MS`, and one `""` when my hand empties. Outside a

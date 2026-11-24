@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getMessageBytes, Protocol } from "@colyseus/core";
+import { MAX_GHOST_MESSAGES_PER_S } from "../net/limits";
 import { GHOST_KEEPALIVE_MS, GHOST_MIN_INTERVAL_MS, S2C, buildingTypeIds, loadBalance, type BuildingGhosted } from "@topdown/shared";
 
 const balance = loadBalance();
@@ -23,5 +24,8 @@ describe("teammate ghost bandwidth (Story 5.24, AC 7, brief 11)", () => {
     expect(big).toBeLessThanOrEqual(32);
     expect(worstBps).toBeLessThanOrEqual(BUDGET_BPS);
     expect(stillBps).toBeLessThan(worstBps);
+    // review L2: three modified clients flooding at the guard's ghost bucket rate still fit the budget
+    const floodBps = 3 * MAX_GHOST_MESSAGES_PER_S * big;
+    expect(floodBps).toBeLessThanOrEqual(BUDGET_BPS);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GHOST_KEEPALIVE_MS, GHOST_MIN_INTERVAL_MS, GHOST_TIMEOUT_MS } from "@topdown/shared";
-import { GhostSender, TeammateGhosts } from "./teammateGhosts";
+import { GhostSender, TeammateGhosts, teammateGhostFor } from "./teammateGhosts";
 
 describe("TeammateGhosts (Story 5.24)", () => {
   it("keeps the latest ghost per slot; hidden on a clear, after the timeout, on clearSlot / clearAll", () => {
@@ -63,5 +63,21 @@ describe("GhostSender (Story 5.24, AC 2)", () => {
     expect(s.step(2000, false, "", 0, 0, 0)).toBe(false);
     expect(s.step(3000, true, "", 0, 0, 0)).toBe(false); // the next build, empty hands: nothing
     expect(s.step(3100, true, "mine", 1, 1, 0)).toBe(true);
+  });
+});
+
+describe("teammateGhostFor (Story 5.24, review L3)", () => {
+  it("shows a teammate's live ghost in a build phase, never my own slot; outside build clears all and shows none", () => {
+    const g = new TeammateGhosts(() => 0);
+    g.receive([0, 1, 5, 5, 0]);
+    g.receive([2, 3, 6, 6, 1]);
+    expect(teammateGhostFor(g, true, 0, 1)).toMatchObject({ typeIdx: 1, gx: 5 });
+    expect(teammateGhostFor(g, true, 2, 2)).toBeNull(); // mine (a relay never comes back, but never drawn)
+    expect(teammateGhostFor(g, true, 3, 1)).toBeNull(); // nothing held
+    expect(teammateGhostFor(null, true, 0, 1)).toBeNull(); // solo
+    expect(teammateGhostFor(g, false, 0, 1)).toBeNull();
+    expect(g.live(0)).toBeNull(); // cleared: back in a build phase it doesn't come back
+    expect(g.live(2)).toBeNull();
+    expect(teammateGhostFor(g, true, 0, 1)).toBeNull();
   });
 });

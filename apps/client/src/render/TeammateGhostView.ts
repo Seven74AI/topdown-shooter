@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import { MAX_PLAYERS, buildingStats, buildingTypeIds, footprint, type Box, type World } from "@topdown/shared";
-import type { TeammateGhosts } from "../net/teammateGhosts";
+import { teammateGhostFor, type TeammateGhosts } from "../net/teammateGhosts";
 import type { HudModel } from "../scenes/hudModel";
 import { dashedRect } from "./dashes";
 import { ghostLabel, glideGhost, hideGhostGlide, newGhostGlide, type GhostGlide } from "./ghostGlide";
@@ -42,12 +42,11 @@ export class TeammateGhostView {
   /** `localSlot`: mine (never drawn); `nameOf(slot)`: the sender's display name. */
   update(world: Readonly<World>, ghosts: TeammateGhosts | null, localSlot: number, nameOf: (slot: number) => string, dtMs: number, m: HudModel): void {
     const build = world.run.phase === "build";
-    if (ghosts && !build) ghosts.clearAll(); // F7b: never outside a build phase
     const ids = buildingTypeIds(world.balance);
     for (let slot = 0; slot < MAX_PLAYERS; slot++) {
       const g = this.gfx[slot] as Phaser.GameObjects.Graphics;
       const glide = this.glide[slot] as GhostGlide;
-      const e = ghosts && build && slot !== localSlot ? ghosts.live(slot) : null;
+      const e = teammateGhostFor(ghosts, build, slot, localSlot); // F7b + never mine (review L3)
       const type = e ? ids[e.typeIdx] : undefined;
       const stats = type !== undefined ? buildingStats(world.balance, type) : undefined;
       if (!e || !stats) {
