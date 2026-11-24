@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance } from "../config/balance";
+import { bundledBalanceFiles, loadBalance, withOverrides } from "../config/balance";
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt } from "../buildings/buildings";
 import { circleOverlapsBox } from "../buildings/collision";
@@ -66,15 +66,22 @@ describe("Story 6.5 boss pathing (DD2)", () => {
     expect(minD).toBeLessThan(10); // it came to the mouth
   });
 
-  it("a target it can't reach at all (the north-west alley): it stands, never clips into a box", () => {
+  it("a target in a pocket it can't reach at all (the north-west alley): it walks to the nearest spot it can reach (never stands forever, never clips)", () => {
     const w = setup();
     addPlayer(w, "p0", 9.5, 4);
     placeBoss(w, 34, 12);
     noAttacks(w);
-    for (let t = 0; t < 20 * 20; t++) {
+    const d0 = Math.hypot(34 - 9.5, 12 - 4);
+    let moved = 0;
+    for (let t = 0; t < 30 * 20; t++) {
+      const x = w.boss.x;
       tickN(w);
+      moved += Math.abs(w.boss.x - x);
       expect(inBox(w.boss.x, w.boss.y, R, w.obstacles.solids)).toBe(false);
     }
+    expect(w.pathing.bossChase.seedFar).toBe(true); // the fallback took over
+    expect(moved).toBeGreaterThan(3);
+    expect(Math.hypot(w.boss.x - 9.5, w.boss.y - 4)).toBeLessThan(d0 - 3); // closer than it started
   });
 
   it("the boss field idles without a boss (no rebuilds, no share of the ticks)", () => {
@@ -160,8 +167,13 @@ describe("Story 6.5 D1: its body pushes players out; zombies too", () => {
     expect(Math.hypot(p.x - w.boss.x, p.y - w.boss.y)).toBeGreaterThanOrEqual(R + p.radiusM - 1e-6);
   });
 
-  it("zombies overlapping its body are pushed out of it (the boss never is)", () => {
-    const w = setup(createWorld({ balance, seed: 1 }).map);
+  it("bodyPushZombies (off by default: zombies walk under it); on: zombies overlapping its body are pushed out of it (the boss never is)", () => {
+    expect(balance.boss.bodyPushZombies).toBe(false);
+    const raw = withOverrides(bundledBalanceFiles(), []);
+    (raw.boss as { bodyPushZombies: boolean }).bodyPushZombies = true;
+    const on = loadBalance(raw);
+    const w = createWorld({ balance: on, seed: 11, systems: { waves: () => {} } });
+    w.debug.godMode = true;
     addPlayer(w, "p0", 40, 16);
     placeBoss(w, 24, 16);
     noAttacks(w);

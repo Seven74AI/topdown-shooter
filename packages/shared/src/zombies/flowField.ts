@@ -151,6 +151,12 @@ export interface FlowField {
    */
   seedOnly: string | null;
   seedRings: number;
+  /**
+   * Story 6.5: the target can't be reached (it hides in a pocket narrower than the boss): seed every
+   * free cell within `FAR_SEED_RINGS` of it by distance, with no line-of-sight check, so the boss walks
+   * to the reachable spot nearest it instead of standing still (and blocking the horde) forever.
+   */
+  seedFar: boolean;
 }
 
 /**
@@ -276,6 +282,7 @@ export function createFlowField(nav: NavGrid, fillPenalty: FlowField["fillPenalt
     rebuilds: 0,
     seedOnly: null,
     seedRings: 0,
+    seedFar: false,
   };
 }
 
@@ -319,6 +326,9 @@ export function createPathingState(map: DistrictBounds & { readonly solids?: rea
     bossActive: false,
   };
 }
+
+/** Story 6.5: rings (cells) the boss's fallback seeding covers round an unreachable target (the whole Downtown grid). */
+const FAR_SEED_RINGS = 96;
 
 /** Story 6.5: ticks between the starts of two boss field rebuilds (`boss.json › pathing.rebuildEveryS`: 10). */
 function bossRebuildTicks(world: Readonly<World>): number {
@@ -586,7 +596,7 @@ const seedPlayer = (p: PlayerState): void => {
   const f = seed.field as FlowField;
   const nav = seed.nav as NavGrid;
   const c = flowCellAt(nav, p.x, p.y);
-  if (nav.inflateM > 0 && nav.wallAt[c] !== 0) {
+  if (f.seedFar || (nav.inflateM > 0 && nav.wallAt[c] !== 0)) {
     seedAround(f, nav, c, p.x, p.y, seed.world as Readonly<World>);
     return;
   }
@@ -648,15 +658,16 @@ function seedAround(f: FlowField, nav: NavGrid, c: number, px: number, py: numbe
   const cx = c % cols;
   const cy = (c - cx) / cols;
   let found = 0;
-  const rings = f.seedRings > 0 ? f.seedRings : world.balance.zombies.pathing.wideSeedRings; // Story 6.5: the boss field's own
-  for (let ring = 1; ring <= rings && (found === 0 || ring <= found + 1); ring++) {
+  const far = f.seedFar; // Story 6.5: the boss's fallback (every ring, no line check)
+  const rings = far ? FAR_SEED_RINGS : f.seedRings > 0 ? f.seedRings : world.balance.zombies.pathing.wideSeedRings; // Story 6.5: the boss field's own
+  for (let ring = far ? 0 : 1; ring <= rings && (far || found === 0 || ring <= found + 1); ring++) {
     for (let ny = Math.max(0, cy - ring); ny <= Math.min(rows - 1, cy + ring); ny++) {
       for (let nx = Math.max(0, cx - ring); nx <= Math.min(cols - 1, cx + ring); nx++) {
         if (Math.max(Math.abs(nx - cx), Math.abs(ny - cy)) !== ring) continue;
         const n = ny * cols + nx;
         if (wallAt[n] !== 0) continue;
         // Never across a map box (the other side of the parking wall is not "near" the player).
-        if (lineCrossesSolid(world, px, py, (nx + 0.5) * nav.cellM, (ny + 0.5) * nav.cellM)) continue;
+        if (!far && lineCrossesSolid(world, px, py, (nx + 0.5) * nav.cellM, (ny + 0.5) * nav.cellM)) continue;
         if (found === 0) found = ring;
         const cost = STEP_ORTHO * ring;
         if ((f.back[n] as number) <= cost) continue;
@@ -1059,6 +1070,6 @@ export function snapshotPathing(p: PathingState) {
     bossActive: p.bossActive,
     bossNavVersion: p.boss.version,
     bossNavHash: hashInts(p.boss.buildingAt) ^ hashInts(p.boss.enterCost) ^ hashBytes(p.boss.wallAt),
-    bossChase: { ...snapshotField(p.bossChase), seedOnly: p.bossChase.seedOnly },
+    bossChase: { ...snapshotField(p.bossChase), seedOnly: p.bossChase.seedOnly, seedFar: p.bossChase.seedFar },
   };
 }

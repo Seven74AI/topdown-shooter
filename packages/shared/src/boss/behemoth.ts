@@ -280,6 +280,7 @@ function walk(world: World, target: PlayerState | null): void {
     f.building = false;
     f.sourceTick = -1;
     f.buildSourceTick = -1_000_000; // rebuild from the new target at once
+    f.seedFar = false;
   }
   if (!target) return;
   const contact = bal.radiusM + target.radiusM;
@@ -287,7 +288,17 @@ function walk(world: World, target: PlayerState | null): void {
   const tdy = target.y - b.y;
   if (tdx * tdx + tdy * tdy <= contact * contact) return; // touching its target: no further
   steerPoint(world, target);
-  if (!steer.ok) return;
+  if (!steer.ok) {
+    // A finished field that doesn't reach it: the target hides where its body can't go. Rebuild in
+    // the fallback (seeded by distance round the target): it walks to the nearest spot it can reach.
+    if (!f.seedFar && f.sourceTick >= 0) {
+      f.seedFar = true;
+      f.building = false;
+      f.sourceTick = -1;
+      f.buildSourceTick = -1_000_000;
+    }
+    return;
+  }
   const dx = steer.x - b.x;
   const dy = steer.y - b.y;
   const d = Math.sqrt(dx * dx + dy * dy);
@@ -379,7 +390,7 @@ export const updateBoss: SystemFn = (world) => {
   } else updateBossAttack(world);
   if (bossBodyOn(b)) {
     crushBuildings(world);
-    shoveZombies(world);
+    if (world.balance.boss.bodyPushZombies) shoveZombies(world);
   }
   flushBossHits(world);
 };

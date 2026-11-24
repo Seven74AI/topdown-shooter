@@ -476,6 +476,7 @@ describe("Story 6.1: the full 10-wave curve", () => {
   /** A real-balance (real player scale) run with frozen zombies killed as they appear; per wave the spawn order. */
   function runOrders(players: number, opts: { runWaves?: number; startWave?: number; seed?: number } = {}) {
     const world = createWorld({ balance: balanceWith({ runWaves: opts.runWaves ?? 10 }, true), seed: opts.seed ?? 3, systems: { zombies: () => {} } });
+    world.debug.bossWaves = []; // Story 6.5: the spawn order only (the Behemoth's wave-10 rules: boss/behemoth.test.ts)
     for (let i = 0; i < players; i++) addPlayer(world, `p${i}`, 24 + i, 16).hp = 1e9;
     if (opts.startWave) world.waves.number = opts.startWave - 1;
     startBuild(world);

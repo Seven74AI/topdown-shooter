@@ -1062,6 +1062,11 @@ export const bossSchema = z
       .refine((s) => (s.pushM * 1000) / Math.round(s.pushS * TICK_RATE_HZ) <= 65535, "slam push per tick must fit knockStepMm (u16)"),
     /** D1: its body pushes players out. */
     bodyPushPlayers: z.boolean(),
+    /**
+     * AC 6: its body pushes zombies out. OFF (OPEN FOR DESIGNER): pushed-out zombies jam behind a
+     * standing Behemoth in a chokepoint and never reach the team; off, they walk under it (drawn over them).
+     */
+    bodyPushZombies: z.boolean(),
     pathing: z
       .object({
         /** Map boxes are grown by this on the boss grid (radiusM − the 0.35 m pathing limit). */
