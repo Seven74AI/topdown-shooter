@@ -157,3 +157,30 @@ describe("Story 6.8 F8: the stampede never makes the wave endless", () => {
     expect(most).toBeGreaterThan(150);
   });
 });
+
+describe("Story 6.8 brief 22: the over-cap counts against the cap that applies", () => {
+  it("170 alive: never above 150 + 30; while a Behemoth lives (cap 110): 120 alive → ≤ 140", () => {
+    for (const [boss, start, cap] of [[false, 170, 180], [true, 120, 140]] as const) {
+      const { world } = started([[3, 30.5], [4, 30.5], [5, 30.5], [6, 30.5]], 4); // 4 players: 30 Runners
+      world.debug.godMode = true;
+      if (boss) {
+        world.boss.state = 2; // BOSS_STATE.WALK (alive): maxAliveNow → boss.aliveCap 110
+        world.boss.x = 44;
+        world.boss.y = 29;
+        world.boss.hp = world.boss.maxHp = 1e9;
+        world.boss.wave = world.waves.number;
+      }
+      for (let i = 0; i < start; i++) {
+        const id = spawnZombie(world, "walker", 2 + (i % 20) * 0.8, 22.8 + Math.floor(i / 20) * 0.9, true);
+        world.zombies.hp[id] = 1e9; // the Behemoth's blows must not thin them out
+      }
+      let most = 0;
+      for (let t = 0; t < T(13); t++) {
+        tickN(world, 1);
+        most = Math.max(most, world.zombies.aliveCount);
+      }
+      expect(most, `boss ${boss}`).toBeLessThanOrEqual(cap);
+      expect(most, `boss ${boss}`).toBeGreaterThan(start); // liveness: Runners really came, up to the cap (more as others leave the far edge)
+    }
+  });
+});
