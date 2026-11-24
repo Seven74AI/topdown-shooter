@@ -23,6 +23,7 @@ function rig() {
   };
   const pending = new PendingPlacements();
   const toasts: string[] = [];
+  const buzzes: number[] = [];
   let onStep = (): void => {};
   let onBefore = (): void => {};
   const scene: PendingFlowScene = {
@@ -36,6 +37,7 @@ function rig() {
     },
     toast: (t) => toasts.push(t),
     refusalText: (e) => `refused ${e}`,
+    refused: () => buzzes.push(1), // Story 5.23 (AC 3)
   };
   const dropped = { seen: 0 };
   let now = 0;
@@ -48,6 +50,7 @@ function rig() {
     host,
     pending,
     toasts,
+    buzzes,
     log,
     refusals,
     frame,
@@ -75,15 +78,15 @@ describe("Story 5.18: runPendingFrame", () => {
     r.pending.add(REQ, 40, BOX, 0, "build", r.world.waves.number);
     r.frame(); // sent
     for (let i = 0; i < 130; i++) r.frame();
-    expect(r.toasts).toEqual([NO_ANSWER_TEXT]);
+    expect([r.toasts, r.buzzes.length]).toEqual([[NO_ANSWER_TEXT], 1]); // Story 5.23: a timeout buzzes once
     r.refusals.push("blocked");
     r.frame();
-    expect(r.toasts).toEqual([NO_ANSWER_TEXT]); // the ghost took it (D7)
+    expect([r.toasts, r.buzzes.length]).toEqual([[NO_ANSWER_TEXT], 1]); // the ghost took it (D7): no second buzz
     r.pending.add({ ...REQ, gx: 20 }, 40, BOX, 0, "build", r.world.waves.number);
     r.frame();
     r.refusals.push("money");
     r.frame();
-    expect(r.toasts).toEqual([NO_ANSWER_TEXT, "refused money"]);
+    expect([r.toasts, r.buzzes.length]).toEqual([[NO_ANSWER_TEXT, "refused money"], 2]);
     expect(r.pending.count).toBe(0);
   });
 

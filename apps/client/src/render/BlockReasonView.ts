@@ -72,7 +72,7 @@ export class BlockReasonView {
 
   private drawCulprit(world: Readonly<World>, p: Placement, drawnAt: DrawnAt): void {
     const g = this.culprit;
-    const show = p.active && p.shownError === "blocked" && p.shownHasReason;
+    const show = p.active && p.shownError === "blocked" && p.shownHasReason && !p.resting; // Story 5.23 (AC 7): no culprit while resting
     if (!show) {
       if (g.visible) g.clear().setVisible(false);
       this.shownVersion = -1;

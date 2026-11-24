@@ -6,6 +6,8 @@ export const MOUSE_MODE_CLASS = "mouse-mode";
 
 interface KeyLike extends Event {
   code: string;
+  key?: string;
+  shiftKey?: boolean;
   repeat: boolean;
   ctrlKey: boolean;
   metaKey: boolean;
@@ -30,8 +32,16 @@ function inTextField(e: Event): boolean {
 export function attachDesktopInput(router: InputRouter, win: EventTarget, doc: EventTarget & { hidden?: boolean }, gameEl: ClassListOwner | null): () => void {
   const keyDown = (ev: Event) => {
     const e = ev as KeyLike;
-    if (e.ctrlKey || e.metaKey || e.altKey || inTextField(e)) return; // browser shortcuts stay the browser's
-    if (router.keyDown(e.code, e.repeat)) e.preventDefault();
+    if (inTextField(e)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      // Story 5.23 (D15): Ctrl/Cmd + the layout's letter Z is the game's undo (AZERTY too); every other shortcut stays the browser's.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.shiftKey !== true && !e.repeat && (e.key === "z" || e.key === "Z")) {
+        router.kbm.pressUndo();
+        e.preventDefault();
+      }
+      return;
+    }
+    if (router.keyDown(e.code, e.repeat, e.key)) e.preventDefault();
   };
   const keyUp = (ev: Event) => {
     const code = (ev as KeyLike).code;

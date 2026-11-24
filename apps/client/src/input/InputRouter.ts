@@ -25,6 +25,8 @@ export class InputRouter {
   /** Where the mouse was when touch took over; it must move > MOUSE_SWITCH_PX from here to switch back. */
   private anchorX = Number.NaN;
   private anchorY = Number.NaN;
+  /** Story 5.23 (D12): mouse moves seen so far (the scene's cursor follow starts once it changes after a pick / Place). */
+  mouseMoves = 0;
   /** Called on every source change (cursor style). */
   onSourceChange: ((source: InputSource) => void) | null = null;
 
@@ -67,6 +69,7 @@ export class InputRouter {
       if (!ownedByButton) this.sticks.pointerMove(pointerId, x, y);
       return;
     }
+    if (x !== this.cursorX || y !== this.cursorY) this.mouseMoves++;
     this.cursorX = x;
     this.cursorY = y;
     if (this.source === "mouse") return;
@@ -91,9 +94,9 @@ export class InputRouter {
     if (!leftStillDown) this.kbm.leftButton = false;
   }
 
-  /** Returns true if the key is bound (the caller prevents the browser default). */
-  keyDown(code: string, repeat = false): boolean {
-    const handled = this.kbm.keyDown(code, repeat);
+  /** Returns true if the key is bound (the caller prevents the browser default). Story 5.23: `key` = the layout's letter. */
+  keyDown(code: string, repeat = false, key?: string): boolean {
+    const handled = this.kbm.keyDown(code, repeat, key);
     // Esc (the in-run menu, Story 2.11) is not play: it never switches a touch player to the mouse.
     if (handled && !repeat && keyAction(code) !== "menu") this.apply("key");
     return handled;

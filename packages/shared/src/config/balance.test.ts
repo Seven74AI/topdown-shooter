@@ -315,6 +315,15 @@ describe("Story 5.9: building tiers, traps and mines", () => {
     bad((t) => ((t.mine as { mine: { blastRadiusM: number } }).mine.blastRadiusM = 0.5), /at least triggerRadiusM/);
   });
 
+  it("Story 5.23: the placement-feel pool caps (dust, owner tabs) load and default to the JSON's values", () => {
+    expect(controls.fx).toMatchObject({ maxPlaceDust: 64, maxOwnerTabs: 12 });
+    const fxWithout: Record<string, unknown> = { ...controls.fx };
+    delete fxWithout.maxPlaceDust;
+    delete fxWithout.maxOwnerTabs;
+    expect(fxSchema.parse(fxWithout)).toMatchObject({ maxPlaceDust: 64, maxOwnerTabs: 12 });
+    expect(() => fxSchema.parse({ ...controls.fx, maxPlaceDust: 4 })).toThrow();
+  });
+
   it("Story 5.10 building blocks: light/heal validate; two behaviour blocks refused; inShop defaults true", () => {
     const t = loadBalance().buildings.types;
     expect(t.floodlight).toMatchObject({ inShop: false, forSale: true, solid: true, stopsBullets: false, light: { radiusM: 4, blackoutRadiusM: 6 } });

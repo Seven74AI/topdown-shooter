@@ -186,6 +186,16 @@ export class Placement {
   lastDragY = 0;
   /** Story 5.18: the last check failed only because it overlaps one of my pending boxes. */
   pendingOverlap = false;
+  /**
+   * Story 5.23 (AC 7, D10; 5.18 Q1): a blocked chain jump sent the ghost back to carry: it is drawn
+   * faded (not red) while only a building (my pending box or the one just built) blocks it; cleared
+   * for the rest of the hold the first frame it is clear or blocked by anything else (`check`).
+   */
+  resting = false;
+  /** Story 5.23 (AC 1): a fresh pick (the bar or a key) — the scene starts the pick pop; a chain re-pin isn't one. */
+  picks = 0;
+  /** Story 5.23 (D12): Places sent this hold (the scene keeps the chain's spot until the mouse moves after one). */
+  places = 0;
   /** The unit carry facing: my last move direction (the survivor's facing at the start). */
   facingX = 1;
   facingY = 0;
@@ -264,6 +274,8 @@ export class Placement {
     this.netX = 0;
     this.netY = 0;
     this.pendingOverlap = false;
+    this.resting = false;
+    this.picks++;
     this.ns = null;
     this.snapped = false;
     this.wave = wave;
@@ -296,6 +308,7 @@ export class Placement {
       this.facingY = moveY / len;
     }
     if (this.pinned) return; // Story 5.19 (AC 5): a pinned ghost stays put while I walk
+    this.following = false; // Story 5.23: carried again (the mouse rests or touch took over)
     const fx = this.facingX;
     const fy = this.facingY;
     if (!this.square && !this.locked) {
@@ -317,16 +330,20 @@ export class Placement {
     this.snapped = true;
   }
 
-  /** ⟳: the next 90° step clockwise; auto-rotate is off for this held item; the carry gap is kept for the new footprint. */
-  rotate(): void {
+  /**
+   * ⟳: the next 90° step clockwise; auto-rotate is off for this held item; the carry gap is kept for the new footprint.
+   * Story 5.23 (AC 10): `ccw` turns the other way (the mouse wheel up).
+   */
+  rotate(ccw = false): void {
     const stats = this.stats;
     if (!this.active || !stats) return;
-    if (this.pinned) {
+    const turn = ccw ? 3 : 1;
+    if (this.pinned || this.following) {
       // Story 5.18 (AC 4): a pinned ghost turns around its own centre and stays pinned.
       const b = footprint(stats, this.gx, this.gy, this.rot, this.box);
       const cx = (b.minX + b.maxX) / 2;
       const cy = (b.minY + b.maxY) / 2;
-      this.rot = ((this.rot + 1) & 3) as BuildingRotation;
+      this.rot = ((this.rot + turn) & 3) as BuildingRotation;
       this.locked = true;
       cornerForCentre(stats, this.rot, cx, cy, this.corner);
       this.gx = this.corner.gx;
@@ -335,10 +352,50 @@ export class Placement {
       this.dragCy = cy;
       return;
     }
-    this.rot = ((this.rot + 1) & 3) as BuildingRotation;
+    this.rot = ((this.rot + turn) & 3) as BuildingRotation;
     this.locked = true;
     this.snapped = false;
     this.carry(this.lastX, this.lastY, 0, 0);
+  }
+
+  /** Story 5.23 (D12): the last frame's spot came from the cursor (rotate turns round its centre then). */
+  following = false;
+
+  /**
+   * Story 5.23 (AC 9, D12): the mouse's absolute follow: the ghost's centre at the cursor's world point
+   * (cx, cy), kept `PIN_VIEW_INSET_M` inside the view (NaN bounds: no clamp), its min corner snapped
+   * with the carry's hysteresis (continuing from the last follow frame, fresh after a carry or a pin).
+   * Not pinned: the chip reads the carry text. My survivor at (x, y) and the move input keep the
+   * carry facing current (a key-picked ghost goes on from there once the mouse rests).
+   */
+  pointAt(cx: number, cy: number, minX: number, minY: number, maxX: number, maxY: number, x: number, y: number, moveX = 0, moveY = 0): void {
+    const stats = this.stats;
+    if (!this.active || !stats || !Number.isFinite(cx) || !Number.isFinite(cy)) return;
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      this.lastX = x;
+      this.lastY = y;
+    }
+    const len = Math.sqrt(moveX * moveX + moveY * moveY);
+    if (len > MIN_FACING_LEN && Number.isFinite(len)) {
+      this.facingX = moveX / len;
+      this.facingY = moveY / len;
+    }
+    const fresh = !this.following || this.pinned;
+    this.pinned = false;
+    const w = footprintW(stats, this.rot);
+    const h = footprintH(stats, this.rot);
+    const inX = maxX - minX > 2 * PIN_VIEW_INSET_M;
+    const inY = maxY - minY > 2 * PIN_VIEW_INSET_M;
+    const px = inX ? Math.min(Math.max(cx, minX + PIN_VIEW_INSET_M), maxX - PIN_VIEW_INSET_M) : cx;
+    const py = inY ? Math.min(Math.max(cy, minY + PIN_VIEW_INSET_M), maxY - PIN_VIEW_INSET_M) : cy;
+    this.gx = snapAxis(px - w / 2, fresh ? Number.NaN : this.gx, this.hysteresisM);
+    this.gy = snapAxis(py - h / 2, fresh ? Number.NaN : this.gy, this.hysteresisM);
+    for (let i = 0; inX && i < CLAMP_MAX_STEPS && this.gx * BUILD_GRID_M + w / 2 < minX + PIN_VIEW_INSET_M; i++) this.gx++;
+    for (let i = 0; inX && i < CLAMP_MAX_STEPS && this.gx * BUILD_GRID_M + w / 2 > maxX - PIN_VIEW_INSET_M; i++) this.gx--;
+    for (let i = 0; inY && i < CLAMP_MAX_STEPS && this.gy * BUILD_GRID_M + h / 2 < minY + PIN_VIEW_INSET_M; i++) this.gy++;
+    for (let i = 0; inY && i < CLAMP_MAX_STEPS && this.gy * BUILD_GRID_M + h / 2 > maxY - PIN_VIEW_INSET_M; i++) this.gy--;
+    this.following = true;
+    this.snapped = false; // a carry after the follow snaps fresh
   }
 
   /**
@@ -463,8 +520,16 @@ export class Placement {
     }
   }
 
-  /** Story 5.18: back to carry (the next `carry` puts the ghost ahead of me again, snapped fresh). */
-  unpin(): void {
+  /**
+   * Story 5.18: back to carry (the next `carry` puts the ghost ahead of me again, snapped fresh).
+   * Story 5.23 (AC 8, D11; 5.19 L5): `resetSide` (the chip's "↩ carry": start over) also forgets the
+   * hold's drag side, so the next chain jump goes to the right of my facing again.
+   */
+  unpin(resetSide = false): void {
+    if (resetSide) {
+      this.lastDragX = 0;
+      this.lastDragY = 0;
+    }
     if (!this.pinned) return;
     this.pinned = false;
     this.snapped = false;
@@ -498,10 +563,12 @@ export class Placement {
     this.dragCy = this.gy * BUILD_GRID_M + h / 2;
     this.lastX = x;
     this.lastY = y;
+    this.following = false; // Story 5.23 (D12): the chain's spot holds until the mouse moves again
     this.check(world, ownerId, pending);
     if (this.error === "blocked") {
       this.unpin();
       this.carry(x, y, 0, 0);
+      this.resting = true; // Story 5.23 (AC 7, D10): faded while only a building blocks it
       return false;
     }
     return true;
@@ -557,6 +624,8 @@ export class Placement {
   cancel(): void {
     this.active = false;
     this.pinned = false;
+    this.following = false;
+    this.resting = false;
     this.pendingOverlap = false;
     this.error = null;
     this.resetShown();
@@ -589,6 +658,8 @@ export class Placement {
         this.hasReason = true;
       }
     }
+    // Story 5.23 (AC 7, D10): the resting look lasts while only a building (or my pending box) blocks it
+    if (this.resting && !(this.error === "blocked" && (this.pendingOverlap || (this.hasReason && this.reason.cause === "building")))) this.resting = false;
     const e = this.active ? this.error : null;
     if (e !== null) {
       if (!this.sameAsShown(e)) {
@@ -675,6 +746,10 @@ export interface PlacementHud {
   dragBegan?: boolean;
   /** Story 5.19 review L1: a drag pointer is held (no view unpin meanwhile). */
   dragHeld?: boolean;
+  /** Story 5.23 (AC 10): the mouse wheel turned it counter-clockwise (wheel up). */
+  rotateCcwPressed?: boolean;
+  /** Story 5.23 (AC 7): the ghost rests faded (the reason line shows the label; Place has no red ring). */
+  placementResting?: boolean;
 }
 
 /** One frame's context for `stepPlacement` (the scene reuses one object: no allocation per frame). */
@@ -710,6 +785,11 @@ export interface PlacementFrame {
   /** Story 5.19 review L4: the hand cluster's rects in world metres (4 numbers each) and how many; the dragged ghost stays out from under them. */
   avoid?: ArrayLike<number> | null;
   avoidCount?: number;
+  /** Story 5.23 (AC 9, D12): the cursor's world point when the ghost follows the mouse this frame; NaN / missing: no follow. */
+  cursorX?: number;
+  cursorY?: number;
+  /** Story 5.23 (AC 3, D8): a Place this device turns down because the answer is certain (buzz + haptic). */
+  refused?: () => void;
 }
 
 /**
@@ -730,12 +810,15 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
   const dragX = m.dragDxPx;
   const dragY = m.dragDyPx;
   const began = m.dragBegan === true;
+  const rotateCcw = m.rotateCcwPressed === true;
+  if (m.rotateCcwPressed !== undefined) m.rotateCcwPressed = false;
   m.rotatePressed = m.confirmPressed = m.cancelPressed = m.chipPressed = m.dragged = false;
   if (m.dragBegan !== undefined) m.dragBegan = false;
   m.dragDxPx = m.dragDyPx = 0;
   if (!p.active) {
     m.placementActive = false;
     m.placementPinned = false;
+    if (m.placementResting !== undefined) m.placementResting = false;
     return;
   }
   holdBuildingInput(input);
@@ -746,6 +829,7 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
     return;
   }
   const pending = f.pending ?? null;
+  let placedNow = false; // Story 5.23 (D12): the chain's spot holds this frame (the mouse follow waits for a move)
   if (confirm) {
     // Story 5.18: one Place = one building (AC 1); the item stays in hand while I can pay and build another (AC 2).
     const req = p.request();
@@ -753,12 +837,14 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
     if (!req || gate !== null) {
       // off the map: nothing the wire can carry, the shared rule says "blocked"; at the cap / short counting pending: certain refusals (D2)
       f.toast(f.refusal(req ? (gate as PlaceError) : "blocked"));
+      f.refused?.(); // Story 5.23 (AC 3): a certain refusal buzzes like the server's
       p.cancel();
       m.placementActive = false;
       m.placementPinned = false;
       return;
     }
     f.send(req);
+    p.places++; // Story 5.23 (D12)
     const next = placeGate(world, f.ownerId, p.price, pending) ?? (pending ? null : placementCapOrMoney(world, f.ownerId, p.price));
     if (next !== null) {
       f.toast(next === "limit" ? f.refusal("limit") : CHAIN_MONEY_TEXT);
@@ -768,15 +854,21 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
       return;
     }
     p.chain(world, f.ownerId, pending, f.x, f.y); // the next ghost, pinned one footprint along (AC 3)
+    placedNow = true;
   }
   const vMinX = f.viewMinX ?? Number.NaN;
   const vMinY = f.viewMinY ?? Number.NaN;
   const vMaxX = f.viewMaxX ?? Number.NaN;
   const vMaxY = f.viewMaxY ?? Number.NaN;
-  if (chip) p.unpin(); // Story 5.19 (AC 5): "↩ carry"
+  if (chip) p.unpin(true); // Story 5.19 (AC 5): "↩ carry"; Story 5.23 (AC 8, D11): and start the drag side over
   if (p.pinned && m.dragHeld !== true && p.outsideView(vMinX, vMinY, vMaxX, vMaxY)) p.unpin(); // 5.18 AC 4; review L1: not while the thumb holds it
   if (rotate) p.rotate();
-  p.carry(f.x, f.y, input.moveX, input.moveY);
+  if (rotateCcw) p.rotate(true); // Story 5.23: the wheel up
+  const cx = f.cursorX ?? Number.NaN;
+  const cy = f.cursorY ?? Number.NaN;
+  // Story 5.23 (AC 9, D12): the mouse's absolute follow replaces the carry this frame (a chip carry waits for the next)
+  if (!chip && !placedNow && Number.isFinite(cx) && Number.isFinite(cy)) p.pointAt(cx, cy, vMinX, vMinY, vMaxX, vMaxY, f.x, f.y, input.moveX, input.moveY);
+  else p.carry(f.x, f.y, input.moveX, input.moveY);
   const ppm = f.pxPerM ?? 0;
   // Story 5.19: pins where it is shown, then nudges (review L2: not in the frame the chip carried it again)
   if (dragged && !chip && ppm > 0) p.drag(dragX / ppm, dragY / ppm, vMinX, vMinY, vMaxX, vMaxY, began, f.avoid ?? null, f.avoidCount ?? 0);
@@ -786,6 +878,8 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
   m.placementLocked = p.locked;
   m.placementPinned = p.pinned;
   const shown = p.shownError;
+  const resting = shown !== null && p.resting; // Story 5.23 (AC 7): faded, the label instead of the error
+  if (m.placementResting !== undefined || resting) m.placementResting = resting;
   m.placementValid = shown === null;
-  m.placementHint = shown === null ? f.label : f.hintText(shown, p.shownHasReason ? p.shownReason : null);
+  m.placementHint = shown === null || resting ? f.label : f.hintText(shown, p.shownHasReason ? p.shownReason : null);
 }

@@ -10,6 +10,12 @@ import { buildingShadowHeightM } from "./mineLook";
 import { HATCH_MAX_SEGMENTS, HATCH_SPACING_M, crossHalf, hatchSegments } from "./ghostHatch";
 import { rangeRings } from "./rangeRings";
 
+/** Story 5.23 (AC 2, D5): what the view reads for a placed building's drop (PlaceFxView). */
+export interface DropSource {
+  dropOf(id: number, nowMs: number): number;
+  dropping(nowMs: number): boolean;
+}
+
 /** Placeholder wood look (Story 9 replaces it): planks across the long side, a dark outline; night-darkened (Story 4.9). */
 const WOOD = darken(0x8b5a2b, NIGHT_DARKEN);
 const PLANK_LINE = darken(0x5d3a1a, NIGHT_DARKEN);
@@ -62,6 +68,9 @@ const CROSS_LINE_M = 0.09;
 const RING_OTHER = 0xffffff;
 const RING_OTHER_ALPHA = 0.6;
 const RING_BLOCKED_DIM = 0.5;
+/** Story 5.23 (AC 7, D10): the resting ghost after a blocked chain: white, faded, no hatch or ✕. */
+const RESTING = 0xffffff;
+const RESTING_ALPHA = 0.35;
 /** A light 0.5 m lattice around the preview, so the snap is visible (± this many cells beyond its box). */
 const GRID_CELLS = 4;
 const GRID_ALPHA = 0.18;
@@ -108,11 +117,24 @@ export class BuildingView {
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   private readonly band: BoxOut = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   private readonly hatch = new Float64Array(HATCH_MAX_SEGMENTS * 4);
+  /** Story 5.23 (D5): per laid sprite, the building it shows and its resting y (the drop lifts it from there). */
+  private readonly spriteId: Int32Array;
+  private readonly spriteY: Float32Array;
+  private spritesUsed = 0;
+  private dropsShown = false;
+  /** Story 5.23 (AC 1): the preview's centre and the ghost's display size as last drawn (the pick pop scales around it). */
+  private previewCx = 0;
+  private previewCy = 0;
+  private ghostW = 0;
+  private ghostH = 0;
+  private shownScale = 1;
 
   constructor(scene: Phaser.Scene, balance?: Readonly<Balance>) {
     ensureBuildingsAtlas(scene); // Story 5.9 / 4.12: every tier (B6 too), the trap and the mine (code-drawn, once per game)
     const pool = barricadePoolSize(balance?.buildings.maxPerPlayer, MAX_PLAYERS); // review fix L1: sized from balance, never throws
     this.placed = scene.add.graphics().setDepth(BUILDING_DEPTH);
+    this.spriteId = new Int32Array(pool).fill(-1);
+    this.spriteY = new Float32Array(pool);
     for (let i = 0; i < pool; i++) this.sprites.push(scene.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(BUILDING_DEPTH).setVisible(false));
     this.cracks = scene.add.graphics().setDepth(CRACK_DEPTH);
     this.ghost = scene.add.image(0, 0, ATLAS_BUILDINGS, FRAME_WOOD).setDepth(PREVIEW_DEPTH).setAlpha(GHOST_ALPHA).setVisible(false);
@@ -120,9 +142,36 @@ export class BuildingView {
     this.preview = scene.add.graphics().setDepth(PREVIEW_DEPTH).setVisible(false);
   }
 
-  update(world: Readonly<World>, placement: Placement): void {
+  /**
+   * Story 5.23: `drops` (PlaceFxView) lifts a just-placed building's art for 120 ms; `nowMs` the scene
+   * clock; `popScale` the pick pop's scale for the preview (1 = none).
+   */
+  update(world: Readonly<World>, placement: Placement, drops: DropSource | null = null, nowMs = 0, popScale = 1): void {
     this.drawPlaced(world);
+    if (drops) this.applyDrops(drops, nowMs);
     this.drawPreview(world, placement);
+    this.applyPop(placement.active ? popScale : 1);
+  }
+
+  /** Story 5.23 (AC 2, D5): lifts each dropping sprite by its offset; one last frame puts them all back. */
+  private applyDrops(drops: DropSource, nowMs: number): void {
+    const any = drops.dropping(nowMs);
+    if (!any && !this.dropsShown) return;
+    for (let i = 0; i < this.spritesUsed; i++) {
+      const img = this.sprites[i] as Phaser.GameObjects.Image;
+      const off = any ? drops.dropOf(this.spriteId[i] as number, nowMs) : 0;
+      const y = (this.spriteY[i] as number) - off;
+      if (img.y !== y) img.setY(y);
+    }
+    this.dropsShown = any;
+  }
+
+  /** Story 5.23 (AC 1): scales the preview and its ghost art round the ghost's centre (no redraw). */
+  private applyPop(s: number): void {
+    if (s === this.shownScale) return;
+    this.shownScale = s;
+    this.preview.setScale(s).setPosition(this.previewCx * (1 - s), this.previewCy * (1 - s));
+    if (this.ghost.visible) this.ghost.setDisplaySize(this.ghostW * s, this.ghostH * s);
   }
 
   /**
@@ -174,6 +223,8 @@ export class BuildingView {
           const t = barricadeTransform(b, this.xf);
           if (img.texture.key !== art.texture || img.frame.name !== art.frame) img.setTexture(art.texture, art.frame);
           img.setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setDepth(b.solid ? BUILDING_DEPTH : FLOOR_DEPTH).setVisible(true);
+          this.spriteId[used - 1] = b.id; // Story 5.23: the drop finds its sprite
+          this.spriteY[used - 1] = t.y;
         }
         img.setTint(barricadeTint(frac));
         if (frac < 1 && b.solid) drawCracks(cracks, b, damageStage(frac) * CRACKS_PER_STAGE);
@@ -204,7 +255,9 @@ export class BuildingView {
       }
     }
     if (relayout) {
+      this.spritesUsed = used;
       for (let i = used; i < this.sprites.length; i++) {
+        this.spriteId[i] = -1;
         const img = this.sprites[i] as Phaser.GameObjects.Image;
         if (img.visible) img.setVisible(false);
       }
@@ -220,12 +273,13 @@ export class BuildingView {
       return;
     }
     const valid = p.shownError === null; // Story 5.17: the held look (≥ reasonHoldMs before valid again)
+    const resting = !valid && p.resting; // Story 5.23 (AC 7, D10): faded, not red, on the box just built
     // Story 5.15 (review L4): an off-map ghost has negative indices; offset them so the key stays unique.
-    const key = p.gx + 512 + (p.gy + 512) * 2048 + p.rot * 4194304 + (valid ? 16777216 : 0) + buildingTypeIds(world.balance).indexOf(p.type) * 33554432;
+    const key = p.gx + 512 + (p.gy + 512) * 2048 + p.rot * 4194304 + (valid ? 16777216 : 0) + buildingTypeIds(world.balance).indexOf(p.type) * 33554432 + (resting ? 0.5 : 0);
     if (key === this.shownPreviewKey) return;
     this.shownPreviewKey = key;
     const b = footprint(stats, p.gx, p.gy, p.rot, this.box);
-    const color = valid ? VALID : BLOCKED;
+    const color = resting ? RESTING : valid ? VALID : BLOCKED;
     const art = buildingFrame(p.type);
     if (art) {
       // Story 4.11: the turned art under the coloured box, so the struts' side shows before confirming.
@@ -237,7 +291,10 @@ export class BuildingView {
       r.rot = p.rot;
       const t = barricadeTransform(r, this.xf);
       if (this.ghost.texture.key !== art.texture || this.ghost.frame.name !== art.frame) this.ghost.setTexture(art.texture, art.frame);
-      this.ghost.setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w, t.h).setVisible(true);
+      this.ghostW = t.w;
+      this.ghostH = t.h;
+      const sc = this.shownScale;
+      this.ghost.setPosition(t.x, t.y).setRotation(t.angle).setDisplaySize(t.w * sc, t.h * sc).setAlpha(resting ? RESTING_ALPHA : GHOST_ALPHA).setVisible(true);
     } else if (this.ghost.visible) this.ghost.setVisible(false);
     const g = this.preview;
     g.clear().setVisible(true);
@@ -249,11 +306,15 @@ export class BuildingView {
     const y1 = b.maxY + m;
     for (let y = y0; y <= y1 + 1e-6; y += BUILD_GRID_M) g.lineBetween(x0, y, x1, y);
     for (let x = x0; x <= x1 + 1e-6; x += BUILD_GRID_M) g.lineBetween(x, y0, x, y1);
-    g.fillStyle(color, art ? PREVIEW_FILL_ALPHA / 2 : PREVIEW_FILL_ALPHA).fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
-    g.lineStyle(PREVIEW_LINE_M, color, 1).strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+    const fade = resting ? RESTING_ALPHA : 1;
+    g.fillStyle(color, (art ? PREVIEW_FILL_ALPHA / 2 : PREVIEW_FILL_ALPHA) * fade).fillRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+    g.lineStyle(PREVIEW_LINE_M, color, fade).strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
     const cx = (b.minX + b.maxX) / 2;
     const cy = (b.minY + b.maxY) / 2;
-    if (!valid) {
+    this.previewCx = cx;
+    this.previewCy = cy;
+    if (this.shownScale !== 1) this.preview.setPosition(cx * (1 - this.shownScale), cy * (1 - this.shownScale)); // the pop keeps its centre
+    if (!valid && !resting) {
       // Story 5.17 (AC 6): colour-blind safe — a 45° hatch and a ✕ on top of the red.
       const n = hatchSegments(b.minX, b.minY, b.maxX, b.maxY, HATCH_SPACING_M, this.hatch);
       const hs = this.hatch;

@@ -32,6 +32,7 @@ import {
   acidSpitOf,
   type Balance,
   type SimEvent,
+  type BuildingRotation,
   type BlockReason,
   type PlaceError,
   type PlaceRequest,
@@ -84,6 +85,9 @@ import { FloodlightView } from "../render/FloodlightView";
 import { MedStationView } from "../render/MedStationView";
 import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
+import { PlaceFxView } from "../render/PlaceFxView";
+import { PLACED_HAPTIC_MS, REFUSED_HAPTIC, freshPlace, pickPopScale, placeSoundKind, placeVolume, type PlaceSoundKind } from "../render/placeFeel";
+import { vibrate } from "../audio/haptics";
 import { placementHintText, type HintContext } from "./blockText";
 import { ChipText, chipLeft } from "./chipText";
 import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
@@ -91,7 +95,7 @@ import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { holdBuildingInput, neutralizeInput } from "../input/menuInput";
-import { buildBarItems, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
+import { buildBarItems, pickError, pickRefusalText, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
 import {
@@ -294,6 +298,23 @@ export class GameScene extends Phaser.Scene {
   /** Story 5.18: my placements without an answer yet (the chain's pending boxes), and how they are drawn. */
   private readonly pending = new PendingPlacements();
   private pendingView: PendingView | null = null;
+  /** Story 5.23 (BX-9): dust, owner tabs (and the art drops), owner dots. */
+  private placeFxView: PlaceFxView | null = null;
+  /** Story 5.23 (AC 1): the last pick seen (`Placement.picks`) and when it popped. */
+  private seenPicks = 0;
+  private pickAtMs = Number.NEGATIVE_INFINITY;
+  /** Story 5.23 (D12): the router's mouse-move count at the last pick / Place (the cursor follows once it changes), and the Places seen. */
+  private cursorAnchorMoves = 0;
+  private anchorPicks = 0;
+  private seenPlaces = 0;
+  /** Story 5.23 (D4): placed sounds already played this frame, by kind (at most one each). */
+  private readonly feelBox: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  private readonly placedSoundsThisFrame: Record<PlaceSoundKind, boolean> = { thunk: false, clank: false, click: false };
+  /** Story 5.23 (AC 3, D8): a refusal of my placement: a dull buzz + 30-40-30 ms (the visual twin: the shaking box / the toast). */
+  private readonly buzzRefused = (): void => {
+    playSfx("building_place_refused");
+    vibrate(REFUSED_HAPTIC);
+  };
   private readonly pendingBox: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   /** Story 5.18: the pump's send (the request is the tracker's reused object: the host encodes at once). */
   private readonly sendNow = (req: PlaceRequest): void => this.host?.placeBuilding(req);
@@ -317,6 +338,9 @@ export class GameScene extends Phaser.Scene {
     pxPerM: 0,
     avoid: null,
     avoidCount: 0,
+    cursorX: Number.NaN,
+    cursorY: Number.NaN,
+    refused: this.buzzRefused,
   };
   /** Story 5.19 review L4: the hand cluster's rects in world metres (refilled every frame from `hudModel.handAvoid`). */
   private readonly handAvoidM = new Float64Array(16);
@@ -489,6 +513,11 @@ export class GameScene extends Phaser.Scene {
     this.buildingView = new BuildingView(this, balance);
     this.blockReasonView = new BlockReasonView(this);
     this.pendingView = new PendingView(this, this.pending.entries.length);
+    // Story 5.23: the placement feel's pools (caps in controls.json › fx); the owner's slot from the host (left players: grey).
+    this.placeFxView = new PlaceFxView(this, balance.controls.fx.maxPlaceDust, balance.controls.fx.maxOwnerTabs, (id) => (host.world.players.has(id) ? host.playerInfo(id).slot : -1));
+    this.seenPicks = this.anchorPicks = this.placement.picks;
+    this.seenPlaces = this.placement.places;
+    this.pickAtMs = Number.NEGATIVE_INFINITY;
     this.mineView = new MineView(this, balance);
     this.turretView = new TurretView(this);
     this.floodlightView = new FloodlightView(this, balance); // Story 5.10
@@ -570,6 +599,8 @@ export class GameScene extends Phaser.Scene {
       this.pending.reset();
       this.pendingView?.destroy();
       this.pendingView = null;
+      this.placeFxView?.destroy();
+      this.placeFxView = null;
       this.mineView?.destroy();
       this.mineView = null;
       this.cityView?.destroy();
@@ -906,6 +937,24 @@ export class GameScene extends Phaser.Scene {
     f.avoid = am;
     f.avoidCount = (av[2] as number) > 0 ? 4 : 0; // 0 until the HUD laid the cluster out
     m.dragStartPx = host.world.balance.controls.build.dragStartPx;
+    // Story 5.23 (AC 9, D12): in mouse mode the ghost follows the cursor once the mouse moved after the pick / the last Place
+    const r = this.router;
+    const p0 = this.placement;
+    if (r && (p0.picks !== this.anchorPicks || p0.places !== this.seenPlaces)) {
+      this.anchorPicks = p0.picks;
+      this.seenPlaces = p0.places;
+      this.cursorAnchorMoves = r.mouseMoves;
+    }
+    const follow = r !== null && p0.active && r.isMouse && !Number.isNaN(r.cursorX) && r.mouseMoves !== this.cursorAnchorMoves;
+    if (follow && r) {
+      const cw = this.cursorWorld;
+      this.cameras.main.getWorldPoint(r.cursorX, r.cursorY, cw);
+      f.cursorX = cw.x;
+      f.cursorY = cw.y;
+    } else {
+      f.cursorX = Number.NaN;
+      f.cursorY = Number.NaN;
+    }
     stepPlacement(this.placement, m, this.input_, host.world, f);
     const p = this.placement;
     if (p.active) {
@@ -945,6 +994,7 @@ export class GameScene extends Phaser.Scene {
     stepHost: () => this.hostStep(),
     toast: (text) => this.toasts.push(text),
     refusalText: (e) => this.refusalText(e),
+    refused: this.buzzRefused,
   };
 
   /** Everything before the host steps (placement, repair, build bar, Ready, the input). */
@@ -980,6 +1030,100 @@ export class GameScene extends Phaser.Scene {
     if (!host) return;
     if (this.running) host.update(this.frameCtx.deltaMs / 1000); // LocalSimHost caps catch-up after long frames
     if (perf.net) netSummary.frame(performance.now(), perf.net); // Story 2.10: ping samples for the wave summary
+  }
+
+  /**
+   * Story 5.23 (AC 2, 4, 6): a building placed (mine or a teammate's; the server's / the sim's event,
+   * never the press): its owner tab (3 s), and when fresh — not a woken tab's backlog — its dust, drop,
+   * the sound by kind (a teammate's beyond 12 m quieter, panned to its side) and, for mine, 12 ms.
+   */
+  private placedFeel(host: SceneHost, e: Extract<SimEvent, { type: "building.placed" }>): void {
+    const world = host.world;
+    const fresh = freshPlace(e.ageS, typeof document !== "undefined" && document.hidden === true);
+    if (!this.placeFxView?.placed(world, e.buildingId, e.buildingType, e.ownerId, e.gx, e.gy, e.rot, this.time.now, (e.ageS ?? 0) * 1000, fresh)) return;
+    if (!fresh) return;
+    const mine = e.ownerId === host.localPlayerId;
+    const stats = buildingStats(world.balance, e.buildingType);
+    const kind = placeSoundKind(e.buildingType, stats);
+    const ps = this.placedSoundsThisFrame;
+    if (!ps[kind]) {
+      ps[kind] = true;
+      const me = this.playerViews.get(host.localPlayerId);
+      const fb = stats ? footprint(stats, e.gx, e.gy, (e.rot & 3) as BuildingRotation, this.feelBox) : null;
+      const bx = fb ? (fb.minX + fb.maxX) / 2 : 0;
+      const by = fb ? (fb.minY + fb.maxY) / 2 : 0;
+      const v = this.cameras.main.worldView;
+      const pan = mine ? 0 : Math.max(-1, Math.min(1, (bx - (v.x + v.width / 2)) / Math.max(1e-6, v.width / 2)));
+      const vol = placeVolume(mine, me ? bx - me.x : 0, me ? by - me.y : 0);
+      playSfx(kind === "thunk" ? "building_placed_thunk" : kind === "clank" ? "building_placed_clank" : "building_placed_click", pan, vol);
+    }
+    if (mine) vibrate(PLACED_HAPTIC_MS);
+  }
+
+  /**
+   * Story 5.23 (AC 10–12): the building keys, once per frame before the placement step. Every latch
+   * is taken each frame, so a press in a wave or under the menu never fires later. R and Space act
+   * only while holding (⟳ and Place); `1`–`7` pick a tile (`keyPick`); Z and M reach their hooks.
+   */
+  private buildKeys(host: SceneHost, router: InputRouter, blocked: boolean): void {
+    const kb = router.kbm;
+    const rotate = kb.takeRotate();
+    const place = kb.takePlace();
+    const slot = kb.takeBuild();
+    const undo = kb.takeUndo();
+    const pickUp = kb.takePickUp();
+    const m = this.hudModel;
+    if (this.placement.active && !blocked) {
+      if (rotate) m.rotatePressed = true;
+      if (place) m.confirmPressed = true;
+    }
+    if (slot >= 0) this.keyPick(host, slot, blocked);
+    if (undo && !blocked) this.onUndoKey();
+    if (pickUp && !blocked) this.onPickUpKey();
+  }
+
+  /**
+   * Story 5.23 (AC 11, D15): Z / Ctrl+Z. Story 5.20 (the undo chip) isn't on master yet.
+   * TODO(5.20 merge): `this.hudModel.undoPressed = true;` (the undo chip's own path then runs).
+   */
+  private onUndoKey(): void {
+    // no-op until 5.20 lands
+  }
+
+  /**
+   * Story 5.23 (AC 12, D16): M picks up the selected building. Story 5.21 (action bar + move) isn't merged.
+   * TODO(5.21): press the action bar's Move ✥ for the selected building.
+   */
+  private onPickUpKey(): void {
+    // no-op until 5.21 lands
+  }
+
+  /**
+   * Story 5.23 (AC 10, D14): a build-bar key `1`–`7` (tile `slot`). Placing must be possible and no
+   * building selected. Holding that type: put it away; holding another: put it away and pick this
+   * one. The pick follows the bar's rules (cap, then money → the same toast); no quiet window.
+   */
+  private keyPick(host: SceneHost, slot: number, menuOpen: boolean): void {
+    if (!this.canPlace(host, menuOpen) || this.repairPanel.open) return;
+    const items = buildBarItems(host.world.balance);
+    const item = slot >= 0 && slot < items.length ? items[slot] : undefined;
+    if (!item) return;
+    const p = this.placement;
+    if (p.active) {
+      const same = p.type === item.id;
+      p.cancel();
+      this.hudModel.placementActive = false;
+      this.handEmptiedMs = this.time.now;
+      if (same) return;
+    }
+    const world = host.world;
+    const err = pickError(ownedCount(world, host.localPlayerId) + this.pending.count, world.balance.buildings.maxPerPlayer, this.shownWallet(host), item.price);
+    if (err !== null) {
+      this.toasts.pushUnique(pickRefusalText(err, item.price, this.shownWallet(host), world.balance.buildings.maxPerPlayer));
+      return;
+    }
+    this.startPlacement(item.id);
+    if (this.placement.active) holdBuildingInput(this.input_);
   }
 
   /** Story 5.18 (Q2): the hand emptied less than `controls.build.barQuietMs` ago (taps meant for Place don't pick a tile). */
@@ -1293,9 +1437,14 @@ export class GameScene extends Phaser.Scene {
     if (!this.running) this.input_.swap = false; // nothing swaps before the run is on screen
 
     // Story 2.11: ☰ and Esc toggle the in-run menu (Esc is never game input).
-    const menuKey = router.kbm.takeMenu();
+    let menuKey = router.kbm.takeMenu();
     const menuTap = this.hudModel.menuPressed;
     this.hudModel.menuPressed = false;
+    // Story 5.23 (AC 10, D14): Esc while holding a building puts it away first (the next Esc opens the menu).
+    if (menuKey && this.placement.active && !shopStore.get().open) {
+      this.hudModel.cancelPressed = true;
+      menuKey = false;
+    }
     if (menuKey || menuTap) {
       // Story 3.3: Esc / ☰ close the shop first.
       if (shopStore.get().open) this.shopInput(SHOP_CLOSE);
@@ -1311,6 +1460,7 @@ export class GameScene extends Phaser.Scene {
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     const shopOpen = this.updateShop(host, menuOpen);
     if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
+    this.buildKeys(host, router, menuOpen || shopOpen); // Story 5.23: R, Space, 1–7, Z, M (latches taken every frame)
     // Story 5.18 (review M2): the pending placements' frame order lives in `runPendingFrame` (shared with
     // the netsim test): match → placement step … input (`beforeHostStep`) → send → host step → match +
     // timeouts → refusals (Story 3.4: the server, or solo, said no) to the oldest unanswered box.
@@ -1328,6 +1478,8 @@ export class GameScene extends Phaser.Scene {
       this.toasts.push(upgradeRefusalText(upgradeRefused));
     }
     const events = host.drainEvents();
+    const ps = this.placedSoundsThisFrame;
+    ps.thunk = ps.clank = ps.click = false;
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
       if (!e) continue;
@@ -1360,6 +1512,8 @@ export class GameScene extends Phaser.Scene {
       } else if (e.type === "zombie.killed" && e.killerId === localId && e.buildingId === undefined) {
         // Story 3.6: my turret's kills pay me (money.earned) but are not my kills.
         this.kills++;
+      } else if (e.type === "building.placed") {
+        this.placedFeel(host, e);
       } else if (e.type === "money.earned" && e.playerId === localId) {
         this.hudModel.moneyGain += e.amount; // Story 3.2: one "+N" per frame
       } else if (e.type === "zombie.brute_spawned") {
@@ -1425,7 +1579,16 @@ export class GameScene extends Phaser.Scene {
     this.syncPlayerViews(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.downedView?.update(host.world, this.time.now);
     this.ambience?.update(host.world.decay.stage);
-    this.buildingView?.update(host.world, this.placement);
+    // Story 5.23 (AC 1): a fresh pick pops the ghost (0.8 → 1 in 120 ms) with a soft click
+    if (this.placement.picks !== this.seenPicks) {
+      this.seenPicks = this.placement.picks;
+      if (this.placement.active) {
+        this.pickAtMs = this.time.now;
+        playSfx("ui_build_pick");
+      }
+    }
+    this.placeFxView?.update(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000, this.time.now);
+    this.buildingView?.update(host.world, this.placement, this.placeFxView, this.time.now, pickPopScale(this.time.now - this.pickAtMs));
     this.blockReasonView?.update(host.world, this.placement, this.drawnAt);
     this.pendingView?.update(this.pending, this.time.now); // Story 5.18
     // Story 5.14: my survivor as drawn (predicted online) fills the re-arm ring on a sprung bear trap.
