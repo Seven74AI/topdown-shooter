@@ -1,4 +1,5 @@
 import type { World } from "./world";
+import { snapshotShop } from "../economy/shopCards";
 import { MAX_PIERCE } from "../combat/projectilePool";
 import { MAX_DAMAGERS } from "../economy/economy";
 import { snapshotPathing } from "../zombies/flowField";
@@ -151,6 +152,8 @@ export function snapshotWorld(world: World) {
     balanceVersion: world.balance.version,
     // Story 4.4: every named stream's state (and each shop stream's build key).
     streams: snapshotSeedStreams(world.streams),
+    // Story 5.13: every slot's stored card offer (build, rev, cards, sold).
+    shop: snapshotShop(world),
     pendingInputs: sortedEntries(world.pendingInputs),
     inputs: sortedEntries(world.inputs),
     lastAppliedSeq: sortedEntries(world.lastAppliedSeq),

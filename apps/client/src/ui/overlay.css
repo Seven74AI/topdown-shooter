@@ -708,3 +708,271 @@ p.in-run-menu__title {
   z-index: 9;
   background: rgba(0, 0, 0, 0.88);
 }
+
+/*
+ * Story 5.13: the roguelike card shop. Landscape: 3 × 2 cards left, the always-available list right
+ * (scrolls). Cards are the C3 "police evidence tag" look drawn in CSS (D10): cream evidence card,
+ * a rarity tape across the top (common white / rare blue / epic red-amber), a peeled bottom-right
+ * corner, black ink. Sizes: ui/sizes.ts (CARD_MIN_W/H_CSS_PX; the grid template is set inline).
+ */
+.shop__panel--cards {
+  width: min(880px, 100%);
+  height: 100%;
+  max-height: 640px;
+  padding: 8px 12px 10px;
+  overflow: hidden;
+}
+
+.shop__panel--cards .shop__head {
+  gap: 8px;
+  flex: none;
+}
+
+.shop__reroll {
+  min-height: 44px;
+  background: #f5c542;
+  color: #17191c;
+  font-weight: 700;
+}
+
+.shop__reroll--short {
+  background: #8a7a4a;
+}
+
+.shop__reroll:disabled {
+  opacity: 0.45;
+}
+
+.shop__body {
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+
+.shop__cards {
+  display: grid;
+  flex: 1.4;
+  min-width: 304px;
+  max-width: 480px;
+  max-height: 340px;
+  align-content: start;
+}
+
+.shop__cards--loading {
+  place-items: center;
+}
+
+.shop__loading {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #bbb;
+  font-size: 16px;
+}
+
+.shop__always {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.shop__always .shop__message {
+  min-height: 18px;
+}
+
+.shop__always .shop__item {
+  min-width: 0;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 10px;
+}
+
+.shop__hint {
+  margin: 0;
+  font-size: 14px;
+  color: #bbb;
+}
+
+.shop-card {
+  --tape: #e9e6dc;
+  --tape-ink: #17191c;
+  --tape-stripe: rgba(0, 0, 0, 0.18);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  min-width: 96px;
+  min-height: 112px;
+  padding: 0 6px 5px;
+  border: 0;
+  border-radius: 3px;
+  background:
+    linear-gradient(135deg, transparent calc(100% - 14px), #c9bd9c calc(100% - 14px), #b9ad8c 100%) no-repeat,
+    radial-gradient(rgba(90, 70, 40, 0.1) 1px, transparent 1.4px) 0 0 / 9px 9px,
+    #ece3c8;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+  color: #17191c;
+  font: 700 16px/1.1 system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  transition: transform 80ms ease-out;
+  overflow: hidden;
+}
+
+.shop-card--rare {
+  --tape: #2f6fd0;
+  --tape-ink: #fff;
+  --tape-stripe: rgba(255, 255, 255, 0.2);
+}
+
+.shop-card--epic {
+  --tape: #c0301e;
+  --tape-ink: #fff3d6;
+  --tape-stripe: rgba(255, 176, 40, 0.75);
+}
+
+.shop-card__tape {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 -6px 2px;
+  padding: 1px 6px;
+  min-height: 15px;
+  background: repeating-linear-gradient(-45deg, var(--tape) 0 8px, var(--tape-stripe) 8px 11px), var(--tape);
+  background-blend-mode: normal;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+  color: var(--tape-ink);
+  font: 800 11px/13px "Arial Narrow", system-ui, sans-serif;
+  letter-spacing: 0.06em;
+}
+
+.shop-card--epic .shop-card__tape {
+  background: repeating-linear-gradient(-45deg, #c0301e 0 8px, #e8901c 8px 13px);
+}
+
+.shop-card__art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  flex: none;
+}
+
+.shop-card__icon {
+  max-width: 100%;
+  height: 26px;
+  width: auto;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.35));
+}
+
+.shop-card__icon--gear {
+  height: 28px;
+}
+
+.shop-card__glyph {
+  width: 24px;
+  height: 24px;
+}
+
+.shop-card__glyph--weapon {
+  width: 56px;
+  height: 24px;
+}
+
+.shop-card__name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.08;
+  min-height: 2.16em;
+}
+
+.shop-card__price {
+  font: 800 16px/1.15 system-ui, sans-serif;
+  color: #7a1810;
+}
+
+.shop-card__stat {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 600 14px/1.15 system-ui, sans-serif;
+  color: #3c3a33;
+}
+
+.shop-card--short .shop-card__price {
+  color: rgba(122, 24, 16, 0.45);
+}
+
+.shop-card--short .shop-card__stat {
+  color: #8a2a20;
+}
+
+.shop-card--selected {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45), 0 0 0 3px #f5c542 inset;
+}
+
+.shop-card--selected .shop-card__price {
+  margin: 1px -6px 0;
+  padding: 1px 6px;
+  background: #17191c;
+  color: #f5c542;
+}
+
+.shop-card--sold,
+.shop-card--owned {
+  cursor: default;
+  filter: grayscale(0.85) brightness(0.7);
+}
+
+.shop-card--sold .shop-card__price,
+.shop-card--owned .shop-card__price {
+  color: #17191c;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.shop-card:disabled:not(.shop-card--sold):not(.shop-card--owned) {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.shop-card--empty {
+  align-items: center;
+  justify-content: center;
+  background: rgba(236, 227, 200, 0.12);
+  border: 2px dashed rgba(236, 227, 200, 0.35);
+  clip-path: none;
+  box-shadow: none;
+}
+
+.shop-card__empty {
+  font-size: 22px;
+  color: rgba(236, 227, 200, 0.6);
+}
+
+/* Short phones (≤ 360 px tall): tighter head and panel so 2 × 112 px cards fit. */
+@media (max-height: 360px) {
+  .shop {
+    padding-top: calc(env(safe-area-inset-top) + 4px);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 4px);
+  }
+
+  .shop__panel--cards {
+    padding: 4px 8px 6px;
+    gap: 4px;
+  }
+
+  .shop__panel--cards .shop__title {
+    font-size: 18px;
+  }
+}

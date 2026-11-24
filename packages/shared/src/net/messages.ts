@@ -28,8 +28,13 @@ export const C2S = {
   BUILD_SET_READY: "build.set_ready",
   /** `{ type, gx, gy, rot }` in a build phase (Story 3.4); a refusal comes back as `building.refused`. */
   BUILDING_PLACE: "building.place",
-  /** `{ weapon, slot? }` in a build phase (Story 3.3); answered with `shop.bought` or `shop.refused`. */
+  /**
+   * `{ build, rev, card, item, slot? }` in a build phase (Story 3.3; Story 5.13: buy card `card` of my
+   * offer); answered with `shop.bought` (+ `shop.offered`) or `shop.refused`.
+   */
   SHOP_BUY: "shop.buy",
+  /** `{ build, rev }` in a build phase (Story 5.13); answered with `shop.offered` or `shop.refused` (`item: "reroll"`). */
+  SHOP_REROLL: "shop.reroll",
   /** `{ id }` in a build phase (Story 3.7); a refusal comes back as `building.repair_refused`. */
   BUILDING_REPAIR: "building.repair",
   /** `{ id }` in a build phase (Story 5.9, owner only); a refusal comes back as `building.upgrade_refused`. */
@@ -58,10 +63,15 @@ export const S2C = {
   PLAYER_LEFT: "player.left",
   /** `{ reason: PlaceError }` to the sender of a refused `building.place` (Story 3.4). */
   BUILDING_REFUSED: "building.refused",
-  /** `{ weapon, slot }` to the buyer only (Story 3.3); wallet and weapons follow in the state. */
+  /** `{ item, card, slot? }` to the buyer only (Story 3.3; 5.13 cards); wallet and weapons follow in the state. */
   SHOP_BOUGHT: "shop.bought",
-  /** `{ weapon, error: ShopError }` to the buyer only (Story 3.3); nothing changed. */
+  /** `{ item, card, error: ShopError }` to the buyer only (Story 3.3; 5.13: `item: "reroll"` for a reroll); nothing changed. */
   SHOP_REFUSED: "shop.refused",
+  /**
+   * `{ build, rev, cards, sold, rerollPrice, canReroll }` to the owner only (Story 5.13): my stored
+   * card offer, at every build start, after each successful buy or reroll, and on join.
+   */
+  SHOP_OFFERED: "shop.offered",
   /** `{ id, reason: RepairError }` to the sender of a refused `building.repair` (Story 3.7). */
   BUILDING_REPAIR_REFUSED: "building.repair_refused",
   /** `{ id, reason: UpgradeError }` to the sender of a refused `building.upgrade` (Story 5.9). */
@@ -215,27 +225,52 @@ export interface BuildingRepairRefused {
 }
 
 /**
- * `shop.buy` (Story 3.3): buy a weapon of the fixed shop. `slot` (0 or 1) says which weapon it
- * replaces when both slots are full; with an empty second slot it is ignored (the weapon goes there).
+ * `shop.buy` (Story 3.3; Story 5.13: the card shop): buy card `card` (0–5) of the offer (`build`,
+ * `rev`) I saw, showing `item`. `slot` (0 or 1) says which weapon a weapon card replaces when both
+ * slots are full; otherwise ignored. Only the shape is checked here; `buyCard` decides on the World.
  */
 export const shopBuySchema = z
   .object({
-    weapon: z.string().regex(/^[a-z][a-z0-9_]*$/).max(32),
+    build: z.number().int().min(0).max(255),
+    rev: z.number().int().min(0).max(65535),
+    card: z.number().int().min(0).max(5),
+    item: z.string().regex(/^[a-z][a-z0-9_]*$/).max(32),
     slot: z.union([z.literal(0), z.literal(1)]).optional(),
   })
   .strict();
 export type ShopBuy = z.infer<typeof shopBuySchema>;
 
-/** `shop.bought` payload (Story 3.3). */
+/** `shop.reroll` (Story 5.13): reroll the offer (`build`, `rev`) I saw; a stale one is refused with no charge. */
+export const shopRerollSchema = z
+  .object({
+    build: z.number().int().min(0).max(255),
+    rev: z.number().int().min(0).max(65535),
+  })
+  .strict();
+export type ShopReroll = z.infer<typeof shopRerollSchema>;
+
+/** `shop.bought` payload (Story 3.3; 5.13: a card). `slot` only for a weapon card. */
 export interface ShopBought {
-  weapon: string;
-  slot: 0 | 1;
+  item: string;
+  card: number;
+  slot?: 0 | 1;
 }
 
-/** `shop.refused` payload (Story 3.3): the `Result` error of `buyWeapon`. */
+/** `shop.refused` payload (Story 3.3; 5.13): the `Result` error of `buyCard` / `reroll` (`item: "reroll"`, `card: -1`). */
 export interface ShopRefused {
-  weapon: string;
+  item: string;
+  card: number;
   error: ShopError;
+}
+
+/** `shop.offered` payload (Story 5.13): `cards` has `shop.json › cards` ids ("" = an empty slot); `sold` bit c = card c sold. */
+export interface ShopOffered {
+  build: number;
+  rev: number;
+  cards: string[];
+  sold: number;
+  rerollPrice: number;
+  canReroll: boolean;
 }
 
 /**

@@ -10,7 +10,9 @@ import {
   placeBuilding,
   repairBuilding,
   upgradeBuilding,
-  buyWeapon,
+  buyCard,
+  offerFor,
+  reroll,
   upgradeWeapon,
   buyItem,
   type BoughtItem,
@@ -35,7 +37,9 @@ import {
   type Repaired,
   type UpgradeError,
   type Upgraded,
-  type Bought,
+  type CardBought,
+  type Rerolled,
+  type ShopOfferView,
   type PlayerInput,
   type Result,
   type ShopError,
@@ -206,6 +210,8 @@ export interface RunControllerOptions {
   systems?: Partial<Systems>;
   /** Story 4.5 dev (`DEV_DECAY_STAGES=2,3`): the decay stage per wave instead of `decay.json`. null = the real table. */
   decayStageByWave?: readonly number[] | null;
+  /** Story 5.13 dev (`DEV_SHOP_CARDS=flamethrower,revive_kit`): every build-start offer starts with these items. null = the real draw. */
+  shopCards?: readonly string[] | null;
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map; tests may pass the open `PLACEHOLDER_MAP`). */
   map?: DistrictMap;
   /** Story 2.10: a fixed test scenario (the room passes it only with `ALLOW_TEST_SCENARIOS=1`). */
@@ -268,6 +274,7 @@ export class RunController {
     this.world.waves.paused = opts.pauseWaves === true;
     this.world.debug.waveMix = opts.waveMix ?? null;
     this.world.debug.decayStageByWave = opts.decayStageByWave ?? null; // before the first build start
+    this.world.debug.shopCards = opts.shopCards ?? null; // Story 5.13: before the first offers are drawn
     if (opts.scenario) applyTestScenario(this.world, opts.scenario);
     const lagComp = opts.lagCompensation !== false;
     setZombieHistoryEnabled(this.world, lagComp);
@@ -313,12 +320,22 @@ export class RunController {
   }
 
   /**
-   * Story 3.3: buys a weapon of the fixed shop for a player (the shared rules: build phase, price,
-   * wallet, slot). Applied at once, between ticks, like Ready; the next `syncState` sends the
-   * wallet and weapons. On an error nothing changed.
+   * Story 5.13: `shop.buy`, between ticks: buys card `card` of the player's offer (`build`, `rev`)
+   * (the shared `buyCard` rules); the next `syncState` sends the wallet, weapons and gear. On an
+   * error nothing changed.
    */
-  buyWeapon(playerId: string, weapon: string, slot: 0 | 1 | null): Result<Bought, ShopError> {
-    return buyWeapon(this.world, playerId, weapon, slot);
+  buyCard(playerId: string, build: number, rev: number, card: number, item: string, slot: 0 | 1 | null): Result<CardBought, ShopError> {
+    return buyCard(this.world, playerId, build, rev, card, item, slot);
+  }
+
+  /** Story 5.13: `shop.reroll`, between ticks (the shared `reroll` rules). */
+  reroll(playerId: string, build: number, rev: number): Result<Rerolled, ShopError> {
+    return reroll(this.world, playerId, build, rev);
+  }
+
+  /** Story 5.13: the player's stored offer for this build (null outside a build phase); never redraws it. */
+  offerFor(playerId: string): ShopOfferView | null {
+    return offerFor(this.world, playerId);
   }
 
   /** Story 5.1: `shop.upgrade`, between ticks (the shared `upgradeWeapon`'s rules). */

@@ -39,6 +39,7 @@ import {
   type PlayerState,
   type PlayerStateView,
   type RunStateView,
+  type ShopOfferView,
   type SimEvent,
   type SimEventsFlushed,
   type WeaponSlot,
@@ -462,10 +463,26 @@ export class NetSimHost implements SimHost {
   /** Story 3.3: answers of `shop.buy`, oldest first (a tap sends one at a time: at most a few). */
   private readonly shopAnswers: ShopAnswer[] = [];
 
-  /** Story 3.3: `shop.buy`; the server decides, answers this client, and the state brings wallet and weapons. */
-  buyWeapon(weapon: string, slot: 0 | 1 | null): void {
-    if (this.disposed) return;
-    this.session.room.send(C2S.SHOP_BUY, slot === null ? { weapon } : { weapon, slot });
+  /**
+   * Story 5.13: `shop.buy` for card `card` of my latest offer (its build and rev); the server
+   * decides, answers this client and sends the new offer; the state brings wallet and loadout.
+   */
+  buyCard(card: number, item: string, slot: 0 | 1 | null): void {
+    const o = this.session.latestOffer();
+    if (this.disposed || !o) return;
+    this.session.room.send(C2S.SHOP_BUY, slot === null ? { build: o.build, rev: o.rev, card, item } : { build: o.build, rev: o.rev, card, item, slot });
+  }
+
+  /** Story 5.13: `shop.reroll` of my latest offer; the new offer (or a refusal) comes back. */
+  reroll(): void {
+    const o = this.session.latestOffer();
+    if (this.disposed || !o) return;
+    this.session.room.send(C2S.SHOP_REROLL, { build: o.build, rev: o.rev });
+  }
+
+  /** Story 5.13: the latest `shop.offered` (kept by the session's inbox from the join). */
+  shopOffer(): ShopOfferView | null {
+    return this.session.latestOffer();
   }
 
   /** Story 5.1: `shop.upgrade`; the server decides and answers this client; the state brings the level and wallet. */

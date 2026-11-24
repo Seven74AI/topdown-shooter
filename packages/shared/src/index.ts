@@ -230,6 +230,9 @@ export {
   buildingRepairSchema,
   buildingUpgradeSchema,
   shopBuySchema,
+  shopRerollSchema,
+  type ShopReroll,
+  type ShopOffered,
   shopBuyItemSchema,
   type ShopBuyItem,
   type ShopBoughtItem,
@@ -290,6 +293,8 @@ export {
   botPlaceCandidate,
   botPlaceTries,
   botShopNext,
+  botCardIndex,
+  BOT_LIST_DONE,
   botGearPrice,
   botOwnsGear,
   botWeaponSlot,
@@ -450,20 +455,31 @@ export { clearMolotovZones, createMolotovZones, igniteMolotov, molotovStats, mol
 export { type ConsumableItemStats } from "./config/balanceSchema";
 export { EXPLOSION_KINDS, blastResult, createExplosionSpec, explode, explosionCounters, type ExplosionKind, type ExplosionSpec } from "./combat/explosion";
 export { boxBlocked, findBoxFreeSpot, findFreeSpotNear, spotBlocked } from "./player/freeSpot";
+export { owns, shopBuildings, titleCase, weaponName, type ShopBuilding, type ShopError } from "./economy/shop";
+// Story 5.13: the roguelike card shop.
 export {
-  botShopPick,
-  buyWeapon,
-  owns,
-  shopBuildings,
-  shopPrice,
-  shopWeapons,
-  titleCase,
-  weaponName,
-  type Bought,
-  type ShopBuilding,
-  type ShopError,
-  type ShopWeapon,
-} from "./economy/shop";
+  buyCard,
+  cardCatalog,
+  cardItem,
+  cardPool,
+  cardPrice,
+  drawAllOffers,
+  drawOffer,
+  offerFor,
+  ownsCardItem,
+  parseDevShopCards,
+  readOffer,
+  reroll,
+  rerollPrice,
+  slotOf,
+  snapshotShop,
+  type CardBought,
+  type CardItem,
+  type CardKind,
+  type Rerolled,
+  type ShopOfferView,
+} from "./economy/shopCards";
+export { MAX_CARDS, NO_CARD, createShopOffers, type ShopOffers } from "./economy/shopOffers";
 // Story 5.1: weapon upgrades I–IV (damage helper `weaponDamage` is exported with the weapons above).
 export { buyItem, type BoughtItem } from "./economy/shop";
 export {

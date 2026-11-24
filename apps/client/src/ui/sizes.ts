@@ -58,3 +58,7 @@ export const READY_BAR_GAP_CSS_PX = 12;
 export const REPAIR_BUTTON_W_CSS_PX = 168;
 export const REPAIR_CLOSE_CSS_PX = 52;
 export const REPAIR_ROW_GAP_CSS_PX = 12;
+/** Story 5.13 (D9): a shop card's minimum size and the grid gap (CSS px); 3 × 2 cards fit 568 × 320. */
+export const CARD_MIN_W_CSS_PX = 96;
+export const CARD_MIN_H_CSS_PX = 112;
+export const CARD_GAP_CSS_PX = 8;

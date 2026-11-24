@@ -20,7 +20,9 @@ import {
   botGearPrice,
   botWeaponSlot,
   createBotView,
-  shopPrice,
+  botCardIndex,
+  cardItem,
+  cardPrice,
   gearBit,
   upgradeEntryWeapon,
   upgradePrice,
@@ -39,6 +41,7 @@ import {
   type RunJoined,
   type RunStateView,
   type ShopBought,
+  type ShopOffered,
   type ShopBoughtItem,
   type ShopRefusedItem,
   type ShopRefused,
@@ -131,7 +134,11 @@ const SHOP_ANSWER_TICKS = 40;
 const levelOf = (me: PlayerStateView, weapon: string): number => (me.weapon0 === weapon ? me.level0 : me.weapon1 === weapon ? me.level1 : 0);
 
 interface PendingShop {
-  /** Story 5.1: "upgrade" = a weapon upgrade (`owned` holds the level it waits for). Story 5.11: "gear" (`owned` = its bit). */
+  /**
+   * Story 5.1: "upgrade" = a weapon upgrade (`owned` holds the level it waits for). Story 5.11: "gear"
+   * (`owned` = its bit). Story 5.12: "item" (a consumable). Story 5.13: weapons and gear are cards
+   * (`shop.buy` with my offer's build/rev/card): "weapon" / "gear" wait for `shop.bought`.
+   */
   kind: "weapon" | "building" | "upgrade" | "gear";
   /** Index in the shopping list. */
   index: number;
@@ -178,6 +185,8 @@ export class BotClient {
   private shopDone = false;
   private shopSkip = 0;
   private shopPending: PendingShop | null = null;
+  /** Story 5.13: my latest `shop.offered` (the highest build, rev). */
+  private offer: ShopOffered | null = null;
   private placeAttempt = 0;
   /** The slot the bot will hold once it swapped to what it bought this build (Story 3.10). */
   private hands = -1;
@@ -218,6 +227,10 @@ export class BotClient {
     room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m));
     room.onMessage(S2C.PLAYER_LEFT, () => {});
     room.onMessage(S2C.SHOP_BOUGHT, (m: ShopBought) => this.shopBought(m));
+    room.onMessage(S2C.SHOP_OFFERED, (m: ShopOffered) => {
+      const o = this.offer;
+      if (!o || m.build > o.build || (m.build === o.build && m.rev >= o.rev)) this.offer = m; // Story 5.13
+    });
     room.onMessage(S2C.SHOP_REFUSED, (m: ShopRefused) => this.shopRefused(m));
     room.onMessage(S2C.SHOP_UPGRADED, (m: ShopUpgraded) => this.shopUpgraded(m)); // Story 5.1
     room.onMessage(S2C.SHOP_UPGRADE_REFUSED, (m: ShopUpgradeRefused) => this.shopUpgradeRefused(m));
@@ -378,7 +391,9 @@ export class BotClient {
     self.level0 = me.level0; // Story 5.1
     self.level1 = me.level1;
     self.gear = me.gear; // Story 5.11
-    const i = botShopNext(balance, self, (t) => this.owned(state, t), this.list, this.shopSkip);
+    // Story 5.13: weapons and gear only from my current offer (none yet: those entries are skipped).
+    const offer = this.offer && this.offer.build === state.wave ? this.offer : null;
+    const i = botShopNext(balance, self, (t) => this.owned(state, t), this.list, this.shopSkip, offer);
     if (i < 0) {
       this.shopDone = true;
       this.swapPending = this.hands !== me.active;
@@ -391,15 +406,13 @@ export class BotClient {
       this.shopPending = { kind: "upgrade", index: i, id: up, owned: levelOf(me, up) + 1, sentAtTick: state.tick, bought: false };
       return;
     }
-    if (botGearPrice(balance, id) !== null) {
-      this.room.send(C2S.SHOP_BUY_ITEM, { item: id }); // Story 5.11
-      this.shopPending = { kind: "gear", index: i, id, owned: gearBit(balance, id), sentAtTick: state.tick, bought: false };
-      return;
-    }
-    if (shopPrice(balance, id) !== null) {
-      const slot = botWeaponSlot(self);
-      this.room.send(C2S.SHOP_BUY, slot === null ? { weapon: id } : { weapon: id, slot });
-      this.shopPending = { kind: "weapon", index: i, id, owned: 0, sentAtTick: state.tick, bought: false };
+    const card = cardItem(balance, id);
+    if (card && offer) {
+      // Story 5.13: the card on my offer (botShopNext found it unsold), naming the offer I saw.
+      const c = botCardIndex(offer, id);
+      const slot = card.kind === "weapon" ? botWeaponSlot(self) : null;
+      this.room.send(C2S.SHOP_BUY, { build: offer.build, rev: offer.rev, card: c, item: id, ...(slot === null ? {} : { slot }) });
+      this.shopPending = { kind: card.kind, index: i, id, owned: card.kind === "gear" ? gearBit(balance, id) : 0, sentAtTick: state.tick, bought: false };
       return;
     }
     if (this.placeAttempt >= botPlaceTries(balance) || !botPlaceCandidate(balance, id, me.x, me.y, this.placeAttempt, this.spot)) {
@@ -414,17 +427,17 @@ export class BotClient {
 
   private shopBought(m: ShopBought): void {
     const p = this.shopPending;
-    if (!p || p.kind !== "weapon") return;
-    this.purchases.push(`${m.weapon}@W${this.waveNumber + 1}`);
-    this.spent += shopPrice(balance, m.weapon) ?? 0;
-    this.hands = m.slot;
-    p.bought = true; // cleared once the state shows the weapon (shopStep)
+    if (!p || (p.kind !== "weapon" && p.kind !== "gear") || p.id !== m.item) return;
+    this.purchases.push(`${m.item}@W${this.waveNumber + 1}`);
+    this.spent += cardPrice(balance, m.item, this.offer?.build ?? 0) ?? 0;
+    if (m.slot !== undefined) this.hands = m.slot;
+    p.bought = true; // cleared once the state shows the weapon / gear bit (shopStep)
   }
 
   private shopRefused(m: ShopRefused): void {
     const p = this.shopPending;
-    if (!p || p.kind !== "weapon") return;
-    this.log({ msg: "bot_shop_refused", bot: this.name, weapon: m.weapon, error: m.error });
+    if (!p || (p.kind !== "weapon" && p.kind !== "gear")) return;
+    this.log({ msg: "bot_shop_refused", bot: this.name, item: m.item, error: m.error });
     this.shopSkip |= 1 << p.index;
     this.shopPending = null;
   }

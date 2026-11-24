@@ -33,6 +33,7 @@ import {
   playerInputSchema,
   runStartSchema,
   shopBuySchema,
+  shopRerollSchema,
   shopBuyItemSchema,
   shopUpgradeSchema,
   spectateTarget,
@@ -51,6 +52,7 @@ import {
   type PlayerLeftReason,
   type RunJoined,
   type ShopBought,
+  type ShopOffered,
   type ShopBoughtItem,
   type ShopRefusedItem,
   type ShopRefused,
@@ -72,6 +74,7 @@ import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
 import { pickDevDecayStages } from "../run/devDecayStages";
+import { pickDevShopCards } from "../run/devShopCards";
 import { pickDevShopAll } from "../run/devShopAll";
 import { resetRunFields, syncState } from "./schema/syncState";
 import { uniqueRoomCode } from "./roomCode";
@@ -273,7 +276,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
     this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
     this.onMessage(C2S.BUILDING_PLACE, this.net.guard(buildingPlaceSchema, (c, m) => this.onPlaceBuilding(c, m)));
-    this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.weapon, m.slot ?? null)));
+    this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.build, m.rev, m.card, m.item, m.slot ?? null)));
+    this.onMessage(C2S.SHOP_REROLL, this.net.guard(shopRerollSchema, (c, m) => this.onShopReroll(c, m.build, m.rev))); // Story 5.13
     this.onMessage(C2S.BUILDING_REPAIR, this.net.guard(buildingRepairSchema, (c, m) => this.onRepairBuilding(c, m.id)));
     this.onMessage(C2S.BUILDING_UPGRADE, this.net.guard(buildingUpgradeSchema, (c, m) => this.onUpgradeBuilding(c, m.id))); // Story 5.9
     this.onMessage(C2S.SHOP_UPGRADE, this.net.guard(shopUpgradeSchema, (c, m) => this.onShopUpgrade(c, m.weapon))); // Story 5.1
@@ -463,22 +467,59 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   }
 
   /**
-   * `shop.buy` (Story 3.3): the shared `buyWeapon` rules decide (build phase, for sale, not owned,
-   * slot, wallet via `spendMoney`); the sender alone gets `shop.bought` or `shop.refused` with the
-   * `Result` error. Wallet and weapons reach every client through the next patch. Rate: the shared
-   * "other" bucket (10/s); repeats can't overspend or buy a weapon twice (the rules refuse them).
+   * `shop.buy` (Story 3.3; Story 5.13: a card of my offer): the shared `buyCard` rules decide (build
+   * phase, standing, the offer's build and rev, the card holds the item and is unsold, not owned,
+   * slot, wallet via `spendMoney`). The sender alone gets `shop.bought` + its new `shop.offered`, or
+   * `shop.refused` with the `Result` error. Wallet and loadout reach every client through the next
+   * patch. Rate: the shared "other" bucket (10/s); repeats can't overspend or buy a card twice.
    */
-  onShopBuy(client: RunClient, weapon: string, slot: 0 | 1 | null): void {
+  onShopBuy(client: RunClient, build: number, rev: number, card: number, item: string, slot: 0 | 1 | null): void {
     const member = this.members.get(client.sessionId);
     if (!member) return;
     const controller = this.controller;
-    const r = controller ? controller.buyWeapon(member.playerId, weapon, slot) : ({ ok: false, error: "not_build" } as const);
+    const r = controller ? controller.buyCard(member.playerId, build, rev, card, item, slot) : ({ ok: false, error: "not_build" } as const);
     if (r.ok) {
-      client.send(S2C.SHOP_BOUGHT, { weapon, slot: r.value.slot } satisfies ShopBought);
-      this.log.info({ playerId: member.playerId, weapon, slot: r.value.slot, wallet: controller?.world.players.get(member.playerId)?.wallet }, "shop_bought");
+      client.send(S2C.SHOP_BOUGHT, (r.value.slot === null ? { item, card } : { item, card, slot: r.value.slot }) satisfies ShopBought);
+      this.sendOffer(client, member.playerId);
+      this.log.info({ playerId: member.playerId, item, card, price: r.value.price, slot: r.value.slot, wallet: controller?.world.players.get(member.playerId)?.wallet }, "shop_bought");
     } else {
-      client.send(S2C.SHOP_REFUSED, { weapon, error: r.error } satisfies ShopRefused);
-      this.log.info({ playerId: member.playerId, weapon, error: r.error }, "shop_refused");
+      client.send(S2C.SHOP_REFUSED, { item, card, error: r.error } satisfies ShopRefused);
+      this.log.debug({ playerId: member.playerId, item, card, build, rev, error: r.error }, "shop_refused");
+    }
+  }
+
+  /**
+   * `shop.reroll` (Story 5.13; shape-checked, "other" bucket): the shared `reroll` rules decide
+   * (build phase, standing, build and rev — a repeat with the old rev is `stale_offer`, no charge —,
+   * a new card possible, wallet). The sender alone gets the new `shop.offered` or `shop.refused`
+   * (`item: "reroll"`, `card: -1`).
+   */
+  onShopReroll(client: RunClient, build: number, rev: number): void {
+    const member = this.members.get(client.sessionId);
+    if (!member) return;
+    const controller = this.controller;
+    const r = controller ? controller.reroll(member.playerId, build, rev) : ({ ok: false, error: "not_build" } as const);
+    if (r.ok) {
+      this.sendOffer(client, member.playerId);
+      this.log.info({ playerId: member.playerId, build, rev: r.value.rev, price: r.value.price, wallet: controller?.world.players.get(member.playerId)?.wallet }, "shop_rerolled");
+    } else {
+      client.send(S2C.SHOP_REFUSED, { item: "reroll", card: -1, error: r.error } satisfies ShopRefused);
+      this.log.debug({ playerId: member.playerId, build, rev, error: r.error }, "shop_reroll_refused");
+    }
+  }
+
+  /** Story 5.13 (F1, F2): sends a player their stored offer, to their own client only (nothing outside a build phase). */
+  private sendOffer(client: RunClient, playerId: string): void {
+    const o = this.controller?.offerFor(playerId);
+    if (!o) return;
+    client.send(S2C.SHOP_OFFERED, { build: o.build, rev: o.rev, cards: [...o.cards], sold: o.sold, rerollPrice: o.rerollPrice, canReroll: o.canReroll } satisfies ShopOffered);
+  }
+
+  /** Story 5.13: every member's own offer (each build start; the stored one, never redrawn). */
+  private sendOffers(): void {
+    for (const client of this.clients) {
+      const member = this.members.get(client.sessionId);
+      if (member) this.sendOffer(client as RunClient, member.playerId);
     }
   }
 
@@ -556,6 +597,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // Story 4.5 (dev only, read per run like DEV_NO_WAVES): DEV_DECAY_STAGES=2,3 = the decay stage of waves 1, 2, ….
     const decayPick = pickDevDecayStages(process.env); // review L4: production ignores it (tested)
     const devDecayStages = decayPick.stages;
+    // Story 5.13 (dev only, read per run): DEV_SHOP_CARDS=flamethrower,revive_kit starts every build-start offer with them.
+    const shopPick = pickDevShopCards(process.env, serverBalance);
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
@@ -564,6 +607,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Story 3.9 dev hook, kept by 3.10 as an override: DEV_WAVE_MIX=walker,crawler replaces the waves.json mix.
       waveMix: parseWaveMix(process.env.DEV_WAVE_MIX, serverBalance),
       decayStageByWave: devDecayStages,
+      shopCards: shopPick.cards,
       scenario: this.scenario,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
       devPlacedHpFraction: devPlacedHp,
@@ -577,6 +621,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!controller.world.zombieHistory.enabled) this.log.warn("dev_no_rewind");
     if (devDecayStages !== null) this.log.warn({ stages: devDecayStages }, "dev_decay_stages");
     else if (decayPick.ignored !== null) this.log.warn({ value: process.env.DEV_DECAY_STAGES, reason: decayPick.ignored }, "dev_decay_stages_ignored");
+    if (shopPick.cards !== null) this.log.warn({ cards: shopPick.cards }, "dev_shop_cards");
+    else if (shopPick.ignored !== null) this.log.warn({ value: process.env.DEV_SHOP_CARDS, reason: shopPick.ignored }, "dev_shop_cards_ignored");
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;
@@ -624,6 +670,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       else if (e.type === "wave.ended") this.logWaveStats(e.number);
       else if (e.type === "team.wiped") this.endRun(controller, e.wave, false);
       else if (e.type === "run.held_out") this.endRun(controller, e.wave, true); // Story 3.10
+      else if (e.type === "build.started") this.sendOffers(); // Story 5.13: each player's new cards (after the tick's events)
       else if (e.type === "decay.stage_changed") this.log.info({ stage: e.stage, from: e.from, wave: controller.world.waves.number + 1, variants: controller.world.decay.variants }, "decay_stage_changed"); // Story 4.5 (architecture › logging: decay stage)
     }
     this.tickErrors = 0;

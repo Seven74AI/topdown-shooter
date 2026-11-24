@@ -6,7 +6,8 @@ import { addPlayer, type PlayerState } from "../player/player";
 import { startBuild, startWave } from "../run/runStateMachine";
 import { downPlayer, returnOutPlayers } from "../player/downed";
 import { allGear, armorBonus, buyGear, effectiveMaxHp, gearBit, gearIds, ownsGear, reviveTicksFor, shopGear, speedBonusPct } from "./gear";
-import { buyItem, buyWeapon, upgradeWeapon } from "./shop";
+import { buyItem, upgradeWeapon } from "./shop";
+import { buyCard } from "./shopCards";
 
 const balance = loadBalance();
 const NO_WAVES = { waves: () => {} };
@@ -71,10 +72,11 @@ describe("buyGear refusals, in order (Story 5.11)", () => {
     expect(p.gear).toBe(0);
   });
 
-  it("buyItem dispatches gear ids and refuses others in the same order", () => {
+  it("Story 5.13: buyItem no longer sells gear (gear is a card); refuses others in the same order", () => {
     const { world, p } = setup(200);
-    expect(buyItem(world, "p0", "running_shoes")).toEqual({ ok: true, value: { item: "running_shoes", price: 150 } });
-    expect(ownsGear(balance, p, "running_shoes")).toBe(true);
+    expect(buyItem(world, "p0", "running_shoes")).toEqual({ ok: false, error: "not_for_sale" });
+    expect(ownsGear(balance, p, "running_shoes")).toBe(false);
+    expect(buyGear(world, "p0", "running_shoes")).toEqual({ ok: true, value: { item: "running_shoes", price: 150 } });
     expect(buyItem(world, "p0", "medkit_xl")).toEqual({ ok: false, error: "not_for_sale" });
     expect(buyItem(world, "ghost", "medkit_xl")).toEqual({ ok: false, error: "unknown_player" });
     startWave(world);
@@ -103,7 +105,7 @@ describe("review M1 (G6): only a standing player shops", () => {
       expect(buyGear(world, "p0", "body_armor_1")).toEqual({ ok: false, error: "not_alive" });
       expect(buyGear(world, "p0", "jetpack")).toEqual({ ok: false, error: "not_alive" });
       expect(buyItem(world, "p0", "medkit_xl")).toEqual({ ok: false, error: "not_alive" });
-      expect(buyWeapon(world, "p0", "smg", null)).toEqual({ ok: false, error: "not_alive" });
+      expect(buyCard(world, "p0", 0, 0, 0, "smg", null)).toEqual({ ok: false, error: "not_alive" });
       expect(upgradeWeapon(world, "p0", "pistol")).toEqual({ ok: false, error: "not_alive" });
       expect(p.loadout.slots[0].level).toBe(1);
       expect([p.hp, p.maxHp, p.gear, p.wallet, p.loadout.slots[1]]).toEqual([0, 100, 0, 1000, null]);

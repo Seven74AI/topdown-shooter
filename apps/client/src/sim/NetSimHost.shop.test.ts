@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { C2S, S2C, loadBalance } from "@topdown/shared";
-import { NetSession, parseShopBought, parseShopBoughtItem, parseShopRefused, parseShopRefusedItem, parseShopUpgradeRefused, parseShopUpgraded } from "../net/session";
+import { NetSession, parseShopBought, parseShopBoughtItem, parseShopOffered, parseShopRefused, parseShopRefusedItem, parseShopUpgradeRefused, parseShopUpgraded } from "../net/session";
 import { DevThrottle } from "../net/devThrottle";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost } from "./NetSimHost";
@@ -15,26 +15,66 @@ function setup() {
   return { room, host, session };
 }
 
-describe("NetSimHost shop (Story 3.3)", () => {
-  it("buyWeapon sends one shop.buy (slot only when given) and changes nothing locally", () => {
+const OFFER = { build: 0, rev: 0, cards: ["smg", "machete", "shotgun", "body_armor_1", "running_shoes", "revive_kit"], sold: 0, rerollPrice: 20, canReroll: true };
+
+describe("NetSimHost card shop (Story 5.13; 3.3's shop tests moved to cards)", () => {
+  it("buyCard sends one shop.buy with build, rev, card, item (slot only when given) and changes nothing locally", () => {
     const { room, host } = setup();
     host.update(1 / 60);
-    host.buyWeapon("smg", null);
-    host.buyWeapon("hunting_rifle", 0);
-    expect(room.sentOf(C2S.SHOP_BUY)).toEqual([{ weapon: "smg" }, { weapon: "hunting_rifle", slot: 0 }]);
+    host.buyCard(0, "smg", null); // no offer yet: nothing to name, nothing sent
+    expect(room.sentOf(C2S.SHOP_BUY)).toEqual([]);
+    room.deliver(S2C.SHOP_OFFERED, OFFER);
+    host.buyCard(0, "smg", null);
+    host.buyCard(2, "shotgun", 0);
+    expect(room.sentOf(C2S.SHOP_BUY)).toEqual([
+      { build: 0, rev: 0, card: 0, item: "smg" },
+      { build: 0, rev: 0, card: 2, item: "shotgun", slot: 0 },
+    ]);
     host.update(1 / 60);
     const me = host.world.players.get("p0");
     expect(me?.wallet).toBe(250);
     expect(me?.loadout.slots[1]).toBeNull();
   });
 
+  it("reroll sends one shop.reroll naming the latest offer", () => {
+    const { room, host } = setup();
+    room.deliver(S2C.SHOP_OFFERED, { ...OFFER, rev: 3 });
+    host.reroll();
+    expect(room.sentOf(C2S.SHOP_REROLL)).toEqual([{ build: 0, rev: 3 }]);
+  });
+
+  it("late subscribe shows the latest offer (kept by the inbox from the join); an older offer after a newer one is ignored", () => {
+    const { room, host, session } = setup();
+    room.deliver(S2C.SHOP_OFFERED, { ...OFFER, rev: 2 });
+    room.deliver(S2C.SHOP_OFFERED, { ...OFFER, rev: 1 }); // older: ignored
+    expect(host.shopOffer()?.rev).toBe(2);
+    expect(session.latestOffer()).toBe(host.shopOffer()); // the same object while unchanged
+    room.deliver(S2C.SHOP_OFFERED, { ...OFFER, rev: 2, sold: 0b10 }); // a buy on the same offer: newer
+    expect(host.shopOffer()?.sold).toBe(0b10);
+    room.deliver(S2C.SHOP_OFFERED, { ...OFFER, rev: 2, sold: 0 }); // fewer sold on the same rev: older
+    expect(host.shopOffer()?.sold).toBe(0b10);
+    room.deliver(S2C.SHOP_OFFERED, { ...OFFER, build: 1, rev: 0 }); // the next build
+    expect(host.shopOffer()).toMatchObject({ build: 1, rev: 0 });
+    room.deliver(S2C.SHOP_OFFERED, { ...OFFER, cards: "smg" }); // malformed: dropped
+    room.deliver(S2C.SHOP_OFFERED, { ...OFFER, build: 5, cards: Array.from({ length: 7 }, () => "smg") });
+    expect(host.shopOffer()?.build).toBe(1);
+    // A host made later (a late Game scene start) sees it at once.
+    const late = new NetSimHost({ balance, session, now: () => 0 });
+    expect(late.shopOffer()?.build).toBe(1);
+  });
+
   it("answers arrive through takeShopAnswer, oldest first, each once; malformed ones are dropped", () => {
     const { room, host } = setup();
-    room.deliver(S2C.SHOP_BOUGHT, { weapon: "smg", slot: 1 });
-    room.deliver(S2C.SHOP_REFUSED, { weapon: "hunting_rifle", error: "insufficient_funds" });
-    room.deliver(S2C.SHOP_BOUGHT, { weapon: "smg", slot: 3 });
-    expect(host.takeShopAnswer()).toEqual({ ok: true, weapon: "smg", slot: 1 });
-    expect(host.takeShopAnswer()).toEqual({ ok: false, weapon: "hunting_rifle", error: "insufficient_funds" });
+    room.deliver(S2C.SHOP_BOUGHT, { item: "smg", card: 0, slot: 1 });
+    room.deliver(S2C.SHOP_BOUGHT, { item: "running_shoes", card: 4 });
+    room.deliver(S2C.SHOP_REFUSED, { item: "shotgun", card: 2, error: "insufficient_funds" });
+    room.deliver(S2C.SHOP_REFUSED, { item: "reroll", card: -1, error: "stale_offer" });
+    room.deliver(S2C.SHOP_BOUGHT, { item: "smg", card: 0, slot: 3 });
+    room.deliver(S2C.SHOP_BOUGHT, { weapon: "smg", slot: 1 }); // the 3.3 shape
+    expect(host.takeShopAnswer()).toEqual({ ok: true, item: "smg", card: 0, slot: 1 });
+    expect(host.takeShopAnswer()).toEqual({ ok: true, item: "running_shoes", card: 4, slot: null });
+    expect(host.takeShopAnswer()).toEqual({ ok: false, item: "shotgun", card: 2, error: "insufficient_funds" });
+    expect(host.takeShopAnswer()).toEqual({ kind: "reroll", ok: false, error: "stale_offer" });
     expect(host.takeShopAnswer()).toBeNull();
   });
 
@@ -55,17 +95,23 @@ describe("NetSimHost shop (Story 3.3)", () => {
 
   it("after dispose: no message is sent and answers are no longer delivered", () => {
     const { room, host } = setup();
+    room.deliver(S2C.SHOP_OFFERED, OFFER);
     host.dispose();
-    host.buyWeapon("smg", null);
-    room.deliver(S2C.SHOP_BOUGHT, { weapon: "smg", slot: 1 });
+    host.buyCard(0, "smg", null);
+    host.reroll();
+    room.deliver(S2C.SHOP_BOUGHT, { item: "smg", card: 0, slot: 1 });
     expect(room.sentOf(C2S.SHOP_BUY)).toEqual([]);
+    expect(room.sentOf(C2S.SHOP_REROLL)).toEqual([]);
     expect(host.takeShopAnswer()).toBeNull();
   });
 
-  it("parsers: an unknown error reads as not_for_sale", () => {
-    expect(parseShopRefused({ weapon: "smg", error: "weird" })).toEqual({ ok: false, weapon: "smg", error: "not_for_sale" });
-    expect(parseShopRefused({ weapon: 3, error: "x" })).toBeNull();
+  it("parsers: an unknown error reads as not_for_sale; offers are checked", () => {
+    expect(parseShopRefused({ item: "smg", card: 0, error: "weird" })).toEqual({ ok: false, item: "smg", card: 0, error: "not_for_sale" });
+    expect(parseShopRefused({ item: 3, card: 0, error: "x" })).toBeNull();
     expect(parseShopBought(null)).toBeNull();
+    expect(parseShopOffered(OFFER)).toEqual(OFFER);
+    expect(parseShopOffered({ ...OFFER, rev: -1 })).toBeNull();
+    expect(parseShopOffered({ ...OFFER, canReroll: "yes" })).toBeNull();
   });
 });
 
@@ -138,7 +184,7 @@ describe("NetSimHost weapon upgrades (Story 5.1)", () => {
   });
 });
 
-describe("NetSimHost gear (Story 5.11)", () => {
+describe("NetSimHost gear (Story 5.11; 5.13: gear is a card, buy_item stays for consumables)", () => {
   it("buyItem sends one shop.buy_item and changes nothing locally; answers come through takeShopAnswer", () => {
     const { room, host } = setup();
     host.update(1 / 60);

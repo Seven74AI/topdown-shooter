@@ -565,6 +565,11 @@ export const botsSchema = z
       .array(z.union([balanceId, z.string().regex(/^upgrade:[a-z][a-z0-9_]*$/, "an upgrade entry is upgrade:<weapon id>")]))
       .max(31)
       .default([]),
+    /**
+     * Story 5.13: a bot rerolls its card offer at most this many times per build phase (only while
+     * nothing it wants is on offer and the wallet covers the reroll plus the cheapest wanted card).
+     */
+    maxRerollsPerBuild: z.number().int().min(0).max(10).default(2),
     /** Story 3.10: a bot tries to place a building at these distances (m) around itself, 8 directions each. */
     buildRadiiM: z.array(z.number().positive().max(8)).min(1).max(4).default([2.5]),
     /** Story 5.12: a bot uses its medkit below this share of its max HP. */
@@ -733,16 +738,22 @@ export const buildingsSchema = z
   })
   .strict();
 
+/** Story 5.13: one rarity tier of the card shop (by price, D2). `maxPrice: null` = no upper bound (the last tier). */
+const rarityTierSchema = z
+  .object({
+    id: balanceId,
+    maxPrice: z.number().int().positive().nullable(),
+    weight: z.number().int().positive(),
+  })
+  .strict();
+
 /**
- * Story 3.3: the fixed-list shop (replaced by the roguelike shop in Epic 5). Which weapons it offers,
- * in order; prices stay on the weapons (`weapons.json › price`). `loadBalance` checks every id is a weapon.
+ * Story 5.13: the roguelike card shop (replaced Story 3.3's fixed weapon list). Weapon and gear
+ * cards are drawn per player and build (`economy/shopCards.ts`); prices stay on the items
+ * (`weapons.json › price`, `gear.json › items.*.price`). `loadBalance` checks the excluded ids exist.
  */
 export const shopSchema = z
   .object({
-    weapons: z
-      .array(balanceId)
-      .min(1)
-      .refine((ids) => new Set(ids).size === ids.length, "duplicate weapon id"),
     /**
      * Story 5.1: weapon upgrades I–IV (GDD › Weapon Systems › Upgrades). Level L deals
      * `damage × (1 + damagePerLevel × (L − 1))`; every level costs `round(priceShare × upgrade base)`
@@ -756,8 +767,29 @@ export const shopSchema = z
         priceShare: z.number().positive(),
       })
       .strict(),
+    /** Story 5.13: cards per offer (D1: 6). */
+    cards: z.number().int().min(1).max(6),
+    /** Story 5.13: at least this many weapon / gear cards whenever the pool has them (D1: 1 + 1). */
+    floor: z.object({ weapon: z.number().int().min(0), gear: z.number().int().min(0) }).strict(),
+    /** Story 5.13: reroll price = `price + stepPerReroll × rerolls this build` (D3: flat 20). */
+    reroll: z.object({ price: z.number().int().min(0), stepPerReroll: z.number().int().min(0) }).strict(),
+    /** Story 5.13 (D6): card price × (1 + scale × build), rounded once; 0 = fixed prices. */
+    priceScalePerBuild: z.number().min(0),
+    /** Story 5.13 (D2): rarity tiers by price, ascending; the last has `maxPrice: null`. */
+    rarity: z.array(rarityTierSchema).min(1).max(4),
+    /** Story 5.13 (D7): item ids never drawn as cards (the Pistol). */
+    excludeFromCards: z.array(balanceId),
   })
-  .strict();
+  .strict()
+  .superRefine((s, ctx) => {
+    if (s.floor.weapon + s.floor.gear > s.cards) ctx.addIssue({ code: "custom", path: ["floor"], message: "floor.weapon + floor.gear must be ≤ cards" });
+    s.rarity.forEach((t, i) => {
+      const last = i === s.rarity.length - 1;
+      if (last !== (t.maxPrice === null)) ctx.addIssue({ code: "custom", path: ["rarity", i, "maxPrice"], message: "only the last tier has maxPrice null" });
+      const prev = i > 0 ? s.rarity[i - 1]?.maxPrice : null;
+      if (i > 0 && t.maxPrice !== null && prev !== null && prev !== undefined && t.maxPrice <= prev) ctx.addIssue({ code: "custom", path: ["rarity", i, "maxPrice"], message: "tiers must ascend" });
+    });
+  });
 
 /**
  * Story 4.5: the decay timeline (GDD › Level Progression; FR58). `stageByWave[n - 1]` is the decay

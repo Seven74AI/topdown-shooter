@@ -17,10 +17,12 @@ import {
   isFlame,
   hasMagazine,
   setLoadout,
-  shopGear,
+  allGear,
+  cardCatalog,
+  cardPrice,
+  parseDevShopCards,
   gearIds,
   ownedCount,
-  shopWeapons,
   upgradePriceTable,
   spectateTarget,
   weaponName,
@@ -44,6 +46,7 @@ import {
   footprint,
   type Box,
   inHealReach,
+  type ShopOfferView,
 } from "@topdown/shared";
 import { dpr } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
@@ -89,6 +92,7 @@ import { ChipText, chipLeft } from "./chipText";
 import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
+import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { holdBuildingInput, neutralizeInput } from "../input/menuInput";
 import { buildBarItems, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
@@ -162,6 +166,8 @@ const SOLO_NAME = "You";
 /** Story 3.3: shop inputs the scene sends often, allocated once. */
 const SHOP_CLOSE: ShopInput = Object.freeze({ type: "close" });
 const shopTime: { type: "time"; nowMs: number } = { type: "time", nowMs: 0 };
+/** Story 5.13: the per-frame offer feed (reused: no allocation per frame). */
+const shopOffer: { type: "offer"; offer: ShopOfferView | null; build: number } = { type: "offer", offer: null, build: -1 };
 
 export class GameScene extends Phaser.Scene {
   private host: SceneHost | null = null;
@@ -425,6 +431,8 @@ export class GameScene extends Phaser.Scene {
     if (!session) addPlayer(world, localId, cx, cy); // online, players come from the server
     // Story 3.9 dev hook, kept by 3.10 as an override: ?wavemix=walker,crawler replaces the waves.json mix (solo).
     if (!session && stress === null) world.debug.waveMix = parseWaveMix(opts.waveMix, balance);
+    // Story 5.13 dev (?shopcards=, dev builds, solo): set before my first offer is drawn (lazily, on first read).
+    if (!session && opts.shopCards !== null) world.debug.shopCards = parseDevShopCards(opts.shopCards, balance);
     this.gameOver = false;
     this.kills = 0;
     this.consumablePending.active = false; // Story 5.12: Phaser reuses the scene: no pending use from the last run
@@ -1063,10 +1071,21 @@ export class GameScene extends Phaser.Scene {
       const balance = host.world.balance;
       this.router?.releaseAll(); // nothing stays held under the shop (as for the menu)
       host.clearEdges();
-      this.shopInput({ type: "open", weapons: shopWeapons(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel, gear: shopGear(balance), consumables: shopConsumables(balance) });
+      // Story 5.13: the card catalog with each item's price for this build (`cardPrice`, the server's function: F9).
+      const build = host.world.waves.number;
+      const catalog = cardCatalog(balance);
+      const cardPrices: Record<string, number> = {};
+      for (const c of catalog) cardPrices[c.id] = cardPrice(balance, c.id, build) ?? c.basePrice;
+      this.shopInput({ type: "open", catalog, cardPrices, cardStats: cardStatLines(balance), upgradePrices: upgradePriceTable(balance), maxLevel: balance.shop.upgrades.maxLevel, gear: allGear(balance), consumables: shopConsumables(balance) });
     }
     // Answers: shown while open, dropped while closed (the World already has the result).
     for (let a = host.takeShopAnswer(); a !== null; a = host.takeShopAnswer()) this.shopInput({ type: "answer", answer: a });
+    if (shopStore.get().open) {
+      // Story 5.13: my offer (solo: world.shop; online: the latest shop.offered) and the build it must match.
+      shopOffer.offer = host.shopOffer();
+      shopOffer.build = host.world.waves.number;
+      this.shopInput(shopOffer);
+    }
     const s = shopStore.get();
     if (s.open) {
       const me = host.world.players.get(host.localPlayerId);
@@ -1100,9 +1119,10 @@ export class GameScene extends Phaser.Scene {
     shopStore.set(r.state);
     const e = r.effect;
     if (e === null) return;
-    if (e.type === "buy") this.host?.buyWeapon(e.weapon, e.slot);
+    if (e.type === "card") this.host?.buyCard(e.card, e.item, e.slot); // Story 5.13
+    else if (e.type === "reroll") this.host?.reroll();
     else if (e.type === "upgrade") this.host?.upgradeWeapon(e.weapon); // Story 5.1
-    else this.host?.buyItem(e.item); // Story 5.11
+    else this.host?.buyItem(e.item); // Story 5.12 consumables
   }
 
   /**

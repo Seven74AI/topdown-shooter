@@ -1,13 +1,16 @@
 import type { FlameCues } from "../render/flameCues";
-import type { PlaceError, PlaceRequest, PlayerInput, RepairError, ShopError, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
+import type { PlaceError, PlaceRequest, PlayerInput, RepairError, ShopError, ShopOfferView, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
 
 /**
  * Story 3.3: how a purchase ended (solo at once, online the server's `shop.bought` / `shop.refused`).
- * Story 5.1: `kind: "upgrade"` for a weapon upgrade (`shop.upgraded` / `shop.upgrade_refused`).
+ * Story 5.13: a card (`item` on card `card`; `slot` for a weapon, null for gear); `kind: "reroll"`
+ * is a refused reroll (a successful one is the new offer). Story 5.1: `kind: "upgrade"` for a
+ * weapon upgrade (`shop.upgraded` / `shop.upgrade_refused`).
  */
 export type ShopAnswer =
-  | { readonly kind?: "buy"; readonly ok: true; readonly weapon: string; readonly slot: 0 | 1 }
-  | { readonly kind?: "buy"; readonly ok: false; readonly weapon: string; readonly error: ShopError }
+  | { readonly kind?: "buy"; readonly ok: true; readonly item: string; readonly card: number; readonly slot: 0 | 1 | null }
+  | { readonly kind?: "buy"; readonly ok: false; readonly item: string; readonly card: number; readonly error: ShopError }
+  | { readonly kind: "reroll"; readonly ok: false; readonly error: ShopError }
   | { readonly kind: "upgrade"; readonly ok: true; readonly weapon: string; readonly slot: 0 | 1; readonly level: number }
   | { readonly kind: "upgrade"; readonly ok: false; readonly weapon: string; readonly error: WeaponUpgradeError }
   /** Story 5.11: `shop.bought_item` / `shop.refused_item` (gear; Story 5.12 consumables). */
@@ -71,11 +74,21 @@ export interface SimHost {
   /** The latest upgrade refusal not taken yet, or null. */
   takeUpgradeRefusal(): UpgradeError | null;
   /**
-   * Story 3.3: buy a weapon of the fixed shop (`slot`: which one it replaces when both are full).
-   * Solo the shared `buyWeapon` runs at once; online it is sent as `shop.buy` and the server decides.
-   * Either way the answer comes from `takeShopAnswer`; wallet and weapons change only in the World.
+   * Story 5.13: buy card `card` (showing `item`) of my current offer (`slot`: which weapon a weapon
+   * card replaces when both are full). Solo the shared `buyCard` runs at once; online it is sent as
+   * `shop.buy` naming the offer's build and rev, and the server decides. The answer comes from
+   * `takeShopAnswer`; wallet, loadout, gear and the offer change only in the World (online: state
+   * and `shop.offered`).
    */
-  buyWeapon(weapon: string, slot: 0 | 1 | null): void;
+  buyCard(card: number, item: string, slot: 0 | 1 | null): void;
+  /** Story 5.13: reroll my current offer (solo: `reroll` at once; online: `shop.reroll` with its build and rev). */
+  reroll(): void;
+  /**
+   * Story 5.13: my current card offer: solo from `world.shop`, online the latest `shop.offered`
+   * (null before the first, or outside a build phase solo). The returned object is the same while
+   * the offer is unchanged (callers may compare by identity).
+   */
+  shopOffer(): ShopOfferView | null;
   /**
    * Story 5.1: upgrade one of my weapons by one level. Solo the shared `upgradeWeapon` runs at once;
    * online it is sent as `shop.upgrade` and the server decides. The answer comes from
@@ -83,7 +96,7 @@ export interface SimHost {
    */
   upgradeWeapon(weapon: string): void;
   /**
-   * Story 5.11: buy one shop item by id (gear; Story 5.12 consumables). Solo the shared `buyItem`
+   * Story 5.11: buy one shop item by id (Story 5.12 consumables; 5.13: gear is a card). Solo the shared `buyItem`
    * runs at once; online it is sent as `shop.buy_item` and the server decides. The answer comes from
    * `takeShopAnswer` (`kind: "item"`); gear, max HP and wallet change only in the World (online: state).
    */
