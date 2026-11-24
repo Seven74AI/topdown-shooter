@@ -310,6 +310,8 @@ const eventSpots: Point[] = [
   ...spot("crate", [[2.5, 13], [42.5, 16], [10, 20], [33, 12], [20, 24.5], [31.5, 20], [26.5, 8], [18, 12], [38.5, 12], [19.5, 19]]),
   ...spot("survivor", [[26, 21], [11, 15], [28, 13], [23, 11.5], [28, 17.5], [35, 18.5], [20.5, 15], [22.5, 21]]),
   ...spot("safe", [[8.5, 17], [41.5, 12], [26, 11], [22, 18], [25, 13.5], [25, 18.5]]),
+  // 6.11: the helicopter pad's centre (the intersection; looks `HELI = [24, 15.9]`), named `evac_pad`.
+  { name: "evac_pad", x: 24, y: 15.9, props: { kind: "evac_pad", minStage: 1 } },
 ];
 
 const groups: Group[] = [

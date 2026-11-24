@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="48" height="32" tilewidth="32" tileheight="32" infinite="0" nextlayerid="18" nextobjectid="150">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="48" height="32" tilewidth="32" tileheight="32" infinite="0" nextlayerid="18" nextobjectid="151">
  <properties>
   <property name="name" value="Downtown"/>
   <property name="metersPerTile" type="float" value="1"/>
@@ -804,112 +804,119 @@
    </properties>
    <point/>
   </object>
+  <object id="108" name="evac_pad" x="768" y="508.8">
+   <properties>
+    <property name="kind" value="evac_pad"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
  </objectgroup>
  <group id="7" name="stage1_evening">
   <objectgroup id="8" name="stage1_ground">
-   <object id="108" name="sidewalk_nw" x="0" y="320" width="640" height="64">
+   <object id="109" name="sidewalk_nw" x="0" y="320" width="640" height="64">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="109" name="sidewalk_nw_east" x="576" y="0" width="64" height="320">
+   <object id="110" name="sidewalk_nw_east" x="576" y="0" width="64" height="320">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="110" name="sidewalk_sw" x="0" y="640" width="640" height="64">
+   <object id="111" name="sidewalk_sw" x="0" y="640" width="640" height="64">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="111" name="sidewalk_se" x="896" y="640" width="640" height="64">
+   <object id="112" name="sidewalk_se" x="896" y="640" width="640" height="64">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="112" name="sidewalk_se_west" x="896" y="704" width="64" height="320">
+   <object id="113" name="sidewalk_se_west" x="896" y="704" width="64" height="320">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="113" name="gas_forecourt" x="896" y="0" width="640" height="384">
+   <object id="114" name="gas_forecourt" x="896" y="0" width="640" height="384">
     <properties>
      <property name="kind" value="forecourt"/>
     </properties>
    </object>
-   <object id="114" name="parking_lot" x="336" y="704" width="304" height="320">
+   <object id="115" name="parking_lot" x="336" y="704" width="304" height="320">
     <properties>
      <property name="kind" value="lot"/>
     </properties>
    </object>
-   <object id="115" name="crosswalk_north" x="640" y="336" width="256" height="48">
+   <object id="116" name="crosswalk_north" x="640" y="336" width="256" height="48">
     <properties>
      <property name="kind" value="crosswalk"/>
     </properties>
    </object>
-   <object id="116" name="crosswalk_south" x="640" y="640" width="256" height="48">
+   <object id="117" name="crosswalk_south" x="640" y="640" width="256" height="48">
     <properties>
      <property name="kind" value="crosswalk"/>
     </properties>
    </object>
-   <object id="117" name="crosswalk_west" x="592" y="384" width="48" height="256">
+   <object id="118" name="crosswalk_west" x="592" y="384" width="48" height="256">
     <properties>
      <property name="kind" value="crosswalk"/>
     </properties>
    </object>
-   <object id="118" name="crosswalk_east" x="896" y="384" width="48" height="256">
+   <object id="119" name="crosswalk_east" x="896" y="384" width="48" height="256">
     <properties>
      <property name="kind" value="crosswalk"/>
     </properties>
    </object>
-   <object id="119" name="lane_west" x="32" y="508.8" width="544" height="6.4">
+   <object id="120" name="lane_west" x="32" y="508.8" width="544" height="6.4">
     <properties>
      <property name="kind" value="lane"/>
     </properties>
    </object>
-   <object id="120" name="lane_east" x="1312" y="508.8" width="208" height="6.4">
+   <object id="121" name="lane_east" x="1312" y="508.8" width="208" height="6.4">
     <properties>
      <property name="kind" value="lane"/>
     </properties>
    </object>
-   <object id="121" name="lane_north" x="764.8" y="16" width="6.4" height="304">
+   <object id="122" name="lane_north" x="764.8" y="16" width="6.4" height="304">
     <properties>
      <property name="kind" value="lane"/>
     </properties>
    </object>
-   <object id="122" name="lane_south" x="764.8" y="704" width="6.4" height="304">
+   <object id="123" name="lane_south" x="764.8" y="704" width="6.4" height="304">
     <properties>
      <property name="kind" value="lane"/>
     </properties>
    </object>
-   <object id="123" name="gas_canopy" x="992" y="64" width="192" height="240">
+   <object id="124" name="gas_canopy" x="992" y="64" width="192" height="240">
     <properties>
      <property name="kind" value="canopy"/>
     </properties>
    </object>
   </objectgroup>
   <objectgroup id="9" name="stage1_shopfronts">
-   <object id="124" name="shopfront_corner_shop" x="16" y="320" width="224" height="64">
+   <object id="125" name="shopfront_corner_shop" x="16" y="320" width="224" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
    </object>
-   <object id="125" name="shopfront_apartments" x="368" y="320" width="192" height="64">
+   <object id="126" name="shopfront_apartments" x="368" y="320" width="192" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
    </object>
-   <object id="126" name="shopfront_diner" x="16" y="640" width="192" height="64">
+   <object id="127" name="shopfront_diner" x="16" y="640" width="192" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
    </object>
-   <object id="127" name="shopfront_offices" x="976" y="640" width="224" height="64">
+   <object id="128" name="shopfront_offices" x="976" y="640" width="224" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
    </object>
-   <object id="128" name="shopfront_gas_kiosk" x="1328" y="192" width="192" height="64">
+   <object id="129" name="shopfront_gas_kiosk" x="1328" y="192" width="192" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
@@ -918,12 +925,12 @@
  </group>
  <group id="10" name="stage2_panic">
   <objectgroup id="11" name="stage2_props">
-   <object id="129" name="debris_west" x="160" y="576" width="32" height="25.6">
+   <object id="130" name="debris_west" x="160" y="576" width="32" height="25.6">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="130" name="debris_east" x="1408" y="416" width="38.4" height="25.6">
+   <object id="131" name="debris_east" x="1408" y="416" width="38.4" height="25.6">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
@@ -932,12 +939,12 @@
  </group>
  <group id="12" name="stage3_breakdown">
   <objectgroup id="13" name="stage3_props">
-   <object id="131" name="debris_mid" x="480" y="448" width="48" height="32">
+   <object id="132" name="debris_mid" x="480" y="448" width="48" height="32">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="132" name="debris_south" x="832" y="864" width="32" height="32">
+   <object id="133" name="debris_south" x="832" y="864" width="32" height="32">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
@@ -946,37 +953,37 @@
  </group>
  <group id="14" name="stage4_ruins">
   <objectgroup id="15" name="stage4_props">
-   <object id="133" name="ruins_debris_west" x="262.4" y="467.2" width="38.4" height="22.4">
+   <object id="134" name="ruins_debris_west" x="262.4" y="467.2" width="38.4" height="22.4">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="134" name="ruins_debris_north" x="800" y="147.2" width="32" height="19.2">
+   <object id="135" name="ruins_debris_north" x="800" y="147.2" width="32" height="19.2">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="135" name="ruins_debris_forecourt" x="1139.2" y="179.2" width="38.4" height="22.4">
+   <object id="136" name="ruins_debris_forecourt" x="1139.2" y="179.2" width="38.4" height="22.4">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="136" name="ruins_debris_south" x="678.4" y="915.2" width="32" height="22.4">
+   <object id="137" name="ruins_debris_south" x="678.4" y="915.2" width="32" height="22.4">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="137" name="ruins_spill_diner" x="172.8" y="672" width="51.2" height="22.4">
+   <object id="138" name="ruins_spill_diner" x="172.8" y="672" width="51.2" height="22.4">
     <properties>
      <property name="kind" value="spill"/>
     </properties>
    </object>
-   <object id="138" name="ruins_spill_breach_apartments" x="422.4" y="345.6" width="51.2" height="25.6">
+   <object id="139" name="ruins_spill_breach_apartments" x="422.4" y="345.6" width="51.2" height="25.6">
     <properties>
      <property name="kind" value="spill"/>
     </properties>
    </object>
-   <object id="139" name="ruins_spill_breach_offices" x="908.8" y="921.6" width="25.6" height="51.2">
+   <object id="140" name="ruins_spill_breach_offices" x="908.8" y="921.6" width="25.6" height="51.2">
     <properties>
      <property name="kind" value="spill"/>
     </properties>
@@ -985,52 +992,52 @@
  </group>
  <group id="16" name="stage5_collapse">
   <objectgroup id="17" name="stage5_props">
-   <object id="140" name="collapse_debris_west" x="262.4" y="467.2" width="38.4" height="22.4">
+   <object id="141" name="collapse_debris_west" x="262.4" y="467.2" width="38.4" height="22.4">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="141" name="collapse_debris_north" x="800" y="147.2" width="32" height="19.2">
+   <object id="142" name="collapse_debris_north" x="800" y="147.2" width="32" height="19.2">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="142" name="collapse_debris_forecourt" x="1139.2" y="179.2" width="38.4" height="22.4">
+   <object id="143" name="collapse_debris_forecourt" x="1139.2" y="179.2" width="38.4" height="22.4">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="143" name="collapse_debris_south" x="678.4" y="915.2" width="32" height="22.4">
+   <object id="144" name="collapse_debris_south" x="678.4" y="915.2" width="32" height="22.4">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="144" name="collapse_spill_diner" x="172.8" y="672" width="51.2" height="22.4">
+   <object id="145" name="collapse_spill_diner" x="172.8" y="672" width="51.2" height="22.4">
     <properties>
      <property name="kind" value="spill"/>
     </properties>
    </object>
-   <object id="145" name="collapse_spill_breach_apartments" x="422.4" y="345.6" width="51.2" height="25.6">
+   <object id="146" name="collapse_spill_breach_apartments" x="422.4" y="345.6" width="51.2" height="25.6">
     <properties>
      <property name="kind" value="spill"/>
     </properties>
    </object>
-   <object id="146" name="collapse_spill_breach_offices" x="908.8" y="921.6" width="25.6" height="51.2">
+   <object id="147" name="collapse_spill_breach_offices" x="908.8" y="921.6" width="25.6" height="51.2">
     <properties>
      <property name="kind" value="spill"/>
     </properties>
    </object>
-   <object id="147" name="collapse_fallen_lamp" x="633.6" y="369.6" width="102.4" height="16">
+   <object id="148" name="collapse_fallen_lamp" x="633.6" y="369.6" width="102.4" height="16">
     <properties>
      <property name="kind" value="fallen_lamp"/>
     </properties>
    </object>
-   <object id="148" name="collapse_spill_apartments" x="499.2" y="326.4" width="70.4" height="25.6">
+   <object id="149" name="collapse_spill_apartments" x="499.2" y="326.4" width="70.4" height="25.6">
     <properties>
      <property name="kind" value="spill"/>
     </properties>
    </object>
-   <object id="149" name="collapse_spill_south" x="742.4" y="761.6" width="51.2" height="19.2">
+   <object id="150" name="collapse_spill_south" x="742.4" y="761.6" width="51.2" height="19.2">
     <properties>
      <property name="kind" value="spill"/>
     </properties>

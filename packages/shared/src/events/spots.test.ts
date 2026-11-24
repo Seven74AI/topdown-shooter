@@ -3,7 +3,7 @@ import { createWorld } from "../core/world";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { createObstacles } from "../map/obstacles";
 import { createNavGrid, flowCellAt } from "../zombies/flowField";
-import { legalDecayMasks } from "../decay/decayState";
+import { gameplayDecayMasks } from "../decay/decayState";
 import { applyDecayStage } from "../decay/applyDecayStage";
 import { mutationApplies } from "../map/obstacles";
 import { addPlayer } from "../player/player";
@@ -19,7 +19,7 @@ import { balance, tickN } from "./testEvents";
  * lane lets a 30-Runner stampede cross or convert with no Runner ever inside a box.
  */
 const map = DOWNTOWN_MAP;
-const MASKS = legalDecayMasks(map);
+const MASKS = gameplayDecayMasks(map);
 /** At most this many masks per stage for the lane sims (spread over the list; the spot checks take all). */
 const LANE_MASKS = 8;
 const CLEAR_M = 1;
@@ -52,7 +52,8 @@ function reachableCells(solids: readonly MapBox[]): Uint8Array {
 describe("Story 6.8: event spots (crate ×10, survivor ×8, safe ×6) and 4 stampede lanes", () => {
   it("the layer holds them, named and on open road", () => {
     const count = (k: string) => map.eventSpots.filter((s) => s.kind === k).length;
-    expect([count("crate"), count("survivor"), count("safe")]).toEqual([10, 8, 6]);
+    expect([count("crate"), count("survivor"), count("safe"), count("evac_pad")]).toEqual([10, 8, 6, 1]);
+    expect(map.eventSpots.find((s) => s.kind === "evac_pad")).toMatchObject({ name: "evac_pad", x: 24, y: 15.9 }); // 6.11's pad
     expect(map.stampedeLanes.map((l) => `${l.name}:${l.dir}`)).toEqual(["lane_main_eastbound:e", "lane_main_westbound:w", "lane_cross_southbound:s", "lane_cross_northbound:n"]);
     for (const l of map.stampedeLanes) expect(Math.min(l.maxX - l.minX, l.maxY - l.minY)).toBe(balance.events.stampede.laneWidthM);
   });

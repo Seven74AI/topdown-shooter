@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRng } from "../core/rng";
 import { createWorld, type World } from "../core/world";
 import { DOWNTOWN_MAP } from "../map/downtown";
-import { legalDecayMasks } from "../decay/decayState";
+import { gameplayDecayMasks } from "../decay/decayState";
 import { applyDecayStage } from "../decay/applyDecayStage";
 import { addBuildingAt } from "../buildings/buildings";
 import { addPlayer } from "../player/player";
@@ -19,7 +19,7 @@ import { balance, tickN } from "./testEvents";
  * stampede ends with every Runner crossed or converted, and the run goes on (no stall).
  */
 const map = DOWNTOWN_MAP;
-const MASKS = legalDecayMasks(map);
+const MASKS = gameplayDecayMasks(map);
 const LAYOUTS = 6;
 const distBox = (x: number, y: number, b: { minX: number; minY: number; maxX: number; maxY: number }): number => Math.hypot(Math.max(b.minX - x, 0, x - b.maxX), Math.max(b.minY - y, 0, y - b.maxY));
 
