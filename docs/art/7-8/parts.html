@@ -1,0 +1,536 @@
+<title>Survivor Parts Pick</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one dark "night street" sheet, a sticky colour bar, then one band per slot with a card per part
+   (big drawing | game-size street | pick buttons). Single dark look on purpose: it is the game's own night. */
+:root {
+  color-scheme: dark;
+  --asphalt: #121417;
+  --panel: #1b1e22;
+  --panel-2: #23272c;
+  --line: #333840;
+  --fg: #d9d4c7;
+  --muted: #8d8a80;
+  --sodium: #e0a646;      /* streetlight amber: the one accent */
+  --mile: #e0a646;
+  --loot: #b9a4e0;
+  --ok: #7fbf6a;
+  --warn: #e07a5f;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+html, body { background: var(--asphalt); color: var(--fg); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.45; overflow-x: hidden; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--asphalt); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 22px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 2.1rem; letter-spacing: .02em; margin: 0; text-transform: uppercase; text-wrap: balance; }
+h1 span { color: var(--sodium); }
+h2 { font-family: var(--display); font-weight: 700; font-size: 1.5rem; letter-spacing: .03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+h2 small { font: 400 12px var(--mono); color: var(--muted); letter-spacing: 0; text-transform: none; margin-left: 8px; }
+h3 { font-family: var(--display); font-weight: 500; font-size: 1.15rem; letter-spacing: .03em; text-transform: uppercase; margin: 0; }
+p { margin: 0; }
+.lede { color: var(--muted); max-width: 72ch; margin-top: 6px; }
+.steps { margin: 10px 0 0; padding-left: 20px; max-width: 76ch; display: grid; gap: 3px; }
+.note { color: var(--muted); font-size: 13px; max-width: 80ch; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--asphalt) 92%, transparent); backdrop-filter: blur(4px); border-bottom: 1px solid var(--line); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.colour { display: inline-grid; grid-template-columns: auto auto auto auto; gap: 6px; align-items: center; font-size: 13px; }
+.colour input[type=color] { width: 36px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; }
+.sw { width: 22px; height: 22px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; vertical-align: middle; }
+.arrow { color: var(--muted); font-size: 12px; }
+.ctl { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.ctl input[type=range] { width: 90px; accent-color: var(--sodium); }
+.ctl output { font-family: var(--mono); font-size: 12px; color: var(--fg); min-width: 3ch; }
+button, select { font: inherit; font-size: 13px; color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--sodium); outline-offset: 2px; }
+.band { display: grid; gap: 12px; }
+.bandhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-width: 0; display: grid; gap: 8px; }
+.card.signal { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.card.picked { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); }
+.chead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.pid { font: 400 11.5px var(--mono); color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+.tag { margin-left: auto; font-family: var(--display); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+.tag.s { color: var(--muted); } .tag.m { color: var(--mile); } .tag.l { color: var(--loot); }
+.views { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 8px; align-items: stretch; }
+.views canvas { display: block; border-radius: 4px; background: #16181b; min-width: 0; max-width: 100%; }
+.big { width: 132px; height: 132px; }
+.street { width: 100%; height: 132px; }
+.cap { display: flex; justify-content: space-between; gap: 6px; font: 400 10.5px var(--mono); color: var(--muted); flex-wrap: wrap; }
+.chip { font: 400 10.5px var(--mono); border-radius: 3px; padding: 0 5px; }
+.chip.ok { color: var(--asphalt); background: var(--ok); }
+.chip.bad { color: var(--asphalt); background: var(--warn); }
+.sig { font-size: 12.5px; border-left: 3px solid var(--warn); padding: 2px 0 2px 8px; color: var(--fg); }
+.sig b { color: var(--warn); font-weight: 600; }
+.cmt { font-size: 12.5px; color: var(--muted); }
+.picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.picks button[aria-pressed="true"] { background: var(--sodium); color: #1a1408; border-color: var(--sodium); font-weight: 600; }
+.picks button[data-v="drop"][aria-pressed="true"] { background: var(--warn); border-color: var(--warn); }
+.card textarea { font: inherit; font-size: 13px; color: var(--fg); background: var(--asphalt); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; resize: vertical; min-height: 32px; width: 100%; box-sizing: border-box; }
+.vtoggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.vtoggle button { border: 0; border-radius: 0; padding: 2px 10px; background: transparent; }
+.vtoggle button[aria-pressed="true"] { background: var(--panel-2); color: var(--sodium); }
+.summary { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 10px; }
+.summary textarea { font: 12px/1.5 var(--mono); color: var(--fg); background: var(--asphalt); border: 1px solid var(--line); border-radius: 4px; padding: 8px; width: 100%; box-sizing: border-box; min-height: 160px; }
+.status { font: 400 12px var(--mono); color: var(--muted); }
+.status.live { color: var(--ok); }
+.count { font: 400 12px var(--mono); color: var(--muted); }
+table.legend { border-collapse: collapse; font-size: 13px; }
+table.legend td { padding: 2px 10px 2px 0; vertical-align: middle; }
+.scroll { overflow-x: auto; }
+@media (max-width: 420px) { .views { grid-template-columns: minmax(0, 1fr); } .big { width: 100%; height: auto; aspect-ratio: 1; max-width: 100%; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Survivor <span>parts</span> pick</h1>
+    <p class="lede">Story 7.8. All 55 parts of the survivor, drawn in code the way the game draws it. Each card shows the part big (editor light) and at real game size: 35 px per metre, body radius 0.4 m (14 px), on wet asphalt with a slot ring and zombies, in the night-muted in-game colour. Everything else on the survivor stays the default look, so you judge one part at a time.</p>
+    <ol class="steps">
+      <li><b>Keep</b> the part as drawn, <b>Redraw</b> it (say what to change in the note) or <b>Drop</b> it.</li>
+      <li>Cards with a red edge could read as a gameplay signal (armor, a light, gas immunity, a pick-up, a Runner). Each has a safer <b>B</b> drawing; keep A or B, or drop it.</li>
+      <li>Set the colours and the night mute in the bar. "In game" is the colour the survivor really carries at night.</li>
+      <li>Your picks save as you click. When you're done, tell me in the chat; I read them from this page.</li>
+    </ol>
+  </header>
+
+  <div class="bar" role="group" aria-label="Colours and night light">
+    <span class="colour"><label for="c-top">Top</label><input type="color" id="c-top" value="#b8336a"><span class="arrow">in game</span><span class="sw" id="sw-top"></span></span>
+    <span class="colour"><label for="c-hair">Hair</label><input type="color" id="c-hair" value="#8a5a2b"><span class="arrow">in game</span><span class="sw" id="sw-hair"></span></span>
+    <span class="colour"><label for="c-acc">Accent</label><input type="color" id="c-acc" value="#e0b33a"><span class="arrow">in game</span><span class="sw" id="sw-acc"></span></span>
+    <span class="ctl"><label for="m-l">Lightness ×</label><input type="range" id="m-l" min="0.4" max="1" step="0.02" value="0.62"><output id="o-l">0.62</output></span>
+    <span class="ctl"><label for="m-s">Saturation ×</label><input type="range" id="m-s" min="0.4" max="1" step="0.02" value="0.8"><output id="o-s">0.80</output></span>
+    <span class="ctl"><label for="stage">Decay stage</label><select id="stage"><option value="1">1 (no extra dim)</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></span>
+    <button type="button" id="defcol">Default colours</button>
+    <span class="status" id="status">Picks: connecting…</span>
+  </div>
+
+  <section class="band" aria-labelledby="h-default">
+    <div class="bandhead"><h2 id="h-default">Today's survivor <small>the default look</small></h2></div>
+    <p class="note">Top <code>jacket</code> in the jacket blue, headgear <code>cap</code> (it hides the hair), backpack, no accent, skin 1. The game keeps drawing exactly this until a player changes something (Story 7.9). Its colours are the game's own night colours, so they are not muted again. To keep it pixel-identical, the prototype's extras on the default parts are gone: no hands, no strap on the backpack, no dark panel on the jacket.</p>
+    <div class="grid" id="g-default"></div>
+  </section>
+
+  <div id="bands"></div>
+
+  <section class="summary" aria-labelledby="h-sum">
+    <h2 id="h-sum">Your picks</h2>
+    <p class="note">The same picks as text, in case the page can't save for you. <span class="count" id="count"></span></p>
+    <div class="picks"><button type="button" id="copy">Copy picks</button><span class="status" id="copymsg"></span></div>
+    <label class="note" for="sumtext">Picks as text</label>
+    <textarea id="sumtext" readonly></textarea>
+  </section>
+
+  <section class="band" aria-labelledby="h-how">
+    <div class="bandhead"><h2 id="h-how">How to read a card</h2></div>
+    <div class="scroll"><table class="legend">
+      <tr><td><span class="tag s">Starter</span></td><td>Free from the first run (35 parts).</td></tr>
+      <tr><td><span class="tag m">Milestone M1–M10</span></td><td>Earned once (Story 7.11 adds the rules).</td></tr>
+      <tr><td><span class="tag l">Loot</span></td><td>Found during a wave, very rarely.</td></tr>
+      <tr><td><span class="chip ok">87 px²</span></td><td>Colour changed at game size against the same look without the part (the rule: at least 40 px², or a new outline).</td></tr>
+    </table></div>
+    <p class="note">Headgear and hair are compared with headgear "none" for hair; tops, hair and skin have no "none", so they are compared with the default part. Skin is shown and measured with no headgear and bald, so the head shows.</p>
+  </section>
+</div>
+
+<script>
+"use strict";
+const TAU = Math.PI * 2;
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+const PPM = 35, BODY_R = 0.4 * PPM; // 14 px
+const SLOT = ["#3d8bff", "#ff8a1f", "#34c759", "#b05cff"];
+// Game colours (spriteArt.ts CHAR): already night-muted.
+const CHAR = { outline: "rgba(6,6,6,0.7)", jacket: "#3c5670", pack: "#26251f", cap: "#1f2326", hair: "#231f1c", survivorSkin: "#c49a7c", gun: "#17181a", skin: "#7c8676" };
+const ZSHIRTS = ["#454c5a", "#574636", "#3b4636", "#625849"];
+
+// ---------- colour helpers ----------
+function rgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function hex(c) { return "#" + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join(""); }
+function shade(h, t) { const f = t < 0 ? 0 : 255, a = Math.abs(t); return hex(rgb(h).map(v => v + (f - v) * a)); }
+function toHsl(h) { const [r, g, b] = rgb(h).map(v => v / 255); const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let H = 0, S = 0; const L = (mx + mn) / 2; if (mx !== mn) { const d = mx - mn; S = L > .5 ? d / (2 - mx - mn) : d / (mx + mn); H = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; H /= 6; } return [H, S, L]; }
+function fromHsl(H, S, L) { if (S === 0) return hex([L * 255, L * 255, L * 255]); const q = L < .5 ? L * (1 + S) : L + S - L * S, p = 2 * L - q; const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < .5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; }; return hex([f(H + 1 / 3) * 255, f(H) * 255, f(H - 1 / 3) * 255]); }
+// cosmetics.json › look (the story's recommended start; the sliders tune lightness and saturation).
+const LOOK = { nightMute: { lightness: 0.62, saturation: 0.8 }, stageDim: [1, 0.96, 0.92, 0.88, 0.84] };
+let stage = 1;
+function nightMute(h) { const [H, S, L] = toHsl(h); return fromHsl(H, S * LOOK.nightMute.saturation, L * LOOK.nightMute.lightness); }
+function stageDim(h, st) { const k = LOOK.stageDim[st - 1]; if (k === 1) return h; const [H, S, L] = toHsl(h); return fromHsl(H, S, L * k); }
+function hash(n) { const s = Math.sin(n) * 43758.5453; return s - Math.floor(s); }
+
+// ---------- path helpers (spriteArt.ts) ----------
+function circle(c, x, y, r) { c.beginPath(); c.arc(x, y, r, 0, TAU); }
+function ell(c, x, y, rx, ry, a = 0) { c.beginPath(); c.ellipse(x, y, Math.max(.01, rx), Math.max(.01, ry), a, 0, TAU); }
+function rrect(c, x, y, w, h, r) { const q = Math.max(0, Math.min(r, w / 2, h / 2)); c.beginPath(); c.moveTo(x + q, y); c.lineTo(x + w - q, y); c.quadraticCurveTo(x + w, y, x + w, y + q); c.lineTo(x + w, y + h - q); c.quadraticCurveTo(x + w, y + h, x + w - q, y + h); c.lineTo(x + q, y + h); c.quadraticCurveTo(x, y + h, x, y + h - q); c.lineTo(x, y + q); c.quadraticCurveTo(x, y, x + q, y); c.closePath(); }
+function fs(c, col) { c.fillStyle = col; c.fill(); c.stroke(); }
+function resetLine(c, r) { c.strokeStyle = CHAR.outline; c.lineWidth = Math.max(1, r * .08); c.lineCap = "butt"; }
+
+// ---------- catalogue (proposal § 3, § 6; story 7.8 Dev Notes) ----------
+// u: "s" starter, "mN" milestone, "l" loot. col: which picker colour the part takes. B: a safer drawing exists.
+const SKINS = ["#c49a7c", "#e2c3ab", "#d3ab8e", "#ab8062", "#93684b", "#7a5239", "#5f3e2b", "#4a2f21"]; // preset 1 = CHAR.survivorSkin
+const MILES = { m1: "Survive wave 5", m2: "First extraction from Downtown", m3: "Kill the Behemoth", m4: "Endless wave 15", m5: "Revive 25 teammates", m6: "1,000 zombie kills", m7: "Build 100 barricades", m8: "Extract with all 4 alive", m9: "20 runs played", m10: "Wave 10 without going down" };
+const CAT = {
+  top: [
+    { id: "jacket", name: "Jacket", u: "s", col: "top", note: "Today's jacket, exactly." },
+    { id: "hoodie", name: "Hoodie", u: "s", col: "top", note: "Hood bunched on the back, two drawstrings." },
+    { id: "coat", name: "Long coat", u: "s", col: "top", note: "Longer body, tails behind, lapels." },
+    { id: "track", name: "Tracksuit", u: "s", col: "top", note: "Light piping on the arms and chest." },
+    { id: "puffer", name: "Puffer", u: "s", col: "top", note: "Quilted ridges." },
+    { id: "leather", name: "Leather jacket", u: "m5", col: "none", note: "Fixed dark brown, a sheen and a zip." },
+    { id: "camo", name: "Camo coat", u: "m6", col: "none", note: "Fixed olive with blots." },
+    { id: "floral", name: "Floral shirt", u: "l", col: "top", B: true, sig: "Pink-red flowers could read as blood or a Runner's red shirt.", bnote: "B: flowers in yellow, white and pale blue only." },
+    { id: "robe", name: "Bathrobe", u: "l", col: "top", note: "Wide body, lapel ring, belt." },
+  ],
+  head: [
+    { id: "none", name: "None", u: "s", col: "none" },
+    { id: "cap", name: "Cap", u: "s", col: "accent", hides: true, note: "Today's cap. Takes the accent colour (default: the game's cap grey)." },
+    { id: "capb", name: "Cap, backwards", u: "s", col: "accent" },
+    { id: "beanie", name: "Beanie", u: "s", col: "accent", hides: true },
+    { id: "hood", name: "Hood up", u: "s", col: "top", hides: true, note: "Takes the top colour." },
+    { id: "bandana", name: "Bandana", u: "s", col: "accent" },
+    { id: "bike", name: "Bike helmet", u: "s", col: "none", hides: true, B: true, sig: "Grey shell could read as armor (FR48 armor gear).", bnote: "B: shell in the accent colour, a sports helmet, not gear." },
+    { id: "hard", name: "Hard hat", u: "s", col: "none", hides: true, B: true, sig: "Ochre could read as armor, or as amber (\"an event you can use\").", bnote: "B: same hat in the accent colour." },
+    { id: "fire", name: "Firefighter helmet", u: "m1", col: "none", hides: true },
+    { id: "riot", name: "Riot helmet", u: "m2", col: "none", hides: true, B: true, sig: "Black dome + visor sheen reads as armor.", bnote: "B: matte olive dome, no visor, chin strap." },
+    { id: "gas", name: "Gas mask", u: "m3", col: "none", hides: false, B: true, sig: "Could read as Bloater-gas immunity.", bnote: "B: a small cloth dust mask, no filters." },
+    { id: "hockey", name: "Hockey mask", u: "m4", col: "none", hides: false, B: true, sig: "The red scratch is the only red on a survivor.", bnote: "B: no red scratch." },
+    { id: "cone", name: "Traffic cone", u: "l", col: "none", hides: true },
+    { id: "chef", name: "Chef's hat", u: "l", col: "none", hides: true },
+    { id: "pot", name: "Cooking pot", u: "l", col: "none", hides: true },
+    { id: "party", name: "Party hat", u: "l", col: "none" },
+    { id: "bunny", name: "Bunny beanie", u: "l", col: "none", hides: true },
+  ],
+  hair: [
+    { id: "short", name: "Short", u: "s", col: "hair" },
+    { id: "buzz", name: "Buzz cut", u: "s", col: "hair" },
+    { id: "tied", name: "Tied back", u: "s", col: "hair" },
+    { id: "curly", name: "Curly", u: "s", col: "hair" },
+    { id: "bald", name: "Bald", u: "s", col: "none" },
+  ],
+  pack: [
+    { id: "backpack", name: "Backpack", u: "s", col: "none", note: "Today's backpack, exactly." },
+    { id: "duffel", name: "Duffel", u: "s", col: "none" },
+    { id: "frame", name: "Hiking pack", u: "s", col: "none" },
+    { id: "sling", name: "Sling bag", u: "s", col: "none" },
+    { id: "none", name: "None", u: "s", col: "none" },
+    { id: "guitar", name: "Guitar case", u: "m9", col: "none" },
+    { id: "ammo", name: "Ammo rig", u: "m10", col: "none", B: true, sig: "Pouches could read as gear (more ammo).", bnote: "B: a canvas field satchel, no pouches." },
+    { id: "teddy", name: "Teddy bear", u: "l", col: "none" },
+    { id: "cooler", name: "Cooler box", u: "l", col: "none", B: true, sig: "A white box reads as a pick-up (white = pick-ups) or a medic bag.", bnote: "B: grey-green cooler, dark lid." },
+  ],
+  acc: [
+    { id: "none", name: "None", u: "s", col: "none" },
+    { id: "scarf", name: "Scarf", u: "s", col: "accent" },
+    { id: "stripes", name: "Reflective stripes", u: "s", col: "accent", B: true, sig: "Bright strips could read as a flashlight glint in blackout.", bnote: "B: matte stripes in the accent colour, no shine." },
+    { id: "patch", name: "Shoulder patch", u: "s", col: "accent" },
+    { id: "harness", name: "Work harness", u: "m7", col: "accent" },
+    { id: "team", name: "Team patch", u: "m8", col: "accent", note: "Moved from the backpack to the shoulder, so it also shows with no pack or with the flamethrower's tanks." },
+    { id: "cape", name: "Cape", u: "l", col: "accent", note: "Drawn over the back (the game's order: accent after the body)." },
+  ],
+  skin: SKINS.map((h, i) => ({ id: String(i + 1), name: "Skin " + (i + 1), u: "s", col: "none", hexv: h, note: i === 0 ? "Today's skin (default)." : "" })),
+};
+const SLOTS = [["top", "Top", "body + arms, takes the top colour"], ["head", "Headgear", "changes the head outline"], ["hair", "Hair", "shows when the headgear leaves it showing"], ["pack", "Backpack", "a weapon's back piece still replaces it"], ["acc", "Accent", "takes the accent colour"], ["skin", "Skin", "8 presets, no picker"]];
+const DEFAULT = { top: "jacket", head: "cap", hair: "short", pack: "backpack", acc: "none", skin: "1" };
+const DEFAULT_COLS = { top: CHAR.jacket, hair: CHAR.hair, acc: CHAR.cap };
+function item(slot, id) { return CAT[slot].find(o => o.id === id); }
+
+// ---------- the survivor, part by part (facing +x, body at 0,0, r = body radius px) ----------
+// Game draw order: back piece → gun → arms → pack → top body → accent → head (skin) → hair → headgear.
+// col = { top, hair, acc, skin } final colours; v = { "slot_id": "B" } chosen variants.
+function drawSurvivor(c, r, L, col, v) {
+  c.lineJoin = "round"; c.strokeStyle = CHAR.outline; c.lineWidth = Math.max(1, r * .08);
+  c.fillStyle = CHAR.gun; rrect(c, r * .3, -r * .13, r * 1.75, r * .26, 1); c.fill();
+  drawArms(c, r, L.top, col.top);
+  drawPack(c, r, L.pack, v["pack_" + L.pack]);
+  drawTop(c, r, L, col.top, v["top_" + L.top]);
+  drawAccent(c, r, L.acc, col.acc, v["acc_" + L.acc]);
+  c.fillStyle = col.skin; circle(c, r * .12, 0, r * .4); c.fill(); c.stroke();
+  const hg = item("head", L.head);
+  if (!(hg && hg.hides)) drawHair(c, r, L.hair, col.hair);
+  drawHead(c, r, L.head, col, v["head_" + L.head]);
+}
+function drawArms(c, r, t, top) {
+  c.strokeStyle = t === "leather" ? "#2e221b" : t === "camo" ? "#4a4e35" : top;
+  c.lineCap = "round"; c.lineWidth = r * .3;
+  c.beginPath(); c.moveTo(0, -r * .6); c.lineTo(r * .85, -r * .1); c.moveTo(0, r * .6); c.lineTo(r * .55, r * .12); c.stroke();
+  if (t === "track") { c.strokeStyle = shade(top, .55); c.lineWidth = r * .09; c.beginPath(); c.moveTo(0, -r * .68); c.lineTo(r * .8, -r * .2); c.moveTo(0, r * .68); c.lineTo(r * .5, r * .22); c.stroke(); }
+  resetLine(c, r);
+}
+function drawTop(c, r, L, top, variant) {
+  const t = L.top;
+  if (t === "coat" || t === "camo") {
+    const base = t === "camo" ? "#4a4e35" : top;
+    c.beginPath(); c.moveTo(-r * .5, -r * .5); c.lineTo(-r * 1.0, -r * .35); c.lineTo(-r * 1.0, r * .35); c.lineTo(-r * .5, r * .5); c.closePath(); fs(c, shade(base, -.12));
+    ell(c, -r * .08, 0, r * .58, r * .94); fs(c, base);
+    if (t === "camo") { const blots = ["#363a27", "#5f5a3c", "#2b2d22"]; for (let i = 0; i < 9; i++) { c.fillStyle = blots[i % 3]; ell(c, -r * .45 + hash(i + 3) * r * .8, -r * .7 + hash(i * 7 + 1) * r * 1.4, r * .16, r * .1, hash(i) * 3); c.fill(); } ell(c, -r * .08, 0, r * .58, r * .94); c.stroke(); }
+    c.fillStyle = shade(base, -.25); c.beginPath(); c.moveTo(r * .05, -r * .5); c.lineTo(r * .4, -r * .28); c.lineTo(r * .05, -r * .2); c.closePath(); c.fill(); c.beginPath(); c.moveTo(r * .05, r * .5); c.lineTo(r * .4, r * .28); c.lineTo(r * .05, r * .2); c.closePath(); c.fill();
+    return;
+  }
+  if (t === "leather") {
+    ell(c, -r * .05, 0, r * .53, r * .9); fs(c, "#2e221b");
+    c.strokeStyle = "rgba(255,240,220,0.18)"; c.lineWidth = r * .08; c.beginPath(); c.ellipse(-r * .05, 0, r * .38, r * .72, 0, -2.3, -.9); c.stroke();
+    c.strokeStyle = "#8c8576"; c.lineWidth = r * .04; c.beginPath(); c.moveTo(r * .2, -r * .55); c.lineTo(r * .42, -r * .1); c.stroke();
+    resetLine(c, r); return;
+  }
+  if (t === "robe") {
+    ell(c, -r * .08, 0, r * .6, r * .96); fs(c, top);
+    c.strokeStyle = shade(top, .35); c.lineWidth = r * .14; ell(c, -r * .08, 0, r * .52, r * .88); c.stroke();
+    c.strokeStyle = shade(top, -.3); c.lineWidth = r * .1; c.beginPath(); c.moveTo(-r * .1, -r * .9); c.lineTo(-r * .1, r * .9); c.stroke();
+    resetLine(c, r); return;
+  }
+  // jacket (today's) and the tops built on it
+  c.fillStyle = top; ell(c, -r * .05, 0, r * .52, r * .9); c.fill(); c.stroke();
+  if (t === "hoodie" && L.head !== "hood") { ell(c, -r * .32, 0, r * .28, r * .42); fs(c, shade(top, -.18)); c.strokeStyle = shade(top, .5); c.lineWidth = r * .06; c.beginPath(); c.moveTo(r * .38, -r * .14); c.lineTo(r * .5, -r * .2); c.moveTo(r * .38, r * .14); c.lineTo(r * .5, r * .2); c.stroke(); resetLine(c, r); }
+  if (t === "puffer") { c.strokeStyle = shade(top, -.32); c.lineWidth = r * .05; for (const x of [-.38, -.12, .14]) { c.beginPath(); c.ellipse(x * r, 0, r * .07, r * .86 - Math.abs(x) * r * .4, 0, -Math.PI / 2, Math.PI / 2); c.stroke(); } resetLine(c, r); }
+  if (t === "track") { c.strokeStyle = shade(top, .55); c.lineWidth = r * .09; c.beginPath(); c.ellipse(-r * .05, 0, r * .44, r * .8, 0, -2.2, -1.0); c.stroke(); c.beginPath(); c.ellipse(-r * .05, 0, r * .44, r * .8, 0, 1.0, 2.2); c.stroke(); resetLine(c, r); }
+  if (t === "floral") { const fl = variant === "B" ? ["#e8d27a", "#f1efe6", "#9fb8d8"] : ["#e8d27a", "#f1efe6", "#e58f8f"]; for (let i = 0; i < 14; i++) { c.fillStyle = fl[i % 3]; circle(c, -r * .45 + hash(i * 3 + 9) * r * .8, -r * .72 + hash(i * 5 + 2) * r * 1.44, r * .13); c.fill(); } }
+}
+function drawPack(c, r, p, variant) {
+  if (p === "none") return;
+  if (p === "backpack") { c.fillStyle = CHAR.pack; rrect(c, -r * .98, -r * .48, r * .5, r * .96, r * .15); c.fill(); } // today's: fill only
+  else if (p === "duffel") { rrect(c, -r * .92, -r * .82, r * .42, r * 1.64, r * .2); fs(c, "#3b3f2f"); c.strokeStyle = "#20221a"; c.lineWidth = r * .05; for (const y of [-.4, .4]) { c.beginPath(); c.moveTo(-r * .92, y * r); c.lineTo(-r * .5, y * r); c.stroke(); } resetLine(c, r); }
+  else if (p === "frame") { rrect(c, -r * 1.12, -r * .55, r * .66, r * 1.1, r * .12); fs(c, "#3a3326"); rrect(c, -r * 1.22, -r * .7, r * .28, r * 1.4, r * .14); fs(c, "#4d5a3a"); c.strokeStyle = "#2f3824"; c.lineWidth = r * .04; for (const y of [-.35, 0, .35]) { c.beginPath(); c.moveTo(-r * 1.22, y * r); c.lineTo(-r * .94, y * r); c.stroke(); } resetLine(c, r); }
+  else if (p === "sling") { c.save(); c.translate(-r * .62, r * .45); c.rotate(.5); rrect(c, -r * .25, -r * .17, r * .5, r * .34, r * .1); fs(c, "#2c2a27"); c.restore(); c.strokeStyle = "#1a1917"; c.lineWidth = r * .08; c.beginPath(); c.moveTo(-r * .5, r * .55); c.lineTo(r * .25, -r * .62); c.stroke(); resetLine(c, r); }
+  else if (p === "guitar") { c.save(); c.translate(-r * .85, 0); c.rotate(.35); ell(c, 0, r * .45, r * .32, r * .38); fs(c, "#141416"); ell(c, 0, -r * .2, r * .24, r * .3); fs(c, "#141416"); rrect(c, -r * .09, -r * 1.1, r * .18, r * .7, r * .06); fs(c, "#141416"); c.restore(); }
+  else if (p === "ammo") {
+    if (variant === "B") { rrect(c, -r * 1.02, -r * .5, r * .54, r * 1.0, r * .14); fs(c, "#5a4a33"); c.fillStyle = "#47392a"; rrect(c, -r * 1.02, -r * .5, r * .24, r * 1.0, r * .1); c.fill(); }
+    else { rrect(c, -r * 1.0, -r * .52, r * .52, r * 1.04, r * .1); fs(c, "#3d4230"); for (const y of [-.36, -.04, .28]) { rrect(c, -r * 1.12, y * r, r * .2, r * .26, r * .04); fs(c, "#4b5139"); } }
+  }
+  else if (p === "teddy") { const b = "#7a5634"; circle(c, -r * .82, -r * .32, r * .14); fs(c, b); circle(c, -r * .82, r * .32, r * .14); fs(c, b); circle(c, -r * .8, 0, r * .36); fs(c, b); c.fillStyle = "#b08860"; ell(c, -r * 1.06, 0, r * .12, r * .14); c.fill(); c.fillStyle = "#0d0b09"; circle(c, -r * .95, -r * .12, r * .04); c.fill(); circle(c, -r * .95, r * .12, r * .04); c.fill(); }
+  else if (p === "cooler") {
+    const body = variant === "B" ? "#7d857a" : "#c9cdc6", lid = variant === "B" ? "#2f3a33" : "#3a6b98";
+    rrect(c, -r * 1.06, -r * .55, r * .58, r * 1.1, r * .08); fs(c, body); c.fillStyle = lid; c.fillRect(-r * 1.06, -r * .55, r * .14, r * 1.1); c.strokeStyle = shade(body, -.35); c.lineWidth = r * .06; c.beginPath(); c.moveTo(-r * .78, -r * .3); c.lineTo(-r * .78, r * .3); c.stroke(); resetLine(c, r);
+  }
+}
+function drawAccent(c, r, a, acc, variant) {
+  if (a === "none") return;
+  if (a === "cape") { c.beginPath(); c.moveTo(-r * .2, -r * .85); c.quadraticCurveTo(-r * 1.5, -r * 1.05, -r * 1.75, -r * .1); c.quadraticCurveTo(-r * 1.6, r * .2, -r * 1.75, r * .35); c.quadraticCurveTo(-r * 1.4, r * 1.05, -r * .2, r * .85); c.quadraticCurveTo(-r * .45, 0, -r * .2, -r * .85); c.closePath(); fs(c, acc); return; }
+  if (a === "scarf") { c.strokeStyle = acc; c.lineCap = "round"; c.lineWidth = r * .2; c.beginPath(); c.moveTo(-r * .25, r * .15); c.quadraticCurveTo(-r * .8, r * .35, -r * 1.25, r * .2); c.stroke(); c.lineCap = "butt"; c.lineWidth = r * .22; ell(c, r * .1, 0, r * .4, r * .45); c.stroke(); resetLine(c, r); return; }
+  if (a === "stripes") { c.strokeStyle = variant === "B" ? acc : shade(acc, .45); c.lineWidth = r * .09; c.beginPath(); c.moveTo(-r * .3, -r * .8); c.lineTo(-r * .3, r * .8); c.moveTo(-r * .48, -r * .55); c.lineTo(-r * .48, r * .55); c.stroke(); resetLine(c, r); return; }
+  if (a === "patch") { circle(c, r * .02, -r * .66, r * .21); fs(c, acc); return; }
+  if (a === "harness") { c.strokeStyle = acc; c.lineWidth = r * .1; c.beginPath(); c.moveTo(-r * .45, -r * .7); c.lineTo(r * .3, r * .65); c.moveTo(-r * .45, r * .7); c.lineTo(r * .3, -r * .65); c.stroke(); resetLine(c, r); rrect(c, -r * .15, -r * .98, r * .3, r * .2, 2); fs(c, shade(acc, -.3)); rrect(c, -r * .15, r * .78, r * .3, r * .2, 2); fs(c, shade(acc, -.3)); return; }
+  if (a === "team") { rrect(c, -r * .2, -r * .86, r * .36, r * .36, r * .06); fs(c, "#1b1d20"); c.fillStyle = acc; for (let i = 0; i < 4; i++) { circle(c, -r * .1 + (i % 2) * r * .16, -r * .76 + (i >> 1) * r * .16, r * .06); c.fill(); } return; }
+}
+function drawHair(c, r, h, col) {
+  if (h === "bald") { c.fillStyle = "rgba(255,255,255,0.16)"; ell(c, r * .02, -r * .12, r * .12, r * .07, .4); c.fill(); return; }
+  c.fillStyle = col;
+  if (h === "buzz") { c.globalAlpha = .6; ell(c, r * .02, 0, r * .34, r * .38); c.fill(); c.globalAlpha = 1; return; }
+  if (h === "curly") { for (let i = 0; i < 9; i++) { const a = Math.PI * .55 + i / 8 * Math.PI * .9; circle(c, r * .02 + Math.cos(a) * r * .3, Math.sin(a) * r * .32, r * .16); c.fill(); } ell(c, 0, 0, r * .3, r * .34); c.fill(); return; }
+  ell(c, r * .02, 0, r * .34, r * .39); c.fill();
+  if (h === "tied") { ell(c, -r * .54, 0, r * .3, r * .14); fs(c, col); c.fillStyle = "#151515"; c.fillRect(-r * .3, -r * .06, r * .06, r * .12); }
+}
+function drawHead(c, r, h, col, variant) {
+  const acc = col.acc, top = col.top;
+  switch (h) {
+    case "none": return;
+    case "cap": c.fillStyle = acc; ell(c, r * .02, 0, r * .36, r * .4); c.fill(); c.beginPath(); c.ellipse(r * .38, 0, r * .16, r * .3, 0, -Math.PI / 2, Math.PI / 2); c.fill(); return; // today's cap
+    case "capb": c.fillStyle = acc; ell(c, r * .08, 0, r * .36, r * .4); c.fill(); c.beginPath(); c.ellipse(-r * .26, 0, r * .16, r * .3, 0, Math.PI / 2, Math.PI * 1.5); c.fill(); return;
+    case "beanie": ell(c, r * .04, 0, r * .4, r * .42); fs(c, acc); c.strokeStyle = shade(acc, .25); c.lineWidth = r * .07; ell(c, r * .04, 0, r * .3, r * .33); c.stroke(); c.fillStyle = shade(acc, .25); circle(c, 0, 0, r * .1); c.fill(); resetLine(c, r); return;
+    case "bunny": ell(c, r * .04, 0, r * .4, r * .42); fs(c, "#d9c9c4"); for (const s of [-1, 1]) { ell(c, -r * .45, s * r * .2, r * .34, r * .1, s * .25); fs(c, "#d9c9c4"); c.fillStyle = "#c98d97"; ell(c, -r * .45, s * r * .2, r * .24, r * .045, s * .25); c.fill(); } return;
+    case "hood": ell(c, 0, 0, r * .46, r * .48); fs(c, shade(top, -.12)); c.fillStyle = "rgba(0,0,0,0.35)"; ell(c, r * .3, 0, r * .12, r * .26); c.fill(); return;
+    case "bandana": c.strokeStyle = acc; c.lineWidth = r * .14; c.beginPath(); c.ellipse(r * .06, 0, r * .3, r * .38, 0, Math.PI * .6, Math.PI * 1.4, true); c.stroke(); c.fillStyle = acc; c.beginPath(); c.moveTo(-r * .3, 0); c.lineTo(-r * .62, -r * .14); c.lineTo(-r * .58, r * .12); c.closePath(); c.fill(); resetLine(c, r); return;
+    case "bike": ell(c, r * .04, 0, r * .46, r * .4); fs(c, variant === "B" ? acc : "#5f6a76"); c.fillStyle = "#1c2026"; for (const y of [-.2, 0, .2]) { rrect(c, -r * .2, y * r - r * .035, r * .34, r * .07, r * .03); c.fill(); } return;
+    case "hard": { const a = variant === "B" ? acc : "#9a7a2c"; ell(c, r * .1, 0, r * .5, r * .48); fs(c, a); ell(c, r * .08, 0, r * .38, r * .36); fs(c, shade(a, .12)); c.strokeStyle = shade(a, -.2); c.lineWidth = r * .07; c.beginPath(); c.moveTo(-r * .28, 0); c.lineTo(r * .44, 0); c.stroke(); resetLine(c, r); return; }
+    case "fire": c.beginPath(); c.moveTo(r * .4, -r * .3); c.quadraticCurveTo(-r * .9, -r * .5, -r * .7, 0); c.quadraticCurveTo(-r * .9, r * .5, r * .4, r * .3); c.closePath(); fs(c, "#1e1f22"); ell(c, r * .08, 0, r * .38, r * .38); fs(c, "#26272b"); c.strokeStyle = "#a6913a"; c.lineWidth = r * .08; ell(c, r * .08, 0, r * .3, r * .3); c.stroke(); resetLine(c, r); return;
+    case "riot":
+      if (variant === "B") { ell(c, r * .06, 0, r * .44, r * .44); fs(c, "#3a3f31"); c.strokeStyle = "#23261e"; c.lineWidth = r * .06; c.beginPath(); c.ellipse(r * .06, 0, r * .3, r * .3, 0, -.6, .6); c.stroke(); resetLine(c, r); return; }
+      ell(c, r * .06, 0, r * .46, r * .46); fs(c, "#16181b"); c.fillStyle = "rgba(120,150,175,0.55)"; c.beginPath(); c.ellipse(r * .1, 0, r * .46, r * .4, 0, -1.0, 1.0); c.lineTo(r * .25, 0); c.closePath(); c.fill(); return;
+    case "gas":
+      if (variant === "B") { c.strokeStyle = "#3b3a36"; c.lineWidth = r * .05; ell(c, r * .14, 0, r * .34, r * .4); c.stroke(); resetLine(c, r); ell(c, r * .46, 0, r * .12, r * .2); fs(c, "#77746b"); return; }
+      c.strokeStyle = "#111"; c.lineWidth = r * .07; ell(c, r * .1, 0, r * .36, r * .4); c.stroke(); resetLine(c, r); ell(c, r * .42, 0, r * .14, r * .2); fs(c, "#2c2f2b"); for (const s of [-1, 1]) { ell(c, r * .5, s * r * .26, r * .12, r * .12); fs(c, "#55594f"); } return;
+    case "hockey": ell(c, r * .34, 0, r * .16, r * .32); fs(c, "#d8d4c8"); c.fillStyle = "#222"; for (const y of [-.14, .14]) { ell(c, r * .42, y * r, r * .04, r * .06); c.fill(); } if (variant !== "B") { c.strokeStyle = "#8b2b26"; c.lineWidth = r * .03; c.beginPath(); c.moveTo(r * .3, -r * .28); c.lineTo(r * .36, -r * .02); c.stroke(); resetLine(c, r); } return;
+    case "cone": c.save(); c.rotate(.785); rrect(c, -r * .42, -r * .42, r * .84, r * .84, r * .08); fs(c, "#b45a1e"); c.restore(); circle(c, r * .02, 0, r * .34); fs(c, "#c8692a"); c.strokeStyle = "#e3ddd0"; c.lineWidth = r * .08; circle(c, r * .02, 0, r * .22); c.stroke(); c.fillStyle = "#c8692a"; circle(c, r * .02, 0, r * .1); c.fill(); resetLine(c, r); return;
+    case "chef": for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; circle(c, r * .04 + Math.cos(a) * r * .28, Math.sin(a) * r * .28, r * .22); fs(c, "#e4e1d8"); } circle(c, r * .04, 0, r * .3); c.fillStyle = "#e4e1d8"; c.fill(); return;
+    case "pot": rrect(c, -r * .1, r * .3, r * .16, r * .58, r * .06); fs(c, "#1d1d1f"); circle(c, r * .04, 0, r * .44); fs(c, "#7d8186"); c.strokeStyle = "#5c6065"; c.lineWidth = r * .06; circle(c, r * .04, 0, r * .32); c.stroke(); resetLine(c, r); return;
+    case "party": circle(c, r * .04, 0, r * .26); fs(c, "#3c7ab8"); c.strokeStyle = "#e0c447"; c.lineWidth = r * .07; circle(c, r * .04, 0, r * .15); c.stroke(); c.fillStyle = "#e05a7a"; circle(c, r * .04, 0, r * .08); c.fill(); resetLine(c, r); return;
+  }
+}
+
+// ---------- looks for a card ----------
+function lookFor(slot, id) {
+  const L = Object.assign({}, DEFAULT, { [slot]: id });
+  if (slot === "hair") L.head = "none";
+  if (slot === "skin") { L.head = "none"; L.hair = "bald"; }
+  return L;
+}
+function baseFor(slot) { // what AC 6 compares with
+  const none = CAT[slot].some(o => o.id === "none");
+  return lookFor(slot, none ? "none" : DEFAULT[slot]);
+}
+let useDefaultCols = false;
+function chosen() { return useDefaultCols ? Object.assign({}, DEFAULT_COLS) : { top: $("c-top").value, hair: $("c-hair").value, acc: $("c-acc").value }; }
+function inGame(k, h) { const muted = h.toLowerCase() === DEFAULT_COLS[k] ? h : nightMute(h); return stageDim(muted, stage); }
+function colsFor(L, game) {
+  const ch = chosen(); const sk = item("skin", L.skin).hexv;
+  if (!game) return { top: ch.top, hair: ch.hair, acc: ch.acc, skin: sk };
+  return { top: inGame("top", ch.top), hair: inGame("hair", ch.hair), acc: inGame("acc", ch.acc), skin: stageDim(sk, stage) };
+}
+
+// ---------- drawing a card ----------
+function $(id) { return document.getElementById(id); }
+function size(cv, w, h) { cv.width = Math.round(w * DPR); cv.height = Math.round(h * DPR); }
+function drawBig(cv, L, v) {
+  const w = 132; size(cv, w, w); const c = cv.getContext("2d"); c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const g = c.createRadialGradient(w / 2, w / 2, 6, w / 2, w / 2, w * .7); g.addColorStop(0, "#2b2a27"); g.addColorStop(1, "#16181b"); c.fillStyle = g; c.fillRect(0, 0, w, w);
+  const r = 30; c.save(); c.translate(w / 2 + 4, w / 2); c.rotate(-0.35);
+  c.strokeStyle = SLOT[0]; c.globalAlpha = .9; c.lineWidth = r * .1; circle(c, 0, 0, r * 1.37); c.stroke(); c.globalAlpha = 1;
+  drawSurvivor(c, r, L, colsFor(L, false), v); c.restore();
+}
+function zombie(c, r, v) {
+  c.lineJoin = "round"; c.strokeStyle = CHAR.outline; c.lineWidth = Math.max(1, r * .1);
+  for (const s of [-1, 1]) { c.fillStyle = CHAR.skin; rrect(c, 0, s * r * .62 - r * .15, r * 1.25 + s * r * .08, r * .3, r * .15); c.fill(); c.stroke(); }
+  c.fillStyle = ZSHIRTS[v % 4]; ell(c, -r * .15, 0, r * .5, r * .95); c.fill(); c.stroke();
+  c.fillStyle = "#5a0c0a"; circle(c, -r * .2 + (hash(v) - .5) * r * .5, (hash(v * 3) - .5) * r, r * .16); c.fill();
+  c.fillStyle = CHAR.skin; circle(c, r * .14, 0, r * .46); c.fill(); c.stroke();
+  c.fillStyle = CHAR.hair; ell(c, -r * .04, 0, r * .3, r * .38); c.fill();
+}
+function drawStreet(cv, L, v, seed) {
+  const w = Math.max(160, Math.round(cv.clientWidth || 220)), h = 132; size(cv, w, h);
+  const c = cv.getContext("2d"); c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.fillStyle = "#1a1c1f"; c.fillRect(0, 0, w, h);
+  c.fillStyle = "rgba(255,255,255,0.025)"; for (let i = 0; i < 24; i++) c.fillRect(hash(i + seed) * w, hash(i * 7 + seed) * h, 30 + hash(i * 3) * 60, 1);
+  c.strokeStyle = "rgba(210,190,120,0.18)"; c.lineWidth = .12 * PPM; c.setLineDash([2 * PPM, 1.6 * PPM]); c.beginPath(); c.moveTo(0, h * .82); c.lineTo(w, h * .82); c.stroke(); c.setLineDash([]);
+  const pool = c.createRadialGradient(w * .4, h * .45, 4, w * .4, h * .45, 3.5 * PPM); pool.addColorStop(0, "rgba(224,166,70,0.14)"); pool.addColorStop(1, "rgba(224,166,70,0)"); c.fillStyle = pool; c.fillRect(0, 0, w, h);
+  const px = w * .4, py = h * .48, zr = BODY_R;
+  const zs = [[px + 2.2 * PPM, py - 0.9 * PPM], [px + 2.6 * PPM, py + 0.8 * PPM], [px - 2.1 * PPM, py + 0.6 * PPM], [px + 3.6 * PPM, py - 0.1 * PPM]];
+  zs.forEach(([x, y], i) => { c.save(); c.translate(x, y); c.rotate(Math.atan2(py - y, px - x) + (hash(i + seed) - .5) * .3); zombie(c, zr, i + seed); c.restore(); });
+  c.save(); c.translate(px, py); c.rotate(-0.25);
+  c.strokeStyle = SLOT[0]; c.globalAlpha = .9; c.lineWidth = .08 * PPM; circle(c, 0, 0, BODY_R + .15 * PPM); c.stroke(); c.globalAlpha = 1;
+  drawSurvivor(c, BODY_R, L, colsFor(L, true), v); c.restore();
+  c.fillStyle = "rgba(6,10,20,0.12)"; c.fillRect(0, 0, w, h);
+}
+// AC 6 measure: pixels (1 px = 1 CSS px²) whose RGBA differs by > 8 in a channel, at r = 14, no ring, transparent ground.
+const probe = document.createElement("canvas"); probe.width = probe.height = 80;
+function raster(L, v) { const c = probe.getContext("2d", { willReadFrequently: true }); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, 80, 80); c.translate(40, 40); drawSurvivor(c, BODY_R, L, colsFor(L, true), v); return c.getImageData(0, 0, 80, 80).data; }
+function areaChanged(slot, id, v) {
+  const a = raster(lookFor(slot, id), v), b = raster(baseFor(slot), v); let n = 0, outline = false;
+  for (let i = 0; i < a.length; i += 4) { if (Math.abs(a[i] - b[i]) > 8 || Math.abs(a[i + 1] - b[i + 1]) > 8 || Math.abs(a[i + 2] - b[i + 2]) > 8 || Math.abs(a[i + 3] - b[i + 3]) > 8) n++; if ((a[i + 3] > 0) !== (b[i + 3] > 0)) outline = true; }
+  return { n, outline };
+}
+
+// ---------- picks (db: picks/<slot>_<id> = { choice: keep|B|redraw|drop, note }) ----------
+const picks = {}; let db = null;
+const status = $("status");
+function key(slot, id) { return slot + "_" + id; }
+async function save(k) {
+  renderSummary();
+  if (!db) return;
+  const p = picks[k] || {};
+  try { await db.collection("picks").doc(k).set({ choice: p.choice || "", note: p.note || "", at: new Date().toISOString() }); status.textContent = "Picks: saved"; status.className = "status live"; }
+  catch (e) { status.textContent = "Picks: not saved (" + (e && e.code || "error") + "). Use Copy picks below."; status.className = "status"; }
+}
+async function saveMute() {
+  if (!db) return;
+  try { await db.collection("picks").doc("_look").set({ lightness: LOOK.nightMute.lightness, saturation: LOOK.nightMute.saturation, at: new Date().toISOString() }); } catch (e) { /* shown on the next part save */ }
+}
+
+// ---------- page ----------
+const cards = [];
+function tagFor(o) { if (o.u === "s") return ["s", "Starter"]; if (o.u === "l") return ["l", "Loot"]; return ["m", "Milestone " + o.u.toUpperCase()]; }
+function makeCard(slot, o, host, isDefault) {
+  const k = key(slot, o.id);
+  const card = document.createElement("article"); card.className = "card" + (o.sig ? " signal" : "");
+  const [tc, tl] = tagFor(o);
+  const head = document.createElement("div"); head.className = "chead";
+  const h = document.createElement("h3"); h.textContent = isDefault ? "Default look" : o.name; head.appendChild(h);
+  const pid = document.createElement("span"); pid.className = "pid"; pid.textContent = isDefault ? "v1|top:jacket|head:cap|hair:short|pack:backpack|acc:none|skin:1" : slot + ":" + o.id + (o.col !== "none" ? " · takes " + o.col : ""); head.appendChild(pid);
+  if (!isDefault) { const t = document.createElement("span"); t.className = "tag " + tc; t.textContent = tl; if (o.u.startsWith("m")) t.title = MILES[o.u]; head.appendChild(t); }
+  card.appendChild(head);
+  let vstate = null;
+  if (o.B) {
+    const vt = document.createElement("div"); vt.className = "vtoggle"; vt.setAttribute("role", "group"); vt.setAttribute("aria-label", "Show drawing");
+    for (const x of ["A", "B"]) { const b = document.createElement("button"); b.type = "button"; b.textContent = "Show " + x; b.dataset.x = x; b.setAttribute("aria-pressed", String(x === "A")); b.onclick = () => { vstate = x === "B" ? "B" : null; vt.querySelectorAll("button").forEach(e => e.setAttribute("aria-pressed", String(e.dataset.x === x))); paint(); }; vt.appendChild(b); }
+    card.appendChild(vt);
+  }
+  const views = document.createElement("div"); views.className = "views";
+  const big = document.createElement("canvas"); big.className = "big"; big.setAttribute("role", "img"); big.setAttribute("aria-label", o.name + ", close-up");
+  const street = document.createElement("canvas"); street.className = "street"; street.setAttribute("role", "img"); street.setAttribute("aria-label", o.name + " at game size among zombies");
+  views.appendChild(big); views.appendChild(street); card.appendChild(views);
+  const cap = document.createElement("div"); cap.className = "cap";
+  const capL = document.createElement("span"); capL.textContent = "close-up · editor light";
+  const capR = document.createElement("span");
+  cap.appendChild(capL); cap.appendChild(capR); card.appendChild(cap);
+  if (o.sig) { const s = document.createElement("p"); s.className = "sig"; const b = document.createElement("b"); b.textContent = "Gameplay signal? "; s.appendChild(b); s.appendChild(document.createTextNode(o.sig + " " + o.bnote)); card.appendChild(s); }
+  if (o.note && !isDefault) { const n = document.createElement("p"); n.className = "cmt"; n.textContent = o.note; card.appendChild(n); }
+  if (!isDefault) {
+    const pk = document.createElement("div"); pk.className = "picks"; pk.setAttribute("role", "group"); pk.setAttribute("aria-label", "Pick for " + o.name);
+    const opts = o.B ? [["keep", "Keep A"], ["B", "Keep B"], ["redraw", "Redraw"], ["drop", "Drop"]] : [["keep", "Keep"], ["redraw", "Redraw"], ["drop", "Drop"]];
+    const isNone = o.id === "none";
+    for (const [val, lbl] of (isNone ? [["keep", "Keep"]] : opts)) { const b = document.createElement("button"); b.type = "button"; b.dataset.v = val; b.textContent = lbl; b.onclick = () => { picks[k] = Object.assign({}, picks[k], { choice: picks[k] && picks[k].choice === val ? "" : val }); syncCard(); save(k); }; pk.appendChild(b); }
+    card.appendChild(pk);
+    const ta = document.createElement("textarea"); ta.id = "note-" + k; ta.rows = 1; ta.placeholder = "Note (what to change)"; ta.setAttribute("aria-label", "Note for " + o.name);
+    ta.addEventListener("change", () => { picks[k] = Object.assign({}, picks[k], { note: ta.value.trim() }); save(k); });
+    card.appendChild(ta);
+    var syncCard = () => { const p = picks[k] || {}; pk.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === p.choice))); if (document.activeElement !== ta) ta.value = p.note || ""; card.classList.toggle("picked", !!p.choice); };
+  }
+  host.appendChild(card);
+  const L = isDefault ? Object.assign({}, DEFAULT) : lookFor(slot, o.id);
+  const seed = cards.length * 3 + 1;
+  function paint() {
+    const v = vstate ? { [k]: vstate } : {};
+    const keep = useDefaultCols; if (isDefault) useDefaultCols = true; // today's survivor always wears today's colours
+    drawBig(big, L, v); drawStreet(street, L, v, seed);
+    useDefaultCols = keep;
+    if (isDefault) { capR.textContent = "game size · 35 px/m · stage " + stage; return; }
+    if (o.id === "none") { capR.textContent = "game size · 35 px/m"; return; }
+    if (DEFAULT[slot] === o.id && slot !== "head" && slot !== "pack") { capR.textContent = "game size · the default " + slot; return; }
+    const m = areaChanged(slot, o.id, v);
+    capR.textContent = "game size · ";
+    const chip = document.createElement("span"); chip.className = "chip " + (m.n >= 40 || m.outline ? "ok" : "bad"); chip.textContent = m.n + " px²" + (m.outline ? " + outline" : ""); chip.title = "Changed at game size against " + (CAT[slot].some(x => x.id === "none") ? "no " + slot : "the default " + slot);
+    capR.appendChild(chip);
+  }
+  cards.push({ paint, sync: () => syncCard && syncCard() });
+  paint();
+}
+function build() {
+  makeCard("top", item("top", "jacket"), $("g-default"), true);
+  const bands = $("bands");
+  for (const [slot, title, sub] of SLOTS) {
+    const sec = document.createElement("section"); sec.className = "band"; sec.setAttribute("aria-labelledby", "h-" + slot);
+    const bh = document.createElement("div"); bh.className = "bandhead";
+    const h2 = document.createElement("h2"); h2.id = "h-" + slot; h2.textContent = title; const sm = document.createElement("small"); const n = CAT[slot].length; sm.textContent = n + " parts · " + sub; h2.appendChild(sm); bh.appendChild(h2); sec.appendChild(bh);
+    const g = document.createElement("div"); g.className = "grid"; sec.appendChild(g); bands.appendChild(sec);
+    for (const o of CAT[slot]) makeCard(slot, o, g, false);
+  }
+}
+function swatches() { const ch = chosen(); for (const k of ["top", "hair", "acc"]) $("sw-" + k).style.background = inGame(k, ch[k]); }
+function repaint() { swatches(); for (const c of cards) c.paint(); }
+function renderSummary() {
+  const lines = [`look.nightMute: lightness × ${LOOK.nightMute.lightness}, saturation × ${LOOK.nightMute.saturation}`];
+  let done = 0, total = 0;
+  for (const [slot] of SLOTS) for (const o of CAT[slot]) { if (o.id === "none") continue; total++; const p = picks[key(slot, o.id)]; if (p && p.choice) done++; lines.push(`${slot}:${o.id} = ${p && p.choice ? (p.choice === "keep" && o.B ? "keep A" : p.choice === "B" ? "keep B" : p.choice) : "-"}${p && p.note ? " (" + p.note + ")" : ""}`); }
+  $("sumtext").value = lines.join("\n"); $("count").textContent = `${done} of ${total} parts picked.`;
+}
+$("copy").onclick = () => { const t = $("sumtext"); const msg = $("copymsg"); try { navigator.clipboard.writeText(t.value).then(() => { msg.textContent = "Copied"; }, () => { t.select(); msg.textContent = "Selected: copy it with your keyboard"; }); } catch (e) { t.select(); msg.textContent = "Selected: copy it with your keyboard"; } };
+for (const id of ["c-top", "c-hair", "c-acc"]) $(id).addEventListener("input", () => { useDefaultCols = false; repaint(); });
+$("defcol").onclick = () => { useDefaultCols = !useDefaultCols; $("defcol").textContent = useDefaultCols ? "Sample colours" : "Default colours"; repaint(); };
+$("m-l").addEventListener("input", e => { LOOK.nightMute.lightness = +e.target.value; $("o-l").textContent = (+e.target.value).toFixed(2); repaint(); });
+$("m-s").addEventListener("input", e => { LOOK.nightMute.saturation = +e.target.value; $("o-s").textContent = (+e.target.value).toFixed(2); repaint(); });
+$("m-l").addEventListener("change", () => { saveMute(); renderSummary(); });
+$("m-s").addEventListener("change", () => { saveMute(); renderSummary(); });
+$("stage").onchange = e => { stage = +e.target.value; repaint(); };
+let rt = 0; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(repaint, 120); });
+
+build(); swatches(); renderSummary();
+
+// Load and follow saved picks (shared: Claude reads them back).
+(async () => {
+  const timer = setTimeout(() => { if (!db) { status.textContent = "Picks: can't save here. Use Copy picks below."; } }, 10000);
+  try {
+    const d = window.claude && window.claude.use ? await window.claude.use("db") : null;
+    clearTimeout(timer);
+    if (!d) { status.textContent = "Picks: can't save here. Use Copy picks below."; return; }
+    db = d; status.textContent = "Picks: saving on"; status.className = "status live";
+    db.collection("picks").onSnapshot(snap => {
+      for (const doc of snap.docs) {
+        const x = doc.data() || {};
+        if (doc.id === "_look") { if (typeof x.lightness === "number") { LOOK.nightMute.lightness = x.lightness; $("m-l").value = x.lightness; $("o-l").textContent = x.lightness.toFixed(2); } if (typeof x.saturation === "number") { LOOK.nightMute.saturation = x.saturation; $("m-s").value = x.saturation; $("o-s").textContent = x.saturation.toFixed(2); } continue; }
+        picks[doc.id] = { choice: typeof x.choice === "string" ? x.choice : "", note: typeof x.note === "string" ? x.note : "" };
+      }
+      for (const c of cards) c.sync(); renderSummary(); repaint();
+    }, e => { status.textContent = "Picks: can't load (" + (e && e.code || "error") + "). Use Copy picks below."; });
+  } catch (e) { clearTimeout(timer); status.textContent = "Picks: can't save here. Use Copy picks below."; }
+})();
+</script>

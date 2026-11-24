@@ -46,6 +46,7 @@ Player:
 36 what is happening to these zombies?
 37 what:            bullets:
 38 what:            what happens inside the green ring?
+49 do these four survivors carry anything that does something in the game? what?
 ```
 
 ## 1
@@ -170,17 +171,20 @@ Player:
 ## 48: what is this, and is it safe to stand in the red ring? When does it hit? (Story 6.5: the slam telegraph; the skull marks its target)
 ![48](../../art/6-5/6-5-800x360-telegraph.png)
 
-## 49: where will it run, and where will it stop? Is the yellow bar good or bad for you? (Story 6.6: the charge lane and its CRASH mark)
-![49](../../art/6-6/6-6-800x360-charge-telegraph.png)
+## 49: do these four survivors carry anything that does something in the game? (Story 7.8)
+![49](objects/49_survivor_looks.png)
 
-## 50: it hit the bus. What now? (Story 6.6: the stun — the amber bar and "CRASH!" mean hit it now, it takes ×1.5)
-![50](../../art/6-6/6-6-800x360-crash-stun.png)
+## 50: where will it run, and where will it stop? Is the yellow bar good or bad for you? (Story 6.6: the charge lane and its CRASH mark)
+![50](../../art/6-6/6-6-800x360-charge-telegraph.png)
 
-## 51: something is flying at you. Where does it land, and when? Do you move? (Story 6.6: the throw ring, the shrinking white ring, the chunk)
-![51](../../art/6-6/6-6-800x360-throw-flight.png)
+## 51: it hit the bus. What now? (Story 6.6: the stun — the amber bar and "CRASH!" mean hit it now, it takes ×1.5)
+![51](../../art/6-6/6-6-800x360-crash-stun.png)
 
-## 52: what changed? Is it more dangerous now? (Story 6.7: the roar, the red bar, ENRAGED)
-![52](../../art/6-6/6-6-800x360-roar.png)
+## 52: something is flying at you. Where does it land, and when? Do you move? (Story 6.6: the throw ring, the shrinking white ring, the chunk)
+![52](../../art/6-6/6-6-800x360-throw-flight.png)
 
-## 53: is it over? Is the wave over? Is that body still dangerous? (Story 6.7: EVAC INBOUND, the dark collapsed body)
-![53](../../art/6-6/6-6-800x360-death.png)
+## 53: what changed? Is it more dangerous now? (Story 6.7: the roar, the red bar, ENRAGED)
+![53](../../art/6-6/6-6-800x360-roar.png)
+
+## 54: is it over? Is the wave over? Is that body still dangerous? (Story 6.7: EVAC INBOUND, the dark collapsed body)
+![54](../../art/6-6/6-6-800x360-death.png)

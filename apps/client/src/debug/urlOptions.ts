@@ -1,5 +1,6 @@
 import { parseDevScale, parseDevShopAll, parseDevWallet, parseRunSeed } from "@topdown/shared";
 import { isTestScenario, type TestScenario } from "@topdown/shared";
+import { ANIMATED_LAYERS, type AnimatedLayerId } from "@topdown/shared";
 
 /**
  * Every URL switch the client reads, parsed in one place (Story 1.11; Story 1.12 adds `?loadout`
@@ -109,6 +110,12 @@ export interface UrlOptions {
    * or in a release build); `parseStartWave` keeps 1 … `runWaves`. Combine with `?wallet=`.
    */
   startWave: string | null;
+  /**
+   * `?devlayer=propeller` (Story 7.8, dev builds only): every survivor wears that animated part layer (the spinning
+   * propeller), to check the layer sprite in a run before Story 7.9 draws per-player looks. null when absent,
+   * unknown or in a release build.
+   */
+  devLayer: AnimatedLayerId | null;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -168,7 +175,14 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     shopAll: dev && parseDevShopAll(q.get("shopall")?.trim().toLowerCase()), // dev builds only (review L3); one switch for hidden buildings and gear
     blackoutPct: parseBlackoutPct(q.get("blackout")), // Story 6.3
     startWave: dev ? q.get("startwave") : null, // Story 6.1: dev builds only
+    devLayer: dev ? parseDevLayer(q.get("devlayer")) : null, // Story 7.8: dev builds only
   };
+}
+
+/** Story 7.8: an animated layer id (`propeller`), else null. */
+export function parseDevLayer(raw: string | null): AnimatedLayerId | null {
+  const v = raw?.trim().toLowerCase() ?? "";
+  return (ANIMATED_LAYERS as readonly string[]).includes(v) ? (v as AnimatedLayerId) : null;
 }
 
 function parseScenario(raw: string | null): TestScenario | null {

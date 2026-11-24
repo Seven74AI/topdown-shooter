@@ -1,5 +1,5 @@
 # generated: 11-21-2026 18:20
-# last_updated: 11-24-2026 15:30
+# last_updated: 11-24-2026 18:00
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -39,7 +39,7 @@
 # - Recommended epic order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 8 → 10; Epic 9 alongside from Epic 4.
 #   Epic 8 needs Story 7.1 (accounts).
 # - Stories marked "human" are playtests or specs run by the designer; mark them done by hand.
-# - Story 9.2-9.10 depend on the hired artist and sound designer.
+# - Epic 9 is a polish pass of the code-drawn art and audio; nobody is hired (GDD, designer 2026-11-23).
 
 generated: 11-21-2026 18:20
 last_updated: 2026-11-24
@@ -161,7 +161,7 @@ development_status:
   epic-6-retrospective: optional
 
   # Epic 7: Accounts and meta-progression
-  epic-7: backlog
+  epic-7: in-progress  # story 7.8 ready-for-dev 2026-11-24 after the readiness check (report + sprint-change-proposal-2026-11-24-epic-7-readiness.md); 7.1–7.7 files after Epic 6
   7-1-progress-saved-on-the-server: backlog
   7-2-earn-and-bank-supplies: backlog
   7-3-unlock-screen: backlog
@@ -169,7 +169,7 @@ development_status:
   7-5-training-boosts: backlog
   7-6-upgrade-to-an-account: backlog
   7-7-district-unlock-rule: backlog
-  7-8-survivor-parts-in-game-code: backlog  # customization (docs/ideas/customization)
+  7-8-survivor-parts-in-game-code: done  # 2026-11-24: 51 parts, spinning propeller (first animated layer); no fresh-agent review (designer); correct-course 7.8–7.12
   7-9-my-look-in-the-game: backlog  # customization (docs/ideas/customization)
   7-10-survivor-editor: backlog  # customization (docs/ideas/customization)
   7-11-milestone-items: backlog  # customization (docs/ideas/customization)
