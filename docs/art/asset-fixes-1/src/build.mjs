@@ -11,7 +11,7 @@ async function bundle(entry) {
 const want = ["atlas_downtown/prop_barrier_a", "boss_tele_disc/boss_tele_disc", "boss_fx/boss_fx_skull_a", "boss_fx/boss_fx_disc_a", "boss_fx/boss_icon_slam_a", "boss_fx/boss_icon_charge_a", "boss_fx/boss_icon_throw_a", "boss_fx/boss_decal_crack_a"];
 const all = JSON.parse(readFileSync("tools/gallery/out/assets.json", "utf8"));
 const current = Object.fromEntries(all.filter((a) => want.includes(a.id)).map((a) => [a.id, a.url]));
-for (const [entry, tpl, out] of [["round1.ts", "page.html", "looks.html"], ["round2.ts", "page2.html", "looks-2.html"], ["round3.ts", "page3.html", "looks-3.html"]]) {
+for (const [entry, tpl, out] of [["round1.ts", "page.html", "looks.html"], ["round2.ts", "page2.html", "looks-2.html"], ["round3.ts", "page3.html", "looks-3.html"], ["round4.ts", "page4.html", "looks-4.html"]]) {
   const js = await bundle(entry);
   const page = readFileSync(D + tpl, "utf8").replace("/*@JS@*/", () => `var CURRENT=${JSON.stringify(current)};\n${js}`);
   writeFileSync("docs/art/asset-fixes-1/" + out, page);
