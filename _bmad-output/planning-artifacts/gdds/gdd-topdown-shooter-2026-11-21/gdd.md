@@ -169,7 +169,7 @@ Numbers for each are in the sections below.
 ### Item and Upgrade System
 **Roguelike shop.** Each build phase shows:
 - **Always available:** *unlocked* consumables and upgrades for weapons you own. Buildings come from the build bar, not the shop. A downed or out player can't buy.
-- **6 random cards** of weapons and gear drawn from the player's **unlocked pool** (each player sees their own cards). **Reroll: 20** currency. Every offer contains **at least 1 weapon and 1 gear card**. No locking cards, no upgrade cards, no Pistol card; items hidden from the shop (`inShop: false`) are never drawn. Rarity by price (≤ 250 common ×3, ≤ 500 rare ×2, above epic ×1); no price scaling per wave. Card look C3 "police evidence tag". When too few new items exist, the offer shows fewer cards and Reroll is disabled.
+- **6 random cards** of weapons and gear drawn from the player's **unlocked pool** (each player sees their own cards; one may be borrowed from a teammate's unlocks). **Reroll: 20** currency. Every offer contains **at least 1 weapon and 1 gear card**. No locking cards, no upgrade cards, no Pistol card; items hidden from the shop (`inShop: false`) are never drawn. Rarity by price (≤ 250 common ×3, ≤ 500 rare ×2, above epic ×1); no price scaling per wave. Card look C3 "police evidence tag". When too few new items exist, the offer shows fewer cards and Reroll is disabled.
 
 **Gear (permanent for the run):**
 | Item | Effect | Price |
@@ -234,16 +234,18 @@ District-specific events are planned per district later (e.g. hospital quarantin
 | Extract (run won) | +100 |
 | Each endless wave | +20, kept only if the team extracts |
 
-**Starter pool:** Pistol, Machete, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Wood barricade, Auto-turret, Medkit, Grenades.
+A wave counts for every player still in the run when it ends, downed or out; a quitter keeps what they earned. **Rookie lift:** a player's Supplies are doubled while their lifetime Supplies are below 300 (about the first 3 runs).
+
+**Starter pool:** Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades.
 **Unlocks (Supplies):**
-- Weapons: Fire Axe 150 · Assault Rifle 200 · Chainsaw 300 · Gas torch 350 · Flamethrower 400 · Grenade Launcher 500
+- Weapons: Assault Rifle 200 · Chainsaw 300 · Gas torch 350 · Flamethrower 400 · Grenade Launcher 500
 - Buildings: Spike trap 100 · Bear trap 100 · Mine 100 · Floodlight 120 · Barricade upgrades (reinforced + metal) 150 · Med station 300
-- Gear: Revive kit 100 · Tactical flashlight 100 · Body armor II 250
+- Gear: Tactical flashlight 100 · Body armor II 250
 - Consumables: Molotovs 150
 
-Unlocks add cards to the player's shop deck and tiles to their build bar: more options, not more power.
-**Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency 100 → 150 · reload speed up to +5%. Each level costs **50 × level** Supplies (50, 100, 150, 200, 250). Caps keep a new friend viable next to a veteran (pillar 4).
-**Pacing:** everything unlocked after ≈ 15–20 runs (≈ 6 hours). **District 2 unlocks** after the first extraction from Downtown.
+Unlocks are bought in any order and add cards to the player's shop deck and tiles to their build bar: more options, not more power. **Borrowed card:** when a teammate in the room has unlocked weapons or gear the player hasn't, one of the player's 6 cards is drawn from those and marked "Borrowed from <name>" (bought with run money, gone after the run).
+**Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency 100 → 150 · reload speed up to +5%. Each level costs **50 × level** Supplies (50, 100, 150, 200, 250). Caps keep a new friend viable next to a veteran (pillar 4); Training always applies in full and is never scaled to the team.
+**Pacing:** the first weapon a player wants (≈ 300) after ≈ 3 runs, a few favourites (≈ 1,000) after ≈ 10. Unlocking everything is a long-term goal, not the target: not everyone wants every weapon (designer, 2026-11-24). **District 2 unlocks** for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has it.
 ### Difficulty Curve
 | Waves | Feel | Why |
 |---|---|---|

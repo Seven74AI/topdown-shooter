@@ -91,15 +91,15 @@ footer { color: var(--dim); font-size: .8rem; }
   </header>
 
   <section aria-labelledby="h-sim">
-    <h2 id="h-sim">1 · Runs to everything <span class="code">D1 D3 D4 D6</span></h2>
+    <h2 id="h-sim">1 · Runs to what you want <span class="code">D1 D3 D4 D6</span></h2>
     <div class="bench">
       <div class="knobs">
-        <div class="knob"><label for="k-wave">Supplies per wave survived</label><output id="o-wave"></output><input id="k-wave" type="range" min="5" max="40" step="5" value="20"></div>
+        <div class="knob"><label for="k-wave">Supplies per wave survived</label><output id="o-wave"></output><input id="k-wave" type="range" min="5" max="40" step="5" value="10"></div>
         <div class="knob"><label for="k-boss">Behemoth killed</label><output id="o-boss"></output><input id="k-boss" type="range" min="0" max="150" step="10" value="50"></div>
         <div class="knob"><label for="k-ex">Extract</label><output id="o-ex"></output><input id="k-ex" type="range" min="0" max="250" step="10" value="100"></div>
         <div class="knob"><label for="k-end">Per endless wave (kept on extract)</label><output id="o-end"></output><input id="k-end" type="range" min="0" max="50" step="5" value="20"></div>
-        <div class="knob"><label for="k-rook">Rookie lift until lifetime</label><output id="o-rook"></output><input id="k-rook" type="range" min="0" max="1500" step="100" value="500"></div>
-        <div class="knob"><label for="k-tr">Training cost per level step</label><output id="o-tr"></output><input id="k-tr" type="range" min="10" max="60" step="5" value="25"></div>
+        <div class="knob"><label for="k-rook">Rookie lift until lifetime</label><output id="o-rook"></output><input id="k-rook" type="range" min="0" max="1500" step="100" value="300"></div>
+        <div class="knob"><label for="k-tr">Training cost per level step</label><output id="o-tr"></output><input id="k-tr" type="range" min="10" max="60" step="5" value="50"></div>
         <label class="check"><input id="k-starter" type="checkbox" checked> Fire Axe + Revive kit in the starter pool</label>
         <label for="k-group" class="sub">Friend group</label>
         <select id="k-group">
@@ -107,7 +107,7 @@ footer { color: var(--dim); font-size: .8rem; }
           <option value="default" selected>Default: extracts every 2nd run from run 10</option>
           <option value="strong">Strong: extracts 2 of 3 runs from run 5</option>
         </select>
-        <button id="k-reset">Reset to the proposal</button>
+        <button id="k-reset">Reset to the decision</button>
       </div>
       <div class="chartbox">
         <canvas id="chart" aria-label="Lifetime Supplies by run, proposal versus the GDD as written"></canvas>
@@ -179,7 +179,7 @@ footer { color: var(--dim); font-size: .8rem; }
 (() => {
 const $ = (id) => document.getElementById(id);
 const K = ["wave", "boss", "ex", "end", "rook", "tr"];
-const DEFAULTS = { wave: 20, boss: 50, ex: 100, end: 20, rook: 500, tr: 25, starter: true, group: "default" };
+const DEFAULTS = { wave: 10, boss: 50, ex: 100, end: 20, rook: 300, tr: 50, starter: true, group: "default" };
 
 // ---- catalog ----
 const ITEMS = [
@@ -260,9 +260,9 @@ function draw() {
   dot(rU, uT, col("--blue")); dot(rE, eT, col("--green"));
   const bU = runsTo(base, gU), bE = runsTo(base, gE), big = runsTo(mine, 300);
   const st = (v, lab, cls) => `<div class="stat ${cls}"><b>${v == null ? "45+" : "run " + v}</b><span>${lab}</span></div>`;
-  $("stats").innerHTML = st(big, "first 300-Supply unlock", "") + st(rU, `all unlocks (${uT.toLocaleString("en")})`, rU != null && rU <= 20 ? "good" : "bad") + st(rE, `everything (${eT.toLocaleString("en")})`, rE != null && rE <= 22 ? "good" : "bad") + st(bE, `GDD as written: everything (unlocks at run ${bU})`, "base");
+  $("stats").innerHTML = st(big, "first wanted weapon (300)", big != null && big <= 4 ? "good" : "bad") + st(runsTo(mine, 1000), "a few favourites (1,000)", runsTo(mine, 1000) <= 11 ? "good" : "bad") + st(rE, `everything (${eT.toLocaleString("en")}): long-term`, "") + st(bE, `GDD as written: everything (unlocks at run ${bU})`, "base");
   const o9 = outcome(cfg.group, 9);
-  $("sim-note").textContent = `Full extract pays ${10 * cfg.wave + cfg.boss + cfg.ex}; a wave-5 wipe pays ${5 * cfg.wave}${cfg.rook ? ` (doubled while lifetime < ${cfg.rook})` : ""}. GDD target: everything after about 15–20 runs.`;
+  $("sim-note").textContent = `Full extract pays ${10 * cfg.wave + cfg.boss + cfg.ex}; a wave-5 wipe pays ${5 * cfg.wave}${cfg.rook ? ` (doubled while lifetime < ${cfg.rook})` : ""}. Designer target: first wanted weapon in about 3 runs, a few favourites in about 10. Unlocking everything is a long-term goal, not the target.`;
 }
 
 function readKnobs() {

@@ -1,8 +1,8 @@
 # Epic 7: revised story texts (7.1–7.7)
 
-Drop-in replacements for Stories 7.1–7.7 in `_bmad-output/planning-artifacts/epics.md`, for `gds-correct-course`. Numbers and reasons: `proposal.md` (decisions D1–D12). Stories 7.8–7.12 (customization) are unchanged except the two notes at the end. "Changed:" lines list what differs from today's text; delete them when applying.
+Drop-in replacements for Stories 7.1–7.7 in `_bmad-output/planning-artifacts/epics.md`, for `gds-correct-course`. Numbers and reasons: `proposal.md` (decisions D1–D12, accepted by the designer 2026-11-24 with D1, D3 and D6 revised). Stories 7.8–7.12 (customization) are unchanged except the two notes at the end. "Changed:" lines list what differs from today's text; delete them when applying.
 
-**Also change outside Epic 7** (same pass): GDD › Player Progression (Supplies table, starter pool, unlock list, Training cost, pacing "≈ 15 runs for every unlock, ≈ 21 for everything", borrowed card, rookie lift); FR78 (+20 per wave, rookie lift, who counts); FR79 (starter pool gains Fire Axe and Revive kit; borrowed card); FR80 (25 × level); FR81 (host may pick a district anyone in the lobby has); GDD shop section ("6 random cards … from the player's unlocked pool, one of which may be borrowed from a teammate").
+**Also change outside Epic 7** (same pass): GDD › Player Progression (starter pool, unlock list, pacing "first wanted weapon in ≈ 3 runs, a few favourites in ≈ 10; unlocking everything is a long-term goal", borrowed card, rookie lift, who counts); FR78 (rookie lift, who counts; earnings unchanged); FR79 (starter pool gains Fire Axe and Revive kit; borrowed card); FR80 unchanged; FR81 (host may pick a district anyone in the lobby has); GDD shop section ("6 random cards … from the player's unlocked pool, one of which may be borrowed from a teammate").
 
 ---
 
@@ -51,11 +51,11 @@ So that every run moves me forward.
 
 **Given** a run ends (extract, wipe or quit)
 **When** Supplies are computed for each player (server only, from the run result)
-**Then** they get +20 per wave survived, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78; `progression.json`)
+**Then** they get +10 per wave survived, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78; `progression.json`)
 **And** a wave counts for every player still in the run when it ends, downed or out; a player who quits banks the waves ended before they left (designer D2)
 **And** after a wipe in endless, only waves 1–10 and the boss count
 
-**Given** a player whose lifetime Supplies are below 500 before this run
+**Given** a player whose lifetime Supplies are below 300 before this run
 **When** their Supplies are computed
 **Then** the run's total is doubled (rookie lift, D3), and Results shows "Rookie bonus × 2"
 
@@ -75,9 +75,9 @@ So that every run moves me forward.
 
 **Given** the Supplies rules
 **When** Vitest runs
-**Then** tests cover loss, extract, endless extract, endless wipe, a downed/out player at wave end, a quitter, the rookie lift crossing 500, and a solo run
+**Then** tests cover loss, extract, endless extract, endless wipe, a downed/out player at wave end, a quitter, the rookie lift crossing 300, and a solo run
 
-Changed: +20 per wave (D1), who counts (D2), rookie lift (D3), vote line, Run rewards panel, save nudge (D9), supply-drop unlock hint.
+Changed: who counts (D2), rookie lift (D3; earnings stay as FR78, D1), vote line, Run rewards panel, save nudge (D9), supply-drop unlock hint.
 
 ### Story 7.3: Unlock screen
 
@@ -155,13 +155,13 @@ So that I get a bit stronger without leaving new friends behind.
 
 **Given** I buy the next level
 **When** I have enough Supplies
-**Then** it costs 25 × level (25, 50, 75, 100, 125; 375 per boost, 1,500 for all) and is saved to `progress` (D6)
+**Then** it costs 50 × level (50, 100, 150, 200, 250; 750 per boost, 3,000 for all) and is saved to `progress`
 
 **Given** a run starts (solo or online)
 **When** my survivor is created
 **Then** my own Training levels are applied in full, never scaled to the team (D6), and they are listed on the Results screen
 
-Changed: cost 25 × level (D6); applies in full, solo too; the "revisit before building" note is settled: Training stays, a later level system may absorb it.
+Changed: applies in full (D6), solo too; the "revisit before building" note is settled: Training stays, a later level system may absorb it.
 
 ### Story 7.6: Upgrade to an account
 

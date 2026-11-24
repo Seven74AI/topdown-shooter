@@ -6,7 +6,26 @@ Every number is a starting value for balance JSON (a new `progression.json`), no
 
 ## 0. Designer decisions
 
-*Awaiting the designer.* "ok" accepts every recommendation; change one by its code (e.g. "D6: keep 50 × level").
+**Designer, 2026-11-24.** First round: "I'm not sure if unlocking everything should be a real goal. Not everybody wants to play with every weapon, so maybe we can keep the numbers we had." The session agreed and revised D1, D3 and D6 (below, marked *revised*). Second round: **"ok"**, so every value in the "Decision" column is accepted.
+
+| # | Decision (accepted) |
+| --- | --- |
+| D1 | *revised:* **keep the GDD earnings: +10 per wave survived, +50 Behemoth, +100 extract, +20 per endless wave (kept only on extract).** Unlocking everything is a long-term goal, not the target; the target is "your first weapon in about 3 runs, a few favourites in about 10". |
+| D2 | A wave counts for everyone still in the run when it ends, downed or out; a quitter banks what they had. |
+| D3 | *revised:* rookie lift **× 2 until 300 lifetime Supplies** (about the first 3 runs). |
+| D4 | Fire Axe and Revive kit join the starter pool (they leave the unlock list). |
+| D5 | Free unlock order; "Good next pick" marker; no tree. |
+| D6 | *revised:* Training keeps its caps **and its GDD cost, 50 × level** (3,000 for all): the sink for Supplies left over from items a player skips. Always applies in full, solo too; never scaled to the team. |
+| D7 | Borrowed card: 1 of 6 cards may come from a teammate's unlocks I lack. |
+| D8 | Unlocks can't be turned off (v1). |
+| D9 | Guest token also in a 1-year HttpOnly server cookie; "Save my progress" once after the first run that banks ≥ 200 Supplies. |
+| D10 | Username + password + one-time 12-character recovery code; no email. |
+| D11 | Logging in on a device with guest progress merges it. |
+| D12 | The host can pick a district if anyone in the lobby has it. |
+
+Applied to `epics.md` (Stories 7.1–7.7, FR78–FR81) and the GDD by `gds-correct-course`: `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-24.md`.
+
+The table below is the session's **first** proposal, kept as the record (D1, D3 and D6 were then revised as above).
 
 | # | Question | Recommended | Why |
 | --- | --- | --- | --- |
@@ -23,17 +42,17 @@ Every number is a starting value for balance JSON (a new `progression.json`), no
 | D11 | Logging in on a device that has guest progress | **Merge:** unlocks and cosmetics joined, Supplies added, the higher Training level, stats added | Nobody loses a night's play; in a co-op game there's nothing to exploit. |
 | D12 | District pick | District 2 unlocks per player on their first Downtown extract; **the host can pick a district if anyone in the lobby has it** | Better together: a veteran brings a newcomer along. (District 2 is "coming soon" in v1, so only the rule ships.) |
 
-## 1. Supplies (D1–D3)
+## 1. Supplies (D1–D3, as accepted)
 
 | Source | Supplies |
 | --- | --- |
-| Each wave survived (1–10) | +20 |
+| Each wave survived (1–10) | +10 |
 | Behemoth killed | +50 |
 | Extract | +100 |
 | Each endless wave | +20, kept only if the team extracts |
-| Rookie lift | × 2 while lifetime Supplies < 500 (the run that crosses 500 is still doubled) |
+| Rookie lift | × 2 while lifetime Supplies < 300 (the run that crosses 300 is still doubled) |
 
-Example runs: wipe in wave 5 = 100 (rookie 200). Wipe in wave 8 = 160. Extract after wave 10 = 350. Extract after 3 endless waves = 410. Endless wipe after 3 endless waves = 250 (waves 1–10 + boss; endless lost).
+Example runs: wipe in wave 5 = 50 (rookie 100). Wipe in wave 8 = 80. Extract after wave 10 = 250. Extract after 3 endless waves = 310. Endless wipe after 3 endless waves = 150 (waves 1–10 + boss; endless lost).
 
 The extract vote shows the bet: "Extract now: +100 · Stay: +20 a wave, lost if you wipe".
 
@@ -50,18 +69,19 @@ The extract vote shows the bet: "Extract now: +100 · Stay: +20 a wave, lost if 
 | Gear | Tactical flashlight 100 · Body armor II 250 | 350 |
 | Consumables | Molotovs 150 | 150 |
 
-**Training (D6):** 4 boosts × 5 levels, level n costs 25 × n → 375 per boost, 1,500 for all.
+**Training (D6):** 4 boosts × 5 levels, level n costs 50 × n → 750 per boost, 3,000 for all.
 
-**Everything:** 4,620 Supplies.
+**Everything:** 6,120 Supplies (a long-term goal, not the target).
 
 ## 3. Pacing (from the simulator's default friend group)
 
 The model: 3 runs wiping at wave 5, 3 at wave 7, 3 at wave 9, then every other run extracts (sometimes 2 endless waves), the rest wipe at wave 8. Open the simulator to change it.
 
-| Setup | First "big" unlock (≥ 300) | All unlocks | Everything |
+| Setup | First weapon you want (~300) | A few favourites (~1,000) | Everything |
 | --- | --- | --- | --- |
-| GDD as written | run 6 | run 25 | run 42 |
-| **This proposal** | run 2 | **run 15** | **run 21** |
+| GDD as written | run 6 | run 11 | run 42 |
+| **Accepted (GDD earnings + rookie lift to 300)** | **run 3** | **run 10** | ~run 40 |
+| First proposal (+20 per wave, Training 25 × level) | run 2 | run 6 | run 21 |
 
 ## 4. The shop deck (Story 7.4, with 5.13)
 
@@ -87,7 +107,7 @@ The model: 3 runs wiping at wave 5, 3 at wave 7, 3 at wave 9, then every other r
 
 ## 7. Watch list
 
-- **Grind:** D1 + D3 + D6 bring "everything" to ~21 runs. If friends still feel slow after the playtest, the next lever is wave pay 25.
+- **Grind:** "everything" is not the goal (designer). First wanted weapon by run 3, a few favourites by run 10. If friends still feel slow after the playtest, the lever is wave pay (+20 per wave halves the waits; see the simulator).
 - **Pay-to-win feel:** no real money anywhere; unlocks add options; Training is capped at about +10 % strength.
 - **New friends behind:** D3 rookie lift, D4 bigger starter pool (incl. Revive kit), D7 borrowed card, D12 district rule.
 - **Exploits:** Supplies come only from the server's run result (never the client); a quitter banks only what they earned; solo earns the same as co-op (solo is "allowed, not tuned").
