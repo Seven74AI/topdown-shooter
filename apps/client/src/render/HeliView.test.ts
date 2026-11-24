@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP } from "@topdown/shared";
+import { DOWNTOWN_MAP, loadBalance } from "@topdown/shared";
 import { DESCEND_S, EXTRACT_FLY_S, LIFT_S, evacPadOf, heliPose, type HeliPose } from "./heliPose";
 
 /** Story 6.11 (AC 9): the helicopter's pose, pure; the pad from the map. */
@@ -31,5 +31,20 @@ describe("evacPadOf", () => {
       (DOWNTOWN_MAP as { eventSpots?: { name: string; x: number; y: number }[] }).eventSpots?.find((s) => s.name === "evac_pad") ?? { x: 24, y: 16 },
     );
     expect(evacPadOf({ ...DOWNTOWN_MAP, eventSpots: [{ name: "evac_pad", x: 20, y: 12 }] } as unknown as typeof DOWNTOWN_MAP)).toEqual({ x: 20, y: 12 });
+  });
+});
+
+describe("the pad on Downtown (random-city CCP: the pad is map data)", () => {
+  it("the pad (and its 3 m ring) is inside the map and its centre clear of every map box (solids and cover)", () => {
+    const m = DOWNTOWN_MAP;
+    const r = loadBalance().waves.evac.padRadiusM;
+    const at = evacPadOf(m);
+    expect(at.x - r).toBeGreaterThanOrEqual(0);
+    expect(at.y - r).toBeGreaterThanOrEqual(0);
+    expect(at.x + r).toBeLessThanOrEqual(m.widthM);
+    expect(at.y + r).toBeLessThanOrEqual(m.heightM);
+    const inside = (b: { minX: number; minY: number; maxX: number; maxY: number }) => at.x > b.minX && at.x < b.maxX && at.y > b.minY && at.y < b.maxY;
+    expect(m.solids.filter(inside).map((b) => b.name)).toEqual([]);
+    expect(m.cover.filter(inside).map((b) => b.name)).toEqual([]);
   });
 });
