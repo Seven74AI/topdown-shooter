@@ -119,6 +119,7 @@ class PlayerSlot {
   /** Re-review M: a rate-dropped consumable's throw aim, carried with the flag. */
   carryAimX = 0;
   carryAimY = 0;
+  carryFire = false;
   /** A new input was applied this tick (the spread watch reads it after the step). */
   appliedThisTick = false;
   /** Story 2.12 review M1: spread-cancel telemetry. */
@@ -170,12 +171,12 @@ const dropOldest = (s: PlayerSlot): void => {
   for (let i = 0; i < s.count && (consumable || swap); i++) {
     const next = s.ring[(s.head + i) % INPUT_QUEUE_MAX] as MutableInput;
     if (consumable && !next.consumable) {
-      // Re-review M: the throw's aim (the throw range's encoding) moves with the flag, fire off, as
-      // the client sends a flagged input. That seq's own aim/shot is lost (the prediction reconciles).
+      // Re-review M: the flagged input's aim (a throw: the throw range's encoding) and fire (off for a
+      // throwable, kept for a medkit) move with the flag. That seq's own aim/shot is lost (the prediction reconciles).
       next.consumable = true;
       next.aimX = dropped.aimX;
       next.aimY = dropped.aimY;
-      next.fire = false;
+      next.fire = dropped.fire;
       consumable = false;
     }
     if (swap && !next.swap) {
@@ -370,7 +371,7 @@ export class RunController {
       slot.consumable = true;
       slot.aimX = s.carryAimX;
       slot.aimY = s.carryAimY;
-      slot.fire = false;
+      slot.fire = s.carryFire;
     }
     s.carrySwap = s.carryConsumable = false;
     s.count++;
@@ -388,7 +389,7 @@ export class RunController {
   rateDroppedInput(playerId: string, message: unknown): void {
     const s = this.slots.get(playerId);
     if (!s || typeof message !== "object" || message === null) return;
-    const m = message as { seq?: unknown; swap?: unknown; consumable?: unknown; aimX?: unknown; aimY?: unknown };
+    const m = message as { seq?: unknown; swap?: unknown; consumable?: unknown; aimX?: unknown; aimY?: unknown; fire?: unknown };
     if (typeof m.seq !== "number" || m.seq !== s.lastQueuedSeq + 1) return;
     s.lastQueuedSeq = m.seq;
     s.rateDrops++;
@@ -398,6 +399,7 @@ export class RunController {
       // Its throw aim, if valid (the schema's [-1, 1]); else none (the throw falls back: memory, zombie, facing).
       s.carryAimX = validAim(m.aimX);
       s.carryAimY = validAim(m.aimY);
+      s.carryFire = m.fire === true;
     }
   }
 

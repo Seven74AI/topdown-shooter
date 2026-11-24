@@ -169,6 +169,30 @@ describe("LocalSimHost", () => {
     expect(host.world.inputs.get(LOCAL_PLAYER_ID)?.aimY).toBeCloseTo(6 / GL.lobRangeM, 12);
   });
 
+  it("re-review L: a medkit tapped with fire held keeps shooting on the flagged step (only a throwable drops fire)", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
+    startWave(host.world);
+    const p = host.world.players.get(LOCAL_PLAYER_ID)!;
+    p.consumable = "medkit";
+    p.consumableCount = 1;
+    p.hp = 40;
+    const held = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 1, fire: true, swap: false, consumable: false, isMouse: true, viewTick: -1 };
+    host.drainEvents();
+    host.setLocalInput({ ...held, consumable: true }); // the tap frame: InputRouter keeps fire (no throwable)
+    host.update(FRAME_60HZ);
+    let used: readonly SimEvent[] = [];
+    for (let i = 0; i < 3 && used.length === 0; i++) {
+      host.setLocalInput(held);
+      host.update(FRAME_60HZ);
+      used = host.drainEvents();
+    }
+    expect(used.some((e) => e.type === "consumable.used")).toBe(true);
+    expect(host.world.inputs.get(LOCAL_PLAYER_ID)?.fire).toBe(true);
+    expect(used.some((e) => e.type === "weapon.fired")).toBe(true); // the shot that tick
+    expect(p.hp).toBeGreaterThan(40);
+  });
+
   it("clearEdges drops a swap latched before any step (the menu opened in the same step; 2.11 review)", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     const neutral = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: false, viewTick: -1 };

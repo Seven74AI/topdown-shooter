@@ -1,6 +1,6 @@
 # Story 5.12: Consumables
 
-Status: review
+Status: done
 
 ## Story
 
@@ -315,3 +315,12 @@ undid (new medium). Fixed on `story-5-12`:
 Mutations: host latch aim ignored / fire kept (Local and Net, 4), touch fire not dropped, RunController carry flag not
 cleared, rate-drop aim not carried, rate-drop fire kept, overflow aim not carried, overflow fire kept, memory in the
 throw's encoding, LOS skipped: 12 of 12 fail their test.
+
+**Second re-review (main session, 2026-11-24, on `fddce7a`):** clean of high/medium; one low and one nit, fixed:
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| L | A medkit tap also forced `fire` off on its step (the hosts' latch, the server's carries), though `InputRouter` drops fire only for a throwable. | The hosts latch the tap frame's own `fire` with its aim and send/apply it on the flagged step; `RunController` carries the dropped input's `fire` (overflow/drain) and `m.fire === true` (rate drop) instead of a hard false. Tests: `LocalSimHost.test` (fire held + medkit tap → healed and `weapon.fired` that step), `NetSimHost.consumables.test` (sent buffer), `RunController.test` (overflow and rate-drop carry). Mutations (fire forced off in each of the 4 places): 4 of 4 fail. |
+| NIT | `rememberAim` skipped the launcher's decoding for any flagged input, a medkit tap included. | Skipped only when the slot holds a throwable. |
+
+Status `done` (main session's approval of this round).

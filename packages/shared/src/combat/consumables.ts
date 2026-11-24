@@ -64,7 +64,7 @@ export function useConsumables(world: World): void {
 /**
  * Review M1: the last aim input, kept `aimMemoryS` worth of applied ticks. Written only from aim
  * input (never from movement), counted down on applied ticks without aim. Re-review L: the length
- * is kept in METRES, decoded the way the client encoded it — a flagged input in the throw's range,
+ * is kept in METRES, decoded the way the client encoded it — a flagged input with a throwable in the slot in the throw's range,
  * any other in the in-hand launcher's (else the slot's throw range) — and converted at the throw.
  */
 export function rememberAim(world: Readonly<World>, p: PlayerState, input: Readonly<PlayerInput> | undefined): void {
@@ -72,7 +72,7 @@ export function rememberAim(world: Readonly<World>, p: PlayerState, input: Reado
   if (input && len >= MIN_AIM_LEN) {
     p.lastAimX = input.aimX / len;
     p.lastAimY = input.aimY / len;
-    const launcherM = input.consumable ? 0 : launcherRangeInHand(world, p);
+    const launcherM = input.consumable && throwStatsOf(world.balance, p.consumable) ? 0 : launcherRangeInHand(world, p);
     const rangeM = launcherM > 0 ? launcherM : (throwStatsOf(world.balance, p.consumable)?.lobRangeM ?? 0);
     p.lastAimM = rangeM > 0 ? Math.min(1, len) * rangeM : -1;
     p.lastAimTicks = aimMemoryTicks(world.balance);

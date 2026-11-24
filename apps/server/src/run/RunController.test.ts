@@ -200,6 +200,23 @@ describe("RunController", () => {
     expect(c.world.inputs.get("p0")).toMatchObject({ seq: 6, consumable: true, aimX: 0, aimY: 0 });
   });
 
+  it("re-review L: a dropped medkit tap carries its own fire (held) with the flag — overflow and rate drop", () => {
+    const c = newController();
+    owe(c, 2);
+    c.queueInput("p0", input(1, { aimY: 1, fire: true }));
+    c.queueInput("p0", input(2, { consumable: true, aimY: 1, fire: true })); // a medkit tap: fire kept
+    for (let seq = 3; seq <= INPUT_QUEUE_MAX + 2; seq++) c.queueInput("p0", input(seq, { aimY: 1, fire: true }));
+    c.tick();
+    expect(c.world.inputs.get("p0")).toMatchObject({ seq: 3, consumable: true, fire: true });
+    const d = newController();
+    d.queueInput("p0", input(1));
+    d.rateDroppedInput("p0", { seq: 2, consumable: true, aimX: 0, aimY: 1, fire: true });
+    d.queueInput("p0", input(3, { aimY: 1, fire: true }));
+    d.tick();
+    d.tick();
+    expect(d.world.inputs.get("p0")).toMatchObject({ seq: 3, consumable: true, fire: true });
+  });
+
   it("drains a backlog after a 300 ms stall back to the target within 3 s", () => {
     const c = newController();
     let seq = 0;

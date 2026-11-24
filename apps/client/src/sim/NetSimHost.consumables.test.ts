@@ -49,6 +49,18 @@ describe("NetSimHost: consumables (Story 5.12)", () => {
     expect(sent[1]).toMatchObject({ consumable: false, aimX: 0.5, fire: true });
   });
 
+  it("re-review L: a medkit tap's own fire (held) is sent on the flagged step", () => {
+    const { room, host } = setup();
+    const held = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 1, fire: true, swap: false, consumable: false, isMouse: true, viewTick: -1 };
+    room.sent.length = 0;
+    host.setLocalInput({ ...held, consumable: true });
+    host.update(1 / 60);
+    host.setLocalInput(held);
+    host.update(0.05);
+    const sent = room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
+    expect(sent[0]).toMatchObject({ consumable: true, fire: true });
+  });
+
   it("slot and count come from the state (index → id; 255 = empty)", () => {
     const { room, host } = setup();
     const me = host.world.players.get("p1")!;

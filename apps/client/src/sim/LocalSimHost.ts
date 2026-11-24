@@ -70,6 +70,8 @@ export class LocalSimHost implements SimHost {
    */
   private latchedThrowAimX = 0;
   private latchedThrowAimY = 0;
+  /** Re-review L: the tap frame's own fire (InputRouter drops it for a throwable only; a medkit tap keeps shooting). */
+  private latchedTapFire = false;
   /** Input sequence number, one per step (the shared input system fires edges once per seq). */
   private seq = 0;
   private events: SimEvent[] = [];
@@ -185,7 +187,7 @@ export class LocalSimHost implements SimHost {
         consumable: throwing,
         aimX: throwing ? this.latchedThrowAimX : this.input.aimX,
         aimY: throwing ? this.latchedThrowAimY : this.input.aimY,
-        fire: throwing ? false : this.input.fire,
+        fire: throwing ? this.latchedTapFire : this.input.fire,
       });
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
@@ -215,6 +217,7 @@ export class LocalSimHost implements SimHost {
       this.latchedConsumable = true;
       this.latchedThrowAimX = input.aimX;
       this.latchedThrowAimY = input.aimY;
+      this.latchedTapFire = input.fire;
     }
   }
 
