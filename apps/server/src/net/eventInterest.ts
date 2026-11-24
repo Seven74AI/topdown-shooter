@@ -30,7 +30,7 @@ import {
  * Story 5.6 adds two more local kinds: `spitter.spat` (its mouth point or its flight's end) and
  * `acid.splashed` (the puddle's centre). Acid damage (`player.damaged`, source −3) stays global.
  * Story 6.5: `boss.hit` (the hit flash) is local at the boss's position; warning, arrival, telegraph,
- * slam and target change are global (the team cue).
+ * slam and target change are global (the team cue). Story 6.8: every `event.*` is global (team cues).
  * Story 5.8: `bloater.swell_started`, `bloater.burst` and a Bloater blast's non-killing `zombie.hit`
  * are local (their point); the blast damage, kills and the gas slow stay server truth for everyone.
  *

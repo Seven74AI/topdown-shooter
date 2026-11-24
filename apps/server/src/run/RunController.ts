@@ -224,6 +224,8 @@ export interface RunControllerOptions {
   forceBlackoutPct?: number | null;
   /** Story 6.5 dev (`DEV_BOSS_WAVES=3`): the Behemoth's waves instead of `boss.json`. null = the real list. */
   bossWaves?: readonly number[] | null;
+  /** Story 6.8 dev (`DEV_EVENTS=car_alarm@3,stampede@4`): the run's event schedule instead of the draw. null = the real draw. */
+  events?: readonly { readonly kind: string; readonly wave: number }[] | null;
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map; tests may pass the open `PLACEHOLDER_MAP`). */
   map?: DistrictMap;
   /** Story 2.10: a fixed test scenario (the room passes it only with `ALLOW_TEST_SCENARIOS=1`). */
@@ -290,6 +292,7 @@ export class RunController {
     this.world.debug.decayStageByWave = opts.decayStageByWave ?? null; // before the first build start
     this.world.debug.shopCards = opts.shopCards ?? null; // Story 5.13: before the first offers are drawn
     this.world.debug.bossWaves = opts.bossWaves ?? null; // Story 6.5
+    this.world.debug.events = opts.events ?? null; // Story 6.8: before the first build start draws the schedule
     if (opts.scenario) applyTestScenario(this.world, opts.scenario);
     if (opts.startWave) applyStartWave(this.world, opts.startWave); // Story 6.1 dev switch, before the first build start
     const lagComp = opts.lagCompensation !== false;

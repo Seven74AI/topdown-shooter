@@ -15,9 +15,10 @@ import combat from "./balance/combat.json" with { type: "json" };
 import gear from "./balance/gear.json" with { type: "json" };
 import consumables from "./balance/consumables.json" with { type: "json" };
 import boss from "./balance/boss.json" with { type: "json" };
+import eventsJson from "./balance/events.json" with { type: "json" };
 import economy from "./balance/economy.json" with { type: "json" };
 
-const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss })) as RawBalanceFiles;
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events: eventsJson })) as RawBalanceFiles;
 
 /** Story 5.18: the chain and pending numbers in controls.build. */
 const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300 } as const;
@@ -586,5 +587,34 @@ describe("Story 6.5 review L-e: boss.json cross-checks", () => {
     const r = raw();
     (r.boss as { target: { threatWindowS: number } }).target.threatWindowS = 6;
     expect(() => loadBalance(r)).toThrow(/boss\.json: target\.threatWindowS 6 must be 5/);
+  });
+});
+
+describe("Story 6.8: events.json", () => {
+  it("loads the starting values (2 per run in waves 3, 4, 6, 7, 8; 20–60 %; alarm 20 s + 15 s at 15 m; stampede 3 s + 10 s)", () => {
+    const e = loadBalance().events;
+    expect(e.perRun).toBe(2);
+    expect(e.waves).toEqual([3, 4, 6, 7, 8]);
+    expect([e.startFractionMin, e.startFractionMax]).toEqual([0.2, 0.6]);
+    expect(e.carAlarm).toMatchObject({ armedS: 20, alarmS: 15, pullRadiusM: 15, distractBreakM: 2, pickMinM: 8, pickMaxM: 25 });
+    expect(e.stampede).toMatchObject({ warningS: 3, runS: 10, laneWidthM: 8, speedMps: 5, contactDamage: 8, countByPlayers: [12, 18, 24, 30], overCap: 30, rowSize: 6, rowGapS: 0.3, stuckS: 1, stuckProgressM: 0.5 });
+    expect(e.banners).toMatchObject({ car_alarm: "CAR ALARM · shoot it to set it off", stampede: "STAMPEDE!" });
+  });
+
+  it("refuses wave 5, only neighbouring waves, fractions out of order, an over-cap past the pool, a missing banner, fractional ticks", () => {
+    const bad = (edit: (e: Record<string, unknown>) => void, msg: RegExp): void => {
+      const r = raw();
+      edit(r.events as Record<string, unknown>);
+      expect(() => loadBalance(r)).toThrow(msg);
+    };
+    bad((e) => (e.waves = [3, 5, 7]), /events\.json: waves: 5 is never an event wave/);
+    bad((e) => (e.waves = [3, 4]), /no two waves that are not neighbours/);
+    bad((e) => {
+      e.startFractionMin = 0.7;
+    }, /startFractionMin must be ≤ startFractionMax/);
+    bad((e) => ((e.stampede as Record<string, unknown>).overCap = 200), /exceeds the zombie pool/);
+    bad((e) => (e.banners = { car_alarm: "x" }), /banners\.stampede is missing/);
+    bad((e) => ((e.stampede as Record<string, unknown>).rowGapS = 0.33), /whole ticks/);
+    bad((e) => ((e.stampede as Record<string, unknown>).countByPlayers = [12, 18, 24]), /countByPlayers/);
   });
 });

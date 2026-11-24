@@ -3,6 +3,7 @@ import { MolotovView } from "../render/MolotovView";
 import { consumableUsable, consumableVisible, createConsumablePending, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
 import {
   NEUTRAL_INPUT,
+  parseDevEvents,
   buildingAtPoint,
   type MoveRequest,
   consumableStats,
@@ -69,6 +70,8 @@ import { BRUTE_BANNER, bruteSpawnCue, type BruteCue } from "../render/bruteCue";
 import { AcidView } from "../render/AcidView";
 import { playSfx, startBossLoop, startChainsawRev, startFlameLoop, stopBossLoop, stopChainsawRev, stopFlameLoop } from "../audio/placeholderSfx";
 import { BossView } from "../render/BossView";
+import { EventView } from "../render/EventView";
+import { createEventCue, eventCue } from "../render/eventMarkers";
 import { BOSS_TARGET_BUZZ, bossCue, type BossCue } from "../render/bossCue";
 import { BloaterFx } from "../render/bloaterFx";
 import { BloaterView } from "../render/BloaterView";
@@ -292,6 +295,9 @@ export class GameScene extends Phaser.Scene {
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
   private bossView: BossView | null = null;
   private bossMusic = false;
+  /** Story 6.8: the special events' markers, car lights, stampede chevrons and dust, the alarm loop. */
+  private eventView: EventView | null = null;
+  private readonly eventCueOut = createEventCue();
   private readonly bossCueOut: BossCue = { banner: "", sound: "", shake: false, buzz: false, music: "" };
   private readonly bossAt = { x: 0, y: 0 };
   /** Story 3.9: blood trails behind Crawlers. */
@@ -552,6 +558,7 @@ export class GameScene extends Phaser.Scene {
     if (!session) {
       world.debug.bossWaves = parseBossWaves(opts.bossWaves);
       world.debug.bossHpScale = opts.bossHpScale ?? 1;
+      world.debug.events = parseDevEvents(opts.events); // Story 6.8 dev (?events=car_alarm@1; dev builds, solo)
     }
     this.gameOver = false;
     this.kills = 0;
@@ -610,6 +617,7 @@ export class GameScene extends Phaser.Scene {
     this.ambience = new AmbiencePlayer();
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.bossView = new BossView(this, host.world); // Story 6.5
+    this.eventView = new EventView(this, host.world); // Story 6.8
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
@@ -765,6 +773,8 @@ export class GameScene extends Phaser.Scene {
       this.projectileView?.destroy();
       this.zombieView?.destroy();
       this.bossView = null; // Story 6.5: its objects go with the scene
+      this.eventView?.destroy(); // Story 6.8: the alarm loop stops; its objects go with the scene
+      this.eventView = null;
       if (this.bossMusic) stopBossLoop();
       this.bossMusic = false;
       this.trailView?.destroy();
@@ -1867,6 +1877,11 @@ export class GameScene extends Phaser.Scene {
         this.bossView?.clearDecals(); // Story 6.5: no cracks carried into the next wave
       } else if (e.type === "boss.warning" || e.type === "boss.arrived" || e.type === "boss.slammed" || e.type === "boss.target_changed") {
         this.bossEvent(host, e, localId); // Story 6.5
+      } else if (e.type === "event.triggered" || e.type === "event.phase_changed" || e.type === "event.ended") {
+        // Story 6.8 (F1): the banner and the sound (none for a woken tab's backlog); the marker follows the state.
+        const cue = eventCue(e, host.world.balance, this.eventCueOut);
+        if (cue.banner) this.stackBanner(cue.banner);
+        if (cue.sound) playSfx(cue.sound);
       } else if (e.type === "boss.telegraph") {
         this.bossView?.onTelegraph(e.attackId, e.kind, e.startTick, e.hitTick, e.cx, e.cy, e.radiusM);
       } else if (e.type === "boss.hit") {
@@ -1898,6 +1913,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.zombieView?.update(host.world, host.alpha);
     this.updateBoss(host, deltaMs / 1000); // Story 6.5
+    const ev = this.cameras.main.worldView; // Story 6.8: the event markers (from the server's ticks)
+    this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height);
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
     this.acidClockS += fxDtS;

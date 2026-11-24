@@ -5,6 +5,7 @@ import { MAX_PLAYERS } from "./messages";
 import { headingToRad, quantizeHeading } from "./heading";
 import { buildingTypeIds } from "../buildings/buildings";
 import { EXPLOSION_KINDS } from "../combat/explosion";
+import { EVENT_KINDS, EVENT_OUTCOMES } from "../events/eventState";
 
 /**
  * Sim events on the wire (Story 2.4). Each forwarded event is a short tuple `[kind, …fields]`
@@ -72,6 +73,11 @@ export const NET_EVENT_KIND = {
   BOSS_SLAMMED: 47,
   BOSS_TARGET_CHANGED: 48,
   BOSS_HIT: 49,
+  // Story 6.8 (55–64 are 6.8's; 50–54 are 6.6's boss kinds; never reuse)
+  EVENT_TRIGGERED: 55,
+  EVENT_PHASE_CHANGED: 56,
+  EVENT_ENDED: 57,
+  EVENT_SKIPPED: 58,
 } as const;
 export type NetEventKind = (typeof NET_EVENT_KIND)[keyof typeof NET_EVENT_KIND];
 
@@ -289,6 +295,15 @@ export function encodeNetEvent(e: SimEvent, ctx: NetEventContext): NetEvent | nu
       return [K.BOSS_TARGET_CHANGED, playerSlotOf(e.playerId)];
     case "boss.hit":
       return [K.BOSS_HIT, tenths(e.amount), weaponIndex(b, e.weapon), playerSlotOf(e.sourceId)];
+    // Story 6.8: kinds and outcomes as indices; ticks absolute (the client draws countdowns from the server's ticks).
+    case "event.triggered":
+      return [K.EVENT_TRIGGERED, EVENT_KINDS.indexOf(e.kind), e.wave, cm(e.x), cm(e.y), e.startTick, e.phase, e.lane < 0 ? NET_NONE : e.lane];
+    case "event.phase_changed":
+      return [K.EVENT_PHASE_CHANGED, EVENT_KINDS.indexOf(e.kind), e.phase, e.tick, playerSlotOf(e.playerId)];
+    case "event.ended":
+      return [K.EVENT_ENDED, EVENT_KINDS.indexOf(e.kind), EVENT_OUTCOMES.indexOf(e.outcome)];
+    case "event.skipped":
+      return [K.EVENT_SKIPPED, EVENT_KINDS.indexOf(e.kind), e.wave];
     case "test.ping":
       return null;
   }
@@ -508,6 +523,28 @@ export function decodeNetEvent(t: NetEvent, ctx: NetEventContext): SimEvent | nu
       return { type: "boss.target_changed", playerId: playerIdOfSlot(n(t, 1)) };
     case K.BOSS_HIT:
       return { type: "boss.hit", amount: n(t, 1) / 10, weapon: weaponOf(b, n(t, 2)), sourceId: playerIdOfSlot(n(t, 3)) };
+    case K.EVENT_TRIGGERED: {
+      const kind = EVENT_KINDS[n(t, 1)];
+      if (kind === undefined) return null;
+      const lane = n(t, 7);
+      return { type: "event.triggered", kind, wave: n(t, 2), x: n(t, 3) / 100, y: n(t, 4) / 100, startTick: n(t, 5), phase: n(t, 6), lane: lane === NET_NONE ? -1 : lane };
+    }
+    case K.EVENT_PHASE_CHANGED: {
+      const kind = EVENT_KINDS[n(t, 1)];
+      if (kind === undefined) return null;
+      return { type: "event.phase_changed", kind, phase: n(t, 2), tick: n(t, 3), playerId: playerIdOfSlot(n(t, 4)) };
+    }
+    case K.EVENT_ENDED: {
+      const kind = EVENT_KINDS[n(t, 1)];
+      const outcome = EVENT_OUTCOMES[n(t, 2)];
+      if (kind === undefined || outcome === undefined) return null;
+      return { type: "event.ended", kind, outcome };
+    }
+    case K.EVENT_SKIPPED: {
+      const kind = EVENT_KINDS[n(t, 1)];
+      if (kind === undefined) return null;
+      return { type: "event.skipped", kind, wave: n(t, 2) };
+    }
     default:
       return null;
   }

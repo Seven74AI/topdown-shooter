@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="48" height="32" tilewidth="32" tileheight="32" infinite="0" nextlayerid="17" nextobjectid="88">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="48" height="32" tilewidth="32" tileheight="32" infinite="0" nextlayerid="18" nextobjectid="116">
  <properties>
   <property name="name" value="Downtown"/>
   <property name="metersPerTile" type="float" value="1"/>
@@ -452,149 +452,351 @@
    <point/>
   </object>
  </objectgroup>
- <group id="6" name="stage1_evening">
-  <objectgroup id="7" name="stage1_ground">
-   <object id="63" name="sidewalk_nw" x="0" y="320" width="640" height="64">
+ <objectgroup id="6" name="events">
+  <object id="63" name="lane_main_eastbound" x="0" y="384" width="1536" height="256">
+   <properties>
+    <property name="kind" value="stampede_lane"/>
+    <property name="dir" value="e"/>
+    <property name="minStage" type="int" value="1"/>
+    <property name="maxStage" type="int" value="5"/>
+   </properties>
+  </object>
+  <object id="64" name="lane_main_westbound" x="0" y="384" width="1536" height="256">
+   <properties>
+    <property name="kind" value="stampede_lane"/>
+    <property name="dir" value="w"/>
+    <property name="minStage" type="int" value="1"/>
+    <property name="maxStage" type="int" value="5"/>
+   </properties>
+  </object>
+  <object id="65" name="lane_cross_southbound" x="640" y="0" width="256" height="1024">
+   <properties>
+    <property name="kind" value="stampede_lane"/>
+    <property name="dir" value="s"/>
+    <property name="minStage" type="int" value="1"/>
+    <property name="maxStage" type="int" value="5"/>
+   </properties>
+  </object>
+  <object id="66" name="lane_cross_northbound" x="640" y="0" width="256" height="1024">
+   <properties>
+    <property name="kind" value="stampede_lane"/>
+    <property name="dir" value="n"/>
+    <property name="minStage" type="int" value="1"/>
+    <property name="maxStage" type="int" value="5"/>
+   </properties>
+  </object>
+  <object id="67" name="crate_1" x="80" y="416">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="68" name="crate_2" x="1360" y="512">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="69" name="crate_3" x="320" y="640">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="70" name="crate_4" x="1056" y="384">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="71" name="crate_5" x="640" y="784">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="72" name="crate_6" x="1008" y="640">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="73" name="crate_7" x="848" y="256">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="74" name="crate_8" x="576" y="384">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="75" name="crate_9" x="1232" y="384">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="76" name="crate_10" x="624" y="608">
+   <properties>
+    <property name="kind" value="crate"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="77" name="survivor_1" x="832" y="672">
+   <properties>
+    <property name="kind" value="survivor"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="78" name="survivor_2" x="352" y="480">
+   <properties>
+    <property name="kind" value="survivor"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="79" name="survivor_3" x="896" y="416">
+   <properties>
+    <property name="kind" value="survivor"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="80" name="survivor_4" x="736" y="368">
+   <properties>
+    <property name="kind" value="survivor"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="81" name="survivor_5" x="896" y="560">
+   <properties>
+    <property name="kind" value="survivor"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="82" name="survivor_6" x="1120" y="592">
+   <properties>
+    <property name="kind" value="survivor"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="83" name="survivor_7" x="656" y="480">
+   <properties>
+    <property name="kind" value="survivor"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="84" name="survivor_8" x="720" y="672">
+   <properties>
+    <property name="kind" value="survivor"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="85" name="safe_1" x="272" y="544">
+   <properties>
+    <property name="kind" value="safe"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="86" name="safe_2" x="1328" y="384">
+   <properties>
+    <property name="kind" value="safe"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="87" name="safe_3" x="832" y="352">
+   <properties>
+    <property name="kind" value="safe"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="88" name="safe_4" x="704" y="576">
+   <properties>
+    <property name="kind" value="safe"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="89" name="safe_5" x="800" y="432">
+   <properties>
+    <property name="kind" value="safe"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="90" name="safe_6" x="800" y="592">
+   <properties>
+    <property name="kind" value="safe"/>
+    <property name="minStage" type="int" value="1"/>
+   </properties>
+   <point/>
+  </object>
+ </objectgroup>
+ <group id="7" name="stage1_evening">
+  <objectgroup id="8" name="stage1_ground">
+   <object id="91" name="sidewalk_nw" x="0" y="320" width="640" height="64">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="64" name="sidewalk_nw_east" x="576" y="0" width="64" height="320">
+   <object id="92" name="sidewalk_nw_east" x="576" y="0" width="64" height="320">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="65" name="sidewalk_sw" x="0" y="640" width="640" height="64">
+   <object id="93" name="sidewalk_sw" x="0" y="640" width="640" height="64">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="66" name="sidewalk_se" x="896" y="640" width="640" height="64">
+   <object id="94" name="sidewalk_se" x="896" y="640" width="640" height="64">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="67" name="sidewalk_se_west" x="896" y="704" width="64" height="320">
+   <object id="95" name="sidewalk_se_west" x="896" y="704" width="64" height="320">
     <properties>
      <property name="kind" value="sidewalk"/>
     </properties>
    </object>
-   <object id="68" name="gas_forecourt" x="896" y="0" width="640" height="384">
+   <object id="96" name="gas_forecourt" x="896" y="0" width="640" height="384">
     <properties>
      <property name="kind" value="forecourt"/>
     </properties>
    </object>
-   <object id="69" name="parking_lot" x="336" y="704" width="304" height="320">
+   <object id="97" name="parking_lot" x="336" y="704" width="304" height="320">
     <properties>
      <property name="kind" value="lot"/>
     </properties>
    </object>
-   <object id="70" name="crosswalk_north" x="640" y="336" width="256" height="48">
+   <object id="98" name="crosswalk_north" x="640" y="336" width="256" height="48">
     <properties>
      <property name="kind" value="crosswalk"/>
     </properties>
    </object>
-   <object id="71" name="crosswalk_south" x="640" y="640" width="256" height="48">
+   <object id="99" name="crosswalk_south" x="640" y="640" width="256" height="48">
     <properties>
      <property name="kind" value="crosswalk"/>
     </properties>
    </object>
-   <object id="72" name="crosswalk_west" x="592" y="384" width="48" height="256">
+   <object id="100" name="crosswalk_west" x="592" y="384" width="48" height="256">
     <properties>
      <property name="kind" value="crosswalk"/>
     </properties>
    </object>
-   <object id="73" name="crosswalk_east" x="896" y="384" width="48" height="256">
+   <object id="101" name="crosswalk_east" x="896" y="384" width="48" height="256">
     <properties>
      <property name="kind" value="crosswalk"/>
     </properties>
    </object>
-   <object id="74" name="lane_west" x="32" y="508.8" width="544" height="6.4">
+   <object id="102" name="lane_west" x="32" y="508.8" width="544" height="6.4">
     <properties>
      <property name="kind" value="lane"/>
     </properties>
    </object>
-   <object id="75" name="lane_east" x="1312" y="508.8" width="208" height="6.4">
+   <object id="103" name="lane_east" x="1312" y="508.8" width="208" height="6.4">
     <properties>
      <property name="kind" value="lane"/>
     </properties>
    </object>
-   <object id="76" name="lane_north" x="764.8" y="16" width="6.4" height="304">
+   <object id="104" name="lane_north" x="764.8" y="16" width="6.4" height="304">
     <properties>
      <property name="kind" value="lane"/>
     </properties>
    </object>
-   <object id="77" name="lane_south" x="764.8" y="704" width="6.4" height="304">
+   <object id="105" name="lane_south" x="764.8" y="704" width="6.4" height="304">
     <properties>
      <property name="kind" value="lane"/>
     </properties>
    </object>
-   <object id="78" name="gas_canopy" x="992" y="64" width="192" height="240">
+   <object id="106" name="gas_canopy" x="992" y="64" width="192" height="240">
     <properties>
      <property name="kind" value="canopy"/>
     </properties>
    </object>
   </objectgroup>
-  <objectgroup id="8" name="stage1_shopfronts">
-   <object id="79" name="shopfront_corner_shop" x="16" y="320" width="224" height="64">
+  <objectgroup id="9" name="stage1_shopfronts">
+   <object id="107" name="shopfront_corner_shop" x="16" y="320" width="224" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
    </object>
-   <object id="80" name="shopfront_apartments" x="368" y="320" width="192" height="64">
+   <object id="108" name="shopfront_apartments" x="368" y="320" width="192" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
    </object>
-   <object id="81" name="shopfront_diner" x="16" y="640" width="192" height="64">
+   <object id="109" name="shopfront_diner" x="16" y="640" width="192" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
    </object>
-   <object id="82" name="shopfront_offices" x="976" y="640" width="224" height="64">
+   <object id="110" name="shopfront_offices" x="976" y="640" width="224" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
    </object>
-   <object id="83" name="shopfront_gas_kiosk" x="1328" y="192" width="192" height="64">
+   <object id="111" name="shopfront_gas_kiosk" x="1328" y="192" width="192" height="64">
     <properties>
      <property name="kind" value="shopfront"/>
     </properties>
    </object>
   </objectgroup>
  </group>
- <group id="9" name="stage2_panic">
-  <objectgroup id="10" name="stage2_props">
-   <object id="84" name="debris_west" x="160" y="576" width="32" height="25.6">
+ <group id="10" name="stage2_panic">
+  <objectgroup id="11" name="stage2_props">
+   <object id="112" name="debris_west" x="160" y="576" width="32" height="25.6">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
-   <object id="85" name="debris_east" x="1408" y="416" width="38.4" height="25.6">
-    <properties>
-     <property name="kind" value="debris"/>
-    </properties>
-   </object>
-  </objectgroup>
- </group>
- <group id="11" name="stage3_breakdown">
-  <objectgroup id="12" name="stage3_props">
-   <object id="86" name="debris_mid" x="480" y="448" width="48" height="32">
-    <properties>
-     <property name="kind" value="debris"/>
-    </properties>
-   </object>
-   <object id="87" name="debris_south" x="832" y="864" width="32" height="32">
+   <object id="113" name="debris_east" x="1408" y="416" width="38.4" height="25.6">
     <properties>
      <property name="kind" value="debris"/>
     </properties>
    </object>
   </objectgroup>
  </group>
- <group id="13" name="stage4_ruins">
-  <objectgroup id="14" name="stage4_props"/>
+ <group id="12" name="stage3_breakdown">
+  <objectgroup id="13" name="stage3_props">
+   <object id="114" name="debris_mid" x="480" y="448" width="48" height="32">
+    <properties>
+     <property name="kind" value="debris"/>
+    </properties>
+   </object>
+   <object id="115" name="debris_south" x="832" y="864" width="32" height="32">
+    <properties>
+     <property name="kind" value="debris"/>
+    </properties>
+   </object>
+  </objectgroup>
  </group>
- <group id="15" name="stage5_collapse">
-  <objectgroup id="16" name="stage5_props"/>
+ <group id="14" name="stage4_ruins">
+  <objectgroup id="15" name="stage4_props"/>
+ </group>
+ <group id="16" name="stage5_collapse">
+  <objectgroup id="17" name="stage5_props"/>
  </group>
 </map>

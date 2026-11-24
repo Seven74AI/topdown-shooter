@@ -30,4 +30,6 @@ export const PLACEHOLDER_MAP: DistrictMap = Object.freeze({
   stages: Object.freeze([]),
   decay: Object.freeze([]),
   decayVariants: Object.freeze([]),
+  eventSpots: Object.freeze([]), // Story 6.8
+  stampedeLanes: Object.freeze([]),
 });

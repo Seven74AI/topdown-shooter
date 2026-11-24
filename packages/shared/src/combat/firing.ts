@@ -33,6 +33,7 @@ import { bossBodyOn } from "../boss/bossState";
 import { applyBossDamage, bossCircleHitBySegment, zombieUnderBoss } from "../boss/bossDamage";
 import { pelletDirection, rotateBySeqSpread, seqPelletRoll } from "./spread";
 import { bulletBlockT } from "./cover";
+import { onSpecialShot, specialShotTarget } from "../events/specialEvents";
 
 
 /** Story 5.3 counters (they live in `damage.ts` since Story 5.2; re-exported for the old imports). */
@@ -364,6 +365,8 @@ function updateProjectiles(world: World, dtS: number): void {
 
     if (stoppedAt < 0 && bossFirst) applyBossDamage(world, pool.damage[id] as number, building > 0 ? null : (pool.owner[id] ?? null), weapon); // Story 6.5
     if (stoppedAt < 0 && blockT >= 0) stoppedAt = blockT; // Story 4.2: into the cover's face
+    // Story 6.8 (F4, AC 8): a player's bullet that reaches the armed car (not stopped before it) sets it off.
+    if (building === 0 && specialShotTarget(world)) onSpecialShot(world, x0, y0, x1, y1, stoppedAt, pool.owner[id] ?? null);
     if (stoppedAt >= 0) {
       pool.x[id] = x0 + dx * step * stoppedAt;
       pool.y[id] = y0 + dy * step * stoppedAt;

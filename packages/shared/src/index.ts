@@ -584,3 +584,25 @@ export { knockPlayerBy } from "./player/knockback";
 export { type BossStats } from "./config/balanceSchema";
 // Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
 export { applyStartWave, parseStartWave } from "./run/devStartWave";
+// Story 6.8: special events (framework, car alarm, stampede)
+export {
+  EVENT_KINDS,
+  EVENT_KIND_NONE_WIRE,
+  EVENT_NONE,
+  EVENT_OUTCOMES,
+  EVENT_PHASE,
+  createSpecialEventState,
+  eventActive,
+  eventKindIndex,
+  snapshotSpecial,
+  type ActiveEvent,
+  type EventKind,
+  type EventOutcome,
+  type SpecialEventState,
+} from "./events/eventState";
+export { endSpecialEvent, eventHoldsWave, forceEvent, specialShotTarget, triggerPointReached, updateSpecialEvents } from "./events/specialEvents";
+export { eventFits, scheduleEndlessEvent, scheduleRunEvents } from "./events/schedule";
+export { alarmCandidates, isAlarmCandidate } from "./events/carAlarm";
+export { laneAlong, laneCentreDistance, laneLength, laneOpen, stampedeRunnersAlive } from "./events/stampede";
+export { parseDevEvents } from "./events/devEvents";
+export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";

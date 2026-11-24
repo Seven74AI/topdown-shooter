@@ -1159,6 +1159,61 @@ export const bossSchema = z
   })
   .strict();
 
+/**
+ * Story 6.8: the special events (`events.json`; FR37, FR38, FR41). The schedule (2 events in 2 of
+ * `waves`, never neighbours) and every spot come from the `events` seed stream; every number here.
+ */
+export const eventsSchema = z
+  .object({
+    /** Events per run (F2: 2). */
+    perRun: z.number().int().min(0).max(4),
+    /** Waves an event may come in (never 5: crossCheckEvents). */
+    waves: z.array(z.number().int().min(1).max(255)).min(1),
+    /** F3: an event starts once this share of its wave has spawned (drawn per event in [min, max]). */
+    startFractionMin: z.number().min(0).max(1),
+    startFractionMax: z.number().min(0).max(1),
+    /** The client skips an event's banner older than this (a woken tab; the 5.7 `ageS` rule). */
+    lateBannerS: z.number().positive().max(30),
+    carAlarm: z
+      .object({
+        armedS: z.number().positive().refine(wholeTickS, "carAlarm.armedS must be whole ticks"),
+        alarmS: z.number().positive().refine(wholeTickS, "carAlarm.alarmS must be whole ticks"),
+        pullRadiusM: z.number().positive().max(48),
+        /** A lured zombie with a standing player this close (centre to centre) goes for the player (F5). */
+        distractBreakM: z.number().min(0).max(10),
+        pickMinM: z.number().min(0),
+        pickMaxM: z.number().positive(),
+        /** The lure fields are seeded from the free cells within this of the car's box. */
+        lureSeedM: z.number().positive().max(3),
+      })
+      .strict()
+      .refine((c) => c.pickMinM < c.pickMaxM, "carAlarm.pickMinM must be below pickMaxM"),
+    stampede: z
+      .object({
+        warningS: z.number().positive().refine(wholeTickS, "stampede.warningS must be whole ticks"),
+        runS: z.number().positive().refine(wholeTickS, "stampede.runS must be whole ticks"),
+        laneWidthM: z.number().positive().max(16),
+        speedMps: z.number().positive().max(12),
+        contactDamage: z.number().positive().max(100),
+        /** Runners by players in the run (index 0 = solo; downed players count, D11). */
+        countByPlayers: z.array(z.number().int().min(1).max(64)).length(4),
+        /** Zombies allowed above the alive cap that applies (brief line 22). */
+        overCap: z.number().int().min(0),
+        rowSize: z.number().int().min(1).max(16),
+        rowGapS: z.number().positive().refine(wholeTickS, "stampede.rowGapS must be whole ticks"),
+        laneNearTeamM: z.number().min(0),
+        stuckS: z.number().positive().refine(wholeTickS, "stampede.stuckS must be whole ticks"),
+        stuckProgressM: z.number().positive(),
+        /** A Runner looks this far ahead for cover and steers round it (F6: "cover pushes them aside"). */
+        deflectLookM: z.number().positive().max(4),
+      })
+      .strict(),
+    fx: z.object({ maxDustParticles: z.number().int().min(1).max(256), maxMarkers: z.number().int().min(1).max(8), maxChevrons: z.number().int().min(1).max(32) }).strict(),
+    banners: z.record(z.string(), z.string().min(1)),
+  })
+  .strict()
+  .refine((e) => e.startFractionMin <= e.startFractionMax, "startFractionMin must be ≤ startFractionMax");
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -1175,6 +1230,7 @@ export const balanceFileSchemas = {
   gear: gearSchema, // Story 5.11
   consumables: consumablesSchema, // Story 5.12
   boss: bossSchema, // Story 6.5
+  events: eventsSchema, // Story 6.8
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;
@@ -1196,4 +1252,5 @@ export type LightStats = z.output<typeof lightSchema>;
 export type HealStats = z.output<typeof healSchema>;
 export type GearItemStats = z.output<typeof gearItemSchema>;
 export type BossStats = z.output<typeof bossSchema>;
+export type EventsStats = z.output<typeof eventsSchema>;
 export type ConsumableItemStats = z.output<typeof consumableItemSchema>;

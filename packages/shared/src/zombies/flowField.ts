@@ -162,6 +162,12 @@ export interface FlowField {
   /** Review H1: the build in progress / the front were seeded in the fallback. */
   buildingFar: boolean;
   frontFar: boolean;
+  /**
+   * Story 6.8 (DD3): a lure field — seeded from the free cells within `seedBoxM` of this box (the
+   * armed car) instead of from players (null: a player field).
+   */
+  seedBox: MapBox | null;
+  seedBoxM: number;
 }
 
 /**
@@ -209,6 +215,15 @@ export interface PathingState {
   /** Story 6.5 (review H1): scratch for the fallback's walking-distance BFS (normal-grid cells). */
   readonly farDist: Int32Array;
   readonly farQueue: Int32Array;
+  /**
+   * Story 6.8 (DD3): the car alarm's lure fields — one on the nav grid, one on the wide grid (wide
+   * bodies) — seeded round the armed car, built once while it is armed (they join the round-robin
+   * until both are done: `lureBuild` 1 = the nav one, 2 = the wide one, 3 = ready, 0 = idle; the car
+   * never moves, so they are never rebuilt mid-alarm).
+   */
+  readonly lure: FlowField;
+  readonly lureWide: FlowField;
+  lureBuild: number;
 }
 
 export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly MapBox[] }, inflateM = 0): NavGrid {
@@ -293,6 +308,8 @@ export function createFlowField(nav: NavGrid, fillPenalty: FlowField["fillPenalt
     seedFar: false,
     buildingFar: false,
     frontFar: false,
+    seedBox: null, // Story 6.8
+    seedBoxM: 0,
   };
 }
 
@@ -336,7 +353,62 @@ export function createPathingState(map: DistrictBounds & { readonly solids?: rea
     bossActive: false,
     farDist: new Int32Array(nav.cells),
     farQueue: new Int32Array(nav.cells),
+    lure: createFlowField(nav), // Story 6.8
+    lureWide: createFlowField(wide),
+    lureBuild: 0,
   };
+}
+
+/**
+ * Story 6.8 (DD3): starts building the two lure fields round `box` (the armed car). They take a turn
+ * in the round-robin (`updatePathing`) until both are done. No allocation.
+ */
+export function requestLureFields(world: World, box: MapBox): void {
+  const p = world.pathing;
+  if (p.nav.cells <= 1) return; // a World without pathing (client mirror, prediction)
+  const m = world.balance.events.carAlarm.lureSeedM;
+  for (const f of [p.lure, p.lureWide] as const) {
+    f.seedBox = box;
+    f.seedBoxM = m;
+    f.building = false;
+    f.sourceTick = -1;
+  }
+  p.lureBuild = 1;
+}
+
+/** Story 6.8: the alarm is over: the lure fields go idle (no per-tick cost). */
+export function dropLureFields(world: World): void {
+  const p = world.pathing;
+  p.lureBuild = 0;
+  for (const f of [p.lure, p.lureWide] as const) {
+    f.seedBox = null;
+    f.building = false;
+    f.sourceTick = -1;
+  }
+}
+
+/** Story 6.8: seeds every free cell within `f.seedBoxM` (+ the grid's inflation) of `f.seedBox` at cost 0. */
+function seedFromBox(f: FlowField, nav: NavGrid): void {
+  const b = f.seedBox as MapBox;
+  const reach = f.seedBoxM + nav.inflateM;
+  const { cols, rows, cellM, wallAt } = nav;
+  const x0 = Math.max(0, Math.floor((b.minX - reach) / cellM));
+  const x1 = Math.min(cols - 1, Math.floor((b.maxX + reach) / cellM));
+  const y0 = Math.max(0, Math.floor((b.minY - reach) / cellM));
+  const y1 = Math.min(rows - 1, Math.floor((b.maxY + reach) / cellM));
+  for (let cy = y0; cy <= y1; cy++) {
+    for (let cx = x0; cx <= x1; cx++) {
+      const c = cy * cols + cx;
+      if (wallAt[c] !== 0) continue;
+      const px = (cx + 0.5) * cellM;
+      const py = (cy + 0.5) * cellM;
+      const dx = Math.max(b.minX - px, 0, px - b.maxX);
+      const dy = Math.max(b.minY - py, 0, py - b.maxY);
+      if (dx * dx + dy * dy > reach * reach) continue;
+      f.back[c] = 0;
+      push(f, c);
+    }
+  }
 }
 
 /** Story 6.5: ticks between the starts of two boss field rebuilds (`boss.json › pathing.rebuildEveryS`: 10). */
@@ -753,7 +825,8 @@ function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void 
   seed.field = f;
   seed.nav = nav;
   seed.world = world;
-  if (f.seedOnly !== null) {
+  if (f.seedBox !== null) seedFromBox(f, nav); // Story 6.8: a lure field
+  else if (f.seedOnly !== null) {
     const p = world.players.get(f.seedOnly); // Story 6.5: the boss's target only
     if (p) seedPlayer(p);
   } else world.players.forEach(seedPlayer); // Map insertion order: the same on every run
@@ -987,17 +1060,45 @@ export function updatePathing(world: World): void {
   pathing.wideActive = wideOn;
   // The active fields take the ticks in turn (chase, flank, wide): one field's budget per tick.
   // Chase + flank alone: even ticks chase, odd ticks flank (Story 3.8, unchanged).
-  const count = 1 + (flankOn ? 1 : 0) + (wideOn ? 1 : 0) + (bossOn ? 1 : 0);
+  // Story 6.8 (DD3): the car alarm's lure fields take a turn (before the boss's) until both are built.
+  const lureOn = pathing.lureBuild === 1 || pathing.lureBuild === 2;
+  const count = 1 + (flankOn ? 1 : 0) + (wideOn ? 1 : 0) + (lureOn ? 1 : 0) + (bossOn ? 1 : 0);
   pathing.activeFields = count;
-  const slot = count === 1 ? 0 : world.tick % count;
-  if (slot === 0) advanceFlowField(chase, nav, world, budget);
-  else if (slot === 1 && flankOn) advanceFlowField(flank, nav, world, budget);
-  else if (slot === count - 1 && bossOn) {
+  // The turn order: chase, flank, wide, lure, boss (each only while on; unchanged without the lure).
+  let slot = count === 1 ? 0 : world.tick % count;
+  if (slot === 0) {
+    advanceFlowField(chase, nav, world, budget);
+    return;
+  }
+  slot--;
+  if (flankOn && slot-- === 0) {
+    advanceFlowField(flank, nav, world, budget);
+    return;
+  }
+  if (wideOn && slot-- === 0) {
+    advanceFlowField(wideChase, wide, world, budget);
+    return;
+  }
+  if (lureOn && slot-- === 0) {
+    advanceLure(world, budget);
+    return;
+  }
+  if (bossOn) {
     // Story 6.5 (DD2): last in the turn; a finished field starts again from scratch once `rebuildEveryS` has passed.
     const f = pathing.bossChase;
     if (f.building || world.tick - f.buildSourceTick >= bossRebuildTicks(world)) advanceFlowField(f, bossNav, world, budget);
   }
-  else advanceFlowField(wideChase, wide, world, budget);
+}
+
+/** Story 6.8: one turn of the lure build — the nav field first, then the wide one (each from scratch once). */
+function advanceLure(world: World, budget: number): void {
+  const p = world.pathing;
+  const wideStep = p.lureBuild === 2;
+  const f = wideStep ? p.lureWide : p.lure;
+  const nav = wideStep ? p.wide : p.nav;
+  if (nav.version !== world.buildings.wallVersion) rasterizeBuildings(nav, world);
+  advanceFlowField(f, nav, world, budget);
+  if (!f.building) p.lureBuild = wideStep ? 3 : 2;
 }
 
 /**
@@ -1138,5 +1239,9 @@ export function snapshotPathing(p: PathingState) {
     bossNavVersion: p.boss.version,
     bossNavHash: hashInts(p.boss.buildingAt) ^ hashInts(p.boss.enterCost) ^ hashBytes(p.boss.wallAt),
     bossChase: { ...snapshotField(p.bossChase), seedOnly: p.bossChase.seedOnly, seedFar: p.bossChase.seedFar, buildingFar: p.bossChase.buildingFar, frontFar: p.bossChase.frontFar },
+    // Story 6.8: the lure fields
+    lureBuild: p.lureBuild,
+    lure: { ...snapshotField(p.lure), seedBox: p.lure.seedBox?.name ?? null },
+    lureWide: snapshotField(p.lureWide),
   };
 }

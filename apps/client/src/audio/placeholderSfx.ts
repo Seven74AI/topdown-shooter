@@ -47,7 +47,11 @@ export type SfxName =
   // Story 6.5: the Behemoth's warning rumble, arrival roar and slam (not positional: team cues).
   | "boss_rumble"
   | "boss_roar"
-  | "boss_slam";
+  | "boss_slam"
+  // Story 6.8: the car alarm's arming chirp and the stampede's warning rumble (team cues; the alarm
+  // itself is the positional loop `startCarAlarmLoop`).
+  | "event_car_alarm_armed"
+  | "event_stampede_rumble";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -523,6 +527,15 @@ export function playSfx(name: SfxName, pan = 0, volume = 1): void {
       roar(c, t + 0.25, pan);
       burst(c, t, 0.9, 0.8, 120);
       break;
+    case "event_car_alarm_armed": // Story 6.8: a car's arming chirp (two short high beeps)
+      click(c, t, 2200, 0.35);
+      click(c, t + 0.14, 2200, 0.35);
+      break;
+    case "event_stampede_rumble": // Story 6.8: the 3 s warning — a rolling low rumble of hooves
+      burst(c, t, 0.9, 0.7, 110);
+      burst(c, t + 0.8, 1.0, 0.85, 95);
+      burst(c, t + 1.7, 1.3, 1, 85);
+      break;
     case "boss_slam": // Story 6.5: a huge ground thump with a cracking tail
       burst(c, t, 0.45, 1, 110);
       burst(c, t + 0.03, 0.3, 0.7, 700);
@@ -740,4 +753,62 @@ export function stopBossLoop(): void {
 
 export function bossLoopPlaying(): boolean {
   return bossLoop !== null;
+}
+
+/**
+ * Story 6.8 (AC 12): the car alarm's placeholder loop — a two-tone siren panned to the car's side of
+ * the screen, from the alarm's start until its end (or the event's end for any reason). Idempotent;
+ * `setCarAlarmPan` follows the camera; `stopCarAlarmLoop` cuts it.
+ */
+let alarmLoop: { pan: StereoPannerNode | null; stop(at: number): void } | null = null;
+const ALARM_GAIN = 0.18;
+
+export function startCarAlarmLoop(pan: number): boolean {
+  if (alarmLoop) return true;
+  const c = context();
+  if (!c || c.state !== "running" || !master) return false;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = ALARM_GAIN;
+  const panner = typeof c.createStereoPanner === "function" ? c.createStereoPanner() : null;
+  if (panner) {
+    panner.pan.value = Math.max(-1, Math.min(1, pan));
+    out.connect(panner).connect(master);
+  } else out.connect(master);
+  const osc = c.createOscillator();
+  osc.type = "square";
+  osc.frequency.value = 900;
+  const lfo = c.createOscillator();
+  lfo.type = "square";
+  lfo.frequency.value = 2.5; // two tones, 2.5 per second
+  const lfoGain = c.createGain();
+  lfoGain.gain.value = 250;
+  lfo.connect(lfoGain).connect(osc.frequency);
+  osc.connect(out);
+  osc.start(t);
+  lfo.start(t);
+  alarmLoop = {
+    pan: panner,
+    stop(at: number) {
+      out.gain.setValueAtTime(0.0001, at);
+      osc.stop(at + 0.02);
+      lfo.stop(at + 0.02);
+    },
+  };
+  return true;
+}
+
+export function setCarAlarmPan(pan: number): void {
+  if (alarmLoop?.pan) alarmLoop.pan.pan.value = Math.max(-1, Math.min(1, pan));
+}
+
+export function stopCarAlarmLoop(): void {
+  if (!alarmLoop) return;
+  const c = context();
+  alarmLoop.stop(c ? c.currentTime : 0);
+  alarmLoop = null;
+}
+
+export function carAlarmLoopPlaying(): boolean {
+  return alarmLoop !== null;
 }

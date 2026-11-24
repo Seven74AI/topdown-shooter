@@ -140,6 +140,18 @@ export interface RunStateView {
   readonly halfDark: boolean;
   /** Story 6.5: the Behemoth's record (one nested schema; `boss/bossState.ts` is the sim side). */
   readonly boss?: BossStateView; // absent before the first fight patch (a lobby state)
+  /**
+   * Story 6.8: the active special event (`world.special.active`), on change only: kind (255 none),
+   * phase, its start and phase ticks, the marker in cm, the stampede's lane (255 none). The mirror
+   * copies them so a late join or a woken tab draws the marker and countdown from server ticks.
+   */
+  readonly eventKind: number;
+  readonly eventPhase: number;
+  readonly eventStartTick: number;
+  readonly eventPhaseTick: number;
+  readonly eventX: number;
+  readonly eventY: number;
+  readonly eventLane: number;
 }
 
 /**
@@ -246,6 +258,13 @@ export const RUN_STATE_FIELDS = {
   decayFiresOut: true,
   blackoutPct: true, // Story 6.3
   halfDark: true, // Story 6.3
+  eventKind: true, // Story 6.8
+  eventPhase: true,
+  eventStartTick: true,
+  eventPhaseTick: true,
+  eventX: true,
+  eventY: true,
+  eventLane: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */

@@ -4,7 +4,10 @@ import { balanceFileSchemas, type BalanceFileName, type BuildingTypeStats } from
 import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
 import { THREAT_BUCKETS, THREAT_BUCKET_TICKS } from "../boss/bossState";
 import { TICK_RATE_HZ } from "./constants";
-import { MAX_FIXED_PER_WAVE } from "./constants";
+import { MAX_FIXED_PER_WAVE, ZOMBIE_POOL_CAPACITY } from "./constants";
+
+/** Story 6.8 (F2): never an event in this wave. */
+export const EVENT_FORBIDDEN_WAVE = 5;
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
@@ -19,6 +22,7 @@ import combat from "./balance/combat.json" with { type: "json" };
 import gear from "./balance/gear.json" with { type: "json" };
 import consumables from "./balance/consumables.json" with { type: "json" };
 import boss from "./balance/boss.json" with { type: "json" };
+import events from "./balance/events.json" with { type: "json" };
 
 type Schemas = typeof balanceFileSchemas;
 
@@ -40,7 +44,7 @@ export class BalanceError extends Error {
   }
 }
 
-const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss };
+const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss, events };
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -123,6 +127,7 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   crossCheckFlames(parsed, issues);
   crossCheckBlackout(parsed, issues);
   crossCheckBoss(parsed, issues);
+  crossCheckEvents(parsed, issues);
 }
 
 /**
@@ -274,4 +279,24 @@ function crossCheckBoss(parsed: Record<string, unknown>, issues: string[]): void
   if (MAX_PATHING_ZOMBIE_RADIUS_M + boss.pathing.inflateM + 1e-9 < boss.radiusM) {
     issues.push(`boss.json: pathing.inflateM ${boss.pathing.inflateM} + ${MAX_PATHING_ZOMBIE_RADIUS_M} m is less than radiusM ${boss.radiusM}`);
   }
+}
+
+/**
+ * Story 6.8 (F2): the event waves are never wave 5 (waves past `waves.runWaves` are skipped by the scheduler), and hold at least one allowed pair
+ * (two waves that are not neighbours); the stampede's over-cap allowance fits the zombie pool.
+ */
+function crossCheckEvents(parsed: Record<string, unknown>, issues: string[]): void {
+  const ev = parsed.events as { perRun: number; waves: readonly number[]; stampede: { overCap: number; countByPlayers: readonly number[] }; banners: Record<string, string> };
+  const maxAlive = (parsed.waves as { maxAlive: number }).maxAlive;
+  for (const w of ev.waves) {
+    if (w === EVENT_FORBIDDEN_WAVE) issues.push(`events.json: waves: ${w} is never an event wave (F2)`);
+  }
+  if (ev.perRun >= 2) {
+    let pair = false;
+    for (const a of ev.waves) for (const b of ev.waves) if (b - a >= 2) pair = true;
+    if (!pair) issues.push("events.json: waves holds no two waves that are not neighbours (F2)");
+  }
+  // (a test balance whose maxAlive is the pool itself has nothing to check: the pool is the cap)
+  if (maxAlive < ZOMBIE_POOL_CAPACITY && maxAlive + ev.stampede.overCap > ZOMBIE_POOL_CAPACITY) issues.push(`events.json: stampede.overCap ${ev.stampede.overCap} + waves.maxAlive ${maxAlive} exceeds the zombie pool (${ZOMBIE_POOL_CAPACITY})`);
+  for (const k of ["car_alarm", "stampede"]) if (!(k in ev.banners)) issues.push(`events.json: banners.${k} is missing`);
 }

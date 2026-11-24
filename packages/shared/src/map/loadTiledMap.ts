@@ -19,6 +19,12 @@ import {
   type SpawnJitterAxis,
   type SpawnKind,
   type VisualProp,
+  EVENT_SPOT_KINDS,
+  LANE_DIRS,
+  type EventSpot,
+  type EventSpotKind,
+  type LaneDir,
+  type StampedeLane,
 } from "./districtMap";
 import { tiledMapSchema, type TiledLayer, type TiledObject, type TiledObjectGroup, type TiledProperty } from "./tiledSchema";
 
@@ -34,7 +40,7 @@ import { tiledMapSchema, type TiledLayer, type TiledObject, type TiledObjectGrou
  * and group layers `stage1_evening` … `stage5_collapse` at the top level. Anything else is ignored.
  */
 
-export const MAP_LAYERS = { collision: "collision", cover: "cover", spawns: "spawns", hazards: "hazards", decay: "decay" } as const;
+export const MAP_LAYERS = { collision: "collision", cover: "cover", spawns: "spawns", hazards: "hazards", decay: "decay", events: "events" } as const;
 export const MAP_STAGE_GROUPS = ["stage1_evening", "stage2_panic", "stage3_breakdown", "stage4_ruins", "stage5_collapse"] as const;
 
 /** Thrown for a map the sim can't use; `issues` name the layer and object. */
@@ -287,8 +293,10 @@ export function loadTiledMap(raw: unknown, name: string): DistrictMap {
 
   const { decay, decayVariants } = loadDecayLayer(top.get(MAP_LAYERS.decay), solids, cover, boxOf, fail);
 
+  const { eventSpots, stampedeLanes } = loadEventsLayer(top.get(MAP_LAYERS.events), solids, widthM, heightM, mPerPx, boxOf, fail); // Story 6.8
+
   if (issues.length > 0) throw new MapError(issues);
-  const body = { name, widthM, heightM, spawnPoints, solids, cover, hazards, stages, decay, decayVariants };
+  const body = { name, widthM, heightM, spawnPoints, solids, cover, hazards, stages, decay, decayVariants, eventSpots, stampedeLanes };
   const version = fnv1a32(canonicalJson(body)).toString(16).padStart(8, "0");
   return deepFreeze({ ...body, version });
 }
@@ -421,4 +429,82 @@ function loadDecayLayer(
   }
   if (decayVariants.length > MAX_DECAY_VARIANTS) fail(`${L}: ${decayVariants.length} variants, at most ${MAX_DECAY_VARIANTS}`);
   return { decay, decayVariants };
+}
+
+/**
+ * Story 6.8: the optional `events` object layer. Rects of `kind: stampede_lane` (lattice edges,
+ * `dir` e/w/s/n, `minStage` ≤ `maxStage`, spanning the map along `dir`); points of an
+ * `EVENT_SPOT_KINDS` kind (`minStage`), inside the map and outside every collision box.
+ */
+function loadEventsLayer(
+  layer: TiledLayer | undefined,
+  solids: readonly MapBox[],
+  widthM: number,
+  heightM: number,
+  mPerPx: number,
+  boxOf: (layer: string, o: TiledObject, lattice: boolean) => MapBox | null,
+  fail: (msg: string) => void,
+): { eventSpots: EventSpot[]; stampedeLanes: StampedeLane[] } {
+  const eventSpots: EventSpot[] = [];
+  const stampedeLanes: StampedeLane[] = [];
+  if (!layer) return { eventSpots, stampedeLanes };
+  const L = MAP_LAYERS.events;
+  if (layer.type !== "objectgroup") {
+    fail(`layer ${L} must be an object layer, got ${layer.type}`);
+    return { eventSpots, stampedeLanes };
+  }
+  const seen = new Set<string>();
+  const stageProp = (label: string, v: TiledProperty["value"] | undefined, dflt: number): number => {
+    const s = v ?? dflt;
+    if (typeof s !== "number" || !Number.isInteger(s) || s < 1 || s > MAP_STAGE_COUNT) {
+      fail(`${label}: stages must be integers 1–${MAP_STAGE_COUNT}, got ${String(s)}`);
+      return dflt;
+    }
+    return s;
+  };
+  for (const o of layer.objects) {
+    const label = `${L}: ${o.name || `#${o.id}`}`;
+    if (o.name === "") fail(`${L}: object #${o.id} needs a name`);
+    else if (seen.has(o.name)) fail(`${L}: name ${o.name} is used twice`);
+    seen.add(o.name);
+    const props = propsOf(o.properties);
+    const kind = props.get("kind");
+    const minStage = stageProp(label, props.get("minStage"), 1);
+    if (kind === "stampede_lane") {
+      const b = boxOf(L, o, true);
+      if (!b) continue;
+      const dir = props.get("dir");
+      if (!(LANE_DIRS as readonly unknown[]).includes(dir)) {
+        fail(`${label}: dir must be one of ${LANE_DIRS.join(", ")}, got ${String(dir)}`);
+        continue;
+      }
+      const maxStage = stageProp(label, props.get("maxStage"), MAP_STAGE_COUNT);
+      if (maxStage < minStage) fail(`${label}: maxStage ${maxStage} is below minStage ${minStage}`);
+      const alongX = dir === "e" || dir === "w";
+      if (alongX ? b.minX !== 0 || b.maxX !== widthM : b.minY !== 0 || b.maxY !== heightM) fail(`${label}: a lane spans the map along its dir`);
+      stampedeLanes.push({ ...b, dir: dir as LaneDir, minStage, maxStage });
+      continue;
+    }
+    if (!(EVENT_SPOT_KINDS as readonly unknown[]).includes(kind)) {
+      fail(`${label}: kind must be stampede_lane or one of ${EVENT_SPOT_KINDS.join(", ")}, got ${String(kind)}`);
+      continue;
+    }
+    if (!o.point) {
+      fail(`${label}: a ${String(kind)} spot must be a point`);
+      continue;
+    }
+    const x = o.x * mPerPx;
+    const y = o.y * mPerPx;
+    if (!(x > 0 && y > 0 && x < widthM && y < heightM)) {
+      fail(`${label}: outside the map`);
+      continue;
+    }
+    const inside = solids.find((s) => x >= s.minX && x <= s.maxX && y >= s.minY && y <= s.maxY);
+    if (inside) {
+      fail(`${label}: inside collision box ${inside.name}`);
+      continue;
+    }
+    eventSpots.push({ name: o.name, kind: kind as EventSpotKind, x, y, minStage });
+  }
+  return { eventSpots, stampedeLanes };
 }
