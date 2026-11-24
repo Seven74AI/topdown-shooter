@@ -38,9 +38,9 @@ once. Within the Epic 6 2 ms budget (boss field + events + vote).
 
 - Events (`event.*`, ≤ 4 per event) + the room-state event record (on change only): 61 B + ≤ 80 B over a
   car alarm and a stampede (48 s) → **≤ 3 B/s** per client.
-- **Open (designer question A/B, network audit F8):** the stampede's worst horde frame, 150 alive + 30
+- **Decision 6.8 B1 (designer: A; network audit F8):** the stampede's worst horde frame, 150 alive + 30
   Runners in one view: 6 + 8 × 180 = 1,446 B → **28.2 KB/s** while it lasts (≤ 13 s, ≤ 2× per run), over
-  the 24 KB/s horde budget (150 in view = 23.6 KB/s). Built as A: accepted until Story 8.10's half-size
-  horde stream (B would cap a view at 150 during a stampede, hiding real zombies).
+  the 24 KB/s horde budget (150 in view = 23.6 KB/s). Accepted until Story 8.10's half-size horde stream
+  ("Story 8.10 owes this"); a zombie that can bite is never hidden.
 
 Not measured: a real phone (the Mi 11i), sound by ear.

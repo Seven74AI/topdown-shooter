@@ -13,10 +13,10 @@ import { syncState } from "../rooms/schema/syncState";
  * messages (`event.*`, ≤ 4 per event) and the room state's event record (on change only) — and the
  * worst horde frame of a stampede: 150 alive + its 30 over-cap Runners all in one view.
  *
- * DESIGNER QUESTION (sent to the main session, recommendation A): the 180-in-view worst case is
- * 6 + 8 × 180 = 1,446 B × 20 Hz = 28.2 KB/s, over the 24 KB/s horde budget (it breaks from 153 in
- * view). A = accept until Story 8.10's half-size horde stream; B = cap a view at 150 during a
- * stampede. Built: A (the test bounds the worst case at 28.5 KB/s and keeps 150 in view ≤ 24 KB/s).
+ * Decision 6.8 B1 (designer: A): the 180-in-view worst case is 6 + 8 × 180 = 1,446 B × 20 Hz =
+ * 28.2 KB/s, over the 24 KB/s horde budget (it breaks from 153 in view); accepted until Story 8.10's
+ * half-size horde stream ("Story 8.10 owes this"), never hiding a zombie that can bite. The test
+ * bounds the worst case at 28.5 KB/s and keeps 150 in view ≤ 24 KB/s.
  */
 const balance = loadBalance();
 const EVENT_NET = new Set<number>([NET_EVENT_KIND.EVENT_TRIGGERED, NET_EVENT_KIND.EVENT_PHASE_CHANGED, NET_EVENT_KIND.EVENT_ENDED, NET_EVENT_KIND.EVENT_SKIPPED]);
@@ -80,7 +80,7 @@ describe("Special events bandwidth (Story 6.8, brief 11)", () => {
     expect(bps).toBeLessThan(200);
   }, 60_000);
 
-  it("the stampede's worst horde frame: 150 + 30 Runners in one view = 6 + 8 × n bytes; ≤ 24 KB/s at 150 in view, 28.2 KB/s at 180 (Story 8.10 owes the rest: designer question A)", () => {
+  it("the stampede's worst horde frame: 150 + 30 Runners in one view = 6 + 8 × n bytes; ≤ 24 KB/s at 150 in view, 28.2 KB/s at 180 (Story 8.10 owes the rest: decision 6.8 B1)", () => {
     const c = controller();
     const w = c.world;
     const z = w.zombies;

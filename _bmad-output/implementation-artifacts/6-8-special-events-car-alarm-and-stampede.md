@@ -242,7 +242,7 @@ Claude (Claude Code cloud builder session, branch `story-6-8`).
 
 **Mutations (brief 9; each applied, its tests run, reverted):** killed — wave 5 allowed, back-to-back allowed, contact every tick (mask ignored), lure as a straight line (no field), conversion skipped, turret shot counted, wave hold removed, late banner shown, Runners during the warning, a stopped bullet counts, rushers lured, pull radius ignored, mirror drops the lane. Survived first, then killed by new tests: over-cap ignored and "cap ignores the boss" (150 + 30 was exactly the cap: added 170-alive and Behemoth-alive cases with 4 players), event phase not synced (added the `syncState` event-record test).
 
-**Bandwidth (brief 11):** events + record ≤ 3 B/s per client. Worst stampede horde frame (180 in one view) = 28.2 KB/s > 24 KB/s: **open designer question A/B** (built A: accepted until Story 8.10; 150 in view = 23.6 KB/s).
+**Bandwidth (brief 11):** events + record ≤ 3 B/s per client. Worst stampede horde frame (180 in one view) = 28.2 KB/s > 24 KB/s: **decision 6.8 B1 = A** (designer 2026-11-24: accepted until Story 8.10; 150 in view = 23.6 KB/s).
 
 **Perf (brief 12, 16):** headless `?stress=150` 16.0 fps → 15.4 with the stampede warning drawn (−3 %, run noise ±0.5), car alarm ≈ 0; server p99 +0.17 ms (stampede, 174 alive), ≈ 0 (alarm) at load 0.82 (`PERF_ASSERT=1` passes).
 
