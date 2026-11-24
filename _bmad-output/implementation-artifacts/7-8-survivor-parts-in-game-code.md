@@ -163,6 +163,7 @@ Ask the designer to check these: **riot**, **bike** and **hard** helmets (could 
 
 - T8 (designer 2026-11-24, the propeller spins): `cosmetics.json` part `prop` declares `animated: { layer: "propeller", spinRevPerS: 2 }` (schema: one part per layer). `survivorLayers.ts` draws the propeller, gives its per-frame pose (anchor turned with the body + spin, written into a reused object) and its still drawing; `drawSurvivor(…, layers = false)` leaves it out of a baked body. `SurvivorLayerPool` draws the texture `survivorlayer_propeller_a` once through `addGeneratedTexture` and makes 4 hidden sprites; `PlayerView.setAnimatedLayer(pool, id)` takes one, moves and turns it in `update`, follows the body's depth, tint and visibility, and gives it back on `destroy`. `GameScene` makes the pool on first use (`?devlayer=propeller`, dev builds). Seen in a dev run: `docs/art/7-8/ingame/7-8-propeller-a.png` / `-b.png` (120 ms apart, the blades turned). Mutations (6): speed not from the catalogue, anchor not turned, not hidden when out, not given back, baked into the body, repaint draws nothing → all killed.
 - Merged master d41add5 (Epic 6 round 1: 6.1, 6.3, 6.5); readability item renumbered to **49** (6.5 uses 47–48).
+- Gate 2 on `story-7-8` merged with master d41add5: typecheck 0, lint 0, test 348 files / 3223 passed / 3 skipped (279 s), build OK; load average on this 4-CPU container ≤ 0.66 during typecheck/lint, 3.68 (1 min) at the end of the test run. `@napi-rs/canvas` not in the client bundle.
 
 ### Notes for the merge
 
