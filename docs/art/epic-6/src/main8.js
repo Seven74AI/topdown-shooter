@@ -1,0 +1,17 @@
+// ================= SECTIONS =================
+function buildSections(sec){
+  COS.forEach((F,i)=>makeCard(sec('co'),{...makeCollapseCard(F,i),tag:F.id==='CO1'?'recommended':''}));
+  addRec('co','<b>Recommended: CO1</b> dead grid as the base, <b>CO2</b>’s rolling fog as an upgrade if phones keep 60 fps with it. CO1 says “the power is gone” most clearly (dead lamp heads, a fallen streetlight, fire as the only warm light) and its haze edge is cheap: one gradient. CO3 ash and CO4 flood are strong moods but change the rain the whole run has had; keep them as later endless-wave variety.');
+  BLS.forEach((F,i)=>makeCard(sec('bl'),{...makeBlackoutCard(F,i),tag:F.id==='BL1'?'recommended':''}));
+  addRec('bl','<b>Recommended: BL1</b> the spec’s 10 % as the base, with <b>BL4</b>’s rain in the beams as the upgrade for the Tactical flashlight and the floodlight (it makes bought light look better than free light). BL2 makes blackout feel like night again; BL3 is too dark for a phone outdoors or on low brightness. Floodlight: <b>6 m in blackout</b> reads as a safe island the team can hold; 4 m is only one barricade ring.');
+  BHS.forEach((F,i)=>makeCard(sec('bh'),{id:F.id,name:F.name,desc:F.desc,F,W:600,H:340,seed:4000+i*7,anim:true,tag:F.id==='BH1'?'recommended':'',stripR:'4 m across · survivor 0.8 m',drawMain:renderBHMain,drawStrip:renderBHStrip,step:(o,dt)=>{o.T+=dt;},still:3.0}));
+  makeCard(sec('bt'),makeTellsCard());
+  addRec('bh','<b>Recommended: BH1</b> the prototype shaded (base), <b>BH2</b> site worker as the endless-wave variant (each later Behemoth can wear a different look, like the Brute’s five). BH1 keeps the silhouette you already tested in the prototype; the bright hi-vis of BH2 is the most readable in a blackout. BH4’s dark armour hides the pose changes (the tells live in the arms and shoulders), so I’d skip it.');
+  const evRec={EV1:'CA1',EV2:'ST1',EV3:'GL1',EV4:'SD1',EV5:'SV1'};
+  [makeAlarmCard(),makeStampedeCard(),makeGasCard(),makeSupplyCard(),makeSurvivorCard()].forEach(o=>makeCard(sec('ev'),{...o,tag:'rec: '+evRec[o.id]}));
+  addRec('ev','<b>Recommended: CA1 · ST1 · GL1 · SD1 · SV1.</b> One colour per kind of thing: <b>amber = an event you can use</b> (alarm, stampede warning), <b>yellow-green = gas</b> (same as Bloater gas), <b>red = boss danger only</b>, <b>white = pick-ups and people</b>. CA1’s amber rings show the 15 m pull, which is the lever (D7). ST1’s chevrons say “they run this way, not at you” without looking like a boss lane. GL1’s vapour matches the gas you already know. SD1’s red flare is the classic airdrop read. SV1’s yellow raincoat is the only NPC colour that stays readable in a blackout and never looks like a teammate.');
+  EXS.forEach((F,i)=>makeCard(sec('ex'),{...makeVoteCard(F,i),tag:F.id==='EX1'?'recommended':''}));
+  DWS.forEach((F,i)=>makeCard(sec('dw'),{...makeDawnCard(F,i),tag:F.id==='DW1'?'recommended':''}));
+  addRec('ex','<b>Recommended: EX1</b> two big buttons. In a 15 s vote with zombies just cleared, speed beats mood: big thumb targets, live chips in slot colours, a ring timer. EX2’s radio is the nicest Dead City piece; keep it as a later skin. EX3 only pays off once the 5.13 card shop is built.');
+  addRec('dw','<b>Recommended: DW1</b> warm sunrise for Extract (the run’s reward should feel like one), and <b>DW2</b> blue hour reused for “Lost in the city” or endless extracts. DW3 is the most cinematic but the light shafts compete with the Results text.');
+}
