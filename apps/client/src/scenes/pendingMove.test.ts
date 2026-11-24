@@ -101,4 +101,13 @@ describe("PendingMoves (Story 5.22)", () => {
     pm.update(world, 16, 2000);
     expect(pm.waiting(b.id)).toBe(false);
   });
+
+  it("re-review nit: the seq wraps 65535 → 1 (never 0, which means 'not sent')", () => {
+    const { world, b, pm } = setup();
+    (pm as unknown as { nextSeq: number }).nextSeq = 65535;
+    expect(pm.add(b.id, 44, 24, 1, box, "build", world.waves.number)).toBe(65535);
+    expect(pm.refuse(b.id, 65535, 0)).toBe(true);
+    pm.update(world, REFUSE_ANIM_MS + 1, 2000);
+    expect(pm.add(b.id, 46, 24, 1, box, "build", world.waves.number)).toBe(1);
+  });
 });

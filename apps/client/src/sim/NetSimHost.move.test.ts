@@ -93,6 +93,8 @@ describe("NetSimHost moves (Story 5.22)", () => {
     expect(host.takeMoveRefusal()).toBeNull();
     expect(parseMoveRefused({ id: 1, reason: "not_build_phase", seq: 0 })).toEqual({ id: 1, reason: "not_build_phase", seq: 0 });
     expect(parseMoveRefused({ id: 0, reason: "gone", seq: 1 })).toBeNull();
+    expect(parseMoveRefused({ id: 1, reason: "gone", seq: -1 })).toBeNull(); // re-review nit
+    expect(parseMoveRefused({ id: 1, reason: "gone", seq: 1.5 })).toBeNull();
     expect(parseMoveRefused(null)).toBeNull();
     host.dispose();
     host.moveBuilding({ id: 4, gx: 1, gy: 1, rot: 0 }, 1);

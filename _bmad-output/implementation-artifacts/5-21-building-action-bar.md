@@ -4,7 +4,7 @@ baseline_commit: a94f15e97b9c66f55c15d77a1969dd22df10f6d7
 
 # Story 5.21: Building action bar and move (5.21 merged with 5.22)
 
-Status: review
+Status: done
 
 (Building UX rework **BX-7 + BX-8**, merged by the designer on 2026-11-24: one story, one review. Design: `docs/ideas/building-ux/ux-spec.md` §3 (the right-thumb cluster's third state), §4 (action bar **78 × 56**, 8 gap, right-aligned at 16, centre bottom **112**; alignment Q4), §5 (tap 300 ms / 12 px, **long-press 450 ms / 12 px, ring from 150 ms**, tap tolerance 0.4 m), §8 (select, pick up, move, repair, upgrade, take back / sell + fairness rules F1–F9), §9 (`M` picks up the selected building: Story 5.23's key), §11 (`building.moved`), §12 (Bo fixes a mistake), §13 (a building under Ready), §15 (tap-only menu); `draft-stories.md` › BX-7, BX-8; `epics.md` › Stories 5.21 and 5.22; prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR. Builds on 3.7 (tap select, `RepairPanel`), 5.9 (upgrade ladder, floor buildings), 5.10 (med station, floodlight), 5.12 (consumable / swap row above the bar), 5.14 (bear trap), 5.15–5.19 (carry, build bar, reason line, chain + pending, drag/pin/chip), 5.20 (sell, `sellLabel`, `paid` / `paidThisBuild` / `usedThisBuild`, `not_alive`). **This story changes the server:** a new C2S message `building.move`, a new S2C refusal, a new net event kind, and buildings become movable (shared `moveBuilding`).)
 
@@ -173,6 +173,10 @@ Fresh-agent review by the main session (2026-11-24): **no high, 1 medium, 4 low.
 
 Fix-round mutations: 7/7 killed (long-press armed on the left half · ✕ kept below 700 px · seq ignored by `refuse` · seq not sent · seq not echoed by the server · mirror rot term · pendingMove rot term).
 
+### Re-review (fresh agent, main session, 2026-11-24, of `e3ecbb3`)
+
+**Clean.** Two optional nits added as tests: `pendingMove.test.ts` (the move seq wraps 65535 → 1, never 0) and `NetSimHost.move.test.ts` (a refusal with seq −1 or 1.5 is dropped by `parseMoveRefused`). L1 stays option (a); the designer may still choose (b) two rows, which would be a small follow-up story. Status → done.
+
 **Master merged** (`origin/master` with 5.23 + 5.25 placement feel / mouse and keys, 5.13 card shop, start money 200). Hand merges:
 - `GameScene.ts`: both view sets.
 - `HudScene.ts`: 5.23's wheel reset and resting look kept, plus the MOVE glyph.
@@ -221,3 +225,4 @@ Claude (cloud builder session for Story 5.21 + 5.22).
 
 - 2026-11-24: Story 5.21 + 5.22 built (action bar, move, long-press, Ready yield); status → review.
 - 2026-11-24: Review fixes M1, L1 (option a, question to the main session), L2, L3 (move seq), L4; master merged (5.23 + 5.25, 5.13); M key wired; status stays review.
+- 2026-11-24: Re-review clean; nit tests added; status → done.
