@@ -21,7 +21,7 @@ brief: '_bmad-output/planning-artifacts/briefs/brief-topdown-shooter-2026-11-21/
 
 A server-authoritative online co-op horde shooter for phone browsers. A Phaser 4 client and a Colyseus 0.18 Node.js server share one engine-free TypeScript simulation package (the game rules), running at 20 Hz on the server with local-player prediction on phones. A custom binary horde stream keeps 150 zombies within ~24 KB/s per phone. PostgreSQL stores accounts, progression and saved runs; everything runs in Docker Compose on the designer's existing European VPS behind a Cloudflare Tunnel (HTTPS/WSS terminates at the edge; Caddy serves plain HTTP).
 
-**Key decisions:** server authority + client prediction (ADR-01) · custom horde stream (ADR-02) · shared simulation package (ADR-03) · single PostgreSQL on the VPS (ADR-04) · Tiled maps with decay layers (ADR-05) · flow-field pathfinding.
+**Key decisions:** server authority + client prediction (ADR-01) · custom horde stream (ADR-02) · shared simulation package (ADR-03) · single PostgreSQL on the VPS (ADR-04) · Tiled or generated maps with decay layers (ADR-05) · city generator in shared code (ADR-06, Random city, Epic 11) · flow-field pathfinding.
 
 **Structure:** domain-organized monorepo (client, server, shared) covering 15 core systems; 4 novel patterns and the standard patterns below keep AI agents consistent.
 
@@ -164,10 +164,10 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | Reconnect | Colyseus `allowReconnection` 120 s; player slot, wallet and gear held in room state | Colyseus 0.18 | GDD 2-minute rule |
 | Accounts | Guest = random 32-byte device token, kept in a 1-year HttpOnly cookie and a `localStorage` copy (Epic 7 D9), stored hashed → server session; account HTTP API in `apps/server/src/app.ts` (session, upgrade, login, recovery, unlock, training, look); the client gets a short-lived session ticket from it and sends the ticket in the Colyseus join options; upgrade to username + password (Argon2id hashed) | @node-rs/argon2 2.2 | No signup before first play (GDD); no email service needed |
 | Hosting | User's existing **Linux VPS in Europe** (6 vCPU, 12 GB RAM, ~30 GB free); Docker Compose: Caddy (plain HTTP on 127.0.0.1:8080 + static client, behind the Cloudflare Tunnel that terminates HTTPS/WSS) · game server · PostgreSQL; game at https://hordes.sevend.io; Hermes deploys (`docs/deploy.md`) | Caddy 2.11 · Node.js 26 LTS | Already owned, close to all players, ample capacity (user choice) |
-| Maps | Districts authored in **Tiled** (JSON export); one layer group per decay stage, toggled by the decay system; collision and cover as object layers | Tiled map format | Hand-made maps with data-driven decay |
+| Maps | Districts authored in **Tiled** (JSON export) **or generated in shared code from a city seed (Random city, ADR-06, Epic 11)**; both produce the same `DistrictMap` (collision, cover, spawns, hazards, events, decay groups with `pick N`); one layer group per decay stage, toggled by the decay system; map anchors (boss entries, evac pad, event spots) are map data in the `events` layer, not balance names | Tiled map format | Hand-made maps with data-driven decay; generated cities reuse the same engine |
 | Lighting | Darkness texture (a half-resolution canvas registered through `addGeneratedTexture`, not a RenderTexture: Story 6.3 DD1) with lights cut out (flashlights, floodlights, fires, muzzle flashes); lit only when needed | Phaser 4 | Proven in the Lamplight probe; cheap when off |
-| Balance data | All tunable numbers (weapons, zombies, buildings, waves, economy, decay timings) in typed JSON config in the shared package; `progression.json` (Supplies, unlock prices, Training) and `cosmetics.json` (survivor parts, no gameplay numbers) join in Epic 7 | — | Rebalance without code changes; server and client read the same values |
-| Randomness | Seeded PRNG per run (run seed + named sub-streams: decay, events, spawns, combat, loot (Story 7.12), shop per player) | — | Reproducible runs for testing |
+| Balance data | All tunable numbers (weapons, zombies, buildings, waves, economy, decay timings) in typed JSON config in the shared package; `progression.json` (Supplies, unlock prices, Training) and `cosmetics.json` (survivor parts, no gameplay numbers); per-district overrides in `districts.json` (Epic 11: spawn bands, pathing budget; global caps stay) join in Epic 7 | — | Rebalance without code changes; server and client read the same values |
+| Randomness | Seeded PRNG per run (run seed + named sub-streams: decay, events, spawns, combat, loot (Story 7.12), shop per player; `city` for the Random city seed, overridden by a city code the host types) | — | Reproducible runs for testing |
 | UI | In-combat HUD drawn by Phaser; menus (lobby, shop, unlocks, evac vote) as HTML overlays built with **Preact** | Preact 11.2 | Readable, responsive menus on phones; small runtime |
 | Asset loading | Boot (tiny) → Preload (SFX, map data; the art atlases are generated in code at load, no character/district PNGs) → Game; music streamed after start; texture atlases | Phaser Loader | 15 MB / 10 s first-load target |
 | Audio | Three buses: music, SFX, ambience; positional volume/pan for zombie cues | Phaser Web Audio | GDD audio direction, settings |
@@ -210,7 +210,8 @@ Texture atlases per district and per character set; audio sprites for SFX; ambie
 - **ADR-02 Custom horde stream.** Chosen over pure schema sync to control the biggest bandwidth risk from day one. Cost: a hand-written encoder/decoder with tests.
 - **ADR-03 Shared simulation package.** One implementation of movement, combat and collision used by the server (authority), the client (prediction) and tests. Rule: no Phaser or Colyseus imports inside it.
 - **ADR-04 Single PostgreSQL on the existing VPS.** Simplicity over scale; backups by nightly dump.
-- **ADR-05 Tiled maps with decay layers.** Decay is data, not code paths per district, so new districts need no new code.
+- **ADR-05 Tiled or generated maps with decay layers.** Decay is data (mutation groups with `pick N`), not code paths per district, so neither a new district nor a generated city needs new decay code.
+- **ADR-06 City generator in shared code (Random city, Epic 11; `sprint-change-proposal-2026-11-24-random-city.md`).** `packages/shared/src/map/gen/` turns `(citySeed, generatorVersion)` into a `DistrictMap`; the server sends the pair and every client builds the same map. Chosen over sending a generated map from the server (a download per join, harder replays) and over hand-made block assemblies (rejected in the forge). Rules: no randomness outside the `city` PRNG; the join checks the generator version and the map digest (mismatch → "Please refresh"); every city passes checks A–G and the anchor check, or is regenerated; saved runs store `citySeed` + `generatorVersion`. Cost: generator code and checks that must hold for every seed.
 
 ## Cross-cutting Concerns
 
@@ -360,6 +361,7 @@ topdown-shooter/
 │           ├── economy/                # wallets, rewards, shop deck & card draw
 │           ├── decay/                  # decay stages, map mutations, hazards, lighting state
 │           ├── map/                    # district loading from Tiled data, collision, cover
+│           │   └── gen/                # Random city generator: street plan, blocks, recipes, checks A–G + anchors (Epic 11)
 │           ├── net/                    # message types and horde record format (shared by encoder/decoder)
 │           └── index.ts
 ├── tools/
@@ -424,7 +426,7 @@ Tests live next to the code they test: `foo.ts` → `foo.test.ts`.
 #### Game Assets
 - `category_name_variant` in snake case: `zombie_brute_walk`, `weapon_shotgun_fire`, `fx_blood_splat_02`, `amb_breakdown_rain`, `ui_btn_ready`.
 - Atlas frames use the same names; animations are `<entity>_<action>` (`walker_attack`).
-- Tiled layers: `stage1_evening`, `stage2_panic`, … `stage5_collapse`, plus `collision`, `cover`, `spawns`, `hazards`. The Downtown map is generated by `tools/maps/buildDowntown.ts` (Tiled `.tmx`/`.tmj`) until the designer edits it in Tiled.
+- Tiled layers: `stage1_evening`, `stage2_panic`, … `stage5_collapse`, plus `collision`, `cover`, `spawns`, `hazards`. The Downtown map is generated by `tools/maps/buildDowntown.ts` (Tiled `.tmx`/`.tmj`) until the designer edits it in Tiled. Random city maps are built by `packages/shared/src/map/gen/` at run start (Epic 11) and never written to files.
 
 ### Architectural Boundaries
 
