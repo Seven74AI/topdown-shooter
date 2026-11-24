@@ -66,8 +66,8 @@ export function decayCheatAllowed(world: World): boolean {
 }
 
 /**
- * Story 6.3 dev cheat (solo only, any phase): force the blackout level (20 / 10 / 5 %) or −1 = off
- * (back to the real rule). Goes through the shared `setForcedBlackout` → `refreshBlackout`. Returns
+ * Story 6.3 dev cheat (solo only, any phase): at least this dark (20 / 10 / 5 %; never lightens a
+ * darker wave, Results lit — review H1) or −1 = off (back to the real rule). Goes through the shared `setForcedBlackout` → `refreshBlackout`. Returns
  * the level now in force.
  */
 export function setForcedBlackoutCheat(world: World, pct: number): number {

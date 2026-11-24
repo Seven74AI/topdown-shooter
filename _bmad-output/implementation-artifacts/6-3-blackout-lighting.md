@@ -316,10 +316,21 @@ Claude (Claude Code, cloud builder session for Story 6.3)
 - [ ] [AI-Review][Low] L3 (aim assist beyond 14 m in the dark): deferred to 6.4 (fog, 6.4 D4); merge note added.
 - [x] [AI-Review][Low] L5 → designer decision 6.3 B3: acid puddles and Bloater gas (both cloud layers + the gas edge ring) get a second copy above the darkness (`ABOVE_DARK.hazard` 11.707) at `decay.json › blackout.hazardAboveDarkPct` (10 %) of their alpha, only in a blackout; inside light the full look shows under it (the faint same-colour copy changes it ≈ nothing: the "simplest equivalent" of max(lit, 10 %)). Own mines and traps stay under the dark. Test in `darknessView.test.ts` (mutation: ghost at full alpha → killed). Not seen in a browser.
 
+### Re-review (fresh agent, on c51d307): CLEAN — no new high/medium; lows fixed without a further re-review
+
+- [x] [AI-Review][Low] Test where stamps land on the padded canvas (setTransform e/f = (world − padded origin) × k).
+- [x] [AI-Review][Low] Test the survivor's cut uses the glow stamp, painted with `CUT_GLOW` (the fake gradient now records its stops).
+- [x] [AI-Review][Low] B3/wiring tests: gas ghost layer 2 alpha × k; acid ghost hidden on puddle expiry; `hazardGhostFor` / `rainAlphaFor` read decay.json (tested with changed values); GameScene's padded plan view via the shared `padDarknessView` (tested); soft cone stamp height covers its widest wedge (`coneHeight`, tested). Skipped: the rush chevrons' depth (a GameScene object; `ABOVE_DARK.rush` is a constant above `DARKNESS_DEPTH`).
+- [x] [AI-Review][Low] Stale comments after H1 (devForceBlackout.ts, devCheatActions.ts, urlOptions.ts): "at least this dark; never lightens a darker wave; Results lit".
+- [x] [AI-Review][Low] forcedPct 100 (no darkness) no longer turns a blackout on (`refreshBlackout` needs the forced alpha > 0; `DEV_FORCE_BLACKOUT` parses 1–99); tested.
+- [x] [AI-Review][Low] Perf doc notes the 3 % pad (~12 % bigger canvas), not re-measured, for the Mi 11i check.
+- All ten mutations the re-review listed (or implied) now fail a test.
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: re-review clean; its lows fixed (tests for pad/glow/B3 wiring, comments, forced 100, perf note).
 - 2026-11-24: designer decision 6.3 B3 (review L5) built: hazards above the dark at 10 %.
 - 2026-11-24: addressed code review findings — 10 items resolved (H1, M1, M2, L1, L2, L4, L6, L7, L8, two mutations); L3 deferred to 6.4, L5 with the designer.
 - 2026-11-24: implemented (gds-dev-story): light state + rule, flashlight cone, wire fields, darkness layer, eyes, sparkles, teammates above the dark, floodlight 6 m, shop flags, dev switches, HUD layout test, perf doc; status review.

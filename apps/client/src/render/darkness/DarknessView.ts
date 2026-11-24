@@ -22,6 +22,14 @@ export const DARKNESS_RES = 0.5;
  */
 export const DARKNESS_PAD = 0.03;
 
+/** The view the darkness covers: the camera view plus `DARKNESS_PAD` past each edge (written into `out`). */
+export function padDarknessView(viewX: number, viewY: number, viewW: number, viewH: number, out: { viewX: number; viewY: number; viewW: number; viewH: number }): void {
+  out.viewX = viewX - viewW * DARKNESS_PAD;
+  out.viewY = viewY - viewH * DARKNESS_PAD;
+  out.viewW = viewW * (1 + 2 * DARKNESS_PAD);
+  out.viewH = viewH * (1 + 2 * DARKNESS_PAD);
+}
+
 /** What the view needs of a Phaser image (tests pass a fake). */
 interface DarkImage {
   setOrigin(x: number, y: number): DarkImage;

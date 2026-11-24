@@ -185,6 +185,13 @@ describe("Story 6.3 blackout light state (AC 1–4; F1, F7)", () => {
     expect(w.lights.blackoutPct).toBe(0); // review L8: Results are lit
   });
 
+  it("review: a forced 100 % (no darkness) never turns a blackout on", () => {
+    const w = worldOf();
+    startBuild(w);
+    setForcedBlackout(w, 100);
+    expect(isBlackout(w)).toBe(false);
+  });
+
   it("powerFailure counts only in a wave", () => {
     const w = worldOf();
     startBuild(w);

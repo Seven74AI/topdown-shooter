@@ -46,6 +46,11 @@ What the numbers say:
 - 20 % (BL2 moonlit, soft beams) and 5 % (BL3 pitch, crisp beams) cost the same: the look is only
   the fill colour and the stamp set.
 
+Note (review M1, after these measurements): the darkness now reaches 3 % past each screen edge (so a
+camera shake never opens a lit strip), which makes the darkness canvas and its upload about 12 %
+bigger. Not re-measured headless (the headless cost is the full-screen fill, which the pad barely
+changes); include it in the Mi 11i check below.
+
 ## Phones (to fill: the designer's friends)
 
 Nobody has run these yet. Steps, on each phone, Chrome, landscape, after the next deploy:

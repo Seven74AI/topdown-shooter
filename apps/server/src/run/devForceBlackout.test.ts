@@ -9,7 +9,7 @@ describe("Story 6.3 DEV_FORCE_BLACKOUT", () => {
   it("parses 1–100; anything else is null", () => {
     expect(parseDevForceBlackout("5")).toBe(5);
     expect(parseDevForceBlackout(" 20 ")).toBe(20);
-    for (const bad of [undefined, "", "0", "101", "-5", "5.5", "a", "1000"]) expect(parseDevForceBlackout(bad), String(bad)).toBe(null);
+    for (const bad of [undefined, "", "0", "100", "101", "-5", "5.5", "a", "1000"]) expect(parseDevForceBlackout(bad), String(bad)).toBe(null);
   });
 
   it("production ignores it (logged reason); dev uses it; invalid is ignored", () => {

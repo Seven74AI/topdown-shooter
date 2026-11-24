@@ -193,7 +193,8 @@ export function refreshBlackout(world: World): void {
     pct = coming > 0 ? coming : last;
     half = pct > 0;
   }
-  if (phase !== "results" && s.forcedPct > 0 && alphaOf(s.forcedPct, false, b.halfDarkK) >= alphaOf(pct, half, b.halfDarkK)) {
+  const forcedA = alphaOf(s.forcedPct, false, b.halfDarkK);
+  if (phase !== "results" && forcedA > 0 && forcedA >= alphaOf(pct, half, b.halfDarkK)) {
     pct = s.forcedPct;
     half = false;
   }

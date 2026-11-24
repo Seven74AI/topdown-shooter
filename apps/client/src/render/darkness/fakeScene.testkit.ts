@@ -139,8 +139,9 @@ export class FakeCtx {
   fill(): void {
     this.rec("fill", []);
   }
-  createRadialGradient(): { addColorStop(): void } {
-    return { addColorStop: () => {} };
+  createRadialGradient(): { stops: [number, string][]; addColorStop(at: number, c: string): void } {
+    const g = { stops: [] as [number, string][], addColorStop: (at: number, c: string) => void g.stops.push([at, c]) };
+    return g;
   }
   createLinearGradient(): { addColorStop(): void } {
     return { addColorStop: () => {} };

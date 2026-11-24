@@ -91,8 +91,8 @@ export interface UrlOptions {
    */
   shopAll: boolean;
   /**
-   * `?blackout=20|10|5` (Story 6.3, release-safe like `?fx=low`; solo only): the run is drawn at that
-   * forced blackout level (the dev `forcedPct`), so `?stress=150&blackout=5` measures the darkness's
+   * `?blackout=20|10|5` (Story 6.3, release-safe like `?fx=low`; solo only): the run is drawn at least
+   * that dark (the dev `forcedPct`; it never lightens a darker wave, Results lit — review H1), so `?stress=150&blackout=5` measures the darkness's
    * cost. null otherwise (any other value too).
    */
   blackoutPct: number | null;

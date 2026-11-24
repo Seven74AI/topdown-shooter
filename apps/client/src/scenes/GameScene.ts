@@ -91,7 +91,8 @@ import { STALE_EXPLOSION_S, blastLookFor } from "../render/grenadeFx";
 import { CityView } from "../render/city/CityView";
 import { TurretView } from "../render/TurretView";
 import { FloodlightView } from "../render/FloodlightView";
-import { DARKNESS_PAD, DarknessView } from "../render/darkness/DarknessView";
+import { DarknessView, padDarknessView } from "../render/darkness/DarknessView";
+import { hazardGhostFor } from "../render/city/rainLook";
 import { ABOVE_DARK } from "../render/darkness/aboveDark";
 import { EyesView } from "../render/darkness/EyesView";
 import { BeamSparkleView } from "../render/darkness/BeamSparkleView";
@@ -1829,7 +1830,7 @@ export class GameScene extends Phaser.Scene {
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
     this.acidClockS += fxDtS;
     // Story 6.3 (designer B3): acid puddles and Bloater gas show above the darkness at 10 % (blackout only).
-    const hazardGhost = isBlackoutNow(host.world) ? host.world.balance.decay.blackout.hazardAboveDarkPct / 100 : 0;
+    const hazardGhost = hazardGhostFor(host.world);
     if (this.acidView) this.acidView.darkGhost = hazardGhost;
     if (this.bloaterView) this.bloaterView.darkGhost = hazardGhost;
     this.acidView?.update(this.acidClockS);
@@ -1971,10 +1972,7 @@ export class GameScene extends Phaser.Scene {
       const inp = this.darkInputs;
       inp.molotovs = this.molotovView?.fires.live ?? [];
       inp.nowS = this.acidClockS;
-      inp.viewX = m.camX - vw * DARKNESS_PAD; // review M1: the padded darkness (camera shake)
-      inp.viewY = m.camY - vh * DARKNESS_PAD;
-      inp.viewW = vw * (1 + 2 * DARKNESS_PAD);
-      inp.viewH = vh * (1 + 2 * DARKNESS_PAD);
+      padDarknessView(m.camX, m.camY, vw, vh, inp); // review M1: the padded darkness (camera shake)
       planDarkness(plan, world, inp);
     }
     this.darknessView?.update(world, plan, m.camX, m.camY, vw, vh, zoom, this.scale.width, this.scale.height);

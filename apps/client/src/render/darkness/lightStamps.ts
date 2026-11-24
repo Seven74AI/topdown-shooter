@@ -45,7 +45,7 @@ export interface LightStampSet {
 
 export const STAMP_CONES = [60, 80] as const;
 
-function coneHeight(coneDeg: number, soft: boolean): number {
+export function coneHeight(coneDeg: number, soft: boolean): number {
   const half = ((coneDeg / 2) * (soft ? 1 + 2 * SOFT_EDGE_K : 1) * Math.PI) / 180;
   return 2 * Math.ceil(STAMP_PX * Math.sin(Math.min(half, Math.PI / 2))) + 2 * CONE_PAD;
 }

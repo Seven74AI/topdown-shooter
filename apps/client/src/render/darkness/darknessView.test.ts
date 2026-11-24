@@ -6,12 +6,12 @@ vi.mock("../city/spriteAtlas", async (orig) => ({ ...(await orig<typeof import("
 
 import { textureRegistry } from "../gfx/textureRegistry";
 import { DARKNESS_DEPTH, ABOVE_DARK } from "./aboveDark";
-import { DARKNESS_KEY, DARKNESS_PAD, DARKNESS_RES, DarknessView } from "./DarknessView";
+import { DARKNESS_KEY, DARKNESS_PAD, DARKNESS_RES, DarknessView, padDarknessView } from "./DarknessView";
 import { MINE_SHAKE_MAX } from "../mineBlast";
 import { DarknessPlan, FlashLights, planDarkness, type DarknessInputs } from "./darknessPlan";
 import { EyesView } from "./EyesView";
 import { BeamSparkleView } from "./BeamSparkleView";
-import { LIGHT_STAMP_KEYS, lightStamps, resetLightStamps } from "./lightStamps";
+import { CUT_GLOW, LIGHT_STAMP_KEYS, STAMP_PX, SOFT_EDGE_K, coneHeight, lightStamps, resetLightStamps } from "./lightStamps";
 import { fakeScene, type FakeObject } from "./fakeScene.testkit";
 import { PlayerView, BODY_DEPTH } from "../PlayerView";
 import { FloodlightView } from "../FloodlightView";
@@ -122,6 +122,46 @@ describe("Story 6.3 DarknessView", () => {
       expect(cuts.some((c) => want.includes(c as never)), `${pct} %`).toBe(true);
       expect(cuts.some((c) => other.includes(c as never)), `${pct} %`).toBe(false);
       view.destroy();
+    }
+  });
+
+  it("re-review: stamps land at (world − padded view origin) × k; my glow is cut with the glow stamp painted with CUT_GLOW", () => {
+    const { fs, view } = darkness();
+    const set = lightStamps(fs.makeCanvas);
+    const w = world(5);
+    const me = w.players.get("me") as { x: number; y: number };
+    frame(view, w);
+    const ops = fs.canvases.flatMap((c) => c.ctx.ops);
+    const i = ops.findIndex((o) => o.op === "drawImage" && o.comp === "destination-out" && o.args[0] === set.glow);
+    expect(i).toBeGreaterThan(0); // the glow stamp (not the plain disc) cut my glow
+    const t = ops[i - 1];
+    expect(t?.op).toBe("setTransform");
+    const k = 40 * DARKNESS_RES;
+    const px = 4 - 32 * DARKNESS_PAD;
+    const py = 2 - 18 * DARKNESS_PAD;
+    expect(t?.args[4]).toBeCloseTo((me.x - px) * k, 6);
+    expect(t?.args[5]).toBeCloseTo((me.y - py) * k, 6);
+    // the glow stamp was painted with the CUT_GLOW stops (flat full cut to the core)
+    const glowCanvas = fs.canvases.find((c) => (c as unknown) === set.glow);
+    const grad = glowCanvas?.ctx.ops.find((o) => o.op === "fillRect")?.fill as { stops: [number, string][] };
+    expect(grad.stops.map(([at, c]) => [at, Number(/,([\d.]+)\)$/.exec(c)?.[1])])).toEqual(CUT_GLOW.map(([at, a]) => [at, a]));
+    view.destroy();
+  });
+
+  it("re-review: padDarknessView pads every side by DARKNESS_PAD (what GameScene passes to planDarkness)", () => {
+    const out = { viewX: 0, viewY: 0, viewW: 0, viewH: 0 };
+    padDarknessView(10, 5, 24, 13.5, out);
+    expect(out.viewX).toBeCloseTo(10 - 24 * DARKNESS_PAD, 12);
+    expect(out.viewY).toBeCloseTo(5 - 13.5 * DARKNESS_PAD, 12);
+    expect(out.viewW).toBeCloseTo(24 * (1 + 2 * DARKNESS_PAD), 12);
+    expect(out.viewH).toBeCloseTo(13.5 * (1 + 2 * DARKNESS_PAD), 12);
+  });
+
+  it("re-review: the soft cone stamps are tall enough for their widest wedge (not clipped)", () => {
+    for (const deg of [60, 80]) {
+      const half = ((deg / 2) * Math.PI) / 180;
+      expect(coneHeight(deg, true)).toBeGreaterThanOrEqual(2 * STAMP_PX * Math.sin(half * (1 + 2 * SOFT_EDGE_K)));
+      expect(coneHeight(deg, false)).toBeGreaterThanOrEqual(2 * STAMP_PX * Math.sin(half));
     }
   });
 
@@ -299,10 +339,17 @@ describe("Story 6.3 designer B3: acid puddles and Bloater gas above the darkness
     const puddle = fs.objects.find((o) => o.depth !== ABOVE_DARK.hazard && o.visible && o.x === 12 && o.y === 9) as FakeObject;
     const pg = shown.find((o) => o.x === 12) as FakeObject;
     expect(pg.alpha).toBeCloseTo(puddle.alpha * k, 9);
-    expect(shown.filter((o) => o.x === 20)).toHaveLength(2);
+    const gasLayers = shown.filter((o) => o.x === 20);
+    expect(gasLayers).toHaveLength(2);
+    const origLayers = fs.objects.filter((o) => o.depth !== ABOVE_DARK.hazard && o.visible && o.x === 20 && o.texture !== "" && o.blend !== 1);
+    // both ghost layers (cloud 1 and cloud 2) are their original's alpha × k
+    for (const g of gasLayers) expect(origLayers.some((o) => o.frame === g.frame && Math.abs(o.alpha * k - g.alpha) < 1e-9), g.frame).toBe(true);
     const ring = ghosts().find((o) => o.strokes > 0) as FakeObject; // the gas edge ring's copy
     expect(ring).toBeDefined();
     expect(ring.lineAlpha).toBeLessThanOrEqual(0.45 * k + 1e-9);
+    acid.puddleId[0] = -1; // the puddle expired: its ghost goes too
+    av.update(10.05);
+    expect(ghostImgs().find((o) => o.x === 12)?.visible).toBe(false);
     av.darkGhost = 0;
     bv.darkGhost = 0;
     av.update(10.1);
