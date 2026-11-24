@@ -78,10 +78,13 @@ describe("Story 6.8 F1/F6: the warning comes first, then they run the lane", () 
   it("sizes: 12 / 18 / 24 / 30 Runners for 1–4 players (a downed player counts, D11)", () => {
     for (const [n, want] of [[1, 12], [2, 18], [3, 24], [4, 30]] as const) {
       const pos: [number, number][] = Array.from({ length: n }, (_, i) => [3 + i, 30.5]); // out of every lane
-      const { world } = started(pos, 7);
-      if (n === 3) world.players.get("p2")!.status = "downed";
+      const t = eventWorld({ seed: 7, players: pos });
+      if (n === 3) t.world.players.get("p2")!.status = "downed"; // review L2: down BEFORE the size is fixed
+      startNext(t.world, "stampede");
+      tickN(t.world, 1);
+      const world = t.world;
       world.debug.godMode = true;
-      tickN(world, T(13) + 2);
+      tickN(world, T(15) + 2);
       expect(world.special.log.stampedeSpawned).toBe(want);
     }
   });
@@ -100,7 +103,7 @@ describe("Story 6.8 F7: a stampede Runner hurts you once", () => {
     // a barricade in the lane: Runners deflect / stall, never damage it
     const b = addBuildingAt(world, { id: 900, type: "wood_barricade", ownerId: "p0", gx: Math.round((lane.minX + lane.maxX) / 2 / 0.5) + 6, gy: Math.round((lane.minY + 1) / 0.5), rot: 0, hp: 200 })!;
     expect(b).not.toBeNull();
-    tickN(world, T(13) + 2);
+    tickN(world, T(15) + 2);
     const dmg = ofType(events, "player.damaged");
     expect(dmg.length).toBeGreaterThan(0);
     const per = new Map<string, number>();
@@ -117,7 +120,7 @@ describe("Story 6.8 F7: a stampede Runner hurts you once", () => {
 });
 
 describe("Story 6.8 F8: the stampede never makes the wave endless", () => {
-  it("at the end of the 10 s every Runner left is a normal wave Runner; stuck ones convert after 1 s", () => {
+  it("at the end of the 12 s (6.8 B2) every Runner left is a normal wave Runner; stuck ones convert after 1 s", () => {
     const { world, events } = started([[3, 30.5]], 2);
     const lane = DOWNTOWN_MAP.stampedeLanes[world.special.active.lane]!;
     // wall the lane off 6 m from the start: everything stalls there and converts after ~1 s
@@ -128,14 +131,14 @@ describe("Story 6.8 F8: the stampede never makes the wave endless", () => {
       addBuildingAt(world, { id: 800 + k, type: "wood_barricade", ownerId: "p0", gx, gy, rot: alongX ? 1 : 0, hp: 200 });
     }
     tickN(world, T(3) + T(2.5));
-    expect(world.special.log.stampedeConverted).toBeGreaterThan(0); // D7: converted before the 10 s
+    expect(world.special.log.stampedeConverted).toBeGreaterThan(0); // D7: converted before the 12 s
     let converted = 0;
     for (let i = 0; i < world.zombies.aliveCount; i++) {
       const id = world.zombies.aliveIds[i]!;
       if (world.zombies.waveZombie[id] === 1) converted++;
     }
     expect(converted).toBeGreaterThan(0);
-    tickN(world, T(10));
+    tickN(world, T(12));
     expect(world.special.active.kind).toBe(-1);
     expect(stampedeIds(world)).toHaveLength(0);
     expect(ofType(events, "event.ended")).toEqual([{ type: "event.ended", kind: "stampede", outcome: "done" }]);
@@ -149,7 +152,7 @@ describe("Story 6.8 F8: the stampede never makes the wave endless", () => {
     world.debug.godMode = true;
     for (let i = 0; i < 150; i++) spawnZombie(world, "walker", 2 + (i % 20) * 0.8, 23 + Math.floor(i / 20) * 0.9, true);
     let most = 0;
-    for (let t = 0; t < T(13); t++) {
+    for (let t = 0; t < T(15); t++) {
       tickN(world, 1);
       most = Math.max(most, world.zombies.aliveCount);
     }
@@ -175,12 +178,53 @@ describe("Story 6.8 brief 22: the over-cap counts against the cap that applies",
         world.zombies.hp[id] = 1e9; // the Behemoth's blows must not thin them out
       }
       let most = 0;
-      for (let t = 0; t < T(13); t++) {
+      for (let t = 0; t < T(15); t++) {
         tickN(world, 1);
         most = Math.max(most, world.zombies.aliveCount);
       }
       expect(most, `boss ${boss}`).toBeLessThanOrEqual(cap);
       expect(most, `boss ${boss}`).toBeGreaterThan(start); // liveness: Runners really came, up to the cap (more as others leave the far edge)
     }
+  });
+});
+
+describe("Story 6.8 review L3/L6: spawns pause; a held Runner never hits a barricade", () => {
+  it("normal wave spawns pause while stampede Runners run (queued holds), and resume after", () => {
+    const { world } = started([[3, 30.5], [4, 30.5]], 3);
+    world.debug.godMode = true;
+    world.waves.paused = false;
+    world.waves.queued = 60;
+    world.waves.spawnTimerTicks = 0;
+    let pausedTicks = 0;
+    let resumed = false;
+    for (let t = 0; t < T(20); t++) {
+      const alive = world.special.stampede.alive;
+      const q = world.waves.queued;
+      tickN(world, 1);
+      if (alive > 0) {
+        expect(world.waves.queued, `tick ${t}`).toBe(q);
+        pausedTicks++;
+      } else if (world.special.active.kind === -1 && world.waves.queued < q) resumed = true;
+    }
+    expect(pausedTicks).toBeGreaterThan(T(3)); // liveness: Runners really ran with a queue waiting
+    expect(resumed).toBe(true);
+  });
+
+  it("a stampede Runner held by a bear trap next to a barricade leaves it untouched (D5)", () => {
+    const { world } = started([[3, 30.5]], 3);
+    tickN(world, T(3) + 2);
+    const id = stampedeIds(world)[0]!;
+    const b = addBuildingAt(world, { id: 950, type: "wood_barricade", ownerId: "p0", gx: 60, gy: 32, rot: 1, hp: 200 })!;
+    const r = balance.zombies.types.runner!.radiusM;
+    world.zombies.x[id] = b.minX - r - 0.01;
+    world.zombies.y[id] = (b.minY + b.maxY) / 2;
+    world.zombies.holdTicks[id] = 200;
+    for (let t = 0; t < 30; t++) {
+      tickN(world, 1);
+      world.zombies.holdTicks[id] = 200;
+      world.zombies.state[id] = ZOMBIE_STATE.STAMPEDE; // keep it a Runner of the stampede (no stuck conversion)
+      world.zombies.stampedeTick[id] = world.tick;
+    }
+    expect(b.hp).toBe(200);
   });
 });

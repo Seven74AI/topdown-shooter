@@ -7,7 +7,7 @@
   "carAlarm": { "armedS": 20, "alarmS": 15, "pullRadiusM": 15, "distractBreakM": 2, "pickMinM": 8, "pickMaxM": 25, "lureSeedM": 0.75 },
   "stampede": {
     "warningS": 3,
-    "runS": 10,
+    "runS": 12,
     "laneWidthM": 8,
     "speedMps": 5,
     "contactDamage": 8,
