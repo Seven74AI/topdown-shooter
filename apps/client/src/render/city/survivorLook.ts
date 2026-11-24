@@ -15,7 +15,6 @@ export type ResolvedLook = {
   readonly head: string;
   readonly hair: string;
   readonly pack: string;
-  readonly acc: string;
   readonly skin: string;
   /** The headgear covers the hair (catalogue `hidesHair`). */
   readonly hidesHair: boolean;
@@ -70,10 +69,13 @@ export function nightMute(h: string, c: Cosmetics = COSMETICS): string {
   return fromHsl(hue, s * c.look.nightMute.saturation, l * c.look.nightMute.lightness);
 }
 
-/** A colour dimmed for decay stage 1..5 (`look.stageDim`). Stage 1 returns the input unchanged (same string). */
+/**
+ * A colour dimmed for decay stage 1..5 (`look.stageDim`). Stage 1 returns the input unchanged (same string), and so
+ * does anything that isn't `#rrggbb` (the outline and glass `rgba(…)` colours keep their own alpha).
+ */
 export function stageDim(h: string, stage: number, c: Cosmetics = COSMETICS): string {
   const k = c.look.stageDim[clampStage(stage) - 1] ?? 1;
-  if (k === 1) return h;
+  if (k === 1 || !/^#[0-9a-f]{6}$/i.test(h)) return h;
   const [hue, s, l] = toHsl(h);
   return fromHsl(hue, s, l * k);
 }
@@ -96,7 +98,6 @@ export function resolveLook(look: SurvivorLook, stage = 1, c: Cosmetics = COSMET
   const head = partOr("head", look.head, c);
   const hair = partOr("hair", look.hair, c);
   const pack = partOr("pack", look.pack, c);
-  const acc = partOr("acc", look.acc, c);
   const skin = partOr("skin", look.skin, c);
   const final = {} as Record<(typeof PICKERS)[number], string>;
   for (const k of PICKERS) {
@@ -110,7 +111,6 @@ export function resolveLook(look: SurvivorLook, stage = 1, c: Cosmetics = COSMET
     head,
     hair,
     pack,
-    acc,
     skin,
     hidesHair: cosmeticPart("head", head, c)?.hidesHair === true,
     colours: { top: final.top, hair: final.hair, accent: final.accent, skin: stageDim(skinHex, st, c) },

@@ -8,7 +8,7 @@ import { CAR_COLORS, CAR_WRECK } from "./dressing";
 import { drawSpitter } from "./spitterArt";
 import { drawBrute } from "./bruteArt";
 import { BL_EXTENT_R, drawBloater } from "./bloaterArt";
-import { drawAccent, drawArms, drawHair, drawHead, drawPack, drawSkin, drawTop, outlineWidth, partColour } from "./survivorParts";
+import { drawArms, drawHair, drawHead, drawPack, drawSkin, drawTop, outlineWidth, partColour } from "./survivorParts";
 import { DEFAULT_RESOLVED_LOOK, type ResolvedLook } from "./survivorLook";
 
 type G = CanvasRenderingContext2D;
@@ -209,7 +209,8 @@ export function drawZombie(c: G, type: ZombieTypeId, r: number, variant: number,
 /**
  * The survivor, top-down, facing +x (gun forward), at (0, 0). The slot ring is PlayerView's.
  * Story 5.3: `heldGun` draws a weapon's own top-down art in place of the plain gun (under the arms).
- * Story 7.8: drawn from one function per slot (`survivorParts.ts`); `look` defaults to today's survivor.
+ * Story 7.8: drawn from one function per slot (`survivorParts.ts`); `look` defaults to the default survivor
+ * (today's survivor with the designer's new cap).
  */
 export function drawSurvivor(
   c: G,
@@ -236,13 +237,12 @@ export function drawSurvivor(
     rrect(c, r * 0.3, -r * 0.13, r * 1.75, r * 0.26, 1);
     c.fill();
   }
-  drawArms(c, r, look.top, look.colours.top);
-  if (!back) drawPack(c, r, look.pack);
-  drawTop(c, r, look.top, look.colours.top);
-  drawAccent(c, r, look.acc, look.colours.accent);
+  drawArms(c, r, look.top, look.colours.top, look);
+  if (!back) drawPack(c, r, look.pack, partColour(look, "pack", look.pack), look);
+  drawTop(c, r, look.top, look.colours.top, look);
   drawSkin(c, r, look.skin, look.colours.skin);
   if (!look.hidesHair) drawHair(c, r, look.hair, look.colours.hair);
-  drawHead(c, r, look.head, partColour(look, "head", look.head));
+  drawHead(c, r, look.head, partColour(look, "head", look.head), look);
 }
 
 // ---------------------------------------------------------------------------

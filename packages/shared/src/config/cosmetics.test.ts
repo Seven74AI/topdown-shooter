@@ -6,20 +6,19 @@ import { loadBalance } from "./balance";
 const copy = (): { parts: Record<string, unknown>[] } & Record<string, unknown> => JSON.parse(JSON.stringify(raw));
 const count = (pred: (p: (typeof COSMETICS.parts)[number]) => boolean): number => COSMETICS.parts.filter(pred).length;
 
-/** Story 7.8 Dev Notes: starter / milestone / loot per slot. */
+/** Starter / milestone / loot per slot: the designer's final picks (`docs/epic-7-decisions.md` › Survivor parts). */
 const PER_SLOT = {
-  top: [5, 2, 2],
-  head: [8, 4, 5],
-  hair: [5, 0, 0],
-  pack: [5, 2, 2],
-  acc: [4, 2, 1],
+  top: [4, 1, 1],
+  head: [8, 7, 6],
+  hair: [7, 0, 0],
+  pack: [4, 2, 3],
   skin: [8, 0, 0],
 } as const;
 
 describe("cosmetics catalogue (Story 7.8)", () => {
-  it("lists 55 parts: 35 starter, 10 milestone, 10 loot", () => {
-    expect(COSMETICS.parts).toHaveLength(55);
-    expect(count((p) => p.unlock === "starter")).toBe(35);
+  it("lists 51 parts: 31 starter, 10 milestone, 10 loot", () => {
+    expect(COSMETICS.parts).toHaveLength(51);
+    expect(count((p) => p.unlock === "starter")).toBe(31);
     expect(count((p) => p.unlock.startsWith("milestone:"))).toBe(10);
     expect(count((p) => p.unlock === "loot")).toBe(10);
   });
@@ -41,31 +40,33 @@ describe("cosmetics catalogue (Story 7.8)", () => {
     for (const p of COSMETICS.parts) expect(p.id).toMatch(/^[a-z0-9]{1,8}$/);
   });
 
-  it("maps milestones M1-M10 to the proposal's items, one each", () => {
+  it("maps milestones M1-M10 to the designer's picked items, one each", () => {
     const byMilestone = Object.fromEntries(COSMETICS.parts.filter((p) => p.unlock.startsWith("milestone:")).map((p) => [p.unlock.slice(10), `${p.slot}:${p.id}`]));
     expect(byMilestone).toEqual({
       m1: "head:fire",
       m2: "head:riot",
       m3: "head:gas",
       m4: "head:hockey",
-      m5: "top:leather",
+      m5: "head:band",
       m6: "top:camo",
-      m7: "acc:harness",
-      m8: "acc:team",
-      m9: "pack:guitar",
-      m10: "pack:ammo",
+      m7: "pack:planks",
+      m8: "head:laurel",
+      m9: "head:weld",
+      m10: "pack:golf",
     });
   });
 
-  it("the default look is today's survivor, with the cap hiding the hair", () => {
-    expect(DEFAULT_LOOK).toMatchObject({ top: "jacket", head: "cap", hair: "short", pack: "backpack", acc: "none", skin: "1" });
+  it("the default look: jacket, cap hiding the hair, backpack, skin 1; five slots, no accent", () => {
+    expect(DEFAULT_LOOK).toMatchObject({ top: "jacket", head: "cap", hair: "short", pack: "backpack", skin: "1" });
+    expect(COSMETIC_SLOTS).toEqual(["top", "head", "hair", "pack", "skin"]);
     expect(cosmeticPart("head", "cap")?.hidesHair).toBe(true);
     expect(cosmeticPart("skin", "1")?.hex).toBe("#c49a7c");
   });
 
   it("lists the starter parts per slot for Story 7.9", () => {
-    expect(STARTER_PARTS.top).toEqual(["jacket", "hoodie", "coat", "track", "puffer"]);
-    expect(STARTER_PARTS.head).toEqual(["none", "cap", "capb", "beanie", "hood", "bandana", "bike", "hard"]);
+    expect(STARTER_PARTS.top).toEqual(["jacket", "hoodie", "track", "puffer"]);
+    expect(STARTER_PARTS.head).toEqual(["none", "cap", "beanie", "hood", "bike", "headph", "bucket", "wide"]);
+    expect(STARTER_PARTS.hair).toEqual(["short", "buzz", "flattop", "mohawk", "tied", "curly", "bald"]);
     expect(STARTER_PARTS.skin).toHaveLength(8);
     for (const slot of COSMETIC_SLOTS) expect(STARTER_PARTS[slot]).toContain(DEFAULT_LOOK[slot]);
     expect(Object.isFrozen(STARTER_PARTS.top)).toBe(true);

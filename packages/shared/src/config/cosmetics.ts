@@ -1,15 +1,16 @@
 /**
- * Story 7.8: the survivor parts catalogue (`cosmetics.json`). Looks only: no gameplay numbers, not part of
+ * Story 7.8: the survivor parts catalogue (`cosmetics.json`, the designer's picks in `docs/epic-7-decisions.md`). Looks only: no gameplay numbers, not part of
  * `Balance` and not in the balance version (a new hat must not force "Please refresh"). Drawing lives in the
  * client (`apps/client/src/render/city/survivorParts.ts`); this file is the data and its zod schema (ADR-03).
  */
 import { z } from "zod";
 import raw from "./cosmetics.json" with { type: "json" };
 
-export const COSMETIC_SLOTS = ["top", "head", "hair", "pack", "acc", "skin"] as const;
+/** Story 7.8 picks: five slots (the accent slot was dropped; its colour stays as the colour of hats and bags). */
+export const COSMETIC_SLOTS = ["top", "head", "hair", "pack", "skin"] as const;
 export type CosmeticSlot = (typeof COSMETIC_SLOTS)[number];
 
-/** Which picker colour a part takes (`none` = fixed colours drawn by the part itself). */
+/** Which picker colour a part takes (`none` = fixed colours drawn by the part itself; `accent` = hats and bags). */
 export const COSMETIC_COLOURS = ["none", "top", "hair", "accent"] as const;
 export type CosmeticColour = (typeof COSMETIC_COLOURS)[number];
 
@@ -40,7 +41,6 @@ const lookSchema = z
     head: partId,
     hair: partId,
     pack: partId,
-    acc: partId,
     skin: partId,
     colours: colourSet,
   })
@@ -117,7 +117,7 @@ function deepFreeze<T>(value: T): T {
 
 export const COSMETICS: Cosmetics = loadCosmetics();
 
-/** Today's survivor (jacket, cap, short hair under the cap, backpack, no accent, skin 1). */
+/** The default survivor (jacket, the picked cap, short hair under it, backpack, skin 1). */
 export const DEFAULT_LOOK: SurvivorLook = COSMETICS.defaultLook;
 
 /** Starter part ids per slot, in catalogue order. Story 7.9 checks looks against these until 7.11 adds owned items. */
