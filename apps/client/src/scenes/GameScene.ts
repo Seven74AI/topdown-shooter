@@ -1156,7 +1156,8 @@ export class GameScene extends Phaser.Scene {
     const stats = b ? buildingStats(world.balance, b.type) : undefined;
     if (!stats) return;
     footprint(stats, req.gx, req.gy, req.rot, this.moveBox);
-    if (this.pendingMoves.add(req.id, req.gx, req.gy, req.rot, this.moveBox, world.run.phase, world.waves.number)) host.moveBuilding(req);
+    const seq = this.pendingMoves.add(req.id, req.gx, req.gy, req.rot, this.moveBox, world.run.phase, world.waves.number);
+    if (seq !== 0) host.moveBuilding(req, seq); // review L3: the refusal echoes seq
   }
 
   /**
@@ -1506,7 +1507,7 @@ export class GameScene extends Phaser.Scene {
     // Story 5.22 (AC 13): my moves — done when the World shows them; a refusal (by id) or no answer shakes the box.
     if (this.pendingMoves.update(host.world, this.time.now, host.world.balance.controls.build.pendingTimeoutMs) > 0) this.toasts.push(NO_ANSWER_TEXT);
     for (let r = host.takeMoveRefusal(); r !== null; r = host.takeMoveRefusal()) {
-      if (this.pendingMoves.refuse(r.id, this.time.now)) this.toasts.push(moveRefusalText(r.reason));
+      if (this.pendingMoves.refuse(r.id, r.seq, this.time.now)) this.toasts.push(moveRefusalText(r.reason));
     }
     this.buildSpend.watchUsed(host.world, localId); // Story 5.20 review M1: a med station that healed sells at the normal share
     this.updateUndo(host, menuOpen, shopOpen); // Story 5.20: after the boxes were matched (an armed undo sends here)

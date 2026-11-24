@@ -481,8 +481,8 @@ export class NetSimHost implements SimHost {
   }
 
   /** Story 5.22: `building.move`; the new spot comes back in the state, a refusal as `building.move_refused`. */
-  moveBuilding(req: MoveRequest): void {
-    if (!this.disposed) this.session.room.send(C2S.BUILDING_MOVE, { id: req.id, gx: req.gx, gy: req.gy, rot: req.rot });
+  moveBuilding(req: MoveRequest, seq: number): void {
+    if (!this.disposed) this.session.room.send(C2S.BUILDING_MOVE, { id: req.id, gx: req.gx, gy: req.gy, rot: req.rot, seq });
   }
 
   takeMoveRefusal(): MoveRefusal | null {

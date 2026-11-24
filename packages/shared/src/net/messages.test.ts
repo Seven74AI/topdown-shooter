@@ -110,11 +110,11 @@ describe("shop.buy_item (Story 5.11; shared with 5.12)", () => {
 });
 
 describe("building.move (Story 5.22)", () => {
-  it("accepts only { id, gx, gy, rot } with integers in range (strict: no type, owner or hp fields)", () => {
-    expect(buildingMoveSchema.safeParse({ id: 1, gx: 0, gy: 0, rot: 0 }).success).toBe(true);
-    expect(buildingMoveSchema.safeParse({ id: 65535, gx: 255, gy: 255, rot: 3 }).success).toBe(true);
-    const ok = { id: 5, gx: 10, gy: 10, rot: 1 };
-    for (const bad of [{}, { ...ok, id: 0 }, { ...ok, gx: -1 }, { ...ok, gy: 256 }, { ...ok, rot: 4 }, { ...ok, gx: 1.5 }, { ...ok, rot: "1" }, { ...ok, type: "mine" }, { ...ok, hp: 999 }, { id: 5, gx: 1, gy: 1 }, null]) {
+  it("accepts only { id, gx, gy, rot, seq } with integers in range (strict: no type, owner or hp fields)", () => {
+    expect(buildingMoveSchema.safeParse({ id: 1, gx: 0, gy: 0, rot: 0, seq: 0 }).success).toBe(true);
+    expect(buildingMoveSchema.safeParse({ id: 65535, gx: 255, gy: 255, rot: 3, seq: 65535 }).success).toBe(true);
+    const ok = { id: 5, gx: 10, gy: 10, rot: 1, seq: 7 };
+    for (const bad of [{}, { ...ok, id: 0 }, { ...ok, gx: -1 }, { ...ok, gy: 256 }, { ...ok, rot: 4 }, { ...ok, gx: 1.5 }, { ...ok, rot: "1" }, { ...ok, type: "mine" }, { ...ok, hp: 999 }, { ...ok, seq: -1 }, { ...ok, seq: 65536 }, { id: 5, gx: 1, gy: 1, rot: 0 }, null]) {
       expect(buildingMoveSchema.safeParse(bad).success).toBe(false);
     }
     expect(C2S.BUILDING_MOVE).toBe("building.move");

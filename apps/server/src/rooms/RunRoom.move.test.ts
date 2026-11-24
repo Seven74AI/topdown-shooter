@@ -80,10 +80,10 @@ const world = (room: RunRoom) => {
 };
 
 /** A legal new spot for building 1 near its own (rotation `rot`), found with the shared rule. */
-function freeSpot(w: ReturnType<typeof world>, rot: number): { id: number; gx: number; gy: number; rot: number } {
+function freeSpot(w: ReturnType<typeof world>, rot: number): { id: number; gx: number; gy: number; rot: number; seq: number } {
   for (let dy = 2; dy < 30; dy++) {
     for (let dx = -10; dx <= 10; dx++) {
-      const req = { id: 1, gx: 12 + dx, gy: 30 + dy, rot };
+      const req = { id: 1, gx: 12 + dx, gy: 30 + dy, rot, seq: 1 };
       if (req.gx >= 0 && moveError(w, "p0", req) === null) return req;
     }
   }
@@ -130,25 +130,25 @@ describe("RunRoom move (Story 5.22)", () => {
     me.wallet = 500;
     host.send(C2S.BUILDING_PLACE, { type: "wood_barricade", gx: 12, gy: 30, rot: 0 });
     await vi.waitFor(() => expect(guest.state.buildings.size).toBe(1));
-    guest.send(C2S.BUILDING_MOVE, { id: 1, gx: 14, gy: 34, rot: 0 });
-    await vi.waitFor(() => expect(guestRec.refused).toEqual([{ id: 1, reason: "not_owner" }]));
-    for (const bad of [{ id: 0, gx: 1, gy: 1, rot: 0 }, { id: 1, gx: 300, gy: 1, rot: 0 }, { id: 1, gx: 1, gy: 1, rot: 0, hp: 999 }, { id: 1, gx: 1, gy: 1 }]) guest.send(C2S.BUILDING_MOVE, bad);
+    guest.send(C2S.BUILDING_MOVE, { id: 1, gx: 14, gy: 34, rot: 0, seq: 3 });
+    await vi.waitFor(() => expect(guestRec.refused).toEqual([{ id: 1, reason: "not_owner", seq: 3 }]));
+    for (const bad of [{ id: 0, gx: 1, gy: 1, rot: 0, seq: 1 }, { id: 1, gx: 300, gy: 1, rot: 0, seq: 1 }, { id: 1, gx: 1, gy: 1, rot: 0, seq: 1, hp: 999 }, { id: 1, gx: 1, gy: 1, rot: 0 }]) guest.send(C2S.BUILDING_MOVE, bad);
     // onto Bo (B4: a wall can't seal a teammate in)
     const gx = Math.round((bo.x - 1) / 0.5);
     const gy = Math.round((bo.y - 0.25) / 0.5);
-    host.send(C2S.BUILDING_MOVE, { id: 1, gx, gy, rot: 0 });
-    await vi.waitFor(() => expect(hostRec.refused).toEqual([{ id: 1, reason: "blocked" }]));
+    host.send(C2S.BUILDING_MOVE, { id: 1, gx, gy, rot: 0, seq: 4 });
+    await vi.waitFor(() => expect(hostRec.refused).toEqual([{ id: 1, reason: "blocked", seq: 4 }]));
     const to = freeSpot(w, 0);
     me.status = "downed";
     host.send(C2S.BUILDING_MOVE, to);
     await vi.waitFor(() => expect(hostRec.refused).toHaveLength(2));
-    expect(hostRec.refused[1]).toEqual({ id: 1, reason: "not_alive" });
+    expect(hostRec.refused[1]).toEqual({ id: 1, reason: "not_alive", seq: 1 });
     me.status = "alive";
     for (const c of [host, guest]) c.send(C2S.BUILD_SET_READY, { ready: true });
     await vi.waitFor(() => expect(host.state.phase).toBe("wave"));
     host.send(C2S.BUILDING_MOVE, to);
     await vi.waitFor(() => expect(hostRec.refused).toHaveLength(3));
-    expect(hostRec.refused[2]).toEqual({ id: 1, reason: "not_build_phase" });
+    expect(hostRec.refused[2]).toEqual({ id: 1, reason: "not_build_phase", seq: 1 });
     expect(guestRec.refused).toHaveLength(1); // the malformed ones got no reply
     const b = w.buildings.list[0];
     expect([b?.gx, b?.gy, b?.rot]).toEqual([12, 30, 0]); // never moved

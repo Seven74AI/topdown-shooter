@@ -496,18 +496,18 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    * `building.move_refused { id, reason }`; the new spot arrives in the next patch, `building.moved`
    * with the tick's events.
    */
-  onMoveBuilding(client: RunClient, m: { id: number; gx: number; gy: number; rot: number }): void {
+  onMoveBuilding(client: RunClient, m: { id: number; gx: number; gy: number; rot: number; seq: number }): void {
     const member = this.members.get(client.sessionId);
     if (!member) return;
     const controller = this.controller;
-    const r = controller ? controller.moveBuilding(member.playerId, m) : null;
+    const r = controller ? controller.moveBuilding(member.playerId, { id: m.id, gx: m.gx, gy: m.gy, rot: m.rot }) : null;
     if (r?.ok) {
       this.log.info({ playerId: member.playerId, id: m.id, gx: m.gx, gy: m.gy, rot: m.rot }, "building_moved");
       return;
     }
     const reason = r ? r.error : "not_build_phase";
     this.log.debug({ playerId: member.playerId, id: m.id, gx: m.gx, gy: m.gy, rot: m.rot, reason }, "building_move_refused"); // debug: a flood must not flood the log
-    client.send(S2C.BUILDING_MOVE_REFUSED, { id: m.id, reason } satisfies BuildingMoveRefused);
+    client.send(S2C.BUILDING_MOVE_REFUSED, { id: m.id, reason, seq: m.seq } satisfies BuildingMoveRefused); // review L3: seq echoed
   }
 
   /**

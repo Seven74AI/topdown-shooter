@@ -86,9 +86,9 @@ export interface SimHost {
    * Story 5.22: move my building `req.id` to (gx, gy, rot), free (the server validates: standing,
    * build phase, owner, the new spot with the building itself ignored; solo runs the same rules
    * now). The building is at its new spot only when the World says so (online: the state). A
-   * refusal comes back through `takeMoveRefusal`.
+   * refusal comes back through `takeMoveRefusal` with the same `seq` (review L3).
    */
-  moveBuilding(req: MoveRequest): void;
+  moveBuilding(req: MoveRequest, seq: number): void;
   /** The oldest move refusal not taken yet (which building, why), or null. */
   takeMoveRefusal(): MoveRefusal | null;
   /**

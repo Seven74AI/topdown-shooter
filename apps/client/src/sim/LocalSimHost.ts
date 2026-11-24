@@ -161,9 +161,9 @@ export class LocalSimHost implements SimHost {
   private readonly moveRefusals: MoveRefusal[] = [];
 
   /** Story 5.22: solo applies the move at once (between steps, like the server's message handler). */
-  moveBuilding(req: MoveRequest): void {
+  moveBuilding(req: MoveRequest, seq: number): void {
     const r = moveBuilding(this.world, LOCAL_PLAYER_ID, req);
-    if (!r.ok && this.moveRefusals.length < MOVE_REFUSALS_MAX) this.moveRefusals.push({ id: req.id, reason: r.error });
+    if (!r.ok && this.moveRefusals.length < MOVE_REFUSALS_MAX) this.moveRefusals.push({ id: req.id, reason: r.error, seq });
   }
 
   takeMoveRefusal(): MoveRefusal | null {

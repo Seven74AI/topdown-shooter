@@ -36,7 +36,7 @@ export function newActionBarLayout(): ActionBarLayout {
   return { rects: ACTION_IDS.map(() => ({ x: 0, y: 0, w: 0, h: 0, visible: false })), infoRight: 0, infoBottom: 0, infoMaxW: 0, infoPx: 0, rowLeft: 0, rowTop: 0 };
 }
 
-/** `shown[i]`: whether button `ACTION_IDS[i]` is on the bar (Repair and ✕ always are). */
+/** `shown[i]`: whether button `ACTION_IDS[i]` is on the bar (Repair always is; ✕ unless the screen is narrower than `ACTION_BAR.noCloseBelowCss`). */
 export function layoutActionBar(width: number, height: number, insetRight: number, insetBottom: number, k: number, shown: readonly boolean[], out: ActionBarLayout): ActionBarLayout {
   const w = ACTION_BAR.wCss * k;
   const h = ACTION_BAR.hCss * k;
@@ -49,7 +49,8 @@ export function layoutActionBar(width: number, height: number, insetRight: numbe
   let left = right;
   for (let i = ACTION_IDS.length - 1; i >= 0; i--) {
     const r = out.rects[i] as ActionRect;
-    const on = shown[i] === true || ACTION_IDS[i] === "repair" || ACTION_IDS[i] === "close";
+    const narrow = width / k < ACTION_BAR.noCloseBelowCss; // review L1: no ✕ on a narrow screen (a ground tap closes the bar)
+    const on = ACTION_IDS[i] === "close" ? !narrow : shown[i] === true || ACTION_IDS[i] === "repair";
     r.visible = on;
     r.w = w;
     r.h = h;

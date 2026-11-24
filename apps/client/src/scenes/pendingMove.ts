@@ -18,8 +18,9 @@ export interface PendingMoveEntry {
   live: boolean;
   /** Waiting for the answer (5.18's look: dashed + spinner). */
   counted: boolean;
-  /** The building being moved and where to. */
+  /** The building being moved and where to; `seq` = the number sent with it (review L3). */
   id: number;
+  seq: number;
   gx: number;
   gy: number;
   rot: number;
@@ -33,7 +34,7 @@ export interface PendingMoveEntry {
   refusedMs: number;
 }
 
-const newEntry = (): PendingMoveEntry => ({ live: false, counted: false, id: 0, gx: 0, gy: 0, rot: 0, minX: 0, minY: 0, maxX: 0, maxY: 0, sentClock: 0, refusedMs: Number.NaN });
+const newEntry = (): PendingMoveEntry => ({ live: false, counted: false, id: 0, seq: 0, gx: 0, gy: 0, rot: 0, minX: 0, minY: 0, maxX: 0, maxY: 0, sentClock: 0, refusedMs: Number.NaN });
 
 export class PendingMoves {
   readonly entries: PendingMoveEntry[] = [];
@@ -44,6 +45,8 @@ export class PendingMoves {
   private lastNowMs = Number.NaN;
   private phase = "";
   private wave = -1;
+  /** Review L3: the next move's number (1–65535, wrapping; 0 is never used). */
+  private nextSeq = 1;
 
   constructor(size = PENDING_MOVES) {
     for (let i = 0; i < size; i++) this.entries.push(newEntry());
@@ -63,21 +66,25 @@ export class PendingMoves {
   }
 
   /**
-   * A move Place: a box for building `id` at (gx, gy, rot) with footprint `box`, sent now. Returns
-   * false (send nothing) when a move of that building is already waiting or no slot is free.
+   * A move Place: a box for building `id` at (gx, gy, rot) with footprint `box`, sent now. Returns the
+   * move's `seq` to send with it (review L3), or 0 (send nothing) when a move of that building is
+   * already waiting or no slot is free.
    */
-  add(id: number, gx: number, gy: number, rot: number, box: Readonly<Box>, phase: string, wave: number): boolean {
+  add(id: number, gx: number, gy: number, rot: number, box: Readonly<Box>, phase: string, wave: number): number {
     this.belongTo(phase, wave);
-    if (this.waiting(id)) return false;
+    if (this.waiting(id)) return 0;
     let slot: PendingMoveEntry | undefined;
     for (const e of this.entries) {
       if (e.live && e.id === id) slot = e; // its old refusal look: replaced
       else if (!slot && !e.live) slot = e;
     }
-    if (!slot) return false;
+    if (!slot) return 0;
+    const seq = this.nextSeq;
+    this.nextSeq = seq >= 65535 ? 1 : seq + 1;
     slot.live = true;
     slot.counted = true;
     slot.id = id;
+    slot.seq = seq;
     slot.gx = gx;
     slot.gy = gy;
     slot.rot = rot;
@@ -88,7 +95,7 @@ export class PendingMoves {
     slot.sentClock = this.clockMs;
     slot.refusedMs = Number.NaN;
     this.version++;
-    return true;
+    return seq;
   }
 
   /**
@@ -119,10 +126,13 @@ export class PendingMoves {
     return timedOut;
   }
 
-  /** A refusal for building `id`: its waiting box shows the refusal look. Returns whether one was waiting. */
-  refuse(id: number, nowMs: number): boolean {
+  /**
+   * A refusal of move `seq` of building `id`: its waiting box shows the refusal look. Returns whether
+   * that move was waiting (review L3: a late refusal of an older, timed-out move never shakes a newer one).
+   */
+  refuse(id: number, seq: number, nowMs: number): boolean {
     for (const e of this.entries) {
-      if (e.live && e.counted && e.id === id) {
+      if (e.live && e.counted && e.id === id && e.seq === seq) {
         this.startRefusal(e, nowMs);
         return true;
       }

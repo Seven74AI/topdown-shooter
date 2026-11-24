@@ -72,6 +72,15 @@ export function longPressRing(heldMs: number, ringMs: number, longMs: number): n
 }
 
 /**
+ * Story 5.21 review M1: a long-press is armed only for a right-half touch or a mouse press — a
+ * left-half touch is the floating move stick, and a thumb resting on it over my own building must
+ * never pick that building up.
+ */
+export function longPressArmed(wasTouch: boolean, x: number, screenWidth: number): boolean {
+  return !wasTouch || x >= screenWidth / 2;
+}
+
+/**
  * Story 5.21 (AC 7, D8; 5.20's open question): does a touch that would press Ready go to the
  * building under it instead? Only Ready yields (starting the wave by accident is costly and the menu
  * has no other route); every other HUD button keeps priority. `buildingUnder`: a building's tap

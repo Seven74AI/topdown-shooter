@@ -66,9 +66,11 @@ export const UNDO_RING_CSS_PX = 4;
  * buttons (size, gap) right-aligned this far inside the right safe-area inset, the row's centre this
  * far above the bottom inset; the info lines right-aligned above it, their bottom this far above the
  * row's top (CSS px). `centreClearCss`: the row's top keeps this far below the screen centre (the
- * survivor) on a short screen with a tall bottom inset.
+ * survivor) on a short screen with a tall bottom inset. Review L1 (main-session decision): below
+ * `noCloseBelowCss` width the bar has no ✕ (a tap on the ground closes it), so it reaches less far
+ * into the move stick's half.
  */
-export const ACTION_BAR = { wCss: 78, hCss: 56, gapCss: 8, rightCss: 16, centreBottomCss: 112, infoGapCss: 6, centreClearCss: 12 } as const;
+export const ACTION_BAR = { wCss: 78, hCss: 56, gapCss: 8, rightCss: 16, centreBottomCss: 112, infoGapCss: 6, centreClearCss: 12, noCloseBelowCss: 700 } as const;
 /** Story 5.21: the action buttons' two-line label, the info line and the long-press ring (CSS px). */
 export const ACTION_LABEL_CSS_PX = 15;
 export const ACTION_INFO_CSS_PX = 16;

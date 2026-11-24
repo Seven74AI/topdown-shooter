@@ -38,7 +38,7 @@ export const C2S = {
   BUILDING_UPGRADE: "building.upgrade",
   /** `{ id }` in a build phase (Story 5.20, owner only: take back / sell); a refusal comes back as `building.sell_refused`. */
   BUILDING_SELL: "building.sell",
-  /** `{ id, gx, gy, rot }` in a build phase (Story 5.22, owner only, free); a refusal comes back as `building.move_refused`. */
+  /** `{ id, gx, gy, rot, seq }` in a build phase (Story 5.22, owner only, free); a refusal comes back as `building.move_refused` with the same `seq`. */
   BUILDING_MOVE: "building.move",
   /** `{ weapon }` in a build phase (Story 5.1); answered with `shop.upgraded` or `shop.upgrade_refused`. */
   SHOP_UPGRADE: "shop.upgrade",
@@ -74,7 +74,7 @@ export const S2C = {
   BUILDING_UPGRADE_REFUSED: "building.upgrade_refused",
   /** `{ id, reason: SellError }` to the sender of a refused `building.sell` (Story 5.20). */
   BUILDING_SELL_REFUSED: "building.sell_refused",
-  /** `{ id, reason: MoveError }` to the sender of a refused `building.move` (Story 5.22). */
+  /** `{ id, reason: MoveError, seq }` to the sender of a refused `building.move` (Story 5.22; `seq` echoed). */
   BUILDING_MOVE_REFUSED: "building.move_refused",
   /** `{ weapon, slot, level }` to the sender only (Story 5.1); wallet and level follow in the state. */
   SHOP_UPGRADED: "shop.upgraded",
@@ -226,7 +226,9 @@ export type BuildingSell = z.infer<typeof buildingSellSchema>;
 /**
  * `building.move` (Story 5.22): one of the sender's own buildings to a new lattice corner (0–255, the
  * placement's range) and rotation. Only the shape is checked here; `moveBuilding` validates standing,
- * phase, building, owner and the new spot (the building itself ignored).
+ * phase, building, owner and the new spot (the building itself ignored). Review L3: `seq` is the
+ * client's number for this move, echoed in a refusal, so a late refusal of an older move of the same
+ * building is never taken for the newer one's.
  */
 export const buildingMoveSchema = z
   .object({
@@ -234,6 +236,7 @@ export const buildingMoveSchema = z
     gx: z.number().int().min(0).max(255),
     gy: z.number().int().min(0).max(255),
     rot: z.number().int().min(0).max(3),
+    seq: z.number().int().min(0).max(65535),
   })
   .strict();
 export type BuildingMove = z.infer<typeof buildingMoveSchema>;
@@ -242,6 +245,8 @@ export type BuildingMove = z.infer<typeof buildingMoveSchema>;
 export interface BuildingMoveRefused {
   id: number;
   reason: MoveError;
+  /** The refused move's `seq` (review L3). */
+  seq: number;
 }
 
 /** `building.sell_refused` payload (Story 5.20), to the sender only. */

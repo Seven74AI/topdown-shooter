@@ -22,7 +22,7 @@ import {
 } from "../ui/sizes";
 import { layoutUndoChip } from "./undoChip";
 import { ACTION_IDS, actionLabel, layoutActionBar, newActionBarLayout, type ActionRect } from "./actionBar";
-import { LongPress, readyYields } from "../input/longPress";
+import { LongPress, longPressArmed, readyYields } from "../input/longPress";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { TAP_SLOP_CSS_PX, TapDetector } from "../input/tapDetector";
 import { ThumbDrag, onChipRect } from "../input/thumbDrag";
@@ -382,6 +382,9 @@ export class HudScene extends Phaser.Scene {
   /** Which optional buttons are on the bar (bits: Move 1, Upgrade 2, Sell 8); −1 = not laid out yet. */
   private shownActKey = -1;
   private readonly shownActLabel = ["", "", "", "", ""];
+  /** Review L2: each button's source text (and Repair's full-HP flag) its label was built from: the label is rebuilt only when it changes. */
+  private readonly shownActSrc = ["", "", "", "", ""];
+  private shownActFull: boolean | null = null;
   /** Per button: −1 = not drawn yet, 0 = dimmed, 1 = valid. */
   private readonly shownActLook = [-1, -1, -1, -1, -1];
   private shownRepairInfo = "";
@@ -500,6 +503,8 @@ export class HudScene extends Phaser.Scene {
     this.shownRepairReason = "";
     this.shownActKey = -1;
     this.shownActLabel.fill("");
+    this.shownActSrc.fill("");
+    this.shownActFull = null;
     this.shownActLook.fill(-1);
     this.shownRingStep = -1;
     this.longPress.reset();
@@ -752,7 +757,7 @@ export class HudScene extends Phaser.Scene {
       // Story 3.7: the tap detector only watches (the stick or the mouse fire already started as usual).
       const eligible = !this.buttons.owns(p.id);
       this.taps.down(p.id, p.x, p.y, this.time.now, eligible);
-      this.longPress.down(p.id, p.x, p.y, this.time.now, eligible && m.tapsEnabled); // Story 5.21
+      this.longPress.down(p.id, p.x, p.y, this.time.now, eligible && m.tapsEnabled && longPressArmed(p.wasTouch, p.x, this.scale.width)); // Story 5.21 (review M1: not the move stick's half)
     };
     const move = (p: Phaser.Input.Pointer) => {
       if (p.id === this.drag.pointerId) this.dragMove(p.id, p.x, p.y); // Story 5.19
@@ -1178,12 +1183,17 @@ export class HudScene extends Phaser.Scene {
       const r = this.actLayout.rects[i] as ActionRect;
       if (!r.visible) continue;
       const id = ACTION_IDS[i];
-      const label =
-        id === "move" ? (m.moveLabel === "Move" ? "✥\nMove" : m.moveLabel) : id === "upgrade" ? actionLabel(m.upgradeLabel) : id === "repair" ? (m.repairFull ? "Repair\nfull HP" : actionLabel(m.repairLabel)) : id === "sell" ? actionLabel(m.sellLabel) : "✕";
+      // Review L2: the two-line label is rebuilt only when its source text changes (no string per frame).
+      const src = id === "move" ? m.moveLabel : id === "upgrade" ? m.upgradeLabel : id === "repair" ? m.repairLabel : id === "sell" ? m.sellLabel : "✕";
       const text = this.actTexts[i] as Phaser.GameObjects.Text;
-      if (label !== this.shownActLabel[i]) {
-        this.shownActLabel[i] = label;
-        text.setText(label);
+      if (src !== this.shownActSrc[i] || (id === "repair" && m.repairFull !== this.shownActFull)) {
+        this.shownActSrc[i] = src;
+        if (id === "repair") this.shownActFull = m.repairFull;
+        const label = id === "move" ? (src === "Move" ? "✥\nMove" : src) : id === "repair" && m.repairFull ? "Repair\nfull HP" : id === "close" ? src : actionLabel(src);
+        if (label !== this.shownActLabel[i]) {
+          this.shownActLabel[i] = label;
+          text.setText(label);
+        }
       }
       const valid = id === "move" ? m.moveValid : id === "upgrade" ? m.upgradeReason === "" : id === "repair" ? m.repairReason === "" : id === "sell" ? m.sellReason === "" : true;
       const look = valid ? 1 : 0;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LongPress, longPressRing, readyYields } from "./longPress";
+import { LongPress, longPressArmed, longPressRing, readyYields } from "./longPress";
 
 /** Story 5.21 (AC 7, 11; D8, D9): long-press 450 ms within the 12 px slop; the ring from 150 ms; Ready yields to a building under it. */
 describe("LongPress", () => {
@@ -47,5 +47,15 @@ describe("LongPress", () => {
     expect(readyYields("ready", false, true)).toBe(false);
     expect(readyYields("ready", true, false)).toBe(false);
     for (const id of ["tile0", "menu", "undo", "consumable", "swap", "confirm", null]) expect(readyYields(id, true, true)).toBe(false);
+  });
+});
+
+describe("longPressArmed (review M1)", () => {
+  it("a right-half touch or any mouse press arms it; a left-half touch (the move stick) never does", () => {
+    expect(longPressArmed(true, 500, 800)).toBe(true);
+    expect(longPressArmed(true, 400, 800)).toBe(true); // the centre line counts as the right half
+    expect(longPressArmed(true, 399, 800)).toBe(false);
+    expect(longPressArmed(true, 10, 800)).toBe(false);
+    expect(longPressArmed(false, 10, 800)).toBe(true); // a mouse has no stick
   });
 });

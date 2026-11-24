@@ -124,6 +124,8 @@ export function parseSellRefused(m: unknown): SellError | null {
 export interface MoveRefusal {
   readonly id: number;
   readonly reason: MoveError;
+  /** The refused move's number (review L3: matched with the pending move that sent it). */
+  readonly seq: number;
 }
 
 /** A well-formed `building.move_refused` (Story 5.22) as a new record, or null. */
@@ -131,8 +133,10 @@ export function parseMoveRefused(m: unknown): MoveRefusal | null {
   const v = m as Partial<BuildingMoveRefused> | null;
   const id = v?.id;
   const reason = v?.reason;
+  const seq = v?.seq;
   if (typeof id !== "number" || !Number.isInteger(id) || id < 1) return null;
-  return typeof reason === "string" && (MOVE_ERRORS as readonly string[]).includes(reason) ? { id, reason: reason as MoveError } : null;
+  if (typeof seq !== "number" || !Number.isInteger(seq) || seq < 0) return null;
+  return typeof reason === "string" && (MOVE_ERRORS as readonly string[]).includes(reason) ? { id, reason: reason as MoveError, seq } : null;
 }
 
 /** Event batches kept while no game scene listens yet: 200 ticks = 10 s of a hidden tab at Start. */

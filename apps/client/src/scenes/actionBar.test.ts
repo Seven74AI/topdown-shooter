@@ -20,9 +20,12 @@ describe("layoutActionBar (Story 5.21)", () => {
     ]) {
       it(`${W} × ${H} (insets r ${insets.r} b ${insets.b}): 5 buttons 78 × 56, 8 apart, right edge 16 in, centre 112 up; clear of ☰ and the screen centre; info lines on screen`, () => {
         const l = layoutActionBar(W, H, insets.r, insets.b, 1, ALL, newActionBarLayout());
-        const r = l.rects;
-        expect(r.every((b) => b.visible && b.w === ACTION_BAR.wCss && b.h === ACTION_BAR.hCss)).toBe(true);
+        const r = l.rects.filter((b) => b.visible);
+        expect(r.length).toBe(W < 700 ? 4 : 5); // review L1: no ✕ below 700 px
+        expect(l.rects[ACTION_IDS.indexOf("close")]?.visible).toBe(W >= 700);
+        expect(r.every((b) => b.w === ACTION_BAR.wCss && b.h === ACTION_BAR.hCss)).toBe(true);
         for (let i = 1; i < r.length; i++) expect((r[i]?.x ?? 0) - ((r[i - 1]?.x ?? 0) + (r[i - 1]?.w ?? 0))).toBe(ACTION_BAR.gapCss);
+        expect(l.rowLeft).toBe(r[0]?.x);
         const last = r[r.length - 1];
         expect(W - insets.r - ((last?.x ?? 0) + (last?.w ?? 0))).toBe(ACTION_BAR.rightCss);
         const up = H - insets.b - ((r[0]?.y ?? 0) + ACTION_BAR.hCss / 2);
@@ -30,7 +33,6 @@ describe("layoutActionBar (Story 5.21)", () => {
         else expect(up).toBeLessThan(ACTION_BAR.centreBottomCss); // the short-screen fallback (568 × 320 with a 21 px inset)
         expect(H - insets.b - ((r[0]?.y ?? 0) + ACTION_BAR.hCss)).toBeGreaterThanOrEqual(16);
         expect(r[0]?.x ?? -1).toBeGreaterThanOrEqual(16); // fits the width with the 16 px edge
-        expect(l.rowLeft).toBe(r[0]?.x);
         // ☰ top-right: the bar and its info lines stay ≥ 12 px below it
         const menuBottom = MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + insets.t;
         expect(l.infoBottom - INFO_LINES_PX - menuBottom).toBeGreaterThanOrEqual(12);
@@ -42,6 +44,17 @@ describe("layoutActionBar (Story 5.21)", () => {
       });
     }
   }
+
+  it("review L1: below 700 px there is no ✕ (a teammate's bar is Repair alone at the right edge; an owner's 4 buttons reach 68 px less far left)", () => {
+    const t = layoutActionBar(640, 360, 0, 0, 1, [false, false, false, false, false], newActionBarLayout());
+    expect(ACTION_IDS.filter((_, i) => t.rects[i]?.visible)).toEqual(["repair"]);
+    expect((t.rects[2]?.x ?? 0) + 78).toBe(640 - 16);
+    const wide = layoutActionBar(700, 360, 0, 0, 1, ALL, newActionBarLayout());
+    const narrow = layoutActionBar(699, 360, 0, 0, 1, ALL, newActionBarLayout());
+    expect(wide.rects[4]?.visible).toBe(true);
+    expect(narrow.rects[4]?.visible).toBe(false);
+    expect(narrow.rowLeft - (699 - 16 - 336)).toBe(0);
+  });
 
   it("absent buttons close up to the right: a teammate's building shows Repair and ✕ only, at the right edge", () => {
     const l = layoutActionBar(800, 360, 0, 0, 1, [false, false, false, false, false], newActionBarLayout());
@@ -55,7 +68,7 @@ describe("layoutActionBar (Story 5.21)", () => {
   });
 
   it("my top-tier building (no Upgrade): Move, Repair, Sell, ✕", () => {
-    const l = layoutActionBar(568, 320, 0, 0, 1, [true, false, true, true, true], newActionBarLayout());
+    const l = layoutActionBar(800, 360, 0, 0, 1, [true, false, true, true, true], newActionBarLayout());
     expect(ACTION_IDS.filter((_, i) => l.rects[i]?.visible)).toEqual(["move", "repair", "sell", "close"]);
     const move = l.rects[0];
     const repair = l.rects[2];

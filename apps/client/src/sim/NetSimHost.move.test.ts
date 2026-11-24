@@ -25,8 +25,8 @@ describe("NetSimHost moves (Story 5.22)", () => {
     host.update(1 / 60);
     const b = host.world.buildings.list[0];
     if (!b) throw new Error("mirror");
-    host.moveBuilding({ id: 4, gx: 20, gy: 30, rot: 1 });
-    expect(room.sentOf(C2S.BUILDING_MOVE)).toEqual([{ id: 4, gx: 20, gy: 30, rot: 1 }]);
+    host.moveBuilding({ id: 4, gx: 20, gy: 30, rot: 1 }, 9);
+    expect(room.sentOf(C2S.BUILDING_MOVE)).toEqual([{ id: 4, gx: 20, gy: 30, rot: 1, seq: 9 }]);
     host.update(1 / 60);
     expect([b.gx, b.gy, b.rot]).toEqual([10, 8, 0]); // server truth until the patch
     const v = host.world.buildings.version;
@@ -45,6 +45,23 @@ describe("NetSimHost moves (Story 5.22)", () => {
     expect([host.world.buildings.version - v, host.world.buildings.wallVersion - wv]).toEqual([1, 1]);
     host.update(1 / 60);
     expect(host.world.buildings.version - v).toBe(1); // no churn
+  });
+
+  it("review L4: a rotation-only move (same corner, new rot) relocates the mirror's footprint too", () => {
+    const { room, host } = setup();
+    room.state.buildings.set("4", wood());
+    room.patch();
+    host.update(1 / 60);
+    const b = host.world.buildings.list[0];
+    const wv = host.world.buildings.wallVersion;
+    const s = room.state.buildings.get("4");
+    if (!b || !s) throw new Error("setup");
+    s.rot = 1;
+    room.patch();
+    host.update(1 / 60);
+    expect([b.gx, b.gy, b.rot]).toEqual([10, 8, 1]);
+    expect([b.minX, b.minY, b.maxX, b.maxY]).toEqual([5, 4, 5.5, 6]); // 0.5 × 2 m now
+    expect(host.world.buildings.wallVersion - wv).toBe(1);
   });
 
   it("the predictor collides with the moved building's new spot (and no longer with the old one)", () => {
@@ -66,19 +83,20 @@ describe("NetSimHost moves (Story 5.22)", () => {
 
   it("a building.move_refused comes back once (id + reason) through takeMoveRefusal, oldest first; malformed ones are dropped; none after dispose", () => {
     const { room, host } = setup();
-    room.deliver(S2C.BUILDING_MOVE_REFUSED, { id: 4, reason: "blocked" });
-    room.deliver(S2C.BUILDING_MOVE_REFUSED, { id: 5, reason: "not_owner" });
-    room.deliver(S2C.BUILDING_MOVE_REFUSED, { id: 4, reason: "castle" });
-    room.deliver(S2C.BUILDING_MOVE_REFUSED, { reason: "blocked" });
-    expect(host.takeMoveRefusal()).toEqual({ id: 4, reason: "blocked" });
-    expect(host.takeMoveRefusal()).toEqual({ id: 5, reason: "not_owner" });
+    room.deliver(S2C.BUILDING_MOVE_REFUSED, { id: 4, reason: "blocked", seq: 3 });
+    room.deliver(S2C.BUILDING_MOVE_REFUSED, { id: 5, reason: "not_owner", seq: 4 });
+    room.deliver(S2C.BUILDING_MOVE_REFUSED, { id: 4, reason: "castle", seq: 5 });
+    room.deliver(S2C.BUILDING_MOVE_REFUSED, { reason: "blocked", seq: 6 });
+    room.deliver(S2C.BUILDING_MOVE_REFUSED, { id: 4, reason: "blocked" }); // no seq: dropped (review L3)
+    expect(host.takeMoveRefusal()).toEqual({ id: 4, reason: "blocked", seq: 3 });
+    expect(host.takeMoveRefusal()).toEqual({ id: 5, reason: "not_owner", seq: 4 });
     expect(host.takeMoveRefusal()).toBeNull();
-    expect(parseMoveRefused({ id: 1, reason: "not_build_phase" })).toEqual({ id: 1, reason: "not_build_phase" });
-    expect(parseMoveRefused({ id: 0, reason: "gone" })).toBeNull();
+    expect(parseMoveRefused({ id: 1, reason: "not_build_phase", seq: 0 })).toEqual({ id: 1, reason: "not_build_phase", seq: 0 });
+    expect(parseMoveRefused({ id: 0, reason: "gone", seq: 1 })).toBeNull();
     expect(parseMoveRefused(null)).toBeNull();
     host.dispose();
-    host.moveBuilding({ id: 4, gx: 1, gy: 1, rot: 0 });
-    room.deliver(S2C.BUILDING_MOVE_REFUSED, { id: 4, reason: "gone" });
+    host.moveBuilding({ id: 4, gx: 1, gy: 1, rot: 0 }, 1);
+    room.deliver(S2C.BUILDING_MOVE_REFUSED, { id: 4, reason: "gone", seq: 1 });
     expect(room.sentOf(C2S.BUILDING_MOVE)).toEqual([]);
     expect(host.takeMoveRefusal()).toBeNull();
   });
@@ -92,11 +110,11 @@ describe("LocalSimHost moves (Story 5.22)", () => {
     if (!r.ok) throw new Error(r.error);
     const me = host.world.players.get(LOCAL_PLAYER_ID);
     const before = me?.wallet ?? 0;
-    host.moveBuilding({ id: r.value.id, gx: 25, gy: 20, rot: 0 }); // 0.5 m along: onto its own old footprint
+    host.moveBuilding({ id: r.value.id, gx: 25, gy: 20, rot: 0 }, 1); // 0.5 m along: onto its own old footprint
     expect(host.takeMoveRefusal()).toBeNull();
     expect([r.value.gx, r.value.gy, me?.wallet]).toEqual([25, 20, before]);
-    host.moveBuilding({ id: r.value.id, gx: 46, gy: 31, rot: 0 }); // onto me at (24, 16)
-    expect(host.takeMoveRefusal()).toEqual({ id: r.value.id, reason: "blocked" });
+    host.moveBuilding({ id: r.value.id, gx: 46, gy: 31, rot: 0 }, 2); // onto me at (24, 16)
+    expect(host.takeMoveRefusal()).toEqual({ id: r.value.id, reason: "blocked", seq: 2 });
     expect(host.takeMoveRefusal()).toBeNull();
   });
 });
