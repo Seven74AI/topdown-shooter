@@ -19,3 +19,11 @@ with the same path helpers as `apps/client/src/render/city/spriteArt.ts`. Design
   game's order); night mute is the story's HSL rule (lightness × 0.62, saturation × 0.8, tunable on the page).
 - Picks save to the published page's store (`picks/<slot>_<id>` = `{ choice: keep | B | redraw | drop, note }`,
   `picks/_look` = the mute sliders); the "Copy picks" text is the fallback. A local `file://` copy can't save.
+
+## Round 2
+
+`round-2.html` (claude.ai/artifact/LVWByCqRkA3vF5DLrHaK9j) holds the round-1 page's helpers and kept parts, plus the
+redraws (2–3 drawings each: coat, leather, camo, floral, robe, cap, capb, fire, riot, gas, buzz, frame, guitar,
+cape) and replacement candidates for the dropped parts (groups with "pick N"). Round 2 rule from the designer: top
+view with a slight lean (tall headgear shows its front face; a darker side wall under a top shifted back 0.08 r).
+Each drawing also shows the 64 px tile the Story 7.10 editor would use. Picks save to `picks2/<slot>_<id>`.
