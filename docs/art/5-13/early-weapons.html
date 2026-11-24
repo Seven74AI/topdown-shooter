@@ -79,7 +79,7 @@ footer{margin-top:30px;color:var(--faint);font-size:12px}
     <div class="family" id="family"></div>
   </section>
   <section>
-    <h2>SMG <small>$200 · common · S1–S3</small></h2>
+    <h2>SMG <small>$200 · common · S1–S3 · S3 drum: two fixes</small></h2>
     <p class="rec" id="rec-smg"><b>My recommendation: S1.</b> The straight stick magazine and wire stock give it a silhouette no other card has (R2 has a curved mag and wood, GL1 a drum), and it reads as “small and fast” at card size. S2 would make a good upgrade/skin look.</p>
     <div class="grid" id="smg"></div>
   </section>
@@ -3661,7 +3661,7 @@ function smgS2(c, size) {
 }
 
 /** S3 wooden-stock submachine gun: walnut stock and grips, finned barrel, drum magazine. */
-function smgS3(c, size) {
+function smgS3(c, size, drum = "A") {
   P = 1 / size; c.save(); c.scale(size, size);
   const W = "#5b3820";
   const st = (q) => { q.moveTo(-0.19, -0.05); q.quadraticCurveTo(-0.34, -0.044, -0.475, -0.034); q.lineTo(-0.475, 0.098); q.quadraticCurveTo(-0.33, 0.05, -0.19, 0.008); q.closePath(); };
@@ -3682,13 +3682,10 @@ function smgS3(c, size) {
   part(c, (q) => E(q, 0.0, -0.078, 0.013, 0.011), { base: "#55585c", box: [-0.013, -0.089, 0.013, -0.067], hi: 0.6, line: 1 }); // cocking knob
   hole(c, (q) => R(q, -0.08, -0.05, 0.13, 0.009, 0.004));
   for (const [x, y] of [[-0.19, -0.012], [0.08, -0.012], [-0.12, -0.012]]) rivet(c, x, y, 0.0045, "#5c5f63");
-  // drum magazine
-  const dx = 0.07, dy = 0.082, dr = 0.072;
-  part(c, (q) => E(q, dx, dy, dr, dr), { base: "#2c2e31", lit: "top", box: [dx - dr, dy - dr, dx + dr, dy + dr], tex: steelTex(337, 1.2), hi: 0.55, lo: 0.55 });
-  strokeP(c, (q) => E(q, dx, dy, dr * 0.72, dr * 0.72), "rgba(0,0,0,0.5)", 1.4 * P);
-  strokeP(c, (q) => { q.arc(dx, dy, dr * 0.72, Math.PI * 1.05, Math.PI * 1.6); }, "rgba(210,220,235,0.35)", 1.2 * P);
-  rivet(c, dx, dy, 0.014, "#5a5d62");
-  part(c, (q) => R(q, dx - 0.03, 0.004, 0.06, 0.016, 0.003), { base: "#26282b", box: [dx - 0.03, 0.004, dx + 0.03, 0.02], hi: 0.4 });
+  // drum magazine: "A" = upright drum in 3/4 view (its face turned a little toward the viewer, so the
+  // round side band shows it is a thick drum, not a flat disc); "B" = drum lying flat under the gun
+  // (axis vertical: the side view shows its round wall as a wide ribbed band).
+  if (drum === "B") drumFlat(c, 0.075, 0.006); else drumUpright(c, 0.075, 0.006);
   // trigger + wooden pistol grip + wooden vertical foregrip
   trigger(c, (q) => { q.moveTo(-0.1, 0.006); q.quadraticCurveTo(-0.104, 0.054, -0.064, 0.054); q.lineTo(-0.035, 0.052); q.quadraticCurveTo(-0.018, 0.044, -0.018, 0.006); }, (q) => { q.moveTo(-0.06, 0.006); q.quadraticCurveTo(-0.057, 0.025, -0.069, 0.033); });
   const gp = (q) => { q.moveTo(-0.105, 0.004); q.lineTo(-0.158, 0.004); q.quadraticCurveTo(-0.19, 0.08, -0.19, 0.13); q.quadraticCurveTo(-0.17, 0.15, -0.14, 0.142); q.quadraticCurveTo(-0.14, 0.07, -0.105, 0.004); q.closePath(); };
@@ -3701,6 +3698,42 @@ function smgS3(c, size) {
   part(c, fg, { base: W, box: [0.262, -0.012, 0.346, 0.142], tex: woodTex(339, 1.5), hi: 0.32 });
   part(c, (q) => R(q, 0.264, -0.026, 0.074, 0.018, 0.004), { base: "#2a2c30", box: [0.264, -0.026, 0.338, -0.008], hi: 0.4 });
   c.restore();
+}
+
+
+/** S3 drum "A": upright drum, face turned ~35° toward the viewer: front face ellipse + the visible depth band behind it. */
+function drumUpright(c, x, top) {
+  const r = 0.072, rx = r * 0.82, dep = 0.03, cy = top + 0.012 + r;
+  part(c, (q) => R(q, x - 0.026, top - 0.002, 0.052, 0.026, 0.004), { base: "#26282b", box: [x - 0.026, top - 0.002, x + 0.026, top + 0.024], tex: steelTex(340, 0.8), hi: 0.4 }); // feed neck
+  // depth band (the drum's round wall), seen past the face's right edge
+  const band = (q) => { q.moveTo(x, cy - r); q.lineTo(x + dep, cy - r); q.ellipse(x + dep, cy, rx, r, 0, -Math.PI / 2, Math.PI / 2); q.lineTo(x, cy + r); q.closePath(); };
+  part(c, band, { base: "#1f2124", box: [x, cy - r, x + dep + rx, cy + r], tex: steelTex(341, 1.1), hi: 0.3, lo: 0.6 });
+  c.save(); c.beginPath(); band(c); c.clip();
+  for (let k = -3; k <= 3; k++) { const a = (k / 4) * (Math.PI / 2); strokeP(c, (q) => { q.moveTo(x + rx * Math.cos(a), cy + r * Math.sin(a)); q.lineTo(x + dep + rx * Math.cos(a), cy + r * Math.sin(a)); }, "rgba(0,0,0,0.45)", 1.2 * P, "butt"); }
+  c.restore();
+  // front face
+  part(c, (q) => E(q, x, cy, rx, r), { base: "#34363a", lit: "top", box: [x - rx, cy - r, x + rx, cy + r], tex: steelTex(337, 1.2), hi: 0.55, lo: 0.5 });
+  strokeP(c, (q) => E(q, x, cy, rx * 0.74, r * 0.74), "rgba(0,0,0,0.5)", 1.4 * P);
+  strokeP(c, (q) => { q.ellipse(x, cy, rx * 0.74, r * 0.74, 0, Math.PI * 1.05, Math.PI * 1.6); }, "rgba(210,220,235,0.35)", 1.2 * P);
+  part(c, (q) => E(q, x, cy, 0.013, 0.016), { base: "#5a5d62", box: [x - 0.013, cy - 0.016, x + 0.013, cy + 0.016], hi: 0.6, line: 1 });
+  part(c, (q) => R(q, x - 0.004, cy - 0.03, 0.008, 0.022, 0.003), { base: "#6a6d72", box: [x - 0.004, cy - 0.03, x + 0.004, cy - 0.008], hi: 0.6, line: 0.9 }); // winding key
+}
+/** S3 drum "B": the drum lying flat under the gun (axis vertical): a wide, short cylinder — round wall with ribs, the lid's rim on top. */
+function drumFlat(c, x, top) {
+  const w = 0.16, h = 0.07, e = 0.016, y0 = top + 0.03;
+  part(c, (q) => R(q, x - 0.024, top - 0.002, 0.048, 0.036, 0.004), { base: "#26282b", box: [x - 0.024, top - 0.002, x + 0.024, top + 0.034], tex: steelTex(340, 0.8), hi: 0.4 }); // feed neck
+  const wall = (q) => { q.moveTo(x - w / 2, y0); q.lineTo(x - w / 2, y0 + h); q.ellipse(x, y0 + h, w / 2, e, 0, Math.PI, 0, true); q.lineTo(x + w / 2, y0); q.ellipse(x, y0, w / 2, e, 0, 0, Math.PI, false); q.closePath(); };
+  part(c, wall, { base: "#2c2e31", box: [x - w / 2, y0 - e, x + w / 2, y0 + h + e], tex: steelTex(337, 1.2), hi: 0.45, lo: 0.55 });
+  c.save(); c.beginPath(); wall(c); c.clip();
+  // a cylinder's shading across x (bright left of centre, dark at the right edge)
+  const g = c.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+  g.addColorStop(0, "rgba(0,0,0,0.35)"); g.addColorStop(0.3, "rgba(210,220,235,0.18)"); g.addColorStop(0.75, "rgba(0,0,0,0.1)"); g.addColorStop(1, "rgba(0,0,0,0.5)");
+  c.fillStyle = g; c.fillRect(x - w / 2, y0 - e, w, h + 2 * e);
+  for (const yy of [y0 + h * 0.33, y0 + h * 0.66]) strokeP(c, (q) => { q.ellipse(x, yy, w / 2, e, 0, 0, Math.PI); }, "rgba(0,0,0,0.5)", 1.4 * P);
+  c.restore();
+  // lid (top ellipse)
+  part(c, (q) => E(q, x, y0, w / 2, e), { base: "#3a3c40", lit: "top", box: [x - w / 2, y0 - e, x + w / 2, y0 + e], tex: steelTex(338, 0.8), hi: 0.55, line: 1.1 });
+  part(c, (q) => E(q, x, y0 + h + e * 0.15, 0.012, 0.006), { base: "#5a5d62", box: [x - 0.012, y0 + h - 0.005, x + 0.012, y0 + h + 0.008], hi: 0.5, line: 0.9 });
 }
 
 // ------------------------------ Hunting Rifle ------------------------------
@@ -3870,7 +3903,8 @@ const EARLY = {
   smg: [
     { id: "S1", name: "Compact stamped-steel SMG", desc: "Grey stamped receiver tube, perforated barrel jacket, straight stick magazine, folding wire stock, brown bakelite grip.", draw: smgS1, y: 0.44 },
     { id: "S2", name: "Boxy suppressed SMG", desc: "Square black receiver with a fat suppressor that fills the front, curved magazine, fixed polymer stock with a cut-out.", draw: smgS2, y: 0.44 },
-    { id: "S3", name: "Wooden-stock submachine gun", desc: "Walnut stock, pistol grip and vertical foregrip, finned barrel, round drum magazine. The only SMG with wood, like R2.", draw: smgS3, y: 0.42 },
+    { id: "S3", name: "Wooden-stock submachine gun", desc: "Fix A: the drum stands upright in a 3/4 view, its face turned a little toward you, so the drum's thickness shows instead of a flat disc. Walnut stock and grips, finned barrel.", draw: (c, s) => smgS3(c, s, "A"), y: 0.42, sub: "fix A" },
+    { id: "S3", name: "Wooden-stock submachine gun", desc: "Fix B: the drum lies flat under the gun (turned 90°), so the side view shows its round wall as a wide ribbed band. Walnut stock and grips, finned barrel.", draw: (c, s) => smgS3(c, s, "B"), y: 0.42, sub: "fix B" },
   ],
   hunting_rifle: [
     { id: "H1", name: "Bolt-action hunting rifle", desc: "Long walnut stock with a cheek comb and chequered grip, blued barrel, big black scope, round bolt knob.", draw: rifleH1, y: 0.5 },
@@ -3928,7 +3962,7 @@ for (const [weapon, opts] of Object.entries(EARLY)) {
   for (const o of opts) {
     const el = document.createElement("article");
     el.className = "card";
-    el.innerHTML = `<div class="head"><span class="code">${o.id}</span><h3></h3>${REC[weapon] === o.id ? '<span class="tag">recommended</span>' : ""}</div><p class="desc"></p>`;
+    el.innerHTML = `<div class="head"><span class="code">${o.id}${o.sub ? " · " + o.sub : ""}</span><h3></h3>${REC[weapon] === o.id ? '<span class="tag">recommended</span>' : ""}</div><p class="desc"></p>`;
     el.querySelector("h3").textContent = o.name;
     el.querySelector(".desc").textContent = o.desc;
     const big = earlyCanvas(o, 5);
