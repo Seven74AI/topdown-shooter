@@ -85,6 +85,7 @@ Most relevant here: 2 (the crate and the tank live in the event record: every co
 ```json
 "gasLeak": { "hissS": 10, "armDelayS": 3, "radiusM": 6, "playerDamage": 60, "killDamage": 10000, "buildingDamage": 150, "tankAt": "zone_centre", "tankRadiusM": 0.6 },
 "supplyDrop": { "flareS": 5, "minFromTeamM": 12, "takeRadiusM": 0.8, "takeS": 1, "level": 2, "weapons": ["flamethrower", "gas_torch", "grenade_launcher", "chainsaw", "assault_rifle"] },
+"fx": { "maxGasParticles": 48, "maxFlareParticles": 48 },
 "banners": { "gas_leak": "GAS LEAK · get out of the ring", "supply_drop": "SUPPLY DROP" }
 ```
 
@@ -175,11 +176,11 @@ GL1 (vapour cloud from a fill cap, dashed 6 m ring, countdown arc, yellow-green)
 
 ### Suggested build round
 
-Round "events-2": **after 6.8**, **in parallel with 6.10** (different modules; both append to the event record, `EventView` and the registry — merge one after the other). Also parallel with the boss stories 6.6/6.7 (no shared files except `netEvents.ts` kind numbers).
+**Round 3** (`docs/epic-6-decisions.md` › Build rounds): **after 6.8**, **in parallel with 6.10** (different modules; both append to the event record, `EventView` and the registry — merge one after the other). Also parallel with 6.7 (boss) and 6.11 (vote): no shared files except `netEvents.ts` kind numbers.
 
 ### References
 
-- `epics.md` › Story 6.9; GDD › Special events (gas leak, supply drop rows); FR39, FR40; alignment Q8 (gas blast LOS), Q9 (standing players only).
+- `epics.md` › Story 6.9; GDD › Special events (gas leak, supply drop rows); FR39, FR40, FR57 (the gas leak as a hazard); alignment Q8 (gas blast LOS), Q9 (standing players only).
 - `docs/ideas/epic-6/proposal.md` § 0 D7, § 6; `party-notes.md` › Round 9.
 - Story files 5.5 (`explode`, cover rule), 5.8 (full-damage FF), 5.1 (levels), 5.14 (stand-on-it), 6.8 (framework).
 

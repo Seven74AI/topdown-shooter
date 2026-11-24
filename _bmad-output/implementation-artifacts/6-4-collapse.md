@@ -69,7 +69,7 @@ so that the run hits its tension peak.
 5. **Client hiding.** `render/ZombieView.ts › update`: per zombie, alpha × `fogVisibility` from the camera's survivor (yours; when you are out, the teammate the camera spectates: `spectateTarget`, D10). Alpha 0 → `setVisible(false)` (no draw). The eye glints above the darkness (6.3 `ABOVE_DARK.eyes`, ≤ 14 m) use the same visibility (brief 24: "eyes within 14 m or the fog edge"). Spitter spit in flight (`render/ProjectileView.ts` / the spit view) hidden the same way. Per frame: one distance + at most 4 cone tests per zombie, no allocation.
 6. **Fog look (D7, D8).** CO1 **dead grid** always at stage 5: dead lamp heads, black shop windows, a fallen streetlight across the north-west crosswalk (visual prop in `stage5_props`, no collision), fire as the only warm light, the apartments' caved south-east roof corner and two flat debris spills (visual only, D6). Plus **one weather style per run** from the `decay` stream (variant group `collapse_style`, `pick 1`, stage 5, `look` objects from 6.2: `collapse_haze` CO1 haze, `collapse_fog_bank` CO2, `collapse_ash` CO3, `collapse_flood` CO4); endless rotates one step per wave (`collapseStyleAt(world)`: wave ≤ 10 the run's pick, wave ≥ 11 `(pick + wave − 10) mod 4`).
    - The fog ring: transparent inside `clearM`, the style's colour fading in to `radiusM`, opaque beyond (haze `30,35,45`, bank `44,50,60` + two drifting noise layers, ash `40,33,28`, flood `70,78,90`; values from `docs/art/epic-6/src/main2.js › fogLayer`). **When 6.3's darkness texture is drawn this frame, the fog is painted into that same half-resolution texture** (no second full-screen pass); otherwise it is drawn as geometry covering only the area beyond `clearM` (a ring mesh / edge quads, like the vignette's bands), never a full-screen alpha quad (4.9 review: −40 % FPS).
-   - CO3 ash: the rain pool draws ash flakes (slower, drifting, grey) instead of rain; an orange sky glow along one map edge (baked). CO4 flood: dark glossy puddles in the gutters (baked at stage 5) with baked fire reflections; heavy rain. Flood puddles are visual only (no slow, D12).
+   - CO3 ash: the rain pool draws ash flakes (slower, drifting, grey) instead of rain; an orange sky glow along one map edge (baked). CO4 flood: dark glossy puddles in the gutters (baked at stage 5) with baked fire reflections; heavy rain. Flood puddles are visual only (no slow, D11).
    - `?fx=low` (D8): fog bank → plain haze gradient; ash flakes halved; puddles without reflections. The hiding rule is identical (test).
    - Fog draws below the darkness (`DARKNESS_DEPTH` 11.7) and below every `aboveDarkness` slot, above zombies and the city.
 7. **Ambience (D9).** `audio/ambience.ts`: loop `collapse` (near silence: low wind, rain — no rain bed with CO3 ash — and a distant growl every 6–14 s), `ambienceLoopForStage(5) = "collapse"`.
@@ -123,7 +123,7 @@ so that the run hits its tension peak.
 
 - **Power out is derived, not synced.** `isPowerOut` reads the synced stage; the blackout values come from 6.3's synced `blackoutPct`/`halfDark` (one writer: `refreshBlackout`). This story only adds data and, if missing, one case inside `refreshBlackout`.
 - **Fog is a view rule with exactly one sim consumer (aim assist).** Put the rule in shared code so both agree; aim assist uses the shooter's own beam only (teammates' headings differ between server and client by interpolation; their beams are a screen-only reveal).
-- **One full-screen pass at most.** In blackout waves the fog rides in 6.3's darkness texture. Outside blackout (endless even waves, 6.12) draw only beyond `clearM` (on a 24 × 13.5 m landscape view that is just the left/right ends).
+- **One full-screen pass at most.** In blackout waves the fog rides in 6.3's darkness texture. Outside a drawn darkness (stage-5 waves, build phases and endless waves all draw it, 6.12 D3; so in practice only a dev cheat with the blackout forced off) draw only beyond `clearM` (on a 24 × 13.5 m landscape view that is just the left/right ends).
 - **Styles are `look` variants** (6.2's no-op action) on the synced `decayVariants`: no schema change; `collapseStyleAt` handles endless rotation from the synced wave number.
 - **No new solids at stage 5** (D6): `applyDecayStage` at stage 5 changes only what stage 4 already placed (plus the expired fires); the enclosure tests stay at 135 gameplay masks.
 
@@ -175,7 +175,7 @@ From `docs/epic-6-decisions.md` § 2 Collapse (designer, 2026-11-24): all four, 
 - **6.3 Blackout lighting (hard):** `world.lights.blackoutPct`/`halfDark`, `refreshBlackout`, the darkness texture and its view (fog paints into it), `ABOVE_DARK.eyes`, `player/flashlight.ts`.
 - **6.2 Ruins (hard, files):** the `look` decay action, the map generator's stage-4 objects (append after them), `palette.ts`/`drawCity.ts`/`ambience.ts` changes.
 - **6.1** for a natural 10-wave run (until then: the decay cheat, `DEV_DECAY_STAGES=5`, `decayStageByWave` override).
-- Later readers: 6.5 (Behemoth never hidden by fog: it must not call `fogVisibility` for the boss), 6.8–6.10 (markers via `aboveDarkness`, not fogged), 6.11 (no fog during vote/dawn: `fogRadiiOf` returns Infinity in those phases — 6.11 adds its phase to that check), 6.12 (fog every endless wave; even waves without blackout use the ring path).
+- Later readers: 6.5 (Behemoth never hidden by fog: it must not call `fogVisibility` for the boss), 6.8–6.10 (markers via `aboveDarkness`, not fogged), 6.11 (no fog during vote/dawn: `fogRadiiOf` returns Infinity in those phases — 6.11 adds its phase to that check), 6.12 (fog every endless wave; even waves are half dark (6.12 D3), so the fog rides in the darkness texture there too).
 
 ### Notes for the merge (brief 19)
 
@@ -190,7 +190,7 @@ From `docs/epic-6-decisions.md` § 2 Collapse (designer, 2026-11-24): all four, 
 
 ### Suggested build round
 
-**Round 2**, after 6.2 and 6.3 are on master. Can run alongside 6.6/6.7 (boss) and 6.8 (events framework): no shared files except `GameScene.ts` (append-only lines) and `decay.json` (different blocks). Not alongside 6.10 (both touch `refreshBlackout`) or 6.11 (both touch the phase → fog check, `CityView`).
+**Round 2**, after 6.2 and 6.3 are on master. Can run alongside 6.6 (boss) and 6.8 (events framework): no shared files except `GameScene.ts` (append-only lines) and `decay.json` (different blocks). Not alongside 6.10 (both touch `refreshBlackout`) or 6.11 (both touch the phase → fog check, `CityView`).
 
 ### References
 

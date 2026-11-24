@@ -80,7 +80,7 @@ Most relevant here: 3/4 (fairness rules, "Beat the rule"), 8 (no new randomness:
   - [ ] `balanceSchema.ts › wavesSchema`: `fixedAtFractions: z.array(z.number().min(0).lt(1)).default([])` (ascending refine); comment on `runWaves` updated ("Epic 6: 10; Story 6.11 opens the vote after it").
   - [ ] `balance.ts › crossCheck` (AC 7). Tests in `config/balance.test.ts`.
 - [ ] **T2 Fixed zombies spread** (AC 2; F3)
-  - [ ] `waves/waveDirector.ts`: `WaveState.fixedAt` (one number) → per-wave thresholds for each fixed zombie (a small preallocated `Uint16Array fixedAtList` of length `MAX_FIXED_PER_WAVE` (balance-checked, e.g. 8 for endless Brutes, Story 6.12), filled by `beginWave`), plus `fixedServed` (how many fixed zombies have spawned this wave). `waveZombieType` serves the next fixed zombie only when `size − queued ≥ fixedAtList[fixedServed]`. No allocation, no RNG draw.
+  - [ ] `waves/waveDirector.ts`: `WaveState.fixedAt` (one number) → per-wave thresholds for each fixed zombie (a small preallocated `Uint16Array fixedAtList` of length `MAX_FIXED_PER_WAVE` (balance-checked against the `fixed` lists, e.g. 8; Story 6.12's endless Brutes get their thresholds by formula, not from this list), filled by `beginWave`), plus `fixedServed` (how many fixed zombies have spawned this wave). `waveZombieType` serves the next fixed zombie only when `size − queued ≥ fixedAtList[fixedServed]`. No allocation, no RNG draw.
   - [ ] `snapshotWorld` (`core/worldSnapshot.ts`): the new arrays (`Array.from`, as `typeTarget`).
   - [ ] Tests (AC 8).
 - [ ] **T3 Remove the 6-wave ending** (AC 3; F6)
@@ -169,7 +169,7 @@ None (T0).
 ### Dependencies
 
 - Needs nothing from other 6.x stories. Epic 5 work in progress (5.13 card shop, 5.20–5.25) does not touch `waves.json` or `waveDirector.ts`.
-- 6.5 (Behemoth, wave 10 at 50 %) and 6.12 (endless Brutes, HP) build on `waveDirector.ts` after this story: they must reuse `fixedAtList`.
+- 6.5 (Behemoth, wave 10 at 50 %) and 6.12 (endless Brutes, HP) build on `waveDirector.ts` beside this story: 6.12 serves its formula-placed endless Brutes through the same `fixedServed` counter (no second fixed-zombie mechanism).
 - 6.11 replaces this story's ending (Results after wave 10) with the vote.
 
 ### Notes for the merge (brief 19)
@@ -181,7 +181,7 @@ None (T0).
 
 ### Suggested build round
 
-**Round 1**, first of Epic 6. Can run in parallel with 6.2, 6.3 and 6.8 (different files: decay/map, render/lighting, new `shared/events`). Overlaps 6.5 and 6.12 in `waveDirector.ts` (they come later anyway). Small story (~1 day).
+**Round 1**, first of Epic 6, in parallel with 6.2, 6.3 and 6.5 (`docs/epic-6-decisions.md` › Build rounds; different files: decay/map, render/lighting, boss module). Overlaps 6.5 in `waveDirector.ts` (6.5 edits `updateWaves`' cap and cleared lines, this story `beginWave`/`waveZombieType`: merge one after the other) and 6.12 later. Small story (~1 day).
 
 ### References
 

@@ -2,7 +2,7 @@
 
 ## Story decisions to confirm
 
-**Waiting for the designer.** Written 2026-11-24 from the 12 story files (`_bmad-output/implementation-artifacts/6-*.md`, brief `docs/epic-6-brief.md`). Each line is the story writer's **recommended value** (first), with the alternative after it. **"ok" accepts all 108.** Change any line by its code (e.g. "6.11 D1: votes cast"). The looks are already picked (section "Epic 6 looks" below), so no story needs a new art pick.
+**Waiting for the designer.** Written 2026-11-24 from the 12 story files (`_bmad-output/implementation-artifacts/6-*.md`, brief `docs/epic-6-brief.md`). Each line is the story writer's **recommended value** (first), with the alternative after it. **"ok" accepts all 110.** Change any line by its code (e.g. "6.11 D1: votes cast"). The looks are already picked (section "Epic 6 looks" below), so no story needs a new art pick.
 
 ### The ones worth a look (game feel)
 
@@ -87,6 +87,7 @@ Also worth a glance: **6.1 D1** the two Brutes of waves 7–10 come at 25 % and 
 | 6.5 D7 | Looks | **BH1–BH4 at random per Behemoth, never the same twice in a row** |
 | 6.5 D8 | Barricades | **Slow it: 100 HP/s, quarter speed until through** |
 | 6.5 D9 | Boss bar | **Top centre, name, gold notch at 50 %, red when enraged** |
+| 6.5 D11 | When the 110 alive cap starts | **With the 4 s warning**, so the horde thins before it walks in (only when it walks in) |
 | 6.5 D10 | Being its target | **Short buzz (3 × 40 ms) on your phone + a red skull everyone sees; buzz off with vibration off** |
 
 ### 6.6 Behemoth charge and throw
@@ -185,6 +186,7 @@ Also worth a glance: **6.1 D1** the two Brutes of waves 7–10 come at 25 % and 
 | 6.12 D4 | Event repeats | **Never the same as the previous endless event** (fully random) |
 | 6.12 D5 | Zombie mix | **Odd waves wave 9's mix, even waves wave 10's** (wave 10's always) |
 | 6.12 D6 | Power failure in endless | **Allowed on even waves** (same line as 6.10 D7) |
+| 6.12 D8 | How dark an even endless wave gets after a power failure | **20 % moonlit, like every power failure** (5 % pitch black) |
 | 6.12 D7 | After a wipe in endless | **Straight to "Lost in the city" with the blue-hour dawn behind it, no 4 s wait** (4 s of blue hour first) |
 
 ### Notes for the designer (things the stories noticed)

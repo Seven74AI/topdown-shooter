@@ -163,14 +163,14 @@ Two more poses in the existing boss atlas; the roar ring and drop puff reuse the
 
 - `boss/telegraph.ts`: `bossTicks` is the only place multipliers are applied; 6.12's endless HP growth must not touch timers.
 - `boss/behemoth.ts`: ROAR and DEAD branches; `updateBoss` returns early on DEAD.
-- `core/simEvents.ts › MONEY_REASONS`: append `"boss"` (append-only, index on the wire); 6.9 (gas leak kills) and 6.10 (survivor bonus) may append `"event"` / `"rescue"`: append in merge order.
+- `core/simEvents.ts › MONEY_REASONS`: append `"boss"` (append-only, index on the wire); 6.10 appends `"event"` (survivor bonus); 6.9's gas-leak kills pay through the normal `"kill"` reason (no new entry): append in merge order.
 - `run/runStateMachine.ts › startBuild`: `resetBoss(world)` beside the other clears; 6.11 and 6.12 change `endWave` (no conflict with this line).
 - `net/netEvents.ts`: three kinds (next free at merge).
 - `GameScene.ts` / `HudScene.ts`: banners + bar colour; `ambience.ts`: stop the boss loop.
 
 ### Suggested build round
 
-**Round 4: after 6.6.** In parallel with **6.10** (power failure + survivor) or **6.11's client parts** if 6.11 is written to wait for "wave 10 cleared" (it can be built against a dev "boss dead" cheat). Not with 6.5/6.6 (same files).
+**Round 3: after 6.6** (`docs/epic-6-decisions.md` › Build rounds). In parallel with **6.9**, **6.10** (events) and **6.11** (it merges after this story; it is written to wait for "wave 10 cleared" and can be built against a dev "boss dead" cheat). Not with 6.5/6.6 (same files).
 
 ### References
 

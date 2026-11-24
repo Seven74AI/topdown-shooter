@@ -62,7 +62,7 @@ Most relevant here: **28 (one run flow: the vote is a new phase with tested tran
 
 1. **Balance (`waves.json › evac`, new block):** `voteS` 15, `allVotedHoldS` 1, `dawnS` 4 (client only, for the dawn length), `firstWave` 10 (= `runWaves`: the vote opens after clearing it). Story 6.12 adds `everyWaves` 5. Loader: `firstWave === runWaves` (cross-check).
 2. **Run state machine** (`run/runStateMachine.ts`): `RunPhase` gains **`"vote"`**. New named transitions:
-   - `openEvacVote(world)`: Wave → Vote. Called by `endWave` instead of `endRun` when `isEvacWave(balance, number)` (6.11: `number === evac.firstWave`; 6.12 extends). Sets `run.voteTicksLeft = ticksFor(voteS)`, clears every `PlayerState.vote` to 0, clears grenades/molotov/blasts/acid (as `endRun` and `startBuild` do), emits `run.vote_opened { wave, ticks }`.
+   - `openEvacVote(world)`: Wave → Vote. Called by `endWave` instead of `endRun` when `isEvacWave(balance, number, run.endless)` (6.11: `number === evac.firstWave`, `endless` defaults to false; 6.12 extends). Sets `run.voteTicksLeft = ticksFor(voteS)`, clears every `PlayerState.vote` to 0, clears grenades/molotov/blasts/acid (as `endRun` and `startBuild` do), emits `run.vote_opened { wave, ticks }`.
    - `castVote(world, playerId, choice)`: phase "vote" only; unknown players ignored; `choice` 1 = extract, 2 = stay (0 is not a vote). Changing a vote is allowed (F2).
    - `resolveEvacVote(world)`: Vote → Results (extract) or Vote → Build (stay) by F3. Emits `run.vote_resolved { choice, extract, stay }`. Extract: `run.extracted { wave }` then `endRun` (`run.ending = "extracted"`). Stay: `run.endless = true` (Story 6.12 reads it), then `startBuild` (from "vote": decay stays 5, heal, downed/out players return; `build.started { wave: 11 }`).
    - `updateRun`: in "vote", `voteTicksLeft--`; all voted → `voteTicksLeft = min(voteTicksLeft, ticksFor(allVotedHoldS))`; at 0 → `resolveEvacVote`.
@@ -190,7 +190,7 @@ EX1 (vote UI: HTML/CSS), the helicopter + pad + searchlight (game code, `addGene
 
 ### Suggested build round
 
-**Round 4** (after 6.1; best after 6.7 so the real trigger exists, but it can be built against a plain wave 10). Can run in parallel with 6.9/6.10 (events) and 6.4 (Collapse) — no shared files except the append-only event/schema lists. 6.12 waits for it.
+**Round 3** (`docs/epic-6-decisions.md` › Build rounds; after 6.1; merges after 6.7 so the real trigger exists, but it can be built against a plain wave 10). Runs in parallel with 6.7 (boss) and 6.9/6.10 (events) — no shared files except the append-only event/schema lists. 6.12 (round 4) waits for it.
 
 ### References
 
