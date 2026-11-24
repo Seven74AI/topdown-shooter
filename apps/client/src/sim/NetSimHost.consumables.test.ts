@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NET_EVENT_KIND, PLACEHOLDER_MAP, S2C, TICK_DT_S, loadBalance, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
+import { C2S, NET_EVENT_KIND, PLACEHOLDER_MAP, S2C, TICK_DT_S, loadBalance, type PlayerInput, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { FakeRoom, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost, RENDER_DELAY_TICKS } from "./NetSimHost";
@@ -30,6 +30,25 @@ const thrown = (id: number, flight = 14): number[] => [NET_EVENT_KIND.GRENADE_LA
 const ignited = (zone: number): number[] => [NET_EVENT_KIND.MOLOTOV_IGNITED, zone, 2, 2865, 1000, 1];
 
 describe("NetSimHost: consumables (Story 5.12)", () => {
+  it("re-review M: the tap frame's throw aim is sent (fire off) on the step that takes the flag, not the latest frame's", () => {
+    const { room, host, setNow } = setup();
+    const neutral = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: true, viewTick: -1 };
+    room.sent.length = 0;
+    let t = 500;
+    host.setLocalInput({ ...neutral, aimX: 0.75, consumable: true }); // frame 1: the throw's encoding, fire dropped
+    host.update(1 / 60);
+    for (let i = 0; i < 3; i++) {
+      host.setLocalInput({ ...neutral, aimX: 0.5, fire: true }); // frames 2…: the launcher's, fire held
+      setNow((t += 1000 / 60));
+      host.update(1 / 60);
+    }
+    host.update(0.05);
+    const sent = room.sentOf(C2S.INPUT_SEND) as PlayerInput[];
+    expect(sent.length).toBeGreaterThanOrEqual(2);
+    expect(sent[0]).toMatchObject({ consumable: true, aimX: 0.75, fire: false });
+    expect(sent[1]).toMatchObject({ consumable: false, aimX: 0.5, fire: true });
+  });
+
   it("slot and count come from the state (index → id; 255 = empty)", () => {
     const { room, host } = setup();
     const me = host.world.players.get("p1")!;

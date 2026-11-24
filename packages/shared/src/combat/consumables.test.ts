@@ -270,6 +270,33 @@ describe("C-D grenades (AC 5)", () => {
     expect(of(events, "grenade.launched")[0]?.tx).toBeCloseTo(10 + OFFSET + 6, 9);
   });
 
+  it("re-review L: the remembered aim keeps metres — aimed 6 m with the launcher in hand (its encoding), released, tapped: lands 6 m out", () => {
+    const GL = balance.weapons.grenade_launcher as { lobRangeM: number };
+    const { world, events, p } = setup();
+    setLoadout(balance, p.loadout, ["grenade_launcher", "pistol"]);
+    give(p, "grenades", 3);
+    setInput(world, "p0", input(false, 6 / GL.lobRangeM)); // the launcher's encoding of 6 m
+    run(world, 1);
+    setInput(world, "p0", { ...input(true), aimX: 0, aimY: 0 }); // stick released, tap
+    run(world, 1);
+    const a = of(events, "grenade.launched")[0]!;
+    expect(Math.hypot(a.tx - a.x, a.ty - a.y)).toBeCloseTo(6, 6);
+    expect(a.tx).toBeCloseTo(10 + OFFSET + 6, 6);
+  });
+
+  it("re-review NIT: no aim, no memory — a visible zombie wins over a nearer one behind a building", () => {
+    const bld: DistrictMap = { ...PLACEHOLDER_MAP, name: "c-wall", solids: [{ name: "apartments", building: true, minX: 11.5, minY: 8, maxX: 12.5, maxY: 12 }] };
+    const { world, events, p } = setup({ map: bld });
+    give(p, "grenades", 3);
+    tank(world, 13.5, 10); // 3.5 m, behind the wall
+    tank(world, 10, 15); // 5 m, in the open
+    setInput(world, "p0", { ...input(true), aimX: 0, aimY: 0 });
+    run(world, 1);
+    const a = of(events, "grenade.launched")[0]!;
+    expect(a.tx).toBeCloseTo(10, 6);
+    expect(a.ty).toBeCloseTo(15, 6);
+  });
+
   it("PR #5 lob rule: flies over a car 1 m ahead (aimed past it); a car-roof aim lands at its near face; a building stops it at its face", () => {
     const car: DistrictMap = { ...PLACEHOLDER_MAP, name: "c-car", cover: [{ name: "test_car", kind: "car", minStage: 1, minX: 11.2, minY: 8, maxX: 13.2, maxY: 12 }] };
     const a = setup({ map: car });

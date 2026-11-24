@@ -302,3 +302,16 @@ sound. Fixed on `story-5-12` on top of `025c218`:
 Re-review notes: mutations of the new tests (M1 memory ignored / never expiring / written from the move / no zombie
 target; L5 launcher encoding kept; L2 count not synced; L3 repeat latching; L6 no right-align; L7 ring never matched):
 9 of 9 fail their test. Full gate once at the end (see the commit).
+
+**Re-review (main session, 2026-11-24, on `d5ddf61`):** M1 and the L fixes hold, except L5, which the hosts' edge latch
+undid (new medium). Fixed on `story-5-12`:
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| M (L5 undone) | The throw-encoded input (fire dropped) is built only on the tap's frame, but the hosts latched only the `consumable` flag and stepped with the LATEST frame's input: at 60 fps / 50 ms steps the flagged step usually carried the next frame's launcher encoding and fire on (launcher in hand, aim 6 m → landed ~4 m). | `LocalSimHost` / `NetSimHost.setLocalInput` snapshot the tap frame's `aimX/aimY` with the latch; the step that takes the flag uses that aim with `fire` off (`NetSimHost`: before the send, the predictor and the fire clock see the buffer); the next step is the latest frame's input again. `RunController`: an overflow/drain-dropped flag moves with its input's aim, `fire` off, to the next input (that seq's own aim/shot is lost, as for any dropped seq: the prediction reconciles); a rate-dropped message's flag carries its aim when it is a finite number in [−1, 1] (else 0: the throw falls back to memory / zombie / facing). Tests: `LocalSimHost.test` (tap on frame 1, steps on frame 3 → lands 6 m, that step fires nothing, the next is the launcher's input), `NetSimHost.consumables.test` (sent buffer), `lobAim.test` touch fire-drop, `RunController.test` overflow carry and rate-drop carry (once; junk aim not carried). |
+| L | `rememberAim` stored the length in the in-hand launcher's encoding (a fraction of 12 m) but `throwDirection` read it as a fraction of 8 m. | `PlayerState.lastAimM`: metres, decoded the way the client encoded it (a flagged input in the throw's range, any other in the in-hand launcher's, else the slot's throw range; < 0 unknown → full range), converted at the throw. Test "re-review L" (launcher in hand, aim 6 m, released, tap → 6 m). |
+| NIT | The nearest-zombie fallback could pick a zombie behind a building over a visible one. | Candidates whose segment from the player enters a building (`lobBlockT`) are skipped. Test "re-review NIT". |
+
+Mutations: host latch aim ignored / fire kept (Local and Net, 4), touch fire not dropped, RunController carry flag not
+cleared, rate-drop aim not carried, rate-drop fire kept, overflow aim not carried, overflow fire kept, memory in the
+throw's encoding, LOS skipped: 12 of 12 fail their test.

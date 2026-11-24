@@ -169,6 +169,37 @@ describe("RunController", () => {
     expect([p.consumableCount, p.consumable]).toEqual([2, "grenades"]);
   });
 
+  it("re-review M: an overflow-dropped throw carries its aim with the flag, fire off; the next input is its own again", () => {
+    const c = newController();
+    owe(c, 2);
+    c.queueInput("p0", input(1));
+    c.queueInput("p0", input(2, { consumable: true, aimX: 0.75 })); // the throw's encoding
+    for (let seq = 3; seq <= INPUT_QUEUE_MAX + 2; seq++) c.queueInput("p0", input(seq, { aimX: 0.5, fire: true }));
+    expect(c.drops("p0").overflow).toBe(2);
+    c.tick();
+    expect(c.world.inputs.get("p0")).toMatchObject({ seq: 3, consumable: true, aimX: 0.75, fire: false });
+    c.tick();
+    expect(c.world.inputs.get("p0")).toMatchObject({ seq: 4, consumable: false, aimX: 0.5, fire: true });
+  });
+
+  it("re-review M: a rate-dropped throw carries its (valid) aim to the next queued input once, fire off", () => {
+    const c = newController();
+    c.queueInput("p0", input(1));
+    c.rateDroppedInput("p0", { seq: 2, consumable: true, aimX: 0.75, aimY: -0.25 });
+    c.queueInput("p0", input(3, { aimX: 0.5, fire: true }));
+    c.queueInput("p0", input(4, { aimX: 0.5, fire: true }));
+    c.tick();
+    c.tick();
+    expect(c.world.inputs.get("p0")).toMatchObject({ seq: 3, consumable: true, aimX: 0.75, aimY: -0.25, fire: false });
+    c.tick();
+    expect(c.world.inputs.get("p0")).toMatchObject({ seq: 4, consumable: false, aimX: 0.5, fire: true }); // carried once
+    // a junk aim on a rate-dropped message is not carried (the throw falls back to memory / zombie / facing)
+    c.rateDroppedInput("p0", { seq: 5, consumable: true, aimX: 7, aimY: Number.NaN });
+    c.queueInput("p0", input(6, { aimX: 0.5 }));
+    c.tick();
+    expect(c.world.inputs.get("p0")).toMatchObject({ seq: 6, consumable: true, aimX: 0, aimY: 0 });
+  });
+
   it("drains a backlog after a 300 ms stall back to the target within 3 s", () => {
     const c = newController();
     let seq = 0;

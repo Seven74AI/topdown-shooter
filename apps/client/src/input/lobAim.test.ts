@@ -72,4 +72,20 @@ describe("lob aim (Story 5.5)", () => {
     expect(Math.hypot(out.aimX, out.aimY)).toBeCloseTo(lobAimLength(THROW, 6 - R - MUZZLE_OFFSET_M), 12);
     expect(out.fire).toBe(false);
   });
+
+  it("re-review M: touch — the tap's input encodes the fire stick in the THROW's range and fires nothing", () => {
+    const THROW = { minLobM: 2, lobRangeM: 8 };
+    const sticks = new TouchSticks(100, 0.1, 0.3);
+    const r = new InputRouter(sticks);
+    r.pointerDown(2, 600, 200, true, 0, false, 1000);
+    sticks.pointerMove(2, 665, 200); // 65 %: the launcher's 7.5 m, the throw's 5 m
+    const out = { ...NEUTRAL_INPUT } as MutablePlayerInput;
+    r.build(out, false, 0, 0, Number.NaN, Number.NaN, GL, R, false, THROW);
+    expect(out.fire).toBe(true);
+    expect(Math.hypot(out.aimX, out.aimY)).toBeCloseTo(lobAimLength(GL, 7.5), 12);
+    r.build(out, false, 0, 0, Number.NaN, Number.NaN, GL, R, true, THROW);
+    expect(out.consumable).toBe(true);
+    expect(out.fire).toBe(false);
+    expect(Math.hypot(out.aimX, out.aimY)).toBeCloseTo(lobAimLength(THROW, 5), 12);
+  });
 });

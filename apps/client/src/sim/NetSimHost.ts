@@ -222,6 +222,9 @@ export class NetSimHost implements SimHost {
   private input: PlayerInput = NEUTRAL_INPUT;
   private latchedSwap = false;
   private latchedConsumable = false;
+  /** Re-review M: the tap frame's throw-encoded aim, sent (fire off) on the step that takes the flag (LocalSimHost). */
+  private latchedThrowAimX = 0;
+  private latchedThrowAimY = 0;
   private seq = 0;
   private readonly sendBuf: MutableInput = { ...NEUTRAL_INPUT };
   private drained: SimEvent[] = [];
@@ -390,7 +393,11 @@ export class NetSimHost implements SimHost {
   setLocalInput(input: PlayerInput): void {
     this.input = input;
     if (input.swap) this.latchedSwap = true;
-    if (input.consumable) this.latchedConsumable = true;
+    if (input.consumable) {
+      this.latchedConsumable = true;
+      this.latchedThrowAimX = input.aimX;
+      this.latchedThrowAimY = input.aimY;
+    }
   }
 
   /** Story 3.1: `build.set_ready` (the server ignores it outside a build); the flag comes back in the state. */
@@ -584,6 +591,12 @@ export class NetSimHost implements SimHost {
       buf.seq = ++this.seq;
       buf.swap = this.latchedSwap;
       buf.consumable = this.latchedConsumable;
+      if (buf.consumable) {
+        // Re-review M: the throw's aim from the tap frame, fire off; before the send, the predictor and the fire clock.
+        buf.aimX = this.latchedThrowAimX;
+        buf.aimY = this.latchedThrowAimY;
+        buf.fire = false;
+      }
       // Story 2.12: the tick the horde is drawn at this frame; the server tests this input's shots there.
       buf.viewTick = viewTickOf(this.renderTickNow);
       this.latchedSwap = false; // consumed by exactly one step

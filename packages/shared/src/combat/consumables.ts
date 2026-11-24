@@ -5,6 +5,7 @@ import { MIN_AIM_LEN, MUZZLE_OFFSET_M } from "../config/constants";
 import { activeSlot } from "./loadout";
 import { weaponStats } from "./weapons";
 import { throwConsumable } from "./grenades";
+import { lobBlockT } from "./cover";
 import { aimMemoryTicks, consumableCooldownTicks, consumableIndex, consumableStats, throwStatsOf, type ThrowStats } from "../economy/consumables";
 
 /**
@@ -62,14 +63,18 @@ export function useConsumables(world: World): void {
 
 /**
  * Review M1: the last aim input, kept `aimMemoryS` worth of applied ticks. Written only from aim
- * input (never from movement), counted down on applied ticks without aim.
+ * input (never from movement), counted down on applied ticks without aim. Re-review L: the length
+ * is kept in METRES, decoded the way the client encoded it — a flagged input in the throw's range,
+ * any other in the in-hand launcher's (else the slot's throw range) — and converted at the throw.
  */
 export function rememberAim(world: Readonly<World>, p: PlayerState, input: Readonly<PlayerInput> | undefined): void {
   const len = input ? Math.hypot(input.aimX, input.aimY) : 0;
   if (input && len >= MIN_AIM_LEN) {
     p.lastAimX = input.aimX / len;
     p.lastAimY = input.aimY / len;
-    p.lastAimLen = Math.min(1, len);
+    const launcherM = input.consumable ? 0 : launcherRangeInHand(world, p);
+    const rangeM = launcherM > 0 ? launcherM : (throwStatsOf(world.balance, p.consumable)?.lobRangeM ?? 0);
+    p.lastAimM = rangeM > 0 ? Math.min(1, len) * rangeM : -1;
     p.lastAimTicks = aimMemoryTicks(world.balance);
   } else if (p.lastAimTicks > 0) p.lastAimTicks--;
 }
@@ -91,7 +96,7 @@ export const createThrowAim = (): ThrowAim => ({ dx: 1, dy: 0, len: 1, source: "
  * input's aim when it has one (L5: on the flagged input the client always encodes the THROW's
  * range, so the length is a fraction of `throwRangeM` whatever is in hand); else the last aim
  * direction while remembered (`aimMemoryS`); else the nearest alive zombie within reach (muzzle +
- * throw range; the first in pool order on a tie), at its distance; else the facing direction at full
+ * throw range; the first in pool order on a tie; none behind a building), at its distance; else the facing direction at full
  * range. Never the move direction by itself (a kiting touch player doesn't throw onto their own path).
  */
 export function throwDirection(world: Readonly<World>, p: Readonly<PlayerState>, input: Readonly<PlayerInput>, stats: Readonly<ThrowStats>, out: ThrowAim): ThrowAim {
@@ -106,7 +111,7 @@ export function throwDirection(world: Readonly<World>, p: Readonly<PlayerState>,
   if (p.lastAimTicks > 0) {
     out.dx = p.lastAimX;
     out.dy = p.lastAimY;
-    out.len = p.lastAimLen;
+    out.len = p.lastAimM < 0 ? 1 : Math.min(1, p.lastAimM / stats.lobRangeM);
     out.source = "memory";
     return out;
   }
@@ -120,7 +125,8 @@ export function throwDirection(world: Readonly<World>, p: Readonly<PlayerState>,
     const dx = (z.x[id] as number) - p.x;
     const dy = (z.y[id] as number) - p.y;
     const d2 = dx * dx + dy * dy;
-    if (d2 < bestD2 && d2 > 1e-9) {
+    // Re-review NIT: a zombie behind a building (the throw would stop at its face) never wins over a visible one.
+    if (d2 < bestD2 && d2 > 1e-9 && lobBlockT(world, p.x, p.y, z.x[id] as number, z.y[id] as number) < 0) {
       bestD2 = d2;
       best = id;
     }

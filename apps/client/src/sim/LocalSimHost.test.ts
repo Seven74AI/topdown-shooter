@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addPlayer, loadBalance, ticksFor } from "@topdown/shared";
+import { addPlayer, loadBalance, setLoadout, startWave, ticksFor, type SimEvent } from "@topdown/shared";
 import { LOCAL_PLAYER_ID, LocalSimHost, MAX_CATCHUP_STEPS } from "./LocalSimHost";
 
 const balance = loadBalance();
@@ -129,6 +129,44 @@ describe("LocalSimHost", () => {
     }
     expect(host.world.tick).toBeGreaterThanOrEqual(3);
     expect(swapTicks).toBe(1);
+  });
+
+  it("re-review M: a throw tapped on frame 1 and stepped on frame 3 uses frame 1's throw-encoded aim, fire off (launcher in hand, 6 m)", () => {
+    const host = new LocalSimHost({ balance, seed: 1 });
+    addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
+    startWave(host.world);
+    const p = host.world.players.get(LOCAL_PLAYER_ID)!;
+    setLoadout(balance, p.loadout, ["grenade_launcher", "pistol"]);
+    p.consumable = "grenades";
+    p.consumableCount = 3;
+    const GL = balance.weapons.grenade_launcher as { lobRangeM: number };
+    const THROW = balance.consumables.items.grenades!.throwRangeM!;
+    const neutral = { seq: 0, moveX: 0, moveY: 0, aimX: 0, aimY: 0, fire: false, swap: false, consumable: false, isMouse: true, viewTick: -1 };
+    host.drainEvents();
+    // frame 1: the tap — InputRouter encodes the throw's range (6 m of 8) and drops fire
+    host.setLocalInput({ ...neutral, aimY: 6 / THROW, consumable: true });
+    host.update(FRAME_60HZ);
+    expect(host.world.tick).toBe(0); // no step yet
+    const events: SimEvent[] = [];
+    let thrownFire: boolean | undefined;
+    // frames 2, 3…: the launcher's encoding of the same 6 m, fire held
+    for (let i = 0; i < 3 && thrownFire === undefined; i++) {
+      host.setLocalInput({ ...neutral, aimY: 6 / GL.lobRangeM, fire: true });
+      host.update(FRAME_60HZ);
+      const drained = host.drainEvents();
+      events.push(...drained);
+      if (drained.some((e) => e.type === "consumable.used")) thrownFire = host.world.inputs.get(LOCAL_PLAYER_ID)?.fire;
+    }
+    const thrown = events.filter((e): e is Extract<SimEvent, { type: "grenade.launched" }> => e.type === "grenade.launched" && (e.item ?? 0) > 0);
+    expect(thrown).toHaveLength(1);
+    const t = thrown[0]!;
+    expect(Math.hypot(t.tx - t.x, t.ty - t.y)).toBeCloseTo(6, 6);
+    expect(thrownFire).toBe(false); // the throw's step fired no launcher round
+    expect(events.filter((e) => e.type === "grenade.launched" && !(e.item ?? 0))).toHaveLength(0);
+    // the next step is the latest frame's input again (fire on, the launcher's aim)
+    host.update(0.05);
+    expect(host.world.inputs.get(LOCAL_PLAYER_ID)?.fire).toBe(true);
+    expect(host.world.inputs.get(LOCAL_PLAYER_ID)?.aimY).toBeCloseTo(6 / GL.lobRangeM, 12);
   });
 
   it("clearEdges drops a swap latched before any step (the menu opened in the same step; 2.11 review)", () => {

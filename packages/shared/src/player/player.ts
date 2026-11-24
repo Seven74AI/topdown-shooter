@@ -102,13 +102,15 @@ export interface PlayerState {
   /** Story 5.12 (D1, D7): applied-input ticks until the next use is allowed (0 = ready). Server / solo only. */
   consumableCooldownTicks: number;
   /**
-   * Story 5.12 review M1: the last AIM input (unit direction and its length), written only from aim
+   * Story 5.12 review M1: the last AIM input (unit direction and its distance in metres: re-review L,
+   * decoded from the encoding of what was in hand, so a launcher swap never changes it), written only from aim
    * input and kept `consumables.json › aimMemoryS` worth of applied ticks (`lastAimTicks` > 0), so a
    * throw with the aim stick released goes where the player last aimed, not where they walk. Server / solo only.
    */
   lastAimX: number;
   lastAimY: number;
-  lastAimLen: number;
+  /** Metres (< 0: unknown, nothing to decode it with: a throw then goes full range). */
+  lastAimM: number;
   lastAimTicks: number;
 }
 
@@ -156,7 +158,7 @@ export function addPlayer(world: World, id: string, x: number, y: number): Playe
     consumableCooldownTicks: 0,
     lastAimX: 1, // Story 5.12 review M1
     lastAimY: 0,
-    lastAimLen: 1,
+    lastAimM: -1,
     lastAimTicks: 0,
   };
   world.players.set(id, player);
