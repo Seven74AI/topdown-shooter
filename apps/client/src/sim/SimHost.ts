@@ -45,6 +45,14 @@ export interface SimHost {
   /** The authoritative (local) or predicted (networked) world. Renderers only read it. */
   readonly world: Readonly<World>;
   /**
+   * Story 6.5 (F3, DD4): the server tick now (fractional): online the clock's estimate
+   * (`ServerClock.estimateTick`, NOT the delayed render tick), solo `world.tick − 1 + alpha`. Boss
+   * telegraphs fill from it; NaN before the clock is ready.
+   */
+  readonly serverTick: number;
+  /** Story 6.5: where to draw the boss this frame (online: at the render tick between two patches; solo: between the last two ticks). */
+  bossDrawPos(out: { x: number; y: number }): void;
+  /**
    * The local player's input for upcoming steps. Continuous fields (move, aim, fire) use the latest
    * value; edge flags (swap, consumable) set by any call reach exactly one step.
    */

@@ -1,4 +1,5 @@
 import type { World } from "../core/world";
+import { bossBodyOn } from "../boss/bossState";
 import { createExplosionSpec, explode } from "../combat/explosion";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { buildingStats, removeBuilding, type Building } from "./buildings";
@@ -44,8 +45,19 @@ function zombieTouches(world: World, x: number, y: number, r: number): boolean {
   return false;
 }
 
+/** Story 6.5: the Behemoth's body overlaps the circle (x, y, r) right now (strict). */
+function bossTouches(world: World, x: number, y: number, r: number): boolean {
+  const b = world.boss;
+  if (!bossBodyOn(b)) return false;
+  const reach = r + world.balance.boss.radiusM;
+  const dx = b.x - x;
+  const dy = b.y - y;
+  return dx * dx + dy * dy < reach * reach;
+}
+
 export function updateMines(world: World): void {
-  if (world.run.phase !== "wave" || world.zombies.aliveCount === 0) return;
+  // Story 6.5 (AC 11): a mine under the Behemoth's body goes off as for a zombie.
+  if (world.run.phase !== "wave" || (world.zombies.aliveCount === 0 && !bossBodyOn(world.boss))) return;
   const list = world.buildings.list;
   // From the end: an explosion removes the mine from the list.
   for (let i = list.length - 1; i >= 0; i--) {
@@ -55,7 +67,7 @@ export function updateMines(world: World): void {
     if (!m) continue;
     const x = (b.minX + b.maxX) / 2;
     const y = (b.minY + b.maxY) / 2;
-    if (!zombieTouches(world, x, y, m.triggerRadiusM)) continue;
+    if (!zombieTouches(world, x, y, m.triggerRadiusM) && !bossTouches(world, x, y, m.triggerRadiusM)) continue;
     removeBuilding(world, b.id); // first: gone before its own blast's kills are paid (cap freed)
     world.events.emit({ type: "mine.exploded", buildingId: b.id, x, y });
     mineCounters.exploded++;

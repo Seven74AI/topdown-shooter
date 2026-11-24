@@ -77,4 +77,4 @@ Story 7.8 addition (picture: game code drawn with @napi-rs/canvas, `docs/art/7-8
 
 | # | file | answer | bullets | notes |
 | --- | --- | --- | --- | --- |
-| 47 | `47_survivor_looks.png` | four survivors with chosen looks: riot helmet + camo coat (blue), gas mask + plank bundle (orange), bike helmet + golf bag + puffer (green), welding mask + hoodie (purple) | n/a | right if "nothing, they're just looks / clothes". Wrong (a readability bug, brief 13) if anyone reads armor, gas immunity, building material or a power-up into them. Looks are cosmetic only (proposal D1). |
+| 49 | `49_survivor_looks.png` | four survivors with chosen looks: riot helmet + camo coat (blue), gas mask + plank bundle (orange), bike helmet + golf bag + puffer (green), welding mask + hoodie (purple) | n/a | right if "nothing, they're just looks / clothes". Wrong (a readability bug, brief 13) if anyone reads armor, gas immunity, building material or a power-up into them. Looks are cosmetic only (proposal D1). |

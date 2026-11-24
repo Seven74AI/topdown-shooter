@@ -321,6 +321,7 @@ describe("the run ends after wave runWaves (Story 3.10)", () => {
 
   it("Story 6.1: clearing wave 10 (runWaves 10): wave.ended, the bonus, run.held_out, Results; no build after it", () => {
     const { world, events } = setup(["p0", "p1"]);
+    world.debug.bossWaves = []; // Story 6.5: the run-end flow alone (wave 10 waits for its Behemoth: boss/behemoth.test.ts F11)
     expect(world.balance.waves.runWaves).toBe(10);
     toBuildBefore(world, 10);
     expect(world.run.phase).toBe("build");

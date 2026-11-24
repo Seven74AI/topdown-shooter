@@ -2,6 +2,8 @@ import type { z } from "zod";
 import { canonicalJson, fnv1a32 } from "../core/hash";
 import { balanceFileSchemas, type BalanceFileName, type BuildingTypeStats } from "./balanceSchema";
 import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
+import { THREAT_BUCKETS, THREAT_BUCKET_TICKS } from "../boss/bossState";
+import { TICK_RATE_HZ } from "./constants";
 import { MAX_FIXED_PER_WAVE } from "./constants";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
@@ -16,6 +18,7 @@ import decay from "./balance/decay.json" with { type: "json" };
 import combat from "./balance/combat.json" with { type: "json" };
 import gear from "./balance/gear.json" with { type: "json" };
 import consumables from "./balance/consumables.json" with { type: "json" };
+import boss from "./balance/boss.json" with { type: "json" };
 
 type Schemas = typeof balanceFileSchemas;
 
@@ -37,7 +40,7 @@ export class BalanceError extends Error {
   }
 }
 
-const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables };
+const BUNDLED: RawBalanceFiles = { weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss };
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -119,6 +122,7 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   crossCheckBuildingTypes(parsed.buildings as { types: Record<string, BuildingTypeStats> }, issues);
   crossCheckFlames(parsed, issues);
   crossCheckBlackout(parsed, issues);
+  crossCheckBoss(parsed, issues);
 }
 
 /**
@@ -253,4 +257,21 @@ export function withOverrides(raw: RawBalanceFiles, overrides: readonly BalanceO
     if (node && typeof node === "object" && last in node) node[last] = value;
   }
   return out as RawBalanceFiles;
+}
+
+/**
+ * Story 6.5: the boss fits the run. Its alive cap is at most the normal one, its body paths on its
+ * own grid (boxes grown so 0.35 m + inflateM covers its radius). The entry names are checked against
+ * the Downtown map in `boss/behemoth.test.ts` (the balance knows no map).
+ */
+function crossCheckBoss(parsed: Record<string, unknown>, issues: string[]): void {
+  const boss = parsed.boss as { aliveCap: number; radiusM: number; pathing: { inflateM: number }; target: { threatWindowS: number } };
+  // Review L4: the threat ring is preallocated (THREAT_BUCKETS × THREAT_BUCKET_TICKS); the window must match it.
+  const ringS = (THREAT_BUCKETS * THREAT_BUCKET_TICKS) / TICK_RATE_HZ;
+  if (Math.abs(boss.target.threatWindowS - ringS) > 1e-9) issues.push(`boss.json: target.threatWindowS ${boss.target.threatWindowS} must be ${ringS} (the threat ring: ${THREAT_BUCKETS} buckets of ${THREAT_BUCKET_TICKS} ticks)`);
+  const maxAlive = (parsed.waves as { maxAlive: number }).maxAlive;
+  if (boss.aliveCap > maxAlive) issues.push(`boss.json: aliveCap ${boss.aliveCap} exceeds waves.maxAlive ${maxAlive}`);
+  if (MAX_PATHING_ZOMBIE_RADIUS_M + boss.pathing.inflateM + 1e-9 < boss.radiusM) {
+    issues.push(`boss.json: pathing.inflateM ${boss.pathing.inflateM} + ${MAX_PATHING_ZOMBIE_RADIUS_M} m is less than radiusM ${boss.radiusM}`);
+  }
 }

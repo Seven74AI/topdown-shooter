@@ -27,6 +27,7 @@ import { createBlastQueue, type BlastQueue } from "../zombies/bloater";
 import { createMolotovZones, type MolotovZones } from "../hazards/molotov";
 import { createLightState, type LightState } from "../decay/lightState";
 import { createShopOffers, type ShopOffers } from "../economy/shopOffers";
+import { createBossState, recordBossHistory, type BossState } from "../boss/bossState";
 
 /** The whole simulation state. A plain object so it can be snapshotted (Story 8.4). */
 export interface World {
@@ -126,6 +127,12 @@ export interface World {
    * start from `streams.shop`; changed only by a buy (sold) or a paid reroll. In `snapshotWorld`.
    */
   readonly shop: ShopOffers;
+  /**
+   * Story 6.5: the Behemoth's record (`boss/bossState.ts`): server truth, in `snapshotWorld`. Server
+   * and solo run `updateBoss`; the client's mirror copies it from the room state (the Predictor reads
+   * its body for the push-out, D1).
+   */
+  readonly boss: BossState;
   // Later stories add their state here (players 1.3, zombies 1.4, projectiles 1.5, waves 1.7 …).
 }
 
@@ -150,6 +157,13 @@ export interface WorldDebug {
    * stream). null = the real draw.
    */
   shopCards: readonly string[] | null;
+  /**
+   * Story 6.5 dev override (server `DEV_BOSS_WAVES=3`, solo `?bosswave=3`; dev builds only): the
+   * Behemoth's waves instead of `boss.json › bossWaves`. null = the real list.
+   */
+  bossWaves: readonly number[] | null;
+  /** Story 6.5 dev (`?bosshp=`, tests only): the boss's HP × this. 1 = real. */
+  bossHpScale: number;
 }
 
 export interface CreateWorldOptions {
@@ -192,13 +206,13 @@ export function createWorld(opts: CreateWorldOptions): World {
     projectiles: createProjectilePool(PROJECTILE_POOL_CAPACITY),
     waves: createWaveState(),
     run: createRunState(),
-    debug: { godMode: false, waveMix: null, decayStageByWave: null, shopCards: null },
+    debug: { godMode: false, waveMix: null, decayStageByWave: null, shopCards: null, bossWaves: null, bossHpScale: 1 },
     teamWiped: false,
     economy: createEconomyState(ZOMBIE_POOL_CAPACITY),
     buildings: createBuildingState(),
     // 3.5 review L5: Worlds whose buildings system never runs (client mirror, prediction) get a placeholder.
     // Story 4.2: the nav grid walls off the map boxes and the active cover.
-    pathing: createPathingState({ widthM: map.widthM, heightM: map.heightM, solids: obstacles.solids }, ZOMBIE_POOL_CAPACITY, (opts.systems?.buildings ?? DEFAULT_SYSTEMS.buildings) === DEFAULT_SYSTEMS.buildings, opts.balance.zombies.pathing.wideInflateM),
+    pathing: createPathingState({ widthM: map.widthM, heightM: map.heightM, solids: obstacles.solids }, ZOMBIE_POOL_CAPACITY, (opts.systems?.buildings ?? DEFAULT_SYSTEMS.buildings) === DEFAULT_SYSTEMS.buildings, opts.balance.zombies.pathing.wideInflateM, opts.balance.boss.pathing.inflateM),
     zombieHistory: createZombieHistory(),
     rewoundView: createRewoundView(map),
     spits: createSpitPool(opts.balance.zombies.spitCaps.maxLiveSpits), // Story 5.6
@@ -210,6 +224,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     molotovs: createMolotovZones(opts.balance.consumables.maxLiveMolotovZones), // Story 5.12
     lights: createLightState(), // Story 5.10 (derived)
     shop: createShopOffers(), // Story 5.13
+    boss: createBossState(), // Story 6.5
   };
   worldSystems.set(world, { ...DEFAULT_SYSTEMS, ...opts.systems });
   return world;
@@ -230,5 +245,6 @@ export function step(world: World, dtS: number): void {
   for (const name of SYSTEM_ORDER) systems[name](world, dtS);
   world.tick += 1;
   recordZombieHistory(world); // Story 2.12: row `world.tick` = what this tick's horde frame shows
+  recordBossHistory(world); // Story 6.5 (D3): the boss's row of the same tick
   world.events.flush(); // always last: events of this tick are delivered once, in order
 }

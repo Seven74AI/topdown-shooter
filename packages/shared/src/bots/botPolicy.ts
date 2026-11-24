@@ -8,6 +8,8 @@ import { MUZZLE_OFFSET_M } from "../config/constants";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { isRushState } from "../zombies/zombieTypes";
 import { bulletLineClear } from "../combat/cover";
+import { bossBodyOn } from "../boss/bossState";
+import { flowCellAt, flowCellCenterX, flowCellCenterY, flowEdgeClosed } from "../zombies/flowField";
 import { consumableStats } from "../economy/consumables";
 
 /**
@@ -73,6 +75,8 @@ export interface BotZombie {
   holdsSpot?: boolean;
   /** Epic 5 balance pass: one of the wave's last, marked zombies (FR30 rush); false otherwise / unknown. */
   rushing?: boolean;
+  /** Story 6.5: the target is the Behemoth (measured to its body's edge). */
+  boss?: boolean;
 }
 
 /** What a bot can know. Preallocated by `createBotView`; filled in place each tick. */
@@ -97,6 +101,12 @@ export interface BotView {
    */
   throwTarget: BotZombie | null;
   readonly cluster: BotZombie;
+  /**
+   * Story 6.5: the way to the Behemoth (a World view only): the step toward it along the nav grid
+   * (round barriers and cover), or 0, 0 when unknown. Rule 4 walks it instead of the straight line.
+   */
+  huntStepX: number;
+  huntStepY: number;
 }
 
 export interface BotConfig {
@@ -130,6 +140,8 @@ export function createBotView(): BotView {
     shot: { x: 0, y: 0, distM: 0, holdsSpot: false },
     throwTarget: null,
     cluster: { x: 0, y: 0, distM: 0, holdsSpot: false },
+    huntStepX: 0,
+    huntStepY: 0,
   };
 }
 
@@ -222,8 +234,9 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
     return;
   }
 
-  // 2. Back away from a zombie that is too close.
-  if (z && z.distM < cfg.keepDistanceM) {
+  // 2. Back away from a zombie that is too close (Story 6.5: not from the Behemoth's body edge: its slam,
+  // not its touch, is the danger, and backing off a boss behind cover would stall the fight).
+  if (z && z.distM < cfg.keepDistanceM && z.boss !== true) {
     moveToward(out, me.x - z.x, me.y - z.y);
     return;
   }
@@ -252,10 +265,85 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
     moveToward(out, gx, gy);
     return;
   }
-  // 4. Hunt a marked rusher out of my range.
-  if (z && z.rushing === true && z.distM > me.rangeM) moveToward(out, z.x - me.x, z.y - me.y);
+  // 4. Hunt a marked rusher (Story 6.5: or the Behemoth, along its nav-grid way) out of my range.
+  if (z && z.rushing === true && z.distM > me.rangeM) {
+    if (view.huntStepX !== 0 || view.huntStepY !== 0) moveToward(out, view.huntStepX, view.huntStepY);
+    else moveToward(out, z.x - me.x, z.y - me.y);
+  }
   // 5. Otherwise stand still.
 }
+
+/**
+ * Story 6.5 (the sims' bots only): steps from every free nav-grid cell to the Behemoth, a breadth-first
+ * search from its cell over the cells not walled by the map or a building, once per World tick (shared
+ * by every bot). Bot code, not the simulation: it allocates once per grid size.
+ */
+const hunt = { world: null as World | null, tick: -1, dist: new Int32Array(0), queue: new Int32Array(0) };
+
+function huntStep(world: World, x: number, y: number, out: BotView): void {
+  const nav = world.pathing.nav;
+  if (nav.cells <= 1) return;
+  if (hunt.world !== world || hunt.tick !== world.tick) {
+    hunt.world = world;
+    hunt.tick = world.tick;
+    if (hunt.dist.length !== nav.cells) {
+      hunt.dist = new Int32Array(nav.cells);
+      hunt.queue = new Int32Array(nav.cells);
+    }
+    const { cols, rows } = nav;
+    const dist = hunt.dist;
+    dist.fill(-1);
+    const start = flowCellAt(nav, world.boss.x, world.boss.y);
+    let head = 0;
+    let tail = 0;
+    hunt.queue[tail++] = start;
+    dist[start] = 0;
+    while (head < tail) {
+      const c = hunt.queue[head++] as number;
+      const cx = c % cols;
+      const cy = (c - cx) / cols;
+      for (let k = 0; k < 4; k++) {
+        const nx = cx + (k === 0 ? 1 : k === 1 ? -1 : 0);
+        const ny = cy + (k === 2 ? 1 : k === 3 ? -1 : 0);
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+        const n = ny * cols + nx;
+        if (dist[n] !== -1) continue;
+        // The boss's own body cells are open (the search starts inside it); elsewhere a cell must keep a
+        // survivor's body clear of walls and buildings (it and its 8 neighbours free).
+        if ((dist[c] as number) > 8 && (nav.wallAt[n] !== 0 || nav.buildingAt[n] !== 0 || flowEdgeClosed(nav, c, n))) continue;
+        dist[n] = (dist[c] as number) + 1;
+        hunt.queue[tail++] = n;
+      }
+    }
+  }
+  // Steer at a point a few cells down the way (a carrot): along a corridor, not into its wall.
+  const cols = nav.cols;
+  let c = flowCellAt(nav, x, y);
+  if ((hunt.dist[c] as number) <= 0) return;
+  for (let step = 0; step < HUNT_LOOKAHEAD_CELLS; step++) {
+    const cx = c % cols;
+    const cy = (c - cx) / cols;
+    let best = -1;
+    let bestD = hunt.dist[c] as number;
+    for (let k = 0; k < 4; k++) {
+      const nx = cx + (k === 0 ? 1 : k === 1 ? -1 : 0);
+      const ny = cy + (k === 2 ? 1 : k === 3 ? -1 : 0);
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= nav.rows) continue;
+      const d = hunt.dist[ny * cols + nx] as number;
+      if (d >= 0 && d < bestD) {
+        bestD = d;
+        best = ny * cols + nx;
+      }
+    }
+    if (best < 0) break;
+    c = best;
+  }
+  out.huntStepX = flowCellCenterX(nav, c) - x;
+  out.huntStepY = flowCellCenterY(nav, c) - y;
+}
+
+/** Story 6.5: cells the hunt looks ahead along its way. */
+const HUNT_LOOKAHEAD_CELLS = 4;
 
 /** The fill in progress (synchronous, so one shared record is enough: no closure per call). */
 const fill: { view: BotView | null; selfId: string } = { view: null, selfId: "" };
@@ -272,6 +360,8 @@ function visitMate(p: PlayerState): void {
 /** Fills `out` from a World (headless bots). A missing player reads as "out" with no zombie. */
 export function botViewFromWorld(world: World, playerId: string, out: BotView): void {
   out.teammateCount = 0;
+  out.huntStepX = 0;
+  out.huntStepY = 0;
   out.nearestZombie = null;
   out.knowsCover = true;
   out.shotZombie = null;
@@ -329,13 +419,36 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
       out.shotZombie = out.shot;
     }
   }
+  // Story 6.5: the Behemoth is a target like a zombie (measured to its body's edge, aimed at its centre),
+  // so the bots fight it and a boss wave can end (F11) in the sims.
+  const boss = world.boss;
+  if (bossBodyOn(boss)) {
+    const dx = boss.x - p.x;
+    const dy = boss.y - p.y;
+    const edge = Math.max(0, Math.sqrt(dx * dx + dy * dy) - world.balance.boss.radiusM);
+    const d2 = edge * edge;
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      bx = boss.x;
+      by = boss.y;
+      bid = -1;
+    }
+    huntStep(world, p.x, p.y, out);
+    if (d2 < shotD2 && d2 <= range2 && (lobs || bulletLineClear(world, p.x, p.y, boss.x, boss.y))) {
+      out.shot.x = boss.x;
+      out.shot.y = boss.y;
+      out.shot.distM = edge;
+      out.shotZombie = out.shot;
+    }
+  }
   if (bestD2 < Infinity) {
     out.zombie.x = bx;
     out.zombie.y = by;
     out.zombie.distM = Math.sqrt(bestD2);
     // Review M2: a Spitter holds its spot unless it rushes (FR30: then it walks in between spits).
-    out.zombie.holdsSpot = world.balance.zombies.types[zombieTypeOf(zs, bid)]?.spit !== undefined && !isRushState(zs.state[bid] as number);
-    out.zombie.rushing = isRushState(zs.state[bid] as number);
+    out.zombie.holdsSpot = bid >= 0 && world.balance.zombies.types[zombieTypeOf(zs, bid)]?.spit !== undefined && !isRushState(zs.state[bid] as number);
+    out.zombie.boss = bid < 0;
+    out.zombie.rushing = bid < 0 || isRushState(zs.state[bid] as number); // Story 6.5: the bots hunt the Behemoth like the last rushers (out of range: walk to it)
     out.nearestZombie = out.zombie;
   }
   // Story 5.12: the densest cluster within throw range (waves only; at most CLUSTER_CANDIDATES tried).

@@ -153,7 +153,7 @@ Ask the designer to check these: **riot**, **bike** and **hard** helmets (could 
 - **AC changes from the designer's decisions** (the story text above is unchanged; these supersede it, to be folded into the story by the main session): AC 1 picks in three rounds; AC 2 five slots, order back piece → gun → arms → pack → top body → head → hair → headgear (no accent); AC 3 every survivor frame is today's body with only the cap redrawn; AC 4 51 parts, 31/10/10, M1 fire, M2 riot, M3 gas, M4 hockey, M5 headband, M6 camo, M7 planks, M8 laurel, M9 welding mask, M10 golf bag; AC 6 unchanged.
 - T5: `survivorParts.ts` draws every picked part with `circle`, `ell`, `rrect`, `shade` plus three local compositions (`wall` for the lean, `seg`, `poly`); fixed colours in `PART_COLOURS` (night colours, through `stageDim`, identity at stage 1; `rgba(…)` colours keep their alpha). Two small changes against the pick page so AC 6 holds in the default colours: puffer ridges 0.07 r and shade −0.4 (page: 0.05, −0.32); tied ponytail 0.33 × 0.15 r (page 0.3 × 0.14). Contact sheet of every part from the game code: `docs/art/7-8/ingame/parts-sheet.png` (`npx tsx docs/art/7-8/sheet.ts`).
 - T6: raster tests (369): AC 3 for all 9 survivor frames (0 differing bytes against today's body + `drawHead("cap")`, and > 100 bytes against today's cap); a digest pin of the default `survivor_body_a` (the picked cap); AC 6 for the 46 non-baseline parts; every pair of parts in a slot differs ≥ 40 px² or the outline at 14 px (the designer's "buzz is the same as short").
-- Readability (brief 13): item 47 in `docs/playtests/milestone-1/readability-sheet.md` + key (four survivors with the most gear-like looks; right answer "nothing, just looks").
+- Readability (brief 13): item 49 in `docs/playtests/milestone-1/readability-sheet.md` + key (four survivors with the most gear-like looks; right answer "nothing, just looks").
 - In-game check: solo dev build on port 5478 (stopped by PID), headless Chromium, dpr 2: the atlas frame `survivor_body_a` (184 × 184, unchanged size) shows the new cap; no page errors (`docs/art/7-8/ingame/`, `shots.cjs`).
 - T7 gate on `story-7-8` merged with master 603099b (Story 6.3): typecheck 0, lint 0, test 332 files / 3094 passed / 3 skipped (285 s), build OK (the > 1600 kB chunk warning was there before). `@napi-rs/canvas` is not in the client bundle.
 
@@ -162,7 +162,7 @@ Ask the designer to check these: **riot**, **bike** and **hard** helmets (could 
 - `packages/shared/src/index.ts`: one new export block (cosmetics), next to devBalance; master's 6.3 exports merged cleanly.
 - `apps/client/src/render/city/spriteArt.ts`: `drawSurvivor` gains a 5th parameter `look` (default = the default survivor) and delegates to `survivorParts.ts`; the first four parameters are unchanged, so `spriteAtlas.ts` is untouched. The default survivor's cap changes in game (designer's pick) — every other pixel is today's.
 - `package.json` / `package-lock.json`: devDependency `@napi-rs/canvas` 1.1.0 (tests only).
-- `docs/playtests/milestone-1/readability-sheet.md` / `readability-key.md`: conflicted with 6.3's item 46; mine is **47**.
+- `docs/playtests/milestone-1/readability-sheet.md` / `readability-key.md`: conflicted with 6.3 (46) and 6.5 (47–48); mine is **49**.
 - `docs/epic-7-decisions.md`: new section "Survivor parts (7.8)" at the end.
 - For **7.9**: the look code drops `acc` (5 slots + 3 colours); `resolveLook(look, stage)` and `DEFAULT_RESOLVED_LOOK` are ready; open question from the designer: animated parts (a spinning propeller) as an extra small sprite.
 - For **7.10**: no shop by design (D3); the editor tiles are drawn from these parts (each round-2/3 card shows a 64 px tile). The designer asked whether a "shop view" is planned; dedicated item art would be a course correction.
@@ -180,7 +180,7 @@ Ask the designer to check these: **riot**, **bike** and **hard** helmets (could 
 
 - `docs/art/7-8/parts.html`, `round-2.html`, `round-3.html`, `README.md`, `sheet.ts`, `shots.cjs`, `ingame/parts-sheet.png`, `ingame/7-8-solo-800x360-dpr2.png`, `ingame/7-8-atlas-survivor_body_a-x3.png` (new)
 - `docs/epic-7-decisions.md` (Survivor parts (7.8) section)
-- `docs/playtests/milestone-1/readability-sheet.md`, `readability-key.md` (item 47), `objects/47_survivor_looks.png` (new)
+- `docs/playtests/milestone-1/readability-sheet.md`, `readability-key.md` (item 49), `objects/49_survivor_looks.png` (new)
 - `packages/shared/src/config/cosmetics.json`, `cosmetics.ts`, `cosmetics.test.ts` (new)
 - `packages/shared/src/index.ts` (exports)
 - `apps/client/src/render/city/survivorLook.ts`, `survivorLook.test.ts`, `survivorParts.ts`, `survivorParts.raster.test.ts` (new)

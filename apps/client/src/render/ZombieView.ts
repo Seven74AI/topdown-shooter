@@ -62,6 +62,9 @@ const variantOf = (type: ZombieTypeId, id: number, gen: number, look: number): s
  */
 export class ZombieView {
   private readonly images: (Phaser.GameObjects.Image | undefined)[] = [];
+
+  /** Story 6.5 (review L-b): zombie slot `id` is drawn this frame (6.4's fog may hide some: then it isn't). */
+  readonly drawn = (id: number): boolean => this.images[id]?.visible === true;
   private readonly shownFrame: Int32Array;
   private readonly lastAngle: Float32Array;
   private readonly shownGeneration: Int16Array;

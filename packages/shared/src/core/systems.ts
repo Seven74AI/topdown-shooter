@@ -8,6 +8,7 @@ import { updateBuildings } from "../buildings/buildingSystem";
 import { updateFires } from "../decay/fire";
 import { updateAcid, updateSpits } from "../zombies/spit";
 import { processBlasts, updateGas } from "../zombies/bloater";
+import { updateBoss } from "../boss/behemoth";
 
 /**
  * Story 5.8: queued Bloater blasts run first and the gas last (`zombies/bloater.ts`).
@@ -75,7 +76,7 @@ export const DEFAULT_SYSTEMS: Systems = {
   buildings: updateBuildings,
   combat: updateCombat,
   zombies: updateZombieSlot, // Story 5.6: + spits and acid puddles
-  boss: noop,
+  boss: updateBoss, // Story 6.5: the Behemoth (server and solo; never predicted)
   waves: updateRun, // Story 3.1: the run state machine (build countdown, then the wave director)
   specialEvents: noop,
   economy: updateEconomy,

@@ -7,6 +7,7 @@ import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import type { ZombieView } from "./rewind";
 import { bulletBlockT, bulletLineClear } from "./cover";
+import { bossBodyOn } from "../boss/bossState";
 
 const MIN_DIST_SQ = 1e-6;
 
@@ -50,6 +51,28 @@ export function assistAim(
   let bestD2 = Infinity;
   let bestVx = 0;
   let bestVy = 0;
+  // Story 6.5 (AC 11): the Behemoth's circle under the same rule (the raw aim on it is kept; else it
+  // is a candidate like a zombie). Picking it returns -1 with `out` turned toward it (it has no zombie id).
+  let bossBest = false;
+  const boss = world.boss;
+  if (bossBodyOn(boss)) {
+    const br = world.balance.boss.radiusM;
+    const rawT = segmentCircleT(ox, oy, ex, ey, boss.x, boss.y, br);
+    if (rawT >= 0 && (blockT < 0 || rawT <= blockT)) return -1;
+    const vx = boss.x - ox;
+    const vy = boss.y - oy;
+    const d2 = vx * vx + vy * vy;
+    const reach = rangeM + br;
+    if (d2 <= reach * reach && d2 >= MIN_DIST_SQ) {
+      const d = Math.sqrt(d2);
+      if ((vx * dirX + vy * dirY) / d >= cosLimit && bulletLineClear(world, ox, oy, boss.x, boss.y)) {
+        bossBest = true;
+        bestD2 = d2;
+        bestVx = vx / d;
+        bestVy = vy / d;
+      }
+    }
+  }
   for (let k = 0; k < count; k++) {
     const id = candidates[k] as number;
     if (!isZombieAlive(z, id)) continue;
@@ -70,12 +93,13 @@ export function assistAim(
     if (d2 < bestD2) {
       if (!bulletLineClear(world, ox, oy, zx, zy)) continue; // Story 4.2: never bend a shot into cover
       best = id;
+      bossBest = false;
       bestD2 = d2;
       bestVx = vx / d;
       bestVy = vy / d;
     }
   }
-  if (best >= 0) {
+  if (best >= 0 || bossBest) {
     out.x = bestVx;
     out.y = bestVy;
   }

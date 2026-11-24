@@ -1,3 +1,5 @@
+import { bossBodyOn } from "../boss/bossState";
+import { applyBossDamage, bossInArc } from "../boss/bossDamage";
 import type { FlameStats } from "../config/balanceSchema";
 import { MUZZLE_OFFSET_M } from "../config/constants";
 import { DAMAGE_SOURCE_FIRE } from "../core/simEvents";
@@ -77,6 +79,7 @@ export function claimFlameSlot(world: World, p: PlayerState): void {
   slots[s] = p.id;
   const z = world.zombies;
   for (let id = 0; id < z.capacity; id++) z.flameClock[id * FLAME_SLOTS + s] = 0;
+  world.boss.flameClock[s] = 0; // Story 6.5: a new holder of the slot starts the boss's clock afresh
   forgetIgniter(world, s);
   world.players.forEach((q) => {
     q.flameClock[s] = 0;
@@ -211,6 +214,18 @@ export function flameTick(world: World, p: PlayerState, slot: WeaponSlot, stats:
       z.igniteDamage[id] = igniteDmg;
       flameStats.ignites++;
     }
+  }
+
+  // Story 6.5 (D4): the Behemoth's body in the cone with a clear line to its centre: the normal flame
+  // pulse on its own exposure clock for this flame slot (review M1: the zombies' 5.4 per-body rule —
+  // the clock only advances in the cone and never resets on leaving it, so sweeping on and off is no
+  // faster than holding); it never catches fire (no ignite).
+  const boss = world.boss;
+  if (bossBodyOn(boss) && bossInArc(world, ox, oy, dirX, dirY, reach, cosH, sinH) && shotBlockT(world, ox, oy, boss.x, boss.y) < 0) {
+    touched++;
+    const c = boss.flameClock[s] as number;
+    boss.flameClock[s] = (c + 1) % zombiePulse;
+    if (c === 0) applyBossDamage(world, zombieDmg, p.id, slot.weapon);
   }
 
   // FR-D/E: teammates in the cone (live positions), each on its own clock for this flamer.

@@ -14,9 +14,10 @@ import decay from "./balance/decay.json" with { type: "json" };
 import combat from "./balance/combat.json" with { type: "json" };
 import gear from "./balance/gear.json" with { type: "json" };
 import consumables from "./balance/consumables.json" with { type: "json" };
+import boss from "./balance/boss.json" with { type: "json" };
 import economy from "./balance/economy.json" with { type: "json" };
 
-const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables })) as RawBalanceFiles;
+const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss })) as RawBalanceFiles;
 
 /** Story 5.18: the chain and pending numbers in controls.build. */
 const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300 } as const;
@@ -577,5 +578,13 @@ describe("Story 5.13: shop.json (card shop)", () => {
     const files = bundledBalanceFiles();
     (files.shop as { excludeFromCards: string[] }).excludeFromCards.push("rocket");
     expect(() => loadBalance(files)).toThrow(/shop\.json: excludeFromCards\.1: unknown item rocket/);
+  });
+});
+
+describe("Story 6.5 review L-e: boss.json cross-checks", () => {
+  it("threatWindowS must match the threat ring (5 s): 6 is refused", () => {
+    const r = raw();
+    (r.boss as { target: { threatWindowS: number } }).target.threatWindowS = 6;
+    expect(() => loadBalance(r)).toThrow(/boss\.json: target\.threatWindowS 6 must be 5/);
   });
 });

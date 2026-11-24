@@ -495,3 +495,60 @@ describe("syncState", () => {
     expect([state.blackoutPct, state.halfDark]).toEqual([0, false]);
   });
 });
+
+describe("Story 6.5 syncState: the boss record", () => {
+  it("syncs every boss field on change, the target as its slot, and resets with the run", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    syncState(state, controller);
+    expect(state.boss.state).toBe(0);
+    encoder.encode(); // settle the first full patch
+    encoder.discardChanges();
+    const b = w.boss;
+    b.state = 2;
+    b.x = 12.5;
+    b.y = 3.25;
+    b.facing = Math.PI / 2;
+    b.hp = 4799.2;
+    b.maxHp = 4800;
+    b.number = 1;
+    b.look = 2;
+    b.targetId = "p1";
+    b.attack.id = 3;
+    b.attack.kind = 1;
+    b.attack.startTick = 100;
+    b.attack.hitTick = 124;
+    b.attack.cx = 12.5;
+    b.attack.cy = 3.25;
+    b.attack.radiusM = 4.5;
+    syncState(state, controller);
+    expect({ ...state.boss.toJSON() }).toEqual({
+      state: 2,
+      x: 12.5,
+      y: 3.25,
+      heading: quantizeHeading(0, 1),
+      hp: 4800,
+      maxHp: 4800,
+      number: 1,
+      look: 2,
+      target: 1,
+      enraged: false,
+      atkId: 3,
+      atkKind: 1,
+      atkStart: 100,
+      atkHit: 124,
+      atkX: 12.5,
+      atkY: 3.25,
+      atkR: 4.5,
+    });
+    encoder.encode();
+    encoder.discardChanges();
+    // Nothing changed: no bytes for the boss.
+    syncState(state, controller);
+    const patch = encoder.encode();
+    expect(patch.length).toBeLessThan(20); // the tick only
+    resetRunFields(state);
+    expect(state.boss.state).toBe(0);
+    expect(state.boss.target).toBe(255);
+  });
+});

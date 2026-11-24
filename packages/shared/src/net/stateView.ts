@@ -138,6 +138,38 @@ export interface RunStateView {
    */
   readonly blackoutPct: number;
   readonly halfDark: boolean;
+  /** Story 6.5: the Behemoth's record (one nested schema; `boss/bossState.ts` is the sim side). */
+  readonly boss?: BossStateView; // absent before the first fight patch (a lobby state)
+}
+
+/**
+ * Story 6.5: the boss record on the wire (brief line 11: one record in the room state). Position and
+ * heading change while it walks; hp on hits; the attack fields once per attack (the telegraph event
+ * carries the same numbers: a late Game scene or a woken tab draws from these).
+ */
+export interface BossStateView {
+  /** `BOSS_STATE` (0 none … 8 dead). */
+  readonly state: number;
+  readonly x: number;
+  readonly y: number;
+  /** `quantizeHeading` of its facing. */
+  readonly heading: number;
+  readonly hp: number;
+  readonly maxHp: number;
+  /** Behemoths this run. */
+  readonly number: number;
+  readonly look: number;
+  /** The target's player slot (255 = none). */
+  readonly target: number;
+  readonly enraged: boolean;
+  /** The current (or last) telegraph: id, kind, start / hit ticks, zone (6.6 adds the lane). */
+  readonly atkId: number;
+  readonly atkKind: number;
+  readonly atkStart: number;
+  readonly atkHit: number;
+  readonly atkX: number;
+  readonly atkY: number;
+  readonly atkR: number;
 }
 
 /**
@@ -214,4 +246,25 @@ export const RUN_STATE_FIELDS = {
   decayFiresOut: true,
   blackoutPct: true, // Story 6.3
   halfDark: true, // Story 6.3
-} as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings">, true>;
+} as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
+
+/** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */
+export const BOSS_STATE_FIELDS = {
+  state: true,
+  x: true,
+  y: true,
+  heading: true,
+  hp: true,
+  maxHp: true,
+  number: true,
+  look: true,
+  target: true,
+  enraged: true,
+  atkId: true,
+  atkKind: true,
+  atkStart: true,
+  atkHit: true,
+  atkX: true,
+  atkY: true,
+  atkR: true,
+} as const satisfies Record<keyof BossStateView, true>;

@@ -1,4 +1,4 @@
-import { MAP_STAGE_COUNT, changeDecayStage, killZombie, parseRunSeed, setForcedBlackout, type Building, type World } from "@topdown/shared";
+import { MAP_STAGE_COUNT, changeDecayStage, killZombie, parseRunSeed, setForcedBlackout, startBossWarning, type Building, type World } from "@topdown/shared";
 
 /** Pure helpers of the dev cheats (Story 1.11). Imported only by DevCheats.tsx, so they leave release builds with it. */
 
@@ -73,4 +73,13 @@ export function decayCheatAllowed(world: World): boolean {
 export function setForcedBlackoutCheat(world: World, pct: number): number {
   setForcedBlackout(world, pct);
   return world.lights.blackoutPct;
+}
+
+/**
+ * Story 6.5 dev cheat "Spawn Behemoth" (solo; online the server's `DEV_BOSS_WAVES`): starts the
+ * 4 s warning now, in any wave (the real entry rule and arrival). False outside a wave or while a
+ * Behemoth is already warning or walking.
+ */
+export function spawnBehemothCheat(world: World): boolean {
+  return startBossWarning(world);
 }

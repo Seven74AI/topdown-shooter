@@ -1,3 +1,4 @@
+import { applyBossDamage, bossInCircle, bossNear } from "../boss/bossDamage";
 import type { World } from "../core/world";
 import type { PlayerState } from "../player/player";
 import type { Building } from "../buildings/buildings";
@@ -203,6 +204,8 @@ export function explode(world: World, spec: Readonly<ExplosionSpec>): number {
       }
     }
     world.players.forEach(blastPlayer); // reads frames[depth - 1]: this blast's, nested ones restore it
+    // Story 6.5 (D4): the Behemoth within radius + its body, by the normal blast line of sight to its nearest point; full damage.
+    if (bossInCircle(world, x, y, radiusM) && shotLineClear(world, x, y, bossNear.x, bossNear.y)) applyBossDamage(world, zombieDamage, source, weapon);
     if (buildingDamage > 0) buildingsHit = blastBuildings(world, x, y, radiusM, buildingDamage);
   } finally {
     targetTop = base;
