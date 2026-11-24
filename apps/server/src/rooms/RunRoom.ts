@@ -719,8 +719,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (devDecayStages !== null) this.log.warn({ stages: devDecayStages }, "dev_decay_stages");
     else if (decayPick.ignored !== null) this.log.warn({ value: process.env.DEV_DECAY_STAGES, reason: decayPick.ignored }, "dev_decay_stages_ignored");
     if (bossPick.waves !== null) this.log.warn({ waves: bossPick.waves }, "dev_boss_waves");
-    if (devEvents !== null) this.log.warn({ events: devEvents }, "dev_events");
     else if (bossPick.ignored !== null) this.log.warn({ value: process.env.DEV_BOSS_WAVES, reason: bossPick.ignored }, "dev_boss_waves_ignored");
+    if (devEvents !== null) this.log.warn({ events: devEvents }, "dev_events"); // review L8: after the boss's else-if
     if (startWavePick.wave !== null) this.log.warn({ wave: startWavePick.wave }, "dev_start_wave");
     else if (startWavePick.ignored !== null) this.log.warn({ value: process.env.DEV_START_WAVE, reason: startWavePick.ignored }, "dev_start_wave_ignored");
     if (shopPick.cards !== null) this.log.warn({ cards: shopPick.cards }, "dev_shop_cards");

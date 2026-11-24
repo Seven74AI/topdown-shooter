@@ -18,7 +18,8 @@
     "laneNearTeamM": 10,
     "stuckS": 1,
     "stuckProgressM": 0.5,
-    "deflectLookM": 4
+    "deflectLookM": 4,
+    "sidestepAlongFrac": 0.25
   },
   "fx": { "maxDustParticles": 64, "maxMarkers": 4, "maxChevrons": 12 },
   "banners": { "car_alarm": "CAR ALARM · shoot it to set it off", "stampede": "STAMPEDE!" }

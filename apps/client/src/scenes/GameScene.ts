@@ -60,7 +60,7 @@ import {
   isBlackout as isBlackoutNow,
   setForcedBlackout,
 } from "@topdown/shared";
-import { dpr } from "../display";
+import { dpr, safeArea, type SafeArea } from "../display";
 import { STICK_RADIUS_CSS_PX, TouchSticks } from "../input/TouchSticks";
 import { InputRouter } from "../input/InputRouter";
 import { attachDesktopInput } from "../input/desktopInput";
@@ -305,6 +305,8 @@ export class GameScene extends Phaser.Scene {
   private bossMusic = false;
   /** Story 6.8: the special events' markers, car lights, stampede chevrons and dust, the alarm loop. */
   private eventView: EventView | null = null;
+  /** Story 6.8 review M2: the safe-area insets the event edge arrow keeps inside (read on create and resize, never per frame). */
+  private eventInsets: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 };
   private readonly eventCueOut = createEventCue();
   private readonly bossCueOut: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
   /** Story 6.7: the Behemoth number whose EVAC INBOUND was shown (once each, a woken tab too). */
@@ -639,6 +641,7 @@ export class GameScene extends Phaser.Scene {
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.bossView = new BossView(this, host.world); // Story 6.5
     this.eventView = new EventView(this, host.world); // Story 6.8
+    this.eventInsets = { ...safeArea() };
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
@@ -716,6 +719,7 @@ export class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, world.map.widthM, world.map.heightM);
     this.applyZoom();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.readEventInsets, this); // Story 6.8 review M2
     this.cityView = new CityView(this, world.map, cam.zoom, urlOptions().lowFx, () => this.runSeed); // Story 6.2: the lamp flicker key
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
@@ -742,6 +746,7 @@ export class GameScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.readEventInsets, this); // Story 6.8
       this.scene.stop("Hud");
       detachDesktop();
       this.router = null;
@@ -1651,6 +1656,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** A camera shake of `fraction` of the view (see `shakeIntensityFor`: Phaser's own shake scales by zoom²). */
+  /** Story 6.8 review M2: the safe area the event edge arrow keeps inside, on resize. */
+  private readEventInsets(): void {
+    this.eventInsets = { ...safeArea() };
+  }
+
   /** Story 6.5: a boss event's banner, sound, shake, buzz and music (none for a woken tab's backlog). */
   private bossEvent(host: SceneHost, e: SimEvent, localId: string): void {
     const me = host.world.players.get(localId);
@@ -1985,7 +1995,7 @@ export class GameScene extends Phaser.Scene {
     this.zombieView?.update(host.world, host.alpha);
     this.updateBoss(host, deltaMs / 1000); // Story 6.5
     const ev = this.cameras.main.worldView; // Story 6.8: the event markers (from the server's ticks)
-    this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height);
+    this.eventView?.update(this.localHost?.paused === true ? 0 : deltaMs / 1000, host.serverTick, ev.x, ev.y, ev.width, ev.height, this.cameras.main.width, this.cameras.main.height, dpr(), this.eventInsets);
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
     this.acidClockS += fxDtS;

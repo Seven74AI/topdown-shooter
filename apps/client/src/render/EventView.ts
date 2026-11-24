@@ -3,6 +3,7 @@ import { EVENT_KINDS, EVENT_PHASE, type StampedeLane, type World } from "@topdow
 import { EVENT_AMBER_HEX, EVENT_ATLAS, EVENT_FRAMES, PIN_H, PIN_TIP_Y, PIN_W, ensureEventTextures } from "./city/eventArt";
 import { aboveDarkness } from "./darkness/aboveDark";
 import { createEventMarkerLook, eventMarkerLook } from "./eventMarkers";
+import { newWaveControlRects, placeEventArrow, waveControlRects, type Insets } from "./eventArrow";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
 /**
@@ -21,14 +22,15 @@ import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoo
  */
 const PIN_M = 1.3; // the pin's height on the map (m)
 const RING_M = 1.1;
-const ARROW_M = 0.9;
+/** The edge arrow's size on screen (CSS px; disc + tip), fixed in px so the HUD layout test can check it (review M2). */
+export const EVENT_ARROW_CSS_PX = 34;
 const CHEVRON_M = 1.2;
 const CHEVRON_GAP_M = 3;
 const DUST_M = 2.2;
 const DUST_LIFE_S = 1.6;
 const DUST_PER_S = 24;
 const GLOW_M = 0.9;
-const EDGE_MARGIN_M = 1.2;
+const EDGE_MARGIN_M = 1.2; // eventMarkerLook's own edge test (on / off screen)
 const ARC_COLOR = EVENT_AMBER_HEX;
 
 interface Dust {
@@ -51,6 +53,8 @@ export class EventView {
   private dustAcc = 0;
   private clockS = 0;
   private readonly look = createEventMarkerLook();
+  private readonly controls = newWaveControlRects();
+  private readonly arrowAt = { x: 0, y: 0, angle: 0 };
   /** Deterministic jitter for the dust (no Math.random: same look on every phone). */
   private seed = 1;
 
@@ -63,8 +67,8 @@ export class EventView {
     this.ring = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.ring).setVisible(false), "marker");
     this.pin = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.pinBell).setDisplaySize((PIN_M * PIN_W) / PIN_H, PIN_M).setOrigin(0.5, PIN_TIP_Y / PIN_H).setVisible(false), "marker");
     this.arc = aboveDarkness(scene.add.graphics().setVisible(false), "marker");
-    this.arrow = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.arrowBell).setDisplaySize(ARROW_M, ARROW_M).setVisible(false), "marker");
-    this.tip = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.arrowTip).setDisplaySize(ARROW_M * 0.5, ARROW_M * 0.5).setVisible(false), "marker");
+    this.arrow = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.arrowBell).setVisible(false), "marker");
+    this.tip = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.arrowTip).setVisible(false), "marker");
     for (let i = 0; i < 4; i++) this.glows.push(aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.glow).setDisplaySize(GLOW_M, GLOW_M).setBlendMode(1).setVisible(false), "marker"));
     for (let i = 0; i < fx.maxChevrons; i++) this.chevrons.push(aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, EVENT_FRAMES.chevron).setDisplaySize(CHEVRON_M, CHEVRON_M * 0.75).setVisible(false), "marker"));
     const dustFrames = [EVENT_FRAMES.dust0, EVENT_FRAMES.dust1, EVENT_FRAMES.dust2];
@@ -81,9 +85,9 @@ export class EventView {
 
   /**
    * One frame. `serverTick`: the host's estimate of the server tick now; (vx, vy, vw, vh) the camera's
-   * world view in metres.
+   * world view in metres; (sw, sh) the canvas in px, `k` its px per CSS px, `insets` the safe area (CSS px).
    */
-  update(dtS: number, serverTick: number, vx: number, vy: number, vw: number, vh: number): void {
+  update(dtS: number, serverTick: number, vx: number, vy: number, vw: number, vh: number, sw: number, sh: number, k: number, insets: Insets): void {
     this.clockS += dtS;
     const look = eventMarkerLook(this.world, serverTick, vx, vy, vw, vh, EDGE_MARGIN_M, this.look);
     const kind = look.kind >= 0 ? EVENT_KINDS[look.kind] : undefined;
@@ -108,13 +112,19 @@ export class EventView {
         this.arc.strokePath();
       }
     }
-    // The edge arrow (D10).
-    this.arrow.setVisible(look.edge.visible);
-    this.tip.setVisible(look.edge.visible);
-    if (look.edge.visible) {
-      const e = look.edge;
-      this.arrow.setFrame(kind === "stampede" ? EVENT_FRAMES.arrowBang : EVENT_FRAMES.arrowBell).setPosition(e.x, e.y);
-      this.tip.setPosition(e.x + Math.cos(e.angle) * ARROW_M * 0.65, e.y + Math.sin(e.angle) * ARROW_M * 0.65).setRotation(e.angle);
+    // The edge arrow (D10; review M2: placed in screen px off the wave controls, inside the safe area).
+    const pxPerM = vw > 0 ? sw / vw : 1;
+    const arrowPx = EVENT_ARROW_CSS_PX * k;
+    const onEdge = look.visible && placeEventArrow((look.x - vx) * pxPerM, (look.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), this.arrowAt);
+    this.arrow.setVisible(onEdge);
+    this.tip.setVisible(onEdge);
+    if (onEdge) {
+      const e = this.arrowAt;
+      const discM = (arrowPx * 0.7) / pxPerM;
+      const ex = vx + e.x / pxPerM;
+      const ey = vy + e.y / pxPerM;
+      this.arrow.setFrame(kind === "stampede" ? EVENT_FRAMES.arrowBang : EVENT_FRAMES.arrowBell).setDisplaySize(discM, discM).setPosition(ex, ey);
+      this.tip.setDisplaySize(discM * 0.5, discM * 0.5).setPosition(ex + Math.cos(e.angle) * discM * 0.62, ey + Math.sin(e.angle) * discM * 0.62).setRotation(e.angle);
     }
     this.updateCar(look.visible && kind === "car_alarm" && look.blinkOn, vx, vw);
     this.updateStampede(dtS, look.chevrons ? look.lane : -1);

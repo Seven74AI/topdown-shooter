@@ -256,6 +256,8 @@ Claude (Claude Code cloud builder session, branch `story-6-8`).
 - `zombies/zombieAi.ts` pass 1: the stampede branch (`stampedeSteer`) and lure steering (`lureSteer`, `standingWithin`) before the target pick; pass 4: `stampedeContact`, no swing / bite / building hit for STAMPEDE. **6.10's survivor** adds itself to the target list in `collectAlivePlayers` / `nearestAlivePlayer` — whether lured zombies go for it within 2 m is 6.10's call.
 - `zombies/flowField.ts`: `FlowField.seedBox/seedBoxM`, `PathingState.lure/lureWide/lureBuild`, `requestLureFields` / `dropLureFields`, `updatePathing`'s turn order written as a list (chase, flank, wide, lure, boss — unchanged without the lure; the boss keeps its own clock); `snapshotPathing` + the lure fields.
 - `zombies/zombiePool.ts`: `lureTicks`, `stampedeHit`, `stampedeAnchor`, `stampedeTick` (reset on spawn), `removeZombie` (no event, no reward). `zombies/zombieTypes.ts`: `ZOMBIE_STATE.STAMPEDE = 6` (horde nibble; the client draws it as a plain zombie).
+- **6.9 supply crate:** the framework ends the active event at its wave's end unless `holdsWave` — a crate that outlives the wave needs `holdsWave` or must live outside `special.active`. `EventModule.update` returns `EventOutcome | null` (review API change).
+- `apps/client/src/render/eventArrow.ts` (new) + `scenes/hudLayout.test.ts` (the arrow's block); `bots.json` (`laneMarginM`, `strafeFlipSeqs`), `events.json` (`runS` 12, `sidestepAlongFrac`).
 - `combat/firing.ts`: one line after `stoppedAt` (`onSpecialShot` for `building === 0`). **6.9** adds the gas tank in `specialShotTarget` / `onSpecialShot` (`events/specialEvents.ts`), no edit here.
 - `core/simEvents.ts`: four `event.*` events (after 6.6's). `net/netEvents.ts`: kinds **55–58** (6.8's block is 55–64: 59–64 free for 6.9/6.10). No money reason added.
 - `net/stateView.ts`, `apps/server/src/rooms/schema/RunState.ts` (flat fields after `boss`), `syncState.ts` (+ reset), `apps/client/src/net/fakeRoom.ts`, `lobbyStore.test.ts`: the 7 `event*` fields. **6.9/6.10** append crate / survivor fields after `eventLane`.
@@ -431,9 +433,29 @@ Survived (bad): M2 no standing check (L1). M3 8 m minimum dropped (L5). M7 D11 s
 
 Lines 2 (every copy listed and touched), 3 (F1–F9 each tested), 5 (the car is cover; the hook uses `stoppedAt`), 6 (per-Runner mask), 7 (`events.fuzz` + `spots` lane/spot tests; lure/boss fields on their own turns), 8 (stream `events` only; digest), 9 (sims assert triggers; M22), 10 (ticks, JSON; nits above), 11 (reliable events + on-change record, B1), 14 (mirror from the state, `ageS`), 15 (10-wave sim all cleared), 18 (`DEV_EVENTS` / `?events=` / cheats), 19 (merge notes), 20 (`addGeneratedTexture`), 22 (`maxAliveNow` + 30), 23 (banner+sound+marker; schedule; lever), 24 (amber markers in `ABOVE_DARK.marker`; screenshots in `docs/art/6-8`), 25 (one slot, fixed arrays; endless hook bounded), 27 (no 5.x UI touched), 28 (hold, skip and wipe are tested transitions), 29–32 (hand-back, merged tree): OK. Line 31: M2 above. Lines 12/16 (FPS / p99) are recorded by the builder; not re-run. D1–D11 and 6.8 B1 match the code (D1 test gap L5; D11 test gap L2).
 
+
+### Review fixes (builder, 2026-11-24, after merging `review-6-8` e0e56b1 and master b19eea7)
+
+| # | Fix | Test / evidence |
+| --- | --- | --- |
+| **6.8 B2** (designer) [BEHAVIOUR] | `events.json stampede.runS` 10 → **12**: the stampede crosses and leaves. | `spots.test.ts` (stages 1–5 × gameplay masks): **main street 1622/1980 cross (81.9 %)**, **cross street 982/1020 (96.3 %)**, stuck-converted 46/3000 (1.5 %); asserted main > 75 %, cross > 80 %, stuck < 5 %. The B1 bandwidth bound test still passes (≤ 28.5 KB/s). |
+| **API** [BEHAVIOUR for 6.9] | `EventModule.update(world): EventOutcome \| null` — null keeps going, an outcome ends it with that outcome (the framework calls `end` and emits `event.ended`); no re-entrant `endSpecialEvent`. Car alarm / stampede / stubs return `"done"`. Pushed at 2c5b072 and sent to the 6.9+6.10 builder directly. | `specialEvents.test.ts` ("a module returning failed ends with outcome failed"). |
+| M1 | Not fixed here (pre-existing wide-body stall; main session: separate story after 6.8). The bot strafe flip stays. | — |
+| M2 | The event edge arrow is placed in SCREEN px (`render/eventArrow.ts › placeEventArrow`): on the safe-area rectangle shrunk by half its size + 6 px, sliding along the edge off the wave controls (☰, swap, quick-use from the same layout functions HudScene uses); a fixed 34 CSS px size. Added to the one HUD layout test as non-pressable: at every 2° at 568 × 320 and 640 × 360 (insets 44/21) inside the safe area, off every wave control, ≥ 48 px from the survivor. | `hudLayout.test.ts` (new block; removing the slide fails it at both sizes). Browser check at 568 × 320: arrows at the edges, clear of ☰ and the buttons. |
+| L1 | DD7: everyone downed at the trigger point → no trigger, not skipped; one stands → it starts. | `specialEvents.test.ts` (kills mutation M2). |
+| L2 | D11 test downs p2 before the size is fixed. | `stampede.test.ts` (kills M7). |
+| L3 | Spawns pause: `queued` holds while Runners run, then resumes. | `stampede.test.ts` (kills M8). |
+| L4 | The warning holds the wave (last zombie dies in the 3 s warning). | `specialEvents.test.ts` (kills M9). |
+| L5 | D1 8 m minimum: a car ≤ 8 m from the team is never armed (200 seeds). | `carAlarm.test.ts` (kills M3). |
+| L6 | Lured stays lured outside 15 m; a held stampede Runner next to a barricade leaves it at full HP. | `carAlarm.test.ts`, `stampede.test.ts` (kill M16, M12). |
+| L7 [BEHAVIOUR] | A lured zombie walks the lure only once both lure fields are built (`lureBuild === LURE_READY`, ≈ 0.7 s); until then it keeps chasing by the chase field (never straight into the bus). | `carAlarm.test.ts` (sounding before the fields: still chasing west, then to the car; the mutation fails it). |
+| L8 | `dev_events` log line moved after the boss's `else if` in `RunRoom`. | read. |
+| Nits | `sidestepAlongFrac` → `events.json`; `laneMarginM`, `strafeFlipSeqs` → `bots.json`; `EDGE_EPS_M` / `MERGE_GAP_M` documented geometry epsilons; `bandBox` skips boxes beside the lane's width; `mirrorSpecialEvent` looks the car up once per marker position (per mirror World). | tests above. |
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
 - 2026-11-24: built (gds-dev-story): framework, car alarm, stampede, events map layer, wire, client; merged 6.6+6.7 and 6.2+6.4 from master; status review.
 - 2026-11-24: Senior Developer Review (AI) by a fresh reviewer: changes requested (2 medium, 8 low)
+- 2026-11-24: review fixes: 6.8 B2 (runS 12), the update-outcome API, M2 (edge arrow in the HUD layout test), L1–L8, nits; status review.
