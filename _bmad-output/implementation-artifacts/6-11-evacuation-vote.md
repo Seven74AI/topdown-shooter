@@ -278,8 +278,90 @@ New: `packages/shared/src/run/endlessEvents.ts`, `run/evacVote.test.ts`, `run/en
 
 Modified: see Notes for the merge (shared: runStateMachine, world, simEvents, netEvents, messages, stateView, player, waveDirector, zombiePool, bossState, behemoth, lightState, balanceSchema, balance, waves.json, decay.json, devStartWave, inputLog, headlessRun, index; their tests; server: RunRoom, RunController, RunState, syncState and tests; client: SimHost, LocalSimHost, NetSimHost, onlineFlow, main, uiState, ResultsScreen, App, overlay.css, GameScene, HudScene, hudModel, fakeRoom and tests; tools: bots, sims; docs: readability sheet, perf).
 
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh-agent reviewer (cloud session), 2026-11-24, method `gds-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor) + brief lines 1–32.
+**Reviewed commit:** `132c90d` (story-6-11 merged with master), diff `efbe4ad...132c90d`. Covers the merged story 6.11 + 6.12.
+**Outcome:** **Changes requested** — 0 high, 3 medium, 12 low/nit. No stuck run found; every phase change lobby → build → wave → vote → build/results is a real transition with a test.
+
+**Tests run (no full gate, designer speed-up):** `npm run typecheck` (green); shared `src/run src/waves/waveDirector.endless.test.ts src/economy/endlessSim.test.ts src/decay/lightState.test.ts src/net/netEvents.test.ts` (7 files / 96 green); for mutations: shared `evacVote`, `endless`, `waveDirector.endless`, `endlessSim`; server `RunRoom.vote`, `syncState`, `tickCostEndless`; client `voteModel`, `dawnModel`, `onlineFlow`, `NetSimHost.vote`, `HeliView`, `hudModel`, `hudLayout`. Two throw-away probes (an endless Behemoth wave-15 cap probe; a real-server vote flood) were run and deleted.
+
+### Findings
+
+**MEDIUM**
+
+- **M1 — A vote flood silently drops the player's LAST choice (brief 17, 30).** `apps/client/src/scenes/GameScene.ts` (`voteStore.handle` → `h.castVote(...)` on every tap), `apps/client/src/sim/NetSimHost.ts › castVote`. Every tap is sent, with no dedupe and no throttle, in the shared "other" bucket (10/s, which pongs share too). Probe on the real server (`RunRoom.vote.test.ts` changed locally, then reverted): 30 × `extract` then 1 × `stay` in a burst → the server keeps **extract** (1), not the last tap. Scenario: friends argue and someone toggles quickly in the last second or during the 1 s all-voted hold; their final tap is dropped, the pending chip shows it for 1.5 s, then flips back, and the vote resolves against what they last tapped. (The existing test sends only 6, inside the bucket.) **Fix:** client side, send only when the latched choice differs from the last one sent and at most ~3/s with a trailing send of the newest choice (the latch stays on the tap frame, brief 30); optionally a server `vote` bucket like `ghost`. Test: a 20-tap burst ending on Stay → server Stay.
+- **M2 — A late dawn after a frozen tab (AC 10, brief 14).** `apps/client/src/net/onlineFlow.ts:75` (`dawnEndsAt(r.ending, last === "vote", now, deps.dawnS)`). The dawn's clock starts when the Results patch is *processed*, not at the extract tick. A page frozen across the extract (Android background freeze; the WebSocket backlog is delivered on resume) sees vote → results on wake, so `live` is true and the 4 s dawn plays late, which the AC forbids ("more than `dawnS` after the extract tick goes straight to Results"). The T3 test "a wake after `run.extracted` + 5 s → Results, no dawn" is not in `NetSimHost.vote.test.ts`; only the pure `dawnModel` with a hand-set `live` flag is tested. Cosmetic and skippable, so medium, not high. **Fix:** decide `live` from server time: (the session's estimated server tick now − `state.tick` of the Results patch) < `dawnS × 20`, or no dawn if the page was hidden or resumed within the last `dawnS`; add the test.
+- **M3 — The 20-wave endless sim does not assert "flat" (brief 25).** `packages/shared/src/economy/endlessSim.test.ts:131-141`. Tick p99 is only logged, never compared between early and late waves. The heap check runs only behind `PERF_ASSERT`. `sizes()` compares fixed-capacity typed arrays (they cannot grow) and masks the lists that can grow (`lights`, `fires`, `grenades` set to 0). Mutation: removing `list.length = 0` from the light-list rebuild (`decay/lightState.ts`, a leak on every rebuild) **survived**. The sim also kills every 6 ticks, so it never runs at 150 alive. **Fix:** record p99 per wave block and assert waves 26–30 ≤ waves 11–15 × 1.5 + 0.2 ms (behind PERF_ASSERT with the load if needed); compare `lights.list.length`, `decay.fires.length`, `grenades.count`, and the event and listener queue sizes at the same point (e.g. each wave's first tick) at wave 11 and wave 30 without masking; run a few waves at the 150 cap.
+
+**LOW / NIT**
+
+- **L1 — The vote layout test misses T4's checks (brief 31).** `apps/client/src/scenes/hudLayout.test.ts:79-83`: the 48 px ring is not a box, there is no ≥ 12 px gap rule, there is no 800 × 360 size, and `overlay.css` repeats the `layoutEvacVote` numbers without a cross-check. Mutation `half = 0` (buttons touching, ring covered) **survived**. Fix: add the ring box and a min-gap rule in vote mode.
+- **L2 — The EXTRACT exemption from "nothing pressable in the move-stick half".** `hudLayout.test.ts:102-104`. It is safe in mechanics: sticks hidden, input neutral, the server frozen, and an accidental Extract is the silent default and can be changed (D2). But a left thumb planted again out of habit lands on EXTRACT, and if it is the last missing vote the 1 s hold ends the vote before the player notices. Brief 31 is absolute and the exemption is not in the decision log. Fix: a designer line in `docs/epic-6-decisions.md` (EX1 keeps EXTRACT left), or add it to KNOWN_LIST with its offset, so the exemption is visible.
+- **L3 — Vacuous grenade assertion.** `packages/shared/src/run/evacVote.test.ts:73` asserts `grenades.count === 0`, but no grenade was ever thrown; removing `clearGrenades` from `openEvacVote` **survived** (beat the rule 6). Fix: throw a grenade, drop a molotov and acid on the clearing tick, then assert they are gone and nothing bursts or burns during the vote.
+- **L4 — The tick-cost Brute bound doesn't bite.** `apps/server/src/run/tickCostEndless.test.ts:58`: with the Brute alive cap removed the test **survived** (600 measured ticks never reach 7 Brutes alive). Fix: measure longer, or assert `peakBrutes === 6` was reached.
+- **L5 — No cross-check `waves.evac.everyWaves === waves.endless.bossEveryWaves`.** `packages/shared/src/config/balance.ts:87-96`. Changing one key separates the votes from the Behemoth waves (6.11 F6 / 6.12 F4: a vote after every Behemoth wave). Fix: add the check, or derive one key from the other.
+- **L6 — D-B Predictor in the vote is untested.** The story asked for a `tools/netsim` or `prediction.test.ts` case: for the first ~175 ms of a vote under lag the client still predicts the movement the server froze. Fix: a netsim test asserting the correction stays < `PREDICTION_SNAP_M`.
+- **L7 — The dev override can no longer turn off endless Behemoths.** `packages/shared/src/boss/bossState.ts:212-217`: `?bosswave=` / `DEV_BOSS_WAVES` (`world.debug.bossWaves = []`) is OR-ed with the endless rule, so `[]` still gives bosses at 15/20/25. Fix: when an override is set use only the list, or document it.
+- **L8 — Allocation every frame during the vote (brief 10).** `apps/client/src/ui/voteModel.ts:96-110,131` (a sorted copy, new chip objects, a `map().join()` key string each frame) and `GameScene.updateVote` (new objects pushed into `votePlayers` each frame). 15 s on a cleared map, so cheap, but against the rule. Fix: key from scalars, reuse chip objects.
+- **L9 — Story text stale on solo sizes.** `6-12-endless-mode.md` F1 and Beat-the-rule 5 say × 0.4 / 240. The code uses balance pass **B2's × 0.35** (`docs/epic-5-decisions.md:212`, brief 15): 210 at wave 15+. **The code is right; update the story text.**
+- **L10 — Brief 22 wording vs 6.5's rule (pre-existing, not this story).** Probe: endless wave 15 at 4p had up to **125** alive while the Behemoth lived (wave 10: 139). That is 6.5 AC 4 as accepted ("zombies above 110 when it arrives are not killed; no new spawns until below 110"), and endless behaves exactly like wave 10. The brief's literal "at most 110 alive" disagrees; flagged for the main session only.
+- **L11 (nit) — `run_ended.endlessWaves` is one lower for a wipe in a build phase.** `apps/server/src/rooms/RunRoom.ts:813` (`wave − 1`). Also the doc comment for `setBuildReady` now sits above `castVote` (`apps/server/src/run/RunController.ts:312-313`).
+- **L12 (nit) — Leftovers.** Comments still say "held out": `bots/headlessRun.ts:20,78`, `tools/bots/run.ts:20`, `economy/fiveWaveSim.test.ts`, `sixWaveSim.test.ts`, HANDOFF Epic 3 line (history, fine). Readers of K25 / `resultHeldOut`: **none left**; K25 is retired and not reused. Removing `resultHeldOut` and inserting fields shifts schema field indexes, so a cached old client can't decode the new server; fine with atomic deploys. The pad test checks only the pad centre on Downtown (the 3 m ring isn't checked against boxes); the helicopter is visual only, so this is safe.
+
+### Merge points left for 6.8
+
+- `run/endlessEvents.ts › endlessEventCandidates` returns `[]`, so `scheduleEndlessEvent` writes `""` and nothing runs. Safe: no RNG draw with ≤ 1 candidate, and the "which waves" and "no repeat" rules are tested.
+- `HeliView`/`heliPose › evacPadOf` falls back to the map centre (24, 16) on Downtown. The new map test shows it is inside the map and clear of every solid and cover box. Safe (visual only, D5).
+
+### Acceptance and decision audit
+
+- 6.11 F1–F7: met. F4's all-voted rule ends exactly 20 ticks after the last vote; F5's freeze runs input, waves and economy only. Gaps: M2 (AC 10 late wake), M1 (F2 "the last vote that arrived counts", but the last *tapped* can be dropped).
+- **6.11 decisions:** D1 (majority of the whole team, silent = Extract) ✓ `voteOutcome`. D2 (change until the end) ✓. D3 (all voted → 1 s) ✓. D4 (nothing moves) ✓ `step()` freeze plus neutral client input; the vote-opening tick still runs the systems after `waves` (economy, `decayTimers`), the same tick as the clear, harmless. D5 (helicopter is a picture) ✓. D6 (tap skips the dawn) ✓.
+- **6.12 decisions:** D1 (Behemoth +25 % per endless boss only, not `hpMult`) ✓. D2 (+1 Brute per wave, ≤ 6 alive, owed Brute waits) ✓. D3 (even waves half dark) ✓. D4 (no repeat) ✓. D5 (wave 9 / 10 mixes) ✓. D6 (power failure allowed on even waves) and D8 (20 %) ✓ (order in `refreshBlackout`: odd waves stay 5 % even in a power failure). D7 ("lost" on DW2, no wait) ✓.
+- Builder decisions 1–15: accepted. No `firstWave` key: `runWaves` is the single source and `isEvacWave` the single place. Economy runs in the vote. Dawn as CSS.
+
+### Brief lines 1–32
+
+1 ✓ (merged commit; the builder ran the gate) · 2 ✓ (World → schema → syncState → stateView → fakeRoom → mirror; Predictor: neutral input; `snapshotWorld` via spread) · 3 ✓ rules → tests · 4 see below · 5 n/a · 6 n/a · 7 the pad is visual only; Brute owed/spread logic tested, no fuzz needed · 8 ✓ replay test with votes · 9 liveness ✓ except L3 / L4 / M3 (mutations below) · 10 ✓ ticks and JSON; L8 · 11 ✓ (≈ 40 B/s for 15 s) · 12 FPS not run (builder says so) · 13 ✓ sheet items 80–85 · 14 M2, L6 · 15 ✓ B2 × 0.35 · 16 recorded, wave 19 p99 1.837 ms vs wave 10 1.125 ms (+0.7 ms of the 2 ms Epic 6 budget) · 17 M1 · 18 ✓ `?startwave` 1–99 · 19 ✓ notes · 20 ✓ heli atlas through `addGeneratedTexture` with a redraw test · 21e ✓ wave 25 = wave 10 ticks · 22 L10 · 23 n/a (6.8) · 24 ✓ (green/red are UI buttons; heli above the darkness) · 25 M3 · 26 ✓ endless light inside `refreshBlackout`, mirrored · 27 ✓ no Epic 5 UI rewrites (HUD hides only) · 28 ✓ every transition tested, Results always reached · 29 ✓ · 30 latch ✓ (the choice is fixed and sent on the tap), flood M1, no 60 fps / lag latch test (minor) · 31 L1 / L2 · 32 ✓ decisions read, merged commit reviewed.
+
+### Beat the rule (attempts → result)
+
+1. Spam votes: 6 in a burst holds; **31 in a burst drops the final Stay (M1)**.
+2. Vote Stay, then leave: not counted; the vote ends early ✓.
+3. F3 table, 1–4 players, silent/ties ✓; solo silent → Extract ✓.
+4. Hidden tab across the whole vote, wake in wave 11's build: the mirror lands on server truth, the helicopter resets, no vote UI ✓.
+5. Revive, downed bleed-out or fire during the vote: frozen ✓ (a downed player is returned on Stay, as built).
+6. Grenade on the clearing tick: cleared by `openEvacVote` (code); the test is vacuous (L3).
+7. `?lag=150` running into the vote: no test (L6).
+8. Two votes on the timer's last tick: one result ✓.
+9. Late scene start during the vote: the session starts on "vote", the helicopter is already landed (age from ticks) ✓.
+10. Everyone leaves during the vote: 0 players → timer → Extract → Results; the room auto-disposes ✓.
+11. A player joins or reconnects during the vote: joins refused (`run_started`); no reconnect before 8.1 (D-D: a held player = silent) ✓.
+12. Host leaves during the vote: the host passes on, the vote is unaffected ✓.
+13. The last standing player leaves during the vote with the others downed: no wipe in the freeze; Stay returns everyone, Extract extracts ✓ (acceptable).
+14. Vote while downed or out: counts, chip dimmed ✓.
+15. Behemoth still alive at wave 10's end: the wave cannot end (`bossActive` / `bossPending`), so no vote ✓.
+16. Shop, build, sell, repair or consumable during the vote: all gated to "build" or not run ✓.
+17. Wipe during endless → "lost", earnings split adds up ✓ (sim b).
+18. Farm an endless wave by not killing: no respawns, nothing to farm; the owed Brute is delivered when one dies, and the wave can't end while one is owed ✓.
+19. Kill Brutes one at a time: owed ones still arrive ✓.
+20. Wave 25 Behemoth: telegraph, windup, recovery and gap ticks equal wave 10's ✓.
+21. Solo wave 20: 210 zombies (B2 × 0.35), 12 Brutes, × 1.3 HP ✓.
+22. Cap 110 during an endless Behemoth: spawns stop at ≥ 110, as at wave 10 (L10).
+23. Event on a Behemoth wave or twice in a row: never ✓ (tests).
+24. 30 endless waves: pools fixed by construction; the sim's flatness check is weak (M3).
+25. Accidental Extract with the left thumb: possible (L2).
+
+### Mutations (one per new test; all reverted)
+
+Killed (good): tie → Stay (evacVote: 3 failed) · freeze removed (1) · all-voted hold off (8) · "lost" → "wiped" (evacVote 1, endlessSim 1) · `earnedAtEvac` not set (2) / set at every Stay (1) · `castVote` in any phase (1) · endless size cap off (2) · Brute alive cap off (waveDirector.endless 1) · Brutes from 0 % (2) · `hpMult` not at spawn (1) · odd/even mix swapped (1) · endless boss growth 1 (1) · even waves at full darkness (1) · power failure before the odd rule (1) · event repeat allowed (1) · event on boss waves (1) · voteModel: result shown while pending (1), ring ignores ticks (1), pending kept across votes (1) · dawn ignores the late rule (1), no skip (1) · onlineFlow: dawn always live (1), vote starts a new session (1) · NetSimHost: endless not copied (1), vote not copied (1) · pad fallback (1, 1) (2) · HUD vote line removed (1) · RunRoom: no vote ticks (2), `run.extracted` not ending the run (1) · syncState: vote not synced (1), not reset (1).
+
+Survived (bad): `clearGrenades` removed from `openEvacVote` (L3) · light-list leak (endlessSim, M3) · Brute cap off (tickCostEndless, L4) · vote buttons touching, `half = 0` (hudLayout, L1) · RunRoom's own phase check removed (equivalent mutant: `castVote` checks the phase; fine).
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
 - 2026-11-24: built together with 6.12 (merged story) on `story-6-11`; status review.
+- 2026-11-24: Senior Developer Review (AI) on `132c90d`: changes requested (0 high, 3 medium, 12 low).
