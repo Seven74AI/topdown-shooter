@@ -3,7 +3,7 @@ baseline_commit: 8f81792
 ---
 # Story 6.3: Blackout lighting
 
-Status: review
+Status: done
 
 ## Story
 
