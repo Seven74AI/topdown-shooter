@@ -186,19 +186,29 @@ export function layoutEvacVote(w: number, h: number, insetBottom: number): VoteL
 }
 
 /**
- * Review M1 (brief 17, 30): the client paces its `evac.vote` messages so a flood of taps can't empty
- * the server's shared message bucket (~10/s, pongs included) and drop the LAST choice. The choice is
- * latched on the tap frame (`want`); `poll` returns what to send now, or null:
+ * Review M1 + re-review RM1 (brief 17, 30): the client paces its `evac.vote` messages so a flood of
+ * taps can't empty the server's shared message bucket (~10/s, pongs included) and drop the LAST
+ * choice — without ever holding back a single change of mind. The choice is latched on the tap frame
+ * (`want`); `poll` returns what to send now, or null:
  * - only a choice that differs from the last one sent (a repeat of the same tap sends nothing);
- * - at most one send per `VOTE_SEND_GAP_MS` (≈ 3/s), with a trailing send of the newest choice;
+ * - a token bucket (`VOTE_SEND_BURST` 3, refilled at `VOTE_SEND_PER_S` 3/s): a change goes out at
+ *   once unless more than 3 went out in the last second; then the newest goes out on the next token;
+ * - `urgent` (the last `VOTE_URGENT_MS` of the vote, or everyone has voted: the 1 s hold) also sends
+ *   at once when the bucket is empty, at most one per `VOTE_URGENT_GAP_MS` (≤ ~6.7/s with the bucket:
+ *   still inside the server's 10/s);
  * - a resend after `VOTE_PENDING_MS` if the server still shows another vote (a dropped message).
  */
-export const VOTE_SEND_GAP_MS = 334;
+export const VOTE_SEND_BURST = 3;
+export const VOTE_SEND_PER_S = 3;
+export const VOTE_URGENT_MS = 500;
+export const VOTE_URGENT_GAP_MS = 150;
 
 export class VoteSender {
   private wanted: EvacChoice | null = null;
   private sent: EvacChoice | null = null;
   private sentAtMs = Number.NEGATIVE_INFINITY;
+  private tokens = VOTE_SEND_BURST;
+  private tokensAtMs = 0;
   private openKey = -1;
 
   /** A tap (latched now). */
@@ -208,20 +218,26 @@ export class VoteSender {
 
   /**
    * Once per frame: what to send now (or null). `voteKey` changes with each new vote; `serverVote`
-   * is my vote as the server has it (0 none, 1 extract, 2 stay).
+   * is my vote as the server has it (0 none, 1 extract, 2 stay); `urgent` = the vote is about to end.
    */
-  poll(voteKey: number, serverVote: number, nowMs: number): EvacChoice | null {
+  poll(voteKey: number, serverVote: number, nowMs: number, urgent = false): EvacChoice | null {
     if (voteKey !== this.openKey) {
       this.openKey = voteKey;
       this.wanted = null;
       this.sent = null;
       this.sentAtMs = Number.NEGATIVE_INFINITY;
+      this.tokens = VOTE_SEND_BURST;
+      this.tokensAtMs = nowMs;
     }
+    this.tokens = Math.min(VOTE_SEND_BURST, this.tokens + ((nowMs - this.tokensAtMs) * VOTE_SEND_PER_S) / 1000);
+    this.tokensAtMs = nowMs;
     const w = this.wanted;
-    if (w === null || nowMs - this.sentAtMs < VOTE_SEND_GAP_MS) return null;
+    if (w === null) return null;
     const confirmed = serverVote === (w === "stay" ? VOTE_STAY : VOTE_EXTRACT);
     const lost = this.sent === w && !confirmed && nowMs - this.sentAtMs > VOTE_PENDING_MS;
     if (this.sent === w && !lost) return null;
+    if (this.tokens >= 1) this.tokens -= 1;
+    else if (!(urgent && nowMs - this.sentAtMs >= VOTE_URGENT_GAP_MS)) return null;
     this.sent = w;
     this.sentAtMs = nowMs;
     return w;
@@ -231,6 +247,8 @@ export class VoteSender {
     this.wanted = null;
     this.sent = null;
     this.sentAtMs = Number.NEGATIVE_INFINITY;
+    this.tokens = VOTE_SEND_BURST;
+    this.tokensAtMs = 0;
     this.openKey = -1;
   }
 }

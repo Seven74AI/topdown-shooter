@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VOTE_PENDING_MS, VOTE_SEND_GAP_MS, VoteRequest, VoteSender, voteFrameKey, voteResultLine, voteView, type VotePlayerIn } from "./voteModel";
+import { VOTE_PENDING_MS, VOTE_SEND_BURST, VOTE_SEND_PER_S, VOTE_URGENT_GAP_MS, VoteRequest, VoteSender, voteFrameKey, voteResultLine, voteView, type VotePlayerIn } from "./voteModel";
 
 /** Story 6.11 (EX1, F1–F4, brief 30): the vote panel, pure. */
 const P = (slot: number, vote: number, standing = true, mine = false): VotePlayerIn => ({ slot, vote, standing, mine });
@@ -50,20 +50,57 @@ describe("VoteRequest (the readyRequest pattern)", () => {
   });
 });
 
-describe("VoteSender (review M1: pace the flood, the newest choice last)", () => {
-  it("20 taps at 60 fps ending on Stay: ≤ 1 send per gap, only changes, the last send is Stay", () => {
+describe("VoteSender (review M1 + re-review RM1: pace the flood, never hold back a change of mind)", () => {
+  it("20 taps at 60 fps ending on Stay (not urgent): a burst of 3, then the newest on the next token; ≤ 4 sends; last = Stay", () => {
     const s = new VoteSender();
     s.poll(10, 0, 0);
     const sent: [number, string][] = [];
-    for (let f = 0; f < 120; f++) {
+    let server = 0; // the server confirms what it received
+    for (let f = 0; f < 180; f++) {
       const now = f * (1000 / 60);
       if (f < 20) s.want(f % 2 === 0 ? "extract" : "stay");
-      const c = s.poll(10, 0, now);
-      if (c) sent.push([now, c]);
+      const c = s.poll(10, server, now);
+      if (c) {
+        sent.push([now, c]);
+        server = c === "stay" ? 2 : 1;
+      }
     }
     expect(sent.at(-1)?.[1]).toBe("stay");
-    expect(sent.length).toBeLessThanOrEqual(3);
-    for (let i = 1; i < sent.length; i++) expect((sent[i] as [number, string])[0] - (sent[i - 1] as [number, string])[0]).toBeGreaterThanOrEqual(VOTE_SEND_GAP_MS);
+    expect(sent.length).toBeLessThanOrEqual(4);
+    // never more than VOTE_SEND_BURST + VOTE_SEND_PER_S in any second
+    for (const [t] of sent) expect(sent.filter(([u]) => u > t - 1000 && u <= t).length).toBeLessThanOrEqual(VOTE_SEND_BURST + VOTE_SEND_PER_S);
+  });
+
+  it("RM1: Stay at T−300 ms then Extract at T−100 ms → both sent on their tap (the Extract before the end)", () => {
+    const s = new VoteSender();
+    s.poll(10, 0, 0);
+    const T = 15_000;
+    s.want("stay");
+    expect(s.poll(10, 0, T - 300)).toBe("stay");
+    s.want("extract");
+    expect(s.poll(10, 0, T - 100, true)).toBe("extract");
+    // and without the urgent flag too (the bucket has tokens: a single change is never delayed)
+    const u = new VoteSender();
+    u.poll(10, 0, 0);
+    u.want("stay");
+    expect(u.poll(10, 0, T - 300)).toBe("stay");
+    u.want("extract");
+    expect(u.poll(10, 0, T - 100)).toBe("extract");
+  });
+
+  it("RM1: inside the all-voted hold (urgent) a change goes out even with the bucket empty, ≥ 150 ms apart", () => {
+    const s = new VoteSender();
+    s.poll(10, 0, 0);
+    let t = 1000;
+    for (const c of ["stay", "extract", "stay"] as const) {
+      s.want(c);
+      expect(s.poll(10, 0, t)).toBe(c); // drains the 3 tokens
+      t += 10;
+    }
+    s.want("extract");
+    expect(s.poll(10, 0, t)).toBe(null); // not urgent: waits for a token
+    expect(s.poll(10, 0, t + 5, true)).toBe(null); // urgent, but < 150 ms after the last send
+    expect(s.poll(10, 0, 1000 + 20 + VOTE_URGENT_GAP_MS, true)).toBe("extract");
   });
 
   it("the same choice twice sends once; resends if the server never confirmed; a new vote starts clean", () => {

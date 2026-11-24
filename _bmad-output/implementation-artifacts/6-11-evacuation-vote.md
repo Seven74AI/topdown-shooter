@@ -408,6 +408,18 @@ Behaviour changes in these fixes: **M1** (client vote pacing), **M2** (when the 
 
 **Merge resolution:** `decay.json › blackout` keeps 6.4's `halfDarkInBuild: true` and adds `endlessOddWaves` / `endlessEvenHalfDark: true` (the only diff vs master da82847); `index.ts` keeps both export sets (`MAX_START_WAVE` + 6.2's ruinsLook/collapse); `lightState.test.ts` 16/16 green; typecheck green.
 
+### Re-review fixes (builder, 2026-11-24, on story-6-11 merged with `origin/rereview-6-11` + `origin/master` 3a0dac8)
+
+- **RM1 [BEHAVIOUR] fixed** — `ui/voteModel.ts › VoteSender`: a token bucket replaces the strict gap (`VOTE_SEND_BURST` 3, refilled `VOTE_SEND_PER_S` 3/s): a change goes out at once unless more than 3 went out in the last second. `poll(…, urgent)`: in the vote's last `VOTE_URGENT_MS` (500 ms) or once everyone has voted (the 1 s hold) a change goes out even with the bucket empty, at most one per `VOTE_URGENT_GAP_MS` (150 ms) — ≤ ~6.7/s with the bucket, inside the server's 10/s. `GameScene.updateVote` computes `urgent` from the server's ticks and the voters. Tests: `voteModel.test.ts` (Stay at T−300 ms then Extract at T−100 ms → both sent on the tap, with and without urgent; inside the hold with the bucket empty → sent ≥ 150 ms after the last; the 20-tap burst → ≤ 4 sends, last = Stay, never > 6 in a second); `tools/netsim/vote.test.ts` (real room: the 20-tap burst outside the hold → ≤ 4 sends and the server holds Stay; inside the hold, Stay then a late Extract with ≤ 3 ticks left → sent at once, the server holds Extract, the vote resolves Extract).
+- **RL1 [BEHAVIOUR] fixed** — `net/onlineFlow.ts`: the minimum clock offset restarts at each wave start (dropped server ticks earlier in the run no longer push the estimate ahead), and a page that was hidden or came back within the last `voteS + dawnS` (`lastHiddenMs`, a `visibilitychange` tracker in `main.ts`) never plays a late dawn — this covers a freeze that also swallowed the wave start. New deps `voteS`, `lastHiddenMs`. Tests: 5 s of dropped ticks before wave 10 → the live player still gets the full dawn; a page that came back just before Results → no dawn. Mutations killed: no wave-start reset (1), no hidden rule (1).
+- **RL2 fixed** — the same reset when a new run is seen without its lobby patch (the tick restarts at 0). Test: run 2 first seen in its vote → its dawn plays; mutation without the reset fails.
+- **N1 fixed (dev only)** — `run/endlessEvents.ts`: `isEndlessEventWave(…, bossOverride)` and `scheduleEndlessEvent` pass `world.debug.bossWaves`, so with `?bosswave=` the endless event skips the override's boss waves and may use 15/20/25. `DEV_BOSS_WAVES=none` / `?bosswave=none` → `[]` (no Behemoth at all, endless included). Tests in `endless.test.ts`, `devBossWaves.test.ts`, `urlOptions.test.ts`.
+- **N2 fixed** — `input/menuInput.ts › standsStill(menuOpen, shopOpen, phase)` is the one rule; `GameScene` and the netsim test both use it; the netsim test asserts the prediction sits on the frozen server position once settled in the vote (< 0.01 m). Removing the vote from the rule now fails.
+
+Behaviour changes: **RM1** (vote sending), **RL1** (when the online dawn plays). N1 is dev-only; the rest are tests.
+
+6.8 merge plan (main session): keep 6.8's `!eventHoldsWave` in `updateRun` and `skipWave` ending the event; implement `endlessEventCandidates` with 6.8's `eventFits(world, kind, wave)` and keep ONE scheduler (this story's); `evacPadOf` reads 6.8's `evac_pad` (24, 15.9); schema: 6.8's event* fields, then `voteTicksLeft`, `endless`; `PlayerState.vote` last.
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -416,3 +428,4 @@ Behaviour changes in these fixes: **M1** (client vote pacing), **M2** (when the 
 - 2026-11-24: Senior Developer Review (AI) on `132c90d`: changes requested (0 high, 3 medium, 12 low).
 - 2026-11-24: review fixes M1–M3, L1–L9, L11, L12 (L10 no change); merged master 9c540b3.
 - 2026-11-24: Re-review (AI) of the review fixes on `3008990`: approve with follow-ups (1 medium RM1, 2 low, 2 nit).
+- 2026-11-24: re-review fixes RM1, RL1, RL2, N1, N2; merged master 3a0dac8.

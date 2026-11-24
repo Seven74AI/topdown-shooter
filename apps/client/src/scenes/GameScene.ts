@@ -126,12 +126,12 @@ import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
-import { CLOSED_VOTE, VoteRequest, VoteSender, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
+import { CLOSED_VOTE, VOTE_URGENT_MS, VoteRequest, VoteSender, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
 import { dawnEndsAt } from "../ui/dawnModel";
 import { HeliView } from "../render/HeliView";
 import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
-import { holdBuildingInput, neutralizeInput } from "../input/menuInput";
+import { holdBuildingInput, neutralizeInput, standsStill } from "../input/menuInput";
 import { buildBarItems, pickError, pickRefusalText, stepBuildBar, type BuildBarFrame, type BuildBarStep } from "./buildBar";
 import { ToastQueue, playerLeftText } from "./toastQueue";
 import { getSettings } from "../settings/settings";
@@ -1045,13 +1045,18 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const me = host.world.players.get(host.localPlayerId);
-    const send = this.voteSend.poll(host.world.waves.number, me?.vote ?? 0, this.time.now); // review M1: ≤ 3/s, newest choice last
-    if (send) host.castVote(send);
-    const shown = this.voteReq.update(host.world.waves.number, me?.vote ?? 0, this.time.now);
     this.voteCount = 0;
     this.voteCollectHost = host;
     host.world.players.forEach(this.collectVoter);
     this.voteCollectHost = null;
+    // Re-review RM1: urgent in the vote's last VOTE_URGENT_MS or once everyone has voted (the 1 s hold):
+    // a change of mind goes out at once even with the bucket empty.
+    let allIn = this.voteCount > 0;
+    for (let i = 0; i < this.voteCount; i++) if ((this.votePlayers[i] as VotePlayerIn).vote === 0) allIn = false;
+    const urgent = allIn || (run.voteTicksLeft * 1000) / TICK_RATE_HZ <= VOTE_URGENT_MS;
+    const send = this.voteSend.poll(host.world.waves.number, me?.vote ?? 0, this.time.now, urgent); // review M1: paced, newest choice last
+    if (send) host.castVote(send);
+    const shown = this.voteReq.update(host.world.waves.number, me?.vote ?? 0, this.time.now);
     const total = ticksFor(host.world.balance.waves.evac.voteS);
     const pending = this.voteReq.isPending();
     const key = voteFrameKey(run.voteTicksLeft, total, TICK_RATE_HZ, this.votePlayers, this.voteCount, shown, pending);
@@ -1910,7 +1915,7 @@ export class GameScene extends Phaser.Scene {
     const shopOpen = this.updateShop(host, menuOpen);
     // Story 3.3: I stand still while shopping. Story 6.11 (D-B): and during the vote (the server freezes
     // everything; neutral moves keep the Predictor standing still too).
-    if (menuOpen || shopOpen || host.world.run.phase === "vote") neutralizeInput(this.input_);
+    if (standsStill(menuOpen, shopOpen, host.world.run.phase)) neutralizeInput(this.input_);
     this.buildKeys(host, router, menuOpen || shopOpen); // Story 5.23: R, Space, 1–7, Z, M (latches taken every frame)
     // Story 5.18 (review M2): the pending placements' frame order lives in `runPendingFrame` (shared with
     // the netsim test): match → placement step … input (`beforeHostStep`) → send → host step → match +

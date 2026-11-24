@@ -21,7 +21,8 @@ import { RunRoom, serverBalance } from "../../apps/server/src/rooms/RunRoom";
 import { RunController } from "../../apps/server/src/run/RunController";
 import { Predictor } from "../../apps/client/src/net/prediction";
 import { PREDICTION_SNAP_M } from "../../apps/client/src/net/netConfig";
-import { VoteSender } from "../../apps/client/src/ui/voteModel";
+import { neutralizeInput, standsStill } from "../../apps/client/src/input/menuInput";
+import { VOTE_URGENT_MS, VoteSender } from "../../apps/client/src/ui/voteModel";
 
 const TICK_MS = TICK_DT_S * 1000;
 let colyseus: ColyseusTestServer;
@@ -52,7 +53,8 @@ const quiet = (c: RunSdkRoom) => {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 describe("Story 6.11 review M1: a vote flood keeps the last choice", () => {
-  it("20 taps ending on Stay through VoteSender, bucket nearly empty, during the all-voted hold → the server holds Stay; the vote resolves Stay", async () => {
+  /** Two players in a real room, at the vote after wave 10, the buckets refilled. */
+  async function toVote() {
     const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Ana"));
     quiet(host);
     await host.waitForInitialState();
@@ -74,7 +76,11 @@ describe("Story 6.11 review M1: a vote flood keeps the last choice", () => {
     for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.phase).toBe("vote"));
     await sleep(1100); // the buckets refill after the joins and Ready taps
     const hostId = room.members.get(host.sessionId)?.playerId as string;
-    guest.send(C2S.EVAC_VOTE, { choice: "stay" }); // the teammate is in: my first vote starts the 1 s hold
+    return { host, guest, room, w, hostId };
+  }
+
+  it("20 taps ending on Stay through VoteSender with the bucket nearly empty → ≤ 4 sends, the server holds Stay; the vote resolves Stay", async () => {
+    const { host, guest, w, hostId } = await toVote();
     for (let i = 0; i < 8; i++) host.send(C2S.BUILD_SET_READY, { ready: true }); // other traffic: 2 tokens left (ignored in a vote)
     const sender = new VoteSender();
     const t0 = Date.now();
@@ -83,20 +89,41 @@ describe("Story 6.11 review M1: a vote flood keeps the last choice", () => {
     // 20 taps at 60 fps (≈ 333 ms), extract/stay alternating, the last one Stay; then frames go on.
     for (let f = 0; f < 90; f++) {
       if (f < 20) sender.want(f % 2 === 0 ? "extract" : "stay");
-      const serverVote = host.state.players.get(hostId)?.vote ?? 0;
-      const c = sender.poll(10, serverVote, Date.now() - t0);
+      const c = sender.poll(10, host.state.players.get(hostId)?.vote ?? 0, Date.now() - t0);
       if (c) {
         host.send(C2S.EVAC_VOTE, { choice: c });
         sends++;
       }
       await sleep(1000 / 60);
-      if (w.run.phase !== "vote") break;
     }
+    await vi.waitFor(() => expect(w.players.get(hostId)?.vote).toBe(2)); // the LAST choice
+    expect(sends).toBeLessThanOrEqual(4); // paced: a burst of 3, then the newest — not 20
+    expect(sends).toBeGreaterThanOrEqual(2);
+    guest.send(C2S.EVAC_VOTE, { choice: "stay" });
     await vi.waitFor(() => expect(w.run.phase).not.toBe("vote"), { timeout: 3000 });
-    expect(sends).toBeLessThanOrEqual(4); // paced: ≈ 3/s, not 20
-    expect(sends).toBeGreaterThanOrEqual(2); // the first tap, then the trailing newest (Stay)
     expect(w.run.endless).toBe(true); // resolved Stay: both voted Stay
-    expect(w.run.phase).toBe("build");
+  }, 20_000);
+
+  it("re-review RM1: inside the 1 s all-voted hold, Stay then a late Extract 100 ms before the end → the server holds Extract; the vote resolves Extract", async () => {
+    const { host, guest, w, hostId } = await toVote();
+    guest.send(C2S.EVAC_VOTE, { choice: "stay" });
+    await vi.waitFor(() => expect(w.players.size === 2 && [...w.players.values()].some((p) => p.vote === 2)).toBe(true));
+    const sender = new VoteSender();
+    sender.poll(10, 0, 0);
+    const t0 = Date.now();
+    sender.want("stay");
+    const urgentNow = () => [...w.players.values()].every((p) => p.vote !== 0) || w.run.voteTicksLeft * TICK_MS <= VOTE_URGENT_MS;
+    let c = sender.poll(10, 0, Date.now() - t0, urgentNow());
+    if (c) host.send(C2S.EVAC_VOTE, { choice: c });
+    await vi.waitFor(() => expect(w.players.get(hostId)?.vote).toBe(2)); // everyone in: the hold runs (≤ 20 ticks)
+    // wait until ~100 ms are left in the hold, then change my mind
+    await vi.waitFor(() => expect(w.run.voteTicksLeft).toBeLessThanOrEqual(3), { timeout: 2000, interval: 5 });
+    sender.want("extract");
+    c = sender.poll(10, 2, Date.now() - t0, urgentNow());
+    expect(c).toBe("extract"); // sent on the tap
+    if (c) host.send(C2S.EVAC_VOTE, { choice: c });
+    await vi.waitFor(() => expect(w.run.phase).not.toBe("vote"), { timeout: 3000 });
+    expect(w.run.ending).toBe("extracted"); // 1 Stay of 2 is not more than half: my late Extract counted
   }, 20_000);
 });
 
@@ -123,13 +150,14 @@ describe("Story 6.11 review L6: the Predictor across the vote freeze under ?lag=
     let clientPhase = "wave";
     let maxAfterVote = 0;
     let reconcilesInVote = 0;
+    let settledDrift = 0;
     let snaps0 = -1;
     for (let t = 0; t < 200; t++) {
       const now = t * TICK_MS;
       if (t === 60) skipWave(w); // the wave ends between ticks: the vote opens (the server freezes from its next tick)
-      // The client runs left/right until it sees the vote, then sends neutral moves (D-B).
-      const voting = clientPhase === "vote";
-      const input: PlayerInput = voting ? { ...NEUTRAL_INPUT, seq: ++seq } : { ...NEUTRAL_INPUT, seq: ++seq, moveX: Math.sin(t * 0.05) > 0 ? 1 : -1, moveY: 0 };
+      // The client runs left/right; the Game scene's own rule (`standsStill`, re-review N2) neutralizes it in the vote (D-B).
+      const input = { ...NEUTRAL_INPUT, seq: ++seq, moveX: Math.sin(t * 0.05) > 0 ? 1 : -1, moveY: 0 } as PlayerInput & { moveX: number; moveY: number; fire: boolean; swap: boolean; consumable: boolean };
+      if (standsStill(false, false, clientPhase)) neutralizeInput(input);
       pred.applyLocal(input);
       pred.frame(TICK_DT_S); // the scene decays the visual offset every frame
       inFlight.push({ due: now + 75 + rng.range(-10, 10), input });
@@ -144,6 +172,8 @@ describe("Story 6.11 review L6: the Predictor across the vote freeze under ?lag=
           if (snaps0 < 0) snaps0 = pred.stats.snaps; // counted from the first patch that shows the vote
           reconcilesInVote++;
           maxAfterVote = Math.max(maxAfterVote, pred.stats.lastErrorM);
+          // Re-review N2: once settled (40 patches into the vote) the prediction sits on the frozen server position.
+          if (reconcilesInVote > 40) settledDrift = Math.max(settledDrift, Math.hypot(pred.x - s.x, pred.y - s.y));
         }
       }
     }
@@ -153,5 +183,6 @@ describe("Story 6.11 review L6: the Predictor across the vote freeze under ?lag=
     expect(maxAfterVote).toBeGreaterThan(0); // the freeze really cost a correction
     expect(maxAfterVote).toBeLessThan(PREDICTION_SNAP_M);
     expect(pred.stats.snaps).toBe(snaps0);
+    expect(settledDrift).toBeLessThan(0.01); // standing still in the vote (the client's own standsStill rule)
   });
 });

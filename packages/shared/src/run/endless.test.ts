@@ -144,3 +144,12 @@ describe("Story 6.12 AC 13: the start-wave dev switch reaches endless", () => {
     expect(w.waves.size).toBe(Math.round(440 * (balance.waves.playerCountScale[0] as number)));
   });
 });
+
+describe("Story 6.12 re-review N1: endless events follow the dev boss override", () => {
+  it("with ?bosswave=12 the endless event skips 12 (a Behemoth there) and lands on 20 (no Behemoth there)", () => {
+    expect(isEndlessEventWave(balance, 12, true, [12])).toBe(false);
+    expect(isEndlessEventWave(balance, 20, true, [12])).toBe(true);
+    expect(isEndlessEventWave(balance, 20, true, [])).toBe(true);
+    expect(isEndlessEventWave(balance, 20, true, null)).toBe(false);
+  });
+});

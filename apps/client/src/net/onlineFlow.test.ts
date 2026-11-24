@@ -12,6 +12,7 @@ const batch = (tick: number): SimEventsFlushed => ({ tick, events: [[NET_EVENT_K
 
 /** The main.ts wiring with fakes: one room, its inbox, the ui requests seen. */
 let clock = 1000;
+let hiddenAt = Number.NEGATIVE_INFINITY;
 function setup() {
   const room = new FakeRoom(fakeState([fakePlayer(2, { name: "Cid", kills: 3, earned: 120 }), fakePlayer(0, { name: "Ana", kills: 7, earned: 245 })]));
   room.state.phase = "lobby";
@@ -30,7 +31,9 @@ function setup() {
     },
     inbox: () => inbox,
     dawnS: 4,
+    voteS: 15,
     nowMs: () => clock,
+    lastHiddenMs: () => hiddenAt,
     ui: {
       set: (s) => screens.push(s),
       request: (name, ...args) => requests.push({ name, arg: args[0] }),
@@ -120,6 +123,66 @@ describe("Story 6.11: the vote in the run cycle", () => {
     clock = 1000 + 5000 + 1000; // 1 s late: 3 s of dawn left, ending on the extract tick + 4 s
     u.phase("results");
     expect(u.screens.at(-1)).toMatchObject({ dawnEndsAtMs: 1000 + 5000 + 4000 });
+  });
+
+  it("re-review RL1: 5 s of dropped server ticks earlier in the run don't cost a live player the dawn (the clock restarts at each wave)", () => {
+    hiddenAt = Number.NEGATIVE_INFINITY;
+    clock = 1000;
+    const t = setup();
+    t.room.state.tick = 0;
+    t.phase("build");
+    t.room.state.tick = 600;
+    clock = 1000 + 600 * 50;
+    t.phase("wave"); // wave 1, live
+    // … nine waves later, the server lost 5 s of ticks to stalls (setFixedTimestep drops the backlog)
+    t.room.state.tick = 20_000;
+    clock = 1000 + 20_000 * 50 + 5000;
+    t.phase("build");
+    t.room.state.tick = 20_600;
+    clock = 1000 + 20_600 * 50 + 5000;
+    t.phase("wave"); // wave 10 starts: a fresh live sample
+    t.room.state.tick = 30_000;
+    clock = 1000 + 30_000 * 50 + 5000;
+    t.phase("vote");
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 30_100;
+    clock = 1000 + 30_100 * 50 + 5000 + 80; // live (80 ms of latency)
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock - 80 + 4000 });
+  });
+
+  it("re-review RL1: a page hidden during the vote never plays a late dawn, even if the whole wave arrived in one late burst", () => {
+    clock = 1000;
+    const t = setup();
+    t.room.state.tick = 600;
+    t.phase("wave");
+    t.room.state.tick = 1200;
+    t.phase("vote"); // the same late burst: every sample equally late
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 1300;
+    hiddenAt = clock - 100; // the page came back just now
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ dawnEndsAtMs: clock });
+    hiddenAt = Number.NEGATIVE_INFINITY;
+  });
+
+  it("re-review RL2: a new run seen without its lobby patch restarts the clock (run 2's dawn plays)", () => {
+    hiddenAt = Number.NEGATIVE_INFINITY;
+    clock = 1000;
+    const t = setup();
+    t.room.state.tick = 50_000; // run 1 was long
+    t.phase("wave");
+    t.room.state.resultEnding = "wiped";
+    t.phase("results");
+    clock += 60_000 + 1200 * 50; // its lobby, build and wave patches skipped under ?lag: run 2 (ticks from 0) is first seen in its vote
+    t.room.state.tick = 1200;
+    t.phase("vote");
+    t.room.state.resultEnding = "extracted";
+    t.room.state.tick = 1300;
+    clock += 100 * 50;
+    t.phase("results");
+    expect(t.sessions).toHaveLength(2);
+    expect(t.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock + 4000 });
   });
 
   it("a vote seen first (a late join / reload during the vote) starts the session", () => {
@@ -221,6 +284,7 @@ describe("online run cycle in one room (Story 2.8)", () => {
       makeSession: () => null,
       inbox: () => null,
       dawnS: 4,
+      voteS: 15,
       ui: {
         set: (s) => {
           screens.push(s);

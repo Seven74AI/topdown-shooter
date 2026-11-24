@@ -24,6 +24,12 @@ import { isRoomCode, type Result } from "@topdown/shared";
 import { SERVER_RESTARTING_TEXT, serverNotice } from "./net/serverNotice";
 import "./ui/overlay.css";
 
+// Story 6.11 re-review RL1: when the page was last hidden or came back (no late dawn after a freeze).
+let lastHiddenMs = Number.NEGATIVE_INFINITY;
+document.addEventListener("visibilitychange", () => {
+  lastHiddenMs = performance.now();
+});
+
 // Phaser 4 has no `resolution` option: size the canvas in device pixels
 // (capped at MAX_DPR) and zoom it back down to the CSS viewport.
 const deviceSize = (): [number, number] => [
@@ -106,6 +112,8 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
         },
         inbox: () => lobbyStore.inbox(),
         dawnS: clientBalance().waves.evac.dawnS, // Story 6.11
+        voteS: clientBalance().waves.evac.voteS,
+        lastHiddenMs: () => lastHiddenMs, // re-review RL1
         ui: uiStore,
       }),
     });

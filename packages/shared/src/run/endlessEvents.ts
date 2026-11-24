@@ -16,10 +16,10 @@ import { isBossWave } from "../boss/bossState";
  */
 
 /** Story 6.12: wave `wave` gets one endless event (even, past the run, no Behemoth). */
-export function isEndlessEventWave(balance: Balance, wave: number, endless: boolean): boolean {
+export function isEndlessEventWave(balance: Balance, wave: number, endless: boolean, bossOverride: readonly number[] | null = null): boolean {
   if (!endless || !balance.waves.endless.eventEvenWaves) return false;
   if (wave <= balance.waves.runWaves || wave % 2 !== 0) return false;
-  return !isBossWave(balance, wave, true);
+  return !isBossWave(balance, wave, true, bossOverride); // re-review N1: the dev boss override decides the boss waves here too
 }
 
 const NO_CANDIDATES: readonly string[] = [];
@@ -61,7 +61,7 @@ export function scheduleEndlessEvent(world: World): string {
   const run = world.run;
   const wave = world.waves.number + 1;
   run.endlessEvent = "";
-  if (!isEndlessEventWave(world.balance, wave, run.endless)) return "";
+  if (!isEndlessEventWave(world.balance, wave, run.endless, world.debug.bossWaves)) return "";
   const id = pickEndlessEvent(world, endlessEventCandidates(world, wave), run.lastEndlessEvent);
   run.endlessEvent = id;
   if (id !== "") run.lastEndlessEvent = id;

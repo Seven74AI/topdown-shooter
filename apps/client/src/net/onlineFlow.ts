@@ -19,9 +19,12 @@ export interface OnlineFlowDeps {
   makeSession(): NetSession | null;
   /** The room's `RunInbox` (kept by the lobby store for the room's lifetime). */
   inbox(): RunInbox | null;
-  /** Story 6.11: the dawn's length (`waves.json › evac.dawnS`) and the clock (default `performance.now`). */
+  /** Story 6.11: the dawn's and the vote's lengths (`waves.json › evac`) and the clock (default `performance.now`). */
   readonly dawnS: number;
+  readonly voteS: number;
   nowMs?(): number;
+  /** Re-review RL1: when the page was last hidden or came back (`visibilitychange`, the clock above); −∞ if never. */
+  lastHiddenMs?(): number;
   readonly ui: {
     set(screen: UiScreen): void;
     request<K extends keyof UiRequests>(name: K, ...args: Parameters<UiRequests[K]>): void;
@@ -62,16 +65,20 @@ export function resultsFromState(state: RunStateView): { wave: number; ending: R
 export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase) => void {
   let session: NetSession | null = null;
   let prev: RunPhase = "lobby";
-  // Review M2: the smallest (arrival ms − server tick × tick ms) seen on this run's phase patches. A
+  // Review M2: the smallest (arrival ms − server tick × tick ms) seen on recent phase patches. A
   // patch delivered late (a frozen tab's backlog) has a larger value, so the minimum keeps a live
-  // sample; estimated server tick now = (now − minOffset) / tick ms.
+  // sample; estimated server tick now = (now − minOffset) / tick ms. Re-review RL1: only since the
+  // last wave start (dropped server ticks during a long run would make a run-long minimum run ahead);
+  // RL2: also reset when a new run is seen without its lobby patch (the tick restarts at 0).
   let minOffsetMs = Number.POSITIVE_INFINITY;
   return (phase) => {
     const last = prev;
     prev = phase;
     const now = deps.nowMs ? deps.nowMs() : performance.now();
-    if (phase === "lobby") minOffsetMs = Number.POSITIVE_INFINITY;
-    else minOffsetMs = Math.min(minOffsetMs, now - deps.state().tick * TICK_MS);
+    const inRun = (p: RunPhase): boolean => p === "build" || p === "wave" || p === "vote";
+    const newRun = inRun(phase) && !(session && inRun(last));
+    if (phase === "lobby" || newRun || (phase === "wave" && last !== "wave")) minOffsetMs = Number.POSITIVE_INFINITY;
+    if (phase !== "lobby") minOffsetMs = Math.min(minOffsetMs, now - deps.state().tick * TICK_MS);
     if (phase === "build" || phase === "wave" || phase === "vote") {
       if (session && (last === "build" || last === "wave" || last === "vote")) return; // build ↔ wave ↔ vote inside the same run
       session?.release(); // a new run seen without its lobby patch (e.g. under `?lag`): drop the old one
@@ -84,7 +91,11 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
       // Review M2 (AC 10): the dawn runs from the EXTRACT tick (the Results patch's tick, the same
       // server tick), never from when the patch was processed: a page that slept past it gets the card.
       const ageMs = Math.max(0, now - minOffsetMs - st.tick * TICK_MS);
-      const live = last === "vote" && ageMs < deps.dawnS * 1000;
+      // Re-review RL1: a page hidden (or frozen) during the vote or the dawn never gets a late dawn,
+      // even if every sample since the wave start arrived in the same late burst.
+      const hiddenAt = deps.lastHiddenMs ? deps.lastHiddenMs() : Number.NEGATIVE_INFINITY;
+      const hiddenLately = hiddenAt >= now - (deps.voteS + deps.dawnS) * 1000;
+      const live = last === "vote" && ageMs < deps.dawnS * 1000 && !hiddenLately;
       deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, live, live ? now - ageMs : now, deps.dawnS) });
     } else if (phase === "lobby") {
       session?.release();
