@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, loadDevBalance, type Balance } from "@topdown/shared";
+import { bundledBalanceFiles, loadBalance, loadDevBalance, type Balance } from "@topdown/shared";
 import {
   BUILD_BAR_SLOTS,
   SLOT_EMPTY,
@@ -38,6 +38,7 @@ describe("buildBarItems (Story 5.16 AC 2)", () => {
       ["auto_turret", "Auto-turret", 250, true, 1, 1],
       ["spike_trap", "Spike trap", 80, false, 2, 2],
       ["mine", "Mine", 35, false, 0.5, 0.5],
+      ["floodlight", "Floodlight", 100, false, 1, 1], // Story 6.3 (D8): a tile from wave 1, no UI change
       ["med_station", "Med station", 400, false, 1, 1],
       ["bear_trap", "Bear trap", 50, false, 1, 1], // Story 5.14: appears without UI work (AC 20: world-art tile)
     ]);
@@ -52,13 +53,16 @@ describe("buildBarItems (Story 5.16 AC 2)", () => {
     expect(ids).toEqual(["wood_barricade", "auto_turret", "spike_trap", "mine", "med_station", "bear_trap"]);
   });
 
-  it("Story 5.10 review M2: with the dev shop-all balance (?shopall / DEV_SHOP_ALL) the hidden floodlight is a tile (between mine and med station, balance order)", () => {
-    const devBal = loadDevBalance({ zombieDamageScale: null, shopAll: true });
+  it("Story 5.10 review M2: with the dev shop-all balance (?shopall / DEV_SHOP_ALL) a hidden floodlight (test balance since 6.3) is a tile (between mine and med station, balance order)", () => {
+    const raw = bundledBalanceFiles();
+    ((raw.buildings as { types: Record<string, { inShop?: boolean }> }).types.floodlight as { inShop?: boolean }).inShop = false;
+    const hidden = loadBalance(raw);
+    const devBal = loadDevBalance({ zombieDamageScale: null, shopAll: true }, raw);
     const all = buildBarItems(devBal);
     expect(all.map((t) => t.id)).toEqual(["wood_barricade", "auto_turret", "spike_trap", "mine", "floodlight", "med_station", "bear_trap"]);
     expect(all.find((t) => t.id === "floodlight")).toMatchObject({ name: "Floodlight", price: 100, turret: false, widthM: 1, depthM: 1 });
     expect(buildBarItems(devBal)).toBe(all);
-    expect(buildBarItems(balance).map((t) => t.id)).not.toContain("floodlight");
+    expect(buildBarItems(hidden).map((t) => t.id)).not.toContain("floodlight");
   });
 
   it("is cached per balance (the same array every frame: no allocation)", () => {
