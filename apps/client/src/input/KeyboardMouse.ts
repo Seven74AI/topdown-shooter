@@ -11,8 +11,10 @@ const MIN_AIM_DIST_M = 1e-3;
  */
 export class KeyboardMouse {
   private readonly heldCodes = new Set<string>();
-  private readonly heldCount: Record<KeyAction, number> = { up: 0, down: 0, left: 0, right: 0, swap: 0, menu: 0 };
+  private readonly heldCount: Record<KeyAction, number> = { up: 0, down: 0, left: 0, right: 0, swap: 0, consumable: 0, menu: 0 };
   private swapLatched = false;
+  /** Story 5.12: E pressed since the last `takeConsumable()` (one edge per press, no auto-repeat). */
+  private consumableLatched = false;
   /** Esc pressed since the last `takeMenu()` (Story 2.11). Kept through `releaseAll`: a press is an intent. */
   private menuLatched = false;
   leftButton = false;
@@ -30,6 +32,7 @@ export class KeyboardMouse {
     this.heldCodes.add(code);
     this.heldCount[action]++;
     if (action === "swap" && !repeat) this.swapLatched = true;
+    if (action === "consumable" && !repeat) this.consumableLatched = true;
     if (action === "menu" && !repeat) this.menuLatched = true;
     return true;
   }
@@ -45,9 +48,10 @@ export class KeyboardMouse {
   releaseAll(): void {
     this.heldCodes.clear();
     const c = this.heldCount;
-    c.up = c.down = c.left = c.right = c.swap = c.menu = 0;
+    c.up = c.down = c.left = c.right = c.swap = c.consumable = c.menu = 0;
     this.leftButton = false;
     this.swapLatched = false;
+    this.consumableLatched = false;
   }
 
   /** True once per Q press; clears the latch. */
@@ -55,6 +59,13 @@ export class KeyboardMouse {
     const s = this.swapLatched;
     this.swapLatched = false;
     return s;
+  }
+
+  /** Story 5.12: true once per E press; clears the latch. */
+  takeConsumable(): boolean {
+    const c = this.consumableLatched;
+    this.consumableLatched = false;
+    return c;
   }
 
   /** True once per Esc press (Story 2.11: toggles the in-run menu); clears the latch. */

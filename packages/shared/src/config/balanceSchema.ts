@@ -140,6 +140,8 @@ export const weaponsSchema = z.record(balanceId, weaponSchema);
 
 /** Story 5.6 helper: `s` seconds is a whole number of ticks. */
 const wholeTicks = (s: number): boolean => Math.abs(s * TICK_RATE_HZ - Math.round(s * TICK_RATE_HZ)) < 1e-9;
+/** Story 5.12: a whole, even number (a pulse whose friendly-fire half is whole too). */
+const evenWhole = (v: number): boolean => Math.abs(v - Math.round(v)) < 1e-9 && Math.round(v) % 2 === 0;
 
 /**
  * Story 5.6: a ranged spit (Spitters). The Spitter stops within `rangeM` of a player it has a clear
@@ -561,11 +563,16 @@ export const botsSchema = z
      * k times: "at level ≥ k + 1").
      */
     shoppingList: z
+      // Story 5.12: consumable ids too (a consumables.json key: fill / refill the slot).
       .array(z.union([balanceId, z.string().regex(/^upgrade:[a-z][a-z0-9_]*$/, "an upgrade entry is upgrade:<weapon id>")]))
       .max(31)
       .default([]),
     /** Story 3.10: a bot tries to place a building at these distances (m) around itself, 8 directions each. */
     buildRadiiM: z.array(z.number().positive().max(8)).min(1).max(4).default([2.5]),
+    /** Story 5.12: a bot uses its medkit below this share of its max HP. */
+    medkitBelowHpFrac: z.number().min(0).max(1).default(0.4),
+    /** Story 5.12: a bot throws a grenade / molotov at the densest zombie within throw range when at least this many stand within its radius. */
+    throwClusterMin: z.number().int().min(1).max(64).default(5),
   })
   .strict();
 
@@ -878,6 +885,77 @@ export const gearSchema = z
   })
   .strict();
 
+/**
+ * Story 5.12: one consumable (FR8, FR49). `kind` picks the use: `heal` (the medkit: `healHp`
+ * instantly, capped at max HP), `grenade` (a thrown hand grenade: 5.5's lob, then `explode` with
+ * `damage` in `radiusM`), `molotov` (the same lob, then a fire zone of `radiusM` for `durationS`
+ * burning `damagePerS` on a per-body clock every `pulseS`). Durations are whole ticks; the pulse
+ * damage and its friendly-fire half are whole numbers (no float HP).
+ */
+export const consumableItemSchema = z
+  .object({
+    name: z.string().min(1).max(24),
+    price: z.number().int().min(0),
+    /** Items per purchase (a refill tops the slot up to this). */
+    pack: z.number().int().min(1).max(9),
+    inShop: z.boolean().default(true),
+    kind: z.enum(["heal", "grenade", "molotov"]),
+    healHp: z.number().int().min(1).optional(),
+    /** Throws: the shortest and longest throw from the hand (m; 5.5's `minLobM` / `lobRangeM`). */
+    minThrowM: z.number().positive().optional(),
+    throwRangeM: z.number().positive().max(20).optional(),
+    /** Throws: ground speed of the thrown item (m/s) and the shortest flight (s). */
+    throwSpeedMps: z.number().positive().optional(),
+    minFlightS: z.number().positive().optional(),
+    /** Grenade: blast damage to zombies (players take the friendly-fire share). Molotov: unused. */
+    damage: z.number().int().min(1).optional(),
+    radiusM: z.number().positive().max(8).optional(),
+    durationS: z.number().positive().optional(),
+    damagePerS: z.number().int().min(1).optional(),
+    pulseS: z.number().positive().optional(),
+  })
+  .strict()
+  .refine((c) => c.kind !== "heal" || c.healHp !== undefined, "a heal item needs healHp")
+  .refine((c) => c.kind === "heal" || (c.minThrowM !== undefined && c.throwRangeM !== undefined && c.throwSpeedMps !== undefined && c.minFlightS !== undefined && c.radiusM !== undefined && c.minThrowM <= c.throwRangeM), "a throwable needs minThrowM ≤ throwRangeM, throwSpeedMps, minFlightS and radiusM")
+  .refine((c) => c.kind !== "grenade" || c.damage !== undefined, "a grenade needs damage")
+  .refine((c) => c.kind !== "molotov" || (c.durationS !== undefined && c.damagePerS !== undefined && c.pulseS !== undefined), "a molotov needs durationS, damagePerS and pulseS")
+  .refine((c) => c.durationS === undefined || (wholeTicks(c.durationS) && Math.round(c.durationS * TICK_RATE_HZ) <= 65535), "durationS must be a whole number of ticks (≤ 65,535)")
+  .refine((c) => c.pulseS === undefined || wholeTicks(c.pulseS), "pulseS must be a whole number of ticks")
+  .refine((c) => c.damagePerS === undefined || c.pulseS === undefined || evenWhole(c.damagePerS * c.pulseS), "damagePerS × pulseS must be an even whole number (players take half)");
+
+
+/** Story 5.12: the consumables (at most 8: the slot is a uint8 index, 255 = empty). */
+export const consumablesSchema = z
+  .object({
+    /** Seconds between two uses (whole ticks; D1). */
+    useCooldownS: z.number().positive().refine(wholeTicks, "useCooldownS must be a whole number of ticks"),
+    /** Live molotov fire zones at most (a new one replaces the oldest; brief 10/12). */
+    maxLiveMolotovZones: z.number().int().min(1).max(32),
+    /** Review M1: how long the last aim input steers a throw made with no aim (whole ticks). */
+    aimMemoryS: z.number().positive().max(10).refine(wholeTicks, "aimMemoryS must be a whole number of ticks"),
+    /** M-D: blocker entries this close to a molotov zone's centre don't shield (a zone lit at a face burns that side). */
+    fireFaceToleranceM: z.number().min(0).max(0.2),
+    /**
+     * Client look budget of one molotov zone's particle fire (brief 12): its share of a car fire's
+     * low-quality particle caps and spawn rates, and the spacing of its ring flames (m).
+     */
+    fx: z
+      .object({
+        particleShare: z.number().min(0.05).max(1),
+        /** Smoke is the costliest layer (big normal-blend puffs): its own, smaller share. */
+        smokeShare: z.number().min(0.05).max(1),
+        edgeSpacingM: z.number().min(0.2).max(2),
+        /** Caps over ALL live zones (the 8-zone worst case, C14): particles, and ring flames (their spacing grows to fit). */
+        maxParticles: z.number().int().min(8).max(2000),
+        maxEdgeFlames: z.number().int().min(8).max(2000),
+        /** With more live zones than this, no zone draws its ground light (the costliest layer to fill). */
+        maxLights: z.number().int().min(0).max(32),
+      })
+      .strict(),
+    items: z.record(balanceId, consumableItemSchema).refine((r) => Object.keys(r).length >= 1 && Object.keys(r).length <= 8, "1–8 consumables (the slot is a uint8 index)"),
+  })
+  .strict();
+
 /** One entry per balance file: file name (without .json) → schema. */
 export const balanceFileSchemas = {
   weapons: weaponsSchema,
@@ -892,6 +970,7 @@ export const balanceFileSchemas = {
   decay: decaySchema,
   combat: combatSchema, // Story 5.5 (5.4 owns friendlyFire)
   gear: gearSchema, // Story 5.11
+  consumables: consumablesSchema, // Story 5.12
 } as const;
 
 export type BalanceFileName = keyof typeof balanceFileSchemas;
@@ -912,3 +991,4 @@ export type BearTrapStats = z.output<typeof bearTrapSchema>;
 export type LightStats = z.output<typeof lightSchema>;
 export type HealStats = z.output<typeof healSchema>;
 export type GearItemStats = z.output<typeof gearItemSchema>;
+export type ConsumableItemStats = z.output<typeof consumableItemSchema>;

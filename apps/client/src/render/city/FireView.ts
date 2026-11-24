@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import type { FireRecord } from "@topdown/shared";
 import { ATLAS_FIREFX, FIRE_FLAME_FRAMES, FIRE_SMOKE_FRAMES, FX_FIRE_EMBER, FX_FIRE_LIGHT, ensureFireFxAtlas } from "./fireFxAtlas";
-import { CarFire, EDGE_SLOTS_MAX, fireInView, FIRE_EMBERS_MAX, FIRE_FLAMES_MAX, FIRE_SMOKE_MAX, edgeFlameDraw, emberDraw, fireFlicker, flameDraw, freeFlameFitR, markHiddenEdges, smokeDraw, type ParticleDraw } from "./fireParticles";
+import { CarFire, EDGE_SLOTS_MAX, fireInView, type ZoneLike, FIRE_EMBERS_MAX, FIRE_FLAMES_MAX, FIRE_SMOKE_MAX, edgeFlameDraw, emberDraw, fireFlicker, flameDraw, freeFlameFitR, markHiddenEdges, smokeDraw, type ParticleDraw } from "./fireParticles";
 import { fireRingRadiusM } from "./fireRing";
 import { flameCoreFracOf, flameReachUpOf } from "./fireSprites";
 
@@ -24,6 +24,8 @@ const MIN_SMOKE_ALPHA = 0.04;
 
 interface Slot {
   name: string | null;
+  /** Story 5.12: a molotov pool slot's zone id (-1: none / a car fire slot). */
+  poolId: number;
   readonly fire: CarFire;
   readonly flames: Phaser.GameObjects.Image[];
   /** Review M1: the fixed edge-ring flames. */
@@ -39,7 +41,13 @@ interface Slot {
   r: number;
   /** Drawn last frame (false while culled). */
   shown: boolean;
+  /** Story 5.12: the ground light's envelope (a molotov fades out) and the zone count its hidden edges were laid for. */
+  lightK: number;
+  zonesKey: number;
 }
+
+/** Story 5.12: the `name` of a slot that shows a molotov pool (its id is `poolId`). */
+const POOL_NAME = "molotov";
 
 /**
  * Story 4.12: the burning cars' fire drawn by code (designer pick: fire-lab panel D): per fire a
@@ -52,6 +60,20 @@ export class FireView {
   private readonly d: ParticleDraw = { x: 0, y: 0, w: 0, h: 0, rot: 0, alpha: 0, tint: 0, frame: 0 };
 
   private readonly img: (frame: string, depth: number, add: boolean) => Phaser.GameObjects.Image;
+  /** Story 5.12: the pool fires' budget (`setPoolBudget`). */
+  private poolShare = 1;
+  private poolSmokeShare = 1;
+  private poolEdgeM = 0.26;
+  /** Story 5.12: pool fires draw their ground light (off when many burn: the light is the biggest fill). */
+  private poolLights = true;
+
+  /** Story 5.12: the particle share and ring spacing of this view's molotov pool fires (`consumables.json › fx`). */
+  setPoolBudget(share: number, smokeShare: number, edgeSpacingM: number, lights = true): void {
+    this.poolLights = lights;
+    this.poolShare = share;
+    this.poolSmokeShare = smokeShare;
+    this.poolEdgeM = edgeSpacingM;
+  }
 
   constructor(scene: Phaser.Scene, maxFires: number, low: boolean) {
     ensureFireFxAtlas(scene);
@@ -64,6 +86,7 @@ export class FireView {
     for (let s = 0; s < maxFires; s++) {
       const slot: Slot = {
         name: null,
+        poolId: -1,
         fire: new CarFire(0x4f12 + s * 7919, low),
         flames: [],
         edge: [],
@@ -77,6 +100,8 @@ export class FireView {
         y: 0,
         r: 0,
         shown: false,
+        lightK: 1,
+        zonesKey: -1,
       };
       for (let i = 0; i < FIRE_FLAMES_MAX; i++) slot.flames.push(img(FIRE_FLAME_FRAMES[0] as string, FLAME_DEPTH, true));
       for (let i = 0; i < FIRE_SMOKE_MAX; i++) slot.smoke.push(img(FIRE_SMOKE_FRAMES[0] as string, SMOKE_DEPTH, false));
@@ -125,6 +150,48 @@ export class FireView {
     return n;
   }
 
+  /** Slots (the cap). */
+  get capacity(): number {
+    return this.slots.length;
+  }
+
+  /**
+   * Story 5.12: slot `s` shows molotov zone `id` (-1: none) at (x, y) radius `r` with its spread look
+   * (`CarFire.setPool`), age and envelope; `zones` = every live zone (edges inside another one are
+   * hidden: the union's edge burns; re-laid when `zonesVersion` changes). Call every frame (no allocation); a new id starts empty.
+   */
+  setPoolSlot(s: number, id: number, x: number, y: number, r: number, spread: number, dir: number, ageS: number, env: number, zones: readonly ZoneLike[], self: number, zonesVersion: number): void {
+    const slot = this.slots[s];
+    if (!slot) return;
+    if (id < 0) {
+      if (slot.name !== null) {
+        slot.name = null;
+        slot.poolId = -1;
+        slot.fire.clear();
+        this.hide(slot);
+      }
+      return;
+    }
+    if (slot.poolId !== id) {
+      slot.poolId = id;
+      slot.name = POOL_NAME;
+      slot.fire.clear();
+      this.hide(slot);
+    }
+    slot.fire.setPool(spread, dir, ageS, env);
+    slot.fire.setPoolBudget(this.poolShare, this.poolSmokeShare, this.poolEdgeM);
+    slot.lightK = this.poolLights ? env : 0;
+    if (slot.x !== x || slot.y !== y || slot.r !== r || slot.zonesKey !== zonesVersion) {
+      slot.zonesKey = zonesVersion;
+      markHiddenEdges(slot.fire, zones, self);
+      while (slot.edge.length < slot.fire.edgeN) slot.edge.push(this.img(FIRE_FLAME_FRAMES[0] as string, FLAME_DEPTH, true));
+      slot.x = x;
+      slot.y = y;
+      slot.r = r;
+      slot.light.setPosition(x, y).setDisplaySize(2 * r, 2 * r);
+    }
+  }
+
   /**
    * Browser checks: how far the brightest reach of the drawn flames (their alpha > 50 % core at the
    * images' displayed size) passes the zone edge, at most (≤ 0 = the edge rule holds on screen).
@@ -164,11 +231,12 @@ export class FireView {
       }
       if (!slot.shown) {
         slot.shown = true;
-        slot.light.setVisible(true);
+        slot.light.setVisible(slot.lightK > 0);
       }
       const fire = slot.fire;
       fire.update(dtS, tS, slot.r);
-      slot.light.setAlpha(LIGHT_ALPHA * fireFlicker(tS, 0.7 + s));
+      if (slot.lightK > 0) slot.light.setVisible(true).setAlpha(LIGHT_ALPHA * slot.lightK * fireFlicker(tS, 0.7 + s));
+      else if (slot.light.visible) slot.light.setVisible(false);
       const fp = fire.flames;
       for (let i = 0; i < fp.cap; i++) {
         const img = slot.flames[i] as Phaser.GameObjects.Image;

@@ -44,6 +44,8 @@ import { PerfOverlay } from "../debug/PerfOverlay";
 import { FIRE_POP_POOL, FIRE_POP_RISE_PX, PopPool, fireDamageLabel } from "../render/burnCue";
 import { ATLAS_FX, FX_EDGE, FX_TIER_MARKS, FX_TIER_SCALE, ensureAtlases } from "../render/city/spriteAtlas";
 import { GEAR_ICON_CSS_PX, GEAR_ICON_FRAME_PX, GEAR_ICON_TEXTURE, ensureGearIcons, gearIconFramesFor } from "../render/city/gearIcons";
+import { RIGHT_BUTTON_CSS_PX, layoutRightButtons, newRightButtonsLayout } from "./consumableButton";
+import { CONSUMABLE_ICON_CSS_PX, CONSUMABLE_ICON_FRAMES, CONSUMABLE_ICON_TEXTURE, ensureConsumableIcons } from "../render/city/consumableIcons";
 
 export interface HudSceneData {
   sticks: TouchSticks;
@@ -85,10 +87,11 @@ const EDGE_GLOW_DEPTH = -1;
 const AMMO_TEXT_PX = 18;
 const OTHER_TEXT_PX = MIN_TEXT_CSS_PX;
 const AMMO_MARGIN = 24;
-/** Swap button (FR5): 64 × 64 CSS px, bottom-right, above where the right thumb rests. */
-const SWAP_BTN_PX = 64;
-const SWAP_BTN_RIGHT = 24;
-const SWAP_BTN_BOTTOM = 120;
+/** Swap (FR5) and Story 5.12's consumable button: 64 × 64 CSS px, placed by `layoutRightButtons` (consumableButton.ts). */
+/** Story 5.12: the consumable button's count badge (CSS px) and its pending / greyed looks. */
+const CONS_COUNT_PX = 16;
+const CONS_PENDING_ALPHA = 0.5;
+const CONS_GREY_ALPHA = 0.4;
 const RELOAD_BAR_W = 120;
 const RELOAD_BAR_H = 6;
 /** Story 5.4: the fuel bar of a flame weapon (orange, under the fuel percent). */
@@ -286,6 +289,16 @@ export class HudScene extends Phaser.Scene {
   private shownOtherLevel = -1;
   private swapBtn!: Phaser.GameObjects.Arc;
   private swapLabel!: Phaser.GameObjects.Text;
+  /** Story 5.12 (AC 1): the consumable button (pooled circle + CI4 icon + count badge; redrawn on change only). */
+  private consBtn!: Phaser.GameObjects.Arc;
+  private consIcon!: Phaser.GameObjects.Image;
+  private consCount!: Phaser.GameObjects.Text;
+  /** Story 5.12 review L7: what the button shows (compared field by field: no string built per frame). */
+  private shownConsFrame = "";
+  private shownConsCount = -1;
+  private shownConsLook = -1;
+  /** The build bar was up at the last layout (the button then sits above the grid). */
+  private consAboveBar = false;
   private menuBtn!: Phaser.GameObjects.Graphics;
   private shownMenuButton: boolean | null = null;
   private shownMenuOpen = false;
@@ -308,6 +321,9 @@ export class HudScene extends Phaser.Scene {
   private barGlyphs: Phaser.GameObjects.Text[] = [];
   private barCount!: Phaser.GameObjects.Text;
   private readonly bar = newBuildBarLayout();
+  /** Story 5.12: scratch for the consumable button above the grid. */
+  private readonly consBar = newBuildBarLayout();
+  private readonly rightBtns = newRightButtonsLayout();
   private readonly barSlots = new Int16Array(BUILD_BAR_SLOTS);
   private barPage = 0;
   private barSlotsDirty = true;
@@ -522,7 +538,7 @@ export class HudScene extends Phaser.Scene {
     this.ammoMark = this.add.image(0, 0, ATLAS_FX, FX_TIER_MARKS[2]).setOrigin(1, 0.5).setVisible(false);
     this.otherMark = this.add.image(0, 0, ATLAS_FX, FX_TIER_MARKS[2]).setOrigin(1, 0.5).setVisible(false);
     this.swapBtn = this.add
-      .circle(0, 0, (SWAP_BTN_PX / 2) * dpr(), 0xffffff, 0.14)
+      .circle(0, 0, (RIGHT_BUTTON_CSS_PX / 2) * dpr(), 0xffffff, 0.14)
       .setStrokeStyle(2 * dpr(), 0xffffff, 0.5)
       .setVisible(false);
     this.swapLabel = this.add
@@ -534,6 +550,21 @@ export class HudScene extends Phaser.Scene {
     this.shownSwapVisible = null;
     this.buttons.set({ id: "swap", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.swapPressed = true;
+    });
+    // Story 5.12 (AC 1, D5): the consumable button, 16 px left of swap at the same height.
+    ensureConsumableIcons(this);
+    this.consBtn = this.add
+      .circle(0, 0, (RIGHT_BUTTON_CSS_PX / 2) * dpr(), 0xffffff, 0.14)
+      .setStrokeStyle(2 * dpr(), 0xffffff, 0.5)
+      .setVisible(false);
+    this.consIcon = this.add.image(0, 0, CONSUMABLE_ICON_TEXTURE, CONSUMABLE_ICON_FRAMES.medkit).setVisible(false);
+    this.consCount = this.add.text(0, 0, "", this.outlinedStyle(CONS_COUNT_PX)).setOrigin(1, 1).setVisible(false);
+    this.shownConsFrame = "";
+    this.shownConsCount = -1;
+    this.shownConsLook = -1;
+    this.consAboveBar = false;
+    this.buttons.set({ id: "consumable", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.consumablePressed = true;
     });
     // Story 2.11: ☰ top-right, away from both thumbs (the sticks live in the lower halves).
     this.menuBtn = this.add.graphics().setDepth(1001).setVisible(false);
@@ -906,13 +937,16 @@ export class HudScene extends Phaser.Scene {
   private layoutButtons(): void {
     const k = dpr();
     const safe = this.insets;
-    const size = SWAP_BTN_PX * k;
-    const x = this.scale.width - (SWAP_BTN_RIGHT + safe.right) * k - size;
-    const y = this.scale.height - (SWAP_BTN_BOTTOM + safe.bottom) * k - size;
+    const bl = layoutBuildBar(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consBar);
+    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns, bl.countX);
+    const size = l.size;
+    const x = l.swapX;
+    const y = l.swapY;
     const rect = this.buttons.get("swap");
     if (rect) Object.assign(rect, { x, y, w: size, h: size });
     this.swapBtn.setRadius(size / 2).setPosition(x + size / 2, y + size / 2);
     this.swapLabel.setFontSize(Math.round(28 * k)).setPosition(x + size / 2, y + size / 2);
+    this.layoutConsumableButton();
     this.layoutMenuButton();
     this.layoutBuildBar(); // Story 5.16: before Ready (Ready keeps clear of the grid)
     this.layoutReadyButton();
@@ -1009,6 +1043,58 @@ export class HudScene extends Phaser.Scene {
       const sy = ((this.soldY[i] as number) - p * SOLD_POP_RISE_M - m.camY) * m.camZoom;
       t.setPosition(sx, sy).setAlpha(1 - p * p).setVisible(true);
     }
+  }
+
+  /**
+   * Story 5.12 (D5): the consumable button 16 px left of swap at the same height; while the build bar
+   * is up (5.16: the swap is hidden under it) above the grid's left edge, so the medkit stays usable.
+   */
+  private layoutConsumableButton(): void {
+    const k = dpr();
+    const safe = this.insets;
+    const bl = layoutBuildBar(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consBar);
+    const l = layoutRightButtons(this.scale.width, this.scale.height, safe.right, safe.bottom, k, this.consAboveBar, bl.left, bl.top, this.rightBtns, bl.countX);
+    const size = l.size;
+    const x = l.consX;
+    const y = l.consY;
+    const rect = this.buttons.get("consumable");
+    if (rect) Object.assign(rect, { x, y, w: size, h: size });
+    this.consBtn.setRadius(size / 2).setPosition(x + size / 2, y + size / 2);
+    const icon = CONSUMABLE_ICON_CSS_PX * k;
+    this.consIcon.setDisplaySize(icon, icon).setPosition(x + size / 2, y + size / 2);
+    this.consCount.setFontSize(Math.round(CONS_COUNT_PX * k)).setPosition(x + size - 2 * k, y + size - 1 * k);
+  }
+
+  /** Story 5.12 (AC 1, 7): the button's visibility, icon, count and greyed / pending look (touched on change only). */
+  private drawConsumable(): void {
+    const m = this.model;
+    if (m.buildBar !== this.consAboveBar) {
+      this.consAboveBar = m.buildBar;
+      this.layoutButtons(); // swap and the consumable move above / below the build bar together
+    }
+    const frame = m.consumableItem !== null ? CONSUMABLE_ICON_FRAMES[m.consumableItem] : undefined;
+    const show = m.consumableVisible && frame !== undefined;
+    const look = !show ? 0 : m.consumablePending ? 2 : m.consumableUsable ? 1 : 3;
+    const f = show ? (frame as string) : "";
+    const count = show ? m.consumableCount : -1;
+    if (f === this.shownConsFrame && count === this.shownConsCount && look === this.shownConsLook) return;
+    this.shownConsFrame = f;
+    this.shownConsCount = count;
+    this.shownConsLook = look;
+    this.buttons.setVisible("consumable", show);
+    this.consBtn.setVisible(show);
+    this.consIcon.setVisible(show);
+    this.consCount.setVisible(show);
+    if (!show) return;
+    this.consIcon.setFrame(frame as string);
+    this.consCount.setText(`${m.consumableCount}`);
+    // usable: full; pending: dimmed (AC 7); not usable now (full HP, a throwable in a build phase): greyed.
+    const a = look === 1 ? 1 : look === 2 ? CONS_PENDING_ALPHA : CONS_GREY_ALPHA;
+    this.consIcon.setAlpha(a);
+    this.consCount.setAlpha(a);
+    this.consBtn.setFillStyle(0xffffff, look === 1 ? 0.14 : 0.07).setStrokeStyle(2 * dpr(), 0xffffff, look === 1 ? 0.5 : 0.25);
+    if (look === 3) this.consIcon.setTint(0x9a9a9a);
+    else this.consIcon.clearTint();
   }
 
   /**
@@ -1659,6 +1745,7 @@ export class HudScene extends Phaser.Scene {
     this.drawMoney();
     this.drawBurn();
     this.drawWeapon();
+    this.drawConsumable(); // Story 5.12
     this.drawWave();
     this.drawRushArrows();
     this.drawDowned();
@@ -1882,7 +1969,8 @@ export class HudScene extends Phaser.Scene {
       this.otherMark.setAlpha(a);
       this.reloadBar.setAlpha(a);
     }
-    const hasOther = m.otherWeaponName !== "" && !hidden;
+    // Story 5.12 (main-session decision 2026-11-23): in a build phase the swap sits above the build bar; hidden only while holding.
+    const hasOther = m.otherWeaponName !== "" && !m.placementActive;
     if (hasOther !== this.shownSwapVisible) {
       this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
       this.buttons.setVisible("swap", hasOther);

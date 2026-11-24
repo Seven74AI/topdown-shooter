@@ -1,6 +1,6 @@
 # Story 5.12: Consumables
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -37,12 +37,12 @@ so that I have an emergency answer.
 
 ## Acceptance Criteria
 
-1. **The button (FR8).** A round **consumable button** (64 × 64 CSS px, like swap) sits near the right thumb, left of / above the swap button (exact spot in D5), showing the item's icon and its count; **E** on desktop (`keyMap.ts` `KeyE → "consumable"`, latched once per press like `swap`, no auto-repeat). It is hidden with an empty slot, while downed/out, in placement mode and with the shop or menu open. Tapping sets the input's edge flag `consumable` (already in `playerInputSchema`): exactly one input seq carries it; `LocalSimHost`/`NetSimHost` latch it; `applyInputs` (`core/systems.ts`) clears it on a repeated seq; `RunController` carries it across a dropped/skipped input (all existing; extend their tests).
+1. **The button (FR8).** A round **consumable button** (64 × 64 CSS px, like swap) sits near the right thumb, left of / above the swap button (exact spot in D5), showing the item's icon and its count; **E** on desktop (`keyMap.ts` `KeyE → "consumable"`, latched once per press like `swap`, no auto-repeat). It is hidden with an empty slot, while downed/out, in placement mode and with the shop or menu open. **(Main-session decision 2026-11-23, after 5.16 D3:) while the build bar is up (a build phase), the consumable button and swap sit in a row above the build bar's top-left edge (12 px gaps; checked at 568×320 / 800×360 / 1024×768), so the medkit is reachable on touch; both still hide while holding a building.** Tapping sets the input's edge flag `consumable` (already in `playerInputSchema`): exactly one input seq carries it; `LocalSimHost`/`NetSimHost` latch it; `applyInputs` (`core/systems.ts`) clears it on a repeated seq; `RunController` carries it across a dropped/skipped input (all existing; extend their tests).
 2. **One slot (FR49).** `PlayerState.consumable` (id or null) and `consumableCount`. Buying a consumable (build phase, `shop.buy_item { item }` — the message and `buyItem` dispatcher of Story 5.11): same type in the slot → **refills to the pack size** (refused `already_full` when already full: no money taken); a different type → **replaces it** (the rest is lost; the shop says "Replaces Grenades ×2"); empty → fills. Packs and prices in a new `consumables.json`: **Medkit** 1 for 60, **Grenades** 3 for 80, **Molotovs** 2 for 100.
 3. **Fairness rule: one tap = at most one use.** A use happens on the tick the flagged input is applied, from the player's server position and that input's aim, and only if: the player is **alive**, the slot has ≥ 1, the use cooldown is over (`useCooldownS` 0.5 s = 10 ticks, counted in ticks, from the last use), and the item's own rule allows it (AC 4–6). Otherwise **nothing is consumed**. Two taps within the cooldown use one item. A dropped input never loses or doubles a use (RunController carry, 2.4/2.7). Downed, out or in a phase where it is not allowed: no use, no count change.
 4. **Medkit.** Heals **50 HP instantly**, capped at the player's max HP (Story 5.11 armor included); **not used at full HP** (count unchanged; the HUD button greys out at full HP). Usable in **build and wave** phases.
-5. **Grenades.** Thrown at the aim point by Story 5.5's rules (`combat/grenades.ts`, pool `world.grenades`; 5.5 FR-A/D1: mouse = cursor distance, touch = aim-stick deflection; the aim vector's length carries the distance while a throwable is in the slot), clamped to [`minThrowM` 2, `throwRangeM` **8**] m (no aim input → facing direction at 8 m); 5.5 FR-B: the ground track is **stopped at the face of a car, the bus or a map building** (explodes there), barriers/sandbags/barricades do not stop it; it flies over zombies. On landing `explode(world, spec)` (5.5's `combat/explosion.ts`): **40 damage within 2.5 m**, one hit per body (5.5 FR-E), zombies full, **players (teammates and the thrower) 50 %** through 5.4's `damagePlayerBy(…, "explosion", thrower)`, buildings 0 (5.5 D4), `shotLineClear(centre → body)` cover check. While the slot holds a throwable, 5.5's landing marker (exact blast radius) shows at the throw point (D11). Wave phase only (D3).
-6. **Molotovs.** Thrown like a grenade (same `grenades.ts` round, same clamp and cover stop, max 8 m); on landing makes a **fire zone of radius 3 m** (D2) that burns **4 s**: every body overlapping it (strict circle overlap, 4.8 D7) takes **8 damage/s** — zombies full, players 50 % (tag `fire`, 5.4 rule) — on a **per-body burn clock** (4.8 D3: each body counts its own ticks inside; a pulse every `pulseS` 0.5 s = 4 damage to zombies, 2 to players; stepping out on a pulse tick dodges nothing; clocks are per area and reset when the area ends). Overlapping molotov zones and car fires **do not stack** on one body (one fire hit per pulse). Molotov fire does **not** damage buildings (D4) and is **not** in the nav grid (no flow-field rebuild mid-wave; zombies walk through and burn). It is drawn exactly at its damage edge (4.8 D16 ring). Wave phase only (D3). Kills credit the thrower (a player-caused kill: reward + assists as a weapon kill; weapon id `molotov`), unlike car fires.
+5. **Grenades.** Thrown at the aim point by Story 5.5's rules (`combat/grenades.ts`, pool `world.grenades`; 5.5 FR-A/D1: mouse = cursor distance, touch = aim-stick deflection; the aim vector's length carries the distance while a throwable is in the slot), clamped to [`minThrowM` 2, `throwRangeM` **8**] m (**review M1:** no aim input → the last aim direction, kept `aimMemoryS` 1.5 s and written only from aim input; else the nearest zombie within reach at its distance; else facing at 8 m — never the move direction by itself; **review L5:** the input carrying the tap always encodes the throw's own 8 m range and fires nothing, whatever is in hand); ~~5.5 FR-B: the ground track is stopped at the face of a car, the bus or a map building~~ **(updated at build, PR #5 / designer 2026-11-23 "Grenade Launcher lobs over obstacles"): the throw flies over cars, the bus, gas pumps, low walls, barriers, sandbags, barricades and turrets; only real map buildings (`building: true`) stop it at their face; aimed onto a car roof it lands at the car's near face (FR-B2)**; it flies over zombies. On landing `explode(world, spec)` (5.5's `combat/explosion.ts`): **40 damage within 2.5 m**, one hit per body (5.5 FR-E), zombies full, **players (teammates and the thrower) 50 %** through 5.4's `damagePlayerBy(…, "explosion", thrower)`, buildings 0 (5.5 D4), `shotLineClear(centre → body)` cover check. While the slot holds a throwable, 5.5's landing marker (exact blast radius) shows at the throw point (D11). Wave phase only (D3).
+6. **Molotovs.** Thrown like a grenade (same `grenades.ts` round, same clamp and the same lob rule — only buildings stop it, max 8 m); on landing makes a **fire zone of radius 3 m** (D2) that burns **4 s**: every body overlapping it (strict circle overlap, 4.8 D7) **with a clear line from the zone's centre (main-session decision 2026-11-23, the 5.6 acid rule: walls, cars, the bus and buildings shield; barricades and sandbags don't; a zone lit at a car's face never burns behind the car)** takes **8 damage/s** — zombies full, players 50 % (tag `fire`, 5.4 rule) — on a **per-body burn clock** (4.8 D3: each body counts its own ticks inside; a pulse every `pulseS` 0.5 s = 4 damage to zombies, 2 to players; stepping out on a pulse tick dodges nothing). **(Review L4, as built:) ONE fire clock per body (`fireTicks`) counts over car fires and molotov zones together; it is kept while outside and reset at every build start (4.8 D19); at its pulse the body takes ONE fire hit — the stronger of the car fire's and the molotov's.** Overlapping molotov zones and car fires **do not stack** on one body (one fire hit per pulse). Molotov fire does **not** damage buildings (D4) and is **not** in the nav grid (no flow-field rebuild mid-wave; zombies walk through and burn). It is drawn exactly at its damage edge (4.8 D16 ring). Wave phase only (D3). Kills credit the thrower (a player-caused kill: reward + assists as a weapon kill; **weapon id = the consumable id `molotovs`**, hand-grenade kills `grenades` — review L8), unlike car fires.
 7. **Server truth and pending (brief 14).** The HUD count is the server's (`consumableCount` from state; solo the World's). After a tap the button shows "pending" (dimmed) and ignores further taps until the synced count drops or the use is refused/ignored by the server (1 s timeout) — no optimistic use, so lag never shows a throw that did not happen. Medkit HP comes from state.
 8. **Network (brief 11).** Schema player fields `consumable` (uint8 index, 255 = empty) and `consumableCount` (uint8), in `PlayerStateView`/`PLAYER_STATE_FIELDS`, on change only. A use emits `consumable.used { playerId, item }` (new net event kind, ~3 B: HUD/sound) plus 5.5's `grenade.launched` for throws (the client draws the arc from it; ~12 B), 5.5's `explosion.happened` for the blast and 5.6's area-spawn event for the molotov zone — no per-tick state. Report B/s for a grenade, a molotov, and 4 players throwing everything in 2 s.
 9. **Pools and caps (brief 10, 12).** Molotov zones live in the shared area pool (Story 5.6 acid puddles / 5.8 gas): capacity and `maxLiveMolotovZones` (recommended 8) in `consumables.json`; a 9th replaces the oldest. Client fire visuals reuse 4.8's ring + ember images and a pooled fire glow (`FIRE_LIGHTS`-style, capped), atlased; no allocation per frame/tick.
@@ -59,7 +59,7 @@ so that I have an emergency answer.
 | C4 | Medkit at full HP / at 99 HP | Not used at full; at 99 → 100 (50 is a cap, not a refund) |
 | C5 | Buy Grenades when holding 2 grenades (refill for 80) | Refills to 3 for 80 (the rule); at 3 refused `already_full` |
 | C6 | Buy Medkit to replace 3 grenades by accident | Replaced; the shop note warned before the tap |
-| C7 | Throw a grenade through a bus/car at zombies behind it | The round stops and explodes at the bus face (5.5 FR-B); bodies behind the bus are shielded (AC 5) |
+| C7 | Throw a grenade through a bus/car at zombies behind it | (PR #5 rule) aimed past the bus it lobs over and lands at the aim point; aimed onto the roof it lands at the near face; either way the BLAST is shielded by the bus (FR-C): bodies behind it take nothing (AC 5) |
 | C8 | Throw at a teammate / at your own feet | 50 % (20) to each player in 2.5 m incl. self: can down a 20-HP player (intended) |
 | C9 | Stand in two molotov zones + a car fire | One fire hit per pulse (no stacking) |
 | C10 | Step out of a molotov exactly on the pulse tick | Still burns (per-body clock, AC 6) |
@@ -67,20 +67,20 @@ so that I have an emergency answer.
 | C12 | Molotov on a spawn point | Allowed: zombies spawning into it burn; nav unchanged (flow field not rebuilt) |
 | C13 | Grenades in the build phase to hurt teammates | Not usable in build (D3) |
 | C14 | 4 players × 2 molotovs at once for FPS | ≤ 8 live zones, visuals capped; FPS within budget |
-| C15 | Throw farther than 8 m with mouse far away / at your own feet | Capped at 8 m / at least 2 m (a car 1 m ahead still explodes the round there: 20 to you) |
+| C15 | Throw farther than 8 m with mouse far away / at your own feet | Capped at 8 m / at least 2 m (PR #5: a car 1 m ahead is flown over; a BUILDING 1 m ahead stops the round at its face: 20 to you) |
 | C16 | Swap/reload while throwing | Consumables do not touch weapon timers; allowed (D6) |
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art pick (first; AC 1, 10).** ~5 Meshy proposals each for: **consumable icons** (medkit, grenade, molotov — one consistent HUD set, legible at 40 px on the button), **thrown molotov bottle** (top-down, burning rag; the grenade body is 5.5's sprite unless the designer wants a hand grenade look: include 5 options), and **molotov ground fire** (top-down spreading liquid fire on wet asphalt with a clear edge; compare with the F6 car-fire pick so they match). One private proposal page; designer picks; save to `docs/art/5-12/` + `README.md` (4.11 format). Atlas frames `icon_consumable_medkit_a`, `icon_consumable_grenade_a`, `icon_consumable_molotov_a`, `fx_molotov_bottle_a`, `fx_molotov_fire_a` (≤ 2048²). No drawing before the pick.
+- [x] **T0 Art (AC 1, 10) — superseded: all art is drawn in game code, no Meshy step** (`docs/epic-5-decisions.md` › art method = game code; designer picks in `docs/art/epic-5/round-d/looks.html`). **CI4** consumable icons (the GR6 painter family of 5.11's `itemIcons.ts`; atlas `hud_consumable`: `icon_consumable_medkit_a`, `_grenade_a`, `_molotov_a`); hand grenade **HG1 pineapple** base + **HG2 M67 / HG3 can** as per-throw variants; molotov **MB1 wine bottle** base + **MB2 beer / MB3 flask** as variants (atlas `atlas_throwfx`: `fx_handgrenade_a|b|c`, `fx_molotov_a|b|c`); molotov ground fire = **4.12 fire-lab D** particle fire (`FireView` pool mode, flame ring at the 3 m edge); hand-grenade blast = **EX2** shockwave + debris. All through `addGeneratedTexture`, ≤ 2048²; screenshots + README in `docs/art/5-12/`.
 - [ ] **T1 Balance `consumables.json` (AC 2–6, 9).**
   - [ ] `balanceSchema.ts › consumablesSchema`: `{ useCooldownS (whole ticks), maxLiveMolotovZones int 1–32, items: record(id, { name, price, pack int 1–9, inShop default true, kind: "heal" | "grenade" | "molotov", healHp?, minThrowM?, throwRangeM?, damage?, radiusM?, durationS? (whole ticks), damagePerS?, pulseS? (whole ticks; damagePerS × pulseS × 0.5 whole) }) }`, ≤ 8 items (uint8 index). Register in `balanceFileSchemas`.
   - [ ] `consumables.json`: `useCooldownS 0.5`, `maxLiveMolotovZones 8`; `medkit` {60, pack 1, heal, healHp 50}; `grenades` {80, pack 3, grenade, throwRangeM 8, damage 40, radiusM 2.5}; `molotovs` {100, pack 2, molotov, throwRangeM 8, radiusM 3, durationS 4, damagePerS 8, pulseS 0.5}. Friendly-fire share comes from 5.4's balance (not duplicated).
   - [ ] Tests `config/balance.test.ts` › "consumables validate; fractional tick durations refused; > 8 items refused".
-- [ ] **T2 Slot + shop (AC 2).** `PlayerState.consumable: string | null`, `consumableCount`, `consumableCooldownTicks` (+ `addPlayer`); new `packages/shared/src/economy/consumables.ts › buyConsumable(world, playerId, item)` (order: `not_build` → `unknown_player` → `not_for_sale` → `already_full` → money → fill/refill/replace); branch in 5.11's `buyItem`. Tests `economy/consumables.test.ts` (every rule + refusal leaves wallet and slot unchanged).
+- [ ] **T2 Slot + shop (AC 2).** `PlayerState.consumable: string | null`, `consumableCount`, `consumableCooldownTicks` (+ `addPlayer`); new `packages/shared/src/economy/consumables.ts › buyConsumable(world, playerId, item)` (order: `not_build` → `unknown_player` → `not_alive` (5.11 review M1) → `not_for_sale` → `already_full` → money → fill/refill/replace); branch in 5.11's `buyItem`. Tests `economy/consumables.test.ts` (every rule + refusal leaves wallet and slot unchanged).
 - [ ] **T3 Use system (AC 3–6).** New `packages/shared/src/combat/consumables.ts › useConsumables(world, dtS)`, called at the **start of `updateCombat`** (after the grid rebuild, before `updatePlayerWeapon`, so a grenade spawned this tick flies in this tick's `updateProjectiles` like a shot). Per player in id order: count down `consumableCooldownTicks` every tick (not paused by `weaponsPaused`? — D7: counts applied inputs only, like the weapon); if `inputs.get(id)?.consumable` and AC 3 holds → medkit heal / spawn a 5.5 round in `world.grenades` with a `kind` (`launcher` | `hand_grenade` | `molotov`) and the consumable's numbers (5.5 keeps the API weapon-agnostic for this; emits 5.5's `grenade.launched`) → count−−, cooldown = ticks, emit `consumable.used`; empty count → slot null. On landing (`grenades.ts › updateGrenades`): hand grenade → `explode(world, spec)` with radius 2.5, damage 40, tag `explosion`, source the thrower, weapon id `grenades`; molotov → spawn a fire area in 5.6's area pool (`kind: "fire"`, radius, `durationTicks`, owner, damage per pulse, per-body clocks).
   - [ ] Molotov damage: in the area system (5.6's slot), per body clock per area (zombie pool + players), 5.4 FF share for players, no buildings, `killZombie(world, id, ownerId, "molotov")` (credit), and the "no stacking with car fires" rule: a body that took a fire hit this pulse from `decay/fire.ts › updateFires` or another molotov is not hit again (shared `lastFireHitTick` per body, or a single fire pass that loops car fires + molotov zones — pick one, document it).
-  - [ ] Tests `combat/consumables.test.ts` (systems `{ waves: () => {} }`): "one tap → one use; same seq repeated → no second use"; "two taps 5 ticks apart → one use; 10 ticks → two"; "downed/out/empty → nothing consumed"; "medkit 30 → 80; 90 → 100 (125 with armor I); full HP → not used"; "grenade at 20 m aim lands at 8 m; at 0.5 m lands at 2 m"; "a car 1 m ahead stops the round at its face"; "grenade 40 to zombies in 2.5 m, 20 to thrower and teammate, 0 beyond"; "bus between blast and zombie → no damage"; "sandbags between → damage"; "≥ 1 kill (liveness)"; "molotov: 3 m radius strict overlap; 80 ticks; zombie in 4 s takes 32; player 16"; "step out on the pulse tick still burns"; "car fire + molotov on one body = one hit per pulse"; "barricade in a molotov: HP unchanged"; "molotov kill pays the thrower"; "9th zone replaces the oldest"; "build phase: throwables refused, medkit works".
+  - [ ] Tests `combat/consumables.test.ts` (systems `{ waves: () => {} }`): "one tap → one use; same seq repeated → no second use"; "two taps 5 ticks apart → one use; 10 ticks → two"; "downed/out/empty → nothing consumed"; "medkit 30 → 80; 90 → 100 (125 with armor I); full HP → not used"; "grenade at 20 m aim lands at 8 m; at 0.5 m lands at 2 m"; "(PR #5 lob rule) a car 1 m ahead is flown over; a car-roof aim lands at its near face; a building stops the round at its face"; "grenade 40 to zombies in 2.5 m, 20 to thrower and teammate, 0 beyond"; "bus between blast and zombie → no damage"; "sandbags between → damage"; "≥ 1 kill (liveness)"; "molotov: 3 m radius strict overlap; 80 ticks; zombie in 4 s takes 32; player 16"; "step out on the pulse tick still burns"; "car fire + molotov on one body = one hit per pulse"; "barricade in a molotov: HP unchanged"; "molotov kill pays the thrower"; "9th zone replaces the oldest"; "build phase: throwables refused, medkit works".
 - [ ] **T4 Input + HUD (AC 1, 7).**
   - [ ] `input/keyMap.ts`: `KeyE: "consumable"` (+ `KeyAction`); `KeyboardMouse.ts` `consumableLatched` like `swapLatched`; `InputRouter.build(out, hudSwap, hudConsumable, …)` sets `out.consumable`; `GameScene` consumes `hudModel.consumablePressed` (swap pattern, line ~817).
   - [ ] `HudScene.ts`: the button (pooled circle + icon image + count text), `buttons.set({ id: "consumable", … })`, layout next to swap with safe areas (D5); visibility per AC 1; pending dim + 1 s timeout in `hudModel` (`consumablePending`, cleared when the synced count changes).
@@ -160,10 +160,167 @@ Edge-flag semantics (once per seq), RunController carry tests, swap button behav
 
 ### Agent Model Used
 
+Claude (builder session, cloud).
+
+### Decisions taken while building (plain English)
+
+- **New lob rule (PR #5) replaces the story's "stopped at a car/bus face".** Thrown grenades and molotovs use 5.5's
+  `lobTarget` unchanged: they fly over cars, the bus, barricades and turrets; only real buildings stop them; a roof
+  aim lands at the car's near face. The blast is still shielded by cars and the bus. ACs 5/6 and C7/C15 updated.
+- **One fire clock per body for car fires and molotov zones** (the story's "single fire pass" option): `updateFires`
+  (`decay/fire.ts`) counts one `fireTicks` per body over both; at its pulse the body takes ONE hit — the stronger of
+  the car fire's (no credit, full to players) and the molotov's (credit to the thrower; players the friendly-fire
+  half). Pulse = the shorter of the fires it stands in (both 0.5 s today). So C9 (two molotovs + a car fire) = one
+  hit per pulse, and a molotov on a car fire never lowers what a player takes there.
+- **Molotov kills are paid inside the fire pass** (`payKill`): the economy system runs earlier in the tick and would
+  never see a kill from `decayTimers` (car-fire kills were never paid, so nobody noticed). Credited weapon id = the
+  consumable id `molotovs` (hand grenades: `grenades`).
+- **Molotov fire respects cover (main-session decision 2026-11-23, the 5.6 acid rule):** a body burns only with a
+  clear line from the zone's centre (`molotovZoneAt` → `shotBlockT`; walls, cars, the bus, buildings shield;
+  barricades and sandbags don't); `consumables.json › fireFaceToleranceM` 0.02 lets a zone lit at a face burn its own
+  side. The drawn circle stays whole (as acid's): the shielded part behind a car is drawn but doesn't burn.
+- **Use and buy follow 5.11's `not_alive` order:** `buyItem` → `buyConsumable` refuses `not_build` → `unknown_player`
+  → `not_alive` first; a use needs a standing player (no count, cooldown or event otherwise).
+- **Molotov zones are their own area pool** (`world.molotovs`, 5.6's `areaPool` with kind FIRE, cap 8, a 9th replaces
+  the oldest), like 5.8's gas — not inside the acid pool. Cleared at every build start and at the run's end.
+- **Aim distance (D11):** the aim length is a fraction of the throw's 8 m range; while a launcher is in hand the
+  client sends the launcher's encoding and the server decodes with the launcher's range (`throwAimLength`, also used
+  by the client's ring). No aim (touch, aim stick released) → facing direction at 8 m.
+- **Look variants are picked from the landing point** (`throwVariant`, whole centimetres), not from a simulation
+  stream: every client and solo draw the same bottle/grenade and spread, and the run's seeded randomness is untouched.
+- **Network:** `consumable.used` (kind 39) and `molotov.ignited` (kind 40, the zone; the client draws it for its life
+  and applies the same cap) are new; `grenade.launched` appends the item (index 9) only for thrown consumables (a
+  launcher round's tuple is unchanged); `explosion.happened` kind 3 = `hand_grenade` (EX2 look).
+- **HUD:** the button is 16 px left of swap at the same height (D5). Main-session decision (2026-11-23, 5.16 D3):
+  while the build bar is up, the consumable button and swap sit in a row above the grid's top-left edge (12 px
+  gaps, `layoutRightButtons`, tested at 568×320 / 800×360 / 1024×768 and dpr 1–2 against the tiles, the count line,
+  Ready and ☰), so the medkit stays usable on touch in a build phase; both hide while holding a building. Greyed when it
+  can't be used now (medkit at full HP, a throwable in a build phase), dimmed while pending (AC 7: until the synced
+  count moves, 1 s timeout).
+- **Fire visuals budget:** the 8-zone worst case cost ~45 % of the headless frame rate at first; the pool fire now
+  has its own budget in `consumables.json › fx` (particle/smoke share, ring-flame spacing, and caps over ALL live zones).
+- **Bots:** medkit below 40 % HP; a throw at the densest zombie within reach when ≥ 5 stand in its radius (numbers
+  in `bots.json`). The default `shoppingList` is unchanged (consumable ids are accepted).
+
 ### Debug Log References
+
+- Gate: `npm run typecheck && npm run lint && npm test && npm run build` (see the final message for the result).
+- Bandwidth (`consumableBandwidth.test.ts`): one grenade 53 B (used + launched + blast), one molotov 51 B (used +
+  launched + ignited); 4 players × 4 throws in 2 s: 681 B (≈ 341 B/s over those 2 s, worst tick 109 B). Schema: 2
+  uint8 fields on change only.
+- Tick cost (`tickCostConsumables.test.ts`, load 0.17): 150 Walkers p99 0.908 ms → with 8 burning zones + a grenade
+  every 2 s p99 1.051 ms: **+0.143 ms** (budget 0.3).
+- 6-wave sim (3 bots, 2 seeds per type, wallet 300): medkit 4 heals, grenades 73 blasts (blast kills ≥ 1), molotovs
+  48 zones / 391 burns; 5 of 6 runs held out, 1 wiped in W5.
+- Fuzz: (A) 5,524 throws on 24 layouts, 1,294 stopped at a building face, none inside cover, none through a
+  building; (B) 6 layouts × 900 ticks: 999 throws, 660 zones, 16,578 burns, 137 blast kills; no zombie in a box, no
+  stray nav rebuild.
+- Follow-up (main-session alignment): cover test (zone at a car's face: behind the car 0 damage, in front 32,
+  past sandbags burns) and the above-the-bar layout test (6 cases); a mutation of each fails its test.
+- Mutations: 18 source mutations, one per new test, all killed (cooldown, full-HP medkit, stacking, unpaid kills,
+  zone ageing, refill at full, item on the wire, client cap, pending, shop Full, E latch, use event, slot mirror,
+  burn liveness, bot heal, lob through buildings, repeated-seq edge flag, snapshot of zones).
+- Browser (`docs/art/5-12/README.md`): online `?lag=150&jitter=20` 5 taps → 1 use; `?stress=150` headless 34.5/35.1 →
+  23.2/24.8 fps with 8 zones (load 1.8–2.7).
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Built: consumables.json + schema; slot (`PlayerState.consumable`, `consumableCount`, `consumableCooldownTicks`);
+  `buyConsumable` (fill / refill / replace / `already_full`) through 5.11's `buyItem`; `useConsumables` (start of the
+  combat system); thrown items in 5.5's pool (`item`) with `landConsumable` (hand-grenade blast / molotov zone);
+  molotov zones and the shared fire pass; schema, sync, views, mirror, snapshot; events; client E key, HUD button
+  with pending, throw ring, flights with HG/MB art, the molotov fire view, CI4 icons, shop section; bots; fuzz, sims,
+  bandwidth, perf, readability rows 41–44.
+- Not verified: real phones; a hidden tab asleep across a BUILD START (the online check slept mid-wave); a late
+  Game scene start with a slot; touch throwing on a real device (aim stick held with one finger, button with another).
+
+### Notes for the merge (brief line 19)
+
+- `balanceSchema.ts` / `balance.ts`: new file `consumables` (with `fx`); `bots` gains `medkitBelowHpFrac`,
+  `throwClusterMin` (defaults); `balance.version` changes. Test fixtures that list the balance files now import
+  `consumables.json` (aimAssist, melee, firing, swap, balance, zombieAi, waveDirector, spawnPoints tests).
+- `player/player.ts`: three new fields (test literals that build a `PlayerState` by hand need them).
+- `combat/firing.ts › updateCombat`: `useConsumables` first, after the grid rebuild.
+- `combat/grenades.ts`: pool field `item`; `throwConsumable`; `landConsumable`; `LobRange`/`LobFlight` types.
+- `combat/explosion.ts`: `EXPLOSION_KINDS` appends `hand_grenade` (index 3).
+- `decay/fire.ts`: `updateFires` now also burns molotov zones (one clock per body) and ages them; buildings are
+  burnt by car fires only. 5.10 (med station) does not touch it as far as known.
+- `core/simEvents.ts` / `net/netEvents.ts`: `consumable.used` = 39, `molotov.ignited` = 40 — **5.10 is built in
+  parallel: if it took 39/40, renumber these at the merge (never reuse a number)**. `grenade.launched` index 9 = item.
+- `RunState.ts` `playerFields`: `consumable`, `consumableCount` appended after `reviveNeed`; `syncState`, `resetPlayer`,
+  `PlayerStateView`/`PLAYER_STATE_FIELDS`, `fakeRoom`, devThrottle (key list, automatic), mirror (`NetSimHost.applyPlayer`).
+- `economy/shop.ts`: `ShopError` gains `already_full`; `BoughtItem.replaced`; `buyItem` dispatches consumables.
+  **5.13 (card shop):** keep consumables in the always-available section (`shopConsumables`, ShopScreen's
+  `ConsumableSection`, shopStore `consumableRows`).
+- `world.ts`: `world.molotovs`; `runStateMachine.ts`: `clearMolotovZones` at build start and run end;
+  `worldSnapshot.ts`: `molotovs` + the grenade `item`.
+- Client: `keyMap` (KeyE), `KeyboardMouse`, `InputRouter.build(…, hudConsumable)` (trailing param), `HudScene`
+  (button + layout above the build bar), `hudModel`, `GameScene` (gate, ring, MolotovView, shop sync),
+  `GrenadeView`/`grenadeFx` (item, HG/MB sprites, `burstAt`), `FireView`/`fireParticles` (pool mode), `itemIcons`
+  (CI4 drawings + `flame` painter), `ShopScreen`/`shopStore`, `session.ts` (`already_full`), `urlOptions`
+  (`?stressbuild=molotov`), `stressScenario` (`keepStressMolotovs`).
 
 ### File List
+
+New: `packages/shared/src/config/balance/consumables.json`, `packages/shared/src/economy/consumables.ts`,
+`packages/shared/src/economy/consumables.test.ts`, `packages/shared/src/combat/consumables.ts`,
+`packages/shared/src/combat/consumables.test.ts`, `packages/shared/src/combat/consumables.fuzz.test.ts`,
+`packages/shared/src/hazards/molotov.ts`, `apps/server/src/run/consumableBandwidth.test.ts`,
+`apps/server/src/run/tickCostConsumables.test.ts`, `apps/client/src/scenes/consumableButton.ts`,
+`apps/client/src/scenes/consumableButton.test.ts`, `apps/client/src/render/molotovFx.ts`,
+`apps/client/src/render/molotovFx.test.ts`, `apps/client/src/render/MolotovView.ts`,
+`apps/client/src/render/city/consumableIcons.ts`, `apps/client/src/render/city/throwArt.ts`,
+`apps/client/src/render/city/throwArt.test.ts`, `apps/client/src/sim/NetSimHost.consumables.test.ts`,
+`docs/art/5-12/*` (README + 13 screenshots).
+
+Changed: see `git show --stat` of the story commit (shared: balance, player, world, grenades, explosion, firing,
+fire, shop, netEvents, simEvents, stateView, worldSnapshot, runStateMachine, areaPool, bots, index; server: RunState,
+syncState, RunController.test; client: input, HUD, GameScene, views, shop, session, debug), readability sheet/key,
+sprint-status.
+
+## Senior Developer Review (AI)
+
+Fresh review by the main session (2026-11-24): no high, 1 medium, 9 low; sim rules, edge flag, wire and pools judged
+sound. Fixed on `story-5-12` on top of `025c218`:
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| M1 | No-aim throws went along `facing`, which the MOVE vector sets: a kiting touch player threw onto their own escape route. | `throwDirection` (shared, server + solo): the input's aim → the last aim direction (`PlayerState.lastAimX/Y/Len/Ticks`, written only from aim input in `rememberAim`, kept `consumables.json › aimMemoryS` 1.5 s of applied ticks) → the nearest alive zombie within muzzle + 8 m (pool order on ties, at its distance) → facing. Test "review M1" (remembered aim while walking the other way; the zombie after the memory runs out; facing with nothing in reach). The client draws no ring without aim, so nothing to mirror. |
+| L1 | The carry test couldn't see a duplicated carry. | `RunController.test` now throws grenades ×3 in a wave and counts flagged applied inputs (= 1) and uses (= 1) over 60 ticks; the mutant "don't clear `consumable` after carrying" fails it. |
+| L2 | `consumableCount` sync untested. | `syncState.test`: on change only, a use drops the count, empty = 255/0, `resetRunFields` resets. |
+| L3 | Auto-repeat not tested on its own. | `keyVector.test`: press taken first, then repeats (held, and for a key not held) → no edge. |
+| L4 | AC 6 described per-area clocks. | AC 6 now states the built rule: one fire clock per body over car fires and molotovs, one hit per pulse (the stronger). |
+| L5 | Around a swap to/from the launcher, client and server decoded the throw with different ranges for ~1 RTT. | The flagged input always encodes the throw's own range and drops `fire` (`InputRouter.build(…, throwLob)`); the server reads its length as is (no launcher scaling; `throwAimLength` is only the client ring's conversion now); bots too. Tests in `lobAim.test` and "review L5". |
+| L6 | At 568×320 the above-bar medkit was ~6 px from the survivor at the screen centre. | `layoutRightButtons` right-aligns the row to the grid, above the count line, when the left-aligned row would come within `CENTRE_CLEAR_CSS_PX` 48 of the centre; the layout test checks the centre clearance (and ⚙) at all sizes. |
+| L7 | A template-string key per frame in `HudScene`; per-event string keys in `MolotovFires` and a `lastLaunch` map that never forgot hand-grenade keys (stuck at 64: MB2 splash then defaulted to 0). | `HudScene` compares frame, count and look fields; `MolotovFires` keeps a fixed 64-entry ring of recent throws keyed by whole-cm landing points (no strings, overwritten). Test: a molotov after 100 hand grenades still gets its splash direction. |
+| L8 | Weapon id `molotov` (AC) vs the consumable id. | Keep the ids (`molotovs`, `grenades`): AC 6 updated, the `"molotov"` fallback literal in `fire.ts` dropped. |
+| FPS | Budget accepted: 8 zones in view ≤ −30 % headless, the common 1–2-zone case ≤ −10 %. | `?stressbuild=molotov:N` added for the 1–2-zone case. The ring line is a pooled baked image (the Graphics circle was re-tessellated every frame, ~3 fps); `fx` lowered (share 0.25, smoke 0.1, ring flames every 1.2 m, caps 80 particles / 64 ring flames over all zones, ground light only with 1 zone: new `maxLights`). Medians of 5 interleaved rounds (load 3–4 on 4 cores): baseline 39.6 fps; 1 zone −10 %, 2 zones −8 %, 8 zones −23 %, `fx=low` 8 zones −25 % (`docs/art/5-12/README.md`). |
+
+**FPS decision (main session, 2026-11-24):** headless SwiftShader is fill-bound and noisy (single runs ±5 %, load 3–4 on 4 cores); the 1–2-zone results land within −15 % headless and are accepted. **The real-phone check on the Xiaomi Mi 11i (`?stress=150`, then `&stressbuild=molotov:2` and `&stressbuild=molotov`) is the deciding test**; if it misses the budget, lower `consumables.json › fx` (particle share, ring spacing, caps, `maxLights`), not the renderer.
+
+Re-review notes: mutations of the new tests (M1 memory ignored / never expiring / written from the move / no zombie
+target; L5 launcher encoding kept; L2 count not synced; L3 repeat latching; L6 no right-align; L7 ring never matched):
+9 of 9 fail their test. Full gate once at the end (see the commit).
+
+**Re-review (main session, 2026-11-24, on `d5ddf61`):** M1 and the L fixes hold, except L5, which the hosts' edge latch
+undid (new medium). Fixed on `story-5-12`:
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| M (L5 undone) | The throw-encoded input (fire dropped) is built only on the tap's frame, but the hosts latched only the `consumable` flag and stepped with the LATEST frame's input: at 60 fps / 50 ms steps the flagged step usually carried the next frame's launcher encoding and fire on (launcher in hand, aim 6 m → landed ~4 m). | `LocalSimHost` / `NetSimHost.setLocalInput` snapshot the tap frame's `aimX/aimY` with the latch; the step that takes the flag uses that aim with `fire` off (`NetSimHost`: before the send, the predictor and the fire clock see the buffer); the next step is the latest frame's input again. `RunController`: an overflow/drain-dropped flag moves with its input's aim, `fire` off, to the next input (that seq's own aim/shot is lost, as for any dropped seq: the prediction reconciles); a rate-dropped message's flag carries its aim when it is a finite number in [−1, 1] (else 0: the throw falls back to memory / zombie / facing). Tests: `LocalSimHost.test` (tap on frame 1, steps on frame 3 → lands 6 m, that step fires nothing, the next is the launcher's input), `NetSimHost.consumables.test` (sent buffer), `lobAim.test` touch fire-drop, `RunController.test` overflow carry and rate-drop carry (once; junk aim not carried). |
+| L | `rememberAim` stored the length in the in-hand launcher's encoding (a fraction of 12 m) but `throwDirection` read it as a fraction of 8 m. | `PlayerState.lastAimM`: metres, decoded the way the client encoded it (a flagged input in the throw's range, any other in the in-hand launcher's, else the slot's throw range; < 0 unknown → full range), converted at the throw. Test "re-review L" (launcher in hand, aim 6 m, released, tap → 6 m). |
+| NIT | The nearest-zombie fallback could pick a zombie behind a building over a visible one. | Candidates whose segment from the player enters a building (`lobBlockT`) are skipped. Test "re-review NIT". |
+
+Mutations: host latch aim ignored / fire kept (Local and Net, 4), touch fire not dropped, RunController carry flag not
+cleared, rate-drop aim not carried, rate-drop fire kept, overflow aim not carried, overflow fire kept, memory in the
+throw's encoding, LOS skipped: 12 of 12 fail their test.
+
+**Second re-review (main session, 2026-11-24, on `fddce7a`):** clean of high/medium; one low and one nit, fixed:
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| L | A medkit tap also forced `fire` off on its step (the hosts' latch, the server's carries), though `InputRouter` drops fire only for a throwable. | The hosts latch the tap frame's own `fire` with its aim and send/apply it on the flagged step; `RunController` carries the dropped input's `fire` (overflow/drain) and `m.fire === true` (rate drop) instead of a hard false. Tests: `LocalSimHost.test` (fire held + medkit tap → healed and `weapon.fired` that step), `NetSimHost.consumables.test` (sent buffer), `RunController.test` (overflow and rate-drop carry). Mutations (fire forced off in each of the 4 places): 4 of 4 fail. |
+| NIT | `rememberAim` skipped the launcher's decoding for any flagged input, a medkit tap included. | Skipped only when the slot holds a throwable. |
+
+Status `done` (main session's approval of this round).

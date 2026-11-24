@@ -57,3 +57,12 @@ Story 5.14 additions (pictures: Playwright, solo dev build, 844×390 at 2×, 202
 | --- | --- | --- | --- | --- |
 | 39 | `40_bear_trap_open.png` | a bear trap, open (B-T1: round steel jaws lying flat, teeth inward, a round plate in the middle, a spring each side, a chain to a stake) | **pass** (floor: bullets and bodies cross it) | right if "bear trap / leg trap / jaw trap / trap"; survivors walk over it safely; a zombie whose centre reaches the plate is caught |
 | 40 | `41_bear_trap_closed.png` | the same trap sprung: jaws shut into one bar, a zombie held in it | **pass** | right if "it closed / caught a zombie / it went off"; holds 3 s (a Brute 1.5 s), the zombie still bites what is in reach; stand on a closed trap 1 s to re-arm it (every trap re-arms at a build start) |
+
+Story 5.12 additions (pictures: Playwright, solo dev build, 800×360 at 2×, HUD shown, 2026-11-23; files in `docs/art/5-12/`):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 41 | `5-12-hud-wave-ring-800x360.png` | the consumable button (CI4 grenade, count 3) left of swap, and the throw's landing ring (white, the exact 2.5 m blast) | n/a | right if "grenades / quick item"; E or a tap throws one; greyed when it can't be used now (a throwable in a build phase, a medkit at full HP), dimmed while the server hasn't confirmed the last use |
+| 42 | `5-12-molotov-flight-800x360.png` | a molotov in flight (a bottle with a burning rag; HG1–3 / MB1–3 looks vary per throw) | flies **over** cars, the bus, barricades; only buildings stop it | right if "molotov / fire bottle" |
+| 43 | `5-12-molotov-fire-800x360.png` | molotov fire: the 4.12 fire on the asphalt with a ring of flames at the 3 m edge = the damage edge | fire goes through barricades and sandbags (a ground area) | 8/s to zombies, 4/s to survivors (teammates and you), never stacks with a car fire, 4 s, burns no building, no path change |
+| 44 | `5-12-grenade-flight-800x360.png` | a hand grenade blast (EX2 shockwave + debris) at the bus's near face, its ring = the 2.5 m damage edge | the blast is **stopped by** cars/bus/buildings, **not** by barricades/sandbags | 44 to zombies, 20 to every survivor in it (you too) |

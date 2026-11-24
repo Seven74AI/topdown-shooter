@@ -1,6 +1,6 @@
 import { buildingById, type World } from "@topdown/shared";
 import { UNDO_CHIP_CSS_PX, UNDO_HAND } from "../ui/sizes";
-import { ABOVE_BAR_GAP_CSS_PX, layoutRightButtons, newRightButtonsLayout } from "./rightButtons512"; // review M2: 5.12's row (a copy until 5.12 lands)
+import { ABOVE_BAR_GAP_CSS_PX, layoutRightButtons, newRightButtonsLayout } from "./consumableButton"; // review M2: 5.12's own row layout
 
 /**
  * Story 5.20 (BX-6, ux-spec §4/§5): the undo chip ↶ (Phaser-free, unit-tested). Shown for

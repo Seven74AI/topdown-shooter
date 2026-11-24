@@ -7,8 +7,8 @@
  * Every icon is drawn in a unit box (0..1) through a `Painter`; `bakeItemIcon` paints one into a
  * square canvas region with the drop shadow. Pure Canvas 2D, no Phaser: the HUD atlas
  * (`gearIcons.ts`, via `addGeneratedTexture`) and the DOM shop (data URLs) both use it.
- * Story 5.12: add the CI4 drawings (medkit, grenade, molotov) to `ITEM_ICONS` and bake them with
- * `{ tag: false }`.
+ * Story 5.12: the CI4 drawings (medkit, grenades, molotovs: `consumables.json` keys) are in
+ * `ITEM_ICONS` too, baked with `{ tag: false }` (`consumableIcons.ts`).
  */
 
 type Path = (q: CanvasRenderingContext2D) => void;
@@ -203,9 +203,84 @@ const TORCH_KNURL = rotLines(0.4, 0.62, FA, [
   [-0.15, -0.065, -0.15, 0.065],
 ]);
 
+// ---- Story 5.12: CI4 consumables (looks.html KIT / GREN / BOT shapes) ----
+const KIT = rq(0.08, 0.27, 0.84, 0.6, 0.1);
+const KIT_HANDLE: Path = (q) => {
+  q.moveTo(0.36, 0.28);
+  q.lineTo(0.36, 0.15);
+  q.lineTo(0.64, 0.15);
+  q.lineTo(0.64, 0.28);
+};
+const KIT_LID: Path = (q) => {
+  q.moveTo(0.08, 0.41);
+  q.lineTo(0.92, 0.41);
+};
+const KIT_CROSS = crossP(0.5, 0.64, 0.34, 0.12);
+const GREN: Path = (q) => {
+  q.moveTo(0.45 + 0.29, 0.62);
+  q.ellipse(0.45, 0.62, 0.29, 0.3, 0, 0, Math.PI * 2);
+  q.closePath();
+};
+const GREN_FUZE = rq(0.37, 0.2, 0.17, 0.15, 0.03);
+const GREN_SPOON: Path = (q) => {
+  q.moveTo(0.5, 0.22);
+  q.lineTo(0.62, 0.2);
+  q.quadraticCurveTo(0.82, 0.27, 0.82, 0.53);
+  q.lineTo(0.73, 0.55);
+  q.quadraticCurveTo(0.73, 0.36, 0.58, 0.3);
+  q.closePath();
+};
+const GREN_RING: Path = (q) => {
+  q.moveTo(0.34, 0.22);
+  q.arc(0.25, 0.22, 0.09, 0, Math.PI * 2);
+};
+const GREN_SEAM: Path = (q) => {
+  q.moveTo(0.17, 0.64);
+  q.quadraticCurveTo(0.45, 0.72, 0.73, 0.64);
+};
+const BOT_BODY: Path = (q) => {
+  q.moveTo(0.36, 0.93);
+  q.lineTo(0.64, 0.93);
+  q.quadraticCurveTo(0.7, 0.93, 0.7, 0.86);
+  q.lineTo(0.7, 0.57);
+  q.quadraticCurveTo(0.7, 0.47, 0.585, 0.41);
+  q.lineTo(0.585, 0.28);
+  q.lineTo(0.415, 0.28);
+  q.lineTo(0.415, 0.41);
+  q.quadraticCurveTo(0.3, 0.47, 0.3, 0.57);
+  q.lineTo(0.3, 0.86);
+  q.quadraticCurveTo(0.3, 0.93, 0.36, 0.93);
+  q.closePath();
+};
+const BOT_FUEL = rq(0.33, 0.63, 0.34, 0.27, 0.05);
+const BOT_RAG: Path = (q) => {
+  q.moveTo(0.42, 0.26);
+  q.lineTo(0.58, 0.26);
+  q.quadraticCurveTo(0.64, 0.2, 0.73, 0.23);
+  q.quadraticCurveTo(0.81, 0.27, 0.85, 0.36);
+  q.quadraticCurveTo(0.75, 0.31, 0.67, 0.32);
+  q.lineTo(0.58, 0.33);
+  q.lineTo(0.42, 0.33);
+  q.closePath();
+};
+const BOT_FLAME: Path = (q) => {
+  q.moveTo(0.5, 0.02);
+  q.quadraticCurveTo(0.64, 0.13, 0.61, 0.21);
+  q.quadraticCurveTo(0.57, 0.27, 0.5, 0.27);
+  q.quadraticCurveTo(0.42, 0.27, 0.4, 0.2);
+  q.quadraticCurveTo(0.39, 0.12, 0.5, 0.02);
+  q.closePath();
+};
+const BOT_HI: Path = (q) => {
+  q.moveTo(0.36, 0.6);
+  q.lineTo(0.36, 0.85);
+};
+
 /** What an icon drawing calls (looks.html's painter contract). */
 export interface Painter {
   pre?(): void;
+  /** Story 5.12: the molotov's rag flame (CI4: a hot gradient with a soft additive glow). */
+  flame?(p: Path): void;
   body(p: Path, base: string): void;
   sub(p: Path, base: string): void;
   mark(p: Path, base: string): void;
@@ -262,6 +337,27 @@ export const ITEM_ICONS: Readonly<Record<string, ItemIconDraw>> = {
     p.mark(TORCH_LENS, "#fff1c2");
     p.line(TORCH_KNURL, 0.025, "#4a4e55");
   },
+  // Story 5.12 (CI4): the consumables, by `consumables.json` key.
+  medkit(p) {
+    p.rod(KIT_HANDLE, 0.065, "#2a2c30");
+    p.body(KIT, "#e7e3da");
+    p.line(KIT_LID, 0.03, "rgba(0,0,0,0.4)");
+    p.mark(KIT_CROSS, "#c0261c");
+  },
+  grenades(p) {
+    p.rod(GREN_RING, 0.04, "#b8bcc2");
+    p.body(GREN, "#5a6340");
+    p.sub(GREN_FUZE, "#7d7f78");
+    p.sub(GREN_SPOON, "#8a8c86");
+    p.line(GREN_SEAM, 0.03, "rgba(0,0,0,0.45)");
+  },
+  molotovs(p) {
+    p.flame?.(BOT_FLAME);
+    p.body(BOT_BODY, "#2f5a36");
+    p.sub(BOT_FUEL, "#b8781e");
+    p.sub(BOT_RAG, "#d8ccb0");
+    p.line(BOT_HI, 0.03, "rgba(255,255,255,0.45)");
+  },
 };
 
 /** GR4 / CI4: painted objects in their real colours (`px` = one display pixel in unit-box units). */
@@ -300,6 +396,21 @@ export function realPainter(g: CanvasRenderingContext2D, px: number): Painter {
     rod(p, w, b) {
       strokeP(g, p, "rgba(0,0,0,0.85)", W1(w) + W1(0.03));
       strokeP(g, p, b, W1(w));
+    },
+    flame(p) {
+      const gr = g.createRadialGradient(0.5, 0.2, 0, 0.5, 0.17, 0.15);
+      gr.addColorStop(0, "#fff6c8");
+      gr.addColorStop(0.45, "#ffb43c");
+      gr.addColorStop(1, "#e0461a");
+      fillP(g, p, gr);
+      g.save();
+      g.globalCompositeOperation = "lighter";
+      const gl = g.createRadialGradient(0.5, 0.18, 0, 0.5, 0.18, 0.25);
+      gl.addColorStop(0, "rgba(255,170,60,0.5)");
+      gl.addColorStop(1, "rgba(255,120,30,0)");
+      g.fillStyle = gl;
+      g.fillRect(0, 0, 1, 0.5);
+      g.restore();
     },
     beam(p) {
       g.save();

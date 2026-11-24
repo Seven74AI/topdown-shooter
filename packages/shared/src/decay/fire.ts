@@ -3,12 +3,15 @@ import type { World } from "../core/world";
 import { ticksFor } from "../core/time";
 import { circleOverlapsBox } from "../buildings/collision";
 import { buildingStats, damageBuilding, type Building } from "../buildings/buildings";
-import { damagePlayerBy } from "../combat/damage";
+import { applyZombieDamageQuiet, damagePlayerBy } from "../combat/damage";
 import { resetFlameClocks } from "../combat/flame";
 import type { PlayerState } from "../player/player";
 import { killZombie, zombieTypeOf } from "../zombies/zombiePool";
 import { circleInFire, type FireRecord } from "./decayState";
 import { DAMAGE_SOURCE_FIRE } from "../core/simEvents";
+import { payKill } from "../economy/economy";
+import { ageMolotovZones, molotovStats, molotovZoneAt } from "../hazards/molotov";
+import { consumableAt, consumableStatsAt, molotovTicksAt } from "../economy/consumables";
 
 /**
  * Story 4.8: car fires (FR57, FR53, FR61). The burning zones are `world.decay.fires` (written only
@@ -67,16 +70,48 @@ export function firePulseDamage(world: Readonly<World>): number {
 }
 
 /** Scratch for the module-level player callback (no closure per tick). */
-const pass = { world: null as World | null, amount: 0, pulse: 0 };
+const pass = { world: null as World | null, amount: 0, pulse: 0, cars: false };
+
+/**
+ * Story 5.12 (M-B, the "single fire pass" option): one fire clock per body over car fires AND
+ * molotov zones. A body inside any fire counts its clock; at its pulse it takes ONE fire hit: the
+ * stronger of the car fire's (no credit, full to players) and the molotov's (credit to the
+ * thrower, players the friendly-fire share). The pulse is the shorter of the two fires' pulses it
+ * stands in. Zones and car fires never stack.
+ */
+function molotovPulseTicks(world: Readonly<World>, slot: number): number {
+  return molotovTicksAt(world.balance, world.molotovs.item[slot] as number).pulseTicks;
+}
+
+/** The molotov's damage per pulse (whole; zombies full, players via the friendly-fire share). */
+function molotovPulseDamage(world: Readonly<World>, slot: number): number {
+  const s = consumableStatsAt(world.balance, world.molotovs.item[slot] as number);
+  return s ? Math.round((s.damagePerS ?? 0) * (s.pulseS ?? 0)) : 0;
+}
 
 const burnPlayer = (p: PlayerState): void => {
   const world = pass.world as World;
   // D4: downed players keep their own countdown; out players are off the map; god mode (dev, ?stress).
   if (p.status !== "alive" || world.debug.godMode) return;
-  if (!circleInFire(world.decay.fires, p.x, p.y, p.radiusM)) return;
-  if (++p.fireTicks < pass.pulse) return;
+  const car = pass.cars && circleInFire(world.decay.fires, p.x, p.y, p.radiusM);
+  const mol = molotovZoneAt(world, p.x, p.y, p.radiusM);
+  if (!car && mol < 0) return;
+  const pulse = mol < 0 ? pass.pulse : car ? Math.min(pass.pulse, molotovPulseTicks(world, mol)) : molotovPulseTicks(world, mol);
+  if (++p.fireTicks < pulse) return;
   p.fireTicks = 0;
   firePulse.players++;
+  if (mol >= 0) {
+    const owner = world.molotovs.owner[mol] ?? null;
+    const raw = molotovPulseDamage(world, mol);
+    const ff = Math.round((raw * world.balance.combat.friendlyFire.pct) / 100);
+    if (!car || ff > pass.amount) {
+      molotovStats.playerHits++;
+      // 5.4: a player's fire hurts players at the friendly-fire share; an owner who left: the share, no source.
+      if (owner !== null && world.players.has(owner)) damagePlayerBy(world, p, raw, "fire", owner, DAMAGE_SOURCE_FIRE);
+      else damagePlayerBy(world, p, ff, "fire", null, DAMAGE_SOURCE_FIRE);
+      return;
+    }
+  }
   // Story 5.4 (D2): environment fire is no player's source: full damage, tagged `fire` for the cues.
   damagePlayerBy(world, p, pass.amount, "fire", null, DAMAGE_SOURCE_FIRE);
 };
@@ -91,19 +126,24 @@ export const firePulse = { players: 0, zombies: 0, zombiesKilled: 0, buildings: 
  * reaches `pulseS` worth of ticks the body takes `damagePerS × pulseS`. So a body takes exactly one
  * hit per `pulseS` spent in fire, however it steps in and out (no dodging on a shared pulse tick).
  * Review L6: nothing burns while the dev `waves.paused` switch holds the run.
+ * Story 5.12: molotov zones burn in the same pass (one clock, one hit per pulse: see above); they
+ * hurt no building (D4) and age after the damage pass (`ageMolotovZones`).
  */
 export function updateFires(world: World): void {
   const fires = world.decay.fires;
-  if (fires.length === 0 || world.teamWiped || world.waves.paused) return;
+  const molotovs = world.molotovs.areas.count;
+  if ((fires.length === 0 && molotovs === 0) || world.teamWiped || world.waves.paused) return;
   const phase = world.run.phase;
   if (phase !== "build" && phase !== "wave") return;
-  world.decay.burnTicks++;
+  const cars = fires.length > 0;
+  if (cars) world.decay.burnTicks++;
   const pulse = ticksFor(world.balance.decay.fire.pulseS);
   const amount = firePulseDamage(world);
   // Players first (id order is the Map's insertion order, like every player pass).
   pass.world = world;
   pass.amount = amount;
   pass.pulse = pulse;
+  pass.cars = cars;
   world.players.forEach(burnPlayer);
   pass.world = null;
   // Zombies, from the end: a kill swaps the last alive id into this position, which was already done
@@ -112,23 +152,42 @@ export function updateFires(world: World): void {
   for (let i = z.aliveCount - 1; i >= 0; i--) {
     const id = z.aliveIds[i] as number;
     const r = world.balance.zombies.types[zombieTypeOf(z, id)]?.radiusM ?? 0;
-    if (!circleInFire(fires, z.x[id] as number, z.y[id] as number, r)) continue;
+    const zx = z.x[id] as number;
+    const zy = z.y[id] as number;
+    const car = cars && circleInFire(fires, zx, zy, r);
+    const mol = molotovs > 0 ? molotovZoneAt(world, zx, zy, r) : -1;
+    if (!car && mol < 0) continue;
+    const zp = mol < 0 ? pulse : car ? Math.min(pulse, molotovPulseTicks(world, mol)) : molotovPulseTicks(world, mol);
     const t = (z.fireTicks[id] as number) + 1;
-    if (t < pulse) {
+    if (t < zp) {
       z.fireTicks[id] = t;
       continue;
     }
     z.fireTicks[id] = 0;
-    z.hp[id] = (z.hp[id] as number) - amount;
     firePulse.zombies++;
+    if (mol >= 0) {
+      // The thrower's fire (credited: reward + assists like a weapon kill, D9), at least as strong as the car fire.
+      const owner = world.molotovs.owner[mol] ?? null;
+      const credit = owner !== null && world.players.has(owner) ? owner : null;
+      const dmg = Math.max(car ? amount : 0, molotovPulseDamage(world, mol));
+      molotovStats.zombieHits++;
+      if (applyZombieDamageQuiet(world, id, dmg, 0, 0, 0, credit, consumableAt(world.balance, world.molotovs.item[mol] as number) ?? "")) {
+        // D9: paid here (the economy system ran earlier this tick and never sees this kill's event).
+        payKill(world, id, credit, 1);
+        firePulse.zombiesKilled++;
+        molotovStats.kills++;
+      }
+      continue;
+    }
+    z.hp[id] = (z.hp[id] as number) - amount;
     if ((z.hp[id] as number) <= 0) {
       killZombie(world, id, null, "fire"); // D5: credits nobody
       firePulse.zombiesKilled++;
     }
   }
-  // Buildings and turrets (from the end: destruction removes from the list).
+  // Buildings and turrets (from the end: destruction removes from the list). Car fires only (5.12 D4).
   const list = world.buildings.list;
-  for (let i = list.length - 1; i >= 0; i--) {
+  for (let i = cars ? list.length - 1 : -1; i >= 0; i--) {
     const b = list[i] as Building;
     if (!boxInFire(fires, b)) continue;
     if (buildingStats(world.balance, b.type)?.mine) continue; // Story 5.9 DD5: mines are immune to fire (traps burn and wear)
@@ -137,6 +196,7 @@ export function updateFires(world: World): void {
     damageBuilding(world, b, amount);
     firePulse.buildings++;
   }
+  ageMolotovZones(world); // Story 5.12 (M-C): after the damage pass
 }
 
 /** Module-level callback (no closure per call). */

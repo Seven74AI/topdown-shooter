@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, shopGear, shopWeapons, upgradePriceTable } from "@topdown/shared";
+import { loadBalance, shopConsumables, shopGear, shopWeapons, upgradePriceTable } from "@topdown/shared";
 import {
   CLOSED_SHOP,
+  consumableRows,
   SHOP_PENDING_TIMEOUT_MS,
   SHOP_TEXT,
   gearRows,
@@ -265,5 +266,40 @@ describe("shopStep gear (Story 5.11, AC 1/3/8)", () => {
     expect(run(open(2), { type: "item", item: "body_armor_1" }).effects).toEqual([]); // covered by II
     expect(run(open(4), { type: "item", item: "running_shoes" }).effects).toEqual([]);
     expect(run(open(), { type: "item", item: "tactical_flashlight" }).effects).toEqual([]); // not listed
+  });
+});
+
+describe("shopStep consumables (Story 5.12, AC 2)", () => {
+  const consumables = shopConsumables(loadBalance());
+  const open = (slotItem: string | null = null, slotCount = 0, wallet = 500) =>
+    run(CLOSED_SHOP, { type: "open", weapons, consumables }, { type: "sync", wallet, slots: ["pistol", null], slotItem, slotCount }).s;
+  const ok = (item: string): ShopInput => ({ type: "answer", answer: { kind: "item", ok: true, item } });
+
+  it("always lists the three; a full slot reads Full; a partial one notes the refill; another item notes the replacement", () => {
+    expect(consumableRows(open()).map((r) => [r.id, r.pack, r.price, r.full, r.note])).toEqual([
+      ["medkit", 1, 60, false, ""],
+      ["grenades", 3, 80, false, ""],
+      ["molotovs", 2, 100, false, ""],
+    ]);
+    const two = consumableRows(open("grenades", 2));
+    expect(two.map((r) => r.note)).toEqual(["Replaces Grenades ×2", "Refills to ×3", "Replaces Grenades ×2"]);
+    expect(consumableRows(open("grenades", 3)).find((r) => r.id === "grenades")?.full).toBe(true);
+    expect(consumableRows(open(null, 0, 70)).map((r) => r.short)).toEqual([false, true, true]);
+  });
+
+  it("buy → one effect → pending until the state shows the full slot; a full row sends nothing", () => {
+    const r = run(open("grenades", 3), { type: "item", item: "grenades" });
+    expect(r.effects).toEqual([]);
+    const b = run(open("grenades", 1), { type: "item", item: "grenades" }, { type: "item", item: "medkit" });
+    expect(b.effects).toEqual([{ type: "item", item: "grenades" }]);
+    const answered = run(b.s, ok("grenades")).s;
+    expect(answered.message).toBe("Bought Grenades ×3");
+    expect(answered.pending).toBe(itemKey("grenades"));
+    const synced = run(answered, { type: "sync", wallet: 420, slots: ["pistol", null], slotItem: "grenades", slotCount: 3 }).s;
+    expect(synced.pending).toBeNull();
+    // the state first (patch before the answer) unlocks too
+    const first = run(open(), { type: "item", item: "molotovs" }, { type: "sync", wallet: 400, slots: ["pistol", null], slotItem: "molotovs", slotCount: 2 }).s;
+    expect(first.pending).toBeNull();
+    expect(shopErrorText("already_full")).toBe("Already full");
   });
 });

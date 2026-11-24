@@ -73,6 +73,13 @@ const EVENTS: SimEvent[] = [
   { type: "bloater.swell_started", zombieId: 17, x: 12.34, y: 5.6 },
   { type: "bloater.burst", x: 0.5, y: 31.5, chain: false },
   { type: "bloater.burst", x: 47.5, y: 0.5, chain: true },
+  // Story 5.12: a use (HUD/sound), a thrown molotov (its item appended at index 9), a hand-grenade blast, a lit zone.
+  { type: "consumable.used", playerId: "p1", item: 2 },
+  { type: "consumable.used", playerId: "p3", item: 0 },
+  { type: "grenade.launched", playerId: "p1", grenadeId: 7, x: 10.5, y: 3.25, tx: 18.5, ty: 3.25, landTick: 14, flightTicks: 14, seq: 42, item: 3 },
+  { type: "explosion.happened", kind: 3, x: 18.5, y: 3.25, radiusM: 2.5, sourcePlayerId: "p1", grenadeId: 7 },
+  { type: "molotov.ignited", zoneId: 65535, item: 2, x: 18.5, y: 3.25, playerId: "p1" },
+  { type: "molotov.ignited", zoneId: 1, item: 2, x: 0, y: 31.99, playerId: null },
 ];
 
 /** Story 3.6: a turret shot (its muzzle is not sent). */
@@ -97,6 +104,13 @@ function expectSameEvent(got: SimEvent | null, want: SimEvent): void {
 }
 
 describe("netEvents", () => {
+  it("Story 5.12: a launcher round's tuple is unchanged (0 added bytes); a thrown item adds one field", () => {
+    const base = { type: "grenade.launched", playerId: "p2", grenadeId: 9, x: 1, y: 2, tx: 3, ty: 4, landTick: 10, flightTicks: 10, seq: 5 } as const;
+    expect((encodeNetEvent(base, enc) as NetEvent).length).toBe(9);
+    expect((encodeNetEvent({ ...base, item: 2 }, enc) as NetEvent).length).toBe(10);
+    expect(decodeNetEvent(encodeNetEvent(base, enc) as NetEvent, dec)).not.toHaveProperty("item");
+  });
+
   it("round-trips every forwarded kind", () => {
     const kinds = new Set<number>();
     for (const e of EVENTS) {

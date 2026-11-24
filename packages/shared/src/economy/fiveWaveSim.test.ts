@@ -335,3 +335,40 @@ describe("six-wave bot sim with gear (Story 5.11, brief lines 9 and 15)", () => 
     expect(armored).toBeGreaterThanOrEqual(1);
   }, 180_000);
 });
+
+describe("six-wave bot sim with consumables (Story 5.12, brief lines 9 and 15)", () => {
+  // Bots shop one consumable type per run (one slot: a second type would replace the first) and use
+  // it by `botPolicy`'s rule (medkit below 40 % HP, a throw at ≥ 5 zombies in its radius).
+  const rich = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 300]]));
+  it("every run ends (waves ended, never the tick limit) and each type was really used (heal / blast kill / molotov burn)", async () => {
+    const { consumableCounters } = await import("../combat/consumables");
+    const { grenadeCounters } = await import("../combat/grenades");
+    const { molotovStats } = await import("../hazards/molotov");
+    const lines: string[] = [];
+    for (const item of ["medkit", "grenades", "molotovs"] as const) {
+      const heals0 = consumableCounters.heals;
+      const blasts0 = grenadeCounters.handBlasts;
+      const ign0 = molotovStats.ignited;
+      const hits0 = molotovStats.zombieHits;
+      const kills0 = explosionCounters.zombiesKilled;
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance: rich, seed, players: 3, list: [item, "smg", "wood_barricade"] });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
+        lines.push(`${item} seed ${seed}: ${formatRunLine(r)}`);
+      }
+      if (item === "medkit") expect(consumableCounters.heals - heals0).toBeGreaterThanOrEqual(1);
+      if (item === "grenades") {
+        expect(grenadeCounters.handBlasts - blasts0).toBeGreaterThanOrEqual(1);
+        expect(explosionCounters.zombiesKilled - kills0).toBeGreaterThanOrEqual(1); // ≥ 1 blast kill
+      }
+      if (item === "molotovs") {
+        expect(molotovStats.ignited - ign0).toBeGreaterThanOrEqual(1);
+        expect(molotovStats.zombieHits - hits0).toBeGreaterThanOrEqual(1); // ≥ 1 molotov burn
+      }
+      lines.push(`${item}: heals ${consumableCounters.heals - heals0}, hand blasts ${grenadeCounters.handBlasts - blasts0}, molotovs ${molotovStats.ignited - ign0} (burns ${molotovStats.zombieHits - hits0})`);
+    }
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(lines.join("\n"));
+  }, 240_000);
+});

@@ -1,0 +1,36 @@
+{
+  "useCooldownS": 0.5,
+  "maxLiveMolotovZones": 8,
+  "fireFaceToleranceM": 0.02,
+  "aimMemoryS": 1.5,
+  "fx": { "particleShare": 0.25, "smokeShare": 0.1, "edgeSpacingM": 1.2, "maxParticles": 80, "maxEdgeFlames": 64, "maxLights": 1 },
+  "items": {
+    "medkit": { "name": "Medkit", "price": 60, "pack": 1, "kind": "heal", "healHp": 50 },
+    "grenades": {
+      "name": "Grenades",
+      "price": 80,
+      "pack": 3,
+      "kind": "grenade",
+      "minThrowM": 2,
+      "throwRangeM": 8,
+      "throwSpeedMps": 12,
+      "minFlightS": 0.3,
+      "damage": 40,
+      "radiusM": 2.5
+    },
+    "molotovs": {
+      "name": "Molotovs",
+      "price": 100,
+      "pack": 2,
+      "kind": "molotov",
+      "minThrowM": 2,
+      "throwRangeM": 8,
+      "throwSpeedMps": 12,
+      "minFlightS": 0.3,
+      "radiusM": 3,
+      "durationS": 4,
+      "damagePerS": 8,
+      "pulseS": 0.5
+    }
+  }
+}

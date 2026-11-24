@@ -71,6 +71,9 @@ export const INPUT_DRAIN_EVERY_TICKS = 2;
 
 type MutableInput = { -readonly [K in keyof PlayerInput]: PlayerInput[K] };
 
+/** A wire aim component, or 0 when not a finite number in [-1, 1]. */
+const validAim = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v >= -1 && v <= 1 ? v : 0);
+
 const copyInput = (to: MutableInput, from: PlayerInput): void => {
   to.seq = from.seq;
   to.moveX = from.moveX;
@@ -116,6 +119,10 @@ class PlayerSlot {
   /** Edge flags of rate-dropped inputs, carried onto the next input queued (never lost). */
   carrySwap = false;
   carryConsumable = false;
+  /** Re-review M: a rate-dropped consumable's throw aim, carried with the flag. */
+  carryAimX = 0;
+  carryAimY = 0;
+  carryFire = false;
   /** A new input was applied this tick (the spread watch reads it after the step). */
   appliedThisTick = false;
   /** Story 2.12 review M1: spread-cancel telemetry. */
@@ -167,7 +174,12 @@ const dropOldest = (s: PlayerSlot): void => {
   for (let i = 0; i < s.count && (consumable || swap); i++) {
     const next = s.ring[(s.head + i) % INPUT_QUEUE_MAX] as MutableInput;
     if (consumable && !next.consumable) {
+      // Re-review M: the flagged input's aim (a throw: the throw range's encoding) and fire (off for a
+      // throwable, kept for a medkit) move with the flag. That seq's own aim/shot is lost (the prediction reconciles).
       next.consumable = true;
+      next.aimX = dropped.aimX;
+      next.aimY = dropped.aimY;
+      next.fire = dropped.fire;
       consumable = false;
     }
     if (swap && !next.swap) {
@@ -363,7 +375,12 @@ export class RunController {
     copyInput(slot, input);
     // Re-review M-B: edges of rate-dropped inputs land on this one.
     if (s.carrySwap) slot.swap = true;
-    if (s.carryConsumable) slot.consumable = true;
+    if (s.carryConsumable) {
+      slot.consumable = true;
+      slot.aimX = s.carryAimX;
+      slot.aimY = s.carryAimY;
+      slot.fire = s.carryFire;
+    }
     s.carrySwap = s.carryConsumable = false;
     s.count++;
     s.lastQueuedSeq = input.seq;
@@ -380,12 +397,18 @@ export class RunController {
   rateDroppedInput(playerId: string, message: unknown): void {
     const s = this.slots.get(playerId);
     if (!s || typeof message !== "object" || message === null) return;
-    const m = message as { seq?: unknown; swap?: unknown; consumable?: unknown };
+    const m = message as { seq?: unknown; swap?: unknown; consumable?: unknown; aimX?: unknown; aimY?: unknown; fire?: unknown };
     if (typeof m.seq !== "number" || m.seq !== s.lastQueuedSeq + 1) return;
     s.lastQueuedSeq = m.seq;
     s.rateDrops++;
     if (m.swap === true) s.carrySwap = true;
-    if (m.consumable === true) s.carryConsumable = true;
+    if (m.consumable === true) {
+      s.carryConsumable = true;
+      // Its throw aim, if valid (the schema's [-1, 1]); else none (the throw falls back: memory, zombie, facing).
+      s.carryAimX = validAim(m.aimX);
+      s.carryAimY = validAim(m.aimY);
+      s.carryFire = m.fire === true;
+    }
   }
 
   /**

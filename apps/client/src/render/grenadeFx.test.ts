@@ -160,3 +160,18 @@ describe("explosion particles and layers (Story 5.5, EX1 / EX2)", () => {
     expect(inside).toBeGreaterThan(S * S * 0.6);
   });
 });
+
+describe("GrenadeFlights: thrown consumables (Story 5.12)", () => {
+  it("keeps the item per round, never adopts a launcher's local copy, and a bottle ends at its fire's point", () => {
+    const f = new GrenadeFlights(4, "p0", 1);
+    f.launched("p0", 0, 0, 0, 5, 0, 10, 0, 7); // my launcher's local copy (seq 7)
+    f.launched("p0", 9, 0, 0, 6, 1, 10, 0, 7, 3); // a molotov thrown on the same seq: its own round
+    expect(f.count).toBe(2);
+    const slot = Array.from(f.id).indexOf(9);
+    expect(f.item[slot]).toBe(3);
+    expect(f.handle({ type: "molotov.ignited", zoneId: 1, item: 2, x: 6.004, y: 1.004, playerId: "p0" }, 1)).toBe(slot);
+    expect(f.count).toBe(1);
+    expect(f.item[slot]).toBe(0); // freed slots forget their item
+    expect(f.burstAt(5, 0)).toBe(-1); // a launcher round never ends on a fire
+  });
+});

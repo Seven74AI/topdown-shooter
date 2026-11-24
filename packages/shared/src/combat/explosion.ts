@@ -37,8 +37,8 @@ import type { WeaponId } from "./weapons";
  * landing after the projectiles moved bodies). Then one `explosion.happened`. Allocation-free.
  */
 
-/** Append only: the index goes on the wire (`explosion.happened.kind`). 5.8 appends "bloater". */
-export const EXPLOSION_KINDS = ["grenade", "mine", "bloater"] as const;
+/** Append only: the index goes on the wire (`explosion.happened.kind`). 5.8 appends "bloater"; 5.12 "hand_grenade" (the EX2 look). */
+export const EXPLOSION_KINDS = ["grenade", "mine", "bloater", "hand_grenade"] as const;
 export type ExplosionKind = (typeof EXPLOSION_KINDS)[number];
 
 export interface ExplosionSpec {

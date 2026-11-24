@@ -3,7 +3,7 @@ import { addPlayer, createWorld, loadBalance, placeBuilding, removeBuilding, sta
 import { UndoChip, layoutUndoChip, type UndoPendingView } from "./undoChip";
 import { layoutBuildBar, newBuildBarLayout, readyLeftX } from "./buildBar";
 import { layoutHandCluster, newHandLayout } from "./handCluster";
-import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "./rightButtons512";
+import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "./consumableButton";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 const noop: SystemFn = () => {};

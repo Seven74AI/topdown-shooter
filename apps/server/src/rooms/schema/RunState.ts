@@ -74,6 +74,9 @@ const playerFields = {
   gear: t.uint8().default(0),
   // Story 5.11 review L2: ticks the current revive needs (fastest kit in reach; 0 = no revive): the ring's denominator.
   reviveNeed: t.uint8().default(0),
+  // Story 5.12: the quick-use slot — the consumable's `consumables.json` index (255 = empty) and the count. On a purchase / use only.
+  consumable: t.uint8().default(255),
+  consumableCount: t.uint8().default(0),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;

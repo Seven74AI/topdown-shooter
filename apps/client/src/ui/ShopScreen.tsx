@@ -1,7 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 import { romanLevel, titleCase } from "@topdown/shared";
 import { uiStore } from "./uiState";
-import { SHOP_TEXT, gearRows, replaceWarning, shopStore, upgradeRows, type ShopAction, type ShopState } from "./shopStore";
+import { SHOP_TEXT, consumableRows, gearRows, replaceWarning, shopStore, upgradeRows, type ShopAction, type ShopState } from "./shopStore";
+import { consumableIconUrl } from "../render/city/consumableIcons";
 import { GEAR_ICON_CSS_PX, gearIconUrl } from "../render/city/gearIcons";
 import { TIER_PLATE_H, tierMarkUrl, tierPlateWidth, weaponIconUrl } from "../render/city/weaponArt";
 
@@ -131,6 +132,7 @@ export function ShopScreen() {
               })}
             </div>
             <GearSection s={s} busy={busy} />
+            <ConsumableSection s={s} busy={busy} />
           </>
         )}
       </div>
@@ -164,6 +166,43 @@ function GearSection({ s, busy }: { s: ShopState; busy: boolean }) {
               <span class="shop__text">
                 <span class="shop__name">{r.name}</span>
                 <span class="shop__price">{r.owned ? SHOP_TEXT.owned : price(r.price)}</span>
+                {r.note ? <span class="shop__gear-note">{r.note}</span> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Story 5.12 (AC 2): the always-available Consumables section — icon (CI4), name × pack, price;
+ * "Full" (disabled) when my slot already holds a full pack of it; "Replaces Grenades ×2" before a
+ * tap that would replace another item (its rest is lost), "Refills to ×3" for a partial slot.
+ */
+function ConsumableSection({ s, busy }: { s: ShopState; busy: boolean }) {
+  const rows = consumableRows(s);
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <h3 class="shop__section">{SHOP_TEXT.consumables}</h3>
+      <div class="shop__items">
+        {rows.map((r) => {
+          const icon = consumableIconUrl(r.id);
+          return (
+            <button
+              key={r.id}
+              type="button"
+              class={`shop__item shop__item--gear${r.full ? " shop__item--owned" : ""}${r.short ? " shop__item--short" : ""}${icon ? " shop__item--icon" : ""}`}
+              disabled={r.full || busy}
+              aria-label={r.full ? `${r.name}, ${SHOP_TEXT.full}` : `${r.name} ×${r.pack}, ${price(r.price)}`}
+              onClick={() => send({ type: "item", item: r.id })}
+            >
+              {icon ? <img class="shop__icon shop__icon--gear" src={icon} alt="" width={32} height={32} /> : null}
+              <span class="shop__text">
+                <span class="shop__name">{`${r.name} ×${r.pack}`}</span>
+                <span class="shop__price">{r.full ? SHOP_TEXT.full : price(r.price)}</span>
                 {r.note ? <span class="shop__gear-note">{r.note}</span> : null}
               </span>
             </button>

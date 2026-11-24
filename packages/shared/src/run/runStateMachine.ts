@@ -8,6 +8,7 @@ import { killZombie } from "../zombies/zombiePool";
 import { decayFinish, decayMutate, stageForComingWave } from "../decay/decaySystem";
 import { clearAcid } from "../zombies/spit";
 import { clearGrenades } from "../combat/grenades";
+import { clearMolotovZones } from "../hazards/molotov";
 import { clearBlasts, drainBlasts } from "../zombies/bloater";
 import { resetBuildSpend } from "../buildings/buildings";
 
@@ -69,6 +70,7 @@ export function startBuild(world: World): void {
   const decayed = decayMutate(world, stageForComingWave(world));
   clearAcid(world); // Story 5.6 DD4: no spits, no puddles in a build phase; acid clocks restart
   clearGrenades(world.grenades); // Story 5.5: no round bursts in a build phase (no ghost blasts)
+  clearMolotovZones(world); // Story 5.12 (D3): molotov fire burns in waves only
   drainBlasts(world); // Story 5.8 review L1: a Bloater killed on the wave's last tick still bursts
   clearBlasts(world); // Story 5.8: no queued blasts, no gas clouds in a build phase
   returnOutPlayers(world);
@@ -111,6 +113,7 @@ export function endRun(world: World): void {
   world.run.phase = "results";
   world.run.buildTicksLeft = 0;
   clearGrenades(world.grenades); // Story 5.5: Results clears the rounds in flight
+  clearMolotovZones(world); // Story 5.12
   clearBlasts(world); // Story 5.8: no blast or gas cloud outlives the run (FR-B: Results never bursts)
 }
 

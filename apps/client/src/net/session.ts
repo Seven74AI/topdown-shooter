@@ -29,6 +29,7 @@ const SHOP_ERRORS: readonly ShopError[] = [
   "not_alive", // Story 5.11 review M1
   "not_for_sale",
   "already_owned",
+  "already_full", // Story 5.12
   "slot_required",
   "invalid_amount",
   "insufficient_funds",

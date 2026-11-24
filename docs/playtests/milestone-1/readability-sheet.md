@@ -148,3 +148,12 @@ Player:
 
 ## 40: the same thing a moment later: what happened? (Story 5.14)
 ![40](objects/41_bear_trap_closed.png)
+
+## 41: the round button bottom right, and its number (Story 5.12)
+![41](../../art/5-12/5-12-hud-wave-ring-800x360.png)
+
+## 42, 43: what was thrown, and what is happening there? (Story 5.12)
+![42](../../art/5-12/5-12-molotov-flight-800x360.png) ![43](../../art/5-12/5-12-molotov-fire-800x360.png)
+
+## 44: what just happened by the bus? (Story 5.12)
+![44](../../art/5-12/5-12-grenade-flight-800x360.png)

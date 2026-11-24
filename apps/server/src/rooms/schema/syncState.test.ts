@@ -309,6 +309,38 @@ describe("syncState", () => {
     expect(state.players.get("p0")?.gear).toBe(0);
   });
 
+  it("Story 5.12 (review L2): the consumable slot is written on change only (a use drops the count), reset on lobby return", () => {
+    const { controller, state, encoder } = setup();
+    const p0 = controller.world.players.get("p0");
+    if (!p0) throw new Error("no p0");
+    syncState(state, controller);
+    expect(state.players.get("p0")).toMatchObject({ consumable: 255, consumableCount: 0 });
+    encoder.encode();
+    encoder.discardChanges();
+    syncState(state, controller);
+    expect(encoder.hasChanges).toBe(false); // 0 B/s with an untouched slot
+    p0.consumable = "grenades";
+    p0.consumableCount = 3;
+    syncState(state, controller);
+    expect(state.players.get("p0")).toMatchObject({ consumable: 1, consumableCount: 3 });
+    expect(encoder.encode().length).toBeLessThan(16); // two uint8 fields
+    encoder.discardChanges();
+    p0.consumableCount = 2; // a use
+    syncState(state, controller);
+    expect(state.players.get("p0")?.consumableCount).toBe(2);
+    expect(encoder.encode().length).toBeLessThan(12);
+    encoder.discardChanges();
+    p0.consumable = null; // the last one
+    p0.consumableCount = 0;
+    syncState(state, controller);
+    expect(state.players.get("p0")).toMatchObject({ consumable: 255, consumableCount: 0 });
+    p0.consumable = "medkit";
+    p0.consumableCount = 1;
+    syncState(state, controller);
+    resetRunFields(state);
+    expect(state.players.get("p0")).toMatchObject({ consumable: 255, consumableCount: 0 });
+  });
+
   it("Story 5.11: revive progress uses the current reviver's need (kit owner: 15 of 30 ticks = 50 %)", () => {
     const { controller, state } = setup();
     const w = controller.world;

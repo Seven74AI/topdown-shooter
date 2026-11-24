@@ -5,6 +5,7 @@ import { createSlot, type Loadout, type WeaponSlot } from "../combat/loadout";
 import { upgradePrice, type WeaponId } from "../combat/weapons";
 import { spendMoney, type SpendError } from "./economy";
 import { buyGear, gearBit } from "./gear";
+import { buyConsumable, isConsumable } from "./consumables";
 
 /**
  * Story 3.3: the fixed-list shop (Epic 5 replaces it with the roguelike card shop).
@@ -33,7 +34,8 @@ export interface ShopBuilding {
 }
 
 /** Story 5.11 review M1: `not_alive` = a downed or out player (fire still hurts in a build phase) can't buy. */
-export type ShopError = "not_build" | "unknown_player" | "not_alive" | "not_for_sale" | "already_owned" | "slot_required" | SpendError;
+/** Story 5.12: `already_full` = a consumable slot already full of that item (no money taken). */
+export type ShopError = "not_build" | "unknown_player" | "not_alive" | "not_for_sale" | "already_owned" | "already_full" | "slot_required" | SpendError;
 
 /** Where a bought weapon went. */
 export interface Bought {
@@ -236,21 +238,22 @@ export function romanLevel(level: number): string {
   return ROMAN[level] ?? "";
 }
 
-/** Story 5.11: what one `shop.buy_item` purchase did (gear now; Story 5.12 adds consumables). */
+/** Story 5.11: what one `shop.buy_item` purchase did (gear; Story 5.12 consumables). */
 export interface BoughtItem {
   readonly item: string;
   readonly price: number;
+  /** Story 5.12: a consumable that replaced another (its id; null / absent otherwise). */
+  readonly replaced?: string | null;
 }
 
 /**
  * Story 5.11: the one dispatcher of `shop.buy_item` (server for the message, solo on the local
- * World, bots): a gear id → `buyGear`. Story 5.12 adds its branch here (a consumable id →
- * `buyConsumable`). Anything else is `not_for_sale` — after the build-phase and player checks, so
+ * World, bots): a gear id → `buyGear`; Story 5.12: a consumable id → `buyConsumable`. Anything else is `not_for_sale` — after the build-phase and player checks, so
  * the refusal order matches `buyGear`'s.
  */
 export function buyItem(world: World, playerId: string, item: string): Result<BoughtItem, ShopError> {
   if (gearBit(world.balance, item) !== 0) return buyGear(world, playerId, item);
-  // Story 5.12: if (isConsumable(world.balance, item)) return buyConsumable(world, playerId, item);
+  if (isConsumable(world.balance, item)) return buyConsumable(world, playerId, item);
   if (world.run.phase !== "build") return err("not_build");
   const p = world.players.get(playerId);
   if (!p) return err("unknown_player");

@@ -8,6 +8,7 @@ import { MUZZLE_OFFSET_M } from "../config/constants";
 import { zombieTypeOf } from "../zombies/zombiePool";
 import { isRushState } from "../zombies/zombieTypes";
 import { bulletLineClear } from "../combat/cover";
+import { consumableStats } from "../economy/consumables";
 
 /**
  * A simple bot (Story 2.10, AC 5) for load tests (2.10), economy runs (3.10, 6.1) and balance
@@ -47,6 +48,12 @@ export interface BotSelf {
   lobRangeM: number;
   minLobM: number;
   muzzleM: number;
+  /** Story 5.12: HP now and max (the medkit rule). */
+  hp: number;
+  maxHp: number;
+  /** Story 5.12: what my slot holds (null: empty) and a throwable's range (m; 0 = not a throwable). */
+  consumableKind: "heal" | "grenade" | "molotov" | null;
+  throwRangeM: number;
 }
 
 export interface BotMate {
@@ -79,6 +86,12 @@ export interface BotView {
   shotZombie: BotZombie | null;
   /** Storage for `shotZombie`. */
   readonly shot: BotZombie;
+  /**
+   * Story 5.12: in a wave with a throwable in my slot, the zombie (within throw range) with the most
+   * zombies within the item's radius, when that is at least `throwClusterMin`; else null.
+   */
+  throwTarget: BotZombie | null;
+  readonly cluster: BotZombie;
 }
 
 export interface BotConfig {
@@ -90,6 +103,9 @@ export interface BotConfig {
   reviveStopM: number;
   /** Story 3.10: shop item ids bought in this order in each build phase (`bots/botShop.ts`). */
   shoppingList?: readonly string[];
+  /** Story 5.12 (absent: 0.4 / 5). */
+  medkitBelowHpFrac?: number;
+  throwClusterMin?: number;
 }
 
 /** The bot numbers from `config/balance/bots.json`. */
@@ -99,7 +115,7 @@ export function createBotView(): BotView {
   const teammates: BotMate[] = [];
   for (let i = 0; i < MAX_PLAYERS - 1; i++) teammates.push({ x: 0, y: 0, status: "alive" });
   return {
-    self: { x: 0, y: 0, status: "alive", rangeM: 0, lobRangeM: 0, minLobM: 0, muzzleM: 0 },
+    self: { x: 0, y: 0, status: "alive", rangeM: 0, lobRangeM: 0, minLobM: 0, muzzleM: 0, hp: 1, maxHp: 1, consumableKind: null, throwRangeM: 0 },
     teammates,
     teammateCount: 0,
     nearestZombie: null,
@@ -107,6 +123,8 @@ export function createBotView(): BotView {
     knowsCover: false,
     shotZombie: null,
     shot: { x: 0, y: 0, distM: 0, holdsSpot: false },
+    throwTarget: null,
+    cluster: { x: 0, y: 0, distM: 0, holdsSpot: false },
   };
 }
 
@@ -149,6 +167,24 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
       out.aimX = (dx / d) * len;
       out.aimY = (dy / d) * len;
       out.fire = target.distM <= me.rangeM && (!view.knowsCover || target === view.shotZombie);
+    }
+  }
+
+  // Story 5.12: the quick-use slot (deterministic: no randomness). A medkit below the HP share; a
+  // throwable at the densest cluster (the aim length carries the distance as a fraction of the throw's range).
+  if (me.consumableKind === "heal" && me.hp < me.maxHp * (cfg.medkitBelowHpFrac ?? 0.4)) out.consumable = true;
+  else if (me.consumableKind !== null && me.consumableKind !== "heal" && view.throwTarget) {
+    const t = view.throwTarget;
+    const dx = t.x - me.x;
+    const dy = t.y - me.y;
+    const d = Math.hypot(dx, dy);
+    const range = me.throwRangeM; // review L5: the flagged input always carries the throw's own range
+    if (d > 0 && range > 0) {
+      const len = Math.min(1, Math.max(1e-3, (d - me.muzzleM) / range));
+      out.aimX = (dx / d) * len;
+      out.aimY = (dy / d) * len;
+      out.fire = false; // this tick throws (the launcher would read the same aim)
+      out.consumable = true;
     }
   }
 
@@ -229,6 +265,7 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
   out.nearestZombie = null;
   out.knowsCover = true;
   out.shotZombie = null;
+  out.throwTarget = null;
   const p = world.players.get(playerId);
   const self = out.self;
   if (!p) {
@@ -243,6 +280,12 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
   self.lobRangeM = stats?.kind === "launcher" ? stats.lobRangeM : 0; // Story 5.5
   self.minLobM = stats?.kind === "launcher" ? stats.minLobM : 0;
   self.muzzleM = p.radiusM + MUZZLE_OFFSET_M;
+  // Story 5.12: the slot and HP.
+  self.hp = p.hp;
+  self.maxHp = p.maxHp;
+  const cs = p.consumableCount > 0 ? consumableStats(world.balance, p.consumable) : undefined;
+  self.consumableKind = cs?.kind ?? null;
+  self.throwRangeM = cs && cs.kind !== "heal" ? (cs.throwRangeM ?? 0) : 0;
   fill.view = out;
   fill.selfId = playerId;
   world.players.forEach(visitMate);
@@ -283,5 +326,43 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
     // Review M2: a Spitter holds its spot unless it rushes (FR30: then it walks in between spits).
     out.zombie.holdsSpot = world.balance.zombies.types[zombieTypeOf(zs, bid)]?.spit !== undefined && !isRushState(zs.state[bid] as number);
     out.nearestZombie = out.zombie;
+  }
+  // Story 5.12: the densest cluster within throw range (waves only; at most CLUSTER_CANDIDATES tried).
+  if (self.throwRangeM > 0 && world.run.phase === "wave" && cs && p.consumableCooldownTicks === 0) findCluster(world, p, self.muzzleM + self.throwRangeM, cs.radiusM ?? 0, world.balance.bots.throwClusterMin, out);
+}
+
+/** Story 5.12: zombies tried as a cluster centre (nearest-first is not needed: the first ones in range). */
+const CLUSTER_CANDIDATES = 48;
+
+function findCluster(world: World, p: PlayerState, reachM: number, radiusM: number, min: number, out: BotView): void {
+  const zs = world.zombies;
+  const reach2 = reachM * reachM;
+  const r2 = radiusM * radiusM;
+  let best = min - 1;
+  let tried = 0;
+  for (let i = 0; i < zs.aliveCount && tried < CLUSTER_CANDIDATES; i++) {
+    const id = zs.aliveIds[i] as number;
+    const cx = zs.x[id] as number;
+    const cy = zs.y[id] as number;
+    const dx = cx - p.x;
+    const dy = cy - p.y;
+    const d2 = dx * dx + dy * dy;
+    // never at my own feet (the throw's minimum plus the blast must clear me)
+    if (d2 > reach2 || d2 < (radiusM + p.radiusM) * (radiusM + p.radiusM)) continue;
+    tried++;
+    let n = 0;
+    for (let k = 0; k < zs.aliveCount; k++) {
+      const o = zs.aliveIds[k] as number;
+      const ex = (zs.x[o] as number) - cx;
+      const ey = (zs.y[o] as number) - cy;
+      if (ex * ex + ey * ey < r2) n++;
+    }
+    if (n > best) {
+      best = n;
+      out.cluster.x = cx;
+      out.cluster.y = cy;
+      out.cluster.distM = Math.sqrt(d2);
+      out.throwTarget = out.cluster;
+    }
   }
 }

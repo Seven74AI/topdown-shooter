@@ -1,4 +1,4 @@
-import type { LauncherStats, PlayerInput } from "@topdown/shared";
+import type { LobRange, PlayerInput } from "@topdown/shared";
 import { applyLobLength, mouseLobDistance, touchLobDistance } from "./lobAim";
 import { KeyboardMouse } from "./KeyboardMouse";
 import { keyAction } from "./keyMap";
@@ -120,11 +120,20 @@ export class InputRouter {
    * origin and cursor are world meters (the survivor's interpolated position, the cursor through
    * the zoomed camera); they are only read in mouse mode. Story 5.5: `lob` = the launcher in hand
    * (null otherwise): the aim's length then carries the lob distance (FR-A; `lobAim.ts`), with
-   * `bodyRadiusM` for the mouse's muzzle offset. Every other weapon keeps a unit aim.
+   * `bodyRadiusM` for the mouse's muzzle offset. Every other weapon keeps a unit aim. Story 5.12:
+   * `lob` is the throwable consumable's range while no launcher is in hand (D11), and
+   * `hudConsumable` the consumable button's edge (E on desktop is latched here); `throwLob` the
+   * throwable in the slot: the flagged input encodes its range and drops `fire` (review L5).
    */
-  build(out: MutablePlayerInput, hudSwap: boolean, originX: number, originY: number, cursorWorldX: number, cursorWorldY: number, lob: Readonly<LauncherStats> | null = null, bodyRadiusM = 0): MutablePlayerInput {
+  build(out: MutablePlayerInput, hudSwap: boolean, originX: number, originY: number, cursorWorldX: number, cursorWorldY: number, lob: Readonly<LobRange> | null = null, bodyRadiusM = 0, hudConsumable = false, throwLob: Readonly<LobRange> | null = null): MutablePlayerInput {
     const keySwap = this.kbm.takeSwap();
     out.swap = hudSwap || keySwap; // edge flag: LocalSimHost latches it for one step
+    const keyConsumable = this.kbm.takeConsumable();
+    out.consumable = hudConsumable || keyConsumable; // Story 5.12: edge flag, latched by the hosts for one step
+    // Story 5.12 review L5: the input that carries a throw always encodes the THROW's own range (never
+    // the launcher's: a swap in flight can't change how the server decodes it) and fires nothing.
+    const throwing = out.consumable && throwLob !== null;
+    if (throwing) lob = throwLob;
     if (this.source === "mouse") {
       const mv = this.kbm.moveVector();
       out.moveX = mv.x;
@@ -138,7 +147,7 @@ export class InputRouter {
         out.aimY = aim.y;
         if (lob) applyLobLength(out, lob, mouseLobDistance(originX, originY, cursorWorldX, cursorWorldY, bodyRadiusM));
       }
-      out.fire = this.kbm.leftButton;
+      out.fire = this.kbm.leftButton && !throwing;
       out.isMouse = true;
       return out;
     }
@@ -149,7 +158,7 @@ export class InputRouter {
     out.aimX = aim.x;
     out.aimY = aim.y;
     if (lob) applyLobLength(out, lob, touchLobDistance(lob, aim.deflection, this.sticks.aimDeadZoneFrac));
-    out.fire = aim.fire;
+    out.fire = aim.fire && !throwing;
     out.isMouse = false;
     return out;
   }

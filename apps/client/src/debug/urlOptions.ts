@@ -67,6 +67,12 @@ export interface UrlOptions {
   /** `?stressbuild=bear` (Story 5.14, only with `?stress`): 24 bear traps round the survivor (they catch the crowd). */
   stressBear: boolean;
   /**
+   * `?stressbuild=molotov` (Story 5.12, release-safe, only with `?stress`): molotov fire zones kept
+   * burning round the survivor (relit as they end) for the phone benchmark — 8 (the cap, the worst
+   * case) or `molotov:N` (1–8; review: the common 1–2-zone case); 0 = off.
+   */
+  stressMolotovs: number;
+  /**
    * `?fx=low` (Story 4.12, release-safe): the low-quality fire — half the particles of every burning
    * car and survivor (caps and spawn rates halved). false otherwise.
    */
@@ -91,6 +97,12 @@ export const MAX_STRESS_WALKERS = 200;
 
 const TRUE_VALUES = new Set(["", "1", "true", "on", "yes"]);
 
+/** Story 5.12: `molotov` → 8, `molotov:N` → N (1–8), anything else → 0. */
+export function parseStressMolotovs(raw: string | null): number {
+  const m = /^molotov(?::([1-8]))?$/.exec(raw?.trim().toLowerCase() ?? "");
+  return m ? Number(m[1] ?? 8) : 0;
+}
+
 export function parseUrlOptions(search: string, dev: boolean = import.meta.env.DEV): UrlOptions {
   const q = new URLSearchParams(search);
   const debugRaw = q.get("debug");
@@ -112,6 +124,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     waveMix: q.get("wavemix"),
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
+    stressMolotovs: parseStressMolotovs(q.get("stressbuild")),
     stressLights: q.get("stressbuild")?.trim().toLowerCase() === "lights",
     stressBear: q.get("stressbuild")?.trim().toLowerCase() === "bear",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",

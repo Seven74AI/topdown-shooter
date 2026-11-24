@@ -65,6 +65,15 @@ export class LocalSimHost implements SimHost {
   /** Edge flags latched until a step consumes them (a tap between two steps is never lost). */
   private latchedSwap = false;
   private latchedConsumable = false;
+  /**
+   * Re-review M: the tap frame's throw-encoded aim (InputRouter encodes the throw's range and drops
+   * fire on that frame only). The step that takes the latched flag uses it with fire off, whatever
+   * frame is the latest by then.
+   */
+  private latchedThrowAimX = 0;
+  private latchedThrowAimY = 0;
+  /** Re-review L: the tap frame's own fire (InputRouter drops it for a throwable only; a medkit tap keeps shooting). */
+  private latchedTapFire = false;
   /** Input sequence number, one per step (the shared input system fires edges once per seq). */
   private seq = 0;
   private events: SimEvent[] = [];
@@ -187,11 +196,15 @@ export class LocalSimHost implements SimHost {
     this.accumulatorS += frameDtS;
     let steps = 0;
     while (this.accumulatorS >= TICK_DT_S && steps < MAX_CATCHUP_STEPS) {
+      const throwing = this.latchedConsumable;
       setInput(this.world, LOCAL_PLAYER_ID, {
         ...this.input,
         seq: ++this.seq,
         swap: this.latchedSwap,
-        consumable: this.latchedConsumable,
+        consumable: throwing,
+        aimX: throwing ? this.latchedThrowAimX : this.input.aimX,
+        aimY: throwing ? this.latchedThrowAimY : this.input.aimY,
+        fire: throwing ? this.latchedTapFire : this.input.fire,
       });
       this.latchedSwap = false; // consumed by exactly one step
       this.latchedConsumable = false;
@@ -217,7 +230,12 @@ export class LocalSimHost implements SimHost {
   setLocalInput(input: PlayerInput): void {
     this.input = input;
     if (input.swap) this.latchedSwap = true;
-    if (input.consumable) this.latchedConsumable = true;
+    if (input.consumable) {
+      this.latchedConsumable = true;
+      this.latchedThrowAimX = input.aimX;
+      this.latchedThrowAimY = input.aimY;
+      this.latchedTapFire = input.fire;
+    }
   }
 
   drainEvents(): readonly SimEvent[] {

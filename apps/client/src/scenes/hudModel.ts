@@ -34,6 +34,17 @@ export interface HudModel {
   swapFrac: number;
   /** Set by the HUD when the swap button is pressed; the GameScene consumes it. */
   swapPressed: boolean;
+  /**
+   * Story 5.12 (AC 1, 7): the consumable button — my slot (server truth online), whether it is shown,
+   * usable (else greyed) and pending (dimmed after a tap until the synced count moves or 1 s passes);
+   * `consumablePressed` is set by the HUD on a tap and consumed by the GameScene.
+   */
+  consumableItem: string | null;
+  consumableCount: number;
+  consumableVisible: boolean;
+  consumableUsable: boolean;
+  consumablePending: boolean;
+  consumablePressed: boolean;
   /** Story 2.11: set by the HUD when ☰ is pressed; the GameScene consumes it. */
   menuPressed: boolean;
   /** ☰ is shown (a run is on screen, not on Results). */
@@ -229,6 +240,12 @@ export const createHudModel = (): HudModel => ({
   otherMag: 0,
   swapFrac: -1,
   swapPressed: false,
+  consumableItem: null, // Story 5.12
+  consumableCount: 0,
+  consumableVisible: false,
+  consumableUsable: false,
+  consumablePending: false,
+  consumablePressed: false,
   menuPressed: false,
   menuButton: false,
   menuOpen: false,
