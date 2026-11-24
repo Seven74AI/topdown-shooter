@@ -19,7 +19,8 @@ import { refreshBlackout } from "../decay/lightState";
  *
  *   Lobby ─startBuild→ Build ─startWave→ Wave ─endWave→ Build ─startWave→ Wave … ─endRun→ Results
  *
- * (Story 3.10: `endWave` of wave `waves.runWaves` goes to Results, "You held out!".)
+ * (Story 3.10: `endWave` of wave `waves.runWaves` goes to Results, "You held out!". Story 6.1: 10 waves;
+ * until Story 6.11 adds the evacuation vote, Results after wave 10 is the ending.)
  *
  * Phases change only through the four named transitions below; a transition from a wrong phase is a
  * bug and throws. It lives in shared code so the server (`RunController`) and solo practice

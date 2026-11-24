@@ -266,7 +266,8 @@ const insideAny = (w: World, x: number, y: number, r: number) => w.obstacles.sol
 
 describe("Story 4.5 DecaySystem on Downtown (brief line 5 order)", () => {
   it("stage changes only at the build start before waves 3 and 5 (never mid-wave): a whole 6-wave run", () => {
-    const w = createWorld({ balance, seed: 11, map: DT });
+    // Story 6.1: the run is 10 waves; this check keeps its 6-wave run (`runWaves` 6 override).
+    const w = createWorld({ balance: loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "runWaves", 6]])), seed: 11, map: DT });
     w.debug.godMode = true;
     addPlayer(w, "p0", 24, 16);
     startBuild(w);

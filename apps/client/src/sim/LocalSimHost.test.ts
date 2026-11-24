@@ -19,6 +19,17 @@ describe("LocalSimHost build phase (Story 3.1)", () => {
     expect(host.world.waves.number).toBe(1);
   });
 
+  it("Story 6.1 (?startwave=9): the first build leads into wave 9, at its decay stage", () => {
+    const host = new LocalSimHost({ balance, seed: 1, startWave: 9 });
+    addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);
+    expect(host.world.decay.stage).toBe(5);
+    host.update(0.05);
+    host.setBuildReady(true);
+    host.update(0.05);
+    expect(host.world.run.phase).toBe("wave");
+    expect(host.world.waves.number).toBe(9);
+  });
+
   it("the in-run menu's pause freezes the build countdown", () => {
     const host = new LocalSimHost({ balance, seed: 1 });
     addPlayer(host.world, LOCAL_PLAYER_ID, 24, 16);

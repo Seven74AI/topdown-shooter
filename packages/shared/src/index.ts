@@ -534,3 +534,5 @@ export { acidSpit, acidSpitOf, circleInAcid, clearAcid, spawnSpit, spitStats, sp
 export { createSpitPool, type SpitPool } from "./zombies/spitPool";
 export { AREA_KIND, circleInArea, clearAreas, createAreaPool, spawnArea, type AreaPool } from "./hazards/areaPool";
 export { type SpitStats } from "./config/balanceSchema";
+// Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
+export { applyStartWave, parseStartWave } from "./run/devStartWave";

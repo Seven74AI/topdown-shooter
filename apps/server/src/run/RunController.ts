@@ -7,6 +7,7 @@ import {
   TICK_DT_S,
   addPlayer,
   applyTestScenario,
+  applyStartWave,
   placeBuilding,
   repairBuilding,
   upgradeBuilding,
@@ -225,6 +226,8 @@ export interface RunControllerOptions {
   map?: DistrictMap;
   /** Story 2.10: a fixed test scenario (the room passes it only with `ALLOW_TEST_SCENARIOS=1`). */
   scenario?: TestScenario | null;
+  /** Story 6.1 dev (`DEV_START_WAVE=7`): the first build phase leads into this wave (and applies its decay stage). null = wave 1. */
+  startWave?: number | null;
   /**
    * Dev (`DEV_PLACED_BUILDING_HP=0.5`, Story 3.7): every newly placed building starts at this share
    * of its HP, so repairs can be checked before Story 3.5's zombies damage buildings. null = full HP.
@@ -285,6 +288,7 @@ export class RunController {
     this.world.debug.decayStageByWave = opts.decayStageByWave ?? null; // before the first build start
     this.world.debug.shopCards = opts.shopCards ?? null; // Story 5.13: before the first offers are drawn
     if (opts.scenario) applyTestScenario(this.world, opts.scenario);
+    if (opts.startWave) applyStartWave(this.world, opts.startWave); // Story 6.1 dev switch, before the first build start
     const lagComp = opts.lagCompensation !== false;
     setZombieHistoryEnabled(this.world, lagComp);
     const at = { x: 0, y: 0 };

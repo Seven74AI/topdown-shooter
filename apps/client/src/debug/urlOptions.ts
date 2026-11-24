@@ -96,6 +96,12 @@ export interface UrlOptions {
    * cost. null otherwise (any other value too).
    */
   blackoutPct: number | null;
+  /**
+   * `?startwave=7` (Story 6.1 D4, dev builds only, solo; online the server's `DEV_START_WAVE`): the
+   * solo run's first build leads into wave 7 (its decay stage applied). The raw text (null when absent
+   * or in a release build); `parseStartWave` keeps 1 … `runWaves`. Combine with `?wallet=`.
+   */
+  startWave: string | null;
 }
 
 /** Largest `?lag` / `?jitter` accepted (ms). */
@@ -152,6 +158,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
     shopAll: dev && parseDevShopAll(q.get("shopall")?.trim().toLowerCase()), // dev builds only (review L3); one switch for hidden buildings and gear
     blackoutPct: parseBlackoutPct(q.get("blackout")), // Story 6.3
+    startWave: dev ? q.get("startwave") : null, // Story 6.1: dev builds only
   };
 }
 
