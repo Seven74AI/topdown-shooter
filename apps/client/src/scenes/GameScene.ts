@@ -126,7 +126,7 @@ import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
-import { CLOSED_VOTE, VOTE_URGENT_MS, VoteRequest, VoteSender, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
+import { CLOSED_VOTE, VoteRequest, VoteSender, pollVote, voteFrameKey, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
 import { dawnEndsAt } from "../ui/dawnModel";
 import { HeliView } from "../render/HeliView";
 import { cardStatLines } from "../ui/cardStats";
@@ -1051,10 +1051,8 @@ export class GameScene extends Phaser.Scene {
     this.voteCollectHost = null;
     // Re-review RM1: urgent in the vote's last VOTE_URGENT_MS or once everyone has voted (the 1 s hold):
     // a change of mind goes out at once even with the bucket empty.
-    let allIn = this.voteCount > 0;
-    for (let i = 0; i < this.voteCount; i++) if ((this.votePlayers[i] as VotePlayerIn).vote === 0) allIn = false;
-    const urgent = allIn || (run.voteTicksLeft * 1000) / TICK_RATE_HZ <= VOTE_URGENT_MS;
-    const send = this.voteSend.poll(host.world.waves.number, me?.vote ?? 0, this.time.now, urgent); // review M1: paced, newest choice last
+    // Review M1 / re-review 2 (N3): paced, newest choice last, urgent near the end (one shared step with the netsim test).
+    const send = pollVote(this.voteSend, host.world.waves.number, me?.vote ?? 0, this.time.now, run.voteTicksLeft, TICK_RATE_HZ, this.votePlayers, this.voteCount);
     if (send) host.castVote(send);
     const shown = this.voteReq.update(host.world.waves.number, me?.vote ?? 0, this.time.now);
     const total = ticksFor(host.world.balance.waves.evac.voteS);

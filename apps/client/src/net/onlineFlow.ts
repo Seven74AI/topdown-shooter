@@ -2,6 +2,8 @@ import { RUN_ENDINGS, TICK_DT_S, type RunEnding, type RunPhase, type RunStateVie
 import { dawnEndsAt } from "../ui/dawnModel";
 
 const TICK_MS = TICK_DT_S * 1000;
+/** Re-review 2: no dawn for a Results patch processed less than this after the page became visible (ms). */
+export const SHOWN_GRACE_MS = 1000;
 import type { ResultRow, UiRequests, UiScreen } from "../ui/uiState";
 import type { NetSession, RunInbox } from "./session";
 import { activeRun } from "./activeRun";
@@ -19,12 +21,15 @@ export interface OnlineFlowDeps {
   makeSession(): NetSession | null;
   /** The room's `RunInbox` (kept by the lobby store for the room's lifetime). */
   inbox(): RunInbox | null;
-  /** Story 6.11: the dawn's and the vote's lengths (`waves.json › evac`) and the clock (default `performance.now`). */
+  /** Story 6.11: the dawn's length (`waves.json › evac.dawnS`) and the clock (default `performance.now`). */
   readonly dawnS: number;
-  readonly voteS: number;
   nowMs?(): number;
-  /** Re-review RL1: when the page was last hidden or came back (`visibilitychange`, the clock above); −∞ if never. */
-  lastHiddenMs?(): number;
+  /**
+   * Re-review 2 (RR2-M1): the page state when the Results patch is processed — hidden now, and when
+   * it last became visible (the clock above; −∞ if it never was hidden). Defaults: visible, never hidden.
+   */
+  pageHidden?(): boolean;
+  lastShownMs?(): number;
   readonly ui: {
     set(screen: UiScreen): void;
     request<K extends keyof UiRequests>(name: K, ...args: Parameters<UiRequests[K]>): void;
@@ -91,11 +96,14 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
       // Review M2 (AC 10): the dawn runs from the EXTRACT tick (the Results patch's tick, the same
       // server tick), never from when the patch was processed: a page that slept past it gets the card.
       const ageMs = Math.max(0, now - minOffsetMs - st.tick * TICK_MS);
-      // Re-review RL1: a page hidden (or frozen) during the vote or the dawn never gets a late dawn,
-      // even if every sample since the wave start arrived in the same late burst.
-      const hiddenAt = deps.lastHiddenMs ? deps.lastHiddenMs() : Number.NEGATIVE_INFINITY;
-      const hiddenLately = hiddenAt >= now - (deps.voteS + deps.dawnS) * 1000;
-      const live = last === "vote" && ageMs < deps.dawnS * 1000 && !hiddenLately;
+      // Re-review 2 (RR2-M1, RR2-L1): judged at the moment this patch is processed — no dawn while the
+      // page is hidden, or within SHOWN_GRACE_MS of it becoming visible (a frozen tab runs its queued
+      // socket messages around the time it comes back, even before `visibilitychange`). A tab switch
+      // earlier in the vote doesn't matter.
+      const hiddenNow = deps.pageHidden ? deps.pageHidden() : false;
+      const shownAt = deps.lastShownMs ? deps.lastShownMs() : Number.NEGATIVE_INFINITY;
+      const justShown = now - shownAt < SHOWN_GRACE_MS;
+      const live = last === "vote" && ageMs < deps.dawnS * 1000 && !hiddenNow && !justShown;
       deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, live, live ? now - ageMs : now, deps.dawnS) });
     } else if (phase === "lobby") {
       session?.release();

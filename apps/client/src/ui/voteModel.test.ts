@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VOTE_PENDING_MS, VOTE_SEND_BURST, VOTE_SEND_PER_S, VOTE_URGENT_GAP_MS, VoteRequest, VoteSender, voteFrameKey, voteResultLine, voteView, type VotePlayerIn } from "./voteModel";
+import { VOTE_PENDING_MS, VOTE_SEND_BURST, VOTE_SEND_PER_S, VOTE_URGENT_DEBT, VOTE_URGENT_GAP_MS, VoteRequest, VoteSender, voteFrameKey, voteResultLine, voteUrgent, voteView, type VotePlayerIn } from "./voteModel";
 
 /** Story 6.11 (EX1, F1–F4, brief 30): the vote panel, pure. */
 const P = (slot: number, vote: number, standing = true, mine = false): VotePlayerIn => ({ slot, vote, standing, mine });
@@ -99,8 +99,30 @@ describe("VoteSender (review M1 + re-review RM1: pace the flood, never hold back
     }
     s.want("extract");
     expect(s.poll(10, 0, t)).toBe(null); // not urgent: waits for a token
-    expect(s.poll(10, 0, t + 5, true)).toBe(null); // urgent, but < 150 ms after the last send
-    expect(s.poll(10, 0, 1000 + 20 + VOTE_URGENT_GAP_MS, true)).toBe("extract");
+    expect(s.poll(10, 0, t + 5, true)).toBe(null); // urgent, but < the urgent gap after the last send
+    expect(s.poll(10, 0, 1000 + 20 + VOTE_URGENT_GAP_MS, true)).toBe("extract"); // a borrowed token
+    s.want("stay");
+    expect(s.poll(10, 0, 1000 + 20 + 2 * VOTE_URGENT_GAP_MS - 1, true)).toBe(null); // RR2-L2: only one token may be borrowed
+  });
+
+  it("re-review 2 (RR2-L2): taps every frame for 3 s, urgent all along → ≤ 7 sends in any second (3 burst + 3 refill + 1 borrowed), 3/s after", () => {
+    const s = new VoteSender();
+    s.poll(10, 0, 0);
+    const at: number[] = [];
+    for (let f = 0; f < 180; f++) {
+      const now = f * (1000 / 60);
+      s.want(f % 2 === 0 ? "extract" : "stay");
+      if (s.poll(10, 0, now, true)) at.push(now);
+    }
+    for (const t of at) expect(at.filter((u) => u > t - 1000 && u <= t).length).toBeLessThanOrEqual(VOTE_SEND_BURST + VOTE_SEND_PER_S + VOTE_URGENT_DEBT);
+    expect(at.filter((u) => u >= 2000).length).toBeLessThanOrEqual(VOTE_SEND_PER_S + 1);
+  });
+
+  it("re-review 2 (N3): voteUrgent — the last 500 ms, or everyone has voted", () => {
+    expect(voteUrgent(10, 20, [P(0, 0), P(1, 0)], 2)).toBe(true); // 500 ms left
+    expect(voteUrgent(11, 20, [P(0, 0), P(1, 1)], 2)).toBe(false);
+    expect(voteUrgent(200, 20, [P(0, 2), P(1, 1)], 2)).toBe(true); // everyone in: the hold
+    expect(voteUrgent(200, 20, [], 0)).toBe(false);
   });
 
   it("the same choice twice sends once; resends if the server never confirmed; a new vote starts clean", () => {

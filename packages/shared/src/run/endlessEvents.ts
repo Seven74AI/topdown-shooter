@@ -57,12 +57,12 @@ export function pickEndlessEvent(world: World, candidates: readonly string[], pr
  * `world.run.endlessEvent` ("" = none) and remembers it as the previous one (no repeat, D4).
  * Waves 1–10 and odd/boss waves: "". No allocation.
  */
-export function scheduleEndlessEvent(world: World): string {
+export function scheduleEndlessEvent(world: World, candidatesOf: (world: Readonly<World>, wave: number) => readonly string[] = endlessEventCandidates): string {
   const run = world.run;
   const wave = world.waves.number + 1;
   run.endlessEvent = "";
   if (!isEndlessEventWave(world.balance, wave, run.endless, world.debug.bossWaves)) return "";
-  const id = pickEndlessEvent(world, endlessEventCandidates(world, wave), run.lastEndlessEvent);
+  const id = pickEndlessEvent(world, candidatesOf(world, wave), run.lastEndlessEvent);
   run.endlessEvent = id;
   if (id !== "") run.lastEndlessEvent = id;
   return id;

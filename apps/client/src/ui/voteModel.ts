@@ -193,15 +193,26 @@ export function layoutEvacVote(w: number, h: number, insetBottom: number): VoteL
  * - only a choice that differs from the last one sent (a repeat of the same tap sends nothing);
  * - a token bucket (`VOTE_SEND_BURST` 3, refilled at `VOTE_SEND_PER_S` 3/s): a change goes out at
  *   once unless more than 3 went out in the last second; then the newest goes out on the next token;
- * - `urgent` (the last `VOTE_URGENT_MS` of the vote, or everyone has voted: the 1 s hold) also sends
- *   at once when the bucket is empty, at most one per `VOTE_URGENT_GAP_MS` (≤ ~6.7/s with the bucket:
- *   still inside the server's 10/s);
+ * - `urgent` (`voteUrgent`: the last `VOTE_URGENT_MS` of the vote, or everyone has voted — the 1 s
+ *   hold) may BORROW one token when the bucket is empty (re-review 2, RR2-L2: urgent sends count
+ *   against the bucket), at most one per `VOTE_URGENT_GAP_MS`. So at most 3 + 3 + 1 = 7 sends in the
+ *   first second and 3/s after it — with ~1 pong/s still inside the server's shared 10/s;
  * - a resend after `VOTE_PENDING_MS` if the server still shows another vote (a dropped message).
  */
 export const VOTE_SEND_BURST = 3;
 export const VOTE_SEND_PER_S = 3;
 export const VOTE_URGENT_MS = 500;
-export const VOTE_URGENT_GAP_MS = 150;
+export const VOTE_URGENT_GAP_MS = 250;
+/** Re-review 2 (RR2-L2): how far below zero an urgent send may take the bucket (one borrowed token). */
+export const VOTE_URGENT_DEBT = 1;
+
+/** Re-review 2 (N3): the vote is about to end — its last `VOTE_URGENT_MS`, or everyone has voted (the 1 s hold). */
+export function voteUrgent(voteTicksLeft: number, tickRateHz: number, players: readonly VotePlayerIn[], count: number): boolean {
+  if ((voteTicksLeft * 1000) / tickRateHz <= VOTE_URGENT_MS) return true;
+  if (count === 0) return false;
+  for (let i = 0; i < count; i++) if ((players[i] as VotePlayerIn).vote === VOTE_NONE) return false;
+  return true;
+}
 
 export class VoteSender {
   private wanted: EvacChoice | null = null;
@@ -237,7 +248,8 @@ export class VoteSender {
     const lost = this.sent === w && !confirmed && nowMs - this.sentAtMs > VOTE_PENDING_MS;
     if (this.sent === w && !lost) return null;
     if (this.tokens >= 1) this.tokens -= 1;
-    else if (!(urgent && nowMs - this.sentAtMs >= VOTE_URGENT_GAP_MS)) return null;
+    else if (urgent && this.tokens - 1 >= -VOTE_URGENT_DEBT && nowMs - this.sentAtMs >= VOTE_URGENT_GAP_MS) this.tokens -= 1; // borrowed (RR2-L2)
+    else return null;
     this.sent = w;
     this.sentAtMs = nowMs;
     return w;
@@ -251,4 +263,12 @@ export class VoteSender {
     this.tokensAtMs = 0;
     this.openKey = -1;
   }
+}
+
+/**
+ * Re-review 2 (N3): one frame of the vote sender as the Game scene runs it — urgent from `voteUrgent`
+ * (the server's ticks left and the voters) — so the netsim test runs the scene's exact step.
+ */
+export function pollVote(sender: VoteSender, voteKey: number, serverVote: number, nowMs: number, voteTicksLeft: number, tickRateHz: number, players: readonly VotePlayerIn[], count: number): EvacChoice | null {
+  return sender.poll(voteKey, serverVote, nowMs, voteUrgent(voteTicksLeft, tickRateHz, players, count));
 }

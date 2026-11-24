@@ -22,7 +22,7 @@ import { RunController } from "../../apps/server/src/run/RunController";
 import { Predictor } from "../../apps/client/src/net/prediction";
 import { PREDICTION_SNAP_M } from "../../apps/client/src/net/netConfig";
 import { neutralizeInput, standsStill } from "../../apps/client/src/input/menuInput";
-import { VOTE_URGENT_MS, VoteSender } from "../../apps/client/src/ui/voteModel";
+import { VoteSender, pollVote } from "../../apps/client/src/ui/voteModel";
 
 const TICK_MS = TICK_DT_S * 1000;
 let colyseus: ColyseusTestServer;
@@ -104,26 +104,39 @@ describe("Story 6.11 review M1: a vote flood keeps the last choice", () => {
     expect(w.run.endless).toBe(true); // resolved Stay: both voted Stay
   }, 20_000);
 
-  it("re-review RM1: inside the 1 s all-voted hold, Stay then a late Extract 100 ms before the end → the server holds Extract; the vote resolves Extract", async () => {
+  it("re-review RM1 / 2: inside the 1 s all-voted hold, with the bucket just drained, a late Extract → sent at once (a borrowed token) and counted", async () => {
     const { host, guest, w, hostId } = await toVote();
     guest.send(C2S.EVAC_VOTE, { choice: "stay" });
     await vi.waitFor(() => expect(w.players.size === 2 && [...w.players.values()].some((p) => p.vote === 2)).toBe(true));
     const sender = new VoteSender();
-    sender.poll(10, 0, 0);
     const t0 = Date.now();
-    sender.want("stay");
-    const urgentNow = () => [...w.players.values()].every((p) => p.vote !== 0) || w.run.voteTicksLeft * TICK_MS <= VOTE_URGENT_MS;
-    let c = sender.poll(10, 0, Date.now() - t0, urgentNow());
-    if (c) host.send(C2S.EVAC_VOTE, { choice: c });
-    await vi.waitFor(() => expect(w.players.get(hostId)?.vote).toBe(2)); // everyone in: the hold runs (≤ 20 ticks)
-    // wait until ~100 ms are left in the hold, then change my mind
-    await vi.waitFor(() => expect(w.run.voteTicksLeft).toBeLessThanOrEqual(3), { timeout: 2000, interval: 5 });
+    const voters = [
+      { slot: 0, vote: 0, standing: true, mine: true },
+      { slot: 1, vote: 2, standing: true, mine: false },
+    ];
+    // The scene's exact step (pollVote: urgent from the ticks left and the voters), my view of the server.
+    const frame = (): void => {
+      voters[0]!.vote = w.players.get(hostId)?.vote ?? 0;
+      const c = pollVote(sender, 10, voters[0]!.vote, Date.now() - t0, w.run.voteTicksLeft, 20, voters, 2);
+      if (c) host.send(C2S.EVAC_VOTE, { choice: c });
+    };
+    frame();
     sender.want("extract");
-    c = sender.poll(10, 2, Date.now() - t0, urgentNow());
-    expect(c).toBe("extract"); // sent on the tap
-    if (c) host.send(C2S.EVAC_VOTE, { choice: c });
+    frame();
+    await vi.waitFor(() => expect(w.players.get(hostId)?.vote).toBe(1)); // everyone in: the 1 s hold runs
+    await vi.waitFor(() => expect(w.run.voteTicksLeft).toBeLessThanOrEqual(12), { timeout: 2000, interval: 5 });
+    for (const c of ["stay", "extract", "stay"] as const) {
+      sender.want(c); // three quick changes: the bucket is empty after them
+      frame();
+      await sleep(1000 / 60);
+    }
+    await sleep(270 - 2 * (1000 / 60)); // past the 250 ms urgent gap, before a token refills (333 ms)
+    sender.want("extract"); // only the urgent borrow can send it now
+    const before = w.run.voteTicksLeft;
+    frame();
+    expect(before).toBeGreaterThan(0);
     await vi.waitFor(() => expect(w.run.phase).not.toBe("vote"), { timeout: 3000 });
-    expect(w.run.ending).toBe("extracted"); // 1 Stay of 2 is not more than half: my late Extract counted
+    expect(w.run.ending).toBe("extracted"); // my late Extract counted (1 Stay of 2 is not more than half)
   }, 20_000);
 });
 

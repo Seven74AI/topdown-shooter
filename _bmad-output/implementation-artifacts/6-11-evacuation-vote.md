@@ -445,6 +445,15 @@ Behaviour changes: **RM1** (vote sending), **RL1** (when the online dawn plays).
 
 **Mutations (all reverted):** killed: RL2 no new-run reset (onlineFlow 1) · RL1 no hidden rule (1) · RL1 no wave-start reset (1) · RM1 urgent off (voteModel/netsim 1) · RM1 urgent gap off (1) · RM1 no refill (1) · N1 `isEndlessEventWave` without the override (endless 1) · N1 `none` → [] removed, server (devBossWaves 1) and client (urlOptions 1) · N2 `standsStill` without the vote (netsim vote 1). Survived: GameScene `urgent` (N3), `scheduleEndlessEvent` override (N4).
 
+### Re-review 2 fixes (builder, 2026-11-24, on story-6-11 merged with `origin/rereview2-6-11` bb38395 + master)
+
+- **RR2-M1 [BEHAVIOUR] fixed (also RR2-L1)** — `net/onlineFlow.ts`: the "hidden lately" window is gone. The dawn is judged when the Results patch is processed: no dawn if the page is hidden then (`pageHidden`), or if it became visible less than `SHOWN_GRACE_MS` (1 s) before (`lastShownMs` — `main.ts` now tracks the last SHOW, not every change; a frozen tab runs its queued socket messages around the time it comes back). A tab switch earlier in the vote no longer costs a live player the dawn. Deps `voteS` / `lastHiddenMs` removed. Tests: a 2 s switch at the vote's start, live at the extract → the full dawn; hidden at the patch → none; shown 0.5 s before → none. Mutations killed: no hidden-now check (1), no just-shown check (1).
+- **RR2-L2 fixed** — `VoteSender`: an urgent send with the bucket empty BORROWS a token (at most `VOTE_URGENT_DEBT` = 1 below zero) and needs `VOTE_URGENT_GAP_MS` = 250 ms since the last send, so urgent sends count against the bucket: ≤ 7 sends in the first second (3 + 3 + 1), 3/s after — with ~1 pong/s inside the server's 10/s. Comment fixed. Test: taps every frame for 3 s, urgent throughout → ≤ 7 in any second, ≤ 4 in the third; a second borrow is refused.
+- **N3 fixed** — `voteModel.ts › voteUrgent(ticksLeft, hz, players, count)` and `pollVote(sender, …)` (the scene's exact per-frame step); `GameScene.updateVote` and `tools/netsim/vote.test.ts` both call `pollVote`. The hold test drains the bucket and changes again ~270 ms later (past the urgent gap, before a refill): only the borrowed urgent send gets it out; with urgent forced false that test fails.
+- **N4 fixed** — `scheduleEndlessEvent(world, candidatesOf = endlessEventCandidates)` (a test seam for the candidates until 6.8); `endless.test.ts`: with `bossWaves = [12]` nothing is scheduled before wave 12 and wave 20 gets one; without the override wave 20 gets none. Mutation (override not passed) fails.
+
+Behaviour changes: **RR2-M1** (when the online dawn plays). RR2-L2 changes the vote sender's urgent rate (≤ 1 borrowed token, 250 ms apart).
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -455,3 +464,4 @@ Behaviour changes: **RM1** (vote sending), **RL1** (when the online dawn plays).
 - 2026-11-24: Re-review (AI) of the review fixes on `3008990`: approve with follow-ups (1 medium RM1, 2 low, 2 nit).
 - 2026-11-24: re-review fixes RM1, RL1, RL2, N1, N2; merged master 3a0dac8.
 - 2026-11-24: Re-review 2 (AI) of the re-review fixes on `c61e0d7`: approve with follow-ups (1 medium RR2-M1, 2 low, 2 nit).
+- 2026-11-24: re-review 2 fixes RR2-M1 (+L1), RR2-L2, N3, N4.

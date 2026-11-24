@@ -7,7 +7,7 @@ import { DOWNTOWN_MAP } from "../map/downtown";
 import { addPlayer } from "../player/player";
 import { refreshBlackout } from "../decay/lightState";
 import { applyStartWave, parseStartWave } from "./devStartWave";
-import { isEndlessEventWave, pickEndlessEvent } from "./endlessEvents";
+import { isEndlessEventWave, pickEndlessEvent, scheduleEndlessEvent } from "./endlessEvents";
 import { endRun, skipWave, startBuild, startWave } from "./runStateMachine";
 
 /** Story 6.12: the light rule (F5, D3, D6/D8), the event waves (F6, D4) and the dev start-wave switch (AC 13). */
@@ -151,5 +151,19 @@ describe("Story 6.12 re-review N1: endless events follow the dev boss override",
     expect(isEndlessEventWave(balance, 20, true, [12])).toBe(true);
     expect(isEndlessEventWave(balance, 20, true, [])).toBe(true);
     expect(isEndlessEventWave(balance, 20, true, null)).toBe(false);
+  });
+});
+
+describe("Story 6.12 re-review 2 (N4): scheduleEndlessEvent honours world.debug.bossWaves", () => {
+  it("with ?bosswave=12: nothing is scheduled before wave 12 (a Behemoth there), wave 20 gets one; without the override wave 20 gets none (a Behemoth)", () => {
+    const fake = (): readonly string[] => ["stampede", "car_alarm"];
+    const w = endlessAt(12); // the build before wave 12
+    w.debug.bossWaves = [12];
+    expect(scheduleEndlessEvent(w, fake)).toBe("");
+    w.waves.number = 19; // the build before wave 20
+    expect(["stampede", "car_alarm"]).toContain(scheduleEndlessEvent(w, fake));
+    w.debug.bossWaves = null;
+    w.run.lastEndlessEvent = "";
+    expect(scheduleEndlessEvent(w, fake)).toBe("");
   });
 });

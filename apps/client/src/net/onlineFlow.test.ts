@@ -12,7 +12,8 @@ const batch = (tick: number): SimEventsFlushed => ({ tick, events: [[NET_EVENT_K
 
 /** The main.ts wiring with fakes: one room, its inbox, the ui requests seen. */
 let clock = 1000;
-let hiddenAt = Number.NEGATIVE_INFINITY;
+let hidden = false;
+let shownAt = Number.NEGATIVE_INFINITY;
 function setup() {
   const room = new FakeRoom(fakeState([fakePlayer(2, { name: "Cid", kills: 3, earned: 120 }), fakePlayer(0, { name: "Ana", kills: 7, earned: 245 })]));
   room.state.phase = "lobby";
@@ -31,9 +32,9 @@ function setup() {
     },
     inbox: () => inbox,
     dawnS: 4,
-    voteS: 15,
     nowMs: () => clock,
-    lastHiddenMs: () => hiddenAt,
+    pageHidden: () => hidden,
+    lastShownMs: () => shownAt,
     ui: {
       set: (s) => screens.push(s),
       request: (name, ...args) => requests.push({ name, arg: args[0] }),
@@ -126,7 +127,8 @@ describe("Story 6.11: the vote in the run cycle", () => {
   });
 
   it("re-review RL1: 5 s of dropped server ticks earlier in the run don't cost a live player the dawn (the clock restarts at each wave)", () => {
-    hiddenAt = Number.NEGATIVE_INFINITY;
+    shownAt = Number.NEGATIVE_INFINITY;
+    hidden = false;
     clock = 1000;
     const t = setup();
     t.room.state.tick = 0;
@@ -151,23 +153,51 @@ describe("Story 6.11: the vote in the run cycle", () => {
     expect(t.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock - 80 + 4000 });
   });
 
-  it("re-review RL1: a page hidden during the vote never plays a late dawn, even if the whole wave arrived in one late burst", () => {
-    clock = 1000;
+  /** The live vote → results of one run (wave start at `c0`, extract 5 s into the vote, 80 ms latency). */
+  function liveExtract(c0: number) {
+    clock = c0;
     const t = setup();
     t.room.state.tick = 600;
     t.phase("wave");
     t.room.state.tick = 1200;
-    t.phase("vote"); // the same late burst: every sample equally late
+    clock = c0 + 600 * 50;
+    t.phase("vote");
     t.room.state.resultEnding = "extracted";
     t.room.state.tick = 1300;
-    hiddenAt = clock - 100; // the page came back just now
+    clock = c0 + 700 * 50 + 80;
+    return t;
+  }
+
+  it("re-review 2 (RR2-M1): a 2 s tab switch at the vote's start, live at the extract → the full dawn", () => {
+    hidden = false;
+    shownAt = 1000 + 600 * 50 + 2000; // came back 2 s into the vote, 3 s before the extract
+    const t = liveExtract(1000);
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock - 80 + 4000 });
+    shownAt = Number.NEGATIVE_INFINITY;
+  });
+
+  it("re-review 2 (RR2-M1): hidden when the Results patch is processed → no dawn", () => {
+    hidden = true;
+    shownAt = Number.NEGATIVE_INFINITY;
+    const t = liveExtract(1000);
     t.phase("results");
     expect(t.screens.at(-1)).toMatchObject({ dawnEndsAtMs: clock });
-    hiddenAt = Number.NEGATIVE_INFINITY;
+    hidden = false;
+  });
+
+  it("re-review 2 (RR2-M1, RR2-L1): shown 0.5 s before the patch (a frozen tab's queued messages) → no dawn", () => {
+    hidden = false;
+    const t = liveExtract(1000);
+    shownAt = clock - 500;
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ dawnEndsAtMs: clock });
+    shownAt = Number.NEGATIVE_INFINITY;
   });
 
   it("re-review RL2: a new run seen without its lobby patch restarts the clock (run 2's dawn plays)", () => {
-    hiddenAt = Number.NEGATIVE_INFINITY;
+    shownAt = Number.NEGATIVE_INFINITY;
+    hidden = false;
     clock = 1000;
     const t = setup();
     t.room.state.tick = 50_000; // run 1 was long
@@ -284,7 +314,6 @@ describe("online run cycle in one room (Story 2.8)", () => {
       makeSession: () => null,
       inbox: () => null,
       dawnS: 4,
-      voteS: 15,
       ui: {
         set: (s) => {
           screens.push(s);
