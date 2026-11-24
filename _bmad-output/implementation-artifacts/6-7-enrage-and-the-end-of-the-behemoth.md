@@ -1,6 +1,6 @@
 # Story 6.7: Enrage and the end of the Behemoth
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -77,14 +77,14 @@ so that the last half of the fight is the hardest.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art (from the picks; no new pick).** Poses `roar` and `death` (3–4 collapse frames) for all four looks BH1–BH4 in the 6.5 boss atlas; the enraged outline/eyes frame (red eyes); the roar shock ring and Crawler-drop puff as pooled particles (no new texture beyond a soft dust sprite already in `blastFxAtlas.ts` if reusable). All via `addGeneratedTexture`. (AC 8)
-- [ ] **T1 Balance** (AC 1): `enrage`, `killPay`, `death` in `boss.json` + schema + `crossCheck`; `MONEY_REASONS` `"boss"` (+ `netEvents` encoding test).
-- [ ] **T2 Enrage + multipliers** (AC 2, 3; F1–F3): `boss/enrage.ts`, `bossTicks` in `telegraph.ts`, speed in the move step. Tests `boss/enrage.test.ts`.
-- [ ] **T3 Crawler drops** (AC 4; F4): in `enrage.ts`; uses `spawnZombie`, `announceSpawn`, `maxAliveNow`. Tests: interval table, skip rules, wave count, reward via the economy system.
-- [ ] **T4 Death** (AC 5, 6; F5–F7): `boss/death.ts › killBoss`, attack cancel, pay, kills, `resetBoss` at build start (`startBuild` in `runStateMachine.ts` calls it next to `clearGrenades`). Tests `boss/death.test.ts` (+ a kill on the hit tick of a slam: the slam does not land — resolve order: damage from combat runs before the boss system in `SYSTEM_ORDER`, so a boss killed in `combat` never resolves; test both orders of a same-tick kill and hit tick).
-- [ ] **T5 Network + client** (AC 7, 8): events + round trips, `eventInterest.ts` (crawler drop local), roar/death poses, banners, bar colours, music stop, skull/marker cleared. `NetSimHost.boss.test.ts` (+ a tab hidden across the roar and woken after the death: no "ENRAGED" banner late, "EVAC INBOUND" once — the `ageS` backlog rule of 5.7's banner).
-- [ ] **T6 Fuzz, sims** (brief 7, 9): extend `boss/behemoth.fuzz.test.ts` with enraged phases (start enraged in half the seeds): Crawlers never spawn inside a box or within 1.5 m of a player, alive ≤ 110 while the boss lives, no stall; liveness ≥ 1 roar, ≥ 3 drops, ≥ 1 death. 10-wave sim (6.1) or the 6-wave sim with `?bosswave`: the boss died, every player got 150, the wave ended after the rest was cleared, Results reached.
-- [ ] **T7 Gates.** Mutations (telegraph through `bossTicks` → F2 test; enrage during an attack → F1 test; pay only standing players → F6 test; attack not cancelled on death → F5 test; cap stays 110 after death → F7 test; drops ignore the cap → F4 test) and which failed. Browser check: solo `?bosswave=1&bosshp=0.2` to see the roar and the death quickly; online two tabs `?lag=150&jitter=20`, one hidden across the death. `typecheck && lint && test && build`. Merge notes.
+- [x] **T0 Art (from the picks; no new pick).** Poses `roar` and `death` (3–4 collapse frames) for all four looks BH1–BH4 in the 6.5 boss atlas; the enraged outline/eyes frame (red eyes); the roar shock ring and Crawler-drop puff as pooled particles (no new texture beyond a soft dust sprite already in `blastFxAtlas.ts` if reusable). All via `addGeneratedTexture`. (AC 8)
+- [x] **T1 Balance** (AC 1): `enrage`, `killPay`, `death` in `boss.json` + schema + `crossCheck`; `MONEY_REASONS` `"boss"` (+ `netEvents` encoding test).
+- [x] **T2 Enrage + multipliers** (AC 2, 3; F1–F3): `boss/enrage.ts`, `bossTicks` in `telegraph.ts`, speed in the move step. Tests `boss/enrage.test.ts`.
+- [x] **T3 Crawler drops** (AC 4; F4): in `enrage.ts`; uses `spawnZombie`, `announceSpawn`, `maxAliveNow`. Tests: interval table, skip rules, wave count, reward via the economy system.
+- [x] **T4 Death** (AC 5, 6; F5–F7): `boss/death.ts › killBoss`, attack cancel, pay, kills, `resetBoss` at build start (`startBuild` in `runStateMachine.ts` calls it next to `clearGrenades`). Tests `boss/death.test.ts` (+ a kill on the hit tick of a slam: the slam does not land — resolve order: damage from combat runs before the boss system in `SYSTEM_ORDER`, so a boss killed in `combat` never resolves; test both orders of a same-tick kill and hit tick).
+- [x] **T5 Network + client** (AC 7, 8): events + round trips, `eventInterest.ts` (crawler drop local), roar/death poses, banners, bar colours, music stop, skull/marker cleared. `NetSimHost.boss.test.ts` (+ a tab hidden across the roar and woken after the death: no "ENRAGED" banner late, "EVAC INBOUND" once — the `ageS` backlog rule of 5.7's banner).
+- [x] **T6 Fuzz, sims** (brief 7, 9): extend `boss/behemoth.fuzz.test.ts` with enraged phases (start enraged in half the seeds): Crawlers never spawn inside a box or within 1.5 m of a player, alive ≤ 110 while the boss lives, no stall; liveness ≥ 1 roar, ≥ 3 drops, ≥ 1 death. 10-wave sim (6.1) or the 6-wave sim with `?bosswave`: the boss died, every player got 150, the wave ended after the rest was cleared, Results reached.
+- [x] **T7 Gates.** Mutations (telegraph through `bossTicks` → F2 test; enrage during an attack → F1 test; pay only standing players → F6 test; attack not cancelled on death → F5 test; cap stays 110 after death → F7 test; drops ignore the cap → F4 test) and which failed. Browser check: solo `?bosswave=1&bosshp=0.2` to see the roar and the death quickly; online two tabs `?lag=150&jitter=20`, one hidden across the death. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
 
@@ -183,15 +183,10 @@ Two more poses in the existing boss atlas; the roar ring and drop puff reuse the
 
 ## Dev Agent Record
 
-### Agent Model Used
-
-### Debug Log References
-
-### Completion Notes List
-
-### File List
+Merged into Story 6.6 (designer 2026-11-24: "Behemoth charge, throw, enrage and end"). The one Dev Agent Record — debug log, mutations, completion notes, gate, "Not verified", "Notes for the merge" and the file list for both stories — is in `6-6-behemoth-charge-and-throw.md` › Dev Agent Record. 6.7's parts: `boss/enrage.ts`, `boss/death.ts`, `bossTicks` in `boss/telegraph.ts`, `MONEY_REASONS "boss"`, the 6.7 balance blocks, the roar / Crawler / death client cues; tests `boss/enrage.test.ts`, `boss/death.test.ts`, the enraged half of the fuzz, the run-sim liveness.
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: merged with 6.6 (designer); built as one story on branch `story-6-6` (record in the 6.6 file); status → review.
