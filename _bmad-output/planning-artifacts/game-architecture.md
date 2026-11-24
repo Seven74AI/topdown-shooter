@@ -162,12 +162,12 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | Persistence | **Single PostgreSQL** for accounts, meta-progression and saved runs | PostgreSQL 18 · pg 8.23 · Drizzle ORM 0.45 | One reliable store; user choice. 18 chosen over the brand-new 19.0 for maturity |
 | Saved runs | **Autosave** snapshot (JSON, versioned, includes every PRNG state) at each Build phase start and last tick for crash recovery; **Save and quit**, a server stop or everyone leaving in a Build phase makes it resumable for 7 days by any account that was in the run (Epic 8 D10–D13) | — | Matches GDD; snapshots only at calm points |
 | Reconnect | Colyseus `allowReconnection` 120 s; player slot, wallet and gear held in room state | Colyseus 0.18 | GDD 2-minute rule |
-| Accounts | Guest = random device token in localStorage → server session; upgrade to username + password (Argon2id hashed) | @node-rs/argon2 2.2 | No signup before first play (GDD); no email service needed |
+| Accounts | Guest = random 32-byte device token, kept in a 1-year HttpOnly cookie and a `localStorage` copy (Epic 7 D9), stored hashed → server session; account HTTP API in `apps/server/src/app.ts` (session, upgrade, login, recovery, unlock, training, look); the client gets a short-lived session ticket from it and sends the ticket in the Colyseus join options; upgrade to username + password (Argon2id hashed) | @node-rs/argon2 2.2 | No signup before first play (GDD); no email service needed |
 | Hosting | User's existing **Linux VPS in Europe** (6 vCPU, 12 GB RAM, ~30 GB free); Docker Compose: Caddy (plain HTTP on 127.0.0.1:8080 + static client, behind the Cloudflare Tunnel that terminates HTTPS/WSS) · game server · PostgreSQL; game at https://hordes.sevend.io; Hermes deploys (`docs/deploy.md`) | Caddy 2.11 · Node.js 26 LTS | Already owned, close to all players, ample capacity (user choice) |
 | Maps | Districts authored in **Tiled** (JSON export); one layer group per decay stage, toggled by the decay system; collision and cover as object layers | Tiled map format | Hand-made maps with data-driven decay |
 | Lighting | Darkness texture (a half-resolution canvas registered through `addGeneratedTexture`, not a RenderTexture: Story 6.3 DD1) with lights cut out (flashlights, floodlights, fires, muzzle flashes); lit only when needed | Phaser 4 | Proven in the Lamplight probe; cheap when off |
-| Balance data | All tunable numbers (weapons, zombies, buildings, waves, economy, decay timings) in typed JSON config in the shared package | — | Rebalance without code changes; server and client read the same values |
-| Randomness | Seeded PRNG per run (run seed + named sub-streams: events, decay, shop per player) | — | Reproducible runs for testing |
+| Balance data | All tunable numbers (weapons, zombies, buildings, waves, economy, decay timings) in typed JSON config in the shared package; `progression.json` (Supplies, unlock prices, Training) and `cosmetics.json` (survivor parts, no gameplay numbers) join in Epic 7 | — | Rebalance without code changes; server and client read the same values |
+| Randomness | Seeded PRNG per run (run seed + named sub-streams: decay, events, spawns, combat, loot (Story 7.12), shop per player) | — | Reproducible runs for testing |
 | UI | In-combat HUD drawn by Phaser; menus (lobby, shop, unlocks, evac vote) as HTML overlays built with **Preact** | Preact 11.2 | Readable, responsive menus on phones; small runtime |
 | Asset loading | Boot (tiny) → Preload (SFX, map data; the art atlases are generated in code at load, no character/district PNGs) → Game; music streamed after start; texture atlases | Phaser Loader | 15 MB / 10 s first-load target |
 | Audio | Three buses: music, SFX, ambience; positional volume/pan for zombie cues | Phaser Web Audio | GDD audio direction, settings |
@@ -196,7 +196,7 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 
 ### Data Persistence
 
-- **PostgreSQL tables (initial):** `accounts` (id, username, password hash, guest token, created), `progress` (account id, supplies, unlocks, training levels, districts), `saved_runs` (id, host account id, district, seed, snapshot JSON, schema version, created, expires).
+- **PostgreSQL tables (initial):** `accounts` (id, username, password hash, recovery code hash, guest token hash, display name, created), `progress` (account id, supplies, lifetime supplies, unlocks, training levels, districts; `look` from Story 7.9; `cosmetics`, `stats` from Story 7.11), `saved_runs` + `saved_run_players` (Story 8.4). Each story's migration adds only its own columns.
 - **Migrations:** Drizzle Kit, versioned in the repo.
 - **What is not persisted:** live wave state; a run can only be saved and resumed from a Build phase.
 

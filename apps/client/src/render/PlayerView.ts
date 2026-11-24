@@ -5,6 +5,9 @@ import { pulseAlpha, pulseScale } from "./pulse";
 import { ATLAS_CHARACTERS, SURVIVOR_FRAME, ensureAtlases, survivorFrameFor } from "./city/spriteAtlas";
 import { CHAR_EXTENT_R } from "./city/spriteArt";
 import { ABOVE_DARK } from "./darkness/aboveDark";
+import type { AnimatedLayerId } from "@topdown/shared";
+import { SURVIVOR_LAYERS, layerPose, type LayerPose } from "./city/survivorLayers";
+import type { SurvivorLayerPool } from "./SurvivorLayerPool";
 
 /** Story 4.9: the survivor sprite (`survivor_body_a`), tinted for states (MULTIPLY). */
 const BODY_TINT = 0xffffff;
@@ -31,6 +34,8 @@ export const BODY_DEPTH = 10;
 export const DARK_BODY_DEPTH = ABOVE_DARK.teammate;
 export const DARK_RING_DEPTH = ABOVE_DARK.teammate - 0.001;
 export const DARK_PLUS_DEPTH = ABOVE_DARK.teammate + 0.001;
+/** Story 7.8: an animated part layer (the propeller) sits just above the body. */
+const LAYER_DEPTH_STEP = 0.0005;
 
 /** Survivor seen from above (Story 4.9 sprite, facing its aim) on a slot-coloured ground ring. Units are meters. */
 export class PlayerView {
@@ -54,8 +59,13 @@ export class PlayerView {
   private readonly plusOffM: number;
   /** Story 5.3: the frame shown (the active weapon's survivor frame); changed only on a swap or buy. */
   private shownFrame = SURVIVOR_FRAME;
+  /** Story 7.8: the animated part layer (one pooled sprite) and its pose, reused every frame. */
+  private layer: { id: AnimatedLayerId; img: Phaser.GameObjects.Image; pool: SurvivorLayerPool } | null = null;
+  private readonly layerAt: LayerPose = { x: 0, y: 0, rotation: 0 };
+  private readonly radiusM: number;
 
   constructor(scene: Phaser.Scene, radiusM: number) {
+    this.radiusM = radiusM;
     // A stroked Arc with no fill, created once and only moved (no Graphics redraw).
     this.ring = scene.add
       .circle(0, 0, radiusM + RING_GAP_M)
@@ -70,6 +80,27 @@ export class PlayerView {
     this.plus.fillStyle(0x0b1a10, 0.8).fillRect(-h - 0.03, -t - 0.03, 2 * h + 0.06, 2 * t + 0.06).fillRect(-t - 0.03, -h - 0.03, 2 * t + 0.06, 2 * h + 0.06);
     this.plus.fillStyle(HEAL_PLUS_COLOR, 1).fillRect(-h, -t, 2 * h, 2 * t).fillRect(-t, -h, 2 * t, 2 * h);
     this.plusOffM = radiusM + RING_GAP_M + h;
+  }
+
+  /**
+   * Story 7.8: shows an animated part layer (e.g. the propeller cap's propeller) on this survivor, or none (null).
+   * Takes one sprite from `pool` (gives back the old one); Story 7.9 calls this from the player's look.
+   */
+  setAnimatedLayer(pool: SurvivorLayerPool, id: AnimatedLayerId | null): void {
+    if (this.layer?.id === id) return;
+    if (this.layer) this.layer.pool.release(this.layer.id, this.layer.img);
+    this.layer = null;
+    if (id === null) return;
+    const img = pool.acquire(id);
+    if (!img) return;
+    const side = 2 * SURVIVOR_LAYERS[id].extentR * this.radiusM;
+    img.setDisplaySize(side, side).setDepth(this.body.depth + LAYER_DEPTH_STEP).setVisible(this.body.visible);
+    this.layer = { id, img, pool };
+  }
+
+  /** Story 7.8 (tests): the layer sprite now, or null. */
+  get layerSprite(): Phaser.GameObjects.Image | null {
+    return this.layer?.img ?? null;
   }
 
   /** Story 5.10 (AC 9, D6): while `on` (my HP from state rose inside a ring), a green "+" by the body. */
@@ -91,6 +122,7 @@ export class PlayerView {
     this.ring.setDepth(on ? DARK_RING_DEPTH : RING_DEPTH);
     this.body.setDepth(on ? DARK_BODY_DEPTH : BODY_DEPTH);
     this.plus.setDepth(on ? DARK_PLUS_DEPTH : HEAL_PLUS_DEPTH);
+    this.layer?.img.setDepth(this.body.depth + LAYER_DEPTH_STEP);
   }
 
   /** Story 6.3 (tests): the body's and the ring's depths now. */
@@ -138,7 +170,13 @@ export class PlayerView {
       const shown = p.status !== "out";
       const tint = p.status === "downed" ? DOWNED_TINT : slowed ? SLOWED_TINT : BODY_TINT;
       this.body.setTint(tint).setVisible(shown);
+      this.layer?.img.setTint(tint).setVisible(shown);
       this.ring.setVisible(shown).setScale(1).setAlpha(1);
+    }
+    if (this.layer) {
+      // Story 7.8: the layer rides on the head and spins (a downed survivor's propeller keeps turning).
+      const at = layerPose(this.layerAt, this.layer.id, this.x, this.y, p.facingX, p.facingY, this.radiusM, timeMs);
+      this.layer.img.setPosition(at.x, at.y).setRotation(at.rotation);
     }
     if (p.status === "downed") {
       // Story 2.9: a downed survivor's ring pulses (mine too), so the revive chance is obvious.
@@ -150,5 +188,7 @@ export class PlayerView {
     this.ring.destroy();
     this.body.destroy();
     this.plus.destroy();
+    if (this.layer) this.layer.pool.release(this.layer.id, this.layer.img);
+    this.layer = null;
   }
 }

@@ -46,6 +46,7 @@ Player:
 36 what is happening to these zombies?
 37 what:            bullets:
 38 what:            what happens inside the green ring?
+49 do these four survivors carry anything that does something in the game? what?
 ```
 
 ## 1
@@ -169,3 +170,6 @@ Player:
 
 ## 48: what is this, and is it safe to stand in the red ring? When does it hit? (Story 6.5: the slam telegraph; the skull marks its target)
 ![48](../../art/6-5/6-5-800x360-telegraph.png)
+
+## 49: do these four survivors carry anything that does something in the game? (Story 7.8)
+![49](objects/49_survivor_looks.png)

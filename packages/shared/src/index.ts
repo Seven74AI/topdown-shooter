@@ -38,6 +38,26 @@ export {
   MAX_DEV_STARTING_WALLET,
   type DevBalanceOptions,
 } from "./config/devBalance";
+export {
+  ANIMATED_LAYERS,
+  COSMETIC_COLOURS,
+  COSMETIC_SLOTS,
+  COSMETICS,
+  CosmeticsError,
+  DEFAULT_LOOK,
+  STARTER_PARTS,
+  cosmeticPart,
+  layerSpinRevPerS,
+  loadCosmetics,
+  starterParts,
+  type AnimatedLayerId,
+  type CosmeticColour,
+  type CosmeticColours,
+  type CosmeticPart,
+  type Cosmetics,
+  type CosmeticSlot,
+  type SurvivorLook,
+} from "./config/cosmetics";
 export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, BearTrapStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";

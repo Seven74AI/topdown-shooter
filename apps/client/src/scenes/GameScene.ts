@@ -145,6 +145,7 @@ import type { NetSession } from "../net/session";
 import type { HudSceneData } from "./HudScene";
 import type { BootSceneData } from "./BootScene";
 import { parseBossWaves, urlOptions } from "../debug/urlOptions";
+import { SurvivorLayerPool } from "../render/SurvivorLayerPool";
 import { clientBalance, soloBalance } from "../debug/clientBalance";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
@@ -234,6 +235,9 @@ export class GameScene extends Phaser.Scene {
     if (!view) {
       view = new PlayerView(this, this.playerRadiusM);
       view.setSlot(this.host?.playerInfo(id).slot ?? 0); // Story 2.9: ring colour by slot
+      // Story 7.8: ?devlayer=propeller (dev builds) puts the spinning propeller layer on every survivor.
+      const devLayer = urlOptions().devLayer;
+      if (devLayer) view.setAnimatedLayer((this.layerPool ??= new SurvivorLayerPool(this)), devLayer);
       this.playerViews.set(id, view);
     }
     view.update(p, this.host?.alpha ?? 0, this.time.now, this.fxView?.saw?.running(id, this.time.now) === true); // Story 5.2: the running Chainsaw frame
@@ -259,6 +263,8 @@ export class GameScene extends Phaser.Scene {
   private burnView: BurnView | null = null;
   /** Story 5.4: flame streams and burning zombies (pooled), and when my fire last hurt each teammate (their ring flash). */
   private flameView: FlameView | null = null;
+  /** Story 7.8: sprites of animated part layers (the propeller), made on first use; they go with the scene. */
+  private layerPool: SurvivorLayerPool | null = null;
   private readonly ffFlashMs = new Map<string, number>();
   private flameLooping = false;
   private readonly slotOfPlayer = (id: string): number => this.host?.playerInfo(id).slot ?? -1;
@@ -644,6 +650,7 @@ export class GameScene extends Phaser.Scene {
     this.selectView = new BuildingSelectView(this);
     this.playerRadiusM = balance.player.radiusM;
     this.playerViews.clear(); // Phaser reuses this scene object: the old views died at shutdown
+    this.layerPool = null; // Story 7.8: its sprites died with the old scene
     this.fireCue.clear(); // Story 4.8
     this.burnView = new BurnView(this, urlOptions().lowFx); // Story 4.11 / 4.12 (?fx=low: half the particles)
     this.flameView = new FlameView(this, balance, urlOptions().lowFx); // Story 5.4

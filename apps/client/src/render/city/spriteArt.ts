@@ -8,6 +8,8 @@ import { CAR_COLORS, CAR_WRECK } from "./dressing";
 import { drawSpitter } from "./spitterArt";
 import { drawBrute } from "./bruteArt";
 import { BL_EXTENT_R, drawBloater } from "./bloaterArt";
+import { drawArms, drawHair, drawHead, drawPack, drawSkin, drawTop, outlineWidth, partColour } from "./survivorParts";
+import { DEFAULT_RESOLVED_LOOK, type ResolvedLook } from "./survivorLook";
 
 type G = CanvasRenderingContext2D;
 
@@ -207,11 +209,21 @@ export function drawZombie(c: G, type: ZombieTypeId, r: number, variant: number,
 /**
  * The survivor, top-down, facing +x (gun forward), at (0, 0). The slot ring is PlayerView's.
  * Story 5.3: `heldGun` draws a weapon's own top-down art in place of the plain gun (under the arms).
+ * Story 7.8: drawn from one function per slot (`survivorParts.ts`); `look` defaults to the default survivor
+ * (today's survivor with the designer's new cap). `layers` false leaves animated layers (the propeller) out: the game
+ * draws those as their own sprites (`survivorLayers.ts`).
  */
-export function drawSurvivor(c: G, r: number, heldGun?: (c: G, r: number) => void, back?: (c: G, r: number) => void): void {
+export function drawSurvivor(
+  c: G,
+  r: number,
+  heldGun?: (c: G, r: number) => void,
+  back?: (c: G, r: number) => void,
+  look: ResolvedLook = DEFAULT_RESOLVED_LOOK,
+  layers = true,
+): void {
   c.lineJoin = "round";
   c.strokeStyle = CHAR.outline;
-  c.lineWidth = Math.max(1, r * 0.08);
+  c.lineWidth = outlineWidth(r);
   // Story 5.4: a weapon's back piece (FT1's twin tanks) replaces the backpack, under everything.
   if (back) {
     c.save();
@@ -227,37 +239,12 @@ export function drawSurvivor(c: G, r: number, heldGun?: (c: G, r: number) => voi
     rrect(c, r * 0.3, -r * 0.13, r * 1.75, r * 0.26, 1);
     c.fill();
   }
-  c.strokeStyle = CHAR.jacket;
-  c.lineCap = "round";
-  c.lineWidth = r * 0.3;
-  c.beginPath();
-  c.moveTo(0, -r * 0.6);
-  c.lineTo(r * 0.85, -r * 0.1);
-  c.moveTo(0, r * 0.6);
-  c.lineTo(r * 0.55, r * 0.12);
-  c.stroke();
-  c.lineCap = "butt";
-  c.strokeStyle = CHAR.outline;
-  c.lineWidth = Math.max(1, r * 0.08);
-  if (!back) {
-    c.fillStyle = CHAR.pack;
-    rrect(c, -r * 0.98, -r * 0.48, r * 0.5, r * 0.96, r * 0.15);
-    c.fill();
-  }
-  c.fillStyle = CHAR.jacket;
-  ell(c, -r * 0.05, 0, r * 0.52, r * 0.9);
-  c.fill();
-  c.stroke();
-  c.fillStyle = CHAR.survivorSkin;
-  circle(c, r * 0.12, 0, r * 0.4);
-  c.fill();
-  c.stroke();
-  c.fillStyle = CHAR.cap;
-  ell(c, r * 0.02, 0, r * 0.36, r * 0.4);
-  c.fill();
-  c.beginPath();
-  c.ellipse(r * 0.38, 0, r * 0.16, r * 0.3, 0, -Math.PI / 2, Math.PI / 2);
-  c.fill();
+  drawArms(c, r, look.top, look.colours.top, look);
+  if (!back) drawPack(c, r, look.pack, partColour(look, "pack", look.pack), look);
+  drawTop(c, r, look.top, look.colours.top, look);
+  drawSkin(c, r, look.skin, look.colours.skin);
+  if (!look.hidesHair) drawHair(c, r, look.hair, look.colours.hair);
+  drawHead(c, r, look.head, partColour(look, "head", look.head), look, layers);
 }
 
 // ---------------------------------------------------------------------------
