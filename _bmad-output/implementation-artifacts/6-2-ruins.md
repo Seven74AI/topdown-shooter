@@ -450,3 +450,33 @@ Every finding fixed; each fix is checked by the mutation the reviewer named (app
 - **L6** — `zombies/ruins.fuzz.test.ts`: 1–2 extra players start on a random spot of the coming rubble (one of them downed now and then). After the stage change nobody is inside a box, and the test asserts `relocated.players` ≥ the layout count.
 
 **Gate after the fixes** (story-6-2 merged with `origin/master` efbe4ad, Story 6.6+6.7 included, after `npm ci`): `npm run typecheck && npm run lint && npm test && npm run build` green — 360 test files passed (1 skipped), 3,363 tests passed (3 skipped), 429 s; build OK. Load (1-min) 0.99 at the start, 2.05 at the end (this builder only). Merge conflicts with 6.6+6.7 resolved: `placeholderSfx.ts` (both SFX unions), readability sheet (both blocks; 6.2+6.4 at #50–54, 6.6+6.7 at #60–64), `behemoth.fuzz.test.ts` (6.6's `layoutWorld` now walks stages 1–5 with `masksForStage`; both its walk fuzz and its charge/throw/enrage fuzz pass, 74 s).
+
+### Re-review (AI) of the review fixes
+
+**Reviewer:** fresh agent (own cloud session), 2026-11-24. **Commit reviewed:** `1e1f037` (fix commit `6c88186`, merge of master `efbe4ad` at `c0945e2`), diff `df48a5a..1e1f037` without `*.md`. Narrow re-review (designer speed-up): only the fix commits; `npm ci`, `npm run typecheck` (green) and the touched tests only (no full gate).
+
+**Outcome: Approve** — no high or medium finding; 1 low, 1 nit. Every fix holds and every new test kills its mutation.
+
+**Tests run (unmutated, green):** `NetSimHost.fog.test`, `fogViews.test`, `collapse.test`, `ruins.test`, `decay.test`, `ruins.fuzz.test`, `behemoth.fuzz.test`, `tenWaveSim.test` — 8 files, 57 tests, 94 s. Plus `apps/client/src/scenes` + `apps/client/src/render` (80 files, 940 tests) for the wiring mutation.
+
+#### Exploit attempts
+
+1. **L4 refund by `paid` — farm money?** `paid` is written only by `placeBuilding` (= tier price), `upgradeBuilding` (+ step price) and `addBuildingAt` (= tier price; mirror/debug). Repairs (`repair.ts`) and moves (`move.ts`: free, keeps `paid`) never touch it; sell removes the building. Refund = `floor(paid × 0.5)` < `paid` always, so build-then-collapse is a loss in every case; moving a building onto a future pile spot in build 6 gives the same 50 % as before. The `paid ≤ 0 / NaN` fallback (tier price) is unreachable server-side (every price > 0). Probe over every shipped upgrade chain: wood → reinforced paid 90 = price 90 (refund 45 old and new), wood → reinforced → metal paid 160 = price 160 (80 / 80). **Same numbers today; no farm. Held.**
+2. **L5 trail fog.** `ScreenFog.visibility` returns 1 when the fog is off (stages < 5, lobby), so trails are unchanged there; `updateScreenFog` runs before `trailView.update` in the frame (`GameScene.ts` ~1968–1971), so the trail reads this frame's fog. One method call, no allocation per frame. `lastX/lastY` still advance while hidden, so no long mark appears when the Crawler comes out of the fog. **Held.**
+3. **L3 rename.** No production code calls `legalDecayMasks` or `gameplayDecayMasks` (shared, server, client and tools: tests and `masks.testkit` only). Every gameplay caller (11 fuzz/tests, `masksForStage`, client look tests) now calls `gameplayDecayMasks` (135); the only `legalDecayMasks` caller left is `collapse.test.ts:165`, which wanted the full masks before (`{ gameplayOnly: false }`) and gets the same 1,620 now. No fuzz walks 1,620. **Held.**
+4. **Merge resolution.** `behemoth.fuzz.test.ts`: 6.6's `layoutWorld` walks stages 1–5 with `masksForStage`; test 1 still asserts reach (`reachedAt` < 600 ticks per layout, counting 6.6's charge/throw hits) and that all three alleys ran (bits 9/10/11 checked: they are `ruins_alley_1..3`); 6.6's charge/throw/enrage fuzz keeps its no-attack-for-30-s stall check. `placeholderSfx.ts`: the union has 6.2's `ruins_rumble`, `debris_fall` and all 8 of 6.6/6.7's names, each with a `case`; typecheck green. **Held.**
+
+#### Mutations (each applied alone, its test run, restored)
+
+All killed: M1 NetSimHost passes `null` shooter · M1 shooter gear forced 0 (`NetSimHost.fog`) · L1 M16 ZombieView ignores fog (2 failing) · L1 M17 eyes ignore alpha · L1 M18 AcidView ignores fog · L5 trail drops while hidden (`fogViews`) · L2 M7 `isEndlessWave` `>=` (`collapse`) · L4 back to the tier price (`ruins`) · M3 buried rule removed from `classify` · M3 breaches always CLOSED (`tenWaveSim` (a)) · L6 `relocatePlayer` skipped (`ruins.fuzz`) · M2 fuzz back to stages 1–3 (`behemoth.fuzz`, the alley assertion).
+
+Survived: GameScene drops `this.zombieView.fog = this.screenFog` (R1).
+
+#### Findings
+
+| # | Sev | Title | Where | Scenario | Fix |
+|---|-----|-------|-------|----------|-----|
+| R1 | low | The GameScene fog hookups are still untested (the part of L1's scenario that named GameScene) | `apps/client/src/scenes/GameScene.ts:670-671` (and `acidView.fog` in `updateScreenFog`) | Deleting line 670 passes all 940 tests in `scenes/` + `render/`: every zombie would show through the fog at stage 5, and only a playtest would catch it. Same for line 671 (trails, L5). `fogViews.test` checks the views with a stub, not the wiring. | A small test that builds the views the way GameScene does (or extract a `wireFog(views, screenFog)` helper and test it), or a browser smoke at `?startwave=9` asserting `zombieView.fogHidden > 0`. |
+| R2 | nit | The M3 ring reading assumes fewer than `recentPicks` (6) picks per tick | `packages/shared/src/economy/tenWaveSim.test.ts:41-44` | If one tick picks ≥ 6 spawns, the head comes back to `prevHead` and the loop reads 0 picks, so "the buried mouth is never picked" checks nothing. Shipped balance: `spawnPerInterval` 2 every 0.25 s, so it cannot happen today. | Count picks with a counter or a spawn event, or assert `spawnPerInterval < recentPicks` in the test. |
+
+**Reviewed commit:** `1e1f037`. Branch `rereview-6-2` (this note only; no code changed).
