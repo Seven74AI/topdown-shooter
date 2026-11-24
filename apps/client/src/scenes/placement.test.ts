@@ -1006,4 +1006,57 @@ describe("Story 5.19: thumb drag to nudge and pin", () => {
     expect(ax > 22 && ax < 28 && ay > 15 && ay < 16).toBe(false);
     expect(Math.abs(ay - 15.5)).toBeGreaterThanOrEqual(0.5 + 0.5 - 0.35); // margin minus the snap
   });
+
+  it("re-review: the y side needs the same dominance (|net y| ≥ 0.5 × |net x|) as x", () => {
+    const r = rig();
+    r.drag(0.6, 0.25, still(), true); // y 0.25 < 0.5 × 0.6
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([1, 0]);
+    r.drag(-0.6, -0.3, still(), true); // a new gesture: y 0.3 ≥ 0.5 × 0.6
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([-1, -1]);
+  });
+
+  it("re-review: a centre in the band between the chip and ✕ (closer than two margins) never ends up under either: they push as one box", () => {
+    const r = rig();
+    r.f.viewMinX = 0;
+    r.f.viewMinY = 0;
+    r.f.viewMaxX = 50;
+    r.f.viewMaxY = 40;
+    // 800 × 360 stacked at ~33 px/m: the chip (160 × 32 px) and ✕ 8 px (0.24 m) below it
+    const chip = [22, 13, 26.8, 13.96];
+    const x = [25.2, 14.2, 26.64, 15.64];
+    r.f.avoid = [...chip, ...x, 0, 0, 0, 0, 0, 0, 0, 0];
+    r.f.avoidCount = 2;
+    r.drag(5.9, -0.17, still(), true); // (20, 14.25) → (25.9, 14.08): in the overlap of both margins
+    const [cx, cy] = r.centre() as [number, number];
+    const under = (b: number[]) => cx > (b[0] as number) && cx < (b[2] as number) && cy > (b[1] as number) && cy < (b[3] as number);
+    expect([under(chip), under(x)]).toEqual([false, false]);
+    expect(cy < 12.5 + 0.35 || cy > 16.14 - 0.35 || cx < 21.5 + 0.35 || cx > 27.3 - 0.35).toBe(true); // outside the union of both margins (minus the snap)
+  });
+
+  it("re-review: 400 random fast flicks against the real 800 × 360 cluster never leave the ghost's centre under Place, ⟳, ✕ or the chip", () => {
+    const r = rig();
+    const ppm = 100 / 3; // 800 × 360 at dpr 1: 33.3 px per metre, the view is 24 × 10.8 m
+    r.f.viewMinX = 0;
+    r.f.viewMinY = 0;
+    r.f.viewMaxX = 800 / ppm;
+    r.f.viewMaxY = 360 / ppm;
+    const px = [670, 230, 746, 306, 580, 250, 640, 310, 696, 116, 744, 164, 624, 100, 784, 132]; // Place, ⟳, ✕, chip (canvas px)
+    r.f.avoid = px.map((v) => v / ppm);
+    r.f.avoidCount = 4;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648) * 2 - 1;
+    let under = 0;
+    r.drag(0, 0, still(), true);
+    for (let i = 0; i < 400; i++) {
+      r.drag(rnd() * 6, rnd() * 4, still(), i % 20 === 0);
+      const [cx, cy] = r.centre() as [number, number];
+      for (let k = 0; k < 4; k++) {
+        const b = (r.f.avoid as number[]).slice(k * 4, k * 4 + 4) as [number, number, number, number];
+        if (cx > b[0] && cx < b[2] && cy > b[1] && cy < b[3]) under++;
+      }
+    }
+    expect(r.p.pinned).toBe(true);
+    expect(under).toBe(0);
+  });
 });
+

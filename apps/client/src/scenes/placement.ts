@@ -43,6 +43,8 @@ export const DRAG_SIDE_MIN_M = 0.25;
 export const DRAG_SIDE_DOMINANCE = 0.5;
 /** Story 5.19 review L4: the dragged ghost's centre keeps this far (m) outside the hand cluster's buttons and chip. */
 export const HAND_AVOID_MARGIN_M = 0.5;
+/** Re-review: the most avoided rects `Placement.drag` merges (the cluster has 4). */
+const AVOID_MAX_RECTS = 8;
 /** Story 5.18 (AC 2): the toast when the hand empties after a Place because the shown wallet can't pay another. */
 export const CHAIN_MONEY_TEXT = "Not enough money for another";
 
@@ -232,6 +234,8 @@ export class Placement {
   /** Story 5.19 review M2: the current drag gesture's net displacement (m), reset when a drag begins. */
   private netX = 0;
   private netY = 0;
+  /** Re-review: scratch for the avoided rects, expanded and merged into disjoint union boxes (4 numbers each). */
+  private readonly avoidBoxes = new Float64Array(AVOID_MAX_RECTS * 4);
   private readonly step = { dgx: 0, dgy: 0 };
   private readonly corner = { gx: 0, gy: 0 };
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
@@ -390,43 +394,72 @@ export class Placement {
     for (let i = 0; inY && i < CLAMP_MAX_STEPS && this.gy * BUILD_GRID_M + h / 2 > maxY - PIN_VIEW_INSET_M; i++) this.gy--;
   }
 
-  /** Review L4: pushes the continuous centre out of each avoided rect (+ margin), to its nearest side inside [lo, hi]; two passes for neighbours. */
+  /**
+   * Review L4: pushes the continuous centre out of the avoided rects (+ margin) to the nearest side
+   * inside [lo, hi]. Re-review: expanded rects that overlap (the stacked chip sits only 8 px above ✕,
+   * less than two margins) are first merged into one union box, so two pushes can't ping-pong and
+   * leave the ghost under ✕; the union boxes are disjoint, so one push per box is final.
+   */
   private avoidRects(r: ArrayLike<number>, n: number, loX: number, hiX: number, loY: number, hiY: number): void {
     const mg = HAND_AVOID_MARGIN_M;
-    for (let pass = 0; pass < 2; pass++) {
-      for (let i = 0; i < n; i++) {
-        const x0 = (r[i * 4] as number) - mg;
-        const y0 = (r[i * 4 + 1] as number) - mg;
-        const x1 = (r[i * 4 + 2] as number) + mg;
-        const y1 = (r[i * 4 + 3] as number) + mg;
-        const cx = this.dragCx;
-        const cy = this.dragCy;
-        if (!(cx > x0 && cx < x1 && cy > y0 && cy < y1)) continue;
-        let best = Number.POSITIVE_INFINITY;
-        let nx = cx;
-        let ny = cy;
-        if (x0 >= loX && cx - x0 < best) {
-          best = cx - x0;
-          nx = x0;
-          ny = cy;
+    const b = this.avoidBoxes;
+    let m = 0;
+    for (let i = 0; i < n && m < AVOID_MAX_RECTS; i++, m++) {
+      b[m * 4] = (r[i * 4] as number) - mg;
+      b[m * 4 + 1] = (r[i * 4 + 1] as number) - mg;
+      b[m * 4 + 2] = (r[i * 4 + 2] as number) + mg;
+      b[m * 4 + 3] = (r[i * 4 + 3] as number) + mg;
+    }
+    // merge overlapping (or touching) boxes until all are disjoint
+    for (let merged = true; merged; ) {
+      merged = false;
+      for (let i = 0; i < m && !merged; i++) {
+        for (let j = i + 1; j < m; j++) {
+          if ((b[i * 4] as number) > (b[j * 4 + 2] as number) || (b[j * 4] as number) > (b[i * 4 + 2] as number)) continue;
+          if ((b[i * 4 + 1] as number) > (b[j * 4 + 3] as number) || (b[j * 4 + 1] as number) > (b[i * 4 + 3] as number)) continue;
+          b[i * 4] = Math.min(b[i * 4] as number, b[j * 4] as number);
+          b[i * 4 + 1] = Math.min(b[i * 4 + 1] as number, b[j * 4 + 1] as number);
+          b[i * 4 + 2] = Math.max(b[i * 4 + 2] as number, b[j * 4 + 2] as number);
+          b[i * 4 + 3] = Math.max(b[i * 4 + 3] as number, b[j * 4 + 3] as number);
+          m--;
+          for (let k = 0; k < 4; k++) b[j * 4 + k] = b[m * 4 + k] as number; // the last box takes j's place
+          merged = true;
+          break;
         }
-        if (x1 <= hiX && x1 - cx < best) {
-          best = x1 - cx;
-          nx = x1;
-          ny = cy;
-        }
-        if (y0 >= loY && cy - y0 < best) {
-          best = cy - y0;
-          nx = cx;
-          ny = y0;
-        }
-        if (y1 <= hiY && y1 - cy < best) {
-          nx = cx;
-          ny = y1;
-        }
-        this.dragCx = nx;
-        this.dragCy = ny;
       }
+    }
+    for (let i = 0; i < m; i++) {
+      const x0 = b[i * 4] as number;
+      const y0 = b[i * 4 + 1] as number;
+      const x1 = b[i * 4 + 2] as number;
+      const y1 = b[i * 4 + 3] as number;
+      const cx = this.dragCx;
+      const cy = this.dragCy;
+      if (!(cx > x0 && cx < x1 && cy > y0 && cy < y1)) continue;
+      let best = Number.POSITIVE_INFINITY;
+      let nx = cx;
+      let ny = cy;
+      if (x0 >= loX && cx - x0 < best) {
+        best = cx - x0;
+        nx = x0;
+        ny = cy;
+      }
+      if (x1 <= hiX && x1 - cx < best) {
+        best = x1 - cx;
+        nx = x1;
+        ny = cy;
+      }
+      if (y0 >= loY && cy - y0 < best) {
+        best = cy - y0;
+        nx = cx;
+        ny = y0;
+      }
+      if (y1 <= hiY && y1 - cy < best) {
+        nx = cx;
+        ny = y1;
+      }
+      this.dragCx = nx;
+      this.dragCy = ny;
     }
   }
 

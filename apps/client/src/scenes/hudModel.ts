@@ -84,7 +84,7 @@ export interface HudModel {
   dragStartPx: number;
   /** Story 5.19 review M2: a drag gesture began since the last frame (the chain side's net displacement restarts). */
   dragBegan: boolean;
-  /** Story 5.19 review L1: a drag pointer is held (a pinned ghost then doesn't unpin by leaving the view). */
+  /** Story 5.19 review L1: a drag is in progress (the pointer crossed `dragStartPx` and is still down): a pinned ghost then doesn't unpin by leaving the view. */
   dragHeld: boolean;
   /** Story 5.19 (main-session decision): the short-screen chip (120 px, short text); set by the HUD's layout. */
   placementChipShort: boolean;

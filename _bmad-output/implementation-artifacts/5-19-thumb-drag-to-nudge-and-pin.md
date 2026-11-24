@@ -1,6 +1,6 @@
 # Story 5.19: Thumb drag to nudge and pin
 
-Status: review
+Status: done
 
 (Building UX rework BX-5. Design: `docs/ideas/building-ux/ux-spec.md` §4 (sizes: item chip 160 × 32, reason line above it), §5 (drag start > 8 px, gain 1.0, 0.1 m snap hysteresis), §6.2 Drag / pin, §6.3 (chain jump "toward the side the last drag went"), §15 (designer: **B · Carry + drag**, **no camera lead**), `draft-stories.md` › BX-5, feel: `prototype.html` › B · Carry + drag (`dragBy`, the chip) / claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR. Spine-wins rule: where the spec and the prototype disagree, the spec wins. Builds on 5.15 (`stepPlacement`, carry, hand cluster, the claimed right-half pointer), 5.16 (build bar), 5.17 (reason line, 250 ms hold, culprit) and 5.18 (chain, pending, `pendingFlow.ts › runPendingFrame`, the minimal pin). **Client-only: no message, schema or server change.**
 
@@ -142,6 +142,18 @@ Fresh-agent review by the main session (2026-11-24): **2 medium, 5 low, no high*
 
 Mutations of the fix tests, all **13 killed**: chip tap even after a drag; 8 px counts as a drag; `began` not reported; side from the last delta (the old code); no dominance rule; no 0.25 m minimum; net not reset on a new gesture; view unpin while held; drag in the chip frame; no hand avoid; avoid ignores the view bounds (survived at first — the corner case never entered the rect; the test now puts Place in the corner and kills it); short chip stays 160 px; short chip text ignored.
 
+### Re-review (fresh agent, main session, 2026-11-24)
+
+Clean of high and medium (M1, M2, L1, L2 correct; the merge intact). One low and two nits, all fixed:
+
+| # | Sev | Finding | Fix |
+| --- | --- | --- | --- |
+| R1 | Low | `avoidRects` could leave the ghost under ✕: on the stacked layout the chip–✕ gap (8 px ≈ 0.24–0.30 m) is less than two margins, so the expanded rects overlap and the two pushes ping-ponged (e.g. 800 × 360 at (21.5, 4.3); fast random flicks got stuck at 800 × 360 / 844 × 390 / 640 × 360). | The expanded rects are merged into disjoint union boxes first (fixed scratch `Float64Array`, no allocation), then one push per box to its nearest side inside the view. Tests: a centre in the chip/✕ overlap band ends under neither (kills the old per-rect pushes); 400 seeded random flicks against the real 800 × 360 cluster never leave the centre under Place, ⟳, ✕ or the chip (a liveness guard: on its own it doesn't hit the narrow band often enough to kill the old code; the band test does). |
+| R2 | Nit | `dragHeld` was set at touch-down, so a resting thumb or an uncrossed chip press blocked the view unpin. | `dragHeld` = `ThumbDrag.dragging` (set in `dragMove`, cleared on lift/reset). |
+| R3 | Nit | Surviving mutants: the y-axis dominance and the second avoid pass. | A y-dominance test (net (0.6, 0.25) sets no y side, (−0.6, −0.3) does); the second pass is replaced by the union merge, covered by the band test. Mutants re-run: "y dominance always true" and "no merge" both **killed**. |
+
+Checks after the re-review fixes: master `986a6a9` merged (Epic 6 looks, docs only); `tsc` clean; `eslint apps packages tools` clean; touched tests 24 files, 230 tests passed (`apps/client/src/{scenes,input}`, `NetSimHost.chain.test.ts`); no full gate (only `placement.ts`, `HudScene.ts`, `hudModel.ts` changed, as agreed). **Note:** `npm run lint` on master `986a6a9` itself fails (1160 errors in `docs/art/epic-6/src/*.js`, the Epic 6 look-lab scripts, not ignored by `eslint.config.js`); reported to the main session, not changed here.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -182,3 +194,4 @@ Claude (builder cloud session, gds-create-story → gds-dev-story).
 
 - 2026-11-24: Story file created (gds-create-story) and built (gds-dev-story): thumb drag, pin, chip, chain toward the drag, walk-away rule removed; gate green; browser check at 800 × 360 and 568 × 320. Status → review.
 - 2026-11-24: Review fixes M1, M2, L1–L4 (L5 accepted, note for 5.23); master `9f89d93` merged; full gate on the merged tree: exit 0, **277 test files passed, 1 skipped; 2326 tests passed, 3 skipped**, build OK (load 1.7 → 3.8); browser re-check of the fixes at both sizes (`docs/art/5-19/README.md`). Status stays review (the mediums get a re-review).
+- 2026-11-24: Re-review clean of high/medium; R1 (avoid boxes merged), R2 (`dragHeld` only for a real drag), R3 (tests) fixed; master `986a6a9` merged. Status → done.

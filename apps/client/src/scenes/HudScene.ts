@@ -657,7 +657,6 @@ export class HudScene extends Phaser.Scene {
         if (onChipRect(p.x, p.y, this.hand.chip, BUTTON_TOLERANCE_PX)) this.drag.down(p.id, p.x, p.y, true);
         else if (p.wasTouch && p.x < this.scale.width / 2) hudPointerDown(this.buttons, this.router, p, this.scale.width);
         else if (this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width).kind !== "button") this.drag.down(p.id, p.x, p.y); // Story 5.19
-        this.model.dragHeld = this.drag.pointerId !== -1;
         return;
       }
       hudPointerDown(this.buttons, this.router, p, this.scale.width);
@@ -712,6 +711,7 @@ export class HudScene extends Phaser.Scene {
   private dragMove(id: number, x: number, y: number): void {
     const m = this.model;
     this.drag.move(id, x, y, m.dragStartPx * dpr());
+    m.dragHeld = this.drag.dragging; // re-review: only a real drag (crossed dragStartPx) holds off the view unpin
     if (!this.drag.take(this.dragOut)) return;
     m.dragDxPx += this.dragOut.dx;
     m.dragDyPx += this.dragOut.dy;
