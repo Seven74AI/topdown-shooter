@@ -44,7 +44,7 @@ describe("Story 6.5 netsim: slams under ?lag=150&jitter=20", () => {
     let hits = 0;
     let misses = 0;
     let disagreed = 0;
-    let damaged = false;
+    let damaged: boolean;
     w.events.subscribe((e) => {
       if (e.type === "player.damaged" && e.tag === "boss") damaged = true;
     });
@@ -58,7 +58,7 @@ describe("Story 6.5 netsim: slams under ?lag=150&jitter=20", () => {
       pred.applyLocal(input);
       inFlight.push({ due: now + 75 + rng.range(-10, 10), input });
       while (inFlight.length > 0 && (inFlight[0] as { due: number }).due <= now) ctrl.queueInput(ID, (inFlight.shift() as { input: PlayerInput }).input);
-      const hitTick = b.state === BOSS_STATE.TELEGRAPH ? b.attack.hitTick : -1;
+      const hitTick = (b.state as number) === BOSS_STATE.TELEGRAPH ? b.attack.hitTick : -1;
       damaged = false;
       const atHit = w.tick === hitTick;
       const clientD = Math.hypot(pred.x - b.attack.cx, pred.y - b.attack.cy);

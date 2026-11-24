@@ -45,7 +45,7 @@ describe("Behemoth run sim (Story 6.5)", () => {
       if (ended) bossWaveCleared++;
     }
     const sources = [...bossDamageStats.byWeapon.entries()].filter(([, v]) => v > 0).map(([k]) => k);
-    console.log(`[boss run sim] arrived in ${arrived}/3 runs, wave 3 cleared in ${bossWaveCleared}; ${bossStats.slams - slams0} slams; damage by ${sources.join(", ")}`);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[boss run sim] arrived in ${arrived}/3 runs, wave 3 cleared in ${bossWaveCleared}; ${bossStats.slams - slams0} slams; damage by ${sources.join(", ")}`);
     expect(arrived).toBeGreaterThan(0);
     expect(bossStats.slams - slams0).toBeGreaterThan(0);
     expect(sources.length).toBeGreaterThanOrEqual(3);

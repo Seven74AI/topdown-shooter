@@ -84,6 +84,7 @@ import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
 import { pickDevDecayStages } from "../run/devDecayStages";
 import { pickDevBossWaves } from "../run/devBossWaves";
+import { pickDevStartWave } from "../run/devStartWave";
 import { pickDevShopCards } from "../run/devShopCards";
 import { pickDevShopAll } from "../run/devShopAll";
 import { resetRunFields, syncState } from "./schema/syncState";
@@ -683,6 +684,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const shopPick = pickDevShopCards(process.env, serverBalance);
     // Story 6.5 (dev only, read per run): DEV_BOSS_WAVES=3 brings the Behemoth in wave 3.
     const bossPick = pickDevBossWaves(process.env);
+    // Story 6.1 (dev only, read per run): DEV_START_WAVE=7 starts the run at wave 7 (its decay stage applied at the first build).
+    const startWavePick = pickDevStartWave(process.env, serverBalance);
     const controller = new RunController({
       balance: serverBalance,
       seed: runSeed,
@@ -694,6 +697,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       shopCards: shopPick.cards,
       bossWaves: bossPick.waves,
       scenario: this.scenario,
+      startWave: startWavePick.wave,
       // Story 3.7 (dev only, read per run like DEV_NO_WAVES): DEV_PLACED_BUILDING_HP=0.5 places buildings at half HP.
       devPlacedHpFraction: devPlacedHp,
       // Story 2.12: rewound hit testing; DEV_NO_REWIND=1 (dev only) turns it off for A/B checks of the overlay's reversed hits.
@@ -708,6 +712,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     else if (decayPick.ignored !== null) this.log.warn({ value: process.env.DEV_DECAY_STAGES, reason: decayPick.ignored }, "dev_decay_stages_ignored");
     if (bossPick.waves !== null) this.log.warn({ waves: bossPick.waves }, "dev_boss_waves");
     else if (bossPick.ignored !== null) this.log.warn({ value: process.env.DEV_BOSS_WAVES, reason: bossPick.ignored }, "dev_boss_waves_ignored");
+    if (startWavePick.wave !== null) this.log.warn({ wave: startWavePick.wave }, "dev_start_wave");
+    else if (startWavePick.ignored !== null) this.log.warn({ value: process.env.DEV_START_WAVE, reason: startWavePick.ignored }, "dev_start_wave_ignored");
     if (shopPick.cards !== null) this.log.warn({ cards: shopPick.cards }, "dev_shop_cards");
     else if (shopPick.ignored !== null) this.log.warn({ value: process.env.DEV_SHOP_CARDS, reason: shopPick.ignored }, "dev_shop_cards_ignored");
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");

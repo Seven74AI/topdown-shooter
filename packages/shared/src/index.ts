@@ -548,3 +548,5 @@ export { bossSlotOf, clearBossThreatSlot, pickBossTarget, recordBossThreat, thre
 export { maxAliveNow } from "./waves/waveDirector";
 export { knockPlayerBy } from "./player/knockback";
 export { type BossStats } from "./config/balanceSchema";
+// Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
+export { applyStartWave, parseStartWave } from "./run/devStartWave";

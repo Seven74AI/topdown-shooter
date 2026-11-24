@@ -60,13 +60,14 @@ const overrides: BalanceOverride[] = arg("set").map((s) => {
   return [(lhs as string).slice(0, dot) as BalanceOverride[0], (lhs as string).slice(dot + 1), Number(value)] as const;
 });
 /**
- * `--tenwave`: Story 6.1's planned 10-wave run (waves 7–10 mix from its F2, two Brutes in each);
+ * `--tenwave`: Story 6.1's 10-wave run (waves 7–10 mix from its F2, two Brutes in each). Story 6.1 put it
+ * in `waves.json`, so the flag only adds the entries to a balance that lacks them (kept for old notes);
  * `--god`: bots can't die (Story 6.1 D2: every run plays every wave, for the earnings check).
  */
 const tenWave = process.argv.includes("--tenwave");
 const god = process.argv.includes("--god");
 const raw = withOverrides(bundledBalanceFiles(), overrides) as unknown as Record<string, Record<string, unknown>>;
-if (tenWave) {
+if (tenWave && (raw.waves as { mix: unknown[] }).mix.length < 10) {
   const w = raw.waves as { runWaves: number; mix: Record<string, number>[]; fixed: Record<string, number>[] };
   w.runWaves = 10;
   w.mix.push(

@@ -17,6 +17,7 @@ import {
   setBuildReady,
   setInput,
   startBuild,
+  applyStartWave,
   step,
   type Balance,
   type DistrictMap,
@@ -89,9 +90,13 @@ export class LocalSimHost implements SimHost {
   private readonly unsubscribe: () => void;
   readonly stats: SimStepStats = { lastUpdateSteps: 0, stepMs: new Float64Array(MAX_CATCHUP_STEPS), totalSteps: 0 };
 
-  /** Story 4.1: `map` defaults to `DOWNTOWN_MAP` (tests may pass the open `PLACEHOLDER_MAP`). */
-  constructor(opts: { balance: Balance; seed: number; map?: DistrictMap }) {
+  /**
+   * Story 4.1: `map` defaults to `DOWNTOWN_MAP` (tests may pass the open `PLACEHOLDER_MAP`). Story 6.1
+   * dev (`?startwave=7`): `startWave` makes the first build lead into that wave (null = wave 1).
+   */
+  constructor(opts: { balance: Balance; seed: number; map?: DistrictMap; startWave?: number | null }) {
     this.world = createWorld({ balance: opts.balance, seed: opts.seed, map: opts.map ?? DOWNTOWN_MAP });
+    if (opts.startWave) applyStartWave(this.world, opts.startWave); // Story 6.1: before the first build start
     this.unsubscribe = this.world.events.subscribe((e) => this.events.push(e));
     // Story 3.1: solo runs the same state machine as the server: Lobby → the first build phase. The
     // scene adds the player right after (the build heal of nobody is a no-op); `build.started` is

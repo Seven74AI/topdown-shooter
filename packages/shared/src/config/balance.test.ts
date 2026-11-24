@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BalanceError, bundledBalanceFiles, loadBalance, withOverrides, type RawBalanceFiles } from "./balance";
 import { fxSchema } from "./balanceSchema";
+import { MAX_FIXED_PER_WAVE } from "./constants";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
@@ -118,8 +119,39 @@ describe("loadBalance", () => {
       expect(b.zombies.types[id], id).toMatchObject({ buildingDamageMult: 1, knockbackTakenPct: 100, hitKnockbackM: 0, windupS: 0, swingReachM: 0, wideBody: false });
     }
     expect(b.zombies.pathing.wideInflateM).toBe(0.25);
-    expect(b.waves.fixed).toEqual([{}, {}, {}, {}, { brute: 1 }, { brute: 1 }]);
+    expect(b.waves.fixed.slice(0, 6)).toEqual([{}, {}, {}, {}, { brute: 1 }, { brute: 1 }]); // Story 6.1 adds waves 7–10
     expect(b.waves.fixedAtFraction).toBe(0.25);
+  });
+
+  it("Story 6.1: the 10-wave run: runWaves 10, mix and two Brutes for waves 7–10, Brutes at 25 % and 65 %", () => {
+    const w = loadBalance().waves;
+    expect(w.runWaves).toBe(10);
+    expect(w.mix.slice(6)).toEqual([
+      { walker: 38, runner: 22, crawler: 15, spitter: 10, bloater: 15 },
+      { walker: 35, runner: 24, crawler: 15, spitter: 11, bloater: 15 },
+      { walker: 40, runner: 18, crawler: 17, spitter: 10, bloater: 15 },
+      { walker: 38, runner: 22, crawler: 15, spitter: 10, bloater: 15 },
+    ]);
+    expect(w.fixed.slice(6)).toEqual([{ brute: 2 }, { brute: 2 }, { brute: 2 }, { brute: 2 }]);
+    expect(w.fixedAtFractions).toEqual([0.25, 0.65]);
+  });
+
+  it("Story 6.1: fixedAtFractions validated (ascending, each in [0, 1), covers the biggest fixed entry; ≤ MAX_FIXED_PER_WAVE)", () => {
+    const set = (fracs: unknown, fixed?: unknown) => {
+      const files = raw();
+      (files.waves as { fixedAtFractions: unknown }).fixedAtFractions = fracs;
+      if (fixed !== undefined) (files.waves as { fixed: unknown }).fixed = fixed;
+      return files;
+    };
+    expect(() => loadBalance(set([0.65, 0.25]))).toThrow(/waves\.json: fixedAtFractions.*ascending/);
+    expect(() => loadBalance(set([0.25, 1]))).toThrow(/waves\.json: fixedAtFractions\.1/);
+    expect(() => loadBalance(set([-0.1, 0.65]))).toThrow(/waves\.json: fixedAtFractions\.0/);
+    expect(() => loadBalance(set([0.25]))).toThrow(/waves\.json: fixedAtFractions has 1 entries but a wave holds 2 fixed zombies/);
+    expect(() => loadBalance(set([]))).not.toThrow(); // empty: fixedAtFraction for every fixed zombie (D-A)
+    expect(() => loadBalance(set([0.25, 0.25]))).not.toThrow(); // equal points are allowed (both at once)
+    expect(() => loadBalance(set([], [{}, { brute: 9 }]))).toThrow(/waves\.json: a fixed entry holds 9 zombies, more than the 8/);
+    expect(() => loadBalance(set([], [{}, { brute: 8 }]))).not.toThrow();
+    expect(MAX_FIXED_PER_WAVE).toBe(8);
   });
 
   it("Story 5.7: fixed counts are validated (known type, in ZOMBIE_TYPES, ≤ the smallest wave)", () => {
@@ -131,7 +163,7 @@ describe("loadBalance", () => {
     expect(() => loadBalance(set([{ behemoth: 1 }]))).toThrow(/waves\.json: fixed\.0: unknown zombie type behemoth/);
     // Wave 1 solo = 40 × 0.35 = 14 zombies (Epic 5 balance pass B2).
     expect(() => loadBalance(set([{ brute: 15 }]))).toThrow(/waves\.json: fixed\.0: 15 fixed zombies exceed the smallest wave 1 \(14 solo\)/);
-    expect(() => loadBalance(set([{ brute: 14 }]))).not.toThrow();
+    expect(() => loadBalance(set([{ brute: 2 }, { brute: 2 }]))).not.toThrow(); // Story 6.1: ≤ MAX_FIXED_PER_WAVE and a fixedAtFractions point each
     expect(() => loadBalance(set([{ brute: -1 }]))).toThrow(/waves\.json: fixed\.0\.brute/);
   });
 
