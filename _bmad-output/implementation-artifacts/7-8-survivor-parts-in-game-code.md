@@ -3,7 +3,7 @@ baseline_commit: 8e226d1610ad352b988ed99eaddd29b28d4f268e
 ---
 # Story 7.8: Survivor parts in game code
 
-Status: review
+Status: done
 
 (Created 2026-11-24 after the Epic 7 readiness check, `_bmad-output/planning-artifacts/implementation-readiness-report-2026-11-24-epic-7.md`, and its fixes, `sprint-change-proposal-2026-11-24-epic-7-readiness.md`. Source design: `docs/ideas/customization/proposal.md` D1–D7, O1–O6; prototype `docs/ideas/customization/avatar-editor.html`. FR89.)
 
