@@ -1,6 +1,9 @@
+---
+baseline_commit: 8f81792
+---
 # Story 6.1: The full 10-wave curve
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -74,28 +77,28 @@ Most relevant here: 3/4 (fairness rules, "Beat the rule"), 8 (no new randomness:
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art.** No new art: waves 7–10 use existing zombie looks. Stages 4–5 look as today ("late night" / "before dawn" in `NIGHT_BY_STAGE`) until Stories 6.2 and 6.4 land; say so in the Completion Notes.
-- [ ] **T1 Balance** (AC 1, 7)
-  - [ ] `waves.json`: `runWaves` 10; `mix[6..9]`; `fixed[6..9] = { "brute": 2 }`; `fixedAtFractions: [0.25, 0.65]`.
-  - [ ] `balanceSchema.ts › wavesSchema`: `fixedAtFractions: z.array(z.number().min(0).lt(1)).default([])` (ascending refine); comment on `runWaves` updated ("Epic 6: 10; Story 6.11 opens the vote after it").
-  - [ ] `balance.ts › crossCheck` (AC 7). Tests in `config/balance.test.ts`.
-- [ ] **T2 Fixed zombies spread** (AC 2; F3)
-  - [ ] `waves/waveDirector.ts`: `WaveState.fixedAt` (one number) → per-wave thresholds for each fixed zombie (a small preallocated `Uint16Array fixedAtList` of length `MAX_FIXED_PER_WAVE` (balance-checked against the `fixed` lists, e.g. 8; Story 6.12's endless Brutes get their thresholds by formula, not from this list), filled by `beginWave`), plus `fixedServed` (how many fixed zombies have spawned this wave). `waveZombieType` serves the next fixed zombie only when `size − queued ≥ fixedAtList[fixedServed]`. No allocation, no RNG draw.
-  - [ ] `snapshotWorld` (`core/worldSnapshot.ts`): the new arrays (`Array.from`, as `typeTarget`).
-  - [ ] Tests (AC 8).
-- [ ] **T3 Remove the 6-wave ending** (AC 3; F6)
-  - [ ] Update every reader of `runWaves` and every "6 waves" comment: `runStateMachine.ts` (header), `balanceSchema.ts`, `fiveWaveSim.test.ts`, `tools/sims/fiveWave.ts` (help text; the per-wave table uses `runWaves`), `ResultsScreen.tsx` header comment, the 11 test files that read `runWaves` (`grep -rln runWaves --include=*.test.ts`) — most pass `runWaves` through `withOverrides` and keep working; fix the ones that assume 6.
-  - [ ] `RunRoom.3-10.test.ts`: the held-out path now needs 10 waves (use a `runWaves` override for speed, plus one real-balance check that `runWaves === 10`).
-- [ ] **T4 Ten-wave sim** (AC 5; brief 9, 15)
-  - [ ] `bots/headlessRun.ts`: `maxTicks` default 40 min; `god` option (`world.debug.godMode`, as `applyTestScenario`); the log keeps `waves[]` per wave.
-  - [ ] `economy/tenWaveSim.test.ts` (a) and (b); 6-wave checks moved to a `runWaves 6` override.
-  - [ ] `tools/sims/fiveWave.ts` → accepts `--waves 10` (default `runWaves`) and `--god`; output prints the GDD target 2,500–3,000.
-  - [ ] Record the earnings result (mean, range, gap to the target, by player count) in the Completion Notes and in `docs/epic-5-decisions.md`-style one line for the Epic 5 balance pass (do not change prices: brief 15).
-- [ ] **T5 Dev switch** (AC 6; brief 18)
-  - [ ] Server: `apps/server/src/run/devStartWave.ts` (new, the `devDecayStages.ts` pattern: parse, refuse outside dev, log `dev_start_wave`); `RunController` option `startWave`; `RunRoom` passes it.
-  - [ ] Solo: `?startwave=` read where `?wavemix` is (dev builds only), passed to `LocalSimHost`.
-  - [ ] Tests: `devStartWave.test.ts` (parse, refused in production, the first wave is N, its stage is applied).
-- [ ] **T6 Gates.** Mutations (e.g. `fixedAtFractions` ignored → "second Brute waits" fails; `runWaves` back to 6 → state machine test fails; god mode off in (a) → `wavesCleared === 10` fails; mix entry 9 removed → exact-count test fails) and which tests failed. Browser check: solo `?startwave=9&wallet=3000` (wave 9 and 10, Results "You held out!" after wave 10), online two tabs with `DEV_START_WAVE=10`. Record `?stress=150` is not affected (no render change) — skip with a note. `typecheck && lint && test && build`. Merge notes.
+- [x] **T0 Art.** No new art: waves 7–10 use existing zombie looks. Stages 4–5 look as today ("late night" / "before dawn" in `NIGHT_BY_STAGE`) until Stories 6.2 and 6.4 land; say so in the Completion Notes.
+- [x] **T1 Balance** (AC 1, 7)
+  - [x] `waves.json`: `runWaves` 10; `mix[6..9]`; `fixed[6..9] = { "brute": 2 }`; `fixedAtFractions: [0.25, 0.65]`.
+  - [x] `balanceSchema.ts › wavesSchema`: `fixedAtFractions: z.array(z.number().min(0).lt(1)).default([])` (ascending refine); comment on `runWaves` updated ("Epic 6: 10; Story 6.11 opens the vote after it").
+  - [x] `balance.ts › crossCheck` (AC 7). Tests in `config/balance.test.ts`.
+- [x] **T2 Fixed zombies spread** (AC 2; F3)
+  - [x] `waves/waveDirector.ts`: `WaveState.fixedAt` (one number) → per-wave thresholds for each fixed zombie (a small preallocated `Uint16Array fixedAtList` of length `MAX_FIXED_PER_WAVE` (balance-checked against the `fixed` lists, e.g. 8; Story 6.12's endless Brutes get their thresholds by formula, not from this list), filled by `beginWave`), plus `fixedServed` (how many fixed zombies have spawned this wave). `waveZombieType` serves the next fixed zombie only when `size − queued ≥ fixedAtList[fixedServed]`. No allocation, no RNG draw.
+  - [x] `snapshotWorld` (`core/worldSnapshot.ts`): the new arrays (`Array.from`, as `typeTarget`).
+  - [x] Tests (AC 8).
+- [x] **T3 Remove the 6-wave ending** (AC 3; F6)
+  - [x] Update every reader of `runWaves` and every "6 waves" comment: `runStateMachine.ts` (header), `balanceSchema.ts`, `fiveWaveSim.test.ts`, `tools/sims/fiveWave.ts` (help text; the per-wave table uses `runWaves`), `ResultsScreen.tsx` header comment, the 11 test files that read `runWaves` (`grep -rln runWaves --include=*.test.ts`) — most pass `runWaves` through `withOverrides` and keep working; fix the ones that assume 6.
+  - [x] `RunRoom.3-10.test.ts`: the held-out path now needs 10 waves (use a `runWaves` override for speed, plus one real-balance check that `runWaves === 10`).
+- [x] **T4 Ten-wave sim** (AC 5; brief 9, 15)
+  - [x] `bots/headlessRun.ts`: `maxTicks` default 40 min; `god` option (`world.debug.godMode`, as `applyTestScenario`); the log keeps `waves[]` per wave.
+  - [x] `economy/tenWaveSim.test.ts` (a) and (b); 6-wave checks moved to a `runWaves 6` override.
+  - [x] `tools/sims/fiveWave.ts` → accepts `--waves 10` (default `runWaves`) and `--god`; output prints the GDD target 2,500–3,000.
+  - [x] Record the earnings result (mean, range, gap to the target, by player count) in the Completion Notes and in `docs/epic-5-decisions.md`-style one line for the Epic 5 balance pass (do not change prices: brief 15).
+- [x] **T5 Dev switch** (AC 6; brief 18)
+  - [x] Server: `apps/server/src/run/devStartWave.ts` (new, the `devDecayStages.ts` pattern: parse, refuse outside dev, log `dev_start_wave`); `RunController` option `startWave`; `RunRoom` passes it.
+  - [x] Solo: `?startwave=` read where `?wavemix` is (dev builds only), passed to `LocalSimHost`.
+  - [x] Tests: `devStartWave.test.ts` (parse, refused in production, the first wave is N, its stage is applied).
+- [x] **T6 Gates.** Mutations (e.g. `fixedAtFractions` ignored → "second Brute waits" fails; `runWaves` back to 6 → state machine test fails; god mode off in (a) → `wavesCleared === 10` fails; mix entry 9 removed → exact-count test fails) and which tests failed. Browser check: solo `?startwave=9&wallet=3000` (wave 9 and 10, Results "You held out!" after wave 10), online two tabs with `DEV_START_WAVE=10`. Record `?stress=150` is not affected (no render change) — skip with a note. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
 
@@ -191,13 +194,81 @@ None (T0).
 
 ### Agent Model Used
 
+Claude (Claude Code cloud session, BMAD `gds-dev-story`).
+
 ### Debug Log References
+
+- Mutation checks (T6): `fixedAtFractions` ignored → 3 tests fail (`fillFixedAtList …`, `F3 …`, `the second Brute waits for 65 % SPAWNED`); `runWaves` back to 6 → 5 `runStateMachine.test.ts` tests fail; mix entry 9 removed → `F2 …` fails; god mode off in sim (a) → **first run survived** (mortal 4-bot runs also clear all 10 waves), so (a) now also asserts `world.debug.godMode` at the end and zero downs → fails as it should.
+- `docs/epic-6-decisions.md` / `docs/epic-5-decisions.md` log (brief 32): the Epic 5 balance pass (1ad557d, newer than the story) set solo × 0.35 (B2) and the wave bonus 15 × N (B1); the story's F1 solo column (× 0.4) is replaced by × 0.35: waves 7–10 solo = 98 / 112 / 126 / 140 (tests use the real balance). Start money is 200 (the sim checks `wallet = startingWallet + earned − spent`).
 
 ### Completion Notes List
 
+- **T0 Art:** no new art. Waves 7–10 use the existing zombie looks; stages 4–5 look as today ("late night" / "before dawn" in `NIGHT_BY_STAGE`) until Stories 6.2 (+6.4) land.
+- **T1 Balance:** `waves.json` `runWaves` 10, `mix[6..9]` (F2), `fixed[6..9] = { brute: 2 }`, `fixedAtFractions [0.25, 0.65]`; `fixedAtFraction` 0.25 kept (D-A: the default for an empty list / past the list). Schema: ascending, each in [0, 1). `crossCheck`: a non-empty list must cover the biggest `fixed` entry; a `fixed` entry may hold at most `MAX_FIXED_PER_WAVE` (8, `config/constants.ts`, a buffer size like the pool capacities). The 65,535 biggest-wave check passes (400).
+- **T2 Fixed zombies spread:** `WaveState.fixedAt` → `fixedAtList` (preallocated `Uint16Array(MAX_FIXED_PER_WAVE)`) + `fixedServed` + `fixedTotal`, filled by `fillFixedAtList` in `beginWave`: k-th = max(prev, min(size − fixedTotal + k, round(size × frac_k))). One helper `nextFixedType(w)` decides both the type pick and the fixed count (the old duplicated condition is gone). With one fixed zombie the point is Story 5.7's `min(size − 1, round(size × 0.25))`, so waves 1–6 are bit for bit unchanged (wave-5/6 Brute tests unchanged and green). No RNG draw, no allocation. `snapshotWorld` copies `fixedTarget`, `fixedSpawned`, `fixedAtList` as arrays (no test pins a digest; no fixture regenerated).
+- **T3 6-wave ending removed:** the ending is data (`runWaves` 10); comments updated (`runStateMachine.ts` header, `balanceSchema.ts`, `ResultsScreen.tsx`, `tools/sims/fiveWave.ts`); `runStateMachine.test.ts` now clears wave 10 → Results held out (bonus 150 = 10 × 15), waves 6 and 9 → build, wipe on the same tick as the last kill of wave 10 → one ending, the wipe (beat the rule 3). `RunRoom.3-10.test.ts` uses the real balance (`runWaves` 10 asserted) and skips to wave 10 (2p: 240; earned 825 each). The fuzz tests already override `runWaves` 20; `fire.test.ts` 10; `decay.test.ts`' whole-run test keeps its 6-wave run by override.
+- **T4 Ten-wave sim:** `runHeadless` `maxTicks` default 40 min, `god` option (refused together with `record`: a god run is not replayable). `economy/tenWaveSim.test.ts` (a) 4 god bots × seeds 1–3: all 10 waves, held out, sizes 40…400, money adds up, exactly 2 Brutes in each of waves 7–10 (1 in 5–6), Bloater bursts in wave 10, earnings logged vs 2,500–3,000; (b) mortal 1–4 bots × seeds 1–3: every run ends on Results, survival logged; ≥ 1 run reaches wave 7+. `fiveWaveSim.test.ts` keeps its 6-wave checks via `runWaves 6` overrides (D-B). `tools/sims/fiveWave.ts`: `--waves N`, `--god`, prints the GDD target. `tools/sims/balancePass.ts --tenwave` only adds entries to a balance that lacks them (it would otherwise append duplicates now).
+- **Earnings (D3: logged only, no price change):** tenWaveSim (a), bots.json list, 4p: mean **2,577** per player (gap 0 %), range 2,226–3,145 (−11.0 % / +4.8 %). Mortal (b): 2p mean 2,728, 3p 2,602, 4p 2,636; solo 984 (wiped in waves 6–7). `balancePass.ts --god` (balance-pass card list, 6 seeds): 2p **2,769** (2,482–3,200), 3p **2,531** (2,143–3,316), 4p **2,435** (1,813–3,119; −2.6 % under the floor). One line added to `docs/epic-5-decisions.md` › Epic 5 balance pass.
+- **Epic 5 balance-pass watch items:** (1) 2p above 3,000: mean 2,769, single runs up to 3,200 before any human assist — watch; (2) turrets near the cap: bots place 3–6 of the 6 allowed, a few reach the cap; turret kills ≈ a third of all kills at 4p — watch; (3) Flamethrower dominance: no signal (single-gun loadout runs stall in `balancePass.ts` for SMG and Assault Rifle too: a bot-tool limit); (4) solo × 0.35 too easy: mortal solo bots held out **0/12** (best wave 7) over 10 waves — not too easy for bots.
+- **T5 Dev switch:** shared `run/devStartWave.ts` (`parseStartWave` 1 … `runWaves`, `applyStartWave` lobby only); server `run/devStartWave.ts` `pickDevStartWave` (refused in production, `dev_start_wave` / `dev_start_wave_ignored` warn logs), `RunController` option `startWave`, `RunRoom` passes it; solo `?startwave=` (dev builds only, not with `?stress`) → `LocalSimHost` option. Tests: `devStartWave.test.ts` (parse, production refused, wave 7 starts at stage 4 with stage-2 mutations in, size 98; start at 10 → skip → held out; refused after the first build), `LocalSimHost.test.ts`, `urlOptions.test.ts`.
+- **T6 Browser checks (Playwright, headless Chromium, own ports 5361/5362/2667, stopped by PID):** solo `?solo&startwave=9&wallet=3000` → build at stage 5, wave 9 (126), dev "Skip wave", wave 10 (140), skip → "You held out!" / "Wave reached 10". Online two tabs: server without `DEV_START_WAVE`, host URL `?startwave=10` → wave 1 (beat the rule 5: ignored online); server `DEV_START_WAVE=10` → both tabs build at stage 5, then "Wave 10 · Zombies 240", `dev_start_wave` logged. `?stress=150` not run: no render change (skipped by the story's note).
+- **Perf (brief 16):** `apps/server/src/run/tickCostWave10.test.ts`: real wave 10, 4 god players firing, 150 alive with the real mix, stage 5: **p99 1.41 ms** (mean 0.84, worst 3.21) vs 150 Walkers 1.26 ms (+0.15 ms), load 1.26 while building (re-measured at the gate: see the hand-back). PERF_ASSERT bound: p99 < 25 ms.
+- **Beat the rule (builder's own tries):** 1 solo wave 7 (98): exactly 2 Brutes at spawns 25 and 64 (F3 test at 1–4 players); 2 killing everything as it appears: the second Brute still comes at spawn 260 of 400 (test); 3 wipe on the last kill of wave 10: the wipe, one ending (test); 5 `?startwave` online without `DEV_START_WAVE`: ignored (browser); 7 HP at spawn is the type's `zombies.json` HP in every wave 1–10 (F4 test). Not tried: 4 (hidden tab across the wave-10 clear) and 6 (Ready spam in wave 10's build) — no code in this story changes them (Results / Ready paths unchanged), left to the reviewer.
+- **OPEN FOR DESIGNER:** none.
+- **Not verified:** hidden tab across the wave-10 clear in a browser; a real (not skipped) online wave 10 played to its end in a browser; phone FPS (no render change); human earnings.
+
+### Notes for the merge (brief 19)
+
+- `waves.json`: 6.1 owns `runWaves`, `mix[6..9]`, `fixed[6..9]`, `fixedAtFractions` (the new last key). 6.12 adds an `endless` block after it.
+- `waveDirector.ts`: 6.1 changed only `WaveState` (fields `fixedAtList`, `fixedServed`, `fixedTotal` replace `fixedAt`), `createWaveState`, `waveZombieType` (3 lines → `nextFixedType`), the two new helpers `nextFixedType` / `fillFixedAtList` (above `spawnJitterFor`), the fixed-count lines in `spawnWaveZombie`, and 3 lines in `beginWave`. `updateWaves` is untouched (6.5's `maxAliveNow` cap line and cleared condition merge cleanly). 6.12's endless Brutes: serve through the same `fixedServed` counter and give `fixedAtList` their points by formula.
+- `runStateMachine.ts`: header comment only (2 lines); no code. 6.3's `refreshBlackout` call is independent.
+- `core/worldSnapshot.ts`: 3 lines in the `waves` copy.
+- `config/constants.ts`: `MAX_FIXED_PER_WAVE` appended at the end. `config/balance.ts`: one import line + 4 lines before the `spawnClearM` check. `balanceSchema.ts`: `runWaves` comment + `fixedAtFractions` after `fixedAtFraction`.
+- `index.ts` (shared): 2 lines appended at the end (`applyStartWave`, `parseStartWave`).
+- `bots/headlessRun.ts`: options `god` (additive), `maxTicks` default 40 min; 6.11 (bot vote) / 6.12 (stay N endless waves) add further options.
+- `RunController.ts` / `RunRoom.ts`: option `startWave` beside `scenario`; RunRoom reads `DEV_START_WAVE` after `DEV_SHOP_CARDS` (3 + 2 lines).
+- `GameScene.ts`: one import line (`parseStartWave`) and 2 lines at the `LocalSimHost` construction. `LocalSimHost.ts`: constructor option + one line. `urlOptions.ts`: field `startWave` at the end.
+- Tests that assumed 6 waves: `fiveWaveSim.test.ts` and `decay.test.ts` keep 6-wave runs by `runWaves 6` overrides; a branch adding a new whole-run test should pass the override or expect 10 waves.
+- `docs/epic-5-decisions.md`: one line appended after the balance-pass watch items.
+
 ### File List
+
+- `packages/shared/src/config/balance/waves.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/config/balance.ts`
+- `packages/shared/src/config/balance.test.ts`
+- `packages/shared/src/config/constants.ts`
+- `packages/shared/src/waves/waveDirector.ts`
+- `packages/shared/src/waves/waveDirector.test.ts`
+- `packages/shared/src/core/worldSnapshot.ts`
+- `packages/shared/src/run/runStateMachine.ts`
+- `packages/shared/src/run/runStateMachine.test.ts`
+- `packages/shared/src/run/devStartWave.ts` (new)
+- `packages/shared/src/index.ts`
+- `packages/shared/src/bots/headlessRun.ts`
+- `packages/shared/src/economy/fiveWaveSim.test.ts`
+- `packages/shared/src/economy/tenWaveSim.test.ts` (new)
+- `packages/shared/src/decay/decay.test.ts`
+- `apps/server/src/run/devStartWave.ts` (new)
+- `apps/server/src/run/devStartWave.test.ts` (new)
+- `apps/server/src/run/tickCostWave10.test.ts` (new)
+- `apps/server/src/run/RunController.ts`
+- `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/rooms/RunRoom.3-10.test.ts`
+- `apps/client/src/sim/LocalSimHost.ts`
+- `apps/client/src/sim/LocalSimHost.test.ts`
+- `apps/client/src/debug/urlOptions.ts`
+- `apps/client/src/debug/urlOptions.test.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/ui/ResultsScreen.tsx`
+- `tools/sims/fiveWave.ts`
+- `tools/sims/balancePass.ts`
+- `docs/epic-5-decisions.md`
+- `_bmad-output/implementation-artifacts/6-1-the-full-10-wave-curve.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: built (gds-dev-story): 10-wave run, Brutes at 25 %/65 %, ten-wave sim, start-at-wave dev switch, wave-10 tick cost; status review.

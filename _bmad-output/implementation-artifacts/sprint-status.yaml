@@ -146,7 +146,7 @@ development_status:
 
   # Epic 6: The full run: decay, boss, events, endless
   epic-6: in-progress  # story files 6.1–6.12 ready-for-dev 2026-11-24 (designer accepted all 110 decisions: docs/epic-6-decisions.md; brief docs/epic-6-brief.md; build rounds in the decisions doc)
-  6-1-the-full-10-wave-curve: ready-for-dev
+  6-1-the-full-10-wave-curve: review
   6-2-ruins: ready-for-dev  # merged with 6.4 (designer 2026-11-24): one story 'Ruins and Collapse'
   6-3-blackout-lighting: ready-for-dev
   6-4-collapse: ready-for-dev  # merged into 6.2 (designer 2026-11-24)

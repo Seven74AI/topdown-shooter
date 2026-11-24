@@ -519,7 +519,7 @@ describe("Story 6.1: the full 10-wave curve", () => {
         const players = 4 - i;
         const c = counts(Number(n), players);
         expect(c, `wave ${n} ${players}p`).toEqual(r);
-        expect(Object.values(c).reduce((a, v) => a + v, 0)).toBe(waveSize(real, Number(n), players));
+        expect(Object.values(c).reduce((a: number, v) => a + (v as number), 0)).toBe(waveSize(real, Number(n), players));
       });
     }
   });
