@@ -102,4 +102,6 @@ The server runs the game; no phone hosts it. "Host" is only who taps **Start**, 
 
 ## Designer answers
 
-_Pending._
+**Designer: "ok" on 2026-11-24: every recommended option (A) for D1–D15 is accepted.**
+
+Applied by the course correction `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-24-epic-8.md`: Stories 8.1–8.7 and FR72–FR76 in `epics.md`, the GDD's Multiplayer Considerations and the architecture's Saved runs / Host lines. Story 8.3 is renamed "Host role and removing a player". Note for Story 7.2: Supplies count only the waves a player was in.

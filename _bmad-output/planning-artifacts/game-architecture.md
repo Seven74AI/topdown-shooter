@@ -160,7 +160,7 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | Simulation structure | Shared, engine-free TypeScript simulation package; data-oriented entity storage (struct-of-arrays for zombies and projectiles); uniform spatial hash grid (2 m cells) | TypeScript 6.0 | Same rules on server and client prediction; fast enough for 150+ zombies on one core |
 | Run state machine | Explicit server-side state machine: Lobby → Build → Wave → EvacVote → (Endless loop ↔ EvacVote) → Results; Paused (saved) as a side state | — | Clear phase ownership; save points only in Build |
 | Persistence | **Single PostgreSQL** for accounts, meta-progression and saved runs | PostgreSQL 18 · pg 8.23 · Drizzle ORM 0.45 | One reliable store; user choice. 18 chosen over the brand-new 19.0 for maturity |
-| Saved runs | **Autosave** snapshot (JSON, versioned, includes every PRNG state) at each Build phase for crash recovery; an explicit **Save and quit** makes it resumable for 7 days, only with the host | — | Matches GDD; snapshots only at calm points |
+| Saved runs | **Autosave** snapshot (JSON, versioned, includes every PRNG state) at each Build phase start and last tick for crash recovery; **Save and quit**, a server stop or everyone leaving in a Build phase makes it resumable for 7 days by any account that was in the run (Epic 8 D10–D13) | — | Matches GDD; snapshots only at calm points |
 | Reconnect | Colyseus `allowReconnection` 120 s; player slot, wallet and gear held in room state | Colyseus 0.18 | GDD 2-minute rule |
 | Accounts | Guest = random device token in localStorage → server session; upgrade to username + password (Argon2id hashed) | @node-rs/argon2 2.2 | No signup before first play (GDD); no email service needed |
 | Hosting | User's existing **Linux VPS in Europe** (6 vCPU, 12 GB RAM, ~30 GB free); Docker Compose: Caddy (plain HTTP on 127.0.0.1:8080 + static client, behind the Cloudflare Tunnel that terminates HTTPS/WSS) · game server · PostgreSQL; game at https://hordes.sevend.io; Hermes deploys (`docs/deploy.md`) | Caddy 2.11 · Node.js 26 LTS | Already owned, close to all players, ample capacity (user choice) |
@@ -553,7 +553,7 @@ const world = createWorld({ balance, seed, district });
 
 - **Room code:** `onCreate` sets `this.roomId` to a random 4-letter code (no ambiguous letters); the share link is `https://hordes.sevend.io/j/<code>`.
 - **Capacity and joins:** `maxClients = 4`; `onAuth` accepts new players only during Lobby and Build phases.
-- **Host:** `hostSlot` in schema; when the host leaves, it is reassigned to the longest-connected player. `saved_runs.host_account_id` is the host at save time and only that account can resume.
+- **Host:** `hostSlot` in schema; when the host leaves or drops, it moves at once to the longest-connected player and never moves back. Host only gates Start, Save and quit and Remove player. Saved runs belong to every account in the run (`saved_run_players`); any of them can resume (Epic 8 D8, D13).
 - **Pings:** `ping.send` (rate-limited to 1 per second per player) → broadcast `ping.placed`.
 - **Evacuation vote:** 15 s; majority wins; a tie or no votes = extract.
 
