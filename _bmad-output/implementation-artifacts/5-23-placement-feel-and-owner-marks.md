@@ -1,6 +1,6 @@
 # Story 5.23: Placement feel and owner marks (merged with 5.25: Mouse and keys parity)
 
-Status: review
+Status: done
 
 (Building UX rework **BX-9 + BX-11**, merged by the designer on 2026-11-24: one story, one review. Design: `docs/ideas/building-ux/ux-spec.md` §9 (input schemes), §10 (game feel and juice), §6.3 (chain), §15; `draft-stories.md` › BX-9, BX-11; feel: `prototype.html` / claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR. Spine-wins rule: where the spec and the prototype disagree, the spec wins. Builds on 5.15 (carry, `stepPlacement`, hand cluster, Place = the spot shown last frame), 5.16 (build bar), 5.17 (reason line, culprit, 250 ms hold), 5.18 (chain, pending boxes, `pendingFlow.ts › runPendingFrame`), 5.19 (thumb drag, pin, item chip), 5.26/5.27 (build-bar icons), 5.12 (consumable buttons, `E`). **Client-only: no message, schema or server change** (one client-only optional `ageS` on the `building.placed` SimEvent type, set by NetSimHost on drain like the acid/explosion events; never on the wire).
 
@@ -146,6 +146,14 @@ Fresh-agent review by the main session on `36fd9dc` (2026-11-24): **3 medium, 11
 
 Mutations of the fix tests: **10/10 killed** (control-keeps rule, `role=button`, Latin fallback, M2 other-blocker check, M2 rest-box overlap, M2 built-id exception, direct vibrate in GameScene, mine-wins rule, unknown-view volume, `seen` guard). Two M2 mutations first survived; the built-spot + teammate and other-pending-box tests were added for them.
 
+### Re-review (fresh agent, main session, 2026-11-24)
+
+Re-review of `57a0dd2`: **clean** (M1, M2, M3 and the lows verified). Two optional nits, done:
+- `placeFxPools.test.ts`: a full pool with every tab seen; a new tab over the wrapped slot whose building hasn't arrived yet survives `dropMissing` (pins `seen[i] = 0` on reuse; mutation killed).
+- `tools/checks/oneHapticsDoor.test.ts` also catches `navigator.vibrate.call/apply/bind(…)`, bracket access `navigator["vibrate"](…)` and destructuring `{ vibrate } = navigator` (self-check cases added; an `import { vibrate }` line is not flagged).
+
+Status → **done**.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -187,6 +195,7 @@ Claude (builder cloud session, 2026-11-24).
 ### Change Log
 
 - 2026-11-24: Story file written (5.23 + 5.25 merged), ready-for-dev.
+- 2026-11-24: Re-review clean; nits done (reused tab slot test, wider vibration-API scan); status → done.
 - 2026-11-24: Review fixes M1–M3 and lows (L4, L7, L11 accepted); merged master `4159b78`; gate green; status stays review (the mediums get a re-review).
 - 2026-11-24: Merged master `ddcb1cf` (5.20 take back / sell / undo, Epic 8 docs); Z / Ctrl+Z wired to 5.20's undo chip via `scenes/buildKeys.ts` (+test; mutation killed); full gate re-run on the merged tree (see Debug Log).
 - 2026-11-24: Built (feel, owner marks, resting chain ghost, chip side reset, mouse + keys, undo / pick-up hooks); gate green; 21/21 mutations killed; browser check at 800 × 360, 568 × 320, 1280 × 720. Status → review.

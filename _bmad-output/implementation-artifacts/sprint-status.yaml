@@ -136,7 +136,7 @@ development_status:
   5-20-take-back-sell-and-undo: done  # building UX BX-6
   5-21-building-action-bar: backlog  # merged with 5.22 (designer 2026-11-24): one story 'Building action bar and move'
   5-22-move-a-building: backlog  # merged into 5.21 (designer 2026-11-24)
-  5-23-placement-feel-and-owner-marks: review  # merged with 5.25 (designer 2026-11-24): one story incl. mouse and keys
+  5-23-placement-feel-and-owner-marks: done  # merged with 5.25 (designer 2026-11-24): one story incl. mouse and keys
   5-24-teammates-ghosts: backlog  # building UX BX-10
   5-25-mouse-and-keys-parity-optional: backlog  # merged into 5.23 (designer 2026-11-24): built and tracked as 5.23
   5-26-build-bar-icons: done  # designer 2026-11-23: I1 tilted icons, T1 turret (T2 kept), M1 mine; after 5.16

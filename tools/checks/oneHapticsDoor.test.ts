@@ -9,7 +9,11 @@ import { describe, expect, it } from "vitest";
  */
 const SRC = join(__dirname, "..", "..", "apps", "client", "src");
 const ALLOWED = new Set(["audio/haptics.ts"]);
-const VIBRATE = /\.vibrate\s*(?:\?\.)?\s*\(/;
+/**
+ * A call (`.vibrate(`, `?.(`, `.call/.apply/.bind(`), bracket access (`["vibrate"]`, `?.['vibrate']`)
+ * or destructuring (`{ vibrate } = navigator`, `{ vibrate: v } = nav`).
+ */
+const VIBRATE = /\.vibrate\s*(?:\?\.\s*)?(?:\(|\.\s*(?:call|apply|bind)\s*\()|\[\s*["'`]vibrate["'`]\s*\]|\{[^}]*\bvibrate\b[^}]*\}\s*=/;
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
@@ -33,6 +37,14 @@ describe("one door to the vibration API (Story 5.23 review M3)", () => {
     expect(VIBRATE.test("navigator.vibrate?.(12)")).toBe(true);
     expect(VIBRATE.test("nav.vibrate(12)")).toBe(true);
     expect(VIBRATE.test(stripComments("// navigator.vibrate(12)"))).toBe(false);
+    expect(VIBRATE.test("navigator.vibrate.call(navigator, 12)")).toBe(true);
+    expect(VIBRATE.test("navigator.vibrate.apply(navigator, [12])")).toBe(true);
+    expect(VIBRATE.test("const v = navigator.vibrate.bind(navigator)")).toBe(true);
+    expect(VIBRATE.test('navigator["vibrate"](12)')).toBe(true);
+    expect(VIBRATE.test("navigator?.['vibrate']?.(12)")).toBe(true);
+    expect(VIBRATE.test("const { vibrate } = navigator;")).toBe(true);
+    expect(VIBRATE.test("const { vibrate: buzz } = nav;")).toBe(true);
     expect(VIBRATE.test("vibrate(SOLD_HAPTIC_MS)")).toBe(false);
+    expect(VIBRATE.test('import { vibrate } from "../audio/haptics";')).toBe(false);
   });
 });

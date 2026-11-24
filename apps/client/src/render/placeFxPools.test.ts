@@ -89,3 +89,14 @@ describe("Story 5.23 (review L3): a removed building drops its tab", () => {
     expect([t.indexOf(1), t.indexOf(2) >= 0]).toEqual([-1, true]);
   });
 });
+
+describe("Story 5.23 (re-review nit): a reused slot forgets the old building's 'seen'", () => {
+  it("full pool, every tab seen; a new tab over the wrapped slot whose building hasn't arrived yet survives dropMissing", () => {
+    const t = new TabPool(fx.maxOwnerTabs);
+    for (let i = 0; i < t.cap; i++) t.add(300 + i, 0, 0, 1, 0, 0, true);
+    t.dropMissing(() => true); // all seen in the World
+    t.add(999, 0, 0, 1, 10, 0, true); // takes slot 0 (the oldest); 999 isn't in the World yet (online)
+    t.dropMissing((id) => id !== 999);
+    expect(t.indexOf(999)).toBe(0);
+  });
+});
