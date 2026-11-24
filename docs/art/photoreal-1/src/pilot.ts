@@ -262,81 +262,233 @@ function carWindowCracks(L: number, W: number, seed: number) {
   };
 }
 
+/**
+ * Cars, round 2 (designer: "more detail or photorealistic on the cars, the ones not burned"): a real car
+ * silhouette (tapered nose and tail, wheel-arch bulges, bumpers), a clear coat reflecting the night sky and
+ * the street lights, tinted glass with reflections, wipers and leaves, lamp lenses with reflectors, door
+ * handles, fuel cap, mirrors with glass, aerial, rear plate, a sunroof on some, rain beads, road dirt.
+ * Drawn at 3× and shrunk. Front at +x.
+ */
+function carSilhouette(g: G, L: number, W: number): void {
+  const x0 = -L / 2 + 5;
+  const x1 = L / 2 - 4;
+  const hw = W / 2 - 9; // half width at the doors
+  const nose = hw - 7; // narrower at the bumpers
+  g.beginPath();
+  g.moveTo(x1 - 16, -nose);
+  g.bezierCurveTo(x1 - 2, -nose, x1, -nose + 10, x1, 0);
+  g.bezierCurveTo(x1, nose - 10, x1 - 2, nose, x1 - 16, nose);
+  // front arch bulge, doors, rear arch bulge (bottom side)
+  g.bezierCurveTo(L * 0.3, nose + 2, L * 0.3, hw + 1, L * 0.2, hw);
+  g.lineTo(-L * 0.2, hw);
+  g.bezierCurveTo(-L * 0.28, hw + 1, -L * 0.3, nose + 3, -L * 0.36, nose + 1);
+  g.bezierCurveTo(x0 + 2, nose, x0, nose - 8, x0, 0);
+  g.bezierCurveTo(x0, -nose + 8, x0 + 2, -nose, -L * 0.36, -nose - 1);
+  g.bezierCurveTo(-L * 0.3, -nose - 3, -L * 0.28, -hw - 1, -L * 0.2, -hw);
+  g.lineTo(L * 0.2, -hw);
+  g.bezierCurveTo(L * 0.3, -hw - 1, L * 0.3, -nose - 2, x1 - 16, -nose);
+  g.closePath();
+  g.fill();
+}
+
 function car(variant: number): HTMLCanvasElement {
   const L = CAR_L;
   const W = CAR_W;
   const P = carParts(L, W);
+  const cab = P.cabin_;
   const paint = hex(CAR_COLORS[variant % CAR_COLORS.length] as string);
   const wreck = CAR_WRECK[variant % CAR_WRECK.length] as boolean;
+  const sunroof = variant % 2 === 0;
   const seed = 100 + variant * 7;
+  const roofX = -L * 0.13;
+  const roofW = L * 0.21;
+  const hw = W / 2 - 9;
+  const bumpers = (g: G): void => {
+    roundRect(g, L / 2 - 10, -hw + 9, 7, 2 * hw - 18, 3); // front bumper
+    g.fill();
+    roundRect(g, -L / 2 + 4, -hw + 9, 7, 2 * hw - 18, 3); // rear bumper
+    g.fill();
+  };
+  const handles = (g: G): void => {
+    for (const s of [-1, 1]) for (const x of [cab.x + cab.w * 0.42, cab.x + cab.w * 0.86]) rect(x - 5, s * (hw - 2.5) - 1, 10, 2, 1)(g);
+  };
+  const fuel = (g: G): void => {
+    g.beginPath();
+    g.arc(-L * 0.3, hw - 4, 3.2, 0, TAU);
+    g.fill();
+  };
+  const plate = rect(-L / 2 + 7, -8, 3.5, 16, 1);
+  const wipers = (g: G): void => {
+    g.lineWidth = 1.4;
+    for (const y of [-hw * 0.55, hw * 0.05]) {
+      g.beginPath();
+      g.moveTo(cab.x + cab.w - 5, y);
+      g.lineTo(cab.x + cab.w - 13, y + hw * 0.45);
+      g.stroke();
+    }
+  };
+  const sunroofShape = rect(roofX + roofW * 0.2, -W * 0.15, roofW * 0.55, W * 0.3, 3);
+  const headlights = (g: G): void => {
+    for (const s of [-1, 1]) rect(L / 2 - 17, s > 0 ? hw - 20 : -hw + 6, 10, 14, 4)(g);
+  };
+  const taillights = (g: G): void => {
+    for (const s of [-1, 1]) rect(-L / 2 + 8, s > 0 ? hw - 22 : -hw + 6, 5, 16, 2)(g);
+  };
   const tyres = render({
     w: L,
     h: W,
-    layers: [{ draw: P.wheels, blur: 3, amount: 0.4 }],
-    detail: 0.15,
-    grain: 3,
-    albedo: () => [22, 22, 24],
-    spec: () => 0.1,
+    ss: SS,
+    // only the tyres' outer edge shows past the body
+    layers: [{ draw: (g) => [-L * 0.3, L * 0.29].forEach((wx) => [-1, 1].forEach((s) => rect(wx - 20, s > 0 ? hw - 6 : -hw - 3, 40, 9, 4)(g))), blur: 1, amount: 0.4 }],
+    engrave: (g) => {
+      g.lineWidth = 0.8;
+      for (const wx of [-L * 0.3, L * 0.29]) for (const s of [-1, 1]) for (let k = -16; k <= 16; k += 4) {
+        const cy = s > 0 ? hw - 1.5 : -hw + 1.5;
+        g.beginPath(); // tread blocks
+        g.moveTo(wx + k, cy - 5);
+        g.lineTo(wx + k + 1.5, cy + 5);
+        g.stroke();
+      }
+    },
+    detail: 0.1,
+    grain: 2,
+    albedo: (_x, _y, s) => mix([30, 30, 32], [8, 8, 9], cl(s.cav)),
+    spec: () => 0.12,
     seed,
   });
   const body = render({
     w: L,
     h: W,
+    ss: SS,
+    edgeAO: 0.25,
     layers: [
-      { draw: P.body, blur: 8, amount: 0.5 },
-      { draw: P.cabin, blur: 7, amount: 0.3 },
-      { draw: P.roof, blur: 3, amount: 0.14 },
+      { draw: (g) => carSilhouette(g, L, W), blur: 4, amount: 0.5 },
+      { draw: P.cabin, blur: 3.5, amount: 0.3 },
+      { draw: P.roof, blur: 2, amount: 0.12 },
+      { draw: bumpers, blur: 1, amount: 0.04 },
+      { draw: P.mirrors, blur: 1, amount: 0.25 },
+      // a bonnet crease and roof rails catch the light
+      {
+        draw: (g) => {
+          for (const s of [-1, 1]) rect(L * 0.24, s * hw * 0.45 - 1, L * 0.2, 2, 1)(g);
+          for (const s of [-1, 1]) rect(roofX + 3, s * (W * 0.25), roofW - 6, 2, 1)(g);
+        },
+        blur: 0.8,
+        amount: 0.03,
+      },
     ],
     engrave: (g) => {
       P.seams(g);
+      g.lineWidth = 0.9;
+      g.beginPath(); // the bumper joints
+      g.moveTo(L / 2 - 11, -hw + 9);
+      g.lineTo(L / 2 - 11, hw - 9);
+      g.moveTo(-L / 2 + 12, -hw + 9);
+      g.lineTo(-L / 2 + 12, hw - 9);
+      g.stroke();
+      fuel(g);
+      wipers(g);
+      if (sunroof) {
+        g.lineWidth = 1;
+        roundRect(g, roofX + roofW * 0.2, -W * 0.15, roofW * 0.55, W * 0.3, 3);
+        g.stroke();
+      }
       if (wreck) carWindowCracks(L, W, seed)(g);
     },
-    engraveDepth: 0.25,
-    regions: { glass: P.glass, front: P.lights.front, rear: P.lights.rear, mirror: P.mirrors },
-    detail: wreck ? 0.1 : 0.04,
-    grain: wreck ? 18 : 30,
-    heightAt: wreck ? (x, y) => -Math.max(0, fbm(x / 26, y / 26, seed + 3, 3) - 0.62) * 0.8 : undefined,
+    engraveDepth: 0.22,
+    regions: {
+      glass: P.glass,
+      sun: sunroof ? sunroofShape : () => undefined,
+      head: headlights,
+      tail: taillights,
+      mirror: P.mirrors,
+      bumper: bumpers,
+      handle: handles,
+      plate,
+      wiper: wipers,
+    },
+    detail: wreck ? 0.08 : 0.015,
+    grain: wreck ? 16 : 40,
+    heightAt: wreck ? (x, y) => -Math.max(0, fbm(x / 26, y / 26, seed + 3, 3) - 0.62) * 0.7 : undefined,
     albedo: (x, y, s) => {
-      if (s.r.glass! > 0.5) {
-        // dark tinted glass with a diagonal reflection band of the night sky
-        const band = cl(1 - Math.abs(((x - y * 0.8) % 60) - 30) / 9);
-        return mix(mix([10, 13, 18], [26, 32, 40], fbm(x / 20, y / 20, seed + 1, 3)), [92, 104, 120], band * 0.45);
+      const px = x - L / 2;
+      const py = y - W / 2;
+      if (s.r.wiper! > 0.5) return [12, 12, 13];
+      if (s.r.glass! > 0.5 || s.r.sun! > 0.5) {
+        // tinted glass: dark, a diagonal reflection of the sky, a few leaves at the windscreen's foot
+        const band = cl(1 - Math.abs((((px - py * 0.9) % 70) + 70) % 70 - 35) / 10);
+        let c = mix(mix([8, 10, 14], [24, 30, 38], fbm(x / 18, y / 18, seed + 1, 3)), [104, 116, 132], band * 0.5);
+        if (px > cab.x + cab.w - 12 && fbm(x / 1.5, y / 1.5, seed + 20, 2) > 0.72) c = [70, 52, 30];
+        return c;
       }
-      if (s.r.front! > 0.5) return [228, 224, 206];
-      if (s.r.rear! > 0.5) return [150, 20, 22];
-      let c = mix(paint, mix(paint, [255, 255, 255], 0.12), fbm(x / 40, y / 40, seed + 2, 3));
-      // road grime along the lower edges, dust in the seams
-      const edge = cl(Math.abs(y - W / 2) / (W / 2) - 0.55) * 1.6;
-      c = mix(c, [64, 58, 50], cl(edge * 0.5 + (fbm(x / 10, y / 10, seed + 4, 3) - 0.62) * 0.8));
-      c = mix(c, [24, 22, 20], cl(s.cav));
+      if (s.r.head! > 0.5) {
+        // a clear lens over a chrome reflector bowl
+        const lx = ((px - (L / 2 - 12)) / 5) ** 2;
+        return lx < 0.5 ? [236, 238, 232] : [170, 176, 182];
+      }
+      if (s.r.tail! > 0.5) return Math.floor(py / 3) % 2 === 0 ? [170, 18, 22] : [110, 10, 14];
+      if (s.r.plate! > 0.5) return [214, 210, 196];
+      if (s.r.bumper! > 0.5) return mix([30, 30, 32], [52, 52, 54], fbm(x / 3, y / 3, seed + 9, 2));
+      if (s.r.handle! > 0.5) return [150, 152, 156];
+      if (s.r.mirror! > 0.5) return mix(paint, [20, 24, 30], 0.4);
+      // the clear coat: base paint with a soft metallic flake, the night sky reflected along the length,
+      // a street light's long highlight, road dirt splashed up the lower sides
+      let c = mix(paint, mix(paint, [255, 255, 255], 0.1), fbm(x / 30, y / 30, seed + 2, 3));
+      if (hash2(Math.floor(x * 3), Math.floor(y * 3), seed + 4) < 0.05) c = mix(c, [255, 255, 255], 0.12); // flake
+      const side = Math.abs(py) / hw;
+      const sky = cl(1 - side * 1.3) * 0.18;
+      c = mix(c, [120, 132, 150], sky);
+      const streak = Math.exp(-(((py + hw * 0.32) / 2.2) ** 2)) * cl(1 - Math.abs(px) / (L * 0.45));
+      c = mix(c, [255, 236, 200], streak * 0.35);
+      const dirt = cl((side - 0.78) * 4) * (0.5 + fbm(x / 4, y / 4, seed + 5, 3));
+      c = mix(c, [76, 66, 54], cl(dirt) * 0.7);
+      c = mix(c, [22, 20, 18], cl(s.cav));
       if (wreck) {
-        const rust = fbm(x / 9, y / 9, seed + 5, 4);
-        if (rust > 0.66) c = mix(c, [110, 52, 24], cl((rust - 0.66) * 4));
-        if (hash2(x, y, seed) < 0.0015) c = [180, 175, 168]; // scratches
+        const rust = fbm(x / 8, y / 8, seed + 6, 4);
+        if (rust > 0.66) c = mix(c, [112, 52, 24], cl((rust - 0.66) * 4));
+        if (fbm(x / 1.2, y / 30, seed + 7, 2) > 0.74) c = mix(c, [170, 168, 164], 0.6); // key scratches
       }
       return c;
     },
-    spec: (x, y, s) => (s.r.glass! > 0.5 ? 0.9 : s.r.front! > 0.5 ? 0.6 : wreck ? 0.25 : 0.55) * (0.8 + 0.4 * fbm(x / 8, y / 8, seed + 6, 2)),
+    spec: (x, y, s) => {
+      if (s.r.glass! > 0.5 || s.r.sun! > 0.5 || s.r.head! > 0.5) return 1;
+      if (s.r.bumper! > 0.5) return 0.15;
+      if (s.r.handle! > 0.5) return 0.9;
+      return (wreck ? 0.35 : 0.8) * (0.85 + 0.3 * fbm(x / 10, y / 10, seed + 8, 2));
+    },
     seed,
   });
   const c = canvas(L, W);
   const g = ctx(c);
   g.drawImage(tyres, 0, 0);
   g.drawImage(body, 0, 0);
-  // rain beads on the roof and bonnet
+  // aerial on the rear roof edge
+  g.strokeStyle = "rgba(10,10,12,0.9)";
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(L / 2 + roofX + 2, W / 2 + W * 0.18);
+  g.lineTo(L / 2 + roofX - 16, W / 2 + W * 0.2);
+  g.stroke();
+  // rain beads: a dark lower edge and a bright catch-light, only on the body
+  const bd = ctx(body);
   const r = rng(seed + 9);
-  for (let i = 0; i < 28; i++) {
-    const x = L / 2 + (r() - 0.5) * L * 0.85;
-    const y = W / 2 + (r() - 0.5) * W * 0.65;
-    const a = ctx(body).getImageData(Math.floor(x), Math.floor(y), 1, 1).data[3] as number;
-    if (a < 200) continue;
-    g.fillStyle = "rgba(255,255,255,0.35)";
-    g.fillRect(x, y, 1, 1);
-    g.fillStyle = "rgba(0,0,0,0.25)";
-    g.fillRect(x + 1, y + 1, 1, 1);
+  for (let i = 0; i < 90; i++) {
+    const x = Math.floor(L / 2 + (r() - 0.5) * L * 0.9);
+    const y = Math.floor(W / 2 + (r() - 0.5) * W * 0.7);
+    if ((bd.getImageData(x, y, 1, 1).data[3] as number) < 250) continue;
+    const s = r() < 0.15 ? 1.6 : 0.9;
+    g.fillStyle = "rgba(0,0,0,0.16)";
+    g.beginPath();
+    g.arc(x + 0.4, y + 0.5, s, 0, TAU);
+    g.fill();
+    g.fillStyle = "rgba(255,255,255,0.3)";
+    g.beginPath();
+    g.arc(x - 0.3, y - 0.3, s * 0.45, 0, TAU);
+    g.fill();
   }
   return c;
 }
+
 
 // ─────────────────────────────── the bus ───────────────────────────────
 
