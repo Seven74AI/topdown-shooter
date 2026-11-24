@@ -9,13 +9,12 @@ import { drawBehemoth } from "../../../../apps/client/src/render/city/behemothAr
 import { drawSurvivor, drawZombie } from "../../../../apps/client/src/render/city/spriteArt";
 import { GROUND } from "../../../../apps/client/src/render/city/palette";
 
-type G = CanvasRenderingContext2D;
-const TAU = Math.PI * 2;
-const PX = 32; // street px per metre
+export type G = CanvasRenderingContext2D;
+export const TAU = Math.PI * 2;
+export const PX = 32; // street px per metre
 
-declare const CURRENT: Record<string, string>; // the current pictures (data URLs), injected by build.mjs
 
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let s = seed >>> 0 || 1;
   return () => {
     s = (s * 16807) % 2147483647;
@@ -23,19 +22,19 @@ function rng(seed: number): () => number {
   };
 }
 
-function canvas(w: number, h: number): HTMLCanvasElement {
+export function canvas(w: number, h: number): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
   return c;
 }
 
-function ctx(c: HTMLCanvasElement): G {
+export function ctx(c: HTMLCanvasElement): G {
   return c.getContext("2d") as G;
 }
 
 /** A black silhouette of a drawing (for soft drop shadows on the ground). */
-function silhouette(src: HTMLCanvasElement, color = "#000"): HTMLCanvasElement {
+export function silhouette(src: HTMLCanvasElement, color = "#000"): HTMLCanvasElement {
   const c = canvas(src.width, src.height);
   const g = ctx(c);
   g.drawImage(src, 0, 0);
@@ -46,7 +45,7 @@ function silhouette(src: HTMLCanvasElement, color = "#000"): HTMLCanvasElement {
 }
 
 /** Night asphalt with grain, joints and stains. */
-function asphalt(g: G, w: number, h: number, seed = 3): void {
+export function asphalt(g: G, w: number, h: number, seed = 3): void {
   g.fillStyle = GROUND.asphalt;
   g.fillRect(0, 0, w, h);
   const r = rng(seed);
@@ -69,7 +68,7 @@ function asphalt(g: G, w: number, h: number, seed = 3): void {
 }
 
 /** The night: darken everything, with optional warm lamp pools. */
-function night(g: G, w: number, h: number, a: number, lamps: readonly [number, number, number][] = []): void {
+export function night(g: G, w: number, h: number, a: number, lamps: readonly [number, number, number][] = []): void {
   const c = canvas(w, h);
   const d = ctx(c);
   d.fillStyle = `rgba(4,7,16,${a})`;
@@ -98,11 +97,11 @@ function night(g: G, w: number, h: number, a: number, lamps: readonly [number, n
 // ─────────────────────────────── 1. The police barrier ───────────────────────────────
 // Frame 384 × 32 px = 12 m × 1 m (the collision box stays the same; only the look changes).
 
-const BAR_W = 384;
-const BAR_H = 32;
+export const BAR_W = 384;
+export const BAR_H = 32;
 
 /** B1: a row of police sawhorses. Board on top, splayed A-frame legs and feet on both sides. */
-function barrierSawhorse(g: G, w: number, h: number): void {
+export function barrierSawhorse(g: G, w: number, h: number): void {
   const unit = w / 6;
   const cy = h / 2;
   for (let u = 0; u < 6; u++) {
@@ -173,7 +172,7 @@ function barrierSawhorse(g: G, w: number, h: number): void {
 }
 
 /** B2: water-filled plastic road barriers, red and white, clipped together. */
-function barrierWater(g: G, w: number, h: number): void {
+export function barrierWater(g: G, w: number, h: number): void {
   const n = 8;
   const seg = w / n;
   for (let i = 0; i < n; i++) {
@@ -234,7 +233,7 @@ function barrierWater(g: G, w: number, h: number): void {
 }
 
 /** B3: concrete blocks with POLICE LINE tape strung between them. */
-function barrierConcrete(g: G, w: number, h: number): void {
+export function barrierConcrete(g: G, w: number, h: number): void {
   const blocks = [24, 136, 248, 360];
   // tape first (under the blocks' tops), two strands with a slight sag
   for (const [y0, sag] of [
@@ -294,7 +293,7 @@ function barrierConcrete(g: G, w: number, h: number): void {
   }
 }
 
-function roundRect(g: G, x: number, y: number, w: number, h: number, r: number): void {
+export function roundRect(g: G, x: number, y: number, w: number, h: number, r: number): void {
   g.beginPath();
   g.moveTo(x + r, y);
   g.arcTo(x + w, y, x + w, y + h, r);
@@ -304,15 +303,15 @@ function roundRect(g: G, x: number, y: number, w: number, h: number, r: number):
   g.closePath();
 }
 
-type BarrierDraw = (g: G, w: number, h: number) => void;
+export type BarrierDraw = (g: G, w: number, h: number) => void;
 
-function barrierFrame(draw: BarrierDraw): HTMLCanvasElement {
+export function barrierFrame(draw: BarrierDraw): HTMLCanvasElement {
   const c = canvas(BAR_W, BAR_H);
   draw(ctx(c), BAR_W, BAR_H);
   return c;
 }
 
-function imageFrame(url: string): Promise<HTMLCanvasElement> {
+export function imageFrame(url: string): Promise<HTMLCanvasElement> {
   return new Promise((res) => {
     const img = new Image();
     img.onload = () => {
@@ -325,7 +324,7 @@ function imageFrame(url: string): Promise<HTMLCanvasElement> {
 }
 
 /** The barrier on a night street at stage 2, beside a zebra crossing (the confusion the designer saw). */
-function barrierScene(frame: HTMLCanvasElement): HTMLCanvasElement {
+export function barrierScene(frame: HTMLCanvasElement): HTMLCanvasElement {
   const w = 720;
   const h = 300;
   const c = canvas(w, h);
@@ -387,11 +386,11 @@ function barrierScene(frame: HTMLCanvasElement): HTMLCanvasElement {
 // ─────────────────────────────── 2. The slam warning ───────────────────────────────
 // Texture 512 px, disc radius 252 px = the slam radius (4.5 m); hole = the boss's body (2 m).
 
-const TELE_N = 512;
-const TELE_R = TELE_N / 2 - 4;
-const HOLE_FRAC = 2 / 4.5;
+export const TELE_N = 512;
+export const TELE_R = TELE_N / 2 - 4;
+export const HOLE_FRAC = 2 / 4.5;
 
-interface TeleOption {
+export interface TeleOption {
   readonly id: string;
   /** The baked texture (drawn once). */
   disc(g: G): void;
@@ -402,7 +401,7 @@ interface TeleOption {
 }
 
 /** S1 "Hot rim": a glow that gathers toward a white-hot rim, with dial ticks; the front races out to it. */
-const S1: TeleOption = {
+export const S1: TeleOption = {
   id: "S1",
   additive: true,
   disc(g) {
@@ -474,7 +473,7 @@ const S1: TeleOption = {
 };
 
 /** A bright ring with a red bloom (several strokes: works with Phaser Graphics too). */
-function glowRing(g: G, cx: number, cy: number, r: number, k: number): void {
+export function glowRing(g: G, cx: number, cy: number, r: number, k: number): void {
   for (const [lw, col] of [
     [18, `rgba(255,40,30,${0.12 * k})`],
     [10, `rgba(255,60,40,${0.25 * k})`],
@@ -490,8 +489,8 @@ function glowRing(g: G, cx: number, cy: number, r: number, k: number): void {
 }
 
 /** S2 "Shockwave": rings that tighten toward the rim like a ripple about to break; each flares as the front passes. */
-const S2_RINGS = [0.52, 0.62, 0.71, 0.79, 0.86, 0.92, 0.97];
-const S2: TeleOption = {
+export const S2_RINGS = [0.52, 0.62, 0.71, 0.79, 0.86, 0.92, 0.97];
+export const S2: TeleOption = {
   id: "S2",
   additive: true,
   disc(g) {
@@ -540,7 +539,7 @@ const S2: TeleOption = {
 };
 
 /** The crack network of S3 (shared by the dim baked disc and the lit copy the front reveals). */
-function moltenCracks(g: G, R: number, hole: number, lit: boolean): void {
+export function moltenCracks(g: G, R: number, hole: number, lit: boolean): void {
   g.save();
   g.beginPath();
   g.arc(0, 0, R - 8, 0, TAU);
@@ -605,7 +604,7 @@ function moltenCracks(g: G, R: number, hole: number, lit: boolean): void {
 }
 
 /** S3 "Molten cracks": the street splits under the boss; glowing cracks run out to a burning rim. */
-const S3: TeleOption = {
+export const S3: TeleOption = {
   id: "S3",
   additive: true,
   disc(g) {
@@ -657,7 +656,7 @@ const S3: TeleOption = {
 };
 
 /** Today's look, for comparison (the baked texture is the real one; the fill copies BossView). */
-const CURRENT_TELE: TeleOption = {
+export const CURRENT_TELE: TeleOption = {
   id: "now",
   additive: false,
   disc() {},
@@ -673,14 +672,14 @@ const CURRENT_TELE: TeleOption = {
   },
 };
 
-function teleTexture(o: TeleOption): HTMLCanvasElement {
+export function teleTexture(o: TeleOption): HTMLCanvasElement {
   const c = canvas(TELE_N, TELE_N);
   o.disc(ctx(c));
   return c;
 }
 
 /** S3's lit crack copy (the windup front reveals it). */
-function s3Lit(): HTMLCanvasElement {
+export function s3Lit(): HTMLCanvasElement {
   const c = canvas(TELE_N, TELE_N);
   const g = ctx(c);
   g.translate(TELE_N / 2, TELE_N / 2);
@@ -691,7 +690,7 @@ function s3Lit(): HTMLCanvasElement {
 // ─────────────────────────────── 3. Boss effects ───────────────────────────────
 // Skull 64 px (over the target), edge disc 72 px, icons 48 px, crack decal 256 px = 9 m.
 
-interface FxSet {
+export interface FxSet {
   readonly id: string;
   skull(g: G, s: number): void;
   disc(g: G, s: number): void;
@@ -701,7 +700,7 @@ interface FxSet {
 }
 
 /** A shaded bone skull (unit: s = half size), facing the viewer. */
-function boneSkull(g: G, s: number, bone = "#e9e2cf", shade = "#9c917a", hole = "#120707"): void {
+export function boneSkull(g: G, s: number, bone = "#e9e2cf", shade = "#9c917a", hole = "#120707"): void {
   g.save();
   g.scale(s, s);
   g.lineJoin = "round";
@@ -759,7 +758,7 @@ function boneSkull(g: G, s: number, bone = "#e9e2cf", shade = "#9c917a", hole = 
 }
 
 /** A ragged blood splat disc. */
-function splat(g: G, s: number, col: string, seed: number): void {
+export function splat(g: G, s: number, col: string, seed: number): void {
   const r = rng(seed);
   g.fillStyle = col;
   g.beginPath();
@@ -781,7 +780,7 @@ function splat(g: G, s: number, col: string, seed: number): void {
 }
 
 /** A fist seen from the front, knuckles down (unit s = half icon size), centred at (0, y). */
-function fist(g: G, s: number, y: number, col: string, line: string): void {
+export function fist(g: G, s: number, y: number, col: string, line: string): void {
   g.fillStyle = col;
   g.fillRect(-s * 0.2, y - s * 0.75, s * 0.4, s * 0.4); // wrist
   roundRect(g, -s * 0.36, y - s * 0.4, s * 0.72, s * 0.5, s * 0.12);
@@ -807,7 +806,7 @@ function fist(g: G, s: number, y: number, col: string, line: string): void {
 }
 
 /** Rough stroke (hand-drawn wobble) along a polyline. */
-function rough(g: G, pts: readonly [number, number][], seed: number, j: number): void {
+export function rough(g: G, pts: readonly [number, number][], seed: number, j: number): void {
   const r = rng(seed);
   g.beginPath();
   pts.forEach(([x, y], i) => {
@@ -819,7 +818,7 @@ function rough(g: G, pts: readonly [number, number][], seed: number, j: number):
 }
 
 /** Set A "Grit": bone, blood and rough strokes, like the rest of Dead City. */
-const SET_A: FxSet = {
+export const SET_A: FxSet = {
   id: "A",
   skull(g, s) {
     splat(g, s * 0.98, "#7c0d10", 4);
@@ -929,7 +928,7 @@ const SET_A: FxSet = {
 };
 
 /** Glow helper: draws `fn` several times with growing shadow blur (neon). */
-function neon(g: G, color: string, fn: () => void, blur: number): void {
+export function neon(g: G, color: string, fn: () => void, blur: number): void {
   g.save();
   g.shadowColor = color;
   for (const b of [blur, blur * 0.5, blur * 0.2]) {
@@ -940,7 +939,7 @@ function neon(g: G, color: string, fn: () => void, blur: number): void {
 }
 
 /** A bold skull silhouette (for the neon set). */
-function flatSkull(g: G, s: number, fill: string): void {
+export function flatSkull(g: G, s: number, fill: string): void {
   g.save();
   g.scale(s, s);
   g.fillStyle = fill;
@@ -965,7 +964,7 @@ function flatSkull(g: G, s: number, fill: string): void {
 }
 
 /** Set B "Neon": glowing red-white signs that match the glowing slam warning. */
-const SET_B: FxSet = {
+export const SET_B: FxSet = {
   id: "B",
   skull(g, s) {
     neon(g, "rgba(255,40,40,1)", () => flatSkull(g, s * 1.15, "#ffe3dc"), s * 0.5);
@@ -1052,7 +1051,7 @@ const SET_B: FxSet = {
 };
 
 /** Worn enamel (scratches) over whatever is drawn in the circle/shape. */
-function scratches(g: G, s: number, seed: number): void {
+export function scratches(g: G, s: number, seed: number): void {
   const r = rng(seed);
   g.strokeStyle = "rgba(255,255,255,0.28)";
   g.lineWidth = Math.max(0.6, s * 0.02);
@@ -1069,7 +1068,7 @@ function scratches(g: G, s: number, seed: number): void {
 }
 
 /** Set C "Danger sign": worn red-and-white enamel road signs with black pictograms. */
-const SET_C: FxSet = {
+export const SET_C: FxSet = {
   id: "C",
   skull(g, s) {
     // a warning triangle
@@ -1164,7 +1163,7 @@ const SET_C: FxSet = {
 };
 
 /** The round white sign behind set C's icons. */
-function signPlate(g: G, s: number): void {
+export function signPlate(g: G, s: number): void {
   g.fillStyle = "#f1ece0";
   g.beginPath();
   g.arc(0, 0, s * 0.9, 0, TAU);
@@ -1175,7 +1174,7 @@ function signPlate(g: G, s: number): void {
 }
 
 /** K1 "Crater": broken asphalt plates pushed up around a dark pit, cracks, rubble and dust. `embers`: K2. */
-function crater(g: G, s: number, embers: boolean): void {
+export function crater(g: G, s: number, embers: boolean): void {
   const r = rng(13);
   // dust ring
   const dust = g.createRadialGradient(0, 0, s * 0.3, 0, 0, s * 0.95);
@@ -1293,7 +1292,7 @@ function crater(g: G, s: number, embers: boolean): void {
 
 // ─────────────────────────────── page wiring ───────────────────────────────
 
-function fxIcon(draw: (g: G, s: number) => void, px: number, scale: number, bg = "#23292f"): HTMLCanvasElement {
+export function fxIcon(draw: (g: G, s: number) => void, px: number, scale: number, bg = "#23292f"): HTMLCanvasElement {
   const c = canvas(px * scale, px * scale);
   const g = ctx(c);
   g.fillStyle = bg;
@@ -1304,13 +1303,13 @@ function fxIcon(draw: (g: G, s: number) => void, px: number, scale: number, bg =
   return c;
 }
 
-function put(id: string, node: Node): void {
+export function put(id: string, node: Node): void {
   const el = document.getElementById(id);
   if (el) el.append(node);
 }
 
 /** The slam on a dark street: windup 1.6 s, impact flash, the crater, then again. */
-function slamScene(o: TeleOption, fx: FxSet | null, cr: boolean | null, disc: HTMLCanvasElement | null): HTMLCanvasElement {
+export function slamScene(o: TeleOption, fx: FxSet | null, cr: boolean | null, disc: HTMLCanvasElement | null): HTMLCanvasElement {
   const W = 520;
   const PM = 40; // px per metre in this view
   const c = canvas(W, W);
@@ -1394,78 +1393,3 @@ function slamScene(o: TeleOption, fx: FxSet | null, cr: boolean | null, disc: HT
   requestAnimationFrame(frame);
   return c;
 }
-
-async function main(): Promise<void> {
-  // 1. barrier
-  const nowBar = await imageFrame(CURRENT["atlas_downtown/prop_barrier_a"] as string);
-  const bars: [string, HTMLCanvasElement][] = [
-    ["now", nowBar],
-    ["B1", barrierFrame(barrierSawhorse)],
-    ["B2", barrierFrame(barrierWater)],
-    ["B3", barrierFrame(barrierConcrete)],
-  ];
-  for (const [id, f] of bars) {
-    const big = canvas(BAR_W * 2, BAR_H * 2);
-    const bg = ctx(big);
-    bg.imageSmoothingEnabled = false;
-    bg.fillStyle = GROUND.asphalt;
-    bg.fillRect(0, 0, big.width, big.height);
-    bg.drawImage(f, 0, 0, big.width, big.height);
-    put(`bar-${id}-frame`, big);
-    put(`bar-${id}-scene`, barrierScene(f));
-  }
-  // 2. slam warning
-  const nowDisc = await imageFrame(CURRENT["boss_tele_disc/boss_tele_disc"] as string);
-  put("tele-now", slamScene(CURRENT_TELE, null, null, nowDisc));
-  for (const o of [S1, S2, S3]) {
-    const tex = teleTexture(o);
-    put(`tele-${o.id}`, slamScene(o, null, null, tex));
-    const still = canvas(256, 256);
-    const sg = ctx(still);
-    sg.fillStyle = "#0b0d12";
-    sg.fillRect(0, 0, 256, 256);
-    sg.globalCompositeOperation = "lighter";
-    sg.drawImage(tex, 0, 0, 256, 256);
-    put(`tele-${o.id}-tex`, still);
-  }
-  // 3. boss effects
-  const nowKeys = ["boss_fx/boss_fx_skull_a", "boss_fx/boss_fx_disc_a", "boss_fx/boss_icon_slam_a", "boss_fx/boss_icon_charge_a", "boss_fx/boss_icon_throw_a"];
-  for (const k of nowKeys) {
-    const f = await imageFrame(CURRENT[k] as string);
-    const big = canvas(f.width * 2, f.height * 2);
-    const bg = ctx(big);
-    bg.fillStyle = "#23292f";
-    bg.fillRect(0, 0, big.width, big.height);
-    bg.imageSmoothingEnabled = false;
-    bg.drawImage(f, 0, 0, big.width, big.height);
-    put("fx-now", big);
-  }
-  for (const set of [SET_A, SET_B, SET_C]) {
-    put(`fx-${set.id}`, fxIcon(set.skull, 64, 2));
-    put(`fx-${set.id}`, fxIcon(set.disc, 72, 2));
-    for (const icon of [set.slam, set.charge, set.throw]) put(`fx-${set.id}`, fxIcon(icon, 48, 2));
-  }
-  const nowCrack = await imageFrame(CURRENT["boss_fx/boss_decal_crack_a"] as string);
-  for (const [id, embers] of [
-    ["now", null],
-    ["K1", false],
-    ["K2", true],
-  ] as const) {
-    const c = canvas(300, 300);
-    const g = ctx(c);
-    asphalt(g, 300, 300, 41);
-    g.save();
-    g.translate(150, 150);
-    g.globalAlpha = 0.85;
-    if (embers === null) g.drawImage(nowCrack, -128, -128);
-    else crater(g, 128, embers);
-    g.restore();
-    night(g, 300, 300, 0.35, [[60, 50, 160]]);
-    put(`crack-${id}`, c);
-  }
-  // all together: S1 + set A + K1 (the one a designer might pick), as a demo of a full set
-  put("combo-1", slamScene(S1, SET_A, false, teleTexture(S1)));
-  put("combo-2", slamScene(S3, SET_B, true, teleTexture(S3)));
-}
-
-void main();
