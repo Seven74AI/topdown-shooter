@@ -151,7 +151,7 @@ FR85: Ambience follows the decay stage (5 loops); music intensity follows the nu
 FR86: Each weapon has distinct firing and reload sounds; reloads are clearly audible. Sounds are procedural or from licensed/free libraries (no hired sound designer).
 FR87: Quality settings can lower or turn off rain, fog visuals, screen shake, film grain and light glow, plus the gore toggle; blackout darkness and the 10 m fog vision limit cannot be turned off.
 FR88: The game records simple run stats (district, wave reached, extracted, loadouts per player) for the success metrics.
-FR89: Each player's survivor is built from code-drawn parts and free colours they choose (cosmetic only, no gameplay effect) and is seen by the whole team; extra parts come from milestones earned once and from a rare per-run loot bag, never from Supplies (customization proposal D1–D7, O1–O6).
+FR89: Each player's survivor is built from code-drawn parts (51 parts in 5 slots: top, headgear, hair, backpack, skin; 31 starter, 10 milestone, 10 loot) and free colours they choose (cosmetic only, no gameplay effect) and is seen by the whole team; extra parts come from milestones earned once and from a rare per-run loot bag, never from Supplies (customization proposal D1–D7, O1–O6; part picks in `docs/epic-7-decisions.md` › Survivor parts (7.8)).
 
 ### NonFunctional Requirements
 
@@ -2556,15 +2556,15 @@ So that customization is possible without new image files.
 
 **Given** the art pick
 **When** the story starts
-**Then** the designer picks part looks from a code-drawing page (starting point: `docs/ideas/customization/avatar-editor.html`) before any part is built, and every part passes the "no gameplay signal" check (no armor plates, red-cross bags, shoulder lights, zombie skin or Runner shirts)
+**Then** the designer picks part looks from a code-drawing page (starting point: `docs/ideas/customization/avatar-editor.html`) before any part is built, and every part passes the "no gameplay signal" check (no armor plates, red-cross bags, shoulder lights, zombie skin or Runner shirts); the picks are recorded in `docs/epic-7-decisions.md` › Survivor parts (7.8)
 
 **Given** `drawSurvivor` in `apps/client/src/render/city/spriteArt.ts`
-**When** it is split into part functions (top, headgear, hair, backpack, accent, skin)
-**Then** the default look draws exactly today's survivor (pixel test against the current frame), and the held gun stays its own layer under the arms (Story 5.3 convention)
+**When** it is split into part functions (top, headgear, hair, backpack, skin: five slots, no accent) (survivor-parts course correction 2026-11-24, `sprint-change-proposal-2026-11-24-survivor-parts.md`)
+**Then** the default look draws today's survivor with only the cap redrawn (the designer's new default cap; pixel test against the current frames for everything else), and the held gun stays its own layer under the arms (Story 5.3 convention)
 
 **Given** `packages/shared` `cosmetics.json`
 **When** it is read
-**Then** it lists 55 parts (35 starter, 10 milestone, 10 loot; proposal §3, §6), each with id, slot, colour inputs (none / top / hair / accent) and unlock rule (`starter`, `milestone:<id>`, `loot`), and no gameplay numbers
+**Then** it lists 51 parts (31 starter, 10 milestone, 10 loot; `docs/epic-7-decisions.md` › Survivor parts (7.8)), each with id, slot, colour inputs (none / top / hair / accent; accent = the colour of hats and bags) and unlock rule (`starter`, `milestone:<id>`, `loot`), and no gameplay numbers
 
 **Given** any chosen colour
 **When** a part is drawn for the game
@@ -2573,6 +2573,10 @@ So that customization is possible without new image files.
 **Given** every part
 **When** drawn at 35 px per metre (0.4 m body radius)
 **Then** each non-"none" part changes at least 40 px² or the outline compared with "none" (automated pixel-count test)
+
+**Given** a part that declares an animated layer (designer 2026-11-24: the propeller cap's propeller spins, the first one)
+**When** the game draws it
+**Then** the layer is its own small sprite on top of the survivor (texture through `addGeneratedTexture` with a redraw callback, pooled sprites, no per-frame allocation), turned every frame at the speed in `cosmetics.json`; the baked body leaves it out and still pictures draw it at a fixed angle; later animated parts follow the same rule
 
 ### Story 7.9: My look in the game
 
@@ -2588,7 +2592,7 @@ So that I can find myself and they can recognise me.
 
 **Given** a join (Story 2.3)
 **When** the client sends its join options
-**Then** it includes the look code (≤ 96 characters, `v1|…` format) from the player's progress; the server checks each part exists and is owned by the account (until Story 7.11, owned = unlock rule `starter`), replaces any bad part with the default, and **never refuses a join because of a look**
+**Then** it includes the look code (≤ 96 characters, `v1|top:…|head:…|hair:…|pack:…|skin:N|c:rrggbb,rrggbb,rrggbb` — five slots, no `acc`; the colours are top, hair and accent = hats and bags) from the player's progress; the server checks each part exists and is owned by the account (until Story 7.11, owned = `STARTER_PARTS` from `packages/shared` `cosmetics.ts`), replaces any bad part with the default, and **never refuses a join because of a look** (survivor-parts course correction 2026-11-24, `sprint-change-proposal-2026-11-24-survivor-parts.md`)
 
 **Given** the room state
 **When** a player joins
@@ -2598,6 +2602,7 @@ So that I can find myself and they can recognise me.
 **When** the Game scene creates their survivor
 **Then** the body is drawn once into a per-player canvas texture (≤ 4 per run, ≤ ~2 ms total on the Xiaomi Mi 11i, the low-end floor), the gun image is drawn under it, and the downed view uses the same body
 **And** the slot ring, name and edge arrows keep the slot colour (Story 2.9)
+**And** a part with an animated layer (Story 7.8 rule; the propeller first) is baked without it, and the player's view shows the layer's pooled sprite on top (`PlayerView.setAnimatedLayer`), so later animated parts need no new code path
 
 **Given** the lobby
 **When** a player is in a slot
@@ -2617,7 +2622,7 @@ So that customizing is fun, not a chore.
 
 **Given** the start screen
 **When** I tap "Survivor" (the Survivor tab of the Progress hub, Story 7.3) or my own card in the lobby
-**Then** a Preact screen opens (the Survivor tab is added to the hub here) with tabs Top / Head / Hair / Pack / Accent / Skin, a big rotating preview, and a **game-size preview** (35 px per metre on wet asphalt, slot ring, a few zombies and teammates around)
+**Then** a Preact screen opens (the Survivor tab is added to the hub here) with tabs Top / Head / Hair / Pack / Skin (no Accent tab: the accent colour picker sits with the hats and bags that use it) (survivor-parts course correction 2026-11-24, `sprint-change-proposal-2026-11-24-survivor-parts.md`), a big rotating preview, and a **game-size preview** (35 px per metre on wet asphalt, slot ring, a few zombies and teammates around)
 
 **Given** the tabs
 **When** I pick a part or a colour
@@ -2630,6 +2635,7 @@ So that customizing is fun, not a chore.
 **Given** a locked part
 **When** it shows
 **Then** a milestone item shows a lock and how to get it ("Extract from Downtown once"); a loot item shows only a silhouette and "Found during waves"; neither shows a price
+**And** there is no shop view for items: they are never sold (D3); editor tiles are drawn from the part code (Story 7.8's part functions, zoomed on the slot)
 
 **Given** I tap Random
 **When** it runs
@@ -2658,7 +2664,7 @@ So that my survivor shows what I've done.
 
 **Given** a run ends (Story 7.2's transaction)
 **When** Supplies are banked
-**Then** the same transaction updates the counters and grants every milestone reached (M1–M10, proposal §6); each is granted once
+**Then** the same transaction updates the counters and grants every milestone reached (M1–M10; items per the designer's picks, `docs/epic-7-decisions.md` › Survivor parts (7.8): M1 firefighter helmet, M2 riot helmet, M3 gas mask, M4 hockey mask, M5 headband, M6 camo coat, M7 plank bundle, M8 laurel wreath, M9 welding mask, M10 golf bag); each is granted once (survivor-parts course correction 2026-11-24, `sprint-change-proposal-2026-11-24-survivor-parts.md`)
 
 **Given** a new milestone item
 **When** the Results screen shows
@@ -2690,7 +2696,7 @@ So that some runs end with a surprise.
 
 **Given** the bag is picked up
 **When** the item is chosen
-**Then** it is a random loot item the player doesn't own; if they own all 10, they get "Collector" on Results and no item
+**Then** it is a random loot item the player doesn't own (the 10 loot items: floral shirt, traffic cone, chef's hat, cooking pot, bunny beanie, viking helmet, propeller cap, teddy bear, cat in the backpack, potted plant; `docs/epic-7-decisions.md` › Survivor parts (7.8)); if they own all 10, they get "Collector" on Results and no item
 
 **Given** the run ends (extract, wipe or quit)
 **When** Results show

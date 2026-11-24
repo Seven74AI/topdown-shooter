@@ -22,6 +22,8 @@ Rejected, with reasons: permanent stat gear (leaves new friends behind, breaks T
 
 ## 3. What you can see at game size (the rule behind the slots)
 
+> **Superseded (2026-11-24, Story 7.8 part picks; `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-24-survivor-parts.md`).** The 40 px² rule stands, but the **counts and the accent slot** below are replaced: the shipped catalogue has **51 parts in 5 slots** (top, headgear, hair, backpack, skin; **no accent slot** — the accent colour picker stays, as the colour of hats and bags), **31 starter / 10 milestone / 10 loot**. The list is `docs/epic-7-decisions.md` › Survivor parts (7.8) › Final catalogue.
+
 A phone in landscape shows 24 m across: about **35 CSS px per metre**. The survivor's body is 0.4 m in radius, so it is **~28 px across, ~38 px with its ring, ~60 px from backpack to gun tip**.
 
 **Rule:** a slot exists only if it changes at least ~40 px² of colour or changes the outline at game size. Shoes, faces, belts and jewellery fail, so they are not in the game. Detail that is too small for play can still show in the editor's big preview and on the Results screen.
@@ -71,6 +73,8 @@ How it works:
 L1 means a group playing 3–4 runs in an evening sees a bag **about once every other evening**. That's rare enough to make the group shout when one drops, without it being so rare that nobody ever sees one. The rate is one number in balance JSON, so the 4.10-style playtests can tune it.
 
 ## 6. Milestone items (earned once, never bought)
+
+> **Superseded (2026-11-24, Story 7.8 part picks; `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-24-survivor-parts.md`).** The milestones M1–M10 stand; their items changed for **M5** (headband with long tails), **M7** (plank bundle), **M8** (laurel wreath), **M9** (welding mask, flipped up) and **M10** (golf bag); M1–M4 and M6 keep their items. The loot list below is replaced by: floral shirt, traffic cone, chef's hat, cooking pot, bunny beanie, viking helmet, propeller cap (its propeller spins: the first animated part), teddy bear, cat in the backpack, potted plant.
 
 Checked at the end of every run, in Story 7.2's Supplies transaction. Each needs a lifetime counter on the player's progress (a small `stats` field).
 
