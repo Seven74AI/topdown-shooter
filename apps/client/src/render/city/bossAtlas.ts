@@ -2,6 +2,7 @@ import type * as Phaser from "phaser";
 import { addGeneratedTexture } from "./canvasTexture";
 import { packAtlas, type FrameSpec, type PlacedFrame } from "./atlasLayout";
 import { BEHEMOTH_LOOK_IDS, BH_FRAME_HALF_M, drawBehemoth, type BehemothPose } from "./behemothArt";
+import { drawGroundDamage } from "./groundDamageArt";
 
 /**
  * Story 6.5 (T0, brief 12 / 20): the Behemoth's atlas (`boss_<look>_<pose>_<variant>`: 4 looks × 13
@@ -12,15 +13,13 @@ import { BEHEMOTH_LOOK_IDS, BH_FRAME_HALF_M, drawBehemoth, type BehemothPose } f
  */
 export const BOSS_ATLAS = "boss_atlas";
 export const BOSS_FX = "boss_fx";
-/** The slam ring's baked look: red + white hatching, solid red edge, dashed white inner edge, a hole for the body. */
+/** The slam ring's baked glow (asset fixes: S1 + countdown ticks), drawn additively; a hole for the body. */
 export const BOSS_TELE = "boss_tele_disc";
 export const BOSS_TELE_PX = 512;
 
 /** Frame size (px) of one boss pose: 252 px over 7 m = 36 px per metre. Frames pack 8 × 8 in 2048². */
 export const BOSS_FRAME_PX = 252;
 export const BOSS_PX_PER_M = BOSS_FRAME_PX / (2 * BH_FRAME_HALF_M);
-/** The hatch's stripe spacing (px in the 512 px disc): the prototype's 0.55 m at 4.5 m. */
-const HATCH_STEP_PX = 31;
 
 /** The frames of one look, in order: [pose, progress k, walk phase, frame variant]. */
 const POSE_FRAMES: readonly (readonly [BehemothPose | "outline", number, number, string, boolean])[] = [
@@ -147,84 +146,81 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
       g.closePath();
       g.fill();
       break;
-    case BOSS_FX_FRAMES.crack: {
-      // A starburst of dark cracks with a dusty ring (no collision change; the decal pool caps it).
-      let seed = 7;
-      const rnd = (): number => {
-        seed = (seed * 16807) % 2147483647;
-        return seed / 2147483647;
-      };
-      g.fillStyle = "rgba(40,36,32,0.35)";
-      g.beginPath();
-      g.arc(0, 0, s * 0.3, 0, Math.PI * 2);
-      g.fill();
-      g.strokeStyle = "rgba(14,12,10,0.85)";
-      for (let i = 0; i < 14; i++) {
-        let a = (i / 14) * Math.PI * 2 + rnd() * 0.3;
-        let x = Math.cos(a) * s * 0.12;
-        let y = Math.sin(a) * s * 0.12;
-        g.lineWidth = 2.4 + rnd() * 2;
-        g.beginPath();
-        g.moveTo(x, y);
-        const len = s * (0.55 + rnd() * 0.4);
-        for (let d = 0; d < len; d += s * 0.12) {
-          a += (rnd() - 0.5) * 0.5;
-          x += Math.cos(a) * s * 0.12;
-          y += Math.sin(a) * s * 0.12;
-          g.lineTo(x, y);
-        }
-        g.stroke();
-      }
+    case BOSS_FX_FRAMES.crack:
+      // Asset fixes (designer): the realistic ground damage, R1 + R2 + R3 combined (`groundDamageArt.ts`)
+      drawGroundDamage(g, -f.w / 2, -f.h / 2, f.w);
       break;
-    }
   }
 }
 
+/** Countdown ticks around the slam ring (asset fixes, S1c): the view lights them one by one over the windup. */
+export const TELE_TICKS = 72;
+/** Every `TELE_TICK_MAJOR`th tick is long. */
+export const TELE_TICK_MAJOR = 6;
+/** Ticks start this far inside the rim and are this long (texture px; the view scales them to metres). */
+export const TELE_TICK_IN_PX = 12;
+export const TELE_TICK_LONG_PX = 16;
+export const TELE_TICK_SHORT_PX = 7;
+
 /**
- * The telegraph disc (prototype `teleRing` + `hatch`): a faint red fill with white diagonal hatching,
- * the solid red edge and the dashed white inner edge, and a transparent hole of `holeFrac` × the
- * radius (the boss's body: its pose stays visible). Drawn once; the live fill is a ring drawn over it.
+ * The slam telegraph (asset fixes, designer 2026-11-24: "the glow version with some sparks and the
+ * countdown" = S1 + S1a + S1c of `docs/art/asset-fixes-1`): a red glow gathering toward a white-hot rim,
+ * an inward bloom, dim countdown ticks round the dial, a soft dashed edge at the body and a transparent
+ * hole for the body. Drawn with additive blending (it glows over the darkness); the view lights the ticks
+ * and adds the sparks.
  */
 function drawTeleDisc(g: CanvasRenderingContext2D, holeFrac: number): void {
   const n = BOSS_TELE_PX;
   const R = n / 2 - 4;
+  const hole = R * holeFrac;
   g.clearRect(0, 0, n, n);
   g.save();
   g.translate(n / 2, n / 2);
+  const gr = g.createRadialGradient(0, 0, hole, 0, 0, R);
+  gr.addColorStop(0, "rgba(255,40,30,0.02)");
+  gr.addColorStop(0.6, "rgba(255,50,30,0.10)");
+  gr.addColorStop(0.92, "rgba(255,70,40,0.32)");
+  gr.addColorStop(1, "rgba(255,120,80,0.55)");
+  g.fillStyle = gr;
   g.beginPath();
   g.arc(0, 0, R, 0, Math.PI * 2);
-  g.clip();
-  g.fillStyle = "rgba(255,40,48,0.16)";
-  g.fillRect(-R, -R, 2 * R, 2 * R);
-  g.strokeStyle = "rgba(255,255,255,0.22)";
-  g.lineWidth = 5;
-  g.beginPath();
-  for (let i = -2 * R; i <= 2 * R; i += HATCH_STEP_PX) {
-    g.moveTo(i - R, R);
-    g.lineTo(i + R, -R);
-  }
-  g.stroke();
-  g.restore();
-  g.save();
-  g.translate(n / 2, n / 2);
-  g.lineWidth = 7;
-  g.strokeStyle = "#ff3b3b";
-  g.beginPath();
-  g.arc(0, 0, R - 3.5, 0, Math.PI * 2);
-  g.stroke();
-  g.setLineDash([22, 17]);
-  g.lineWidth = 3;
-  g.strokeStyle = "rgba(255,255,255,0.9)";
-  g.beginPath();
-  g.arc(0, 0, R - 10, 0, Math.PI * 2);
-  g.stroke();
-  g.setLineDash([]);
-  if (holeFrac > 0) {
-    g.globalCompositeOperation = "destination-out";
+  g.arc(0, 0, hole, 0, Math.PI * 2, true);
+  g.fill();
+  for (let i = 0; i < 6; i++) {
+    g.strokeStyle = `rgba(255,60,40,${0.1 - i * 0.014})`;
+    g.lineWidth = 6;
     g.beginPath();
-    g.arc(0, 0, R * holeFrac, 0, Math.PI * 2);
-    g.fill();
-    g.globalCompositeOperation = "source-over";
+    g.arc(0, 0, R - 6 - i * 6, 0, Math.PI * 2);
+    g.stroke();
+  }
+  g.strokeStyle = "rgba(255,90,60,0.9)";
+  g.lineWidth = 7;
+  g.beginPath();
+  g.arc(0, 0, R - 4, 0, Math.PI * 2);
+  g.stroke();
+  g.strokeStyle = "rgba(255,236,220,1)";
+  g.lineWidth = 2.5;
+  g.beginPath();
+  g.arc(0, 0, R - 4, 0, Math.PI * 2);
+  g.stroke();
+  g.strokeStyle = "rgba(255,220,200,0.55)";
+  g.lineWidth = 2;
+  for (let i = 0; i < TELE_TICKS; i++) {
+    const a = -Math.PI / 2 + (i / TELE_TICKS) * Math.PI * 2;
+    const l = i % TELE_TICK_MAJOR === 0 ? TELE_TICK_LONG_PX : TELE_TICK_SHORT_PX;
+    g.beginPath();
+    g.moveTo(Math.cos(a) * (R - TELE_TICK_IN_PX), Math.sin(a) * (R - TELE_TICK_IN_PX));
+    g.lineTo(Math.cos(a) * (R - TELE_TICK_IN_PX - l), Math.sin(a) * (R - TELE_TICK_IN_PX - l));
+    g.stroke();
+  }
+  if (holeFrac > 0) {
+    g.strokeStyle = "rgba(255,80,60,0.35)";
+    g.lineWidth = 2;
+    g.setLineDash([10, 10]);
+    g.beginPath();
+    g.arc(0, 0, hole + 4, 0, Math.PI * 2);
+    g.stroke();
+    g.setLineDash([]);
   }
   g.restore();
 }

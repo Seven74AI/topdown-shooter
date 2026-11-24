@@ -1,6 +1,21 @@
 import type * as Phaser from "phaser";
 import { BOSS_ATTACK, BOSS_STATE, zombieUnderBoss, type World } from "@topdown/shared";
-import { BOSS_ATLAS, BOSS_CRACK_PX_PER_M, BOSS_FRAME, BOSS_FRAMES, BOSS_FRAME_PX, BOSS_FX, BOSS_FX_FRAMES, BOSS_PX_PER_M, BOSS_TELE, BOSS_TELE_RADIUS_PX, ensureBossTextures } from "./city/bossAtlas";
+import {
+  BOSS_ATLAS,
+  BOSS_CRACK_PX_PER_M,
+  BOSS_FRAME,
+  BOSS_FRAMES,
+  BOSS_FRAME_PX,
+  BOSS_FX,
+  BOSS_FX_FRAMES,
+  BOSS_PX_PER_M,
+  BOSS_TELE,
+  BOSS_TELE_RADIUS_PX,
+  TELE_TICKS,
+  TELE_TICK_IN_PX,
+  TELE_TICK_MAJOR,
+  ensureBossTextures,
+} from "./city/bossAtlas";
 import { aboveDarkness } from "./darkness/aboveDark";
 import { slamFrameIndex, telegraphProgress, type TelegraphLook } from "./bossTelegraph";
 
@@ -13,10 +28,12 @@ import { slamFrameIndex, telegraphProgress, type TelegraphLook } from "./bossTel
  *   fill; RECOVER after a slam `slamHit` for half a second. A `boss.hit` flashes it.
  * - In the dark (6.3: `isBlackout` / `darknessAlpha > 0`, set through `setDark`) its outline + eyes
  *   frame above the darkness (`ABOVE_DARK.boss`; red eyes when enraged, 6.7).
- * - The telegraph: the baked disc (red + white hatching, red edge, dashed inner edge, a hole for the
- *   body) and a red fill ring growing from the body's edge to the ring, drawn from the SERVER's start
- *   tick (`telegraphProgress` with the host's estimated server tick), above the zombies and the
- *   darkness (`ABOVE_DARK.telegraph`). Pooled: 2 slots (the current one and the fading one).
+ * - The telegraph (asset fixes, designer: S1 glow + sparks + countdown): the baked glowing disc (additive)
+ *   brightening over the windup, its countdown ticks lighting one by one clockwise from the top (the
+ *   circle closes on the hit tick) with a bright head, and sparks lifting off the rim and drifting in,
+ *   thicker toward the hit. Driven by the SERVER's start tick (`telegraphProgress` with the host's
+ *   estimated server tick), above the zombies and the darkness (`ABOVE_DARK.telegraph`). Pooled: 2
+ *   slots (the current one and the fading one).
  * - A red skull over its target (everyone sees it; `ABOVE_DARK.marker`).
  * - The slam's crack decals: a pool of `boss.json › caps.maxDecals` (oldest reused), cleared at a build start.
  */
@@ -26,8 +43,20 @@ const WALK_STEP_M = 0.65;
 const SLAM_HIT_S = 0.5;
 const HIT_FLASH_S = 0.08;
 const HIT_TINT = 0xffb0a0;
-const FILL_COLOR = 0xff2828;
-const FILL_ALPHA = 0.38;
+/** `Phaser.BlendModes.ADD` (a number: this module only imports Phaser's types, so tests run without a browser). */
+const BLEND_ADD = 1;
+/** The telegraph's lit ticks: a red bloom under a white-hot core (colour, alpha, width in texture px). */
+const TICK_GLOW = 0xff3c28;
+const TICK_CORE = 0xffebdc;
+/** Lit ticks are longer than the dim baked ones (texture px). */
+const TICK_LIT_LONG_PX = 20;
+const TICK_LIT_SHORT_PX = 11;
+/** Sparks off the rim: count at the start and at the hit, how far in they drift (share of the ring's width). */
+const SPARKS_MIN = 30;
+const SPARKS_MAX = 100;
+const SPARK_DRIFT = 0.55;
+/** Seconds of spark drift time per spark lifetime (randomised per spark ×1–2.5). */
+const SPARK_LIFE_S = 1;
 const SKULL_M = 0.9;
 const SKULL_LIFT_M = 1.1;
 /** Review M2: the body's opacity while zombies walk under it (they read through it; no new colour). */
@@ -71,6 +100,8 @@ export class BossView {
   private flashS = 0;
   private slamHitS = 0;
   private readonly look: TelegraphLook = { progress: 0, visible: false, alpha: 0 };
+  /** Seconds since the view started (drives the sparks; never the gameplay). */
+  private clockS = 0;
   private readonly at = { x: 0, y: 0 };
 
   constructor(
@@ -85,8 +116,8 @@ export class BossView {
     this.skull = aboveDarkness(scene.add.image(0, 0, BOSS_FX, BOSS_FX_FRAMES.skull).setDisplaySize(SKULL_M, SKULL_M).setVisible(false), "marker");
     for (let i = 0; i < 2; i++) {
       this.tele.push({
-        disc: aboveDarkness(scene.add.image(0, 0, BOSS_TELE).setVisible(false), "telegraph"),
-        fill: aboveDarkness(scene.add.graphics().setVisible(false), "telegraph"),
+        disc: aboveDarkness(scene.add.image(0, 0, BOSS_TELE).setBlendMode(BLEND_ADD).setVisible(false), "telegraph"),
+        fill: aboveDarkness(scene.add.graphics().setBlendMode(BLEND_ADD).setVisible(false), "telegraph"),
         attackId: -1,
         startTick: 0,
         hitTick: 0,
@@ -164,6 +195,7 @@ export class BossView {
     const on = b.state >= BOSS_STATE.WALK && b.state <= BOSS_STATE.ROAR;
     // A late Game scene / a reconnect mid-telegraph: the state carries the attack.
     if (b.state === BOSS_STATE.TELEGRAPH) this.onTelegraph(b.attack.id, b.attack.kind, b.attack.startTick, b.attack.hitTick, b.attack.cx, b.attack.cy, b.attack.radiusM);
+    this.clockS += dtS;
     this.drawTelegraphs(serverTick);
     if (!on) {
       if (this.body.visible) {
@@ -224,16 +256,60 @@ export class BossView {
         if (serverTick > s.hitTick) s.attackId = -1; // done: the slot is free
         continue;
       }
-      s.disc.setAlpha(look.alpha).setVisible(true);
-      // The fill: a ring from the body's edge out to progress × radius (the body hole stays clear).
-      const outer = s.r * look.progress;
-      const g = s.fill.clear();
-      if (outer > s.hole) {
-        const w = outer - s.hole;
-        g.lineStyle(w, FILL_COLOR, FILL_ALPHA * look.alpha).strokeCircle(s.cx, s.cy, s.hole + w / 2);
+      const p = look.progress;
+      s.disc.setAlpha(look.alpha * (0.45 + 0.55 * p)).setVisible(true); // the glow gathers over the windup
+      this.drawCountdown(s.fill.clear(), s, p, look.alpha);
+      s.fill.setVisible(true);
+    }
+  }
+
+  /**
+   * The live part of the slam telegraph into `g` (world metres): the countdown ticks lit up to `p`, the
+   * sweep's bright head, and the sparks. No allocation (sparks are hashed from their index and the clock).
+   */
+  private drawCountdown(g: Phaser.GameObjects.Graphics, s: TeleSlot, p: number, alpha: number): void {
+    const k = s.r / BOSS_TELE_RADIUS_PX; // metres per texture px
+    const R = s.r;
+    const lit = Math.floor(p * TELE_TICKS);
+    for (let pass = 0; pass < 2; pass++) {
+      g.lineStyle((pass === 0 ? 7 : 2.6) * k, pass === 0 ? TICK_GLOW : TICK_CORE, (pass === 0 ? 0.35 : 0.95) * alpha);
+      for (let i = 0; i < lit; i++) {
+        const a = -Math.PI / 2 + (i / TELE_TICKS) * Math.PI * 2;
+        const l = (i % TELE_TICK_MAJOR === 0 ? TICK_LIT_LONG_PX : TICK_LIT_SHORT_PX) * k;
+        const r0 = R - (TELE_TICK_IN_PX - 2) * k;
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        g.lineBetween(s.cx + ca * r0, s.cy + sa * r0, s.cx + ca * (r0 - l), s.cy + sa * (r0 - l));
       }
-      g.setVisible(true);
+    }
+    // the sweep's head: a hot point riding the rim
+    if (p < 1) {
+      const a = -Math.PI / 2 + p * Math.PI * 2;
+      const hx = s.cx + Math.cos(a) * (R - 4 * k);
+      const hy = s.cy + Math.sin(a) * (R - 4 * k);
+      for (let i = 4; i >= 1; i--) {
+        g.fillStyle(i === 1 ? TICK_CORE : TICK_GLOW, (i === 1 ? 0.9 : 0.16) * alpha);
+        g.fillCircle(hx, hy, i * 5 * k);
+      }
+    }
+    // sparks lifting off the rim and drifting in, more of them toward the hit
+    const n = Math.round(SPARKS_MIN + p * (SPARKS_MAX - SPARKS_MIN));
+    const span = (R - s.hole) * SPARK_DRIFT;
+    for (let i = 0; i < n; i++) {
+      const h1 = sparkHash(i, 1);
+      const life = (this.clockS / (SPARK_LIFE_S * (1 + sparkHash(i, 3) * 1.5)) + sparkHash(i, 4)) % 1;
+      const a = h1 * Math.PI * 2 + this.clockS * 0.15 * (sparkHash(i, 2) - 0.5);
+      const d = R - life * span;
+      const fade = Math.sin(life * Math.PI) * (0.5 + p * 0.5) * alpha;
+      g.fillStyle(sparkHash(i, 5) < 0.5 ? 0xffb45a : 0xffe08c, fade);
+      g.fillCircle(s.cx + Math.cos(a) * d, s.cy + Math.sin(a) * d, (1 + sparkHash(i, 6) * 1.6) * k);
     }
   }
 }
 
+/** A stable 0–1 value per spark and channel (no allocation, no Math.random: every client draws the same sparks). */
+function sparkHash(i: number, ch: number): number {
+  let h = Math.imul(i + 1, 374761393) ^ Math.imul(ch, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
