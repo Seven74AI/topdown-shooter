@@ -381,6 +381,33 @@ Merged master 9c540b3 (6.2+6.4 Ruins/Collapse): two conflicts resolved — `inde
 
 Behaviour changes in these fixes: **M1** (client vote pacing), **M2** (when the online dawn plays), **L7** (dev boss override governs endless). The rest are tests, docs and comments.
 
+### Re-review (AI) of the review fixes
+
+**Reviewer:** fresh-agent re-reviewer (cloud session), 2026-11-24, narrow re-review (designer speed-up): only the fix commits `aaf1099..3008990` (13f7711, merge 57bed76's resolutions in `index.ts` / `decay.json`, 3008990).
+**Outcome:** **Approve with follow-ups** — 0 high, 1 medium, 2 low, 2 nit. Every fix target's mutation is now killed except one pre-existing client line (N2).
+
+**Tests run:** `npm run typecheck` (green); probes and mutations only: client `ui/voteModel`, `scenes/hudLayout`, `net/onlineFlow`; shared `economy/endlessSim`, `run/evacVote`, `config/balance`, `waves/waveDirector.endless`, `decay/lightState` (16/16); server `run/tickCostEndless`; `tools/netsim/vote`. Two throw-away probe files (VoteSender timing, dawn clock drift) were run and deleted.
+
+**MEDIUM**
+
+- **RM1 — A quick change of mind in the last ~⅓ s is still lost (the M1 fix adds up to 334 ms to the 2nd tap).** `apps/client/src/ui/voteModel.ts:221` (`nowMs - sentAtMs < VOTE_SEND_GAP_MS` → wait). Probe: Stay tapped 300 ms before the vote ends (sent at once), Extract tapped 100 ms before the end → Extract would go out 34 ms *after* the end; `updateVote` stops polling once the phase leaves "vote" (`GameScene.ts:1042-1046`), so it is never sent and the vote resolves Stay. Before the fix that 2nd tap was sent on the tap. Same in the 1 s all-voted hold (the hold is `min`, so it is not extended). Two taps, not a flood: the M1 class with a smaller window. Also a tap followed by switching apps within 334 ms waits for the next rAF. **Fix:** a token bucket instead of a strict gap (burst 3, refill 3/s; the server's ~10/s shared bucket still holds with pongs), or send at once when `voteTicksLeft` ≤ ~0.5 s. Test: Stay at T−300 ms, Extract at T−100 ms → Extract sent before T.
+
+**LOW**
+
+- **RL1 — The dawn's server clock drifts with dropped server ticks.** `apps/client/src/net/onlineFlow.ts:65-74,85-87`. `minOffsetMs` is the minimum over the whole run, and `setFixedTimestep` drops the backlog after 5 catch-up steps (`RunRoom.ts:748`), so every server stall > 250 ms makes the server tick fall behind wall time for good; the estimate of "server tick now" runs ahead by the sum. Probe (10-min run, live extract, 100 ms latency): 0 ms of lost ticks → 4000 ms of dawn; 1000 → 3000; 3500 → 500; 4500 → **no dawn for a live player**. Needs seconds of stalls (CPU-throttled host, long GC), so low; cosmetic. Clock skew, a slow first patch, lag 150 ± 20 (error ≤ jitter + one patch interval) and a tab hidden across the vote that wakes at Results are handled (the min keeps a live sample; a backlog only raises the offset; on device sleep the post-wake sample is accurate). **Fix:** use only recent samples (reset the min at each wave → vote, or keep the min over the last wave's phase patches), or the session's ping clock if it has one.
+- **RL2 — No reset of `minOffsetMs` on "a new run seen without its lobby patch".** `onlineFlow.ts:72` resets only on "lobby"; the branch at `:78` (`session?.release()`, new run) keeps run 1's offset while `state.tick` restarts at 0 (`syncState.ts:222`), so run 2's estimate is off by run 1's length → no dawn in run 2. Theoretical today (lobby needs a ready-up), cheap to fix: reset there too.
+
+**NIT**
+
+- **N1 — L7 with the override:** `run/endlessEvents.ts:22` calls `isBossWave(balance, wave, true)` without the dev override, so in a `?bosswave=` / `DEV_BOSS_WAVES` run the endless events skip 15/20/25 (no Behemoth there) and may land on an override boss wave. Dev only. Also `parseDevBossWaves` never yields `[]` (empty → null), so "[] = none" is reachable from code only. Production: override is always `null` (`devBossWaves.ts:14`, `urlOptions.ts:167`) → `isBossWave` is byte-for-byte the old path.
+- **N2 — The client's neutral input in the vote is not under any test (pre-existing, D-B).** `GameScene.ts:1913` (`… || host.world.run.phase === "vote"`): removing it **survives** `tools/netsim/vote.test.ts` + every `apps/client/src/scenes` test (236 green); the L6 netsim test hand-codes the neutral input. Fix: move the rule into a pure helper the netsim test imports.
+
+**Exploit attempts (M1):** final tap with no recent send → sent on the tap ✓; tap → server confirm → tap back → sent after the gap ✓; A, B, A inside one gap → nothing extra sent, server keeps A ✓; resend vs a newer send → only the current choice is ever resent, WebSocket is ordered, so no stale overwrite ✓; never-confirmed vote → 10 resends in 15 s (≤ 0.7/s), none after the vote (polling stops with the phase), none in Results ✓; worst case ≈ 3/s + pongs within the ~10/s bucket ✓; tap in the last 334 ms after a recent send → **lost (RM1)**. The `openKey` reset discards a `want()` made before a vote's first poll; unreachable (the buttons appear only after that poll).
+
+**Mutations (all reverted):** killed — M3 light-list leak (`list.length = 0` removed; endlessSim 1 failed) · L1 `half = 0` (hudLayout 1) · L3 `clearGrenades` out of `openEvacVote` (evacVote 1) · L4 Brute cap off (tickCostEndless 1) · L5 cross-check off (balance 1) · L6 server vote freeze off (netsim vote 1) · L6 Predictor snap at 0.1 m (1) · M1 resend off (1) · M1 gap off (2) · M2 last sample instead of min (onlineFlow 1) · L7 override OR-ed again (waveDirector.endless 1). Survived — client neutral input in the vote (N2, pre-existing).
+
+**Merge resolution:** `decay.json › blackout` keeps 6.4's `halfDarkInBuild: true` and adds `endlessOddWaves` / `endlessEvenHalfDark: true` (the only diff vs master da82847); `index.ts` keeps both export sets (`MAX_START_WAVE` + 6.2's ruinsLook/collapse); `lightState.test.ts` 16/16 green; typecheck green.
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -388,3 +415,4 @@ Behaviour changes in these fixes: **M1** (client vote pacing), **M2** (when the 
 - 2026-11-24: built together with 6.12 (merged story) on `story-6-11`; status review.
 - 2026-11-24: Senior Developer Review (AI) on `132c90d`: changes requested (0 high, 3 medium, 12 low).
 - 2026-11-24: review fixes M1–M3, L1–L9, L11, L12 (L10 no change); merged master 9c540b3.
+- 2026-11-24: Re-review (AI) of the review fixes on `3008990`: approve with follow-ups (1 medium RM1, 2 low, 2 nit).
