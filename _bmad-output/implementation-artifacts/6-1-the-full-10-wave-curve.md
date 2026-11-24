@@ -53,7 +53,7 @@ Most relevant here: 3/4 (fairness rules, "Beat the rule"), 8 (no new randomness:
 
 ### Fairness rules (player-visible; brief line 3; each is tested)
 
-- **F1 "Each wave is exactly as big as the table says."** Wave N has `N × 40` zombies at 4 players, × 0.4 / 0.6 / 0.8 / 1.0 for 1–4 players (rounded): wave 7 = 280 / 224 / 168 / 112 (4 → 1 players), wave 8 = 320 / 256 / 192 / 128, wave 9 = 360 / 288 / 216 / 144, wave 10 = 400 / 320 / 240 / 160. Never more than 150 alive at once; the rest wait in the queue (FR28, FR31).
+- **F1 "Each wave is exactly as big as the table says."** Wave N has `N × 40` zombies at 4 players, × 0.35 (balance pass B2; the story was drafted with 0.4) / 0.6 / 0.8 / 1.0 for 1–4 players (rounded): wave 7 = 280 / 224 / 168 / 98 (4 → 1 players), wave 8 = 320 / 256 / 192 / 112, wave 9 = 360 / 288 / 216 / 126, wave 10 = 400 / 320 / 240 / 140. Never more than 150 alive at once; the rest wait in the queue (FR28, FR31).
 - **F2 "The new waves have the full bestiary, in exact numbers."** Waves 7–10 use the mix (walker / runner / crawler / spitter / bloater) W7 38/22/15/10/15, W8 35/24/15/11/15, W9 40/18/17/10/15, W10 38/22/15/10/15 as exact shares (Story 3.10's rule, no random draw). Example at 4 players, wave 10: 150 Walkers, 88 Runners, 60 Crawlers, 40 Spitters, 60 Bloaters, 2 Brutes (table in Dev Notes).
 - **F3 "Exactly 2 Brutes in each of waves 7–10, whatever the party size, and never in the opening burst."** The Brutes are part of the wave size (taken off the Walkers), and each waits for its own point in the wave (6.1 D1: the first after 25 % of the wave has spawned, the second after 65 %).
 - **F4 "Zombies never get tougher, only more."** HP, damage and speed of every type are the same in wave 10 as in wave 1 (pillar 1; only endless beyond wave 15 changes HP, Story 6.12).
@@ -130,14 +130,14 @@ Most relevant here: 3/4 (fairness rules, "Beat the rule"), 8 (no new randomness:
 - `core/worldSnapshot.ts › snapshotWorld`: copies `world.waves` (typed arrays via `Array.from`).
 - Economy: `economy.json` (`waveClearBonusPerWave 10` → 550 over 10 waves per player, as the GDD's 2,500–3,000 assumes).
 
-Exact counts the tests assert (from the real `waveTypeCounts` + `applyFixedCounts`):
+Exact counts the tests assert (from the real `waveTypeCounts` + `applyFixedCounts`; the solo column at × 0.35, balance pass B2):
 
 | Wave | Players | Size | Walker | Runner | Crawler | Spitter | Bloater | Brute |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 7 | 4 / 3 / 2 / 1 | 280 / 224 / 168 / 112 | 105 / 84 / 62 / 41 | 61 / 49 / 37 / 25 | 42 / 34 / 26 / 17 | 28 / 22 / 16 / 11 | 42 / 33 / 25 / 16 | 2 |
-| 8 | 4 / 3 / 2 / 1 | 320 / 256 / 192 / 128 | 111 / 88 / 66 / 43 | 76 / 61 / 46 / 30 | 48 / 39 / 29 / 20 | 35 / 28 / 21 / 14 | 48 / 38 / 28 / 19 | 2 |
-| 9 | 4 / 3 / 2 / 1 | 360 / 288 / 216 / 144 | 143 / 114 / 85 / 56 | 64 / 52 / 39 / 26 | 61 / 49 / 37 / 25 | 36 / 28 / 21 / 14 | 54 / 43 / 32 / 21 | 2 |
-| 10 | 4 / 3 / 2 / 1 | 400 / 320 / 240 / 160 | 150 / 120 / 90 / 59 | 88 / 70 / 52 / 35 | 60 / 48 / 36 / 24 | 40 / 32 / 24 / 16 | 60 / 48 / 36 / 24 | 2 |
+| 7 | 4 / 3 / 2 / 1 | 280 / 224 / 168 / 98 | 105 / 84 / 62 / 36 | 61 / 49 / 37 / 22 | 42 / 34 / 26 / 15 | 28 / 22 / 16 / 9 | 42 / 33 / 25 / 14 | 2 |
+| 8 | 4 / 3 / 2 / 1 | 320 / 256 / 192 / 112 | 111 / 88 / 66 / 38 | 76 / 61 / 46 / 27 | 48 / 39 / 29 / 17 | 35 / 28 / 21 / 12 | 48 / 38 / 28 / 16 | 2 |
+| 9 | 4 / 3 / 2 / 1 | 360 / 288 / 216 / 126 | 143 / 114 / 85 / 49 | 64 / 52 / 39 / 23 | 61 / 49 / 37 / 22 | 36 / 28 / 21 / 12 | 54 / 43 / 32 / 18 | 2 |
+| 10 | 4 / 3 / 2 / 1 | 400 / 320 / 240 / 140 | 150 / 120 / 90 / 52 | 88 / 70 / 52 / 30 | 60 / 48 / 36 / 21 | 40 / 32 / 24 / 14 | 60 / 48 / 36 / 21 | 2 |
 
 ### Must be preserved
 
@@ -231,6 +231,7 @@ Claude (Claude Code cloud session, BMAD `gds-dev-story`).
 - `GameScene.ts`: one import line (`parseStartWave`) and 2 lines at the `LocalSimHost` construction. `LocalSimHost.ts`: constructor option + one line. `urlOptions.ts`: field `startWave` at the end.
 - Tests that assumed 6 waves: `fiveWaveSim.test.ts` and `decay.test.ts` keep 6-wave runs by `runWaves 6` overrides; a branch adding a new whole-run test should pass the override or expect 10 waves.
 - `docs/epic-5-decisions.md`: one line appended after the balance-pass watch items.
+- `apps/server/src/run/tickCostWave10.test.ts` is the **Epic 6 server baseline** (wave 10, 4 players, 150 alive, real mix, stage 5: p99 1.23 ms at load ≈ 1). Stories 6.3–6.7 measure their added tick p99 against it (same setup plus their mechanic) and assert it behind `PERF_ASSERT=1`; together they must stay within the brief-16 budget of ≤ 2 ms added p99 for Epic 6 (boss field + events + vote).
 
 ### File List
 
@@ -268,8 +269,18 @@ Claude (Claude Code cloud session, BMAD `gds-dev-story`).
 - `_bmad-output/implementation-artifacts/6-1-the-full-10-wave-curve.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
+## Senior Developer Review (AI)
+
+- **Reviewer:** fresh-agent review run by the main session, 2026-11-24, on 5f9c063 merged with master 8f81792.
+- **Verdict:** Approve. No high or medium findings; clean for master. Four lows, fixed on `story-6-1` (lows need no re-review):
+  - [x] **L1** `fillFixedAtList`'s clamp `min(size − fixedTotal + k, …)` wasn't covered (a "no clamp" mutation survived; it matters for 6.12's endless Brutes). Fix: `fillFixedAtList(real, 2, 2, out)` → `[0, 1]` in `waveDirector.test.ts`; the "no clamp" mutation now fails it.
+  - [x] **L2** The new `snapshotWorld` fields weren't asserted (a "`fixedAtList` → []" mutation survived the whole shared suite). Fix: new test "review L2: snapshotWorld carries the fixed zombies and their spawn points (wave 7 at 4 players)": `fixedAtList` = [70, 182, 0 × 6], `fixedTarget` = 2 Brutes, `fixedSpawned` all 0, `fixedTotal` 2, `fixedServed` 0, plain arrays. The mutation now fails it.
+  - [x] **L3** The story's F1 and the Dev Notes solo column still had × 0.4 numbers. Fix: amended to × 0.35 (98 / 112 / 126 / 140 and the solo mix counts the tests assert), marked "balance pass B2".
+  - [x] **L4** The Notes for the merge didn't name `tickCostWave10` as the Epic 6 baseline. Fix: a line added (6.3–6.7 assert their added p99 against it; ≤ 2 ms total, brief 16).
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
 - 2026-11-24: built (gds-dev-story): 10-wave run, Brutes at 25 %/65 %, ten-wave sim, start-at-wave dev switch, wave-10 tick cost; status review.
+- 2026-11-24: review (no high/medium); lows L1–L4 fixed (two tests, story text, merge note); status stays review.

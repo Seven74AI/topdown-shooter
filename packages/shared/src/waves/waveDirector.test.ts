@@ -21,6 +21,7 @@ import { killZombie } from "../zombies/zombiePool";
 import { ZOMBIE_STATE, ZOMBIE_TYPES } from "../zombies/zombieTypes";
 import { applyFixedCounts, fillFixedAtList, spawnJitterFor, spawnReachM, waveMixOf, waveSize, waveTypeCounts } from "./waveDirector";
 import { skipWave, startBuild } from "../run/runStateMachine";
+import { snapshotWorld } from "../core/worldSnapshot";
 
 /**
  * Story 3.1: a 3 s build phase (60 ticks) keeps these timings short; the build itself is tested in
@@ -532,6 +533,8 @@ describe("Story 6.1: the full 10-wave curve", () => {
     expect(out[0]).toBe(18); // Story 5.7's solo wave 5 point
     fillFixedAtList(real, 3, 2, out); // tiny wave: never later than size − fixedTotal + k
     expect(Array.from(out.subarray(0, 2))).toEqual([1, 2]);
+    fillFixedAtList(real, 2, 2, out); // review L1: the clamp decides (round(2 × 0.65) = 1 → 1, but 0.25 → 1 would leave no slot): [0, 1]
+    expect(Array.from(out.subarray(0, 2))).toEqual([0, 1]);
     const legacy = balanceWith({ fixedAtFractions: [] } as Partial<typeof wavesJson>, true);
     fillFixedAtList(legacy, 400, 2, out);
     expect(Array.from(out.subarray(0, 2))).toEqual([100, 100]); // both at 25 % (the old behaviour)
@@ -552,6 +555,22 @@ describe("Story 6.1: the full 10-wave curve", () => {
       }
     }
   }, 180_000);
+
+  it("review L2: snapshotWorld carries the fixed zombies and their spawn points (wave 7 at 4 players)", () => {
+    const world = createWorld({ balance: balanceWith({ runWaves: 10 }, true), seed: 3, systems: { zombies: () => {} } });
+    for (let i = 0; i < 4; i++) addPlayer(world, `p${i}`, 24 + i, 16).hp = 1e9;
+    world.waves.number = 6;
+    startBuild(world);
+    for (let i = 0; i < 200 && world.run.phase !== "wave"; i++) step(world, TICK_DT_S);
+    const snap = snapshotWorld(world).waves as unknown as { fixedAtList: number[]; fixedTarget: number[]; fixedSpawned: number[]; fixedServed: number; fixedTotal: number };
+    expect(world.waves.number).toBe(7);
+    expect(snap.fixedAtList).toEqual([70, 182, 0, 0, 0, 0, 0, 0]); // round(280 × 0.25), round(280 × 0.65)
+    expect(snap.fixedTarget).toEqual(ZOMBIE_TYPES.map((t) => (t === "brute" ? 2 : 0)));
+    expect(snap.fixedSpawned).toEqual(ZOMBIE_TYPES.map(() => 0)); // the opening burst serves none
+    expect(snap.fixedTotal).toBe(2);
+    expect(snap.fixedServed).toBe(0);
+    expect(Array.isArray(snap.fixedAtList)).toBe(true); // plain arrays (the digest), not typed arrays
+  });
 
   it("the second Brute waits for 65 % SPAWNED (killing everything as it appears does not bring it sooner)", () => {
     // runOrders kills every zombie on the tick it appears: the second Brute still comes at spawn #260 of 400.
