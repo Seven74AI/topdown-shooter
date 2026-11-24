@@ -1,4 +1,6 @@
-import { EVENT_KINDS } from "../events/eventState";
+import { EVENT_KINDS, EVENT_PHASE, NPC_STATE } from "../events/eventState";
+import { weaponIds } from "../combat/weapons";
+import { crateRefusal } from "../economy/shop";
 import type { Balance } from "../config/balance";
 import type { World } from "../core/world";
 import { activeSlot } from "../combat/loadout";
@@ -114,6 +116,15 @@ export interface BotView {
    */
   laneOutX: number;
   laneOutY: number;
+  /**
+   * Stories 6.9 / 6.10 (sim liveness): an event errand — the landed crate (the nearest standing bot
+   * that may take it) or the survivor (the nearest bot walks to it; its leader walks to the flag).
+   * The direction to walk, or 0, 0. A World view only.
+   */
+  errandX: number;
+  errandY: number;
+  /** The errand says: stand still (on the crate; waiting for the survivor to catch up). */
+  errandStop: boolean;
 }
 
 export interface BotConfig {
@@ -151,6 +162,9 @@ export function createBotView(): BotView {
     huntStepY: 0,
     laneOutX: 0,
     laneOutY: 0,
+    errandX: 0,
+    errandY: 0,
+    errandStop: false,
   };
 }
 
@@ -244,8 +258,14 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
   }
 
   // 1b. Story 6.8: out of a stampede's lane (bots don't shoot the armed car: the timer sets it off).
+  // Story 6.9: out of a hissing gas leak's ring too (same field).
   if (view.laneOutX !== 0 || view.laneOutY !== 0) {
     moveToward(out, view.laneOutX, view.laneOutY);
+    return;
+  }
+  // 1c. Stories 6.9 / 6.10: an event errand (the crate, the survivor and its flag).
+  if (view.errandStop || view.errandX !== 0 || view.errandY !== 0) {
+    moveToward(out, view.errandStop ? 0 : view.errandX, view.errandStop ? 0 : view.errandY);
     return;
   }
 
@@ -363,9 +383,23 @@ function huntStep(world: World, x: number, y: number, out: BotView): void {
 /** Story 6.8: a stampede lane's margin a bot keeps (m, beyond the lane's edge). */
 const LANE_MARGIN_M = 1;
 
+/** Story 6.9: bots keep this far beyond the gas ring while it hisses. */
+const GAS_MARGIN_M = 1.5;
+
 /** Story 6.8 (AC 14): the way out of the active stampede's lane for a bot at (x, y), into `out.laneOut*`. */
 function laneOut(world: World, x: number, y: number, out: BotView): void {
   const a = world.special.active;
+  if (a.kind === GAS_KIND && a.phase === EVENT_PHASE.HISS) {
+    // Story 6.9 (AC 8): out of the 6 m ring (so the sims don't wipe to it).
+    const dx = x - a.x;
+    const dy = y - a.y;
+    const r = world.balance.events.gasLeak.radiusM + GAS_MARGIN_M;
+    if (dx * dx + dy * dy < r * r) {
+      out.laneOutX = dx === 0 && dy === 0 ? 1 : dx;
+      out.laneOutY = dy;
+    }
+    return;
+  }
   if (a.kind !== STAMPEDE_KIND || a.lane < 0) return;
   const l = world.map.stampedeLanes[a.lane];
   if (!l) return;
@@ -374,6 +408,64 @@ function laneOut(world: World, x: number, y: number, out: BotView): void {
   else out.laneOutX = x - l.minX < l.maxX - x ? -1 : 1;
 }
 const STAMPEDE_KIND = EVENT_KINDS.indexOf("stampede");
+const GAS_KIND = EVENT_KINDS.indexOf("gas_leak");
+const CRATE_KIND = EVENT_KINDS.indexOf("supply_drop");
+const SURVIVOR_KIND = EVENT_KINDS.indexOf("survivor");
+
+/** True when `p` is the nearest standing player to (x, y) that passes `ok` (ties: insertion order). */
+function nearestStanding(world: World, p: PlayerState, x: number, y: number, ok: (q: PlayerState) => boolean): boolean {
+  let best: PlayerState | null = null;
+  let bestD2 = Infinity;
+  for (const q of world.players.values()) {
+    if (q.status !== "alive" || !ok(q)) continue;
+    const d2 = (q.x - x) ** 2 + (q.y - y) ** 2;
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      best = q;
+    }
+  }
+  return best === p;
+}
+
+const anyone = (): boolean => true;
+let crateWorld: World | null = null;
+const mayTakeCrate = (q: PlayerState): boolean => {
+  const w = crateWorld as World;
+  const d = w.special.supplyDrop;
+  const weapon = weaponIds(w.balance)[d.weapon];
+  return weapon !== undefined && crateRefusal(q.loadout, weapon, d.level) === null;
+};
+
+/** Stories 6.9 / 6.10 (sim liveness): the bot's errand for the active event, into `out.errand*`. */
+function errand(world: World, p: PlayerState, out: BotView): void {
+  out.errandX = 0;
+  out.errandY = 0;
+  out.errandStop = false;
+  if (p.status !== "alive") return;
+  const a = world.special.active;
+  if (a.kind === CRATE_KIND && a.phase === EVENT_PHASE.LANDED) {
+    crateWorld = world;
+    if (nearestStanding(world, p, a.x, a.y, mayTakeCrate)) {
+      out.errandX = a.x - p.x;
+      out.errandY = a.y - p.y;
+      out.errandStop = out.errandX * out.errandX + out.errandY * out.errandY < 0.09; // on it: stand still
+    }
+    crateWorld = null;
+  } else if (a.kind === SURVIVOR_KIND) {
+    const n = world.special.survivor;
+    if (n.state === NPC_STATE.FOLLOWING && world.flameSlots[n.leaderSlot] === p.id) {
+      // lead: to the flag, but never more than ~3 m ahead (it follows at 4.0 m/s; bots run 4.5)
+      const gap = Math.hypot(p.x - n.x, p.y - n.y);
+      if (gap < 3) {
+        out.errandX = n.safeX - p.x;
+        out.errandY = n.safeY - p.y;
+      } else out.errandStop = true; // wait for it
+    } else if (n.state === NPC_STATE.WAITING && nearestStanding(world, p, n.x, n.y, anyone)) {
+      out.errandX = n.x - p.x;
+      out.errandY = n.y - p.y;
+    }
+  }
+}
 
 /** Story 6.8: rule 2c's strafe changes side every this many input seqs (3.2 s at 20 Hz). */
 const STRAFE_FLIP_SEQS = 64;
@@ -414,6 +506,7 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
   self.y = p.y;
   self.status = p.status;
   laneOut(world, p.x, p.y, out); // Story 6.8
+  errand(world, p, out); // Stories 6.9 / 6.10
   const stats = world.balance.weapons[activeSlot(p.loadout).weapon];
   self.rangeM = stats?.rangeM ?? 0;
   self.lobRangeM = stats?.kind === "launcher" ? stats.lobRangeM : 0; // Story 5.5

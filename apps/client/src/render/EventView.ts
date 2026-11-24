@@ -2,7 +2,8 @@ import type * as Phaser from "phaser";
 import { EVENT_KINDS, EVENT_PHASE, type StampedeLane, type World } from "@topdown/shared";
 import { EVENT_AMBER_HEX, EVENT_ATLAS, EVENT_FRAMES, PIN_H, PIN_TIP_Y, PIN_W, ensureEventTextures } from "./city/eventArt";
 import { aboveDarkness } from "./darkness/aboveDark";
-import { createEventMarkerLook, eventMarkerLook } from "./eventMarkers";
+import { createEventMarkerLook, eventMarkerLook, type EventMarkerLook } from "./eventMarkers";
+import { EventPickupsView } from "./EventPickupsView";
 import { carAlarmLoopPlaying, setCarAlarmPan, startCarAlarmLoop, stopCarAlarmLoop } from "../audio/placeholderSfx";
 
 /**
@@ -51,6 +52,8 @@ export class EventView {
   private dustAcc = 0;
   private clockS = 0;
   private readonly look = createEventMarkerLook();
+  /** Stories 6.9 / 6.10: tank, crate, survivor and flag. */
+  private readonly pickups: EventPickupsView;
   /** Deterministic jitter for the dust (no Math.random: same look on every phone). */
   private seed = 1;
 
@@ -72,6 +75,7 @@ export class EventView {
       const img = aboveDarkness(scene.add.image(0, 0, EVENT_ATLAS, dustFrames[i % 3]).setDisplaySize(DUST_M, DUST_M).setVisible(false), "marker");
       this.dust.push({ img, age: DUST_LIFE_S, vx: 0, vy: 0 });
     }
+    this.pickups = new EventPickupsView(scene, world);
   }
 
   private rand(): number {
@@ -90,15 +94,15 @@ export class EventView {
     // The pin, its pulse ring and the countdown arc.
     this.pin.setVisible(look.visible);
     this.ring.setVisible(look.visible && look.pulse);
-    this.arc.setVisible(look.visible && look.arc >= 0);
+    this.arc.setVisible(look.visible && look.arc >= 0 && kind === "car_alarm"); // 6.9: the gas arc is round the tank
     if (look.visible) {
       const bob = Math.sin(this.clockS * 4) * 0.06;
-      this.pin.setFrame(kind === "stampede" ? EVENT_FRAMES.pinBang : EVENT_FRAMES.pinBell).setPosition(look.x, look.y + bob);
+      this.pin.setFrame(pinFrameOf(look)).setPosition(look.x, look.y + bob);
       if (look.pulse) {
         const u = (this.clockS * 0.9) % 1;
         this.ring.setPosition(look.x, look.y).setDisplaySize(RING_M * (0.4 + u * 1.6), RING_M * (0.4 + u * 1.6)).setAlpha(0.6 * (1 - u));
       }
-      if (look.arc >= 0) {
+      if (look.arc >= 0 && kind === "car_alarm") {
         const cy = look.y + bob - PIN_M * ((PIN_TIP_Y - 30) / PIN_H);
         const r = PIN_M * (30 / PIN_H) + 0.08;
         this.arc.clear();
@@ -113,11 +117,25 @@ export class EventView {
     this.tip.setVisible(look.edge.visible);
     if (look.edge.visible) {
       const e = look.edge;
-      this.arrow.setFrame(kind === "stampede" ? EVENT_FRAMES.arrowBang : EVENT_FRAMES.arrowBell).setPosition(e.x, e.y);
+      this.arrow.setFrame(arrowFrameOf(look)).setPosition(e.x, e.y);
+      this.tip.setFrame(look.icon === "flame" ? EVENT_FRAMES.arrowTipGas : look.icon === "gun" || look.icon === "person" ? EVENT_FRAMES.arrowTipWhite : EVENT_FRAMES.arrowTip);
       this.tip.setPosition(e.x + Math.cos(e.angle) * ARROW_M * 0.65, e.y + Math.sin(e.angle) * ARROW_M * 0.65).setRotation(e.angle);
     }
     this.updateCar(look.visible && kind === "car_alarm" && look.blinkOn, vx, vw);
     this.updateStampede(dtS, look.chevrons ? look.lane : -1);
+    this.pickups.update(dtS, look, this.clockS);
+  }
+
+  /** Stories 6.9 / 6.10 (tests): the live vapour / smoke particle counts. */
+  liveParticles(): { gas: number; smoke: number } {
+    return this.pickups.liveParticles();
+  }
+
+  /** Story 6.10 (P1): the city lamps this frame: −1 no power-failure flicker, 0 on, 1 out (`CityView.powerFlicker`). */
+  powerFlicker(): -1 | 0 | 1 {
+    const a = this.world.special.active;
+    if (EVENT_KINDS[a.kind] !== "power_failure" || a.phase !== EVENT_PHASE.FLICKER) return -1;
+    return this.look.flicker ? 1 : 0;
   }
 
   private updateCar(blink: boolean, vx: number, vw: number): void {
@@ -200,5 +218,36 @@ export class EventView {
   /** The scene shuts down: the loop stops. */
   destroy(): void {
     if (carAlarmLoopPlaying()) stopCarAlarmLoop();
+  }
+}
+
+/** Stories 6.9 / 6.10: the pin frame of the marker's icon (amber bell / bang, yellow-green flame, white gun / person). */
+function pinFrameOf(look: Readonly<EventMarkerLook>): string {
+  switch (look.icon) {
+    case "bang":
+      return EVENT_FRAMES.pinBang;
+    case "flame":
+      return EVENT_FRAMES.pinFlame;
+    case "gun":
+      return EVENT_FRAMES.pinGun;
+    case "person":
+      return EVENT_FRAMES.pinPerson;
+    default:
+      return EVENT_FRAMES.pinBell;
+  }
+}
+
+function arrowFrameOf(look: Readonly<EventMarkerLook>): string {
+  switch (look.icon) {
+    case "bang":
+      return EVENT_FRAMES.arrowBang;
+    case "flame":
+      return EVENT_FRAMES.arrowFlame;
+    case "gun":
+      return EVENT_FRAMES.arrowGun;
+    case "person":
+      return EVENT_FRAMES.arrowPerson;
+    default:
+      return EVENT_FRAMES.arrowBell;
   }
 }

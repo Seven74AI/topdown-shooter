@@ -73,7 +73,7 @@ import { AcidView } from "../render/AcidView";
 import { playSfx, startBossLoop, startChainsawRev, startFlameLoop, stopBossLoop, stopChainsawRev, stopFlameLoop } from "../audio/placeholderSfx";
 import { BossView } from "../render/BossView";
 import { EventView } from "../render/EventView";
-import { createEventCue, eventCue } from "../render/eventMarkers";
+import { cratePrompt, createEventCue, eventCue } from "../render/eventMarkers";
 import { BOSS_TARGET_BUZZ, bossCue, type BossCue } from "../render/bossCue";
 import { BloaterFx } from "../render/bloaterFx";
 import { BloaterView } from "../render/BloaterView";
@@ -107,6 +107,7 @@ import { EyesView } from "../render/darkness/EyesView";
 import { BeamSparkleView } from "../render/darkness/BeamSparkleView";
 import { DarknessPlan, FlashLights, planDarkness, type DarknessInputs } from "../render/darkness/darknessPlan";
 import { ScreenFog } from "../render/fog/screenFog";
+import { wireFog, type FogTakers } from "../render/fog/fogWiring";
 import { FogView } from "../render/fog/FogView";
 import { DustView } from "../render/city/DustView";
 import { MedStationView } from "../render/MedStationView";
@@ -675,8 +676,7 @@ export class GameScene extends Phaser.Scene {
     this.screenFog = new ScreenFog();
     this.fogView = new FogView(this, this.screenFog, opts.lowFx);
     this.darknessView.fog = this.fogView;
-    if (this.zombieView) this.zombieView.fog = this.screenFog;
-    if (this.trailView) this.trailView.fog = this.screenFog; // review L5: no trail marks from fog-hidden Crawlers
+    wireFog(this.fogTakers(), this.screenFog); // zombies, trails (review L5: no marks from fog-hidden Crawlers), spit
     // Story 6.2: Ruins dust (pools sized by decay.json › ruins; halved with ?fx=low).
     this.dustView = new DustView(this, balance.decay.ruins.maxDustSmoke, balance.decay.ruins.maxDustGrit, opts.lowFx);
     // Story 6.3 (AC 13): ?blackout=20|10|5 (solo, release-safe) forces the level for the whole run.
@@ -1226,7 +1226,9 @@ export class GameScene extends Phaser.Scene {
       if (me) keepStressMolotovs(host.world, host.localPlayerId, me.x, me.y, this.stressMolotovs);
     }
     host.setLocalInput(this.input_);
-    this.hudModel.toastText = this.toasts.current(this.time.now);
+    // Story 6.9 (G7): standing on the crate shows what you lose ("Replaces your SMG III") the whole second.
+    const crate = cratePrompt(host.world, host.localPlayerId);
+    this.hudModel.toastText = crate !== "" ? crate : this.toasts.current(this.time.now);
   }
 
   /** The host's step (online: applies the latest state). */
@@ -2105,6 +2107,7 @@ export class GameScene extends Phaser.Scene {
     // Online: the first bake waits until the mirror has the server's decay stage (review L: no
     // stage-1 bake followed by a second one a moment later on a late join).
     const synced = !(host instanceof NetSimHost) || host.decaySynced;
+    if (this.cityView) this.cityView.powerFlicker = this.eventView?.powerFlicker() ?? -1; // Story 6.10 (P1)
     this.cityView?.update(host.world, this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000, synced);
     this.dustView?.update(host.world, ruinsLookAt(host.world), this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.updateDarkness(host, zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000);
@@ -2123,7 +2126,17 @@ export class GameScene extends Phaser.Scene {
     const target = me && me.status === "out" ? spectateTarget(world, localId) : null;
     const viewer = (target && this.playerViews.get(target.id)) ?? this.playerViews.get(localId) ?? target ?? me;
     fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf);
-    if (this.acidView) this.acidView.fog = fog;
+    wireFog(this.fogTakers(), fog); // Story 6.10 follow-up (6.2 R1): one tested wiring, every frame
+  }
+
+  /** The views the fog hides things in (`render/fog/fogWiring.ts`); one reused record. */
+  private readonly fogTakerList: FogTakers = { zombieView: null, trailView: null, acidView: null };
+  private fogTakers(): FogTakers {
+    const t = this.fogTakerList;
+    t.zombieView = this.zombieView ?? null;
+    t.trailView = this.trailView ?? null;
+    t.acidView = this.acidView ?? null;
+    return t;
   }
 
   /**

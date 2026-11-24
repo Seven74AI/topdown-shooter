@@ -103,11 +103,12 @@ export function survivorTarget(world: Readonly<World>): SurvivorState | null {
 /**
  * S3 / S4: damage to the survivor (zombie bites, spit and acid, a Bloater blast, fire). No slow, no
  * knockback, no downed state; at 0 HP it dies (the event ends "failed" on its next tick). God mode
- * (dev) spares it like the players. Returns the damage taken.
+ * (the players' dev cheat, the bots' sims) does NOT spare it: a survivor nobody can hurt would hold
+ * the horde round it forever. Returns the damage taken.
  */
 export function damageSurvivor(world: World, amount: number): number {
   const n = world.special.survivor;
-  if (n.status !== "alive" || amount <= 0 || world.debug.godMode) return 0;
+  if (n.status !== "alive" || amount <= 0) return 0;
   const taken = Math.min(n.hp, amount);
   n.hp -= taken;
   if (n.hp <= 0) {

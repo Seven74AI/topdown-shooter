@@ -4,6 +4,7 @@ import {
   TICK_DT_S,
   addPlayer,
   createWorld,
+  giveCrateWeapon,
   loadBalance,
   setInput,
   setLoadout,
@@ -269,4 +270,50 @@ describe("LocalFireClock.ack (2.7 re-review LOW-A)", () => {
     clock.ack(20);
     expect(clock.shotsAcked).toBe(fired);
   });
+});
+
+describe("Story 6.9 (AC 6): a weapon that changes mid-wave (the supply crate)", () => {
+  for (const lag of [0, 6]) {
+    it(`the crate replaces the held Pistol with an Assault Rifle II while firing: the clock follows the new weapon's rate and ammo (snapshot ${lag} steps old)`, () => {
+      const world = createWorld({ balance, seed: 7, systems: { waves: () => {}, zombies: () => {} } });
+      const p = addPlayer(world, "p0", 5, 16);
+      setLoadout(balance, p.loadout, ["pistol", "smg"]);
+      let serverShots = 0;
+      world.events.subscribe((e) => {
+        if (e.type === "weapon.fired" && e.playerId === "p0") serverShots++;
+      });
+      const clock = new LocalFireClock(balance);
+      const views: View[] = [viewOf(p, 0)];
+      const server: boolean[] = [];
+      const local: boolean[] = [];
+      const ammo: [number, number][] = [];
+      for (let seq = 1; seq <= 160; seq++) {
+        if (seq === 60) expect(giveCrateWeapon(world, "p0", "assault_rifle", 2)).toBe(0); // mid-wave, both slots full: the active one
+        const input = fireInput(seq);
+        const snap = views[Math.max(0, views.length - 1 - lag)] as View;
+        local.push(clock.step(input, snap));
+        ammo.push([clock.predictedAmmo(snap, 0), p.loadout.slots[0].ammo]);
+        const before = serverShots;
+        setInput(world, "p0", input);
+        step(world, TICK_DT_S);
+        server.push(serverShots > before);
+        views.push(viewOf(p, seq));
+      }
+      expect(p.loadout.slots[0]).toMatchObject({ weapon: "assault_rifle", level: 2 });
+      // After the change has reached the client's snapshot (lag + a tick): the new weapon's rate (the
+      // same shot count; the cooldown restarted, so the phase may sit one tick off the server's — the
+      // server's fresh slot can fire on the crate tick, which the client learns of a snapshot later)
+      // and the right ammo count (± that one shot in flight).
+      const settled = 60 + lag + 2;
+      const count = (a: boolean[]): number => a.slice(settled).filter(Boolean).length;
+      expect(count(server)).toBeGreaterThan(20); // liveness: the rifle really fired
+      expect(Math.abs(count(local) - count(server))).toBeLessThanOrEqual(1);
+      for (let i = settled; i < 160; i++) {
+        const [pred, real] = ammo[i] as [number, number];
+        // Known, accepted (Notes): the change happens outside input order, so the client's rifle runs one
+        // tick behind the server's; at a lag the shown count can then be 2 off for a tick (never more).
+        expect(Math.abs(pred - real), `seq ${i + 1}`).toBeLessThanOrEqual(lag > 0 ? 2 : 1);
+      }
+    });
+  }
 });
