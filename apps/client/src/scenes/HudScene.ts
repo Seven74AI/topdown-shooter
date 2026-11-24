@@ -142,6 +142,9 @@ const MATE_DOWNED_SCALE = 1.5;
 const MATE_LABEL_INSET_PX = 62;
 const MATE_DOWNED_COLOR = "#ff6b6b";
 const NAME_COLOR = "#ffffff";
+/** Story 5.24 (D7): a teammate ghost's label ("Bo · Auto-turret"), CSS px × dpr, in the sender's colour. */
+const GHOST_LABEL_PX = 12;
+const GHOST_LABEL_STROKE_PX = 3;
 /** Story 2.11: ☰ (three white bars on a dark square), and the toast line under the status line. */
 const MENU_BAR_W_FRAC = 0.5;
 const MENU_BAR_H_PX = 3;
@@ -445,6 +448,9 @@ export class HudScene extends Phaser.Scene {
   private shownStatus = "";
   /** Story 2.9, all indexed by slot: name tags, edge arrows and downed crosses, created once. */
   private readonly names: Phaser.GameObjects.Text[] = [];
+  /** Story 5.24: teammate ghost labels by slot, and the text each shows (setText only on change). */
+  private readonly ghostLabels: Phaser.GameObjects.Text[] = [];
+  private readonly shownGhostLabels: string[] = new Array<string>(MAX_PLAYERS).fill("");
   private readonly shownNames: string[] = new Array<string>(MAX_PLAYERS).fill("");
   /** Name tags currently in the downed colour (the off-screen "Bo · 14 s" label), by slot. */
   private readonly redNames: boolean[] = new Array<boolean>(MAX_PLAYERS).fill(false);
@@ -679,10 +685,13 @@ export class HudScene extends Phaser.Scene {
     this.statusText = this.add.text(0, 0, "", this.outlinedStyle(STATUS_TEXT_PX)).setOrigin(0.5, 0).setVisible(false);
     this.toastText = this.add.text(0, 0, "", this.outlinedStyle(TOAST_TEXT_PX)).setOrigin(0.5, 0).setVisible(false);
     this.names.length = 0;
+    this.ghostLabels.length = 0;
+    this.shownGhostLabels.fill("");
     this.mateArrows.length = 0;
     this.crosses.length = 0;
     for (let slot = 0; slot < MAX_PLAYERS; slot++) {
       this.names.push(this.add.text(0, 0, "", this.nameStyle()).setOrigin(0.5).setVisible(false));
+      this.ghostLabels.push(this.add.text(0, 0, "", this.ghostLabelStyle(slot)).setOrigin(0.5, 1).setVisible(false)); // Story 5.24
       const a = ARROW_PX * MATE_ARROW_SCALE * this.arrowDpr;
       this.mateArrows.push(
         this.add
@@ -941,6 +950,43 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** Story 2.9: bold white name tag with a dark stroke. */
+  /** Story 5.24: a teammate ghost label (bold, slot colour, dark stroke). */
+  private ghostLabelStyle(slot: number): Phaser.Types.GameObjects.Text.TextStyle {
+    const k = dpr();
+    return {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: `${Math.round(GHOST_LABEL_PX * k)}px`,
+      color: SLOT_COLOR_CSS[slot] ?? SLOT_COLOR_CSS[0],
+      fontStyle: "bold",
+      stroke: NAME_STROKE,
+      strokeThickness: Math.round(GHOST_LABEL_STROKE_PX * k),
+    };
+  }
+
+  /**
+   * Story 5.24 (AC 5): each live teammate ghost's label above its outline (the Game scene's
+   * `TeammateGhostView` fills the model; world → screen like the name tags). Under the hand cluster.
+   */
+  private drawGhostLabels(): void {
+    const m = this.model;
+    for (let slot = 0; slot < MAX_PLAYERS; slot++) {
+      const t = this.ghostLabels[slot];
+      if (!t) continue;
+      if (m.ghostLabelShown[slot] !== 1) {
+        if (t.visible) t.setVisible(false);
+        continue;
+      }
+      const text = m.ghostLabelText[slot] ?? "";
+      if (text !== this.shownGhostLabels[slot]) {
+        this.shownGhostLabels[slot] = text;
+        t.setText(text);
+      }
+      const sx = ((m.ghostLabelAt[slot * 2] as number) - m.camX) * m.camZoom;
+      const sy = ((m.ghostLabelAt[slot * 2 + 1] as number) - m.camY) * m.camZoom;
+      t.setPosition(sx, sy).setVisible(true);
+    }
+  }
+
   private nameStyle(): Phaser.Types.GameObjects.Text.TextStyle {
     const k = dpr();
     return {
@@ -1664,6 +1710,7 @@ export class HudScene extends Phaser.Scene {
     for (const a of this.arrows) a.setScale(dpr() / this.arrowDpr);
     // Teammate arrows and crosses: their scale is set every frame from dpr() / arrowDpr (× the pulse).
     for (const t of this.names) t.setFontSize(Math.round(NAME_TEXT_PX * dpr())).setStroke(NAME_STROKE, Math.round(NAME_STROKE_PX * dpr()));
+    for (const t of this.ghostLabels) t.setFontSize(Math.round(GHOST_LABEL_PX * dpr())).setStroke(NAME_STROKE, Math.round(GHOST_LABEL_STROKE_PX * dpr())); // Story 5.24
     this.shownWeapon = "";
     this.hpText.setFontSize(Math.round(HP_TEXT_PX * dpr()));
     this.shownHp = -1; // force a redraw at the new scale
@@ -1779,6 +1826,7 @@ export class HudScene extends Phaser.Scene {
     this.drawRushArrows();
     this.drawDowned();
     this.drawTeammates();
+    this.drawGhostLabels(); // Story 5.24
     this.drawMenu();
     this.drawReady();
     this.drawPlacement();

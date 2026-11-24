@@ -45,6 +45,11 @@ export const C2S = {
   BUILDING_SELL: "building.sell",
   /** `{ id, gx, gy, rot, seq }` in a build phase (Story 5.22, owner only, free); a refusal comes back as `building.move_refused` with the same `seq`. */
   BUILDING_MOVE: "building.move",
+  /**
+   * `{ type, gx, gy, rot }` (`type: ""` = my hand is empty) in a build phase (Story 5.24): what I am
+   * holding, sent only on change (≤ 4 Hz) plus a 2 Hz keepalive; relayed to the others as `building.ghosted`.
+   */
+  BUILDING_GHOST: "building.ghost",
   /** `{ weapon }` in a build phase (Story 5.1); answered with `shop.upgraded` or `shop.upgrade_refused`. */
   SHOP_UPGRADE: "shop.upgrade",
   /**
@@ -86,6 +91,8 @@ export const S2C = {
   BUILDING_SELL_REFUSED: "building.sell_refused",
   /** `{ id, reason: MoveError, seq }` to the sender of a refused `building.move` (Story 5.22; `seq` echoed). */
   BUILDING_MOVE_REFUSED: "building.move_refused",
+  /** `[slot, typeIdx, gx, gy, rot]` to every other player (Story 5.24): a teammate's held building (cosmetic; `typeIdx` −1 = none). */
+  BUILDING_GHOSTED: "building.ghosted",
   /** `{ weapon, slot, level }` to the sender only (Story 5.1); wallet and level follow in the state. */
   SHOP_UPGRADED: "shop.upgraded",
   /** `{ weapon, error: WeaponUpgradeError }` to the sender only (Story 5.1); nothing changed. */
@@ -250,6 +257,34 @@ export const buildingMoveSchema = z
   })
   .strict();
 export type BuildingMove = z.infer<typeof buildingMoveSchema>;
+
+/**
+ * `building.ghost` (Story 5.24): the building I hold (`type: ""` = none). Only the shape is checked
+ * here; the server's `ghostError` decides whether it is relayed (silently dropped otherwise).
+ */
+export const buildingGhostSchema = z
+  .object({
+    type: z.string().max(32),
+    gx: z.number().int().min(0).max(255),
+    gy: z.number().int().min(0).max(255),
+    rot: z.number().int().min(0).max(3),
+  })
+  .strict();
+export type BuildingGhost = z.infer<typeof buildingGhostSchema>;
+
+/**
+ * `building.ghosted` payload (Story 5.24, D6), to every player but the sender: `[slot, typeIdx, gx,
+ * gy, rot]` — the sender's lobby slot (stamped by the server), the index in `buildingTypeIds` (−1 =
+ * the hand is empty). An array like the net events: 24 B on the wire instead of 66 with names.
+ */
+export type BuildingGhosted = [slot: number, typeIdx: number, gx: number, gy: number, rot: number];
+
+/** Story 5.24 (D2): the sender's pacing: at most one ghost per this many ms (4 Hz)… */
+export const GHOST_MIN_INTERVAL_MS = 250;
+/** …and a keepalive this often while the held ghost is unchanged… */
+export const GHOST_KEEPALIVE_MS = 500;
+/** …so a receiver hides a ghost this long after its last update. */
+export const GHOST_TIMEOUT_MS = 1000;
 
 /** `building.move_refused` payload (Story 5.22), to the sender only. */
 export interface BuildingMoveRefused {

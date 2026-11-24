@@ -1,6 +1,6 @@
 # EPIC 6 BRIEF
 
-Written 2026-11-24 for Epic 6 (the full run: Ruins, Collapse, blackout, the Behemoth, events, the vote, endless). It replaces the EPIC 5 BRIEF (§11 of `_bmad-output/implementation-artifacts/epic-4-retro-2026-11-23.md`) for every Epic 6 builder **and** reviewer prompt. Lines 1–20 carry the EPIC 5 BRIEF over (updated where Epic 5 changed the rules); lines 21–32 are new for Epic 6.
+Written 2026-11-24 for Epic 6 (the full run: Ruins, Collapse, blackout, the Behemoth, events, the vote, endless). It replaces the EPIC 5 BRIEF (§11 of `_bmad-output/implementation-artifacts/epic-4-retro-2026-11-23.md`) for every Epic 6 builder **and** reviewer prompt. Lines 1–20 carry the EPIC 5 BRIEF over (updated where Epic 5 changed the rules); lines 21–28 are new for Epic 6; lines 29–32 come from the Epic 5 retro.
 
 Paste the block below verbatim into every Epic 6 builder and reviewer prompt, together with the story file, `docs/epic-6-decisions.md` and `docs/epic-5-decisions.md`.
 
@@ -24,7 +24,7 @@ EPIC 6 BRIEF (from the Epic 4 retro's EPIC 5 BRIEF + Epic 6 specifics; reviewers
 16. Perf: tick asserts behind PERF_ASSERT=1, at load < 1, record the load; added server p99 ≤ 2 ms total budget for Epic 6 (boss field + events + vote).
 17. Phaser 4 ≠ 3 (check node_modules/phaser/types); Colyseus: this.net.guard, ServerError(526) for joins only; the per-client guard drops > ~10 non-input msgs/s silently (votes and pings are inputs to budget for).
 18. Dev overrides via switches (DEV_*, ?loadout, ?wallet, ?wavemix, ?seed, the decay-stage cheat, new: force blackout, start at wave N, force event X, spawn Behemoth), never hand-edited JSON; say plainly what you did not verify (headless Chromium ~8–26 fps).
-19. Write "Notes for the merge" for each shared file. Every medium/high fix gets a re-review by a fresh agent before master. Each story goes to master as soon as its review (and re-reviews) is clean.
+19. Write "Notes for the merge" for each shared file. Every medium/high fix gets a re-review by a fresh agent before master, including a fix the main session makes while merging (Epic 5: 5.26). Each story goes to master as soon as its review (and re-reviews) is clean.
 20. Every texture drawn in code is created through addGeneratedTexture with a redraw callback (Android Chrome wipes canvases while the app is in the background); test that it redraws after a simulated context loss (`tools/checks/noUnregisteredTextures.test.ts` must stay green). That includes the darkness texture, light stamps, boss atlas, decals, markers and dawn.
 
 EPIC 6 SPECIFICS
@@ -34,8 +34,14 @@ EPIC 6 SPECIFICS
 24. BLACKOUT READABILITY: darkness and fog vision can't be turned off (FR87); quality settings only change their look. Always above the darkness: teammates with rings, zombie eyes within 14 m (or the fog edge), the boss's outline and eyes, every boss telegraph, event markers, the crate, the survivor and the safe point, pings. Colour rule: red = boss danger only, amber = an event you can use, yellow-green = gas, white = pick-ups and people. No hot beam core, no lens flare; rain sparkles inside beams. Check at 568 × 320 and 800 × 360.
 25. ENDLESS PERFORMANCE: nothing grows without a cap over 20+ endless waves (alive 150 / 110, wave size 600, Brutes ≤ 6 alive, decals, craters, markers, event records, kill logs); a 20-wave endless sim records server tick p99 and memory and asserts they stay flat; FPS recorded with blackout + fog + Behemoth + 150 zombies (`docs/perf/epic-6-blackout.md`).
 26. LIGHT IS SERVER TRUTH: the light state (stage, blackout flag, power out, flicker seeds, build-phase half darkness) is part of the world and replays; a client that joins or wakes mid-wave draws the same darkness as everyone else; fog hides zombies only on the local screen, never in the sim (aim assist and turrets keep their own rules; aim assist never locks a target your screen hides).
-27. DO NOT TOUCH EPIC 5 WORK IN PROGRESS: 5.13 card shop and 5.20–5.25 building UX are being built in other sessions (shop, build bar, carry/drag UI); Epic 6 changes there go through their balance flags (`inShop`) or a "Notes for the merge" line, not edits to their UI.
+27. RESPECT THE DONE EPIC 5 UI: the card shop (5.13), build bar (5.16) and building UX (5.15–5.24) are done and reviewed; Epic 6 changes there go through their balance flags (`inShop`) and existing hooks, with a "Notes for the merge" line, not rewrites of their UI.
 28. ONE RUN FLOW: the run phase machine (lobby → build → wave → … → vote → extract/endless → results) has one owner per change (6.1 removes the 6-wave ending, 6.11 adds the vote, 6.12 adds endless); every phase change is a tested transition, and Results always show (no stuck run).
+
+FROM THE EPIC 5 RETRO (_bmad-output/implementation-artifacts/epic-5-retro-2026-11-24.md §10)
+29. HAND-BACK: when your branch is pushed and your full gate is green, send the main session a message (claude-code-remote send_message, session_id "@parent") with branch, commit, the master commit you merged, gate result with load, "Notes for the merge" and the "Not verified" list; then stop. Reviewers do the same with their findings. The main session archives each builder/reviewer session once its story is on master.
+30. LATCH THE PAYLOAD WITH THE EDGE: every new edge input (vote, ping, lever, crate, survivor lead, any new button) snapshots its payload (aim, target, choice) on the tap frame together with the flag, in both LocalSimHost and NetSimHost (Epic 5: 5.12's throw used the next frame's aim). Test with 60 fps frames over 50 ms steps and under ?lag=150&jitter=20.
+31. ONE HUD LAYOUT TEST: every on-screen control (incl. boss bar, vote panel, event banners, markers' screen-edge arrows) is in one layout test at 568×320 and 640×360 with insets 44/21: no overlaps, 48 px clearance round the survivor at the centre, nothing pressable in the move-stick half. Add new HUD to that test (6.3 creates it if it doesn't exist); don't check it story by story (Epic 5: six stories moved buttons around each other).
+32. FRESH DECISIONS, MERGED TREE: before you build and before you review, read the decision-log lines newer than the story file (git log docs/epic-6-decisions.md docs/epic-5-decisions.md); a merged pair updates both story files. Merge current master before the final gate and review that merged commit (Epic 5: five merge-only bugs). Every push to master passes typecheck and lint, docs-only and art-only commits included.
 ```
 
 ## Why each new line is there
@@ -48,5 +54,6 @@ EPIC 6 SPECIFICS
 | 24 | The Epic 6 look picks (`docs/epic-6-decisions.md`) and the colour rule the designer called "perfect". |
 | 25 | Endless can run as long as the team survives; anything that grows per wave will one day crash a phone or the server. |
 | 26 | Darkness that differs between phones is a co-op bug ("I can see it, why can't you?"). |
-| 27 | Epic 5 is finished in parallel sessions; Epic 6 must not collide with them. |
+| 27 | Epic 5's shop and building UX are done and reviewed; Epic 6 extends them through flags and hooks instead of rewriting them. |
 | 28 | 6.1, 6.11 and 6.12 each change how a run ends; a run that never reaches Results is the worst bug this epic can ship. |
+| 29–32 | Epic 5 retro (2026-11-24): builders that finished without saying so and sessions left open (29); the 5.12 latch medium and six other edge-input bugs (30); six 568×320 layout fixes in six stories (31); decisions that reached builders late, five merge-only bugs and a docs-only push that broke lint on master (32). Line 19 gained the merge-time fix (5.26). |

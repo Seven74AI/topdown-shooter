@@ -49,6 +49,7 @@ import {
   footprint,
   type Box,
   inHealReach,
+  playerIdOfSlot,
   type ShopOfferView,
 } from "@topdown/shared";
 import { dpr } from "../display";
@@ -100,6 +101,8 @@ import { BUILDING_TAP_TOLERANCE_M, RepairPanel, moveRefusalText, repairRefusalTe
 import { PendingMoves } from "./pendingMove";
 import { longPressRing } from "../input/longPress";
 import { MoveView } from "../render/MoveView";
+import { TeammateGhostView } from "../render/TeammateGhostView";
+import { GhostSender } from "../net/teammateGhosts";
 import { NO_ANSWER_TEXT } from "./pendingFlow";
 import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
@@ -388,6 +391,13 @@ export class GameScene extends Phaser.Scene {
   /** Story 5.22: my moves waiting for the server (AC 13), the view of them and of the held building's old spot. */
   private readonly pendingMoves = new PendingMoves();
   private moveView: MoveView | null = null;
+  /** Story 5.24: teammates' ghosts (cosmetic) and the pacing of mine. */
+  private ghostView: TeammateGhostView | null = null;
+  private ghostSender = new GhostSender();
+  private readonly ghostNameOf = (slot: number): string => {
+    const id = playerIdOfSlot(slot);
+    return id && this.host ? this.host.playerInfo(id).name : "";
+  };
   private readonly moveBox = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   private readonly movingNow = (id: number): boolean => this.pendingMoves.waiting(id);
   private readonly sendMove = (req: MoveRequest): void => this.queueMove(req);
@@ -560,6 +570,8 @@ export class GameScene extends Phaser.Scene {
     this.blockReasonView = new BlockReasonView(this);
     this.pendingView = new PendingView(this, this.pending.entries.length);
     this.moveView = new MoveView(this, this.pendingMoves.entries.length); // Story 5.22
+    this.ghostView = new TeammateGhostView(this); // Story 5.24
+    this.ghostSender = new GhostSender(); // Phaser reuses this scene object: nothing "sent" from the last run
     // Story 5.23: the placement feel's pools (caps in controls.json › fx); the owner's slot from the host (left players: grey).
     this.placeFxView = new PlaceFxView(this, balance.controls.fx.maxPlaceDust, balance.controls.fx.maxOwnerTabs, (id) => (host.world.players.has(id) ? host.playerInfo(id).slot : -1));
     this.seenPicks = this.anchorPicks = this.placement.picks;
@@ -648,6 +660,8 @@ export class GameScene extends Phaser.Scene {
       this.pendingView = null;
       this.moveView?.destroy();
       this.moveView = null;
+      this.ghostView?.destroy();
+      this.ghostView = null;
       this.placeFxView?.destroy();
       this.placeFxView = null;
       this.mineView?.destroy();
@@ -1053,6 +1067,18 @@ export class GameScene extends Phaser.Scene {
     refused: this.buzzRefused,
   };
 
+  /**
+   * Story 5.24 (AC 2): my held building (a new one or a move; "" when my hands are empty or the spot
+   * is off the wire), paced by `GhostSender` (on change ≤ 4 Hz, keepalive 2 Hz, one clear). Online only.
+   */
+  private sendGhost(host: SceneHost): void {
+    if (!host.online) return;
+    const p = this.placement;
+    const held = p.active && p.onWire();
+    const s = this.ghostSender;
+    if (s.step(this.time.now, host.world.run.phase === "build", held ? p.type : "", p.gx, p.gy, p.rot)) host.sendGhost(s.out.type, s.out.gx, s.out.gy, s.out.rot);
+  }
+
   /** Everything before the host steps (placement, repair, build bar, Ready, the input). */
   private beforeHostStep(): void {
     const fc = this.frameCtx;
@@ -1062,6 +1088,7 @@ export class GameScene extends Phaser.Scene {
     const wasHolding = this.placement.active;
     this.updatePlacement(host, menuOpen || shopOpen); // Story 3.4 / 5.15: holding keeps the move, drops aim and fire
     if (wasHolding && !this.placement.active) this.handEmptiedMs = this.time.now; // Story 5.18 (Q2)
+    this.sendGhost(host); // Story 5.24: what I hold now, to my teammates (paced)
     this.updateRepair(host, menuOpen, shopOpen); // Story 3.7: tap a building → Repair
     this.updateBuildBar(host, menuOpen, shopOpen); // Story 5.16: tap a tile → the building is in my hands
     this.updateReady(host, menuOpen || shopOpen);
@@ -1777,6 +1804,7 @@ export class GameScene extends Phaser.Scene {
     this.blockReasonView?.update(host.world, this.placement, this.drawnAt);
     this.pendingView?.update(this.pending, this.time.now); // Story 5.18
     this.moveView?.update(host.world, this.placement, this.pendingMoves, this.time.now); // Story 5.22
+    this.ghostView?.update(host.world, host.teammateGhosts, host.playerInfo(localId).slot, this.ghostNameOf, deltaMs, this.hudModel); // Story 5.24
     // Story 5.14: my survivor as drawn (predicted online) fills the re-arm ring on a sprung bear trap.
     const meNow = host.world.players.get(localId);
     const meView = this.playerViews.get(localId);

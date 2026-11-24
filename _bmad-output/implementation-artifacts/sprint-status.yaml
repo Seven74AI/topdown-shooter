@@ -1,5 +1,5 @@
 # generated: 11-21-2026 18:20
-# last_updated: 11-24-2026 01:40
+# last_updated: 11-24-2026 15:30
 # project: topdown-shooter
 # project_key: NOKEY
 # tracking_system: file-system
@@ -113,7 +113,7 @@ development_status:
   epic-4-retrospective: done  # partial retro 2026-11-23 (4.10 deferred); 4.11 re-added by the designer the same day (sandbags, barricade, fire)
 
   # Epic 5: Full arsenal and bestiary
-  epic-5: in-progress  # all 13 story files written 2026-11-23; decisions: docs/epic-5-decisions.md
+  epic-5: done  # all 28 keys done 2026-11-24 (5.22 in 5.21, 5.25 in 5.23); retro epic-5-retro-2026-11-24.md; balance pass (not a story) pending designer B1–B12
   5-1-weapon-upgrades-i-iv: done
   5-2-fire-axe-and-chainsaw: done
   5-3-shotgun-and-assault-rifle: done
@@ -135,14 +135,14 @@ development_status:
   5-19-thumb-drag-to-nudge-and-pin: done  # building UX BX-5
   5-20-take-back-sell-and-undo: done  # building UX BX-6
   5-21-building-action-bar: done  # merged with 5.22 (designer 2026-11-24): one story 'Building action bar and move'
-  5-22-move-a-building: backlog  # merged into 5.21 (designer 2026-11-24)
+  5-22-move-a-building: done  # merged into 5.21 (designer 2026-11-24)
   5-23-placement-feel-and-owner-marks: done  # merged with 5.25 (designer 2026-11-24): one story incl. mouse and keys
-  5-24-teammates-ghosts: backlog  # building UX BX-10
-  5-25-mouse-and-keys-parity-optional: backlog  # merged into 5.23 (designer 2026-11-24): built and tracked as 5.23
+  5-24-teammates-ghosts: done  # building UX BX-10
+  5-25-mouse-and-keys-parity-optional: done  # merged into 5.23 (designer 2026-11-24): built and tracked as 5.23
   5-26-build-bar-icons: done  # designer 2026-11-23: I1 tilted icons, T1 turret (T2 kept), M1 mine; after 5.16
   5-27-build-bar-icons-floodlight-med-station-bear-trap: done  # designer approved round 3 icons 2026-11-23
   5-28-early-weapon-card-art: done  # designer 2026-11-24: S1 SMG, H1 Hunting Rifle, M1 Machete on the 5.13 cards (variants kept)
-  epic-5-retrospective: optional
+  epic-5-retrospective: done  # 2026-11-24, headless; action items A1–A10, EPIC 6 BRIEF lines 29–32 added
 
   # Epic 6: The full run: decay, boss, events, endless
   epic-6: in-progress  # story files 6.1–6.12 ready-for-dev 2026-11-24 (designer accepted all 110 decisions: docs/epic-6-decisions.md; brief docs/epic-6-brief.md; build rounds in the decisions doc)

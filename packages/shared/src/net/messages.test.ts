@@ -9,6 +9,10 @@ import {
   buildingRepairSchema,
   buildingSellSchema,
   buildingMoveSchema,
+  buildingGhostSchema,
+  GHOST_KEEPALIVE_MS,
+  GHOST_MIN_INTERVAL_MS,
+  GHOST_TIMEOUT_MS,
   joinOptionsSchema,
   lobbySetReadySchema,
   playerNameSchema,
@@ -119,6 +123,25 @@ describe("building.move (Story 5.22)", () => {
     }
     expect(C2S.BUILDING_MOVE).toBe("building.move");
     expect(S2C.BUILDING_MOVE_REFUSED).toBe("building.move_refused");
+  });
+});
+
+describe("building.ghost (Story 5.24)", () => {
+  it("accepts only { type, gx, gy, rot } (type may be \"\" = none; strict: no playerId, B10/B12)", () => {
+    expect(buildingGhostSchema.safeParse({ type: "auto_turret", gx: 0, gy: 0, rot: 0 }).success).toBe(true);
+    expect(buildingGhostSchema.safeParse({ type: "", gx: 255, gy: 255, rot: 3 }).success).toBe(true);
+    const ok = { type: "mine", gx: 10, gy: 10, rot: 1 };
+    for (const bad of [{}, { ...ok, gx: -1 }, { ...ok, gy: 256 }, { ...ok, gx: 300 }, { ...ok, rot: 7 }, { ...ok, gx: 1.5 }, { ...ok, type: "x".repeat(33) }, { ...ok, type: 3 }, { ...ok, playerId: "p1" }, { gx: 1, gy: 1, rot: 0 }, null]) {
+      expect(buildingGhostSchema.safeParse(bad).success).toBe(false);
+    }
+    expect(C2S.BUILDING_GHOST).toBe("building.ghost");
+    expect(S2C.BUILDING_GHOSTED).toBe("building.ghosted");
+  });
+
+  it("pacing: ≤ 4 Hz, a keepalive at least twice per timeout", () => {
+    expect(1000 / GHOST_MIN_INTERVAL_MS).toBeLessThanOrEqual(4);
+    expect(GHOST_KEEPALIVE_MS * 2).toBeLessThanOrEqual(GHOST_TIMEOUT_MS);
+    expect(GHOST_KEEPALIVE_MS).toBeGreaterThanOrEqual(GHOST_MIN_INTERVAL_MS);
   });
 });
 

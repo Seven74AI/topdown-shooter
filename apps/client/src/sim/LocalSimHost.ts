@@ -173,6 +173,10 @@ export class LocalSimHost implements SimHost {
     return this.moveRefusals.shift() ?? null;
   }
 
+  /** Story 5.24: solo has no teammates (D10). */
+  sendGhost(): void {}
+  readonly teammateGhosts = null;
+
   takeRepairRefusal(): RepairError | null {
     const r = this.repairRefusal;
     this.repairRefusal = null;

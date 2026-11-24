@@ -23,10 +23,12 @@ import {
   type ShopError,
   type ShopOfferView,
   MAX_CARDS,
+  playerSlotOf,
   type SimEventsFlushed,
   type WeaponUpgradeError,
 } from "@topdown/shared";
 import type { ShopAnswer } from "../sim/SimHost";
+import { TeammateGhosts } from "./teammateGhosts";
 
 const SHOP_ERRORS: readonly ShopError[] = [
   "not_build",
@@ -231,6 +233,8 @@ export class RunInbox {
   private upgradeSink: ((reason: UpgradeError) => void) | null = null;
   private sellSink: ((reason: SellError) => void) | null = null;
   private moveSink: ((r: MoveRefusal) => void) | null = null;
+  /** Story 5.24: teammates' held buildings (`building.ghosted`), kept from the join; cosmetic only (F7). */
+  readonly ghosts = new TeammateGhosts();
 
   constructor(private readonly room: Pick<NetRoomLike, "send" | "onMessage">) {
     this.offs.push(room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m)));
@@ -249,6 +253,11 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.BUILDING_UPGRADE_REFUSED, (m: unknown) => this.receiveUpgradeRefused(m)));
     this.offs.push(room.onMessage(S2C.BUILDING_SELL_REFUSED, (m: unknown) => this.receiveSellRefused(m))); // Story 5.20
     this.offs.push(room.onMessage(S2C.BUILDING_MOVE_REFUSED, (m: unknown) => this.receiveMoveRefused(m))); // Story 5.22
+    this.offs.push(room.onMessage(S2C.BUILDING_GHOSTED, (m: unknown) => this.receiveGhost(m))); // Story 5.24
+  }
+
+  private receiveGhost(m: unknown): void {
+    if (!this.closed) this.ghosts.receive(m);
   }
 
   /** Story 5.22: each `building.move_refused` from now on (dropped while none listens). Returns the unsubscribe. */
@@ -371,6 +380,7 @@ export class RunInbox {
    */
   reset(): void {
     this.offer = null; // Story 5.13: the next run draws from build 0 again
+    this.ghosts.clearAll(); // Story 5.24
     this.early.length = 0;
     this.earlyDropped = 0;
     this.earlyHordeDropped = 0;
@@ -390,6 +400,7 @@ export class RunInbox {
     this.shopSink = null;
     this.repairSink = null;
     this.upgradeSink = null;
+    this.ghosts.clearAll(); // Story 5.24
   }
 
   private receiveRefused(m: unknown): void {
@@ -399,9 +410,11 @@ export class RunInbox {
   }
 
   private receiveLeft(m: unknown): void {
-    if (this.closed || !this.leftSink) return;
+    if (this.closed) return;
     const left = parsePlayerLeft(m);
-    if (left) this.leftSink(left);
+    if (!left) return;
+    this.ghosts.clearSlot(playerSlotOf(left.playerId)); // Story 5.24 (B7): whoever listens
+    this.leftSink?.(left);
   }
 
   private receiveHorde(bytes: Uint8Array): void {
