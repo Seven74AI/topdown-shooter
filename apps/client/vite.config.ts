@@ -15,6 +15,6 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1600,
     // The asset gallery (/gallery.html) is a second page so the designer can review every code-drawn asset.
-    rollupOptions: { input: { main: resolve(__dirname, "index.html"), gallery: resolve(__dirname, "gallery.html") } },
+    rollupOptions: { input: { main: resolve(import.meta.dirname, "index.html"), gallery: resolve(import.meta.dirname, "gallery.html") } },
   }, // Phaser alone is ~1.38 MB min / ~362 KB gzip
 });

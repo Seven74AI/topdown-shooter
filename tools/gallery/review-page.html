@@ -1,0 +1,272 @@
+<title>Dead City Asset Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: a contact sheet. Sticky toolbar, chapter chips, then one strip of evidence cards per texture sheet. Deliberately dark: the art lives on a rainy night street. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1215;
+  --panel: #171c21;
+  --well: #23292f;
+  --line: #2b333b;
+  --fg: #e4e6e8;
+  --muted: #8d969f;
+  --accent: #f2b544;   /* sodium streetlight */
+  --ok: #5fbf7f;
+  --change: #ff6b5a;
+  --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+header.intro { padding-block: 24px 8px; max-width: 70ch; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; letter-spacing: .02em; text-transform: uppercase; margin: 0 0 6px; text-wrap: balance; }
+h1 span { color: var(--accent); }
+.intro p { margin: 0; color: var(--muted); line-height: 1.5; }
+.toolbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding-block: 10px; margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px))) calc(-1 * max(16px, env(safe-area-inset-right, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--panel); border-bottom: 1px solid var(--line); }
+.toolbar input[type=search] { flex: 1 1 180px; min-width: 0; background: var(--well); border: 1px solid var(--line); color: var(--fg); border-radius: 6px; padding: 7px 10px; font: inherit; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { background: transparent; color: var(--muted); border: 0; padding: 6px 10px; font: 500 13px var(--font-body); cursor: pointer; }
+.seg button[aria-pressed=true] { background: var(--well); color: var(--fg); }
+.progress { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; gap: 10px; flex-wrap: wrap; }
+.progress b { color: var(--fg); font-weight: 600; }
+.progress .c { color: var(--change); } .progress .o { color: var(--ok); }
+label.zoom { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+nav.chips { display: flex; flex-wrap: wrap; gap: 6px; padding-block: 14px 4px; }
+nav.chips a { font-size: 12px; color: var(--fg); text-decoration: none; border: 1px solid var(--line); padding: 3px 9px; border-radius: 999px; }
+nav.chips a small { color: var(--muted); margin-left: 4px; font-variant-numeric: tabular-nums; }
+nav.chips a.has-change { border-color: var(--change); }
+section.group { padding-top: 22px; scroll-margin-top: 70px; }
+.group h2 { font-family: var(--font-display); font-weight: 500; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; margin: 0; color: var(--accent); }
+.group .where { font-size: 13px; color: var(--muted); margin: 2px 0 10px; max-width: 70ch; }
+.group .where code { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; min-width: 0; }
+.card[data-status=ok] { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); }
+.card[data-status=change] { border-color: var(--change); }
+.card[data-status=recheck] { border-color: var(--accent); }
+.badge { align-self: flex-start; font: 600 10px var(--font-body); letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; background: var(--accent); color: #241703; margin-bottom: 3px; }
+.badge.prev { background: transparent; color: var(--muted); border: 1px solid var(--line); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.pic { display: flex; align-items: center; justify-content: center; min-height: 120px; padding: 10px; background: var(--well); border-radius: 8px 8px 0 0; cursor: zoom-in; overflow: hidden; border: 0; width: 100%; }
+body[data-bg=checker] .pic, body[data-bg=checker] dialog .big { background: repeating-conic-gradient(#4a4f55 0 25%, #33373c 0 50%) 0 0 / 14px 14px; }
+body[data-bg=light] .pic, body[data-bg=light] dialog .big { background: #dedfe0; }
+.pic img { image-rendering: pixelated; max-width: 100%; height: auto; }
+.meta { padding: 8px 10px 0; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.meta .name { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
+.meta .size { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.actions { display: flex; gap: 6px; padding: 8px 10px; }
+.actions button { flex: 1; font: 500 12px var(--font-body); padding: 6px 4px; border-radius: 5px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; }
+.actions button.okb[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: #0c1a10; }
+.actions button.chb[aria-pressed=true] { background: var(--change); border-color: var(--change); color: #2a0b07; }
+.note { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.note textarea { width: 100%; box-sizing: border-box; min-height: 64px; resize: vertical; background: var(--well); color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font: 13px/1.4 var(--font-body); }
+.note .row { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.note .saved { font-size: 11px; color: var(--muted); }
+.note button { font: 500 12px var(--font-body); padding: 5px 10px; border-radius: 5px; border: 0; background: var(--accent); color: #241703; cursor: pointer; }
+button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.empty, .notice { color: var(--muted); padding: 30px 0; }
+.notice { padding: 10px 0 0; font-size: 13px; }
+dialog { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; max-width: min(92vw, 1100px); padding: 0; }
+dialog::backdrop { background: rgba(0,0,0,.7); }
+dialog .big { background: var(--well); padding: 16px; overflow: auto; max-height: 72vh; display: flex; justify-content: center; }
+dialog .big img { image-rendering: pixelated; max-width: none; }
+dialog .foot { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 10px 14px; font: 12px var(--font-mono); color: var(--muted); }
+dialog .foot button { font: 500 13px var(--font-body); background: var(--well); color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 12px; cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) { .card { transition: border-color .15s; } }
+</style>
+
+<header class="intro">
+  <h1>Dead City <span>asset review</span></h1>
+  <p>Every picture the game draws, exactly as the game code draws it. Mark each one <b>Looks good</b> or <b>Change it</b>, and say what to change. Claude reads these notes and makes the changes. Art added since the first review is marked <b>New</b>; art redrawn after you reviewed it is marked <b>Updated</b> so you can look again.</p>
+  <p class="notice" id="notice" hidden></p>
+</header>
+
+<div class="toolbar">
+  <input id="q" type="search" placeholder="Search names, e.g. walker, car, chainsaw" aria-label="Search assets">
+  <div class="seg" role="group" aria-label="Show">
+    <button data-f="all" aria-pressed="true">All</button>
+    <button data-f="todo" aria-pressed="false">Not reviewed</button>
+    <button data-f="recheck" aria-pressed="false">Updated</button>
+    <button data-f="change" aria-pressed="false">Change it</button>
+    <button data-f="ok" aria-pressed="false">Looks good</button>
+  </div>
+  <label class="zoom">Size <input id="zoom" type="range" min="0.5" max="3" step="0.25" value="1"></label>
+  <label class="zoom">Backdrop <select id="bg"><option value="night">Street</option><option value="checker">Checker</option><option value="light">Light</option></select></label>
+  <div class="progress" id="progress"></div>
+</div>
+
+<nav class="chips" id="chips"></nav>
+<main id="grid"><p class="empty">Loading the assets…</p></main>
+
+<dialog id="big"><div class="big"><img alt=""></div><div class="foot"><span id="bigcap"></span><button id="bigclose">Close</button></div></dialog>
+
+<script>
+const GROUPS = {
+  atlas_characters: ["Survivors and zombies", "Bodies seen from above: the survivor with each weapon, every zombie type and look, windup and swell poses."],
+  boss_atlas: ["The Behemoth", "The wave-10 boss: body poses and parts."],
+  boss_fx: ["Boss effects", "Slam, shockwave and debris pieces for the Behemoth."],
+  boss_tele_disc: ["Boss slam warning", "The disc that warns where the Behemoth will land."],
+  atlas_downtown: ["Street props and vehicles", "Cars (normal and burnt), the bus, barriers, dumpster, sandbags."],
+  atlas_buildings: ["Things you build", "Barricades by tier, spike trap, mine, bear trap, turret and more, as placed on the street."],
+  atlas_fx: ["Effects", "Acid, bile, gas, rain, splashes, glows, eyes, vignette. White or grey ones are tinted in the game."],
+  atlas_blastfx: ["Explosions", "Flame puffs, flash, glow and smoke for grenades, mines and Bloaters. White ones are tinted in the game."],
+  atlas_firefx: ["Fire", "Flames and embers for burning cars, the flamethrower, the gas torch and burning zombies."],
+  atlas_throwfx: ["Thrown items", "Grenade round, molotov and their trails."],
+  hud_build: ["Build bar icons", "The buttons in the build phase bar."],
+  hud_consumable: ["Consumable buttons", "Icons on the in-run consumable button."],
+  hud_gear: ["Gear icons (in run)", "Gear icons shown in the HUD."],
+  survivorlayer_propeller_a: ["Survivor cosmetics", "Animated cosmetic layers worn by survivors."],
+  shop_weapon_icons: ["Shop: weapon pictures", "Side views on the shop cards, per upgrade level where the look changes."],
+  shop_gear_icons: ["Shop: gear pictures", "Pictures on the gear cards."],
+  shop_consumable_icons: ["Shop: consumable pictures", "Pictures in the consumables list."],
+  shop_tier_plates: ["Shop: upgrade plates", "The stamped level plates (I to IV)."],
+};
+const ORDER = Object.keys(GROUPS);
+const $ = (id) => document.getElementById(id);
+const docId = (id) => id.replace(/[^A-Za-z0-9_-]/g, "__");
+
+let assets = [];
+let reviews = {};          // docId -> {status, note, updatedAt}
+let db = null, canWrite = true, me = null;
+let filter = "all";
+
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function statusOf(a) {
+  const r = reviews[docId(a.id)];
+  if (!r || !r.status || r.status === "todo") return "todo";
+  if (r.hash && a.hash && r.hash !== a.hash) return "recheck"; // redrawn since this review
+  return r.status;
+}
+
+function progress() {
+  let ok = 0, ch = 0, re = 0;
+  for (const a of assets) { const s = statusOf(a); if (s === "ok") ok++; else if (s === "change") ch++; else if (s === "recheck") re++; }
+  $("progress").innerHTML = `<span><b>${ok + ch}</b> of ${assets.length} reviewed</span><span class="o">${ok} good</span><span class="c">${ch} to change</span>` + (re ? `<span>${re} updated</span>` : "");
+}
+
+function render() {
+  const q = $("q").value.trim().toLowerCase();
+  const zoom = Number($("zoom").value);
+  document.body.dataset.bg = $("bg").value;
+  const groups = new Map();
+  for (const a of assets) {
+    if (q && !(a.id.toLowerCase().includes(q) || (GROUPS[a.group]?.[0] || "").toLowerCase().includes(q))) continue;
+    if (filter !== "all" && statusOf(a) !== filter) continue;
+    if (!groups.has(a.group)) groups.set(a.group, []);
+    groups.get(a.group).push(a);
+  }
+  const keys = [...groups.keys()].sort((x, y) => (ORDER.indexOf(x) + 1 || 99) - (ORDER.indexOf(y) + 1 || 99));
+  $("chips").innerHTML = keys.map((g) => {
+    const hasCh = groups.get(g).some((a) => statusOf(a) === "change");
+    return `<a href="#g-${esc(g)}" class="${hasCh ? "has-change" : ""}">${esc(GROUPS[g]?.[0] || g)}<small>${groups.get(g).length}</small></a>`;
+  }).join("");
+  const grid = $("grid");
+  grid.innerHTML = keys.length ? "" : `<p class="empty">Nothing matches. Clear the search or pick another filter.</p>`;
+  for (const g of keys) {
+    const [title, where] = GROUPS[g] || [g, ""];
+    const sec = document.createElement("section");
+    sec.className = "group";
+    sec.id = "g-" + g;
+    sec.innerHTML = `<h2>${esc(title)}</h2><p class="where">${esc(where)} <code>${esc(g)}</code></p><div class="cards"></div>`;
+    const cards = sec.querySelector(".cards");
+    for (const a of groups.get(g)) cards.append(card(a, zoom));
+    grid.append(sec);
+  }
+  progress();
+}
+
+function card(a, zoom) {
+  const r = reviews[docId(a.id)] || {};
+  const st = statusOf(a);
+  const badge = st === "recheck" ? `<span class="badge">Updated</span>` : st === "todo" && a.added ? `<span class="badge">New</span>` : "";
+  const el = document.createElement("article");
+  el.className = "card";
+  el.dataset.status = st;
+  const w = Math.round(a.w * zoom), h = Math.round(a.h * zoom);
+  el.innerHTML = `
+    <button class="pic" aria-label="Enlarge ${esc(a.name)}"><img loading="lazy" src="${a.url}" width="${w}" height="${h}" alt=""></button>
+    <div class="meta">${badge}<span class="name">${esc(a.name)}</span><span class="size">${a.w} × ${a.h} px</span></div>
+    <div class="actions">
+      <button class="okb" aria-pressed="${st === "ok"}" ${canWrite ? "" : "disabled"}>Looks good</button>
+      <button class="chb" aria-pressed="${st === "change"}" ${canWrite ? "" : "disabled"}>Change it</button>
+    </div>
+    ${st === "recheck" && r.note ? `<div class="note"><span class="badge prev"></span></div>` : ""}
+    <div class="note" ${st === "change" ? "" : "hidden"}>
+      <textarea id="n-${esc(docId(a.id))}" placeholder="What should change? e.g. make the car rustier, the blood darker" ${canWrite ? "" : "readonly"}></textarea>
+      <div class="row"><span class="saved"></span><button class="save" ${canWrite ? "" : "hidden"}>Save note</button></div>
+    </div>`;
+  const ta = el.querySelector("textarea");
+  ta.value = st === "recheck" ? "" : r.note || "";
+  const prev = el.querySelector(".badge.prev");
+  if (prev) prev.textContent = `Your earlier note: ${r.note}`;
+  el.querySelector(".saved").textContent = r.note ? "Saved" : "";
+  el.querySelector(".pic").addEventListener("click", () => enlarge(a));
+  el.querySelector(".okb").addEventListener("click", () => save(a, { status: st === "ok" ? "todo" : "ok", note: ta.value }));
+  el.querySelector(".chb").addEventListener("click", () => {
+    if (st === "change") { save(a, { status: "todo", note: ta.value }); return; }
+    reviews[docId(a.id)] = { ...r, status: "change" };
+    el.dataset.status = "change";
+    el.querySelector(".chb").setAttribute("aria-pressed", "true");
+    el.querySelector(".okb").setAttribute("aria-pressed", "false");
+    el.querySelector(".note").hidden = false;
+    ta.focus();
+    save(a, { status: "change", note: ta.value }, true);
+  });
+  el.querySelector(".save").addEventListener("click", () => save(a, { status: "change", note: ta.value }).then(() => { el.querySelector(".saved").textContent = "Saved"; }));
+  ta.addEventListener("input", () => { el.querySelector(".saved").textContent = "Not saved yet"; });
+  return el;
+}
+
+async function save(a, patch, quiet) {
+  const id = docId(a.id);
+  reviews[id] = { ...(reviews[id] || {}), ...patch };
+  if (!quiet) render();
+  if (!db) { notice("Notes can't be saved in this view. Open the page on claude.ai while signed in."); return; }
+  try {
+    await db.collection("reviews").doc(id).set({ asset: a.id, group: a.group, name: a.name, hash: a.hash || "", status: patch.status, note: patch.note || "", by: me || "", updatedAt: new Date().toISOString() });
+  } catch (e) {
+    notice(e?.code === "not_granted" ? "You can look but not leave notes on this page. Ask the owner for edit access." : "That note didn't save. Check your connection and try again.");
+  }
+}
+
+function notice(t) { const n = $("notice"); n.textContent = t; n.hidden = false; }
+
+function enlarge(a) {
+  const s = Math.max(1, Math.min(6, Math.floor(Math.min(innerWidth * 0.8 / a.w, innerHeight * 0.65 / a.h))));
+  const img = $("big").querySelector("img");
+  img.src = a.url; img.width = a.w * s; img.height = a.h * s;
+  $("bigcap").textContent = `${a.id} · ${a.w}×${a.h} px · shown ×${s}`;
+  $("big").showModal();
+}
+$("bigclose").addEventListener("click", () => $("big").close());
+$("big").addEventListener("click", (e) => { if (e.target === $("big")) $("big").close(); });
+
+for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => {
+  filter = b.dataset.f;
+  for (const x of document.querySelectorAll(".seg button")) x.setAttribute("aria-pressed", String(x === b));
+  render();
+});
+for (const id of ["q", "zoom", "bg"]) $(id).addEventListener("input", render);
+
+fetch("assets.json").then((r) => r.json()).then((list) => { assets = list; render(); })
+  .catch(() => { $("grid").innerHTML = `<p class="empty">The asset list didn't load. Reload the page to try again.</p>`; });
+
+(async () => {
+  if (!window.claude?.use) return;
+  const [d, u] = await Promise.all([claude.use("db"), claude.use("user")]);
+  if (u) { try { me = await u.id(); } catch {} try { const c = await u.can("data.write"); if (c === false) { canWrite = false; render(); } } catch {} }
+  if (!d) { notice("Sign in on claude.ai to leave notes. You can still browse every asset."); return; }
+  db = d;
+  db.collection("reviews").onSnapshot((snap) => {
+    const next = {};
+    for (const doc of snap.docs) next[doc.id] = doc.data() || {};
+    // Keep a note that is being typed right now.
+    const typing = document.activeElement?.tagName === "TEXTAREA";
+    reviews = next;
+    if (!typing) render(); else progress();
+  }, () => notice("Saved notes couldn't be loaded right now. Reload the page to try again."));
+})();
+</script>

@@ -11,3 +11,6 @@ coverage/
 # Story 2.2: written by deploy/deploy.sh on the VPS
 deploy/deploy-history.log
 deploy/.env
+
+# Asset review export (tools/gallery/export.ts): regenerated, ~6 MB
+tools/gallery/out/
