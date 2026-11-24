@@ -137,10 +137,10 @@ FR76: A ping button offers 4 quick messages (Help! · Over here · Big one! · R
 **Meta-progression**
 
 FR77: A guest can upgrade to an account later and keep their progress.
-FR78: Supplies are earned per run, even on a loss: +10 per wave survived, +50 for killing the Behemoth, +100 for extracting, +20 per endless wave (kept only if the team extracts).
-FR79: New players start with the starter pool (Pistol, Machete, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Wood barricade, Auto-turret, Medkit, Grenades); other items are unlocked with Supplies on an unlock screen at the GDD prices, and unlocks add cards to that player's shop deck.
+FR78: Supplies are earned per run, even on a loss: +10 per wave survived (counted for every player still in the run when the wave ends, downed or out), +50 for killing the Behemoth, +100 for extracting, +20 per endless wave (kept only if the team extracts); a player's Supplies are doubled while their lifetime Supplies are below 300 (rookie lift).
+FR79: New players start with the starter pool (Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades); other items are unlocked with Supplies on an unlock screen at the GDD prices, in any order, and unlocks add cards to that player's shop deck; one card per offer may be borrowed from a teammate's unlocks the player lacks.
 FR80: Training offers 4 capped boosts with 5 levels each (max HP up to +10%, damage up to +5%, starting currency 100 → 150, reload speed up to +5%), each level costing 50 × level Supplies.
-FR81: District 2 unlocks after the first extraction from Downtown (rule only; district 2 content is out of v1).
+FR81: District 2 unlocks for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has unlocked it (rule only; district 2 content is out of v1).
 
 **Presentation, audio and settings**
 
@@ -336,7 +336,7 @@ A team plays from Evening to the Behemoth through Ruins and Collapse (blackout, 
 **FRs covered:** FR28 (full curve), FR29, FR31 (boss HP), FR33–FR43, FR53 (rubble, charge), FR57 (gas leak), FR62, FR63, FR64, FR66, FR67, FR68, FR84 (boss telegraphs)
 
 ### Epic 7: Accounts and meta-progression
-Players keep progress between runs: a guest upgrades to an account, earns Supplies, unlocks items that then appear in their shop, and buys capped Training boosts.
+Players keep progress between runs: a guest upgrades to an account, earns Supplies, unlocks items that then appear in their shop (plus one card borrowed from a teammate), and buys capped Training boosts; new friends catch up with a rookie lift and a bigger starter pool.
 **FRs covered:** FR77, FR78, FR79, FR80, FR81
 
 ### Epic 8: Real-life resilience
@@ -2318,7 +2318,7 @@ So that we can push our luck for more rewards.
 
 ## Epic 7: Accounts and meta-progression
 
-Players keep progress between runs: Supplies earned every run, unlocks that add cards to their own shop and tiles to their build bar, capped Training boosts, and an optional account so progress follows them to another device. The database arrives here, with only the tables each story needs.
+Players keep progress between runs: Supplies earned every run, unlocks that add cards to their own shop and tiles to their build bar, capped Training boosts, and an optional account so progress follows them to another device. New friends catch up fast (rookie lift, a bigger starter pool, borrowed cards). The database arrives here, with only the tables each story needs. All progression numbers live in `packages/shared` `progression.json` (balance JSON).
 
 ### Story 7.1: Progress saved on the server
 
@@ -2334,11 +2334,15 @@ So that my progress is kept from my very first run.
 
 **Given** this story's migration
 **When** it runs
-**Then** it creates only the `accounts` table (id, username nullable, password hash nullable, guest token hash, display name, created) and the `progress` table (account id, supplies, unlocks, training levels, districts)
+**Then** it creates only the `accounts` table (id, username nullable, password hash nullable, recovery code hash nullable, guest token hash, display name, created) and the `progress` table (account id, supplies, lifetime supplies, unlocks, training levels, districts)
 
-**Given** a guest token sent on join (Story 2.3)
+**Given** a first visit
+**When** the client has no guest token
+**Then** the server issues a random 32-byte token, sets it as a first-party HttpOnly, Secure, SameSite=Lax cookie for 1 year (renewed on each visit), and the client also keeps a copy in `localStorage` (try/catch); either one is enough to find the account (designer D9: Safari clears script storage after 7 days without a visit)
+
+**Given** a guest token on join (Story 2.3)
 **When** no account matches its hash
-**Then** a guest account and an empty progress row are created; otherwise the existing account is loaded and its display name prefilled
+**Then** a guest account and an empty progress row (starter pool only) are created; otherwise the existing account is loaded and its display name prefilled
 **And** the database is reached only through repositories in `apps/server/src/db`
 
 **Given** the VPS
@@ -2354,21 +2358,32 @@ So that every run moves me forward.
 **Acceptance Criteria:**
 
 **Given** a run ends (extract, wipe or quit)
-**When** Supplies are computed for each player
-**Then** they get +10 per wave survived while in the run, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78)
+**When** Supplies are computed for each player (server only, from the run result)
+**Then** they get +10 per wave survived, +50 if the Behemoth was killed, +100 if the team extracted, and +20 per endless wave only if the team extracted (FR78; `progression.json`)
+**And** a wave counts for every player still in the run when it ends, downed or out; a player who quits banks the waves ended before they left (designer D2)
 **And** after a wipe in endless, only waves 1–10 and the boss count
+
+**Given** a player whose lifetime Supplies are below 300 before this run
+**When** their Supplies are computed
+**Then** the run's total is doubled (rookie lift, D3), and Results shows "Rookie bonus × 2"
+
+**Given** the extract-or-stay vote (Story 6.11)
+**When** it shows
+**Then** it shows "Extract now: +100 · Stay: +20 a wave, lost if you wipe"
 
 **Given** the Results screen
 **When** it shows
-**Then** each player sees "+N Supplies" with the breakdown and their new total
+**Then** each player sees a "Run rewards" panel: "+N Supplies" with the breakdown, their new total, and (added by later stories) a new milestone item, a loot item and the district unlock
+**And** after the first run that banks ≥ 200 Supplies for a guest, it shows "Save my progress" once (opens Story 7.6)
+**And** if the player used a supply-drop weapon they haven't unlocked, it shows "You used the <weapon>: unlock it for <price>"
 
 **Given** the server
 **When** Supplies are banked
-**Then** they are written to `progress` in one transaction per run; a failed write is logged at `error` and retried once
+**Then** they are written to `progress` (supplies and lifetime supplies) in one transaction per run; a failed write is logged at `error` and retried once
 
 **Given** the Supplies rules
 **When** Vitest runs
-**Then** tests cover loss, extract, endless extract and endless wipe
+**Then** tests cover loss, extract, endless extract, endless wipe, a downed/out player at wave end, a quitter, the rookie lift crossing 300, and a solo run
 
 ### Story 7.3: Unlock screen
 
@@ -2380,41 +2395,53 @@ So that my options grow over time.
 
 **Given** a new account
 **When** its progress is created
-**Then** its pool contains the starter items: Pistol, Machete, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Wood barricade, Auto-turret, Medkit, Grenades (FR79)
+**Then** its pool contains the starter items: Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades (FR79, D4)
 
-**Given** the Unlocks screen (from the start screen)
+**Given** the start screen
+**When** I tap "Progress"
+**Then** a hub opens with three tabs: Unlocks · Training (7.5) · Survivor (7.10), with my Supplies total at the top
+
+**Given** the Unlocks tab
 **When** I open it
-**Then** I see every locked item with its Supplies price: Fire Axe 150, Assault Rifle 200, Chainsaw 300, Gas torch 350, Flamethrower 400, Grenade Launcher 500; Spike trap 100, Bear trap 100, Mine 100, Floodlight 120, Barricade upgrades (reinforced + metal tiers, one unlock) 150, Med station 300; Revive kit 100, Tactical flashlight 100, Body armor II 250; Molotovs 150
+**Then** I see every item by category, unlocked ones marked, locked ones with their Supplies price and one plain line of what they do: Assault Rifle 200, Chainsaw 300, Gas torch 350, Flamethrower 400, Grenade Launcher 500; Spike trap 100, Bear trap 100, Mine 100, Floodlight 120, Barricade upgrades (reinforced + metal tiers, one unlock) 150, Med station 300; Tactical flashlight 100, Body armor II 250; Molotovs 150
+**And** any locked item can be bought in any order (D5); one is marked "Good next pick": the cheapest locked item in the category where I own the fewest
+**And** the header says "Unlocks add cards to your shop, not power"
 
 **Given** I tap Unlock with enough Supplies
 **When** the server validates it
-**Then** the item joins my pool and the Supplies are spent; otherwise "Not enough Supplies"
+**Then** the item joins my pool and the Supplies are spent in one transaction; otherwise "Not enough Supplies" and nothing changes; a double tap never charges twice
 
 ### Story 7.4: Shop deck from my unlocks
 
 As a player,
-I want my shop to offer only what I've unlocked,
-So that unlocks change which choices I get.
+I want my shop to offer only what I've unlocked, plus a chance to try a friend's,
+So that unlocks change which choices I get and new friends can try the good stuff.
 
 **Acceptance Criteria:**
 
 **Given** a run
-**When** my 6 cards are drawn
-**Then** they come only from my unlocked weapons and gear (FR47, FR79)
+**When** my 6 cards are drawn (Story 5.13's `cardPool`, replaced here)
+**Then** they come from my unlocked weapons and gear (FR47, FR79)
 **And** the build bar shows only my unlocked buildings, and the shop's always-available section only my unlocked consumables
-**And** the Epic 5 card rules stay: no Pistol card, `inShop:false` items never drawn, no upgrade cards, no locking
+**And** the Epic 5 card rules stay: no Pistol card, `inShop:false` items never drawn, owned items never drawn, no upgrade cards, no locking
 
-**Given** teammates with different unlocks
-**When** we play together
-**Then** each of us sees our own pool; a teammate's unlocks never appear in my shop
+**Given** teammates in the room at build start who have unlocked weapons or gear I haven't
+**When** my offer is drawn
+**Then** one of my 6 slots is drawn from that "borrow list" and shows "Borrowed from <name>" (designer D7); I buy it with run money like any card; it counts toward the weapon/gear floor; my unlocks don't change
+**And** the draw still uses only `shop:<slot>:<build>` with exactly 6 draws; a reroll redraws the borrowed slot the same way; a teammate joining or leaving mid-build changes nothing until the next draw (5.13 F1, F2)
+**And** buildings and consumables are never borrowed
 
 **Given** the supply drop event
 **When** I grab the crate
 **Then** its rare weapon is given even if I haven't unlocked it
 
-**Given** a player whose pool can't fill the card floor (no gear unlocked beyond what they own)
+**Given** a player whose pool can't fill the card floor
 **When** cards are drawn
-**Then** the floor is filled as far as possible and the rest are weapon cards; when fewer than 6 new items exist, fewer cards show, and Reroll is disabled when no new draw exists
+**Then** the floor is filled as far as possible and the rest are weapon cards; when fewer than 6 new items exist, fewer cards show, and Reroll is disabled when no new draw exists (alignment Q13)
+
+**Given** the deck rules
+**When** Vitest runs
+**Then** tests cover: a new player's offer shows ≥ 2 different sets across rerolls (8-item starter pool), a borrowed card appears only when a teammate has something I lack, same seed + same room → same cards, a solo player never gets a borrowed card, a teammate's leave mid-build doesn't change my offer
 
 ### Story 7.5: Training boosts
 
@@ -2422,21 +2449,19 @@ As a player,
 I want small, capped boosts I can train between runs,
 So that I get a bit stronger without leaving new friends behind.
 
-(Revisit before building: Training may be absorbed by the customization level-system idea, `docs/ideas/customization/`.)
-
 **Acceptance Criteria:**
 
-**Given** the Training screen
+**Given** the Training tab of the Progress hub
 **When** I open it
-**Then** I see 4 boosts with 5 levels each: max HP +2% per level (max +10%), damage +1% per level (max +5%), starting currency +10 per level (100 → 150), reload speed +1% per level (max +5%) (FR80)
+**Then** I see 4 boosts with 5 levels each: max HP +2 % per level (max +10 %), damage +1 % per level (max +5 %), starting currency +10 per level (100 → 150), reload speed +1 % per level (max +5 %) (FR80)
 
 **Given** I buy the next level
 **When** I have enough Supplies
-**Then** it costs 50 × level (50, 100, 150, 200, 250) and is saved to `progress`
+**Then** it costs 50 × level (50, 100, 150, 200, 250; 750 per boost, 3,000 for all) and is saved to `progress`
 
-**Given** a run starts
+**Given** a run starts (solo or online)
 **When** my survivor is created
-**Then** my Training levels are applied and visible on the Results screen
+**Then** my own Training levels are applied in full, never scaled to the team (D6), and they are listed on the Results screen
 
 ### Story 7.6: Upgrade to an account
 
@@ -2449,18 +2474,24 @@ So that I keep my progress on a new phone.
 **Given** a guest
 **When** I choose "Save my progress" and enter a username (3–20 characters, unique) and a password (at least 8 characters)
 **Then** my guest account becomes a full account, with the password hashed with Argon2id and all progress kept (FR77)
+**And** I am shown a 12-character recovery code once (4-4-4, "Screenshot this: it's the only way back in if you forget your password"); only its hash is stored (D10)
+
+**Given** "Forgot password"
+**When** I enter my username, my recovery code and a new password
+**Then** the password is replaced, the old code stops working and a new code is shown once
 
 **Given** another device
 **When** I log in with my username and password
-**Then** that device's guest token is linked to my account and my progress loads
+**Then** that device's guest token (cookie and `localStorage`) is linked to my account and my progress loads
+**And** if that device's guest had its own progress, it is merged in: unlocks and cosmetics joined, Supplies and lifetime Supplies added, the higher level of each Training boost, stats added; the guest account is then retired (D11)
 
-**Given** login attempts
+**Given** login and recovery attempts
 **When** one IP makes more than 5 per minute
 **Then** further attempts are refused with "Too many attempts, try again in a minute" (NFR12)
 
-**Given** wrong credentials
-**When** I log in
-**Then** I see "Wrong username or password" with no hint which one is wrong
+**Given** wrong credentials or a wrong recovery code
+**When** I submit
+**Then** I see "Wrong username or password" (or "Wrong username or code") with no hint which one is wrong
 
 ### Story 7.7: District unlock rule
 
@@ -2472,11 +2503,13 @@ So that I have a goal beyond one map.
 
 **Given** the host's district picker in the lobby
 **When** it shows
-**Then** Downtown is selectable and district 2 shows as locked with "Extract from Downtown to unlock"
+**Then** Downtown is selectable, and district 2 is selectable when **any player in the lobby** has unlocked it (D12); otherwise it shows as locked with "Extract from Downtown to unlock"
 
 **Given** a player's first extraction from Downtown
-**When** progress is saved
-**Then** district 2 is recorded as unlocked for that player and its card shows "Unlocked: coming soon" (FR81)
+**When** progress is saved (Story 7.2's transaction)
+**Then** district 2 is recorded as unlocked for that player, Results shows "Unlocked: district 2", and its card shows "Unlocked: coming soon" (FR81)
+
+(Stories 7.1–7.7 revised 2026-11-24 from the Epic 7 idea session: `docs/ideas/epic-7/proposal.md`, designer decisions D1–D12.)
 
 (Stories 7.8–7.12 added 2026-11-23 from the customization idea session: `docs/ideas/customization/proposal.md`, decisions D1–D7 and O1–O6 by the designer; cosmetic only, no bonuses; built with accounts.)
 
@@ -2546,7 +2579,7 @@ So that customizing is fun, not a chore.
 **Acceptance Criteria:**
 
 **Given** the start screen
-**When** I tap "Survivor" (or my own card in the lobby)
+**When** I tap "Survivor" (the Survivor tab of the Progress hub, Story 7.3) or my own card in the lobby
 **Then** a Preact screen opens with tabs Top / Head / Hair / Pack / Accent / Skin, a big rotating preview, and a **game-size preview** (35 px per metre on wet asphalt, slot ring, a few zombies and teammates around)
 
 **Given** the tabs
