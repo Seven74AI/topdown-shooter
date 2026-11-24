@@ -64,7 +64,7 @@ describe("headless replay (Story 4.4, NFR10)", { timeout: REPLAY_TIMEOUT_MS }, (
     expect(rec.kills).toBeGreaterThan(100);
     const kinds = new Set(rec.log.commands.map((c) => c.kind));
     // Story 5.13: weapons are bought as cards.
-    expect([...kinds].sort()).toEqual(["buyCard", "input", "place", "ready"]);
+    expect([...kinds].sort()).toEqual(["buyCard", "input", "place", "ready", "reroll"]); // 5.13 start 200: bots reroll too
     expect(rec.log.endTick).toBe(rec.run.ticks);
   });
 

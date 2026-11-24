@@ -145,11 +145,12 @@ describe("RunRoom card shop (Story 5.13; 3.3's room tests moved to cards)", () =
     for (const c of [host, guest]) await vi.waitFor(() => expect(c.state.players.get("p0")).toMatchObject({ wallet: 50, weapon0: "pistol", weapon1: "smg", ammo1: 40 }));
     expect(guestAnswers.bought).toEqual([]);
     expect(guestAnswers.offered.length).toBe(before); // the guest's offer is untouched (F1)
-    expect(player(room, "p1").wallet).toBe(100);
+    expect(player(room, "p1").wallet).toBe(serverBalance.economy.startingWallet);
   });
 
   it("not enough money: insufficient_funds, nothing changes; both slots full needs a slot", async () => {
     const { host, room, hostAnswers } = await startTwo();
+    player(room, "p0").wallet = 100;
     buy(host, hostAnswers, "smg"); // 100 < 200
     await vi.waitFor(() => expect(hostAnswers.refused).toHaveLength(1));
     expect(hostAnswers.refused[0]?.error).toBe("insufficient_funds");
@@ -263,7 +264,7 @@ describe("RunRoom weapon upgrades (Story 5.1)", () => {
     expect(player(room, "p0").loadout.slots[0].level).toBe(2);
     expect(guestAnswers.upgraded).toEqual([]);
     expect(guestAnswers.upgradeRefused).toEqual([]);
-    expect(player(room, "p1").wallet).toBe(100);
+    expect(player(room, "p1").wallet).toBe(serverBalance.economy.startingWallet);
     expect(guest.state.players.get("p1")?.level0).toBe(1);
     // Someone else's weapon can't be upgraded or paid for: the guest asking for "smg" upgrades nothing.
     player(room, "p0").wallet = 1000;

@@ -243,6 +243,7 @@ describe("LocalSimHost card shop (Story 5.13)", () => {
     expect(host.shopOffer()).toBe(o); // cached while unchanged
     expect(host.world.streams.shop[0]?.buildPhaseIndex).toBe(0); // slot 0's stream
     const card = o?.cards.indexOf("smg") ?? -1;
+    me.wallet = 100;
     host.buyCard(card, "smg", null); // 100 < 200
     expect(host.takeShopAnswer()).toEqual({ ok: false, item: "smg", card, error: "insufficient_funds" });
     expect(host.takeShopAnswer()).toBeNull();

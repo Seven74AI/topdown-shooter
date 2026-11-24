@@ -101,7 +101,8 @@ describe("syncState", () => {
   it("copies wallet and earned (Story 3.2), and only when they change", () => {
     const { controller, state, encoder } = setup();
     syncState(state, controller);
-    expect(state.players.get("p0")?.wallet).toBe(100);
+    const S = balance.economy.startingWallet; // Story 5.13: 200
+    expect(state.players.get("p0")?.wallet).toBe(S);
     expect(state.players.get("p0")?.earned).toBe(0);
     const w = controller.world;
     const id = spawnZombie(w, "walker", 40, 28);
@@ -109,8 +110,8 @@ describe("syncState", () => {
     applyZombieDamage(w, id, 100, 1, 0, 0, "p1", "pistol");
     controller.tick(); // the economy pays the kill and the assist
     syncState(state, controller);
-    expect(state.players.get("p1")).toMatchObject({ wallet: 102, earned: 2 });
-    expect(state.players.get("p0")).toMatchObject({ wallet: 101, earned: 1 });
+    expect(state.players.get("p1")).toMatchObject({ wallet: S + 2, earned: 2 });
+    expect(state.players.get("p0")).toMatchObject({ wallet: S + 1, earned: 1 });
     encoder.encode();
     encoder.discardChanges();
     syncState(state, controller);

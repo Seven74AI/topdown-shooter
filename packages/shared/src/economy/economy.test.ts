@@ -14,7 +14,11 @@ import { endWave, setBuildReady, skipWave, startBuild } from "../run/runStateMac
 import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { MAX_DAMAGERS, earn, payKill, recordDamager, spendMoney } from "./economy";
 
-const balance = loadBalance();
+/**
+ * Story 5.13 (designer, 2026-11-24): the real start is 200; these mechanic tests keep their sums on a
+ * 100 start (an override), so they read as before. The first test checks the bundled value.
+ */
+const balance = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 100]]));
 /** One mechanic at a time (Epic 1 lesson): no wave director unless the test is about waves. */
 const NO_WAVES = { waves: () => {} };
 const WALKER_REWARD = balance.zombies.types.walker?.reward ?? -1;
@@ -40,11 +44,12 @@ const walker = (world: World) => spawnZombie(world, "walker", 40, 28);
 const hit = (world: World, id: number, by: string | null, amount = 1) => applyZombieDamage(world, id, amount, 1, 0, 0, by, "pistol");
 
 describe("wallets (FR12)", () => {
-  it("every player starts with economy.startingWallet (100) and nothing earned", () => {
-    const { world } = setup();
-    expect(balance.economy.startingWallet).toBe(100);
+  it("every player starts with economy.startingWallet (200 since Story 5.13) and nothing earned", () => {
+    const real = loadBalance();
+    const { world } = setup(["p0", "p1", "p2"], { b: real });
+    expect(real.economy.startingWallet).toBe(200);
     for (const id of ["p0", "p1", "p2"]) {
-      expect(wallet(world, id)).toBe(100);
+      expect(wallet(world, id)).toBe(200);
       expect(earned(world, id)).toBe(0);
     }
   });
@@ -117,7 +122,7 @@ describe("kill and assist (FR45)", () => {
   });
 
   it("a reward of 3 pays 3 to the killer and floor(1.5) = 1 per assist", () => {
-    const b = loadBalance(withOverrides(bundledBalanceFiles(), [["zombies", "types.walker.reward", 3]]));
+    const b = loadBalance(withOverrides(bundledBalanceFiles(), [["zombies", "types.walker.reward", 3], ["economy", "startingWallet", 100]]));
     const { world } = setup(["p0", "p1"], { b });
     const id = walker(world);
     hit(world, id, "p0");
@@ -238,6 +243,7 @@ describe("wave-clear bonus", () => {
 
   it("the real wave director clearing wave 1 pays +10 (and the kills)", () => {
     const b = loadBalance(withOverrides(bundledBalanceFiles(), [
+      ["economy", "startingWallet", 100],
       ["waves", "zombiesPerWave", 3],
       ["waves", "playerCountScale.1", 1], // Story 3.10: 2 players at × 1.0, so 3 zombies
     ]));

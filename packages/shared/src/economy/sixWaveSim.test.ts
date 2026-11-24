@@ -9,17 +9,18 @@ import { cardItem } from "./shopCards";
  * (held out or wiped) after ≥ 1 wave, cards are bought and rerolls paid, the build-0 offers respect
  * the floor. Bot survival is not difficulty evidence.
  *
- * The real balance (start 100, D13; earnings as built, 4.10 deferred) leaves a bot short of the
- * cheapest card (150) in builds 1–2 in most runs, so "a card in every build" is asserted from build 3
- * on (the printed table shows builds 0–2); the 400-wallet variant shows cards from build 0.
+ * Designer 2026-11-24: start money 200 (was 100), so build 0 buys a card. With earnings as built
+ * (4.10 deferred) the bots still spend builds 1–2 (and some later ones) on barricades, the turret and
+ * upgrades, so "a card in every build" does not hold; asserted: a card in build 0 and in build 3 of
+ * every run that reaches them, ≥ 3 cards per run (the printed table shows every build).
  */
 const balance = loadBalance();
 const rich = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 400]]));
 /** A card-minded shopping list (bots.json's default list buys buildings first and stays as built). */
 const LIST = ["smg", "wood_barricade", "running_shoes", "wood_barricade", "body_armor_1", "auto_turret", "shotgun", "revive_kit", "body_armor_2", "assault_rifle"];
 const TEAM_SIZES = [2, 3, 4];
-/** From this build phase index on, every reached build has ≥ 1 card bought (bots pooled). */
-const CARDS_EVERY_BUILD_FROM = 3;
+/** Build phases where every run that reaches them buys ≥ 1 card (bots pooled). */
+const CARD_BUILDS = [0, 3];
 
 function checkRun(b: Balance, r: HeadlessRunLog): void {
   expect(r.timedOut).toBe(false);
@@ -36,7 +37,7 @@ function checkRun(b: Balance, r: HeadlessRunLog): void {
   expect(gap).toBe(r.earnedBy.refund);
   for (let i = 0; i < r.players; i++) {
     expect(r.rerollSpent[i]).toBe((r.rerolls[i] as number) * b.shop.reroll.price);
-    // Build 0: a full, floor-respecting offer for every bot (D13: at 100 nothing need be affordable).
+    // Build 0: a full, floor-respecting offer for every bot (drawn before any buy).
     const first = r.firstOffers[i] as string[];
     expect(first.length).toBe(b.shop.cards);
     expect(first.every((id) => id !== "")).toBe(true);
@@ -48,16 +49,16 @@ function checkRun(b: Balance, r: HeadlessRunLog): void {
 const sum = (xs: readonly (number | undefined)[]) => xs.reduce<number>((a, x) => a + (x ?? 0), 0);
 
 describe("six-wave card sim (Story 5.13: bots buy from their cards; seeded)", () => {
-  it("seeds 1–6 × 2/3/4 bots: every run ends; cards bought (every build from 3 on); rerolls paid", () => {
+  it("seeds 1–6 × 2/3/4 bots: every run ends; cards bought (builds 0 and 3, ≥ 3 per run); rerolls paid", () => {
     const lines: string[] = [];
     for (const players of TEAM_SIZES) {
       let rerolls = 0;
       for (let seed = 1; seed <= 6; seed++) {
         const r = runHeadless({ balance, seed, players, list: LIST });
         checkRun(balance, r);
-        expect(sum(r.cardsByBuild)).toBeGreaterThanOrEqual(1);
+        expect(sum(r.cardsByBuild)).toBeGreaterThanOrEqual(3);
         // Build phases reached: 0 … reached − 1 (a held-out run ends in Results after the last wave).
-        for (let build = CARDS_EVERY_BUILD_FROM; build < r.reached; build++) expect(r.cardsByBuild[build] ?? 0, `${players}p seed ${seed} build ${build}`).toBeGreaterThanOrEqual(1);
+        for (const build of CARD_BUILDS) if (build < r.reached) expect(r.cardsByBuild[build] ?? 0, `${players}p seed ${seed} build ${build}`).toBeGreaterThanOrEqual(1);
         rerolls += sum(r.rerolls);
         lines.push(`${players}p seed ${seed}: ${r.heldOut ? "held out" : `wiped in W${r.reached}`}; cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")} (spent ${sum(r.rerollSpent)})`);
       }
