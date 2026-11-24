@@ -19,6 +19,15 @@ const hex = z.string().regex(/^#[0-9a-f]{6}$/, "colours are lowercase #rrggbb");
 const partId = z.string().regex(/^[a-z0-9]{1,8}$/, "part ids are lowercase, 1-8 characters");
 const unlock = z.string().regex(/^(starter|loot|milestone:m([1-9]|10))$/, "unlock is starter, loot or milestone:m1..m10");
 
+/**
+ * Story 7.8 (designer 2026-11-24, the spinning propeller): a part may declare an animated layer. The body bake leaves
+ * the layer out; the client draws it as its own small sprite on top of the survivor (one texture per layer, through
+ * `addGeneratedTexture`; one pooled sprite per survivor), turned each frame. `spinRevPerS` is the spin speed.
+ */
+export const ANIMATED_LAYERS = ["propeller"] as const;
+export type AnimatedLayerId = (typeof ANIMATED_LAYERS)[number];
+const animatedSchema = z.object({ layer: z.enum(ANIMATED_LAYERS), spinRevPerS: z.number().positive().max(10) }).strict();
+
 const partSchema = z
   .object({
     id: partId,
@@ -30,6 +39,8 @@ const partSchema = z
     hidesHair: z.boolean().optional(),
     /** Skin only: the preset colour (already the in-game colour). */
     hex: hex.optional(),
+    /** An animated layer drawn on top of the survivor (see `animatedSchema`). */
+    animated: animatedSchema.optional(),
   })
   .strict();
 
@@ -89,6 +100,10 @@ function crossCheck(c: z.output<typeof cosmeticsSchema>, issues: string[]): void
     if ((p.slot === "head") !== (p.hidesHair !== undefined)) issues.push(`cosmetics.json: parts.${i}: hidesHair is for headgear only, and every headgear has it`);
     if ((p.slot === "skin") !== (p.hex !== undefined)) issues.push(`cosmetics.json: parts.${i}: hex is for skin only, and every skin has it`);
   });
+  for (const layer of ANIMATED_LAYERS) {
+    const n = c.parts.filter((p) => p.animated?.layer === layer).length;
+    if (n > 1) issues.push(`cosmetics.json: layer ${layer}: declared by ${n} parts (one part per layer)`);
+  }
   if (c.look.stageDim[0] !== 1) issues.push("cosmetics.json: look.stageDim.0: stage 1 must be 1 (no extra dim)");
   for (const slot of COSMETIC_SLOTS) {
     const p = c.parts.find((x) => x.slot === slot && x.id === c.defaultLook[slot]);
@@ -127,6 +142,11 @@ export function starterParts(c: Cosmetics): Readonly<Record<CosmeticSlot, readon
   const out = {} as Record<CosmeticSlot, string[]>;
   for (const slot of COSMETIC_SLOTS) out[slot] = c.parts.filter((p) => p.slot === slot && p.unlock === "starter").map((p) => p.id);
   return deepFreeze(out);
+}
+
+/** The spin speed (turns per second) of an animated layer, from the part that declares it; 0 when none does. */
+export function layerSpinRevPerS(layer: AnimatedLayerId, c: Cosmetics = COSMETICS): number {
+  return c.parts.find((p) => p.animated?.layer === layer)?.animated?.spinRevPerS ?? 0;
 }
 
 /** The catalogue entry for a slot's part id, or undefined. */

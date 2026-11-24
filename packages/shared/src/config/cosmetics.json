@@ -28,7 +28,7 @@
     {"id": "pot", "slot": "head", "name": "Cooking pot", "colour": "none", "unlock": "loot", "hidesHair": true},
     {"id": "bunny", "slot": "head", "name": "Bunny beanie", "colour": "none", "unlock": "loot", "hidesHair": true},
     {"id": "viking", "slot": "head", "name": "Viking helmet", "colour": "none", "unlock": "loot", "hidesHair": true},
-    {"id": "prop", "slot": "head", "name": "Propeller cap", "colour": "accent", "unlock": "loot", "hidesHair": true},
+    {"id": "prop", "slot": "head", "name": "Propeller cap", "colour": "accent", "unlock": "loot", "hidesHair": true, "animated": {"layer": "propeller", "spinRevPerS": 2}},
     {"id": "short", "slot": "hair", "name": "Short", "colour": "hair", "unlock": "starter"},
     {"id": "buzz", "slot": "hair", "name": "Stubble", "colour": "hair", "unlock": "starter"},
     {"id": "flattop", "slot": "hair", "name": "Flat top", "colour": "hair", "unlock": "starter"},

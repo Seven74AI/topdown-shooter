@@ -39,6 +39,7 @@ export {
   type DevBalanceOptions,
 } from "./config/devBalance";
 export {
+  ANIMATED_LAYERS,
   COSMETIC_COLOURS,
   COSMETIC_SLOTS,
   COSMETICS,
@@ -46,8 +47,10 @@ export {
   DEFAULT_LOOK,
   STARTER_PARTS,
   cosmeticPart,
+  layerSpinRevPerS,
   loadCosmetics,
   starterParts,
+  type AnimatedLayerId,
   type CosmeticColour,
   type CosmeticColours,
   type CosmeticPart,

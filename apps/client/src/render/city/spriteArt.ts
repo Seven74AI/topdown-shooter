@@ -210,7 +210,8 @@ export function drawZombie(c: G, type: ZombieTypeId, r: number, variant: number,
  * The survivor, top-down, facing +x (gun forward), at (0, 0). The slot ring is PlayerView's.
  * Story 5.3: `heldGun` draws a weapon's own top-down art in place of the plain gun (under the arms).
  * Story 7.8: drawn from one function per slot (`survivorParts.ts`); `look` defaults to the default survivor
- * (today's survivor with the designer's new cap).
+ * (today's survivor with the designer's new cap). `layers` false leaves animated layers (the propeller) out: the game
+ * draws those as their own sprites (`survivorLayers.ts`).
  */
 export function drawSurvivor(
   c: G,
@@ -218,6 +219,7 @@ export function drawSurvivor(
   heldGun?: (c: G, r: number) => void,
   back?: (c: G, r: number) => void,
   look: ResolvedLook = DEFAULT_RESOLVED_LOOK,
+  layers = true,
 ): void {
   c.lineJoin = "round";
   c.strokeStyle = CHAR.outline;
@@ -242,7 +244,7 @@ export function drawSurvivor(
   drawTop(c, r, look.top, look.colours.top, look);
   drawSkin(c, r, look.skin, look.colours.skin);
   if (!look.hidesHair) drawHair(c, r, look.hair, look.colours.hair);
-  drawHead(c, r, look.head, partColour(look, "head", look.head), look);
+  drawHead(c, r, look.head, partColour(look, "head", look.head), look, layers);
 }
 
 // ---------------------------------------------------------------------------

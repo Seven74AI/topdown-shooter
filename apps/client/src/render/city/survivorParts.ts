@@ -17,6 +17,7 @@
 import { cosmeticPart, type CosmeticSlot } from "@topdown/shared";
 import { CHAR, circle, ell, rrect, shade } from "./spriteArt";
 import { stageDim, type ResolvedLook } from "./survivorLook";
+import { drawLayerStill } from "./survivorLayers";
 
 type G = CanvasRenderingContext2D;
 
@@ -444,8 +445,11 @@ function drawCap(c: G, r: number, A: string): void {
   c.stroke();
 }
 
-/** Headgear slot ("none" draws nothing). `colour` is the part's picker colour (`partColour`). */
-export function drawHead(c: G, r: number, partId: string, colour: string, look: ResolvedLook): void {
+/**
+ * Headgear slot ("none" draws nothing). `colour` is the part's picker colour (`partColour`). `withLayers` false leaves
+ * a part's animated layer out (the game draws it as its own sprite, `SurvivorLayerPool`).
+ */
+export function drawHead(c: G, r: number, partId: string, colour: string, look: ResolvedLook, withLayers = true): void {
   const A = colour;
   const d = (hex: string): string => dim(look, hex);
   switch (partId) {
@@ -701,7 +705,6 @@ export function drawHead(c: G, r: number, partId: string, colour: string, look: 
       return;
     }
     case "prop": {
-      const P = PART_COLOURS.propeller;
       wall(c, r, 0.06, 0, 0.4, 0.42, LEAN.low, shade(A, -0.3));
       ell(c, 0, 0, r * 0.38, r * 0.4);
       c.fillStyle = A;
@@ -720,11 +723,8 @@ export function drawHead(c: G, r: number, partId: string, colour: string, look: 
       c.restore();
       ell(c, 0, 0, r * 0.38, r * 0.4);
       c.stroke();
-      ell(c, -r * 0.02, 0, r * 0.44, r * 0.07, 0.5);
-      fs(c, d(P.blades));
-      c.fillStyle = d(P.hub);
-      circle(c, -r * 0.02, 0, r * 0.06);
-      c.fill();
+      // The propeller is an animated layer (survivorLayers.ts): drawn here only in still pictures.
+      if (withLayers) drawLayerStill(c, r, "propeller");
       return;
     }
   }

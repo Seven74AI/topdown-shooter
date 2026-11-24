@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import raw from "./cosmetics.json" with { type: "json" };
-import { COSMETIC_SLOTS, COSMETICS, CosmeticsError, DEFAULT_LOOK, STARTER_PARTS, cosmeticPart, loadCosmetics } from "./cosmetics";
+import { COSMETIC_SLOTS, COSMETICS, CosmeticsError, DEFAULT_LOOK, STARTER_PARTS, cosmeticPart, layerSpinRevPerS, loadCosmetics } from "./cosmetics";
 import { loadBalance } from "./balance";
 
 const copy = (): { parts: Record<string, unknown>[] } & Record<string, unknown> => JSON.parse(JSON.stringify(raw));
@@ -101,5 +101,20 @@ describe("cosmetics catalogue (Story 7.8)", () => {
     const before = loadBalance().version;
     expect(Object.keys(loadBalance())).not.toContain("cosmetics");
     expect(loadBalance().version).toBe(before);
+  });
+
+  it("the propeller cap declares the spinning propeller layer, with its speed here (designer 2026-11-24)", () => {
+    expect(cosmeticPart("head", "prop")?.animated).toEqual({ layer: "propeller", spinRevPerS: 2 });
+    expect(layerSpinRevPerS("propeller")).toBe(2);
+    expect(COSMETICS.parts.filter((p) => p.animated)).toHaveLength(1);
+  });
+
+  it("rejects a second part declaring the same layer, and an unknown layer", () => {
+    const two = copy();
+    (two.parts[0] as Record<string, unknown>).animated = { layer: "propeller", spinRevPerS: 1 };
+    expect(() => loadCosmetics(two)).toThrow(/declared by 2 parts/);
+    const bad = copy();
+    (bad.parts[0] as Record<string, unknown>).animated = { layer: "wings", spinRevPerS: 1 };
+    expect(() => loadCosmetics(bad)).toThrow(CosmeticsError);
   });
 });
