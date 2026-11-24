@@ -1,6 +1,9 @@
+---
+baseline_commit: 8f81792
+---
 # Story 6.3: Blackout lighting
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -42,6 +45,10 @@ so that light becomes something we fight for.
 > 26. LIGHT IS SERVER TRUTH: the light state (stage, blackout flag, power out, flicker seeds, build-phase half darkness) is part of the world and replays; a client that joins or wakes mid-wave draws the same darkness as everyone else; fog hides zombies only on the local screen, never in the sim (aim assist and turrets keep their own rules; aim assist never locks a target your screen hides).
 > 27. DO NOT TOUCH EPIC 5 WORK IN PROGRESS: 5.13 card shop and 5.20–5.25 building UX are being built in other sessions (shop, build bar, carry/drag UI); Epic 6 changes there go through their balance flags (`inShop`) or a "Notes for the merge" line, not edits to their UI.
 > 28. ONE RUN FLOW: the run phase machine (lobby → build → wave → … → vote → extract/endless → results) has one owner per change (6.1 removes the 6-wave ending, 6.11 adds the vote, 6.12 adds endless); every phase change is a tested transition, and Results always show (no stuck run).
+> 29. HAND-BACK: when your branch is pushed and your full gate is green, send the main session a message (claude-code-remote send_message, session_id "@parent") with branch, commit, the master commit you merged, gate result with load, "Notes for the merge" and the "Not verified" list; then stop. Reviewers do the same with their findings. The main session archives each builder/reviewer session once its story is on master.
+> 30. LATCH THE PAYLOAD WITH THE EDGE: every new edge input (vote, ping, lever, crate, survivor lead, any new button) snapshots its payload (aim, target, choice) on the tap frame together with the flag, in both LocalSimHost and NetSimHost (Epic 5: 5.12's throw used the next frame's aim). Test with 60 fps frames over 50 ms steps and under ?lag=150&jitter=20.
+> 31. ONE HUD LAYOUT TEST: every on-screen control (incl. boss bar, vote panel, event banners, markers' screen-edge arrows) is in one layout test at 568×320 and 640×360 with insets 44/21: no overlaps, 48 px clearance round the survivor at the centre, nothing pressable in the move-stick half. Add new HUD to that test (6.3 creates it if it doesn't exist); don't check it story by story (Epic 5: six stories moved buttons around each other).
+> 32. FRESH DECISIONS, MERGED TREE: before you build and before you review, read the decision-log lines newer than the story file (git log docs/epic-6-decisions.md docs/epic-5-decisions.md); a merged pair updates both story files. Merge current master before the final gate and review that merged commit (Epic 5: five merge-only bugs). Every push to master passes typecheck and lint, docs-only and art-only commits included.
 > ```
 >
 > Most relevant here: **2** (two new synced light fields: World → schema → syncState → stateView → fakeRoom → mirror → devThrottle → snapshotWorld; the Predictor needs nothing), **10** (no allocation per frame in the darkness repaint: pooled stamps, no gradients created per frame), **12** (the darkness repaint is the single biggest new per-frame cost of Epic 6; measure on `?stress=150&blackout=5`), **18** (force-blackout switches), **20** (darkness canvas + stamps through `addGeneratedTexture` / the texture registry), **24** (what draws above the darkness, no hot core, can't be turned off), **26** (the blackout level is server truth and replays), **27** (the shop flags only: no edits to 5.13 / 5.16+ UI).
@@ -83,36 +90,36 @@ so that light becomes something we fight for.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art (from the picks; no new pick needed).** Port from `docs/art/epic-6/src/main1.js › darkness / warmLight` and `main2.js › makeBlackoutCard / rainInLight / eyes`: the three darkness looks BL2 / BL1 / BL3 by level, soft + hard stamp sets, warm tints, BL4's rain-in-light streaks (without the hot core and the lens flare: drop the linear-gradient core stroke and `blueSpr`), the eyes. All drawn in game code: the darkness canvas and every stamp canvas go through `addGeneratedTexture` / the texture registry (brief 20); the eye frames go into the FX atlas (`spriteAtlas.ts`, `category_name_variant`, atlas ≤ 2048²: `atlasLayout.test.ts`). Screenshot at 568 × 320 and 800 × 360 for each level for the designer (AC 7).
-- [ ] **T1 Shared light state** (AC 1–4; F1, F7, F8)
-  - [ ] `decay/lightState.ts`: `blackoutPct`, `halfDark`, `powerFailure`, `forcedPct`; `isBlackout`, `darknessAlpha`, `lightRadiusOf`, `refreshBlackout`, `setForcedBlackout(world, pct)`; fire `blackoutRadiusM` = `blackout.fireLightM`. Update the file header (the list stays derived; the four flags are state).
-  - [ ] `player/flashlight.ts` (new): `flashlightOf(balance, gearMask)` (cached per balance via `WeakMap`, reads `player.json › flashlight` and the gear item's `coneDeg`/`rangeM`, the widest owned wins), `inFlashlightCone(...)`. Export both from `index.ts` (6.4 uses them).
-  - [ ] `config/balanceSchema.ts`: `decay.blackout` (all keys of AC 3, with defaults), `player.flashlight`, gear item `coneDeg`/`rangeM` (optional, ≥ 0); `balance.ts › crossCheck`: `lightPctByWave` entries 0–100, `glowM` > every zombie radius + player radius (F2: 1.6 > 0.6 + 0.35; and 6.5's 2 m Behemoth is outside this check: it has its own outline).
-  - [ ] `run/runStateMachine.ts`: call `refreshBlackout` at the end of `startBuild`, in `startWave`, and on the way to Results (→ 0).
-  - [ ] Tests `decay/lightState.test.ts` (+ `refreshBlackout rule order`, `table 0 → no blackout`, `forced wins`, `powerFailure only in a wave`, `halfDark only in a build phase`, `darknessAlpha 5 % → 0.95, half → 0.475`, `lightRadiusOf 4 ↔ 6 m`, `fire lights 4 m in a blackout`), `player/flashlight.test.ts` (`60°/8 m`, `tactical 80°/12 m`, `edge: 29.9° in, 30.1° out`, `8.0 m in, 8.01 m out`), `core/determinism.test.ts` (+ F8 digest test).
-- [ ] **T2 Wire and copies** (AC 1; brief 2, 14, 26)
-  - [ ] Schema `RunState.blackoutPct` (uint8), `halfDark` (boolean), appended last; `syncState` (on change only), `resetRunFields`; `RUN_STATE_FIELDS` (`net/stateView.ts`); `fakeRoom.ts`; devThrottle key list (automatic from `RUN_STATE_FIELDS`: check); `NetSimHost` mirror sets `world.lights.blackoutPct/halfDark` from the state on every patch (beside `mirrorDecay`); `snapshotWorld` gains `lights: { blackoutPct, halfDark, powerFailure, forcedPct }` (update its "lights not here on purpose" comment: the list stays out).
-  - [ ] Predictor: nothing (no gameplay effect: F8). Say so in the copies list.
-  - [ ] Server: `DEV_FORCE_BLACKOUT` (`apps/server/src/run/devForceBlackout.ts`, the `devDecayStages.ts` pattern + test; ignored in production with a logged reason).
-  - [ ] Tests `syncState.test.ts` (+ `blackout fields on change only, ≤ 3 B, reset`), `NetSimHost.blackout.test.ts` (new: `mirror follows the state`, `late join draws the current level`, `a state that jumped across a wave start (hidden tab) gives the new level at once`).
-- [ ] **T3 Darkness layer** (AC 5, 7; F2, F3, F6, F7, F9)
-  - [ ] `render/darkness/aboveDark.ts` (depth constants + `aboveDarkness`), `render/darkness/lightStamps.ts` (stamp canvases: disc, cone 60°, cone 80°, soft + hard; registered with the texture registry for repaint, phase `cache`), `render/darkness/DarknessView.ts` (the canvas via `addGeneratedTexture`, positioned on the camera view every frame; repaint only while `isBlackout`; hidden and idle otherwise).
-  - [ ] Pure helper `render/darkness/darknessPlan.ts`: from the World + drawn player positions/facings + camera view → a preallocated stamp list (kind, x, y, angle, size) capped at `maxStamps`, own light first. Unit-tested in node (no Phaser).
-  - [ ] Flash lights: a small pooled ring buffer of live flashes fed from `FxView` (`weapon.fired`, `turret.fired`, explosion events) and the flame views (5.4) while a jet fires; ages by the frame clock (paused-aware).
-  - [ ] `render/city/palette.ts › DARK_LOOKS` (by level: colour, edge set, tint alphas); `CityView`: rain alpha × 0.35 while `isBlackout` (one compare per frame).
-  - [ ] Tests: `darknessPlan.test.ts` (`own glow and cone always kept at the cap`, `teammate cone along its facing`, `downed: glow only (D3)`, `out: nothing`, `floodlight 6 m`, `fire 4 m`, `muzzle 3 m gone after 0.1 s`, `no stamps when blackout is off`), `darknessView.test.ts` with the `testScene.ts` helper (`F6: alpha equal with lowFx`, `F9: no refresh call while off`), `textureRegistry` repaint test for `fx_darkness` and the stamps (brief 20), `noUnregisteredTextures.test.ts` green.
-- [ ] **T4 Eyes, teammates, sparkles, floodlight** (AC 6, 8–10; F4, F5)
-  - [ ] `render/darkness/EyesView.ts` (pool ≤ `maxEyes`, reads `ZombieView`'s drawn positions/facings, within `eyesM`), `render/darkness/BeamSparkleView.ts` (pool ≤ `maxSparkles`, positions hashed inside each drawn cone/pool like `rainInLight`, `?fx=low` half), `PlayerView` depth switch, `FloodlightView` size from `lightRadiusOf`.
-  - [ ] Tests: `eyes within 14 m only`, `eyes hidden when blackout off`, `teammate depth above DARKNESS_DEPTH in a blackout and back after`, `floodlight pool 12 m across in a blackout`, `sparkles ≤ cap; half with lowFx`.
-- [ ] **T5 Shop flags** (AC 11; brief 27)
-  - [ ] `buildings.json › floodlight.inShop: true`, `gear.json › tactical_flashlight.inShop: true`. Update tests that assumed "hidden": `buildings.test.ts`, `economy/shop.test.ts`, `buildBar.test.ts`, `botShop` tests, `RunRoom.shop.test.ts`, `devShopAll.test.ts` (keep the dev switch working for any future `inShop: false` item, tested with a test balance). Check `botShop.ts`: bots may now buy the flashlight/floodlight (fine; record it in the sim output).
-  - [ ] Card shop (5.13, if merged): no code change; its pool reads `inShop` (add a test line there only if 5.13 is already on master; else a merge note).
-- [ ] **T6 Dev switches and perf** (AC 13, 14; brief 12, 16, 18)
-  - [ ] Cheat panel control (`DevCheats.tsx` + `devCheatActions.ts › setForcedBlackoutCheat`, solo only, any phase), `urlOptions.ts › blackoutPct` (`?blackout=20|10|5`, solo), applied in `GameScene` create for solo and in `stressScenario.ts`.
-  - [ ] Headless `?stress=150` vs `?stress=150&blackout=5` (and `&fx=low`): FPS before/after with machine load; per-frame cost of the repaint (ms, from the perf overlay); write `docs/perf/epic-6-blackout.md` with empty phone rows (Mi 11i + a 2021 mid-range phone) and the "how to fill" steps.
-  - [ ] Fallback if the headless drop is > 15 % at `?stress=150&blackout=5`: darkness canvas at a quarter of the game canvas (DD2), stamps cap 32; record which one shipped.
-- [ ] **T7 Readability sheet.** Add "a blackout wave: eyes, a teammate's beam, a floodlight pool, a burning car" to `docs/playtests/milestone-1/readability-sheet.md` (+ key) (brief 13).
-- [ ] **T8 Gates.** Mutations, each must fail a test (list which): `refreshBlackout` not called in `startWave`; `halfDarkK` ignored; floodlight uses `radiusM` in a blackout; cone uses 30° full angle instead of half; own glow droppable at the stamp cap; `lowFx` lowers alpha; darkness repainted while off; teammate depth not restored; `blackoutPct` not mirrored. Browser check (Playwright, own ports): solo `?blackout=5`, `?blackout=20`, `?blackout=10&fx=low`; online two tabs with `DEV_FORCE_BLACKOUT=5` and `?lag=150&jitter=20` (both tabs same level, teammate beam visible, eyes, floodlight with `?shopall=1` not needed any more); a hidden tab (`window.__game.loop.sleep()/wake()`) across a build start; a simulated context loss (`textureRegistry` rebuild) during a blackout: darkness still drawn; 568 × 320 and 800 × 360 screenshots. `npm run typecheck && npm run lint && npm test && npm run build`. Merge notes.
+- [x] **T0 Art (from the picks; no new pick needed).** Port from `docs/art/epic-6/src/main1.js › darkness / warmLight` and `main2.js › makeBlackoutCard / rainInLight / eyes`: the three darkness looks BL2 / BL1 / BL3 by level, soft + hard stamp sets, warm tints, BL4's rain-in-light streaks (without the hot core and the lens flare: drop the linear-gradient core stroke and `blueSpr`), the eyes. All drawn in game code: the darkness canvas and every stamp canvas go through `addGeneratedTexture` / the texture registry (brief 20); the eye frames go into the FX atlas (`spriteAtlas.ts`, `category_name_variant`, atlas ≤ 2048²: `atlasLayout.test.ts`). Screenshot at 568 × 320 and 800 × 360 for each level for the designer (AC 7).
+- [x] **T1 Shared light state** (AC 1–4; F1, F7, F8)
+  - [x] `decay/lightState.ts`: `blackoutPct`, `halfDark`, `powerFailure`, `forcedPct`; `isBlackout`, `darknessAlpha`, `lightRadiusOf`, `refreshBlackout`, `setForcedBlackout(world, pct)`; fire `blackoutRadiusM` = `blackout.fireLightM`. Update the file header (the list stays derived; the four flags are state).
+  - [x] `player/flashlight.ts` (new): `flashlightOf(balance, gearMask)` (cached per balance via `WeakMap`, reads `player.json › flashlight` and the gear item's `coneDeg`/`rangeM`, the widest owned wins), `inFlashlightCone(...)`. Export both from `index.ts` (6.4 uses them).
+  - [x] `config/balanceSchema.ts`: `decay.blackout` (all keys of AC 3, with defaults), `player.flashlight`, gear item `coneDeg`/`rangeM` (optional, ≥ 0); `balance.ts › crossCheck`: `lightPctByWave` entries 0–100, `glowM` > every zombie radius + player radius (F2: 1.6 > 0.6 + 0.35; and 6.5's 2 m Behemoth is outside this check: it has its own outline).
+  - [x] `run/runStateMachine.ts`: call `refreshBlackout` at the end of `startBuild`, in `startWave`, and on the way to Results (→ 0).
+  - [x] Tests `decay/lightState.test.ts` (+ `refreshBlackout rule order`, `table 0 → no blackout`, `forced wins`, `powerFailure only in a wave`, `halfDark only in a build phase`, `darknessAlpha 5 % → 0.95, half → 0.475`, `lightRadiusOf 4 ↔ 6 m`, `fire lights 4 m in a blackout`), `player/flashlight.test.ts` (`60°/8 m`, `tactical 80°/12 m`, `edge: 29.9° in, 30.1° out`, `8.0 m in, 8.01 m out`), `core/determinism.test.ts` (+ F8 digest test).
+- [x] **T2 Wire and copies** (AC 1; brief 2, 14, 26)
+  - [x] Schema `RunState.blackoutPct` (uint8), `halfDark` (boolean), appended last; `syncState` (on change only), `resetRunFields`; `RUN_STATE_FIELDS` (`net/stateView.ts`); `fakeRoom.ts`; devThrottle key list (automatic from `RUN_STATE_FIELDS`: check); `NetSimHost` mirror sets `world.lights.blackoutPct/halfDark` from the state on every patch (beside `mirrorDecay`); `snapshotWorld` gains `lights: { blackoutPct, halfDark, powerFailure, forcedPct }` (update its "lights not here on purpose" comment: the list stays out).
+  - [x] Predictor: nothing (no gameplay effect: F8). Say so in the copies list.
+  - [x] Server: `DEV_FORCE_BLACKOUT` (`apps/server/src/run/devForceBlackout.ts`, the `devDecayStages.ts` pattern + test; ignored in production with a logged reason).
+  - [x] Tests `syncState.test.ts` (+ `blackout fields on change only, ≤ 3 B, reset`), `NetSimHost.blackout.test.ts` (new: `mirror follows the state`, `late join draws the current level`, `a state that jumped across a wave start (hidden tab) gives the new level at once`).
+- [x] **T3 Darkness layer** (AC 5, 7; F2, F3, F6, F7, F9)
+  - [x] `render/darkness/aboveDark.ts` (depth constants + `aboveDarkness`), `render/darkness/lightStamps.ts` (stamp canvases: disc, cone 60°, cone 80°, soft + hard; registered with the texture registry for repaint, phase `cache`), `render/darkness/DarknessView.ts` (the canvas via `addGeneratedTexture`, positioned on the camera view every frame; repaint only while `isBlackout`; hidden and idle otherwise).
+  - [x] Pure helper `render/darkness/darknessPlan.ts`: from the World + drawn player positions/facings + camera view → a preallocated stamp list (kind, x, y, angle, size) capped at `maxStamps`, own light first. Unit-tested in node (no Phaser).
+  - [x] Flash lights: a small pooled ring buffer of live flashes fed from `FxView` (`weapon.fired`, `turret.fired`, explosion events) and the flame views (5.4) while a jet fires; ages by the frame clock (paused-aware).
+  - [x] `render/city/palette.ts › DARK_LOOKS` (by level: colour, edge set, tint alphas); `CityView`: rain alpha × 0.35 while `isBlackout` (one compare per frame).
+  - [x] Tests: `darknessPlan.test.ts` (`own glow and cone always kept at the cap`, `teammate cone along its facing`, `downed: glow only (D3)`, `out: nothing`, `floodlight 6 m`, `fire 4 m`, `muzzle 3 m gone after 0.1 s`, `no stamps when blackout is off`), `darknessView.test.ts` with the `testScene.ts` helper (`F6: alpha equal with lowFx`, `F9: no refresh call while off`), `textureRegistry` repaint test for `fx_darkness` and the stamps (brief 20), `noUnregisteredTextures.test.ts` green.
+- [x] **T4 Eyes, teammates, sparkles, floodlight** (AC 6, 8–10; F4, F5)
+  - [x] `render/darkness/EyesView.ts` (pool ≤ `maxEyes`, reads `ZombieView`'s drawn positions/facings, within `eyesM`), `render/darkness/BeamSparkleView.ts` (pool ≤ `maxSparkles`, positions hashed inside each drawn cone/pool like `rainInLight`, `?fx=low` half), `PlayerView` depth switch, `FloodlightView` size from `lightRadiusOf`.
+  - [x] Tests: `eyes within 14 m only`, `eyes hidden when blackout off`, `teammate depth above DARKNESS_DEPTH in a blackout and back after`, `floodlight pool 12 m across in a blackout`, `sparkles ≤ cap; half with lowFx`.
+- [x] **T5 Shop flags** (AC 11; brief 27)
+  - [x] `buildings.json › floodlight.inShop: true`, `gear.json › tactical_flashlight.inShop: true`. Update tests that assumed "hidden": `buildings.test.ts`, `economy/shop.test.ts`, `buildBar.test.ts`, `botShop` tests, `RunRoom.shop.test.ts`, `devShopAll.test.ts` (keep the dev switch working for any future `inShop: false` item, tested with a test balance). Check `botShop.ts`: bots may now buy the flashlight/floodlight (fine; record it in the sim output).
+  - [x] Card shop (5.13, if merged): no code change; its pool reads `inShop` (add a test line there only if 5.13 is already on master; else a merge note).
+- [x] **T6 Dev switches and perf** (AC 13, 14; brief 12, 16, 18)
+  - [x] Cheat panel control (`DevCheats.tsx` + `devCheatActions.ts › setForcedBlackoutCheat`, solo only, any phase), `urlOptions.ts › blackoutPct` (`?blackout=20|10|5`, solo), applied in `GameScene` create for solo and in `stressScenario.ts`.
+  - [x] Headless `?stress=150` vs `?stress=150&blackout=5` (and `&fx=low`): FPS before/after with machine load; per-frame cost of the repaint (ms, from the perf overlay); write `docs/perf/epic-6-blackout.md` with empty phone rows (Mi 11i + a 2021 mid-range phone) and the "how to fill" steps.
+  - [x] Fallback if the headless drop is > 15 % at `?stress=150&blackout=5`: darkness canvas at a quarter of the game canvas (DD2), stamps cap 32; record which one shipped.
+- [x] **T7 Readability sheet.** Add "a blackout wave: eyes, a teammate's beam, a floodlight pool, a burning car" to `docs/playtests/milestone-1/readability-sheet.md` (+ key) (brief 13).
+- [x] **T8 Gates.** Mutations, each must fail a test (list which): `refreshBlackout` not called in `startWave`; `halfDarkK` ignored; floodlight uses `radiusM` in a blackout; cone uses 30° full angle instead of half; own glow droppable at the stamp cap; `lowFx` lowers alpha; darkness repainted while off; teammate depth not restored; `blackoutPct` not mirrored. Browser check (Playwright, own ports): solo `?blackout=5`, `?blackout=20`, `?blackout=10&fx=low`; online two tabs with `DEV_FORCE_BLACKOUT=5` and `?lag=150&jitter=20` (both tabs same level, teammate beam visible, eyes, floodlight with `?shopall=1` not needed any more); a hidden tab (`window.__game.loop.sleep()/wake()`) across a build start; a simulated context loss (`textureRegistry` rebuild) during a blackout: darkness still drawn; 568 × 320 and 800 × 360 screenshots. `npm run typecheck && npm run lint && npm test && npm run build`. Merge notes.
 
 ## Dev Notes
 
@@ -224,13 +231,106 @@ From `docs/epic-6-decisions.md` › 3 Blackout: **BL3 pitch 5 %** with **BL2 moo
 
 ### Agent Model Used
 
+Claude (Claude Code, cloud builder session for Story 6.3)
+
 ### Debug Log References
+
+- Headless perf: `docs/perf/epic-6-blackout.md` (Playwright, 844 × 390 DPR 2, own Vite port 5391).
+- Online check: own server `PORT=2591 DEV_FORCE_BLACKOUT=5 ALLOW_SOLO_START=1`, Vite 5392 with a temp proxy config (removed), two tabs `?lag=150&jitter=20`.
 
 ### Completion Notes List
 
+- **Shared light state (T1).** `LightState` gains `blackoutPct`, `halfDark` (synced), `powerFailure`, `forcedPct` (server/solo); `isBlackout`, `darknessAlpha`, `lightRadiusOf`, `refreshBlackout` (the only writer; rule order forced → wave table → power failure in a wave → half dark in a build phase → 0), `setForcedBlackout`. Car fires light `blackout.fireLightM` (4 m) in a blackout. `player/flashlight.ts`: `flashlightOf` (cached per balance, widest owned cone wins), `inFlashlightCone` (dot product, no trig). `decay.json › blackout` (all AC 3 keys, schema defaults = shipped values, every `lightPctByWave` entry 0), `player.json › flashlight`, gear `coneDeg/rangeM`; `crossCheck`: glowM > every zombie radius + player radius. `refreshBlackout` at the end of `startBuild`, in `startWave` (after `beginWave`), in `endRun`.
+- **Wire (T2).** `RunState.blackoutPct` (uint8) + `halfDark` (boolean) appended; `syncState` on change only (measured: ≤ 3 B on the change tick, 0 per tick), `resetRunFields`; `RUN_STATE_FIELDS` (devThrottle follows automatically, tested); `fakeRoom`; `NetSimHost.applyState` copies both on every patch (beside `mirrorDecay`); `snapshotWorld.lights` (four flags; the list stays out). Predictor: nothing (F8). `DEV_FORCE_BLACKOUT` (`apps/server/src/run/devForceBlackout.ts`, production ignores it with a logged reason; `RunController.forceBlackoutPct`).
+- **Darkness (T3).** `render/darkness/`: `aboveDark.ts` (landed first, pushed early for 6.5), `darknessPlan.ts` (preallocated stamp plan + `FlashLights` ring + `planDarkness`), `lightStamps.ts` (disc, 60°/80° cones soft + hard, warm tints; drawn once, texture-registry phase `cache`), `DarknessView.ts` (half-res canvas via `addGeneratedTexture` key `fx_darkness`, repaint = the current frame, depth 11.7, hidden/idle when off). `palette.ts › DARK_LOOKS` (BL2 20 % / BL1 10 % / BL3 5 % crisp beams) + tints. CityView rain × 0.35 in a blackout.
+- **Above the dark (T4).** `EyesView` (≤ maxEyes pooled FX-atlas frames `fx_eyes_a` / `fx_eyes_brute`, within `eyesM` of my drawn survivor, along the drawn facing), `BeamSparkleView` (≤ maxSparkles additive streaks inside beams and floodlight pools; `?fx=low` halves), `PlayerView.setAboveDark` (body/ring/“+” to `ABOVE_DARK.teammate` on the change only; names are HudScene text, already on top), `FloodlightView` sized by `lightRadiusOf` (12 m across in a blackout). `ZombieView.drawnImage(id)` added for the eyes.
+- **Flashes (D4).** Muzzle flashes (`weapon.fired`, `turret.fired` with `turretMuzzleLight`) 3 m × 0.1 s at 0.8 m ahead; explosions 5 m × 0.15 s (minus the event's age); flame jets 3 m round the middle of the jet while `flames.flaming(id)`; molotov zones at their radius (from `MolotovFires.live`). Fed from GameScene's event loop only while a blackout is on; aged by the paused-aware clock.
+- **Shop (T5).** Floodlight and Tactical flashlight `inShop: true`. Tests that asserted "hidden" now assert the new truth; the `not_for_sale` path and the dev shop-all switch keep their tests with a test balance (`loadDevBalance(opts, base?)` gained an optional base for that). Bots now buy the Tactical flashlight (120) in most runs (seen in the probe: `tactical_flashlight@W5` for most bots). Replay test seed 7 → 20 (seed 7's p0 no longer rerolls with the bigger card pool; 20 has p0 rerolls, Spitters, acid). Six-wave card sim list gained `tactical_flashlight` (2p seed 2 bought no card in build 0 otherwise).
+- **Dev switches (T6).** Cheat panel "Force blackout: off / 20 / 10 / 5 %" (`setForcedBlackoutCheat`, solo, any phase), `?blackout=20|10|5` (solo, release-safe; applied in GameScene create for every solo run incl. `?stress`, so no separate `stressScenario.ts` change), `DEV_FORCE_BLACKOUT`.
+- **Perf (T6).** Headless `?stress=150`: 12.4 fps → `&blackout=5` 9.2 (−26 %), `&fx=low` 9.0, `&blackout=20` 9.7 (load 2.6–3.7). Over the 15 % headless target: the quarter-size fallback was tried and gained nothing (−27 %), and a probe with no paint and no upload cost the same, so the headless cost is SwiftShader filling one more full-screen layer. **Shipped: half resolution, 48 stamps.** Phone rows left for the designer's friends (doc says so).
+- **HUD layout test (brief 31).** Created `scenes/hudLayout.test.ts` (568 × 320, 640 × 360, insets 44/21; modes wave / build / holding / selected). The Epic 5 HUD as built breaks the 48 px centre gap / move-stick-half rules in 15 listed places (no overlaps, nothing off the safe area); recorded as an exact baseline so any new break fails. OPEN FOR DESIGNER (below).
+- **Browser (T8).** Solo `?stress=150&blackout=5` (crisp 60° cone, 1.6 m glow, eyes on all 150), `?blackout=20/10/5` with 8 floodlights at 568 × 320 and 800 × 360 (`docs/art/6-3/`), online two tabs under `?lag=150&jitter=20` with `DEV_FORCE_BLACKOUT=5` (both 5 %, each draws the other's cone, floodlight tile in the build bar), a real WebGL context loss + restore mid-blackout (registry rebuild 1, darkness still drawn), a hidden tab slept 6 s and woke (same level). 
+- **Full gate** (branch merged with origin/master 8f81792, which is still the newest master): `npm run typecheck` ✓, `npm run lint` ✓, `npm test` ✓ 325 files / 2678 tests passed (3 skipped), `npm run build` ✓; load 1.24 at start, 3.50 at the end of the tests (1-min average, 4 cores, this container only).
+- **Re-gate after merging master 9849071 (Story 6.1, 10 waves):** conflicts only in urlOptions(.test).ts, RunRoom.ts, sprint-status (kept both sides); `refreshBlackout` still last in startBuild/startWave/endRun; the seed-dependent sims (replay seed 20, six-wave card sim) still pass with no change. typecheck ✓, lint ✓, test ✓ 328 files / 2699 passed (3 skipped), build ✓; load 1.66 → 4.75.
+- **Gate after the review fixes** (merged master 9849071): typecheck ✓, lint ✓, test ✓ 329 files / 2705 passed (3 skipped), build ✓; load 0.56 → 3.64.
+- **Gate after B3** (merged master 4f4cffd): typecheck ✓, lint ✓, test ✓ 329 files / 2706 passed (3 skipped), build ✓; load 0.38 → 3.51.
+- **Mutations (T8), each run against its test file, all KILLED:** `refreshBlackout` not called in `startWave` (lightState.test), `halfDarkK` ignored (lightState.test), floodlight `radiusM` in a blackout (darknessView.test), cone full angle used as half (flashlight.test), own glow droppable at the cap (darknessPlan.test), `lowFx` lowers the alpha (`tools/checks/darknessNoOffSwitch.test.ts` source guard; the first try survived because the darkness takes no quality flag at all, so a source scan was added), darkness repainted while off (darknessView.test), teammate depth not restored (darknessView.test), `blackoutPct` not mirrored (NetSimHost.blackout.test).
+- **Not verified:** any phone (Mi 11i rows empty); a hidden tab across a real build start → blackout wave in the browser (covered by `NetSimHost.blackout.test.ts`, and no normal wave is dark until 6.4); a live blackout wave in a normal run (every `lightPctByWave` entry is 0 until 6.4); Brute eyes and flame/explosion/turret flashes only in unit tests, not seen in a browser; `?fx=low` sparkle halving only in tests; reconnect not tried.
+- **OPEN FOR DESIGNER:** (1) brief 31's HUD rules vs the Epic 5 layout as built — at 568 × 320 / 640 × 360 Ready sits in the move-stick half, the build bar's first tiles, ⟳ / item chip and the action bar's Move / Upgrade come within 48 px of the survivor (baseline list in `hudLayout.test.ts`); kept as built (brief 27). (2) Headless blackout cost −26 % (> 15 %): shipped half resolution because the fallback didn't help headless; the Mi 11i rows decide.
+
 ### File List
+
+- `packages/shared/src/decay/lightState.ts`, `decay/lightState.test.ts`
+- `packages/shared/src/player/flashlight.ts` (new), `player/flashlight.test.ts` (new)
+- `packages/shared/src/config/balanceSchema.ts`, `config/balance.ts`, `config/devBalance.ts`, `config/balance.test.ts`
+- `packages/shared/src/config/balance/decay.json`, `player.json`, `gear.json`, `buildings.json`
+- `packages/shared/src/run/runStateMachine.ts`
+- `packages/shared/src/core/worldSnapshot.ts`, `core/determinism.test.ts`
+- `packages/shared/src/net/stateView.ts`, `index.ts`
+- `packages/shared/src/bots/headlessRun.ts` (`onTick` hook)
+- `packages/shared/src/buildings/buildings.test.ts`, `economy/gear.test.ts`, `economy/shop.test.ts`, `economy/shopCards.test.ts`, `economy/sixWaveSim.test.ts`, `replay/replay.test.ts`
+- `apps/server/src/rooms/schema/RunState.ts`, `rooms/schema/syncState.ts`, `rooms/schema/syncState.test.ts`, `rooms/RunRoom.ts`
+- `apps/server/src/run/RunController.ts`, `run/devForceBlackout.ts` (new), `run/devForceBlackout.test.ts` (new)
+- `apps/client/src/render/darkness/aboveDark.ts`, `darknessPlan.ts`, `lightStamps.ts`, `DarknessView.ts`, `EyesView.ts`, `BeamSparkleView.ts`, `fakeScene.testkit.ts`, `darknessPlan.test.ts`, `darknessView.test.ts` (all new)
+- `apps/client/src/render/AcidView.ts`, `render/BloaterView.ts`, `render/PlayerView.ts`, `render/ZombieView.ts`, `render/FloodlightView.ts`, `render/city/rainLook.ts` (new), `render/city/rainLook.test.ts` (new), `render/city/CityView.ts`, `render/city/palette.ts`, `render/city/spriteAtlas.ts`
+- `apps/client/src/scenes/GameScene.ts`, `scenes/hudLayout.test.ts` (new), `scenes/buildBar.test.ts`, `apps/server/src/rooms/RunRoom.buildings.test.ts`, `tools/checks/darknessNoOffSwitch.test.ts` (new)
+- `apps/client/src/sim/NetSimHost.ts`, `sim/NetSimHost.blackout.test.ts` (new), `net/fakeRoom.ts`, `net/lobbyStore.test.ts`
+- `apps/client/src/debug/urlOptions.ts`, `debug/urlOptions.test.ts`, `debug/devCheatActions.ts`, `debug/devCheatActions.test.ts`, `debug/DevCheats.tsx`
+- `docs/perf/epic-6-blackout.md` (new), `docs/art/6-3/*.png` (new), `docs/playtests/milestone-1/readability-sheet.md`, `readability-key.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
+
+### Notes for the merge (builder)
+
+- Review fixes (2026-11-24): `ABOVE_DARK` gained `rush: 11.765` (the rush chevrons; 6.5's shim may lack it, this file wins); `decay.json › blackout.rainK` new; `STAMP_GLOW` (plan kind 2) + `fx_darkstamp_glow` stamp; `DARKNESS_PAD` (the darkness reaches 3 % past each view edge, GameScene passes the padded view to `planDarkness`).
+- Designer B3: `AcidView` / `BloaterView` gained `darkGhost` (ghost images + one ghost Graphics in `ABOVE_DARK.hazard`), set by GameScene each frame before their update; `ABOVE_DARK.hazard` 11.707 and `decay.json › blackout.hazardAboveDarkPct` new.
+- Review L3 (not this story): aim assist can lock a zombie beyond 14 m that the dark hides; 6.4 owns it with the fog (6.4 D4: aim assist never locks a target your screen hides).
+
+- `RunState.ts` / `syncState.ts` / `stateView.ts › RUN_STATE_FIELDS + RunStateView` / `fakeRoom.ts` / `net/lobbyStore.test.ts` literal: `blackoutPct`, `halfDark` appended last; 6.5's `boss` record goes beside them (order free).
+- `NetSimHost.applyState`: two lines after `mirrorDecay`; 6.5 adds its mirror line there too.
+- `snapshotWorld`: a `lights` entry after `run`; 6.5's boss entry anywhere.
+- `runStateMachine.ts`: `refreshBlackout(world)` as the LAST line of `startBuild`, `startWave` (after `beginWave`) and `endRun`; 6.1 edits these functions (keep the calls last).
+- `GameScene.ts`: imports; fields after `floodlightView`; views created after `FloodlightView`; destroyed after it; one `blackoutFlash(e)` line after `molotovView.handle`; `view.setAboveDark(...)` in `syncPlayerView`; `updateDarkness(host, zoom)` after `cityView.update` (end of `update`) + two private methods and `MUZZLE_LIGHT_AHEAD_M` at the file end. 6.5 should create its views near the floodlight block and draw above the darkness with `aboveDarkness(obj, "boss" | "telegraph" | "marker")` from `render/darkness/aboveDark.ts` (this file wins over 6.5's shim).
+- `hudLayout.test.ts` is THE brief-31 test: 6.5 adds the boss bar rect to the `wave` (and any other) mode; a new break must not be added to `KNOWN_LIST`.
+- `CityView.ts`: the rain alpha (`rainA`) line only. `palette.ts`: `DARK_LOOKS` appended at the end. `spriteAtlas.ts`: two FX frames (`fx_eyes_a`, `fx_eyes_brute`) appended.
+- `buildings.json` / `gear.json`: `inShop: true` (+ flashlight `coneDeg/rangeM`).
+- Seed-dependent tests changed by the bigger card pool: `replay.test.ts` SEED 20, `sixWaveSim.test.ts` LIST + `tactical_flashlight`. 6.1 (10 waves, waves.json) will move these sims again: re-pick if they fail after the merge.
+- `headlessRun.ts`: new optional `onTick` (F8 liveness probe).
+
+## Senior Developer Review (AI)
+
+- **Reviewer:** fresh-agent review in a separate cloud session, on story-6-3 merged with master 9849071 (relayed by the main session), 2026-11-24.
+- **Outcome:** Changes requested → all requested fixes applied by the builder (below); high/medium fixes go to a fresh re-review.
+
+### Action Items
+
+- [x] [AI-Review][High] H1: `?blackout=` (release, solo) / `DEV_FORCE_BLACKOUT` could LIGHTEN a dark wave (forced won over the table). Fix: `refreshBlackout` applies `forcedPct` only when its darkness alpha ≥ the rule's (a half-dark build phase compared by alpha too); tests: table 5 + forced 20 → 5 (alpha ≥ 0.95) in `lightState.test.ts` and through `RunController` in `devForceBlackout.test.ts`.
+- [x] [AI-Review][Medium] M1: camera shake opened a lit strip at the screen edge. Fix: the darkness canvas and image reach `DARKNESS_PAD` = 3 % of the view past each edge (≥ 2 × the biggest shake `MINE_SHAKE_MAX` 1.2 %); the plan culls on the padded view; test in `darknessView.test.ts`.
+- [x] [AI-Review][Medium] M2: `hudLayout.test.ts` baseline matched id + rule only. Fix: each `KNOWN_LIST` line records its as-built centre gap / move-half offset (px); the test fails if a gap shrinks or an offset grows by > 0.5 px.
+- [x] [AI-Review][Low] L1: the glow erased only ~half the dark at contact distance. Fix: own glow stamp (`CUT_GLOW`, flat full cut to `GLOW_CORE_K` 0.65 of the radius ≥ (0.6 + 0.4) / 1.6), glow strength 1; test on the cut strength (`cutAt`).
+- [x] [AI-Review][Low] L2: in-cone zombies at 7.9 m / on the 30° edge drew nearly dark. Fix: `CUT_CONE` 1 → 0.97 at 90 % → 0.88 at the range; soft wedges now fade only OUTSIDE the true edge (innermost wedge = the exact half angle); tests.
+- [x] [AI-Review][Low] L4: rush chevrons used a raw depth 12. Fix: `ABOVE_DARK.rush` 11.765.
+- [x] [AI-Review][Low] L6: the 35 % rain factor moved to `decay.json › blackout.rainK` (`render/city/rainLook.ts`, tested).
+- [x] [AI-Review][Low] L7: the story's brief block now carries lines 29–32.
+- [x] [AI-Review][Low] L8: Results are always lit (`refreshBlackout` ignores `forcedPct` in Results); the comment matches.
+- [x] [AI-Review][Low] Two surviving mutations now killed: BL3 5 % uses the hard cone stamps (20 % / 10 % the soft ones) in `darknessView.test.ts`; the rain dims in a blackout in `rainLook.test.ts`. Re-run: H1, M1, L1 mutations killed too.
+- [ ] [AI-Review][Low] L3 (aim assist beyond 14 m in the dark): deferred to 6.4 (fog, 6.4 D4); merge note added.
+- [x] [AI-Review][Low] L5 → designer decision 6.3 B3: acid puddles and Bloater gas (both cloud layers + the gas edge ring) get a second copy above the darkness (`ABOVE_DARK.hazard` 11.707) at `decay.json › blackout.hazardAboveDarkPct` (10 %) of their alpha, only in a blackout; inside light the full look shows under it (the faint same-colour copy changes it ≈ nothing: the "simplest equivalent" of max(lit, 10 %)). Own mines and traps stay under the dark. Test in `darknessView.test.ts` (mutation: ghost at full alpha → killed). Not seen in a browser.
+
+### Re-review (fresh agent, on c51d307): CLEAN — no new high/medium; lows fixed without a further re-review
+
+- [x] [AI-Review][Low] Test where stamps land on the padded canvas (setTransform e/f = (world − padded origin) × k).
+- [x] [AI-Review][Low] Test the survivor's cut uses the glow stamp, painted with `CUT_GLOW` (the fake gradient now records its stops).
+- [x] [AI-Review][Low] B3/wiring tests: gas ghost layer 2 alpha × k; acid ghost hidden on puddle expiry; `hazardGhostFor` / `rainAlphaFor` read decay.json (tested with changed values); GameScene's padded plan view via the shared `padDarknessView` (tested); soft cone stamp height covers its widest wedge (`coneHeight`, tested). Skipped: the rush chevrons' depth (a GameScene object; `ABOVE_DARK.rush` is a constant above `DARKNESS_DEPTH`).
+- [x] [AI-Review][Low] Stale comments after H1 (devForceBlackout.ts, devCheatActions.ts, urlOptions.ts): "at least this dark; never lightens a darker wave; Results lit".
+- [x] [AI-Review][Low] forcedPct 100 (no darkness) no longer turns a blackout on (`refreshBlackout` needs the forced alpha > 0; `DEV_FORCE_BLACKOUT` parses 1–99); tested.
+- [x] [AI-Review][Low] Perf doc notes the 3 % pad (~12 % bigger canvas), not re-measured, for the Mi 11i check.
+- All ten mutations the re-review listed (or implied) now fail a test.
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: re-review clean; its lows fixed (tests for pad/glow/B3 wiring, comments, forced 100, perf note).
+- 2026-11-24: designer decision 6.3 B3 (review L5) built: hazards above the dark at 10 %.
+- 2026-11-24: addressed code review findings — 10 items resolved (H1, M1, M2, L1, L2, L4, L6, L7, L8, two mutations); L3 deferred to 6.4, L5 with the designer.
+- 2026-11-24: implemented (gds-dev-story): light state + rule, flashlight cone, wire fields, darkness layer, eyes, sparkles, teammates above the dark, floodlight 6 m, shop flags, dev switches, HUD layout test, perf doc; status review.

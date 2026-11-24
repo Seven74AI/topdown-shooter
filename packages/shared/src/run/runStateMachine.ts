@@ -12,13 +12,15 @@ import { clearGrenades } from "../combat/grenades";
 import { clearMolotovZones } from "../hazards/molotov";
 import { clearBlasts, drainBlasts } from "../zombies/bloater";
 import { resetBuildSpend } from "../buildings/buildings";
+import { refreshBlackout } from "../decay/lightState";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
  *
  *   Lobby ─startBuild→ Build ─startWave→ Wave ─endWave→ Build ─startWave→ Wave … ─endRun→ Results
  *
- * (Story 3.10: `endWave` of wave `waves.runWaves` goes to Results, "You held out!".)
+ * (Story 3.10: `endWave` of wave `waves.runWaves` goes to Results, "You held out!". Story 6.1: 10 waves;
+ * until Story 6.11 adds the evacuation vote, Results after wave 10 is the ending.)
  *
  * Phases change only through the four named transitions below; a transition from a wrong phase is a
  * bug and throws. It lives in shared code so the server (`RunController`) and solo practice
@@ -78,6 +80,7 @@ export function startBuild(world: World): void {
   if (decayed) decayFinish(world, from);
   drawAllOffers(world); // Story 5.13: each player's card offer, after the decay steps (loadouts final)
   world.events.emit({ type: "build.started", wave: world.waves.number + 1 });
+  refreshBlackout(world); // Story 6.3: the build phase's light (half dark at stage 5 once 6.4 turns it on)
 }
 
 /** Build → Wave: Ready cleared, the next wave begins (`wave.started`). Its first spawn batch runs this tick. */
@@ -87,6 +90,7 @@ export function startWave(world: World): void {
   world.run.buildTicksLeft = 0;
   world.players.forEach(clearReady);
   beginWave(world);
+  refreshBlackout(world); // Story 6.3: the wave's blackout level (after beginWave: it reads the new wave number)
 }
 
 /**
@@ -117,6 +121,7 @@ export function endRun(world: World): void {
   clearGrenades(world.grenades); // Story 5.5: Results clears the rounds in flight
   clearMolotovZones(world); // Story 5.12
   clearBlasts(world); // Story 5.8: no blast or gas cloud outlives the run (FR-B: Results never bursts)
+  refreshBlackout(world); // Story 6.3: Results are lit (→ 0)
 }
 
 /**

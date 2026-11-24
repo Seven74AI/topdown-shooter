@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { ATLAS_FX, FX_ACID_PUDDLES, FX_GLOW, FX_SPIT_GLOB, ensureAtlases } from "./city/spriteAtlas";
 import { acidRingRadiusM, type AcidFx } from "./acidFx";
+import { aboveDarkness } from "./darkness/aboveDark";
 
 /** Puddles lie on the street (above blood trails and fire rings, below bodies); globs fly above everyone. */
 const PUDDLE_DEPTH = 1.55;
@@ -40,8 +41,14 @@ export class AcidView {
     const d = 2 * acidRingRadiusM(puddleRadiusM);
     for (let i = 0; i < fx.maxPuddles; i++) {
       this.puddles.push(scene.add.image(0, 0, ATLAS_FX, FX_ACID_PUDDLES[i % FX_ACID_PUDDLES.length] as string).setDisplaySize(d, d).setDepth(PUDDLE_DEPTH).setVisible(false));
+      // Story 6.3 (designer B3): the same puddle above the darkness at `darkGhost` strength (blackout only).
+      this.ghosts.push(aboveDarkness(scene.add.image(0, 0, ATLAS_FX, FX_ACID_PUDDLES[i % FX_ACID_PUDDLES.length] as string).setDisplaySize(d, d).setVisible(false), "hazard"));
     }
   }
+
+  /** Story 6.3 (B3): puddle ghosts above the darkness — 0 = none (no blackout), else their share of the puddle's alpha (0.1). */
+  darkGhost = 0;
+  private readonly ghosts: Phaser.GameObjects.Image[] = [];
 
   update(nowS: number): void {
     const fx = this.fx;
@@ -67,8 +74,10 @@ export class AcidView {
     }
     for (let i = 0; i < fx.maxPuddles; i++) {
       const p = this.puddles[i] as Phaser.GameObjects.Image;
+      const gh = this.ghosts[i] as Phaser.GameObjects.Image;
       if (fx.puddleId[i] === -1) {
         if (p.visible) p.setVisible(false);
+        if (gh.visible) gh.setVisible(false);
         continue;
       }
       const age = nowS - (fx.puddleStartS[i] as number);
@@ -77,10 +86,13 @@ export class AcidView {
       // The ring stays at full size (it is the damage edge); only alpha moves. No extra glow quad: the
       // frame carries its own halo (32 big ADD quads were fill-bound on the CPU rasterizer).
       p.setPosition(fx.puddleX[i] as number, fx.puddleY[i] as number).setRotation(id * 1.3).setAlpha(Math.max(0, a)).setVisible(true);
+      if (this.darkGhost > 0) gh.setPosition(p.x, p.y).setRotation(p.rotation).setAlpha(Math.max(0, a) * this.darkGhost).setVisible(true);
+      else if (gh.visible) gh.setVisible(false);
     }
   }
 
   destroy(): void {
+    for (const g of this.ghosts) g.destroy();
     for (const img of [...this.globs, ...this.shadows, ...this.puddles]) img.destroy();
     this.globs.length = 0;
     this.shadows.length = 0;

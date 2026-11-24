@@ -2,6 +2,7 @@ import type { z } from "zod";
 import { canonicalJson, fnv1a32 } from "../core/hash";
 import { balanceFileSchemas, type BalanceFileName, type BuildingTypeStats } from "./balanceSchema";
 import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
+import { MAX_FIXED_PER_WAVE } from "./constants";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
 import waves from "./balance/waves.json" with { type: "json" };
@@ -107,11 +108,29 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
     const smallest = Math.max(1, Math.round((i + 1) * wv.zombiesPerWave * soloScale));
     if (sum > smallest) issues.push(`waves.json: fixed.${i}: ${sum} fixed zombies exceed the smallest wave ${i + 1} (${smallest} solo)`);
   });
+  // Story 6.1: every fixed zombie of a wave has a spawn point (`fixedAtFractions`, or the default) and a slot in the preallocated list.
+  const fracs = (parsed.waves as { fixedAtFractions?: readonly number[] }).fixedAtFractions ?? [];
+  const mostFixed = Math.max(0, ...fixedList.map((m) => Object.values(m).reduce((a, c) => a + c, 0)));
+  if (mostFixed > MAX_FIXED_PER_WAVE) issues.push(`waves.json: a fixed entry holds ${mostFixed} zombies, more than the ${MAX_FIXED_PER_WAVE} a wave can place`);
+  if (fracs.length > 0 && fracs.length < mostFixed) issues.push(`waves.json: fixedAtFractions has ${fracs.length} entries but a wave holds ${mostFixed} fixed zombies (list one point each, or leave it empty for fixedAtFraction)`);
   if (buildings.spawnClearM <= waves.spawnJitterM + maxRz) {
     issues.push(`buildings.json: spawnClearM ${buildings.spawnClearM} must exceed waves.spawnJitterM + the largest zombie radius (${waves.spawnJitterM + maxRz})`);
   }
   crossCheckBuildingTypes(parsed.buildings as { types: Record<string, BuildingTypeStats> }, issues);
   crossCheckFlames(parsed, issues);
+  crossCheckBlackout(parsed, issues);
+}
+
+/**
+ * Story 6.3 (F2): a zombie touching a survivor is always inside their glow (`glowM` > every zombie
+ * radius + the player's radius). The lightPctByWave range (0–100) is the schema's.
+ */
+function crossCheckBlackout(parsed: Record<string, unknown>, issues: string[]): void {
+  const glowM = (parsed.decay as { blackout: { glowM: number } }).blackout.glowM;
+  const pr = (parsed.player as { radiusM: number }).radiusM;
+  for (const [id, t] of Object.entries((parsed.zombies as { types: Record<string, { radiusM: number }> }).types)) {
+    if (t.radiusM + pr >= glowM) issues.push(`decay.json: blackout.glowM ${glowM} m must exceed zombies.json types.${id}.radiusM ${t.radiusM} + player.radiusM ${pr} (F2: a zombie touching you is always lit)`);
+  }
 }
 
 /**

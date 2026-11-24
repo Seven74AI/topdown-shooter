@@ -1,4 +1,4 @@
-import { MAP_STAGE_COUNT, changeDecayStage, killZombie, parseRunSeed, type Building, type World } from "@topdown/shared";
+import { MAP_STAGE_COUNT, changeDecayStage, killZombie, parseRunSeed, setForcedBlackout, type Building, type World } from "@topdown/shared";
 
 /** Pure helpers of the dev cheats (Story 1.11). Imported only by DevCheats.tsx, so they leave release builds with it. */
 
@@ -63,4 +63,14 @@ export function setDecayStageCheat(world: World, stage: number): number {
 /** Review L1: the decay stage cheat works only where a real stage change could happen (build phase, lobby). */
 export function decayCheatAllowed(world: World): boolean {
   return world.run.phase === "build" || world.run.phase === "lobby";
+}
+
+/**
+ * Story 6.3 dev cheat (solo only, any phase): at least this dark (20 / 10 / 5 %; never lightens a
+ * darker wave, Results lit — review H1) or −1 = off (back to the real rule). Goes through the shared `setForcedBlackout` → `refreshBlackout`. Returns
+ * the level now in force.
+ */
+export function setForcedBlackoutCheat(world: World, pct: number): number {
+  setForcedBlackout(world, pct);
+  return world.lights.blackoutPct;
 }

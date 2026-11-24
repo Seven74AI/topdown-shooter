@@ -17,7 +17,7 @@ import { cardItem } from "./shopCards";
 const balance = loadBalance();
 const rich = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 400]]));
 /** A card-minded shopping list (bots.json's default list buys buildings first and stays as built). */
-const LIST = ["smg", "wood_barricade", "running_shoes", "wood_barricade", "body_armor_1", "auto_turret", "shotgun", "revive_kit", "body_armor_2", "assault_rifle"];
+const LIST = ["smg", "wood_barricade", "running_shoes", "tactical_flashlight", "wood_barricade", "body_armor_1", "auto_turret", "shotgun", "revive_kit", "body_armor_2", "assault_rifle"];
 const TEAM_SIZES = [2, 3, 4];
 /** Build phases where every run that reaches them buys ≥ 1 card (bots pooled). */
 const CARD_BUILDS = [0, 3];

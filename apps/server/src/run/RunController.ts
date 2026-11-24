@@ -7,6 +7,7 @@ import {
   TICK_DT_S,
   addPlayer,
   applyTestScenario,
+  applyStartWave,
   placeBuilding,
   repairBuilding,
   upgradeBuilding,
@@ -56,6 +57,7 @@ import {
   type TestScenario,
   type World,
   type ZombieTypeId,
+  setForcedBlackout,
 } from "@topdown/shared";
 import { INPUT_SEQ_RESYNC_AFTER, REWIND_CAP_MS, SHOT_ADVANCE_CAP_MS } from "../net/limits";
 import { SpreadCancelWatch, type SpreadCancelSuspect } from "../net/spreadCancel";
@@ -218,10 +220,14 @@ export interface RunControllerOptions {
   decayStageByWave?: readonly number[] | null;
   /** Story 5.13 dev (`DEV_SHOP_CARDS=flamethrower,revive_kit`): every build-start offer starts with these items. null = the real draw. */
   shopCards?: readonly string[] | null;
+  /** Story 6.3 dev (`DEV_FORCE_BLACKOUT=5`): every phase at this blackout level. null = the real rule. */
+  forceBlackoutPct?: number | null;
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map; tests may pass the open `PLACEHOLDER_MAP`). */
   map?: DistrictMap;
   /** Story 2.10: a fixed test scenario (the room passes it only with `ALLOW_TEST_SCENARIOS=1`). */
   scenario?: TestScenario | null;
+  /** Story 6.1 dev (`DEV_START_WAVE=7`): the first build phase leads into this wave (and applies its decay stage). null = wave 1. */
+  startWave?: number | null;
   /**
    * Dev (`DEV_PLACED_BUILDING_HP=0.5`, Story 3.7): every newly placed building starts at this share
    * of its HP, so repairs can be checked before Story 3.5's zombies damage buildings. null = full HP.
@@ -282,6 +288,7 @@ export class RunController {
     this.world.debug.decayStageByWave = opts.decayStageByWave ?? null; // before the first build start
     this.world.debug.shopCards = opts.shopCards ?? null; // Story 5.13: before the first offers are drawn
     if (opts.scenario) applyTestScenario(this.world, opts.scenario);
+    if (opts.startWave) applyStartWave(this.world, opts.startWave); // Story 6.1 dev switch, before the first build start
     const lagComp = opts.lagCompensation !== false;
     setZombieHistoryEnabled(this.world, lagComp);
     const at = { x: 0, y: 0 };
@@ -294,6 +301,7 @@ export class RunController {
     }
     this.world.events.subscribe((e) => this.events.push(e));
     startBuild(this.world); // Story 3.1: Lobby → Build; `build.started` goes out with the first tick
+    if (opts.forceBlackoutPct !== undefined && opts.forceBlackoutPct !== null) setForcedBlackout(this.world, opts.forceBlackoutPct); // Story 6.3 dev
   }
 
   /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */

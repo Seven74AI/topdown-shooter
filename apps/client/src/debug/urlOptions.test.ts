@@ -9,12 +9,16 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, shopCards: null, runSeed: null, stressBuild: false, stressMolotovs: 0, stressLights: false, stressBear: false, lowFx: false, shopAll: false });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, shopCards: null, runSeed: null, stressBuild: false, stressMolotovs: 0, stressLights: false, stressBear: false, lowFx: false, shopAll: false, blackoutPct: null, startWave: null });
     expect(parseUrlOptions("?shopall=1").shopAll).toBe(true); // Story 5.11
     expect([parseUrlOptions("?stressbuild=molotov").stressMolotovs, parseUrlOptions("?stressbuild=molotov:2").stressMolotovs, parseUrlOptions("?stressbuild=molotov:9").stressMolotovs]).toEqual([8, 2, 0]); // Story 5.12
     expect(parseUrlOptions("?shopall=0").shopAll).toBe(false);
     expect(parseUrlOptions("?fx=low").lowFx).toBe(true); // Story 4.12
     expect(parseUrlOptions("?fx=high").lowFx).toBe(false);
+    // Story 6.3: ?blackout=20|10|5 (release-safe like ?fx=low), anything else null; ?fx=low never touches it (F6).
+    expect([20, 10, 5].map((p) => parseUrlOptions(`?blackout=${p}`, false).blackoutPct)).toEqual([20, 10, 5]);
+    for (const bad of ["0", "7", "100", "x", ""]) expect(parseUrlOptions(`?blackout=${bad}`).blackoutPct, bad).toBe(null);
+    expect(parseUrlOptions("?fx=low").blackoutPct).toBe(null);
     expect(parseUrlOptions("?stress=150&stressbuild=traps").stressBuild).toBe(true); // Story 5.9
     expect(parseUrlOptions("?stressbuild=walls").stressBuild).toBe(false);
     expect(parseUrlOptions("?zdmg=0.1").zombieDamageScale).toBe(0.1); // retro A5
@@ -108,6 +112,14 @@ describe("parseUrlOptions: Story 2.10 test scenario", () => {
 
   it("does not skip the start screen (the scenario is an online test)", () => {
     expect(skipsStartScreen(parseUrlOptions("?scenario=net150"))).toBe(false);
+  });
+});
+
+describe("parseUrlOptions: Story 6.1 ?startwave=", () => {
+  it("passes ?startwave through raw in dev builds (parseStartWave validates it); a release build ignores it", () => {
+    expect(parseUrlOptions("?solo&startwave=9", true).startWave).toBe("9");
+    expect(parseUrlOptions("?solo", true).startWave).toBeNull();
+    expect(parseUrlOptions("?solo&startwave=9", false).startWave).toBeNull();
   });
 });
 

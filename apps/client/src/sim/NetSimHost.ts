@@ -718,6 +718,9 @@ export class NetSimHost implements SimHost {
     this.world.waves.remaining = state.remaining;
     mirrorBuildings(state.buildings, this.world); // Story 3.4: drawn, and the placement preview's check
     mirrorDecay(this.world, state.decayStage, state.decayVariants, state.decayFiresOut); // Story 4.5: drawn, the preview's check, cosmetic shots
+    // Story 6.3 (F1): the server's light state as is (no fade, no local guess); `?? ` for an older server.
+    this.world.lights.blackoutPct = state.blackoutPct ?? 0;
+    this.world.lights.halfDark = state.halfDark === true;
   }
 
   /**

@@ -102,7 +102,21 @@ export { createObstacles, fillObstacles, mutationApplies, type ObstacleState } f
 export { createDecayState, fireRecordOf, legalDecayMasks, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
 export { applyDecayStage } from "./decay/applyDecayStage";
 // Story 5.10: the derived light-source list; med station healing.
-export { createLightState, lightsOf, updateLightState, type LightKind, type LightSource, type LightState } from "./decay/lightState";
+export {
+  createLightState,
+  darknessAlpha,
+  isBlackout,
+  lightRadiusOf,
+  lightsOf,
+  refreshBlackout,
+  setForcedBlackout,
+  updateLightState,
+  type LightKind,
+  type LightSource,
+  type LightState,
+} from "./decay/lightState";
+// Story 6.3: the blackout flashlight cone (6.4's fog uses it too).
+export { flashlightOf, inFlashlightCone, type FlashlightCone } from "./player/flashlight";
 export { healsSomeoneNow, inHealReach, updateMedStations } from "./buildings/medStation";
 // Story 4.8: car fires.
 export { circleInFire, fireExpiry, firePulse, firePulseDamage, lightNewFires, segmentHitsFire, updateFires } from "./decay/fire";
@@ -537,3 +551,5 @@ export { acidSpit, acidSpitOf, circleInAcid, clearAcid, spawnSpit, spitStats, sp
 export { createSpitPool, type SpitPool } from "./zombies/spitPool";
 export { AREA_KIND, circleInArea, clearAreas, createAreaPool, spawnArea, type AreaPool } from "./hazards/areaPool";
 export { type SpitStats } from "./config/balanceSchema";
+// Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
+export { applyStartWave, parseStartWave } from "./run/devStartWave";

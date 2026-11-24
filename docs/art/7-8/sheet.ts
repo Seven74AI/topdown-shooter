@@ -34,7 +34,7 @@ COSMETICS.parts.forEach((p, i) => {
 writeFileSync(new URL("./ingame/parts-sheet.png", import.meta.url), cv.toBuffer("image/png"));
 console.log("wrote parts-sheet.png", cv.width, cv.height);
 
-// Readability sheet picture 46 (brief 13): four survivors with the parts most likely to be read as gear (riot
+// Readability sheet picture 47 (brief 13): four survivors with the parts most likely to be read as gear (riot
 // helmet, gas mask, plank bundle, bike helmet + welding mask's dark plate), at game size × 2, slot rings on.
 {
   const S = 2;
@@ -68,6 +68,6 @@ console.log("wrote parts-sheet.png", cv.width, cv.height);
     drawSurvivor(p, 14, undefined, undefined, resolveLook({ ...DEFAULT_LOOK, ...l } as SurvivorLook, 1));
     p.restore();
   });
-  writeFileSync(new URL("../../playtests/milestone-1/objects/46_survivor_looks.png", import.meta.url), pic.toBuffer("image/png"));
-  console.log("wrote 46_survivor_looks.png");
+  writeFileSync(new URL("../../playtests/milestone-1/objects/47_survivor_looks.png", import.meta.url), pic.toBuffer("image/png"));
+  console.log("wrote 47_survivor_looks.png");
 }

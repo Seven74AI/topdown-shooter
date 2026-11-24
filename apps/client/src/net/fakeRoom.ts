@@ -69,6 +69,9 @@ export interface FakeState {
   decayVariants: number;
   /** Story 4.8. */
   decayFiresOut: number;
+  /** Story 6.3. */
+  blackoutPct: number;
+  halfDark: boolean;
 }
 
 export function fakeState(players: FakePlayer[] = []): FakeState {
@@ -89,6 +92,8 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     decayStage: 1,
     decayVariants: 0,
     decayFiresOut: 0,
+    blackoutPct: 0,
+    halfDark: false,
   };
 }
 

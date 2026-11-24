@@ -1,4 +1,4 @@
-import { bundledBalanceFiles, loadBalance, withOverrides, type Balance, type BalanceOverride } from "./balance";
+import { bundledBalanceFiles, loadBalance, withOverrides, type Balance, type BalanceOverride, type RawBalanceFiles } from "./balance";
 
 /**
  * Dev/test balance switches for browser checks (Epic 2 retro A5): so nobody hand-edits a balance
@@ -16,9 +16,10 @@ export interface DevBalanceOptions {
   startingWallet?: number | null;
   /**
    * Stories 5.10 + 5.11, ONE switch (`DEV_SHOP_ALL=1` / `?shopall=1`): every `inShop: false` item
-   * is listed, placed and sold — the floodlight (building) and the tactical flashlight (gear) until
-   * Story 6.3. Changes `balance.version` like every switch, so client and server must both have it on
-   * (a client with `?shopall` and a server without it is refused at join: a visible refusal).
+   * is listed, placed and sold (Story 6.3 put the floodlight and the tactical flashlight in the shop,
+   * so the bundled balance hides nothing today; the switch stays for any future hidden item). When it
+   * changes anything it changes `balance.version` like every switch, so client and server must both
+   * have it on (a client with `?shopall` and a server without it is refused at join: a visible refusal).
    */
   shopAll?: boolean;
 }
@@ -62,11 +63,14 @@ export function devBalanceOverrides(opts: DevBalanceOptions): BalanceOverride[] 
   return out;
 }
 
-/** The bundled balance with the dev switches applied (validated like any balance). */
-export function loadDevBalance(opts: DevBalanceOptions): Balance {
+/**
+ * The bundled balance with the dev switches applied (validated like any balance). `base` (tests
+ * only, Story 6.3): start from these files instead of the bundled ones (e.g. one with a hidden item).
+ */
+export function loadDevBalance(opts: DevBalanceOptions, base?: RawBalanceFiles): Balance {
   const overrides = devBalanceOverrides(opts);
-  if (overrides.length === 0 && !opts.shopAll) return loadBalance();
-  const raw = withOverrides(bundledBalanceFiles(), overrides);
+  if (overrides.length === 0 && !opts.shopAll) return loadBalance(base);
+  const raw = withOverrides(base ? (JSON.parse(JSON.stringify(base)) as RawBalanceFiles) : bundledBalanceFiles(), overrides);
   if (opts.shopAll) {
     // Story 5.11: overrides are numbers only, so the boolean `inShop` is set here (gear, and Story
     // 5.10's building types: one switch unhides both).

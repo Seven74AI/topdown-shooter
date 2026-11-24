@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, bundledBalanceFiles, withOverrides } from "../config/balance";
+import { loadBalance, bundledBalanceFiles, withOverrides, type RawBalanceFiles } from "../config/balance";
 import { loadDevBalance } from "../config/devBalance";
 import { TICK_DT_S } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
@@ -27,8 +27,16 @@ const NO_WAVES = { waves: () => {} };
 const balance = loadBalance();
 const WOOD = "wood_barricade";
 
-function setup(): { world: World; events: SimEvent[] } {
-  const world = createWorld({ balance, seed: 1, systems: NO_WAVES });
+/** Story 6.3: the bundled balance with the floodlight and the tactical flashlight hidden again (`inShop: false`): the not_for_sale path and the dev switch keep their tests. */
+function hiddenFiles(): RawBalanceFiles {
+  const raw = bundledBalanceFiles();
+  ((raw.buildings as { types: Record<string, { inShop?: boolean }> }).types.floodlight as { inShop?: boolean }).inShop = false;
+  ((raw.gear as { items: Record<string, { inShop?: boolean }> }).items.tactical_flashlight as { inShop?: boolean }).inShop = false;
+  return raw;
+}
+
+function setup(b = balance): { world: World; events: SimEvent[] } {
+  const world = createWorld({ balance: b, seed: 1, systems: NO_WAVES });
   addPlayer(world, "p0", 10, 10);
   addPlayer(world, "p1", 30, 20);
   startBuild(world);
@@ -128,8 +136,15 @@ describe("placeBuilding", () => {
     expect(placementError(world, "p0", { type: WOOD, gx: 40.5, gy: 40, rot: 0 })).toBe("blocked");
   });
 
-  it("Story 5.10: a floodlight (inShop: false) is refused not_for_sale, wallet unchanged; placed with the dev shop-all balance; a med station is placeable", () => {
+  it("Story 6.3 (D8): the bundled floodlight is placeable from the first build phase (inShop: true)", () => {
     const { world } = setup();
+    world.players.get("p0")!.wallet = 1000;
+    expect(placeBuilding(world, "p0", { type: "floodlight", gx: 40, gy: 40, rot: 0 }).ok).toBe(true);
+    expect(world.buildings.list[0]).toMatchObject({ type: "floodlight", hp: 150 });
+  });
+
+  it("Story 5.10: a floodlight with inShop: false (test balance) is refused not_for_sale, wallet unchanged; placed with the dev shop-all balance; a med station is placeable", () => {
+    const { world } = setup(loadBalance(hiddenFiles()));
     const wallet = world.players.get("p0")?.wallet;
     expect(placeBuilding(world, "p0", { type: "floodlight", gx: 40, gy: 40, rot: 0 })).toEqual({ ok: false, error: "not_for_sale" });
     expect(world.buildings.list).toHaveLength(0);
@@ -138,7 +153,7 @@ describe("placeBuilding", () => {
     expect(placeBuilding(world, "p0", { type: "med_station", gx: 44, gy: 40, rot: 0 }).ok).toBe(true);
     expect(world.buildings.list[0]).toMatchObject({ type: "med_station", hp: 300, solid: true });
     // The ONE dev switch (DEV_SHOP_ALL / ?shopall, Stories 5.10 + 5.11): a balance with every inShop true.
-    const dev = createWorld({ balance: loadDevBalance({ zombieDamageScale: null, shopAll: true }), seed: 1, systems: NO_WAVES });
+    const dev = createWorld({ balance: loadDevBalance({ zombieDamageScale: null, shopAll: true }, hiddenFiles()), seed: 1, systems: NO_WAVES });
     addPlayer(dev, "p0", 10, 10);
     startBuild(dev);
     const w0 = dev.players.get("p0")?.wallet ?? 0;

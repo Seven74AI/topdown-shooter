@@ -134,16 +134,17 @@ describe("RunRoom buildings (Story 3.4)", () => {
     expect(world(room).buildings.list).toHaveLength(6);
   });
 
-  it("Story 5.10 (B9): a crafted floodlight place → building.refused not_for_sale, wallet unchanged; a med station places (300 HP)", async () => {
+  it("Story 6.3 (D8, was 5.10 B9): a floodlight places in the first build phase (100, 150 HP); a med station places (300 HP). (not_for_sale stays tested in buildings.test.ts with a test balance)", async () => {
     const { host, room, hostRec } = await startTwo();
     host.send(C2S.BUILDING_PLACE, { type: "floodlight", gx: 12, gy: 30, rot: 0 });
-    await vi.waitFor(() => expect(hostRec.refused).toEqual(["not_for_sale"]));
-    expect(world(room).buildings.list).toHaveLength(0);
-    expect(world(room).players.get("p0")?.wallet).toBe(serverBalance.economy.startingWallet);
-    world(room).players.get("p0")!.wallet = 1000;
-    host.send(C2S.BUILDING_PLACE, { type: "med_station", gx: 12, gy: 30, rot: 0 });
     await vi.waitFor(() => expect(host.state.buildings.size).toBe(1));
-    expect(host.state.buildings.get("1")).toMatchObject({ type: "med_station", hp: 300 });
+    expect(hostRec.refused).toEqual([]);
+    expect(host.state.buildings.get("1")).toMatchObject({ type: "floodlight", hp: 150 });
+    expect(world(room).players.get("p0")?.wallet).toBe(serverBalance.economy.startingWallet - 100);
+    world(room).players.get("p0")!.wallet = 1000;
+    host.send(C2S.BUILDING_PLACE, { type: "med_station", gx: 16, gy: 30, rot: 0 });
+    await vi.waitFor(() => expect(host.state.buildings.size).toBe(2));
+    expect(host.state.buildings.get("2")).toMatchObject({ type: "med_station", hp: 300 });
     expect(world(room).players.get("p0")?.wallet).toBe(600);
   });
 
