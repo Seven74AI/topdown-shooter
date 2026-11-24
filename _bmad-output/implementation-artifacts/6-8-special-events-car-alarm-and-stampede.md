@@ -165,6 +165,8 @@ World (`special`, `pool.lureTicks`, `pool.stampedeHit` mask, `pathing.lure`/`lur
 
 ### Bandwidth (brief 11)
 
+**Network audit note (designer 2026-11-24, `docs/perf/network-audit-2026-11.md` F8):** the stampede's 180 alive can all be in one view. At today's 8 B per zombie per tick that is 6 + 8 × 180 = 1,446 B × 20 = **28.2 KB/s** of horde alone, over the brief's 24 KB/s (it already fails from 153 in view). The bandwidth test must assert this worst case (stampede + horde in one view) against 24 KB/s. If it fails, cap the zombies in any one view at 150 for the stampede's duration, or land after Story 8.10 (half-size horde stream). Record which.
+
 Event messages ~15–25 B each, ≤ 4 per event; schema event record ≤ 20 B per change; stampede Runners are horde records (30 × 8 B × 20 Hz ≈ 4.8 KB/s at worst while in view, inside the 24 KB/s horde budget because normal spawns pause and the total stays ≤ 180 with most off screen). Assert in a bandwidth test and report.
 
 ### Phone FPS / Perf
