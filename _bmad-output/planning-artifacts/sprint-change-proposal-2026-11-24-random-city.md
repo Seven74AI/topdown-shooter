@@ -1,6 +1,6 @@
 # Sprint Change Proposal: Random city (2026-11-24)
 
-Workflow: `gds-correct-course`, batch mode. Scope: **Moderate** (a new epic of 7 stories, FR and architecture additions, 2 small notes on Epic 6 stories not yet built; planning text only, no code). Source: forge session `_bmad-output/forge/random-map-generator/` (`forged-idea.md` HARDENED, `.memlog.md`, `forge-report.html`). Designer answers in this session (2026-11-24): **Q1 generic rules for stages 4–5 and the Epic 6 anchors** · **Q2 post-v1** · **Q3 the city code brings back the layout only**. Status: **awaiting the designer's approval**.
+Workflow: `gds-correct-course`, batch mode. Scope: **Moderate** (a new epic of 7 stories, FR and architecture additions, 2 small notes on Epic 6 stories not yet built; planning text only, no code). Source: forge session `_bmad-output/forge/random-map-generator/` (`forged-idea.md` HARDENED, `.memlog.md`, `forge-report.html`). Designer answers in this session (2026-11-24): **Q1 generic rules for stages 4–5 and the Epic 6 anchors** · **Q2 post-v1** · **Q3 the city code brings back the layout only**. Status: **approved by the designer (2026-11-24, "Yes, apply it"); edits §4.2–§4.7 applied**.
 
 ## 1. Issue summary
 

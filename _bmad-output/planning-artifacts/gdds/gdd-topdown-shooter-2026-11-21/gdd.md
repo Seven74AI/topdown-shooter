@@ -150,7 +150,7 @@ Numbers for each are in the sections below.
 **Hazards:** fire zones (10 dmg/s to everything), acid puddles, gas leak, Bloater gas.
 ### Multiplayer Considerations
 - **Mode:** online co-op, 2–4 players, each on their own device. No local split-screen.
-- **Lobby:** the host picks a district and gets a **share link** and a **4-letter code**; players join, tap Ready, the host starts.
+- **Lobby:** the host picks a district (Downtown, or Random city from Epic 11) and gets a **share link** and a **4-letter code**; players join, tap Ready, the host starts.
 - **Accounts:** play immediately as a **guest** (name only); upgrade to an account later to keep progress.
 - **Join mid-run:** allowed during build phases only (endless too); the newcomer starts with a Pistol and 100 + 60 % of the team's average earnings so far, and the build timer gains +15 s once per phase; the next wave rescales (Epic 8 decisions, 2026-11-24: `docs/ideas/epic-8/decisions.md`).
 - **Disconnects:** a disconnected player's character is removed safely; they can rejoin within **2 minutes** with wallet and gear intact. Their turrets' kills keep paying into the held wallet during those 2 minutes, then stop. A player who drops while downed is out for that wave. After 2 minutes their seat is still remembered for the rest of the run. If nobody is connected, the fight freezes for up to 2 minutes. Host (Start, Save and quit, Remove player) moves at once to the longest-connected player when the host leaves or drops.
@@ -270,6 +270,8 @@ Build phases are the breathers between waves. Difficulty grows through zombie co
 ## Level Design Framework
 ### Level Types
 **Districts** are hand-made maps. Players pick one at the start of a run; it decays around them over the run. v1 ships **Downtown**. Later candidates [NOTE FOR DESIGNER: pick order later]: Hospital, Suburbs, Port, Subway station, Shopping mall, Military checkpoint. Each future district brings its own landmarks and 1–2 district events. Unused art probes can return as special content: a **CCTV-footage intro** and a **Blood Moon cemetery** special district.
+
+**Random city** (Epic 11, post-v1; `sprint-change-proposal-2026-11-24-random-city.md`): a new 70 × 70 m city generated from rules on every run (street plan, blocks, building footprints, cars, barriers, and landmark recipes, first the gas station), open from the start with no unlock. It decays by generic rules through all 5 stages, every city passes fairness checks A–G and the anchor check, and Results shows a city code that replays the layout (FR90–FR94). It is not a district unlock: the District 2 rule is unchanged.
 ### Level Progression
 Decay advances one stage every 2 waves and changes play, not only looks (pillar 3):
 
@@ -282,7 +284,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 | 9–10 | Collapse | Power out. **Wave 9 is a blackout wave**; fog limits vision to 10 m; wave 10 (boss) dark too, lit only by fires, floodlights, flashlights and muzzle flashes |
 | 11+ | Collapse (endless) | Blackout on odd waves; +40 zombies per wave up to 600 at wave 15 (still max 150 alive), then +6% zombie HP per wave; +1 Brute per wave (max 6 alive); a Behemoth every 5th wave, before each evacuation, with +25% HP each time; one event on each even wave without a Behemoth |
 
-**Run-to-run variety:** which cars burn, which alley collapses, the special events and the shop cards are random per run. Each run has a **seed** so a run can be reproduced for testing.
+**Run-to-run variety:** which cars burn, which alley collapses, the special events and the shop cards are random per run. Each run has a **seed** so a run can be reproduced for testing. In Random city the streets, blocks and buildings are new too; its city code replays the layout (decay picks, events and shop cards stay new).
 
 ## Art and Audio Direction
 ### Art Style
@@ -336,8 +338,9 @@ Detailed breakdown in [epics.md](epics.md). Every epic ends in something playabl
 | 8 | Real-life resilience | Join mid-run, reconnect, save and resume |
 | 9 | Dead City art and audio | Polished code-drawn look and sound (no hiring) |
 | 10 | Performance and polish | v1 for weekly game nights |
+| 11 | Random city (post-v1) | A new generated city every run, next to Downtown |
 
-**Sequence:** 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 10. Epic 8 can start after 3 and run alongside 5–7; Epic 9 runs alongside from Epic 4.
+**Sequence:** 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → 7 → 10 (v1) → 11 (post-v1). Epic 8 can start after 3 and run alongside 5–7; Epic 9 runs alongside from Epic 4.
 
 ## Success Metrics
 This is a game for a group of friends, so success is simple and honest.
@@ -351,7 +354,7 @@ This is a game for a group of friends, so success is simple and honest.
 - Players talk about decay moments ("the alley collapsed on us"). *(Pillar 3)*
 
 ## Out of Scope
-**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · matchmaking with strangers · voice and text chat · native apps. **Solo** online runs are allowed (× 0.35) but not balance-tuned.
+**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1; **Random city is planned post-v1 as Epic 11**) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · matchmaking with strangers · voice and text chat · native apps. **Solo** online runs are allowed (× 0.35) but not balance-tuned.
 **Not planned:** monetization (it is a game for friends) · story campaign · controller support.
 
 ## Assumptions and Dependencies
@@ -364,4 +367,5 @@ This is a game for a group of friends, so success is simple and honest.
 - [ASSUMPTION] Server hosting cost is acceptable given the budget (Assumptions and Dependencies).
 - ~~[NOTE FOR DESIGNER] Solo testing could use × 0.4 zombie scaling~~ Decided 2026-11-23: solo online runs at × 0.4, allowed, not balance-tuned (Enemy Wave Design). Solo Behemoth HP = × 0.4 (designer 2026-11-24); the solo zombie count became × 0.35 in the Epic 5 balance pass, the Behemoth's number stays its own.
 - [NOTE FOR DESIGNER] Pick order of future districts (Level Types).
+- [NOTE FOR DESIGNER] New players may skip Downtown, the hand-made first city, since Random city is open from the start: Downtown is the default pick (Story 11.7); revisit after playtests.
 - Working title.

@@ -64,7 +64,7 @@ FR28: Wave size (4 players) grows from ≈ 40 zombies in wave 1 by ≈ 40 per wa
 FR29: Zombie types are introduced in order: W1 Walkers · W2 +Runners · W3 +Crawlers · W4 +Spitters · W5 first Brute · W6 +Bloaters · W7–9 full mix · W10 finale. Brutes are fixed, not scaled: 1 in W5–W6, 2 in W7–10.
 FR30: A wave ends when all its zombies are dead; when 5 remain they are marked on screen and rush the players.
 FR31: Zombie count and boss HP scale by player count: × 0.4 (solo), × 0.6 (2 players), × 0.8 (3), × 1.0 (4); a mid-run join rescales from the next wave. Solo is allowed, not balance-tuned.
-FR32: Zombies spawn at district edges (alleys, manholes, broken shop windows); decay opens more spawn points.
+FR32: Zombies spawn at district edges (alleys, manholes, broken shop windows); decay opens more spawn points. In Random city, stage 1 spawns only at the city edges and from stage 2 points near the group open too (FR93).
 
 **The Behemoth (wave 10 boss)**
 
@@ -115,7 +115,7 @@ FR61: Stage 3 Breakdown (waves 5–6): 2 car fires (2 m fire zones lasting 2 wav
 FR62: Stage 4 Ruins (waves 7–8): rubble closes one alley and blocks paths; streetlights flicker; collapsed walls open new spawn points.
 FR63: Stage 5 Collapse (waves 9–10): power out; wave 9 is a blackout wave; fog limits vision to 10 m; wave 10 is dark too, lit only by fires, floodlights, flashlights and muzzle flashes.
 FR64: In blackout, darkness covers the map except flashlight cones (aim direction), floodlights, fires and muzzle flashes; zombie eyes show through the dark.
-FR65: Each run has a seed that drives its random choices (which cars burn, which alley collapses, events, shop cards), so a run can be reproduced.
+FR65: Each run has a seed that drives its random choices (which cars burn, which alley collapses, events, shop cards), so a run can be reproduced. A Random city's layout comes from its own city seed (FR94).
 
 **Win, evacuation and endless**
 
@@ -125,7 +125,7 @@ FR68: Endless: blackout on odd waves, +40 zombies per wave up to 600 at wave 15 
 
 **Multiplayer**
 
-FR69: The host picks a district and gets a share link and a 4-letter code; 2–4 players join, tap Ready, and the host starts.
+FR69: The host picks a district (Downtown or, from Epic 11, Random city) and gets a share link and a 4-letter code; 2–4 players join, tap Ready, and the host starts.
 FR70: Players can play immediately as a guest with only a name.
 FR71: All players see the same horde and the server decides hits; your own movement, aiming and muzzle flash respond instantly on your device.
 FR72: Players can join mid-run during build phases only, starting with a Pistol and 100 + 60 % of the team's average earnings so far (designer D7, 2026-11-24; replaces "the team's average currency").
@@ -150,8 +150,16 @@ FR84: Every special attack has a readable visual and audio warning; each special
 FR85: Ambience follows the decay stage (5 loops); music intensity follows the number of zombies alive; a calmer build-phase track and a dedicated Behemoth track.
 FR86: Each weapon has distinct firing and reload sounds; reloads are clearly audible. Sounds are procedural or from licensed/free libraries (no hired sound designer).
 FR87: Quality settings can lower or turn off rain, fog visuals, screen shake, film grain and light glow, plus the gore toggle; blackout darkness and the 10 m fog vision limit cannot be turned off.
-FR88: The game records simple run stats (district, wave reached, extracted, loadouts per player) for the success metrics.
+FR88: The game records simple run stats (district, or `random:<city code>`, wave reached, extracted, loadouts per player) for the success metrics.
 FR89: Each player's survivor is built from code-drawn parts (51 parts in 5 slots: top, headgear, hair, backpack, skin; 31 starter, 10 milestone, 10 loot) and free colours they choose (cosmetic only, no gameplay effect) and is seen by the whole team; extra parts come from milestones earned once and from a rare per-run loot bag, never from Supplies (customization proposal D1–D7, O1–O6; part picks in `docs/epic-7-decisions.md` › Survivor parts (7.8)).
+
+**Random city (Epic 11, post-v1; `sprint-change-proposal-2026-11-24-random-city.md`)**
+
+FR90: Random city: each run the host can play a new 70 × 70 m city generated from rules (street plan, blocks, building footprints, curb cars, barriers) and landmark recipes (first: the gas station). It is open from the start with no unlock; FR81's District 2 rule is unchanged.
+FR91: Every generated city passes checks A–G (A never seals off an area at any stage or variant; B every spawn reaches the players; C an open start area near the middle, buildable in wave 1 and never hit by decay; D no empty 15 × 15 m square without cover; E at least 2 choke points; F no spawn path that traps zombies; G streets at least 3 m wide) and the anchor check (4 main-street ends at least 4 m clear at every stage, the helicopter pad in the start area, event spots and stampede lanes reachable), or it is rejected and regenerated.
+FR92: Random city decays by generic rules through all 5 stages (curb cars move into the road, police lines, cars burn, manholes and windows open, rubble closes 1 of 3 candidate side streets, 2 building walls open as breaches; stage 5 power out and fog), plus each landmark recipe's own stage events (gas station: gas leak from stage 2).
+FR93: Random city spawns: stage 1 only from the city edges; from stage 2 also from generated points 15–35 m from the group, never within 6 m; fights stay as dense as Downtown's (150 alive cap unchanged).
+FR94: Results of a Random city run show a city code; the host can type it in the lobby to play the same layout again (decay picks, events and shop cards stay new); a code from an older generator is refused with "This city is from an older version".
 
 ### NonFunctional Requirements
 
@@ -248,7 +256,7 @@ FR28: Epic 1 (simple growing waves) · Epic 3 (5-wave curve; now 6 waves, 6.1 ma
 FR29: Epic 3 (W1–W3 order) · Epic 6 (full introduction order)
 FR30: Epic 1 - Last 5 marked and rushing
 FR31: Epic 3 - Player-count scaling (boss HP scaling in Epic 6)
-FR32: Epic 4 - Spawn points at district edges, opened by decay
+FR32: Epic 4 - Spawn points at district edges, opened by decay (Random city spawns: Epic 11)
 FR33: Epic 6 - Behemoth body and arrival
 FR34: Epic 6 - Behemoth slam, charge, throw
 FR35: Epic 6 - Behemoth enrage
@@ -281,11 +289,11 @@ FR61: Epic 4 - Stage 3 Breakdown
 FR62: Epic 6 - Stage 4 Ruins
 FR63: Epic 6 - Stage 5 Collapse
 FR64: Epic 6 - Blackout lighting
-FR65: Epic 4 - Run seed (seeded RNG core from Epic 1)
+FR65: Epic 4 - Run seed (seeded RNG core from Epic 1; city seed: Epic 11)
 FR66: Epic 6 - Evacuation vote
 FR67: Epic 6 - Extract or stay
 FR68: Epic 6 - Endless mode
-FR69: Epic 2 - Lobby, share link, 4-letter code
+FR69: Epic 2 - Lobby, share link, 4-letter code (Random city card: Epic 11)
 FR70: Epic 2 - Guest play with a name
 FR71: Epic 2 - Shared horde, server hits, instant own feel
 FR72: Epic 8 - Join mid-run at build phases
@@ -306,12 +314,13 @@ FR86: Epic 9 - Weapon sounds (placeholder sounds from Epic 1; polished from proc
 FR87: Epic 10 - Quality settings
 FR88: Epic 10 - Run stats
 FR89: Epic 7 - Survivor customization, milestone items, loot bag (Stories 7.8–7.12)
+FR90–FR94: Epic 11 - Random city (generator, checks, decay rules, spawns, city code)
 
 **NFRs:** NFR1 measured from Epic 1, met in Epic 10 · NFR2 Epic 10 · NFR3–NFR5 Epic 2, hardened for lossy 4G by the Network pass (Stories 8.8–8.11) · NFR6–NFR8 Epic 10 · NFR9 Epics 2, 6, 8 (Story 8.1, built in the Network pass), 10 · NFR10 from Epic 1 · NFR11 Epics 2 and 5 · NFR12 Epic 2 (transport, input validation), Epic 7 (passwords) · NFR13 Epics 7 and 8 · NFR14 from Epic 1.
 
 ## Epic List
 
-Ten epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → 7 → rest of 8 → 10. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
+Eleven epics, each ending in something playable. Order: 1 → 2 → 3 → 4 (Milestone 1) → 5 → 6 → **Network pass** (the front of Epic 8: Stories 8.8–8.11 and 8.1; sprint change proposal 2026-11-24 network pass) → 7 → rest of 8 → 10 (v1) → **11 Random city (post-v1; sprint change proposal 2026-11-24 random city)**. Epic 9 can start after Epic 4 (Milestone 1) and runs alongside. Epic 8 needs Story 7.1 (accounts and database). No epic needs a later epic to work.
 
 ### Epic 1: Core combat on one phone
 One player fights growing waves of Walkers on their phone with touch twin-stick controls and 4 weapons (one per range), and sees the frame rate with 150 Walkers. Includes the monorepo scaffold, the shared simulation core (World loop, seeded RNG, spatial grid, balance loading) in local SimHost mode, the performance overlay, and the melee playtest on real phones.
@@ -352,6 +361,10 @@ The game looks and sounds like Dead City: a polish pass of the code-drawn art (d
 ### Epic 10: Performance and polish
 Every technical target is met on the reference phones; quality settings, home-screen install and safe areas, run stats, a balance pass and friend-group playtests deliver v1.
 **FRs covered:** FR87, FR88 · NFR1, NFR2, NFR6, NFR7, NFR8
+
+### Epic 11: Random city (post-v1)
+The host can pick Random city: a new 70 × 70 m city generated from rules on every run (streets, blocks, plain buildings, cars, barriers and a gas station). It decays through all 5 stages by generic rules, always passes checks A–G and the anchor check, and can be replayed or shared by its city code. Open from the start (no unlock). Built after Epic 10.
+**FRs covered:** FR32 (Random city spawns), FR65 (city seed), FR69 (Random city card), FR90, FR91, FR92, FR93, FR94
 
 ## Epic 1: Core combat on one phone
 
@@ -2542,6 +2555,8 @@ So that I have a goal beyond one map.
 **When** progress is saved (Story 7.2's transaction)
 **Then** district 2 is recorded as unlocked for that player, Results shows "Unlocked: district 2", and its card shows "Unlocked: coming soon" (FR81)
 
+(Epic 11 adds a **Random city** card to this picker: open from the start, not an unlock; this rule is unchanged. `sprint-change-proposal-2026-11-24-random-city.md`.)
+
 (Stories 7.1–7.7 revised 2026-11-24 from the Epic 7 idea session: `docs/ideas/epic-7/proposal.md`, designer decisions D1–D12.)
 
 (Stories 7.8–7.12 added 2026-11-23 from the customization idea session: `docs/ideas/customization/proposal.md`, decisions D1–D7 and O1–O6 by the designer; cosmetic only, no bonuses; built with accounts.)
@@ -3332,3 +3347,190 @@ So that we know it's ready for every week.
 **Given** every NFR
 **When** the v1 checklist in `docs/qa/v1-checklist.md` is filled in
 **Then** each one is marked met with its evidence (a doc or test), and the release is tagged `v1.0`
+
+## Epic 11: Random city (post-v1)
+
+The host can pick **Random city**: a new 70 × 70 m city generated from rules on every run, next to the hand-made Downtown. The generator lives in shared code and turns a city seed into a normal `DistrictMap` (solids, cover, spawns, hazards, events, decay groups with `pick N`), so `applyDecayStage`, the server, prediction and replays stay unchanged and nothing is downloaded. Every city passes checks A–G and the anchor check, or it is rejected and regenerated. Open from the start; Story 7.7's District 2 rule is unchanged.
+
+Source: forge session `_bmad-output/forge/random-map-generator/` (`forged-idea.md`, HARDENED) and `sprint-change-proposal-2026-11-24-random-city.md` (designer 2026-11-24: Q1 generic rules for stages 4–5 and the Epic 6 anchors, Q2 post-v1, Q3 the city code brings back the layout only). **Built after Epic 10.** Depends on: Epic 6 (rubble, events layer, boss entries, evac pad), Story 7.7 (lobby picker), Story 8.4 (saved runs), Story 10.7 (run stats). Build order: 11.1 → 11.2 → (11.3 ∥ 11.4) → 11.5 → (11.6 ∥ 11.7). First version: generated streets, plain buildings, cars, barriers, generic decay and one landmark recipe (the gas station); more recipes later.
+
+### Story 11.1: A new city from a seed
+
+As a player,
+I want a city I have never seen before when we pick Random city,
+So that every run asks us to read new streets.
+
+**Acceptance Criteria:**
+
+**Given** `packages/shared/src/map/gen/` and a `(citySeed, generatorVersion)` pair
+**When** the generator runs
+**Then** it returns a 70 × 70 m `DistrictMap`: a street plan from rules (avenue, T junction, parallel streets, dead end…), blocks of rule-made sizes, building footprints (collision boxes with `building`), curb cars and barriers as cover, spawn points and decay groups (FR90)
+**And** it uses no randomness except its own `city` PRNG, and no `Math.random()` / `Date.now()` (architecture rules)
+
+**Given** the same `(citySeed, generatorVersion)`
+**When** the server, a client and a test each generate the city
+**Then** the three maps are byte-identical (same map digest)
+
+**Given** any generated city
+**When** check **G** runs
+**Then** every street is at least 3 m wide (FR91)
+
+**Given** the generator on the Xiaomi Mi 11i and on the server
+**When** a city is built, retries included
+**Then** it takes ≤ 150 ms on the phone and ≤ 20 ms on the server; at most 20 tries per seed, then the next value of the `city` stream is used
+
+### Story 11.2: Every city is fair (checks A–G and anchors)
+
+As a player,
+I want every random city to be fair and playable,
+So that a bad layout never ruins a run.
+
+**Acceptance Criteria:**
+
+**Given** `checkCity(map)`
+**When** it runs on a generated city
+**Then** each check is its own tested function (FR91):
+- **A** no area is ever sealed off, at every stage × every legal variant mask (`legalDecayMasks`, the 4.5/6.2 pattern);
+- **B** every spawn point reaches the players;
+- **C** an open start area near the middle, buildable in wave 1 and never touched by any decay mutation;
+- **D** no 15 × 15 m square without cover;
+- **E** at least 2 choke points;
+- **F** no spawn path traps zombies;
+- **G** from Story 11.1.
+
+**Given** the Epic 6 content on the map
+**When** the **anchor check** runs
+**Then** the city has 4 main-street ends at least 4 m clear at every stage (Behemoth entries), an `evac_pad` point inside area C, and crate, survivor and safe spots plus stampede lanes on open road and reachable (Story 6.8's tests run on generated maps too)
+**And** the boss entries are map data (`events` layer), no longer names in `boss.json › entryPoints`; Downtown gets its 4 street ends as map objects, with the same behaviour and tests
+
+**Given** a city that fails any check
+**When** the generator gets the result
+**Then** that city is rejected and the next try is generated
+
+**Given** a 1,000-seed test
+**When** it runs
+**Then** 100 % of the final maps pass every check, and the reject rate per check is reported
+
+### Story 11.3: The city falls apart by rules
+
+As a player,
+I want a random city to decay like Downtown does,
+So that wave 9 in a random city doesn't play like wave 1.
+
+**Acceptance Criteria:**
+
+**Given** the generic decay rules
+**When** a city is generated
+**Then** they emit decay groups with `pick N` that `applyDecayStage` already applies, with no new decay code path (ADR-05, FR92):
+- stage 2: curb cars move into the road, police lines, manholes and windows open as spawns;
+- stage 3: cars burn (4.8's fire rules);
+- stage 4: rubble closes 1 of 3 candidate side streets or dead ends wall to wall, and 2 building walls open as breaches (6.2's "buried" and ≥ 6 m rules);
+- stage 5: Story 6.4's power-out, fog and the run's weather style.
+
+**Given** any generated city
+**When** variant bits are counted
+**Then** they stay ≤ `MAX_DECAY_VARIANTS` (32)
+
+**Given** Downtown
+**When** its tests and recorded seeds run
+**Then** they are unchanged and green (its map files are not touched)
+
+### Story 11.4: Landmark recipes: the gas station
+
+As a player,
+I want landmarks in a random city,
+So that it has places to remember and fight around, not only streets.
+
+**Acceptance Criteria:**
+
+**Given** a recipe (a rule set that builds a landmark at any valid lot size and position, with its own stage events)
+**When** the generator places it
+**Then** it passes the same checks A–G and the anchor check
+
+**Given** the **gas station** recipe
+**When** a city is generated
+**Then** the city has exactly one gas station: a kiosk building, 2–4 pumps, a canopy, and a `gas_leak` hazard from stage 2 (FR90, FR92)
+**And** Story 6.9's gas leak event runs on it without changes
+
+### Story 11.5: Spawns and balance for 70 × 70
+
+As a player,
+I want fights in a random city to feel as dense as in Downtown,
+So that the bigger map doesn't make waves feel empty.
+
+**Acceptance Criteria:**
+
+**Given** a Random city run at stage 1
+**When** zombies spawn
+**Then** they come only from the city edges (FR93)
+
+**Given** stage 2 or later
+**When** a wave picks spawn points
+**Then** generated points 15–35 m from the group are also used, never within 6 m of a living player (FR32, FR93)
+
+**Given** `districts.json` (per-district balance overrides: spawn bands, pathing budget)
+**When** Downtown runs
+**Then** its values are unchanged; `waves.json › maxAlive` 150 and `boss.json › aliveCap` 110 stay global (NFR1)
+
+**Given** the flow fields on a 70 × 70 m city (19,600 cells)
+**When** they refresh
+**Then** a refresh takes no more ticks than on Downtown, and the tick cost is measured (`PERF_ASSERT=1`, machine load recorded)
+
+**Given** a sim of 8 seeds × 10 waves
+**When** waves 1–2 are measured
+**Then** the time to first contact and the zombies within 15 m of the team are within ± 20 % of Downtown's; if not, stage-1 edge spawns use the third of the edge nearest the team
+**And** a full 10-wave bot run reaches the Behemoth and the evacuation vote
+
+### Story 11.6: Art drawn by type
+
+As a player,
+I want a random city to look like Dead City,
+So that it feels like the same game as Downtown.
+
+**Acceptance Criteria:**
+
+**Given** a generated city
+**When** the client draws it
+**Then** buildings, cars, barriers, the gas station and decay props are drawn **by kind and at any size**, with no lookups by object name (today `DOWNTOWN_DRESSING`, `d.canopy`, `bus_glass`); heights, shop lights and car colours come from the city's own seeded dressing
+
+**Given** the ground bake on a 70 × 70 m city
+**When** it is built
+**Then** it stays within NFR2 and the 2048² atlas rule (chunked if needed), and every texture goes through `addGeneratedTexture`
+
+**Given** Downtown
+**When** screenshots of stages 1–5 are compared with before the story
+**Then** they are pixel-identical
+
+**Given** the designer
+**When** the look is proposed before the build
+**Then** they see code-drawn screenshots of 3 seeds × 5 stages and pick
+
+### Story 11.7: Pick Random city, share its code
+
+As a host,
+I want to pick Random city and share a city we liked,
+So that we can play the same streets again or send them to friends.
+
+**Acceptance Criteria:**
+
+**Given** Story 7.7's district picker in the lobby
+**When** it shows
+**Then** it has a **Random city** card, always selectable and never locked, and **Downtown stays the default pick** (FR69, FR90)
+
+**Given** a Random city run
+**When** it starts
+**Then** the server takes `citySeed` from the run seed's `city` stream (or from the code the host typed) and sends `{citySeed, generatorVersion}`; every client generates the city locally
+**And** a client's join carries its generator version and map digest; a mismatch is refused with "Please refresh" (like the balance version)
+
+**Given** Results of a Random city run
+**When** shown
+**Then** it shows the city code (e.g. "City K7QX": seed + generator version, 4–5 characters, no ambiguous letters) (FR94)
+
+**Given** the host types a city code in the lobby
+**When** the run starts
+**Then** the same layout is generated, and decay picks, events and shop cards come from the new run's seed (Q3)
+**And** a code from an older generator shows "This city is from an older version"
+
+**Given** a saved run (Story 8.4) and run stats (Story 10.7)
+**When** a Random city run is saved or recorded
+**Then** the snapshot stores `citySeed` + `generatorVersion` (the 8.4 round-trip test covers them) and the stats record `random:<code>` (FR88)
