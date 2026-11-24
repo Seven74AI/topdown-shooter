@@ -1,6 +1,6 @@
 # Story 5.13: Roguelike card shop
 
-Status: review
+Status: done
 
 ## Story
 
@@ -286,3 +286,21 @@ Each mutation was applied once, the named test file run, and the mutation revert
 - Changed (server): `rooms/RunRoom.ts`, `rooms/RunRoom.shop.test.ts`, `run/RunController.ts`.
 - Changed (client): `sim/SimHost.ts`, `sim/NetSimHost.ts`, `sim/NetSimHost.shop.test.ts`, `sim/LocalSimHost.ts`, `sim/LocalSimHost.test.ts`, `net/session.ts`, `ui/shopStore.ts`, `ui/shopStore.test.ts`, `ui/ShopScreen.tsx`, `ui/overlay.css`, `ui/sizes.ts`, `scenes/GameScene.ts`, `debug/urlOptions.ts`, `debug/urlOptions.test.ts`.
 - Changed (tools, docs): `tools/bots/botClient.ts`, `docs/playtests/milestone-1/readability-sheet.md` (row 45).
+
+## Senior Developer Review (AI)
+
+Fresh-agent review (main session, 2026-11-24) of `story-5-13` on `ad80e47`.
+
+- **Outcome:** no high or medium code defects. Every "Beat the rule" attempt B1–B14 held (reroll spam, fishing, buying in the wave, racing teammates, lag double buy, stale rev, refresh fishing, seed prediction accepted per D12, teammate influence, buy-replace-rebuy, gear stacking, malformed or forged messages, flooding across buckets, `?wallet` without the server switch). The client cannot steer its draw.
+- **Design flag:** no card is affordable in builds 0–1 at start money 100. **Resolved by the designer: start money 200** (`economy.json › startingWallet`; its own commit, tests and sims re-pinned, see Completion Notes).
+- **Missing tests (added in the fix round, `shopCards.test.ts`):**
+  1. the `snapshotWorld` digest differs when only `world.shop.sold` / `rev` differ;
+  2. a reroll naming build b − 1 / rev 0 in build b → `stale_offer`, no charge;
+  3. `DEV_SHOP_CARDS` forced cards are used only for the build-start offer, never on a reroll.
+- **L4 (low, kept):** the solo offer cache key includes `offerGear` (harmless: one rebuild when gear changes).
+- **Merge:** `origin/master` merged into `story-5-13` (5.20 sell/undo). Four simple conflicts:
+  - `SimHost.ts`: imports, plus master's sell API next to the card API;
+  - `sizes.ts`: both blocks kept;
+  - `RunRoom.ts`: master's `onSellBuilding` plus 5.13's `shop.buy` doc; the old `buyWeapon` doc dropped;
+  - `RunController.ts`: imports `buyCard`/`offerFor`/`reroll` + `sellBuilding`; types `CardBought`/`Rerolled`/`ShopOfferView` + `SellError`/`Sold`; `buyWeapon`/`Bought` dropped.
+- One full gate on the merged tree before the push (result in the final commit message / main-session report).
