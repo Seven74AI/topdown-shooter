@@ -1,5 +1,5 @@
 import type * as Phaser from "phaser";
-import { BOSS_ATTACK, BOSS_STATE, type World } from "@topdown/shared";
+import { BOSS_ATTACK, BOSS_STATE, zombiesUnderBoss, type World } from "@topdown/shared";
 import { BOSS_ATLAS, BOSS_CRACK_PX_PER_M, BOSS_FRAME, BOSS_FRAMES, BOSS_FRAME_PX, BOSS_FX, BOSS_FX_FRAMES, BOSS_PX_PER_M, BOSS_TELE, BOSS_TELE_RADIUS_PX, ensureBossTextures } from "./city/bossAtlas";
 import { aboveDarkness } from "./darkness/aboveDark";
 import { slamFrameIndex, telegraphProgress, type TelegraphLook } from "./bossTelegraph";
@@ -7,7 +7,7 @@ import { slamFrameIndex, telegraphProgress, type TelegraphLook } from "./bossTel
 /**
  * Story 6.5 (AC 13; F3, DD4, DD10): everything the Behemoth draws in the world.
  *
- * - The body (`boss_<look>_<pose>`), above the zombies, at the host's draw position (online: the
+ * - The body (`boss_<look>_<pose>`), above the zombies (dimmed while any walks under it: review M2), at the host's draw position (online: the
  *   render tick between two patches; solo: between the last two ticks), facing its heading. Pose from
  *   the state: WALK the two-frame walk cycle by distance; TELEGRAPH (slam) the arms rising by the
  *   fill; RECOVER after a slam `slamHit` for half a second. A `boss.hit` flashes it.
@@ -30,6 +30,8 @@ const FILL_COLOR = 0xff2828;
 const FILL_ALPHA = 0.38;
 const SKULL_M = 0.9;
 const SKULL_LIFT_M = 1.1;
+/** Review M2: the body's opacity while zombies walk under it (they read through it; no new colour). */
+export const BOSS_DIM_ALPHA = 0.55;
 
 interface TeleSlot {
   disc: Phaser.GameObjects.Image;
@@ -170,6 +172,8 @@ export class BossView {
     this.body.setPosition(drawX, drawY).setRotation(b.facing).setVisible(true);
     if (this.flashS > 0) this.body.setTint(HIT_TINT);
     else this.body.clearTint();
+    const alpha = zombiesUnderBoss(this.world) > 0 ? BOSS_DIM_ALPHA : 1; // review M2: a zombie under it stays readable
+    if (this.body.alpha !== alpha) this.body.setAlpha(alpha);
     if (this.dark) {
       const o = frames[b.enraged ? BOSS_FRAME.outlineEnraged : BOSS_FRAME.outline] as string;
       if (this.outline.frame.name !== o) this.outline.setFrame(o);

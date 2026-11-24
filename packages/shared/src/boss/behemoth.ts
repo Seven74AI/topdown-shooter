@@ -186,6 +186,7 @@ function arrive(world: World): void {
   b.targetId = null;
   b.lastSwitchTick = -1_000_000;
   b.threat.fill(0);
+  resetBossField(world); // review H1: a new Behemoth starts with a clean field
   b.facing = Math.atan2(world.map.heightM / 2 - b.y, world.map.widthM / 2 - b.x);
   world.events.emit({ type: "boss.arrived", x: b.x, y: b.y, maxHp: b.maxHp, look: b.look });
 }
@@ -267,6 +268,66 @@ function steerPoint(world: World, target: PlayerState): void {
   steer.y = flowCellCenterY(nav, next);
 }
 
+/** Restarts the boss field at its next round-robin slot (the current front keeps steering until it is replaced). */
+function restartField(world: World): void {
+  const f = world.pathing.bossChase;
+  f.building = false;
+  f.buildSourceTick = -1_000_000;
+}
+
+/**
+ * Review H1: the unreachable-target fallback, decided per build, never latched. A finished NORMAL
+ * build that doesn't reach the boss's cell switches the next build to the fallback (seeded by walking
+ * distance round the target); while in the fallback the normal field is tried again as soon as the
+ * target moves `pathing.fallbackMoveM` (1 m) from where the fallback began, or every `pathing.fallbackRetryS` — so a survivor
+ * who steps into an alley and out again is chased properly within one rebuild.
+ */
+function updateFallback(world: World, target: PlayerState): void {
+  const b = world.boss;
+  const f = world.pathing.bossChase;
+  if (f.rebuilds !== b.fieldChecked) {
+    b.fieldChecked = f.rebuilds;
+    if (!f.frontFar && !bossCellReached(world)) {
+      f.seedFar = true;
+      b.farX = target.x;
+      b.farY = target.y;
+      b.farSinceTick = world.tick;
+      restartField(world);
+      return;
+    }
+  }
+  if (!f.seedFar) return;
+  const dx = target.x - b.farX;
+  const dy = target.y - b.farY;
+  const move = world.balance.boss.pathing.fallbackMoveM;
+  if (dx * dx + dy * dy >= move * move || world.tick - b.farSinceTick >= ticksFor(world.balance.boss.pathing.fallbackRetryS)) {
+    f.seedFar = false; // try the normal field again (a new failure comes straight back here)
+    b.farSinceTick = world.tick;
+    restartField(world);
+  }
+}
+
+/** The boss's cell (or one within 4 cells) has a value in the front field. */
+function bossCellReached(world: Readonly<World>): boolean {
+  const f = world.pathing.bossChase;
+  const nav = world.pathing.boss;
+  if (nav.cells <= 1 || f.sourceTick < 0) return true;
+  const c = flowNearestReachedCell(f, nav, flowCellAt(nav, world.boss.x, world.boss.y), 4);
+  return c >= 0 && (f.front[c] as number) < FLOW_UNREACHED;
+}
+
+/** Review H1: the boss field back to "no target" (a new Behemoth, a build start: nothing carried over). */
+export function resetBossField(world: World): void {
+  const f = world.pathing.bossChase;
+  f.seedOnly = null;
+  f.seedFar = false;
+  f.frontFar = false;
+  f.building = false;
+  f.sourceTick = -1;
+  f.buildSourceTick = -1_000_000;
+  world.boss.fieldChecked = f.rebuilds;
+}
+
 /** WALK: one step toward the target (D8: 25 % speed while pushing through a building). */
 function walk(world: World, target: PlayerState | null): void {
   const b = world.boss;
@@ -281,24 +342,16 @@ function walk(world: World, target: PlayerState | null): void {
     f.sourceTick = -1;
     f.buildSourceTick = -1_000_000; // rebuild from the new target at once
     f.seedFar = false;
+    f.frontFar = false;
   }
   if (!target) return;
+  updateFallback(world, target);
   const contact = bal.radiusM + target.radiusM;
   const tdx = target.x - b.x;
   const tdy = target.y - b.y;
   if (tdx * tdx + tdy * tdy <= contact * contact) return; // touching its target: no further
   steerPoint(world, target);
-  if (!steer.ok) {
-    // A finished field that doesn't reach it: the target hides where its body can't go. Rebuild in
-    // the fallback (seeded by distance round the target): it walks to the nearest spot it can reach.
-    if (!f.seedFar && f.sourceTick >= 0) {
-      f.seedFar = true;
-      f.building = false;
-      f.sourceTick = -1;
-      f.buildSourceTick = -1_000_000;
-    }
-    return;
-  }
+  if (!steer.ok) return; // a normal field that doesn't reach it: the fallback build is on its way
   const dx = steer.x - b.x;
   const dy = steer.y - b.y;
   const d = Math.sqrt(dx * dx + dy * dy);
@@ -308,9 +361,27 @@ function walk(world: World, target: PlayerState | null): void {
   const nx = b.x + (dx / d) * step;
   const ny = b.y + (dy / d) * step;
   pushOutOfBuildings(world, nx, ny, bal.radiusM, b.x, b.y, false); // map solids only: buildings aren't solid to it
+  b.facing = Math.atan2(dy, dx);
+  // Review L6: the player system runs before this one, so a step into a survivor would end the tick
+  // with them inside its body (pinned against a wall they can't be pushed out). It never steps deeper
+  // into a standing survivor: they block it like a wall (and stand in slam range).
+  if (stepsIntoPlayer(world, pushed.x, pushed.y)) return;
   b.x = pushed.x;
   b.y = pushed.y;
-  b.facing = Math.atan2(dy, dx);
+}
+
+/** Review L6: moving the body to (x, y) would overlap a standing survivor more than it does now. */
+function stepsIntoPlayer(world: Readonly<World>, x: number, y: number): boolean {
+  const b = world.boss;
+  const R = world.balance.boss.radiusM;
+  for (const p of world.players.values()) {
+    if (p.status !== "alive") continue;
+    const min = R + p.radiusM;
+    const dn = Math.hypot(p.x - x, p.y - y);
+    if (dn >= min) continue;
+    if (dn < Math.hypot(p.x - b.x, p.y - b.y) - 1e-9) return true;
+  }
+  return false;
 }
 
 /** D8: every player building its body overlaps takes `buildingDps` × dt (5 HP a tick). */
@@ -360,7 +431,10 @@ function shoveZombies(world: World): void {
 export const updateBoss: SystemFn = (world) => {
   const b = world.boss;
   if (world.run.phase === "build" || world.run.phase === "lobby") {
-    if (b.state !== BOSS_STATE.NONE) resetBoss(b); // a build start: no boss (6.7 owns the death itself)
+    if (b.state !== BOSS_STATE.NONE) {
+      resetBoss(b); // a build start: no boss (6.7 owns the death itself)
+      resetBossField(world);
+    }
     return;
   }
   if (world.run.phase !== "wave") return;

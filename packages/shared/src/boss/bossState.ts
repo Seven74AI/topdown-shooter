@@ -81,6 +81,11 @@ export interface BossState {
   enraged: boolean;
   /** The body overlapped a player building this tick (it pushes through at `buildingSlowPct`). */
   pushing: boolean;
+  /** Review H1: `bossChase.rebuilds` last evaluated, and where / since when the fallback holds. */
+  fieldChecked: number;
+  farX: number;
+  farY: number;
+  farSinceTick: number;
   /** D3: boss positions of the last ticks (shots rewind to it). Row = tick % rows. */
   readonly histX: Float32Array;
   readonly histY: Float32Array;
@@ -115,6 +120,10 @@ export function createBossState(): BossState {
     entry: { x: 0, y: 0, name: "" },
     enraged: false,
     pushing: false,
+    fieldChecked: 0,
+    farX: 0,
+    farY: 0,
+    farSinceTick: 0,
     histX: new Float32Array(ZOMBIE_HISTORY_TICKS),
     histY: new Float32Array(ZOMBIE_HISTORY_TICKS),
     histTick: new Int32Array(ZOMBIE_HISTORY_TICKS).fill(-1),
@@ -149,6 +158,9 @@ export function resetBoss(b: BossState): void {
   b.attack.radiusM = 0;
   b.enraged = false;
   b.pushing = false;
+  b.farX = 0;
+  b.farY = 0;
+  b.farSinceTick = 0;
   b.histTick.fill(-1);
   b.hitAcc.fill(0);
   b.flameClock.fill(0);
@@ -248,6 +260,7 @@ export function snapshotBoss(b: Readonly<BossState>) {
     entry: { ...b.entry },
     enraged: b.enraged,
     pushing: b.pushing,
+    field: [b.fieldChecked, b.farX, b.farY, b.farSinceTick],
     hist: [Array.from(b.histX), Array.from(b.histY), Array.from(b.histTick)],
     hitAcc: Array.from(b.hitAcc),
     flameClock: Array.from(b.flameClock),

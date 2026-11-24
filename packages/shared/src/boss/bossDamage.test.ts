@@ -13,9 +13,11 @@ import { AREA_KIND, spawnArea } from "../hazards/areaPool";
 import { igniteMolotov } from "../hazards/molotov";
 import { NEUTRAL_INPUT } from "../net/input";
 import { addPlayer } from "../player/player";
+import { spawnZombie } from "../zombies/zombiePool";
+import { DOWNTOWN_MAP } from "../map/downtown";
 import { setZombieHistoryEnabled } from "../combat/rewind";
 import { BOSS_HIT_NO_PLAYER, rewoundBossPos, rewoundBoss } from "./bossState";
-import { bossDamageStats } from "./bossDamage";
+import { bossDamageStats, zombiesUnderBoss } from "./bossDamage";
 import { collect, placeBoss, tickN } from "./testBoss";
 
 /**
@@ -88,6 +90,25 @@ describe("Story 6.5 D4: what hurts it", () => {
     expect(taken(w)).toBeGreaterThan(0);
   });
 
+  it.each(["flamethrower", "gas_torch"].filter((id) => id in balance.weapons))("review M1: sweeping %s on and off the boss is no faster than holding it (≤ steady DPS)", (weapon) => {
+    const run = (wiggle: boolean): number => {
+      const { w, p } = setup(weapon);
+      p.x = BX - balance.boss.radiusM - 1.5;
+      for (let t = 0; t < 200; t++) {
+        activeSlot(p.loadout).ammo = 10_000;
+        activeSlot(p.loadout).reloadTicks = 0;
+        const on = !wiggle || t % 2 === 0;
+        setInput(w, "p0", { ...NEUTRAL_INPUT, seq: ++seq, aimX: on ? 1 : 0, aimY: on ? 0 : 1, fire: true });
+        step(w, TICK_DT_S);
+      }
+      return taken(w);
+    };
+    const steady = run(false);
+    const wiggly = run(true);
+    expect(steady).toBeGreaterThan(0);
+    expect(wiggly).toBeLessThanOrEqual(steady);
+  });
+
   it("explosions within radius + its body, full damage, by the blast line of sight", () => {
     const { w } = setup();
     const spec = { ...createExplosionSpec(), x: BX - balance.boss.radiusM - 1, y: BY, radiusM: 1.5, zombieDamage: 90, playerDamage: 90, kind: "grenade" as const, sourcePlayerId: "p0", weapon: "grenade_launcher", quiet: true };
@@ -96,6 +117,19 @@ describe("Story 6.5 D4: what hurts it", () => {
     expect(taken(w)).toBe(90);
     explode(w, { ...spec, x: BX - balance.boss.radiusM - 2 });
     expect(taken(w)).toBe(90); // out of range
+  });
+
+  it("review L2: a blast behind cover (a car-height map box between it and the body's nearest point) doesn't reach it", () => {
+    const w = createWorld({ balance, seed: 5, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
+    w.debug.godMode = true;
+    addPlayer(w, "p0", 30, 30);
+    // curb_car_west_n (12–16.5 × 12–14): the boss north of it, the blast south of it.
+    placeBoss(w, 14.25, 12 - balance.boss.radiusM - 0.3);
+    const spec = { ...createExplosionSpec(), x: 14.25, y: 14.4, radiusM: 3, zombieDamage: 90, playerDamage: 90, kind: "grenade" as const, sourcePlayerId: "p0", weapon: "grenade_launcher", quiet: true };
+    explode(w, spec);
+    expect(w.boss.maxHp - w.boss.hp).toBe(0);
+    explode(w, { ...spec, x: 14.25 - 3.5, y: 12 - 0.3 }); // the same blast beside the car: clear line
+    expect(w.boss.maxHp - w.boss.hp).toBe(90);
   });
 
   it("a Bloater blast next to it hurts it (an owner-less blast)", () => {
@@ -147,13 +181,36 @@ describe("Story 6.5 D4: what doesn't hurt it", () => {
 });
 
 describe("Story 6.5 D3 / DD9", () => {
-  it("a bullet stops at it (no pierce through it to a zombie behind)", () => {
+  it("a bullet stops at it (no pierce through it to a zombie behind) — review L1: a zombie really stands behind it", () => {
     const { w, ev } = setup("hunting_rifle" in balance.weapons ? "hunting_rifle" : "pistol");
+    const behind = spawnZombie(w, "walker", BX + balance.boss.radiusM + 1.5, BY);
     w.zombies.state.fill(0);
+    const hp0 = w.zombies.hp[behind] as number;
     fireFor(w, 1);
     tickN(w, 10);
     expect(taken(w)).toBeGreaterThan(0);
+    expect(w.zombies.hp[behind]).toBe(hp0);
     expect(ev.some((e) => e.type === "zombie.hit")).toBe(false);
+  });
+
+  it("review M2: a zombie standing under its body is still shot (before the boss); one behind it is not", () => {
+    const { w, ev } = setup("pistol");
+    const under = spawnZombie(w, "walker", BX + 0.5, BY); // centre inside the 2 m body
+    const behind = spawnZombie(w, "walker", BX + balance.boss.radiusM + 1.5, BY);
+    w.zombies.state.fill(0);
+    fireFor(w, 1);
+    tickN(w, 10);
+    expect(ev.some((e) => (e.type === "zombie.hit" || e.type === "zombie.killed") && e.zombieId === under)).toBe(true);
+    expect(ev.some((e) => (e.type === "zombie.hit" || e.type === "zombie.killed") && e.zombieId === behind)).toBe(false);
+    expect(taken(w)).toBe(0); // the pistol's one round stopped in the zombie
+  });
+
+  it("review M2: zombiesUnderBoss counts the zombies the client dims the body for", () => {
+    const { w } = setup();
+    expect(zombiesUnderBoss(w)).toBe(0);
+    spawnZombie(w, "walker", BX + 1, BY);
+    spawnZombie(w, "walker", BX + balance.boss.radiusM + 0.5, BY);
+    expect(zombiesUnderBoss(w)).toBe(1);
   });
 
   it("one boss.hit per source per tick (a shotgun's pellets in one event)", () => {

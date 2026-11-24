@@ -46,7 +46,7 @@ export function bossCue(e: SimEvent, localId: string, meX: number, meY: number, 
       out.shake = Math.hypot(meX - e.x, meY - e.y) <= BOSS_SLAM_SHAKE_M;
       break;
     case "boss.target_changed":
-      out.buzz = e.playerId === localId;
+      out.buzz = !stale && e.playerId === localId; // review L5: a woken tab's backlog doesn't buzz
       break;
     default:
       break;

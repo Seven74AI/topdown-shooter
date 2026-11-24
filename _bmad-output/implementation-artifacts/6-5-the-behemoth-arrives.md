@@ -59,7 +59,7 @@ so that the run ends with a fight we'll talk about.
 - **F7 "It goes after whoever hurts it."** Its target is the **standing** player who dealt it the most damage in the **last 5 s** (`target.threatWindowS`), ties and no damage → the nearest standing player. It switches target at most once every **4 s** (`target.switchMinS`), except at once when its target goes down or leaves. It never targets a downed or out player. Everyone sees a **red skull** over the target.
 - **F8 "The slam ignores cover"** (alignment Q8, "the drawn zone is the promise"): walls, cars, barricades and turrets inside the ring shield no one.
 - **F9 "Downed is safe from it."** A downed or out player is never targeted and never hit by a boss attack (the existing `damagePlayerBy` rule: only `alive` players take damage).
-- **F10 "Same boss for everyone in a run."** HP = **6,000 × 0.4 / 0.6 / 0.8 / 1.0** (1–4 players in the World when wave 10 starts; solo × 0.4: designer 2026-11-24): 2,400 / 3,600 / 4,800 / 6,000. Fixed at its arrival.
+- **F10 "Same boss for everyone in a run."** HP = **6,000 × 0.4 / 0.6 / 0.8 / 1.0** (1–4 players in the World when it walks in, i.e. at the end of its warning; solo × 0.4: designer 2026-11-24): 2,400 / 3,600 / 4,800 / 6,000. Fixed at its arrival.
 - **F11 "The wave isn't over while it lives."** Wave 10 cannot end while the Behemoth is warning or alive, even when every other zombie is dead.
 
 ### Behaviour
@@ -249,7 +249,7 @@ Claude (claude-code builder session for Story 6.5, cloud session; branch `story-
 - **Pathing (DD2).** A third NavGrid grown by 1.65 m and a single-target `bossChase` field in the shared round-robin (last slot; only while its body is on the map and it has a target; a finished field restarts after `rebuildEveryS` 10 ticks; a target change restarts it at once). Walls only from `applyDecayStage` (build starts). Player buildings are costs, not walls (D8); the boss's push-out ignores them (`pushOutOfBuildings(..., withBuildings=false)`).
 - **Found while building — Downtown is tight for a 4 m body.** At stage 1 the west street's parked cars leave gaps under 4 m, so `street_west` opens into a pocket the boss could never leave. `pickBossEntry` therefore skips an entry whose street is a pocket (`bossEntryOpen`: a flood on the boss grid reaching ≥ ¼ of its free cells) while another is open; tested on Downtown (west closed, east/north/south open) and over a grid of team positions.
 - **Merge-time fixes with Story 6.1 (the real wave 10).** 6.1's bot sims reached the real wave-10 Behemoth and some runs stalled (brief 28: no stuck run). Three causes, three fixes:
-  1. *Unreachable target → the boss stood still forever.* New fallback: when its finished field doesn't reach it, the field is re-seeded by distance round the target with no line check (`FlowField.seedFar`), so it walks to the nearest spot it can reach (`bossPathing.test.ts`). 6.6's throw is what punishes a camp it can't reach.
+  1. *Unreachable target → the boss stood still forever.* New fallback: when a finished normal field doesn't reach it, the next build is seeded by walking distance round the target (`FlowField.seedFar`; review H1 reworked it, see the review section), so it walks to the nearest spot it can reach (`bossPathing.test.ts`). 6.6's throw is what punishes a camp it can't reach.
   2. *Zombies jammed behind a standing boss in a chokepoint* (AC 6's push-out made them press into it forever). `boss.json › bodyPushZombies` = **false** by default: zombies walk under it (it is drawn over them); the push-out code stays behind the flag (tested on). **OPEN FOR DESIGNER (1).**
   3. *The bots never shot it* (they aimed at zombies only). `botPolicy`: the boss is a target measured to its body's edge, hunted like the last rushers along a nav-grid path (one shared BFS per tick, a 4-cell carrot), and never backed off from (the 2.5 m keep-distance rule is for zombie bites). Bot code only; 6.1's ten-wave, six-wave and five-wave sims all pass with the real boss.
   Two 6.1 wave-flow unit tests that clear wave 10 by hand now say `world.debug.bossWaves = []` (they test the spawn order / the run end alone; the boss's wave-10 rule is F11 in `behemoth.test.ts`).
@@ -265,7 +265,7 @@ Claude (claude-code builder session for Story 6.5, cloud session; branch `story-
 #### OPEN FOR DESIGNER
 
 1. **Zombies walk under the Behemoth** (`boss.json › bodyPushZombies: false`) instead of AC 6's "zombies overlapping its body are pushed out": pushed out, a standing Behemoth in a chokepoint jammed the horde behind it for good (a stuck wave 10 in the 10-wave sim). One flag flips it back.
-2. **HP counts the players in the World when it walks in** (AC 3), not when wave 10 starts (F10's wording). Same number unless a player leaves during wave 10's first half.
+2. **HP counts the players in the World when it walks in** (AC 3; F10's wording now says so — review). Same number as "when wave 10 starts" unless a player leaves during wave 10's first half.
 3. **Downtown is tight for a 4 m body:** at stage 1 the west street (parked cars) is a pocket it can't use, so it never enters from `street_west` while another end is open; teams camping in spaces narrower than 4 m are reached only by the fallback (it comes to the nearest spot) until 6.6's throw. 6.2 should keep the entry streets 4 m clear at every stage (merge note below).
 
 #### Not verified
@@ -408,9 +408,28 @@ Claude (claude-code builder session for Story 6.5, cloud session; branch `story-
 - (new) `tools/netsim/boss.test.ts`
 - `_bmad-output/implementation-artifacts/6-5-the-behemoth-arrives.md`
 
+## Senior Developer Review (AI)
+
+Fresh-agent review of `3702a1a` (main session, 2026-11-24): merge clean; 1 high, 2 medium, 6 low. All fixed on `story-6-5`; high/medium go to a fresh re-review.
+
+| # | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| H1 | `seedFar` latched for the rest of the fight (cleared only on a target change), and the fallback was a Chebyshev ring with no line check: the boss walked greedily into dead ends (16 of 40 Downtown pairs the normal field reaches were never reached). Exploit: step into a 3 m alley once, step out: boss dumb all fight (endless: survived `resetBoss`). | Decided per build, never latched (`updateFallback`): only a finished NORMAL build that doesn't reach the boss switches the next build to the fallback; in the fallback the normal field is tried again at once when the target moves `pathing.fallbackMoveM` (1 m) or every `pathing.fallbackRetryS` (2 s). The fallback seeds by WALKING distance from the target (a BFS over the normal nav grid's walls and closed edges, up to `pathing.fallbackSeedM` 40 m; scratch on `world.pathing`), not Chebyshev. `resetBossField` clears `seedOnly` / `seedFar` / the front at arrival and at a build start (a new Behemoth starts clean). `FAR_SEED_RINGS` gone. | `bossPathing.test.ts`: hide in the NW alley 10 s (fallback seen), then step out to three open spots: reached each time, front back to normal; the fallback brings it ≥ 5 m closer by walking distance; fuzz still green. |
+| M1 | The boss's flame clock reset to 0 every tick outside the cone: sweeping on/off gave 2.5× the flamer's DPS. | The clock only advances in the cone and never resets on leaving it (the zombies' 5.4 per-body exposure rule); reset only when a new player claims the slot. | `bossDamage.test.ts` "review M1" (both flamers): wiggle DPS ≤ steady DPS; the old reset fails it. |
+| M2 | With `bodyPushZombies` off, a zombie whose centre is under the body was unshootable (the bullet stopped at the circle's entry) and drawn hidden under the body. | Shots: a zombie under the body (centre inside its circle, before any cover) is hit, before the boss (`zombieUnderBoss`); the body still stops the shot for what is behind it. Readability: `BossView` draws the body at 0.55 alpha while any zombie stands under it (`zombiesUnderBoss`; no new colour). Walk-under itself stays (designer being asked; recommendation keep). | `bossDamage.test.ts`: a zombie under the body is shot and the round stops in it (the boss takes 0); one behind is not; `zombiesUnderBoss` counts. Removing the rule fails it. |
+| L1 | "a bullet stops at it" had no zombie behind (a `blockT = coverT` mutation survived). | A Walker stands behind it now and keeps its HP. | The mutation fails it. |
+| L2 | No cover case for the explosion's line of sight to the body (removing `shotLineClear` survived). | Downtown: a blast south of `curb_car_west_n`, the boss north of it: no damage; the same blast beside the car: 90. | The mutation fails it. |
+| L3 | The netsim test doesn't catch a slam on `prevX/prevY`. | Noted in the test: `slam.test.ts` › "F4: walks out on the hit tick itself" pins the newest position (it fails that mutation). | — |
+| L4 | `target.threatWindowS` read nowhere (10 × 10 hard-coded); `FAR_SEED_RINGS` inline. | `crossCheckBoss` requires `threatWindowS = THREAT_BUCKETS × THREAT_BUCKET_TICKS` ticks (5 s); the fallback's numbers are in `boss.json` (`fallbackSeedM`, `fallbackRetryS`, `fallbackMoveM`). | `config/balance.test.ts` green. |
+| L5 | The target buzz played for a woken tab's stale `boss.target_changed`. | `ageS` on the event (NetSimHost backlog), the buzz is gated on not stale. | `bossCue.test.ts`. |
+| L6 | A survivor pinned between the walking boss and a map box ended the tick inside its body (probe: 9 mm; the player system runs before the boss's). | The boss never takes a step that pushes deeper into a standing survivor (they block it like a wall and stand in slam range). | `bossPathing.test.ts` "review L6": pressed against the bus by the boss for 20 s: never inside its body or the bus. |
+
+Story text: F10 now says HP counts the players when it walks in.
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
 - 2026-11-24: built (gds-dev-story, Story 6.5 builder session): shared sim, pathing, network, client, dev switches, tests (fairness F1–F11, fuzz, tick cost, bandwidth, run sim, netsim); merged with Story 6.1 (the real wave 10: unreachable-target fallback, zombies walk under it behind a flag, bots fight it); status → review.
 - 2026-11-24: merged master 603099b (Story 6.3): 6.3's aboveDark.ts replaces the shim, the boss outline follows `darknessAlpha`, the boss bar is in the HUD layout test.
+- 2026-11-24: review fixes H1, M1, M2, L1–L6 (see Senior Developer Review (AI)).

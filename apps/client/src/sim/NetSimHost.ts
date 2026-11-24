@@ -615,7 +615,7 @@ export class NetSimHost implements SimHost {
         if (e.type === "spitter.spat" && stale) continue;
         if (e.type === "acid.splashed" && ageS >= this.puddleS) continue;
         e.ageS = ageS;
-      } else if (e.type === "boss.warning" || e.type === "boss.arrived" || e.type === "boss.telegraph" || e.type === "boss.slammed") {
+      } else if (e.type === "boss.warning" || e.type === "boss.arrived" || e.type === "boss.telegraph" || e.type === "boss.slammed" || e.type === "boss.target_changed") {
         // Story 6.5 (brief 14): a woken tab's backlog plays no late banner or sound (the telegraph draws from its own ticks).
         e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       } else if (e.type === "molotov.ignited") {

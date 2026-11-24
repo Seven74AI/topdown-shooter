@@ -5,6 +5,10 @@
  * position at the hit tick is inside 4.25 m (ring − edge grace) — never by where the client drew it
  * (no rewind for boss hits) — and the test sees both hits and misses near the edge, and slams where
  * the laggy client's drawn position and the server's disagreed (the server's always decided).
+ *
+ * Review L3: an older-position mutation (the resolver reading `prevX/prevY`) rarely shows here (the
+ * bot seldom crosses the edge in the hit tick itself); `boss/slam.test.ts` › "F4: walks out on the hit
+ * tick itself" is the test that pins the newest position.
  */
 import { describe, expect, it } from "vitest";
 import { BOSS_STATE, NEUTRAL_INPUT, PLACEHOLDER_MAP, TICK_DT_S, createRng, loadBalance, type PlayerInput } from "@topdown/shared";

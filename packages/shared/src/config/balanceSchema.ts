@@ -1112,8 +1112,8 @@ export const bossSchema = z
     firstGapS: z.number().positive().refine(wholeTickS, "firstGapS must be whole ticks"),
     target: z
       .object({
-        /** Threat window (10 half-second buckets per player slot). */
-        threatWindowS: z.literal(5),
+        /** Threat window: `THREAT_BUCKETS` × `THREAT_BUCKET_TICKS` (crossCheckBoss: 10 × 0.5 s = 5 s). */
+        threatWindowS: z.number().positive().max(30),
         switchMinS: z.number().positive().refine(wholeTickS, "switchMinS must be whole ticks"),
       })
       .strict(),
@@ -1147,6 +1147,12 @@ export const bossSchema = z
         buildingSlowPct: z.number().int().min(1).max(100),
         /** Rings of cells searched round a target it cannot stand next to (an alley narrower than its body). */
         seedRings: z.number().int().min(1).max(32),
+        /** Review H1: the fallback seeds cells up to this walking distance from an unreachable target. */
+        fallbackSeedM: z.number().positive().max(200),
+        /** Review H1: while in the fallback, the normal field is tried again this often (and at once when the target moves 1 m). */
+        fallbackRetryS: z.number().positive().refine(wholeTickS, "pathing.fallbackRetryS must be whole ticks"),
+        /** Review H1: ... and at once when the target has moved this far (m) from where the fallback began. */
+        fallbackMoveM: z.number().positive().max(10),
       })
       .strict(),
     caps: z.object({ maxDecals: z.number().int().min(1).max(32) }).strict(),

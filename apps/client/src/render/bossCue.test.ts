@@ -18,5 +18,6 @@ describe("Story 6.5 boss cues", () => {
     expect(bossCue({ type: "boss.slammed", attackId: 1, x: 0, y: 0 }, "p0", 13, 0, out).shake).toBe(false);
     expect(bossCue({ type: "boss.target_changed", playerId: "p0" }, "p0", 0, 0, out).buzz).toBe(true);
     expect(bossCue({ type: "boss.target_changed", playerId: "p1" }, "p0", 0, 0, out).buzz).toBe(false);
+    expect(bossCue({ type: "boss.target_changed", playerId: "p0", ageS: 5 }, "p0", 0, 0, out).buzz).toBe(false); // review L5: stale
   });
 });

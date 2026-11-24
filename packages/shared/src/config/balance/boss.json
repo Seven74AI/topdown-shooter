@@ -17,6 +17,6 @@
   "slam": { "triggerM": 4.0, "telegraphS": 1.2, "radiusM": 4.5, "damage": 40, "pushM": 2.0, "pushS": 0.2, "recoverS": 0.8, "cooldownS": 4, "zombieDamage": 40 },
   "bodyPushPlayers": true,
   "bodyPushZombies": false,
-  "pathing": { "inflateM": 1.65, "rebuildEveryS": 0.5, "buildingSlowPct": 25, "seedRings": 24 },
+  "pathing": { "inflateM": 1.65, "rebuildEveryS": 0.5, "buildingSlowPct": 25, "seedRings": 24, "fallbackSeedM": 40, "fallbackRetryS": 2, "fallbackMoveM": 1 },
   "caps": { "maxDecals": 8 }
 }

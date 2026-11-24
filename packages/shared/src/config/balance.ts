@@ -2,6 +2,8 @@ import type { z } from "zod";
 import { canonicalJson, fnv1a32 } from "../core/hash";
 import { balanceFileSchemas, type BalanceFileName, type BuildingTypeStats } from "./balanceSchema";
 import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
+import { THREAT_BUCKETS, THREAT_BUCKET_TICKS } from "../boss/bossState";
+import { TICK_RATE_HZ } from "./constants";
 import { MAX_FIXED_PER_WAVE } from "./constants";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
@@ -263,7 +265,10 @@ export function withOverrides(raw: RawBalanceFiles, overrides: readonly BalanceO
  * the Downtown map in `boss/behemoth.test.ts` (the balance knows no map).
  */
 function crossCheckBoss(parsed: Record<string, unknown>, issues: string[]): void {
-  const boss = parsed.boss as { aliveCap: number; radiusM: number; pathing: { inflateM: number } };
+  const boss = parsed.boss as { aliveCap: number; radiusM: number; pathing: { inflateM: number }; target: { threatWindowS: number } };
+  // Review L4: the threat ring is preallocated (THREAT_BUCKETS × THREAT_BUCKET_TICKS); the window must match it.
+  const ringS = (THREAT_BUCKETS * THREAT_BUCKET_TICKS) / TICK_RATE_HZ;
+  if (Math.abs(boss.target.threatWindowS - ringS) > 1e-9) issues.push(`boss.json: target.threatWindowS ${boss.target.threatWindowS} must be ${ringS} (the threat ring: ${THREAT_BUCKETS} buckets of ${THREAT_BUCKET_TICKS} ticks)`);
   const maxAlive = (parsed.waves as { maxAlive: number }).maxAlive;
   if (boss.aliveCap > maxAlive) issues.push(`boss.json: aliveCap ${boss.aliveCap} exceeds waves.maxAlive ${maxAlive}`);
   if (MAX_PATHING_ZOMBIE_RADIUS_M + boss.pathing.inflateM + 1e-9 < boss.radiusM) {

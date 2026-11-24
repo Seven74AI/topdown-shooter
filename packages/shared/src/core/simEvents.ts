@@ -188,7 +188,7 @@ export type SimEvent =
   | { type: "boss.arrived"; x: number; y: number; maxHp: number; look: number; /** Client only. */ ageS?: number }
   | { type: "boss.telegraph"; attackId: number; kind: number; startTick: number; hitTick: number; cx: number; cy: number; radiusM: number; /** Client only. */ ageS?: number }
   | { type: "boss.slammed"; attackId: number; x: number; y: number; /** Client only. */ ageS?: number }
-  | { type: "boss.target_changed"; playerId: string | null }
+  | { type: "boss.target_changed"; playerId: string | null; /** Client only: seconds since it happened (review L5: no stale buzz). */ ageS?: number }
   | { type: "boss.hit"; amount: number; weapon: string; sourceId: string | null }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 

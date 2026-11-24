@@ -30,7 +30,7 @@ import { flameTick, updateIgnites } from "./flame";
 import { buildingTypeIds } from "../buildings/buildings";
 import { rewindTicksFor, rewoundView } from "./rewind";
 import { bossBodyOn } from "../boss/bossState";
-import { applyBossDamage, bossCircleHitBySegment } from "../boss/bossDamage";
+import { applyBossDamage, bossCircleHitBySegment, zombieUnderBoss } from "../boss/bossDamage";
 import { pelletDirection, rotateBySeqSpread, seqPelletRoll } from "./spread";
 import { bulletBlockT } from "./cover";
 
@@ -319,7 +319,10 @@ function updateProjectiles(world: World, dtS: number): void {
       if (!isZombieAlive(z, zid) || projectileHasHit(pool, id, zid)) continue;
       const r = world.balance.zombies.types[zombieTypeOf(z, zid)]?.radiusM ?? 0;
       const t = segmentCircleT(x0, y0, x1, y1, xs[zid] as number, ys[zid] as number, r);
-      if (t < 0 || (blockT >= 0 && t > blockT)) continue;
+      // Review M2: a zombie whose centre is under the Behemoth (they walk under it) is still hit, before
+      // the boss: the body stops the shot for what is behind it, not for what stands inside it.
+      const under = bossFirst && t > blockT && (coverT < 0 || t <= coverT) && zombieUnderBoss(world, xs[zid] as number, ys[zid] as number);
+      if (t < 0 || (blockT >= 0 && t > blockT && !under)) continue;
       // insertion sort by t (small)
       let j = hits++;
       while (j > 0 && (hitT[j - 1] as number) > t) {

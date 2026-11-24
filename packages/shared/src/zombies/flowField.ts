@@ -152,11 +152,16 @@ export interface FlowField {
   seedOnly: string | null;
   seedRings: number;
   /**
-   * Story 6.5: the target can't be reached (it hides in a pocket narrower than the boss): seed every
-   * free cell within `FAR_SEED_RINGS` of it by distance, with no line-of-sight check, so the boss walks
-   * to the reachable spot nearest it instead of standing still (and blocking the horde) forever.
+   * Story 6.5 (review H1): the target can't be reached (it hides where the boss's body can't go): this
+   * build seeds every boss-grid free cell by its WALKING distance from the target (a BFS over the
+   * normal, uninflated nav grid, up to `boss.json › pathing.fallbackSeedM`), so the boss walks to the
+   * reachable spot nearest it by the paths a survivor takes. Set and cleared per build by the boss
+   * system (never latched for the fight).
    */
   seedFar: boolean;
+  /** Review H1: the build in progress / the front were seeded in the fallback. */
+  buildingFar: boolean;
+  frontFar: boolean;
 }
 
 /**
@@ -201,6 +206,9 @@ export interface PathingState {
   readonly bossChase: FlowField;
   /** Story 6.5: the boss's body was on the map this tick (its field took a share of the ticks). */
   bossActive: boolean;
+  /** Story 6.5 (review H1): scratch for the fallback's walking-distance BFS (normal-grid cells). */
+  readonly farDist: Int32Array;
+  readonly farQueue: Int32Array;
 }
 
 export function createNavGrid(map: DistrictBounds & { readonly solids?: readonly MapBox[] }, inflateM = 0): NavGrid {
@@ -283,6 +291,8 @@ export function createFlowField(nav: NavGrid, fillPenalty: FlowField["fillPenalt
     seedOnly: null,
     seedRings: 0,
     seedFar: false,
+    buildingFar: false,
+    frontFar: false,
   };
 }
 
@@ -324,11 +334,10 @@ export function createPathingState(map: DistrictBounds & { readonly solids?: rea
     boss,
     bossChase: createFlowField(boss),
     bossActive: false,
+    farDist: new Int32Array(nav.cells),
+    farQueue: new Int32Array(nav.cells),
   };
 }
-
-/** Story 6.5: rings (cells) the boss's fallback seeding covers round an unreachable target (the whole Downtown grid). */
-const FAR_SEED_RINGS = 96;
 
 /** Story 6.5: ticks between the starts of two boss field rebuilds (`boss.json › pathing.rebuildEveryS`: 10). */
 function bossRebuildTicks(world: Readonly<World>): number {
@@ -596,7 +605,11 @@ const seedPlayer = (p: PlayerState): void => {
   const f = seed.field as FlowField;
   const nav = seed.nav as NavGrid;
   const c = flowCellAt(nav, p.x, p.y);
-  if (f.seedFar || (nav.inflateM > 0 && nav.wallAt[c] !== 0)) {
+  if (f.seedFar) {
+    seedByWalkingDistance(f, nav, p.x, p.y, seed.world as Readonly<World>); // Story 6.5 (review H1)
+    return;
+  }
+  if (nav.inflateM > 0 && nav.wallAt[c] !== 0) {
     seedAround(f, nav, c, p.x, p.y, seed.world as Readonly<World>);
     return;
   }
@@ -658,16 +671,15 @@ function seedAround(f: FlowField, nav: NavGrid, c: number, px: number, py: numbe
   const cx = c % cols;
   const cy = (c - cx) / cols;
   let found = 0;
-  const far = f.seedFar; // Story 6.5: the boss's fallback (every ring, no line check)
-  const rings = far ? FAR_SEED_RINGS : f.seedRings > 0 ? f.seedRings : world.balance.zombies.pathing.wideSeedRings; // Story 6.5: the boss field's own
-  for (let ring = far ? 0 : 1; ring <= rings && (far || found === 0 || ring <= found + 1); ring++) {
+  const rings = f.seedRings > 0 ? f.seedRings : world.balance.zombies.pathing.wideSeedRings; // Story 6.5: the boss field's own
+  for (let ring = 1; ring <= rings && (found === 0 || ring <= found + 1); ring++) {
     for (let ny = Math.max(0, cy - ring); ny <= Math.min(rows - 1, cy + ring); ny++) {
       for (let nx = Math.max(0, cx - ring); nx <= Math.min(cols - 1, cx + ring); nx++) {
         if (Math.max(Math.abs(nx - cx), Math.abs(ny - cy)) !== ring) continue;
         const n = ny * cols + nx;
         if (wallAt[n] !== 0) continue;
         // Never across a map box (the other side of the parking wall is not "near" the player).
-        if (!far && lineCrossesSolid(world, px, py, (nx + 0.5) * nav.cellM, (ny + 0.5) * nav.cellM)) continue;
+        if (lineCrossesSolid(world, px, py, (nx + 0.5) * nav.cellM, (ny + 0.5) * nav.cellM)) continue;
         if (found === 0) found = ring;
         const cost = STEP_ORTHO * ring;
         if ((f.back[n] as number) <= cost) continue;
@@ -676,6 +688,50 @@ function seedAround(f: FlowField, nav: NavGrid, c: number, px: number, py: numbe
         if (queued) siftUp(f, f.heapPos[n] as number);
         else push(f, n);
       }
+    }
+  }
+}
+
+/**
+ * Story 6.5 (review H1): the boss's fallback seeding. A BFS from the target over the normal nav grid
+ * (map walls only: buildings don't stop it, the boss pushes through them) gives each cell its walking
+ * distance; every cell free on the boss grid within `pathing.fallbackSeedM` is seeded with that cost.
+ * The field then leads the boss to the reachable cell with the least (walking distance + its path).
+ * Allocation-free (the scratch lives on `world.pathing`).
+ */
+function seedByWalkingDistance(f: FlowField, bossNav: NavGrid, px: number, py: number, world: Readonly<World>): void {
+  const nav = world.pathing.nav;
+  if (nav.cells !== bossNav.cells || nav.cells <= 1) return;
+  const { cols, rows, wallAt } = nav;
+  const dist = world.pathing.farDist;
+  const q = world.pathing.farQueue;
+  const cap = Math.round(world.balance.boss.pathing.fallbackSeedM / nav.cellM);
+  dist.fill(-1);
+  const start = flowCellAt(nav, px, py);
+  let head = 0;
+  let tail = 0;
+  q[tail++] = start;
+  dist[start] = 0;
+  while (head < tail) {
+    const c = q[head++] as number;
+    const d = dist[c] as number;
+    if (bossNav.wallAt[c] === 0 && (f.back[c] as number) > STEP_ORTHO * d) {
+      const queued = f.heapPos[c] !== NOT_QUEUED;
+      f.back[c] = STEP_ORTHO * d;
+      if (queued) siftUp(f, f.heapPos[c] as number);
+      else push(f, c);
+    }
+    if (d >= cap) continue;
+    const cx = c % cols;
+    const cy = (c - cx) / cols;
+    for (let k = 0; k < 4; k++) {
+      const nx = cx + (NDX[k] as number);
+      const ny = cy + (NDY[k] as number);
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      const n = ny * cols + nx;
+      if (dist[n] !== -1 || wallAt[n] !== 0 || flowEdgeClosed(nav, c, n)) continue;
+      dist[n] = d + 1;
+      q[tail++] = n;
     }
   }
 }
@@ -696,6 +752,7 @@ function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void 
   seed.nav = null;
   seed.world = null;
   f.buildSourceTick = world.tick;
+  f.buildingFar = f.seedFar;
   f.building = true;
 }
 
@@ -755,6 +812,7 @@ export function advanceFlowField(f: FlowField, nav: NavGrid, world: Readonly<Wor
     f.frontPenalty = f.penalty;
     f.penalty = tp;
     f.sourceTick = f.buildSourceTick;
+    f.frontFar = f.buildingFar;
     f.building = false;
     f.rebuilds++;
   }
@@ -1070,6 +1128,6 @@ export function snapshotPathing(p: PathingState) {
     bossActive: p.bossActive,
     bossNavVersion: p.boss.version,
     bossNavHash: hashInts(p.boss.buildingAt) ^ hashInts(p.boss.enterCost) ^ hashBytes(p.boss.wallAt),
-    bossChase: { ...snapshotField(p.bossChase), seedOnly: p.bossChase.seedOnly, seedFar: p.bossChase.seedFar },
+    bossChase: { ...snapshotField(p.bossChase), seedOnly: p.bossChase.seedOnly, seedFar: p.bossChase.seedFar, buildingFar: p.bossChase.buildingFar, frontFar: p.bossChase.frontFar },
   };
 }

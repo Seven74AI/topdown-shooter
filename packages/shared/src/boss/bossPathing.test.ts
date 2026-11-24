@@ -9,7 +9,7 @@ import { NEUTRAL_INPUT } from "../net/input";
 import { addPlayer } from "../player/player";
 import { startBuild } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
-import { snapshotPathing } from "../zombies/flowField";
+import { flowCellAt, snapshotPathing } from "../zombies/flowField";
 import { BOSS_STATE } from "./bossState";
 import { placeBoss, tickN } from "./testBoss";
 
@@ -82,6 +82,53 @@ describe("Story 6.5 boss pathing (DD2)", () => {
     expect(w.pathing.bossChase.seedFar).toBe(true); // the fallback took over
     expect(moved).toBeGreaterThan(3);
     expect(Math.hypot(w.boss.x - 9.5, w.boss.y - 4)).toBeLessThan(d0 - 3); // closer than it started
+  });
+
+  it("review H1: hide in an unreachable alley, then come out: the fallback lets go and the boss reaches you (no latched dumb field)", () => {
+    const w = setup();
+    const p = addPlayer(w, "p0", 9.5, 4); // the NW alley: no 4 m body gets near
+    placeBoss(w, 34, 12);
+    noAttacks(w);
+    w.boss.cooldown.slam = 1_000_000;
+    let sawFar = false;
+    for (let t = 0; t < 10 * 20; t++) {
+      tickN(w);
+      if (w.pathing.bossChase.frontFar) sawFar = true;
+    }
+    expect(sawFar).toBe(true);
+    // Out into the open street, far from where the boss waited.
+    for (const [tx, ty] of [
+      [16, 22],
+      [24, 26],
+      [44, 16],
+    ] as const) {
+      p.x = tx;
+      p.y = ty;
+      let reached = -1;
+      for (let t = 0; t < 30 * 20 && reached < 0; t++) {
+        tickN(w);
+        if (Math.hypot(p.x - w.boss.x, p.y - w.boss.y) <= R + p.radiusM + balance.boss.slam.triggerM) reached = t;
+      }
+      expect(reached, `to ${tx},${ty}`).toBeGreaterThanOrEqual(0);
+      expect(w.pathing.bossChase.frontFar).toBe(false);
+    }
+  });
+
+  it("review H1: the fallback seeds by walking distance — the boss ends walking-closer to an unreachable target than it started", () => {
+    const w = setup();
+    addPlayer(w, "p0", 9.5, 4); // the NW alley
+    placeBoss(w, 34, 12);
+    noAttacks(w);
+    w.boss.cooldown.slam = 1_000_000;
+    tickN(w, 30);
+    const nav = w.pathing.nav;
+    const startD = w.pathing.farDist[flowCellAt(nav, 34, 12)] as number;
+    tickN(w, 40 * 20);
+    expect(w.pathing.bossChase.frontFar || w.pathing.bossChase.seedFar).toBe(true);
+    const endD = w.pathing.farDist[flowCellAt(nav, w.boss.x, w.boss.y)] as number;
+    expect(startD).toBeGreaterThan(0);
+    expect(endD).toBeGreaterThanOrEqual(0);
+    expect(endD).toBeLessThan(startD - 10); // ≥ 5 m closer by the paths a survivor takes
   });
 
   it("the boss field idles without a boss (no rebuilds, no share of the ticks)", () => {
@@ -188,3 +235,21 @@ describe("Story 6.5 D1: its body pushes players out; zombies too", () => {
 function p0r(): number {
   return balance.player.radiusM;
 }
+
+describe("Story 6.5 review L6: pinned between the boss and a wall", () => {
+  it("a survivor pressed against a map box by the walking boss never ends a tick inside its body (or the box)", () => {
+    const w = setup();
+    // The city bus (30–40 × 14.5–17): the survivor against its north face, the boss coming from the north.
+    const p = addPlayer(w, "p0", 35, 14.5 - balance.player.radiusM);
+    placeBoss(w, 35.3, 8);
+    noAttacks(w);
+    w.boss.cooldown.slam = 1_000_000;
+    let worst = Infinity;
+    for (let t = 0; t < 20 * 20; t++) {
+      tickN(w);
+      worst = Math.min(worst, Math.hypot(p.x - w.boss.x, p.y - w.boss.y) - (R + p.radiusM));
+      expect(inBox(p.x, p.y, p.radiusM, w.obstacles.solids)).toBe(false);
+    }
+    expect(worst).toBeGreaterThanOrEqual(-1e-6);
+  });
+});
