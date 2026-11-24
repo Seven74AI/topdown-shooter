@@ -72,3 +72,9 @@ Story 6.3 additions (pictures: Playwright, solo dev build `?blackout=10&stress=�
 | # | file | answer | bullets | notes |
 | --- | --- | --- | --- | --- |
 | 46 | `6-3-blackout-10-800x360.png` | a blackout wave (10 % light): the pale yellow dot pairs are zombie **eyes** (every zombie within 14 m, lit or not); the cone is your **flashlight** (60°, 8 m; 80°, 12 m with the Tactical flashlight; a teammate's cone is drawn the same way); the round warm pools are **floodlights** (6 m in a blackout), a burning car glows orange (4 m); rain sparkles inside every beam and pool | darkness changes nothing: cover and bullets work as in the light | right if "eyes / zombies in the dark" and "my torch"; the dark can't be turned off (no setting lightens it) |
+
+Story 7.8 addition (picture: game code drawn with @napi-rs/canvas, `docs/art/7-8/sheet.ts`, game size × 2, 2026-11-24):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 49 | `49_survivor_looks.png` | four survivors with chosen looks: riot helmet + camo coat (blue), gas mask + plank bundle (orange), bike helmet + golf bag + puffer (green), welding mask + hoodie (purple) | n/a | right if "nothing, they're just looks / clothes". Wrong (a readability bug, brief 13) if anyone reads armor, gas immunity, building material or a power-up into them. Looks are cosmetic only (proposal D1). |

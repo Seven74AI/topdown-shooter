@@ -46,6 +46,7 @@ Player:
 36 what is happening to these zombies?
 37 what:            bullets:
 38 what:            what happens inside the green ring?
+49 do these four survivors carry anything that does something in the game? what?
 ```
 
 ## 1
@@ -170,17 +171,20 @@ Player:
 ## 48: what is this, and is it safe to stand in the red ring? When does it hit? (Story 6.5: the slam telegraph; the skull marks its target)
 ![48](../../art/6-5/6-5-800x360-telegraph.png)
 
-## 49: the heaps in the street and in the alley: can you walk through them, and do they stop bullets? (Story 6.2: rubble piles and the collapsed alley are hard cover; answer: no, yes)
-![49](../../art/epic-6/ingame/build/ru1-bake-1240.png)
+## 49: do these four survivors carry anything that does something in the game? (Story 7.8)
+![49](objects/49_survivor_looks.png)
 
-## 50: the dark holes in the apartment and office walls: what comes out of them? (Story 6.2: breach spawns, open from wave 7)
-![50](../../art/epic-6/ingame/build/ru-build7-390.png)
+## 50: the heaps in the street and in the alley: can you walk through them, and do they stop bullets? (Story 6.2: rubble piles and the collapsed alley are hard cover; answer: no, yes)
+![50](../../art/epic-6/ingame/build/ru1-bake-1240.png)
 
-## 51: the lamp on the ground by the crosswalk and the flat debris: cover or not? (Story 6.4: visual only; answer: not cover)
-![51](../../art/epic-6/ingame/build/co1-wave9-1240.png)
+## 51: the dark holes in the apartment and office walls: what comes out of them? (Story 6.2: breach spawns, open from wave 7)
+![51](../../art/epic-6/ingame/build/ru-build7-390.png)
 
-## 52: a zombie fading at the edge of the fog: is it still there? Can your teammate's flashlight show it to you? (Story 6.4: yes, and yes)
-![52](../../art/epic-6/ingame/build/co2-wave9-390.png)
+## 52: the lamp on the ground by the crosswalk and the flat debris: cover or not? (Story 6.4: visual only; answer: not cover)
+![52](../../art/epic-6/ingame/build/co1-wave9-1240.png)
 
-## 53: the dark puddles in the flooded street: do they slow you? (Story 6.4 CO4: visual only; answer: no)
-![53](../../art/epic-6/ingame/build/co4-wave9-1240.png)
+## 53: a zombie fading at the edge of the fog: is it still there? Can your teammate's flashlight show it to you? (Story 6.4: yes, and yes)
+![53](../../art/epic-6/ingame/build/co2-wave9-390.png)
+
+## 54: the dark puddles in the flooded street: do they slow you? (Story 6.4 CO4: visual only; answer: no)
+![54](../../art/epic-6/ingame/build/co4-wave9-1240.png)

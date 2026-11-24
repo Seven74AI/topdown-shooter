@@ -1,0 +1,800 @@
+<title>Survivor Parts Round 3</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one dark "night street" sheet, a sticky colour bar, then one band per slot with a card per part
+   (big drawing | game-size street | pick buttons). Single dark look on purpose: it is the game's own night. */
+:root {
+  color-scheme: dark;
+  --asphalt: #121417;
+  --panel: #1b1e22;
+  --panel-2: #23272c;
+  --line: #333840;
+  --fg: #d9d4c7;
+  --muted: #8d8a80;
+  --sodium: #e0a646;      /* streetlight amber: the one accent */
+  --mile: #e0a646;
+  --loot: #b9a4e0;
+  --ok: #7fbf6a;
+  --warn: #e07a5f;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+html, body { background: var(--asphalt); color: var(--fg); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.45; overflow-x: hidden; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--asphalt); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 22px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 2.1rem; letter-spacing: .02em; margin: 0; text-transform: uppercase; text-wrap: balance; }
+h1 span { color: var(--sodium); }
+h2 { font-family: var(--display); font-weight: 700; font-size: 1.5rem; letter-spacing: .03em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+h2 small { font: 400 12px var(--mono); color: var(--muted); letter-spacing: 0; text-transform: none; margin-left: 8px; }
+h3 { font-family: var(--display); font-weight: 500; font-size: 1.15rem; letter-spacing: .03em; text-transform: uppercase; margin: 0; }
+p { margin: 0; }
+.lede { color: var(--muted); max-width: 72ch; margin-top: 6px; }
+.steps { margin: 10px 0 0; padding-left: 20px; max-width: 76ch; display: grid; gap: 3px; }
+.note { color: var(--muted); font-size: 13px; max-width: 80ch; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--asphalt) 92%, transparent); backdrop-filter: blur(4px); border-bottom: 1px solid var(--line); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.colour { display: inline-grid; grid-template-columns: auto auto auto auto; gap: 6px; align-items: center; font-size: 13px; }
+.colour input[type=color] { width: 36px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; }
+.sw { width: 22px; height: 22px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; vertical-align: middle; }
+.arrow { color: var(--muted); font-size: 12px; }
+.ctl { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.ctl input[type=range] { width: 90px; accent-color: var(--sodium); }
+.ctl output { font-family: var(--mono); font-size: 12px; color: var(--fg); min-width: 3ch; }
+button, select { font: inherit; font-size: 13px; color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--sodium); outline-offset: 2px; }
+.band { display: grid; gap: 12px; }
+.bandhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-width: 0; display: grid; gap: 8px; }
+.card.signal { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.card.picked { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); }
+.chead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.pid { font: 400 11.5px var(--mono); color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+.tag { margin-left: auto; font-family: var(--display); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+.tag.s { color: var(--muted); } .tag.m { color: var(--mile); } .tag.l { color: var(--loot); }
+.views { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 8px; align-items: stretch; }
+.views canvas { display: block; border-radius: 4px; background: #16181b; min-width: 0; max-width: 100%; }
+.big { width: 132px; height: 132px; }
+.street { width: 100%; height: 132px; }
+.cap { display: flex; justify-content: space-between; gap: 6px; font: 400 10.5px var(--mono); color: var(--muted); flex-wrap: wrap; }
+.chip { font: 400 10.5px var(--mono); border-radius: 3px; padding: 0 5px; }
+.chip.ok { color: var(--asphalt); background: var(--ok); }
+.chip.bad { color: var(--asphalt); background: var(--warn); }
+.sig { font-size: 12.5px; border-left: 3px solid var(--warn); padding: 2px 0 2px 8px; color: var(--fg); }
+.sig b { color: var(--warn); font-weight: 600; }
+.cmt { font-size: 12.5px; color: var(--muted); }
+.picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.picks button[aria-pressed="true"] { background: var(--sodium); color: #1a1408; border-color: var(--sodium); font-weight: 600; }
+.picks button[data-v="drop"][aria-pressed="true"] { background: var(--warn); border-color: var(--warn); }
+.card textarea { font: inherit; font-size: 13px; color: var(--fg); background: var(--asphalt); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; resize: vertical; min-height: 32px; width: 100%; box-sizing: border-box; }
+.vtoggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.vtoggle button { border: 0; border-radius: 0; padding: 2px 10px; background: transparent; }
+.vtoggle button[aria-pressed="true"] { background: var(--panel-2); color: var(--sodium); }
+.summary { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 10px; }
+.summary textarea { font: 12px/1.5 var(--mono); color: var(--fg); background: var(--asphalt); border: 1px solid var(--line); border-radius: 4px; padding: 8px; width: 100%; box-sizing: border-box; min-height: 160px; }
+.status { font: 400 12px var(--mono); color: var(--muted); }
+.status.live { color: var(--ok); }
+.count { font: 400 12px var(--mono); color: var(--muted); }
+table.legend { border-collapse: collapse; font-size: 13px; }
+table.legend td { padding: 2px 10px 2px 0; vertical-align: middle; }
+.scroll { overflow-x: auto; }
+@media (max-width: 420px) { .views { grid-template-columns: minmax(0, 1fr); } .big { width: 100%; height: auto; aspect-ratio: 1; max-width: 100%; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.grid2.cands { grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); }
+.vrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.vcol { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.vlab { font-size: 13px; color: var(--fg); margin: 0; }
+.vlab b { color: var(--sodium); font-family: var(--display); font-size: 1rem; }
+.tile { width: 64px; height: 64px; display: block; border-radius: 4px; }
+.tilebox { display: inline-flex; align-items: center; gap: 6px; }
+.cap { align-items: center; }
+.views { grid-template-columns: 168px minmax(0, 1fr); }
+.big { width: 168px; height: 168px; }
+.street { height: 168px; }
+@media (max-width: 420px) { .views { grid-template-columns: minmax(0, 1fr); } .big { width: 100%; height: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Survivor <span>parts</span> round 3</h1>
+    <p class="lede">Story 7.8, after your round-2 picks (recorded in <code>docs/epic-7-decisions.md</code>). The accent slot is gone. This round: the cap and backwards cap again, the viking horns, the guitar's position, the lean on the headgear you kept in round 1, and one item each for milestones M5, M7 and M8.</p>
+    <ol class="steps">
+      <li>Everything is drawn as a top view with a slight lean: tall headgear leans back a little so its front face shows (brim, badge, visor, mask), like the bunny ears. The guitar neck and the plant lean back too.</li>
+      <li>Redraws: <b>Pick A</b>, <b>B</b> or <b>C</b>, <b>Redraw again</b> (say what in the note) or <b>Drop</b>. For the lean cards, A is the round-1 drawing and B adds the lean.</li>
+      <li>Milestones: <b>Pick</b> or <b>No</b>, one per milestone.</li>
+      <li>Each drawing also shows the 64 px tile the editor (Story 7.10) would use for it, zoomed on the slot.</li>
+      <li>Your picks save as you click. Tell me in the chat when you're done.</li>
+    </ol>
+  </header>
+
+  <div class="bar" role="group" aria-label="Colours and night light">
+    <span class="colour"><label for="c-top">Top</label><input type="color" id="c-top" value="#b8336a"><span class="arrow">in game</span><span class="sw" id="sw-top"></span></span>
+    <span class="colour"><label for="c-hair">Hair</label><input type="color" id="c-hair" value="#8a5a2b"><span class="arrow">in game</span><span class="sw" id="sw-hair"></span></span>
+    <span class="colour"><label for="c-acc">Accent</label><input type="color" id="c-acc" value="#e0b33a"><span class="arrow">in game</span><span class="sw" id="sw-acc"></span></span>
+    <span class="ctl"><label for="stage">Decay stage</label><select id="stage"><option value="1">1 (no extra dim)</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></span>
+    <button type="button" id="defcol">Default colours</button>
+    <span class="note">Night mute: lightness × 0.62, saturation × 0.8</span>
+    <span class="status" id="status">Picks: connecting…</span>
+  </div>
+
+  <div id="bands"></div>
+
+  <section class="summary" aria-labelledby="h-sum">
+    <h2 id="h-sum">Your picks</h2>
+    <p class="note">The same picks as text, in case the page can't save for you. <span class="count" id="count"></span></p>
+    <div class="picks"><button type="button" id="copy">Copy picks</button><span class="status" id="copymsg"></span></div>
+    <label class="note" for="sumtext">Picks as text</label>
+    <textarea id="sumtext" readonly></textarea>
+  </section>
+</div>
+<script>
+"use strict";
+const TAU = Math.PI * 2;
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+const PPM = 35, BODY_R = 0.4 * PPM; // 14 px
+const SLOT = ["#3d8bff", "#ff8a1f", "#34c759", "#b05cff"];
+// Game colours (spriteArt.ts CHAR): already night-muted.
+const CHAR = { outline: "rgba(6,6,6,0.7)", jacket: "#3c5670", pack: "#26251f", cap: "#1f2326", hair: "#231f1c", survivorSkin: "#c49a7c", gun: "#17181a", skin: "#7c8676" };
+const ZSHIRTS = ["#454c5a", "#574636", "#3b4636", "#625849"];
+
+// ---------- colour helpers ----------
+function rgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function hex(c) { return "#" + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join(""); }
+function shade(h, t) { const f = t < 0 ? 0 : 255, a = Math.abs(t); return hex(rgb(h).map(v => v + (f - v) * a)); }
+function toHsl(h) { const [r, g, b] = rgb(h).map(v => v / 255); const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let H = 0, S = 0; const L = (mx + mn) / 2; if (mx !== mn) { const d = mx - mn; S = L > .5 ? d / (2 - mx - mn) : d / (mx + mn); H = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; H /= 6; } return [H, S, L]; }
+function fromHsl(H, S, L) { if (S === 0) return hex([L * 255, L * 255, L * 255]); const q = L < .5 ? L * (1 + S) : L + S - L * S, p = 2 * L - q; const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < .5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; }; return hex([f(H + 1 / 3) * 255, f(H) * 255, f(H - 1 / 3) * 255]); }
+// cosmetics.json › look (the story's recommended start; the sliders tune lightness and saturation).
+const LOOK = { nightMute: { lightness: 0.62, saturation: 0.8 }, stageDim: [1, 0.96, 0.92, 0.88, 0.84] };
+let stage = 1;
+function nightMute(h) { const [H, S, L] = toHsl(h); return fromHsl(H, S * LOOK.nightMute.saturation, L * LOOK.nightMute.lightness); }
+function stageDim(h, st) { const k = LOOK.stageDim[st - 1]; if (k === 1) return h; const [H, S, L] = toHsl(h); return fromHsl(H, S, L * k); }
+function hash(n) { const s = Math.sin(n) * 43758.5453; return s - Math.floor(s); }
+
+// ---------- path helpers (spriteArt.ts) ----------
+function circle(c, x, y, r) { c.beginPath(); c.arc(x, y, r, 0, TAU); }
+function ell(c, x, y, rx, ry, a = 0) { c.beginPath(); c.ellipse(x, y, Math.max(.01, rx), Math.max(.01, ry), a, 0, TAU); }
+function rrect(c, x, y, w, h, r) { const q = Math.max(0, Math.min(r, w / 2, h / 2)); c.beginPath(); c.moveTo(x + q, y); c.lineTo(x + w - q, y); c.quadraticCurveTo(x + w, y, x + w, y + q); c.lineTo(x + w, y + h - q); c.quadraticCurveTo(x + w, y + h, x + w - q, y + h); c.lineTo(x + q, y + h); c.quadraticCurveTo(x, y + h, x, y + h - q); c.lineTo(x, y + q); c.quadraticCurveTo(x, y, x + q, y); c.closePath(); }
+function fs(c, col) { c.fillStyle = col; c.fill(); c.stroke(); }
+function resetLine(c, r) { c.strokeStyle = CHAR.outline; c.lineWidth = Math.max(1, r * .08); c.lineCap = "butt"; }
+
+// ---------- catalogue (proposal § 3, § 6; story 7.8 Dev Notes) ----------
+// u: "s" starter, "mN" milestone, "l" loot. col: which picker colour the part takes. B: a safer drawing exists.
+const SKINS = ["#c49a7c", "#e2c3ab", "#d3ab8e", "#ab8062", "#93684b", "#7a5239", "#5f3e2b", "#4a2f21"]; // preset 1 = CHAR.survivorSkin
+const MILES = { m1: "Survive wave 5", m2: "First extraction from Downtown", m3: "Kill the Behemoth", m4: "Endless wave 15", m5: "Revive 25 teammates", m6: "1,000 zombie kills", m7: "Build 100 barricades", m8: "Extract with all 4 alive", m9: "20 runs played", m10: "Wave 10 without going down" };
+const CAT = {
+  top: [
+    { id: "jacket", name: "Jacket", u: "s", col: "top", note: "Today's jacket, exactly." },
+    { id: "hoodie", name: "Hoodie", u: "s", col: "top", note: "Hood bunched on the back, two drawstrings." },
+    { id: "coat", name: "Long coat", u: "s", col: "top", note: "Longer body, tails behind, lapels." },
+    { id: "track", name: "Tracksuit", u: "s", col: "top", note: "Light piping on the arms and chest." },
+    { id: "puffer", name: "Puffer", u: "s", col: "top", note: "Quilted ridges." },
+    { id: "leather", name: "Leather jacket", u: "m5", col: "none", note: "Fixed dark brown, a sheen and a zip." },
+    { id: "camo", name: "Camo coat", u: "m6", col: "none", note: "Fixed olive with blots." },
+    { id: "floral", name: "Floral shirt", u: "l", col: "top", B: true, sig: "Pink-red flowers could read as blood or a Runner's red shirt.", bnote: "B: flowers in yellow, white and pale blue only." },
+    { id: "robe", name: "Bathrobe", u: "l", col: "top", note: "Wide body, lapel ring, belt." },
+  ],
+  head: [
+    { id: "none", name: "None", u: "s", col: "none" },
+    { id: "cap", name: "Cap", u: "s", col: "accent", hides: true, note: "Today's cap. Takes the accent colour (default: the game's cap grey)." },
+    { id: "capb", name: "Cap, backwards", u: "s", col: "accent" },
+    { id: "beanie", name: "Beanie", u: "s", col: "accent", hides: true },
+    { id: "hood", name: "Hood up", u: "s", col: "top", hides: true, note: "Takes the top colour." },
+    { id: "bandana", name: "Bandana", u: "s", col: "accent" },
+    { id: "bike", name: "Bike helmet", u: "s", col: "none", hides: true, B: true, sig: "Grey shell could read as armor (FR48 armor gear).", bnote: "B: shell in the accent colour, a sports helmet, not gear." },
+    { id: "hard", name: "Hard hat", u: "s", col: "none", hides: true, B: true, sig: "Ochre could read as armor, or as amber (\"an event you can use\").", bnote: "B: same hat in the accent colour." },
+    { id: "fire", name: "Firefighter helmet", u: "m1", col: "none", hides: true },
+    { id: "riot", name: "Riot helmet", u: "m2", col: "none", hides: true, B: true, sig: "Black dome + visor sheen reads as armor.", bnote: "B: matte olive dome, no visor, chin strap." },
+    { id: "gas", name: "Gas mask", u: "m3", col: "none", hides: false, B: true, sig: "Could read as Bloater-gas immunity.", bnote: "B: a small cloth dust mask, no filters." },
+    { id: "hockey", name: "Hockey mask", u: "m4", col: "none", hides: false, B: true, sig: "The red scratch is the only red on a survivor.", bnote: "B: no red scratch." },
+    { id: "cone", name: "Traffic cone", u: "l", col: "none", hides: true },
+    { id: "chef", name: "Chef's hat", u: "l", col: "none", hides: true },
+    { id: "pot", name: "Cooking pot", u: "l", col: "none", hides: true },
+    { id: "party", name: "Party hat", u: "l", col: "none" },
+    { id: "bunny", name: "Bunny beanie", u: "l", col: "none", hides: true },
+  ],
+  hair: [
+    { id: "short", name: "Short", u: "s", col: "hair" },
+    { id: "buzz", name: "Buzz cut", u: "s", col: "hair" },
+    { id: "tied", name: "Tied back", u: "s", col: "hair" },
+    { id: "curly", name: "Curly", u: "s", col: "hair" },
+    { id: "bald", name: "Bald", u: "s", col: "none" },
+  ],
+  pack: [
+    { id: "backpack", name: "Backpack", u: "s", col: "none", note: "Today's backpack, exactly." },
+    { id: "duffel", name: "Duffel", u: "s", col: "none" },
+    { id: "frame", name: "Hiking pack", u: "s", col: "none" },
+    { id: "sling", name: "Sling bag", u: "s", col: "none" },
+    { id: "none", name: "None", u: "s", col: "none" },
+    { id: "guitar", name: "Guitar case", u: "m9", col: "none" },
+    { id: "ammo", name: "Ammo rig", u: "m10", col: "none", B: true, sig: "Pouches could read as gear (more ammo).", bnote: "B: a canvas field satchel, no pouches." },
+    { id: "teddy", name: "Teddy bear", u: "l", col: "none" },
+    { id: "cooler", name: "Cooler box", u: "l", col: "none", B: true, sig: "A white box reads as a pick-up (white = pick-ups) or a medic bag.", bnote: "B: grey-green cooler, dark lid." },
+  ],
+  acc: [
+    { id: "none", name: "None", u: "s", col: "none" },
+    { id: "scarf", name: "Scarf", u: "s", col: "accent" },
+    { id: "stripes", name: "Reflective stripes", u: "s", col: "accent", B: true, sig: "Bright strips could read as a flashlight glint in blackout.", bnote: "B: matte stripes in the accent colour, no shine." },
+    { id: "patch", name: "Shoulder patch", u: "s", col: "accent" },
+    { id: "harness", name: "Work harness", u: "m7", col: "accent" },
+    { id: "team", name: "Team patch", u: "m8", col: "accent", note: "Moved from the backpack to the shoulder, so it also shows with no pack or with the flamethrower's tanks." },
+    { id: "cape", name: "Cape", u: "l", col: "accent", note: "Drawn over the back (the game's order: accent after the body)." },
+  ],
+  skin: SKINS.map((h, i) => ({ id: String(i + 1), name: "Skin " + (i + 1), u: "s", col: "none", hexv: h, note: i === 0 ? "Today's skin (default)." : "" })),
+};
+const SLOTS = [["top", "Top", "body + arms, takes the top colour"], ["head", "Headgear", "changes the head outline"], ["hair", "Hair", "shows when the headgear leaves it showing"], ["pack", "Backpack", "a weapon's back piece still replaces it"], ["acc", "Accent", "takes the accent colour"], ["skin", "Skin", "8 presets, no picker"]];
+const DEFAULT = { top: "jacket", head: "cap", hair: "short", pack: "backpack", acc: "none", skin: "1" };
+const DEFAULT_COLS = { top: CHAR.jacket, hair: CHAR.hair, acc: CHAR.cap };
+function item(slot, id) { return CAT[slot].find(o => o.id === id); }
+
+// ---------- the survivor, part by part (facing +x, body at 0,0, r = body radius px) ----------
+// Game draw order: back piece → gun → arms → pack → top body → accent → head (skin) → hair → headgear.
+// col = { top, hair, acc, skin } final colours; v = { "slot_id": "B" } chosen variants.
+function drawSurvivor(c, r, L, col, v) {
+  c.lineJoin = "round"; c.strokeStyle = CHAR.outline; c.lineWidth = Math.max(1, r * .08);
+  c.fillStyle = CHAR.gun; rrect(c, r * .3, -r * .13, r * 1.75, r * .26, 1); c.fill();
+  drawArms(c, r, L.top, col.top);
+  drawPack(c, r, L.pack, v["pack_" + L.pack]);
+  drawTop(c, r, L, col.top, v["top_" + L.top]);
+  drawAccent(c, r, L.acc, col.acc, v["acc_" + L.acc]);
+  c.fillStyle = col.skin; circle(c, r * .12, 0, r * .4); c.fill(); c.stroke();
+  const hg = item("head", L.head);
+  if (!(hg && hg.hides)) drawHair(c, r, L.hair, col.hair);
+  drawHead(c, r, L.head, col, v["head_" + L.head]);
+}
+function drawArms(c, r, t, top) {
+  c.strokeStyle = t === "leather" ? "#2e221b" : t === "camo" ? "#4a4e35" : top;
+  c.lineCap = "round"; c.lineWidth = r * .3;
+  c.beginPath(); c.moveTo(0, -r * .6); c.lineTo(r * .85, -r * .1); c.moveTo(0, r * .6); c.lineTo(r * .55, r * .12); c.stroke();
+  if (t === "track") { c.strokeStyle = shade(top, .55); c.lineWidth = r * .09; c.beginPath(); c.moveTo(0, -r * .68); c.lineTo(r * .8, -r * .2); c.moveTo(0, r * .68); c.lineTo(r * .5, r * .22); c.stroke(); }
+  resetLine(c, r);
+}
+function drawTop(c, r, L, top, variant) {
+  const t = L.top;
+  if (t === "coat" || t === "camo") {
+    const base = t === "camo" ? "#4a4e35" : top;
+    c.beginPath(); c.moveTo(-r * .5, -r * .5); c.lineTo(-r * 1.0, -r * .35); c.lineTo(-r * 1.0, r * .35); c.lineTo(-r * .5, r * .5); c.closePath(); fs(c, shade(base, -.12));
+    ell(c, -r * .08, 0, r * .58, r * .94); fs(c, base);
+    if (t === "camo") { const blots = ["#363a27", "#5f5a3c", "#2b2d22"]; for (let i = 0; i < 9; i++) { c.fillStyle = blots[i % 3]; ell(c, -r * .45 + hash(i + 3) * r * .8, -r * .7 + hash(i * 7 + 1) * r * 1.4, r * .16, r * .1, hash(i) * 3); c.fill(); } ell(c, -r * .08, 0, r * .58, r * .94); c.stroke(); }
+    c.fillStyle = shade(base, -.25); c.beginPath(); c.moveTo(r * .05, -r * .5); c.lineTo(r * .4, -r * .28); c.lineTo(r * .05, -r * .2); c.closePath(); c.fill(); c.beginPath(); c.moveTo(r * .05, r * .5); c.lineTo(r * .4, r * .28); c.lineTo(r * .05, r * .2); c.closePath(); c.fill();
+    return;
+  }
+  if (t === "leather") {
+    ell(c, -r * .05, 0, r * .53, r * .9); fs(c, "#2e221b");
+    c.strokeStyle = "rgba(255,240,220,0.18)"; c.lineWidth = r * .08; c.beginPath(); c.ellipse(-r * .05, 0, r * .38, r * .72, 0, -2.3, -.9); c.stroke();
+    c.strokeStyle = "#8c8576"; c.lineWidth = r * .04; c.beginPath(); c.moveTo(r * .2, -r * .55); c.lineTo(r * .42, -r * .1); c.stroke();
+    resetLine(c, r); return;
+  }
+  if (t === "robe") {
+    ell(c, -r * .08, 0, r * .6, r * .96); fs(c, top);
+    c.strokeStyle = shade(top, .35); c.lineWidth = r * .14; ell(c, -r * .08, 0, r * .52, r * .88); c.stroke();
+    c.strokeStyle = shade(top, -.3); c.lineWidth = r * .1; c.beginPath(); c.moveTo(-r * .1, -r * .9); c.lineTo(-r * .1, r * .9); c.stroke();
+    resetLine(c, r); return;
+  }
+  // jacket (today's) and the tops built on it
+  c.fillStyle = top; ell(c, -r * .05, 0, r * .52, r * .9); c.fill(); c.stroke();
+  if (t === "hoodie" && L.head !== "hood") { ell(c, -r * .32, 0, r * .28, r * .42); fs(c, shade(top, -.18)); c.strokeStyle = shade(top, .5); c.lineWidth = r * .06; c.beginPath(); c.moveTo(r * .38, -r * .14); c.lineTo(r * .5, -r * .2); c.moveTo(r * .38, r * .14); c.lineTo(r * .5, r * .2); c.stroke(); resetLine(c, r); }
+  if (t === "puffer") { c.strokeStyle = shade(top, -.32); c.lineWidth = r * .05; for (const x of [-.38, -.12, .14]) { c.beginPath(); c.ellipse(x * r, 0, r * .07, r * .86 - Math.abs(x) * r * .4, 0, -Math.PI / 2, Math.PI / 2); c.stroke(); } resetLine(c, r); }
+  if (t === "track") { c.strokeStyle = shade(top, .55); c.lineWidth = r * .09; c.beginPath(); c.ellipse(-r * .05, 0, r * .44, r * .8, 0, -2.2, -1.0); c.stroke(); c.beginPath(); c.ellipse(-r * .05, 0, r * .44, r * .8, 0, 1.0, 2.2); c.stroke(); resetLine(c, r); }
+  if (t === "floral") { const fl = variant === "B" ? ["#e8d27a", "#f1efe6", "#9fb8d8"] : ["#e8d27a", "#f1efe6", "#e58f8f"]; for (let i = 0; i < 14; i++) { c.fillStyle = fl[i % 3]; circle(c, -r * .45 + hash(i * 3 + 9) * r * .8, -r * .72 + hash(i * 5 + 2) * r * 1.44, r * .13); c.fill(); } }
+}
+function drawPack(c, r, p, variant) {
+  if (p === "none") return;
+  if (p === "backpack") { c.fillStyle = CHAR.pack; rrect(c, -r * .98, -r * .48, r * .5, r * .96, r * .15); c.fill(); } // today's: fill only
+  else if (p === "duffel") { rrect(c, -r * .92, -r * .82, r * .42, r * 1.64, r * .2); fs(c, "#3b3f2f"); c.strokeStyle = "#20221a"; c.lineWidth = r * .05; for (const y of [-.4, .4]) { c.beginPath(); c.moveTo(-r * .92, y * r); c.lineTo(-r * .5, y * r); c.stroke(); } resetLine(c, r); }
+  else if (p === "frame") { rrect(c, -r * 1.12, -r * .55, r * .66, r * 1.1, r * .12); fs(c, "#3a3326"); rrect(c, -r * 1.22, -r * .7, r * .28, r * 1.4, r * .14); fs(c, "#4d5a3a"); c.strokeStyle = "#2f3824"; c.lineWidth = r * .04; for (const y of [-.35, 0, .35]) { c.beginPath(); c.moveTo(-r * 1.22, y * r); c.lineTo(-r * .94, y * r); c.stroke(); } resetLine(c, r); }
+  else if (p === "sling") { c.save(); c.translate(-r * .62, r * .45); c.rotate(.5); rrect(c, -r * .25, -r * .17, r * .5, r * .34, r * .1); fs(c, "#2c2a27"); c.restore(); c.strokeStyle = "#1a1917"; c.lineWidth = r * .08; c.beginPath(); c.moveTo(-r * .5, r * .55); c.lineTo(r * .25, -r * .62); c.stroke(); resetLine(c, r); }
+  else if (p === "guitar") { c.save(); c.translate(-r * .85, 0); c.rotate(.35); ell(c, 0, r * .45, r * .32, r * .38); fs(c, "#141416"); ell(c, 0, -r * .2, r * .24, r * .3); fs(c, "#141416"); rrect(c, -r * .09, -r * 1.1, r * .18, r * .7, r * .06); fs(c, "#141416"); c.restore(); }
+  else if (p === "ammo") {
+    if (variant === "B") { rrect(c, -r * 1.02, -r * .5, r * .54, r * 1.0, r * .14); fs(c, "#5a4a33"); c.fillStyle = "#47392a"; rrect(c, -r * 1.02, -r * .5, r * .24, r * 1.0, r * .1); c.fill(); }
+    else { rrect(c, -r * 1.0, -r * .52, r * .52, r * 1.04, r * .1); fs(c, "#3d4230"); for (const y of [-.36, -.04, .28]) { rrect(c, -r * 1.12, y * r, r * .2, r * .26, r * .04); fs(c, "#4b5139"); } }
+  }
+  else if (p === "teddy") { const b = "#7a5634"; circle(c, -r * .82, -r * .32, r * .14); fs(c, b); circle(c, -r * .82, r * .32, r * .14); fs(c, b); circle(c, -r * .8, 0, r * .36); fs(c, b); c.fillStyle = "#b08860"; ell(c, -r * 1.06, 0, r * .12, r * .14); c.fill(); c.fillStyle = "#0d0b09"; circle(c, -r * .95, -r * .12, r * .04); c.fill(); circle(c, -r * .95, r * .12, r * .04); c.fill(); }
+  else if (p === "cooler") {
+    const body = variant === "B" ? "#7d857a" : "#c9cdc6", lid = variant === "B" ? "#2f3a33" : "#3a6b98";
+    rrect(c, -r * 1.06, -r * .55, r * .58, r * 1.1, r * .08); fs(c, body); c.fillStyle = lid; c.fillRect(-r * 1.06, -r * .55, r * .14, r * 1.1); c.strokeStyle = shade(body, -.35); c.lineWidth = r * .06; c.beginPath(); c.moveTo(-r * .78, -r * .3); c.lineTo(-r * .78, r * .3); c.stroke(); resetLine(c, r);
+  }
+}
+function drawAccent(c, r, a, acc, variant) {
+  if (a === "none") return;
+  if (a === "cape") { c.beginPath(); c.moveTo(-r * .2, -r * .85); c.quadraticCurveTo(-r * 1.5, -r * 1.05, -r * 1.75, -r * .1); c.quadraticCurveTo(-r * 1.6, r * .2, -r * 1.75, r * .35); c.quadraticCurveTo(-r * 1.4, r * 1.05, -r * .2, r * .85); c.quadraticCurveTo(-r * .45, 0, -r * .2, -r * .85); c.closePath(); fs(c, acc); return; }
+  if (a === "scarf") { c.strokeStyle = acc; c.lineCap = "round"; c.lineWidth = r * .2; c.beginPath(); c.moveTo(-r * .25, r * .15); c.quadraticCurveTo(-r * .8, r * .35, -r * 1.25, r * .2); c.stroke(); c.lineCap = "butt"; c.lineWidth = r * .22; ell(c, r * .1, 0, r * .4, r * .45); c.stroke(); resetLine(c, r); return; }
+  if (a === "stripes") { c.strokeStyle = variant === "B" ? acc : shade(acc, .45); c.lineWidth = r * .09; c.beginPath(); c.moveTo(-r * .3, -r * .8); c.lineTo(-r * .3, r * .8); c.moveTo(-r * .48, -r * .55); c.lineTo(-r * .48, r * .55); c.stroke(); resetLine(c, r); return; }
+  if (a === "patch") { circle(c, r * .02, -r * .66, r * .21); fs(c, acc); return; }
+  if (a === "harness") { c.strokeStyle = acc; c.lineWidth = r * .1; c.beginPath(); c.moveTo(-r * .45, -r * .7); c.lineTo(r * .3, r * .65); c.moveTo(-r * .45, r * .7); c.lineTo(r * .3, -r * .65); c.stroke(); resetLine(c, r); rrect(c, -r * .15, -r * .98, r * .3, r * .2, 2); fs(c, shade(acc, -.3)); rrect(c, -r * .15, r * .78, r * .3, r * .2, 2); fs(c, shade(acc, -.3)); return; }
+  if (a === "team") { rrect(c, -r * .2, -r * .86, r * .36, r * .36, r * .06); fs(c, "#1b1d20"); c.fillStyle = acc; for (let i = 0; i < 4; i++) { circle(c, -r * .1 + (i % 2) * r * .16, -r * .76 + (i >> 1) * r * .16, r * .06); c.fill(); } return; }
+}
+function drawHair(c, r, h, col) {
+  if (h === "bald") { c.fillStyle = "rgba(255,255,255,0.16)"; ell(c, r * .02, -r * .12, r * .12, r * .07, .4); c.fill(); return; }
+  c.fillStyle = col;
+  if (h === "buzz") { c.globalAlpha = .6; ell(c, r * .02, 0, r * .34, r * .38); c.fill(); c.globalAlpha = 1; return; }
+  if (h === "curly") { for (let i = 0; i < 9; i++) { const a = Math.PI * .55 + i / 8 * Math.PI * .9; circle(c, r * .02 + Math.cos(a) * r * .3, Math.sin(a) * r * .32, r * .16); c.fill(); } ell(c, 0, 0, r * .3, r * .34); c.fill(); return; }
+  ell(c, r * .02, 0, r * .34, r * .39); c.fill();
+  if (h === "tied") { ell(c, -r * .54, 0, r * .3, r * .14); fs(c, col); c.fillStyle = "#151515"; c.fillRect(-r * .3, -r * .06, r * .06, r * .12); }
+}
+function drawHead(c, r, h, col, variant) {
+  const acc = col.acc, top = col.top;
+  switch (h) {
+    case "none": return;
+    case "cap": c.fillStyle = acc; ell(c, r * .02, 0, r * .36, r * .4); c.fill(); c.beginPath(); c.ellipse(r * .38, 0, r * .16, r * .3, 0, -Math.PI / 2, Math.PI / 2); c.fill(); return; // today's cap
+    case "capb": c.fillStyle = acc; ell(c, r * .08, 0, r * .36, r * .4); c.fill(); c.beginPath(); c.ellipse(-r * .26, 0, r * .16, r * .3, 0, Math.PI / 2, Math.PI * 1.5); c.fill(); return;
+    case "beanie": ell(c, r * .04, 0, r * .4, r * .42); fs(c, acc); c.strokeStyle = shade(acc, .25); c.lineWidth = r * .07; ell(c, r * .04, 0, r * .3, r * .33); c.stroke(); c.fillStyle = shade(acc, .25); circle(c, 0, 0, r * .1); c.fill(); resetLine(c, r); return;
+    case "bunny": ell(c, r * .04, 0, r * .4, r * .42); fs(c, "#d9c9c4"); for (const s of [-1, 1]) { ell(c, -r * .45, s * r * .2, r * .34, r * .1, s * .25); fs(c, "#d9c9c4"); c.fillStyle = "#c98d97"; ell(c, -r * .45, s * r * .2, r * .24, r * .045, s * .25); c.fill(); } return;
+    case "hood": ell(c, 0, 0, r * .46, r * .48); fs(c, shade(top, -.12)); c.fillStyle = "rgba(0,0,0,0.35)"; ell(c, r * .3, 0, r * .12, r * .26); c.fill(); return;
+    case "bandana": c.strokeStyle = acc; c.lineWidth = r * .14; c.beginPath(); c.ellipse(r * .06, 0, r * .3, r * .38, 0, Math.PI * .6, Math.PI * 1.4, true); c.stroke(); c.fillStyle = acc; c.beginPath(); c.moveTo(-r * .3, 0); c.lineTo(-r * .62, -r * .14); c.lineTo(-r * .58, r * .12); c.closePath(); c.fill(); resetLine(c, r); return;
+    case "bike": ell(c, r * .04, 0, r * .46, r * .4); fs(c, variant === "B" ? acc : "#5f6a76"); c.fillStyle = "#1c2026"; for (const y of [-.2, 0, .2]) { rrect(c, -r * .2, y * r - r * .035, r * .34, r * .07, r * .03); c.fill(); } return;
+    case "hard": { const a = variant === "B" ? acc : "#9a7a2c"; ell(c, r * .1, 0, r * .5, r * .48); fs(c, a); ell(c, r * .08, 0, r * .38, r * .36); fs(c, shade(a, .12)); c.strokeStyle = shade(a, -.2); c.lineWidth = r * .07; c.beginPath(); c.moveTo(-r * .28, 0); c.lineTo(r * .44, 0); c.stroke(); resetLine(c, r); return; }
+    case "fire": c.beginPath(); c.moveTo(r * .4, -r * .3); c.quadraticCurveTo(-r * .9, -r * .5, -r * .7, 0); c.quadraticCurveTo(-r * .9, r * .5, r * .4, r * .3); c.closePath(); fs(c, "#1e1f22"); ell(c, r * .08, 0, r * .38, r * .38); fs(c, "#26272b"); c.strokeStyle = "#a6913a"; c.lineWidth = r * .08; ell(c, r * .08, 0, r * .3, r * .3); c.stroke(); resetLine(c, r); return;
+    case "riot":
+      if (variant === "B") { ell(c, r * .06, 0, r * .44, r * .44); fs(c, "#3a3f31"); c.strokeStyle = "#23261e"; c.lineWidth = r * .06; c.beginPath(); c.ellipse(r * .06, 0, r * .3, r * .3, 0, -.6, .6); c.stroke(); resetLine(c, r); return; }
+      ell(c, r * .06, 0, r * .46, r * .46); fs(c, "#16181b"); c.fillStyle = "rgba(120,150,175,0.55)"; c.beginPath(); c.ellipse(r * .1, 0, r * .46, r * .4, 0, -1.0, 1.0); c.lineTo(r * .25, 0); c.closePath(); c.fill(); return;
+    case "gas":
+      if (variant === "B") { c.strokeStyle = "#3b3a36"; c.lineWidth = r * .05; ell(c, r * .14, 0, r * .34, r * .4); c.stroke(); resetLine(c, r); ell(c, r * .46, 0, r * .12, r * .2); fs(c, "#77746b"); return; }
+      c.strokeStyle = "#111"; c.lineWidth = r * .07; ell(c, r * .1, 0, r * .36, r * .4); c.stroke(); resetLine(c, r); ell(c, r * .42, 0, r * .14, r * .2); fs(c, "#2c2f2b"); for (const s of [-1, 1]) { ell(c, r * .5, s * r * .26, r * .12, r * .12); fs(c, "#55594f"); } return;
+    case "hockey": ell(c, r * .34, 0, r * .16, r * .32); fs(c, "#d8d4c8"); c.fillStyle = "#222"; for (const y of [-.14, .14]) { ell(c, r * .42, y * r, r * .04, r * .06); c.fill(); } if (variant !== "B") { c.strokeStyle = "#8b2b26"; c.lineWidth = r * .03; c.beginPath(); c.moveTo(r * .3, -r * .28); c.lineTo(r * .36, -r * .02); c.stroke(); resetLine(c, r); } return;
+    case "cone": c.save(); c.rotate(.785); rrect(c, -r * .42, -r * .42, r * .84, r * .84, r * .08); fs(c, "#b45a1e"); c.restore(); circle(c, r * .02, 0, r * .34); fs(c, "#c8692a"); c.strokeStyle = "#e3ddd0"; c.lineWidth = r * .08; circle(c, r * .02, 0, r * .22); c.stroke(); c.fillStyle = "#c8692a"; circle(c, r * .02, 0, r * .1); c.fill(); resetLine(c, r); return;
+    case "chef": for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; circle(c, r * .04 + Math.cos(a) * r * .28, Math.sin(a) * r * .28, r * .22); fs(c, "#e4e1d8"); } circle(c, r * .04, 0, r * .3); c.fillStyle = "#e4e1d8"; c.fill(); return;
+    case "pot": rrect(c, -r * .1, r * .3, r * .16, r * .58, r * .06); fs(c, "#1d1d1f"); circle(c, r * .04, 0, r * .44); fs(c, "#7d8186"); c.strokeStyle = "#5c6065"; c.lineWidth = r * .06; circle(c, r * .04, 0, r * .32); c.stroke(); resetLine(c, r); return;
+    case "party": circle(c, r * .04, 0, r * .26); fs(c, "#3c7ab8"); c.strokeStyle = "#e0c447"; c.lineWidth = r * .07; circle(c, r * .04, 0, r * .15); c.stroke(); c.fillStyle = "#e05a7a"; circle(c, r * .04, 0, r * .08); c.fill(); resetLine(c, r); return;
+  }
+}
+
+// =====================================================================================
+// Round 2 (designer picks 2026-11-24): redraws and replacement candidates.
+// Rule for round 2: a top view with a slight lean. Tall things (headgear, guitar neck, plant) lean back a little,
+// so their front face shows (brim, badge, visor, mask): a darker side wall under a top shifted back by TL × r.
+// =====================================================================================
+const TL = 0.08;
+const sh = shade;
+function wall(c, r, x, y, rx, ry, h, col) { // base drum at x, top will sit at x - h (r units)
+  c.fillStyle = col; ell(c, r * x, r * y, r * rx, r * ry); c.fill(); c.stroke();
+  c.fillStyle = col; c.fillRect(r * (x - h), r * (y - ry), r * h, r * ry * 2);
+  c.beginPath(); c.moveTo(r * (x - h), r * (y - ry)); c.lineTo(r * x, r * (y - ry)); c.moveTo(r * (x - h), r * (y + ry)); c.lineTo(r * x, r * (y + ry)); c.stroke();
+}
+function poly(c, r, pts) { c.beginPath(); c.moveTo(r * pts[0][0], r * pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(r * pts[i][0], r * pts[i][1]); c.closePath(); }
+function line(c, r, x1, y1, x2, y2, col, w, cap) { c.strokeStyle = col; c.lineWidth = r * w; c.lineCap = cap || "butt"; c.beginPath(); c.moveTo(r * x1, r * y1); c.lineTo(r * x2, r * y2); c.stroke(); resetLine(c, r); }
+function cap2(c, r, A, twoTone, back) {
+  const x0 = back ? 0.06 : -0.02;
+  if (back) { c.beginPath(); c.ellipse(-r * .28, 0, r * .28, r * .32, 0, Math.PI / 2, Math.PI * 1.5); c.closePath(); fs(c, sh(A, -.22)); }
+  else { c.beginPath(); c.ellipse(r * .36, 0, r * .3, r * .34, 0, -Math.PI / 2, Math.PI / 2); c.closePath(); fs(c, sh(A, -.22)); }
+  wall(c, r, x0 + .06, 0, .38, .41, .06, sh(A, -.35));
+  ell(c, r * x0, 0, r * .36, r * .39); fs(c, A);
+  if (twoTone) { c.save(); ell(c, r * x0, 0, r * .36, r * .39); c.clip(); c.fillStyle = sh(A, .35); c.fillRect(r * (x0 + .04), -r, r, r * 2); c.restore(); ell(c, r * x0, 0, r * .36, r * .39); c.stroke(); }
+  const bx = x0 - .04;
+  for (const [x, y] of [[.3, -.25], [.3, .25], [-.32, -.25], [-.32, .25]]) line(c, r, bx, 0, x0 + x, y, sh(A, .3), .035);
+  c.fillStyle = sh(A, .45); circle(c, r * bx, 0, r * .055); c.fill();
+  if (back) { c.strokeStyle = sh(A, -.45); c.lineWidth = r * .05; c.beginPath(); c.arc(r * (x0 + .34), 0, r * .11, Math.PI / 2, Math.PI * 1.5); c.stroke(); resetLine(c, r); }
+}
+const R2 = {
+  // ---------------- top (body; sleeve colour in R2S) ----------------
+  "top:coat:A": (c, r, col) => { const T = col.top; // trench: belt, raised collar, long split tails
+    poly(c, r, [[-.45, -.55], [-1.15, -.44], [-1.2, -.02], [-1.12, 0], [-1.2, .02], [-1.15, .44], [-.45, .55]]); fs(c, sh(T, -.14));
+    ell(c, -r * .08, 0, r * .6, r * .95); fs(c, T);
+    line(c, r, -.3, -.93, -.3, .93, sh(T, -.38), .14);
+    c.fillStyle = sh(T, .35); rrect(c, -r * .37, -r * .1, r * .14, r * .2, r * .03); c.fill();
+    c.strokeStyle = sh(T, -.3); c.lineWidth = r * .17; c.beginPath(); c.ellipse(r * .1, 0, r * .5, r * .56, 0, Math.PI * .55, Math.PI * 1.45); c.stroke(); resetLine(c, r); },
+  "top:coat:B": (c, r, col) => { const T = col.top; // duster: long tails + shoulder capelet
+    for (const s of [-1, 1]) { poly(c, r, [[-.4, s * .02], [-.4, s * .62], [-1.45, s * .56], [-1.4, s * .04]]); fs(c, sh(T, -.16)); }
+    ell(c, -r * .08, 0, r * .58, r * .94); fs(c, T);
+    ell(c, -r * .02, 0, r * .42, r * 1.0); fs(c, sh(T, .14)); },
+  "top:leather:A": (c, r) => { const L = "#221d1b"; // biker: silver zip, lapels, studs
+    ell(c, -r * .05, 0, r * .54, r * .91); fs(c, L);
+    poly(c, r, [[.42, -.2], [.12, -.62], [-.05, -.5], [.25, -.1]]); fs(c, "#34302d");
+    line(c, r, .38, -.42, -.32, .4, "#a9aeb3", .06);
+    c.fillStyle = "#b9bcc0"; for (const s of [-1, 1]) for (let i = 0; i < 3; i++) { circle(c, r * (-.1 + i * .14), s * r * .74, r * .045); c.fill(); }
+    c.strokeStyle = "rgba(255,240,220,0.22)"; c.lineWidth = r * .07; c.beginPath(); c.ellipse(-r * .05, 0, r * .4, r * .74, 0, -2.4, -1.2); c.stroke(); resetLine(c, r); },
+  "top:leather:B": (c, r) => { const L = "#4a3324"; // bomber: cream fur collar
+    ell(c, -r * .05, 0, r * .54, r * .91); fs(c, L);
+    line(c, r, -.42, -.85, -.42, .85, "#3a281c", .1);
+    c.fillStyle = "#cdbd9e"; for (let i = 0; i < 9; i++) { const a = Math.PI * .5 + i / 8 * Math.PI; circle(c, r * (.1 + Math.cos(a) * .44), r * Math.sin(a) * .5, r * .14); c.fill(); }
+    c.strokeStyle = CHAR.outline; c.beginPath(); c.ellipse(r * .1, 0, r * .58, r * .64, 0, Math.PI * .55, Math.PI * 1.45); c.stroke(); },
+  "top:camo:A": (c, r) => { // bold woodland, coat cut
+    poly(c, r, [[-.5, -.5], [-1.0, -.35], [-1.0, .35], [-.5, .5]]); fs(c, "#3f4430");
+    ell(c, -r * .08, 0, r * .58, r * .94); c.fillStyle = "#56603d"; c.fill();
+    c.save(); ell(c, -r * .08, 0, r * .58, r * .94); c.clip();
+    const B = [["#262a1b", -.4, -.55, .3, .18, .4], ["#7a6c45", -.05, -.3, .28, .16, -.6], ["#2f3b22", -.35, .2, .32, .2, .9], ["#7a6c45", .1, .5, .26, .15, .3], ["#262a1b", .05, .05, .22, .14, -.2], ["#2f3b22", -.15, -.8, .25, .14, 1.2], ["#262a1b", -.25, .7, .26, .15, -.9]];
+    for (const [k, x, y, a, b, t] of B) { c.fillStyle = k; ell(c, r * x, r * y, r * a, r * b, t); c.fill(); }
+    c.restore(); ell(c, -r * .08, 0, r * .58, r * .94); c.stroke(); },
+  "top:camo:B": (c, r) => { // tiger stripe
+    poly(c, r, [[-.5, -.5], [-1.0, -.35], [-1.0, .35], [-.5, .5]]); fs(c, "#4a4b32");
+    ell(c, -r * .08, 0, r * .58, r * .94); c.fillStyle = "#666743"; c.fill();
+    c.save(); ell(c, -r * .08, 0, r * .58, r * .94); c.clip(); c.strokeStyle = "#1f2016"; c.lineWidth = r * .13; c.lineCap = "round";
+    for (const x of [-.55, -.3, -.05, .2]) { c.beginPath(); c.moveTo(r * x, -r); c.quadraticCurveTo(r * (x + .14), -r * .3, r * (x - .05), r * .1); c.quadraticCurveTo(r * (x - .16), r * .5, r * (x + .06), r); c.stroke(); }
+    c.restore(); resetLine(c, r); ell(c, -r * .08, 0, r * .58, r * .94); c.stroke(); },
+  "top:floral:A": (c, r, col) => { const T = col.top; // big white hibiscus
+    ell(c, -r * .05, 0, r * .52, r * .9); fs(c, T);
+    c.save(); ell(c, -r * .05, 0, r * .52, r * .9); c.clip();
+    for (const [x, y] of [[-.3, -.5], [-.05, .45], [-.45, .15], [.15, -.15], [-.25, .8]]) { c.fillStyle = "#ece6d6"; for (let i = 0; i < 5; i++) { const a = i / 5 * TAU; circle(c, r * (x + Math.cos(a) * .1), r * (y + Math.sin(a) * .1), r * .1); c.fill(); } c.fillStyle = "#d9b44a"; circle(c, r * x, r * y, r * .05); c.fill(); }
+    c.restore(); ell(c, -r * .05, 0, r * .52, r * .9); c.stroke(); },
+  "top:floral:B": (c, r, col) => { const T = col.top; // big yellow flowers + leaves
+    ell(c, -r * .05, 0, r * .52, r * .9); fs(c, T);
+    c.save(); ell(c, -r * .05, 0, r * .52, r * .9); c.clip();
+    for (const [x, y, a] of [[-.4, -.3, .5], [0, .3, -.6], [-.2, .75, 1], [.1, -.6, 2], [-.5, .4, -1.2]]) { c.fillStyle = "#2f4a2a"; ell(c, r * x, r * y, r * .26, r * .09, a); c.fill(); }
+    for (const [x, y] of [[-.25, -.55], [-.1, .1], [-.45, .55], [.2, .55], [.15, -.25]]) { c.fillStyle = "#e3c45a"; for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; circle(c, r * (x + Math.cos(a) * .09), r * (y + Math.sin(a) * .09), r * .08); c.fill(); } c.fillStyle = "#f1efe6"; circle(c, r * x, r * y, r * .05); c.fill(); }
+    c.restore(); ell(c, -r * .05, 0, r * .52, r * .9); c.stroke(); },
+  "top:robe:A": (c, r, col) => { const T = col.top; // belt ends out to the side, shawl collar
+    ell(c, -r * .08, 0, r * .62, r * .98); fs(c, T);
+    line(c, r, -.26, -.97, -.26, .97, sh(T, -.28), .15);
+    for (const [y1, y2, x2] of [[.9, 1.32, -.12], [.92, 1.25, -.46]]) { poly(c, r, [[-.3, y1 - .06], [x2, y2], [x2 - .1, y2 + .02], [-.36, y1 + .06]]); fs(c, sh(T, -.28)); }
+    c.fillStyle = sh(T, -.28); circle(c, -r * .28, r * .92, r * .1); c.fill(); c.stroke();
+    c.strokeStyle = sh(T, .4); c.lineWidth = r * .2; c.beginPath(); c.ellipse(r * .1, 0, r * .5, r * .56, 0, Math.PI * .5, Math.PI * 1.5); c.stroke(); resetLine(c, r); },
+  "top:robe:B": (c, r, col) => { const T = col.top; // fluffy towel robe with a hood down
+    ell(c, -r * .08, 0, r * .64, r * 1.0); fs(c, T);
+    c.fillStyle = sh(T, .25); for (let i = 0; i < 22; i++) { circle(c, r * (-.6 + hash(i * 3 + 1) * .9), r * (-.85 + hash(i * 7 + 2) * 1.7), r * .05); c.fill(); }
+    ell(c, -r * .42, 0, r * .26, r * .42); fs(c, sh(T, -.15));
+    line(c, r, -.22, -.99, -.22, .99, sh(T, -.3), .13);
+    poly(c, r, [[-.28, .92], [-.2, 1.3], [-.32, 1.32], [-.36, .96]]); fs(c, sh(T, -.3)); },
+  // ---------------- head ----------------
+  "head:cap:A": (c, r, col) => cap2(c, r, col.acc, false, false),
+  "head:cap:B": (c, r, col) => cap2(c, r, col.acc, true, false),
+  "head:capb:A": (c, r, col) => cap2(c, r, col.acc, false, true),
+  "head:capb:B": (c, r, col) => cap2(c, r, col.acc, true, true),
+  "head:fire:A": (c, r) => { ell(c, -r * .18, 0, r * .66, r * .55); fs(c, "#1b1c1f"); wall(c, r, .06, 0, .38, .38, .08, "#121315"); ell(c, -r * .02, 0, r * .36, r * .36); fs(c, "#2c2d31"); line(c, r, .28, 0, -.4, 0, "#45464c", .13, "round"); poly(c, r, [[.36, -.16], [.5, -.13], [.55, 0], [.5, .13], [.36, .16]]); fs(c, "#a08a3c"); },
+  "head:fire:B": (c, r) => { ell(c, -r * .18, 0, r * .66, r * .55); fs(c, "#7a6a4c"); wall(c, r, .06, 0, .38, .38, .08, "#5e5240"); ell(c, -r * .02, 0, r * .36, r * .36); fs(c, "#93835f"); line(c, r, .28, 0, -.4, 0, "#ab9b78", .13, "round"); poly(c, r, [[.36, -.16], [.5, -.13], [.55, 0], [.5, .13], [.36, .16]]); fs(c, "#2a2b2f"); },
+  "head:riot:A": (c, r) => { ell(c, -r * .28, 0, r * .3, r * .46); fs(c, "#0f1012"); wall(c, r, .06, 0, .47, .47, .08, "#0c0d0f"); ell(c, -r * .02, 0, r * .45, r * .45); fs(c, "#1d2024"); c.strokeStyle = "rgba(140,170,195,0.8)"; c.lineWidth = r * .17; c.beginPath(); c.ellipse(-r * .02, 0, r * .35, r * .35, 0, -1.05, 1.05); c.stroke(); resetLine(c, r); line(c, r, .1, 0, -.42, 0, "#30343a", .06); },
+  "head:riot:B": (c, r) => { ell(c, -r * .28, 0, r * .3, r * .46); fs(c, "#0f1012"); wall(c, r, .06, 0, .47, .47, .08, "#0c0d0f"); ell(c, -r * .02, 0, r * .45, r * .45); fs(c, "#1d2024"); c.beginPath(); c.ellipse(r * .3, 0, r * .3, r * .42, 0, -Math.PI / 2, Math.PI / 2); c.closePath(); fs(c, "rgba(110,140,165,0.72)"); c.strokeStyle = "rgba(255,255,255,0.35)"; c.lineWidth = r * .05; c.beginPath(); c.ellipse(r * .3, 0, r * .2, r * .3, 0, -1.2, -.2); c.stroke(); resetLine(c, r); },
+  "head:gas:A": (c, r) => { c.strokeStyle = "#121212"; c.lineWidth = r * .06; ell(c, r * .06, 0, r * .34, r * .4); c.stroke(); resetLine(c, r); rrect(c, r * .28, -r * .27, r * .3, r * .54, r * .14); fs(c, "#2b2e2a"); for (const s of [-1, 1]) { circle(c, r * .4, s * r * .15, r * .1); fs(c, "rgba(150,175,165,0.65)"); } circle(c, r * .68, 0, r * .15); fs(c, "#4f5349"); c.fillStyle = "#33362f"; circle(c, r * .68, 0, r * .08); c.fill(); },
+  "head:gas:B": (c, r) => { c.strokeStyle = "#121212"; c.lineWidth = r * .06; ell(c, r * .06, 0, r * .34, r * .4); c.stroke(); resetLine(c, r); rrect(c, r * .28, -r * .27, r * .3, r * .54, r * .14); fs(c, "#2b2e2a"); for (const s of [-1, 1]) { circle(c, r * .4, s * r * .15, r * .1); fs(c, "rgba(150,175,165,0.65)"); } line(c, r, .5, .2, .56, .42, "#1a1b19", .07); ell(c, r * .56, r * .5, r * .13, r * .16); fs(c, "#4f5349"); },
+  "head:headph:A": (c, r, col) => { c.strokeStyle = "#2a2c30"; c.lineWidth = r * .1; c.beginPath(); c.moveTo(r * .02, -r * .44); c.quadraticCurveTo(-r * .12, 0, r * .02, r * .44); c.stroke(); resetLine(c, r); for (const s of [-1, 1]) { rrect(c, -r * .08, s > 0 ? r * .34 : -r * .56, r * .3, r * .22, r * .09); fs(c, col.acc); } },
+  "head:bucket:A": (c, r, col) => { const A = col.acc; ell(c, r * .04, 0, r * .58, r * .56); fs(c, sh(A, -.18)); wall(c, r, .04, 0, .36, .36, .09, sh(A, -.38)); ell(c, -r * .05, 0, r * .34, r * .34); fs(c, A); line(c, r, .14, 0, -.24, 0, sh(A, -.25), .05); },
+  "head:trapper:A": (c, r, col) => { const A = col.acc; for (const s of [-1, 1]) { ell(c, 0, s * r * .46, r * .24, r * .13); fs(c, "#b9ab8e"); } wall(c, r, .06, 0, .42, .43, .07, sh(A, -.3)); ell(c, -r * .01, 0, r * .4, r * .41); fs(c, A); c.strokeStyle = "#c4b697"; c.lineWidth = r * .15; c.beginPath(); c.ellipse(-r * .01, 0, r * .35, r * .36, 0, -.9, .9); c.stroke(); resetLine(c, r); },
+  "head:wide:A": (c, r, col) => { const A = col.acc; ell(c, r * .04, 0, r * .68, r * .64); fs(c, sh(A, -.2)); wall(c, r, .04, 0, .3, .33, .12, sh(A, -.4)); ell(c, -r * .08, 0, r * .28, r * .31); fs(c, A); line(c, r, .1, 0, -.26, 0, sh(A, -.3), .05); },
+  "head:viking:A": (c, r) => { for (const s of [-1, 1]) { c.beginPath(); c.moveTo(r * .1, s * r * .3); c.quadraticCurveTo(r * .02, s * r * .8, r * .46, s * r * .88); c.quadraticCurveTo(r * .18, s * r * .62, r * .22, s * r * .34); c.closePath(); fs(c, "#d6ccb2"); } wall(c, r, .06, 0, .42, .42, .08, "#4b4e52"); ell(c, -r * .02, 0, r * .4, r * .4); fs(c, "#6f7377"); line(c, r, .3, 0, -.38, 0, "#8a8e92", .07); c.strokeStyle = "#7d6236"; c.lineWidth = r * .06; ell(c, -r * .02, 0, r * .37, r * .37); c.stroke(); resetLine(c, r); },
+  "head:prop:A": (c, r, col) => { const A = col.acc; wall(c, r, .06, 0, .4, .42, .06, sh(A, -.3)); ell(c, 0, 0, r * .38, r * .4); c.fillStyle = A; c.fill(); c.save(); ell(c, 0, 0, r * .38, r * .4); c.clip(); c.fillStyle = sh(A, .45); for (const a of [0, Math.PI]) { c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, r, a, a + Math.PI / 2); c.closePath(); c.fill(); } c.restore(); ell(c, 0, 0, r * .38, r * .4); c.stroke(); ell(c, -r * .02, 0, r * .44, r * .07, .5); fs(c, "#c9c1a8"); c.fillStyle = "#2a2c30"; circle(c, -r * .02, 0, r * .06); c.fill(); },
+  // ---------------- hair ----------------
+  "hair:buzz:A": (c, r, col) => { c.fillStyle = col.hair; c.globalAlpha = .3; ell(c, r * .02, 0, r * .34, r * .39); c.fill(); c.globalAlpha = 1; c.strokeStyle = col.hair; c.lineWidth = r * .06; c.beginPath(); c.ellipse(r * .02, 0, r * .33, r * .38, 0, -1.0, 1.0); c.stroke(); resetLine(c, r); },
+  "hair:buzz:B": (c, r, col) => { c.fillStyle = col.hair; rrect(c, -r * .3, -r * .3, r * .6, r * .6, r * .08); c.fill(); c.fillStyle = sh(col.hair, .18); rrect(c, -r * .24, -r * .24, r * .48, r * .48, r * .06); c.fill(); },
+  "hair:buzz:C": (c, r, col) => { c.fillStyle = col.hair; c.globalAlpha = .28; ell(c, r * .02, 0, r * .34, r * .39); c.fill(); c.globalAlpha = 1; rrect(c, -r * .42, -r * .09, r * .86, r * .18, r * .09); c.fill(); line(c, r, -.38, 0, .4, 0, sh(col.hair, .3), .04); },
+  // ---------------- pack ----------------
+  "pack:frame:A": (c, r) => { rrect(c, -r * 1.1, -r * .55, r * .64, r * 1.1, r * .14); fs(c, "#3e3a2c"); for (const y of [-.74, .54]) { rrect(c, -r * .98, r * y, r * .36, r * .2, r * .06); fs(c, "#34301f"); } rrect(c, -r * 1.38, -r * .84, r * .3, r * 1.68, r * .15); fs(c, "#4d5a3a"); for (const y of [-.45, .45]) line(c, r, -1.38, y, -1.08, y, "#2a2416", .07); c.fillStyle = "#4a4535"; rrect(c, -r * 1.06, -r * .4, r * .2, r * .8, r * .08); c.fill(); },
+  "pack:frame:B": (c, r) => { rrect(c, -r * 1.12, -r * .48, r * .62, r * .96, r * .12); fs(c, "#5d6b46"); rrect(c, -r * 1.2, -r * .3, r * .24, r * .6, r * .08); fs(c, "#4c5839"); c.strokeStyle = "#9aa0a6"; c.lineWidth = r * .08; c.beginPath(); c.moveTo(-r * .5, -r * .62); c.lineTo(-r * 1.32, -r * .62); c.lineTo(-r * 1.32, r * .62); c.lineTo(-r * .5, r * .62); c.stroke(); resetLine(c, r); },
+  "pack:guitar:A": (c, r) => guitar(c, r, -.8, .45, -.95, "#8a6a42", "#b99b6c", "#c9c4b6"),
+  "pack:guitar:B": (c, r) => guitar(c, r, -.55, .5, -2.3, "#1a1a1c", "#6a6a70", "#b9bcc0"),
+  "pack:school:A": (c, r, col) => { const A = col.acc; rrect(c, -r * 1.04, -r * .54, r * .58, r * 1.08, r * .2); fs(c, A); rrect(c, -r * 1.12, -r * .34, r * .26, r * .68, r * .1); fs(c, sh(A, -.22)); line(c, r, -.88, -.3, -.88, .3, sh(A, .35), .04); },
+  "pack:crate:A": (c, r) => { rrect(c, -r * 1.16, -r * .52, r * .68, r * 1.04, r * .06); fs(c, "#2e4a3a"); for (const x of [-.94, -.72]) line(c, r, x, -.48, x, .48, "#1d3326", .05); for (const y of [-.18, .18]) line(c, r, -1.12, y, -.52, y, "#1d3326", .05); },
+  "pack:mat:A": (c, r, col) => { const A = col.acc; rrect(c, -r * .98, -r * 1.02, r * .32, r * 2.04, r * .16); fs(c, A); for (const s of [-1, 1]) { c.strokeStyle = sh(A, -.35); c.lineWidth = r * .04; circle(c, -r * .82, s * r * .9, r * .08); c.stroke(); line(c, r, -.98, s * .5, -.66, s * .5, "#1c1d1f", .06); } resetLine(c, r); },
+  "pack:skate:A": (c, r, col) => { const A = col.acc; rrect(c, -r * 1.04, -r * 1.02, r * .4, r * 2.04, r * .2); fs(c, A); line(c, r, -.84, -.85, -.84, .85, sh(A, .35), .06); for (const s of [-1, 1]) { c.fillStyle = "#7d8186"; rrect(c, -r * 1.0, s * r * .76 - r * .03, r * .32, r * .06, r * .02); c.fill(); for (const x of [-1.0, -.68]) { circle(c, r * x, s * r * .76, r * .07); fs(c, "#c9c4b6"); } } },
+  "pack:golf:A": (c, r) => { for (let i = 0; i < 4; i++) { const ex = -1.42 + i * .04, ey = -.6 + i * .3; line(c, r, -.9, .05, ex, ey, "#9aa0a6", .05); c.fillStyle = ["#3b5a3a", "#d8d2c0", "#3b5a3a", "#b8bcc0"][i]; circle(c, r * ex, r * ey, r * .1); c.fill(); c.stroke(); } ell(c, -r * .84, r * .12, r * .32, r * .42); fs(c, "#2d3a4a"); ell(c, -r * .98, r * .1, r * .16, r * .24); fs(c, "#1f2832"); },
+  "pack:cat:A": (c, r) => { c.fillStyle = CHAR.pack; rrect(c, -r * .98, -r * .48, r * .5, r * .96, r * .15); c.fill(); c.stroke(); c.strokeStyle = "#9a6230"; c.lineWidth = r * .1; c.lineCap = "round"; c.beginPath(); c.moveTo(-r * .95, r * .3); c.quadraticCurveTo(-r * 1.35, r * .6, -r * 1.2, r * .95); c.stroke(); resetLine(c, r); for (const s of [-1, 1]) { poly(c, r, [[-.9, s * .1], [-1.12, s * .24], [-.92, s * .28]]); fs(c, "#9a6230"); } circle(c, -r * .78, 0, r * .24); fs(c, "#9a6230"); line(c, r, -.95, 0, -.75, 0, "#6e4420", .04); c.fillStyle = "#d9c27a"; for (const s of [-1, 1]) { circle(c, -r * .64, s * r * .08, r * .035); c.fill(); } },
+  "pack:plant:A": (c, r) => { circle(c, -r * .8, 0, r * .3); fs(c, "#7a4a32"); c.fillStyle = "#2a1f17"; circle(c, -r * .8, 0, r * .22); c.fill(); for (let i = 0; i < 7; i++) { const a = Math.PI * .6 + i / 6 * Math.PI * .8; ell(c, r * (-.8 + Math.cos(a) * .38), r * Math.sin(a) * .38, r * .3, r * .1, a); fs(c, i % 2 ? "#4d7d3e" : "#3f6b34"); } },
+  // ---------------- accent ----------------
+  "acc:cape:A": (c, r, col) => { const A = col.acc; c.beginPath(); c.moveTo(r * .08, -r * .8); c.quadraticCurveTo(-r * .7, -r * 1.2, -r * 1.5, -r * .98); c.quadraticCurveTo(-r * 1.72, -r * .55, -r * 1.55, -r * .3); c.quadraticCurveTo(-r * 1.72, 0, -r * 1.55, r * .3); c.quadraticCurveTo(-r * 1.72, r * .55, -r * 1.5, r * .98); c.quadraticCurveTo(-r * .7, r * 1.2, r * .08, r * .8); c.quadraticCurveTo(-r * .3, 0, r * .08, -r * .8); c.closePath(); fs(c, A); for (const y of [-.55, 0, .55]) line(c, r, -.45, y * .8, -1.42, y * 1.1, sh(A, -.3), .05); c.fillStyle = sh(A, .45); for (const s of [-1, 1]) { circle(c, r * .08, s * r * .8, r * .07); c.fill(); c.stroke(); } },
+  "acc:cape:B": (c, r, col) => { const A = col.acc; c.beginPath(); c.moveTo(r * .05, -r * .82); c.quadraticCurveTo(-r * .6, -r * 1.1, -r * 1.15, -r * .95); c.quadraticCurveTo(-r * 1.28, 0, -r * 1.15, r * .95); c.quadraticCurveTo(-r * .6, r * 1.1, r * .05, r * .82); c.quadraticCurveTo(-r * .3, 0, r * .05, -r * .82); c.closePath(); fs(c, A); c.strokeStyle = sh(A, .35); c.lineWidth = r * .07; c.beginPath(); c.moveTo(-r * 1.08, -r * .88); c.quadraticCurveTo(-r * 1.2, 0, -r * 1.08, r * .88); c.stroke(); c.strokeStyle = sh(A, -.2); c.lineWidth = r * .14; c.beginPath(); c.arc(r * .1, 0, r * .5, Math.PI * .5, Math.PI * 1.5); c.stroke(); resetLine(c, r); },
+  "acc:vest:A": (c, r, col) => { ell(c, -r * .05, 0, r * .55, r * .93); fs(c, col.acc); poly(c, r, [[.47, -.26], [.1, 0], [.47, .26]]); c.fillStyle = col.top; c.fill(); },
+  "acc:sash:A": (c, r, col) => { poly(c, r, [[.33, -.76], [.11, -.88], [-.73, .66], [-.51, .78]]); fs(c, col.acc); },
+  "acc:poncho:A": (c, r, col) => { ell(c, -r * .02, 0, r * .62, r * 1.02); fs(c, col.acc); c.strokeStyle = sh(col.acc, .35); c.lineWidth = r * .08; ell(c, -r * .02, 0, r * .5, r * .88); c.stroke(); resetLine(c, r); },
+  "acc:sleeves:A": (c, r, col) => { c.strokeStyle = col.acc; c.lineCap = "round"; c.lineWidth = r * .32; c.beginPath(); c.moveTo(r * .2, -r * .48); c.lineTo(r * .85, -r * .1); c.moveTo(r * .16, r * .44); c.lineTo(r * .55, r * .12); c.stroke(); resetLine(c, r); },
+  "acc:yoke:A": (c, r, col) => { c.save(); ell(c, -r * .05, 0, r * .52, r * .9); c.clip(); c.fillStyle = col.acc; c.fillRect(-r * .12, -r, r, r * 2); c.restore(); line(c, r, -.12, -.9, -.12, .9, sh(col.acc, -.35), .05); ell(c, -r * .05, 0, r * .52, r * .9); c.stroke(); },
+  "acc:overalls:A": (c, r, col) => { const A = col.acc; line(c, r, .15, -.6, -.5, .45, A, .15); line(c, r, .15, .6, -.5, -.45, A, .15); rrect(c, -r * .42, -r * .14, r * .18, r * .28, r * .04); fs(c, sh(A, -.2)); c.fillStyle = "#b9bcc0"; for (const s of [-1, 1]) { circle(c, r * .15, s * r * .6, r * .06); c.fill(); } },
+  "acc:rope:A": (c, r) => { line(c, r, .15, -.65, -.3, .4, "#8b7a55", .08); c.strokeStyle = "#8b7a55"; c.lineWidth = r * .1; ell(c, -r * .42, 0, r * .32, r * .4); c.stroke(); ell(c, -r * .42, 0, r * .2, r * .27); c.stroke(); c.strokeStyle = "#5e5238"; c.lineWidth = r * .03; ell(c, -r * .42, 0, r * .26, r * .34); c.stroke(); resetLine(c, r); },
+  "acc:number:A": (c, r, col) => { const P = (u, v) => [-.35 + u, v]; const segs = [[P(.3, .05), P(-.15, -.2)], [P(-.15, -.2), P(-.15, .2)], [P(.3, .1), P(-.42, .1)]]; for (const [w, k] of [[.22, CHAR.outline], [.13, col.acc]]) for (const [a, b] of segs) line(c, r, a[0], a[1], b[0], b[1], k, w, "round"); },
+  "acc:emblem:A": (c, r, col) => { circle(c, -r * .38, 0, r * .3); fs(c, col.acc); c.fillStyle = "#1b1d20"; for (const dx of [-.1, .1]) for (const dy of [-.1, .1]) { circle(c, r * (-.38 + dx), r * dy, r * .07); c.fill(); } },
+};
+function guitar(c, r, x, y, ang, body, edge, latch) {
+  c.save(); c.translate(r * x, r * y); c.rotate(ang);
+  rrect(c, r * .7, -r * .09, r * .95, r * .18, r * .05); fs(c, body);
+  rrect(c, r * 1.62, -r * .13, r * .3, r * .26, r * .06); fs(c, body);
+  ell(c, r * .5, 0, r * .28, r * .26); fs(c, body);
+  ell(c, 0, 0, r * .36, r * .34); fs(c, body);
+  c.strokeStyle = edge; c.lineWidth = r * .045; ell(c, 0, 0, r * .28, r * .26); c.stroke(); ell(c, r * .5, 0, r * .2, r * .18); c.stroke(); resetLine(c, r);
+  c.fillStyle = latch; for (const v of [-.2, .2]) { circle(c, -r * .3, r * v, r * .05); c.fill(); }
+  c.restore();
+}
+// Sleeve colours for redrawn tops (default: the top colour).
+const R2S = { "top:leather:A": "#221d1b", "top:leather:B": "#4a3324", "top:camo:A": "#56603d", "top:camo:B": "#666743" };
+
+// Round 2 items. kind: redraw (pick one drawing) | cand (pick N of a group).
+const R2ITEMS = [
+  { slot: "top", id: "coat", name: "Long coat", u: "s", col: "top", vs: { A: "Trench: belt, raised collar, split tails", B: "Duster: long tails, shoulder capelet" }, was: "Not really recognizable." },
+  { slot: "top", id: "leather", name: "Leather jacket", u: "m5", col: "none", vs: { A: "Black biker: silver zip, lapel, shoulder studs", B: "Brown bomber with a cream fur collar" }, was: "Not recognizable." },
+  { slot: "top", id: "camo", name: "Camo coat", u: "m6", col: "none", vs: { A: "Bold woodland blots", B: "Tiger stripes" }, was: "Improve the camo." },
+  { slot: "top", id: "floral", name: "Floral shirt", u: "l", col: "top", vs: { A: "Five big white hibiscus", B: "Big yellow flowers with leaves" }, was: "Flowers are not visible at all." },
+  { slot: "top", id: "robe", name: "Bathrobe", u: "l", col: "top", vs: { A: "Shawl collar, belt ends hanging out", B: "Towel texture, hood down, belt end" }, was: "Not recognizable." },
+  { slot: "head", id: "cap", name: "Cap (new default)", u: "s", col: "accent", hides: true, vs: { A: "Panels, button, front brim", B: "Two-tone: light front panel" }, was: "Not recognizable. You chose: redraw it and make it the new default." },
+  { slot: "head", id: "capb", name: "Cap, backwards", u: "s", col: "accent", hides: false, vs: { A: "Brim back, strap opening at the front", B: "Two-tone, brim back" }, was: "Not recognizable." },
+  { slot: "head", id: "fire", name: "Firefighter helmet", u: "m1", col: "none", hides: true, vs: { A: "Black, long back brim, comb, brass badge", B: "Tan chief helmet, dark badge" }, was: "Not recognizable." },
+  { slot: "head", id: "riot", name: "Riot helmet", u: "m2", col: "none", hides: true, vs: { A: "Visor up (glass band), neck guard", B: "Visor down, sticking out in front" }, was: "Not recognizable." },
+  { slot: "head", id: "gas", name: "Gas mask", u: "m3", col: "none", hides: false, vs: { A: "Two lenses, filter in front", B: "Two lenses, filter on the cheek" }, was: "Not recognizable." },
+  { slot: "hair", id: "buzz", name: "Buzz cut", u: "s", col: "hair", vs: { A: "Stubble: skin shows, hairline", B: "Flat top: square", C: "Mohawk: one strip, shaved sides" }, was: "Same as short. If not possible, drop it." },
+  { slot: "pack", id: "frame", name: "Hiking pack", u: "s", col: "none", vs: { A: "Bedroll across the top, side pockets", B: "Aluminium frame around the bag" }, was: "Do better." },
+  { slot: "pack", id: "guitar", name: "Guitar case", u: "m9", col: "none", vs: { A: "Tan case, neck over the shoulder", B: "Black case, neck out behind" }, was: "Not recognizable." },
+  { slot: "acc", id: "cape", name: "Cape", u: "l", col: "accent", vs: { A: "Long, from the shoulders, clasps, folds", B: "Short, stand-up collar, light hem" }, was: "Not very good." },
+  // replacement candidates
+  { slot: "head", id: "headph", name: "Headphones", u: "s", col: "accent", hides: false, group: "headS" },
+  { slot: "head", id: "bucket", name: "Bucket hat", u: "s", col: "accent", hides: true, group: "headS" },
+  { slot: "head", id: "trapper", name: "Trapper hat", u: "s", col: "accent", hides: true, group: "headS" },
+  { slot: "head", id: "wide", name: "Wide-brim hat", u: "s", col: "accent", hides: true, group: "headS" },
+  { slot: "head", id: "viking", name: "Viking helmet", u: "l", col: "none", hides: true, group: "headL" },
+  { slot: "head", id: "prop", name: "Propeller cap", u: "l", col: "accent", hides: true, group: "headL" },
+  { slot: "pack", id: "school", name: "School backpack", u: "s", col: "accent", group: "packS" },
+  { slot: "pack", id: "crate", name: "Milk crate", u: "s", col: "none", group: "packS" },
+  { slot: "pack", id: "mat", name: "Rolled mat", u: "s", col: "accent", group: "packS" },
+  { slot: "pack", id: "skate", name: "Skateboard", u: "m10", col: "accent", group: "packM" },
+  { slot: "pack", id: "golf", name: "Golf bag", u: "m10", col: "none", group: "packM" },
+  { slot: "pack", id: "cat", name: "Cat in the backpack", u: "l", col: "none", group: "packL" },
+  { slot: "pack", id: "plant", name: "Potted plant", u: "l", col: "none", group: "packL" },
+  { slot: "acc", id: "vest", name: "Vest", u: "s", col: "accent", group: "accS" },
+  { slot: "acc", id: "sash", name: "Sash", u: "s", col: "accent", group: "accS" },
+  { slot: "acc", id: "poncho", name: "Poncho", u: "s", col: "accent", group: "accS" },
+  { slot: "acc", id: "sleeves", name: "Contrast sleeves", u: "s", col: "accent", group: "accS" },
+  { slot: "acc", id: "yoke", name: "Two-tone shoulders", u: "s", col: "accent", group: "accS" },
+  { slot: "acc", id: "overalls", name: "Overalls straps", u: "m7", col: "accent", group: "accM7" },
+  { slot: "acc", id: "rope", name: "Rope coil", u: "m7", col: "none", group: "accM7" },
+  { slot: "acc", id: "number", name: "Back number", u: "m8", col: "accent", group: "accM8" },
+  { slot: "acc", id: "emblem", name: "Four-dot back emblem", u: "m8", col: "accent", group: "accM8" },
+];
+const GROUPS = {
+  headS: { title: "Headgear, starter", need: 2, why: "replaces bandana and hard hat (8 starter headgear)" },
+  headL: { title: "Headgear, loot", need: 1, why: "replaces the party hat" },
+  packS: { title: "Backpack, starter", need: 1, why: "replaces the sling bag" },
+  packM: { title: "Backpack, milestone M10", need: 1, why: "replaces the ammo rig (wave 10 without going down)" },
+  packL: { title: "Backpack, loot", need: 1, why: "replaces the cooler" },
+  accS: { title: "Accent, starter", need: 3, why: "replaces scarf, stripes and patch (they read too small)" },
+  accM7: { title: "Accent, milestone M7", need: 1, why: "replaces the work harness (build 100 barricades)" },
+  accM8: { title: "Accent, milestone M8", need: 1, why: "replaces the team patch (extract with all 4 alive)" },
+};
+
+// The survivor with one round-2 part (sel = { slot, id, v }) on the round-1 default look.
+function drawSurvivor2(c, r, L, col, sel) {
+  const k = sel ? `${sel.slot}:${sel.id}:${sel.v}` : "";
+  const on = s => sel && sel.slot === s && R2[k];
+  c.lineJoin = "round"; c.strokeStyle = CHAR.outline; c.lineWidth = Math.max(1, r * .08);
+  c.fillStyle = CHAR.gun; rrect(c, r * .3, -r * .13, r * 1.75, r * .26, 1); c.fill();
+  if (on("top")) { c.strokeStyle = R2S[k] || col.top; c.lineCap = "round"; c.lineWidth = r * .3; c.beginPath(); c.moveTo(0, -r * .6); c.lineTo(r * .85, -r * .1); c.moveTo(0, r * .6); c.lineTo(r * .55, r * .12); c.stroke(); resetLine(c, r); }
+  else drawArms(c, r, L.top, col.top);
+  if (on("pack")) R2[k](c, r, col); else drawPack(c, r, L.pack, undefined);
+  if (on("top")) R2[k](c, r, col); else drawTop(c, r, L, col.top, undefined);
+  if (on("acc")) R2[k](c, r, col); else drawAccent(c, r, L.acc, col.acc, undefined);
+  c.fillStyle = col.skin; circle(c, r * .12, 0, r * .4); c.fill(); c.stroke();
+  let hides;
+  if (on("head")) hides = R2ITEMS.find(o => o.slot === "head" && o.id === sel.id).hides; else { const hg = item("head", L.head); hides = !!(hg && hg.hides); }
+  if (!hides) { if (on("hair")) R2[k](c, r, col); else drawHair(c, r, L.hair, col.hair); }
+  if (on("head")) R2[k](c, r, col); else drawHead(c, r, L.head, col, undefined);
+}
+
+// =====================================================================================
+// Round 3 (designer picks 2026-11-24): cap and backwards cap again, viking horns, guitar position, milestone
+// candidates for M5 / M7 / M8, and the lean on the headgear kept from round 1 (A = as picked, B = with the lean).
+// =====================================================================================
+function cap3(c, r, A, style, back) {
+  // style: big (long wide brim), logo (front badge), tilt (strong lean: tall front face)
+  const brimRx = style === "big" ? .44 : .36, brimRy = style === "big" ? .42 : .36, h = style === "tilt" ? .18 : .1;
+  const cx = back ? .06 : -.06;
+  c.beginPath();
+  if (back) c.ellipse(-r * .3, 0, r * brimRx, r * brimRy, 0, Math.PI / 2, Math.PI * 1.5);
+  else c.ellipse(r * .32, 0, r * brimRx, r * brimRy, 0, -Math.PI / 2, Math.PI / 2);
+  c.closePath(); fs(c, sh(A, -.28));
+  c.strokeStyle = sh(A, .25); c.lineWidth = r * .035; c.beginPath();
+  if (back) c.ellipse(-r * .3, 0, r * (brimRx - .08), r * (brimRy - .08), 0, Math.PI / 2 + .3, Math.PI * 1.5 - .3);
+  else c.ellipse(r * .32, 0, r * (brimRx - .08), r * (brimRy - .08), 0, -Math.PI / 2 + .3, Math.PI / 2 - .3);
+  c.stroke(); resetLine(c, r);
+  wall(c, r, cx + h, 0, .36, .38, h, sh(A, -.45));
+  ell(c, r * cx, 0, r * .34, r * .36); fs(c, A);
+  c.fillStyle = sh(A, .4); circle(c, r * (cx - .04), 0, r * .05); c.fill();
+  if (style === "logo") { c.fillStyle = sh(A, .6); circle(c, r * (cx + (back ? -.16 : .17)), 0, r * .11); c.fill(); c.stroke(); }
+  if (back) { c.strokeStyle = sh(A, -.5); c.lineWidth = r * .05; c.beginPath(); c.arc(r * (cx + .3), 0, r * .1, Math.PI / 2, Math.PI * 1.5); c.stroke(); resetLine(c, r); }
+}
+function guitar3(c, r, x, y, ang, k) {
+  c.save(); c.translate(r * x, r * y); c.rotate(ang); c.scale(k, k);
+  const body = "#1a1a1c", edge = "#6a6a70";
+  rrect(c, r * .62, -r * .08, r * .85, r * .16, r * .05); fs(c, body);
+  rrect(c, r * 1.44, -r * .12, r * .28, r * .24, r * .06); fs(c, body);
+  ell(c, r * .46, 0, r * .26, r * .24); fs(c, body);
+  ell(c, 0, 0, r * .34, r * .32); fs(c, body);
+  c.strokeStyle = edge; c.lineWidth = r * .045; ell(c, 0, 0, r * .26, r * .24); c.stroke(); ell(c, r * .46, 0, r * .18, r * .16); c.stroke(); resetLine(c, r);
+  c.fillStyle = "#b9bcc0"; for (const v of [-.18, .18]) { circle(c, -r * .26, r * v, r * .05); c.fill(); }
+  c.restore();
+}
+Object.assign(R2, {
+  "head:cap:A": (c, r, col) => cap3(c, r, col.acc, "big", false),
+  "head:cap:B": (c, r, col) => cap3(c, r, col.acc, "logo", false),
+  "head:cap:C": (c, r, col) => cap3(c, r, col.acc, "tilt", false),
+  "head:capb:A": (c, r, col) => cap3(c, r, col.acc, "big", true),
+  "head:capb:B": (c, r, col) => cap3(c, r, col.acc, "logo", true),
+  "head:capb:C": (c, r, col) => cap3(c, r, col.acc, "tilt", true),
+  "head:viking:A": (c, r) => { // horns out to the sides, tips curving back (up, seen leaning)
+    for (const s of [-1, 1]) { c.beginPath(); c.moveTo(r * .1, s * r * .3); c.quadraticCurveTo(r * .16, s * r * .82, -r * .22, s * r * .9); c.quadraticCurveTo(-r * .02, s * r * .64, -r * .14, s * r * .32); c.closePath(); fs(c, "#d6ccb2"); }
+    wall(c, r, .06, 0, .42, .42, .08, "#4b4e52"); ell(c, -r * .02, 0, r * .4, r * .4); fs(c, "#6f7377"); line(c, r, .3, 0, -.38, 0, "#8a8e92", .07); c.strokeStyle = "#7d6236"; c.lineWidth = r * .06; ell(c, -r * .02, 0, r * .37, r * .37); c.stroke(); resetLine(c, r); },
+  "head:viking:B": (c, r) => { // short thick horns straight out, banded
+    for (const s of [-1, 1]) { c.beginPath(); c.moveTo(r * .1, s * r * .32); c.quadraticCurveTo(r * .06, s * r * .7, -r * .1, s * r * .76); c.quadraticCurveTo(-r * .06, s * r * .56, -r * .16, s * r * .34); c.closePath(); fs(c, "#d6ccb2"); line(c, r, .02, s * .5, -.12, s * .48, "#8f846c", .04); }
+    wall(c, r, .06, 0, .42, .42, .08, "#4b4e52"); ell(c, -r * .02, 0, r * .4, r * .4); fs(c, "#6f7377"); line(c, r, .3, 0, -.38, 0, "#8a8e92", .07); c.strokeStyle = "#7d6236"; c.lineWidth = r * .06; ell(c, -r * .02, 0, r * .37, r * .37); c.stroke(); resetLine(c, r); },
+  "pack:guitar:A": (c, r) => guitar3(c, r, -1.15, .22, -.8, 1.0), // body behind, neck under the torso, headstock past the left shoulder
+  "pack:guitar:B": (c, r) => guitar3(c, r, -1.12, 0, 0, .9), // straight on the back like a backpack, neck toward the head
+  // M5 candidates (25 revives)
+  "top:letter:A": (c, r, col) => { const T = col.top; ell(c, -r * .05, 0, r * .52, r * .9); fs(c, T); line(c, r, -.52, -.82, -.52, .82, "#d8d0bc", .08); c.strokeStyle = "#d8d0bc"; c.lineWidth = r * .1; c.beginPath(); c.ellipse(r * .1, 0, r * .48, r * .54, 0, Math.PI * .55, Math.PI * 1.45); c.stroke(); resetLine(c, r); },
+  "head:band:A": (c, r, col) => { const A = col.acc; c.strokeStyle = A; c.lineCap = "round"; c.lineWidth = r * .11; for (const s of [-1, 1]) { c.beginPath(); c.moveTo(-r * .36, s * r * .06); c.quadraticCurveTo(-r * .7, s * r * .2, -r * .98, s * r * .32); c.stroke(); } c.lineCap = "butt"; c.lineWidth = r * .12; ell(c, r * .04, 0, r * .36, r * .4); c.stroke(); resetLine(c, r); },
+  // M7 candidates (100 barricades)
+  "head:weld:A": (c, r) => { wall(c, r, .06, 0, .36, .4, .06, "#1c1d1f"); ell(c, 0, 0, r * .34, r * .38); fs(c, "#2a2c2e"); c.save(); c.translate(-r * .02, 0); rrect(c, -r * .06, -r * .32, r * .4, r * .64, r * .08); fs(c, "#34373a"); rrect(c, r * .06, -r * .17, r * .16, r * .34, r * .03); fs(c, "#0f1112"); line(c, r, .08, -.12, .18, -.02, "rgba(170,200,220,0.5)", .03); c.restore(); },
+  "pack:planks:A": (c, r) => { const W = ["#8a6a44", "#74583a", "#94744c"]; for (let i = 0; i < 3; i++) { rrect(c, -r * (1.26 - i * .16), -r * 1.05, r * .15, r * 2.1, r * .02); fs(c, W[i]); } for (const y of [-.5, .5]) line(c, r, -1.3, y, -.78, y, "#2a2416", .08); },
+  // M8 candidates (extract with all 4 alive)
+  "head:laurel:A": (c, r) => { for (let i = 0; i < 14; i++) { const t = i / 13; const a = Math.PI * .35 + t * Math.PI * 1.3; const x = .04 + Math.cos(a) * .4, y = Math.sin(a) * .44; ell(c, r * x, r * y, r * .13, r * .065, a + Math.PI / 2 + (i % 2 ? .5 : -.5)); fs(c, i % 2 ? "#5d7d45" : "#4b6a38"); } },
+  "pack:flag:A": (c, r, col) => { c.fillStyle = CHAR.pack; rrect(c, -r * .98, -r * .48, r * .5, r * .96, r * .15); c.fill(); line(c, r, -.8, .34, -1.6, .34, "#8d9298", .06, "round"); c.beginPath(); c.moveTo(-r * 1.6, r * .36); c.quadraticCurveTo(-r * 1.45, r * .55, -r * 1.58, r * .82); c.lineTo(-r * 1.22, r * .82); c.quadraticCurveTo(-r * 1.1, r * .55, -r * 1.24, r * .36); c.closePath(); fs(c, col.acc); },
+  // lean versions of the headgear kept from round 1 (B)
+  "head:beanie:B": (c, r, col) => { const A = col.acc; wall(c, r, .1, 0, .4, .42, .1, sh(A, -.35)); ell(c, 0, 0, r * .4, r * .42); fs(c, A); c.strokeStyle = sh(A, .25); c.lineWidth = r * .07; ell(c, 0, 0, r * .3, r * .33); c.stroke(); resetLine(c, r); c.fillStyle = sh(A, .25); circle(c, -r * .08, 0, r * .11); c.fill(); c.stroke(); },
+  "head:hood:B": (c, r, col) => { const T = col.top; wall(c, r, .06, 0, .46, .48, .08, sh(T, -.35)); ell(c, -r * .02, 0, r * .46, r * .48); fs(c, sh(T, -.12)); c.fillStyle = "rgba(0,0,0,0.4)"; ell(c, r * .32, 0, r * .14, r * .28); c.fill(); },
+  "head:bike:B": (c, r) => { c.beginPath(); c.ellipse(r * .42, 0, r * .12, r * .26, 0, -Math.PI / 2, Math.PI / 2); c.closePath(); fs(c, "#3a414a"); wall(c, r, .1, 0, .46, .4, .1, "#47505a"); ell(c, 0, 0, r * .46, r * .4); fs(c, "#5f6a76"); c.fillStyle = "#1c2026"; for (const y of [-.2, 0, .2]) { rrect(c, -r * .24, y * r - r * .035, r * .34, r * .07, r * .03); c.fill(); } },
+  "head:cone:B": (c, r) => { c.save(); c.rotate(.785); rrect(c, -r * .42, -r * .42, r * .84, r * .84, r * .08); fs(c, "#b45a1e"); c.restore(); c.beginPath(); c.moveTo(r * .04, -r * .34); c.lineTo(-r * .36, -r * .05); c.lineTo(-r * .36, r * .05); c.lineTo(r * .04, r * .34); c.arc(r * .04, 0, r * .34, Math.PI / 2, -Math.PI / 2, true); c.closePath(); fs(c, "#c8692a"); line(c, r, -.1, -.2, -.1, .2, "#e3ddd0", .1); },
+  "head:chef:B": (c, r) => { wall(c, r, .08, 0, .32, .32, .24, "#c9c6bd"); for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; circle(c, r * (-.2 + Math.cos(a) * .26), r * Math.sin(a) * .26, r * .2); fs(c, "#e4e1d8"); } c.fillStyle = "#e4e1d8"; circle(c, -r * .2, 0, r * .28); c.fill(); },
+  "head:pot:B": (c, r) => { rrect(c, -r * .12, r * .3, r * .16, r * .58, r * .06); fs(c, "#1d1d1f"); wall(c, r, .1, 0, .44, .44, .1, "#5c6065"); circle(c, 0, 0, r * .44); fs(c, "#7d8186"); c.strokeStyle = "#5c6065"; c.lineWidth = r * .06; circle(c, 0, 0, r * .32); c.stroke(); resetLine(c, r); },
+  "head:bunny:B": (c, r) => { for (const s of [-1, 1]) { ell(c, -r * .52, s * r * .17, r * .4, r * .11, s * .15); fs(c, "#d9c9c4"); c.fillStyle = "#c98d97"; ell(c, -r * .52, s * r * .17, r * .28, r * .05, s * .15); c.fill(); } wall(c, r, .1, 0, .4, .42, .08, "#b9aaa5"); ell(c, r * .02, 0, r * .4, r * .42); fs(c, "#d9c9c4"); },
+});
+
+R2ITEMS.length = 0;
+R2ITEMS.push(
+  { slot: "head", id: "cap", name: "Cap (new default)", u: "s", col: "accent", hides: true, vs: { A: "Long, wide brim with stitching", B: "Light logo badge on the front", C: "Strong lean: tall front face" }, was: "Round 1 and 2: not recognizable. Use \"Default colours\" in the bar to see it in today's dark cap grey." },
+  { slot: "head", id: "capb", name: "Cap, backwards", u: "s", col: "accent", hides: false, vs: { A: "Long brim behind", B: "Logo badge, brim behind", C: "Strong lean" }, was: "Round 2: redraw." },
+  { slot: "head", id: "viking", name: "Viking helmet", u: "l", col: "none", hides: true, vs: { A: "Horns out to the sides, tips curving back (up)", B: "Short thick horns straight out" }, was: "\"The horns are weirdly placed. Why are they pointing in front?\"" },
+  { slot: "pack", id: "guitar", name: "Guitar case", u: "m9", col: "none", vs: { A: "Body behind the back, neck over the left shoulder", B: "Straight on the back, like the backpack" }, was: "\"Improve the position. It's weirdly positioned on the player.\"" },
+  { lean: true, slot: "head", id: "beanie", name: "Beanie", u: "s", col: "accent", hides: true, vs: { A: "As picked in round 1", B: "With the lean" } },
+  { lean: true, slot: "head", id: "hood", name: "Hood up", u: "s", col: "top", hides: true, vs: { A: "As picked in round 1", B: "With the lean" } },
+  { lean: true, slot: "head", id: "bike", name: "Bike helmet", u: "s", col: "none", hides: true, vs: { A: "As picked in round 1", B: "With the lean and a small peak" } },
+  { lean: true, slot: "head", id: "cone", name: "Traffic cone", u: "l", col: "none", hides: true, vs: { A: "As picked in round 1", B: "With the lean: the tip leans back" } },
+  { lean: true, slot: "head", id: "chef", name: "Chef's hat", u: "l", col: "none", hides: true, vs: { A: "As picked in round 1", B: "With the lean: tall band, puffy top behind" } },
+  { lean: true, slot: "head", id: "pot", name: "Cooking pot", u: "l", col: "none", hides: true, vs: { A: "As picked in round 1", B: "With the lean" } },
+  { lean: true, slot: "head", id: "bunny", name: "Bunny beanie", u: "l", col: "none", hides: true, vs: { A: "As picked in round 1", B: "With the lean, ears more upright" } },
+  { slot: "top", id: "letter", name: "Letterman jacket", u: "m5", col: "top", group: "m5" },
+  { slot: "head", id: "band", name: "Headband with long tails", u: "m5", col: "accent", hides: false, group: "m5" },
+  { slot: "head", id: "weld", name: "Welding mask (flipped up)", u: "m7", col: "none", hides: true, group: "m7" },
+  { slot: "pack", id: "planks", name: "Plank bundle", u: "m7", col: "none", group: "m7", sig: "Could read as carrying barricade material (barricades come from the build bar, not from carried planks)." },
+  { slot: "head", id: "laurel", name: "Laurel wreath", u: "m8", col: "none", hides: false, group: "m8" },
+  { slot: "pack", id: "flag", name: "Flag on the backpack", u: "m8", col: "accent", group: "m8", sig: "A flag could read as a map marker or objective." },
+);
+for (const k of Object.keys(GROUPS)) delete GROUPS[k];
+Object.assign(GROUPS, {
+  m5: { title: "Milestone M5", need: 1, why: "revive 25 teammates (replaces the leather jacket)" },
+  m7: { title: "Milestone M7", need: 1, why: "build 100 barricades (replaces the work harness)" },
+  m8: { title: "Milestone M8", need: 1, why: "extract with all 4 alive (replaces the team patch)" },
+});
+
+R2S["top:letter:A"] = "#d8d0bc";
+
+// ---------- round 3 page ----------
+LOOK.nightMute.lightness = 0.62; LOOK.nightMute.saturation = 0.8; // accepted in round 1
+function $(id) { return document.getElementById(id); }
+function size(cv, w, h) { cv.width = Math.round(w * DPR); cv.height = Math.round(h * DPR); }
+function lookFor(slot, id) { const L = Object.assign({}, DEFAULT, { [slot]: id }); if (slot === "hair") L.head = "none"; return L; }
+function baseFor(slot) { const none = slot !== "top" && slot !== "hair"; return lookFor(slot, none ? "none" : DEFAULT[slot]); }
+let useDefaultCols = false;
+function chosen() { return useDefaultCols ? Object.assign({}, DEFAULT_COLS) : { top: $("c-top").value, hair: $("c-hair").value, acc: $("c-acc").value }; }
+function inGame(k, h) { const muted = h.toLowerCase() === DEFAULT_COLS[k] ? h : nightMute(h); return stageDim(muted, stage); }
+function colsFor(L, game) {
+  const ch = chosen(); const sk = item("skin", L.skin).hexv;
+  if (!game) return { top: ch.top, hair: ch.hair, acc: ch.acc, skin: sk };
+  return { top: inGame("top", ch.top), hair: inGame("hair", ch.hair), acc: inGame("acc", ch.acc), skin: stageDim(sk, stage) };
+}
+function zombie(c, r, v) {
+  c.lineJoin = "round"; c.strokeStyle = CHAR.outline; c.lineWidth = Math.max(1, r * .1);
+  for (const s of [-1, 1]) { c.fillStyle = CHAR.skin; rrect(c, 0, s * r * .62 - r * .15, r * 1.25 + s * r * .08, r * .3, r * .15); c.fill(); c.stroke(); }
+  c.fillStyle = ZSHIRTS[v % 4]; ell(c, -r * .15, 0, r * .5, r * .95); c.fill(); c.stroke();
+  c.fillStyle = "#5a0c0a"; circle(c, -r * .2 + (hash(v) - .5) * r * .5, (hash(v * 3) - .5) * r, r * .16); c.fill();
+  c.fillStyle = CHAR.skin; circle(c, r * .14, 0, r * .46); c.fill(); c.stroke();
+  c.fillStyle = CHAR.hair; ell(c, -r * .04, 0, r * .3, r * .38); c.fill();
+}
+function drawBig(cv, L, sel) {
+  const w = 168; size(cv, w, w); const c = cv.getContext("2d"); c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const g = c.createRadialGradient(w / 2, w / 2, 6, w / 2, w / 2, w * .7); g.addColorStop(0, "#2b2a27"); g.addColorStop(1, "#16181b"); c.fillStyle = g; c.fillRect(0, 0, w, w);
+  const r = 40; c.save(); c.translate(w / 2 + 12, w / 2); c.rotate(-0.35);
+  c.strokeStyle = SLOT[0]; c.globalAlpha = .9; c.lineWidth = r * .1; circle(c, 0, 0, r * 1.37); c.stroke(); c.globalAlpha = 1;
+  drawSurvivor2(c, r, L, colsFor(L, false), sel); c.restore();
+}
+function drawStreet(cv, L, sel, seed) {
+  const w = Math.max(150, Math.round(cv.clientWidth || 200)), h = 168; size(cv, w, h);
+  const c = cv.getContext("2d"); c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.fillStyle = "#1a1c1f"; c.fillRect(0, 0, w, h);
+  c.fillStyle = "rgba(255,255,255,0.025)"; for (let i = 0; i < 24; i++) c.fillRect(hash(i + seed) * w, hash(i * 7 + seed) * h, 30 + hash(i * 3) * 60, 1);
+  c.strokeStyle = "rgba(210,190,120,0.18)"; c.lineWidth = .12 * PPM; c.setLineDash([2 * PPM, 1.6 * PPM]); c.beginPath(); c.moveTo(0, h * .82); c.lineTo(w, h * .82); c.stroke(); c.setLineDash([]);
+  const pool = c.createRadialGradient(w * .4, h * .45, 4, w * .4, h * .45, 3.5 * PPM); pool.addColorStop(0, "rgba(224,166,70,0.14)"); pool.addColorStop(1, "rgba(224,166,70,0)"); c.fillStyle = pool; c.fillRect(0, 0, w, h);
+  const px = w * .4, py = h * .48;
+  [[px + 2.2 * PPM, py - .9 * PPM], [px + 2.6 * PPM, py + .8 * PPM], [px - 2.1 * PPM, py + .6 * PPM]].forEach(([x, y], i) => { c.save(); c.translate(x, y); c.rotate(Math.atan2(py - y, px - x)); zombie(c, BODY_R, i + seed); c.restore(); });
+  c.save(); c.translate(px, py); c.rotate(-0.25);
+  c.strokeStyle = SLOT[0]; c.globalAlpha = .9; c.lineWidth = .08 * PPM; circle(c, 0, 0, BODY_R + .15 * PPM); c.stroke(); c.globalAlpha = 1;
+  drawSurvivor2(c, BODY_R, L, colsFor(L, true), sel); c.restore();
+  c.fillStyle = "rgba(6,10,20,0.12)"; c.fillRect(0, 0, w, h);
+}
+function drawTile(cv, L, sel, slot) { // what a Story 7.10 editor tile would show (zoomed on the slot, head up)
+  size(cv, 64, 64); const c = cv.getContext("2d"); c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.fillStyle = "#16181b"; c.fillRect(0, 0, 64, 64);
+  const near = slot === "head" || slot === "hair", back = slot === "pack";
+  const z = near ? 40 : 20; c.save(); c.translate(32, near ? 38 : back ? 22 : 38); c.rotate(-Math.PI / 2); if (near) c.translate(-z * .12, 0);
+  drawSurvivor2(c, z, L, colsFor(L, false), sel); c.restore();
+}
+const probe = document.createElement("canvas"); probe.width = probe.height = 80;
+function raster(L, sel) { const c = probe.getContext("2d", { willReadFrequently: true }); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, 80, 80); c.translate(40, 40); drawSurvivor2(c, BODY_R, L, colsFor(L, true), sel); return c.getImageData(0, 0, 80, 80).data; }
+function area(slot, id, v) {
+  const a = raster(lookFor(slot, id), { slot, id, v }), b = raster(baseFor(slot), null); let n = 0, outline = false;
+  for (let i = 0; i < a.length; i += 4) { if (Math.abs(a[i] - b[i]) > 8 || Math.abs(a[i + 1] - b[i + 1]) > 8 || Math.abs(a[i + 2] - b[i + 2]) > 8 || Math.abs(a[i + 3] - b[i + 3]) > 8) n++; if ((a[i + 3] > 0) !== (b[i + 3] > 0)) outline = true; }
+  return { n, outline };
+}
+
+// ---------- picks (db: picks3/<slot>_<id> = { choice, note }) ----------
+const picks = {}; let db = null; const status = $("status");
+async function save(k) {
+  renderSummary(); if (!db) return; const p = picks[k] || {};
+  try { await db.collection("picks3").doc(k).set({ choice: p.choice || "", note: p.note || "", at: new Date().toISOString() }); status.textContent = "Picks: saved"; status.className = "status live"; }
+  catch (e) { status.textContent = "Picks: not saved (" + (e && e.code || "error") + "). Use Copy picks below."; status.className = "status"; }
+}
+function tagFor(o) { if (o.u === "s") return ["s", "Starter"]; if (o.u === "l") return ["l", "Loot"]; return ["m", "Milestone " + o.u.toUpperCase()]; }
+const cards = [];
+function makeItem(o, host) {
+  const k = o.slot + "_" + o.id; const vs = o.vs ? Object.keys(o.vs) : ["A"];
+  const card = document.createElement("article"); card.className = "card item";
+  const head = document.createElement("div"); head.className = "chead";
+  const h = document.createElement("h3"); h.textContent = o.name; head.appendChild(h);
+  const pid = document.createElement("span"); pid.className = "pid"; pid.textContent = o.slot + ":" + o.id + (o.col !== "none" ? " · takes " + o.col : "") + (o.slot === "head" ? (o.hides ? " · hides hair" : " · hair shows") : ""); head.appendChild(pid);
+  const [tc, tl] = tagFor(o); const t = document.createElement("span"); t.className = "tag " + tc; t.textContent = tl; if (o.u.startsWith("m")) t.title = MILES[o.u]; head.appendChild(t);
+  card.appendChild(head);
+  if (o.was) { const p = document.createElement("p"); p.className = "cmt"; p.textContent = o.was; card.appendChild(p); }
+  if (o.sig) { const p = document.createElement("p"); p.className = "sig"; const b = document.createElement("b"); b.textContent = "Gameplay signal? "; p.appendChild(b); p.appendChild(document.createTextNode(o.sig)); card.appendChild(p); }
+  const row = document.createElement("div"); row.className = "vrow"; card.appendChild(row);
+  const L = lookFor(o.slot, o.id); const painters = [];
+  vs.forEach((v, i) => {
+    const col = document.createElement("div"); col.className = "vcol";
+    if (o.vs) { const lab = document.createElement("p"); lab.className = "vlab"; const b = document.createElement("b"); b.textContent = v + " "; lab.appendChild(b); lab.appendChild(document.createTextNode(o.vs[v])); col.appendChild(lab); }
+    const views = document.createElement("div"); views.className = "views";
+    const big = document.createElement("canvas"); big.className = "big"; big.setAttribute("role", "img"); big.setAttribute("aria-label", o.name + " " + v + ", close-up");
+    const street = document.createElement("canvas"); street.className = "street"; street.setAttribute("role", "img"); street.setAttribute("aria-label", o.name + " " + v + " at game size");
+    views.appendChild(big); views.appendChild(street); col.appendChild(views);
+    const cap = document.createElement("div"); cap.className = "cap";
+    const tile = document.createElement("canvas"); tile.className = "tile"; tile.setAttribute("role", "img"); tile.setAttribute("aria-label", o.name + " " + v + ", editor tile");
+    const tl2 = document.createElement("span"); tl2.textContent = "editor tile";
+    const chipHost = document.createElement("span");
+    const left = document.createElement("span"); left.className = "tilebox"; left.appendChild(tile); left.appendChild(tl2);
+    cap.appendChild(left); cap.appendChild(chipHost); col.appendChild(cap); row.appendChild(col);
+    const sel = { slot: o.slot, id: o.id, v };
+    painters.push(() => {
+      drawBig(big, L, sel); drawStreet(street, L, sel, cards.length * 3 + i * 7 + 1); drawTile(tile, L, sel, o.slot);
+      const m = area(o.slot, o.id, v); chipHost.textContent = "game size · ";
+      const chip = document.createElement("span"); chip.className = "chip " + (m.n >= 40 || m.outline ? "ok" : "bad"); chip.textContent = m.n + " px²" + (m.outline ? " + outline" : ""); chipHost.appendChild(chip);
+    });
+  });
+  const pk = document.createElement("div"); pk.className = "picks"; pk.setAttribute("role", "group"); pk.setAttribute("aria-label", "Pick for " + o.name);
+  const opts = o.group ? [["pick", "Pick"], ["no", "No"]] : [...vs.map(v => [v, "Pick " + v]), ["redraw", "Redraw again"], ["drop", "Drop"]];
+  for (const [val, lbl] of opts) { const b = document.createElement("button"); b.type = "button"; b.dataset.v = val; b.textContent = lbl; b.onclick = () => { picks[k] = Object.assign({}, picks[k], { choice: picks[k] && picks[k].choice === val ? "" : val }); sync(); save(k); }; pk.appendChild(b); }
+  card.appendChild(pk);
+  const ta = document.createElement("textarea"); ta.id = "note-" + k; ta.rows = 1; ta.placeholder = "Note (what to change)"; ta.setAttribute("aria-label", "Note for " + o.name);
+  ta.addEventListener("change", () => { picks[k] = Object.assign({}, picks[k], { note: ta.value.trim() }); save(k); });
+  card.appendChild(ta);
+  function sync() { const p = picks[k] || {}; pk.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === p.choice))); if (document.activeElement !== ta) ta.value = p.note || ""; card.classList.toggle("picked", !!p.choice); }
+  host.appendChild(card);
+  const paint = () => painters.forEach(f => f());
+  cards.push({ paint, sync }); paint();
+}
+function band(id, title, sub, host, cands) {
+  const sec = document.createElement("section"); sec.className = "band"; sec.setAttribute("aria-labelledby", "h-" + id);
+  const bh = document.createElement("div"); bh.className = "bandhead"; const h2 = document.createElement("h2"); h2.id = "h-" + id; h2.textContent = title; const sm = document.createElement("small"); sm.textContent = sub; h2.appendChild(sm); bh.appendChild(h2); sec.appendChild(bh);
+  const g = document.createElement("div"); g.className = cands ? "grid2 cands" : "grid2"; sec.appendChild(g); host.appendChild(sec); return g;
+}
+function build() {
+  const host = $("bands");
+  const SL = { top: "Tops", head: "Headgear", hair: "Hair", pack: "Backpacks", acc: "Accent" };
+  for (const s of ["top", "head", "hair", "pack", "acc"]) { const its = R2ITEMS.filter(o => o.slot === s && !o.group && !o.lean); if (!its.length) continue; const g = band("r-" + s, "Redraw: " + SL[s], its.length + " parts · pick one drawing each", host); its.forEach(o => makeItem(o, g)); }
+  { const its = R2ITEMS.filter(o => o.lean); const g = band("lean", "Lean on kept headgear", its.length + " parts · A as picked, B with the lean", host); its.forEach(o => makeItem(o, g)); }
+  for (const [gid, G] of Object.entries(GROUPS)) { const its = R2ITEMS.filter(o => o.group === gid); const g = band("g-" + gid, "New: " + G.title, `pick ${G.need} of ${its.length} · ${G.why}`, host, true); its.forEach(o => makeItem(o, g)); }
+}
+function swatches() { const ch = chosen(); for (const k of ["top", "hair", "acc"]) $("sw-" + k).style.background = inGame(k, ch[k]); }
+function repaint() { swatches(); for (const c of cards) c.paint(); }
+function renderSummary() {
+  const lines = []; let done = 0;
+  for (const o of R2ITEMS) { const p = picks[o.slot + "_" + o.id]; if (p && p.choice) done++; lines.push(`${o.slot}:${o.id}${o.group ? " [" + o.group + "]" : ""} = ${p && p.choice ? p.choice : "-"}${p && p.note ? " (" + p.note + ")" : ""}`); }
+  $("sumtext").value = lines.join("\n"); $("count").textContent = `${done} of ${R2ITEMS.length} answered.`;
+}
+$("copy").onclick = () => { const t = $("sumtext"), msg = $("copymsg"); try { navigator.clipboard.writeText(t.value).then(() => { msg.textContent = "Copied"; }, () => { t.select(); msg.textContent = "Selected: copy it with your keyboard"; }); } catch (e) { t.select(); msg.textContent = "Selected: copy it with your keyboard"; } };
+for (const id of ["c-top", "c-hair", "c-acc"]) $(id).addEventListener("input", () => { useDefaultCols = false; $("defcol").textContent = "Default colours"; repaint(); });
+$("defcol").onclick = () => { useDefaultCols = !useDefaultCols; $("defcol").textContent = useDefaultCols ? "Sample colours" : "Default colours"; repaint(); };
+$("stage").onchange = e => { stage = +e.target.value; repaint(); };
+let rt = 0; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(repaint, 120); });
+build(); swatches(); renderSummary();
+(async () => {
+  const timer = setTimeout(() => { if (!db) status.textContent = "Picks: can't save here. Use Copy picks below."; }, 10000);
+  try {
+    const d = window.claude && window.claude.use ? await window.claude.use("db") : null; clearTimeout(timer);
+    if (!d) { status.textContent = "Picks: can't save here. Use Copy picks below."; return; }
+    db = d; status.textContent = "Picks: saving on"; status.className = "status live";
+    db.collection("picks3").onSnapshot(snap => { for (const doc of snap.docs) { const x = doc.data() || {}; picks[doc.id] = { choice: typeof x.choice === "string" ? x.choice : "", note: typeof x.note === "string" ? x.note : "" }; } for (const c of cards) c.sync(); renderSummary(); }, e => { status.textContent = "Picks: can't load (" + (e && e.code || "error") + "). Use Copy picks below."; });
+  } catch (e) { clearTimeout(timer); status.textContent = "Picks: can't save here. Use Copy picks below."; }
+})();
+</script>

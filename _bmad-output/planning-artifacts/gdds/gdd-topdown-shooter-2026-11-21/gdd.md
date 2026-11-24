@@ -246,6 +246,7 @@ A wave counts for every player still in the run when it ends, downed or out, and
 Unlocks are bought in any order and add cards to the player's shop deck and tiles to their build bar: more options, not more power. **Borrowed card:** when a teammate in the room has unlocked weapons or gear the player hasn't, one of the player's 6 cards is drawn from those and marked "Borrowed from <name>" (bought with run money, gone after the run).
 **Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency +50 (200 → 250) · reload speed up to +5%. Each level costs **50 × level** Supplies (50, 100, 150, 200, 250). Caps keep a new friend viable next to a veteran (pillar 4); Training always applies in full and is never scaled to the team.
 **Pacing:** the first weapon a player wants (≈ 300) after ≈ 3 runs, a few favourites (≈ 1,000) after ≈ 10. Unlocking everything is a long-term goal, not the target: not everyone wants every weapon (designer, 2026-11-24). **District 2 unlocks** for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has it.
+**Survivor look (cosmetic only):** each player builds their survivor from code-drawn parts and free colours; extra parts come from 10 milestones (earned once) and a rare loot bag (1 run in 5), never from Supplies (FR89; `docs/ideas/customization/proposal.md`).
 ### Difficulty Curve
 | Waves | Feel | Why |
 |---|---|---|
@@ -350,7 +351,7 @@ This is a game for a group of friends, so success is simple and honest.
 - Players talk about decay moments ("the alley collapsed on us"). *(Pillar 3)*
 
 ## Out of Scope
-**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · cosmetics · matchmaking with strangers · voice and text chat · native apps. **Solo** online runs are allowed (× 0.35) but not balance-tuned.
+**Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · matchmaking with strangers · voice and text chat · native apps. **Solo** online runs are allowed (× 0.35) but not balance-tuned.
 **Not planned:** monetization (it is a game for friends) · story campaign · controller support.
 
 ## Assumptions and Dependencies
