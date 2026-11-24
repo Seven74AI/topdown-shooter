@@ -38,6 +38,8 @@ export interface HeadlessRunOptions {
   record?: InputLog;
   /** Story 4.4: called with the World when the run stops (e.g. for `worldDigest`). */
   onEnd?: (world: World) => void;
+  /** Story 6.5: called once with the World before the first tick (dev switches: `debug.bossWaves`, `debug.bossHpScale`). */
+  setup?: (world: World) => void;
 }
 
 export interface HeadlessWaveLog {
@@ -109,6 +111,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
   if (rec && (rec.seed !== seed >>> 0 || rec.players !== players)) throw new Error("runHeadless: record log is for another seed or team");
   // Lobby → the first build phase, like the server's run start (shared with `replayRun`). Story 4.1: on Downtown by default.
   const { world, ids } = createHeadlessWorld(balance, seed, players, opts.map);
+  opts.setup?.(world); // Story 6.5
   const recordBuild = rec ? (cmd: BuildCommand): void => void rec.commands.push({ ...cmd, tick: world.tick }) : undefined;
   const cfg = botConfigOf(balance);
   const views: BotView[] = ids.map(() => createBotView());

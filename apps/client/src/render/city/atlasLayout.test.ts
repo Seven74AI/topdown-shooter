@@ -85,3 +85,18 @@ describe("tileRects (static city bake)", () => {
     expect(tileRects(3072, 2048)).toHaveLength(2);
   });
 });
+
+describe("Story 6.5 boss atlas (brief 12)", () => {
+  it("4 looks × 13 frames (boss_<look>_<pose>_<variant>) and its FX fit 2048² each, valid layouts", async () => {
+    const { bossFxSpecs, bossSpecs, BOSS_FRAMES } = await import("./bossAtlas");
+    expect(BOSS_FRAMES).toHaveLength(4);
+    for (const f of BOSS_FRAMES) expect(f).toHaveLength(13);
+    expect(BOSS_FRAMES[0]?.[0]).toBe("boss_bh1_walk_a");
+    const l = packAtlas(bossSpecs());
+    expect(l.width).toBeLessThanOrEqual(2048);
+    expect(l.height).toBeLessThanOrEqual(2048);
+    expect(layoutIsValid(l)).toBe(true);
+    const fx = packAtlas(bossFxSpecs());
+    expect(layoutIsValid(fx)).toBe(true);
+  });
+});

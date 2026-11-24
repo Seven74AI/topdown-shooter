@@ -4,7 +4,8 @@ import { BUILD_GRID_M } from "../config/constants";
 import { addBuildingAt } from "../buildings/buildings";
 import { circleOverlapsBox, segmentHitsBox } from "../buildings/collision";
 import { ticksFor } from "../core/time";
-import { createWorld, type World } from "../core/world";
+import { createWorld, setInput, type World } from "../core/world";
+import { NEUTRAL_INPUT } from "../net/input";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { addPlayer } from "../player/player";
 import type { PlayerState } from "../player/player";
@@ -101,6 +102,21 @@ describe("Story 6.5 slam (FR34, FR84; F2)", () => {
     tickN(w, TELE - 1);
     p.x = 24 + S.radiusM - GRACE + 0.02; // the last tick before the hit: just out
     tickN(w);
+    expect(ev.some((e) => e.type === "player.damaged" && e.playerId === "p0")).toBe(false);
+  });
+
+  it("F4: the newest server position decides — a player who walks out on the hit tick itself is not hit (no older position)", () => {
+    const { w, ev } = setup();
+    const step = balance.player.speedMps * (1 / 20);
+    const p = stand(w, "p0", 24 + S.radiusM - GRACE - step / 2, 16); // inside by half a step
+    stand(w, "trigger", 24, 19); // within 4 m: starts it
+    slamAt(w, 24, 16);
+    tickN(w, TELE - 1);
+    p.x = 24 + S.radiusM - GRACE - step / 2;
+    // The hit tick: the player system moves first (one step outward), then the boss resolves.
+    setInput(w, "p0", { ...NEUTRAL_INPUT, seq: 1, moveX: 1, moveY: 0 });
+    tickN(w);
+    expect(p.x).toBeGreaterThan(24 + S.radiusM - GRACE);
     expect(ev.some((e) => e.type === "player.damaged" && e.playerId === "p0")).toBe(false);
   });
 

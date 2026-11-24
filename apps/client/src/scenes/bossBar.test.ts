@@ -30,6 +30,9 @@ describe("Story 6.5 boss bar layout", () => {
       expect(out.x + out.w / 2).toBeCloseTo(w / 2, 6);
       const menu = { x: w - MENU_BUTTON_INSET_CSS_PX - insR - MENU_BUTTON_CSS_PX, y: MENU_BUTTON_INSET_CSS_PX + insT, w: MENU_BUTTON_CSS_PX, h: MENU_BUTTON_CSS_PX };
       expect(rectGap(out, menu)).toBeGreaterThanOrEqual(12);
+      // The health bar top-left (HudScene: 200 × 16 at 16 px inside the safe area); its HP / money texts below are short and left-aligned.
+      const hp = { x: 16 + insL, y: 16 + insT, w: 200, h: 16 };
+      expect(rectGap(out, hp)).toBeGreaterThanOrEqual(12);
       expect(out.y - (WAVE_LINE_BOTTOM_CSS + insT)).toBeGreaterThanOrEqual(12);
       expect(out.y + out.h).toBeLessThan(h / 3); // never down at the thumbs (the sticks live in the lower halves)
       expect(out.barY + out.barH).toBe(out.y + out.h);
