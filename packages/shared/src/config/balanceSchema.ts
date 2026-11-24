@@ -503,6 +503,8 @@ export const buildControlsSchema = z
     dragGain: z.number().min(0.25).max(3).default(1),
     /** Story 5.19: a right-half touch becomes a drag (and pins the ghost) after this much travel (CSS px). */
     dragStartPx: z.number().int().min(2).max(40).default(8),
+    /** Story 5.20: the undo chip ↶ shows this long after each Place (ms; designer: 10 s). */
+    undoWindowMs: z.number().int().min(1000).max(60000).default(10000),
   })
   .strict();
 
@@ -513,7 +515,7 @@ export const controlsSchema = z
     aimAssistDeg: z.number().min(0).max(45),
     /** Story 5.2: client effect caps (no new balance file: every test fixture lists the files). */
     fx: fxSchema,
-    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300, dragGain: 1, dragStartPx: 8 }),
+    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300, dragGain: 1, dragStartPx: 8, undoWindowMs: 10000 }),
   })
   .strict();
 
@@ -722,6 +724,12 @@ export const buildingsSchema = z
     spawnClearM: z.number().min(0),
     /** Story 3.7: a full repair costs this share of the building's price, rounded up (GDD: 50 %). */
     repairShare: z.number().min(0).max(1),
+    /**
+     * Story 5.20 (F2): selling a building placed before this build phase refunds this share of what
+     * was paid for it before this phase, rounded down (designer: 50 %); this phase's spend comes back
+     * 100 %. Equal to `repairShare` so selling and rebuilding costs exactly a repair (no money loop).
+     */
+    sellShare: z.number().min(0).max(1).default(0.5),
     types: z.record(balanceId, buildingTypeSchema),
   })
   .strict();

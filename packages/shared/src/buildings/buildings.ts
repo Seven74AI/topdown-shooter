@@ -72,6 +72,14 @@ export interface Building {
   heldGen: number;
   rearmTicks: number;
   rearmPlayer: string;
+  /**
+   * Story 5.20 (F2, server bookkeeping): everything paid for this building (its price + every
+   * upgrade step; repairs never count) and the part of it paid in the CURRENT build phase (0 at
+   * every build start: `resetBuildSpend`). `sellRefund` reads them. Server/solo truth only: not in
+   * the schema; the client mirror keeps the defaults (`paid` = the tier price, `paidThisBuild` 0).
+   */
+  paid: number;
+  paidThisBuild: number;
 }
 
 /** Story 5.14: a bear trap's jaws (the schema's `trap` field: 0 for every other building). */
@@ -97,7 +105,7 @@ export function createBuildingState(): BuildingState {
 }
 
 /** Why a placement is refused. The client maps it to text (`placeRefusalText`). */
-export type PlaceError = "unknown_player" | "not_build_phase" | "unknown_type" | "not_for_sale" | "limit" | "money" | "blocked";
+export type PlaceError = "unknown_player" | "not_alive" | "not_build_phase" | "unknown_type" | "not_for_sale" | "limit" | "money" | "blocked";
 
 /** A footprint box in metres. */
 export interface Box {
@@ -296,7 +304,7 @@ export function blockReason(world: Readonly<World>, ownerId: string, box: Readon
 }
 
 /**
- * The whole placement check, in this order: unknown player → not a build phase → unknown type or a
+ * The whole placement check, in this order: unknown player → (Story 5.20) not standing (downed or out) → not a build phase → unknown type or a
  * bad grid point/rotation → (Story 5.10) not for sale → the owner's cap → money → the spot. null = the server would accept it.
  * The client's preview runs the same check on its mirror World (the server's answer may still differ:
  * others' positions there are interpolated).
@@ -304,6 +312,7 @@ export function blockReason(world: Readonly<World>, ownerId: string, box: Readon
 export function placementError(world: Readonly<World>, ownerId: string, req: PlaceRequest): PlaceError | null {
   const p = world.players.get(ownerId);
   if (!p) return "unknown_player";
+  if (p.status !== "alive") return "not_alive"; // Story 5.20 (5.11 R2): nobody builds while down
   if (world.run.phase !== "build") return "not_build_phase";
   const stats = buildingStats(world.balance, req.type);
   if (!stats || !stats.forSale || !isRotation(req.rot)) return "unknown_type"; // Story 5.9: upgrade-only tiers are never placed
@@ -360,6 +369,8 @@ export function addBuildingAt(world: World, spec: BuildingSpec): Building | null
     heldGen: 0,
     rearmTicks: 0,
     rearmPlayer: "",
+    paid: stats.price, // Story 5.20: `placeBuilding` / `upgradeBuilding` keep it (the mirror's stays the tier price)
+    paidThisBuild: 0,
   };
   const s = world.buildings;
   let i = s.list.length;
@@ -408,6 +419,8 @@ export function placeBuilding(world: World, ownerId: string, req: PlaceRequest):
     rot: req.rot as BuildingRotation,
     hp: stats.hp,
   }) as Building;
+  b.paid = stats.price; // Story 5.20 (F2): bought now, so all of it is this phase's spend
+  b.paidThisBuild = stats.price;
   world.events.emit({ type: "building.placed", buildingId: b.id, buildingType: b.type, ownerId, gx: b.gx, gy: b.gy, rot: b.rot });
   return ok(b);
 }
@@ -446,4 +459,10 @@ export function setBuildingType(world: World, b: Building, type: string, hp?: nu
   b.hp = hp ?? stats.hp;
   world.buildings.version++;
   return true;
+}
+
+/** Story 5.20: at every build start, nothing has been paid for any building in the new phase yet. */
+export function resetBuildSpend(world: World): void {
+  const list = world.buildings.list;
+  for (let i = 0; i < list.length; i++) (list[i] as Building).paidThisBuild = 0;
 }

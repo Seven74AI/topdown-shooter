@@ -165,11 +165,24 @@ describe("loadBalance", () => {
     expect(() => loadBalance(c)).toThrow(/controls\.json: aimDeadZone: /);
   });
 
+  it("Story 5.20: buildings.sellShare (0.5, defaults, bounded) and controls.build.undoWindowMs (10 s, bounded)", () => {
+    expect(loadBalance().buildings.sellShare).toBe(0.5);
+    const d = raw();
+    delete (d.buildings as { sellShare?: unknown }).sellShare;
+    expect(loadBalance(d).buildings.sellShare).toBe(0.5);
+    const s = raw();
+    (s.buildings as { sellShare: number }).sellShare = 1.5;
+    expect(() => loadBalance(s)).toThrow(/sellShare/);
+    const u = raw();
+    (u.controls as { build: { undoWindowMs: number } }).build.undoWindowMs = 500;
+    expect(() => loadBalance(u)).toThrow(/undoWindowMs/);
+  });
+
   it("Story 5.15: controls.build (carry gap, snap and auto-rotate hysteresis) loads, defaults and is bounded", () => {
-    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG });
+    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG, undoWindowMs: 10000 });
     const d = raw();
     delete (d.controls as { build?: unknown }).build;
-    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG });
+    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG, undoWindowMs: 10000 });
     const h = raw();
     (h.controls as { build: { snapHysteresisM: number } }).build.snapHysteresisM = 0.25; // half a cell: the index would never settle
     expect(() => loadBalance(h)).toThrow(/controls\.json: build\.snapHysteresisM: /);

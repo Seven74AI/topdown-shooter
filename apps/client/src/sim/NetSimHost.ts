@@ -34,6 +34,7 @@ import {
   type PlaceRequest,
   type RepairError,
   type UpgradeError,
+  type SellError,
   type PlayerInput,
   type PlayerState,
   type PlayerStateView,
@@ -248,6 +249,8 @@ export class NetSimHost implements SimHost {
   private repairRefusal: RepairError | null = null;
   /** Story 5.9: the last upgrade refusal, until the scene takes it. */
   private upgradeRefusal: UpgradeError | null = null;
+  /** Story 5.20: the last sell refusal, until the scene takes it. */
+  private sellRefusal: SellError | null = null;
   private readonly dropMissing = (_p: PlayerState, id: string): void => {
     if (!this.latest?.players.has(id)) removePlayer(this.world, id);
   };
@@ -301,6 +304,11 @@ export class NetSimHost implements SimHost {
     this.offs.push(
       opts.session.onUpgradeRefused((reason) => {
         this.upgradeRefusal = reason;
+      }),
+    );
+    this.offs.push(
+      opts.session.onSellRefused((reason) => {
+        this.sellRefusal = reason;
       }),
     );
     room.onStateChange(this.onState);
@@ -439,6 +447,17 @@ export class NetSimHost implements SimHost {
   takeUpgradeRefusal(): UpgradeError | null {
     const r = this.upgradeRefusal;
     this.upgradeRefusal = null;
+    return r;
+  }
+
+  /** Story 5.20: `building.sell`; the removal and refund come back in the state, a refusal as `building.sell_refused`. */
+  sellBuilding(id: number): void {
+    if (!this.disposed) this.session.room.send(C2S.BUILDING_SELL, { id });
+  }
+
+  takeSellRefusal(): SellError | null {
+    const r = this.sellRefusal;
+    this.sellRefusal = null;
     return r;
   }
 

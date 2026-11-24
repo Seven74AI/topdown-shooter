@@ -16,7 +16,10 @@ import {
   BUILD_PRICE_TEXT_CSS_PX,
   HAND_CHIP_PAD_CSS_PX,
   HAND_CHIP_TEXT_CSS_PX,
+  UNDO_GLYPH_CSS_PX,
+  UNDO_RING_CSS_PX,
 } from "../ui/sizes";
+import { layoutUndoChip } from "./undoChip";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { TAP_SLOP_CSS_PX, TapDetector } from "../input/tapDetector";
 import { ThumbDrag, onChipRect } from "../input/thumbDrag";
@@ -33,7 +36,7 @@ import type { InputRouter } from "../input/InputRouter";
 import { mixColor } from "../render/color";
 import { edgeArrow } from "../render/edgeArrow";
 import { MAX_PLAYERS } from "@topdown/shared";
-import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, hudTierMark } from "./hudModel";
+import { COUNTDOWN_LIFT_M, MAX_DOWNED_MARKERS, MAX_RUSH_MARKERS, NAME_LIFT_M, SOLD_POP_QUEUE, hudTierMark } from "./hudModel";
 import { SLOT_COLORS, SLOT_COLOR_CSS } from "../render/playerColors";
 import { createTeammateMarkers, teammateMarkers } from "../render/teammateMarkers";
 import { pulseAlpha, pulseScale } from "../render/pulse";
@@ -177,6 +180,21 @@ const REPAIR_REASON = "#ff8a80";
 /** Story 5.9: the Upgrade button when it would be accepted (steel blue: a stronger wall). */
 const UPGRADE_FILL = 0x37587a;
 const UPGRADE_BORDER = 0x90caf9;
+/** Story 5.20: the Sell / Take back button (a coin gold) and the undo chip ↶ (dark disc, gold ring draining). */
+const SELL_FILL = 0x6b5320;
+const SELL_BORDER = 0xf2c94c;
+const UNDO_BG = 0x1d232b;
+const UNDO_BG_ALPHA = 0.82;
+const UNDO_RING = 0xf2c94c;
+const UNDO_RING_TRACK = 0x4a5360;
+/** The ring is redrawn when its drawn share changes by 1/UNDO_RING_STEPS (not every frame). */
+const UNDO_RING_STEPS = 120;
+const UNDO_ARMED_ALPHA = 0.6;
+/** Story 5.20 (ux-spec §10): "+$N" floats up 0.6 m in 600 ms above a sold building. */
+const SOLD_POP_MS = 600;
+const SOLD_POP_RISE_M = 0.6;
+const SOLD_POP_TEXT_PX = 17;
+const SOLD_POP_COLOR = "#f2c94c";
 /** Story 3.3: the Shop button's border (the money colour); Story 5.16: the build bar's Shop tile. */
 const SHOP_BORDER = 0xf5c542;
 /**
@@ -343,6 +361,28 @@ export class HudScene extends Phaser.Scene {
   private shownUpgradeLabel = "";
   private shownUpgradeReason = "";
   private shownUpgradeValid = -1;
+  /** Story 5.20: Sell / Take back, right of Upgrade on its row; its refusal text above it. */
+  private sellBtn!: Phaser.GameObjects.Graphics;
+  private sellText!: Phaser.GameObjects.Text;
+  private sellReasonText!: Phaser.GameObjects.Text;
+  private shownSellShown: boolean | null = null;
+  private shownSellLabel = "";
+  private shownSellReason = "";
+  private shownSellValid = -1;
+  /** Story 5.20: the undo chip ↶ (a disc, its glyph, the draining ring); its layout follows the hand / bar state. */
+  private undoBg!: Phaser.GameObjects.Graphics;
+  private undoRing!: Phaser.GameObjects.Graphics;
+  private undoGlyph!: Phaser.GameObjects.Text;
+  private readonly undoRect = { x: 0, y: 0, size: 0 };
+  private shownUndoVisible: boolean | null = null;
+  private shownUndoHolding: boolean | null = null;
+  private shownUndoStep = -1;
+  private shownUndoArmed: boolean | null = null;
+  /** Story 5.20: sold "+$N" pops (pooled texts at world positions). */
+  private readonly soldPops: Phaser.GameObjects.Text[] = [];
+  private readonly soldPool = new PopPool(SOLD_POP_QUEUE, SOLD_POP_MS);
+  private readonly soldX = new Float32Array(SOLD_POP_QUEUE);
+  private readonly soldY = new Float32Array(SOLD_POP_QUEUE);
   private readonly taps = new TapDetector();
   /** Safe-area insets (CSS px), measured on create and resize only (getComputedStyle is costly). */
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -442,6 +482,14 @@ export class HudScene extends Phaser.Scene {
     this.shownUpgradeLabel = "";
     this.shownUpgradeReason = "";
     this.shownUpgradeValid = -1;
+    this.shownSellShown = null;
+    this.shownSellLabel = "";
+    this.shownSellReason = "";
+    this.shownSellValid = -1;
+    this.shownUndoVisible = null;
+    this.shownUndoHolding = null;
+    this.shownUndoStep = -1;
+    this.shownUndoArmed = null;
     this.taps.reset();
   }
 
@@ -562,6 +610,23 @@ export class HudScene extends Phaser.Scene {
     this.buttons.set({ id: "upgrade", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
       this.model.upgradePressed = true;
     });
+    // Story 5.20: Sell / Take back (my own buildings only) and the undo chip ↶.
+    this.sellBtn = this.add.graphics().setDepth(1001).setVisible(false);
+    this.sellText = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.sellReasonText = this.add
+      .text(0, 0, "", { ...this.outlinedStyle(REPAIR_INFO_PX), color: REPAIR_REASON })
+      .setOrigin(1, 0.5)
+      .setDepth(1002)
+      .setVisible(false);
+    this.buttons.set({ id: "sell", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.sellPressed = true;
+    });
+    this.undoBg = this.add.graphics().setDepth(1001).setVisible(false);
+    this.undoRing = this.add.graphics().setDepth(1002).setVisible(false);
+    this.undoGlyph = this.add.text(0, 0, "↶", this.outlinedStyle(UNDO_GLYPH_CSS_PX)).setOrigin(0.5).setDepth(1003).setVisible(false);
+    this.buttons.set({ id: "undo", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.undoPressed = true;
+    });
     this.layoutButtons();
     this.reloadBar = this.add.graphics();
     this.waveText = this.add
@@ -626,6 +691,11 @@ export class HudScene extends Phaser.Scene {
     this.firePool.clear();
     for (let i = 0; i < FIRE_POP_POOL; i++) this.firePops.push(this.add.text(0, 0, "", this.firePopStyle()).setOrigin(1, 1).setVisible(false));
     this.model.fireHitCount = 0;
+    // Story 5.20: sold "+$N" pops (rebuilt with the scene).
+    this.soldPops.length = 0;
+    this.soldPool.clear();
+    for (let i = 0; i < SOLD_POP_QUEUE; i++) this.soldPops.push(this.add.text(0, 0, "", this.soldPopStyle()).setOrigin(0.5, 1).setDepth(1003).setVisible(false));
+    this.model.soldPopCount = 0;
     ensureAtlases(this);
     // Story 5.11: gear icons (Phaser reuses this scene: rebuilt here, shown on the next HP redraw).
     ensureGearIcons(this);
@@ -848,6 +918,97 @@ export class HudScene extends Phaser.Scene {
     this.layoutReadyButton();
     this.layoutPlacementButtons();
     this.layoutRepairPanel();
+    this.layoutUndo(); // Story 5.20: after the build bar and the hand cluster (it sits by both)
+  }
+
+  /** Story 5.20 (D4): ↶ above the build bar's top-left (`layoutUndoChip`), the bar's or the hand's spot. */
+  private layoutUndo(): void {
+    const k = dpr();
+    const l = layoutUndoChip(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, this.bar.left, this.bar.top, k, this.model.undoHolding, this.undoRect);
+    const rect = this.buttons.get("undo");
+    if (rect) Object.assign(rect, { x: l.x, y: l.y, w: l.size, h: l.size });
+    const g = this.undoBg;
+    g.clear();
+    g.fillStyle(UNDO_BG, UNDO_BG_ALPHA).fillCircle(l.size / 2, l.size / 2, l.size / 2);
+    g.setPosition(l.x, l.y);
+    this.undoRing.setPosition(l.x + l.size / 2, l.y + l.size / 2);
+    this.undoGlyph
+      .setFontSize(Math.round(UNDO_GLYPH_CSS_PX * k))
+      .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
+      .setPosition(l.x + l.size / 2, l.y + l.size / 2);
+    this.shownUndoHolding = this.model.undoHolding;
+    this.shownUndoStep = -1; // redraw the ring at the new size
+  }
+
+  /** Story 5.20: shows ↶ with its draining ring (redrawn only when the drawn share changes). */
+  private drawUndo(): void {
+    const m = this.model;
+    const shown = m.undoVisible;
+    if (shown !== this.shownUndoVisible) {
+      this.shownUndoVisible = shown;
+      this.buttons.setVisible("undo", shown);
+      this.undoBg.setVisible(shown);
+      this.undoRing.setVisible(shown);
+      this.undoGlyph.setVisible(shown);
+    }
+    if (!shown) return;
+    if (m.undoHolding !== this.shownUndoHolding) this.layoutUndo();
+    if (m.undoArmed !== this.shownUndoArmed) {
+      this.shownUndoArmed = m.undoArmed;
+      const a = m.undoArmed ? UNDO_ARMED_ALPHA : 1;
+      this.undoGlyph.setAlpha(a);
+      this.undoBg.setAlpha(a);
+    }
+    const step = Math.ceil(Math.max(0, Math.min(1, m.undoProgress)) * UNDO_RING_STEPS);
+    if (step === this.shownUndoStep) return;
+    this.shownUndoStep = step;
+    const k = dpr();
+    const r = this.undoRect.size / 2 - (UNDO_RING_CSS_PX * k) / 2;
+    const g = this.undoRing;
+    g.clear();
+    g.lineStyle(UNDO_RING_CSS_PX * k, UNDO_RING_TRACK, 0.9).strokeCircle(0, 0, r);
+    if (step > 0) {
+      const top = -Math.PI / 2;
+      g.lineStyle(UNDO_RING_CSS_PX * k, UNDO_RING, 1).beginPath().arc(0, 0, r, top, top + (step / UNDO_RING_STEPS) * Math.PI * 2, false).strokePath();
+    }
+  }
+
+  /** Story 5.20: the sold "+$N" text (bold gold, dark stroke). */
+  private soldPopStyle(): Phaser.Types.GameObjects.Text.TextStyle {
+    const k = dpr();
+    return {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: `${Math.round(SOLD_POP_TEXT_PX * k)}px`,
+      color: SOLD_POP_COLOR,
+      fontStyle: "bold",
+      stroke: TEXT_STROKE,
+      strokeThickness: Math.round(TEXT_STROKE_PX * k * 0.75),
+    };
+  }
+
+  /** Story 5.20 (ux-spec §10): "+$N" rises 0.6 m in 600 ms at each sold building (world → screen each frame). */
+  private drawSoldPops(): void {
+    const m = this.model;
+    const now = this.time.now;
+    for (let i = 0; i < m.soldPopCount; i++) {
+      const amount = m.soldPopAmount[i] as number;
+      const slot = this.soldPool.spawn(now, amount);
+      this.soldX[slot] = m.soldPopX[i] as number;
+      this.soldY[slot] = m.soldPopY[i] as number;
+      (this.soldPops[slot] as Phaser.GameObjects.Text).setText(`+$${amount}`); // once per sell, not per frame
+    }
+    m.soldPopCount = 0;
+    for (let i = 0; i < this.soldPops.length; i++) {
+      const t = this.soldPops[i] as Phaser.GameObjects.Text;
+      if (!this.soldPool.alive(i, now)) {
+        if (t.visible) t.setVisible(false);
+        continue;
+      }
+      const p = this.soldPool.progress(i, now);
+      const sx = ((this.soldX[i] as number) - m.camX) * m.camZoom;
+      const sy = ((this.soldY[i] as number) - p * SOLD_POP_RISE_M - m.camY) * m.camZoom;
+      t.setPosition(sx, sy).setAlpha(1 - p * p).setVisible(true);
+    }
   }
 
   /**
@@ -892,6 +1053,48 @@ export class HudScene extends Phaser.Scene {
     this.upgradeText.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, uy + h / 2);
     this.upgradeReason.setFontSize(Math.round(REPAIR_INFO_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x - gap, uy + h / 2);
     this.shownUpgradeValid = -1;
+    // Story 5.20 (D6): Sell one row above Upgrade, same width (clear of ✕'s info column at 568 px); its refusal text to its left.
+    const sy = uy - gap - h;
+    const sell = this.buttons.get("sell");
+    if (sell) Object.assign(sell, { x, y: sy, w, h });
+    this.sellBtn.setPosition(x, sy);
+    this.sellText.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, sy + h / 2);
+    this.sellReasonText.setFontSize(Math.round(REPAIR_INFO_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x - gap, sy + h / 2);
+    this.shownSellValid = -1;
+  }
+
+  /** Story 5.20: shows, hides and updates Sell / Take back (only when what it shows changes). */
+  private drawSell(): void {
+    const m = this.model;
+    const shown = m.repairOpen && m.sellShown;
+    if (shown !== this.shownSellShown) {
+      this.shownSellShown = shown;
+      this.buttons.setVisible("sell", shown);
+      this.sellBtn.setVisible(shown);
+      this.sellText.setVisible(shown);
+      this.sellReasonText.setVisible(shown);
+    }
+    if (!shown) return;
+    if (m.sellLabel !== this.shownSellLabel) {
+      this.shownSellLabel = m.sellLabel;
+      this.sellText.setText(m.sellLabel);
+    }
+    if (m.sellReason !== this.shownSellReason) {
+      this.shownSellReason = m.sellReason;
+      this.sellReasonText.setText(m.sellReason);
+    }
+    const valid = m.sellReason === "" ? 1 : 0;
+    if (valid === this.shownSellValid) return;
+    this.shownSellValid = valid;
+    const k = dpr();
+    const w = REPAIR_BUTTON_W_CSS_PX * k;
+    const h = READY_BUTTON_H_CSS_PX * k;
+    const g = this.sellBtn;
+    g.clear();
+    g.fillStyle(valid ? SELL_FILL : READY_BG, valid ? 0.85 : READY_BG_ALPHA).fillRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
+    g.lineStyle(READY_BORDER_PX * k, valid ? SELL_BORDER : READY_BORDER, 0.9).strokeRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
+    g.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
+    this.sellText.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
   }
 
   /** Story 5.9: shows, hides and updates the Upgrade button (only when what it shows changes). */
@@ -1466,6 +1669,9 @@ export class HudScene extends Phaser.Scene {
     this.drawBuildBar(); // Story 5.16
     this.drawRepair();
     this.drawUpgrade(); // Story 5.9
+    this.drawSell(); // Story 5.20
+    this.drawUndo(); // Story 5.20
+    this.drawSoldPops(); // Story 5.20
     this.perfOverlay?.update();
   }
 

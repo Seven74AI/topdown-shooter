@@ -13,10 +13,10 @@ import { buildingById, buildingStats, type Building } from "./buildings";
  */
 
 /** Why a repair is refused. The client maps it to text (`repairRefusalText`). */
-export type RepairError = "unknown_player" | "not_build_phase" | "gone" | "full_hp" | "money";
+export type RepairError = "unknown_player" | "not_alive" | "not_build_phase" | "gone" | "full_hp" | "money";
 
 /** Every `RepairError`, for parsing what the server sent. */
-export const REPAIR_ERRORS: readonly RepairError[] = Object.freeze(["unknown_player", "not_build_phase", "gone", "full_hp", "money"]);
+export const REPAIR_ERRORS: readonly RepairError[] = Object.freeze(["unknown_player", "not_alive", "not_build_phase", "gone", "full_hp", "money"]);
 
 /** What a full repair of `type` costs (0 for an unknown type). */
 export function repairCost(balance: Balance, type: string): number {
@@ -29,13 +29,14 @@ export function repairCost(balance: Balance, type: string): number {
 export const isDamaged = (b: Readonly<Building>): boolean => Math.ceil(b.hp) < b.maxHp;
 
 /**
- * The whole repair check, in this order: unknown player → not a build phase → the building is gone
+ * The whole repair check, in this order: unknown player → (Story 5.20) not standing → not a build phase → the building is gone
  * → it is at full HP → money. null = the server would accept it. The client's panel runs the same
  * check on its mirror World (synced HP is rounded up there, so the server may still say yes).
  */
 export function repairError(world: Readonly<World>, playerId: string, buildingId: number): RepairError | null {
   const p = world.players.get(playerId);
   if (!p) return "unknown_player";
+  if (p.status !== "alive") return "not_alive"; // Story 5.20 (5.11 R2)
   if (world.run.phase !== "build") return "not_build_phase";
   const b = buildingById(world, buildingId);
   if (!b) return "gone";
