@@ -258,6 +258,7 @@ Full gate on `story-6-6` at `f46e0cb` (merged with origin/master `eb3b991`, afte
 - `render/BossView.ts`, `bossTelegraph.ts`, `bossCue.ts`, `city/bossAtlas.ts` (frame indices `outline` 14 / `outlineEnraged` 15 now), `city/behemothArt.ts` (`dead` pose), `audio/placeholderSfx.ts` (8 keys).
 - `bots/headlessRun.ts`: `earnedBy.boss`. `economy/tenWaveSim.test.ts` sums it and asserts 150 × 4. `waves/waveDirector.test.ts` (6.1's wave-10 rush test) sets `bossWaves = []`.
 - 6.5 tests that assume a walking-only boss use `slamOnly(world)` (`boss/testBoss.ts`).
+- (new) `docs/perf/epic-6-boss.md` (review M1)
 - `docs/playtests/milestone-1/readability-sheet.md`: items **60–64** (the main session's split: 49 is 7.8's, 6.2+6.4 use 50–59, 6.6+6.7 use 60–69).
 - **6.2:** rubble boxes named `rubble_*` in `obstacles.solids` crash the charge (no code here needed) and are the throw's "rubble" source by name prefix.
 
@@ -290,6 +291,7 @@ Full gate on `story-6-6` at `f46e0cb` (merged with origin/master `eb3b991`, afte
 - `apps/server/src/rooms/schema/syncState.test.ts`
 - `apps/server/src/rooms/schema/syncState.ts`
 - `apps/server/src/run/RunController.ts`
+- `apps/server/src/run/RunController.test.ts` (review L3)
 - `apps/server/src/run/tickCostBoss.test.ts`
 - (new) `docs/art/6-6/6-6-568x320-charge-telegraph.png`
 - (new) `docs/art/6-6/6-6-568x320-crash-stun.png`
@@ -344,6 +346,7 @@ Full gate on `story-6-6` at `f46e0cb` (merged with origin/master `eb3b991`, afte
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: review fixes M1, L1–L4, N1, N2 (see Review fixes).
 - 2026-11-24: merged with 6.7 (designer); built as one story (gds-dev-story, builder session `story-6-6`): charge, throw, stun, enrage, Crawler drops, death and pay; network, prediction, client drawing and HUD; fuzz, netsim, run sim, tick cost, mutations, browser check; merged master `eb3b991`; status → review.
 
 ## Senior Developer Review (AI)
@@ -429,3 +432,17 @@ Survived (bad, see L3): M19 roar takes 10 hp directly (the tests only look for d
 ### Not verified by this review
 
 Real phones, browser FPS, sound by ear, a real hidden tab, and an online two-tab run (same as the builder's list).
+
+### Review fixes (builder, 2026-11-24)
+
+All findings fixed on `story-6-6`. **Behaviour changes: L1, L2, L4** (and N2, trample only); for the re-reviewer.
+
+| # | Fix | Behaviour change? | Test (mutation proof) |
+| --- | --- | --- | --- |
+| M1 | `?stress=150` headless FPS before (master `eb3b991`) / after, with the boss walking, charging back to back and throwing back to back, plus probes: `docs/perf/epic-6-boss.md`. Charges / throws cost −4 % / −8 % when they kill nothing (17.7 / 16.9 vs 18.4 fps); the ~20 % seen with kills on is the 528 zombie deaths per 20 s the forced attacks cause in the packed stress crowd (probes rule out the lane/ring drawing, sounds and the sim: 0.5 ms steps). | no | — |
+| L1 | `charge.ts › hitPlayer`: a survivor without a slot gets a hit-mask bit after the `MAX_PLAYERS` slot bits, by its order in the World (`CHARGE_HIT_BITS` 31); past 31 it is never hit (the safe side). `crossCheckBoss`: `MAX_PLAYERS ≤ 31`. | yes (slot-less survivors: once per charge instead of every tick) | `charge.test.ts` "review L1: a survivor without a player slot … at most once per charge" (the old `bit = 0` path fails it: 1 failed) |
+| L2 | `knockback.ts › knockStepMmOf` / `chargeKnockStepMm` (uses `ticksFor`, no literal 20); the Predictor calls it. `crossCheckBoss`: the charge shove's mm per tick must differ from the slam push, the roar push and every zombie type's knockback. | yes (only if balance changes: a clashing step is now refused at load) | `config/balance.test.ts`: slam `pushM` 2.5 (625 mm/tick) is refused (removing the rule fails it) |
+| L3 | Four asserts: M19 the roar leaves every player's hp and the boss's hp unchanged; M21 a woken tab after a crash plays no late CRASH!/sound (`NetSimHost.boss.test.ts`); M22 `RunController` gives the finisher +1 kill, a killer-less death none (`RunController.test.ts`); M24 two worlds differing only in `crawlerTicks` have different digests (`death.test.ts`). | no | each of the four mutations now fails its test |
+| L4 | `telegraph.ts`: a throw's RECOVER lasts until **impact + `throw.recoverS`** (the boss stands while the chunk flies), then the gap; `attack.live` still blocks. Story AC 5 and DD4 updated to say so. | yes (after a throw the next attack is up to 0.8 s later) | `throw.test.ts` "review L4 (brief 21f): … never before impact + recovery + gap (1–4 players, enraged or not)" + "recovers 0.6 s from the IMPACT" (the old timing fails both) |
+| N1 | `pickThrowTarget`: a module callback through `players.forEach` (no iterator per WALK tick). | no | existing throw tests |
+| N2 | Trample once per zombie per charge by a per-slot mark (`boss.trampleId` = attack id, `trampleGen` = the slot's generation; snapshotted, reset with the boss) against the swept capsule, so a zombie that walks in under the body between two steps is trampled too. Cheap: two typed arrays of 256. | yes (more zombies trampled; still once each) | `charge.test.ts` "review N2: a zombie that walks in under the body between two rush steps is trampled too — once per charge" (ignoring the mark fails 2 tests) |
