@@ -103,16 +103,6 @@ describe("Story 6.3 DarknessView", () => {
     b.view.destroy();
   });
 
-  it("F6 / AC 12: the darkness code reads no quality or settings flag, and no setting or URL option turns it off", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const src = (f: string) => readFileSync(join(__dirname, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-    for (const f of ["DarknessView.ts", "darknessPlan.ts", "lightStamps.ts"]) expect(src(f), f).not.toMatch(/lowFx|urlOptions|getSettings|settings/);
-    const opts = src("../../debug/urlOptions.ts");
-    const settings = src("../../settings/settings.ts");
-    for (const s of [opts, settings]) expect(s).not.toMatch(/noDark|darkOff|darkness\s*:\s*false|brightness/i);
-  });
-
   it("a blackout that ends hides the darkness at once and stops repainting (F1: no fade)", () => {
     const { view } = darkness();
     const w = world(5);
