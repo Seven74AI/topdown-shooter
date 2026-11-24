@@ -3,7 +3,7 @@ import { EVENT_KINDS, EVENT_PHASE, NPC_STATE, playerIdOfSlot, type World } from 
 import { EVENT_ATLAS, EVENT_FRAMES, EVENT_GAS_HEX, EVENT_SMOKE_RGB, EVENT_WHITE, EVENT_WHITE_HEX, NPC_PX, NPC_R_PX, PIN_H, PIN_TIP_Y, PIN_W, npcFrame } from "./city/eventArt";
 import { aboveDarkness } from "./darkness/aboveDark";
 import { dashedCircle } from "./dashes";
-import type { EventMarkerLook } from "./eventMarkers";
+import { NPC_PIN_LIFT_M, type EventMarkerLook } from "./eventMarkers";
 
 /**
  * Stories 6.9 + 6.10 (GL1, SD2 + SD3, SV1–SV3, white flag): the parts of the gas leak, the supply
@@ -250,7 +250,7 @@ export class EventPickupsView {
       this.npcLabel.setText(npcText);
     }
     this.npcLabel.setVisible(npcText !== "");
-    if (npcText !== "") this.npcLabel.setPosition(this.npcX, this.npcY - 0.85);
+    if (npcText !== "") this.npcLabel.setPosition(this.npcX, this.npcY - NPC_PIN_LIFT_M - PIN_M - 0.1);
     // the safe flag (S1) and its 2 m ring (S5)
     const f = look.flag;
     this.flagPin.setVisible(on && f.visible);

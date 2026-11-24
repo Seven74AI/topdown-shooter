@@ -81,6 +81,9 @@ const POWER_FAILURE = EVENT_KINDS.indexOf("power_failure");
 const SURVIVOR = EVENT_KINDS.indexOf("survivor");
 /** Story 6.9 (SD2/SD3): the crate drops on its chute over the flare's last 1.2 s (looks.html). */
 export const CHUTE_S = 1.2;
+/** Stories 6.9 / 6.10: the pin floats this far above the tank / crate (looks.html `y − 0.6`) and the NPC (over its HP bar). */
+export const PIN_LIFT_M = 0.6;
+export const NPC_PIN_LIFT_M = 0.95;
 /** Story 6.10 (P1): the 2 s flicker pattern — lamps off for 0.15 s steps (keyed off the server tick: every phone in step). */
 export const FLICKER_STEP_S = 0.15;
 export const GAS_LABEL = "GAS LEAK";
@@ -154,6 +157,7 @@ export function eventMarkerLook(world: Readonly<World>, serverTick: number, vx: 
   } else if (a.kind === GAS_LEAK) {
     // G1 / G4: the ring from the start, the countdown arc from the server's phase tick (ends on the blast).
     out.icon = "flame";
+    out.y = a.y - PIN_LIFT_M;
     out.pulse = true;
     out.ringM = ev.gasLeak.radiusM;
     out.arc = Math.max(0, Math.min(1, 1 - sincePhase / ticksFor(ev.gasLeak.hissS)));
@@ -162,6 +166,7 @@ export function eventMarkerLook(world: Readonly<World>, serverTick: number, vx: 
     // G5: the weapon shows from the flare; the crate falls over the flare's last CHUTE_S.
     const d = world.special.supplyDrop;
     out.icon = "gun";
+    out.y = a.y - PIN_LIFT_M;
     out.pulse = a.phase === EVENT_PHASE.FLARE;
     out.label = d.weapon >= 0 ? crateLabel(world.balance, d.weapon, d.level) : "";
     if (a.phase === EVENT_PHASE.FLARE) {
@@ -179,7 +184,7 @@ export function eventMarkerLook(world: Readonly<World>, serverTick: number, vx: 
     const n = world.special.survivor;
     out.icon = "person";
     out.x = n.x;
-    out.y = n.y;
+    out.y = n.y - NPC_PIN_LIFT_M;
     out.crouch = n.state === NPC_STATE.WAITING;
     out.leaderSlot = n.leaderSlot;
     out.pulse = n.state === NPC_STATE.WAITING;

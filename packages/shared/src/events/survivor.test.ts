@@ -9,6 +9,7 @@ import { circleInFire } from "../decay/decayState";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { EVENT_KINDS, EVENT_PHASE, NPC_STATE } from "./eventState";
 import { damageSurvivor, survivorFits } from "./survivor";
+import { flowCellAt } from "../zombies/flowField";
 import { balance, eventWorld, ofType, startNext, tickN } from "./testEvents";
 
 /** Story 6.10 (S1–S5, AC 3–5): the survivor NPC. */
@@ -191,6 +192,17 @@ describe("Story 6.10 S3 / S4: zombies want it; your weapons never hurt it", () =
     const bite = balance.zombies.types.walker!.damage;
     expect(n.hp).toBeLessThan(cfg.hp);
     expect((cfg.hp - n.hp) % bite).toBe(0);
+  });
+
+  it("the chase field is seeded from it like a player (its cell is a seed; none once it is gone)", () => {
+    const { world } = npcWorld(11, [[44, 30]], {});
+    const n = world.special.survivor;
+    tickN(world, 400); // the round-robin builds the chase field
+    const pa = world.pathing;
+    expect(pa.chase.back[flowCellAt(pa.nav, n.x, n.y)]).toBe(0); // a seed cell (back 0)
+    damageSurvivor(world, cfg.hp);
+    tickN(world, 400);
+    expect(pa.chase.back[flowCellAt(pa.nav, n.x, n.y)]).not.toBe(0);
   });
 
   it("zombies walk to it from afar (the chase field is seeded from it)", () => {

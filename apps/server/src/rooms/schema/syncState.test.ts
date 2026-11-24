@@ -572,3 +572,60 @@ describe("Story 6.5 syncState: the boss record", () => {
     expect(state.boss.target).toBe(255);
   });
 });
+
+describe("Stories 6.9 + 6.10 syncState: the crate and the survivor", () => {
+  it("writes the crate's weapon / claim and the NPC's record on change only (nothing while idle); bandwidth while the NPC walks; reset clears them", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    syncState(state, controller);
+    encoder.encode();
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const idle = encoder.encode().length;
+    encoder.discardChanges();
+    // a supply drop (as the module writes it)
+    const a = w.special.active;
+    a.kind = 3; // supply_drop
+    a.phase = 7;
+    a.x = 10;
+    a.y = 20;
+    const d = w.special.supplyDrop;
+    d.weapon = 9;
+    d.level = 2;
+    d.claimSlot = 1;
+    d.claimTicks = 4;
+    syncState(state, controller);
+    expect([state.crateWeapon, state.crateClaimSlot, state.crateClaimTicks]).toEqual([9, 1, 4]);
+    encoder.encode();
+    encoder.discardChanges();
+    syncState(state, controller);
+    expect(encoder.encode().length).toBe(0); // unchanged (and no tick): no bytes
+    encoder.discardChanges();
+    // a survivor walking: ≤ ~12 B per tick on top of the idle patch (≈ 240 B/s at 20 Hz)
+    a.kind = 5;
+    a.phase = 12;
+    d.weapon = -1;
+    d.claimSlot = -1;
+    d.claimTicks = 0;
+    const n = w.special.survivor;
+    Object.assign(n, { x: 26, y: 21, hp: 50, state: 2, look: 1, leaderSlot: 0, safeX: 8.5, safeY: 17, status: "alive" });
+    syncState(state, controller);
+    expect([state.npcX, state.npcY, state.npcHp, state.npcState, state.npcLook, state.npcLeaderSlot, state.safeX, state.safeY]).toEqual([2600, 2100, 50, 2, 1, 0, 850, 1700]);
+    encoder.encode();
+    encoder.discardChanges();
+    let walk = 0;
+    for (let i = 0; i < 20; i++) {
+      n.x += 0.2;
+      a.x = n.x;
+      syncState(state, controller);
+      walk += encoder.encode().length; // no tick: only the NPC's (and marker's) fields
+      encoder.discardChanges();
+    }
+    expect(idle).toBeGreaterThan(0);
+    expect(walk / 20).toBeLessThanOrEqual(12);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[bandwidth] survivor walking: +${(walk / 20).toFixed(1)} B per patch (≈ ${Math.round(walk)} B/s at 20 Hz)`);
+    resetRunFields(state);
+    expect([state.crateWeapon, state.crateClaimSlot, state.crateClaimTicks, state.npcX, state.npcState, state.npcLeaderSlot, state.safeX]).toEqual([255, 255, 0, 0, 0, 255, 0]);
+  });
+});
