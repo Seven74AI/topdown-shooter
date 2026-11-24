@@ -91,7 +91,8 @@ import { STALE_EXPLOSION_S, blastLookFor } from "../render/grenadeFx";
 import { CityView } from "../render/city/CityView";
 import { TurretView } from "../render/TurretView";
 import { FloodlightView } from "../render/FloodlightView";
-import { DarknessView } from "../render/darkness/DarknessView";
+import { DARKNESS_PAD, DarknessView } from "../render/darkness/DarknessView";
+import { ABOVE_DARK } from "../render/darkness/aboveDark";
 import { EyesView } from "../render/darkness/EyesView";
 import { BeamSparkleView } from "../render/darkness/BeamSparkleView";
 import { DarknessPlan, FlashLights, planDarkness, type DarknessInputs } from "../render/darkness/darknessPlan";
@@ -647,7 +648,7 @@ export class GameScene extends Phaser.Scene {
     this.chevrons.length = 0;
     for (let i = 0; i < MAX_RUSH_MARKERS; i++) {
       const c = CHEVRON_M;
-      this.chevrons.push(this.add.triangle(0, 0, -c, -c * 0.6, c, -c * 0.6, 0, c * 0.6, RUSH_COLOR).setDisplayOrigin(0, 0).setDepth(12).setVisible(false)); // Phaser 4: points are drawn from the display origin (2.9 review)
+      this.chevrons.push(this.add.triangle(0, 0, -c, -c * 0.6, c, -c * 0.6, 0, c * 0.6, RUSH_COLOR).setDisplayOrigin(0, 0).setDepth(ABOVE_DARK.rush).setVisible(false)); // Story 6.3 review L4: above the darkness (FR30). Phaser 4: points are drawn from the display origin (2.9 review)
     }
 
     const cam = this.cameras.main;
@@ -1966,10 +1967,10 @@ export class GameScene extends Phaser.Scene {
       const inp = this.darkInputs;
       inp.molotovs = this.molotovView?.fires.live ?? [];
       inp.nowS = this.acidClockS;
-      inp.viewX = m.camX;
-      inp.viewY = m.camY;
-      inp.viewW = vw;
-      inp.viewH = vh;
+      inp.viewX = m.camX - vw * DARKNESS_PAD; // review M1: the padded darkness (camera shake)
+      inp.viewY = m.camY - vh * DARKNESS_PAD;
+      inp.viewW = vw * (1 + 2 * DARKNESS_PAD);
+      inp.viewH = vh * (1 + 2 * DARKNESS_PAD);
       planDarkness(plan, world, inp);
     }
     this.darknessView?.update(world, plan, m.camX, m.camY, vw, vh, zoom, this.scale.width, this.scale.height);

@@ -23,6 +23,8 @@ export const ABOVE_DARK = {
   pickup: 11.75,
   /** Event map markers and the safe point (6.8–6.10). */
   marker: 11.76,
+  /** The red rush chevrons over the wave's last zombies (FR30; review L4: kept above the dark). */
+  rush: 11.765,
   /** Pings (Epic 8.7). */
   ping: 11.77,
 } as const;

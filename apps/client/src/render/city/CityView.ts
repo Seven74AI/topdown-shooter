@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
-import { isBlackout, type DistrictMap, type FireRecord, type World } from "@topdown/shared";
+import type { DistrictMap, FireRecord, World } from "@topdown/shared";
+import { rainAlphaFor } from "./rainLook";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, carStyle, dressingFor, type Dressing } from "./dressing";
 import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, resetPatternTiles, type CityScene } from "./drawCity";
@@ -50,8 +51,7 @@ const LIGHT_PX_PER_M = 8;
 const RAIN_POOL = 128;
 const RAIN_PER_M2 = 0.4;
 const RAIN_ALPHA = 0.28;
-/** Story 6.3 (D7): in a blackout the normal rain is dimmed to 35 % (faint over the dark; beams sparkle instead). */
-export const BLACKOUT_RAIN_K = 0.35;
+
 const RAIN_LEN_M = 0.45;
 const RAIN_W_M = 0.035;
 /** Fall speed range (m/s) and the slant (x per y). */
@@ -320,7 +320,7 @@ export class CityView {
     this.fireView.update(dtS, t, viewX, viewY, viewW, viewH);
 
     const level = nightAt(this.stage).rain;
-    const rainA = isBlackout(world) ? RAIN_ALPHA * BLACKOUT_RAIN_K : RAIN_ALPHA; // Story 6.3: one compare per frame
+    const rainA = rainAlphaFor(world, RAIN_ALPHA); // Story 6.3 (D7): dimmed in a blackout; one compare per frame
     const spanY = viewH + 2 * RAIN_MARGIN_M;
     const spanX = viewW + 2 * RAIN_MARGIN_M;
     const n = Math.min(RAIN_POOL, Math.round(viewW * viewH * RAIN_PER_M2 * level));

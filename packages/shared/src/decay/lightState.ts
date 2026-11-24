@@ -158,13 +158,22 @@ function wavePct(world: World, n: number): number {
   return n >= 1 && n <= t.length ? (t[n - 1] as number) : 0;
 }
 
+/** Darkness alpha of a level (pct 0 = none), at half strength or not. */
+function alphaOf(pct: number, half: boolean, halfDarkK: number): number {
+  if (pct <= 0) return 0;
+  const a = 1 - Math.min(100, pct) / 100;
+  return half ? a * halfDarkK : a;
+}
+
 /**
  * Story 6.3 (DD4): the ONLY writer of `blackoutPct` and `halfDark`. Called at the end of `startBuild`,
- * in `startWave`, on the way to Results, by the dev force switch and by any mid-wave change (6.10's
- * power failure). Rule order: dev `forcedPct` ≥ 0 → it (never half); a wave whose `lightPctByWave`
- * entry is > 0 → it; a power failure during a wave → `powerFailureLightPct`; a build phase with
- * `halfDarkInBuild` and the coming (else the last) wave's entry > 0 → that entry at half strength;
- * else 0. (6.12 adds the endless rule here.)
+ * in `startWave`, in `endRun`, by the dev force switch and by any mid-wave change (6.10's power
+ * failure). The rule: a wave whose `lightPctByWave` entry is > 0 → it; a power failure during a wave
+ * → `powerFailureLightPct`; a build phase with `halfDarkInBuild` and the coming (else the last)
+ * wave's entry > 0 → that entry at half strength; else 0. (6.12 adds the endless rule here.)
+ * Review H1 (FR87): the dev `forcedPct` (cheat, `?blackout=`, `DEV_FORCE_BLACKOUT`) may only DARKEN:
+ * it applies (never half) when its darkness is at least the rule's, else the rule stands. Results
+ * are always lit (review L8).
  */
 export function refreshBlackout(world: World): void {
   const s = world.lights;
@@ -172,8 +181,8 @@ export function refreshBlackout(world: World): void {
   const phase = world.run.phase;
   let pct = 0;
   let half = false;
-  if (s.forcedPct >= 0) {
-    pct = s.forcedPct;
+  if (phase === "results") {
+    // lit, whatever the inputs
   } else if (phase === "wave") {
     const w = wavePct(world, world.waves.number);
     if (w > 0) pct = w;
@@ -184,11 +193,15 @@ export function refreshBlackout(world: World): void {
     pct = coming > 0 ? coming : last;
     half = pct > 0;
   }
+  if (phase !== "results" && s.forcedPct > 0 && alphaOf(s.forcedPct, false, b.halfDarkK) >= alphaOf(pct, half, b.halfDarkK)) {
+    pct = s.forcedPct;
+    half = false;
+  }
   s.blackoutPct = pct;
   s.halfDark = half;
 }
 
-/** Story 6.3 dev switch (cheat panel, `?blackout=`, `DEV_FORCE_BLACKOUT`): force a level (−1 = off), any phase. */
+/** Story 6.3 dev switch (cheat panel, `?blackout=`, `DEV_FORCE_BLACKOUT`): force a level (−1 = off), any phase but Results; it can only darken (review H1). */
 export function setForcedBlackout(world: World, pct: number): void {
   world.lights.forcedPct = pct < 0 ? -1 : Math.min(100, Math.round(pct));
   refreshBlackout(world);

@@ -9,6 +9,8 @@ import { flashlightOf, isBlackout, lightRadiusOf, lightsOf, type FlashlightCone,
  */
 export const STAMP_DISC = 0;
 export const STAMP_CONE = 1;
+/** A survivor's glow (its own stamp: a flat full-strength core, review L1). */
+export const STAMP_GLOW = 2;
 
 /** Warm tint drawn on top of a cut-out (palette `*_TINT`). */
 export const TINT_NONE = 0;
@@ -17,8 +19,8 @@ export const TINT_FLOOD = 2;
 export const TINT_BEAM = 3;
 export const TINT_FLASH = 4;
 
-/** Cut-out strengths (looks.html › makeBlackoutCard: a survivor's glow 0.75, a beam 0.95, a fire 0.95, a floodlight 1). */
-export const GLOW_STRENGTH = 0.75;
+/** Cut-out strengths (looks.html › makeBlackoutCard: a beam 0.95, a fire 0.95, a floodlight 1; the glow 1 since review L1). */
+export const GLOW_STRENGTH = 1; // review L1: full strength (the art's 0.75 left a biting zombie half dark)
 export const BEAM_STRENGTH = 0.95;
 export const FIRE_STRENGTH = 0.95;
 export const FLOOD_STRENGTH = 1;
@@ -121,7 +123,7 @@ export class DarknessPlan {
    */
   addSurvivor(x: number, y: number, facingX: number, facingY: number, status: SurvivorStatus, cone: FlashlightCone | null, glowM: number, local: boolean): void {
     if (status === "out") return;
-    this.push(STAMP_DISC, x, y, 0, glowM, 0, GLOW_STRENGTH, TINT_NONE, false, local);
+    this.push(STAMP_GLOW, x, y, 0, glowM, 0, GLOW_STRENGTH, TINT_NONE, false, local);
     if (status !== "alive" || !cone) return;
     if (facingX === 0 && facingY === 0) return;
     this.push(STAMP_CONE, x, y, Math.atan2(facingY, facingX), cone.rangeM, cone.coneDeg, BEAM_STRENGTH, TINT_BEAM, true, local);

@@ -45,6 +45,10 @@ so that light becomes something we fight for.
 > 26. LIGHT IS SERVER TRUTH: the light state (stage, blackout flag, power out, flicker seeds, build-phase half darkness) is part of the world and replays; a client that joins or wakes mid-wave draws the same darkness as everyone else; fog hides zombies only on the local screen, never in the sim (aim assist and turrets keep their own rules; aim assist never locks a target your screen hides).
 > 27. DO NOT TOUCH EPIC 5 WORK IN PROGRESS: 5.13 card shop and 5.20–5.25 building UX are being built in other sessions (shop, build bar, carry/drag UI); Epic 6 changes there go through their balance flags (`inShop`) or a "Notes for the merge" line, not edits to their UI.
 > 28. ONE RUN FLOW: the run phase machine (lobby → build → wave → … → vote → extract/endless → results) has one owner per change (6.1 removes the 6-wave ending, 6.11 adds the vote, 6.12 adds endless); every phase change is a tested transition, and Results always show (no stuck run).
+> 29. HAND-BACK: when your branch is pushed and your full gate is green, send the main session a message (claude-code-remote send_message, session_id "@parent") with branch, commit, the master commit you merged, gate result with load, "Notes for the merge" and the "Not verified" list; then stop. Reviewers do the same with their findings. The main session archives each builder/reviewer session once its story is on master.
+> 30. LATCH THE PAYLOAD WITH THE EDGE: every new edge input (vote, ping, lever, crate, survivor lead, any new button) snapshots its payload (aim, target, choice) on the tap frame together with the flag, in both LocalSimHost and NetSimHost (Epic 5: 5.12's throw used the next frame's aim). Test with 60 fps frames over 50 ms steps and under ?lag=150&jitter=20.
+> 31. ONE HUD LAYOUT TEST: every on-screen control (incl. boss bar, vote panel, event banners, markers' screen-edge arrows) is in one layout test at 568×320 and 640×360 with insets 44/21: no overlaps, 48 px clearance round the survivor at the centre, nothing pressable in the move-stick half. Add new HUD to that test (6.3 creates it if it doesn't exist); don't check it story by story (Epic 5: six stories moved buttons around each other).
+> 32. FRESH DECISIONS, MERGED TREE: before you build and before you review, read the decision-log lines newer than the story file (git log docs/epic-6-decisions.md docs/epic-5-decisions.md); a merged pair updates both story files. Merge current master before the final gate and review that merged commit (Epic 5: five merge-only bugs). Every push to master passes typecheck and lint, docs-only and art-only commits included.
 > ```
 >
 > Most relevant here: **2** (two new synced light fields: World → schema → syncState → stateView → fakeRoom → mirror → devThrottle → snapshotWorld; the Predictor needs nothing), **10** (no allocation per frame in the darkness repaint: pooled stamps, no gradients created per frame), **12** (the darkness repaint is the single biggest new per-frame cost of Epic 6; measure on `?stress=150&blackout=5`), **18** (force-blackout switches), **20** (darkness canvas + stamps through `addGeneratedTexture` / the texture registry), **24** (what draws above the darkness, no hot core, can't be turned off), **26** (the blackout level is server truth and replays), **27** (the shop flags only: no edits to 5.13 / 5.16+ UI).
@@ -266,7 +270,7 @@ Claude (Claude Code, cloud builder session for Story 6.3)
 - `apps/server/src/rooms/schema/RunState.ts`, `rooms/schema/syncState.ts`, `rooms/schema/syncState.test.ts`, `rooms/RunRoom.ts`
 - `apps/server/src/run/RunController.ts`, `run/devForceBlackout.ts` (new), `run/devForceBlackout.test.ts` (new)
 - `apps/client/src/render/darkness/aboveDark.ts`, `darknessPlan.ts`, `lightStamps.ts`, `DarknessView.ts`, `EyesView.ts`, `BeamSparkleView.ts`, `fakeScene.testkit.ts`, `darknessPlan.test.ts`, `darknessView.test.ts` (all new)
-- `apps/client/src/render/PlayerView.ts`, `render/ZombieView.ts`, `render/FloodlightView.ts`, `render/city/CityView.ts`, `render/city/palette.ts`, `render/city/spriteAtlas.ts`
+- `apps/client/src/render/PlayerView.ts`, `render/ZombieView.ts`, `render/FloodlightView.ts`, `render/city/rainLook.ts` (new), `render/city/rainLook.test.ts` (new), `render/city/CityView.ts`, `render/city/palette.ts`, `render/city/spriteAtlas.ts`
 - `apps/client/src/scenes/GameScene.ts`, `scenes/hudLayout.test.ts` (new), `scenes/buildBar.test.ts`, `apps/server/src/rooms/RunRoom.buildings.test.ts`, `tools/checks/darknessNoOffSwitch.test.ts` (new)
 - `apps/client/src/sim/NetSimHost.ts`, `sim/NetSimHost.blackout.test.ts` (new), `net/fakeRoom.ts`, `net/lobbyStore.test.ts`
 - `apps/client/src/debug/urlOptions.ts`, `debug/urlOptions.test.ts`, `debug/devCheatActions.ts`, `debug/devCheatActions.test.ts`, `debug/DevCheats.tsx`
@@ -274,6 +278,9 @@ Claude (Claude Code, cloud builder session for Story 6.3)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`, this story file
 
 ### Notes for the merge (builder)
+
+- Review fixes (2026-11-24): `ABOVE_DARK` gained `rush: 11.765` (the rush chevrons; 6.5's shim may lack it, this file wins); `decay.json › blackout.rainK` new; `STAMP_GLOW` (plan kind 2) + `fx_darkstamp_glow` stamp; `DARKNESS_PAD` (the darkness reaches 3 % past each view edge, GameScene passes the padded view to `planDarkness`).
+- Review L3 (not this story): aim assist can lock a zombie beyond 14 m that the dark hides; 6.4 owns it with the fog (6.4 D4: aim assist never locks a target your screen hides).
 
 - `RunState.ts` / `syncState.ts` / `stateView.ts › RUN_STATE_FIELDS + RunStateView` / `fakeRoom.ts` / `net/lobbyStore.test.ts` literal: `blackoutPct`, `halfDark` appended last; 6.5's `boss` record goes beside them (order free).
 - `NetSimHost.applyState`: two lines after `mirrorDecay`; 6.5 adds its mirror line there too.
@@ -286,8 +293,29 @@ Claude (Claude Code, cloud builder session for Story 6.3)
 - Seed-dependent tests changed by the bigger card pool: `replay.test.ts` SEED 20, `sixWaveSim.test.ts` LIST + `tactical_flashlight`. 6.1 (10 waves, waves.json) will move these sims again: re-pick if they fail after the merge.
 - `headlessRun.ts`: new optional `onTick` (F8 liveness probe).
 
+## Senior Developer Review (AI)
+
+- **Reviewer:** fresh-agent review in a separate cloud session, on story-6-3 merged with master 9849071 (relayed by the main session), 2026-11-24.
+- **Outcome:** Changes requested → all requested fixes applied by the builder (below); high/medium fixes go to a fresh re-review.
+
+### Action Items
+
+- [x] [AI-Review][High] H1: `?blackout=` (release, solo) / `DEV_FORCE_BLACKOUT` could LIGHTEN a dark wave (forced won over the table). Fix: `refreshBlackout` applies `forcedPct` only when its darkness alpha ≥ the rule's (a half-dark build phase compared by alpha too); tests: table 5 + forced 20 → 5 (alpha ≥ 0.95) in `lightState.test.ts` and through `RunController` in `devForceBlackout.test.ts`.
+- [x] [AI-Review][Medium] M1: camera shake opened a lit strip at the screen edge. Fix: the darkness canvas and image reach `DARKNESS_PAD` = 3 % of the view past each edge (≥ 2 × the biggest shake `MINE_SHAKE_MAX` 1.2 %); the plan culls on the padded view; test in `darknessView.test.ts`.
+- [x] [AI-Review][Medium] M2: `hudLayout.test.ts` baseline matched id + rule only. Fix: each `KNOWN_LIST` line records its as-built centre gap / move-half offset (px); the test fails if a gap shrinks or an offset grows by > 0.5 px.
+- [x] [AI-Review][Low] L1: the glow erased only ~half the dark at contact distance. Fix: own glow stamp (`CUT_GLOW`, flat full cut to `GLOW_CORE_K` 0.65 of the radius ≥ (0.6 + 0.4) / 1.6), glow strength 1; test on the cut strength (`cutAt`).
+- [x] [AI-Review][Low] L2: in-cone zombies at 7.9 m / on the 30° edge drew nearly dark. Fix: `CUT_CONE` 1 → 0.97 at 90 % → 0.88 at the range; soft wedges now fade only OUTSIDE the true edge (innermost wedge = the exact half angle); tests.
+- [x] [AI-Review][Low] L4: rush chevrons used a raw depth 12. Fix: `ABOVE_DARK.rush` 11.765.
+- [x] [AI-Review][Low] L6: the 35 % rain factor moved to `decay.json › blackout.rainK` (`render/city/rainLook.ts`, tested).
+- [x] [AI-Review][Low] L7: the story's brief block now carries lines 29–32.
+- [x] [AI-Review][Low] L8: Results are always lit (`refreshBlackout` ignores `forcedPct` in Results); the comment matches.
+- [x] [AI-Review][Low] Two surviving mutations now killed: BL3 5 % uses the hard cone stamps (20 % / 10 % the soft ones) in `darknessView.test.ts`; the rain dims in a blackout in `rainLook.test.ts`. Re-run: H1, M1, L1 mutations killed too.
+- [ ] [AI-Review][Low] L3 (aim assist beyond 14 m in the dark): deferred to 6.4 (fog, 6.4 D4); merge note added.
+- [ ] [AI-Review][Low] L5 (acid / gas / traps under the dark): waiting on the designer.
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: addressed code review findings — 10 items resolved (H1, M1, M2, L1, L2, L4, L6, L7, L8, two mutations); L3 deferred to 6.4, L5 with the designer.
 - 2026-11-24: implemented (gds-dev-story): light state + rule, flashlight cone, wire fields, darkness layer, eyes, sparkles, teammates above the dark, floodlight 6 m, shop flags, dev switches, HUD layout test, perf doc; status review.

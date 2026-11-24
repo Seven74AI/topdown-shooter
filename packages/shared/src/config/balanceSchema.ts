@@ -845,6 +845,7 @@ export const BLACKOUT_DEFAULTS = {
   maxStamps: 48,
   maxEyes: 150,
   maxSparkles: 160,
+  rainK: 0.35,
 };
 
 /**
@@ -877,6 +878,8 @@ export const blackoutSchema = z
     maxStamps: z.number().int().min(4).max(256).default(BLACKOUT_DEFAULTS.maxStamps),
     maxEyes: z.number().int().min(0).max(512).default(BLACKOUT_DEFAULTS.maxEyes),
     maxSparkles: z.number().int().min(0).max(1024).default(BLACKOUT_DEFAULTS.maxSparkles),
+    /** D7: the normal rain's alpha × this in a blackout (faint over the dark; beams sparkle instead). */
+    rainK: z.number().min(0).max(1).default(BLACKOUT_DEFAULTS.rainK),
   })
   .strict();
 

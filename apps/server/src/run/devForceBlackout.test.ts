@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, startWave } from "@topdown/shared";
+import { bundledBalanceFiles, loadBalance, startWave } from "@topdown/shared";
 import { parseDevForceBlackout, pickDevForceBlackout } from "./devForceBlackout";
 import { RunController } from "./RunController";
 
@@ -28,5 +28,15 @@ describe("Story 6.3 DEV_FORCE_BLACKOUT", () => {
     expect(dev.world.lights.blackoutPct).toBe(5);
     startWave(dev.world);
     expect(dev.world.lights.blackoutPct).toBe(5);
+  });
+
+  it("review H1: DEV_FORCE_BLACKOUT never lightens a darker wave (table 5 + forced 20 → 5)", () => {
+    const raw = bundledBalanceFiles() as unknown as { decay: { blackout: { lightPctByWave: number[] } } };
+    raw.decay.blackout.lightPctByWave = [5, 5, 5];
+    const dark = loadBalance(raw as never);
+    const c = new RunController({ balance: dark, seed: 3, players: [{ playerId: "p0", slot: 0 }], pauseWaves: true, forceBlackoutPct: 20 });
+    expect(c.world.lights.blackoutPct).toBe(20); // build phase: the table has no half dark here
+    startWave(c.world);
+    expect(c.world.lights.blackoutPct).toBe(5);
   });
 });

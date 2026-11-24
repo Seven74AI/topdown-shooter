@@ -6,11 +6,12 @@ vi.mock("../city/spriteAtlas", async (orig) => ({ ...(await orig<typeof import("
 
 import { textureRegistry } from "../gfx/textureRegistry";
 import { DARKNESS_DEPTH, ABOVE_DARK } from "./aboveDark";
-import { DARKNESS_KEY, DARKNESS_RES, DarknessView } from "./DarknessView";
+import { DARKNESS_KEY, DARKNESS_PAD, DARKNESS_RES, DarknessView } from "./DarknessView";
+import { MINE_SHAKE_MAX } from "../mineBlast";
 import { DarknessPlan, FlashLights, planDarkness, type DarknessInputs } from "./darknessPlan";
 import { EyesView } from "./EyesView";
 import { BeamSparkleView } from "./BeamSparkleView";
-import { LIGHT_STAMP_KEYS, resetLightStamps } from "./lightStamps";
+import { LIGHT_STAMP_KEYS, lightStamps, resetLightStamps } from "./lightStamps";
 import { fakeScene, type FakeObject } from "./fakeScene.testkit";
 import { PlayerView, BODY_DEPTH } from "../PlayerView";
 import { FloodlightView } from "../FloodlightView";
@@ -62,10 +63,17 @@ describe("Story 6.3 DarknessView", () => {
     const plan = frame(view, w);
     expect(fs.keys.has(DARKNESS_KEY)).toBe(true);
     expect(textureRegistry.has(DARKNESS_KEY)).toBe(true);
-    const c = fs.canvases.find((x) => x.width === 1280 * DARKNESS_RES && x.height === 720 * DARKNESS_RES);
+    const k2 = 1 + 2 * DARKNESS_PAD;
+    const c = fs.canvases.find((x) => x.width === Math.ceil(1280 * k2 * DARKNESS_RES) && x.height === Math.ceil(720 * k2 * DARKNESS_RES));
     expect(c).toBeDefined();
     const img = fs.objects.find((o) => o.texture === DARKNESS_KEY) as FakeObject;
-    expect([img.depth, img.visible, img.x, img.y, img.displayWidth, img.displayHeight]).toEqual([DARKNESS_DEPTH, true, 4, 2, 32, 18]);
+    expect([img.depth, img.visible]).toEqual([DARKNESS_DEPTH, true]);
+    // review M1: it covers the view plus DARKNESS_PAD on every side (≥ the biggest camera shake)
+    expect(DARKNESS_PAD).toBeGreaterThanOrEqual(MINE_SHAKE_MAX * 2);
+    expect(img.x).toBeCloseTo(4 - 32 * DARKNESS_PAD, 9);
+    expect(img.y).toBeCloseTo(2 - 18 * DARKNESS_PAD, 9);
+    expect(img.displayWidth).toBeCloseTo(32 * k2, 9);
+    expect(img.displayHeight).toBeCloseTo(18 * k2, 9);
     const ctx = c?.ctx;
     if (!ctx) throw new Error("ctx");
     const fills = ctx.ops.filter((o) => o.op === "fillRect");
@@ -101,6 +109,20 @@ describe("Story 6.3 DarknessView", () => {
     expect(a.view.paintedAlpha).toBeCloseTo(0.4, 9);
     a.view.destroy();
     b.view.destroy();
+  });
+
+  it("review (surviving mutation): 5 % (BL3 pitch) cuts the beam with the HARD cone stamp, 20 % and 10 % with the soft one", () => {
+    for (const [pct, hard] of [[5, true], [10, false], [20, false]] as const) {
+      const { fs, view } = darkness();
+      const set = lightStamps(fs.makeCanvas);
+      frame(view, world(pct));
+      const cuts = fs.canvases.flatMap((c) => c.ctx.ops).filter((o) => o.op === "drawImage" && o.comp === "destination-out").map((o) => o.args[0]);
+      const want = (hard ? set.hard : set.soft).map((c) => c.canvas);
+      const other = (hard ? set.soft : set.hard).map((c) => c.canvas);
+      expect(cuts.some((c) => want.includes(c as never)), `${pct} %`).toBe(true);
+      expect(cuts.some((c) => other.includes(c as never)), `${pct} %`).toBe(false);
+      view.destroy();
+    }
   });
 
   it("a blackout that ends hides the darkness at once and stops repainting (F1: no fade)", () => {
@@ -140,7 +162,7 @@ describe("Story 6.3 DarknessView", () => {
     const plan = new DarknessPlan(B.maxStamps);
     planDarkness(plan, w, inputs());
     view.update(w, plan, 4, 2, 32, 18, 40, 800, 360);
-    expect(fs.canvases.some((c) => c.width === 400 && c.height === 180)).toBe(true);
+    expect(fs.canvases.some((c) => c.width === Math.ceil(800 * (1 + 2 * DARKNESS_PAD) * DARKNESS_RES) && c.height === Math.ceil(360 * (1 + 2 * DARKNESS_PAD) * DARKNESS_RES))).toBe(true);
     expect(fs.objects.filter((o) => o.texture === DARKNESS_KEY && !o.destroyed)).toHaveLength(1);
     view.destroy();
   });

@@ -171,6 +171,20 @@ describe("Story 6.3 blackout light state (AC 1–4; F1, F7)", () => {
     expect(w.lights.blackoutPct).toBe(0);
   });
 
+  it("review H1 (FR87): a forced level only darkens — table 5 + forced 20 stays at 5 (alpha ≥ 0.95); half-dark build + forced 20 → 20; Results lit even when forced", () => {
+    const w = worldOf(withBlackout((x) => ((x.lightPctByWave = [5, 5]), (x.halfDarkInBuild = true))));
+    startBuild(w); // half of 5 % → alpha 0.475
+    setForcedBlackout(w, 20); // alpha 0.8 > 0.475: the forced level darkens the build phase
+    expect([w.lights.blackoutPct, w.lights.halfDark]).toEqual([20, false]);
+    startWave(w); // wave 1: table 5 (0.95) is darker than forced 20 (0.8): the table stands
+    expect(w.lights.blackoutPct).toBe(5);
+    expect(darknessAlpha(w)).toBeGreaterThanOrEqual(0.95 - 1e-9);
+    setForcedBlackout(w, 10);
+    expect(w.lights.blackoutPct).toBe(5);
+    endRun(w);
+    expect(w.lights.blackoutPct).toBe(0); // review L8: Results are lit
+  });
+
   it("powerFailure counts only in a wave", () => {
     const w = worldOf();
     startBuild(w);

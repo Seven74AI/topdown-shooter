@@ -4,7 +4,7 @@ import { addGeneratedTexture } from "../city/canvasTexture";
 import { RebuildPhase, textureRegistry } from "../gfx/textureRegistry";
 import { darkLookFor, type DarkLook } from "../city/palette";
 import { DARKNESS_DEPTH } from "./aboveDark";
-import { STAMP_CONE, TINT_BEAM, TINT_FIRE, TINT_FLASH, TINT_FLOOD, type DarknessPlan } from "./darknessPlan";
+import { STAMP_CONE, STAMP_GLOW, TINT_BEAM, TINT_FIRE, TINT_FLASH, TINT_FLOOD, type DarknessPlan } from "./darknessPlan";
 import { STAMP_PX, coneStampFor, lightStamps, type LightStampSet } from "./lightStamps";
 
 /** The texture key of the darkness canvas (brief 20: through `addGeneratedTexture`). */
@@ -16,6 +16,11 @@ export const DARKNESS_KEY = "fx_darkness";
  * upload), so half shipped (`docs/perf/epic-6-blackout.md`).
  */
 export const DARKNESS_RES = 0.5;
+/**
+ * Review M1: the darkness reaches this share of the view past each edge, so a camera shake (at most
+ * `MINE_SHAKE_MAX` = 1.2 % of the view, render/mineBlast.ts) never opens a lit strip at the screen edge.
+ */
+export const DARKNESS_PAD = 0.03;
 
 /** What the view needs of a Phaser image (tests pass a fake). */
 interface DarkImage {
@@ -85,21 +90,24 @@ export class DarknessView {
       if (this.image?.visible) this.image.setVisible(false);
       return;
     }
-    const w = Math.max(1, Math.ceil(gameW * DARKNESS_RES));
-    const h = Math.max(1, Math.ceil(gameH * DARKNESS_RES));
+    const k2 = 1 + 2 * DARKNESS_PAD;
+    const w = Math.max(1, Math.ceil(gameW * k2 * DARKNESS_RES));
+    const h = Math.max(1, Math.ceil(gameH * k2 * DARKNESS_RES));
+    const px = viewX - viewW * DARKNESS_PAD;
+    const py = viewY - viewH * DARKNESS_PAD;
     if (w !== this.w || h !== this.h || !this.image) this.make(w, h);
     this.alpha = darknessAlpha(world);
     this.look = darkLookFor(world.lights.blackoutPct);
     this.plan = plan;
     this.k = zoom * DARKNESS_RES;
-    this.vx = viewX;
-    this.vy = viewY;
+    this.vx = px;
+    this.vy = py;
     const g = (this.canvas as HTMLCanvasElement).getContext("2d");
     if (g) this.paint(g);
     this.tex?.refresh();
     this.uploads++;
     const img = this.image as DarkImage;
-    img.setPosition(viewX, viewY).setDisplaySize(viewW, viewH);
+    img.setPosition(px, py).setDisplaySize(viewW * k2, viewH * k2);
     if (!img.visible) img.setVisible(true);
   }
 
@@ -140,7 +148,7 @@ export class DarknessView {
       if (plan.kind[i] === STAMP_CONE) {
         const c = coneStampFor(cones, plan.coneDeg[i] as number);
         this.drawCone(g, c.canvas, c.ax, c.ay, i);
-      } else this.drawDisc(g, st.disc, i);
+      } else this.drawDisc(g, plan.kind[i] === STAMP_GLOW ? st.glow : st.disc, i);
     }
     g.globalCompositeOperation = "source-over";
     for (let i = 0; i < plan.count; i++) {

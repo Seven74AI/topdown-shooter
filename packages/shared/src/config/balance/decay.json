@@ -22,6 +22,7 @@
     "eyesM": 14,
     "maxStamps": 48,
     "maxEyes": 150,
-    "maxSparkles": 160
+    "maxSparkles": 160,
+    "rainK": 0.35
   }
 }

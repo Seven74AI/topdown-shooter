@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { BUILD_GRID_M, DOWNTOWN_MAP, addBuildingAt, addPlayer, createWorld, gearBit, inFlashlightCone, flashlightOf, loadBalance, setForcedBlackout, startBuild, type World } from "@topdown/shared";
-import { DarknessPlan, FlashLights, STAMP_CONE, STAMP_DISC, TINT_FIRE, TINT_FLOOD, planDarkness, type DarknessInputs, type DrawnSurvivor } from "./darknessPlan";
+import { DarknessPlan, FlashLights, STAMP_CONE, STAMP_GLOW, TINT_FIRE, TINT_FLOOD, planDarkness, type DarknessInputs, type DrawnSurvivor } from "./darknessPlan";
+import { BEAM_STRENGTH, GLOW_STRENGTH } from "./darknessPlan";
+import { CUT_CONE, CUT_GLOW, GLOW_CORE_K, cutAt, softLayerHalves } from "./lightStamps";
 
 /** Story 6.3 (T3): the stamp plan, pure (no Phaser). */
 const balance = loadBalance();
@@ -43,8 +45,8 @@ describe("Story 6.3 darkness plan", () => {
     planDarkness(p, w, inputs());
     const s = stamps(p);
     const mate = s.filter((x) => Math.abs(x.x - 24.2) < 1e-4);
-    expect(mate.map((x) => x.kind).sort()).toEqual([STAMP_DISC, STAMP_CONE]);
-    expect(mate.find((x) => x.kind === STAMP_DISC)?.r).toBeCloseTo(1.6, 5);
+    expect(mate.map((x) => x.kind).sort()).toEqual([STAMP_CONE, STAMP_GLOW]);
+    expect(mate.find((x) => x.kind === STAMP_GLOW)?.r).toBeCloseTo(1.6, 5);
     const cone = mate.find((x) => x.kind === STAMP_CONE);
     expect(cone?.angle).toBeCloseTo(-Math.PI / 2, 5); // up, as drawn (not the World's facing)
     expect([cone?.r, cone?.cone]).toEqual([8, 60]);
@@ -80,7 +82,7 @@ describe("Story 6.3 darkness plan", () => {
     const p = new DarknessPlan(B.maxStamps);
     planDarkness(p, w, inputs());
     const s = stamps(p);
-    expect(s.filter((x) => x.x === 26).map((x) => x.kind)).toEqual([STAMP_DISC]);
+    expect(s.filter((x) => x.x === 26).map((x) => x.kind)).toEqual([STAMP_GLOW]);
     expect(s.filter((x) => x.x === 30)).toEqual([]);
   });
 
@@ -124,7 +126,7 @@ describe("Story 6.3 darkness plan", () => {
     expect(p.candidates).toBeGreaterThan(B.maxStamps);
     expect(p.count).toBe(B.maxStamps);
     const s = stamps(p);
-    expect(s.filter((x) => x.x === 46 && x.y === 30).map((x) => x.kind).sort()).toEqual([STAMP_DISC, STAMP_CONE]);
+    expect(s.filter((x) => x.x === 46 && x.y === 30).map((x) => x.kind).sort()).toEqual([STAMP_CONE, STAMP_GLOW]);
     // the kept flashes are the nearest to the view centre (24, 16)
     const d = (x: { x: number; y: number }) => Math.hypot(x.x - 24, x.y - 16);
     const kept = s.filter((x) => x.r === 3).map(d);
@@ -144,5 +146,18 @@ describe("Story 6.3 darkness plan", () => {
     expect(stamps(p).some((x) => x.x === -20)).toBe(false);
     planDarkness(p, w, inputs({ flashes: f, nowS: 0.2 }));
     expect(p.x).toBe(arr);
+  });
+
+  it("review L1/L2: the cut STRENGTH — a zombie touching you (Brute) is fully cut; a zombie in your beam at 7.9 m or exactly on the edge is near-fully cut", () => {
+    const maxRz = Math.max(...Object.values(balance.zombies.types).map((t) => t.radiusM));
+    const contact = (maxRz + balance.player.radiusM) / B.glowM;
+    expect(contact).toBeLessThanOrEqual(GLOW_CORE_K);
+    expect(cutAt(CUT_GLOW, contact) * GLOW_STRENGTH).toBeGreaterThanOrEqual(0.999);
+    expect(cutAt(CUT_CONE, 7.9 / 8) * BEAM_STRENGTH).toBeGreaterThanOrEqual(0.8);
+    // the soft wedges' innermost half-angle is exactly the cone's: inside the inFlashlightCone edge every layer cuts
+    const half = Math.PI / 6;
+    const layers = softLayerHalves(half);
+    expect(Math.min(...layers)).toBeCloseTo(half, 12);
+    expect(Math.max(...layers)).toBeGreaterThan(half);
   });
 });

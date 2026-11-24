@@ -73,64 +73,81 @@ function modes(w: number, h: number): Record<string, Box[]> {
 
 const overlaps = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-/** Every rule break of a layout (empty = clean). */
-function violations(w: number, h: number): string[] {
-  const out: string[] = [];
+/**
+ * Every rule break of a layout, keyed by size, mode, control and rule, with its measure: the gap to
+ * the centre (px) for "within 48 px of the centre", how far left of the centre line its middle is
+ * (px) for "in the move-stick half", 1 for an overlap or leaving the safe area.
+ */
+function violations(w: number, h: number): Map<string, number> {
+  const out = new Map<string, number>();
   for (const [mode, boxes] of Object.entries(modes(w, h))) {
     for (const b of boxes) {
-      if (b.x < INSET.left * K - 1e-6 || b.x + b.w > w - INSET.right * K + 1e-6 || b.y < 0 || b.y + b.h > h - INSET.bottom * K + 1e-6) out.push(`${w}x${h} ${mode} ${b.id}: outside the safe area`);
-      if (rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2) < CENTRE_CLEAR_CSS_PX * K - 1e-6) out.push(`${w}x${h} ${mode} ${b.id}: within 48 px of the centre`);
-      if (b.x + b.w / 2 < w / 2) out.push(`${w}x${h} ${mode} ${b.id}: in the move-stick half`);
+      if (b.x < INSET.left * K - 1e-6 || b.x + b.w > w - INSET.right * K + 1e-6 || b.y < 0 || b.y + b.h > h - INSET.bottom * K + 1e-6) out.set(`${w}x${h} ${mode} ${b.id}: outside the safe area`, 1);
+      const gap = rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2);
+      if (gap < CENTRE_CLEAR_CSS_PX * K - 1e-6) out.set(`${w}x${h} ${mode} ${b.id}: within 48 px of the centre`, gap);
+      if (b.x + b.w / 2 < w / 2) out.set(`${w}x${h} ${mode} ${b.id}: in the move-stick half`, w / 2 - (b.x + b.w / 2));
     }
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i] as Box;
         const b = boxes[j] as Box;
-        if (overlaps(a, b)) out.push(`${w}x${h} ${mode} ${a.id} overlaps ${b.id}`);
+        if (overlaps(a, b)) out.set(`${w}x${h} ${mode} ${a.id} overlaps ${b.id}`, 1);
       }
     }
   }
   return out;
 }
 
+/** Review M2: a baseline control may not get worse: its centre gap may not shrink, its move-half offset may not grow (px). */
+const TOLERANCE_PX = 0.5;
+
 /**
  * The Epic 5 HUD AS BUILT (designer-approved layouts, brief 27: Epic 6 doesn't move them) breaks the
- * brief-31 rules in exactly these places at these sizes. 6.3 records them as the baseline (OPEN FOR
+ * brief-31 rules in exactly these places at these sizes (with the as-built gap or offset in px). 6.3 records them as the baseline (OPEN FOR
  * DESIGNER); the test fails on ANY other break, so a new control (boss bar, vote panel, banners,
  * arrows) must come in clean, and fixing one of these means deleting its line.
  */
-const KNOWN_LIST: string[] = [
-  "568x320 build tile0: within 48 px of the centre",
-  "568x320 build tile1: within 48 px of the centre",
-  "568x320 build ready: in the move-stick half",
-  "568x320 holding rotate: within 48 px of the centre",
-  "568x320 holding chip: within 48 px of the centre",
-  "568x320 holding undo: in the move-stick half",
-  "568x320 selected action_move: within 48 px of the centre",
-  "568x320 selected action_move: in the move-stick half",
-  "568x320 selected action_upgrade: within 48 px of the centre",
-  "640x360 build tile0: within 48 px of the centre",
-  "640x360 build ready: in the move-stick half",
-  "640x360 holding chip: within 48 px of the centre",
-  "640x360 selected action_move: within 48 px of the centre",
-  "640x360 selected action_move: in the move-stick half",
-  "640x360 selected action_upgrade: within 48 px of the centre",
+const KNOWN_LIST: [string, number][] = [
+  ["568x320 build tile0: within 48 px of the centre", 3],
+  ["568x320 build tile1: within 48 px of the centre", 40.11],
+  ["568x320 build ready: in the move-stick half", 120],
+  ["568x320 holding rotate: within 48 px of the centre", 35.23],
+  ["568x320 holding chip: within 48 px of the centre", 41.19],
+  ["568x320 holding undo: in the move-stick half", 30],
+  ["568x320 selected action_move: within 48 px of the centre", 36.06],
+  ["568x320 selected action_move: in the move-stick half", 73],
+  ["568x320 selected action_upgrade: within 48 px of the centre", 12],
+  ["640x360 build tile0: within 48 px of the centre", 25.94],
+  ["640x360 build ready: in the move-stick half", 84],
+  ["640x360 holding chip: within 48 px of the centre", 45.18],
+  ["640x360 selected action_move: within 48 px of the centre", 19],
+  ["640x360 selected action_move: in the move-stick half", 37],
+  ["640x360 selected action_upgrade: within 48 px of the centre", 21.47],
 ];
-const KNOWN_AS_BUILT = new Set<string>(KNOWN_LIST);
+const KNOWN_AS_BUILT = new Map<string, number>(KNOWN_LIST);
 
 describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
   for (const [w, h] of SIZES) {
-    it(`${w} × ${h}: every mode's controls are listed, and nothing breaks a rule beyond the as-built baseline`, () => {
+    it(`${w} × ${h}: every mode's controls are listed, and nothing breaks a rule beyond the as-built baseline (which may not get worse)`, () => {
       const m = modes(w, h);
       for (const [mode, boxes] of Object.entries(m)) expect(boxes.length, mode).toBeGreaterThanOrEqual(3); // liveness
       const v = violations(w, h);
-      expect(v.filter((x) => !KNOWN_AS_BUILT.has(x)), "new HUD layout breaks").toEqual([]);
-      expect([...KNOWN_AS_BUILT].filter((x) => x.startsWith(`${w}x${h} `) && !v.includes(x)), "a baseline line no longer happens: delete it").toEqual([]);
+      expect([...v.keys()].filter((x) => !KNOWN_AS_BUILT.has(x)), "new HUD layout breaks").toEqual([]);
+      for (const [k, now] of v) {
+        const was = KNOWN_AS_BUILT.get(k) as number;
+        if (k.endsWith("of the centre")) expect(now, `${k}: moved closer to the survivor`).toBeGreaterThanOrEqual(was - TOLERANCE_PX);
+        else expect(now, `${k}: moved further into the move-stick half`).toBeLessThanOrEqual(was + TOLERANCE_PX);
+      }
+      expect([...KNOWN_AS_BUILT.keys()].filter((x) => x.startsWith(`${w}x${h} `) && !v.has(x)), "a baseline line no longer happens: delete it").toEqual([]);
     });
   }
 
   it("the baseline holds no overlap and nothing outside the safe area (only the centre gap and the move-stick half)", () => {
-    for (const x of KNOWN_AS_BUILT) expect(x).toMatch(/: (within 48 px of the centre|in the move-stick half)$/);
+    for (const x of KNOWN_AS_BUILT.keys()) expect(x).toMatch(/: (within 48 px of the centre|in the move-stick half)$/);
+  });
+
+  it("the baseline measures are recorded (no NaN)", () => {
+    for (const [k, v] of KNOWN_AS_BUILT) expect(Number.isFinite(v), k).toBe(true);
   });
 
   it("the checks bite: a box at the centre is caught (self-check)", () => {
@@ -138,4 +155,5 @@ describe("ONE HUD LAYOUT TEST (EPIC 6 BRIEF line 31)", () => {
     expect(overlaps({ id: "a", x: 0, y: 0, w: 10, h: 10 }, { id: "b", x: 5, y: 5, w: 10, h: 10 })).toBe(true);
   });
 });
+
 
