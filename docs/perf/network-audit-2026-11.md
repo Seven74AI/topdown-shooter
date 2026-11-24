@@ -326,6 +326,8 @@ Effort: **S** ≈ half a builder session, **M** ≈ one session, **L** ≈ 1–2
 
 ## 7. What to turn into stories, and where
 
+> **Accepted by the designer 2026-11-24** ("Okay, let's do that"). Filed as Stories **8.8** (N1), **8.9** (N2, now including #5), **8.1** (pulled forward), **8.10** (N3), **8.11** (N4, optional) in `epics.md` › Epic 8 › Network pass; `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-24-network-pass.md`.
+
 **Recommendation: a Network pass of 4 stories (+ 1 optional) right after Epic 6 and before Epic 7, filed at the front of Epic 8 "Real-life resilience"** (that epic is already about bad connections, and its 8.1 reconnect is item #4). Epic 10 is too late: NFR9 is due from Epic 6 on (`epics.md:308`), and the Epic 6 stampede eats the bandwidth margin.
 
 | Story | Contains | Why this order |
