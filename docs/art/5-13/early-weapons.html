@@ -3833,20 +3833,30 @@ function rifleH3(c, size) {
   rod(c, (q) => { q.moveTo(0.17, 0.02); q.lineTo(0.36, 0.024); }, 0.01, "#26282b");
   part(c, (q) => R(q, 0.155, 0.006, 0.03, 0.026, 0.005), { base: "#26282b", box: [0.155, 0.006, 0.185, 0.032], hi: 0.4 });
   part(c, (q) => R(q, 0.35, 0.016, 0.026, 0.016, 0.006), { base: "#141516", box: [0.35, 0.016, 0.376, 0.032], hi: 0.3 });
+  // stock (designer reference: modern synthetic hunting stocks): straight comb, a steep pistol grip
+  // with a palm swell, straight belly to a tall butt, thick black recoil pad, long flat-bottomed
+  // forend; olive with a camo pattern and a stippled grip panel
   const st = (q) => {
-    q.moveTo(-0.48, -0.03); q.lineTo(-0.27, -0.03); q.lineTo(-0.27, -0.042); q.lineTo(-0.2, -0.042); q.lineTo(-0.2, -0.028); q.lineTo(0.22, -0.024);
-    q.quadraticCurveTo(0.236, -0.02, 0.232, 0.0); q.quadraticCurveTo(0.224, 0.012, 0.2, 0.012); q.lineTo(-0.06, 0.016);
-    q.quadraticCurveTo(-0.09, 0.02, -0.1, 0.06); q.lineTo(-0.11, 0.1); q.quadraticCurveTo(-0.13, 0.112, -0.155, 0.104);
-    q.quadraticCurveTo(-0.16, 0.05, -0.205, 0.04); q.lineTo(-0.3, 0.05); q.lineTo(-0.48, 0.094); q.closePath();
+    q.moveTo(-0.482, -0.026); q.lineTo(-0.24, -0.032); q.quadraticCurveTo(-0.21, -0.034, -0.195, -0.042); q.lineTo(0.215, -0.026);
+    q.quadraticCurveTo(0.236, -0.024, 0.236, -0.006); q.quadraticCurveTo(0.234, 0.016, 0.205, 0.016); q.lineTo(-0.03, 0.02);
+    q.lineTo(-0.1, 0.022); q.quadraticCurveTo(-0.122, 0.028, -0.124, 0.06); q.lineTo(-0.126, 0.096);
+    q.quadraticCurveTo(-0.15, 0.108, -0.176, 0.098); q.quadraticCurveTo(-0.186, 0.064, -0.226, 0.058); q.lineTo(-0.482, 0.112); q.closePath();
   };
-  part(c, st, { base: OD, box: [-0.48, -0.042, 0.236, 0.112], tex: polyTex(363), hi: 0.32 });
+  part(c, st, { base: OD, box: [-0.482, -0.042, 0.236, 0.112], tex: polyTex(363), hi: 0.32 });
   c.save(); c.beginPath(); st(c); c.clip();
-  fillP(c, (q) => Pg(q, [-0.145, 0.03, -0.108, 0.03, -0.118, 0.095, -0.15, 0.095]), "rgba(0,0,0,0.18)");
-  polyTex(364, true)(c, -0.15, 0.03, -0.105, 0.095);
-  strokeP(c, (q) => { q.moveTo(-0.27, -0.03); q.lineTo(-0.2, -0.028); }, "rgba(0,0,0,0.5)", 1 * P);
+  const cr = mulberry(368);
+  for (let i = 0; i < 26; i++) {
+    const col = ["rgba(150,140,104,0.75)", "rgba(46,52,34,0.8)", "rgba(110,104,76,0.7)", "rgba(70,62,44,0.7)"][i % 4];
+    fillP(c, (q) => blobPath(q, -0.48 + cr() * 0.72, -0.04 + cr() * 0.15, 0.014 + cr() * 0.026, 0.008 + cr() * 0.014, 369 + i, 0.5, 22), col);
+  }
+  polyTex(370)(c, -0.48, -0.04, 0.24, 0.11);
+  fillP(c, (q) => Pg(q, [-0.16, 0.03, -0.116, 0.03, -0.12, 0.09, -0.168, 0.09]), "rgba(0,0,0,0.25)");
+  polyTex(364, true)(c, -0.17, 0.03, -0.114, 0.09);
+  strokeP(c, (q) => { q.moveTo(-0.48, -0.022); q.lineTo(-0.24, -0.028); q.quadraticCurveTo(-0.21, -0.03, -0.195, -0.038); }, "rgba(230,230,200,0.22)", 1.3 * P);
   c.restore();
-  hole(c, (q) => R(q, -0.36, 0.0, 0.1, 0.014, 0.007)); // sling slot
-  part(c, (q) => Pg(q, [-0.48, -0.032, -0.506, -0.034, -0.506, 0.098, -0.48, 0.094]), { base: "#141516", box: [-0.506, -0.034, -0.48, 0.098], tex: polyTex(365, true), hi: 0.2 });
+  part(c, (q) => Pg(q, [-0.482, -0.026, -0.512, -0.028, -0.516, 0.044, -0.512, 0.116, -0.482, 0.112, -0.488, 0.044]), { base: "#141516", box: [-0.516, -0.028, -0.482, 0.116], tex: polyTex(365, true), hi: 0.2 }); // recoil pad
+  strokeP(c, (q) => { q.moveTo(-0.5, -0.02); q.lineTo(-0.504, 0.11); }, "rgba(0,0,0,0.6)", 1 * P);
+  rivet(c, -0.4, 0.092, 0.0035, "#77797c"); // sling stud
   part(c, (q) => R(q, -0.2, -0.042, 0.19, 0.026, 0.006), { base: "#26282c", box: [-0.2, -0.042, -0.01, -0.016], tex: steelTex(366, 0.6), hi: 0.5 });
   rod(c, (q) => { q.moveTo(-0.165, -0.028); q.quadraticCurveTo(-0.172, -0.006, -0.182, 0.008); }, 0.008, "#3a3d42");
   part(c, (q) => R(q, -0.198, 0.0, 0.03, 0.024, 0.008), { base: "#1d1e21", box: [-0.198, 0, -0.168, 0.024], tex: polyTex(367, true), hi: 0.45, line: 1 });
@@ -3928,7 +3938,7 @@ const EARLY = {
   hunting_rifle: [
     { id: "H1", name: "Bolt-action hunting rifle", desc: "Walnut stock with a straight comb, swept pistol grip with a black cap, thick recoil pad and long chequered forend, blued barrel, big black scope on rings, round bolt knob.", draw: rifleH1, y: 0.5 },
     { id: "H2", name: "Lever-action rifle", desc: "Brass receiver, walnut stock with a curved wrist and tall butt (classic lever-action lines), long forend with a steel cap, tube magazine, big lever loop under the grip, iron sights.", draw: rifleH2, y: 0.52 },
-    { id: "H3", name: "Synthetic-stock rifle with scope", desc: "Olive polymer stock with a stippled grip, stainless fluted barrel with muzzle brake, scope with sunshade, folded bipod.", draw: rifleH3, y: 0.5 },
+    { id: "H3", name: "Synthetic-stock rifle with scope", desc: "Olive camo synthetic stock with a straight comb, steep stippled pistol grip and thick recoil pad; stainless fluted barrel with muzzle brake, scope with sunshade, folded bipod.", draw: rifleH3, y: 0.5 },
   ],
   machete: [
     { id: "M1", name: "Classic black-handle machete", desc: "Long black-coated blade with a clipped tip and a bright ground edge, black grip with finger swells, three rivets, lanyard hole.", draw: macheteM1, y: 0.5 },
