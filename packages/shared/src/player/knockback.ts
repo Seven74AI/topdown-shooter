@@ -1,4 +1,5 @@
 import type { ZombieTypeStats } from "../config/balanceSchema";
+import type { Balance } from "../config/balance";
 import { ticksFor } from "../core/time";
 import { circleInFire } from "../decay/decayState";
 import type { World } from "../core/world";
@@ -51,6 +52,17 @@ export function knockPlayerBy(p: PlayerState, fromX: number, fromY: number, dist
   p.knockDx = Math.round(dx * KNOCK_DIR_SCALE);
   p.knockDy = Math.round(dy * KNOCK_DIR_SCALE);
   p.knockStepMm = Math.round((distM * 1000) / ticks);
+}
+
+/** Story 6.6 review L2: a knock's mm per tick (the wire's `knockStepMm`) for `distM` over `durS`. */
+export function knockStepMmOf(distM: number, durS: number): number {
+  const ticks = ticksFor(durS);
+  return ticks > 0 ? Math.round((distM * 1000) / ticks) : 0;
+}
+
+/** Story 6.6 review L2: the charge shove's mm per tick — the Predictor tells a charge knock by it (`crossCheckBoss` keeps it unique). */
+export function chargeKnockStepMm(balance: Readonly<Balance>): number {
+  return knockStepMmOf(balance.boss.charge.shoveM, balance.boss.charge.shoveS);
 }
 
 /**

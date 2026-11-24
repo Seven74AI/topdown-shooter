@@ -585,7 +585,7 @@ export { killBoss } from "./boss/death";
 export { checkEnrage, crawlerDropSpot } from "./boss/enrage";
 export { bossSlotOf, clearBossThreatSlot, pickBossTarget, recordBossThreat, threatOf } from "./boss/target";
 export { maxAliveNow } from "./waves/waveDirector";
-export { knockPlayerBy } from "./player/knockback";
+export { chargeKnockStepMm, knockPlayerBy, knockPlayerDir, knockStepMmOf } from "./player/knockback";
 export { type BossStats } from "./config/balanceSchema";
 // Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
 export { applyStartWave, parseStartWave } from "./run/devStartWave";

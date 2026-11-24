@@ -10,6 +10,7 @@ import { knockPlayerDir } from "../player/knockback";
 import type { PlayerState } from "../player/player";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { maxZombieRadius } from "../zombies/zombieTypes";
+import { MAX_PLAYERS } from "../net/messages";
 import { bossSlotOf } from "./target";
 import { bossStats } from "./telegraph";
 
@@ -127,15 +128,24 @@ function bodyReachesInLane(world: Readonly<World>, p: Readonly<PlayerState>): bo
 }
 
 /** Rush pass state (synchronous, one record). */
-const pass = { world: null as World | null, ax: 0, ay: 0, bx: 0, by: 0 };
+const pass = { world: null as World | null, ax: 0, ay: 0, bx: 0, by: 0, i: 0 };
+
+/** Bits of `attack.hitMask` (a 32-bit integer): player slots first, then slot-less players by their order. */
+export const CHARGE_HIT_BITS = 31;
 
 const hitPlayer = (p: PlayerState): void => {
   const world = pass.world as World;
+  const order = pass.i++;
   if (p.status !== "alive") return; // F10: downed / out never hit or shoved
   const a = world.boss.attack;
+  // Review L1: a player without a slot (a dev room, a failed claim) still gets a bit — after the
+  // MAX_PLAYERS slot bits, by its order in the World — so F4 "once per charge" holds for everyone.
+  // Past the 31 bits there is nothing to track it with: it is never hit (the safe side).
   const slot = bossSlotOf(world, p.id);
-  const bit = slot >= 0 ? 1 << slot : 0;
-  if (bit !== 0 && (a.hitMask & bit) !== 0) return; // F4: once per charge
+  const index = slot >= 0 ? slot : MAX_PLAYERS + order;
+  if (index >= CHARGE_HIT_BITS) return;
+  const bit = 1 << index;
+  if ((a.hitMask & bit) !== 0) return; // F4: once per charge
   if (!chargeHitsPoint(world, p.x, p.y, pass.ax, pass.ay, pass.bx, pass.by) && !bodyReachesInLane(world, p)) return;
   a.hitMask |= bit;
   const c = world.balance.boss.charge;
@@ -188,8 +198,13 @@ function smashBuildings(world: World): void {
   }
 }
 
-/** D3: zombies the body newly overlaps this tick take `zombieDamage` (no pay). */
-function trampleZombies(world: World, first: boolean): void {
+/**
+ * D3: every zombie its body sweeps over this tick (the capsule from the last step to this one) takes
+ * `zombieDamage` (no pay), once per charge: review N2 — a per-slot mark (attack id + the slot's
+ * generation) instead of "not overlapped at the last step", so a zombie that walks in under the body
+ * between two steps is trampled too.
+ */
+function trampleZombies(world: World): void {
   const dmg = world.balance.boss.charge.zombieDamage;
   if (dmg <= 0) return;
   const R = world.balance.boss.radiusM;
@@ -207,12 +222,10 @@ function trampleZombies(world: World, first: boolean): void {
     const zy = z.y[id] as number;
     const min = R + zr;
     if (distToSegment2(zx, zy, pass.ax, pass.ay, pass.bx, pass.by) >= min * min) continue;
-    if (!first) {
-      // Once per charge: only a zombie it did not already overlap at the previous step.
-      const px = zx - pass.ax;
-      const py = zy - pass.ay;
-      if (px * px + py * py < min * min) continue;
-    }
+    const b = world.boss;
+    if (b.trampleId[id] === a.id && b.trampleGen[id] === z.generation[id]) continue; // once per charge
+    b.trampleId[id] = a.id;
+    b.trampleGen[id] = z.generation[id] as number;
     bossStats.chargeZombieHits++;
     const perp = -(zx - a.cx) * a.dirY + (zy - a.cy) * a.dirX;
     const sgn = perp >= 0 ? 1 : -1;
@@ -238,7 +251,8 @@ export function rushStep(world: World): boolean {
   pass.by = b.y;
   a.travelled = next;
   smashBuildings(world);
-  trampleZombies(world, first);
+  trampleZombies(world);
+  pass.i = 0;
   world.players.forEach(hitPlayer);
   world.players.forEach(clearPlayer);
   pass.world = null;

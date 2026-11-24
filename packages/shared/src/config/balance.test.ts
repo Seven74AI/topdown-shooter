@@ -615,5 +615,9 @@ describe("Stories 6.6 + 6.7: boss.json charge, throw, enrage, killPay (AC 1)", (
     const e = raw();
     (e.boss as { enrage: { atHpFrac: number } }).enrage.atHpFrac = 1;
     expect(() => loadBalance(e)).toThrow();
+    // Review L2: no other knock may share the charge shove's mm per tick (the Predictor's 6 m slide is keyed on it).
+    const f = raw();
+    (f.boss as { slam: { pushM: number } }).slam.pushM = 2.5; // 2.5 m over 4 ticks = 625 mm, the charge's step
+    expect(() => loadBalance(f)).toThrow(/charge shove step 625 mm\/tick equals the slam push step/);
   });
 });

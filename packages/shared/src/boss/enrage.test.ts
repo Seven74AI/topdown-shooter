@@ -69,6 +69,9 @@ describe("Story 6.7 F1: the roar warns you, it doesn't hurt you", () => {
     expect(out.x).toBe(24);
     expect(out.y).toBe(16 + 5.1);
     expect(ev.some((e) => e.type === "player.damaged")).toBe(false);
+    // Review L3 (M19): no hp taken by any route, events or not.
+    expect([near.hp, out.hp]).toEqual([balance.player.maxHp, balance.player.maxHp]);
+    expect(w.boss.hp).toBe(500);
   });
 
   it("never mid-attack: crossing 50 % during a slam telegraph roars only after its recovery, before the gap", () => {
@@ -103,7 +106,7 @@ describe("Story 6.7 F1: the roar warns you, it doesn't hurt you", () => {
     tickN(w);
     expect(w.boss.attack.kind).toBe(BOSS_ATTACK.THROW);
     w.boss.hp = 400;
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 70; i++) {
       tickN(w);
       if (w.boss.attack.live) expect(w.boss.state).not.toBe(BOSS_STATE.ROAR);
     }

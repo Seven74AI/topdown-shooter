@@ -290,6 +290,21 @@ describe("Story 6.6 the charge (F1, F3, F4, F6, F10; AC 3)", () => {
     expect(ev.filter((e) => e.type === "player.damaged" && e.playerId === "subject")).toHaveLength(2);
   });
 
+  it("review L1: a survivor without a player slot (a dev room, a failed claim) is still hit at most once per charge", () => {
+    const { w, ev } = setup();
+    const s = addPlayer(w, "slotless", 18, 16);
+    const slot = w.flameSlots.indexOf("slotless");
+    if (slot >= 0) w.flameSlots[slot] = null; // no slot: bossSlotOf → −1
+    chargeAt(w, 12, 16, 21, 16);
+    for (let i = 0; i < TELE + 20; i++) {
+      tickN(w);
+      s.x = w.boss.x + 2.6; // held in front of the rush all along
+      s.y = 16;
+      s.knockTicks = 0;
+    }
+    expect(ev.filter((e) => e.type === "player.damaged" && e.playerId === "slotless")).toHaveLength(1);
+  });
+
   it("the sideways shove stops at a barricade face (never inside a box) and a direction tie goes to +1", () => {
     const { w } = setup();
     // A metal barricade 1.5 m to the +y side of a survivor standing on the line.
@@ -352,6 +367,28 @@ describe("Story 6.6 the charge (F1, F3, F4, F6, F10; AC 3)", () => {
     expect(hp0 - (w.zombies.hp[brute] as number)).toBe(C.zombieDamage); // once
     expect(isZombieAlive(w.zombies, far)).toBe(true);
     expect(ev.some((e) => e.type === "money.earned")).toBe(false);
+  });
+
+  it("review N2: a zombie that walks in under the body between two rush steps is trampled too — once per charge", () => {
+    const { w } = setup();
+    const z = spawnZombie(w, "brute", 30, 30);
+    w.zombies.state.fill(0);
+    const t = chargeAt(w, 12, 16, 21, 16);
+    t.x = 40;
+    t.y = 28;
+    const hp0 = w.zombies.hp[z] as number;
+    tickN(w, TELE + 4); // 4 rush steps in (body centre ≈ 14.4 m)
+    // It steps in under the body, behind the front (already inside the last step's circle).
+    w.zombies.x[z] = w.boss.x - 0.3;
+    w.zombies.y[z] = 16.5;
+    for (let i = 0; i < 20; i++) {
+      tickN(w);
+      if (i < 3) {
+        w.zombies.x[z] = w.boss.x - 0.3; // and keeps walking with it
+        w.zombies.y[z] = 16.5;
+      }
+    }
+    expect(hp0 - (w.zombies.hp[z] as number)).toBe(C.zombieDamage);
   });
 
   it("F2 + F5: into the bus — the CRASH mark is in the telegraph, it stops at the face, stuns 2 s (40 ticks), cannot attack, then walks after its gap", () => {

@@ -185,6 +185,19 @@ describe("Story 6.7 F7 / AC 6: the wave still has to be won; the body stays but 
   });
 });
 
+describe("review L3 (M24): the Crawler clock is in the snapshot", () => {
+  it("two worlds that differ only in crawlerTicks have different digests", () => {
+    const make = (ticks: number) => {
+      const w = createWorld({ balance, seed: 5 });
+      placeBoss(w, 24, 16);
+      w.boss.enraged = true;
+      w.boss.crawlerTicks = ticks;
+      return worldDigest(w);
+    };
+    expect(make(40)).not.toBe(make(41));
+  });
+});
+
 describe("Stories 6.6 + 6.7 replay (brief 8)", () => {
   it("same seed + inputs → same digest through charges, throws, the roar, Crawler drops and the death", () => {
     const run = () => {

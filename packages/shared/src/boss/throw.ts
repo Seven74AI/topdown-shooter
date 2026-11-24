@@ -36,24 +36,31 @@ export function bossCantReach(world: Readonly<World>, p: Readonly<PlayerState>):
   return (f.front[c] as number) >= FLOW_UNREACHED;
 }
 
-/** AC 5: the throw's target (null: nobody qualifies). Ties: the lower slot order of `world.players`. */
-export function pickThrowTarget(world: Readonly<World>): PlayerState | null {
+/** `pickThrowTarget` pass (review N1: a module callback, no iterator allocated per WALK tick). */
+const pick = { world: null as Readonly<World> | null, best: null as PlayerState | null, bestD2: -1 };
+const pickOne = (p: PlayerState): void => {
+  const world = pick.world as Readonly<World>;
+  if (p.status !== "alive") return; // F10
   const b = world.boss;
   const t = world.balance.boss.throw;
-  let best: PlayerState | null = null;
-  let bestD2 = -1;
-  for (const p of world.players.values()) {
-    if (p.status !== "alive") continue; // F10
-    const dx = p.x - b.x;
-    const dy = p.y - b.y;
-    const d2 = dx * dx + dy * dy;
-    const min = d2 > t.minM * t.minM ? 0 : d2 > t.unreachableMinM * t.unreachableMinM && bossCantReach(world, p) ? 0 : -1;
-    if (min < 0) continue;
-    if (d2 > bestD2) {
-      bestD2 = d2;
-      best = p;
-    }
-  }
+  const dx = p.x - b.x;
+  const dy = p.y - b.y;
+  const d2 = dx * dx + dy * dy;
+  const ok = d2 > t.minM * t.minM || (d2 > t.unreachableMinM * t.unreachableMinM && bossCantReach(world, p));
+  if (!ok || d2 <= pick.bestD2) return;
+  pick.bestD2 = d2;
+  pick.best = p;
+};
+
+/** AC 5: the throw's target (null: nobody qualifies). Ties: the first in `world.players` order. */
+export function pickThrowTarget(world: Readonly<World>): PlayerState | null {
+  pick.world = world;
+  pick.best = null;
+  pick.bestD2 = -1;
+  world.players.forEach(pickOne);
+  const best = pick.best;
+  pick.world = null;
+  pick.best = null;
   return best;
 }
 

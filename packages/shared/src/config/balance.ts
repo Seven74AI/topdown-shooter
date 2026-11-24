@@ -4,6 +4,7 @@ import { balanceFileSchemas, type BalanceFileName, type BuildingTypeStats } from
 import { ZOMBIE_TYPES } from "../zombies/zombieTypes";
 import { THREAT_BUCKETS, THREAT_BUCKET_TICKS } from "../boss/bossState";
 import { TICK_RATE_HZ } from "./constants";
+import { MAX_PLAYERS } from "../net/messages";
 import { MAX_FIXED_PER_WAVE } from "./constants";
 import weapons from "./balance/weapons.json" with { type: "json" };
 import zombies from "./balance/zombies.json" with { type: "json" };
@@ -280,6 +281,23 @@ function crossCheckBoss(parsed: Record<string, unknown>, issues: string[]): void
   if (b2.charge.minLaneM > b2.charge.distM) issues.push(`boss.json: charge.minLaneM ${b2.charge.minLaneM} exceeds distM ${b2.charge.distM}`);
   if (b2.charge.minM > b2.charge.maxM) issues.push(`boss.json: charge.minM exceeds maxM`);
   if (b2.throw.unreachableMinM > b2.throw.minM) issues.push(`boss.json: throw.unreachableMinM exceeds minM`);
+  // Review L2: the Predictor tells the charge's shove from every other knock by its mm per tick
+  // (it slides in up to PREDICTION_CHARGE_SNAP_M); no other knock may share that step.
+  const step = (m: number, s: number): number => {
+    const t = Math.max(1, Math.round(s * TICK_RATE_HZ));
+    return Math.round((m * 1000) / t);
+  };
+  const bk = parsed.boss as { charge: { shoveM: number; shoveS: number }; slam: { pushM: number; pushS: number }; enrage: { roarPushM: number; roarPushS: number } };
+  const chargeStep = step(bk.charge.shoveM, bk.charge.shoveS);
+  const others: [string, number][] = [
+    ["slam push", step(bk.slam.pushM, bk.slam.pushS)],
+    ["roar push", step(bk.enrage.roarPushM, bk.enrage.roarPushS)],
+  ];
+  const ztypes = (parsed.zombies as { types: Record<string, { hitKnockbackM?: number; knockbackS?: number }> }).types;
+  for (const [id, t] of Object.entries(ztypes)) if ((t.hitKnockbackM ?? 0) > 0) others.push([`${id} knockback`, step(t.hitKnockbackM ?? 0, t.knockbackS ?? 0.2)]);
+  for (const [name, st] of others) if (st === chargeStep) issues.push(`boss.json: charge shove step ${chargeStep} mm/tick equals the ${name} step (the Predictor tells a charge knock by it)`);
+  // Review L1: attack.hitMask is a 32-bit integer (slot bits, then slot-less players).
+  if (MAX_PLAYERS > 31) issues.push(`MAX_PLAYERS ${MAX_PLAYERS} exceeds the charge hit mask's 31 bits`);
   const scaleLen = (parsed.waves as { playerCountScale: number[] }).playerCountScale.length;
   if (b2.enrage.crawlerEveryS.length !== scaleLen) issues.push(`boss.json: enrage.crawlerEveryS needs ${scaleLen} entries (one per player count)`);
   const maxAlive = (parsed.waves as { maxAlive: number }).maxAlive;

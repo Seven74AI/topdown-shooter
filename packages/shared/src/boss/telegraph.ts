@@ -268,7 +268,9 @@ export function updateBossAttack(world: World): void {
     return;
   }
   if (b.state === BOSS_STATE.RECOVER) {
-    if (b.stateTicks < recoverTicks(world, a.kind)) return;
+    // Review L4 (brief 21f "one attack, then recovery, then gap"): a throw's recovery counts from its
+    // IMPACT (the boss stands in RECOVER while the chunk flies), so its gap starts after impact + recovery.
+    if (a.kind === BOSS_ATTACK.THROW ? a.live || world.tick < a.hitTick + recoverTicks(world, a.kind) : b.stateTicks < recoverTicks(world, a.kind)) return;
     toWalk(world);
   }
 }

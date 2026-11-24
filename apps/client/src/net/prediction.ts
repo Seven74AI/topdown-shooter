@@ -1,5 +1,6 @@
 import {
   NEUTRAL_INPUT,
+  chargeKnockStepMm,
   PREDICTION_SYSTEMS,
   TICK_DT_S,
   addPlayer,
@@ -255,8 +256,7 @@ export class Predictor {
     const newKnock = knockTicks > 0 && ackSeq + knockTicks !== this.knockEndSeq;
     if (knockTicks > 0) this.knockEndSeq = ackSeq + knockTicks;
     // Story 6.6: a charge shove (its own mm per tick) slides in from further (shove + body push-out).
-    const c = this.world.balance.boss.charge;
-    const chargeStepMm = Math.round((c.shoveM * 1000) / Math.max(1, Math.round(c.shoveS * 20)));
+    const chargeStepMm = chargeKnockStepMm(this.world.balance); // review L2: ticksFor, kept unique by crossCheckBoss
     // While the server still slides this knock (`knockTicks` > 0), the slide's offset is still decaying:
     // keep the knock's limit for the running total too (else a 0.15 m correction on top of a 2 m slide snaps).
     const knockLimit = knockStepMm === chargeStepMm ? PREDICTION_CHARGE_SNAP_M : PREDICTION_KNOCK_SNAP_M;

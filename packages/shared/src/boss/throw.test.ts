@@ -204,16 +204,51 @@ describe("Story 6.6 throw (F7)", () => {
     }
   });
 
-  it("cooldown 6 s from the release; the boss recovers 0.6 s, then its gap", () => {
+  it("cooldown 6 s from the release; review L4: it stands in RECOVER while the chunk flies, recovers 0.6 s from the IMPACT, then its gap", () => {
     const { w } = setup();
     addPlayer(w, "p", 36, 16);
     throwFrom(w, 24, 16);
+    const hit = w.boss.attack.hitTick;
     tickN(w, LIFT);
     expect(w.boss.cooldown.throw).toBe(ticksFor(T.cooldownS));
     expect(w.boss.state).toBe(BOSS_STATE.RECOVER);
-    tickN(w, ticksFor(T.recoverS));
-    expect(w.boss.state).toBe(BOSS_STATE.WALK);
+    let walkAt = -1;
+    for (let i = 0; i < 60 && walkAt < 0; i++) {
+      tickN(w);
+      if (w.boss.state === BOSS_STATE.WALK) walkAt = w.tick - 1;
+    }
+    expect(walkAt).toBe(hit + ticksFor(T.recoverS));
     expect(w.boss.gapTicks).toBeGreaterThan(0);
+  });
+
+  it("review L4 (brief 21f): after a throw the next telegraph never starts before impact + recovery + gap (1–4 players, enraged or not)", () => {
+    for (const players of [1, 2, 3, 4]) {
+      for (const enraged of [false, true]) {
+        const { w, ev } = setup();
+        for (let i = 0; i < players; i++) addPlayer(w, `p${i}`, 36, 16 + i * 0.5);
+        throwFrom(w, 24, 16);
+        w.boss.enraged = enraged;
+        const hit = w.boss.attack.hitTick;
+        // Everything else ready at once: slam, charge and throw cooldowns forced to 0, a survivor walks into slam range.
+        let next = -1;
+        for (let t = 0; t < 200 && next < 0; t++) {
+          w.boss.cooldown.slam = 0;
+          w.boss.cooldown.charge = 0;
+          w.boss.cooldown.throw = 0;
+          const p = w.players.get("p0");
+          if (p && t > 2) {
+            p.x = w.boss.x + 3;
+            p.y = w.boss.y;
+          }
+          tickN(w);
+          const teles = ev.filter((e) => e.type === "boss.telegraph");
+          if (teles.length > 1) next = (teles[1] as { startTick: number }).startTick;
+        }
+        const gaps = balance.boss.gapS;
+        const gap = enraged ? Math.round((gaps[players - 1] as number) * 20 * balance.boss.enrage.gapMult) : ticksFor(gaps[players - 1] as number);
+        expect(next, `${players} players, enraged ${enraged}`).toBeGreaterThanOrEqual(hit + ticksFor(T.recoverS) + gap);
+      }
+    }
   });
 });
 

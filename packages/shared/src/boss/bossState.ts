@@ -1,5 +1,5 @@
 import type { Balance } from "../config/balance";
-import { ZOMBIE_HISTORY_TICKS } from "../config/constants";
+import { ZOMBIE_HISTORY_TICKS, ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import type { World } from "../core/world";
 import { MAX_PLAYERS } from "../net/messages";
 import type { PlayerState } from "../player/player";
@@ -98,6 +98,9 @@ export interface BossState {
   enraged: boolean;
   /** Story 6.7: ticks to the next Crawler off its back while enraged. */
   crawlerTicks: number;
+  /** Story 6.6 review N2: per zombie slot, the charge that trampled it (attack id; −1 none) and the slot's generation then. */
+  readonly trampleId: Int32Array;
+  readonly trampleGen: Uint8Array;
   /** The body overlapped a player building this tick (it pushes through at `buildingSlowPct`). */
   pushing: boolean;
   /** Review H1: `bossChase.rebuilds` last evaluated, and where / since when the fallback holds. */
@@ -139,6 +142,8 @@ export function createBossState(): BossState {
     entry: { x: 0, y: 0, name: "" },
     enraged: false,
     crawlerTicks: 0,
+    trampleId: new Int32Array(ZOMBIE_POOL_CAPACITY).fill(-1),
+    trampleGen: new Uint8Array(ZOMBIE_POOL_CAPACITY),
     pushing: false,
     fieldChecked: 0,
     farX: 0,
@@ -189,6 +194,8 @@ export function resetBoss(b: BossState): void {
   b.attack.hitMask = 0;
   b.enraged = false;
   b.crawlerTicks = 0;
+  b.trampleId.fill(-1);
+  b.trampleGen.fill(0);
   b.pushing = false;
   b.farX = 0;
   b.farY = 0;
@@ -292,6 +299,7 @@ export function snapshotBoss(b: Readonly<BossState>) {
     entry: { ...b.entry },
     enraged: b.enraged,
     crawlerTicks: b.crawlerTicks,
+    trample: [Array.from(b.trampleId), Array.from(b.trampleGen)],
     pushing: b.pushing,
     field: [b.fieldChecked, b.farX, b.farY, b.farSinceTick],
     hist: [Array.from(b.histX), Array.from(b.histY), Array.from(b.histTick)],

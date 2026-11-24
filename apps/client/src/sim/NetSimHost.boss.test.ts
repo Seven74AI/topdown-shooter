@@ -160,11 +160,16 @@ describe("NetSimHost: the Behemoth's charge, throw, roar and death (Stories 6.6 
 
   it("a tab hidden across the roar and woken after the death: no late ENRAGED, EVAC INBOUND once", () => {
     const { room, host, setNow } = setup();
+    room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 25, events: [[NET_EVENT_KIND.BOSS_CRASHED, 4, 1000, 1000]] } satisfies SimEventsFlushed);
     room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 30, events: [[NET_EVENT_KIND.BOSS_ENRAGED, 1000, 1000]] } satisfies SimEventsFlushed);
     room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 90, events: [[NET_EVENT_KIND.BOSS_KILLED, 0, 0, 1000, 1000, 1]] } satisfies SimEventsFlushed);
     room.state.boss = fakeBoss({ state: BOSS_STATE.DEAD, enraged: true, number: 1 });
     const ev = playTo(room, host, setNow, 11, 300, false);
     const cue: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
+    // Review L3 (M21): a crash long before the wake plays no late CRASH! either.
+    const crash = ev.find((e) => e.type === "boss.crashed");
+    expect(crash).toBeDefined();
+    if (crash) expect(bossCue(crash, "p1", 0, 0, cue)).toMatchObject({ banner: "", sound: "" });
     const roar = ev.find((e) => e.type === "boss.enraged");
     const killed = ev.filter((e) => e.type === "boss.killed");
     expect(roar).toBeDefined();
