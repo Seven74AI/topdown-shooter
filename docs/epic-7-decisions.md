@@ -46,4 +46,16 @@ Follow-up answers (designer, 2026-11-24):
 - **Animated parts** (designer's idea: a spinning propeller): not in 7.8; open question for Story 7.9 (an extra small sprite rotated each frame, no new texture per frame), through a course correction.
 - **Lean on kept headgear:** round 3 shows each kept round-1 headgear with and without the lean.
 
-Round 3: see below once picked.
+Round 3 page: claude.ai/artifact/Rw1Uys1tS9NB6d824JvJr9 (`docs/art/7-8/round-3.html`). Designer's picks 2026-11-24: cap **B** (light logo badge; the **new default**), viking **B** (short thick horns straight out); lean on kept headgear: beanie **B**, bike **B**, chef **B**, pot **B** (with the lean), hood, cone and bunny **A** (as in round 1); milestones: headband with long tails (**M5**), plank bundle (**M7**), laurel wreath (**M8**), welding mask (flipped up) moved to **M9** (designer: "planks M7, mask M9"). Dropped: backwards cap, guitar case, letterman jacket, flag.
+
+### Final catalogue (7.8): 51 parts in 5 slots, 31 starter / 10 milestone / 10 loot
+
+| Slot | Starter | Milestone | Loot |
+| --- | --- | --- | --- |
+| Top (top colour) | jacket (default), hoodie, track, puffer | camo (M6) | floral |
+| Head | none, cap (default, new drawing), beanie, hood, bike, headphones, bucket, wide-brim | fire (M1), riot (M2), gas (M3), hockey (M4), headband (M5), laurel (M8), welding mask (M9) | cone, chef, pot, bunny, viking, propeller |
+| Hair (hair colour) | short (default), stubble, flat top, mohawk, tied, curly, bald | – | – |
+| Pack | backpack (default), duffel, school backpack, none | planks (M7), golf bag (M10) | teddy, cat, plant |
+| Skin | 8 presets (1 = default) | – | – |
+
+Changes to Story 7.8's ACs, from these picks (for the story's next update and the reviewers): **AC 2** five slots (no accent); **AC 3** the default cap is the new drawing, every other pixel of every survivor frame stays identical; **AC 4** 51 parts, 31 / 10 / 10, slot `acc` gone; **AC 6** unchanged (each part ≥ 40 px² or a new outline at 14 px). The accent picker colour stays, as the colour of hats and bags.
