@@ -420,6 +420,31 @@ Behaviour changes: **RM1** (vote sending), **RL1** (when the online dawn plays).
 
 6.8 merge plan (main session): keep 6.8's `!eventHoldsWave` in `updateRun` and `skipWave` ending the event; implement `endlessEventCandidates` with 6.8's `eventFits(world, kind, wave)` and keep ONE scheduler (this story's); `evacPadOf` reads 6.8's `evac_pad` (24, 15.9); schema: 6.8's event* fields, then `voteTicksLeft`, `endless`; `PlayerState.vote` last.
 
+### Re-review 2 (AI) of the re-review fixes
+
+**Reviewer:** fresh-agent re-reviewer (cloud session), 2026-11-24, narrow (designer speed-up): only `b42eab9` (RM1, RL1, RL2, N1, N2) on `c61e0d7`; the master merges (docs/decisions) ignored.
+**Outcome:** **Approve with follow-ups**: 0 high, 1 medium, 2 low, 2 nit.
+
+**Tests run:** `npm run typecheck` (green); probes and mutations only: client `ui/voteModel`, `net/onlineFlow`, `debug/urlOptions`, `scenes/*` (237); shared `run/endless`; server `run/devBossWaves`; `tools/netsim/vote`. Two throw-away probes (VoteSender rate vs the server's real `TokenBucket(10, 10)` with 1 pong/s; an onlineFlow tab switch) were run and deleted.
+
+**MEDIUM**
+
+- **RR2-M1: The RL1 hidden rule takes the dawn from live players who switch tab or app at any time in the 19 s before Results.** `apps/client/src/net/onlineFlow.ts:96-98` + `main.ts:28-31`. `lastHiddenMs` is set on *every* `visibilitychange` (hide and show), and any change within `voteS + dawnS` (15 + 4 s) of the Results patch means no dawn. Probe: a live run (80 ms latency), the player alt-tabs for 2 s at the vote's start (waiting for teammates) and is back 13 s before the end; Results arrive live → `dawnEndsAtMs` = now (no dawn) instead of extract + 4 s. That's common on desktop (tab switch while waiting) and on phones (glancing at a message), and it breaks AC 10 (a live player sees the dawn). A notification-shade pull usually fires no `visibilitychange` (blur only), so that case is safe. **Fix:** decide on the page's state *around the extract*, not on any change in the last 19 s. Not live if `document.hidden` when the Results patch is processed, or if the page became visible less than ~1 s before (a wake backlog lands right after the show). Track `lastVisibleMs` (shows only) plus the current hidden state, not the last change. Test: hidden then shown 12 s before Results, live samples → full dawn.
+
+**LOW**
+
+- **RR2-L1: The hidden rule depends on the event order on resume.** Same lines. If a frozen tab (Android freezes background tabs) runs its queued socket messages before the `visibilitychange` task (the order between task sources is not specified), `lastHiddenMs` is still the hide time. A hide more than 19 s before means hiddenLately = false; every sample since the wave start arrives in the same burst, so age ≈ 0 and a late dawn plays. Not checked in a real browser. **Fix:** the same as RR2-M1: `document.visibilityState` flips in the same task as the event, so checking `document.hidden` when the patch is processed covers this order.
+- **RR2-L2: The rate headroom is 1 message, and the comment's "≤ ~6.7/s" is wrong.** `apps/client/src/ui/voteModel.ts:196-198,239-240`. Token sends and urgent sends add up (a token send does not wait for the 150 ms gap), so the sustained rate is about 3 + 6.7 ≈ 9.7/s. Probe (tap every frame for the whole 1 s hold, full bucket at the start): **8 sends in 1 s** + 1 pong = 9 against the server's 10-token bucket, so 0 dropped. Tapping every 120 ms over the last 3 s gives at most 5 in any 1 s, also 0 dropped. Only 1 token of headroom is left for any other non-input message in the hold. **Fix:** count urgent sends against the bucket (allow tokens to go to −2, for example), or set `VOTE_URGENT_GAP_MS` to 250, and correct the comment. The remaining loss window is a change made within 150 ms of an urgent send in the vote's last ~150 ms: in the probe the final tap was not sent in 2 of 4 runs, both at the very end. A patch stall that leaves `voteTicksLeft` stale (urgent stays false) delays a change by up to 333 ms when the bucket is empty. Both windows are about one RTT, which every client already loses, so I accept them.
+
+**NIT**
+
+- **N3:** the `urgent` computation in `GameScene.updateVote` (`GameScene.ts:1054-1056`) is copied by hand into `tools/netsim/vote.test.ts:115`. Setting `urgent = false` in GameScene **survives** netsim vote + every `scenes` test (237 green), the same class as N2. Move it into a pure `voteUrgent(players, voteTicksLeft)` in `voteModel.ts` that both use.
+- **N4:** N1's `scheduleEndlessEvent` passing `world.debug.bossWaves` (`endlessEvents.ts:64`) is not under any test: removing it survives `endless.test.ts` (only `isEndlessEventWave` is tested with an override). Dev only.
+
+**Exploit attempts:** RM1: Stay at T−300 ms then Extract at T−100 ms → both sent at once ✓. 20 taps outside urgent → ≤ 4 sends, the last is the newest ✓. Urgent flood → 0 dropped at the server ✓ (RR2-L2 headroom). Lag 150 ± 20: the client's `voteTicksLeft` lags by the one-way delay, so urgent starts at about 350 ms of real time left, still before the end ✓. A voter leaving makes the server's `everyoneVoted` and the client's `allIn` flip together (both over all players, downed included) ✓. No sends after the vote or in Results (`updateVote` returns when the phase leaves "vote") ✓. RL1: 5 s of dropped ticks before the last wave ✓ (reset at the wave start; samples are taken only on phase changes, so drift now needs ≥ 4 s of stalls within one wave + vote). A very short final wave or a wave start right before the vote: the Results sample bounds the age, so the dawn is safe ✓. A frozen tab that comes back at Results → no dawn ✓ (but RR2-L1). A tab switch during the vote → **no dawn (RR2-M1)**.
+
+**Mutations (all reverted):** killed: RL2 no new-run reset (onlineFlow 1) · RL1 no hidden rule (1) · RL1 no wave-start reset (1) · RM1 urgent off (voteModel/netsim 1) · RM1 urgent gap off (1) · RM1 no refill (1) · N1 `isEndlessEventWave` without the override (endless 1) · N1 `none` → [] removed, server (devBossWaves 1) and client (urlOptions 1) · N2 `standsStill` without the vote (netsim vote 1). Survived: GameScene `urgent` (N3), `scheduleEndlessEvent` override (N4).
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -429,3 +454,4 @@ Behaviour changes: **RM1** (vote sending), **RL1** (when the online dawn plays).
 - 2026-11-24: review fixes M1–M3, L1–L9, L11, L12 (L10 no change); merged master 9c540b3.
 - 2026-11-24: Re-review (AI) of the review fixes on `3008990`: approve with follow-ups (1 medium RM1, 2 low, 2 nit).
 - 2026-11-24: re-review fixes RM1, RL1, RL2, N1, N2; merged master 3a0dac8.
+- 2026-11-24: Re-review 2 (AI) of the re-review fixes on `c61e0d7`: approve with follow-ups (1 medium RR2-M1, 2 low, 2 nit).
