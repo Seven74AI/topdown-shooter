@@ -138,8 +138,23 @@ Ask the designer to check these: **riot**, **bike** and **hard** helmets (could 
 
 ### Debug Log References
 
+- Mutation checks (brief 9), one per new test, all killed: M1 item made loot (3 failed); part schema not `.strict()` (gameplay field accepted, 1 failed); duplicate-id check off (1); `STARTER_PARTS` includes milestones (1); no night mute (1); default colours muted again (2); stage dim off by one (4); mute keeps saturation (1); arms leave a round line cap (AC 3, 9 frames failed); backpack drawn under the flamethrower tanks (AC 3, 1 frame failed). Earlier: head radius 0.4 → 0.41 r failed 9 of 9 frames (≈ 590 bytes each).
+- Local Node is 22.23 (`.nvmrc` says 26); `@napi-rs/canvas` 1.1.0 installed from prebuilt binaries and ran under 22.
+
 ### Completion Notes List
 
 - Story context created 2026-11-24: comprehensive developer guide, status ready-for-dev.
+- T1: pick page `docs/art/7-8/parts.html` published (claude.ai/artifact/3nHH149x7jJhYBfFeqi7Ym); picks save to the page's store (`picks/<slot>_<id>`). Default parts drawn as today's survivor (prototype hands, backpack strap, jacket panel dropped for AC 3). Gameplay-signal candidates each have a safer B drawing. Six prototype parts enlarged to pass 40 px²; team patch moved to the shoulder. Waiting for the designer's picks before T5.
+- T2: `cosmetics.json` (55 parts, look factors, default look), `cosmetics.ts` (strict zod schema + cross checks, `COSMETICS`, `DEFAULT_LOOK`, `STARTER_PARTS`, `cosmeticPart`), exported from shared. Not in `Balance`, not in the balance version (test).
+- T3: `survivorLook.ts`: HSL night mute (L × 0.62, S × 0.8), stage dim (stage 1 returns the same string), `resolveLook` (unknown ids fall back to the default part; picker colours equal to the default colour are not muted), `DEFAULT_RESOLVED_LOOK` = the `CHAR` colours.
+- T4: `survivorParts.ts` (`drawArms` + `drawTop` for the top slot, because the backpack sits between arms and body; `drawPack`, `drawAccent`, `drawSkin`, `drawHair`, `drawHead`); `drawSurvivor` gains `look = DEFAULT_RESOLVED_LOOK`, `spriteAtlas.ts` unchanged. AC 3 raster test green for all 9 survivor frames (0 differing bytes).
 
 ### File List
+
+- `docs/art/7-8/parts.html` (new), `docs/art/7-8/README.md` (new)
+- `packages/shared/src/config/cosmetics.json`, `cosmetics.ts`, `cosmetics.test.ts` (new)
+- `packages/shared/src/index.ts` (exports)
+- `apps/client/src/render/city/survivorLook.ts`, `survivorLook.test.ts`, `survivorParts.ts`, `survivorParts.raster.test.ts` (new)
+- `apps/client/src/render/city/spriteArt.ts` (`drawSurvivor` delegates to the parts)
+- `package.json`, `package-lock.json` (`@napi-rs/canvas` 1.1.0, dev)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (7-8 in-progress)
