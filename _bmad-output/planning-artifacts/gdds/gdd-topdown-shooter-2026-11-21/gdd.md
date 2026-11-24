@@ -297,7 +297,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 
 ## Technical Specifications
 ### Performance Requirements
-- **Frame rate:** 60 FPS target, never below 30 FPS sustained, on a 2021 mid-range phone (e.g. iPhone 12, Pixel 5, Galaxy A52; low-end floor: Xiaomi Mi 11 (designer wrote 'Xiaomi i11'; confirm the exact model)), measured over a full wave 9 (blackout) in the worst case: all 150 alive zombies inside one player's view.
+- **Frame rate:** 60 FPS target, never below 30 FPS sustained, on a 2021 mid-range phone (e.g. iPhone 12, Pixel 5, Galaxy A52; low-end floor: Xiaomi Mi 11i), measured over a full wave 9 (blackout) in the worst case: all 150 alive zombies inside one player's view.
 - **Memory:** under 300 MB per browser tab on iPhone 12 (Safari closes heavy tabs).
 - **Network:** fully playable on 4G at up to 150 ms latency; no visible disagreement between players about what happened. Each phone receives at most **~30 KB/s** with 150 zombies alive (≈ 40 MB per 20-minute run); proving this is Milestone 1's first goal.
 - **Load time:** first load under 10 s on 4G; later loads under 3 s.
@@ -359,6 +359,6 @@ This is a game for a group of friends, so success is simple and honest.
 
 ## Open Items Index
 - [ASSUMPTION] Server hosting cost is acceptable given the budget (Assumptions and Dependencies).
-- ~~[NOTE FOR DESIGNER] Solo testing could use × 0.4 zombie scaling~~ Decided 2026-11-23: solo online runs at × 0.4, allowed, not balance-tuned (Enemy Wave Design). Open: solo Behemoth HP × 0.4 or × 0.3 (Epic 10 balance pass).
+- ~~[NOTE FOR DESIGNER] Solo testing could use × 0.4 zombie scaling~~ Decided 2026-11-23: solo online runs at × 0.4, allowed, not balance-tuned (Enemy Wave Design). Solo Behemoth HP = × 0.4 like every other solo scaling (designer 2026-11-24).
 - [NOTE FOR DESIGNER] Pick order of future districts (Level Types).
 - Working title.

@@ -45,6 +45,7 @@ const EVENTS: SimEvent[] = [
   // Story 5.9: an upgrade, a mine blast, a blast's player damage (source -2, not fire).
   { type: "building.upgraded", buildingId: 5, playerId: "p3", cost: 70, toType: "metal_barricade", x: 12.25, y: 7.5 },
   { type: "mine.exploded", buildingId: 9, x: 20.25, y: 11.75 },
+  { type: "bear_trap.snapped", buildingId: 12, x: 8.5, y: 30.5 }, // Story 5.14
   { type: "player.damaged", playerId: "p1", amount: 40, sourceZombieId: -2, tag: "explosion", sourcePlayerId: "p3" },
   { type: "player.damaged", playerId: "p2", amount: 5, sourceZombieId: -1, tag: "fire", sourcePlayerId: null },
   // Story 5.4: flame friendly fire (fire, source player p0) and a burst's edges.

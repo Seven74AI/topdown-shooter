@@ -81,6 +81,26 @@ export interface HudModel {
   rotatePressed: boolean;
   confirmPressed: boolean;
   cancelPressed: boolean;
+  /** Story 5.19: the ghost is pinned (the chip reads "↩ carry" with an orange border). */
+  placementPinned: boolean;
+  /** Story 5.19: the item chip's text ("Wood barricade · $40 · ×6 left" / "↩ carry · Wood barricade"), cached by the GameScene. */
+  placementChip: string;
+  /** Story 5.19: the right-thumb drag since the last frame (canvas px) and whether one started or moved; the GameScene consumes them. */
+  dragDxPx: number;
+  dragDyPx: number;
+  dragged: boolean;
+  /** Story 5.19: the item chip was tapped (id `placeChip`); the GameScene consumes it. */
+  chipPressed: boolean;
+  /** Story 5.19: `controls.build.dragStartPx` (CSS px), set by the GameScene for the HUD's drag tracker. */
+  dragStartPx: number;
+  /** Story 5.19 review M2: a drag gesture began since the last frame (the chain side's net displacement restarts). */
+  dragBegan: boolean;
+  /** Story 5.19 review L1: a drag is in progress (the pointer crossed `dragStartPx` and is still down): a pinned ghost then doesn't unpin by leaving the view. */
+  dragHeld: boolean;
+  /** Story 5.19 (main-session decision): the short-screen chip (120 px, short text); set by the HUD's layout. */
+  placementChipShort: boolean;
+  /** Story 5.19 review L4: Place, ⟳, ✕ and the chip as 4 rects (minX, minY, maxX, maxY in canvas px), set by the HUD's layout. */
+  handAvoid: number[];
   /**
    * Story 5.16: the build bar is shown (a build phase, hands empty, nothing selected, shop and menu
    * closed, my survivor standing): its building tiles (balance order, from `buildBarItems`), my
@@ -226,6 +246,17 @@ export const createHudModel = (): HudModel => ({
   rotatePressed: false,
   confirmPressed: false,
   cancelPressed: false,
+  placementPinned: false,
+  placementChip: "",
+  dragDxPx: 0,
+  dragDyPx: 0,
+  dragged: false,
+  chipPressed: false,
+  dragStartPx: 8,
+  dragBegan: false,
+  dragHeld: false,
+  placementChipShort: false,
+  handAvoid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   buildBar: false,
   buildItems: [],
   buildOwned: 0,

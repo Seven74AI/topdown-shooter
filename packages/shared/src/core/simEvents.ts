@@ -104,6 +104,8 @@ export type SimEvent =
   | { type: "building.upgraded"; buildingId: number; playerId: string; cost: number; toType: string; x: number; y: number }
   /** Story 5.9: mine `buildingId` went off at (x, y) (already removed; its hits/kills follow as events). */
   | { type: "mine.exploded"; buildingId: number; x: number; y: number }
+  /** Story 5.14: a bear trap's jaws closed on a zombie (clang + snap FX; open/closed itself is schema state). */
+  | { type: "bear_trap.snapped"; buildingId: number; x: number; y: number }
   /**
    * Story 5.6: Spitter `zombieId` released glob `spitId` from its mouth (x, y) toward (toX, toY), the
    * end of its flight (the target's position at release, or the range end). It flies straight at the

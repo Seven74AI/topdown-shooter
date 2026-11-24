@@ -9,7 +9,7 @@ import { isZombieAlive, knockedBy, rememberKnock, zombieTypeOf } from "../zombie
 import { maxZombieRadius } from "../zombies/zombieTypes";
 import { MIN_AIM_LEN, MUZZLE_OFFSET_M, TICK_DT_S, ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { viewTickOfInput, type PlayerInput } from "../net/input";
-import { applyKnockback, applyZombieDamage, knockbacks } from "./damage";
+import { applyKnockback, applyZombieDamage, knockbackShare, knockbacks } from "./damage";
 import { assistAim } from "./aimAssist";
 import { zombieCandidates as candidates } from "./scratch";
 import { activeSlot } from "./loadout";
@@ -371,7 +371,8 @@ function updateProjectiles(world: World, dtS: number): void {
     const dist = knockDist[k] as number;
     if (!isZombieAlive(z, knockZid[k] as number)) continue;
     knockbacks.applied++;
-    if (applyKnockback(world, knockZid[k] as number, knockDirX[k] as number, knockDirY[k] as number, dist) < dist) knockbacks.stopped++;
+    // Review N1 (5.14): against the body's share, like melee (a held zombie's is 0: not "stopped at a face").
+    if (applyKnockback(world, knockZid[k] as number, knockDirX[k] as number, knockDirY[k] as number, dist) < dist * knockbackShare(world, knockZid[k] as number) - 1e-9) knockbacks.stopped++;
   }
   knockCount = 0;
 }

@@ -12,7 +12,7 @@ describe("Story 5.15: the hand cluster (ux-spec §4)", () => {
     expect(l.place).toEqual({ x: 800 - 92 - 38, y: 360 - 92 - 38, size: 76 });
     expect(l.rotate).toEqual({ x: 800 - 190 - 30, y: 360 - 80 - 30, size: 60 });
     expect(l.cancel).toEqual({ x: 800 - 80 - 24, y: 360 - 196 - 24, size: 48 });
-    expect([l.hintX, l.hintY]).toEqual([784, 360 - 196 - 24 - 6]); // 6 px above ✕'s top edge
+    expect([l.hintX, l.hintY]).toEqual([784, 360 - 196 - 24 - 8 - 32 - 6]); // Story 5.19: 6 px above the chip, which is 8 px above ✕
   });
 
   it("every target ≥ 48 px, ≥ 12 px apart, hit rects never overlap, inside the screen, above the hint line; insets and dpr respected", () => {
@@ -51,6 +51,41 @@ describe("Story 5.15: the hand cluster (ux-spec §4)", () => {
       const menuBottom = MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX;
       expect(l.hintY - HAND_HINT_LINE_CSS_PX).toBeGreaterThanOrEqual(menuBottom + 4);
       expect(l.hintY).toBeLessThanOrEqual(Math.min(l.place.y, l.rotate.y, l.cancel.y));
+    }
+  });
+});
+
+describe("Story 5.19: the item chip (ux-spec §4, D7)", () => {
+  const rectOverlap = (a: { x: number; y: number; w: number; h: number }, b: HandRect) => a.x < b.x + b.size && b.x < a.x + a.w && a.y < b.y + b.size && b.y < a.y + a.h;
+
+  it("800 × 360: 160 × 32 right-aligned 16 px in, 8 px above ✕, the reason line 6 px above it and clear of ☰", () => {
+    const l = layoutHandCluster(800, 360, 0, 0, 1, newHandLayout());
+    expect(l.chipRow).toBe(false);
+    expect(l.chip).toEqual({ x: 800 - 16 - 160, y: l.cancel.y - 8 - 32, w: 160, h: 32 });
+    expect(l.hintY).toBe(l.chip.y - 6);
+    expect(l.hintY - HAND_HINT_LINE_CSS_PX).toBeGreaterThanOrEqual(MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + 4);
+  });
+
+  it("568 × 320 (and a notch's top inset at 360): the chip, 120 px wide, moves left of ✕ on its row, 12 px away; the reason line stays above ✕", () => {
+    const l = layoutHandCluster(568, 320, 0, 0, 1, newHandLayout());
+    expect(l.chipRow).toBe(true);
+    expect(l.chip).toEqual({ x: l.cancel.x - 12 - 120, y: l.cancel.y + 24 - 16, w: 120, h: 32 });
+    expect(l.hintY).toBe(l.cancel.y - 6);
+    expect(layoutHandCluster(800, 360, 0, 0, 1, newHandLayout(), 20).chipRow).toBe(true);
+  });
+
+  it("the chip never overlaps Place, ⟳, ✕ or ☰, sits in the right half, inside the screen and below the reason line; dpr and insets respected", () => {
+    for (const [W, H, k, r, b, t] of [[800, 360, 1, 0, 0, 0], [800, 360, 2, 0, 0, 0], [568, 320, 2, 0, 0, 0], [844, 390, 3, 44, 21, 0], [1024, 768, 1, 0, 0, 0], [640, 360, 2, 0, 0, 0]] as const) {
+      const l = layoutHandCluster(W * k, H * k, r, b, k, newHandLayout(), t);
+      const c = l.chip;
+      expect([c.w, c.h]).toEqual([(l.chipRow ? 120 : 160) * k, 32 * k]);
+      for (const btn of [l.place, l.rotate, l.cancel]) expect(rectOverlap(c, btn), `${W}x${H}`).toBe(false);
+      const menuBottom = (MENU_BUTTON_INSET_CSS_PX + MENU_BUTTON_CSS_PX + t) * k;
+      expect(c.y).toBeGreaterThanOrEqual(menuBottom);
+      expect(c.x).toBeGreaterThan((W * k) / 2);
+      expect(c.x + c.w).toBeLessThanOrEqual(W * k - (16 + r) * k);
+      expect(l.hintY).toBeLessThanOrEqual(c.y);
+      expect(l.hintY - HAND_HINT_LINE_CSS_PX * k).toBeGreaterThanOrEqual(menuBottom + 4 * k);
     }
   });
 });

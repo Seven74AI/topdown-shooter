@@ -26,6 +26,20 @@ export const HAND_HINT_GAP_CSS_PX = 6;
 /** The hint line's height at 18 px with its 4 px stroke (CSS px; layout checks only). */
 export const HAND_HINT_LINE_CSS_PX = 26;
 /**
+ * Story 5.19 (ux-spec §4, D7): the item chip while holding: size, right inset, the gap above ✕'s
+ * top edge (the reason line then sits `HAND_HINT_GAP_CSS_PX` above the chip). On a short screen the
+ * chip moves left of ✕ on its row, `HAND_CHIP_ROW_GAP_CSS_PX` from ✕; the reason line must keep this
+ * far below ☰ (`HAND_MENU_CLEAR_CSS_PX`).
+ */
+export const HAND_CHIP = { wCss: 160, hCss: 32, rightCss: 16, gapAboveCancelCss: 8 } as const;
+/** Story 5.19 (main-session decision after review M1): the short-screen chip is narrower (short text: "↩ carry" / "{name} ×{n}"). */
+export const HAND_CHIP_SHORT_W_CSS_PX = 120;
+export const HAND_CHIP_ROW_GAP_CSS_PX = 12;
+export const HAND_MENU_CLEAR_CSS_PX = 4;
+/** The chip's text size and inner padding (CSS px; the text shrinks to fit the rest). */
+export const HAND_CHIP_TEXT_CSS_PX = 14;
+export const HAND_CHIP_PAD_CSS_PX = 8;
+/**
  * Story 5.16 (ux-spec §4): the build bar, bottom right while my hands are empty in a build phase:
  * a grid of square tiles (size, gap) this far inside the right and bottom safe-area insets (CSS px).
  */

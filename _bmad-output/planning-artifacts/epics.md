@@ -154,7 +154,7 @@ FR88: The game records simple run stats (district, wave reached, extracted, load
 
 ### NonFunctional Requirements
 
-NFR1: Frame rate 60 FPS target, never below 30 FPS sustained, on 2021 mid-range phones (iPhone 12, Pixel 5, Galaxy A52) and on the low-end floor, the Xiaomi Mi 11 (designer wrote 'Xiaomi i11'; confirm the exact model), measured over a full wave 9 blackout with all 150 alive zombies in one player's view.
+NFR1: Frame rate 60 FPS target, never below 30 FPS sustained, on 2021 mid-range phones (iPhone 12, Pixel 5, Galaxy A52) and on the low-end floor, the Xiaomi Mi 11i, measured over a full wave 9 blackout with all 150 alive zombies in one player's view.
 NFR2: Memory under 300 MB per browser tab on iPhone 12.
 NFR3: Fully playable on 4G at up to 150 ms latency, with no visible disagreement between players about what happened.
 NFR4: Each phone receives at most ~30 KB/s with 150 zombies alive (≈ 40 MB per 20-minute run); proving this is Milestone 1's first goal.
@@ -2518,7 +2518,7 @@ So that I can find myself and they can recognise me.
 
 **Given** a player's look
 **When** the Game scene creates their survivor
-**Then** the body is drawn once into a per-player canvas texture (≤ 4 per run, ≤ ~2 ms total on the Xiaomi Mi 11, the low-end floor (designer wrote 'Xiaomi i11'; confirm the exact model)), the gun image is drawn under it, and the downed view uses the same body
+**Then** the body is drawn once into a per-player canvas texture (≤ 4 per run, ≤ ~2 ms total on the Xiaomi Mi 11i, the low-end floor), the gun image is drawn under it, and the downed view uses the same body
 **And** the slot ring, name and edge arrows keep the slot colour (Story 2.9)
 
 **Given** the lobby
@@ -2990,7 +2990,7 @@ So that nothing stutters when it matters.
 
 **Acceptance Criteria:**
 
-**Given** an iPhone 12, a Pixel 5 and a Galaxy A52 (or equivalents), and the low-end floor, the Xiaomi Mi 11 (designer wrote 'Xiaomi i11'; confirm the exact model)
+**Given** an iPhone 12, a Pixel 5 and a Galaxy A52 (or equivalents), and the low-end floor, the Xiaomi Mi 11i
 **When** a full wave 9 blackout is played with all 150 alive zombies in one player's view at default settings
 **Then** FPS averages 60 and never stays below 30 (NFR1)
 **And** the measurements and every optimization made are recorded in `docs/perf/epic-10-fps.md`
@@ -3099,7 +3099,7 @@ So that the run feels like the GDD's curve.
 
 **Given** run stats, bot runs and playtest notes
 **When** the balance is reviewed
-**Then** it settles what 4.10 and the Epic 5 balance pass (after round E, which owns the earnings decision) left open: the earnings model (fallback wave bonus 15 × N), solo Behemoth HP (× 0.4 or × 0.3), `loot.runChance` and the 6-building cap
+**Then** it settles what 4.10 and the Epic 5 balance pass (after round E, which owns the earnings decision) left open: the earnings model (fallback wave bonus 15 × N), `loot.runChance` and the 6-building cap
 **And** earnings per player over a full run are 2,500–3,000 at 2, 3 and 4 players, and the difficulty curve matches the GDD table (relaxed W1–2 … climax W10)
 
 **Given** balance changes

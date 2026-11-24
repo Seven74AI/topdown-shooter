@@ -59,4 +59,4 @@ Measured in the same runs:
   | `&fx=low&stressbuild=molotov` (8 zones) | 30.7 | −25 % |
 
   Even near-zero particles cost ~−8 % for 2 zones (the rings, the 8 minimum ring flames per zone, the per-zone
-  update): that is the floor of this look in headless software GL. Real phones not measured.
+  update): that is the floor of this look in headless software GL. Real phones not measured: **the Xiaomi Mi 11i run (`?stress=150`, `&stressbuild=molotov:2`, `&stressbuild=molotov`) is the deciding test** (main session, 2026-11-24).

@@ -51,11 +51,18 @@ Story 5.10 additions (pictures: Playwright, solo dev build `?shopall=1`, 844×39
 | 37 | `38_floodlight.png` | a floodlight (FL1: a yellow tripod work light, its glass along the front edge) and its warm-white light pool (4 m radius) on the street | **pass** (bullets fly over it; it stops bodies: an obstacle, not cover) | right if "lamp / light / work light / floodlight"; 150 HP, zombies break it; not in the shop until the blackout story (6.3) |
 | 38 | `39_med_station.png` | a med station (MS10: hard med cases stacked on a crate, a glowing green-cross LED panel on top) and its soft green ring at the 2 m heal edge | **pass** (an obstacle, not cover) | right if "medkit / healing / first aid"; touch the ring = +5 HP/s while standing (never for downed survivors), two stations don't stack, walls don't block it; a green "+" shows by a survivor being healed |
 
+Story 5.14 additions (pictures: Playwright, solo dev build, 844×390 at 2×, 2026-11-23):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 39 | `40_bear_trap_open.png` | a bear trap, open (B-T1: round steel jaws lying flat, teeth inward, a round plate in the middle, a spring each side, a chain to a stake) | **pass** (floor: bullets and bodies cross it) | right if "bear trap / leg trap / jaw trap / trap"; survivors walk over it safely; a zombie whose centre reaches the plate is caught |
+| 40 | `41_bear_trap_closed.png` | the same trap sprung: jaws shut into one bar, a zombie held in it | **pass** | right if "it closed / caught a zombie / it went off"; holds 3 s (a Brute 1.5 s), the zombie still bites what is in reach; stand on a closed trap 1 s to re-arm it (every trap re-arms at a build start) |
+
 Story 5.12 additions (pictures: Playwright, solo dev build, 800×360 at 2×, HUD shown, 2026-11-23; files in `docs/art/5-12/`):
 
 | # | file | answer | bullets | notes |
 | --- | --- | --- | --- | --- |
-| 39 | `5-12-hud-wave-ring-800x360.png` | the consumable button (CI4 grenade, count 3) left of swap, and the throw's landing ring (white, the exact 2.5 m blast) | n/a | right if "grenades / quick item"; E or a tap throws one; greyed when it can't be used now (a throwable in a build phase, a medkit at full HP), dimmed while the server hasn't confirmed the last use |
-| 40 | `5-12-molotov-flight-800x360.png` | a molotov in flight (a bottle with a burning rag; HG1–3 / MB1–3 looks vary per throw) | flies **over** cars, the bus, barricades; only buildings stop it | right if "molotov / fire bottle" |
-| 41 | `5-12-molotov-fire-800x360.png` | molotov fire: the 4.12 fire on the asphalt with a ring of flames at the 3 m edge = the damage edge | fire goes through barricades and sandbags (a ground area) | 8/s to zombies, 4/s to survivors (teammates and you), never stacks with a car fire, 4 s, burns no building, no path change |
-| 42 | `5-12-grenade-flight-800x360.png` | a hand grenade blast (EX2 shockwave + debris) at the bus's near face, its ring = the 2.5 m damage edge | the blast is **stopped by** cars/bus/buildings, **not** by barricades/sandbags | 42 to zombies, 20 to every survivor in it (you too) |
+| 41 | `5-12-hud-wave-ring-800x360.png` | the consumable button (CI4 grenade, count 3) left of swap, and the throw's landing ring (white, the exact 2.5 m blast) | n/a | right if "grenades / quick item"; E or a tap throws one; greyed when it can't be used now (a throwable in a build phase, a medkit at full HP), dimmed while the server hasn't confirmed the last use |
+| 42 | `5-12-molotov-flight-800x360.png` | a molotov in flight (a bottle with a burning rag; HG1–3 / MB1–3 looks vary per throw) | flies **over** cars, the bus, barricades; only buildings stop it | right if "molotov / fire bottle" |
+| 43 | `5-12-molotov-fire-800x360.png` | molotov fire: the 4.12 fire on the asphalt with a ring of flames at the 3 m edge = the damage edge | fire goes through barricades and sandbags (a ground area) | 8/s to zombies, 4/s to survivors (teammates and you), never stacks with a car fire, 4 s, burns no building, no path change |
+| 44 | `5-12-grenade-flight-800x360.png` | a hand grenade blast (EX2 shockwave + debris) at the bus's near face, its ring = the 2.5 m damage edge | the blast is **stopped by** cars/bus/buildings, **not** by barricades/sandbags | 44 to zombies, 20 to every survivor in it (you too) |

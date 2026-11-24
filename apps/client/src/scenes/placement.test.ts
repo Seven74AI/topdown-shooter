@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEUTRAL_INPUT, addPlayer, buildingTypeIds, spawnZombie, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave, type PlaceError, type PlaceRequest } from "@topdown/shared";
+import { NEUTRAL_INPUT, addPlayer, bundledBalanceFiles, withOverrides, buildingTypeIds, spawnZombie, buildingStats, createWorld, footprint, footprintH, footprintW, loadBalance, placeBuilding, startBuild, startWave, type PlaceError, type PlaceRequest } from "@topdown/shared";
 import { CHAIN_MONEY_TEXT, Placement, autoRot, carryDistance, chainOffset, placeGate, placeRefusalText, snapAxis, stepPlacement, type PlacementFrame, type PlacementHud } from "./placement";
 import { PendingPlacements, newestBuildingId } from "./pendingPlacements";
 import type { MutablePlayerInput } from "../input/InputRouter";
@@ -235,7 +235,7 @@ describe("placeRefusalText", () => {
 });
 
 describe("Story 5.15 (review M1): stepPlacement, one frame of placement mode", () => {
-  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false });
+  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false, placementPinned: false, dragDxPx: 0, dragDyPx: 0, dragged: false, chipPressed: false });
   function frame(sent: PlaceRequest[], toasts: string[]): PlacementFrame {
     return {
       can: true,
@@ -337,7 +337,7 @@ describe("Story 5.15 (review M1): stepPlacement, one frame of placement mode", (
 });
 
 describe("Story 5.17: why it's red — the reason and its 250 ms hold", () => {
-  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false });
+  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false, placementPinned: false, dragDxPx: 0, dragDyPx: 0, dragged: false, chipPressed: false });
   const HOLD = balance.controls.build.reasonHoldMs;
   /** p0 at (20, 16) facing north holding a barricade; p1 (Bo) can step onto the ghost and away. */
   function setup() {
@@ -444,7 +444,7 @@ describe("Story 5.17: why it's red — the reason and its 250 ms hold", () => {
 });
 
 describe("Story 5.17 review: the culprit changing while blocked; start resets; a building under the ghost", () => {
-  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false });
+  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false, placementPinned: false, dragDxPx: 0, dragDyPx: 0, dragged: false, chipPressed: false });
   function setup() {
     const w = world();
     const p1 = addPlayer(w, "p1", 40, 16);
@@ -537,7 +537,7 @@ describe("Story 5.17 review: the culprit changing while blocked; start resets; a
 });
 
 describe("Story 5.18: place, place, place (chain, pin, pending-aware check)", () => {
-  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false });
+  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false, placementPinned: false, dragDxPx: 0, dragDyPx: 0, dragged: false, chipPressed: false });
   const still = (): MutablePlayerInput => ({ ...NEUTRAL_INPUT });
   function rig(wallet: number) {
     const w = world();
@@ -701,7 +701,7 @@ describe("Story 5.18: place, place, place (chain, pin, pending-aware check)", ()
     expect(p.error).toBeNull();
   });
 
-  it("pinned stays put while I walk ≤ 2 m, goes back to carry after 2 m or when it leaves the view; ⟳ turns it around its centre (AC 4, D3)", () => {
+  it("pinned stays put while I walk (Story 5.19: no 2 m walk-away rule), goes back to carry when it leaves the view; ⟳ turns it around its centre (AC 4)", () => {
     const r = rig(5000);
     r.p.start(balance, WOOD, 20, 16, 0, -1);
     stepPlacement(r.p, r.m, still(), r.w, r.f);
@@ -713,13 +713,11 @@ describe("Story 5.18: place, place, place (chain, pin, pending-aware check)", ()
     r.m.rotatePressed = true; // ⟳: around the centre (22, 14.25) → a 0.5 × 2 box, corner (21.75, 13.25) snapped
     stepPlacement(r.p, r.m, still(), r.w, r.f);
     expect([r.p.pinned, r.p.rot, r.p.locked, r.p.gx, r.p.gy]).toEqual([true, 3, true, 44, 27]);
-    r.f.x = 22.1; // 2.1 m from where I placed
+    r.f.x = 28; // Story 5.19 (decision (b)): 8 m from where I placed, still pinned (the chip or the view unpins)
     stepPlacement(r.p, r.m, { ...NEUTRAL_INPUT, moveX: 1 }, r.w, r.f);
-    expect(r.p.pinned).toBe(false);
-    // the view rule: pin again, then a view that no longer holds the ghost's centre
+    expect([r.p.pinned, r.p.gx, r.p.gy]).toEqual([true, 44, 27]);
+    // the view rule
     r.f.x = 20;
-    r.tap();
-    expect(r.p.pinned).toBe(true);
     const b = r.p.ghostBox();
     if (!b) throw new Error("box");
     r.f.viewMinX = (b.minX + b.maxX) / 2 - 0.9; // its centre 0.9 m inside the left edge: within the 1 m inset
@@ -743,3 +741,322 @@ describe("Story 5.18: place, place, place (chain, pin, pending-aware check)", ()
     expect(r.p.pinned).toBe(false);
   });
 });
+
+describe("Story 5.19: thumb drag to nudge and pin", () => {
+  const PPM = 32; // canvas px per metre
+  const still = (): MutablePlayerInput => ({ ...NEUTRAL_INPUT });
+  function rig(bal = balance) {
+    const w = createWorld({ balance: bal, seed: 1, systems: { waves: () => {} } });
+    addPlayer(w, "p0", 20, 16);
+    startBuild(w);
+    (w.players.get("p0") as { wallet: number }).wallet = 5000;
+    const pending = new PendingPlacements();
+    const sent: PlaceRequest[] = [];
+    const p = new Placement();
+    const m: PlacementHud = { placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false, placementPinned: false, dragDxPx: 0, dragDyPx: 0, dragged: false, chipPressed: false };
+    const f: PlacementFrame = {
+      can: true,
+      wave: w.waves.number,
+      x: 20,
+      y: 16,
+      ownerId: "p0",
+      label: "Wood barricade · $40",
+      refusal: (e: PlaceError) => placeRefusalText(e, bal),
+      send: (r) => {
+        sent.push({ ...r });
+        const s = buildingStats(bal, r.type);
+        if (!s) throw new Error("type");
+        pending.add(r, s.price, footprint(s, r.gx, r.gy, r.rot, { minX: 0, minY: 0, maxX: 0, maxY: 0 }), newestBuildingId(w), w.run.phase, w.waves.number);
+      },
+      toast: () => {},
+      nowMs: 0,
+      hintText: (e: PlaceError) => placeRefusalText(e, bal),
+      pending,
+      viewMinX: Number.NaN,
+      viewMinY: Number.NaN,
+      viewMaxX: Number.NaN,
+      viewMaxY: Number.NaN,
+      pxPerM: PPM,
+    };
+    /** One frame with a right-thumb drag of (dx, dy) metres on screen (as canvas px at PPM). */
+    const drag = (dxM: number, dyM: number, input: MutablePlayerInput = still(), began = false) => {
+      m.dragged = true;
+      m.dragBegan = began;
+      m.dragDxPx = dxM * PPM;
+      m.dragDyPx = dyM * PPM;
+      stepPlacement(p, m, input, w, f);
+      return input;
+    };
+    const centre = () => {
+      const b = p.ghostBox();
+      if (!b) throw new Error("box");
+      return [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2];
+    };
+    // facing north at (20, 16): a 2 × 0.5 wood barricade (rot 2) centred (20, 14.25), corner lattice (38, 28)
+    p.start(bal, WOOD, 20, 16, 0, -1);
+    stepPlacement(p, m, still(), w, f);
+    return { w, p, m, f, sent, drag, centre };
+  }
+
+  it("a drag pins the ghost and moves it by the finger's movement × gain 1.0 (relative: from where it was, not under the finger) (AC 1, 2)", () => {
+    const r = rig();
+    expect([r.p.pinned, r.p.gx, r.p.gy]).toEqual([false, 38, 28]);
+    r.drag(1.5, 0); // 48 px right = 1.5 m: centre 21.5 → corner 20.5
+    expect([r.p.pinned, r.m.placementPinned, r.p.gx, r.p.gy]).toEqual([true, true, 41, 28]);
+    r.drag(0, 1); // 1 m down
+    expect([r.p.gx, r.p.gy]).toEqual([41, 30]);
+    expect(r.centre()).toEqual([21.5, 15.25]);
+  });
+
+  it("gain comes from controls.build.dragGain (2.0 doubles the nudge); no drag flag or no camera scale = nothing moves", () => {
+    const g2 = loadBalance(withOverrides(bundledBalanceFiles(), [["controls", "build.dragGain", 2]]));
+    const r = rig(g2);
+    r.drag(1.5, 0); // 3 m: centre 23 → corner 22
+    expect(r.p.gx).toBe(44);
+    const q = rig();
+    q.m.dragDxPx = 100; // movement without the flag (never set by the HUD) is dropped
+    stepPlacement(q.p, q.m, still(), q.w, q.f);
+    expect([q.p.pinned, q.p.gx, q.m.dragDxPx]).toEqual([false, 38, 0]);
+    q.f.pxPerM = 0;
+    q.drag(3, 0);
+    expect([q.p.pinned, q.p.gx]).toEqual([false, 38]);
+  });
+
+  it("a drag that only starts (no movement yet) pins the ghost where it is shown", () => {
+    const r = rig();
+    r.drag(0, 0);
+    expect([r.p.pinned, r.p.gx, r.p.gy]).toEqual([true, 38, 28]);
+  });
+
+  it("snap hysteresis: a finger trembling on a lattice boundary never flips the spot; 0.1 m past it does (AC 3, B7)", () => {
+    const r = rig();
+    r.drag(1.5, 0); // corner 20.5 = index 41
+    r.drag(0.25, 0); // corner 20.75: exactly half a cell, kept
+    expect(r.p.gx).toBe(41);
+    for (const d of [0.05, -0.05, 0.05, 0.04, -0.09, 0.09]) {
+      r.drag(d, 0); // trembling between 20.70 and 20.84
+      expect(r.p.gx).toBe(41);
+    }
+    r.drag(0.07, 0); // 20.91: 0.11 m past the boundary
+    expect(r.p.gx).toBe(42);
+    r.drag(-0.15, 0); // 20.76: back within the hysteresis of 42
+    expect(r.p.gx).toBe(42);
+  });
+
+  it("the left stick keeps moving my survivor during a drag; no aim, no fire (AC 4, 11)", () => {
+    const r = rig();
+    const input = { ...NEUTRAL_INPUT, moveX: 0.7, moveY: -0.7, aimX: 1, aimY: 0, fire: true };
+    r.drag(1, 0, input);
+    expect([input.moveX, input.moveY, input.aimX, input.aimY, input.fire]).toEqual([0.7, -0.7, 0, 0, false]);
+    expect(r.p.pinned).toBe(true);
+    const at = [r.p.gx, r.p.gy];
+    r.f.x = 26; // walked 6 m: a pinned ghost stays put (no walk-away rule)
+    stepPlacement(r.p, r.m, { ...NEUTRAL_INPUT, moveX: 1 }, r.w, r.f);
+    expect([r.p.pinned, r.p.gx, r.p.gy]).toEqual([true, ...at]);
+  });
+
+  it("clamped 1 m inside the view: its snapped centre stays inside even after rounding, so the view rule never fires by dragging (AC 6, B2, D3)", () => {
+    const r = rig();
+    r.f.viewMinX = 10;
+    r.f.viewMinY = 5;
+    r.f.viewMaxX = 29.85;
+    r.f.viewMaxY = 24.9;
+    r.drag(100, 100);
+    const [cx, cy] = r.centre() as [number, number];
+    expect(cx).toBeLessThanOrEqual(29.85 - 1 + 1e-9);
+    expect(cy).toBeLessThanOrEqual(24.9 - 1 + 1e-9);
+    expect(cx).toBeGreaterThan(29.85 - 1 - 0.5); // as far as the lattice allows
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.pinned).toBe(true);
+    r.drag(-100, -100);
+    const [lx, ly] = r.centre() as [number, number];
+    expect([lx >= 11 - 1e-9, ly >= 6 - 1e-9]).toEqual([true, true]);
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.pinned).toBe(true);
+  });
+
+  it("the chip carries a pinned ghost again (AC 5); the chip on a carried ghost does nothing", () => {
+    const r = rig();
+    r.drag(2, 1);
+    expect(r.p.pinned).toBe(true);
+    r.m.chipPressed = true;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect([r.p.pinned, r.m.placementPinned, r.m.chipPressed, r.p.gx, r.p.gy]).toEqual([false, false, false, 38, 28]); // back ahead of me
+    r.m.chipPressed = true;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect([r.p.active, r.p.pinned, r.p.gx]).toEqual([true, false, 38]);
+  });
+
+  it("Place sends the spot shown last frame, before this frame's drag (B3); the chain jumps toward the side the last drag went (AC 8, 9)", () => {
+    const r = rig();
+    r.drag(-0.5, 0); // nudged 0.5 m west: last drag side x = −1
+    expect(r.p.gx).toBe(37);
+    r.m.confirmPressed = true;
+    r.drag(-3, 0); // Place and a drag in the same frame
+    expect(r.sent.map((q) => [q.gx, q.gy, q.rot])).toEqual([[37, 28, 2]]); // the spot shown at the press
+    // the chain went west (37 − 4 = 33) and then the same frame's drag nudged it 3 m further west
+    expect([r.p.pinned, r.p.gx]).toEqual([true, 27]);
+    r.m.confirmPressed = true;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect([r.sent.length, r.p.gx]).toEqual([2, 23]); // still west: the wall grows the way I nudged it
+  });
+
+  it("no drag in this hold, or a last drag square to the jump axis: the chain keeps 5.18's right of facing", () => {
+    const r = rig();
+    r.drag(0, 0.5); // a vertical nudge only: the barricade's jump axis is x
+    r.m.confirmPressed = true;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.gx - (r.sent[0] as PlaceRequest).gx).toBe(4); // east = right of north
+    const o = { dgx: 0, dgy: 0 };
+    expect(chainOffset(2, 0.5, 0, -1, 1, o, -1, 0)).toEqual({ dgx: -4, dgy: 0 });
+    expect(chainOffset(2, 0.5, 0, -1, 1, o, 0, 1)).toEqual({ dgx: 4, dgy: 0 });
+    expect(chainOffset(1, 1, 1, 0, 1, o, 0, -1)).toEqual({ dgx: 0, dgy: -2 }); // square: axis from the facing (y), side from the drag
+    expect(chainOffset(1, 1, 1, 0, 1, o)).toEqual({ dgx: 0, dgy: 2 });
+  });
+
+  it("a new hold forgets the last drag side and starts carried", () => {
+    const r = rig();
+    r.drag(-1, -1);
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([-1, -1]);
+    r.p.start(balance, WOOD, 20, 16, 0, -1);
+    expect([r.p.pinned, r.p.lastDragX, r.p.lastDragY]).toEqual([false, 0, 0]);
+  });
+
+  it("⟳ after a drag turns it around its centre, stays pinned, and the next drag goes on from that centre", () => {
+    const r = rig();
+    r.drag(1, 0); // centre (21, 14.25)
+    r.m.rotatePressed = true;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect([r.p.pinned, r.p.rot]).toEqual([true, 3]);
+    const [cx, cy] = r.centre() as [number, number];
+    expect(Math.abs(cx - 21)).toBeLessThanOrEqual(0.25);
+    expect(Math.abs(cy - 14.25)).toBeLessThanOrEqual(0.25);
+    r.drag(0, 1);
+    const [nx, ny] = r.centre() as [number, number];
+    expect(nx).toBeCloseTo(cx, 9);
+    expect(Math.abs(ny - (cy + 1))).toBeLessThanOrEqual(0.25);
+  });
+
+  it("review M2: the chain side comes from the gesture's net displacement: a vertical drag with x jitter keeps the right of facing", () => {
+    const r = rig();
+    for (let i = 0; i < 20; i++) r.drag(i % 2 ? 0.01 : -0.012, 0.05, still(), i === 0); // net (−0.01, 1 m); the last delta is −x
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([0, 1]);
+    r.m.confirmPressed = true;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.gx - (r.sent[0] as PlaceRequest).gx).toBe(4); // east = right of north, not the jitter's west
+  });
+
+  it("review M2: a side needs ≥ 0.25 m net that dominates the other axis; a new gesture starts its net again, an old side stays until replaced", () => {
+    const r = rig();
+    r.drag(-0.2, 0, still(), true);
+    expect(r.p.lastDragX).toBe(0); // 0.2 m: too short
+    r.drag(-0.1, 0);
+    expect(r.p.lastDragX).toBe(-1); // 0.3 m net
+    r.drag(0.4, 0.6, still(), true); // a new gesture: net (0.4, 0.6): x 0.4 ≥ 0.5 × 0.6 → east; y too
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([1, 1]);
+    r.drag(-0.3, 2, still(), true); // net (−0.3, 2): x doesn't dominate → x side kept
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([1, 1]);
+  });
+
+  it("review L1: while the thumb holds the drag, walking the view off the ghost doesn't unpin it; once lifted, the view rule does", () => {
+    const r = rig();
+    r.f.viewMinX = 10;
+    r.f.viewMinY = 5;
+    r.f.viewMaxX = 30;
+    r.f.viewMaxY = 25;
+    r.m.dragHeld = true;
+    r.drag(100, 0, still(), true); // to the right edge
+    expect(r.p.pinned).toBe(true);
+    r.f.viewMinX = 12; // walked 2 m west: the ghost's centre now within 1 m of the right edge
+    r.f.viewMaxX = 28.5;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.pinned).toBe(true);
+    r.m.dragHeld = false;
+    stepPlacement(r.p, r.m, still(), r.w, r.f);
+    expect(r.p.pinned).toBe(false);
+  });
+
+  it("review L2: a chip tap and a drag in the same frame: carried again, the drag is dropped", () => {
+    const r = rig();
+    r.drag(2, 0);
+    r.m.chipPressed = true;
+    r.drag(1, 0);
+    expect([r.p.pinned, r.p.gx, r.p.gy]).toEqual([false, 38, 28]);
+  });
+
+  it("review L4: the dragged ghost's centre stays 0.5 m outside the hand cluster's rects, pushed to the nearest side inside the view", () => {
+    const r = rig();
+    r.f.viewMinX = 10;
+    r.f.viewMinY = 5;
+    r.f.viewMaxX = 30;
+    r.f.viewMaxY = 25;
+    // a "Place" square in the bottom-right corner (27–29.6, 22–24.6) and the chip (22–28, 15–16)
+    r.f.avoid = [27, 22, 29.6, 24.6, 22, 15, 28, 16, 0, 0, 0, 0, 0, 0, 0, 0];
+    r.f.avoidCount = 2;
+    r.drag(100, 100, still(), true); // into the corner: the clamped (29, 24) is under Place; its right and bottom sides are off the view
+    const [cx, cy] = r.centre() as [number, number];
+    const inside = (x0: number, y0: number, x1: number, y1: number) => cx > x0 && cx < x1 && cy > y0 && cy < y1;
+    expect(inside(27, 22, 29.6, 24.6)).toBe(false);
+    expect(inside(22, 15, 28, 16)).toBe(false);
+    expect([cx <= 29 + 1e-9, cy <= 24 + 1e-9]).toEqual([true, true]); // still inside the view inset
+    // dragged onto the chip from the left: pushed out, never left under it
+    r.drag(-100, -100, still(), true);
+    r.drag(13, 9.5); // from (11, 6) the continuous centre aims at (24, 15.5): under the chip
+    const [ax, ay] = r.centre() as [number, number];
+    expect(ax > 22 && ax < 28 && ay > 15 && ay < 16).toBe(false);
+    expect(Math.abs(ay - 15.5)).toBeGreaterThanOrEqual(0.5 + 0.5 - 0.35); // margin minus the snap
+  });
+
+  it("re-review: the y side needs the same dominance (|net y| ≥ 0.5 × |net x|) as x", () => {
+    const r = rig();
+    r.drag(0.6, 0.25, still(), true); // y 0.25 < 0.5 × 0.6
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([1, 0]);
+    r.drag(-0.6, -0.3, still(), true); // a new gesture: y 0.3 ≥ 0.5 × 0.6
+    expect([r.p.lastDragX, r.p.lastDragY]).toEqual([-1, -1]);
+  });
+
+  it("re-review: a centre in the band between the chip and ✕ (closer than two margins) never ends up under either: they push as one box", () => {
+    const r = rig();
+    r.f.viewMinX = 0;
+    r.f.viewMinY = 0;
+    r.f.viewMaxX = 50;
+    r.f.viewMaxY = 40;
+    // 800 × 360 stacked at ~33 px/m: the chip (160 × 32 px) and ✕ 8 px (0.24 m) below it
+    const chip = [22, 13, 26.8, 13.96];
+    const x = [25.2, 14.2, 26.64, 15.64];
+    r.f.avoid = [...chip, ...x, 0, 0, 0, 0, 0, 0, 0, 0];
+    r.f.avoidCount = 2;
+    r.drag(5.9, -0.17, still(), true); // (20, 14.25) → (25.9, 14.08): in the overlap of both margins
+    const [cx, cy] = r.centre() as [number, number];
+    const under = (b: number[]) => cx > (b[0] as number) && cx < (b[2] as number) && cy > (b[1] as number) && cy < (b[3] as number);
+    expect([under(chip), under(x)]).toEqual([false, false]);
+    expect(cy < 12.5 + 0.35 || cy > 16.14 - 0.35 || cx < 21.5 + 0.35 || cx > 27.3 - 0.35).toBe(true); // outside the union of both margins (minus the snap)
+  });
+
+  it("re-review: 400 random fast flicks against the real 800 × 360 cluster never leave the ghost's centre under Place, ⟳, ✕ or the chip", () => {
+    const r = rig();
+    const ppm = 100 / 3; // 800 × 360 at dpr 1: 33.3 px per metre, the view is 24 × 10.8 m
+    r.f.viewMinX = 0;
+    r.f.viewMinY = 0;
+    r.f.viewMaxX = 800 / ppm;
+    r.f.viewMaxY = 360 / ppm;
+    const px = [670, 230, 746, 306, 580, 250, 640, 310, 696, 116, 744, 164, 624, 100, 784, 132]; // Place, ⟳, ✕, chip (canvas px)
+    r.f.avoid = px.map((v) => v / ppm);
+    r.f.avoidCount = 4;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648) * 2 - 1;
+    let under = 0;
+    r.drag(0, 0, still(), true);
+    for (let i = 0; i < 400; i++) {
+      r.drag(rnd() * 6, rnd() * 4, still(), i % 20 === 0);
+      const [cx, cy] = r.centre() as [number, number];
+      for (let k = 0; k < 4; k++) {
+        const b = (r.f.avoid as number[]).slice(k * 4, k * 4 + 4) as [number, number, number, number];
+        if (cx > b[0] && cx < b[2] && cy > b[1] && cy < b[3]) under++;
+      }
+    }
+    expect(r.p.pinned).toBe(true);
+    expect(under).toBe(0);
+  });
+});
+

@@ -18,6 +18,8 @@ export type SfxName =
   | "zombie_runner_shriek"
   | "building_mine_blast"
   | "building_upgraded"
+  // Story 5.14: a bear trap's jaws snapping shut (a hard metallic clack, rate-limited like the blast).
+  | "building_bear_trap_snap"
 
   // Story 5.6: the Spitter's windup gurgle (positional), its spit, and the acid's hiss.
   | "zombie_spitter_gurgle"
@@ -39,6 +41,9 @@ const HIT_MIN_INTERVAL_S = 0.03;
 /** Story 5.9: mines going off in the same instant make one blast sound. */
 const BLAST_MIN_INTERVAL_S = 0.08;
 let lastBlastAt = -1;
+/** Story 5.14: at most one bear-trap clack per this many seconds. */
+const SNAP_MIN_INTERVAL_S = 0.06;
+let lastSnapAt = -1;
 /** Story 5.8: the swell sound's length (the balance `explodes.swellS`, 1 s; cosmetic). */
 const BLOATER_SWELL_SFX_S = 1.0;
 
@@ -384,6 +389,13 @@ export function playSfx(name: SfxName, pan = 0): void {
       lastBlastAt = t;
       burst(c, t, 0.5, 1, 140);
       burst(c, t + 0.03, 0.3, 0.7, 1100);
+      break;
+    case "building_bear_trap_snap": // Story 5.14: a hard double clack (rate-limited: a line of traps)
+      if (t - lastSnapAt < SNAP_MIN_INTERVAL_S) return;
+      lastSnapAt = t;
+      click(c, t, 2400, 0.55);
+      click(c, t + 0.025, 1600, 0.45);
+      burst(c, t, 0.05, 0.4, 3200);
       break;
     case "building_upgraded": // Story 5.9: a metallic clank
       click(c, t, 1800, 0.4);

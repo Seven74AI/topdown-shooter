@@ -18,7 +18,9 @@ import economy from "./balance/economy.json" with { type: "json" };
 const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables })) as RawBalanceFiles;
 
 /** Story 5.18: the chain and pending numbers in controls.build. */
-const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, chainUnpinWalkM: 2, barQuietMs: 300 } as const;
+const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300 } as const;
+/** Story 5.19: the thumb-drag numbers in controls.build. */
+const DRAG = { dragGain: 1, dragStartPx: 8 } as const;
 
 describe("loadBalance", () => {
   it("loads the bundled files into a typed object", () => {
@@ -165,10 +167,10 @@ describe("loadBalance", () => {
   });
 
   it("Story 5.15: controls.build (carry gap, snap and auto-rotate hysteresis) loads, defaults and is bounded", () => {
-    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN });
+    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG });
     const d = raw();
     delete (d.controls as { build?: unknown }).build;
-    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN });
+    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG });
     const h = raw();
     (h.controls as { build: { snapHysteresisM: number } }).build.snapHysteresisM = 0.25; // half a cell: the index would never settle
     expect(() => loadBalance(h)).toThrow(/controls\.json: build\.snapHysteresisM: /);
@@ -190,17 +192,32 @@ describe("loadBalance", () => {
     expect(() => loadBalance(l)).toThrow(/controls\.json: build\.reasonHoldMs: /);
   });
 
-  it("Story 5.18: controls.build chain/pending numbers (timeout 2 s, send gap 250 ms, step 1 m, unpin walk 2 m) default each and are bounded", () => {
+  it("Story 5.18: controls.build chain/pending numbers (timeout 2 s, send gap 250 ms, step 1 m) default each and are bounded", () => {
     expect(loadBalance().controls.build).toMatchObject(CHAIN);
     for (const k of Object.keys(CHAIN) as (keyof typeof CHAIN)[]) {
       const d = raw();
       delete (d.controls as { build: Record<string, unknown> }).build[k];
       expect(loadBalance(d).controls.build[k]).toBe(CHAIN[k]);
     }
-    for (const [k, bad] of [["pendingTimeoutMs", 100], ["pendingTimeoutMs", 10001], ["chainSendGapMs", 149], ["barQuietMs", 2001], ["chainMinStepM", 0.4], ["chainUnpinWalkM", -1]] as const) {
+    for (const [k, bad] of [["pendingTimeoutMs", 100], ["pendingTimeoutMs", 10001], ["chainSendGapMs", 149], ["barQuietMs", 2001], ["chainMinStepM", 0.4]] as const) {
       const d = raw();
       (d.controls as { build: Record<string, unknown> }).build[k] = bad;
       expect(() => loadBalance(d)).toThrow(new RegExp(`controls\\.json: build\\.${k}: `));
+    }
+  });
+
+  it("Story 5.19: controls.build drag numbers (gain 1.0, start 8 px) default each and are bounded; 5.18's walk-away distance is gone", () => {
+    expect(loadBalance().controls.build).toMatchObject(DRAG);
+    expect("chainUnpinWalkM" in loadBalance().controls.build).toBe(false);
+    for (const k of Object.keys(DRAG) as (keyof typeof DRAG)[]) {
+      const d = raw();
+      delete (d.controls as { build: Record<string, unknown> }).build[k];
+      expect(loadBalance(d).controls.build[k]).toBe(DRAG[k]);
+    }
+    for (const [k, bad] of [["dragGain", 0.2], ["dragGain", 3.5], ["dragStartPx", 1], ["dragStartPx", 41], ["dragStartPx", 8.5], ["chainUnpinWalkM", 2]] as const) {
+      const d = raw();
+      (d.controls as { build: Record<string, unknown> }).build[k] = bad;
+      expect(() => loadBalance(d), `${k} = ${bad}`).toThrow(/controls\.json: build/);
     }
   });
 
@@ -308,7 +325,7 @@ describe("Story 5.9: building tiers, traps and mines", () => {
     expect(fxSchema.parse(fxWithout).floodLightMergeM).toBe(4);
     for (const id of ["wood_barricade", "auto_turret", "spike_trap", "mine"]) expect(t[id]?.inShop, id).toBe(true);
     // The new types are appended (the wire index of every older type stays).
-    expect(Object.keys(t).slice(-2)).toEqual(["floodlight", "med_station"]);
+    expect(Object.keys(t).slice(-3)).toEqual(["floodlight", "med_station", "bear_trap"]); // Story 5.14 appends after 5.10
     const bad = (edit: (t: T) => void, re: RegExp): void => {
       const files = raw();
       edit(types(files));
@@ -323,6 +340,24 @@ describe("Story 5.9: building tiers, traps and mines", () => {
     bad((t) => ((t.med_station as { heal: { hpPerS: number } }).heal.hpPerS = 0), /hpPerS/);
     bad((t) => ((t.med_station as { heal: { radiusM: number } }).heal.radiusM = 9), /radiusM/);
     bad((t) => ((t.med_station as Record<string, unknown>).inShop = "yes"), /inShop/);
+  });
+
+  it("Story 5.14 bear trap block: whole ticks, floor only, plate inside the footprint, exclusive; trapHoldPct 1–100", () => {
+    const bad = (edit: (t: T) => void, re: RegExp): void => {
+      const files = raw();
+      edit(types(files));
+      expect(() => loadBalance(files)).toThrow(re);
+    };
+    type B = { bearTrap: Record<string, number> };
+    bad((t) => ((t.bear_trap as B).bearTrap.holdS = 3.01), /whole numbers of ticks/);
+    bad((t) => ((t.bear_trap as B).bearTrap.rearmS = 0.33), /whole numbers of ticks/);
+    bad((t) => ((t.bear_trap as B).bearTrap.wearPerCatch = 2.5), /wearPerCatch/);
+    bad((t) => ((t.bear_trap as B).bearTrap.plateRadiusM = 0.6), /plateRadiusM must fit inside the footprint/);
+    bad((t) => ((t.bear_trap as Record<string, unknown>).solid = true), /must be floor/);
+    bad((t) => ((t.bear_trap as Record<string, unknown>).mine = { ...(t.mine as { mine: object }).mine }), /exclude each other/);
+    const z = raw();
+    ((z.zombies as { types: Record<string, Record<string, unknown>> }).types.brute as Record<string, unknown>).trapHoldPct = 0;
+    expect(() => loadBalance(z)).toThrow(/trapHoldPct/);
   });
 });
 

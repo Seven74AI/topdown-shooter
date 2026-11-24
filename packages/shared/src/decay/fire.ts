@@ -1,3 +1,4 @@
+import { resetBearTraps } from "../buildings/bearTrap";
 import type { World } from "../core/world";
 import { ticksFor } from "../core/time";
 import { circleOverlapsBox } from "../buildings/collision";
@@ -214,6 +215,7 @@ export function resetBurnClocks(world: World): void {
   world.players.forEach(coolPlayer);
   world.zombies.fireTicks.fill(0);
   world.zombies.trapTicks.fill(0); // Story 5.9: the spike clock follows the same rule (4.8 D19)
+  resetBearTraps(world); // Story 5.14 (D4): every bear trap re-arms at a build start, nothing held
   resetFlameClocks(world); // Story 5.4 (FR-C): the flame clocks and ignites follow it too
   const list = world.buildings.list;
   for (let i = 0; i < list.length; i++) (list[i] as Building).fireTicks = 0;

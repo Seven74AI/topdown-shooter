@@ -23,6 +23,9 @@ const DEBRIS_MS = 450;
 const REPAIR_COLOR = 0x7cff8a;
 const REPAIR_RING_M = 0.6;
 const REPAIR_MS = 450;
+/** Story 5.14: the snap ring (m) and its time. */
+const SNAP_RING_M = 0.45;
+const SNAP_MS = 180;
 /** Story 5.3: the Shotgun's blast cone (warm outer cone, brighter core), fading quickly. */
 const BLAST_OUTER = 0xffc46b;
 const BLAST_INNER = 0xfff1c4;
@@ -60,6 +63,8 @@ export class FxView {
   private readonly repairs: Phaser.GameObjects.Arc[] = [];
   /** Story 5.9: the upgrade ring. (Story 5.5: the mine blast is drawn by `ExplosionView` from `explosion.happened`, EX2.) */
   private readonly upgrades: Phaser.GameObjects.Arc[] = [];
+  /** Story 5.14: bear-trap snap rings (pooled). */
+  private readonly snaps: Phaser.GameObjects.Arc[] = [];
   /** Story 5.2: next swing Graphics to reuse once the pool is at `fx.maxSwingArcs` (oldest first). */
   private nextSwing = 0;
   /** Story 5.2: the Chainsaw's sparks (fixed pool, drawn into one Graphics per frame). */
@@ -125,6 +130,10 @@ export class FxView {
         this.upgraded(e.x, e.y);
         if (e.playerId === this.localPlayerId) playSfx("building_upgraded");
         break;
+      case "bear_trap.snapped": // Story 5.14: a short steel snap ring and a clang (rate-limited); closed/open is state
+        this.snapped(e.x, e.y);
+        playSfx("building_bear_trap_snap");
+        break;
       case "building.repaired":
         this.repaired(e.x, e.y);
         if (e.playerId === this.localPlayerId) playSfx("building_repaired");
@@ -183,6 +192,18 @@ export class FxView {
   }
 
   /** Story 5.9: a pooled steel-blue ring at an upgraded building. */
+  /** Story 5.14: the jaws closing: a small fast white-steel ring pulled IN (pooled with the upgrade rings' list type). */
+  private snapped(x: number, y: number): void {
+    let r = this.snaps.find((o) => !o.visible);
+    if (!r) {
+      r = this.scene.add.circle(0, 0, SNAP_RING_M).setStrokeStyle(0.08, 0xe8ecef, 1).setDepth(9).setVisible(false);
+      this.snaps.push(r);
+    }
+    const ring = r;
+    ring.setPosition(x, y).setScale(1.6).setAlpha(0.9).setVisible(true);
+    this.scene.tweens.add({ targets: ring, scale: 0.5, alpha: 0, duration: SNAP_MS, onComplete: () => ring.setVisible(false) });
+  }
+
   private upgraded(x: number, y: number): void {
     let r = this.upgrades.find((o) => !o.visible);
     if (!r) {
@@ -331,5 +352,6 @@ export class FxView {
     this.swings.length = 0;
     this.repairs.length = 0;
     this.upgrades.length = 0;
+    this.snaps.length = 0;
   }
 }

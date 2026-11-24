@@ -16,7 +16,7 @@ function setup() {
   // Story 4.2: the open street (on Downtown (15.5, 5.5) is inside the apartments, whose walls stop the shot).
   const host = new NetSimHost({ balance, session, now: () => now, map: PLACEHOLDER_MAP });
   // A turret with its min corner at (15, 5): centre (15.5, 5.5). Owned by p0 (not me).
-  room.state.buildings.set("4", { type: "auto_turret", owner: "p0", gx: 30, gy: 10, rot: 0, hp: 300 });
+  room.state.buildings.set("4", { type: "auto_turret", owner: "p0", gx: 30, gy: 10, rot: 0, hp: 300, trap: 0 });
   now = 500;
   room.state.tick = 10;
   room.patch();

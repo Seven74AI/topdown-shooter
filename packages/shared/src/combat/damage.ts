@@ -68,6 +68,7 @@ export const knockbacks = { applied: 0, stopped: 0 };
  * takes (`knockbackTakenPct` / 100; 1 for every type without the field).
  */
 export function knockbackShare(world: World, id: number): number {
+  if ((world.zombies.holdTicks[id] as number) > 0) return 0; // Story 5.14: a bear trap's jaws pin it (no knockback, no pushback)
   return (world.balance.zombies.types[zombieTypeOf(world.zombies, id)]?.knockbackTakenPct ?? 100) / 100;
 }
 

@@ -64,6 +64,8 @@ export interface UrlOptions {
   stressBuild: boolean;
   /** `?stressbuild=lights` (Story 5.10, only with `?stress`): 8 floodlights and 4 med stations round the survivor. */
   stressLights: boolean;
+  /** `?stressbuild=bear` (Story 5.14, only with `?stress`): 24 bear traps round the survivor (they catch the crowd). */
+  stressBear: boolean;
   /**
    * `?stressbuild=molotov` (Story 5.12, release-safe, only with `?stress`): molotov fire zones kept
    * burning round the survivor (relit as they end) for the phone benchmark — 8 (the cap, the worst
@@ -124,6 +126,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     stressMolotovs: parseStressMolotovs(q.get("stressbuild")),
     stressLights: q.get("stressbuild")?.trim().toLowerCase() === "lights",
+    stressBear: q.get("stressbuild")?.trim().toLowerCase() === "bear",
     lowFx: q.get("fx")?.trim().toLowerCase() === "low",
     shopAll: dev && parseDevShopAll(q.get("shopall")?.trim().toLowerCase()), // dev builds only (review L3); one switch for hidden buildings and gear
   };

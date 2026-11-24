@@ -45,7 +45,7 @@ function rig(wallet: number, seed = 7) {
   const pending = new PendingPlacements();
   pending.configure(balance.controls.build.pendingTimeoutMs, balance.controls.build.chainSendGapMs, balance.buildings.maxPerPlayer);
   const p = new Placement();
-  const m: PlacementHud = { placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false };
+  const m: PlacementHud = { placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false, placementPinned: false, dragDxPx: 0, dragDyPx: 0, dragged: false, chipPressed: false };
   const toasts: string[] = [];
   const box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   const w = (): Readonly<World> => host.world;

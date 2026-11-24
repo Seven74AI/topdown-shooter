@@ -57,6 +57,8 @@ export interface ZombiePool {
   readonly trapTicks: Uint16Array;
   /** Story 5.9: this tick's trap slow in % (written by `updateTraps` before the zombies move; 0 off traps). */
   readonly slowPct: Uint8Array;
+  /** Story 5.14: movement ticks a bear trap still holds this zombie for (0 = free; reset on spawn). */
+  readonly holdTicks: Uint16Array;
   /**
    * Story 5.3: the last `KNOCK_MEMORY` shot ids (`ProjectilePool.shotId`) that knocked this zombie
    * back, a ring per slot at `[id × KNOCK_MEMORY, …)` written at `knockHead[id]` (once per shot, F5;
@@ -122,6 +124,7 @@ export function createZombiePool(capacity: number): ZombiePool {
     swellTicks: new Uint8Array(capacity), // Story 5.8
     trapTicks: new Uint16Array(capacity),
     slowPct: new Uint8Array(capacity),
+    holdTicks: new Uint16Array(capacity), // Story 5.14
     knockShot: new Uint32Array(capacity * KNOCK_MEMORY), // Story 5.3
     knockHead: new Uint8Array(capacity),
     flameClock: new Uint8Array(capacity * FLAME_SLOTS), // Story 5.4
@@ -182,6 +185,7 @@ export function spawnZombie(world: World, type: ZombieTypeId, x: number, y: numb
   pool.swellTicks[id] = 0; // Story 5.8: a new Bloater is not swelling
   pool.trapTicks[id] = 0; // Story 5.9: and a cold spike clock, at full speed
   pool.slowPct[id] = 0;
+  pool.holdTicks[id] = 0; // Story 5.14: not held by a bear trap
   pool.knockShot.fill(0, id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY); // Story 5.3: no shot has knocked a new zombie yet
   pool.knockHead[id] = 0;
   pool.flameClock.fill(0, id * FLAME_SLOTS, id * FLAME_SLOTS + FLAME_SLOTS); // Story 5.4: cold flame clocks, not burning

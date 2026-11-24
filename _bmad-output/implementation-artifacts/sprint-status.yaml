@@ -127,12 +127,12 @@ development_status:
   5-11-gear: done
   5-12-consumables: review
   5-13-roguelike-card-shop: ready-for-dev
-  5-14-bear-trap: backlog  # designer 2026-11-23: second trap type; after round A (needs 5.9's non-solid buildings)
+  5-14-bear-trap: done  # designer 2026-11-23: second trap type; D1–D12 accepted as recommended
   5-15-carry-the-ghost-and-keep-moving: done  # building UX BX-1
   5-16-build-bar-replaces-the-shop-for-buildings: done  # building UX BX-2
   5-17-why-it-s-red: done  # building UX BX-3
   5-18-place-place-place-chain-and-pending-under-lag: done  # building UX BX-4
-  5-19-thumb-drag-to-nudge-and-pin: backlog  # building UX BX-5
+  5-19-thumb-drag-to-nudge-and-pin: done  # building UX BX-5
   5-20-take-back-sell-and-undo: backlog  # building UX BX-6
   5-21-building-action-bar: backlog  # building UX BX-7
   5-22-move-a-building: backlog  # building UX BX-8

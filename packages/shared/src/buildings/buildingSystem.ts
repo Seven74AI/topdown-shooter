@@ -3,6 +3,7 @@ import { updatePathing } from "../zombies/flowField";
 import { updateTurrets } from "./turret";
 import { updateTraps } from "./trap";
 import { updateMines } from "./mine";
+import { updateBearTraps } from "./bearTrap";
 import { updateMedStations } from "./medStation";
 import { updateLightState } from "../decay/lightState";
 
@@ -12,13 +13,15 @@ import { updateLightState } from "../decay/lightState";
  * slice (the cadence is in `zombies/flowField.ts`). Story 3.6: then turrets aim and fire (their
  * shots fly in this tick's combat, like players'). Story 5.9 (D4): then spike traps (slow + spike
  * clock, read by this tick's zombie movement) and mines (trigger + blast). Story 5.10: then med
- * stations heal, and the derived light list follows the buildings and fires.
+ * stations heal, and the derived light list follows the buildings and fires. Story 5.14: bear traps
+ * after the spike traps (a held zombie's hold is read by this tick's zombie movement).
  * Not in `PREDICTION_SYSTEMS`: the client never runs it.
  */
 export const updateBuildings: SystemFn = (world, dtS) => {
   updatePathing(world);
   updateTurrets(world, dtS);
   updateTraps(world);
+  updateBearTraps(world); // Story 5.14: hold/release, re-arm, catch (before the zombies move)
   updateMines(world);
   updateMedStations(world, dtS);
   updateLightState(world);

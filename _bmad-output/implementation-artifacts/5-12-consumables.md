@@ -231,7 +231,7 @@ Claude (builder session, cloud).
   combat system); thrown items in 5.5's pool (`item`) with `landConsumable` (hand-grenade blast / molotov zone);
   molotov zones and the shared fire pass; schema, sync, views, mirror, snapshot; events; client E key, HUD button
   with pending, throw ring, flights with HG/MB art, the molotov fire view, CI4 icons, shop section; bots; fuzz, sims,
-  bandwidth, perf, readability rows 39–42.
+  bandwidth, perf, readability rows 41–44.
 - Not verified: real phones; a hidden tab asleep across a BUILD START (the online check slept mid-wave); a late
   Game scene start with a slot; touch throwing on a real device (aim stick held with one finger, button with another).
 
@@ -296,6 +296,8 @@ sound. Fixed on `story-5-12` on top of `025c218`:
 | L7 | A template-string key per frame in `HudScene`; per-event string keys in `MolotovFires` and a `lastLaunch` map that never forgot hand-grenade keys (stuck at 64: MB2 splash then defaulted to 0). | `HudScene` compares frame, count and look fields; `MolotovFires` keeps a fixed 64-entry ring of recent throws keyed by whole-cm landing points (no strings, overwritten). Test: a molotov after 100 hand grenades still gets its splash direction. |
 | L8 | Weapon id `molotov` (AC) vs the consumable id. | Keep the ids (`molotovs`, `grenades`): AC 6 updated, the `"molotov"` fallback literal in `fire.ts` dropped. |
 | FPS | Budget accepted: 8 zones in view ≤ −30 % headless, the common 1–2-zone case ≤ −10 %. | `?stressbuild=molotov:N` added for the 1–2-zone case. The ring line is a pooled baked image (the Graphics circle was re-tessellated every frame, ~3 fps); `fx` lowered (share 0.25, smoke 0.1, ring flames every 1.2 m, caps 80 particles / 64 ring flames over all zones, ground light only with 1 zone: new `maxLights`). Medians of 5 interleaved rounds (load 3–4 on 4 cores): baseline 39.6 fps; 1 zone −10 %, 2 zones −8 %, 8 zones −23 %, `fx=low` 8 zones −25 % (`docs/art/5-12/README.md`). |
+
+**FPS decision (main session, 2026-11-24):** headless SwiftShader is fill-bound and noisy (single runs ±5 %, load 3–4 on 4 cores); the 1–2-zone results land within −15 % headless and are accepted. **The real-phone check on the Xiaomi Mi 11i (`?stress=150`, then `&stressbuild=molotov:2` and `&stressbuild=molotov`) is the deciding test**; if it misses the budget, lower `consumables.json › fx` (particle share, ring spacing, caps, `maxLights`), not the renderer.
 
 Re-review notes: mutations of the new tests (M1 memory ignored / never expiring / written from the move / no zombie
 target; L5 launcher encoding kept; L2 count not synced; L3 repeat latching; L6 no right-align; L7 ring never matched):

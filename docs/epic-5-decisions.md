@@ -142,6 +142,10 @@ Page: claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3 (code drawings in `docs/art/5-16
 - Mine: **M1 pressure mine** (thick olive disc, raised plate, red light).
 - Later buildings (med station, floodlight, bear trap) get an I1-style icon when built; until then the tile falls back to the world art.
 
+## Bear trap (5.14) (designer, 2026-11-23: "Okay with everything")
+
+All recommended values in `_bmad-output/implementation-artifacts/5-14-bear-trap.md` › Designer decisions accepted: 1 × 1 m floor trap, plate = zombie centre within 0.35 m; snap 5 damage, holds 3 s (a Brute 1.5 s, trap wears normally; Bloater full 3 s); a held zombie can't move or be pushed but still bites/spits/swells in reach; one zombie per catch; never catches players or in a build phase; afterwards it is closed and harmless until any player stands on it 1 s (free, any phase), and every trap re-arms at build start; $50, 100 HP, 25 HP per catch (4 catches), repairable; fire wears it, mine and Bloater blasts don't (as the spike trap: blasts only damage walls; builder's correction, accepted by the main session 2026-11-23); closed look = B-T1 with jaws shut, drawn in code, designer reviews the screenshot.
+
 ## Alignment answers (designer, 2026-11-23)
 
 Answers to the 16 open questions in `docs/alignment/alignment-check-2026-11-23.md`. Designer: "everything okay", so the report's recommendation stands for every question, except Q2 and Q15. Q1, Q5, Q6 and Q7 were settled earlier the same day.
@@ -162,9 +166,16 @@ Answers to the 16 open questions in `docs/alignment/alignment-check-2026-11-23.m
 | Q12 | Solo status | "Solo is allowed, not balance-tuned"; solo runs at × 0.4. |
 | Q13 | Card pool exhaustion | Show fewer cards; Reroll is disabled when no new draw exists. |
 | Q14 | Ping button | Top-right or by the minimap, hidden while holding a building; pings draw above the blackout darkness. |
-| Q15 | Reference phones | The Honor 10 is **not** a test phone. The low-end floor is the **Xiaomi Mi 11** (designer wrote "Xiaomi i11"; confirm the exact model). It replaces the Honor 10 everywhere (7.9 budgets, NFR1, 10.2). |
+| Q15 | Reference phones | The Honor 10 is **not** a test phone. The low-end floor is the **Xiaomi Mi 11i** (confirmed by the designer 2026-11-24). It replaces the Honor 10 everywhere (7.9 budgets, NFR1, 10.2). |
 | Q16 | Turret kill pay during the 120 s reconnect hold | Turret kills keep paying into the held wallet during the 120 s, then stop. |
 
 **Open point for the designer (Q7):** the 5.14 story's accepted text says "fire and Bloater blasts wear it, mines don't", but the answer passed on for this pass says "Bloater blasts don't wear floor traps". Which one holds?
 
 Applied by the course correction in `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-23.md`.
+
+- **Solo Behemoth HP = × 0.4** (designer, 2026-11-24), like every other solo scaling.
+- **Bear trap closed look (D11) approved** as built (designer, 2026-11-24).
+
+## Epic 6 looks (designer, 2026-11-24)
+
+All Epic 6 look picks (Ruins, Collapse, blackout, Behemoth, events, vote and dawn) are in **`docs/epic-6-decisions.md`** (page claude.ai/artifact/7ikXRSUD7ZURpADLAtEPSJ, `docs/art/epic-6/looks.html`).

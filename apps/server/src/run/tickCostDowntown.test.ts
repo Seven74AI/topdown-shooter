@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  BEAR_TRAP_STATE,
+  bearTrapCounters,
+  type Building,
   DOWNTOWN_MAP,
   NEUTRAL_INPUT,
   PLACEHOLDER_MAP,
@@ -41,7 +44,7 @@ const WARMUP_TICKS = 100;
 const MEASURED_TICKS = 600;
 const PERF_ASSERT = process.env.PERF_ASSERT === "1";
 
-function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, weapon: string | null = null, floor = false, spitters = 0, lights = false) {
+function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, weapon: string | null = null, floor = false, spitters = 0, lights = false, bear = false) {
   const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
   // Story 4.8 (review L6: fire respects `waves.paused`): the fire cases hold the waves with a no-op
   // wave system instead of the dev pause, so the fires burn.
@@ -93,6 +96,25 @@ function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, we
       }
     }
   }
+  // Story 5.14: the cap's worth of bear traps (24) round the intersection, kept armed every tick (worst case: they catch all the time).
+  const bearTraps: Building[] = [];
+  if (bear) {
+    const box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    const stats = buildingStats(balance, "bear_trap");
+    for (let k = 0; stats && k < 400 && bearTraps.length < 24; k++) {
+      const a = k * 2.399;
+      const r = 3 + (k % 9);
+      const gx = Math.round((24 + Math.cos(a) * r) / BUILD_GRID_M);
+      const gy = Math.round((16 + Math.sin(a) * r * 0.7) / BUILD_GRID_M);
+      if (footprintBlocked(world, footprint(stats, gx, gy, 0, box))) continue;
+      const b = addBuildingAt(world, { id: world.buildings.nextId, type: "bear_trap", ownerId: `p${bearTraps.length % 4}`, gx, gy, rot: 0, hp: stats.hp });
+      if (b) {
+        b.hp = b.maxHp = 1e9; // never worn out during the measurement
+        bearTraps.push(b);
+      }
+    }
+  }
+  const catches0 = bearTrapCounters.catches;
   let healed = 0;
   const trap0 = trapCounters.pulses;
   const mine0 = mineCounters.exploded;
@@ -124,6 +146,7 @@ function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, we
     }
     // Story 5.10: god mode keeps HP full; hold every player at 50 so stations in reach really heal (worst case).
     if (lights) for (const p of world.players.values()) p.hp = 50;
+    for (const b of bearTraps) if (b.trapState === BEAR_TRAP_STATE.SPRUNG) b.trapState = BEAR_TRAP_STATE.ARMED;
     const t0 = performance.now();
     c.tick();
     const ms = performance.now() - t0;
@@ -148,6 +171,8 @@ function measure(map: DistrictMap, stage = 1, firesOut: number | null = null, we
     spits,
     lightsPlaced,
     healed,
+    bearPlaced: bearTraps.length,
+    catches: bearTrapCounters.catches - catches0,
     lightCount: world.lights.list.length,
   };
 }
@@ -241,6 +266,24 @@ describe("tick cost of spike traps and mines (Story 5.9)", () => {
     expect(floor.minesExploded).toBeGreaterThan(0);
     expect(floor.fieldTicks).toBe(MEASURED_TICKS);
     if (PERF_ASSERT) expect(floor.p99 - bare.p99).toBeLessThanOrEqual(2);
+  }, 120_000);
+});
+
+describe("tick cost of bear traps (Story 5.14, brief line 16)", () => {
+  it("4 players + 150 Walkers on Downtown: 24 bear traps (re-armed every tick) add ≤ 2 ms to the tick p99", () => {
+    const B = (bear: boolean) => measure(DOWNTOWN_MAP, 1, null, null, false, 0, false, bear);
+    const runs = [B(false), B(true), B(false), B(true)];
+    const pick = <T extends { p99: number }>(a: T, b: T): T => (a.p99 <= b.p99 ? a : b);
+    const bare = pick(runs[0] as ReturnType<typeof measure>, runs[2] as ReturnType<typeof measure>);
+    const traps = pick(runs[1] as ReturnType<typeof measure>, runs[3] as ReturnType<typeof measure>);
+    console.log(
+      `[tick cost 5.14] Downtown p99 ${bare.p99.toFixed(3)} ms (mean ${bare.mean.toFixed(3)}); + ${traps.bearPlaced} bear traps p99 ${traps.p99.toFixed(3)} ms (mean ${traps.mean.toFixed(3)}); ` +
+        `added p99 ${(traps.p99 - bare.p99).toFixed(3)} ms, mean ${(traps.mean - bare.mean).toFixed(3)} ms; ${traps.catches} catches; load ${loadavg()[0]?.toFixed(2)}`,
+    );
+    expect(traps.bearPlaced).toBe(24);
+    expect(traps.catches).toBeGreaterThan(0); // liveness
+    expect(traps.fieldTicks).toBe(MEASURED_TICKS);
+    if (PERF_ASSERT) expect(traps.p99 - bare.p99).toBeLessThanOrEqual(2);
   }, 120_000);
 });
 

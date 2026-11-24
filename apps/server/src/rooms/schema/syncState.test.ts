@@ -130,7 +130,7 @@ describe("syncState", () => {
     controller.tick(); // the wallet change and the building go out with this tick
     syncState(state, controller);
     expect([...state.buildings.keys()]).toEqual(["1"]);
-    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "wood_barricade", owner: "p0", gx: 18, gy: 28, rot: 1, hp: 200 });
+    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "wood_barricade", owner: "p0", gx: 18, gy: 28, rot: 1, hp: 200, trap: 0 });
     const placedBytes = encoder.encode().length;
     encoder.discardChanges();
     controller.tick();
@@ -174,11 +174,39 @@ describe("syncState", () => {
     expect(controller.upgradeBuilding("p0", 1).ok).toBe(true);
     syncState(state, controller);
     expect(state.buildings.get("1")).toBe(entry); // the same entry
-    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "reinforced_barricade", owner: "p0", gx: 18, gy: 28, rot: 1, hp: 350 });
+    expect(state.buildings.get("1")?.toJSON()).toEqual({ type: "reinforced_barricade", owner: "p0", gx: 18, gy: 28, rot: 1, hp: 350, trap: 0 });
     const bytes = encoder.encode().length;
     encoder.discardChanges();
     console.info(`[bandwidth] building upgraded: ${bytes} B patch (incl. wallet)`);
     expect(bytes).toBeLessThan(40);
+  });
+
+  it("Story 5.14: a bear trap's jaws go out on change only (a 1-field patch), never per tick", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    w.run.phase = "build";
+    expect(controller.placeBuilding("p0", { type: "bear_trap", gx: 18, gy: 28, rot: 0 }).ok).toBe(true);
+    controller.tick();
+    syncState(state, controller);
+    expect(state.buildings.get("1")?.trap).toBe(0);
+    encoder.encode();
+    encoder.discardChanges();
+    const b = w.buildings.list[0];
+    if (!b) throw new Error("no trap");
+    b.trapState = 1; // what updateBearTraps does on a snap (with version +1)
+    w.buildings.version++;
+    syncState(state, controller);
+    expect(state.buildings.get("1")?.trap).toBe(1);
+    const bytes = encoder.encode().length;
+    encoder.discardChanges();
+    console.info(`[bandwidth] bear trap snapped: ${bytes} B patch`);
+    expect(bytes).toBeLessThan(12);
+    syncState(state, controller);
+    expect(encoder.hasChanges).toBe(false); // holding costs nothing per tick
+    b.trapState = 2;
+    w.buildings.version++;
+    syncState(state, controller);
+    expect(state.buildings.get("1")?.trap).toBe(2);
   });
 
   it("copies the bite slow (Story 3.9), counted down by the World", () => {

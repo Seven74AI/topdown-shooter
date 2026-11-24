@@ -36,5 +36,22 @@ export function buildingShadowHeightM(stats: Readonly<BuildingTypeStats> | undef
   if (stats?.light) return 0; // Story 5.10: a tripod's shadow is not a box: the FL1 art carries its own soft leg shadow
   if (stats?.heal) return MED_STATION_SHADOW_M;
   if (!stats || stats.solid) return wallM;
-  return stats.mine ? 0 : TRAP_SHADOW_M;
+  return stats.mine || stats.bearTrap ? 0 : TRAP_SHADOW_M; // Story 5.14: round jaws: no box shadow (it showed as a dark square)
+}
+
+/**
+ * Story 5.14 (F2 "the plate is drawn"): a bear trap's plate radius (a zombie CENTRE strictly inside
+ * it is caught), read from balance like the mine rings, or null for any other building.
+ */
+export function bearTrapPlateRadius(stats: Readonly<BuildingTypeStats> | undefined): number | null {
+  return stats?.bearTrap ? stats.bearTrap.plateRadiusM : null;
+}
+
+/**
+ * Story 5.14 (AC 17): the local re-arm ring's fill (0–1) after `msOn` ms of my body on a sprung
+ * plate. Cosmetic: the trap shows armed only when the state says so; at 1 it waits (pending).
+ */
+export function rearmFraction(msOn: number, rearmS: number): number {
+  if (!(msOn > 0) || !(rearmS > 0)) return 0;
+  return Math.min(1, msOn / (rearmS * 1000));
 }

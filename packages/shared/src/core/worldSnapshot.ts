@@ -34,6 +34,7 @@ function snapshotZombies(world: World) {
       swellTicks: z.swellTicks[id], // Story 5.8
       trapTicks: z.trapTicks[id], // Story 5.9
       slowPct: z.slowPct[id],
+      holdTicks: z.holdTicks[id], // Story 5.14
       knockShot: Array.from(z.knockShot.subarray(id * KNOCK_MEMORY, id * KNOCK_MEMORY + KNOCK_MEMORY)), // Story 5.3
       knockHead: z.knockHead[id],
       // Story 5.4: flame clocks per flamer slot and the burn

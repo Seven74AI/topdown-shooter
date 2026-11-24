@@ -57,6 +57,7 @@
       "reward": 25,
       "buildingDamageMult": 3,
       "knockbackTakenPct": 20,
+      "trapHoldPct": 50,
       "hitKnockbackM": 1.5,
       "knockbackS": 0.2,
       "windupS": 0.5,
