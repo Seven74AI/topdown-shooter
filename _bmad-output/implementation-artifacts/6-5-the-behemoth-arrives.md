@@ -1,6 +1,6 @@
 # Story 6.5: The Behemoth arrives
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -92,18 +92,18 @@ so that the run ends with a fight we'll talk about.
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art (from the picks; no new pick).** `render/city/behemothArt.ts`: port `drawBehemothG` and its four looks **BH1 prototype, BH2 site worker, BH3 overgrowth, BH4 riot cop** from `docs/art/epic-6/looks.html` (section 4, lines ~875–960) into game code, poses `walk` (2 frames), `slam` (arms rising, 3 frames by progress), `slamHit`, `charge`, `rush`, `throw`, `stun`, `roar`, plus an "eyes + outline" overlay frame per look, normal and enraged (red eyes), drawn above the darkness via `aboveDarkness(obj, ABOVE_DARK.boss)` (6.3). Bake into a boss atlas (`boss_<look>_<pose>`; 4 looks × ~10 frames at 2 × 2 m × `CHAR_R_PX`; `atlasLayout.test.ts` ≤ 2048², split into two atlases if needed) through `addGeneratedTexture` with its redraw callback. Tells from the same page: red + white hatching, dashed edge, hole for the body, skull on the target, boss bar with the gold 50 % notch, edge-marker icons. All four looks used as random variants (designer pick). Add the boss to the readability sheet (brief 13). (AC 13)
-- [ ] **T1 Balance + schema** (AC 1): `boss.json`, `bossSchema` (strict, every field), `balance.ts` import + `crossCheck`, `DamageTag "boss"` in `simEvents.ts › DAMAGE_TAGS` (+ net encoding), `config/balance.test.ts` (+ `boss.json matches the GDD`, `bad entry point refused`).
-- [ ] **T2 Boss state + system** (AC 2, 3, 5, 6): `boss/bossState.ts` (`createBossState`, `BOSS_STATE`, `BOSS_ATTACK`, `resetBoss` at run start), `boss/behemoth.ts` (`updateBoss`: arrival, warning, walk, state clock), `world.boss` in `createWorld`, `DEFAULT_SYSTEMS.boss = updateBoss` (NO/PREDICTION systems stay noop), `snapshotWorld` + `worldDigest`; `waveDirector.ts › updateWaves` (cap + wave-end rule). Tests `boss/behemoth.test.ts`.
-- [ ] **T3 Boss pathing** (AC 6; DD2): `boss/bossPathing.ts`: a boss NavGrid (`createNavGrid(map, boss.pathing.inflateM)`: every map box grown by 1.65 m; player buildings costed with `buildingCostM`, not walls) and a single-target `bossChase` FlowField toward the target's cell, rebuilt from scratch every `rebuildEveryS` 0.5 s (10 ticks) inside the shared round-robin (`flowField.ts`: the active fields take ticks in turn; the boss field only while the boss walks). Walls rewritten only at build starts (`setNavWalls` from `applyCoverStage`, like the wide grid). A target the field cannot reach (an alley narrower than 4 m) → it walks to the reachable cell nearest the target (the field's lowest-cost cell within 8 m of the target, else it stands and lets 6.6's throw handle it). `snapshotPathing` includes the boss grid/field hashes. Tests `boss/bossPathing.test.ts` (+ `a 4 m body never routes through a 3 m alley`, `boss field idles without a boss`, `walls rebuilt only at build starts`, `pushes through a barricade at 5 HP/tick at 25 % speed`).
-- [ ] **T4 Target + threat** (AC 7; F7): `boss/target.ts` (`recordBossThreat`, `pickBossTarget`, the 10-bucket ring per player slot advanced every 10 ticks, cleared for a slot on leave). Tests: every case in F7, plus a player who leaves mid-fight.
-- [ ] **T5 Telegraph framework + slam** (AC 8–10; F2–F6, F8, F9): `boss/telegraph.ts` (`startBossAttack`, `resolveBossAttack`, `inSlamZone`), the slam resolver, `player/knockback.ts › knockPlayerBy(p, fromX, fromY, distM, durS)` (generalising `knockPlayer`; the Brute calls it with its stats), zombie damage in the ring (`applyZombieDamage`, killer null). Tests `boss/slam.test.ts`: 24 ticks; grace sweep; through cover; downed; push stops at a car/edge/fire; zombies in the ring hurt; the modifier sweep for F6 (player counts 1–4, enraged flag, `number` 1–5: telegraph ticks unchanged).
-- [ ] **T6 Damage into the boss** (AC 11; D3, D4, D6, DD9): `boss/bossDamage.ts` (`applyBossDamage`, `bossCircleHitBySegment`, `bossInArc`, `bossInCircle`, `rewoundBossPos`), hooks in `combat/firing.ts › updateProjectiles`, `combat/melee.ts › swingMelee`, `combat/flame.ts › flameTick`, `combat/explosion.ts › explode`, `buildings/turret.ts › updateTurrets` (target choice), `buildings/mine.ts › updateMines` (trigger), `combat/aimAssist.ts › assistAim`. Table test `boss/bossDamage.test.ts`: each source hurts it (and the amount), the others don't; a bullet stops at it; rewound shot hits where the shooter saw it; one `boss.hit` per source per tick.
-- [ ] **T7 Network + mirror + Predictor** (AC 12; D1): schema `boss` (+ `BossStateView`, `BOSS_STATE_FIELDS`, compile-time `SameKeys` check), `syncState` (on change; `heading` quantised), `resetRunFields`, `fakeRoom`, devThrottle key list, `NetSimHost` mirror (`world.boss` copied from state; position into a 2-snapshot interpolation buffer like `snapshots.ts`), Predictor (`world.boss.x/y/state` from the newest state, so `movePlayers`' body push matches the server), `netEvents.ts` encode/decode + round-trip tests for the six events, `eventInterest.ts`. Tests: `syncState.test.ts` (+ boss fields synced and reset), `NetSimHost.boss.test.ts` (new: telegraph progress from startTick with a 150 ms late event; a woken tab past the hit tick draws nothing; a late scene start mid-telegraph draws the right fill from state), `prediction.test.ts` (+ `walking into the boss: 0 corrections in the open under ?lag=150`), `tools/netsim/boss.test.ts` (new: `?lag=150&jitter=20`, slam on the bot player 10×: hit only inside 4.25 m by the server position).
-- [ ] **T8 Client** (AC 13, 14; T0): `BossView`, `bossTelegraph.ts`, `BossTelegraphView`, `bossMarker.ts`, target skull, boss bar (`hudModel` fields `bossVisible, bossHpFrac, bossEnraged, bossName`), crack decals, banners ("Something big is coming", "THE BEHEMOTH"), sounds, boss loop, vibration on target. Unit tests for the pure parts (`bossTelegraph.test.ts`, `bossMarker.test.ts`, boss bar layout at 568 × 320 and 800 × 360).
-- [ ] **T9 Dev switches** (AC 15): `DEV_BOSS_WAVES`, `?bosswave=`, "Spawn Behemoth" cheat (`DevCheats.tsx`, `devCheatActions.ts`, release-stripped: `noCheatsInRelease.test.ts`).
-- [ ] **T10 Fuzz, perf, bandwidth, sims** (brief 7, 9, 11, 12, 16): `boss/behemoth.fuzz.test.ts`: random barricade/turret layouts × stages 3–5 × every variant mask × ≥ 3,000 ticks with the boss + 110 zombies + 4 bots: no boss centre inside a map box (its true radius), no player inside a box after a slam push, no stall (the boss reaches a player or a building it breaks within 30 s), boss field walls only at build starts; liveness ≥ 1 slam hit, ≥ 1 building broken, ≥ 1 target switch. Tick cost (`tickCostBoss.test.ts`, `PERF_ASSERT=1`): 110 zombies + boss + 4 fields, added p99 with load (≤ 1 ms of the Epic 6 2 ms budget). Bandwidth (`bossBandwidth.test.ts`): boss record + events at 20 Hz. 10-wave sim (or `?bosswave=` in the 6-wave sim until 6.1): boss arrived, slammed, took damage from ≥ 3 sources.
-- [ ] **T11 Gates.** Mutations (grace removed → grace test; fill from arrival time instead of startTick → `bossTelegraph` test; rewind used for boss hits → netsim test; cap 110 not applied → cap test; wave ends with the boss alive → F11 test; telegraph scaled by player count → F6 test) and which tests failed. Browser check (Playwright): solo `?bosswave=1&wallet=5000&loadout=assault_rifle:3,shotgun`, online two tabs with `?lag=150&jitter=20`: warning + marker, arrival banner, boss bar + notch, slam ring fills from the start tick, push, skull on the target, a hidden tab woken mid-telegraph. Screenshots at 568 × 320 and 800 × 360. `typecheck && lint && test && build`. Merge notes.
+- [x] **T0 Art (from the picks; no new pick).** `render/city/behemothArt.ts`: port `drawBehemothG` and its four looks **BH1 prototype, BH2 site worker, BH3 overgrowth, BH4 riot cop** from `docs/art/epic-6/looks.html` (section 4, lines ~875–960) into game code, poses `walk` (2 frames), `slam` (arms rising, 3 frames by progress), `slamHit`, `charge`, `rush`, `throw`, `stun`, `roar`, plus an "eyes + outline" overlay frame per look, normal and enraged (red eyes), drawn above the darkness via `aboveDarkness(obj, ABOVE_DARK.boss)` (6.3). Bake into a boss atlas (`boss_<look>_<pose>`; 4 looks × ~10 frames at 2 × 2 m × `CHAR_R_PX`; `atlasLayout.test.ts` ≤ 2048², split into two atlases if needed) through `addGeneratedTexture` with its redraw callback. Tells from the same page: red + white hatching, dashed edge, hole for the body, skull on the target, boss bar with the gold 50 % notch, edge-marker icons. All four looks used as random variants (designer pick). Add the boss to the readability sheet (brief 13). (AC 13)
+- [x] **T1 Balance + schema** (AC 1): `boss.json`, `bossSchema` (strict, every field), `balance.ts` import + `crossCheck`, `DamageTag "boss"` in `simEvents.ts › DAMAGE_TAGS` (+ net encoding), `config/balance.test.ts` (+ `boss.json matches the GDD`, `bad entry point refused`).
+- [x] **T2 Boss state + system** (AC 2, 3, 5, 6): `boss/bossState.ts` (`createBossState`, `BOSS_STATE`, `BOSS_ATTACK`, `resetBoss` at run start), `boss/behemoth.ts` (`updateBoss`: arrival, warning, walk, state clock), `world.boss` in `createWorld`, `DEFAULT_SYSTEMS.boss = updateBoss` (NO/PREDICTION systems stay noop), `snapshotWorld` + `worldDigest`; `waveDirector.ts › updateWaves` (cap + wave-end rule). Tests `boss/behemoth.test.ts`.
+- [x] **T3 Boss pathing** (AC 6; DD2): `boss/bossPathing.ts`: a boss NavGrid (`createNavGrid(map, boss.pathing.inflateM)`: every map box grown by 1.65 m; player buildings costed with `buildingCostM`, not walls) and a single-target `bossChase` FlowField toward the target's cell, rebuilt from scratch every `rebuildEveryS` 0.5 s (10 ticks) inside the shared round-robin (`flowField.ts`: the active fields take ticks in turn; the boss field only while the boss walks). Walls rewritten only at build starts (`setNavWalls` from `applyCoverStage`, like the wide grid). A target the field cannot reach (an alley narrower than 4 m) → it walks to the reachable cell nearest the target (the field's lowest-cost cell within 8 m of the target, else it stands and lets 6.6's throw handle it). `snapshotPathing` includes the boss grid/field hashes. Tests `boss/bossPathing.test.ts` (+ `a 4 m body never routes through a 3 m alley`, `boss field idles without a boss`, `walls rebuilt only at build starts`, `pushes through a barricade at 5 HP/tick at 25 % speed`).
+- [x] **T4 Target + threat** (AC 7; F7): `boss/target.ts` (`recordBossThreat`, `pickBossTarget`, the 10-bucket ring per player slot advanced every 10 ticks, cleared for a slot on leave). Tests: every case in F7, plus a player who leaves mid-fight.
+- [x] **T5 Telegraph framework + slam** (AC 8–10; F2–F6, F8, F9): `boss/telegraph.ts` (`startBossAttack`, `resolveBossAttack`, `inSlamZone`), the slam resolver, `player/knockback.ts › knockPlayerBy(p, fromX, fromY, distM, durS)` (generalising `knockPlayer`; the Brute calls it with its stats), zombie damage in the ring (`applyZombieDamage`, killer null). Tests `boss/slam.test.ts`: 24 ticks; grace sweep; through cover; downed; push stops at a car/edge/fire; zombies in the ring hurt; the modifier sweep for F6 (player counts 1–4, enraged flag, `number` 1–5: telegraph ticks unchanged).
+- [x] **T6 Damage into the boss** (AC 11; D3, D4, D6, DD9): `boss/bossDamage.ts` (`applyBossDamage`, `bossCircleHitBySegment`, `bossInArc`, `bossInCircle`, `rewoundBossPos`), hooks in `combat/firing.ts › updateProjectiles`, `combat/melee.ts › swingMelee`, `combat/flame.ts › flameTick`, `combat/explosion.ts › explode`, `buildings/turret.ts › updateTurrets` (target choice), `buildings/mine.ts › updateMines` (trigger), `combat/aimAssist.ts › assistAim`. Table test `boss/bossDamage.test.ts`: each source hurts it (and the amount), the others don't; a bullet stops at it; rewound shot hits where the shooter saw it; one `boss.hit` per source per tick.
+- [x] **T7 Network + mirror + Predictor** (AC 12; D1): schema `boss` (+ `BossStateView`, `BOSS_STATE_FIELDS`, compile-time `SameKeys` check), `syncState` (on change; `heading` quantised), `resetRunFields`, `fakeRoom`, devThrottle key list, `NetSimHost` mirror (`world.boss` copied from state; position into a 2-snapshot interpolation buffer like `snapshots.ts`), Predictor (`world.boss.x/y/state` from the newest state, so `movePlayers`' body push matches the server), `netEvents.ts` encode/decode + round-trip tests for the six events, `eventInterest.ts`. Tests: `syncState.test.ts` (+ boss fields synced and reset), `NetSimHost.boss.test.ts` (new: telegraph progress from startTick with a 150 ms late event; a woken tab past the hit tick draws nothing; a late scene start mid-telegraph draws the right fill from state), `prediction.test.ts` (+ `walking into the boss: 0 corrections in the open under ?lag=150`), `tools/netsim/boss.test.ts` (new: `?lag=150&jitter=20`, slam on the bot player 10×: hit only inside 4.25 m by the server position).
+- [x] **T8 Client** (AC 13, 14; T0): `BossView`, `bossTelegraph.ts`, `BossTelegraphView`, `bossMarker.ts`, target skull, boss bar (`hudModel` fields `bossVisible, bossHpFrac, bossEnraged, bossName`), crack decals, banners ("Something big is coming", "THE BEHEMOTH"), sounds, boss loop, vibration on target. Unit tests for the pure parts (`bossTelegraph.test.ts`, `bossMarker.test.ts`, boss bar layout at 568 × 320 and 800 × 360).
+- [x] **T9 Dev switches** (AC 15): `DEV_BOSS_WAVES`, `?bosswave=`, "Spawn Behemoth" cheat (`DevCheats.tsx`, `devCheatActions.ts`, release-stripped: `noCheatsInRelease.test.ts`).
+- [x] **T10 Fuzz, perf, bandwidth, sims** (brief 7, 9, 11, 12, 16): `boss/behemoth.fuzz.test.ts`: random barricade/turret layouts × stages 3–5 × every variant mask × ≥ 3,000 ticks with the boss + 110 zombies + 4 bots: no boss centre inside a map box (its true radius), no player inside a box after a slam push, no stall (the boss reaches a player or a building it breaks within 30 s), boss field walls only at build starts; liveness ≥ 1 slam hit, ≥ 1 building broken, ≥ 1 target switch. Tick cost (`tickCostBoss.test.ts`, `PERF_ASSERT=1`): 110 zombies + boss + 4 fields, added p99 with load (≤ 1 ms of the Epic 6 2 ms budget). Bandwidth (`bossBandwidth.test.ts`): boss record + events at 20 Hz. 10-wave sim (or `?bosswave=` in the 6-wave sim until 6.1): boss arrived, slammed, took damage from ≥ 3 sources.
+- [x] **T11 Gates.** Mutations (grace removed → grace test; fill from arrival time instead of startTick → `bossTelegraph` test; rewind used for boss hits → netsim test; cap 110 not applied → cap test; wave ends with the boss alive → F11 test; telegraph scaled by player count → F6 test) and which tests failed. Browser check (Playwright): solo `?bosswave=1&wallet=5000&loadout=assault_rifle:3,shotgun`, online two tabs with `?lag=150&jitter=20`: warning + marker, arrival banner, boss bar + notch, slam ring fills from the start tick, push, skull on the target, a hidden tab woken mid-telegraph. Screenshots at 568 × 320 and 800 × 360. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
 
@@ -226,13 +226,190 @@ From `docs/epic-6-decisions.md` › Epic 6 looks, section 4 Behemoth: **all four
 
 ### Agent Model Used
 
+Claude (claude-code builder session for Story 6.5, cloud session; branch `story-6-5`).
+
 ### Debug Log References
+
+- Full gate on `story-6-5` merged with origin/master `4f4cffd` (includes Story 6.1 `9849071`): `npm run typecheck` 0 errors, `npm run lint` clean, `npm test` 336 files / 2,748 tests passed (3 skipped, 1 file skipped as before), `npm run build` OK; `REQUIRE_DIST=1 noCheatsInRelease` 3/3. Load (`uptime`): 0.90 at the start of the tests, 3.85 at the end (4 cores).
+- `PERF_ASSERT=1 tickCostBoss`: base p99 0.809 ms (110 zombies, 4 players) → 1.083 ms with the walking, slamming boss and its 4th field (**+0.27 ms p99** of the 1 ms budget), mean 0.597 → 0.576 ms, 71 boss-field rebuilds in 600 ticks; load 0.35.
+- `bossBandwidth`: boss record ≤ 181 B/s (incl. the tick field), events 376 B/s with 4 players hitting it every tick (4,800 `boss.hit` in 60 s = 4 per tick, the DD9 maximum), total **≤ 557 B/s per client** (story estimate ≲ 0.8 KB/s).
+- Headless Chromium FPS (Playwright, 800 × 360, DPR 1, load 1.84): `?stress=150` **34.8 avg / 15.0 min**; boss scene (`?solo=1&bosswave=1`, 110 zombies alive under the boss cap, boss walking + slamming) **42.0 avg / 20.0 min**: the boss scene is not slower than `?stress=150` (brief 12, Phone FPS). Headless Chromium is slow (8–26 fps class); phone numbers not measured.
+- Mutations (brief 9 / T11), each applied, the target tests run, then reverted:
+  - grace removed (`radiusM − edgeGraceM` → `radiusM`) → `slam.test.ts` 2 failed;
+  - fill from arrival time instead of startTick → `bossTelegraph.test.ts` + `NetSimHost.boss.test.ts` 5 failed;
+  - cap 110 not applied (`maxAliveNow` → 150) → `behemoth.test.ts` 2 failed;
+  - wave ends with the boss alive (cleared condition without the boss) → `behemoth.test.ts` 2 failed;
+  - telegraph scaled by player count → `slam.test.ts` 2 failed (F6 sweep);
+  - boss hit on an older position (`p.prevX/prevY`, a rewind stand-in) → survived at first; added "F4: walks out on the hit tick itself" → now 1 failed;
+  - downed hit (`status === "out"` only in the slam resolver) → **survived**: `damagePlayerBy` refuses non-alive players too (F9 is enforced twice; the downed test proves the rule, not this line).
 
 ### Completion Notes List
 
+- **Shared sim (AC 1–11).** `boss.json` + strict `bossSchema` (every number in balance; `crossCheckBoss`: aliveCap ≤ waves.maxAlive, inflate covers the radius); `boss/bossState.ts` (record, `isBossWave`, `bossActive`, `bossMaxHp`, history for rewound shots, `pushPlayerOutOfBoss`, snapshot), `boss/behemoth.ts` (`updateBoss`: arrival at 50 % of spawns, entry D2, warning 80 ticks, walk, push-through D8, attack pick), `boss/telegraph.ts` (the framework F2–F6: `startBossAttack` only way in, resolve once on `hitTick`, `inSlamZone` with the 0.25 m grace, slam resolver F8/F9/D5, recovery + gap), `boss/target.ts` (F7, 10 × 0.5 s buckets), `boss/bossDamage.ts` (D4 table: bullets incl. rewind D3 and stop-at-body, melee with the line rule, both flamers on their own pulse clock, explosions by blast line of sight to its nearest point, turrets D6, mines; not fire zones, acid, gas, traps). `updateWaves`: `maxAliveNow` (the single base-cap line) + F11 cleared condition (also "never before its boss came", `bossPending`). `DEFAULT_SYSTEMS.boss = updateBoss`. Snapshot + digest include the boss and its grid/field.
+- **Pathing (DD2).** A third NavGrid grown by 1.65 m and a single-target `bossChase` field in the shared round-robin (last slot; only while its body is on the map and it has a target; a finished field restarts after `rebuildEveryS` 10 ticks; a target change restarts it at once). Walls only from `applyDecayStage` (build starts). Player buildings are costs, not walls (D8); the boss's push-out ignores them (`pushOutOfBuildings(..., withBuildings=false)`).
+- **Found while building — Downtown is tight for a 4 m body.** At stage 1 the west street's parked cars leave gaps under 4 m, so `street_west` opens into a pocket the boss could never leave. `pickBossEntry` therefore skips an entry whose street is a pocket (`bossEntryOpen`: a flood on the boss grid reaching ≥ ¼ of its free cells) while another is open; tested on Downtown (west closed, east/north/south open) and over a grid of team positions.
+- **Merge-time fixes with Story 6.1 (the real wave 10).** 6.1's bot sims reached the real wave-10 Behemoth and some runs stalled (brief 28: no stuck run). Three causes, three fixes:
+  1. *Unreachable target → the boss stood still forever.* New fallback: when its finished field doesn't reach it, the field is re-seeded by distance round the target with no line check (`FlowField.seedFar`), so it walks to the nearest spot it can reach (`bossPathing.test.ts`). 6.6's throw is what punishes a camp it can't reach.
+  2. *Zombies jammed behind a standing boss in a chokepoint* (AC 6's push-out made them press into it forever). `boss.json › bodyPushZombies` = **false** by default: zombies walk under it (it is drawn over them); the push-out code stays behind the flag (tested on). **OPEN FOR DESIGNER (1).**
+  3. *The bots never shot it* (they aimed at zombies only). `botPolicy`: the boss is a target measured to its body's edge, hunted like the last rushers along a nav-grid path (one shared BFS per tick, a 4-cell carrot), and never backed off from (the 2.5 m keep-distance rule is for zombie bites). Bot code only; 6.1's ten-wave, six-wave and five-wave sims all pass with the real boss.
+  Two 6.1 wave-flow unit tests that clear wave 10 by hand now say `world.debug.bossWaves = []` (they test the spawn order / the run end alone; the boss's wave-10 rule is F11 in `behemoth.test.ts`).
+- **HP (F10).** `hp × playerCountScale[n−1]`, solo × `soloHpScale` 0.4 (B2 left the solo wave size at 0.35; the Behemoth's own 0.4 is a separate number in `boss.json`), players in the World **when it walks in** (AC 3; F10's "when wave 10 starts" differs only if someone leaves during the first half of wave 10). OPEN FOR DESIGNER (2) only if the designer wants the wave-start count.
+- **Network (AC 12).** Nested `boss` schema (17 fields, on change only), `BossStateView` / `BOSS_STATE_FIELDS` with the compile-time `SameKeys` / `Assignable` checks, `syncState` + `resetRunFields`, `fakeRoom` (`fakeBoss`), devThrottle (copies the nested record), NetSimHost mirror (`mirrorBoss` + a two-position `BossTrack` drawn at the render tick), Predictor (`syncBoss` before every reconcile). Net kinds **44–49** (42/43 were taken by 5.20/5.22). `boss.hit` is local at the boss's position; the rest are global. `SimHost.serverTick` = `clock.estimateTick` online (not the delayed render tick), `world.tick − 1 + alpha` solo; telegraphs fill from it (F3, DD4).
+- **Client (AC 13–14, T0).** `behemothArt.ts` ports `drawBehemothG` and all four looks (BH1–BH4) onto the Brute's helpers (`bruteArt.ts` now exports them as `artKit` + `setArtPixel`, append-only); `bossAtlas.ts`: 4 looks × 13 frames (walk ×2, slam ×3, slamHit, charge, rush, throw, stun, roar, outline+eyes normal/enraged) in one ≤ 2048² atlas, the FX texture (skull, marker disc, 3 icons, crack decal) and the baked telegraph disc (red + white hatching, red edge, dashed inner edge, body hole) — all through `addGeneratedTexture`. `BossView` (body above zombies, outline above the darkness when `setDark(true)`, telegraph pool of 2, target skull, 8 pooled crack decals cleared at build start, hit flash), `BossHud` (boss bar top centre with the gold 50 % notch, red when enraged; edge marker disc with pulsing and the attack icon), banners "Something big is coming" / "THE BEHEMOTH", sounds `boss_rumble` / `boss_roar` / `boss_slam`, a placeholder boss loop (`startBossLoop` / `stopBossLoop`, follows the state), the target buzz 3 × 40 ms through the haptics door. A woken tab's backlog plays no late banner or sound (`ageS`, `bossCue`).
+- **Telegraph texture.** The story suggested a 64 px `boss_hatch` tile drawn through a mask; Phaser 4 masks are filters, so the hatch is baked once into the 512 px disc texture instead (no per-frame path; the live fill is one stroked ring). Same look as `teleRing`/`hatch`.
+- **Dev switches (AC 15).** Server `DEV_BOSS_WAVES` (dev only, `pickDevBossWaves`, logged), solo `?bosswave=` / `?bosshp=` (dev builds only), cheat "Spawn Behemoth" (release-stripped, in `noCheatsInRelease` strings). `runHeadless` gained an append-only `setup(world)` hook.
+- **6.3 shim.** `render/darkness/aboveDark.ts` is a byte-for-byte copy of 6.3's file from `origin/story-6-3` (4d5abfa), so the merge has nothing to resolve. `BossView.setDark` is the hook 6.3 wires to `isBlackout(world) || darknessAlpha(world) > 0`.
+- **HUD layout test (brief 31).** Master has no single HUD layout test yet (6.3 creates it); `scenes/bossBar.test.ts` checks the bar at 568 × 320, 640 × 360 and 800 × 360 with insets 44/21: ≥ 220 px, ≥ 12 px from ☰, the wave line and the health bar, upper third only. Merge note: move into 6.3's test.
+- **Readability (brief 13).** Sheet entries 46 (warning + edge marker) and 47 (telegraph + target skull) with screenshots in `docs/art/6-5/`.
+
+#### OPEN FOR DESIGNER
+
+1. **Zombies walk under the Behemoth** (`boss.json › bodyPushZombies: false`) instead of AC 6's "zombies overlapping its body are pushed out": pushed out, a standing Behemoth in a chokepoint jammed the horde behind it for good (a stuck wave 10 in the 10-wave sim). One flag flips it back.
+2. **HP counts the players in the World when it walks in** (AC 3), not when wave 10 starts (F10's wording). Same number unless a player leaves during wave 10's first half.
+3. **Downtown is tight for a 4 m body:** at stage 1 the west street (parked cars) is a pocket it can't use, so it never enters from `street_west` while another end is open; teams camping in spaces narrower than 4 m are reached only by the fallback (it comes to the nearest spot) until 6.6's throw. 6.2 should keep the entry streets 4 m clear at every stage (merge note below).
+
+#### Not verified
+
+- Real phones (Mi 11i): no device here; FPS above is headless Chromium only.
+- Online two-tab browser check under `?lag=150&jitter=20` (no server run in this session): covered by `NetSimHost.boss.test.ts` (late event, woken tab, late scene start, Predictor body) and `tools/netsim/boss.test.ts` (slams under 75 ± 10 ms each way: 17 hits / 1 miss, every one decided by the server position at the hit tick); not seen in a browser.
+- A hidden tab woken mid-telegraph in a real browser (unit-tested only).
+- The boss outline + eyes above real darkness (6.3 not merged: `setDark` is never true yet).
+- Sounds and the boss loop by ear (placeholders; headless has no audio).
+- Haptic buzz on a phone.
+- The look of the enraged body (6.7 sets `enraged`; only the red-eyes overlay frame exists here).
+
+#### Notes for the merge (brief 19)
+
+- `core/systems.ts`: only `DEFAULT_SYSTEMS.boss` (+ its import). No reorder.
+- `core/world.ts` / `worldSnapshot.ts`: `boss` appended after `shop` in World and after `flameSlots` in the snapshot; `debug.bossWaves` / `debug.bossHpScale` appended. Every digest changes once (no committed digest fixtures broke in this gate).
+- `config/balanceSchema.ts` / `balance.ts`: `bossSchema` + `boss` file appended; `crossCheckBoss` appended. Tests that build their own raw balance list must add `boss` (8 test files updated here).
+- `waves/waveDirector.ts`: the cap line (`maxAliveNow`) and the cleared condition only; merged cleanly with 6.1's `beginWave`/`waveZombieType`. 6.8's stampede reads `maxAliveNow` as its base; 6.12 extends `isBossWave` (one helper in `boss/bossState.ts`).
+- `zombies/flowField.ts`: `PathingState.boss` / `bossChase` / `bossActive`, `FlowField.seedOnly` / `seedRings` / `seedFar`, the boss slot last in the round-robin, `snapshotPathing` boss fields. `flowSharedMaxAgeTicks` already scales with `activeFields` (now up to 4).
+- `decay/applyDecayStage.ts`: the boss grid's walls set with the other two (build starts only); 6.2's rubble reaches it the same way.
+- `player/knockback.ts`: `knockPlayerBy` added; `knockPlayer` keeps its signature (calls it). `player/movement.ts`: the boss body push (`bossPush`) after the move and for an idle survivor. `player/player.ts`: `removePlayer` clears the leaver's threat.
+- `buildings/collision.ts`: `pushOutOfBuildings` gained an optional `withBuildings = true` parameter.
+- `combat/firing.ts`, `melee.ts`, `flame.ts`, `explosion.ts`, `buildings/turret.ts`, `buildings/mine.ts`, `combat/aimAssist.ts`: one boss branch each behind `bossBodyOn` (no cost without a boss). 6.9's gas-leak blast through `explode()` hurts the boss (intended).
+- `net/netEvents.ts`: kinds **44–49** (`BOSS_WARNING … BOSS_HIT`); 6.8–6.11 take the next free numbers. `simEvents.ts › DAMAGE_TAGS` + `"boss"` (appended: the wire sends the index).
+- `apps/server/src/net/eventInterest.ts`: `boss.hit` local at the boss's position.
+- Schema / stateView / fakeRoom / devThrottle: the `boss` nested schema is new (`RunStateView.boss` optional: absent in a lobby state); `RUN_STATE_FIELDS` excludes `boss` like `players`/`buildings`. 6.3 appends `blackoutPct`/`halfDark` to the run fields: no overlap.
+- `RunRoom.ts` / `RunController.ts`: `DEV_BOSS_WAVES` next to 6.1's `DEV_START_WAVE` (merged here).
+- `bots/botPolicy.ts` / `headlessRun.ts`: the bots fight the boss (target, hunt path, no back-off) and `setup(world)`; 6.1's `god` option kept.
+- `render/darkness/aboveDark.ts`: identical to 6.3's (`origin/story-6-3` 4d5abfa): **6.3's file wins**; 6.3 wires `BossView.setDark(isBlackout(world) || darknessAlpha(world) > 0)` in `GameScene.updateBoss`.
+- `GameScene.ts` / `HudScene.ts` / `hudModel.ts`: `BossView` made with the zombie view, `updateBoss` each frame, the boss events in the event switch, `bossHud` drawn after the rush arrows, `boss*` model fields appended. 6.8–6.11 add their banners in the same switch.
+- `audio/placeholderSfx.ts`: three keys + the boss loop appended. `ui/sizes.ts`: `BOSS_BAR_*` appended.
+- `render/city/bruteArt.ts`: append-only export of its helpers (`artKit`, `setArtPixel`).
+- `scenes/bossBar.test.ts`: move into 6.3's single HUD layout test when it lands.
+- **6.2:** keep `boss.entryPoints` 4 m clear at every stage (spawn-clearance test with the boss radius); the boss grid gets rubble through `applyDecayStage`.
+- **6.6:** throw is what reaches a camp the boss can't walk to (the fallback only brings it to the nearest spot); `pickBossAttack` has the charge/throw branches marked; `telegraphTicks` / `updateBossAttack` take new kinds.
+
 ### File List
+
+- `apps/client/src/audio/placeholderSfx.ts`
+- `apps/client/src/debug/DevCheats.tsx`
+- `apps/client/src/debug/devCheatActions.test.ts`
+- `apps/client/src/debug/devCheatActions.ts`
+- `apps/client/src/debug/urlOptions.test.ts`
+- `apps/client/src/debug/urlOptions.ts`
+- `apps/client/src/net/devThrottle.ts`
+- `apps/client/src/net/fakeRoom.ts`
+- (new) `apps/client/src/net/mirrorBoss.ts`
+- `apps/client/src/net/prediction.test.ts`
+- `apps/client/src/net/prediction.ts`
+- (new) `apps/client/src/render/BossView.ts`
+- (new) `apps/client/src/render/bossCue.test.ts`
+- (new) `apps/client/src/render/bossCue.ts`
+- (new) `apps/client/src/render/bossMarker.test.ts`
+- (new) `apps/client/src/render/bossMarker.ts`
+- (new) `apps/client/src/render/bossTelegraph.test.ts`
+- (new) `apps/client/src/render/bossTelegraph.ts`
+- `apps/client/src/render/city/atlasLayout.test.ts`
+- (new) `apps/client/src/render/city/behemothArt.ts`
+- (new) `apps/client/src/render/city/bossAtlas.ts`
+- `apps/client/src/render/city/bruteArt.ts`
+- (new) `apps/client/src/render/darkness/aboveDark.ts`
+- (new) `apps/client/src/scenes/BossHud.ts`
+- `apps/client/src/scenes/GameScene.ts`
+- `apps/client/src/scenes/HudScene.ts`
+- (new) `apps/client/src/scenes/bossBar.test.ts`
+- (new) `apps/client/src/scenes/bossBar.ts`
+- `apps/client/src/scenes/hudModel.ts`
+- `apps/client/src/sim/LocalSimHost.ts`
+- (new) `apps/client/src/sim/NetSimHost.boss.test.ts`
+- `apps/client/src/sim/NetSimHost.ts`
+- `apps/client/src/sim/SimHost.ts`
+- `apps/client/src/ui/sizes.ts`
+- `apps/server/src/net/eventInterest.ts`
+- `apps/server/src/rooms/RunRoom.ts`
+- `apps/server/src/rooms/schema/RunState.ts`
+- `apps/server/src/rooms/schema/syncState.test.ts`
+- `apps/server/src/rooms/schema/syncState.ts`
+- `apps/server/src/run/RunController.ts`
+- (new) `apps/server/src/run/bossBandwidth.test.ts`
+- (new) `apps/server/src/run/devBossWaves.test.ts`
+- (new) `apps/server/src/run/devBossWaves.ts`
+- (new) `apps/server/src/run/tickCostBoss.test.ts`
+- (new) `docs/art/6-5/6-5-568x320-arrived.png`
+- (new) `docs/art/6-5/6-5-568x320-telegraph.png`
+- (new) `docs/art/6-5/6-5-568x320-warning.png`
+- (new) `docs/art/6-5/6-5-800x360-arrived.png`
+- (new) `docs/art/6-5/6-5-800x360-telegraph.png`
+- (new) `docs/art/6-5/6-5-800x360-warning.png`
+- `docs/playtests/milestone-1/readability-sheet.md`
+- (new) `packages/shared/src/boss/behemoth.fuzz.test.ts`
+- (new) `packages/shared/src/boss/behemoth.test.ts`
+- (new) `packages/shared/src/boss/behemoth.ts`
+- (new) `packages/shared/src/boss/bossDamage.test.ts`
+- (new) `packages/shared/src/boss/bossDamage.ts`
+- (new) `packages/shared/src/boss/bossPathing.test.ts`
+- (new) `packages/shared/src/boss/bossRunSim.test.ts`
+- (new) `packages/shared/src/boss/bossState.ts`
+- (new) `packages/shared/src/boss/slam.test.ts`
+- (new) `packages/shared/src/boss/target.ts`
+- (new) `packages/shared/src/boss/telegraph.ts`
+- (new) `packages/shared/src/boss/testBoss.ts`
+- `packages/shared/src/bots/botPolicy.test.ts`
+- `packages/shared/src/bots/botPolicy.ts`
+- `packages/shared/src/bots/headlessRun.ts`
+- `packages/shared/src/buildings/collision.ts`
+- `packages/shared/src/buildings/mine.ts`
+- `packages/shared/src/buildings/turret.ts`
+- `packages/shared/src/combat/aimAssist.test.ts`
+- `packages/shared/src/combat/aimAssist.ts`
+- `packages/shared/src/combat/explosion.ts`
+- `packages/shared/src/combat/firing.test.ts`
+- `packages/shared/src/combat/firing.ts`
+- `packages/shared/src/combat/flame.ts`
+- `packages/shared/src/combat/melee.test.ts`
+- `packages/shared/src/combat/melee.ts`
+- `packages/shared/src/combat/swap.test.ts`
+- `packages/shared/src/config/balance.test.ts`
+- `packages/shared/src/config/balance.ts`
+- (new) `packages/shared/src/config/balance/boss.json`
+- `packages/shared/src/config/balanceSchema.ts`
+- `packages/shared/src/core/simEvents.ts`
+- `packages/shared/src/core/systems.ts`
+- `packages/shared/src/core/world.ts`
+- `packages/shared/src/core/worldSnapshot.ts`
+- `packages/shared/src/decay/applyDecayStage.ts`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/net/netEvents.test.ts`
+- `packages/shared/src/net/netEvents.ts`
+- `packages/shared/src/net/stateView.ts`
+- `packages/shared/src/player/knockback.ts`
+- `packages/shared/src/player/movement.ts`
+- `packages/shared/src/player/player.ts`
+- `packages/shared/src/run/runStateMachine.test.ts`
+- `packages/shared/src/waves/spawnPoints.test.ts`
+- `packages/shared/src/waves/waveDirector.test.ts`
+- `packages/shared/src/waves/waveDirector.ts`
+- `packages/shared/src/zombies/flowField.ts`
+- `packages/shared/src/zombies/zombieAi.test.ts`
+- `tools/checks/noCheatsInRelease.test.ts`
+- (new) `tools/netsim/boss.test.ts`
+- `_bmad-output/implementation-artifacts/6-5-the-behemoth-arrives.md`
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: built (gds-dev-story, Story 6.5 builder session): shared sim, pathing, network, client, dev switches, tests (fairness F1–F11, fuzz, tick cost, bandwidth, run sim, netsim); merged with Story 6.1 (the real wave 10: unreachable-target fallback, zombies walk under it behind a flag, bots fight it); status → review.
