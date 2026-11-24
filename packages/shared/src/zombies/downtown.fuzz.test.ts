@@ -7,7 +7,7 @@ import { applyDecayStage } from "../decay/applyDecayStage";
 import { changeDecayStage, decayFinish, decayMutate, relocated } from "../decay/decaySystem";
 import { buildingInFires, circleInFire, fireExpiry, firePulse } from "../decay/fire";
 import { downPlayer, returnOutPlayers } from "../player/downed";
-import { legalDecayMasks } from "../decay/decayState";
+import { masksForStage } from "../decay/masks.testkit";
 import type { Balance } from "../config/balance";
 import { createRng, type Rng } from "../core/rng";
 import { ticksFor } from "../core/time";
@@ -79,7 +79,9 @@ const balance: Balance = (() => {
 const SHOT_EPS_M = 1e-4;
 const LAYOUTS = 48; // Story 4.8: ≥ the 45 legal variant masks (C(6,4) movers × C(3,2) fires), a multiple of 4
 /** Story 4.7: every legal variant mask of Downtown (one per layout, round robin). */
-const MASKS = legalDecayMasks(DOWNTOWN_MAP);
+// Story 6.2: this fuzz runs stages 1–3, so the 45 car × fire combinations (the alley pick changes nothing
+// before stage 4; stages 4–5 have their own fuzz, `zombies/ruins.fuzz.test.ts`).
+const MASKS = masksForStage(DOWNTOWN_MAP, 3);
 const LIMIT_S = 120;
 /** Players walk this long, then hold still (a 4.5 m/s survivor outruns a 0.7 m/s Crawler forever). */
 const WALK_S = 30;

@@ -37,6 +37,14 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 ## 3. How we work (keep doing this)
 
+**Session 9 speed-up (designer 2026-11-24, "ok for all, now"):**
+1. Start a story as soon as its real file overlap allows, not by round: check the Notes for the merge of the stories it waits for (6.8 started before 6.6+6.7 landed because 6.6 left zombieAi.ts/flowField.ts untouched; 6.11+6.12 branched from story-6-6). Give each parallel builder its own netEvents kind range and readability-sheet number range up front.
+2. Up to 3–4 builders at once (each in its own cloud session).
+3. One full gate per story by the builder + the main session's gate before every push to master. Reviewers do NOT run the full gate: typecheck + the tests they probe/mutate.
+4. Re-reviews are narrow: only the fix commits, "try to exploit this", no fresh full gate.
+5. Light review (one checker, not the three-layer gds-code-review) for mostly visual stories; full fresh review for boss, events, vote and other game rules.
+Still required: every medium/high fix and every behaviour-changing fix gets a re-review; no push to master without a clean review and a green gate.
+
 **Session 8 lessons (keep):**
 1. Re-review fixes for real: in 6.5 a low fix (stop pinning a player inside the boss) created a new medium (one survivor could body-block the boss); the re-review caught it. Behaviour-changing fixes, even for lows, go to the re-reviewer with "try to exploit this".
 2. When master moves while a builder finishes, tell it to merge master and re-gate, and start the reviewer in parallel on the same merge (point it at the builder's merge commit once pushed).

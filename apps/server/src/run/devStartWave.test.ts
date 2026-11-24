@@ -32,7 +32,10 @@ describe("Story 6.1 DEV_START_WAVE / ?startwave= (D4)", () => {
     expect(w.waves.number).toBe(6);
     expect(w.decay.stage).toBe(balance.decay.stageByWave[6]); // wave 7 = stage 4
     expect(w.decay.stage).toBe(4);
-    expect(w.obstacles.solids.map((b) => b.name)).toContain("dumpster_alley_3"); // a stage-2 mutation is in too
+    // A stage-2 mutation is in too (Story 6.2: unless this run's collapsed alley is alley 3, whose heap buries the dumpster).
+    const solids = w.obstacles.solids.map((b) => b.name);
+    expect(solids.includes("dumpster_alley_3") !== solids.includes("rubble_alley_3")).toBe(true);
+    expect(solids.some((n) => n.startsWith("rubble_pile_"))).toBe(true); // and stage 4's rubble
     dev.setBuildReady("p0", true);
     for (let i = 0; i < 5 && w.run.phase !== "wave"; i++) dev.tick();
     expect(w.run.phase).toBe("wave");

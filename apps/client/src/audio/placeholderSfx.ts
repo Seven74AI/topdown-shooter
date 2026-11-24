@@ -48,6 +48,9 @@ export type SfxName =
   | "boss_rumble"
   | "boss_roar"
   | "boss_slam"
+  // Story 6.2: the Ruins collapse rumble (stage 4 starts: D9) and a falling-debris patter (panned ambience, D10).
+  | "ruins_rumble"
+  | "debris_fall"
   // Stories 6.6 / 6.7
   | "boss_charge_scrape"
   | "boss_charge_rush"
@@ -531,6 +534,18 @@ export function playSfx(name: SfxName, pan = 0, volume = 1): void {
       roar(c, t, pan);
       roar(c, t + 0.25, pan);
       burst(c, t, 0.9, 0.8, 120);
+      break;
+    case "ruins_rumble": // Story 6.2 (D9): 2 s of low rumble with a crumbling tail
+      burst(c, t, 1.0, 0.8, 80);
+      burst(c, t + 0.6, 1.4, 0.7, 60);
+      burst(c, t + 0.2, 0.9, 0.35, 900);
+      break;
+    case "debris_fall": // Story 6.2 (D10): a few small stones (quiet, panned)
+      {
+        const out = outputFor(c, pan);
+        if (!out) break;
+        for (let i = 0; i < 3; i++) noiseInto(c, out, t + i * 0.07, 0.05, 0.18 - i * 0.04, 2400 - i * 500);
+      }
       break;
     case "boss_slam": // Story 6.5: a huge ground thump with a cracking tail
       burst(c, t, 0.45, 1, 110);

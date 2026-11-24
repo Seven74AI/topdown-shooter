@@ -217,7 +217,7 @@ function tryFire(world: World, p: PlayerState, cooldownS: number, input: PlayerI
   // Aim assist on touch only (FR4), before spread; mouse aim is never assisted.
   if (!input.isMouse) {
     const view = rewind > 0 ? rewoundView(world, world.tick - rewind) : null;
-    assistAim(world, p.x + dir.x * offset, p.y + dir.y * offset, dir.x, dir.y, stats.rangeM, dir, view);
+    assistAim(world, p.x + dir.x * offset, p.y + dir.y * offset, dir.x, dir.y, stats.rangeM, dir, view, p); // Story 6.4: fog filter (own beam)
   }
   const pellets = stats.pellets;
   if (pellets === 1 && stats.spreadDeg > 0) {

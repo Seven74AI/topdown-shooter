@@ -4,7 +4,7 @@ import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, footprint, footprintBlocked, type Box, type BuildingRotation } from "../buildings/buildings";
 import { circleOverlapsBox } from "../buildings/collision";
 import { applyDecayStage } from "../decay/applyDecayStage";
-import { legalDecayMasks } from "../decay/decayState";
+import { gameplayDecayMasks } from "../decay/decayState";
 import { createRng, type Rng } from "../core/rng";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { DOWNTOWN_MAP } from "../map/downtown";
@@ -38,7 +38,7 @@ import { setLoadout } from "./loadout";
 // More waves than a real run, so the 2,000 ticks never end in the results screen.
 const balance = loadBalance(withOverrides(bundledBalanceFiles(), [["waves", "runWaves", 20]]));
 const map = DOWNTOWN_MAP;
-const MASKS = legalDecayMasks(map);
+const MASKS = gameplayDecayMasks(map);
 const LAYOUTS = 16;
 /** Story 5.2: four players per layout cost about four times the swings: fewer layouts. */
 const AXE_LAYOUTS = 10;

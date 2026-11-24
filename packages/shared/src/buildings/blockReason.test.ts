@@ -4,7 +4,7 @@ import { BUILD_GRID_M } from "../config/constants";
 import { createRng, type Rng } from "../core/rng";
 import { createWorld, type World } from "../core/world";
 import { applyDecayStage } from "../decay/applyDecayStage";
-import { legalDecayMasks } from "../decay/decayState";
+import { gameplayDecayMasks } from "../decay/decayState";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { addPlayer } from "../player/player";
 import { spawnZombie } from "../zombies/zombiePool";
@@ -22,7 +22,7 @@ import { circleOverlapsBox } from "./collision";
  */
 const balance = loadBalance();
 const map = DOWNTOWN_MAP;
-const MASKS = legalDecayMasks(map);
+const MASKS = gameplayDecayMasks(map);
 const LAYOUTS = 40;
 const BOXES_PER_LAYOUT = 1500;
 const ORDER: readonly BlockCause[] = ["off_map", "spawn", "solid", "building", "me", "teammate", "zombie"];

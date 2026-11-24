@@ -85,8 +85,11 @@ describe("Downtown map data (Story 4.1)", () => {
     expect(map.stages).toHaveLength(5);
     expect(map.stages[0]?.some((p) => p.kind === "crosswalk")).toBe(true);
     expect(map.stages[0]?.find((p) => p.name === "parking_lot")?.layer).toBe("stage1_ground");
-    expect(map.stages[3]).toEqual([]);
-    expect(map.stages[4]).toEqual([]);
+    // Story 6.2 / 6.4: visual props only (loose debris, flat spills; the fallen streetlight at stage 5).
+    expect([...new Set(map.stages[3]?.map((p) => p.kind))].sort()).toEqual(["debris", "spill"]);
+    expect([...new Set(map.stages[4]?.map((p) => p.kind))].sort()).toEqual(["debris", "fallen_lamp", "spill"]);
+    // None of them is an obstacle at any stage (D6: no new cover at stage 5).
+    for (const p of [...(map.stages[3] ?? []), ...(map.stages[4] ?? [])]) expect(map.decay.some((m) => m.name === p.name)).toBe(false);
   });
 
   it("the team start and every spawn with its edge jitter are clear of collision", () => {
@@ -192,14 +195,20 @@ describe("Downtown map data (Story 4.1)", () => {
     expect(me.x >= R && me.x <= map.widthM - R && me.y >= R && me.y <= map.heightM - R).toBe(true);
   });
 
-  it("Story 4.3: spawns tell the story — kinds, stages 1–3, several sides each stage, far from the team start", () => {
+  it("Story 4.3: spawns tell the story — kinds, stages 1–4, several sides each stage, far from the team start", () => {
     const kinds = (stage: number) => [...new Set(map.spawnPoints.filter((s) => s.minStage === stage).map((s) => s.kind))].sort();
     expect(kinds(1)).toEqual(["alley", "street"]);
     expect(kinds(2)).toEqual(["manhole", "window"]);
     expect(kinds(3)).toEqual(["manhole", "window"]);
+    expect(kinds(4)).toEqual(["breach"]); // Story 6.2: two holes blown in walls
+    expect(kinds(5)).toEqual([]);
     const open = (stage: number) => map.spawnPoints.filter((s) => s.minStage <= stage);
-    expect([1, 2, 3].map((st) => open(st).length)).toEqual([9, 14, 19]);
-    expect(map.spawnPoints.every((s) => s.minStage <= 3)).toBe(true); // stages 4–5: Stories 4.7 / Epic 6
+    expect([1, 2, 3, 4].map((st) => open(st).length)).toEqual([9, 14, 19, 21]);
+    // Story 6.2 (D3): the apartments' south wall (west side of the crossing) and the offices' west wall (south side).
+    expect(map.spawnPoints.filter((s) => s.kind === "breach").map((s) => `${s.name}:${["N", "E", "S", "W"][spawnSide(map, s)]}:${s.jitterAxis}`)).toEqual([
+      "breach_apartments:W:x",
+      "breach_offices:S:y",
+    ]);
     // Stage 1 keeps its edge spawns: every one sits within 1 m of the map edge.
     for (const s of open(1)) expect(Math.min(s.x, s.y, map.widthM - s.x, map.heightM - s.y), s.name).toBeLessThan(1);
     // Every stage has spawns on all four sides of the map.

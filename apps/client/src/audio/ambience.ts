@@ -19,7 +19,8 @@
  */
 import { audioContextIfRunning } from "./placeholderSfx";
 
-export const AMBIENCE_LOOPS = ["evening", "panic"] as const;
+/** Story 6.2 adds `ruins` (stage 4); Story 6.4 adds `collapse` and its ash-style twin without the rain bed (stage 5). Append-only. */
+export const AMBIENCE_LOOPS = ["evening", "panic", "ruins", "collapse", "collapse_ash"] as const;
 export type AmbienceLoopId = (typeof AMBIENCE_LOOPS)[number];
 
 /** Story 4.7: seconds for one loop to hand over to the next on a stage change (or to fade in). */
@@ -32,10 +33,20 @@ export const AMBIENCE_HIDE_FADE_S = 0.25;
 export const AMBIENCE_LOOP_S = 8;
 export const AMBIENCE_SYNTH_RATE = 22050;
 
-/** Stage → loop. Story 4.8 maps stage 3 to its rain loop; until then every later stage keeps Panic. */
-export function ambienceLoopForStage(stage: number): AmbienceLoopId {
-  return stage <= 1 ? "evening" : "panic";
+/**
+ * Stage → loop. Stages 2–3 keep Panic (Story 4.8's stage-3 rain loop was never added: not in scope
+ * here). Story 6.2: stage 4 → `ruins` (wind, creaks, distant falls). Story 6.4 (D9): stage 5 →
+ * `collapse` (near silence: low wind, rain, a distant growl), or `collapse_ash` with the CO3 ash
+ * style (`collapseStyle` 2: no rain bed).
+ */
+export function ambienceLoopForStage(stage: number, collapseStyle = -1): AmbienceLoopId {
+  if (stage <= 1) return "evening";
+  if (stage <= 3) return "panic";
+  if (stage === 4) return "ruins";
+  return collapseStyle === ASH_STYLE ? "collapse_ash" : "collapse";
 }
+/** `COLLAPSE_STYLES` index of CO3 ash (shared `decay/collapse.ts`). */
+const ASH_STYLE = 2;
 
 export interface AmbienceState {
   /** The loop fading in or playing (null before the first start). */
@@ -56,7 +67,7 @@ export type AmbienceAction = "none" | "start" | "crossfade" | "mute" | "unmute";
  * unlocked. Hidden → mute (once); visible again → unmute (the next call then catches up with a
  * stage that changed meanwhile). First start = fade in from silence; a different loop = crossfade.
  */
-export function ambienceStep(s: AmbienceState, stage: number, audioRunning: boolean, hidden: boolean): AmbienceAction {
+export function ambienceStep(s: AmbienceState, stage: number, audioRunning: boolean, hidden: boolean, collapseStyle = -1): AmbienceAction {
   if (!audioRunning) return "none";
   if (hidden) {
     if (s.muted) return "none";
@@ -67,7 +78,7 @@ export function ambienceStep(s: AmbienceState, stage: number, audioRunning: bool
     s.muted = false;
     return "unmute";
   }
-  const want = ambienceLoopForStage(stage);
+  const want = ambienceLoopForStage(stage, collapseStyle);
   if (s.playing === null) {
     s.playing = want;
     return "start";
@@ -150,6 +161,50 @@ function* panic(out: Float32Array, rate: number): Generator<void, void, void> {
   }
 }
 
+/** Story 6.2 Ruins: wind (filtered noise, slow swell), wooden/metal creaks, two distant falls. */
+function* ruins(out: Float32Array, rate: number): Generator<void, void, void> {
+  const n = out.length;
+  const noise = lcg(23);
+  let wind = 0;
+  let low = 0;
+  let ph = 0;
+  for (let i = 0; i < n; i++) {
+    if (i % SYNTH_SLICE === SYNTH_SLICE - 1) yield;
+    const t = i / rate;
+    const w = noise();
+    wind = wind * 0.985 + w * 0.06;
+    low = low * 0.997 + w * 0.03;
+    const swell = 0.6 + 0.4 * Math.sin((TAU * t) / AMBIENCE_LOOP_S);
+    // creaks: short frequency sweeps
+    const creak = bump(t, 2.1, 0.18) + 0.7 * bump(t, 5.6, 0.22);
+    ph += (TAU * (180 + 120 * Math.sin(t * 9))) / rate;
+    // distant falls: low thumps with a rubble tail
+    const fall = bump(t, 3.4, 0.05) + 0.8 * bump(t, 6.9, 0.06);
+    const tail = bump(t, 3.6, 0.3) + 0.8 * bump(t, 7.1, 0.3);
+    out[i] = wind * 0.5 * swell + creak * 0.04 * Math.sin(ph) + fall * 0.5 * low * 8 + tail * 0.12 * w;
+  }
+}
+
+/** Story 6.4 Collapse (D9): near silence — low wind, soft rain (none for `ash`), one distant growl per loop. */
+function* collapse(out: Float32Array, rate: number, rain: boolean): Generator<void, void, void> {
+  const n = out.length;
+  const noise = lcg(31);
+  let wind = 0;
+  let hiss = 0;
+  let ph = 0;
+  for (let i = 0; i < n; i++) {
+    if (i % SYNTH_SLICE === SYNTH_SLICE - 1) yield;
+    const t = i / rate;
+    const w = noise();
+    wind = wind * 0.992 + w * 0.03;
+    hiss = hiss * 0.3 + w * 0.7;
+    const g = bump(t, 4.8, 0.45);
+    ph += (TAU * (62 + 10 * Math.sin(t * 3))) / rate;
+    const growl = g * (Math.sin(ph) + 0.4 * Math.sin(2.03 * ph)) * (0.7 + 0.3 * w);
+    out[i] = wind * 0.35 + (rain ? hiss * 0.03 : 0) + growl * 0.09;
+  }
+}
+
 /** Counts loops synthesized (tests: the game synthesizes each loop once per page, whatever the runs). */
 export const ambienceSynthStats = { loops: 0 };
 
@@ -167,7 +222,9 @@ export function* synthAmbienceSteps(id: AmbienceLoopId, rate = AMBIENCE_SYNTH_RA
   const fade = Math.round(0.25 * rate);
   const raw = new Float32Array(n + fade);
   if (id === "evening") yield* evening(raw, rate);
-  else yield* panic(raw, rate);
+  else if (id === "panic") yield* panic(raw, rate);
+  else if (id === "ruins") yield* ruins(raw, rate);
+  else yield* collapse(raw, rate, id === "collapse");
   const out = new Float32Array(n);
   let peak = 0;
   for (let i = 0; i < n; i++) {
@@ -286,7 +343,8 @@ export class AmbiencePlayer {
   private bus: GainNode | null = null;
   private readonly voices = new Map<AmbienceLoopId, Voice>();
   private lastStage = 1;
-  private readonly onVisibility = (): void => this.update(this.lastStage);
+  private lastStyle = -1;
+  private readonly onVisibility = (): void => this.update(this.lastStage, this.lastStyle);
   /** Counts WebAudio node creations (tests: nothing per frame). */
   nodesCreated = 0;
 
@@ -303,14 +361,16 @@ export class AmbiencePlayer {
     return this.state.playing;
   }
 
-  update(stage: number): void {
+  /** Once per frame: the decay stage and (Story 6.4) the Collapse style (`collapseStyleAt`, −1 below stage 5). */
+  update(stage: number, collapseStyle = -1): void {
     this.lastStage = stage;
+    this.lastStyle = collapseStyle;
     const c = this.ctx ?? this.getContext();
     // Review M: the loops are synthesized in idle time (`prewarmAmbience`), never here; until they
     // are ready the ambience simply waits (like before the first gesture).
     const ready = ambienceLoopsReady();
     if (!ready && c !== null) prewarmAmbience();
-    const action = ambienceStep(this.state, stage, c !== null && ready, this.getHidden());
+    const action = ambienceStep(this.state, stage, c !== null && ready, this.getHidden(), collapseStyle);
     if (action === "none" || c === null) return;
     if (this.ctx === null) this.build(c);
     const now = c.currentTime;

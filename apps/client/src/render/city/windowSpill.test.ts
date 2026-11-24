@@ -3,7 +3,7 @@ import { DOWNTOWN_MAP, shopfrontsOf } from "@topdown/shared";
 import { DOWNTOWN_DRESSING, MAP_PX_PER_M } from "./dressing";
 import { BARRIER_LAMPS, blinkerSpots, windowSpill } from "./drawCity";
 import { downtownScene } from "./testScene";
-import { legalDecayMasks } from "@topdown/shared";
+import { gameplayDecayMasks } from "@topdown/shared";
 
 /** Story 4.6 × 4.9: the warm shop-window glow comes from the map's lit shop fronts (box + face). */
 describe("window spill from the shop fronts", () => {
@@ -38,7 +38,7 @@ describe("window spill from the shop fronts", () => {
 
 describe("barrier lamps (Story 4.7 review)", () => {
   it("every police barrier gets its two lamps at every stage and combination, inside the view's pool", () => {
-    for (const mask of legalDecayMasks(DOWNTOWN_MAP)) {
+    for (const mask of gameplayDecayMasks(DOWNTOWN_MAP)) {
       for (let stage = 1; stage <= 5; stage++) {
         const cs = downtownScene(stage, mask);
         const barriers = cs.cover.filter((c) => c.kind === "barrier");

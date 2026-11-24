@@ -55,13 +55,16 @@ export interface NightLight {
   readonly rain: number;
   /** Story 5.10 (D4): the floodlight pool's strength (alpha of its additive glow) at this stage. */
   readonly floodA: number;
+  /** Story 6.2 (D8): × every neon sign's glow (stage 4 Ruins: 0.3; stage 5: the power is out, `powerOff`). */
+  readonly neonK: number;
 }
 export const NIGHT_BY_STAGE: readonly NightLight[] = [
-  { name: "dusk", ambient: "124,134,172", roofLight: "236,242,255", topLightA: 0.32, lampA: 0.5, spillK: 1.1, sky: "40,64,120", skyA: 0.1, rain: 0.5, floodA: 0.22 },
-  { name: "night", ambient: "104,114,140", roofLight: "236,240,255", topLightA: 0.3, lampA: 0.62, spillK: 1, sky: "0,0,0", skyA: 0, rain: 0.5, floodA: 0.28 },
-  { name: "deep night", ambient: "84,92,118", roofLight: "222,228,248", topLightA: 0.26, lampA: 0.62, spillK: 0.8, sky: "0,0,0", skyA: 0, rain: 1, floodA: 0.32 },
-  { name: "late night", ambient: "72,78,102", roofLight: "212,218,240", topLightA: 0.22, lampA: 0.6, spillK: 0.6, sky: "0,0,0", skyA: 0, rain: 1, floodA: 0.36 },
-  { name: "before dawn", ambient: "62,66,88", roofLight: "204,210,234", topLightA: 0.2, lampA: 0.58, spillK: 0.45, sky: "0,0,0", skyA: 0, rain: 1, floodA: 0.4 },
+  { name: "dusk", ambient: "124,134,172", roofLight: "236,242,255", topLightA: 0.32, lampA: 0.5, spillK: 1.1, sky: "40,64,120", skyA: 0.1, rain: 0.5, floodA: 0.22, neonK: 1 },
+  { name: "night", ambient: "104,114,140", roofLight: "236,240,255", topLightA: 0.3, lampA: 0.62, spillK: 1, sky: "0,0,0", skyA: 0, rain: 0.5, floodA: 0.28, neonK: 1 },
+  { name: "deep night", ambient: "84,92,118", roofLight: "222,228,248", topLightA: 0.26, lampA: 0.62, spillK: 0.8, sky: "0,0,0", skyA: 0, rain: 1, floodA: 0.32, neonK: 1 },
+  // Story 6.2 (D8): Ruins keeps 30 % of the shop glow (the night level is 1.0), neon × 0.3 too.
+  { name: "late night", ambient: "72,78,102", roofLight: "212,218,240", topLightA: 0.22, lampA: 0.6, spillK: 0.3, sky: "0,0,0", skyA: 0, rain: 1, floodA: 0.36, neonK: 0.3 },
+  { name: "before dawn", ambient: "62,66,88", roofLight: "204,210,234", topLightA: 0.2, lampA: 0.58, spillK: 0.45, sky: "0,0,0", skyA: 0, rain: 1, floodA: 0.4, neonK: 0 },
 ];
 /** The light state at `stage` (clamped to the table). */
 export function nightAt(stage: number): NightLight {

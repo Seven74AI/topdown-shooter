@@ -85,6 +85,9 @@ export class BloodTrailView {
     return n;
   }
 
+  /** Story 6.4 review L5 (D3): my screen's fog — a fog-hidden Crawler leaves no new mark (its path would show it). */
+  fog: { visibility(x: number, y: number): number } | null = null;
+
   update(world: Readonly<World>, alpha: number, frameDtMs: number, paused: boolean): void {
     if (!paused && frameDtMs > 0) this.clockMs += frameDtMs;
     const f = ++this.frame;
@@ -105,7 +108,7 @@ export class BloodTrailView {
         const dx = x - (this.lastX[id] as number);
         const dy = y - (this.lastY[id] as number);
         if (dx * dx + dy * dy >= spacing2) {
-          this.drop(x, y, Math.atan2(dy, dx));
+          if (!this.fog || this.fog.visibility(x, y) > 0) this.drop(x, y, Math.atan2(dy, dx));
           this.lastX[id] = x;
           this.lastY[id] = y;
         }

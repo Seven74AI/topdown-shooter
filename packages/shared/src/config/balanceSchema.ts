@@ -887,7 +887,7 @@ export const shopSchema = z
     });
   });
 
-/** Story 6.3: the shipped blackout values (every `lightPctByWave` entry 0: 6.4 fills waves 9–10). */
+/** Story 6.3: the blackout defaults (every `lightPctByWave` entry 0; Story 6.4 sets waves 9–10 and `halfDarkInBuild` in decay.json). */
 export const BLACKOUT_DEFAULTS = {
   lightPctByWave: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   powerFailureLightPct: 20,
@@ -954,6 +954,82 @@ export const blackoutSchema = z
   })
   .strict();
 
+/** Story 6.2: the shipped Ruins values (stage 4). */
+export const RUINS_DEFAULTS = {
+  lampOutMinS: 0.15,
+  lampOutMaxS: 0.6,
+  lampGapMinS: 4,
+  lampGapMaxS: 10,
+  dustGapMinS: 0.6,
+  dustGapMaxS: 1.6,
+  maxDustSmoke: 40,
+  maxDustGrit: 60,
+  collapseBurstS: 2,
+};
+
+/**
+ * Story 6.2 (Ruins, client look only; F6/F7): each streetlight drops out for `lampOutMinS`–`lampOutMaxS`
+ * every `lampGapMinS`–`lampGapMaxS` (keyed to the run seed and the World tick, so every phone agrees);
+ * a falling-debris dust puff every `dustGapMinS`–`dustGapMaxS` within the view (pooled: at most
+ * `maxDustSmoke` + `maxDustGrit` particles, halved with `?fx=low`); the stage-4 collapse burst lasts
+ * `collapseBurstS`. Nothing here changes the game.
+ */
+export const ruinsSchema = z
+  .object({
+    lampOutMinS: z.number().positive().max(5).default(RUINS_DEFAULTS.lampOutMinS),
+    lampOutMaxS: z.number().positive().max(5).default(RUINS_DEFAULTS.lampOutMaxS),
+    lampGapMinS: z.number().positive().max(60).default(RUINS_DEFAULTS.lampGapMinS),
+    lampGapMaxS: z.number().positive().max(60).default(RUINS_DEFAULTS.lampGapMaxS),
+    dustGapMinS: z.number().positive().max(30).default(RUINS_DEFAULTS.dustGapMinS),
+    dustGapMaxS: z.number().positive().max(30).default(RUINS_DEFAULTS.dustGapMaxS),
+    maxDustSmoke: z.number().int().min(0).max(256).default(RUINS_DEFAULTS.maxDustSmoke),
+    maxDustGrit: z.number().int().min(0).max(256).default(RUINS_DEFAULTS.maxDustGrit),
+    collapseBurstS: z.number().positive().max(10).default(RUINS_DEFAULTS.collapseBurstS),
+  })
+  .strict()
+  .refine((r) => r.lampOutMinS <= r.lampOutMaxS, "lampOutMinS must be ≤ lampOutMaxS")
+  .refine((r) => r.lampGapMinS <= r.lampGapMaxS, "lampGapMinS must be ≤ lampGapMaxS")
+  .refine((r) => r.lampGapMinS > r.lampOutMaxS, "a lamp's gap must be longer than its longest drop-out")
+  .refine((r) => r.dustGapMinS <= r.dustGapMaxS, "dustGapMinS must be ≤ dustGapMaxS");
+
+/** Story 6.4: the shipped Collapse values (stage 5). */
+export const COLLAPSE_DEFAULTS = {
+  powerOutFromStage: 5,
+  fog: { fromStage: 5, waveClearM: 9, waveRadiusM: 10, buildClearM: 13, buildRadiusM: 14 },
+  growlMinS: 6,
+  growlMaxS: 14,
+  maxAshFlakes: 128,
+};
+
+/**
+ * Story 6.4 (Collapse; FR63, FR87). From `powerOutFromStage` the streetlights, shop glow, neon, the
+ * canopy and the running car's lights are off (floodlights and fires stay lit). From `fog.fromStage`
+ * a zombie farther than `…ClearM` from your survivor fades out, hidden beyond `…RadiusM` (wave / build
+ * phase), unless a standing survivor's beam shows it; touch aim assist never snaps to a zombie your
+ * fog hides. Sound: a distant growl every `growlMinS`–`growlMaxS`; CO3's ash pool is capped.
+ */
+export const collapseSchema = z
+  .object({
+    powerOutFromStage: z.number().int().min(1).max(5).default(COLLAPSE_DEFAULTS.powerOutFromStage),
+    fog: z
+      .object({
+        fromStage: z.number().int().min(1).max(5),
+        waveClearM: z.number().positive().max(60),
+        waveRadiusM: z.number().positive().max(60),
+        buildClearM: z.number().positive().max(60),
+        buildRadiusM: z.number().positive().max(60),
+      })
+      .strict()
+      .refine((f) => f.waveClearM < f.waveRadiusM, "waveClearM must be < waveRadiusM")
+      .refine((f) => f.buildClearM < f.buildRadiusM, "buildClearM must be < buildRadiusM")
+      .default(COLLAPSE_DEFAULTS.fog),
+    growlMinS: z.number().positive().max(120).default(COLLAPSE_DEFAULTS.growlMinS),
+    growlMaxS: z.number().positive().max(120).default(COLLAPSE_DEFAULTS.growlMaxS),
+    maxAshFlakes: z.number().int().min(0).max(512).default(COLLAPSE_DEFAULTS.maxAshFlakes),
+  })
+  .strict()
+  .refine((c) => c.growlMinS <= c.growlMaxS, "growlMinS must be ≤ growlMaxS");
+
 /**
  * Story 4.5: the decay timeline (GDD › Level Progression; FR58). `stageByWave[n - 1]` is the decay
  * stage of wave n (waves past the table keep its last stage); it is applied at the start of the
@@ -991,6 +1067,10 @@ export const decaySchema = z
       .refine((f) => Math.abs(f.pulseS * TICK_RATE_HZ - Math.round(f.pulseS * TICK_RATE_HZ)) < 1e-9, "pulseS must be a whole number of ticks"),
     /** Story 6.3: blackout lighting (defaults = the shipped values; 6.4/6.10/6.12 switch blackouts on). */
     blackout: blackoutSchema.default(BLACKOUT_DEFAULTS),
+    /** Story 6.2: the Ruins flicker and dust (client look only). */
+    ruins: ruinsSchema.default(RUINS_DEFAULTS),
+    /** Story 6.4: power out and fog at stage 5. */
+    collapse: collapseSchema.default(COLLAPSE_DEFAULTS),
   })
   .strict();
 

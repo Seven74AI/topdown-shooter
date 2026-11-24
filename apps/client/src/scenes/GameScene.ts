@@ -27,6 +27,8 @@ import {
   ownedCount,
   upgradePriceTable,
   spectateTarget,
+  collapseStyleAt,
+  ruinsLookAt,
   weaponName,
   ticksFor,
   weaponIds,
@@ -101,6 +103,9 @@ import { ABOVE_DARK } from "../render/darkness/aboveDark";
 import { EyesView } from "../render/darkness/EyesView";
 import { BeamSparkleView } from "../render/darkness/BeamSparkleView";
 import { DarknessPlan, FlashLights, planDarkness, type DarknessInputs } from "../render/darkness/darknessPlan";
+import { ScreenFog } from "../render/fog/screenFog";
+import { FogView } from "../render/fog/FogView";
+import { DustView } from "../render/city/DustView";
 import { MedStationView } from "../render/MedStationView";
 import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
@@ -351,6 +356,11 @@ export class GameScene extends Phaser.Scene {
   private flashLights: FlashLights | null = null;
   /** Story 6.3: a blackout is on this frame (survivors above the darkness; flashes recorded). */
   private blackoutNow = false;
+  /** Story 6.4: my screen's fog (the camera's survivor + every standing survivor's beam) and its look. */
+  private screenFog: ScreenFog | null = null;
+  private fogView: FogView | null = null;
+  /** Story 6.2: Ruins dust puffs and the collapse burst. */
+  private dustView: DustView | null = null;
   private readonly darkInputs: DarknessInputs = {
     localId: "",
     drawnOf: (id) => this.playerViews.get(id),
@@ -669,6 +679,14 @@ export class GameScene extends Phaser.Scene {
     this.darkInputs.flashes = this.flashLights;
     this.darkInputs.molotovs = [];
     this.blackoutNow = false;
+    // Story 6.4: the fog (rule on my screen + its look, painted into the darkness when it is drawn).
+    this.screenFog = new ScreenFog();
+    this.fogView = new FogView(this, this.screenFog, opts.lowFx);
+    this.darknessView.fog = this.fogView;
+    if (this.zombieView) this.zombieView.fog = this.screenFog;
+    if (this.trailView) this.trailView.fog = this.screenFog; // review L5: no trail marks from fog-hidden Crawlers
+    // Story 6.2: Ruins dust (pools sized by decay.json › ruins; halved with ?fx=low).
+    this.dustView = new DustView(this, balance.decay.ruins.maxDustSmoke, balance.decay.ruins.maxDustGrit, opts.lowFx);
     // Story 6.3 (AC 13): ?blackout=20|10|5 (solo, release-safe) forces the level for the whole run.
     if (!session && opts.blackoutPct !== null) setForcedBlackout(world, opts.blackoutPct);
     this.medStationView = new MedStationView(this, balance);
@@ -705,7 +723,7 @@ export class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, world.map.widthM, world.map.heightM);
     this.applyZoom();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.applyZoom, this);
-    this.cityView = new CityView(this, world.map, cam.zoom, urlOptions().lowFx);
+    this.cityView = new CityView(this, world.map, cam.zoom, urlOptions().lowFx, () => this.runSeed); // Story 6.2: the lamp flicker key
     if (stress !== null) {
       // Fixed ?stress scenario (release too): god mode, waves paused, Walkers inside the view, Pistol.
       const view = viewAround(world.map, cx, cy, this.scale.width / cam.zoom, this.scale.height / cam.zoom, { x: 0, y: 0, w: 0, h: 0 });
@@ -768,6 +786,11 @@ export class GameScene extends Phaser.Scene {
       this.floodlightView = null;
       this.darknessView?.destroy(); // Story 6.3
       this.darknessView = null;
+      this.fogView?.destroy(); // Story 6.4
+      this.fogView = null;
+      this.screenFog = null;
+      this.dustView?.destroy(); // Story 6.2
+      this.dustView = null;
       this.eyesView?.destroy();
       this.eyesView = null;
       this.sparkleView?.destroy();
@@ -1976,6 +1999,9 @@ export class GameScene extends Phaser.Scene {
         if (perf.net && perf.overlayOn) netSummary.start(performance.now(), e.number, perf.net, netMeter);
       } else if (e.type === "decay.stage_changed") {
         this.stackBanner(host.world.balance.decay.stageNames[e.stage - 1] ?? `Stage ${e.stage}`); // Story 4.5: "Panic"
+        // Story 6.2 (D9): the collapse moment — a rumble and a dust burst, live only (a tab that slept
+        // across the build start wakes with a long frame: it shows the stage without the one-off cue).
+        if (e.stage === 4 && deltaMs < LIVE_FRAME_MAX_MS && !document.hidden) this.dustView?.burst(host.world, host.world.balance.decay.ruins.collapseBurstS);
       } else if (e.type === "wave.ended") {
         this.showBanner(`Wave ${e.number} cleared`);
         if (perf.net) netSummary.end(performance.now(), e.number, perf.net, netMeter, perf.overlayOn);
@@ -1995,6 +2021,7 @@ export class GameScene extends Phaser.Scene {
       stopFlameLoop();
       this.flameLooping = false;
     }
+    this.updateScreenFog(host, localId);
     this.zombieView?.update(host.world, host.alpha);
     this.updateBoss(host, deltaMs / 1000); // Story 6.5
     this.updateVote(host); // Story 6.11
@@ -2019,7 +2046,7 @@ export class GameScene extends Phaser.Scene {
     this.projectileView?.update(host.world.projectiles, host.alpha);
     this.syncPlayerViews(host.world, this.localHost?.paused === true ? 0 : deltaMs / 1000);
     this.downedView?.update(host.world, this.time.now);
-    this.ambience?.update(host.world.decay.stage);
+    this.ambience?.update(host.world.decay.stage, collapseStyleAt(host.world)); // Story 6.4: the ash style mutes the rain bed
     // Story 5.23 (AC 1): a fresh pick pops the ghost (0.8 → 1 in 120 ms) with a soft click
     if (this.placement.picks !== this.seenPicks) {
       this.seenPicks = this.placement.picks;
@@ -2119,7 +2146,24 @@ export class GameScene extends Phaser.Scene {
     // stage-1 bake followed by a second one a moment later on a late join).
     const synced = !(host instanceof NetSimHost) || host.decaySynced;
     this.cityView?.update(host.world, this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000, synced);
-    this.updateDarkness(host, zoom);
+    this.dustView?.update(host.world, ruinsLookAt(host.world), this.hudModel.camX, this.hudModel.camY, this.scale.width / zoom, this.scale.height / zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000);
+    this.updateDarkness(host, zoom, this.localHost?.paused === true ? 0 : deltaMs / 1000);
+  }
+
+  /**
+   * Story 6.4 (F3, D2, D10): this frame's fog on my screen, before the zombie, eye and spit views:
+   * centred on the camera's survivor (mine; the teammate I spectate while out), every standing
+   * survivor's beam at its drawn pose (last frame's: the views update after the zombies).
+   */
+  private updateScreenFog(host: SceneHost, localId: string): void {
+    const fog = this.screenFog;
+    if (!fog) return;
+    const world = host.world;
+    const me = world.players.get(localId);
+    const target = me && me.status === "out" ? spectateTarget(world, localId) : null;
+    const viewer = (target && this.playerViews.get(target.id)) ?? this.playerViews.get(localId) ?? target ?? me;
+    fog.update(world, viewer?.x ?? 0, viewer?.y ?? 0, this.darkInputs.drawnOf);
+    if (this.acidView) this.acidView.fog = fog;
   }
 
   /**
@@ -2127,7 +2171,7 @@ export class GameScene extends Phaser.Scene {
    * is known: the stamp plan, the darkness, the eyes within `eyesM` of my (or my spectated) survivor
    * and the beam sparkles. All hidden and idle while no blackout (F9).
    */
-  private updateDarkness(host: SceneHost, zoom: number): void {
+  private updateDarkness(host: SceneHost, zoom: number, dtS: number): void {
     const world = host.world;
     const on = isBlackoutNow(world);
     if (on !== this.blackoutNow) {
@@ -2147,6 +2191,7 @@ export class GameScene extends Phaser.Scene {
       padDarknessView(m.camX, m.camY, vw, vh, inp); // review M1: the padded darkness (camera shake)
       planDarkness(plan, world, inp);
     }
+    this.fogView?.update(world, plan, dtS); // Story 6.4: before the darkness paints (the fog rides in it)
     this.darknessView?.update(world, plan, m.camX, m.camY, vw, vh, zoom, this.scale.width, this.scale.height);
     if (this.zombieView) this.eyesView?.update(world, this.zombieView, m.localX, m.localY, world.balance.decay.blackout.eyesM);
     this.sparkleView?.update(world, plan, this.acidClockS);
@@ -2165,6 +2210,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 }
+
+/** Story 6.2: a frame longer than this follows a hidden tab (no one-off collapse burst on wake). */
+const LIVE_FRAME_MAX_MS = 250;
 
 /** Story 6.3: a muzzle flash lights round a point this far ahead of the shooter (looks.html: 0.8 m). */
 const MUZZLE_LIGHT_AHEAD_M = 0.8;

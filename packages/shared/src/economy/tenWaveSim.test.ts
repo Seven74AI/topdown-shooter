@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { loadBalance } from "../config/balance";
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
+import type { World } from "../core/world";
+import { isSpawnBuried } from "../waves/spawnPick";
 
 /**
  * Story 6.1 (AC 5; brief lines 9 and 15): the full 10-wave run with the real balance and every real
@@ -28,7 +30,25 @@ describe("Story 6.1: ten-wave sim", () => {
     const runs: HeadlessRunLog[] = [];
     for (const seed of SEEDS) {
       let god = false;
-      const r = runHeadless({ balance, seed, players: 4, god: true, onEnd: (w) => void (god = w.debug.godMode) });
+      // Story 6.2 review M3: from wave 7 (stage 4) the run's collapsed alley buries one mouth, and the
+      // wave director really picks the breaches (read from its recent-pick ring every tick).
+      const buriedAtRuins = new Set<string>();
+      const pickedFrom7 = new Set<string>();
+      let prevHead = -1;
+      const onTick = (w: World): void => {
+        if (w.decay.stage < 4) return;
+        if (buriedAtRuins.size === 0) w.map.spawnPoints.forEach((sp, i) => void (isSpawnBuried(w, i) && buriedAtRuins.add(sp.name)));
+        const cap = Math.min(w.waves.recentSpawns.length, balance.waves.spawnPick.recentPicks);
+        if (prevHead < 0) prevHead = w.waves.recentSpawnHead; // picks before stage 4 stay out
+        // Only the picks made since the last tick (the ring advanced from prevHead to the head).
+        for (let k = prevHead; k !== w.waves.recentSpawnHead; k = (k + 1) % cap) pickedFrom7.add((w.map.spawnPoints[w.waves.recentSpawns[k] as number] as { name: string }).name);
+        prevHead = w.waves.recentSpawnHead;
+      };
+      const r = runHeadless({ balance, seed, players: 4, god: true, onTick, onEnd: (w) => void (god = w.debug.godMode) });
+      expect([...buriedAtRuins].length, `seed ${seed}: one alley mouth buried at stage 4`).toBe(1);
+      expect([...buriedAtRuins][0], `seed ${seed}`).toMatch(/^alley_[123]_mouth$/);
+      expect(pickedFrom7.has([...buriedAtRuins][0] as string), `seed ${seed}: the buried mouth is never picked`).toBe(false);
+      expect([...pickedFrom7].some((n) => n.startsWith("breach_")), `seed ${seed}: a breach used from wave 7`).toBe(true);
       runs.push(r);
       // Mutation check: mortal 4-bot runs often clear all 10 waves too, so prove D2's method was really used.
       expect(god, `seed ${seed}: god mode on`).toBe(true);

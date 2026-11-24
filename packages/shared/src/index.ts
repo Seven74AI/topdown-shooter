@@ -96,13 +96,13 @@ export {
   type SpawnKind,
   type VisualProp,
 } from "./map/districtMap";
-export { SPAWN_SIDE, SPAWN_SIDE_NAMES, SPAWN_STATE, spawnPointStates, spawnSide, type SpawnState } from "./waves/spawnPick";
+export { SPAWN_SIDE, SPAWN_SIDE_NAMES, SPAWN_STATE, isSpawnBuried, spawnPointStates, spawnSide, type SpawnState } from "./waves/spawnPick";
 export { MAP_LAYERS, MAP_STAGE_GROUPS, MapError, loadTiledMap } from "./map/loadTiledMap";
 export { fillCollisionCells, mapCollisionCells } from "./map/collisionCells";
 export { FIRST_DECAY_STAGE, currentDecayStage } from "./map/decayStage";
-export { createObstacles, fillObstacles, mutationApplies, type ObstacleState } from "./map/obstacles";
+export { createObstacles, fillObstacles, isRubble, mutationApplies, RUBBLE_PREFIX, rubblePiles, type ObstacleState } from "./map/obstacles";
 // Story 4.5: the decay stage engine.
-export { createDecayState, fireRecordOf, legalDecayMasks, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
+export { createDecayState, fireRecordOf, gameplayVariantMask, gameplayDecayMasks, legalDecayMasks, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
 export { applyDecayStage } from "./decay/applyDecayStage";
 // Story 5.10: the derived light-source list; med station healing.
 export {
@@ -617,3 +617,18 @@ export { chargeKnockStepMm, knockPlayerBy, knockPlayerDir, knockStepMmOf } from 
 export { type BossStats } from "./config/balanceSchema";
 // Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
 export { applyStartWave, MAX_START_WAVE, parseStartWave } from "./run/devStartWave";
+// Story 6.2 (Ruins) / 6.4 (Collapse): look picks and the fog / power-out rules (shared, pure).
+export { RUINS_LOOKS, RUINS_LOOK_GUTTED, RUINS_LOOK_GROUP, isEndlessWave, lookPick, ruinsLookAt, type RuinsLook } from "./decay/ruinsLook";
+export {
+  COLLAPSE_STYLES,
+  COLLAPSE_STYLE_GROUP,
+  collapseStyleAt,
+  createFogBeam,
+  createFogRadii,
+  fogRadiiOf,
+  fogVisibility,
+  isPowerOut,
+  type CollapseStyle,
+  type FogBeam,
+  type FogRadii,
+} from "./decay/collapse";
