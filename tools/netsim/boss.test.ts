@@ -149,7 +149,7 @@ describe("Story 6.6 netsim: charges and throws under ?lag=150&jitter=20", () => 
     const HALF = balance.boss.charge.laneWidthM / 2 - balance.boss.edgeGraceM;
     const TR = balance.boss.throw.radiusM - balance.boss.edgeGraceM;
     const c = { charges: 0, hits: 0, misses: 0, throws: 0, tHits: 0, tMisses: 0 };
-    let damagedNow = false;
+    let damagedNow: boolean;
     let chargeHit = false;
     let mustHit = false;
     let prevAlong = 0;
@@ -165,7 +165,7 @@ describe("Story 6.6 netsim: charges and throws under ?lag=150&jitter=20", () => 
         b.cooldown.charge = 1e9;
       }
       // The bot's wish: charges — wobble across the band 6 m along the lane; throws — walk back and forth 10–16 m away.
-      let mx = 0;
+      let mx: number;
       let my = 0;
       if (phase === "charge") {
         const want = 16 + HALF + Math.sin(t * 0.21) * 0.8 + (rng.next() - 0.5) * 0.3;
