@@ -165,8 +165,21 @@ const runFields = {
   blackoutPct: t.uint8().default(0),
   /** Story 6.3: the darkness is drawn at half strength (6.4: build phases at stage 5), on change only. */
   halfDark: t.boolean().default(false),
-  /** Story 6.5: the Behemoth (state NONE outside a boss fight). Appended last. */
+  /** Story 6.5: the Behemoth (state NONE outside a boss fight). */
   boss: BossState,
+  // Story 6.8 (brief 14): the active special event (late join / woken tab draws its marker from these).
+  // Written by `syncState` on change only; never the schedule (D8). 6.9 / 6.10 append theirs.
+  /** `EVENT_KINDS` index (255 = none). */
+  eventKind: t.uint8().default(255),
+  /** `EVENT_PHASE`. */
+  eventPhase: t.uint8().default(0),
+  eventStartTick: t.uint32().default(0),
+  eventPhaseTick: t.uint32().default(0),
+  /** The marker, in centimetres. */
+  eventX: t.uint16().default(0),
+  eventY: t.uint16().default(0),
+  /** The stampede's lane (`map.stampedeLanes` index; 255 = none). */
+  eventLane: t.uint8().default(255),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

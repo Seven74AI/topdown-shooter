@@ -1,7 +1,7 @@
 import type * as Phaser from "phaser";
 import { h, render } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { MAP_STAGE_COUNT, ZOMBIE_TYPES, currentDecayStage, setLoadout, skipWave, spawnRing, weaponIds, type ZombieTypeId } from "@topdown/shared";
+import { MAP_STAGE_COUNT, ZOMBIE_TYPES, currentDecayStage, forceEvent, setLoadout, skipWave, spawnRing, weaponIds, type ZombieTypeId } from "@topdown/shared";
 import type { GameScene } from "../scenes/GameScene";
 import { LOCAL_PLAYER_ID } from "../sim/LocalSimHost";
 import { perf } from "./perfStats";
@@ -130,6 +130,15 @@ function DevCheats({ game }: { game: Phaser.Game }) {
             </button>
             <button type="button" onClick={() => w && (spawnBehemothCheat(w), refresh())}>
               Spawn Behemoth
+            </button>
+          </div>
+          <div class="dev-cheats__row">
+            {/* Story 6.8: Force event ▸ kind (the coming wave, at 20 %) */}
+            <button type="button" onClick={() => w && (forceEvent(w, "car_alarm"), refresh())}>
+              Force car alarm
+            </button>
+            <button type="button" onClick={() => w && (forceEvent(w, "stampede"), refresh())}>
+              Force stampede
             </button>
           </div>
           <fieldset>

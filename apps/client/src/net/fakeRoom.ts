@@ -74,6 +74,14 @@ export interface FakeState {
   halfDark: boolean;
   /** Story 6.5: the boss record. */
   boss: FakeBoss;
+  /** Story 6.8: the active special event. */
+  eventKind: number;
+  eventPhase: number;
+  eventStartTick: number;
+  eventPhaseTick: number;
+  eventX: number;
+  eventY: number;
+  eventLane: number;
 }
 
 export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] };
@@ -104,6 +112,13 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     blackoutPct: 0,
     halfDark: false,
     boss: fakeBoss(),
+    eventKind: 255, // Story 6.8: none
+    eventPhase: 0,
+    eventStartTick: 0,
+    eventPhaseTick: 0,
+    eventX: 0,
+    eventY: 0,
+    eventLane: 255,
   };
 }
 

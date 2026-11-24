@@ -1,3 +1,5 @@
+import type { EventKind, EventOutcome } from "../events/eventState";
+
 /**
  * Why money was earned (Story 3.2). Append only: the index goes on the wire (`net/netEvents.ts`).
  * Story 4.5 appends "refund" (a building a decay stage destroyed: 50 % of its price back).
@@ -215,6 +217,14 @@ export type SimEvent =
   | { type: "boss.enraged"; x: number; y: number; /** Client only. */ ageS?: number }
   | { type: "boss.crawler_dropped"; x: number; y: number }
   | { type: "boss.killed"; killerId: string | null; weapon: string; x: number; y: number; number: number; /** Client only. */ ageS?: number }
+  // Story 6.8: the special events (global on the wire: team cues). `kind` = an `EVENT_KINDS` id.
+  /** It started (banner + sound + marker on every phone, F1); `phase` its first phase, `lane` the stampede's lane (−1: none). */
+  | { type: "event.triggered"; kind: EventKind; wave: number; x: number; y: number; startTick: number; phase: number; lane: number; /** Client only: seconds since it happened (a woken tab: no late banner). */ ageS?: number }
+  /** Its phase changed on `tick` (armed → alarm with the shooter, or null for the timer; warning → running). */
+  | { type: "event.phase_changed"; kind: EventKind; phase: number; tick: number; playerId: string | null; /** Client only. */ ageS?: number }
+  | { type: "event.ended"; kind: EventKind; outcome: EventOutcome }
+  /** A scheduled event could not start (F9 safety net) or its wave passed without it. */
+  | { type: "event.skipped"; kind: EventKind; wave: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

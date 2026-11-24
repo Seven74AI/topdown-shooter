@@ -20,6 +20,7 @@ import { updateMines } from "../buildings/mine";
 import { catchOnBearTraps } from "../buildings/bearTrap";
 import { BLOATER_SWELL_WEAPON, burstBurntSwells, startSwell, tickSwell } from "./bloater";
 import { killZombie } from "./zombiePool";
+import { stampedeContact, stampedeSteer, stampedeVel } from "../events/stampede";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
 const MAX_NEIGHBOURS = 64;
@@ -71,6 +72,42 @@ function nearestAlivePlayer(x: number, y: number): PlayerState | null {
     }
   }
   return best;
+}
+
+/** Story 6.8 (F5): a standing player's centre is within `m` of (x, y). */
+function standingWithin(x: number, y: number, m: number): boolean {
+  const m2 = m * m;
+  for (let i = 0; i < alivePlayers.length; i++) {
+    const p = alivePlayers[i] as PlayerState;
+    if (p.status !== "alive") continue;
+    const dx = p.x - x;
+    const dy = p.y - y;
+    if (dx * dx + dy * dy <= m2) return true;
+  }
+  return false;
+}
+
+/**
+ * Story 6.8 (F5, DD3): a lured zombie's velocity into `steer`: by the lure field (the wide one for a
+ * wide body) round cover to the car — never a straight line through it — and, once at the car (a seed
+ * cell) or before the field is built, straight at its centre (the car's own box stops it: it crowds round).
+ */
+function lureSteer(world: World, id: number, x: number, y: number, speedMps: number): void {
+  const pa = world.pathing;
+  const car = world.special.carAlarm;
+  const wide = isWideType(world, world.zombies.type[id] as number);
+  let tx = (car.minX + car.maxX) / 2;
+  let ty = (car.minY + car.maxY) / 2;
+  if (steerByField(world, wide ? pa.lureWide : pa.lure, wide ? pa.wide : pa.nav, x, y, id)) {
+    fieldMode[id] = 1;
+    tx = steer.x;
+    ty = steer.y;
+  }
+  const dx = tx - x;
+  const dy = ty - y;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  steer.x = d > COINCIDENT_M ? (dx / d) * speedMps : 0;
+  steer.y = d > COINCIDENT_M ? (dy / d) * speedMps : 0;
 }
 
 /** One zombie hit: damage, and the type's bite slow (Story 3.9: Crawlers). Story 5.7: the knockback (Brutes; never when the hit downs, F3). */
@@ -192,14 +229,32 @@ export const updateZombies: SystemFn = (world, dtS) => {
       pool.vy[id] = 0;
       continue;
     }
-    const holds = stats.spit !== undefined && spitterStep(world, id, stats.radiusM, stats.spit);
+    // Story 6.8 (F6): a stampede Runner runs its lane (no target, no field, no flanking).
+    const stampede = pool.state[id] === ZOMBIE_STATE.STAMPEDE;
+    // Story 6.8 (F5): a lured zombie walks to the sounding car — unless a standing player is within
+    // `distractBreakM` (then it goes for them as usual); a Spitter's windup still plays to its end.
+    let lureWalk = false;
+    if (!stampede && (pool.lureTicks[id] as number) > 0) {
+      pool.lureTicks[id] = (pool.lureTicks[id] as number) - 1;
+      lureWalk = !isRushState(pool.state[id] as number) && !standingWithin(x, y, world.balance.events.carAlarm.distractBreakM);
+    }
+    const holds = !stampede && !(lureWalk && !isWindupState(pool.state[id] as number)) && stats.spit !== undefined && spitterStep(world, id, stats.radiusM, stats.spit);
     // Story 5.14 (AC 3): held in a bear trap's jaws: no walking, no soft push (a Spitter still spits: above).
     if ((pool.holdTicks[id] as number) > 0) {
       pool.vx[id] = 0;
       pool.vy[id] = 0;
       continue;
     }
-    const target = holds ? null : nearestAlivePlayer(x, y);
+    if (stampede) {
+      stampedeSteer(world, x, y, stats.radiusM, (world.balance.events.stampede.speedMps * (100 - (pool.slowPct[id] as number))) / 100);
+      vx = stampedeVel.x;
+      vy = stampedeVel.y;
+    } else if (lureWalk && !holds) {
+      lureSteer(world, id, x, y, speedMps);
+      vx = steer.x;
+      vy = steer.y;
+    }
+    const target = holds || stampede || lureWalk ? null : nearestAlivePlayer(x, y);
     if (target) {
       let dx = target.x - x;
       let dy = target.y - y;
@@ -318,6 +373,9 @@ export const updateZombies: SystemFn = (world, dtS) => {
     // one tick per movement tick (it still attacks below).
     const held = (pool.holdTicks[id] as number) > 0;
     if (held) pool.holdTicks[id] = (pool.holdTicks[id] as number) - 1;
+    // Story 6.8 (F7): a stampede Runner hits each standing player it touches once, on its own mask; never bites or swings.
+    const stampede = pool.state[id] === ZOMBIE_STATE.STAMPEDE;
+    if (stampede) stampedeContact(world, id, x, y, rz, CONTACT_EPS_M);
     const target = nearestAlivePlayer(x, y);
     if (target) {
       const contact = rz + target.radiusM;
@@ -339,9 +397,12 @@ export const updateZombies: SystemFn = (world, dtS) => {
       // Story 5.7 review M1: a target in a slot narrower than the Brute is wound up on from the
       // slot's mouth, inside the long gap reach, with a clear line.
       const gapSwing =
+        !stampede &&
         stats.gapReachM > 0 && d > contact + CONTACT_EPS_M && d < stats.gapReachM - stats.swingToleranceM && pool.attackCooldownTicks[id] === 0 && !windup && swingReachFor(world, stats, target) === stats.gapReachM && meleeLineClear(world, x, y, target.x, target.y);
       if (gapSwing && !isWindupState(pool.state[id] as number)) startWindup(world, id, stats);
-      if (ex !== undefined) {
+      if (stampede) {
+        // Story 6.8: pushed out of the player above, the hit is `stampedeContact`'s (no shove, D5).
+      } else if (ex !== undefined) {
         // Story 5.8 (FR-A): a Bloater never bites: touching a standing player starts its swell.
         if (!swelling && d <= contact + CONTACT_EPS_M) startSwell(world, id, ex);
       } else if (d <= contact + CONTACT_EPS_M && pool.attackCooldownTicks[id] === 0 && !windup) {
@@ -377,7 +438,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
     let bid = targetBuilding[id] as number;
     // Review L1 (5.14, "caught by the leg, not stunned"): a held zombie hits a wall building it touches
     // (a barricade or turret in reach) at its normal rate (a Brute ×3); floor buildings are never hit.
-    if (held && bid === 0 && hasBuildings) bid = touchingBuilding(world, x, y, rz + CONTACT_EPS_M);
+    if (held && bid === 0 && hasBuildings && !stampede) bid = touchingBuilding(world, x, y, rz + CONTACT_EPS_M); // Story 6.8 (D5): Runners never hit buildings
     // Review H1 safety net: following the field but the push-out can't place it (wedged against
     // buildings) → the building it touches is the target, whatever the field says. Re-review: the
     // "no progress for stuckTicks" trigger was dropped — in a crowd, zombies held back by other

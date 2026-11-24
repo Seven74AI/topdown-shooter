@@ -1,3 +1,4 @@
+import { EVENT_KINDS } from "../events/eventState";
 import type { Balance } from "../config/balance";
 import type { World } from "../core/world";
 import { activeSlot } from "../combat/loadout";
@@ -107,6 +108,12 @@ export interface BotView {
    */
   huntStepX: number;
   huntStepY: number;
+  /**
+   * Story 6.8 (AC 14): I stand in a stampede's lane while it warns or runs: the way out (sideways, to
+   * the nearer edge), or 0, 0. A World view only.
+   */
+  laneOutX: number;
+  laneOutY: number;
 }
 
 export interface BotConfig {
@@ -142,6 +149,8 @@ export function createBotView(): BotView {
     cluster: { x: 0, y: 0, distM: 0, holdsSpot: false },
     huntStepX: 0,
     huntStepY: 0,
+    laneOutX: 0,
+    laneOutY: 0,
   };
 }
 
@@ -234,6 +243,12 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
     return;
   }
 
+  // 1b. Story 6.8: out of a stampede's lane (bots don't shoot the armed car: the timer sets it off).
+  if (view.laneOutX !== 0 || view.laneOutY !== 0) {
+    moveToward(out, view.laneOutX, view.laneOutY);
+    return;
+  }
+
   // 2. Back away from a zombie that is too close (Story 6.5: not from the Behemoth's body edge: its slam,
   // not its touch, is the danger, and backing off a boss behind cover would stall the fight).
   if (z && z.distM < cfg.keepDistanceM && z.boss !== true) {
@@ -252,7 +267,10 @@ export function botInput(view: BotView, cfg: BotConfig, seq: number, out: Player
   // 2c. Every zombie in range is behind cover (a barricade stops my bullets): strafe 90° left of the
   // nearest to open a line.
   if (z && view.knowsCover && view.shotZombie === null && z.distM <= me.rangeM) {
-    moveToward(out, -(z.y - me.y), z.x - me.x);
+    // Story 6.8 (found by the 10-wave sim): the side flips every STRAFE_FLIP_SEQS inputs, so a bot
+    // pinned against the bus by its strafe (always left) gets out of the pocket and opens a line.
+    const side = ((seq / STRAFE_FLIP_SEQS) | 0) % 2 === 0 ? 1 : -1;
+    moveToward(out, -(z.y - me.y) * side, (z.x - me.x) * side);
     return;
   }
 
@@ -342,6 +360,24 @@ function huntStep(world: World, x: number, y: number, out: BotView): void {
   out.huntStepY = flowCellCenterY(nav, c) - y;
 }
 
+/** Story 6.8: a stampede lane's margin a bot keeps (m, beyond the lane's edge). */
+const LANE_MARGIN_M = 1;
+
+/** Story 6.8 (AC 14): the way out of the active stampede's lane for a bot at (x, y), into `out.laneOut*`. */
+function laneOut(world: World, x: number, y: number, out: BotView): void {
+  const a = world.special.active;
+  if (a.kind !== STAMPEDE_KIND || a.lane < 0) return;
+  const l = world.map.stampedeLanes[a.lane];
+  if (!l) return;
+  if (x < l.minX - LANE_MARGIN_M || x > l.maxX + LANE_MARGIN_M || y < l.minY - LANE_MARGIN_M || y > l.maxY + LANE_MARGIN_M) return;
+  if (l.dir === "e" || l.dir === "w") out.laneOutY = y - l.minY < l.maxY - y ? -1 : 1;
+  else out.laneOutX = x - l.minX < l.maxX - x ? -1 : 1;
+}
+const STAMPEDE_KIND = EVENT_KINDS.indexOf("stampede");
+
+/** Story 6.8: rule 2c's strafe changes side every this many input seqs (3.2 s at 20 Hz). */
+const STRAFE_FLIP_SEQS = 64;
+
 /** Story 6.5: cells the hunt looks ahead along its way. */
 const HUNT_LOOKAHEAD_CELLS = 4;
 
@@ -362,6 +398,8 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
   out.teammateCount = 0;
   out.huntStepX = 0;
   out.huntStepY = 0;
+  out.laneOutX = 0;
+  out.laneOutY = 0;
   out.nearestZombie = null;
   out.knowsCover = true;
   out.shotZombie = null;
@@ -375,6 +413,7 @@ export function botViewFromWorld(world: World, playerId: string, out: BotView): 
   self.x = p.x;
   self.y = p.y;
   self.status = p.status;
+  laneOut(world, p.x, p.y, out); // Story 6.8
   const stats = world.balance.weapons[activeSlot(p.loadout).weapon];
   self.rangeM = stats?.rangeM ?? 0;
   self.lobRangeM = stats?.kind === "launcher" ? stats.lobRangeM : 0; // Story 5.5

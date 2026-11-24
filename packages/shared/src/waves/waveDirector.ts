@@ -6,6 +6,7 @@ import { spawnZombie } from "../zombies/zombiePool";
 import { announceSpawn } from "../zombies/brute";
 import { bossActive } from "../boss/bossState";
 import { bossPending } from "../boss/behemoth";
+import { stampedeRunnersAlive } from "../events/stampede";
 import { createSpawnPickState, pickSpawnPoint, type SpawnPickState } from "./spawnPick";
 import { ZOMBIE_STATE, ZOMBIE_TYPES, type ZombieTypeId } from "../zombies/zombieTypes";
 
@@ -345,7 +346,8 @@ export function updateWaves(world: World): boolean {
   w.spawnTimerTicks--;
   if (w.spawnTimerTicks <= 0 && w.queued > 0) {
     w.spawnTimerTicks = ticksFor(b.spawnIntervalS);
-    const room = maxAliveNow(world) - world.zombies.aliveCount; // Story 6.5 (D6): 110 while the Behemoth warns or lives
+    // Story 6.5 (D6): 110 while the Behemoth warns or lives. Story 6.8 (AC 10): none while stampede Runners run.
+    const room = stampedeRunnersAlive(world) > 0 ? 0 : maxAliveNow(world) - world.zombies.aliveCount;
     const batch = Math.min(b.spawnPerInterval, w.queued, Math.max(0, room));
     if (batch === 0) w.spawnHeldSinceTick = -1; // review L2: no pick this interval (pool full): the hold starts over
     for (let i = 0; i < batch; i++) {

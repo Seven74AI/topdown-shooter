@@ -13,6 +13,7 @@ import { clearMolotovZones } from "../hazards/molotov";
 import { clearBlasts, drainBlasts } from "../zombies/bloater";
 import { resetBuildSpend } from "../buildings/buildings";
 import { refreshBlackout } from "../decay/lightState";
+import { endSpecialEvent, eventHoldsWave } from "../events/specialEvents";
 
 /**
  * The run state machine (Story 3.1, architecture › Run state machine; FR44):
@@ -152,7 +153,8 @@ function everyoneReady(world: World): boolean {
  * - a team wipe this tick (or earlier) → `endRun`;
  * - `waves.paused` (dev): nothing moves;
  * - build: everyone Ready, or the countdown reaching 0 → `startWave` (its first batch spawns now);
- * - wave: the wave director's tick; a cleared wave → `endWave` (→ the next build).
+ * - wave: the wave director's tick; a cleared wave → `endWave` (→ the next build), unless a special
+ *   event holds it (Story 6.8 D6: a crossing stampede) — then it ends on the first tick after.
  */
 export const updateRun: SystemFn = (world) => {
   const run = world.run;
@@ -169,12 +171,14 @@ export const updateRun: SystemFn = (world) => {
     }
     startWave(world);
   }
-  if (updateWaves(world)) endWave(world);
+  // Story 6.8 (D6, F8): a cleared wave waits while an event holds it (a crossing stampede); it ends the tick after.
+  if (updateWaves(world) && !eventHoldsWave(world)) endWave(world);
 };
 
 /** Dev cheat (Story 1.11): kill every wave zombie and end the wave (→ the build phase). */
 export function skipWave(world: World): void {
   if (world.run.phase !== "wave") return;
+  endSpecialEvent(world, "wave_end"); // Story 6.8: the active event ends first (its stampede Runners go)
   const z = world.zombies;
   for (let i = z.aliveCount - 1; i >= 0; i--) {
     const id = z.aliveIds[i] as number;

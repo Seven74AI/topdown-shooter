@@ -1,3 +1,4 @@
+import { mirrorSpecialEvent } from "../net/mirrorEvent";
 import { FlameCues } from "../render/flameCues";
 import {
   C2S,
@@ -646,6 +647,9 @@ export class NetSimHost implements SimHost {
       } else if (e.type === "building.placed") {
         // Story 5.23 (AC 6): its age, so a woken tab's backlog plays no thunk, haptic or dust.
         e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
+      } else if (e.type === "event.triggered" || e.type === "event.phase_changed") {
+        // Story 6.8 (brief 14): its age, so a woken tab's backlog shows no late banner or sound (the marker follows the room state).
+        e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       } else if (e.type === "bloater.burst" || e.type === "bloater.swell_started") {
         // Story 5.8: its age: BloaterFx back-dates a burst's cloud (and drops one older than gasS: no
         // ghost cloud after a woken tab), GameScene plays no burst sound for a stale one.
@@ -763,6 +767,7 @@ export class NetSimHost implements SimHost {
     // Story 6.5: the Behemoth (server truth) and its last two positions (drawn at the render tick).
     mirrorBoss(this.world, state.boss);
     if (state.boss) trackBoss(this.bossTrack, state.boss.x, state.boss.y, state.tick);
+    mirrorSpecialEvent(this.world, state); // Story 6.8: the active event (EventView reads one source in solo and online)
   }
 
   /**

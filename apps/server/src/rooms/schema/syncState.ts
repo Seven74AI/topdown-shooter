@@ -1,4 +1,4 @@
-import { CONSUMABLE_NONE, bossSlotOf, consumableIndex, quantizeHeading, type Balance, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
+import { CONSUMABLE_NONE, EVENT_KIND_NONE_WIRE, EVENT_NONE, bossSlotOf, consumableIndex, quantizeHeading, type Balance, type Building, type PlayerState as SimPlayer, type World } from "@topdown/shared";
 import type { RunController } from "../../run/RunController";
 import { BossState, BuildingState, type PlayerState, type RunState } from "./RunState";
 
@@ -35,6 +35,24 @@ export function syncState(state: RunState, controller: RunController): void {
   if (state.halfDark !== world.lights.halfDark) state.halfDark = world.lights.halfDark;
   syncBuildings(state, world);
   syncBoss(state, world); // Story 6.5
+  syncSpecialEvent(state, world); // Story 6.8
+}
+
+/** Story 6.8: the active event, field by field on change only (an idle record costs no bytes). */
+function syncSpecialEvent(state: RunState, world: World): void {
+  const a = world.special.active;
+  const kind = a.kind === EVENT_NONE ? EVENT_KIND_NONE_WIRE : a.kind;
+  if (state.eventKind !== kind) state.eventKind = kind;
+  if (kind === EVENT_KIND_NONE_WIRE) return; // the last event's fields stay (no bytes); the kind says none
+  if (state.eventPhase !== a.phase) state.eventPhase = a.phase;
+  if (state.eventStartTick !== a.startTick) state.eventStartTick = a.startTick;
+  if (state.eventPhaseTick !== a.phaseTick) state.eventPhaseTick = a.phaseTick;
+  const x = Math.round(a.x * 100);
+  const y = Math.round(a.y * 100);
+  if (state.eventX !== x) state.eventX = x;
+  if (state.eventY !== y) state.eventY = y;
+  const lane = a.lane < 0 ? 255 : a.lane;
+  if (state.eventLane !== lane) state.eventLane = lane;
 }
 
 /** Story 6.5: the boss record, field by field on change only (an idle record costs no bytes). */
@@ -232,6 +250,13 @@ export function resetRunFields(state: RunState): void {
   state.buildings.clear(); // Story 3.4: the next run starts with none
   buildingSyncs.delete(state);
   state.boss = new BossState(); // Story 6.5: no boss before the next run's wave 10
+  state.eventKind = EVENT_KIND_NONE_WIRE; // Story 6.8: no event before the next run's
+  state.eventPhase = 0;
+  state.eventStartTick = 0;
+  state.eventPhaseTick = 0;
+  state.eventX = 0;
+  state.eventY = 0;
+  state.eventLane = 255;
 }
 
 function resetPlayer(s: PlayerState): void {

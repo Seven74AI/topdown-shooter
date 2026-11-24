@@ -14,6 +14,7 @@ import combat from "../config/balance/combat.json" with { type: "json" };
 import gear from "../config/balance/gear.json" with { type: "json" };
 import consumables from "../config/balance/consumables.json" with { type: "json" };
 import boss from "../config/balance/boss.json" with { type: "json" };
+import eventsJson from "../config/balance/events.json" with { type: "json" };
 import { TICK_DT_S } from "../config/constants";
 import { addBuildingAt, buildingStats, footprint, footprintBlocked, placementError, removeBuilding, type Box } from "../buildings/buildings";
 import { ticksFor } from "../core/time";
@@ -39,7 +40,7 @@ import { SPAWN_SIDE_NAMES, SPAWN_STATE, spawnPointStates, spawnSide } from "./sp
  * appear, so the waves end and the next ones start. Build phases are 0.5 s.
  */
 const fast = (waves: Partial<typeof wavesJson> = {}) =>
-  loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 0.5, ...waves }, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, boss: { ...boss, aliveCap: Math.min(boss.aliveCap, waves.maxAlive ?? wavesJson.maxAlive) } } as RawBalanceFiles);
+  loadBalance({ weapons, zombies, waves: { ...wavesJson, buildPhaseS: 0.5, ...waves }, player, controls, economy, bots, buildings, shop, decay, combat, gear, consumables, events: eventsJson, boss: { ...boss, aliveCap: Math.min(boss.aliveCap, waves.maxAlive ?? wavesJson.maxAlive) } } as RawBalanceFiles);
 const balance = fast();
 const MIN_M = balance.waves.spawnMinPlayerDistanceM;
 const map = DOWNTOWN_MAP;
@@ -91,6 +92,7 @@ interface Spawned {
 function sim(o: SimOpts) {
   const m = o.m ?? map;
   const world = createWorld({ balance: o.bal ?? balance, seed: o.seed ?? 1, map: m, systems: { zombies: () => {} } });
+  world.debug.events = []; // Story 6.8: no special events in the spawn-point sims (they test the wave director alone)
   world.debug.godMode = true;
   applyDecayStage(world, o.stage ?? 1, world.decay.variants);
   world.debug.decayStageByWave = [o.stage ?? 1]; // Story 4.5: the stage stays put across the build starts of the sim

@@ -1,0 +1,25 @@
+{
+  "perRun": 2,
+  "waves": [3, 4, 6, 7, 8],
+  "startFractionMin": 0.2,
+  "startFractionMax": 0.6,
+  "lateBannerS": 3,
+  "carAlarm": { "armedS": 20, "alarmS": 15, "pullRadiusM": 15, "distractBreakM": 2, "pickMinM": 8, "pickMaxM": 25, "lureSeedM": 0.75 },
+  "stampede": {
+    "warningS": 3,
+    "runS": 10,
+    "laneWidthM": 8,
+    "speedMps": 5,
+    "contactDamage": 8,
+    "countByPlayers": [12, 18, 24, 30],
+    "overCap": 30,
+    "rowSize": 6,
+    "rowGapS": 0.3,
+    "laneNearTeamM": 10,
+    "stuckS": 1,
+    "stuckProgressM": 0.5,
+    "deflectLookM": 4
+  },
+  "fx": { "maxDustParticles": 64, "maxMarkers": 4, "maxChevrons": 12 },
+  "banners": { "car_alarm": "CAR ALARM · shoot it to set it off", "stampede": "STAMPEDE!" }
+}

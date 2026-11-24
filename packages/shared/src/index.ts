@@ -604,3 +604,25 @@ export {
   type FogBeam,
   type FogRadii,
 } from "./decay/collapse";
+// Story 6.8: special events (framework, car alarm, stampede)
+export {
+  EVENT_KINDS,
+  EVENT_KIND_NONE_WIRE,
+  EVENT_NONE,
+  EVENT_OUTCOMES,
+  EVENT_PHASE,
+  createSpecialEventState,
+  eventActive,
+  eventKindIndex,
+  snapshotSpecial,
+  type ActiveEvent,
+  type EventKind,
+  type EventOutcome,
+  type SpecialEventState,
+} from "./events/eventState";
+export { endSpecialEvent, eventHoldsWave, forceEvent, specialShotTarget, triggerPointReached, updateSpecialEvents } from "./events/specialEvents";
+export { eventFits, scheduleEndlessEvent, scheduleRunEvents } from "./events/schedule";
+export { alarmCandidates, isAlarmCandidate } from "./events/carAlarm";
+export { laneAlong, laneCentreDistance, laneLength, laneOpen, stampedeRunnersAlive } from "./events/stampede";
+export { parseDevEvents } from "./events/devEvents";
+export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";

@@ -21,6 +21,12 @@ export const ZOMBIE_STATE = {
    * Values stay ≤ 7 (Story 5.4 reserves the nibble's bit 3 for "burning").
    */
   SWELL: 5,
+  /**
+   * Story 6.8 (DD6): a stampede Runner — runs straight along its lane, no target, no flanking, not a
+   * wave zombie; hits each standing player it touches once (F7). Becomes CHASE (or RUSH) when it
+   * converts (F8). Streamed in the horde nibble (≤ 7).
+   */
+  STAMPEDE: 6,
 } as const;
 
 /** Story 5.8: a Bloater's swell (the telegraph: growing, glowing, the fuse ring). */
