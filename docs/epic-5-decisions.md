@@ -141,3 +141,7 @@ Page: claude.ai/artifact/7kKW2xQre8zUWQZri7tWg3 (code drawings in `docs/art/5-16
 - Auto-turret: **T1 sentry gun** (base) and **T2 armoured dome** kept (by the two-pick rule: T2 for a later turret upgrade tier or skin).
 - Mine: **M1 pressure mine** (thick olive disc, raised plate, red light).
 - Later buildings (med station, floodlight, bear trap) get an I1-style icon when built; until then the tile falls back to the world art.
+
+## Epic 6 looks (designer, 2026-11-24)
+
+All Epic 6 look picks (Ruins, Collapse, blackout, Behemoth, events, vote and dawn) are in **`docs/epic-6-decisions.md`** (page claude.ai/artifact/7ikXRSUD7ZURpADLAtEPSJ, `docs/art/epic-6/looks.html`).
