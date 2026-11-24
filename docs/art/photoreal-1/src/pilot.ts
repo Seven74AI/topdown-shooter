@@ -589,7 +589,7 @@ function inPoly(px: number, py: number, pts: readonly number[]): boolean {
  * wheel's ring, ash), the paint scorched black and blistered, bare grey steel where it burnt off, white ash
  * (no rust: designer, "the car has burned, not rust"), a strip of the
  * original colour surviving low on the sides, the roof and bonnet sagging and buckled from the heat, melted
- * lamps, broken glass on the ground. Front at +x. Drawn at 3× and shrunk.
+ * lamps. Front at +x. Drawn at 3× and shrunk.
  */
 function burntCar(variant: number): HTMLCanvasElement {
   const L = CAR_L;
@@ -647,18 +647,6 @@ function burntCar(variant: number): HTMLCanvasElement {
         g.lineTo(x - 2, s * (S.hw - 1));
       }
       g.stroke();
-      // buckles in the bonnet, roof and boot
-      const r = rng(seed + 1);
-      g.lineWidth = 0.5;
-      for (let i = 0; i < 5; i++) {
-        const x = (r() - 0.5) * L * 0.85;
-        const y = (r() - 0.5) * W * 0.6;
-        const a = (r() - 0.5) * 1.2 + Math.PI / 2;
-        g.beginPath();
-        g.moveTo(x, y);
-        g.lineTo(x + Math.cos(a) * 9, y + Math.sin(a) * 9);
-        g.stroke();
-      }
     },
     engraveDepth: 0.5,
     regions: {
@@ -694,7 +682,13 @@ function burntCar(variant: number): HTMLCanvasElement {
         let c: Rgb = mix([8, 7, 6], [38, 34, 30], fbm(x / 3, y / 3, seed + 1, 3));
         const inFront = px > S.roofBack + 6 && px < S.roofFront + 4;
         const inRear = px > S.boot + 6 && px < S.roofBack - 4;
-        const seat = inFront ? Math.abs(Math.abs(py) - S.roofHw * 0.5) < S.roofHw * 0.32 : inRear && Math.abs(py) < S.roofHw - 6;
+        if (inRear) {
+          // through the rear window: the charred parcel shelf, then the bare frame of the seat back (two bars), in ash
+          const bar = Math.abs(px - (S.roofBack - 8)) < 1.2 || Math.abs(px - (S.roofBack - 13)) < 1;
+          if (bar && Math.abs(py) < S.roofHw - 6) c = mix(c, [86, 82, 78], 0.7);
+          if (px < S.boot + 16) c = mix(c, [24, 21, 19], 0.5); // the shelf
+        }
+        const seat = inFront && Math.abs(Math.abs(py) - S.roofHw * 0.5) < S.roofHw * 0.32;
         if (seat) {
           const sx = ((px % 5) + 5) % 5;
           const sy = ((py % 5) + 5) % 5;
@@ -735,14 +729,6 @@ function burntCar(variant: number): HTMLCanvasElement {
   g.ellipse(L / 2, W / 2, L * 0.52, W * 0.5, 0, 0, TAU);
   g.fill();
   g.drawImage(body, 0, 0);
-  // broken glass glinting on the ground along the sides
-  const r = rng(seed + 12);
-  for (let i = 0; i < 70; i++) {
-    const x = L / 2 + (r() - 0.5) * L * 0.8;
-    const y = r() < 0.5 ? 2 + r() * 5 : W - 7 + r() * 5;
-    g.fillStyle = `rgba(200,215,225,${0.3 + r() * 0.45})`;
-    g.fillRect(x, y, 1, 1);
-  }
   return c;
 }
 
