@@ -176,12 +176,12 @@ export const carAlarmModule: EventModule = {
     const cfg = world.balance.events.carAlarm;
     if (a.phase === EVENT_PHASE.ARMED) {
       if (world.tick - a.phaseTick >= ticksFor(cfg.armedS)) setEventPhase(world, EVENT_PHASE.ALARM, null);
-      else return false;
+      else return null;
     }
     const left = ticksFor(cfg.alarmS) - (world.tick - a.phaseTick);
-    if (left <= 0) return true;
+    if (left <= 0) return "done";
     lureNearby(world, left);
-    return false;
+    return null;
   },
   end(world) {
     clearLure(world);

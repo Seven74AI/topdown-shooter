@@ -15,8 +15,12 @@ export interface EventModule {
    * phase and its own record. False when it can't start now (→ `event.skipped`).
    */
   start(world: World): boolean;
-  /** One tick while active. True when it is over (→ `end(world, "done")`). */
-  update(world: World): boolean;
+  /**
+   * One tick while active: null = keep going; an outcome ends it this tick with that outcome
+   * (`"done"`; 6.10's survivor `"failed"`) — the framework then calls `end(world, outcome)`. Never
+   * call `endSpecialEvent` from inside `update`.
+   */
+  update(world: World): EventOutcome | null;
   /** Clears its record and side effects (lure, Runners) for any outcome. */
   end(world: World, outcome: EventOutcome): void;
   /** F8 / D6: the wave can't end while this is true. */

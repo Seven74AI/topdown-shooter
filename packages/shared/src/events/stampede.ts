@@ -384,16 +384,16 @@ export const stampedeModule: EventModule = {
     const a = world.special.active;
     const cfg = world.balance.events.stampede;
     const l = activeLane(world);
-    if (!l) return true;
+    if (!l) return "done";
     if (a.phase === EVENT_PHASE.WARNING) {
-      if (world.tick - a.phaseTick < ticksFor(cfg.warningS)) return false;
+      if (world.tick - a.phaseTick < ticksFor(cfg.warningS)) return null;
       setEventPhase(world, EVENT_PHASE.RUNNING, null);
     }
     const s = world.special.stampede;
     if (world.tick - a.phaseTick >= ticksFor(cfg.runS)) {
       tickRunners(world, l, true); // F8: the crossing is over: everyone left joins the wave
       s.alive = 0;
-      return true;
+      return "done";
     }
     if (s.rowTimer <= 0 && s.spawned < s.toSpawn) {
       spawnRow(world, l);
@@ -401,7 +401,7 @@ export const stampedeModule: EventModule = {
     }
     s.rowTimer--;
     tickRunners(world, l, false);
-    return false;
+    return null;
   },
   end(world, outcome: EventOutcome) {
     if (outcome !== "done") removeAll(world);
