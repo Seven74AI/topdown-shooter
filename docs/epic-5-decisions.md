@@ -166,7 +166,7 @@ Answers to the 16 open questions in `docs/alignment/alignment-check-2026-11-23.m
 | Q12 | Solo status | "Solo is allowed, not balance-tuned"; solo runs at × 0.4. |
 | Q13 | Card pool exhaustion | Show fewer cards; Reroll is disabled when no new draw exists. |
 | Q14 | Ping button | Top-right or by the minimap, hidden while holding a building; pings draw above the blackout darkness. |
-| Q15 | Reference phones | The Honor 10 is **not** a test phone. The low-end floor is the **Xiaomi Mi 11** (designer wrote "Xiaomi i11"; confirm the exact model). It replaces the Honor 10 everywhere (7.9 budgets, NFR1, 10.2). |
+| Q15 | Reference phones | The Honor 10 is **not** a test phone. The low-end floor is the **Xiaomi Mi 11i** (confirmed by the designer 2026-11-24). It replaces the Honor 10 everywhere (7.9 budgets, NFR1, 10.2). |
 | Q16 | Turret kill pay during the 120 s reconnect hold | Turret kills keep paying into the held wallet during the 120 s, then stop. |
 
 **Open point for the designer (Q7):** the 5.14 story's accepted text says "fire and Bloater blasts wear it, mines don't", but the answer passed on for this pass says "Bloater blasts don't wear floor traps". Which one holds?
