@@ -9,10 +9,10 @@ import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { startBuild } from "../run/runStateMachine";
 import { maxAliveNow } from "../waves/waveDirector";
 import { applyBossDamage } from "./bossDamage";
-import { BOSS_STATE, bossMaxHp, isBossWave } from "./bossState";
+import { BOSS_STATE, bossBodyOn, bossMaxHp, isBossWave } from "./bossState";
 import { BEHEMOTH_LOOKS, behemothLookIndex, bossEntry, bossEntryOpen, pickBossEntry, startBossWarning } from "./behemoth";
 import { recordBossThreat } from "./target";
-import { collect, placeBoss, tickN } from "./testBoss";
+import { collect, placeBoss, slamOnly, tickN } from "./testBoss";
 
 /**
  * Story 6.5: the Behemoth's arrival, HP, entry, alive cap, wave end and target rule (F1, F7, F10,
@@ -223,6 +223,7 @@ describe("Story 6.5 D6 / D11 / brief 22: alive cap 110 while it warns or lives",
     let max = 0;
     let warned = false;
     for (let t = 0; t < 600; t++) {
+      slamOnly(w); // Story 6.6: no trample / throw deaths refilling the horde (this test is the cap)
       tickN(w);
       if (w.boss.state >= BOSS_STATE.WARNING) {
         if (!warned) {
@@ -255,7 +256,7 @@ describe("Story 6.5 F11: the wave isn't over while it lives", () => {
       tickN(w);
     }
     expect(w.waves.queued).toBe(0);
-    expect(w.boss.state).toBe(BOSS_STATE.WALK);
+    expect(bossBodyOn(w.boss)).toBe(true); // Story 6.6: walking or attacking
     expect(ended).toBe(false);
     expect(w.run.phase).toBe("wave");
     applyBossDamage(w, 1e9, "p0", "pistol");

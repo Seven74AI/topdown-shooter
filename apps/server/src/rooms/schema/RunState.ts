@@ -123,6 +123,13 @@ const bossFields = {
   atkX: t.float32().default(0),
   atkY: t.float32().default(0),
   atkR: t.float32().default(0),
+  // Story 6.6: the charge lane's stop point + CRASH flag, the throw's chunk source (visual).
+  atkEndX: t.float32().default(0),
+  atkEndY: t.float32().default(0),
+  atkCrash: t.boolean().default(false),
+  atkSrc: t.uint8().default(0),
+  atkSrcX: t.float32().default(0),
+  atkSrcY: t.float32().default(0),
 };
 export const BossState = schema(bossFields, "BossState");
 export type BossState = SchemaType<typeof BossState>;

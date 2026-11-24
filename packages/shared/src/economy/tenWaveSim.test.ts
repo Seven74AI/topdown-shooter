@@ -62,7 +62,8 @@ describe("Story 6.1: ten-wave sim", () => {
       for (let i = 0; i < 4; i++) {
         expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number)); // money adds up
       }
-      expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave).toBe(r.earned.reduce((a, b) => a + b, 0));
+      expect(r.earnedBy.kill + r.earnedBy.assist + r.earnedBy.revive + r.earnedBy.wave + r.earnedBy.boss).toBe(r.earned.reduce((a, b) => a + b, 0));
+      expect(r.earnedBy.boss, `seed ${seed}: the Behemoth's 150 to each of the 4 (Story 6.7)`).toBe(4 * balance.boss.killPay);
       // F3: exactly 2 Brutes in each of waves 7–10 (one in 5 and 6).
       for (let w = 5; w <= 10; w++) expect(r.brutes.spawnedInWave.filter((n) => n === w).length, `seed ${seed} wave ${w}`).toBe(w >= 7 ? 2 : 1);
       expect(r.bloaters.burstsInWave[9] ?? 0, `seed ${seed}: Bloater bursts in wave 10`).toBeGreaterThanOrEqual(1);

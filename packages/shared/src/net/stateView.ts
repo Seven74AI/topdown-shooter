@@ -170,6 +170,14 @@ export interface BossStateView {
   readonly atkX: number;
   readonly atkY: number;
   readonly atkR: number;
+  /** Story 6.6: the charge lane's stop point (= atkX/Y otherwise) and whether it crashes there. */
+  readonly atkEndX: number;
+  readonly atkEndY: number;
+  readonly atkCrash: boolean;
+  /** Story 6.6: the throw's chunk source (`BOSS_THROW_SRC`) and spot (visual only). */
+  readonly atkSrc: number;
+  readonly atkSrcX: number;
+  readonly atkSrcY: number;
 }
 
 /**
@@ -267,4 +275,10 @@ export const BOSS_STATE_FIELDS = {
   atkX: true,
   atkY: true,
   atkR: true,
+  atkEndX: true,
+  atkEndY: true,
+  atkCrash: true,
+  atkSrc: true,
+  atkSrcX: true,
+  atkSrcY: true,
 } as const satisfies Record<keyof BossStateView, true>;

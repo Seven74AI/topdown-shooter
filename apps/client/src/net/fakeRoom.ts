@@ -80,7 +80,7 @@ export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] 
 
 /** Story 6.5: a boss record with every field at the schema default (state NONE). */
 export function fakeBoss(over: Partial<FakeBoss> = {}): FakeBoss {
-  return { state: 0, x: 0, y: 0, heading: 0, hp: 0, maxHp: 0, number: 0, look: 0, target: 255, enraged: false, atkId: 0, atkKind: 0, atkStart: 0, atkHit: 0, atkX: 0, atkY: 0, atkR: 0, ...over };
+  return { state: 0, x: 0, y: 0, heading: 0, hp: 0, maxHp: 0, number: 0, look: 0, target: 255, enraged: false, atkId: 0, atkKind: 0, atkStart: 0, atkHit: 0, atkX: 0, atkY: 0, atkR: 0, atkEndX: 0, atkEndY: 0, atkCrash: false, atkSrc: 0, atkSrcX: 0, atkSrcY: 0, ...over };
 }
 
 export function fakeState(players: FakePlayer[] = []): FakeState {

@@ -31,6 +31,18 @@ export function mirrorBoss(world: World, s: BossStateView | undefined): void {
   a.cx = s.atkX;
   a.cy = s.atkY;
   a.radiusM = s.atkR;
+  // Story 6.6: the lane (direction and length from the exact stop point), CRASH, the chunk source.
+  const dx = s.atkEndX - s.atkX;
+  const dy = s.atkEndY - s.atkY;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  a.lenM = len;
+  a.dirX = len > 1e-6 ? dx / len : 0;
+  a.dirY = len > 1e-6 ? dy / len : 0;
+  a.crash = s.atkCrash;
+  a.widthM = a.kind === BOSS_ATTACK.CHARGE ? world.balance.boss.charge.laneWidthM : 0;
+  a.src = s.atkSrc;
+  a.srcX = s.atkSrcX;
+  a.srcY = s.atkSrcY;
   if (a.kind > BOSS_ATTACK.THROW) a.kind = BOSS_ATTACK.NONE;
 }
 

@@ -2,7 +2,7 @@
  * Why money was earned (Story 3.2). Append only: the index goes on the wire (`net/netEvents.ts`).
  * Story 4.5 appends "refund" (a building a decay stage destroyed: 50 % of its price back).
  */
-export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund"] as const;
+export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund", "boss"] as const; // Story 6.7: + "boss" (append only: the wire sends the index)
 export type MoneyReason = (typeof MONEY_REASONS)[number];
 
 /**
@@ -186,10 +186,35 @@ export type SimEvent =
   // Story 6.5: the Behemoth (all global on the wire except boss.hit, local to its position).
   | { type: "boss.warning"; x: number; y: number; /** The tick it walks in (the warning's end). */ hitTick: number; /** Client only: seconds since it happened. */ ageS?: number }
   | { type: "boss.arrived"; x: number; y: number; maxHp: number; look: number; /** Client only. */ ageS?: number }
-  | { type: "boss.telegraph"; attackId: number; kind: number; startTick: number; hitTick: number; cx: number; cy: number; radiusM: number; /** Client only. */ ageS?: number }
+  | {
+      type: "boss.telegraph";
+      attackId: number;
+      kind: number;
+      startTick: number;
+      hitTick: number;
+      cx: number;
+      cy: number;
+      radiusM: number;
+      /** Story 6.6, charge: where its centre stops (the lane's end, F1) and whether it crashes there (F2). Slam/throw: = cx, cy, false. */
+      endX: number;
+      endY: number;
+      crash: boolean;
+      /** Story 6.6, throw (D7, visual only): the chunk's source kind (`BOSS_THROW_SRC`) and spot. */
+      src: number;
+      srcX: number;
+      srcY: number;
+      /** Client only. */ ageS?: number;
+    }
   | { type: "boss.slammed"; attackId: number; x: number; y: number; /** Client only. */ ageS?: number }
   | { type: "boss.target_changed"; playerId: string | null; /** Client only: seconds since it happened (review L5: no stale buzz). */ ageS?: number }
   | { type: "boss.hit"; amount: number; weapon: string; sourceId: string | null }
+  // Story 6.6: a charge ended on hard cover (the 2 s stun starts) / a thrown chunk landed (crater).
+  | { type: "boss.crashed"; attackId: number; x: number; y: number; /** Client only. */ ageS?: number }
+  | { type: "boss.thrown_impact"; attackId: number; x: number; y: number; /** Client only. */ ageS?: number }
+  // Story 6.7: the roar (global), a Crawler off its back (local), its death (global).
+  | { type: "boss.enraged"; x: number; y: number; /** Client only. */ ageS?: number }
+  | { type: "boss.crawler_dropped"; x: number; y: number }
+  | { type: "boss.killed"; killerId: string | null; weapon: string; x: number; y: number; number: number; /** Client only. */ ageS?: number }
   | { type: "test.ping"; n: number }; // used by core tests only; remove once real events cover them
 
 export type SimEventType = SimEvent["type"];

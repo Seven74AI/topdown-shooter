@@ -30,3 +30,9 @@ export function collect(world: World): SimEvent[] {
   world.events.subscribe((e) => out.push(e));
   return out;
 }
+
+/** Story 6.6: keeps a 6.5 walking/slam test to the slam (charge and throw cooldowns parked). */
+export function slamOnly(world: World): void {
+  world.boss.cooldown.charge = 1e9;
+  world.boss.cooldown.throw = 1e9;
+}

@@ -1236,6 +1236,76 @@ export const bossSchema = z
       })
       .strict(),
     caps: z.object({ maxDecals: z.number().int().min(1).max(32) }).strict(),
+    /** Story 6.6: the charge (F1–F6). Every `*S` is whole ticks. */
+    charge: z
+      .object({
+        /** The target's centre is this far (5–12 m) from the boss's centre. */
+        minM: z.number().positive(),
+        maxM: z.number().positive(),
+        /** The swept lane must be at least this long. */
+        minLaneM: z.number().positive(),
+        /** Longest rush (m). */
+        distM: z.number().positive().max(30),
+        telegraphS: z.number().positive().refine(wholeTickS, "charge.telegraphS must be whole ticks"),
+        speedMps: z.number().positive().max(40),
+        /** The drawn lane's width (body 4 m + a survivor 0.8 m). */
+        laneWidthM: z.number().positive().max(12),
+        damage: z.number().int().positive(),
+        shoveM: z.number().min(0).max(8),
+        shoveS: z.number().positive().refine(wholeTickS, "charge.shoveS must be whole ticks"),
+        zombieDamage: z.number().int().min(0),
+        recoverS: z.number().positive().refine(wholeTickS, "charge.recoverS must be whole ticks"),
+        cooldownS: z.number().positive().refine(wholeTickS, "charge.cooldownS must be whole ticks"),
+        initialCooldownS: z.number().min(0).refine(wholeTickS, "charge.initialCooldownS must be whole ticks"),
+        stunS: z.number().positive().refine(wholeTickS, "charge.stunS must be whole ticks"),
+        /** Every damage source × this while stunned (designer D1). */
+        stunDamageMult: z.number().min(1).max(5),
+        /** The lane sweep's step (m). */
+        sweepStepM: z.number().positive().max(0.5),
+      })
+      .strict()
+      .refine((s) => (s.shoveM * 1000) / Math.round(s.shoveS * TICK_RATE_HZ) <= 65535, "charge shove per tick must fit knockStepMm (u16)"),
+    /** Story 6.6: the throw (F7, F8). */
+    throw: z
+      .object({
+        /** A standing player farther than this from the boss's centre can be thrown at. */
+        minM: z.number().positive(),
+        /** ... or farther than this when the boss can't walk to them (D5). */
+        unreachableMinM: z.number().positive(),
+        liftS: z.number().positive().refine(wholeTickS, "throw.liftS must be whole ticks"),
+        flightS: z.number().positive().refine(wholeTickS, "throw.flightS must be whole ticks"),
+        radiusM: z.number().positive().max(8),
+        damage: z.number().int().positive(),
+        zombieDamage: z.number().int().min(0),
+        recoverS: z.number().positive().refine(wholeTickS, "throw.recoverS must be whole ticks"),
+        cooldownS: z.number().positive().refine(wholeTickS, "throw.cooldownS must be whole ticks"),
+        initialCooldownS: z.number().min(0).refine(wholeTickS, "throw.initialCooldownS must be whole ticks"),
+        /** D7: a rubble pile or burnt car within this of its body edge is the chunk's look (visual only). */
+        sourceRangeM: z.number().min(0).max(20),
+      })
+      .strict(),
+    /** Story 6.7: enrage (F1–F4). */
+    enrage: z
+      .object({
+        atHpFrac: z.number().gt(0).lt(1),
+        roarS: z.number().positive().refine(wholeTickS, "enrage.roarS must be whole ticks"),
+        roarRadiusM: z.number().min(0).max(12),
+        roarPushM: z.number().min(0).max(8),
+        roarPushS: z.number().positive().refine(wholeTickS, "enrage.roarPushS must be whole ticks"),
+        speedMult: z.number().min(1).max(3),
+        cooldownMult: z.number().gt(0).max(1),
+        gapMult: z.number().gt(0).max(1),
+        /** A Crawler off its back every N s, by player count (index 0 = solo). */
+        crawlerEveryS: z.array(z.number().positive().refine(wholeTickS, "enrage.crawlerEveryS must be whole ticks")).min(1),
+        firstCrawlerS: z.number().positive().refine(wholeTickS, "enrage.firstCrawlerS must be whole ticks"),
+        crawlerBehindM: z.number().min(0).max(8),
+        crawlerPlayerClearM: z.number().min(0).max(8),
+      })
+      .strict(),
+    /** Story 6.7 (F6): money to every player in the run the tick it dies. */
+    killPay: z.number().int().min(0),
+    /** Story 6.7: the collapse (client pose sequence). */
+    death: z.object({ collapseS: z.number().positive().refine(wholeTickS, "death.collapseS must be whole ticks") }).strict(),
   })
   .strict();
 

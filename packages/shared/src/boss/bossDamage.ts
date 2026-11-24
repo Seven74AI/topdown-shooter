@@ -2,6 +2,7 @@ import type { World } from "../core/world";
 import { circleOverlapsSector } from "../math/sector";
 import { segmentCircleT } from "../math/sweep";
 import { BOSS_HIT_NO_PLAYER, BOSS_STATE, bossBodyOn, rewoundBoss, rewoundBossPos } from "./bossState";
+import { killBoss } from "./death";
 import { bossSlotOf, recordBossThreat } from "./target";
 
 /**
@@ -10,14 +11,15 @@ import { bossSlotOf, recordBossThreat } from "./target";
  * Bloater blasts), turret shots. Not fire zones (car fires, molotov), acid, Bloater gas, spike or
  * bear traps: none of those call it. Records the threat (F7), accumulates the tick's `boss.hit`
  * per source (one event per player per tick, emitted by the boss system), and at 0 HP calls
- * `killBoss` (6.7 owns the death; here: `state = DEAD`).
+ * `killBoss` (Story 6.7: `boss/death.ts`).
  *
  * Returns the HP taken (0: no body, nothing happened).
  */
-export function applyBossDamage(world: World, amount: number, playerId: string | null, weapon: string): number {
+export function applyBossDamage(world: World, raw: number, playerId: string | null, weapon: string): number {
   const b = world.boss;
-  if (!bossBodyOn(b) || !(amount > 0)) return 0;
-  // 6.6: × charge.stunDamageMult while STUN.
+  if (!bossBodyOn(b) || !(raw > 0)) return 0;
+  // Story 6.6 (F5, designer D1): × stunDamageMult from every source while stunned.
+  const amount = b.state === BOSS_STATE.STUN ? raw * world.balance.boss.charge.stunDamageMult : raw;
   const taken = Math.min(amount, b.hp);
   b.hp -= taken;
   recordBossThreat(world, playerId, amount);
@@ -27,21 +29,12 @@ export function applyBossDamage(world: World, amount: number, playerId: string |
   b.hitWeapon[slot] = weapon;
   bossDamageStats.total += taken;
   bossDamageStats.byWeapon.set(weapon, (bossDamageStats.byWeapon.get(weapon) ?? 0) + taken);
-  if (b.hp <= 0) killBoss(world);
+  if (b.hp <= 0) killBoss(world, playerId, weapon);
   return taken;
 }
 
 /** Diagnostics for the table test and the sims (not simulation state, never snapshotted). */
 export const bossDamageStats = { total: 0, byWeapon: new Map<string, number>() };
-
-/** Story 6.7 replaces this (death, pay, music). Until then: DEAD, nothing else. */
-export function killBoss(world: World): void {
-  const b = world.boss;
-  b.hp = 0;
-  b.state = BOSS_STATE.DEAD;
-  b.stateTicks = 0;
-  b.targetId = null;
-}
 
 /** DD9: one `boss.hit` per source per tick (end of the boss system). */
 export function flushBossHits(world: World): void {
