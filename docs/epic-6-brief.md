@@ -34,7 +34,7 @@ EPIC 6 SPECIFICS
 24. BLACKOUT READABILITY: darkness and fog vision can't be turned off (FR87); quality settings only change their look. Always above the darkness: teammates with rings, zombie eyes within 14 m (or the fog edge), the boss's outline and eyes, every boss telegraph, event markers, the crate, the survivor and the safe point, pings. Colour rule: red = boss danger only, amber = an event you can use, yellow-green = gas, white = pick-ups and people. No hot beam core, no lens flare; rain sparkles inside beams. Check at 568 × 320 and 800 × 360.
 25. ENDLESS PERFORMANCE: nothing grows without a cap over 20+ endless waves (alive 150 / 110, wave size 600, Brutes ≤ 6 alive, decals, craters, markers, event records, kill logs); a 20-wave endless sim records server tick p99 and memory and asserts they stay flat; FPS recorded with blackout + fog + Behemoth + 150 zombies (`docs/perf/epic-6-blackout.md`).
 26. LIGHT IS SERVER TRUTH: the light state (stage, blackout flag, power out, flicker seeds, build-phase half darkness) is part of the world and replays; a client that joins or wakes mid-wave draws the same darkness as everyone else; fog hides zombies only on the local screen, never in the sim (aim assist and turrets keep their own rules; aim assist never locks a target your screen hides).
-27. DO NOT TOUCH EPIC 5 WORK IN PROGRESS: 5.13 card shop and 5.20–5.25 building UX are being built in other sessions (shop, build bar, carry/drag UI); Epic 6 changes there go through their balance flags (`inShop`) or a "Notes for the merge" line, not edits to their UI.
+27. RESPECT THE DONE EPIC 5 UI: the card shop (5.13), build bar (5.16) and building UX (5.15–5.24) are done and reviewed; Epic 6 changes there go through their balance flags (`inShop`) and existing hooks, with a "Notes for the merge" line, not rewrites of their UI.
 28. ONE RUN FLOW: the run phase machine (lobby → build → wave → … → vote → extract/endless → results) has one owner per change (6.1 removes the 6-wave ending, 6.11 adds the vote, 6.12 adds endless); every phase change is a tested transition, and Results always show (no stuck run).
 
 FROM THE EPIC 5 RETRO (_bmad-output/implementation-artifacts/epic-5-retro-2026-11-24.md §10)
@@ -54,6 +54,6 @@ FROM THE EPIC 5 RETRO (_bmad-output/implementation-artifacts/epic-5-retro-2026-1
 | 24 | The Epic 6 look picks (`docs/epic-6-decisions.md`) and the colour rule the designer called "perfect". |
 | 25 | Endless can run as long as the team survives; anything that grows per wave will one day crash a phone or the server. |
 | 26 | Darkness that differs between phones is a co-op bug ("I can see it, why can't you?"). |
-| 27 | Epic 5 is finished in parallel sessions; Epic 6 must not collide with them. |
+| 27 | Epic 5's shop and building UX are done and reviewed; Epic 6 extends them through flags and hooks instead of rewriting them. |
 | 28 | 6.1, 6.11 and 6.12 each change how a run ends; a run that never reaches Results is the worst bug this epic can ship. |
 | 29–32 | Epic 5 retro (2026-11-24): builders that finished without saying so and sessions left open (29); the 5.12 latch medium and six other edge-input bugs (30); six 568×320 layout fixes in six stories (31); decisions that reached builders late, five merge-only bugs and a docs-only push that broke lint on master (32). Line 19 gained the merge-time fix (5.26). |
