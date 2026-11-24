@@ -178,7 +178,13 @@ development_status:
 
   # Epic 8: Real-life resilience
   epic-8: backlog
-  8-1-reconnect-within-2-minutes: backlog
+  # Network pass (designer 2026-11-24, sprint-change-proposal-2026-11-24-network-pass.md): build FIRST, right after Epic 6 and before Epic 7.
+  # Order: 8.8 || 8.9 -> 8.1 (guest-token matching, extended ACs) -> 8.10 -> 8.11 (optional); then the 2.10 4-phone 4G test.
+  8-8-my-shots-count-on-a-bad-4g-line: backlog  # network pass 1: 500 ms rewind + lossy-line test switch
+  8-9-smooth-through-hiccups: backlog  # network pass 2: adaptive 100-250 ms delay, time-stretch, clock never backwards
+  8-1-reconnect-within-2-minutes: backlog  # network pass 3 (pulled forward; rest of Epic 8 stays after Epic 7)
+  8-10-half-size-horde-stream: backlog  # network pass 4: delta horde stream
+  8-11-one-packet-per-tick-optional: backlog  # network pass 5, optional
   8-2-join-mid-run-at-a-build-phase: backlog
   8-3-host-migration: backlog
   8-4-autosave-at-every-build-phase: backlog
