@@ -1,6 +1,6 @@
 # Story 6.6: Behemoth charge and throw
 
-Status: drafted (ready-for-dev once the designer confirms docs/epic-6-decisions.md › Story decisions to confirm)
+Status: ready-for-dev
 
 ## Story
 
@@ -197,3 +197,4 @@ No new pools beyond 6.5's (decals shared, ≤ 8; one chunk sprite; ≤ 2 telegra
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
+- 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.

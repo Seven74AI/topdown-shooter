@@ -1,6 +1,6 @@
 # Story 6.9: Gas leak and supply drop
 
-Status: drafted (ready-for-dev once the designer confirms docs/epic-6-decisions.md › Story decisions to confirm)
+Status: ready-for-dev
 
 ## Story
 
@@ -197,3 +197,4 @@ GL1 (vapour cloud from a fill cap, dashed 6 m ring, countdown arc, yellow-green)
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
+- 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.

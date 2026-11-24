@@ -165,7 +165,7 @@ Official starters were considered for reference only: `npm create @phaserjs/game
 | Accounts | Guest = random device token in localStorage → server session; upgrade to username + password (Argon2id hashed) | @node-rs/argon2 2.2 | No signup before first play (GDD); no email service needed |
 | Hosting | User's existing **Linux VPS in Europe** (6 vCPU, 12 GB RAM, ~30 GB free); Docker Compose: Caddy (plain HTTP on 127.0.0.1:8080 + static client, behind the Cloudflare Tunnel that terminates HTTPS/WSS) · game server · PostgreSQL; game at https://hordes.sevend.io; Hermes deploys (`docs/deploy.md`) | Caddy 2.11 · Node.js 26 LTS | Already owned, close to all players, ample capacity (user choice) |
 | Maps | Districts authored in **Tiled** (JSON export); one layer group per decay stage, toggled by the decay system; collision and cover as object layers | Tiled map format | Hand-made maps with data-driven decay |
-| Lighting | Darkness render texture with lights cut out (flashlights, floodlights, fires, muzzle flashes); lit only when needed | Phaser 4 | Proven in the Lamplight probe; cheap when off |
+| Lighting | Darkness texture (a half-resolution canvas registered through `addGeneratedTexture`, not a RenderTexture: Story 6.3 DD1) with lights cut out (flashlights, floodlights, fires, muzzle flashes); lit only when needed | Phaser 4 | Proven in the Lamplight probe; cheap when off |
 | Balance data | All tunable numbers (weapons, zombies, buildings, waves, economy, decay timings) in typed JSON config in the shared package | — | Rebalance without code changes; server and client read the same values |
 | Randomness | Seeded PRNG per run (run seed + named sub-streams: events, decay, shop per player) | — | Reproducible runs for testing |
 | UI | In-combat HUD drawn by Phaser; menus (lobby, shop, unlocks, evac vote) as HTML overlays built with **Preact** | Preact 11.2 | Readable, responsive menus on phones; small runtime |
@@ -491,7 +491,7 @@ export function quantizePos(m: number): number { return Math.round(m * POS_SCALE
 
 **Purpose:** darkness as gameplay without per-frame cost when lights are on.
 
-**Rule:** the server owns the light *state* (stage, blackout flag, which light sources exist); the client renders a darkness render texture only when the flag is on, cutting out cones for flashlights (aim direction), circles for floodlights, fires and muzzle flashes; zombie eyes are drawn above the darkness. Gameplay effects of darkness (e.g. turrets only target lit zombies, if adopted later) read the server light state, never the client render.
+**Rule:** the server owns the light *state* (stage, blackout flag, which light sources exist); the client renders a darkness texture (registered canvas, Story 6.3) only when the flag is on, cutting out cones for flashlights (aim direction), circles for floodlights, fires and muzzle flashes; zombie eyes are drawn above the darkness. Gameplay effects of darkness (e.g. turrets only target lit zombies, if adopted later) read the server light state, never the client render.
 
 ### Communication Patterns
 

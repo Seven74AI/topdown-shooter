@@ -1,6 +1,6 @@
 # Story 6.12: Endless mode
 
-Status: drafted (ready-for-dev once the designer confirms docs/epic-6-decisions.md › Story decisions to confirm)
+Status: ready-for-dev
 
 ## Story
 
@@ -200,3 +200,4 @@ None new (T0). Uses 6.3 (5 % blackout), 6.4 (Collapse weather rotating per run i
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
+- 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.

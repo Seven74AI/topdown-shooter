@@ -2,7 +2,7 @@
 
 ## Story decisions to confirm
 
-**Waiting for the designer.** Written 2026-11-24 from the 12 story files (`_bmad-output/implementation-artifacts/6-*.md`, brief `docs/epic-6-brief.md`). Each line is the story writer's **recommended value** (first), with the alternative after it. **"ok" accepts all 110.** Change any line by its code (e.g. "6.11 D1: votes cast"). The looks are already picked (section "Epic 6 looks" below), so no story needs a new art pick.
+**Designer: "ok, perfect" on 2026-11-24: every recommended value below is accepted.** Written 2026-11-24 from the 12 story files (`_bmad-output/implementation-artifacts/6-*.md`, brief `docs/epic-6-brief.md`). Each line is the story writer's **recommended value** (first), with the alternative after it. **"ok" accepts all 110.** Change any line by its code (e.g. "6.11 D1: votes cast"). The looks are already picked (section "Epic 6 looks" below), so no story needs a new art pick.
 
 ### The ones worth a look (game feel)
 

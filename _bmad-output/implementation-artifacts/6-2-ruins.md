@@ -1,6 +1,6 @@
 # Story 6.2: Ruins
 
-Status: drafted (ready-for-dev once the designer confirms docs/epic-6-decisions.md › Story decisions to confirm)
+Status: ready-for-dev
 
 ## Story
 
@@ -226,3 +226,4 @@ From `docs/epic-6-decisions.md` § 1 Ruins (designer, 2026-11-24): all four RU1�
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
+- 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.

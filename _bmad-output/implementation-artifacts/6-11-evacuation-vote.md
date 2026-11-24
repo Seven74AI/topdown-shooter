@@ -1,6 +1,6 @@
 # Story 6.11: Evacuation vote
 
-Status: drafted (ready-for-dev once the designer confirms docs/epic-6-decisions.md › Story decisions to confirm)
+Status: ready-for-dev
 
 ## Story
 
@@ -209,3 +209,4 @@ EX1 (vote UI: HTML/CSS), the helicopter + pad + searchlight (game code, `addGene
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
+- 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
