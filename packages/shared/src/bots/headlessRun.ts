@@ -1,5 +1,5 @@
 import type { Balance } from "../config/balance";
-import { TICK_DT_S } from "../config/constants";
+import { TICK_DT_S, TICK_RATE_HZ } from "../config/constants";
 import type { SimEvent } from "../core/simEvents";
 import { setInput, step, type World } from "../core/world";
 import type { DistrictMap } from "../map/districtMap";
@@ -29,8 +29,10 @@ export interface HeadlessRunOptions {
   list?: readonly string[];
   /** Story 4.1: the district (default `DOWNTOWN_MAP`, the game's map; `replayRun` replays on Downtown). */
   map?: DistrictMap;
-  /** Safety stop (default 20 min of game time); a run that hits it reports `timedOut`. */
+  /** Safety stop (Story 6.1: default 40 min of game time, room for 10 waves); a run that hits it reports `timedOut`. */
   maxTicks?: number;
+  /** Story 6.1 (D2): bots can't die (`world.debug.godMode`, as `applyTestScenario`), so the run plays every wave (the earnings check). */
+  god?: boolean;
   /**
    * Story 4.4: when given (from `createInputLog(seed, players)`), every input and build action is
    * appended to it with its tick, and `endTick` is set, so `replayRun` can play the run again.
@@ -104,11 +106,13 @@ export interface HeadlessRunLog {
 export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
   const { balance, seed, players } = opts;
   const list = opts.list ?? balance.bots.shoppingList;
-  const maxTicks = opts.maxTicks ?? 20 * 60 * 20;
+  const maxTicks = opts.maxTicks ?? 40 * 60 * TICK_RATE_HZ;
   const rec = opts.record;
   if (rec && (rec.seed !== seed >>> 0 || rec.players !== players)) throw new Error("runHeadless: record log is for another seed or team");
+  if (rec && opts.god) throw new Error("runHeadless: a god-mode run is not replayable (the input log has no god flag)");
   // Lobby → the first build phase, like the server's run start (shared with `replayRun`). Story 4.1: on Downtown by default.
   const { world, ids } = createHeadlessWorld(balance, seed, players, opts.map);
+  if (opts.god) world.debug.godMode = true; // Story 6.1 (D2)
   const recordBuild = rec ? (cmd: BuildCommand): void => void rec.commands.push({ ...cmd, tick: world.tick }) : undefined;
   const cfg = botConfigOf(balance);
   const views: BotView[] = ids.map(() => createBotView());

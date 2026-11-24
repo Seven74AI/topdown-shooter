@@ -9,7 +9,7 @@ import {
 
 describe("parseUrlOptions", () => {
   it("is all off for an empty query", () => {
-    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, shopCards: null, runSeed: null, stressBuild: false, stressMolotovs: 0, stressLights: false, stressBear: false, lowFx: false, shopAll: false });
+    expect(parseUrlOptions("")).toEqual({ debug: false, stress: null, stressFire: false, loadout: null, tune: false, solo: false, throttle: null, zombieDamageScale: null, startingWallet: null, scenario: null, waveMix: null, shopCards: null, runSeed: null, stressBuild: false, stressMolotovs: 0, stressLights: false, stressBear: false, lowFx: false, shopAll: false, startWave: null });
     expect(parseUrlOptions("?shopall=1").shopAll).toBe(true); // Story 5.11
     expect([parseUrlOptions("?stressbuild=molotov").stressMolotovs, parseUrlOptions("?stressbuild=molotov:2").stressMolotovs, parseUrlOptions("?stressbuild=molotov:9").stressMolotovs]).toEqual([8, 2, 0]); // Story 5.12
     expect(parseUrlOptions("?shopall=0").shopAll).toBe(false);
@@ -108,6 +108,14 @@ describe("parseUrlOptions: Story 2.10 test scenario", () => {
 
   it("does not skip the start screen (the scenario is an online test)", () => {
     expect(skipsStartScreen(parseUrlOptions("?scenario=net150"))).toBe(false);
+  });
+});
+
+describe("parseUrlOptions: Story 6.1 ?startwave=", () => {
+  it("passes ?startwave through raw in dev builds (parseStartWave validates it); a release build ignores it", () => {
+    expect(parseUrlOptions("?solo&startwave=9", true).startWave).toBe("9");
+    expect(parseUrlOptions("?solo", true).startWave).toBeNull();
+    expect(parseUrlOptions("?solo&startwave=9", false).startWave).toBeNull();
   });
 });
 

@@ -1,6 +1,6 @@
 import { bearTrapCounters, resetBearTrapCounters } from "../buildings/bearTrap";
 import { describe, expect, it } from "vitest";
-import { bundledBalanceFiles, loadBalance, withOverrides } from "../config/balance";
+import { bundledBalanceFiles, loadBalance, withOverrides, type BalanceOverride } from "../config/balance";
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
 import { spitStats } from "../zombies/spit";
 import { trapCounters } from "../buildings/trap";
@@ -8,7 +8,7 @@ import { explosionCounters } from "../combat/explosion";
 import { mineCounters } from "../buildings/mine";
 
 /**
- * Story 3.10 (AC 5, 7, 8): the seeded run (Story 5.8: `runWaves` 6; the file keeps its 3.10 name) with 2/3/4 bots, the real balance (waves.json
+ * Story 3.10 (AC 5, 7, 8): the seeded run (Story 5.8: `runWaves` 6; Story 6.1: still 6 here by override; the file keeps its 3.10 name) with 2/3/4 bots, the real balance (waves.json
  * curve, mix and player-count scale) and every real system. The bots shop from `bots.json ›
  * shoppingList` in each build phase (real shop and placement rules) and tap Ready. Each player's
  * earnings go to the test output, next to the GDD target cut to 5 waves (story Dev Notes: earned ≈
@@ -18,9 +18,11 @@ import { mineCounters } from "../buildings/mine";
  * run ends in Results (held out or wiped, never the tick limit), clears at least one wave, and the
  * bots buy weapons and place buildings; money adds up for every player.
  */
-const balance = loadBalance();
+/** Story 6.1: the run is 10 waves now; these checks keep the 6-wave run (`runWaves` 6) inside the 180 s budget. `tenWaveSim.test.ts` plays all 10. */
+const SIX: BalanceOverride[] = [["waves", "runWaves", 6]];
+const balance = loadBalance(withOverrides(bundledBalanceFiles(), SIX));
 /** Story 5.3's gun sim: every bot can buy either new gun in the first build phase. */
-const richBalance = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 500]]));
+const richBalance = loadBalance(withOverrides(bundledBalanceFiles(), [...SIX, ["economy", "startingWallet", 500]]));
 const SEEDS = [1, 2, 3];
 const TEAM_SIZES = [2, 3, 4];
 
@@ -197,7 +199,7 @@ describe("six-wave bot sim with the Brute (Story 5.7, brief lines 9 and 15)", ()
 describe("bot sim with the Fire Axe and the Chainsaw (Story 5.2, brief lines 9 and 15)", () => {
   it("bots that buy them still run to Results (waves ended), and both really kill", () => {
     // A test-only shopping list: the bots start with 700 (enough for the Chainsaw at the first build).
-    const rich = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 700]]));
+    const rich = loadBalance(withOverrides(bundledBalanceFiles(), [...SIX, ["economy", "startingWallet", 700]]));
     const lists: Record<string, readonly string[]> = { fire_axe: ["fire_axe", "wood_barricade"], chainsaw: ["chainsaw", "wood_barricade"] };
     const lines: string[] = [];
     for (const [weapon, list] of Object.entries(lists)) {
@@ -339,7 +341,7 @@ describe("six-wave bot sim with gear (Story 5.11, brief lines 9 and 15)", () => 
 describe("six-wave bot sim with consumables (Story 5.12, brief lines 9 and 15)", () => {
   // Bots shop one consumable type per run (one slot: a second type would replace the first) and use
   // it by `botPolicy`'s rule (medkit below 40 % HP, a throw at ≥ 5 zombies in its radius).
-  const rich = loadBalance(withOverrides(bundledBalanceFiles(), [["economy", "startingWallet", 300]]));
+  const rich = loadBalance(withOverrides(bundledBalanceFiles(), [...SIX, ["economy", "startingWallet", 300]]));
   it("every run ends (waves ended, never the tick limit) and each type was really used (heal / blast kill / molotov burn)", async () => {
     const { consumableCounters } = await import("../combat/consumables");
     const { grenadeCounters } = await import("../combat/grenades");
