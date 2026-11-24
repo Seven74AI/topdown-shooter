@@ -244,3 +244,10 @@ Page: claude.ai/artifact/7ikXRSUD7ZURpADLAtEPSJ (code drawings in `docs/art/epic
 | 6 Dawn | 6.11 | **DW1** warm sunrise and **DW2** blue hour | DW1 on Extract after wave 10; DW2 on an endless extract and behind "Lost in the city" |
 
 Colour rule from the events (designer: "perfect"): amber = an event you can use, yellow-green = gas, red = boss danger only, white = pick-ups and people.
+
+## Build-time decisions (designer, 2026-11-24)
+
+| Code | Decision | Picked |
+| --- | --- | --- |
+| 6.3 B1 | Brief 31 HUD layout test vs the Epic 5 HUD as built (Ready in the move-stick half; first build-bar tiles, ⟳ / item chip / ↶, Move / Upgrade within 48 px of the survivor at 568×320 and 640×360; 15 lines) | **Keep as built**: the 15 are the test's KNOWN_LIST; any NEW break fails the test; revisit in Epic 10 polish with a small-phone playtest |
+| 6.3 B2 | Blackout cost headless −26 % at `?stress=150&blackout=5` (target ≤ 15 %; SwiftShader's extra full-screen layer, quarter res didn't help) | **Accept for now**; the Xiaomi Mi 11i check decides (`docs/perf/epic-6-blackout.md` phone rows) |
