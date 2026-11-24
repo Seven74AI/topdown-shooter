@@ -4,6 +4,7 @@ import type { PlaceError } from "../buildings/buildings";
 import type { RepairError } from "../buildings/repair";
 import type { UpgradeError } from "../buildings/upgrade";
 import type { SellError } from "../buildings/sell";
+import type { MoveError } from "../buildings/move";
 import type { ShopError, WeaponUpgradeError } from "../economy/shop";
 
 /**
@@ -37,6 +38,8 @@ export const C2S = {
   BUILDING_UPGRADE: "building.upgrade",
   /** `{ id }` in a build phase (Story 5.20, owner only: take back / sell); a refusal comes back as `building.sell_refused`. */
   BUILDING_SELL: "building.sell",
+  /** `{ id, gx, gy, rot }` in a build phase (Story 5.22, owner only, free); a refusal comes back as `building.move_refused`. */
+  BUILDING_MOVE: "building.move",
   /** `{ weapon }` in a build phase (Story 5.1); answered with `shop.upgraded` or `shop.upgrade_refused`. */
   SHOP_UPGRADE: "shop.upgrade",
   /**
@@ -71,6 +74,8 @@ export const S2C = {
   BUILDING_UPGRADE_REFUSED: "building.upgrade_refused",
   /** `{ id, reason: SellError }` to the sender of a refused `building.sell` (Story 5.20). */
   BUILDING_SELL_REFUSED: "building.sell_refused",
+  /** `{ id, reason: MoveError }` to the sender of a refused `building.move` (Story 5.22). */
+  BUILDING_MOVE_REFUSED: "building.move_refused",
   /** `{ weapon, slot, level }` to the sender only (Story 5.1); wallet and level follow in the state. */
   SHOP_UPGRADED: "shop.upgraded",
   /** `{ weapon, error: WeaponUpgradeError }` to the sender only (Story 5.1); nothing changed. */
@@ -217,6 +222,27 @@ export const buildingSellSchema = z
   })
   .strict();
 export type BuildingSell = z.infer<typeof buildingSellSchema>;
+
+/**
+ * `building.move` (Story 5.22): one of the sender's own buildings to a new lattice corner (0–255, the
+ * placement's range) and rotation. Only the shape is checked here; `moveBuilding` validates standing,
+ * phase, building, owner and the new spot (the building itself ignored).
+ */
+export const buildingMoveSchema = z
+  .object({
+    id: z.number().int().min(1).max(65535),
+    gx: z.number().int().min(0).max(255),
+    gy: z.number().int().min(0).max(255),
+    rot: z.number().int().min(0).max(3),
+  })
+  .strict();
+export type BuildingMove = z.infer<typeof buildingMoveSchema>;
+
+/** `building.move_refused` payload (Story 5.22), to the sender only. */
+export interface BuildingMoveRefused {
+  id: number;
+  reason: MoveError;
+}
 
 /** `building.sell_refused` payload (Story 5.20), to the sender only. */
 export interface BuildingSellRefused {

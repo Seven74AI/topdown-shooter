@@ -54,10 +54,6 @@ export const BUILD_COUNT_TEXT_CSS_PX = 15;
 export const BUILD_COUNT_GAP_CSS_PX = 4;
 /** Ready keeps at least this far left of the build bar (it slides further left on narrow screens). */
 export const READY_BAR_GAP_CSS_PX = 12;
-/** Story 3.7: the repair panel's row (Repair + ✕), one row above Ready (CSS px). */
-export const REPAIR_BUTTON_W_CSS_PX = 168;
-export const REPAIR_CLOSE_CSS_PX = 52;
-export const REPAIR_ROW_GAP_CSS_PX = 12;
 /** Story 5.20 (ux-spec §4): the undo chip ↶ (48 px round); with the bar up it sits left of Story 5.12's consumable button (`undoChip.ts`). */
 export const UNDO_CHIP_CSS_PX = 48;
 /** Story 5.20 (ux-spec §4): while holding, ↶ centre from the bottom-right safe-area corner (Ready is hidden then). */
@@ -65,3 +61,24 @@ export const UNDO_HAND = { rightCss: 270, bottomCss: 64 } as const;
 /** Story 5.20: the undo glyph and the ring's stroke (CSS px). */
 export const UNDO_GLYPH_CSS_PX = 26;
 export const UNDO_RING_CSS_PX = 4;
+/**
+ * Story 5.21 (ux-spec §4, alignment Q4): the action bar while a building is selected — one row of
+ * buttons (size, gap) right-aligned this far inside the right safe-area inset, the row's centre this
+ * far above the bottom inset; the info lines right-aligned above it, their bottom this far above the
+ * row's top (CSS px). `centreClearCss`: the row's top keeps this far below the screen centre (the
+ * survivor) on a short screen with a tall bottom inset.
+ */
+export const ACTION_BAR = { wCss: 78, hCss: 56, gapCss: 8, rightCss: 16, centreBottomCss: 112, infoGapCss: 6, centreClearCss: 12 } as const;
+/** Story 5.21: the action buttons' two-line label, the info line and the long-press ring (CSS px). */
+export const ACTION_LABEL_CSS_PX = 15;
+export const ACTION_INFO_CSS_PX = 16;
+/**
+ * Story 5.21: the info lines wrap so they keep this far right of the screen centre (the survivor);
+ * on a screen narrower than `ACTION_INFO_NARROW_CSS_PX` they use the 14 px floor so the wrapped
+ * lines still clear ☰ (568 × 320).
+ */
+export const ACTION_INFO_CENTRE_CLEAR_CSS_PX = 24;
+export const ACTION_INFO_NARROW_CSS_PX = 700;
+export const ACTION_INFO_SMALL_CSS_PX = 14;
+export const LONG_PRESS_RING_CSS_PX = 34;
+export const LONG_PRESS_RING_LINE_CSS_PX = 5;

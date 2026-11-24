@@ -5,8 +5,11 @@ import {
   REPAIR_ERRORS,
   UPGRADE_ERRORS,
   SELL_ERRORS,
+  MOVE_ERRORS,
   type BuildingSellRefused,
   type SellError,
+  type MoveError,
+  type BuildingMoveRefused,
   type BuildingRefused,
   type BuildingRepairRefused,
   type BuildingUpgradeRefused,
@@ -117,6 +120,21 @@ export function parseSellRefused(m: unknown): SellError | null {
   return typeof reason === "string" && (SELL_ERRORS as readonly string[]).includes(reason) ? (reason as SellError) : null;
 }
 
+/** Story 5.22: a refused `building.move` — which building and why. */
+export interface MoveRefusal {
+  readonly id: number;
+  readonly reason: MoveError;
+}
+
+/** A well-formed `building.move_refused` (Story 5.22) as a new record, or null. */
+export function parseMoveRefused(m: unknown): MoveRefusal | null {
+  const v = m as Partial<BuildingMoveRefused> | null;
+  const id = v?.id;
+  const reason = v?.reason;
+  if (typeof id !== "number" || !Number.isInteger(id) || id < 1) return null;
+  return typeof reason === "string" && (MOVE_ERRORS as readonly string[]).includes(reason) ? { id, reason: reason as MoveError } : null;
+}
+
 /** Event batches kept while no game scene listens yet: 200 ticks = 10 s of a hidden tab at Start. */
 export const EARLY_EVENT_BATCHES_MAX = 200;
 
@@ -176,6 +194,7 @@ export class RunInbox {
   private repairSink: ((reason: RepairError) => void) | null = null;
   private upgradeSink: ((reason: UpgradeError) => void) | null = null;
   private sellSink: ((reason: SellError) => void) | null = null;
+  private moveSink: ((r: MoveRefusal) => void) | null = null;
 
   constructor(private readonly room: Pick<NetRoomLike, "send" | "onMessage">) {
     this.offs.push(room.onMessage(S2C.SIM_EVENTS_FLUSHED, (m: SimEventsFlushed) => this.receiveEvents(m)));
@@ -192,6 +211,21 @@ export class RunInbox {
     this.offs.push(room.onMessage(S2C.BUILDING_REPAIR_REFUSED, (m: unknown) => this.receiveRepairRefused(m)));
     this.offs.push(room.onMessage(S2C.BUILDING_UPGRADE_REFUSED, (m: unknown) => this.receiveUpgradeRefused(m)));
     this.offs.push(room.onMessage(S2C.BUILDING_SELL_REFUSED, (m: unknown) => this.receiveSellRefused(m))); // Story 5.20
+    this.offs.push(room.onMessage(S2C.BUILDING_MOVE_REFUSED, (m: unknown) => this.receiveMoveRefused(m))); // Story 5.22
+  }
+
+  /** Story 5.22: each `building.move_refused` from now on (dropped while none listens). Returns the unsubscribe. */
+  onMoveRefused(sink: (r: MoveRefusal) => void): () => void {
+    this.moveSink = sink;
+    return () => {
+      if (this.moveSink === sink) this.moveSink = null;
+    };
+  }
+
+  private receiveMoveRefused(m: unknown): void {
+    if (this.closed || !this.moveSink) return;
+    const r = parseMoveRefused(m);
+    if (r) this.moveSink(r);
   }
 
   /** Story 5.20: each `building.sell_refused` from now on (dropped while none listens). Returns the unsubscribe. */
@@ -411,6 +445,11 @@ export class NetSession {
   /** See `RunInbox.onSellRefused` (Story 5.20). */
   onSellRefused(sink: (reason: SellError) => void): () => void {
     return this.inbox.onSellRefused(sink);
+  }
+
+  /** See `RunInbox.onMoveRefused` (Story 5.22). */
+  onMoveRefused(sink: (r: MoveRefusal) => void): () => void {
+    return this.inbox.onMoveRefused(sink);
   }
 
   /** See `RunInbox.onShopAnswer`. */

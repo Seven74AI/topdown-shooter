@@ -507,6 +507,12 @@ export const buildControlsSchema = z
     dragStartPx: z.number().int().min(2).max(40).default(8),
     /** Story 5.20: the undo chip ↶ shows this long after each Place (ms; designer: 10 s). */
     undoWindowMs: z.number().int().min(1000).max(60000).default(10000),
+    /**
+     * Story 5.21 (ux-spec §5): a touch held this long (ms) on my own building, within the tap slop,
+     * picks it up (BX-8); the ring round the finger starts filling at `longPressRingMs`.
+     */
+    longPressMs: z.number().int().min(300).max(2000).default(450),
+    longPressRingMs: z.number().int().min(0).max(1000).default(150),
   })
   .strict();
 
@@ -517,7 +523,7 @@ export const controlsSchema = z
     aimAssistDeg: z.number().min(0).max(45),
     /** Story 5.2: client effect caps (no new balance file: every test fixture lists the files). */
     fx: fxSchema,
-    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300, dragGain: 1, dragStartPx: 8, undoWindowMs: 10000 }),
+    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300, dragGain: 1, dragStartPx: 8, undoWindowMs: 10000, longPressMs: 450, longPressRingMs: 150 }),
   })
   .strict();
 

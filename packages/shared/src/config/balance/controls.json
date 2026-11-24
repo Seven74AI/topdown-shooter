@@ -26,6 +26,8 @@
     "barQuietMs": 300,
     "dragGain": 1.0,
     "dragStartPx": 8,
-    "undoWindowMs": 10000
+    "undoWindowMs": 10000,
+    "longPressMs": 450,
+    "longPressRingMs": 150
   }
 }

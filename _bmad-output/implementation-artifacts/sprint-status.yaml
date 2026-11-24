@@ -134,7 +134,7 @@ development_status:
   5-18-place-place-place-chain-and-pending-under-lag: done  # building UX BX-4
   5-19-thumb-drag-to-nudge-and-pin: done  # building UX BX-5
   5-20-take-back-sell-and-undo: done  # building UX BX-6
-  5-21-building-action-bar: backlog  # merged with 5.22 (designer 2026-11-24): one story 'Building action bar and move'
+  5-21-building-action-bar: review  # merged with 5.22 (designer 2026-11-24): one story 'Building action bar and move'
   5-22-move-a-building: backlog  # merged into 5.21 (designer 2026-11-24)
   5-23-placement-feel-and-owner-marks: backlog  # merged with 5.25 (designer 2026-11-24): one story incl. mouse and keys
   5-24-teammates-ghosts: backlog  # building UX BX-10

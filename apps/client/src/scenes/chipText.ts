@@ -8,18 +8,21 @@ export class ChipText {
   private left = -1;
   private pinned = false;
   private short = false;
+  private moving = false;
   private text = "";
 
   /** `short` (main-session decision, the 120 px short-screen chip): "↩ carry" / "{name} ×{n}". */
-  get(name: string, price: number, left: number, pinned: boolean, short = false): string {
-    if (name !== this.name || price !== this.price || left !== this.left || pinned !== this.pinned || short !== this.short || this.text === "") {
+  get(name: string, price: number, left: number, pinned: boolean, short = false, moving = false): string {
+    if (name !== this.name || price !== this.price || left !== this.left || pinned !== this.pinned || short !== this.short || moving !== this.moving || this.text === "") {
+      this.moving = moving;
       this.name = name;
       this.price = price;
       this.left = left;
       this.pinned = pinned;
       this.short = short;
-      if (short) this.text = pinned ? "↩ carry" : `${name} ×${left}`;
-      else this.text = pinned ? `↩ carry · ${name}` : `${name} · $${price} · ×${left} left`;
+      // Story 5.22 (AC 12): a building being moved is free and not a new one: "{name} · moving".
+      if (short) this.text = pinned ? "↩ carry" : moving ? "Moving" : `${name} ×${left}`;
+      else this.text = pinned ? `↩ carry · ${name}` : moving ? `${name} · moving` : `${name} · $${price} · ×${left} left`;
     }
     return this.text;
   }

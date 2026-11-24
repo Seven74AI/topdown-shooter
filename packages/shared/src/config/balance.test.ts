@@ -179,11 +179,25 @@ describe("loadBalance", () => {
     expect(() => loadBalance(u)).toThrow(/undoWindowMs/);
   });
 
+  it("Story 5.21: controls.build.longPressMs (450) and longPressRingMs (150) load, default and are bounded", () => {
+    const b = loadBalance().controls.build;
+    expect(b.longPressMs).toBe(450);
+    expect(b.longPressRingMs).toBe(150);
+    const d = raw();
+    delete (d.controls as { build: { longPressMs?: unknown } }).build.longPressMs;
+    delete (d.controls as { build: { longPressRingMs?: unknown } }).build.longPressRingMs;
+    expect(loadBalance(d).controls.build.longPressMs).toBe(450);
+    expect(loadBalance(d).controls.build.longPressRingMs).toBe(150);
+    const l = raw();
+    (l.controls as { build: { longPressMs: number } }).build.longPressMs = 100; // shorter than a tap (300 ms)
+    expect(() => loadBalance(l)).toThrow(/longPressMs/);
+  });
+
   it("Story 5.15: controls.build (carry gap, snap and auto-rotate hysteresis) loads, defaults and is bounded", () => {
-    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG, undoWindowMs: 10000 });
+    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG, undoWindowMs: 10000, longPressMs: 450, longPressRingMs: 150 });
     const d = raw();
     delete (d.controls as { build?: unknown }).build;
-    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG, undoWindowMs: 10000 });
+    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG, undoWindowMs: 10000, longPressMs: 450, longPressRingMs: 150 });
     const h = raw();
     (h.controls as { build: { snapHysteresisM: number } }).build.snapHysteresisM = 0.25; // half a cell: the index would never settle
     expect(() => loadBalance(h)).toThrow(/controls\.json: build\.snapHysteresisM: /);

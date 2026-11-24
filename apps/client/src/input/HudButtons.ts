@@ -38,6 +38,20 @@ export class HudButtons {
     return route;
   }
 
+  /** Story 5.21: the button a pointer at (x, y) would press (without pressing it), or null. */
+  hit(x: number, y: number, screenWidth: number): string | null {
+    const route = routePointer(x, y, this.rects, screenWidth);
+    return route.kind === "button" ? route.id : null;
+  }
+
+  /**
+   * Story 5.21 (AC 7): holds a pointer without pressing anything (Ready yielded to the building under
+   * it): its moves and lift never reach the sticks, like a button's.
+   */
+  claim(pointerId: number): void {
+    this.held.set(pointerId, "");
+  }
+
   /** True if this pointer is holding a button (its moves and lift must not reach the sticks). */
   owns(pointerId: number): boolean {
     return this.held.has(pointerId);

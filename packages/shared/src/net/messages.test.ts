@@ -8,6 +8,7 @@ import {
   S2C,
   buildingRepairSchema,
   buildingSellSchema,
+  buildingMoveSchema,
   joinOptionsSchema,
   lobbySetReadySchema,
   playerNameSchema,
@@ -105,6 +106,19 @@ describe("shop.buy_item (Story 5.11; shared with 5.12)", () => {
     for (const bad of [{}, { item: "" }, { item: "Running" }, { item: "a".repeat(33) }, { item: 3 }, { item: "body_armor_1", extra: 1 }, { item: "x-y" }]) {
       expect(shopBuyItemSchema.safeParse(bad).success).toBe(false);
     }
+  });
+});
+
+describe("building.move (Story 5.22)", () => {
+  it("accepts only { id, gx, gy, rot } with integers in range (strict: no type, owner or hp fields)", () => {
+    expect(buildingMoveSchema.safeParse({ id: 1, gx: 0, gy: 0, rot: 0 }).success).toBe(true);
+    expect(buildingMoveSchema.safeParse({ id: 65535, gx: 255, gy: 255, rot: 3 }).success).toBe(true);
+    const ok = { id: 5, gx: 10, gy: 10, rot: 1 };
+    for (const bad of [{}, { ...ok, id: 0 }, { ...ok, gx: -1 }, { ...ok, gy: 256 }, { ...ok, rot: 4 }, { ...ok, gx: 1.5 }, { ...ok, rot: "1" }, { ...ok, type: "mine" }, { ...ok, hp: 999 }, { id: 5, gx: 1, gy: 1 }, null]) {
+      expect(buildingMoveSchema.safeParse(bad).success).toBe(false);
+    }
+    expect(C2S.BUILDING_MOVE).toBe("building.move");
+    expect(S2C.BUILDING_MOVE_REFUSED).toBe("building.move_refused");
   });
 });
 

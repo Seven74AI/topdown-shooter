@@ -3,6 +3,8 @@ import { MolotovView } from "../render/MolotovView";
 import { consumableUsable, consumableVisible, createConsumablePending, tapConsumable, updateConsumablePending, type ConsumableButtonInput } from "./consumableButton";
 import {
   NEUTRAL_INPUT,
+  buildingAtPoint,
+  type MoveRequest,
   consumableStats,
   shopConsumables,
   throwAimLength,
@@ -86,7 +88,11 @@ import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
 import { placementHintText, type HintContext } from "./blockText";
 import { ChipText, chipLeft } from "./chipText";
-import { RepairPanel, repairRefusalText, sellRefusalText, upgradeRefusalText } from "./repairPanel";
+import { BUILDING_TAP_TOLERANCE_M, RepairPanel, moveRefusalText, repairRefusalText, sellRefusalText, upgradeRefusalText } from "./repairPanel";
+import { PendingMoves } from "./pendingMove";
+import { longPressRing } from "../input/longPress";
+import { MoveView } from "../render/MoveView";
+import { NO_ANSWER_TEXT } from "./pendingFlow";
 import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
 import { haptic } from "../input/haptic";
@@ -344,6 +350,19 @@ export class GameScene extends Phaser.Scene {
   private readonly buildSpend = new BuildSpend();
   private readonly spentOn = (id: number): number => this.buildSpend.spentOn(id);
   private readonly sellNow = (id: number): void => this.host?.sellBuilding(id);
+  /** Story 5.22: my moves waiting for the server (AC 13), the view of them and of the held building's old spot. */
+  private readonly pendingMoves = new PendingMoves();
+  private moveView: MoveView | null = null;
+  private readonly moveBox = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  private readonly movingNow = (id: number): boolean => this.pendingMoves.waiting(id);
+  private readonly sendMove = (req: MoveRequest): void => this.queueMove(req);
+  /** Story 5.21 (AC 7, D8): the HUD asks whether a building's tap area is under canvas (x, y) (Ready yields to it). */
+  private readonly buildingAtCanvas = (x: number, y: number): boolean => {
+    const host = this.host;
+    if (!host) return false;
+    const w = this.cameras.main.getWorldPoint(x, y, this.cursorWorld);
+    return buildingAtPoint(host.world, w.x, w.y, BUILDING_TAP_TOLERANCE_M) !== null;
+  };
   private selectView: BuildingSelectView | null = null;
   /** A teammate's display name for the panel (called only when its texts change). */
   private readonly ownerName = (ownerId: string): string => this.host?.playerInfo(ownerId).name ?? ownerId;
@@ -452,6 +471,8 @@ export class GameScene extends Phaser.Scene {
     this.statusSecs = -1;
     // Phaser reuses this scene object on restart: reset what the HUD reads (no stale banner).
     Object.assign(this.hudModel, createHudModel());
+    this.hudModel.buildingAt = this.buildingAtCanvas; // Story 5.21 (D8)
+    this.pendingMoves.clear(); // Story 5.22: no move from the last run
     this.hudWeaponId = "";
     this.hudOtherId = "";
     if (balance.waves.lastRushCount > MAX_RUSH_MARKERS) {
@@ -501,6 +522,7 @@ export class GameScene extends Phaser.Scene {
     this.buildingView = new BuildingView(this, balance);
     this.blockReasonView = new BlockReasonView(this);
     this.pendingView = new PendingView(this, this.pending.entries.length);
+    this.moveView = new MoveView(this, this.pendingMoves.entries.length); // Story 5.22
     this.mineView = new MineView(this, balance);
     this.turretView = new TurretView(this);
     this.floodlightView = new FloodlightView(this, balance); // Story 5.10
@@ -582,6 +604,8 @@ export class GameScene extends Phaser.Scene {
       this.pending.reset();
       this.pendingView?.destroy();
       this.pendingView = null;
+      this.moveView?.destroy();
+      this.moveView = null;
       this.mineView?.destroy();
       this.mineView = null;
       this.cityView?.destroy();
@@ -799,7 +823,8 @@ export class GameScene extends Phaser.Scene {
     const run = host.world.run;
     const build = run.phase === "build";
     m.buildSecs = build ? Math.ceil(run.buildTicksLeft / TICK_RATE_HZ) : -1;
-    m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.placement.active;
+    // Story 5.21 (D3): hidden under the action bar too (its row is only 8 px above Ready's top edge).
+    m.readyButton = build && this.running && !this.gameOver && !menuOpen && !this.stressMode && !this.placement.active && !this.repairPanel.open;
     const serverReady = host.world.players.get(host.localPlayerId)?.buildReady === true;
     const now = this.time.now;
     this.myReady = this.ready.update(run.phase, host.world.waves.number, serverReady, now);
@@ -900,6 +925,7 @@ export class GameScene extends Phaser.Scene {
     f.ownerId = host.localPlayerId;
     f.label = this.placingLabel;
     f.send = this.sendPlace;
+    f.sendMove = this.sendMove; // Story 5.22
     f.nowMs = this.time.now;
     const v = this.cameras.main.worldView; // Story 5.18: a pinned ghost that leaves it goes back to carry
     f.viewMinX = v.x;
@@ -924,7 +950,7 @@ export class GameScene extends Phaser.Scene {
     if (p.active) {
       // Story 5.19 (AC 7): the item chip (cached: a new string only when a part changes)
       const left = chipLeft(host.world.balance.buildings.maxPerPlayer, ownedCount(host.world, host.localPlayerId), this.pending.count, this.shownWallet(host), p.price);
-      m.placementChip = this.chipText.get(this.placingName, p.price, left, p.pinned, m.placementChipShort);
+      m.placementChip = this.chipText.get(this.placingName, p.price, left, p.pinned, m.placementChipShort, p.moveId !== 0); // Story 5.22: "· moving"
     }
   }
 
@@ -1017,10 +1043,34 @@ export class GameScene extends Phaser.Scene {
     const close = m.repairClosePressed;
     const upgrade = m.upgradePressed; // Story 5.9
     const sell = m.sellPressed; // Story 5.20
-    m.worldTap = m.repairPressed = m.repairClosePressed = m.upgradePressed = m.sellPressed = false;
+    const move = m.movePressed; // Story 5.22
+    const long = m.longPressFired; // Story 5.21 (AC 11)
+    m.worldTap = m.repairPressed = m.repairClosePressed = m.upgradePressed = m.sellPressed = m.movePressed = m.longPressFired = false;
+    m.longPressMs = host.world.balance.controls.build.longPressMs;
     if (allowed && tap) {
       const w = this.cameras.main.getWorldPoint(m.worldTapX, m.worldTapY, this.cursorWorld);
       p.tap(host.world, w.x, w.y);
+    }
+    // Story 5.21 (AC 11): the ring fills round a press held on MY building; at 450 ms it picks it up.
+    m.pressRing = -1;
+    if (allowed && m.pressHeldMs >= 0) {
+      const ringMs = host.world.balance.controls.build.longPressRingMs;
+      if (m.pressHeldMs >= ringMs && this.myBuildingAtCanvas(host, m.pressX, m.pressY) !== 0) m.pressRing = longPressRing(m.pressHeldMs, ringMs, m.longPressMs);
+    }
+    if (allowed && long) {
+      const id = this.myBuildingAtCanvas(host, m.longPressX, m.longPressY);
+      if (id !== 0 && this.pickUp(host, id)) {
+        m.repairOpen = false;
+        return;
+      }
+    }
+    if (move && allowed && p.open) {
+      // Story 5.22 (AC 11): ✥ Move puts it in my hands (pinned where it stands).
+      const id = p.pressMove();
+      if (id !== 0 && this.pickUp(host, id)) {
+        m.repairOpen = false;
+        return;
+      }
     }
     if (close) p.close();
     if (press && allowed && p.open) host.repairBuilding(p.press());
@@ -1034,8 +1084,13 @@ export class GameScene extends Phaser.Scene {
       const id = p.pressSell();
       if (id !== 0) host.sellBuilding(id);
     }
-    m.repairOpen = p.update(host.world, host.localPlayerId, allowed, this.ownerName, this.spentOn);
+    m.repairOpen = p.update(host.world, host.localPlayerId, allowed, this.ownerName, this.spentOn, this.movingNow);
     if (m.repairOpen) {
+      m.moveShown = p.moveShown; // Story 5.22
+      m.moveLabel = p.moveLabel;
+      m.moveValid = p.moveErrorNow === null && !p.movePending;
+      m.repairFull = p.error === "full_hp"; // Story 5.21: "Repair · full HP", dimmed
+      m.barReason = p.barReason;
       m.repairInfo = p.info;
       m.repairReason = p.reason;
       m.repairLabel = p.label;
@@ -1046,6 +1101,62 @@ export class GameScene extends Phaser.Scene {
       m.sellLabel = p.sellLabelText;
       m.sellReason = p.sellReason;
     }
+  }
+
+  /** Story 5.21: my building's id under canvas (x, y) within the tap tolerance (0 = none, or not mine). */
+  private myBuildingAtCanvas(host: SceneHost, x: number, y: number): number {
+    const w = this.cameras.main.getWorldPoint(x, y, this.cursorWorld);
+    const b = buildingAtPoint(host.world, w.x, w.y, BUILDING_TAP_TOLERANCE_M);
+    return b && b.ownerId === host.localPlayerId ? b.id : 0;
+  }
+
+  /**
+   * Story 5.22 (AC 11, D11): picks my building `id` up — the hand holds it pinned where it stands
+   * (✥ Move, a long-press, 5.23's `M`). Only in a build phase with empty hands, standing, no menu /
+   * shop, my own building, no move of it waiting. Nothing is sent until Place.
+   */
+  private pickUp(host: SceneHost, id: number): boolean {
+    const screen = uiStore.get();
+    const menuOpen = screen.kind === "playing" && screen.menu !== "closed";
+    if (!this.canPlace(host, menuOpen || shopStore.get().open) || this.placement.active || this.pendingMoves.waiting(id)) return false;
+    const b = buildingById(host.world, id);
+    const me = host.world.players.get(host.localPlayerId);
+    const stats = b ? buildingStats(host.world.balance, b.type) : undefined;
+    if (!b || !me || !stats || b.ownerId !== host.localPlayerId) return false;
+    const pv = this.playerViews.get(host.localPlayerId);
+    if (!this.placement.startMove(host.world.balance, b, pv?.x ?? me.x, pv?.y ?? me.y, me.facingX, me.facingY, host.world.waves.number)) return false;
+    this.placingLabel = `Move ${stats.name} · free`;
+    this.placingName = stats.name;
+    this.repairPanel.close();
+    this.router?.releaseAim();
+    host.clearEdges();
+    return true;
+  }
+
+  /**
+   * Story 5.21 / 5.22 (AC 14): picks up the building selected in the action bar — the entry point for
+   * Story 5.23's `M` key (the same path as ✥ Move). False when nothing is selected, it isn't mine, a
+   * move of it is waiting, or picking up isn't possible now.
+   */
+  pickUpSelected(): boolean {
+    const host = this.host;
+    const p = this.repairPanel;
+    if (!host || !p.open) return false;
+    const b = buildingById(host.world, p.id);
+    if (!b || b.ownerId !== host.localPlayerId) return false;
+    return this.pickUp(host, b.id);
+  }
+
+  /** Story 5.22 (AC 13): a move Place → a pending box at the new spot and `building.move` (one waiting per building). */
+  private queueMove(req: MoveRequest): void {
+    const host = this.host;
+    if (!host) return;
+    const world = host.world;
+    const b = buildingById(world, req.id);
+    const stats = b ? buildingStats(world.balance, b.type) : undefined;
+    if (!stats) return;
+    footprint(stats, req.gx, req.gy, req.rot, this.moveBox);
+    if (this.pendingMoves.add(req.id, req.gx, req.gy, req.rot, this.moveBox, world.run.phase, world.waves.number)) host.moveBuilding(req);
   }
 
   /**
@@ -1292,7 +1403,7 @@ export class GameScene extends Phaser.Scene {
     b.kind = consumableStats(host.world.balance, b.item)?.kind ?? null;
     b.alive = p?.status === "alive";
     b.running = this.running && !this.gameOver;
-    b.placement = m.placementActive;
+    b.placement = m.placementActive || this.repairPanel.open; // Story 5.21 (D3): not under the action bar either
     b.shopOpen = shopOpen;
     b.menuOpen = menuOpen;
     b.phase = host.world.run.phase;
@@ -1392,6 +1503,11 @@ export class GameScene extends Phaser.Scene {
     }
     const sellRefused = host.takeSellRefusal(); // Story 5.20
     if (sellRefused) this.toasts.push(sellRefusalText(sellRefused));
+    // Story 5.22 (AC 13): my moves — done when the World shows them; a refusal (by id) or no answer shakes the box.
+    if (this.pendingMoves.update(host.world, this.time.now, host.world.balance.controls.build.pendingTimeoutMs) > 0) this.toasts.push(NO_ANSWER_TEXT);
+    for (let r = host.takeMoveRefusal(); r !== null; r = host.takeMoveRefusal()) {
+      if (this.pendingMoves.refuse(r.id, this.time.now)) this.toasts.push(moveRefusalText(r.reason));
+    }
     this.buildSpend.watchUsed(host.world, localId); // Story 5.20 review M1: a med station that healed sells at the normal share
     this.updateUndo(host, menuOpen, shopOpen); // Story 5.20: after the boxes were matched (an armed undo sends here)
     const events = host.drainEvents();
@@ -1497,6 +1613,7 @@ export class GameScene extends Phaser.Scene {
     this.buildingView?.update(host.world, this.placement);
     this.blockReasonView?.update(host.world, this.placement, this.drawnAt);
     this.pendingView?.update(this.pending, this.time.now); // Story 5.18
+    this.moveView?.update(host.world, this.placement, this.pendingMoves, this.time.now); // Story 5.22
     // Story 5.14: my survivor as drawn (predicted online) fills the re-arm ring on a sprung bear trap.
     const meNow = host.world.players.get(localId);
     const meView = this.playerViews.get(localId);

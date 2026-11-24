@@ -11,6 +11,7 @@ import {
   repairBuilding,
   upgradeBuilding,
   sellBuilding,
+  moveBuilding,
   buyWeapon,
   upgradeWeapon,
   buyItem,
@@ -37,6 +38,8 @@ import {
   type UpgradeError,
   type Upgraded,
   type SellError,
+  type MoveError,
+  type MoveRequest,
   type Sold,
   type Bought,
   type PlayerInput,
@@ -313,6 +316,11 @@ export class RunController {
   /** Story 5.9: `building.upgrade`, between ticks (the shared `upgradeBuilding`'s rules). */
   upgradeBuilding(playerId: string, buildingId: number): Result<Upgraded, UpgradeError> {
     return upgradeBuilding(this.world, playerId, buildingId);
+  }
+
+  /** Story 5.22: `building.move`, between ticks (the shared `moveBuilding`'s rules: owner, build phase, the new spot with itself ignored; free). */
+  moveBuilding(playerId: string, req: MoveRequest): Result<Building, MoveError> {
+    return moveBuilding(this.world, playerId, req);
   }
 
   /** Story 5.20: `building.sell`, between ticks (the shared `sellBuilding`'s rules: take back 100 %, sell 50 %). */

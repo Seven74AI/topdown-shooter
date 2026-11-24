@@ -107,6 +107,11 @@ export type SimEvent =
    * lift-and-fade footprint) for `refund` (already removed and refunded); (x, y) = its footprint's centre in metres. FX only (removal and wallet come from schema).
    */
   | { type: "building.sold"; buildingId: number; buildingType: string; ownerId: string; rot: number; refund: number; x: number; y: number }
+  /**
+   * Story 5.22: `ownerId` moved building `buildingId` to lattice corner (gx, gy) at `rot` (already
+   * applied: HP, tier and everything else kept). FX only online (the spot itself comes from schema).
+   */
+  | { type: "building.moved"; buildingId: number; buildingType: string; ownerId: string; gx: number; gy: number; rot: number }
   /** Story 5.9: mine `buildingId` went off at (x, y) (already removed; its hits/kills follow as events). */
   | { type: "mine.exploded"; buildingId: number; x: number; y: number }
   /** Story 5.14: a bear trap's jaws closed on a zombie (clang + snap FX; open/closed itself is schema state). */

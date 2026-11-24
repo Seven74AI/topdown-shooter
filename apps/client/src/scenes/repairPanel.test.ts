@@ -23,7 +23,7 @@ describe("RepairPanel (Story 3.7)", () => {
     p.tap(world, (b.minX + b.maxX) / 2, b.maxY + 0.25); // inside the 0.4 m tolerance of the 0.5 m barricade
     expect(p.update(world, "p0", true, names)).toBe(true);
     expect(p.id).toBe(b.id);
-    expect(p.info).toBe("Wood barricade · Bo's\nHP 100 / 200");
+    expect(p.info).toBe("Wood barricade · Bo's · HP 100/200\nOnly Bo can move, upgrade or\u00a0sell\u00a0it"); // Story 5.21 (AC 1, 2)
     expect(p.label).toBe("Repair $20");
     expect(p.reason).toBe("");
     expect(p.error).toBeNull();
@@ -34,14 +34,14 @@ describe("RepairPanel (Story 3.7)", () => {
     const p = new RepairPanel();
     p.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
     p.update(world, "p1", true, names);
-    expect(p.info).toBe("Wood barricade\nHP 200 / 200\n→ Reinforced barricade · 350 HP"); // Story 5.9: my own: the next tier
+    expect(p.info).toBe("Wood barricade · Yours · HP 200/200\n→ Reinforced barricade · 350 HP"); // Story 5.9: my own: the next tier
     expect(p.reason).toBe("Nothing to repair");
     b.hp = 12.3; // synced HP is rounded up
     const me = world.players.get("p1");
     if (!me) throw new Error("no p1");
     me.wallet = 5;
     p.update(world, "p1", true, names);
-    expect(p.info).toBe("Wood barricade\nHP 13 / 200\n→ Reinforced barricade · 350 HP");
+    expect(p.info).toBe("Wood barricade · Yours · HP 13/200\n→ Reinforced barricade · 350 HP");
     expect(p.reason).toBe("Not enough money");
   });
 
@@ -99,7 +99,7 @@ describe("RepairPanel upgrade line (Story 5.9)", () => {
     const mine = open(world, b, "p1");
     expect(mine.upgradeShown).toBe(true);
     expect(mine.upgradeLabel).toBe("Upgrade $50");
-    expect(mine.info.split("\n")[2]).toBe("→ Reinforced barricade · 350 HP");
+    expect(mine.info.split("\n")[1]).toBe("→ Reinforced barricade · 350 HP");
     expect(mine.upgradeReason).toBe("");
     const theirs = open(world, b, "p0");
     expect(theirs.upgradeShown).toBe(false);
@@ -123,11 +123,11 @@ describe("RepairPanel upgrade line (Story 5.9)", () => {
     expect(p.pressUpgrade(world)).toBe(0); // a second tap while pending sends nothing
     p.update(world, "p1", true, names);
     expect([p.open, p.upgradePending, p.upgradeLabel]).toEqual([true, true, "Upgrading…"]);
-    expect(p.info).toBe("Wood barricade\nHP 200 / 200"); // still the old tier: server truth
+    expect(p.info).toBe("Wood barricade · Yours · HP 200/200"); // still the old tier: server truth
     upgradeBuilding(world, "p1", b.id); // what the next state patch carries
     p.update(world, "p1", true, names);
     expect(p.upgradePending).toBe(false);
-    expect(p.info).toBe("Reinforced barricade\nHP 350 / 350\n→ Metal barricade · 600 HP");
+    expect(p.info).toBe("Reinforced barricade · Yours · HP 350/350\n→ Metal barricade · 600 HP");
     expect(p.upgradeLabel).toBe("Upgrade $70");
     p.pressUpgrade(world);
     p.upgradeRefused(); // a refusal ends the wait
@@ -171,5 +171,78 @@ describe("Story 5.20: Sell / Take back in the panel (AC 8)", () => {
     p.update(world, "p1", true, names);
     expect(p.pressSell()).toBe(b.id);
     expect(p.open).toBe(false);
+  });
+});
+
+describe("Story 5.21 / 5.22: the action bar's button sets (F3)", () => {
+  it("MY building: Move, Upgrade, Repair, Sell; a teammate's: Repair only + who may change it", () => {
+    const { world, b } = setup(); // p1's barricade
+    const mine = new RepairPanel();
+    mine.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+    mine.update(world, "p1", true, names);
+    expect([mine.moveShown, mine.upgradeShown, mine.sellShown, mine.moveErrorNow, mine.moveLabel]).toEqual([true, true, true, null, "Move"]);
+    expect(mine.info).not.toContain("Only");
+    const theirs = new RepairPanel();
+    theirs.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+    theirs.update(world, "p0", true, names);
+    expect([theirs.moveShown, theirs.upgradeShown, theirs.sellShown]).toEqual([false, false, false]);
+    expect(theirs.info.split("\n")[1]).toBe("Only Bo can move, upgrade or\u00a0sell\u00a0it");
+    expect(theirs.pressMove()).toBe(0); // F3: never picks up a teammate's
+    expect(theirs.open).toBe(true);
+  });
+
+  it("pressMove picks my building up (the panel closes); not while a move of it waits ('Moving…'), not while I'm down", () => {
+    const { world, b } = setup();
+    const p = new RepairPanel();
+    const tap = () => p.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+    tap();
+    p.update(world, "p1", true, names, () => 0, (id) => id === b.id);
+    expect([p.movePending, p.moveLabel, p.pressMove(), p.open]).toEqual([true, "Moving…", 0, true]);
+    p.update(world, "p1", true, names, () => 0, () => false);
+    expect(p.moveLabel).toBe("Move");
+    const p1 = world.players.get("p1");
+    if (!p1) throw new Error("p1");
+    p1.status = "downed";
+    p.update(world, "p1", true, names);
+    expect([p.moveErrorNow, p.moveReason, p.pressMove()]).toEqual(["not_alive", "Not while you're down", 0]);
+    p1.status = "alive";
+    p.update(world, "p1", true, names);
+    expect(p.pressMove()).toBe(b.id);
+    expect(p.open).toBe(false);
+  });
+
+  it("a pick-up is never refused for its own spot (a teammate standing on my spike trap doesn't block picking it up)", () => {
+    const { world } = setup();
+    const owner = world.players.get("p1");
+    if (owner) owner.wallet = 1000;
+    const r = placeBuilding(world, "p1", { type: "spike_trap", gx: 40, gy: 40, rot: 0 });
+    if (!r.ok) throw new Error(r.error);
+    const p0 = world.players.get("p0");
+    if (!p0) throw new Error("p0");
+    p0.x = (r.value.minX + r.value.maxX) / 2;
+    p0.y = (r.value.minY + r.value.maxY) / 2;
+    const p = new RepairPanel();
+    p.tap(world, p0.x, p0.y);
+    p.update(world, "p1", true, names);
+    expect([p.id, p.moveErrorNow]).toEqual([r.value.id, null]);
+  });
+
+  it("barReason: the first refusal among Upgrade, Repair (not full HP: the label says it), Sell, Move", () => {
+    const { world, b } = setup();
+    const p1 = world.players.get("p1");
+    if (!p1) throw new Error("p1");
+    const p = new RepairPanel();
+    p.tap(world, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+    p1.wallet = 0;
+    p.update(world, "p1", true, names);
+    expect(p.barReason).toBe("Not enough money"); // the upgrade (full HP: no repair reason)
+    p1.wallet = 1000;
+    p.update(world, "p1", true, names);
+    expect(p.barReason).toBe("");
+    b.hp = 10;
+    p1.wallet = 5;
+    setBuildingType(world, b, "metal_barricade", 10); // top tier: no upgrade
+    p.update(world, "p1", true, names);
+    expect([p.upgradeShown, p.barReason]).toEqual([false, "Not enough money"]); // the repair's
   });
 });

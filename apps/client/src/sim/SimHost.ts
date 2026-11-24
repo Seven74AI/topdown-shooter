@@ -1,5 +1,9 @@
 import type { FlameCues } from "../render/flameCues";
-import type { PlaceError, PlaceRequest, PlayerInput, RepairError, SellError, ShopError, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
+import type { MoveRequest, PlaceError, PlaceRequest, PlayerInput, RepairError, SellError, ShopError, SimEvent, UpgradeError, WeaponUpgradeError, World } from "@topdown/shared";
+import type { MoveRefusal } from "../net/session";
+
+/** Story 5.22: at most this many move refusals wait for the scene (one move in flight per building; 6 buildings). */
+export const MOVE_REFUSALS_MAX = 8;
 
 /**
  * Story 3.3: how a purchase ended (solo at once, online the server's `shop.bought` / `shop.refused`).
@@ -78,6 +82,15 @@ export interface SimHost {
   sellBuilding(id: number): void;
   /** The latest sell refusal not taken yet, or null. */
   takeSellRefusal(): SellError | null;
+  /**
+   * Story 5.22: move my building `req.id` to (gx, gy, rot), free (the server validates: standing,
+   * build phase, owner, the new spot with the building itself ignored; solo runs the same rules
+   * now). The building is at its new spot only when the World says so (online: the state). A
+   * refusal comes back through `takeMoveRefusal`.
+   */
+  moveBuilding(req: MoveRequest): void;
+  /** The oldest move refusal not taken yet (which building, why), or null. */
+  takeMoveRefusal(): MoveRefusal | null;
   /**
    * Story 3.3: buy a weapon of the fixed shop (`slot`: which one it replaces when both are full).
    * Solo the shared `buyWeapon` runs at once; online it is sent as `shop.buy` and the server decides.

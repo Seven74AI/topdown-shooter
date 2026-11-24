@@ -3,15 +3,16 @@ import { dpr, safeArea } from "../display";
 import { HudButtons } from "../input/HudButtons";
 import { hudPointerDown, hudPointerMove, hudPointerReset, hudPointerUp } from "../input/hudPointer";
 import {
+  ACTION_INFO_CSS_PX,
+  ACTION_LABEL_CSS_PX,
+  LONG_PRESS_RING_CSS_PX,
+  LONG_PRESS_RING_LINE_CSS_PX,
   MENU_BUTTON_CSS_PX,
   MENU_BUTTON_INSET_CSS_PX,
   MIN_TEXT_CSS_PX,
   READY_BUTTON_BOTTOM_CSS_PX,
   READY_BUTTON_H_CSS_PX,
   READY_BUTTON_W_CSS_PX,
-  REPAIR_BUTTON_W_CSS_PX,
-  REPAIR_CLOSE_CSS_PX,
-  REPAIR_ROW_GAP_CSS_PX,
   BUILD_COUNT_TEXT_CSS_PX,
   BUILD_PRICE_TEXT_CSS_PX,
   HAND_CHIP_PAD_CSS_PX,
@@ -20,6 +21,8 @@ import {
   UNDO_RING_CSS_PX,
 } from "../ui/sizes";
 import { layoutUndoChip } from "./undoChip";
+import { ACTION_IDS, actionLabel, layoutActionBar, newActionBarLayout, type ActionRect } from "./actionBar";
+import { LongPress, readyYields } from "../input/longPress";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { TAP_SLOP_CSS_PX, TapDetector } from "../input/tapDetector";
 import { ThumbDrag, onChipRect } from "../input/thumbDrag";
@@ -178,7 +181,6 @@ const HINT_BLOCKED = "#ff8a80";
 /** Story 3.7: the repair panel (Repair's border when it would be accepted, its look when not). */
 const REPAIR_OK = 0x4caf50;
 const REPAIR_DIM_ALPHA = 0.55;
-const REPAIR_INFO_PX = 16;
 const REPAIR_REASON = "#ff8a80";
 /** Story 5.9: the Upgrade button when it would be accepted (steel blue: a stronger wall). */
 const UPGRADE_FILL = 0x37587a;
@@ -186,6 +188,13 @@ const UPGRADE_BORDER = 0x90caf9;
 /** Story 5.20: the Sell / Take back button (a coin gold) and the undo chip ↶ (dark disc, gold ring draining). */
 const SELL_FILL = 0x6b5320;
 const SELL_BORDER = 0xf2c94c;
+/** Story 5.21 / 5.22: ✥ Move (a teal: "pick it up") and the long-press ring in the same colour. */
+const MOVE_FILL = 0x1f5f5b;
+const MOVE_BORDER = 0x64ffda;
+/** The action buttons' HudButtons ids, in `ACTION_IDS` order (Repair / ✕ keep 3.7's ids). */
+const ACTION_BUTTON_IDS = ["move", "upgrade", "repair", "sell", "repairClose"] as const;
+/** The long-press ring is redrawn when its fill changes by 1/LONG_PRESS_RING_STEPS. */
+const LONG_PRESS_RING_STEPS = 30;
 const UNDO_BG = 0x1d232b;
 const UNDO_BG_ALPHA = 0.82;
 const UNDO_RING = 0xf2c94c;
@@ -356,35 +365,31 @@ export class HudScene extends Phaser.Scene {
   private placeChipText!: Phaser.GameObjects.Text;
   private shownChip = "";
   private shownChipPinned: boolean | null = null;
-  /** Story 3.7: the repair panel (info line, reason line, Repair, ✕) and the tap detector. */
-  private repairBtn!: Phaser.GameObjects.Graphics;
-  private repairText!: Phaser.GameObjects.Text;
-  private repairCloseBtn!: Phaser.GameObjects.Graphics;
-  private repairCloseGlyph!: Phaser.GameObjects.Text;
+  /** Story 5.22: Place's glyph shows "MOVE" (null = not set yet). */
+  private shownMoving: boolean | null = null;
+  /**
+   * Story 5.21: the action bar (replaces 3.7's repair panel; `RepairPanel` keeps the logic): one
+   * button per `ACTION_IDS` (Move · Upgrade · Repair · Sell · ✕) in one row bottom-right, the info
+   * line and the red reason line right-aligned above it.
+   */
+  private readonly actBtns: Phaser.GameObjects.Graphics[] = [];
+  private readonly actTexts: Phaser.GameObjects.Text[] = [];
+  private readonly actLayout = newActionBarLayout();
+  private readonly actOn = [false, false, false, false, false];
   private repairInfo!: Phaser.GameObjects.Text;
   private repairReason!: Phaser.GameObjects.Text;
   private shownRepairOpen: boolean | null = null;
+  /** Which optional buttons are on the bar (bits: Move 1, Upgrade 2, Sell 8); −1 = not laid out yet. */
+  private shownActKey = -1;
+  private readonly shownActLabel = ["", "", "", "", ""];
+  /** Per button: −1 = not drawn yet, 0 = dimmed, 1 = valid. */
+  private readonly shownActLook = [-1, -1, -1, -1, -1];
   private shownRepairInfo = "";
   private shownRepairReason = "";
-  private shownRepairLabel = "";
-  /** -1 = not drawn yet, 0 = dimmed, 1 = valid. */
-  private shownRepairValid = -1;
-  /** Story 5.9: the Upgrade button one row above Repair, its refusal text to its left. */
-  private upgradeBtn!: Phaser.GameObjects.Graphics;
-  private upgradeText!: Phaser.GameObjects.Text;
-  private upgradeReason!: Phaser.GameObjects.Text;
-  private shownUpgradeShown: boolean | null = null;
-  private shownUpgradeLabel = "";
-  private shownUpgradeReason = "";
-  private shownUpgradeValid = -1;
-  /** Story 5.20: Sell / Take back, right of Upgrade on its row; its refusal text above it. */
-  private sellBtn!: Phaser.GameObjects.Graphics;
-  private sellText!: Phaser.GameObjects.Text;
-  private sellReasonText!: Phaser.GameObjects.Text;
-  private shownSellShown: boolean | null = null;
-  private shownSellLabel = "";
-  private shownSellReason = "";
-  private shownSellValid = -1;
+  /** Story 5.21 (AC 11): the long-press detector and its ring round the finger (redrawn on quantized change). */
+  private readonly longPress = new LongPress();
+  private pressRingG!: Phaser.GameObjects.Graphics;
+  private shownRingStep = -1;
   /** Story 5.20: the undo chip ↶ (a disc, its glyph, the draining ring); its layout follows the hand / bar state. */
   private undoBg!: Phaser.GameObjects.Graphics;
   private undoRing!: Phaser.GameObjects.Graphics;
@@ -489,19 +494,15 @@ export class HudScene extends Phaser.Scene {
     this.drag.reset();
     this.shownChip = "";
     this.shownChipPinned = null;
+    this.shownMoving = null;
     this.shownRepairOpen = null;
     this.shownRepairInfo = "";
     this.shownRepairReason = "";
-    this.shownRepairLabel = "";
-    this.shownRepairValid = -1;
-    this.shownUpgradeShown = null;
-    this.shownUpgradeLabel = "";
-    this.shownUpgradeReason = "";
-    this.shownUpgradeValid = -1;
-    this.shownSellShown = null;
-    this.shownSellLabel = "";
-    this.shownSellReason = "";
-    this.shownSellValid = -1;
+    this.shownActKey = -1;
+    this.shownActLabel.fill("");
+    this.shownActLook.fill(-1);
+    this.shownRingStep = -1;
+    this.longPress.reset();
     this.shownUndoVisible = null;
     this.shownUndoHolding = null;
     this.shownUndoStep = -1;
@@ -613,45 +614,23 @@ export class HudScene extends Phaser.Scene {
       this.buttons.set({ id: TILE_IDS[s] as string, x: 0, y: 0, w: 0, h: 0, visible: false }, () => this.pressTile(s));
     }
     this.barCount = this.add.text(0, 0, "", { ...this.outlinedStyle(BUILD_COUNT_TEXT_CSS_PX), fontStyle: "bold" }).setOrigin(1, 1).setDepth(1002).setVisible(false);
-    // Story 3.7: the repair panel (one row above Ready; a touch on its buttons never starts a stick).
-    this.repairBtn = this.add.graphics().setDepth(1001).setVisible(false);
-    this.repairText = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
-    this.repairCloseBtn = this.add.graphics().setDepth(1001).setVisible(false);
-    this.repairCloseGlyph = this.add.text(0, 0, "✕", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
-    this.repairInfo = this.add.text(0, 0, "", this.outlinedStyle(REPAIR_INFO_PX)).setOrigin(0, 0.5).setDepth(1002).setVisible(false);
+    // Story 5.21: the action bar (Move · Upgrade · Repair · Sell · ✕; a touch on its buttons never starts a stick).
+    this.actBtns.length = 0;
+    this.actTexts.length = 0;
+    for (let i = 0; i < ACTION_IDS.length; i++) {
+      this.actBtns.push(this.add.graphics().setDepth(1001).setVisible(false));
+      this.actTexts.push(this.add.text(0, 0, "", { ...this.outlinedStyle(ACTION_LABEL_CSS_PX), align: "center" }).setOrigin(0.5).setDepth(1002).setVisible(false));
+      const id = ACTION_BUTTON_IDS[i] as string;
+      this.buttons.set({ id, x: 0, y: 0, w: 0, h: 0, visible: false }, () => this.pressAction(i));
+    }
+    this.repairInfo = this.add.text(0, 0, "", { ...this.outlinedStyle(ACTION_INFO_CSS_PX), align: "right" }).setOrigin(1, 1).setDepth(1002).setVisible(false);
     this.repairReason = this.add
-      .text(0, 0, "", { ...this.outlinedStyle(REPAIR_INFO_PX), color: REPAIR_REASON })
-      .setOrigin(0, 1)
+      .text(0, 0, "", { ...this.outlinedStyle(ACTION_INFO_CSS_PX), color: REPAIR_REASON, align: "right" })
+      .setOrigin(1, 1)
       .setDepth(1002)
       .setVisible(false);
-    this.buttons.set({ id: "repair", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
-      this.model.repairPressed = true;
-    });
-    this.buttons.set({ id: "repairClose", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
-      this.model.repairClosePressed = true;
-    });
-    // Story 5.9: Upgrade (my own upgradable buildings only).
-    this.upgradeBtn = this.add.graphics().setDepth(1001).setVisible(false);
-    this.upgradeText = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
-    this.upgradeReason = this.add
-      .text(0, 0, "", { ...this.outlinedStyle(REPAIR_INFO_PX), color: REPAIR_REASON })
-      .setOrigin(1, 0.5)
-      .setDepth(1002)
-      .setVisible(false);
-    this.buttons.set({ id: "upgrade", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
-      this.model.upgradePressed = true;
-    });
-    // Story 5.20: Sell / Take back (my own buildings only) and the undo chip ↶.
-    this.sellBtn = this.add.graphics().setDepth(1001).setVisible(false);
-    this.sellText = this.add.text(0, 0, "", this.outlinedStyle(READY_TEXT_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
-    this.sellReasonText = this.add
-      .text(0, 0, "", { ...this.outlinedStyle(REPAIR_INFO_PX), color: REPAIR_REASON })
-      .setOrigin(1, 0.5)
-      .setDepth(1002)
-      .setVisible(false);
-    this.buttons.set({ id: "sell", x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
-      this.model.sellPressed = true;
-    });
+    this.pressRingG = this.add.graphics().setDepth(1003).setVisible(false);
+    // Story 5.20: the undo chip ↶.
     this.undoBg = this.add.graphics().setDepth(1001).setVisible(false);
     this.undoRing = this.add.graphics().setDepth(1002).setVisible(false);
     this.undoGlyph = this.add.text(0, 0, "↶", this.outlinedStyle(UNDO_GLYPH_CSS_PX)).setOrigin(0.5).setDepth(1003).setVisible(false);
@@ -760,13 +739,25 @@ export class HudScene extends Phaser.Scene {
         else if (this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width).kind !== "button") this.drag.down(p.id, p.x, p.y); // Story 5.19
         return;
       }
+      // Story 5.21 (AC 7, D8): a touch on Ready over a building's tap area goes to the building (tap / long-press), not Ready.
+      const m = this.model;
+      if (readyYields(this.buttons.hit(p.x, p.y, this.scale.width), m.tapsEnabled, m.buildingAt?.(p.x, p.y) === true)) {
+        this.buttons.claim(p.id);
+        this.router.pointerDown(p.id, p.x, p.y, p.wasTouch, p.button, true, this.scale.width);
+        this.taps.down(p.id, p.x, p.y, this.time.now, true);
+        this.longPress.down(p.id, p.x, p.y, this.time.now, true);
+        return;
+      }
       hudPointerDown(this.buttons, this.router, p, this.scale.width);
       // Story 3.7: the tap detector only watches (the stick or the mouse fire already started as usual).
-      this.taps.down(p.id, p.x, p.y, this.time.now, !this.buttons.owns(p.id));
+      const eligible = !this.buttons.owns(p.id);
+      this.taps.down(p.id, p.x, p.y, this.time.now, eligible);
+      this.longPress.down(p.id, p.x, p.y, this.time.now, eligible && m.tapsEnabled); // Story 5.21
     };
     const move = (p: Phaser.Input.Pointer) => {
       if (p.id === this.drag.pointerId) this.dragMove(p.id, p.x, p.y); // Story 5.19
       this.taps.move(p.id, p.x, p.y, TAP_SLOP_CSS_PX * dpr());
+      this.longPress.move(p.id, p.x, p.y, TAP_SLOP_CSS_PX * dpr()); // Story 5.21
       hudPointerMove(this.buttons, this.router, p);
     };
     const up = (p: Phaser.Input.Pointer) => {
@@ -782,11 +773,13 @@ export class HudScene extends Phaser.Scene {
         m.worldTapX = this.taps.tapX;
         m.worldTapY = this.taps.tapY;
       }
+      this.longPress.up(p.id); // Story 5.21
       hudPointerUp(this.buttons, this.router, p);
     };
     const reset = () => {
       hudPointerReset(this.buttons, this.router);
       this.taps.reset();
+      this.longPress.reset(); // Story 5.21
       this.drag.reset();
       this.model.dragHeld = false;
     };
@@ -951,7 +944,7 @@ export class HudScene extends Phaser.Scene {
     this.layoutBuildBar(); // Story 5.16: before Ready (Ready keeps clear of the grid)
     this.layoutReadyButton();
     this.layoutPlacementButtons();
-    this.layoutRepairPanel();
+    this.layoutActionBar();
     this.layoutUndo(); // Story 5.20: after the build bar and the hand cluster (it sits by both)
   }
 
@@ -1097,166 +1090,151 @@ export class HudScene extends Phaser.Scene {
     else this.consIcon.clearTint();
   }
 
+  /** Story 5.21: a tap on action button `i` (`ACTION_IDS` order) → the model's press flag. */
+  private pressAction(i: number): void {
+    const m = this.model;
+    const id = ACTION_IDS[i];
+    if (id === "move") m.movePressed = true;
+    else if (id === "upgrade") m.upgradePressed = true;
+    else if (id === "repair") m.repairPressed = true;
+    else if (id === "sell") m.sellPressed = true;
+    else m.repairClosePressed = true;
+  }
+
   /**
-   * Story 3.7: Repair and ✕ in a row centred one row above Ready; the info (two lines) right
-   * of ✕ and the reason above it, so the texts stay clear of the survivor at the screen centre.
+   * Story 5.21 (AC 1, 5): the action bar's row (`layoutActionBar`: right-aligned at 16, centre bottom
+   * 112, absent buttons closed up to the right) and the info / reason lines right-aligned above it.
    */
-  private layoutRepairPanel(): void {
+  private layoutActionBar(): void {
     const k = dpr();
-    const h = READY_BUTTON_H_CSS_PX * k;
-    const w = REPAIR_BUTTON_W_CSS_PX * k;
-    const cw = REPAIR_CLOSE_CSS_PX * k;
-    const gap = REPAIR_ROW_GAP_CSS_PX * k;
-    const readyTop = this.scale.height - (READY_BUTTON_BOTTOM_CSS_PX + this.insets.bottom) * k - h;
-    const y = readyTop - gap - h;
-    const x = (this.scale.width - (w + gap + cw)) / 2;
-    const rect = this.buttons.get("repair");
-    if (rect) Object.assign(rect, { x, y, w, h });
-    this.repairBtn.setPosition(x, y);
-    this.repairText.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, y + h / 2);
-    const cx = x + w + gap;
-    const close = this.buttons.get("repairClose");
-    if (close) Object.assign(close, { x: cx, y, w: cw, h });
-    const g = this.repairCloseBtn;
-    g.clear();
-    g.fillStyle(PLACE_CANCEL, 0.85).fillRoundedRect(0, 0, cw, h, READY_RADIUS_PX * k);
-    g.lineStyle(READY_BORDER_PX * k, READY_BORDER, 0.9).strokeRoundedRect(0, 0, cw, h, READY_RADIUS_PX * k);
-    g.setPosition(cx, y);
-    this.repairCloseGlyph.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(cx + cw / 2, y + h / 2);
-    const tx = cx + cw + gap;
-    const lineH = REPAIR_INFO_PX * LINE_HEIGHT * k;
-    this.repairInfo.setFontSize(Math.round(REPAIR_INFO_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(tx, y + h / 2);
-    this.repairReason
-      .setFontSize(Math.round(REPAIR_INFO_PX * k))
-      .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
-      .setPosition(tx, y + h / 2 - lineH * 1.5); // above the info (up to 3 lines since Story 5.9)
-    this.shownRepairValid = -1; // redraw at the new size
-    // Story 5.9: Upgrade one row above Repair, same width; its refusal text to its left.
-    const uy = y - gap - h;
-    const up = this.buttons.get("upgrade");
-    if (up) Object.assign(up, { x, y: uy, w, h });
-    this.upgradeBtn.setPosition(x, uy);
-    this.upgradeText.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, uy + h / 2);
-    this.upgradeReason.setFontSize(Math.round(REPAIR_INFO_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x - gap, uy + h / 2);
-    this.shownUpgradeValid = -1;
-    // Story 5.20 (D6): Sell one row above Upgrade, same width (clear of ✕'s info column at 568 px); its refusal text to its left.
-    const sy = uy - gap - h;
-    const sell = this.buttons.get("sell");
-    if (sell) Object.assign(sell, { x, y: sy, w, h });
-    this.sellBtn.setPosition(x, sy);
-    this.sellText.setFontSize(Math.round(READY_TEXT_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x + w / 2, sy + h / 2);
-    this.sellReasonText.setFontSize(Math.round(REPAIR_INFO_PX * k)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setPosition(x - gap, sy + h / 2);
-    this.shownSellValid = -1;
-  }
-
-  /** Story 5.20: shows, hides and updates Sell / Take back (only when what it shows changes). */
-  private drawSell(): void {
     const m = this.model;
-    const shown = m.repairOpen && m.sellShown;
-    if (shown !== this.shownSellShown) {
-      this.shownSellShown = shown;
-      this.buttons.setVisible("sell", shown);
-      this.sellBtn.setVisible(shown);
-      this.sellText.setVisible(shown);
-      this.sellReasonText.setVisible(shown);
+    const on = this.actOn;
+    on[0] = m.moveShown;
+    on[1] = m.upgradeShown;
+    on[3] = m.sellShown;
+    const l = layoutActionBar(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, k, on, this.actLayout);
+    const open = this.shownRepairOpen === true;
+    for (let i = 0; i < ACTION_IDS.length; i++) {
+      const r = l.rects[i] as ActionRect;
+      const id = ACTION_BUTTON_IDS[i] as string;
+      const rect = this.buttons.get(id);
+      if (rect) Object.assign(rect, { x: r.x, y: r.y, w: r.w, h: r.h });
+      const shown = open && r.visible;
+      this.buttons.setVisible(id, shown);
+      (this.actBtns[i] as Phaser.GameObjects.Graphics).setPosition(r.x, r.y).setVisible(shown);
+      (this.actTexts[i] as Phaser.GameObjects.Text)
+        .setFontSize(Math.round((ACTION_IDS[i] === "close" ? READY_TEXT_PX : ACTION_LABEL_CSS_PX) * k))
+        .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
+        .setLineSpacing(-2 * k)
+        .setPosition(r.x + r.w / 2, r.y + r.h / 2)
+        .setVisible(shown);
     }
-    if (!shown) return;
-    if (m.sellLabel !== this.shownSellLabel) {
-      this.shownSellLabel = m.sellLabel;
-      this.sellText.setText(m.sellLabel);
-    }
-    if (m.sellReason !== this.shownSellReason) {
-      this.shownSellReason = m.sellReason;
-      this.sellReasonText.setText(m.sellReason);
-    }
-    const valid = m.sellReason === "" ? 1 : 0;
-    if (valid === this.shownSellValid) return;
-    this.shownSellValid = valid;
-    const k = dpr();
-    const w = REPAIR_BUTTON_W_CSS_PX * k;
-    const h = READY_BUTTON_H_CSS_PX * k;
-    const g = this.sellBtn;
-    g.clear();
-    g.fillStyle(valid ? SELL_FILL : READY_BG, valid ? 0.85 : READY_BG_ALPHA).fillRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
-    g.lineStyle(READY_BORDER_PX * k, valid ? SELL_BORDER : READY_BORDER, 0.9).strokeRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
-    g.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
-    this.sellText.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
+    // The info lines wrap clear of the survivor at the screen centre (14 px on a narrow screen: they still clear ☰).
+    this.repairInfo.setFontSize(Math.round(l.infoPx)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setWordWrapWidth(l.infoMaxW, true).setPosition(l.infoRight, l.infoBottom);
+    this.repairReason.setFontSize(Math.round(l.infoPx)).setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k)).setWordWrapWidth(l.infoMaxW, true);
+    this.placeReasonLine();
+    this.shownActLook.fill(-1); // redraw at the new size
   }
 
-  /** Story 5.9: shows, hides and updates the Upgrade button (only when what it shows changes). */
-  private drawUpgrade(): void {
-    const m = this.model;
-    const shown = m.repairOpen && m.upgradeShown;
-    if (shown !== this.shownUpgradeShown) {
-      this.shownUpgradeShown = shown;
-      this.buttons.setVisible("upgrade", shown);
-      this.upgradeBtn.setVisible(shown);
-      this.upgradeText.setVisible(shown);
-      this.upgradeReason.setVisible(shown);
-    }
-    if (!shown) return;
-    if (m.upgradeLabel !== this.shownUpgradeLabel) {
-      this.shownUpgradeLabel = m.upgradeLabel;
-      this.upgradeText.setText(m.upgradeLabel);
-    }
-    if (m.upgradeReason !== this.shownUpgradeReason) {
-      this.shownUpgradeReason = m.upgradeReason;
-      this.upgradeReason.setText(m.upgradeReason);
-    }
-    const valid = m.upgradeReason === "" ? 1 : 0;
-    if (valid === this.shownUpgradeValid) return;
-    this.shownUpgradeValid = valid;
-    const k = dpr();
-    const w = REPAIR_BUTTON_W_CSS_PX * k;
-    const h = READY_BUTTON_H_CSS_PX * k;
-    const g = this.upgradeBtn;
-    g.clear();
-    g.fillStyle(valid ? UPGRADE_FILL : READY_BG, valid ? 0.85 : READY_BG_ALPHA).fillRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
-    g.lineStyle(READY_BORDER_PX * k, valid ? UPGRADE_BORDER : READY_BORDER, 0.9).strokeRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
-    g.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
-    this.upgradeText.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
+  /** The red reason line sits right above the info lines (their height changes with the text). */
+  private placeReasonLine(): void {
+    this.repairReason.setPosition(this.actLayout.infoRight, this.actLayout.infoBottom - this.repairInfo.height);
   }
 
-  /** Story 3.7: shows, hides and updates the repair panel (only when what it shows changes). */
-  private drawRepair(): void {
+  /** Story 5.21: shows, hides and updates the action bar (only when what it shows changes). */
+  private drawActionBar(): void {
     const m = this.model;
     const open = m.repairOpen;
     if (open !== this.shownRepairOpen) {
       this.shownRepairOpen = open;
-      this.buttons.setVisible("repair", open);
-      this.buttons.setVisible("repairClose", open);
-      this.repairBtn.setVisible(open);
-      this.repairText.setVisible(open);
-      this.repairCloseBtn.setVisible(open);
-      this.repairCloseGlyph.setVisible(open);
       this.repairInfo.setVisible(open);
       this.repairReason.setVisible(open);
+      this.shownActKey = -1; // lay out (and show / hide every button) below
+      if (!open) {
+        for (let i = 0; i < ACTION_IDS.length; i++) {
+          this.buttons.setVisible(ACTION_BUTTON_IDS[i] as string, false);
+          (this.actBtns[i] as Phaser.GameObjects.Graphics).setVisible(false);
+          (this.actTexts[i] as Phaser.GameObjects.Text).setVisible(false);
+        }
+      }
     }
     if (!open) return;
+    const key = (m.moveShown ? 1 : 0) | (m.upgradeShown ? 2 : 0) | (m.sellShown ? 8 : 0);
+    if (key !== this.shownActKey) {
+      this.shownActKey = key;
+      this.layoutActionBar();
+    }
     if (m.repairInfo !== this.shownRepairInfo) {
       this.shownRepairInfo = m.repairInfo;
       this.repairInfo.setText(m.repairInfo);
+      this.placeReasonLine();
     }
-    if (m.repairReason !== this.shownRepairReason) {
-      this.shownRepairReason = m.repairReason;
-      this.repairReason.setText(m.repairReason);
+    if (m.barReason !== this.shownRepairReason) {
+      this.shownRepairReason = m.barReason;
+      this.repairReason.setText(m.barReason);
     }
-    if (m.repairLabel !== this.shownRepairLabel) {
-      this.shownRepairLabel = m.repairLabel;
-      this.repairText.setText(m.repairLabel);
-    }
-    const valid = m.repairReason === "" ? 1 : 0;
-    if (valid === this.shownRepairValid) return;
-    this.shownRepairValid = valid;
     const k = dpr();
-    const w = REPAIR_BUTTON_W_CSS_PX * k;
-    const h = READY_BUTTON_H_CSS_PX * k;
-    const g = this.repairBtn;
+    for (let i = 0; i < ACTION_IDS.length; i++) {
+      const r = this.actLayout.rects[i] as ActionRect;
+      if (!r.visible) continue;
+      const id = ACTION_IDS[i];
+      const label =
+        id === "move" ? (m.moveLabel === "Move" ? "✥\nMove" : m.moveLabel) : id === "upgrade" ? actionLabel(m.upgradeLabel) : id === "repair" ? (m.repairFull ? "Repair\nfull HP" : actionLabel(m.repairLabel)) : id === "sell" ? actionLabel(m.sellLabel) : "✕";
+      const text = this.actTexts[i] as Phaser.GameObjects.Text;
+      if (label !== this.shownActLabel[i]) {
+        this.shownActLabel[i] = label;
+        text.setText(label);
+      }
+      const valid = id === "move" ? m.moveValid : id === "upgrade" ? m.upgradeReason === "" : id === "repair" ? m.repairReason === "" : id === "sell" ? m.sellReason === "" : true;
+      const look = valid ? 1 : 0;
+      if (look === this.shownActLook[i]) continue;
+      this.shownActLook[i] = look;
+      const fill = id === "move" ? MOVE_FILL : id === "upgrade" ? UPGRADE_FILL : id === "repair" ? PLACE_CONFIRM : id === "sell" ? SELL_FILL : PLACE_CANCEL;
+      const border = id === "move" ? MOVE_BORDER : id === "upgrade" ? UPGRADE_BORDER : id === "repair" ? REPAIR_OK : id === "sell" ? SELL_BORDER : READY_BORDER;
+      const g = this.actBtns[i] as Phaser.GameObjects.Graphics;
+      g.clear();
+      g.fillStyle(valid ? fill : READY_BG, valid ? 0.85 : READY_BG_ALPHA).fillRoundedRect(0, 0, r.w, r.h, READY_RADIUS_PX * k);
+      g.lineStyle(READY_BORDER_PX * k, valid ? border : READY_BORDER, 0.9).strokeRoundedRect(0, 0, r.w, r.h, READY_RADIUS_PX * k);
+      g.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
+      text.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
+    }
+  }
+
+  /**
+   * Story 5.21 (AC 11): the long-press — the detector's state into the model (the scene answers
+   * whether the press is on my building, `pressRing`), and the ring round the finger.
+   */
+  private drawLongPress(): void {
+    const m = this.model;
+    const now = this.time.now;
+    if (!m.tapsEnabled) this.longPress.reset();
+    m.pressHeldMs = this.longPress.heldMs(now);
+    m.pressX = this.longPress.pressX;
+    m.pressY = this.longPress.pressY;
+    if (this.longPress.update(now, m.longPressMs)) {
+      m.longPressFired = true;
+      m.longPressX = this.longPress.pressX;
+      m.longPressY = this.longPress.pressY;
+    }
+    const step = m.pressRing < 0 || m.pressHeldMs < 0 ? -1 : Math.round(m.pressRing * LONG_PRESS_RING_STEPS);
+    if (step === this.shownRingStep) return;
+    this.shownRingStep = step;
+    const g = this.pressRingG;
+    if (step < 0) {
+      g.setVisible(false);
+      return;
+    }
+    const k = dpr();
+    const r = LONG_PRESS_RING_CSS_PX * k;
     g.clear();
-    g.fillStyle(valid ? PLACE_CONFIRM : READY_BG, valid ? 0.85 : READY_BG_ALPHA).fillRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
-    g.lineStyle(READY_BORDER_PX * k, valid ? REPAIR_OK : READY_BORDER, 0.9).strokeRoundedRect(0, 0, w, h, READY_RADIUS_PX * k);
-    g.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
-    this.repairText.setAlpha(valid ? 1 : REPAIR_DIM_ALPHA);
+    g.lineStyle(LONG_PRESS_RING_LINE_CSS_PX * k, 0x000000, 0.45).strokeCircle(0, 0, r);
+    if (step > 0) {
+      g.lineStyle(LONG_PRESS_RING_LINE_CSS_PX * k, MOVE_BORDER, 1);
+      g.beginPath();
+      g.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * step) / LONG_PRESS_RING_STEPS, false);
+      g.strokePath();
+    }
+    g.setPosition(m.pressX, m.pressY).setVisible(true);
   }
 
   /**
@@ -1382,6 +1360,11 @@ export class HudScene extends Phaser.Scene {
       this.placeLock.setVisible(locked);
     }
     if (!placing) return;
+    if (m.placementMoving !== this.shownMoving) {
+      // Story 5.22 (AC 12): Place reads "MOVE" while I hold one of my buildings.
+      this.shownMoving = m.placementMoving;
+      (this.placeGlyphs[PLACE_IDS.indexOf("confirm")] as Phaser.GameObjects.Text).setText(m.placementMoving ? "MOVE" : (PLACE_GLYPHS[1] as string));
+    }
     this.drawHandButtons(m.placementValid);
     this.drawChip();
     if (m.placementHint !== this.shownHint) {
@@ -1754,9 +1737,8 @@ export class HudScene extends Phaser.Scene {
     this.drawReady();
     this.drawPlacement();
     this.drawBuildBar(); // Story 5.16
-    this.drawRepair();
-    this.drawUpgrade(); // Story 5.9
-    this.drawSell(); // Story 5.20
+    this.drawActionBar(); // Story 5.21 (3.7's panel, 5.9's Upgrade, 5.20's Sell, 5.22's Move)
+    this.drawLongPress(); // Story 5.21
     this.drawUndo(); // Story 5.20
     this.drawSoldPops(); // Story 5.20
     this.perfOverlay?.update();
@@ -1956,8 +1938,8 @@ export class HudScene extends Phaser.Scene {
   /** Magazine count bottom-right and a reload bar under it (redrawn only on change). */
   private drawWeapon(): void {
     const m = this.model;
-    // Story 5.15: under the hand cluster while holding (and nothing fires); Story 5.16: under the build bar (D3).
-    const hidden = m.placementActive || m.buildBar;
+    // Story 5.15: under the hand cluster while holding (and nothing fires); Story 5.16: under the build bar (D3); Story 5.21: under the action bar.
+    const hidden = m.placementActive || m.buildBar || m.repairOpen;
     if (hidden !== this.shownWeaponHidden) {
       this.shownWeaponHidden = hidden;
       const a = hidden ? 0 : 1;
@@ -1970,7 +1952,7 @@ export class HudScene extends Phaser.Scene {
       this.reloadBar.setAlpha(a);
     }
     // Story 5.12 (main-session decision 2026-11-23): in a build phase the swap sits above the build bar; hidden only while holding.
-    const hasOther = m.otherWeaponName !== "" && !m.placementActive;
+    const hasOther = m.otherWeaponName !== "" && !m.placementActive && !m.repairOpen; // Story 5.21 (D3): not under the action bar either
     if (hasOther !== this.shownSwapVisible) {
       this.shownSwapVisible = hasOther; // only touch the registry and objects when it changes
       this.buttons.setVisible("swap", hasOther);

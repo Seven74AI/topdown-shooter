@@ -179,6 +179,7 @@ describe("blockReason (Story 5.17)", () => {
         const without = footprintBlocked(world, box);
         list.splice(at, 0, b);
         expect(r !== null).toBe(without);
+        expect(footprintBlocked(world, box, b.id)).toBe(without); // Story 5.22: the server's move check agrees
         if (r?.cause === "building") expect(r.id).not.toBe(b.id);
         if (i % 2 === 0 && footprintBlocked(world, box) && !without) excepted++;
       }

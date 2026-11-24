@@ -1060,3 +1060,103 @@ describe("Story 5.19: thumb drag to nudge and pin", () => {
   });
 });
 
+
+describe("Story 5.22 (in 5.21): moving my building in the hand", () => {
+  const hud = (): PlacementHud => ({ placementActive: false, placementValid: true, placementLocked: false, placementHint: "", rotatePressed: false, confirmPressed: false, cancelPressed: false, placementPinned: false, dragDxPx: 0, dragDyPx: 0, dragged: false, chipPressed: false });
+  function setup() {
+    const w = world();
+    const me = w.players.get("p0");
+    if (me) me.wallet = 1000;
+    const r = placeBuilding(w, "p0", { type: WOOD, gx: 40, gy: 24, rot: 1 }); // x 20–20.5, y 12–14 (north of me at (20, 16))
+    if (!r.ok) throw new Error(r.error);
+    const moves: { id: number; gx: number; gy: number; rot: number }[] = [];
+    const sent: PlaceRequest[] = [];
+    const toasts: string[] = [];
+    const f: PlacementFrame = {
+      can: true,
+      wave: 0,
+      x: 20,
+      y: 16,
+      ownerId: "p0",
+      label: "Move Wood barricade · free",
+      refusal: (e: PlaceError) => placeRefusalText(e, balance),
+      send: (q) => sent.push({ ...q }),
+      sendMove: (q) => moves.push({ ...q }),
+      toast: (t) => toasts.push(t),
+      nowMs: 0,
+      hintText: (e: PlaceError) => placeRefusalText(e, balance),
+    };
+    const p = new Placement();
+    expect(p.startMove(balance, r.value, 20, 16, 0, -1, 0)).toBe(true);
+    return { w, b: r.value, p, f, m: hud(), moves, sent, toasts };
+  }
+
+  it("picked up: pinned where it stands, its rotation, valid (itself never blocks), price 0; walking leaves it there", () => {
+    const { w, b, p, f, m } = setup();
+    expect([p.active, p.moveId, p.gx, p.gy, p.rot, p.pinned, p.price, p.atMoveOrigin]).toEqual([true, b.id, 40, 24, 1, true, 0, true]);
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    expect([m.placementActive, m.placementMoving, m.placementValid, m.placementHint]).toEqual([true, true, true, "Move Wood barricade · free"]);
+    f.x = 24; // walk 4 m east
+    stepPlacement(p, m, { ...NEUTRAL_INPUT, moveX: 1 }, w, f);
+    expect([p.gx, p.gy]).toEqual([40, 24]);
+  });
+
+  it("Place sends building.move for the shown spot and empties the hand (no chain, no placement sent); at its own spot nothing is sent", () => {
+    const { w, b, p, f, m, moves, sent } = setup();
+    m.confirmPressed = true;
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    expect([moves.length, sent.length, p.active, m.placementActive, m.placementMoving]).toEqual([0, 0, false, false, false]); // own spot: nothing
+    p.startMove(balance, b, 20, 16, 0, -1, 0);
+    m.chipPressed = true; // "↩ carry": in front of me (facing north)
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    expect(p.pinned).toBe(false);
+    const gx = p.gx;
+    const gy = p.gy;
+    m.confirmPressed = true;
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    expect(moves).toEqual([{ id: b.id, gx, gy, rot: p.rot }]);
+    expect([sent.length, p.active]).toEqual([0, false]);
+  });
+
+  it("✕ puts it back (nothing sent); a 0.5 m drag onto its own old footprint is valid; onto me it is blocked with the 5.17 reason", () => {
+    const { w, b, p, f, m, moves } = setup();
+    p.drag(0, 0.5, Number.NaN, Number.NaN, Number.NaN, Number.NaN);
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    expect([p.gy, p.error]).toEqual([25, null]); // overlaps its own old spot: fine
+    p.drag(0, 2.5, Number.NaN, Number.NaN, Number.NaN, Number.NaN); // down onto me at (20, 16)
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    expect(p.error).toBe("blocked");
+    expect([p.hasReason, p.reason.cause]).toEqual([true, "me"]);
+    m.cancelPressed = true;
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    expect([p.active, moves.length, b.gx, b.gy]).toEqual([false, 0, 40, 24]);
+  });
+
+  it("the building gone (destroyed, sold) or the build over while I hold it: the hand empties; nothing sent", () => {
+    const { w, b, p, f, m, moves, toasts } = setup();
+    w.buildings.list.splice(w.buildings.list.indexOf(b), 1);
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    expect([p.active, m.placementActive, moves.length, toasts]).toEqual([false, false, 0, ["That building is gone"]]);
+    const s2 = setup();
+    startWave(s2.w);
+    s2.f.can = false;
+    stepPlacement(s2.p, s2.m, { ...NEUTRAL_INPUT }, s2.w, s2.f);
+    expect([s2.p.active, s2.moves.length]).toEqual([false, 0]);
+  });
+
+  it("my pending placement box on the new spot predicts blocked; a normal start() clears move mode", () => {
+    const { w, p, f, m } = setup();
+    const pending = new PendingPlacements();
+    pending.configure(2000, 250, 6);
+    const ghost = p.ghostBox();
+    if (!ghost) throw new Error("box");
+    // a pending box 2 m east of the moved building, and the ghost dragged onto it
+    pending.add({ type: "spike_trap", gx: 44, gy: 24, rot: 0 }, 75, { minX: 22, minY: 12, maxX: 23, maxY: 13 }, newestBuildingId(w), "build", 0);
+    p.drag(2, 0, Number.NaN, Number.NaN, Number.NaN, Number.NaN);
+    f.pending = pending;
+    stepPlacement(p, m, { ...NEUTRAL_INPUT }, w, f);
+    expect([p.error, p.pendingOverlap]).toEqual(["blocked", true]);
+    p.start(balance, WOOD, 20, 16, 0, -1);
+    expect([p.moveId, p.price]).toEqual([0, 40]);
+  });
+});
