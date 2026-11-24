@@ -14,6 +14,7 @@ import { BOSS_STATE } from "./bossState";
 import { ticksFor } from "../core/time";
 import { recordBossThreat } from "./target";
 import { placeBoss, tickN } from "./testBoss";
+import { pushSurvivorsFromBody } from "./behemoth";
 
 /**
  * Story 6.5 (AC 6; DD2, D1, D8): the Behemoth's own grid and field, its body against players,
@@ -263,7 +264,8 @@ describe("Story 6.5 review M-new-1: survivors never freeze it", () => {
     w.debug.godMode = true;
     const target = addPlayer(w, "p0", 46, 16);
     placeBoss(w, 4, 16);
-    const t = tank === "none" ? null : addPlayer(w, "p1", 4 + R + 0.4, tank === "flank" ? 16 + R + 0.4 : 16);
+    // Review LOW-3: the flank survivor overlaps the body by 0.3 m (not a tangent touch).
+    const t = tank === "none" ? null : addPlayer(w, "p1", 4 + R + 0.4, tank === "flank" ? 16 + R + 0.4 - 0.3 : 16);
     let x0 = Number.NaN;
     for (let i = 0; i < seconds * 20; i++) {
       recordBossThreat(w, "p0", 1000); // the target stays p0; the tank is never targeted
@@ -341,3 +343,97 @@ describe("Story 6.5 review L-e: the fallback's rules", () => {
     expect(w.pathing.bossChase.seedFar).toBe(false);
   });
 });
+
+describe("Story 6.5 review 2 lows", () => {
+  it("LOW-1 (D8): a survivor held against a metal barricade line slows it, never holds it — the barricade takes crush damage and it gets through", () => {
+    const w = createWorld({ balance, seed: 3, systems: { waves: () => {} } });
+    w.debug.godMode = true;
+    addPlayer(w, "p0", 44, 16);
+    placeBoss(w, 14, 16);
+    w.boss.gapTicks = 1_000_000; // no slams: the push alone must get it through
+    // A wall of metal barricades across the street at x 20–20.5, a survivor walking into the boss's face in front of it.
+    for (let k = 0; k < 16; k++) addBuildingAt(w, { id: k + 1, type: "metal_barricade", ownerId: "p0", gx: 40, gy: k * 4, rot: 1, hp: 600 });
+    const tank = addPlayer(w, "p1", 20 - 0.4, 16);
+    let seq = 0;
+    let held = 0;
+    for (let t = 0; t < 30 * 20 && w.buildings.list.length === 16; t++) {
+      recordBossThreat(w, "p0", 1000);
+      steerAt(w, tank, ++seq); // into its face, every tick
+      const x = w.boss.x;
+      tickN(w);
+      if (w.boss.x === x) held++;
+    }
+    expect(held).toBeGreaterThan(20); // it really was pinned (the crush is what got it through)
+    expect(w.buildings.list.length).toBeLessThan(16); // broken through (metal 600 HP at 5 a tick: 6 s once it presses)
+    for (let t = 0; t < 20 * 20 && w.boss.x <= 21; t++) {
+      recordBossThreat(w, "p0", 1000);
+      steerAt(w, tank, ++seq);
+      tickN(w);
+    }
+    expect(w.boss.x).toBeGreaterThan(21); // past the line (the body crushes the rest of the gap itself)
+    expect(Math.hypot(tank.x - w.boss.x, tank.y - w.boss.y)).toBeGreaterThanOrEqual(R + tank.radiusM - 1e-6);
+  });
+
+  it("LOW-2: two survivors pressing the boss against a barricade line never end a tick inside its body", () => {
+    const w = createWorld({ balance, seed: 3, systems: { waves: () => {} } });
+    w.debug.godMode = true;
+    addPlayer(w, "p0", 44, 16);
+    placeBoss(w, 20, 16);
+    w.boss.gapTicks = 1_000_000;
+    // The boss pressed against a barricade line at x 22.5–23 (0.5 m from its body: narrower than a survivor);
+    // two survivors walk along the line's face into the wedge, one from each side.
+    for (let k = 0; k < 16; k++) addBuildingAt(w, { id: k + 1, type: "metal_barricade", ownerId: "p0", gx: 45, gy: k * 4, rot: 1, hp: 1e6 });
+    const a = addPlayer(w, "p1", 22.5 - balance.player.radiusM, 18.5);
+    const b = addPlayer(w, "p2", 22.5 - balance.player.radiusM, 13.5);
+    let seq = 0;
+    for (let t = 0; t < 10 * 20; t++) {
+      recordBossThreat(w, "p0", 1000);
+      setInput(w, "p1", { ...NEUTRAL_INPUT, seq: ++seq, moveX: 0.3, moveY: -1 });
+      setInput(w, "p2", { ...NEUTRAL_INPUT, seq, moveX: 0.3, moveY: 1 });
+      tickN(w);
+      for (const p of [a, b]) expect(Math.hypot(p.x - w.boss.x, p.y - w.boss.y), `t ${t}`).toBeGreaterThanOrEqual(R + p.radiusM - 1e-5);
+    }
+    expect(Math.abs(a.y - w.boss.y)).toBeLessThan(2); // they really got into the wedge
+  });
+
+  it("LOW-4: a step rolled back (one survivor truly pinned against a map box) puts EVERY survivor back", () => {
+    const w = setup();
+    // A pressed against the bus's north face, B free on the boss's flank; the body's new spot overlaps both.
+    // B is p0 so it is pushed first, before A is found pinned: only the restore puts it back.
+    const b = addPlayer(w, "p0", 33.5, 14.5 - 2 * balance.player.radiusM - R + 0.05 + 1.94);
+    const a = addPlayer(w, "p1", 35, 14.5 - balance.player.radiusM);
+    placeBoss(w, 35, 14.5 - 2 * balance.player.radiusM - R + 0.05);
+    const ax = a.x;
+    const ay = a.y;
+    const bx = b.x;
+    const by = b.y;
+    const nx = w.boss.x - 0.1;
+    const ny = w.boss.y + 0.3; // deeper into A (it can't give way) and into B
+    expect(Math.hypot(b.x - w.boss.x, b.y - w.boss.y)).toBeGreaterThan(R + b.radiusM); // B clear of the body now
+    expect(Math.hypot(b.x - nx, b.y - ny)).toBeLessThan(R + b.radiusM); // and inside its new spot
+    expect(pushSurvivorsFromBody(w, nx, ny)).toBe(false);
+    expect([a.x, a.y, b.x, b.y]).toEqual([ax, ay, bx, by]);
+  });
+
+  it("LOW-4 (L-c): a fallback whose capped search seeds nothing seeds uncapped (the boss still comes)", () => {
+    const raw = withOverrides(bundledBalanceFiles(), [["boss", "pathing.fallbackSeedM", 0.5]]);
+    const tiny = loadBalance(raw);
+    const w = createWorld({ balance: tiny, seed: 11, map: DOWNTOWN_MAP, systems: { waves: () => {} } });
+    w.debug.godMode = true;
+    addPlayer(w, "p0", 9.5, 4); // the NW alley: nothing free for the body within 0.5 m
+    placeBoss(w, 34, 12);
+    w.boss.gapTicks = 1_000_000;
+    tickN(w, 10 * 20);
+    expect(w.pathing.bossChase.frontFar).toBe(true);
+    const nav = w.pathing.boss;
+    expect(w.pathing.bossChase.front[flowCellAt(nav, w.boss.x, w.boss.y)]).toBeLessThan(1 << 29); // the far field reaches it
+  });
+});
+
+/** Review 2: a survivor walking at the boss's centre this tick (input, so the Predictor's rules apply). */
+function steerAt(w: ReturnType<typeof setup>, p: { id: string; x: number; y: number }, seq: number): void {
+  const dx = w.boss.x - p.x;
+  const dy = w.boss.y - p.y;
+  const d = Math.sqrt(dx * dx + dy * dy) || 1;
+  setInput(w, p.id, { ...NEUTRAL_INPUT, seq, moveX: dx / d, moveY: dy / d });
+}

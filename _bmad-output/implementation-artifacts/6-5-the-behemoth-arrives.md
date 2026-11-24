@@ -439,6 +439,17 @@ H1, M1, M2, L1, L2, L5 verified. One new medium (from the L6 fix) and lows, all 
 | L-d | `Math.hypot` in the push code. | The new push uses + − × ÷ and sqrt (the L6 helper is gone). | — |
 | L-e | Survived mutations. | New tests: a 1 m move retries the normal field before the 2 s timer; the walking distance goes round walls (east of the apartments > straight + 10 cells); a second Behemoth starts with a clean field; a zombie under the body behind a barricade inside the body is not shot; the boss's flame clock restarts on a slot claim (rejoin); `threatWindowS` 6 is refused. Each fails its mutation. | `bossPathing.test.ts`, `bossDamage.test.ts`, `config/balance.test.ts` |
 
+### Re-review of 0c36d31 (main session, 2026-11-24)
+
+M-new-1 verified. Four lows, all fixed:
+
+| # | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| LOW-1 | A survivor walking into its face in front of a player barricade line got the step rolled back nearly every tick: the boss was held and the barricade took no crush damage (D8 "slows, not stops" broken). | While a survivor is pinned, each solid building that survivor overlaps at its pushed-to spot takes `buildingDps` × dt (the boss crushes it through the survivor). The step is still rolled back, so the survivor never ends up inside a box. | `bossPathing.test.ts` "LOW-1": a tank steering at the boss centre every tick in front of a 16-piece metal line. The boss is held for more than 20 ticks, a barricade breaks, and the boss passes the line. Fails with the crush removed. |
+| LOW-2 | `bossPush` followed by the obstacle push could leave a survivor inside the body (survivors wedged between the boss and a barricade line, up to 0.107 m). | If the survivor still overlaps the body after both pushes and did not overlap it at its pre-move position, it snaps back to that position. | "LOW-2": two survivors walk along the line's face into a 0.5 m wedge. They never end a tick inside the body. Fails with the snap-back removed (0.04 m inside at t 4). |
+| LOW-3 | The flank test was tangent. | The tank now sits at y = 16 + R + r − 0.3 (a real overlap), and the test asserts the boss walks more than 5 m. | Fails with the flank push removed. |
+| LOW-4 | Survived mutations. | New tests: (1) a rolled-back step puts back a survivor that had already been pushed (it is pushed first, then the other is found pinned against the bus); (2) a rewound shot at a zombie under the body after the boss has moved; (3) a target walled in beyond `fallbackSeedM` of walking still gets a far field (uncapped pass). Each fails its mutation. | `bossPathing.test.ts`, `bossDamage.test.ts` |
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -447,3 +458,4 @@ H1, M1, M2, L1, L2, L5 verified. One new medium (from the L6 fix) and lows, all 
 - 2026-11-24: merged master 603099b (Story 6.3): 6.3's aboveDark.ts replaces the shim, the boss outline follows `darknessAlpha`, the boss bar is in the HUD layout test.
 - 2026-11-24: review fixes H1, M1, M2, L1–L6 (see Senior Developer Review (AI)).
 - 2026-11-24: re-review fixes M-new-1, L-a…L-e.
+- 2026-11-24: re-review 2 fixes LOW-1…LOW-4.

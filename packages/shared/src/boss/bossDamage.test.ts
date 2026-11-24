@@ -291,3 +291,18 @@ describe("Story 6.5 review L-e", () => {
     expect(w.boss.flameClock[slot]).toBe(0);
   });
 });
+
+describe("Story 6.5 review 2 LOW-4 (L-a)", () => {
+  it("a rewound shot tests a zombie under the body against the boss where it was at the rewind tick", async () => {
+    const { zombieUnderBoss } = await import("./bossDamage");
+    const { w } = setup();
+    setZombieHistoryEnabled(w, true);
+    tickN(w, 2);
+    const at = w.tick; // this row holds the boss's position now
+    const then = { x: w.boss.x, y: w.boss.y };
+    tickN(w, 3);
+    w.boss.x = then.x + 3; // it moved since: the live body no longer covers that spot
+    expect(zombieUnderBoss(w, then.x + 0.5, then.y)).toBe(false);
+    expect(zombieUnderBoss(w, then.x + 0.5, then.y, at)).toBe(true);
+  });
+});

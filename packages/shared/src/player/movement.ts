@@ -102,4 +102,22 @@ function bossPush(world: World, p: PlayerState): void {
     p.x = Math.min(world.map.widthM - r, Math.max(r, p.x));
     p.y = Math.min(world.map.heightM - r, Math.max(r, p.y));
   }
+  // Review LOW-2: the obstacles pushed it back into the body (a survivor pressing the boss against a
+  // barricade line): it stays where it stood before this move (outside the body), never inside.
+  if (overlapsBoss(world, p) && !overlapsBossAt(world, p, p.prevX, p.prevY)) {
+    p.x = p.prevX;
+    p.y = p.prevY;
+  }
+}
+
+function overlapsBoss(world: World, p: PlayerState): boolean {
+  return overlapsBossAt(world, p, p.x, p.y);
+}
+
+function overlapsBossAt(world: World, p: PlayerState, x: number, y: number): boolean {
+  const b = world.boss;
+  const min = world.balance.boss.radiusM + p.radiusM - 1e-6;
+  const dx = x - b.x;
+  const dy = y - b.y;
+  return dx * dx + dy * dy < min * min;
 }

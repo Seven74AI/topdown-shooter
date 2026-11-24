@@ -382,7 +382,7 @@ const pushBackupY = new Float64Array(8);
  * Only + − × ÷ and sqrt. Returns false — and puts every survivor back — when one would still overlap
  * the body afterwards (truly pinned against a map box): the caller then rolls the step back.
  */
-function pushSurvivorsFromBody(world: World, x: number, y: number): boolean {
+export function pushSurvivorsFromBody(world: World, x: number, y: number): boolean {
   const R = world.balance.boss.radiusM;
   let i = 0;
   let pinned = false;
@@ -408,12 +408,20 @@ function pushSurvivorsFromBody(world: World, x: number, y: number): boolean {
     }
     const fromX = p.x;
     const fromY = p.y;
-    pushOutOfBuildings(world, x + dx * min, y + dy * min, p.radiusM, fromX, fromY);
+    const wantX = x + dx * min;
+    const wantY = y + dy * min;
+    pushOutOfBuildings(world, wantX, wantY, p.radiusM, fromX, fromY);
     p.x = pushed.x;
     p.y = pushed.y;
     const ex = p.x - x;
     const ey = p.y - y;
-    if (ex * ex + ey * ey < (min - 1e-6) * (min - 1e-6)) pinned = true;
+    if (ex * ex + ey * ey < (min - 1e-6) * (min - 1e-6)) {
+      pinned = true;
+      // Review LOW-1 (D8): pinned against a PLAYER building, the boss crushes that building through
+      // the survivor (buildingDps, as if its body touched it): a survivor in front of a barricade line
+      // slows it, never holds it.
+      crushBuildingsAt(world, wantX, wantY, p.radiusM);
+    }
   }
   if (!pinned) return true;
   i = 0;
@@ -425,6 +433,18 @@ function pushSurvivorsFromBody(world: World, x: number, y: number): boolean {
     i++;
   }
   return false;
+}
+
+/** Review LOW-1: every solid player building the circle (x, y, r) overlaps takes `buildingDps` × dt. */
+function crushBuildingsAt(world: World, x: number, y: number, r: number): void {
+  const dmg = world.balance.boss.buildingDps * TICK_DT_S;
+  const list = world.buildings.list;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const bd = list[i] as Building | undefined;
+    if (!bd || !bd.solid || !circleOverlapsBox(x, y, r, bd.minX, bd.minY, bd.maxX, bd.maxY)) continue;
+    bossStats.buildingDamage += dmg;
+    if (damageBuilding(world, bd, dmg)) bossStats.buildingsBroken++;
+  }
 }
 
 /** D8: every player building its body overlaps takes `buildingDps` × dt (5 HP a tick). */
