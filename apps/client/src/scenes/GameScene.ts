@@ -1619,7 +1619,7 @@ export class GameScene extends Phaser.Scene {
     host.bossDrawPos(this.bossAt);
     this.bossView?.setDark(darknessAlpha(host.world as World) > 0); // Story 6.3: the outline + eyes above the darkness
     const target = b.targetId !== null ? this.playerViews.get(b.targetId) : undefined;
-    this.bossView?.update(this.localHost?.paused === true ? 0 : dtS, host.serverTick, this.bossAt.x, this.bossAt.y, target);
+    this.bossView?.update(this.localHost?.paused === true ? 0 : dtS, host.serverTick, this.bossAt.x, this.bossAt.y, target, this.zombieView?.drawn);
     const m = this.hudModel;
     const walking = b.state >= BOSS_STATE.WALK && b.state <= BOSS_STATE.ROAR;
     m.bossVisible = walking;

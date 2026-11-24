@@ -11,6 +11,8 @@ import { startBuild } from "../run/runStateMachine";
 import { spawnZombie } from "../zombies/zombiePool";
 import { flowCellAt, snapshotPathing } from "../zombies/flowField";
 import { BOSS_STATE } from "./bossState";
+import { ticksFor } from "../core/time";
+import { recordBossThreat } from "./target";
 import { placeBoss, tickN } from "./testBoss";
 
 /**
@@ -251,5 +253,91 @@ describe("Story 6.5 review L6: pinned between the boss and a wall", () => {
       expect(inBox(p.x, p.y, p.radiusM, w.obstacles.solids)).toBe(false);
     }
     expect(worst).toBeGreaterThanOrEqual(-1e-6);
+  });
+});
+
+describe("Story 6.5 review M-new-1: survivors never freeze it", () => {
+  /** The boss walks east along the open street toward a far target; returns its progress in `seconds`. */
+  function progress(seconds: number, tank: "none" | "dodge" | "flank"): number {
+    const w = createWorld({ balance, seed: 3, systems: { waves: () => {} } });
+    w.debug.godMode = true;
+    const target = addPlayer(w, "p0", 46, 16);
+    placeBoss(w, 4, 16);
+    const t = tank === "none" ? null : addPlayer(w, "p1", 4 + R + 0.4, tank === "flank" ? 16 + R + 0.4 : 16);
+    let x0 = Number.NaN;
+    for (let i = 0; i < seconds * 20; i++) {
+      recordBossThreat(w, "p0", 1000); // the target stays p0; the tank is never targeted
+      if (t && tank === "dodge") {
+        if (w.boss.state === BOSS_STATE.TELEGRAPH) {
+          t.x = w.boss.attack.cx + 4.8; // dodge every slam…
+          t.y = 16;
+        } else {
+          t.x = w.boss.x + R + t.radiusM; // …and step straight back into its face
+          t.y = 16;
+        }
+      }
+      tickN(w);
+      if (Number.isNaN(x0)) x0 = w.boss.x;
+      if (t) expect(Math.hypot(t.x - w.boss.x, t.y - w.boss.y)).toBeGreaterThanOrEqual(R + t.radiusM - 1e-6);
+      expect(target.status).toBe("alive");
+    }
+    return w.boss.x - x0;
+  }
+
+  it("a non-target 'tank' who dodges every slam and steps back into its face: it keeps walking (pushes the tank)", () => {
+    const free = progress(20, "none");
+    const tanked = progress(20, "dodge");
+    expect(free).toBeGreaterThan(20);
+    // Each slam the tank draws stands it still for the 1.2 s telegraph + 0.8 s recovery (by design: any
+    // survivor in 4 m triggers it); beyond that the tank never stops it.
+    expect(tanked).toBeGreaterThan(0.55 * free);
+  });
+
+  it("a survivor touching its flank doesn't freeze it: it walks on and pushes them aside", () => {
+    const flank = progress(10, "flank");
+    expect(flank).toBeGreaterThan(5);
+  });
+});
+
+describe("Story 6.5 review L-e: the fallback's rules", () => {
+  function inFallback() {
+    const w = setup();
+    const p = addPlayer(w, "p0", 9.5, 4); // the NW alley
+    placeBoss(w, 34, 12);
+    noAttacks(w);
+    w.boss.cooldown.slam = 1_000_000;
+    for (let t = 0; t < 200 && !w.pathing.bossChase.seedFar; t++) tickN(w);
+    expect(w.pathing.bossChase.seedFar).toBe(true);
+    return { w, p };
+  }
+
+  it("a 1 m move of the target gives the normal field another try at once (before the 2 s retry)", () => {
+    const { w, p } = inFallback();
+    const since = w.boss.farSinceTick;
+    tickN(w); // still in the fallback without a move
+    expect(w.pathing.bossChase.seedFar).toBe(true);
+    p.y += 1.2; // deeper in the alley: still unreachable, but it moved
+    tickN(w);
+    expect(w.pathing.bossChase.seedFar).toBe(false);
+    expect(w.tick - since).toBeLessThan(ticksFor(balance.boss.pathing.fallbackRetryS));
+  });
+
+  it("the walking distance goes round walls (not the straight line)", () => {
+    const { w } = inFallback();
+    tickN(w, 40); // a fallback build ran its BFS from the target
+    const nav = w.pathing.nav;
+    const straight = Math.round((19.5 - 9.5) / nav.cellM); // 20 cells due east, through the apartments
+    const walk = w.pathing.farDist[flowCellAt(nav, 19.5, 4)] as number;
+    expect(walk).toBeGreaterThan(straight + 10); // out of the alley, round the block and back up
+  });
+
+  it("a second Behemoth starts with a clean field (resetBossField at its arrival)", () => {
+    const { w } = inFallback();
+    w.boss.state = BOSS_STATE.WARNING;
+    w.boss.stateTicks = ticksFor(balance.boss.warningS) - 1;
+    w.pathing.bossChase.seedFar = true;
+    tickN(w); // it walks in again
+    expect(w.boss.state).toBe(BOSS_STATE.WALK);
+    expect(w.pathing.bossChase.seedFar).toBe(false);
   });
 });

@@ -267,3 +267,27 @@ describe("Story 6.5 D3 / DD9", () => {
     expect(out.y).toBeCloseTo(Math.sin(2 * deg), 9);
   });
 });
+
+describe("Story 6.5 review L-e", () => {
+  it("a zombie under its body but behind cover inside the body (a barricade it straddles) is not shot", () => {
+    const { w, ev } = setup("pistol");
+    // A metal barricade inside the body's west half (x BX−0.75…BX−0.25), the zombie under its east half.
+    addBuildingAt(w, { id: 1, type: "metal_barricade", ownerId: "p0", gx: (BX - 0.75) / BUILD_GRID_M, gy: (BY - 1) / BUILD_GRID_M, rot: 1, hp: 1e6 });
+    const under = spawnZombie(w, "walker", BX + 0.8, BY);
+    w.zombies.state.fill(0);
+    fireFor(w, 1);
+    tickN(w, 10);
+    expect(ev.some((e) => (e.type === "zombie.hit" || e.type === "zombie.killed") && e.zombieId === under)).toBe(false);
+  });
+
+  it("the boss's flame clock restarts when a player claims the slot (a rejoin)", async () => {
+    const { removePlayer } = await import("../player/player");
+    const { w, p } = setup();
+    const slot = p.flameSlot;
+    w.boss.flameClock[slot] = 5;
+    removePlayer(w, "p0");
+    const q = addPlayer(w, "p0", BX - 6, BY);
+    expect(q.flameSlot).toBe(slot);
+    expect(w.boss.flameClock[slot]).toBe(0);
+  });
+});

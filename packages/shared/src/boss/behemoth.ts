@@ -362,24 +362,67 @@ function walk(world: World, target: PlayerState | null): void {
   const ny = b.y + (dy / d) * step;
   pushOutOfBuildings(world, nx, ny, bal.radiusM, b.x, b.y, false); // map solids only: buildings aren't solid to it
   b.facing = Math.atan2(dy, dx);
-  // Review L6: the player system runs before this one, so a step into a survivor would end the tick
-  // with them inside its body (pinned against a wall they can't be pushed out). It never steps deeper
-  // into a standing survivor: they block it like a wall (and stand in slam range).
-  if (stepsIntoPlayer(world, pushed.x, pushed.y)) return;
-  b.x = pushed.x;
-  b.y = pushed.y;
+  // Review L6 / M-new-1: the player system runs before this one, so the body pushes the survivors it
+  // walks into out this same tick (D1); the step is rolled back only if one is truly pinned against a
+  // map box (it would end the tick inside the body). Survivors never stop it otherwise.
+  const tx = pushed.x;
+  const ty = pushed.y;
+  if (!pushSurvivorsFromBody(world, tx, ty)) return;
+  b.x = tx;
+  b.y = ty;
 }
 
-/** Review L6: moving the body to (x, y) would overlap a standing survivor more than it does now. */
-function stepsIntoPlayer(world: Readonly<World>, x: number, y: number): boolean {
-  const b = world.boss;
+/** Review M-new-1: survivor positions before the body push (restored when the step is rolled back). */
+const pushBackupX = new Float64Array(8);
+const pushBackupY = new Float64Array(8);
+
+/**
+ * D1 + review L6 / M-new-1: the body moves to (x, y) and pushes every standing survivor it overlaps out
+ * along the centre line, then out of the obstacles (the same tick: the player system already ran).
+ * Only + − × ÷ and sqrt. Returns false — and puts every survivor back — when one would still overlap
+ * the body afterwards (truly pinned against a map box): the caller then rolls the step back.
+ */
+function pushSurvivorsFromBody(world: World, x: number, y: number): boolean {
   const R = world.balance.boss.radiusM;
+  let i = 0;
+  let pinned = false;
   for (const p of world.players.values()) {
+    if (i < pushBackupX.length) {
+      pushBackupX[i] = p.x;
+      pushBackupY[i] = p.y;
+    }
+    i++;
     if (p.status !== "alive") continue;
     const min = R + p.radiusM;
-    const dn = Math.hypot(p.x - x, p.y - y);
-    if (dn >= min) continue;
-    if (dn < Math.hypot(p.x - b.x, p.y - b.y) - 1e-9) return true;
+    let dx = p.x - x;
+    let dy = p.y - y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= min * min) continue;
+    const d = Math.sqrt(d2);
+    if (d > 1e-9) {
+      dx /= d;
+      dy /= d;
+    } else {
+      dx = 1;
+      dy = 0;
+    }
+    const fromX = p.x;
+    const fromY = p.y;
+    pushOutOfBuildings(world, x + dx * min, y + dy * min, p.radiusM, fromX, fromY);
+    p.x = pushed.x;
+    p.y = pushed.y;
+    const ex = p.x - x;
+    const ey = p.y - y;
+    if (ex * ex + ey * ey < (min - 1e-6) * (min - 1e-6)) pinned = true;
+  }
+  if (!pinned) return true;
+  i = 0;
+  for (const p of world.players.values()) {
+    if (i < pushBackupX.length) {
+      p.x = pushBackupX[i] as number;
+      p.y = pushBackupY[i] as number;
+    }
+    i++;
   }
   return false;
 }

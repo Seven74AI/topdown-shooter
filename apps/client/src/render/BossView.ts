@@ -1,5 +1,5 @@
 import type * as Phaser from "phaser";
-import { BOSS_ATTACK, BOSS_STATE, zombiesUnderBoss, type World } from "@topdown/shared";
+import { BOSS_ATTACK, BOSS_STATE, zombieUnderBoss, type World } from "@topdown/shared";
 import { BOSS_ATLAS, BOSS_CRACK_PX_PER_M, BOSS_FRAME, BOSS_FRAMES, BOSS_FRAME_PX, BOSS_FX, BOSS_FX_FRAMES, BOSS_PX_PER_M, BOSS_TELE, BOSS_TELE_RADIUS_PX, ensureBossTextures } from "./city/bossAtlas";
 import { aboveDarkness } from "./darkness/aboveDark";
 import { slamFrameIndex, telegraphProgress, type TelegraphLook } from "./bossTelegraph";
@@ -32,6 +32,18 @@ const SKULL_M = 0.9;
 const SKULL_LIFT_M = 1.1;
 /** Review M2: the body's opacity while zombies walk under it (they read through it; no new colour). */
 export const BOSS_DIM_ALPHA = 0.55;
+/** Review L-b: seconds the body takes to dim or come back (no flicker as a zombie crosses its rim). */
+export const BOSS_DIM_FADE_S = 0.25;
+
+/**
+ * Review L-b: the body's next opacity — toward `BOSS_DIM_ALPHA` while a DRAWN zombie stands under it,
+ * else toward 1, at most 1 / `BOSS_DIM_FADE_S` × (1 − dim) per second. Pure (tested).
+ */
+export function bossBodyAlpha(current: number, dimmed: boolean, dtS: number): number {
+  const target = dimmed ? BOSS_DIM_ALPHA : 1;
+  const step = ((1 - BOSS_DIM_ALPHA) * dtS) / BOSS_DIM_FADE_S;
+  return current < target ? Math.min(target, current + step) : Math.max(target, current - step);
+}
 
 interface TeleSlot {
   disc: Phaser.GameObjects.Image;
@@ -136,7 +148,18 @@ export class BossView {
    * Once per frame. `serverTick`: the host's estimated server tick (NaN: no clock yet); `drawX/Y`: the
    * host's boss draw position; `targetAt`: where the target survivor is drawn (undefined: none).
    */
-  update(dtS: number, serverTick: number, drawX: number, drawY: number, targetAt: { x: number; y: number } | undefined): void {
+  /** A drawn zombie's centre is under the body (review M2 / L-b). */
+  private drawnZombieUnder(drawn: ((id: number) => boolean) | undefined): boolean {
+    const z = this.world.zombies;
+    for (let i = 0; i < z.aliveCount; i++) {
+      const id = z.aliveIds[i] as number;
+      if (drawn && !drawn(id)) continue;
+      if (zombieUnderBoss(this.world as World, z.x[id] as number, z.y[id] as number)) return true;
+    }
+    return false;
+  }
+
+  update(dtS: number, serverTick: number, drawX: number, drawY: number, targetAt: { x: number; y: number } | undefined, zombieDrawn?: (id: number) => boolean): void {
     const b = this.world.boss;
     const on = b.state >= BOSS_STATE.WALK && b.state <= BOSS_STATE.ROAR;
     // A late Game scene / a reconnect mid-telegraph: the state carries the attack.
@@ -172,7 +195,9 @@ export class BossView {
     this.body.setPosition(drawX, drawY).setRotation(b.facing).setVisible(true);
     if (this.flashS > 0) this.body.setTint(HIT_TINT);
     else this.body.clearTint();
-    const alpha = zombiesUnderBoss(this.world) > 0 ? BOSS_DIM_ALPHA : 1; // review M2: a zombie under it stays readable
+    // Review M2 / L-b: a zombie under it stays readable — the body fades down while one the player
+    // can see (drawn: not hidden by 6.4's fog) stands under it.
+    const alpha = bossBodyAlpha(this.body.alpha, this.drawnZombieUnder(zombieDrawn), dtS);
     if (this.body.alpha !== alpha) this.body.setAlpha(alpha);
     if (this.dark) {
       const o = frames[b.enraged ? BOSS_FRAME.outlineEnraged : BOSS_FRAME.outline] as string;

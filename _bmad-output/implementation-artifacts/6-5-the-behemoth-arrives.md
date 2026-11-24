@@ -426,6 +426,19 @@ Fresh-agent review of `3702a1a` (main session, 2026-11-24): merge clean; 1 high,
 
 Story text: F10 now says HP counts the players when it walks in.
 
+### Re-review of 2b2ad6f (main session, 2026-11-24)
+
+H1, M1, M2, L1, L2, L5 verified. One new medium (from the L6 fix) and lows, all fixed:
+
+| # | Finding | Fix | Test |
+| --- | --- | --- | --- |
+| M-new-1 | L6's `stepsIntoPlayer` refused the whole step whenever a standing survivor touched its front: a dodging non-target "tank" cut its progress 36 m → 12.4 m in 60 s; a survivor touching its flank froze it. | The boss takes its step and pushes every survivor it overlaps out along the centre line, then out of the obstacles, in the boss system the same tick (D1); the step is rolled back (and the survivors put back) only if one would still overlap the body (truly pinned against a map box). + − × ÷ and sqrt only. | `bossPathing.test.ts` "review M-new-1": the dodging tank (back 4.8 m at every telegraph, then into its face): progress > 55 % of the tank-free walk in 20 s (the rest is the slams it draws: 1.2 s telegraph + 0.8 s recovery each, by design); a flank touch: it walks > 5 m in 10 s; never inside its body. The L6 bus test stays green. |
+| L-a | `zombieUnderBoss` tested a rewound zombie against the live boss. | It takes the shot's rewind tick and uses the boss history (`rewoundBossPos`), like `bossCircleHitBySegment`. | — (same path as the rewound-shot test) |
+| L-b | The body's dim snapped 1 ↔ 0.55 and counted zombies the client may hide. | `bossBodyAlpha` fades over 0.25 s; only zombies `ZombieView.drawn` shows count (6.4's fog will hide some). | `bossTelegraph.test.ts` "review L-b". |
+| L-c | The fallback seeded nothing for a target walled in beyond 40 m of walking. | If the capped pass seeds nothing, a second, uncapped pass runs. | — |
+| L-d | `Math.hypot` in the push code. | The new push uses + − × ÷ and sqrt (the L6 helper is gone). | — |
+| L-e | Survived mutations. | New tests: a 1 m move retries the normal field before the 2 s timer; the walking distance goes round walls (east of the apartments > straight + 10 cells); a second Behemoth starts with a clean field; a zombie under the body behind a barricade inside the body is not shot; the boss's flame clock restarts on a slot claim (rejoin); `threatWindowS` 6 is refused. Each fails its mutation. | `bossPathing.test.ts`, `bossDamage.test.ts`, `config/balance.test.ts` |
+
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
@@ -433,3 +446,4 @@ Story text: F10 now says HP counts the players when it walks in.
 - 2026-11-24: built (gds-dev-story, Story 6.5 builder session): shared sim, pathing, network, client, dev switches, tests (fairness F1–F11, fuzz, tick cost, bandwidth, run sim, netsim); merged with Story 6.1 (the real wave 10: unreachable-target fallback, zombies walk under it behind a flag, bots fight it); status → review.
 - 2026-11-24: merged master 603099b (Story 6.3): 6.3's aboveDark.ts replaces the shim, the boss outline follows `darknessAlpha`, the boss bar is in the HUD layout test.
 - 2026-11-24: review fixes H1, M1, M2, L1–L6 (see Senior Developer Review (AI)).
+- 2026-11-24: re-review fixes M-new-1, L-a…L-e.

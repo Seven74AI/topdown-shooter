@@ -321,7 +321,7 @@ function updateProjectiles(world: World, dtS: number): void {
       const t = segmentCircleT(x0, y0, x1, y1, xs[zid] as number, ys[zid] as number, r);
       // Review M2: a zombie whose centre is under the Behemoth (they walk under it) is still hit, before
       // the boss: the body stops the shot for what is behind it, not for what stands inside it.
-      const under = bossFirst && t > blockT && (coverT < 0 || t <= coverT) && zombieUnderBoss(world, xs[zid] as number, ys[zid] as number);
+      const under = bossFirst && t > blockT && (coverT < 0 || t <= coverT) && zombieUnderBoss(world, xs[zid] as number, ys[zid] as number, rewind > 0 ? world.tick - rewind + REWIND_SWEEP_MID_TICKS : -1);
       if (t < 0 || (blockT >= 0 && t > blockT && !under)) continue;
       // insertion sort by t (small)
       let j = hits++;

@@ -702,14 +702,21 @@ function seedAround(f: FlowField, nav: NavGrid, c: number, px: number, py: numbe
 function seedByWalkingDistance(f: FlowField, bossNav: NavGrid, px: number, py: number, world: Readonly<World>): void {
   const nav = world.pathing.nav;
   if (nav.cells !== bossNav.cells || nav.cells <= 1) return;
+  const cap = Math.round(world.balance.boss.pathing.fallbackSeedM / nav.cellM);
+  // Review L-c: nothing free for its body within the cap (a target walled in deep): seed uncapped.
+  if (walkingSeedPass(f, bossNav, nav, px, py, world, cap) === 0) walkingSeedPass(f, bossNav, nav, px, py, world, nav.cells);
+}
+
+/** One BFS pass of `seedByWalkingDistance` up to `cap` cells of walking; returns the cells seeded. */
+function walkingSeedPass(f: FlowField, bossNav: NavGrid, nav: NavGrid, px: number, py: number, world: Readonly<World>, cap: number): number {
   const { cols, rows, wallAt } = nav;
   const dist = world.pathing.farDist;
   const q = world.pathing.farQueue;
-  const cap = Math.round(world.balance.boss.pathing.fallbackSeedM / nav.cellM);
   dist.fill(-1);
   const start = flowCellAt(nav, px, py);
   let head = 0;
   let tail = 0;
+  let seeded = 0;
   q[tail++] = start;
   dist[start] = 0;
   while (head < tail) {
@@ -720,6 +727,7 @@ function seedByWalkingDistance(f: FlowField, bossNav: NavGrid, px: number, py: n
       f.back[c] = STEP_ORTHO * d;
       if (queued) siftUp(f, f.heapPos[c] as number);
       else push(f, c);
+      seeded++;
     }
     if (d >= cap) continue;
     const cx = c % cols;
@@ -734,6 +742,7 @@ function seedByWalkingDistance(f: FlowField, bossNav: NavGrid, px: number, py: n
       q[tail++] = n;
     }
   }
+  return seeded;
 }
 
 function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void {

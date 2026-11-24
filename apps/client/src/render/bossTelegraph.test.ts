@@ -43,3 +43,18 @@ describe("Story 6.5 F3: the fill tells you when", () => {
     expect([0, 0.2, 0.4, 0.7, 1].map(slamFrameIndex)).toEqual([0, 0, 1, 2, 2]);
   });
 });
+
+describe("Story 6.5 review L-b: the body's dim fades (no flicker at the rim)", () => {
+  it("moves toward 0.55 / 1 over 0.25 s, never jumps", async () => {
+    const { BOSS_DIM_ALPHA, bossBodyAlpha } = await import("./BossView");
+    let a = 1;
+    a = bossBodyAlpha(a, true, 1 / 60);
+    expect(a).toBeLessThan(1);
+    expect(a).toBeGreaterThan(0.95);
+    for (let i = 0; i < 30; i++) a = bossBodyAlpha(a, true, 1 / 60);
+    expect(a).toBe(BOSS_DIM_ALPHA);
+    a = bossBodyAlpha(a, false, 1 / 60);
+    expect(a).toBeGreaterThan(BOSS_DIM_ALPHA);
+    expect(a).toBeLessThan(0.6);
+  });
+});

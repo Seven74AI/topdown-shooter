@@ -580,3 +580,11 @@ describe("Story 5.13: shop.json (card shop)", () => {
     expect(() => loadBalance(files)).toThrow(/shop\.json: excludeFromCards\.1: unknown item rocket/);
   });
 });
+
+describe("Story 6.5 review L-e: boss.json cross-checks", () => {
+  it("threatWindowS must match the threat ring (5 s): 6 is refused", () => {
+    const r = raw();
+    (r.boss as { target: { threatWindowS: number } }).target.threatWindowS = 6;
+    expect(() => loadBalance(r)).toThrow(/boss\.json: target\.threatWindowS 6 must be 5/);
+  });
+});

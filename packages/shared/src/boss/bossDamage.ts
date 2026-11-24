@@ -116,17 +116,25 @@ export function bossInCircle(world: World, x: number, y: number, radiusM: number
  * Review M2: a zombie centre (x, y) is under the boss's body (zombies walk under it: `bodyPushZombies`
  * off). Shots still hit such a zombie (before the boss); the client dims the body while one is there.
  */
-export function zombieUnderBoss(world: Readonly<World>, x: number, y: number): boolean {
+export function zombieUnderBoss(world: World, x: number, y: number, rewindAt = -1): boolean {
   const b = world.boss;
   if (!bossBodyOn(b)) return false;
+  let bx = b.x;
+  let by = b.y;
+  if (rewindAt >= 0) {
+    // Review L-a: a rewound shot tests the rewound zombie against the boss where it was then too.
+    rewoundBossPos(world, rewindAt);
+    bx = rewoundBoss.x;
+    by = rewoundBoss.y;
+  }
   const r = world.balance.boss.radiusM;
-  const dx = x - b.x;
-  const dy = y - b.y;
+  const dx = x - bx;
+  const dy = y - by;
   return dx * dx + dy * dy < r * r;
 }
 
 /** Review M2: how many live zombies stand under the boss's body (the client dims the body while > 0). */
-export function zombiesUnderBoss(world: Readonly<World>): number {
+export function zombiesUnderBoss(world: World): number {
   const b = world.boss;
   if (!bossBodyOn(b)) return 0;
   const z = world.zombies;
