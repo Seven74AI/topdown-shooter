@@ -103,6 +103,21 @@
         "radiusM": 2,
         "hpPerS": 5
       }
+    },
+    "bear_trap": {
+      "name": "Bear trap",
+      "price": 50,
+      "widthM": 1,
+      "depthM": 1,
+      "hp": 100,
+      "solid": false,
+      "bearTrap": {
+        "plateRadiusM": 0.35,
+        "holdS": 3,
+        "snapDamage": 5,
+        "wearPerCatch": 25,
+        "rearmS": 1
+      }
     }
   }
 }

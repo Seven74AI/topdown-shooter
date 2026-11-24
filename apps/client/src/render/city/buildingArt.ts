@@ -440,3 +440,281 @@ export function drawMine(g: Ctx, w: number, h: number): void {
     g.fill();
   }
 }
+
+// ---------- Story 5.14: bear trap (designer pick B-T1, `code-drawings.html › bearTrap()` / `drawBT1`) ----------
+
+const BT_JAW = "#6f7479";
+const BT_TOOTH = "#c9ced3";
+const BT_PAN = "#7d8186";
+/** B-T1's proportions (metres; the reference trap is ~0.8 m across in a 1 m frame). */
+const BT_A = 0.27;
+const BT_BW = 0.042;
+const BT_TL = 0.08;
+const BT_TEETH = 7;
+const BT_SPRING = 0.15;
+const BT_PAN_R = 0.1;
+const BT_STAKE: readonly [number, number] = [0.34, 0.36];
+
+function steelFill(g: Ctx, x0: number, y0: number, x1: number, y1: number, base: string): CanvasGradient {
+  const gr = g.createLinearGradient(x0, y0, x1, y1);
+  gr.addColorStop(0, "#9ba1a6");
+  gr.addColorStop(0.45, base);
+  gr.addColorStop(1, "#3c3f42");
+  return gr;
+}
+
+/** The chain from the right spring's end to the stake (alternating side-on and face-on links). */
+function bearTrapChain(g: Ctx): void {
+  const x0 = BT_A + BT_SPRING;
+  const [x1, y1] = BT_STAKE;
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const s0 = i / n;
+    const s1 = (i + 1) / n;
+    const sag = 0.06 * Math.sin(Math.PI * (s0 + s1) * 0.5);
+    const ax = x0 + (x1 - x0) * s0 - sag * 0.5;
+    const ay = (y1 - 0) * s0 + sag;
+    const bx = x0 + (x1 - x0) * s1 - sag * 0.5;
+    const by = (y1 - 0) * s1 + sag;
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    const an = Math.atan2(by - ay, bx - ax);
+    const l = Math.hypot(bx - ax, by - ay) * 0.75;
+    g.save();
+    g.translate(mx, my);
+    g.rotate(an);
+    g.beginPath();
+    if (i % 2) {
+      g.moveTo(-l, 0);
+      g.lineTo(l, 0);
+      g.strokeStyle = "#070708";
+      g.lineWidth = 0.013 + 1.4 * P;
+      g.stroke();
+      g.strokeStyle = "#62666b";
+      g.lineWidth = 0.013;
+      g.stroke();
+    } else {
+      g.ellipse(0, 0, l, 0.011, 0, 0, Math.PI * 2);
+      g.strokeStyle = "#070708";
+      g.lineWidth = 0.009 + 1.4 * P;
+      g.stroke();
+      g.strokeStyle = "#62666b";
+      g.lineWidth = 0.009;
+      g.stroke();
+    }
+    g.restore();
+  }
+  // the stake (a steel peg driven into the ground)
+  const st = g.createRadialGradient(x1 - 0.01, y1 - 0.01, 0, x1, y1, 0.03);
+  st.addColorStop(0, "#8a867f");
+  st.addColorStop(1, "#3c3935");
+  g.beginPath();
+  g.arc(x1, y1, 0.03, 0, Math.PI * 2);
+  g.fillStyle = st;
+  g.fill();
+  g.lineWidth = 1.4 * P;
+  g.strokeStyle = "rgba(6,6,7,0.95)";
+  g.stroke();
+}
+
+/** One leaf spring (a flat U) out of the hinge on side s (−1 left, +1 right), `len` long. */
+function bearTrapSpring(g: Ctx, s: number, len: number, wM: number): void {
+  const x0 = s * (BT_A - 0.02);
+  const x1 = s * (BT_A - 0.02 + len);
+  g.beginPath();
+  g.moveTo(x0, -wM);
+  g.lineTo(x1 - s * wM, -wM);
+  g.quadraticCurveTo(x1 + s * wM * 0.3, 0, x1 - s * wM, wM);
+  g.lineTo(x0, wM);
+  g.lineCap = "round";
+  g.strokeStyle = "#060607";
+  g.lineWidth = 0.024 + 1.8 * P;
+  g.stroke();
+  g.strokeStyle = BT_JAW;
+  g.lineWidth = 0.024;
+  g.stroke();
+  g.strokeStyle = "rgba(240,244,250,0.45)";
+  g.lineWidth = 1.1 * P;
+  g.stroke();
+}
+
+function bearTrapPan(g: Ctx): void {
+  const pan = g.createRadialGradient(-BT_PAN_R * 0.35, -BT_PAN_R * 0.35, 0, 0, 0, BT_PAN_R);
+  pan.addColorStop(0, "#a4a8ac");
+  pan.addColorStop(0.55, BT_PAN);
+  pan.addColorStop(1, "#4a4d50");
+  g.beginPath();
+  g.arc(0, 0, BT_PAN_R, 0, Math.PI * 2);
+  g.fillStyle = pan;
+  g.fill();
+  g.lineWidth = 1.5 * P;
+  g.strokeStyle = "rgba(6,6,7,0.95)";
+  g.stroke();
+  // rust blotches (seeded) and the embossed rings
+  const r = mulberry(1430);
+  for (let i = 0; i < 6; i++) {
+    const a = r() * Math.PI * 2;
+    const d = r() * BT_PAN_R * 0.7;
+    g.beginPath();
+    g.arc(Math.cos(a) * d, Math.sin(a) * d, 0.008 + r() * 0.014, 0, Math.PI * 2);
+    g.fillStyle = "rgba(122,62,28,0.35)";
+    g.fill();
+  }
+  emboss(g, BT_PAN_R * 0.72);
+  emboss(g, BT_PAN_R * 0.42);
+}
+
+/** The hinge rivets where the jaws meet the springs. */
+function bearTrapHinges(g: Ctx): void {
+  for (const s of [-1, 1]) {
+    const x = s * (BT_A - BT_BW / 2);
+    const h = g.createRadialGradient(x - 0.01, -0.01, 0, x, 0, 0.036);
+    h.addColorStop(0, "#9ba1a6");
+    h.addColorStop(1, "#3f4246");
+    g.beginPath();
+    g.arc(x, 0, 0.036, 0, Math.PI * 2);
+    g.fillStyle = h;
+    g.fill();
+    g.lineWidth = 1.4 * P;
+    g.strokeStyle = "rgba(6,6,7,0.95)";
+    g.stroke();
+    g.beginPath();
+    g.arc(x, 0, 0.013, 0, Math.PI * 2);
+    g.fillStyle = "#9a9ea2";
+    g.fill();
+  }
+}
+
+/**
+ * Story 5.14 / designer B-T1 ("Bear trap 1: classic"): round steel jaws lying open with the teeth
+ * inward, a round pressure plate in the middle, a leaf spring each side, a chain to a stake. Drawn in
+ * a 1 × 1 m frame (the trap ~0.8 m across). `closed`: the same trap sprung — both jaws stood up on
+ * the hinge line (seen from above: one raised steel bar across the middle with the teeth meshed in a
+ * zigzag), the springs relaxed outward, the plate half hidden. The two looks differ at a glance:
+ * a wide ring with an open centre vs. a single bar.
+ */
+export function drawBearTrap(g: Ctx, _w: number, _h: number, closed = false): void {
+  bearTrapChain(g);
+  // the hinge bar the jaws pivot on
+  g.beginPath();
+  g.moveTo(-BT_A, 0);
+  g.lineTo(BT_A, 0);
+  g.strokeStyle = "#060607";
+  g.lineWidth = 0.05 + 1.6 * P;
+  g.stroke();
+  g.strokeStyle = "#3a3c3f";
+  g.lineWidth = 0.05;
+  g.stroke();
+  const springLen = closed ? BT_SPRING * 1.12 : BT_SPRING;
+  bearTrapSpring(g, -1, springLen, closed ? 0.018 : 0.026);
+  bearTrapSpring(g, 1, springLen, closed ? 0.018 : 0.026);
+  bearTrapPan(g);
+  if (closed) {
+    drawClosedJaws(g);
+  } else {
+    // the trigger arm from the jaw to the plate
+    g.beginPath();
+    g.moveTo(0, -(BT_A - BT_BW * 0.6));
+    g.lineTo(0, -BT_PAN_R + 0.01);
+    g.strokeStyle = "#060607";
+    g.lineWidth = 0.022 + 1.4 * P;
+    g.stroke();
+    g.strokeStyle = "#5f6468";
+    g.lineWidth = 0.022;
+    g.stroke();
+    drawOpenJaws(g);
+  }
+  bearTrapHinges(g);
+}
+
+/** The two half-rings lying flat, teeth pointing to the centre (B-T1: 7 teeth per jaw, offset half a tooth). */
+function drawOpenJaws(g: Ctx): void {
+  const d = 0.13;
+  const halves: readonly [number, number, number][] = [
+    [Math.PI + d, Math.PI * 2 - d, 0],
+    [d, Math.PI - d, 0.5],
+  ];
+  for (const [t0, t1, off] of halves) {
+    const step = (t1 - t0) / BT_TEETH;
+    for (let i = 0; i < BT_TEETH; i++) {
+      const th = t0 + step * (i + 0.25 + off * 0.5);
+      const rr = BT_A - BT_BW * 0.8;
+      const px = Math.cos(th) * rr;
+      const py = Math.sin(th) * rr;
+      const dx = -Math.cos(th);
+      const dy = -Math.sin(th);
+      const tx = -dy;
+      const ty = dx;
+      const w = Math.min(0.03, rr * step * 0.42);
+      const tipX = px + dx * BT_TL;
+      const tipY = py + dy * BT_TL;
+      g.beginPath();
+      g.moveTo(px + tx * w, py + ty * w);
+      g.lineTo(tipX, tipY);
+      g.lineTo(px - tx * w, py - ty * w);
+      g.closePath();
+      const tg = g.createLinearGradient(px, py, tipX, tipY);
+      tg.addColorStop(0, "#6e7174");
+      tg.addColorStop(0.7, BT_TOOTH);
+      tg.addColorStop(1, "#eef0f2");
+      g.fillStyle = tg;
+      g.fill();
+      g.lineWidth = 1.1 * P;
+      g.strokeStyle = "#060607";
+      g.stroke();
+    }
+    g.beginPath();
+    g.arc(0, 0, BT_A, t0, t1);
+    g.arc(0, 0, BT_A - BT_BW, t1, t0, true);
+    g.closePath();
+    g.fillStyle = steelFill(g, -BT_A, -BT_A, BT_A, BT_A, BT_JAW);
+    g.fill();
+    g.lineWidth = 1.6 * P;
+    g.strokeStyle = "#060607";
+    g.stroke();
+    // a top highlight along the outer edge
+    g.beginPath();
+    g.arc(0, 0, BT_A - 1.5 * P, t0 + 0.05, t1 - 0.05);
+    g.strokeStyle = "rgba(240,244,250,0.35)";
+    g.lineWidth = 1 * P;
+    g.stroke();
+  }
+}
+
+/** Both jaws stood up on the hinge line: a raised bar with meshed teeth, a sliver of each ring's thickness visible. */
+function drawClosedJaws(g: Ctx): void {
+  const hw = 0.045; // half the bar's width from above (two jaw thicknesses side by side)
+  const x0 = -(BT_A - 0.01);
+  const x1 = BT_A - 0.01;
+  g.beginPath();
+  g.rect(x0, -hw, x1 - x0, hw * 2);
+  g.fillStyle = steelFill(g, 0, -hw, 0, hw, BT_JAW);
+  g.fill();
+  g.lineWidth = 1.8 * P;
+  g.strokeStyle = "#060607";
+  g.stroke();
+  // the meshed teeth: a zigzag down the middle, light on the tips
+  const n = BT_TEETH * 2;
+  g.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const x = x0 + ((x1 - x0) * i) / n;
+    const y = i % 2 ? hw * 0.55 : -hw * 0.55;
+    if (i === 0) g.moveTo(x, y);
+    else g.lineTo(x, y);
+  }
+  g.strokeStyle = "#060607";
+  g.lineWidth = 0.012 + 1.2 * P;
+  g.stroke();
+  g.strokeStyle = BT_TOOTH;
+  g.lineWidth = 0.012;
+  g.stroke();
+  // the two jaw tops (the rings' edges, now the highest steel)
+  for (const y of [-hw * 0.82, hw * 0.82]) {
+    g.beginPath();
+    g.moveTo(x0 + 0.01, y);
+    g.lineTo(x1 - 0.01, y);
+    g.strokeStyle = "rgba(240,244,250,0.5)";
+    g.lineWidth = 1.2 * P;
+    g.stroke();
+  }
+}

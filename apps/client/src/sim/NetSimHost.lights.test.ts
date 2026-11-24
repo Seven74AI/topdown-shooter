@@ -41,7 +41,7 @@ function copyState(s: World, room: FakeRoom, tick: number): void {
   room.state.decayVariants = s.decay.variants;
   room.state.decayFiresOut = s.decay.firesOut;
   room.state.buildings.clear();
-  for (const b of s.buildings.list) room.state.buildings.set(String(b.id), { type: b.type, owner: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, hp: Math.ceil(b.hp) });
+  for (const b of s.buildings.list) room.state.buildings.set(String(b.id), { type: b.type, owner: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, hp: Math.ceil(b.hp), trap: b.trapState });
 }
 function client(s: World, tick: number) {
   const room = new FakeRoom(fakeState([fakePlayer(0, { x: 24, y: 16 })]));

@@ -2,7 +2,7 @@
 title: topdown-shooter — Development Epics
 source: gdd.md
 created: 2026-11-21
-updated: 2026-11-21
+updated: 2026-11-23
 status: final
 ---
 
@@ -31,7 +31,7 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **In:** 30 s build phase with Ready, personal wallets, kill/assist/revive/building rewards, wave-clear bonus, fixed-list shop (the 6-card roguelike shop arrives in Epic 5, once the item pool is big enough), Auto-turret and Wood barricade, building placement on a grid, repairs, 6-building cap, heal 50% per build phase, Runner and Crawler zombies, player-count scaling (60/80/100%).
 - **Out:** full item list, meta-progression.
 - **Depends on:** Epic 2.
-- **Playable result:** a team plays 5 waves with build phases, buying weapons and placing turrets and barricades.
+- **Playable result:** a team plays 5 waves (now 6 waves; 6.1 makes 10) with build phases, buying weapons and placing turrets and barricades.
 - **High-level stories:** build phase flow and Ready · wallets and rewards · shop UI (fixed list) · building placement and grid · turret behavior · barricade blocking and zombie attacks on buildings · repairs and cap · Runner AI (flanking) · Crawler AI (slow bite).
 
 ## Epic 4 — Downtown and city decay (first slice)
@@ -39,12 +39,12 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **In:** Downtown map (intersection, alleys, gas station, bus, parking lot), per-player camera, cover rules, spawn points, decay stages Evening → Panic → Breakdown (cars moving into the road, barriers, fire zones, sandbags), placeholder Dead City art.
 - **Out:** Ruins and Collapse stages, blackout, final art.
 - **Depends on:** Epic 3.
-- **Playable result = Milestone 1:** 2–4 players online in Downtown, 3 weapons, 3 zombie types, turret + barricade, shop, 5 waves through 3 decay stages.
+- **Playable result = Milestone 1:** 2–4 players online in Downtown, 3 weapons, 3 zombie types, turret + barricade, shop, 5 waves (now 6 waves; 6.1 makes 10) through 3 decay stages.
 - **High-level stories:** Downtown layout and collisions · camera follow · cover and bullet rules · spawn point system · decay stage engine · Panic changes · Breakdown changes (fire zones) · run seed.
 
 ## Epic 5 — Full arsenal and bestiary
 - **Goal:** every weapon, zombie, building, gear and consumable from the GDD.
-- **In:** remaining 7 weapons, upgrades I–IV, Spitter, Bloater, Brute, remaining buildings, gear, consumable slot and button, friendly-fire rules for explosions and fire, telegraphs.
+- **In:** remaining 7 weapons (11 in all, incl. the Gas torch), upgrades I–IV, Spitter, Bloater, Brute, remaining buildings, gear, consumable slot and button, friendly-fire rules for explosions and fire, telegraphs.
 - **Depends on:** Epic 4.
 - **Playable result:** all builds are possible; every zombie type demands its own answer.
 - **Out:** boss, events, Ruins/Collapse, meta-progression.
@@ -75,12 +75,12 @@ Each epic ends in something playable on a phone. Epics 1–4 together form **Mil
 - **High-level stories:** join at build phase with catch-up currency · reconnect window · host migration · Save and quit · resume with host · ping button and markers.
 
 ## Epic 9 — Dead City art and audio
-- **Goal:** the final look and sound.
-- **In:** final district art in 5 decay states, character and zombie animations, dismemberment, effects, UI art, ambience per decay stage, adaptive music, weapon and zombie sounds.
+- **Goal:** a polish pass of the code-drawn art and of the audio, made without hiring anybody (designer, 2026-11-23).
+- **In:** polish of the code-drawn district art in 5 decay states (one night, dawn only on Extract), character and zombie animations (keeping the picked looks), dismemberment, effects, UI art, ambience per decay stage, adaptive music, weapon and zombie sounds. Art stays drawn in game code (baked atlases, `addGeneratedTexture`); sound comes from code/procedural generation or licensed/free libraries.
 - **Depends on:** Epic 4 for structure; runs in parallel from there.
 - **Playable result:** the game looks and sounds like Dead City.
-- **Out:** new districts' art.
-- **High-level stories:** hire artist and sound designer · district art × 5 decay states · survivor and zombie animation sets · dismemberment · effects · UI art · ambience per stage · adaptive music · weapon and zombie sounds.
+- **Out:** new districts' art; hiring an artist or sound designer.
+- **High-level stories:** art and audio inventory (every generator, atlas, frame and picked look) · district art × 5 decay states · survivor and zombie animation sets · dismemberment · effects · UI art · ambience per stage · adaptive music · weapon and zombie sounds.
 
 ## Epic 10 — Performance and polish
 - **Goal:** meet every technical target on the reference phones.

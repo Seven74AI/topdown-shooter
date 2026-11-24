@@ -324,7 +324,7 @@ describe("Story 5.9: building tiers, traps and mines", () => {
     expect(fxSchema.parse(fxWithout).floodLightMergeM).toBe(4);
     for (const id of ["wood_barricade", "auto_turret", "spike_trap", "mine"]) expect(t[id]?.inShop, id).toBe(true);
     // The new types are appended (the wire index of every older type stays).
-    expect(Object.keys(t).slice(-2)).toEqual(["floodlight", "med_station"]);
+    expect(Object.keys(t).slice(-3)).toEqual(["floodlight", "med_station", "bear_trap"]); // Story 5.14 appends after 5.10
     const bad = (edit: (t: T) => void, re: RegExp): void => {
       const files = raw();
       edit(types(files));
@@ -339,6 +339,24 @@ describe("Story 5.9: building tiers, traps and mines", () => {
     bad((t) => ((t.med_station as { heal: { hpPerS: number } }).heal.hpPerS = 0), /hpPerS/);
     bad((t) => ((t.med_station as { heal: { radiusM: number } }).heal.radiusM = 9), /radiusM/);
     bad((t) => ((t.med_station as Record<string, unknown>).inShop = "yes"), /inShop/);
+  });
+
+  it("Story 5.14 bear trap block: whole ticks, floor only, plate inside the footprint, exclusive; trapHoldPct 1–100", () => {
+    const bad = (edit: (t: T) => void, re: RegExp): void => {
+      const files = raw();
+      edit(types(files));
+      expect(() => loadBalance(files)).toThrow(re);
+    };
+    type B = { bearTrap: Record<string, number> };
+    bad((t) => ((t.bear_trap as B).bearTrap.holdS = 3.01), /whole numbers of ticks/);
+    bad((t) => ((t.bear_trap as B).bearTrap.rearmS = 0.33), /whole numbers of ticks/);
+    bad((t) => ((t.bear_trap as B).bearTrap.wearPerCatch = 2.5), /wearPerCatch/);
+    bad((t) => ((t.bear_trap as B).bearTrap.plateRadiusM = 0.6), /plateRadiusM must fit inside the footprint/);
+    bad((t) => ((t.bear_trap as Record<string, unknown>).solid = true), /must be floor/);
+    bad((t) => ((t.bear_trap as Record<string, unknown>).mine = { ...(t.mine as { mine: object }).mine }), /exclude each other/);
+    const z = raw();
+    ((z.zombies as { types: Record<string, Record<string, unknown>> }).types.brute as Record<string, unknown>).trapHoldPct = 0;
+    expect(() => loadBalance(z)).toThrow(/trapHoldPct/);
   });
 });
 

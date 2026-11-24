@@ -6,7 +6,7 @@ import { distanceToBox } from "../buildings/collision";
 import { ZOMBIE_POOL_CAPACITY } from "../config/constants";
 import { isZombieAlive, zombieTypeOf } from "../zombies/zombiePool";
 import { shotLineClear } from "./cover";
-import { applyKnockback, applyZombieDamage, applyZombieDamageQuiet, damagePlayerBy, knockbacks } from "./damage";
+import { applyKnockback, applyZombieDamage, applyZombieDamageQuiet, damagePlayerBy, knockbackShare, knockbacks } from "./damage";
 import type { WeaponId } from "./weapons";
 
 /**
@@ -198,7 +198,8 @@ export function explode(world: World, spec: Readonly<ExplosionSpec>): number {
       else if (pushM > 0 && isZombieAlive(z, id)) {
         // D5: straight out, swept (stops at the first face; the Brute takes its share inside).
         knockbacks.applied++;
-        if (applyKnockback(world, id, ux, uy, pushM) < pushM * 0.999) knockbacks.stopped++;
+        // Review N1 (5.14): compared with the body's share (a held zombie's is 0: not "stopped at a face").
+        if (applyKnockback(world, id, ux, uy, pushM) < pushM * knockbackShare(world, id) * 0.999) knockbacks.stopped++;
       }
     }
     world.players.forEach(blastPlayer); // reads frames[depth - 1]: this blast's, nested ones restore it

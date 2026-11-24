@@ -68,6 +68,7 @@ describe("shop list (Story 3.3)", () => {
       { id: "spike_trap", name: "Spike trap", price: 80 },
       { id: "mine", name: "Mine", price: 60 },
       { id: "med_station", name: "Med station", price: 400 },
+      { id: "bear_trap", name: "Bear trap", price: 50 }, // Story 5.14
     ]);
   });
 

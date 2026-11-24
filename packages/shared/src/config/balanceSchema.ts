@@ -240,6 +240,8 @@ export const zombieTypeSchema = z
      * takes, in percent (100 = all of it; the Brute 20). Applied inside `applyKnockback`.
      */
     knockbackTakenPct: z.number().int().min(0).max(100).default(100),
+    /** Story 5.14 (D3): how long a bear trap holds this type, in percent of `bearTrap.holdS` (the Brute 50). */
+    trapHoldPct: z.number().int().min(1).max(100).default(100),
     /** Story 3.8: follows the flank field (Runners) instead of the chase field. */
     flanks: z.boolean().default(false),
     /** Story 5.6: a ranged spit (Spitters); absent = no ranged attack. */
@@ -618,6 +620,24 @@ export const mineSchema = z
   .refine((m) => m.blastRadiusM >= m.triggerRadiusM, "blastRadiusM must be at least triggerRadiusM");
 
 /**
+ * Story 5.14: a bear trap (floor). During a wave the tick an alive zombie's CENTRE is strictly within
+ * `plateRadiusM` of an armed trap's centre, the jaws close: `snapDamage`, and that one zombie is held
+ * (can't move or be pushed, still attacks) for `holdS` (× the type's `trapHoldPct`). Then the trap is
+ * sprung (harmless) and worn `wearPerCatch` HP; a standing player whose body overlaps the plate circle
+ * for `rearmS` without a break re-arms it (and every trap re-arms at a build start).
+ */
+export const bearTrapSchema = z
+  .object({
+    plateRadiusM: z.number().positive().max(4),
+    holdS: z.number().positive().max(30),
+    snapDamage: z.number().int().min(0),
+    wearPerCatch: z.number().int().min(0),
+    rearmS: z.number().positive().max(10),
+  })
+  .strict()
+  .refine((b) => wholeTicks(b.holdS) && wholeTicks(b.rearmS), "bearTrap holdS and rearmS must be whole numbers of ticks");
+
+/**
  * Story 5.10: a building that lights the street (floodlight). Gameplay effect only from Story 6.3
  * (blackout reads `world.lights`): `radiusM` normally, `blackoutRadiusM` during a blackout wave
  * (Epic 6 D5). The client draws a glow pool of `radiusM`.
@@ -687,6 +707,9 @@ export const buildingTypeSchema = z
     light: lightSchema.optional(),
     /** Story 5.10: heals alive players touching the ring. */
     heal: healSchema.optional(),
+    // ---- Story 5.14 (bear trap) ----
+    /** Story 5.14: a bear trap (floor): grabs one zombie stepping on its plate and holds it. */
+    bearTrap: bearTrapSchema.optional(),
   })
   .strict();
 
@@ -877,6 +900,7 @@ export type BuildingTypeStats = z.output<typeof buildingTypeSchema>;
 export type TurretStats = z.output<typeof turretSchema>;
 export type TrapStats = z.output<typeof trapSchema>;
 export type MineStats = z.output<typeof mineSchema>;
+export type BearTrapStats = z.output<typeof bearTrapSchema>;
 export type LightStats = z.output<typeof lightSchema>;
 export type HealStats = z.output<typeof healSchema>;
 export type GearItemStats = z.output<typeof gearItemSchema>;

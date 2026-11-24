@@ -1,3 +1,4 @@
+import { bearTrapCounters, resetBearTrapCounters } from "../buildings/bearTrap";
 import { describe, expect, it } from "vitest";
 import { bundledBalanceFiles, loadBalance, withOverrides } from "../config/balance";
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
@@ -103,6 +104,34 @@ describe("five-wave bot sim with spike traps and mines (Story 5.9, task 8.2)", (
     expect(placed).toBeGreaterThan(0);
     expect(trapCounters.pulses).toBeGreaterThan(0); // liveness: the traps really worked in real waves
     expect(mineCounters.exploded).toBeGreaterThan(0);
+  }, 180_000);
+});
+describe("six-wave bot sim with bear traps (Story 5.14, brief lines 9 and 15)", () => {
+  /** A test-local shopping list (bots.json stays untouched): the SMG, then bear traps, then barricades. */
+  const LIST = ["smg", "bear_trap", "bear_trap", "bear_trap", "wood_barricade", "bear_trap"];
+  it("every run ends (held out or wiped, never the tick limit); bear traps really caught zombies; earnings vs spend logged", () => {
+    resetBearTrapCounters();
+    const lines: string[] = [];
+    let placed = 0;
+    for (const players of [2, 4]) {
+      for (const seed of [1, 2]) {
+        const r = runHeadless({ balance, seed, players, list: LIST });
+        expect(r.timedOut).toBe(false);
+        expect(r.heldOut !== r.wiped).toBe(true);
+        expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
+        for (const w of r.waves.slice(0, r.wavesCleared)) expect(w.size).toBeGreaterThan(0);
+        placed += r.buildingsPlaced.reduce((a, b) => a + b, 0);
+        const earned = r.earned.reduce((a, b) => a + b, 0);
+        const spent = r.spent.reduce((a, b) => a + b, 0);
+        lines.push(`${formatRunLine(r)} | team earned ${earned}, spent ${spent}`);
+      }
+    }
+    const c = bearTrapCounters;
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
+      `[wave sim 5.14] runWaves ${balance.waves.runWaves}, list ${LIST.join(",")}: ${placed} buildings placed, ${c.catches} catches (${c.bruteCatches} Brutes), ${c.releases} releases, ${c.kills} snap kills, ${c.wornOut} worn out\n${lines.join("\n")}`,
+    );
+    expect(placed).toBeGreaterThan(0);
+    expect(c.catches).toBeGreaterThan(0); // liveness: the traps really caught zombies in real waves
   }, 180_000);
 });
 describe("five-wave bot sim with the Shotgun and the Assault Rifle (Story 5.3, brief line 15)", () => {

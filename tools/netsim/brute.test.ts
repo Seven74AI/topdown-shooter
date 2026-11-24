@@ -62,7 +62,7 @@ function simulate(seconds: number, oneWayMs: number, jitterHalfMs: number, seed:
   const up = new Link<PlayerInput>(oneWayMs, jitterHalfMs, rng);
   const down = new Link<Snap>(oneWayMs, jitterHalfMs, rng);
   const predictor = new Predictor(balance, PLACEHOLDER_MAP, ID);
-  predictor.syncBuildings(new Map([["1", { type: "wood_barricade", owner: ID, gx: 43, gy: 30, rot: 1, hp: 200 }]])); // the mirror's copy (schema)
+  predictor.syncBuildings(new Map([["1", { type: "wood_barricade", owner: ID, gx: 43, gy: 30, rot: 1, hp: 200, trap: 0 }]])); // the mirror's copy (schema)
   const inputs: PlayerInput[] = [];
   const snaps: Snap[] = [];
   let hits = 0;

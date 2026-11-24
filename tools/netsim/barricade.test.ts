@@ -87,7 +87,7 @@ interface Options {
 
 function buildingsView(ctrl: RunController): Map<string, BuildingStateView> {
   const m = new Map<string, BuildingStateView>();
-  for (const b of ctrl.world.buildings.list) m.set(String(b.id), { type: b.type, owner: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, hp: Math.ceil(b.hp) });
+  for (const b of ctrl.world.buildings.list) m.set(String(b.id), { type: b.type, owner: b.ownerId, gx: b.gx, gy: b.gy, rot: b.rot, hp: Math.ceil(b.hp), trap: b.trapState });
   return m;
 }
 
@@ -373,6 +373,24 @@ describe("netsim: walking into barricades (Story 3.4, brief line 4)", () => {
       expect(r.placed).toBe(2);
       expect(r.predictorBuildings).toBe(2);
       expect(r.onFloorTicks).toBeGreaterThan(10); // liveness: it really walked over them
+      expect(r.snaps).toBe(0);
+      expect(r.corrections).toBe(0);
+      expect(r.visibleErrors).toBe(0);
+    }
+  });
+
+  it("Story 5.14: walking straight across two bear traps under 150 ms RTT ± 20: 0 snaps, 0 corrections (floor; players are never caught)", () => {
+    // From the spawn (22.5, 14.5) straight up: 1 × 1 traps at [22, 23] × [12, 13] and [22, 23] × [10, 11] (plates on the path).
+    const BEAR: Place[] = [
+      { atMs: 0, gx: 44, gy: 24, rot: 0, type: "bear_trap" },
+      { atMs: 0, gx: 44, gy: 20, rot: 0, type: "bear_trap" },
+    ];
+    for (const seed of [53, 54]) {
+      const r = simulate({ seed, oneWayMs: 75, jitterHalfMs: 10, places: BEAR, path: (t) => (t < 2500 ? { x: 0, y: -1 } : { x: 0, y: 0 }), seconds: 3 });
+      report(`across two bear traps 75±10 ms seed ${seed}`, r);
+      expect(r.placed).toBe(2);
+      expect(r.predictorBuildings).toBe(2);
+      expect(r.onFloorTicks).toBeGreaterThan(5); // liveness: it really walked over the plates
       expect(r.snaps).toBe(0);
       expect(r.corrections).toBe(0);
       expect(r.visibleErrors).toBe(0);

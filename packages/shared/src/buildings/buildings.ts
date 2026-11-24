@@ -62,7 +62,20 @@ export interface Building {
   fireTicks: number;
   aimX: number;
   aimY: number;
+  /**
+   * Story 5.14 (bear traps; ARMED and empty on every other type): the jaws (`BEAR_TRAP_STATE`, synced
+   * as the schema's `trap`), the held zombie slot and its generation (−1 / 0 when none), and the
+   * re-arm clock: ticks the player `rearmPlayer` has stood on the sprung plate without a break.
+   */
+  trapState: number;
+  heldZombie: number;
+  heldGen: number;
+  rearmTicks: number;
+  rearmPlayer: string;
 }
+
+/** Story 5.14: a bear trap's jaws (the schema's `trap` field: 0 for every other building). */
+export const BEAR_TRAP_STATE = { ARMED: 0, HOLDING: 1, SPRUNG: 2 } as const;
 
 export interface BuildingState {
   /** Every standing building, sorted by id. At most `maxPerPlayer × MAX_PLAYERS`. */
@@ -311,6 +324,8 @@ export interface BuildingSpec {
   readonly gy: number;
   readonly rot: BuildingRotation;
   readonly hp: number;
+  /** Story 5.14: a bear trap's jaws (the client mirror copies the server's; default ARMED). */
+  readonly trapState?: number;
 }
 
 /**
@@ -340,6 +355,11 @@ export function addBuildingAt(world: World, spec: BuildingSpec): Building | null
     fireTicks: 0,
     aimX: 1,
     aimY: 0,
+    trapState: spec.trapState ?? BEAR_TRAP_STATE.ARMED,
+    heldZombie: -1,
+    heldGen: 0,
+    rearmTicks: 0,
+    rearmPlayer: "",
   };
   const s = world.buildings;
   let i = s.list.length;
@@ -360,6 +380,9 @@ export function removeBuilding(world: World, id: number): boolean {
     list.splice(i, 1);
     world.buildings.version++;
     if (b.solid) world.buildings.wallVersion++; // Story 5.9
+    // Review L2 (5.14): a bear trap destroyed while holding (fire, a decay solid, …) lets its zombie go.
+    const z = world.zombies;
+    if (b.trapState === BEAR_TRAP_STATE.HOLDING && b.heldZombie >= 0 && z.generation[b.heldZombie] === b.heldGen) z.holdTicks[b.heldZombie] = 0;
     return true;
   }
   return false;

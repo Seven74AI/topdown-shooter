@@ -16,6 +16,9 @@ import {
   TICK_DT_S,
   type Building,
   type NetEventContext,
+  BEAR_TRAP_STATE,
+  bearTrapCounters,
+  resetBearTrapCounters,
 } from "@topdown/shared";
 import { RunController } from "./RunController";
 import { EventInterest } from "../net/eventInterest";
@@ -147,5 +150,103 @@ describe("Floor building bandwidth (Story 5.9, AC 14)", () => {
     console.log(`[floor pass] 12 traps + 12 mines, 150 zombies: ${ms.toFixed(4)} ms per tick (load ${loadavg()[0]?.toFixed(2)})`);
     expect(world.buildings.list.length).toBeGreaterThan(0);
     if (process.env.PERF_ASSERT === "1") expect(ms).toBeLessThan(0.3);
+  });
+});
+
+/**
+ * Story 5.14 (AC 17, brief 11): the cap's worth of bear traps (24, a 6 × 4 grid) each with a Walker
+ * on its plate, cycling as fast as the rules allow: caught → held 3 s → released (worn) → re-armed
+ * at once (the stand-on re-arm, stood in for) → caught again. Per client: the local snap events in
+ * its view + the shared patch (the `trap` field and HP on change). Worst-case estimate: per trap and
+ * cycle ≈ one 6 B event + three 1-field patches + one HP patch ≈ 30 B, 24 traps / 3 s ≈ 240 B/s.
+ */
+const BEAR_ESTIMATE_BPS = 300;
+function measureBear(withTraps: boolean) {
+  const players = [0, 1, 2, 3].map((slot) => ({ playerId: `p${slot}`, slot }));
+  const c = new RunController({ balance, seed: 9, players, pauseWaves: true, systems: { player: () => {} }, map: PLACEHOLDER_MAP });
+  const world = c.world;
+  world.debug.godMode = true;
+  const views = [
+    [12, 8],
+    [36, 8],
+    [12, 24],
+    [36, 24],
+  ] as const;
+  views.forEach(([x, y], i) => {
+    const p = world.players.get(`p${i}`);
+    if (p) {
+      p.x = x;
+      p.y = y;
+    }
+  });
+  startWave(world);
+  const state = new RunState({ phase: "wave", hostSlot: 0 });
+  for (const p of players) state.players.set(p.playerId, new PlayerState({ slot: p.slot, name: p.playerId, ready: true }));
+  const encoder = new Encoder(state);
+  const traps: Building[] = [];
+  let id = 1;
+  for (const y of [3, 11, 19, 27]) {
+    for (const x of [4, 12, 20, 28, 36, 44]) {
+      if (withTraps) {
+        const b = addBuildingAt(world, { id, type: "bear_trap", ownerId: `p${id % 4}`, gx: x / BUILD_GRID_M, gy: y / BUILD_GRID_M, rot: 0, hp: 60000 }) as Building;
+        traps.push(b);
+      }
+      world.zombies.hp[spawnZombie(world, "walker", x + 0.5, y + 0.5)] = 1e9; // the same crowd either way
+      id++;
+    }
+  }
+  c.tick();
+  syncState(state, c);
+  encoder.encode();
+  encoder.discardChanges();
+  resetBearTrapCounters();
+  const ctx: NetEventContext = { balance, zombieNetId: (zid) => zid | ((world.zombies.generation[zid] ?? 0) << 8) };
+  const interest = new EventInterest();
+  const perClient = [0, 0, 0, 0];
+  let patch = 0;
+  for (let t = 0; t < TICKS; t++) {
+    for (const b of traps) {
+      if (b.trapState === BEAR_TRAP_STATE.SPRUNG) {
+        b.trapState = BEAR_TRAP_STATE.ARMED; // the stand-on re-arm, at once
+        world.buildings.version++;
+      }
+    }
+    // The held Walkers walk back onto their plate after each release (they chase the players otherwise).
+    for (let i = 0; i < traps.length; i++) {
+      const b = traps[i] as Building;
+      if (b.trapState !== BEAR_TRAP_STATE.ARMED) continue;
+      const z = world.zombies.aliveIds[i] as number;
+      world.zombies.x[z] = (b.minX + b.maxX) / 2;
+      world.zombies.y[z] = (b.minY + b.maxY) / 2;
+    }
+    const events = c.tick();
+    syncState(state, c);
+    patch += encoder.encode().length;
+    encoder.discardChanges();
+    interest.prepare(world, events, ctx);
+    if (interest.all.length === 0) continue;
+    for (let i = 0; i < 4; i++) {
+      const [vx, vy] = views[i] as readonly [number, number];
+      const mine = interest.eventsFor(world, vx, vy);
+      if (mine.length > 0) perClient[i] = (perClient[i] as number) + pack({ tick: world.tick, events: mine }).length;
+    }
+  }
+  const patchBps = patch / SECONDS;
+  return { perClientBps: perClient.map((b) => b / SECONDS + patchBps), patchBps, catches: bearTrapCounters.catches, releases: bearTrapCounters.releases };
+}
+
+describe("Bear trap bandwidth (Story 5.14, AC 17)", () => {
+  it("24 bear traps catching, releasing and re-arming non-stop: added B/s per client ≤ the estimate × 1.5; liveness: catches and releases", () => {
+    const base = measureBear(false);
+    const busy = measureBear(true);
+    const added = busy.perClientBps.map((v, i) => v - (base.perClientBps[i] as number));
+    const f = (v: number) => v.toFixed(0);
+    console.log(
+      `[bear trap bandwidth] 24 traps: ${busy.catches} catches, ${busy.releases} releases in ${SECONDS} s; patches ${f(base.patchBps)} → ${f(busy.patchBps)} B/s; ` +
+        `per client added ${added.map(f).join(" / ")} B/s (estimate ${BEAR_ESTIMATE_BPS} B/s)`,
+    );
+    expect(busy.catches).toBeGreaterThanOrEqual(24 * 5);
+    expect(busy.releases).toBeGreaterThanOrEqual(24 * 4);
+    for (const v of added) expect(v).toBeLessThanOrEqual(BEAR_ESTIMATE_BPS * 1.5);
   });
 });

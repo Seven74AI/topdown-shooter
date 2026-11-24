@@ -89,6 +89,8 @@ const buildingFields = {
   gy: t.uint8().default(0),
   rot: t.uint8().default(0),
   hp: t.uint16().default(0),
+  /** Story 5.14: a bear trap's jaws (0 armed, 1 holding, 2 sprung), written on change only; 0 for other types. */
+  trap: t.uint8().default(0),
 };
 export const BuildingState = schema(buildingFields, "BuildingState");
 export type BuildingState = SchemaType<typeof BuildingState>;
