@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
@@ -11,5 +12,9 @@ export default defineConfig({
       "/api": { target: "http://localhost:2567", ws: true, rewrite: (p) => p.replace(/^\/api/, "") },
     },
   },
-  build: { chunkSizeWarningLimit: 1600 }, // Phaser alone is ~1.38 MB min / ~362 KB gzip
+  build: {
+    chunkSizeWarningLimit: 1600,
+    // The asset gallery (/gallery.html) is a second page so the designer can review every code-drawn asset.
+    rollupOptions: { input: { main: resolve(__dirname, "index.html"), gallery: resolve(__dirname, "gallery.html") } },
+  }, // Phaser alone is ~1.38 MB min / ~362 KB gzip
 });
