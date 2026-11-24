@@ -10,7 +10,7 @@ import { addPlayer } from "../player/player";
 import { MAP_STAGE_COUNT, type MapBox } from "../map/districtMap";
 import { ZOMBIE_STATE } from "../zombies/zombieTypes";
 import { EVENT_KINDS, EVENT_PHASE } from "./eventState";
-import { laneAlong } from "./stampede";
+import { laneAlong, laneOpen } from "./stampede";
 import { balance, tickN } from "./testEvents";
 
 /**
@@ -86,6 +86,7 @@ describe("Story 6.8: event spots (crate ×10, survivor ×8, safe ×6) and 4 stam
       const masks = stage === 1 ? [0] : MASKS.filter((_, i) => i % Math.ceil(MASKS.length / LANE_MASKS) === 0);
       for (const mask of masks) {
         for (let li = 0; li < map.stampedeLanes.length; li++) {
+          if (!laneOpen(map.stampedeLanes[li]!, stage)) continue; // a lane closed at this stage (the cross street from stage 4)
           const world = createWorld({ balance, seed: 7 + li, map });
           applyDecayStage(world, stage, mask);
           for (let i = 0; i < 4; i++) addPlayer(world, `p${i}`, 3 + i, 30.8); // out of every lane (south-west sidewalk)

@@ -292,8 +292,8 @@ const decay: (Rect | Point)[] = [
  * 6.10 don't touch the map files.
  *
  * - 4 stampede lanes (rects 8 m wide, `kind: stampede_lane`, `dir` e/w/n/s = the way the Runners run
- *   from the start edge; `minStage`/`maxStage`): both ways along the main street (y 12–20) and the
- *   cross street (x 20–28).
+ *   from the start edge; `minStage`/`maxStage`): both ways along the main street (y 12–20, every
+ *   stage) and the cross street (x 20–28, stages 1–3: from stage 4 rubble seals its north end).
  * - spots (points, `minStage`): `crate` ×10 (6.9 supply drop), `survivor` ×8 and `safe` ×6 (6.10),
  *   all on open road, ≥ 1.2 m from every box any stage or variant can put there (6.2's rubble
  *   included), every fire zone and 1.5 m from every spawn point (tests: `events/spots.test.ts`).
@@ -301,8 +301,9 @@ const decay: (Rect | Point)[] = [
 const eventLanes: Rect[] = [
   { name: "lane_main_eastbound", x: 0, y: 12, w: 48, h: 8, props: { kind: "stampede_lane", dir: "e", minStage: 1, maxStage: 5 } },
   { name: "lane_main_westbound", x: 0, y: 12, w: 48, h: 8, props: { kind: "stampede_lane", dir: "w", minStage: 1, maxStage: 5 } },
-  { name: "lane_cross_southbound", x: 20, y: 0, w: 8, h: 32, props: { kind: "stampede_lane", dir: "s", minStage: 1, maxStage: 5 } },
-  { name: "lane_cross_northbound", x: 20, y: 0, w: 8, h: 32, props: { kind: "stampede_lane", dir: "n", minStage: 1, maxStage: 5 } },
+  // Stage 4+ (6.2): rubble_pile_2 closes the cross street's last gap past the north police line: maxStage 3.
+  { name: "lane_cross_southbound", x: 20, y: 0, w: 8, h: 32, props: { kind: "stampede_lane", dir: "s", minStage: 1, maxStage: 3 } },
+  { name: "lane_cross_northbound", x: 20, y: 0, w: 8, h: 32, props: { kind: "stampede_lane", dir: "n", minStage: 1, maxStage: 3 } },
 ];
 const spot = (kind: string, list: readonly (readonly [number, number])[]): Point[] => list.map(([x, y], i) => ({ name: `${kind}_${i + 1}`, x, y, props: { kind, minStage: 1 } }));
 const eventSpots: Point[] = [
