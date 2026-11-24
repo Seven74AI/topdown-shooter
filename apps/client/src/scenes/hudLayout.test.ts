@@ -137,7 +137,7 @@ const KNOWN_LIST: [string, number][] = [
   ["640x360 selected action_move: within 48 px of the centre", 19],
   ["640x360 selected action_move: in the move-stick half", 37],
   ["640x360 selected action_upgrade: within 48 px of the centre", 21.47],
-  // Story 6.11 (EX1 as picked: EXTRACT left of the ring) — pending designer line 6.11 B1. In a vote the
+  // Story 6.11 (EX1 as picked: EXTRACT left of the ring) — designer decision 6.11 B1 "K: keep EX1". In a vote the
   // sticks are hidden, input is neutral and the server is frozen (D4); an accidental Extract is the
   // silent default and can be changed (D2).
   ["568x320 vote vote_extract: in the move-stick half", 118],
