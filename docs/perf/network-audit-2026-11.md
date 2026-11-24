@@ -8,14 +8,20 @@ Date: 2026-11-24 · build: `master` at `8f81792` (end of Epic 5) · machine: 4-c
 
 ## In plain English (for the designer)
 
-- **Data use is fine today.** In heavy late waves (Spitters, Bloaters, a Brute, the 150 cap reached) each phone averaged **6–11 KB/s** with a busiest second of **15–27 KB/s**. The target is ≤ 30. The worst case, all 150 zombies on one screen, works out at about **25 KB/s**. That passes, but with little room left for Epic 6's stampede (up to 180 alive) and the boss.
+- **Data use is fine today.** In heavy late waves (Spitters, Bloaters, a Brute, the 150 cap reached) each phone averaged **6–11 KB/s** (KB/s = how much data arrives per second; the budget is 30). The busiest single second was **12–27 KB/s**. The worst case, all 150 zombies on one screen, works out at about **25 KB/s**. That passes. It fails only if Epic 6's stampede (up to 180 alive) and the rest of the horde are all on one screen at once.
 - **Hits are fine on a clean 150 ms line**: 0–0.2 % of hits are reversed (target < 5 %).
-- **Hits are not fine on a realistic 4G line that loses a few packets.** With 1 % packet loss, **7.6 % of hits on kiting Runners are reversed**. At 2 % loss it is **11.9 %**, and longer hiccups give 6–13 % on everything. The cause: after each hiccup the player's shots arrive "too old" for the server's 300 ms rewind. Allowing a 500 ms rewind brought those numbers down to **1.3–2 %** in a one-off test.
-- **Hiccups also show on screen.** On a lossy line, about 1 in 100 updates arrives 240–290 ms late. The game only waits 150 ms, so zombies and teammates freeze for a moment and then jump.
-- **A dropped phone is out for the run.** There is no reconnect yet (Epic 8), and the server gives up on a silent phone after about 6–9 s. A short 4G dead spot, or locking the phone on iPhone, can therefore end someone's night. That is the biggest risk for NFR9 ("reach wave 10 without a game-caused disconnect").
-- **Switching away from WebSocket isn't worth it yet.** Safari only gained the newer transport (WebTransport) in March 2026, its "lossy" mode reportedly doesn't work on iPhone, Colyseus marks its support as experimental, and our Cloudflare Tunnel doesn't carry it. Fixing how we *handle* hiccups gets most of the benefit.
+- **Hits are not fine on a realistic 4G line that loses a few packets** (a "packet" is one small piece of data; on a poor 4G signal 1–2 in 100 may get lost and have to be sent again. That rate is the test's assumption; your 4-phone test will show the real one). With 1 % packet loss, **7.6 % of hits on kiting Runners are reversed**. At 2 % loss it is **11.9 %**, and longer hiccups give 6–13 % on everything. The cause: after each hiccup the player's shots arrive "too old" for the server's 300 ms rewind. Allowing a 500 ms rewind brought the Runner numbers (7.6 % and 11.9 %) down to **2.0 % and 1.3 %** in a one-off test. The longer hiccups weren't re-tested.
+- **Hiccups also show on screen.** On a lossy line, about 1 in 100 updates comes 240–290 ms after the previous one instead of 50 ms. The game only keeps 150 ms in hand, so zombies and teammates freeze for a moment and then jump.
+- **A dropped phone is out for the run.** There is no reconnect yet (planned as Story 8.1 in Epic 8), and the server gives up on a silent phone after about 6–9 s. A short 4G dead spot, or locking the phone on iPhone, can therefore end someone's night. That is the biggest risk for NFR9 ("reach wave 10 without a game-caused disconnect").
+- **Switching away from WebSocket isn't worth it yet.** WebSocket is the connection the game uses today; it always delivers everything in order, so one lost packet holds up everything behind it. The newer kind (WebTransport) can skip a lost packet, but:
+  - Safari only gained it in March 2026.
+  - Its "skip lost packets" mode reportedly doesn't work on iPhone.
+  - Colyseus (our server library) marks its support as experimental.
+  - No source shows that our Cloudflare Tunnel (how the server is reached) can carry it.
 
-**My recommendation:** a short **Network pass of 5 stories right after Epic 6, before Epic 7**, put at the front of Epic 8 "Real-life resilience" (it's already the bad-connection epic), with **Story 8.1 (reconnect) pulled forward into it**. Order: (1) shots count on a lossy line (500 ms rewind + a "lossy" test switch), (2) smooth through hiccups, (3) reconnect (8.1), (4) half-size horde stream, (5) fewer packets per tick. Then your 4-phone 4G test (2.10) as the check. Details and numbers in §6–§7.
+  Fixing how we *handle* hiccups gets most of the benefit.
+
+**My recommendation:** a short **Network pass of 4 stories (+ 1 optional) right after Epic 6, before Epic 7**, put at the front of Epic 8 "Real-life resilience" (it's already the bad-connection epic), with **Story 8.1 (reconnect) pulled forward into it**. Order: (1) shots count on a lossy line (500 ms rewind + a "lossy" test switch), (2) smooth through hiccups, (3) reconnect (8.1), (4) half-size horde stream, and optionally (5) fewer packets per tick. Then your 4-phone 4G test (Story 2.10) as the check. Details and numbers in §6–§7.
 
 ---
 
@@ -23,10 +29,10 @@ Date: 2026-11-24 · build: `master` at `8f81792` (end of Epic 5) · machine: 4-c
 
 | Target | Today on a clean 150 ms ± 10 ms line | Today with 4G-like loss (1–2 %) | Verdict |
 |---|---|---|---|
-| **NFR4** ≤ ~30 KB/s per phone, 150 alive | 6.4–10.9 KB/s wave average, 13–27 KB/s busiest second (bots); worst case 150 in view ≈ 25.5 KB/s payload (computed, §3.4) | same bytes; the busiest second rises because late data arrives in bursts (23.8 KB/s vs 16 in the same mix) | **Met, thin margin.** Epic 6's stampede (≤ 180 alive, story 6.8) can push the worst case to ~30 KB/s |
-| **Epic 6 brief 11** horde ≤ 24 KB/s, total ≤ 30 | horde 4.2–9.1 KB/s measured; worst case 23.6 KB/s at 150 in view | — | **Met at 150; fails at ~155+ in view** (180 in view = 28.2 KB/s horde) |
+| **NFR4** ≤ ~30 KB/s per phone, 150 alive | 5.8–10.9 KB/s wave average, 11.7–23.2 KB/s busiest second (server; 27.1 on the bot side); worst case 150 in view ≈ 25.5 KB/s payload (computed, §3.4) | wave 5: 9.8–10.9 KB/s average, busiest second 20.9–23.2 vs 11.7–14.9 on the clean run (server). Part of that is a bigger crowd in view (54 vs 32 per frame), part is late data arriving in bursts | **Met, thin margin.** Epic 6's stampede (≤ 180 alive, story 6.8) can push the worst case to ~30 KB/s |
+| **Epic 6 brief 11** horde ≤ 24 KB/s, total ≤ 30 | horde 4.2–9.1 KB/s measured; worst case 23.6 KB/s at 150 in view | — | **Met at 150; fails from 153 in view** (180 in view = 28.2 KB/s horde) |
 | **NFR5** < 1 in 20 apparent hits reversed at 150 ms | 0.0–0.2 % (harness, 150 Walkers standing / kiting, 20 Runners kiting) | 1.6–3.5 % Walkers; **7.6 % / 11.9 % kiting Runners at 1 % / 2 % loss; 6.3–12.7 % with 400 ms stalls** | **Met on clean lines, fails on lossy 4G** (§3.5) |
-| **NFR3** no visible disagreement at ≤ 150 ms | frame gaps p99 67 ms, max ~110 ms; under the 100–150 ms render delay | p99 240–250 ms, max 265–293 ms; 7–10 % of horde frames arrive bunched | **At risk**: freeze-then-jump every few seconds on a lossy line (§3.3) |
+| **NFR3** no visible disagreement at ≤ 150 ms | frame gaps p99 66–68 ms, max 98–115 ms; under the 100–150 ms render delay | p99 239–248 ms, max 261–293 ms; 7–10 % of horde frames arrive bunched | **At risk**: freeze-then-jump every few seconds on a lossy line (§3.3) |
 | **NFR9** 4-player run to wave 10, no game-caused disconnect | no reconnect; the transport terminates a socket after 2 missed pings 3 s apart | a 6–9 s 4G dead spot or an iOS app switch ends that player's run | **High risk** until reconnect exists (§4, F9) |
 
 ---
@@ -84,21 +90,21 @@ Client (Phaser, `apps/client/src/sim/NetSimHost.ts`):
 | 1 | 5 (Brute) | 135 | 29–31 | 6.4–6.8 | 15.2–15.7 | 4.6–5.0 | 2.1 | 0.82 / 4.9 |
 | 2 hold fire 45 s | 4 | 118 | 34 | 6.8–7.3 | 13.8–18.7 | 5.2–5.7 | 2.3 | 0.72 / 3.5 |
 | 2 | 5 | 150 | 32 | 6.4–7.1 | 11.7–14.9 | 4.8–5.4 | 2.3 | 0.75 / 4.4 |
-| 3 hold fire 45 s + 1 % loss | 4 | 150 | 43 | 8.3–8.9 | 17.1–19.9 | 6.6–7.2 | 2.4 | 0.79 / 4.0 |
+| 3 hold fire 45 s + 1 % loss | 4 | 150 | 43 (mean) | 8.3–8.9 | 17.1–19.9 | 6.6–7.2 | 2.4 | 0.79 / 4.0 |
 | 3 + 1 % loss | 5 | 150 | 54 | **9.8–10.9** | **20.9–23.2** (bot side 27.1) | 8.1–9.1 | 2.4 | 0.83 / 5.4 |
 
-No horde frame was skipped (`framesSkipped 0`), and there were no slow ticks or slow patches. Server cost is ~0.8 ms of the 50 ms budget. The bots spread out more than real players, so frames held only 26–54 zombies. The worst case below is computed rather than measured.
+No horde frame was skipped (`framesSkipped 0`), and there were no slow ticks or slow patches. Server cost is ~0.8 ms of the 50 ms budget. The bots spread out more than real players, so frames held only 26–57 zombies. The worst case below is computed rather than measured.
 
 ### 3.3 What a phone receives, by stream (proxy, run 1 whole connection; runs 2–3 similar)
 
 | Stream | Messages/s | Avg bytes/message | Note |
 |---|---|---|---|
-| Horde frame (`ROOM_DATA_BYTES` 1) | 19.8–19.9 | 225–271 (run 3: 413–467 in wave 5) | 6 + 8 × zombies in view |
+| Horde frame (`ROOM_DATA_BYTES` 1) | 19.8–19.9 | 225–271 (run 3 whole connection: 363–405; wave 5 alone 413–467 per server `horde_stats`) | 6 + 8 × zombies in view |
 | State patch (`ROOM_STATE_PATCH`) | 19.7–19.8 | 55 (run 3: 66) | player x/y/heading/ackSeq/ammo/reload ticks, `tick`, buildings HP |
 | `sim.events_flushed` | 5–8.5 | 70–81 | shots, hits, kills, money |
 | `net.pinged` | 1 | 27 | |
-| **All down** | **≈ 48 messages/s → 47–48 TCP writes/s** | | each message is its own write (TCP_NODELAY: `node_modules/ws/lib/websocket.js:269`) |
-| Up (`input.send` + pongs) | 21 writes/s | ~116 B per input | 2.1–2.4 KB/s |
+| **All down** | **≈ 46–49 messages/s → 44–49 TCP writes/s** | | each message is its own write (TCP_NODELAY: `node_modules/ws/lib/websocket.js:269`) |
+| Up (`input.send` + pongs) | 21 writes/s | ~116 B per input | 2.1–2.5 KB/s |
 
 Arrival timing of horde frames at the phone:
 
@@ -107,11 +113,11 @@ Arrival timing of horde frames at the phone:
 | 150 ms ± 10 ms, no loss (runs 1–2) | 50 ms | 62–64 ms | 66–68 ms | 98–115 ms | 0.2–0.8 % |
 | + 1 % loss as 200 ms stalls (run 3) | 49 ms | 65 ms | **239–248 ms** | **261–293 ms** | **7.2–10.1 %** |
 
-The render delay is 100–150 ms (§2). On the lossy line every stall above ~150 ms therefore runs past the newest frame. Teammates and zombies hold still, then jump when the burst lands. Bursts arrived about every 2–3 s (45–62 stalls per ~150 s connection).
+The render delay is 100–150 ms (§2). On the lossy line every stall above ~150 ms therefore runs past the newest frame. Teammates and zombies hold still, then jump when the burst lands. A stall hit about every 2 s (45–62 stalls per ~111 s connection).
 
 ### 3.4 Worst case and the horde encoding alternatives
 
-**Worst case today:** 150 zombies in one view = 6 + 8 × 150 = 1,206 B × 20/s = **23.6 KB/s horde**. Add ~1.3 KB/s of patches and ~0.5–1 KB/s of events and the payload is ≈ **25.5 KB/s** (NFR4 ✔, brief ✔ at 150). The Epic 6 stampede (story 6.8: "total ≤ 180") with 180 in view = **28.2 KB/s horde**, about 30 KB/s total (brief ✘, NFR4 at the limit).
+**Worst case today:** 150 zombies in one view = 6 + 8 × 150 = 1,206 B × 20/s = **23.6 KB/s horde**. Add ~1.3 KB/s of patches and ~0.5–1 KB/s of events and the payload is ≈ **25.5 KB/s** (NFR4 ✔, brief ✔ at 150). The Epic 6 stampede (story 6.8: "total ≤ 180") with 180 in view = **28.2 KB/s horde**, ≈ 30.5 KB/s total (brief ✘, NFR4 slightly over). Story 6.8 assumes most stampede Runners are off screen; this is the case where they are not.
 
 **Alternatives on real movement** (`hordeEncodings.ts`, 600 ticks, 118 in view on average, 94 % of them moving every tick, 543 spawns — pessimistic: a crowd chasing walking survivors):
 
@@ -178,7 +184,7 @@ Evidence grades: **Confirmed** (observed in code or measurement), **Deduced** (f
 - **Result:** until the queue drains, every shot's view is RTT/2 + queue + render delay ≈ 75 + 200 + 140 ms old. That is past the 300 ms rewind limit, so the server tests the shot against zombies that have moved on.
 - **Evidence:** §3.5, where 38–73 % of shots were over the cap. Fast targets suffer most (Runners at 4 m/s).
 - **Fix check:** a 500 ms window cuts Runner reversals by 4–9× (confirmed by the one-off run).
-- **Why a longer window is safe here:** the 300 ms cap's reason was fairness to whoever is hit (`limits.ts:35-40`, Valorant's and Gambetta's argument [14][16]). Here the targets are zombies, so there is no victim.
+- **Why a longer window is safe here:** the 300 ms cap is "the rewind an honest 300 ms-ping player gets" (`limits.ts:35-40`). Elsewhere a rewind cap protects the player being shot [14]. Here the targets are zombies, so there is no victim.
 
 **F2. Some predicted shots never happen on the server. (Confirmed)**
 - **How:** inputs skipped by the backlog drain, or overflowing the 6-input ring on stalls > 300 ms, get only a "dry" weapon tick (`RunController.ts:500-535`).
@@ -187,9 +193,9 @@ Evidence grades: **Confirmed** (observed in code or measurement), **Deduced** (f
 
 **F3. The render delay ceiling (150 ms) is below a single TCP retransmit on 4G. (Confirmed)**
 - **The gap:** on a lossy line, p99 frame gaps are 240–250 ms (§3.3).
-- **Practice elsewhere:** ~3 send intervals plus a jitter margin, i.e. ≈ 150–200 ms at 20 Hz, survives one lost packet [3][11]. Adaptive schemes size the buffer from measured lateness and stretch time by 0.85–1.1× instead of jumping [12].
+- **Practice elsewhere:** ~3 send intervals survive one lost packet [3][11]. That is UDP practice, where a loss is just a missing update, and our 150 ms ceiling already equals 3 intervals at 20 Hz. Over TCP a loss is a retransmit stall instead (~1 RTT or more), which these sources don't size; our measurement (240–290 ms gaps) does. Adaptive schemes size the buffer from measured lateness and stretch time by 0.85–1.1× instead of jumping [12].
 - **Ours, two flaws:**
-  - The jitter estimate uses *gaps*, so it doesn't see a slowly growing queue (bufferbloat) (`adaptiveDelay.ts:42-47`).
+  - The jitter estimate uses *gaps*, so it doesn't see a slowly growing queue (bufferbloat) (`adaptiveDelay.ts:42-47`), and one gap counts as at most 100 ms of jitter (`JITTER_SAMPLE_CAP_MS`, `netConfig.ts:33`), so even a 300 ms stall barely raises it.
   - The delay creeps at only 20 ms/s.
 
 **F4. Freeze-then-jump after a stall. (Confirmed in code; visible effect deduced)**
@@ -228,7 +234,7 @@ Evidence grades: **Confirmed** (observed in code or measurement), **Deduced** (f
 - **Client side:** no "no data for N s" watchdog, so the player sees nothing while the SDK retries in vain for up to ~56 s.
 - **iOS Safari bugs:**
   - After > 10 s in the background, Safari's new WebSockets can hang in CONNECTING until the page reloads (WebKit bug 308073, open) [20].
-  - Safari may not fire `onclose` when the network drops [19 › bug 247943].
+  - Safari may not fire `onclose` when the network drops (WebKit bug 247943).
 - **LTE radio wake-up:** waking from idle costs ~260 ms [21]. That doesn't matter mid-run (20 Hz traffic keeps the radio awake) but does after a lobby or a resume.
 
 **F10. The dev throttle can't show any of this. (Confirmed)**
@@ -255,7 +261,7 @@ Evidence grades: **Confirmed** (observed in code or measurement), **Deduced** (f
 | H2 | Raising both to 500 ms / 10 ticks fixes most of F1 | **Confirmed** | Runners 7.6 → 2.0 %, 11.9 → 1.3 % (§3.5) |
 | H3 | A faster backlog drain cuts the rest (F2) | Open | Would confirm: `hitsLossSim` with `INPUT_DRAIN_AFTER_TICKS` 40 → 10. The Story 2.4 review warned that draining too early causes starve → drain → starve, so measure both |
 | H4 | Merging the 3 writes per tick into one saves ~1.5–2 KB/s on 4G | Open | Would confirm: a phone packet capture, or a proxy counting segments with TLS |
-| H5 | Bots understate the in-view crowd | Confirmed | 26–54 per frame vs 118 in the encoding run; the worst case is computed |
+| H5 | Bots understate the in-view crowd | Confirmed | 26–57 per frame vs 118 in the encoding run; the worst case is computed |
 
 ---
 
@@ -264,16 +270,16 @@ Evidence grades: **Confirmed** (observed in code or measurement), **Deduced** (f
 Run with `bmad-deep-recon` (technical, standard preset, 3 parallel researchers, normal validation; load-bearing claims spot-checked, several against the installed source code). Sources in the appendix; confidence per claim.
 
 **State sync and bandwidth**
-- **Delta against the last acknowledged state is standard.** Fiedler's cube demo starts at 17.4 Mbps uncompressed and gets down to the hundreds of kbit/s. An unchanged object costs 1 bit, a small relative move ~26 bits, and indices are relative (~5.5 bits) [1]. The Tribes "ghost manager" keeps a per-object dirty mask, never resends lost data, and after a loss re-sends only the *latest* values [4]. (high; old but still the reference pattern)
-- **Priority and bandwidth budgets.** Fiedler's priority accumulator: every object's priority adds up each frame, and the packet is filled highest-first within a byte budget [2]. Tribes and Halo Reach fill each packet by priority within a per-connection budget [4][29]. Unreal scales priority by distance and time since the last send [26]. This is the textbook way to send far zombies less often. (high / medium)
-- **Colyseus costs.** About 1 B + refId per changed object and 1 B + value per changed field. The docs' example of 60 moving entities costs 9.4 KB/s quantized vs 14.1 KB/s float32 [5]. RefIds are never reused (headers grow past 128 / 256 instances) [5]. `StateView` makes the server encode per client and is "not optimized for large datasets yet" [6][7]. There is no per-client patch rate [5]. **This confirms the 2.5 decision to keep the horde out of the schema.** (high)
+- **Delta against the last acknowledged state is standard.** Fiedler's cube demo starts at 17.4 Mbps uncompressed and targets 256 kbps; with only changed objects sent, steady state is ≈ 15 kbps. An unchanged object costs 1 bit, a small relative move ~26 bits, and indices are relative (~5.5 bits) [1]. The Tribes "ghost manager" keeps a per-object dirty mask, never resends lost data, and after a loss re-sends only the *latest* values [4]. (high; old but still the reference pattern)
+- **Priority and bandwidth budgets.** Fiedler's priority accumulator: every object's priority adds up each frame, and the packet is filled highest-first within a byte budget [2]. Tribes and Halo Reach fill each packet by priority within a per-connection budget [4][29]. Unreal scales priority by distance and time since the last send [26]. This is the textbook way to send far zombies less often. (high for Fiedler and Tribes; low–medium for Halo Reach, a secondary summary)
+- **Colyseus costs.** About 1 B + refId per changed object and 1 B + value per changed field. The docs' example of 60 moving entities costs 9.4 KB/s quantized vs 14.1 KB/s float32 [5]. RefIds are never reused (headers grow past 128 / 256 instances) [5]. `StateView` makes the server encode per client and is "not optimized for large datasets yet" [6][7]. No per-client patch rate is documented [5]. **This confirms the 2.5 decision to keep the horde out of the schema.** (high)
 - **Compression.** permessage-deflate is off by default in Colyseus. `ws` warns of significant CPU and memory cost (memory fragmentation on Linux) and skips messages < 1 KB by default [9][10]. Most of our messages are < 1 KB, and quantized binary compresses poorly (an inference; no measurement found). (medium)
 
 **Timing**
 - **20 Hz is a defensible tick.** Apex Legends runs 20 Hz servers. Its developers say 60 Hz would cost 3× the bandwidth to win ~2 frames of delay [13]. Photon lists 30 Hz as typical on mobile [30]. (high / medium)
 - **Interpolation buffer.** Source's default is 100 ms at 20 updates/s (2 intervals). An interp ratio of 3 survives 1 lost packet, 4 survives 2 [11]. Fiedler found ~3× the send interval plus jitter margin best at 2–5 % loss [3]. Unity Netcode adapts the buffer from RTT, jitter and arrival rate: defaults 2 ticks × 1.25, playback speed 0.85–1.1× to drain or refill, ~10 % of the error corrected per frame, time never runs backward [12]. (high; Valve medium, page fetch refused)
 - **Input buffering.** Overwatch runs the client ~RTT/2 + 1 frame ahead and resends all unacked inputs in each packet. When the server starves it repeats the last input and has the client speed up ~5 % until the buffer refills [15]. Unity's defaults: inputs arrive 2 ticks early, 2 redundant inputs per packet, prediction speed 0.9–1.1× [12]. Margin ≈ 3 standard deviations of jitter [27]. (medium / high)
-- **Lag compensation limits.** Source keeps 1 s of history (`sv_maxunlag`) [11]. Valorant caps the rewind (value unpublished) so a 500 ms player can't kill after the target reaches cover [14]. Overwatch reportedly stops predicting hit impacts above ~220 ms RTT [15]. The cap exists to protect the *target* [14][16]. No published rate of reversed hits was found to compare with NFR5. (high / medium)
+- **Lag compensation limits.** Source keeps 1 s of history (`sv_maxunlag`) [11]. Valorant caps the rewind (value unpublished) so a 500 ms player can't kill after the target reaches cover [14]. Overwatch reportedly stops predicting hit impacts above ~220 ms RTT [15]. The cap exists to protect the *target* [14]; favour-the-shooter accepts some unfairness to the target in exchange [16]. No published rate of reversed hits was found to compare with NFR5. (high / medium)
 
 **Transport and mobile networks**
 - **TCP head-of-line blocking.**
@@ -282,12 +288,12 @@ Run with `bmad-deep-recon` (technical, standard preset, 3 parallel researchers, 
 - **WebTransport.** Shipped in **Safari 26.4 (March 2026)**; caniuse lists Chrome 97+, Firefox 114+, Safari/iOS 26.4+, Chrome Android [17][18] (high). But:
   - **iOS datagrams missing:** an open WebKit report says `datagrams` is undefined on iOS 26.6, with flow-control stalls on 26.6.1 (single reporter, **unverified**) [19].
   - **Colyseus support is experimental:** `@colyseus/h3-transport` "hasn't been battle tested" [8]. The installed `@colyseus/core` 0.18.29 also calls it experimental (`node_modules/@colyseus/core/src/Room.ts:289-321`). Its `@unreliable` fields stop updating on WebSocket clients [8].
-  - **Cloudflare:** no primary source says Cloudflare Tunnel carries WebTransport to an origin. The Tunnel's QUIC is only connector-to-edge [23] (low on proxying).
+  - **Cloudflare:** no source found shows that Cloudflare Tunnel carries WebTransport to an origin. The Tunnel's QUIC is only connector-to-edge [23] (low confidence: absence of evidence).
 - **WebRTC DataChannels.** Unreliable modes work in iOS Safari since 11 [19]. A server such as geckos.io needs an open UDP port range on the VPS [24]: real ops cost for us (Cloudflare Tunnel only). (medium)
 - **4G behaviour.**
-  - **Typical numbers:** median LTE RTT ~40 ms, delay variation ~14 ms [22]. Handovers cause latency peaks [22]. VoIP targets are ≤ 1 % loss and < 30 ms jitter [28].
+  - **Typical numbers:** median LTE RTT ~40 ms, delay variation ~14 ms [22]. Handovers cause latency peaks (R&S 2024 measurement, same publisher as [22]). VoIP targets are ≤ 1 % loss and < 30 ms jitter [28].
   - **Radio wake-up:** RRC idle → connected costs ~260 ms; the radio stays up ~11.6 s after the last packet [21].
-  - **iOS Safari:** the background WebSocket bugs in F9 [20].
+  - **iOS Safari:** the background WebSocket bugs in F9 [20]; `onclose` not firing on a network drop (WebKit bug 247943, per its Bugzilla page and Apple's developer forums).
   - (low–medium for the numbers; high that the Safari bug report exists)
 
 **What this means for us** (cross-dimension): the biggest problems are not bytes; they are what happens *around a lost packet*. TCP turns a lost packet into a 200–300 ms stall plus a burst. Today our rewind, render delay and input queue are each sized for a clean line (300 ms, 150 ms, 300 ms). Industry practice sizes them for one lost packet, adapts smoothly, and never jumps time. Changing transport would remove the stall, but on iPhone that path isn't reliable in late 2026 and it doesn't fit our hosting. Bytes are a second priority: today's margin is enough for Epic 6 at 150 alive, not at 180 on one screen. A delta horde stream is the cheap, well-known fix.
@@ -296,22 +302,22 @@ Run with `bmad-deep-recon` (technical, standard preset, 3 parallel researchers, 
 
 ## 6. Ranked improvements
 
-Effort: **S** ≈ half a builder session, **M** ≈ one session, **L** ≈ 1–2 sessions. Ranked by how much they move NFR3/4/5/9 per unit of effort.
+Effort: **S** ≈ half a builder session, **M** ≈ one session, **L** ≈ 1–2 sessions. Ranked by how much they move NFR3/4/5/9 per unit of effort; #2 is an enabler (no NFR effect of its own) ranked high because #1, #3, #5 and #6 can't be checked without it.
 
 | # | What it is (plain English) | Expected effect (numbers) | Effort | Risk | Files |
 |---|---|---|---|---|---|
-| **1** | **Longer rewind for shots at zombies**: the server may look up to 500 ms back (today 300 ms), so a shot still counts after a 4G hiccup. Zombies are the only targets, so nobody is treated unfairly. | Reversed hits on kiting Runners at 1 % / 2 % loss: **7.6 → 2.0 %, 11.9 → 1.3 %** (measured, §3.5). Memory: 4 more history rows (256 × 4 floats). | **S** | Low. A cheater could shoot at a half-second-old view; in PvE that only helps their team, and it's already logged (2.12). Re-run `tickCostRewind`. | `apps/server/src/net/limits.ts` (`REWIND_CAP_MS`), `packages/shared/src/config/constants.ts` (`REWIND_MAX_TICKS`), `combat/rewind.ts` tests, `tools/netsim` 2.12 tests |
+| **1** | **Longer rewind for shots at zombies**: the server may look up to 500 ms back (today 300 ms; ~600 ms if #3 ships without #5, see #3), so a shot still counts after a 4G hiccup. Zombies are the only targets, so nobody is treated unfairly. | Reversed hits on kiting Runners at 1 % / 2 % loss: **7.6 → 2.0 %, 11.9 → 1.3 %** (measured, §3.5). Memory: 4 more history rows (256 × 4 floats). | **S** | Low. A cheater could shoot at a half-second-old view; in PvE that only helps their team, and it's already logged (2.12). Re-run `tickCostRewind`. | `apps/server/src/net/limits.ts` (`REWIND_CAP_MS`), `packages/shared/src/config/constants.ts` (`REWIND_MAX_TICKS`), `combat/rewind.ts` tests, `tools/netsim` 2.12 tests |
 | **2** | **"Lossy line" test switch**: `?lag=150&jitter=20&loss=1` in the dev throttle, the same option for the bots, and the loss model in the hits harness, so phone testers on Wi-Fi and agents see real 4G hiccups. Keep `tools/netaudit/lagProxy.ts` as the bots' line. | Makes 1, 3, 4 and 6 testable. The 2.10 test becomes honest for Wi-Fi phones. | **S** | None (dev only). | `apps/client/src/net/devThrottle.ts`, `netConfig.ts`, `tools/bots/*`, `tools/netsim/hitsSim.ts` (merge `hitsLossSim.ts` back) |
-| **3** | **Smooth through hiccups**: wait up to ~250 ms instead of 150 when the line is bad, and judge "bad" by how *late* frames are, not by gaps. After a stall, play a little faster (up to 1.1×) to catch up instead of jumping. Move the clock in small steps (never backwards). Drop margin zombies after 150 ms, not after 3 frames. | Lossy line: most 200–300 ms stalls hidden (p99 gap 240–250 ms < 250 ms delay); no backward rewinds. Cost: +0–100 ms delay **only** while the line is bad (clean lines stay at 100–150). | **M** | Medium. Feel change; `viewTick` (2.12) comes from the same timeline, so pair with #1 (a 250 ms delay + 75 ms one-way + queue needs the 500 ms rewind). | `apps/client/src/net/adaptiveDelay.ts`, `serverClock.ts`, `netConfig.ts`, `hordeBuffer.ts`, `snapshots.ts`, `apps/client/src/sim/NetSimHost.ts` |
+| **3** | **Smooth through hiccups**: wait up to ~250 ms instead of 150 when the line is bad, and judge "bad" by how *late* frames are, not by gaps. After a stall, play a little faster (up to 1.1×) to catch up instead of jumping. Move the clock in small steps (never backwards). Drop margin zombies after 150 ms, not after 3 frames. | Lossy line: most 200–300 ms stalls hidden (p99 gap 240–250 ms < 250 ms delay); no backward rewinds. Cost: +0–100 ms delay **only** while the line is bad (clean lines stay at 100–150). | **M** | Medium. Feel change; `viewTick` (2.12) comes from the same timeline, so a longer delay makes shots older: 75 ms one-way + ~200 ms queue after a stall + 250 ms delay ≈ 525 ms, over #1's 500 ms. Either #5 shrinks the queue first, or #1 goes to ~600 ms (12 ticks). The 500 ms test (§3.5) ran with today's 100–150 ms delay; re-run `hitsLossSim` with both changes. | `apps/client/src/net/adaptiveDelay.ts`, `serverClock.ts`, `netConfig.ts`, `hordeBuffer.ts`, `snapshots.ts`, `apps/client/src/sim/NetSimHost.ts` |
 | **4** | **Reconnect (Story 8.1, pulled forward) + a "reconnecting…" watchdog**: hold a dropped player's seat for 120 s. The phone notices "no data for 3 s" and says so. On iPhone, if a reconnect hangs after the app was in the background, reload into the seat (WebKit bug). Raise the transport's ping tolerance a bit (e.g. 3 s × 4 ≈ 12–15 s). | NFR9: a 6–9 s dead spot or an app switch no longer ends a player's run. | **L** (8.1's ACs + watchdog + Safari resume) | Medium: seat state, a downed player counts as out, bots for tests. | `apps/server/src/rooms/RunRoom.ts` (`onDrop`/`allowReconnection`), `apps/server/src/app.ts` (`pingMaxRetries`), `apps/client/src/net/session.ts`, `lobbyStore.ts`, `main.ts` |
-| **5** | **Faster backlog drain after a stall**: today 2 s pass before the server skips extra inputs; try 0.5 s, and/or a small client time-stretch (Overwatch/Unity: 0.9–1.1×) instead of skipped inputs. | Removes most of the 1.5–5.7 % "shot predicted but never fired" (F2) and the extra 200 ms input lag after a hiccup. Size to be measured with #2 (H3). | **S–M** | Medium: the Story 2.4 review found too-early draining causes starve → drain → starve; measure both. | `apps/server/src/run/RunController.ts` (`INPUT_DRAIN_*`), maybe `NetSimHost.ts` |
-| **6** | **Half-size horde stream**: send only what changed since the last frame (TCP guarantees the phone has it), let the phone work out heading from movement, and refresh far zombies (> 8 m) 10×/s instead of 20×/s. Full frame on join, after a skipped frame and once a second. | Measured on real movement: **18.6 → 8.9 KB/s** (delta) → **6.5 KB/s** (+ far at 10 Hz). Worst case 150 in view **23.6 → ~8–11 KB/s**; the stampede's 180 in view fits easily. | **M** | Medium: a decoder bug shows wrong positions; the 1 s keyframe bounds it; round-trip and fuzz tests; bots decode it too. | `packages/shared/src/net/hordeFormat.ts`, `apps/server/src/net/hordeEncoder.ts`, `apps/client/src/net/hordeDecoder.ts`, `hordeBuffer.ts`, `devThrottle.ts` (`THROTTLE_BYTES_MAX`), `tools/bots/botClient.ts` |
+| **5** | **Gentler backlog recovery after a stall**: instead of skipping inputs after 2 s, let the phone run its own steps slightly slower for a moment (Overwatch/Unity: 0.9–1.1× [12][15]), so the server's extra queue empties without dropping anyone's moves or shots. A shorter skip delay is **not** the answer: the Story 2.4 review sim found 0.5 s added ~35 % more starved ticks (`RunController.ts:70-74`); at most try ~1 s alongside. | Aims at the 1.5–5.7 % "shot predicted but never fired" (F2) and the extra ~200 ms input lag after a hiccup. Size to be measured with #2 (H3). | **M** | Medium: client timing change; measure starved ticks and reversed hits together. | `apps/server/src/run/RunController.ts` (`INPUT_DRAIN_*`), maybe `NetSimHost.ts` |
+| **6** | **Half-size horde stream**: send only what changed since the last frame (TCP guarantees the phone has it), let the phone work out heading from movement, and refresh far zombies (> 8 m) 10×/s instead of 20×/s. Full frame on join, after a skipped frame and once a second. | Measured on real movement: **18.6 → 10.6 KB/s** (delta) → **8.9 KB/s** (+ heading on the phone) → **6.5 KB/s** (+ far at 10 Hz). Worst case 150 in view **23.6 → ~8–11 KB/s**; the stampede's 180 in view fits easily. | **M** | Medium: a decoder bug shows wrong positions; the 1 s keyframe bounds it; round-trip and fuzz tests; bots decode it too. | `packages/shared/src/net/hordeFormat.ts`, `apps/server/src/net/hordeEncoder.ts`, `apps/client/src/net/hordeDecoder.ts`, `hordeBuffer.ts`, `devThrottle.ts` (`THROTTLE_BYTES_MAX`), `tools/bots/botClient.ts` |
 | **7** | **One packet per tick**: send the state patch from the tick itself (not its own timer), and write horde + events + patch together. | Down segments ~48 → ~21/s; ≈ 1.5–2 KB/s less on the 4G wire (estimate, H4); patches carry exactly one tick (less clock noise, helps #3). | **S–M** | Low–medium: Colyseus internals (`patchRate = null` + `broadcastPatch()` in `onTick`; socket cork) need a check on 0.18.29. | `apps/server/src/rooms/RunRoom.ts` |
 | **8** | **Smaller input message**: positional binary instead of a named map. | Up 2.3 → ~0.5 KB/s payload. | **S** | Low; the guard must validate the binary form. | `packages/shared/src/net/input.ts`, `messages.ts`, `apps/client/src/sim/NetSimHost.ts`, `apps/server/src/rooms/RunRoom.ts`, `messageGuard.ts` |
-| **9** | **Lower horde backpressure** 64 KB → ~8 KB, so stale frames stop piling up during a stall. | Smaller burst after a stall (H, F12). | **S** | Low. | `packages/shared/src/net/hordeFormat.ts` |
+| **9** | **Measure the horde backpressure first** (64 KB today): log `framesSkipped` against stall length with a bandwidth-capped proxy. Only if frames really pile up, add a check that also sees the kernel's buffer (a lower `bufferedAmount` threshold alone may not help, F12). | Unknown until measured (F12 is a hypothesis). | **S** | None (measurement). | `packages/shared/src/net/hordeFormat.ts`, `tools/netaudit/lagProxy.ts` |
 
 **Not recommended now** (with the reason):
-- **WebTransport / WebRTC.** iOS datagrams are reported broken, Colyseus support is experimental, and Cloudflare Tunnel doesn't carry it [8][19][23]. Re-check in mid-2027 (staleness map).
+- **WebTransport / WebRTC.** iOS datagrams are reported broken, Colyseus support is experimental, and no source shows Cloudflare Tunnel carries it [8][19][23]. Re-check in mid-2027 (staleness map).
 - **permessage-deflate.** It costs CPU and memory for little gain on small binary frames [9][10].
 - **A higher tick or send rate.** 3× the bytes for ~2 frames [13].
 - **`StateView` for the 4 players.** Patches are 55–66 B. It only pays off for many entities, and Colyseus itself warns about large sets [6][7].
@@ -320,14 +326,14 @@ Effort: **S** ≈ half a builder session, **M** ≈ one session, **L** ≈ 1–2
 
 ## 7. What to turn into stories, and where
 
-**Recommendation: a Network pass of 5 stories right after Epic 6 and before Epic 7, filed at the front of Epic 8 "Real-life resilience"** (that epic is already about bad connections, and its 8.1 reconnect is item #4). Epic 10 is too late: NFR9 is due from Epic 6 on (`epics.md:308`), and the Epic 6 stampede eats the bandwidth margin.
+**Recommendation: a Network pass of 4 stories (+ 1 optional) right after Epic 6 and before Epic 7, filed at the front of Epic 8 "Real-life resilience"** (that epic is already about bad connections, and its 8.1 reconnect is item #4). Epic 10 is too late: NFR9 is due from Epic 6 on (`epics.md:308`), and the Epic 6 stampede eats the bandwidth margin.
 
 | Story | Contains | Why this order |
 |---|---|---|
-| **N1 "My shots count on a bad 4G line"** | #1 + #2 (+ measure #5; ship it if it helps) | Biggest NFR5 win, small, server-only, plus the test switch everything else needs |
-| **N2 "Smooth through hiccups"** | #3 | Client-only; can run in parallel with N1 (different files). Uses N1's test switch |
+| **N1 "My shots count on a bad 4G line"** | #1 + #2 | Biggest NFR5 win, small, server-only, plus the test switch everything else needs |
+| **N2 "Smooth through hiccups"** | #3 + #5 | Client-only (#5's time-stretch is client-side); can run in parallel with N1 (different files). Uses N1's test switch; re-checks the rewind window with the new delay (#3 note) |
 | **8.1 "Reconnect within 2 minutes" (pulled forward, ACs extended)** | #4 | NFR9; large; after N1/N2 so its tests can use the lossy line |
-| **N3 "Half-size horde stream"** | #6 + #9 | Frees bandwidth for Epic 6's stampede and later art; after N2 (both touch `hordeBuffer.ts`) |
+| **N3 "Half-size horde stream"** | #6 (+ the #9 measurement) | Frees bandwidth for Epic 6's stampede and later art; after N2 (both touch `hordeBuffer.ts`) |
 | **N4 "One packet per tick"** (optional) | #7 + #8 | Polish, wire overhead; any time after N1 |
 
 Then **your 4-phone 4G test (2.10)** as the check, with Wi-Fi phones using `&loss=1`.
