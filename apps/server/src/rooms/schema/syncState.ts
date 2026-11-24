@@ -64,6 +64,15 @@ function syncBoss(state: RunState, world: World): void {
   if (s.atkX !== Math.fround(a.cx)) s.atkX = a.cx;
   if (s.atkY !== Math.fround(a.cy)) s.atkY = a.cy;
   if (s.atkR !== Math.fround(a.radiusM)) s.atkR = a.radiusM;
+  // Story 6.6: once per attack (the stop point is exact: f32 of the server's numbers).
+  const ex = a.cx + a.dirX * a.lenM;
+  const ey = a.cy + a.dirY * a.lenM;
+  if (s.atkEndX !== Math.fround(ex)) s.atkEndX = ex;
+  if (s.atkEndY !== Math.fround(ey)) s.atkEndY = ey;
+  if (s.atkCrash !== a.crash) s.atkCrash = a.crash;
+  if (s.atkSrc !== a.src) s.atkSrc = a.src;
+  if (s.atkSrcX !== Math.fround(a.srcX)) s.atkSrcX = a.srcX;
+  if (s.atkSrcY !== Math.fround(a.srcY)) s.atkSrcY = a.srcY;
 }
 
 /**

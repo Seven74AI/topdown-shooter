@@ -615,8 +615,19 @@ export class NetSimHost implements SimHost {
         if (e.type === "spitter.spat" && stale) continue;
         if (e.type === "acid.splashed" && ageS >= this.puddleS) continue;
         e.ageS = ageS;
-      } else if (e.type === "boss.warning" || e.type === "boss.arrived" || e.type === "boss.telegraph" || e.type === "boss.slammed" || e.type === "boss.target_changed") {
+      } else if (
+        e.type === "boss.warning" ||
+        e.type === "boss.arrived" ||
+        e.type === "boss.telegraph" ||
+        e.type === "boss.slammed" ||
+        e.type === "boss.target_changed" ||
+        e.type === "boss.crashed" ||
+        e.type === "boss.thrown_impact" ||
+        e.type === "boss.enraged" ||
+        e.type === "boss.killed"
+      ) {
         // Story 6.5 (brief 14): a woken tab's backlog plays no late banner or sound (the telegraph draws from its own ticks).
+        // Stories 6.6 / 6.7: the crash, the impact, the roar and the death too (EVAC INBOUND still shows once: bossCue).
         e.ageS = Math.max(0, this.renderTickNow - (ticks[i - from] as number)) * TICK_DT_S;
       } else if (e.type === "molotov.ignited") {
         // Story 5.12: back-dated by its age (MolotovFires starts it that much earlier and drops one

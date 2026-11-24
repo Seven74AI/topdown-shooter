@@ -437,6 +437,7 @@ export class HudScene extends Phaser.Scene {
   private shownWave = -1;
   private shownRemaining = -1;
   private shownBanner = "";
+  private shownBannerColor = "";
   private shownWeapon = "";
   private shownAmmo = Number.NaN;
   private shownMag = Number.NaN;
@@ -1999,16 +2000,23 @@ export class HudScene extends Phaser.Scene {
         .setText(text)
         .setPosition(this.scale.width / 2, (WAVE_TOP_PX + this.insets.top) * dpr());
     }
-    if (m.bannerText !== this.shownBanner) {
+    if (m.bannerText !== this.shownBanner || m.bannerColor !== this.shownBannerColor) {
       this.shownBanner = m.bannerText;
-      this.bannerText.setText(m.bannerText).setPosition(this.scale.width / 2, this.scale.height * 0.32);
+      this.shownBannerColor = m.bannerColor; // Stories 6.6 / 6.7: CRASH! / EVAC INBOUND amber, ENRAGED red
+      // Stories 6.6 / 6.7: a long line (a player's name) wraps inside the screen instead of running off it.
+      this.bannerText
+        .setWordWrapWidth(this.scale.width * 0.92)
+        .setText(m.bannerText)
+        .setColor(m.bannerColor || "#ffffff")
+        .setPosition(this.scale.width / 2, this.scale.height * 0.32);
     }
     const age = this.time.now - m.bannerAtMs;
-    if (!m.bannerText || age > BANNER_SHOW_MS) {
+    const showMs = m.bannerShowMs > 0 ? m.bannerShowMs : BANNER_SHOW_MS;
+    if (!m.bannerText || age > showMs) {
       this.bannerText.setVisible(false);
     } else {
-      const fadeStart = BANNER_SHOW_MS - BANNER_FADE_MS;
-      this.bannerText.setVisible(true).setAlpha(age < fadeStart ? 1 : 1 - (age - fadeStart) / BANNER_FADE_MS);
+      const fadeStart = showMs - Math.min(BANNER_FADE_MS, showMs / 2);
+      this.bannerText.setVisible(true).setAlpha(age < fadeStart ? 1 : 1 - (age - fadeStart) / (showMs - fadeStart));
     }
   }
 

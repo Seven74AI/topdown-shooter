@@ -24,6 +24,7 @@ import {
   PREDICTION_ERROR_BUCKET_STEPS,
   PREDICTION_HISTORY_SIZE,
   PREDICTION_IGNORE_M,
+  PREDICTION_CHARGE_SNAP_M,
   PREDICTION_KNOCK_SNAP_M,
   PREDICTION_SMOOTH_TAU_S,
   PREDICTION_SNAP_M,
@@ -253,7 +254,14 @@ export class Predictor {
     p.gear = gear; // Story 5.11
     const newKnock = knockTicks > 0 && ackSeq + knockTicks !== this.knockEndSeq;
     if (knockTicks > 0) this.knockEndSeq = ackSeq + knockTicks;
-    const snapM = newKnock ? PREDICTION_KNOCK_SNAP_M : PREDICTION_SNAP_M;
+    // Story 6.6: a charge shove (its own mm per tick) slides in from further (shove + body push-out).
+    const c = this.world.balance.boss.charge;
+    const chargeStepMm = Math.round((c.shoveM * 1000) / Math.max(1, Math.round(c.shoveS * 20)));
+    // While the server still slides this knock (`knockTicks` > 0), the slide's offset is still decaying:
+    // keep the knock's limit for the running total too (else a 0.15 m correction on top of a 2 m slide snaps).
+    const knockLimit = knockStepMm === chargeStepMm ? PREDICTION_CHARGE_SNAP_M : PREDICTION_KNOCK_SNAP_M;
+    const snapM = newKnock ? knockLimit : PREDICTION_SNAP_M;
+    const totalSnapM = newKnock || knockTicks > 0 ? knockLimit : PREDICTION_SNAP_M;
     if (this.evictedSeq > ackSeq) {
       // A stall of over 3 s: inputs the server hasn't applied are gone from the history.
       this.count = 0;
@@ -296,7 +304,7 @@ export class Predictor {
     this.stats.corrections++;
     if (newKnock) this.stats.knockSlides++;
     // Corrections in a row can add up: a total offset ≥ 1 m snaps too (review fix).
-    if (this.offsetX * this.offsetX + this.offsetY * this.offsetY >= snapM * snapM) this.snap();
+    if (this.offsetX * this.offsetX + this.offsetY * this.offsetY >= totalSnapM * totalSnapM) this.snap();
   }
 
   /** Smoothed position to draw this frame. */

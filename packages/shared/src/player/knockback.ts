@@ -54,6 +54,22 @@ export function knockPlayerBy(p: PlayerState, fromX: number, fromY: number, dist
 }
 
 /**
+ * Story 6.6 (DD2): the knock along a given direction (dx, dy) — the charge's sideways shove, never
+ * along the lane. Same fields and rules as `knockPlayerBy`. Never a downed or out player.
+ */
+export function knockPlayerDir(p: PlayerState, dx: number, dy: number, distM: number, durS: number): void {
+  if (p.status !== "alive" || distM <= 0) return;
+  const ticks = ticksFor(durS);
+  if (ticks <= 0) return;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (d < 1e-9) return;
+  p.knockTicks = ticks;
+  p.knockDx = Math.round((dx / d) * KNOCK_DIR_SCALE) + 0; // + 0: never −0 on the wire
+  p.knockDy = Math.round((dy / d) * KNOCK_DIR_SCALE) + 0;
+  p.knockStepMm = Math.round((distM * 1000) / ticks);
+}
+
+/**
  * One tick of the knock for an alive player (`movePlayers`, shared with the Predictor). Returns
  * true when the knock moved the body this tick (the input move is then ignored).
  */

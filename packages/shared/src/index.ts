@@ -548,6 +548,7 @@ export {
   isBossWave,
   pushPlayerOutOfBoss,
   resetBoss,
+  BOSS_THROW_SRC,
   rewoundBossPos,
   snapshotBoss,
   type BossAttack,
@@ -556,8 +557,12 @@ export {
   type BossStateId,
 } from "./boss/bossState";
 export { BEHEMOTH_LOOKS, behemothLookIndex, bossEntry, bossEntryOpen, bossPending, pickBossAttack, pickBossEntry, startBossWarning, updateBoss } from "./boss/behemoth";
-export { applyBossDamage, bossCircleHitBySegment, bossDamageStats, bossInArc, bossInCircle, killBoss, zombieUnderBoss, zombiesUnderBoss } from "./boss/bossDamage";
-export { bossGapTicks, bossStats, inSlamZone, startBossAttack, telegraphTicks } from "./boss/telegraph";
+export { applyBossDamage, bossCircleHitBySegment, bossDamageStats, bossInArc, bossInCircle, zombieUnderBoss, zombiesUnderBoss } from "./boss/bossDamage";
+export { bossGapTicks, bossStats, bossTicks, inSlamZone, recoverTicks, startBossAttack, telegraphTicks, windupTicks } from "./boss/telegraph";
+export { chargeHitsPoint, sweepChargeLane } from "./boss/charge";
+export { pickThrowTarget, throwSource } from "./boss/throw";
+export { killBoss } from "./boss/death";
+export { checkEnrage, crawlerDropSpot } from "./boss/enrage";
 export { bossSlotOf, clearBossThreatSlot, pickBossTarget, recordBossThreat, threatOf } from "./boss/target";
 export { maxAliveNow } from "./waves/waveDirector";
 export { knockPlayerBy } from "./player/knockback";

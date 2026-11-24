@@ -184,6 +184,8 @@ const RUSH_COLOR = 0xff3b30;
 /** Story 5.8: the gas-slow edge tint (steady: slowed, not hurt). */
 const GAS_GLOW_ALPHA = 0.32;
 const SHAKE_MS = 80;
+/** Story 6.7: the boss bar empties and fades over this many seconds after its death. */
+const BOSS_BAR_FADE_S = 2;
 const SHAKE_INTENSITY = 0.004;
 /** Rush chevron, in meters, drawn above each of the wave's last zombies. */
 const CHEVRON_M = 0.28;
@@ -286,7 +288,12 @@ export class GameScene extends Phaser.Scene {
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
   private bossView: BossView | null = null;
   private bossMusic = false;
-  private readonly bossCueOut: BossCue = { banner: "", sound: "", shake: false, buzz: false, music: "" };
+  private readonly bossCueOut: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
+  /** Story 6.7: the Behemoth number whose EVAC INBOUND was shown (once each, a woken tab too). */
+  private bossEvacShown = 0;
+  /** Story 6.7: seconds since its death (the bar empties and fades over 2 s); the last state seen (6.6: the rush sound). */
+  private bossDeadS = 0;
+  private bossLastState = 0;
   private readonly bossAt = { x: 0, y: 0 };
   /** Story 3.9: blood trails behind Crawlers. */
   private trailView: BloodTrailView | null = null;
@@ -549,6 +556,9 @@ export class GameScene extends Phaser.Scene {
     }
     this.gameOver = false;
     this.kills = 0;
+    this.bossEvacShown = 0; // Story 6.7
+    this.bossDeadS = 0;
+    this.bossLastState = 0;
     this.consumablePending.active = false; // Story 5.12: Phaser reuses the scene: no pending use from the last run
     this.placement.cancel(); // Phaser reuses this scene object: no placement from the last run
     this.pending.reset(); // Story 5.18: nor a pending box
@@ -876,9 +886,11 @@ export class GameScene extends Phaser.Scene {
     this.scene.start("Boot", { start: true } satisfies BootSceneData); // stops Game, which stops Hud
   }
 
-  private showBanner(text: string): void {
+  private showBanner(text: string, color = "", showMs = 0): void {
     this.hudModel.bannerText = text;
     this.hudModel.bannerAtMs = this.time.now;
+    this.hudModel.bannerColor = color; // Stories 6.6 / 6.7 (colour rule: red boss danger, amber something you can use)
+    this.hudModel.bannerShowMs = showMs;
   }
 
   /**
@@ -1601,12 +1613,26 @@ export class GameScene extends Phaser.Scene {
   /** Story 6.5: a boss event's banner, sound, shake, buzz and music (none for a woken tab's backlog). */
   private bossEvent(host: SceneHost, e: SimEvent, localId: string): void {
     const me = host.world.players.get(localId);
-    const cue = bossCue(e, localId, me?.x ?? 0, me?.y ?? 0, this.bossCueOut);
-    if (cue.banner) this.stackBanner(cue.banner);
+    let killer = "";
+    if (e.type === "boss.killed") {
+      if (e.number <= this.bossEvacShown) return; // once per Behemoth
+      this.bossEvacShown = e.number;
+      killer = e.killerId !== null ? host.playerInfo(e.killerId).name || "" : "";
+      if (e.killerId === localId && !host.online) this.kills++; // D5: who finished it gets +1 kill (online: the server counts it)
+    }
+    const cue = bossCue(e, localId, me?.x ?? 0, me?.y ?? 0, this.bossCueOut, killer, host.world.balance.boss.killPay);
+    if (cue.banner) {
+      if (cue.bannerColor || cue.bannerMs) this.showBanner(cue.banner, cue.bannerColor, cue.bannerMs);
+      else this.stackBanner(cue.banner);
+    }
     if (cue.sound) playSfx(cue.sound);
     if (cue.shake && getSettings().screenShake) this.shake(MINE_SHAKE_MS, 1);
     if (cue.buzz) vibrate(BOSS_TARGET_BUZZ); // D10: off with vibration off (the haptics setting)
     if (e.type === "boss.slammed") this.bossView?.onSlammed(e.x, e.y, (e.attackId * 2.39996) % (Math.PI * 2));
+    else if (e.type === "boss.thrown_impact") this.bossView?.onThrownImpact(e.x, e.y, (e.attackId * 2.39996) % (Math.PI * 2));
+    else if (e.type === "boss.crashed") this.bossView?.onCrashed(e.x, e.y);
+    else if (e.type === "boss.enraged") this.bossView?.onEnraged(e.x, e.y);
+    else if (e.type === "boss.crawler_dropped") this.bossView?.onCrawlerDropped(e.x, e.y);
   }
 
   /**
@@ -1622,9 +1648,15 @@ export class GameScene extends Phaser.Scene {
     this.bossView?.update(this.localHost?.paused === true ? 0 : dtS, host.serverTick, this.bossAt.x, this.bossAt.y, target, this.zombieView?.drawn);
     const m = this.hudModel;
     const walking = b.state >= BOSS_STATE.WALK && b.state <= BOSS_STATE.ROAR;
-    m.bossVisible = walking;
-    m.bossHpFrac = b.maxHp > 0 ? b.hp / b.maxHp : 0;
+    // Story 6.7: after its death the bar shows empty and fades out over 2 s.
+    this.bossDeadS = b.state === BOSS_STATE.DEAD ? this.bossDeadS + dtS : 0;
+    m.bossVisible = walking || (b.state === BOSS_STATE.DEAD && this.bossDeadS < BOSS_BAR_FADE_S);
+    m.bossBarAlpha = walking ? 1 : Math.max(0, 1 - this.bossDeadS / BOSS_BAR_FADE_S);
+    m.bossHpFrac = walking && b.maxHp > 0 ? b.hp / b.maxHp : 0;
     m.bossEnraged = b.enraged;
+    m.bossStunned = b.state === BOSS_STATE.STUN; // Story 6.6 (D6): the bar flashes amber
+    if (b.state === BOSS_STATE.RUSH && this.bossLastState !== BOSS_STATE.RUSH && !document.hidden) playSfx("boss_charge_rush");
+    this.bossLastState = b.state;
     m.bossState = b.state;
     m.bossAtkKind = b.attack.kind;
     m.bossX = walking ? this.bossAt.x : b.x;
@@ -1858,10 +1890,21 @@ export class GameScene extends Phaser.Scene {
       } else if (e.type === "build.started") {
         if (e.wave === 1) this.stackBanner(BUILD_BANNER); // later builds keep "Wave N cleared"
         this.bossView?.clearDecals(); // Story 6.5: no cracks carried into the next wave
-      } else if (e.type === "boss.warning" || e.type === "boss.arrived" || e.type === "boss.slammed" || e.type === "boss.target_changed") {
-        this.bossEvent(host, e, localId); // Story 6.5
+      } else if (
+        e.type === "boss.warning" ||
+        e.type === "boss.arrived" ||
+        e.type === "boss.slammed" ||
+        e.type === "boss.target_changed" ||
+        e.type === "boss.crashed" ||
+        e.type === "boss.thrown_impact" ||
+        e.type === "boss.enraged" ||
+        e.type === "boss.crawler_dropped" ||
+        e.type === "boss.killed"
+      ) {
+        this.bossEvent(host, e, localId); // Stories 6.5–6.7
       } else if (e.type === "boss.telegraph") {
-        this.bossView?.onTelegraph(e.attackId, e.kind, e.startTick, e.hitTick, e.cx, e.cy, e.radiusM);
+        this.bossView?.onTelegraph(e.attackId, e.kind, e.startTick, e.hitTick, e.cx, e.cy, e.radiusM, e.endX, e.endY, e.crash, e.src);
+        this.bossEvent(host, e, localId); // Story 6.6: the scrape / lift sound
       } else if (e.type === "boss.hit") {
         this.bossView?.onHit();
       } else if (e.type === "wave.started") {

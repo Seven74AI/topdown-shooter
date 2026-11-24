@@ -183,6 +183,9 @@ export interface HudModel {
   /** Centered banner text and the scene time (ms) it was shown; empty when none. */
   bannerText: string;
   bannerAtMs: number;
+  /** Stories 6.6 / 6.7: the banner's colour (CSS; "" = white) and how long it shows (ms; 0 = the default). */
+  bannerColor: string;
+  bannerShowMs: number;
   /** World positions of rushing zombies (x0, y0, x1, y1, …) and how many are valid. */
   readonly rushers: Float32Array;
   rusherCount: number;
@@ -199,6 +202,10 @@ export interface HudModel {
   bossX: number;
   bossY: number;
   bossAtkKind: number;
+  /** Story 6.6 (D6): stunned after a crash (the bar flashes amber). */
+  bossStunned: boolean;
+  /** Story 6.7: the bar's opacity (1; empties and fades over 2 s after its death). */
+  bossBarAlpha: number;
   /** Main camera's visible world rectangle and zoom, to turn world positions into screen positions. */
   camX: number;
   camY: number;
@@ -380,6 +387,8 @@ export const createHudModel = (): HudModel => ({
   soldPopCount: 0,
   bannerText: "",
   bannerAtMs: 0,
+  bannerColor: "",
+  bannerShowMs: 0,
   rushers: new Float32Array(MAX_RUSH_MARKERS * 2),
   rusherCount: 0,
   bossVisible: false, // Story 6.5
@@ -390,6 +399,8 @@ export const createHudModel = (): HudModel => ({
   bossX: 0,
   bossY: 0,
   bossAtkKind: 0,
+  bossStunned: false,
+  bossBarAlpha: 1,
   camX: 0,
   camY: 0,
   camZoom: 1,

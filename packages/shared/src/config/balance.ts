@@ -269,6 +269,19 @@ function crossCheckBoss(parsed: Record<string, unknown>, issues: string[]): void
   // Review L4: the threat ring is preallocated (THREAT_BUCKETS × THREAT_BUCKET_TICKS); the window must match it.
   const ringS = (THREAT_BUCKETS * THREAT_BUCKET_TICKS) / TICK_RATE_HZ;
   if (Math.abs(boss.target.threatWindowS - ringS) > 1e-9) issues.push(`boss.json: target.threatWindowS ${boss.target.threatWindowS} must be ${ringS} (the threat ring: ${THREAT_BUCKETS} buckets of ${THREAT_BUCKET_TICKS} ticks)`);
+  // Stories 6.6 / 6.7 (AC 1).
+  const b2 = parsed.boss as {
+    charge: { laneWidthM: number; minLaneM: number; distM: number; minM: number; maxM: number };
+    throw: { minM: number; unreachableMinM: number };
+    enrage: { crawlerEveryS: number[] };
+  };
+  const edge = (parsed.boss as { edgeGraceM: number }).edgeGraceM;
+  if (!(b2.charge.laneWidthM / 2 - edge > 0)) issues.push(`boss.json: charge.laneWidthM / 2 must exceed edgeGraceM ${edge}`);
+  if (b2.charge.minLaneM > b2.charge.distM) issues.push(`boss.json: charge.minLaneM ${b2.charge.minLaneM} exceeds distM ${b2.charge.distM}`);
+  if (b2.charge.minM > b2.charge.maxM) issues.push(`boss.json: charge.minM exceeds maxM`);
+  if (b2.throw.unreachableMinM > b2.throw.minM) issues.push(`boss.json: throw.unreachableMinM exceeds minM`);
+  const scaleLen = (parsed.waves as { playerCountScale: number[] }).playerCountScale.length;
+  if (b2.enrage.crawlerEveryS.length !== scaleLen) issues.push(`boss.json: enrage.crawlerEveryS needs ${scaleLen} entries (one per player count)`);
   const maxAlive = (parsed.waves as { maxAlive: number }).maxAlive;
   if (boss.aliveCap > maxAlive) issues.push(`boss.json: aliveCap ${boss.aliveCap} exceeds waves.maxAlive ${maxAlive}`);
   if (MAX_PATHING_ZOMBIE_RADIUS_M + boss.pathing.inflateM + 1e-9 < boss.radiusM) {

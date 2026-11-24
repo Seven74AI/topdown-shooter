@@ -540,7 +540,27 @@ describe("Story 6.5 syncState: the boss record", () => {
       atkX: 12.5,
       atkY: 3.25,
       atkR: 4.5,
+      atkEndX: 12.5,
+      atkEndY: 3.25,
+      atkCrash: false,
+      atkSrc: 0,
+      atkSrcX: 0,
+      atkSrcY: 0,
     });
+    // Story 6.6: a charge lane goes out as its exact stop point + CRASH; a throw's chunk source.
+    b.attack.kind = 2;
+    b.attack.dirX = 0.6;
+    b.attack.dirY = 0.8;
+    b.attack.lenM = 7.5;
+    b.attack.crash = true;
+    b.attack.src = 2;
+    b.attack.srcX = 4.5;
+    b.attack.srcY = 6.25;
+    syncState(state, controller);
+    expect(state.boss.atkEndX).toBeCloseTo(12.5 + 4.5, 5);
+    expect(state.boss.atkEndY).toBeCloseTo(3.25 + 6, 5);
+    expect(state.boss.atkCrash).toBe(true);
+    expect([state.boss.atkSrc, state.boss.atkSrcX, state.boss.atkSrcY]).toEqual([2, 4.5, 6.25]);
     encoder.encode();
     encoder.discardChanges();
     // Nothing changed: no bytes for the boss.

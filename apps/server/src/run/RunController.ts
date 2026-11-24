@@ -565,6 +565,12 @@ export class RunController {
     const events = this.events;
     for (let i = 0; i < events.length; i++) {
       const e = events[i] as SimEvent;
+      // Story 6.7 (D5): who finished the Behemoth gets +1 kill on Results.
+      if (e.type === "boss.killed" && e.killerId !== null) {
+        const k = this.slots.get(e.killerId);
+        if (k) k.kills++;
+        continue;
+      }
       // Story 3.6: a turret's kill pays its owner but is not their kill.
       if (e.type !== "zombie.killed" || e.killerId === null || e.buildingId !== undefined) continue;
       const killer = this.slots.get(e.killerId);

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { BOSS_STATE, NET_EVENT_KIND, PLACEHOLDER_MAP, S2C, loadBalance, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
+import { BOSS_ATTACK, BOSS_STATE, NET_EVENT_KIND, PLACEHOLDER_MAP, S2C, loadBalance, type SimEvent, type SimEventsFlushed } from "@topdown/shared";
 import { NetSession } from "../net/session";
 import { FakeRoom, fakeBoss, fakePlayer, fakeState } from "../net/fakeRoom";
 import { NetSimHost, RENDER_DELAY_TICKS } from "./NetSimHost";
-import { telegraphProgress, type TelegraphLook } from "../render/bossTelegraph";
+import { chargeLaneProgress, chargeStopTick, telegraphProgress, throwChunkAt, type ChunkLook, type TelegraphLook } from "../render/bossTelegraph";
 import { bossCue, type BossCue } from "../render/bossCue";
 
 /**
@@ -91,7 +91,7 @@ describe("NetSimHost: the Behemoth (Story 6.5)", () => {
     room.state.boss = fakeBoss({ state: BOSS_STATE.WALK, atkId: 1, atkKind: 1, atkStart: 20, atkHit: 44 });
     const ev = playTo(room, host, setNow, 11, 300, false); // asleep: one update at the end
     expect(telegraphProgress(host.serverTick, 20, 44, look).visible).toBe(false);
-    const cue: BossCue = { banner: "", sound: "", shake: false, buzz: false, music: "" };
+    const cue: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
     const warning = ev.find((e) => e.type === "boss.warning");
     expect(warning).toBeDefined();
     if (warning) expect(bossCue(warning, "p1", 0, 0, cue).banner).toBe("");
@@ -115,5 +115,63 @@ describe("NetSimHost: the Behemoth (Story 6.5)", () => {
     playTo(room, host, setNow, 11, 20, true);
     const pw = (host.predictor as unknown as { world: { boss: { x: number; y: number; state: number } } }).world;
     expect([pw.boss.state, pw.boss.x, pw.boss.y]).toEqual([BOSS_STATE.WALK, 20, 12]);
+  });
+});
+
+describe("NetSimHost: the Behemoth's charge, throw, roar and death (Stories 6.6 + 6.7)", () => {
+  it("mirrors the lane (exact stop point → direction, length), CRASH and the chunk source from state", () => {
+    const { room, host, setNow } = setup();
+    room.state.boss = fakeBoss({ state: BOSS_STATE.TELEGRAPH, x: 10, y: 10, atkId: 4, atkKind: BOSS_ATTACK.CHARGE, atkStart: 30, atkHit: 50, atkX: 10, atkY: 10, atkEndX: 16, atkEndY: 18, atkCrash: true });
+    playTo(room, host, setNow, 11, 32, true);
+    const a = host.world.boss.attack;
+    expect(a.lenM).toBeCloseTo(10, 5);
+    expect([a.dirX, a.dirY].map((v) => Math.round(v * 1000) / 1000)).toEqual([0.6, 0.8]);
+    expect(a.crash).toBe(true);
+    expect(a.widthM).toBe(balance.boss.charge.laneWidthM);
+    room.state.boss = fakeBoss({ state: BOSS_STATE.TELEGRAPH, atkId: 5, atkKind: BOSS_ATTACK.THROW, atkStart: 40, atkHit: 76, atkX: 30, atkY: 9, atkR: 3, atkEndX: 30, atkEndY: 9, atkSrc: 2, atkSrcX: 4, atkSrcY: 5 });
+    playTo(room, host, setNow, 33, 36, true);
+    expect([host.world.boss.attack.src, host.world.boss.attack.srcX, host.world.boss.attack.srcY]).toEqual([2, 4, 5]);
+  });
+
+  it("a tab woken mid-rush draws the full lane; woken after the stop draws nothing", () => {
+    const { room, host, setNow } = setup();
+    // A charge: start 20, hit 40, 10 m (stop 40 + 16).
+    room.state.boss = fakeBoss({ state: BOSS_STATE.RUSH, atkId: 2, atkKind: BOSS_ATTACK.CHARGE, atkStart: 20, atkHit: 40, atkX: 5, atkY: 5, atkEndX: 15, atkEndY: 5 });
+    playTo(room, host, setNow, 11, 46, false); // asleep, woken at 46 (mid-rush)
+    const stop = chargeStopTick(40, 10, balance.boss.charge.speedMps);
+    expect(chargeLaneProgress(host.serverTick, 20, 40, stop, look)).toMatchObject({ visible: true, progress: 1 });
+    const later = setup();
+    later.room.state.boss = fakeBoss({ state: BOSS_STATE.RECOVER, atkId: 2, atkKind: BOSS_ATTACK.CHARGE, atkStart: 20, atkHit: 40, atkX: 5, atkY: 5, atkEndX: 15, atkEndY: 5 });
+    playTo(later.room, later.host, later.setNow, 11, 90, false);
+    expect(chargeLaneProgress(later.host.serverTick, 20, 40, stop, look).visible).toBe(false);
+  });
+
+  it("a tab woken during the chunk's flight draws the ring and the flying chunk, not the lift (the boss already recovers)", () => {
+    const { room, host, setNow } = setup();
+    // Throw: start 20, release 40, impact 56.
+    room.state.boss = fakeBoss({ state: BOSS_STATE.RECOVER, x: 10, y: 10, atkId: 3, atkKind: BOSS_ATTACK.THROW, atkStart: 20, atkHit: 56, atkX: 26, atkY: 10, atkR: 3, atkEndX: 26, atkEndY: 10 });
+    playTo(room, host, setNow, 11, 47, false);
+    const b = host.world.boss;
+    expect(b.state).toBe(BOSS_STATE.RECOVER); // the pose is not the lift
+    expect(telegraphProgress(host.serverTick, b.attack.startTick, b.attack.hitTick, look).visible).toBe(true);
+    const c: ChunkLook = { visible: false, x: 0, y: 0, heightM: 0, f: 0 };
+    expect(throwChunkAt(host.serverTick, b.attack.hitTick - 16, b.attack.hitTick, 10, 10, 26, 10, c).visible).toBe(true);
+  });
+
+  it("a tab hidden across the roar and woken after the death: no late ENRAGED, EVAC INBOUND once", () => {
+    const { room, host, setNow } = setup();
+    room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 30, events: [[NET_EVENT_KIND.BOSS_ENRAGED, 1000, 1000]] } satisfies SimEventsFlushed);
+    room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 90, events: [[NET_EVENT_KIND.BOSS_KILLED, 0, 0, 1000, 1000, 1]] } satisfies SimEventsFlushed);
+    room.state.boss = fakeBoss({ state: BOSS_STATE.DEAD, enraged: true, number: 1 });
+    const ev = playTo(room, host, setNow, 11, 300, false);
+    const cue: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
+    const roar = ev.find((e) => e.type === "boss.enraged");
+    const killed = ev.filter((e) => e.type === "boss.killed");
+    expect(roar).toBeDefined();
+    if (roar) expect(bossCue(roar, "p1", 0, 0, cue).banner).toBe("");
+    expect(killed).toHaveLength(1);
+    expect(bossCue(killed[0] as SimEvent, "p1", 0, 0, cue, "Sam", 150).banner).toContain("EVAC INBOUND");
+    expect(cue.sound).toBe(""); // stale: no late death sound
+    expect(host.world.boss.state).toBe(BOSS_STATE.DEAD);
   });
 });
