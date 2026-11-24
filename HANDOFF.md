@@ -112,7 +112,8 @@ A 2D top-down **online co-op zombie horde shooter for 2–4 friends, played in a
 
 1. Read `docs/epic-6-brief.md` and `docs/epic-6-decisions.md` (look picks, 110 accepted decisions, merged rounds).
 2. Balance pass is merged (B1–B9); Story 6.1's 10-wave sim re-checks its watch items (`docs/epic-5-decisions.md` › Epic 5 balance pass).
-3. Epic 6 round 1 (6.1, 6.3, 6.5) is DONE. Next: round 2 (6.2+6.4, 6.6+6.7, 6.8), then round 3 (6.9+6.10, 6.11+6.12). Push each to master once its review is clean. Behemoth prototype: claude.ai/artifact/16PKRmcKLyK4qfoG9ghASM.
+3. **Pending merge: branch `story-7-8`** (survivor parts, designer-run session; also carries the Epic 7 readiness edits and branch `claude/optimistic-allen-h8tljv`'s decisions: FR45 15 × N text, late joiner 200 + 60 %). Designer 2026-11-24: NO fresh-agent review for 7.8; its agent does a correct-course (7.8–7.12 + epics.md FR89), builds the spinning propeller (first animated equipment), renumbers its readability item to 49, merges master and gates. Then the main session merges, runs the full gate and pushes to master.
+4. Epic 6 round 1 (6.1, 6.3, 6.5) is DONE. Next: round 2 (6.2+6.4, 6.6+6.7, 6.8), then round 3 (6.9+6.10, 6.11+6.12). Push each to master once its review is clean. Behemoth prototype: claude.ai/artifact/16PKRmcKLyK4qfoG9ghASM.
 4. Any new look → code-drawn proposals first, designer picks.
 5. After Epic 6: retro (`gds-retrospective`), then the **Network pass** (designer 2026-11-24, `docs/perf/network-audit-2026-11.md`, `sprint-change-proposal-2026-11-24-network-pass.md`): Stories 8.8 ∥ 8.9 → 8.1 reconnect (pulled forward) → 8.10 → 8.11 (optional), then the 2.10 4-phone test; THEN Epic 7 from `docs/epic-7-decisions.md`.
 
