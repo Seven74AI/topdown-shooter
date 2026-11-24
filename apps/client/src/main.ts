@@ -17,6 +17,7 @@ import { parseJoinPath } from "./net/route";
 import { NetSession, type NetRoomLike } from "./net/session";
 import { DevThrottle } from "./net/devThrottle";
 import { createOnlinePhaseHandler } from "./net/onlineFlow";
+import { clientBalance } from "./debug/clientBalance";
 import { activeRun } from "./net/activeRun";
 import type { RunConnection } from "./net/connection";
 import { isRoomCode, type Result } from "@topdown/shared";
@@ -104,6 +105,7 @@ function enterLobby(go: (c: Connection) => Promise<Result<RunConnection, string>
           return new NetSession(fight, joined, () => leaveRoom(room), inbox);
         },
         inbox: () => lobbyStore.inbox(),
+        dawnS: clientBalance().waves.evac.dawnS, // Story 6.11
         ui: uiStore,
       }),
     });

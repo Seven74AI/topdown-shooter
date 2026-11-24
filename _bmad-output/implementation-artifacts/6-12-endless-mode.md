@@ -1,6 +1,6 @@
 # Story 6.12: Endless mode
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -77,27 +77,27 @@ Most relevant here: **25 (endless performance: nothing grows without a cap over 
 
 ## Tasks / Subtasks
 
-- [ ] **T0 Art.** No new art: Collapse (6.4), blackout at 5 % (6.3), the Behemoth's looks (6.5: endless Behemoths never repeat the previous look — designer pick), DW2 blue hour (6.11). HUD tag text only.
-- [ ] **T1 Balance** (AC 1): `balanceSchema.ts` (`endless` strict object with defaults; `evac.everyWaves`); `balance.ts › crossCheck`; tests in `config/balance.test.ts`.
-- [ ] **T2 Sizes, mix, HP** (AC 3, 4, 5; F1, F2)
-  - [ ] `waveDirector.ts`: `waveSize(balance, n, players, endless = false)`, `waveMixOf(balance, n, endless = false)`, `WaveState.hpMult` + `beginWave` sets it; `spawnZombie` multiplies HP.
-  - [ ] Tests `waveDirector.endless.test.ts` (new): sizes for waves 11–30 at 1–4 players (table), mix per odd/even, `hpMult` 1.00 at 15, 1.06 at 16, 1.30 at 20; a spawned Walker in wave 20 has 1.3 × HP; a stampede Runner / enrage Crawler spawned in wave 20 too (when 6.8/6.7 are merged; else a `spawnZombie` unit test); waves ≤ 10 unchanged with `endless` false and true.
-- [ ] **T3 Endless Brutes** (AC 6; F3)
-  - [ ] `waveDirector.ts`: endless fixed Brute count + formula thresholds; `brutesAlive` counter (kept by spawn/kill of a Brute — `zombieTypeIndex("brute")`, maintained in `zombiePool` or counted on demand only when a Brute is next: no per-tick scan of 150 zombies every tick); the skip-while-6-alive rule; `remaining` includes owed Brutes.
-  - [ ] Tests: wave 11 = 3 Brutes, wave 20 = 12; never more than 6 alive (assert every tick of a seeded wave 20); the wave ends only after all 12 spawned and died; solo wave 20 still 12 Brutes; thresholds between 25 % and 90 %.
-- [ ] **T4 Behemoth, vote and light rules** (AC 7, 8, 9; F4, F5)
-  - [ ] Extend 6.5's `isBossWave` + HP growth, 6.11's `isEvacWave`, and add the odd/even endless rule inside 6.3's `refreshBlackout(world)` (`decay/lightState.ts`; keys in `decay.json › blackout`).
-  - [ ] Tests: boss at 15/20/25 only; HP 6,000 × 1.25 / 1.5 / 1.75 × scale; the telegraph lengths/radii at wave 25 equal wave 10's (one table compare); vote after 15 and 20; Stay at 15 → wave 16 build; blackout flag on 11/13/15, half dark on 12/14, build phases half dark.
-- [ ] **T5 Events in endless** (AC 10; F6)
-  - [ ] Extend 6.8's scheduler: `scheduleEndlessEvent(world, wave)` at the build start (events stream), no repeat of the previous endless event, gates, power failure allowed (D6).
-  - [ ] Tests: waves 12, 14, 16, 18, 22 each get exactly one event; 20 and 30 none; never two in a row the same; same seed → same events (digest).
-- [ ] **T6 Endings, HUD, sims, performance** (AC 11–14; F7; brief 9, 25)
-  - [ ] `runStateMachine.ts`: `endRun` sets `ending "lost"` for a wipe while `run.endless`; `PlayerState.earnedAtEvac` set on the first Stay; schema `RunState.endless`; `syncState` / stateView / `fakeRoom` / devThrottle / `NetSimHost`; `RunRoom` `run_ended` log fields; `uiState.resultsTitle` "Lost in the city"; `ResultsScreen` sub line; HUD tag (`HudScene` top bar text, the `hudModel.ts` string).
-  - [ ] Dev switch (AC 13) in 6.1's `devStartWave.ts` + `?startwave`.
-  - [ ] `headlessRun`: `vote`, `stayUntilWave`; log `ending`, `endlessWaves`.
-  - [ ] `economy/endlessSim.test.ts`: (a) **flow sim:** 4 bots in god mode, seed 1, Stay at every vote until wave 30, then Extract; a test-only system kills every wave zombie each 40 ticks after the queue is empty so waves cycle fast while every real system runs; asserts 20 endless waves played, Behemoths at 15/20/25 (if 6.5 merged), one event on each scheduled even wave (if 6.8 merged), `ending "extracted"` at 30, Brutes ≤ 6 alive every tick, and **flat memory**: pooled structure sizes (zombie pool, decals/craters, event records, telegraph slots, kill logs) the same at wave 30 as at wave 11 (brief 25); (b) **wipe sim:** no god mode, Stay at 10 → eventually `ending "lost"`, Results fields set, `earnedBeforeEndless` + after-10 add up to `earned`.
-  - [ ] Perf (`PERF_ASSERT=1`, load < 1): server tick p99 of a wave-20 mix at 150 alive (+6 Brutes) and of a wave-25 Behemoth wave at 110 alive; record both and the heap used at waves 11 and 30 (`process.memoryUsage().heapUsed`, after a GC if exposed) in `docs/perf/epic-6-blackout.md` (shared with 6.3) and the Completion Notes. FPS: the brief-25 run (blackout + fog + Behemoth + 150 zombies) is recorded by 6.3/6.5; this story reruns it at wave 25 (`?startwave=25`).
-- [ ] **T7 Gates.** Mutations (size cap removed → wave-20 size test fails; `hpMult` applied per tick or to the Behemoth → HP tests; Brute alive cap off → "≤ 6 alive" fails; boss every 4 → boss-wave test; event repeat allowed → "never two in a row" fails; `ending` stays "wiped" in endless → wipe sim fails) and which tests failed. Browser check: solo `?startwave=11&wallet=5000` (HUD "Wave 11 · Endless", blackout), `?startwave=15` (Behemoth, vote, Extract → DW2 → "Extracted"), a wipe in endless ("Lost in the city" with DW2). Online two tabs with `DEV_START_WAVE=14`. `typecheck && lint && test && build`. Merge notes.
+- [x] **T0 Art.** No new art: Collapse (6.4), blackout at 5 % (6.3), the Behemoth's looks (6.5: endless Behemoths never repeat the previous look — designer pick), DW2 blue hour (6.11). HUD tag text only.
+- [x] **T1 Balance** (AC 1): `balanceSchema.ts` (`endless` strict object with defaults; `evac.everyWaves`); `balance.ts › crossCheck`; tests in `config/balance.test.ts`.
+- [x] **T2 Sizes, mix, HP** (AC 3, 4, 5; F1, F2)
+  - [x] `waveDirector.ts`: `waveSize(balance, n, players, endless = false)`, `waveMixOf(balance, n, endless = false)`, `WaveState.hpMult` + `beginWave` sets it; `spawnZombie` multiplies HP.
+  - [x] Tests `waveDirector.endless.test.ts` (new): sizes for waves 11–30 at 1–4 players (table), mix per odd/even, `hpMult` 1.00 at 15, 1.06 at 16, 1.30 at 20; a spawned Walker in wave 20 has 1.3 × HP; a stampede Runner / enrage Crawler spawned in wave 20 too (when 6.8/6.7 are merged; else a `spawnZombie` unit test); waves ≤ 10 unchanged with `endless` false and true.
+- [x] **T3 Endless Brutes** (AC 6; F3)
+  - [x] `waveDirector.ts`: endless fixed Brute count + formula thresholds; `brutesAlive` counter (kept by spawn/kill of a Brute — `zombieTypeIndex("brute")`, maintained in `zombiePool` or counted on demand only when a Brute is next: no per-tick scan of 150 zombies every tick); the skip-while-6-alive rule; `remaining` includes owed Brutes.
+  - [x] Tests: wave 11 = 3 Brutes, wave 20 = 12; never more than 6 alive (assert every tick of a seeded wave 20); the wave ends only after all 12 spawned and died; solo wave 20 still 12 Brutes; thresholds between 25 % and 90 %.
+- [x] **T4 Behemoth, vote and light rules** (AC 7, 8, 9; F4, F5)
+  - [x] Extend 6.5's `isBossWave` + HP growth, 6.11's `isEvacWave`, and add the odd/even endless rule inside 6.3's `refreshBlackout(world)` (`decay/lightState.ts`; keys in `decay.json › blackout`).
+  - [x] Tests: boss at 15/20/25 only; HP 6,000 × 1.25 / 1.5 / 1.75 × scale; the telegraph lengths/radii at wave 25 equal wave 10's (one table compare); vote after 15 and 20; Stay at 15 → wave 16 build; blackout flag on 11/13/15, half dark on 12/14, build phases half dark.
+- [x] **T5 Events in endless** (AC 10; F6)
+  - [x] Extend 6.8's scheduler: `scheduleEndlessEvent(world, wave)` at the build start (events stream), no repeat of the previous endless event, gates, power failure allowed (D6).
+  - [x] Tests: waves 12, 14, 16, 18, 22 each get exactly one event; 20 and 30 none; never two in a row the same; same seed → same events (digest).
+- [x] **T6 Endings, HUD, sims, performance** (AC 11–14; F7; brief 9, 25)
+  - [x] `runStateMachine.ts`: `endRun` sets `ending "lost"` for a wipe while `run.endless`; `PlayerState.earnedAtEvac` set on the first Stay; schema `RunState.endless`; `syncState` / stateView / `fakeRoom` / devThrottle / `NetSimHost`; `RunRoom` `run_ended` log fields; `uiState.resultsTitle` "Lost in the city"; `ResultsScreen` sub line; HUD tag (`HudScene` top bar text, the `hudModel.ts` string).
+  - [x] Dev switch (AC 13) in 6.1's `devStartWave.ts` + `?startwave`.
+  - [x] `headlessRun`: `vote`, `stayUntilWave`; log `ending`, `endlessWaves`.
+  - [x] `economy/endlessSim.test.ts`: (a) **flow sim:** 4 bots in god mode, seed 1, Stay at every vote until wave 30, then Extract; a test-only system kills every wave zombie each 40 ticks after the queue is empty so waves cycle fast while every real system runs; asserts 20 endless waves played, Behemoths at 15/20/25 (if 6.5 merged), one event on each scheduled even wave (if 6.8 merged), `ending "extracted"` at 30, Brutes ≤ 6 alive every tick, and **flat memory**: pooled structure sizes (zombie pool, decals/craters, event records, telegraph slots, kill logs) the same at wave 30 as at wave 11 (brief 25); (b) **wipe sim:** no god mode, Stay at 10 → eventually `ending "lost"`, Results fields set, `earnedBeforeEndless` + after-10 add up to `earned`.
+  - [x] Perf (`PERF_ASSERT=1`, load < 1): server tick p99 of a wave-20 mix at 150 alive (+6 Brutes) and of a wave-25 Behemoth wave at 110 alive; record both and the heap used at waves 11 and 30 (`process.memoryUsage().heapUsed`, after a GC if exposed) in `docs/perf/epic-6-blackout.md` (shared with 6.3) and the Completion Notes. FPS: the brief-25 run (blackout + fog + Behemoth + 150 zombies) is recorded by 6.3/6.5; this story reruns it at wave 25 (`?startwave=25`).
+- [x] **T7 Gates.** Mutations (size cap removed → wave-20 size test fails; `hpMult` applied per tick or to the Behemoth → HP tests; Brute alive cap off → "≤ 6 alive" fails; boss every 4 → boss-wave test; event repeat allowed → "never two in a row" fails; `ending` stays "wiped" in endless → wipe sim fails) and which tests failed. Browser check: solo `?startwave=11&wallet=5000` (HUD "Wave 11 · Endless", blackout), `?startwave=15` (Behemoth, vote, Extract → DW2 → "Extracted"), a wipe in endless ("Lost in the city" with DW2). Online two tabs with `DEV_START_WAVE=14`. `typecheck && lint && test && build`. Merge notes.
 
 ## Dev Notes
 
@@ -189,15 +189,12 @@ None new (T0). Uses 6.3 (5 % blackout), 6.4 (Collapse weather rotating per run i
 
 ## Dev Agent Record
 
-### Agent Model Used
+Built together with Story 6.11 as ONE merged story (designer 2026-11-24) on branch `story-6-11`. The Dev Agent Record, Completion Notes, Notes for the merge, Not verified list and File List are in **`6-11-evacuation-vote.md`**.
 
-### Debug Log References
-
-### Completion Notes List
-
-### File List
+6.12-specific open items (see there): endless events are wired to a hook that schedules nothing until Story 6.8's events framework lands (`run/endlessEvents.ts › endlessEventCandidates`); the endless FPS rerun at wave 25 is not measured (headless only; Mi 11i pending). Solo endless sizes follow the balance pass's 0.35 solo scale (wave 15+ solo = 210, not the story text's 240 at × 0.4).
 
 ## Change Log
 
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
+- 2026-11-24: built with 6.11 (merged story) on `story-6-11`; status review.

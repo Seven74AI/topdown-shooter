@@ -107,6 +107,7 @@ interface PlayerLog {
 interface RunLog {
   players: number;
   seed: number;
+  /** Story 6.11: the run was extracted (the vote after the last wave; the bots vote Extract). */
   heldOut: boolean;
   wavesCleared: number;
   reached: number;
@@ -225,7 +226,7 @@ function run(players: number, seed: number): RunLog {
     }
     step(world, TICK_DT_S);
   }
-  log.heldOut = world.run.heldOut;
+  log.heldOut = world.run.ending === "extracted"; // Story 6.11
   log.reached = world.waves.number;
   return log;
 }

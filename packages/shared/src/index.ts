@@ -234,17 +234,43 @@ export { ticksFor } from "./core/time";
 export { assistAim } from "./combat/aimAssist";
 export { swingMelee } from "./combat/melee";
 export { circleOverlapsSector } from "./math/sector";
-export { applyFixedCounts, spawnJitterFor, spawnReachM, jitteredSpawn, updateWaves, waveMixOf, waveSize, waveTypeCounts, type WaveState } from "./waves/waveDirector";
 export {
+  applyFixedCounts,
+  endlessBrutes,
+  isEndlessNumber,
+  spawnJitterFor,
+  spawnReachM,
+  jitteredSpawn,
+  updateWaves,
+  waveHpMult,
+  waveMixOf,
+  waveSize,
+  waveTypeCounts,
+  type WaveState,
+} from "./waves/waveDirector";
+export {
+  castVote,
+  countVotes,
   endRun,
   endWave,
+  isEvacWave,
+  openEvacVote,
+  resolveEvacVote,
+  RUN_ENDINGS,
   setBuildReady,
   skipWave,
   startBuild,
   startWave,
   updateRun,
+  VOTE_EXTRACT,
+  VOTE_NONE,
+  VOTE_STAY,
+  voteOutcome,
+  type EvacChoice,
+  type RunEnding,
   type RunState,
 } from "./run/runStateMachine";
+export { endlessEventCandidates, isEndlessEventWave, pickEndlessEvent, scheduleEndlessEvent } from "./run/endlessEvents";
 export {
   BYTES,
   C2S,
@@ -260,6 +286,7 @@ export {
   runStartSchema,
   lobbyReturnSchema,
   buildSetReadySchema,
+  evacVoteSchema,
   buildingPlaceSchema,
   buildingRepairSchema,
   buildingUpgradeSchema,
@@ -565,6 +592,7 @@ export {
   bossBodyOn,
   bossMaxHp,
   createBossState,
+  endlessBossHpMult,
   isBossWave,
   pushPlayerOutOfBoss,
   resetBoss,
@@ -588,4 +616,4 @@ export { maxAliveNow } from "./waves/waveDirector";
 export { chargeKnockStepMm, knockPlayerBy, knockPlayerDir, knockStepMmOf } from "./player/knockback";
 export { type BossStats } from "./config/balanceSchema";
 // Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
-export { applyStartWave, parseStartWave } from "./run/devStartWave";
+export { applyStartWave, MAX_START_WAVE, parseStartWave } from "./run/devStartWave";

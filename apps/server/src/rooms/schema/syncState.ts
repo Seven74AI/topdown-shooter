@@ -33,6 +33,8 @@ export function syncState(state: RunState, controller: RunController): void {
   // Story 6.3: the light state's two synced flags (on change only: a blackout starting or ending).
   if (state.blackoutPct !== world.lights.blackoutPct) state.blackoutPct = world.lights.blackoutPct;
   if (state.halfDark !== world.lights.halfDark) state.halfDark = world.lights.halfDark;
+  if (state.voteTicksLeft !== world.run.voteTicksLeft) state.voteTicksLeft = world.run.voteTicksLeft; // Story 6.11
+  if (state.endless !== world.run.endless) state.endless = world.run.endless; // Story 6.12
   syncBuildings(state, world);
   syncBoss(state, world); // Story 6.5
 }
@@ -170,6 +172,7 @@ function syncDowned(s: PlayerState, p: SimPlayer, kills: number): void {
   if (s.reviveProgress !== progress) s.reviveProgress = progress;
   if (s.kills !== kills) s.kills = kills;
   if (s.buildReady !== p.buildReady) s.buildReady = p.buildReady;
+  if (s.vote !== p.vote) s.vote = p.vote; // Story 6.11
 }
 
 function syncPlayer(s: PlayerState, p: SimPlayer, ackSeq: number): void {
@@ -221,7 +224,9 @@ export function resetRunFields(state: RunState): void {
   state.remaining = 0;
   state.aliveCount = 0;
   state.resultWave = 0;
-  state.resultHeldOut = false;
+  state.resultEnding = ""; // Story 6.11
+  state.voteTicksLeft = 0;
+  state.endless = false; // Story 6.12
   state.buildTicksLeft = 0;
   state.runSeed = 0; // Story 4.4: the next run writes its own
   state.decayStage = 0; // Story 4.5
@@ -257,6 +262,7 @@ function resetPlayer(s: PlayerState): void {
   s.reviveProgress = 0;
   s.kills = 0;
   s.buildReady = false;
+  s.vote = 0; // Story 6.11
   s.wallet = 0;
   s.earned = 0;
   s.slowTicks = 0;

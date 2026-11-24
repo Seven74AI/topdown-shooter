@@ -121,6 +121,9 @@ import { UndoChip } from "./undoChip";
 import { BuildSpend } from "./buildSpend";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
+import { CLOSED_VOTE, VoteRequest, voteStore, voteView, type VotePlayerIn } from "../ui/voteModel";
+import { dawnEndsAt } from "../ui/dawnModel";
+import { HeliView } from "../render/HeliView";
 import { cardStatLines } from "../ui/cardStats";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
 import { holdBuildingInput, neutralizeInput } from "../input/menuInput";
@@ -293,6 +296,10 @@ export class GameScene extends Phaser.Scene {
   private zombieView: ZombieView | null = null;
   /** Story 6.5: the Behemoth (body, outline, telegraphs, target skull, crack decals). */
   private bossView: BossView | null = null;
+  /** Story 6.11: the evacuation helicopter (visual only) and my vote's pending part. */
+  private heliView: HeliView | null = null;
+  private readonly voteReq = new VoteRequest();
+  private readonly votePlayers: VotePlayerIn[] = [];
   private bossMusic = false;
   private readonly bossCueOut: BossCue = { banner: "", bannerColor: "", bannerMs: 0, sound: "", shake: false, buzz: false, music: "" };
   /** Story 6.7: the Behemoth number whose EVAC INBOUND was shown (once each, a woken tab too). */
@@ -620,6 +627,15 @@ export class GameScene extends Phaser.Scene {
     this.ambience = new AmbiencePlayer();
     this.zombieView = new ZombieView(this, balance, ZOMBIE_POOL_CAPACITY, host.online, () => this.runSeed); // Story 5.7: Brute looks
     this.bossView = new BossView(this, host.world); // Story 6.5
+    this.heliView = new HeliView(this, host.world.map, balance.waves.evac.padRadiusM); // Story 6.11
+    this.voteReq.reset();
+    voteStore.set(CLOSED_VOTE);
+    voteStore.handle((choice) => {
+      // Story 6.11 (brief 30): the choice is latched on the tap and sent at once (solo: castVote before the next step).
+      const h = this.host;
+      if (!h || h.world.run.phase !== "vote" || this.gameOver) return;
+      h.castVote(this.voteReq.tap(choice, this.time.now));
+    });
     this.trailView = new BloodTrailView(this, ZOMBIE_POOL_CAPACITY);
     this.projectileView = new ProjectileView(this, PROJECTILE_POOL_CAPACITY, streakScales(balance)); // Story 5.3: short pellet streaks
     this.fxView = new FxView(this, this.zombieView, localId, (id) => buildingById(host.world, id)?.ownerId);
@@ -775,6 +791,9 @@ export class GameScene extends Phaser.Scene {
       this.projectileView?.destroy();
       this.zombieView?.destroy();
       this.bossView = null; // Story 6.5: its objects go with the scene
+      this.heliView = null; // Story 6.11: its images go with the scene
+      voteStore.handle(null);
+      voteStore.set(CLOSED_VOTE);
       if (this.bossMusic) stopBossLoop();
       this.bossMusic = false;
       this.trailView?.destroy();
@@ -945,6 +964,8 @@ export class GameScene extends Phaser.Scene {
     m.camY = cy - halfH;
     m.camZoom = cam.zoom;
     m.wave = host.world.waves.number;
+    m.endless = host.world.run.endless; // Story 6.12: "Wave 13 · Endless"
+    m.voting = host.world.run.phase === "vote" && !this.gameOver; // Story 6.11: the sticks hide
     m.remaining = host.world.waves.remaining;
   }
 
@@ -954,10 +975,41 @@ export class GameScene extends Phaser.Scene {
    * when `phase` becomes "results" (every player's kills and earnings). `earned` is read from the
    * World after the step, so it includes the last wave's bonus (paid later in the same tick).
    */
-  private showSoloResults(host: SceneHost, wave: number, heldOut: boolean): void {
+  private showSoloResults(host: SceneHost, wave: number): void {
     this.gameOver = true;
     const earned = host.world.players.get(host.localPlayerId)?.earned ?? 0;
-    uiStore.set({ kind: "results", wave: Math.max(1, wave), heldOut, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed });
+    const run = host.world.run;
+    const ending = run.ending === "none" ? "wiped" : run.ending; // Story 6.11 / 6.12
+    // Story 6.11 (DW1 / DW2): an Extract plays the 4 s dawn first (solo sees it live; a tap skips it).
+    const dawnEndsAtMs = dawnEndsAt(ending, true, performance.now(), host.world.balance.waves.evac.dawnS);
+    uiStore.set({ kind: "results", wave: Math.max(1, wave), ending, endless: run.endless, rows: [{ slot: 0, name: SOLO_NAME, kills: this.kills, earned }], online: false, seed: host.world.seed, dawnEndsAtMs });
+  }
+
+  /**
+   * Story 6.11 (EX1, F1–F4): the vote panel each frame from the World (server truth online: phase,
+   * ticks left, each player's `vote`) and my pending tap; the helicopter on the pad. A woken tab or a
+   * late scene start during the vote finds the helicopter landed (no replayed descent).
+   */
+  private updateVote(host: SceneHost): void {
+    const run = host.world.run;
+    const open = run.phase === "vote" && !this.gameOver;
+    const nowS = this.time.now / 1000;
+    if (open && this.heliView && this.heliView.phase === "gone") {
+      const total = ticksFor(host.world.balance.waves.evac.voteS);
+      this.heliView.opened(nowS, (total - run.voteTicksLeft) / TICK_RATE_HZ);
+    }
+    if (!open && run.phase === "build" && this.heliView && this.heliView.phase === "landed") this.heliView.reset(); // a backlog that skipped the lift-off
+    this.heliView?.update(nowS);
+    if (!open) {
+      voteStore.set(CLOSED_VOTE);
+      return;
+    }
+    const me = host.world.players.get(host.localPlayerId);
+    const shown = this.voteReq.update(host.world.waves.number, me?.vote ?? 0, this.time.now);
+    const list = this.votePlayers;
+    list.length = 0;
+    host.world.players.forEach((p, id) => list.push({ slot: host.playerInfo(id).slot, vote: p.vote, standing: p.status === "alive", mine: id === host.localPlayerId }));
+    voteStore.set(voteView(true, run.voteTicksLeft, ticksFor(host.world.balance.waves.evac.voteS), TICK_RATE_HZ, list, shown, this.voteReq.isPending()));
   }
 
   /**
@@ -1808,7 +1860,9 @@ export class GameScene extends Phaser.Scene {
     // Menu open: online the run goes on and my survivor stands still (a fresh seq every step);
     // solo practice pauses (designer decision 2026-11-21), with the accumulator frozen.
     const shopOpen = this.updateShop(host, menuOpen);
-    if (menuOpen || shopOpen) neutralizeInput(this.input_); // Story 3.3: I stand still while shopping
+    // Story 3.3: I stand still while shopping. Story 6.11 (D-B): and during the vote (the server freezes
+    // everything; neutral moves keep the Predictor standing still too).
+    if (menuOpen || shopOpen || host.world.run.phase === "vote") neutralizeInput(this.input_);
     this.buildKeys(host, router, menuOpen || shopOpen); // Story 5.23: R, Space, 1–7, Z, M (latches taken every frame)
     // Story 5.18 (review M2): the pending placements' frame order lives in `runPendingFrame` (shared with
     // the netsim test): match → placement step … input (`beforeHostStep`) → send → host step → match +
@@ -1861,8 +1915,10 @@ export class GameScene extends Phaser.Scene {
         this.fireCue.clear();
         this.acidCue.clear();
       }
-      if ((e.type === "team.wiped" || e.type === "run.held_out") && !host.online && !this.gameOver) {
-        this.showSoloResults(host, e.wave, e.type === "run.held_out");
+      if (e.type === "run.vote_opened") this.heliView?.opened(this.time.now / 1000);
+      else if (e.type === "run.vote_resolved") this.heliView?.left(this.time.now / 1000, e.choice === "extract");
+      if ((e.type === "team.wiped" || e.type === "run.extracted") && !host.online && !this.gameOver) {
+        this.showSoloResults(host, e.wave);
       } else if (e.type === "player.downed" && e.playerId !== localId && !host.world.teamWiped && host.world.players.get(e.playerId)?.status === "downed") {
         // A teammate went down (and still is: a woken tab's backlog stays quiet once revived): say who,
         // with an alert; the pulsing edge arrow shows where and how long they have.
@@ -1941,6 +1997,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.zombieView?.update(host.world, host.alpha);
     this.updateBoss(host, deltaMs / 1000); // Story 6.5
+    this.updateVote(host); // Story 6.11
     this.trailView?.update(host.world, host.alpha, deltaMs, this.localHost?.paused === true);
     const fxDtS = this.localHost?.paused === true ? 0 : deltaMs / 1000;
     this.acidClockS += fxDtS;

@@ -23,6 +23,8 @@ import {
   DOWNTOWN_MAP,
   removePlayer,
   setBuildReady,
+  castVote,
+  type EvacChoice,
   setZombieHistoryEnabled,
   setInput,
   skippedInputWeaponTick,
@@ -308,6 +310,11 @@ export class RunController {
   }
 
   /** Story 3.1: a player's build-phase Ready (ignored outside a build or for an unknown player). */
+  /** Story 6.11: an evacuation vote (the World ignores it outside phase "vote"). */
+  castVote(playerId: string, choice: EvacChoice): void {
+    castVote(this.world, playerId, choice);
+  }
+
   setBuildReady(playerId: string, ready: boolean): void {
     setBuildReady(this.world, playerId, ready);
   }

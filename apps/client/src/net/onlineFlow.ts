@@ -1,4 +1,5 @@
-import type { RunPhase, RunStateView } from "@topdown/shared";
+import { RUN_ENDINGS, type RunEnding, type RunPhase, type RunStateView } from "@topdown/shared";
+import { dawnEndsAt } from "../ui/dawnModel";
 import type { ResultRow, UiRequests, UiScreen } from "../ui/uiState";
 import type { NetSession, RunInbox } from "./session";
 import { activeRun } from "./activeRun";
@@ -16,32 +17,42 @@ export interface OnlineFlowDeps {
   makeSession(): NetSession | null;
   /** The room's `RunInbox` (kept by the lobby store for the room's lifetime). */
   inbox(): RunInbox | null;
+  /** Story 6.11: the dawn's length (`waves.json › evac.dawnS`) and the clock (default `performance.now`). */
+  readonly dawnS: number;
+  nowMs?(): number;
   readonly ui: {
     set(screen: UiScreen): void;
     request<K extends keyof UiRequests>(name: K, ...args: Parameters<UiRequests[K]>): void;
   };
 }
 
+/** Story 6.11: the room's `resultEnding` as a `RunEnding` (anything unknown, e.g. an older server: "wiped"). */
+export function endingOf(raw: string | undefined): RunEnding {
+  return (RUN_ENDINGS as readonly string[]).includes(raw ?? "") && raw !== "none" ? (raw as RunEnding) : "wiped";
+}
+
 /**
- * Results from the room state: the wave reached (at least 1), whether the team held out (Story
- * 3.10), kills and money earned per player, by slot, and the run seed (Story 4.4).
+ * Results from the room state: the wave reached (at least 1), how the run ended (Story 6.11:
+ * `resultEnding`; 6.12: `endless`), kills and money earned per player, by slot, and the run seed (Story 4.4).
  */
-export function resultsFromState(state: RunStateView): { wave: number; heldOut: boolean; rows: ResultRow[]; seed: number } {
+export function resultsFromState(state: RunStateView): { wave: number; ending: RunEnding; endless: boolean; rows: ResultRow[]; seed: number } {
   const rows: ResultRow[] = [];
   state.players.forEach((p) => rows.push({ slot: p.slot, name: p.name, kills: p.kills, earned: p.earned }));
   rows.sort((a, b) => a.slot - b.slot);
-  return { wave: Math.max(1, state.resultWave), heldOut: state.resultHeldOut === true, rows, seed: state.runSeed ?? 0 };
+  return { wave: Math.max(1, state.resultWave), ending: endingOf(state.resultEnding), endless: state.endless === true, rows, seed: state.runSeed ?? 0 };
 }
 
 /**
  * The online run cycle of one room (Stories 2.4 and 2.8), driven by `phase`:
  *
- * - `build` or `wave` (Story 3.1: a run starts in its build phase, then alternates wave ↔ build)
+ * - `build`, `wave` or (Story 6.11) `vote` (Story 3.1: a run starts in its build phase, then alternates wave ↔ build)
  *   with no session yet: a fresh `NetSession` → `startOnline` (the Game scene runs the fight). Later
  *   build ↔ wave changes keep that session (the scene runs the whole run). Every start in the same
  *   room gets its own session, so the second run never reuses the first one's host.
  * - `results`: the Results screen with Back to lobby (state-driven, so a late joiner of the
- *   screen sees the same table).
+ *   screen sees the same table). Story 6.11: an Extract seen live (the previous phase was the
+ *   vote) plays the 4 s dawn first; a late scene start or a woken tab past the dawn goes straight
+ *   to the card (`dawnModel.ts`).
  * - `lobby` (after Results): the session is released (the Game scene's dispose then leaves nothing),
  *   the inbox drops the old run's buffered batches, the Game scene stops (`backToLobby`) and the
  *   lobby screen shows. The room is never left.
@@ -52,14 +63,16 @@ export function createOnlinePhaseHandler(deps: OnlineFlowDeps): (phase: RunPhase
   return (phase) => {
     const last = prev;
     prev = phase;
-    if (phase === "build" || phase === "wave") {
-      if (session && (last === "build" || last === "wave")) return; // build ↔ wave inside the same run
+    if (phase === "build" || phase === "wave" || phase === "vote") {
+      if (session && (last === "build" || last === "wave" || last === "vote")) return; // build ↔ wave ↔ vote inside the same run
       session?.release(); // a new run seen without its lobby patch (e.g. under `?lag`): drop the old one
       session = deps.makeSession();
       activeRun.set(session);
       if (session) deps.ui.request("startOnline", session);
     } else if (phase === "results") {
-      deps.ui.set({ kind: "results", ...resultsFromState(deps.state()), online: true });
+      const r = resultsFromState(deps.state());
+      const now = deps.nowMs ? deps.nowMs() : performance.now();
+      deps.ui.set({ kind: "results", ...r, online: true, dawnEndsAtMs: dawnEndsAt(r.ending, last === "vote", now, deps.dawnS) });
     } else if (phase === "lobby") {
       session?.release();
       session = null;

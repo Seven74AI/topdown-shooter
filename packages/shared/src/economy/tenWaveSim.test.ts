@@ -35,7 +35,7 @@ describe("Story 6.1: ten-wave sim", () => {
       expect(r.waves.reduce((a, w) => a + w.downs, 0), `seed ${seed}: no one went down`).toBe(0);
       expect(r.timedOut, `seed ${seed}`).toBe(false); // never the tick limit
       expect(r.wavesCleared).toBe(10); // liveness: all 10 waves really played
-      expect(r.heldOut).toBe(true);
+      expect((r.ending === "extracted")).toBe(true);
       expect(r.wiped).toBe(false);
       expect(r.waves.map((w) => w.wave)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
       expect(r.waves.map((w) => w.size)).toEqual([40, 80, 120, 160, 200, 240, 280, 320, 360, 400]);
@@ -70,16 +70,16 @@ describe("Story 6.1: ten-wave sim", () => {
         const r = runHeadless({ balance, seed, players });
         rs.push(r);
         expect(r.timedOut, `${players}p seed ${seed}`).toBe(false); // F6: a run always ends on Results
-        expect(r.heldOut !== r.wiped).toBe(true); // exactly one ending
+        expect((r.ending === "extracted") !== r.wiped).toBe(true); // exactly one ending
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
-        if (r.heldOut) expect(r.wavesCleared).toBe(10);
+        if ((r.ending === "extracted")) expect(r.wavesCleared).toBe(10);
         else expect(r.wavesCleared).toBe(r.reached - 1); // "Wave reached N": the wave it died in
         if (r.reached >= 7) reachedLate++;
         lines.push(formatRunLine(r));
       }
       const byWave = Array.from({ length: 10 }, (_, i) => rs.filter((r) => r.wavesCleared >= i + 1).length);
       const earned = rs.flatMap((r) => r.earned);
-      summary.push(`${players}p: held out ${rs.filter((r) => r.heldOut).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${Math.round(earned.reduce((a, b) => a + b, 0) / earned.length)}`);
+      summary.push(`${players}p: held out ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${Math.round(earned.reduce((a, b) => a + b, 0) / earned.length)}`);
     }
     info(`[ten-wave sim (b)] mortal bots (not difficulty evidence)\n${lines.join("\n")}\n${summary.join("\n")}`);
     expect(reachedLate).toBeGreaterThan(0); // liveness: some mortal runs really reach the new waves 7–10

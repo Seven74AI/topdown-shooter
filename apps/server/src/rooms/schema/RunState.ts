@@ -79,6 +79,8 @@ const playerFields = {
   // Story 5.12: the quick-use slot — the consumable's `consumables.json` index (255 = empty) and the count. On a purchase / use only.
   consumable: t.uint8().default(255),
   consumableCount: t.uint8().default(0),
+  // Story 6.11: the evacuation vote (0 none, 1 extract, 2 stay), on change only (F2). Appended last.
+  vote: t.uint8().default(0),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;
@@ -147,8 +149,8 @@ const runFields = {
   aliveCount: t.uint16().default(0),
   /** Story 2.8: the wave the team reached, set with phase "results". */
   resultWave: t.uint16().default(0),
-  /** Story 3.10: set with phase "results" when wave `runWaves` was cleared ("You held out!"). */
-  resultHeldOut: t.boolean().default(false),
+  /** Story 6.11: how the run ended ("wiped" | "extracted" | "lost"), set with phase "results" ("" otherwise). Replaces 3.10's `resultHeldOut`. */
+  resultEnding: t.string().default(""),
   /** Story 3.1: ticks left in the build phase (0 outside a build). */
   buildTicksLeft: t.uint16().default(0),
   /** Story 2.10: the test scenario this room runs ("" = a normal game); the overlay tags it. */
@@ -165,8 +167,12 @@ const runFields = {
   blackoutPct: t.uint8().default(0),
   /** Story 6.3: the darkness is drawn at half strength (6.4: build phases at stage 5), on change only. */
   halfDark: t.boolean().default(false),
-  /** Story 6.5: the Behemoth (state NONE outside a boss fight). Appended last. */
+  /** Story 6.5: the Behemoth (state NONE outside a boss fight). */
   boss: BossState,
+  /** Story 6.11: ticks left in the evacuation vote (0 outside one), synced every tick of a vote (40 B/s for 15 s). */
+  voteTicksLeft: t.uint16().default(0),
+  /** Story 6.12: the team chose Stay (endless), on change only. */
+  endless: t.boolean().default(false),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

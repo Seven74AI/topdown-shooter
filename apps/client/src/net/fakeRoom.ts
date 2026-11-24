@@ -42,6 +42,7 @@ export function fakePlayer(slot: number, over: Partial<FakePlayer> = {}): FakePl
     reviveNeed: 0,
     consumable: 255, // Story 5.12
     consumableCount: 0,
+    vote: 0, // Story 6.11
     ...over,
   };
 }
@@ -59,7 +60,7 @@ export interface FakeState {
   remaining: number;
   aliveCount: number;
   resultWave: number;
-  resultHeldOut: boolean;
+  resultEnding: string;
   buildTicksLeft: number;
   scenario: string;
   /** Story 4.4. */
@@ -72,6 +73,8 @@ export interface FakeState {
   /** Story 6.3. */
   blackoutPct: number;
   halfDark: boolean;
+  voteTicksLeft: number;
+  endless: boolean;
   /** Story 6.5: the boss record. */
   boss: FakeBoss;
 }
@@ -94,7 +97,7 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     remaining: 0,
     aliveCount: players.length,
     resultWave: 0,
-    resultHeldOut: false,
+    resultEnding: "",
     buildTicksLeft: 0,
     scenario: "",
     runSeed: 0,
@@ -103,6 +106,8 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     decayFiresOut: 0,
     blackoutPct: 0,
     halfDark: false,
+    voteTicksLeft: 0, // Story 6.11
+    endless: false, // Story 6.12
     boss: fakeBoss(),
   };
 }

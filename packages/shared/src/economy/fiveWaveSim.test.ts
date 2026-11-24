@@ -38,11 +38,11 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
         const r = runHeadless({ balance, seed, players });
         runs.push(r);
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true); // exactly one ending
+        expect((r.ending === "extracted") !== r.wiped).toBe(true); // exactly one ending
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
         expect(r.waves.length).toBe(r.reached);
         expect(r.waves[0]?.size).toBe(Math.round(balance.waves.zombiesPerWave * (balance.waves.playerCountScale[players - 1] as number)));
-        if (r.heldOut) expect(r.wavesCleared).toBe(balance.waves.runWaves);
+        if ((r.ending === "extracted")) expect(r.wavesCleared).toBe(balance.waves.runWaves);
         for (let i = 0; i < players; i++) {
           expect(r.earned[i]).toBeGreaterThan(0);
           expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number)); // money adds up
@@ -65,13 +65,13 @@ describe("five-wave bot sim (Story 3.10: 2/3/4 bots, shopping and building, seed
     expect(spitHits).toBeGreaterThanOrEqual(1);
     lines.push(`Story 5.6: ${reached4} runs reached wave 4; ${spits} spits, ${spitHits} spit hits, ${acidHits} acid puddle hits`);
     // AC 5: at least one full 5-wave run with 4 bots (its earnings are the comparison with the GDD).
-    expect(runs.some((r) => r.players === 4 && r.heldOut)).toBe(true);
+    expect(runs.some((r) => r.players === 4 && (r.ending === "extracted"))).toBe(true);
     const summary = TEAM_SIZES.map((n) => {
       const rs = runs.filter((r) => r.players === n);
       const earned = rs.flatMap((r) => r.earned);
       const mean = Math.round(earned.reduce((a, b) => a + b, 0) / earned.length);
       const byWave = [1, 2, 3, 4, 5, 6].map((w) => rs.filter((r) => r.wavesCleared >= w).length);
-      return `${n}p: held out ${rs.filter((r) => r.heldOut).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${mean} (${Math.min(...earned)}–${Math.max(...earned)})`;
+      return `${n}p: held out ${rs.filter((r) => (r.ending === "extracted")).length}/${rs.length}, cleared by wave ${byWave.join("/")}, earned per player mean ${mean} (${Math.min(...earned)}–${Math.max(...earned)})`;
     });
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(
       `[five-wave sim] GDD target cut to 5 waves: earned ≈ 650–790 per player\n${lines.join("\n")}\n${summary.join("\n")}`,
@@ -91,7 +91,7 @@ describe("five-wave bot sim with spike traps and mines (Story 5.9, task 8.2)", (
       for (const seed of [1, 2]) {
         const r = runHeadless({ balance, seed, players, list: LIST });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
         for (const w of r.waves.slice(0, r.wavesCleared)) expect(w.size).toBeGreaterThan(0);
         placed += r.buildingsPlaced.reduce((a, b) => a + b, 0);
@@ -119,7 +119,7 @@ describe("six-wave bot sim with bear traps (Story 5.14, brief lines 9 and 15)", 
       for (const seed of [1, 2]) {
         const r = runHeadless({ balance, seed, players, list: LIST });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
         for (const w of r.waves.slice(0, r.wavesCleared)) expect(w.size).toBeGreaterThan(0);
         placed += r.buildingsPlaced.reduce((a, b) => a + b, 0);
@@ -149,7 +149,7 @@ describe("five-wave bot sim with the Shotgun and the Assault Rifle (Story 5.3, b
         // Assault Rifle, so the bots start with that money (this test checks the guns kill, not survival).
         const r = runHeadless({ balance: richBalance, seed, players: 4, list });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
         kills += r.killsByWeapon[weapon] ?? 0;
         bought += r.purchases.flat().filter((p) => p.startsWith(`${weapon}@`)).length;
@@ -175,8 +175,8 @@ describe("six-wave bot sim with the Brute (Story 5.7, brief lines 9 and 15)", ()
       for (const seed of SEEDS) {
         const r = runHeadless({ balance: six, seed, players });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
-        if (r.heldOut) expect(r.wavesCleared).toBe(6);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
+        if ((r.ending === "extracted")) expect(r.wavesCleared).toBe(6);
         if (r.reached >= 5) {
           reached5++;
           expect(r.brutes.spawnedInWave.filter((w) => w === 5), `seed ${seed} ${players}p`).toHaveLength(1);
@@ -208,7 +208,7 @@ describe("bot sim with the Fire Axe and the Chainsaw (Story 5.2, brief lines 9 a
       for (const seed of [1, 2]) {
         const r = runHeadless({ balance: rich, seed, players: 4, list });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
         kills += r.killsByWeapon[weapon] ?? 0;
         bought += r.purchases.flat().filter((p) => p.startsWith(`${weapon}@`)).length;
@@ -232,7 +232,7 @@ describe("five-wave bot sim with weapon upgrades (Story 5.1, brief lines 9 and 1
       for (const seed of [1, 2]) {
         const r = runHeadless({ balance, seed, players, list: LIST });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
         for (let i = 0; i < players; i++) expect(r.wallet[i]).toBe(balance.economy.startingWallet + (r.earned[i] as number) - (r.spent[i] as number));
         upgrades += r.upgrades.reduce((a, b) => a + b, 0);
@@ -258,7 +258,7 @@ describe("six-wave bot sim with the Grenade Launcher (Story 5.5, brief lines 9 a
       for (const seed of [1, 2]) {
         const r = runHeadless({ balance: six, seed, players, list: ["grenade_launcher", "wood_barricade"] });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
         kills += r.killsByWeapon.grenade_launcher ?? 0;
         bought += r.purchases.flat().filter((p) => p.startsWith("grenade_launcher@")).length;
@@ -284,9 +284,9 @@ describe("six-wave bot sim with Bloaters (Story 5.8, brief lines 9 and 15)", () 
       for (const seed of [1, 2, 3, 4]) {
         const r = runHeadless({ balance, seed, players });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
-        if (r.heldOut) expect(r.wavesCleared).toBe(6);
+        if ((r.ending === "extracted")) expect(r.wavesCleared).toBe(6);
         // Bloaters only from wave 6 (D9).
         expect(r.bloaters.burstsInWave.slice(0, 5).every((n) => n === 0)).toBe(true);
         if (r.reached >= 6) {
@@ -317,7 +317,7 @@ describe("six-wave bot sim with gear (Story 5.11, brief lines 9 and 15)", () => 
       for (const seed of [1, 2]) {
         const r = runHeadless({ balance, seed, players, list: LIST });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1); // waves really ended
         for (let i = 0; i < players; i++) {
           expect(r.gear[i]).toBeGreaterThanOrEqual(1); // liveness: every bot bought gear
@@ -356,7 +356,7 @@ describe("six-wave bot sim with consumables (Story 5.12, brief lines 9 and 15)",
       for (const seed of [1, 2]) {
         const r = runHeadless({ balance: rich, seed, players: 3, list: [item, "smg", "wood_barricade"] });
         expect(r.timedOut).toBe(false);
-        expect(r.heldOut !== r.wiped).toBe(true);
+        expect((r.ending === "extracted") !== r.wiped).toBe(true);
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
         lines.push(`${item} seed ${seed}: ${formatRunLine(r)}`);
       }

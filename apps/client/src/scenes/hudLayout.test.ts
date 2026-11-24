@@ -5,6 +5,7 @@ import { CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCen
 import { layoutHandCluster, newHandLayout } from "./handCluster";
 import { layoutUndoChip } from "./undoChip";
 import { layoutBossBar } from "./bossBar";
+import { layoutEvacVote } from "../ui/voteModel";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX, READY_BUTTON_BOTTOM_CSS_PX, READY_BUTTON_H_CSS_PX, READY_BUTTON_W_CSS_PX } from "../ui/sizes";
 
 /**
@@ -75,6 +76,11 @@ function modes(w: number, h: number): Record<string, Box[]> {
       { id: "chip", x: hand.chip.x, y: hand.chip.y, w: hand.chip.w, h: hand.chip.h },
       sq("undo", undoHand.x, undoHand.y, undoHand.size),
     ],
+    // Story 6.11 (EX1): the evacuation vote — the HUD's ☰ and the two buttons (the chips and ring are not pressable).
+    vote: (() => {
+      const v = layoutEvacVote(w, h, INSET.bottom);
+      return [menu(w), { id: "vote_extract", ...v.extract }, { id: "vote_stay", ...v.stay }];
+    })(),
     selected: [menu(w), ...act.rects.filter((r) => r.visible).map((r, i) => ({ id: `action_${ACTION_IDS[i]}`, x: r.x, y: r.y, w: r.w, h: r.h }))],
   };
 }
@@ -93,7 +99,9 @@ function violations(w: number, h: number): Map<string, number> {
       if (b.x < INSET.left * K - 1e-6 || b.x + b.w > w - INSET.right * K + 1e-6 || b.y < 0 || b.y + b.h > h - INSET.bottom * K + 1e-6) out.set(`${w}x${h} ${mode} ${b.id}: outside the safe area`, 1);
       const gap = rectCentreGap(b.x, b.y, b.w, b.h, w / 2, h / 2);
       if (gap < CENTRE_CLEAR_CSS_PX * K - 1e-6) out.set(`${w}x${h} ${mode} ${b.id}: within 48 px of the centre`, gap);
-      if (b.x + b.w / 2 < w / 2) out.set(`${w}x${h} ${mode} ${b.id}: in the move-stick half`, w / 2 - (b.x + b.w / 2));
+      // Story 6.11: in the vote the sticks are hidden and nothing moves (D4), so EX1's EXTRACT (left of the
+      // ring, the designer's pick) is not in a move-stick half; every other rule applies to it.
+      if (b.x + b.w / 2 < w / 2 && mode !== "vote") out.set(`${w}x${h} ${mode} ${b.id}: in the move-stick half`, w / 2 - (b.x + b.w / 2));
     }
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {

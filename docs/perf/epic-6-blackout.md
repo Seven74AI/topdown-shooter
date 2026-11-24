@@ -68,3 +68,17 @@ Nobody has run these yet. Steps, on each phone, Chrome, landscape, after the nex
 Target: the blackout costs ≤ 15 % on the Mi 11i. If it costs more, the levers are, in order: the
 eyes (fewer, or only the nearest 60), the darkness at quarter size (DD2), stamps 32; tell the main
 session.
+
+## Story 6.11 + 6.12: endless (server tick, memory)
+
+Headless container (4 vCPU), `npx vitest run`, Node, no phone.
+
+| Case | Load (1 min) | Tick p99 | Mean | Notes |
+| --- | --- | --- | --- | --- |
+| Wave 10, 4 players, 150 alive (real mix, no Behemoth: `bossWaves = []`) | 0.47 | 1.125 ms | 0.653 ms | `apps/server/src/run/tickCostEndless.test.ts` baseline |
+| Wave 19 endless, 4 players, 600 zombies (wave 9's mix, 11 Brutes ≤ 6 alive, HP × 1.24), 150 alive | 0.47 | 1.837 ms | 0.787 ms | +0.71 ms p99 over wave 10 (Brutes + more Bloaters/Spitters alive at the cap); well inside the 50 ms tick |
+| 20-wave endless flow sim (waves 11–30, every real system, kills by hand) | 0.64 | 0.571 ms | — | `packages/shared/src/economy/endlessSim.test.ts`; heap 41.2 MB at wave 11 → 38.5 MB at wave 30 (flat); pooled sizes equal at 11 and 30 |
+
+Not measured: the wave-25 Behemoth wave at 110 alive with blackout + fog on a phone, and headless FPS for
+it (`?startwave=25`): the darkness/fog FPS case is 6.3/6.4's, the Behemoth's 6.5's; the vote itself
+is an HTML overlay and one helicopter sprite on a cleared map.

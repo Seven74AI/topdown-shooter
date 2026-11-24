@@ -1,5 +1,6 @@
 import type { NetSession } from "../net/session";
 import type { ShopAction } from "./shopStore";
+import type { RunEnding } from "@topdown/shared";
 
 /**
  * Tiny typed store between Phaser scenes and Preact screens (no globals on window).
@@ -17,11 +18,12 @@ export type UiScreen =
   | { kind: "playing"; menu: MenuState; online: boolean }
   /**
    * Team wipe (Story 2.8): wave reached and kills per player, sorted by slot. `online`: Back to
-   * lobby (the whole room) instead of Restart. Story 3.10: `heldOut` = the run's last wave was
-   * cleared ("You held out!"); each row also carries the money earned. Story 4.4: `seed` = the run
-   * seed (online the server's).
+   * lobby (the whole room) instead of Restart. Story 3.10: each row also carries the money earned.
+   * Story 4.4: `seed` = the run seed (online the server's). Story 6.11: `ending` ("wiped" |
+   * "extracted" | "lost", replaces 3.10's `heldOut`), `endless` (the team chose Stay: DW2), and
+   * `dawnEndsAtMs` (performance.now() ms; the dawn plays until then, `dawnModel.ts`).
    */
-  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean; heldOut: boolean; seed: number };
+  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean; ending: RunEnding; endless: boolean; seed: number; dawnEndsAtMs: number };
 
 /** The in-run menu (Story 2.11): closed, open (Resume, Leave game), or asking to confirm the leave. */
 export type MenuState = "closed" | "open" | "confirmLeave";
@@ -63,9 +65,18 @@ export interface ResultRow {
   readonly earned: number;
 }
 
-/** Story 3.10: the Results title: "You held out!" after the last wave, else "Wave reached N". */
-export function resultsTitle(screen: { wave: number; heldOut: boolean }): string {
-  return screen.heldOut ? "You held out!" : `Wave reached ${screen.wave}`;
+/** Story 6.11 / 6.12: the Results title: "Extracted", "Lost in the city" (a wipe after Stay), else "Wave reached N". */
+export function resultsTitle(screen: { wave: number; ending: RunEnding }): string {
+  if (screen.ending === "extracted") return "Extracted";
+  if (screen.ending === "lost") return "Lost in the city";
+  return `Wave reached ${screen.wave}`;
+}
+
+/** Story 6.11 / 6.12: the line under the title ("" = none: the title already says the wave). */
+export function resultsSub(screen: { wave: number; ending: RunEnding }): string {
+  if (screen.ending === "extracted") return `Wave reached ${screen.wave}`;
+  if (screen.ending === "lost") return `Wave reached ${screen.wave} · rewards after wave 10 lost`;
+  return "";
 }
 
 export interface UiRequests {

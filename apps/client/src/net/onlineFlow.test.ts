@@ -11,6 +11,7 @@ const joined = { playerId: "p1", slot: 1, tickRateHz: 20 };
 const batch = (tick: number): SimEventsFlushed => ({ tick, events: [[NET_EVENT_KIND.WAVE_STARTED, tick, 8]] });
 
 /** The main.ts wiring with fakes: one room, its inbox, the ui requests seen. */
+let clock = 1000;
 function setup() {
   const room = new FakeRoom(fakeState([fakePlayer(2, { name: "Cid", kills: 3, earned: 120 }), fakePlayer(0, { name: "Ana", kills: 7, earned: 245 })]));
   room.state.phase = "lobby";
@@ -28,6 +29,8 @@ function setup() {
       return s;
     },
     inbox: () => inbox,
+    dawnS: 4,
+    nowMs: () => clock,
     ui: {
       set: (s) => screens.push(s),
       request: (name, ...args) => requests.push({ name, arg: args[0] }),
@@ -70,6 +73,38 @@ describe("build phase in the run cycle (Story 3.1)", () => {
   });
 });
 
+describe("Story 6.11: the vote in the run cycle", () => {
+  it("build → wave → vote → build keeps the one session; an Extract seen live plays the 4 s dawn, a late one does not", () => {
+    const t = setup();
+    t.phase("build");
+    t.phase("wave");
+    t.phase("vote");
+    t.phase("build"); // Stay
+    t.phase("wave");
+    t.phase("vote");
+    expect(t.sessions).toHaveLength(1);
+    expect(t.requests).toHaveLength(1);
+    t.room.state.resultWave = 15;
+    t.room.state.resultEnding = "extracted";
+    t.room.state.endless = true;
+    clock = 5000;
+    t.phase("results");
+    expect(t.screens.at(-1)).toMatchObject({ kind: "results", ending: "extracted", endless: true, wave: 15, dawnEndsAtMs: 9000 });
+    // A late Game scene start (Results seen first, e.g. a reload) → no dawn.
+    const u = setup();
+    u.room.state.resultEnding = "extracted";
+    u.phase("results");
+    expect(u.screens.at(-1)).toMatchObject({ ending: "extracted", dawnEndsAtMs: clock });
+  });
+
+  it("a vote seen first (a late join / reload during the vote) starts the session", () => {
+    const t = setup();
+    t.phase("vote");
+    expect(t.sessions).toHaveLength(1);
+    expect(t.requests).toEqual([{ name: "startOnline", arg: t.sessions[0] }]);
+  });
+});
+
 describe("online run cycle in one room (Story 2.8)", () => {
   it("the Game scene's NetSimHost.dispose after Back to lobby doesn't leave the room", () => {
     const t = setup();
@@ -95,9 +130,11 @@ describe("online run cycle in one room (Story 2.8)", () => {
     expect(t.screens.at(-1)).toEqual({
       kind: "results",
       wave: 4,
-      heldOut: false,
+      ending: "wiped",
+      endless: false,
       online: true,
       seed: 3141592653,
+      dawnEndsAtMs: clock, // a wipe: no dawn
       rows: [
         { slot: 0, name: "Ana", kills: 7, earned: 245 },
         { slot: 2, name: "Cid", kills: 3, earned: 120 },
@@ -158,6 +195,7 @@ describe("online run cycle in one room (Story 2.8)", () => {
       state: () => fakeState(),
       makeSession: () => null,
       inbox: () => null,
+      dawnS: 4,
       ui: {
         set: (s) => {
           screens.push(s);
@@ -175,18 +213,19 @@ describe("online run cycle in one room (Story 2.8)", () => {
 describe("resultsFromState", () => {
   it("shows at least wave 1, rows by slot", () => {
     const s = fakeState([fakePlayer(1, { kills: 2 })]);
-    expect(resultsFromState(s)).toEqual({ wave: 1, heldOut: false, rows: [{ slot: 1, name: "P1", kills: 2, earned: 0 }], seed: 0 });
+    expect(resultsFromState(s)).toEqual({ wave: 1, ending: "wiped", endless: false, rows: [{ slot: 1, name: "P1", kills: 2, earned: 0 }], seed: 0 });
   });
 
-  it("Story 3.10: the last wave cleared → heldOut, the wave reached and each player's earnings", () => {
+  it("Story 6.11: an extract → ending \"extracted\", the wave reached and each player's earnings", () => {
     const s = fakeState([fakePlayer(3, { kills: 40, earned: 610 }), fakePlayer(0, { kills: 52, earned: 655 })]);
     s.phase = "results";
     s.resultWave = 5;
-    s.resultHeldOut = true;
+    s.resultEnding = "extracted";
     s.runSeed = 99;
     expect(resultsFromState(s)).toEqual({
       wave: 5,
-      heldOut: true,
+      ending: "extracted",
+      endless: false,
       seed: 99,
       rows: [
         { slot: 0, name: "P0", kills: 52, earned: 655 },

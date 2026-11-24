@@ -188,3 +188,22 @@ Player:
 
 ## 64: is it over? Is the wave over? Is that body still dangerous? (Story 6.7: EVAC INBOUND, the dark collapsed body)
 ![64](../../art/6-6/6-6-800x360-death.png)
+
+## 80: the wave is over. What are the two buttons asking, how long do you have, and who has voted? (Story 6.11: the evacuation vote, EX1)
+![80](../../art/6-11/6-11-844x390-vote.png)
+
+## 81: is the helicopter in your way? Can you shoot through it or stand under it? (Story 6.11: a picture only — it blocks nothing, the dashed ring is the pad)
+![81](../../art/6-11/6-11-800x360-vote-endless15.png)
+
+## 82: everyone has voted. What did the team choose, and what happens next? (Story 6.11: "STAY · 0 – 1", the chips filled)
+![82](../../art/6-11/6-11-568x320-voted-stay.png)
+
+## 83: what is happening to the light? Can you skip it? (Story 6.11: the DW1 sunrise after Extract; "Tap to skip")
+![83](../../art/6-11/6-11-844x390-dawn-dw1.png)
+
+## 84: did you win? What did you keep? (Story 6.11: Results "Extracted" on the warm dawn; 6.12: on the blue hour after an endless extract)
+![84](../../art/6-11/6-11-844x390-extracted.png)
+![84b](../../art/6-11/6-11-800x360-extracted-endless.png)
+
+## 85: which wave is this, and is it a normal one? (Story 6.12: the top line "Wave 11 · Endless · 25 s")
+![85](../../art/6-11/6-11-568x320-endless-build.png)

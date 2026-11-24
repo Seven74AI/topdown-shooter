@@ -51,7 +51,7 @@ describe("Behemoth run sim (Story 6.5)", () => {
         },
       });
       expect(r.timedOut).toBe(false);
-      expect(r.heldOut).toBe(true);
+      expect((r.ending === "extracted")).toBe(true);
       if (sawBoss) arrived++;
       if (paid.size === 4 && [...paid.values()].every((v) => v === balance.boss.killPay)) paidOk++;
     }

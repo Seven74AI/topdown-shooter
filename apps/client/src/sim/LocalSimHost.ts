@@ -15,6 +15,8 @@ import {
   sellBuilding,
   moveBuilding,
   setBuildReady,
+  castVote,
+  type EvacChoice,
   setInput,
   startBuild,
   applyStartWave,
@@ -106,6 +108,11 @@ export class LocalSimHost implements SimHost {
 
   setBuildReady(ready: boolean): void {
     setBuildReady(this.world, LOCAL_PLAYER_ID, ready);
+  }
+
+  /** Story 6.11: solo votes through the same `castVote` (the in-run menu pauses the vote's clock too). */
+  castVote(choice: EvacChoice): void {
+    castVote(this.world, LOCAL_PLAYER_ID, choice);
   }
 
   /** Story 3.4: solo applies the placement at once (between steps, like the server's message handler). */

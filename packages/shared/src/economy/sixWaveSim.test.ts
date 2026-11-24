@@ -24,7 +24,7 @@ const CARD_BUILDS = [0, 3];
 
 function checkRun(b: Balance, r: HeadlessRunLog): void {
   expect(r.timedOut).toBe(false);
-  expect(r.heldOut !== r.wiped).toBe(true);
+  expect((r.ending === "extracted") !== r.wiped).toBe(true);
   expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
   // Money adds up (cards and rerolls included); decay refunds (50 % of a destroyed building) are
   // paid outside `earned`, logged for the team only.
@@ -60,7 +60,7 @@ describe("six-wave card sim (Story 5.13: bots buy from their cards; seeded)", ()
         // Build phases reached: 0 … reached − 1 (a held-out run ends in Results after the last wave).
         for (const build of CARD_BUILDS) if (build < r.reached) expect(r.cardsByBuild[build] ?? 0, `${players}p seed ${seed} build ${build}`).toBeGreaterThanOrEqual(1);
         rerolls += sum(r.rerolls);
-        lines.push(`${players}p seed ${seed}: ${r.heldOut ? "held out" : `wiped in W${r.reached}`}; cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")} (spent ${sum(r.rerollSpent)})`);
+        lines.push(`${players}p seed ${seed}: ${(r.ending === "extracted") ? "held out" : `wiped in W${r.reached}`}; cards by build ${r.cardsByBuild.map((n) => n ?? 0).join("/")}; rerolls ${r.rerolls.join("/")} (spent ${sum(r.rerollSpent)})`);
       }
       expect(rerolls, `${players} bots`).toBeGreaterThanOrEqual(1); // rerolls really happen
     }

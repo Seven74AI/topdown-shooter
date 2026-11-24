@@ -57,6 +57,8 @@ export const C2S = {
    * answered with `shop.bought_item` or `shop.refused_item`.
    */
   SHOP_BUY_ITEM: "shop.buy_item",
+  /** `{ choice: "extract" | "stay" }` during the evacuation vote (Story 6.11); a new choice replaces the old one. */
+  EVAC_VOTE: "evac.vote",
 } as const;
 export type C2SType = (typeof C2S)[keyof typeof C2S];
 
@@ -186,6 +188,9 @@ export const runStartSchema = z.object({}).strict();
 
 /** `build.set_ready` (Story 3.1): the sender's build-phase Ready (a toggle); ignored outside a build. */
 export const buildSetReadySchema = z.object({ ready: z.boolean() }).strict();
+
+/** `evac.vote` payload (Story 6.11): the player's choice; the server ignores it outside phase "vote". */
+export const evacVoteSchema = z.object({ choice: z.enum(["extract", "stay"]) }).strict();
 export type BuildSetReady = z.infer<typeof buildSetReadySchema>;
 
 /**
