@@ -137,6 +137,22 @@ export interface HudModel {
   upgradeLabel: string;
   upgradeReason: string;
   upgradePressed: boolean;
+  /** Story 5.20: the Sell / Take back button (my building in the open panel), its label and refusal text; its tap. */
+  sellShown: boolean;
+  sellLabel: string;
+  sellReason: string;
+  sellPressed: boolean;
+  /** Story 5.20: the undo chip ↶ (shown, ring 1 → 0, armed while its placement is pending, holding = the hand cluster's spot); its tap. */
+  undoVisible: boolean;
+  undoProgress: number;
+  undoArmed: boolean;
+  undoHolding: boolean;
+  undoPressed: boolean;
+  /** Story 5.20: "+$N" pops at sold buildings this frame (world m), queued by the GameScene from `building.sold`. */
+  readonly soldPopX: Float32Array;
+  readonly soldPopY: Float32Array;
+  readonly soldPopAmount: Int32Array;
+  soldPopCount: number;
   /** Centered banner text and the scene time (ms) it was shown; empty when none. */
   bannerText: string;
   bannerAtMs: number;
@@ -198,6 +214,9 @@ export const NAME_LIFT_M = 0.9;
 /** `teammateFlags` bits. */
 export const TEAMMATE_DOWNED = 1;
 export const TEAMMATE_OUT = 2;
+
+/** Story 5.20: sold "+$N" pops queued per frame (more in one frame drop the extras). */
+export const SOLD_POP_QUEUE = 4;
 
 /**
  * Story 5.1: the HUD's upgrade tier mark for a level: its roman numeral (the U1 plate shows it),
@@ -283,6 +302,19 @@ export const createHudModel = (): HudModel => ({
   upgradeLabel: "",
   upgradeReason: "",
   upgradePressed: false,
+  sellShown: false,
+  sellLabel: "",
+  sellReason: "",
+  sellPressed: false,
+  undoVisible: false,
+  undoProgress: 0,
+  undoArmed: false,
+  undoHolding: false,
+  undoPressed: false,
+  soldPopX: new Float32Array(SOLD_POP_QUEUE),
+  soldPopY: new Float32Array(SOLD_POP_QUEUE),
+  soldPopAmount: new Int32Array(SOLD_POP_QUEUE),
+  soldPopCount: 0,
   bannerText: "",
   bannerAtMs: 0,
   rushers: new Float32Array(MAX_RUSH_MARKERS * 2),

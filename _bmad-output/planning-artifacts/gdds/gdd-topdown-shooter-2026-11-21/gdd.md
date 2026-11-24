@@ -152,10 +152,10 @@ Numbers for each are in the sections below.
 - **Mode:** online co-op, 2–4 players, each on their own device. No local split-screen.
 - **Lobby:** the host picks a district and gets a **share link** and a **4-letter code**; players join, tap Ready, the host starts.
 - **Accounts:** play immediately as a **guest** (name only); upgrade to an account later to keep progress.
-- **Join mid-run:** allowed during build phases only; the newcomer starts with the team's average currency; the next wave rescales.
-- **Disconnects:** a disconnected player's character is removed safely; they can rejoin within **2 minutes** with wallet and gear intact. Their turrets' kills keep paying into the held wallet during those 2 minutes, then stop. Host leaving → host migrates to another player.
-- **Pause and resume:** during a build phase the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any group that includes the host (the host is required).
-- **Communication:** a ping button with 4 quick messages (Help! · Over here · Brute! · Ready), each showing an icon on teammates' screens and edge arrows. No voice or text chat in v1.
+- **Join mid-run:** allowed during build phases only (endless too); the newcomer starts with a Pistol and 100 + 60 % of the team's average earnings so far, and the build timer gains +15 s once per phase; the next wave rescales (Epic 8 decisions, 2026-11-24: `docs/ideas/epic-8/decisions.md`).
+- **Disconnects:** a disconnected player's character is removed safely; they can rejoin within **2 minutes** with wallet and gear intact. Their turrets' kills keep paying into the held wallet during those 2 minutes, then stop. A player who drops while downed is out for that wave. After 2 minutes their seat is still remembered for the rest of the run. If nobody is connected, the fight freezes for up to 2 minutes. Host (Start, Save and quit, Remove player) moves at once to the longest-connected player when the host leaves or drops.
+- **Pause and resume:** during a build phase the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any account that was in the run (at most 3 saves per account). Everyone leaving mid-wave loses the run; a server restart or everyone leaving in a build phase keeps it.
+- **Communication:** a ping button with 4 quick messages (Help! · Over here · Big one! · Ready), each showing an icon on teammates' screens and edge arrows. No voice or text chat in v1.
 - **Fairness and feel:** all players see the same horde; the server decides hits. Your own movement, aiming and muzzle flash respond instantly on your device; at 150 ms latency, fewer than 1 shot in 20 that looks like a hit on your screen is reversed.
 - **Not in v1:** matchmaking with strangers, voice chat, PvP (parked for a later mode).
 
@@ -164,7 +164,7 @@ Numbers for each are in the sections below.
 - **Pick a district → lobby (2–4 players) → build phase → 10 waves → evacuation vote → extract or endless.**
 - A run is ≈ 20–25 minutes to wave 10.
 - **Permadeath is per run:** when the team is wiped, the run ends; meta-progression (see Player Progression) persists.
-- **Pause and resume:** the host can pause the run during a build phase; the run state is kept on the server and resumed later by any group that includes the host [details in Multiplayer Considerations].
+- **Pause and resume:** the host can pause the run during a build phase; the run state is kept on the server and resumed later by any account that was in the run [details in Multiplayer Considerations].
 - **Seeds:** every run has a seed that drives its random choices (events, decay variations, shop cards) for reproducible testing.
 ### Item and Upgrade System
 **Roguelike shop.** Each build phase shows:

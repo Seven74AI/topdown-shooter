@@ -18,6 +18,8 @@ export type SfxName =
   | "zombie_runner_shriek"
   | "building_mine_blast"
   | "building_upgraded"
+  // Story 5.20: a sell / take back (two bright coin pings).
+  | "building_sold"
   // Story 5.14: a bear trap's jaws snapping shut (a hard metallic clack, rate-limited like the blast).
   | "building_bear_trap_snap"
 
@@ -478,6 +480,11 @@ export function playSfx(name: SfxName, pan = 0, volume = 1): void {
       click(c, t, 2400, 0.55);
       click(c, t + 0.025, 1600, 0.45);
       burst(c, t, 0.05, 0.4, 3200);
+      break;
+    case "building_sold": // Story 5.20: coins: two quick high pings and a faint jingle
+      click(c, t, 2600, 0.3);
+      click(c, t + 0.07, 3300, 0.3);
+      burst(c, t + 0.02, 0.1, 0.2, 6000);
       break;
     case "building_upgraded": // Story 5.9: a metallic clank
       click(c, t, 1800, 0.4);

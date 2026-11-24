@@ -96,6 +96,9 @@ export function chainOffset(w: number, h: number, fx: number, fy: number, minSte
   return out;
 }
 
+/** Story 5.20 (5.11 R2): every building action is refused while downed or out. */
+export const NOT_ALIVE_TEXT = "Not while you're down";
+
 /** Player text for a refused placement (Story 3.4; Story 3.3's contract). */
 export function placeRefusalText(e: PlaceError, balance: Balance): string {
   switch (e) {
@@ -107,6 +110,8 @@ export function placeRefusalText(e: PlaceError, balance: Balance): string {
       return "Not enough money";
     case "not_build_phase":
       return "Only during the build phase";
+    case "not_alive":
+      return NOT_ALIVE_TEXT; // Story 5.20
     case "not_for_sale":
       return "Not for sale yet";
     case "unknown_type":

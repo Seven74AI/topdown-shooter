@@ -90,7 +90,10 @@ import { PLACED_HAPTIC_MS, REFUSED_HAPTIC, freshPlace, pickPopScale, placeSoundK
 import { vibrate } from "../audio/haptics";
 import { placementHintText, type HintContext } from "./blockText";
 import { ChipText, chipLeft } from "./chipText";
-import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
+import { RepairPanel, repairRefusalText, sellRefusalText, upgradeRefusalText } from "./repairPanel";
+import { UndoChip } from "./undoChip";
+import { BuildSpend } from "./buildSpend";
+import { haptic } from "../input/haptic";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
 import { CLOSED_SHOP, shopAllowed, shopStep, shopStore, type ShopInput } from "../ui/shopStore";
@@ -147,6 +150,8 @@ export function newRunSeed(): number {
 
 /** The fight: runs the World through a SimHost, draws it, and feeds it the local input. */
 /** Story 5.4: how long a teammate's ring flashes orange after my fire hurt them (ms). */
+/** Story 5.20 (ux-spec §10): a sell's short buzz (Android; ignored elsewhere). */
+const SOLD_HAPTIC_MS = 12;
 const FF_FLASH_MS = 250;
 const RUSH_COLOR = 0xff3b30;
 /** Short screen shake for heavy weapons (FR19); intensity is a fraction of the view size. */
@@ -358,6 +363,11 @@ export class GameScene extends Phaser.Scene {
   private barToast = "";
   /** Story 3.7: the repair panel on this device, the selected building's outline. */
   private readonly repairPanel = new RepairPanel();
+  /** Story 5.20: the undo chip ↶ (the last Place's take-back) and what I paid per building this build phase (the panel's label). */
+  private readonly undo = new UndoChip();
+  private readonly buildSpend = new BuildSpend();
+  private readonly spentOn = (id: number): number => this.buildSpend.spentOn(id);
+  private readonly sellNow = (id: number): void => this.host?.sellBuilding(id);
   private selectView: BuildingSelectView | null = null;
   /** A teammate's display name for the panel (called only when its texts change). */
   private readonly ownerName = (ownerId: string): string => this.host?.playerInfo(ownerId).name ?? ownerId;
@@ -459,6 +469,8 @@ export class GameScene extends Phaser.Scene {
     this.handEmptiedMs = Number.NEGATIVE_INFINITY;
     this.refusalTexts.clear();
     this.repairPanel.close(); // Story 3.7: no selection from the last run
+    this.undo.clear(); // Story 5.20: no undo nor spend from the last run
+    this.buildSpend.reset();
     this.ready.reset(); // Phaser reuses this scene object (restart): no Ready from the last run
     this.myReady = false;
     this.statusSecs = -1;
@@ -614,6 +626,7 @@ export class GameScene extends Phaser.Scene {
       this.medStationView?.destroy();
       this.medStationView = null;
       this.repairPanel.close();
+      this.undo.clear();
       this.selectView?.destroy();
       this.selectView = null;
       offLeft?.();
@@ -982,6 +995,7 @@ export class GameScene extends Phaser.Scene {
     if (!stats) return;
     footprint(stats, req.gx, req.gy, req.rot, this.pendingBox);
     if (!this.pending.add(req, stats.price, this.pendingBox, newestBuildingId(world), world.run.phase, world.waves.number)) host.placeBuilding(req); // pool full (never with 6 counted): send unpaced
+    else this.undo.placed(this.pending.lastOrder, this.time.now, world.waves.number); // Story 5.20: ↶ for 10 s
   }
 
   /** Story 5.18 (review M2): this frame's context for the two scene steps of `runPendingFrame` (one object). */
@@ -1146,7 +1160,8 @@ export class GameScene extends Phaser.Scene {
     const press = m.repairPressed;
     const close = m.repairClosePressed;
     const upgrade = m.upgradePressed; // Story 5.9
-    m.worldTap = m.repairPressed = m.repairClosePressed = m.upgradePressed = false;
+    const sell = m.sellPressed; // Story 5.20
+    m.worldTap = m.repairPressed = m.repairClosePressed = m.upgradePressed = m.sellPressed = false;
     if (allowed && tap) {
       const w = this.cameras.main.getWorldPoint(m.worldTapX, m.worldTapY, this.cursorWorld);
       p.tap(host.world, w.x, w.y);
@@ -1158,7 +1173,12 @@ export class GameScene extends Phaser.Scene {
       const id = p.pressUpgrade(host.world);
       if (id !== 0) host.upgradeBuilding(id);
     }
-    m.repairOpen = p.update(host.world, host.localPlayerId, allowed, this.ownerName);
+    if (sell && allowed && p.open) {
+      // Story 5.20: Take back / Sell; the building goes and the refund lands when the World says so.
+      const id = p.pressSell();
+      if (id !== 0) host.sellBuilding(id);
+    }
+    m.repairOpen = p.update(host.world, host.localPlayerId, allowed, this.ownerName, this.spentOn);
     if (m.repairOpen) {
       m.repairInfo = p.info;
       m.repairReason = p.reason;
@@ -1166,9 +1186,52 @@ export class GameScene extends Phaser.Scene {
       m.upgradeShown = p.upgradeShown;
       m.upgradeLabel = p.upgradeLabel;
       m.upgradeReason = p.upgradeReason;
+      m.sellShown = p.sellShown;
+      m.sellLabel = p.sellLabelText;
+      m.sellReason = p.sellReason;
     }
   }
 
+  /**
+   * Story 5.20 (AC 6, 7): the undo chip, once per frame after the pending boxes were matched and
+   * the host stepped. It shows in a build phase while I'm standing, with the build bar or the hand
+   * cluster up (hidden behind the menu, the shop and the repair panel); a press sells the last
+   * Place's building, or arms the undo until its pending box becomes the building.
+   */
+  private updateUndo(host: SceneHost, menuOpen: boolean, shopOpen: boolean): void {
+    const m = this.hudModel;
+    const press = m.undoPressed;
+    m.undoPressed = false;
+    const standing = this.canPlace(host, false);
+    const shown = !menuOpen && !shopOpen && !this.repairPanel.open;
+    const u = this.undo;
+    const build = host.world.balance.controls.build;
+    u.update(host.world, host.localPlayerId, this.pending, this.time.now, build.undoWindowMs, build.pendingTimeoutMs, standing, shown, this.sellNow);
+    if (press) {
+      const id = u.press(this.time.now);
+      if (id !== 0) host.sellBuilding(id);
+      u.update(host.world, host.localPlayerId, this.pending, this.time.now, build.undoWindowMs, build.pendingTimeoutMs, standing, shown, this.sellNow);
+    }
+    m.undoVisible = u.visible;
+    m.undoProgress = u.progress;
+    m.undoArmed = u.armed;
+    m.undoHolding = this.placement.active;
+  }
+
+  /** Story 5.20 (AC 9): my sell's "+$N" floats up at the building, with a 12 ms haptic (the coins sound is FxView's). */
+  private onSold(e: Extract<SimEvent, { type: "building.sold" }>, localId: string): void {
+    if (e.ownerId !== localId) return;
+    const m = this.hudModel;
+    // The refund's `money.earned` (same tick, just before) would also pop "+N" by the survivor: the sold pop replaces it.
+    m.moneyGain = Math.max(0, m.moneyGain - e.refund);
+    if (m.soldPopCount < m.soldPopX.length) {
+      m.soldPopX[m.soldPopCount] = e.x;
+      m.soldPopY[m.soldPopCount] = e.y;
+      m.soldPopAmount[m.soldPopCount] = e.refund;
+      m.soldPopCount++;
+    }
+    haptic(SOLD_HAPTIC_MS);
+  }
   /** Story 5.12: the consumable button's inputs (reused every frame) and its pending use. */
   private readonly consumableIn: ConsumableButtonInput = { item: null, count: 0, kind: null, alive: false, running: false, placement: false, shopOpen: false, menuOpen: false, phase: "lobby", hp: 0, maxHp: 1 };
   private readonly consumablePending = createConsumablePending();
@@ -1477,6 +1540,10 @@ export class GameScene extends Phaser.Scene {
       this.repairPanel.upgradeRefused();
       this.toasts.push(upgradeRefusalText(upgradeRefused));
     }
+    const sellRefused = host.takeSellRefusal(); // Story 5.20
+    if (sellRefused) this.toasts.push(sellRefusalText(sellRefused));
+    this.buildSpend.watchUsed(host.world, localId); // Story 5.20 review M1: a med station that healed sells at the normal share
+    this.updateUndo(host, menuOpen, shopOpen); // Story 5.20: after the boxes were matched (an armed undo sends here)
     const events = host.drainEvents();
     const ps = this.placedSoundsThisFrame;
     ps.thunk = ps.clank = ps.click = false;
@@ -1484,6 +1551,8 @@ export class GameScene extends Phaser.Scene {
       const e = events[i];
       if (!e) continue;
       this.fxView?.handle(e);
+      this.buildSpend.handle(e, localId, host.world.balance); // Story 5.20: the panel's Take back / Sell label
+      if (e.type === "building.sold") this.onSold(e, localId);
       // Story 4.8 hurt cue; Story 4.11: my hits also queue a "-N" for the HUD.
       routeFireHit(e, localId, this.time.now, this.fireCue, this.hudModel, this.slotOfPlayer);
       // Story 5.4: the flame cones (burst edges) and the flamer's own friendly-fire cue.

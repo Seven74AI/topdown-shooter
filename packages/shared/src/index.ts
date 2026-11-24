@@ -86,7 +86,7 @@ export { createDecayState, fireRecordOf, legalDecayMasks, pickDecayVariants, sta
 export { applyDecayStage } from "./decay/applyDecayStage";
 // Story 5.10: the derived light-source list; med station healing.
 export { createLightState, lightsOf, updateLightState, type LightKind, type LightSource, type LightState } from "./decay/lightState";
-export { inHealReach, updateMedStations } from "./buildings/medStation";
+export { healsSomeoneNow, inHealReach, updateMedStations } from "./buildings/medStation";
 // Story 4.8: car fires.
 export { circleInFire, fireExpiry, firePulse, firePulseDamage, lightNewFires, segmentHitsFire, updateFires } from "./decay/fire";
 export { changeDecayStage, decayFinish, decayMutate, destroyBlockedBuildings, moveOutOfNewFires, relocateBodies, relocated, stageForComingWave } from "./decay/decaySystem";
@@ -229,6 +229,7 @@ export {
   buildingPlaceSchema,
   buildingRepairSchema,
   buildingUpgradeSchema,
+  buildingSellSchema,
   shopBuySchema,
   shopBuyItemSchema,
   type ShopBuyItem,
@@ -248,6 +249,8 @@ export {
   type BuildingRepairRefused,
   type BuildingUpgrade,
   type BuildingUpgradeRefused,
+  type BuildingSell,
+  type BuildingSellRefused,
   type C2SType,
   type JoinOptions,
   type JoinRefusal,
@@ -400,7 +403,8 @@ export { buildingCentreX, buildingCentreY, nearestZombieInRange, turretStats, up
 // Story 3.7: repairs.
 export { REPAIR_ERRORS, buildingAtPoint, isDamaged, repairBuilding, repairCost, repairError, type RepairError, type Repaired } from "./buildings/repair";
 // Story 5.9: walls vs floor, upgrades, spike traps, mines, the shared blast.
-export { setBuildingType } from "./buildings/buildings";
+export { setBuildingType, resetBuildSpend } from "./buildings/buildings";
+export { SELL_ERRORS, sellBuilding, sellError, sellRefund, sellRefundFor, type SellError, type Sold } from "./buildings/sell"; // Story 5.20
 export { UPGRADE_ERRORS, upgradeBuilding, upgradeError, upgradeStep, type UpgradeError, type Upgraded } from "./buildings/upgrade";
 export { trapCounters, updateTraps } from "./buildings/trap";
 export { mineCounters, updateMines } from "./buildings/mine";

@@ -27,6 +27,7 @@
     "chainMinStepM": 1.0,
     "barQuietMs": 300,
     "dragGain": 1.0,
-    "dragStartPx": 8
+    "dragStartPx": 8,
+    "undoWindowMs": 10000
   }
 }
