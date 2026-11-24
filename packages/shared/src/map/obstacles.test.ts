@@ -12,7 +12,8 @@ import { DOWNTOWN_MAP } from "./downtown";
 import { MAP_STAGE_COUNT, type MapBox } from "./districtMap";
 import { createObstacles } from "./obstacles";
 import { applyDecayStage } from "../decay/applyDecayStage";
-import { legalDecayMasks } from "../decay/decayState";
+import { masksForStage } from "../decay/masks.testkit";
+import { isSpawnBuried } from "../waves/spawnPick";
 import { FIRST_DECAY_STAGE, currentDecayStage } from "./decayStage";
 
 /** Story 4.2: the World's active obstacle lists per decay stage, on the real Downtown data. */
@@ -94,8 +95,9 @@ describe("obstacle lists (Story 4.2)", () => {
     const radii = [...new Set(Object.values(balance.zombies.types).map((t) => t.radiusM))];
     expect(Math.max(...radii)).toBe(maxZombieRadius(balance));
     // Story 4.5: every combination of the variation candidates (any run can pick any of them).
+    const buried = new Set<string>();
     for (let stage = 1; stage <= MAP_STAGE_COUNT; stage++)
-    for (const mask of legalDecayMasks(map)) {
+    for (const mask of masksForStage(map, stage)) {
       const world = createWorld({ balance, seed: 1, map });
       applyDecayStage(world, stage, mask);
       const at = { x: 0, y: 0 };
@@ -117,11 +119,18 @@ describe("obstacle lists (Story 4.2)", () => {
           const maxX = Math.max(lo.x, hi.x) + rz;
           const minY = Math.min(lo.y, hi.y) - rz;
           const maxY = Math.max(lo.y, hi.y) + rz;
+          // Story 6.2 (F5): a spawn buried under rubble is closed (the "buried" rule): exempt, and listed.
+          if (isSpawnBuried(world, map.spawnPoints.indexOf(sp))) {
+            buried.add(`${sp.name}@${stage}`);
+            continue;
+          }
           for (const c of world.obstacles.solids) {
             expect(minX < c.maxX && maxX > c.minX && minY < c.maxY && maxY > c.minY, `stage ${stage} mask ${mask}: ${sp.name} (r ${rz}) vs ${c.name}`).toBe(false);
           }
         }
       }
     }
+    // The only exemptions: the three alley mouths, each only at stages 4–5 (when its alley is the run's).
+    expect([...buried].sort()).toEqual(["alley_1_mouth@4", "alley_1_mouth@5", "alley_2_mouth@4", "alley_2_mouth@5", "alley_3_mouth@4", "alley_3_mouth@5"]);
   });
 });

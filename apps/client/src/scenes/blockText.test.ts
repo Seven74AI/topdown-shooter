@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOWNTOWN_MAP, bundledBalanceFiles, withOverrides, addBuildingAt, addPlayer, applyDecayStage, blockReason, buildingStats, createWorld, footprint, loadBalance, spawnZombie, type BlockReason, type Box, type MapBox } from "@topdown/shared";
+import { DOWNTOWN_MAP, bundledBalanceFiles, withOverrides, addBuildingAt, addPlayer, applyDecayStage, legalDecayMasks, blockReason, buildingStats, createWorld, footprint, loadBalance, spawnZombie, type BlockReason, type Box, type MapBox } from "@topdown/shared";
 import { COVER_WORDS, SOLID_NAMES, blockText, placementHintText, solidWord } from "./blockText";
 import { placeRefusalText } from "./placement";
 
@@ -45,11 +45,20 @@ describe("blockText (Story 5.17, AC 3)", () => {
     expect(explainSolid(w, "city_bus")).toBe("Blocked by the bus");
     expect(explainSolid(w, "sw_diner")).toBe("Blocked by a wall");
     // Every solid has a word; cover goes by kind, unknown names fall back to "a wall".
-    for (const s of w.obstacles.solids) expect(solidWord(s)).toMatch(/^(a|the) /);
+    for (const s of w.obstacles.solids) expect(solidWord(s)).toMatch(/^(a|the) |^rubble$/);
     expect(solidWord({ name: "mystery_box", minX: 0, minY: 0, maxX: 1, maxY: 1 })).toBe("a wall");
     expect(solidWord({ name: "x", kind: "sandbags", minX: 0, minY: 0, maxX: 1, maxY: 1 } as MapBox)).toBe(COVER_WORDS.sandbags);
     expect(solidWord(undefined)).toBe("a wall");
     expect(SOLID_NAMES.city_bus).toBe("the bus");
+  });
+
+  it("Story 6.2 (F3): every rubble box at stage 4 reads \"Blocked by rubble\" (one prefix rule)", () => {
+    const w = downtown();
+    applyDecayStage(w, 4, legalDecayMasks(DOWNTOWN_MAP)[0] as number);
+    const rubble = w.obstacles.solids.map((s, i) => ({ s, i })).filter(({ s }) => s.name.startsWith("rubble_"));
+    expect(rubble.length).toBeGreaterThanOrEqual(4); // 3 piles + the alley (liveness)
+    for (const { i } of rubble) expect(blockText(w, reason({ cause: "solid", index: i }), names)).toBe("Blocked by rubble");
+    expect(solidWord({ name: "rubble_pile_9", minX: 0, minY: 0, maxX: 1, maxY: 1 })).toBe("rubble");
   });
 
   it("cap and money come before the spot (5.16's texts); other errors fall back to the 3.4 text", () => {

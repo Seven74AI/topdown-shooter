@@ -19,6 +19,8 @@ import { ZOMBIE_TYPES, isWindupState, type ZombieTypeId } from "../zombies/zombi
 import { killZombie, spawnZombie } from "../zombies/zombiePool";
 import { applyDecayStage } from "./applyDecayStage";
 import { circleInFire, fireRecordOf, legalDecayMasks } from "./decayState";
+import { masksForStage } from "./masks.testkit";
+import { isSpawnBuried } from "../waves/spawnPick";
 import { changeDecayStage, relocated } from "./decaySystem";
 
 /**
@@ -164,8 +166,9 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
     const hi = { x: 0, y: 0 };
     const at = { x: 0, y: 0 };
     let checked = 0;
+    const buried = new Set<string>();
     for (let stage = 1; stage <= 5; stage++) {
-      for (const mask of MASKS) {
+      for (const mask of masksForStage(DT, stage)) {
         const w = createWorld({ balance, seed: 1, map: DT });
         applyDecayStage(w, stage, mask);
         addPlayer(w, "p0", DT.widthM / 2, DT.heightM / 2);
@@ -180,7 +183,12 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
         expect([unreached, closed], `stage ${stage} mask ${mask}`).toEqual([0, 0]);
         for (const rz of radii) {
           const jitter = spawnJitterFor(balance, rz); // Story 5.7: per type (a wide body jitters less)
-          for (const sp of DT.spawnPoints) {
+          for (const [i, sp] of DT.spawnPoints.entries()) {
+            // Story 6.2 (F5): a spawn buried under the collapsed alley is closed: exempt, and listed.
+            if (isSpawnBuried(w, i)) {
+              buried.add(sp.name);
+              continue;
+            }
             jitteredSpawn(w, sp, -jitter, rz, lo);
             jitteredSpawn(w, sp, jitter, rz, hi);
             const area: MapBox = { name: sp.name, minX: Math.min(lo.x, hi.x) - rz, maxX: Math.max(lo.x, hi.x) + rz, minY: Math.min(lo.y, hi.y) - rz, maxY: Math.max(lo.y, hi.y) + rz };
@@ -194,7 +202,8 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
         checked++;
       }
     }
-    expect(checked).toBe(5 * 45); // Story 4.8: 45 combinations (fires pick 2 of 3); liveness: every combination ran
+    expect(checked).toBe(3 * 45 + 2 * 135); // Story 4.8: 45 combinations (fires pick 2 of 3); Story 6.2: × 3 alleys at stages 4–5
+    expect([...buried].sort()).toEqual(["alley_1_mouth", "alley_2_mouth", "alley_3_mouth"]); // the only exemptions
   });
 
   it("nothing that appears at a decay stage lands within spawnClearM of a spawn, on another active obstacle or on a lit shop front", () => {
@@ -204,10 +213,20 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
       ...DT.cover.filter((c) => c.minStage >= 2),
     ];
     expect(appearing.filter((b) => b.name.endsWith("_in_road"))).toHaveLength(6); // liveness: the movers are in the list
+    // Story 6.2: the only exemptions: a collapsed alley's heap over the spawn it buries (its own mouth).
+    const exempt = new Set<string>();
     for (const b of appearing) {
-      for (const sp of DT.spawnPoints) expect(circleOverlapsBox(sp.x, sp.y, clear, b.minX, b.minY, b.maxX, b.maxY), `${b.name} within ${clear} m of ${sp.name}`).toBe(false);
+      for (const sp of DT.spawnPoints) {
+        const buries = sp.x >= b.minX && sp.x <= b.maxX && sp.y >= b.minY && sp.y <= b.maxY;
+        if (buries) {
+          exempt.add(`${b.name}>${sp.name}`);
+          continue;
+        }
+        expect(circleOverlapsBox(sp.x, sp.y, clear, b.minX, b.minY, b.maxX, b.maxY), `${b.name} within ${clear} m of ${sp.name}`).toBe(false);
+      }
       for (const f of shopfrontsOf(DT)) expect(overlaps(b, f), `${b.name} on ${f.name}`).toBe(false);
     }
+    expect([...exempt].sort()).toEqual(["rubble_alley_1>alley_1_mouth", "rubble_alley_2>alley_2_mouth", "rubble_alley_3>alley_3_mouth"]);
     // A moved car never lands on another obstacle active with it (any combination, stages 2–5).
     for (const mask of MASKS) {
       for (let stage = 2; stage <= 5; stage++) {
@@ -251,7 +270,7 @@ describe("Story 4.7 Panic keeps the map fun (every combination, every stage)", (
 
   it("zombies reach us after Panic, on the real map, for every combination: a Walker from every spawn open at stage 2 (all types for 3 combinations)", () => {
     let spawnedTotal = 0;
-    for (const [k, mask] of MASKS.entries()) {
+    for (const [k, mask] of masksForStage(DT, 2).entries()) {
       const w = runWithMask(mask, 2);
       const types: readonly ZombieTypeId[] = k % 10 === 0 ? ZOMBIE_TYPES : ["walker"];
       changeStageAtBuild(w);

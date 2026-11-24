@@ -47,7 +47,10 @@ export type SfxName =
   // Story 6.5: the Behemoth's warning rumble, arrival roar and slam (not positional: team cues).
   | "boss_rumble"
   | "boss_roar"
-  | "boss_slam";
+  | "boss_slam"
+  // Story 6.2: the Ruins collapse rumble (stage 4 starts: D9) and a falling-debris patter (panned ambience, D10).
+  | "ruins_rumble"
+  | "debris_fall";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -522,6 +525,18 @@ export function playSfx(name: SfxName, pan = 0, volume = 1): void {
       roar(c, t, pan);
       roar(c, t + 0.25, pan);
       burst(c, t, 0.9, 0.8, 120);
+      break;
+    case "ruins_rumble": // Story 6.2 (D9): 2 s of low rumble with a crumbling tail
+      burst(c, t, 1.0, 0.8, 80);
+      burst(c, t + 0.6, 1.4, 0.7, 60);
+      burst(c, t + 0.2, 0.9, 0.35, 900);
+      break;
+    case "debris_fall": // Story 6.2 (D10): a few small stones (quiet, panned)
+      {
+        const out = outputFor(c, pan);
+        if (!out) break;
+        for (let i = 0; i < 3; i++) noiseInto(c, out, t + i * 0.07, 0.05, 0.18 - i * 0.04, 2400 - i * 500);
+      }
       break;
     case "boss_slam": // Story 6.5: a huge ground thump with a cracking tail
       burst(c, t, 0.45, 1, 110);

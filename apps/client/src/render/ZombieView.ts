@@ -147,9 +147,19 @@ export class ZombieView {
     this.images[id]?.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
   }
 
+  /**
+   * Story 6.4 (F3, F6): my screen's fog (null: none). Each zombie's alpha × its `visibility` at the
+   * drawn position; at 0 it is hidden (not drawn, no eyes). The sim never sees this (F4).
+   */
+  fog: { visibility(x: number, y: number): number } | null = null;
+  /** Zombies the fog hid this frame (tests, the perf overlay). */
+  fogHidden = 0;
+
   update(world: Readonly<World>, alpha: number): void {
     const z = world.zombies;
     const f = ++this.frame;
+    const fog = this.fog;
+    let hidden = 0;
     for (let i = 0; i < z.aliveCount; i++) {
       const id = z.aliveIds[i] as number;
       const type: ZombieTypeId = ZOMBIE_TYPES[z.type[id] as number] ?? "walker";
@@ -194,6 +204,15 @@ export class ZombieView {
         if (this.near.d2 < Infinity) this.lastAngle[id] = Math.atan2(this.near.py - drawY, this.near.px - drawX);
       }
       img.setPosition(drawX, drawY).setRotation(this.lastAngle[id] as number);
+      // Story 6.4: fade at the fog edge, hidden beyond it (one distance + ≤ 4 cone tests; no allocation).
+      const vis = fog ? fog.visibility(drawX, drawY) : 1;
+      if (vis <= 0) {
+        hidden++;
+        if (img.visible) img.setVisible(false);
+      } else {
+        if (!img.visible) img.setVisible(true);
+        if (img.alpha !== vis) img.setAlpha(vis);
+      }
       const cue = lookOf(type).cue;
       if (cue) {
         const pan = this.cues.check(id, gen, drawX, drawY, this.scene.cameras.main.worldView, this.scene.time.now / 1000);
@@ -228,6 +247,7 @@ export class ZombieView {
       }
       this.shownFrame[id] = f;
     }
+    this.fogHidden = hidden;
     // Hide images whose zombie is gone.
     for (let id = 0; id < this.images.length; id++) {
       const img = this.images[id];

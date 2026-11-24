@@ -102,7 +102,7 @@ describe("Story 4.6 Evening: lit shop fronts", () => {
       }
       survived += placed.length;
     }
-    expect(survived).toBe(45 * 5); // Story 4.8: 45 combinations; liveness: every combination, every shop front
+    expect(survived).toBe(135 * 5); // Story 4.8: 45 combinations, Story 6.2: × 3 alleys; liveness: every combination, every shop front
   });
 
   it("the strips touch their shop (a strip touching nothing would lose its glow: skipped, and this test fails)", () => {

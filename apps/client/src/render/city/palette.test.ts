@@ -12,7 +12,9 @@ const P = MAP_PX_PER_M;
  * Story 4.7 review: the real combinations a run can pick (`legalDecayMasks`: 4 of the 6 moved cars ×
  * two of the three car fires (Story 4.8) = 45), each one checked at every stage.
  */
-const MASKS = legalDecayMasks(DOWNTOWN_MAP);
+const ALLEY_1 = DOWNTOWN_MAP.decayVariants.findIndex((v) => v.name === "ruins_alley_1");
+/** Story 6.2: the 45 car × fire combinations (alley 1: the alley pick only adds rubble at stage 4). */
+const MASKS = legalDecayMasks(DOWNTOWN_MAP).filter((m) => ((m >>> ALLEY_1) & 7) === 1);
 const sceneAt = (stage: number, mask = MASKS[0] as number): CityScene => downtownScene(stage, mask);
 
 /** Roof sample points (inside the parapet) and sidewalk points (away from the lamp bulbs). */

@@ -201,6 +201,8 @@ export class NetSimHost implements SimHost {
   private forgivenShots = 0;
   private readonly localSlot: number;
   private readonly aimDir = { x: 1, y: 0 };
+  /** Story 6.4 (F4): the aim-assist fog filter's shooter (my predicted position, my gear). */
+  private readonly aimShooter = { x: 0, y: 0, gear: 0 };
   private readonly localFired: FiredEvent[] = [];
   private readonly localSwung: SwungEvent[] = [];
   /** Story 5.5: my instant launches (id 0: the server's echo replaces them in the view). */
@@ -811,7 +813,12 @@ export class NetSimHost implements SimHost {
     dir.y = a.dirY;
     if (!isMouse) {
       this.cosmetics.ensureGrid();
-      assistAim(this.world, mx, my, a.dirX, a.dirY, stats.rangeM, dir);
+      // Story 6.4 (F4): the same fog filter as the server (my own beam along the aim, from my centre).
+      const me = this.world.players.get(this.localPlayerId);
+      this.aimShooter.x = px;
+      this.aimShooter.y = py;
+      this.aimShooter.gear = me ? me.gear : 0;
+      assistAim(this.world, mx, my, a.dirX, a.dirY, stats.rangeM, dir, null, this.aimShooter);
     }
     // Story 2.12: the seq's roll, the one the server (with lag compensation) gives its shot too.
     // Story 5.3: a pellet gun's centre aim has no roll (its fan does: `cosmetics.spawn` with the seq).

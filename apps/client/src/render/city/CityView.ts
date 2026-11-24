@@ -1,15 +1,16 @@
 import * as Phaser from "phaser";
-import type { DistrictMap, FireRecord, World } from "@topdown/shared";
+import { collapseStyleAt, isBlackout, isPowerOut, ruinsLookAt, type DistrictMap, type FireRecord, type World } from "@topdown/shared";
+import { lampOutAt } from "./lampFlicker";
 import { rainAlphaFor } from "./rainLook";
 import { MAX_ATLAS_PX, tileRects } from "./atlasLayout";
 import { MAP_PX_PER_M, carStyle, dressingFor, type Dressing } from "./dressing";
 import { BARRIER_LAMPS, blinkerSpots, drawGlow, drawLightmap, resetPatternTiles, type CityScene } from "./drawCity";
 import { bakeTiles } from "./bakeTiles";
 import { LAMP, LAMP_GLOW, nightAt } from "./palette";
-import { ATLAS_FX, FX_GLOW, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type AtlasCanvas } from "./spriteAtlas";
+import { ATLAS_FX, FX_ASH, FX_GLOW, FX_LAMP_DARK, FX_RAIN, FX_SPLASH, FX_VIGNETTE, ensureAtlases, type AtlasCanvas } from "./spriteAtlas";
 import { hash } from "./spriteArt";
 import { addCanvasTexture, releaseCanvas } from "./canvasTexture";
-import { staticKey } from "./stageFilter";
+import { lookKey, staticKey } from "./stageFilter";
 import { FIRE_RING_ALPHA, FIRE_RING_COLOR, FIRE_RING_GLOW_PX, damageTickPulse, fireRingGlowAlpha, fireRingWidthM, strokeFireRings, strokeFireRingGlows } from "./fireRing";
 import { FireView } from "./FireView";
 import { RebuildPhase, textureRegistry } from "../gfx/textureRegistry";
@@ -74,6 +75,19 @@ const BLINK_BARRIER_M = 1.1;
 const BLINK_COLOR = 0xff9628;
 /** Burning cars: at most this many drawn (Story 4.12: each a pooled particle fire, `FireView`). */
 const FIRE_LIGHTS = 4;
+/** Story 6.2: the lamp drop-out disc (lab `lampDark`: R 5.8 m), drawn MULTIPLY over the baked pool. */
+const LAMP_DARK_R_M = 5.8;
+/** Story 6.4 CO3 ash: flake size (m), fall speed × the rain's, drift (m/s), alpha. */
+const ASH_W_M = 0.07;
+const ASH_H_M = 0.045;
+const ASH_SPEED_K = 0.08;
+const ASH_DRIFT_MPS = 0.6;
+const ASH_ALPHA = 0.55;
+/** Story 6.4 CO4 flood: heavier rain (× the stage's rain level). */
+const FLOOD_RAIN_K = 1.3;
+/** `COLLAPSE_STYLES` indexes (shared `decay/collapse.ts`). */
+const STYLE_ASH = 2;
+const STYLE_FLOOD = 3;
 
 /**
  * Vignette: four edge bands, each this fraction of the view's smaller side (corners get two). Not
@@ -136,6 +150,16 @@ export class CityView {
   bakeCount = 0;
   /** Story 4.13: drops this view's entry from the texture registry. */
   private readonly unregisterRebuild: () => void;
+  /** Story 6.2: one MULTIPLY drop-out disc per streetlight (only the ones out this tick are visible). */
+  private readonly lampDark: Phaser.GameObjects.Image[] = [];
+  /** Stories 6.2 / 6.4: what the last bake showed (material, weather style, power). */
+  private ruinsLook = 0;
+  private collapseStyle = -1;
+  private powerOut = false;
+  /** Story 6.4: the rain pool currently draws ash (CO3). */
+  private ashing = false;
+  /** Story 6.2: lamps out this frame (tests / browser checks). */
+  lampsOut = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -143,7 +167,9 @@ export class CityView {
     /** Camera zoom (device px per metre) when the run starts: the bake density (D2). */
     zoomPxPerM: number,
     /** Story 4.12: `?fx=low`, half the fire particles. */
-    lowFx = false,
+    private readonly lowFx = false,
+    /** Story 6.2: the run seed (the server's online), the lamp flicker's key: every phone agrees. */
+    private readonly runSeed: () => number = () => 0,
   ) {
     this.dressing = dressingFor(map.name);
     this.atlas = ensureAtlases(scene);
@@ -173,11 +199,22 @@ export class CityView {
       this.flickerPool.setPosition(fl[0] / MAP_PX_PER_M, fl[1] / MAP_PX_PER_M).setVisible(true);
       this.flickerCore.setPosition(fl[0] / MAP_PX_PER_M, fl[1] / MAP_PX_PER_M).setVisible(true);
     }
+    // Story 6.2: the drop-out discs (MULTIPLY: below every character, above the baked street).
+    this.dressing.lamps.forEach(([x, y]) => {
+      this.lampDark.push(
+        scene.add
+          .image(x / MAP_PX_PER_M, y / MAP_PX_PER_M, ATLAS_FX, FX_LAMP_DARK)
+          .setDisplaySize(2 * LAMP_DARK_R_M, 2 * LAMP_DARK_R_M)
+          .setBlendMode(Phaser.BlendModes.MULTIPLY)
+          .setDepth(DYN_LIGHT_DEPTH)
+          .setVisible(false),
+      );
+    });
     for (let i = 0; i < 2; i++) this.busBlink.push(glowImg(BLINK_BUS_M, BLINK_COLOR));
     for (let i = 0; i < BARRIER_LAMPS; i++) this.barrierBlink.push(glowImg(BLINK_BARRIER_M, BLINK_COLOR));
     this.fireRing = scene.add.graphics().setDepth(FIRE_RING_DEPTH);
     this.fireRingGlow = scene.add.graphics().setDepth(FIRE_RING_DEPTH).setBlendMode(Phaser.BlendModes.ADD);
-    this.fireView = new FireView(scene, FIRE_LIGHTS, lowFx);
+    this.fireView = new FireView(scene, FIRE_LIGHTS, this.lowFx);
     for (let i = 0; i < RAIN_POOL; i++) {
       this.rain.push(scene.add.image(0, 0, ATLAS_FX, FX_RAIN).setDisplaySize(RAIN_W_M, RAIN_LEN_M).setRotation(-Math.atan(RAIN_SLANT)).setDepth(RAIN_DEPTH).setVisible(false));
       this.dropSpeed[i] = RAIN_SPEED_MPS + hash(i + 0.5) * RAIN_SPEED_VAR_MPS;
@@ -232,7 +269,23 @@ export class CityView {
     const o = world.obstacles;
     const stage = o.stage;
     this.stage = stage;
-    const cs: CityScene = { map: this.map, dressing: this.dressing, stage, cover: o.cover, walls: o.walls, fires: world.decay.fires, atlas: this.atlas };
+    // Stories 6.2 / 6.4: the run's material and weather style, the power (all derived from synced state).
+    this.ruinsLook = ruinsLookAt(world);
+    this.collapseStyle = collapseStyleAt(world);
+    this.powerOut = isPowerOut(world);
+    const cs: CityScene = {
+      map: this.map,
+      dressing: this.dressing,
+      stage,
+      cover: o.cover,
+      walls: o.walls,
+      fires: world.decay.fires,
+      atlas: this.atlas,
+      ruinsLook: this.ruinsLook,
+      collapseStyle: this.collapseStyle,
+      powerOut: this.powerOut,
+      lowFx: this.lowFx,
+    };
     const ls = LIGHT_PX_PER_M / MAP_PX_PER_M;
     for (const [canvas, draw] of [
       [this.light, drawLightmap],
@@ -301,7 +354,7 @@ export class CityView {
     // instead of baking stage 1 and baking again a moment later.
     if (!synced && this.shownKey < 0) return;
     const o = world.obstacles;
-    const key = staticKey(o.stage, o.version, world.decay.fires.length);
+    const key = staticKey(o.stage, o.version, world.decay.fires.length, lookKey(ruinsLookAt(world), collapseStyleAt(world)));
     if (key !== this.shownKey) {
       this.shownKey = key;
       this.showStage(world);
@@ -309,8 +362,15 @@ export class CityView {
     this.clockS += dtS;
     const t = this.clockS;
     const on = hash(Math.floor(t * FLICKER_HZ)) > FLICKER_ON;
+    // Story 6.4 (F1): the broken lamp is dark too once the power is out.
+    const lampsOn = !this.powerOut;
+    if (this.flickerPool.visible !== lampsOn && this.dressing.flickerLamp >= 0) {
+      this.flickerPool.setVisible(lampsOn);
+      this.flickerCore.setVisible(lampsOn);
+    }
     this.flickerPool.setAlpha(on ? 0.18 : 0.02);
     this.flickerCore.setAlpha(on ? 0.5 : 0.04);
+    this.updateLampFlicker(world);
     const bus = Math.sin(t * 2 * Math.PI * BLINK_BUS_HZ) > 0 ? 0.55 : 0;
     for (const b of this.busBlink) b.setAlpha(bus);
     const bar = Math.sin(t * 4 + 1) > 0 ? 0.45 : 0.1;
@@ -319,23 +379,32 @@ export class CityView {
     this.updateFireRing(t, world.balance.decay.fire.pulseS);
     this.fireView.update(dtS, t, viewX, viewY, viewW, viewH);
 
-    const level = nightAt(this.stage).rain;
-    const rainA = rainAlphaFor(world, RAIN_ALPHA); // Story 6.3 (D7): dimmed in a blackout; one compare per frame
+    // Story 6.4: CO3 ash replaces the rain (the same pool: slower, drifting grey flakes; `?fx=low` half),
+    // CO4 flood rains harder. Other stages and styles: the stage's rain.
+    const ash = this.stage >= 5 && this.collapseStyle === STYLE_ASH;
+    if (ash !== this.ashing) this.setAsh(ash);
+    const level = ash ? 0 : nightAt(this.stage).rain * (this.stage >= 5 && this.collapseStyle === STYLE_FLOOD ? FLOOD_RAIN_K : 1);
+    const rainA = ash ? ASH_ALPHA : rainAlphaFor(world, RAIN_ALPHA); // Story 6.3 (D7): dimmed in a blackout; one compare per frame
     const spanY = viewH + 2 * RAIN_MARGIN_M;
     const spanX = viewW + 2 * RAIN_MARGIN_M;
-    const n = Math.min(RAIN_POOL, Math.round(viewW * viewH * RAIN_PER_M2 * level));
+    const ashCap = Math.min(RAIN_POOL, world.balance.decay.collapse.maxAshFlakes);
+    const n = ash
+      ? Math.round((this.lowFx ? 0.5 : 1) * Math.min(ashCap, viewW * viewH * RAIN_PER_M2 * 0.5))
+      : Math.min(RAIN_POOL, Math.round(viewW * viewH * RAIN_PER_M2 * level));
+    const speedK = ash ? ASH_SPEED_K : 1;
     for (let i = 0; i < RAIN_POOL; i++) {
       const img = this.rain[i] as Phaser.GameObjects.Image;
       if (i >= n) {
         if (img.visible) img.setVisible(false);
         continue;
       }
-      const yOff = ((this.dropPhaseY[i] as number) * spanY + t * (this.dropSpeed[i] as number)) % spanY;
-      const xOff = ((this.dropPhaseX[i] as number) * spanX + yOff * RAIN_SLANT) % spanX;
+      const yOff = ((this.dropPhaseY[i] as number) * spanY + t * (this.dropSpeed[i] as number) * speedK) % spanY;
+      const drift = ash ? Math.sin(t * 0.8 + i) * 0.4 + t * ASH_DRIFT_MPS : yOff * RAIN_SLANT;
+      const xOff = ((((this.dropPhaseX[i] as number) * spanX + drift) % spanX) + spanX) % spanX;
       img.setPosition(viewX - RAIN_MARGIN_M + xOff, viewY - RAIN_MARGIN_M + yOff).setAlpha(rainA);
       if (!img.visible) img.setVisible(true);
     }
-    const splashes = Math.round(SPLASH_POOL * level);
+    const splashes = ash ? 0 : Math.round(SPLASH_POOL * Math.min(1, level));
     for (let i = 0; i < SPLASH_POOL; i++) {
       const img = this.splash[i] as Phaser.GameObjects.Image;
       if (i >= splashes) {
@@ -357,6 +426,34 @@ export class CityView {
     right.setPosition(viewX + viewW - band / 2, viewY + viewH / 2).setDisplaySize(viewH, band);
   }
 
+  /**
+   * Story 6.2 (F6, D7): at stage 4, while the power is on and no blackout is drawn, each lamp whose
+   * `lampOutAt(run seed, lamp, World tick)` is true shows its drop-out disc (the broken lamp keeps its
+   * own fast flicker). The World tick is the server's online, so every phone agrees.
+   */
+  private updateLampFlicker(world: Readonly<World>): void {
+    const active = this.stage === 4 && !this.powerOut && !isBlackout(world as World);
+    const cfg = world.balance.decay.ruins;
+    const seed = this.runSeed();
+    let out = 0;
+    for (let i = 0; i < this.lampDark.length; i++) {
+      const img = this.lampDark[i] as Phaser.GameObjects.Image;
+      const show = active && i !== this.dressing.flickerLamp && lampOutAt(seed, i, world.tick, cfg);
+      if (show) out++;
+      if (img.visible !== show) img.setVisible(show);
+    }
+    this.lampsOut = out;
+  }
+
+  /** Story 6.4: switch the rain pool between rain drops and CO3 ash flakes. */
+  private setAsh(ash: boolean): void {
+    this.ashing = ash;
+    for (const img of this.rain) {
+      if (ash) img.setFrame(FX_ASH).setDisplaySize(ASH_W_M, ASH_H_M).setRotation(0).setTint(0xb8b2a8);
+      else img.setFrame(FX_RAIN).setDisplaySize(RAIN_W_M, RAIN_LEN_M).setRotation(-Math.atan(RAIN_SLANT)).clearTint();
+    }
+  }
+
   destroy(): void {
     this.unregisterRebuild();
     for (const l of this.tiles) {
@@ -371,6 +468,6 @@ export class CityView {
     this.fireRing.destroy();
     this.fireRingGlow.destroy();
     this.fireView.destroy();
-    for (const img of [this.flickerPool, this.flickerCore, ...this.busBlink, ...this.barrierBlink, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
+    for (const img of [this.flickerPool, this.flickerCore, ...this.lampDark, ...this.busBlink, ...this.barrierBlink, ...this.rain, ...this.splash, ...this.vignette]) img.destroy();
   }
 }

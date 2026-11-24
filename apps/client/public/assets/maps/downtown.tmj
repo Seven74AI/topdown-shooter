@@ -933,6 +933,64 @@
      "width": 0,
      "x": 1424,
      "y": 211.2
+    },
+    {
+     "height": 0,
+     "id": 43,
+     "name": "breach_apartments",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "breach"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "x"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 448,
+     "y": 339.2
+    },
+    {
+     "height": 0,
+     "id": 44,
+     "name": "breach_offices",
+     "point": true,
+     "properties": [
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "breach"
+      },
+      {
+       "name": "minStage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "jitterAxis",
+       "type": "string",
+       "value": "y"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 940.8,
+     "y": 944
     }
    ],
    "opacity": 1,
@@ -948,7 +1006,7 @@
    "objects": [
     {
      "height": 240,
-     "id": 43,
+     "id": 45,
      "name": "gas_leak_zone",
      "properties": [
       {
@@ -982,345 +1040,8 @@
    "name": "decay",
    "objects": [
     {
-     "height": 48,
-     "id": 44,
-     "name": "dumpster_alley_3",
-     "properties": [
-      {
-       "name": "stage",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "action",
-       "type": "string",
-       "value": "block"
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 48,
-     "x": 1216,
-     "y": 832
-    },
-    {
-     "height": 16,
-     "id": 45,
-     "name": "police_line_lot",
-     "properties": [
-      {
-       "name": "stage",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "action",
-       "type": "string",
-       "value": "add"
-      },
-      {
-       "name": "kind",
-       "type": "string",
-       "value": "barrier"
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 304,
-     "x": 336,
-     "y": 704
-    },
-    {
-     "height": 320,
-     "id": 46,
-     "name": "police_line_gas",
-     "properties": [
-      {
-       "name": "stage",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "action",
-       "type": "string",
-       "value": "add"
-      },
-      {
-       "name": "kind",
-       "type": "string",
-       "value": "barrier"
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 16,
-     "x": 896,
-     "y": 0
-    },
-    {
-     "height": 64,
-     "id": 47,
-     "name": "curb_car_west_far_in_road",
-     "properties": [
-      {
-       "name": "stage",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "action",
-       "type": "string",
-       "value": "add"
-      },
-      {
-       "name": "kind",
-       "type": "string",
-       "value": "car"
-      },
-      {
-       "name": "group",
-       "type": "string",
-       "value": "panic_cars_moved"
-      },
-      {
-       "name": "variant",
-       "type": "string",
-       "value": "panic_move_curb_car_west_far"
-      },
-      {
-       "name": "pick",
-       "type": "int",
-       "value": 4
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 144,
-     "x": 80,
-     "y": 512
-    },
-    {
-     "height": 64,
-     "id": 48,
-     "name": "curb_car_west_n_in_road",
-     "properties": [
-      {
-       "name": "stage",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "action",
-       "type": "string",
-       "value": "add"
-      },
-      {
-       "name": "kind",
-       "type": "string",
-       "value": "car"
-      },
-      {
-       "name": "group",
-       "type": "string",
-       "value": "panic_cars_moved"
-      },
-      {
-       "name": "variant",
-       "type": "string",
-       "value": "panic_move_curb_car_west_n"
-      },
-      {
-       "name": "pick",
-       "type": "int",
-       "value": 4
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 144,
-     "x": 448,
-     "y": 464
-    },
-    {
-     "height": 144,
-     "id": 49,
-     "name": "curb_car_west_s_in_road",
-     "properties": [
-      {
-       "name": "stage",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "action",
-       "type": "string",
-       "value": "add"
-      },
-      {
-       "name": "kind",
-       "type": "string",
-       "value": "car"
-      },
-      {
-       "name": "group",
-       "type": "string",
-       "value": "panic_cars_moved"
-      },
-      {
-       "name": "variant",
-       "type": "string",
-       "value": "panic_move_curb_car_west_s"
-      },
-      {
-       "name": "pick",
-       "type": "int",
-       "value": 4
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 64,
-     "x": 496,
-     "y": 528
-    },
-    {
-     "height": 64,
-     "id": 50,
-     "name": "curb_car_north_in_road",
-     "properties": [
-      {
-       "name": "stage",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "action",
-       "type": "string",
-       "value": "add"
-      },
-      {
-       "name": "kind",
-       "type": "string",
-       "value": "car"
-      },
-      {
-       "name": "group",
-       "type": "string",
-       "value": "panic_cars_moved"
-      },
-      {
-       "name": "variant",
-       "type": "string",
-       "value": "panic_move_curb_car_north"
-      },
-      {
-       "name": "pick",
-       "type": "int",
-       "value": 4
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 144,
-     "x": 656,
-     "y": 256
-    },
-    {
-     "height": 64,
-     "id": 51,
-     "name": "curb_car_south_in_road",
-     "properties": [
-      {
-       "name": "stage",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "action",
-       "type": "string",
-       "value": "add"
-      },
-      {
-       "name": "kind",
-       "type": "string",
-       "value": "car"
-      },
-      {
-       "name": "group",
-       "type": "string",
-       "value": "panic_cars_moved"
-      },
-      {
-       "name": "variant",
-       "type": "string",
-       "value": "panic_move_curb_car_south"
-      },
-      {
-       "name": "pick",
-       "type": "int",
-       "value": 4
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 144,
-     "x": 784,
-     "y": 816
-    },
-    {
-     "height": 64,
-     "id": 52,
-     "name": "street_car_east_in_road",
-     "properties": [
-      {
-       "name": "stage",
-       "type": "int",
-       "value": 2
-      },
-      {
-       "name": "action",
-       "type": "string",
-       "value": "add"
-      },
-      {
-       "name": "kind",
-       "type": "string",
-       "value": "car"
-      },
-      {
-       "name": "group",
-       "type": "string",
-       "value": "panic_cars_moved"
-      },
-      {
-       "name": "variant",
-       "type": "string",
-       "value": "panic_move_street_car_east"
-      },
-      {
-       "name": "pick",
-       "type": "int",
-       "value": 4
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 144,
-     "x": 1168,
-     "y": 576
-    },
-    {
      "height": 0,
-     "id": 53,
+     "id": 46,
      "name": "parked_car_3_driven_off",
      "point": true,
      "properties": [
@@ -1348,8 +1069,87 @@
      "y": 896
     },
     {
+     "height": 48,
+     "id": 47,
+     "name": "dumpster_alley_3",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "block"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 48,
+     "x": 1216,
+     "y": 832
+    },
+    {
+     "height": 16,
+     "id": 48,
+     "name": "police_line_lot",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "barrier"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 304,
+     "x": 336,
+     "y": 704
+    },
+    {
+     "height": 320,
+     "id": 49,
+     "name": "police_line_gas",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "barrier"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 16,
+     "x": 896,
+     "y": 0
+    },
+    {
      "height": 0,
-     "id": 54,
+     "id": 50,
      "name": "curb_car_west_far_leaves_curb",
      "point": true,
      "properties": [
@@ -1392,8 +1192,51 @@
      "y": 544
     },
     {
+     "height": 64,
+     "id": 51,
+     "name": "curb_car_west_far_in_road",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "panic_cars_moved"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "panic_move_curb_car_west_far"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 4
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 144,
+     "x": 80,
+     "y": 512
+    },
+    {
      "height": 0,
-     "id": 55,
+     "id": 52,
      "name": "curb_car_west_n_leaves_curb",
      "point": true,
      "properties": [
@@ -1436,8 +1279,51 @@
      "y": 496
     },
     {
+     "height": 64,
+     "id": 53,
+     "name": "curb_car_west_n_in_road",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "panic_cars_moved"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "panic_move_curb_car_west_n"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 4
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 144,
+     "x": 448,
+     "y": 464
+    },
+    {
      "height": 0,
-     "id": 56,
+     "id": 54,
      "name": "curb_car_west_s_leaves_curb",
      "point": true,
      "properties": [
@@ -1480,8 +1366,51 @@
      "y": 600
     },
     {
+     "height": 144,
+     "id": 55,
+     "name": "curb_car_west_s_in_road",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "panic_cars_moved"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "panic_move_curb_car_west_s"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 4
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 64,
+     "x": 496,
+     "y": 528
+    },
+    {
      "height": 0,
-     "id": 57,
+     "id": 56,
      "name": "curb_car_north_leaves_curb",
      "point": true,
      "properties": [
@@ -1522,6 +1451,49 @@
      "width": 0,
      "x": 728,
      "y": 288
+    },
+    {
+     "height": 64,
+     "id": 57,
+     "name": "curb_car_north_in_road",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "panic_cars_moved"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "panic_move_curb_car_north"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 4
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 144,
+     "x": 656,
+     "y": 256
     },
     {
      "height": 0,
@@ -1568,8 +1540,51 @@
      "y": 848
     },
     {
-     "height": 0,
+     "height": 64,
      "id": 59,
+     "name": "curb_car_south_in_road",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "panic_cars_moved"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "panic_move_curb_car_south"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 4
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 144,
+     "x": 784,
+     "y": 816
+    },
+    {
+     "height": 0,
+     "id": 60,
      "name": "street_car_east_leaves_curb",
      "point": true,
      "properties": [
@@ -1612,8 +1627,51 @@
      "y": 608
     },
     {
+     "height": 64,
+     "id": 61,
+     "name": "street_car_east_in_road",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "add"
+      },
+      {
+       "name": "kind",
+       "type": "string",
+       "value": "car"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "panic_cars_moved"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "panic_move_street_car_east"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 4
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 144,
+     "x": 1168,
+     "y": 576
+    },
+    {
      "height": 0,
-     "id": 60,
+     "id": 62,
      "name": "fire_parked_car_2_ignites",
      "point": true,
      "properties": [
@@ -1657,7 +1715,7 @@
     },
     {
      "height": 0,
-     "id": 61,
+     "id": 63,
      "name": "fire_street_car_west_ignites",
      "point": true,
      "properties": [
@@ -1701,7 +1759,7 @@
     },
     {
      "height": 0,
-     "id": 62,
+     "id": 64,
      "name": "fire_parked_car_1_ignites",
      "point": true,
      "properties": [
@@ -1742,6 +1800,544 @@
      "width": 0,
      "x": 400,
      "y": 896
+    },
+    {
+     "height": 320,
+     "id": 65,
+     "name": "rubble_alley_1",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "block"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "ruins_alley"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "ruins_alley_1"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 96,
+     "x": 256,
+     "y": 0
+    },
+    {
+     "height": 320,
+     "id": 66,
+     "name": "rubble_alley_2",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "block"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "ruins_alley"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "ruins_alley_2"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 96,
+     "x": 224,
+     "y": 704
+    },
+    {
+     "height": 64,
+     "id": 67,
+     "name": "rubble_alley_2_corner",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "block"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "ruins_alley"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "ruins_alley_2"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 16,
+     "x": 320,
+     "y": 704
+    },
+    {
+     "height": 320,
+     "id": 68,
+     "name": "rubble_alley_3",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "block"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "ruins_alley"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "ruins_alley_3"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 96,
+     "x": 1216,
+     "y": 704
+    },
+    {
+     "height": 0,
+     "id": 69,
+     "name": "rubble_alley_3_buries_dumpster",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "remove"
+      },
+      {
+       "name": "target",
+       "type": "string",
+       "value": "dumpster_alley_3"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "ruins_alley"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "ruins_alley_3"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 1240,
+     "y": 856
+    },
+    {
+     "height": 48,
+     "id": 70,
+     "name": "rubble_pile_1",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "block"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 64,
+     "x": 320,
+     "y": 384
+    },
+    {
+     "height": 64,
+     "id": 71,
+     "name": "rubble_pile_2",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "block"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 48,
+     "x": 848,
+     "y": 64
+    },
+    {
+     "height": 48,
+     "id": 72,
+     "name": "rubble_pile_3",
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "block"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 64,
+     "x": 1184,
+     "y": 96
+    },
+    {
+     "height": 0,
+     "id": 73,
+     "name": "ruins_look_concrete",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "look"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "ruins_look"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "ruins_look_concrete"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 512
+    },
+    {
+     "height": 0,
+     "id": 74,
+     "name": "ruins_look_brick",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "look"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "ruins_look"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "ruins_look_brick"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 512
+    },
+    {
+     "height": 0,
+     "id": 75,
+     "name": "ruins_look_slab",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 4
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "look"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "ruins_look"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "ruins_look_slab"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 512
+    },
+    {
+     "height": 0,
+     "id": 76,
+     "name": "collapse_haze",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 5
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "look"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "collapse_style"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "collapse_haze"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 512
+    },
+    {
+     "height": 0,
+     "id": 77,
+     "name": "collapse_fog_bank",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 5
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "look"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "collapse_style"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "collapse_fog_bank"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 512
+    },
+    {
+     "height": 0,
+     "id": 78,
+     "name": "collapse_ash",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 5
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "look"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "collapse_style"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "collapse_ash"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 512
+    },
+    {
+     "height": 0,
+     "id": 79,
+     "name": "collapse_flood",
+     "point": true,
+     "properties": [
+      {
+       "name": "stage",
+       "type": "int",
+       "value": 5
+      },
+      {
+       "name": "action",
+       "type": "string",
+       "value": "look"
+      },
+      {
+       "name": "group",
+       "type": "string",
+       "value": "collapse_style"
+      },
+      {
+       "name": "variant",
+       "type": "string",
+       "value": "collapse_flood"
+      },
+      {
+       "name": "pick",
+       "type": "int",
+       "value": 1
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 0,
+     "x": 768,
+     "y": 512
     }
    ],
    "opacity": 1,
@@ -1760,7 +2356,7 @@
      "objects": [
       {
        "height": 64,
-       "id": 63,
+       "id": 80,
        "name": "sidewalk_nw",
        "properties": [
         {
@@ -1778,7 +2374,7 @@
       },
       {
        "height": 320,
-       "id": 64,
+       "id": 81,
        "name": "sidewalk_nw_east",
        "properties": [
         {
@@ -1796,7 +2392,7 @@
       },
       {
        "height": 64,
-       "id": 65,
+       "id": 82,
        "name": "sidewalk_sw",
        "properties": [
         {
@@ -1814,7 +2410,7 @@
       },
       {
        "height": 64,
-       "id": 66,
+       "id": 83,
        "name": "sidewalk_se",
        "properties": [
         {
@@ -1832,7 +2428,7 @@
       },
       {
        "height": 320,
-       "id": 67,
+       "id": 84,
        "name": "sidewalk_se_west",
        "properties": [
         {
@@ -1850,7 +2446,7 @@
       },
       {
        "height": 384,
-       "id": 68,
+       "id": 85,
        "name": "gas_forecourt",
        "properties": [
         {
@@ -1868,7 +2464,7 @@
       },
       {
        "height": 320,
-       "id": 69,
+       "id": 86,
        "name": "parking_lot",
        "properties": [
         {
@@ -1886,7 +2482,7 @@
       },
       {
        "height": 48,
-       "id": 70,
+       "id": 87,
        "name": "crosswalk_north",
        "properties": [
         {
@@ -1904,7 +2500,7 @@
       },
       {
        "height": 48,
-       "id": 71,
+       "id": 88,
        "name": "crosswalk_south",
        "properties": [
         {
@@ -1922,7 +2518,7 @@
       },
       {
        "height": 256,
-       "id": 72,
+       "id": 89,
        "name": "crosswalk_west",
        "properties": [
         {
@@ -1940,7 +2536,7 @@
       },
       {
        "height": 256,
-       "id": 73,
+       "id": 90,
        "name": "crosswalk_east",
        "properties": [
         {
@@ -1958,7 +2554,7 @@
       },
       {
        "height": 6.4,
-       "id": 74,
+       "id": 91,
        "name": "lane_west",
        "properties": [
         {
@@ -1976,7 +2572,7 @@
       },
       {
        "height": 6.4,
-       "id": 75,
+       "id": 92,
        "name": "lane_east",
        "properties": [
         {
@@ -1994,7 +2590,7 @@
       },
       {
        "height": 304,
-       "id": 76,
+       "id": 93,
        "name": "lane_north",
        "properties": [
         {
@@ -2012,7 +2608,7 @@
       },
       {
        "height": 304,
-       "id": 77,
+       "id": 94,
        "name": "lane_south",
        "properties": [
         {
@@ -2030,7 +2626,7 @@
       },
       {
        "height": 240,
-       "id": 78,
+       "id": 95,
        "name": "gas_canopy",
        "properties": [
         {
@@ -2060,7 +2656,7 @@
      "objects": [
       {
        "height": 64,
-       "id": 79,
+       "id": 96,
        "name": "shopfront_corner_shop",
        "properties": [
         {
@@ -2078,7 +2674,7 @@
       },
       {
        "height": 64,
-       "id": 80,
+       "id": 97,
        "name": "shopfront_apartments",
        "properties": [
         {
@@ -2096,7 +2692,7 @@
       },
       {
        "height": 64,
-       "id": 81,
+       "id": 98,
        "name": "shopfront_diner",
        "properties": [
         {
@@ -2114,7 +2710,7 @@
       },
       {
        "height": 64,
-       "id": 82,
+       "id": 99,
        "name": "shopfront_offices",
        "properties": [
         {
@@ -2132,7 +2728,7 @@
       },
       {
        "height": 64,
-       "id": 83,
+       "id": 100,
        "name": "shopfront_gas_kiosk",
        "properties": [
         {
@@ -2173,7 +2769,7 @@
      "objects": [
       {
        "height": 25.6,
-       "id": 84,
+       "id": 101,
        "name": "debris_west",
        "properties": [
         {
@@ -2191,7 +2787,7 @@
       },
       {
        "height": 25.6,
-       "id": 85,
+       "id": 102,
        "name": "debris_east",
        "properties": [
         {
@@ -2232,7 +2828,7 @@
      "objects": [
       {
        "height": 32,
-       "id": 86,
+       "id": 103,
        "name": "debris_mid",
        "properties": [
         {
@@ -2250,7 +2846,7 @@
       },
       {
        "height": 32,
-       "id": 87,
+       "id": 104,
        "name": "debris_south",
        "properties": [
         {
@@ -2288,7 +2884,134 @@
      "draworder": "topdown",
      "id": 14,
      "name": "stage4_props",
-     "objects": [],
+     "objects": [
+      {
+       "height": 22.4,
+       "id": 105,
+       "name": "ruins_debris_west",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 38.4,
+       "x": 262.4,
+       "y": 467.2
+      },
+      {
+       "height": 19.2,
+       "id": 106,
+       "name": "ruins_debris_north",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 32,
+       "x": 800,
+       "y": 147.2
+      },
+      {
+       "height": 22.4,
+       "id": 107,
+       "name": "ruins_debris_forecourt",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 38.4,
+       "x": 1139.2,
+       "y": 179.2
+      },
+      {
+       "height": 22.4,
+       "id": 108,
+       "name": "ruins_debris_south",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 32,
+       "x": 678.4,
+       "y": 915.2
+      },
+      {
+       "height": 22.4,
+       "id": 109,
+       "name": "ruins_spill_diner",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "spill"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 51.2,
+       "x": 172.8,
+       "y": 672
+      },
+      {
+       "height": 25.6,
+       "id": 110,
+       "name": "ruins_spill_breach_apartments",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "spill"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 51.2,
+       "x": 422.4,
+       "y": 345.6
+      },
+      {
+       "height": 51.2,
+       "id": 111,
+       "name": "ruins_spill_breach_offices",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "spill"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 25.6,
+       "x": 908.8,
+       "y": 921.6
+      }
+     ],
      "opacity": 1,
      "type": "objectgroup",
      "visible": true,
@@ -2310,7 +3033,188 @@
      "draworder": "topdown",
      "id": 16,
      "name": "stage5_props",
-     "objects": [],
+     "objects": [
+      {
+       "height": 22.4,
+       "id": 112,
+       "name": "collapse_debris_west",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 38.4,
+       "x": 262.4,
+       "y": 467.2
+      },
+      {
+       "height": 19.2,
+       "id": 113,
+       "name": "collapse_debris_north",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 32,
+       "x": 800,
+       "y": 147.2
+      },
+      {
+       "height": 22.4,
+       "id": 114,
+       "name": "collapse_debris_forecourt",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 38.4,
+       "x": 1139.2,
+       "y": 179.2
+      },
+      {
+       "height": 22.4,
+       "id": 115,
+       "name": "collapse_debris_south",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "debris"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 32,
+       "x": 678.4,
+       "y": 915.2
+      },
+      {
+       "height": 22.4,
+       "id": 116,
+       "name": "collapse_spill_diner",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "spill"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 51.2,
+       "x": 172.8,
+       "y": 672
+      },
+      {
+       "height": 25.6,
+       "id": 117,
+       "name": "collapse_spill_breach_apartments",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "spill"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 51.2,
+       "x": 422.4,
+       "y": 345.6
+      },
+      {
+       "height": 51.2,
+       "id": 118,
+       "name": "collapse_spill_breach_offices",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "spill"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 25.6,
+       "x": 908.8,
+       "y": 921.6
+      },
+      {
+       "height": 16,
+       "id": 119,
+       "name": "collapse_fallen_lamp",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "fallen_lamp"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 102.4,
+       "x": 633.6,
+       "y": 369.6
+      },
+      {
+       "height": 25.6,
+       "id": 120,
+       "name": "collapse_spill_apartments",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "spill"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 70.4,
+       "x": 499.2,
+       "y": 326.4
+      },
+      {
+       "height": 19.2,
+       "id": 121,
+       "name": "collapse_spill_south",
+       "properties": [
+        {
+         "name": "kind",
+         "type": "string",
+         "value": "spill"
+        }
+       ],
+       "rotation": 0,
+       "type": "",
+       "visible": true,
+       "width": 51.2,
+       "x": 742.4,
+       "y": 761.6
+      }
+     ],
      "opacity": 1,
      "type": "objectgroup",
      "visible": true,
@@ -2327,7 +3231,7 @@
   }
  ],
  "nextlayerid": 17,
- "nextobjectid": 88,
+ "nextobjectid": 122,
  "orientation": "orthogonal",
  "properties": [
   {

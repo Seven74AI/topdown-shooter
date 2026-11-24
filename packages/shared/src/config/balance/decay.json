@@ -5,11 +5,11 @@
   "relocateSearchRings": 12,
   "fire": { "radiusM": 2, "damagePerS": 10, "pulseS": 0.5, "durationWaves": 2, "navCostM": 10 },
   "blackout": {
-    "lightPctByWave": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "lightPctByWave": [0, 0, 0, 0, 0, 0, 0, 0, 10, 5],
     "powerFailureLightPct": 20,
     "endlessLightPct": 5,
     "halfDarkK": 0.5,
-    "halfDarkInBuild": false,
+    "halfDarkInBuild": true,
     "glowM": 1.6,
     "fireLightM": 4,
     "muzzleLightM": 3,
@@ -25,5 +25,23 @@
     "maxSparkles": 160,
     "rainK": 0.35,
     "hazardAboveDarkPct": 10
+  },
+  "ruins": {
+    "lampOutMinS": 0.15,
+    "lampOutMaxS": 0.6,
+    "lampGapMinS": 4,
+    "lampGapMaxS": 10,
+    "dustGapMinS": 0.6,
+    "dustGapMaxS": 1.6,
+    "maxDustSmoke": 40,
+    "maxDustGrit": 60,
+    "collapseBurstS": 2
+  },
+  "collapse": {
+    "powerOutFromStage": 5,
+    "fog": { "fromStage": 5, "waveClearM": 9, "waveRadiusM": 10, "buildClearM": 13, "buildRadiusM": 14 },
+    "growlMinS": 6,
+    "growlMaxS": 14,
+    "maxAshFlakes": 128
   }
 }

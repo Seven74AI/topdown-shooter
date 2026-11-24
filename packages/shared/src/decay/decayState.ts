@@ -101,13 +101,41 @@ export function fireRecordOf(m: DecayMutation, index: number, defaultRadiusM: nu
 }
 
 /**
- * Story 4.7: every variant mask `pickDecayVariants` can return for `map` (each group: every `pick`-
- * subset of its candidates; the product over groups), ascending. Tests and the fuzz walk them all
- * (Downtown: C(6,4) × 2 = 30). Not for the sim (allocates).
+ * Story 6.2: the bits of `map.decayVariants` whose candidates change gameplay (a group with at least
+ * one non-`look` object). The look groups (Ruins material, Collapse weather style) only change the
+ * picture. Allocates nothing but is O(decay); tests and tools only.
  */
-export function legalDecayMasks(map: DistrictMap): number[] {
+export function gameplayVariantMask(map: DistrictMap): number {
+  let mask = 0;
+  for (const m of map.decay) if (m.variant >= 0 && m.action !== "look") mask |= 1 << m.variant;
+  // Every candidate of a group whose objects are not all looks counts (a candidate may be empty of
+  // gameplay objects only if its group is a look group).
+  const gameplayGroups = new Set<string>();
+  map.decayVariants.forEach((v, i) => {
+    if ((mask >>> i) & 1) gameplayGroups.add(v.group);
+  });
+  map.decayVariants.forEach((v, i) => {
+    if (gameplayGroups.has(v.group)) mask |= 1 << i;
+  });
+  return mask >>> 0;
+}
+
+/**
+ * Story 4.7: every variant mask `pickDecayVariants` can return for `map` (each group: every `pick`-
+ * subset of its candidates; the product over groups), ascending. Tests and the fuzz walk them all.
+ * Not for the sim (allocates).
+ *
+ * Story 6.2: `gameplayOnly` (default TRUE) skips the look groups (`gameplayVariantMask`), whose
+ * objects are all `look`s: they never change obstacles, spawns or fires, so the gameplay tests walk
+ * Downtown's C(6,4) × C(3,2) × 3 alleys = 135 masks, not × 3 materials × 4 weather styles more.
+ * `{ gameplayOnly: false }` gives every full mask a run can pick.
+ */
+export function legalDecayMasks(map: DistrictMap, opts: { gameplayOnly?: boolean } = {}): number[] {
+  const gameplayOnly = opts.gameplayOnly ?? true;
+  const keep = gameplayOnly ? gameplayVariantMask(map) : 0xffffffff;
   const groups = new Map<string, { pick: number; bits: number[] }>();
   map.decayVariants.forEach((v, i) => {
+    if (((keep >>> i) & 1) === 0) return;
     const g = groups.get(v.group) ?? { pick: v.pick, bits: [] };
     g.bits.push(i);
     groups.set(v.group, g);

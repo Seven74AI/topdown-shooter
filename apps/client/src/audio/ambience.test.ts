@@ -5,6 +5,7 @@ import {
   AMBIENCE_LOOP_S,
   AmbiencePlayer,
   ambienceLoopData,
+  AMBIENCE_LOOPS,
   ambienceLoopForStage,
   ambienceLoopsReady,
   ambienceSynthStats,
@@ -19,8 +20,22 @@ import {
 /** Stories 4.6 / 4.7: the ambience follows the decay stage (pure part + the player on a fake WebAudio). */
 
 describe("ambience state (pure)", () => {
-  it("stage 1 → evening, 2+ → panic (until 4.8's rain)", () => {
-    expect([1, 2, 3, 4, 5].map(ambienceLoopForStage)).toEqual(["evening", "panic", "panic", "panic", "panic"]);
+  it("stage 1 → evening, 2–3 → panic, Story 6.2: 4 → ruins, Story 6.4: 5 → collapse (ash style: no rain bed)", () => {
+    expect([1, 2, 3, 4, 5].map((st) => ambienceLoopForStage(st))).toEqual(["evening", "panic", "panic", "ruins", "collapse"]);
+    expect([0, 1, 2, 3].map((style) => ambienceLoopForStage(5, style))).toEqual(["collapse", "collapse", "collapse_ash", "collapse"]);
+  });
+
+  it("Story 6.2 / 6.4: crossfades panic → ruins at stage 4 and ruins → collapse at stage 5 (once each)", () => {
+    const s = createAmbienceState();
+    expect(ambienceStep(s, 3, true, false)).toBe("start");
+    expect(ambienceStep(s, 4, true, false)).toBe("crossfade");
+    expect(s.playing).toBe("ruins");
+    expect(ambienceStep(s, 4, true, false)).toBe("none");
+    expect(ambienceStep(s, 5, true, false, 0)).toBe("crossfade");
+    expect(s.playing).toBe("collapse");
+    expect(ambienceStep(s, 5, true, false, 2)).toBe("crossfade"); // endless rotates into ash: the rain bed goes
+    expect(s.playing).toBe("collapse_ash");
+    for (const id of ["ruins", "collapse", "collapse_ash"] as const) expect(synthAmbienceLoop(id).some((v) => v !== 0)).toBe(true);
   });
 
   it("waits for unlocked audio, starts on the stage's loop, crossfades once per change, never per frame", () => {
@@ -153,7 +168,7 @@ describe("AmbiencePlayer (fake WebAudio)", () => {
     second.update(2);
     expect(second.playing).toBe("panic");
     expect(ambienceSynthStats.loops).toBe(synthesized); // nothing synthesized for the second run
-    expect(g.buffers.map((b) => b.length)).toEqual([AMBIENCE_LOOP_S * 22050, AMBIENCE_LOOP_S * 22050]);
+    expect(g.buffers.map((b) => b.length)).toEqual(AMBIENCE_LOOPS.map(() => AMBIENCE_LOOP_S * 22050));
     expect(g.buffers[1]).toEqual(ambienceLoopData("panic"));
     prewarmAmbience(() => {
       throw new Error("no second prewarm");
@@ -166,14 +181,14 @@ describe("AmbiencePlayer (fake WebAudio)", () => {
     const f = fakeContext();
     const p = new AmbiencePlayer(() => f.ctx, () => false, null);
     p.update(1);
-    expect(f.made).toHaveLength(5);
+    expect(f.made).toHaveLength(1 + 2 * AMBIENCE_LOOPS.length); // the bus + a gain and a source per loop
     p.dispose();
     const sources = f.made.filter((n) => n.started > 0);
-    expect(sources).toHaveLength(2);
+    expect(sources).toHaveLength(AMBIENCE_LOOPS.length);
     for (const s of sources) expect(s.stopped).toBeGreaterThanOrEqual(0);
     for (const n of f.made) expect(n.disconnected, `node ${n.id}`).toBe(1);
     p.update(1); // after dispose a new start would build fresh nodes, never touch the old ones
-    expect(f.made.slice(0, 5).every((n) => n.disconnected === 1)).toBe(true);
+    expect(f.made.slice(0, 1 + 2 * AMBIENCE_LOOPS.length).every((n) => n.disconnected === 1)).toBe(true);
   });
 
   it("nothing before the gesture; then fades the evening loop in; crossfades to panic over 3 s on stage 2; no nodes per frame; mutes while hidden", () => {
@@ -188,18 +203,15 @@ describe("AmbiencePlayer (fake WebAudio)", () => {
     p.update(1);
     expect(p.playing).toBe("evening");
     const built = f.count();
-    expect(built).toBe(5); // bus + (source, gain) × 2 loops, once
-    expect(f.ramps.map((r) => [r.value, r.at])).toEqual([
-      [1, 10 + AMBIENCE_CROSSFADE_S],
-      [0, 10 + AMBIENCE_CROSSFADE_S],
-    ]);
+    expect(built).toBe(1 + 2 * AMBIENCE_LOOPS.length); // bus + (source, gain) per loop, once
+    expect(f.ramps.map((r) => [r.value, r.at])).toEqual(AMBIENCE_LOOPS.map((id) => [id === "evening" ? 1 : 0, 10 + AMBIENCE_CROSSFADE_S]));
     f.ramps.length = 0;
     for (let i = 0; i < 600; i++) p.update(1); // 10 s of frames
     expect(f.count()).toBe(built);
     expect(f.ramps).toEqual([]);
     p.update(2); // the build start before wave 3
     expect(p.playing).toBe("panic");
-    expect(f.ramps.map((r) => r.value)).toEqual([0, 1]); // evening down, panic up
+    expect(f.ramps.map((r) => r.value)).toEqual(AMBIENCE_LOOPS.map((id) => (id === "panic" ? 1 : 0))); // evening down, panic up
     expect(f.ramps.every((r) => r.at === 10 + AMBIENCE_CROSSFADE_S)).toBe(true);
     f.ramps.length = 0;
     hidden = true;
