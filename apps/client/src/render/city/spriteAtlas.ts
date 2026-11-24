@@ -112,6 +112,15 @@ export const FX_CLOTH_SCRAP = frameName("fx", "clothscrap", "a");
  */
 export const FX_EYES = frameName("fx", "eyes", "a");
 export const FX_EYES_BRUTE = frameName("fx", "eyes", "brute");
+/**
+ * Story 6.2: the Ruins lamp drop-out (`lamp_dark`: a MULTIPLY disc, the lab's `lampDark`: dark grey
+ * centre to white edge, so the baked lamp pool is taken back out while the lamp is off), the falling
+ * debris dust puff (white, tinted per material) and a grit chip; Story 6.4: an ash flake (CO3).
+ */
+export const FX_LAMP_DARK = frameName("fx", "lampdark", "a");
+export const FX_DUST = frameName("fx", "dust", "a");
+export const FX_GRIT = frameName("fx", "grit", "a");
+export const FX_ASH = frameName("fx", "ash", "a");
 /** Eye frames: px per metre and the dots (radius, half spacing) in metres (main2.js › eyes: 0.035 m dots, 0.08 m off the centre line). */
 export const EYES_PX_PER_M = 160;
 export const EYES_DOT_M = { a: [0.035, 0.08], brute: [0.055, 0.13] } as const;
@@ -130,6 +139,10 @@ const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_CLOTH_SCRAP]: [16, 10],
   [FX_EYES]: [16, 40], // Story 6.3: 0.1 × 0.25 m at 160 px/m
   [FX_EYES_BRUTE]: [24, 64], // 0.15 × 0.4 m
+  [FX_LAMP_DARK]: [64, 64], // Story 6.2
+  [FX_DUST]: [48, 48],
+  [FX_GRIT]: [8, 8],
+  [FX_ASH]: [10, 6], // Story 6.4
   ...Object.fromEntries([2, 3, 4].map((lv) => [FX_TIER_MARKS[lv] as string, [Math.ceil(tierPlateWidth(lv) * FX_TIER_SCALE), TIER_PLATE_H * FX_TIER_SCALE] as const])),
 };
 
@@ -284,6 +297,36 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
     gr.addColorStop(1, "rgba(255,255,255,0)");
     g.fillStyle = gr;
     g.fillRect(x, y, w, h);
+  } else if (f.name === FX_LAMP_DARK) {
+    // main1.js › lampDark (R 5.8 m): multiplied, so white = unchanged.
+    const gr = g.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, w / 2);
+    gr.addColorStop(0, "rgb(70,72,86)");
+    gr.addColorStop(0.18, "rgb(120,122,136)");
+    gr.addColorStop(0.5, "rgb(200,202,210)");
+    gr.addColorStop(1, "rgb(255,255,255)");
+    g.fillStyle = gr;
+    g.fillRect(x, y, w, h);
+  } else if (f.name === FX_DUST) {
+    const gr = g.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, w / 2);
+    gr.addColorStop(0, "rgba(255,255,255,0.9)");
+    gr.addColorStop(0.55, "rgba(255,255,255,0.4)");
+    gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr;
+    g.fillRect(x, y, w, h);
+  } else if (f.name === FX_GRIT) {
+    g.fillStyle = "#ffffff";
+    g.beginPath();
+    g.moveTo(x + 1, y + 2);
+    g.lineTo(x + 6, y + 1);
+    g.lineTo(x + 7, y + 6);
+    g.lineTo(x + 2, y + 7);
+    g.closePath();
+    g.fill();
+  } else if (f.name === FX_ASH) {
+    g.fillStyle = "rgba(255,255,255,0.95)";
+    g.beginPath();
+    g.ellipse(x + w / 2, y + h / 2, w / 2 - 1, h / 2 - 1, 0.3, 0, Math.PI * 2);
+    g.fill();
   } else if (f.name === FX_GLOW) {
     const gr = g.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, w / 2);
     gr.addColorStop(0, "rgba(255,255,255,1)");

@@ -8,6 +8,17 @@ import { maxZombieRadius } from "../zombies/zombieTypes";
 import type { ZombieView } from "./rewind";
 import { bulletBlockT, bulletLineClear } from "./cover";
 import { bossBodyOn } from "../boss/bossState";
+import { createFogBeam, createFogRadii, fogRadiiOf, fogVisibility } from "../decay/collapse";
+import { flashlightOf } from "../player/flashlight";
+
+/** Story 6.4 (F4): who shoots (the fog filter's viewer: position and owned gear for the beam). */
+export interface AimShooter {
+  readonly x: number;
+  readonly y: number;
+  readonly gear: number;
+}
+const fogRadii = createFogRadii();
+const fogBeam = [createFogBeam()];
 
 const MIN_DIST_SQ = 1e-6;
 
@@ -23,6 +34,10 @@ const MIN_DIST_SQ = 1e-6;
  * Requires the zombie grid to be current (the combat system rebuilds it first).
  * Story 2.12: `view` (rewound positions and their grid) replaces the live positions when given.
  * Story 4.2: a zombie behind a shot blocker (car, bus, map box) is neither a target nor a raw hit.
+ * Story 6.4 (F4, D4): with `shooter` given and the Collapse fog on (`fogRadiiOf`), a zombie the
+ * shooter's fog hides (`fogVisibility` 0 from the shooter's centre, own beam only, along the aim) is
+ * never a candidate. Server, solo and the Predictor pass the same shooter, so they agree. The
+ * Behemoth is never hidden by fog (F6). Stages 1–4: unchanged (no fog).
  */
 export function assistAim(
   world: World,
@@ -33,6 +48,7 @@ export function assistAim(
   rangeM: number,
   out: { x: number; y: number },
   view: ZombieView | null = null,
+  shooter: AimShooter | null = null,
 ): number {
   out.x = dirX;
   out.y = dirY;
@@ -73,6 +89,16 @@ export function assistAim(
       }
     }
   }
+  // Story 6.4 (F4): the fog radii once per call; the shooter's own beam along the aim.
+  const fogOn = shooter !== null && fogRadiiOf(world, fogRadii).radiusM !== Infinity;
+  if (fogOn && shooter) {
+    const b = fogBeam[0] as (typeof fogBeam)[number];
+    b.x = shooter.x;
+    b.y = shooter.y;
+    b.facingX = dirX;
+    b.facingY = dirY;
+    b.cone = flashlightOf(world.balance, shooter.gear);
+  }
   for (let k = 0; k < count; k++) {
     const id = candidates[k] as number;
     if (!isZombieAlive(z, id)) continue;
@@ -92,6 +118,7 @@ export function assistAim(
     if ((vx * dirX + vy * dirY) / d < cosLimit) continue;
     if (d2 < bestD2) {
       if (!bulletLineClear(world, ox, oy, zx, zy)) continue; // Story 4.2: never bend a shot into cover
+      if (fogOn && shooter && fogVisibility(fogRadii, shooter.x, shooter.y, zx, zy, fogBeam, 1) <= 0) continue; // Story 6.4: never into the fog
       best = id;
       bossBest = false;
       bestD2 = d2;

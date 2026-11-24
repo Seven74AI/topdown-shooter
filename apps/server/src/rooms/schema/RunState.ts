@@ -123,6 +123,13 @@ const bossFields = {
   atkX: t.float32().default(0),
   atkY: t.float32().default(0),
   atkR: t.float32().default(0),
+  // Story 6.6: the charge lane's stop point + CRASH flag, the throw's chunk source (visual).
+  atkEndX: t.float32().default(0),
+  atkEndY: t.float32().default(0),
+  atkCrash: t.boolean().default(false),
+  atkSrc: t.uint8().default(0),
+  atkSrcX: t.float32().default(0),
+  atkSrcY: t.float32().default(0),
 };
 export const BossState = schema(bossFields, "BossState");
 export type BossState = SchemaType<typeof BossState>;
@@ -173,6 +180,19 @@ const runFields = {
   eventY: t.uint16().default(0),
   /** The stampede's lane (`map.stampedeLanes` index; 255 = none). */
   eventLane: t.uint8().default(255),
+  // Story 6.9: the supply crate (on change only): weapon index (255 none), the claimant's slot (255 none), its ticks.
+  crateWeapon: t.uint8().default(255),
+  crateClaimSlot: t.uint8().default(255),
+  crateClaimTicks: t.uint8().default(0),
+  // Story 6.10: the survivor NPC (cm, hp, `NPC_STATE`, look 0–2, leader slot 255 none) and its safe flag (cm).
+  npcX: t.uint16().default(0),
+  npcY: t.uint16().default(0),
+  npcHp: t.uint8().default(0),
+  npcState: t.uint8().default(0),
+  npcLook: t.uint8().default(0),
+  npcLeaderSlot: t.uint8().default(255),
+  safeX: t.uint16().default(0),
+  safeY: t.uint16().default(0),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

@@ -613,6 +613,7 @@ describe("Story 6.1: the full 10-wave curve", () => {
 
   it("F5: the last-5 rush in wave 10 (queue empty, 5 left → they rush)", () => {
     const { world, events } = setup({ runWaves: 10 });
+    world.debug.bossWaves = []; // the rush alone (Story 6.6: the wave-10 Behemoth throws at the player and kills zombies by the spot)
     world.waves.number = 9; // the next wave is 10 (single player at × 1.0: 400)
     skipWave(world); // no-op in a build; the build countdown starts wave 10
     for (let i = 0; i < 200 && world.run.phase !== "wave"; i++) step(world, TICK_DT_S);

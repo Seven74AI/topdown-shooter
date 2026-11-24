@@ -130,11 +130,11 @@ describe("Story 6.3 blackout light state (AC 1–4; F1, F7)", () => {
     return w;
   };
 
-  it("balance defaults: every lightPctByWave entry 0, power failure 20 %, endless 5 %, half 0.5 (off), glow 1.6 m, fire 4 m", () => {
-    expect(balance.decay.blackout).toMatchObject({ lightPctByWave: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], powerFailureLightPct: 20, endlessLightPct: 5, halfDarkK: 0.5, halfDarkInBuild: false, glowM: 1.6, fireLightM: 4, muzzleLightM: 3, muzzleLightS: 0.1, flameLightM: 3, explosionLightM: 5, explosionLightS: 0.15, eyesM: 14, maxStamps: 48, maxEyes: 150, maxSparkles: 160 });
+  it("balance: Story 6.4 sets waves 9 / 10 to 10 % / 5 % and half dark in builds; power failure 20 %, endless 5 %, half 0.5, glow 1.6 m, fire 4 m", () => {
+    expect(balance.decay.blackout).toMatchObject({ lightPctByWave: [0, 0, 0, 0, 0, 0, 0, 0, 10, 5], powerFailureLightPct: 20, endlessLightPct: 5, halfDarkK: 0.5, halfDarkInBuild: true, glowM: 1.6, fireLightM: 4, muzzleLightM: 3, muzzleLightS: 0.1, flameLightM: 3, explosionLightM: 5, explosionLightS: 0.15, eyesM: 14, maxStamps: 48, maxEyes: 150, maxSparkles: 160 });
   });
 
-  it("table 0 → no blackout in any phase of a normal run", () => {
+  it("table 0 → no blackout in the first build and wave of a normal run (Story 6.4: the dark starts at wave 9)", () => {
     const w = worldOf();
     startBuild(w);
     expect(isBlackout(w)).toBe(false);
@@ -208,7 +208,7 @@ describe("Story 6.3 blackout light state (AC 1–4; F1, F7)", () => {
     expect(on.lights.halfDark).toBe(true);
     startWave(on);
     expect(on.lights.halfDark).toBe(false);
-    const off = worldOf(withBlackout((x) => (x.lightPctByWave = [5, 5])));
+    const off = worldOf(withBlackout((x) => ((x.lightPctByWave = [5, 5]), (x.halfDarkInBuild = false))));
     startBuild(off);
     expect([off.lights.blackoutPct, off.lights.halfDark]).toEqual([0, false]);
   });

@@ -13,7 +13,7 @@ import { flowCellAt, snapshotPathing } from "../zombies/flowField";
 import { BOSS_STATE } from "./bossState";
 import { ticksFor } from "../core/time";
 import { recordBossThreat } from "./target";
-import { placeBoss, tickN } from "./testBoss";
+import { placeBoss, slamOnly, tickN } from "./testBoss";
 import { pushSurvivorsFromBody } from "./behemoth";
 
 /**
@@ -264,6 +264,7 @@ describe("Story 6.5 review M-new-1: survivors never freeze it", () => {
     w.debug.godMode = true;
     const target = addPlayer(w, "p0", 46, 16);
     placeBoss(w, 4, 16);
+    slamOnly(w); // Story 6.6: this is the 6.5 walk (charges and throws have their own tests)
     // Review LOW-3: the flank survivor overlaps the body by 0.3 m (not a tangent touch).
     const t = tank === "none" ? null : addPlayer(w, "p1", 4 + R + 0.4, tank === "flank" ? 16 + R + 0.4 - 0.3 : 16);
     let x0 = Number.NaN;

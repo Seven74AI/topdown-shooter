@@ -152,6 +152,19 @@ export interface RunStateView {
   readonly eventX: number;
   readonly eventY: number;
   readonly eventLane: number;
+  /** Story 6.9: the supply crate — `weaponIds` index (255 none), the claimant's player slot (255 none), its ticks on it. */
+  readonly crateWeapon: number;
+  readonly crateClaimSlot: number;
+  readonly crateClaimTicks: number;
+  /** Story 6.10: the survivor NPC (cm, HP, `NPC_STATE`, look 0–2, leader slot 255 none) and its safe flag (cm). */
+  readonly npcX: number;
+  readonly npcY: number;
+  readonly npcHp: number;
+  readonly npcState: number;
+  readonly npcLook: number;
+  readonly npcLeaderSlot: number;
+  readonly safeX: number;
+  readonly safeY: number;
 }
 
 /**
@@ -182,6 +195,14 @@ export interface BossStateView {
   readonly atkX: number;
   readonly atkY: number;
   readonly atkR: number;
+  /** Story 6.6: the charge lane's stop point (= atkX/Y otherwise) and whether it crashes there. */
+  readonly atkEndX: number;
+  readonly atkEndY: number;
+  readonly atkCrash: boolean;
+  /** Story 6.6: the throw's chunk source (`BOSS_THROW_SRC`) and spot (visual only). */
+  readonly atkSrc: number;
+  readonly atkSrcX: number;
+  readonly atkSrcY: number;
 }
 
 /**
@@ -265,6 +286,17 @@ export const RUN_STATE_FIELDS = {
   eventX: true,
   eventY: true,
   eventLane: true,
+  crateWeapon: true, // Story 6.9
+  crateClaimSlot: true,
+  crateClaimTicks: true,
+  npcX: true, // Story 6.10
+  npcY: true,
+  npcHp: true,
+  npcState: true,
+  npcLook: true,
+  npcLeaderSlot: true,
+  safeX: true,
+  safeY: true,
 } as const satisfies Record<Exclude<keyof RunStateView, "players" | "buildings" | "boss">, true>;
 
 /** Story 6.5: `BossStateView`'s fields (the server schema and the `?lag` copy check against it). */
@@ -286,4 +318,10 @@ export const BOSS_STATE_FIELDS = {
   atkX: true,
   atkY: true,
   atkR: true,
+  atkEndX: true,
+  atkEndY: true,
+  atkCrash: true,
+  atkSrc: true,
+  atkSrcX: true,
+  atkSrcY: true,
 } as const satisfies Record<keyof BossStateView, true>;

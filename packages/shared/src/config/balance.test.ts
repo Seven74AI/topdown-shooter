@@ -590,6 +590,39 @@ describe("Story 6.5 review L-e: boss.json cross-checks", () => {
   });
 });
 
+describe("Stories 6.6 + 6.7: boss.json charge, throw, enrage, killPay (AC 1)", () => {
+  it("the designer's numbers (D9 / D7, 6.7 D7)", () => {
+    const b = loadBalance().boss;
+    expect(b.charge).toMatchObject({ minM: 5, maxM: 12, minLaneM: 4, distM: 10, telegraphS: 1.0, speedMps: 12, laneWidthM: 4.8, damage: 30, shoveM: 2.5, shoveS: 0.2, zombieDamage: 30, recoverS: 1.0, cooldownS: 7, initialCooldownS: 2, stunS: 2, stunDamageMult: 1.5, sweepStepM: 0.1 });
+    expect(b.throw).toMatchObject({ minM: 8, unreachableMinM: 4.5, liftS: 1.0, flightS: 0.8, radiusM: 3, damage: 35, zombieDamage: 35, recoverS: 0.6, cooldownS: 6, initialCooldownS: 3, sourceRangeM: 6 });
+    expect(b.enrage).toMatchObject({ atHpFrac: 0.5, roarS: 1.5, roarRadiusM: 5, roarPushM: 1.5, speedMult: 1.3, cooldownMult: 0.7, gapMult: 0.7, crawlerEveryS: [8, 6, 5, 4], firstCrawlerS: 1.0, crawlerBehindM: 2.4, crawlerPlayerClearM: 1.5 });
+    expect(b.killPay).toBe(150);
+    expect(b.death.collapseS).toBe(1.5);
+  });
+
+  it("cross-checks: the lane's half-width beyond the grace, minLaneM ≤ distM, one Crawler interval per player count, whole ticks", () => {
+    const a = raw();
+    (a.boss as { charge: { laneWidthM: number } }).charge.laneWidthM = 0.5;
+    expect(() => loadBalance(a)).toThrow(/charge\.laneWidthM \/ 2 must exceed edgeGraceM/);
+    const b = raw();
+    (b.boss as { charge: { minLaneM: number } }).charge.minLaneM = 11;
+    expect(() => loadBalance(b)).toThrow(/charge\.minLaneM 11 exceeds distM 10/);
+    const c = raw();
+    (c.boss as { enrage: { crawlerEveryS: number[] } }).enrage.crawlerEveryS = [8, 6, 5];
+    expect(() => loadBalance(c)).toThrow(/crawlerEveryS needs 4 entries/);
+    const d = raw();
+    (d.boss as { throw: { liftS: number } }).throw.liftS = 1.01;
+    expect(() => loadBalance(d)).toThrow(/throw\.liftS must be whole ticks/);
+    const e = raw();
+    (e.boss as { enrage: { atHpFrac: number } }).enrage.atHpFrac = 1;
+    expect(() => loadBalance(e)).toThrow();
+    // Review L2: no other knock may share the charge shove's mm per tick (the Predictor's 6 m slide is keyed on it).
+    const f = raw();
+    (f.boss as { slam: { pushM: number } }).slam.pushM = 2.5; // 2.5 m over 4 ticks = 625 mm, the charge's step
+    expect(() => loadBalance(f)).toThrow(/charge shove step 625 mm\/tick equals the slam push step/);
+  });
+});
+
 describe("Story 6.8: events.json", () => {
   it("loads the starting values (2 per run in waves 3, 4, 6, 7, 8; 20–60 %; alarm 20 s + 15 s at 15 m; stampede 3 s + 10 s)", () => {
     const e = loadBalance().events;

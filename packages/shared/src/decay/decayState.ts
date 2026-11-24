@@ -101,13 +101,40 @@ export function fireRecordOf(m: DecayMutation, index: number, defaultRadiusM: nu
 }
 
 /**
- * Story 4.7: every variant mask `pickDecayVariants` can return for `map` (each group: every `pick`-
- * subset of its candidates; the product over groups), ascending. Tests and the fuzz walk them all
- * (Downtown: C(6,4) × 2 = 30). Not for the sim (allocates).
+ * Story 6.2: the bits of `map.decayVariants` whose candidates change gameplay (a group with at least
+ * one non-`look` object). The look groups (Ruins material, Collapse weather style) only change the
+ * picture. Allocates nothing but is O(decay); tests and tools only.
  */
-export function legalDecayMasks(map: DistrictMap): number[] {
+export function gameplayVariantMask(map: DistrictMap): number {
+  let mask = 0;
+  for (const m of map.decay) if (m.variant >= 0 && m.action !== "look") mask |= 1 << m.variant;
+  // Every candidate of a group whose objects are not all looks counts (a candidate may be empty of
+  // gameplay objects only if its group is a look group).
+  const gameplayGroups = new Set<string>();
+  map.decayVariants.forEach((v, i) => {
+    if ((mask >>> i) & 1) gameplayGroups.add(v.group);
+  });
+  map.decayVariants.forEach((v, i) => {
+    if (gameplayGroups.has(v.group)) mask |= 1 << i;
+  });
+  return mask >>> 0;
+}
+
+/**
+ * Story 4.7: every variant mask `pickDecayVariants` can return for `map` (each group: every `pick`-
+ * subset of its candidates; the product over groups), ascending: the masks a run can really pick,
+ * look groups included (Downtown: 135 gameplay × 3 materials × 4 weather styles = 1,620). Tests and
+ * the fuzz walk them. Not for the sim (allocates).
+ *
+ * Story 6.2 (review L3): `{ gameplayOnly: true }` skips the look groups (`gameplayVariantMask`); see
+ * `gameplayDecayMasks`.
+ */
+export function legalDecayMasks(map: DistrictMap, opts: { gameplayOnly?: boolean } = {}): number[] {
+  const gameplayOnly = opts.gameplayOnly ?? false;
+  const keep = gameplayOnly ? gameplayVariantMask(map) : 0xffffffff;
   const groups = new Map<string, { pick: number; bits: number[] }>();
   map.decayVariants.forEach((v, i) => {
+    if (((keep >>> i) & 1) === 0) return;
     const g = groups.get(v.group) ?? { pick: v.pick, bits: [] };
     g.bits.push(i);
     groups.set(v.group, g);
@@ -130,6 +157,16 @@ export function legalDecayMasks(map: DistrictMap): number[] {
     masks = next;
   }
   return masks.sort((a, b) => a - b);
+}
+
+/**
+ * Story 6.2: the GAMEPLAY masks only (look groups left at 0): every distinct obstacle / fire / spawn
+ * layout a run can have (Downtown: C(6,4) movers × C(3,2) fires × 3 collapsed alleys = 135). These
+ * are not run masks (a run always has one material and one style bit set); the looks never change
+ * the sim (`look` objects are skipped by `fillObstacles` / `applyDecayStage`), so gameplay tests walk these.
+ */
+export function gameplayDecayMasks(map: DistrictMap): number[] {
+  return legalDecayMasks(map, { gameplayOnly: true });
 }
 
 /**

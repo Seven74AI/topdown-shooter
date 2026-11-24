@@ -21,6 +21,8 @@ import { catchOnBearTraps } from "../buildings/bearTrap";
 import { BLOATER_SWELL_WEAPON, burstBurntSwells, startSwell, tickSwell } from "./bloater";
 import { killZombie } from "./zombiePool";
 import { stampedeContact, stampedeSteer, stampedeVel } from "../events/stampede";
+import { damageSurvivor, survivorTarget } from "../events/survivor";
+import type { SurvivorState } from "../events/eventState";
 
 /** Neighbours considered per zombie (scratch buffer, never allocated per tick). */
 const MAX_NEIGHBOURS = 64;
@@ -46,22 +48,34 @@ const fieldMode = new Uint8Array(ZOMBIE_POOL_CAPACITY);
 const swellDone = new Int32Array(ZOMBIE_POOL_CAPACITY);
 /** `steerByField` result (synchronous, one record). */
 const steer = { x: 0, y: 0 };
-/** Alive players this tick, rebuilt at the top of the system (no iterator allocation per zombie). */
-const alivePlayers: PlayerState[] = [];
+/**
+ * Story 6.10 (S3, DD2): what a zombie chases — a standing player or the survivor NPC (not a player:
+ * it joins only this list, the chase seeding and the Spitters' list). Both have x, y, radiusM, status.
+ */
+type ChaseTarget = PlayerState | SurvivorState;
+/** Alive players this tick, rebuilt at the top of the system (no iterator allocation per zombie); then the survivor. */
+const alivePlayers: ChaseTarget[] = [];
+/** How many of `alivePlayers` are players (the survivor, when alive, is the last entry). */
+let playerTargets = 0;
+/** This tick's survivor target (null: none), compared by reference. */
+let npc: SurvivorState | null = null;
 
 function collectAlivePlayers(world: World): void {
   alivePlayers.length = 0;
   world.players.forEach((p) => {
     if (p.status === "alive") alivePlayers.push(p);
   });
+  playerTargets = alivePlayers.length;
+  npc = survivorTarget(world); // Story 6.10 (S3): with no survivor the list is exactly as before
+  if (npc) alivePlayers.push(npc);
 }
 
-/** Nearest alive player to (x, y), or null. Ties keep the first player in insertion order. */
-function nearestAlivePlayer(x: number, y: number): PlayerState | null {
-  let best: PlayerState | null = null;
+/** Nearest alive target to (x, y), or null. Ties keep the first player in insertion order (the survivor last). */
+function nearestAlivePlayer(x: number, y: number): ChaseTarget | null {
+  let best: ChaseTarget | null = null;
   let bestD2 = Infinity;
   for (let i = 0; i < alivePlayers.length; i++) {
-    const p = alivePlayers[i] as PlayerState;
+    const p = alivePlayers[i] as ChaseTarget;
     if (p.status !== "alive") continue; // may go down mid-tick
     const dx = p.x - x;
     const dy = p.y - y;
@@ -77,7 +91,7 @@ function nearestAlivePlayer(x: number, y: number): PlayerState | null {
 /** Story 6.8 (F5): a standing player's centre is within `m` of (x, y). */
 function standingWithin(x: number, y: number, m: number): boolean {
   const m2 = m * m;
-  for (let i = 0; i < alivePlayers.length; i++) {
+  for (let i = 0; i < playerTargets; i++) {
     const p = alivePlayers[i] as PlayerState;
     if (p.status !== "alive") continue;
     const dx = p.x - x;
@@ -111,7 +125,12 @@ function lureSteer(world: World, id: number, x: number, y: number, speedMps: num
 }
 
 /** One zombie hit: damage, and the type's bite slow (Story 3.9: Crawlers). Story 5.7: the knockback (Brutes; never when the hit downs, F3). */
-function damagePlayer(world: World, p: PlayerState, stats: Readonly<ZombieTypeStats>, sourceZombieId: number): void {
+function damagePlayer(world: World, t: ChaseTarget, stats: Readonly<ZombieTypeStats>, sourceZombieId: number): void {
+  if (t === npc) {
+    damageSurvivor(world, stats.damage); // Story 6.10 (S3): its normal damage; no slow, no knock, no downed state
+    return;
+  }
+  const p = t as PlayerState;
   if (p.status !== "alive" || world.debug.godMode) return; // god mode: dev cheat / ?stress (Story 1.11)
   if (stats.biteSlowPct > 0) slowPlayer(p, stats.biteSlowPct, ticksFor(stats.biteSlowS));
   // Story 5.4: the one player-damage path (full damage: a zombie is no player's source). At 0 HP it
@@ -274,7 +293,7 @@ export const updateZombies: SystemFn = (world, dtS) => {
           !isRushState(pool.state[id] as number) &&
           d > flank.directWithinM &&
           !flankTimeSpent(world, id, d, speedMps * dtS * flank.closingSpeedFrac, maxFlankTicks) &&
-          (blocked || inFlankCone(world, target, x, y))
+          (blocked || (target !== npc && inFlankCone(world, target as PlayerState, x, y))) // 6.10: no aim, no cone
         ) {
           const f = world.pathing.flank;
           if (f.sourceTick >= 0 && world.tick - f.sourceTick <= flankMaxAge) steered = steerByField(world, f, world.pathing.nav, x, y, id);
@@ -485,7 +504,7 @@ function startWindup(world: World, id: number, stats: Readonly<ZombieTypeStats>)
  * stands in a slot narrower than the Brute (review M1: the wide field is seeded from the slot's
  * mouth, `wideGapRing` ≥ 2), the long `gapReachM`.
  */
-function swingReachFor(world: World, stats: Readonly<ZombieTypeStats>, p: PlayerState): number {
+function swingReachFor(world: World, stats: Readonly<ZombieTypeStats>, p: ChaseTarget): number {
   const normal = stats.radiusM + p.radiusM + stats.swingReachM;
   if (stats.gapReachM <= normal || !stats.wideBody) return normal;
   return wideGapRing(world, p.x, p.y) >= 2 ? stats.gapReachM : normal;

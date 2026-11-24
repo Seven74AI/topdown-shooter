@@ -78,7 +78,7 @@ export interface HeadlessRunLog {
   buildingsPlaced: number[];
   spent: number[];
   /** Money paid to the whole team by reason (kill, assist, revive, wave bonus). */
-  earnedBy: { kill: number; assist: number; revive: number; wave: number; refund: number };
+  earnedBy: { kill: number; assist: number; revive: number; wave: number; refund: number; boss: number; event: number };
   /** Turrets' kills (they pay the owner `buildingKillShare`; included in `earnedBy.kill`). */
   turretKills: number;
   /** Story 5.3: players' kills by weapon id (liveness of a new weapon in the sims). */
@@ -139,7 +139,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
     purchases: ids.map(() => []),
     buildingsPlaced: ids.map(() => 0),
     spent: ids.map(() => 0),
-    earnedBy: { kill: 0, assist: 0, revive: 0, wave: 0, refund: 0 },
+    earnedBy: { kill: 0, assist: 0, revive: 0, wave: 0, refund: 0, boss: 0, event: 0 },
     turretKills: 0,
     killsByWeapon: {},
     upgrades: ids.map(() => 0),

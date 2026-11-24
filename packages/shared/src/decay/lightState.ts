@@ -152,8 +152,11 @@ export function lightRadiusOf(world: World, l: Readonly<LightSource>): number {
   return isBlackout(world) ? l.blackoutRadiusM : l.radiusM;
 }
 
-/** `lightPctByWave` entry of wave `n` (1-based); 0 outside the table. */
-function wavePct(world: World, n: number): number {
+/**
+ * `lightPctByWave` entry of wave `n` (1-based); 0 outside the table. Story 6.10: exported so the
+ * power failure's gate (P3) never picks a wave that is already a full blackout wave.
+ */
+export function wavePct(world: Readonly<World>, n: number): number {
   const t = world.balance.decay.blackout.lightPctByWave;
   return n >= 1 && n <= t.length ? (t[n - 1] as number) : 0;
 }

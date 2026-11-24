@@ -1,4 +1,4 @@
-import { EVENT_KIND_NONE_WIRE, EVENT_KINDS, EVENT_NONE, EVENT_PHASE, type RunStateView, type World } from "@topdown/shared";
+import { EVENT_KIND_NONE_WIRE, EVENT_KINDS, EVENT_NONE, EVENT_PHASE, NPC_STATE, type RunStateView, type World } from "@topdown/shared";
 
 /**
  * Story 6.8 (AC 6, brief 14): copies the room state's active-event fields into the mirror World's
@@ -15,6 +15,7 @@ export function mirrorSpecialEvent(world: World, state: Readonly<RunStateView>):
     a.phase = EVENT_PHASE.NONE;
     a.lane = -1;
     world.special.carAlarm.car = "";
+    mirrorCrateAndSurvivor(world, state, -1);
     return;
   }
   a.kind = kind;
@@ -37,4 +38,35 @@ export function mirrorSpecialEvent(world: World, state: Readonly<RunStateView>):
       car.maxY = c?.maxY ?? a.y;
     }
   } else car.car = "";
+  mirrorCrateAndSurvivor(world, state, kind);
+}
+
+/**
+ * Stories 6.9 / 6.10: the crate (weapon, claim) and the survivor NPC (position, HP, state, look,
+ * leader, flag) into the mirror World — `EventView` draws them, `HudScene` reads the claim. The NPC
+ * is drawn from these (interpolated by the view); it is never predicted (DD3).
+ */
+function mirrorCrateAndSurvivor(world: World, state: Readonly<RunStateView>, kind: number): void {
+  const d = world.special.supplyDrop;
+  const crate = EVENT_KINDS[kind] === "supply_drop";
+  const cw = state.crateWeapon ?? 255;
+  d.weapon = crate && cw !== 255 ? cw : -1;
+  d.level = world.balance.events.supplyDrop.level;
+  const cs = state.crateClaimSlot ?? 255;
+  d.claimSlot = crate && cs !== 255 ? cs : -1;
+  d.claimTicks = crate ? (state.crateClaimTicks ?? 0) : 0;
+  const n = world.special.survivor;
+  const npc = EVENT_KINDS[kind] === "survivor";
+  n.state = npc ? (state.npcState ?? NPC_STATE.NONE) : NPC_STATE.NONE;
+  n.status = npc && (n.state === NPC_STATE.WAITING || n.state === NPC_STATE.FOLLOWING) ? "alive" : "dead";
+  if (!npc) return;
+  n.x = (state.npcX ?? 0) / 100;
+  n.y = (state.npcY ?? 0) / 100;
+  n.hp = state.npcHp ?? 0;
+  n.radiusM = world.balance.events.survivor.radiusM;
+  n.look = state.npcLook ?? 0;
+  const ls = state.npcLeaderSlot ?? 255;
+  n.leaderSlot = ls === 255 ? -1 : ls;
+  n.safeX = (state.safeX ?? 0) / 100;
+  n.safeY = (state.safeY ?? 0) / 100;
 }

@@ -11,7 +11,7 @@ const BRUTE = ZOMBIE_TYPES.indexOf("brute");
 
 /** Reads the zombies' drawn images (ZombieView). */
 export interface DrawnZombies {
-  drawnImage(id: number): { x: number; y: number; rotation: number } | undefined;
+  drawnImage(id: number): { x: number; y: number; rotation: number; alpha?: number } | undefined;
 }
 
 /**
@@ -70,6 +70,9 @@ export class EyesView {
           img.setVisible(true);
         }
         const a = d.rotation;
+        // Story 6.4: the eyes fade with their zombie at the fog edge (a hidden zombie is not drawn: no eyes).
+        const fade = EYES_ALPHA * (d.alpha ?? 1);
+        if (img.alpha !== fade) img.setAlpha(fade);
         img.setPosition(d.x + Math.cos(a) * fwd, d.y + Math.sin(a) * fwd).setRotation(a);
         n++;
       }

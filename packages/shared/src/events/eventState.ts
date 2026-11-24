@@ -34,6 +34,24 @@ export const EVENT_PHASE = {
   WARNING: 3,
   /** Stampede: the 10 s crossing. */
   RUNNING: 4,
+  /** Story 6.9 gas leak: the 10 s hiss (the tank is shootable after `armDelayS`); the boom ends it. */
+  HISS: 5,
+  /** Story 6.9 supply drop: the 5 s flare (green smoke; the marker shows the weapon). */
+  FLARE: 6,
+  /** Story 6.9 supply drop: on the ground, takeable by a standing player. */
+  LANDED: 7,
+  /** Story 6.9 supply drop: taken (`playerId` on the phase change); the event ends that tick. */
+  TAKEN: 8,
+  /** Story 6.10 power failure: the 2 s flicker (no darkness yet, P1). */
+  FLICKER: 9,
+  /** Story 6.10 power failure: dark until the wave ends. */
+  DARK: 10,
+  /** Story 6.10 survivor: crouched, waiting for a standing player within `pickUpM`. */
+  WAITING: 11,
+  /** Story 6.10 survivor: following its leader (`playerId` on the phase change). */
+  FOLLOWING: 12,
+  /** Story 6.10 survivor: reached the flag (+100 paid); waves for `waveOffS`, then the event ends. */
+  SAVED: 13,
 } as const;
 
 /** How an event ended (`event.ended.outcome`). Append only: on the wire. */
@@ -95,6 +113,52 @@ export interface StampedeState {
   dirY: number;
 }
 
+/** Story 6.9: the gas leak's record (the tank at `active.x/y`). */
+export interface GasLeakState {
+  /** Who blew it (null: the timer, or not yet). */
+  shotBy: string | null;
+  /** The tick it blew (−1: not yet). One blast only. */
+  blownTick: number;
+}
+
+/** Story 6.9: the supply crate's record (the spot at `active.x/y`). */
+export interface SupplyDropState {
+  /** `weaponIds` index of the crate's weapon (−1: none). */
+  weapon: number;
+  level: number;
+  /** The claimant's player slot (`world.flameSlots`; −1: none) and its unbroken ticks on the crate. */
+  claimSlot: number;
+  claimTicks: number;
+  /** Who took it (null: not yet). */
+  takenBy: string | null;
+}
+
+/** Story 6.10: the survivor NPC's states (`SurvivorState.state`). */
+export const NPC_STATE = { NONE: 0, WAITING: 1, FOLLOWING: 2, SAVED: 3, DEAD: 4 } as const;
+
+/** Story 6.10: the survivor NPC (not a player: DD2) and its safe point. */
+export interface SurvivorState {
+  x: number;
+  y: number;
+  /** Start-of-tick position (the push-out's "came from" side). */
+  prevX: number;
+  prevY: number;
+  hp: number;
+  radiusM: number;
+  /** `NPC_STATE`. */
+  state: number;
+  /** 0–2: SV1 / SV2 / SV3. */
+  look: number;
+  /** The leader's player slot (−1: none). */
+  leaderSlot: number;
+  safeX: number;
+  safeY: number;
+  /** Its own acid clock (the 4.8 per-body rule). */
+  acidTicks: number;
+  /** The `ChaseTarget` shape the zombies read ("alive" while it can be hit). */
+  status: "alive" | "dead";
+}
+
 export interface SpecialEventLog {
   triggered: number;
   skipped: number;
@@ -107,6 +171,15 @@ export interface SpecialEventLog {
   stampedeConverted: number;
   stampedeExited: number;
   stampedeHits: number;
+  /** Story 6.9: gas blasts, zombies they killed, the last credit; crates taken. */
+  gasBooms: number;
+  gasKills: number;
+  gasShotBy: string | null;
+  cratesTaken: number;
+  /** Story 6.10: power failures that went dark; survivors saved / lost. */
+  powerFailures: number;
+  survivorsSaved: number;
+  survivorsLost: number;
 }
 
 export interface SpecialEventState {
@@ -125,6 +198,9 @@ export interface SpecialEventState {
   readonly active: ActiveEvent;
   readonly carAlarm: CarAlarmState;
   readonly stampede: StampedeState;
+  readonly gasLeak: GasLeakState; // Story 6.9
+  readonly supplyDrop: SupplyDropState; // Story 6.9
+  readonly survivor: SurvivorState; // Story 6.10
   readonly log: SpecialEventLog;
 }
 
@@ -145,7 +221,26 @@ export function createSpecialEventState(): SpecialEventState {
     active: { kind: EVENT_NONE, phase: EVENT_PHASE.NONE, startTick: 0, phaseTick: 0, x: 0, y: 0, wave: 0, entry: -1, lane: -1 },
     carAlarm: { car: "", minX: 0, minY: 0, maxX: 0, maxY: 0, shotBy: null },
     stampede: { toSpawn: 0, spawned: 0, rowTimer: 0, alive: 0, dirX: 0, dirY: 0 },
-    log: { triggered: 0, skipped: 0, byKind: new Int32Array(EVENT_KINDS.length), alarmShotBy: null, stampedeSpawned: 0, stampedeConverted: 0, stampedeExited: 0, stampedeHits: 0 },
+    gasLeak: { shotBy: null, blownTick: -1 },
+    supplyDrop: { weapon: -1, level: 0, claimSlot: -1, claimTicks: 0, takenBy: null },
+    survivor: { x: 0, y: 0, prevX: 0, prevY: 0, hp: 0, radiusM: 0, state: NPC_STATE.NONE, look: 0, leaderSlot: -1, safeX: 0, safeY: 0, acidTicks: 0, status: "dead" },
+    log: {
+      triggered: 0,
+      skipped: 0,
+      byKind: new Int32Array(EVENT_KINDS.length),
+      alarmShotBy: null,
+      stampedeSpawned: 0,
+      stampedeConverted: 0,
+      stampedeExited: 0,
+      stampedeHits: 0,
+      gasBooms: 0,
+      gasKills: 0,
+      gasShotBy: null,
+      cratesTaken: 0,
+      powerFailures: 0,
+      survivorsSaved: 0,
+      survivorsLost: 0,
+    },
   };
 }
 
@@ -166,6 +261,25 @@ export function snapshotSpecial(s: Readonly<SpecialEventState>) {
     active: { ...s.active },
     carAlarm: { ...s.carAlarm },
     stampede: { ...s.stampede },
-    log: { triggered: s.log.triggered, skipped: s.log.skipped, byKind: Array.from(s.log.byKind), alarmShotBy: s.log.alarmShotBy, spawned: s.log.stampedeSpawned, converted: s.log.stampedeConverted, exited: s.log.stampedeExited, hits: s.log.stampedeHits },
+    gasLeak: { ...s.gasLeak }, // Story 6.9
+    supplyDrop: { ...s.supplyDrop },
+    survivor: { ...s.survivor }, // Story 6.10
+    log: {
+      triggered: s.log.triggered,
+      skipped: s.log.skipped,
+      byKind: Array.from(s.log.byKind),
+      alarmShotBy: s.log.alarmShotBy,
+      spawned: s.log.stampedeSpawned,
+      converted: s.log.stampedeConverted,
+      exited: s.log.stampedeExited,
+      hits: s.log.stampedeHits,
+      gasBooms: s.log.gasBooms,
+      gasKills: s.log.gasKills,
+      gasShotBy: s.log.gasShotBy,
+      cratesTaken: s.log.cratesTaken,
+      powerFailures: s.log.powerFailures,
+      survivorsSaved: s.log.survivorsSaved,
+      survivorsLost: s.log.survivorsLost,
+    },
   };
 }

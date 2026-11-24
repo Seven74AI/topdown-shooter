@@ -82,13 +82,26 @@ export interface FakeState {
   eventX: number;
   eventY: number;
   eventLane: number;
+  /** Story 6.9: the crate. */
+  crateWeapon: number;
+  crateClaimSlot: number;
+  crateClaimTicks: number;
+  /** Story 6.10: the survivor NPC and its flag. */
+  npcX: number;
+  npcY: number;
+  npcHp: number;
+  npcState: number;
+  npcLook: number;
+  npcLeaderSlot: number;
+  safeX: number;
+  safeY: number;
 }
 
 export type FakeBoss = { -readonly [K in keyof BossStateView]: BossStateView[K] };
 
 /** Story 6.5: a boss record with every field at the schema default (state NONE). */
 export function fakeBoss(over: Partial<FakeBoss> = {}): FakeBoss {
-  return { state: 0, x: 0, y: 0, heading: 0, hp: 0, maxHp: 0, number: 0, look: 0, target: 255, enraged: false, atkId: 0, atkKind: 0, atkStart: 0, atkHit: 0, atkX: 0, atkY: 0, atkR: 0, ...over };
+  return { state: 0, x: 0, y: 0, heading: 0, hp: 0, maxHp: 0, number: 0, look: 0, target: 255, enraged: false, atkId: 0, atkKind: 0, atkStart: 0, atkHit: 0, atkX: 0, atkY: 0, atkR: 0, atkEndX: 0, atkEndY: 0, atkCrash: false, atkSrc: 0, atkSrcX: 0, atkSrcY: 0, ...over };
 }
 
 export function fakeState(players: FakePlayer[] = []): FakeState {
@@ -119,6 +132,17 @@ export function fakeState(players: FakePlayer[] = []): FakeState {
     eventX: 0,
     eventY: 0,
     eventLane: 255,
+    crateWeapon: 255, // Story 6.9: none
+    crateClaimSlot: 255,
+    crateClaimTicks: 0,
+    npcX: 0, // Story 6.10
+    npcY: 0,
+    npcHp: 0,
+    npcState: 0,
+    npcLook: 0,
+    npcLeaderSlot: 255,
+    safeX: 0,
+    safeY: 0,
   };
 }
 

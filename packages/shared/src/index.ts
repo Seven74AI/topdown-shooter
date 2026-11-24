@@ -96,13 +96,13 @@ export {
   type SpawnKind,
   type VisualProp,
 } from "./map/districtMap";
-export { SPAWN_SIDE, SPAWN_SIDE_NAMES, SPAWN_STATE, spawnPointStates, spawnSide, type SpawnState } from "./waves/spawnPick";
+export { SPAWN_SIDE, SPAWN_SIDE_NAMES, SPAWN_STATE, isSpawnBuried, spawnPointStates, spawnSide, type SpawnState } from "./waves/spawnPick";
 export { MAP_LAYERS, MAP_STAGE_GROUPS, MapError, loadTiledMap } from "./map/loadTiledMap";
 export { fillCollisionCells, mapCollisionCells } from "./map/collisionCells";
 export { FIRST_DECAY_STAGE, currentDecayStage } from "./map/decayStage";
-export { createObstacles, fillObstacles, mutationApplies, type ObstacleState } from "./map/obstacles";
+export { createObstacles, fillObstacles, isRubble, mutationApplies, RUBBLE_PREFIX, rubblePiles, type ObstacleState } from "./map/obstacles";
 // Story 4.5: the decay stage engine.
-export { createDecayState, fireRecordOf, legalDecayMasks, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
+export { createDecayState, fireRecordOf, gameplayVariantMask, gameplayDecayMasks, legalDecayMasks, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
 export { applyDecayStage } from "./decay/applyDecayStage";
 // Story 5.10: the derived light-source list; med station healing.
 export {
@@ -568,6 +568,7 @@ export {
   isBossWave,
   pushPlayerOutOfBoss,
   resetBoss,
+  BOSS_THROW_SRC,
   rewoundBossPos,
   snapshotBoss,
   type BossAttack,
@@ -576,14 +577,33 @@ export {
   type BossStateId,
 } from "./boss/bossState";
 export { BEHEMOTH_LOOKS, behemothLookIndex, bossEntry, bossEntryOpen, bossPending, pickBossAttack, pickBossEntry, startBossWarning, updateBoss } from "./boss/behemoth";
-export { applyBossDamage, bossCircleHitBySegment, bossDamageStats, bossInArc, bossInCircle, killBoss, zombieUnderBoss, zombiesUnderBoss } from "./boss/bossDamage";
-export { bossGapTicks, bossStats, inSlamZone, startBossAttack, telegraphTicks } from "./boss/telegraph";
+export { applyBossDamage, bossCircleHitBySegment, bossDamageStats, bossInArc, bossInCircle, zombieUnderBoss, zombiesUnderBoss } from "./boss/bossDamage";
+export { bossGapTicks, bossStats, bossTicks, inSlamZone, recoverTicks, startBossAttack, telegraphTicks, windupTicks } from "./boss/telegraph";
+export { chargeHitsPoint, sweepChargeLane } from "./boss/charge";
+export { pickThrowTarget, throwSource } from "./boss/throw";
+export { killBoss } from "./boss/death";
+export { checkEnrage, crawlerDropSpot } from "./boss/enrage";
 export { bossSlotOf, clearBossThreatSlot, pickBossTarget, recordBossThreat, threatOf } from "./boss/target";
 export { maxAliveNow } from "./waves/waveDirector";
-export { knockPlayerBy } from "./player/knockback";
+export { chargeKnockStepMm, knockPlayerBy, knockPlayerDir, knockStepMmOf } from "./player/knockback";
 export { type BossStats } from "./config/balanceSchema";
 // Story 6.1: the "start at wave N" dev switch (DEV_START_WAVE / ?startwave=).
 export { applyStartWave, parseStartWave } from "./run/devStartWave";
+// Story 6.2 (Ruins) / 6.4 (Collapse): look picks and the fog / power-out rules (shared, pure).
+export { RUINS_LOOKS, RUINS_LOOK_GUTTED, RUINS_LOOK_GROUP, isEndlessWave, lookPick, ruinsLookAt, type RuinsLook } from "./decay/ruinsLook";
+export {
+  COLLAPSE_STYLES,
+  COLLAPSE_STYLE_GROUP,
+  collapseStyleAt,
+  createFogBeam,
+  createFogRadii,
+  fogRadiiOf,
+  fogVisibility,
+  isPowerOut,
+  type CollapseStyle,
+  type FogBeam,
+  type FogRadii,
+} from "./decay/collapse";
 // Story 6.8: special events (framework, car alarm, stampede)
 export {
   EVENT_KINDS,
@@ -605,4 +625,11 @@ export { eventFits, scheduleEndlessEvent, scheduleRunEvents } from "./events/sch
 export { alarmCandidates, isAlarmCandidate } from "./events/carAlarm";
 export { laneAlong, laneCentreDistance, laneLength, laneOpen, stampedeRunnersAlive } from "./events/stampede";
 export { parseDevEvents } from "./events/devEvents";
+// Stories 6.9 + 6.10: gas leak, supply drop, power failure, survivor
+export { NPC_STATE, type GasLeakState, type SupplyDropState, type SurvivorState } from "./events/eventState";
+export { GAS_LEAK_WEAPON, gasLeakZone, gasTankArmed } from "./events/gasLeak";
+export { pickCrateSpot } from "./events/supplyDrop";
+export { powerFailureWave } from "./events/powerFailure";
+export { damageSurvivor, survivorFits, survivorTarget } from "./events/survivor";
+export { crateOutcome, crateRefusal, giveCrateWeapon, type CrateOutcome } from "./economy/shop";
 export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";

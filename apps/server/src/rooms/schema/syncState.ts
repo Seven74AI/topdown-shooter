@@ -53,6 +53,30 @@ function syncSpecialEvent(state: RunState, world: World): void {
   if (state.eventY !== y) state.eventY = y;
   const lane = a.lane < 0 ? 255 : a.lane;
   if (state.eventLane !== lane) state.eventLane = lane;
+  // Story 6.9: the crate (weapon, claim).
+  const d = world.special.supplyDrop;
+  const cw = d.weapon < 0 ? 255 : d.weapon;
+  if (state.crateWeapon !== cw) state.crateWeapon = cw;
+  const cs = d.claimSlot < 0 ? 255 : d.claimSlot;
+  if (state.crateClaimSlot !== cs) state.crateClaimSlot = cs;
+  const ct = Math.min(255, d.claimTicks);
+  if (state.crateClaimTicks !== ct) state.crateClaimTicks = ct;
+  // Story 6.10: the survivor NPC and its flag (≈ 20 Hz while it moves; nothing while it waits).
+  const n = world.special.survivor;
+  const nx = Math.round(n.x * 100);
+  const ny = Math.round(n.y * 100);
+  if (state.npcX !== nx) state.npcX = nx;
+  if (state.npcY !== ny) state.npcY = ny;
+  const hp = Math.max(0, Math.min(255, Math.round(n.hp)));
+  if (state.npcHp !== hp) state.npcHp = hp;
+  if (state.npcState !== n.state) state.npcState = n.state;
+  if (state.npcLook !== n.look) state.npcLook = n.look;
+  const ls = n.leaderSlot < 0 ? 255 : n.leaderSlot;
+  if (state.npcLeaderSlot !== ls) state.npcLeaderSlot = ls;
+  const sx = Math.round(n.safeX * 100);
+  const sy = Math.round(n.safeY * 100);
+  if (state.safeX !== sx) state.safeX = sx;
+  if (state.safeY !== sy) state.safeY = sy;
 }
 
 /** Story 6.5: the boss record, field by field on change only (an idle record costs no bytes). */
@@ -82,6 +106,15 @@ function syncBoss(state: RunState, world: World): void {
   if (s.atkX !== Math.fround(a.cx)) s.atkX = a.cx;
   if (s.atkY !== Math.fround(a.cy)) s.atkY = a.cy;
   if (s.atkR !== Math.fround(a.radiusM)) s.atkR = a.radiusM;
+  // Story 6.6: once per attack (the stop point is exact: f32 of the server's numbers).
+  const ex = a.cx + a.dirX * a.lenM;
+  const ey = a.cy + a.dirY * a.lenM;
+  if (s.atkEndX !== Math.fround(ex)) s.atkEndX = ex;
+  if (s.atkEndY !== Math.fround(ey)) s.atkEndY = ey;
+  if (s.atkCrash !== a.crash) s.atkCrash = a.crash;
+  if (s.atkSrc !== a.src) s.atkSrc = a.src;
+  if (s.atkSrcX !== Math.fround(a.srcX)) s.atkSrcX = a.srcX;
+  if (s.atkSrcY !== Math.fround(a.srcY)) s.atkSrcY = a.srcY;
 }
 
 /**
@@ -248,6 +281,17 @@ export function resetRunFields(state: RunState): void {
   state.eventX = 0;
   state.eventY = 0;
   state.eventLane = 255;
+  state.crateWeapon = 255; // Story 6.9
+  state.crateClaimSlot = 255;
+  state.crateClaimTicks = 0;
+  state.npcX = 0; // Story 6.10
+  state.npcY = 0;
+  state.npcHp = 0;
+  state.npcState = 0;
+  state.npcLook = 0;
+  state.npcLeaderSlot = 255;
+  state.safeX = 0;
+  state.safeY = 0;
 }
 
 function resetPlayer(s: PlayerState): void {

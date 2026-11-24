@@ -4,7 +4,7 @@ import type { EventKind, EventOutcome } from "../events/eventState";
  * Why money was earned (Story 3.2). Append only: the index goes on the wire (`net/netEvents.ts`).
  * Story 4.5 appends "refund" (a building a decay stage destroyed: 50 % of its price back).
  */
-export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund"] as const;
+export const MONEY_REASONS = ["kill", "assist", "revive", "wave", "refund", "boss", "event"] as const; // Story 6.7: + "boss"; 6.10: + "event" (append only: the wire sends the index)
 export type MoneyReason = (typeof MONEY_REASONS)[number];
 
 /**
@@ -144,6 +144,8 @@ export type SimEvent =
   | { type: "zombie.brute_spawned"; zombieId: number; x: number; y: number; first: boolean; /** Client only: seconds since it happened (a woken tab's backlog: no late banner). */ ageS?: number }
   /** Story 5.1: `playerId` upgraded the weapon in `slot` to `level` (2–maxLevel; build phase only). */
   | { type: "weapon.upgraded"; playerId: string; weapon: string; slot: 0 | 1; level: number }
+  /** Story 6.9 (G6): `playerId` took the supply crate: `weapon` at `level` into `slot` (any phase; no money). */
+  | { type: "weapon.crate_taken"; playerId: string; weapon: string; slot: 0 | 1; level: number }
   /**
    * Story 5.5: `playerId` lobbed round `grenadeId` (u8, wraps) from the muzzle (x, y); it bursts at
    * (tx, ty) — the aim point, or in front of the first car / bus / building on its track — on
@@ -188,10 +190,35 @@ export type SimEvent =
   // Story 6.5: the Behemoth (all global on the wire except boss.hit, local to its position).
   | { type: "boss.warning"; x: number; y: number; /** The tick it walks in (the warning's end). */ hitTick: number; /** Client only: seconds since it happened. */ ageS?: number }
   | { type: "boss.arrived"; x: number; y: number; maxHp: number; look: number; /** Client only. */ ageS?: number }
-  | { type: "boss.telegraph"; attackId: number; kind: number; startTick: number; hitTick: number; cx: number; cy: number; radiusM: number; /** Client only. */ ageS?: number }
+  | {
+      type: "boss.telegraph";
+      attackId: number;
+      kind: number;
+      startTick: number;
+      hitTick: number;
+      cx: number;
+      cy: number;
+      radiusM: number;
+      /** Story 6.6, charge: where its centre stops (the lane's end, F1) and whether it crashes there (F2). Slam/throw: = cx, cy, false. */
+      endX: number;
+      endY: number;
+      crash: boolean;
+      /** Story 6.6, throw (D7, visual only): the chunk's source kind (`BOSS_THROW_SRC`) and spot. */
+      src: number;
+      srcX: number;
+      srcY: number;
+      /** Client only. */ ageS?: number;
+    }
   | { type: "boss.slammed"; attackId: number; x: number; y: number; /** Client only. */ ageS?: number }
   | { type: "boss.target_changed"; playerId: string | null; /** Client only: seconds since it happened (review L5: no stale buzz). */ ageS?: number }
   | { type: "boss.hit"; amount: number; weapon: string; sourceId: string | null }
+  // Story 6.6: a charge ended on hard cover (the 2 s stun starts) / a thrown chunk landed (crater).
+  | { type: "boss.crashed"; attackId: number; x: number; y: number; /** Client only. */ ageS?: number }
+  | { type: "boss.thrown_impact"; attackId: number; x: number; y: number; /** Client only. */ ageS?: number }
+  // Story 6.7: the roar (global), a Crawler off its back (local), its death (global).
+  | { type: "boss.enraged"; x: number; y: number; /** Client only. */ ageS?: number }
+  | { type: "boss.crawler_dropped"; x: number; y: number }
+  | { type: "boss.killed"; killerId: string | null; weapon: string; x: number; y: number; number: number; /** Client only. */ ageS?: number }
   // Story 6.8: the special events (global on the wire: team cues). `kind` = an `EVENT_KINDS` id.
   /** It started (banner + sound + marker on every phone, F1); `phase` its first phase, `lane` the stampede's lane (−1: none). */
   | { type: "event.triggered"; kind: EventKind; wave: number; x: number; y: number; startTick: number; phase: number; lane: number; /** Client only: seconds since it happened (a woken tab: no late banner). */ ageS?: number }

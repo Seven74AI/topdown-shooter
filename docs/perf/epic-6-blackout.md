@@ -51,6 +51,28 @@ camera shake never opens a lit strip), which makes the darkness canvas and its u
 bigger. Not re-measured headless (the headless cost is the full-screen fill, which the pad barely
 changes); include it in the Mi 11i check below.
 
+## Stories 6.2 + 6.4: Ruins and Collapse (headless)
+
+2026-11-24, branch `story-6-2`, same setup (solo dev build, `?stress=150`, 844 × 390 at DPR 2, 4 s
+after the switch, then a 12 s `requestAnimationFrame` count). The stage and the blackout are set
+through the dev cheats (`setDecayStageCheat`, `setForcedBlackoutCheat`) in the stress scene's build
+phase, so the build-phase fog (13 → 14 m) is on at stage 5. Load 0.8–2.2 (only this builder's Vite
+and browser). Two rounds:
+
+| configuration | round 1 FPS | round 2 FPS | mean | note |
+| --- | --- | --- | --- | --- |
+| stage 1, no blackout | 16.0 | 16.9 | 16.5 | baseline |
+| stage 4 (rubble baked, lamp flicker, dust puffs) | 16.3 | 15.8 | 16.1 | −2 % (noise): rubble is in the bake; ≤ 11 drop-out discs, ≤ 100 dust particles |
+| stage 3 + blackout 10 % (no fog) | 12.1 | 12.1 | 12.1 | 6.3's darkness alone |
+| stage 5 + blackout 10 % + fog CO1 haze | 11.2 | 11.2 | 11.2 | fog in the darkness texture: −7 % vs the blackout alone |
+| stage 5 + blackout 10 % + fog CO2 bank | 11.3 | 10.9 | 11.1 | the two noise layers cost about nothing |
+| stage 5 + blackout + fog, `?fx=low` | 11.9 | 11.0 | 11.5 | |
+
+Bake time at stage 4 (`CityView.bakeMs`, one bake per stage, headless): 180–220 ms with the rubble
+and roofs (a stage 1–3 bake was not timed in these runs to compare); a style or material switch rebakes once (98–124 ms
+when only the overlay changes). Not measured on a phone; the Mi 11i rows above decide (the fog adds
+one half-resolution canvas fill and composite per frame on the CPU, no extra full-screen GPU layer).
+
 ## Phones (to fill: the designer's friends)
 
 Nobody has run these yet. Steps, on each phone, Chrome, landscape, after the next deploy:

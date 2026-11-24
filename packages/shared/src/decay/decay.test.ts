@@ -22,7 +22,8 @@ import { jitteredSpawn } from "../waves/waveDirector";
 import { runHeadless } from "../bots/headlessRun";
 import { createInputLog, replayRun } from "../replay/inputLog";
 import { applyDecayStage } from "./applyDecayStage";
-import { legalDecayMasks, pickDecayVariants, stageForWave } from "./decayState";
+import { gameplayVariantMask, gameplayDecayMasks, legalDecayMasks, pickDecayVariants, stageForWave } from "./decayState";
+import { masksForStage } from "./masks.testkit";
 import { changeDecayStage, relocated } from "./decaySystem";
 
 /**
@@ -142,13 +143,41 @@ describe("Story 4.5 mutation set in the map (loader)", () => {
     ]);
     expect(s2.filter((m) => m.variant >= 0).map((m) => m.action).sort()).toEqual([...Array(6).fill("add"), ...Array(6).fill("remove")]);
     expect(d.filter((m) => m.stage === 3).map((m) => m.action)).toEqual(["ignite", "ignite", "ignite"]);
-    expect(d.filter((m) => m.stage >= 4)).toEqual([]);
+    // Story 6.2 (Ruins): the collapsed alley (3 candidates; alley 2 fills its corner pocket too, alley 3
+    // buries the dumpster), three street piles, three looks. Story 6.4 (Collapse): four weather looks, no solids.
+    expect(d.filter((m) => m.stage === 4).map((m) => `${m.action}:${m.name}`)).toEqual([
+      "block:rubble_alley_1",
+      "block:rubble_alley_2",
+      "block:rubble_alley_2_corner",
+      "block:rubble_alley_3",
+      "remove:rubble_alley_3_buries_dumpster",
+      "block:rubble_pile_1",
+      "block:rubble_pile_2",
+      "block:rubble_pile_3",
+      "look:ruins_look_concrete",
+      "look:ruins_look_brick",
+      "look:ruins_look_slab",
+    ]);
+    expect(d.filter((m) => m.stage === 5).map((m) => m.action)).toEqual(["look", "look", "look", "look"]);
+    // Stage-4/5 objects come after every older one (map order), so old seeds keep their picks.
+    expect(d.findIndex((m) => m.stage >= 4)).toBe(d.length - 15);
     expect(DOWNTOWN_MAP.decayVariants.map((v) => `${v.group}/${v.name}/${v.pick}`)).toEqual([
       ...["curb_car_west_far", "curb_car_west_n", "curb_car_west_s", "curb_car_north", "curb_car_south", "street_car_east"].map((c) => `panic_cars_moved/panic_move_${c}/4`),
       "breakdown_car_fire/fire_parked_car_2/2",
       "breakdown_car_fire/fire_street_car_west/2",
       "breakdown_car_fire/fire_parked_car_1/2",
+      "ruins_alley/ruins_alley_1/1",
+      "ruins_alley/ruins_alley_2/1",
+      "ruins_alley/ruins_alley_3/1",
+      "ruins_look/ruins_look_concrete/1",
+      "ruins_look/ruins_look_brick/1",
+      "ruins_look/ruins_look_slab/1",
+      "collapse_style/collapse_haze/1",
+      "collapse_style/collapse_fog_bank/1",
+      "collapse_style/collapse_ash/1",
+      "collapse_style/collapse_flood/1",
     ]);
+    expect(DOWNTOWN_MAP.decayVariants.length).toBeLessThanOrEqual(32); // 9 + 3 + 3 + 4 = 19 bits
   });
 
   const refuse = (objs: Obj[], text: RegExp) => {
@@ -161,11 +190,33 @@ describe("Story 4.5 mutation set in the map (loader)", () => {
   };
   it("refuses stage 1, an unknown action, an add without a cover kind, an unknown target, an ignite with a bad radius (Story 4.8: optional), off-lattice boxes", () => {
     refuse([rect(30, "x", 4, 1, 1, 1, [prop("stage", 1), prop("action", "block")])], /x: stage must be an integer 2–5/);
-    refuse([rect(30, "x", 4, 1, 1, 1, [prop("stage", 2), prop("action", "explode")])], /x: action must be one of add, remove, ignite, block/);
+    refuse([rect(30, "x", 4, 1, 1, 1, [prop("stage", 2), prop("action", "explode")])], /x: action must be one of add, remove, ignite, block, look/);
     refuse([rect(30, "x", 4, 1, 1, 1, [prop("stage", 2), prop("action", "add")])], /x: an add needs a cover kind/);
     refuse([point(30, "x", 4, 1, [prop("stage", 2), prop("action", "remove"), prop("target", "nope")])], /x: target must name/);
     refuse([point(30, "x", 4, 1, [prop("stage", 2), prop("action", "ignite"), prop("target", "car_b"), prop("radiusM", 0)])], /x: an ignite's radiusM, if given, must be > 0/);
     refuse([rect(30, "x", 4.25, 1, 1, 1, [prop("stage", 2), prop("action", "block")])], /edges must lie on the 0.5 m grid/);
+  });
+
+  it("Story 6.2: a `look` is a point carrying only a variant (no box, no gameplay); without a variant, or as a rectangle, it is refused", () => {
+    const look = (id: number, v: string): Obj => point(id, `look_${v}`, 3, 3, [prop("stage", 4), prop("action", "look"), prop("group", "mat"), prop("variant", v), prop("pick", 1)]);
+    const m = loadTiledMap(testMapJson([...DECAY_OBJECTS, look(40, "a"), look(41, "b")]), "looks");
+    const looks = m.decay.filter((d) => d.action === "look");
+    expect(looks.map((d) => `${d.name}:${d.minX},${d.minY},${d.maxX},${d.maxY}:${m.decayVariants[d.variant]?.group}`)).toEqual(["look_a:3,3,3,3:mat", "look_b:3,3,3,3:mat"]);
+    // No gameplay: the obstacle lists at stage 4 are the same with either look.
+    const va = m.decayVariants.findIndex((v) => v.name === "a");
+    const vb = m.decayVariants.findIndex((v) => v.name === "b");
+    expect(names(createObstacles(m, 4, 1 << va).solids)).toEqual(names(createObstacles(m, 4, 1 << vb).solids));
+    refuse([point(30, "x", 4, 1, [prop("stage", 4), prop("action", "look")])], /x: a look needs variant, group and pick/);
+    refuse([rect(30, "x", 4, 1, 1, 1, [prop("stage", 4), prop("action", "look"), prop("group", "g"), prop("variant", "v"), prop("pick", 1)])], /x: a look must be a point/);
+  });
+
+  it("Story 6.2: a breach spawn needs a jitterAxis (it jitters along its wall)", () => {
+    const json = testMapJson();
+    const spawns = (json.layers as Obj[]).find((l) => l.name === "spawns") as { objects: Obj[] };
+    spawns.objects.push(point(50, "hole", 3, 6, [prop("kind", "breach"), prop("minStage", 4)]));
+    expect(() => loadTiledMap(json, "bad")).toThrow(/hole: a breach needs a jitterAxis/);
+    (spawns.objects[spawns.objects.length - 1] as { properties: Obj[] }).properties.push(prop("jitterAxis", "x"));
+    expect(loadTiledMap(json, "ok").spawnPoints.find((s) => s.name === "hole")?.kind).toBe("breach");
   });
 
   it("refuses inconsistent variation groups (pick or stage differ, too few candidates, a half-filled variation)", () => {
@@ -438,9 +489,11 @@ describe("Story 4.5 review fixes", () => {
 
   it("note for 4.6–4.8: at every stage and every variant combination, every walkable cell is reachable from the team start (no enclosed area)", () => {
     let checked = 0;
-    const masks = legalDecayMasks(DT); // Story 4.7: the combinations a run can pick (C(6,4) × C(3,2); Story 4.8)
-    expect(masks).toHaveLength(45);
+    // Story 4.7: the combinations a run can pick (C(6,4) × C(3,2); Story 4.8); Story 6.2: × 3 alleys from stage 4.
+    expect(gameplayDecayMasks(DT)).toHaveLength(135);
     for (let stage = 1; stage <= 5; stage++) {
+      const masks = masksForStage(DT, stage);
+      expect(masks).toHaveLength(stage < 4 ? 45 : 135);
       for (const mask of masks) {
         const w = createWorld({ balance, seed: 1, map: DT });
         applyDecayStage(w, stage, mask);
@@ -455,7 +508,7 @@ describe("Story 4.5 review fixes", () => {
         checked++;
       }
     }
-    expect(checked).toBe(5 * 45); // Story 4.8: C(6,4) movers × C(3,2) fires
+    expect(checked).toBe(3 * 45 + 2 * 135); // Story 4.8: C(6,4) movers × C(3,2) fires; Story 6.2: × 3 alleys at stages 4–5
   });
 });
 
@@ -480,7 +533,14 @@ describe("Story 4.5 DecayTimeline: variations from the decay stream", () => {
       expect({ ...sa, decay: null }).toEqual({ ...sp, decay: null });
       expect(sa.decay).not.toEqual(sp.decay);
     }
-    expect([...seen.keys()].sort((x, y) => x - y)).toEqual(legalDecayMasks(DT)); // every combination appears (45 in 256 seeds)
+    // Every car × fire combination appears (45 in 256 seeds); Story 6.2: the alleys and looks are checked in ruins.test.ts.
+    expect([...new Set([...seen.keys()].map((k) => (k & 0x1ff) >>> 0))].sort((x, y) => x - y)).toEqual(masksForStage(DT, 3).map((k) => (k & 0x1ff) >>> 0));
+    expect(gameplayVariantMask(DT)).toBe(0xfff); // cars, fires, alleys; the 7 look bits are not gameplay
+    // Story 6.2 review L3: `legalDecayMasks` = the masks a run can pick (looks included); every picked mask is one.
+    const legal = new Set(legalDecayMasks(DT));
+    expect(legal.size).toBe(135 * 3 * 4);
+    for (const m of seen.keys()) expect(legal.has(m), `mask ${m}`).toBe(true);
+    expect(gameplayDecayMasks(DT)).toHaveLength(135);
   });
 
   it("pickDecayVariants draws `pick` per group (partial Fisher–Yates): pick 2 of 3", () => {

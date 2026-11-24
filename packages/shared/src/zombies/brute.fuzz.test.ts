@@ -6,7 +6,7 @@ import { circleOverlapsBox, distanceToBox, segmentHitsBuildings } from "../build
 import { applyDecayStage } from "../decay/applyDecayStage";
 import { changeDecayStage } from "../decay/decaySystem";
 import { circleInFire } from "../decay/decayState";
-import { legalDecayMasks } from "../decay/decayState";
+import { gameplayDecayMasks } from "../decay/decayState";
 import { createRng, type Rng } from "../core/rng";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { DOWNTOWN_MAP } from "../map/downtown";
@@ -40,7 +40,7 @@ const balance = loadBalance();
 const map = DOWNTOWN_MAP;
 const LAYOUTS = 16;
 const TICKS = 3000;
-const MASKS = legalDecayMasks(map);
+const MASKS = gameplayDecayMasks(map);
 const BRUTE = zombieTypeIndex("brute");
 const EPS = 1e-5;
 const box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };

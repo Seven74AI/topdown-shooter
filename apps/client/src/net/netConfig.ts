@@ -12,6 +12,12 @@ export const PREDICTION_SNAP_M = 1.0;
  * predict) smooths an error up to this instead of snapping (knock + the usual 1 m).
  */
 export const PREDICTION_KNOCK_SNAP_M = 2.5;
+/**
+ * Story 6.6: the reconcile that first shows the Behemoth's charge shove smooths up to this: the
+ * 2.5 m sideways shove the client could not predict, plus the body's push out of the lane (up to
+ * its 2 m radius + the survivor's), plus the usual 1 m. Only for a knock with the charge's step.
+ */
+export const PREDICTION_CHARGE_SNAP_M = 6;
 /** Time constant of the visual offset decay after a correction (s): ~63 % gone after 0.1 s. */
 export const PREDICTION_SMOOTH_TAU_S = 0.1;
 /** Inputs the predictor can replay: 64 steps = 3.2 s; an older ack snaps. */

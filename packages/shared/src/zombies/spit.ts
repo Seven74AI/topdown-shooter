@@ -7,6 +7,8 @@ import { shotBlockT, shotLineClear } from "../combat/cover";
 import { segmentCircleT } from "../math/sweep";
 import { damagePlayerBy } from "../combat/damage";
 import type { PlayerState } from "../player/player";
+import type { SurvivorState } from "../events/eventState";
+import { damageSurvivor, survivorTarget } from "../events/survivor";
 import { AREA_KIND, clearAreas, spawnArea } from "../hazards/areaPool";
 import { freeSpit, clearSpits } from "./spitPool";
 import { ZOMBIE_STATE, isRushState, isWindupState } from "./zombieTypes";
@@ -37,24 +39,31 @@ import { DAMAGE_SOURCE_ACID } from "../core/simEvents";
 /** Spits and acid so far (tests and logs; not read by the sim). */
 export const spitStats = { spits: 0, spitHits: 0, coverStops: 0, landed: 0, cancelled: 0, capped: 0, acidHits: 0, puddles: 0 };
 
-/** Standing players this tick (refilled by `collectStanding`; no iterator allocation per Spitter). */
-const standing: PlayerState[] = [];
+/** Story 6.10 (S3): a Spitter's target is a standing player or the survivor NPC (`SPIT_TARGET_SURVIVOR`). */
+type SpitTarget = PlayerState | SurvivorState;
+/** `spitTarget` id of the survivor (never a player id: those come from the room). */
+export const SPIT_TARGET_SURVIVOR = "#survivor";
+/** Standing players this tick (refilled by `collectStanding`; no iterator allocation per Spitter); then a living survivor. */
+const standing: SpitTarget[] = [];
 const pushStanding = (p: PlayerState): void => {
   if (p.status === "alive") standing.push(p);
 };
+const targetId = (world: Readonly<World>, t: SpitTarget): string => (t === world.special.survivor ? SPIT_TARGET_SURVIVOR : (t as PlayerState).id);
 
 /** Refills the standing-player list (call once per tick before `spitterStep` / `updateSpits`). */
 export function collectStanding(world: World): void {
   standing.length = 0;
   world.players.forEach(pushStanding);
+  const n = survivorTarget(world); // Story 6.10 (S3): last, so nothing changes without one
+  if (n) standing.push(n);
 }
 
-/** Nearest alive player within `rangeM` of (x, y) with a clear shot line, or null (ties: insertion order). */
-function spitTargetFor(world: World, x: number, y: number, rangeM: number): PlayerState | null {
-  let best: PlayerState | null = null;
+/** Nearest alive target within `rangeM` of (x, y) with a clear shot line, or null (ties: insertion order). */
+function spitTargetFor(world: World, x: number, y: number, rangeM: number): SpitTarget | null {
+  let best: SpitTarget | null = null;
   let bestD2 = rangeM * rangeM;
   for (let k = 0; k < standing.length; k++) {
-    const p = standing[k] as PlayerState;
+    const p = standing[k] as SpitTarget;
     if (p.status !== "alive") continue; // may go down mid-tick
     const dx = p.x - x;
     const dy = p.y - y;
@@ -68,7 +77,7 @@ function spitTargetFor(world: World, x: number, y: number, rangeM: number): Play
 }
 
 /** The player can still be spat at from (x, y): alive, within range, clear line (F1 release check). */
-function stillTargetable(world: World, p: PlayerState | undefined, x: number, y: number, rangeM: number): p is PlayerState {
+function stillTargetable(world: World, p: SpitTarget | null | undefined, x: number, y: number, rangeM: number): p is SpitTarget {
   if (!p || p.status !== "alive") return false;
   const dx = p.x - x;
   const dy = p.y - y;
@@ -92,9 +101,9 @@ export function spitterStep(world: World, id: number, radiusM: number, spit: Rea
     }
     const rush = isRushState(state);
     z.state[id] = rush ? ZOMBIE_STATE.RUSH : ZOMBIE_STATE.CHASE;
-    const targetId = z.spitTarget[id] ?? null;
+    const tid = z.spitTarget[id] ?? null;
     z.spitTarget[id] = null;
-    const p = targetId === null ? undefined : world.players.get(targetId);
+    const p = tid === null ? undefined : tid === SPIT_TARGET_SURVIVOR ? survivorTarget(world) : world.players.get(tid);
     if (!stillTargetable(world, p, x, y, spit.rangeM)) {
       z.spitTicks[id] = 0; // F1: out of sight or range at release → no spit; may wind up again
       spitStats.cancelled++;
@@ -111,7 +120,7 @@ export function spitterStep(world: World, id: number, radiusM: number, spit: Rea
     // Ready (3 s from spit to spit: the cooldown ends the tick the next windup starts).
     z.state[id] = isRushState(state) ? ZOMBIE_STATE.RUSH_WINDUP : ZOMBIE_STATE.WINDUP;
     z.spitTicks[id] = ticksFor(spit.windupS);
-    z.spitTarget[id] = target.id;
+    z.spitTarget[id] = targetId(world, target);
   }
   // Holding its spot while it cools down (target in range and sight) — except in the wave's last rush
   // (FR30, F6): a rushing Spitter walks in between spits, so a short-range camper (the 5 m Shotgun)
@@ -194,10 +203,10 @@ export function updateSpits(world: World): void {
     // F3: a car, the bus or a building stops it at its face (barricades, sandbags: no).
     let bestT = stepM > 0 ? shotBlockT(world, x0, y0, x1, y1) : -1;
     const blocked = bestT >= 0;
-    let hit: PlayerState | null = null;
+    let hit: SpitTarget | null = null;
     const rs = s.radiusM[i] as number;
     for (let k = 0; k < standing.length; k++) {
-      const p = standing[k] as PlayerState;
+      const p = standing[k] as SpitTarget;
       if (p.status !== "alive") continue; // F5: over downed and out players (one may go down mid-tick)
       const t = segmentCircleT(x0, y0, x1, y1, p.x, p.y, p.radiusM + rs);
       if (t >= 0 && (bestT < 0 || t < bestT || (t === bestT && hit === null))) {
@@ -208,9 +217,11 @@ export function updateSpits(world: World): void {
     if (hit) {
       const hx = x0 + (x1 - x0) * bestT;
       const hy = y0 + (y1 - y0) * bestT;
-      acidDamage(world, hit, s.damage[i] as number);
+      const onNpc = hit === world.special.survivor;
+      if (onNpc) damageSurvivor(world, s.damage[i] as number); // Story 6.10 (S3)
+      else acidDamage(world, hit as PlayerState, s.damage[i] as number);
       spitStats.spitHits++;
-      splash(world, i, hx, hy, hit.id);
+      splash(world, i, hx, hy, onNpc ? null : (hit as PlayerState).id);
     } else if (blocked) {
       spitStats.coverStops++;
       splash(world, i, x0 + (x1 - x0) * bestT, y0 + (y1 - y0) * bestT, null);
@@ -272,6 +283,13 @@ export function updateAcid(world: World): void {
     acidPass.amount = Math.round(spit.puddleDamagePerS * spit.puddlePulseS);
     world.players.forEach(acidPlayer);
     acidPass.world = null;
+    // Story 6.10 (S3): the survivor's own acid clock (the 4.8 per-body rule).
+    const n = survivorTarget(world);
+    if (n && circleInAcid(world, n.x, n.y, n.radiusM) && ++n.acidTicks >= acidPass.pulse) {
+      n.acidTicks = 0;
+      spitStats.acidHits++;
+      damageSurvivor(world, acidPass.amount);
+    }
   }
   for (let i = 0; i < a.capacity; i++) {
     // Review L3: every live puddle (a new one too) counts down after the damage pass, so it is

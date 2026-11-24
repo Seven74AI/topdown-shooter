@@ -256,6 +256,10 @@ export function loadTiledMap(raw: unknown, name: string): DistrictMap {
         fail(`${label}: jitterAxis must be x or y, got ${String(axisProp)}`);
         continue;
       }
+      if (kind === "breach" && axisProp === undefined) {
+        fail(`${label}: a breach needs a jitterAxis (it jitters along its wall, like a window)`);
+        continue;
+      }
       const jitterAxis: SpawnJitterAxis = axisProp ?? (y < 1 || y > heightM - 1 ? "x" : "y");
       spawnPoints.push({ name: o.name, x, y, minStage: stageOf(spawnLayer.name, o), kind: kind as SpawnKind, jitterAxis });
     }
@@ -291,7 +295,7 @@ export function loadTiledMap(raw: unknown, name: string): DistrictMap {
     walk(g.layers);
   }
 
-  const { decay, decayVariants } = loadDecayLayer(top.get(MAP_LAYERS.decay), solids, cover, boxOf, fail);
+  const { decay, decayVariants } = loadDecayLayer(top.get(MAP_LAYERS.decay), solids, cover, boxOf, fail, mPerPx);
 
   const { eventSpots, stampedeLanes } = loadEventsLayer(top.get(MAP_LAYERS.events), solids, widthM, heightM, mPerPx, boxOf, fail); // Story 6.8
 
@@ -307,7 +311,8 @@ export function loadTiledMap(raw: unknown, name: string): DistrictMap {
  * (`add` also has a cover `kind`); `remove` / `ignite` name a `target` (a collision box, a cover
  * object or an earlier add/block; `ignite` also `radiusM` > 0) and take its box. Optional variation:
  * `variant` (candidate name), `group` and `pick` (the same on every object of the group, 1 ≤ pick <
- * candidates of the group; one stage per group).
+ * candidates of the group; one stage per group). Story 6.2: `look` is a point that must carry a
+ * variation (no target, no box).
  */
 function loadDecayLayer(
   layer: TiledLayer | undefined,
@@ -315,6 +320,7 @@ function loadDecayLayer(
   cover: readonly CoverObject[],
   boxOf: (layer: string, o: TiledObject, lattice: boolean) => MapBox | null,
   fail: (msg: string) => void,
+  mPerPx: number,
 ): { decay: DecayMutation[]; decayVariants: DecayVariant[] } {
   const decay: DecayMutation[] = [];
   const decayVariants: DecayVariant[] = [];
@@ -358,7 +364,20 @@ function loadDecayLayer(
     let kind: CoverKind | "" = "";
     let target = "";
     let radiusM = 0;
-    if (action === "add" || action === "block") {
+    if (action === "look") {
+      // Story 6.2: a point that only carries a variant (needs variant/group/pick, checked below).
+      if (!o.point) {
+        fail(`${label}: a look must be a point`);
+        continue;
+      }
+      if (props.get("variant") === undefined) {
+        fail(`${label}: a look needs variant, group and pick (it only carries a variant)`);
+        continue;
+      }
+      const x = o.x * mPerPx;
+      const y = o.y * mPerPx;
+      box = { name: o.name, minX: x, minY: y, maxX: x, maxY: y };
+    } else if (action === "add" || action === "block") {
       box = boxOf(L, o, true);
       if (!box) continue;
       if (known.has(o.name)) fail(`${label}: the name is already used by a collision or cover object`);

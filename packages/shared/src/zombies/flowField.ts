@@ -672,7 +672,7 @@ function pop(f: FlowField): number {
 
 /** Seeding pass in progress (module-level callback: no closure per rebuild). */
 const seed: { field: FlowField | null; nav: NavGrid | null; world: Readonly<World> | null } = { field: null, nav: null, world: null };
-const seedPlayer = (p: PlayerState): void => {
+const seedPlayer = (p: Readonly<{ status: string; x: number; y: number }>): void => {
   if (p.status !== "alive") return;
   const f = seed.field as FlowField;
   const nav = seed.nav as NavGrid;
@@ -829,7 +829,11 @@ function startRebuild(f: FlowField, nav: NavGrid, world: Readonly<World>): void 
   else if (f.seedOnly !== null) {
     const p = world.players.get(f.seedOnly); // Story 6.5: the boss's target only
     if (p) seedPlayer(p);
-  } else world.players.forEach(seedPlayer); // Map insertion order: the same on every run
+  } else {
+    world.players.forEach(seedPlayer); // Map insertion order: the same on every run
+    // Story 6.10 (S3): a living survivor seeds the field like a player (last: no change without one).
+    if (world.special.survivor.status === "alive") seedPlayer(world.special.survivor);
+  }
   seed.field = null;
   seed.nav = null;
   seed.world = null;
@@ -1079,7 +1083,7 @@ export function updatePathing(world: World): void {
     advanceFlowField(wideChase, wide, world, budget);
     return;
   }
-  if (lureOn && slot-- === 0) {
+  if (lureOn && slot === 0) {
     advanceLure(world, budget);
     return;
   }
