@@ -46,6 +46,7 @@ Player:
 36 what is happening to these zombies?
 37 what:            bullets:
 38 what:            what happens inside the green ring?
+46 do these four survivors carry anything that does something in the game? what?
 ```
 
 ## 1
@@ -160,3 +161,6 @@ Player:
 
 ## 45: which card is the rarest, and which one is too dear? Read it at arm's length (Story 5.13)
 ![45](../../art/5-13/5-13-shop-sold-800x360.png)
+
+## 46: do these four survivors carry anything that does something in the game? (Story 7.8)
+![46](objects/46_survivor_looks.png)

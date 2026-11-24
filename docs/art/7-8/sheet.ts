@@ -33,3 +33,41 @@ COSMETICS.parts.forEach((p, i) => {
 });
 writeFileSync(new URL("./ingame/parts-sheet.png", import.meta.url), cv.toBuffer("image/png"));
 console.log("wrote parts-sheet.png", cv.width, cv.height);
+
+// Readability sheet picture 46 (brief 13): four survivors with the parts most likely to be read as gear (riot
+// helmet, gas mask, plank bundle, bike helmet + welding mask's dark plate), at game size × 2, slot rings on.
+{
+  const S = 2;
+  const W = 420;
+  const H = 200;
+  const pic = createCanvas(W * S, H * S);
+  const p = pic.getContext("2d") as unknown as CanvasRenderingContext2D;
+  p.scale(S, S);
+  p.fillStyle = "#1a1c1f";
+  p.fillRect(0, 0, W, H);
+  const SLOTS = ["#3d8bff", "#ff8a1f", "#34c759", "#b05cff"];
+  const looks: Partial<SurvivorLook>[] = [
+    { head: "riot", top: "camo" },
+    { head: "gas", pack: "planks", colours: { top: "#7a6f5a", hair: "#2b2421", accent: "#3a4a5a" } },
+    { head: "bike", pack: "golf", top: "puffer", colours: { top: "#2f6a5a", hair: "#2b2421", accent: "#c2a46a" } },
+    { head: "weld", top: "hoodie", colours: { top: "#5a3a6a", hair: "#2b2421", accent: "#1f2326" } },
+  ];
+  looks.forEach((l, i) => {
+    const x = 60 + i * 100;
+    const y = 100 + (i % 2 ? 20 : -20);
+    p.strokeStyle = SLOTS[i] as string;
+    p.globalAlpha = 0.9;
+    p.lineWidth = 0.08 * 35;
+    p.beginPath();
+    p.arc(x, y, 14 + 0.15 * 35, 0, Math.PI * 2);
+    p.stroke();
+    p.globalAlpha = 1;
+    p.save();
+    p.translate(x, y);
+    p.rotate(-0.3 + i * 0.4);
+    drawSurvivor(p, 14, undefined, undefined, resolveLook({ ...DEFAULT_LOOK, ...l } as SurvivorLook, 1));
+    p.restore();
+  });
+  writeFileSync(new URL("../../playtests/milestone-1/objects/46_survivor_looks.png", import.meta.url), pic.toBuffer("image/png"));
+  console.log("wrote 46_survivor_looks.png");
+}

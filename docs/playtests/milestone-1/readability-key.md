@@ -66,3 +66,9 @@ Story 5.12 additions (pictures: Playwright, solo dev build, 800×360 at 2×, HUD
 | 42 | `5-12-molotov-flight-800x360.png` | a molotov in flight (a bottle with a burning rag; HG1–3 / MB1–3 looks vary per throw) | flies **over** cars, the bus, barricades; only buildings stop it | right if "molotov / fire bottle" |
 | 43 | `5-12-molotov-fire-800x360.png` | molotov fire: the 4.12 fire on the asphalt with a ring of flames at the 3 m edge = the damage edge | fire goes through barricades and sandbags (a ground area) | 8/s to zombies, 4/s to survivors (teammates and you), never stacks with a car fire, 4 s, burns no building, no path change |
 | 44 | `5-12-grenade-flight-800x360.png` | a hand grenade blast (EX2 shockwave + debris) at the bus's near face, its ring = the 2.5 m damage edge | the blast is **stopped by** cars/bus/buildings, **not** by barricades/sandbags | 44 to zombies, 20 to every survivor in it (you too) |
+
+Story 7.8 addition (picture: game code drawn with @napi-rs/canvas, `docs/art/7-8/sheet.ts`, game size × 2, 2026-11-24):
+
+| # | file | answer | bullets | notes |
+| --- | --- | --- | --- | --- |
+| 46 | `46_survivor_looks.png` | four survivors with chosen looks: riot helmet + camo coat (blue), gas mask + plank bundle (orange), bike helmet + golf bag + puffer (green), welding mask + hoodie (purple) | n/a | right if "nothing, they're just looks / clothes". Wrong (a readability bug, brief 13) if anyone reads armor, gas immunity, building material or a power-up into them. Looks are cosmetic only (proposal D1). |
