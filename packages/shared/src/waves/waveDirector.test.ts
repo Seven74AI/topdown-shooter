@@ -19,7 +19,7 @@ import { createWorld, step, type World } from "../core/world";
 import { addPlayer } from "../player/player";
 import { killZombie } from "../zombies/zombiePool";
 import { ZOMBIE_STATE, ZOMBIE_TYPES } from "../zombies/zombieTypes";
-import { applyFixedCounts, spawnJitterFor, spawnReachM, waveMixOf, waveSize, waveTypeCounts } from "./waveDirector";
+import { applyFixedCounts, fillFixedAtList, spawnJitterFor, spawnReachM, waveMixOf, waveSize, waveTypeCounts } from "./waveDirector";
 import { skipWave, startBuild } from "../run/runStateMachine";
 
 /**
@@ -230,7 +230,7 @@ describe("six-wave curve and composition (Story 3.10; Story 5.8: 6 waves)", () =
     expect(sizes(2)).toEqual([24, 48, 72, 96, 120, 144]);
     expect(sizes(1)).toEqual([14, 28, 42, 56, 70, 84]);
     expect(waveSize(real, 1, 9)).toBe(40); // clamped to the last entry
-    expect(real.waves.runWaves).toBe(6); // Story 5.8 (FR29: "the temporary run grows to 6 waves")
+    expect(real.waves.runWaves).toBe(10); // Story 6.1 (Story 5.8 had 6)
   });
 
   it("W1 Walkers only, W2 adds Runners, W3 adds Crawlers, W4–W5 add Spitters (Story 5.6: 8 %), W6 adds Bloaters (Story 5.8: 15 %), exact counts", () => {
@@ -255,7 +255,7 @@ describe("six-wave curve and composition (Story 3.10; Story 5.8: 6 waves)", () =
     // Solo: 84 → 33.6 / 16.8 / 12.6 / 8.4 / 12.6 → floors 33, 12, 16, 8, 12 + the 3 leftovers in type order.
     expect(counts(6, 1)).toEqual({ walker: 34, crawler: 13, runner: 17, spitter: 8, brute: 0, bloater: 12 });
     // Waves past the list use the last entry.
-    expect(waveMixOf(real, 9)).toBe(real.waves.mix[real.waves.mix.length - 1]);
+    expect(waveMixOf(real, 11)).toBe(real.waves.mix[real.waves.mix.length - 1]); // Story 6.1: the list has 10 entries (D-E)
   });
 
   /** Runs a real-balance solo World through `wave` waves (cleared by hand) and returns the spawn order of the last one. */
@@ -454,8 +454,162 @@ describe("Story 5.7: the Brute in the waves (AC 3, 4; F6, F8)", () => {
     expect(Array.from(target)).toEqual([0, 3, 4, 1, 1, 0]); // no Walkers: the Runners (largest) give it
     expect(Array.from(fixed)).toEqual([0, 0, 0, 0, 1, 0]);
     target.set([10, 0, 0, 0, 0, 0]);
-    applyFixedCounts(bal, 7, 10, target, fixed);
-    expect(Array.from(target)).toEqual([10, 0, 0, 0, 0, 0]); // wave 7: no entry
+    applyFixedCounts(bal, 11, 10, target, fixed);
+    expect(Array.from(target)).toEqual([10, 0, 0, 0, 0, 0]); // wave 11: no entry (Story 6.1: the list covers waves 1–10; 6.12 adds endless Brutes)
     expect(Array.from(fixed)).toEqual([0, 0, 0, 0, 0, 0]);
+  });
+});
+
+/** Story 6.1: the full 10-wave curve (F1–F6). */
+describe("Story 6.1: the full 10-wave curve", () => {
+  const real = loadBalance();
+  const counts = (n: number, players: number) => {
+    const size = waveSize(real, n, players);
+    const t = new Uint16Array(ZOMBIE_TYPES.length);
+    const f = new Uint16Array(ZOMBIE_TYPES.length);
+    waveTypeCounts(waveMixOf(real, n), size, t);
+    applyFixedCounts(real, n, size, t, f);
+    return Object.fromEntries(ZOMBIE_TYPES.map((k, i) => [k, t[i]]));
+  };
+  /** A real-balance (real player scale) run with frozen zombies killed as they appear; per wave the spawn order. */
+  function runOrders(players: number, opts: { runWaves?: number; startWave?: number; seed?: number } = {}) {
+    const world = createWorld({ balance: balanceWith({ runWaves: opts.runWaves ?? 10 }, true), seed: opts.seed ?? 3, systems: { zombies: () => {} } });
+    for (let i = 0; i < players; i++) addPlayer(world, `p${i}`, 24 + i, 16).hp = 1e9;
+    if (opts.startWave) world.waves.number = opts.startWave - 1;
+    startBuild(world);
+    const orders = new Map<number, string[]>();
+    const seen = new Set<number>();
+    for (let guard = 0; guard < 80000 && world.run.phase !== "results"; guard++) {
+      step(world, TICK_DT_S);
+      if (world.run.phase !== "wave") continue;
+      const order = orders.get(world.waves.number) ?? [];
+      orders.set(world.waves.number, order);
+      const z = world.zombies;
+      for (let i = 0; i < z.aliveCount; i++) {
+        const id = z.aliveIds[i] as number;
+        const key = id | ((z.generation[id] as number) << 16) | (world.waves.number << 24);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        order.push(ZOMBIE_TYPES[z.type[id] as number] as string);
+      }
+      while (z.aliveCount > 0) killZombie(world, z.aliveIds[0] as number, null, "pistol");
+    }
+    return { world, orders };
+  }
+
+  it("F1: waves 7–10 sizes at 4 / 3 / 2 / 1 players (N × 40 × 1.0 / 0.8 / 0.6 / 0.35)", () => {
+    const sizes = (n: number) => [4, 3, 2, 1].map((p) => waveSize(real, n, p));
+    expect(sizes(7)).toEqual([280, 224, 168, 98]);
+    expect(sizes(8)).toEqual([320, 256, 192, 112]);
+    expect(sizes(9)).toEqual([360, 288, 216, 126]);
+    expect(sizes(10)).toEqual([400, 320, 240, 140]);
+    expect(real.waves.maxAlive).toBe(150);
+  });
+
+  it("F2: waves 7–10 exact type counts (the story's table; solo at × 0.35)", () => {
+    const row = (walker: number, runner: number, crawler: number, spitter: number, bloater: number) => ({ walker, runner, crawler, spitter, bloater, brute: 2 });
+    const table: Record<number, ReturnType<typeof row>[]> = {
+      7: [row(105, 61, 42, 28, 42), row(84, 49, 34, 22, 33), row(62, 37, 26, 16, 25), row(36, 22, 15, 9, 14)],
+      8: [row(111, 76, 48, 35, 48), row(88, 61, 39, 28, 38), row(66, 46, 29, 21, 28), row(38, 27, 17, 12, 16)],
+      9: [row(143, 64, 61, 36, 54), row(114, 52, 49, 28, 43), row(85, 39, 37, 21, 32), row(49, 23, 22, 12, 18)],
+      10: [row(150, 88, 60, 40, 60), row(120, 70, 48, 32, 48), row(90, 52, 36, 24, 36), row(52, 30, 21, 14, 21)],
+    };
+    for (const [n, rows] of Object.entries(table)) {
+      rows.forEach((r, i) => {
+        const players = 4 - i;
+        const c = counts(Number(n), players);
+        expect(c, `wave ${n} ${players}p`).toEqual(r);
+        expect(Object.values(c).reduce((a, v) => a + v, 0)).toBe(waveSize(real, Number(n), players));
+      });
+    }
+  });
+
+  it("fillFixedAtList: two fixed zombies at round(size × 0.25) and round(size × 0.65); one at 0.25 (waves 5–6 unchanged); empty list → fixedAtFraction (D-A)", () => {
+    const out = new Uint16Array(8);
+    fillFixedAtList(real, 400, 2, out);
+    expect(Array.from(out.subarray(0, 3))).toEqual([100, 260, 0]);
+    fillFixedAtList(real, 70, 1, out);
+    expect(out[0]).toBe(18); // Story 5.7's solo wave 5 point
+    fillFixedAtList(real, 3, 2, out); // tiny wave: never later than size − fixedTotal + k
+    expect(Array.from(out.subarray(0, 2))).toEqual([1, 2]);
+    const legacy = balanceWith({ fixedAtFractions: [] } as Partial<typeof wavesJson>, true);
+    fillFixedAtList(legacy, 400, 2, out);
+    expect(Array.from(out.subarray(0, 2))).toEqual([100, 100]); // both at 25 % (the old behaviour)
+  });
+
+  it("F3: exactly 2 Brutes in each of waves 7–10 at every party size, the first after 25 %, the second after 65 %, never in the opening burst", () => {
+    for (let players = 1; players <= 4; players++) {
+      const { orders, world } = runOrders(players, { startWave: 5 });
+      expect(world.run.phase, `${players}p`).toBe("results");
+      expect(world.run.heldOut).toBe(true);
+      for (let wave = 5; wave <= 10; wave++) {
+        const order = orders.get(wave) ?? [];
+        const size = waveSize(world.balance, wave, players);
+        expect(order.length, `${players}p wave ${wave}`).toBe(size);
+        const at = order.flatMap((t, i) => (t === "brute" ? [i] : []));
+        if (wave <= 6) expect(at, `${players}p wave ${wave}`).toEqual([Math.round(size * 0.25)]); // waves 5–6 unchanged
+        else expect(at, `${players}p wave ${wave}`).toEqual([Math.round(size * 0.25), Math.round(size * 0.65)]);
+      }
+    }
+  }, 180_000);
+
+  it("the second Brute waits for 65 % SPAWNED (killing everything as it appears does not bring it sooner)", () => {
+    // runOrders kills every zombie on the tick it appears: the second Brute still comes at spawn #260 of 400.
+    const { orders } = runOrders(4, { startWave: 10 });
+    const order = orders.get(10) as string[];
+    expect(order.indexOf("brute")).toBe(100);
+    expect(order.lastIndexOf("brute")).toBe(260);
+  }, 60_000);
+
+  it("F4: zombies never get tougher: a wave-10 zombie has the same HP, speed and damage as a wave-1 zombie of its type", () => {
+    const world = createWorld({ balance: balanceWith({ runWaves: 10 }, true), seed: 5, systems: { zombies: () => {} } });
+    addPlayer(world, "p0", 24, 16).hp = 1e9;
+    const stats = new Map<string, string>();
+    const record = (wave: number) => {
+      const z = world.zombies;
+      for (let i = 0; i < z.aliveCount; i++) {
+        const id = z.aliveIds[i] as number;
+        const key = ZOMBIE_TYPES[z.type[id] as number] as string;
+        // HP is the only per-body stat set at spawn; speed and damage are read per type from `zombies.json` (no wave input).
+        const val = `${z.hp[id]}|${z.slowPct[id]}`;
+        const prev = stats.get(key);
+        if (prev === undefined) stats.set(key, val);
+        else expect(val, `${key} in wave ${wave}`).toBe(prev);
+      }
+    };
+    startBuild(world);
+    for (let guard = 0; guard < 80000 && world.run.phase !== "results"; guard++) {
+      step(world, TICK_DT_S);
+      if (world.run.phase !== "wave") continue;
+      record(world.waves.number);
+      while (world.zombies.aliveCount > 0) killZombie(world, world.zombies.aliveIds[0] as number, null, "pistol");
+    }
+    expect(world.waves.number).toBe(10);
+    expect([...stats.keys()].sort()).toEqual([...ZOMBIE_TYPES].sort()); // every type seen at least once
+    for (const [type, v] of stats) expect(Number(v.split("|")[0]), type).toBe(world.balance.zombies.types[type]?.hp);
+  }, 120_000);
+
+  it("F5: the last-5 rush in wave 10 (queue empty, 5 left → they rush)", () => {
+    const { world, events } = setup({ runWaves: 10 });
+    world.waves.number = 9; // the next wave is 10 (single player at × 1.0: 400)
+    skipWave(world); // no-op in a build; the build countdown starts wave 10
+    for (let i = 0; i < 200 && world.run.phase !== "wave"; i++) step(world, TICK_DT_S);
+    expect(world.waves.number).toBe(10);
+    expect(world.waves.size).toBe(400);
+    for (let i = 0; i < 20000 && world.waves.queued > 0; i++) {
+      step(world, TICK_DT_S);
+      const z = world.zombies;
+      if (world.waves.queued > 0) while (z.aliveCount > 6) killZombie(world, z.aliveIds[0] as number, "local", "pistol");
+    }
+    expect(world.waves.rushing).toBe(false); // 6 + the last batch alive
+    const z = world.zombies;
+    while (z.aliveCount > 6) killZombie(world, z.aliveIds[0] as number, "local", "pistol");
+    run(world, 1);
+    expect(world.waves.rushing).toBe(false);
+    killZombie(world, z.aliveIds[0] as number, "local", "pistol");
+    run(world, 1);
+    expect(world.waves.rushing).toBe(true);
+    for (let i = 0; i < z.aliveCount; i++) expect(z.state[z.aliveIds[i] as number]).toBe(ZOMBIE_STATE.RUSH);
+    expect(events.some((e) => e.type === "wave.rush_started" && e.count === 5)).toBe(true);
   });
 });

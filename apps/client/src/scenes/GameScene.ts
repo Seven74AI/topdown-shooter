@@ -32,6 +32,7 @@ import {
   weaponIds,
   weaponStats,
   parseWaveMix,
+  parseStartWave,
   isRushState,
   acidSpitOf,
   type Balance,
@@ -477,7 +478,9 @@ export class GameScene extends Phaser.Scene {
     const soloSeed = data?.mode !== "online" && data?.seed !== undefined ? data.seed >>> 0 : undefined;
     // Story 2.7: the reversed-hit counter runs in dev builds, and in release while the overlay is on.
     const netHost = session ? new NetSimHost({ balance, session, measureHits: () => import.meta.env.DEV || perf.overlayOn }) : null;
-    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed() });
+    // Story 6.1 dev (?startwave=7, dev builds, solo, not with ?stress): the first build leads into that wave.
+    const startWave = session || opts.stress !== null ? null : parseStartWave(opts.startWave, balance);
+    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave });
     const host: SceneHost = netHost ?? (localHost as LocalSimHost);
     this.localHost = localHost;
     this.leaving = false;

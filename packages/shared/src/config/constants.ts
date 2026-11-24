@@ -63,3 +63,10 @@ export const ZOMBIE_HISTORY_TICKS = REWIND_MAX_TICKS + 2;
  * zone sends a zero aim inside it.
  */
 export const MIN_AIM_LEN = 1e-6;
+
+/**
+ * Story 6.1: the most fixed zombies (`waves.json › fixed`) one wave can hold: the size of the
+ * preallocated per-wave spawn-point list (`WaveState.fixedAtList`). Structural (a buffer size, like
+ * the pool capacities); `loadBalance` refuses a `fixed` entry above it.
+ */
+export const MAX_FIXED_PER_WAVE = 8;

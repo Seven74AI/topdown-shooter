@@ -1,4 +1,5 @@
 import { MAX_PATHING_ZOMBIE_RADIUS_M, type Balance } from "../config/balance";
+import { MAX_FIXED_PER_WAVE } from "../config/constants";
 import { ticksFor } from "../core/time";
 import type { World } from "../core/world";
 import { spawnZombie } from "../zombies/zombiePool";
@@ -33,11 +34,16 @@ export interface WaveState extends SpawnPickState {
   readonly typeSpawned: Uint16Array;
   /**
    * Story 5.7: this wave's fixed zombies per type (`waves.json › fixed`, part of `typeTarget`) and how
-   * many of them have spawned; they wait until `fixedAt` wave zombies have spawned, then go first.
+   * many of them have spawned. Story 6.1: the k-th fixed zombie (over all fixed types, `ZOMBIE_TYPES`
+   * order) waits until `fixedAtList[k]` wave zombies have spawned, then goes first.
    */
   readonly fixedTarget: Uint16Array;
   readonly fixedSpawned: Uint16Array;
-  fixedAt: number;
+  /** Story 6.1: the spawn point of each fixed zombie of this wave (spawned wave zombies; ascending; filled by `beginWave`). */
+  readonly fixedAtList: Uint16Array;
+  /** Story 6.1: fixed zombies spawned this wave (index into `fixedAtList`); `fixedTotal` is their count. */
+  fixedServed: number;
+  fixedTotal: number;
   /** Story 5.7: Brutes spawned this run (the "Brute!" banner shows for the first only). */
   brutesSpawned: number;
 }
@@ -55,7 +61,9 @@ export function createWaveState(): WaveState {
     typeSpawned: new Uint16Array(ZOMBIE_TYPES.length),
     fixedTarget: new Uint16Array(ZOMBIE_TYPES.length), // Story 5.7
     fixedSpawned: new Uint16Array(ZOMBIE_TYPES.length),
-    fixedAt: 0,
+    fixedAtList: new Uint16Array(MAX_FIXED_PER_WAVE), // Story 6.1
+    fixedServed: 0,
+    fixedTotal: 0,
     brutesSpawned: 0,
     ...createSpawnPickState(), // Story 4.3
   };
@@ -158,10 +166,9 @@ function waveZombieType(world: World): number {
   const w = world.waves;
   const dev = world.debug.waveMix;
   if (dev && dev.length > 0) return ZOMBIE_TYPES.indexOf(dev[(w.size - w.queued) % dev.length] as ZombieTypeId);
-  // Story 5.7: once `fixedAt` wave zombies are out, the fixed ones go first (the Brute after 25 %).
-  if (w.size - w.queued >= w.fixedAt) {
-    for (let t = 0; t < ZOMBIE_TYPES.length; t++) if ((w.fixedSpawned[t] as number) < (w.fixedTarget[t] as number)) return t;
-  }
+  // Story 5.7 / 6.1: a fixed zombie whose point has come goes first (the Brutes at 25 % and 65 %).
+  const fixed = nextFixedType(w);
+  if (fixed >= 0) return fixed;
   let best = -1;
   for (let t = 0; t < ZOMBIE_TYPES.length; t++) {
     // The mix's share only (fixed zombies are held above).
@@ -177,6 +184,34 @@ function waveZombieType(world: World): number {
     if ((done + 1) * bt < (bd + 1) * target) best = t;
   }
   return best < 0 ? 0 : best;
+}
+
+/**
+ * Story 6.1: the type index of the next fixed zombie when its spawn point has come (`size − queued ≥
+ * fixedAtList[fixedServed]`), else −1. Types in `ZOMBIE_TYPES` order. No RNG draw.
+ */
+function nextFixedType(w: WaveState): number {
+  if (w.fixedServed >= w.fixedTotal || w.size - w.queued < (w.fixedAtList[w.fixedServed] as number)) return -1;
+  for (let t = 0; t < ZOMBIE_TYPES.length; t++) if ((w.fixedSpawned[t] as number) < (w.fixedTarget[t] as number)) return t;
+  return -1; // unreachable: fixedTotal is the sum of fixedTarget
+}
+
+/**
+ * Story 6.1 (D1): fills `w.fixedAtList` for the wave's `fixedTotal` fixed zombies: the k-th waits for
+ * round(size × `fixedAtFractions[k]`) spawned wave zombies (`fixedAtFraction` past the list or with an
+ * empty list, D-A), kept ascending and never later than size − fixedTotal + k (so every fixed zombie
+ * still has a slot: with one fixed zombie this is Story 5.7's `min(size − 1, round(size × 0.25))`).
+ */
+export function fillFixedAtList(balance: Balance, size: number, fixedTotal: number, out: Uint16Array): void {
+  const b = balance.waves;
+  out.fill(0);
+  let prev = 0;
+  for (let k = 0; k < fixedTotal && k < out.length; k++) {
+    const frac = b.fixedAtFractions[k] ?? b.fixedAtFraction;
+    const at = Math.max(prev, Math.min(size - fixedTotal + k, Math.round(size * frac)));
+    out[k] = at;
+    prev = at;
+  }
 }
 
 /**
@@ -236,7 +271,10 @@ function spawnWaveZombie(world: World): boolean {
   const w = world.waves;
   w.typeSpawned[typeIndex] = (w.typeSpawned[typeIndex] as number) + 1;
   // Story 5.7: a fixed zombie of this type counts first (the mix's share never serves one early).
-  if ((w.fixedSpawned[typeIndex] as number) < (w.fixedTarget[typeIndex] as number) && w.size - w.queued >= w.fixedAt) w.fixedSpawned[typeIndex] = (w.fixedSpawned[typeIndex] as number) + 1;
+  if (typeIndex === nextFixedType(w)) {
+    w.fixedSpawned[typeIndex] = (w.fixedSpawned[typeIndex] as number) + 1;
+    w.fixedServed++; // Story 6.1: the next fixed zombie waits for its own point
+  }
   announceSpawn(world, id);
   return true;
 }
@@ -266,7 +304,9 @@ export function beginWave(world: World): void {
   w.fixedSpawned.fill(0);
   let fixedTotal = 0;
   for (let t = 0; t < ZOMBIE_TYPES.length; t++) fixedTotal += w.fixedTarget[t] as number;
-  w.fixedAt = Math.min(w.size - fixedTotal, Math.round(w.size * world.balance.waves.fixedAtFraction));
+  w.fixedTotal = fixedTotal;
+  w.fixedServed = 0;
+  fillFixedAtList(world.balance, w.size, fixedTotal, w.fixedAtList); // Story 6.1 (D1)
   w.typeSpawned.fill(0);
   w.queued = w.size;
   w.remaining = w.size;

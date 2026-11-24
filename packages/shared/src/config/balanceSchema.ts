@@ -389,7 +389,7 @@ export const wavesSchema = z
         allNearMaxWaitS: z.number().min(0),
       })
       .strict(),
-    /** Story 3.10: clearing this wave ends the run ("You held out!"; Epic 6 sets 10 and adds the boss). */
+    /** Story 3.10: clearing this wave ends the run ("You held out!"). Story 6.1: 10 (Epic 6); Story 6.11 opens the vote after it. */
     runWaves: z.number().int().min(1).max(255),
     /**
      * Story 3.10 (FR31): wave size × this, by the number of players in the run when the wave starts
@@ -416,6 +416,17 @@ export const wavesSchema = z
     fixed: z.array(z.record(balanceId, z.number().int().min(0).max(255))).default([]),
     /** Story 5.7: the first fixed zombie of a wave spawns once this fraction of the wave has spawned (not in the opening burst). */
     fixedAtFraction: z.number().min(0).max(1).default(0.25),
+    /**
+     * Story 6.1 (D1): the spawn point of the k-th fixed zombie of a wave (counted over all fixed
+     * types in `ZOMBIE_TYPES` order) as a fraction of the wave: it waits until round(size × this)
+     * wave zombies have spawned. `[0.25, 0.65]`: the two Brutes of waves 7–10 come at 25 % and 65 %.
+     * Ascending, each in [0, 1); empty = `fixedAtFraction` for every fixed zombie (D-A). When not
+     * empty, `loadBalance` requires it to cover the biggest `fixed` entry.
+     */
+    fixedAtFractions: z
+      .array(z.number().min(0).lt(1))
+      .refine((a) => a.every((v, i) => i === 0 || v >= (a[i - 1] as number)), "fixedAtFractions must be ascending")
+      .default([]),
   })
   .strict();
 

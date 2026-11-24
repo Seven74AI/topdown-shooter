@@ -199,6 +199,9 @@ export function snapshotWorld(world: World) {
       ...world.waves,
       typeTarget: Array.from(world.waves.typeTarget),
       typeSpawned: Array.from(world.waves.typeSpawned),
+      fixedTarget: Array.from(world.waves.fixedTarget), // Story 6.1: the fixed zombies and their spawn points
+      fixedSpawned: Array.from(world.waves.fixedSpawned),
+      fixedAtList: Array.from(world.waves.fixedAtList),
       recentSpawns: Array.from(world.waves.recentSpawns), // Story 4.3: the spawn pick's memory
     },
     run: { ...world.run },
