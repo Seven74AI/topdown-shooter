@@ -175,3 +175,7 @@ Applied by the course correction in `_bmad-output/planning-artifacts/sprint-chan
 
 - **Solo Behemoth HP = × 0.4** (designer, 2026-11-24), like every other solo scaling.
 - **Bear trap closed look (D11) approved** as built (designer, 2026-11-24).
+
+## Epic 6 looks (designer, 2026-11-24)
+
+All Epic 6 look picks (Ruins, Collapse, blackout, Behemoth, events, vote and dawn) are in **`docs/epic-6-decisions.md`** (page claude.ai/artifact/7ikXRSUD7ZURpADLAtEPSJ, `docs/art/epic-6/looks.html`).

@@ -1,0 +1,125 @@
+<title>Epic 6 Looks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Oswald:wght@500;600;700&display=swap');
+:root{
+  color-scheme:dark;
+  --bg:#0c0d0f;
+  --card:#15171a;
+  --card-line:#262a2f;
+  --ink:#e8e6e0;
+  --mute:#9a9fa7;
+  --faint:#6b7078;
+  --acid:#b8f04a;
+  --fire:#ff9a4a;
+  --strip:#121316;
+  --display:'Oswald','Arial Narrow',Impact,sans-serif;
+  --text:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font:15px/1.5 var(--text);
+  padding-block:28px 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  overflow-x:hidden;
+}
+header,main,footer{max-width:1240px;margin:0 auto}
+h1{font:600 clamp(30px,5vw,46px)/1.05 var(--display);letter-spacing:.02em;text-transform:uppercase;margin:0 0 10px}
+h1 span{color:var(--acid)}
+.intro{margin:0 0 6px;max-width:70ch}
+.note{margin:0 0 8px;color:var(--mute);font-size:13px;max-width:76ch}
+section{margin-top:38px}
+h2{font:600 24px/1.1 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:0 0 4px}
+h2 small{font:500 12px var(--mono);color:var(--mute);letter-spacing:.04em;margin-left:8px;text-transform:none}
+.sub{margin:0 0 8px;color:var(--mute);font-size:13px;max-width:84ch}
+.rec{margin:0 0 14px;font-size:13.5px;max-width:84ch;border-left:3px solid var(--acid);padding:2px 0 2px 10px}
+.rec b{color:var(--acid);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,560px),1fr));gap:18px}
+.card{background:var(--card);border:1px solid var(--card-line);border-radius:10px;padding:14px;min-width:0}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:2px;flex-wrap:wrap}
+.code{font:500 12px var(--mono);color:var(--bg);background:var(--acid);border-radius:4px;padding:1px 6px}
+.tag{font:500 10.5px var(--mono);color:var(--acid);border:1px solid var(--acid);border-radius:999px;padding:0 7px;margin-left:auto;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+h3{font:500 19px/1.2 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:0}
+.desc{margin:2px 0 12px;color:var(--mute);font-size:13px}
+.main canvas{display:block;width:100%;height:auto;border-radius:6px;background:#111}
+.strip{margin-top:12px;border-radius:6px;overflow:hidden;background:var(--strip)}
+.strip canvas{display:block;width:100%}
+.lbl{display:flex;justify-content:space-between;align-items:center;gap:8px;font:400 10.5px var(--mono);color:var(--faint);padding:5px 8px;background:#0f1012;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--card-line);border-radius:999px;overflow:hidden}
+.seg button{font:500 10.5px var(--mono);color:var(--mute);background:transparent;border:0;padding:3px 9px;cursor:pointer;letter-spacing:.03em}
+.seg button[aria-pressed="true"]{background:var(--acid);color:var(--bg)}
+.seg button:focus-visible{outline:2px solid var(--acid);outline-offset:-2px}
+details.fold{margin-top:16px;border:1px dashed var(--card-line);border-radius:10px;padding:8px 12px}
+details.fold summary{cursor:pointer;font:500 12px var(--mono);color:var(--mute);letter-spacing:.03em}
+details.fold .grid{margin-top:12px}
+.grid.wide{grid-template-columns:1fr}
+.main canvas.full{background:#050608}
+.opts{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.toc{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0;font:500 12px var(--mono)}
+.toc a{color:var(--mute);text-decoration:none;border:1px solid var(--card-line);border-radius:999px;padding:3px 10px}
+.toc a:hover{color:var(--ink);border-color:var(--acid)}
+code{font:500 12px var(--mono);color:#cfd3d8}
+</style>
+
+<header>
+  <h1>Epic <span>6</span> looks</h1>
+  <p class="intro">Code-drawn proposals for the full run: Ruins (stage 4), Collapse (stage 5), blackout lighting, the Behemoth and its tells, the special events, and the evacuation vote with dawn. Pick one code per section (or two: the first is the base look, the second an upgrade/skin variant).</p>
+  <p class="note">The street is the <b>real Downtown map drawn by the game’s own code</b> (<code>render/city/*</code>, bundled into this page: same buildings, cars, bus, lamps and light bake). Everything new is drawn in Canvas 2D on top, strictly top-down. Each map card shows the <b>whole phone screen</b> (24 × 13.5 m) on top and a <b>real-size strip</b> (48 px/m) with a survivor (0.4 m) and Walkers (0.35 m) underneath. Fire is the fire-lab D particle fire, the floodlight is 5.10’s FL1. With reduced motion every card shows one still frame.</p>
+  <nav class="toc"><a href="#s-ru">1 · Ruins</a><a href="#s-co">2 · Collapse</a><a href="#s-bl">3 · Blackout</a><a href="#s-bh">4 · Behemoth</a><a href="#s-ev">5 · Events</a><a href="#s-ex">6 · Vote &amp; dawn</a></nav>
+</header>
+<main>
+  <section id="s-ru">
+    <h2>1 · Ruins <small>stage 4 · waves 7–8 · 6.2</small></h2>
+    <p class="sub">The south-west corner of Downtown at wave 7: rubble closes <b>alley 2</b> (between the diner and the parking lot; the decay variant can pick alley 1 or 3 instead), <b>3 rubble piles</b> (≈ 2 × 1.5 m, hard cover) land in the street, a <b>breach</b> opens in the diner wall (new spawn), the burnt cars from stage 3 stay as wrecks, streetlights drop out for 0.15–0.6 s every 4–10 s, shop glow is at 30 %, and dust trickles down from broken edges (D4: ambience only, no damage). The four options differ in what the destruction is made of.</p>
+    <p class="rec" id="rec-ru"></p>
+    <div class="grid wide" id="ru"></div>
+  </section>
+  <section id="s-co">
+    <h2>2 · Collapse <small>stage 5 · waves 9–10 · 6.4</small></h2>
+    <p class="sub">The intersection at stage 5: the power is out (no streetlights, no shop glow, no neon), the Ruins rubble stays and grows, and <b>fog</b> hides zombies more than 10 m from you (your flashlight sees through it to its full length). On a landscape phone the fog only bites at the left and right ends of the screen. Use the switch: <b>wave</b> = blackout + fog 10 m; <b>build</b> = half dark + fog 14 m. The darkness here is the recommended blackout level from section 3.</p>
+    <p class="rec" id="rec-co"></p>
+    <div class="grid wide" id="co"></div>
+  </section>
+  <section id="s-bl">
+    <h2>3 · Blackout lighting <small>6.3 · darkness level and how light reads</small></h2>
+    <p class="sub">The same stage-5 intersection in a blackout wave. Lit by: your <b>flashlight</b> (60°, 8 m), a teammate’s <b>Tactical flashlight</b> (80°, 12 m), a 1.6 m glow round every survivor, the <b>FL1 floodlight</b> (6 m in blackout, 4 m otherwise: use the switch), a <b>burning car</b> (fire zone light 4 m), and <b>muzzle flashes</b> (3 m for 100 ms). Drawn above the darkness: teammates with slot rings and zombie eyes within 14 m. The options differ in how dark the unlit ground is and how a beam is drawn.</p>
+    <p class="rec" id="rec-bl"></p>
+    <div class="grid wide" id="bl"></div>
+  </section>
+  <section id="s-bh">
+    <h2>4 · The Behemoth <small>6.5–6.7 · radius 2 m · the prototype redrawn in game style</small></h2>
+    <p class="sub">The prototype’s boss (hunched back, torn shirt, spine rip, rebar, huge fists) redrawn with the Brute’s shading (lit parts, skin and cloth texture, cast shadow). Every card cycles through its six poses: walk, slam wind-up (arms over the head), charge (head down, arms back), throw (chunk overhead), crash stun (2 s, stars), enrage roar (red eyes and veins). The strip is real size: the boss is 4 m across next to a 0.8 m survivor.</p>
+    <p class="rec" id="rec-bh"></p>
+    <div class="grid" id="bh"></div>
+    <h2 style="margin-top:26px">Tells on the real map <small>slam · charge + crash · throw · enrage</small></h2>
+    <p class="sub">The fight’s rhythm at real size on the intersection: <b>slam</b> (1.2 s, ring 4.5 m), <b>charge</b> (1.0 s, lane 4.8 m wide to its stop, CRASH mark when it ends on the bus), <b>throw</b> (1.0 s lift, 3 m ring under the farthest player, inner ring shrinks to impact, crater decal), <b>enrage</b> (1.5 s roar, 5 m push-back ring, red bar, Crawler drops). Danger = red with white diagonal hatching and a dashed white edge (nothing else in the game uses hatching), drawn above everything with a hole for the boss’s body. Pick the boss look with the switch.</p>
+    <div class="grid wide" id="bt"></div>
+  </section>
+  <section id="s-ev">
+    <h2>5 · Special events <small>6.8–6.10 · only what needs a new look</small></h2>
+    <p class="sub">Each card is one event with 2–3 variants (switch under the strip). <b>Power failure</b> needs no new art: lamps flicker 2 s like Ruins, then the blackout of section 3. Every event marker draws above the darkness and has an edge arrow when off screen.</p>
+    <p class="rec" id="rec-ev"></p>
+    <div class="grid" id="ev"></div>
+  </section>
+  <section id="s-ex">
+    <h2>6 · Evacuation vote, extract and dawn <small>6.11 · 15 s vote · 4 s dawn</small></h2>
+    <p class="sub">After the Behemoth dies and wave 10 is cleared, the helicopter lands on the 6 m pad at the intersection (searchlight). Everyone votes <b>Extract</b> / <b>Stay</b> in 15 s; every vote shows live in its slot colour; downed and out players vote; tie or no vote = Extract. Drawn at the size of a landscape phone (844 × 390). Then the dawn: the helicopter lifts off and the first light rises over the district for 4 s before Results “Extracted”.</p>
+    <p class="rec" id="rec-ex"></p>
+    <div class="grid wide" id="ex"></div>
+    <p class="rec" id="rec-dw"></p>
+    <div class="grid wide" id="dw"></div>
+  </section>
+</main>
+<footer>Drawn with Canvas 2D only: the game’s own city code for the street (bundled), the round A–D helpers (part shading, textures), the 4.12 particle fire and round D’s FL1. No images, no libraries. Source: <code>docs/art/epic-6/src/</code>.</footer>
+
+<script>
+/*@CITY@*/
+</script>
+<script>
+"use strict";
+/*@LIB@*/
+/*@MAIN@*/
+</script>
