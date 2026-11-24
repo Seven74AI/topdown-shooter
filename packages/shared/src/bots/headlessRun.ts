@@ -38,6 +38,8 @@ export interface HeadlessRunOptions {
   record?: InputLog;
   /** Story 4.4: called with the World when the run stops (e.g. for `worldDigest`). */
   onEnd?: (world: World) => void;
+  /** Story 6.3: called with the World after every tick (tests: liveness probes). */
+  onTick?: (world: World) => void;
 }
 
 export interface HeadlessWaveLog {
@@ -258,6 +260,7 @@ export function runHeadless(opts: HeadlessRunOptions): HeadlessRunLog {
       rec?.commands.push({ kind: "input", playerId: id, input: { ...input }, tick: world.tick });
     }
     step(world, TICK_DT_S);
+    opts.onTick?.(world);
   }
   if (rec) rec.endTick = world.tick;
   opts.onEnd?.(world);

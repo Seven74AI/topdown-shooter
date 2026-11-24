@@ -85,7 +85,21 @@ export { createObstacles, fillObstacles, mutationApplies, type ObstacleState } f
 export { createDecayState, fireRecordOf, legalDecayMasks, pickDecayVariants, stageForWave, type DecayState, type FireRecord } from "./decay/decayState";
 export { applyDecayStage } from "./decay/applyDecayStage";
 // Story 5.10: the derived light-source list; med station healing.
-export { createLightState, lightsOf, updateLightState, type LightKind, type LightSource, type LightState } from "./decay/lightState";
+export {
+  createLightState,
+  darknessAlpha,
+  isBlackout,
+  lightRadiusOf,
+  lightsOf,
+  refreshBlackout,
+  setForcedBlackout,
+  updateLightState,
+  type LightKind,
+  type LightSource,
+  type LightState,
+} from "./decay/lightState";
+// Story 6.3: the blackout flashlight cone (6.4's fog uses it too).
+export { flashlightOf, inFlashlightCone, type FlashlightCone } from "./player/flashlight";
 export { healsSomeoneNow, inHealReach, updateMedStations } from "./buildings/medStation";
 // Story 4.8: car fires.
 export { circleInFire, fireExpiry, firePulse, firePulseDamage, lightNewFires, segmentHitsFire, updateFires } from "./decay/fire";

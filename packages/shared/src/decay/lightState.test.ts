@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance } from "../config/balance";
+import { bundledBalanceFiles, loadBalance } from "../config/balance";
 import { BUILD_GRID_M, TICK_DT_S } from "../config/constants";
 import type { SystemFn } from "../core/systems";
 import { createWorld, step, type World } from "../core/world";
-import { worldDigest } from "../core/worldSnapshot";
+import { snapshotWorld, worldDigest } from "../core/worldSnapshot";
 import { addBuildingAt, damageBuilding, removeBuilding, type Building } from "../buildings/buildings";
 import { DOWNTOWN_MAP } from "../map/downtown";
 import { addPlayer } from "../player/player";
 import { teamSpawnPoint } from "../player/spawn";
-import { skipWave, startBuild, startWave } from "../run/runStateMachine";
-import { lightsOf, updateLightState } from "./lightState";
+import { endRun, skipWave, startBuild, startWave } from "../run/runStateMachine";
+import { darknessAlpha, isBlackout, lightRadiusOf, lightsOf, refreshBlackout, setForcedBlackout, updateLightState, type LightSource } from "./lightState";
 
 /** Story 5.10 (AC 2): the derived light-source list (floodlights + burning fires). */
 const noop: SystemFn = () => {};
@@ -42,8 +42,8 @@ function nextBuild(w: World): void {
 }
 
 describe("Story 5.10 light state (AC 2)", () => {
-  it("balance: the floodlight is 150 HP, price 100, 1 × 1 m, not in the shop, light 4 m (6 m in blackout, Epic 6 D5)", () => {
-    expect(FLOOD).toMatchObject({ price: 100, hp: 150, widthM: 1, depthM: 1, inShop: false, light: { radiusM: 4, blackoutRadiusM: 6 } });
+  it("balance: the floodlight is 150 HP, price 100, 1 × 1 m, in the shop from wave 1 (Story 6.3 D8), light 4 m (6 m in blackout, Epic 6 D5)", () => {
+    expect(FLOOD).toMatchObject({ price: 100, hp: 150, widthM: 1, depthM: 1, inShop: true, light: { radiusM: 4, blackoutRadiusM: 6 } });
   });
 
   it("a placed floodlight is one light at its centre with radius 4; other buildings are not lights", () => {
@@ -112,5 +112,121 @@ describe("Story 5.10 light state (AC 2)", () => {
     w.lights.buildingsVersion = -1;
     expect(worldDigest(w)).toBe(d);
     expect(lightsOf(w)).toHaveLength(1);
+  });
+});
+
+describe("Story 6.3 blackout light state (AC 1–4; F1, F7)", () => {
+  const withBlackout = (patch: (b: Record<string, unknown>) => void) => {
+    const raw = bundledBalanceFiles() as unknown as { decay: { blackout: Record<string, unknown> } };
+    patch(raw.decay.blackout);
+    return loadBalance(raw as never);
+  };
+  const worldOf = (b = balance) => {
+    const w = createWorld({ balance: b, seed: 7, map: DOWNTOWN_MAP, systems: { waves: noop } });
+    w.debug.godMode = true;
+    const at = { x: 0, y: 0 };
+    teamSpawnPoint(w, 0, at);
+    addPlayer(w, "p0", at.x, at.y);
+    return w;
+  };
+
+  it("balance defaults: every lightPctByWave entry 0, power failure 20 %, endless 5 %, half 0.5 (off), glow 1.6 m, fire 4 m", () => {
+    expect(balance.decay.blackout).toMatchObject({ lightPctByWave: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], powerFailureLightPct: 20, endlessLightPct: 5, halfDarkK: 0.5, halfDarkInBuild: false, glowM: 1.6, fireLightM: 4, muzzleLightM: 3, muzzleLightS: 0.1, flameLightM: 3, explosionLightM: 5, explosionLightS: 0.15, eyesM: 14, maxStamps: 48, maxEyes: 150, maxSparkles: 160 });
+  });
+
+  it("table 0 → no blackout in any phase of a normal run", () => {
+    const w = worldOf();
+    startBuild(w);
+    expect(isBlackout(w)).toBe(false);
+    startWave(w);
+    expect(w.lights.blackoutPct).toBe(0);
+    expect(darknessAlpha(w)).toBe(0);
+  });
+
+  it("refreshBlackout rule order: forced → wave table → power failure in a wave → half in build → 0", () => {
+    const b = withBlackout((x) => {
+      x.lightPctByWave = [0, 10, 0, 0, 0, 0, 0, 0, 10, 5];
+      x.halfDarkInBuild = true;
+    });
+    const w = worldOf(b);
+    startBuild(w); // coming wave 1: entry 0
+    expect([w.lights.blackoutPct, w.lights.halfDark]).toEqual([0, false]);
+    startWave(w); // wave 1: entry 0
+    expect(w.lights.blackoutPct).toBe(0);
+    w.lights.powerFailure = true;
+    refreshBlackout(w); // a power failure mid-wave
+    expect([w.lights.blackoutPct, w.lights.halfDark]).toEqual([20, false]);
+    tick(w, 2);
+    skipWave(w); // → build before wave 2: coming entry 10 → half dark
+    expect([w.lights.blackoutPct, w.lights.halfDark]).toEqual([10, true]);
+    expect(darknessAlpha(w)).toBeCloseTo(0.45, 9);
+    startWave(w); // wave 2: the table (10) wins over the power failure (20)
+    expect([w.lights.blackoutPct, w.lights.halfDark]).toEqual([10, false]);
+    setForcedBlackout(w, 5); // forced wins over everything
+    expect([w.lights.blackoutPct, w.lights.halfDark]).toEqual([5, false]);
+    setForcedBlackout(w, -1);
+    expect(w.lights.blackoutPct).toBe(10);
+    endRun(w); // → Results → 0
+    expect(w.run.phase).toBe("results");
+    expect(w.lights.blackoutPct).toBe(0);
+  });
+
+  it("powerFailure counts only in a wave", () => {
+    const w = worldOf();
+    startBuild(w);
+    w.lights.powerFailure = true;
+    refreshBlackout(w);
+    expect(w.lights.blackoutPct).toBe(0);
+    startWave(w);
+    expect(w.lights.blackoutPct).toBe(20);
+  });
+
+  it("halfDark only in a build phase (and only with halfDarkInBuild)", () => {
+    const on = worldOf(withBlackout((x) => ((x.lightPctByWave = [5, 5]), (x.halfDarkInBuild = true))));
+    startBuild(on);
+    expect(on.lights.halfDark).toBe(true);
+    startWave(on);
+    expect(on.lights.halfDark).toBe(false);
+    const off = worldOf(withBlackout((x) => (x.lightPctByWave = [5, 5])));
+    startBuild(off);
+    expect([off.lights.blackoutPct, off.lights.halfDark]).toEqual([0, false]);
+  });
+
+  it("darknessAlpha: 5 % → 0.95, half → 0.475 (halfDarkK applied), off → 0", () => {
+    const w = worldOf();
+    w.lights.blackoutPct = 5;
+    expect(darknessAlpha(w)).toBeCloseTo(0.95, 9);
+    w.lights.halfDark = true;
+    expect(darknessAlpha(w)).toBeCloseTo(0.475, 9);
+    const k3 = worldOf(withBlackout((x) => (x.halfDarkK = 0.3)));
+    k3.lights.blackoutPct = 5;
+    k3.lights.halfDark = true;
+    expect(darknessAlpha(k3)).toBeCloseTo(0.285, 9);
+    w.lights.blackoutPct = 0;
+    expect(darknessAlpha(w)).toBe(0);
+  });
+
+  it("lightRadiusOf: a floodlight 4 m ↔ 6 m; a fire lights 4 m in a blackout (2 m zone otherwise)", () => {
+    const { w, place, near } = setup([1, 3, 3, 3, 3, 3, 3, 3, 3, 3]);
+    const [x, y] = near(3, 0);
+    place(x, y);
+    nextBuild(w); // stage 3: fires
+    const l = lightsOf(w);
+    const fire = l.find((e) => e.kind === "fire") as LightSource;
+    const flood = l.find((e) => e.kind === "floodlight") as LightSource;
+    expect(fire).toBeDefined();
+    expect(lightRadiusOf(w, flood)).toBe(4);
+    expect(lightRadiusOf(w, fire)).toBe(2);
+    setForcedBlackout(w, 5);
+    expect(lightRadiusOf(w, flood)).toBe(6);
+    expect(lightRadiusOf(w, fire)).toBe(4);
+  });
+
+  it("the light flags are in snapshotWorld (replay) and change the digest", () => {
+    const w = worldOf();
+    const d0 = worldDigest(w);
+    setForcedBlackout(w, 10);
+    expect(snapshotWorld(w).lights).toEqual({ blackoutPct: 10, halfDark: false, powerFailure: false, forcedPct: 10 });
+    expect(worldDigest(w)).not.toBe(d0);
   });
 });

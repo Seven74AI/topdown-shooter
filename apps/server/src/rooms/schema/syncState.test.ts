@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Encoder } from "@colyseus/schema";
-import { NEUTRAL_INPUT, knockPlayer, applyZombieDamage, changeDecayStage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
+import { NEUTRAL_INPUT, knockPlayer, applyZombieDamage, changeDecayStage, downPlayer, loadBalance, quantizeHeading, removeBuilding, setForcedBlackout, setLoadout, slowPlayer, spawnZombie } from "@topdown/shared";
 import { RunController } from "../../run/RunController";
 import { PlayerState, RunState } from "./RunState";
 import { resetRunFields, syncState } from "./syncState";
@@ -457,5 +457,41 @@ describe("syncState", () => {
     (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[bandwidth] fires-out patch: +${change - idle} B once per expiry (idle patch ${idle} B)`);
     resetRunFields(state);
     expect(state.decayFiresOut).toBe(0);
+  });
+
+  it("Story 6.3: blackoutPct and halfDark are written on change only (≤ 3 B on the change tick, none per tick); reset clears them", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    syncState(state, controller);
+    expect([state.blackoutPct, state.halfDark]).toEqual([0, false]);
+    encoder.encode();
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const idle = encoder.encode().length;
+    encoder.discardChanges();
+    setForcedBlackout(w, 5);
+    controller.tick();
+    syncState(state, controller);
+    expect(state.blackoutPct).toBe(5);
+    const change = encoder.encode().length;
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const after = encoder.encode().length;
+    encoder.discardChanges();
+    expect(change - idle).toBeGreaterThan(0);
+    expect(change - idle).toBeLessThanOrEqual(3);
+    expect(after).toBe(idle);
+    w.lights.halfDark = true; // as refreshBlackout writes it in a build phase at stage 5 (6.4)
+    controller.tick();
+    syncState(state, controller);
+    const halfChange = encoder.encode().length;
+    encoder.discardChanges();
+    expect(state.halfDark).toBe(true);
+    expect(halfChange - idle).toBeLessThanOrEqual(3);
+    (globalThis as unknown as { console: { info(msg: string): void } }).console.info(`[bandwidth] blackout patch: +${change - idle} B on a level change, +${halfChange - idle} B on half dark (idle patch ${idle} B)`);
+    resetRunFields(state);
+    expect([state.blackoutPct, state.halfDark]).toEqual([0, false]);
   });
 });

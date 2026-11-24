@@ -105,6 +105,16 @@ export const FX_GAS_CLOUDS: readonly string[] = ["a", "b"].map((v) => frameName(
 export const FX_EXPLOSION_BLOATER = frameName("fx", "explosionbloater", "a");
 export const FX_BILE_SPLATS: readonly string[] = ["a", "b", "c", "d"].map((v) => frameName("fx", "bilesplat", v));
 export const FX_CLOTH_SCRAP = frameName("fx", "clothscrap", "a");
+/**
+ * Story 6.3 (AC 8, D5): zombie eyes above the darkness: two pale yellow dots (236,226,150; drawn at
+ * alpha 0.9 by EyesView) side by side across the frame's height (the image is rotated to the
+ * facing, so they sit across the head). The Brute's are bigger and wider apart.
+ */
+export const FX_EYES = frameName("fx", "eyes", "a");
+export const FX_EYES_BRUTE = frameName("fx", "eyes", "brute");
+/** Eye frames: px per metre and the dots (radius, half spacing) in metres (main2.js › eyes: 0.035 m dots, 0.08 m off the centre line). */
+export const EYES_PX_PER_M = 160;
+export const EYES_DOT_M = { a: [0.035, 0.08], brute: [0.055, 0.13] } as const;
 const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_RAIN]: [4, 28],
   [FX_SPLASH]: [40, 20],
@@ -118,6 +128,8 @@ const FX_SIZE: Readonly<Record<string, readonly [number, number]>> = {
   [FX_EXPLOSION_BLOATER]: [96, 96],
   ...Object.fromEntries(FX_BILE_SPLATS.map((n) => [n, [40, 40] as const])),
   [FX_CLOTH_SCRAP]: [16, 10],
+  [FX_EYES]: [16, 40], // Story 6.3: 0.1 × 0.25 m at 160 px/m
+  [FX_EYES_BRUTE]: [24, 64], // 0.15 × 0.4 m
   ...Object.fromEntries([2, 3, 4].map((lv) => [FX_TIER_MARKS[lv] as string, [Math.ceil(tierPlateWidth(lv) * FX_TIER_SCALE), TIER_PLATE_H * FX_TIER_SCALE] as const])),
 };
 
@@ -252,6 +264,16 @@ function drawFxFrame(g: CanvasRenderingContext2D, f: PlacedFrame): void {
     g.beginPath();
     g.ellipse(x + w / 2, y + h / 2, w / 2 - 2, h / 2 - 2, 0, 0, Math.PI * 2);
     g.stroke();
+  } else if (f.name === FX_EYES || f.name === FX_EYES_BRUTE) {
+    // Story 6.3: two dots, centred on the frame's middle column, ± half spacing along its height.
+    const [r, off] = f.name === FX_EYES ? EYES_DOT_M.a : EYES_DOT_M.brute;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    g.fillStyle = "rgba(236,226,150,1)";
+    g.beginPath();
+    g.arc(cx, cy - off * EYES_PX_PER_M, r * EYES_PX_PER_M, 0, Math.PI * 2);
+    g.arc(cx, cy + off * EYES_PX_PER_M, r * EYES_PX_PER_M, 0, Math.PI * 2);
+    g.fill();
   } else if (f.name === FX_FLOOD_POOL) {
     // The reference's pool stops (looks.html › buildRD › poolSpr), alpha only.
     const gr = g.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, w / 2);

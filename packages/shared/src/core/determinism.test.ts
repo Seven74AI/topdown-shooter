@@ -73,3 +73,42 @@ describe("determinism (NFR10)", () => {
     expect(run(43, log)).not.toEqual(run(42, log));
   });
 });
+
+describe("Story 6.3 F8: darkness only hides, it never changes a hit", () => {
+  it("a seeded bot run with every wave at 5 % light gives the same snapshot as with the lights on (light fields aside)", async () => {
+    const { runHeadless: headlessRun } = await import("../bots/headlessRun");
+    const { bundledBalanceFiles } = await import("../config/balance");
+    const raw = bundledBalanceFiles() as unknown as { decay: { blackout: { lightPctByWave: number[] } } };
+    raw.decay.blackout.lightPctByWave = raw.decay.blackout.lightPctByWave.map(() => 5);
+    const dark = loadBalance(raw as never);
+    const strip = (w: World) => {
+      const { lights, balanceVersion, ...rest } = snapshotWorld(w);
+      void balanceVersion;
+      return { rest, lights };
+    };
+    let litEnd: ReturnType<typeof strip> | null = null;
+    let darkEnd: ReturnType<typeof strip> | null = null;
+    let darkTicks = 0;
+    let darkWaves = 0;
+    const maxTicks = 20 * 120;
+    const a = headlessRun({ balance, seed: 63, players: 2, maxTicks, onEnd: (w) => (litEnd = strip(w)) });
+    const b = headlessRun({
+      balance: dark,
+      seed: 63,
+      players: 2,
+      maxTicks,
+      onTick: (w) => {
+        if (w.lights.blackoutPct === 5) darkTicks++;
+        if (w.run.phase === "wave" && w.lights.blackoutPct === 5) darkWaves = Math.max(darkWaves, w.waves.number);
+      },
+      onEnd: (w) => (darkEnd = strip(w)),
+    });
+    // Liveness: waves were played and fought in the dark.
+    expect(a.wavesCleared).toBeGreaterThanOrEqual(2);
+    expect(darkWaves).toBeGreaterThanOrEqual(2);
+    expect(darkTicks).toBeGreaterThan(400);
+    expect(a.kills.reduce((x, y) => x + y, 0)).toBeGreaterThan(20);
+    expect(b).toEqual(a);
+    expect(darkEnd!.rest).toEqual(litEnd!.rest);
+  });
+});

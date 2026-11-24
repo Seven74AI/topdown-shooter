@@ -125,3 +125,45 @@ export function lit(surface: Rgb, light: Rgb, glow: Rgb = [0, 0, 0]): Rgb {
 export function shadowLenPx(heightM: number): number {
   return Math.min(SHADOW_MAX_PX, heightM * SHADOW_PX_PER_M);
 }
+
+/**
+ * Story 6.3 (AC 7; `docs/epic-6-decisions.md` › 3 Blackout, 3 Beams): the darkness look per blackout
+ * level. 20 % = BL2 "moonlit" (cold blue cast, soft beam edges), 10 % = BL1 (soft), 5 % = BL3 "pitch"
+ * (crisp beam edges: the hard stamp set). The darkness ALPHA is not here: it comes from the server's
+ * level (`darknessAlpha`, F6: no look or quality changes it). Warm tints (≤ 0.1) are drawn on top of
+ * each cut-out in the source's colour (looks.html: fire, floodlight, flashlight, muzzle flash).
+ */
+export interface DarkLook {
+  readonly id: "BL2" | "BL1" | "BL3";
+  /** The level it is drawn for (the nearest look is used for any other level). */
+  readonly pct: number;
+  /** Darkness colour "r,g,b" and its canvas fill style (made once: no string per frame). */
+  readonly rgb: string;
+  readonly fill: string;
+  /** Crisp beam edges (the hard cone stamps). */
+  readonly hardBeams: boolean;
+  /** Warm tint alphas on top of the cut-outs (≤ 0.1). */
+  readonly fireTintA: number;
+  readonly floodTintA: number;
+  readonly beamTintA: number;
+  readonly flashTintA: number;
+}
+
+export const DARK_LOOKS: readonly DarkLook[] = [
+  { id: "BL2", pct: 20, rgb: "6,12,30", fill: "rgb(6,12,30)", hardBeams: false, fireTintA: 0.1, floodTintA: 0.08, beamTintA: 0.08, flashTintA: 0.1 },
+  { id: "BL1", pct: 10, rgb: "4,6,12", fill: "rgb(4,6,12)", hardBeams: false, fireTintA: 0.1, floodTintA: 0.08, beamTintA: 0.08, flashTintA: 0.1 },
+  { id: "BL3", pct: 5, rgb: "2,2,4", fill: "rgb(2,2,4)", hardBeams: true, fireTintA: 0.1, floodTintA: 0.08, beamTintA: 0.06, flashTintA: 0.1 },
+];
+
+/** Warm tint colours (looks.html › warmLight / beamLight). */
+export const FIRE_TINT = "255,120,45";
+export const FLOOD_TINT = "255,236,200";
+export const BEAM_TINT = "255,240,210";
+export const FLASH_TINT = "255,200,120";
+
+/** The look of a blackout level (1–100): the nearest look's level (20 → BL2, 10 → BL1, 5 → BL3). */
+export function darkLookFor(pct: number): DarkLook {
+  let best = DARK_LOOKS[0] as DarkLook;
+  for (const l of DARK_LOOKS) if (Math.abs(l.pct - pct) < Math.abs(best.pct - pct)) best = l;
+  return best;
+}

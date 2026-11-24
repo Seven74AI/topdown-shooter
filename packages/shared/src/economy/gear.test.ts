@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance } from "../config/balance";
+import { bundledBalanceFiles, loadBalance, type RawBalanceFiles } from "../config/balance";
 import { loadDevBalance } from "../config/devBalance";
 import { createWorld, type World } from "../core/world";
 import { addPlayer, type PlayerState } from "../player/player";
@@ -11,6 +11,14 @@ import { buyCard } from "./shopCards";
 
 const balance = loadBalance();
 const NO_WAVES = { waves: () => {} };
+
+/** Story 6.3: the bundled balance with the floodlight and the tactical flashlight hidden again (`inShop: false`): the not_for_sale path and the dev switch keep their tests. */
+function hiddenFiles(): RawBalanceFiles {
+  const raw = bundledBalanceFiles();
+  ((raw.buildings as { types: Record<string, { inShop?: boolean }> }).types.floodlight as { inShop?: boolean }).inShop = false;
+  ((raw.gear as { items: Record<string, { inShop?: boolean }> }).items.tactical_flashlight as { inShop?: boolean }).inShop = false;
+  return raw;
+}
 
 function setup(wallet: number, b = balance): { world: World; p: PlayerState } {
   const world = createWorld({ balance: b, seed: 7, systems: NO_WAVES });
@@ -25,7 +33,7 @@ const A1 = "body_armor_1";
 const A2 = "body_armor_2";
 
 describe("gear table (Story 5.11)", () => {
-  it("bit order is gear.json key order; the shop lists 4 items, the flashlight is hidden", () => {
+  it("bit order is gear.json key order; the shop lists all 5 items (Story 6.3 D8: the flashlight from wave 1, 120)", () => {
     expect(gearIds(balance)).toEqual([A1, A2, "running_shoes", "revive_kit", "tactical_flashlight"]);
     expect([A1, A2, "running_shoes", "revive_kit", "tactical_flashlight"].map((id) => gearBit(balance, id))).toEqual([1, 2, 4, 8, 16]);
     expect(gearBit(balance, "jetpack")).toBe(0);
@@ -34,8 +42,10 @@ describe("gear table (Story 5.11)", () => {
       [A2, 300],
       ["running_shoes", 150],
       ["revive_kit", 150],
+      ["tactical_flashlight", 120],
     ]);
     expect(allGear(balance)).toHaveLength(5);
+    expect(shopGear(loadBalance(hiddenFiles())).map((g) => g.id)).not.toContain("tactical_flashlight");
   });
 
   it("armor bonus is the best tier only; speed bonus 10 %; revive kit 30 ticks, else 60", () => {
@@ -61,7 +71,8 @@ describe("buyGear refusals, in order (Story 5.11)", () => {
     const s = setup(100);
     expect(buyGear(s.world, "nobody", "jetpack")).toEqual({ ok: false, error: "unknown_player" });
     expect(buyGear(s.world, "p0", "jetpack")).toEqual({ ok: false, error: "not_for_sale" });
-    expect(buyGear(s.world, "p0", "tactical_flashlight")).toEqual({ ok: false, error: "not_for_sale" }); // G5
+    const h = setup(100, loadBalance(hiddenFiles())); // Story 6.3: an inShop: false item (test balance)
+    expect(buyGear(h.world, "p0", "tactical_flashlight")).toEqual({ ok: false, error: "not_for_sale" }); // G5
     expect(buyGear(s.world, "p0", A1)).toEqual({ ok: false, error: "insufficient_funds" });
     expect(s.p.wallet).toBe(100);
     expect(s.p.gear).toBe(0);
@@ -84,9 +95,17 @@ describe("buyGear refusals, in order (Story 5.11)", () => {
     expect(p.wallet).toBe(50);
   });
 
-  it("the flashlight is sold with the dev switch (shopAll): bit set, no other effect", () => {
-    const dev = loadDevBalance({ zombieDamageScale: null, shopAll: true });
-    expect(dev.version).not.toBe(balance.version);
+  it("Story 6.3: the bundled flashlight is sold in the first build phase: bit set, no other effect (D9: nothing before a blackout)", () => {
+    const { world, p } = setup(120);
+    expect(buyGear(world, "p0", "tactical_flashlight")).toEqual({ ok: true, value: { item: "tactical_flashlight", price: 120 } });
+    expect(p.gear).toBe(16);
+    expect([p.maxHp, p.wallet]).toEqual([100, 0]);
+  });
+
+  it("a hidden (inShop: false, test balance) flashlight is sold with the dev switch (shopAll): bit set, no other effect", () => {
+    const hidden = loadBalance(hiddenFiles());
+    const dev = loadDevBalance({ zombieDamageScale: null, shopAll: true }, hiddenFiles());
+    expect(dev.version).not.toBe(hidden.version);
     expect(shopGear(dev).map((g) => g.id)).toContain("tactical_flashlight");
     const { world, p } = setup(120, dev);
     expect(buyGear(world, "p0", "tactical_flashlight").ok).toBe(true);

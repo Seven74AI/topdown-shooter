@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadBalance, type Balance } from "../config/balance";
+import { bundledBalanceFiles, loadBalance, type Balance, type RawBalanceFiles } from "../config/balance";
 import { createWorld, setInput, step, type World } from "../core/world";
 import { setLoadout } from "../combat/loadout";
 import { TICK_DT_S } from "../config/constants";
@@ -13,6 +13,14 @@ import { buyForced } from "./shopCards.testkit";
 
 const balance = loadBalance();
 const NO_WAVES = { waves: () => {} };
+
+/** Story 6.3: the bundled balance with the floodlight and the tactical flashlight hidden again (`inShop: false`): the not_for_sale path and the dev switch keep their tests. */
+function hiddenFiles(): RawBalanceFiles {
+  const raw = bundledBalanceFiles();
+  ((raw.buildings as { types: Record<string, { inShop?: boolean }> }).types.floodlight as { inShop?: boolean }).inShop = false;
+  ((raw.gear as { items: Record<string, { inShop?: boolean }> }).items.tactical_flashlight as { inShop?: boolean }).inShop = false;
+  return raw;
+}
 
 /** One player in a build phase with `wallet` money and the given loadout. */
 function setup(wallet: number, weapons: readonly [string, string | null] = ["pistol", null]): { world: World; p: PlayerState } {
@@ -34,21 +42,24 @@ describe("shop lists (Story 3.3 buildings; weapons are cards since 5.13)", () =>
       { id: "auto_turret", name: "Auto-turret", price: 250 },
       { id: "spike_trap", name: "Spike trap", price: 80 },
       { id: "mine", name: "Mine", price: 35 },
+      { id: "floodlight", name: "Floodlight", price: 100 }, // Story 6.3 (D8): from wave 1
       { id: "med_station", name: "Med station", price: 400 },
       { id: "bear_trap", name: "Bear trap", price: 50 }, // Story 5.14
     ]);
   });
 
-  it("Story 5.10: the floodlight is not listed (inShop: false); listed with the ONE dev shop-all balance (5.10 + 5.11), which unhides gear too; upgrade-only tiers never", async () => {
-    expect(shopBuildings(balance).map((b) => b.id)).not.toContain("floodlight");
+  it("Story 5.10: a floodlight with inShop: false (test balance, Story 6.3) is not listed; listed with the ONE dev shop-all balance (5.10 + 5.11), which unhides gear too; upgrade-only tiers never", async () => {
+    const hidden = loadBalance(hiddenFiles());
+    expect(shopBuildings(hidden).map((b) => b.id)).not.toContain("floodlight");
     const { loadDevBalance, shopGear, allGear } = await import("../index");
-    const devBal = loadDevBalance({ zombieDamageScale: null, shopAll: true });
+    const devBal = loadDevBalance({ zombieDamageScale: null, shopAll: true }, hiddenFiles());
     const all = shopBuildings(devBal);
     expect(all.find((b) => b.id === "floodlight")).toEqual({ id: "floodlight", name: "Floodlight", price: 100 });
     expect(all.map((b) => b.id)).not.toContain("metal_barricade");
     expect(shopBuildings(devBal)).toBe(all); // cached per balance
     expect(shopGear(devBal).length).toBe(allGear(devBal).length); // the same switch lists every gear item
-    expect(shopGear(balance).length).toBeLessThan(allGear(balance).length); // (the flashlight is hidden without it)
+    expect(shopGear(hidden).length).toBeLessThan(allGear(hidden).length); // (the flashlight is hidden without it)
+    expect(shopGear(balance).length).toBe(allGear(balance).length); // Story 6.3: the bundled balance hides nothing
   });
 
   it("Story 5.9: upgrade-only types are not in the shop; spike_trap 80 and mine 60 are", () => {

@@ -143,8 +143,9 @@ function snapshotBlasts(world: World) {
   return { queue, gas };
 }
 
-// Story 5.10: `world.lights` is not here on purpose: it is derived from the buildings and
+// Story 5.10: `world.lights.list` is not here on purpose: it is derived from the buildings and
 // `decay.fires` (both snapshotted), never simulation state of its own; med stations have no clock.
+// Story 6.3: the four light FLAGS are state (brief 26) and are here (`lights`); the list stays out.
 export function snapshotWorld(world: World) {
   return {
     tick: world.tick,
@@ -202,6 +203,8 @@ export function snapshotWorld(world: World) {
       recentSpawns: Array.from(world.waves.recentSpawns), // Story 4.3: the spawn pick's memory
     },
     run: { ...world.run },
+    // Story 6.3: the light state (blackout level, half dark, power failure, dev force); the list stays out.
+    lights: { blackoutPct: world.lights.blackoutPct, halfDark: world.lights.halfDark, powerFailure: world.lights.powerFailure, forcedPct: world.lights.forcedPct },
     debug: { ...world.debug },
     teamWiped: world.teamWiped,
     economy: snapshotEconomy(world),

@@ -88,7 +88,7 @@
       "widthM": 1,
       "depthM": 1,
       "hp": 150,
-      "inShop": false,
+      "inShop": true,
       "light": {
         "radiusM": 4,
         "blackoutRadiusM": 6

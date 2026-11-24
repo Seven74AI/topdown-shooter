@@ -112,6 +112,19 @@ function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   }
   crossCheckBuildingTypes(parsed.buildings as { types: Record<string, BuildingTypeStats> }, issues);
   crossCheckFlames(parsed, issues);
+  crossCheckBlackout(parsed, issues);
+}
+
+/**
+ * Story 6.3 (F2): a zombie touching a survivor is always inside their glow (`glowM` > every zombie
+ * radius + the player's radius). The lightPctByWave range (0–100) is the schema's.
+ */
+function crossCheckBlackout(parsed: Record<string, unknown>, issues: string[]): void {
+  const glowM = (parsed.decay as { blackout: { glowM: number } }).blackout.glowM;
+  const pr = (parsed.player as { radiusM: number }).radiusM;
+  for (const [id, t] of Object.entries((parsed.zombies as { types: Record<string, { radiusM: number }> }).types)) {
+    if (t.radiusM + pr >= glowM) issues.push(`decay.json: blackout.glowM ${glowM} m must exceed zombies.json types.${id}.radiusM ${t.radiusM} + player.radiusM ${pr} (F2: a zombie touching you is always lit)`);
+  }
 }
 
 /**
