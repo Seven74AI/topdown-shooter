@@ -26,6 +26,11 @@ import { LongPress, longPressArmed, readyYields } from "../input/longPress";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { TAP_SLOP_CSS_PX, TapDetector } from "../input/tapDetector";
 import { ThumbDrag, onChipRect } from "../input/thumbDrag";
+import { WheelRotate } from "../input/wheelRotate";
+
+/** Phaser `pointer.button`: the primary (left) and secondary (right) mouse buttons (Story 5.23). */
+const LEFT_BUTTON = 0;
+const RIGHT_BUTTON = 2;
 import { BUTTON_TOLERANCE_PX } from "../input/routePointer";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
@@ -359,6 +364,8 @@ export class HudScene extends Phaser.Scene {
    * claimed; Story 5.19: it drags (pins and nudges) the ghost once it travels past `dragStartPx`.
    */
   private readonly drag = new ThumbDrag();
+  /** Story 5.23 (D18): the wheel's rotation steps while holding. */
+  private readonly wheelRotate = new WheelRotate();
   private readonly dragOut = { dx: 0, dy: 0, began: false };
   /** Story 5.19: the item chip (panel, text) and what it last showed. */
   private placeChip!: Phaser.GameObjects.Graphics;
@@ -737,6 +744,18 @@ export class HudScene extends Phaser.Scene {
     const down = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // iOS: audio starts only after a user gesture
       if (this.model.placementActive) {
+        // Story 5.23 (AC 10, D13): a mouse while holding: right button puts away; a left press that
+        // misses the HUD buttons places (on press, like the buttons); no mouse drag (the ghost follows the cursor).
+        if (!p.wasTouch) {
+          if (p.button === RIGHT_BUTTON) {
+            this.model.cancelPressed = true;
+            return;
+          }
+          if (this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width).kind === "button") return;
+          if (onChipRect(p.x, p.y, this.hand.chip, BUTTON_TOLERANCE_PX)) this.model.chipPressed = true;
+          else if (p.button === LEFT_BUTTON) this.model.confirmPressed = true;
+          return;
+        }
         // Story 5.19 review M1: the chip is hit-tested first and is no HudButton (those press on
         // touch-down): a chip touch is claimed by the drag, a tap only if it lifts within dragStartPx.
         if (onChipRect(p.x, p.y, this.hand.chip, BUTTON_TOLERANCE_PX)) this.drag.down(p.id, p.x, p.y, true);
@@ -788,6 +807,18 @@ export class HudScene extends Phaser.Scene {
       this.drag.reset();
       this.model.dragHeld = false;
     };
+    // Story 5.23 (AC 10, D18): the wheel turns a held ghost (down clockwise, up counter-clockwise).
+    const wheel = (p: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => {
+      if (!this.model.placementActive) {
+        this.wheelRotate.reset();
+        return;
+      }
+      const mode = (p.event as WheelEvent | undefined)?.deltaMode ?? 0;
+      const step = this.wheelRotate.wheel(dy, mode, this.time.now);
+      if (step > 0) this.model.rotatePressed = true;
+      else if (step < 0) this.model.rotateCcwPressed = true;
+    };
+    this.input.on(Phaser.Input.Events.POINTER_WHEEL, wheel);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, down);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, move);
     this.input.on(Phaser.Input.Events.POINTER_UP, up);
@@ -795,6 +826,7 @@ export class HudScene extends Phaser.Scene {
     this.game.events.on(Phaser.Core.Events.BLUR, reset);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.off(Phaser.Input.Events.POINTER_WHEEL, wheel);
       this.input.off(Phaser.Input.Events.POINTER_DOWN, down);
       this.input.off(Phaser.Input.Events.POINTER_MOVE, move);
       this.input.off(Phaser.Input.Events.POINTER_UP, up);
@@ -1369,21 +1401,25 @@ export class HudScene extends Phaser.Scene {
       this.shownLocked = locked;
       this.placeLock.setVisible(locked);
     }
-    if (!placing) return;
+    if (!placing) {
+      this.wheelRotate.reset(); // Story 5.23 (review L6): a partial notch never carries into the next hold
+      return;
+    }
     if (m.placementMoving !== this.shownMoving) {
       // Story 5.22 (AC 12): Place reads "MOVE" while I hold one of my buildings.
       this.shownMoving = m.placementMoving;
       (this.placeGlyphs[PLACE_IDS.indexOf("confirm")] as Phaser.GameObjects.Text).setText(m.placementMoving ? "MOVE" : (PLACE_GLYPHS[1] as string));
     }
-    this.drawHandButtons(m.placementValid);
+    this.drawHandButtons(m.placementValid || m.placementResting); // Story 5.23 (AC 7): no red ring while resting
     this.drawChip();
     if (m.placementHint !== this.shownHint) {
       this.shownHint = m.placementHint;
       this.placeHint.setText(m.placementHint);
     }
-    if (m.placementValid !== this.shownHintValid) {
-      this.shownHintValid = m.placementValid;
-      this.placeHint.setColor(m.placementValid ? HINT_VALID : HINT_BLOCKED);
+    const hintValid = m.placementValid || m.placementResting; // Story 5.23: the resting ghost's line is the label
+    if (hintValid !== this.shownHintValid) {
+      this.shownHintValid = hintValid;
+      this.placeHint.setColor(hintValid ? HINT_VALID : HINT_BLOCKED);
     }
   }
 

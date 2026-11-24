@@ -84,3 +84,7 @@ export const ACTION_INFO_NARROW_CSS_PX = 700;
 export const ACTION_INFO_SMALL_CSS_PX = 14;
 export const LONG_PRESS_RING_CSS_PX = 34;
 export const LONG_PRESS_RING_LINE_CSS_PX = 5;
+/** Story 5.13 (D9): a shop card's minimum size and the grid gap (CSS px); 3 × 2 cards fit 568 × 320. */
+export const CARD_MIN_W_CSS_PX = 96;
+export const CARD_MIN_H_CSS_PX = 112;
+export const CARD_GAP_CSS_PX = 8;

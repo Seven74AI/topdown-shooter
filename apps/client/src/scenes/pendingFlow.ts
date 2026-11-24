@@ -22,6 +22,8 @@ export interface PendingFlowScene {
   stepHost(): void;
   toast(text: string): void;
   refusalText(e: PlaceError): string;
+  /** Story 5.23 (AC 3): one refusal of my placement (the answer or a timeout): the buzz and haptic. */
+  refused?(): void;
 }
 
 /**
@@ -45,12 +47,18 @@ export function runPendingFrame(pending: PendingPlacements, host: PendingFlowHos
   pending.pump(nowMs, send);
   pending.update(host.world, host.localPlayerId, nowMs, false);
   scene.stepHost();
-  if (pending.update(host.world, host.localPlayerId, nowMs, true) > 0) scene.toast(NO_ANSWER_TEXT);
+  if (pending.update(host.world, host.localPlayerId, nowMs, true) > 0) {
+    scene.toast(NO_ANSWER_TEXT);
+    scene.refused?.(); // Story 5.23 (AC 3)
+  }
   if (host.placeRefusalsDropped !== dropped.seen) {
     dropped.seen = host.placeRefusalsDropped;
     pending.lost();
   }
   for (let r = host.takePlaceRefusal(); r !== null; r = host.takePlaceRefusal()) {
-    if (pending.refuse(r, nowMs) !== "ghost") scene.toast(scene.refusalText(r));
+    if (pending.refuse(r, nowMs) !== "ghost") {
+      scene.toast(scene.refusalText(r));
+      scene.refused?.(); // Story 5.23 (AC 3): a refusal whose box had already timed out buzzed then
+    }
   }
 }

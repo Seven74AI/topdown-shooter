@@ -46,15 +46,17 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-/** Checks between files (each file is valid on its own). Story 3.3: the shop sells only known weapons. */
+/** Checks between files (each file is valid on its own). Story 5.13: the card shop excludes only known items. */
 /** Largest zombie radius the flow field's pinch/vertex clearance rule supports (half a 0.5 m cell's diagonal, rounded down). */
 export const MAX_PATHING_ZOMBIE_RADIUS_M = 0.35;
 
 function crossCheck(parsed: Record<string, unknown>, issues: string[]): void {
   const weapons = parsed.weapons as Record<string, unknown>;
-  const shop = parsed.shop as { weapons: readonly string[] };
-  shop.weapons.forEach((id, i) => {
-    if (!(id in weapons)) issues.push(`shop.json: weapons.${i}: unknown weapon ${id}`);
+  // Story 5.13: the ids kept out of the card shop are weapons or gear.
+  const shop = parsed.shop as { excludeFromCards: readonly string[] };
+  const gearItems = (parsed.gear as { items: Record<string, unknown> }).items;
+  shop.excludeFromCards.forEach((id, i) => {
+    if (!(id in weapons) && !(id in gearItems)) issues.push(`shop.json: excludeFromCards.${i}: unknown item ${id}`);
   });
   // Story 5.1: every weapon can be upgraded and no upgrade is free (a 0 price is a balance bug).
   const share = (parsed.shop as { upgrades: { priceShare: number } }).upgrades.priceShare;

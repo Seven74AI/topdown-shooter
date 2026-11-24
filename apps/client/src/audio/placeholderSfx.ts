@@ -36,7 +36,14 @@ export type SfxName =
   | "zombie_bloater_swell"
   | "zombie_bloater_burst"
   // A teammate went down: a two-note falling alert (not positional: the edge arrow shows where).
-  | "player_teammate_downed";
+  | "player_teammate_downed"
+  // Story 5.23 (ux-spec §10): a building into my hands (soft click); placed: a wooden "thunk", a metal
+  // "clank", a floor trap's "click"; my placement refused: a dull buzz. Placed sounds take a pan and a volume.
+  | "ui_build_pick"
+  | "building_placed_thunk"
+  | "building_placed_clank"
+  | "building_placed_click"
+  | "building_place_refused";
 
 const MASTER_GAIN = 0.25;
 const HIT_MIN_INTERVAL_S = 0.03;
@@ -337,8 +344,83 @@ function swellRise(c: AudioContext, at: number, pan: number, dur: number): void 
   }
 }
 
-/** `pan` (-1 left … +1 right) is used by positional cues (the Runner's shriek); the others ignore it. */
-export function playSfx(name: SfxName, pan = 0): void {
+/** Story 5.23: one voice into `out`: an oscillator of `type` gliding `fromHz` → `toHz`, an exponential decay of `durS`. */
+function voice(c: AudioContext, out: AudioNode, at: number, durS: number, gain: number, type: OscillatorType, fromHz: number, toHz: number): void {
+  const o = c.createOscillator();
+  o.type = type;
+  o.frequency.setValueAtTime(fromHz, at);
+  o.frequency.exponentialRampToValueAtTime(toHz, at + durS);
+  const g = c.createGain();
+  g.gain.setValueAtTime(gain, at);
+  g.gain.exponentialRampToValueAtTime(0.001, at + durS);
+  o.connect(g).connect(out);
+  o.start(at);
+  o.stop(at + durS + 0.02);
+}
+
+/** Story 5.23: noise through a low-pass into `out` (the placed sounds' body). */
+function noiseInto(c: AudioContext, out: AudioNode, at: number, durS: number, gain: number, filterHz: number): void {
+  if (!noise) return;
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  const f = c.createBiquadFilter();
+  f.type = "lowpass";
+  f.frequency.value = filterHz;
+  const g = c.createGain();
+  g.gain.setValueAtTime(gain, at);
+  g.gain.exponentialRampToValueAtTime(0.001, at + durS);
+  src.connect(f).connect(g).connect(out);
+  src.start(at);
+  src.stop(at + durS);
+}
+
+/** Story 5.23: at most one of each placed sound per this many seconds (four players placing at once). */
+const PLACED_MIN_INTERVAL_S = 0.05;
+const lastPlacedAt: Record<string, number> = { building_placed_thunk: -1, building_placed_clank: -1, building_placed_click: -1 };
+
+/** Story 5.23 (AC 2, 3): the placement sounds, panned and scaled by `volume` (a far teammate's is quieter). */
+function placeSfx(c: AudioContext, name: SfxName, t: number, pan: number, volume: number): void {
+  const panned = outputFor(c, pan);
+  if (!panned) return;
+  const out = c.createGain();
+  out.gain.value = Math.max(0, Math.min(1, volume));
+  out.connect(panned);
+  switch (name) {
+    case "ui_build_pick": // a soft, short tick
+      voice(c, out, t, 0.035, 0.18, "triangle", 1900, 1500);
+      break;
+    case "building_placed_thunk": // wood: a low body knock with a dull thud
+      voice(c, out, t, 0.16, 0.7, "sine", 150, 70);
+      noiseInto(c, out, t, 0.09, 0.5, 700);
+      break;
+    case "building_placed_clank": // metal: two bright partials and a short ring
+      voice(c, out, t, 0.22, 0.32, "square", 520, 480);
+      voice(c, out, t, 0.3, 0.22, "triangle", 1340, 1290);
+      noiseInto(c, out, t, 0.05, 0.4, 3200);
+      break;
+    case "building_placed_click": // a floor trap / mine set down: a small mechanical double click
+      voice(c, out, t, 0.03, 0.4, "square", 2600, 2000);
+      voice(c, out, t + 0.045, 0.03, 0.3, "square", 1800, 1400);
+      break;
+    case "building_place_refused": // a dull buzz (D8)
+      {
+        const lp = c.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 600;
+        lp.connect(out);
+        voice(c, lp, t, 0.18, 0.35, "square", 110, 104);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+/**
+ * `pan` (-1 left … +1 right) is used by positional cues (the Runner's shriek); the others ignore it.
+ * Story 5.23: `volume` (0–1) scales the placement sounds only (a teammate's beyond 12 m is quieter).
+ */
+export function playSfx(name: SfxName, pan = 0, volume = 1): void {
   const c = context();
   if (!c || c.state !== "running") return;
   const t = c.currentTime;
@@ -442,6 +524,17 @@ export function playSfx(name: SfxName, pan = 0): void {
     case "player_teammate_downed":
       tone(c, t, 0.16, 0.22, 880);
       tone(c, t + 0.18, 0.28, 0.22, 587);
+      break;
+    case "building_placed_thunk":
+    case "building_placed_clank":
+    case "building_placed_click":
+      if (t - (lastPlacedAt[name] as number) < PLACED_MIN_INTERVAL_S) return;
+      lastPlacedAt[name] = t;
+      placeSfx(c, name, t, pan, volume);
+      break;
+    case "ui_build_pick":
+    case "building_place_refused":
+      placeSfx(c, name, t, pan, volume);
       break;
     case "zombie_hit":
       if (t - lastHitAt < HIT_MIN_INTERVAL_S) return;

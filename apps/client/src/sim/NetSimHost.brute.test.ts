@@ -83,3 +83,22 @@ describe("NetSimHost: the Brute's spawn cue (Story 5.7)", () => {
     expect([p?.knockTicks, p?.knockDx, p?.knockDy, p?.knockStepMm]).toEqual([3, 127, 0, 375]);
   });
 });
+
+describe("Story 5.23 (AC 6): building.placed carries its age", () => {
+  const placed = (id: number): number[] => [NET_EVENT_KIND.BUILDING_PLACED, id, 0, 1, 40, 30, 0];
+
+  it("a live placement is fresh (ageS within a few ticks); a tab hidden across it wakes with it stale", () => {
+    const live = setup();
+    live.room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 12, events: [placed(3)] } satisfies SimEventsFlushed);
+    const now = playTo(live.room, live.host, live.setNow, 11, 12 + RENDER_DELAY_TICKS + 2, true).filter((e) => e.type === "building.placed");
+    expect(now).toHaveLength(1);
+    const e0 = now[0] as Extract<SimEvent, { type: "building.placed" }>;
+    expect([e0.buildingId, e0.buildingType, e0.ownerId, e0.gx, e0.gy]).toEqual([3, "wood_barricade", "p1", 40, 30]);
+    expect(e0.ageS ?? 99).toBeLessThanOrEqual(0.2);
+    const slept = setup();
+    slept.room.deliver(S2C.SIM_EVENTS_FLUSHED, { tick: 20, events: [placed(4)] } satisfies SimEventsFlushed);
+    const late = playTo(slept.room, slept.host, slept.setNow, 11, 200 + RENDER_DELAY_TICKS, false).filter((e) => e.type === "building.placed");
+    expect(late).toHaveLength(1);
+    expect((late[0] as Extract<SimEvent, { type: "building.placed" }>).ageS).toBeGreaterThan(5);
+  });
+});

@@ -152,10 +152,10 @@ Numbers for each are in the sections below.
 - **Mode:** online co-op, 2–4 players, each on their own device. No local split-screen.
 - **Lobby:** the host picks a district and gets a **share link** and a **4-letter code**; players join, tap Ready, the host starts.
 - **Accounts:** play immediately as a **guest** (name only); upgrade to an account later to keep progress.
-- **Join mid-run:** allowed during build phases only; the newcomer starts with the team's average currency; the next wave rescales.
-- **Disconnects:** a disconnected player's character is removed safely; they can rejoin within **2 minutes** with wallet and gear intact. Their turrets' kills keep paying into the held wallet during those 2 minutes, then stop. Host leaving → host migrates to another player.
-- **Pause and resume:** during a build phase the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any group that includes the host (the host is required).
-- **Communication:** a ping button with 4 quick messages (Help! · Over here · Brute! · Ready), each showing an icon on teammates' screens and edge arrows. No voice or text chat in v1.
+- **Join mid-run:** allowed during build phases only (endless too); the newcomer starts with a Pistol and 100 + 60 % of the team's average earnings so far, and the build timer gains +15 s once per phase; the next wave rescales (Epic 8 decisions, 2026-11-24: `docs/ideas/epic-8/decisions.md`).
+- **Disconnects:** a disconnected player's character is removed safely; they can rejoin within **2 minutes** with wallet and gear intact. Their turrets' kills keep paying into the held wallet during those 2 minutes, then stop. A player who drops while downed is out for that wave. After 2 minutes their seat is still remembered for the rest of the run. If nobody is connected, the fight freezes for up to 2 minutes. Host (Start, Save and quit, Remove player) moves at once to the longest-connected player when the host leaves or drops.
+- **Pause and resume:** during a build phase the host can **Save and quit**; the run is stored on the server for **7 days** and can be resumed by any account that was in the run (at most 3 saves per account). Everyone leaving mid-wave loses the run; a server restart or everyone leaving in a build phase keeps it.
+- **Communication:** a ping button with 4 quick messages (Help! · Over here · Big one! · Ready), each showing an icon on teammates' screens and edge arrows. No voice or text chat in v1.
 - **Fairness and feel:** all players see the same horde; the server decides hits. Your own movement, aiming and muzzle flash respond instantly on your device; at 150 ms latency, fewer than 1 shot in 20 that looks like a hit on your screen is reversed.
 - **Not in v1:** matchmaking with strangers, voice chat, PvP (parked for a later mode).
 
@@ -164,12 +164,12 @@ Numbers for each are in the sections below.
 - **Pick a district → lobby (2–4 players) → build phase → 10 waves → evacuation vote → extract or endless.**
 - A run is ≈ 20–25 minutes to wave 10.
 - **Permadeath is per run:** when the team is wiped, the run ends; meta-progression (see Player Progression) persists.
-- **Pause and resume:** the host can pause the run during a build phase; the run state is kept on the server and resumed later by any group that includes the host [details in Multiplayer Considerations].
+- **Pause and resume:** the host can pause the run during a build phase; the run state is kept on the server and resumed later by any account that was in the run [details in Multiplayer Considerations].
 - **Seeds:** every run has a seed that drives its random choices (events, decay variations, shop cards) for reproducible testing.
 ### Item and Upgrade System
 **Roguelike shop.** Each build phase shows:
 - **Always available:** *unlocked* consumables and upgrades for weapons you own. Buildings come from the build bar, not the shop. A downed or out player can't buy.
-- **6 random cards** of weapons and gear drawn from the player's **unlocked pool** (each player sees their own cards). **Reroll: 20** currency. Every offer contains **at least 1 weapon and 1 gear card**. No locking cards, no upgrade cards, no Pistol card; items hidden from the shop (`inShop: false`) are never drawn. Rarity by price (≤ 250 common ×3, ≤ 500 rare ×2, above epic ×1); no price scaling per wave. Card look C3 "police evidence tag". When too few new items exist, the offer shows fewer cards and Reroll is disabled.
+- **6 random cards** of weapons and gear drawn from the player's **unlocked pool** (each player sees their own cards; one may be borrowed from a teammate's unlocks). **Reroll: 20** currency. Every offer contains **at least 1 weapon and 1 gear card**. No locking cards, no upgrade cards, no Pistol card; items hidden from the shop (`inShop: false`) are never drawn. Rarity by price (≤ 250 common ×3, ≤ 500 rare ×2, above epic ×1); no price scaling per wave. Card look C3 "police evidence tag". When too few new items exist, the offer shows fewer cards and Reroll is disabled.
 
 **Gear (permanent for the run):**
 | Item | Effect | Price |
@@ -234,16 +234,18 @@ District-specific events are planned per district later (e.g. hospital quarantin
 | Extract (run won) | +100 |
 | Each endless wave | +20, kept only if the team extracts |
 
-**Starter pool:** Pistol, Machete, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Wood barricade, Auto-turret, Medkit, Grenades.
+A wave counts for every player still in the run when it ends, downed or out, and only waves the player was in (none before a late join or after leaving); a quitter keeps what they earned. **Rookie lift:** a player's Supplies are doubled while their lifetime Supplies are below 300 (about the first 3 runs).
+
+**Starter pool:** Pistol, Machete, Fire Axe, Shotgun, SMG, Hunting Rifle, Body armor I, Running shoes, Revive kit, Wood barricade, Auto-turret, Medkit, Grenades.
 **Unlocks (Supplies):**
-- Weapons: Fire Axe 150 · Assault Rifle 200 · Chainsaw 300 · Gas torch 350 · Flamethrower 400 · Grenade Launcher 500
+- Weapons: Assault Rifle 200 · Chainsaw 300 · Gas torch 350 · Flamethrower 400 · Grenade Launcher 500
 - Buildings: Spike trap 100 · Bear trap 100 · Mine 100 · Floodlight 120 · Barricade upgrades (reinforced + metal) 150 · Med station 300
-- Gear: Revive kit 100 · Tactical flashlight 100 · Body armor II 250
+- Gear: Tactical flashlight 100 · Body armor II 250
 - Consumables: Molotovs 150
 
-Unlocks add cards to the player's shop deck and tiles to their build bar: more options, not more power.
-**Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency 100 → 150 · reload speed up to +5%. Each level costs **50 × level** Supplies (50, 100, 150, 200, 250). Caps keep a new friend viable next to a veteran (pillar 4).
-**Pacing:** everything unlocked after ≈ 15–20 runs (≈ 6 hours). **District 2 unlocks** after the first extraction from Downtown.
+Unlocks are bought in any order and add cards to the player's shop deck and tiles to their build bar: more options, not more power. **Borrowed card:** when a teammate in the room has unlocked weapons or gear the player hasn't, one of the player's 6 cards is drawn from those and marked "Borrowed from <name>" (bought with run money, gone after the run).
+**Training (capped boosts, 5 levels each):** max HP up to +10% · damage up to +5% · starting currency 100 → 150 · reload speed up to +5%. Each level costs **50 × level** Supplies (50, 100, 150, 200, 250). Caps keep a new friend viable next to a veteran (pillar 4); Training always applies in full and is never scaled to the team.
+**Pacing:** the first weapon a player wants (≈ 300) after ≈ 3 runs, a few favourites (≈ 1,000) after ≈ 10. Unlocking everything is a long-term goal, not the target: not everyone wants every weapon (designer, 2026-11-24). **District 2 unlocks** for a player after their first extraction from Downtown; the host can pick a district if anyone in the lobby has it.
 ### Difficulty Curve
 | Waves | Feel | Why |
 |---|---|---|
@@ -276,7 +278,7 @@ Decay advances one stage every 2 waves and changes play, not only looks (pillar 
 | 3–4 | Panic | 4 cars move into the road (new cover and choke points); police barriers block some paths |
 | 5–6 | Breakdown | 2 car fires (fire zones, 2 m radius, last 2 waves); free sandbag cover appears; heavy rain (drizzle since stage 1; visual) |
 | 7–8 | Ruins | Rubble closes one alley and blocks paths (rubble stops bullets, bodies, melee and blasts; lobbed rounds fly over it); streetlights flicker as a warning of the coming blackout; collapsed walls open new spawn points |
-| 9–10 | Collapse | Power out. **Wave 9 is a blackout wave**; fog limits vision to 10 m; wave 10 (boss) lit only by fires and floodlights |
+| 9–10 | Collapse | Power out. **Wave 9 is a blackout wave**; fog limits vision to 10 m; wave 10 (boss) dark too, lit only by fires, floodlights, flashlights and muzzle flashes |
 | 11+ | Collapse (endless) | Blackout on odd waves; +40 zombies per wave up to 600 at wave 15 (still max 150 alive), then +6% zombie HP per wave; +1 Brute per wave (max 6 alive); a Behemoth every 5th wave, before each evacuation, with +25% HP each time; one event on each even wave without a Behemoth |
 
 **Run-to-run variety:** which cars burn, which alley collapses, the special events and the shop cards are random per run. Each run has a **seed** so a run can be reproduced for testing.

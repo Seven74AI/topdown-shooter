@@ -147,16 +147,41 @@ so that repairing, upgrading, selling and fixing a bad spot are one tap away and
 
 ## Notes for the merge (brief line 19)
 
-- **Story 5.23 + 5.25 (`story-5-23`, in parallel) — the `M` key:** call `GameScene.pickUpSelected(): boolean` (public; the same path as ✥ Move: owner, build phase, standing, empty hands, no move of it waiting). No key was added here (`keyMap.ts` untouched). 5.23's feel can hang its "pick" scale-in on `Placement.startMove` (the hand starts pinned at the building) and its thunk on `building.moved` (net kind 43).
+- **Story 5.23 + 5.25 — the `M` key (wired at the master merge: `onPickUpKey()` → `pickUpSelected()`):** `GameScene.pickUpSelected(): boolean` (public; the same path as ✥ Move: owner, build phase, standing, empty hands, no move of it waiting). No key was added here (`keyMap.ts` untouched). 5.23's feel can hang its "pick" scale-in on `Placement.startMove` (the hand starts pinned at the building) and its thunk on `building.moved` (net kind 43).
 - **Net event kinds:** `BUILDING_MOVED = 43` (42 = 5.20's sold). If 5.23 or 5.24 also took 43, renumber the later one; never reuse. `netEvents.test.ts` has the sample event.
 - `packages/shared/src/buildings/buildings.ts`: `Building.gx/gy/rot/minX/minY/maxX/maxY` are no longer `readonly` (changed only by the new `relocateBuilding`); `footprintBlocked(world, box, exceptId = 0)`; `relocateBuilding(world, b, gx, gy, rot)` (version +1, wallVersion +1 for a wall, bear-trap re-arm clock reset, a holding trap released and shut). New `buildings/move.ts` (`moveBuilding`, `moveError`, `MOVE_ERRORS`, `MoveRequest`, `MoveError`); exports in `index.ts`.
 - `core/simEvents.ts`: `building.moved { buildingId, buildingType, ownerId, gx, gy, rot }`; `net/netEvents.ts`: `[43, id, ownerSlot, gx, gy, rot, typeIdx]`, global (not in `eventInterest`'s local kinds).
-- `net/messages.ts`: `C2S.BUILDING_MOVE`, `S2C.BUILDING_MOVE_REFUSED`, `buildingMoveSchema` (strict; id 1–65535, gx/gy 0–255, rot 0–3), `BuildingMoveRefused`. `config`: `controls.build.longPressMs` 450, `longPressRingMs` 150 (zod defaults; the balance version changes).
+- `net/messages.ts`: `C2S.BUILDING_MOVE`, `S2C.BUILDING_MOVE_REFUSED`, `buildingMoveSchema` (strict; id 1–65535, gx/gy 0–255, rot 0–3, seq 0–65535 — review L3), `BuildingMoveRefused { id, reason, seq }`. `config`: `controls.build.longPressMs` 450, `longPressRingMs` 150 (zod defaults; the balance version changes).
 - Server: `RunController.moveBuilding`, `RunRoom.onMoveBuilding` (via `this.net.guard`, the shared "other" bucket); `syncState.syncBuildings` assigns gx / gy / rot on a version change. No schema field.
 - Client: `mirrorBuildings` relocates (Predictor follows); `SimHost.moveBuilding` / `takeMoveRefusal` (+ `MOVE_REFUSALS_MAX`), `RunInbox.onMoveRefused`, `parseMoveRefused`, `MoveRefusal` (session.ts). `Placement.startMove` / `moveRequest` / `atMoveOrigin` / `moveId` / `moveLost`; `stepPlacement` routes a move Place to `PlacementFrame.sendMove` (`MOVE_LOST_TEXT`); `PlacementHud.placementMoving`. New `pendingMove.ts`, `actionBar.ts` (`layoutActionBar`, `actionLabel`), `input/longPress.ts` (`LongPress`, `longPressRing`, `readyYields`), `render/MoveView.ts`; `HudButtons.hit` / `claim`; `ChipText.get(…, moving)`; `pendingLook` takes any `{ live, counted, refusedMs }`.
 - `repairPanel.ts`: the info line format changed ("Name · Yours · HP a/b", teammate: "· Bo's ·" + "Only Bo can move, upgrade or sell it"); new `moveShown`, `moveErrorNow`, `movePending`, `moveLabel`, `moveReason`, `barReason`, `pressMove()`, `update(…, moving)`; `moveRefusalText`, `onlyOwnerText`, `MOVING_TEXT`. 5.20's `sellLabel` is reused (split onto two lines by `actionLabel`).
 - `HudScene.ts`: 3.7's repair panel rows (Repair / ✕ / Upgrade / Sell above Ready) are replaced by the action bar (button ids kept: `repair`, `repairClose`, `upgrade`, `sell`, + `move`); the sizes `REPAIR_BUTTON_W_CSS_PX`, `REPAIR_CLOSE_CSS_PX`, `REPAIR_ROW_GAP_CSS_PX` are removed from `ui/sizes.ts` (new `ACTION_BAR`, `ACTION_LABEL_CSS_PX`, `ACTION_INFO_*`, `LONG_PRESS_RING_*`). Ready / 5.12's consumable + swap / the ammo text / ↶ hide while the bar is up (`readyButton`, `consumableIn.placement`, `drawWeapon`). Pointer down: Ready yields to a building under it (`readyYields`).
 - `GameScene.ts`: `pendingMoves` updated after the host step (timeouts → "No answer from the server"), move refusals by id → toast; `pickUp(host, id)`, `pickUpSelected()`, `queueMove`; the long-press ring (`pressRing`) and pick-up in `updateRepair`; `hudModel.buildingAt` set after the model reset.
+
+## Senior Developer Review (AI)
+
+Fresh-agent review by the main session (2026-11-24): **no high, 1 medium, 4 low.** The server and shared move rules were sound: every beat-the-rule attempt (B1–B16) held. Fixed on `story-5-21` before the master merge.
+
+| # | Sev | Finding | Fix |
+| --- | --- | --- | --- |
+| M1 | Medium | The long-press was armed for left-half touches too: a left thumb resting on the floating move stick over my own building picked it up after 450 ms. | `longPressArmed(wasTouch, x, width)` (`input/longPress.ts`): only a right-half touch or a mouse press arms it (the Ready-yield path keeps it: no stick spawns there). Test in `longPress.test.ts`. |
+| L1 | Low | At 568 × 320 the 5-button bar (422 px) reaches into the move stick's half. | Main-session decision: below 700 px CSS width the bar has no ✕ (a tap on the ground closes it; `ACTION_BAR.noCloseBelowCss`). **Not enough to keep the row in the right half:** an owner's 4 buttons are 336 px, and only 3 fit at 568 × 320 / 640 × 360 (none with a 44 px inset at 568). Asked the main session; recommended option (a), accept the remaining spill (a touch on a bar button never spawns a stick), built. Options (b) two rows below 700 px and (c) 62 px buttons are in the message. Tests: ✕ absent below 700 px and the row's left edge moves 86 px right; a teammate's bar is Repair alone. |
+| L2 | Low | `actionLabel(...)` allocated strings every frame while the bar was open. | Labels are cached per button by their source text (and Repair's full-HP flag); rebuilt only on change. |
+| L3 | Low | A late refusal of a timed-out move could shake a newer move of the same building. | `building.move` carries a client `seq` (0–65535, strict), echoed in `building.move_refused`. `PendingMoves.add` returns it, and `refuse(id, seq)` matches both. Tests: `pendingMove.test.ts` (late refusal of move 1 leaves move 2 waiting), schema, `RunRoom.move.test.ts` (seq echoed), `NetSimHost.move.test.ts` (seq sent; a refusal without seq dropped). |
+| L4 | Low | No test for a rotation-only move (`mirrorBuildings` and `pendingMove` rot terms). | `NetSimHost.move.test.ts` (rot-only state change relocates the mirror's footprint, wallVersion +1) and `pendingMove.test.ts` (waits until the World shows the new rot). |
+| Info | — | Move / sell / repair / upgrade are not in the replay input log (pre-existing, all building actions). | For the Epic 5 balance pass / retro. |
+
+Fix-round mutations: 7/7 killed (long-press armed on the left half · ✕ kept below 700 px · seq ignored by `refuse` · seq not sent · seq not echoed by the server · mirror rot term · pendingMove rot term).
+
+**Master merged** (`origin/master` with 5.23 + 5.25 placement feel / mouse and keys, 5.13 card shop, start money 200). Hand merges:
+- `GameScene.ts`: both view sets.
+- `HudScene.ts`: 5.23's wheel reset and resting look kept, plus the MOVE glyph.
+- `placement.ts`: 5.23's resting / picks / places / cursor follow kept next to the move fields; `endHold` also clears `placementResting`.
+- `SimHost.ts`: `buyCard` / `reroll` / `shopOffer` plus the move methods.
+- `RunRoom.ts` / `RunController.ts`: 5.13's card shop plus `onMoveBuilding`.
+- `sizes.ts`: both.
+
+5.23's `onPickUpKey()` (the M key) now calls `pickUpSelected()`. A move start goes through `Placement.start`, so 5.23's pick pop plays on a pick-up too. No test assumed the old 100 start money. After the merge the browser checks were re-run at both sizes, M key included. **Full gate on the merged tree:** exit 0, 311 test files passed (1 skipped), 2600 tests passed (3 skipped), build OK (load 1.6 → 2.4).
 
 ## Dev Agent Record
 
@@ -195,3 +220,4 @@ Claude (cloud builder session for Story 5.21 + 5.22).
 ### Change Log
 
 - 2026-11-24: Story 5.21 + 5.22 built (action bar, move, long-press, Ready yield); status → review.
+- 2026-11-24: Review fixes M1, L1 (option a, question to the main session), L2, L3 (move seq), L4; master merged (5.23 + 5.25, 5.13); M key wired; status stays review.

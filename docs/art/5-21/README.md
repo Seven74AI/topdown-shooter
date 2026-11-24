@@ -28,4 +28,6 @@ Measured (page state; no console or page errors in any run):
 
 Online (two clients, `?lag=150&jitter=20`): Ana's move → pending box at once, both clients showed the building at the new spot with HP kept, wallet unchanged, no pending box left; Bo's crafted `building.move` of Ana's building → refused (nothing moved); 12 crafted moves from Ana at once → 10 applied (spot only, wallet unchanged), 2 dropped by the guard (`client_message_rejected rate`).
 
+**After the review fixes and the master merge (5.23 + 5.25, 5.13):** shots re-taken at both sizes. At 568 × 320 the bar has no ✕ (review L1: below 700 px a tap on the ground closes it), so `5-21-bar-mine-568x320` shows Move · Upgrade · Repair · Take back. Every flow passed again at both sizes, plus Story 5.23's **M** key with my building selected → in hand (`pickUpSelected`). No console errors.
+
 Not verified: a real phone (thumb reach, the long-press feel), Android haptic (none added), audio (no move sound added: Story 5.23 owns placement feel).

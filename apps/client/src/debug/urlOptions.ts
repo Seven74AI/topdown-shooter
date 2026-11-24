@@ -53,6 +53,12 @@ export interface UrlOptions {
    */
   waveMix: string | null;
   /**
+   * `?shopcards=flamethrower,revive_kit` (Story 5.13, dev builds only, solo; online the server's
+   * `DEV_SHOP_CARDS`): every build-start offer starts with these card items. The raw list (null
+   * when absent or in a release build); `parseDevShopCards` keeps it only if every id is a card item.
+   */
+  shopCards: string | null;
+  /**
    * `?seed=<uint32>` (Story 4.4, dev builds only, like `?zdmg`): the host's Create asks the server
    * for this run seed; honoured only by a dev server with `DEV_ALLOW_RUN_SEED=1`. null when absent.
    */
@@ -122,6 +128,7 @@ export function parseUrlOptions(search: string, dev: boolean = import.meta.env.D
     startingWallet: parseDevWallet(q.get("wallet")),
     scenario: parseScenario(q.get("scenario")),
     waveMix: q.get("wavemix"),
+    shopCards: dev ? q.get("shopcards") : null, // Story 5.13: dev builds only
     runSeed: parseRunSeed(q.get("seed")),
     stressBuild: q.get("stressbuild")?.trim().toLowerCase() === "traps",
     stressMolotovs: parseStressMolotovs(q.get("stressbuild")),

@@ -97,6 +97,10 @@ export interface HudModel {
   dragBegan: boolean;
   /** Story 5.19 review L1: a drag is in progress (the pointer crossed `dragStartPx` and is still down): a pinned ghost then doesn't unpin by leaving the view. */
   dragHeld: boolean;
+  /** Story 5.23 (AC 10): the mouse wheel turned the held ghost counter-clockwise (wheel up; down sets `rotatePressed`). */
+  rotateCcwPressed: boolean;
+  /** Story 5.23 (AC 7): the ghost rests faded after a blocked chain (Place and the reason line keep the valid look). */
+  placementResting: boolean;
   /** Story 5.19 (main-session decision): the short-screen chip (120 px, short text); set by the HUD's layout. */
   placementChipShort: boolean;
   /** Story 5.19 review L4: Place, ⟳, ✕ and the chip as 4 rects (minX, minY, maxX, maxY in canvas px), set by the HUD's layout. */
@@ -301,6 +305,8 @@ export const createHudModel = (): HudModel => ({
   dragStartPx: 8,
   dragBegan: false,
   dragHeld: false,
+  rotateCcwPressed: false,
+  placementResting: false,
   placementChipShort: false,
   handAvoid: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   buildBar: false,

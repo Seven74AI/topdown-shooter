@@ -51,7 +51,6 @@ describe("loadBalance", () => {
     expect(b.weapons.machete).toMatchObject({ knockbackM: 0, wielderSlowPct: 0, quietHits: false }); // unchanged
     // Appended after Round A's ids: the wire's weapon index of every older weapon stays.
     expect(Object.keys(b.weapons).slice(0, 8)).toEqual(["pistol", "smg", "hunting_rifle", "machete", "shotgun", "assault_rifle", "fire_axe", "chainsaw"]);
-    expect(b.shop.weapons.slice(6, 8)).toEqual(["fire_axe", "chainsaw"]);
     for (const [id, t] of Object.entries(b.zombies.types)) expect(t.knockbackTakenPct, id).toBe(id === "brute" ? 20 : 100); // Story 5.7: the Brute takes 20 %
     expect(b.controls.fx).toMatchObject({ maxSwingArcs: 8, maxChainsawSparks: 32 });
   });
@@ -61,9 +60,8 @@ describe("loadBalance", () => {
     const same = { kind: "flame", damage: 20, rateHz: 20, fuelS: 6, reloadS: 3, pulseS: 0.25, playerPulseS: 0.5, igniteDamagePerS: 3, igniteS: 3, ignitePulseS: 0.5, hitPushbackM: 0, knockbackM: 0, screenShake: false };
     expect(b.weapons.flamethrower).toMatchObject({ ...same, name: "Flamethrower", rangeM: 6, coneDeg: 20, price: 700 });
     expect(b.weapons.gas_torch).toMatchObject({ ...same, name: "Gas torch", rangeM: 3, coneDeg: 60, price: 550 });
-    // appended (older wire weapon indices stay) and in the fixed-list shop
+    // appended (older wire weapon indices stay); Story 5.13: sold as cards
     expect(Object.keys(b.weapons).slice(-3)).toEqual(["grenade_launcher", "flamethrower", "gas_torch"]); // after 5.5's
-    expect(b.shop.weapons.slice(-3)).toEqual(["grenade_launcher", "gas_torch", "flamethrower"]);
     expect(b.combat.friendlyFire).toEqual({ pct: 50, canDown: true });
     expect(b.combat.fx).toEqual({ maxFlameParticles: 96, flameParticlesPerS: 90, maxBurningZombieFx: 40 });
   });
@@ -342,6 +340,15 @@ describe("Story 5.9: building tiers, traps and mines", () => {
     bad((t) => ((t.mine as { mine: { blastRadiusM: number } }).mine.blastRadiusM = 0.5), /at least triggerRadiusM/);
   });
 
+  it("Story 5.23: the placement-feel pool caps (dust, owner tabs) load and default to the JSON's values", () => {
+    expect(controls.fx).toMatchObject({ maxPlaceDust: 64, maxOwnerTabs: 12 });
+    const fxWithout: Record<string, unknown> = { ...controls.fx };
+    delete fxWithout.maxPlaceDust;
+    delete fxWithout.maxOwnerTabs;
+    expect(fxSchema.parse(fxWithout)).toMatchObject({ maxPlaceDust: 64, maxOwnerTabs: 12 });
+    expect(() => fxSchema.parse({ ...controls.fx, maxPlaceDust: 4 })).toThrow();
+  });
+
   it("Story 5.10 building blocks: light/heal validate; two behaviour blocks refused; inShop defaults true", () => {
     const t = loadBalance().buildings.types;
     expect(t.floodlight).toMatchObject({ inShop: false, forSale: true, solid: true, stopsBullets: false, light: { radiusM: 4, blackoutRadiusM: 6 } });
@@ -509,5 +516,34 @@ describe("consumables.json (Story 5.12)", () => {
     const noHeal = raw();
     delete ((noHeal.consumables as Items).items.medkit as Record<string, unknown>).healHp;
     expect(() => loadBalance(noHeal)).toThrow(/a heal item needs healHp/);
+  });
+});
+
+describe("Story 5.13: shop.json (card shop)", () => {
+  it("shop.json: floor and tiers validated", () => {
+    const b = loadBalance();
+    expect(b.shop).toMatchObject({ cards: 6, floor: { weapon: 1, gear: 1 }, reroll: { price: 20, stepPerReroll: 0 }, priceScalePerBuild: 0, excludeFromCards: ["pistol"] });
+    expect(b.shop.rarity.map((t) => [t.id, t.maxPrice, t.weight])).toEqual([
+      ["common", 250, 3],
+      ["rare", 500, 2],
+      ["epic", null, 1],
+    ]);
+    const bad = (edit: (shop: Record<string, unknown>) => void): void => {
+      const files = bundledBalanceFiles();
+      edit(files.shop as Record<string, unknown>);
+      expect(() => loadBalance(files)).toThrow(BalanceError);
+    };
+    bad((s) => (s.floor = { weapon: 4, gear: 3 })); // floor sum > cards
+    bad((s) => (s.cards = 7));
+    bad((s) => (s.rarity = [{ id: "a", maxPrice: 500, weight: 1 }, { id: "b", maxPrice: 250, weight: 1 }, { id: "c", maxPrice: null, weight: 1 }])); // not ascending
+    bad((s) => (s.rarity = [{ id: "a", maxPrice: null, weight: 1 }, { id: "b", maxPrice: null, weight: 1 }])); // null not last only
+    bad((s) => (s.rarity = [{ id: "a", maxPrice: null, weight: 0 }])); // weight > 0
+    bad((s) => (s.weapons = ["pistol"])); // the 3.3 list is gone (strict)
+  });
+
+  it("an unknown excluded id is refused", () => {
+    const files = bundledBalanceFiles();
+    (files.shop as { excludeFromCards: string[] }).excludeFromCards.push("rocket");
+    expect(() => loadBalance(files)).toThrow(/shop\.json: excludeFromCards\.1: unknown item rocket/);
   });
 });
