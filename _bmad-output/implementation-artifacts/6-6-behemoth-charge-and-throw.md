@@ -345,3 +345,87 @@ Full gate on `story-6-6` at `f46e0cb` (merged with origin/master `eb3b991`, afte
 - 2026-11-24: story drafted from the real code (gds-create-story)
 - 2026-11-24: designer accepted every recommended decision ("ok, perfect"); status ready-for-dev.
 - 2026-11-24: merged with 6.7 (designer); built as one story (gds-dev-story, builder session `story-6-6`): charge, throw, stun, enrage, Crawler drops, death and pay; network, prediction, client drawing and HUD; fuzz, netsim, run sim, tick cost, mutations, browser check; merged master `eb3b991`; status → review.
+
+## Senior Developer Review (AI)
+
+Fresh-agent review (cloud session, branch `review-6-6`), 2026-11-24. **Reviewed commit `194d1d8`** (story-6-6 merged with master `eb3b991`), diff `eb3b991...194d1d8`. Method: gds-code-review layers (Blind Hunter, Edge Case Hunter, Acceptance Auditor) done inline, plus beat-the-rule exploit tests and mutations. No code was changed; the scratch exploit tests were deleted.
+
+**Outcome: Approve with low findings.** No high findings. One medium, a process gap (brief 12). I found no exploit of brief 21 (a)–(g) or line 22.
+
+### Gate (brief 1, 16)
+
+`npm ci`, then `npm run typecheck && npm run lint && npm test && npm run build` at `194d1d8`: all green. Tests: **352 files / 3,309 passed** (3 skipped, 1 file skipped as before). Build OK. Load (`uptime`, 4 cores): **0.26 at the start → 2.99 at the end**. PERF_ASSERT was not re-run; the builder recorded load 0.90 (rush p99 0.796 ms).
+
+### Findings
+
+| # | Sev | Title | Where | Failure scenario | Suggested fix |
+| --- | --- | --- | --- | --- | --- |
+| M1 | medium (process) | Brief 12 `?stress=150` FPS before/after not measured | Dev Agent Record › Not verified | The lane strip, throw ring, chunk and shared decals were never run against the latest `docs/perf/` `?stress=150` floor. A phone regression from the lane's masked hatch above the darkness would go unseen until Mi 11i testing. | Run `?stress=150&bosswave=1` headless with a charge telegraph and a throw live. Record FPS before/after with load in `docs/perf/`. |
+| L1 | low | Once-per-charge is skipped for a player without a slot | `packages/shared/src/boss/charge.ts:136-138` | `bossSlotOf` returns −1 for a player with no flame slot (more than 4 players, a dev room, or a slot claim that failed), so `bit = 0` and the mask check is skipped. **Reproduced:** a slot-less survivor held in the lane took **16 hits in one charge**. Not reachable with the room's 4-player cap. | `if (slot < 0) return;` (a player the boss can't track is never hit), or a cross-check `MAX_PLAYERS ≤ 31` plus a per-attack id list. |
+| L2 | low | The Predictor tells a charge knock apart only by its step size; 20 Hz is a literal | `apps/client/src/net/prediction.ts:258-262` | `knockStepMm === round(shoveM·1000 / round(shoveS·20))`. Today: slam 500, Brute and roar 375, charge 625, so no clash. A balance edit (for example slam `pushM` 2.5) would quietly give that knock the 6 m slide limit. The literal `20` breaks brief 10 (use `ticksFor`). **Not exploitable:** the larger limit is client-side visual smoothing only. The server takes inputs, not positions, so a speed hack or teleport gains nothing. The Brute path is unchanged for new knocks (2.5 m); only its running total is now 2.5 m (was 1 m) for the 4 knock ticks, which is visual and acceptable. | Use `ticksFor(c.shoveS)`. Add a `crossCheckBoss` rule that the charge step differs from every other knock step, or send a knock-kind bit. |
+| L3 | low | Four test gaps (mutations survived) | `enrage.test.ts`, `NetSimHost.boss.test.ts`, `RunController`, `bossState.ts:294` | See "Mutations" below: M19 roar hp drop, M21 crash `ageS`, M22 killer +1 kill, M24 `crawlerTicks` in the snapshot. Each survived, so a regression there would not be caught. | Assert `hp` unchanged after the roar. Assert that a woken tab after a crash plays no late CRASH!. Add a RunController test for `boss.killed` +1 kill (D5). Add a test that changing `crawlerTicks` changes the snapshot digest. |
+| L4 | low (design note) | A throw's recovery and part of its gap run during the flight | `telegraph.ts:224-229`, `behemoth.ts` pick | The lift ends, then RECOVER 0.6 s, then the gap, all while the chunk flies 0.8 s. After the impact the next telegraph can start after gap − 0.2 s (enraged, 4 players: 1.05 → 0.85 s). Allowed by AC 5 and DD4, but brief 21(f) reads "attack, then recovery, then gap". Never two hits at once (`attack.live` blocks), and the next attack still has its full telegraph. | Ask the designer to confirm the AC 5 reading, or start the gap at the impact. |
+| N1 | nit | Iterator allocation per WALK tick | `throw.ts:45` (`for … of world.players.values()`) | `pickThrowTarget` runs every WALK tick with the throw cooldown at 0. Same pattern as 6.5's `behemoth.ts:54/221`. | `forEach` with a module callback, as `rushStep` does. |
+| N2 | nit | A zombie that slides under the body between rush ticks is never trampled | `charge.ts:210-215` | The "new overlap" test skips any zombie already inside the previous step's circle, including one that walked in sideways since (B1: zombies walk under it). This loses 30 trample damage; no fairness impact. | Keep a per-charge hit bit per zombie, or accept. |
+
+### Beat the rule (brief 4): attempts and results
+
+The story's list (each confirmed by a test that a mutation proved live):
+
+1. 2.2 m off the line: no hit. 2.1 m: hit (grace sweep 0°–345°; M1 and M2 killed it).
+2. Running ahead of the rush: hit once, shoved sideways, never carried (M17 killed it).
+3. Baited into the bus: always a crash with the mark. Barricade line: never stops it, smashed (solids table; M16 killed it).
+4. Behind the CRASH bar (far side of the bus): never hit (test "beyond the lane's end").
+5. Shoved into a car fire: stops at the edge (knockback 5.7 F2, shove tested at a barricade face).
+6. Behind a building from the throw: not shielded. Walking 1 m/s during the lift: hit only inside 2.75 m (M4 and M18 killed it).
+7. Chunk in flight with a survivor in its face: no slam until the impact (M8 killed it).
+8. Alley 6 m away: thrown at (M3 killed it).
+9. Five baited crashes: the stun never overlaps an attack (only WALK picks; fuzz).
+10. Hidden tab across a charge: covered by `NetSimHost.boss.test.ts` woken mid-rush and after the stop. A late CRASH! is not asserted (L3, M21).
+11. Charge through mines and traps: none goes off, all destroyed, no refund (M15 killed it).
+
+Mine (scratch tests, deleted):
+
+- **X1 `bodyReachesInLane` outside the drawn lane?** 400 random lanes × 3 survivors anywhere in ±2.8 m × −1…12 m. Every hit had its pre-tick centre inside |perp| ≤ 2.15 m and inside the drawn length less the grace; never two hits per charge; many hits and many misses. **Not beaten.**
+- **X1b hit twice / hit downed:** no for every slotted player (mask). Downed and out are refused in `hitPlayer`, `damagePlayerBy` and `knockPlayerDir`. **Beaten only without a slot (L1).**
+- **X2 slot-less player:** 16 hits in one charge (L1).
+- **X3 killed mid-rush:** the rush stops where it is, no later hits, cap 110 → 150 the same tick, 150 to both players. **Holds.**
+- **X4 killed while the chunk flies:** no impact, no damage. **Holds.**
+- **X5 Crawler drops at 109 alive for 400 ticks:** reached exactly 110, never more. **Holds** (brief 22).
+- **X6 enraged charge telegraph:** same 20 ticks. **Holds** (21e; enrage.test F2 covers every kind).
+- **X7 squeezed between the crashing boss and the bus face** (5 offsets): hit once, ends outside the body (4.2–4.6 m from its centre) and outside every box. **Holds.**
+- **Predictor 6 m slide as a cheat:** not possible; the server is authoritative and the predictor only smooths the drawn offset (L2).
+
+### Brief 21 / 22 (each checked)
+
+- (a) The lane (`planCharge` and the sweep at the start), the stop point and the throw spot are all fixed in `startBossAttack`. `rushStep` moves from the fixed start, never accumulated. Holds.
+- (b) `chargeLaneProgress` and `throwInnerRadius` are keyed on the server start/hit ticks. The ring reaches 0 at the impact; the lane is full at the hit and through the rush. The lane and ring are cleared on DEAD. Holds.
+- (c) Grace of 0.25 m on lane width, both lane ends and the throw ring. Holds (X1, M1, M2, M4).
+- (d) The newest server position; no rewind in charge.ts or throw.ts. Holds.
+- (e) `telegraphTicks`, `windupTicks`, `recoverTicks` and the stun never call `bossTicks`. Holds (M5 killed).
+- (f) `attack.live` blocks every pick and the roar until the impact or stop. Recovery, then gap (see L4 for the throw).
+- (g) Every resolver, the throw pick and the charge target check `status === "alive"`. Holds.
+- 22: `maxAliveNow` is 110 for WARNING…ROAR and 150 from DEAD on the same tick. Drops are capped at `aliveCap` and are wave zombies in `remaining` (M6 and M20 killed; X3, X5). The stampede +30 belongs to 6.8 (not merged; n/a).
+
+### Acceptance and decisions audit
+
+- 6.6 F1–F10 and AC 1–9: met. Wire change: the exact stop point (`atkEndX/Y` f32) replaces the int8 direction + cm length (documented; more exact, +6 B). Accepted.
+- 6.7 F1–F7 and AC 1–8: met. AC 3's `"speed"` kind was not added to `bossTicks`; speed is multiplied in `walk` instead. That is fine, because telegraphs still never scale.
+- D1–D9 (6.6): met. The CRASH mark is amber (colour rule). D5 reads the boss field (`bossCantReach`).
+- D1–D8 (6.7): met. D4 pays every player in `world.players`; a player who has left the room is not paid, which is right.
+- 6.5 B1–B3: unchanged. Zombies still walk under the body. The throw is B3's answer.
+- Charge vs map solids is generic (`world.obstacles.solids`), so 6.2's rubble crashes it with no code. The throw's rubble look depends on the `rubble_*` names that 6.2's story uses; check this at the 6.2 merge.
+
+### Brief lines 1–32
+
+1 ✓ (gate green, git clean). 2 ✓ (copies listed: schema, syncState, stateView, fakeRoom, mirror, snapshot; Predictor knock limit). 3 ✓. 4 ✓ (above). 5 ✓ (slam and throw ignore cover; the charge stops at solids). 6 ✓ (resolve once; per-body hit mask). 7 ✓ (fuzz extended with liveness). 8 ✓ (no new RNG; digest test through charge, throw, roar, drops and death; L3 for `crawlerTicks`). 9 ✓ (24 mutations here, 20 killed). 10 ✓ apart from L2's literal 20. 11 ✓ (events, not per-tick state; ≤ 538 B/s boss total reported). 12 ✗ (M1: no `?stress=150` FPS). Atlas 4 × 16 frames ≤ 2048². 13 ✓ (readability items 60–64). 14 partial (netsim `?lag=150&jitter=20`; hidden tab unit-tested only, no browser). 15 ✓ (10-wave sim, 150 × 4). 16 ✓ (builder p99 at load 0.90). 17 ✓. 18 ✓ (`?bosswave`; not-verified list given). 19 ✓ (Notes for the merge). 20 ✓ (new textures through `addGeneratedTexture`; `noUnregisteredTextures` green). 21 ✓. 22 ✓. 23 n/a. 24 ✓ (lane, ring, chunk and crater above the darkness; screenshots at 568 and 800). 25 ✓ (craters ≤ 8; drops capped). 26 n/a. 27 ✓ (banner extended via hooks). 28 ✓ (death does not end the wave). 29 ✓. 30 n/a (no new edge input). 31 ✓ (no new pressable HUD; the banner wraps). 32 ✓ (decision log through 6.5 B1–B3 read; merged-tree commit reviewed).
+
+### Mutations (brief 9; one per new test area, each reverted)
+
+Killed (good): M1 charge grace removed · M2 `bodyReachesInLane` perp check removed · M3 D5 off · M4 throw grace removed · M5 `bossTicks` ignores enrage · M6 drops ignore the 110 cap · M7 pay only standing · M8 death leaves the attack live · M9 drawn lane `lenM + R` · M10 rush body push-out skipped · M11 `PREDICTION_CHARGE_SNAP_M` 2.5 (netsim) · M12 running-total limit back to snapM (netsim) · M13 `atkCrash` not synced · M14 stun × 1.5 off · M15 rush sets off mines · M16 sweep ignores the map edge · M17 hit mask ignored · M18 throw at the nearest · M20 drops not wave zombies · M23 rubble prefix wrong.
+
+Survived (bad, see L3): M19 roar takes 10 hp directly (the tests only look for damage events) · M21 `boss.crashed` dropped from NetSimHost's `ageS` list · M22 RunController killer +1 kill removed (all `apps/server/src` tests pass) · M24 `crawlerTicks` dropped from `snapshotBoss` (the digest test compares two equal runs).
+
+### Not verified by this review
+
+Real phones, browser FPS, sound by ear, a real hidden tab, and an online two-tab run (same as the builder's list).
