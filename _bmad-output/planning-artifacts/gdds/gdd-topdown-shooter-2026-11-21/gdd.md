@@ -359,6 +359,6 @@ This is a game for a group of friends, so success is simple and honest.
 
 ## Open Items Index
 - [ASSUMPTION] Server hosting cost is acceptable given the budget (Assumptions and Dependencies).
-- ~~[NOTE FOR DESIGNER] Solo testing could use × 0.4 zombie scaling~~ Decided 2026-11-23: solo online runs at × 0.4, allowed, not balance-tuned (Enemy Wave Design). Open: solo Behemoth HP × 0.4 or × 0.3 (Epic 10 balance pass).
+- ~~[NOTE FOR DESIGNER] Solo testing could use × 0.4 zombie scaling~~ Decided 2026-11-23: solo online runs at × 0.4, allowed, not balance-tuned (Enemy Wave Design). Solo Behemoth HP = × 0.4 like every other solo scaling (designer 2026-11-24).
 - [NOTE FOR DESIGNER] Pick order of future districts (Level Types).
 - Working title.

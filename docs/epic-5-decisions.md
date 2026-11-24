@@ -172,3 +172,6 @@ Answers to the 16 open questions in `docs/alignment/alignment-check-2026-11-23.m
 **Open point for the designer (Q7):** the 5.14 story's accepted text says "fire and Bloater blasts wear it, mines don't", but the answer passed on for this pass says "Bloater blasts don't wear floor traps". Which one holds?
 
 Applied by the course correction in `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-23.md`.
+
+- **Solo Behemoth HP = × 0.4** (designer, 2026-11-24), like every other solo scaling.
+- **Bear trap closed look (D11) approved** as built (designer, 2026-11-24).

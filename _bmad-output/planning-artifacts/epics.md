@@ -3099,7 +3099,7 @@ So that the run feels like the GDD's curve.
 
 **Given** run stats, bot runs and playtest notes
 **When** the balance is reviewed
-**Then** it settles what 4.10 and the Epic 5 balance pass (after round E, which owns the earnings decision) left open: the earnings model (fallback wave bonus 15 × N), solo Behemoth HP (× 0.4 or × 0.3), `loot.runChance` and the 6-building cap
+**Then** it settles what 4.10 and the Epic 5 balance pass (after round E, which owns the earnings decision) left open: the earnings model (fallback wave bonus 15 × N), `loot.runChance` and the 6-building cap
 **And** earnings per player over a full run are 2,500–3,000 at 2, 3 and 4 players, and the difficulty curve matches the GDD table (relaxed W1–2 … climax W10)
 
 **Given** balance changes
