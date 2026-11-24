@@ -190,3 +190,12 @@ Page: claude.ai/artifact/7MPKNLcAPBgPjiATVK4Cok (code drawings in `docs/art/5-13
 - **Hunting Rifle: H1** walnut bolt-action with scope = base; H2 lever-action (brass receiver) and H3 olive-camo synthetic with scope and bipod kept. All three stocks redrawn from the designer's reference photos (H1 swept pistol grip and recoil pad; H2 curved wrist and dropped butt; H3 broad swept-back grip, box magazine).
 - **Machete: M1** classic black-handle = base; M2 panga and M3 rusty kukri-style kept.
 - Build: port `smgS1` / `rifleH1` / `macheteM1` (signature `(ctx, size)`, metres, centred, same helpers) into `apps/client/src/render/city/weaponArt.ts` as `smg`, `hunting_rifle`, `machete` icon views in `WEAPON_ART`, with `ICON_Y` 0.44 / 0.5 / 0.5; icon only (the top-down in-hand art is unchanged). The kept variants (S2, S3, H2, H3, M2, M3) can go in `WEAPON_TIER_ICON` / `WEAPON_TOP_TIER_ICON` for upgrades III / IV, or wait for skins.
+
+## Early weapon upgrade-tier looks (designer, 2026-11-24)
+
+Mockup: `docs/art/5-28/upgrade-tiers.html`. Order = base (I–II) → III → IV, shown in the shop's Upgrades row and on the card (base):
+- **SMG:** S1 → S2 → S3 (as proposed).
+- **Hunting Rifle:** **H2 lever-action (new base)** → H1 bolt-action → H3 synthetic.
+- **Machete:** **M2 panga (new base)** → M1 classic → M3 rusty kukri.
+- **Shotgun:** G1 → G3 as built.
+Built in `apps/client/src/render/city/weaponArt.ts` (`WEAPON_ICON_ART`, `WEAPON_TIER_ICON`, `WEAPON_TOP_TIER_ICON`).

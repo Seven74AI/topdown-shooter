@@ -1,7 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cardCatalog, loadBalance } from "@topdown/shared";
 import { SURVIVOR_WEAPON_FRAMES } from "./spriteAtlas";
-import { WEAPON_ART, WEAPON_ICON_ART, weaponIconUrl } from "./weaponArt";
+import {
+  drawHuntingRifle,
+  drawHuntingRifleLever,
+  drawHuntingRifleSynthetic,
+  drawMachete,
+  drawMacheteKukri,
+  drawMachetePanga,
+  drawSmg,
+  drawSmgDrum,
+  drawSmgSuppressed,
+  WEAPON_ART,
+  WEAPON_ICON_ART,
+  WEAPON_TIER_ICON,
+  WEAPON_TOP_TIER_ICON,
+  weaponIconUrl,
+} from "./weaponArt";
 
 /** A 2D context that records the drawing calls (no canvas in the test environment). */
 function recordingContext(): { ctx: CanvasRenderingContext2D; calls: string[] } {
@@ -55,6 +70,36 @@ describe("early weapon card art (Story 5.28)", () => {
       const count = (k: string) => calls.filter((c) => c === k).length;
       expect(count("fill"), id).toBeGreaterThan(10);
       expect(count("save"), id).toBe(count("restore"));
+    }
+  });
+
+  it("upgrade-tier looks (designer 2026-11-24): SMG S1 → S2 → S3, Hunting Rifle H2 → H1 → H3, Machete M2 → M1 → M3", () => {
+    expect(WEAPON_ICON_ART.smg).toBe(drawSmg);
+    expect(WEAPON_ICON_ART.hunting_rifle).toBe(drawHuntingRifleLever);
+    expect(WEAPON_ICON_ART.machete).toBe(drawMachetePanga);
+    const looks: [string, (c: CanvasRenderingContext2D, s: number) => void, (c: CanvasRenderingContext2D, s: number) => void][] = [
+      ["smg", drawSmgSuppressed, drawSmgDrum],
+      ["hunting_rifle", drawHuntingRifle, drawHuntingRifleSynthetic],
+      ["machete", drawMachete, drawMacheteKukri],
+    ];
+    for (const [id, tier, top] of looks) {
+      for (const [map, want] of [[WEAPON_TIER_ICON, tier], [WEAPON_TOP_TIER_ICON, top]] as const) {
+        // the maps wrap the drawing; check that the wrapper draws the same calls as the named look
+        const a = recordingContext(); map[id]?.(a.ctx, 88);
+        const b = recordingContext(); want(b.ctx, 88);
+        expect(a.calls.length, id).toBeGreaterThan(10);
+        expect(a.calls, id).toEqual(b.calls);
+      }
+    }
+  });
+
+  it("levels I–II, III and IV give three different cached icons for the early weapons", () => {
+    const createElement = vi.fn(() => ({ width: 0, height: 0, getContext: () => recordingContext().ctx, toDataURL: () => `data:image/png;base64,${createElement.mock.calls.length}` }));
+    vi.stubGlobal("document", { createElement });
+    for (const id of ["smg", "hunting_rifle", "machete"]) {
+      const urls = [1, 2, 3, 4].map((lvl) => weaponIconUrl(id, lvl));
+      expect(urls[0], id).toBe(urls[1]);
+      expect(new Set(urls).size, id).toBe(3);
     }
   });
 });

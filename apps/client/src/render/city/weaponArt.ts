@@ -1082,10 +1082,18 @@ export const WEAPON_TIER_ICON: Readonly<Record<string, (c: G, size: number) => v
   shotgun: drawShotgunTactical,
   assault_rifle: drawAssaultRifleModern,
   grenade_launcher: (c, size) => drawGrenadeLauncherBlooper(c, size), // Story 5.5: GL2 at III (GL3 at IV: `WEAPON_TOP_TIER_ICON`)
+  // designer 2026-11-24: the Epic 1 weapons' III looks (S2, H1, M1)
+  smg: (c, size) => drawSmgSuppressed(c, size),
+  hunting_rifle: (c, size) => drawHuntingRifle(c, size),
+  machete: (c, size) => drawMachete(c, size),
 };
 /** Story 5.5: a third look at level IV (the Grenade Launcher's GL3 pump); weapons without one keep their III look. */
 export const WEAPON_TOP_TIER_ICON: Readonly<Record<string, (c: G, size: number) => void>> = {
   grenade_launcher: (c, size) => drawGrenadeLauncherPump(c, size),
+  // designer 2026-11-24: the Epic 1 weapons' IV looks (S3, H3, M3)
+  smg: (c, size) => drawSmgDrum(c, size),
+  hunting_rifle: (c, size) => drawHuntingRifleSynthetic(c, size),
+  machete: (c, size) => drawMacheteKukri(c, size),
 };
 
 /** The U1 plate's width (CSS px) per level (the numeral's width); height is `TIER_PLATE_H`. */
@@ -1772,6 +1780,255 @@ export function drawMachete(c: G, size: number): void {
 
 
 
+// Upgrade-tier looks of the Epic 1 weapons (designer 2026-11-24: SMG S1 → S2 → S3; Hunting Rifle H2 → H1 → H3; Machete M2 → M1 → M3).
+// Ported from docs/art/5-13/early-weapons.html (S2, S3, H2, H3, M2, M3).
+
+/** S2 boxy suppressed SMG: square receiver, fat suppressor, curved magazine, fixed polymer stock. */
+export function drawSmgSuppressed(c: G, size: number): void {
+  P = 1 / size; c.save(); c.scale(size, size);
+  // fixed stock with a lightening cut
+  const st = (q: G) => { q.moveTo(-0.2, -0.06); q.lineTo(-0.47, -0.054); q.lineTo(-0.47, 0.08); q.lineTo(-0.38, 0.08); q.quadraticCurveTo(-0.3, 0.03, -0.2, 0.0); q.closePath(); };
+  part(c, st, { base: "#1e1f22", box: [-0.47, -0.06, -0.2, 0.08], tex: polyTex(321), hi: 0.3 });
+  hole(c, (q: G) => { q.moveTo(-0.24, -0.035); q.lineTo(-0.42, -0.032); q.lineTo(-0.42, 0.03); q.quadraticCurveTo(-0.33, 0.01, -0.24, -0.012); q.closePath(); });
+  part(c, (q: G) => R(q, -0.5, -0.058, 0.032, 0.142, 0.008), { base: "#141516", box: [-0.5, -0.058, -0.468, 0.084], tex: polyTex(322, true), hi: 0.2 });
+  // suppressor
+  tube(c, 0.19, 0.49, -0.036, 0.078, "#2a2c2f", steelTex(323, 0.6), 0.012);
+  for (const x of [0.22, 0.46]) strokeP(c, (q: G) => { q.moveTo(x, -0.074); q.lineTo(x, 0.002); }, "rgba(0,0,0,0.55)", 1.2 * P, "butt");
+  // receiver (boxy) + handguard
+  const rc = (q: G) => R(q, -0.21, -0.076, 0.32, 0.082, 0.008);
+  part(c, rc, { base: "#34373b", box: [-0.21, -0.076, 0.11, 0.006], tex: steelTex(324, 1), hi: 0.5 });
+  part(c, (q: G) => R(q, 0.1, -0.068, 0.1, 0.066, 0.01), { base: "#1d1e21", box: [0.1, -0.068, 0.2, -0.002], tex: polyTex(325), hi: 0.3 });
+  for (let x = 0.115; x < 0.195; x += 0.016) strokeP(c, (q: G) => { q.moveTo(x, -0.06); q.lineTo(x, -0.01); }, "rgba(0,0,0,0.6)", 1.4 * P, "butt");
+  part(c, (q: G) => R(q, -0.18, -0.098, 0.04, 0.024, 0.006), { base: "#26282c", box: [-0.18, -0.098, -0.14, -0.074], hi: 0.4 }); // drum sight
+  part(c, (q: G) => R(q, 0.15, -0.084, 0.03, 0.018, 0.005), { base: "#26282c", box: [0.15, -0.084, 0.18, -0.066], hi: 0.4 }); // cocking handle
+  strokeP(c, (q: G) => { q.moveTo(-0.2, -0.05); q.lineTo(0.1, -0.05); }, "rgba(0,0,0,0.5)", 1 * P);
+  for (const [x, y] of [[-0.19, -0.012], [0.09, -0.012], [-0.06, -0.062]] as const) rivet(c, x, y, 0.0045, "#55585c");
+  // curved magazine
+  const mg = (q: G) => { q.moveTo(0.025, 0.004); q.lineTo(0.078, 0.004); q.quadraticCurveTo(0.085, 0.11, 0.13, 0.19); q.lineTo(0.088, 0.21); q.quadraticCurveTo(0.036, 0.12, 0.025, 0.004); q.closePath(); };
+  part(c, mg, { base: "#2e3033", box: [0.025, 0.004, 0.13, 0.21], tex: steelTex(326, 1.2), hi: 0.45 });
+  for (const k of [0.35, 0.65]) strokeP(c, (q: G) => { q.moveTo(0.025 + 0.053 * k, 0.01); q.quadraticCurveTo(0.036 + 0.05 * k, 0.12, 0.088 + 0.042 * k, 0.206 - 0.02 * k); }, "rgba(0,0,0,0.45)", 1.5 * P);
+  // trigger + polymer grip
+  trigger(c, (q: G) => { q.moveTo(-0.11, 0.006); q.quadraticCurveTo(-0.114, 0.056, -0.07, 0.056); q.lineTo(-0.04, 0.054); q.quadraticCurveTo(-0.02, 0.045, -0.02, 0.006); }, (q: G) => { q.moveTo(-0.065, 0.006); q.quadraticCurveTo(-0.062, 0.026, -0.074, 0.034); });
+  const gp = (q: G) => { q.moveTo(-0.115, 0.004); q.lineTo(-0.17, 0.004); q.lineTo(-0.205, 0.135); q.quadraticCurveTo(-0.2, 0.152, -0.18, 0.15); q.lineTo(-0.155, 0.146); q.quadraticCurveTo(-0.138, 0.06, -0.115, 0.004); q.closePath(); };
+  part(c, gp, { base: "#1c1d20", box: [-0.205, 0.004, -0.115, 0.152], tex: polyTex(327, true), hi: 0.3 });
+  c.restore();
+}
+
+/** S3 wooden-stock submachine gun: walnut stock and grips, finned barrel, drum magazine. */
+export function drawSmgDrum(c: G, size: number): void {
+  P = 1 / size; c.save(); c.scale(size, size);
+  const W = "#5b3820";
+  const st = (q: G) => { q.moveTo(-0.19, -0.05); q.quadraticCurveTo(-0.34, -0.044, -0.475, -0.034); q.lineTo(-0.475, 0.098); q.quadraticCurveTo(-0.33, 0.05, -0.19, 0.008); q.closePath(); };
+  part(c, st, { base: W, box: [-0.475, -0.05, -0.19, 0.098], tex: woodTex(331, -0.1), hi: 0.3 });
+  part(c, (q: G) => Pg(q, [-0.475, -0.036, -0.495, -0.037, -0.495, 0.102, -0.475, 0.1]), { base: "#151517", box: [-0.495, -0.037, -0.475, 0.102], tex: polyTex(332), hi: 0.2 });
+  // barrel: finned near the receiver, plain, compensator
+  part(c, (q: G) => R(q, 0.08, -0.046, 0.33, 0.022, 0.004), { base: "#232528", box: [0.08, -0.046, 0.41, -0.024], tex: steelTex(333, 0.6), hi: 0.45 });
+  const fn = (q: G) => R(q, 0.15, -0.058, 0.12, 0.046, 0.006);
+  part(c, fn, { base: "#2a2c30", box: [0.15, -0.058, 0.27, -0.012], tex: steelTex(334, 0.8), hi: 0.45 });
+  c.save(); c.beginPath(); fn(c); c.clip();
+  for (let x = 0.16; x < 0.27; x += 0.0105) strokeP(c, (q: G) => { q.moveTo(x, -0.06); q.lineTo(x, -0.01); }, "rgba(0,0,0,0.7)", 2 * P, "butt");
+  c.restore();
+  part(c, (q: G) => R(q, 0.4, -0.054, 0.07, 0.038, 0.006), { base: "#26282b", box: [0.4, -0.054, 0.47, -0.016], tex: steelTex(335, 0.7), hi: 0.45 });
+  for (const x of [0.415, 0.432, 0.449]) hole(c, (q: G) => R(q, x, -0.054, 0.008, 0.012, 0.002));
+  // drum (drawn before the receiver so its top slides up into the magazine housing)
+  drumTall(c, 0.1, -0.03, 0.018); // seen almost edge-on, as on the real gun (reference photo)
+  // receiver
+  part(c, (q: G) => R(q, -0.2, -0.072, 0.29, 0.078, 0.008), { base: "#383a3e", box: [-0.2, -0.072, 0.09, 0.006], tex: steelTex(336, 1.1), hi: 0.5 });
+  part(c, (q: G) => Pg(q, [-0.16, -0.072, -0.152, -0.09, -0.124, -0.09, -0.116, -0.072]), { base: "#2b2d31", box: [-0.16, -0.09, -0.116, -0.072], hi: 0.4 });
+  part(c, (q: G) => E(q, 0.0, -0.078, 0.013, 0.011), { base: "#55585c", box: [-0.013, -0.089, 0.013, -0.067], hi: 0.6, line: 1 }); // cocking knob
+  hole(c, (q: G) => R(q, -0.08, -0.05, 0.13, 0.009, 0.004));
+  for (const [x, y] of [[-0.19, -0.012], [0.08, -0.012], [-0.12, -0.012]] as const) rivet(c, x, y, 0.0045, "#5c5f63");
+  // trigger + wooden pistol grip + wooden vertical foregrip
+  trigger(c, (q: G) => { q.moveTo(-0.1, 0.006); q.quadraticCurveTo(-0.104, 0.054, -0.064, 0.054); q.lineTo(-0.035, 0.052); q.quadraticCurveTo(-0.018, 0.044, -0.018, 0.006); }, (q: G) => { q.moveTo(-0.06, 0.006); q.quadraticCurveTo(-0.057, 0.025, -0.069, 0.033); });
+  const gp = (q: G) => { q.moveTo(-0.105, 0.004); q.lineTo(-0.158, 0.004); q.quadraticCurveTo(-0.19, 0.08, -0.19, 0.13); q.quadraticCurveTo(-0.17, 0.15, -0.14, 0.142); q.quadraticCurveTo(-0.14, 0.07, -0.105, 0.004); q.closePath(); };
+  part(c, gp, { base: W, box: [-0.19, 0.004, -0.105, 0.15], tex: woodTex(338, 1.3), hi: 0.3 });
+  const fg = (q: G) => {
+    q.moveTo(0.27, -0.012); q.lineTo(0.33, -0.012); q.lineTo(0.334, 0.03);
+    for (let i = 0; i < 3; i++) { const y = 0.03 + i * 0.032; q.quadraticCurveTo(0.346, y + 0.016, 0.336, y + 0.032); }
+    q.quadraticCurveTo(0.31, 0.142, 0.28, 0.13); q.quadraticCurveTo(0.262, 0.06, 0.27, -0.012); q.closePath();
+  };
+  part(c, fg, { base: W, box: [0.262, -0.012, 0.346, 0.142], tex: woodTex(339, 1.5), hi: 0.32 });
+  part(c, (q: G) => R(q, 0.264, -0.026, 0.074, 0.018, 0.004), { base: "#2a2c30", box: [0.264, -0.026, 0.338, -0.008], hi: 0.4 });
+  // magazine housing: the receiver's front block the drum slides up into, with guide lips hugging
+  // the drum's top front and back, a dark slot where it enters and the latch on the back lip
+  const hs = (q: G) => { q.moveTo(0.05, -0.064); q.lineTo(0.152, -0.064); q.quadraticCurveTo(0.16, -0.064, 0.16, -0.054); q.lineTo(0.16, 0.012); q.lineTo(0.15, 0.03); q.lineTo(0.138, 0.03); q.lineTo(0.136, 0.018); q.lineTo(0.064, 0.018); q.lineTo(0.062, 0.03); q.lineTo(0.05, 0.03); q.closePath(); };
+  part(c, hs, { base: "#36383c", box: [0.05, -0.064, 0.16, 0.03], tex: steelTex(345, 1.1), hi: 0.5 });
+  strokeP(c, (q: G) => { q.moveTo(0.066, 0.016); q.lineTo(0.134, 0.016); }, "#050506", 2.2 * P, "butt");
+  strokeP(c, (q: G) => { q.moveTo(0.05, -0.04); q.lineTo(0.16, -0.04); }, "rgba(0,0,0,0.5)", 1 * P);
+  part(c, (q: G) => R(q, 0.04, -0.004, 0.016, 0.03, 0.004), { base: "#4a4d52", box: [0.04, -0.004, 0.056, 0.026], hi: 0.55, line: 1 }); // latch
+  for (const [x, y] of [[0.058, -0.052], [0.152, -0.052], [0.152, 0.004]] as const) rivet(c, x, y, 0.0042, "#5c5f63");
+  c.restore();
+}
+
+
+/**
+ * S3 drum (designer reference photo): the big round drum hangs under the receiver ahead of the
+ * trigger, seen almost edge-on: a tall narrow ellipse. Its rim (the drum's thickness) shows as a
+ * dark band at the back, the narrow front face carries the winding key. x = drum centre, top = receiver bottom.
+ */
+function drumTall(c: G, x: number, top: number, shadeY: number): void {
+  const ry = 0.142, rx = 0.03, th = 0.03, cy = top + ry - 0.004, xb = x - th / 2, xf = x + th / 2;
+  // rim band: back ellipse + the hull to the front face
+  const rim = (q: G) => { q.moveTo(xb, cy - ry); q.lineTo(xf, cy - ry); q.ellipse(xf, cy, rx, ry, 0, -Math.PI / 2, Math.PI / 2); q.lineTo(xb, cy + ry); q.ellipse(xb, cy, rx, ry, 0, Math.PI / 2, Math.PI * 1.5); q.closePath(); };
+  part(c, rim, { base: "#222427", box: [xb - rx, cy - ry, xf + rx, cy + ry], tex: steelTex(340, 1.1), hi: 0.35, lo: 0.6 });
+  c.save(); c.beginPath(); rim(c); c.clip();
+  for (const k of [0.3, 0.7]) strokeP(c, (q: G) => { q.ellipse(xb + th * k, cy, rx, ry, 0, Math.PI / 2, Math.PI * 1.5); }, "rgba(0,0,0,0.5)", 1.3 * P);
+  c.restore();
+  // front face
+  const face = (q: G) => E(q, xf, cy, rx, ry);
+  part(c, face, { base: "#34363a", lit: "top", box: [xf - rx, cy - ry, xf + rx, cy + ry], tex: steelTex(337, 1.2), hi: 0.5, lo: 0.5 });
+  strokeP(c, (q: G) => E(q, xf, cy, rx * 0.72, ry * 0.86), "rgba(0,0,0,0.45)", 1.2 * P);
+  for (const k of [-0.6, -0.3, 0.3, 0.6]) rivet(c, xf + rx * 0.45 * Math.sqrt(1 - k * k), cy + ry * 0.75 * k, 0.0035, "#55585c");
+  part(c, (q: G) => R(q, xf - 0.004, cy - 0.022, 0.024, 0.044, 0.006), { base: "#2a2c30", box: [xf - 0.004, cy - 0.022, xf + 0.02, cy + 0.022], hi: 0.5, line: 1 }); // winding key housing
+  part(c, (q: G) => R(q, xf + 0.014, cy - 0.01, 0.016, 0.02, 0.004), { base: "#5a5d62", box: [xf + 0.014, cy - 0.01, xf + 0.03, cy + 0.01], hi: 0.6, line: 0.9 }); // key
+  if (shadeY !== undefined) {
+    // contact shadow where the drum leaves the housing
+    c.save(); c.beginPath(); rim(c); face(c); c.clip();
+    const g = c.createLinearGradient(0, shadeY, 0, shadeY + 0.03);
+    g.addColorStop(0, "rgba(0,0,0,0.6)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g; c.fillRect(x - 0.1, shadeY - 0.01, 0.2, 0.045);
+    c.restore();
+  }
+}
+
+// ------------------------------ Hunting Rifle ------------------------------
+
+/** H2 lever-action rifle: brass receiver, straight walnut stock, tube magazine, big lever loop, iron sights. */
+export function drawHuntingRifleLever(c: G, size: number): void {
+  P = 1 / size; c.save(); c.scale(size, size);
+  const W = "#6a4122";
+  part(c, (q: G) => R(q, -0.04, -0.04, 0.53, 0.018, 0.004), { base: "#24272b", box: [-0.04, -0.04, 0.49, -0.022], tex: steelTex(351, 0.5), hi: 0.5 });
+  part(c, (q: G) => R(q, -0.04, -0.021, 0.45, 0.015, 0.006), { base: "#2a2d31", box: [-0.04, -0.021, 0.41, -0.006], tex: steelTex(352, 0.5), hi: 0.45 });
+  part(c, (q: G) => R(q, 0.39, -0.044, 0.016, 0.042, 0.004), { base: "#2a2c30", box: [0.39, -0.044, 0.406, -0.002], hi: 0.45 }); // muzzle band
+  part(c, (q: G) => Pg(q, [0.47, -0.04, 0.474, -0.054, 0.482, -0.054, 0.484, -0.04]), { base: "#2a2c30", box: [0.47, -0.054, 0.484, -0.04], hi: 0.4 });
+  fillP(c, (q: G) => E(q, 0.478, -0.055, 0.0035, 0.003), "#d8c27a"); // brass bead
+  part(c, (q: G) => Pg(q, [0.12, -0.04, 0.118, -0.05, 0.13, -0.054, 0.14, -0.05, 0.138, -0.04]), { base: "#2a2c30", box: [0.118, -0.054, 0.14, -0.04], hi: 0.4 }); // buckhorn
+  const fe = (q: G) => { q.moveTo(0.02, -0.027); q.lineTo(0.29, -0.027); q.lineTo(0.29, 0.004); q.lineTo(0.02, 0.008); q.closePath(); };
+  part(c, fe, { base: W, box: [0.02, -0.027, 0.29, 0.008], tex: woodTex(353, 0), hi: 0.32 });
+  part(c, (q: G) => R(q, 0.284, -0.031, 0.018, 0.042, 0.004), { base: "#2a2c30", box: [0.284, -0.031, 0.302, 0.011], tex: steelTex(357, 0.5), hi: 0.45 }); // forend cap
+  // stock (designer reference: a classic lever-action): the wrist drops from the receiver in a
+  // curve, the comb runs back almost level, a tall butt; underneath, a curved pistol-grip wrist
+  // the lever loop wraps around, then a long straight belly down to the toe
+  const st = (q: G) => {
+    q.moveTo(-0.17, -0.036); q.quadraticCurveTo(-0.215, -0.034, -0.26, -0.008); q.quadraticCurveTo(-0.28, 0.0, -0.3, 0.0);
+    q.lineTo(-0.482, -0.008); q.quadraticCurveTo(-0.488, 0.06, -0.482, 0.128);
+    q.lineTo(-0.27, 0.07); q.quadraticCurveTo(-0.23, 0.06, -0.215, 0.044); q.quadraticCurveTo(-0.19, 0.022, -0.17, 0.022); q.closePath();
+  };
+  part(c, st, { base: W, box: [-0.488, -0.036, -0.17, 0.128], tex: woodTex(354, -0.16), hi: 0.32 });
+  c.save(); c.beginPath(); st(c); c.clip();
+  strokeP(c, (q: G) => { q.moveTo(-0.172, -0.032); q.quadraticCurveTo(-0.215, -0.03, -0.258, -0.004); q.quadraticCurveTo(-0.28, 0.004, -0.3, 0.004); q.lineTo(-0.48, -0.004); }, "rgba(240,200,150,0.25)", 1.3 * P); // comb highlight
+  fillP(c, (q: G) => { q.moveTo(-0.25, 0.064); q.quadraticCurveTo(-0.22, 0.05, -0.2, 0.03); q.lineTo(-0.19, 0.04); q.quadraticCurveTo(-0.22, 0.064, -0.25, 0.072); q.closePath(); }, "rgba(0,0,0,0.25)"); // grip shadow
+  c.restore();
+  part(c, (q: G) => Pg(q, [-0.482, -0.008, -0.5, -0.01, -0.504, 0.06, -0.5, 0.132, -0.482, 0.128, -0.488, 0.06]), { base: "#18191b", box: [-0.504, -0.01, -0.482, 0.132], tex: polyTex(355), hi: 0.2 }); // butt pad
+  rivet(c, -0.4, 0.1, 0.0035, "#77797c"); // sling swivel
+  // brass receiver
+  const rc = (q: G) => { q.moveTo(-0.18, -0.044); q.lineTo(0.02, -0.044); q.lineTo(0.02, 0.016); q.quadraticCurveTo(-0.05, 0.03, -0.13, 0.028); q.lineTo(-0.18, 0.022); q.closePath(); };
+  part(c, rc, { base: "#a07a32", box: [-0.18, -0.044, 0.02, 0.03], tex: steelTex(356, 0.5), hi: 0.6, lo: 0.5 });
+  for (const [x, y] of [[-0.15, -0.01], [-0.02, -0.01], [-0.08, 0.012]] as const) rivet(c, x, y, 0.0045, "#6e5520");
+  hole(c, (q: G) => R(q, -0.07, -0.036, 0.075, 0.012, 0.003)); // ejection port
+  part(c, (q: G) => Pg(q, [-0.18, -0.03, -0.205, -0.052, -0.198, -0.058, -0.168, -0.042]), { base: "#2a2c30", box: [-0.205, -0.058, -0.168, -0.03], hi: 0.45 }); // hammer
+  // lever loop + trigger
+  const lv = (q: G) => { q.moveTo(-0.04, 0.024); q.quadraticCurveTo(-0.042, 0.058, -0.075, 0.06); q.lineTo(-0.15, 0.062); q.quadraticCurveTo(-0.2, 0.062, -0.205, 0.046); q.quadraticCurveTo(-0.2, 0.032, -0.178, 0.026); };
+  rod(c, lv, 0.011, "#2c2e32");
+  strokeP(c, (q: G) => { q.moveTo(-0.12, 0.026); q.quadraticCurveTo(-0.118, 0.04, -0.128, 0.05); }, "#050506", 0.0055 + 2 * P);
+  strokeP(c, (q: G) => { q.moveTo(-0.12, 0.026); q.quadraticCurveTo(-0.118, 0.04, -0.128, 0.05); }, "#2e3035", 0.0055);
+  c.restore();
+}
+
+/** H3 synthetic-stock rifle: olive polymer stock, stainless fluted barrel + muzzle brake, scope with sunshade, folded bipod. */
+export function drawHuntingRifleSynthetic(c: G, size: number): void {
+  P = 1 / size; c.save(); c.scale(size, size);
+  const OD = "#545a42";
+  part(c, (q: G) => R(q, -0.02, -0.035, 0.46, 0.019, 0.005), { base: "#8b9096", box: [-0.02, -0.035, 0.44, -0.016], tex: steelTex(361, 0.3), hi: 0.6 });
+  for (let x = 0.24; x < 0.43; x += 0.04) strokeP(c, (q: G) => { q.moveTo(x, -0.0265); q.lineTo(x + 0.03, -0.0265); }, "rgba(0,0,0,0.55)", 1.6 * P, "round");
+  part(c, (q: G) => R(q, 0.43, -0.041, 0.065, 0.03, 0.006), { base: "#1d1f22", box: [0.43, -0.041, 0.495, -0.011], tex: steelTex(362, 0.5), hi: 0.45 });
+  for (const x of [0.445, 0.462, 0.479]) hole(c, (q: G) => R(q, x, -0.035, 0.009, 0.018, 0.002));
+  // folded bipod under the forend
+  rod(c, (q: G) => { q.moveTo(0.17, 0.02); q.lineTo(0.36, 0.024); }, 0.01, "#26282b");
+  part(c, (q: G) => R(q, 0.155, 0.006, 0.03, 0.026, 0.005), { base: "#26282b", box: [0.155, 0.006, 0.185, 0.032], hi: 0.4 });
+  part(c, (q: G) => R(q, 0.35, 0.016, 0.026, 0.016, 0.006), { base: "#141516", box: [0.35, 0.016, 0.376, 0.032], hi: 0.3 });
+  // stock (designer reference: modern synthetic hunting stocks): straight comb, a steep pistol grip
+  // with a palm swell, straight belly to a tall butt, thick black recoil pad, long flat-bottomed
+  // forend; olive with a camo pattern and a stippled grip panel
+  const st = (q: G) => {
+    q.moveTo(-0.482, -0.026); q.lineTo(-0.24, -0.032); q.quadraticCurveTo(-0.21, -0.034, -0.195, -0.042); q.lineTo(0.215, -0.026);
+    q.quadraticCurveTo(0.236, -0.024, 0.236, -0.006); q.quadraticCurveTo(0.234, 0.016, 0.205, 0.016); q.lineTo(-0.03, 0.02);
+    q.lineTo(-0.09, 0.022); q.quadraticCurveTo(-0.12, 0.03, -0.138, 0.068); q.lineTo(-0.152, 0.098);
+    q.quadraticCurveTo(-0.164, 0.12, -0.19, 0.112); q.quadraticCurveTo(-0.205, 0.08, -0.222, 0.062);
+    q.quadraticCurveTo(-0.24, 0.048, -0.285, 0.054); q.lineTo(-0.482, 0.112); q.closePath();
+  };
+  part(c, st, { base: OD, box: [-0.482, -0.042, 0.236, 0.112], tex: polyTex(363), hi: 0.32 });
+  c.save(); c.beginPath(); st(c); c.clip();
+  const cr = mulberry(368);
+  for (let i = 0; i < 26; i++) {
+    const col = ["rgba(150,140,104,0.75)", "rgba(46,52,34,0.8)", "rgba(110,104,76,0.7)", "rgba(70,62,44,0.7)"][i % 4] ?? "rgba(70,62,44,0.7)";
+    fillP(c, (q: G) => blobPath(q, -0.48 + cr() * 0.72, -0.04 + cr() * 0.15, 0.014 + cr() * 0.026, 0.008 + cr() * 0.014, 369 + i, 0.5, 22), col);
+  }
+  polyTex(370)(c, -0.48, -0.04, 0.24, 0.11);
+  const sp = (q: G) => Pg(q, [-0.118, 0.036, -0.17, 0.04, -0.196, 0.098, -0.16, 0.104]);
+  fillP(c, sp, "rgba(0,0,0,0.25)");
+  c.save(); c.beginPath(); sp(c); c.clip(); polyTex(364, true)(c, -0.2, 0.034, -0.11, 0.106); c.restore();
+  strokeP(c, (q: G) => { q.moveTo(-0.48, -0.022); q.lineTo(-0.24, -0.028); q.quadraticCurveTo(-0.21, -0.03, -0.195, -0.038); }, "rgba(230,230,200,0.22)", 1.3 * P);
+  c.restore();
+  part(c, (q: G) => Pg(q, [-0.482, -0.026, -0.512, -0.028, -0.516, 0.044, -0.512, 0.116, -0.482, 0.112, -0.488, 0.044]), { base: "#141516", box: [-0.516, -0.028, -0.482, 0.116], tex: polyTex(365, true), hi: 0.2 }); // recoil pad
+  strokeP(c, (q: G) => { q.moveTo(-0.5, -0.02); q.lineTo(-0.504, 0.11); }, "rgba(0,0,0,0.6)", 1 * P);
+  rivet(c, -0.4, 0.092, 0.0035, "#77797c"); // sling stud
+  part(c, (q: G) => R(q, -0.2, -0.042, 0.19, 0.026, 0.006), { base: "#26282c", box: [-0.2, -0.042, -0.01, -0.016], tex: steelTex(366, 0.6), hi: 0.5 });
+  rod(c, (q: G) => { q.moveTo(-0.165, -0.028); q.quadraticCurveTo(-0.172, -0.006, -0.182, 0.008); }, 0.008, "#3a3d42");
+  part(c, (q: G) => R(q, -0.198, 0.0, 0.03, 0.024, 0.008), { base: "#1d1e21", box: [-0.198, 0, -0.168, 0.024], tex: polyTex(367, true), hi: 0.45, line: 1 });
+  trigger(c, (q: G) => { q.moveTo(-0.092, 0.016); q.quadraticCurveTo(-0.094, 0.05, -0.064, 0.05); q.lineTo(-0.044, 0.048); q.quadraticCurveTo(-0.028, 0.042, -0.028, 0.016); }, (q: G) => { q.moveTo(-0.06, 0.016); q.quadraticCurveTo(-0.058, 0.03, -0.068, 0.038); });
+  part(c, (q: G) => R(q, -0.018, 0.012, 0.056, 0.046, 0.004), { base: "#1d1e21", box: [-0.018, 0.012, 0.038, 0.058], tex: steelTex(369, 0.6), hi: 0.4 }); // box magazine
+  for (const y of [0.026, 0.04]) strokeP(c, (q: G) => { q.moveTo(-0.012, y); q.lineTo(0.032, y); }, "rgba(0,0,0,0.5)", 1.1 * P, "butt");
+  for (const x of [-0.15, 0.02]) part(c, (q: G) => R(q, x, -0.068, 0.026, 0.028, 0.003), { base: "#1b1c1f", box: [x, -0.068, x + 0.026, -0.04], hi: 0.4 });
+  scope(c, -0.24, 0.13, -0.09, 0.036, "#17181b", { eye: 0.075, obj: 0.1, bell: 0.062, shade: 0.05 });
+  c.restore();
+}
+
+// --------------------------------- Machete ---------------------------------
+
+/** M2 panga: very wide blade with a swept-up tip and a deep belly, raw steel with a grind line, wooden grip. */
+export function drawMachetePanga(c: G, size: number): void {
+  P = 1 / size; c.save(); c.scale(size, size);
+  const bl = (q: G) => { q.moveTo(-0.23, -0.03); q.lineTo(0.22, -0.036); q.quadraticCurveTo(0.38, -0.04, 0.495, -0.085); q.quadraticCurveTo(0.5, 0.03, 0.4, 0.085); q.quadraticCurveTo(0.1, 0.1, -0.23, 0.034); q.closePath(); };
+  const edge = (q: G) => { q.moveTo(0.495, -0.085); q.quadraticCurveTo(0.5, 0.03, 0.4, 0.085); q.quadraticCurveTo(0.1, 0.1, -0.21, 0.036); };
+  part(c, bl, { base: "#7c8188", box: [-0.23, -0.085, 0.5, 0.1], tex: steelTex(381, 1.1), hi: 0.5, lo: 0.45 });
+  c.save(); c.beginPath(); bl(c); c.clip();
+  fillP(c, (q: G) => { q.moveTo(-0.23, -0.03); q.lineTo(0.22, -0.036); q.quadraticCurveTo(0.38, -0.04, 0.495, -0.085); q.lineTo(0.495, -0.03); q.quadraticCurveTo(0.3, 0.02, -0.23, 0.0); q.closePath(); }, "rgba(20,24,30,0.28)"); // flat vs grind
+  c.restore();
+  bladeEdge(c, bl, edge, -0.012, 0.026, "#d4d7db");
+  strokeP(c, (q: G) => { q.moveTo(-0.2, -0.026); q.lineTo(0.22, -0.032); q.quadraticCurveTo(0.37, -0.036, 0.48, -0.078); }, "rgba(225,232,240,0.4)", 1.2 * P);
+  const hd = (q: G) => { q.moveTo(-0.215, -0.038); q.lineTo(-0.48, -0.03); q.quadraticCurveTo(-0.505, -0.02, -0.5, 0.02); q.quadraticCurveTo(-0.495, 0.05, -0.47, 0.052); q.lineTo(-0.215, 0.044); q.closePath(); };
+  part(c, hd, { base: "#6a4426", box: [-0.505, -0.038, -0.215, 0.052], tex: woodTex(382, 0), hi: 0.32 });
+  for (const x of [-0.26, -0.34, -0.42]) rivet(c, x, 0.005, 0.0075, "#b8a070");
+  c.restore();
+}
+
+/** M3 rusty kukri-style machete: forward-bent blade with rust patches and the notch at the handle, ringed wooden grip, brass bolster. */
+export function drawMacheteKukri(c: G, size: number): void {
+  P = 1 / size; c.save(); c.scale(size, size);
+  const bl = (q: G) => {
+    q.moveTo(-0.2, -0.028); q.quadraticCurveTo(0.12, -0.085, 0.34, -0.05); q.quadraticCurveTo(0.46, -0.02, 0.49, 0.075);
+    q.quadraticCurveTo(0.42, 0.095, 0.32, 0.068); q.quadraticCurveTo(0.12, 0.03, -0.12, 0.032);
+    q.lineTo(-0.14, 0.018); q.lineTo(-0.156, 0.032); q.lineTo(-0.2, 0.03); q.closePath();
+  };
+  const edge = (q: G) => { q.moveTo(0.49, 0.075); q.quadraticCurveTo(0.42, 0.095, 0.32, 0.068); q.quadraticCurveTo(0.12, 0.03, -0.11, 0.032); };
+  part(c, bl, { base: "#6e6a64", box: [-0.2, -0.085, 0.49, 0.095], tex: rustTex(391, 1), hi: 0.45, lo: 0.5 });
+  c.save(); c.beginPath(); bl(c); c.clip();
+  const r = mulberry(392);
+  for (let i = 0; i < 9; i++) fillP(c, (q: G) => blobPath(q, -0.1 + r() * 0.55, -0.05 + r() * 0.1, 0.02 + r() * 0.04, 0.012 + r() * 0.02, 393 + i, 0.45, 24), `rgba(${120 + r() * 30 | 0},${55 + r() * 20 | 0},24,${0.45 + r() * 0.3})`);
+  c.restore();
+  bladeEdge(c, bl, edge, -0.009, 0.018, "#b9b6ae");
+  const hd = (q: G) => { q.moveTo(-0.215, -0.034); q.lineTo(-0.47, -0.04); q.quadraticCurveTo(-0.51, -0.03, -0.505, 0.012); q.quadraticCurveTo(-0.5, 0.05, -0.47, 0.058); q.lineTo(-0.215, 0.042); q.closePath(); };
+  part(c, hd, { base: "#4a2e1a", box: [-0.51, -0.04, -0.215, 0.058], tex: woodTex(394, 0), hi: 0.3 });
+  c.save(); c.beginPath(); hd(c); c.clip();
+  for (const x of [-0.29, -0.37]) { strokeP(c, (q: G) => { q.moveTo(x, -0.06); q.lineTo(x, 0.07); }, "rgba(10,5,2,0.7)", 3 * P, "butt"); strokeP(c, (q: G) => { q.moveTo(x + 2 * P, -0.06); q.lineTo(x + 2 * P, 0.07); }, "rgba(220,170,120,0.25)", 1 * P, "butt"); }
+  c.restore();
+  part(c, (q: G) => R(q, -0.235, -0.04, 0.036, 0.086, 0.008), { base: "#9a7a34", box: [-0.235, -0.04, -0.199, 0.046], tex: steelTex(395, 0.6), hi: 0.6 });
+  part(c, (q: G) => R(q, -0.515, -0.026, 0.02, 0.066, 0.006), { base: "#9a7a34", box: [-0.515, -0.026, -0.495, 0.04], hi: 0.55, line: 1 });
+  c.restore();
+}
+
+
 /** Weapons with their own art (shop icon + held view), by balance id (the rest keep the survivor's plain gun; Story 5.28: their shop icon is in `WEAPON_ICON_ART`). */
 export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, size: number) => void>> = {
   shotgun: drawShotgun,
@@ -1784,12 +2041,14 @@ export const WEAPON_ART: Readonly<Record<string, (c: G, view: WeaponArtView, siz
 };
 /**
  * Story 5.28: weapons with a side-view shop icon only (no held view: in the hands they keep the
- * survivor's plain gun, so they make no `survivor_<weapon>_a` frame): S1, H1, M1.
+ * survivor's plain gun, so they make no `survivor_<weapon>_a` frame). Base looks (designer
+ * 2026-11-24): S1, H2 lever-action, M2 panga; their III / IV looks are in `WEAPON_TIER_ICON` /
+ * `WEAPON_TOP_TIER_ICON`.
  */
 export const WEAPON_ICON_ART: Readonly<Record<string, (c: G, size: number) => void>> = {
   smg: drawSmg,
-  hunting_rifle: drawHuntingRifle,
-  machete: drawMachete,
+  hunting_rifle: drawHuntingRifleLever,
+  machete: drawMachetePanga,
 };
 /** Story 5.4: what a weapon puts on the survivor's back instead of the backpack (FT1's twin tanks). */
 export const WEAPON_BACK_ART: Readonly<Record<string, (c: G, r: number) => void>> = {
@@ -1803,6 +2062,8 @@ export const ICON_H = 44;
 const iconUrls = new Map<string, string>();
 /** Where the side view's origin sits in the icon (share of the height; px right): the art is not centred on 0. */
 const ICON_Y: Readonly<Record<string, number>> = { smg: 0.44, hunting_rifle: 0.5, machete: 0.5, assault_rifle: 0.36, fire_axe: 0.5, chainsaw: 0.62, flamethrower: 0.58, gas_torch: 0.62 };
+/** Per-look origin height for looks that sit differently from their weapon's base (key = weapon, `weapon:tier`, `weapon:top`). */
+const ICON_Y_LOOK: Readonly<Record<string, number>> = { "assault_rifle:tier": 0.4, "assault_rifle:top": 0.4, hunting_rifle: 0.52, "smg:top": 0.4 };
 const ICON_X_SHIFT: Readonly<Record<string, number>> = { chainsaw: -2, flamethrower: -2, gas_torch: 0 };
 
 /**
@@ -1826,7 +2087,7 @@ export function weaponIconUrl(weapon: string, level = 1): string | null {
   const g = cv.getContext("2d");
   if (!g) return null;
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  g.translate(ICON_W / 2 + (ICON_X_SHIFT[weapon] ?? 0), ICON_H * (weapon === "assault_rifle" && tier ? 0.4 : (ICON_Y[weapon] ?? 0.42)));
+  g.translate(ICON_W / 2 + (ICON_X_SHIFT[weapon] ?? 0), ICON_H * (ICON_Y_LOOK[key] ?? ICON_Y[weapon] ?? 0.42));
   if (tier) tier(g, ICON_W * 0.92);
   else draw(g, ICON_W * 0.92);
   const url = cv.toDataURL("image/png");
