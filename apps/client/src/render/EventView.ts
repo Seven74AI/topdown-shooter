@@ -171,8 +171,10 @@ export class EventView {
       const len = alongX ? lane.maxX - lane.minX : lane.maxY - lane.minY;
       const col = i % 3;
       const row = Math.floor(i / 3);
-      const drift = (this.clockS * 3) % CHEVRON_GAP_M;
-      const along = 2 + row * CHEVRON_GAP_M + drift;
+      // the rows spread over the whole lane (so the lane reads where you stand), drifting along it
+      const gap = Math.max(CHEVRON_GAP_M, (len - 2) / Math.max(1, Math.ceil(n / 3)));
+      const drift = (this.clockS * 3) % gap;
+      const along = 1 + row * gap + drift;
       if (along > len - 1) {
         c.setVisible(false);
         continue;

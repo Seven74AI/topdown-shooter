@@ -174,7 +174,7 @@ describe("Story 6.8: the events layer", () => {
     expect(() => loadTiledMap(withEvents([lane([sp("dir", "x")])]), "t")).toThrow(/events: lane: dir must be one of e, w, s, n/);
     expect(() => loadTiledMap(withEvents([lane([sp("dir", "e")], 128)]), "t")).toThrow(/a lane spans the map/);
     expect(() => loadTiledMap(withEvents([lane([sp("dir", "e"), sp("minStage", 4), sp("maxStage", 2)])]), "t")).toThrow(/maxStage 2 is below minStage 4/);
-    expect(() => loadTiledMap(withEvents([point(21, "p", 48, 112, [sp("kind", "pizza")])]), "t")).toThrow(/kind must be stampede_lane or one of crate, survivor, safe/);
+    expect(() => loadTiledMap(withEvents([point(21, "p", 48, 112, [sp("kind", "pizza")])]), "t")).toThrow(/kind must be stampede_lane or one of crate, survivor, safe, evac_pad/);
     expect(() => loadTiledMap(withEvents([point(21, "p", 80, 48, [sp("kind", "crate")])]), "t")).toThrow(/inside collision box box/);
   });
 });

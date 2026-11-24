@@ -9,7 +9,6 @@ import { pushOutOfBuildings, pushed } from "../buildings/collision";
 import { earn } from "../economy/economy";
 import { EVENT_PHASE, NPC_STATE, type SurvivorState } from "./eventState";
 import { centre, setEventPhase, teamCentre, type EventModule } from "./common";
-import { endSpecialEvent } from "./specialEvents";
 
 /**
  * Story 6.10 (FR43, D2–D6, D8–D10; S1–S5): the survivor NPC and its safe point.
@@ -213,12 +212,8 @@ export const survivorModule: EventModule = {
     const n = world.special.survivor;
     const a = world.special.active;
     const cfg = world.balance.events.survivor;
-    if (n.state === NPC_STATE.SAVED) return world.tick - a.phaseTick >= ticksFor(cfg.waveOffS);
-    if (n.state === NPC_STATE.DEAD || n.status !== "alive") {
-      world.special.log.survivorsLost++;
-      endSpecialEvent(world, "failed"); // S5: dead → nothing for anyone
-      return false;
-    }
+    if (n.state === NPC_STATE.SAVED) return world.tick - a.phaseTick >= ticksFor(cfg.waveOffS) ? "done" : null;
+    if (n.state === NPC_STATE.DEAD || n.status !== "alive") return "failed"; // S5: dead → nothing for anyone
     n.prevX = n.x;
     n.prevY = n.y;
     // S2: keep the leader while standing within loseM; else the nearest standing player within pickUpM.
@@ -244,13 +239,13 @@ export const survivorModule: EventModule = {
       for (const id of world.players.keys()) earn(world, id, cfg.reward, "event"); // D5: everyone, downed too
       world.special.log.survivorsSaved++;
       setEventPhase(world, EVENT_PHASE.SAVED, null);
-      return cfg.waveOffS <= 0;
+      return cfg.waveOffS <= 0 ? "done" : null;
     }
-    return false;
+    return null;
   },
   end(world, outcome) {
     const n = world.special.survivor;
-    if (outcome === "wave_end" && n.state !== NPC_STATE.SAVED && n.state !== NPC_STATE.DEAD) world.special.log.survivorsLost++;
+    if (outcome === "failed" || (outcome === "wave_end" && n.state !== NPC_STATE.SAVED)) world.special.log.survivorsLost++;
     clearNpc(n);
   },
   holdsWave() {

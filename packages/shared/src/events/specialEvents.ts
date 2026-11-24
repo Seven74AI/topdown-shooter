@@ -31,7 +31,8 @@ export const updateSpecialEvents: SystemFn = (world) => {
       endSpecialEvent(world, "wave_end");
     } else {
       const m = eventModule(a.kind);
-      if (!m || m.update(world)) endSpecialEvent(world, "done");
+      const outcome = m ? m.update(world) : "done";
+      if (outcome !== null) endSpecialEvent(world, outcome);
       return; // one event at a time (DD1)
     }
   }

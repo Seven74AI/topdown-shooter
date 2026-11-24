@@ -573,6 +573,42 @@ describe("Story 6.5 syncState: the boss record", () => {
   });
 });
 
+describe("Story 6.8 syncState: the active event record", () => {
+  it("writes kind, phase, ticks, marker (cm) and lane on change only; none = 255; resets with the run", () => {
+    const { controller, state, encoder } = setup();
+    const w = controller.world;
+    syncState(state, controller);
+    expect([state.eventKind, state.eventLane]).toEqual([255, 255]);
+    encoder.encode();
+    encoder.discardChanges();
+    controller.tick();
+    syncState(state, controller);
+    const idle = encoder.encode().length;
+    encoder.discardChanges();
+    const a = w.special.active;
+    Object.assign(a, { kind: 1, phase: 3, startTick: 1234, phaseTick: 1234, x: 1, y: 16, lane: 2 });
+    syncState(state, controller);
+    expect([state.eventKind, state.eventPhase, state.eventStartTick, state.eventPhaseTick, state.eventX, state.eventY, state.eventLane]).toEqual([1, 3, 1234, 1234, 100, 1600, 2]);
+    const change = encoder.encode().length;
+    encoder.discardChanges();
+    expect(change - idle).toBeGreaterThan(0);
+    expect(change - idle).toBeLessThanOrEqual(20); // brief 11: ≤ 20 B per change
+    syncState(state, controller);
+    expect(encoder.encode().length).toBeLessThanOrEqual(idle); // nothing per tick while it runs
+    encoder.discardChanges();
+    Object.assign(a, { phase: 4, phaseTick: 1294 });
+    syncState(state, controller);
+    expect([state.eventPhase, state.eventPhaseTick]).toEqual([4, 1294]);
+    a.kind = -1;
+    syncState(state, controller);
+    expect(state.eventKind).toBe(255);
+    Object.assign(a, { kind: 0, phase: 1 });
+    syncState(state, controller);
+    resetRunFields(state);
+    expect([state.eventKind, state.eventPhase, state.eventStartTick, state.eventPhaseTick, state.eventX, state.eventY, state.eventLane]).toEqual([255, 0, 0, 0, 0, 0, 255]);
+  });
+});
+
 describe("Stories 6.9 + 6.10 syncState: the crate and the survivor", () => {
   it("writes the crate's weapon / claim and the NPC's record on change only (nothing while idle); bandwidth while the NPC walks; reset clears them", () => {
     const { controller, state, encoder } = setup();

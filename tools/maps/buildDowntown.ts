@@ -292,8 +292,8 @@ const decay: (Rect | Point)[] = [
  * 6.10 don't touch the map files.
  *
  * - 4 stampede lanes (rects 8 m wide, `kind: stampede_lane`, `dir` e/w/n/s = the way the Runners run
- *   from the start edge; `minStage`/`maxStage`): both ways along the main street (y 12–20) and the
- *   cross street (x 20–28).
+ *   from the start edge; `minStage`/`maxStage`): both ways along the main street (y 12–20, every
+ *   stage) and the cross street (x 20–28, stages 1–3: from stage 4 rubble seals its north end).
  * - spots (points, `minStage`): `crate` ×10 (6.9 supply drop), `survivor` ×8 and `safe` ×6 (6.10),
  *   all on open road, ≥ 1.2 m from every box any stage or variant can put there (6.2's rubble
  *   included), every fire zone and 1.5 m from every spawn point (tests: `events/spots.test.ts`).
@@ -301,14 +301,17 @@ const decay: (Rect | Point)[] = [
 const eventLanes: Rect[] = [
   { name: "lane_main_eastbound", x: 0, y: 12, w: 48, h: 8, props: { kind: "stampede_lane", dir: "e", minStage: 1, maxStage: 5 } },
   { name: "lane_main_westbound", x: 0, y: 12, w: 48, h: 8, props: { kind: "stampede_lane", dir: "w", minStage: 1, maxStage: 5 } },
-  { name: "lane_cross_southbound", x: 20, y: 0, w: 8, h: 32, props: { kind: "stampede_lane", dir: "s", minStage: 1, maxStage: 5 } },
-  { name: "lane_cross_northbound", x: 20, y: 0, w: 8, h: 32, props: { kind: "stampede_lane", dir: "n", minStage: 1, maxStage: 5 } },
+  // Stage 4+ (6.2): rubble_pile_2 closes the cross street's last gap past the north police line: maxStage 3.
+  { name: "lane_cross_southbound", x: 20, y: 0, w: 8, h: 32, props: { kind: "stampede_lane", dir: "s", minStage: 1, maxStage: 3 } },
+  { name: "lane_cross_northbound", x: 20, y: 0, w: 8, h: 32, props: { kind: "stampede_lane", dir: "n", minStage: 1, maxStage: 3 } },
 ];
 const spot = (kind: string, list: readonly (readonly [number, number])[]): Point[] => list.map(([x, y], i) => ({ name: `${kind}_${i + 1}`, x, y, props: { kind, minStage: 1 } }));
 const eventSpots: Point[] = [
   ...spot("crate", [[2.5, 13], [42.5, 16], [10, 20], [33, 12], [20, 24.5], [31.5, 20], [26.5, 8], [18, 12], [38.5, 12], [19.5, 19]]),
   ...spot("survivor", [[26, 21], [11, 15], [28, 13], [23, 11.5], [28, 17.5], [35, 18.5], [20.5, 15], [22.5, 21]]),
   ...spot("safe", [[8.5, 17], [41.5, 12], [26, 11], [22, 18], [25, 13.5], [25, 18.5]]),
+  // 6.11: the helicopter pad's centre (the intersection; looks `HELI = [24, 15.9]`), named `evac_pad`.
+  { name: "evac_pad", x: 24, y: 15.9, props: { kind: "evac_pad", minStage: 1 } },
 ];
 
 const groups: Group[] = [

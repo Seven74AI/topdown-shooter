@@ -1,5 +1,6 @@
 import { EVENT_KINDS, EVENT_NONE, EVENT_PHASE, NPC_STATE, crateOutcome, romanLevel, ticksFor, weaponIds, weaponName, type Balance, type CrateOutcome, type SimEvent, type World } from "@topdown/shared";
 import { edgeArrow } from "./edgeArrow";
+import { EVENT_AMBER, EVENT_GAS, EVENT_WHITE } from "./city/eventArt";
 
 /**
  * Story 6.8 (AC 12; F1, F6, D10): what the event markers look like this frame — pure, tested, no
@@ -145,7 +146,6 @@ export function eventMarkerLook(world: Readonly<World>, serverTick: number, vx: 
   const sincePhase = Math.max(0, serverTick - a.phaseTick);
   if (a.kind === CAR_ALARM) {
     out.pulse = true;
-    out.y = world.special.carAlarm.car !== "" ? world.special.carAlarm.minY : a.y; // over the car's top
     if (a.phase === EVENT_PHASE.ARMED) out.arc = Math.max(0, Math.min(1, 1 - sincePhase / ticksFor(ev.carAlarm.armedS)));
     const hz = a.phase === EVENT_PHASE.ALARM ? BLINK_ALARM_HZ : BLINK_ARMED_HZ;
     out.blinkOn = Math.floor((serverTick / TICK_HZ) * hz * 2) % 2 === 0;
@@ -221,9 +221,13 @@ export type EventSound =
 
 export interface EventCue {
   banner: string | null;
+  /** Stories 6.9 / 6.10: the banner's colour (the colour rule: amber = an event you can use, yellow-green = gas, white = pick-ups and people). */
+  bannerColor: string;
   sound: EventSound | null;
   alarm: "start" | "stop" | null;
 }
+
+const BANNER_COLOR: Partial<Record<string, string>> = { gas_leak: EVENT_GAS, supply_drop: EVENT_WHITE, power_failure: EVENT_WHITE, survivor: EVENT_WHITE };
 
 const START_SOUND: Partial<Record<string, EventSound>> = {
   car_alarm: "event_car_alarm_armed",
@@ -235,7 +239,7 @@ const START_SOUND: Partial<Record<string, EventSound>> = {
 };
 
 export function createEventCue(): EventCue {
-  return { banner: null, sound: null, alarm: null };
+  return { banner: null, bannerColor: EVENT_AMBER, sound: null, alarm: null };
 }
 
 /**
@@ -247,6 +251,7 @@ export function eventCue(e: SimEvent, balance: Balance, out: EventCue): EventCue
   out.banner = null;
   out.sound = null;
   out.alarm = null;
+  out.bannerColor = e.type === "event.triggered" || e.type === "event.phase_changed" || e.type === "event.ended" ? (BANNER_COLOR[e.kind] ?? EVENT_AMBER) : EVENT_AMBER;
   const late = balance.events.lateBannerS;
   if (e.type === "event.triggered") {
     if ((e.ageS ?? 0) > late) return out;

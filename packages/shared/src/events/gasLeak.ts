@@ -110,11 +110,11 @@ export const gasLeakModule: EventModule = {
   },
   update(world) {
     const g = world.special.gasLeak;
-    if (g.blownTick >= 0) return true; // blown by a shot (last tick's combat): over
+    if (g.blownTick >= 0) return "done"; // blown by a shot (this tick's combat): over
     const a = world.special.active;
-    if (world.tick - a.phaseTick < ticksFor(world.balance.events.gasLeak.hissS)) return false;
+    if (world.tick - a.phaseTick < ticksFor(world.balance.events.gasLeak.hissS)) return null;
     blow(world, null); // G4: on the tick the arc ends
-    return true;
+    return "done";
   },
   end() {
     // The record stays (the last blast's tick and credit, for tests and the snapshot); `start` resets it.

@@ -146,11 +146,11 @@ export const supplyDropModule: EventModule = {
   update(world) {
     const a = world.special.active;
     if (a.phase === EVENT_PHASE.FLARE) {
-      if (world.tick - a.phaseTick < ticksFor(world.balance.events.supplyDrop.flareS)) return false;
+      if (world.tick - a.phaseTick < ticksFor(world.balance.events.supplyDrop.flareS)) return null;
       setEventPhase(world, EVENT_PHASE.LANDED, null);
     }
-    if (a.phase === EVENT_PHASE.LANDED) return updateClaim(world);
-    return true;
+    if (a.phase === EVENT_PHASE.LANDED) return updateClaim(world) ? "done" : null;
+    return "done";
   },
   end(world) {
     const d = world.special.supplyDrop;

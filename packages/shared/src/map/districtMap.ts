@@ -149,8 +149,11 @@ export interface StampedeLane extends MapBox {
   readonly maxStage: number;
 }
 
-/** Story 6.8: kinds of `events` spots (6.9 supply drop: crate; 6.10: survivor, safe). Append only. */
-export const EVENT_SPOT_KINDS = ["crate", "survivor", "safe"] as const;
+/**
+ * Story 6.8: kinds of `events` spots (6.9 supply drop: crate; 6.10: survivor, safe; 6.11: the
+ * helicopter's `evac_pad`, random-city CCP: map anchors are map data). Append only.
+ */
+export const EVENT_SPOT_KINDS = ["crate", "survivor", "safe", "evac_pad"] as const;
 export type EventSpotKind = (typeof EVENT_SPOT_KINDS)[number];
 
 /** Story 6.8: a point of the `events` layer on open road (from `minStage`). */

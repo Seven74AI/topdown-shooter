@@ -155,3 +155,20 @@ describe("Story 6.8: one event at a time, dev force, replay", () => {
     expect(a.world.special.log.byKind[1]).toBe(1);
   });
 });
+
+describe("Story 6.8 review (API for 6.9/6.10): update returns the outcome", () => {
+  it("a module returning \"failed\" ends with event.ended { outcome: \"failed\" } (no re-entrant endSpecialEvent)", async () => {
+    const { eventModule } = await import("./registry");
+    const m = eventModule(1)!;
+    const real = m.update;
+    try {
+      m.update = () => "failed";
+      const { world, events } = run([{ kind: "stampede", wave: 1 }], { frozen: true });
+      until(world, () => ofType(events, "event.ended").length > 0);
+      expect(ofType(events, "event.ended")).toEqual([{ type: "event.ended", kind: "stampede", outcome: "failed" }]);
+      expect(world.special.active.kind).toBe(-1);
+    } finally {
+      m.update = real;
+    }
+  });
+});

@@ -43,7 +43,7 @@ export const powerFailureModule: EventModule = {
       refreshBlackout(world);
       world.special.log.powerFailures++;
     }
-    return false; // dark until the wave ends (`wave_end`)
+    return null; // dark until the wave ends (`wave_end`)
   },
   end(world) {
     if (!world.lights.powerFailure) return;

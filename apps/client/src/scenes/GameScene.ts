@@ -1947,7 +1947,7 @@ export class GameScene extends Phaser.Scene {
       } else if (e.type === "event.triggered" || e.type === "event.phase_changed" || e.type === "event.ended") {
         // Story 6.8 (F1): the banner and the sound (none for a woken tab's backlog); the marker follows the state.
         const cue = eventCue(e, host.world.balance, this.eventCueOut);
-        if (cue.banner) this.stackBanner(cue.banner);
+        if (cue.banner) this.showBanner(cue.banner, cue.bannerColor); // the colour rule: amber = an event you can use, yellow-green = gas, white = pick-ups and people
         if (cue.sound) playSfx(cue.sound);
       } else if (e.type === "boss.telegraph") {
         this.bossView?.onTelegraph(e.attackId, e.kind, e.startTick, e.hitTick, e.cx, e.cy, e.radiusM, e.endX, e.endY, e.crash, e.src);

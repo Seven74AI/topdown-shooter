@@ -203,3 +203,18 @@ Player:
 
 ## 64: is it over? Is the wave over? Is that body still dangerous? (Story 6.7: EVAC INBOUND, the dark collapsed body)
 ![64](../../art/6-6/6-6-800x360-death.png)
+
+## 70: what is that bell, and what happens if you shoot it? When does it go off by itself? (Story 6.8: the armed car — amber bell pin, countdown ring, blinking hazard lights; CA3)
+![70](../../art/6-8/6-8-800x360-car_alarm-armed.png)
+
+## 71: the alarm is going off. What are the zombies doing now, and is it safe to stand next to the car? (Story 6.8: the sounding car — the pull is not drawn; zombies within 15 m walk to it, one 2 m from you still bites)
+![71](../../art/6-8/6-8-800x360-car_alarm-sounding.png)
+
+## 72: where is the event, and does the bell stop bullets? (Story 6.8: the edge arrow of an off-screen event; the car itself is cover like any car)
+![72](../../art/6-8/6-8-800x360-car_alarm-edge-arrow.png)
+
+## 73: something is coming. From where, which way, and where do you stand? (Story 6.8: the stampede warning — amber chevrons down the lane, dust at its start edge, the "!" pin; ST1)
+![73](../../art/6-8/6-8-800x360-stampede-warning.png)
+
+## 74: in the dark: can you still find the event and the lane? (Story 6.8 at 5 % blackout: pins, chevrons and edge arrows above the darkness)
+![74](../../art/6-8/6-8-800x360-blackout5-stampede-warning.png)

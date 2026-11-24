@@ -17,7 +17,7 @@ function stub(kind: EventKind): EventModule {
     kind,
     fits: () => false,
     start: () => false,
-    update: () => true,
+    update: () => "done" as const,
     end: () => {},
     holdsWave: () => false,
   };
