@@ -78,6 +78,7 @@ import { MedStationView } from "../render/MedStationView";
 import { HealCue } from "../render/healCue";
 import { Placement, placeRefusalText, stepPlacement, type PlacementFrame } from "./placement";
 import { placementHintText, type HintContext } from "./blockText";
+import { ChipText, chipLeft } from "./chipText";
 import { RepairPanel, repairRefusalText, upgradeRefusalText } from "./repairPanel";
 import { BuildingSelectView } from "../render/BuildingSelectView";
 import { menuStep, playingScreen, uiStore, type MenuAction } from "../ui/uiState";
@@ -272,6 +273,9 @@ export class GameScene extends Phaser.Scene {
   private readonly placement = new Placement();
   /** "Wood barricade · $40" for the type being placed, and the refusal texts (built once each). */
   private placingLabel = "";
+  /** Story 5.19: the held type's name and the item chip's cached text. */
+  private placingName = "";
+  private readonly chipText = new ChipText();
   /** Story 5.15: the placement step's per-frame context (one object, refilled every frame). */
   private readonly sendPlace = (req: PlaceRequest): void => this.queuePlace(req);
   /** Story 5.18: my placements without an answer yet (the chain's pending boxes), and how they are drawn. */
@@ -297,6 +301,7 @@ export class GameScene extends Phaser.Scene {
     viewMinY: Number.NaN,
     viewMaxX: Number.NaN,
     viewMaxY: Number.NaN,
+    pxPerM: 0,
   };
   /** Story 5.17: the reason line's last text and what it was built from (rebuilt only when one changes: no string per frame). */
   private hint = { e: "" as PlaceError | "", cause: "", index: 0, id: 0, playerId: "", name: "", wallet: -1, type: "", text: "" };
@@ -838,6 +843,7 @@ export class GameScene extends Phaser.Scene {
     const pv = this.playerViews.get(host.localPlayerId);
     if (!this.placement.start(host.world.balance, type, pv?.x ?? me.x, pv?.y ?? me.y, me.facingX, me.facingY, host.world.waves.number)) return;
     this.placingLabel = `${stats.name} · $${stats.price}`;
+    this.placingName = stats.name;
     this.router?.releaseAim();
     host.clearEdges();
   }
@@ -864,7 +870,16 @@ export class GameScene extends Phaser.Scene {
     f.viewMinY = v.y;
     f.viewMaxX = v.x + v.width;
     f.viewMaxY = v.y + v.height;
-    stepPlacement(this.placement, this.hudModel, this.input_, host.world, f);
+    f.pxPerM = this.cameras.main.zoom; // Story 5.19: the drag's canvas px → metres (gain 1.0 = 1:1 on screen)
+    const m = this.hudModel;
+    m.dragStartPx = host.world.balance.controls.build.dragStartPx;
+    stepPlacement(this.placement, m, this.input_, host.world, f);
+    const p = this.placement;
+    if (p.active) {
+      // Story 5.19 (AC 7): the item chip (cached: a new string only when a part changes)
+      const left = chipLeft(host.world.balance.buildings.maxPerPlayer, ownedCount(host.world, host.localPlayerId), this.pending.count, this.shownWallet(host), p.price);
+      m.placementChip = this.chipText.get(this.placingName, p.price, left, p.pinned);
+    }
   }
 
   /**

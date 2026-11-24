@@ -14,9 +14,12 @@ import {
   REPAIR_ROW_GAP_CSS_PX,
   BUILD_COUNT_TEXT_CSS_PX,
   BUILD_PRICE_TEXT_CSS_PX,
+  HAND_CHIP_PAD_CSS_PX,
+  HAND_CHIP_TEXT_CSS_PX,
 } from "../ui/sizes";
 import { unlockAudio } from "../audio/placeholderSfx";
 import { TAP_SLOP_CSS_PX, TapDetector } from "../input/tapDetector";
+import { ThumbDrag } from "../input/thumbDrag";
 import { KNOB_RADIUS_CSS_PX, STICK_RADIUS_CSS_PX, type StickTouch, type TouchSticks } from "../input/TouchSticks";
 import type { HudModel } from "./hudModel";
 import { layoutHandCluster, newHandLayout, type HandRect } from "./handCluster";
@@ -156,6 +159,14 @@ const LOCK_BODY_H_PX = 9;
 const LOCK_SHACKLE_R_PX = 4;
 const LOCK_COLOR = 0xf5c542;
 const HINT_TEXT_PX = 18;
+/** Story 5.19: the item chip (ux-spec §4): dark panel, faint white border; orange border when pinned ("↩ carry"). */
+const CHIP_ID = "placeChip";
+const CHIP_BG = 0x000000;
+const CHIP_BG_ALPHA = 0.55;
+const CHIP_BORDER = 0xffffff;
+const CHIP_BORDER_ALPHA = 0.4;
+const CHIP_PINNED = 0xffb74d;
+const CHIP_RADIUS_PX = 8;
 const HINT_VALID = "#ffffff";
 const HINT_BLOCKED = "#ff8a80";
 /** Story 3.7: the repair panel (Repair's border when it would be accepted, its look when not). */
@@ -300,8 +311,17 @@ export class HudScene extends Phaser.Scene {
   private shownWeaponHidden = false;
   private shownHint = "";
   private shownHintValid: boolean | null = null;
-  /** Story 5.15: a right-half touch (or a mouse press) while holding that missed the buttons: claimed, does nothing yet (BX-5 drags with it), or -1. */
-  private placePointer = -1;
+  /**
+   * Story 5.15: a right-half touch (or a mouse press) while holding that missed the buttons is
+   * claimed; Story 5.19: it drags (pins and nudges) the ghost once it travels past `dragStartPx`.
+   */
+  private readonly drag = new ThumbDrag();
+  private readonly dragOut = { dx: 0, dy: 0 };
+  /** Story 5.19: the item chip (panel, text) and what it last showed. */
+  private placeChip!: Phaser.GameObjects.Graphics;
+  private placeChipText!: Phaser.GameObjects.Text;
+  private shownChip = "";
+  private shownChipPinned: boolean | null = null;
   /** Story 3.7: the repair panel (info line, reason line, Repair, ✕) and the tap detector. */
   private repairBtn!: Phaser.GameObjects.Graphics;
   private repairText!: Phaser.GameObjects.Text;
@@ -410,7 +430,9 @@ export class HudScene extends Phaser.Scene {
     this.shownWeaponHidden = false;
     this.shownHint = "";
     this.shownHintValid = null;
-    this.placePointer = -1;
+    this.drag.reset();
+    this.shownChip = "";
+    this.shownChipPinned = null;
     this.shownRepairOpen = null;
     this.shownRepairInfo = "";
     this.shownRepairReason = "";
@@ -490,6 +512,12 @@ export class HudScene extends Phaser.Scene {
     });
     this.placeHint = this.add.text(0, 0, "", this.outlinedStyle(HINT_TEXT_PX)).setOrigin(1, 1).setDepth(1002).setVisible(false);
     this.placeLock = this.add.graphics().setDepth(1003).setVisible(false);
+    // Story 5.19: the item chip (tap = carry a pinned ghost again).
+    this.placeChip = this.add.graphics().setDepth(1001).setVisible(false);
+    this.placeChipText = this.add.text(0, 0, "", this.outlinedStyle(HAND_CHIP_TEXT_CSS_PX)).setOrigin(0.5).setDepth(1002).setVisible(false);
+    this.buttons.set({ id: CHIP_ID, x: 0, y: 0, w: 0, h: 0, visible: false }, () => {
+      this.model.chipPressed = true;
+    });
     // Story 5.16: the build bar (bottom right, hands empty in a build phase; a touch on a tile never
     // starts a stick). Story 5.26: the icons come from the build icon atlas; a type without one falls
     // back to the buildings atlas (world art). Both are registered through addGeneratedTexture.
@@ -628,7 +656,7 @@ export class HudScene extends Phaser.Scene {
       unlockAudio(); // iOS: audio starts only after a user gesture
       if (this.model.placementActive) {
         if (p.wasTouch && p.x < this.scale.width / 2) hudPointerDown(this.buttons, this.router, p, this.scale.width);
-        else if (this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width).kind !== "button") this.placePointer = p.id;
+        else if (this.buttons.pointerDown(p.id, p.x, p.y, this.scale.width).kind !== "button") this.drag.down(p.id, p.x, p.y); // Story 5.19
         return;
       }
       hudPointerDown(this.buttons, this.router, p, this.scale.width);
@@ -636,12 +664,16 @@ export class HudScene extends Phaser.Scene {
       this.taps.down(p.id, p.x, p.y, this.time.now, !this.buttons.owns(p.id));
     };
     const move = (p: Phaser.Input.Pointer) => {
+      if (p.id === this.drag.pointerId) this.dragMove(p.id, p.x, p.y); // Story 5.19
       this.taps.move(p.id, p.x, p.y, TAP_SLOP_CSS_PX * dpr());
       hudPointerMove(this.buttons, this.router, p);
     };
     const up = (p: Phaser.Input.Pointer) => {
       unlockAudio(); // touchend is the activation event on iOS/Chrome; touchstart alone may not unlock
-      if (p.id === this.placePointer) this.placePointer = -1;
+      if (p.id === this.drag.pointerId) {
+        this.dragMove(p.id, p.x, p.y); // the last bit of movement before the lift
+        this.drag.up(p.id);
+      }
       if (this.taps.up(p.id, p.x, p.y, this.time.now, TAP_SLOP_CSS_PX * dpr()) && this.model.tapsEnabled) {
         const m = this.model;
         m.worldTap = true;
@@ -653,6 +685,7 @@ export class HudScene extends Phaser.Scene {
     const reset = () => {
       hudPointerReset(this.buttons, this.router);
       this.taps.reset();
+      this.drag.reset();
     };
     this.input.on(Phaser.Input.Events.POINTER_DOWN, down);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, move);
@@ -670,6 +703,16 @@ export class HudScene extends Phaser.Scene {
       this.sticks.reset();
       this.buttons.reset();
     });
+  }
+
+  /** Story 5.19: the claimed pointer moved: past `dragStartPx` it is a drag; the movement goes to the GameScene (canvas px). */
+  private dragMove(id: number, x: number, y: number): void {
+    const m = this.model;
+    this.drag.move(id, x, y, m.dragStartPx * dpr());
+    if (!this.drag.take(this.dragOut)) return;
+    m.dragDxPx += this.dragOut.dx;
+    m.dragDyPx += this.dragOut.dy;
+    m.dragged = true;
   }
 
   /** White text with a dark outline, readable over the street at any zoom (Story 2.8). */
@@ -929,7 +972,7 @@ export class HudScene extends Phaser.Scene {
    */
   private layoutPlacementButtons(): void {
     const k = dpr();
-    const l = layoutHandCluster(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, k, this.hand);
+    const l = layoutHandCluster(this.scale.width, this.scale.height, this.insets.right, this.insets.bottom, k, this.hand, this.insets.top);
     const rects = [l.rotate, l.place, l.cancel];
     for (let i = 0; i < PLACE_IDS.length; i++) {
       const r = rects[i] as HandRect;
@@ -955,6 +998,38 @@ export class HudScene extends Phaser.Scene {
       .setFontSize(Math.round(HINT_TEXT_PX * k))
       .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
       .setPosition(l.hintX, l.hintY);
+    // Story 5.19: the item chip (and its hit rect)
+    const c = l.chip;
+    const chip = this.buttons.get(CHIP_ID);
+    if (chip) Object.assign(chip, { x: c.x, y: c.y, w: c.w, h: c.h });
+    this.placeChipText
+      .setFontSize(Math.round(HAND_CHIP_TEXT_CSS_PX * k))
+      .setStroke(TEXT_STROKE, Math.round(TEXT_STROKE_PX * k))
+      .setPosition(c.x + c.w / 2, c.y + c.h / 2);
+    this.shownChipPinned = null; // redraw the panel at the new size
+    this.shownChip = ""; // refit the text
+    this.drawChip();
+  }
+
+  /** Story 5.19: the chip's panel (on a pin change) and its text, shrunk to fit (on a text change). */
+  private drawChip(): void {
+    const m = this.model;
+    const k = dpr();
+    const c = this.hand.chip;
+    if (m.placementPinned !== this.shownChipPinned) {
+      this.shownChipPinned = m.placementPinned;
+      const g = this.placeChip.clear().setPosition(c.x, c.y);
+      g.fillStyle(CHIP_BG, CHIP_BG_ALPHA).fillRoundedRect(0, 0, c.w, c.h, CHIP_RADIUS_PX * k);
+      if (m.placementPinned) g.lineStyle(2 * k, CHIP_PINNED, 1);
+      else g.lineStyle(k, CHIP_BORDER, CHIP_BORDER_ALPHA);
+      g.strokeRoundedRect(0, 0, c.w, c.h, CHIP_RADIUS_PX * k);
+    }
+    if (m.placementChip !== this.shownChip) {
+      this.shownChip = m.placementChip;
+      const t = this.placeChipText.setScale(1).setText(m.placementChip);
+      const inner = c.w - 2 * HAND_CHIP_PAD_CSS_PX * k;
+      t.setScale(t.width > inner ? inner / t.width : 1);
+    }
   }
 
   /** Story 5.15: the three round buttons; Place green when the shared check passes, grey with a red ring when not. */
@@ -983,7 +1058,10 @@ export class HudScene extends Phaser.Scene {
     if (placing !== this.shownPlacement) {
       this.shownPlacement = placing;
       if (placing) this.router.releaseAim(); // Story 5.15: the move thumb keeps steering; only the aim stick lets go
-      this.placePointer = -1;
+      this.drag.reset(); // Story 5.19
+      this.buttons.setVisible(CHIP_ID, placing);
+      this.placeChip.setVisible(placing);
+      this.placeChipText.setVisible(placing);
       for (let i = 0; i < PLACE_IDS.length; i++) {
         this.buttons.setVisible(PLACE_IDS[i] as string, placing);
         (this.placeBtns[i] as Phaser.GameObjects.Graphics).setVisible(placing);
@@ -999,6 +1077,7 @@ export class HudScene extends Phaser.Scene {
     }
     if (!placing) return;
     this.drawHandButtons(m.placementValid);
+    this.drawChip();
     if (m.placementHint !== this.shownHint) {
       this.shownHint = m.placementHint;
       this.placeHint.setText(m.placementHint);

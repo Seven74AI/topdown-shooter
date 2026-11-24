@@ -27,8 +27,13 @@ const MAX_GRID_INDEX = 255;
 const MIN_FACING_LEN = 1e-6;
 const DEG = Math.PI / 180;
 const DIAGONAL_DEG = 45;
-/** Story 5.18 (ux-spec §6.2): a pinned ghost whose centre leaves the view shrunk by this much (m) goes back to carry. */
+/**
+ * Story 5.18 (ux-spec §6.2): a pinned ghost whose centre leaves the view shrunk by this much (m) goes back to carry;
+ * Story 5.19 (AC 6): a drag keeps the ghost's centre this far inside the view.
+ */
 export const PIN_VIEW_INSET_M = 1;
+/** Story 5.19 (D3): at most this many lattice steps back inside the view after rounding (a cell is 0.5 m; the inset is 1 m). */
+const CLAMP_MAX_STEPS = 4;
 /** Story 5.18 (AC 2): the toast when the hand empties after a Place because the shown wallet can't pay another. */
 export const CHAIN_MONEY_TEXT = "Not enough money for another";
 
@@ -61,15 +66,18 @@ export function placeGate(world: Readonly<World>, ownerId: string, price: number
  * A non-square footprint jumps along its long side by its length; a square one along the axis nearest
  * to the right of the facing (fx, fy) by its width; at least `minStepM`. The direction is the right of
  * the facing (screen y down: right of (fx, fy) is (−fy, fx)), +x / +y when the facing is square to it.
+ * Story 5.19 (AC 8, D6): `sideX` / `sideY` (−1, 0, +1) = the side the last drag went on each axis;
+ * a non-zero side on the jump axis wins over the right of the facing.
  */
-export function chainOffset(w: number, h: number, fx: number, fy: number, minStepM: number, out: { dgx: number; dgy: number }): { dgx: number; dgy: number } {
+export function chainOffset(w: number, h: number, fx: number, fy: number, minStepM: number, out: { dgx: number; dgy: number }, sideX = 0, sideY = 0): { dgx: number; dgy: number } {
   const rx = -fy;
   const ry = fx;
   let alongX: boolean;
   if (Math.abs(w - h) > 1e-9) alongX = w > h;
   else alongX = Math.abs(rx) >= Math.abs(ry);
   const proj = alongX ? rx : ry;
-  const sign = proj < -1e-6 ? -1 : 1;
+  const side = alongX ? sideX : sideY;
+  const sign = side !== 0 ? (side < 0 ? -1 : 1) : proj < -1e-6 ? -1 : 1;
   const len = Math.max(alongX ? w : h, minStepM);
   const cells = Math.ceil(len / BUILD_GRID_M - 1e-9); // review L4: never shorter than the footprint (a 0.75 m step is 2 cells)
   out.dgx = alongX ? sign * cells : 0;
@@ -157,10 +165,14 @@ export class Placement {
   /** ⟳ was pressed for this held item: auto-rotate is off (🔒 on the button). */
   locked = false;
   /**
-   * Story 5.18 (AC 4): the chain jump pinned the ghost: it stays put in the world while I walk, until
-   * it leaves the view, I walk `chainUnpinWalkM` from where I placed, or (BX-5) the "↩ carry" chip.
+   * Story 5.18 (AC 4): the chain jump pinned the ghost; Story 5.19: a right-thumb drag pins it too.
+   * It stays put in the world while I walk, until the "↩ carry" chip, it leaves the view, or a
+   * blocked chain jump (5.19 decision (b): no walk-away rule any more).
    */
   pinned = false;
+  /** Story 5.19 (AC 8, D6): the side (−1, 0, +1) the last drag of this hold went on each axis (the chain jumps that way). */
+  lastDragX = 0;
+  lastDragY = 0;
   /** Story 5.18: the last check failed only because it overlaps one of my pending boxes. */
   pendingOverlap = false;
   /** The unit carry facing: my last move direction (the survivor's facing at the start). */
@@ -204,10 +216,10 @@ export class Placement {
   private lastY = 0;
   private holdMs = 250;
   private minStepM = 1;
-  private unpinWalkM = 2;
-  /** Where my survivor stood when the ghost was pinned (m). */
-  private pinMeX = 0;
-  private pinMeY = 0;
+  private dragGain = 1;
+  /** Story 5.19 (D4): the pinned ghost's continuous centre (m); the lattice spot is snapped from it with hysteresis. */
+  private dragCx = 0;
+  private dragCy = 0;
   private readonly step = { dgx: 0, dgy: 0 };
   private readonly corner = { gx: 0, gy: 0 };
   private readonly box: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
@@ -222,7 +234,7 @@ export class Placement {
     this.rotHysteresisDeg = b.autoRotateHysteresisDeg;
     this.holdMs = b.reasonHoldMs;
     this.minStepM = b.chainMinStepM;
-    this.unpinWalkM = b.chainUnpinWalkM;
+    this.dragGain = b.dragGain;
     this.bodyM = balance.player.radiusM;
     this.stats = stats;
     this.square = stats.widthM === stats.depthM;
@@ -231,6 +243,8 @@ export class Placement {
     this.rot = 0;
     this.locked = false;
     this.pinned = false;
+    this.lastDragX = 0;
+    this.lastDragY = 0;
     this.pendingOverlap = false;
     this.ns = null;
     this.snapped = false;
@@ -263,13 +277,7 @@ export class Placement {
       this.facingX = moveX / len;
       this.facingY = moveY / len;
     }
-    if (this.pinned) {
-      // Story 5.18 (AC 4, D3): walked away from the chain → back in my hands.
-      const dx = x - this.pinMeX;
-      const dy = y - this.pinMeY;
-      if (this.unpinWalkM <= 0 || dx * dx + dy * dy <= this.unpinWalkM * this.unpinWalkM) return;
-      this.unpin();
-    }
+    if (this.pinned) return; // Story 5.19 (AC 5): a pinned ghost stays put while I walk
     const fx = this.facingX;
     const fy = this.facingY;
     if (!this.square && !this.locked) {
@@ -305,12 +313,48 @@ export class Placement {
       cornerForCentre(stats, this.rot, cx, cy, this.corner);
       this.gx = this.corner.gx;
       this.gy = this.corner.gy;
+      this.dragCx = cx; // Story 5.19 (D4): a drag goes on from the centre it turned around
+      this.dragCy = cy;
       return;
     }
     this.rot = ((this.rot + 1) & 3) as BuildingRotation;
     this.locked = true;
     this.snapped = false;
     this.carry(this.lastX, this.lastY, 0, 0);
+  }
+
+  /**
+   * Story 5.19 (AC 1–3, 6): the right thumb dragged by (dxM, dyM) metres (finger canvas px ÷ the
+   * camera's px per metre). Pins the ghost where it is shown now (D4: its continuous centre starts at
+   * the snapped centre), moves it by the delta × `dragGain`, keeps its centre `PIN_VIEW_INSET_M`
+   * inside the view (NaN bounds: no clamp) and snaps its min corner with the carry's hysteresis.
+   */
+  drag(dxM: number, dyM: number, minX: number, minY: number, maxX: number, maxY: number): void {
+    const stats = this.stats;
+    if (!this.active || !stats || !Number.isFinite(dxM) || !Number.isFinite(dyM)) return;
+    if (!this.pinned) {
+      const b = footprint(stats, this.gx, this.gy, this.rot, this.box);
+      this.dragCx = (b.minX + b.maxX) / 2;
+      this.dragCy = (b.minY + b.maxY) / 2;
+      this.pinned = true;
+    }
+    if (dxM !== 0) this.lastDragX = dxM < 0 ? -1 : 1;
+    if (dyM !== 0) this.lastDragY = dyM < 0 ? -1 : 1;
+    this.dragCx += dxM * this.dragGain;
+    this.dragCy += dyM * this.dragGain;
+    const w = footprintW(stats, this.rot);
+    const h = footprintH(stats, this.rot);
+    const inX = maxX - minX > 2 * PIN_VIEW_INSET_M;
+    const inY = maxY - minY > 2 * PIN_VIEW_INSET_M;
+    if (inX) this.dragCx = Math.min(Math.max(this.dragCx, minX + PIN_VIEW_INSET_M), maxX - PIN_VIEW_INSET_M);
+    if (inY) this.dragCy = Math.min(Math.max(this.dragCy, minY + PIN_VIEW_INSET_M), maxY - PIN_VIEW_INSET_M);
+    this.gx = snapAxis(this.dragCx - w / 2, this.gx, this.hysteresisM);
+    this.gy = snapAxis(this.dragCy - h / 2, this.gy, this.hysteresisM);
+    // D3: rounding / hysteresis may leave the snapped centre just outside the inset: step it back in
+    for (let i = 0; inX && i < CLAMP_MAX_STEPS && this.gx * BUILD_GRID_M + w / 2 < minX + PIN_VIEW_INSET_M; i++) this.gx++;
+    for (let i = 0; inX && i < CLAMP_MAX_STEPS && this.gx * BUILD_GRID_M + w / 2 > maxX - PIN_VIEW_INSET_M; i++) this.gx--;
+    for (let i = 0; inY && i < CLAMP_MAX_STEPS && this.gy * BUILD_GRID_M + h / 2 < minY + PIN_VIEW_INSET_M; i++) this.gy++;
+    for (let i = 0; inY && i < CLAMP_MAX_STEPS && this.gy * BUILD_GRID_M + h / 2 > maxY - PIN_VIEW_INSET_M; i++) this.gy--;
   }
 
   /** Story 5.18: back to carry (the next `carry` puts the ghost ahead of me again, snapped fresh). */
@@ -338,12 +382,14 @@ export class Placement {
   chain(world: Readonly<World>, ownerId: string, pending: PendingSet | null, x: number, y: number): boolean {
     const stats = this.stats;
     if (!this.active || !stats) return false;
-    const o = chainOffset(footprintW(stats, this.rot), footprintH(stats, this.rot), this.facingX, this.facingY, this.minStepM, this.step);
+    const w = footprintW(stats, this.rot);
+    const h = footprintH(stats, this.rot);
+    const o = chainOffset(w, h, this.facingX, this.facingY, this.minStepM, this.step, this.lastDragX, this.lastDragY); // Story 5.19: toward the last drag
     this.gx += o.dgx;
     this.gy += o.dgy;
     this.pinned = true;
-    this.pinMeX = x;
-    this.pinMeY = y;
+    this.dragCx = this.gx * BUILD_GRID_M + w / 2;
+    this.dragCy = this.gy * BUILD_GRID_M + h / 2;
     this.lastX = x;
     this.lastY = y;
     this.check(world, ownerId, pending);
@@ -511,6 +557,14 @@ export interface PlacementHud {
   rotatePressed: boolean;
   confirmPressed: boolean;
   cancelPressed: boolean;
+  /** Story 5.19: the ghost is pinned (the chip reads "↩ carry"). */
+  placementPinned: boolean;
+  /** Story 5.19: the right-thumb drag since the last frame (canvas px), and whether a drag started or moved (`ThumbDrag.take`). */
+  dragDxPx: number;
+  dragDyPx: number;
+  dragged: boolean;
+  /** Story 5.19: the item chip was tapped (pinned: carry again). */
+  chipPressed: boolean;
 }
 
 /** One frame's context for `stepPlacement` (the scene reuses one object: no allocation per frame). */
@@ -541,29 +595,39 @@ export interface PlacementFrame {
   viewMinY?: number;
   viewMaxX?: number;
   viewMaxY?: number;
+  /** Story 5.19: the main camera's canvas px per metre (the drag's px → m); missing / ≤ 0: drags do nothing. */
+  pxPerM?: number;
 }
 
 /**
  * Story 5.15 (review M1): placement mode for one frame, before the input goes to the host. In this
  * order: the cancel rules; while holding, `holdBuildingInput` (I keep walking: the move is kept,
  * aim and fire are not); ✕ puts it away; **Place sends the spot shown in the last frame, before
- * this frame's carry** (AC 10); ⟳ turns it; then the ghost is carried with my survivor as drawn and
- * this frame's move input, and the shared check colours it (the HUD's valid / hint / 🔒).
+ * this frame's carry** (AC 10); Story 5.19: the chip carries a pinned ghost again; ⟳ turns it; then
+ * the ghost is carried with my survivor as drawn and this frame's move input (a pinned one stays);
+ * the right-thumb drag pins and nudges it; the shared check colours it (the HUD's valid / hint / 🔒).
  */
 export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlayerInput, world: Readonly<World>, f: PlacementFrame): void {
   if (p.active && (!f.can || f.wave !== p.wave)) p.cancel();
   const rotate = m.rotatePressed;
   const confirm = m.confirmPressed;
   const cancel = m.cancelPressed;
-  m.rotatePressed = m.confirmPressed = m.cancelPressed = false;
+  const chip = m.chipPressed;
+  const dragged = m.dragged;
+  const dragX = m.dragDxPx;
+  const dragY = m.dragDyPx;
+  m.rotatePressed = m.confirmPressed = m.cancelPressed = m.chipPressed = m.dragged = false;
+  m.dragDxPx = m.dragDyPx = 0;
   if (!p.active) {
     m.placementActive = false;
+    m.placementPinned = false;
     return;
   }
   holdBuildingInput(input);
   if (cancel) {
     p.cancel();
     m.placementActive = false;
+    m.placementPinned = false;
     return;
   }
   const pending = f.pending ?? null;
@@ -576,6 +640,7 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
       f.toast(f.refusal(req ? (gate as PlaceError) : "blocked"));
       p.cancel();
       m.placementActive = false;
+      m.placementPinned = false;
       return;
     }
     f.send(req);
@@ -584,17 +649,26 @@ export function stepPlacement(p: Placement, m: PlacementHud, input: MutablePlaye
       f.toast(next === "limit" ? f.refusal("limit") : CHAIN_MONEY_TEXT);
       p.cancel();
       m.placementActive = false;
+      m.placementPinned = false;
       return;
     }
     p.chain(world, f.ownerId, pending, f.x, f.y); // the next ghost, pinned one footprint along (AC 3)
   }
-  if (p.pinned && p.outsideView(f.viewMinX ?? Number.NaN, f.viewMinY ?? Number.NaN, f.viewMaxX ?? Number.NaN, f.viewMaxY ?? Number.NaN)) p.unpin(); // AC 4
+  const vMinX = f.viewMinX ?? Number.NaN;
+  const vMinY = f.viewMinY ?? Number.NaN;
+  const vMaxX = f.viewMaxX ?? Number.NaN;
+  const vMaxY = f.viewMaxY ?? Number.NaN;
+  if (chip) p.unpin(); // Story 5.19 (AC 5): "↩ carry"
+  if (p.pinned && p.outsideView(vMinX, vMinY, vMaxX, vMaxY)) p.unpin(); // 5.18 AC 4
   if (rotate) p.rotate();
   p.carry(f.x, f.y, input.moveX, input.moveY);
+  const ppm = f.pxPerM ?? 0;
+  if (dragged && ppm > 0) p.drag(dragX / ppm, dragY / ppm, vMinX, vMinY, vMaxX, vMaxY); // Story 5.19: pins where it is shown, then nudges
   p.check(world, f.ownerId, pending);
   p.explain(world, f.ownerId, f.nowMs); // Story 5.17: why it's red, held ≥ reasonHoldMs before valid
   m.placementActive = true;
   m.placementLocked = p.locked;
+  m.placementPinned = p.pinned;
   const shown = p.shownError;
   m.placementValid = shown === null;
   m.placementHint = shown === null ? f.label : f.hintText(shown, p.shownHasReason ? p.shownReason : null);

@@ -17,7 +17,9 @@ import economy from "./balance/economy.json" with { type: "json" };
 const raw = (): RawBalanceFiles => JSON.parse(JSON.stringify({ weapons, zombies, waves, player, controls, economy, bots, buildings, shop, decay, combat, gear })) as RawBalanceFiles;
 
 /** Story 5.18: the chain and pending numbers in controls.build. */
-const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, chainUnpinWalkM: 2, barQuietMs: 300 } as const;
+const CHAIN = { pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300 } as const;
+/** Story 5.19: the thumb-drag numbers in controls.build. */
+const DRAG = { dragGain: 1, dragStartPx: 8 } as const;
 
 describe("loadBalance", () => {
   it("loads the bundled files into a typed object", () => {
@@ -164,10 +166,10 @@ describe("loadBalance", () => {
   });
 
   it("Story 5.15: controls.build (carry gap, snap and auto-rotate hysteresis) loads, defaults and is bounded", () => {
-    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN });
+    expect(loadBalance().controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG });
     const d = raw();
     delete (d.controls as { build?: unknown }).build;
-    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN });
+    expect(loadBalance(d).controls.build).toEqual({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, ...CHAIN, ...DRAG });
     const h = raw();
     (h.controls as { build: { snapHysteresisM: number } }).build.snapHysteresisM = 0.25; // half a cell: the index would never settle
     expect(() => loadBalance(h)).toThrow(/controls\.json: build\.snapHysteresisM: /);
@@ -189,17 +191,32 @@ describe("loadBalance", () => {
     expect(() => loadBalance(l)).toThrow(/controls\.json: build\.reasonHoldMs: /);
   });
 
-  it("Story 5.18: controls.build chain/pending numbers (timeout 2 s, send gap 250 ms, step 1 m, unpin walk 2 m) default each and are bounded", () => {
+  it("Story 5.18: controls.build chain/pending numbers (timeout 2 s, send gap 250 ms, step 1 m) default each and are bounded", () => {
     expect(loadBalance().controls.build).toMatchObject(CHAIN);
     for (const k of Object.keys(CHAIN) as (keyof typeof CHAIN)[]) {
       const d = raw();
       delete (d.controls as { build: Record<string, unknown> }).build[k];
       expect(loadBalance(d).controls.build[k]).toBe(CHAIN[k]);
     }
-    for (const [k, bad] of [["pendingTimeoutMs", 100], ["pendingTimeoutMs", 10001], ["chainSendGapMs", 149], ["barQuietMs", 2001], ["chainMinStepM", 0.4], ["chainUnpinWalkM", -1]] as const) {
+    for (const [k, bad] of [["pendingTimeoutMs", 100], ["pendingTimeoutMs", 10001], ["chainSendGapMs", 149], ["barQuietMs", 2001], ["chainMinStepM", 0.4]] as const) {
       const d = raw();
       (d.controls as { build: Record<string, unknown> }).build[k] = bad;
       expect(() => loadBalance(d)).toThrow(new RegExp(`controls\\.json: build\\.${k}: `));
+    }
+  });
+
+  it("Story 5.19: controls.build drag numbers (gain 1.0, start 8 px) default each and are bounded; 5.18's walk-away distance is gone", () => {
+    expect(loadBalance().controls.build).toMatchObject(DRAG);
+    expect("chainUnpinWalkM" in loadBalance().controls.build).toBe(false);
+    for (const k of Object.keys(DRAG) as (keyof typeof DRAG)[]) {
+      const d = raw();
+      delete (d.controls as { build: Record<string, unknown> }).build[k];
+      expect(loadBalance(d).controls.build[k]).toBe(DRAG[k]);
+    }
+    for (const [k, bad] of [["dragGain", 0.2], ["dragGain", 3.5], ["dragStartPx", 1], ["dragStartPx", 41], ["dragStartPx", 8.5], ["chainUnpinWalkM", 2]] as const) {
+      const d = raw();
+      (d.controls as { build: Record<string, unknown> }).build[k] = bad;
+      expect(() => loadBalance(d), `${k} = ${bad}`).toThrow(/controls\.json: build/);
     }
   });
 

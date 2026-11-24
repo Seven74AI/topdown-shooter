@@ -15,6 +15,9 @@ export interface TuningValues {
   macheteRangeM: number;
   machetePushbackM: number;
   stickRadiusCssPx: number;
+  /** Story 5.19: `controls.build.dragGain` / `dragStartPx` (the right-thumb drag while holding a building). */
+  buildDragGain: number;
+  buildDragStartPx: number;
 }
 
 export interface TuningKnob {
@@ -33,6 +36,8 @@ export const TUNING_KNOBS: readonly TuningKnob[] = [
   { key: "macheteRangeM", label: "Machete reach (m)", min: 1, max: 3, step: 0.1 },
   { key: "machetePushbackM", label: "Machete pushback (m)", min: 0, max: 1, step: 0.05 },
   { key: "stickRadiusCssPx", label: "Stick radius (px)", min: 40, max: 100, step: 2 },
+  { key: "buildDragGain", label: "Build drag gain", min: 0.25, max: 3, step: 0.05 },
+  { key: "buildDragStartPx", label: "Build drag start (px)", min: 2, max: 40, step: 1 },
 ];
 
 function defaults(): TuningValues {
@@ -47,6 +52,8 @@ function defaults(): TuningValues {
     macheteRangeM: melee?.rangeM ?? 1.8,
     machetePushbackM: melee?.hitPushbackM ?? 0.25,
     stickRadiusCssPx: STICK_RADIUS_CSS_PX,
+    buildDragGain: b.controls.build.dragGain,
+    buildDragStartPx: b.controls.build.dragStartPx,
   };
 }
 
@@ -73,6 +80,8 @@ export function tuningOverrides(v: TuningValues): BalanceOverride[] {
     ["weapons", "machete.arcDeg", v.macheteArcDeg],
     ["weapons", "machete.rangeM", v.macheteRangeM],
     ["weapons", "machete.hitPushbackM", v.machetePushbackM],
+    ["controls", "build.dragGain", v.buildDragGain],
+    ["controls", "build.dragStartPx", v.buildDragStartPx],
   ];
 }
 

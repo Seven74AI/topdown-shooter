@@ -495,10 +495,12 @@ export const buildControlsSchema = z
     chainSendGapMs: z.number().int().min(150).max(2000).default(250),
     /** Story 5.18: the chain jump is the footprint along the jump axis, but at least this far (m; a 0.5 m mine jumps 1.0 m). */
     chainMinStepM: z.number().min(0.5).max(4).default(1),
-    /** Story 5.18: a pinned chain ghost goes back to carry once I walk this far from where I placed (m; 0 = never by walking). */
-    chainUnpinWalkM: z.number().min(0).max(20).default(2),
     /** Story 5.18 (Q2): build-bar taps this soon after the hand empties pick nothing (ms; they were meant for Place). */
     barQuietMs: z.number().int().min(0).max(2000).default(300),
+    /** Story 5.19: a right-thumb drag moves the ghost by the finger's movement × this (1 = 1:1 on screen). */
+    dragGain: z.number().min(0.25).max(3).default(1),
+    /** Story 5.19: a right-half touch becomes a drag (and pins the ghost) after this much travel (CSS px). */
+    dragStartPx: z.number().int().min(2).max(40).default(8),
   })
   .strict();
 
@@ -509,7 +511,7 @@ export const controlsSchema = z
     aimAssistDeg: z.number().min(0).max(45),
     /** Story 5.2: client effect caps (no new balance file: every test fixture lists the files). */
     fx: fxSchema,
-    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, chainUnpinWalkM: 2, barQuietMs: 300 }),
+    build: buildControlsSchema.default({ carryGapM: 1, snapHysteresisM: 0.1, autoRotateHysteresisDeg: 10, reasonHoldMs: 250, pendingTimeoutMs: 2000, chainSendGapMs: 250, chainMinStepM: 1, barQuietMs: 300, dragGain: 1, dragStartPx: 8 }),
   })
   .strict();
 
