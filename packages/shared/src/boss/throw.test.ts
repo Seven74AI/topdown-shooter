@@ -44,7 +44,7 @@ const damageOf = (ev: ReturnType<typeof collect>, id: string): number[] =>
 
 describe("Story 6.6 throw (F7)", () => {
   it("numbers: lift 1.0 s + flight 0.8 s = impact 36 ticks after the start; ring 3 m, 35 damage", () => {
-    const w = createWorld({ balance });
+    const w = createWorld({ balance, seed: 1 });
     expect(LIFT).toBe(20);
     expect(FLIGHT).toBe(16);
     expect(telegraphTicks(w, BOSS_ATTACK.THROW)).toBe(36);

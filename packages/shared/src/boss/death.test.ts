@@ -201,7 +201,7 @@ describe("Stories 6.6 + 6.7 replay (brief 8)", () => {
         if (e.type === "boss.killed") seen.killed++;
         if (e.type === "boss.telegraph") seen.telegraphs++;
       });
-      const digests: string[] = [];
+      const digests: number[] = [];
       for (let t = 0; t < 2400; t++) {
         // Deterministic damage once it walks: half its HP at the first chance, the rest 40 s later.
         if (bossBodyOn(w.boss) && w.boss.hp > w.boss.maxHp * 0.5) applyBossDamage(w, w.boss.maxHp * 0.55, "p0", "smg");

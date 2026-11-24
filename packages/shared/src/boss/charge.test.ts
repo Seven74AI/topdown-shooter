@@ -81,7 +81,7 @@ function approach(w: World, box: MapBox): { x: number; y: number; dx: number; dy
 describe("Story 6.6 charge numbers (AC 1, 3)", () => {
   it("telegraph 1.0 s = 20 ticks; rush 12 m/s = 0.6 m per tick; 10 m takes 17 ticks", () => {
     expect(TELE).toBe(20);
-    expect(telegraphTicks(createWorld({ balance }), BOSS_ATTACK.CHARGE)).toBe(20);
+    expect(telegraphTicks(createWorld({ balance, seed: 1 }), BOSS_ATTACK.CHARGE)).toBe(20);
     expect(C.speedMps / 20).toBeCloseTo(0.6, 9);
     expect(Math.ceil(C.distM / 0.6)).toBe(17);
     expect(HALF).toBeCloseTo(2.15, 9);
@@ -330,7 +330,7 @@ describe("Story 6.6 the charge (F1, F3, F4, F6, F10; AC 3)", () => {
     tickN(w, TELE + 20);
     expect(w.buildings.list).toHaveLength(0);
     expect(ev.filter((e) => e.type === "building.destroyed")).toHaveLength(5);
-    expect(ev.some((e) => e.type === "explosion")).toBe(false); // the mine broke without going off
+    expect(ev.some((e) => e.type === "mine.exploded" || e.type === "explosion.happened")).toBe(false); // the mine broke without going off
     expect(ev.some((e) => e.type === "money.earned" && e.reason === "refund")).toBe(false);
     expect(t.wallet).toBe(wallet);
     expect(Math.hypot(w.boss.x - 10, w.boss.y - 16)).toBeCloseTo(10, 6); // the lane was not shortened (10 m)
