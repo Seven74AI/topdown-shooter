@@ -51,6 +51,7 @@ import { viewTickOf } from "../net/viewTick";
 import { MOVE_REFUSALS_MAX, type PlayerInfo, type ShopAnswer, type SimHost } from "./SimHost";
 import { MAX_CATCHUP_STEPS, type SimStepStats } from "./LocalSimHost";
 import type { MoveRefusal, NetSession } from "../net/session";
+import type { TeammateGhosts } from "../net/teammateGhosts";
 import { ServerClock } from "../net/serverClock";
 import { SnapshotRing, type SampledPose } from "../net/snapshots";
 import { EventQueue } from "../net/eventQueue";
@@ -488,6 +489,25 @@ export class NetSimHost implements SimHost {
 
   takeMoveRefusal(): MoveRefusal | null {
     return this.moveRefusals.shift() ?? null;
+  }
+
+  /** Story 5.24: reused (the SDK encodes synchronously; the dev throttle clones). */
+  private readonly ghostMsg = { type: "", gx: 0, gy: 0, rot: 0 };
+
+  /** Story 5.24: `building.ghost` (paced by the scene's `GhostSender`); relayed to the others, never answered. */
+  sendGhost(type: string, gx: number, gy: number, rot: number): void {
+    if (this.disposed) return;
+    const m = this.ghostMsg;
+    m.type = type;
+    m.gx = gx;
+    m.gy = gy;
+    m.rot = rot;
+    this.session.room.send(C2S.BUILDING_GHOST, m);
+  }
+
+  /** Story 5.24: the inbox's store (listened since the join). */
+  get teammateGhosts(): TeammateGhosts {
+    return this.session.inbox.ghosts;
   }
 
   takeRepairRefusal(): RepairError | null {

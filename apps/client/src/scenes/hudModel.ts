@@ -207,6 +207,13 @@ export interface HudModel {
   teammateCount: number;
   /** Name per slot (index = slot), assigned only when it changes. */
   readonly teammateNames: string[];
+  /**
+   * Story 5.24: a teammate's ghost label per slot (index = slot): anchor in world metres (x, y: the
+   * label's bottom centre), shown flag, and its text ("Bo · Auto-turret", assigned only when it changes).
+   */
+  readonly ghostLabelAt: Float32Array;
+  readonly ghostLabelShown: Uint8Array;
+  readonly ghostLabelText: string[];
   /** Story 3.2: my wallet (server truth online). */
   money: number;
   /** My `money.earned` amounts this frame, summed; the HUD pops "+N" and sets it back to 0. */
@@ -374,6 +381,9 @@ export const createHudModel = (): HudModel => ({
   teammateSecs: new Int16Array(MAX_PLAYERS),
   teammateCount: 0,
   teammateNames: new Array<string>(MAX_PLAYERS).fill(""),
+  ghostLabelAt: new Float32Array(MAX_PLAYERS * 2),
+  ghostLabelShown: new Uint8Array(MAX_PLAYERS),
+  ghostLabelText: new Array<string>(MAX_PLAYERS).fill(""),
   money: 0,
   moneyGain: 0,
   localX: 0,

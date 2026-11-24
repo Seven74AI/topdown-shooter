@@ -12,6 +12,13 @@ export const MAX_INPUTS_PER_S = 25;
 /** Shared bucket for every other client message type: capacity and refill per second. */
 export const MAX_OTHER_MESSAGES_PER_S = 10;
 
+/**
+ * Story 5.24 (D1): `building.ghost` has its own bucket (capacity and refill per second), so a ghost
+ * flood never takes tokens from the shared bucket (place / sell / move / shop) and those never starve
+ * ghosts. An honest client sends ≤ 4/s.
+ */
+export const MAX_GHOST_MESSAGES_PER_S = 5;
+
 /** At most one `client_message_rejected` warn per client and reason in this window. */
 export const DROP_LOG_INTERVAL_MS = 10_000;
 

@@ -23,6 +23,9 @@ import {
   buildingUpgradeSchema,
   buildingSellSchema,
   buildingMoveSchema,
+  buildingGhostSchema,
+  buildingTypeIds,
+  ghostError,
   isTestScenario,
   joinOptionsSchema,
   loadDevBalance,
@@ -47,6 +50,8 @@ import {
   type BuildingUpgradeRefused,
   type BuildingSellRefused,
   type BuildingMoveRefused,
+  type BuildingGhost,
+  type BuildingGhosted,
   type JoinRefusal,
   type NetEvent,
   type NetEventContext,
@@ -286,6 +291,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.BUILDING_UPGRADE, this.net.guard(buildingUpgradeSchema, (c, m) => this.onUpgradeBuilding(c, m.id))); // Story 5.9
     this.onMessage(C2S.BUILDING_SELL, this.net.guard(buildingSellSchema, (c, m) => this.onSellBuilding(c, m.id))); // Story 5.20
     this.onMessage(C2S.BUILDING_MOVE, this.net.guard(buildingMoveSchema, (c, m) => this.onMoveBuilding(c, m))); // Story 5.22
+    this.onMessage(C2S.BUILDING_GHOST, this.net.guard(buildingGhostSchema, (c, m) => this.onGhost(c, m), "ghost")); // Story 5.24: own bucket (D1)
     this.onMessage(C2S.SHOP_UPGRADE, this.net.guard(shopUpgradeSchema, (c, m) => this.onShopUpgrade(c, m.weapon))); // Story 5.1
     this.onMessage(C2S.SHOP_BUY_ITEM, this.net.guard(shopBuyItemSchema, (c, m) => this.onShopBuyItem(c, m.item))); // Story 5.11
     this.onMessage("*", (client) => this.net.unknown(client));
@@ -512,6 +518,33 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const reason = r ? r.error : "not_build_phase";
     this.log.debug({ playerId: member.playerId, id: m.id, gx: m.gx, gy: m.gy, rot: m.rot, reason }, "building_move_refused"); // debug: a flood must not flood the log
     client.send(S2C.BUILDING_MOVE_REFUSED, { id: m.id, reason, seq: m.seq } satisfies BuildingMoveRefused); // review L3: seq echoed
+  }
+
+  /** Story 5.24: the one relay payload, reused (`broadcast` encodes synchronously). */
+  private readonly ghostMsg: BuildingGhosted = [0, -1, 0, 0, 0];
+
+  /**
+   * `building.ghost` (Story 5.24, shape-checked and rate-limited by its own "ghost" bucket): what the
+   * sender holds, relayed to every other client as `building.ghosted` when the shared `ghostError`
+   * allows it (known, standing player, build phase, known type, inside the sender's view). Cosmetic
+   * (F7): stored nowhere, never in the World or the schema; a dropped ghost gets no answer (D3).
+   */
+  onGhost(client: RunClient, m: BuildingGhost): void {
+    const member = this.members.get(client.sessionId);
+    const world = this.controller?.world;
+    if (!member || !world) return;
+    const e = ghostError(world, member.playerId, m);
+    if (e !== null) {
+      this.log.debug({ playerId: member.playerId, type: m.type, reason: e }, "building_ghost_dropped"); // debug: a flood must not flood the log
+      return;
+    }
+    const g = this.ghostMsg;
+    g[0] = member.slot; // B10: the sender's own slot, never one from the payload
+    g[1] = m.type === "" ? -1 : buildingTypeIds(world.balance).indexOf(m.type); // known: ghostError checked it
+    g[2] = m.gx;
+    g[3] = m.gy;
+    g[4] = m.rot;
+    this.broadcast(S2C.BUILDING_GHOSTED, g, { except: client });
   }
 
   /**

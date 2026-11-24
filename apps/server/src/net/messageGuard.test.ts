@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { playerInputSchema, NEUTRAL_INPUT } from "@topdown/shared";
 import { MessageGuard } from "./messageGuard";
-import { DROP_LOG_INTERVAL_MS, MAX_INPUTS_PER_S, MAX_OTHER_MESSAGES_PER_S } from "./limits";
+import { DROP_LOG_INTERVAL_MS, MAX_GHOST_MESSAGES_PER_S, MAX_INPUTS_PER_S, MAX_OTHER_MESSAGES_PER_S } from "./limits";
 
 function setup() {
   let now = 0;
@@ -41,6 +41,23 @@ describe("MessageGuard", () => {
     for (let i = 0; i < 40; i++) ho(client, {});
     expect(inputs).toBe(MAX_INPUTS_PER_S);
     expect(others).toBe(MAX_OTHER_MESSAGES_PER_S);
+  });
+
+  it("Story 5.24 (B1): a ghost flood has its own bucket and never starves the shared one (nor the other way)", () => {
+    const { guard, client, setNow } = setup();
+    let ghosts = 0;
+    let others = 0;
+    const any = { safeParse: (v: unknown) => ({ success: true as const, data: v }) };
+    const hg = guard.guard(any, () => ghosts++, "ghost");
+    const ho = guard.guard(any, () => others++);
+    for (let i = 0; i < 100; i++) hg(client, {});
+    for (let i = 0; i < 40; i++) ho(client, {});
+    expect(ghosts).toBe(MAX_GHOST_MESSAGES_PER_S);
+    expect(others).toBe(MAX_OTHER_MESSAGES_PER_S);
+    setNow(1000); // a second later: the ghost bucket refilled; an empty shared bucket doesn't stop ghosts
+    for (let i = 0; i < 40; i++) ho(client, {});
+    hg(client, {});
+    expect(ghosts).toBe(MAX_GHOST_MESSAGES_PER_S + 1);
   });
 
   it("charges unknown message types against the shared bucket (rate once it is empty)", () => {
