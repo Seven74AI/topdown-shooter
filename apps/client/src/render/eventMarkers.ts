@@ -66,7 +66,6 @@ export function eventMarkerLook(world: Readonly<World>, serverTick: number, vx: 
   const sincePhase = Math.max(0, serverTick - a.phaseTick);
   if (a.kind === CAR_ALARM) {
     out.pulse = true;
-    out.y = world.special.carAlarm.car !== "" ? world.special.carAlarm.minY : a.y; // over the car's top
     if (a.phase === EVENT_PHASE.ARMED) out.arc = Math.max(0, Math.min(1, 1 - sincePhase / ticksFor(ev.carAlarm.armedS)));
     const hz = a.phase === EVENT_PHASE.ALARM ? BLINK_ALARM_HZ : BLINK_ARMED_HZ;
     out.blinkOn = Math.floor((serverTick / TICK_HZ) * hz * 2) % 2 === 0;

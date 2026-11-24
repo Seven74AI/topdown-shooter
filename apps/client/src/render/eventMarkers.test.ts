@@ -22,7 +22,7 @@ describe("Story 6.8 event markers (AC 12, F1, D10)", () => {
     expect(w.special.carAlarm.car).toBe("parked_car_1");
     const out = createEventMarkerLook();
     eventMarkerLook(w, 1200, 0, 20, 24, 13.5, 1, out); // half-way through the 20 s
-    expect(out).toMatchObject({ visible: true, pulse: true, y: car.minY });
+    expect(out).toMatchObject({ visible: true, pulse: true, y: (car.minY + car.maxY) / 2 }); // the pin stands on the car
     expect(out.arc).toBeCloseTo(0.5, 6);
     expect(out.edge.visible).toBe(false);
     // a woken tab drawing late reads the same server ticks: 300 ticks in → 25 % left, whenever it arrived
