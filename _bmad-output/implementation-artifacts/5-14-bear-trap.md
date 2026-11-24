@@ -4,7 +4,7 @@ baseline_commit: c8d4cd19941e2492805daea15388128d37a0284f
 
 # Story 5.14: Bear trap
 
-Status: review
+Status: done
 
 ## Story
 
@@ -306,3 +306,7 @@ Fresh review on 2026-11-23 (main session's reviewer, at 0e64cd5): 1 medium, 5 lo
 - [x] **Merge friction:** `BuildingStateView.trap` is optional (the server always sends it; the mirror reads a missing one as armed), so other stories' fake-building fixtures (5.18's `NetSimHost.chain.test.ts` broke the first gate run) need no change.
 - [x] **Gate on the merged tree (ffb42eb + fixes):** typecheck, lint, test (275 files passed, 1 skipped; 2,295 tests passed, 3 skipped), build — green (load 0.70 → 4.18).
 - [x] **Story text:** every mention says fire wears a bear trap, mine and Bloater blasts don't; AC 3 says held zombies don't block players.
+
+### Re-review of the fixes (fresh agent, 2026-11-24) — clean
+
+M1, L1, L2, L3, L4, N1 and the master merge verified; 6/7 mutations killed; full gate green. Nits handled at merge by the main session: stale buildIcons comment fixed; accepted — the projectile half of N1 (firing.ts:374) has no test (stats counter only), and L1 also lets a held Bloater touching a wall start its swell (consistent with D3 and "still swells").

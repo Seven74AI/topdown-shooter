@@ -640,7 +640,7 @@ export const BUILD_ICONS: readonly { readonly frame: string; readonly draw: Draw
 /**
  * Building type (`buildings.json` key) → its build-bar icon frame. Types not listed (upgrade-only
  * tiers) have none: the bar falls back to the world art. Story 5.27 adds the floodlight, the med
- * station and the bear trap (`bear_trap` arrives with Story 5.14; until then the entry is unused). `icon_build_turret_b` (T2) is baked but not mapped (kept for a later tier or skin).
+ * station and the bear trap. `icon_build_turret_b` (T2) is baked but not mapped (kept for a later tier or skin).
  */
 const TYPE_FRAMES: Readonly<Record<string, string>> = Object.freeze({
   wood_barricade: "icon_build_barricade_a",
