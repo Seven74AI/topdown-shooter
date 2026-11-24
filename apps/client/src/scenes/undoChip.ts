@@ -1,6 +1,6 @@
 import { buildingById, type World } from "@topdown/shared";
 import { UNDO_CHIP_CSS_PX, UNDO_HAND } from "../ui/sizes";
-import { ABOVE_BAR_GAP_CSS_PX, layoutRightButtons, newRightButtonsLayout } from "./consumableButton"; // review M2: 5.12's own row layout
+import { ABOVE_BAR_GAP_CSS_PX, CENTRE_CLEAR_CSS_PX, layoutRightButtons, newRightButtonsLayout, rectCentreGap } from "./consumableButton"; // review M2: 5.12's own row layout
 
 /**
  * Story 5.20 (BX-6, ux-spec §4/§5): the undo chip ↶ (Phaser-free, unit-tested). Shown for
@@ -158,5 +158,8 @@ export function layoutUndoChip(width: number, height: number, insetRight: number
   const row = layoutRightButtons(width, height, insetRight, insetBottom, k, true, gridLeft, gridTop, rowScratch, gridRight);
   out.x = row.consX - ABOVE_BAR_GAP_CSS_PX * k - size;
   out.y = row.consY + row.size / 2 - size / 2;
+  // Re-review: with big safe-area insets the centred spot can come within 5.12's centre clearance
+  // (the survivor stands at the screen centre): then top-align ↶ with the row instead (still on it).
+  if (rectCentreGap(out.x, out.y, size, size, width / 2, height / 2) < CENTRE_CLEAR_CSS_PX * k) out.y = row.consY;
   return out;
 }

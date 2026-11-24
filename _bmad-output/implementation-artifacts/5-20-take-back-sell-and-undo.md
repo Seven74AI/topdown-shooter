@@ -4,7 +4,7 @@ baseline_commit: a1611410a4fae055a16af1e06efeac14e4243714
 
 # Story 5.20: Take back, sell and undo
 
-Status: review
+Status: done
 
 (Building UX rework BX-6. Design: `docs/ideas/building-ux/ux-spec.md` §3 (the hand state's Undo ↶), §4 (Undo 48 px; alignment Q4: above the build bar's top-left), §5 (undo window **10 s**), §8 (Take back / Sell rows + fairness rules F1–F9), §9 (`Z` / `Ctrl+Z`), §10 (lift-and-fade 200 ms, "+$40" floats 0.6 m in 600 ms, coins, 12 ms haptic), §11 (`building.sold`), §15 (designer: **sell 50 %**, **undo 10 s**); `draft-stories.md` › BX-6; prototype claude.ai/artifact/KVsb47j3u6m22TzgYDuCAR. Builds on 5.15 (carry, hand cluster), 5.16 (build bar), 5.17 (reason line), 5.18 (chain, `pendingPlacements.ts`, `pendingFlow.ts › runPendingFrame`), 5.19 (item chip), 5.9 (upgrade ladder, floor buildings), 5.10 (med station, floodlight), 5.14 (bear trap), 5.11 (`not_alive`). **This story changes the server:** a new C2S message `building.sell`, a new S2C refusal, a new net event kind and two server-only building fields.)
 
@@ -150,6 +150,17 @@ Fresh-agent review by the main session (2026-11-24): **2 medium, 4 low, no high.
 
 Fix-round checks: mutations on the new code 7/7 killed (healer not marked · refund ignores the flag · flag not reset (killed after tightening the test) · `watchUsed` no-op · ↶ at the old fixed slot · no re-show after the retry · wave number ignored). Browser shots redone (bar-state ↶ at 476, 156 / 352, 92.5; every other number unchanged, no console errors). Full gate after the fixes: exit 0, **284 test files passed, 1 skipped; 2373 tests passed, 3 skipped**, build OK (load 0.7 → 3.5).
 
+### Re-review (fresh agent, main session, 2026-11-24, of `210b6bd`)
+
+**Clean of high/medium**: M1, M2, L1, L3 and the 5.12 merge confirmed. Two low test gaps, added:
+
+| # | Gap | Test |
+| --- | --- | --- |
+| R1 | The M1 flag could be set only for the owner's own heal and no test would notice. | `sell.test.ts`: a teammate (p1) healed in p0's station → p0's take-back gives 200 (kills the "only the owner's heal marks it" mutant). |
+| R2 | No test passed safe-area insets, so dropping `gridRight` (5.12's row end) went unnoticed. | `undoChip.test.ts`: 568 × 320 with insets right 44 / bottom 21 passed to `layoutBuildBar`, `layoutRightButtons` and `layoutUndoChip` (kills the "gridRight dropped" mutant). **It also found a 1 px miss:** with those insets the centred ↶ sat 47 px from the screen centre (5.12's clearance is 48), so `layoutUndoChip` now top-aligns ↶ with the row when the centred spot would be inside the clearance (still on the row; a third mutant, "fallback removed", is killed by the same test). |
+
+Nit accepted: with two of my own med stations overlapping, the client label may say "Sell +$200" for the one that didn't heal (`healsSomeoneNow` checks reach, not "the best station") while the server pays 400 — the money is the server's (L4/D7). Checks: the touched tests, typecheck and lint (no full gate needed for test-only changes plus the one-line layout fallback, per the main session).
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -186,6 +197,8 @@ Claude (cloud builder session for Story 5.20).
 - `docs/art/5-20/` (12 screenshots + README)
 
 ### Change Log
+
+- 2026-11-24: Re-review lows R1/R2 (tests; R2's test led to the centre-clearance fallback in `layoutUndoChip`); nit noted. Status → done.
 
 - 2026-11-24: Merged master `21e38a2` (Story 5.12 landed; one GameScene conflict, both sides kept); the undo chip imports 5.12's real `layoutRightButtons` (identical to the deleted copy, same call arguments: ↶ spots unchanged). Full gate on the merged tree: exit 0, **293 test files passed, 1 skipped; 2447 tests passed, 3 skipped**, build OK (load 1.4 → 4.0).
 

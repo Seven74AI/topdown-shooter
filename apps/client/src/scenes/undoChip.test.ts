@@ -211,6 +211,18 @@ describe("Story 5.20: where ↶ sits (D4, alignment Q4, review M2)", () => {
     });
   }
 
+  it("re-review: 568 × 320 with safe-area insets (right 44, bottom 21) — the same insets everywhere, ↶ still left of 5.12's consumable on its row", () => {
+    const [W, H, R, B] = [568, 320, 44, 21];
+    const bar = layoutBuildBar(W, H, R, B, 1, newBuildBarLayout());
+    const row = layoutRightButtons(W, H, R, B, 1, true, bar.left, bar.top, newRightButtonsLayout(), bar.countX);
+    const up = layoutUndoChip(W, H, R, B, bar.left, bar.top, bar.countX, 1, false, { x: 0, y: 0, size: 0 });
+    expect(up.x + up.size + 12).toBe(row.consX);
+    expect(up.y).toBeGreaterThanOrEqual(row.consY); // on 5.12's row (top-aligned here: the centred spot is 47 px from the centre)
+    expect(up.y + up.size).toBeLessThanOrEqual(row.consY + row.size);
+    expect(row.swapX + row.size).toBe(bar.countX); // the row ends at the grid's right edge (inset-aware), not the screen's
+    expect(rectCentreGap(up.x, up.y, up.size, up.size, W / 2, H / 2)).toBeGreaterThanOrEqual(CENTRE_CLEAR_CSS_PX);
+  });
+
   it("568 × 320 takes 5.12's L6 branch (the row right-aligned above the count line), and ↶ follows it", () => {
     const bar = layoutBuildBar(568, 320, 0, 0, 1, newBuildBarLayout());
     const row = layoutRightButtons(568, 320, 0, 0, 1, true, bar.left, bar.top, newRightButtonsLayout(), bar.countX);

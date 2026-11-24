@@ -221,6 +221,17 @@ describe("review M1: no free healing by taking a med station back", () => {
     expect([again.usedThisBuild, again.paidThisBuild]).toEqual([false, 0]);
   });
 
+  it("re-review: healing a TEAMMATE counts too: p1 healed in p0's station → p0's take-back gives 200", () => {
+    const { world, p0, p1, place } = setup(1000);
+    const m = place("med_station", 61, 31); // centre (31, 16): p1 (32, 16) is in reach; p0 stays at full HP
+    p1.hp = 50;
+    for (let i = 0; i < 10; i++) step(world, TICK_DT_S);
+    expect([p0.hp, p1.hp > 50, m.usedThisBuild]).toEqual([p0.maxHp, true, true]);
+    const w = p0.wallet;
+    expect(sellBuilding(world, "p0", m.id)).toMatchObject({ ok: true, value: { refund: 200 } });
+    expect(p0.wallet - w).toBe(200);
+  });
+
   it("standing in reach at full HP is no use: still a 100 % take-back", () => {
     const { world, p0, place } = setup(1000);
     const m = place("med_station", 61, 31);
