@@ -4,7 +4,7 @@ Progression and unlocks, decided 2026-11-24 (designer "ok" after revising D1, D3
 
 Short version:
 - Unlocking everything is **not** the goal (designer: "not everybody wants to play with every weapon"). Earnings and Training costs stay as in the GDD; target = first wanted weapon in ≈ 3 runs, a few favourites in ≈ 10.
-- Rookie lift × 2 until 300 lifetime Supplies; a wave counts for everyone still in the run (downed/out too).
+- Rookie lift × 2 until 300 lifetime Supplies; a wave counts for everyone still in the run (downed/out too), but only the waves a player was in (late joiners and players who left don't get the others; Epic 8 note).
 - Starter pool gains Fire Axe and Revive kit (fixes the new player's frozen 6-card shop).
 - Free unlock order with a "Good next pick"; unlocks can't be turned off.
 - Borrowed card: 1 of 6 cards from a teammate's unlocks you lack.

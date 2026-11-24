@@ -11,7 +11,7 @@ Every number is a starting value for balance JSON (a new `progression.json`), no
 | # | Decision (accepted) |
 | --- | --- |
 | D1 | *revised:* **keep the GDD earnings: +10 per wave survived, +50 Behemoth, +100 extract, +20 per endless wave (kept only on extract).** Unlocking everything is a long-term goal, not the target; the target is "your first weapon in about 3 runs, a few favourites in about 10". |
-| D2 | A wave counts for everyone still in the run when it ends, downed or out; a quitter banks what they had. |
+| D2 | A wave counts for everyone still in the run when it ends, downed or out; a quitter banks what they had. **Added 2026-11-24 (Epic 8 note from the main session):** only waves a player was in count: none before a late join, none after leaving or losing the seat; a short drop held by Epic 8 still counts. |
 | D3 | *revised:* rookie lift **× 2 until 300 lifetime Supplies** (about the first 3 runs). |
 | D4 | Fire Axe and Revive kit join the starter pool (they leave the unlock list). |
 | D5 | Free unlock order; "Good next pick" marker; no tree. |
