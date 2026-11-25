@@ -83,6 +83,10 @@ const playerFields = {
   vote: t.uint8().default(0),
   // Story 8.9: my inputs queued on the server when the last tick started (my client slows its steps above 2). Room-only, on change only. Appended last.
   inputQueued: t.uint8().default(0),
+  // Story 8.1: 0 = connected, else the World tick the 120 s hold runs out (on change only: a drop / return).
+  heldUntilTick: t.uint32().default(0),
+  // Story 8.1 (D3): spawn-protection ticks left (40 → 0 once after a mid-wave return; 0 otherwise).
+  protectTicks: t.uint8().default(0),
 };
 export const PlayerState = schema(playerFields, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;
@@ -201,6 +205,9 @@ const runFields = {
   npcLeaderSlot: t.uint8().default(255),
   safeX: t.uint16().default(0),
   safeY: t.uint16().default(0),
+  // Story 8.1 (F6, D5): nobody connected (or the 3-2-1 running): the World is not stepped; the count 3 → 2 → 1.
+  frozen: t.boolean().default(false),
+  resumeIn: t.uint8().default(0),
 };
 export const RunState = schema(runFields, "RunState");
 export type RunState = SchemaType<typeof RunState>;

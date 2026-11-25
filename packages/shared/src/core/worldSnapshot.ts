@@ -199,6 +199,26 @@ export function snapshotWorld(world: World) {
           },
         ] as const,
     ),
+    // Story 8.1: players on hold (same fields as `players`) and when each hold began. Only when someone is held, so
+    // a run without holds keeps its digest.
+    ...(world.heldPlayers.size > 0
+      ? {
+          heldPlayers: sortedEntries(world.heldPlayers).map(
+            ([id, h]) =>
+              [
+                id,
+                {
+                  buildIdx: h.buildIdx,
+                  atTick: h.atTick,
+                  player: {
+                    ...h.player,
+                    loadout: { active: h.player.loadout.active, swapTicks: h.player.loadout.swapTicks, slots: h.player.loadout.slots.map((s) => (s ? { ...s } : null)) },
+                  },
+                },
+              ] as const,
+          ),
+        }
+      : {}),
     projectiles: snapshotProjectiles(world),
     lastShotId: world.projectiles.lastShotId, // Story 5.3: the shot counter
     zombies: snapshotZombies(world),

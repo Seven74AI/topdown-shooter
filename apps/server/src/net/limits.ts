@@ -53,3 +53,46 @@ export const REWIND_CAP_MS = 600;
  * row (1 s of inputs) the queue resyncs to the client's seqs (a client that really restarted).
  */
 export const INPUT_SEQ_RESYNC_AFTER = 20;
+
+/**
+ * Story 8.1 (decision 8.1 D1): a connected player with no input for this many ticks (3 s) in a wave
+ * is put on hold like a drop (hidden tab, app switch, a dead spot the socket hasn't noticed). Inputs
+ * arrive 20×/s, so 3 s of none is never a normal line (the lossy line's stalls are 200–400 ms).
+ */
+export const QUIET_HOLD_TICKS = 60;
+/** Story 8.1 (Epic 8 D1): seconds a dropped (or quiet) player's seat is held before it is freed and remembered. */
+export const HOLD_S = 120;
+/** Story 8.1 (Epic 8 D5): the restart count after a freeze, in seconds (3-2-1). */
+export const RESUME_COUNT_S = 3;
+/**
+ * Story 8.1 (decision 8.1 D8): the transport's silent-socket limit: a ping every 3 s, terminated after
+ * 4 unanswered (≈ 12–15 s; Colyseus's default 2 ≈ 6–9 s). With D1 the survivor is already safe after 3 s.
+ */
+export const TRANSPORT_PING_INTERVAL_MS = 3000;
+export const TRANSPORT_PING_MAX_RETRIES = 4;
+/** Story 8.1: close codes for a seat that moved (shared with the client: `net/reconnect.ts`). */
+export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER } from "@topdown/shared";
+/**
+ * Story 8.1 (F7, brief 21): an input whose view tick (`viewTick`, the tick the phone drew) is more
+ * than this many ticks (2 s) behind the server was made while the line was down (a cut, a tunnel) and
+ * arrives late in the TCP burst: its seq counts as received, nothing of it is applied, and it never
+ * ends a quiet hold. A live phone's view lags by RTT/2 + render delay (≤ 0.75 s on the lossy line).
+ */
+export const STALE_INPUT_TICKS = 40;
+
+/** Story 7.1 (decision 7.1 D6): new guest accounts one IP may create per window; beyond it the device plays unsaved. */
+export const MAX_NEW_GUESTS_PER_HOUR = 20;
+export const NEW_GUEST_WINDOW_MS = 3_600_000;
+
+/**
+ * Story 7.1 review L4 (brief 15): `/account/session` calls per IP per minute, checked before any database work; over
+ * it the device plays unsaved. An honest phone calls it on start-up and before each Create / Join (8.1 rejoins too).
+ */
+export const MAX_ACCOUNT_SESSIONS_PER_MIN = 30;
+export const ACCOUNT_SESSION_WINDOW_MS = 60_000;
+
+/** Story 7.1 (decision 7.1 D2): a session ticket is valid this long; the client fetches a fresh one before each Create/Join. */
+export const SESSION_TICKET_TTL_MS = 600_000;
+
+/** Story 7.1: the guest cookie lives a year and is renewed on every `/account/session` call. */
+export const GUEST_COOKIE_MAX_AGE_S = 31_536_000;

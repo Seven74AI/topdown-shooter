@@ -59,6 +59,10 @@ export {
   type CosmeticSlot,
   type SurvivorLook,
 } from "./config/cosmetics";
+// Story 7.1: meta progression data (starter pool; 7.2–7.7 add Supplies, unlocks, Training, districts).
+export { PROGRESSION, ProgressionError, loadProgression, progressionSchema, starterPool, type Progression } from "./config/progression";
+// Story 7.2: the Supplies a run pays and the run record they come from.
+export { runSupplies, suppliesEnding, type RunRecord, type RunSupplies, type SuppliesConfig, type SuppliesEnding, type SuppliesLines } from "./meta/supplies";
 export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, BearTrapStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
@@ -130,7 +134,8 @@ export { DOWNTOWN_MAP } from "./map/downtown";
 export { SHOPFRONT_KIND, shopfrontsOf, type Shopfront, type ShopfrontFace } from "./map/shopfronts";
 export { addPlayer, removePlayer, type PlayerState, type PlayerStatus } from "./player/player";
 export { teamSpawnPoint } from "./player/spawn";
-export { checkTeamWipe, downPlayer, findReviver, returnOutPlayers, updateDowned } from "./player/downed";
+export { checkTeamWipe, downPlayer, findReviver, placeNextToTeammate, returnOutPlayers, updateDowned } from "./player/downed";
+export { buildStartIndex, holdPlayer, isHeld, releaseHeldPlayer, restoreSeat, returnPlayer } from "./player/hold"; // Story 8.1
 export { spectateTarget } from "./player/spectate";
 export { playerSpeed, slowPlayer, tickSlow } from "./player/slow";
 export { KNOCK_DIR_SCALE, knockPlayer, stepKnock } from "./player/knockback"; // Story 5.7
@@ -307,6 +312,12 @@ export {
   playerNameSchema,
   runStartSchema,
   lobbyReturnSchema,
+  runLeaveSchema,
+  runRewardsSchema,
+  runStartedSchema,
+  type RunStarted,
+  type RunRewards,
+  type RunRewardsStatus,
   buildSetReadySchema,
   evacVoteSchema,
   buildingPlaceSchema,
@@ -359,6 +370,16 @@ export {
   type RunPhase,
   type S2CType,
 } from "./net/messages";
+// Story 7.1: the account HTTP API (guest session, session ticket).
+export {
+  ACCOUNT_SESSION_PATH,
+  GUEST_COOKIE,
+  accountSessionRequestSchema,
+  accountSessionResponseSchema,
+  sessionTicketSchema,
+  type AccountSessionRequest,
+  type AccountSessionResponse,
+} from "./net/account";
 export { canStart, startBlocker, type ReadyFlag, type StartBlocker } from "./net/lobbyRules";
 export { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, isRoomCode, normalizeRoomCode } from "./net/roomCode";
 export {
@@ -683,3 +704,5 @@ export { powerFailureWave } from "./events/powerFailure";
 export { damageSurvivor, survivorFits, survivorTarget } from "./events/survivor";
 export { crateOutcome, crateRefusal, giveCrateWeapon, type CrateOutcome } from "./economy/shop";
 export { EVENT_SPOT_KINDS, LANE_DIRS, type EventSpot, type EventSpotKind, type LaneDir, type StampedeLane } from "./map/districtMap";
+
+export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, RECONNECT, SeatRecovery, Watchdog, configureReconnection, shouldRescueReload, type RecoveryDeps, type RecoveryJoin, type ReconnectionLike } from "./net/reconnect"; // Story 8.1

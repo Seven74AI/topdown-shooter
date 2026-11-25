@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { VOTE_EXTRACT, VOTE_STAY } from "@topdown/shared";
+import { PROGRESSION, VOTE_EXTRACT, VOTE_STAY } from "@topdown/shared";
 import { SLOT_COLOR_CSS } from "../render/playerColors";
 import { voteStore, type VoteView } from "./voteModel";
 
@@ -14,6 +14,11 @@ import { voteStore, type VoteView } from "./voteModel";
 const RING_R = 20;
 const RING_C = 2 * Math.PI * RING_R;
 const CHIP_TEXT = ["", "⬆ EXT", "✕ STAY"];
+
+/** Story 7.2 (AC 7, S4): what each choice pays in Supplies, from `progression.json › supplies` (the bet, said plainly). */
+export function voteStakesLine(s = PROGRESSION.supplies): string {
+  return `Extract now: +${s.extract} · Stay: +${s.perEndlessWave} a wave, lost if you wipe`;
+}
 
 export function EvacVote() {
   const [v, setV] = useState<VoteView>(voteStore.get());
@@ -39,6 +44,10 @@ export function EvacVote() {
             </span>
           ))}
         </div>
+        {/* Story 7.2 (AC 7, build-time choice 7.2 B3): above the buttons, so the tested button rects never move. */}
+        <p class="evac__stakes" data-testid="evac-stakes">
+          {voteStakesLine()}
+        </p>
         <div class="evac__row">
           <button
             type="button"

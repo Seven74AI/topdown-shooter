@@ -92,6 +92,26 @@ export class VoteRequest {
   }
 }
 
+/**
+ * Story 8.1 re-review RR1-M1: held seats join the vote panel as silent, dimmed chips (the server counts
+ * a held seat as silent = Extract and waits the whole timer for it, 6.11 D1 / review M2), so the
+ * panel's result line, `allIn` and `voteUrgent` agree with the server. Writes after `players[count)`
+ * (preallocated by the caller; extra slots beyond its length are ignored) and returns the new count.
+ */
+export function addHeldVoters(players: VotePlayerIn[], count: number, heldSlots: readonly number[]): number {
+  let n = count;
+  for (const slot of heldSlots) {
+    const o = players[n];
+    if (!o) break;
+    o.slot = slot;
+    o.vote = VOTE_NONE;
+    o.standing = false;
+    o.mine = false;
+    n++;
+  }
+  return n;
+}
+
 /** Story 6.11 (EX1): "EXTRACT · 3 – 1" (choice, then extract – stay counts; silent players count as Extract, F3). */
 export function voteResultLine(players: readonly VotePlayerIn[], mineShown: number): string {
   let stay = 0;

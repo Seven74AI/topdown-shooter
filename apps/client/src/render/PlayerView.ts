@@ -1,3 +1,4 @@
+import { protectBlinkAlpha } from "./protectBlink";
 import * as Phaser from "phaser";
 import type { PlayerState } from "@topdown/shared";
 import { SLOT_COLORS } from "./playerColors";
@@ -187,7 +188,17 @@ export class PlayerView {
       // Story 2.9: a downed survivor's ring pulses (mine too), so the revive chance is obvious.
       this.ring.setScale(pulseScale(timeMs)).setAlpha(pulseAlpha(timeMs));
     }
+    // Story 8.1 (D3): spawn protection after a mid-wave return blinks the body (only touched while it changes).
+    const blink = protectBlinkAlpha(p.protectTicks, timeMs);
+    if (blink !== this.shownBlink) {
+      this.shownBlink = blink;
+      this.body.setAlpha(blink);
+      this.layer?.img.setAlpha(blink);
+    }
   }
+
+  /** Story 8.1: the body alpha last set by the protection blink (1 = none). */
+  private shownBlink = 1;
 
   destroy(): void {
     this.ring.destroy();

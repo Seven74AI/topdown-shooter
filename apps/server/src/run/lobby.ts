@@ -16,6 +16,13 @@ export interface Member {
   readonly name: string;
   /** Hex SHA-256 of the guest token (Story 8.1 matches a reconnecting player with it). */
   readonly guestTokenHash: string;
+  /** Story 7.1: the account behind this seat (a valid session ticket), or null (unsaved play). 7.2–7.7 read it. */
+  readonly accountId: string | null;
+  /**
+   * Story 8.1: the seat identity (`seatKey`): who this member IS across sockets. Every seat match
+   * (already_joined, takeover, remembered seats) compares this key, never the hash directly.
+   */
+  readonly seatKey: string;
   /** When they joined; the longest-connected member becomes host. */
   /** Join sequence number within the room (lower = joined earlier). */
   readonly joinOrder: number;
@@ -43,4 +50,26 @@ export function nextHost<M extends Pick<Member, "joinOrder">>(members: Iterable<
 /** Hex SHA-256 of a guest token. The raw token is never stored or logged. */
 export function hashGuestToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+/**
+ * Story 8.1: THE seat identity — the one function every seat match uses (the lobby's
+ * `already_joined`, the run's takeover of a held or still-open seat, the remembered seats after a
+ * hold ran out). Story 7.1: `acct:<accountId>` when the join carried a valid session ticket, else a guest
+ * seat `guest:<hash of the guest token>` (unsaved play). Seat matches go through `sameSeat` below.
+ */
+export function seatKey(auth: { readonly guestTokenHash: string; readonly accountId?: string | null }): string {
+  return auth.accountId ? `acct:${auth.accountId}` : `guest:${auth.guestTokenHash}`;
+}
+
+/**
+ * Story 7.1: is this joining player the seat's owner? The same identity key, or the same guest token: the token is
+ * what resolves to the account (decision 7.1 D5, "a house key"), so a phone that rejoins without a ticket (the save
+ * server went down meanwhile) or with one it lacked before still finds its own seat, and can never sit twice.
+ */
+export function sameSeat(
+  seat: { readonly seatKey: string; readonly guestTokenHash: string },
+  auth: { readonly guestTokenHash: string; readonly accountId?: string | null },
+): boolean {
+  return seat.seatKey === seatKey(auth) || seat.guestTokenHash === auth.guestTokenHash;
 }

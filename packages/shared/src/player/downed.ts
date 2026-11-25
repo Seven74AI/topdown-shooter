@@ -5,6 +5,7 @@ import { spectateTarget } from "./spectate";
 import { findFreeSpotNear, spotBlocked } from "./freeSpot";
 import { teamSpawnPoint } from "./spawn";
 import { reviveTicksFor } from "../economy/gear";
+import { countWipedWave } from "../meta/runRecord";
 
 /**
  * Downed, revive, out and team wipe (Story 2.8, FR10/FR11). Every timer counts ticks.
@@ -174,6 +175,7 @@ export function checkTeamWipe(world: World): void {
   world.players.forEach(countAlive);
   if (aliveCount > 0) return;
   world.teamWiped = true;
+  countWipedWave(world); // Story 7.2 (D8): the wave the team falls in counts (phase is still "wave" here; nothing in a build)
   world.events.emit({ type: "team.wiped", wave: world.waves.number });
 }
 
@@ -219,4 +221,20 @@ export function updateDowned(world: World): void {
     }
   }
   checkTeamWipe(world);
+}
+
+/**
+ * Story 8.1 (F4): a held player coming back mid-wave appears next to the lowest-slot standing
+ * teammate, with the same spot search as the build-start return (`returnSpot`). Writes `p`'s
+ * position (and prev) and returns true; false (nothing changed) when no teammate is standing.
+ */
+export function placeNextToTeammate(world: World, p: PlayerState): boolean {
+  const t = spectateTarget(world, p.id);
+  if (!t) return false;
+  returnSpot(world, p, t.x, t.y);
+  p.x = spot.x;
+  p.y = spot.y;
+  p.prevX = spot.x;
+  p.prevY = spot.y;
+  return true;
 }

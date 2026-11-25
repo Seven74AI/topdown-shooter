@@ -413,7 +413,7 @@ export const updateCombat: SystemFn = (world, dtS) => {
   world.players.forEach((p) => {
     // Story 2.7 review: a starved server tick (no new input) pauses the weapon, like the client's
     // fire clock, which only advances per sent input.
-    if (!p.weaponsPaused) updatePlayerWeapon(world, p, dtS, world.inputs.get(p.id));
+    if (!p.weaponsPaused && p.protectTicks === 0) updatePlayerWeapon(world, p, dtS, world.inputs.get(p.id)); // Story 8.1 (D3): no shooting while spawn-protected
   });
   updateProjectiles(world, dtS);
   updateGrenades(world); // Story 5.5: rounds landing this tick burst (after the projectiles)

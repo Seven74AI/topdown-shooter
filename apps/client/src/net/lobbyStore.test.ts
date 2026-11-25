@@ -26,7 +26,7 @@ describe("snapshotLobby", () => {
       ["p2", player(2, "Cid", true)],
       ["p0", player(0, "Ana")],
     ]);
-    const state: RunStateView = { phase: "lobby", hostSlot: 0, players, buildings: new Map(), tick: 0, wave: 0, remaining: 0, aliveCount: 0, resultWave: 0, resultEnding: "", buildTicksLeft: 0, scenario: "", runSeed: 0, decayStage: 0, decayVariants: 0, decayFiresOut: 0, blackoutPct: 0, halfDark: false, voteTicksLeft: 0, endless: false, eventKind: 255, eventPhase: 0, eventStartTick: 0, eventPhaseTick: 0, eventX: 0, eventY: 0, eventLane: 255, crateWeapon: 255, crateClaimSlot: 255, crateClaimTicks: 0, npcX: 0, npcY: 0, npcHp: 0, npcState: 0, npcLook: 0, npcLeaderSlot: 255, safeX: 0, safeY: 0 };
+    const state: RunStateView = { phase: "lobby", hostSlot: 0, players, buildings: new Map(), tick: 0, wave: 0, remaining: 0, aliveCount: 0, resultWave: 0, resultEnding: "", buildTicksLeft: 0, scenario: "", runSeed: 0, decayStage: 0, decayVariants: 0, decayFiresOut: 0, blackoutPct: 0, halfDark: false, voteTicksLeft: 0, endless: false, eventKind: 255, eventPhase: 0, eventStartTick: 0, eventPhaseTick: 0, eventX: 0, eventY: 0, eventLane: 255, crateWeapon: 255, crateClaimSlot: 255, crateClaimTicks: 0, npcX: 0, npcY: 0, npcHp: 0, npcState: 0, npcLook: 0, npcLeaderSlot: 255, safeX: 0, safeY: 0, frozen: false, resumeIn: 0 };
     const s = snapshotLobby("ABCD", state, "p2");
     expect(s).toEqual({
       code: "ABCD",
@@ -157,6 +157,10 @@ describe("lobbyStore", () => {
 
     lobbyStore.leave();
     expect(unwatch).toHaveBeenCalled();
+    // Story 7.2 (D4): a Leave mid-run first asks the server to bank (run.leave) and leaves on its run.rewards answer.
+    expect(f.raw.send).toHaveBeenCalledWith(C2S.RUN_LEAVE, {});
+    expect(f.raw.leave).not.toHaveBeenCalled();
+    f.message(S2C.RUN_REWARDS, { runId: "0f1e2d3c-4b5a-4968-8776-655443322110", seed: 1, status: "not_saved", lines: { waves: 0, boss: 0, extract: 0, endless: 0, endlessBoss: 0 }, waveCount: 0, endlessWaveCount: 0, rookie: false, total: 0, newTotal: 0 });
     expect(f.raw.leave).toHaveBeenCalledWith(true);
     expect(lobbyStore.get().players).toEqual([]);
     expect(lobbyStore.current()).toBeNull();
