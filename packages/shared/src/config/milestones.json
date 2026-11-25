@@ -1,0 +1,14 @@
+{
+  "milestones": [
+    { "id": "m1", "howTo": "Survive wave 5", "resultLine": "survived wave 5", "rule": { "kind": "wave_cleared", "n": 5 } },
+    { "id": "m2", "howTo": "Extract from Downtown once", "resultLine": "first extraction", "rule": { "kind": "extracted", "district": "downtown" } },
+    { "id": "m3", "howTo": "Kill the Behemoth", "resultLine": "the Behemoth fell", "rule": { "kind": "boss_killed" } },
+    { "id": "m4", "howTo": "Reach endless wave 15", "resultLine": "endless wave 15", "rule": { "kind": "wave_cleared", "n": 15 } },
+    { "id": "m5", "howTo": "Revive 25 teammates", "resultLine": "25 revives", "rule": { "kind": "lifetime_revives", "n": 25 } },
+    { "id": "m6", "howTo": "Kill 1,000 zombies", "resultLine": "1,000 kills", "rule": { "kind": "lifetime_kills", "n": 1000 } },
+    { "id": "m7", "howTo": "Build 100 barricades", "resultLine": "100 barricades", "rule": { "kind": "lifetime_barricades", "n": 100 } },
+    { "id": "m8", "howTo": "Extract with all 4 players standing", "resultLine": "all four extracted", "rule": { "kind": "extracted_all_four" } },
+    { "id": "m9", "howTo": "Play 20 runs", "resultLine": "20 runs", "rule": { "kind": "lifetime_runs", "n": 20 } },
+    { "id": "m10", "howTo": "Reach wave 10 without going down", "resultLine": "wave 10 without going down", "rule": { "kind": "wave10_never_downed" } }
+  ]
+}

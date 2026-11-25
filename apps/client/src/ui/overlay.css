@@ -2720,3 +2720,391 @@ body:has(.menu.ph) .dev-gear {
   background: #f59a2c;
   color: #17191c;
 }
+
+/*
+ * Story 7.10 (AC 2; ED1 + LK2 + LS1, Lumen LF5; docs/art/epic-7/lumen/editor.jpg): the survivor editor. Left: Back,
+ * the Chosen / In game swatches, the big turning preview and the game-size preview. Right: the five tabs, the part
+ * tiles (they scroll), the info row, the colour row (the phone's picker + 12 quick colours, scrolling), Random and
+ * Done always in the bottom-right corner. Every button ≥ 44 px, text ≥ 14 px (tools/checks/editorDomLayout.test.ts).
+ */
+.menu.se {
+  --se-face: #1e2125;
+  --se-face-2: #262a30;
+  --se-frame: #3b4048;
+  --se-frame-hi: #6b727c;
+  --se-accent: #f59a2c;
+  --se-accent-hi: #ffc46b;
+  --se-ink: #f4f1ea;
+  --se-dim: #9aa1aa;
+  --se-tile: #2b3038;
+  gap: 0;
+  overflow: hidden;
+  padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+  box-sizing: border-box;
+  text-align: left;
+  background: radial-gradient(120% 90% at 50% 0%, #1a1d22 0%, #0b0c0e 70%);
+}
+
+.se-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  margin: 0;
+}
+
+.se-frame {
+  width: 100%;
+  max-width: 960px;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  gap: 6px;
+}
+
+.se-left {
+  flex: 0 0 clamp(178px, 34%, 300px);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  background: linear-gradient(180deg, var(--se-face-2) 0%, var(--se-face) 100%);
+  border: 2px solid var(--se-frame);
+  border-top-color: var(--se-frame-hi);
+  box-sizing: border-box;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+
+.se-head {
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.se-back {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--se-accent);
+  background: rgba(245, 154, 44, 0.08);
+  color: var(--se-accent);
+  font: 800 26px/1 system-ui, sans-serif;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+.se-back:active {
+  background: rgba(245, 154, 44, 0.3);
+}
+
+.se-sw {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.se-sw__label {
+  color: var(--se-dim);
+  font: 700 14px/1 system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+.se-sw__chip {
+  width: 18px;
+  height: 14px;
+  border: 2px solid #c8ccd2; /* review L3: a light frame, so a dark colour (the default hat & bag) still shows */
+  box-shadow: 0 0 0 1px #0b0c0e;
+}
+
+.se-big,
+.se-game {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  background: #15171a;
+  border: 1px solid #2c3036;
+  box-sizing: border-box;
+  touch-action: none;
+}
+
+.se-big {
+  flex: 5 1 0;
+  cursor: grab;
+}
+
+.se-game {
+  flex: 4 1 0;
+}
+
+.se-right {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.se-tabs {
+  flex: 0 0 44px;
+  display: flex;
+  gap: 4px;
+}
+
+.se-tab {
+  flex: 1 1 0;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--se-frame);
+  border-top-color: var(--se-frame-hi);
+  background: var(--se-face);
+  color: var(--se-dim);
+  font: 800 14px/1 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+.se-tab--on {
+  background: linear-gradient(180deg, #30353c 0%, var(--se-face-2) 100%);
+  color: #fff;
+  box-shadow: inset 0 -3px 0 var(--se-accent);
+}
+
+.se-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: linear-gradient(180deg, var(--se-face-2) 0%, var(--se-face) 40%);
+  border: 2px solid var(--se-frame);
+  border-top-color: var(--se-frame-hi);
+  box-sizing: border-box;
+}
+
+.se-tiles {
+  flex: 1 1 auto;
+  min-height: 52px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  grid-auto-rows: 52px;
+  gap: 4px;
+  align-content: start;
+  scrollbar-width: thin;
+  scrollbar-color: var(--se-accent) transparent;
+}
+
+.se-tile {
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 2px solid #3a4049;
+  background: radial-gradient(80% 80% at 50% 40%, #39404a 0%, var(--se-tile) 100%);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.se-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.se-tile--worn {
+  border-color: var(--se-accent);
+  box-shadow: 0 0 0 1px var(--se-accent-hi), inset 0 0 10px rgba(245, 154, 44, 0.35);
+}
+
+.se-tile--milestone,
+.se-tile--loot {
+  background: radial-gradient(80% 80% at 50% 40%, #252a31 0%, #1a1d22 100%);
+}
+
+.se-tile--tapped {
+  border-color: var(--se-accent);
+}
+
+/* LK2: a padlock in the middle of the darkened item (body + shackle, drawn in CSS) */
+.se-lock {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  width: 14px;
+  height: 11px;
+  margin: -5px 0 0 -7px;
+  background: #fff;
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+.se-lock::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: -8px;
+  width: 6px;
+  height: 7px;
+  border: 2px solid #fff;
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+}
+
+.se-lock--inline {
+  position: relative;
+  left: auto;
+  top: auto;
+  flex: 0 0 auto;
+  margin: 6px 6px 0 0;
+  background: var(--se-accent);
+  box-shadow: none;
+}
+
+.se-lock--inline::before {
+  border-color: var(--se-accent);
+}
+
+/* LS1: "?" in the corner of the flat silhouette */
+.se-q {
+  position: absolute;
+  right: 4px;
+  top: 2px;
+  color: #c8ccd2;
+  font: 800 14px/1 system-ui, sans-serif;
+}
+
+.se-info {
+  flex: 0 0 20px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  color: var(--se-ink);
+  font: 700 14px/20px system-ui, sans-serif;
+}
+
+.se-info--locked {
+  color: var(--se-accent-hi);
+}
+
+.se-info__text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.se-colours {
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.se-colours__label {
+  flex: 0 0 auto;
+  max-width: 76px;
+  max-height: 44px;
+  overflow: hidden;
+  color: var(--se-ink);
+  font: 700 14px/16px system-ui, sans-serif;
+}
+
+.se-picker {
+  position: relative;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: conic-gradient(#ff3b30, #ffcc00, #34c759, #00c7be, #3d8bff, #b05cff, #ff3b30);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.se-picker input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.se-swatches {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.se-swatch {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 3px solid rgba(0, 0, 0, 0.45);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.se-swatch--on {
+  border-color: var(--se-accent);
+  box-shadow: 0 0 0 2px var(--se-accent-hi);
+}
+
+.se-actions {
+  flex: 0 0 44px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.se-btn {
+  flex: 0 1 132px;
+  min-width: 96px;
+  height: 44px;
+  border: 2px solid var(--se-accent);
+  background: #17191c;
+  color: var(--se-accent-hi);
+  font: 800 16px/1 system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+
+.se-done {
+  background: linear-gradient(180deg, var(--se-accent-hi) 0%, var(--se-accent) 100%);
+  color: #1a1206;
+}
+
+.se-btn:disabled {
+  opacity: 0.6;
+}
+
+/* Story 7.10 (AC 1): my own lobby card opens the survivor editor */
+.lobby-card--edit {
+  cursor: pointer;
+}
+
+.lobby-card--edit:active {
+  filter: brightness(1.15);
+}

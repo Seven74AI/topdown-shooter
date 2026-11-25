@@ -293,6 +293,11 @@ class LobbyStore {
     this.room?.send(C2S.LOBBY_SET_READY, { ready });
   }
 
+  /** Story 7.10 (D3): my new look, shown on my card for everyone before Start (the server ignores it outside the lobby). */
+  setLook(look: string): void {
+    if (this.get().phase === "lobby") this.room?.send(C2S.LOBBY_SET_LOOK, { look });
+  }
+
   /** Results (Story 2.8): Back to lobby, for the whole room (the server takes it from any member). */
   returnToLobby(): void {
     this.room?.send(C2S.LOBBY_RETURN, {});

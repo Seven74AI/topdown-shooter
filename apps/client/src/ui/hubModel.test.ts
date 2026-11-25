@@ -31,7 +31,7 @@ const ids = () => `req-${++n}`;
 describe("Story 7.3 AC 6–7: the Unlocks tab content", () => {
   it("U1: the header line; Unlocks + Training (Story 7.5) in a bar built for three", () => {
     expect(HUB_TEXT.rule).toBe("Unlocks add cards to your shop, not power");
-    expect(HUB_TABS.map((t) => t.id)).toEqual(["unlocks", "training"]);
+    expect(HUB_TABS.map((t) => t.id)).toEqual(["unlocks", "training", "survivor"]); // 7.5 Training, 7.10 Survivor
     expect(HUB_TAB_SLOTS).toBe(3);
   });
 
