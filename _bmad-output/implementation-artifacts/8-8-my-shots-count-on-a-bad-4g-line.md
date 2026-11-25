@@ -294,8 +294,25 @@ Reviewer: fresh reviewer cloud session (gds-code-review: Blind Hunter / Edge Cas
 
 1 ok (ports, gate on merge) · 2 n/a (no state/wire field) · 3 ok (F1–F5 each a test) · 4 above · 5 ok (no sim change; boss history length follows the constant, same-build digests) · 6 **R1** · 7 ok (constants.ts / limits.ts with story comments; throttle caps in devThrottle.ts by the story's instruction; N2) · 8 ok (0 B/s) · 9 ok (smoke on lossy line; vote/reconnect not reached, declared) · 10 ok (recorded with load) · 11 ok (Not verified lists phones / 4G / iOS) · 12 ok (Notes for the merge) · 13 ok (reproduced; N3) · 14 ok, but **R2** for the line's close · 15 ok except **R4** (broken barricades) · 16–19, 21 n/a · 17 ok (clean rows unchanged) · 18 ok (no new client message) · 20 ok (hitsLossSim deleted, runHits imports the real harness and `REWIND_CAP_TICKS`) · 22 ok (6.8/6.9 levers static; no numeric 6-tick pins left: grep) · 23 ok · 24 ok (overlay suffix only) · **25** ok: every [x] task names tests that exist (T1/T8/T9/T10 are measurement/doc tasks with evidence; T6's `main.ts` wiring has none → R3) · 26 **R3** · 30 ok (Gate line: ddce305, master b0e491a, 398 files / 3679 tests, load 0.34–3.98) · 32 ok (HANDOFF, epics, architecture say 500 ms / 12 rows) · 33 ok (no pacing change) · 34 partial (vote, reconnect not reached; R6).
 
+### Review fixes (builder, 2026-11-25)
+
+| Id | Commit | Fix | Test (fails without the fix) |
+| --- | --- | --- | --- |
+| R1 | b88b1e4 | Lossy rows also assert the stalls age the shots: > 20 % ask for > 6 ticks (measured 44–69 %); clean rows assert none do | `tools/netsim/hits.test.ts` › Story 8.8 lossy rows; mutation "stall counted, not added to due" now fails all 4 lossy rows |
+| R2 | d5e4176 | `lagLine.ts` half-closes in order: a FIN is queued behind the data in its direction (`pushEnd`, `dest.end()` on delivery; sockets `allowHalfOpen`); destroy only on error or `LagLine.close()`. `lagProxy.ts` uses the same path | `tools/netaudit/lagLine.test.ts` › "review R2: a side's write-then-end arrives in order, then the end (FIN), in both directions…", "review R2: a server's WebSocket close frame (code 4000) and FIN reach the client through a stalled line" (both fail on the old close) |
+| R3 | 55b3683 | Source check of `main.ts › throttled()` (lossPct, stallMs, activeThrottle set/clear) and the overlay suffix | `tools/checks/throttleWiring.test.ts` (deleting the options or the `activeThrottle` line fails it) |
+| R4 | c0533ab | No code change: test comment + T5 text say cover is tested as it is now; decision **8.8 B1 auto-accepted overnight** (in `docs/network-pass-decisions.md`) | — |
+| R5 | b28f401 | Net summary prints `throttleLabel(urlOptions().throttle)` (applied, clamped values) | `apps/client/src/debug/netSummary.test.ts` › "throttleLabel (Story 8.8 review R5)…" |
+| R6 | 61ffbf0 | Smoke script committed: `tools/netaudit/smoke2tab.cjs` (steps in its header), linked from the report and README | — (script) |
+| N1 | c0533ab | Teammate assert commented as documentation (no player-hit path) | — |
+| N2 | 351aa4f | Bots' caps imported from `devThrottle.ts` (`MAX_THROTTLE_LAG_MS` / `JITTER` moved there, re-exported by `urlOptions.ts`); `lineUrl()` keeps scheme, host name and path (only `[::1]` → 127.0.0.1); `--jitter` cap is now the client's 1000 | `tools/bots/lineArgs.test.ts` › "review N2: the caps are the client's; …" |
+| N3 | 61ffbf0 | T8 bot rows labelled "liveness only, different lines" (story + perf doc) | — |
+
+Checks after the fixes: typecheck, lint, touched tests (see the hand-back message); no full gate (not asked).
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending).
 - 2026-11-25: built (500 ms rewind, lossy line in harness / dev throttle / bots, fairness and lossy netsim tests, two-tab smoke); status review.
 - 2026-11-25: Senior Developer Review (AI): findings (2 medium, 4 low, 3 nits); status stays review.
+- 2026-11-25: review fixes R1–R6, N1–N3 (builder); decision 8.8 B1 auto-accepted; status stays review.
