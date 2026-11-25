@@ -1,7 +1,7 @@
 import { ColyseusTestServer } from "@colyseus/testing";
 import { createServer } from "node:net";
 import { createGameServer, type GameServerOptions } from "../app";
-import { roomCreateLimiter } from "../net/rateLimit";
+import { newGuestLimiter, roomCreateLimiter } from "../net/rateLimit";
 import { log } from "../ops/logger";
 
 /**
@@ -11,7 +11,9 @@ import { log } from "../ops/logger";
  * Logs are silent unless `LOG_LEVEL` is set. Call `shutdown()` in `afterAll`. Solo starts are
  * allowed by default, as in dev; a test can flip `room.allowSoloStart` on a live room.
  * `cleanup()` (call it in `afterEach`) also resets the per-IP room creation limit (Story 2.2), so
- * tests creating many rooms from 127.0.0.1 don't hit it.
+ * tests creating many rooms from 127.0.0.1 don't hit it, and the new-guest limit (Story 7.1).
+ * Story 7.1: without `options.database` the server gets a lazy in-memory PGlite (opened only when a test calls
+ * `/account/session` or joins with an account), closed by `shutdown()`.
  */
 export async function bootTestServer(
   options: GameServerOptions = {},
@@ -24,9 +26,11 @@ export async function bootTestServer(
   const cleanup = colyseus.cleanup.bind(colyseus);
   colyseus.cleanup = async () => {
     roomCreateLimiter.reset();
+    newGuestLimiter.reset();
     await cleanup();
   };
   roomCreateLimiter.reset();
+  newGuestLimiter.reset();
   return { colyseus, port };
 }
 

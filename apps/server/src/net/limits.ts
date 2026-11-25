@@ -46,3 +46,13 @@ export const REWIND_CAP_MS = 300;
  * row (1 s of inputs) the queue resyncs to the client's seqs (a client that really restarted).
  */
 export const INPUT_SEQ_RESYNC_AFTER = 20;
+
+/** Story 7.1 (decision 7.1 D6): new guest accounts one IP may create per window; beyond it the device plays unsaved. */
+export const MAX_NEW_GUESTS_PER_HOUR = 20;
+export const NEW_GUEST_WINDOW_MS = 3_600_000;
+
+/** Story 7.1 (decision 7.1 D2): a session ticket is valid this long; the client fetches a fresh one before each Create/Join. */
+export const SESSION_TICKET_TTL_MS = 600_000;
+
+/** Story 7.1: the guest cookie lives a year and is renewed on every `/account/session` call. */
+export const GUEST_COOKIE_MAX_AGE_S = 31_536_000;

@@ -16,3 +16,6 @@ deploy/deploy-history.log
 **/*.pem
 *.key
 **/*.key
+# Story 7.1: the dev PGlite database and the VPS backup settings.
+**/.data
+deploy/backup.env
