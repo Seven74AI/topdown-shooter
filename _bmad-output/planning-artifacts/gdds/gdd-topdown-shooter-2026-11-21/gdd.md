@@ -355,7 +355,7 @@ This is a game for a group of friends, so success is simple and honest.
 
 ## Out of Scope
 **Not in v1 (deferred):** PvP mode · districts beyond Downtown (district 2 follows v1; **Random city is planned post-v1 as Epic 11**) · new zombie types (Screamer, Riot, Dog) · optional wave modifiers (fog, fast zombies, boss waves) and difficulty settings · CCTV intro and Blood Moon special district · matchmaking with strangers · voice and text chat · native apps. **Solo** online runs are allowed (× 0.35) but not balance-tuned.
-**Not planned:** monetization (it is a game for friends) · story campaign · controller support.
+**Not planned:** monetization (it is a game for friends) · story campaign.
 
 ## Assumptions and Dependencies
 - **A game server is required** (real-time co-op, saved runs, accounts); hosting has an ongoing cost [ASSUMPTION: acceptable given the budget].

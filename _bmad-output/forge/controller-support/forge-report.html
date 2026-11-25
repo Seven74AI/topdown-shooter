@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controller Support Forge</title>
+<style>
+:root{--bg:#f6f1e7;--card:#fffaf0;--ink:#2a2420;--muted:#6b5f55;--line:#e2d6c3;--seal:#8f1d1d;--seal2:#b83232;--ok:#2f6b3a;--warn:#9a5b00}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1815;--card:#24201c;--ink:#efe6da;--muted:#b3a597;--line:#3a332c;--seal:#c14040;--seal2:#e06060;--ok:#7fc58b;--warn:#e0a650}}
+:root[data-theme="dark"]{--bg:#1b1815;--card:#24201c;--ink:#efe6da;--muted:#b3a597;--line:#3a332c;--seal:#c14040;--seal2:#e06060;--ok:#7fc58b;--warn:#e0a650}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Georgia,"Times New Roman",serif}
+main{max-width:860px;margin:0 auto;padding:32px 16px 64px}
+header{display:flex;gap:24px;align-items:center;flex-wrap:wrap;border-bottom:2px solid var(--line);padding-bottom:20px}
+header svg{flex:0 0 150px;width:150px;height:150px}
+h1{margin:0 0 6px;font-size:1.9rem}
+.sub{color:var(--muted);margin:0}
+h2{font-size:1.15rem;margin:32px 0 10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:10px 0}
+ul{margin:6px 0;padding-left:20px}
+li{margin:6px 0}
+.tag{display:inline-block;font:600 .72rem/1 system-ui,sans-serif;padding:4px 7px;border-radius:4px;margin-right:6px;vertical-align:2px}
+.lock{background:var(--ok);color:#fff}.risk{background:var(--warn);color:#fff}.kill{background:var(--muted);color:var(--bg)}
+.voices{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.voice{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.voice b{display:block}.voice span{color:var(--muted);font-size:.92rem}
+code{font-family:ui-monospace,monospace;font-size:.88em}
+</style>
+</head>
+<body>
+<main>
+<header>
+<svg viewBox="0 0 200 200" role="img" aria-label="Hardened seal">
+  <defs><radialGradient id="g" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="var(--seal2)"/><stop offset="1" stop-color="var(--seal)"/></radialGradient>
+  <path id="arc" d="M100,100 m-66,0 a66,66 0 1,1 132,0 a66,66 0 1,1 -132,0"/></defs>
+  <path fill="url(#g)" d="M100 8l13 10 16-4 8 14 16 3 1 16 13 9-5 15 8 14-11 12 2 16-15 6-5 15-16-1-12 11-13-9-15 5-9-13-16-2-3-16-13-9 5-15-8-14 11-12-2-16 15-6 5-15 16 1 12-11z"/>
+  <circle cx="100" cy="100" r="58" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/>
+  <text fill="#fff" font-family="Georgia,serif" font-size="13" letter-spacing="3"><textPath href="#arc" startOffset="2%">FORGED · TOPDOWN-SHOOTER · 2026 ·</textPath></text>
+  <text x="100" y="98" text-anchor="middle" fill="#fff" font-family="Georgia,serif" font-weight="700" font-size="20" letter-spacing="1">HARDENED</text>
+  <text x="100" y="120" text-anchor="middle" fill="#fff" fill-opacity=".85" font-family="Georgia,serif" font-size="12">🎮 on 📱</text>
+</svg>
+<div>
+<h1>Controller support on the phone</h1>
+<p class="sub">Play a run with a Bluetooth Xbox or PlayStation controller paired to an Android phone or an iPhone, in the mobile browser. Forged 25 Nov 2026.</p>
+</div>
+</header>
+
+<h2>What started it</h2>
+<div class="card">The GDD listed controller support under "Not planned". Changing the target from desktop to <b>a controller paired to the phone</b> made the idea fit the game's phone-first design, and the "Not planned" line has now been removed from the GDD.</div>
+
+<h2>Locked decisions</h2>
+<div class="card"><span class="tag lock">LOCK</span><b>Controller-only.</b> Every part of a run can be played without touching the screen; the one exception is typing.</div>
+<div class="card"><span class="tag lock">LOCK</span><b>Phones: Android and iPhone.</b> The controller selects a text field and calls <code>focus()</code>. Typing is on the phone's keyboard. On Android the keyboard should open on its own; on iPhone the field shows a "tap to type" hint.</div>
+<div class="card"><span class="tag lock">LOCK</span><b>HUD prompts.</b> The HUD shows Xbox or PlayStation button icons, detected from <code>gamepad.id</code>, and the touch joysticks hide. The cancel icon follows the controller, because ✕ means place on a PlayStation pad.</div>
+<div class="card"><span class="tag lock">LOCK</span><b>Switching devices.</b> Taps on menus or text fields don't switch away from the controller. If the controller disconnects mid-run, the in-run menu opens and the survivor stands still.</div>
+<div class="card"><span class="tag lock">LOCK</span><b>Aim assist</b> stays on for controller stick aim.</div>
+
+<h2>Rejected</h2>
+<div class="card"><span class="tag kill">REJECTED</span><b>Hybrid</b> (touch for build, shop and menus): rejected because you want to play with the controller only.</div>
+<div class="card"><span class="tag kill">REJECTED</span><b>In-game letter picker or arcade-style name entry:</b> rejected because the phone keyboard is enough.</div>
+<div class="card"><span class="tag kill">REJECTED</span><b>Help screen instead of HUD prompts:</b> rejected.</div>
+
+<h2>Weak points that survived</h2>
+<div class="card"><span class="tag risk">RISK</span><b>Keyboard from a controller press.</b> Chrome treats a controller press as a user gesture, so Android should work. Safari doesn't, so iPhone needs one tap. Neither has been tested on a real phone.</div>
+<div class="card"><span class="tag risk">RISK</span><b>Placing buildings with a stick.</b> Story 5.23's carry has only been tried with the keyboard, not at stick precision.</div>
+<div class="card"><span class="tag risk">RISK</span><b>Stories 7.3 and 7.6</b> say <code>menuInput.ts</code> does gamepad menu navigation. It has no gamepad code.</div>
+
+<h2>Who tested it</h2>
+<div class="voices">
+<div class="voice"><b>🎮 Samus Shepard</b><span>Game designer: the fight maps well to a controller, but the build phase and the Preact screens are where it gets hard.</span></div>
+<div class="voice"><b>🛠️ Indie</b><span>Solo dev: you only type once.</span></div>
+<div class="voice"><b>🧪 Killjoy</b><span>Critic: "controller-only with an asterisk" isn't controller-only.</span></div>
+<div class="voice"><b>🏗️ Cloud Dragonborn</b><span>Game architect: don't depend on browser behaviour you don't control.</span></div>
+<div class="voice"><b>🎨 Sally</b><span>UX designer: touch buttons on screen suggest you should tap them.</span></div>
+<div class="voice"><b>🏛️ Winston</b><span>Architect: a stray tap must not take over while the controller is steering.</span></div>
+<div class="voice"><b>🔀 Splinter</b><span>Contrarian: what if the battery dies mid-wave?</span></div>
+<div class="voice"><b>🚇 Priya</b><span>Made-up commuter with a phone clip: taking a thumb off the stick mid-fight is what kills it.</span></div>
+<div class="voice"><b>📱 Marco</b><span>Made-up mobile browser QA tester: the keyboard covers half the screen in landscape.</span></div>
+<div class="voice"><b>🎮 Jonah</b><span>Made-up friend with a DualSense: ✕ means something different on my pad.</span></div>
+</div>
+</main>
+</body>
+</html>
