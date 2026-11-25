@@ -1,6 +1,7 @@
 # Epic 6 retrospective: evidence pack
 
 - **Written:** 2026-11-24 (late), for the `gds-retrospective` run that follows once the last Epic 6 stories land. Docs only; no code changed.
+- **Addendum 2026-11-25:** §9 adds stories 6.8–6.14 from `origin/master` `c57c1cc` (Epic 6 done at `cc26d05` 03:28). §0–§7 are kept as written at the snapshot below; where §9 supersedes them it says so.
 - **Snapshot:** `origin/master` at `da82847` (2026-11-24 23:00:46) plus the in-flight branches as fetched at about 23:15: `story-6-8` `9743f51`, `story-6-9` `ef109d3`, `story-6-11` `3008990`, `review-6-11` `aaf1099`.
 - **Sources:** the Epic 6 story files (`6-*.md` on master; 6.8, 6.9 and 6.11 read from their branches), `docs/epic-6-brief.md`, `docs/epic-6-decisions.md`, `HANDOFF.md` §3, `epic-5-retro-2026-11-24.md` §10–11, `docs/perf/epic-6-*.md`, `apps/client/src/scenes/hudLayout.test.ts`, and `git log --all` commit times (all UTC, 2026-11-24).
 - **Grades:** **[V]** checked in files or git. **[R]** reported only in session messages, not checkable in the repo. **[I]** my inference, labelled as such. Wall-clock times are differences between commit times. A commit marks when work was pushed, not when it started, so each stage time is an upper bound for the stage that ended at that commit.
@@ -192,3 +193,94 @@ Every answered question in the epic came back in ≤ 68 min, and most in ≤ 13 
 ## 8. Gate for this file
 
 - Docs only (this file). After `npm ci`, `npm run lint` (`eslint .`) on this branch (master `da82847` + this file): **clean, no output**. So `da82847`, the newest master commit (docs-only), lints clean (A2 evidence for that one commit only).
+
+## 9. Addendum: stories 6.8–6.14 (master `c57c1cc`, 2026-11-25)
+
+Sources: the story files `6-8`, `6-9`, `6-10`, `6-11`, `6-12`, `6-13`, `6-14` on master (Senior Developer Review (AI), every re-review, review-fix records, "Main session close-out"), `sprint-status.yaml`, `docs/epic-6-decisions.md` (build-time decisions), and `git log` on master (UTC; 11-24 evening → 11-25 night). Same grades as above.
+
+### 9a. Status at the end of the epic
+
+| Story (as built) | Keys | On master | Main-session gate (close-out) |
+| --- | --- | --- | --- |
+| 6.11+6.12 Vote and endless | 6.11, 6.12 | `f3afc36` 00:14 | story-6-11 `e070c94` + docs: 373 files / 3,451 tests, build OK, load → 2.52 [V] |
+| 6.8 Car alarm, stampede, events framework | 6.8 | `dfaefcb` 01:35 | story-6-8 `ac867a6`: 385 files / 3,547 tests, build OK, load 0.29 [V] |
+| 6.9+6.10 Gas leak, supply drop, power failure, survivor | 6.9, 6.10 | `62dd2ef` 02:03 | story-6-9 `31b9404`: 393 files / 3,615 tests, load → 2.77 [V] |
+| 6.14 Epic 6 tidy-up (review follow-ups, top HUD band) | 6.14 | `45fc6fb` 03:20 | `e607fda`: 394 files / 3,638 tests, load → 3.01 [V] |
+| 6.13 Wide-body stall fix (6.8 review M1) | 6.13 | `cc26d05` 03:28 | `20d551c` + master `45fc6fb`: 396 files / **3,655 tests** (3 skipped), load → 3.34 [V] |
+
+All 14 keys done (6.4 in 6.2, 6.7 in 6.6, 6.10 in 6.9, 6.12 in 6.11). 6.13 and 6.14 were added during the epic (not in the epic plan): 6.13 from a pre-existing bug the 6.8 reviewer found, 6.14 to close the review follow-ups. Tests: 2,625 at the Epic 5 retro → **3,655** at `cc26d05` (+1,030) [V: gate lines].
+
+### 9b. Timeline (commit times)
+
+| Story | First build commit | Hand-back | Review | Fix rounds → re-reviews | On master | Hand-back → master | First commit → master | Passes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 6.11+6.12 | ≤ 21:50 (`db17082`) | `132c90d` 22:32 | `aaf1099` 22:52 | `13f7711` 23:09 → RR1 `4246772` 23:23 → fix `b42eab9` 23:32 → RR2 `bb38395` 23:47 → fix `7f91356` 23:52 → RR3 `9469aa1` 00:07 | `f3afc36` 00:14 | 102 min | ≤ 144 min | 4 |
+| 6.8 | `a8a70cd` 22:32 | `a788312` 23:04 | `e0e56b1` 23:35 | `7c3de9f` 23:51 → RR1 `8a580ff` 00:06 → `b12187c` 00:20 → (merge 6.11 `9bb6e65` 00:35) → RR2 `d136cb3` 00:44 → `4c98ef2` 01:06 → RR3 `d26ac60` 01:12 → `26c2e53` 01:27 → RR4 `0b897f8` 01:33 | `dfaefcb` 01:35 | 151 min | 183 min | **5** |
+| 6.9+6.10 | `ef109d3` 23:14 | `76659d7` 00:31 (record), review base `fb1d6f1` 00:55 | `51e1323` 01:09 | `56e2a06` 01:19 → RR1 `7b1d9a6` 01:36 → `31b9404` 01:44 → RR2 `df37c42` 02:02 | `62dd2ef` 02:03 | 68 min (from `fb1d6f1`) | 169 min | 3 |
+| 6.13 | `ff54d7c` 02:08 | `ac2c2f2` 02:10 | `ba99f0a` 02:36 | `46e4c09` 02:55 → RR `df0bbc5` 03:21 | `cc26d05` 03:28 | 78 min | 80 min | 2 |
+| 6.14 | `037ac35` 02:15 | `34dde4b` 02:33 | `ed50383` 02:41 (light review) | `cc8dced` 02:51 / `e607fda` 02:59 → RR `9cfdb6e` 03:19 | `45fc6fb` 03:20 | 47 min | 65 min | 2 |
+
+- Whole epic: dispatch 16:48 (11-24) → last story on master 03:28 (11-25) ≈ **10.7 h** for 10 builds / 14 keys [V] (≈ 0.9 builds/h; Epic 5: 1.7/h with smaller, mostly client stories).
+- **Passes per build: 26 over 10 builds = 2.6** (Epic 5: 1.73) [V]. 6.8 needed 5 (review + 4 re-reviews), 6.11 needed 4.
+- At the peak (≈ 22:30–00:30) four builders and their reviewers ran at once (6.2 fixes, 6.11, 6.8, 6.9) [V].
+
+### 9c. Findings, 6.8–6.14
+
+| Story | Pass | H | M | L | Nit | What the medium/high was | Fix-made? |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 6.11+6.12 | review | 0 | 3 | 12 | 2 | M1 vote flood drops the last tap (brief 17/30); M2 late dawn after a frozen tab (AC 10); M3 endless sim never asserts "flat" (brief 25) | — |
+| | RR1 | 0 | 1 | 2 | 2 | RM1: the M1 send gap loses a change of mind in the last ⅓ s | **yes** (M1 fix) |
+| | RR2 | 0 | 1 | 2 | 2 | RR2-M1: the RL1 hidden-tab rule takes the dawn from live players who alt-tab | **yes** (RL1 fix) |
+| | RR3 | 0 | 0 | 2 | 2 | approve (RR3-L1 late burst, RR3-L2 urgent gap) | — |
+| 6.8 | review | 0 | 2 | 8 | 3 | M1 pre-existing wide-body Bloater stall, masked by the bot strafe flip (→ 6.13); M2 event edge arrows not in the HUD layout test (brief 31) | — |
+| | RR1 | 0 | 1 | 3 | 0 | R1: the M2 arrow avoids controls but covers the HP bar / wave line for 65°/85° of bearings | **yes** (M2 fix) |
+| | RR2 | 0 | 1 | 3 | 1 | RR1: perimeter walk puts the arrow up to 75.6° off and teleports 369 px | **yes** (R1 fix) |
+| | RR3 | 0 | 1 | 3 | 1 | RR3-1: arrow strobes 170 px every frame at obstacle corners (39 flips / 39 frames) | **yes** (RR1 fix) |
+| | RR4 | 0 | 0 | 1 | 1 | approve | — |
+| 6.9+6.10 | review | 0 | 2 | 11 | 0 | M1 crate claim goes to the lowest slot, not the first arrival; M2 (design) survivor 0/16 saved with B1 (→ decision 6.10 B2) | — |
+| | RR1 | 0 | 1 | 3 | 1 | RR1: the flag arrow (L11 fix) can sit up to 43° off at 568×320 | **yes** (L11 fix) |
+| | RR2 | 0 | 0 | 1 | 1 | approve (RR2-1 flag up to 32–36° → 6.14) | — |
+| 6.13 | review | **1** | 1 | 3 | 0 | H1: the stuck target can be a building the body can never touch (floodlight in the box → the stall comes back, an exploit); M1 AC 3 guard untested | — |
+| | RR | 0 | 0 | 4 | 1 | approve (L-a…L-d) | — |
+| 6.14 | review (light) | 0 | 1 | 6 | 0 | M1: the fan's NPC-clear rule is never tested (mutation survives) | — |
+| | RR | 0 | 0 | 2 | 0 | approve (RL1 forced-fan jitter, RL2 36.75° with the boss bar) | — |
+
+**Epic totals (all 10 builds, first reviews):** **3 high** (6.3, 6.5, 6.13), **17 medium**, 68 low [V]. **Re-reviews added 7 mediums** (6.5 M-new-1; 6.8 R1, RR1, RR3-1; 6.9 RR1; 6.11 RM1, RR2-M1), **every one of them created by an earlier fix** [V]. 6 of the 7 are one family: screen placement or client timing measured too coarsely (event/flag arrows ×4, vote send/dawn timing ×2) [V]. Correction to §2: 6.11's first review had 12 lows, not 10 (change log).
+
+### 9d. The edge-arrow chain (the epic's longest fix loop)
+
+One feature, the off-screen event arrow, took **6 review passes and 3 stories**: 6.8 M2 (not in the layout test) → R1 (covers HP/wave line) → RR1 (bearing error, teleport) → RR3-1 (strobe at corners) → approve; 6.9 L11 (second arrow) → RR1 (43° off) → RR2-1 (32–36°) → 6.14 AC 6 → 6.14 M1 (fan rule untested) and L4 (its test found a real flicker) → RL1 (forced-fan jitter accepted) [V]. Each round the reviewer measured with a finer, stateful probe (1° → 0.1° → 0.01° with state kept, then oscillation across every jump, then resize) and found the next failure; the rule itself ("≤ 30° off, no jump, no strobe") was written only in the reviews, not in the story's ACs [V: 6.8 AC 10 / D10 say "readable", no number]. ≈ 90 min of 6.8's 151 min hand-back → master went to this chain [V: 00:06 → 01:33].
+
+### 9e. Follow-ups left at the end of the epic
+
+| Item | Source | State |
+| --- | --- | --- |
+| 6.13 L-a two overlapping inner buildings cycle the give-up (only via `addBuildingAt`) | 6.13 RR | open, unreachable in play |
+| 6.13 L-b `stuckOpen` exit never fires: delete or mark defensive | 6.13 RR | open |
+| 6.13 L-c tests for `stuckSkip` and touch in the give-up (2 mutants survive) | 6.13 RR | open |
+| 6.13 L-d fidgeting camper keeps a RUSH Bloater wandering 51–87 s (4 s rule holds; 45 s bound doesn't) — fuzz with moving campers | 6.13 RR | open, pre-existing |
+| 6.13 nit `balanceSchema.ts:329` comment | 6.13 RR | open |
+| 6.14 RL1 forced-fan jitter (only with artificial keep-off dots) | 6.14 RR | accepted |
+| 6.14 RL2 / L3 arrow up to 36.75° off at 568×320 with the boss bar shown (dev-forced events only) | 6.14 RR | designer may choose |
+| 6.14 L2 wave line off centre (+79 px at 568×320) and boss bar moved y 46 → 60 | 6.14 review | **designer to see** |
+| 6.14 L5 dawn missed if the vote patch is processed > 500 ms late (cosmetic) | 6.14 review | accepted |
+| 6.14 L6 `claude/dazzling-meitner-zhu5p0` must rebase onto master; re-run the top-band test | 6.14 review | open (merge risk) |
+| 6.8 bot strafe flip stays; whole-run sims no longer see wide-body stalls without 6.13's fuzz | 6.8 / 6.13 | kept |
+| 6.10 B2 survivor save rate (bots 0/16) — judge in a playtest | decision 6.10 B2 | designer playtest |
+| 6.8 B1 stampede horde 28.2 KB/s ≤ 12 s — owed to Story 8.10 | decision 6.8 B1 | Network pass |
+| 6.9 N1 `CRATE_CANCEL_UNTIL` 0.6 honest to ~250 ms RTT | 6.9 RR2 | Network pass to re-check if pacing changes |
+| 6.11 L10 brief 22 "at most 110 alive" vs 6.5 AC 4 | §6a | **still open** (`docs/epic-6-brief.md` line 22 unchanged since `5cf081a`) |
+| Mi 11i rows (`docs/perf/epic-6-blackout.md:87`), boss run, events | §6b | **still empty** |
+| Two-tab browser run under lag, hidden tab across telegraph/event/vote | §6b | **never run** in Epic 6 (6.9 and 6.11 list it as Not verified) |
+
+**Closed by 6.14** (from §6a): 6.6 R2 (trampleGen test), 6.6 R3 (`ticksFor` in the cross-check), 6.2 R2 (ring pick counter), 6.11 RR3-L1/L2, N5, N6, 6.8 resize hold, 6.9 RR2-1 and RR4, the 568×320 HP-bar / wave-line overlap (now in the one HUD test), dead shop-card CSS [V]. **Closed by 6.9:** 6.2 R1 GameScene fog wiring (`fogWiring.ts` + `tools/checks/fogWiring.test.ts`) [V]. **Closed by 6.13:** 6.8 M1 [V].
+
+### 9f. Build-time decisions after the snapshot
+
+| Code | Raised | Answered | Wait | Avoidable by a default? [I] |
+| --- | --- | --- | --- | --- |
+| 6.8 B2 stampede `runS` 12 | 6.8 review (23:35 era) | `3a0dac8` 23:19 | — | No: a feel number the designer wanted to pick. |
+| 6.10 B1 survivor ignored while waiting unless within 5 m | 6.9 record | `b19eea7` 23:34 | — | Partly: the builder proposed 3 options; a "most saveable option, tune later" default fits. |
+| 6.10 B2 keep B1, judge in a playtest | 6.9 review M2 01:09 | `58ab0b7` 01:15 | 6 min | **Yes**: "bots aren't difficulty evidence" (brief 15) already says it. |
+
+No designer question blocked a builder in the whole epic [V].
