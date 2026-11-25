@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build button mock</title>
+<!--
+  Build-button (hybrid) proposals: one still per ?opt=A|B|C|D&w=568|844&state=closed|open.
+  The background is a real build-phase screenshot (base-<w>-clean.png: dev server, DEV_NO_WAVES=1, the 5.16 grid hidden);
+  the tiles are real 5.16 tiles cropped from the game (tile-*.png, tile-crops.cjs). Everything else is drawn here.
+  Rendered by render.cjs at deviceScaleFactor 2. Geometry in CSS px, anchored to the bottom-right safe-area corner
+  with the 16 px inset of sizes.ts (BUILD_BAR_INSET_CSS_PX); tiles 56 px, gaps 8 px (BUILD_TILE_*).
+-->
+<style>
+  :root { --ink: #f4f4f2; --tile-bg: rgba(12, 14, 18, 0.82); --edge: rgba(255, 255, 255, 0.92); --gold: #e8b938; }
+  html, body { margin: 0; padding: 0; background: #111; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); }
+  #stage { position: relative; overflow: hidden; background-size: 100% 100%; }
+  .abs { position: absolute; box-sizing: border-box; }
+  .tile { width: 56px; height: 56px; border-radius: 10px; background-size: 100% 100%; }
+  .img { background-size: 100% 100%; }
+  .btn { background: var(--tile-bg); border: 2px solid var(--edge); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+  .btn .lbl { font-size: 14px; font-weight: 700; line-height: 16px; text-shadow: 0 1px 2px #000; }
+  .btn svg { width: 26px; height: 26px; }
+  .round { border-radius: 50%; }
+  .shopchip { border-color: var(--gold); }
+  .count { font-size: 15px; font-weight: 700; text-shadow: 0 0 3px #000, 0 1px 2px #000; white-space: nowrap; }
+  .badge { font-size: 14px; font-weight: 700; line-height: 18px; padding: 0 5px; border-radius: 9px; background: rgba(0, 0, 0, 0.78); border: 1px solid rgba(255, 255, 255, 0.55); white-space: nowrap; }
+  .again { width: 20px; height: 20px; border-radius: 50%; background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(255, 255, 255, 0.7); display: flex; align-items: center; justify-content: center; }
+  .again svg { width: 12px; height: 12px; }
+  .card { background: rgba(8, 10, 14, 0.74); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 14px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45); }
+  .cardhead { font-size: 14px; font-weight: 700; line-height: 18px; display: flex; justify-content: space-between; }
+  .zone { border: 2px dashed rgba(170, 220, 255, 0.55); border-radius: 50%; }
+  .zonelbl { font-size: 11px; color: rgba(190, 228, 255, 0.85); text-shadow: 0 1px 2px #000; white-space: nowrap; }
+  .undo { width: 48px; height: 48px; border-radius: 50%; background: var(--tile-bg); border: 2px solid var(--edge); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; line-height: 1; }
+  .arcbg { border-radius: 100% 0 0 0; background: radial-gradient(circle at 100% 100%, rgba(8, 10, 14, 0.78) 0%, rgba(8, 10, 14, 0.62) 70%, rgba(8, 10, 14, 0) 100%); }
+  .hideReady { background: rgba(0, 0, 0, 0); }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+const q = new URLSearchParams(location.search);
+const OPT = q.get("opt") || "B";
+const W = Number(q.get("w") || 844);
+const H = W === 568 ? 320 : 390;
+const STATE = q.get("state") || "closed";
+const OPEN = STATE === "open";
+const stage = document.getElementById("stage");
+stage.style.width = W + "px";
+stage.style.height = H + "px";
+stage.style.backgroundImage = `url(base-${W}-clean.png)`;
+
+const T = 56, G = 8, INSET = 16;
+const R = W - INSET, B = H - INSET; // the safe-area corner (no insets in these shots)
+const CX = W / 2, CY = H / 2; // the survivor
+
+const HAMMER = '<svg viewBox="0 0 24 24" fill="none" stroke="#f4f4f2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5l5 5-2.2 2.2-5-5z" fill="#f4f4f2"/><path d="M12.3 6.7L9.5 3.9c1.6-1.2 4-1.4 5.7-.2"/><path d="M13.5 10.3l-8.8 8.8a1.6 1.6 0 01-2.3-2.3l8.8-8.8"/></svg>';
+const CROSS = '<svg viewBox="0 0 24 24" fill="none" stroke="#f4f4f2" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const CART = '<svg viewBox="0 0 24 24" fill="none" stroke="#e8b938" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2.5l2.2 10.5h10.6L20.5 7H7"/><circle cx="9" cy="19" r="1.6" fill="#e8b938"/><circle cx="17" cy="19" r="1.6" fill="#e8b938"/></svg>';
+const AGAIN = '<svg viewBox="0 0 24 24" fill="none" stroke="#f4f4f2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 11-2.4-5.7"/><path d="M20 4v5h-5"/></svg>';
+
+function el(cls, x, y, w, h, html) {
+  const d = document.createElement("div");
+  d.className = "abs " + cls;
+  Object.assign(d.style, { left: x + "px", top: y + "px" });
+  if (w != null) d.style.width = w + "px";
+  if (h != null) d.style.height = h + "px";
+  if (html) d.innerHTML = html;
+  stage.appendChild(d);
+  return d;
+}
+const tile = (id, x, y, size = T) => { const d = el("tile img", x, y, size, size); d.style.backgroundImage = `url(tile-${id}.png)`; return d; };
+const buildBtn = (x, y, badge) => {
+  el("btn", x, y, T, T, `${HAMMER}<span class="lbl">Build</span>`);
+  if (badge) el("badge", x + T - 22, y - 9, null, null, badge);
+};
+const closeBtn = (x, y) => el("btn", x, y, T, T, `${CROSS}<span class="lbl">Close</span>`);
+const quick = (x, y) => { tile("wood_barricade", x, y); el("again", x - 6, y - 6, null, null, AGAIN); };
+const shopChip = (x, y, d = 48) => el("btn round shopchip", x, y, d, d, CART.replace("<svg", '<svg style="width:24px;height:24px"'));
+const undo = (x, y) => el("undo", x, y, null, null, "↶");
+const count = (rightX, bottomY, text) => { const d = el("count", 0, 0, null, null, text); d.style.left = ""; d.style.right = (W - rightX) + "px"; d.style.top = (bottomY - 18) + "px"; };
+function zone() {
+  const r = 48;
+  el("zone", CX - r, CY - r, 2 * r, 2 * r);
+  el("zonelbl", CX - 40, CY + r + 2, null, null, "survivor 48 px");
+}
+// Seven shop types today (shopBuildings with unlocks=all): balance order.
+const TYPES = ["wood_barricade", "auto_turret", "spike_trap", "mine", "floodlight", "med_station", "bear_trap"];
+
+const buildX = R - T, buildY = B - T;
+const quickX = buildX - G - T, quickY = buildY;
+
+function gridPanel() {
+  // 3 × 3 cells over the corner, the bottom-right cell = Close on the Build button's own spot (same layout on every phone).
+  const left = R - 3 * T - 2 * G, top = B - 3 * T - 2 * G;
+  const cardTop = top - 8 - 24;
+  el("card", left - 8, cardTop, 3 * T + 2 * G + 16, B - cardTop + 8, `<div class="cardhead" style="padding:7px 10px 0 10px"><span>Build</span><span>1/6</span></div>`);
+  const cells = [...TYPES, "shop"];
+  for (let i = 0; i < 8; i++) {
+    const c = i % 3, r = Math.floor(i / 3);
+    tile(cells[i], left + c * (T + G), top + r * (T + G));
+  }
+  closeBtn(buildX, buildY);
+}
+
+if (OPT === "A") {
+  if (!OPEN) {
+    buildBtn(buildX, buildY);
+    quick(quickX, quickY);
+    count(R, buildY - 4, "1/6");
+    undo(quickX + 4, quickY - 12 - 48);
+  } else { gridPanel(); zone(); }
+} else if (OPT === "B") {
+  if (!OPEN) {
+    buildBtn(buildX, buildY, "1/6");
+    quick(quickX, quickY);
+    shopChip(buildX + 4, buildY - 12 - 48);
+    undo(quickX + 4, quickY - 12 - 48);
+  } else { gridPanel(); zone(); }
+} else if (OPT === "C") {
+  if (!OPEN) {
+    buildBtn(buildX, buildY, "1/6");
+    quick(quickX, quickY);
+    shopChip(quickX - 12 - 48, quickY + 4);
+    undo(quickX + 4, quickY - 12 - 48);
+  } else {
+    // A one-row shelf along the bottom edge: 7 types + Shop + Close; Ready is hidden while it is open.
+    const n = 9;
+    const cell = W === 568 ? 52 : 56, gap = W === 568 ? 6 : 8;
+    const width = n * cell + (n - 1) * gap;
+    const left = R - width, top = B - cell;
+    const shelf = el("card", left - 8, top - 8 - 24, width + 16, cell + 16 + 24, `<div class="cardhead" style="padding:7px 10px 0 10px"><span>Build</span><span>1/6</span></div>`);
+    shelf.style.background = "rgba(8, 10, 14, 0.94)"; // Ready is hidden while the shelf is open (the shot still has it under the shelf)
+    const cells = [...TYPES, "shop"];
+    for (let i = 0; i < 8; i++) tile(cells[i], left + i * (cell + gap), top, cell);
+    const c = el("btn", R - cell, top, cell, cell, `${CROSS}<span class="lbl">Close</span>`);
+    void c;
+    zone();
+  }
+} else if (OPT === "D") {
+  const bcx = buildX + T / 2, bcy = buildY + T / 2;
+  if (!OPEN) {
+    buildBtn(buildX, buildY);
+    quick(quickX, quickY);
+    count(R, buildY - 4, "1/6");
+    undo(quickX + 4, quickY - 12 - 48);
+  } else {
+    // A thumb arc round the Build button: inner ring (3 at r 96) for the cheap, often-used ones; outer ring (5 at r 168).
+    const rOut = 168 + T / 2 + 10;
+    const bg = el("arcbg", bcx - rOut, bcy - rOut, rOut, rOut);
+    bg.style.background = `radial-gradient(circle ${rOut}px at 100% 100%, rgba(8,10,14,0.8) 0%, rgba(8,10,14,0.66) 78%, rgba(8,10,14,0) 100%)`;
+    const inner = ["wood_barricade", "spike_trap", "mine"];
+    const outer = ["bear_trap", "floodlight", "auto_turret", "med_station", "shop"];
+    const place = (ids, r) => ids.forEach((id, i) => {
+      const a = Math.PI * (1 - (0.5 * i) / (ids.length - 1)); // 180° (left) → 90° (up)
+      tile(id, bcx + r * Math.cos(a) - T / 2, bcy - r * Math.sin(a) - T / 2);
+    });
+    place(inner, 96);
+    place(outer, 168);
+    closeBtn(buildX, buildY);
+    el("count", buildX + 4, buildY - 22, null, null, "1/6");
+    zone();
+  }
+}
+</script>
+</body>
+</html>

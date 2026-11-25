@@ -138,6 +138,7 @@ Still required: every medium/high fix and every behaviour-changing fix gets a re
 5. **Asset-review session** (designer's own; branch `claude/dazzling-meitner-zhu5p0`; photoreal props/characters, boss slam/lock/P1 HUD): the designer told it (2026-11-25 night) to put the photoreal "things you build" in the game autonomously, in 3 steps: (1) merge master + traps/floodlights/med station relit atlas + animation layers, (2) barricades drawn STANDING (2 × 1 m frames, one picture per rotation, random variant, y-sorted depth with characters), (3) automatic corner pieces. Files: render/city/buildingsAtlas.ts, render/BuildingView.ts, placement ghost + build-bar icons (HudScene), gallery/collect.ts; no shared/server/sim change. It pushes each step to master itself after a fresh-agent review + full gate on the current master. **Overnight run: expect these pushes; merge master often, especially before touching HudScene / BuildingView / the shop card.**
 6. **Controller support** idea forged (branch `claude/lucid-lamport-r1st1y`, `_bmad-output/forge/controller-support/`) — not planned yet.
 7. **Name:** working title still "topdown-shooter".
+8. **Build button (hybrid) — pick a layout (Decision BU-1, A/B/C/D; recommended B)** on `docs/art/build-ui/index.html`, and answer BU-3 (1–2 unlocked types: no Build button?) and BU-5 (quick tile before the first placement). Story `10-10-build-button` (Epic 10) is `backlog` until then.
 
 ## 6. Message for Hermes (VPS go-live, after `master` has the Story 2.2 review fixes)
 
