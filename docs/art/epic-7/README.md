@@ -98,3 +98,35 @@ The designer asked for three bolder, genuinely different concepts. Same content 
 Hooks added for these (`content.js`): `T.adjust(L)` lets a theme move/shrink the panels (bezels, ticker); `T.live(...)`
 draws a moving backdrop under a transparent base layer (PR4's city, PR6's drone feed); `T.shadow: false` for dark ink on paper.
 Image captures total 6.8 MB for six directions (section shots at JPEG 52); each reveal WebM ≤ 1.8 MB.
+
+## Premium round 2: the evac cockpit, pushed further (`premium-rewards-2.html`)
+
+Designer on round 1b: "The cockpit idea is good, but we don't really see it… all the elements inside the box, and even
+the box, are still very simple." Round 2 develops only the evac cockpit, in three lights. Layout and row order stay as
+approved; the cockpit frames them and every readable line and button stays inside the 568 × 320 safe area (gauges,
+lamps, switches, pillars and the glove sit in the margins as decoration).
+
+| Code | Variant | Captures |
+| --- | --- | --- |
+| **PC1** (favourite) | Day-break, warm: the sun breaks the horizon, golden light, dust on the canopy, flare | `premium/pc1-hero-1136x640.jpg`, `-hero-1600x900.jpg`, `-reveal-at-2.9s.jpg`, `-section.jpg`, `-reveal.webm` |
+| PC2 | Rain + condensation: overcast dawn, beads refracting the light, drops running down, fogged edges | `premium/pc2-*` |
+| PC3 | Blue hour, instrument lighting: last stars, the city burning below, amber floodlit panel (fits DW2 / endless) | `premium/pc3-*` |
+
+What changed vs PR4:
+- The world is a perspective ground plane (the real Downtown bake, repeated, mip-mapped, with fires and smoke) under
+  a dawn sky and horizon, with low clouds and haze; it banks, climbs and moves forward, with slight vibration.
+- Canopy bow, corner pillars and a centre post; the pilot's glove on the collective and the out-of-focus helmet edge;
+  a rotor-blade shadow sweeps across everything.
+- A painted, worn instrument panel (Dzus fasteners, stencils) with live gauges: an attitude indicator that tilts with
+  the bank, an altimeter that climbs, torque, a blinking master caution, toggle switches.
+- MFD set into the panel: thick bezel, screws, rubber push buttons with legends, pixel grid, scanlines, glare.
+- HUD combiner: a tilted glass plate on a frame and mount arms, with green coating reflections, amber projection
+  with a double image, and heading-tape ticks.
+- Elements with material: Back to lobby and Save my progress are backlit rubber keys in screwed housings (legend
+  wear, LED); Wear it is an illuminated push-button; Supplies is a 7-segment LED counter; Rookie ×2 is a stamped,
+  riveted placard; items are relit with a port of `photoreal-2/src/relight.ts` (52–58 px) inside targeting reticles
+  that rotate and lock on, painted in by a scan line.
+
+Hero captures are the phone frames at deviceScaleFactor 2 without the safe-edge hatching; the page also shows the
+568 × 320 frame at 2× (rendered at 2× resolution). Rebuild: `node docs/art/epic-7/premium-src/build.mjs` (writes both
+pages); captures: `node docs/art/epic-7/premium-src/shots.cjs PC1 --page=premium-rewards-2.html --frames=<scratch>`.

@@ -38,7 +38,7 @@ function rowsFor(state, L) {
   return R;
 }
 function rowsRaw(state, L) {
-  const S = L.small;
+  const S = L.small, IS = L.itemS || 48;
   const R = [];
   const add = (type, h, d = {}) => R.push({ type, h, ...d });
   if (state === 'saving') { add('status', 120, { kind: 'saving' }); return R; }
@@ -50,15 +50,15 @@ function rowsRaw(state, L) {
   add('supplies', 44 + ledger.length * (S ? 16 : 18) + 4 + 22 + (mate ? 0 : 26), { amount: mate ? 250 : 500, base: 250, rookie: !mate, total: mate ? 1990 : 740, ledger });
   add('div', 12);
   if (state === 'collector') {
-    add('item', 56, { slot: 'head', id: 'riot', tag: 'New item', name: 'Riot helmet', sub: 'first extraction', wear: true, isNew: true });
-    add('collector', 56);
+    add('item', IS + 8, { slot: 'head', id: 'riot', tag: 'New item', name: 'Riot helmet', sub: 'first extraction', wear: true, isNew: true });
+    add('collector', IS + 8);
   } else if (mate) {
-    add('item', 56, { slot: 'head', id: 'gas', tag: 'New item', name: 'Gas mask', sub: 'Behemoth killed', wear: true, isNew: true });
-    add('mate', 50, { slot: 'head', id: 'cone', who: 'Mo', whoSlot: 0, name: 'Traffic cone' });
+    add('item', IS + 8, { slot: 'head', id: 'gas', tag: 'New item', name: 'Gas mask', sub: 'Behemoth killed', wear: true, isNew: true });
+    add('mate', IS + 2, { slot: 'head', id: 'cone', who: 'Mo', whoSlot: 0, name: 'Traffic cone' });
   } else {
-    add('item', 56, { slot: 'head', id: 'riot', tag: 'New item', name: 'Riot helmet', sub: 'first extraction', wear: true, isNew: true });
-    add('item', 56, { slot: 'head', id: 'gas', tag: 'New item', name: 'Gas mask', sub: 'Behemoth killed', wear: true, isNew: true });
-    add('item', 56, { slot: 'head', id: 'cone', tag: 'Found in wave 6', name: 'Traffic cone', sub: 'surprise bag', wear: true, isNew: true });
+    add('item', IS + 8, { slot: 'head', id: 'riot', tag: 'New item', name: 'Riot helmet', sub: 'first extraction', wear: true, isNew: true });
+    add('item', IS + 8, { slot: 'head', id: 'gas', tag: 'New item', name: 'Gas mask', sub: 'Behemoth killed', wear: true, isNew: true });
+    add('item', IS + 8, { slot: 'head', id: 'cone', tag: 'Found in wave 6', name: 'Traffic cone', sub: 'surprise bag', wear: true, isNew: true });
   }
   add('div', 12);
   if (!mate) add('line', 54, { icon: 'gl', tag: 'You used', name: 'Grenade Launcher', price: 500 });
@@ -126,26 +126,28 @@ function leftColumn(g, T, L, state) {
   TEAM.forEach((p, i) => { T.player(g, x + px, yy, w - px * 2, L.rowH, p, i, cols, L); yy += L.rowH + (S ? 2 : 4); });
   const bh = 44, by = y + h - bh - (S ? 6 : 10);
   T.btn(g, x + px, by, S ? 148 : 170, bh, 'Back to lobby', 'primary', 0, L);
-  if (!S) text(g, 'Run seed 2207', x + w - px, by + bh / 2 + 5, { px: 14, wt: 500, col: T.col.mute, shadow: T.shadow !== false, align: 'right' });
+  if (!S) text(g, 'Run seed 2207', x + w - px, by + bh / 2 + 5, { px: 14, wt: 500, col: T.col.mute, shadow: T.shadow !== false, glow: T.textGlow || null, align: 'right' });
 }
 
 /** Draws one screen at time t. opt.reveal = play the timeline; otherwise everything has landed (idle effects only). */
 function renderScreen(g, T, L, state, t, opt = {}) {
   const reveal = !!opt.reveal;
-  const rows = cached(`rows-${L.w}-${state}`, () => timeline(rowsFor(state, L)));
+  const rows = cached(`rows-${L.w}-${L.itemS || 48}-${state}`, () => timeline(rowsFor(state, L)));
   const tt = reveal ? t : 99; // timeline time (99 = everything landed)
   if (T.live) T.live(g, L, state, reveal ? t : opt.idle || 0, !reveal && opt.idle == null);
   g.drawImage(baseLayer(T, L, state), 0, 0, L.w, L.h);
   const V = L.view;
   const scroll = opt.scroll != null ? opt.scroll : reveal ? scrollAt(rows, L, tt) : 0;
   g.save(); g.beginPath(); g.rect(V.x - 6, V.y - 4, V.w + 12, V.h + 4); g.clip();
-  for (const r of rows) {
+  const pass = () => { for (const r of rows) {
     const yy = V.y + r.y - scroll;
     if (yy > V.y + V.h + 4 || yy + r.h < V.y - 6) continue;
     const lt = tt - (r.at || 0);
     if (lt < 0) continue;
     drawRow(g, T, L, r, V.x, yy, V.w, lt, tt, reveal ? t : opt.idle || 0, !reveal && opt.idle == null);
-  }
+  } };
+  if (T.ghost) { g.save(); g.globalAlpha = T.ghost; g.translate(1.8, 1.2); pass(); g.restore(); } // HUD double image
+  pass();
   g.restore();
   // scroll cue: a fade + a thin rail when more is below
   const max = Math.max(0, rows.total - V.h);
@@ -156,7 +158,7 @@ function renderScreen(g, T, L, state, t, opt = {}) {
 function drawRow(g, T, L, r, x, y, w, lt, tt, clock, still) {
   const S = L.small, A = T.col;
   const appear = ease(lt / 0.35);
-  g.save(); g.globalAlpha = appear;
+  g.save(); g.globalAlpha *= appear;
   const slide = (1 - appear) * 10;
   switch (r.type) {
     case 'div': T.divider(g, x, y + r.h / 2, w * ease(lt / 0.5), L); break;
@@ -167,7 +169,7 @@ function drawRow(g, T, L, r, x, y, w, lt, tt, clock, still) {
       crate(g, x + 1, y + 4, cs, { glow: true });
       const nx = x + cs + 8;
       const nw = T.number(g, nx, y + (S ? 34 : 36), v, S ? 34 : 38, tt, still, L);
-      text(g, 'Supplies', nx + nw + 6, y + (S ? 32 : 34), { px: S ? 16 : 18, wt: 600, col: A.accentText, shadow: T.shadow !== false, ls: 1 });
+      text(g, 'Supplies', nx + nw + 6, y + (S ? 32 : 34), { px: S ? 16 : 18, wt: 600, col: A.accentText, shadow: T.shadow !== false, glow: T.textGlow || null, ls: 1 });
       let ly = y + 44;
       const lh = S ? 16 : 18;
       r.ledger.forEach(([lab, val], i) => {
@@ -190,29 +192,30 @@ function drawRow(g, T, L, r, x, y, w, lt, tt, clock, still) {
       break;
     }
     case 'item': case 'mate': case 'collector': {
-      const s = r.type === 'mate' ? (S ? 42 : 44) : 48;
+      const IS = L.itemS || 48, s = r.type === 'mate' ? IS - 6 : IS;
       const a = itemAnim(lt, clock, still, r.type !== 'mate' && r.isNew !== false);
       T.well(g, x, y + (r.h - s) / 2, s, a, L);
       if (r.type === 'collector') bagGlyph(g, x + s * 0.18, y + (r.h - s) / 2 + s * 0.16, s * 0.64);
       else T.item(g, r.slot, r.id, x, y + (r.h - s) / 2, s, a, L);
       T.wellTop(g, x, y + (r.h - s) / 2, s, a, L);
-      const tx = x + s + 10, btnW = r.wear ? (S ? 72 : 84) : 0;
+      const tx = x + s + 10, btnW = r.wear ? (S ? 72 : 84) : 0, oy = Math.max(0, (r.h - 56) / 2);
+      y += oy;
       const tWide = w - (tx - x) - btnW - 6;
       const ta = ease((lt - 0.25) / 0.35);
       g.save(); g.globalAlpha *= ta; g.translate(slide * 0 + (1 - ta) * 12, 0);
       if (r.type === 'mate') {
         T.tag(g, tx, y + 8, `${r.who} found`, 'slot', a, L, r.whoSlot);
-        text(g, r.name, tx, y + 42, { px: 17, wt: 600, col: A.name, shadow: T.shadow !== false });
+        text(g, r.name, tx, y + 42, { px: 17, wt: 600, col: A.name, shadow: T.shadow !== false, glow: T.textGlow || null });
       } else if (r.type === 'collector') {
         T.tag(g, tx, y + 6, 'Collector', 'white', a, L);
-        wrap(g, 'You have every surprise item', tWide + btnW, 15, 500).slice(0, 2).forEach((ln, i) => text(g, ln, tx, y + 38 + i * 17, { px: 15, wt: 500, col: A.name, shadow: T.shadow !== false }));
+        wrap(g, 'You have every surprise item', tWide + btnW, 15, 500).slice(0, 2).forEach((ln, i) => text(g, ln, tx, y + 38 + i * 17, { px: 15, wt: 500, col: A.name, shadow: T.shadow !== false, glow: T.textGlow || null }));
       } else {
         T.tag(g, tx, y + 4, r.tag, r.tag === 'New item' ? 'amber' : 'white', a, L);
-        text(g, r.name, tx, y + 38, { px: 17, wt: 600, col: A.name, shadow: T.shadow !== false, maxW: tWide });
-        text(g, r.sub, tx, y + 53, { px: 14, wt: 500, col: A.sub, shadow: T.shadow !== false, maxW: tWide });
+        text(g, r.name, tx, y + 38, { px: 17, wt: 600, col: A.name, shadow: T.shadow !== false, glow: T.textGlow || null, maxW: tWide });
+        text(g, r.sub, tx, y + 53, { px: 14, wt: 500, col: A.sub, shadow: T.shadow !== false, glow: T.textGlow || null, maxW: tWide });
       }
       g.restore();
-      if (r.wear) { const ba = ease((lt - 0.6) / 0.3); if (ba > 0) { g.save(); g.globalAlpha *= ba; T.btn(g, x + w - btnW, y + (r.h - 44) / 2, btnW, 44, 'Wear it', 'amber', a.pulse, L); g.restore(); } }
+      if (r.wear) { const ba = ease((lt - 0.6) / 0.3); if (ba > 0) { g.save(); g.globalAlpha *= ba; T.btn(g, x + w - btnW, y - oy + (r.h - 44) / 2, btnW, 44, 'Wear it', 'amber', a.pulse, L); g.restore(); } }
       break;
     }
     case 'line': {
@@ -223,14 +226,14 @@ function drawRow(g, T, L, r, x, y, w, lt, tt, clock, still) {
       if (r.icon === 'd2') district2(g, x + 2, iy + 2, iw - 4, ih - 4);
       const tx = x + iw + 10;
       T.tag(g, tx, y + 4, r.tag, r.tag === 'Unlocked' ? 'white' : 'steel', null, L);
-      text(g, r.name, tx, y + 38, { px: 17, wt: 600, col: A.name, shadow: T.shadow !== false, maxW: w - iw - 14 });
+      text(g, r.name, tx, y + 38, { px: 17, wt: 600, col: A.name, shadow: T.shadow !== false, glow: T.textGlow || null, maxW: w - iw - 14 });
       if (r.price) {
         const pre = 'Unlock it for ';
-        text(g, pre, tx, y + 53, { px: 14, wt: 500, col: A.sub, shadow: T.shadow !== false });
+        text(g, pre, tx, y + 53, { px: 14, wt: 500, col: A.sub, shadow: T.shadow !== false, glow: T.textGlow || null });
         const pw = tw(g, pre, 14, 500);
         crate(g, tx + pw, y + 41, 14);
-        text(g, fmt(r.price), tx + pw + 16, y + 53, { px: 14, wt: 600, col: A.accentText, shadow: T.shadow !== false });
-      } else text(g, r.sub, tx, y + 53, { px: 14, wt: 500, col: A.sub, shadow: T.shadow !== false });
+        text(g, fmt(r.price), tx + pw + 16, y + 53, { px: 14, wt: 600, col: A.accentText, shadow: T.shadow !== false, glow: T.textGlow || null });
+      } else text(g, r.sub, tx, y + 53, { px: 14, wt: 500, col: A.sub, shadow: T.shadow !== false, glow: T.textGlow || null });
       break;
     }
     case 'nudge': {
@@ -239,7 +242,7 @@ function drawRow(g, T, L, r, x, y, w, lt, tt, clock, still) {
       const bw = S ? 118 : 160, tx = x + 10;
       const lines = wrap(g, 'Keep your Supplies and items on any phone.', w - bw - 26, 14, 500);
       const ly = y + r.h / 2 - (lines.length * 16) / 2 + 12;
-      lines.forEach((ln, i) => text(g, ln, tx, ly + i * 16, { px: 14, wt: 500, col: A.name, shadow: T.shadow !== false }));
+      lines.forEach((ln, i) => text(g, ln, tx, ly + i * 16, { px: 14, wt: 500, col: A.name, shadow: T.shadow !== false, glow: T.textGlow || null }));
       T.btn(g, x + w - bw - 8, y + (r.h - 44) / 2, bw, 44, 'Save my progress', 'steel', 0, L);
       break;
     }

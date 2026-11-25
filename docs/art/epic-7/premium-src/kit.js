@@ -8,7 +8,7 @@ const TAU = Math.PI * 2;
 const QS = new URLSearchParams(location.search);
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STATIC = QS.has('static') || REDUCED;
-const DPR = Math.min(2, Math.max(1, Math.round(devicePixelRatio || 1)));
+let DPR = Math.min(2, Math.max(1, Math.round(devicePixelRatio || 1)));
 const FONT = "'Oswald','Arial Narrow',Impact,sans-serif";
 const SLOT = G7.SLOT; // blue, orange, green, purple (the game's slot colours)
 
@@ -38,7 +38,7 @@ function mk(w, h, k = DPR) {
   return [c, g];
 }
 const CACHE = new Map();
-function cached(key, fn) { if (!CACHE.has(key)) CACHE.set(key, fn()); return CACHE.get(key); }
+function cached(key, fn) { key = DPR + ':' + key; if (!CACHE.has(key)) CACHE.set(key, fn()); return CACHE.get(key); }
 
 // ---------- noise textures (tileable, rendered once at 256²) ----------
 function tileNoise(n, cells, seed) {

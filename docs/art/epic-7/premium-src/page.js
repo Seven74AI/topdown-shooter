@@ -40,7 +40,7 @@ function frame(parent, T, w, h, state, mode, label, note, crop = false) {
   if (!crop && mode === 'still') wireScroll(f, box);
   return f;
 }
-function maxScroll(f) { const rows = cached(`rows-${f.L.w}-${f.state}`, () => timeline(rowsFor(f.state, f.L))); return Math.max(0, rows.total - f.L.view.h); }
+function maxScroll(f) { const rows = cached(`rows-${f.L.w}-${f.L.itemS || 48}-${f.state}`, () => timeline(rowsFor(f.state, f.L))); return Math.max(0, rows.total - f.L.view.h); }
 function wireScroll(f, box) {
   const toCss = (e) => { const r = box.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * f.L.w, y: (e.clientY - r.top) / r.height * f.L.h }; };
   const inPanel = (p) => p.x > f.L.right.x && p.x < f.L.right.x + f.L.right.w && p.y > f.L.right.y && p.y < f.L.right.y + f.L.right.h;
@@ -100,7 +100,7 @@ function buildPage() {
   for (const T of THEMES) {
     const I = INFO[T.code];
     if (I.round === 2 && !round2) { round2 = true; const h = el('section', null, '<h2 style="font-size:34px">Round 1b · three more, outside the box</h2><p class="diff">The designer asked for three bolder concepts. Same content and row order, same colour rule; the screen becomes something in the world. <b style="color:var(--amber)">My favourite: PR4</b> — the results live inside the evac helicopter, the city really falls away behind the HUD glass, and it keeps the amber HUD language of PR1 / P1, so the two can merge.</p>'); h.id = 's-round2'; MAIN.appendChild(h); toc.appendChild(el('a', null, 'Round 1b')).href = '#s-round2'; }
-    const s = el('section'); s.id = 's-' + T.code; MAIN.appendChild(s);
+    const s = el('section'); s.id = 's-' + T.code; s.dataset.code = T.code; MAIN.appendChild(s);
     s.appendChild(el('h2', null, `<span class="code">${T.code}</span>${I.name}${I.rec ? '<span class="tag">recommended</span>' : ''}`));
     s.appendChild(el('p', 'diff', I.diff));
     toc.appendChild(el('a', null, `${T.code} · ${I.name.split(' · ')[0]}`)).href = '#s-' + T.code;
