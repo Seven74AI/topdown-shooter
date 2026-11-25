@@ -3,7 +3,7 @@ baseline_commit: 827ea4519356d752dee65d26cb932cffbdbc4ae4
 ---
 # Story 7.2: Earn and bank Supplies
 
-Status: review
+Status: done
 
 <!-- Epic 7 progression story 2 of 7. Story file 2026-11-24 (gds-create-story, non-interactive) from the real code on master 7385b47. Designer decisions D1–D3 (earnings, who counts, rookie lift) are rules here. Epic 6 stories 6.9 (supply drop) and 6.11+6.12 (vote, endless) are not built yet: their hooks are "check at build time". -->
 
