@@ -175,3 +175,27 @@ describe("Story 8.1 re-review RR2-M2: B15's 3 s count from the DROP, not from th
     expect([p1.x, p1.y, p1.protectTicks]).toEqual([40, 30, 0]);
   });
 });
+
+describe("Story 8.1 re-review RR3-M1: a quiet hold counts B15's 3 s from the last input, not from the vanish", () => {
+  it("quiet 3 s (held), back 1 s later: the wave's one teleport + protection", () => {
+    const c = new RunController({ balance, seed: 5, players: TWO, pauseWaves: true, onQuietHold: () => undefined });
+    wave(c);
+    const p1 = c.world.players.get("p1") as NonNullable<ReturnType<typeof c.world.players.get>>;
+    p1.x = 40;
+    p1.y = 30;
+    p1.prevX = 40;
+    p1.prevY = 30;
+    let t = 0;
+    while (!c.isHeld("p1")) {
+      c.queueInput("p0", input(++t));
+      c.tick();
+    }
+    for (let i = 0; i < 20; i++) {
+      c.queueInput("p0", input(++t));
+      c.tick();
+    }
+    expect(c.returnPlayer("p1")).toBe(true);
+    expect(p1.protectTicks).toBe(balance.player.returnProtectTicks);
+    expect(Math.hypot(p1.x - 40, p1.y - 30)).toBeGreaterThan(5); // next to Ana
+  });
+});

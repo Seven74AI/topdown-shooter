@@ -709,7 +709,8 @@ export class RunController {
     for (let i = this.order.length - 1; i >= 0; i--) {
       const s = this.order[i] as PlayerSlot;
       if (s.quietTicks < QUIET_HOLD_TICKS || s.dropTicks > 0) continue;
-      if (this.holdPlayer(s.playerId)) this.onQuietHold(s.playerId);
+      // RR3-M1: like a drop, the quiet body already stood its 3 s: B15's "away" counts from the last input.
+      if (this.holdPlayer(s.playerId, s.quietTicks)) this.onQuietHold(s.playerId);
     }
   }
 

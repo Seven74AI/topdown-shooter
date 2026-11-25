@@ -56,9 +56,9 @@ describe("Story 8.1 the 8 s cut (AC 11)", () => {
     const info = vi.spyOn(room.log, "info");
     const logged = (msg: string) => info.mock.calls.filter((c) => c[1] === msg).map((c) => c[0] as Record<string, unknown>);
     try {
-      // Flake fix (re-review 2: failed twice at load ≈ 4.8): every wait is on a condition with room to spare;
-      // the AC's 10 s bound below is scaled by the machine load (exactly 10 s at load ≤ 2).
-      const loadSlack = Math.max(1, (loadavg()[0] ?? 0) / 2);
+      // Flake fix (re-review 2: failed twice at load ≈ 4.8): every wait is on a condition with room to spare,
+      // scaled by the machine load (capped ×2, RR3-L1); the AC's 10 s bound itself stays fixed.
+      const loadSlack = Math.min(2, Math.max(1, (loadavg()[0] ?? 0) / 2));
       expect(await until(() => room.members.size === 4 && [...room.state.players.values()].every((p) => p.ready), 30_000)).toBe(true);
       host.room.send(C2S.RUN_START, {});
       expect(await until(() => room.state.phase === "wave", 60_000)).toBe(true);
@@ -83,7 +83,7 @@ describe("Story 8.1 the 8 s cut (AC 11)", () => {
       const back = await until(() => cutBot.link === "ok" && world.players.has(id), 15_000 * loadSlack);
       const backAfterMs = performance.now() - cutEndAt;
       expect(back).toBe(true);
-      expect(backAfterMs).toBeLessThanOrEqual(10_000 * loadSlack);
+      expect(backAfterMs).toBeLessThanOrEqual(10_000);
       expect(logged("player_held").some((l) => l.playerId === id)).toBe(true);
       expect(logged("player_returned").some((l) => l.playerId === id)).toBe(true);
       expect(cutBot.reconnects.length).toBeGreaterThanOrEqual(1);

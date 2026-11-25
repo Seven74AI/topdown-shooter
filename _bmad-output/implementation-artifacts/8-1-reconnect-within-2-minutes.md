@@ -542,6 +542,60 @@ Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scop
 
 Gate (re-review 2, 2026-11-25 07:34–07:41 UTC, after merging origin/master — already up to date): `npm run typecheck && npm run lint && npm test && npm run build` → EXIT 0; 429 test files passed / 1 skipped, 3896 tests passed / 3 skipped; build ok. Load 0.71 at start, 4.30 at end.
 
+### Re-review (narrow) 3
+
+Reviewer: re-reviewer child session (autonomous overnight run), 2026-11-25. Scope: ONLY f587c26 (RR2-M1, RR2-M2, B18 `allowProtect`, B19 doc, the two flake hardenings). Tree: `rereview3-8-1` = `origin/story-8-1` 24e3aa8 merged with `origin/master` 8248be0 — **no conflicts**. Checks: `npm ci`; `npm run typecheck` green; touched tests (`RunRoom.reconnect`, `RunController.hold`, `hold`, `NetSimHost.reconnect`): 4 files, 69 tests green; `tools/bots/cut.test.ts` green (`backAfterCutEndMs` 303, `loadSlack` 1, load ≈ 0.3). Probes (controller + live Colyseus room) kept, not run by the gate, in `_bmad-output/implementation-artifacts/probes/8-1-rr3/*.probe.ts.txt`. (Re-review 2's `probes/8-1-rr2/` was never committed: RR3-N2.)
+
+**Verdict: FINDINGS — 0 high, 1 medium, 1 low, 2 nit.** RR2-M1, RR2-M2 and B18 do what they say under every attempt below; no early expiry, no carry-over, no new escape. The medium is RR2-M2's twin on the quiet path (pre-existing, not closed by the fix).
+
+| ID | Severity | Where | Finding | Minimal fix |
+| --- | --- | --- | --- | --- |
+| RR3-M1 | medium (pre-existing; RR2-M2's twin) | `apps/server/src/run/RunController.ts:712` (`holdPlayer(s.playerId)` in the quiet loop, no `awayTicks`) × `packages/shared/src/player/hold.ts:89` (`longHold`) | **D1's quiet hold still counts B15's 3 s from the vanish.** A quiet phone's body stands 3 s (60 ticks, hittable, a target) exactly like a B16 drop, but the quiet vanish holds with `atTick = world.tick`, so its "away ≥ 3 s" needs ≥ 6 s of silence. Probes: controller — silent 61 ticks → held, inputs 20 ticks later (4 s silent) → **in place, protect 0**; live room (teammate sending) — quiet hold, input 1 s later → `{moved 0, prot 0}`, while a DROP back at the same 4 s now teleports + protects 40. RR2-M2's argument ("an honest phone back in 3–6 s lands, unprotected, where its body stood while the horde converged") applies unchanged to an app switch / tunnel. Not an escape either way. The room test "a connected player with no input for 3 s … returns it next to a teammate" asserts `protectTicks` 0, contradicting its own title. | `holdPlayer(s.playerId, s.quietTicks)` (or `QUIET_HOLD_TICKS`) in `holdQuietPlayers`'s quiet loop; flip that room test to expect the wave's one protected return. Or record in B15 that the quiet path is intentionally counted from the vanish. |
+| RR3-L1 | low (test strength) | `tools/bots/cut.test.ts:61,83,86` (`loadSlack = max(1, load/2)`) | **The AC 11 bound (back ≤ 10 s after the cut) has no ceiling under load.** Load 4 → 20 s, 8 → 40 s, 16 → 80 s (the `until` wait scales too: 15 s × slack). Measured here: back **303 ms** after the cut ends — the real margin is ~30×, so the 10 s bound itself was never the flaky part; scaling it mostly lets a real regression (e.g. a reconnect that waits out a 15–20 s backoff) pass on a loaded CI box. A tick bound doesn't fit (the SDK's reconnect backoff is wall-clock; under load the server's ticks stretch too and would hide the same regression). | Keep the slack on the waits (ready / ack / `until`) only and assert the AC's 10 s unscaled; or cap it (`min(2, …)`). |
+| RR3-N1 | nit (test gap) | `apps/server/src/rooms/RunRoom.ts:1018` (`onDropHold`'s end time) | **Nothing pins "the 120 s still run from the drop" in `heldUntilTick`.** Mutation: end time from the vanish (`w.tick + holdS·20`) → all 19 `RunRoom.reconnect` tests pass; teammates' chips would read 3 s more than the seat really has (the seat still expires at drop + holdS: Colyseus window). Probe R1 pins it: `heldUntilTick − dropTick` = 121 for holdS 6 (expected 120 ± 1), seat left 6016 ms after the drop. | One assertion in the drop test: `heldUntilTick − tickAtDrop ≈ holdS × 20`. |
+| RR3-N2 | nit (record) | this file, re-review 2 header | Re-review 2 says its probes are kept in `probes/8-1-rr2/*.probe.ts.txt`; that directory was never committed (absent on `story-8-1` and master). | Accept; re-review 3's probes are committed under `probes/8-1-rr3/`. |
+
+#### Attempts
+
+| # | Area | Attempt | Result |
+| --- | --- | --- | --- |
+| 1 | RR2-M1 | live room: drop, sample teammate state every 100 ms while the body stands | 29 samples, `heldUntilTick` 0 in all; vanish after exactly 60 ticks; Ana's state gets `heldUntilTick` at the vanish ✔ |
+| 2 | RR2-M1 | end time at the vanish | `heldUntilTick − dropTick` = 121 (holdS 6 → 120): from the drop ✔; seat left 6016 ms after the drop — **not 3 s early, not 3 s late** ✔ |
+| 3 | RR2-M1 | client mirrors (NetSimHost, Predictor, devThrottle) | one removal point (`NetSimHost.dropMissing` / `addMissing`, `heldUntilTick > 0`); the Predictor reads `host.world`, devThrottle wraps the room's patches: all follow the same field, body removed in the patch of the vanish ✔ |
+| 4 | RR2-M1 | downed dropping teammate (live) | Ana's view at +1 s: `heldUntilTick` 0, `status` downed, bleed-out 375 → body, ring and revive prompt drawn; vanish → held, `out` (F1) ✔ |
+| 5 | RR2-M2 | return at 2.9 s (58 ticks) | still dropping, `returnPlayer` false → `cancelDrop`, in place, protect 0 ✔ |
+| 6 | RR2-M2 | return on the vanish tick | away 61 ticks (60 credited + the step; same +1 convention as any hold), teleport + protect 40 ✔ |
+| 7 | RR2-M2 | return at 3.1 s / then a second ≥ 3 s drop at 4 s in the same wave | 1st teleport + protect 40; 2nd in place, protect 0 (B15 once per wave) ✔ |
+| 8 | RR2-M2 | carry-over: drop, back at 1 s, drop again, vanish | `dropTicks` restarts at 60 on the 2nd drop; away at its vanish 61 = 2nd drop only; a "0 s second drop" can't reach the hold without its own 3 s standing ✔ |
+| 9 | RR2-M2 | drop, wave ends at 1 s | held at once in build with away 21 (what it really stood) — a build return gets nothing anyway ✔ |
+| 10 | RR2-M2 | does backdating shorten the 120 s? | no: `atTick` only feeds `longHold`; the window is Colyseus's `allowReconnection(leftS)` from `hold.atMs` (the drop) and `heldUntilTick` from the drop (#2) ✔ |
+| 11 | D1 | quiet 3 s → held, inputs 1 s later (controller + live) | **in place, protect 0** → RR3-M1 |
+| 12 | B18 | `returnPlayer(id, false)` after a 4 s hold | in place, protect 0, `protectedReturnWave` not consumed (−1) ✔; room passes `!state.frozen` before `updateFreeze`, so the first back into a frozen World is unprotected; returns during the 3-2-1 too (still frozen) ✔ |
+| 13 | Flake | quiet-then-drop test now asserts the `allowReconnection` window | holds the D1 rule (mutation M6 caught) ✔ |
+| 14 | Flake | cut.test `loadSlack` | unbounded with load; real margin 303 ms vs 10 s → RR3-L1 |
+
+#### Mutations (each reverted; one per new test)
+
+| Mutation | Result |
+| --- | --- |
+| M1 `startHold` writes `heldUntilTick` at the drop (no `isDropping` guard) | room drop test fails ✔ |
+| M2 `holdPlayer(id, 0)` at the vanish (no backdating) | `RunController.hold` RR2-M2 "back 4 s" + room drop test fail ✔ |
+| M3 `returnPlayer` ignores `allowProtect` | room solo freeze test fails ✔ |
+| M4 mirror keeps held teammates (`> 1e9` in `dropMissing` + `addMissing`) | `NetSimHost` RR2-M1 test fails ✔ (a first try changing `dropMissing` only survived: `addMissing` re-adds — the test's two sides are both needed, fine) |
+| M5 `onDropHold` writes no `heldUntilTick` | room drop test fails ✔ |
+| M6 a drop after a quiet hold restarts the window (`allowReconnection(holdS)`) | quiet-then-drop test fails ✔ |
+| M7 `onDropHold` end time from the vanish (fresh holdS) | **all 19 room tests pass** → RR3-N1 |
+| cut.test | not mutated (a regression must exceed 10 s to show; argued in RR3-L1 instead) |
+
+### Re-review 3 fixes (2026-11-25, builder)
+
+| ID | Fix | Test |
+| --- | --- | --- |
+| RR3-M1 | The quiet loop holds with `holdPlayer(id, s.quietTicks)` (the drop path's RR2-M2 twin): B15's "away ≥ 3 s" counts from the last input, so a quiet phone back 1 s after the vanish gets the wave's one teleport + protection | `RunController.hold.test.ts` › "RR3-M1 … quiet 3 s (held), back 1 s later"; the room test "a connected player with no input for 3 s … next to a teammate" now expects `protectTicks > 0` (mutation: no `awayTicks` → both fail) |
+| RR3-L1 | `cut.test.ts`: the AC 11 10 s bound is fixed again; the load slack (`min(2, max(1, load/2))`) is on the condition waits only | `cut.test.ts` |
+| RR3-N1 | — (code already right) | `RunRoom.reconnect.test.ts` › drop test: `heldUntilTick − dropTick ≈ holdS × 20` (± 5 ticks); mutation "end from the vanish" fails it |
+| RR3-N2 | Re-review 3's probes committed under `probes/8-1-rr3/`. Re-review 2's `probes/8-1-rr2/` were the reviewer session's and are not in this container (not on any branch): noted, not recoverable here | — |
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev, decisions pending; Network pass ACs merged in).
@@ -552,3 +606,4 @@ Gate (re-review 2, 2026-11-25 07:34–07:41 UTC, after merging origin/master —
 - 2026-11-25: re-review 1 fixes RR1-M1, B16 (dropped body stays 3 s), B17 (accepted), B18 (solo: 3-2-1 replaces protection), N1–N4 (builder).
 - 2026-11-25: merged master with Story 8.10; 8.10 hooks wired (resetHordeStream / forgetClient) and the keyframe-after-reconnect test (8.1 landed second).
 - 2026-11-25: re-review 2 fixes RR2-M1, RR2-M2 (+ B18 kept via allowProtect), B19 recorded, two flaky tests hardened (builder).
+- 2026-11-25: re-review 3 fixes RR3-M1 (quiet hold backdated), RR3-L1 (cut.test 10 s bound fixed), RR3-N1 test, RR3-N2 probes (builder).

@@ -137,12 +137,16 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     reconnect(bo, false);
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("drop"));
+    const dropTick = w.tick;
     expect(w.players.has("p1")).toBe(true); // B16: the dropped body stands for 3 s first …
     // RR2-M1: … and teammates still see it (no heldUntilTick yet: their mirror keeps the body, no chip) …
     await sleep(300);
     expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBe(0);
     await vi.waitFor(() => expect(w.players.has("p1")).toBe(false), { timeout: 5000 }); // … then vanishes into the hold
     await vi.waitFor(() => expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBeGreaterThan(w.tick));
+    // RR3-N1: written at the vanish, but the 120 s still run from the DROP (not 3 s more from the vanish).
+    const until = (clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick ?? 0;
+    expect(Math.abs(until - dropTick - Math.round(room.holdS * 20))).toBeLessThanOrEqual(5);
     expect(lines("player_held")).toEqual([expect.objectContaining({ playerId: "p1", reason: "drop" })]);
     // Back with the SDK's token, on a fresh client object (what `client.reconnect(token)` does after a reload).
     const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
@@ -468,7 +472,8 @@ describe("Story 8.1 quiet player (AC 2, D1)", () => {
       expect(QUIET_HOLD_TICKS).toBe(60);
       (clients[1] as RunSdkRoom).send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 1 });
       await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
-      expect(w.players.get("p1")?.protectTicks).toBe(0); // B15: back within 3 s of the hold: in place, unprotected
+      // RR3-M1: 3 s quiet + back after the vanish = away > 3 s since the last input: the wave's one protected return.
+      expect(w.players.get("p1")?.protectTicks).toBeGreaterThan(0);
       expect(lines("player_returned")).toEqual([expect.objectContaining({ playerId: "p1", via: "input", reason: "quiet" })]);
     } finally {
       clearInterval(keepAlive);
