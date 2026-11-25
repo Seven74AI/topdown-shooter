@@ -7,6 +7,7 @@ import { announceSpawn } from "../zombies/brute";
 import { bossActive } from "../boss/bossState";
 import { bossPending } from "../boss/behemoth";
 import { stampedeRunnersAlive } from "../events/stampede";
+import { allRemainingHoldingSpitters } from "../zombies/spit";
 import { createSpawnPickState, pickSpawnPoint, type SpawnPickState } from "./spawnPick";
 import { ZOMBIE_STATE, ZOMBIE_TYPES, zombieTypeIndex, type ZombieTypeId } from "../zombies/zombieTypes";
 
@@ -447,7 +448,8 @@ export function updateWaves(world: World): boolean {
   }
 
   w.remaining = waveZombiesAlive(world) + w.queued;
-  if (!w.rushing && w.queued === 0 && w.remaining > 0 && w.remaining <= b.lastRushCount) {
+  // Spitter deadlock fix A (designer 2026-11-25): also at once when every one left is a Spitter holding its spot.
+  if (!w.rushing && w.queued === 0 && w.remaining > 0 && (w.remaining <= b.lastRushCount || allRemainingHoldingSpitters(world))) {
     w.rushing = true;
     const z = world.zombies;
     for (let i = 0; i < z.aliveCount; i++) {
