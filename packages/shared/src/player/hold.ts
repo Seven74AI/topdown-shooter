@@ -25,7 +25,7 @@ import { placeNextToTeammate } from "./downed";
  * records both (`replay/inputLog.ts`, kinds "hold" / "return"). Returns false for an unknown or
  * already held id.
  */
-export function holdPlayer(world: World, id: string): boolean {
+export function holdPlayer(world: World, id: string, awayTicks = 0): boolean {
   const p = world.players.get(id);
   if (!p) return false;
   clearBossThreatSlot(world, bossSlotOf(world, id)); // the Behemoth switches target at once
@@ -51,7 +51,9 @@ export function holdPlayer(world: World, id: string): boolean {
   world.pendingInputs.delete(id);
   world.inputs.delete(id);
   world.lastAppliedSeq.delete(id);
-  world.heldPlayers.set(id, { player: p, buildIdx: buildStartIndex(world), atTick: world.tick });
+  // Re-review RR2-M2: `awayTicks` backdates the hold to when the player really left (a B16 drop: its 3 s standing),
+  // so B15's "away ≥ 3 s" counts from the drop, not from the vanish.
+  world.heldPlayers.set(id, { player: p, buildIdx: buildStartIndex(world), atTick: world.tick - awayTicks });
   return true;
 }
 
@@ -76,7 +78,7 @@ export function buildStartIndex(world: Readonly<World>): number {
  * `startBuild`); an `out` player returning mid-wave stays out until the next build start (F1).
  * Returns false for an id that is not held.
  */
-export function returnPlayer(world: World, id: string): boolean {
+export function returnPlayer(world: World, id: string, allowProtect = true): boolean {
   const h = world.heldPlayers.get(id);
   if (!h || world.players.has(id)) return false;
   world.heldPlayers.delete(id);
@@ -85,7 +87,8 @@ export function returnPlayer(world: World, id: string): boolean {
   if (buildStartIndex(world) > h.buildIdx) catchUpBuildStart(world, p); // review H1: only a build start really missed
   const stats = world.balance.player;
   const longHold = world.tick - h.atTick >= stats.returnMinHoldTicks;
-  if (phase === "wave" && p.status === "alive" && longHold && p.protectedReturnWave !== world.waves.number) {
+  // Decision 8.1 B18: `allowProtect` false = the room's World is frozen (the 3-2-1 replaces protection).
+  if (allowProtect && phase === "wave" && p.status === "alive" && longHold && p.protectedReturnWave !== world.waves.number) {
     p.protectedReturnWave = world.waves.number; // B15: once per wave
     placeNextToTeammate(world, p); // nobody standing: where they were
     p.protectTicks = stats.returnProtectTicks;

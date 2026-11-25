@@ -19,14 +19,13 @@ vi.mock("@colyseus/sdk", () => ({
 }));
 const ticket = vi.fn<() => Promise<string | undefined>>();
 const look = vi.fn<() => string | undefined>(() => undefined);
-// Story 7.9: the join reads the ticket and my look from `joinAccount`.
-vi.mock("./account", () => ({
-  joinAccount: async () => {
-    const t = await ticket();
-    const l = look();
-    return { ...(t === undefined ? {} : { ticket: t }), ...(l === undefined ? {} : { look: l }) };
-  },
-}));
+// Story 7.9: create / join read the ticket and my look from `joinAccount`; seat recovery from `recoveryAccount` (N-R3: reused ticket).
+const account = async () => {
+  const t = await ticket();
+  const l = look();
+  return { ...(t === undefined ? {} : { ticket: t }), ...(l === undefined ? {} : { look: l }) };
+};
+vi.mock("./account", () => ({ joinAccount: () => account(), recoveryAccount: () => account() }));
 vi.mock("./netMeter", () => ({ netMeter: { attach: () => {} } }));
 
 beforeEach(() => {

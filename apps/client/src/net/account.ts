@@ -53,10 +53,33 @@ export async function accountSession(over: Partial<AccountDeps> = {}): Promise<A
   }
 }
 
+/**
+ * Re-review N-R3 (decision 7.1 B12): a ticket fetched less than this long ago is reused by seat recovery (tickets
+ * live 10 min on the server, `SESSION_TICKET_TTL_MS`; this keeps > 60 s of margin).
+ */
+export const TICKET_REUSE_MS = 9 * 60_000;
+
+let last: { ticket: string; atMs: number } | null = null;
+
 /** The ticket for the next join, or undefined (save server down, over the new-guest limit, offline). */
-export async function sessionTicket(over: Partial<AccountDeps> = {}): Promise<string | undefined> {
+export async function sessionTicket(over: Partial<AccountDeps> = {}, nowMs: () => number = Date.now): Promise<string | undefined> {
   const s = await accountSession(over);
-  return s?.saved ? s.ticket : undefined;
+  last = s?.saved ? { ticket: s.ticket, atMs: nowMs() } : null;
+  return last?.ticket;
+}
+
+/**
+ * Seat recovery (8.1 `SeatRecovery` retries every few seconds): reuses the last ticket while it has more than 60 s
+ * left, so two recovering phones on one Wi-Fi stay far below the 30 calls/min/IP limit; else fetches a fresh one.
+ */
+export async function recoveryTicket(over: Partial<AccountDeps> = {}, nowMs: () => number = Date.now): Promise<string | undefined> {
+  if (last !== null && nowMs() - last.atMs < TICKET_REUSE_MS) return last.ticket;
+  return sessionTicket(over, nowMs);
+}
+
+/** Tests only: forget the cached ticket. */
+export function forgetTicket(): void {
+  last = null;
 }
 
 /**
@@ -65,10 +88,24 @@ export async function sessionTicket(over: Partial<AccountDeps> = {}): Promise<st
  */
 export async function joinAccount(over: Partial<AccountDeps> = {}, looks: DeviceLookStore = deviceLook): Promise<{ ticket?: string; look?: string }> {
   const s = await accountSession(over);
+  last = s?.saved ? { ticket: s.ticket, atMs: Date.now() } : null; // seat recovery may reuse it (N-R3)
   if (s?.saved && s.progress) looks.set(s.progress.look);
   const out: { ticket?: string; look?: string } = {};
   if (s?.saved) out.ticket = s.ticket;
   const look = s?.saved && s.progress ? (s.progress.look ?? undefined) : looks.get();
+  if (look !== undefined) out.look = look;
+  return out;
+}
+
+/**
+ * Story 7.9 + re-review N-R3: seat recovery's join — the reused ticket (`recoveryTicket`) and this device's look copy
+ * (no extra session call per retry). Mid-run the server keeps the seat's own look anyway (a takeover ignores it).
+ */
+export async function recoveryAccount(over: Partial<AccountDeps> = {}, looks: DeviceLookStore = deviceLook): Promise<{ ticket?: string; look?: string }> {
+  const out: { ticket?: string; look?: string } = {};
+  const ticket = await recoveryTicket(over);
+  if (ticket !== undefined) out.ticket = ticket;
+  const look = looks.get();
   if (look !== undefined) out.look = look;
   return out;
 }

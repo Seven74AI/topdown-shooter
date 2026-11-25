@@ -1,0 +1,185 @@
+import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
+import type { ColyseusTestServer } from "@colyseus/testing";
+import type { Room as SdkRoom } from "@colyseus/sdk";
+import { randomBytes } from "node:crypto";
+import {
+  BYTES,
+  C2S,
+  HORDE_KIND_KEY,
+  HordeStreamDecoder,
+  NET_PROTOCOL_VERSION,
+  spawnZombie,
+  DOWNTOWN_MAP,
+  NEUTRAL_INPUT,
+  RUN_ROOM_NAME,
+  S2C,
+  downPlayer,
+  endWave,
+  startWave,
+  worldDigest,
+  type PlayerLeft,
+  type RunJoined,
+  type RunStateView,
+} from "@topdown/shared";
+import { bootTestServer } from "../test/bootTestServer";
+import { CLOSE_TAKEN_OVER, QUIET_HOLD_TICKS } from "../net/limits";
+import { RunRoom, serverBalance } from "./RunRoom";
+
+/** Story 8.1 integration: drop → hold → return, takeover, remembered seats, quiet holds, freeze. */
+let colyseus: ColyseusTestServer;
+
+beforeAll(async () => {
+  ({ colyseus } = await bootTestServer());
+});
+afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  await colyseus.cleanup();
+});
+afterAll(async () => {
+  await colyseus.shutdown();
+});
+
+type RunSdkRoom = SdkRoom<unknown, RunStateView>;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const NAMES = ["Ana", "Bo", "Cy", "Di"];
+const options = (intent: "create" | "join", name: string, guestToken: string) => ({
+  intent,
+  name,
+  balanceVersion: serverBalance.version,
+  mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION, // Story 8.10's join check
+  guestToken,
+});
+
+interface Seen {
+  left: PlayerLeft[];
+  joined: RunJoined[];
+}
+
+function record(client: RunSdkRoom): Seen {
+  const seen: Seen = { left: [], joined: [] };
+  client.onMessage(S2C.RUN_JOINED, (m: RunJoined) => seen.joined.push(m));
+  client.onMessage(BYTES.HORDE_FRAME, () => {});
+  client.onMessage(S2C.SIM_EVENTS_FLUSHED, () => {});
+  client.onMessage(S2C.NET_PINGED, () => {});
+  client.onMessage(S2C.PLAYER_LEFT, (m: PlayerLeft) => seen.left.push(m));
+  client.onMessage(S2C.SHOP_OFFERED, () => {});
+  return seen;
+}
+
+/** A started run (waves paused: only what the test does happens). `tokens[i]` is player i's guest token. */
+async function runOf(n: number) {
+  vi.stubEnv("DEV_NO_WAVES", "1");
+  const tokens = Array.from({ length: n }, () => randomBytes(16).toString("hex"));
+  const clients: RunSdkRoom[] = [];
+  const seen: Seen[] = [];
+  for (let i = 0; i < n; i++) {
+    const c =
+      i === 0
+        ? await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", NAMES[i] as string, tokens[i] as string))
+        : await colyseus.sdk.joinById<RunStateView>((clients[0] as RunSdkRoom).roomId, options("join", NAMES[i] as string, tokens[i] as string));
+    seen.push(record(c));
+    await c.waitForInitialState();
+    clients.push(c);
+  }
+  const room = colyseus.getRoomById<RunRoom>((clients[0] as RunSdkRoom).roomId) as unknown as RunRoom;
+  await vi.waitFor(() => expect(room.members.size).toBe(n));
+  for (const c of clients) c.send(C2S.LOBBY_SET_READY, { ready: true });
+  await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+  (clients[0] as RunSdkRoom).send(C2S.RUN_START, {});
+  for (const c of clients) await vi.waitFor(() => expect(c.state.phase).toBe("build"));
+  return { clients, seen, room, tokens };
+}
+
+const world = (room: RunRoom) => {
+  const w = room.controller?.world;
+  if (!w) throw new Error("no run");
+  return w;
+};
+
+/** Kills the player's socket on the server side without a close handshake (a lost phone signal). */
+function dropSocket(room: RunRoom, client: RunSdkRoom): void {
+  const server = room.clients.find((c) => c.sessionId === client.sessionId);
+  (server?.ref as unknown as { terminate(): void }).terminate();
+}
+
+/** The SDK's auto-reconnect, on (a real phone) or off (a phone that never comes back by token). */
+function reconnect(client: RunSdkRoom, on: boolean): void {
+  client.reconnection.enabled = on;
+  client.reconnection.minUptime = 0;
+  client.reconnection.minDelay = 50;
+  client.reconnection.maxDelay = 100;
+  client.reconnection.maxEnqueuedMessages = 0;
+}
+
+function logLines(room: RunRoom) {
+  const info = vi.spyOn(room.log, "info");
+  return (msg: string) => info.mock.calls.filter((c) => c[1] === msg).map((c) => c[0] as Record<string, unknown>);
+}
+
+
+describe("RR3 room probes", () => {
+  it("R1: heldUntilTick 0 for the 3 s, written at the vanish = drop + holdS; seat expires ~holdS after the drop", async () => {
+    const { clients, room, seen } = await runOf(2);
+    room.holdS = 6;
+    const lines = logLines(room);
+    const w = world(room);
+    startWave(w);
+    const ana = clients[0] as RunSdkRoom;
+    let s = 0;
+    const ka = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++s }), 50);
+    onTestFinished(() => clearInterval(ka));
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, false);
+    const dropTick = w.tick;
+    const t0 = performance.now();
+    dropSocket(room, bo);
+    await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("drop"));
+    const samples: number[] = [];
+    while (w.players.has("p1")) { samples.push(room.state.players.get("p1")?.heldUntilTick ?? -1); await sleep(100); }
+    const until = room.state.players.get("p1")?.heldUntilTick ?? 0;
+    console.log("R1", { nonzeroWhileStanding: samples.filter((x) => x !== 0).length, n: samples.length, vanishAfterTicks: w.tick - dropTick, untilMinusDrop: until - dropTick, expect: 6 * 20, anaSees: ana.state.players.get("p1")?.heldUntilTick });
+    await vi.waitFor(() => expect(seen[0]?.left.length).toBe(1), { timeout: 15_000 });
+    console.log("R1 expire", { afterMs: Math.round(performance.now() - t0), tickAtExpiry: w.tick, until, line: lines("player_left").length });
+  }, 30_000);
+  it("R2: quiet 3 s → held; input 1 s later (4 s silent) → protection?", async () => {
+    const { clients, room } = await runOf(2);
+    const w = world(room);
+    startWave(w);
+    const ana = clients[0] as RunSdkRoom;
+    let s = 0;
+    const ka = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++s }), 50);
+    onTestFinished(() => clearInterval(ka));
+    const p1 = w.players.get("p1")!;
+    p1.x = p1.prevX = 40; p1.y = p1.prevY = 30;
+    await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("quiet"), { timeout: 8000 });
+    await sleep(1000);
+    (clients[1] as RunSdkRoom).send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 1 });
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
+    const q = w.players.get("p1")!;
+    console.log("R2", { moved: Math.round(Math.hypot(q.x - 40, q.y - 30)), prot: q.protectTicks });
+  }, 30_000);
+  it("R3: a downed dropping teammate stays in Ana's state view (heldUntilTick 0, status downed) until the vanish", async () => {
+    const { clients, room } = await runOf(2);
+    const w = world(room);
+    startWave(w);
+    const ana = clients[0] as RunSdkRoom;
+    let s = 0;
+    const ka = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++s }), 50);
+    onTestFinished(() => clearInterval(ka));
+    downPlayer(w, w.players.get("p1")!);
+    await sleep(200);
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, false);
+    dropSocket(room, bo);
+    await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("drop"));
+    await sleep(1000);
+    const v = ana.state.players.get("p1");
+    console.log("R3 at 1s", { held: v?.heldUntilTick, status: v?.status, downed: v?.downedTicksLeft });
+    await vi.waitFor(() => expect(w.players.has("p1")).toBe(false), { timeout: 5000 });
+    await sleep(200);
+    console.log("R3 vanish", { held: (ana.state.players.get("p1")?.heldUntilTick ?? 0) > 0, status: w.heldPlayers.get("p1")?.player.status });
+  }, 30_000);
+});

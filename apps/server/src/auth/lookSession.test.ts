@@ -53,7 +53,7 @@ describe("session response look (Story 7.9 AC 1)", () => {
   it("beat the rule 5: a progress read that fails keeps the session saved with the default look", async () => {
     const database = openPglite();
     open.push(database);
-    const broken: ProgressRepo = { get: async () => Promise.reject(new Error("db hiccup")), createEmpty: async () => {} };
+    const broken: ProgressRepo = { ...progressRepo(database), get: async () => Promise.reject(new Error("db hiccup")) };
     const r = await session(database, broken);
     expect(r.saved).toBe(true);
     expect(r.saved && r.progress).toEqual({ look: null });

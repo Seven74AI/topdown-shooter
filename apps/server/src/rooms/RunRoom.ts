@@ -19,7 +19,9 @@ import {
   TICK_RATE_HZ,
   buildSetReadySchema,
   evacVoteSchema,
+  runLeaveSchema,
   DOWNTOWN_MAP,
+  NET_PROTOCOL_VERSION,
   buildingPlaceSchema,
   buildingRepairSchema,
   buildingUpgradeSchema,
@@ -62,6 +64,8 @@ import {
   type PlayerLeft,
   type PlayerLeftReason,
   type RunJoined,
+  type RunRewards,
+  type RunStarted,
   type ShopBought,
   type ShopOffered,
   type ShopBoughtItem,
@@ -82,7 +86,8 @@ import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
 import { assignSlot, hashGuestToken, nextHost, sameSeat, seatKey, type Member } from "../run/lobby";
-import { roomAccountsRepo, ticketAccountId } from "../auth/roomAccounts";
+import { roomAccountsRepo, roomProgressRepo, ticketAccountId } from "../auth/roomAccounts";
+import { BANK_RETRY_MS, RunBank } from "../meta/banking";
 import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
@@ -211,6 +216,17 @@ export function randomUint32(): number {
 const reservedCodes = new Set<string>();
 
 const refuse = (reason: JoinRefusal): ServerError => new ServerError(JOIN_REFUSED_CODE, reason);
+/**
+ * Story 8.10 (brief 19, D5): a client built for another wire format would decode garbage; it is
+ * refused at join. Review RM1 (like Story 4.1 M1): a pre-8.10 tab sends no version and only knows
+ * `balance_mismatch` ("Please refresh" + Refresh), so a MISSING version gets that; a present but
+ * different one (a tab from 8.10 on) gets `update_required` ("A new version is out. Please reload.").
+ * One small function so Story 8.1's onAuth/onJoin changes merge around it.
+ */
+export function checkNetProtocol(version: number | undefined): void {
+  if (version === undefined) throw refuse("balance_mismatch");
+  if (version !== NET_PROTOCOL_VERSION) throw refuse("update_required");
+}
 /** onAuth runs before a room is picked: its lines carry `roomId: "auth"`. */
 export const authLog = roomLog("auth"); // exported for tests (Story 7.9: look_replaced)
 
@@ -273,6 +289,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /** Story 8.1 (F6): the 3-2-1 after a freeze (null: none running). */
   private resumeTimer: Delayed | null = null;
   private frozenAtMs = 0;
+  /** Story 7.2: this run's bank (`meta/banking.ts`; made at Start with the run id), null outside a run. */
+  bank: RunBank | null = null;
+  /** Story 7.2: the bank's one retry delay (tests shorten it on a live room, like `holdS`). */
+  bankRetryMs = BANK_RETRY_MS;
 
   /** Validates join options before a seat is reserved (runs for create and join). */
   static override async onAuth(_token: string, options: unknown, ctx: AuthContext): Promise<RunAuth> {
@@ -301,6 +321,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       if (absent && parsed.error.issues.every((i) => i.path[0] === "mapVersion")) throw refuse("balance_mismatch");
       throw refuse("invalid_options");
     }
+    checkNetProtocol(parsed.data.netProtocolVersion); // Story 8.10
     if (parsed.data.balanceVersion !== serverBalance.version) throw refuse("balance_mismatch");
     // Story 4.1: a client built with another map would predict against other walls.
     if (parsed.data.mapVersion !== DOWNTOWN_MAP.version) throw refuse("balance_mismatch");
@@ -345,6 +366,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.onMessage(C2S.LOBBY_RETURN, this.net.guard(lobbyReturnSchema, (c) => this.onLobbyReturn(c)));
     this.onMessage(C2S.BUILD_SET_READY, this.net.guard(buildSetReadySchema, (c, m) => this.onBuildReady(c, m.ready)));
     this.onMessage(C2S.EVAC_VOTE, this.net.guard(evacVoteSchema, (c, m) => this.onEvacVote(c, m.choice))); // Story 6.11
+    this.onMessage(C2S.RUN_LEAVE, this.net.guard(runLeaveSchema, (c) => this.onRunLeave(c))); // Story 7.2 (D4)
     this.onMessage(C2S.BUILDING_PLACE, this.net.guard(buildingPlaceSchema, (c, m) => this.onPlaceBuilding(c, m)));
     this.onMessage(C2S.SHOP_BUY, this.net.guard(shopBuySchema, (c, m) => this.onShopBuy(c, m.build, m.rev, m.card, m.item, m.slot ?? null)));
     this.onMessage(C2S.SHOP_REROLL, this.net.guard(shopRerollSchema, (c, m) => this.onShopReroll(c, m.build, m.rev))); // Story 5.13
@@ -435,11 +457,17 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private attachClient(client: RunClient, member: Member): void {
     // Review L2: a reconnect (same sessionId) keeps its guard: buckets and drop counters carry over.
     this.net.add(client, member.playerId, true);
-    // Story 8.10 hook: every caller passes a NEW Colyseus client object (Colyseus 0.18 builds a new client on a
-    // reconnect, `_onJoin` › `reconnection.resolve(client)`), so 8.10's WeakMap-per-client encoder starts with a
-    // keyframe by itself; `this.horde?.forceKey(client)` here is belt and braces (8.10 is not merged yet).
+    // Story 8.10 × 8.1: every caller passes a NEW Colyseus client object (0.18 builds a new client on a reconnect,
+    // `_onJoin` › `reconnection.resolve(client)`), so the WeakMap-per-client encoder starts with a keyframe by
+    // itself; resetting the stream here is belt and braces (first join, reconnect, takeover, restored seat).
+    this.horde?.resetHordeStream(client);
     this.countBytes(client);
     client.send(S2C.RUN_JOINED, { playerId: member.playerId, slot: member.slot, tickRateHz: TICK_RATE_HZ } satisfies RunJoined);
+    // Story 7.2 (RR-L1): the run's id first, during a run or on its Results, so the phone accepts only this run's rewards.
+    if (this.bank && this.state.phase !== "lobby") client.send(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted);
+    // Story 7.2: a seat that comes back on Results gets its run rewards again (it may have missed them while away).
+    const rewards = this.state.phase === "results" ? this.bank?.resultFor(member.playerId) : undefined;
+    if (rewards) client.send(S2C.RUN_REWARDS, rewards);
     // A frame over maxPayload is refused by ws, which closes this socket (AC 5 "too large").
     client.ref.on("error", (e: { code?: string }) => {
       if (e.code === "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH") this.net.drop(client, "too_large");
@@ -468,7 +496,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     this.netMeters.delete(old.sessionId);
     this.lastPongId.delete(old.sessionId);
     this.net.rename(old.sessionId, client.sessionId); // review L2: the seat's buckets and drop counters move with it
-    // Story 8.10 hook: delete old.sessionId's per-client horde baseline here.
+    const oldClient = this.clients.getById(old.sessionId);
+    if (oldClient) this.horde?.forgetClient(oldClient); // Story 8.10: the old socket's horde baseline goes with it
     const hold = this.holds.get(member.playerId);
     if (hold?.reconnection) {
       hold.reconnection.reject(new Error("taken_over"));
@@ -524,7 +553,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private startHold(member: Member, reason: HoldReason, client: RunClient | null): void {
     const controller = this.controller;
     if (!controller) return;
-    controller.holdPlayer(member.playerId); // false when already held (quiet → drop)
+    // Decision 8.1 B16: a drop leaves the body standing for 3 s mid-wave (it vanishes then, `onDropHold`); a quiet seat
+    // is already out of the World (the controller held it); either is a no-op when already held (quiet → drop).
+    if (reason === "drop") controller.dropPlayer(member.playerId);
+    else controller.holdPlayer(member.playerId);
     let hold = this.holds.get(member.playerId);
     const fresh = !hold;
     if (!hold) {
@@ -544,7 +576,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       hold.timer = this.clock.setTimeout(() => this.expireQuiet(member.playerId), leftS * 1000);
     }
     const s = this.state.players.get(member.playerId);
-    if (s && fresh) s.heldUntilTick = controller.world.tick + Math.round(this.holdS * TICK_RATE_HZ);
+    // Re-review RR2-M1: `heldUntilTick` (the chip, the vote panel, and the mirror hiding the body) only once the body
+    // has really left the World — a B16 dropping body stays visible for its 3 s; `onDropHold` writes it at the vanish.
+    if (s && fresh && !controller.isDropping(member.playerId)) s.heldUntilTick = controller.world.tick + Math.round(this.holdS * TICK_RATE_HZ);
     this.log.info({ playerId: member.playerId, reason, wave: controller.world.waves.number, phase: this.state.phase }, "player_held");
     this.updateFreeze();
   }
@@ -555,7 +589,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!hold) return;
     hold.timer?.clear();
     this.holds.delete(member.playerId);
-    this.controller?.returnPlayer(member.playerId);
+    // B16: back while the dropped body still stands: it plays on in place (no return placement, no protection).
+    // Decision 8.1 B18: back into a frozen World, the 3-2-1 replaces the return protection (and placement).
+    if (!this.controller?.returnPlayer(member.playerId, !this.state.frozen)) this.controller?.cancelDrop(member.playerId);
     const s = this.state.players.get(member.playerId);
     if (s) s.heldUntilTick = 0;
     if (this.controller) syncState(this.state, this.controller); // the placed body and protection in the next patch
@@ -578,7 +614,9 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   /**
    * Story 8.1 (F6, Epic 8 D5): nobody present in the World (all dropped or quiet) → the World
    * freezes (`onTick` stops stepping; tick-counted timers wait by construction). The first one back
-   * starts a 3-2-1 on the room clock (1 s each); everyone gone again cancels it.
+   * starts a 3-2-1 on the room clock (1 s each); everyone gone again cancels it — decision 8.1 B19: a B16
+   * dropping body counts as present, so a solo drop (or a re-drop during the 3-2-1) first runs its 3 s in a
+   * stepped World (the count finishes, the body stands hittable) and only then freezes.
    */
   private updateFreeze(): void {
     const controller = this.controller;
@@ -640,8 +678,35 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     this.net.remove(client);
     if (member === undefined) return; // a seat taken over or already freed: nothing to do
+    if (code === CloseCode.CONSENTED) this.bankLeaver(member); // Story 7.2 (S3): a Leave mid-run banks at once (before the state leaves the World)
     const expired = this.holds.has(member.playerId) && code !== CloseCode.CONSENTED;
     this.finalLeave(member, expired ? "hold_expired" : code === CloseCode.CONSENTED ? "left" : "disconnected", code);
+  }
+
+  /**
+   * Story 7.2 (S3, D2, D4): a consented Leave mid-run banks this seat now, ending `quit` (the waves and boss it was
+   * there for, never the extract bonus). Fire and forget (never awaited); once per seat per run (`RunBank`). A seat
+   * remembered after this Leave (8.1 F8) that comes back plays on, but this run is already banked for it (brief 18).
+   */
+  private bankLeaver(member: Member): void {
+    const world = this.controller?.world;
+    if (!world || !this.inRun() || !this.bank) return;
+    const p = world.players.get(member.playerId) ?? world.heldPlayers.get(member.playerId)?.player;
+    if (!p) return;
+    void this.bank.bank({ playerId: member.playerId, accountId: member.accountId, record: p, ending: "quit", wave: world.waves.number });
+  }
+
+  /** `run.leave` (Story 7.2, D4): the client is about to Leave: bank now, so `run.rewards` reaches it before the socket closes. */
+  onRunLeave(client: RunClient): void {
+    const member = this.members.get(client.sessionId);
+    if (member) this.bankLeaver(member);
+  }
+
+  /** Story 7.2: `run.rewards` to the seat's owner, if connected now. */
+  private deliverRewards(playerId: string, msg: RunRewards): void {
+    for (const m of this.members.values()) {
+      if (m.playerId === playerId) this.clients.getById(m.sessionId)?.send(S2C.RUN_REWARDS, msg);
+    }
   }
 
   /**
@@ -665,7 +730,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       controller?.removePlayer(playerId);
     }
     this.hordeStats.delete(playerId); // no zero horde_stats lines for a player who left
-    // Story 8.10 hook: delete member.sessionId's per-client horde baseline here.
+    const gone = this.clients.getById(member.sessionId);
+    if (gone) this.horde?.forgetClient(gone); // Story 8.10: its horde baseline goes with it
     this.lastPongId.delete(member.sessionId);
     this.netMeters.delete(member.sessionId);
     const reason: PlayerLeftReason = why === "left" ? "left" : "disconnected";
@@ -681,6 +747,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (this.members.size === 0 && controller && this.inRun()) {
       // Epic 8 D5/D11: everyone gone (the last hold ran out): the run is lost (Story 8.4 saves build phases).
       this.log.info({ runSeed: this.runSeed, wave: controller.world.waves.number, phase: this.state.phase }, "run_abandoned");
+      void this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()); // Story 7.2: every remembered seat banks `quit`
     }
     this.updateFreeze();
   }
@@ -700,7 +767,6 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   override onReconnect(client: RunClient): void {
     const member = this.members.get(client.sessionId);
     if (!member) return;
-    // Story 8.10 hook: reset this sessionId's per-client horde baseline (the phone may have missed frames).
     this.lastPongId.delete(client.sessionId);
     this.attachClient(client, member);
     const hold = this.holds.get(member.playerId);
@@ -1022,6 +1088,16 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       // Story 2.12 review M1: telemetry only (at most once per wave per player), never a kick.
       onSeqResync: (playerId, wave, resyncs) => this.log.info({ playerId, wave, resyncs }, "seq_gap_suspect"),
       // Story 8.1 (D1): a connected player quiet for 3 s in a wave is held like a drop.
+      // Decision 8.1 B16: a dropped body's 3 s ran out: it vanished; the room may freeze now.
+      onDropHold: (playerId) => {
+        this.log.info({ playerId, wave: this.controller?.world.waves.number ?? 0 }, "player_vanished");
+        // RR2-M1: the body left the World now: teammates' chips and mirrors follow; the 120 s still run from the drop.
+        const hold = this.holds.get(playerId);
+        const s = this.state.players.get(playerId);
+        const w = this.controller?.world;
+        if (hold && s && w) s.heldUntilTick = w.tick + Math.max(1, Math.round((this.holdS - (performance.now() - hold.atMs) / 1000) * TICK_RATE_HZ));
+        this.updateFreeze();
+      },
       onQuietHold: (playerId) => {
         for (const m of this.members.values()) if (m.playerId === playerId) this.startHold(m, "quiet", null);
       },
@@ -1043,6 +1119,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (devPlacedHp !== null) this.log.warn({ fraction: devPlacedHp }, "dev_placed_building_hp");
     else if (process.env.DEV_PLACED_BUILDING_HP) this.log.warn({ value: process.env.DEV_PLACED_BUILDING_HP }, "dev_placed_building_hp_ignored");
     this.controller = controller;
+    this.bank = new RunBank(runSeed, { repo: roomProgressRepo, log: this.log, deliver: (id, msg) => this.deliverRewards(id, msg), retryMs: this.bankRetryMs }); // Story 7.2
+    this.broadcast(S2C.RUN_STARTED, { runId: this.bank.runId } satisfies RunStarted); // Story 7.2 (RR-L1)
     // Story 8.1: a held seat keeps a reserved seat in Colyseus, so a takeover join (D5) or a held
     // player's reconnect must fit beside 4 seats: room for one spare connection per seat. Joins that
     // are not one of the run's seats are refused in `join()` (run_started) whatever the count.
@@ -1130,7 +1208,8 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       earnedAfter10Lost[playerId] = run.ending === "lost" ? p.earned - p.earnedAtEvac : 0;
     }
     const endlessWaves = run.endless ? Math.max(0, this.lastClearedWave - controller.world.balance.waves.runWaves) : 0; // review L11: waves really cleared (a wipe in a build phase too)
-    this.log.info({ runSeed: this.runSeed, wave, ending: run.ending, endless: run.endless, endlessWaves, kills, earned, earnedBeforeEndless, earnedAfter10Lost }, "run_ended");
+    this.log.info({ runSeed: this.runSeed, runId: this.bank?.runId, wave, ending: run.ending, endless: run.endless, endlessWaves, kills, earned, earnedBeforeEndless, earnedAfter10Lost }, "run_ended");
+    void this.bank?.bankRunEnd(controller.world, this.members.values(), this.rememberedSeats.values()); // Story 7.2: one call (never awaited by the tick)
   }
 
   /**
@@ -1142,6 +1221,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const member = this.members.get(client.sessionId);
     if (!member || this.state.phase !== "results") return;
     this.controller = null;
+    this.bank = null; // Story 7.2: banks still in flight finish and deliver (the client matches them by run seed)
     this.horde = null;
     this.eventCtx = null;
     this.hordeStats.clear();
@@ -1208,6 +1288,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     for (const s of this.hordeStats.values()) {
       s.framesSent = 0;
       s.framesSkipped = 0;
+      s.keyframes = 0;
       s.bytesSent = 0;
     }
     this.slowTicks?.takeWindow();
@@ -1258,9 +1339,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
   private logHordeStats(wave: number): void {
     for (const [playerId, s] of this.hordeStats) {
       const avgBytes = s.framesSent === 0 ? 0 : Math.round(s.bytesSent / s.framesSent);
-      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, avgBytes }, "horde_stats");
+      this.log.info({ wave, playerId, framesSent: s.framesSent, framesSkipped: s.framesSkipped, keyframes: s.keyframes, avgBytes }, "horde_stats");
       s.framesSent = 0;
       s.framesSkipped = 0;
+      s.keyframes = 0;
       s.bytesSent = 0;
     }
   }

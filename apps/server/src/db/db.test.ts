@@ -5,7 +5,8 @@ import { type SQL, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { log } from "../ops/logger";
 import { accountsRepo } from "./accountsRepo";
-import { type Database, type Db, databaseFromEnv, openPglite } from "./client";
+import { EventEmitter } from "node:events";
+import { type Database, type Db, createPool, databaseFromEnv, openPglite } from "./client";
 import { MIGRATIONS_FOLDER, migrateDb } from "./migrate";
 import { progressRepo } from "./progressRepo";
 import { DbUnavailableError, withDbTimeout } from "./timeout";
@@ -31,10 +32,10 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 
 describe("migrations (Story 7.1 AC 2)", () => {
-  it("the committed SQL creates exactly two tables: accounts and progress", () => {
+  it("the committed SQL creates exactly three tables: accounts and progress (7.1), run_rewards (7.2)", () => {
     const files = readdirSync(MIGRATIONS_FOLDER).filter((f) => f.endsWith(".sql"));
     const creates = files.flatMap((f) => [...readFileSync(join(MIGRATIONS_FOLDER, f), "utf8").matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1]));
-    expect(creates.sort()).toEqual(["accounts", "progress"]);
+    expect(creates.sort()).toEqual(["accounts", "progress", "run_rewards"]);
   });
 
   it("applies once, and a second run is a no-op (same tables, one recorded migration, rows kept)", async () => {
@@ -43,7 +44,7 @@ describe("migrations (Story 7.1 AC 2)", () => {
     await accountsRepo(database).createGuest(HASH_A, "Ana");
     await migrateDb({ kind: "pglite", db });
     const tables = await rows<{ table_name: string }>(db, sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`);
-    expect(tables.map((r) => r.table_name)).toEqual(["accounts", "progress"]);
+    expect(tables.map((r) => r.table_name)).toEqual(["accounts", "progress", "run_rewards"]);
     const applied = await rows<{ n: number }>(db, sql`select count(*)::int as n from drizzle.__drizzle_migrations`);
     expect(applied[0]?.n).toBe(readdirSync(MIGRATIONS_FOLDER).filter((f) => f.endsWith(".sql")).length);
     const accounts = await rows<{ n: number }>(db, sql`select count(*)::int as n from accounts`);
@@ -140,6 +141,24 @@ describe("timeouts and errors (Story 7.1 AC 9, P3)", () => {
     const down = databaseFromEnv({ DATABASE_URL: "postgres://u:p@127.0.0.1:1/none" }, "unused");
     open.push(down);
     await expect(accountsRepo(down).findByTokenHash(HASH_A)).rejects.toBeInstanceOf(DbUnavailableError);
+  });
+
+  it("a checked-out client losing its backend mid-transaction logs db_error and never crashes the process", async () => {
+    const errors = vi.spyOn(log, "error").mockImplementation(() => undefined as never);
+    const pool = createPool("postgres://u:p@127.0.0.1:1/none");
+    try {
+      expect((pool as unknown as { options: { keepAlive?: boolean } }).options.keepAlive).toBe(true);
+      // What pg-pool does when it hands out a new client: emit `connect` with it.
+      const client = new EventEmitter();
+      pool.emit("connect", client as never);
+      // An EventEmitter with no `error` listener throws on emit (that was the uncaughtException).
+      expect(() => client.emit("error", new Error("terminating connection due to administrator command"))).not.toThrow();
+      expect(errors).toHaveBeenCalledWith(expect.objectContaining({ op: "client", err: "terminating connection due to administrator command" }), "db_error");
+      // Idle-client errors (the pool's own event) are handled too.
+      expect(() => pool.emit("error", new Error("idle lost"), client as never)).not.toThrow();
+    } finally {
+      await pool.end();
+    }
   });
 
   it("production without DATABASE_URL refuses; dev falls back to PGlite", () => {

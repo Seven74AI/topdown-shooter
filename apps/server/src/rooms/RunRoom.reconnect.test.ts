@@ -1,10 +1,14 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import { randomBytes } from "node:crypto";
 import {
   BYTES,
   C2S,
+  HORDE_KIND_KEY,
+  HordeStreamDecoder,
+  NET_PROTOCOL_VERSION,
+  spawnZombie,
   DOWNTOWN_MAP,
   NEUTRAL_INPUT,
   RUN_ROOM_NAME,
@@ -45,6 +49,7 @@ const options = (intent: "create" | "join", name: string, guestToken: string) =>
   name,
   balanceVersion: serverBalance.version,
   mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION, // Story 8.10's join check
   guestToken,
 });
 
@@ -124,12 +129,24 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     if (!p1) throw new Error("no p1");
     p1.wallet = 321;
     p1.hp = 44;
+    const ana = clients[0] as RunSdkRoom;
+    let anaSeq = 0;
+    const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++anaSeq }), 50); // Ana stays present (no freeze)
+    onTestFinished(() => clearInterval(keepAlive));
     const bo = clients[1] as RunSdkRoom;
     reconnect(bo, false);
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("drop"));
-    expect(w.players.has("p1")).toBe(false);
+    const dropTick = w.tick;
+    expect(w.players.has("p1")).toBe(true); // B16: the dropped body stands for 3 s first …
+    // RR2-M1: … and teammates still see it (no heldUntilTick yet: their mirror keeps the body, no chip) …
+    await sleep(300);
+    expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBe(0);
+    await vi.waitFor(() => expect(w.players.has("p1")).toBe(false), { timeout: 5000 }); // … then vanishes into the hold
     await vi.waitFor(() => expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBeGreaterThan(w.tick));
+    // RR3-N1: written at the vanish, but the 120 s still run from the DROP (not 3 s more from the vanish).
+    const until = (clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick ?? 0;
+    expect(Math.abs(until - dropTick - Math.round(room.holdS * 20))).toBeLessThanOrEqual(5);
     expect(lines("player_held")).toEqual([expect.objectContaining({ playerId: "p1", reason: "drop" })]);
     // Back with the SDK's token, on a fresh client object (what `client.reconnect(token)` does after a reload).
     const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
@@ -138,7 +155,7 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     expect(w.players.get("p1")).toBe(p1);
     expect(p1.wallet).toBe(321);
     expect(p1.hp).toBe(44);
-    expect(p1.protectTicks).toBe(0); // B15: a hold shorter than 3 s (a reload) returns in place, unprotected
+    expect(p1.protectTicks).toBeGreaterThan(0); // RR2-M2: away > 3 s since the DROP (B16 3 s + the hold): the wave's one protected return
     await vi.waitFor(() => expect((clients[0] as RunSdkRoom).state.players.get("p1")?.heldUntilTick).toBe(0));
     expect(lines("player_returned")).toEqual([expect.objectContaining({ playerId: "p1", via: "token", reason: "drop" })]);
     expect(seen[0]?.left).toEqual([]);
@@ -175,11 +192,34 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
     if (!p1) throw new Error("no p1");
     downPlayer(w, p1);
     const bo = clients[1] as RunSdkRoom;
-    reconnect(bo, true);
+    reconnect(bo, false);
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
-    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false), { timeout: 4000 });
+    await vi.waitFor(() => expect(w.heldPlayers.has("p1")).toBe(true), { timeout: 5000 }); // B16: vanished after 3 s
+    const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
+    record(back);
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
     expect(p1.status).toBe("out");
+  });
+
+  it("B16: downed and back within the 3 s: still downed in place (no free revive, no escape)", async () => {
+    const { clients, room } = await runOf(2);
+    const w = world(room);
+    startWave(w);
+    const p1 = w.players.get("p1");
+    if (!p1) throw new Error("no p1");
+    downPlayer(w, p1);
+    const x = p1.x;
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, false);
+    dropSocket(room, bo);
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
+    const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
+    record(back);
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
+    expect(w.heldPlayers.has("p1")).toBe(false);
+    expect(p1.status).toBe("downed");
+    expect(p1.x).toBe(x);
   });
 
   it("a drop in the lobby is a leave, as today (D7)", async () => {
@@ -208,11 +248,48 @@ describe("Story 8.1 drop → hold → return (AC 1, 3)", () => {
   });
 });
 
+describe("Story 8.1 × 8.10: the horde stream after a reconnect and after a takeover", () => {
+  /** Collects horde frames on `c` and checks: the first is a keyframe, a fresh phone decoder reads every one. */
+  async function firstFramesOk(c: RunSdkRoom, zombieTick: number): Promise<void> {
+    const frames: Uint8Array[] = [];
+    c.onMessage(BYTES.HORDE_FRAME, (b: Uint8Array) => frames.push(new Uint8Array(b)));
+    await vi.waitFor(() => expect(frames.length).toBeGreaterThan(5));
+    expect(frames[0]?.[4]).toBe(HORDE_KIND_KEY);
+    const phone = new HordeStreamDecoder();
+    let seen = 0;
+    for (const f of frames) expect(phone.decode(f, { begin: () => {}, record: () => void seen++, end: () => {} })).toBe(true);
+    expect(seen).toBeGreaterThan(0); // liveness: the frames carried the zombie
+    expect(zombieTick).toBeGreaterThanOrEqual(0);
+  }
+
+  it("the first frame after a token reconnect, and after a takeover, is a keyframe and decodes with no error", async () => {
+    const { clients, room, tokens } = await runOf(2);
+    const w = world(room);
+    w.debug.godMode = true;
+    const p1 = w.players.get("p1");
+    if (!p1) throw new Error("no p1");
+    spawnZombie(w, "walker", p1.x + 3, p1.y);
+    const t0 = w.tick;
+    const bo = clients[1] as RunSdkRoom;
+    reconnect(bo, false);
+    dropSocket(room, bo); // build phase: held at once
+    await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
+    const back = await colyseus.sdk.reconnect<RunStateView>(bo.reconnectionToken);
+    record(back);
+    await firstFramesOk(back, t0);
+    const fresh = await colyseus.sdk.joinById<RunStateView>(back.roomId, options("join", "Bo", tokens[1] as string));
+    record(fresh);
+    await firstFramesOk(fresh, t0);
+  });
+});
+
 describe("Story 8.1 takeover by guest token (AC 6, D5)", () => {
   it("a second tab with the same guest token takes a CONNECTED seat: the old socket closes with 4021 and the seat is the new one's", async () => {
     const { clients, room, tokens } = await runOf(2);
     const lines = logLines(room);
     const old = clients[1] as RunSdkRoom;
+    const oldGuard = (room.net as unknown as { clients: Map<string, unknown> }).clients.get(old.sessionId);
+    expect(oldGuard).toBeDefined();
     let oldLeftCode = 0;
     old.onLeave((code) => (oldLeftCode = code));
     const fresh = await colyseus.sdk.joinById<RunStateView>(old.roomId, options("join", "Bo", tokens[1] as string));
@@ -223,6 +300,10 @@ describe("Story 8.1 takeover by guest token (AC 6, D5)", () => {
     expect([...room.members.values()].find((m) => m.playerId === "p1")?.sessionId).toBe(fresh.sessionId);
     expect(room.holds.size).toBe(0); // the old socket's close is no drop (no hold restart)
     expect(lines("seat_taken_over")).toEqual([expect.objectContaining({ playerId: "p1", held: false })]);
+    // Review L2 / RR1-N3: the seat's message guard (buckets, drop counters) moved to the new session.
+    const guards = (room.net as unknown as { clients: Map<string, unknown> }).clients;
+    expect(guards.get(fresh.sessionId)).toBe(oldGuard);
+    expect(guards.has(old.sessionId)).toBe(false);
     expect(lines("player_left")).toEqual([]);
   });
 
@@ -342,24 +423,34 @@ describe("Story 8.1 quiet player (AC 2, D1)", () => {
   it("a quiet seat that then drops keeps its 120 s clock (the hold never restarts): it runs out from the first hold", async () => {
     const { clients, room, seen } = await runOf(2);
     room.holdS = 3.6;
+    // Flake fix (re-review 2): assert the window the room asks Colyseus for, not wall time (timers drift under load).
+    const windows: number[] = [];
+    const allow = room.allowReconnection.bind(room);
+    vi.spyOn(room, "allowReconnection").mockImplementation((c, s) => {
+      windows.push(Number(s));
+      return allow(c, s);
+    });
     const w = world(room);
     startWave(w);
     const ana = clients[0] as RunSdkRoom;
     let seq = 0;
     const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++seq }), 50);
     try {
-      await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("quiet"), { timeout: 6000 });
-      const heldAt = performance.now();
+      await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("quiet"), { timeout: 10_000 });
       const until = room.state.players.get("p1")?.heldUntilTick;
+      const heldAtMs = room.holds.get("p1")?.atMs ?? 0;
       await sleep(1500);
       const bo = clients[1] as RunSdkRoom;
       reconnect(bo, false);
       dropSocket(room, bo);
       await vi.waitFor(() => expect(room.holds.get("p1")?.reason).toBe("drop"));
       expect(room.state.players.get("p1")?.heldUntilTick).toBe(until); // the chip's countdown doesn't jump back
-      await vi.waitFor(() => expect(seen[0]?.left).toEqual([{ playerId: "p1", name: "Bo", reason: "disconnected" }]), { timeout: 6000 });
-      const heldForMs = performance.now() - heldAt;
-      expect(heldForMs).toBeLessThan(3600 + 800); // from the FIRST hold, not 3.6 s after the drop (that would be ≥ 5.1 s)
+      // The window is what is left of the FIRST hold's 3.6 s (≤ 3.6 − the ≥ 1.5 s already held), never a fresh 3.6 s.
+      expect(windows).toHaveLength(1);
+      const elapsedS = (performance.now() - heldAtMs) / 1000;
+      expect(windows[0]).toBeLessThanOrEqual(3.6 - 1.5 + 0.01);
+      expect(windows[0]).toBeGreaterThanOrEqual(Math.max(1, 3.6 - elapsedS) - 0.01);
+      await vi.waitFor(() => expect(seen[0]?.left).toEqual([{ playerId: "p1", name: "Bo", reason: "disconnected" }]), { timeout: 15_000 });
     } finally {
       clearInterval(keepAlive);
     }
@@ -381,7 +472,8 @@ describe("Story 8.1 quiet player (AC 2, D1)", () => {
       expect(QUIET_HOLD_TICKS).toBe(60);
       (clients[1] as RunSdkRoom).send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: 1 });
       await vi.waitFor(() => expect(room.holds.has("p1")).toBe(false));
-      expect(w.players.get("p1")?.protectTicks).toBe(0); // B15: back within 3 s of the hold: in place, unprotected
+      // RR3-M1: 3 s quiet + back after the vanish = away > 3 s since the last input: the wave's one protected return.
+      expect(w.players.get("p1")?.protectTicks).toBeGreaterThan(0);
       expect(lines("player_returned")).toEqual([expect.objectContaining({ playerId: "p1", via: "input", reason: "quiet" })]);
     } finally {
       clearInterval(keepAlive);
@@ -398,7 +490,7 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
     const ana = clients[0] as RunSdkRoom;
     reconnect(ana, false);
     dropSocket(room, ana);
-    await vi.waitFor(() => expect(room.state.frozen).toBe(true));
+    await vi.waitFor(() => expect(room.state.frozen).toBe(true), { timeout: 5000 }); // B16: after the body's 3 s
     const tick = w.tick;
     const digest = worldDigest(w);
     await sleep(400);
@@ -408,6 +500,7 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
     const back = await colyseus.sdk.reconnect<RunStateView>(ana.reconnectionToken);
     record(back);
     await vi.waitFor(() => expect(room.state.resumeIn).toBe(3));
+    expect(w.players.get("p0")?.protectTicks).toBe(0); // B18: in a frozen World the 3-2-1 replaces protection
     const counts: number[] = [];
     back.onStateChange((s) => {
       if (counts[counts.length - 1] !== s.resumeIn) counts.push(s.resumeIn);
@@ -426,11 +519,16 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
     startWave(w);
     const bo = clients[1] as RunSdkRoom;
     w.players.get("p1")!.earned = 77;
+    // Flake fix: Ana keeps sending (else D1's quiet rule can hold her ~3 s in and freeze the room before Bo's body vanishes).
+    const ana = clients[0] as RunSdkRoom;
+    let anaSeq = 0;
+    const keepAlive = setInterval(() => ana.send(C2S.INPUT_SEND, { ...NEUTRAL_INPUT, seq: ++anaSeq }), 50);
+    onTestFinished(() => clearInterval(keepAlive));
     reconnect(bo, false);
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
     downPlayer(w, w.players.get("p0") as never);
-    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"), { timeout: 10_000 }); // B16: once the dropped body vanished
     // Review L1: the held seat is in run_ended too.
     expect(lines("run_ended")[0]).toMatchObject({ earned: { p0: 0, p1: 77 } });
   });

@@ -240,9 +240,12 @@ export class NetSimHost implements SimHost {
   private readonly ctx: { balance: Balance; tick: number };
   private readonly offs: (() => void)[] = [];
   private readonly onState = (state: RunStateView): void => this.receiveState(state);
-  /** Horde stream (Story 2.5); `hordeStats` counts frames and decode errors for the 2.10 overlay. */
+  /**
+   * Horde stream (Story 2.5); `hordeStats` counts frames, decode errors and (Story 8.10) keyframes for
+   * the 2.10 overlay. The session decodes the stream from the join (8.10 D4) and hands it full frames.
+   */
   private readonly horde = new HordeBuffer();
-  readonly hordeStats = new HordeDecoder(this.horde);
+  readonly hordeStats: HordeDecoder;
   private readonly hordeSample = new HordeSample();
 
   private accumulatorS = 0;
@@ -316,6 +319,10 @@ export class NetSimHost implements SimHost {
   private readonly linkUp: () => boolean;
 
   constructor(opts: NetSimHostOptions) {
+    // Story 8.9 (D7): an accepted horde frame is a clock and lateness sample too.
+    this.hordeStats = new HordeDecoder(this.horde, opts.session.hordeStream, () => {
+      if (!this.disposed) this.sampleClock(this.now(), this.horde.latestTick);
+    });
     this.session = opts.session;
     this.linkUp = opts.linkUp ?? (() => true);
     this.localPlayerId = opts.session.playerId;
@@ -340,7 +347,7 @@ export class NetSimHost implements SimHost {
     const room = opts.session.room;
     // Batches that came while the scene was not built yet (hidden tab at Start) arrive first.
     this.offs.push(opts.session.onEvents((m) => this.receiveEvents(m)));
-    this.offs.push(opts.session.onHorde((b) => this.receiveHorde(b)));
+    this.offs.push(opts.session.onHorde(this.hordeStats)); // Story 8.10: decoded frames
     this.offs.push(
       opts.session.onBuildingRefused((reason) => this.queueRefusal(reason)),
     );
@@ -371,6 +378,17 @@ export class NetSimHost implements SimHost {
   }
 
   /** Story 2.9: slot and name from the room's schema copy (the slot from the id until it arrives). */
+  /** Story 8.1 RR1-M1: teammates on hold, by slot (preallocated; valid until the next call). */
+  private readonly heldSlots: number[] = [];
+  private readonly collectHeld = (p: PlayerStateView, id: string): void => {
+    if (p.heldUntilTick > 0 && id !== this.localPlayerId) this.heldSlots.push(p.slot);
+  };
+  heldSeatSlots(): readonly number[] {
+    this.heldSlots.length = 0;
+    this.session.room.state?.players?.forEach(this.collectHeld);
+    return this.heldSlots;
+  }
+
   playerInfo(id: string): PlayerInfo {
     const s = this.session.room.state?.players?.get(id);
     const slot = s?.slot ?? playerSlotOf(id);
@@ -448,8 +466,11 @@ export class NetSimHost implements SimHost {
     this.rebaseAfterGap(t0);
     // Story 2.6: ONE render tick per frame, read by players, events and the horde (2.5) alike.
     // Story 8.9: both clocks are monotonic; the render clock stretches 0.9–1.1× toward its delay.
-    this.serverTickNow = this.clock.ready ? this.clock.estimateTick(t0) : Number.NaN;
-    this.renderTickNow = this.clock.ready ? this.delay.advance(t0, this.serverTickNow, this.horde.latestTick) : Number.NaN;
+    // Story 8.1 RR1-N4: while the World is frozen (nobody connected, the 3-2-1) both clocks hold still.
+    if (!this.wasFrozen) {
+      this.serverTickNow = this.clock.ready ? this.clock.estimateTick(t0) : Number.NaN;
+      this.renderTickNow = this.clock.ready ? this.delay.advance(t0, this.serverTickNow, this.horde.latestTick) : Number.NaN;
+    }
     this.countFreeze();
     // Story 2.7: the horde first, so my shots this frame assist toward and stop at what is drawn.
     this.applyHorde(this.renderTickNow);
@@ -1047,29 +1068,28 @@ export class NetSimHost implements SimHost {
     this.sampleClock(now, state.tick); // arrival after the dev throttle, if on
   }
 
-  /** Story 8.9 (D7): a horde frame into the buffer; an accepted one is a clock and lateness sample too. */
-  private receiveHorde(bytes: unknown): void {
-    if (this.disposed || !this.hordeStats.receive(bytes)) return;
-    this.sampleClock(this.now(), this.horde.latestTick);
-  }
-
   /** Story 8.1 review M3: the last frame's `state.frozen` and link status (edges re-base the clocks). */
   private wasFrozen = false;
   private wasLinkUp = true;
 
   /**
-   * Story 8.1 review M3: when a freeze ends (the World stood still while the phone's estimate ran on)
-   * or the same room reconnects (the link was down), the server clock and the render clock start
-   * again from the newest tick — the one step back the brief allows, taken while the paused /
-   * reconnecting overlay covers the picture. Normal play keeps 8.9's forward-only rules.
+   * Story 8.1 review M3: when a freeze ends or the same room reconnects (the link was down), the server
+   * clock starts again from the newest tick. RR1-N4: during a freeze both clocks hold still (`update`),
+   * so the render clock moves on from where it stood (nothing drawn steps back); after a reconnect —
+   * the phone may have missed a whole freeze, its estimate ran on — the render clock starts again too,
+   * while the reconnecting panel covers the picture. Normal play keeps 8.9's forward-only rules.
    */
   private rebaseAfterGap(now: number): void {
     const state = this.session.room.state;
     const frozen = state?.frozen === true;
     const up = this.linkUp();
-    if ((this.wasFrozen && !frozen) || (!this.wasLinkUp && up)) {
+    const lifted = this.wasFrozen && !frozen;
+    const back = !this.wasLinkUp && up;
+    if (lifted || back) {
       this.clock.rebase();
-      this.delay.rebase();
+      // RR1-N4: a freeze held the render clock, so it moves on from where it stands (no step back as the overlay
+      // lifts); a reconnect (the reconnecting panel covered the picture) starts it again from the newest tick.
+      this.delay.rebase(lifted && !back);
       if (state && state.tick > 0) this.sampleClock(now, state.tick);
     }
     this.wasFrozen = frozen;

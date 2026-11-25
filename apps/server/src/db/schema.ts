@@ -4,7 +4,7 @@
  * and committed under `apps/server/drizzle/`; never edit a committed migration, add a new one.
  */
 import { sql } from "drizzle-orm";
-import { check, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { check, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * One row per player. A guest account has only `guest_token_hash` (SHA-256 hex of the 128-bit device token; the raw
@@ -40,6 +40,25 @@ export const progress = pgTable("progress", {
 }, (t) => [
   // Brief 18: a balance can never go below 0, whatever a later story's bank or purchase code does.
   check("progress_supplies_nonneg", sql`${t.supplies} >= 0 AND ${t.lifetimeSupplies} >= 0`),
+]);
+
+/**
+ * Story 7.2 (AC 4, decision 7.2 D3): one row per player per run, written in the SAME transaction as the Supplies it
+ * records. The primary key (run_id, account_id) is the "already banked" guard (brief 18): a retry, a reconnect or a
+ * second `endRun` inserts nothing and pays nothing. `breakdown` is the `runSupplies` result (lines, rookie, ending) so
+ * a failed bank can be granted by hand and later stories (7.7, 7.11, 7.12) can add their own keys.
+ */
+export const runRewards = pgTable("run_rewards", {
+  runId: uuid("run_id").notNull(),
+  accountId: uuid("account_id")
+    .notNull()
+    .references(() => accounts.id, { onDelete: "cascade" }),
+  supplies: integer("supplies").notNull(),
+  breakdown: jsonb("breakdown").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ name: "run_rewards_pk", columns: [t.runId, t.accountId] }),
+  check("run_rewards_supplies_nonneg", sql`${t.supplies} >= 0`),
 ]);
 
 export type AccountRow = typeof accounts.$inferSelect;

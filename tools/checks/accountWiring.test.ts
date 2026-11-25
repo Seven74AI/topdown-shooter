@@ -24,12 +24,16 @@ describe("account wiring (Story 7.1 T7)", () => {
 
   it("every join path in connection.ts fetches the ticket right before joining", () => {
     const src = readFileSync(join(NET, "connection.ts"), "utf8");
-    // Story 7.9: `joinAccount()` fetches the session (ticket + my look) right before each join.
-    expect(src.match(/options\("(create|join)", name, await joinAccount\(\)\)/g)).toHaveLength(3);
+    // Story 7.9: `joinAccount()` fetches the session (ticket + my look) right before each create / join.
+    expect(src.match(/options\("(create|join)", name, await joinAccount\(\)\)/g)).toHaveLength(2);
     const account = readFileSync(join(NET, "account.ts"), "utf8");
     const body = account.slice(account.indexOf("export async function joinAccount("));
     expect(body.slice(0, body.indexOf("\n}\n"))).toContain("const s = await accountSession(over);");
     expect(account).toMatch(/if \(s\?\.saved\) out\.ticket = s\.ticket;/);
+    // Re-review N-R3: seat recovery (rejoinGame) reuses a recent ticket (Story 7.9: + the device look copy).
+    expect(src).toMatch(/export async function rejoinGame[\s\S]*?options\("join", name, await recoveryAccount\(\)\)/);
+    const rec = account.slice(account.indexOf("export async function recoveryAccount("));
+    expect(rec.slice(0, rec.indexOf("\n}\n"))).toContain("const ticket = await recoveryTicket(over);");
     expect(src).not.toMatch(/options\("(create|join)", name\)/);
   });
 });

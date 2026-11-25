@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RECONNECT, type RecoveryJoin } from "@topdown/shared";
-import { LinkMonitor, type LinkRoom, type LinkStatus } from "./linkMonitor";
+import { LinkMonitor, linkStore, type LinkRoom, type LinkStatus } from "./linkMonitor";
 
 /** A fake SDK room: drop / reconnect signals, the reconnection options and a socket to close. */
 function fakeRoom() {
@@ -158,5 +158,27 @@ describe("Story 8.1 LinkMonitor (AC 4–6)", () => {
     const j = t.joins();
     await t.advance(10_000);
     expect(t.joins()).toBe(j);
+  });
+});
+
+describe("Story 8.1 RR1-N2: only a LATE takeover marks this tab's crossed-takeover window", () => {
+  it("a normal recovery leaves lateAdoptedAtMs at −∞; a late adoption sets it", async () => {
+    linkStore.lateAdoptedAtMs = Number.NEGATIVE_INFINITY;
+    const t = setup(async () => ({ ok: true, room: "R" }));
+    t.link.sdkGaveUp();
+    await t.advance(5);
+    expect(t.recovered).toEqual(["R"]);
+    expect(linkStore.lateAdoptedAtMs).toBe(Number.NEGATIVE_INFINITY);
+    let release: (r: RecoveryJoin<string>) => void = () => {};
+    const u = setup(() => new Promise((res) => (release = res)));
+    u.link.heard(0);
+    u.f.drop();
+    await u.advance(2000 + 5);
+    u.f.back(); // the token reconnect wins first …
+    release({ ok: true, room: "late" }); // … the takeover lands late
+    await u.advance(5);
+    expect(u.recovered).toEqual(["late"]);
+    expect(linkStore.lateAdoptedAtMs).toBeGreaterThan(Number.NEGATIVE_INFINITY);
+    linkStore.lateAdoptedAtMs = Number.NEGATIVE_INFINITY;
   });
 });

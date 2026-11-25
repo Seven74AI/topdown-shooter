@@ -1,6 +1,6 @@
 import type { AccountSessionResponse } from "@topdown/shared";
 import { describe, expect, it, vi } from "vitest";
-import { ACCOUNT_TIMEOUT_MS, accountSession, prefillName, sessionTicket } from "./account";
+import { ACCOUNT_TIMEOUT_MS, TICKET_REUSE_MS, accountSession, forgetTicket, prefillName, recoveryTicket, sessionTicket } from "./account";
 import { GUEST_TOKEN_KEY, guestTokenStore, type TokenStorage } from "./guestToken";
 
 const MINE = "ab".repeat(16);
@@ -76,5 +76,25 @@ describe("account.ts (Story 7.1 T7)", () => {
     expect(prefillName("", null)).toBe("");
     expect(prefillName("", { saved: false, deviceToken: SERVERS, ticket: null, account: null })).toBe("");
   });
-});
 
+  it("re-review N-R3: 10 seat-recovery attempts make at most 1 /account/session call while the ticket has > 60 s left", async () => {
+    forgetTicket();
+    const tokens = guestTokenStore(() => storage());
+    const fetch = reply(savedReply());
+    let now = 1_000_000;
+    const clock = () => now;
+    for (let i = 0; i < 10; i++) {
+      expect(await recoveryTicket({ fetch, url: () => "/x", tokens }, clock)).toBe(TICKET);
+      now += 3000; // SeatRecovery's retry pace
+    }
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(TICKET_REUSE_MS).toBe(9 * 60_000); // tickets live 10 min: > 60 s margin
+    now = 1_000_000 + TICKET_REUSE_MS;
+    await recoveryTicket({ fetch, url: () => "/x", tokens }, clock);
+    expect(fetch).toHaveBeenCalledTimes(2); // an old ticket is refreshed
+    // An unsaved reply clears the cache (no stale ticket for the next recovery).
+    await sessionTicket({ fetch: reply({ saved: false, deviceToken: SERVERS, ticket: null, account: null }), url: () => "/x", tokens });
+    await recoveryTicket({ fetch, url: () => "/x", tokens }, clock);
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+});

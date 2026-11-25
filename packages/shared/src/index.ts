@@ -63,6 +63,8 @@ export {
 export { LOOK_CODE_VERSION, catalogueParts, decodeLook, encodeLook, ownedParts, partKey, type DecodedLook } from "./cosmetics/lookCode";
 // Story 7.1: meta progression data (starter pool; 7.2–7.7 add Supplies, unlocks, Training, districts).
 export { PROGRESSION, ProgressionError, loadProgression, progressionSchema, starterPool, type Progression } from "./config/progression";
+// Story 7.2: the Supplies a run pays and the run record they come from.
+export { runSupplies, suppliesEnding, type RunRecord, type RunSupplies, type SuppliesConfig, type SuppliesEnding, type SuppliesLines } from "./meta/supplies";
 export type { BuildingTypeStats, TurretStats, TrapStats, MineStats, BearTrapStats, LightStats, HealStats, GunStats, LauncherStats, MeleeStats, FlameStats, CombatStats, WeaponStats, ZombieTypeStats } from "./config/balanceSchema";
 export { NO_SYSTEMS, PREDICTION_SYSTEMS, SYSTEM_ORDER, type SystemFn, type SystemName, type Systems } from "./core/systems";
 export { createWorld, setInput, step, type CreateWorldOptions, type World, type WorldDebug } from "./core/world";
@@ -178,7 +180,24 @@ export {
 export { createSpatialGrid, queryRadius, queryRect, rebuildGrid, type SpatialGrid } from "./core/spatialGrid";
 export {
   HORDE_BACKPRESSURE_BYTES,
+  HORDE_CHG_FAR,
+  HORDE_CHG_HEADING,
+  HORDE_CHG_MASK,
+  HORDE_CHG_POS_FULL,
+  HORDE_CHG_POS_SMALL,
+  HORDE_CHG_POS_TINY,
+  HORDE_CHG_TYPE_STATE,
+  HORDE_DELTA_HEADER_BYTES,
   HORDE_HEADER_BYTES,
+  HORDE_HEADING_TOLERANCE,
+  HORDE_KEY_INTERVAL_TICKS,
+  HORDE_KIND_DELTA,
+  HORDE_KIND_KEY,
+  HORDE_FAR_RULE_RADIUS_M,
+  HORDE_NEAR_M,
+  HORDE_SMALL_MOVE_CM,
+  HORDE_TINY_MOVE_MAX_CM,
+  HORDE_TINY_MOVE_MIN_CM,
   HORDE_MAX_FRAME_BYTES,
   HORDE_MAX_RECORDS,
   HORDE_MISSING_TICKS,
@@ -187,6 +206,7 @@ export {
   MAX_POS_CM,
   POS_SCALE,
   hordeFrameBytes,
+  hordeFrameKind,
   hordeFrameTick,
   isHordeFrameValid,
   packTypeState,
@@ -200,10 +220,12 @@ export {
   typeOfTypeState,
   writeHordeHeader,
   writeHordeRecord,
+  writeHordeRecordCm,
   zombieGenerationOfNetId,
   zombieNetId,
   type HordeSink,
 } from "./net/hordeFormat";
+export { HordeStreamDecoder, isFarRefreshTick } from "./net/hordeStream";
 export { inRect, viewRect, type Rect } from "./net/interest";
 export { activeSlot, createLoadout, createSlot, setLoadout, validLevel, type Loadout, type WeaponSlot } from "./combat/loadout";
 export { fuelTicksOf, hasMagazine, isFlame, isGun, isLauncher, isMelee, magazineOf, upgradePrice, usesAmmo, weaponDamage, weaponIds, weaponStats, type WeaponId } from "./combat/weapons";
@@ -279,6 +301,7 @@ export {
 export { endlessEventCandidates, isEndlessEventWave, pickEndlessEvent, scheduleEndlessEvent } from "./run/endlessEvents";
 export {
   BYTES,
+  NET_PROTOCOL_VERSION,
   C2S,
   MAX_PLAYERS,
   MIN_PLAYERS_TO_START,
@@ -291,6 +314,12 @@ export {
   playerNameSchema,
   runStartSchema,
   lobbyReturnSchema,
+  runLeaveSchema,
+  runRewardsSchema,
+  runStartedSchema,
+  type RunStarted,
+  type RunRewards,
+  type RunRewardsStatus,
   buildSetReadySchema,
   evacVoteSchema,
   buildingPlaceSchema,

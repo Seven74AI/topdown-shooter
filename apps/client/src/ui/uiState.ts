@@ -23,7 +23,7 @@ export type UiScreen =
    * "extracted" | "lost", replaces 3.10's `heldOut`), `endless` (the team chose Stay: DW2), and
    * `dawnEndsAtMs` (performance.now() ms; the dawn plays until then, `dawnModel.ts`).
    */
-  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean; ending: RunEnding; endless: boolean; seed: number; dawnEndsAtMs: number };
+  | { kind: "results"; wave: number; rows: readonly ResultRow[]; online: boolean; ending: RunEnding; endless: boolean; seed: number; dawnEndsAtMs: number; /** Story 7.2 review N1: this phone's slot (the "YOU" row); absent = none marked. */ mySlot?: number };
 
 /** The in-run menu (Story 2.11): closed, open (Resume, Leave game), or asking to confirm the leave. */
 export type MenuState = "closed" | "open" | "confirmLeave";

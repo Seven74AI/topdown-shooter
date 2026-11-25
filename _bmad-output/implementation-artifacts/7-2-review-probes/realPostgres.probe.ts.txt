@@ -1,0 +1,100 @@
+// TEMPORARY review probe (Story 7.2 review) — real PostgreSQL. Not committed.
+import pg from "pg";
+import { sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { log } from "../ops/logger";
+import { accountsRepo } from "./accountsRepo";
+import { openPostgres, type Database } from "./client";
+import { migrateDb } from "./migrate";
+import { progressRepo } from "./progressRepo";
+import { RunBank } from "../meta/banking";
+import { randomUUID } from "node:crypto";
+
+log.level = "silent";
+const URL = process.env.RV_PG ?? "postgres://postgres@127.0.0.1:5731/rv";
+let database: Database;
+beforeAll(async () => {
+  database = openPostgres(URL);
+  await migrateDb({ kind: "postgres", db: await database.db() });
+});
+afterAll(async () => database.close());
+
+const acct = async () => accountsRepo(database).createGuest(randomUUID().replace(/-/g, "").padEnd(64, "a"), "Ana");
+const rookiePay = (raw: number) => (life: number) => ({ supplies: life < 300 ? raw * 2 : raw, breakdown: { life } });
+
+describe("review: real PostgreSQL", () => {
+  it("rookie line: two runs ending at once around lifetime 250 → only one doubled", async () => {
+    const results: string[] = [];
+    for (let k = 0; k < 10; k++) {
+      const a = await acct();
+      const repo = progressRepo(database);
+      await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 250, breakdown: {} }));
+      const rs = await Promise.all([repo.addSupplies(randomUUID(), a.id, rookiePay(50)), repo.addSupplies(randomUUID(), a.id, rookiePay(50))]);
+      const p = await repo.get(a.id);
+      results.push(`${rs.map((r) => r.supplies).join("+")}=>${p?.lifetimeSupplies}`);
+      expect(p?.lifetimeSupplies).toBe(400); // 250 + 100 (rookie) + 50
+    }
+    console.log("ROOKIE", results.join(" "));
+  });
+
+  it("20 runs ending at once for one account add up exactly", async () => {
+    const a = await acct();
+    const repo = progressRepo(database);
+    await Promise.all(Array.from({ length: 20 }, () => repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 7, breakdown: {} }))));
+    expect((await repo.get(a.id))?.supplies).toBe(140);
+  });
+
+  it("concurrent double-submit of ONE (run, account) ×10 pays once", async () => {
+    const a = await acct();
+    const repo = progressRepo(database);
+    const run = randomUUID();
+    const rs = await Promise.all(Array.from({ length: 10 }, () => repo.addSupplies(run, a.id, () => ({ supplies: 33, breakdown: { x: 1 } }))));
+    expect(rs.filter((r) => r.banked).length).toBe(1);
+    expect((await repo.get(a.id))?.supplies).toBe(33);
+  });
+
+  it("brand-new account (no progress row) double-submit at once", async () => {
+    const a = await acct();
+    const db = await database.db();
+    await db.execute(sql`delete from progress where account_id = ${a.id}`);
+    const repo = progressRepo(database);
+    const rs = await Promise.allSettled([repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 5, breakdown: {} })), repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 5, breakdown: {} }))]);
+    console.log("NOROW", rs.map((r) => r.status).join(","));
+    expect((await repo.get(a.id))?.supplies).toBe(10);
+  });
+
+  async function lockFor(accountId: string, ms: number) {
+    const c = new pg.Client({ connectionString: URL });
+    await c.connect();
+    await c.query("begin");
+    await c.query("select * from progress where account_id = $1 for update", [accountId]);
+    setTimeout(() => void c.query("commit").then(() => c.end()), ms);
+  }
+
+  for (const [lockMs, label] of [
+    [3000, "slow 3 s: first attempt times out, commits late, retry finds it"],
+    [5500, "slow 5.5 s: both attempts time out, both commit later"],
+  ] as const) {
+    it(`RunBank under a locked row — ${label}`, async () => {
+      const a = await acct();
+      const repo = progressRepo(database);
+      await repo.addSupplies(randomUUID(), a.id, () => ({ supplies: 1000, breakdown: {} })); // lifetime 1000: no rookie
+      await lockFor(a.id, lockMs);
+      const delivered: string[] = [];
+      const errs: string[] = [];
+      const bank = new RunBank(7, {
+        repo: () => repo,
+        log: { info: () => {}, error: (o: object, m: string) => errs.push(m) },
+        deliver: (_id, m) => delivered.push(`${m.status}:${m.total}:${m.newTotal}`),
+        retryMs: 100,
+      });
+      const r = await bank.bank({ playerId: "p1", accountId: a.id, record: { wavesIn: 5, endlessWavesIn: 0, bossesIn: 0, endlessBossesIn: 0 }, ending: "wiped" });
+      await new Promise((res) => setTimeout(res, 7000 - Math.min(lockMs, 5500) + 1500));
+      const p = await repo.get(a.id);
+      const db = await database.db();
+      const n = ((await db.execute(sql`select count(*)::int as n from run_rewards where account_id = ${a.id}`)) as unknown as { rows: { n: number }[] }).rows[0]?.n;
+      console.log("LATE", lockMs, "status", r.status, "delivered", delivered.join("|"), "supplies", p?.supplies, "rows", n, "errs", errs.length);
+      expect(p?.supplies).toBe(1050); // paid exactly once
+    }, 20000);
+  }
+});

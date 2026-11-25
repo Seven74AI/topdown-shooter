@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Callbacks, type Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { BYTES, C2S, DEFAULT_LOOK, DOWNTOWN_MAP, LOOK_CODE_MAX, RUN_ROOM_NAME, S2C, decodeLook, downPlayer, encodeLook, endWave, startWave, type RunStateView } from "@topdown/shared";
+import { BYTES, C2S, DEFAULT_LOOK, DOWNTOWN_MAP, LOOK_CODE_MAX, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, decodeLook, downPlayer, encodeLook, endWave, startWave, type RunStateView } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { bootTestServer } from "../test/bootTestServer";
 import { RunRoom, authLog, serverBalance } from "./RunRoom";
@@ -33,6 +33,7 @@ const opts = (intent: "create" | "join", name: string, guestToken: string, look?
   name,
   balanceVersion: serverBalance.version,
   mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION, // Story 8.10 (review M2)
   guestToken,
   ...(look === undefined ? {} : { look }),
 });

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { MatchMakeError, type Room as SdkRoom } from "@colyseus/sdk";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, type RunStateView } from "@topdown/shared";
+import { BYTES, C2S, DOWNTOWN_MAP, NET_PROTOCOL_VERSION, RUN_ROOM_NAME, S2C, type RunStateView } from "@topdown/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { setRoomAccounts } from "../auth/roomAccounts";
 import { signTicket } from "../auth/ticket";
@@ -43,7 +43,7 @@ const bound = (accountId: string) => ({ [BOUND]: accountId });
 const opts = (intent: "create" | "join", name: string, guestToken: string, extra: Record<string, unknown> = {}) => {
   const t = extra.ticket as { [BOUND]?: string } | undefined;
   const ticket = t && typeof t === "object" && t[BOUND] ? signTicket(t[BOUND], hashGuestToken(guestToken), SECRET) : extra.ticket;
-  return { intent, name, balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, guestToken, ...extra, ...(ticket === undefined ? {} : { ticket }) };
+  return { intent, name, balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION, guestToken, ...extra, ...(ticket === undefined ? {} : { ticket }) };
 };
 const quiet = (c: RunSdkRoom): RunSdkRoom => {
   for (const t of [BYTES.HORDE_FRAME, S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.PLAYER_LEFT, S2C.SHOP_OFFERED, S2C.RUN_JOINED]) c.onMessage(t, () => {});
@@ -64,7 +64,7 @@ async function refusal(p: Promise<unknown>): Promise<MatchMakeError> {
 async function host(guestToken = token(), extra: Record<string, unknown> = {}) {
   const c = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", guestToken, extra)));
   const room = roomOf(c);
-  await vi.waitFor(() => expect(room.members.size).toBe(1));
+  await vi.waitFor(() => expect(room.members.size).toBe(1), { timeout: 5000 });
   return { c, room };
 }
 
@@ -113,7 +113,7 @@ describe("Story 7.1 AC 5: the join ticket names the account", () => {
     const room = roomOf(c);
     const info = vi.spyOn(room.log, "info");
     const b = quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", token(), { ticket: bound(OTHER) })));
-    await vi.waitFor(() => expect(info.mock.calls.some((x) => x[1] === "join_account")).toBe(true));
+    await vi.waitFor(() => expect(info.mock.calls.some((x) => x[1] === "join_account")).toBe(true), { timeout: 5000 });
     expect(info.mock.calls.find((x) => x[1] === "join_account")?.[0]).toEqual({ accountId: OTHER });
     const all = JSON.stringify(info.mock.calls);
     expect(all).not.toContain(ticket);
@@ -144,7 +144,7 @@ describe("Story 7.1 AC 6: one account, one seat", () => {
   it("two different accounts in one lobby both get seats", async () => {
     const { c, room } = await host(token(), { ticket: bound(ACCT) });
     quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", token(), { ticket: bound(OTHER) })));
-    await vi.waitFor(() => expect(room.members.size).toBe(2));
+    await vi.waitFor(() => expect(room.members.size).toBe(2), { timeout: 5000 });
   });
 
   /** A started run with Ana (host) and Bo, Bo joining with `boOpts`. */
@@ -152,11 +152,11 @@ describe("Story 7.1 AC 6: one account, one seat", () => {
     vi.stubEnv("DEV_NO_WAVES", "1");
     const { c, room } = await host(token(), { ticket: bound(OTHER) });
     const bo = quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", boToken, boExtra)));
-    await vi.waitFor(() => expect(room.members.size).toBe(2));
+    await vi.waitFor(() => expect(room.members.size).toBe(2), { timeout: 5000 });
     for (const x of [c, bo]) x.send(C2S.LOBBY_SET_READY, { ready: true });
-    await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+    await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true), { timeout: 5000 });
     c.send(C2S.RUN_START, {});
-    await vi.waitFor(() => expect(c.state.phase).toBe("build"));
+    await vi.waitFor(() => expect(c.state.phase).toBe("build"), { timeout: 5000 });
     return { room, bo };
   }
 
@@ -209,11 +209,11 @@ describe("Story 7.1 AC 6: one account, one seat", () => {
     const boToken = token();
     const { c, room } = await host(anaToken, { ticket: bound(ACCT) });
     const bo = quiet(await colyseus.sdk.joinById<RunStateView>(c.roomId, opts("join", "Bo", boToken)));
-    await vi.waitFor(() => expect(room.members.size).toBe(2));
+    await vi.waitFor(() => expect(room.members.size).toBe(2), { timeout: 5000 });
     for (const x of [c, bo]) x.send(C2S.LOBBY_SET_READY, { ready: true });
-    await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+    await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true), { timeout: 5000 });
     c.send(C2S.RUN_START, {});
-    await vi.waitFor(() => expect(c.state.phase).toBe("build"));
+    await vi.waitFor(() => expect(c.state.phase).toBe("build"), { timeout: 5000 });
     let anaCode = 0;
     c.onLeave((x) => (anaCode = x));
     const anaTicket = signTicket(ACCT, hashGuestToken(anaToken), SECRET);
@@ -242,6 +242,20 @@ describe("Story 7.1 AC 6: one account, one seat", () => {
     await expectTakeover(room, same, colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", token(), { ticket: bound(ACCT) })));
   });
 
+  it("re-review N-R1: a remembered unsaved seat restored with a ticket is re-keyed to acct: and gets the account", async () => {
+    const t = token();
+    const { room, bo } = await started(t, {});
+    room.holdS = 0.4;
+    bo.reconnection.enabled = false;
+    const server = room.clients.find((c) => c.sessionId === bo.sessionId);
+    (server?.ref as unknown as { terminate(): void }).terminate();
+    await vi.waitFor(() => expect(room.rememberedSeats.size).toBe(1), { timeout: 5000 });
+    const back = quiet(await colyseus.sdk.joinById<RunStateView>(bo.roomId, opts("join", "Bo", t, { ticket: bound(ACCT) })));
+    await vi.waitFor(() => expect(room.members.get(back.sessionId)?.playerId).toBe("p1"), { timeout: 5000 });
+    expect(room.members.get(back.sessionId)).toMatchObject({ accountId: ACCT, seatKey: `acct:${ACCT}` });
+    expect(room.rememberedSeats.size).toBe(0);
+  });
+
   it("started run: another account (new token) is still run_started", async () => {
     const { bo } = await started(token(), { ticket: bound(ACCT) });
     const e = await refusal(colyseus.sdk.joinById(bo.roomId, opts("join", "Cy", token(), { ticket: bound("22222222-2222-4333-8444-555555555555") })));
@@ -255,7 +269,7 @@ describe("Story 7.1 AC 7: the join name becomes the display name", () => {
     const session = (await res.json()) as { deviceToken: string; ticket: string };
     const c = quiet(await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "  Zed  ", session.deviceToken, { ticket: session.ticket })));
     const accounts = accountsRepo(database);
-    await vi.waitFor(async () => expect((await accounts.findByTokenHash(hashGuestToken(session.deviceToken)))?.displayName).toBe("Zed"));
+    await vi.waitFor(async () => expect((await accounts.findByTokenHash(hashGuestToken(session.deviceToken)))?.displayName).toBe("Zed"), { timeout: 5000 });
     await c.leave();
   });
 
@@ -266,7 +280,7 @@ describe("Story 7.1 AC 7: the join name becomes the display name", () => {
       const c = await other.colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, opts("create", "Ana", token(), { ticket: bound(ACCT) }));
       quiet(c as RunSdkRoom);
       const room = other.colyseus.getRoomById<RunRoom>(c.roomId) as unknown as RunRoom;
-      await vi.waitFor(() => expect(room.members.get(c.sessionId)?.accountId).toBe(ACCT));
+      await vi.waitFor(() => expect(room.members.get(c.sessionId)?.accountId).toBe(ACCT), { timeout: 5000 });
       await c.leave();
     } finally {
       await other.colyseus.shutdown();

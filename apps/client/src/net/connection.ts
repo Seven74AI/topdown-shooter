@@ -1,6 +1,7 @@
 import { Callbacks, Client, type Room } from "@colyseus/sdk";
 import {
   DOWNTOWN_MAP,
+  NET_PROTOCOL_VERSION,
   RUN_ROOM_NAME,
   err,
   isRoomCode,
@@ -14,7 +15,7 @@ import {
 } from "@topdown/shared";
 import { JOIN_ERROR_TEXT, joinErrorText } from "./joinErrors";
 import { clientBalance } from "../debug/clientBalance";
-import { joinAccount } from "./account";
+import { joinAccount, recoveryAccount } from "./account";
 import { getGuestToken } from "./guestToken";
 import { serverUrl } from "./serverUrl";
 import { netMeter } from "./netMeter";
@@ -37,7 +38,7 @@ const clientBalanceVersion = (): string => (balanceVersion ??= clientBalance().v
  * each Create / Join, after which the guest token is the server's copy); none when the save server is down (P3).
  */
 const options = (intent: JoinOptions["intent"], name: string, account: { ticket?: string; look?: string } = {}): JoinOptions => {
-  const o: JoinOptions = { intent, name, balanceVersion: clientBalanceVersion(), mapVersion: DOWNTOWN_MAP.version, guestToken: getGuestToken() };
+  const o: JoinOptions = { intent, name, balanceVersion: clientBalanceVersion(), mapVersion: DOWNTOWN_MAP.version, netProtocolVersion: NET_PROTOCOL_VERSION, guestToken: getGuestToken() };
   if (account.ticket !== undefined) o.ticket = account.ticket;
   if (account.look !== undefined) o.look = account.look; // Story 7.9: the server checks it (L1, L2)
   // Story 2.10: `?scenario=net150` on the host's create asks for the fixed test scenario.
@@ -103,7 +104,7 @@ export function recoveryFailure(e: unknown): "seat_kept" | "gone" | "network" {
  */
 export async function rejoinGame(roomId: string, name: string): Promise<RecoveryJoin<RunConnection>> {
   try {
-    const room = await sdk().joinById<RunStateView>(roomId, options("join", name, await joinAccount()));
+    const room = await sdk().joinById<RunStateView>(roomId, options("join", name, await recoveryAccount()));
     return { ok: true, room: counted(room as RunConnection) };
   } catch (e) {
     return { ok: false, reason: recoveryFailure(e) };

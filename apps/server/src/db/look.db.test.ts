@@ -32,7 +32,17 @@ describe("progress.look (Story 7.9 AC 1)", () => {
     expect(text).toBe('ALTER TABLE "progress" ADD COLUMN "look" text;');
   });
 
-  it("runs forward on 7.1's schema with rows in it: the rows stay, their look is null", async () => {
+  it("review M3: the look migration's journal `when` is newer than every earlier one (Drizzle skips older ones silently)", () => {
+    const journal = JSON.parse(readFileSync(join(MIGRATIONS_FOLDER, "meta", "_journal.json"), "utf8")) as { entries: { tag: string; when: number; idx: number }[] };
+    const mine = journal.entries.find((e) => `${e.tag}.sql` === look7);
+    expect(mine).toBeDefined();
+    const earlier = journal.entries.filter((e) => e.idx < (mine as { idx: number }).idx);
+    expect(earlier.length).toBeGreaterThanOrEqual(2); // 7.1's 0000_init and 7.2's 0001_run_rewards come first
+    for (const e of earlier) expect((mine as { when: number }).when).toBeGreaterThan(e.when);
+    expect(look7).toBe("0002_look.sql");
+  });
+
+  it("runs forward on the schema before it (7.1 + 7.2, as the VPS has it) with rows in it: the rows stay, the look column exists, null", async () => {
     // A migrations folder with only the migrations before this one (7.1's 0000_init), as the VPS has today.
     const dir = mkdtempSync(join(tmpdir(), "td-mig-"));
     try {
@@ -45,9 +55,15 @@ describe("progress.look (Story 7.9 AC 1)", () => {
       const client = new PGlite();
       const db = drizzle({ client });
       await migrate(db, { migrationsFolder: dir });
+      const applied = (await db.execute(sql`select count(*)::int as n from drizzle.__drizzle_migrations`)) as unknown as { rows: { n: number }[] };
+      expect(applied.rows[0]?.n).toBe(journal.entries.length - 1); // 0000 and 7.2's 0001 applied, not the look
+      const noLook = (await db.execute(sql`select count(*)::int as n from information_schema.columns where table_name = 'progress' and column_name = 'look'`)) as unknown as { rows: { n: number }[] };
+      expect(noLook.rows[0]?.n).toBe(0);
       await db.execute(sql`insert into accounts (guest_token_hash, display_name) values (${"c".repeat(64)}, 'Ana')`);
       await db.execute(sql`insert into progress (account_id, supplies) select id, 7 from accounts`);
       await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER }); // the deploy: only the new migration runs
+      const hasLook = (await db.execute(sql`select count(*)::int as n from information_schema.columns where table_name = 'progress' and column_name = 'look'`)) as unknown as { rows: { n: number }[] };
+      expect(hasLook.rows[0]?.n).toBe(1); // review M3: the migration really ran (not skipped)
       const rows = (await db.execute(sql`select supplies, look from progress`)) as unknown as { rows: { supplies: number; look: string | null }[] };
       expect(rows.rows).toEqual([{ supplies: 7, look: null }]);
       await client.close();

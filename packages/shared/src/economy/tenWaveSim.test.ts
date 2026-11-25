@@ -3,6 +3,13 @@ import { loadBalance } from "../config/balance";
 import { formatRunLine, runHeadless, type HeadlessRunLog } from "../bots/headlessRun";
 import type { World } from "../core/world";
 import { isSpawnBuried } from "../waves/spawnPick";
+import { runSupplies, suppliesEnding, type RunRecord } from "../meta/supplies";
+
+/** Story 7.2 (T6, brief 9): each bot's run record at the end, and the waves the run really ended / the wave it fell in. */
+function recordsAtEnd(w: World): { records: RunRecord[] } {
+  const records = [...w.players.values(), ...[...w.heldPlayers.values()].map((h) => h.player)].map((p) => ({ wavesIn: p.wavesIn, endlessWavesIn: p.endlessWavesIn, bossesIn: p.bossesIn, endlessBossesIn: p.endlessBossesIn }));
+  return { records };
+}
 
 /**
  * Story 6.1 (AC 5; brief lines 9 and 15): the full 10-wave run with the real balance and every real
@@ -54,7 +61,11 @@ describe("Story 6.1: ten-wave sim", () => {
         }
         picksRead += picks;
       };
-      const r = runHeadless({ balance, seed, players: 4, god: true, onTick, onEnd: (w) => void (god = w.debug.godMode) });
+      let end: ReturnType<typeof recordsAtEnd> | null = null;
+      const r = runHeadless({ balance, seed, players: 4, god: true, onTick, onEnd: (w) => void ((god = w.debug.godMode), (end = recordsAtEnd(w))) });
+      // Story 7.2 (T6): every bot was in all 10 waves and the Behemoth; extracted → 250 Supplies each (no rookie line here).
+      expect(end!.records.map((x) => [x.wavesIn, x.bossesIn, x.endlessWavesIn])).toEqual(Array.from({ length: 4 }, () => [10, 1, 0]));
+      for (const x of end!.records) expect(runSupplies(x, suppliesEnding(r.ending, true), 10_000).total).toBe(250);
       expect([...buriedAtRuins].length, `seed ${seed}: one alley mouth buried at stage 4`).toBe(1);
       expect([...buriedAtRuins][0], `seed ${seed}`).toMatch(/^alley_[123]_mouth$/);
       expect(picksRead, `seed ${seed}: picks read from wave 7`).toBeGreaterThan(100);
@@ -97,11 +108,25 @@ describe("Story 6.1: ten-wave sim", () => {
     const lines: string[] = [];
     const summary: string[] = [];
     let reachedLate = 0;
+    let wipes7_2 = 0;
+    let extracts7_2 = 0;
     for (const players of [1, 2, 3, 4]) {
       const rs: HeadlessRunLog[] = [];
       for (const seed of SEEDS) {
-        const r = runHeadless({ balance, seed, players });
+        let end: ReturnType<typeof recordsAtEnd> | null = null;
+        const r = runHeadless({ balance, seed, players, onEnd: (w) => void (end = recordsAtEnd(w)) });
         rs.push(r);
+        // Story 7.2 (T6, brief 9): wavesIn == the waves that really ended, plus the wave a wipe fell in (D8: the
+        // team was in wave `reached` that never ended; a wipe in a build phase has reached == wavesCleared).
+        const fellInWave = r.ending !== "extracted" && r.reached > r.wavesCleared;
+        const expected = r.wavesCleared + (fellInWave ? 1 : 0);
+        for (const x of end!.records) {
+          expect(x.wavesIn, `${players}p seed ${seed}`).toBe(expected);
+          const pay = runSupplies(x, suppliesEnding(r.ending, true), 10_000);
+          expect(pay.total).toBe(r.ending === "extracted" ? 250 : expected * 10 + Math.min(x.bossesIn, 1) * 50);
+        }
+        if (r.ending === "extracted") extracts7_2++;
+        else wipes7_2++;
         expect(r.timedOut, `${players}p seed ${seed}`).toBe(false); // F6: a run always ends on Results
         expect((r.ending === "extracted") !== r.wiped).toBe(true); // exactly one ending
         expect(r.wavesCleared).toBeGreaterThanOrEqual(1);
@@ -116,5 +141,8 @@ describe("Story 6.1: ten-wave sim", () => {
     }
     info(`[ten-wave sim (b)] mortal bots (not difficulty evidence)\n${lines.join("\n")}\n${summary.join("\n")}`);
     expect(reachedLate).toBeGreaterThan(0); // liveness: some mortal runs really reach the new waves 7–10
+    expect(wipes7_2, "Story 7.2: at least one run wiped (its Supplies checked)").toBeGreaterThan(0);
+    // The extracting runs with checked Supplies are (a)'s god-mode runs (mortal bots rarely extract: not difficulty evidence).
+    info(`[ten-wave sim (b)] Story 7.2: Supplies checked on ${wipes7_2} wiped and ${extracts7_2} extracted runs`);
   }, 180_000);
 });

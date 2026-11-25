@@ -164,6 +164,10 @@ describe("lobbyStore", () => {
 
     lobbyStore.leave();
     expect(unwatch).toHaveBeenCalled();
+    // Story 7.2 (D4): a Leave mid-run first asks the server to bank (run.leave) and leaves on its run.rewards answer.
+    expect(f.raw.send).toHaveBeenCalledWith(C2S.RUN_LEAVE, {});
+    expect(f.raw.leave).not.toHaveBeenCalled();
+    f.message(S2C.RUN_REWARDS, { runId: "0f1e2d3c-4b5a-4968-8776-655443322110", seed: 1, status: "not_saved", lines: { waves: 0, boss: 0, extract: 0, endless: 0, endlessBoss: 0 }, waveCount: 0, endlessWaveCount: 0, rookie: false, total: 0, newTotal: 0 });
     expect(f.raw.leave).toHaveBeenCalledWith(true);
     expect(lobbyStore.get().players).toEqual([]);
     expect(lobbyStore.current()).toBeNull();

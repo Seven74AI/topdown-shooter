@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import type { ColyseusTestServer } from "@colyseus/testing";
 import type { Room as SdkRoom } from "@colyseus/sdk";
 import { randomBytes } from "node:crypto";
-import { BUILD_GRID_M, BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, buildingTypeIds, placementError, type BuildingGhosted, type RunStateView } from "@topdown/shared";
+import {
+  NET_PROTOCOL_VERSION, BUILD_GRID_M, BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, buildingTypeIds, placementError, type BuildingGhosted, type RunStateView } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
 import { RunRoom, serverBalance } from "./RunRoom";
 
@@ -28,6 +29,7 @@ const options = (intent: "create" | "join", name: string) => ({
   name,
   balanceVersion: serverBalance.version,
   mapVersion: DOWNTOWN_MAP.version,
+  netProtocolVersion: NET_PROTOCOL_VERSION,
   guestToken: randomBytes(16).toString("hex"),
 });
 

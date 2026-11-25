@@ -79,7 +79,7 @@ describe("horde frame format", () => {
       typeState: packTypeState(0, i % 3),
     }));
     const bytes = encode(123456, recs);
-    expect(bytes.length).toBe(6 + 8 * n);
+    expect(bytes.length).toBe(7 + 8 * n); // Story 8.10: keyframe header 7 B
     const got = decode(bytes);
     expect(got.tick).toBe(123456);
     expect(got.count).toBe(n);
@@ -167,7 +167,7 @@ describe("horde frame format", () => {
     expect(stateOfTypeState(got[0] as number)).toBe(ZOMBIE_STATE.RUSH);
   });
 
-  it("an empty frame is exactly 6 bytes", () => {
+  it("an empty keyframe is exactly 7 bytes (Story 8.10)", () => {
     const bytes = encode(9, []);
     expect(bytes.length).toBe(HORDE_HEADER_BYTES);
     const got = decode(bytes);
@@ -177,14 +177,15 @@ describe("horde frame format", () => {
 
   it("rejects a wrong length and calls nothing", () => {
     const good = encode(3, [{ netId: 1, x: 1, y: 1, heading: 0, typeState: 0 }]);
-    for (const bad of [good.subarray(0, 13), good.subarray(0, 4), new Uint8Array([...good, 0]), new Uint8Array(0)]) {
+    for (const bad of [good.subarray(0, 14), good.subarray(0, 4), new Uint8Array([...good, 0]), new Uint8Array(0)]) {
       const c = new Collect();
       expect(readHordeFrame(bad, c)).toBe(false);
       expect(c.tick).toBe(-1);
     }
     // A count over the pool is rejected even with a matching length.
     const huge = new Uint8Array(hordeFrameBytes(257));
-    new DataView(huge.buffer).setUint16(4, 257, true);
+    huge[4] = 1;
+    new DataView(huge.buffer).setUint16(5, 257, true);
     expect(readHordeFrame(huge, new Collect())).toBe(false);
   });
 

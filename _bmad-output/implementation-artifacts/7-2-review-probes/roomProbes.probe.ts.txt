@@ -1,0 +1,198 @@
+import { randomBytes } from "node:crypto";
+import type { Room as SdkRoom } from "@colyseus/sdk";
+import type { ColyseusTestServer } from "@colyseus/testing";
+import { BYTES, C2S, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, downPlayer, runRewardsSchema, type RunRewards, type RunStateView } from "@topdown/shared";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { signTicket } from "../auth/ticket";
+import { accountsRepo } from "../db/accountsRepo";
+import { type Database, openPglite } from "../db/client";
+import { progressRepo } from "../db/progressRepo";
+import { countRunRewards } from "../db/testQueries";
+import { hashGuestToken } from "../run/lobby";
+import { bootTestServer } from "../test/bootTestServer";
+import { RunRoom, serverBalance } from "./RunRoom";
+import { endWave } from "@topdown/shared";
+
+/**
+ * Story 7.2 (AC 3, 4, 5, 8; S2, S3, S6, brief 18): banking in a real room — the run end banks each member once,
+ * a consented Leave banks at once (`quit`) and nothing again at the run end, a member without an account gets
+ * `not_saved`, the in-run wallet is never touched, and `run.rewards` carries the server's numbers.
+ */
+const SECRET = "rewards-secret-".padEnd(48, "w");
+let colyseus: ColyseusTestServer;
+let database: Database;
+
+beforeAll(async () => {
+  database = openPglite();
+  ({ colyseus } = await bootTestServer({ database, sessionSecret: SECRET }));
+});
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await colyseus.cleanup();
+});
+afterAll(async () => {
+  await colyseus.shutdown();
+});
+
+type RunSdkRoom = SdkRoom<unknown, RunStateView>;
+const hex = (): string => randomBytes(16).toString("hex");
+
+async function newAccount(): Promise<string> {
+  return (await accountsRepo(database).createGuest(randomBytes(32).toString("hex"), "")).id;
+}
+const options = (intent: "create" | "join", name: string, accountId: string | null) => {
+  const guestToken = hex();
+  return {
+    intent,
+    name,
+    balanceVersion: serverBalance.version,
+    mapVersion: DOWNTOWN_MAP.version,
+    guestToken,
+    ...(accountId ? { ticket: signTicket(accountId, hashGuestToken(guestToken), SECRET) } : {}),
+  };
+};
+function listen(c: RunSdkRoom): RunRewards[] {
+  const got: RunRewards[] = [];
+  for (const t of [BYTES.HORDE_FRAME, S2C.SIM_EVENTS_FLUSHED, S2C.NET_PINGED, S2C.PLAYER_LEFT, S2C.SHOP_OFFERED, S2C.RUN_JOINED]) c.onMessage(t, () => {});
+  c.onMessage(S2C.RUN_REWARDS, (m: unknown) => got.push(runRewardsSchema.parse(m)));
+  return got;
+}
+
+/** Players (with or without an account) in a run, in wave 1. */
+async function toWave(accounts: (string | null)[]) {
+  const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, options("create", "Ana", accounts[0] ?? null));
+  const clients = [host];
+  const inbox = [listen(host)];
+  await host.waitForInitialState();
+  const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+  room.bankRetryMs = 20;
+  for (let i = 1; i < accounts.length; i++) {
+    const c = await colyseus.sdk.joinById<RunStateView>(host.roomId, options("join", `P${i}`, accounts[i] ?? null));
+    inbox.push(listen(c));
+    await c.waitForInitialState();
+    clients.push(c);
+  }
+  for (const c of clients) c.send(C2S.LOBBY_SET_READY, { ready: true });
+  await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+  host.send(C2S.RUN_START, {});
+  await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+  const w = room.controller?.world;
+  if (!w) throw new Error("no run");
+  w.debug.bossWaves = [];
+  for (const c of clients) c.send(C2S.BUILD_SET_READY, { ready: true });
+  await vi.waitFor(() => expect(w.run.phase).toBe("wave"));
+  return { clients, inbox, room, w };
+}
+const idOf = (room: RunRoom, c: RunSdkRoom): string => room.members.get(c.sessionId)?.playerId ?? "";
+const rewardRows = (accountId: string): Promise<number> => countRunRewards(database, accountId);
+const supplies = async (accountId: string) => (await progressRepo(database).get(accountId))?.supplies ?? -1;
+
+
+const optsTok = (intent: "create" | "join", name: string, accountId: string | null, guestToken: string) => ({
+  intent, name, balanceVersion: serverBalance.version, mapVersion: DOWNTOWN_MAP.version, guestToken,
+  ...(accountId ? { ticket: signTicket(accountId, hashGuestToken(guestToken), SECRET) } : {}),
+});
+async function toWaveTok(accounts: string[], tokens: string[]) {
+  const host = await colyseus.sdk.create<RunStateView>(RUN_ROOM_NAME, optsTok("create", "Ana", accounts[0]!, tokens[0]!));
+  const clients = [host]; const inbox = [listen(host)];
+  await host.waitForInitialState();
+  const room = colyseus.getRoomById<RunRoom>(host.roomId) as unknown as RunRoom;
+  room.bankRetryMs = 20;
+  for (let i = 1; i < accounts.length; i++) {
+    const c = await colyseus.sdk.joinById<RunStateView>(host.roomId, optsTok("join", `P${i}`, accounts[i]!, tokens[i]!));
+    inbox.push(listen(c)); await c.waitForInitialState(); clients.push(c);
+  }
+  for (const c of clients) c.send(C2S.LOBBY_SET_READY, { ready: true });
+  await vi.waitFor(() => expect([...room.members.values()].every((m) => room.state.players.get(m.playerId)?.ready)).toBe(true));
+  host.send(C2S.RUN_START, {});
+  await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+  const w = room.controller!.world; w.debug.bossWaves = [];
+  for (const c of clients) c.send(C2S.BUILD_SET_READY, { ready: true });
+  await vi.waitFor(() => expect(w.run.phase).toBe("wave"));
+  return { clients, inbox, room, w };
+}
+function dropSocket(room: RunRoom, client: RunSdkRoom): void {
+  const server = room.clients.find((c) => c.sessionId === client.sessionId);
+  (server?.ref as unknown as { terminate(): void }).terminate();
+}
+const noReconnect = (c: RunSdkRoom) => { c.reconnection.enabled = false; };
+
+describe("REVIEW probes 7.2", () => {
+  it("P1 B5: Leave (banked quit) → remembered → rejoin in build → more waves → run end: one row, no extra pay", async () => {
+    const [a, b] = [await newAccount(), await newAccount()]; const toks = [hex(), hex()];
+    const { clients, inbox, room, w } = await toWaveTok([a, b], toks);
+    const bId = idOf(room, clients[1]!);
+    w.players.get(bId)!.wavesIn = 3;
+    clients[1]!.send(C2S.RUN_LEAVE, {});
+    await vi.waitFor(() => expect(inbox[1]!.length).toBe(1));
+    await clients[1]!.leave(true);
+    await vi.waitFor(() => expect(room.rememberedSeats.size).toBe(1));
+    endWave(w);
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+    const back = await colyseus.sdk.joinById<RunStateView>(clients[0]!.roomId, optsTok("join", "P1", b, toks[1]!));
+    const got = listen(back);
+    await back.waitForInitialState();
+    await vi.waitFor(() => expect(w.players.has(bId)).toBe(true));
+    console.log("P1 rejoined counters", JSON.stringify({ wavesIn: w.players.get(bId)!.wavesIn }));
+    w.players.get(bId)!.wavesIn = 9;
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await new Promise((r) => setTimeout(r, 200));
+    console.log("P1 supplies", await supplies(b), "rows", await rewardRows(b), "rejoin got", JSON.stringify(got.map((m) => [m.status, m.total])));
+    expect(await rewardRows(b)).toBe(1);
+  });
+
+  it("P2: drop mid-wave (held), team wipes, then reconnect on Results by token", async () => {
+    const [a, b] = [await newAccount(), await newAccount()]; const toks = [hex(), hex()];
+    const { clients, inbox, room, w } = await toWaveTok([a, b], toks);
+    const bId = idOf(room, clients[1]!);
+    w.players.get(bId)!.wavesIn = 2;
+    noReconnect(clients[1]!);
+    dropSocket(room, clients[1]!);
+    await vi.waitFor(() => expect(room.holds.has(bId)).toBe(true));
+    await new Promise((r) => setTimeout(r, 100));
+    console.log("P2 rows at drop", await rewardRows(b));
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    await vi.waitFor(async () => expect(await rewardRows(b)).toBe(1));
+    console.log("P2 held banked supplies", await supplies(b), "inbox[1]", inbox[1]!.length);
+    let got: RunRewards[] = [];
+    try {
+      const back = await colyseus.sdk.joinById<RunStateView>(clients[0]!.roomId, optsTok("join", "P1", b, toks[1]!));
+      got = listen(back);
+      await new Promise((r) => setTimeout(r, 300));
+      console.log("P2 rejoin on results got", JSON.stringify(got.map((m) => [m.status, m.total, m.waveCount])));
+    } catch (e) { console.log("P2 rejoin refused", String(e)); }
+  });
+
+  it("P3: run.leave spam x30 mid-wave: one row, bounded replies, player still in the World", async () => {
+    const [a, b] = [await newAccount(), await newAccount()];
+    const { clients, inbox, room, w } = await toWave([a, b]);
+    for (let i = 0; i < 30; i++) clients[1]!.send(C2S.RUN_LEAVE, {});
+    await new Promise((r) => setTimeout(r, 1200));
+    console.log("P3 replies", inbox[1]!.length, "rows", await rewardRows(b), "inWorld", w.players.has(idOf(room, clients[1]!)), "members", room.members.size);
+    expect(await rewardRows(b)).toBe(1);
+  });
+
+  it("P4: two runs in one room (Back to lobby, start again) bank separately", async () => {
+    const a = await newAccount();
+    const { clients, inbox, room, w } = await toWave([a]);
+    w.players.forEach((p) => { p.wavesIn = 4; });
+    for (const p of w.players.values()) downPlayer(w, p);
+    await vi.waitFor(() => expect(inbox[0]!.length).toBe(1));
+    const run1 = inbox[0]![0]!;
+    clients[0]!.send(C2S.LOBBY_RETURN, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("lobby"));
+    clients[0]!.send(C2S.LOBBY_SET_READY, { ready: true });
+    await new Promise((r) => setTimeout(r, 100));
+    clients[0]!.send(C2S.RUN_START, {});
+    await vi.waitFor(() => expect(room.state.phase).toBe("build"));
+    const w2 = room.controller!.world;
+    w2.players.forEach((p) => { p.wavesIn = 2; });
+    clients[0]!.send(C2S.BUILD_SET_READY, { ready: true });
+    await vi.waitFor(() => expect(w2.run.phase).toBe("wave"));
+    for (const p of w2.players.values()) downPlayer(w2, p);
+    await vi.waitFor(() => expect(inbox[0]!.length).toBe(2));
+    console.log("P4", run1.runId !== inbox[0]![1]!.runId, run1.seed, inbox[0]![1]!.seed, "rows", await rewardRows(a), "supplies", await supplies(a));
+  });
+});

@@ -34,6 +34,8 @@ describe("joinErrorText", () => {
 
   it("knows which text needs the Refresh button", () => {
     expect(needsRefresh(joinErrorText(mm("balance_mismatch")))).toBe(true);
+    expect(joinErrorText(mm("update_required"))).toBe("A new version is out. Please reload."); // Story 8.10 (F5)
+    expect(needsRefresh(joinErrorText(mm("update_required")))).toBe(true);
     expect(needsRefresh("Game not found")).toBe(false);
     expect(needsRefresh(undefined)).toBe(false);
   });

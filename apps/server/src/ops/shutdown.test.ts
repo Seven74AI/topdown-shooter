@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CloseCode } from "@colyseus/core";
 import type { ColyseusTestServer } from "@colyseus/testing";
-import { DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, type RunStateView } from "@topdown/shared";
+import {
+  NET_PROTOCOL_VERSION, DOWNTOWN_MAP, RUN_ROOM_NAME, S2C, type RunStateView } from "@topdown/shared";
 import { bootTestServer } from "../test/bootTestServer";
 import { SERVER_RESTARTING_MESSAGE, serverBalance } from "../rooms/RunRoom";
 
@@ -22,6 +23,7 @@ describe("graceful shutdown", () => {
       name: "Ana",
       balanceVersion: serverBalance.version,
       mapVersion: DOWNTOWN_MAP.version,
+      netProtocolVersion: NET_PROTOCOL_VERSION,
       guestToken: "0123456789abcdef0123456789abcdef", // required since Story 2.3
     });
     await client.waitForInitialState();

@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import { dpr, safeArea } from "../display";
-import { createPerfSnapshot, delayLine, perf } from "./perfStats";
+import { createPerfSnapshot, delayLine, hordeStreamText, perf } from "./perfStats";
 import { stressRun } from "./stressScenario";
 import { hitsLine } from "./reversedHits";
 import { MENU_BUTTON_CSS_PX, MENU_BUTTON_INSET_CSS_PX } from "../ui/sizes";
@@ -38,6 +38,8 @@ export class PerfOverlay {
   private hordeFrames = 0;
   private hordeAtMs = 0;
   private hordeRate = 0;
+  private hordeKeys = 0;
+  private keyRate = 0;
 
   constructor(private readonly scene: Phaser.Scene) {
     const k = dpr();
@@ -97,7 +99,9 @@ export class PerfOverlay {
       lines.push(
         `down ${netMeter.downKBps(now).toFixed(1)} KB/s (avg ${netMeter.avgDownKBps(now).toFixed(1)}, peak ${netMeter.peakDownKBps(now).toFixed(1)}) · up ${netMeter.upKBps(now).toFixed(1)} KB/s`,
       );
-      lines.push(`horde ${this.hordePerS(now, net.hordeStats.framesReceived)}/s · corrections ${n.corrections} · snaps ${n.snaps}`);
+      const h = net.hordeStats;
+      // Story 8.10 (AC 9): + keyframes per s and refused frames
+      lines.push(`horde ${this.hordePerS(now, h.framesReceived, h.keyframes)}/s · ${hordeStreamText(this.keyRate, h.decodeErrors)} · corrections ${n.corrections} · snaps ${n.snaps}`);
       lines.push(hitsLine(n));
     } else {
       const h = perf.hits;
@@ -120,14 +124,17 @@ export class PerfOverlay {
   }
 
   /** Horde frames per second, over windows of at least HORDE_RATE_WINDOW_MS. */
-  private hordePerS(nowMs: number, frames: number): number {
+  private hordePerS(nowMs: number, frames: number, keys: number): number {
     const dt = nowMs - this.hordeAtMs;
-    if (frames < this.hordeFrames || this.hordeAtMs === 0) {
+    if (frames < this.hordeFrames || keys < this.hordeKeys || this.hordeAtMs === 0) {
       this.hordeFrames = frames; // a new host: start over
+      this.hordeKeys = keys;
       this.hordeAtMs = nowMs;
     } else if (dt >= HORDE_RATE_WINDOW_MS) {
       this.hordeRate = Math.round(((frames - this.hordeFrames) * 1000) / dt);
+      this.keyRate = ((keys - this.hordeKeys) * 1000) / dt;
       this.hordeFrames = frames;
+      this.hordeKeys = keys;
       this.hordeAtMs = nowMs;
     }
     return this.hordeRate;

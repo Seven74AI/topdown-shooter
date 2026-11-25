@@ -1,0 +1,21 @@
+import { describe, expect, it } from "vitest";
+import { RewardsStore } from "./rewardsStore";
+import { rewardsView } from "../ui/rewardsModel";
+const base = { runId: "00000000-0000-4000-8000-000000000001", seed: 7, status: "saved", lines: { waves: 50, boss: 0, extract: 0, endless: 0, endlessBoss: 0 }, waveCount: 5, endlessWaveCount: 0, rookie: false, total: 50, newTotal: 50 };
+describe("rr72 L5 probe", () => {
+  it("run 1's message arrives only after run 2 started (it was late) → shown on run 2's Results?", () => {
+    const s = new RewardsStore(() => null);
+    s.receive(base); // run 0 rewards, on time
+    s.startRun(); // run 1 starts
+    s.startRun(); // run 1 ends, its bank is slow; run 2 starts before run 1's message landed
+    const late = s.receive({ ...base, runId: "00000000-0000-4000-8000-000000000002", total: 999, newTotal: 999 });
+    console.log("late accepted:", late !== null, "forSeed(7):", s.forSeed(7)?.total, "view total:", rewardsView(s.get(), true, 7).total);
+    expect(late).toBeNull();
+  });
+  it("reconnect during Results: a fresh store/handler does not mark the re-sent result stale", () => {
+    const s = new RewardsStore(() => null);
+    s.startRun();
+    expect(s.receive({ ...base })).not.toBeNull();
+    expect(s.receive({ ...base })).not.toBeNull(); // the server re-sends on reconnect (resultFor)
+  });
+});
