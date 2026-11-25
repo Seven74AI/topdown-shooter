@@ -102,7 +102,7 @@ describe("Story 7.6: Save my progress (POST /account/upgrade)", () => {
     const s = await post("/account/session", {}, { cookie: g.token });
     expect(readTicket(s.body.ticket, SECRET)?.accountId).toBe(g.id);
     expect(s.body.account).toEqual({ displayName: "", username: name });
-    expect(s.body.progress).toEqual({ supplies: 150, lifetimeSupplies: 250, unlocks: ["mine"] });
+    expect(s.body.progress).toMatchObject({ supplies: 150, lifetimeSupplies: 250, unlocks: ["mine"] });
     // The password and the code both work (they were stored as hashes that verify).
     expect((await post("/account/login", { username: name, password: PASSWORD })).status).toBe(200);
     expect((await post("/account/recover", { username: name, code: body.recoveryCode, newPassword: "another pass 2" })).status).toBe(200);
@@ -159,14 +159,14 @@ describe("Story 7.6: log in (POST /account/login)", () => {
     expect(body.deviceToken).not.toBe(phone.token);
     expect(verifyTicket(body.ticket, SECRET, hashGuestToken(body.deviceToken))).toBe(a.id); // ticket bound to the NEW token
     expect(body.account.username).toBe(a.username);
-    expect(body.progress).toEqual({ supplies: 300 + 20 + 100, lifetimeSupplies: 520, unlocks: ["mine"] });
+    expect(body.progress).toMatchObject({ supplies: 300 + 20 + 100, lifetimeSupplies: 520, unlocks: ["mine"] });
     const after = await post("/account/session", {}, { cookie: body.deviceToken });
     expect(readTicket(after.body.ticket, SECRET)?.accountId).toBe(a.id);
     const stale = await post("/account/session", {}, { cookie: phone.token });
     const staleId = readTicket(stale.body.ticket, SECRET)?.accountId;
     expect(staleId).not.toBe(a.id);
     expect(staleId).not.toBe(phone.id); // a brand-new empty guest, never the merged one
-    expect(stale.body.progress).toEqual({ supplies: 0, lifetimeSupplies: 0, unlocks: [] });
+    expect(stale.body.progress).toMatchObject({ supplies: 0, lifetimeSupplies: 0, unlocks: [] });
   });
 
   it("A3: wrong name and wrong password give byte-identical answers; a missing name still runs one Argon2 verify", async () => {
@@ -279,7 +279,7 @@ describe("Story 7.6: forgot password (POST /account/recover)", () => {
     const after = await post("/account/session", {}, { cookie: thiefToken });
     expect(readTicket(after.body.ticket, SECRET)?.accountId).not.toBe(a.id);
     expect(after.body.account).toEqual({ displayName: "", username: null });
-    expect(after.body.progress).toEqual({ supplies: 0, lifetimeSupplies: 0, unlocks: [] });
+    expect(after.body.progress).toMatchObject({ supplies: 0, lifetimeSupplies: 0, unlocks: [] });
     // the account's first phone (from the upgrade) is logged out too; the resetting phone is the account
     expect(readTicket((await post("/account/session", {}, { cookie: a.token })).body.ticket, SECRET)?.accountId).not.toBe(a.id);
     const owner = await post("/account/session", {}, { cookie: String(reset.body.deviceToken) });
@@ -304,11 +304,11 @@ describe("Story 7.6: log out (POST /account/logout)", () => {
     const body = deviceSessionResponseSchema.parse(r.body);
     expect(r.token).toBe(body.deviceToken);
     expect(body.account).toEqual({ displayName: "", username: null });
-    expect(body.progress).toEqual({ supplies: 0, lifetimeSupplies: 0, unlocks: [] });
+    expect(body.progress).toMatchObject({ supplies: 0, lifetimeSupplies: 0, unlocks: [] });
     const newId = readTicket(body.ticket, SECRET)?.accountId;
     expect(newId).not.toBe(a.id);
     const other = await post("/account/login", { username: a.username, password: PASSWORD });
-    expect(deviceSessionResponseSchema.parse(other.body).progress).toEqual({ supplies: 90, lifetimeSupplies: 90, unlocks: [] });
+    expect(deviceSessionResponseSchema.parse(other.body).progress).toMatchObject({ supplies: 90, lifetimeSupplies: 90, unlocks: [] });
     expect(await post("/account/logout", {}, { cookie: body.deviceToken })).toMatchObject({ status: 409, body: { message: "not_logged_in" } });
   });
 });

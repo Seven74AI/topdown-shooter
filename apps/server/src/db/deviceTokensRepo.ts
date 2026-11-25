@@ -59,13 +59,14 @@ export interface DeviceTokensRepo {
 }
 
 const accountColumns = { id: accounts.id, displayName: accounts.displayName, username: accounts.username };
-const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplies" | "unlocks" | "training" | "districts">): Progress => ({
+const viewOf = (r: Pick<ProgressRow, "accountId" | "supplies" | "lifetimeSupplies" | "unlocks" | "training" | "districts" | "look">): Progress => ({
   accountId: r.accountId,
   supplies: r.supplies,
   lifetimeSupplies: r.lifetimeSupplies,
   unlocks: r.unlocks,
   training: r.training,
   districts: r.districts,
+  look: r.look, // Story 7.9
 });
 
 /** The account row is already locked by the caller (device → account → guest: review L4); the guest is locked here. */

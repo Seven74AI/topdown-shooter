@@ -228,7 +228,10 @@ function adopt(s: DeviceSessionResponse, tokens: GuestTokenStore): void {
   tokens.set(s.deviceToken);
   forgetTicket();
   accountStore.accept(s.account.username);
-  if (s.progress) progressStore.accept(s.progress);
+  if (s.progress) {
+    progressStore.accept(s.progress);
+    deviceLook.set(s.progress.look ?? null); // Story 7.9: this phone's look copy follows the account it now is
+  }
 }
 
 export async function upgradeAccount(username: string, password: string, over: Partial<AccountDeps> = {}): Promise<AccountCall<UpgradeResponse>> {

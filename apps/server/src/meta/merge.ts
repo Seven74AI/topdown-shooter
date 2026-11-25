@@ -99,6 +99,8 @@ export const MERGE_RULES = {
   districts: (a, g) => union(a, g),
   /** The merge time. */
   updatedAt: (_a, _g, ctx) => ctx.now,
+  /** Story 7.9 / 7.10: the account's look kept unless it is the default (null), then the guest's. */
+  look: (a, g) => (typeof a === "string" ? a : typeof g === "string" ? g : null),
 } satisfies Record<string, MergeRule>;
 
 export type MergeColumn = keyof typeof MERGE_RULES;

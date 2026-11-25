@@ -31,7 +31,7 @@ import { ipKey, type NameFailureLimiter, type SlidingWindowLimiter } from "../ne
 import { log } from "../ops/logger";
 import { hashGuestToken } from "../run/lobby";
 import { beginSwitch, deviceInRoom, endSwitch } from "./devicesInRooms";
-import { mintGuestToken } from "./guestSession";
+import { canonicalLook, mintGuestToken } from "./guestSession";
 import { hashSecret, verifySecret } from "./passwords";
 import { formatRecoveryCode, newRecoveryCode } from "./recoveryCode";
 import { signTicket } from "./ticket";
@@ -133,7 +133,7 @@ function sessionOf(r: Extract<LogInResult, { outcome: "ok" }>, token: string, de
     deviceToken: token,
     ticket: signTicket(r.account.id, hashGuestToken(token), deps.sessionSecret, (deps.now ?? Date.now)()),
     account: { displayName: r.account.displayName, username: r.account.username },
-    progress: toView(r.progress),
+    progress: { ...toView(r.progress), look: canonicalLook(r.progress.look) }, // Story 7.9: like the session reply
   };
 }
 
@@ -260,7 +260,7 @@ export async function logOut(input: { cookieToken: string | null | undefined; ip
         deviceToken: fresh,
         ticket: signTicket(r.account.id, hashGuestToken(fresh), deps.sessionSecret, (deps.now ?? Date.now)()),
         account: { displayName: r.account.displayName, username: null },
-        progress: { supplies: 0, lifetimeSupplies: 0, unlocks: [] },
+        progress: { supplies: 0, lifetimeSupplies: 0, unlocks: [], look: null },
       };
       return { status: 200, body, deviceToken: fresh };
     });

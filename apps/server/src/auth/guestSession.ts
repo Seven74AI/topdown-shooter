@@ -132,7 +132,7 @@ const ANY_PART = catalogueParts();
  * read keeps the session saved, with the default look (null): the look never costs the player their account.
  */
 /** Story 7.9: the stored look, canonicalised (unknown parts dropped, the code re-encoded); null = the default look. */
-function canonicalLook(stored: string | null | undefined): string | null {
+export function canonicalLook(stored: string | null | undefined): string | null {
   return stored === null || stored === undefined ? null : encodeLook(decodeLook(stored, ANY_PART).look);
 }
 

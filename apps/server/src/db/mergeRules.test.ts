@@ -12,6 +12,7 @@ const row = (o: Partial<MergeRow> & { accountId: string }): MergeRow => ({
   training: {},
   districts: [],
   updatedAt: new Date(0),
+  look: null,
   ...o,
 });
 
@@ -65,6 +66,12 @@ describe("mergeProgress (Story 7.6 A2)", () => {
       // What the account holds after (Supplies + the value of what it owns) equals exactly what both sides had.
       expect(out.supplies + keptValue).toBe(a.supplies + g.supplies + spent(a) + spent(g));
     }
+  });
+
+  it("7.9/7.10 look: the account's look is kept unless it is the default (null), then the guest's", () => {
+    expect(mergeProgress(row({ accountId: "a", look: "t1h2" }), row({ accountId: "g", look: "t3h4" })).row.look).toBe("t1h2");
+    expect(mergeProgress(row({ accountId: "a", look: null }), row({ accountId: "g", look: "t3h4" })).row.look).toBe("t3h4");
+    expect(mergeProgress(row({ accountId: "a", look: null }), row({ accountId: "g", look: null })).row.look).toBeNull();
   });
 
   it("garbage in a stored row (non-strings, negative or fractional levels) is dropped, never refunded", () => {
