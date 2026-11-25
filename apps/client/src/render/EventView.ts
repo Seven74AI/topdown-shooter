@@ -144,6 +144,7 @@ export class EventView {
     // Review L11: it also keeps off the NPC arrow's drawn rect (the two never overlap).
     const flagEdge = f.visible && placeSecondEventArrow((f.x - vx) * pxPerM, (f.y - vy) * pxPerM, sw, sh, insets, k, arrowPx, waveControlRects(sw, sh, insets, k, this.controls), onEdge ? this.arrowAt : null, this.flagAt);
     f.edge.visible = flagEdge;
+    if (!f.visible) this.flagAt.side = 0; // no flag: its hysteresis starts fresh next time (6.8 RR1: one placement object per arrow)
     if (flagEdge) {
       f.edge.x = vx + this.flagAt.x / pxPerM;
       f.edge.y = vy + this.flagAt.y / pxPerM;

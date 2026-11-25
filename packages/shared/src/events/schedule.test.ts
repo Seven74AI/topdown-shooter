@@ -190,7 +190,7 @@ describe("Story 6.8 re-review 2 RR4 / re-review 3 RR3-4: forced events and the e
     w.special.extraDone = false;
     startBuild(w); // the build before wave 12
     const id = w.run.endlessEvent;
-    expect(["car_alarm", "stampede"]).toContain(id);
+    expect(EVENT_KINDS as readonly string[]).toContain(id); // 6.9 + 6.10: any of the six
     expect(w.special.extra).toMatchObject({ kind: EVENT_KINDS.indexOf(id as (typeof EVENT_KINDS)[number]), wave: 12 });
     expect(w.run.lastEndlessEvent).toBe(id);
     // a DONE forced entry for the same wave doesn't stop it either
@@ -218,6 +218,6 @@ describe("Story 6.8 re-review 2 RR4 / re-review 3 RR3-4: forced events and the e
     startWave(w); // 13
     skipWave(w); // the build before 14
     expect(w.run.endlessEvent).not.toBe(other);
-    expect(["car_alarm", "stampede"]).toContain(w.run.endlessEvent);
+    expect(EVENT_KINDS as readonly string[]).toContain(w.run.endlessEvent); // 6.9 + 6.10: any of the six
   });
 });
