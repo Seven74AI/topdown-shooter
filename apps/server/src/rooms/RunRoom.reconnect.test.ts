@@ -241,6 +241,8 @@ describe("Story 8.1 takeover by guest token (AC 6, D5)", () => {
     const { clients, room, tokens } = await runOf(2);
     const lines = logLines(room);
     const old = clients[1] as RunSdkRoom;
+    const oldGuard = (room.net as unknown as { clients: Map<string, unknown> }).clients.get(old.sessionId);
+    expect(oldGuard).toBeDefined();
     let oldLeftCode = 0;
     old.onLeave((code) => (oldLeftCode = code));
     const fresh = await colyseus.sdk.joinById<RunStateView>(old.roomId, options("join", "Bo", tokens[1] as string));
@@ -251,6 +253,10 @@ describe("Story 8.1 takeover by guest token (AC 6, D5)", () => {
     expect([...room.members.values()].find((m) => m.playerId === "p1")?.sessionId).toBe(fresh.sessionId);
     expect(room.holds.size).toBe(0); // the old socket's close is no drop (no hold restart)
     expect(lines("seat_taken_over")).toEqual([expect.objectContaining({ playerId: "p1", held: false })]);
+    // Review L2 / RR1-N3: the seat's message guard (buckets, drop counters) moved to the new session.
+    const guards = (room.net as unknown as { clients: Map<string, unknown> }).clients;
+    expect(guards.get(fresh.sessionId)).toBe(oldGuard);
+    expect(guards.has(old.sessionId)).toBe(false);
     expect(lines("player_left")).toEqual([]);
   });
 
@@ -436,6 +442,7 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
     const back = await colyseus.sdk.reconnect<RunStateView>(ana.reconnectionToken);
     record(back);
     await vi.waitFor(() => expect(room.state.resumeIn).toBe(3));
+    expect(w.players.get("p0")?.protectTicks).toBe(0); // B18: in a frozen World the 3-2-1 replaces protection
     const counts: number[] = [];
     back.onStateChange((s) => {
       if (counts[counts.length - 1] !== s.resumeIn) counts.push(s.resumeIn);
