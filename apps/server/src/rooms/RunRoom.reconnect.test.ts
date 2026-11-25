@@ -421,13 +421,17 @@ describe("Story 8.1 freeze when nobody is connected (AC 10, F6)", () => {
 
   it("a team wipes when every connected player is down, even with a teammate held (F3)", async () => {
     const { clients, room } = await runOf(2);
+    const lines = logLines(room);
     const w = world(room);
     startWave(w);
     const bo = clients[1] as RunSdkRoom;
+    w.players.get("p1")!.earned = 77;
     reconnect(bo, false);
     dropSocket(room, bo);
     await vi.waitFor(() => expect(room.holds.has("p1")).toBe(true));
     downPlayer(w, w.players.get("p0") as never);
     await vi.waitFor(() => expect(room.state.phase).toBe("results"));
+    // Review L1: the held seat is in run_ended too.
+    expect(lines("run_ended")[0]).toMatchObject({ earned: { p0: 0, p1: 77 } });
   });
 });

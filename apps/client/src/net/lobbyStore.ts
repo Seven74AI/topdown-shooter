@@ -253,8 +253,8 @@ class LobbyStore {
       const link = this.link;
       // Our own takeover is in flight: this 4021 is it closing the token-reconnected socket; its room is adopted next.
       if (link && code === CLOSE_TAKEN_OVER && link.recoveryInFlight) return;
-      // Just recovered: two of my own takeovers crossed (the server kept the other): take the seat again.
-      if (link && code === CLOSE_TAKEN_OVER && performance.now() - linkStore.recoveredAtMs < RECONNECT.ownTakeoverMs) {
+      // Just adopted a LATE takeover of mine: two of my own takeovers crossed (the server kept the other): take it again (review L3).
+      if (link && code === CLOSE_TAKEN_OVER && performance.now() - linkStore.lateAdoptedAtMs < RECONNECT.ownTakeoverMs) {
         link.sdkGaveUp();
         return;
       }

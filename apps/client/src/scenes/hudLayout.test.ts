@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ACTION_IDS, layoutActionBar, newActionBarLayout } from "./actionBar";
 import { BUILD_BAR_SLOTS, layoutBuildBar, newBuildBarLayout, readyLeftX } from "./buildBar";
@@ -57,12 +59,26 @@ function bossBar(w: number): Box {
 }
 
 /**
- * Story 8.1: the held chips' box, mirrored from overlay.css (.held-chips: top left under the money
- * line — top 86 px, left inset + 16 px, ≤ 3 rows × 20 px, ≤ 170 px wide). The top right is full of
- * buttons on these small screens; the chips aren't pressable (pointer-events: none).
+ * Story 8.1: the held chips' box, READ from overlay.css (review L4: `.held-chips` top / left offset /
+ * max-width and `.held-chip` height; ≤ 3 rows: 3 teammates). Top left under the money line: the top
+ * right is full of buttons on these small screens; the chips aren't pressable (pointer-events: none).
  */
 function heldChipsBox(): Box {
-  return { id: "held_chips", x: INSET.left + 16, y: 86, w: 170, h: 3 * 20 };
+  const css = readFileSync(join(__dirname, "..", "ui", "overlay.css"), "utf8");
+  const rule = (sel: string): string => {
+    const m = new RegExp(`\\n${sel.replace(".", "\\.")} \\{([^}]*)\\}`).exec(css);
+    if (!m) throw new Error(`overlay.css: no ${sel} rule`);
+    return m[1] as string;
+  };
+  const px = (block: string, prop: string, re = new RegExp(`\\n\\s*${prop}:\\s*(?:calc\\(env\\([^)]*\\) \\+ )?(\\d+)px`)): number => {
+    const m = re.exec(block);
+    if (!m) throw new Error(`overlay.css: no ${prop} in px`);
+    return Number(m[1]);
+  };
+  const chips = rule(".held-chips");
+  const chip = rule(".held-chip");
+  if (!/\n\s*left:/.test(chips) || /\n\s*(right|transform):/.test(chips)) throw new Error("overlay.css: .held-chips must be placed by top/left (this box assumes it)");
+  return { id: "held_chips", x: INSET.left + px(chips, "left"), y: px(chips, "top"), w: px(chips, "max-width"), h: 3 * px(chip, "height") };
 }
 
 /** Every mode's pressable controls. */

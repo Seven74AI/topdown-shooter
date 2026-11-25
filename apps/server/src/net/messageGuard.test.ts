@@ -95,3 +95,25 @@ describe("MessageGuard", () => {
     expect(warns).toHaveLength(2);
   });
 });
+
+describe("Story 8.1 review L2: the guard is the seat's, not the socket's", () => {
+  it("a reconnect (same session, add with keep) and a takeover (rename) keep the drained bucket and the drop counters", () => {
+    const { guard, client } = setup();
+    let others = 0;
+    const ho = guard.guard({ safeParse: (v: unknown) => ({ success: true as const, data: v }) }, () => others++);
+    for (let i = 0; i < 40; i++) ho(client, {});
+    expect(others).toBe(MAX_OTHER_MESSAGES_PER_S);
+    guard.add(client, "p0", true); // reconnect: same session id
+    ho(client, {});
+    expect(others).toBe(MAX_OTHER_MESSAGES_PER_S); // no refill by reconnecting
+    const fresh = { sessionId: "s2" };
+    guard.rename("s1", "s2"); // takeover
+    ho(fresh, {});
+    expect(others).toBe(MAX_OTHER_MESSAGES_PER_S);
+    expect(guard.pending(fresh)?.rate).toBeGreaterThan(0);
+    expect(guard.pending(client)).toBeUndefined();
+    guard.add(fresh, "p0"); // a plain add (a first join) still starts afresh
+    ho(fresh, {});
+    expect(others).toBe(MAX_OTHER_MESSAGES_PER_S + 1);
+  });
+});
