@@ -42,7 +42,7 @@
 # - Epic 9 is a polish pass of the code-drawn art and audio; nobody is hired (GDD, designer 2026-11-23).
 
 generated: 11-21-2026 18:20
-last_updated: 2026-11-24
+last_updated: 2026-11-25
 project: topdown-shooter
 project_key: NOKEY
 tracking_system: file-system
@@ -234,9 +234,9 @@ development_status:
 
   # Epic 12: Controller on the phone (sprint-change-proposal-2026-11-25-controller.md)
   # Build order: 12.1 -> 12.2 after the Network pass, before Epic 7's screen stories (7.3, 7.6, 7.10); 12.3 || 12.4 any time after 12.1
-  epic-12: backlog
-  12-1-controller-in-the-fight: backlog
-  12-2-menus-with-the-controller: backlog
+  epic-12: in-progress  # story files 12.1, 12.2 ready-for-dev 2026-11-25; decisions D1-D6 / D1-D7 pending the designer
+  12-1-controller-in-the-fight: ready-for-dev  # story file 2026-11-25; decisions D1-D6 pending
+  12-2-menus-with-the-controller: ready-for-dev  # story file 2026-11-25; decisions D1-D7 pending; T0 real-phone spike first
   12-3-controller-prompts-on-the-hud: backlog
   12-4-build-phase-with-the-controller: backlog
   epic-12-retrospective: optional
