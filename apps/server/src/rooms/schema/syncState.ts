@@ -172,6 +172,8 @@ function syncBuildings(state: RunState, world: World): void {
         if (had.gx !== b.gx) had.gx = b.gx;
         if (had.gy !== b.gy) had.gy = b.gy;
         if (had.rot !== b.rot) had.rot = b.rot;
+        // Story 8.3 (E8-H3): a removed player's buildings are disowned in place (`disownBuildings` bumps version).
+        if (had.owner !== b.ownerId) had.owner = b.ownerId;
       }
     }
     for (const id of [...sync.entries.keys()]) {
