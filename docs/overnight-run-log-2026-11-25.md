@@ -56,6 +56,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - OR-19 (= 8.1 B17/B18): a held seat that never returns keeps waves/boss sized for it until the 120 s hold expires (bounded, accepted); in solo the 3-2-1 resume countdown replaces the 2 s protection.
 - OR-20: landing order for Epic 7 stories with migrations: 7.1 → 7.2 (0001_run_rewards) → 7.9 (renumbered 0002_look) → 7.3 (next free).
 - OR-21 (= 8.1 B19): solo drop runs the 3 s dropping body before freezing, and a re-drop during the 3-2-1 doesn't cancel it (doc fixed). Alternative: hold a solo dropping body at once while frozen.
+- DESIGNER DECISION (08:45, live): cap re-reviews at two narrow rounds per story; after that the main session checks remaining fixes itself (diff + touched tests, logged); a new high still gets a re-review. Recorded in HANDOFF §3. Applies now: 7.2's round-3 fixes and 8.1's last round are main-session checks.
 
 ## Timeline
 - 03:50 dispatched retro, 8.8, 8.9, Lumen redraw.
@@ -131,3 +132,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 08:28 Re-review 2 7.2 (63e0cffe): RR-M1/RR-L1 hold (budget edge 1.79/1.81 s correct; status = committed while the connection lives; retry never double-pays); RR2-M1 lost DB connection mid-transaction crashes the server (pre-existing since 7.1; one-line verified fix); RR2-L1 half-open connection → 'Saving…' never ends; nits. Sent back. 08:25 designer asked about review volume: decision found (HANDOFF §3 session 9 speed-up); deviations reported (7.3 full review instead of light; two re-reviews replaced by main-session checks: OR-22 and the asset R3 fixes).
 - 08:37 Re-review 7.3 (71c63da0): F1–F11 hold (answer = committed in every real-PG case; no refresh loop); RR-M1 = same server crash as 7.2 RR2-M1 (7.1's db/client.ts) → fixed once in 7.1 before landing (OR-23), 7.2/7.3 inherit; RR-L1 client unlock timeout 3 s < route worst case → own ≥ 7 s timeout; RR-N1 test measures text width.
 - 08:41 7.3 re-review-1 fixes (18a328ad): unlock client timeout 7 s, refresh only after it; text-width layout test. 7.1 pg crash fix (5819a641): client error listener + keepAlive. Light re-review 2 for 7.3 dispatched (behaviour-changing timeout; designer's re-review-cap question pending).
+- 08:45 designer: "Let's cap re review" → rule recorded in HANDOFF §3.
