@@ -9,7 +9,8 @@ import { EventEmitter } from "node:events";
 import { type Database, type Db, createPool, databaseFromEnv, openPglite } from "./client";
 import { MIGRATIONS_FOLDER, migrateDb } from "./migrate";
 import { progressRepo } from "./progressRepo";
-import { DbUnavailableError, withDbTimeout } from "./timeout";
+import { boundedTransaction } from "./boundedTx";
+import { DbUnavailableError, dbErrText, withDbTimeout } from "./timeout";
 
 log.level = process.env.LOG_LEVEL ?? "silent";
 const open: Database[] = [];
@@ -166,5 +167,21 @@ describe("timeouts and errors (Story 7.1 AC 9, P3)", () => {
     const dev = databaseFromEnv({}, "memory://");
     open.push(dev);
     expect(dev.kind).toBe("pglite");
+  });
+});
+
+describe("db_error text (Story 7.6 review L5)", () => {
+  it("never carries a query's parameters (token or password hashes), however the error is wrapped", async () => {
+    const drizzleLike = new Error(`Failed query: select "account_id" from "device_tokens" where "token_hash" = $1 for update\nparams: ${"a7".repeat(32)}`);
+    expect(dbErrText(drizzleLike)).toBe('Failed query: select "account_id" from "device_tokens" where "token_hash" = $1 for update');
+    expect(dbErrText("plain")).toBe("plain");
+    expect(dbErrText(new Error("x".repeat(500)))).toHaveLength(200);
+    const lines: string[] = [];
+    vi.spyOn(log, "error").mockImplementation(((...args: unknown[]) => void lines.push(JSON.stringify(args))) as never);
+    await expect(withDbTimeout("probe", async () => Promise.reject(drizzleLike))).rejects.toThrow(DbUnavailableError);
+    expect(lines.join("\n")).toContain("db_error");
+    await expect(boundedTransaction(fresh(), "probe.tx", async () => Promise.reject(drizzleLike))).rejects.toThrow(DbUnavailableError);
+    expect(lines.filter((l) => l.includes("probe.tx"))).toHaveLength(1);
+    expect(lines.join("\n")).not.toContain("a7a7a7a7");
   });
 });
