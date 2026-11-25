@@ -28,6 +28,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - OR-6: 8.1 starts before round 1 (8.8/8.9) lands, because it is on Epic 7's critical path (7.1 T6 waits for its join rewrite); it merges 8.8/8.9 when they land (alternative: round order 8.8 ∥ 8.9 → 8.1). Seat identity built around one identity-key function for 7.1.
 - OR-7 (= 8.9 B7): AC 6 starved ticks not met (+41–58 %); accepted as built — 0.9× pacing empties the backlog so 0 inputs are skipped and 0 % predicted shots never fire, at the cost of one-tick move delays at the next stall; bounded ≤ 1.6× pacing-off by smooth.test.ts. Alternative: designer revisits 8.9 D5 (server-only skip of every 2nd input after 2 s). Retro default A7.
 - OR-8: 8.9 merges 8.8's gated branch (not master) for T10/T11 while 8.8 is in review; 8.9's reviewer starts in parallel on 8.9 + 8.8 + master.
+- OR-11: asset-art review L2 (standing walls always above bodies; corner pictures can hide a zombie in normal light) left as built and flagged for the designer (blackout eyes still show; alternative: fade/silhouette walls in front of bodies).
 
 ## Timeline
 - 03:50 dispatched retro, 8.8, 8.9, Lumen redraw.
@@ -52,3 +53,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 04:59 8.8 test-only fixes (c011273) merged; main gate 399 files / 3689 tests green (load 3.49) → 8.8 DONE on master.
 - 05:02 Asset session acked (f8a16b9, includes master b0e491a; gate 400 files / 3674 tests; in-session review fixed its Mediums). Dispatched light+ fresh review in its own session (focus: 70–180 ms long tasks during the progressive bake, depth vs darkness, context loss mid-bake).
 - 05:06 8.9 review fixes (5cbcfd6; head 28c1ef1; gate 403 files / 3715 tests). M1/M2 forward catch-up ≤ 50 % + steer on max(estimate, rawTick), ring 16: estimate back within 25 ms after 0.55–1.45 s (was 1.9–5.2 s); L1–L4 fixed. After-fix table: kiting Runners reversed 1 % 7.6→1.4 %, 2 % 11.9→1.7 %; freezes/30 s ≤ 1.2. Flag: 150 Walkers standing 1 % row 1.2 freezes/30 s vs F1 ≤ 1 → re-reviewer judges. Narrow re-review dispatched; main gate on 8.9 merged started.
+- 05:10 Review asset-session art (6d2d562): no H; M1 bake does a whole relit frame per call (~150–500 ms phone hitches mid-wave on late join/reload) · M2 P1 boss banner 12 px from survivor centre at 568×320 (rule 48) · M3 relit cache not repainted after Android wipe · L1–L6. Checked: depth/darkness OK in Playwright, mid-bake rebuild OK, variants deterministic, all textures registered. Sent M1–M3 + L4 to the asset session.
