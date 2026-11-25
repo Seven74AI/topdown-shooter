@@ -1,6 +1,10 @@
+---
+baseline_commit: c57c1ccfe57699f257eb8637ba14bf0c20d66172
+---
+
 # Story 8.9: Smooth through hiccups
 
-Status: ready-for-dev
+Status: review
 
 <!-- Network pass story 2 of 5 (designer 2026-11-24). Story file 2026-11-24 from the real code on master da82847; decisions pending (docs/network-pass-decisions.md). -->
 
@@ -41,18 +45,18 @@ so that I never see things freeze and jump.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 Before numbers** (brief 13): merge 8.8 first if it is on master (needs `loss`); otherwise branch and cherry-pick only its harness `loss` option for the measurement. Add to `tools/netsim/hitsSim.ts` (or a sibling `smoothSim.ts` that imports the same modules) the counters: freezes, render-tick monotonic violations, delay p50/p95, starved ticks, never-fired predicted shots (already in `Result.drops`). Run before on master's client code.
-- [ ] **T2 Lateness + target** (AC 1, F1, F4): rewrite `apps/client/src/net/adaptiveDelay.ts` around a preallocated ring of lateness samples (10 s × ~40 samples/s; patches + horde frames) and a p95 (sort-free: a fixed histogram of 5 ms buckets 0–500 ms is enough and allocation-free). Netcode constants in `netConfig.ts` with "Story 8.9" comments: `RENDER_DELAY_MAX_MS 250`, `LATENESS_WINDOW_MS 10_000`, `LATENESS_PERCENTILE 0.95`, `DELAY_MARGIN_MS 50`, `DELAY_FALL_AFTER_MS 5_000`, `PLAYBACK_RATE_MIN 0.9`, `PLAYBACK_RATE_MAX 1.1`; delete `JITTER_*` and `RENDER_DELAY_SLEW_MS_PER_S` / `RENDER_DELAY_JITTER_GAIN` once nothing reads them (the overlay's "jitter" becomes "late p95").
-- [ ] **T3 Render clock** (AC 2, F2, F3): `AdaptiveDelay.renderTick(estimate)` becomes stateful (`advance(frameDtS, estimate)` returning the new render tick, monotonic). Unit tests with a fake frame clock: a 300 ms stall → rate goes to 0.9× until the target is reached, then 1.0×; a burst → ≤ 1.1×; the render tick never decreases over 10,000 random frames (property test with a seeded random line: stalls, bursts, a +150 ms lasting latency step, a hidden-tab gap).
-- [ ] **T4 Server clock** (AC 3, F2): `serverClock.ts` gains a slewed, monotonic `estimateTick(nowMs)` (keep the raw min as `rawOffsetMs` for tests and the overlay). Tests: a lasting +150 ms latency rise → the estimate never decreases and converges within ~2 s; a fall → converges at ≤ 1.1×; first sample → snaps (no slew from NaN).
-- [ ] **T5 Missing by time** (AC 4, F5): `hordeBuffer.ts` keeps per slot the tick of the first frame that missed it; `sample(renderTick)` drops it once `renderTick ≥ firstMissTick + HORDE_MISSING_TICKS`. Change `HORDE_MISSING_LIMIT` in `packages/shared/src/net/hordeFormat.ts` to `HORDE_MISSING_TICKS = 3` (bots use the constant: check `tools/bots/botClient.ts`). Tests in `hordeBuffer.test.ts`: three frames without a margin zombie landing in one task don't remove it until the render tick is 150 ms past; a zombie really gone is removed 150 ms after; a kill still hides it at once.
-- [ ] **T6 Queue depth from the server** (AC 5, F6; brief 2): `inputQueued` (u8) on `PlayerState` in `apps/server/src/rooms/schema/RunState.ts`, `syncState.ts` (assign only on change), `packages/shared/src/net/stateView.ts` (`PLAYER_STATE_FIELDS`), `fakeRoom.ts`, the dev throttle `StateCopy` (follows the key list: check its compile-time test), `snapshotWorld` (not world state: exclude, it is room-only). Solo (`LocalSimHost`) never slows. Bandwidth: report B/s (expected ≤ 0.1 KB/s per phone: 1 field × 4 players × a few changes/s).
-- [ ] **T7 Client step pacing** (AC 5, F6): `NetSimHost.stepInputs` takes a `stepRate` (1.0 or 0.9) from my `inputQueued` (over target 3 patches in a row → 0.9; at or under target → 1.0); `accumulatorS += frameDtS × stepRate`. The Predictor sees the same steps (nothing else changes: own survivor simply makes 10 % fewer steps per second). Edge flags and their latched payloads (EPIC 6 brief 30) still go out on the next step. Tests in a NetSimHost test with a fake room: queue 4 → 0.9×; queue 2 → 1×; hidden tab (`accumulatorS %= TICK_DT_S`) unchanged.
-- [ ] **T8 Harness pacing** (brief 20): `hitsSim.ts` uses the same pacing rule (import the pure function, don't copy) and the new delay/clock; the server side is the real `RunController`, so `inputQueued` is read from `ctrl.queued(ID)` delayed by the down link.
-- [ ] **T9 Telegraph check** (F7): `apps/client/src/render/bossTelegraph.ts` reads `serverTick` (the estimate): add a test that with the slewed clock the fill is 0 at the start tick and 1 exactly at `hitTick`, never above 1, and never shrinks (monotonic estimate).
+- [x] **T1 Before numbers** (brief 13): merge 8.8 first if it is on master (needs `loss`); otherwise branch and cherry-pick only its harness `loss` option for the measurement. Add to `tools/netsim/hitsSim.ts` (or a sibling `smoothSim.ts` that imports the same modules) the counters: freezes, render-tick monotonic violations, delay p50/p95, starved ticks, never-fired predicted shots (already in `Result.drops`). Run before on master's client code.
+- [x] **T2 Lateness + target** (AC 1, F1, F4): rewrite `apps/client/src/net/adaptiveDelay.ts` around a preallocated ring of lateness samples (10 s × ~40 samples/s; patches + horde frames) and a p95 (sort-free: a fixed histogram of 5 ms buckets 0–500 ms is enough and allocation-free). Netcode constants in `netConfig.ts` with "Story 8.9" comments: `RENDER_DELAY_MAX_MS 250`, `LATENESS_WINDOW_MS 10_000`, `LATENESS_PERCENTILE 0.95`, `DELAY_MARGIN_MS 50`, `DELAY_FALL_AFTER_MS 5_000`, `PLAYBACK_RATE_MIN 0.9`, `PLAYBACK_RATE_MAX 1.1`; delete `JITTER_*` and `RENDER_DELAY_SLEW_MS_PER_S` / `RENDER_DELAY_JITTER_GAIN` once nothing reads them (the overlay's "jitter" becomes "late p95").
+- [x] **T3 Render clock** (AC 2, F2, F3): `AdaptiveDelay.renderTick(estimate)` becomes stateful (`advance(frameDtS, estimate)` returning the new render tick, monotonic). Unit tests with a fake frame clock: a 300 ms stall → rate goes to 0.9× until the target is reached, then 1.0×; a burst → ≤ 1.1×; the render tick never decreases over 10,000 random frames (property test with a seeded random line: stalls, bursts, a +150 ms lasting latency step, a hidden-tab gap).
+- [x] **T4 Server clock** (AC 3, F2): `serverClock.ts` gains a slewed, monotonic `estimateTick(nowMs)` (keep the raw min as `rawOffsetMs` for tests and the overlay). Tests: a lasting +150 ms latency rise → the estimate never decreases and converges within ~2 s; a fall → converges at ≤ 1.1×; first sample → snaps (no slew from NaN).
+- [x] **T5 Missing by time** (AC 4, F5): `hordeBuffer.ts` keeps per slot the tick of the first frame that missed it; `sample(renderTick)` drops it once `renderTick ≥ firstMissTick + HORDE_MISSING_TICKS`. Change `HORDE_MISSING_LIMIT` in `packages/shared/src/net/hordeFormat.ts` to `HORDE_MISSING_TICKS = 3` (bots use the constant: check `tools/bots/botClient.ts`). Tests in `hordeBuffer.test.ts`: three frames without a margin zombie landing in one task don't remove it until the render tick is 150 ms past; a zombie really gone is removed 150 ms after; a kill still hides it at once.
+- [x] **T6 Queue depth from the server** (AC 5, F6; brief 2): `inputQueued` (u8) on `PlayerState` in `apps/server/src/rooms/schema/RunState.ts`, `syncState.ts` (assign only on change), `packages/shared/src/net/stateView.ts` (`PLAYER_STATE_FIELDS`), `fakeRoom.ts`, the dev throttle `StateCopy` (follows the key list: check its compile-time test), `snapshotWorld` (not world state: exclude, it is room-only). Solo (`LocalSimHost`) never slows. Bandwidth: report B/s (expected ≤ 0.1 KB/s per phone: 1 field × 4 players × a few changes/s).
+- [x] **T7 Client step pacing** (AC 5, F6): `NetSimHost.stepInputs` takes a `stepRate` (1.0 or 0.9) from my `inputQueued` (over target 3 patches in a row → 0.9; at or under target → 1.0); `accumulatorS += frameDtS × stepRate`. The Predictor sees the same steps (nothing else changes: own survivor simply makes 10 % fewer steps per second). Edge flags and their latched payloads (EPIC 6 brief 30) still go out on the next step. Tests in a NetSimHost test with a fake room: queue 4 → 0.9×; queue 2 → 1×; hidden tab (`accumulatorS %= TICK_DT_S`) unchanged.
+- [x] **T8 Harness pacing** (brief 20): `hitsSim.ts` uses the same pacing rule (import the pure function, don't copy) and the new delay/clock; the server side is the real `RunController`, so `inputQueued` is read from `ctrl.queued(ID)` delayed by the down link.
+- [x] **T9 Telegraph check** (F7): `apps/client/src/render/bossTelegraph.ts` reads `serverTick` (the estimate): add a test that with the slewed clock the fill is 0 at the start tick and 1 exactly at `hitTick`, never above 1, and never shrinks (monotonic estimate).
 - [ ] **T10 After numbers + rewind re-check** (AC 6): run every row before/after; if kiting Runners exceed 5 % at 2 %, apply the 600 ms fallback (constants as in 8.8) and re-run; record.
 - [ ] **T11 Bots and the 2.10 overlay**: bots have no renderer; confirm `npm run bots -- --lag 150 --jitter 20 --loss 1` still plays (the server change is a schema field) and `seq_gap_suspect` / `spread_cancel_suspect` don't rise (the client slowdown sends fewer inputs, never skips seqs).
-- [ ] **T12 Docs + gate + hand-back**: `docs/perf/network-pass-2026-11.md` § 8.9; `game-architecture.md` note already says "adapt 100–250 ms"; HANDOFF §4 netcode line (delay, clock, pacing).
+- [x] **T12 Docs + gate + hand-back**: `docs/perf/network-pass-2026-11.md` § 8.9; `game-architecture.md` note already says "adapt 100–250 ms"; HANDOFF §4 netcode line (delay, clock, pacing).
 
 ## Dev Notes
 
@@ -103,18 +107,21 @@ so that I never see things freeze and jump.
 
 ### Measurements (brief 13) — fill in
 
-| Metric (150 ms ± 10 ms, 3 × 60 s) | Line | Before | After target |
-| --- | --- | --- | --- |
-| Freezes per 30 s | clean | ~0 | 0 |
-| | 1 % × 200 ms | ~15 (audit: a stall every ~2 s) | ≤ 1 |
-| | 2 % × 200 ms | record | record (≤ 2) |
-| Render delay p50 / p95 | clean | 100–140 | 100–150 |
-| | 1 % × 200 ms | ≤ 150 (capped) | ≤ 250 |
-| Backwards steps of the render tick | lossy + latency step | > 0 (F5) | 0 |
-| Predicted shots never fired on the server | 1 % × 200 ms | 1.5–5.7 % | < 1 % |
-| Starved ticks | 1 % × 200 ms | record | ≤ before + 10 % |
-| Reversed hits, kiting Runners | 1 % / 2 % | (after 8.8) | < 5 % |
-| Horde-frame gap p99 at the phone | 1 % × 200 ms | 239–248 ms (audit) | unchanged (the line) — the delay now covers it |
+| Metric (150 ms ± 10 ms, 3 × 60 s) | Line | Before | After target | After (measured, 2026-11-25) |
+| --- | --- | --- | --- | --- |
+| Freezes per 30 s | clean | ~0 | 0 | **0** (all 3 cases) |
+| | 1 % × 200 ms | ~15 (audit: a stall every ~2 s) | ≤ 1 | **0.9–1.2** (before **6.7**) — AC ≤ 1 met for Runners, 1.2 for the Walker rows; frozen frames 321–329 → 29–38 |
+| | 2 % × 200 ms | record | record (≤ 2) | **1.0–1.4** (before 12.6–12.8) |
+| Render delay p50 / p95 | clean | 100–140 | 100–150 | **100 / 100** (before 110–118 / 115–125) |
+| | 1 % × 200 ms | ≤ 150 (capped) | ≤ 250 | **250 / 251–253** (max 261: the ≤ 25 ms stall stretch) |
+| Backwards steps of the render tick | lossy + latency step | > 0 (F5) | 0 | **0** render, 0 estimate (before 3 / 3) |
+| Predicted shots never fired on the server | 1 % × 200 ms | 1.5–5.7 % | < 1 % | **0 %** (before 1.3–1.7 %; 0.2 % on the step row) |
+| Starved ticks | 1 % × 200 ms | record | ≤ before + 10 % | **NOT MET: 104–124 vs 81–82 (+27–53 %)**; 2 %: 151–166 vs 96–100 (see Completion Notes) |
+| Server input skips (drain) | 1 % × 200 ms | 73–74 | — | 0 |
+| Reversed hits, kiting Runners | 1 % / 2 % | (after 8.8) | < 5 % | **pending 8.8** (T10). With today's 300 ms window: 13.3 → 19.7 % / 15.4 → 23.1 % |
+| Horde-frame gap p99 at the phone | 1 % × 200 ms | 239–248 ms (audit) | unchanged (the line) — the delay now covers it | not re-measured (the line, no code change) |
+
+Full table and method: `docs/perf/network-pass-2026-11.md` § 8.9 (`npx tsx tools/netsim/smoothRun.ts 60 3`; before = master c57c1cc with the harness patched to the old API, load 0.2–0.4; after load 0.3–0.8).
 
 ### Files (expected)
 
