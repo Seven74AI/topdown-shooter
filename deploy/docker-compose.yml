@@ -1,6 +1,8 @@
 # Story 2.2: the game on the VPS. Run through deploy/deploy.sh (it sets GIT_SHA); see docs/deploy.md.
 # Cloudflare Tunnel `sevend-io-stream` -> 127.0.0.1:8080 (web: Caddy) -> server:2567 (game server).
-# PostgreSQL joins in Epic 7 (Story 7.1).
+# Story 7.1: PostgreSQL 18 (`postgres`, named volume `pgdata`, never published to the host) keeps the progress.
+# POSTGRES_PASSWORD and SESSION_SECRET live in deploy/.env (not in git); deploy.sh generates them on its first run.
+# Migrations run in a one-off server container BEFORE `up -d` (deploy.sh); backups: deploy/backup.sh (docs/deploy.md).
 #
 # GIT_SHA is required (no `:dev` default), so a hand-typed `docker compose up -d` cannot silently
 # build and run an untagged image next to the real ones. Local check: GIT_SHA=local (docs/deploy.md).
@@ -34,6 +36,13 @@ services:
       # (wave 4, god mode). Off unless the deploy shell sets it: `ALLOW_TEST_SCENARIOS=1 deploy/deploy.sh <ref>`
       # switches it on, a plain `deploy/deploy.sh <ref>` off again (no tracked file is edited on the VPS).
       ALLOW_TEST_SCENARIOS: ${ALLOW_TEST_SCENARIOS:-0}
+      # Story 7.1: the save server, and the key that signs join tickets (both required: the server refuses to start
+      # without them in production). The password is hex (deploy.sh), so it needs no URL escaping.
+      DATABASE_URL: postgres://topdown:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set (deploy/.env; deploy/deploy.sh generates it)}@postgres:5432/topdown
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set (deploy/.env; deploy/deploy.sh generates it)}
+    depends_on:
+      postgres:
+        condition: service_healthy
     expose: ["2567"] # never published to the host: only Caddy reaches it
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2567/health"]
@@ -47,6 +56,34 @@ services:
     read_only: true
     tmpfs: ["/tmp:size=64m"] # tsx's compile cache
     cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
+
+  # Story 7.1: progress (accounts, Supplies, unlocks). Exact image tag (checked on Docker Hub 2026-11-25: 18.6 of
+  # 2026-11-11, the newest PostgreSQL 18 at least two weeks old, same Alpine as the Node image); bump it on purpose.
+  # PostgreSQL 18 images keep their data under /var/lib/postgresql/18/docker, so the volume is mounted one level up.
+  postgres:
+    image: postgres:18.6-alpine3.24
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: topdown
+      POSTGRES_DB: topdown
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set (deploy/.env; deploy/deploy.sh generates it)}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    # Never published to the host: only the server (and deploy/backup.sh via `exec`) reaches it.
+    expose: ["5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U topdown -d topdown"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    stop_grace_period: 30s
+    # Tunable: mem_limit, pids_limit. The entrypoint drops to the postgres user itself, so no cap_drop here.
+    mem_limit: 256m
+    pids_limit: 128
+    shm_size: 128m
     security_opt: ["no-new-privileges:true"]
     logging: *logging
 
@@ -77,3 +114,7 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     logging: *logging
+
+volumes:
+  # Story 7.1: the progress database. `docker compose down` keeps it; only `down -v` (never do that) deletes it.
+  pgdata:

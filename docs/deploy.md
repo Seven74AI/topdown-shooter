@@ -176,10 +176,11 @@ cd /root/topdown-shooter && deploy/deploy.sh
 1. Runs `git fetch origin`.
 2. Checks out the ref as a **detached HEAD**. The checkout no longer sits on `master`; that is expected.
 3. Builds the two images for that sha. If both images already exist, it skips the build. If the build fails, the running stack is untouched.
-4. Runs `docker compose up -d`. This restarts the server, and its rooms get "Server restarting".
-5. Waits up to 30 s for `http://127.0.0.1:8080/api/health`, and checks that the server container runs this sha's image.
-6. Appends `<time> <sha> ok` (or `failed`) to `deploy/deploy-history.log` (not in git). Only `ok` deploys count as known good.
-7. On success: writes `deploy/.env`, and prunes our images older than the newest 5.
+4. Story 7.1: makes sure `deploy/.env` holds `POSTGRES_PASSWORD` and `SESSION_SECRET` (generated once, never overwritten), starts `postgres` (`up -d --wait`) and applies the database migrations in a one-off server container (`db/migrateCli.ts`). If that fails, it records `failed` and stops: the running server is untouched.
+5. Runs `docker compose up -d`. This restarts the server, and its rooms get "Server restarting".
+6. Waits up to 30 s for `http://127.0.0.1:8080/api/health`, and checks that the server container runs this sha's image.
+7. Appends `<time> <sha> ok` (or `failed`) to `deploy/deploy-history.log` (not in git). Only `ok` deploys count as known good.
+8. On success: sets `GIT_SHA=<sha>` in `deploy/.env` (other lines kept), and prunes our images older than the newest 5.
 
 It prints `==> deployed <sha>`. A deploy ends every run in progress, so pick a moment when nobody is playing.
 
@@ -193,6 +194,39 @@ Deploy a branch or sha instead: `deploy/deploy.sh origin/some-branch` or `deploy
 ```
 
 Run that command right away: after a failed `up`, the site is usually down (Caddy waits for a healthy server). On the very first deploy there is no known-good version yet; then the message points to the static-site revert below.
+
+## Database: first start, migrations, backups, restore test (Story 7.1)
+
+Progress (guest accounts, later Supplies and unlocks) lives in **PostgreSQL 18** (`postgres` service, image `postgres:18.6-alpine3.24`), on the named volume **`topdown_pgdata`**. It is never published to the host; only the server and `docker compose exec` reach it.
+
+- **Secrets** (`deploy/.env`, mode 600, not in git): `POSTGRES_PASSWORD` (hex) and `SESSION_SECRET` (hex, signs the 10-minute join tickets). `deploy.sh` generates both on its first run and keeps them. **Back up `deploy/.env` with the dumps' off-VPS copy settings**: without `POSTGRES_PASSWORD` the server can't log in to the existing volume (a restore into a new volume still works). Changing `SESSION_SECRET` only logs everyone out of their current ticket (a fresh one is fetched before each join): harmless.
+- **First start:** the first `deploy/deploy.sh` after Epic 7 creates the volume, starts postgres, applies migration `0000_init` (tables `accounts`, `progress`), then starts the server. Without `DATABASE_URL` or `SESSION_SECRET` the server refuses to start (`database_url_missing` / `session_secret_missing` in its log).
+- **Migrations** (`apps/server/drizzle/`, made with `npm run db:generate`, committed; never edit a committed one) run in `deploy.sh` before `up -d`. Running them twice is a no-op. Forward only: a rollback to an older sha keeps the newer schema (each Epic 7 migration only adds). A rollback to a sha from before Story 7.1 has no `postgres` service: `up -d --remove-orphans` stops the container; the volume stays and the next deploy picks it up again.
+- **If the database is down** while the server runs, players still create, join and play; runs are "not saved" (Story 7.1 P3). The server logs `db_error {op}` at error level. `docker compose -f deploy/docker-compose.yml ps postgres` / `logs postgres`.
+- **Nightly backup** (`deploy/backup.sh`, NFR13): `pg_dump -Fc` into `/root/backups/topdown/YYYY-MM-DD.dump`, deletes local dumps older than 14 days, copies the new one **off the VPS to a Cloudflare R2 bucket** (decision 7.1 D7) with `rclone`, and prunes remote copies older than 14 days. One-time setup (Hermes):
+  1. `apt-get install -y rclone`, then `rclone config` → a remote named `r2` of type S3, provider Cloudflare, with an R2 API token limited to one bucket (e.g. `topdown-backups`, created in the Cloudflare dashboard → R2).
+  2. `printf 'BACKUP_REMOTE=r2:topdown-backups\n' > deploy/backup.env && chmod 600 deploy/backup.env` (not in git).
+  3. Run it once by hand: `deploy/backup.sh` → `==> backup YYYY-MM-DD done`; `rclone ls r2:topdown-backups` lists the dump.
+  4. Cron (`crontab -e`, as root), 03:30 Europe/Paris:
+     ```
+     CRON_TZ=Europe/Paris
+     30 3 * * * /root/topdown-shooter/deploy/backup.sh >> /root/backups/topdown/backup.log 2>&1
+     ```
+     (If the VPS cron ignores `CRON_TZ`, write the UTC time instead: 02:30 UTC in winter.) Exit code 2 = dump made but no off-VPS copy (no `BACKUP_REMOTE` or no rclone).
+- **Restore test** (`deploy/restore.sh [dump]`, default the newest dump): restores into a scratch database `topdown_restore_test` inside the running container, prints the row counts of `accounts`, `progress` and the migrations next to the live counts, then drops the scratch database. The live database is never touched. Run it once after setting up backups and record the result here:
+
+  | Date | Dump | accounts / progress (restored vs live) | Result |
+  | --- | --- | --- | --- |
+  | _(Hermes fills in after the first Epic 7 deploy)_ | | | |
+
+- **Real restore** (disaster only, with the designer's OK; everyone loses progress made after the dump): stop the server (`docker compose -f deploy/docker-compose.yml stop server`), then
+  ```sh
+  docker compose -f deploy/docker-compose.yml exec -T postgres psql -U topdown -d postgres -c "DROP DATABASE topdown" -c "CREATE DATABASE topdown"
+  docker compose -f deploy/docker-compose.yml exec -T postgres pg_restore -U topdown -d topdown --no-owner --exit-on-error < /root/backups/topdown/YYYY-MM-DD.dump
+  deploy/deploy.sh "$(awk 'END { print $2 }' deploy/deploy-history.log)"
+  ```
+- **Dev on a phone over the LAN (review N3):** the guest cookie is `__Host-tdg` (`Secure`), and browsers store a Secure cookie only on `https://` or `http://localhost`. On a phone opening `http://<LAN-IP>:5173` the cookie is never stored, so only the `localStorage` half of P2 can be tried there (the account still works through `deviceToken`); try the cookie half on `localhost` or on the real HTTPS site.
+- **Local Postgres** (any machine with Docker, optional; dev and tests use the embedded PGlite in `apps/server/.data/pglite` when `DATABASE_URL` is unset): `GIT_SHA=none POSTGRES_PASSWORD=dev SESSION_SECRET=dev docker compose -f deploy/docker-compose.yml up -d postgres` does not publish a port; add a `ports: ["127.0.0.1:5432:5432"]` override file locally if you want to connect from the host, then `DATABASE_URL=postgres://topdown:dev@127.0.0.1:5432/topdown npm run db:migrate`.
 
 ## Rollback
 

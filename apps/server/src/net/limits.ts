@@ -79,3 +79,20 @@ export { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER } from "@topdown/shared";
  * ends a quiet hold. A live phone's view lags by RTT/2 + render delay (≤ 0.75 s on the lossy line).
  */
 export const STALE_INPUT_TICKS = 40;
+
+/** Story 7.1 (decision 7.1 D6): new guest accounts one IP may create per window; beyond it the device plays unsaved. */
+export const MAX_NEW_GUESTS_PER_HOUR = 20;
+export const NEW_GUEST_WINDOW_MS = 3_600_000;
+
+/**
+ * Story 7.1 review L4 (brief 15): `/account/session` calls per IP per minute, checked before any database work; over
+ * it the device plays unsaved. An honest phone calls it on start-up and before each Create / Join (8.1 rejoins too).
+ */
+export const MAX_ACCOUNT_SESSIONS_PER_MIN = 30;
+export const ACCOUNT_SESSION_WINDOW_MS = 60_000;
+
+/** Story 7.1 (decision 7.1 D2): a session ticket is valid this long; the client fetches a fresh one before each Create/Join. */
+export const SESSION_TICKET_TTL_MS = 600_000;
+
+/** Story 7.1: the guest cookie lives a year and is renewed on every `/account/session` call. */
+export const GUEST_COOKIE_MAX_AGE_S = 31_536_000;

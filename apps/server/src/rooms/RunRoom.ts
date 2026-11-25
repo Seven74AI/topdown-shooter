@@ -82,7 +82,8 @@ import { CLOSE_SEAT_KEPT, CLOSE_TAKEN_OVER, HOLD_S, MAX_CLIENT_MESSAGE_BYTES, RE
 import { MessageGuard } from "../net/messageGuard";
 import { roomCreateLimiter } from "../net/rateLimit";
 import { log, roomLog } from "../ops/logger";
-import { assignSlot, hashGuestToken, nextHost, seatKey, type Member } from "../run/lobby";
+import { assignSlot, hashGuestToken, nextHost, sameSeat, seatKey, type Member } from "../run/lobby";
+import { roomAccountsRepo, ticketAccountId } from "../auth/roomAccounts";
 import { RunController, parseDevHpFraction } from "../run/RunController";
 import { SLOW_PATCH_MESSAGE, SlowTickWatch } from "../run/slowTick";
 import { pickDevRunSeed } from "../run/devRunSeed";
@@ -131,6 +132,8 @@ export interface RunAuth {
   ip: string | undefined;
   /** SHA-256 of the guest token (Story 2.3); the raw token never leaves `onAuth`. */
   guestTokenHash: string;
+  /** Story 7.1: the account of a valid session ticket, else null (no ticket, bad, expired: unsaved play, never a refusal). */
+  accountId: string | null;
 }
 
 export type RunClient = Client<{ auth: RunAuth }>;
@@ -173,6 +176,7 @@ export interface RememberedSeat {
   readonly slot: number;
   readonly name: string;
   readonly guestTokenHash: string;
+  readonly accountId: string | null;
   readonly player: SimPlayer;
   readonly kills: number;
   /** Review H2: `buildStartIndex` when the seat was held (restored with it: no free build-start heal). */
@@ -314,7 +318,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       log.warn({ ip: ctx.ip ?? "unknown" }, "room_create_rate_limited");
       throw refuse("rate_limited");
     }
-    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash: hashGuestToken(parsed.data.guestToken) };
+    // Story 7.1 (P4): only a server-signed ticket names an account; pure HMAC, no database (AC 9). Never logged.
+    // Review M1: the ticket counts only with the guest token it was issued for.
+    const guestTokenHash = hashGuestToken(parsed.data.guestToken);
+    const accountId = ticketAccountId(parsed.data.ticket, guestTokenHash);
+    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash, accountId };
   }
 
   override async onCreate(options: { intent?: unknown } & Partial<RunRoomOptions>): Promise<void> {
@@ -377,6 +385,18 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       if (e instanceof ServerError) this.log.info({ reason: e.message }, "join_refused");
       throw e;
     }
+    if (client.auth) this.saveDisplayName(client.auth);
+  }
+
+  /**
+   * Story 7.1 AC 7: the name used at a successful join becomes the account's display name. Async, best effort,
+   * never awaited (a slow or dead database never delays a join or a tick; the repository logs `db_error`).
+   */
+  private saveDisplayName(auth: RunAuth): void {
+    this.log.info({ accountId: auth.accountId }, "join_account");
+    const accounts = roomAccountsRepo();
+    if (auth.accountId === null || accounts === null) return;
+    accounts.setDisplayName(auth.accountId, auth.name).catch(() => undefined);
   }
 
   private join(client: RunClient): void {
@@ -385,12 +405,14 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     const key = seatKey(auth);
     if (this.state.phase !== "lobby") {
       // Story 8.1: a started run takes back only its own seats (Story 8.2 opens build-phase joins for new players).
-      for (const m of this.members.values()) if (m.seatKey === key) return this.takeOver(m, client); // D5: the newest connection takes the seat
-      const seat = this.rememberedSeats.get(key);
-      if (seat) return this.restoreRemembered(key, seat, client);
+      // Story 7.1: "its own" = the same account or the same guest token (`sameSeat`, decision 7.1 D5).
+      for (const m of this.members.values()) if (sameSeat(m, auth)) return this.takeOver(m, client); // D5: the newest connection takes the seat
+      for (const [seatKeyOf, seat] of this.rememberedSeats) {
+        if (sameSeat({ seatKey: seatKeyOf, guestTokenHash: seat.guestTokenHash }, auth)) return this.restoreRemembered(seatKeyOf, seat, client);
+      }
       throw refuse("run_started");
     }
-    for (const m of this.members.values()) if (m.seatKey === key) throw refuse("already_joined"); // the lobby keeps the refusal (D5)
+    for (const m of this.members.values()) if (sameSeat(m, auth)) throw refuse("already_joined"); // the lobby keeps the refusal (D5)
     const slot = assignSlot(Array.from(this.members.values(), (m) => m.slot));
     if (slot < 0) throw refuse("invalid_options"); // unreachable: maxClients locks the room at 4
     const playerId = `p${slot}`;
@@ -400,6 +422,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       sessionId: client.sessionId,
       name: auth.name,
       guestTokenHash: auth.guestTokenHash,
+      accountId: auth.accountId,
       seatKey: key,
       joinOrder: ++this.joinCounter, // a counter, not the clock: a clock jump can't reorder hosts
       rttMs: 0,
@@ -441,7 +464,10 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
    * session first, so the old socket's onDrop/onLeave find no member and do nothing (no hold restart).
    */
   private takeOver(old: Member, client: RunClient): void {
-    const member: Member = { ...old, sessionId: client.sessionId };
+    // Story 7.1: a seat that joined unsaved gains the account of a later valid ticket; an account seat keeps its own.
+    // Review L1: re-keyed to `acct:` then, so the same account from another device takes it over too (8.1 D5).
+    const accountId = old.accountId ?? client.auth?.accountId ?? null;
+    const member: Member = { ...old, sessionId: client.sessionId, accountId, seatKey: seatKey({ guestTokenHash: old.guestTokenHash, accountId }) };
     this.members.delete(old.sessionId);
     this.members.set(client.sessionId, member);
     this.netMeters.delete(old.sessionId);
@@ -474,13 +500,15 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (!controller || this.state.phase !== "build" || slotTaken) throw refuse("seat_kept");
     if (!controller.restoreSeat(seat.player, seat.kills, seat.buildIdx)) throw refuse("seat_kept");
     this.rememberedSeats.delete(key);
+    const accountId = seat.accountId ?? client.auth?.accountId ?? null;
     const member: Member = {
       playerId: seat.playerId,
       slot: seat.slot,
       sessionId: client.sessionId,
       name: seat.name,
       guestTokenHash: seat.guestTokenHash,
-      seatKey: key,
+      accountId,
+      seatKey: seatKey({ guestTokenHash: seat.guestTokenHash, accountId }), // review L1: `acct:` once it has an account
       joinOrder: ++this.joinCounter, // the newest member: the host role never moves back (Epic 8 D8)
       rttMs: 0,
     };
@@ -646,7 +674,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (controller && this.inRun()) {
       controller.holdPlayer(playerId); // a present player leaves the World the same way (no-op when held)
       const seat = controller.releaseHeld(playerId);
-      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, player: seat.player, kills: seat.kills, buildIdx: seat.buildIdx });
+      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, accountId: member.accountId, player: seat.player, kills: seat.kills, buildIdx: seat.buildIdx });
     } else {
       controller?.removePlayer(playerId);
     }
