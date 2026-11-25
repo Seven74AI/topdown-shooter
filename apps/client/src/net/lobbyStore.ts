@@ -18,8 +18,12 @@ import { LinkMonitor, linkStore, type LinkRoom } from "./linkMonitor";
 import { seatStore } from "./seatStore";
 import { rewardsStore } from "./rewardsStore";
 
-/** Story 7.2 (D4): how long a Leave mid-run keeps the socket open for its `run.rewards` (the bank is one transaction: ms normally). */
-export const LEAVE_REWARDS_WAIT_MS = 1500;
+/**
+ * Story 7.2 (D4, re-review 2 N-RR2-2): how long a Leave mid-run keeps the socket open for its `run.rewards`. A bank
+ * is normally a few ms; 2.5 s covers a lock wait plus the budget (`db/boundedTx.ts`). A slower bank still completes on
+ * the server; only the start screen's one-time line is missed.
+ */
+export const LEAVE_REWARDS_WAIT_MS = 2500;
 
 /** Consented leave (4000) and server shutdown (4001): never a drop. */
 const CONSENTED = 4000;

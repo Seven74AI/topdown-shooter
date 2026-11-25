@@ -9,7 +9,7 @@ import { migrateDb } from "./migrate";
 
 let database: Database | null = null;
 try {
-  database = databaseFromEnv(process.env, DEFAULT_PGLITE_DIR);
+  database = databaseFromEnv(process.env, DEFAULT_PGLITE_DIR, { queryTimeoutMs: 0 }); // a migration may take longer than a game query
   if (database.kind === "postgres") await migrateDb({ kind: "postgres", db: await database.db() });
   else await database.db(); // PGlite migrates when it opens
   log.info({ kind: database.kind }, "db_migrated");

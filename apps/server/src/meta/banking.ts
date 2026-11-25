@@ -191,8 +191,9 @@ export class RunBank {
         return r.nudge ? { ...m, nudge: true } : m; // Story 7.6 (AC 10): the one-time "Save my progress" line
       } catch (e) {
         const err = e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
-        // Review M1: a failed bank never commits later (progressRepo bounds it inside PostgreSQL); still, a hand grant
-        // checks run_rewards first (docs/deploy.md › Database).
+        // Review M1 / RR-M1 / RR2-L1: the attempt has really ended (boundedTransaction never reports early). Only a lost
+        // COMMIT reply with the database then unreachable can mean "failed" although paid: the retry's duplicate key
+        // or the hand-grant check (run_rewards first, docs/deploy.md › Database) covers it.
         this.deps.log.error({ runId: this.runId, accountId, err, attempt, ending: seat.ending, record, handGrant: HAND_GRANT_NOTE }, "supplies_bank_failed");
         if (attempt === 1) await new Promise((r) => setTimeout(r, this.deps.retryMs ?? BANK_RETRY_MS));
       }
