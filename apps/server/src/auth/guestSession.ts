@@ -8,8 +8,9 @@
  * a token and plays unsaved. New guests are limited per IP (decision 7.1 D6); resolving an existing one never is.
  * Never logs a token or a hash.
  */
-import { guestTokenSchema, type AccountSessionResponse } from "@topdown/shared";
+import { catalogueParts, decodeLook, encodeLook, guestTokenSchema, type AccountSessionResponse } from "@topdown/shared";
 import type { AccountsRepo } from "../db/accountsRepo";
+import type { ProgressRepo } from "../db/progressRepo";
 import { log } from "../ops/logger";
 import { hashGuestToken } from "../run/lobby";
 import type { SlidingWindowLimiter } from "../net/rateLimit";
@@ -17,6 +18,8 @@ import { signTicket } from "./ticket";
 
 export interface GuestSessionDeps {
   accounts: AccountsRepo;
+  /** Story 7.9: reads the saved look for the response; absent (tests of 7.1) = no `progress` in the response. */
+  progress?: ProgressRepo;
   newGuestLimiter: SlidingWindowLimiter;
   sessionSecret: string;
   now?: () => number;
@@ -58,7 +61,7 @@ export async function resolveGuestSession(
       const account = await deps.accounts.findByTokenHash(hashGuestToken(token));
       if (account !== null) {
         log.info({ accountId: account.id, source }, "account_session");
-        return { response: saved(token, account, deps.sessionSecret, now()), source };
+        return { response: await withProgress(saved(token, account, deps.sessionSecret, now()), account.id, deps), source };
       }
     }
     const token = presented ?? mintGuestToken();
@@ -68,12 +71,31 @@ export async function resolveGuestSession(
     }
     const account = await deps.accounts.createGuest(hashGuestToken(token), "");
     log.info({ accountId: account.id, source: "new" }, "account_session");
-    return { response: saved(token, account, deps.sessionSecret, now()), source: "new" };
+    return { response: await withProgress(saved(token, account, deps.sessionSecret, now()), account.id, deps), source: "new" };
   } catch {
     // Already logged as db_error {op} by the repository; play goes on unsaved (P3).
     log.warn("account_session_unsaved");
     return unsaved(presented ?? mintGuestToken());
   }
+}
+
+/** The client decodes against the whole catalogue; ownership is checked again at join (L2). */
+const ANY_PART = catalogueParts();
+
+/**
+ * Story 7.9 (AC 1): adds the saved look (canonical, so the client's schema always accepts it). A failed progress
+ * read keeps the session saved, with the default look (null): the look never costs the player their account.
+ */
+async function withProgress(response: AccountSessionResponse, accountId: string, deps: GuestSessionDeps): Promise<AccountSessionResponse> {
+  if (!deps.progress || !response.saved) return response;
+  let look: string | null = null;
+  try {
+    const stored = (await deps.progress.get(accountId))?.look ?? null;
+    look = stored === null ? null : encodeLook(decodeLook(stored, ANY_PART).look);
+  } catch {
+    // already logged as db_error {op} by the repository
+  }
+  return { ...response, progress: { look } };
 }
 
 function saved(token: string, account: { id: string; displayName: string; username: string | null }, secret: string, nowMs: number): AccountSessionResponse {

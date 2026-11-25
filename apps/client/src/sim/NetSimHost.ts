@@ -376,9 +376,8 @@ export class NetSimHost implements SimHost {
     const slot = s?.slot ?? playerSlotOf(id);
     this.info.slot = slot === NET_NONE ? 0 : slot;
     this.info.name = s?.name ?? "";
-    // Story 7.9 (L2): my own survivor too is drawn from the server's code, never from my cached look. The field
-    // reaches `PlayerStateView` with the join task (T3); until then every player reads "" (the default look).
-    this.info.look = (s as { look?: unknown } | undefined)?.look === undefined ? "" : String((s as { look?: unknown }).look);
+    // Story 7.9 (L2): my own survivor too is drawn from the server's canonical code, never from my cached look.
+    this.info.look = s?.look ?? "";
     return this.info;
   }
 

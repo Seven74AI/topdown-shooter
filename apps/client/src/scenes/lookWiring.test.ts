@@ -3,10 +3,8 @@
  * harness, so this reads its source: each hookup below is one line, and deleting it fails here. The behaviour of
  * each piece is tested in render/SurvivorLookTextures.test.ts.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-
-const src = readFileSync(new URL("./GameScene.ts", import.meta.url), "utf8");
+import src from "./GameScene.ts?raw";
 /** The body of a `private readonly name = (…) => { … };` arrow, up to its closing `};` line. */
 function arrowBody(name: string): string {
   const start = src.indexOf(`private readonly ${name} = `);
@@ -32,5 +30,8 @@ describe("GameScene look wiring (Story 7.9)", () => {
     expect(src).toMatch(/new DevLooks\(urlOptions\(\)\.devLooks - 1, /);
     expect(src).toMatch(/this\.devLooks\.update\(me, /);
     expect(src).toMatch(/this\.devLooks\?\.destroy\(\);/);
+  });
+  it("practice solo draws my own look from this phone's copy (AC 13, D4)", () => {
+    expect(src).toMatch(/new LocalSimHost\(\{ [^}]*look: deviceLook\.get\(\) \}\)/);
   });
 });

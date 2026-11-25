@@ -9,6 +9,7 @@
  */
 import { ACCOUNT_SESSION_PATH, accountSessionResponseSchema, playerNameSchema, type AccountSessionResponse } from "@topdown/shared";
 import { guestTokens, type GuestTokenStore } from "./guestToken";
+import { deviceLook, type DeviceLookStore } from "./deviceLook";
 import { serverUrl } from "./serverUrl";
 
 export const ACCOUNT_TIMEOUT_MS = 3000;
@@ -56,6 +57,20 @@ export async function accountSession(over: Partial<AccountDeps> = {}): Promise<A
 export async function sessionTicket(over: Partial<AccountDeps> = {}): Promise<string | undefined> {
   const s = await accountSession(over);
   return s?.saved ? s.ticket : undefined;
+}
+
+/**
+ * Story 7.9 (AC 5): what a join carries from the account: the ticket (as `sessionTicket`) and my look — the
+ * server's copy first (and kept on this device), then the device copy, then none (the default look).
+ */
+export async function joinAccount(over: Partial<AccountDeps> = {}, looks: DeviceLookStore = deviceLook): Promise<{ ticket?: string; look?: string }> {
+  const s = await accountSession(over);
+  if (s?.saved && s.progress) looks.set(s.progress.look);
+  const out: { ticket?: string; look?: string } = {};
+  if (s?.saved) out.ticket = s.ticket;
+  const look = s?.saved && s.progress ? (s.progress.look ?? undefined) : looks.get();
+  if (look !== undefined) out.look = look;
+  return out;
 }
 
 /**

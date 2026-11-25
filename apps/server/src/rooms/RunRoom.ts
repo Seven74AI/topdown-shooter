@@ -89,7 +89,7 @@ import { pickDevRunSeed } from "../run/devRunSeed";
 import { pickDevDecayStages } from "../run/devDecayStages";
 import { pickDevForceBlackout } from "../run/devForceBlackout";
 import { pickDevBossWaves } from "../run/devBossWaves";
-import { parseDevEvents } from "@topdown/shared";
+import { decodeLook, encodeLook, ownedParts, parseDevEvents } from "@topdown/shared";
 import { pickDevStartWave } from "../run/devStartWave";
 import { pickDevShopCards } from "../run/devShopCards";
 import { pickDevShopAll } from "../run/devShopAll";
@@ -133,6 +133,8 @@ export interface RunAuth {
   guestTokenHash: string;
   /** Story 7.1: the account of a valid session ticket, else null (no ticket, bad, expired: unsaved play, never a refusal). */
   accountId: string | null;
+  /** Story 7.9: the canonical look code (`decodeLook` against the account's owned parts; bad parts → default parts). */
+  look: string;
 }
 
 export type RunClient = Client<{ auth: RunAuth }>;
@@ -176,6 +178,8 @@ export interface RememberedSeat {
   readonly name: string;
   readonly guestTokenHash: string;
   readonly accountId: string | null;
+  /** Story 7.9 (NP 21): a remembered seat keeps its look. */
+  readonly look: string;
   readonly player: SimPlayer;
   readonly kills: number;
 }
@@ -206,7 +210,7 @@ const reservedCodes = new Set<string>();
 
 const refuse = (reason: JoinRefusal): ServerError => new ServerError(JOIN_REFUSED_CODE, reason);
 /** onAuth runs before a room is picked: its lines carry `roomId: "auth"`. */
-const authLog = roomLog("auth");
+export const authLog = roomLog("auth"); // exported for tests (Story 7.9: look_replaced)
 
 /**
  * One run: lobby now (Story 2.1), the fight from Story 2.4. The room id is the 4-letter code.
@@ -305,7 +309,11 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     }
     // Story 7.1 (P4): only a server-signed ticket names an account; pure HMAC, no database (AC 9). Never logged.
     const accountId = ticketAccountId(parsed.data.ticket);
-    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash: hashGuestToken(parsed.data.guestToken), accountId };
+    // Story 7.9 (L1, L2): a look never refuses a join; parts the account doesn't own (until 7.11: non-starter parts)
+    // become default parts. Logged as a count only, never the player-chosen text.
+    const look = decodeLook(parsed.data.look, ownedParts());
+    if (look.replaced > 0) authLog.info({ fields: look.replaced }, "look_replaced");
+    return { name: parsed.data.name, ip: ctx.ip, guestTokenHash: hashGuestToken(parsed.data.guestToken), accountId, look: encodeLook(look.look) };
   }
 
   override async onCreate(options: { intent?: unknown } & Partial<RunRoomOptions>): Promise<void> {
@@ -406,6 +414,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       name: auth.name,
       guestTokenHash: auth.guestTokenHash,
       accountId: auth.accountId,
+      look: auth.look,
       seatKey: key,
       joinOrder: ++this.joinCounter, // a counter, not the clock: a clock jump can't reorder hosts
       rttMs: 0,
@@ -413,7 +422,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     // The creator is host (slot 0); later joiners never take it over.
     if (this.members.size === 0) this.state.hostSlot = slot;
     this.members.set(client.sessionId, member);
-    this.state.players.set(playerId, new PlayerState({ slot, name: auth.name, ready: false }));
+    this.state.players.set(playerId, new PlayerState({ slot, name: auth.name, ready: false, look: auth.look }));
     this.attachClient(client, member);
     this.log.info({ playerId, slot }, "player_joined");
   }
@@ -481,12 +490,13 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
       name: seat.name,
       guestTokenHash: seat.guestTokenHash,
       accountId: seat.accountId ?? client.auth?.accountId ?? null,
+      look: seat.look, // Story 7.9: the seat's look, not the new connection's (mid-run the look never changes)
       seatKey: key,
       joinOrder: ++this.joinCounter, // the newest member: the host role never moves back (Epic 8 D8)
       rttMs: 0,
     };
     this.members.set(client.sessionId, member);
-    this.state.players.set(seat.playerId, new PlayerState({ slot: seat.slot, name: seat.name, ready: false }));
+    this.state.players.set(seat.playerId, new PlayerState({ slot: seat.slot, name: seat.name, ready: false, look: seat.look }));
     this.hordeStats.set(seat.playerId, newHordeStats());
     this.attachClient(client, member);
     syncState(this.state, controller); // the seat's fields in the first patch
@@ -638,7 +648,7 @@ export class RunRoom extends Room<{ state: RunState; client: RunClient }> {
     if (controller && this.inRun()) {
       controller.holdPlayer(playerId); // a present player leaves the World the same way (no-op when held)
       const seat = controller.releaseHeld(playerId);
-      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, accountId: member.accountId, player: seat.player, kills: seat.kills });
+      if (seat) this.rememberedSeats.set(member.seatKey, { playerId, slot, name, guestTokenHash: member.guestTokenHash, accountId: member.accountId, look: member.look, player: seat.player, kills: seat.kills });
     } else {
       controller?.removePlayer(playerId);
     }

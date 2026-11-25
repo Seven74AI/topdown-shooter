@@ -15,6 +15,8 @@ export interface Progress {
   unlocks: string[];
   training: Record<string, number>;
   districts: string[];
+  /** Story 7.9: the survivor look code, or null (the default look). 7.10's editor writes it; nothing here does. */
+  look: string | null;
 }
 
 export interface ProgressRepo {
@@ -38,6 +40,7 @@ export function progressRepo(database: Database, timeoutMs = DB_TIMEOUT_MS): Pro
               unlocks: progress.unlocks,
               training: progress.training,
               districts: progress.districts,
+              look: progress.look,
             })
             .from(progress)
             .where(eq(progress.accountId, accountId))

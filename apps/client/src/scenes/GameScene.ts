@@ -161,6 +161,7 @@ import { parseBossWaves, urlOptions } from "../debug/urlOptions";
 import { SurvivorLayerPool } from "../render/SurvivorLayerPool";
 import { SurvivorLookTextures, syncViewLook } from "../render/SurvivorLookTextures";
 import { DevLooks } from "../render/devLooks";
+import { deviceLook } from "../net/deviceLook";
 import { clientBalance, soloBalance } from "../debug/clientBalance";
 import { getTuning, tunedBalance } from "../debug/tuning";
 import { validLoadout } from "./validLoadout";
@@ -587,7 +588,7 @@ export class GameScene extends Phaser.Scene {
     const netHost = session ? new NetSimHost({ balance, session, measureHits: () => import.meta.env.DEV || perf.overlayOn, linkUp: () => linkStore.get().status === "ok" }) : null;
     // Story 6.1 dev (?startwave=7, dev builds, solo, not with ?stress): the first build leads into that wave.
     const startWave = session || opts.stress !== null ? null : parseStartWave(opts.startWave, balance);
-    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave });
+    const localHost = netHost ? null : new LocalSimHost({ balance, seed: soloSeed ?? newRunSeed(), startWave, look: deviceLook.get() });
     const host: SceneHost = netHost ?? (localHost as LocalSimHost);
     this.localHost = localHost;
     this.leaving = false;
