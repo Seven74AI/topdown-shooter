@@ -30,3 +30,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - Follow-up (retro A12): one small "Epic 6 leftovers" tidy story (6.13 L-b/L-c/L-d/nit; 6.14 L6 top-band test) — schedule by file overlap in Epic 7.
 - 04:08 gate green on c87a707 (396 files / 3655 tests, load 3.67) → master.
 - 04:12 7.9 early part pushed (46d60e3): T1 look code, T4 gun under body, T5 per-player textures; 1360 touched tests, 11/11 mutations killed. Builder choices: D1 repaint by comparing decay stage per frame; missing look = 0 replaced fields; client decodes against full catalogue (server checks ownership); ?devlooks=N. Holding T2/T3/T6 for 7.1 + 8.1.
+- 04:17 7.1 early part pushed (6aa9b81): deps, schema+migration, repos, progression.json, account API, deploy/backups; 132 touched tests, 8/8 mutations caught. Auto-accepted B1–B7 (docs/epic-7-decisions.md › Story 7.1 build-time choices). Not verified: no Docker here; VPS steps are Hermes's. Holding T6/T7 for 8.1.
