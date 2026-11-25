@@ -182,7 +182,86 @@ Claude (builder cloud session, gds-dev-story), 2026-11-25 overnight autonomous r
 - docs/art/epic-7/built/7-3-hub.png, 7-3-hub-states.png; docs/epic-7-decisions.md; _bmad-output/implementation-artifacts/sprint-status.yaml
 - merge fixes: apps/client/src/net/connection.ts, apps/client/src/sim/NetSimHost.ts, packages/shared/src/net/messages.ts, tools/bots/run.ts, docs/perf/network-pass-2026-11.md, apps/server/src/auth/accountRoutes.test.ts, apps/server/src/rooms/RunRoom.account.test.ts, RunRoom.reconnect.test.ts, RunRoom.rewards.test.ts
 
+## Senior Developer Review (AI)
+
+**Reviewer:** fresh reviewer session (gds-code-review, three layers + beat the rule), 2026-11-25. **Branch:** `review-7-3` = `origin/story-7-3` d52caffb + `origin/master` (merge: already up to date, no conflicts). Reviewed 7.3's own commits 4e2e4e21 + d52caffb (7.1 / 8.1 / 7.2 code not reviewed). `npm ci` + `npm run typecheck` green; only probed / mutated tests run (no full gate, as instructed).
+
+**Verdict: CHANGES REQUESTED (3 medium, 7 low, 2 nit).** The money core holds on **real PostgreSQL 16 with true parallel transactions**: no double charge, never below 0, one success + not_enough under concurrency, no deadlock with 7.2 banking. The mediums are a slow-DB "told failed but charged" path, a hub that says "try again" but can't, and an untested account-scoped memo (info-leak guard).
+
+### Findings
+
+| ID | Sev | Where | Scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| F1 | **Medium** | `apps/server/src/db/progressRepo.ts:82` (tx) with `db/timeout.ts:24`, `auth/unlock.ts` `run()` | DB slower than `DB_TIMEOUT_MS` (2 s): `withDbTimeout` rejects → **503 `save_unavailable`**, client shows "Couldn't reach the save server" + offline, but the abandoned transaction keeps waiting and **commits the charge**. Probe P7 on real PG: row lock held 2.5 s by another session → reply 503, then row = `{supplies: 0, unlocks: ["chainsaw"]}` (was 300). Not a double charge (a retry answers `already_unlocked`), but the player is told it failed while paying, and the hub keeps the old Supplies (brief 20 "honestly", U5). | First statement in the unlock transaction: `SET LOCAL lock_timeout = '1500ms'` + `SET LOCAL statement_timeout = '1500ms'` (below the 2 s app timeout) so PostgreSQL aborts before the app gives up; plus F2's refresh after a failure. Test: hold `FOR UPDATE` 2.5 s from a second connection, assert 503 **and** the row unchanged. |
+| F2 | **Medium** | `apps/client/src/ui/ProgressScreen.tsx:99`, `ui/hubModel.ts:229` | After a 5xx / timeout the row note says "Couldn't reach the save server · **try again**", but `markOffline()` disables every Unlock button and nothing refreshes again until Back + reopen. Browser check (568×320, stubbed 503): offline banner on, all `.ph-btn` disabled. With F1 the shown Supplies are also stale. | `else if (r.offline) { progressStore.markOffline(); void progressStore.refresh(); }` (a good refresh brings the server truth and re-enables Unlock); wiring test for it (see F7). |
+| F3 | **Medium** (test gap on brief 19) | `apps/server/src/auth/unlock.ts:110` | Mutation M1 `key = input.requestId` (memo not keyed by account) **passes all 14 route tests**. Behaviour today is right (probe P6: account B replaying A's requestId gets its own purchase), but a regression would hand A's answer (Supplies, unlock list) to anyone replaying A's requestId: an info leak, and B's purchase silently not made. | Test: accounts A and B, same `requestId`; B's answer has B's progress and B is charged. |
+| F4 | Low | `auth/unlock.ts:96` | IP limiter untested: mutation M2 (`if (false)`) passes. Live probe P9: 60 calls / min / IP → 401 each, then 429 ×3, `unlock_rate_limited {ip}` logged **once** (works). | Route test: 61 calls from one `x-real-ip` without a cookie → last is 429, one log line. |
+| F5 | Low | `auth/unlock.ts:120` | Forgetting a failed answer is untested: mutation M4 (never delete) passes; a regression would replay one 503 to every retry with that id for 10 min. | Test: DB fails once (spy), retry with the same `requestId` succeeds. |
+| F6 | Low | `packages/shared/src/meta/pool.ts:78` | The category tie-break by cheapest price is untested: mutation M7 (drop `cand.price < best.price ||`) passes, because in every test case the cheaper category also has the lower list index (spike_trap #5 vs molotovs #13). | One case with a synthetic progression where price order and list order disagree. |
+| F7 | Low (R2) | `ui/ProgressScreen.tsx:99` | `markOffline()` wiring: mutation M14 (delete the line) passes the wiring and model tests. | Add the line to `tools/checks/progressHubWiring.test.ts`. |
+| F8 | Low | `apps/client/src/ui/overlay.css:1799` `.ph-name` | `nowrap` with no overflow / ellipsis on the name text: a 30-char name ("Reinforced metal barricade kit") at 568×320 pushes the "Good next pick" tag under the Unlock button (tag right 430 px > action left 406 px). All current names fit at the four sizes (0 overflows, 0 text < 11 px, 27 rows). | Wrap the name text in a span with `overflow: hidden; text-overflow: ellipsis; min-width: 0`. |
+| F9 | Low | `auth/accountRoutes.ts:65`, `auth/unlock.ts:94` | A bad body (400 `invalid_body`) and an unknown id (400 `unknown_unlock`) are answered before the IP limiter and never logged (brief 15: "guarded, rate-limited and logged"). No DB work, no data leaked (catalogue is public), so harmless today. | Check `ipLimiter` first in the route (before body parse). |
+| F10 | Low (doc) | `packages/shared/src/net/account.ts:44`, Notes for the merge | B1's "deploy 7.1 and 7.3 together" is **correct** (7.1's strict saved schema rejects `progress`; 7.1 isn't deployed yet), but it lives only in this story file. Also the `saved:false` branch and the `account` sub-object are still `.strict()`: a later field there breaks open tabs the same way. | Copy the deploy rule to HANDOFF / the deploy checklist; note the remaining strict parts for 7.5 / 7.6. |
+| F11 | Nit | dev overlay | The dev-only "Dev cheats" ⚙ button sits on top of the hub header at 568×320 (x≈458–500, y≈16–56), in the gap kept for 7.6's account buttons. Dev builds only. | Check when 7.6 fills the header. |
+| F12 | Nit (look) | `overlay.css` `.ph*` vs `docs/art/epic-7/lumen/hub.jpg` | Built hub matches PH1's structure (back key, Supplies, rule line, tab bar, one list, Confirm / spinner / Not enough / Starter / Good next pick). Deviations: names and buttons in a wide sans instead of the sheet's condensed face, so 2 whole rows show at 568×320 (sheet ≈3); "Not enough · need N" sits under the line on the left (sheet: under the price, right) and makes the row taller; only one tab drawn (B12, accepted). | Designer look pass; no code change required for 7.3. |
+
+### Beat the rule (every attempt)
+
+| # | Attempt | Result |
+| --- | --- | --- |
+| 1 | No cookie / forged cookie (random 32-hex) / malformed cookie | 401, nothing charged (P8 + existing test) |
+| 2 | `deviceToken` or `accountId` in the body (B6 cookie-only) | 400 strict schema (existing test); cookie is the only identity |
+| 3 | Price in the body (−500) / string id / non-UUID requestId / bad JSON | 400, nothing charged |
+| 4 | Starter item (`pistol`) / id not in progression.json | 400 `unknown_unlock`, before any DB call |
+| 5 | Negative price from data | impossible: schema `int().positive()`, repo throws on `price <= 0` |
+| 6 | 3 different items, Supplies for one, parallel, **real PG**, 30 rounds | always exactly 1 ok + 2 not_enough, balance ≥ 0 (P1) |
+| 7 | Forced overlap: row locked by a 3rd session while 2 buys queue (pg_stat_activity: **2 waiting on Lock**), then released | 1 ok + 1 not_enough, supplies 0 (P2: EvalPlanQual re-check holds) |
+| 8 | Same item ×10 in parallel, fresh requestIds | 1 ok + 9 already_unlocked, one charge (P3) |
+| 9 | Same requestId double-submit at once | one DB run, same answer (existing test) |
+| 10 | requestId replay after memo loss (= restart / 10 min TTL / 10k cap overflow) | `already_unlocked`, **not charged twice** (P5) — the DB condition is the real guard |
+| 11 | Account B replays account A's requestId | B gets its own purchase (P6); untested (F3) |
+| 12 | 7.2 bank (`FOR UPDATE`) and unlock on one account at the same instant, real PG, 20 rounds | lifetime always 300; ok ⇒ {0, [chainsaw]}, else {300, []}; no deadlock (P4) |
+| 13 | 21 calls / min / account | 429 (existing test; mutation M3 caught) |
+| 14 | 61+ calls / min / IP, no cookie | 60 × 401 then 429; `unlock_rate_limited {ip}` logged once (P9); untested (F4) |
+| 15 | DB unreachable (dead port) | unlock 503 `save_unavailable`; session `saved:false` (P10); nothing charged |
+| 16 | DB slower than 2 s | **503 but charged afterwards** (P7 → F1) |
+| 17 | 503 in the hub (browser, stub) | offline banner, every button off, "try again" impossible (F2); Esc closes the hub |
+| 18 | unlockMask at the 33rd unlock | schema `.max(32)` refuses `progression.json` at load (server won't boot; tested); bit 31 kept unsigned (`>>> 0`, M6 caught). 14 used: 18 left before 7.4's mask needs widening |
+| 19 | Good next pick: new player / after Spike trap | `spike_trap` / `molotovs` (consumables 2 is the fewest) — matches D1 |
+| 20 | Hub at 568×320, 640×360, 800×360, 844×390 (browser) | no name overflow, no text < 11 px, 27 rows; long-name probe → F8 |
+| 21 | Edited localStorage cache | display only; next session reply overwrites (existing test) |
+| 22 | Session reply now non-strict (B1) | deploy-together note correct (F10) |
+
+Probe code (temporary, not committed): a Vitest file booting the real server on `openPostgres` against a local PostgreSQL 16 (`apt` had no `postgresql` package; the image ships `/usr/lib/postgresql/16`), with raw `pg` sessions holding row locks; Playwright + Vite dev server with stubbed `/api/account/session` and `/api/account/unlock`.
+
+### Mutations (one per new test file, each reverted)
+
+| # | Mutation | Result |
+| --- | --- | --- |
+| M1 | memo key `requestId` only (`unlock.ts:110`) | **survived** (F3) |
+| M2 | IP limiter off (`unlock.ts:96`) | **survived** (F4) |
+| M3 | account limiter off | caught: "20 calls per account per minute…" |
+| M4 | failed answers kept in the memo (`unlock.ts:120`) | **survived** (F5) |
+| M5 | session reply's progress altered (`guestSession.ts`) | caught: "the session reply carries the same progress" |
+| M6 | `unlockMask` without `>>> 0` | caught: "the mask: … unsigned" |
+| M7 | Good next pick price tie-break dropped | **survived** (F6) |
+| M8 | `progression.ts` "one place per item" refine off | caught: "the schema refuses an item in two places…" |
+| M9 | `tapUnlock` ignores offline | caught: "AC 8: offline, taps do nothing…" |
+| M10 | confirm window `<` → `<=` | caught: "a fine time sweep (1 ms)…" |
+| M11 | `progressStore.accept` doesn't cache | caught: 2 progressStore tests |
+| M12 | `.ph-tab` width 128 → 120 | caught: hubLayoutCss "frame, header, tabs…" |
+| M13 | ProgressScreen drops `progressStore.accept` | caught: progressHubWiring "…the SERVER's progress is shown" |
+| M14 | ProgressScreen drops `markOffline()` | **survived** (F7) |
+
+The builder's own mutations (drop `supplies >= price`, drop `NOT unlocks ? id`) are recorded in Tasks → tests; not re-run.
+
+### R1 / R6
+
+- **R1:** every [x] task has "file > test name" beside it; the tests named under T2–T4 exist under those names (checked in `unlockRoute.test.ts`, `pool.test.ts`, `hubModel.test.ts`, `progressStore.test.ts`, `progressHubWiring.test.ts`, `hubLayoutCss.test.ts`). OK.
+- **R6:** Gate line present (fcaad5a0, 7.1 e1f97a39 + 7.2 7401f6dc + master f67154d7, 455 files / 4,098 tests, load 1.6 → 4.8). OK. "Not verified" honestly lists PGlite-only concurrency, now covered by this review on PostgreSQL 16.
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: built (overnight, auto-accepted B1–B14); gate green on fcaad5a0; status review.
+- 2026-11-25: Senior Developer Review (AI): changes requested (F1–F3 medium, F4–F10 low, F11–F12 nit).
