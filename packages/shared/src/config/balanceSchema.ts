@@ -579,9 +579,9 @@ export const fxSchema = z
     /** Designer pick C (2026-11-25): silhouettes of bodies behind standing walls drawn at once (pooled, capped). */
     maxWallSilhouettes: z.number().int().min(1).max(64).default(24),
     /** Story 9.13 (B4): zombies drawn with the full animation (walk crossfade, glow, sheen), nearest the camera first; the rest step their walk pictures and breathe only. `?fx=low` halves every Story 9.13 cap. */
-    maxCharacterAnim: z.number().int().min(0).max(256).default(20),
+    maxCharacterAnim: z.number().int().min(0).max(256).default(16),
     /** Story 9.13 (B5): of those, the ones that also get the moving sheen. */
-    maxCharacterSheen: z.number().int().min(0).max(256).default(10),
+    maxCharacterSheen: z.number().int().min(0).max(256).default(8),
     /** Story 9.13 (B6): Bloaters drawn with their glowing veins and acid sacs. */
     maxBloaterFx: z.number().int().min(0).max(32).default(6),
     /** Story 9.13 (B7): Spitters drawn dripping acid. */

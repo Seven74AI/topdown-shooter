@@ -105,8 +105,69 @@ Approved look: **take 4 with today's grey see-through outline** (designer 2026-1
 
 ### Agent Model Used
 
+Claude (builder session, gds-dev-story), 2026-11-25.
+
 ### Debug Log References
+
+- Headless finding (B17): in a running game, a NEW OffscreenCanvas's first readback and every `transferToImageBitmap` in the worker wait ~60 ms for the GPU process (SwiftShader, busy drawing the game); the bake took 31 s at 1× under `?stress=150` (2.4 s for the same worker on an idle page). Fixed: pooled, reset canvases and pixels (`ImageData`) posted back → ~7.5 s.
+- Main-thread landing: per-landing canvases (copies + sentinel readback) cost 6–17 ms; fixed with pixels written by `putImageData` (B18), a landing budget of half the frame budget, one sheet upload per frame, 512-wide sheets.
+- Caps: 40/40 cost −2.5 FPS at 1×; 24/12 −2.2; caps 0 was +2 (the per-look sheets batch better than the one atlas); 20/10 with the half-step crossfade −0.4 at 1× (p95 equal) but −1.5 at 4× with p95 100 → 116.7 in one round; 16/8 → see `docs/perf/epic-9-characters.md`. The main-thread profile at steady state is ~95 % waiting on the software GPU in both master and branch (the JS the story adds is < 0.2 % of samples), so the gap is draw / fill cost of the extra layers.
+- Removed a per-frame string build (`loopReady → sheetOf`) found in the profile; the pump returns at once when the bake is idle.
+- `tools/gallery/manifest.json`: master's own export already shows 36 `atlas_characters` zombie frames as changed (the committed manifest was stale before this story); this story's plain drawings are unchanged (`survivorParts.raster` pin green, node digest check before/after the new designs).
+
+### Decisions taken while building (B11+)
+
+- **B11 Plain first pictures.** At the start the sheets are copies of `atlas_characters` (no drawing on the main thread); the walk loop's first picture is today's design until the worker's plain new design lands (the first tasks, a few ms each), then the relit one. The view shows the first picture until all 10 relit pictures of a look are in, then crossfades.
+- **B12 One glow picture.** Take 4 draws the glowing pixels at 0.5 × the pulse and the bloom twice at the pulse; baked into one premultiplied picture (0.5 glow + 2 bloom, clamped) drawn additively at the pulse. The bloom is a two-pass box blur (σ ≈ the page's 6 px at the game scale), no `ctx.filter`.
+- **B13 Sheets.** One texture per look (type + variant: every walk phase / windup / swell, its glow and 8 sheen steps), one per gun frame, the Bloater veins on their own sheet per look; packed ≤ 512 px wide (tighter: 6.2 M px in all instead of 7.6 M); at most one sheet re-upload per frame.
+- **B14 Survivors.** The per-player body (Story 7.9) is relit in the worker (bodies jump the queue), no glow layer on bodies (the pilot flames are on the gun frames, which glow); the unused one-piece 7.8 survivor frames stay plain (kept only for the digest pin); portraits stay plain (B9).
+- **B15 Look / stage change.** A relit body stays until the new look's (or decay stage's) relit body lands; the plain body is painted only when there is no relit one yet.
+- **B16 Crop + row blur.** Each relight works on the drawing's bounding box plus the widest blur's reach (same result as the whole frame: edge clamping meets clear pixels, noise in frame coordinates) and the vertical blur walks rows (same sums in the same order); tested equal to `relight.ts › boxBlur`.
+- **B17 Worker canvases.** CPU-backed (`willReadFrequently`), pooled per size and reset; results posted as `ImageData` (transferred buffers), not ImageBitmaps (see Debug Log).
+- **B18 Kept cache = pixels.** Landed pictures are kept as `ImageData` (CPU memory: a lost context or an Android wipe can't empty them) and written into the sheets with `putImageData`; the restore check (sentinel pixel) stays and re-bakes only if pixels are gone.
+- **B19 Caps (measured).** `maxCharacterAnim` 16, `maxCharacterSheen` 8 (20 / 10 met 1× but put the 4× p95 one rAF bucket up in one of two rounds), `maxBloaterFx` 6, `maxSpitterDrips` 8 (`?fx=low` halves all four); the cap pass runs every 8 frames, nearest the camera centre first; the walk crossfade runs over the middle half of each step (the picture alone at either end), so a top layer exists half the time.
+- **B20 Depth bands.** Glow and sheen (additive) sit on one band (5.9) above every zombie type, so they batch; where a Brute overlaps a Spitter the Spitter's glow can show over the Brute. Veins, sacs and drips use the body's own band.
+- **B21 Cast shadow left out** (B2's option): the measured budget went to the animation caps.
+- **B22 BR2 glows.** BR2's hi-vis orange is detected as glowing, as on the approved page (it pulses there too); kept to match the page. `CharArt.glows` lists the glowing looks (Spitters, BR2, flamethrower, gas torch); a test keeps it in step with the detection.
+- **B23 Character bake budget** `BAKE_MS_PER_FRAME = 4` ms (landing gets half).
+- **B24 Perf measurement.** `?stress=150` has no build phase, so the bake (done ~8 s after the start at 1×, ~16 s at 4× in headless) overlaps the story's 8 s warm-up + 12 s count; in headless the worker competes with the CPU renderer. The AC 4 table is the steady state (8 s warm-up after the bake landed, master warmed for the same session age); the overlapped run is reported too (`docs/perf/epic-9-characters.md`).
+- **Tests changed on purpose:** `SurvivorLookTextures.test.ts` — the gun frame's texture is its relit sheet (`gunSheetOf`), and the body's rotation includes take 4's sway (≤ 0.012 rad).
 
 ### Completion Notes List
 
+- T1: `charRelight.ts` (take 4 `relight4` as `relightCharSteps`, KEEP_OUTLINE hard-wired, constants rescaled by source px per page px, slope ×6u), `commonzArt.ts` (Walker fingertips 1.54 r ≤ 1.55, Crawler smear 1.68 r ≤ 1.75 by trimming the drawing).
+- T2: `charactersFrames.ts` (123 frames, take 4 row seeds), `charactersBakeWorker.ts`, `charactersAtlas.ts` (sheets, kept cache, pump, worker timeout / idle close / frozen tab / stale generation, restore registration); pumped from `ZombieView.update` and `SurvivorLookTextures.beginFrame` (once per game frame).
+- T3: `ZombieView` (crossfade, distance-driven walk phase, breathing / sway on every zombie, glow / sheen within the cap, FX slots), `CharacterFxView` (veins crossfade, sacs with halo and bubbles, deterministic drips with world-space puddles), `PlayerView` (breathing / sway, chainsaw shake, body + gun sheen, gun glow flicker), `SurvivorLookTextures` (relit bodies via the worker), caps in `controls.json` + `balanceSchema.ts`. No simulation, server, net, HUD or GameScene change.
+- T4: gallery bakes on the spot; `tools/gallery/export.ts` groups the sheets as `characters_relit` and no longer adds take 4 as "approved, not in game"; review page text; readability items 134–141; screenshots in `docs/art/9-13/`.
+- T5: `charRelight.raster.test.ts`, `charactersBake.raster.test.ts`, `zombieCaps.test.ts`, `characterFx.test.ts`, `tools/checks/charactersBakeWiring.test.ts`; perf in `docs/perf/epic-9-characters.md`.
+
 ### File List
+
+- apps/client/src/render/city/charRelight.ts (new)
+- apps/client/src/render/city/charBloaterFx.ts (new)
+- apps/client/src/render/city/charactersFrames.ts (new)
+- apps/client/src/render/city/charactersAtlas.ts (new)
+- apps/client/src/render/city/charactersBakeWorker.ts (new)
+- apps/client/src/render/city/canvasRecycle.ts (new)
+- apps/client/src/render/city/commonzArt.ts (new)
+- apps/client/src/render/charAnim.ts (new)
+- apps/client/src/render/CharacterFxView.ts (new)
+- apps/client/src/render/ZombieView.ts
+- apps/client/src/render/PlayerView.ts
+- apps/client/src/render/SurvivorLookTextures.ts
+- apps/client/src/gallery/collect.ts
+- packages/shared/src/config/balance/controls.json
+- packages/shared/src/config/balanceSchema.ts
+- apps/client/src/render/city/charRelight.raster.test.ts (new)
+- apps/client/src/render/city/charactersBake.raster.test.ts (new)
+- apps/client/src/render/zombieCaps.test.ts (new)
+- apps/client/src/render/characterFx.test.ts (new)
+- apps/client/src/render/SurvivorLookTextures.test.ts
+- tools/checks/charactersBakeWiring.test.ts (new)
+- tools/gallery/export.ts, tools/gallery/review-page.html, tools/gallery/manifest.json
+- docs/art/9-13/*.png (new), docs/art/asset-review.md, docs/art/photoreal-decisions.md
+- docs/playtests/milestone-1/readability-sheet.md, docs/perf/epic-9-characters.md (new)
+
+### Change Log
+
+- 2026-11-25: Story 9.13 built (photoreal characters in the game); status → review.

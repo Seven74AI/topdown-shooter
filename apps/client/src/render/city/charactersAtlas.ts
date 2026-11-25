@@ -41,6 +41,8 @@ export * from "./charactersFrames";
  * pictures) go through the same worker, ahead of the atlas frames.
  */
 
+/** Character sheets are packed at most this wide (B13: tighter sheets, smaller re-uploads than 2048-wide rows). */
+export const CHAR_SHEET_PX = 512;
 /** Small additive / sprite pictures the views pool (`CharacterFxView`, the drips and sacs). */
 export const TEX_CHAR_FX = "chars_fx";
 export const FX_SAC = "fx_sac_a";
@@ -77,8 +79,14 @@ export function charFx(frame: string): CharFx | undefined {
   return FX.get(frame);
 }
 /** Every relit picture of a loop look is in: the view may crossfade its 10 pictures. */
+const LOOP_SHEETS: Readonly<Record<LoopType, readonly string[]>> = {
+  walker: [0, 1, 2, 3].map((v) => sheetOf("walker", v)),
+  runner: [0, 1].map((v) => sheetOf("runner", v)),
+  crawler: [0, 1].map((v) => sheetOf("crawler", v)),
+};
 export function loopReady(type: LoopType, v: number): boolean {
-  return (loopLanded.get(sheetOf(type, v))?.size ?? 0) >= LOOP_FRAMES;
+  const sheets = LOOP_SHEETS[type];
+  return (loopLanded.get(sheets[v % sheets.length] as string)?.size ?? 0) >= LOOP_FRAMES; // built once: no string per frame
 }
 /** How far the bake is (tests, the perf note). */
 export function charBakeProgress(): { readonly landed: number; readonly total: number } {
@@ -111,6 +119,10 @@ function sentinelOf(p: ImageData): readonly [number, number] | null {
   const y = Math.floor(p.height / 2);
   for (let x = 0; x < p.width; x++) if ((p.data[(y * p.width + x) * 4 + 3] as number) > 128) return [x, y];
   return null;
+}
+/** A bake picture as pixels (the worker's already are; others are read back once). */
+export function picPixels(p: Pic, w: number, h: number): ImageData {
+  return toPixels(p, w, h, makeCanvas);
 }
 /** A bake picture as pixels of `w × h` (the worker's are already; the main-thread bake's canvases are read back once). */
 function toPixels(p: Pic, w: number, h: number, make: (w: number, h: number) => HTMLCanvasElement): ImageData {
@@ -172,8 +184,10 @@ export interface CharBake {
   useWorker: boolean;
   workerDeadline: number;
   lastPump: number;
+  /** Nothing in progress after the last pump (the next pump returns at once unless something new came in). */
+  idle: boolean;
   /** Stats for the perf note (`window.__charBake`): main-thread max per pump, when the last picture landed. */
-  readonly stats: { startMs: number; doneMs: number; maxPumpMs: number; landed: number; worker: boolean; fromWorker: number; onMain: number; maxLandMs: number; maxRefreshMs: number };
+  readonly stats: { startMs: number; doneMs: number; maxPumpMs: number; landed: number; worker: boolean; fromWorker: number; onMain: number; maxLandMs: number; maxRefreshMs: number; maxBodyMs: number; maxKeepMs: number };
 }
 let bake: CharBake | null = null;
 
@@ -245,6 +259,9 @@ function* bodySteps(look: ResolvedLook, make: (w: number, h: number) => HTMLCanv
  * `budgetUnits` or `budgetMs`; then re-uploads each touched sheet once. Returns true while pictures are still coming.
  */
 export function pumpCharBake(b: CharBake, budgetUnits: number, budgetMs: number, now: () => number = () => performance.now()): boolean {
+  // finished and nothing new asked for: nothing to do (no sheet walk per frame once the bake is over)
+  if (b.idle && b.queue.length === 0 && b.arrived.length === 0 && b.bodiesArrived.length === 0 && b.inFlight.length === 0 && b.job === null && b.worker === null) return false;
+  b.idle = false;
   // pictures that arrived land within the frame's budget (at least one per frame): a burst from the worker is spread
   const tLand = now();
   let landedNow = 0;
@@ -254,13 +271,17 @@ export function pumpCharBake(b: CharBake, budgetUnits: number, budgetMs: number,
     b.inFlight = b.inFlight.filter((t) => t.kind !== "body" || t.body.id !== r.id);
     const cb = b.bodyCbs.get(r.id);
     b.bodyCbs.delete(r.id);
+    const t0 = now();
     cb?.(r.d);
+    b.stats.maxBodyMs = Math.max(b.stats.maxBodyMs, now() - t0);
     closeAll(r.d.pack, r.d.nopack, r.d.sheenPack, r.d.sheenNopack);
     landedNow++;
   }
   while (b.arrived.length > 0 && (landedNow === 0 || now() - tLand < landMs)) {
     const d = b.arrived.shift() as Done;
+    const t0 = now();
     keep(b, d);
+    b.stats.maxKeepMs = Math.max(b.stats.maxKeepMs, now() - t0);
     b.inFlight = b.inFlight.filter((t) => t.kind !== "frame" || t.frame !== d.frame || t.plain !== d.plain);
     closeAll(d.base, d.glow, d.sheen, d.veins);
     landedNow++;
@@ -316,8 +337,9 @@ export function pumpCharBake(b: CharBake, budgetUnits: number, budgetMs: number,
   b.stats.maxRefreshMs = Math.max(b.stats.maxRefreshMs, now() - tRef);
   let anyDirty = false;
   for (const sh of b.sheets.values()) if (sh.dirty) anyDirty = true;
-  const busy = anyDirty || b.job !== null || b.queue.length > 0 || b.inFlight.length > 0 || b.arrived.length > 0 || b.bodiesArrived.length > 0;
+  const busy = anyDirty || b.job !== null || b.queue.length > 0 || b.worker !== null || b.inFlight.length > 0 || b.arrived.length > 0 || b.bodiesArrived.length > 0;
   if (!busy && b.stats.doneMs === 0 && b.stats.landed > 0) b.stats.doneMs = now();
+  b.idle = !busy;
   return busy;
 }
 
@@ -452,11 +474,11 @@ export function rebakeCharsAfterCacheLoss(b: CharBake | null = bake): number {
 
 /** A bake over `sheets` (tests make them with a node canvas); main-thread until `useWorker`. */
 export function newCharBake(sheets: Map<string, Sheet>, make: (w: number, h: number) => HTMLCanvasElement, queue: Task[] = allTasks()): CharBake {
-  return { queue, job: null, make, lastUnits: 0, sheets, worker: null, inFlight: [], arrived: [], bodiesArrived: [], bodyCbs: new Map(), gen: 0, useWorker: false, workerDeadline: 0, lastPump: 0, stats: { startMs: 0, doneMs: 0, maxPumpMs: 0, landed: 0, worker: false, fromWorker: 0, onMain: 0, maxLandMs: 0, maxRefreshMs: 0 } };
+  return { queue, job: null, make, lastUnits: 0, sheets, worker: null, inFlight: [], arrived: [], bodiesArrived: [], bodyCbs: new Map(), gen: 0, useWorker: false, workerDeadline: 0, lastPump: 0, idle: false, stats: { startMs: 0, doneMs: 0, maxPumpMs: 0, landed: 0, worker: false, fromWorker: 0, onMain: 0, maxLandMs: 0, maxRefreshMs: 0, maxBodyMs: 0, maxKeepMs: 0 } };
 }
 /** A sheet over a canvas (tests). */
 export function newSheet(key: string, canvas: HTMLCanvasElement): Sheet {
-  const layout = packAtlas(charSheetSpecs(key));
+  const layout = packAtlas(charSheetSpecs(key), CHAR_SHEET_PX);
   canvas.width = layout.width;
   canvas.height = layout.height;
   return { key, canvas, frames: new Map(layout.frames.map((f) => [f.name, f])), tex: null, dirty: false };
@@ -541,7 +563,7 @@ export function ensureCharacterSheets(scene: Phaser.Scene, opts: { readonly work
   const atlasImg = atlasTex ? (atlasTex.getSourceImage() as HTMLCanvasElement) : null;
   const sheets = new Map<string, Sheet>();
   for (const key of charSheets()) {
-    const layout = packAtlas(charSheetSpecs(key));
+    const layout = packAtlas(charSheetSpecs(key), CHAR_SHEET_PX);
     const canvas = makeCanvas(layout.width, layout.height); // CPU-backed (B17)
     const frames = new Map(layout.frames.map((f) => [f.name, f]));
     let first = true;
@@ -598,8 +620,15 @@ export function ensureCharacterSheets(scene: Phaser.Scene, opts: { readonly work
 }
 
 /** The sheet (texture key) of a zombie look. */
+const ZOMBIE_SHEETS = new Map<string, string>();
 export function zombieSheet(type: ZombieTypeId, v: number): string {
-  return sheetOf(type, v);
+  const k = type + v;
+  let s = ZOMBIE_SHEETS.get(k);
+  if (s === undefined) {
+    s = sheetOf(type, v);
+    ZOMBIE_SHEETS.set(k, s);
+  }
+  return s;
 }
 /** The walk picture `k` of a loop look (built once). */
 const WALK: Readonly<Record<LoopType, readonly (readonly string[])[]>> = {
