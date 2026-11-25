@@ -27,6 +27,8 @@
  *                         its queue pushes back on the server's socket, so the horde skip rule runs)
  *                         Refused for a remote --url. The summary adds a `bots_line` line with the
  *                         stalls injected per direction.
+ *   --ping-every <S>      Story 8.7: each bot pings every S seconds (a random kind from its own seeded stream);
+ *                         under 1 s the server's 1/s bucket drops the extra ones (`pingDropped` in net_stats)
  *   --cut-bot <N>         Story 8.1: bot N (1-based) connects through a line that can be cut both ways
  *   --cut-at <S>          … cut S seconds after the run started (default 30) …
  *   --cut-for <S>         … for S seconds (default 8): no bytes, no close. The bot's own 3 s watchdog,
@@ -64,6 +66,8 @@ interface Args {
   untilWave: number;
   maxSeconds: number;
   holdFireS: number;
+  /** Story 8.7: `--ping-every <S>` (0 = off). */
+  pingEveryS: number;
   /** Story 8.8: the lagged / lossy line in front of a local --url (null = straight to --url). */
   line: LineArgs | null;
   /** Story 8.1: the cut switch (bot index 1-based, start and length in seconds); 0 = off. */
@@ -82,7 +86,7 @@ interface Args {
 }
 
 /** Flags that take a value. Anything else (but --help / -h) is refused. */
-const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps", "late-bot", "late-at", "late-mid", "tokens", "save-quit-at", "resume"] as const;
+const FLAGS = ["url", "origin", "room", "count", "scenario", "until-wave", "max-seconds", "hold-fire", "lag", "jitter", "loss", "stall", "cut-bot", "cut-at", "cut-for", "kbps", "ping-every", "late-bot", "late-at", "late-mid", "tokens", "save-quit-at", "resume"] as const;
 /** Flags without a value (Stories 8.4–8.6). */
 const SWITCHES = ["account"] as const;
 
@@ -129,6 +133,7 @@ function parseArgs(argv: readonly string[]): Args {
     untilWave: Number(get("until-wave") ?? Infinity),
     maxSeconds: Number(get("max-seconds") ?? 900),
     holdFireS: Number(get("hold-fire") ?? 0),
+    pingEveryS: pingEveryOf(get("ping-every")),
     line: parseLine(get, url),
     cutBot: cutBotOf(get("cut-bot"), count),
     cutAtS: Number(get("cut-at") ?? 30),
@@ -156,6 +161,14 @@ async function startLine(args: Args, log: (line: Record<string, unknown>) => voi
   const line = await startLagLine({ listen: 0, targetHost: u.hostname === "localhost" ? "127.0.0.1" : u.hostname.replace(/^\[|\]$/g, ""), target, ...args.line });
   log({ msg: "bots_line_on", via: line.port, target, ...args.line });
   return { url: lineUrl(args.url, line.port), line };
+}
+
+/** Story 8.7 (review nit): `--ping-every` is a finite number of seconds ≥ 0 (0 = off). */
+function pingEveryOf(raw: string | undefined): number {
+  if (raw === undefined) return 0;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) throw new Error("--ping-every must be a number of seconds ≥ 0");
+  return n;
 }
 
 /** Story 8.2: `--late-bot` must name a bot after the host (we create the room); `--late-at` / `--late-mid` are waves ≥ 1. */
@@ -192,7 +205,7 @@ async function main(): Promise<void> {
   const log = (line: Record<string, unknown>): void => console.log(JSON.stringify(line));
   const bots: BotClient[] = [];
   const { url, line } = await startLine(args, log);
-  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS, account: args.account };
+  const base = { url, ...(args.origin ? { origin: args.origin } : {}), log, holdFireS: args.holdFireS, pingEveryS: args.pingEveryS, account: args.account };
   // Stories 8.4–8.6: the bots' device tokens (the same accounts across a Save and quit and its resume).
   const tokens: string[] = args.tokens ? readTokens(args.tokens) : [];
   const tokenOf = (i: number): { deviceToken?: string } => (tokens[i] ? { deviceToken: tokens[i] as string } : {});

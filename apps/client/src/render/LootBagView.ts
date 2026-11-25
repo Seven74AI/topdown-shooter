@@ -64,6 +64,11 @@ export class LootBagView {
    * the canvas (px), `k` px per CSS px, `insets` the safe area (CSS px); `controls` the HUD keep-offs
    * and `eventArrow` the event's own edge arrow this frame (null: none) — both from `EventView`.
    */
+  /** Story 8.7 review L7: the off-screen badge's placement (screen px) when it shows, else null (pings keep off it). */
+  badgeArrowAt(): Readonly<EventArrowPlace> | null {
+    return this.badge.visible ? this.badgeAt : null;
+  }
+
   update(serverTick: number, vx: number, vy: number, vw: number, sw: number, sh: number, k: number, insets: Insets, controls: readonly ScreenRect[], eventArrow: Readonly<EventArrowPlace> | null): void {
     const look = lootBagLook(this.world, serverTick, this.look);
     const cfg = this.world.balance.loot.glint;

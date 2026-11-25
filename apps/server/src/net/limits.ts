@@ -19,6 +19,13 @@ export const MAX_OTHER_MESSAGES_PER_S = 10;
  */
 export const MAX_GHOST_MESSAGES_PER_S = 5;
 
+/**
+ * Story 8.7 (decision E8-P5): `ping.send` has its own bucket, 1 per second with a burst of 1 (D15: at most one ping a
+ * second per player), so pings never take tokens from the shared bucket (shop / build) and those never starve pings.
+ * The client keeps its own 1 s cooldown (`PING_COOLDOWN_MS`), so an honest player never reaches this drop.
+ */
+export const PING_PER_S = 1;
+
 /** At most one `client_message_rejected` warn per client and reason in this window. */
 export const DROP_LOG_INTERVAL_MS = 10_000;
 

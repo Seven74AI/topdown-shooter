@@ -193,11 +193,11 @@ development_status:
   8-4-autosave-at-every-build-phase: review  # merged 8.4+8.5+8.6 (designer 2026-11-25): story file 8-4-5-6-save-and-resume.md (2026-11-25; after 7.1/7.2 and 8.2+8.3 on master; decisions docs/epic-8-story-decisions.md)
   8-5-save-and-quit: review  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
   8-6-resume-a-saved-run: review  # merged into 8.4+8.5+8.6: see 8-4-5-6-save-and-resume.md
-  8-7-pings: ready-for-dev  # story file 8-7-pings.md (2026-11-25; parallel with 8.2+8.3; decisions docs/epic-8-story-decisions.md)
+  8-7-pings: done  # PR #8 merged 2026-11-25 (84b8bc2b) after review 4M/11L + 2 narrow re-reviews; designer B5 (quick-use stays) + B16 (arrows under the HUD); story-8-7 built 2026-11-25 (B1–B13 auto-accepted overnight, docs/epic-8-story-decisions.md); waits for a fresh-agent review
   epic-8-retrospective: optional
 
   # Epic 9: Dead City art and audio
-  epic-9: backlog
+  epic-9: in-progress  # 2026-11-25: photoreal pass (9.11–9.14), see docs/art/photoreal-decisions.md
   9-1-art-and-audio-asset-spec: backlog  # human: playtest/spec, not a dev-agent story
   9-2-downtown-in-five-decay-states: backlog
   9-3-survivor-animations: backlog
@@ -208,6 +208,10 @@ development_status:
   9-8-ambience-and-audio-buses: backlog
   9-9-adaptive-music: backlog
   9-10-weapon-and-zombie-sounds: backlog
+  9-11-photoreal-things-you-build: done  # 2026-11-25 asset session: relit traps/lights/med station + animations, standing barricades (4 rotations, variants, corners), worker bake; on master after review + 3 narrow re-reviews
+  9-12-bodies-behind-walls: done  # 2026-11-25: silhouettes (designer pick C, red zombies / slot-colour survivors), crop not mask; on master db0beb7 after review
+  9-13-photoreal-characters-in-game: ready-for-dev  # 2026-11-25 art orchestrator: story file written (runtime worker bake like 9.11, B1–B10); builder next
+  9-14-photoreal-street-props-in-game: backlog  # after 9.13 (approved docs/art/photoreal-1/compare.html)
   epic-9-retrospective: optional
 
   # Epic 10: Performance and polish
