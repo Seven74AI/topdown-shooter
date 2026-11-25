@@ -191,7 +191,94 @@ Gate (2026-11-25, full, builder): commit e43ab3f7 = story-7-6 (on story-7-3 18a3
 - tools/checks/accountDomLayout.test.ts (new), accountWiring.test.ts (new), resultsDomLayout.test.ts, progressHubWiring.test.ts, rewardsWiring.test.ts
 - docs/deploy.md, docs/epic-7-decisions.md, docs/art/epic-7/built/7-6-*.png (11 screenshots), _bmad-output/implementation-artifacts/sprint-status.yaml
 
+## Senior Developer Review (AI)
+
+Reviewer: fresh reviewer cloud session (`gds-code-review`, three layers + beat the rule), 2026-11-25. Tree: `story-7-6` 10ad0adc merged with master c26d1bcf (already up to date, no conflicts); 7.6's own changes = `git diff origin/story-7-3...origin/story-7-6`. Checks run: `npm ci`, `npm run typecheck` ✓; probed/mutated tests only (no full gate, HANDOFF §3). Probes ran against a real server on port 5766 (`node --import tsx src/index.ts`, real PostgreSQL 16 on 2766, migrated) and throw-away vitest probes (PGlite + real PG, deleted after; kept in the reviewer's scratchpad).
+
+**Verdict: changes requested — 2 medium, 7 low, 4 nits.** The core is solid: byte-identical and timing-identical login errors, Argon2id at the OWASP minimum off the tick with bounded memory, the merge is one bounded transaction that holds up under real-PG races, bank-vs-merge pays exactly once, the migration copies rows safely, and every mutation was caught. The two mediums are identity holes: a username can be locked out by two IPs (the exact harm D6 rejected), and a password reset doesn't log out the device of someone who stole the password.
+
+### Findings
+
+| ID | Sev | Where | Scenario | Minimal fix |
+| --- | --- | --- | --- | --- |
+| **M1** | Medium | `apps/server/src/auth/accountAuth.ts:137` (`precheck`), `net/limits.ts` `MAX_LOGIN_ATTEMPTS_PER_NAME_PER_MIN` (B3) | **Anyone can lock any account out of login AND recovery.** Measured on the live server: 2 IPs × 5 wrong guesses at `own_…` in one minute → the owner then types the RIGHT password from their own IP → `429 rate_limited`; recover (any case of the name) → `429` too. Two IPs (or one IPv6 /48) repeating it every minute keep the name locked indefinitely, at 10 Argon2 verifies a minute. This is precisely the harm D6 gave for rejecting a per-name lock ("anyone could lock a friend out"); B3's "one minute only, no lock-out" doesn't hold against a rolling attacker. | Keep the name budget but count it only on WRONG answers and check it after the verify: over the budget, refuse (429) every request whose `ipKey` already failed for this name in the window, but let a request from an IP with no failure for this name be evaluated (the attacker's IPs are the failing ones; the owner's is clean). Over the budget an attacker gets ~1 evaluated guess per fresh IP per minute (tighter than the 5/IP limit), and the owner is never locked out. Or go back to D6 (per-IP only) and log it as a designer call. Add a test: name over budget from IPs A, B → right password from C → 200. |
+| **M2** | Medium | `apps/server/src/db/deviceTokensRepo.ts:97-123` (`logIn` with `credentials`) | **A password reset does not revoke other devices.** Live probe: owner saves; attacker learns the password and logs in on their phone (200); owner resets with the recovery code on another phone (200, new password, new code); the attacker's cookie then still resolves to the account (`/account/session` → `saved: true`, username, a fresh ticket) and keeps cookie-bound actions (`/account/unlock` reaches the purchase logic) for the cookie's 1 year. Forgot password is the only recovery path in a no-email design (D10), so it must evict a thief. | In the `credentials` branch, `DELETE FROM device_tokens WHERE account_id = $accountId` before the new row is inserted (same transaction); say so on the recovery-code card / story ("every other phone is logged out"). Test: device A logged in → reset from B → A's token resolves to nothing (a new guest). |
+| L1 | Low | `apps/server/src/auth/ticket.ts` `verifyTicket` (pure), used at `rooms/RunRoom.ts:335`; claim in B1 + Completion notes "Token hand-over" | **Old tickets still work for 10 minutes; B1's text says they don't.** Probe: guest token + its ticket fetched before a login → after the login, `create` with the OLD token + OLD ticket seats with `accountId` = the retired guest (its banks then pay the account by B2). After a LOGOUT, the old token + cached ticket still seat as the full ACCOUNT for ≤ 10 min. Impact is small (earnings only flow into the account; spending is cookie-bound through `device_tokens`), but the story and the decision log state a guarantee the code doesn't give (R8). | Either check in `onAuth` (async, off the tick) that `device_tokens[tokenHash].account_id` still equals the ticket's account (DB down → today's behaviour), or correct B1 / the Completion notes to "an old ticket stays valid until it expires (≤ 10 min); its banks reach the account". |
+| L2 | Low | `apps/server/src/auth/accountAuth.ts:143` vs `:162`/`:190` | **AC 9's room guard is check-then-act.** The room check runs before the Argon2 verify and the merge transaction. Probe: one device fires `/account/login` and a room `create` (old token + ticket) at once: **10/10 logins succeeded while that device was seated** as the guest. Result: a seated guest merged and its token rotated under it (its seat can no longer be recovered by the phone's new token/ticket on a drop; banks still pay the account). Needs two actions at once (the client blocks the form in a room), so low. | Re-check `deviceInRoom(oldHash)` right before `devices.logIn` (after the verify), and in `RunRoom.onAuth` refuse a token hash that is in a small "login in progress" set the auth code holds for the duration of the call. |
+| L3 | Low | `packages/shared/src/net/account.ts:99-105`; story AC 2 text | **Recovery-code input doesn't do Crockford decoding.** The alphabet has `0` and `1` (the story says "no 0/O, 1/I/L" — 32 symbols can't exclude both), and `normaliseRecoveryCode` doesn't map `O→0`, `I/L→1`. A player who reads `E08N` from a screenshot and types `E O 8 N` gets "Next" disabled (`isCompleteRecoveryCode` false) or a wrong code. That code is the only way back in. | In `normaliseRecoveryCode` map `O→0` and `I`,`L→1` (Crockford decode); fix the AC 2 text (R8). |
+| L4 | Low | `apps/server/src/db/deviceTokensRepo.ts:97-111` | **Deadlock on one device: a reset and a login at the same moment.** The `credentials` UPDATE locks the account row before the device row; a plain login locks the device row first and then the account. Real PG: 3 of 5 rounds `deadlock detected`, one side `503` after 1 s (the other side succeeded, nothing lost). Self-inflicted double-submit, so low. | Lock the device row first (move the `credentials` UPDATE after the device `SELECT … FOR UPDATE`). |
+| L5 | Low (pre-existing pattern, now reaching 7.6 data) | `apps/server/src/db/boundedTx.ts:94`, `db/timeout.ts:38` | `db_error` logs `e.message.slice(0, 200)`, and Drizzle's message is `Failed query: … params: …`. Captured on real PG (the L4 deadlock): `"err":"Failed query: select \"account_id\" from \"device_tokens\" where … = $1 for update\nparams: a776de0f…"`, i.e. a device token hash; a failing reset UPDATE would log the head of the new Argon2 hash. `docs/deploy.md` and the story say logs carry "never a … hash"; `timeout.ts` itself says "never the arguments: they may hold token hashes". | Cut the logged message at `"\nparams:"` (both helpers); add one assertion to the logs test. |
+| L6 | Low (designer) | `apps/server/src/auth/accountAuth.ts:105-107` | **Save my progress enumerates usernames** (`409 name_taken` for an existing name, any case; measured), at 30 names/min/IP with no Argon2 cost. The accepted reason ("names are shown in lobbies anyway") is not true: brief 28 and the Completion notes say a username is never shown to other players (the lobby shows the display name). Brief 19: "error texts never say whether a username exists". | Re-confirm with the designer with the correct reason; if kept, lower the name-check budget (e.g. 10/min/IP) and note that a known name makes M1 / brute force targetable. |
+| L7 | Low (designer) | `apps/client/src/ui/AccountScreen.tsx` login form; D11 | **Logging in on someone else's phone silently absorbs that phone's guest progress, irreversibly.** Showing my account on a friend's phone (or an attacker with the victim's unlocked phone logging into their own account) moves the friend's Supplies/unlocks into my account; after Log out the friend has a new empty guest. D11 makes the device's guest merge, so this is by design, but the player gets no warning. | When the device is a guest with progress, show one line before Log in: "This phone's 340 Supplies and 2 unlocks will move into this account." (copy for the designer). |
+| N1 | Nit | `packages/shared` `passwordSchema` | `12345678` is accepted (measured). With 10 guesses/min/name (~14 k/day) the most common passwords fall in minutes. | A small top-N common-password list check on Save / reset. |
+| N2 | Nit | `deviceTokensRepo.ts:123`; B16 | A double-submitted login leaves orphan `device_tokens` rows (real PG: 3 rows after 2 logins from one phone, one never held by anyone) and `last_seen_at` is never refreshed, so no later cleanup can tell live rows from dead ones. | Accept; or touch `last_seen_at` on session calls at most once a day. |
+| N3 | Nit | `apps/server/src/auth/passwords.ts:29` | The dummy hash is built on the first missing-name login after boot (that one answer costs a hash + a verify). | Build it at startup. |
+| N4 | Nit | `apps/client/src/ui/AccountScreen.tsx:187` | `autocomplete="one-time-code"` on the recovery code makes iOS offer the last SMS code. | `autocomplete="off"`. |
+
+Also R8: `docs/deploy.md:204` still says "each Epic 7 migration only adds"; 7.6's migration drops `accounts.guest_token_hash` (`drizzle/0002_accounts_devices.sql:20`), so `deploy/rollback.sh` to a 7.1–7.3 sha after this migration ran would break every session lookup and 7.1's guest insert (all players unsaved). Only matters if a pre-7.6 Epic 7 sha is ever deployed; fix the sentence (and/or keep the column nullable one release, drop later). Counted under L-level ops text, not a separate finding.
+
+### Beat the rule (every attempt)
+
+| # | Attempt | Result |
+| --- | --- | --- |
+| 1 | Username enumeration by login error bytes / status: existing, missing, malformed name | Held: all `401 {"message":"wrong_login"}`, byte-identical |
+| 2 | Enumeration by timing (36 pairs, fresh IPs, real server) | Held: median 12.63 vs 12.64 ms and 10.05 vs 10.06 ms (exist vs missing); the dummy verify works |
+| 3 | Enumeration by the per-name limiter (counts missing names?) | Held: missing names are counted the same (429 after 10) |
+| 4 | Enumeration through Save's "That name is taken" | **Leaks** (accepted by the story, on a wrong reason) → L6 |
+| 5 | Brute force: 6 names from one IP | Held: 5×401 then 429; recover from the same IP → 429 (shared) |
+| 6 | IPv6 rotation inside one /64 | Held: 5×401 then 429 |
+| 7 | IPv6 across six /64s | Bypasses the per-IP limit (by design); the per-name 10/min still caps one target |
+| 8 | `X-Forwarded-For` rotation with a fixed `X-Real-IP` | Held: 429 on the 6th; Caddy overwrites `X-Real-IP` from `Cf-Connecting-Ip` and Node is not published |
+| 9 | Lock the owner out with 2 IPs × 5 wrong guesses | **Owner's right password → 429; recover → 429** → M1 |
+| 10 | Recovery-code brute force | Held: 60 bits under 5/min/IP + 10/min/name (≈ 10^14 years); code stored as Argon2id |
+| 11 | Recovery code typed with letter O for zero | Fails (no Crockford decode) → L3 |
+| 12 | Account takeover via reset, then the thief's device | **Thief stays logged in after the owner's reset** → M2 |
+| 13 | Two resets with one code at once (builder's real-PG test) | Held: one wins, other 401 (re-ran: 6/6 real-PG tests pass) |
+| 14 | Login while seated in a lobby | Held when sequential (409 in_room, test) |
+| 15 | Login racing a room join on one device | **10/10 logins succeed while seated** → L2 |
+| 16 | Double-submit login from one device (real PG ×10) | Held: merged exactly once, Supplies 107 every time; orphan device row → N2 |
+| 17 | Double-submit upgrade | Held: conditional UPDATE, second → 409 already_account |
+| 18 | Reset + login at once from one device (real PG ×5) | Deadlock 3/5, one side 503, nothing lost → L4 |
+| 19 | Bank of a guest racing its merge, 250 Supplies (real PG ×10) + retry of the same run | Held: paid once (account 100 → 350), retry `banked:false`, guest row gone, nudge once; builder's ×20 test also passes |
+| 20 | Late bank of a merged guest (B2) | Held: pays `merged_into` once (deviceTokens test + mutation M4) |
+| 21 | Merge rules: Supplies added, unlock union + D1 refund, Training max + D2 refund, districts union, refunds to Supplies only (B7) | Held (mergeRules tests + mutation M1); lifetime never gets refunds (code read) |
+| 22 | Old guest token + old ticket after login | **Still seats (as the retired guest) for ≤ 10 min**, B1 says not → L1 |
+| 23 | Old token + cached ticket after logout | **Still seats as the account for ≤ 10 min** → L1 (can't spend) |
+| 24 | A copied guest token after login (`/account/session`) | Held: an unknown token becomes a new empty guest |
+| 25 | Logout on a guest | Held: 409 not_logged_in (B6, test) |
+| 26 | Hand-made `accountId` / extra fields in bodies | Held: strict schemas → 400 invalid_body |
+| 27 | Secrets in logs (462 live log lines grepped for the passwords, codes, cookie, `token`, `argon2`) | Held in the auth lines; `db_error` lines carry query params → L5 |
+| 28 | Login flood: 200 concurrent logins from 200 IPs with 256-char passwords | Held: all 401, 702 ms total (~285 verifies/s, 4 libuv threads), p99 663 ms, `/health` during the flood 35 ms, peak RSS 131 → 213 MiB (+82 MiB ≈ 4 × 19 MiB: memory is bounded by the pool, not by the request count; server `mem_limit` 768m) |
+| 29 | Database killed mid-probe (it happened: PG went down) | Held: every account call answered `503 save_unavailable`, sessions `saved:false`, server kept running and recovered when PG came back (P3) |
+| 30 | Migration on real PostgreSQL 16 with rows: 0000+0001, 5000 guests + progress, then 0002 | Held: 5000 device rows, all joined to their account, Supplies sum unchanged, `guest_token_hash` gone; the `INSERT … SELECT` can't collide (column was `NOT NULL UNIQUE`) |
+| 31 | An attacker logging into their account on the victim's phone | Works: victim's guest progress moves into the attacker's account (D11: the phone's holder decides). Needs the unlocked phone (7.1 D5 house key) → L7 asks for a warning line |
+| 32 | AC1 forms at 568×320 + keyboard strip, autocomplete attributes, nudge position | Held: `accountDomLayout` 42/42 (R9 four sizes, insets 44/21, ≥ 44 px, ≥ 11 px, strip 568×130 / 800×150); `username` / `current-password` / `new-password` in a `<form>`; Results nudge is the last row (`7-6-results-nudge.png`, test). Real phones' password managers not verified (as the builder said) |
+
+### Mutations (each new test file mutated once, restored with `git checkout`)
+
+| Mutation | Test | Result |
+| --- | --- | --- |
+| M1 D2 Training refund not added to the total (`merge.ts`) | `db/mergeRules.test.ts` | 3 failed ✓ |
+| M2 `merged_into` not set (`deviceTokensRepo.ts`) | `db/deviceTokens.test.ts` | 3 failed ✓ |
+| M3 per-name limiter switched off (`accountAuth.ts`) | `auth/accountAuth.test.ts` | 1 failed ✓ |
+| M4 bank's `FOR NO KEY UPDATE` on the seat's account removed (`progressRepo.ts`) | `db/realPostgresAccounts.test.ts` (real PG 16) | 2 failed ✓ |
+| M5 `forgetTicket()` dropped from `adopt` (`net/account.ts`) | `net/accountActions.test.ts` | 1 failed ✓ |
+| M6 Results no longer counts as "in a room" (`accountModel.ts`) | `ui/accountModel.test.ts` | 1 failed ✓ |
+| M7 nudge prop unwired in `ResultsScreen.tsx` | `tools/checks/accountWiring.test.ts` + `rewardsWiring` | 1 failed ✓ |
+| M8 `.ac-link` min-height 44 → 30 px | `tools/checks/accountDomLayout.test.ts` | 24 failed ✓ |
+
+The builder's own three mutations (max instead of +, no dummy verify, limiter counting only failures) are listed in the Debug Log; not repeated.
+
+### Brief / R-lines checked
+
+R1 ✓ (every `[x]` task names tests; 14 named tests opened and found). R6 ✓ (Gate line: e43ab3f7 on story-7-3 18a328ad + master c26d1bcf, 467 files / 4277 tests, load 1.49→3.07). R8 ✗ (B1 ticket claim → L1; "no 0/O, 1/I/L" → L3; deploy.md "only adds"). Brief 15 ✓ (no client report changes progress; nudge flag is server-set, B13). 18 ✓ (merge and bank in `boundedTransaction`, real-PG races pass). 19 partly: argon2id ✓, hashed codes ✓, per-IP + per-account limits ✓ but M1, errors don't reveal a name on login/recover ✓ but Save does (L6), no secret in auth logs ✓ but `db_error` params (L5). 20 ✓ (DB down → 503 / unsaved, observed live). 21 ✓ (repositories only; migration forward on rows, PGlite test + real PG probe). 24 ✓ (AC1 header button + scrolling form, LF5 colours; screenshots match the `ac1.png` account line). 28 ✓ (no email, no IP in the DB, username not shown to others). R9 ✓ (`accountDomLayout`, four sizes + keyboard strip).
+
+### Not verified by the reviewer
+
+Real phones (password-manager save/fill, the real landscape keyboard, iOS clipboard); PostgreSQL 18 `transaction_timeout`; Argon2 timing on the VPS; the Alpine image's musl binary for `@node-rs/argon2`.
+
 ## Change Log
 
 - 2026-11-24: story file created (ready-for-dev).
 - 2026-11-25: built (builder session, branch story-7-6); status review.
+- 2026-11-25: fresh review (AI): changes requested — M1 per-name lock-out, M2 reset keeps other devices logged in, L1–L7, N1–N4.
