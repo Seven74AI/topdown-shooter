@@ -13,6 +13,7 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 | session_01CgLgPXkMujTFt9FkusaTPz | Builder 7.9 (early part T1, T4, T5) | story-7-9 |
 | session_01CgLgPT2yAMRMLRecGBwVue | Builder 8.1 | story-8-1 |
 | session_01CgLgPVUe4VgW93WEkr9VNn | Review 8.8 | review-8-8 |
+| session_01CgLgPTGmNZH64LunFYNBGt | Review 8.9 | review-8-9 |
 
 ## Auto-accepted decisions (main session)
 - OR-1: Network round 1 (8.8 ∥ 8.9) starts in parallel with the Epic 6 retro instead of after it; the retro's Network-pass actions reach the builders as a brief addendum by message (alternative: wait ~1 h for the retro). Reason: the retro is docs-only and its actions are process rules a builder can apply mid-build.
@@ -22,6 +23,8 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - OR-4: 7.1 and 7.9 start early on their tasks that don't touch 8.1's join rewrite (7.1: DB, repos, progression.json, account API, deploy; 7.9: look code, gun under the body, per-player textures). Their join/room tasks wait for 8.1 (alternative: wait for the Network pass to finish). Reason: HANDOFF §3 session 9 speed-up 1 (start by real file overlap).
 - OR-5: number ranges assigned: netEvents Network pass 100–109, 7.1–7.7 110–119, 7.9 120–124, 7.11 125–129, 7.12 130–139; readability items NP 100–104, 7.9 105–109, 7.12 110–114, 7.2–7.7 115–129.
 - OR-6: 8.1 starts before round 1 (8.8/8.9) lands, because it is on Epic 7's critical path (7.1 T6 waits for its join rewrite); it merges 8.8/8.9 when they land (alternative: round order 8.8 ∥ 8.9 → 8.1). Seat identity built around one identity-key function for 7.1.
+- OR-7 (= 8.9 B7): AC 6 starved ticks not met (+41–58 %); accepted as built — 0.9× pacing empties the backlog so 0 inputs are skipped and 0 % predicted shots never fire, at the cost of one-tick move delays at the next stall; bounded ≤ 1.6× pacing-off by smooth.test.ts. Alternative: designer revisits 8.9 D5 (server-only skip of every 2nd input after 2 s). Retro default A7.
+- OR-8: 8.9 merges 8.8's gated branch (not master) for T10/T11 while 8.8 is in review; 8.9's reviewer starts in parallel on 8.9 + 8.8 + master.
 
 ## Timeline
 - 03:50 dispatched retro, 8.8, 8.9, Lumen redraw.
@@ -36,3 +39,4 @@ Main session: claude/epic-cerf-5bbxbc. Designer asleep; every open choice takes 
 - 04:17 7.1 early part pushed (6aa9b81): deps, schema+migration, repos, progression.json, account API, deploy/backups; 132 touched tests, 8/8 mutations caught. Auto-accepted B1–B7 (docs/epic-7-decisions.md › Story 7.1 build-time choices). Not verified: no Docker here; VPS steps are Hermes's. Holding T6/T7 for 8.1.
 - 04:18 dispatched 8.1 (early, OR-6).
 - 04:26 8.8 hand-back (c1c5ef1, gate on ddce305: 398 files / 3679 tests, load 3.98). Reversed hits kiting Runners: clean 0.2→0.2 %, 1 % 7.6→2.0 %, 2 % 11.9→1.3 %, 1 %×400 ms 12.7→7.2 %; shots over cap 50/73/64 % → 0/0/4.7 %; rewind p99 0.054→0.060 ms. Two-tab smoke report docs/perf/network-pass-smoke-2026-11-25.md (vote not reached: team wiped at the Behemoth; no online boss-HP switch). Finding for 8.9: 1 %×400 ms Walker rows ~1 pp worse with 500 ms window. Dispatched review.
+- 04:35 8.9 hand-back (b8109fb, gate 400 files / 3681 tests, load 4.52). Freezes per 30 s on the 1 % line 6–6.9 → 0.9–1; 2 % 11 → 0.3–0.9; clean line delay 118→100 ms; never-fired shots 1.5 % → 0 %; server skips 50–82 → 0–2. Pending T10 (500 ms window: kiting Runners rose 7.6→18 % with the longer delay on the old 300 ms window). Dispatched review 8.9.
