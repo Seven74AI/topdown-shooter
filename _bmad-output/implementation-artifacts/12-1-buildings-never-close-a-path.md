@@ -29,10 +29,10 @@ so that my team can't build a sealed fort, and there's always a way through for 
 4. **Chained and pending placements.** The server checks each placement in arrival order against the buildings already placed (5.18's place-place-place chain under lag). A pending placement that becomes illegal because an earlier one landed is refused like any other block.
 5. **Only walls count.** Floor types (`solid: false`: spike trap, mine, bear trap) never block a path and are never refused by this rule.
 6. **Map changes over the run: buildings too close to new cover go** (designer 2026-11-25). The placement check only uses the map as it is now. When a decay stage adds solid cover (Story 4.2 `minStage`; also any solid wreck or rubble a 4.8 breakdown or fire leaves), **every building whose box is closer than one player body (`2 × player.radiusM` = 0.8 m) to the new cover is destroyed**, whether or not it would actually seal a path. No path search is needed: a building can never end up squeezing a gap below player width against new cover.
-   - **Refund:** the same as a building destroyed by decay today: `floor(paid × decay.buildingRefundShare)` to the owner, `building.destroyed` and `money.earned` (reason `refund`).
+   - **No refund** (Story 12.4): the building is simply lost; `building.destroyed` is emitted as for any decay loss.
    - **Where:** inside `destroyBlockedBuildings` (`decay/decaySystem.ts`). Today it destroys buildings that *overlap* new solids; this widens "overlap" to "within 0.8 m". Same build-phase start, same order (building id), so every phone and every replay agrees.
    - **Floor types** (traps, mines) are not affected: they never block.
-   - **Visible:** a toast for the owner, **"Your barricade was cleared by the collapse"**, with the refunded amount.
+   - **Visible:** a toast for the owner, **"Your barricade was cleared by the collapse"**, with no amount (Story 12.4: decay losses aren't refunded).
 7. **A clear refusal.** New `PlaceError` / `MoveError` value `"seals_path"` and a new `BlockCause` `"seals_path"` (`buildings.ts`). The build ghost turns red with the existing block-reason UI (`apps/client/src/scenes/placement.ts`, `render/BlockReasonView.ts`) and the line **"Leave a way through"**. The pocket it would close is highlighted for a moment (CN-2, accepted: a soft red fill over the cells that would be cut off).
 8. **Same answer on both sides.** The client's ghost preview and the server use the same shared check. Fuzz test: random building layouts on Downtown, the client preview's answer equals the server's for every candidate spot (in the style of `blockReason.test.ts`).
 9. **Fast enough.** The check is a flood fill on the 0.5 m nav grid (96 × 64 = 6,144 cells on Downtown; Epic 11's 70 × 70 m maps are bigger). It allocates nothing per call (preallocated buffers). On the server it runs once per placement. On the client it's cached per (ghost cell, rotation, `buildings.version`), so dragging the ghost doesn't redo it every frame. Target: < 1 ms per check on Downtown on a reference phone.
@@ -44,7 +44,7 @@ so that my team can't build a sealed fort, and there's always a way through for 
     - A wall against the map edge and against a map solid that would seal a corner → refused.
     - Floor traps never refused.
     - Move and chain cases (AC 3, 4).
-    - A decay stage adds cover 0.5 m from a barricade → the barricade is destroyed and refunded; one 1.0 m away stays; a mine 0.2 m away stays (AC 6).
+    - A decay stage adds cover 0.5 m from a barricade → the barricade is destroyed (no refund); one 1.0 m away stays; a mine 0.2 m away stays (AC 6).
 
 ## Tasks
 
@@ -60,5 +60,5 @@ so that my team can't build a sealed fort, and there's always a way through for 
 
 - The zombie flow field (`zombies/flowField.ts`) already rasterizes buildings and map solids onto the 0.5 m grid with a clearance rule for bodies (review H1: free vertices). Reuse its rasterization, but at player clearance and with buildings as hard walls. Don't reuse its costs: the flow field treats buildings as expensive, not closed.
 - Consequence: since there's always a player-sized gap, zombies of the same size can use it too. Brutes and wide bodies may not fit. The designer said zombies don't matter here.
-- CN-1 settled: AC 6 (destroy buildings within one player body of new cover, refund). CN-2 accepted by the designer: highlight the pocket a refused placement would close.
-- AC 6 builds on FR58: decay already destroys and refunds buildings that end up under new cover.
+- CN-1 settled: AC 6 (destroy buildings within one player body of new cover; no refund, Story 12.4). CN-2 accepted by the designer: highlight the pocket a refused placement would close.
+- AC 6 builds on FR58: decay already destroys buildings that end up under new cover.
